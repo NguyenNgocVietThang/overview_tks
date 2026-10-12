@@ -17,7 +17,7 @@ test('HTTP200 errors, missing sender and repeated cursors fail safely without to
 });
 test('temporary retries are bounded, rate spaced and unauthorized pages never retry',async()=>{
  const wire=transport((u,n)=>n<=2?{status:503}:{success:true,conversations:[]});const client=api().createPancakeClient({...wire,tokens:{[PAGE]:'secret'}});assert.deepEqual(await client.fetchPage(PAGE,{since:1,until:2}),[]);assert.equal(wire.calls.length,4);assert.ok(wire.calls.every((c,i)=>!i||c.time-wire.calls[i-1].time>=260));
- const down=transport(()=>({status:429}));await assert.rejects(api().createPancakeClient({...down,tokens:{[PAGE]:'secret'}}).fetchPage(PAGE,{since:1,until:2}),{code:'PANCAKE_UNAVAILABLE'});assert.equal(down.calls.length,3);
+ const down=transport(()=>({status:429}));await assert.rejects(api().createPancakeClient({...down,tokens:{[PAGE]:'secret'}}).fetchPage(PAGE,{since:1,until:2}),{code:'PANCAKE_UNAVAILABLE'});assert.equal(down.calls.length,6);
  const bad=transport(()=>({status:401}));await assert.rejects(api().createPancakeClient({...bad,tokens:{[PAGE]:'secret'}}).fetchPage(PAGE,{since:1,until:2}),{code:'PANCAKE_UNAUTHORIZED'});assert.equal(bad.calls.length,1);
 });
 test('duplicate messages, page caps and invalid timestamps reject instead of truncating',async()=>{

@@ -43,4 +43,3 @@ function createRevenueProvider({ repository, now = Date.now } = {}) {
 }
 
 module.exports = { createRevenueProvider, resolveMonthKey };
-

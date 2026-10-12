@@ -61,4 +61,3 @@ function createMarketingReportRouter({service=createMarketingReportService()}={}
   return router;
 }
 module.exports={createMarketingReportRouter};
-

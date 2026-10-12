@@ -415,10 +415,18 @@ Migration `0044_pancake_marketing.sql` bổ sung nguồn PostgreSQL cho Marketin
 - Sequence chung `marketing_source_order` giữ thứ tự THÔ và observation. Nhập THÔ theo page/tab/số dòng, API theo thứ tự mảng đã sắp của caller; không sắp lại theo timestamp khi đọc. Sequence có thể hổng sau rollback nhưng thứ tự các dòng đã commit giữ nguyên. Cùng phone khác page độc lập.
 - `phone` lưu đúng chuỗi cell/nguồn, không tự chuẩn hóa hoặc tách cell nhiều số. `phone_key` là khóa gom nhóm do caller cung cấp (mặc định bằng phone); giữ cả hai để chính sách chuẩn hóa không phá provenance.
 - Lịch sử có ngày/timestamp thiếu được lưu NULL, chuỗi gốc nằm ở `source_created_text`/`raw`; không gán ngày chuyển đổi. BC tháng lịch sử thiếu page (đặc biệt tháng 6) có `page_id` NULL và nguyên văn `page`/`source_raw`, không đoán page. Khi có page ID, FK vẫn chặn ngoài sáu page.
-- Baseline API có thể nhận `historicalRowId` do caller đối chiếu không mơ hồ. Repository kiểm tra page + phone key + timestamp + raw employee trùng, seed fact bằng ngày lịch sử và **không thêm observation**. Những thay đổi nguồn sau đó thêm phiên bản vào ngày sync thành công, không sửa/xóa dòng lịch sử.
+- Baseline API có thể nhận `historicalRowId` do caller đối chiếu không mơ hồ. Repository kiểm tra page + phone key + timestamp; seed fact bằng ngày lịch sử. Cùng nhân viên không thêm observation; thay đổi nhân viên đã xác minh thêm observation vào ngày đồng bộ thành công, không đổi ngày fact lịch sử. Những thay đổi nguồn sau đó thêm phiên bản vào ngày sync thành công, không sửa/xóa dòng lịch sử.
 - Ghi page khóa run/page, commit nguyên page; lỗi SQL rollback toàn bộ nguồn page rồi ghi trạng thái lỗi riêng, giữ lần thành công cũ. Các page khác không bị rollback. Job phải bảo đảm một đợt hoạt động tại một thời điểm; số thứ tự các lần chạy do job quản lý.
 - Import workbook, raw, alias và BC tháng trong một giao dịch; batch/source identity cùng nội dung bỏ qua, nội dung khác xung đột 409 và rollback. Sửa BC tháng yêu cầu version, khóa dòng và ghi audit nguyên tử; không lưu doanh số làm sự thật (doanh số tính từ KiotViet). Số tiền gốc có thể nằm trong JSON provenance, không được dùng làm doanh số.
 - Snapshot dùng REPEATABLE READ READ ONLY để raw/alias/fact/BC tháng/trạng thái nhất quán. Trigger chặn UPDATE/DELETE lịch sử, observation, batch và audit. Thu hồi SELECT của `reporting_readonly` trên toàn bộ bảng Marketing do chứa SĐT/dữ liệu cá nhân.
 ## Băm raw phiếu nhập — migration 0044
 
 Migration `0044_purchases_raw_hash.sql` thêm `purchases.raw_hash TEXT` (nullable). Đối soát phiếu nhập so băm thay vì tải lại cột `raw` (giảm egress Supabase). `NULL` = chưa có hash; lượt quét đầu sau migration ghi lại toàn bộ phiếu một lần rồi ổn định.
+
+## Marketing canonical input — migration 0045
+
+`0045_pancake_current_input.sql` thêm JSONB nullable `marketing_pancake_facts.current_input` với CHECK object, giữ canonical API state khi adoption không tạo observation. Không chứa dữ liệu đếm riêng; lịch sử/observation vẫn bất biến. Snapshot báo cáo `includeRaw:false` bỏ field này và JSON nguồn. Khóa advisory riêng giữ một job xuyên instance; thời điểm ghi nhận được lấy cuối transaction, qua nửa đêm rollback/thử lại để không cập nhật observation bất biến.
+
+## Marketing định danh lịch sử — migration 0046
+
+`0046_pancake_history_identity.sql` thêm `marketing_history_identities` (dòng lịch sử → ID tin nhắn Pancake; nhiều dòng có thể cùng một ID, một dòng có thể thuộc nhóm tương đương nhiều ID; `resolution` = unique / verified-notation / equivalent, kèm `group_key` và `evidence` JSONB không chứa SĐT) và `marketing_baseline_messages` (tin trong kỳ nền Sheets nhưng Sheets chưa từng tính, ghi sổ riêng để đồng bộ không coi là mới). Cả hai bất biến (trigger) và thu hồi SELECT của `reporting_readonly`. Bỏ UNIQUE của `marketing_pancake_facts.historical_row_id` vì cặp tin tương đương dùng chung một dòng neo. Lịch sử không bị sửa hay gộp.

@@ -1,55 +1,36 @@
 # Checklist triển khai Pancake Marketing
 
-Cập nhật 09/10/2026. Kế hoạch: [plan.md](plan.md).
+Cập nhật 12/10/2026. Kế hoạch: [plan.md](plan.md).
 
-## T1 — Xác minh kết nối và tính tương đương nguồn
+Mã T3–T6 đã triển khai và qua kiểm thử; nguồn chính thức vẫn là Sheets. Ngày 12/10/2026 đã khôi phục ID tin nhắn từ sáu bản xuất đầy đủ (migration 0046): 18.304 dòng lịch sử thật đều có liên kết (18.294 duy nhất, 7 chỉ khác cách viết số +84/0 thừa đã kiểm cùng giây-cùng nhân viên, 3 dòng thuộc cặp tin tương đương = 6 liên kết); chỉ còn dòng tiêu đề lặp BL THÔ!1950 (không phải quan sát). 3.148 tin trong kỳ nằm ngoài nền Sheets được ghi sổ riêng, không tính. Đồng bộ thật đủ sáu page đạt (slot 12/10): 11.797 fact, 2.478 quan sát cùng ngày ghi nhận 12/10 (thay đổi nhân viên tích lũy từ lúc dán Sheets và 861 tin mới), 0 mục chưa giải quyết, 0 dòng lịch sử chưa liên kết; nền lịch sử khớp CHUẨN (11.942 nhóm SĐT); tổng khớp chi tiết 100/100 (T10) và 80/80 (T9). Công tắc job vẫn TẮT và nguồn vẫn Sheets: chưa có ba đợt hằng đêm đối soát, chưa cấu hình token trên Render. Lưu ý nghiệm thu: lần đồng bộ đầu dồn các thay đổi nhân viên cũ vào ngày 12/10 nên "chào lại" tháng 10 tăng mạnh (179 → 1.660); cần Quản lý xác nhận cách tính trước khi chuyển nguồn.
 
-Trạng thái: T1–T2 đạt; migration 0044 đã áp trên PostgreSQL, đang triển khai nhập lịch sử T3.
+## T1–T3 — Kết nối, lưu DB và nhập lịch sử
 
-- [x] Đọc ba workbook Marketing, cấu trúc THÔ/CHUẨN/CHECK/BC tháng/ADS và bảng Tên.
-- [x] Đối chiếu sáu page và ID trực tiếp từ Pancake Dashboard.
-- [x] Chốt bộ lọc sao lưu và toàn bộ quy tắc nghiệp vụ với người dùng.
-- [x] Kiểm tra cấu hình local: chưa có biến môi trường Pancake.
-- [x] Kiểm tra Hữu Nghị: chưa có Public API token; không tạo/đổi token trong giai đoạn lập kế hoạch.
-- [x] Người dùng cho phép tạo token cả sáu page; đã lưu đủ sáu token trong server/.env (không theo dõi Git).
-- [x] Kiểm tra đọc API có xác thực cho sáu page; Dương Nội cần lọc riêng INBOX/COMMENT.
-- [x] Đọc API có xác thực và xác minh endpoint, trường dữ liệu, thứ tự, phân trang, bộ lọc.
-- [x] Đối chiếu một file sao lưu đã có; ghi bằng chứng đã che dữ liệu nhạy cảm.
-- [x] Cổng nghiệm thu T1 đạt trước khi triển khai T2–T7.
+- [x] Đủ sáu token, chỉ Facebook; T1 từng đối soát 462/462 dòng backup.
+- [x] Migration 0044 và 0045 đã áp; 10 bảng Marketing, sáu page.
+- [x] Nhập hai batch: 18.305 dòng THÔ, 459 BC tháng, 37 ánh xạ. CHUẨN 11.942 nhóm; giữ nguyên raw và ngày cũ. CHECK cũ có chênh lệch lưu tại reconciliation.json.
 
-Xác minh: kiểm tra dữ liệu thật, không sử dụng fixture giả để thay kết quả đối soát. Không gửi tin nhắn, thay thẻ, đánh dấu đã đọc hoặc bật webhook. Nếu thiếu dữ liệu, dừng để sửa phương án kết nối theo yêu cầu kế hoạch.
+## T4 — Đồng bộ nền
 
-## T2 — Lưu dữ liệu PostgreSQL (phụ thuộc T1)
+- [x] Client GET có bộ lọc/ phân trang/ giới hạn, scheduler 23:55, khóa job, retry và lỗi từng page.
+- [x] Kiểm thử ngày bất biến, A→B→A, qua nửa đêm và API sáu chữ số thập phân 0.
+- [ ] Khôi phục ID từ bản xuất đầy đủ và đối soát các khóa lịch sử mơ hồ.
+- [ ] Đồng bộ thật đủ sáu page thành công. Hai lượt 12/10 chưa đạt; facts/observations vẫn 0.
+- [ ] Bật job trên Render và xác minh hoạt động thực tế.
 
-- [x] Lưu sáu page, bản ghi nguồn, đợt đồng bộ, ngày ghi nhận, ánh xạ nhân viên, BC tháng và lịch sử sửa.
-- [x] Kiểm thử nguồn gốc, thứ tự, ràng buộc chống trùng và phiên bản sửa (13 SQL tests; 41 Marketing tests, review độc lập đạt).
+## T5–T6 — Báo cáo DB và nhập BC tháng
 
-## T3 — Nhập lịch sử Sheets (phụ thuộc T2)
+- [x] Có báo cáo năm/tháng, SĐT/KPI tính từ DB, chi tiết nguồn, Excel/HTML và ADS Sheets.
+- [x] Quản lý tạo/sửa chọn khách KiotViet, version/audit và ánh xạ nhân viên; API chặn mọi vai trò khác.
+- [x] Giữ nguồn doanh số KiotViet; lịch sử thiếu page giữ trống.
+- [x] Kiểm thử frontend và browser fixture 375px; tháng báo cáo tách ngày chốt.
+- [ ] Bật chế độ DB cho người dùng sau nghiệm thu T7.
 
-- [ ] Nhập sáu THÔ, Tên và BC tháng; giữ ngày ghi nhận, tháng báo cáo và thứ tự.
-- [ ] Đối chiếu CHUẨN/CHECK; không ghi nhận lịch sử là số mới ngày chuyển đổi.
+## T7 — Nghiệm thu và tích hợp
 
-## T4 — Đồng bộ 23:55 Việt Nam (phụ thuộc T1–T3)
+- [ ] Ít nhất ba đợt hằng ngày đối soát sáu page, không thay bằng ba lần cùng ngày.
+- [x] Công tắc quay Sheets, token không vào Git và dữ liệu thử nghiệm không ghi DB thật.
+- [x] Kiểm thử bản kết hợp main Claude: 2.276 test, 2.273 đạt, 3 skip cấu hình, 0 lỗi.
+- [ ] Hoàn tất rà soát toàn nhánh, fast-forward main và push GitHub.
 
-- [ ] Job nền, chỉ sáu page Facebook; chống chạy trùng và nạp lại cùng bản ghi.
-- [ ] Lỗi từng page giữ dữ liệu cũ; có thời điểm thành công và lỗi an toàn.
-- [ ] Kiểm thử retry, nửa đêm/cuối tháng và ngày ghi nhận bất biến khi chạy lại.
-
-## T5 — SĐT và KPI từ PostgreSQL (phụ thuộc T3–T4)
-
-- [ ] Giữ công thức, bộ lọc/chi tiết/xuất file, tính lại tháng cũ.
-- [ ] Kiểm thử cùng SĐT khác page, nhiều tên một người, người trống/chưa ánh xạ và tỷ lệ mẫu số 0.
-
-## T6 — BC tháng nhập web (phụ thuộc T2–T3)
-
-- [ ] Quản lý tạo/sửa, chọn khách KiotViet; tháng báo cáo riêng ngày chốt.
-- [ ] Nhật ký chỉnh sửa, kiểm tra phiên bản; API chặn Marketing ghi.
-- [ ] Kiểm thử doanh số, quyền, xung đột và nhập lịch sử.
-
-## T7 — Nghiệm thu và chuyển nguồn (phụ thuộc T4–T6)
-
-- [ ] Ít nhất ba đợt hằng ngày đối soát sáu page.
-- [ ] Công tắc quay nguồn cũ; ADS vẫn đọc Sheets gồm Quảng Châu.
-- [ ] Kiểm tra Excel/HTML, điện thoại, bộ kiểm thử dự án và cập nhật tài liệu thực sự bị ảnh hưởng.
-
-Migration 0044 áp sau T1 và review T2. Job, nhập lịch sử và chuyển nguồn đang triển khai; nguồn chính thức giữ Sheets trong nghiệm thu.
+Nguồn chính thức Sheets, job mặc định tắt cho đến khi đối soát ID đạt.

@@ -17,7 +17,11 @@
     "kiotviet-sync:preflight": "node kiotvietSync/preflightCheck.js",
     "kiotviet-sync:backfill": "node kiotvietSync/backfill.js",
     "kiotviet-sync:reconcile": "node kiotvietSync/reconcileCounts.js",
-    "migrate:user-branches": "node scripts/migrateUserBranches.js"
+    "migrate:user-branches": "node scripts/migrateUserBranches.js",
+    "marketing:history:capture": "node scripts/capture-marketing-history.js",
+    "marketing:history:import": "node scripts/import-marketing-history.js",
+    "marketing:pancake:sync": "node scripts/sync-pancake-marketing.js",
+    "marketing:identity:import": "node scripts/import-pancake-identities.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

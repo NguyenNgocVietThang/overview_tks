@@ -248,5 +248,3 @@ function createMarketingReportService({clients, now=Date.now, revenue, writer, r
   return legacy;
 }
 module.exports={createMarketingReportService};
-
-

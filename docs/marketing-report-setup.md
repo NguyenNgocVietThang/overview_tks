@@ -1,12 +1,14 @@
 # Báo cáo Marketing — cấu hình và nghiệm thu
 
-## Kế hoạch chuyển nguồn Pancake — 09/10/2026
+## Chuyển nguồn Pancake — 12/10/2026
 
-Kế hoạch và checklist đã được lưu tại [tasks/2026-10-09-pancake-marketing/plan.md](../tasks/2026-10-09-pancake-marketing/plan.md) và [todo.md](../tasks/2026-10-09-pancake-marketing/todo.md). Mục tiêu: lấy SĐT sáu Fanpage Facebook mỗi ngày 23:55 giờ Việt Nam, tính KPI và nhập BC tháng trên web; ADS vẫn đọc Sheets. Hiện đang ở bước xác minh Public API, chưa có token trong cấu hình local và chưa có token trên page Hữu Nghị. Chưa triển khai migration, importer, scheduler hoặc chuyển nguồn; phần cấu hình hiện hành bên dưới vẫn có hiệu lực. Bằng chứng và điều kiện tiếp tục nằm trong [verification.md](../tasks/2026-10-09-pancake-marketing/verification.md).
+Mã T3–T6 đã triển khai và qua kiểm thử; nguồn chính thức vẫn là Sheets. Ngày 12/10/2026 đã khôi phục ID tin nhắn từ sáu bản xuất đầy đủ (migration 0046): 18.304 dòng lịch sử thật đều có liên kết (18.294 duy nhất, 7 chỉ khác cách viết số +84/0 thừa đã kiểm cùng giây-cùng nhân viên, 3 dòng thuộc cặp tin tương đương = 6 liên kết); chỉ còn dòng tiêu đề lặp BL THÔ!1950 (không phải quan sát). 3.148 tin trong kỳ nằm ngoài nền Sheets được ghi sổ riêng, không tính. Đồng bộ thật đủ sáu page đạt (slot 12/10): 11.797 fact, 2.478 quan sát cùng ngày ghi nhận 12/10 (thay đổi nhân viên tích lũy từ lúc dán Sheets và 861 tin mới), 0 mục chưa giải quyết, 0 dòng lịch sử chưa liên kết; nền lịch sử khớp CHUẨN (11.942 nhóm SĐT); tổng khớp chi tiết 100/100 (T10) và 80/80 (T9). Công tắc job vẫn TẮT và nguồn vẫn Sheets: chưa có ba đợt hằng đêm đối soát, chưa cấu hình token trên Render. Lưu ý nghiệm thu: lần đồng bộ đầu dồn các thay đổi nhân viên cũ vào ngày 12/10 nên "chào lại" tháng 10 tăng mạnh (179 → 1.660); cần Quản lý xác nhận cách tính trước khi chuyển nguồn.
+
+`PANCAKE_MARKETING_SYNC_ENABLED=false` mặc định; chỉ bật sau khi khôi phục ID và thử đồng bộ đạt. `MARKETING_REPORT_SOURCE=sheets` mặc định; đặt `postgres` sau ít nhất ba đợt hằng ngày đối soát đủ sáu page. Token `PANCAKE_PAGE_TOKEN_<pageId>` chỉ ở phía máy chủ, không commit hoặc trả API. Giữ riêng Tạo lúc và ngày ghi nhận thành công Việt Nam; lịch sử giữ ngày cũ. ADS luôn đọc Sheets (kể cả Quảng Châu); doanh số luôn lấy KiotViet theo tên, bán trừ trả hàng HN+SG.
 
 ## Nguồn chỉ đọc
 
-Tab `/reports/#marketing` đọc ba workbook qua Google Sheets client của máy chủ. Chỉ có MỘT thao tác ghi: sửa cột **Khách mới** (I) và **Ghi chú** (J) của tab BC Tháng N trong workbook Báo cáo trực page (quyền `reports.marketing.edit`, mặc định Quản lý; cần chia sẻ workbook đó cho service account quyền **Editor**, nếu chưa có thì API trả `MARKETING_WRITE_FORBIDDEN`). Cột **Doanh số** của BC tháng lấy từ KiotViet (bảng `business_monthly_customer_sales`, bán trừ trả hàng cả tháng của tab, nối theo TÊN khách, gộp HN+SG; không khớp tên thì hiện —). Không đồng bộ nền, không tạo bảng Postgres hoặc migration.
+Tab `/reports/#marketing` đọc ba workbook qua Google Sheets client của máy chủ. Chỉ có MỘT thao tác ghi: sửa cột **Khách mới** (I) và **Ghi chú** (J) của tab BC Tháng N trong workbook Báo cáo trực page (quyền `reports.marketing.edit`, mặc định Quản lý; cần chia sẻ workbook đó cho service account quyền **Editor**, nếu chưa có thì API trả `MARKETING_WRITE_FORBIDDEN`). Cột **Doanh số** của BC tháng lấy từ KiotViet (bảng `business_monthly_customer_sales`, bán trừ trả hàng cả tháng của tab, nối theo TÊN khách, gộp HN+SG; không khớp tên thì hiện —). Đây là chế độ Sheets hiện hành; chế độ PostgreSQL được giữ sau công tắc cho đến khi đối soát đạt.
 
 | Biến môi trường | Workbook |
 |---|---|
@@ -40,3 +42,11 @@ Nghiệm thu UI ở sáng/tối, chiều rộng 375/768/1024/1440px, bàn phím,
 - Check tháng 10 của Tâm MKT: 253 lần đầu, 27 chào lại, quy đổi 258,4, 7 khách chốt; nhóm chi tiết tìm thấy đúng 253/27/7 dòng. Tỷ lệ nguồn hiển thị 2,71%.
 - Toàn dự án: 2.054 bài đạt, 3 bài bỏ qua theo cấu hình. Sau các bổ sung cuối, 80 bài Marketing/giao diện/phân quyền đạt. Không xác nhận triển khai production.
 - Đã kiểm tra giao diện desktop sáng/tối, mở bằng Enter, đóng bằng Esc và trả focus. Bộ công cụ trình duyệt không áp dụng được viewport nhỏ (vẫn trả chiều rộng 1280px); kiểm tra trực quan 375/768/1024/1440px vẫn cần thực hiện trong trình duyệt có responsive mode. CSS và kiểm thử DOM đã có quy tắc responsive tương ứng.
+
+## Vận hành và API PostgreSQL
+
+Migration `0044_pancake_marketing.sql` và `0045_pancake_current_input.sql` đã áp lên DB Marketing. Scheduler trong backend chạy 23:55 Asia/Ho_Chi_Minh, khóa PostgreSQL chống chạy trùng; page lỗi giữ dữ liệu cũ. Full scan lịch sử còn tốn thời gian và chưa được nghiệm thu production.
+
+`GET /api/marketing-report/metadata` trả năm/tháng có dữ liệu và quyền ghi đã xác minh ở máy chủ; `/sync-status` trả kết quả an toàn từng page. API đọc, chi tiết và xuất xlsx/html giữ cùng bộ lọc/snapshot. `POST /monthly/rows`, `PUT /monthly/rows/:id`, `PUT /aliases` cần vai trò Quản lý và `reports.marketing.edit`; `GET /monthly/rows/:id/audit` chỉ Quản lý. ID khách chọn từ danh mục KiotViet theo cơ sở/mã, sửa cần version; báo cáo tháng tách ngày chốt. Không tự chọn page cho lịch sử chưa xác định.
+
+Chạy từ thư mục server: `npm run marketing:history:capture -- --output PRIVATE.json`; `npm run marketing:history:import -- --input PRIVATE.json --year 2026 --dry-run`; `npm run marketing:pancake:sync -- --date YYYY-MM-DD --dry-run`. `--apply` ghi DB; `--retry` yêu cầu thêm một lần thử cho slot lỗi. Chạy mặc định dry-run không truy cập API/DB. File xuất và snapshot chứa SĐT, phải giữ ngoài Git. Không coi ba lần thử cùng ngày là ba đợt hằng ngày.

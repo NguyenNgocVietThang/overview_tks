@@ -82,3 +82,9 @@
    - Tắt điều khiển cột đối với các bảng quy định/chính sách tĩnh.
 2. **Không dùng framework nặng:** Giữ thuần JavaScript và CSS variables để tối đa tốc độ tải trang và phản hồi dưới 100ms.
 3. **Thẩm mỹ cao cấp:** Màu sắc hài hòa theo bảng màu định sẵn trong `shared.css`, hỗ trợ cả giao diện Sáng và Tối, responsive hoàn chỉnh trên thiết bị di động.
+
+## Marketing Pancake — bất biến 12/10/2026
+
+`PANCAKE_MARKETING_SYNC_ENABLED=false` mặc định; chỉ bật sau khi khôi phục ID và thử đồng bộ đạt. `MARKETING_REPORT_SOURCE=sheets` mặc định; đặt `postgres` sau ít nhất ba đợt hằng ngày đối soát đủ sáu page. Token `PANCAKE_PAGE_TOKEN_<pageId>` chỉ ở phía máy chủ, không commit hoặc trả API. Giữ riêng Tạo lúc và ngày ghi nhận thành công Việt Nam; lịch sử giữ ngày cũ. ADS luôn đọc Sheets (kể cả Quảng Châu); doanh số luôn lấy KiotViet theo tên, bán trừ trả hàng HN+SG.
+
+Không đổi hoặc xóa lịch sử khi nguồn thiếu ID; mơ hồ phải đối soát bản xuất gốc. Lịch sử numeric/string SĐT vẫn nguyên trạng, không tự gộp số mất 0. Migration runner theo tên đầy đủ: `0044_pancake_marketing.sql` đã áp, giữ nguyên tên; `0044_purchases_raw_hash.sql` của Claude là migration khác và được bảo toàn.

@@ -10,19 +10,19 @@ function sourceTimestamp(value) {
  if(day.getUTCFullYear()!==+m[1]||day.getUTCMonth()+1!==+m[2]||day.getUTCDate()!==+m[3]) throw safeError('PANCAKE_INVALID_RESPONSE');
  const parsed=new Date(value+(m[8]?'':'Z'));if(!Number.isFinite(+parsed)) throw safeError('PANCAKE_INVALID_RESPONSE');return parsed.toISOString();
 }
-function createPancakeClient({fetch:fetchFn=globalThis.fetch,tokens=Object.fromEntries(PAGE_IDS.map(id=>[id,process.env['PANCAKE_PAGE_TOKEN_'+id]])),now=Date.now,sleep=ms=>new Promise(r=>setTimeout(r,ms)),timeoutMs=20000,maxConversationPages=10000,maxMessagePages=10000}={}) {
+function createPancakeClient({fetch:fetchFn=globalThis.fetch,tokens=Object.fromEntries(PAGE_IDS.map(id=>[id,process.env['PANCAKE_PAGE_TOKEN_'+id]])),now=Date.now,sleep=ms=>new Promise(r=>setTimeout(r,ms)),timeoutMs=20000,maxAttempts=6,maxConversationPages=10000,maxMessagePages=10000}={}) {
  const lastRequest=new Map();const queues=new Map();
  async function request(pageId,path,params,arrayField) {
   // Serialize all requests per page, including retries and separate callers.
   const previous=queues.get(pageId)||Promise.resolve();let release;const turn=new Promise(r=>{release=r;});queues.set(pageId,turn);await previous;
-  try {for(let attempt=0;attempt<3;attempt++) {
+  try {for(let attempt=0;attempt<maxAttempts;attempt++) {
    const delay=260-(now()-(lastRequest.get(pageId)??-Infinity));if(delay>0) await sleep(delay);lastRequest.set(pageId,now());
    const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),timeoutMs);timer.unref?.();let response,body;
    try {const url=new URL('https://pages.fm/api/public_api/'+path);for(const [key,value] of Object.entries({...params,page_access_token:tokens[pageId]})) url.searchParams.set(key,String(value));response=await fetchFn(url.toString(),{method:'GET',signal:controller.signal}); if(response.ok) body=await response.json();}
-   catch {if(attempt===2) throw safeError();await sleep(500*2**attempt);continue;}
+   catch {if(attempt===maxAttempts-1) throw safeError();await sleep(Math.min(500*2**attempt,15000));continue;}
    finally {clearTimeout(timer);}
    if(response.status===401||response.status===403) throw safeError('PANCAKE_UNAUTHORIZED');
-   if(response.status===429||response.status>=500) {if(attempt===2) throw safeError();await sleep(500*2**attempt);continue;}
+   if(response.status===429||response.status>=500) {if(attempt===maxAttempts-1) throw safeError();await sleep(Math.min(500*2**attempt,15000));continue;}
    if(!response.ok) throw safeError();
    if(body?.success!==true||!Array.isArray(body[arrayField])) throw safeError('PANCAKE_INVALID_RESPONSE');return body[arrayField];
   }} finally {release();if(queues.get(pageId)===turn) queues.delete(pageId);}

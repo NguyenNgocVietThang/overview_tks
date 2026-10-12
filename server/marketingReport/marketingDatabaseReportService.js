@@ -211,7 +211,8 @@ function createDatabaseMarketingReportService({
       groups=[{
         title:'SĐT lần đầu',kind:'phones',rows:by('firstEmployee','firstAt')
       },{
-        title:'SĐT chào lại',kind:'phones',rows:by('repeatEmployee','repeatAt')
+        // Totals skip a repeat whose current employee is blank (countPhoneKpis); the detail must follow the same rule.
+        title:'SĐT chào lại',kind:'phones',rows:by('repeatEmployee','repeatAt').filter(r=>r.repeatEmployee)
       },{
         title:'Khách chốt theo BC tháng',kind:'monthly',rows:monthly.filter(r=>matches(r,snap.q)&&inSelectedPage(r)&&norm(r.sale)===norm(employee))
       }];
@@ -235,7 +236,7 @@ function createDatabaseMarketingReportService({
       rows:selected.count??selected.closed??1
     };
     return {
-      title:selected.label||selected.phone,subtitle:`Tháng ${result.month||''}/${result.year} · ${selected.page||'Tất cả page'}`,computedAt:result.computedAt,snapshotId:result.snapshotId,kpis:q.kind==='receipt-check'?[kpi('SĐT lần đầu',selected.first),kpi('SĐT chào lại',selected.repeat),kpi('Quy đổi',selected.equivalent),kpi('Khách chốt',selected.closed),kpi('Tỷ lệ chốt',selected.rate,'percent')]:[kpi('Dòng chi tiết',groups[0].rows.length)],groups,reconciliation:{
+      title:selected.label||selected.phone,subtitle:`Tháng ${result.month||''}/${result.year} · ${selected.page||(Object.prototype.hasOwnProperty.call(selected,'pageId')&&selected.pageId==null?'Page chưa xác định':'Tất cả page')}`,computedAt:result.computedAt,snapshotId:result.snapshotId,kpis:q.kind==='receipt-check'?[kpi('SĐT lần đầu',selected.first),kpi('SĐT chào lại',selected.repeat),kpi('Quy đổi',selected.equivalent),kpi('Khách chốt',selected.closed),kpi('Tỷ lệ chốt',selected.rate,'percent')]:[kpi('Dòng chi tiết',groups[0].rows.length)],groups,reconciliation:{
         status:Object.keys(source).every(k=>source[k]===found[k])?'matched':'mismatch',source,found
       },formula:q.kind==='receipt-check'?'SĐT lần đầu + SĐT chào lại ÷ 5':undefined,warnings:result.warnings
     };
@@ -321,4 +322,6 @@ function createDatabaseMarketingReportService({
 module.exports={
   createDatabaseMarketingReportService
 };
+
+
 

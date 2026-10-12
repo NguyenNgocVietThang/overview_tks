@@ -67,6 +67,15 @@ function historyInput(row) {
   return { tab: required(row.tab), rowNumber: row.rowNumber, pageId: page(row.pageId), sourceCreatedAt: timestamp(row.sourceCreatedAt, true),
     sourceCreatedText: text(row.sourceCreatedText), phone: required(row.phone), phoneKey: required(row.phoneKey ?? row.phone), employeeRaw: text(row.employeeRaw), creditedDate: date(row.creditedDate), raw: rawJson(row.raw) };
 }
+const IDENTITY_RESOLUTIONS = ['unique','verified-notation','equivalent'];
+function identityLinkInput(link) {
+  if (!Number.isInteger(link.rowNumber) || link.rowNumber < 1 || !IDENTITY_RESOLUTIONS.includes(link.resolution)) invalid();
+  return { tab: required(link.tab), rowNumber: link.rowNumber, pageId: page(link.pageId), messageId: required(link.messageId), conversationId: text(link.conversationId),
+    createdAt: timestamp(link.createdAt), resolution: link.resolution, groupKey: link.groupKey == null ? null : required(link.groupKey), evidence: rawJson(link.evidence) };
+}
+function baselineInput(row) {
+  return { pageId: page(row.pageId), messageId: required(row.messageId), conversationId: text(row.conversationId), createdAt: timestamp(row.createdAt), evidence: rawJson(row.evidence) };
+}
 function apiInput(row) {
   if (!['INBOX','COMMENT'].includes(row.type)) invalid();
   return { sourceKey: required(row.sourceKey), messageId: required(row.messageId), conversationId: text(row.conversationId), type: row.type,
@@ -144,6 +153,44 @@ function createMarketingRepository({ pool = require('../db/pool').getPool() } = 
       return { id:batch.id,importedAt:iso(batch.imported_at),replayed:false };
     });
   }
+  // Records which Pancake message each Sheets history row came from (many rows may share one message, one row may
+  // be equivalent to several) plus the messages the Sheets baseline never counted. Every link is verified against
+  // the stored row (page and creation second) before it is written; nothing about the history itself changes.
+  async function importIdentities(input, actor) {
+    const batchKey = required(input.batchKey), workbookId = required(input.workbookId), author = actorShape(actor);
+    const links = (input.links ?? []).map(identityLinkInput), baseline = (input.baselineMessages ?? []).map(baselineInput);
+    const contentHash = hash({ workbookId, links, baseline });
+    return transaction(async client => {
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))',[`marketing-import:${workbookId}`]);
+      const existing = (await client.query('SELECT id::text AS id,content_hash,imported_at FROM marketing_import_batches WHERE batch_key=$1',[batchKey])).rows[0];
+      if (existing) { if (existing.content_hash !== contentHash) throw error('MARKETING_IMPORT_CONFLICT',409); return { id:existing.id,importedAt:iso(existing.imported_at),replayed:true }; }
+      const batch = (await client.query('INSERT INTO marketing_import_batches(batch_key,workbook_id,content_hash,actor) VALUES($1,$2,$3,$4::jsonb) RETURNING id::text AS id,imported_at',[batchKey,workbookId,contentHash,JSON.stringify(author)])).rows[0];
+      const refs = new Map();
+      for (let i = 0; i < links.length; i += 2000) {
+        const part = links.slice(i,i+2000);
+        const found = (await client.query(`SELECT h.id::text AS id,h.source_tab,h.source_row,h.page_id,h.source_created_at FROM marketing_history_rows h
+          JOIN jsonb_to_recordset($2::jsonb) AS t(tab text,row int) ON h.source_tab=t.tab AND h.source_row=t.row WHERE h.workbook_id=$1`,[workbookId,JSON.stringify(part.map(l=>({tab:l.tab,row:l.rowNumber})))])).rows;
+        for (const row of found) refs.set(`${row.source_tab}\u0000${row.source_row}`,row);
+      }
+      const resolved = links.map(link => {
+        const row = refs.get(`${link.tab}\u0000${link.rowNumber}`);
+        if (!row || row.page_id !== link.pageId || iso(row.source_created_at) !== link.createdAt) throw error('MARKETING_IMPORT_CONFLICT',409);
+        return { history_row_id: row.id, page_id: link.pageId, message_id: link.messageId, conversation_id: link.conversationId, resolution: link.resolution, group_key: link.groupKey, evidence: link.evidence };
+      });
+      for (let i = 0; i < resolved.length; i += 2000) {
+        await client.query(`INSERT INTO marketing_history_identities(batch_id,history_row_id,page_id,message_id,conversation_id,resolution,group_key,evidence)
+          SELECT $1,t.history_row_id,t.page_id,t.message_id,t.conversation_id,t.resolution,t.group_key,t.evidence
+          FROM jsonb_to_recordset($2::jsonb) AS t(history_row_id bigint,page_id text,message_id text,conversation_id text,resolution text,group_key text,evidence jsonb)`,[batch.id,JSON.stringify(resolved.slice(i,i+2000))]);
+      }
+      for (let i = 0; i < baseline.length; i += 2000) {
+        await client.query(`INSERT INTO marketing_baseline_messages(page_id,message_id,batch_id,conversation_id,source_created_at,classification,evidence)
+          SELECT t.page_id,t.message_id,$1,t.conversation_id,t.created_at::timestamptz,'in-window-not-in-sheets',t.evidence
+          FROM jsonb_to_recordset($2::jsonb) AS t(page_id text,message_id text,conversation_id text,created_at text,evidence jsonb)`,
+          [batch.id,JSON.stringify(baseline.slice(i,i+2000).map(b=>({page_id:b.pageId,message_id:b.messageId,conversation_id:b.conversationId,created_at:b.createdAt,evidence:b.evidence})))]);
+      }
+      return { id:batch.id,importedAt:iso(batch.imported_at),replayed:false,links:links.length,baselineMessages:baseline.length };
+    });
+  }
   async function upsertAlias(input, actor) { return aliasWrite(pool,input,actorShape(actor)); }
   async function startSyncRun({ runKey, startedAt = new Date().toISOString() }) {
     required(runKey); timestamp(startedAt);
@@ -195,7 +242,9 @@ function createMarketingRepository({ pool = require('../db/pool').getPool() } = 
             let historical=null;
             if (row.historicalRowId) {
               historical=(await client.query('SELECT page_id,phone_key,employee_raw,source_created_at,credited_date::text AS credited_date FROM marketing_history_rows WHERE id=$1',[row.historicalRowId])).rows[0];
-              if (!historical || historical.page_id!==pageId || historical.phone_key!==row.phoneKey || iso(historical.source_created_at)!==row.sourceCreatedAt) invalid();
+              if (!historical || historical.page_id!==pageId || historical.phone_key!==row.phoneKey) invalid();
+              // Either the legacy exact creation time, or a verified identity link between this row and this message.
+              if (iso(historical.source_created_at)!==row.sourceCreatedAt && !(await client.query('SELECT 1 FROM marketing_history_identities WHERE history_row_id=$1 AND message_id=$2',[row.historicalRowId,row.messageId])).rows.length) invalid();
             }
             fact=(await client.query(`INSERT INTO marketing_pancake_facts(page_id,source_key,historical_row_id,credited_date,first_seen_run_id,latest_hash,current_input)
               VALUES($1,$2,$3,$4::date,$5,$6,$7::jsonb) RETURNING id::text AS id,latest_hash`,[pageId,row.sourceKey,row.historicalRowId,historical ? historical.credited_date : creditedDate,runId,content,JSON.stringify(row)])).rows[0];
@@ -280,7 +329,7 @@ function createMarketingRepository({ pool = require('../db/pool').getPool() } = 
   async function listMonthlyAudit(rowId) {
     return (await pool.query('SELECT id::text AS id,row_id::text AS row_id,action,version::text AS version,actor,before_row AS before,after_row AS after,created_at FROM marketing_monthly_audit WHERE row_id=$1 ORDER BY version',[id(rowId)])).rows.map(camel);
   }
-  async function readSnapshot({ includeRaw = true } = {}) {
+  async function readSnapshot({ includeRaw = true, includeIdentities = false } = {}) {
     return transaction(async client => {
       const pages=(await client.query('SELECT page_id,name,platform,status,last_success_at,last_attempt_at,error_code FROM marketing_pages ORDER BY page_id')).rows.map(camel);
       const aliases=(await client.query('SELECT raw_name,report_employee,updated_at,actor FROM marketing_employee_aliases ORDER BY raw_name')).rows.map(camel);
@@ -290,11 +339,13 @@ function createMarketingRepository({ pool = require('../db/pool').getPool() } = 
       const rawRows=[...history,...observations].sort((a,b)=>BigInt(a.sourceOrder)<BigInt(b.sourceOrder) ? -1 : 1);
       const monthlyRows=(await client.query(`SELECT ${includeRaw ? monthlyColumns : monthlyColumns.replace(",source_raw", "")} FROM marketing_monthly_rows ORDER BY report_year,report_month,id`)).rows.map(monthlyShape);
       const latestRunId=(await client.query('SELECT id::text AS id FROM marketing_sync_runs ORDER BY id DESC LIMIT 1')).rows[0]?.id;
-      return {pages,aliases,facts,rawRows,monthlyRows,latestRun:latestRunId ? await syncRun(client,latestRunId) : null};
+      // Identity links are only needed by sync; report reads skip them.
+      const identities=includeIdentities ? (await client.query('SELECT history_row_id::text AS history_row_id,page_id,message_id,resolution FROM marketing_history_identities')).rows.map(camel) : [];
+      const baselineMessages=includeIdentities ? (await client.query('SELECT page_id,message_id FROM marketing_baseline_messages')).rows.map(camel) : [];
+      return {pages,aliases,facts,rawRows,monthlyRows,identities,baselineMessages,latestRun:latestRunId ? await syncRun(client,latestRunId) : null};
     },true);
   }
-  return Object.fromEntries(Object.entries({importHistory,upsertAlias,startSyncRun,commitPageSync,failPageSync,finishSyncRun,getSyncRun,getLatestSlotRun,readSnapshot,createMonthlyRow,updateMonthlyRow,listMonthlyRows,listMonthlyAudit}).map(([name,fn])=>[name,safe(fn)]));
+  return Object.fromEntries(Object.entries({importHistory,importIdentities,upsertAlias,startSyncRun,commitPageSync,failPageSync,finishSyncRun,getSyncRun,getLatestSlotRun,readSnapshot,createMonthlyRow,updateMonthlyRow,listMonthlyRows,listMonthlyAudit}).map(([name,fn])=>[name,safe(fn)]));
 }
 
 module.exports={createMarketingRepository,PAGE_IDS,PAGE_NAMES};
-

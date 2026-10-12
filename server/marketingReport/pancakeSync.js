@@ -13,6 +13,9 @@ const employeeParts=value=>String(value??'').split(', ').filter(Boolean).sort();
 const equal=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 const samePhone=(a,b)=>equal(phoneParts(a),phoneParts(b));
 const sameEmployees=(a,b)=>equal(employeeParts(a),employeeParts(b));
+// Same number written differently (+84…, leading 0, doubled 0); used only to choose among rows already tied to one message.
+const canonicalDigits=value=>{let d=String(value).replace(/\D/g,'').replace(/^0+/,'');if(d.startsWith('84')&&d.length>9)d=d.slice(2).replace(/^0+/,'');return d;};
+const compatiblePhone=(a,b)=>equal(String(a).split(',').map(canonicalDigits).filter(Boolean).sort(),String(b).split(',').map(canonicalDigits).filter(Boolean).sort());
 const rowRef=r=>`${r.tab}!${r.rowNumber}`;
 function historyPhone(row){return typeof row.raw?.[19]==='number'?phoneText(row.raw[19]):row.phone;}
 function preparePageRows(rows,snapshot,pageId) {
@@ -22,11 +25,28 @@ function preparePageRows(rows,snapshot,pageId) {
  const facts=new Map(snapshot.facts.filter(f=>f.pageId===pageId).map(f=>[f.sourceKey,f]));
  const linked=new Set(snapshot.facts.filter(f=>f.historicalRowId).map(f=>f.historicalRowId));
  const planned=[],unresolved=[],claimed=new Map();
+ // Identity mode: the history was linked to Pancake message IDs from the full export, so a message is adopted by ID
+ // (any number of history rows may share it) instead of guessing from phone and timestamp.
+ const identityRows=new Map(),historyById=new Map(history.map(r=>[r.id,r]));
+ for(const link of snapshot.identities||[]){if(link.pageId!==pageId||!historyById.has(link.historyRowId))continue;const list=identityRows.get(link.messageId)||[];list.push(historyById.get(link.historyRowId));identityRows.set(link.messageId,list);}
+ const identityMode=identityRows.size>0;
+ const baselineIds=new Set((snapshot.baselineMessages||[]).filter(b=>b.pageId===pageId).map(b=>b.messageId));
+ const windowStart=history.reduce((first,r)=>r.sourceCreatedAt&&(!first||r.sourceCreatedAt<first)?r.sourceCreatedAt:first,'');
+ const skipped={baselineExcluded:0,preWindow:0};
  for(const input of rows){const row={...input};const fact=facts.get(row.sourceKey);
   if(fact){let previous=fact.currentInput;if(!previous){previous=snapshot.rawRows.filter(r=>r.origin==='pancake'&&r.factId===fact.id).at(-1);}
    if(!previous){unresolved.push({pageId,reason:'missing-canonical-metadata',rowReferences:history.filter(r=>r.id===fact.historicalRowId).map(rowRef)});continue;}
    if(samePhone(previous.phone,row.phone)){row.phone=previous.phone;row.phoneKey=previous.phoneKey;}
    if(sameEmployees(previous.employeeRaw,row.employeeRaw))row.employeeRaw=previous.employeeRaw;
+   planned.push(row);continue;
+  }
+  if(identityMode){
+   const linkedRows=identityRows.get(row.messageId);
+   if(linkedRows){const ordered=[...linkedRows].sort((a,b)=>BigInt(a.sourceOrder)<BigInt(b.sourceOrder)?-1:1);const same=ordered.filter(h=>compatiblePhone(historyPhone(h),row.phone));const anchor=(same.length?same:ordered).at(-1);
+    row.historicalRowId=anchor.id;row.phoneKey=anchor.phoneKey;if(sameEmployees(anchor.employeeRaw,row.employeeRaw))row.employeeRaw=anchor.employeeRaw;planned.push(row);continue;}
+   if(baselineIds.has(row.messageId)){skipped.baselineExcluded++;continue;}
+   if(windowStart&&row.sourceCreatedAt<windowStart){skipped.preWindow++;continue;}
+   if(horizon&&row.sourceCreatedAt<=horizon){unresolved.push({pageId,reason:'unknown-in-window',rowReferences:[],messageIds:[row.messageId]});continue;}
    planned.push(row);continue;
   }
   const undated=history.filter(h=>!h.sourceCreatedAt&&samePhone(historyPhone(h),row.phone));
@@ -44,7 +64,7 @@ function preparePageRows(rows,snapshot,pageId) {
  // Fractions near an older whole-second history row require reconciliation even if after the exact horizon.
  for(const row of planned.filter(r=>!r.historicalRowId&&!facts.has(r.sourceKey))){if(/\.\d*[1-9]\d*Z$/.test(row.sourceCreatedAt)){const second=row.sourceCreatedAt.slice(0,19)+'.000Z';const near=(byTimestamp.get(second)||[]).filter(h=>samePhone(historyPhone(h),row.phone));if(near.length)unresolved.push({pageId,reason:'timestamp-precision',rowReferences:near.map(rowRef)});}}
  if(unresolved.length)throw Object.assign(safeError('PANCAKE_INVALID_RESPONSE'),{unresolved});
- return planned;
+ return Object.defineProperty(planned,'skipped',{value:skipped});
 }
 function pageHorizon(snapshot,pageId){const times=snapshot.rawRows.filter(r=>r.origin==='sheet'&&r.pageId===pageId&&isPhoneReportObservation(r)&&r.sourceCreatedAt).map(r=>+new Date(r.sourceCreatedAt));return times.length?Math.max(0,Math.floor(Math.min(...times)/1000)-86400):0;}
 function createPancakeSync({repository=createMarketingRepository(),client=createPancakeClient(),lock=createPostgresSyncLock(),now=()=>new Date()}={}) {
@@ -64,15 +84,19 @@ function createPancakeSync({repository=createMarketingRepository(),client=create
     run=await repository.startSyncRun({runKey:recoveryKey||baseKey+':retry:1',startedAt:runStartedAt.toISOString()});
     if(run.status!=='running')return {...await repository.getSyncRun(run.id),replayed:true};
    }
-   const snapshot=await repository.readSnapshot();const unresolved=[];const adoptedIds=new Set(snapshot.facts.map(f=>f.historicalRowId).filter(Boolean));
+   const snapshot=await repository.readSnapshot({includeIdentities:true});const unresolved=[],baselineSkipped=[];const adoptedIds=new Set([...snapshot.facts.map(f=>f.historicalRowId),...(snapshot.identities||[]).map(l=>l.historyRowId)].filter(Boolean));
+   // Pages use independent tokens and rate limits, so read them concurrently (the largest page dominates the run);
+   // everything is still prepared and committed one page at a time.
+   const fetches=new Map(PAGE_IDS.map(pageId=>[pageId,client.fetchPage(pageId,{since:pageHorizon(snapshot,pageId),until}).then(rows=>({rows}),error=>({error}))]));
    for(const pageId of PAGE_IDS){try {
-    const rows=await client.fetchPage(pageId,{since:pageHorizon(snapshot,pageId),until});
+    const fetched=await fetches.get(pageId);if(fetched.error)throw fetched.error;const rows=fetched.rows;
     const prepared=preparePageRows(rows,snapshot,pageId);
     await repository.commitPageSync({runId:run.id,pageId,rows:prepared,completedAt:now().toISOString(),completionNow:now});
+    if(prepared.skipped&&(prepared.skipped.baselineExcluded||prepared.skipped.preWindow))baselineSkipped.push({pageId,...prepared.skipped});
     for(const row of prepared)if(row.historicalRowId)adoptedIds.add(row.historicalRowId);
    }catch(error){if(error.unresolved)unresolved.push(...error.unresolved);await repository.failPageSync({runId:run.id,pageId,completedAt:now().toISOString(),errorCode:error.code||'PANCAKE_UNAVAILABLE'});}}
    const unlinkedHistoricalRows=PAGE_IDS.map(pageId=>({pageId,rowReferences:snapshot.rawRows.filter(r=>r.origin==='sheet'&&r.pageId===pageId&&isPhoneReportObservation(r)&&!adoptedIds.has(r.id)).map(rowRef)})).filter(r=>r.rowReferences.length);
-   return {...await repository.finishSyncRun(run.id),unresolved,unlinkedHistoricalRows};
+   return {...await repository.finishSyncRun(run.id),unresolved,unlinkedHistoricalRows,baselineSkipped};
   }finally{await lease.release();}
  }
  return {run};
