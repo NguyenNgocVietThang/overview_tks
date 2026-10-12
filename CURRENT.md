@@ -20,6 +20,11 @@
 
 ## 2. Các đầu việc vừa hoàn thành (Recently Completed — Tháng 10/2026)
 
+0. **Vòng đời đơn hàng — luồng Đơn Bắc-Nam (12/10/2026, branch `main`, chưa commit/deploy, không migration):**
+   - Đọc thêm tab `DonHang_MienNam` (cùng workbook `ORDER_LIFECYCLE_SPREADSHEET_ID`); tính như đơn Hà Nội, chỉ 4 mốc (Mã đơn / Sale gửi KT / KT duyệt đơn / Đã ký nhận), bỏ qua cột lái xe/ship, không cảnh báo 24h, fail-soft có log.
+   - Code: `config.js`, `shipment/orderLifecycleRepository.js`, `shipment/orderLifecycleService.js`; 8 test mới (`orderLifecycleRepository.test.js`, `orderLifecycleWarning.test.js`). Đã kiểm tra thật: `DH043419` hiện Hà Nội, "Đơn đã gửi kế toán".
+   - Kế hoạch/danh sách việc: `tasks/2026-10-12-lifecycle-north-south/`. Deploy chỉ cần restart server.
+
 1. **Giảm egress Supabase (Migration `0044`, nhánh `perf/egress-reduction`, chưa merge/deploy):**
    - `purchases.raw_hash`: đối soát phiếu nhập so băm thay vì tải `raw`.
    - Cache Hóa đơn/Chi tiết hóa đơn hết hạn theo `invoicesChanged` (dự phòng 15 phút, guard thế hệ); CLI backfill hiện sau ≤15 phút.

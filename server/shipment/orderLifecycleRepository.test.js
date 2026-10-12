@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-function freshRepository({ hn, sg, historyRows, historyClientOverrides }) {
+function freshRepository({ hn, sg, northSouth, northSouthError, historyRows, historyClientOverrides }) {
   const clientPath = require.resolve('../sheets/orderLifecycleSheetsClient');
   const historyClientPath = require.resolve('../sheets/orderLifecycleHistoryClient');
   const configPath = require.resolve('../config');
@@ -12,10 +12,17 @@ function freshRepository({ hn, sg, historyRows, historyClientOverrides }) {
   const previousHistoryClient = require.cache[historyClientPath];
 
   const CONFIG = require(configPath);
-  const values = { [CONFIG.ORDER_LIFECYCLE_SHEET_HN]: hn || [], [CONFIG.ORDER_LIFECYCLE_SHEET_SG]: sg || [] };
+  const values = {
+    [CONFIG.ORDER_LIFECYCLE_SHEET_HN]: hn || [],
+    [CONFIG.ORDER_LIFECYCLE_SHEET_SG]: sg || [],
+    [CONFIG.ORDER_LIFECYCLE_SHEET_NORTH_SOUTH]: northSouth || []
+  };
 
   const clientExports = {
-    getValues: async sheetName => values[sheetName] || []
+    getValues: async sheetName => {
+      if (northSouthError && sheetName === CONFIG.ORDER_LIFECYCLE_SHEET_NORTH_SOUTH) throw northSouthError;
+      return values[sheetName] || [];
+    }
   };
 
   const appendedRows = [];
@@ -151,6 +158,94 @@ test('readAll trả mảng rỗng khi tab không có dữ liệu (chỉ header h
     const rows = await ctx.repo.readAll();
     assert.deepEqual(rows, []);
   } finally {
+    ctx.restore();
+  }
+});
+
+// Header tab DonHang_MienNam (đơn Bắc-Nam) đúng như trên Google Sheet thật: không có cột "Xác nhận đã giao/khách ký nhận".
+const NORTH_SOUTH_HEADERS = [
+  'Mã đơn hàng', 'Nhân Viên Bán Hàng', 'Khách hàng', 'Sale gửi đơn cho kế toán', 'Kế toán duyệt đơn',
+  'Lái Xe', 'Tài xế gửi xác nhận giao hàng', 'Kế toán duyệt giao hàng', 'Ship nhận đơn', 'Đơn đã ký nhận'
+];
+
+test('readAll đọc tab Bắc-Nam: _branch HN, _flow NORTH_SOUTH, chỉ giữ 4 mốc, bỏ qua các cột lái xe/ship', async () => {
+  const ctx = freshRepository({
+    northSouth: [
+      NORTH_SOUTH_HEADERS,
+      ['DH043419', 'Quan Nguyen', 'KH Minh Long', '12/10/2026 08:52', '12/10/2026 09:10',
+        'Tuấn Anh', '12/10/2026 10:00', '12/10/2026 10:05', '13/10/2026 08:00', '14/10/2026 08:00']
+    ]
+  });
+  try {
+    const rows = await ctx.repo.readAll();
+    assert.equal(rows.length, 1);
+    const row = rows[0];
+    assert.equal(row._branch, ctx.repo.LIFECYCLE_BRANCH.HN);
+    assert.equal(row._flow, ctx.repo.FLOW_NORTH_SOUTH);
+    assert.equal(ctx.repo.FLOW_NORTH_SOUTH, 'NORTH_SOUTH'); // service khai báo lại đúng giá trị này
+    assert.equal(row.orderCode, 'DH043419');
+    assert.equal(row.saleName, 'Quan Nguyen');
+    assert.equal(row.customerName, 'KH Minh Long');
+    assert.equal(row.saleSentAt, '12/10/2026 08:52');
+    assert.equal(row.accountantApprovedOrderAt, '12/10/2026 09:10');
+    assert.equal(row.orderSignedAt, '14/10/2026 08:00');
+    ['driverName', 'driverConfirmedDeliveryAt', 'accountantApprovedDeliveryAt', 'deliveryConfirmedAt', 'shipReceivedAt']
+      .forEach(key => assert.equal(row[key], '', `${key} phải bị bỏ qua`));
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('readAll tab Bắc-Nam đọc theo TÊN header khi cột bị đảo vị trí', async () => {
+  const ctx = freshRepository({
+    northSouth: [
+      ['Đơn đã ký nhận', 'Mã đơn hàng', 'Kế toán duyệt đơn', 'Sale gửi đơn cho kế toán'],
+      ['13/10/2026 08:00', 'DH000001', '12/10/2026 09:10', '12/10/2026 08:52']
+    ]
+  });
+  try {
+    const [row] = await ctx.repo.readAll();
+    assert.equal(row.orderCode, 'DH000001');
+    assert.equal(row.saleSentAt, '12/10/2026 08:52');
+    assert.equal(row.accountantApprovedOrderAt, '12/10/2026 09:10');
+    assert.equal(row.orderSignedAt, '13/10/2026 08:00');
+    assert.equal(row.saleName, '');
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('readAll nối theo thứ tự HN -> Bắc-Nam -> SG', async () => {
+  const ctx = freshRepository({
+    hn: [HEADERS, ['HD001', '', '', '01/09/2026', '', '', '', '', '', '', '']],
+    northSouth: [NORTH_SOUTH_HEADERS, ['DH002', '', '', '02/09/2026', '', '', '', '', '', '']],
+    sg: [HEADERS, ['HD003', '', '', '03/09/2026', '', '', '', '', '', '', '']]
+  });
+  try {
+    const rows = await ctx.repo.readAll();
+    assert.deepEqual(rows.map(r => [r.orderCode, r._branch]), [['HD001', 'HN'], ['DH002', 'HN'], ['HD003', 'SG']]);
+    assert.equal(rows[0]._flow, undefined);
+    assert.equal(rows[2]._flow, undefined);
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('readAll: tab Bắc-Nam lỗi (đổi tên/xóa) -> fail-soft, vẫn trả HN + SG và ghi console.error', async () => {
+  const ctx = freshRepository({
+    hn: [HEADERS, ['HD001', '', '', '01/09/2026', '', '', '', '', '', '', '']],
+    sg: [HEADERS, ['HD003', '', '', '03/09/2026', '', '', '', '', '', '', '']],
+    northSouthError: new Error("Unable to parse range: 'DonHang_MienNam'")
+  });
+  const originalError = console.error;
+  const logged = [];
+  console.error = (...args) => { logged.push(args.join(' ')); };
+  try {
+    const rows = await ctx.repo.readAll();
+    assert.deepEqual(rows.map(r => r.orderCode), ['HD001', 'HD003']);
+    assert.ok(logged.some(line => line.includes('DonHang_MienNam')));
+  } finally {
+    console.error = originalError;
     ctx.restore();
   }
 });

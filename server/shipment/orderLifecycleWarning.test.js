@@ -178,3 +178,91 @@ test('listAllOrders / queryOrders / exportOrders / overrideStatus trả kèm c�
     ctx.restore();
   }
 });
+
+// ---------------------------------------------------------------------------
+// Đơn Bắc-Nam (tab DonHang_MienNam, 2026-10-12): đơn Kiot HN, chỉ 3 trạng thái, không cảnh báo 24h
+// ---------------------------------------------------------------------------
+
+function northSouthRecord(overrides) {
+  return record(Object.assign({ orderCode: 'DH043419', _branch: 'HN', _flow: 'NORTH_SOUTH' }, overrides));
+}
+
+function kiotOrder(overrides) {
+  return Object.assign({
+    code: 'DH043419', branch: 'HN', saleName: 'Quan Nguyen', customerName: 'KH Minh Long',
+    kiotStatus: 'Phiếu tạm', sellableValue: 1000, total: 2000, orderDate: '2020-01-01 08:00', note: ''
+  }, overrides);
+}
+
+function mergeFor(service, records, kiotOrders, overrides) {
+  return service.mergeRows({
+    records,
+    overrides: overrides || new Map(),
+    kiotResult: { ok: true, orders: kiotOrders }
+  });
+}
+
+test('đơn Bắc-Nam: gửi kế toán quá 24h chưa ký nhận KHÔNG cảnh báo, đơn HN cùng điều kiện vẫn cảnh báo', () => {
+  const ctx = freshService();
+  try {
+    const rows = mergeFor(ctx.service, [
+      northSouthRecord({ saleSentAt: '01/01/2020 08:00' }),
+      record({ orderCode: 'DH000002', saleSentAt: '01/01/2020 08:00' })
+    ], [kiotOrder(), kiotOrder({ code: 'DH000002' })]);
+    assert.deepEqual(rows.map(r => [r.orderCode, r.warning]), [['DH043419', false], ['DH000002', true]]);
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('đơn Bắc-Nam: chỉ 3 trạng thái — "Kế toán duyệt đơn" không đổi trạng thái, "Đơn đã ký nhận" -> Đã nhận (Đi giao xong)', () => {
+  const ctx = freshService();
+  try {
+    const code = ctx.service.STATUS;
+    const [none, sent, approved, signed] = mergeFor(ctx.service, [
+      northSouthRecord({ orderCode: 'DH000001' }),
+      northSouthRecord({ orderCode: 'DH000002', saleSentAt: '12/10/2026 08:52' }),
+      northSouthRecord({ orderCode: 'DH000003', saleSentAt: '12/10/2026 08:52', accountantApprovedOrderAt: '12/10/2026 09:10' }),
+      northSouthRecord({ orderCode: 'DH000004', saleSentAt: '12/10/2026 08:52', accountantApprovedOrderAt: '12/10/2026 09:10', orderSignedAt: '13/10/2026 08:00' })
+    ], ['DH000001', 'DH000002', 'DH000003', 'DH000004'].map(c => kiotOrder({ code: c })));
+    assert.equal(none.summary.code, code.NOT_SENT);
+    assert.equal(sent.summary.code, code.SENT_TO_ACCOUNTANT);
+    assert.equal(approved.summary.code, code.SENT_TO_ACCOUNTANT);
+    assert.equal(approved.accountantApprovedOrderAt, '12/10/2026 09:10'); // vẫn có trong chi tiết
+    assert.equal(signed.summary.code, code.SIGNED);
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('đơn Bắc-Nam: ghép với đơn Kiot HN (branch HN, Sale/Khách lấy từ Kiot); không có trên Kiot HN thì bị bỏ; không lọt sang SG', () => {
+  const ctx = freshService();
+  try {
+    const rows = mergeFor(ctx.service, [
+      northSouthRecord({ saleSentAt: '12/10/2026 08:52' }),
+      northSouthRecord({ orderCode: 'DH999999', saleSentAt: '12/10/2026 08:52' })
+    ], [kiotOrder(), kiotOrder({ code: 'DH043419', branch: 'SG', saleName: 'Khác' })]);
+    const matched = rows.filter(r => r.orderCode === 'DH043419');
+    const hn = matched.find(r => r.branch === 'HN');
+    assert.equal(hn.source, 'sheet');
+    assert.equal(hn.saleName, 'Quan Nguyen');
+    assert.equal(hn.customerName, 'KH Minh Long');
+    assert.equal(hn.saleSentAt, '12/10/2026 08:52');
+    assert.equal(matched.find(r => r.branch === 'SG').source, 'kiotviet'); // đơn SG cùng mã chỉ là đơn Kiot SG thuần
+    assert.equal(rows.some(r => r.orderCode === 'DH999999'), false);
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('đơn Bắc-Nam: ghi đè thủ công Đã hủy / Sự cố vẫn thắng', () => {
+  const ctx = freshService();
+  try {
+    const overrides = new Map([['dh043419', { to_status_code: 'CANCELLED', changed_by: 'A', changed_at: '2026-10-12 10:00:00' }]]);
+    const [row] = mergeFor(ctx.service, [northSouthRecord({ saleSentAt: '12/10/2026 08:52' })], [kiotOrder()], overrides);
+    assert.equal(row.summary.code, ctx.service.STATUS.CANCELLED);
+    assert.equal(row.warning, false);
+  } finally {
+    ctx.restore();
+  }
+});

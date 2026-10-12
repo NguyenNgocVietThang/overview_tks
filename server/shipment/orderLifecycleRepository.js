@@ -121,26 +121,58 @@ function generateId(prefix) {
   return `${prefix}-${Date.now()}-${hex}`;
 }
 
-async function readTab(sheetName, branch) {
+// Don Bac-Nam (tab DonHang_MienNam, 2026-10-12): la don cua Kiot Ha Noi nen mang _branch 'HN', chi doc 4 moc
+// (Ma don, Sale gui ke toan, Ke toan duyet don, Don da ky nhan) + Sale/Khach; cac cot Lai xe/Tai xe/Ke toan
+// duyet giao hang/Ship nhan don cua tab nay BO QUA (ep '') de trang thai chi ra 3 muc: chua gui KT / da gui KT
+// / da ky nhan. _flow danh dau de service tat canh bao 24h cho luong nay.
+const FLOW_NORTH_SOUTH = 'NORTH_SOUTH';
+const NORTH_SOUTH_FIELD_KEYS = [
+  'orderCode', 'saleName', 'customerName', 'saleSentAt', 'accountantApprovedOrderAt', 'orderSignedAt'
+];
+
+async function readTab(sheetName, branch, { fieldKeys = SCHEMA.fieldKeys, flow = null } = {}) {
   const values = await client.getValues(sheetName);
   if (!values || values.length === 0) return [];
   const columnIndex = buildColumnIndex(values[0]);
   const dataRows = values.slice(1);
   return dataRows
     .filter(row => row.some(cell => cell !== '' && cell !== undefined))
-    .map(row => Object.assign(readRowByHeader(row, columnIndex, SCHEMA.fieldKeys), { _branch: branch }));
+    .map(row => {
+      const record = {};
+      SCHEMA.fieldKeys.forEach(key => { record[key] = ''; });
+      Object.assign(record, readRowByHeader(row, columnIndex, fieldKeys), { _branch: branch });
+      if (flow) record._flow = flow;
+      return record;
+    });
 }
 
 /**
- * Doc ca 2 tab (HN + SG), gop thanh 1 danh sach duy nhat. Moi ma don chi ton
- * tai o 1 tab nen khong can doan chi nhanh theo cookie dang nhap.
+ * Tab Bac-Nam FAIL-SOFT: tab moi them, bi doi ten/xoa khong duoc lam sap ca man hinh tra cuu (2 tab HN/SG van
+ * throw nhu cu) — ghi log ro ten tab roi coi nhu rong.
+ */
+async function readNorthSouthTab() {
+  const sheetName = CONFIG.ORDER_LIFECYCLE_SHEET_NORTH_SOUTH;
+  try {
+    return await readTab(sheetName, LIFECYCLE_BRANCH.HN, { fieldKeys: NORTH_SOUTH_FIELD_KEYS, flow: FLOW_NORTH_SOUTH });
+  } catch (err) {
+    console.error(`=== CANH BAO: Khong doc duoc tab "${sheetName}" (don Bac-Nam, bo qua) ===`);
+    console.error(err.message);
+    console.error('==========================================================================');
+    return [];
+  }
+}
+
+/**
+ * Doc ca 3 tab (HN, Bac-Nam, SG), gop thanh 1 danh sach duy nhat theo thu tu HN -> Bac-Nam -> SG. Don Bac-Nam
+ * tinh nhu don HN. Ma don khong bao gio trung giua cac tab (neu trung, dong gap truoc thang — xem mergeRows).
  */
 async function readAll() {
-  const [hnRows, sgRows] = await Promise.all([
+  const [hnRows, northSouthRows, sgRows] = await Promise.all([
     readTab(CONFIG.ORDER_LIFECYCLE_SHEET_HN, LIFECYCLE_BRANCH.HN),
+    readNorthSouthTab(),
     readTab(CONFIG.ORDER_LIFECYCLE_SHEET_SG, LIFECYCLE_BRANCH.SG)
   ]);
-  return [...hnRows, ...sgRows];
+  return [...hnRows, ...northSouthRows, ...sgRows];
 }
 
 /**
@@ -196,6 +228,7 @@ async function appendOverride(entry) {
 
 module.exports = {
   LIFECYCLE_BRANCH,
+  FLOW_NORTH_SOUTH,
   SCHEMA_HEADERS: SCHEMA.headers,
   SCHEMA_FIELD_KEYS: SCHEMA.fieldKeys,
   HISTORY_SCHEMA_HEADERS: HISTORY_SCHEMA.headers,

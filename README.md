@@ -48,7 +48,7 @@ Mở `http://localhost:3000`.
 | `DEBT_MANAGEMENT_SPREADSHEET_ID` | Workbook công nợ dùng chung (chỉ đọc) |
 | `STOCK_LOCATIONS_SPREADSHEET_ID` | Workbook vị trí hàng HN/SG dùng chung, chỉ đọc |
 | `MARKETING_REPORT_SPREADSHEET_ID`, `MARKETING_PHONES_SPREADSHEET_ID`, `MARKETING_ADS_SPREADSHEET_ID` | Ba workbook Báo cáo Marketing, chỉ đọc; service account cần Viewer trên cả ba |
-| `ORDER_LIFECYCLE_SPREADSHEET_ID` | Workbook vòng đời đơn hàng (`DonHang_HN`, `DonHang_SG`, `Lịch sử cập nhật`) |
+| `ORDER_LIFECYCLE_SPREADSHEET_ID` | Workbook vòng đời đơn hàng (`DonHang_HN`, `DonHang_SG`, `DonHang_MienNam` = đơn Bắc-Nam tính như đơn Hà Nội, `Lịch sử cập nhật`) |
 | `HR_SPREADSHEET_ID`, `HR_SPREADSHEET_ID_SG` | **Đã gỡ khỏi `config.js` và `.env.example` (2026-10-05)** — danh sách nhân sự nay ở Postgres `hr_employees`; biến còn trong môi trường cũ thì bỏ qua được |
 | `JWT_SECRET`, `JWT_EXPIRES_IN` | Ký phiên đăng nhập (bắt buộc / mặc định `12h`) |
 | `GOOGLE_CLIENT_ID` | Đăng nhập Google (tùy chọn; thiếu thì ẩn nút) |
@@ -102,6 +102,8 @@ Migration `0014_customer_debt_activity_periods.sql` tạo bảng tổng hợp ba
 Migration `0015_app_users_telegram_id.sql` thêm `app_users.telegram_id` để bot có thể liên kết trực tiếp qua Supabase Postgres. Giao diện/API tạo mã liên kết cũ không còn đọc hoặc ghi tab `_HR_TELEGRAM_LINKS`.
 
 ## Cập nhật gần nhất
+
+2026-10-12 — **Vòng đời đơn hàng: luồng Đơn Bắc-Nam (tab `DonHang_MienNam`, không migration)**: workbook `ORDER_LIFECYCLE_SPREADSHEET_ID` có thêm tab thứ 3; đây là đơn của Kiot Hà Nội nên tính như đơn HN (cùng bộ lọc cơ sở, không có nhãn/luồng riêng). Chỉ đọc 4 mốc Mã đơn hàng / Sale gửi đơn cho kế toán / Kế toán duyệt đơn / Đơn đã ký nhận; bỏ qua cột Lái xe, Tài xế, Kế toán duyệt giao hàng, Ship nhận đơn. Trạng thái: chưa gửi kế toán → đã gửi kế toán (giờ Kế toán duyệt đơn chỉ hiện trong chi tiết) → Đã nhận (Đi giao xong). Không cảnh báo quá 24h. Tab lỗi/đổi tên thì bỏ qua và ghi log (không sập trang). Code: `orderLifecycleRepository.js` (`readNorthSouthTab`, cờ `_flow`), `orderLifecycleService.js` (`toOrderRow`), `config.js` (`ORDER_LIFECYCLE_SHEET_NORTH_SOUTH`). Deploy chỉ cần restart server.
 
 2026-10-09 — **Ngày đặc biệt: thông báo chuông + pháo hoa thay sao băng (migration `0043`)**: dữ liệu ngày lễ Việt Nam (dương lịch + âm lịch: Tết Dương lịch, Giao thừa, mùng 1–3 Tết, Giỗ Tổ 10/3, 8/3, 30/4, 1/5, 2/9, 20/10, 20/11, Trung thu, Giáng sinh) và sinh nhật 27/10 nằm ở `public/shared/special-days.js` (dạng UMD, dùng chung cho server và trình duyệt, đổi âm lịch bằng thuật toán Hồ Ngọc Đức, ngày tính theo giờ Việt Nam). Job `notifications/specialDayNotifier.js` (chạy lúc khởi động rồi quét 5 phút, cờ `SPECIAL_DAYS_NOTIFY_ENABLED`) đẩy thông báo vào chuông cho mọi tài khoản đang hoạt động có quyền `hr.leave`; câu sinh nhật: "Hôm nay là sinh nhật Nguyễn Ngọc Việt Thắng BA". Bảng `special_day_notice_log` (khóa `day_key, event_key`) chống gửi trùng khi quét lặp/restart. `createNotificationForUsers` nay ghi `notifications.json` đúng 1 lần cho cả lô người nhận. Ở frontend, `shooting-star.js` chọn hiệu ứng: ngày đặc biệt dùng `fireworks.js` (rocket bay từ mép dưới lên điểm click rồi nổ, mỗi lần một bảng màu và kiểu nổ khác: cầu, vòng, liễu, trái tim, nổ kép; cùng tầng canvas z-index 0, hỗ trợ Light/Dark, `prefers-reduced-motion`, vòng lặp tự dừng khi hết hạt), ngày thường vẫn là sao băng; thêm `?fireworks=1` vào URL để xem thử. Lịch nghỉ phép không đổi giao diện. Chạy `npm run db:migrate` trước khi bật job.
 

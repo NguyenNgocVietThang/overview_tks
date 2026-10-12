@@ -53,6 +53,10 @@ const STATUS_RANK = Object.freeze({
   [STATUS.SIGNED]: 5
 });
 
+// Phai khop orderLifecycleRepository.FLOW_NORTH_SOUTH (test repository co kiem tra) — khai bao lai o day de test
+// service mock repository khong lam hong dieu kien canh bao.
+const FLOW_NORTH_SOUTH = 'NORTH_SOUTH';
+
 function hasValue(value) {
   return value !== undefined && value !== null && String(value).trim() !== '';
 }
@@ -230,7 +234,8 @@ function toOrderRow(record, overrideEntry) {
   return Object.assign(toDetail(record), {
     branch: record._branch,
     summary,
-    warning: computeOverdueWarning(record, summary)
+    // Don Bac-Nam di duong dai, moc 24h khong co y nghia -> khong bao gio canh bao.
+    warning: record._flow === FLOW_NORTH_SOUTH ? false : computeOverdueWarning(record, summary)
   });
 }
 

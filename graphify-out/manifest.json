@@ -204,9 +204,9 @@
     "semantic_hash": ""
   },
   "server/config.js": {
-    "mtime": 1791533141.8045845,
-    "seen": 1791533911.926691,
-    "ast_hash": "0f71869c56223b0e08fef33787bd027c",
+    "mtime": 1791774130.073,
+    "seen": 1791774506.5472188,
+    "ast_hash": "991e250e98c55977601ef4aeb56ad841",
     "semantic_hash": ""
   },
   "server/dashboard/dashboardData.js": {
@@ -534,16 +534,16 @@
     "semantic_hash": ""
   },
   "server/shipment/orderLifecycleRepository.js": {
-    "mtime": 1789789268.4660916,
-    "seen": 1789791508.1281283,
-    "ast_hash": "7782ae8112ba98ee2d1f11c5bf6c87fc",
-    "semantic_hash": "7782ae8112ba98ee2d1f11c5bf6c87fc"
+    "mtime": 1791774130.4344509,
+    "seen": 1791774506.5472188,
+    "ast_hash": "dec5fa2b5dda86592a05ec7066ba9f22",
+    "semantic_hash": ""
   },
   "server/shipment/orderLifecycleRepository.test.js": {
-    "mtime": 1789789268.4660916,
-    "seen": 1789791508.1281283,
-    "ast_hash": "b54b5dc2c5fe013b85a6fa5a0faf0b4f",
-    "semantic_hash": "b54b5dc2c5fe013b85a6fa5a0faf0b4f"
+    "mtime": 1791774156.7889702,
+    "seen": 1791774506.5472188,
+    "ast_hash": "9def5bf85941d8fdf1246728b2dd0a11",
+    "semantic_hash": ""
   },
   "server/shipment/orderLifecycleRoutes.js": {
     "mtime": 1791167284.76695,
@@ -558,9 +558,9 @@
     "semantic_hash": ""
   },
   "server/shipment/orderLifecycleService.js": {
-    "mtime": 1791167311.293308,
-    "seen": 1791527000.981157,
-    "ast_hash": "64fe13fcf09237ffb620a9b2533606ce",
+    "mtime": 1791774164.0666277,
+    "seen": 1791774506.5472188,
+    "ast_hash": "c6cac4abedf625c12612632e9fa905bb",
     "semantic_hash": ""
   },
   "server/shipment/orderLifecycleService.test.js": {
@@ -654,9 +654,9 @@
     "semantic_hash": "450247e9c887d43c3ef8e0aa563047de"
   },
   "README.md": {
-    "mtime": 1791768493.279355,
-    "seen": 1791768518.3310382,
-    "ast_hash": "2a63e6ad8b2f887a34dbb0bcba23f963",
+    "mtime": 1791774272.3740816,
+    "seen": 1791774506.5472188,
+    "ast_hash": "d2fd1e61aa6a20bb25369cf8ad6cfc96",
     "semantic_hash": ""
   },
   "design-system/tks-dashboard/MASTER.md": {
@@ -666,15 +666,15 @@
     "semantic_hash": ""
   },
   "docs/01-brd/BRD_Dashboard_GoogleSheets.md": {
-    "mtime": 1791533888.8715937,
-    "seen": 1791533911.926691,
-    "ast_hash": "96d23fe4e5d5ba34c8a8bb7211286ac5",
+    "mtime": 1791774257.9354658,
+    "seen": 1791774506.5472188,
+    "ast_hash": "1e44da4900d1acc4c988cd0de32ac290",
     "semantic_hash": ""
   },
   "docs/02-srs/SRS_Dashboard_GoogleSheets.md": {
-    "mtime": 1791533888.8715937,
-    "seen": 1791533911.926691,
-    "ast_hash": "3ce7eebe720cb2269fc6fe400a771258",
+    "mtime": 1791774257.7377949,
+    "seen": 1791774506.5472188,
+    "ast_hash": "7be46d0139c1544c40d431c9bb9506fc",
     "semantic_hash": ""
   },
   "docs/03-process/BPMN_Dashboard_GoogleSheets.md": {
@@ -684,9 +684,9 @@
     "semantic_hash": ""
   },
   "docs/04-planning/implementation_plan.md": {
-    "mtime": 1791768493.2866096,
-    "seen": 1791768518.3310382,
-    "ast_hash": "b9bda3c20bf6f1e424a66c205f7f81ad",
+    "mtime": 1791774272.7758608,
+    "seen": 1791774506.5472188,
+    "ast_hash": "844c481e432fc43479a1a5760fe9c23e",
     "semantic_hash": ""
   },
   "docs/superpowers/plans/2026-08-13-dashboard-result-cache.md": {
@@ -786,9 +786,9 @@
     "semantic_hash": "58e700daf0c14819a97499bd94f6f2e1"
   },
   "server/README.md": {
-    "mtime": 1791768493.279355,
-    "seen": 1791768518.3310382,
-    "ast_hash": "2184d86b151ff136828d96bb7dcbc6f5",
+    "mtime": 1791774272.5727754,
+    "seen": 1791774506.5472188,
+    "ast_hash": "ed41a80e265fa43f8a36329aed636429",
     "semantic_hash": ""
   },
   "server/kiotviet/API_ENDPOINTS.md": {
@@ -2496,14 +2496,14 @@
     "semantic_hash": ""
   },
   "server/hr/hrLeaveDbRealtime.js": {
-    "mtime": 1791768005.8446846,
-    "seen": 1791768518.3310382,
+    "mtime": 1791768969.1418808,
+    "seen": 1791774506.5472188,
     "ast_hash": "8ea36e27e60b743dec62fcc96fe56024",
     "semantic_hash": ""
   },
   "server/hr/hrLeaveDbRealtime.test.js": {
-    "mtime": 1791768005.8446846,
-    "seen": 1791768518.3310382,
+    "mtime": 1791768969.1428914,
+    "seen": 1791774506.5472188,
     "ast_hash": "a1c293f919e5fdeb0b7b70dbff97daef",
     "semantic_hash": ""
   },
@@ -2820,9 +2820,9 @@
     "semantic_hash": ""
   },
   "server/shipment/orderLifecycleWarning.test.js": {
-    "mtime": 1790915421.2792463,
-    "seen": 1791527000.981157,
-    "ast_hash": "26b714b2585a35714fd2cf35240a58bc",
+    "mtime": 1791774184.6176348,
+    "seen": 1791774506.5472188,
+    "ast_hash": "8890bb73ace138cc6545863c586176b0",
     "semantic_hash": ""
   },
   "server/stockLocations/stockLocationsRoutes.js": {
@@ -2898,15 +2898,15 @@
     "semantic_hash": ""
   },
   "server/telegram/managerLeaveRuntime.js": {
-    "mtime": 1791767996.330997,
-    "seen": 1791768518.3310382,
+    "mtime": 1791769011.6782067,
+    "seen": 1791774506.5472188,
     "ast_hash": "9dcf2395a7850724a7dd531537866ccc",
     "semantic_hash": ""
   },
   "server/telegram/managerLeaveRuntime.test.js": {
-    "mtime": 1791768012.8148553,
-    "seen": 1791768518.3310382,
-    "ast_hash": "7d415aaccf2e3648366b013a79e0e2d0",
+    "mtime": 1791769011.6792116,
+    "seen": 1791774506.5472188,
+    "ast_hash": "2b43baf942f04e8f53fc89787b22ee8f",
     "semantic_hash": ""
   },
   "server/telegram/managerLeaveStore.js": {
@@ -3378,9 +3378,9 @@
     "semantic_hash": ""
   },
   "CURRENT.md": {
-    "mtime": 1791768493.2866096,
-    "seen": 1791768518.3310382,
-    "ast_hash": "4c45b340517dd8ef1ae42e1bba850a34",
+    "mtime": 1791774491.8260858,
+    "seen": 1791774506.5472188,
+    "ast_hash": "aea4d55b4db12ba0f2eee0dc0a9e732b",
     "semantic_hash": ""
   },
   "MEMORY.md": {
@@ -3408,9 +3408,9 @@
     "semantic_hash": ""
   },
   "server/db/migrations/0044_purchases_raw_hash.sql": {
-    "mtime": 1791767050.3145425,
-    "seen": 1791768518.3310382,
-    "ast_hash": "2b9adb9acaab8d9a1b5cff3ebed05b05",
+    "mtime": 1791768969.1401362,
+    "seen": 1791774506.5472188,
+    "ast_hash": "e55899580942dd0fa2d21dd94d2096b9",
     "semantic_hash": ""
   },
   "tasks/2026-10-09-pancake-marketing/reconciliation.json": {
@@ -3423,6 +3423,18 @@
     "mtime": 1791539493.4920528,
     "seen": 1791768518.3310382,
     "ast_hash": "a726345070b22b6f3d0cf24ea1d6e534",
+    "semantic_hash": ""
+  },
+  "tasks/2026-10-12-lifecycle-north-south/plan.md": {
+    "mtime": 1791774279.5863857,
+    "seen": 1791774506.5472188,
+    "ast_hash": "44874460e7941847ce23ff78a04b4720",
+    "semantic_hash": ""
+  },
+  "tasks/2026-10-12-lifecycle-north-south/todo.md": {
+    "mtime": 1791774514.8385992,
+    "seen": 1791774652.8515284,
+    "ast_hash": "25d46afc7cac270dccffe0f8c33dedb7",
     "semantic_hash": ""
   }
 }
