@@ -1,6 +1,6 @@
 'use strict';
 
-// Cot "Cơ sở" o moi bang du lieu, hang hoa cung ma o hai co so la hai dong rieng, khach gop theo ten
+// Cot "Cơ sở" o cac bang dong theo co so (tru bang ton kho gop ma), hang hoa cung ma o hai co so la hai dong rieng, khach gop theo ten
 // (khong con cot Ma KH), khong con bo loc trang thai kinh doanh / thanh tim kiem chung.
 
 const test = require('node:test');
@@ -18,7 +18,7 @@ const BOTH = 'Hà Nội, Sài Gòn';
 
 function payload() {
   const product = (branch, stock) => ({
-    code: 'SP-1', branch, name: 'Khay giấy bạc', stock, reserved: 0, pct: 50, status: 'Đang kinh doanh', cost: 10, stockValue: stock * 10
+    code: 'SP-1', branch, name: 'Khay giấy bạc', stock, reserved: 0, pct: 50, status: 'Đang kinh doanh', cost: 10, stockValue: stock * 10, inTransit: branch === SG ? 50 : 0
   });
   return {
     kpi: {
@@ -100,12 +100,12 @@ function rows(doc, tbodyId) {
 }
 
 const TABLES_WITH_BRANCH = {
-  products: ['inventoryValueRows', 'topSellingRows', 'allProductRows', 'newlyImportedRows', 'todayNewProductRows'],
+  products: [ 'topSellingRows', 'allProductRows', 'newlyImportedRows', 'todayNewProductRows'],
   invoices: ['endOfDayRows'],
   customers: ['debtRows', 'customerRevenueRows']
 };
 
-test('moi bang du lieu co cot "Cơ sở" va dong nao cung ghi co so', () => {
+test('cac bang dong theo co so co cot "Cơ sở" va dong nao cung ghi co so', () => {
   const dom = createPage();
   const doc = dom.window.document;
   Object.entries(TABLES_WITH_BRANCH).forEach(([view, tables]) => {
@@ -117,6 +117,19 @@ test('moi bang du lieu co cot "Cơ sở" va dong nao cung ghi co so', () => {
       });
     });
   });
+  dom.window.close();
+});
+
+test('ton kho Ca hai gop ma, cot HN/SG thang hang va khong co cot Co so', () => {
+  const dom = createPage();
+  const doc = dom.window.document;
+  dom.window.eval("switchView('products')");
+  assert.deepEqual(headers(doc, 'inventoryValueRows'), [
+    'Mã hàng', 'Tên sản phẩm', 'Đơn giá', 'Tồn HN', 'Vận chuyển SG', 'Tồn SG', 'Có bán HN', 'Có bán SG', 'Giá trị tồn'
+  ]);
+  const inventory = rows(doc, 'inventoryValueRows');
+  assert.equal(inventory.length, 1, 'cung ma o hai co so duoc gop mot dong');
+  assert.deepEqual(inventory[0], ['SP-1', 'Khay giấy bạc', '10₫', '5', '50', '2', '5', '2', '70₫']);
   dom.window.close();
 });
 

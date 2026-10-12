@@ -411,7 +411,11 @@ function assertStandardLabels(worksheets, where) {
         assert.doesNotMatch(text, /(^|\s)T\.(\s|$)/, `${spot} ${part}: viet tat "T."`);
         text.split(/[^\p{L}\p{N}]+/u).filter(Boolean).forEach(token => {
           assert.ok(!FORBIDDEN_ENGLISH_TOKENS.has(token.toLowerCase()), `${spot} ${part}: tu tieng Anh "${token}"`);
-          assert.ok(!FORBIDDEN_ABBREVIATIONS.has(token.toUpperCase()), `${spot} ${part}: viet tat "${token}"`);
+          // Inventory uses the approved compact branch labels from the UI (2026-10-09).
+          const inventoryBranchLabel = where === 'products.inventory' && part === 'label' &&
+            ({ inTransit: 'Vận chuyển SG', availableHanoi: 'Có bán HN', availableSaigon: 'Có bán SG' })[field.key] === label &&
+            ['HN', 'SG'].includes(token.toUpperCase());
+          assert.ok(!FORBIDDEN_ABBREVIATIONS.has(token.toUpperCase()) || inventoryBranchLabel, `${spot} ${part}: viet tat "${token}"`);
         });
       });
       assert.ok(!labels.has(label), `${spot}: nhan trung trong worksheet`);
@@ -1642,15 +1646,15 @@ test('Chi tiet ton kho: 1 co so xuat dung cot cua bang tren man hinh, xep theo g
   await withStubs({ dashboard }, async stubs => {
     const fields = await exportService.getExportFields({ tableKey: 'products.inventory' }, HN);
     assert.deepEqual(fields.worksheets[0].fields.map(field => field.label), [
-      'Mã hàng', 'Tên sản phẩm', 'Đơn giá', 'Tồn kho', 'Tồn có thể bán', 'Hàng đang vận chuyển', 'Giá trị tồn', 'Cơ sở'
+      'Mã hàng', 'Tên sản phẩm', 'Đơn giá', 'Tồn kho', 'Vận chuyển SG', 'Tồn có thể bán', 'Giá trị tồn'
     ]);
     const table = worksheetTable(await loadWorkbook(await exportService.createExportWorkbook({
       tableKey: 'products.inventory',
       columns: { inventory: fields.worksheets[0].fields.map(field => field.key) }
     }, HN)));
     assert.deepEqual(table.rows, [
-      ['SP-1', 'Áo thun', 100, 10, 6, 0, 1000, HN],
-      ['SP-2', 'Quần', 10, 5, 5, 0, 50, HN]
+      ['SP-1', 'Áo thun', 100, 10, 0, 6, 1000],
+      ['SP-2', 'Quần', 10, 5, 0, 5, 50]
     ]);
     assert.equal(stubs.calls.rows.length, 0, 'bang tong hop tu dashboard, khong doc them Postgres');
   });
@@ -1671,8 +1675,8 @@ test('Chi tiet ton kho: "Ca hai" gop 1 dong/ma, tach cot Ha Noi / Sai Gon, van c
   await withStubs({ dashboard: { allProducts: INVENTORY_PRODUCTS } }, async () => {
     const fields = await exportService.getExportFields({ tableKey: 'products.inventory' }, BOTH);
     assert.deepEqual(fields.worksheets[0].fields.map(field => field.label), [
-      'Mã hàng', 'Tên sản phẩm', 'Đơn giá', 'Tồn kho Hà Nội', 'Tồn kho Sài Gòn',
-      'Tồn có thể bán Hà Nội', 'Tồn có thể bán Sài Gòn', 'Hàng đang vận chuyển', 'Giá trị tồn', 'Cơ sở'
+      'Mã hàng', 'Tên sản phẩm', 'Đơn giá', 'Tồn kho Hà Nội', 'Vận chuyển SG', 'Tồn kho Sài Gòn',
+      'Có bán HN', 'Có bán SG', 'Giá trị tồn'
     ]);
     const table = worksheetTable(await loadWorkbook(await exportService.createExportWorkbook({
       tableKey: 'products.inventory',
@@ -1681,8 +1685,8 @@ test('Chi tiet ton kho: "Ca hai" gop 1 dong/ma, tach cot Ha Noi / Sai Gon, van c
     // SP-1: don gia = gia tri ton / ton duong = 7000 / 40; SP-2 chi co o Ha Noi -> o Sai Gon de trong.
     const rows = table.rows.map(row => Array.from(row, value => (value === undefined ? null : value))); // o trong = lo hong cua ExcelJS
     assert.deepEqual(rows, [
-      ['SP-1', 'Áo thun', 175, 10, 30, 6, 30, 50, 7000, `${HN}, ${SG}`],
-      ['SP-2', 'Quần', 10, 5, null, 5, null, 0, 50, HN]
+      ['SP-1', 'Áo thun', 175, 10, 50, 30, 6, 30, 7000],
+      ['SP-2', 'Quần', 10, 5, 0, null, 5, null, 50]
     ]);
   });
 });
