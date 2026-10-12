@@ -1,7 +1,7 @@
 # CURRENT: BẢNG TRẠNG THÁI THỜI GIAN THỰC (REALTIME DASHBOARD)
 
-> **Cập nhật gần nhất:** 12/10/2026 (Asia/Ho_Chi_Minh), phiên "giảm egress Supabase"  
-> **Trạng thái Git:** Branch `perf/egress-reduction`, chưa merge vào `main`, chưa deploy.
+> **Cập nhật gần nhất:** 12/10/2026 (Asia/Ho_Chi_Minh), phiên "Pancake Marketing: khôi phục ID, đồng bộ thật, gộp main"  
+> **Trạng thái Git:** `main` = `89d8828`, đã push cả `tks_web/main` (Render theo dõi) và `origin/main`. Chỉ còn nhánh `main`; mọi nhánh khác đã gộp hoặc bị xóa theo yêu cầu. Chưa xác nhận deploy Render.
 > **Quy tắc:** Cập nhật liên tục vào đầu và cuối mỗi phiên làm việc để không bị đứt đoạn ngữ cảnh dự án.
 
 ---
@@ -11,9 +11,9 @@
 | Hạng mục | Trạng thái | Chi tiết |
 |---|---|---|
 | **Mã nguồn Backend** | Hoàn thành | Node.js Express, hỗ trợ 7 tab báo cáo, sổ quỹ, nhân sự, tài khoản, bot Telegram |
-| **Cơ sở dữ liệu** | 0001 → 0044 | Đầy đủ 44 migration từ dữ liệu lõi đến đánh dấu thông báo ngày đặc biệt (`0043`, chưa áp Production) và `purchases.raw_hash` (`0044`, chưa áp) |
-| **Kiểm thử tự động** | 2.207/2.214 xanh | Test mới của tính năng đều xanh (2.207 đạt, 3 skipped). 4 test lỗi ở xuất Excel/HTML tồn kho (`dashboard/exportService.test.js`, `test/frontend/branch-column-tables.test.js`: cột "Vận chuyển SG"), không thuộc phạm vi phiên này, chưa xử lý |
-| **Knowledge Graph** | Đã cập nhật | Graphify updated ngày 12/10/2026 |
+| **Cơ sở dữ liệu** | 0001 → 0046 | Migration `0044_pancake_marketing`, `0045_pancake_current_input`, `0046_pancake_history_identity` và `0044_purchases_raw_hash` đã áp lên DB dùng chung (kiểm `schema_migrations` ngày 12/10). `0043` đã áp. Hai file cùng tiền tố 0044 là chủ ý, runner chạy theo tên đầy đủ |
+| **Kiểm thử tự động** | 2.295/2.298 xanh | Chạy trên `main` đã gộp: 2.295 đạt, 3 skipped (theo cấu hình), 0 lỗi. 4 test tồn kho cũ đã đổi kỳ vọng theo giao diện hiện hành, logic không đổi |
+| **Knowledge Graph** | Đã cập nhật | Graphify updated ngày 12/10/2026 (thư mục cache `graphify-out/cache/ast/v0.9.55-s2/` cũ còn chưa theo dõi, xóa tay được) |
 | **Tài liệu hệ thống** | Đồng bộ 100% | `README.md`, `server/README.md`, `SCHEMA.md`, `implementation_plan.md`, SRS, BRD, MEMORY.md |
 
 ---
@@ -100,13 +100,14 @@
 
 ## 3. Hành động tiếp theo cần thực hiện (Next Steps & Operations)
 
-- [ ] **Pancake Marketing — đang xác minh kết nối (09/10/2026):**
-  - Kế hoạch và checklist ở `tasks/2026-10-09-pancake-marketing/`; chỉ mới thêm tài liệu, chưa thay đổi chức năng hoặc schema.
-  - Cần Public API token phía máy chủ để đối chiếu với file Sao lưu thật trước khi triển khai các bước tiếp theo. Cấu hình local chưa có token; Hữu Nghị chưa tạo token.
-  - Mục tiêu đã chốt: sáu Fanpage Facebook, loại Zalo, đồng bộ 23:55 mỗi ngày, KPI theo ngày ghi nhận và công thức Sheets, BC tháng chỉ Quản lý nhập/sửa; ADS tiếp tục đọc Sheets.
+- [ ] **Pancake Marketing — đã khôi phục ID và đồng bộ thật, chưa bật job (12/10/2026):**
+  - Chi tiết, số liệu và lưu ý nghiệm thu ở mục "Marketing Pancake" cuối file; kế hoạch/checklist ở `tasks/2026-10-09-pancake-marketing/`.
+  - Người dùng thêm 6 biến `PANCAKE_PAGE_TOKEN_<pageId>` trên Render, dịch vụ `tokosi` (giá trị lấy từ `server/.env`; AI không được nhập token). Giữ `PANCAKE_MARKETING_SYNC_ENABLED=false` và `MARKETING_REPORT_SOURCE=sheets` (mặc định).
+  - Quản lý chốt cách tính "chào lại": lần đồng bộ đầu dồn thay đổi nhân viên cũ vào 12/10 (tháng 10: 179 → 1.660). Và quyết định có tính 3.148 tin trong kỳ mà Sheets chưa từng tính hay không.
+  - Sau đó bật job, chạy đủ ít nhất ba đêm (không thay bằng ba lần cùng ngày) và đối soát đủ sáu page rồi mới đặt `MARKETING_REPORT_SOURCE=postgres`. Sáu page đọc song song, Hữu Nghị ~65 phút.
 
 - [ ] **Staging / Production Deployment:**
-  - Áp dụng các migration mới (`0036` đến `0044`) lên cơ sở dữ liệu Supabase Production ngoài giờ cao điểm: `npm run db:migrate`.
+  - Migration `0036` đến `0046` đã áp lên DB dùng chung. Khi có migration mới: `npm run db:migrate` ngoài giờ cao điểm.
   - Khởi động lại server để nạp scheduler và cấu hình mới.
 - [ ] **Khởi tạo dữ liệu Báo cáo kinh doanh trên Production:**
   - Chạy tay lệnh backfill tháng lần đầu trong thư mục `server/`:
@@ -127,4 +128,4 @@
 
 Mã T3–T6 đã triển khai và qua kiểm thử; nguồn chính thức vẫn là Sheets. Ngày 12/10/2026 đã khôi phục ID tin nhắn từ sáu bản xuất đầy đủ (migration 0046): 18.304 dòng lịch sử thật đều có liên kết (18.294 duy nhất, 7 chỉ khác cách viết số +84/0 thừa đã kiểm cùng giây-cùng nhân viên, 3 dòng thuộc cặp tin tương đương = 6 liên kết); chỉ còn dòng tiêu đề lặp BL THÔ!1950 (không phải quan sát). 3.148 tin trong kỳ nằm ngoài nền Sheets được ghi sổ riêng, không tính. Đồng bộ thật đủ sáu page đạt (slot 12/10): 11.797 fact, 2.478 quan sát cùng ngày ghi nhận 12/10 (thay đổi nhân viên tích lũy từ lúc dán Sheets và 861 tin mới), 0 mục chưa giải quyết, 0 dòng lịch sử chưa liên kết; nền lịch sử khớp CHUẨN (11.942 nhóm SĐT); tổng khớp chi tiết 100/100 (T10) và 80/80 (T9). Công tắc job vẫn TẮT và nguồn vẫn Sheets: chưa có ba đợt hằng đêm đối soát, chưa cấu hình token trên Render. Lưu ý nghiệm thu: lần đồng bộ đầu dồn các thay đổi nhân viên cũ vào ngày 12/10 nên "chào lại" tháng 10 tăng mạnh (179 → 1.660); cần Quản lý xác nhận cách tính trước khi chuyển nguồn.
 
-Các commit Claude về egress và vòng đời đơn đã kết hợp vào nhánh Marketing; đã rà soát; chờ commit/gộp main/push. Kiểm thử trên bản kết hợp: 2.276 test, 2.273 đạt, 3 bỏ qua cấu hình, 0 lỗi. Job chưa bật, nguồn chưa chuyển. Browser preview fixture đã thử form 375px, chọn khách/lưu tách tháng và ngày chốt; không lỗi console.
+Đã gộp vào `main` (fast-forward) và push `tks_web/main` + `origin/main` ở `89d8828`; nhánh `codex/pancake-marketing` đã xóa. Kiểm thử bản gộp: 2.298 test, 2.295 đạt, 3 bỏ qua cấu hình, 0 lỗi. Job chưa bật, nguồn chưa chuyển. Việc đã đổi ngoài Marketing: quyền `reports.marketing.edit` chỉ Quản lý (không cấp qua ghi đè được).
