@@ -101,9 +101,63 @@
     background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-xl); overflow:hidden;
     box-shadow:var(--card-shadow); margin-bottom:24px;
   }
-  .users-table-scroll{ overflow-x:auto; }
+  .users-table-scroll{
+    overflow-x:auto;
+    scrollbar-width:thin;
+    scrollbar-color:var(--border) transparent;
+  }
+  .users-table-scroll::-webkit-scrollbar{
+    width:8px;
+    height:8px;
+  }
+  .users-table-scroll::-webkit-scrollbar-thumb{
+    background:var(--border);
+    border-radius:var(--radius-xs);
+  }
   .users-table-scroll.has-pager{ overflow-y:auto; max-height:min(560px, 65vh); }
   .users-table-scroll.has-pager thead th{ position:sticky; top:0; z-index:1; }
+
+  .pagination-controls{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+    padding:12px 16px;
+    border-top:1px solid var(--border);
+    font-family:var(--font-data);
+    font-size:11.5px;
+    color:var(--muted);
+    font-variant-numeric:tabular-nums;
+  }
+  .pagination-controls[hidden]{
+    display:none;
+  }
+  .pagination-controls button{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-width:30px;
+    min-height:30px;
+    padding:0 8px;
+    border:1px solid var(--border);
+    border-radius:var(--radius-sm);
+    background:var(--panel-2);
+    color:var(--text);
+    font-family:var(--font-data);
+    font-size:12.5px;
+    font-weight:600;
+    font-variant-numeric:tabular-nums;
+    line-height:1;
+    cursor:pointer;
+    transition:border-color .15s ease, opacity .15s ease;
+  }
+  .pagination-controls button:hover:not(:disabled){
+    border-color:var(--muted);
+  }
+  .pagination-controls button:disabled{
+    opacity:.4;
+    cursor:default;
+  }
   .table-pager{
     display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
     padding:10px 16px; border-top:1px solid var(--border); background:var(--panel-2); font-size:12.5px; color:var(--muted);
@@ -851,7 +905,7 @@
                 Xuất Excel
               </button>
             </div>
-            <div class="users-table-scroll">
+            <div class="users-table-scroll has-pager">
               <table class="users-table fixed-table" id="employeeDirectoryTable" data-table-key="employeeDirectoryTable">
                 <thead>
                   <tr>
@@ -868,6 +922,13 @@
                   <tr class="empty-row"><td colspan="7">Đang tải dữ liệu...</td></tr>
                 </tbody>
               </table>
+            </div>
+            <div class="pagination-controls" id="employeeDirectoryPagination" hidden>
+              <button type="button" id="employeeDirectoryFirst" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+              <button type="button" id="employeeDirectoryPrev" aria-label="Trang trước" title="Trang trước">&lt;</button>
+              <span id="employeeDirectoryPageLabel">Trang 1/1</span>
+              <button type="button" id="employeeDirectoryNext" aria-label="Trang sau" title="Trang sau">&gt;</button>
+              <button type="button" id="employeeDirectoryLast" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
             </div>
           </div>
         </div>
@@ -2344,6 +2405,54 @@
       return d.toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
     }
 
+    const employeePaging = { page: 1, size: 50 };
+
+    function paginateEmployeeDirectoryTable(){
+      const tbody = document.getElementById('employeeDirectoryTableBody');
+      const pager = document.getElementById('employeeDirectoryPagination');
+      if(!tbody || !pager) return;
+      const rows = Array.from(tbody.rows).filter(row => !row.classList.contains('empty-row') && row.cells[0]?.colSpan === 1);
+      const total = rows.length;
+      const pages = Math.max(1, Math.ceil(total / employeePaging.size));
+      employeePaging.page = Math.min(Math.max(1, employeePaging.page), pages);
+      const start = (employeePaging.page - 1) * employeePaging.size;
+      rows.forEach((row, index) => { row.hidden = index < start || index >= start + employeePaging.size; });
+      pager.hidden = total === 0;
+      const label = document.getElementById('employeeDirectoryPageLabel');
+      if(label) label.textContent = `Trang ${employeePaging.page}/${pages}`;
+      const firstBtn = document.getElementById('employeeDirectoryFirst');
+      const prevBtn = document.getElementById('employeeDirectoryPrev');
+      const nextBtn = document.getElementById('employeeDirectoryNext');
+      const lastBtn = document.getElementById('employeeDirectoryLast');
+      if(firstBtn){
+        firstBtn.disabled = employeePaging.page <= 1;
+        firstBtn.onclick = () => goEmployeeDirectoryPage(1);
+      }
+      if(prevBtn){
+        prevBtn.disabled = employeePaging.page <= 1;
+        prevBtn.onclick = () => goEmployeeDirectoryPage(employeePaging.page - 1);
+      }
+      if(nextBtn){
+        nextBtn.disabled = employeePaging.page >= pages;
+        nextBtn.onclick = () => goEmployeeDirectoryPage(employeePaging.page + 1);
+      }
+      if(lastBtn){
+        lastBtn.disabled = employeePaging.page >= pages;
+        lastBtn.onclick = () => goEmployeeDirectoryPage(pages);
+      }
+    }
+
+    function goEmployeeDirectoryPage(newPage){
+      const tbody = document.getElementById('employeeDirectoryTableBody');
+      if(!tbody) return;
+      const rows = Array.from(tbody.rows).filter(row => !row.classList.contains('empty-row') && row.cells[0]?.colSpan === 1);
+      const pages = Math.max(1, Math.ceil(rows.length / employeePaging.size));
+      employeePaging.page = Math.min(Math.max(1, newPage), pages);
+      paginateEmployeeDirectoryTable();
+      const scroller = document.querySelector('#employeeDirectoryTable')?.parentElement;
+      if(scroller) scroller.scrollTop = 0;
+    }
+
     function renderEmployeeDirectoryTable(){
       const tbody = document.getElementById('employeeDirectoryTableBody');
       const keyword = (document.getElementById('employeeDirectorySearchInput').value || '').trim().toLowerCase();
@@ -2358,8 +2467,10 @@
       });
       if(!filtered.length){
         tbody.innerHTML = `<tr class="empty-row"><td colspan="7">${rawEmployeeDirectory.length ? 'Không tìm thấy nhân sự phù hợp.' : 'Chưa có dữ liệu nhân sự.'}</td></tr>`;
+        paginateEmployeeDirectoryTable();
         return;
       }
+      employeePaging.page = 1;
       tbody.innerHTML = filtered.map(e => `<tr${employeeCanManage ? ` class="employee-row-clickable" data-employee-id="${escapeHtml(e.id)}"` : ''}>
         <td>${escapeHtml(e.hoTen) || '—'}</td>
         <td>${escapeHtml(e.boPhan) || '—'}</td>
@@ -2370,6 +2481,7 @@
         <td${employeeCanManage ? ` data-sort-value="${new Date(e.ngayThem).getTime() || ''}"` : ' hidden'}>${employeeCanManage ? formatEmployeeDate(e.ngayThem) : ''}</td>
       </tr>`).join('');
       applyActiveTableSorts();
+      paginateEmployeeDirectoryTable();
     }
 
     // Bam vao dong nhan su -> mo hop chi tiet (chi khi co quyen hr.employees.manage).
@@ -2547,14 +2659,16 @@
         delete state.tableSorts[tbodyId];
         restoreTableRowOrder(tbodyId);
         updateTableSortHeader(tbodyId, -1, null);
-        if(tbodyId === 'leaveTableBody') paginateLeaveTable();
+        if(tbodyId === 'leaveTableBody') { leavePaging.page = 1; paginateLeaveTable(); }
+        if(tbodyId === 'employeeDirectoryTableBody') { employeePaging.page = 1; paginateEmployeeDirectoryTable(); }
         return;
       }
       const direction = current && current.columnIndex === columnIndex ? 'desc' : 'asc';
       state.tableSorts[tbodyId] = { columnIndex: columnIndex, direction: direction };
       sortTableRows(tbodyId, columnIndex, direction);
       updateTableSortHeader(tbodyId, columnIndex, direction);
-      if(tbodyId === 'leaveTableBody') paginateLeaveTable();
+      if(tbodyId === 'leaveTableBody') { leavePaging.page = 1; paginateLeaveTable(); }
+      if(tbodyId === 'employeeDirectoryTableBody') { employeePaging.page = 1; paginateEmployeeDirectoryTable(); }
     }
 
     function restoreTableRowOrder(tbodyId){
@@ -2565,6 +2679,7 @@
           return Number(a.dataset.sortOriginalIndex || 0) - Number(b.dataset.sortOriginalIndex || 0);
         })
         .forEach(function (row) { tbody.appendChild(row); });
+      if(tbodyId === 'employeeDirectoryTableBody') paginateEmployeeDirectoryTable();
     }
 
     function applyActiveTableSorts(){
@@ -2573,6 +2688,8 @@
         sortTableRows(tbodyId, sort.columnIndex, sort.direction);
         updateTableSortHeader(tbodyId, sort.columnIndex, sort.direction);
       });
+      if(state.tableSorts['leaveTableBody']) paginateLeaveTable();
+      if(state.tableSorts['employeeDirectoryTableBody']) paginateEmployeeDirectoryTable();
     }
 
     // ---------- Xuat Excel ----------
