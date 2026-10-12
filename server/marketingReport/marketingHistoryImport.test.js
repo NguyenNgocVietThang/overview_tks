@@ -132,7 +132,7 @@ test('reconciliation reports safe CHUAN field/type discrepancies and CHECK count
 });
 test('complete importer batches replay through PostgreSQL without duplicate raw rows/monthly audits',async t=>{
   const s=snapshot();s.workbooks.phones.sheets['HN THÔ'].push(raw('0900000001'));s.workbooks.report.sheets['BC Tháng 10'].push(['Sale','Customer','0900000001','Hữu Nghị']);
-  const m=api();const db=new PGlite();t.after(()=>db.close());await db.exec(fs.readFileSync(path.join(__dirname,'../db/migrations/0044_pancake_marketing.sql'),'utf8'));
+  const m=api();const db=new PGlite();t.after(()=>db.close());await db.exec(fs.readFileSync(path.join(__dirname,'../db/migrations/0044_pancake_marketing.sql'),'utf8'));await db.exec(fs.readFileSync(path.join(__dirname,'../db/migrations/0045_pancake_current_input.sql'),'utf8'));
   const pool={query:(...a)=>db.query(...a),connect:async()=>({query:(...a)=>db.query(...a),release(){}})};const repo=require('./marketingRepository').createMarketingRepository({pool});
   const prepared=m.prepareHistoryImport(s,{year:2026});await m.applyHistoryImport(prepared,repo,{userId:'7'});const replay=await m.applyHistoryImport(prepared,repo,{userId:'7'});
   assert.equal(replay.every(r=>r.replayed),true);const stored=await repo.readSnapshot();assert.equal(stored.rawRows.length,1);assert.equal(stored.monthlyRows.length,1);assert.equal(stored.monthlyRows[0].workbookId,reportBook);

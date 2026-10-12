@@ -24,6 +24,7 @@ async function setup(t) {
   const db = new PGlite();
   t.after(() => db.close());
   await db.exec(fs.readFileSync(migrationPath, 'utf8'));
+  await db.exec(fs.readFileSync(path.join(__dirname,'../db/migrations/0045_pancake_current_input.sql'),'utf8'));
   const pool = { query: (...args) => db.query(...args), connect: async () => ({ query: (...args) => db.query(...args), release() {} }) };
   return { db, repo: exports.createMarketingRepository({ pool }) };
 }
@@ -212,3 +213,16 @@ test('history monthly import retains source identity and skips replay audit whil
   await assert.rejects(repo.importHistory({ ...batch, batchKey: 'different-content', rawRows: [historical({ rowNumber: 99 })], monthlyRows: [{ ...monthly, sourceTab: 'BC tháng 10', sourceRow: 4, note: 'different' }] }, actor), { code: 'MARKETING_IMPORT_CONFLICT' });
   assert.equal((await repo.readSnapshot()).rawRows.length, 1);
 });
+
+test('adopted facts retain current API input without an observation and update it atomically on actual changes',async t=>{
+ const {repo,db}=await setup(t);await repo.importHistory({batchKey:'canonical',workbookId:'book',rawRows:[historical({phone:'900000001',phoneKey:'900000001',employeeRaw:'First'})]},actor);
+ const history=(await repo.readSnapshot()).rawRows[0];const row=apiRow({phone:'0900000001',phoneKey:history.phoneKey,historicalRowId:history.id});const run=await repo.startSyncRun({runKey:'canonical1'});await repo.commitPageSync({runId:run.id,pageId:HN,rows:[row]});
+ let snapshot=await repo.readSnapshot();assert.equal(snapshot.facts[0].currentInput?.phone,'0900000001');assert.equal(snapshot.facts[0].currentInput?.employeeRaw,'First');assert.equal(snapshot.rawRows.length,1);
+ const retry=await repo.startSyncRun({runKey:'canonical2'});const replay=await repo.commitPageSync({runId:retry.id,pageId:HN,rows:[row]});assert.equal(replay.newObservations,0);
+ await db.exec("CREATE FUNCTION fail_canonical_update() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'test atomic failure'; END $$; CREATE TRIGGER fail_canonical_update BEFORE UPDATE ON marketing_pancake_facts FOR EACH ROW EXECUTE FUNCTION fail_canonical_update();");
+ const failed=await repo.startSyncRun({runKey:'canonical3'});await assert.rejects(repo.commitPageSync({runId:failed.id,pageId:HN,rows:[{...row,employeeRaw:'Changed'}]}),{code:'MARKETING_STORAGE_ERROR'});
+ snapshot=await repo.readSnapshot();assert.equal(snapshot.facts[0].currentInput.employeeRaw,'First');assert.equal(snapshot.rawRows.length,1);
+ await db.exec('DROP TRIGGER fail_canonical_update ON marketing_pancake_facts');const changed=await repo.startSyncRun({runKey:'canonical4'});await repo.commitPageSync({runId:changed.id,pageId:HN,rows:[{...row,employeeRaw:'Changed'}]});snapshot=await repo.readSnapshot();assert.equal(snapshot.facts[0].currentInput.employeeRaw,'Changed');assert.equal(snapshot.rawRows.length,2);
+});
+
+test('report snapshot excludes raw payloads and canonical facts but preserves aggregation provenance',async t=>{const {repo}=await setup(t);await repo.importHistory({batchKey:'lean',workbookId:'book',rawRows:[historical()],monthlyRows:[{...monthly,sourceTab:'BC tháng 10',sourceRow:3,raw:['private source']}]},actor);const full=await repo.readSnapshot(),lean=await repo.readSnapshot({includeRaw:false});assert.equal(lean.rawRows.length,full.rawRows.length);assert.equal(lean.rawRows[0].sourceOrder,full.rawRows[0].sourceOrder);assert.equal(lean.rawRows[0].raw,undefined);assert.equal(lean.monthlyRows[0].sourceRaw,undefined);assert.deepEqual(lean.facts,[]);assert.equal(lean.monthlyRows[0].id,full.monthlyRows[0].id);});

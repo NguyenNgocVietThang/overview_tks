@@ -16,6 +16,9 @@ const CONFIG = {
   // tab Công nợ HN/SG. Optional để thiếu cấu hình không làm sập dashboard.
   DEBT_MANAGEMENT_SPREADSHEET_ID: process.env.DEBT_MANAGEMENT_SPREADSHEET_ID || null,
   STOCK_LOCATIONS_SPREADSHEET_ID: process.env.STOCK_LOCATIONS_SPREADSHEET_ID || null,
+  // Pancake daily sync is independent of KiotViet and the report source switch.
+  PANCAKE_MARKETING_SYNC_ENABLED: process.env.PANCAKE_MARKETING_SYNC_ENABLED === 'true',
+  MARKETING_REPORT_SOURCE: process.env.MARKETING_REPORT_SOURCE === 'postgres' ? 'postgres' : 'sheets',
   MARKETING_REPORT_SPREADSHEET_ID: process.env.MARKETING_REPORT_SPREADSHEET_ID || null,
   MARKETING_PHONES_SPREADSHEET_ID: process.env.MARKETING_PHONES_SPREADSHEET_ID || null,
   MARKETING_ADS_SPREADSHEET_ID: process.env.MARKETING_ADS_SPREADSHEET_ID || null,

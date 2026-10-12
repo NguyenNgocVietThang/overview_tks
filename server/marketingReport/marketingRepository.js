@@ -173,7 +173,7 @@ function createMarketingRepository({ pool = require('../db/pool').getPool() } = 
       return { pageId,status:'error',errorCode:code };
     });
   }
-  async function commitPageSync({ runId, pageId, completedAt = new Date().toISOString(), rows }) {
+  async function commitPageSync({ runId, pageId, completedAt = new Date().toISOString(), completionNow, rows, midnightAttempt = 0 }) {
     runId=id(runId); pageId=page(pageId); completedAt=timestamp(completedAt);
     if (!Array.isArray(rows)) invalid();
     const inputs=rows.map(apiInput), payloadHash=hash(inputs.map(factHash));
@@ -195,17 +195,28 @@ function createMarketingRepository({ pool = require('../db/pool').getPool() } = 
             let historical=null;
             if (row.historicalRowId) {
               historical=(await client.query('SELECT page_id,phone_key,employee_raw,source_created_at,credited_date::text AS credited_date FROM marketing_history_rows WHERE id=$1',[row.historicalRowId])).rows[0];
-              if (!historical || historical.page_id!==pageId || historical.phone_key!==row.phoneKey || historical.employee_raw!==row.employeeRaw || iso(historical.source_created_at)!==row.sourceCreatedAt) invalid();
+              if (!historical || historical.page_id!==pageId || historical.phone_key!==row.phoneKey || iso(historical.source_created_at)!==row.sourceCreatedAt) invalid();
             }
-            fact=(await client.query(`INSERT INTO marketing_pancake_facts(page_id,source_key,historical_row_id,credited_date,first_seen_run_id,latest_hash)
-              VALUES($1,$2,$3,$4::date,$5,$6) RETURNING id::text AS id,latest_hash`,[pageId,row.sourceKey,row.historicalRowId,historical ? historical.credited_date : creditedDate,runId,content])).rows[0];
+            fact=(await client.query(`INSERT INTO marketing_pancake_facts(page_id,source_key,historical_row_id,credited_date,first_seen_run_id,latest_hash,current_input)
+              VALUES($1,$2,$3,$4::date,$5,$6,$7::jsonb) RETURNING id::text AS id,latest_hash`,[pageId,row.sourceKey,row.historicalRowId,historical ? historical.credited_date : creditedDate,runId,content,JSON.stringify(row)])).rows[0];
             newFacts++;
-            if (historical) continue;
-          } else if (fact.latest_hash===content) continue;
+            if (historical && historical.employee_raw===row.employeeRaw) continue;
+          } else if (fact.latest_hash===content) {
+            await client.query('UPDATE marketing_pancake_facts SET current_input=$2::jsonb WHERE id=$1',[fact.id,JSON.stringify(row)]);
+            continue;
+          }
           await client.query(`INSERT INTO marketing_pancake_observations(fact_id,run_id,source_created_at,credited_date,message_id,conversation_id,type,phone,phone_key,employee_raw,raw,content_hash)
             VALUES($1,$2,$3::timestamptz,$4::date,$5,$6,$7,$8,$9,$10,$11::jsonb,$12)`,[fact.id,runId,row.sourceCreatedAt,creditedDate,row.messageId,row.conversationId,row.type,row.phone,row.phoneKey,row.employeeRaw,JSON.stringify(row.raw),content]);
-          await client.query('UPDATE marketing_pancake_facts SET latest_hash=$2 WHERE id=$1',[fact.id,content]);
+          await client.query('UPDATE marketing_pancake_facts SET latest_hash=$2,current_input=$3::jsonb WHERE id=$1',[fact.id,content,JSON.stringify(row)]);
           newObservations++;
+        }
+        // Sample after all source writes, immediately before publishing page success.
+        if (completionNow) {
+          completedAt=timestamp(completionNow().toISOString());
+          const finalDate=(await client.query("SELECT ($1::timestamptz AT TIME ZONE 'Asia/Ho_Chi_Minh')::date::text AS date",[completedAt])).rows[0].date;
+          // Immutable observations cannot be patched. Roll back the whole page and
+          // repeat once with the successful-day timestamp when writes cross midnight.
+          if(finalDate!==creditedDate)throw Object.assign(new Error('MARKETING_DAY_CHANGED'),{code:'MARKETING_DAY_CHANGED',completedAt});
         }
         const saved=(await client.query(`UPDATE marketing_sync_pages SET status='success',completed_at=$3::timestamptz,error_code=NULL,payload_hash=$4,input_count=$5,new_facts=$6,new_observations=$7
           WHERE run_id=$1 AND page_id=$2 RETURNING *`,[runId,pageId,completedAt,payloadHash,inputs.length,newFacts,newObservations])).rows[0];
@@ -213,6 +224,7 @@ function createMarketingRepository({ pool = require('../db/pool').getPool() } = 
         return camel(saved);
       });
     } catch (cause) {
+      if(cause?.code==='MARKETING_DAY_CHANGED'&&midnightAttempt<1)return commitPageSync({runId,pageId,rows,completedAt:cause.completedAt,completionNow,midnightAttempt:midnightAttempt+1});
       if (cause?.code==='MARKETING_SYNC_CONFLICT') throw cause;
       const code=cause?.code==='INVALID_MARKETING_INPUT' ? cause.code : 'MARKETING_STORAGE_ERROR';
       await failPageSync({runId,pageId,completedAt,errorCode:code}).catch(()=>{});
@@ -224,6 +236,13 @@ function createMarketingRepository({ pool = require('../db/pool').getPool() } = 
     if (!run) return null;
     run.pages=(await client.query('SELECT run_id::text AS run_id,page_id,status,completed_at,error_code,input_count,new_facts,new_observations FROM marketing_sync_pages WHERE run_id=$1 ORDER BY page_id',[runId])).rows.map(camel);
     return run;
+  }
+  async function getLatestSlotRun(runKey) {
+    required(runKey);
+    return transaction(async client => {
+      const row=(await client.query('SELECT id::text AS id FROM marketing_sync_runs WHERE run_key=$1 OR starts_with(run_key,$2) ORDER BY id DESC LIMIT 1',[runKey,runKey+':retry:1'])).rows[0];
+      return row ? syncRun(client,row.id) : null;
+    },true);
   }
   async function getSyncRun(runId) { return transaction(client=>syncRun(client,id(runId)),true); }
   async function finishSyncRun(runId) {
@@ -261,20 +280,21 @@ function createMarketingRepository({ pool = require('../db/pool').getPool() } = 
   async function listMonthlyAudit(rowId) {
     return (await pool.query('SELECT id::text AS id,row_id::text AS row_id,action,version::text AS version,actor,before_row AS before,after_row AS after,created_at FROM marketing_monthly_audit WHERE row_id=$1 ORDER BY version',[id(rowId)])).rows.map(camel);
   }
-  async function readSnapshot() {
+  async function readSnapshot({ includeRaw = true } = {}) {
     return transaction(async client => {
       const pages=(await client.query('SELECT page_id,name,platform,status,last_success_at,last_attempt_at,error_code FROM marketing_pages ORDER BY page_id')).rows.map(camel);
       const aliases=(await client.query('SELECT raw_name,report_employee,updated_at,actor FROM marketing_employee_aliases ORDER BY raw_name')).rows.map(camel);
-      const facts=(await client.query('SELECT id::text AS id,page_id,source_key,historical_row_id::text AS historical_row_id,credited_date::text AS credited_date,first_seen_run_id::text AS first_seen_run_id FROM marketing_pancake_facts ORDER BY id')).rows.map(camel);
-      const history=(await client.query(`SELECT id::text AS id,batch_id::text AS batch_id,workbook_id,source_tab AS tab,source_row AS row_number,source_order::text AS source_order,page_id,source_created_at,source_created_text,phone,phone_key,employee_raw,credited_date::text AS credited_date,raw FROM marketing_history_rows ORDER BY source_order`)).rows.map(row=>({...camel(row),origin:'sheet',sourceCreatedAt:iso(row.source_created_at)}));
-      const observations=(await client.query(`SELECT o.id::text AS id,o.fact_id::text AS fact_id,o.run_id::text AS run_id,o.source_order::text AS source_order,f.page_id,f.source_key,f.historical_row_id::text AS historical_row_id,o.source_created_at,o.credited_date::text AS credited_date,o.message_id,o.conversation_id,o.type,o.phone,o.phone_key,o.employee_raw,o.raw FROM marketing_pancake_observations o JOIN marketing_pancake_facts f ON f.id=o.fact_id ORDER BY o.source_order`)).rows.map(row=>({...camel(row),origin:'pancake',sourceCreatedAt:iso(row.source_created_at)}));
+      const facts=includeRaw ? (await client.query('SELECT id::text AS id,page_id,source_key,historical_row_id::text AS historical_row_id,credited_date::text AS credited_date,first_seen_run_id::text AS first_seen_run_id,current_input FROM marketing_pancake_facts ORDER BY id')).rows.map(camel) : [];
+      const history=(await client.query(`SELECT id::text AS id,batch_id::text AS batch_id,workbook_id,source_tab AS tab,source_row AS row_number,source_order::text AS source_order,page_id,source_created_at,source_created_text,phone,phone_key,employee_raw,credited_date::text AS credited_date${includeRaw ? ",raw" : ""} FROM marketing_history_rows ORDER BY source_order`)).rows.map(row=>({...camel(row),origin:'sheet',sourceCreatedAt:iso(row.source_created_at)}));
+      const observations=(await client.query(`SELECT o.id::text AS id,o.fact_id::text AS fact_id,o.run_id::text AS run_id,o.source_order::text AS source_order,f.page_id,f.source_key,f.historical_row_id::text AS historical_row_id,o.source_created_at,o.credited_date::text AS credited_date,o.message_id,o.conversation_id,o.type,o.phone,o.phone_key,o.employee_raw${includeRaw ? ",o.raw" : ""} FROM marketing_pancake_observations o JOIN marketing_pancake_facts f ON f.id=o.fact_id ORDER BY o.source_order`)).rows.map(row=>({...camel(row),origin:'pancake',sourceCreatedAt:iso(row.source_created_at)}));
       const rawRows=[...history,...observations].sort((a,b)=>BigInt(a.sourceOrder)<BigInt(b.sourceOrder) ? -1 : 1);
-      const monthlyRows=(await client.query(`SELECT ${monthlyColumns} FROM marketing_monthly_rows ORDER BY report_year,report_month,id`)).rows.map(monthlyShape);
+      const monthlyRows=(await client.query(`SELECT ${includeRaw ? monthlyColumns : monthlyColumns.replace(",source_raw", "")} FROM marketing_monthly_rows ORDER BY report_year,report_month,id`)).rows.map(monthlyShape);
       const latestRunId=(await client.query('SELECT id::text AS id FROM marketing_sync_runs ORDER BY id DESC LIMIT 1')).rows[0]?.id;
       return {pages,aliases,facts,rawRows,monthlyRows,latestRun:latestRunId ? await syncRun(client,latestRunId) : null};
     },true);
   }
-  return Object.fromEntries(Object.entries({importHistory,upsertAlias,startSyncRun,commitPageSync,failPageSync,finishSyncRun,getSyncRun,readSnapshot,createMonthlyRow,updateMonthlyRow,listMonthlyRows,listMonthlyAudit}).map(([name,fn])=>[name,safe(fn)]));
+  return Object.fromEntries(Object.entries({importHistory,upsertAlias,startSyncRun,commitPageSync,failPageSync,finishSyncRun,getSyncRun,getLatestSlotRun,readSnapshot,createMonthlyRow,updateMonthlyRow,listMonthlyRows,listMonthlyAudit}).map(([name,fn])=>[name,safe(fn)]));
 }
 
 module.exports={createMarketingRepository,PAGE_IDS,PAGE_NAMES};
+

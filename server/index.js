@@ -141,6 +141,13 @@ async function startServer() {
     // scheduler do tat khi khong bat KiotViet.
     if (CONFIG.SPECIAL_DAYS_NOTIFY_ENABLED) startSpecialDayNotifySchedule();
 
+    if (CONFIG.PANCAKE_MARKETING_SYNC_ENABLED) {
+      const pancakeScheduler = require('./marketingReport/pancakeScheduler').createPancakeScheduler({ enabled: true });
+      pancakeScheduler.start();
+      process.once('SIGTERM', () => pancakeScheduler.stop());
+      process.once('SIGINT', () => pancakeScheduler.stop());
+    }
+
     if (CONFIG.KIOTVIET_SYNC_ENABLED || CONFIG.KIOTVIET_CASHBOOK_SYNC_ENABLED) {
       startPollingScheduler();
     }
