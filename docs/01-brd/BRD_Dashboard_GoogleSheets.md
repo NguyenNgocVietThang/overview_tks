@@ -15,6 +15,8 @@
 
 > **Ghi chú phiên bản 2.2 (05/10/2026):** rà soát lại toàn bộ theo code. Loại các nội dung đã lỗi thời: tab `Trả NCC` đọc từ Google Sheets (nay upload Excel vào Postgres), tab Nhà cung cấp và KPI nhà cung cấp/nhập hàng (đã gỡ), bộ lọc 7/30/90 ngày và tự làm mới 10 phút (nay bộ lọc Từ–Đến theo từng bảng và cập nhật bằng SSE), đăng nhập theo tab `Users`, Khách tự đăng ký (nay khóa), workbook HR (không còn đọc). Bổ sung Vị trí hàng, Vòng đời đơn hàng hợp nhất đơn KiotViet, quản lý ID Telegram và phân quyền theo tính năng.
 
+> **Bổ sung 12/10/2026:** Vòng đời đơn hàng theo 5 luồng (giao xe HN/SG, khách/ship lấy tại kho HN/SG, Bắc-Nam) với 6 cảnh báo có tên tự mất khi xử lý xong: Kế toán sót đơn, Lái xe chưa chụp đơn, Lái xe quên chụp, Chưa nhận đơn quá 6 giờ, Khách/Ship chưa lấy, Chưa chụp bill tàu.
+
 # 1. Giới thiệu
 
 ## 1.1. Mục đích tài liệu

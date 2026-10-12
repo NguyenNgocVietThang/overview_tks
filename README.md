@@ -48,7 +48,7 @@ Mở `http://localhost:3000`.
 | `DEBT_MANAGEMENT_SPREADSHEET_ID` | Workbook công nợ dùng chung (chỉ đọc) |
 | `STOCK_LOCATIONS_SPREADSHEET_ID` | Workbook vị trí hàng HN/SG dùng chung, chỉ đọc |
 | `MARKETING_REPORT_SPREADSHEET_ID`, `MARKETING_PHONES_SPREADSHEET_ID`, `MARKETING_ADS_SPREADSHEET_ID` | Ba workbook Báo cáo Marketing, chỉ đọc; service account cần Viewer trên cả ba |
-| `ORDER_LIFECYCLE_SPREADSHEET_ID` | Workbook vòng đời đơn hàng (`DonHang_HN`, `DonHang_SG`, `DonHang_MienNam` = đơn Bắc-Nam tính như đơn Hà Nội, `Lịch sử cập nhật`) |
+| `ORDER_LIFECYCLE_SPREADSHEET_ID` | Workbook vòng đời đơn hàng (`DonHang_HN`, `DonHang_SG`, `DonHang_MienNam` = đơn Bắc-Nam tính như đơn Hà Nội, `Khách_HN`/`Khách_SG` = khách/ship lấy tại kho, `Lịch sử cập nhật`) |
 | `HR_SPREADSHEET_ID`, `HR_SPREADSHEET_ID_SG` | **Đã gỡ khỏi `config.js` và `.env.example` (2026-10-05)** — danh sách nhân sự nay ở Postgres `hr_employees`; biến còn trong môi trường cũ thì bỏ qua được |
 | `JWT_SECRET`, `JWT_EXPIRES_IN` | Ký phiên đăng nhập (bắt buộc / mặc định `12h`) |
 | `GOOGLE_CLIENT_ID` | Đăng nhập Google (tùy chọn; thiếu thì ẩn nút) |
@@ -102,6 +102,8 @@ Migration `0014_customer_debt_activity_periods.sql` tạo bảng tổng hợp ba
 Migration `0015_app_users_telegram_id.sql` thêm `app_users.telegram_id` để bot có thể liên kết trực tiếp qua Supabase Postgres. Giao diện/API tạo mã liên kết cũ không còn đọc hoặc ghi tab `_HR_TELEGRAM_LINKS`.
 
 ## Cập nhật gần nhất
+
+2026-10-12 — **Vòng đời đơn hàng: 5 luồng + 6 cảnh báo có tên (không migration)**: đọc thêm tab `Khách_HN`/`Khách_SG`; cảnh báo 24h cũ thay bằng: Kế toán sót đơn (mọi tab: Sale gửi KT, KT chưa duyệt, đủ 30 phút tính trong giờ 6h–18h), Lái xe chưa chụp đơn (DonHang_HN/SG: Sale gửi >24h, chưa Tài xế gửi xác nhận, chưa ký nhận), Lái xe quên chụp (DonHang_HN/SG: đã ký nhận mà chưa Tài xế gửi xác nhận), Chưa nhận đơn quá 6 giờ (DonHang_HN/SG: Tài xế gửi xác nhận >6h chưa ký nhận), Khách/Ship chưa lấy (Khách_HN/SG: Sale gửi >2 ngày chưa Ship nhận đơn), Chưa chụp bill tàu (DonHang_MienNam: Sale gửi >24h chưa ký nhận). Tính trong RAM, không thêm truy vấn Supabase.
 
 2026-10-12 — **Vòng đời đơn hàng: luồng Đơn Bắc-Nam (tab `DonHang_MienNam`, không migration)**: workbook `ORDER_LIFECYCLE_SPREADSHEET_ID` có thêm tab thứ 3; đây là đơn của Kiot Hà Nội nên tính như đơn HN (cùng bộ lọc cơ sở, không có nhãn/luồng riêng). Chỉ đọc 4 mốc Mã đơn hàng / Sale gửi đơn cho kế toán / Kế toán duyệt đơn / Đơn đã ký nhận; bỏ qua cột Lái xe, Tài xế, Kế toán duyệt giao hàng, Ship nhận đơn. Trạng thái: chưa gửi kế toán → đã gửi kế toán (giờ Kế toán duyệt đơn chỉ hiện trong chi tiết) → Đã nhận (Đi giao xong). Không cảnh báo quá 24h. Tab lỗi/đổi tên thì bỏ qua và ghi log (không sập trang). Code: `orderLifecycleRepository.js` (`readNorthSouthTab`, cờ `_flow`), `orderLifecycleService.js` (`toOrderRow`), `config.js` (`ORDER_LIFECYCLE_SHEET_NORTH_SOUTH`). Deploy chỉ cần restart server.
 

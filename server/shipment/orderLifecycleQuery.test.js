@@ -40,7 +40,7 @@ test('parseDateTimeValue: dd/MM/yyyy[ HH:mm[:ss]] (kể cả lỗi gõ "15,35"),
 
 test('parseParams: mặc định — mọi cơ sở, không lọc, sắp theo thời gian đặt hàng mới nhất trước, trang 1 x 100 dòng', () => {
   assert.deepEqual(q.parseParams({}), {
-    branch: '', status: '', kiotStatus: '', dateField: 'saleSentAt', from: '', to: '', mode: 'code', q: '',
+    branch: '', status: '', kiotStatus: '', warning: '', dateField: 'saleSentAt', from: '', to: '', mode: 'code', q: '',
     sort: 'orderDate', dir: -1, page: 1, pageSize: 100
   });
   assert.deepEqual(q.parseParams(undefined).sort, 'orderDate');

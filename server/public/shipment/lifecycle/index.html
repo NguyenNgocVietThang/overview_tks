@@ -68,6 +68,8 @@
   .lc-history-arrow{ color:var(--muted); font-weight:700; }
 
   .lc-badge{ display:inline-flex; align-items:center; padding:5px 12px; border-radius:8px; font-size:12.5px; font-weight:700; white-space:nowrap; }
+  /* 1 don co the dinh nhieu canh bao: nhan nho hon, xuong dong khi het cho. */
+  .lc-warning-badge{ padding:3px 8px; margin:2px 0; font-size:12px; }
   .badge-not-sent{ color:var(--muted); background:var(--surface-hover); border:1px solid var(--border); }
   .badge-sent{ color:var(--amber); background:rgba(245,158,11,.12); border:1px solid rgba(245,158,11,.3); }
   .badge-delivering{ color:var(--blue); background:rgba(59,130,246,.12); border:1px solid rgba(59,130,246,.3); }
@@ -437,6 +439,16 @@
                   <option value="EXCEPTION">Sự cố</option>
                   <option value="CANCELLED">Đã hủy</option>
                 </select>
+                <select class="bulk-status-select" id="bulkWarningFilter" aria-label="Lọc theo cảnh báo">
+                  <option value="">Tất cả cảnh báo</option>
+                  <option value="any">Có cảnh báo</option>
+                  <option value="ACCOUNTANT_LATE">Kế toán sót đơn</option>
+                  <option value="DRIVER_NO_PHOTO">Lái xe chưa chụp đơn</option>
+                  <option value="DRIVER_FORGOT_PHOTO">Lái xe quên chụp</option>
+                  <option value="NOT_SIGNED_6H">Chưa nhận đơn quá 6 giờ</option>
+                  <option value="PICKUP_PENDING">Khách/Ship chưa lấy</option>
+                  <option value="NO_TRAIN_BILL">Chưa chụp bill tàu</option>
+                </select>
                 <label class="bulk-field" for="bulkKiotStatusFilter">
                   <span>Trạng thái KiotViet</span>
                   <select class="bulk-status-select" id="bulkKiotStatusFilter" aria-label="Lọc theo trạng thái KiotViet">
@@ -486,7 +498,7 @@
                   <th class="sortable" data-col="kiotStatus" data-sort="kiotStatus" style="width:150px" title="Trạng thái của đơn đặt hàng trên KiotViet." data-column-key="kiotStatus">Trạng thái KiotViet<span class="sort-ind">▲</span></th>
                   <th class="sortable" data-col="status" data-sort="status" style="width:200px" data-column-key="status">Trạng thái<span class="sort-ind">▲</span></th>
                   <th class="sortable" data-col="at" data-sort="at" style="width:155px" data-column-key="at">Cập nhật gần nhất<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-col="warning" data-sort="warning" style="width:110px" data-column-key="warning">Cảnh báo<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-col="warning" data-sort="warning" style="width:170px" data-column-key="warning">Cảnh báo<span class="sort-ind">▲</span></th>
                 </tr></thead>
                 <tbody id="bulkBody"></tbody>
               </table>
@@ -1052,6 +1064,7 @@
     const bulkSearchInput = document.getElementById('bulkSearchInput');
     const bulkStatusFilter = document.getElementById('bulkStatusFilter');
     const bulkKiotStatusFilter = document.getElementById('bulkKiotStatusFilter');
+    const bulkWarningFilter = document.getElementById('bulkWarningFilter');
     const bulkExportBtn = document.getElementById('bulkExportBtn');
     const bulkColumnsBtn = document.getElementById('bulkColumnsBtn');
     const bulkTable = document.getElementById('bulkTable');
@@ -1072,6 +1085,7 @@
     let activeBranchFilter = '';
     let activeStatusFilter = '';
     let activeKiotStatusFilter = ''; // mac dinh "Tat ca"
+    let activeWarningFilter = ''; // '' = tat ca, 'any' = co canh bao, hoac 1 ma canh bao
     let dateFilterField = 'saleSentAt'; // cot thoi gian ap dung bo loc "tu ... den ..."
     let dateFilterFrom = ''; // 'YYYY-MM-DD' hoac '' (rong = khong gioi han)
     let dateFilterTo = '';
@@ -1143,8 +1157,20 @@
 
     // Qua 24h ke tu luc Sale ra don ma chua/da van chuyen muon -> chu "Canh bao"
     // mau do; khong canh bao thi de trong (server tinh, xem computeOverdueWarning).
+    // Server tra MA canh bao (order.warnings, xem orderLifecycleService.WARNING) — doi sang nhan o day cho payload gon.
+    const WARNING_LABEL = {
+      ACCOUNTANT_LATE: 'Kế toán sót đơn',
+      DRIVER_NO_PHOTO: 'Lái xe chưa chụp đơn',
+      DRIVER_FORGOT_PHOTO: 'Lái xe quên chụp',
+      NOT_SIGNED_6H: 'Chưa nhận đơn quá 6 giờ',
+      PICKUP_PENDING: 'Khách/Ship chưa lấy',
+      NO_TRAIN_BILL: 'Chưa chụp bill tàu'
+    };
     function warningHtml(order){
-      return order.warning ? '<span class="lc-badge badge-exception">Cảnh báo</span>' : '';
+      const codes = Array.isArray(order.warnings) ? order.warnings : (order.warning ? [''] : []);
+      return codes.map(function(code){
+        return '<span class="lc-badge badge-exception lc-warning-badge">' + escapeHtml(WARNING_LABEL[code] || 'Cảnh báo') + '</span>';
+      }).join(' ');
     }
 
     // ---------- Cot cua bang + hop "Cot hien thi" ----------
@@ -1238,7 +1264,7 @@
         hasOrderTotal(order) ? order.orderTotal : null,
         hasSellableValue(order) ? order.sellableValue : null,
         order.summary && order.summary.code, order.summary && order.summary.label, order.summary && order.summary.at,
-        !!order.warning, isEditableRow(order)
+        (order.warnings || []).join(','), !!order.warning, isEditableRow(order)
       ]);
     }
 
@@ -1299,6 +1325,7 @@
         if(order && body.order){
           order.summary = body.order.summary;
           order.warning = !!body.order.warning;
+          order.warnings = body.order.warnings || [];
           // Tim o theo data-col (cot co the bi an / doi thu tu, khong dung chi so).
           const atCell = tr.querySelector('[data-col="at"]');
           if(atCell) atCell.textContent = (order.summary && order.summary.at) || '—';
@@ -1410,6 +1437,7 @@
       if(activeBranchFilter) params.branch = activeBranchFilter;
       if(activeStatusFilter) params.status = activeStatusFilter;
       if(activeKiotStatusFilter) params.kiotStatus = activeKiotStatusFilter;
+      if(activeWarningFilter) params.warning = activeWarningFilter;
       if(dateFilterFrom || dateFilterTo){
         params.dateField = dateFilterField;
         if(dateFilterFrom) params.from = dateFilterFrom;
@@ -1549,6 +1577,11 @@
 
     bulkKiotStatusFilter.addEventListener('change', function(){
       activeKiotStatusFilter = bulkKiotStatusFilter.value;
+      reloadBulk();
+    });
+
+    bulkWarningFilter.addEventListener('change', function(){
+      activeWarningFilter = bulkWarningFilter.value;
       reloadBulk();
     });
 
@@ -1778,7 +1811,7 @@
     }
 
     // Bo loc dang dropdown tuy bien (xem enhanceSelect). Dat SAU khi moi bien/handler da khai bao.
-    [bulkStatusFilter, bulkKiotStatusFilter, bulkBranchFilter, bulkDateField,
+    [bulkStatusFilter, bulkWarningFilter, bulkKiotStatusFilter, bulkBranchFilter, bulkDateField,
       historyStatusFilter, historyBranchFilter].forEach(enhanceSelect);
 
     historySearchForm.addEventListener('submit', function(e){ e.preventDefault(); applyHistoryFilters(); });

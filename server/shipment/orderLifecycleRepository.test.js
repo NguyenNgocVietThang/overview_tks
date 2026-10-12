@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-function freshRepository({ hn, sg, northSouth, northSouthError, historyRows, historyClientOverrides }) {
+function freshRepository({ hn, sg, northSouth, northSouthError, pickupHn, pickupSg, pickupError, historyRows, historyClientOverrides }) {
   const clientPath = require.resolve('../sheets/orderLifecycleSheetsClient');
   const historyClientPath = require.resolve('../sheets/orderLifecycleHistoryClient');
   const configPath = require.resolve('../config');
@@ -15,12 +15,15 @@ function freshRepository({ hn, sg, northSouth, northSouthError, historyRows, his
   const values = {
     [CONFIG.ORDER_LIFECYCLE_SHEET_HN]: hn || [],
     [CONFIG.ORDER_LIFECYCLE_SHEET_SG]: sg || [],
-    [CONFIG.ORDER_LIFECYCLE_SHEET_NORTH_SOUTH]: northSouth || []
+    [CONFIG.ORDER_LIFECYCLE_SHEET_NORTH_SOUTH]: northSouth || [],
+    [CONFIG.ORDER_LIFECYCLE_SHEET_PICKUP_HN]: pickupHn || [],
+    [CONFIG.ORDER_LIFECYCLE_SHEET_PICKUP_SG]: pickupSg || []
   };
 
   const clientExports = {
     getValues: async sheetName => {
       if (northSouthError && sheetName === CONFIG.ORDER_LIFECYCLE_SHEET_NORTH_SOUTH) throw northSouthError;
+      if (pickupError && sheetName === CONFIG.ORDER_LIFECYCLE_SHEET_PICKUP_HN) throw pickupError;
       return values[sheetName] || [];
     }
   };
@@ -215,17 +218,20 @@ test('readAll tab Bắc-Nam đọc theo TÊN header khi cột bị đảo vị t
   }
 });
 
-test('readAll nối theo thứ tự HN -> Bắc-Nam -> SG', async () => {
+test('readAll nối theo thứ tự HN -> Bắc-Nam -> Khách_HN -> SG -> Khách_SG, mỗi dòng mang _flow', async () => {
   const ctx = freshRepository({
     hn: [HEADERS, ['HD001', '', '', '01/09/2026', '', '', '', '', '', '', '']],
     northSouth: [NORTH_SOUTH_HEADERS, ['DH002', '', '', '02/09/2026', '', '', '', '', '', '']],
-    sg: [HEADERS, ['HD003', '', '', '03/09/2026', '', '', '', '', '', '', '']]
+    pickupHn: [PICKUP_HEADERS, ['KH004', '', '', '04/09/2026', '', '', '', '', '', '']],
+    sg: [HEADERS, ['HD003', '', '', '03/09/2026', '', '', '', '', '', '', '']],
+    pickupSg: [PICKUP_HEADERS, ['KH005', '', '', '05/09/2026', '', '', '', '', '', '']]
   });
   try {
     const rows = await ctx.repo.readAll();
-    assert.deepEqual(rows.map(r => [r.orderCode, r._branch]), [['HD001', 'HN'], ['DH002', 'HN'], ['HD003', 'SG']]);
-    assert.equal(rows[0]._flow, undefined);
-    assert.equal(rows[2]._flow, undefined);
+    assert.deepEqual(rows.map(r => [r.orderCode, r._branch, r._flow]), [
+      ['HD001', 'HN', 'DELIVERY'], ['DH002', 'HN', 'NORTH_SOUTH'], ['KH004', 'HN', 'PICKUP'],
+      ['HD003', 'SG', 'DELIVERY'], ['KH005', 'SG', 'PICKUP']
+    ]);
   } finally {
     ctx.restore();
   }
@@ -320,6 +326,60 @@ test('appendOverride: ghi đúng thứ tự cột theo HISTORY_SCHEMA_FIELD_KEYS
     assert.ok(entry.history_id);
     assert.ok(entry.changed_at);
   } finally {
+    ctx.restore();
+  }
+});
+
+// Header tab Khách_HN/Khách_SG (2026-10-12) giống DonHang_MienNam: chỉ đọc Mã đơn, Sale gửi KT, KT duyệt, Ship nhận đơn.
+const PICKUP_HEADERS = NORTH_SOUTH_HEADERS;
+
+test('readAll đọc tab Khách_HN/SG: chỉ giữ Mã đơn / Sale gửi KT / KT duyệt / Ship nhận đơn', async () => {
+  const ctx = freshRepository({
+    pickupSg: [
+      PICKUP_HEADERS,
+      ['DH000010', 'Sale A', 'KH B', '12/10/2026 08:52', '12/10/2026 09:10',
+        'Tuấn Anh', '12/10/2026 10:00', '12/10/2026 10:05', '13/10/2026 08:00', '14/10/2026 08:00']
+    ]
+  });
+  try {
+    const [row] = await ctx.repo.readAll();
+    assert.equal(row._branch, 'SG');
+    assert.equal(row._flow, ctx.repo.FLOW_PICKUP);
+    assert.equal(row.saleSentAt, '12/10/2026 08:52');
+    assert.equal(row.accountantApprovedOrderAt, '12/10/2026 09:10');
+    assert.equal(row.shipReceivedAt, '13/10/2026 08:00');
+    ['driverName', 'driverConfirmedDeliveryAt', 'accountantApprovedDeliveryAt', 'deliveryConfirmedAt', 'orderSignedAt']
+      .forEach(key => assert.equal(row[key], '', `${key} phải bị bỏ qua`));
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('readAll DonHang_HN/SG: bỏ qua cột "Ship nhận đơn" (luồng ship/khách đã tách tab)', async () => {
+  const ctx = freshRepository({ hn: [HEADERS, ['HD001', '', '', '01/09/2026', '', '', '', '', '', '02/09/2026', '']] });
+  try {
+    const [row] = await ctx.repo.readAll();
+    assert.equal(row._flow, ctx.repo.FLOW_DELIVERY);
+    assert.equal(row.shipReceivedAt, '');
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('readAll: tab Khách_HN lỗi -> fail-soft, các tab khác vẫn đọc', async () => {
+  const ctx = freshRepository({
+    hn: [HEADERS, ['HD001', '', '', '01/09/2026', '', '', '', '', '', '', '']],
+    pickupError: new Error("Unable to parse range: 'Khách_HN'")
+  });
+  const realError = console.error;
+  const logged = [];
+  console.error = line => logged.push(String(line));
+  try {
+    const rows = await ctx.repo.readAll();
+    assert.deepEqual(rows.map(r => r.orderCode), ['HD001']);
+    assert.ok(logged.some(line => line.includes('Khách_HN')));
+  } finally {
+    console.error = realError;
     ctx.restore();
   }
 });
