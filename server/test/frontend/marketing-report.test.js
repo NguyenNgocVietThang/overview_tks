@@ -271,3 +271,18 @@ test('Sync missing success time is empty and month choices follow exact year/mon
  assert.equal(p.doc.getElementById('marketing-costs-year'),null);const month=p.doc.getElementById('marketing-monthly-month');assert.deepEqual(Array.from(month.options,o=>o.value),['10']);const year=p.doc.getElementById('marketing-monthly-year');year.value='2025';year.dispatchEvent(new p.window.Event('change'));await settle();
  const options=Array.from(p.doc.getElementById('marketing-monthly-month').options,o=>[o.value,o.textContent]);assert.deepEqual(options.map(o=>o[0]),['9','10']);assert.match(options[1][1],/Chưa có dữ liệu/);assert.match(p.doc.getElementById('marketing-monthly-warnings').textContent,/tháng\/năm/);p.dom.window.close();
 });
+test('hộp chi tiết Marketing: hàng chỉ số dạng .dp-stat và bảng trong hộp KHÔNG có nút "Cột hiển thị" (bảng ngoài trang vẫn có)',async()=>{
+  const p=page(async url=>{
+    if(url.includes('/detail?')) return {ok:true,status:200,json:async()=>({snapshotId:'d1',title:'Chi tiết page',computedAt:'2026-10-08',kpis:[{label:'Số điện thoại',value:12,format:'number'},{label:'Tỷ lệ chốt',value:.25,format:'percent'}],groups:[{kind:'phones',title:'Danh sách SĐT',rows:[{key:'phone:1',phone:'09001',page:'Hữu Nghị'}]}],warnings:[]})};
+  });
+  await p.window.TKSMarketing.load();
+  assert.ok(p.doc.querySelector('#marketing-monthly-rows .tks-columns-button'),'bang ngoai trang co nut Cot hien thi');
+  p.doc.querySelector('#marketing-phones-rows tr[data-detail-key]').click(); await settle();
+  const body=p.doc.getElementById('marketingDetailBody');
+  const tiles=[...body.querySelectorAll('.dp-stat')].map(el=>[el.querySelector('.dp-stat-label').textContent,el.querySelector('.dp-stat-value').textContent]);
+  assert.deepEqual(tiles,[['Số điện thoại','12'],['Tỷ lệ chốt','25%']]);
+  assert.equal(body.querySelector('table').getAttribute('data-table-controls'),'off');
+  p.window.TKSTables.refreshAll();
+  assert.equal(p.doc.getElementById('marketingDetailDialog').querySelectorAll('.tks-columns-button, .tks-column-resizer').length,0);
+  p.dom.window.close();
+});

@@ -52,7 +52,7 @@ const INVOICE_DETAIL = {
   lineCount: 1, totalQuantity: 3
 };
 
-function createPage({ respond } = {}) {
+function createPage({ respond, withTableControls = false } = {}) {
   const dom = new JSDOM(html, { runScripts: 'outside-only', url: 'https://tokosi.example/#invoices' });
   dom.window.sessionStorage.setItem('tksDashboardCache', JSON.stringify({
     data: payload(),
@@ -85,9 +85,20 @@ function createPage({ respond } = {}) {
   [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)]
     .map(match => match[1]).filter(script => script.trim())
     .forEach(script => dom.window.eval(script));
+  if (withTableControls) dom.window.eval(fs.readFileSync(path.join(publicDir, 'shared', 'table-controls.js'), 'utf8'));
   const doc = dom.window.document;
   return { dom, doc, urls, $: id => doc.getElementById(id) };
 }
+
+// Hang chi so tong quan cua hop: { 'Nhan': { value, sub, tone } }.
+const statsOf = page => Object.fromEntries([...page.$('docModalBody').querySelectorAll('.dp-stat')].map(el => [
+  el.querySelector('.dp-stat-label').textContent,
+  {
+    value: el.querySelector('.dp-stat-value').textContent,
+    sub: (el.querySelector('.dp-stat-sub') || { textContent: '' }).textContent,
+    tone: [...el.classList].find(name => name.startsWith('is-')) || ''
+  }
+]));
 
 const drawerText = page => page.$('docModalBody').textContent.replace(/\s+/g, ' ');
 // JSDOM (runScripts 'outside-only') khong chay onclick="..." inline: tu chay thuoc tinh do trong ngu canh trang.
@@ -116,7 +127,13 @@ test('bam dong "Chi tiet giao dich": goi /api/invoice-detail, hien ma don goc, g
   assert.match(text, /5T/);
   assert.match(text, /1 dòng · 3 sản phẩm/);
   assert.equal(page.$('docModalBody').querySelectorAll('tbody tr').length, 1);
-  assert.equal(page.$('docModalBody').querySelector('.doc-total-main dd').textContent, '90₫');
+  const stats = statsOf(page);
+  assert.equal(stats['Tổng tiền hàng'].value, '90₫');
+  assert.equal(stats['Khách đã trả'].value, '90₫');
+  assert.equal(stats['Còn phải thu'].value, '0₫');
+  assert.equal(stats['Còn phải thu'].sub, 'Đã thu đủ');
+  assert.equal(stats['Giảm giá hóa đơn'].value, '10₫');
+  assert.equal(stats['Giảm giá hóa đơn'].sub, '10% trước giảm');
   assert.equal(page.$('docModalBody').querySelector('b'), null, 'ghi chu phai duoc escape, khong chen HTML');
   assert.match(text, /giao <b>sớm<\/b>/);
 });
@@ -212,4 +229,53 @@ test('hop chi tiet nam GIUA man hinh (backdrop can giua), khong phai ngan keo ca
   assert.match(rule, /align-items:\s*center/);
   assert.match(rule, /justify-content:\s*center/);
   assert.doesNotMatch(html, /doc-drawer/);
+});
+
+test('con no: "Còn phải thu" = tổng − đã trả, màu đỏ, kèm % giá trị hóa đơn; không giảm giá thì không có thẻ Giảm giá', async () => {
+  const page = createPage({ respond: () => Promise.resolve({ ok: true, status: 200, json: async () => ({ ...INVOICE_DETAIL, discount: 0, paid: 40 }) }) });
+  await settle();
+  firstTransactionRow(page).click();
+  await settle();
+  const stats = statsOf(page);
+  assert.equal(stats['Còn phải thu'].value, '50₫');
+  assert.equal(stats['Còn phải thu'].tone, 'is-red');
+  assert.equal(stats['Còn phải thu'].sub, '56% giá trị hóa đơn');
+  assert.equal(stats['Giảm giá hóa đơn'], undefined);
+});
+
+test('nhieu dong hang: bang co dong "Cộng hàng hóa" (tổng SL + tổng thành tiền các dòng); 1 dòng thì không lặp lại', async () => {
+  const two = { ...INVOICE_DETAIL, lineCount: 2, totalQuantity: 5, lines: [
+    { productCode: 'A1', productName: 'Hàng A', quantity: 3, price: 30, discount: 0, amount: 90, note: '' },
+    { productCode: 'B2', productName: 'Hàng B', quantity: 2, price: 50, discount: 0, amount: 100, note: '' }
+  ] };
+  const page = createPage({ respond: () => Promise.resolve({ ok: true, status: 200, json: async () => two }) });
+  await settle();
+  firstTransactionRow(page).click();
+  await settle();
+  const foot = page.$('docModalBody').querySelector('tfoot tr');
+  assert.ok(foot, 'co dong cong');
+  assert.match(foot.textContent, /Cộng hàng hóa/);
+  assert.deepEqual([...foot.cells].map(cell => cell.textContent).filter(Boolean), ['Cộng hàng hóa', '5', '190₫']);
+  assert.equal(page.$('docModalBody').querySelectorAll('tbody tr').length, 2);
+
+  const single = createPage();
+  await settle();
+  firstTransactionRow(single).click();
+  await settle();
+  assert.equal(single.$('docModalBody').querySelector('tfoot'), null);
+});
+
+test('hop chi tiet KHONG co nut "Cột hiển thị": bang trong hop tat bo chon cot (data-table-controls=off), bang chinh van co', async () => {
+  const page = createPage({ withTableControls: true });
+  await settle();
+  const mainButtons = page.doc.querySelectorAll('.tks-columns-button').length;
+  assert.ok(mainButtons > 0, 'bang chinh van co nut Cot hien thi');
+
+  firstTransactionRow(page).click();
+  await settle();
+  const modalTable = page.$('docModalBody').querySelector('table');
+  assert.equal(modalTable.getAttribute('data-table-controls'), 'off');
+  page.dom.window.TKSTables.refreshAll();
+  assert.equal(page.$('docModalBackdrop').querySelectorAll('.tks-columns-button, .tks-column-resizer').length, 0);
+  assert.doesNotMatch(page.$('docModalBackdrop').textContent, /Cột hiển thị/);
 });

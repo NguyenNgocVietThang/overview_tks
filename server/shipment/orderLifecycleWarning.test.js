@@ -319,3 +319,27 @@ test('đơn Bắc-Nam: ghi đè thủ công Đã hủy / Sự cố vẫn thắng
     ctx.restore();
   }
 });
+
+test('Kế toán sót đơn CHỈ áp dụng khi trạng thái còn là "Đơn đã gửi kế toán": sang Đang giao / Đã nhận / Đã ký nhận thì bỏ cảnh báo', () => {
+  const ctx = freshService();
+  try {
+    const W = ctx.service.WARNING;
+    const stuck = { saleSentAt: '12/10/2026 10:00' };
+    assert.deepEqual(warningsFor(ctx.service, record(stuck), '12/10/2026 11:00'), [W.ACCOUNTANT_LATE]);
+    // Tai xe da gui xac nhan (Dang giao) du KT chua duyet o cot D
+    assert.ok(!warningsFor(ctx.service, record(Object.assign({ driverConfirmedDeliveryAt: '12/10/2026 10:40' }, stuck)), '12/10/2026 11:00').includes(W.ACCOUNTANT_LATE));
+    // Ship da nhan don / Don da ky nhan (chup bill ky nhan)
+    assert.ok(!warningsFor(ctx.service, record(Object.assign({ shipReceivedAt: '12/10/2026 10:40' }, stuck)), '12/10/2026 11:00').includes(W.ACCOUNTANT_LATE));
+    assert.ok(!warningsFor(ctx.service, record(Object.assign({ orderSignedAt: '12/10/2026 10:40' }, stuck)), '12/10/2026 11:00').includes(W.ACCOUNTANT_LATE));
+    // Ghi de thu cong sang trang thai khac "Da gui ke toan"
+    const rec = record(stuck);
+    const sent = ctx.service.computeStatus(rec);
+    assert.deepEqual(ctx.service.computeWarnings(rec, sent, Date.parse('2026-10-12T04:00:00Z')), [W.ACCOUNTANT_LATE]);
+    for (const code of ['DELIVERING', 'DELIVERED', 'SHIP_RECEIVED', 'SIGNED']) {
+      const summary = { code, label: code, isOverride: true };
+      assert.ok(!ctx.service.computeWarnings(rec, summary, Date.parse('2026-10-12T04:00:00Z')).includes(W.ACCOUNTANT_LATE), code);
+    }
+  } finally {
+    ctx.restore();
+  }
+});

@@ -48,7 +48,8 @@
   </script>
   <link rel="stylesheet" href="/shared/shared.css?v=20261009">
   <link rel="stylesheet" href="/shared/search-clear.css?v=20261009-1">
-  <link rel="stylesheet" href="/marketing-report.css?v=20261012-database-1">
+  <link rel="stylesheet" href="/shared/detail-panel.css?v=20261012">
+  <link rel="stylesheet" href="/marketing-report.css?v=20261012-database-2">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&display=swap">
@@ -2782,7 +2783,7 @@
 
     .doc-modal {
       width: min(780px, 100%);
-      max-height: min(86vh, 820px);
+      max-height: min(90vh, 880px);
       display: flex;
       flex-direction: column;
       background: var(--panel);
@@ -2793,7 +2794,11 @@
       animation: doc-modal-in .16s ease-out;
     }
 
-    /* Hộp có bảng + biểu đồ tròn cạnh nhau (doanh số theo khách của 1 sản phẩm). */
+    /* Cỡ hộp theo nội dung: vừa (hóa đơn: bảng hàng hóa nhiều cột) / rộng (bảng + biểu đồ cạnh nhau). */
+    .doc-modal.is-medium {
+      width: min(920px, 100%);
+    }
+
     .doc-modal.is-wide {
       width: min(1040px, 100%);
     }
@@ -2816,164 +2821,33 @@
       }
     }
 
+    /* Thân hộp = .dp-body (bố cục + khoảng cách ở shared/detail-panel.css); chỉ thêm cuộn dọc cho CẢ hộp,
+       các bảng bên trong tự cuộn riêng trong .dp-table-wrap nên không bị 2 thanh cuộn chồng nhau. */
     .doc-modal-body {
       flex: 1;
       min-height: 0;
       overflow-y: auto;
-      padding: 16px 20px 22px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
     }
 
-    .doc-meta {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px 18px;
-      margin: 0;
-    }
-
-    .doc-meta > div {
-      min-width: 0;
-    }
-
-    .doc-meta .doc-meta-wide {
-      grid-column: 1 / -1;
-    }
-
-    .doc-meta dt {
-      color: var(--muted);
-      font-size: 11px;
-      margin-bottom: 3px;
-    }
-
-    .doc-meta dd {
-      margin: 0;
-      font-size: 13px;
-      overflow-wrap: anywhere;
-    }
-
-    .doc-lines-title {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 10px;
-      margin: 0 0 8px;
-      font-size: 13px;
-      font-weight: 650;
-    }
-
-    .doc-lines-title .muted {
-      font-size: 11.5px;
-      font-weight: 400;
-    }
-
-    .doc-line-note {
-      display: block;
-      margin-top: 2px;
-      color: var(--muted);
-      font-size: 11px;
-      white-space: pre-line;
-    }
-
-    .doc-totals {
-      margin: 0;
-      padding: 12px 14px;
-      border: 1px solid var(--border);
-      border-radius: var(--radius-12);
-      background: var(--panel-2);
-      display: grid;
-      gap: 7px;
-    }
-
-    .doc-totals > div {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      font-size: 12.5px;
-    }
-
-    .doc-totals dt {
-      color: var(--muted);
-    }
-
-    .doc-totals dd {
-      margin: 0;
-    }
-
-    .doc-totals .doc-total-main {
-      padding-top: 8px;
-      border-top: 1px solid var(--border);
-      font-size: 14px;
-      font-weight: 650;
+    .doc-modal-body .dp-table-wrap {
+      --dp-table-max: 340px;
     }
 
     .doc-modal-note {
-      padding: 26px 8px;
+      padding: 34px 12px;
       text-align: center;
       color: var(--muted);
       font-size: 12.5px;
+      line-height: 1.55;
     }
 
-    .product-detail-head {
-      display: flex;
-      align-items: baseline;
-      flex-wrap: wrap;
-      gap: 6px 14px;
-      margin-bottom: 12px;
-    }
-
-    .product-detail-head h3 {
-      margin: 0;
-      font-size: 14px;
-    }
-
-    .product-detail-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
-      gap: 16px;
-      align-items: start;
-    }
-
-    .product-detail-table {
-      max-height: 340px;
-    }
-
-    /* Chú giải HTML thay cho legend của Chart.js: hàng trăm khách không vừa khung canvas, nên cuộn riêng. */
-    .product-detail-chart {
-      display: flex;
-      gap: 16px;
-      align-items: flex-start;
-    }
-
-    .product-detail-chart .chart-box {
-      flex: 1 1 0;
-      min-width: 0;
-    }
-
-    .product-detail-legend {
-      flex: 0 0 210px;
-      max-height: 340px;
-      overflow-y: auto;
-      padding-right: 6px;
-    }
-
-    @media (max-width:900px) {
-      .product-detail-grid {
-        grid-template-columns: minmax(0, 1fr);
+    @media (max-width:640px) {
+      .doc-modal-backdrop {
+        padding: 10px;
       }
 
-      .product-detail-chart {
-        flex-direction: column;
-        align-items: stretch;
-      }
-
-      .product-detail-chart .chart-box {
-        flex: none;
-      }
-
-      .product-detail-legend {
-        flex: none;
+      .doc-modal {
+        max-height: 94vh;
       }
     }
 
@@ -4375,7 +4249,7 @@
   </div>
 
   <dialog class="marketing-dialog" id="marketingDetailDialog" aria-labelledby="marketingDetailTitle" aria-describedby="marketingDetailSubtitle">
-    <div class="marketing-dialog-head"><div><h2 id="marketingDetailTitle">Chi tiết Marketing</h2><p id="marketingDetailSubtitle"></p><p id="marketingDetailStatus" role="status" aria-live="polite"></p></div><div><button id="marketingDetailRefresh" class="mini-filter-apply" type="button">Cập nhật chi tiết</button> <button id="marketingDetailClose" class="mini-filter-apply" type="button" aria-label="Đóng chi tiết">×</button></div></div>
+    <div class="dp-head"><div class="dp-head-text"><h2 class="dp-title" id="marketingDetailTitle">Chi tiết Marketing</h2><p class="dp-subtitle" id="marketingDetailSubtitle"></p><p class="dp-subtitle" id="marketingDetailStatus" role="status" aria-live="polite"></p></div><div class="dp-head-actions"><button id="marketingDetailRefresh" class="dp-btn" type="button">Cập nhật chi tiết</button> <button id="marketingDetailClose" class="dp-close" type="button" aria-label="Đóng chi tiết">×</button></div></div>
     <div class="marketing-dialog-body" id="marketingDetailBody"></div>
   </dialog>
 
@@ -4417,15 +4291,15 @@
   <div class="doc-modal-backdrop" id="docModalBackdrop" hidden onclick="handleDocumentDetailBackdropClick(event)">
     <section class="doc-modal" role="dialog" aria-modal="true" aria-labelledby="docModalTitle"
       aria-describedby="docModalSubtitle">
-      <div class="export-modal-head">
-        <div>
-          <h2 class="export-modal-title" id="docModalTitle">Chi tiết</h2>
-          <p class="export-modal-subtitle" id="docModalSubtitle"></p>
+      <div class="dp-head">
+        <div class="dp-head-text">
+          <h2 class="dp-title" id="docModalTitle">Chi tiết</h2>
+          <p class="dp-subtitle" id="docModalSubtitle"></p>
         </div>
-        <button class="export-modal-close" id="docModalClose" type="button" onclick="closeDocumentDetail()"
+        <button class="dp-close" id="docModalClose" type="button" onclick="closeDocumentDetail()"
           aria-label="Đóng">×</button>
       </div>
-      <div class="doc-modal-body" id="docModalBody" aria-live="polite"></div>
+      <div class="doc-modal-body dp-body" id="docModalBody" aria-live="polite"></div>
     </section>
   </div>
 
@@ -4451,7 +4325,7 @@
   <script src="/shared/shared-nav.js?v=20261008"></script>
   <script src="/shared/table-align.js?v=20260928"></script>
   <script src="/shared/dateInput.js?v=20260912"></script>
-  <script src="/marketing-report.js?v=20261012-database-1"></script>
+  <script src="/marketing-report.js?v=20261012-database-2"></script>
 
   <script>
     // Toast thong bao inline — thay the window.alert() cho loi/canh bao (khong chan luong,
@@ -6733,7 +6607,8 @@
     }
 
     // legendId (tuỳ chọn): vẽ chú giải bằng HTML cuộn được vào phần tử đó thay cho legend của Chart.js
-    // — dùng khi số lát quá nhiều để canvas chứa nổi.
+    // — dùng khi số lát quá nhiều để canvas chứa nổi. legendId === false: không chú giải (nơi khác đã liệt kê
+    // và tô màu từng lát, vd bảng khách trong hộp chi tiết sản phẩm).
     function renderPieChartList(canvasId, key, list, labelFn, valueFn, formatFn, centerLabel, drilldown, legendId) {
       destroyChart(key);
       const canvas = document.getElementById(canvasId);
@@ -6806,7 +6681,7 @@
             else navigateChartToTable(drilldown.tableKey, drilldown.identity(item));
           } : undefined,
           plugins: {
-            legend: legendEl ? { display: false } : {
+            legend: (legendEl || legendId === false) ? { display: false } : {
               position: 'right',
               labels: {
                 color: theme.text,
@@ -7683,36 +7558,72 @@
       });
     });
 
-    // Panel chi tiết Báo cáo kinh doanh: thẻ tổng quan + biểu đồ cột doanh số theo tháng (cột tháng
-    // này là số đến hôm nay, chưa quy đổi — nhãn có dấu *) + bảng phụ (khách của sale / top mã của
-    // khách / top khách của mã, 4 tháng gần nhất).
+    // ===== Hộp chi tiết dùng chung (#docModalBackdrop) — khung .dp-* ở shared/detail-panel.css =====
+    // Mọi hộp cùng một nhịp: đầu hộp (tiêu đề + phụ đề) → hàng CHỈ SỐ TỔNG QUAN (detailStatsHtml) → các khối chi tiết.
+    // Bảng trong hộp đều tắt bộ chọn cột (data-table-controls="off"): hộp chỉ để đọc nhanh, không cần ẩn/hiện cột.
+
+    // tiles: [{ label, value, sub?, tone?: 'green'|'amber'|'red'|'blue', text?: true }]; thẻ rỗng (null/false) bị bỏ qua.
+    function detailStatsHtml(tiles, extraClass) {
+      const items = (tiles || []).filter(Boolean);
+      if (!items.length) return '';
+      return '<div class="dp-stats' + (extraClass ? ' ' + extraClass : '') + '">' + items.map(function (tile) {
+        return '<div class="dp-stat' + (tile.tone ? ' is-' + tile.tone : '') + '">' +
+          '<div class="dp-stat-label">' + escapeHtml(tile.label) + '</div>' +
+          '<div class="dp-stat-value' + (tile.text ? ' is-text' : '') + '">' + escapeHtml(String(tile.value)) + '</div>' +
+          (tile.sub ? '<div class="dp-stat-sub">' + escapeHtml(tile.sub) + '</div>' : '') + '</div>';
+      }).join('') + '</div>';
+    }
+
+    function detailSectionHeadHtml(title, note) {
+      return '<div class="dp-section-head"><h3 class="dp-section-title">' + escapeHtml(title) + '</h3>' +
+        (note ? '<span class="dp-section-note">' + escapeHtml(note) + '</span>' : '') + '</div>';
+    }
+
+    function detailMetaField(label, valueHtml, wide) {
+      return '<div' + (wide ? ' class="is-wide"' : '') + '><dt>' + label + '</dt><dd>' + valueHtml + '</dd></div>';
+    }
+
+    // Thẻ KPI của Báo cáo kinh doanh ({label, value, accent}) → thẻ chỉ số của hộp chi tiết.
+    function businessDetailTiles(kpis) {
+      return businessKpiCards(kpis).map(function (card) {
+        return { label: card.label, value: card.value, tone: card.accent || '' };
+      });
+    }
+
+    // Panel chi tiết Báo cáo kinh doanh: hàng chỉ số + biểu đồ cột doanh số theo tháng (cột tháng này là số đến
+    // hôm nay, chưa quy đổi — nhãn có dấu *) cạnh bảng phụ (khách của sale / top mã của khách / top khách của mã,
+    // 4 tháng gần nhất).
     function renderBusinessDetailModal(body, subtitle, data) {
       subtitle.textContent = data.subtitle || '';
-      let table = '';
+      let head;
+      let table;
       if (data.kind === 'sale') {
         const customers = data.customers || [];
-        table = '<h3 class="doc-lines-title"><span>Khách của sale</span><span class="muted">' + fmtNumber(customers.length) + ' khách</span></h3>' +
-          '<div class="scroll-list" style="max-height:320px"><table data-table-key="dashboard-table-18"><thead><tr><th>Khách hàng</th><th>TB 4 tháng</th><th>Tăng trưởng</th><th>Tháng này</th></tr></thead><tbody>' +
-          (customers.length ? customers.map(c => '<tr class="doc-row business-detail-customer" tabindex="0" title="Bấm để xem chi tiết khách" data-key="' + escapeHtml(c.key) + '">' +
-            '<td class="name-cell">' + escapeHtml(c.name) +
-            '</td><td class="mono">' + fmtMoney(c.avg4) + '</td><td class="mono">' + businessGrowthHtml(c.growth) + '</td><td class="mono">' + fmtMoney(c.current) + '</td></tr>').join('')
+        head = detailSectionHeadHtml('Khách của sale', fmtNumber(customers.length) + ' khách');
+        table = '<div class="dp-table-wrap"><table class="dp-table" data-table-controls="off" data-table-key="dashboard-table-18"><thead><tr><th>Khách hàng</th><th class="num">TB 4 tháng</th><th class="num">Tăng trưởng</th><th class="num">Tháng này</th></tr></thead><tbody>' +
+          (customers.length ? customers.map(c => '<tr class="doc-row business-detail-customer is-clickable" tabindex="0" title="Bấm để xem chi tiết khách" data-key="' + escapeHtml(c.key) + '">' +
+            '<td class="dp-cell-main">' + escapeHtml(c.name) +
+            '</td><td class="num">' + fmtMoney(c.avg4) + '</td><td class="num">' + businessGrowthHtml(c.growth) + '</td><td class="num">' + fmtMoney(c.current) + '</td></tr>').join('')
             : '<tr><td colspan="4" class="table-note">Không có dữ liệu.</td></tr>') +
           '</tbody></table></div>';
       } else {
         const isCustomer = data.kind === 'customer';
         const list = (isCustomer ? data.topProducts : data.topCustomers) || [];
-        const label = isCustomer ? 'Top mã hàng 4 tháng' : 'Top khách 4 tháng';
-        table = '<h3 class="doc-lines-title"><span>' + label + '</span></h3><div class="scroll-list" style="max-height:320px"><table data-table-key="dashboard-table-19"><thead><tr><th>' +
-          (isCustomer ? 'Mã hàng</th><th>Tên hàng' : 'Khách hàng') + '</th><th>Doanh số</th><th>SL</th></tr></thead><tbody>' +
-          (list.length ? list.map(r => '<tr><td' + (isCustomer ? ' class="mono muted"' : ' class="name-cell"') + '>' + escapeHtml(isCustomer ? r.productCode : r.customerName) + '</td>' +
-            (isCustomer ? '<td>' + escapeHtml(r.productName || '') + '</td>' : '') + '<td class="mono">' + fmtMoney(r.revenue) +
-            '</td><td class="mono">' + fmtNumber(r.qty) + '</td></tr>').join('') : '<tr><td colspan="' + (isCustomer ? 4 : 3) + '" class="table-note">Không có dữ liệu.</td></tr>') +
+        head = detailSectionHeadHtml(isCustomer ? 'Top mã hàng 4 tháng' : 'Top khách 4 tháng', fmtNumber(list.length) + (isCustomer ? ' mã' : ' khách'));
+        table = '<div class="dp-table-wrap"><table class="dp-table" data-table-controls="off" data-table-key="dashboard-table-19"><thead><tr>' +
+          (isCustomer ? '<th>Mã hàng</th><th>Tên hàng</th>' : '<th>Khách hàng</th>') + '<th class="num">Doanh số</th><th class="num">SL</th></tr></thead><tbody>' +
+          (list.length ? list.map(r => '<tr>' +
+            (isCustomer ? '<td class="dp-code">' + escapeHtml(r.productCode) + '</td><td class="dp-cell-main">' + escapeHtml(r.productName || '') + '</td>'
+              : '<td class="dp-cell-main">' + escapeHtml(r.customerName) + '</td>') +
+            '<td class="num">' + fmtMoney(r.revenue) + '</td><td class="num">' + fmtNumber(r.qty) + '</td></tr>').join('')
+            : '<tr><td colspan="' + (isCustomer ? 4 : 3) + '" class="table-note">Không có dữ liệu.</td></tr>') +
           '</tbody></table></div>';
       }
-      body.innerHTML = '<div class="kpi-grid business-summary" id="businessDetailSummary"></div>' +
-        '<div class="chart-box wide"><canvas id="businessDetailChart" role="img" aria-label="Biểu đồ cột doanh số theo tháng"></canvas></div>' +
-        '<div>' + table + '</div>';
-      renderSectionKpis('businessDetailSummary', businessKpiCards(data.summary));
+      body.innerHTML = detailStatsHtml(businessDetailTiles(data.summary), 'business-summary') +
+        '<div class="dp-split is-table-wide">' +
+        '<div class="dp-section">' + detailSectionHeadHtml('Doanh số theo tháng', '* tháng này, tính đến hôm nay') +
+        '<div class="dp-chart"><canvas id="businessDetailChart" role="img" aria-label="Biểu đồ cột doanh số theo tháng"></canvas></div></div>' +
+        '<div class="dp-section">' + head + table + '</div></div>';
       // labelRotation = 1 (không phải 0): renderBarChartList dùng `labelRotation || 60`.
       renderBarChartList('businessDetailChart', 'businessDetailTrend', data.chart || [], c => c.label + (c.partial ? '*' : ''), c => c.value, null, true, null, null, 1);
       body.querySelectorAll('.business-detail-customer').forEach(function (row) {
@@ -7730,100 +7641,166 @@
       });
     }
 
-    // ===== Hộp chi tiết chứng từ giữa màn hình (tab Hóa đơn) =====
+    // ===== Hộp chi tiết chứng từ giữa màn hình (tab Hóa đơn, Báo cáo hàng hóa, Báo cáo kinh doanh) =====
     // Bấm 1 dòng ở "Chi tiết giao dịch" / "Báo cáo hàng hóa" → lấy các dòng hàng của chứng từ đó từ
     // /api/invoice-detail (bảng invoice_details) / /api/product-report/customers. (Chi tiết đơn đặt hàng "Phiếu tạm"
     // nay mở ở trang Vòng đời đơn hàng — /api/shipment/lifecycle/order-detail.)
+    // size: 'medium' (bảng nhiều cột) | 'wide' (bảng + biểu đồ cạnh nhau); bỏ trống = hộp hẹp.
     const DOC_DETAIL_KINDS = {
       // Báo cáo hàng hóa (tab Tổng quan): doanh số 90 ngày từng khách của 1 mã hàng — bảng + biểu đồ tròn.
       productReport: {
-        api: '/api/product-report/customers', title: 'Doanh số theo khách', wide: true,
+        api: '/api/product-report/customers', title: 'Doanh số theo khách', size: 'wide',
         query: function (item) { return '?code=' + encodeURIComponent(item.code); },
         failure: 'Không tải được doanh số khách của sản phẩm này.'
       },
-      endOfDay: { api: '/api/invoice-detail', title: 'Chi tiết giao dịch', dateLabel: 'Thời gian bán', sellerLabel: 'Nhân viên bán hàng', failure: 'Không tải được chi tiết giao dịch.' },
+      endOfDay: { api: '/api/invoice-detail', title: 'Chi tiết giao dịch', size: 'medium', dateLabel: 'Thời gian bán', sellerLabel: 'Nhân viên bán hàng', failure: 'Không tải được chi tiết giao dịch.' },
       // Báo cáo kinh doanh (tab #business): thẻ tổng quan + biểu đồ cột theo tháng + bảng phụ.
       businessSales: {
-        api: '/api/business-report/detail', title: 'Sale', wide: true,
+        api: '/api/business-report/detail', title: 'Sale', size: 'wide',
         query: item => '?kind=sale&key=' + encodeURIComponent(item.key), failure: 'Không tải được chi tiết sale.'
       },
       businessCustomers: {
-        api: '/api/business-report/detail', title: 'Khách hàng', wide: true,
+        api: '/api/business-report/detail', title: 'Khách hàng', size: 'wide',
         query: item => '?kind=customer&key=' + encodeURIComponent(item.key), failure: 'Không tải được chi tiết khách hàng.'
       },
       businessProducts: {
-        api: '/api/business-report/detail', title: 'Mã hàng', wide: true,
+        api: '/api/business-report/detail', title: 'Mã hàng', size: 'wide',
         query: item => '?kind=product&key=' + encodeURIComponent(item.key), failure: 'Không tải được chi tiết mã hàng.'
       }
     };
     const docDetail = { requestId: 0, tableKey: '', item: null, returnFocus: null };
 
-    function docMetaField(label, valueHtml, wide) {
-      return '<div' + (wide ? ' class="doc-meta-wide"' : '') + '><dt>' + label + '</dt><dd>' + valueHtml + '</dd></div>';
-    }
-
-    function docTotalRow(label, valueHtml, main) {
-      return '<div' + (main ? ' class="doc-total-main"' : '') + '><dt>' + label + '</dt><dd class="mono">' + valueHtml + '</dd></div>';
-    }
-
+    // Hóa đơn: hàng chỉ số (tổng tiền hàng, đã trả, còn phải thu, giảm giá) → thông tin chung → bảng hàng hóa có dòng Cộng.
     function docDetailBodyHtml(tableKey, data) {
       const lines = data.lines || [];
       const showDiscount = lines.some(function (line) { return line.discount > 0; });
-      const customer = escapeHtml(data.customerName || 'Khách lẻ') +
-        (data.customerCode ? ' <span class="muted mono">(' + escapeHtml(data.customerCode) + ')</span>' : '');
-      const meta = [
-        docMetaField('Khách hàng', customer, true),
-        docMetaField('Cơ sở', branchCellText(docDetail.item)),
-        docMetaField(DOC_DETAIL_KINDS[tableKey].dateLabel, escapeHtml(data.date || '—')),
-        docMetaField(DOC_DETAIL_KINDS[tableKey].sellerLabel, escapeHtml(data.seller || '—')),
-        docMetaField('Trạng thái', genericStatusPill(data.status))
+      const total = Number(data.total) || 0;
+      const paid = Number(data.paid) || 0;
+      const owed = Math.max(0, total - paid);
+      const invoiceDiscount = Number(data.discount) || 0;
+      const tiles = [
+        { label: 'Tổng tiền hàng', value: fmtMoney(total), tone: 'green' },
+        { label: 'Khách đã trả', value: fmtMoney(paid) },
+        owed > 0
+          ? { label: 'Còn phải thu', value: fmtMoney(owed), tone: 'red', sub: fmtNumber(Math.round(owed / total * 100)) + '% giá trị hóa đơn' }
+          : { label: 'Còn phải thu', value: fmtMoney(0), sub: 'Đã thu đủ' },
+        invoiceDiscount > 0 && total + invoiceDiscount > 0
+          ? { label: 'Giảm giá hóa đơn', value: fmtMoney(invoiceDiscount), tone: 'amber', sub: fmtNumber(Math.round(invoiceDiscount / (total + invoiceDiscount) * 100)) + '% trước giảm' }
+          : null
       ];
-      if (data.orderCode) meta.push(docMetaField('Từ đơn đặt hàng', '<span class="mono">' + escapeHtml(data.orderCode) + '</span>'));
-      if (data.note) meta.push(docMetaField('Ghi chú', '<span style="white-space:pre-line">' + escapeHtml(data.note) + '</span>', true));
+      const customer = escapeHtml(data.customerName || 'Khách lẻ') +
+        (data.customerCode ? ' <span class="muted">(' + escapeHtml(data.customerCode) + ')</span>' : '');
+      const meta = [
+        detailMetaField('Khách hàng', customer, true),
+        detailMetaField('Cơ sở', branchCellText(docDetail.item)),
+        detailMetaField(DOC_DETAIL_KINDS[tableKey].dateLabel, escapeHtml(data.date || '—')),
+        detailMetaField(DOC_DETAIL_KINDS[tableKey].sellerLabel, escapeHtml(data.seller || '—')),
+        detailMetaField('Trạng thái', genericStatusPill(data.status))
+      ];
+      if (data.orderCode) meta.push(detailMetaField('Từ đơn đặt hàng', '<span class="mono">' + escapeHtml(data.orderCode) + '</span>'));
+      if (data.note) meta.push(detailMetaField('Ghi chú', '<span class="dp-note-text">' + escapeHtml(data.note) + '</span>', true));
 
-      const head = '<th>Mã hàng</th><th>Tên hàng</th><th>SL</th><th>Đơn giá</th>' + (showDiscount ? '<th>Giảm giá</th>' : '') + '<th>Thành tiền</th>';
+      const head = '<th>Mã hàng</th><th>Tên hàng</th><th class="num">SL</th><th class="num">Đơn giá</th>' + (showDiscount ? '<th class="num">Giảm giá</th>' : '') + '<th class="num">Thành tiền</th>';
       const rows = lines.length ? lines.map(function (line) {
-        return '<tr><td class="mono muted">' + escapeHtml(line.productCode || '—') + '</td>' +
-          '<td class="name-cell">' + escapeHtml(line.productName || '—') +
-          (line.note ? '<span class="doc-line-note">' + escapeHtml(line.note) + '</span>' : '') + '</td>' +
-          '<td class="mono">' + fmtNumber(line.quantity) + '</td>' +
-          '<td class="mono">' + fmtMoney(line.price) + '</td>' +
-          (showDiscount ? '<td class="mono">' + fmtMoney(line.discount) + '</td>' : '') +
-          '<td class="mono">' + fmtMoney(line.amount) + '</td></tr>';
+        return '<tr><td class="dp-code">' + escapeHtml(line.productCode || '—') + '</td>' +
+          '<td class="dp-cell-main">' + escapeHtml(line.productName || '—') +
+          (line.note ? '<span class="dp-line-note">' + escapeHtml(line.note) + '</span>' : '') + '</td>' +
+          '<td class="num">' + fmtNumber(line.quantity) + '</td>' +
+          '<td class="num">' + fmtMoney(line.price) + '</td>' +
+          (showDiscount ? '<td class="num">' + fmtMoney(line.discount) + '</td>' : '') +
+          '<td class="num">' + fmtMoney(line.amount) + '</td></tr>';
       }).join('') : '<tr><td colspan="' + (showDiscount ? 6 : 5) + '" class="table-note">Chứng từ này chưa có dòng hàng nào.</td></tr>';
+      const linesAmount = lines.reduce(function (sum, line) { return sum + (Number(line.amount) || 0); }, 0);
+      const foot = lines.length > 1
+        ? '<tfoot><tr><td colspan="2">Cộng hàng hóa</td><td class="num">' + fmtNumber(data.totalQuantity) + '</td>' +
+          '<td colspan="' + (showDiscount ? 2 : 1) + '"></td><td class="num">' + fmtMoney(linesAmount) + '</td></tr></tfoot>'
+        : '';
 
-      const totals = [];
-      if (data.discount > 0) totals.push(docTotalRow('Giảm giá hóa đơn', fmtMoney(data.discount)));
-      totals.push(docTotalRow('Tổng tiền hàng', fmtMoney(data.total), true));
-      totals.push(docTotalRow('Khách đã trả', fmtMoney(data.paid)));
-
-      return '<dl class="doc-meta">' + meta.join('') + '</dl>' +
-        '<div><h3 class="doc-lines-title"><span>Hàng hóa</span><span class="muted">' + fmtNumber(data.lineCount) + ' dòng · ' +
-        fmtNumber(data.totalQuantity) + ' sản phẩm</span></h3>' +
-        '<div class="scroll-list"><table data-table-key="dashboard-table-20"><thead><tr>' + head + '</tr></thead><tbody>' + rows + '</tbody></table></div></div>' +
-        '<dl class="doc-totals">' + totals.join('') + '</dl>';
+      return detailStatsHtml(tiles) +
+        '<div class="dp-card"><dl class="dp-meta">' + meta.join('') + '</dl></div>' +
+        '<div class="dp-section">' + detailSectionHeadHtml('Hàng hóa', fmtNumber(data.lineCount) + ' dòng · ' + fmtNumber(data.totalQuantity) + ' sản phẩm') +
+        '<div class="dp-table-wrap is-flow"><table class="dp-table is-min-wide" data-table-controls="off" data-table-key="dashboard-table-20"><thead><tr>' + head + '</tr></thead><tbody>' + rows + '</tbody>' + foot + '</table></div></div>';
     }
 
-    // Bảng + biểu đồ tròn doanh số 90 ngày của từng khách đã mua 1 sản phẩm (mỗi khách một lát, không gộp "Khác";
-    // chú giải HTML cuộn được để liệt kê đủ). Vẽ biểu đồ SAU khi canvas đã nằm trong DOM.
+    // Dòng bảng khách của 1 sản phẩm: ô màu = màu lát tương ứng trên biểu đồ tròn (bảng đóng vai chú giải, cuộn được
+    // khi có hàng trăm khách); thanh nhỏ so với khách lớn nhất.
+    function productDetailRowHtml(row, index, maxRevenue) {
+      const name = row.customerName || 'Khách lẻ';
+      const share = row.share === null || row.share === undefined ? -1 : row.share;
+      const color = categoryColor(name, index, 0);
+      const barWidth = maxRevenue > 0 ? Math.max(2, Math.min(100, Math.round(row.revenue / maxRevenue * 100))) : 0;
+      return '<tr data-slice="' + index + '"><td class="dp-cell-main"><span class="dp-swatch" style="background:' + color + '"></span>' + escapeHtml(name) + '</td>' +
+        '<td class="num" data-sort-value="' + row.revenue + '">' + fmtMoney(row.revenue) + '</td>' +
+        '<td class="num" data-sort-value="' + share + '"><span class="dp-share"><span>' + formatDebtRatio(row.share) + '</span>' +
+        '<span class="dp-bar"><i style="width:' + barWidth + '%;--dp-bar-color:' + color + '"></i></span></span></td></tr>';
+    }
+
+    // Mỗi khách một lát, không gộp "Khác"; bảng bên cạnh liệt kê đủ (cuộn được).
+    function productDetailPieList(rows) {
+      return rows.map(function (row) {
+        return { name: row.customerName || 'Khách lẻ', revenue: row.revenue };
+      });
+    }
+
+    // Rê chuột lên dòng khách → lát tương ứng của biểu đồ tròn nổi lên (null = bỏ chọn).
+    function highlightProductSlice(index) {
+      const chart = state.charts.productDetailCustomers;
+      if (!chart || typeof chart.setActiveElements !== 'function') return;
+      chart.setActiveElements(index === null ? [] : [{ datasetIndex: 0, index: index }]);
+      chart.update('none');
+    }
+
+    // Hộp "Doanh số theo khách" của 1 mã hàng: hàng chỉ số (doanh số, số khách, khách lớn nhất, top 3, tồn kho, SL bán 30
+    // ngày — 2 thẻ cuối lấy từ dòng bảng Báo cáo hàng hóa) + bảng khách cạnh biểu đồ tròn. Vẽ biểu đồ SAU khi canvas đã vào DOM.
     function renderProductReportModal(body, subtitle, data) {
       const rows = (data && data.rows) || [];
       if (!rows.length) {
         body.innerHTML = '<div class="doc-modal-note">Chưa có dữ liệu khách của sản phẩm này trong 90 ngày gần nhất (dữ liệu được cập nhật mỗi đêm).</div>';
         return;
       }
-      subtitle.textContent = fmtNumber(rows.length) + ' khách · Tổng ' + fmtMoney(data.totalRevenue) + ' · 90 ngày gần nhất';
-      body.innerHTML = '<div class="product-detail-grid">' +
-        '<div class="scroll-list product-detail-table"><table data-table-key="dashboard-table-21"><thead><tr><th>Khách hàng</th><th>Doanh số 90 ngày</th><th>% của SP</th></tr></thead>' +
-        '<tbody>' + rows.map(productDetailRowHtml).join('') + '</tbody></table></div>' +
-        '<div class="product-detail-chart"><div class="chart-box wide"><canvas id="productDetailChart" role="img" ' +
+      const total = Number(data.totalRevenue) || 0;
+      subtitle.textContent = fmtNumber(rows.length) + ' khách · Tổng ' + fmtMoney(total) + ' · 90 ngày gần nhất';
+      const item = docDetail.item || {};
+      const hasStock = Number.isFinite(Number(item.stockHanoi)) && Number.isFinite(Number(item.stockSaigon));
+      const top = rows[0];
+      const top3Revenue = rows.slice(0, 3).reduce(function (sum, row) { return sum + (Number(row.revenue) || 0); }, 0);
+      const tiles = [
+        { label: 'Doanh số 90 ngày', value: fmtMoney(total), tone: 'green' },
+        { label: 'Số khách mua', value: fmtNumber(rows.length), sub: 'TB ' + fmtMoney(total / rows.length) + ' / khách' },
+        { label: 'Khách lớn nhất', value: formatDebtRatio(top.share), tone: 'amber', sub: top.customerName || 'Khách lẻ' },
+        rows.length > 3 && total > 0
+          ? { label: 'Top 3 khách', value: formatDebtRatio(top3Revenue / total), sub: fmtMoney(top3Revenue) }
+          : null,
+        hasStock
+          ? { label: 'Tồn HN · SG', value: fmtNumber(item.stockHanoi) + ' · ' + fmtNumber(item.stockSaigon), tone: 'blue', sub: 'Có thể bán ' + fmtNumber(item.availableToSell) }
+          : null,
+        Number.isFinite(Number(item.qtySold30d))
+          ?{ label: 'SL bán 30 ngày', value: fmtNumber(item.qtySold30d) }
+          : null
+      ];
+      body.innerHTML = detailStatsHtml(tiles) +
+        '<div class="dp-split">' +
+        '<div class="dp-section">' + detailSectionHeadHtml('Doanh số theo khách', fmtNumber(rows.length) + ' khách') +
+        '<div class="dp-table-wrap product-detail-table"><table class="dp-table" data-table-controls="off" data-table-key="dashboard-table-21"><thead><tr><th>Khách hàng</th><th class="num">Doanh số 90 ngày</th><th class="num">% của SP</th></tr></thead>' +
+        '<tbody>' + rows.map(function (row, index) { return productDetailRowHtml(row, index, top.revenue); }).join('') + '</tbody></table></div></div>' +
+        '<div class="dp-section">' + detailSectionHeadHtml('Tỷ trọng doanh số') +
+        '<div class="dp-chart is-donut"><canvas id="productDetailChart" role="img" ' +
         'aria-label="Biểu đồ tròn tỷ trọng doanh số 90 ngày của các khách theo sản phẩm đã chọn"></canvas></div>' +
-        '<div class="legend-list product-detail-legend" id="productDetailLegend"></div></div></div>';
+        '<p class="dp-chart-caption">Mỗi lát là một khách · rê chuột lên dòng bảng để tìm lát tương ứng</p></div></div>';
       renderPieChartList(
         'productDetailChart', 'productDetailCustomers', productDetailPieList(rows),
-        function (item) { return item.name; }, function (item) { return item.revenue; }, null, 'Tổng 90 ngày',
-        null, 'productDetailLegend'
+        function (entry) { return entry.name; }, function (entry) { return entry.revenue; }, null, 'Tổng 90 ngày',
+        null, false
       );
+      body.querySelectorAll('tr[data-slice]').forEach(function (row) {
+        row.addEventListener('mouseenter', function () { highlightProductSlice(Number(row.dataset.slice)); });
+        row.addEventListener('mouseleave', function () { highlightProductSlice(null); });
+      });
+    }
+
+    function setDocumentDetailTitle(kindText, separator, name) {
+      document.getElementById('docModalTitle').innerHTML =
+        '<span class="dp-title-kind">' + escapeHtml(kindText + separator) + '</span>' + escapeHtml(name);
     }
 
     function renderDocumentDetail(status, data, message) {
@@ -7841,21 +7818,19 @@
         businessCustomers: () => item.name || item.code,
         businessProducts: () => item.code + (item.name ? ' – ' + item.name : '')
       }[docDetail.tableKey];
-      document.getElementById('docModalTitle').textContent = isBusiness
-        ? kind.title + ' · ' + businessTitle()
-        : isProduct
-          ? kind.title + ' · ' + item.code + (item.name ? ' – ' + item.name : '')
-          : kind.title + ' ' + item.code;
+      if (isBusiness) setDocumentDetailTitle(kind.title, ' · ', businessTitle());
+      else if (isProduct) setDocumentDetailTitle(kind.title, ' · ', item.code + (item.name ? ' – ' + item.name : ''));
+      else setDocumentDetailTitle(kind.title, ' ', item.code);
       subtitle.textContent = isBusiness ? '' : isProduct ? '90 ngày gần nhất' : (item.branch ? 'Cơ sở ' + item.branch : '');
       if (status === 'ready' && isBusiness) {
         renderBusinessDetailModal(body, subtitle, data);
       } else if (status === 'ready' && isProduct) {
         renderProductReportModal(body, subtitle, data);
       } else if (status === 'loading') {
-        body.innerHTML = '<div class="doc-modal-note">Đang tải chi tiết...</div>';
+        body.innerHTML = '<div class="doc-modal-note"><span class="dp-spinner" aria-hidden="true"></span>Đang tải chi tiết...</div>';
       } else if (status === 'error') {
         body.innerHTML = '<div class="doc-modal-note">' + escapeHtml(message || kind.failure) +
-          '<br><button class="export-select-action" type="button" style="margin-top:12px" onclick="retryDocumentDetail()">Thử lại</button></div>';
+          '<br><button class="dp-btn" type="button" style="margin-top:12px" onclick="retryDocumentDetail()">Thử lại</button></div>';
       } else {
         body.innerHTML = docDetailBodyHtml(docDetail.tableKey, data);
       }
@@ -7898,7 +7873,9 @@
       docDetail.tableKey = tableKey;
       docDetail.item = item;
       docDetail.returnFocus = trigger || null;
-      document.querySelector('#docModalBackdrop .doc-modal').classList.toggle('is-wide', !!DOC_DETAIL_KINDS[tableKey].wide);
+      const modalBox = document.querySelector('#docModalBackdrop .doc-modal');
+      modalBox.classList.toggle('is-wide', DOC_DETAIL_KINDS[tableKey].size === 'wide');
+      modalBox.classList.toggle('is-medium', DOC_DETAIL_KINDS[tableKey].size === 'medium');
       document.getElementById('docModalBackdrop').hidden = false;
       document.body.style.overflow = 'hidden';
       loadDocumentDetail();

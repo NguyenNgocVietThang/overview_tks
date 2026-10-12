@@ -34,6 +34,12 @@
     const cards = items || [], span = cards.length <= 2 ? 'col-6' : cards.length === 3 ? 'col-4' : 'col-3';
     return cards.map((k, i) => '<div class="kpi-card '+span+' accent-' + (i % 2 ? 'blue' : 'amber') + '"><div class="eyebrow">' + escape(k.label) + '</div><div class="value">' + escape(format(k.value,k.format || k.type)) + '</div></div>').join('');
   }
+  // Hàng chỉ số tổng quan của hộp chi tiết (khung chung .dp-stats, xem shared/detail-panel.css).
+  function detailStats(items) {
+    const cards = items || [];
+    if (!cards.length) return '';
+    return '<div class="dp-stats">' + cards.map(k => '<div class="dp-stat"><div class="dp-stat-label">' + escape(k.label) + '</div><div class="dp-stat-value">' + escape(format(k.value,k.format || k.type)) + '</div></div>').join('') + '</div>';
+  }
   async function request(path, params) {
     const response = await fetch('/api/marketing-report/' + path + '?' + params.toString(), { credentials:'same-origin' });
     if (response.status === 401) { window.location.href = '/login/?next=' + encodeURIComponent(location.pathname + location.hash); throw new Error('Phiên đăng nhập đã hết hạn.'); }
@@ -159,7 +165,9 @@
   function mountTable(host, id, title, rows, columns, onOpen, exportInfo) {
     const saved = host._marketingState || { search:'', sort:null, direction:1, page:1 };
     host._marketingState = saved;
-    host.innerHTML = '<div class="panel marketing-table"><div class="panel-head"><h2>'+escape(title)+'</h2><div class="panel-head-actions"><span class="drill-hint" data-count>—</span>'+(exportInfo?'<button class="export-button" type="button" id="'+id+'-export"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>':'')+'</div><div class="table-search-tools"><div class="table-search-input-wrap"><input class="table-search-input" id="'+id+'-search" type="search" autocomplete="off" aria-label="Tìm trong '+escape(title)+'" placeholder="Tìm kiếm không dấu…" value="'+escape(saved.search)+'"></div>'+'</div></div><div class="table-wrap marketing-table-scroll"><table data-table-key="'+id+'" aria-label="'+escape(title)+'"><thead></thead><tbody></tbody></table></div><div class="pagination-controls marketing-pages" hidden><button type="button" id="'+id+'-first" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button><button type="button" id="'+id+'-prev" aria-label="Trang trước" title="Trang trước">&lt;</button><span data-page-label></span><button type="button" id="'+id+'-next" aria-label="Trang sau" title="Trang sau">&gt;</button><button type="button" id="'+id+'-last" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button></div></div>';
+    // Bảng trong hộp chi tiết chỉ để đọc nhanh: không có nút "Cột hiển thị" / kéo độ rộng cột (TKSTables bỏ qua bảng này).
+    const inDialog = !!host.closest('dialog, .marketing-dialog');
+    host.innerHTML = '<div class="panel marketing-table"><div class="panel-head"><h2>'+escape(title)+'</h2><div class="panel-head-actions"><span class="drill-hint" data-count>—</span>'+(exportInfo?'<button class="export-button" type="button" id="'+id+'-export"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>':'')+'</div><div class="table-search-tools"><div class="table-search-input-wrap"><input class="table-search-input" id="'+id+'-search" type="search" autocomplete="off" aria-label="Tìm trong '+escape(title)+'" placeholder="Tìm kiếm không dấu…" value="'+escape(saved.search)+'"></div>'+'</div></div><div class="table-wrap marketing-table-scroll"><table'+(inDialog?' data-table-controls="off"':'')+' data-table-key="'+id+'" aria-label="'+escape(title)+'"><thead></thead><tbody></tbody></table></div><div class="pagination-controls marketing-pages" hidden><button type="button" id="'+id+'-first" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button><button type="button" id="'+id+'-prev" aria-label="Trang trước" title="Trang trước">&lt;</button><span data-page-label></span><button type="button" id="'+id+'-next" aria-label="Trang sau" title="Trang sau">&gt;</button><button type="button" id="'+id+'-last" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button></div></div>';
     const editing = !!exportInfo && exportInfo.kind === 'monthly' && exportInfo.table === 'rows' && !database() && canEdit();
     function cellHtml(row, key, type, edit, index) {
       if (edit && EDIT_KEYS.has(key) && row.key) return '<td class="marketing-edit-cell"><textarea class="marketing-edit" rows="1" wrap="soft" maxlength="500" data-edit="'+key+'" data-edit-index="'+index+'" aria-label="'+escape(columns.find(c => c[0] === key)[1])+' của '+escape(row.customer || row.phone || 'dòng này')+'">'+escape(row[key] || '')+'</textarea></td>';
@@ -188,7 +196,7 @@
         input.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); input.blur(); } if (event.key === 'Escape') { event.preventDefault(); input.value = row[input.dataset.edit] || ''; growEditor(input); input.blur(); } });
         input.addEventListener('change', () => saveCell(input, row));
       });
-      if (window.TKSTables) window.TKSTables.enhance(host.querySelector('table'), { key: id, columns: columns.map(([key, label]) => ({ key, label })) });
+      if (window.TKSTables && !inDialog) window.TKSTables.enhance(host.querySelector('table'), { key: id, columns: columns.map(([key, label]) => ({ key, label })) });
       host.querySelectorAll('[data-index]').forEach(element => { const open = () => { element.focus(); onOpen(slice[Number(element.dataset.index)]); }; element.addEventListener('click',open); element.addEventListener('keydown',event => { if(event.key==='Enter'||event.key===' ') { event.preventDefault(); open(); } }); });
     }
     host.querySelector('input[type="search"]').addEventListener('input',event => { saved.search=event.target.value; saved.page=1; draw(); });
@@ -257,7 +265,7 @@
       document.getElementById('marketingDetailTitle').textContent=data.title || definitions[kind].title;
       document.getElementById('marketingDetailSubtitle').textContent=(data.subtitle || '')+' · Đọc nguồn lúc '+time(data.computedAt);
       document.getElementById('marketingDetailStatus').textContent='';
-      body.innerHTML='<div class="marketing-warnings" role="status">'+escape((data.warnings||[]).join(' · '))+'</div>'+(data.formula?'<p class="marketing-status">Công thức quy đổi nguồn: '+escape(data.formula)+'</p>':'')+'<div class="kpi-grid section-kpis">'+kpis(data.kpis)+'</div>'+ (data.groups||[]).map((group,i)=>'<div id="marketing-detail-group-'+i+'"></div>').join('');
+      body.innerHTML='<div class="marketing-warnings" role="status">'+escape((data.warnings||[]).join(' · '))+'</div>'+(data.formula?'<p class="marketing-status">Công thức quy đổi nguồn: '+escape(data.formula)+'</p>':'')+detailStats(data.kpis)+ (data.groups||[]).map((group,i)=>'<div id="marketing-detail-group-'+i+'"></div>').join('');
       (data.groups||[]).forEach((group,i) => {
         const groupKind=definitions[group.kind]||detailDefinitions[group.kind]?group.kind:kind;
         const navigatePhone=kind==='phones' && groupKind==='phones' && (group.rows || []).some(row=>row.key!==key) ? row=>openDetail('phones',row.key,null,false,true) : null;

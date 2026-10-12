@@ -444,9 +444,9 @@
     "semantic_hash": ""
   },
   "server/package.json": {
-    "mtime": 1791785704.7920268,
-    "seen": 1791785806.9036174,
-    "ast_hash": "eb9510f77b2d90d1f3b878190fbcfe95",
+    "mtime": 1791787959.1785321,
+    "seen": 1791795280.5703228,
+    "ast_hash": "ebc2e46242ecdf170ecc972686463153",
     "semantic_hash": ""
   },
   "server/public/js/pagination.js": {
@@ -654,9 +654,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1791785704.7920268,
-    "seen": 1791785806.9036174,
-    "ast_hash": "978ee3f11e32e40282296dd8691664e4",
+    "mtime": 1791795109.1563323,
+    "seen": 1791795280.5703228,
+    "ast_hash": "4b06d4a35ef622c379652a6ab861faff",
     "semantic_hash": ""
   },
   "design-system/tks-dashboard/MASTER.md": {
@@ -666,15 +666,15 @@
     "semantic_hash": ""
   },
   "docs/01-brd/BRD_Dashboard_GoogleSheets.md": {
-    "mtime": 1791785704.7920268,
-    "seen": 1791785806.9036174,
-    "ast_hash": "3d8b6ece514bdc272b50d8b7511e54c5",
+    "mtime": 1791795134.351398,
+    "seen": 1791795280.5703228,
+    "ast_hash": "8e0e3ca3a035359db5f3bd51bd8a358a",
     "semantic_hash": ""
   },
   "docs/02-srs/SRS_Dashboard_GoogleSheets.md": {
-    "mtime": 1791785704.7920268,
-    "seen": 1791785806.9036174,
-    "ast_hash": "0c5e5cf94a7f40720a7936444efb8994",
+    "mtime": 1791795134.3634784,
+    "seen": 1791795280.5703228,
+    "ast_hash": "98eddf9db16bf16add53104c512999e8",
     "semantic_hash": ""
   },
   "docs/03-process/BPMN_Dashboard_GoogleSheets.md": {
@@ -684,9 +684,9 @@
     "semantic_hash": ""
   },
   "docs/04-planning/implementation_plan.md": {
-    "mtime": 1791785704.7920268,
-    "seen": 1791785806.9036174,
-    "ast_hash": "3dfc0b6d15387d293a80d5dca2ae7f78",
+    "mtime": 1791795109.170243,
+    "seen": 1791795280.5703228,
+    "ast_hash": "760f6e802b63bbdaa09b4529dbcc9562",
     "semantic_hash": ""
   },
   "docs/superpowers/plans/2026-08-13-dashboard-result-cache.md": {
@@ -786,9 +786,9 @@
     "semantic_hash": "58e700daf0c14819a97499bd94f6f2e1"
   },
   "server/README.md": {
-    "mtime": 1791785704.7920268,
-    "seen": 1791785806.9036174,
-    "ast_hash": "0321fc9a92cd76847f9b50e7a745c0d5",
+    "mtime": 1791795109.2196107,
+    "seen": 1791795280.5703228,
+    "ast_hash": "ce7715892b7072aa19f791170116a391",
     "semantic_hash": ""
   },
   "server/kiotviet/API_ENDPOINTS.md": {
@@ -1386,9 +1386,9 @@
     "semantic_hash": ""
   },
   "server/db/SCHEMA.md": {
-    "mtime": 1791785704.7920268,
-    "seen": 1791785806.9036174,
-    "ast_hash": "e64fae83fcfe52d9bcd3cc3a8d2f5bcc",
+    "mtime": 1791795109.21534,
+    "seen": 1791795280.5703228,
+    "ast_hash": "9eacc7583ef247629ccb2d7b7d8fc2d2",
     "semantic_hash": ""
   },
   "server/auth/appUsersRepository.js": {
@@ -2754,9 +2754,9 @@
     "semantic_hash": ""
   },
   "server/public/marketing-report.js": {
-    "mtime": 1791769363.02419,
-    "seen": 1791785806.9036174,
-    "ast_hash": "3e60e9d1f233590cdb167e5da798b3a8",
+    "mtime": 1791786103.791845,
+    "seen": 1791795280.5703228,
+    "ast_hash": "a034fd312a2cef16c5f06366e26609df",
     "semantic_hash": ""
   },
   "server/public/shared/search-clear.js": {
@@ -3174,9 +3174,9 @@
     "semantic_hash": ""
   },
   "docs/marketing-report-setup.md": {
-    "mtime": 1791785704.7920268,
-    "seen": 1791785806.9036174,
-    "ast_hash": "2f3d97a26cc84204c8a151e62cdcb109",
+    "mtime": 1791795109.1742654,
+    "seen": 1791795280.5703228,
+    "ast_hash": "60f4b79ddbb3449bbd6ed9046d811124",
     "semantic_hash": ""
   },
   "docs/stock-locations-setup.md": {
@@ -3378,9 +3378,9 @@
     "semantic_hash": ""
   },
   "CURRENT.md": {
-    "mtime": 1791785704.7920268,
-    "seen": 1791785806.9036174,
-    "ast_hash": "261a2cb03173c8694c861faad3483375",
+    "mtime": 1791795134.366215,
+    "seen": 1791795280.5703228,
+    "ast_hash": "c85c917f431bf804ccfbc7cbc66d37f7",
     "semantic_hash": ""
   },
   "MEMORY.md": {
@@ -3396,15 +3396,15 @@
     "semantic_hash": ""
   },
   "tasks/2026-10-09-pancake-marketing/todo.md": {
-    "mtime": 1791785704.7920268,
-    "seen": 1791785806.9036174,
-    "ast_hash": "4a8b9a17918dcc86bd586718c625e931",
+    "mtime": 1791795109.2028885,
+    "seen": 1791795280.5703228,
+    "ast_hash": "e373d2adfefba7332a2d5dd59c14eb2d",
     "semantic_hash": ""
   },
   "tasks/2026-10-09-pancake-marketing/verification.md": {
-    "mtime": 1791785704.7920268,
-    "seen": 1791785806.9036174,
-    "ast_hash": "2c3052492d34bb887b78e3e4ff1ee2a5",
+    "mtime": 1791795109.2109346,
+    "seen": 1791795280.5703228,
+    "ast_hash": "dfc7398b45813bf79153e49144196bd0",
     "semantic_hash": ""
   },
   "server/db/migrations/0044_purchases_raw_hash.sql": {
@@ -3420,9 +3420,9 @@
     "semantic_hash": ""
   },
   "tasks/2026-10-09-pancake-marketing/implementation-progress.md": {
-    "mtime": 1791785704.808238,
-    "seen": 1791785806.9036174,
-    "ast_hash": "fffbbc600e2dd70f342485d987ed0ab2",
+    "mtime": 1791795109.1971784,
+    "seen": 1791795280.5703228,
+    "ast_hash": "11c679293c9a374fb82025e3dbf3253d",
     "semantic_hash": ""
   },
   "tasks/2026-10-12-lifecycle-north-south/plan.md": {
@@ -3462,15 +3462,15 @@
     "semantic_hash": ""
   },
   "server/marketingReport/marketingDatabaseReportService.js": {
-    "mtime": 1791769272.110351,
-    "seen": 1791785806.9036174,
-    "ast_hash": "8e54a157184f157faf9b29c1b18cefd8",
+    "mtime": 1791788257.2888317,
+    "seen": 1791795280.5703228,
+    "ast_hash": "d5a8b732b32f7244f64f406f4b7f0d54",
     "semantic_hash": ""
   },
   "server/marketingReport/marketingDatabaseReportService.test.js": {
-    "mtime": 1791769272.1123571,
-    "seen": 1791785806.9036174,
-    "ast_hash": "6012fcf97e2739ede3984bbcd07bef0a",
+    "mtime": 1791788253.0342042,
+    "seen": 1791795280.5703228,
+    "ast_hash": "b75ef23b8bebf77bcd7ebb664403706b",
     "semantic_hash": ""
   },
   "server/marketingReport/marketingHistoryImport.js": {
@@ -3486,9 +3486,9 @@
     "semantic_hash": ""
   },
   "server/marketingReport/marketingRepository.js": {
-    "mtime": 1791785704.8100128,
-    "seen": 1791785806.9036174,
-    "ast_hash": "721884636ed58a5ef702223baeed5bcd",
+    "mtime": 1791787861.7910833,
+    "seen": 1791795280.5703228,
+    "ast_hash": "fae0dac23c6827fb5f62e3ccc591e9ee",
     "semantic_hash": ""
   },
   "server/marketingReport/marketingRepository.test.js": {
@@ -3510,15 +3510,15 @@
     "semantic_hash": ""
   },
   "server/marketingReport/pancakeClient.js": {
-    "mtime": 1791769505.937001,
-    "seen": 1791785806.9036174,
-    "ast_hash": "7f96b44e698c95870225185a7653ea96",
+    "mtime": 1791790420.1592257,
+    "seen": 1791795280.5703228,
+    "ast_hash": "a64437e7561d82d44918fc8fd7bae081",
     "semantic_hash": ""
   },
   "server/marketingReport/pancakeClient.test.js": {
-    "mtime": 1791769505.937001,
-    "seen": 1791785806.9036174,
-    "ast_hash": "465b4af34c88deee3ed9bf3bbae9c3fb",
+    "mtime": 1791790420.1592257,
+    "seen": 1791795280.5703228,
+    "ast_hash": "387607a9303b39cb4113a10192795678",
     "semantic_hash": ""
   },
   "server/marketingReport/pancakeScheduler.js": {
@@ -3534,15 +3534,15 @@
     "semantic_hash": ""
   },
   "server/marketingReport/pancakeSync.js": {
-    "mtime": 1791769022.6288629,
-    "seen": 1791785806.9036174,
-    "ast_hash": "3ba224d9634a82806f657c0574752bf7",
+    "mtime": 1791790453.3050704,
+    "seen": 1791795280.5703228,
+    "ast_hash": "5c94c83113c58dddd3ad260e49606c51",
     "semantic_hash": ""
   },
   "server/marketingReport/pancakeSync.test.js": {
-    "mtime": 1791768939.9256804,
-    "seen": 1791785806.9036174,
-    "ast_hash": "c8e3faa2b730a90d7e1c0a678ed932fc",
+    "mtime": 1791788040.6176236,
+    "seen": 1791795280.5703228,
+    "ast_hash": "3efe293d97689e200001a19c00c535c0",
     "semantic_hash": ""
   },
   "server/scripts/capture-marketing-history.js": {
@@ -3558,15 +3558,39 @@
     "semantic_hash": ""
   },
   "server/scripts/sync-pancake-marketing.js": {
-    "mtime": 1791768458.6679678,
-    "seen": 1791785806.9036174,
-    "ast_hash": "a8e4b3a99b90a5e9b2233f88e984e6f2",
+    "mtime": 1791787899.727679,
+    "seen": 1791795280.5703228,
+    "ast_hash": "f6b210f0b260f001870efbaa70753c7f",
     "semantic_hash": ""
   },
   "server/marketingReport/HISTORY_IMPORT.md": {
     "mtime": 1791540990.3640068,
     "seen": 1791785806.9036174,
     "ast_hash": "8358cd741d292911dc000ff83c2e110b",
+    "semantic_hash": ""
+  },
+  "server/db/migrations/0046_pancake_history_identity.sql": {
+    "mtime": 1791787816.9459157,
+    "seen": 1791795280.5703228,
+    "ast_hash": "fcb114fcef084492a6f2f3a4f7404fc0",
+    "semantic_hash": ""
+  },
+  "server/marketingReport/marketingIdentityImport.js": {
+    "mtime": 1791787953.9667728,
+    "seen": 1791795280.5703228,
+    "ast_hash": "e05fbdb21a68378d63a90855179450e6",
+    "semantic_hash": ""
+  },
+  "server/marketingReport/pancakeIdentity.test.js": {
+    "mtime": 1791788004.2118683,
+    "seen": 1791795280.5703228,
+    "ast_hash": "644dcaa6ad03974339fd825689cf9f92",
+    "semantic_hash": ""
+  },
+  "server/scripts/import-pancake-identities.js": {
+    "mtime": 1791787953.9886222,
+    "seen": 1791795280.5703228,
+    "ast_hash": "fc418092f318318c3a7c718e6f3125c9",
     "semantic_hash": ""
   }
 }

@@ -147,7 +147,7 @@ test('bam dong khac: huy bieu do cu, chi con 1 bieu do; dong hop huy bieu do', a
   assert.equal(page.$('docModalBody').innerHTML, '');
 });
 
-test('nhieu khach: bieu do tron hien du tung khach (khong gop "Khac"), chu giai HTML liet ke du', async () => {
+test('nhieu khach: bieu do tron hien du tung khach (khong gop "Khac"), bang khach dong vai tro chu giai (o mau trung mau lat)', async () => {
   const page = createPage({ customers: code => customersPayload(code, 14) });
   await settle();
   rowOf(page, 'SP-1').click();
@@ -158,10 +158,16 @@ test('nhieu khach: bieu do tron hien du tung khach (khong gop "Khac"), chu giai 
   assert.equal(pie.config.data.labels.length, 14);
   assert.ok(!pie.config.data.labels.some(label => /^Khác/.test(label)));
   assert.equal(pie.config.data.datasets[0].data.reduce((a, b) => a + b, 0), (14 + 13 + 12 + 11 + 10 + 9 + 8 + 7 + 6 + 5 + 4 + 3 + 2 + 1) * 100);
-  assert.equal(pie.config.options.plugins.legend.display, false, 'legend Chart.js tat, dung chu giai HTML');
-  const legendRows = page.$('productDetailLegend').querySelectorAll('.legend-row');
-  assert.equal(legendRows.length, 14);
-  assert.match(legendRows[0].textContent, /KH A/);
+assert.equal(pie.config.options.plugins.legend.display, false, 'legend Chart.js tat: bang khach la chu giai');
+  assert.equal(page.$('productDetailLegend'), null, 'khong con chu giai HTML rieng');
+  const swatches = [...page.$('docModalBody').querySelectorAll('tbody .dp-swatch')];
+  assert.equal(swatches.length, 14);
+  const probe = page.doc.createElement('i');
+  const normalized = color => { probe.style.background = ''; probe.style.background = color; return probe.style.background; };
+  swatches.forEach((swatch, index) => {
+    assert.equal(swatch.style.background, normalized(pie.config.data.datasets[0].backgroundColor[index]), 'o mau dong ' + index + ' trung mau lat');
+  });
+  assert.match(page.$('docModalBody').querySelector('tbody tr').textContent, /KH A/);
 });
 
 test('san pham chua co du lieu khach: thong bao ro rang, khong ve bieu do', async () => {
@@ -192,4 +198,50 @@ test('phim Enter tren dong cung mo hop chi tiet', async () => {
   await settle();
   assert.equal(page.$('docModalBackdrop').hidden, false);
   assert.match(page.$('docModalTitle').textContent, /SP-1/);
+});
+
+const statsOf = page => Object.fromEntries([...page.$('docModalBody').querySelectorAll('.dp-stat')].map(el => [
+  el.querySelector('.dp-stat-label').textContent,
+  { value: el.querySelector('.dp-stat-value').textContent, sub: (el.querySelector('.dp-stat-sub') || { textContent: '' }).textContent }
+]));
+
+test('hop co hang chi so tong quan: doanh so, so khach, khach lon nhat, top 3, ton HN-SG va SL ban 30 ngay (lay tu dong bang)', async () => {
+  const page = createPage({ customers: code => customersPayload(code, 14) });
+  await settle();
+  rowOf(page, 'SP-1').click();
+  await settle();
+
+  const stats = statsOf(page);
+  // 14 khach, doanh so (14 - i) * 100 => tong 10.500; khach lon nhat 1.400 (13,3%); top 3 = 3.900 (37,1%)
+  assert.match(stats['Doanh số 90 ngày'].value, /10.500₫/);
+  assert.equal(stats['Số khách mua'].value, '14');
+  assert.equal(stats['Số khách mua'].sub, 'TB 750₫ / khách');
+  assert.match(stats['Khách lớn nhất'].value, /13[.,]3%/);
+  assert.equal(stats['Khách lớn nhất'].sub, 'KH A');
+  assert.match(stats['Top 3 khách'].value, /37[.,]1%/);
+  assert.match(stats['Top 3 khách'].sub, /3.900₫/);
+  assert.equal(stats['Tồn HN · SG'].value, '5 · 3');
+  assert.equal(stats['Tồn HN · SG'].sub, 'Có thể bán 8');
+  assert.equal(stats['SL bán 30 ngày'].value, '4');
+});
+
+test('it khach (<= 3): khong co the "Top 3 khach" (luon 100%)', async () => {
+  const page = createPage();
+  await settle();
+  rowOf(page, 'SP-1').click();
+  await settle();
+  assert.equal(statsOf(page)['Top 3 khách'], undefined);
+  assert.ok(statsOf(page)['Doanh số 90 ngày']);
+});
+
+test('hop KHONG co nut "Cột hiển thị" / thanh keo do rong cot: bang khach tat bo chon cot', async () => {
+  const page = createPage();
+  await settle();
+  page.dom.window.eval(fs.readFileSync(path.join(publicDir, 'shared', 'table-controls.js'), 'utf8'));
+  rowOf(page, 'SP-1').click();
+  await settle();
+  assert.equal(page.$('docModalBody').querySelector('table').getAttribute('data-table-controls'), 'off');
+  page.dom.window.TKSTables.refreshAll();
+  assert.equal(page.$('docModalBackdrop').querySelectorAll('.tks-columns-button, .tks-column-resizer').length, 0);
+  assert.doesNotMatch(page.$('docModalBackdrop').textContent, /Cột hiển thị/);
 });

@@ -17,6 +17,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Roboto:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="/shared/shared.css?v=20261009">
   <link rel="stylesheet" href="/shared/search-clear.css?v=20261009-1">
+  <link rel="stylesheet" href="/shared/detail-panel.css?v=20261012">
 <style>
   .lookup-wrap{ width:100%; max-width:none; margin:0; }
   .lookup-hero{ margin-bottom:20px; }
@@ -265,24 +266,25 @@
   .lc-kiot-notice{ margin:0; padding:10px 20px; color:#F59E0B; font-size:12.5px; font-weight:600; border-bottom:1px solid var(--border); background:var(--panel-2); }
   .lc-kiot-notice[hidden]{ display:none; }
   /* Chi so tong quat dau bang: 3 the trang thai + the canh bao theo tung loai (bam de loc nhanh bang). */
-  .lc-kpis{ padding:14px 20px 4px; border-bottom:1px solid var(--border); }
-  .lc-kpis[hidden]{ display:none; }
-  .lc-kpi-group + .lc-kpi-group{ margin-top:12px; }
+  /* Nam ngoai khung bang (khong nen/vien rieng), the kieu .kpi-card cua cac tab khac: so lieu to mau theo loai, khong vien trai mau. */
+  .lc-kpis{ margin-bottom:14px; }
+  .lc-kpis[hidden], .lc-kpis.is-off-tab{ display:none; }
+  .lc-kpi-group + .lc-kpi-group{ margin-top:14px; }
   .lc-kpi-title{ margin:0 0 8px; color:var(--muted); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; }
-  .lc-kpi-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(135px, 1fr)); gap:10px; padding-bottom:12px; }
-  @media(max-width:760px){ .lc-kpis{ padding:12px 12px 2px; } .lc-kpi-grid{ gap:8px; } .lc-kpi-value{ font-size:20px; } }
+  .lc-kpi-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:14px; }
+  @media(max-width:760px){ .lc-kpi-grid{ gap:10px; } .lc-kpi-value{ font-size:20px; } }
   .lc-kpi{
-    display:flex; flex-direction:column; align-items:flex-start; gap:4px; min-width:0; padding:10px 12px; text-align:left;
-    border:1px solid var(--border); border-left:3px solid var(--kpi-accent, var(--border)); border-radius:8px;
-    background:var(--panel-2); color:var(--text); font-family:var(--font-body); cursor:pointer;
+    display:flex; flex-direction:column; align-items:flex-start; gap:4px; min-width:0; padding:16px 18px; text-align:left;
+    border:1px solid var(--border); border-radius:var(--radius-12, 12px);
+    background:var(--panel); color:var(--text); font-family:var(--font-body); cursor:pointer;
     transition:border-color .15s ease, opacity .15s ease, background .15s ease;
   }
-  .lc-kpi:hover{ background:var(--surface-hover); }
+  .lc-kpi:hover{ border-color:var(--blue); }
   .lc-kpi:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
   .lc-kpi.is-selected{ border-color:var(--kpi-accent, var(--blue)); box-shadow:0 0 0 1px var(--kpi-accent, var(--blue)) inset; }
   .lc-kpi.is-zero .lc-kpi-value{ opacity:.45; }
   .lc-kpi-label{ color:var(--muted); font-size:12px; font-weight:600; line-height:1.3; }
-  .lc-kpi-value{ font-family:var(--font-data); font-variant-numeric:tabular-nums; font-size:22px; font-weight:700; line-height:1.1; }
+  .lc-kpi-value{ color:var(--kpi-accent, var(--text)); font-family:var(--font-data); font-variant-numeric:tabular-nums; font-size:23px; font-weight:700; line-height:1.1; }
   .lc-kpi-sub{ color:var(--muted); font-size:11px; }
   .lc-kpi.accent-amber{ --kpi-accent:var(--amber); }
   .lc-kpi.accent-blue{ --kpi-accent:var(--blue); }
@@ -316,26 +318,50 @@
   .pagination-controls button:hover:not(:disabled){ border-color:var(--muted); }
   .pagination-controls button:disabled{ opacity:.4; cursor:default; }
 
-  .lc-detail-dialog{ max-width:560px; }
-  .lc-detail-dialog.is-wide{ max-width:1020px; }
-  /* Bang "Hang hoa trong don" (du lieu Kiot) trong hop chi tiet */
-  .lc-lines-title{ margin:18px 0 8px; font-size:13px; font-weight:700; color:var(--text); }
-  .lc-lines-status{ margin:14px 0 0; color:var(--muted); font-size:12.5px; }
-  .lc-lines-scroll{ overflow-x:auto; border:1px solid var(--border); border-radius:8px; }
-  .lc-lines{ width:100%; border-collapse:collapse; font-size:12.5px; }
-  .lc-lines th, .lc-lines td{ padding:8px 10px; text-align:left; border-bottom:1px solid var(--border); white-space:nowrap; }
-  .lc-lines th{ color:var(--muted); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; background:var(--surface-hover); }
-  .lc-lines th.num, .lc-lines td.num{ text-align:right; font-family:var(--font-data); font-variant-numeric:tabular-nums; }
-  .lc-lines td.name{ white-space:normal; min-width:190px; }
-  .lc-lines tbody tr:last-child td{ border-bottom:none; }
-  .lc-lines tfoot td{ font-weight:700; border-top:1px solid var(--border); border-bottom:none; background:var(--panel-2); }
-  .lc-lines tr.is-service td{ color:var(--muted); }
-  .lc-lines-note{ margin:8px 0 0; color:var(--muted); font-size:12px; line-height:1.5; }
-  .lc-detail-row{ display:flex; gap:14px; padding:10px 0; border-bottom:1px solid var(--border); font-size:13px; }
-  .lc-detail-row:last-child{ border-bottom:none; }
-  .lc-detail-label{ flex:0 0 200px; color:var(--text); font-weight:600; }
-  .lc-detail-value{ flex:1; color:var(--text); font-weight:500; word-break:break-word; }
+  /* Hop chi tiet don: khung chung .dp-* (shared/detail-panel.css) + phan rieng cua vong doi don hang. */
+  .lc-detail-dialog{ max-width:780px; display:flex; flex-direction:column; overflow:hidden; }
+  .lc-detail-dialog.is-wide{ max-width:1100px; }
+  .lc-detail-dialog .dp-body{ flex:1; min-height:0; overflow-y:auto; }
+  /* Gia tri don chi toi hang trieu/ty nen the hep hon duoc: 6 the nam tron 1 hang o hop rong */
+  .lc-detail-dialog .dp-stats{ grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); }
+  .lc-detail-alert{
+    display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; padding:10px 14px;
+    border:1px solid var(--alert-error-border); border-radius:var(--radius-lg); background:var(--alert-error-bg);
+  }
+  .lc-detail-alert-title{ font-size:12px; font-weight:700; color:var(--red); }
+  .lc-detail-alert .lc-warning-badge{ margin:0; }
+  .lc-detail-row{
+    display:grid; grid-template-columns:116px minmax(0, 1fr); gap:12px; padding:9px 0;
+    border-bottom:1px solid var(--row-divider); font-size:13px;
+  }
+  .lc-detail-row:first-child{ padding-top:0; }
+  .lc-detail-row:last-child{ border-bottom:none; padding-bottom:0; }
+  .lc-detail-label{ padding-top:1px; color:var(--muted); font-size:12px; font-weight:600; }
+  .lc-detail-value{ min-width:0; color:var(--text); font-weight:500; overflow-wrap:anywhere; }
   .lc-detail-value.is-note{ white-space:pre-wrap; }
+  /* Tien trinh xu ly: duong doc noi cac moc, moc da xong co dau tich xanh */
+  .lc-steps{ list-style:none; margin:0; padding:0; }
+  .lc-step{ position:relative; display:grid; grid-template-columns:22px minmax(0, 1fr); gap:11px; padding-bottom:14px; }
+  .lc-step:last-child{ padding-bottom:0; }
+  .lc-step::before{ content:''; position:absolute; left:10px; top:22px; bottom:0; width:2px; background:var(--border); }
+  .lc-step:last-child::before{ display:none; }
+  .lc-step.is-done::before{ background:var(--green); }
+  .lc-step-dot{
+    width:22px; height:22px; display:flex; align-items:center; justify-content:center; border-radius:50%;
+    border:2px solid var(--border); background:var(--panel); color:transparent;
+  }
+  .lc-step-dot svg{ width:12px; height:12px; }
+  .lc-step.is-done .lc-step-dot{ border-color:var(--green); background:var(--green); color:var(--panel); }
+  .lc-step-label{ display:block; color:var(--muted); font-size:12px; font-weight:600; }
+  .lc-step-value{ display:block; margin-top:1px; color:var(--text); font-size:13px; font-weight:500; overflow-wrap:anywhere; }
+  .lc-step:not(.is-done) .lc-step-value{ color:var(--muted); font-weight:400; }
+  /* Bang "Hang hoa trong don" (du lieu Kiot) trong hop chi tiet */
+  #lcDetailStats:empty, #lcDetailKiot:empty{ display:none; }
+  .lc-lines-status{ margin:0; color:var(--muted); font-size:12.5px; }
+  .lc-lines{ min-width:780px; }
+  .lc-lines tr.is-service td{ color:var(--muted); }
+  .lc-lines td.is-short{ color:var(--amber); font-weight:700; }
+  .lc-lines-note{ margin:8px 0 0; color:var(--muted); font-size:12px; line-height:1.5; }
 
   /* Dien thoai: moi khoi xep thanh cot kin chieu ngang panel; bo loc Tu - Den cung
      khuon voi Bao cao tong hop / Nghi phep (2 cot, nhan tren o dd/mm/yyyy). */
@@ -369,8 +395,7 @@
     .lookup-row{ flex-direction:column; align-items:stretch; }
     .lookup-submit{ width:100%; }
     .lookup-result.show{ flex-direction:column; align-items:flex-start; }
-    .lc-detail-row{ flex-direction:column; gap:2px; }
-    .lc-detail-label{ flex:none; }
+    .lc-detail-row{ grid-template-columns:minmax(0, 1fr); gap:2px; }
   }
 </style>
   <link rel="stylesheet" href="/shared/table-controls.css?v=20261009-3">
@@ -443,8 +468,9 @@
             </button>
           </div>
 
+          <div class="lc-kpis" id="lcKpis" hidden></div>
+
           <section class="panel bulk-panel lc-subtab-panel active" id="lcSubtab-orders" role="tabpanel">
-            <div class="lc-kpis" id="lcKpis" hidden></div>
             <div class="bulk-header">
               <h3>Toàn bộ đơn hàng</h3>
               <div class="bulk-frame-actions">
@@ -585,14 +611,18 @@
     </main>
   </div>
 
-  <!-- Modal chi tiet don — dung chung cho Khu A va Khu B -->
+  <!-- Modal chi tiet don — dung chung cho Khu A va Khu B (khung .dp-* o shared/detail-panel.css) -->
   <div class="tks-profile-overlay" id="lcDetailOverlay" hidden>
-    <div class="tks-profile-dialog lc-detail-dialog" role="dialog" aria-modal="true" aria-labelledby="lcDetailTitle">
-      <div class="tks-profile-header">
-        <h3 id="lcDetailTitle">Chi tiết đơn hàng</h3>
-        <button type="button" class="tks-profile-close" id="lcDetailClose" aria-label="Đóng">✕</button>
+    <div class="tks-profile-dialog lc-detail-dialog" role="dialog" aria-modal="true" aria-labelledby="lcDetailKicker lcDetailTitle">
+      <div class="dp-head">
+        <div class="dp-head-text">
+          <p class="dp-kicker" id="lcDetailKicker">Chi tiết đơn hàng</p>
+          <h3 class="dp-title" id="lcDetailTitle"></h3>
+          <p class="dp-subtitle" id="lcDetailSubtitle"></p>
+        </div>
+        <button type="button" class="dp-close" id="lcDetailClose" aria-label="Đóng">×</button>
       </div>
-      <div class="tks-profile-body" id="lcDetailBody"></div>
+      <div class="dp-body" id="lcDetailBody"></div>
     </div>
   </div>
 
@@ -638,21 +668,23 @@
     }
 
     // ---------- Du lieu tinh dung chung ----------
+    // group 'info' = khung "Thông tin đơn"; group 'step' = khung "Tiến trình xử lý" (milestone: mốc thời gian, tính vào
+    // chỉ số Tiến trình; Lái xe là tên người nên không tính).
     // kiotOnly: chi hien khi du lieu co truong do (dong cua bang noi bo da gop Kiot); tra cuu cho Khach khong co.
     const DETAIL_FIELDS = [
-      { key: 'orderCode', label: 'Mã đơn hàng' },
-      { key: 'orderDate', label: 'Thời gian đặt hàng', kiotOnly: true },
-      { key: 'kiotStatus', label: 'Trạng thái KiotViet', kiotOnly: true },
-      { key: 'saleName', label: 'Nhân viên bán hàng' },
-      { key: 'customerName', label: 'Khách hàng' },
-      { key: 'note', label: 'Ghi chú', kiotOnly: true, multiline: true },
-      { key: 'saleSentAt', label: 'Sale gửi đơn cho kế toán' },
-      { key: 'accountantApprovedOrderAt', label: 'Kế toán duyệt đơn' },
-      { key: 'driverName', label: 'Lái xe' },
-      { key: 'driverConfirmedDeliveryAt', label: 'Tài xế gửi xác nhận giao hàng' },
-      { key: 'accountantApprovedDeliveryAt', label: 'Kế toán duyệt giao hàng' },
-      { key: 'shipReceivedAt', label: 'Ship nhận đơn' },
-      { key: 'orderSignedAt', label: 'Đơn đã ký nhận' }
+      { key: 'orderCode', label: 'Mã đơn hàng', group: 'info' },
+      { key: 'orderDate', label: 'Thời gian đặt hàng', group: 'info', kiotOnly: true },
+      { key: 'kiotStatus', label: 'Trạng thái KiotViet', group: 'info', kiotOnly: true, badge: true },
+      { key: 'saleName', label: 'Nhân viên bán hàng', group: 'info' },
+      { key: 'customerName', label: 'Khách hàng', group: 'info' },
+      { key: 'note', label: 'Ghi chú', group: 'info', kiotOnly: true, multiline: true },
+      { key: 'saleSentAt', label: 'Sale gửi đơn cho kế toán', group: 'step', milestone: true },
+      { key: 'accountantApprovedOrderAt', label: 'Kế toán duyệt đơn', group: 'step', milestone: true },
+      { key: 'driverName', label: 'Lái xe', group: 'step' },
+      { key: 'driverConfirmedDeliveryAt', label: 'Tài xế gửi xác nhận giao hàng', group: 'step', milestone: true },
+      { key: 'accountantApprovedDeliveryAt', label: 'Kế toán duyệt giao hàng', group: 'step', milestone: true },
+      { key: 'shipReceivedAt', label: 'Ship nhận đơn', group: 'step', milestone: true },
+      { key: 'orderSignedAt', label: 'Đơn đã ký nhận', group: 'step', milestone: true }
     ];
     const STATUS_BADGE_CLASS = {
       NOT_SENT: 'badge-not-sent',
@@ -724,33 +756,144 @@
     }
 
     // ---------- Modal chi tiet (dung chung Khu A + Khu B) ----------
+    // Bo cuc: [canh bao] -> hang CHI SO TONG QUAN (#lcDetailStats) -> "Thong tin don" canh "Tien trinh xu ly"
+    // -> bang hang hoa theo Kiot (#lcDetailKiot, nap bat dong bo). Khung .dp-* o shared/detail-panel.css.
     const detailOverlay = document.getElementById('lcDetailOverlay');
     const detailBody = document.getElementById('lcDetailBody');
 
     const detailDialog = detailOverlay.querySelector('.lc-detail-dialog');
     let detailRequestId = 0; // bo qua phan hoi chi tiet Kiot den muon sau khi hop da dong / doi sang don khac
+    let detailOrder = null;  // don dang xem (dong bang hoac ket qua tra cuu)
+    let detailKiot = null;   // ket qua order-detail cua Kiot (null = chua nap / khong co)
 
-    // opts.withKiot: dong cua bang "Toan bo don hang" (vai tro noi bo) nap them chi tiet dong hang tu Kiot.
-    // Khu A (tra cuu cho Khach) va tab Lich su KHONG truyen — khong bao gio goi API Kiot.
-    function openDetailModal(detail, opts){
-      detailBody.innerHTML = DETAIL_FIELDS.filter(function(field){
+    const DETAIL_INFO_FIELDS = DETAIL_FIELDS.filter(function(field){ return field.group === 'info'; });
+    const DETAIL_STEP_FIELDS = DETAIL_FIELDS.filter(function(field){ return field.group === 'step'; });
+    const DETAIL_MILESTONES = DETAIL_STEP_FIELDS.filter(function(field){ return field.milestone; });
+    const STEP_CHECK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+
+    function detailText(raw){ return (raw === undefined || raw === null || String(raw).trim() === '') ? '' : String(raw); }
+
+    // tiles: [{ label, value | html, sub?, tone?: 'green'|'amber'|'red'|'blue' }]; the rong (null) bi bo qua.
+    function detailStatsHtml(tiles){
+      const items = tiles.filter(Boolean);
+      if(!items.length) return '';
+      return '<div class="dp-stats">' + items.map(function(tile){
+        return '<div class="dp-stat' + (tile.tone ? ' is-' + tile.tone : '') + '">' +
+          '<div class="dp-stat-label">' + escapeHtml(tile.label) + '</div>' +
+          '<div class="dp-stat-value' + (tile.html ? ' is-text' : '') + '">' + (tile.html || escapeHtml(String(tile.value))) + '</div>' +
+          (tile.sub ? '<div class="dp-stat-sub">' + escapeHtml(tile.sub) + '</div>' : '') + '</div>';
+      }).join('') + '</div>';
+    }
+
+    function detailSectionHead(title, note){
+      return '<div class="dp-section-head"><h4 class="dp-section-title">' + escapeHtml(title) + '</h4>' +
+        (note ? '<span class="dp-section-note">' + escapeHtml(note) + '</span>' : '') + '</div>';
+    }
+
+    // Chi so tong quan: trang thai, tien trinh (so moc da xong), gia tri don / co ban; sau khi nap Kiot them mat hang va
+    // so dong thieu hang. Gia tri lay tu dong bang truoc, ket qua order-detail (neu co) ghi de.
+    function detailStatTiles(order, kiot){
+      const tiles = [];
+      const summary = order.summary;
+      if(summary && summary.label){
+        tiles.push({ label: 'Trạng thái đơn', html: renderBadge(summary), sub: summary.at ? 'Cập nhật ' + summary.at : '' });
+      }
+      const doneMilestones = DETAIL_MILESTONES.filter(function(field){ return detailText(order[field.key]); });
+      const latest = doneMilestones.length ? doneMilestones[doneMilestones.length - 1].label : 'Chưa có mốc nào';
+      tiles.push({
+        label: 'Tiến trình', value: doneMilestones.length + '/' + DETAIL_MILESTONES.length + ' mốc',
+        tone: doneMilestones.length === DETAIL_MILESTONES.length ? 'green' : (doneMilestones.length ? 'blue' : ''), sub: latest
+      });
+      const total = kiot ? kiot.total : (hasOrderTotal(order) ? order.orderTotal : null);
+      const pending = kiot ? !!kiot.phieuTam : hasSellableValue(order);
+      const sellable = kiot ? kiot.sellableValue : (hasSellableValue(order) ? order.sellableValue : null);
+      if(total !== null && total !== undefined){
+        tiles.push({ label: 'Giá trị đơn (Kiot)', value: formatVnd(total), tone: 'green' });
+      }
+      if(pending && sellable !== null && sellable !== undefined){
+        const covered = total ? Math.round(sellable / total * 100) : null;
+        tiles.push({
+          label: 'Giá trị có bán', value: formatVnd(sellable), tone: covered !== null && covered < 100 ? 'amber' : 'green',
+          sub: covered !== null ? covered + '% giá trị đơn' : ''
+        });
+      }
+      if(kiot){
+        const goods = (Array.isArray(kiot.lines) ? kiot.lines : []).filter(function(line){ return !line.isService; });
+        const quantity = goods.reduce(function(sum, line){ return sum + (Number(line.quantity) || 0); }, 0);
+        tiles.push({ label: 'Mặt hàng', value: String(goods.length), sub: formatQty(quantity) + ' sản phẩm' });
+        if(pending){
+          const short = goods.filter(function(line){ return line.sellableQty !== null && line.sellableQty !== undefined && line.sellableQty < line.quantity; }).length;
+          tiles.push({
+            label: 'Dòng thiếu hàng', value: short + '/' + goods.length, tone: short ? 'red' : 'green',
+            sub: short ? 'Tồn không đủ số lượng đặt' : 'Đủ hàng cho cả đơn'
+          });
+        }
+      }
+      return tiles;
+    }
+
+    function renderDetailStats(){
+      const box = document.getElementById('lcDetailStats');
+      if(box && detailOrder) box.innerHTML = detailStatsHtml(detailStatTiles(detailOrder, detailKiot));
+    }
+
+    function detailInfoHtml(detail){
+      return DETAIL_INFO_FIELDS.filter(function(field){
         return !field.kiotOnly || (detail && Object.prototype.hasOwnProperty.call(detail, field.key));
       }).map(function(field){
-        const raw = detail ? detail[field.key] : '';
-        const value = (raw === undefined || raw === null || String(raw).trim() === '') ? '—' : String(raw);
+        const text = detailText(detail ? detail[field.key] : '');
+        const value = field.badge && text ? kiotStatusHtml(text) : escapeHtml(text || '—');
         return '<div class="lc-detail-row"><span class="lc-detail-label">' + escapeHtml(field.label) + '</span>' +
-          '<span class="lc-detail-value' + (field.multiline ? ' is-note' : '') + '">' + escapeHtml(value) + '</span></div>';
+          '<span class="lc-detail-value' + (field.multiline ? ' is-note' : '') + '">' + value + '</span></div>';
       }).join('');
+    }
+
+    function detailStepsHtml(detail){
+      return DETAIL_STEP_FIELDS.map(function(field){
+        const text = detailText(detail ? detail[field.key] : '');
+        return '<li class="lc-step' + (text ? ' is-done' : '') + '"><span class="lc-step-dot">' + STEP_CHECK_SVG + '</span>' +
+          '<span><span class="lc-step-label">' + escapeHtml(field.label) + '</span>' +
+          '<span class="lc-step-value">' + escapeHtml(text || 'Chưa có') + '</span></span></li>';
+      }).join('');
+    }
+
+    // opts.withKiot: dong cua bang "Toan bo don hang" (vai tro noi bo) nap them chi tiet dong hang tu Kiot.
+    // Khu A (tra cuu cho Khach) va tab Lich su KHONG truyen withKiot — khong bao gio goi API Kiot.
+    // opts.summary / opts.branch: bo sung khi `detail` (ket qua tra cuu) khong kem trang thai / co so.
+    function openDetailModal(detail, opts){
+      detail = detail || {};
+      const order = Object.assign({}, detail);
+      if(!order.summary && opts && opts.summary) order.summary = opts.summary;
+      if(!order.branch && opts && opts.branch) order.branch = opts.branch;
+      detailOrder = order;
+      detailKiot = null;
+      const doneMilestones = DETAIL_MILESTONES.filter(function(field){ return detailText(order[field.key]); }).length;
+      const subtitle = [BRANCH_LABEL[order.branch] ? 'Cơ sở ' + BRANCH_LABEL[order.branch] : '', detailText(order.orderDate)].filter(Boolean).join(' · ');
+      document.getElementById('lcDetailTitle').textContent = order.orderCode || '—';
+      document.getElementById('lcDetailSubtitle').textContent = subtitle;
+      const warnings = Array.isArray(order.warnings) ? order.warnings : (order.warning ? [''] : []);
+      detailBody.innerHTML =
+        (warnings.length ? '<div class="lc-detail-alert"><span class="lc-detail-alert-title">Cảnh báo</span>' + warningHtml(order) + '</div>' : '') +
+        '<div id="lcDetailStats"></div>' +
+        '<div class="dp-split is-even">' +
+          '<div class="dp-section">' + detailSectionHead('Thông tin đơn') + '<div class="dp-card">' + detailInfoHtml(order) + '</div></div>' +
+          '<div class="dp-section">' + detailSectionHead('Tiến trình xử lý', doneMilestones + '/' + DETAIL_MILESTONES.length + ' mốc') +
+            '<div class="dp-card"><ol class="lc-steps">' + detailStepsHtml(order) + '</ol></div></div>' +
+        '</div>' +
+        '<div id="lcDetailKiot"></div>';
+      renderDetailStats();
       detailDialog.classList.remove('is-wide');
       detailRequestId++;
       detailOverlay.hidden = false;
       document.addEventListener('keydown', onDetailKeydown);
-      if(opts && opts.withKiot && detail && detail.orderCode && (detail.branch === 'HN' || detail.branch === 'SG')){
-        loadKiotLines(detail);
+      if(opts && opts.withKiot && order.orderCode && (order.branch === 'HN' || order.branch === 'SG')){
+        loadKiotLines(order);
       }
     }
     function closeDetailModal(){
       detailRequestId++;
+      detailOrder = null;
+      detailKiot = null;
       detailOverlay.hidden = true;
       document.removeEventListener('keydown', onDetailKeydown);
     }
@@ -760,20 +903,15 @@
     function formatQty(value){ return (value === null || value === undefined) ? '—' : QTY_FORMAT.format(Number(value) || 0); }
     function formatMoneyOrDash(value){ return (value === null || value === undefined) ? '—' : formatVnd(value); }
 
-    function detailRow(label, value){
-      return '<div class="lc-detail-row"><span class="lc-detail-label">' + escapeHtml(label) + '</span>' +
-        '<span class="lc-detail-value">' + escapeHtml(value) + '</span></div>';
-    }
-
     /** Chuoi HTML phan "Hang hoa trong don" tu du lieu GET /api/shipment/lifecycle/order-detail. */
     function renderKiotLines(detail){
       const lines = Array.isArray(detail.lines) ? detail.lines : [];
       const pending = !!detail.phieuTam;
-      let html = '<h4 class="lc-lines-title">Hàng hóa trong đơn (theo Kiot' + (detail.status ? ' · ' + escapeHtml(detail.status) : '') + ')</h4>';
+      const head = detailSectionHead('Hàng hóa trong đơn', 'Theo Kiot' + (detail.status ? ' · ' + detail.status : ''));
       if(!lines.length){
-        return html + '<p class="lc-lines-status">Đơn này chưa có dòng hàng nào trên Kiot.</p>';
+        return head + '<p class="lc-lines-status">Đơn này chưa có dòng hàng nào trên Kiot.</p>';
       }
-      html += '<div class="lc-lines-scroll"><table class="lc-lines" data-table-key="shipment-lifecycle-table-3"><thead><tr>' +
+      let html = head + '<div class="dp-table-wrap is-flow"><table class="dp-table lc-lines" data-table-controls="off" data-table-key="shipment-lifecycle-table-3"><thead><tr>' +
         '<th>Mã hàng</th><th>Tên hàng</th><th class="num">SL đặt</th>' +
         '<th class="num" title="Đơn giá sau chiết khấu của dòng">Đơn giá</th><th class="num">Thành tiền</th>' +
         '<th class="num" title="Tồn thực tế của Kiot (cơ sở của đơn)">Tồn kho</th>' +
@@ -785,21 +923,19 @@
         const stockCell = function(value){ return '<td class="num">' + (pending && !line.isService ? escapeHtml(formatQty(value)) : '—') + '</td>'; };
         const short = pending && !line.isService && line.sellableQty !== null && line.sellableQty < line.quantity;
         html += '<tr' + (line.isService ? ' class="is-service"' : '') + '>' +
-          '<td>' + escapeHtml(line.productCode || '—') + '</td>' +
-          '<td class="name">' + escapeHtml(line.productName || '—') + '</td>' +
+          '<td class="dp-code">' + escapeHtml(line.productCode || '—') + '</td>' +
+          '<td class="dp-cell-main">' + escapeHtml(line.productName || '—') + '</td>' +
           '<td class="num">' + escapeHtml(formatQty(line.quantity)) + '</td>' +
           '<td class="num">' + escapeHtml(formatVnd((Number(line.price) || 0) - (Number(line.discount) || 0))) + '</td>' +
           '<td class="num">' + escapeHtml(formatVnd(line.amount)) + '</td>' +
           stockCell(line.onHand) + stockCell(line.inTransit) +
-          '<td class="num"' + (short ? ' style="color:#F59E0B;font-weight:700"' : '') + '>' +
+          '<td class="num' + (short ? ' is-short' : '') + '">' +
             (pending && !line.isService ? escapeHtml(formatQty(line.sellableQty)) : '—') + '</td>' +
           '<td class="num">' + (pending && !line.isService ? escapeHtml(formatMoneyOrDash(line.sellableAmount)) : '—') + '</td>' +
           '</tr>';
       });
       html += '</tbody></table></div>';
-      html += detailRow('Giá trị đơn (Kiot)', formatMoneyOrDash(detail.total));
       if(pending){
-        html += detailRow('Giá trị có bán', formatMoneyOrDash(detail.sellableValue));
         html += '<p class="lc-lines-note">Giá trị có bán = tổng, theo từng mặt hàng, của min(số lượng đặt, tồn kho) × đơn giá. ' +
           'Không trừ các phiếu tạm khác và không tính dòng VAT (dòng làm mờ). Cột Điều chuyển SG chỉ để tham khảo.</p>';
       } else {
@@ -810,9 +946,8 @@
 
     function loadKiotLines(order){
       const requestId = detailRequestId;
-      const holder = document.createElement('div');
+      const holder = document.getElementById('lcDetailKiot');
       holder.innerHTML = '<p class="lc-lines-status">Đang tải chi tiết hàng hóa từ Kiot…</p>';
-      detailBody.appendChild(holder);
       fetch('/api/shipment/lifecycle/order-detail?code=' + encodeURIComponent(order.orderCode) +
         '&branch=' + encodeURIComponent(order.branch), { credentials: 'same-origin' })
         .then(function(res){ return res.json().catch(function(){ return {}; }).then(function(body){ return { ok: res.ok, status: res.status, body: body }; }); })
@@ -825,7 +960,9 @@
               : '<p class="lc-lines-status">' + escapeHtml((result.body && result.body.error) || 'Không tải được chi tiết hàng hóa.') + '</p>';
             return;
           }
-          holder.innerHTML = renderKiotLines(result.body.detail || {});
+          detailKiot = result.body.detail || {};
+          holder.innerHTML = renderKiotLines(detailKiot);
+          renderDetailStats();
           detailDialog.classList.add('is-wide');
         })
         .catch(function(){
@@ -847,6 +984,7 @@
     const lookupResultBadge = document.getElementById('lookupResultBadge');
     const lookupDetailBtn = document.getElementById('lookupDetailBtn');
     let lastLookupDetail = null;
+    let lastLookupMeta = null; // { summary, branch } cua don vua tra cuu (detail khong kem 2 truong nay)
 
     function showLookupError(message){
       lookupErrorBox.textContent = message;
@@ -856,6 +994,7 @@
       lookupResult.classList.remove('show');
       lookupDetailBtn.hidden = true;
       lastLookupDetail = null;
+      lastLookupMeta = null;
     }
 
     lookupForm.addEventListener('submit', function(event){
@@ -885,6 +1024,7 @@
           lookupResultBadge.innerHTML = renderBadge(result.body.summary);
           if(result.body.found && result.body.detail){
             lastLookupDetail = result.body.detail;
+            lastLookupMeta = { summary: result.body.summary, branch: result.body.branch };
             lookupDetailBtn.hidden = false;
           }
           lookupResult.classList.add('show');
@@ -894,7 +1034,7 @@
     });
 
     lookupDetailBtn.addEventListener('click', function(){
-      if(lastLookupDetail) openDetailModal(lastLookupDetail);
+      if(lastLookupDetail) openDetailModal(lastLookupDetail, lastLookupMeta || undefined);
     });
 
     // ---------- Tab con cua khu vuc noi bo (Toan bo don hang / Lich su cap nhat) ----------
@@ -912,6 +1052,9 @@
       document.querySelectorAll('.lc-subtab-panel').forEach(function(panel){
         panel.classList.toggle('active', panel.id === 'lcSubtab-' + name);
       });
+      // Chi so nam ngoai khung bang nen phai tu an khi sang tab Lich su cap nhat.
+      const kpiBox = document.getElementById('lcKpis');
+      if(kpiBox) kpiBox.classList.toggle('is-off-tab', name !== 'orders');
       const groupList = document.getElementById('tksShipmentGroupList');
       if(groupList){
         groupList.querySelectorAll('.nav-item').forEach(function(item){
@@ -1802,7 +1945,7 @@
             showToast('Không tìm thấy đơn hàng "' + orderCode + '".', 'error');
             return;
           }
-          openDetailModal(result.body.detail);
+          openDetailModal(result.body.detail, { summary: result.body.summary, branch: result.body.branch });
         })
         .catch(function(){ showToast('Lỗi kết nối máy chủ.', 'error'); });
     }
