@@ -20,6 +20,11 @@
 
 ## 2. Các đầu việc vừa hoàn thành (Recently Completed — Tháng 10/2026)
 
+0. **Thiết kế lại các hộp "xem chi tiết" + sửa cảnh báo Kế toán sót đơn (12/10/2026, nhánh `feat/detail-panels-redesign`, không migration):**
+   - File mới `public/shared/detail-panel.css` (khung `.dp-*`), nối vào `index.html`, `shipment/lifecycle/index.html`, `humanresources/index.html`. Hộp: Chi tiết giao dịch, Doanh số theo khách (Báo cáo hàng hóa), Báo cáo kinh doanh (Sale/Khách/Mã hàng), Chi tiết đơn Vòng đời, Chi tiết nghỉ phép, Chi tiết Marketing — đều có hàng chỉ số tổng quan, không còn nút "Cột hiển thị", 1 khung cuộn, responsive điện thoại, Sáng/Tối.
+   - `orderLifecycleService.computeWarnings`: "Kế toán sót đơn" chỉ khi trạng thái hiệu lực = Đơn đã gửi kế toán (sang Đang giao / Đã nhận / Đã ký nhận hoặc ghi đè thì bỏ). Test mới trong `orderLifecycleWarning.test.js`.
+   - Test mới/sửa: `document-detail-panel`, `product-report-detail`, `business-report`, `order-lifecycle-kiot`, `hr-leave-realtime-status`, `marketing-report` (đều xanh). Toàn bộ suite: chỉ còn 4 test lỗi sẵn có ở xuất Excel/HTML tồn kho (không đổi).
+
 0. **Vòng đời đơn hàng — chỉ số tổng quát đầu trang (12/10/2026, branch `main`, chưa commit/deploy, không migration):**
    - Dải thẻ trên bảng "Toàn bộ đơn hàng": Chưa gửi kế toán (**chỉ đơn Phiếu tạm**), Đã gửi kế toán, Đang được giao; và Tổng đơn vi phạm + 6 thẻ theo từng loại cảnh báo. Bấm thẻ = lọc nhanh bảng (bấm lại để bỏ).
    - API `GET /api/shipment/lifecycle` thêm `kpis: { status, warnings }` (`orderLifecycleQuery.countSummary`): đếm theo bộ lọc hiện tại, thẻ trạng thái bỏ lọc `status`, thẻ cảnh báo bỏ lọc `warning`. Tính trong RAM, 0 truy vấn mới. `warningCounts` (theo cơ sở) giữ nguyên.

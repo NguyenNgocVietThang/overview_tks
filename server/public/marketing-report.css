@@ -22,12 +22,8 @@
 .marketing-row-link:hover td:first-child { color: var(--amber); }
 .marketing-dialog { width: min(1120px, calc(100vw - 32px)); max-height: 90vh; padding: 0; color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-12); box-shadow: var(--shadow-modal); }
 .marketing-dialog::backdrop { background: var(--overlay-bg, color-mix(in srgb, var(--bg) 75%, transparent)); }
-.marketing-dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 18px 20px; border-bottom: 1px solid var(--border); }
-.marketing-dialog-head > div:last-child { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.marketing-dialog-head h2 { margin: 0; font-family: var(--font-display); font-size: 16px; font-weight: 700; color: var(--text); }
-.marketing-dialog-head p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
-.marketing-dialog-head p:empty { display: none; }
-.marketing-dialog-body { padding: 20px; overflow: auto; max-height: calc(90vh - 84px); }
+/* Đầu hộp (.dp-head) và hàng chỉ số (.dp-stats) dùng khung chung shared/detail-panel.css. */
+.marketing-dialog-body { padding: 18px 22px 24px; overflow: auto; max-height: calc(90vh - 90px); }
 .marketing-dialog .panel:last-child { margin-bottom: 0; }
 #view-marketing :focus-visible, .marketing-dialog :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 @media (max-width: 768px) {
@@ -36,7 +32,7 @@
   .marketing-dialog .mini-filter-apply { min-height: 40px; }
   .marketing-section .debt-filter-field { flex: 1 1 140px; }
   #view-marketing .marketing-toolbar { align-items: stretch; }
-  .marketing-dialog-body, .marketing-dialog-head { padding: 14px; }
+  .marketing-dialog-body { padding: 14px; }
 }
 @media (max-width: 480px) {
   .marketing-section .kpi-grid > .kpi-card, .marketing-dialog .kpi-grid > .kpi-card { grid-column: span 12; }

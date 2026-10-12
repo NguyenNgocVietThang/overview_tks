@@ -258,7 +258,7 @@ test('bam dong Khang: mo panel chi tiet co the tong quan, bieu do cot theo thang
   assert.match(page.$('docModalTitle').textContent, /Khang/);
   const summary = page.$('docModalBody').querySelector('.business-summary');
   assert.ok(summary, 'co khoi .business-summary');
-  assert.ok([...summary.querySelectorAll('.eyebrow')].some(e => e.textContent.trim() === 'TB 4 tháng'));
+  assert.ok([...summary.querySelectorAll('.dp-stat-label')].some(e => e.textContent.trim() === 'TB 4 tháng'));
 
   const bars = page.charts.filter(c => c.config.type === 'bar' && !c.destroyed);
   assert.equal(bars.length, 1);

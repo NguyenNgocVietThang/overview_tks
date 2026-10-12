@@ -925,3 +925,120 @@ test('dropdown Trạng thái KiotViet theo dõi option do trang thêm vào và g
   assert.equal(window.getComputedStyle(select).display, 'none');
   page.dom.window.close();
 });
+
+// ---------------------------------------------------------------------------
+// Hop chi tiet don: khung .dp-* — hang chi so tong quan, tien trinh theo moc, khong co nut "Cot hien thi"
+// ---------------------------------------------------------------------------
+
+const detailStats = document => Object.fromEntries([...document.querySelectorAll('#lcDetailBody .dp-stat')].map(el => [
+  el.querySelector('.dp-stat-label').textContent,
+  {
+    value: el.querySelector('.dp-stat-value').textContent,
+    sub: (el.querySelector('.dp-stat-sub') || { textContent: '' }).textContent,
+    tone: [...el.classList].find(name => name.startsWith('is-')) || ''
+  }
+]));
+
+test('hộp chi tiết: hàng chỉ số tổng quan (trạng thái, tiến trình, giá trị đơn/có bán, mặt hàng, dòng thiếu hàng) + tiến trình xử lý theo mốc + cảnh báo', async () => {
+  const page = await renderPage({
+    orders: [kiotOnlyOrder('DH041173', {
+      summary: { code: 'SENT_TO_ACCOUNTANT', label: 'Đơn đã gửi kế toán', at: '01/10/2026 15:00' },
+      saleSentAt: '01/10/2026 14:00', accountantApprovedOrderAt: '01/10/2026 15:00', driverName: 'Lái A',
+      warning: true, warnings: ['ACCOUNTANT_LATE']
+    })],
+    fetchImpl: url => (url.includes('/order-detail') ? { ok: true, status: 200, json: async () => ({ detail: kiotDetail() }) } : null)
+  });
+  const { document } = page;
+  rowsOf(document)[0].click();
+
+  // Truoc khi Kiot tra loi: chi so lay tu dong bang, chua co mat hang / dong thieu hang.
+  let stats = detailStats(document);
+  assert.equal(stats['Trạng thái đơn'].value, 'Đơn đã gửi kế toán');
+  assert.equal(stats['Trạng thái đơn'].sub, 'Cập nhật 01/10/2026 15:00');
+  assert.equal(stats['Tiến trình'].value, '2/6 mốc');
+  assert.equal(stats['Tiến trình'].sub, 'Kế toán duyệt đơn');
+  assert.equal(stats['Giá trị đơn (Kiot)'].value, '2.000.000₫');
+  assert.equal(stats['Mặt hàng'], undefined);
+
+  await settle();
+  stats = detailStats(document);
+  assert.equal(stats['Giá trị đơn (Kiot)'].value, '855.000₫', 'ket qua order-detail ghi de gia tri dong bang');
+  assert.equal(stats['Giá trị có bán'].value, '550.000₫');
+  assert.equal(stats['Giá trị có bán'].sub, '64% giá trị đơn');
+  assert.equal(stats['Giá trị có bán'].tone, 'is-amber');
+  assert.equal(stats['Mặt hàng'].value, '2', 'dong VAT (dich vu) khong tinh la mat hang');
+  assert.equal(stats['Mặt hàng'].sub, '570 sản phẩm');
+  assert.equal(stats['Dòng thiếu hàng'].value, '1/2');
+  assert.equal(stats['Dòng thiếu hàng'].tone, 'is-red');
+
+  const steps = [...document.querySelectorAll('#lcDetailBody .lc-step')];
+  assert.equal(steps.length, 7);
+  assert.deepEqual(steps.filter(step => step.classList.contains('is-done')).map(step => step.querySelector('.lc-step-label').textContent),
+    ['Sale gửi đơn cho kế toán', 'Kế toán duyệt đơn', 'Lái xe']);
+  assert.equal(steps[0].querySelector('.lc-step-value').textContent, '01/10/2026 14:00');
+  assert.equal(steps[3].querySelector('.lc-step-value').textContent, 'Chưa có');
+
+  assert.match(document.querySelector('#lcDetailBody .lc-detail-alert').textContent, /Kế toán sót đơn/);
+  assert.equal(document.getElementById('lcDetailTitle').textContent, 'DH041173');
+  assert.equal(document.getElementById('lcDetailSubtitle').textContent, 'Cơ sở Hà Nội · 01/10/2026 13:14');
+  page.dom.window.close();
+});
+
+test('hộp chi tiết: đơn đủ hàng → "Dòng thiếu hàng" 0/N màu xanh; không còn Phiếu tạm → không có thẻ Giá trị có bán / Dòng thiếu hàng', async () => {
+  const enough = await renderPage({
+    orders: [kiotOnlyOrder('DH1')],
+    fetchImpl: url => (url.includes('/order-detail')
+      ? { ok: true, status: 200, json: async () => ({ detail: kiotDetail({ lines: [kiotDetail().lines[1]], total: 350000, sellableValue: 350000 }) }) }
+      : null)
+  });
+  rowsOf(enough.document)[0].click();
+  await settle();
+  const ok = detailStats(enough.document);
+  assert.equal(ok['Dòng thiếu hàng'].value, '0/1');
+  assert.equal(ok['Dòng thiếu hàng'].tone, 'is-green');
+  assert.equal(ok['Giá trị có bán'].tone, 'is-green', 'co ban du 100% gia tri don');
+  enough.dom.window.close();
+
+  const done = await renderPage({
+    orders: [sheetOrder('DH2')],
+    fetchImpl: url => (url.includes('/order-detail')
+      ? { ok: true, status: 200, json: async () => ({ detail: kiotDetail({ status: 'Hoàn thành', phieuTam: false, sellableValue: null }) }) }
+      : null)
+  });
+  rowsOf(done.document)[0].click();
+  await settle();
+  const stats = detailStats(done.document);
+  assert.equal(stats['Giá trị đơn (Kiot)'].value, '855.000₫');
+  assert.equal(stats['Giá trị có bán'], undefined);
+  assert.equal(stats['Dòng thiếu hàng'], undefined);
+  assert.equal(stats['Mặt hàng'].value, '2');
+  done.dom.window.close();
+});
+
+test('tra cứu cho Khách / tab Lịch sử: hộp lấy trạng thái + cơ sở từ kết quả tra cứu; chỉ có thẻ Trạng thái và Tiến trình, không có thẻ giá trị', async () => {
+  const page = await renderPage({ orders: [sheetOrder('DH1')] });
+  page.window.eval("openDetailModal({ orderCode: 'DH9', saleName: 'S', customerName: 'K', saleSentAt: '01/10/2026 08:00' }, { summary: { code: 'SENT_TO_ACCOUNTANT', label: 'Đơn đã gửi kế toán', at: '01/10/2026 08:05' }, branch: 'SG' })");
+  const stats = detailStats(page.document);
+  assert.deepEqual(Object.keys(stats), ['Trạng thái đơn', 'Tiến trình']);
+  assert.equal(stats['Tiến trình'].value, '1/6 mốc');
+  assert.equal(page.document.getElementById('lcDetailSubtitle').textContent, 'Cơ sở Sài Gòn');
+  assert.equal(page.document.querySelector('#lcDetailBody .lc-detail-alert'), null, 'khong co canh bao thi khong hien khung canh bao');
+  page.dom.window.close();
+});
+
+test('hộp chi tiết KHÔNG có nút "Cột hiển thị" / thanh kéo độ rộng cột: bảng hàng hóa tắt bộ chọn cột (bảng chính vẫn có)', async () => {
+  const page = await renderPage({
+    orders: [kiotOnlyOrder('DH041173')],
+    fetchImpl: url => (url.includes('/order-detail') ? { ok: true, status: 200, json: async () => ({ detail: kiotDetail() }) } : null)
+  });
+  const { document, window } = page;
+  assert.ok(document.querySelectorAll('.tks-columns-button').length > 0, 'bang chinh co nut Cot hien thi');
+  rowsOf(document)[0].click();
+  await settle();
+  const linesTable = document.querySelector('#lcDetailBody .lc-lines');
+  assert.equal(linesTable.getAttribute('data-table-controls'), 'off');
+  window.TKSTables.refreshAll();
+  assert.equal(document.getElementById('lcDetailOverlay').querySelectorAll('.tks-columns-button, .tks-column-resizer').length, 0);
+  assert.doesNotMatch(document.getElementById('lcDetailOverlay').textContent, /Cột hiển thị/);
+  page.dom.window.close();
+});

@@ -17,6 +17,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Noto+Serif:wght@400;600;700&family=Roboto:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="/shared/shared.css?v=20261009">
   <link rel="stylesheet" href="/shared/search-clear.css?v=20261009-1">
+  <link rel="stylesheet" href="/shared/detail-panel.css?v=20261012">
 <style>
   .hr-wrap{ width:100%; margin:0 auto; }
   .hr-header{ margin-bottom:20px; }
@@ -241,12 +242,17 @@
   .leave-row-clickable{ cursor:pointer; }
   .leave-row-clickable:hover td{ background:var(--surface-hover); }
 
-  /* Hop chi tiet don nghi phep (mo khi bam 1 dong) */
-  #leaveDetailModal .modal-box{ max-width:640px; }
-  .leave-detail-grid{ display:grid; grid-template-columns:150px 1fr; gap:10px 16px; margin:0; font-size:13px; }
-  .leave-detail-grid dt{ color:var(--muted); font-weight:600; }
-  .leave-detail-grid dd{ margin:0; color:var(--text); word-break:break-word; }
-  @media (max-width:520px){ .leave-detail-grid{ grid-template-columns:1fr; gap:2px 0; } .leave-detail-grid dd{ margin-bottom:8px; } }
+  /* Hop chi tiet don nghi phep (mo khi bam 1 dong): khung chung .dp-* (shared/detail-panel.css) */
+  #leaveDetailModal .modal-box{ max-width:780px; display:flex; flex-direction:column; overflow:hidden; }
+  #leaveDetailModal .dp-body{ flex:1; min-height:0; overflow-y:auto; }
+  #leaveDetailStats:empty{ display:none; }
+  #leaveDetailBody{ display:flex; flex-direction:column; gap:18px; min-width:0; }
+  #leaveHistoryBody:empty{ display:none; }
+  .leave-detail-actions{ display:flex; flex-wrap:wrap; gap:8px; }
+  .leave-detail-actions:not(:has(button:not([hidden]))){ display:none; }
+  .leave-history-list{ display:flex; flex-direction:column; gap:10px; }
+  .leave-history-title{ margin:0 0 10px; font-size:12.5px; font-weight:700; color:var(--text); }
+  .leave-history-empty{ margin:0; font-size:12.5px; color:var(--muted); }
 
   .row-actions{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
   .row-actions .btn-mini{
@@ -1049,14 +1055,20 @@
 
   <!-- Modal: chi tiet 1 don nghi phep (bam vao dong o bang) -->
   <div class="modal-overlay" id="leaveDetailModal" hidden onclick="if(event.target === this) closeLeaveDetail()">
-    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="leaveDetailHeading">
-      <div class="modal-header">
-        <h3 id="leaveDetailHeading">Chi tiết yêu cầu nghỉ phép</h3>
-        <button type="button" class="modal-close" onclick="closeLeaveDetail()" aria-label="Đóng">✕</button>
+    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="leaveDetailKicker leaveDetailHeading">
+      <div class="dp-head">
+        <div class="dp-head-text">
+          <p class="dp-kicker" id="leaveDetailKicker">Chi tiết yêu cầu nghỉ phép</p>
+          <h3 class="dp-title" id="leaveDetailHeading"></h3>
+          <p class="dp-subtitle" id="leaveDetailSubtitle"></p>
+        </div>
+        <button type="button" class="dp-close" onclick="closeLeaveDetail()" aria-label="Đóng">×</button>
       </div>
-      <div class="modal-body">
-        <dl class="leave-detail-grid" id="leaveDetailBody"></dl>
-        <p><button type="button" class="btn-primary" id="leaveEditButton" hidden>Sửa và gửi lại</button> <button type="button" class="btn-primary" id="leaveHistoryButton" hidden>Lịch sử gửi đơn</button></p><div id="leaveHistoryBody" aria-live="polite"></div>
+      <div class="dp-body">
+        <div id="leaveDetailStats" class="dp-stats"></div>
+        <div id="leaveDetailBody" class="dp-body-sections"></div>
+        <div class="leave-detail-actions"><button type="button" class="btn-primary" id="leaveEditButton" hidden>Sửa và gửi lại</button> <button type="button" class="btn-primary" id="leaveHistoryButton" hidden>Lịch sử gửi đơn</button></div>
+        <div id="leaveHistoryBody" aria-live="polite"></div>
       </div>
     </div>
   </div>
@@ -2055,34 +2067,68 @@
       if(row) openLeaveDetail(row.dataset.requestId);
     }
 
+    // Khung chi tiet dung chung .dp-*: the chi so tong quan + cac khoi thong tin (nhan nho tren, gia tri duoi).
+    function leaveStatsHtml(tiles){
+      return tiles.filter(Boolean).map(tile =>
+        `<div class="dp-stat${tile.tone ? ' is-' + tile.tone : ''}"><div class="dp-stat-label">${escapeHtml(tile.label)}</div>` +
+        `<div class="dp-stat-value${tile.text || tile.html ? ' is-text' : ''}">${tile.html || escapeHtml(tile.value)}</div>` +
+        `${tile.sub ? `<div class="dp-stat-sub">${escapeHtml(tile.sub)}</div>` : ''}</div>`
+      ).join('');
+    }
+    // fields: [[nhan, gia tri, rong?]] — gia tri rong hien "—".
+    function leaveMetaHtml(fields){
+      return '<dl class="dp-meta">' + fields.map(([label, value, wide]) =>
+        `<div${wide ? ' class="is-wide"' : ''}><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value) || '—'}</dd></div>`
+      ).join('') + '</dl>';
+    }
+    function leaveSectionHtml(title, body, note){
+      return `<div class="dp-section"><div class="dp-section-head"><h4 class="dp-section-title">${escapeHtml(title)}</h4>` +
+        `${note ? `<span class="dp-section-note">${escapeHtml(note)}</span>` : ''}</div>${body}</div>`;
+    }
+
     function openLeaveDetail(requestId){
       const r = rawLeaveRequests.find(item => item.request_id === requestId);
       if(!r) return;
       const isUrgent = r.co_nghi_gap === true || r.co_nghi_gap === 'TRUE';
-      const rows = [
-        ['Mã yêu cầu', r.request_id],
-        ['Người gửi', r.ho_ten],
-        ['Chức vụ', r.chuc_vu],
-        ['Phòng ban', r.bo_phan],
-        ['Cơ sở', r.co_so],
-        ['Tài khoản web', r.web_username],
-        ['Loại yêu cầu', [r.loai_yeu_cau, isUrgent ? 'Nghỉ gấp' : ''].filter(Boolean).join(' · ')],
-        ['Thời gian gửi', formatDateTime(r.thoi_gian_gui)],
-        ['Lý do', r.ly_do],
-        ['Thời gian nghỉ', `${r.thoi_gian_bat_dau || '—'} → ${r.thoi_gian_ket_thuc || '—'}`],
-        ['Tổng buổi / ngày', `${r.tong_buoi_nghi || '—'} buổi (${fmtSoNgay(r.tong_ngay_nghi)} ngày)`],
-        ['Người bàn giao', r.nguoi_ban_giao],
-        ['Trạng thái duyệt', r.trang_thai],
-        ['Nhãn thời hạn khi gửi', r.timing_status || 'Chưa có dữ liệu (đơn cũ)'],
-        ['Hạn đăng ký', r.registration_deadline_date ? displayLeaveDate(r.registration_deadline_date) + ' 23:59:59 (Việt Nam)' : ''],
-        ['Bắt đầu buổi đầu', r.first_session_start_at ? formatDateTime(r.first_session_start_at) : ''],
-        ['Buổi thực tế', formatLeaveCalendar(r.leave_sessions)],
-        ['Người duyệt', r.nguoi_duyet],
-        ['Thời điểm duyệt', r.thoi_diem_duyet ? formatDateTime(r.thoi_diem_duyet) : '']
-      ];
-      document.getElementById('leaveDetailBody').innerHTML = rows
-        .map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value) || '—'}</dd>`)
-        .join('');
+      const status = r.trang_thai || 'Chưa duyệt';
+      const statusClass = STATUS_CLASS[status] || 'leave-pending';
+      const timing = r.timing_status || '';
+      const timingClass = timing === 'Vi phạm' ? 'leave-violation' : timing === 'Xin muộn' ? 'leave-pending' : 'leave-approved';
+      const requestType = [r.loai_yeu_cau, isUrgent ? 'Nghỉ gấp' : ''].filter(Boolean).join(' · ');
+      const deadline = r.registration_deadline_date ? displayLeaveDate(r.registration_deadline_date) + ' 23:59:59 (Việt Nam)' : '';
+      document.getElementById('leaveDetailHeading').textContent = r.ho_ten || '—';
+      document.getElementById('leaveDetailSubtitle').textContent = [...new Set(['Mã ' + r.request_id, r.chuc_vu, r.bo_phan, r.co_so].filter(Boolean))].join(' · ');
+      document.getElementById('leaveDetailStats').innerHTML = leaveStatsHtml([
+        { label: 'Trạng thái duyệt', html: `<span class="status-pill ${statusClass}">${escapeHtml(status)}</span>`, sub: r.nguoi_duyet ? 'Bởi ' + r.nguoi_duyet : 'Chưa có người duyệt' },
+        { label: 'Số ngày nghỉ', value: `${fmtSoNgay(r.tong_ngay_nghi)} ngày`, tone: 'blue', sub: `${r.tong_buoi_nghi || '—'} buổi` },
+        { label: 'Thời gian nghỉ', value: `${r.thoi_gian_bat_dau || '—'} → ${r.thoi_gian_ket_thuc || '—'}`, text: true },
+        { label: 'Loại yêu cầu', value: r.loai_yeu_cau || '—', tone: isUrgent ? 'red' : '', sub: isUrgent ? 'Nghỉ gấp' : '', text: true },
+        timing ? { label: 'Nhãn thời hạn', html: `<span class="status-pill ${timingClass}">${escapeHtml(timing)}</span>`, sub: deadline ? 'Hạn đăng ký ' + displayLeaveDate(r.registration_deadline_date) : '' } : null
+      ]);
+      document.getElementById('leaveDetailBody').innerHTML =
+        leaveSectionHtml('Nội dung nghỉ', '<div class="dp-card">' + leaveMetaHtml([
+          ['Lý do', r.ly_do, true],
+          ['Loại yêu cầu', requestType],
+          ['Người bàn giao', r.nguoi_ban_giao],
+          ['Buổi thực tế', formatLeaveCalendar(r.leave_sessions), true]
+        ]) + '</div>') +
+        '<div class="dp-split is-even">' +
+          leaveSectionHtml('Người gửi', '<div class="dp-card">' + leaveMetaHtml([
+            ['Chức vụ', r.chuc_vu],
+            ['Phòng ban', r.bo_phan],
+            ['Cơ sở', r.co_so],
+            ['Tài khoản web', r.web_username],
+            ['Thời gian gửi', formatDateTime(r.thoi_gian_gui)]
+          ]) + '</div>') +
+          leaveSectionHtml('Duyệt đơn', '<div class="dp-card">' + leaveMetaHtml([
+            ['Trạng thái duyệt', r.trang_thai],
+            ['Người duyệt', r.nguoi_duyet],
+            ['Thời điểm duyệt', r.thoi_diem_duyet ? formatDateTime(r.thoi_diem_duyet) : ''],
+            ['Nhãn thời hạn khi gửi', timing || 'Chưa có dữ liệu (đơn cũ)'],
+            ['Hạn đăng ký', deadline],
+            ['Bắt đầu buổi đầu', r.first_session_start_at ? formatDateTime(r.first_session_start_at) : '']
+          ]) + '</div>') +
+        '</div>';
       const editButton=document.getElementById('leaveEditButton'); editButton.hidden=r.canEdit !== true; editButton.onclick=()=>openSelfLeaveEdit(requestId);
       const historyButton=document.getElementById('leaveHistoryButton'); historyButton.hidden=!canReadLeaveHistory(r); historyButton.onclick=()=>loadLeaveHistory(requestId);
       document.getElementById('leaveHistoryBody').textContent=''; leaveDetailRequestId=requestId;
@@ -2230,9 +2276,12 @@
         const res=await fetch(`/api/hr/leave-requests/${encodeURIComponent(id)}/history`,{credentials:'same-origin'}); const {ok,data}=await parseApiResponse(res);
         if(leaveDetailRequestId !== id) return;
         if(!ok) throw new Error(data.error || 'Không tải được lịch sử.');
-        target.innerHTML=(data.submissions || []).map(s=>`<section><h4>Lần gửi ${escapeHtml(s.submission_revision)}</h4><dl class="leave-detail-grid">${[
-          ['Thời gian gửi',formatDateTime(s.thoi_gian_gui)],['Buổi thực tế',formatLeaveCalendar(s.leave_sessions)],['Tổng buổi',s.tong_buoi_nghi],['Hạn đăng ký',s.registration_deadline_date ? displayLeaveDate(s.registration_deadline_date)+' 23:59:59 (Việt Nam)' : ''],['Bắt đầu buổi đầu',formatDateTime(s.first_session_start_at)],['Nhãn thời hạn khi gửi',s.timing_status || 'Chưa có dữ liệu (đơn cũ)'],['Phiên bản lịch',s.schedule_version]
-        ].map(([label,value])=>`<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value) || '—'}</dd>`).join('')}</dl></section>`).join('') || 'Chưa có lịch sử gửi đơn (đơn cũ).';
+        const submissions=data.submissions || [];
+        target.innerHTML=submissions.length
+          ? leaveSectionHtml('Lịch sử gửi đơn',`<div class="leave-history-list">${submissions.map(s=>`<section class="dp-card"><h5 class="leave-history-title">Lần gửi ${escapeHtml(s.submission_revision)}</h5>${leaveMetaHtml([
+              ['Thời gian gửi',formatDateTime(s.thoi_gian_gui)],['Buổi thực tế',formatLeaveCalendar(s.leave_sessions)],['Tổng buổi',s.tong_buoi_nghi],['Hạn đăng ký',s.registration_deadline_date ? displayLeaveDate(s.registration_deadline_date)+' 23:59:59 (Việt Nam)' : ''],['Bắt đầu buổi đầu',formatDateTime(s.first_session_start_at)],['Nhãn thời hạn khi gửi',s.timing_status || 'Chưa có dữ liệu (đơn cũ)'],['Phiên bản lịch',s.schedule_version]
+            ])}</section>`).join('')}</div>`,`${submissions.length} lần gửi`)
+          : '<p class="leave-history-empty">Chưa có lịch sử gửi đơn (đơn cũ).</p>';
       }catch(err){ if(leaveDetailRequestId === id) target.textContent=err.message; }
     }
     async function populateLeaveEmployeeChoices(id){

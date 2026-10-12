@@ -373,3 +373,23 @@ test('bấm dòng mở hộp chi tiết đủ Mã yêu cầu, Người duyệt, 
   assert.equal(modal.hidden, true);
   dom.window.close();
 });
+
+test('hộp chi tiết nghỉ phép: hàng chỉ số tổng quan (trạng thái, số ngày, thời gian, loại, nhãn thời hạn) + 3 khối Nội dung / Người gửi / Duyệt đơn', async () => {
+  const { dom, window } = await loadManagerPage();
+  const row = window.document.querySelector('#leaveTableBody tr[data-request-id="NP-R1"]');
+  window.handleLeaveRowClick({ target: row.querySelector('td') });
+
+  const doc = window.document;
+  const stats = Object.fromEntries([...doc.querySelectorAll('#leaveDetailStats .dp-stat')].map(el => [
+    el.querySelector('.dp-stat-label').textContent,
+    { value: el.querySelector('.dp-stat-value').textContent, sub: (el.querySelector('.dp-stat-sub') || { textContent: '' }).textContent }
+  ]));
+  assert.ok(stats['Trạng thái duyệt'] && stats['Số ngày nghỉ'] && stats['Thời gian nghỉ'] && stats['Loại yêu cầu']);
+  assert.match(stats['Số ngày nghỉ'].value, /ngày$/);
+  assert.match(stats['Số ngày nghỉ'].sub, /buổi$/);
+  assert.match(doc.getElementById('leaveDetailSubtitle').textContent, /^Mã NP-R1/);
+  assert.ok(doc.getElementById('leaveDetailHeading').textContent.length > 0);
+  assert.deepEqual([...doc.querySelectorAll('#leaveDetailBody .dp-section-title')].map(el => el.textContent), ['Nội dung nghỉ', 'Người gửi', 'Duyệt đơn']);
+  assert.equal(doc.querySelector('#leaveDetailModal .tks-columns-button'), null);
+  dom.window.close();
+});
