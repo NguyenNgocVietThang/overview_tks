@@ -1,6 +1,6 @@
 # Supabase schema cho đồng bộ KiotViet
 
-Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0043`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
+Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0044`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
 
 ## Quy ước chung
 
@@ -37,7 +37,7 @@ Ba hệ định danh này khác nhau. Code sync phải nhận `branch` rõ ràng
 | `order_details` | Dòng hàng của đơn hàng | `(branch, order_id, line_no)` | `product_id`, `quantity`, `price`, `discount` |
 | `returns` | Phiếu trả hàng | `(branch, id)` | `code`, `return_date`, `invoice_id`, `customer_id`, `sold_by_id`, `total`, `status`, các ngày |
 | `return_details` | Dòng hàng của phiếu trả | `(branch, return_id, line_no)` | `product_id`, `quantity`, `price` |
-| `purchases` | Phiếu nhập hàng từ endpoint `/purchaseorders` | `(branch, id)` | `code`, `purchase_date`, `supplier_id`, `total`, `status`, các ngày |
+| `purchases` | Phiếu nhập hàng từ endpoint `/purchaseorders` | `(branch, id)` | `code`, `purchase_date`, `supplier_id`, `total`, `status`, các ngày , `raw_hash` (0044) |
 | `purchase_details` | Dòng hàng của phiếu nhập | `(branch, purchase_id, line_no)` | `product_id`, `quantity`, `price` |
 | `order_suppliers` | Phiếu **Đặt hàng nhập** (PDN…) từ endpoint `/ordersuppliers` (migration `0024`) — khác `purchases` (Nhập hàng) | `(branch, id)` | `code`, `order_date`, `supplier_id`, `total`, `status`, `created_date` (payload không có `modifiedDate`) |
 | `order_supplier_details` | Dòng hàng của phiếu đặt hàng nhập | `(branch, order_supplier_id, line_no)` | `product_id`, `quantity`, `price` (payload chỉ có `productId`, không có `productCode`) |
@@ -395,3 +395,7 @@ Migration `0043_special_day_notice_log.sql` tạo bảng `special_day_notice_log
 - Danh mục ngày lễ/sinh nhật nằm trong code (`public/shared/special-days.js`), không lưu DB.
 - Job `notifications/specialDayNotifier.js` chỉ gửi khi `INSERT ... ON CONFLICT DO NOTHING RETURNING` chèn được dòng; gửi lỗi hoặc chưa có người nhận thì xóa dòng để lần quét sau thử lại.
 - Thông báo vẫn lưu ở `data/notifications.json` (chuông), nên bảng này mới là nguồn chống gửi trùng — người dùng xóa thông báo cũng không khiến job gửi lại.
+
+## Băm raw phiếu nhập — migration 0044
+
+Migration `0044_purchases_raw_hash.sql` thêm `purchases.raw_hash TEXT` (nullable). Đối soát phiếu nhập so băm thay vì tải lại cột `raw` (giảm egress Supabase). `NULL` = chưa có hash; lượt quét đầu sau migration ghi lại toàn bộ phiếu một lần rồi ổn định.

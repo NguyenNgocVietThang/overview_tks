@@ -1,6 +1,6 @@
 # Implementation plan hiện tại
 
-Cập nhật: 2026-10-09 (Đã hoàn thiện Ngày đặc biệt (thông báo chuông + pháo hoa), Báo cáo kinh doanh, Báo cáo Marketing, Sổ quỹ, Lịch làm việc & Hạn nghỉ phép, Trạng thái nhân sự, Audit log, Table controls; hệ thống schema đạt migration 0001–0043).
+Cập nhật: 2026-10-12 (Giảm egress Supabase: purchases.raw_hash, cache hóa đơn theo sự kiện, bot/realtime nghỉ phép nhẹ hơn; Đã hoàn thiện Ngày đặc biệt (thông báo chuông + pháo hoa), Báo cáo kinh doanh, Báo cáo Marketing, Sổ quỹ, Lịch làm việc & Hạn nghỉ phép, Trạng thái nhân sự, Audit log, Table controls; hệ thống schema đạt migration 0001–0044).
 
 ## Kiến trúc đã triển khai
 
@@ -28,6 +28,8 @@ Cập nhật: 2026-10-09 (Đã hoàn thiện Ngày đặc biệt (thông báo ch
 22. **Lịch sử chỉnh sửa tài khoản** (migration `0040`): bảng `account_audit_log` ghi log bất biến mọi thao tác tạo, sửa thông tin, đặt lại mật khẩu, xóa, phân quyền tài khoản; tab `/account/#history` phục vụ tra cứu quản trị.
 23. **Chuẩn hóa điều khiển bảng dùng chung**: `public/shared/table-controls.js` (chọn cột, kéo chỉnh độ rộng cột, phân trang) và tiện ích `search-clear` trên toàn bộ hệ thống; tối ưu hóa giao diện responsive desktop/mobile.
 24. **Ngày đặc biệt: thông báo chuông + pháo hoa** (migration `0043`): `public/shared/special-days.js` (ngày lễ Việt Nam dương/âm lịch + sinh nhật 27/10, dùng chung server/trình duyệt), job `notifications/specialDayNotifier.js` báo lên chuông cho tài khoản có `hr.leave` (chống trùng bằng `special_day_notice_log`), `public/shared/fireworks.js` thay sao băng trong các ngày này; lịch nghỉ phép không đổi.
+
+25. **Giảm egress Supabase** (migration `0044`): đối soát phiếu nhập bằng `purchases.raw_hash`; cache Hóa đơn/Chi tiết hóa đơn hết hạn theo sự kiện `invoicesChanged` (dự phòng 15 phút, guard thế hệ); bot Telegram quản lý cache danh sách 5 phút nạp lazy; realtime nghỉ phép chỉ poll `getLeaveVersions`.
 
 ## Bot Telegram quản lý nghỉ phép — kế hoạch đã duyệt 02/10/2026
 

@@ -1,7 +1,7 @@
 # CURRENT: BẢNG TRẠNG THÁI THỜI GIAN THỰC (REALTIME DASHBOARD)
 
-> **Cập nhật gần nhất:** 09/10/2026 (Asia/Ho_Chi_Minh), phiên "ngày đặc biệt"  
-> **Trạng thái Git:** Branch `main`, working tree clean (commit `58a2a04`).  
+> **Cập nhật gần nhất:** 12/10/2026 (Asia/Ho_Chi_Minh), phiên "giảm egress Supabase"  
+> **Trạng thái Git:** Branch `perf/egress-reduction`, chưa merge vào `main`, chưa deploy.
 > **Quy tắc:** Cập nhật liên tục vào đầu và cuối mỗi phiên làm việc để không bị đứt đoạn ngữ cảnh dự án.
 
 ---
@@ -11,7 +11,7 @@
 | Hạng mục | Trạng thái | Chi tiết |
 |---|---|---|
 | **Mã nguồn Backend** | Hoàn thành | Node.js Express, hỗ trợ 7 tab báo cáo, sổ quỹ, nhân sự, tài khoản, bot Telegram |
-| **Cơ sở dữ liệu** | 0001 → 0043 | Đầy đủ 43 migration từ dữ liệu lõi đến đánh dấu thông báo ngày đặc biệt (`0043`, chưa áp Production) |
+| **Cơ sở dữ liệu** | 0001 → 0044 | Đầy đủ 44 migration từ dữ liệu lõi đến đánh dấu thông báo ngày đặc biệt (`0043`, chưa áp Production) và `purchases.raw_hash` (`0044`, chưa áp) |
 | **Kiểm thử tự động** | 2.171/2.175 xanh | Test mới của tính năng đều xanh. 4 test lỗi ở xuất Excel/HTML tồn kho (`dashboard/exportService.test.js`, `test/frontend/branch-column-tables.test.js`: cột "Vận chuyển SG"), không thuộc phạm vi phiên này, chưa xử lý |
 | **Knowledge Graph** | Đã cập nhật | Graphify updated ngày 09/10/2026 (6.389 nodes, 12.615 edges, 368 communities) |
 | **Tài liệu hệ thống** | Đồng bộ 100% | `README.md`, `server/README.md`, `SCHEMA.md`, `implementation_plan.md`, SRS, BRD, MEMORY.md |
@@ -20,13 +20,20 @@
 
 ## 2. Các đầu việc vừa hoàn thành (Recently Completed — Tháng 10/2026)
 
-1. **Ngày đặc biệt — thông báo chuông + pháo hoa (Migration `0043`):**
+1. **Giảm egress Supabase (Migration `0044`, nhánh `perf/egress-reduction`, chưa merge/deploy):**
+   - `purchases.raw_hash`: đối soát phiếu nhập so băm thay vì tải `raw`.
+   - Cache Hóa đơn/Chi tiết hóa đơn hết hạn theo `invoicesChanged` (dự phòng 15 phút, guard thế hệ); CLI backfill hiện sau ≤15 phút.
+   - Bot Telegram quản lý: cache danh sách quản lý 5 phút, nạp lazy; realtime nghỉ phép chỉ poll `getLeaveVersions`.
+   - **Lưu ý deploy:** phải áp `0044` TRƯỚC khi chạy code mới; lượt quét phiếu nhập đầu tiên sẽ ghi lại toàn bộ một lần.
+   - 4 test lỗi cũ (xuất Excel/HTML tồn kho) vẫn còn, không thuộc phạm vi.
+
+2. **Ngày đặc biệt — thông báo chuông + pháo hoa (Migration `0043`):**
    - `public/shared/special-days.js` (UMD): ngày lễ dương/âm lịch + sinh nhật 27/10; `notifications/specialDayNotifier.js` báo lên chuông cho mọi tài khoản đang hoạt động có `hr.leave`, chống trùng bằng `special_day_notice_log`; cờ `SPECIAL_DAYS_NOTIFY_ENABLED`.
    - `createNotificationForUsers` ghi file đúng 1 lần cho cả lô.
    - `fireworks.js` thay sao băng vào ngày đặc biệt (`shooting-star.js` chọn hiệu ứng; `?fireworks=1` để xem thử); `?v=` của `shooting-star.js` nâng lên `20261009`.
    - Test mới: `test/frontend/special-days.test.js`, `test/frontend/fireworks.test.js`, `notifications/specialDayNotifier.test.js`, `db/specialDayNoticeLogMigration.test.js`, bổ sung `notificationRepository.test.js`.
 
-2. **Nghỉ phép cho tài khoản nội bộ chưa gắn nhân sự (Migration `0042`):**
+3. **Nghỉ phép cho tài khoản nội bộ chưa gắn nhân sự (Migration `0042`):**
    - Cho phép mọi tài khoản nội bộ đang hoạt động (trừ Khách) tự gửi đơn xin nghỉ phép trên web ngay cả khi chưa gắn hồ sơ `hr_employee_id`.
    - Cơ sở lấy từ đơn, áp dụng giờ làm việc mặc định sáng 07:45 / chiều 12:30.
    - Bổ sung kiểm thử backend và frontend tương ứng.
@@ -68,7 +75,7 @@
   - Mục tiêu đã chốt: sáu Fanpage Facebook, loại Zalo, đồng bộ 23:55 mỗi ngày, KPI theo ngày ghi nhận và công thức Sheets, BC tháng chỉ Quản lý nhập/sửa; ADS tiếp tục đọc Sheets.
 
 - [ ] **Staging / Production Deployment:**
-  - Áp dụng các migration mới (`0036` đến `0043`) lên cơ sở dữ liệu Supabase Production ngoài giờ cao điểm: `npm run db:migrate`.
+  - Áp dụng các migration mới (`0036` đến `0044`) lên cơ sở dữ liệu Supabase Production ngoài giờ cao điểm: `npm run db:migrate`.
   - Khởi động lại server để nạp scheduler và cấu hình mới.
 - [ ] **Khởi tạo dữ liệu Báo cáo kinh doanh trên Production:**
   - Chạy tay lệnh backfill tháng lần đầu trong thư mục `server/`:
