@@ -68,7 +68,7 @@ test('migration 0047: khoa chinh dung, lich TT 1..90, nhat ky lich TT chi them',
   } finally { await db.close(); }
 });
 
-test('chot 15:00: chi khach dang no, so tien theo ngay cat dung 15:00, bo don huy/phieu tra huy', async () => {
+test('chot 15:00: chi khach dang no, so tien theo ngay cat dung 15:00, chi don Hoan thanh, bo don huy/dang xu ly/phieu tra huy', async () => {
   const { db, pool } = await setup();
   try {
     await seedKiot(db);
@@ -83,8 +83,7 @@ test('chot 15:00: chi khach dang no, so tien theo ngay cat dung 15:00, bo don hu
     assert.deepEqual(amounts, [
       { branch: 'hanoi', day: '2026-08-05', inv: 100, ret: 0 },
       { branch: 'hanoi', day: '2026-08-07', inv: 300, ret: 50 },
-      { branch: 'hanoi', day: '2026-08-08', inv: 200, ret: 0 },
-      { branch: 'saigon', day: '2026-08-08', inv: 300, ret: 0 }
+      { branch: 'hanoi', day: '2026-08-08', inv: 200, ret: 0 }
     ]);
     const again = await takeDebtCycleSnapshot(pool, '2026-08-08', { log: () => {}, loadAverages: noAverages });
     assert.equal(again.created, false, 'moi ngay chot 1 lan');
@@ -102,7 +101,7 @@ test('so phien lien tiep: +1 moi chot khi qua han >= 400k, Da xu ly giu nguyen, 
     await db.query(`INSERT INTO customers (branch, id, code, name, debt, raw) VALUES
       ('hanoi', 1, 'KH1', 'A', 900000, '{}'), ('hanoi', 2, 'KH2', 'B', 300000, '{}')`);
     await db.query(`INSERT INTO invoices (branch, id, customer_id, purchase_date, total, raw) VALUES
-      ('hanoi', 1, 1, '2026-08-08 02:00+00', 200000, '{}')`);
+      ('hanoi', 1, 1, '2026-08-08 02:00+00', 200000, '{"statusValue":"Hoàn thành"}')`);
     const take = date => takeDebtCycleSnapshot(pool, date, { log: () => {}, loadAverages: noAverages });
     const streak = async date => (await db.query(`SELECT customer_id::int AS id, overdue_debt::int AS overdue, overdue_streak AS streak FROM debt_cycle_customers WHERE cycle_date = $1 ORDER BY customer_id`, [date])).rows;
     await take('2026-08-08');

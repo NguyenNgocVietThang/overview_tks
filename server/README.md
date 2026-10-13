@@ -295,6 +295,8 @@ Migration `0047_debt_schedule_report.sql`. Module `server/debtSchedule/`:
 | `debtScheduleService.js` | Dựng tab Công nợ của `/api/dashboard?view=debt` theo quyền người xem. |
 | `importDebtSchedules.js` | Import lịch TT lần đầu: `node debtSchedule/importDebtSchedules.js --branch=hanoi "<file>.xlsx"` (chạy thử) rồi thêm `--apply`. |
 
+**Công thức (13/10/2026):** nợ quá hạn = max(0, nợ hiện tại − nợ trong lịch); nợ trong lịch = tiền bán (chỉ hóa đơn `Hoàn thành`) − tiền trả hàng (phiếu `Đã trả`) của N ngày trong lịch, KHÔNG kẹp về 0 (trả nhiều hơn bán thì âm). Khách chuyển "Đã xử lý" và chưa ai nhập tay thì tiền phạt phiên này = 0. Hàng chờ mặc định "Tất cả". Chốt tay ở tiến trình khác KHÔNG làm máy chủ đang chạy làm mới cache công nợ — phải khởi động lại máy chủ.
+
 **Tiền phạt + số phiên liên tiếp (migration 0048, 13/10/2026):** cột "Số phiên liên tiếp" (ẩn mặc định) do job chốt 15:00 tính — quá hạn ≥ 400.000đ thì phiên trước + 1 (chu kỳ trước "Đã xử lý" thì giữ nguyên; "Bỏ qua"/"Chưa xử lý" thì +1), dưới ngưỡng reset 0. Cột "Tiền phạt phiên này" hiện mức gợi ý theo quy chế (nợ lẻ 25k; nợ chậm phiên 1–2 25k, 3 50k, 4 100k, 5 150k, ≥6 200k), người có quyền `reports.debt.penalty` (mặc định Quản lý) ghi đè qua `PATCH /api/debt-management/penalty` (bảng `debt_cycle_penalties`, giữ lâu dài). Đã bỏ trạng thái "Đang xử lý". Sau migrate chạy tay `node debtSchedule/backfillOverdueStreak.js` để tính phiên cho bản chốt hôm nay.
 
 API: `PATCH /api/debt-management/{sale-feedback,manager-feedback,status,schedule,penalty}`, `GET /api/debt-management/{feedback-history,schedule-log}`.

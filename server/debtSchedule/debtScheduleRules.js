@@ -5,7 +5,7 @@
 // Lich TT = N ngay (so nguyen 1..90; khach chua co lich = 1). Tai ban chot 15:00 ngay D
 // (gio VN), no trong lich = tong hoa don - tong tra hang cua cac NGAY D-N+1 .. D (tinh ca
 // hom nay toi 15:00); tien khach da tra KHONG tinh vao. No qua han = max(0, no hien tai -
-// no trong lich). Vd luc 15:00 thu 6 8/8: lich 1 -> don 8/8 hop le; lich 3 -> 6, 7, 8/8;
+// no trong lich), nap ve 0 neu am. No trong lich = ban - tra hang trong lich, KHONG chan o 0. Vd luc 15:00 thu 6 8/8: lich 1 -> don 8/8 hop le; lich 3 -> 6, 7, 8/8;
 // lich 7 -> 2..8/8.
 
 const { addDaysToKey } = require('../kiotvietSync/vnTime');
@@ -44,7 +44,7 @@ function scheduleWindowStart(cycleDate, scheduleDays) {
   return addDaysToKey(cycleDate, -(effectiveScheduleDays(scheduleDays) - 1));
 }
 
-/** No trong lich: tong (hoa don - tra hang) cac ngay trong lich, khong am. */
+/** No trong lich = tien ban trong lich - tien tra hang trong lich (co the am neu tra nhieu hon ban). */
 function inScheduleDebt(dailyAmounts, cycleDate, scheduleDays) {
   const start = scheduleWindowStart(cycleDate, scheduleDays);
   let total = 0;
@@ -53,7 +53,7 @@ function inScheduleDebt(dailyAmounts, cycleDate, scheduleDays) {
       total += (Number(item.invoiceAmount) || 0) - (Number(item.returnAmount) || 0);
     }
   }
-  return Math.max(0, total);
+  return total;
 }
 
 function overdueDebt(currentDebt, inSchedule) {

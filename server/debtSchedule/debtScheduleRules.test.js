@@ -35,7 +35,7 @@ test('no trong lich = hoa don - tra hang trong lich; no qua han = no hien tai - 
   assert.equal(rules.inScheduleDebt(daily, '2026-08-08', 1), 200);
   assert.equal(rules.inScheduleDebt(daily, '2026-08-08', 3), 450);
   assert.equal(rules.inScheduleDebt(daily, '2026-08-08', 7), 550);
-  assert.equal(rules.inScheduleDebt([{ day: '2026-08-08', invoiceAmount: 0, returnAmount: 90 }], '2026-08-08', 1), 0, 'chi co tra hang -> 0');
+  assert.equal(rules.inScheduleDebt([{ day: '2026-08-08', invoiceAmount: 0, returnAmount: 90 }], '2026-08-08', 1), -90, 'chi co tra hang -> am, khong chan 0');
   assert.equal(rules.overdueDebt(800000000, 200000000), 600000000, 'vi du cua nguoi dung');
   assert.equal(rules.overdueDebt(100, 450), 0);
 });

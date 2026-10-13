@@ -55,7 +55,7 @@ const INSERT_CUSTOMERS_SQL = `
   LEFT JOIN avg4 a ON a.branch = c.branch AND a.code = btrim(c.code)
   WHERE c.branch = ANY($2::text[]) AND c.debt > 0`;
 
-// Hoa don chua huy + phieu tra "Da tra" cua khach vua chot, gom theo ngay VN, 90 ngay toi 15:00.
+// Hoa don HOAN THANH + phieu tra "Da tra" cua khach vua chot, gom theo ngay VN, 90 ngay toi 15:00.
 const INSERT_AMOUNTS_SQL = `
   WITH bounds AS (
     SELECT (($1::date - ${MAX_SCHEDULE_DAYS - 1})::timestamp AT TIME ZONE 'UTC') AS from_at,
@@ -66,7 +66,7 @@ const INSERT_AMOUNTS_SQL = `
     FROM invoices i, bounds b
     WHERE i.branch = ANY($2::text[]) AND i.customer_id IS NOT NULL
       AND i.purchase_date >= b.from_at AND i.purchase_date < b.to_at
-      AND COALESCE(i.raw->>'statusValue', '') <> 'Đã hủy'
+      AND i.raw->>'statusValue' = 'Hoàn thành'
     UNION ALL
     SELECT r.branch, r.customer_id, (r.return_date AT TIME ZONE 'UTC')::date,
            0::numeric, abs(COALESCE(r.total, 0))::numeric
