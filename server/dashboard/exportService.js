@@ -30,9 +30,11 @@ const htmlReportRenderer = require('./exportHtmlReport');
 
 const EXCEL_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const DEBT_QUEUE_FILTERS = new Set(['needsAction', 'currentDebt', 'overdue', 'all']);
+// Khop thu tu cot bang Cong no tren man hinh (DEBT_SORT_FIELDS o public/index.html).
 const DEBT_SORT_FIELDS = [
-  'customerName', 'branch', 'sale', 'paymentSchedule', 'openingDebt', 'currentDebt',
-  'overdueDebt', 'currentDebtToSalesRatio', 'overdueToSalesRatio', 'automaticAlert', 'workflowStatus'
+  'customerName', 'sale', 'paymentSchedule', 'openingDebt', 'currentDebt',
+  'overdueDebt', 'currentDebtToSalesRatio', 'overdueToSalesRatio', 'automaticAlert', 'saleFeedback',
+  'managerFeedback', 'workflowStatus', 'branch'
 ];
 
 // Gioi han tai: moi file Excel nap du lieu + ghi workbook trong RAM.
@@ -216,24 +218,26 @@ function aggregateColumn(key, label, type, description, options = {}) {
 
 // Cot cua cac bang tong hop/nguon dong — dung chung cho buoc lay truong va buoc tao file.
 const DEBT_COLUMNS = [
-  aggregateColumn('customerName', 'Khách hàng', 'text', 'Tên khách hàng trong bảng quản lý công nợ.'),
-  aggregateColumn('sale', 'Nhân viên phụ trách (Sale)', 'text', 'Nhân viên bán hàng phụ trách công nợ của khách.'),
-  aggregateColumn('paymentSchedule', 'Lịch thanh toán', 'text', 'Chu kỳ thanh toán đã thỏa thuận với khách.'),
-  aggregateColumn('openingDebt', 'Nợ đầu kỳ', 'number', 'Số nợ của khách ở đầu kỳ theo dõi (VNĐ).'),
-  aggregateColumn('currentDebt', 'Nợ hiện tại', 'number', 'Số tiền khách còn nợ tại thời điểm xuất (VNĐ).'),
-  aggregateColumn('overdueDebt', 'Nợ quá hạn', 'number', 'Phần nợ đã quá hạn thanh toán (VNĐ).'),
+  aggregateColumn('customerName', 'Khách hàng', 'text', 'Tên khách hàng trên KiotViet.'),
+  aggregateColumn('sale', 'Nhân viên phụ trách (Sale)', 'text', 'Nhóm khách hàng của khách trên KiotViet.'),
+  aggregateColumn('paymentSchedule', 'Lịch thanh toán', 'number', 'Số ngày nợ tối đa của khách tại cơ sở này; chưa đặt thì tính 1 ngày.'),
+  aggregateColumn('openingDebt', 'Nợ đầu kỳ', 'number', 'Nợ của khách tại bản chốt 15:00 hôm trước (VNĐ).'),
+  aggregateColumn('currentDebt', 'Nợ hiện tại', 'number', 'Nợ của khách tại bản chốt 15:00 gần nhất (VNĐ).'),
+  aggregateColumn('overdueDebt', 'Nợ quá hạn', 'number', 'Nợ hiện tại trừ nợ trong lịch thanh toán (hóa đơn trừ trả hàng trong số ngày của lịch), không âm (VNĐ).'),
   aggregateColumn('currentDebtToSalesRatio', 'Tỷ lệ nợ hiện tại trên doanh số', 'percent',
-    'Nợ hiện tại chia cho doanh số của khách, hiển thị theo phần trăm.'),
+    'Nợ hiện tại chia cho doanh số trung bình 4 tháng (Báo cáo kinh doanh).'),
   aggregateColumn('overdueToSalesRatio', 'Nợ quá hạn trên doanh số trung bình', 'percent',
-    'Nợ quá hạn chia cho doanh số trung bình của khách, hiển thị theo phần trăm.'),
+    'Nợ quá hạn chia cho doanh số trung bình 4 tháng (Báo cáo kinh doanh).'),
   aggregateColumn('automaticAlert', 'Cảnh báo tự động', 'text',
-    'Cảnh báo hệ thống tự tính: Chưa thu, Quá hạn hoặc Lỗi dữ liệu.', { wrapText: true }),
-  aggregateColumn('workflowStatus', 'Trạng thái xử lý', 'text', 'Trạng thái xử lý công nợ do nhân viên cập nhật.'),
+    'Quá hạn khi nợ quá hạn lớn hơn 0 đồng.', { wrapText: true }),
+  aggregateColumn('saleFeedback', 'Sale phản hồi', 'text', 'Phản hồi của Sale trong chu kỳ chốt hiện tại.', { wrapText: true }),
+  aggregateColumn('managerFeedback', 'QL phản hồi', 'text', 'Phản hồi của Quản lý trong chu kỳ chốt hiện tại.', { wrapText: true }),
+  aggregateColumn('workflowStatus', 'Trạng thái xử lý', 'text', 'Trạng thái xử lý công nợ trong chu kỳ chốt hiện tại.'),
   aggregateColumn('updatedBy', 'Người cập nhật', 'text', 'Người cập nhật trạng thái xử lý gần nhất.', { selected: false }),
   aggregateColumn('updatedAt', 'Cập nhật lúc', 'date', 'Thời điểm cập nhật trạng thái xử lý gần nhất.', { selected: false })
 ];
 
-const DEBT_BRANCH_COLUMN = aggregateColumn('branch', 'Cơ sở', 'text', 'Cơ sở (Hà Nội hoặc Sài Gòn) của khoản công nợ.');
+const DEBT_BRANCH_COLUMN = aggregateColumn('branch', 'Cơ sở', 'text', 'Cơ sở của khoản công nợ (Hà Nội hoặc Sài Gòn).');
 
 const PARENT_CATEGORY_COLUMNS = [
   aggregateColumn('name', 'Nhóm cha', undefined, 'Tên nhóm hàng cấp cha.'),
@@ -501,13 +505,7 @@ function normalizeDebtSearch(value) {
 }
 
 function debtAutomaticAlert(customer) {
-  const labels = (customer.alertCodes || []).map(code => {
-    if (code === 'uncollected') return 'Chưa thu';
-    if (code === 'overdue') return 'Quá hạn';
-    return '';
-  }).filter(Boolean);
-  if ((customer.dataIssues || []).length) labels.push('Lỗi dữ liệu');
-  return labels.join(', ');
+  return (customer.alertCodes || []).includes('overdue') ? 'Quá hạn' : '';
 }
 
 function sortDebtManagementRows(rows, sort) {
@@ -558,13 +556,15 @@ function debtManagementRows(debtManagement, context, aggregate = false) {
     customerName: customer.customerName,
     branch: normalizeText(customer.branch) || debtBranchLabel(customer),
     sale: customer.sale,
-    paymentSchedule: customer.paymentSchedule,
+    paymentSchedule: Number(customer.paymentSchedule) || null,
     openingDebt: customer.openingDebt,
     currentDebt: customer.currentDebt,
     overdueDebt: customer.overdueDebt,
     currentDebtToSalesRatio: customer.currentDebtToSalesRatio,
     overdueToSalesRatio: customer.overdueToSalesRatio,
     automaticAlert: debtAutomaticAlert(customer),
+    saleFeedback: customer.saleFeedback || '',
+    managerFeedback: customer.managerFeedback || '',
     workflowStatus: customer.workflowStatus,
     updatedBy: customer.updatedBy,
     updatedAt: customer.updatedAt

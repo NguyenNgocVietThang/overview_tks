@@ -14,6 +14,8 @@ const { startProductReportSchedule } = require('./productReportRefresh');
 const { startCustomerInvoiceLinesSchedule } = require('./customerInvoiceLinesRefresh');
 const { startInventoryValueSnapshotSchedule } = require('./inventoryValueSnapshot');
 const { startBusinessMonthlySchedule } = require('./businessMonthlyRefresh');
+const { startDebtCycleSnapshotSchedule } = require('../debtSchedule/debtCycleSnapshot');
+const debtScheduleRepository = require('../debtSchedule/debtScheduleRepository');
 
 // orderSuppliers ("Dat hang nhap") o nhom fast: doi soat toan bo ~350 phieu chi vai
 // request, va nhip 7 phut gan nhip snapshot ton kho (10 phut) nen hang vua nhap
@@ -23,6 +25,7 @@ const fastEntities = [require('./entities/invoices'), require('./entities/orders
 const slowEntities = [require('./entities/categories'), require('./entities/products'), require('./entities/customers'),
   require('./entities/returns'), require('./entities/purchases')];
 
+const customersEntity = slowEntities.find(entity => entity.entity === 'customers');
 const bankAccounts = require('./entities/bankAccounts');
 const cashFlows = require('./entities/cashFlows');
 
@@ -42,6 +45,8 @@ function createPollingScheduler({
   // Chup gia tri ton kho luc 23:59 VN: kiem tra moi 1 phut de khong truot qua phut do.
   inventoryValueSnapshotIntervalMs = 60 * 1000,
   businessMonthlyIntervalMs = 5 * 60 * 1000,
+  // Chot cong no luc 15:00 VN: kiem tra moi phut.
+  debtCycleSnapshotIntervalMs = 60 * 1000,
   getConfiguredBranches: getBranches = getConfiguredBranches,
   createKiotVietClient: createClient = createKiotVietClient,
   pollEntityOnce: poll = pollEntityOnce,
@@ -56,6 +61,7 @@ function createPollingScheduler({
   startCustomerInvoiceLinesSchedule: startCustomerInvoiceLines = startCustomerInvoiceLinesSchedule,
   startInventoryValueSnapshotSchedule: startInventoryValueSnapshot = startInventoryValueSnapshotSchedule,
   startBusinessMonthlySchedule: startBusinessMonthly = startBusinessMonthlySchedule,
+  startDebtCycleSnapshotSchedule: startDebtCycleSnapshot = startDebtCycleSnapshotSchedule,
   logger = console
 } = {}) {
   let cashbookRunning = false;
@@ -198,6 +204,17 @@ function createPollingScheduler({
         setIntervalFn,
         scheduleImmediate,
         log: logger.log ? logger.log.bind(logger) : logger
+      }),
+      // Cong no theo lich TT (migration 0047) - chot 1 lan/ngay luc 15:00 VN. Dong bo khach
+      // ngay truoc khi chot de no hien tai khop KiotViet; chot xong tang phien ban de
+      // dashboard doc ban moi.
+      startDebtCycleSnapshot(getPoolFn(), {
+        intervalMs: debtCycleSnapshotIntervalMs,
+        setIntervalFn,
+        scheduleImmediate,
+        log: logger.log ? logger.log.bind(logger) : logger,
+        beforeSnapshot: () => runGroup([customersEntity]),
+        onSnapshot: () => debtScheduleRepository.getDebtScheduleRepository().bumpVersion()
       })
     ];
   }

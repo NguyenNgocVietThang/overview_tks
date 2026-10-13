@@ -12,7 +12,7 @@ Express backend cho dashboard TOKOSI.
 - KiotViet dashboard: Supabase PostgreSQL qua `dashboard/dashboardPgReader.js`.
 - CN1/CN3/CN7: bảng `customer_debt_activity_periods` trong Supabase (công nợ 1/3/7 ngày, trước đây gọi là HN1/HN3/HN7).
 - Trả NCC: người dùng tự upload file Excel xuất từ KiotViet; server nạp vào bảng Postgres `supplier_return_imports` (migration `0017`) — **không còn đọc tab Google Sheets Trả NCC**.
-- Công nợ quản lý: workbook `DEBT_MANAGEMENT_SPREADSHEET_ID` (Google Sheets, chỉ đọc).
+- Công nợ (2026-10-13): tính từ KiotViet trong Postgres theo lịch TT — bản chốt 15:00 mỗi ngày (`debtSchedule/`, migration 0047). Workbook `DEBT_MANAGEMENT_SPREADSHEET_ID` không còn được đọc.
 - Nhân sự và nghỉ phép: toàn bộ ở Postgres — danh sách nhân sự `hr_employees` (migration `0009`), 3 bảng nền nghỉ phép/Telegram (`hr_leave_requests`, `hr_telegram_links`, `hr_telegram_sessions`, migration `0016`), 5 bảng bot quản lý (migration `0029`) và tài liệu quy định `hr_rule_documents` (migration `0027`). Các biến `HR_SPREADSHEET_ID*` đã gỡ khỏi `config.js` (2026-10-05); `sheets/hrSheetsClient.js` là mã chết chờ xóa tay.
 - Vòng đời đơn hàng: danh sách đơn = **mọi đơn đặt hàng KiotViet** trong Postgres (bảng `orders`), ghép theo (cơ sở, mã đơn) với Google Sheets workbook `ORDER_LIFECYCLE_SPREADSHEET_ID` (`DonHang_HN`, `DonHang_SG`, `DonHang_MienNam` cấp trạng thái vòng đời; `DonHang_MienNam` = đơn Bắc-Nam của Kiot Hà Nội: tính như đơn HN, chỉ đọc 4 mốc Mã đơn/Sale gửi kế toán/Kế toán duyệt đơn/Đơn đã ký nhận, bỏ qua các cột lái xe/ship, không cảnh báo 24h, tab lỗi thì bỏ qua có log; tab `Lịch sử cập nhật` do server ghi khi Quản lý ghi đè trạng thái).
 - Tài khoản và Telegram ID: PostgreSQL `app_users`; không dùng tab `Users` hoặc `_HR_TELEGRAM_LINKS` để liên kết. Xem mục "Tài khoản, đăng ký và ID Telegram" bên dưới.
@@ -280,3 +280,21 @@ Các module: `marketingHistoryImport`, `marketingAggregation`, `marketingReposit
 ### Khôi phục định danh Pancake (12/10/2026)
 
 Migration `0046_pancake_history_identity.sql`. Nhập file khôi phục riêng tư (chỉ ID tin nhắn và tham chiếu dòng, dựng từ sáu bản xuất đầy đủ, không đưa lên Git): `npm run marketing:identity:import -- --input FILE` (mặc định dry-run) rồi thêm `--apply`. Đồng bộ nhận diện tin theo ID: tin có liên kết được nhận (không tạo quan sát nếu nhân viên không đổi), tin trong sổ nền bị bỏ qua có đếm (`baselineSkipped`), tin trước kỳ lịch sử bỏ qua, tin lạ trong kỳ làm page lỗi (`unknown-in-window`), tin sau mốc mới là quan sát mới. Sáu page được đọc song song (token độc lập), commit tuần tự; client thử lại tối đa 6 lần với backoff tới 15 giây. Page lớn nhất (Hữu Nghị) đọc ~65 phút.
+
+## Công nợ theo lịch thanh toán (2026-10-13)
+
+Migration `0047_debt_schedule_report.sql`. Module `server/debtSchedule/`:
+
+| File | Vai trò |
+|---|---|
+| `debtScheduleRules.js` | Quy tắc thuần: lịch TT (1–90, mặc định 1), cửa sổ ngày, nợ trong lịch, nợ quá hạn, cảnh báo, payload `debtManagement`. |
+| `debtCycleSnapshot.js` | Job chốt 15:00 VN (scheduler, kiểm tra mỗi phút, đồng bộ khách ngay trước khi chốt). Chạy tay: `node debtSchedule/debtCycleSnapshot.js` (chốt cho hôm nay; nên chạy sau 15:00). |
+| `debtScheduleRepository.js` | Đọc báo cáo (cache theo phiên bản), ghi phản hồi/trạng thái/lịch TT + lịch sử. |
+| `debtScheduleService.js` | Dựng tab Công nợ của `/api/dashboard?view=debt` theo quyền người xem. |
+| `importDebtSchedules.js` | Import lịch TT lần đầu: `node debtSchedule/importDebtSchedules.js --branch=hanoi "<file>.xlsx"` (chạy thử) rồi thêm `--apply`. |
+
+API: `PATCH /api/debt-management/{sale-feedback,manager-feedback,status,schedule}`, `GET /api/debt-management/{feedback-history,schedule-log}`.
+
+Thứ tự deploy: `npm run db:migrate` (0047) → import lịch TT HN + SG → deploy code → chạy tay `debtCycleSnapshot.js` sau 15:00 (hoặc chờ 15:00).
+
+Cập nhật gần nhất: 13/10/2026.

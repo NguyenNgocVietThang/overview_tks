@@ -30,7 +30,7 @@ test('parseViewsParam: ten tab sai bi tu choi 400 INVALID_VIEW, khong bo qua im 
   assert.throws(() => parseViewsParam('__proto__'), error => error.code === 'INVALID_VIEW');
 });
 
-test('ke hoach ca 5 tab (khong truyen view) = doc du 5 bang (khong con Dat hang) + CN1/3/7 + du 6 rollup + cong no, khoa cache "all"', () => {
+test('ke hoach ca 5 tab (khong truyen view) = doc du 5 bang (khong con Dat hang, khong con CN1/3/7) + du 6 rollup + cong no, khoa cache "all"', () => {
   const plan = resolveViewPlan();
   assert.equal(plan.all, true);
   assert.deepEqual(plan.views, VIEW_NAMES);
@@ -45,6 +45,7 @@ test('ke hoach ca 5 tab (khong truyen view) = doc du 5 bang (khong con Dat hang)
     [...dashboardPgReader.CORE_SHEET_NAMES].filter(name => name !== CONFIG.SHEET_ORDERS).sort()
   );
   assert.ok(!plan.coreKeys.includes(CONFIG.SHEET_ORDERS));
+  assert.ok(!plan.coreKeys.includes(PERIODS_KEY), 'quy tac 1-3-7 da bo');
 });
 
 test('Tong quan KHONG doc Dat hang/Tra hang/cong no va khong chay rollup so luong hoa don', () => {
@@ -59,12 +60,12 @@ test('Tong quan KHONG doc Dat hang/Tra hang/cong no va khong chay rollup so luon
   assert.deepEqual(plan.filterKeys, ['invoices'], 'bo loc ov* da bo — Tong quan dung bo loc invoices');
 });
 
-test('moi tab chi doc dung nguon cua no; Cong no chi can CN1/3/7 + workbook cong no', () => {
+test('moi tab chi doc dung nguon cua no; Cong no khong doc bang nguon core nao (doc ban chot rieng)', () => {
   const sheetsOf = name => resolveViewPlan([name]).coreKeys;
   assert.deepEqual(sheetsOf('products'), [CONFIG.SHEET_CATEGORIES, CONFIG.SHEET_PRODUCTS]);
   assert.deepEqual(sheetsOf('invoices'), [CONFIG.SHEET_INVOICES], 'Hoa don khong doc Dat hang/Tra hang (the chi so Tra hang da go)');
   assert.deepEqual(sheetsOf('customers'), [CONFIG.SHEET_INVOICES, CONFIG.SHEET_RETURNS, CONFIG.SHEET_CUSTOMERS]);
-  assert.deepEqual(sheetsOf('debt'), [PERIODS_KEY]);
+  assert.deepEqual(sheetsOf('debt'), []);
   assert.equal(resolveViewPlan(['debt']).needsDebt, true);
   assert.equal(resolveViewPlan(['debt']).rollups.size, 0);
   assert.deepEqual([...resolveViewPlan(['invoices']).rollups].sort(), ['invoiceQuantity', 'invoicesRevenue']);

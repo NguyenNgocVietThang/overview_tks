@@ -40,7 +40,8 @@ test('diffPermissions ghi nhãn quyền thêm/bỏ theo quyền hiệu lực', (
   const [perm] = accountAuditLog.diffPermissions(before, after);
   assert.equal(perm.field, 'permissions');
   assert.deepEqual(perm.added, ['Xuất Excel báo cáo']);
-  assert.deepEqual(perm.removed, ['Công nợ']);
+  // Bo 'reports.debt' keo theo quyen phu thuoc 'reports.debt.saleFeedback' (requires) cua Sale.
+  assert.deepEqual(perm.removed, ['Công nợ', 'Công nợ: điền Sale phản hồi (cần Công nợ)']);
   assert.deepEqual(accountAuditLog.diffPermissions(before, before), []);
 });
 

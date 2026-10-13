@@ -71,3 +71,9 @@ Mã T3–T6 đã triển khai và qua kiểm thử; nguồn chính thức vẫn 
 `PANCAKE_MARKETING_SYNC_ENABLED=false` mặc định; chỉ bật sau khi khôi phục ID và thử đồng bộ đạt. `MARKETING_REPORT_SOURCE=sheets` mặc định; đặt `postgres` sau ít nhất ba đợt hằng ngày đối soát đủ sáu page. Token `PANCAKE_PAGE_TOKEN_<pageId>` chỉ ở phía máy chủ, không commit hoặc trả API. Giữ riêng Tạo lúc và ngày ghi nhận thành công Việt Nam; lịch sử giữ ngày cũ. ADS luôn đọc Sheets (kể cả Quảng Châu); doanh số luôn lấy KiotViet theo tên, bán trừ trả hàng HN+SG.
 
 T1/T2/T3 đã có bằng chứng DB; T4–T6 mã nguồn được kiểm thử sau công tắc; T7 chưa đạt. Khôi phục ID từ bản xuất đầy đủ trước đồng bộ thật, sau đó nghiệm thu ba ngày và mới chuyển nguồn.
+
+## Công nợ theo lịch thanh toán (13/10/2026)
+
+Kiến trúc: `server/debtSchedule/` (quy tắc thuần, job chốt 15:00, repository, service, import) + migration 0047. `dashboardData` lấy `debtManagement` từ `debtScheduleService.buildDebtManagement`; khóa cache kết quả gồm phiên bản repository (tăng khi ghi/chốt) và quyền sửa của người xem. Tab Công nợ không còn đọc bảng nguồn core, CN1/3/7 hay Google Sheets.
+
+Cập nhật gần nhất: 13/10/2026.

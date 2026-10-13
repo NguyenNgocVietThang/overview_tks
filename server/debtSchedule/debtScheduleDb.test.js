@@ -1,0 +1,176 @@
+'use strict';
+
+// Chay SQL THAT cua migration 0047 + job chot 15:00 + repository tren PGlite.
+
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const { PGlite } = require('@electric-sql/pglite');
+const { takeDebtCycleSnapshot, takeDebtCycleSnapshotIfDue, __test__ } = require('./debtCycleSnapshot');
+const { createDebtScheduleRepository } = require('./debtScheduleRepository');
+const { buildCustomerRow } = require('./debtScheduleRules');
+
+const MIGRATION = fs.readFileSync(path.join(__dirname, '..', 'db', 'migrations', '0047_debt_schedule_report.sql'), 'utf8');
+
+// Bang toi thieu cua KiotViet ma job/repository doc.
+const BASE_SCHEMA = `
+  CREATE TABLE customers (branch TEXT, id BIGINT, code TEXT, name TEXT, debt NUMERIC, raw JSONB, PRIMARY KEY (branch, id));
+  CREATE TABLE invoices (branch TEXT, id BIGINT, customer_id BIGINT, purchase_date TIMESTAMPTZ, total NUMERIC, raw JSONB);
+  CREATE TABLE returns (branch TEXT, id BIGINT, customer_id BIGINT, return_date TIMESTAMPTZ, total NUMERIC, raw JSONB);
+`;
+
+function poolFor(db) {
+  return {
+    query: (sql, params) => db.query(sql, params),
+    connect: async () => ({ query: (sql, params) => db.query(sql, params), release() {} })
+  };
+}
+
+async function setup() {
+  const db = new PGlite();
+  await db.exec(BASE_SCHEMA);
+  await db.exec(MIGRATION);
+  return { db, pool: poolFor(db) };
+}
+
+const noAverages = async () => ({ branches: [], codes: [], values: [] });
+
+async function seedKiot(db) {
+  await db.exec(`
+    INSERT INTO customers VALUES
+      ('hanoi', 1, 'KH1', 'Khách Một', 800, '{"groups":"Lan"}'),
+      ('hanoi', 2, 'KH2', 'Khách Hai', 0, '{"groups":"Lan"}'),
+      ('saigon', 1, 'KH1', 'Khách Một SG', 300, '{}');
+    -- Gio VN gan nhan UTC: 8/8 15:00 la moc chot.
+    INSERT INTO invoices VALUES
+      ('hanoi', 10, 1, '2026-08-08 10:00+00', 200, '{"statusValue":"Hoàn thành"}'),
+      ('hanoi', 11, 1, '2026-08-08 16:00+00', 999, '{"statusValue":"Hoàn thành"}'),
+      ('hanoi', 12, 1, '2026-08-07 09:00+00', 300, '{"statusValue":"Hoàn thành"}'),
+      ('hanoi', 13, 1, '2026-08-06 09:00+00', 500, '{"statusValue":"Đã hủy"}'),
+      ('hanoi', 14, 1, '2026-08-05 09:00+00', 100, '{"statusValue":"Hoàn thành"}'),
+      ('saigon', 15, 1, '2026-08-08 09:00+00', 300, '{"statusValue":"Đang xử lý"}');
+    INSERT INTO returns VALUES
+      ('hanoi', 20, 1, '2026-08-07 11:00+00', -50, '{"statusValue":"Đã trả"}'),
+      ('hanoi', 21, 1, '2026-08-07 12:00+00', -70, '{"statusValue":"Đã hủy"}');
+  `);
+}
+
+test('migration 0047: khoa chinh dung, lich TT 1..90, nhat ky lich TT chi them', async () => {
+  const { db } = await setup();
+  try {
+    await assert.rejects(db.query(`INSERT INTO debt_payment_schedules (branch, customer_id, schedule_days) VALUES ('hanoi', 1, 0)`), /check/i);
+    await assert.rejects(db.query(`INSERT INTO debt_payment_schedules (branch, customer_id, schedule_days) VALUES ('danang', 1, 3)`), /check/i);
+    await db.query(`INSERT INTO debt_payment_schedule_log (branch, customer_id, new_days, source) VALUES ('hanoi', 1, 3, 'web')`);
+    await assert.rejects(db.query('DELETE FROM debt_payment_schedule_log'), /immutable/);
+    await assert.rejects(db.query(`INSERT INTO debt_feedback_history (cycle_date, branch, customer_id, field) VALUES ('2026-10-13', 'hanoi', 1, 'note')`), /check/i);
+  } finally { await db.close(); }
+});
+
+test('chot 15:00: chi khach dang no, so tien theo ngay cat dung 15:00, bo don huy/phieu tra huy', async () => {
+  const { db, pool } = await setup();
+  try {
+    await seedKiot(db);
+    const result = await takeDebtCycleSnapshot(pool, '2026-08-08', { log: () => {}, loadAverages: async () => ({ branches: ['hanoi'], codes: ['KH1'], values: [4000] }) });
+    assert.deepEqual(result, { cycleDate: '2026-08-08', created: true, customers: 2 });
+    const { rows: customers } = await db.query(`SELECT branch, customer_id::int AS id, current_debt::int AS debt, opening_debt, avg_revenue_4m::int AS avg FROM debt_cycle_customers ORDER BY branch`);
+    assert.deepEqual(customers, [
+      { branch: 'hanoi', id: 1, debt: 800, opening_debt: null, avg: 4000 },
+      { branch: 'saigon', id: 1, debt: 300, opening_debt: null, avg: null }
+    ]);
+    const { rows: amounts } = await db.query(`SELECT branch, day::text AS day, invoice_amount::int AS inv, return_amount::int AS ret FROM debt_cycle_amounts ORDER BY branch, day`);
+    assert.deepEqual(amounts, [
+      { branch: 'hanoi', day: '2026-08-05', inv: 100, ret: 0 },
+      { branch: 'hanoi', day: '2026-08-07', inv: 300, ret: 50 },
+      { branch: 'hanoi', day: '2026-08-08', inv: 200, ret: 0 },
+      { branch: 'saigon', day: '2026-08-08', inv: 300, ret: 0 }
+    ]);
+    const again = await takeDebtCycleSnapshot(pool, '2026-08-08', { log: () => {}, loadAverages: noAverages });
+    assert.equal(again.created, false, 'moi ngay chot 1 lan');
+
+    await db.query(`UPDATE customers SET debt = 500 WHERE branch = 'hanoi' AND id = 1`);
+    await takeDebtCycleSnapshot(pool, '2026-08-09', { log: () => {}, loadAverages: noAverages });
+    const { rows } = await db.query(`SELECT current_debt::int AS debt, opening_debt::int AS opening FROM debt_cycle_customers WHERE cycle_date = '2026-08-09' AND branch = 'hanoi'`);
+    assert.deepEqual(rows, [{ debt: 500, opening: 800 }], 'no dau ky = no hien tai cua ban chot truoc');
+  } finally { await db.close(); }
+});
+
+test('den han chot: tu 15:00 VN, chi cho hom nay', () => {
+  const { cycleDateDue } = __test__;
+  assert.equal(cycleDateDue(null, new Date('2026-10-13T07:59:00Z')), null, '14:59 VN');
+  assert.equal(cycleDateDue(null, new Date('2026-10-13T08:00:00Z')), '2026-10-13', '15:00 VN');
+  assert.equal(cycleDateDue('2026-10-13', new Date('2026-10-13T10:00:00Z')), null, 'da chot hom nay');
+  assert.equal(cycleDateDue('2026-10-12', new Date('2026-10-13T02:00:00Z')), null, '9:00 VN hom sau: chua toi gio');
+});
+
+test('takeIfDue dong bo khach truoc khi chot va bao co ban chot moi', async () => {
+  const { db, pool } = await setup();
+  try {
+    await seedKiot(db);
+    const events = [];
+    const result = await takeDebtCycleSnapshotIfDue(pool, {
+      log: () => {}, now: () => new Date('2026-08-08T08:30:00Z'), loadAverages: noAverages,
+      beforeSnapshot: async () => events.push('sync'), onSnapshot: () => events.push('bump')
+    });
+    assert.equal(result.cycleDate, '2026-08-08');
+    assert.deepEqual(events, ['sync', 'bump']);
+  } finally { await db.close(); }
+});
+
+test('repository: lich TT doc truc tiep (sua la doi no qua han ngay), phan hoi + lich su theo chu ky, sang chu ky moi thi trong', async () => {
+  const { db, pool } = await setup();
+  try {
+    await seedKiot(db);
+    await takeDebtCycleSnapshot(pool, '2026-08-08', { log: () => {}, loadAverages: noAverages });
+    const repo = createDebtScheduleRepository({ pool });
+    const overdueOf = async () => {
+      const { cycle, rows, amountsByCustomer } = await repo.readReport(['hanoi']);
+      const row = rows.find(item => item.customerId === '1');
+      return buildCustomerRow(row, { cycleDate: cycle.cycleDate, dailyAmounts: amountsByCustomer.get('hanoi:1') }).overdueDebt;
+    };
+    assert.equal(await overdueOf(), 600, 'chua co lich = 1 ngay: 800 - 200');
+
+    const manager = { id: 'm1', hoTen: 'Quản lý A' };
+    const set = await repo.setSchedule({ branch: 'hanoi', customerId: '1', days: 3, user: manager });
+    assert.equal(set.changed, true);
+    assert.equal(await overdueOf(), 350, 'lich 3 ngay: 800 - (200 + 300 - 50)');
+    assert.equal((await repo.setSchedule({ branch: 'hanoi', customerId: '1', days: '3', user: manager })).changed, false);
+    const log = await repo.listScheduleLog({ branch: 'hanoi', customerId: '1' });
+    assert.deepEqual(log.map(item => [item.oldDays, item.newDays, item.source, item.actorName, item.customerCode]), [[null, 3, 'web', 'Quản lý A', 'KH1']]);
+    await assert.rejects(repo.setSchedule({ branch: 'hanoi', customerId: '1', days: 'Hàng tuần', user: manager }), error => error.statusCode === 400);
+
+    const sale = { id: 's1', hoTen: 'Lan' };
+    await repo.saveFeedback({ field: 'sale', branch: 'hanoi', customerId: '1', cycleDate: '2026-08-08', value: 'Khách hẹn thứ 2', user: sale });
+    await repo.saveFeedback({ field: 'sale', branch: 'hanoi', customerId: '1', value: 'Khách hẹn thứ 3', user: sale });
+    await repo.saveFeedback({ field: 'sale', branch: 'hanoi', customerId: '1', value: 'Khách hẹn thứ 3', user: sale });
+    await repo.saveStatus({ branch: 'hanoi', customerId: '1', status: 'Đang xử lý', user: manager });
+    const history = await repo.listFeedbackHistory({ branches: ['hanoi'] });
+    assert.deepEqual(history.entries.map(item => [item.field, item.oldValue, item.newValue, item.actorName]).sort(), [
+      ['schedule', '', '3', 'Quản lý A'],
+      ['sale', '', 'Khách hẹn thứ 2', 'Lan'],
+      ['sale', 'Khách hẹn thứ 2', 'Khách hẹn thứ 3', 'Lan'],
+      ['status', 'Chưa xử lý', 'Đang xử lý', 'Quản lý A']
+    ].sort(), 'moi thay doi tren giao dien vao lich su; noi dung khong doi thi khong ghi');
+    let report = await repo.readReport(['hanoi']);
+    assert.equal(report.rows[0].feedback.saleFeedback, 'Khách hẹn thứ 3');
+    assert.equal(report.rows[0].feedback.status, 'Đang xử lý');
+
+    await assert.rejects(
+      repo.saveFeedback({ field: 'manager', branch: 'hanoi', customerId: '2', value: 'x', user: manager }),
+      error => error.statusCode === 404, 'khach khong co trong ban chot'
+    );
+
+    await takeDebtCycleSnapshot(pool, '2026-08-09', { log: () => {}, loadAverages: noAverages });
+    repo.bumpVersion();
+    report = await repo.readReport(['hanoi']);
+    assert.equal(report.cycle.cycleDate, '2026-08-09');
+    assert.equal(report.rows[0].feedback.saleFeedback, '', 'sang chu ky moi phan hoi tu trong');
+    assert.equal(report.rows[0].feedback.status, 'Chưa xử lý');
+    assert.equal(report.rows[0].scheduleDays, 3, 'lich TT giu nguyen qua chu ky');
+    assert.deepEqual((await repo.listFeedbackHistory({ branches: ['hanoi'] })).entries, []);
+    await assert.rejects(
+      repo.saveFeedback({ field: 'sale', branch: 'hanoi', customerId: '1', cycleDate: '2026-08-08', value: 'cũ', user: sale }),
+      error => error.statusCode === 409, 'man hinh chu ky cu bi chan'
+    );
+  } finally { await db.close(); }
+});

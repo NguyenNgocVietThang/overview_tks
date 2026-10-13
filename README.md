@@ -45,7 +45,7 @@ Mở `http://localhost:3000`.
 | `KIOTVIET_WEBHOOK_SECRET` | Bí mật gắn vào đường dẫn webhook `/api/kiotviet/webhook/<secret>`; đường dẫn cũ không secret tắt bằng `KIOTVIET_WEBHOOK_LEGACY_PATH_ENABLED=false` |
 | `SPREADSHEET_ID`, `SPREADSHEET_ID_SG` | Di sản — không còn module nào đọc (Trả NCC đã chuyển sang upload Excel vào Postgres `supplier_return_imports`); bỏ trống vẫn chạy được |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | Service account Google (bắt buộc khi khởi động). Quyền Viewer cho Công nợ và Vị trí hàng; **Editor** cho workbook Vòng đời đơn hàng (ghi tab `Lịch sử cập nhật`) |
-| `DEBT_MANAGEMENT_SPREADSHEET_ID` | Workbook công nợ dùng chung (chỉ đọc) |
+| `DEBT_MANAGEMENT_SPREADSHEET_ID` | (Không còn dùng từ 13/10/2026 — tab Công nợ tính từ KiotViet + lịch TT trong Postgres) |
 | `STOCK_LOCATIONS_SPREADSHEET_ID` | Workbook vị trí hàng HN/SG dùng chung, chỉ đọc |
 | `MARKETING_REPORT_SPREADSHEET_ID`, `MARKETING_PHONES_SPREADSHEET_ID`, `MARKETING_ADS_SPREADSHEET_ID` | Ba workbook Báo cáo Marketing, chỉ đọc; service account cần Viewer trên cả ba |
 | `ORDER_LIFECYCLE_SPREADSHEET_ID` | Workbook vòng đời đơn hàng (`DonHang_HN`, `DonHang_SG`, `DonHang_MienNam` = đơn Bắc-Nam tính như đơn Hà Nội, `Khách_HN`/`Khách_SG` = khách/ship lấy tại kho, `Lịch sử cập nhật`) |
@@ -222,3 +222,12 @@ Mã T3–T6 đã triển khai và qua kiểm thử; nguồn chính thức vẫn 
 `PANCAKE_MARKETING_SYNC_ENABLED=false` mặc định; chỉ bật sau khi khôi phục ID và thử đồng bộ đạt. `MARKETING_REPORT_SOURCE=sheets` mặc định; đặt `postgres` sau ít nhất ba đợt hằng ngày đối soát đủ sáu page. Token `PANCAKE_PAGE_TOKEN_<pageId>` chỉ ở phía máy chủ, không commit hoặc trả API. Giữ riêng Tạo lúc và ngày ghi nhận thành công Việt Nam; lịch sử giữ ngày cũ. ADS luôn đọc Sheets (kể cả Quảng Châu); doanh số luôn lấy KiotViet theo tên, bán trừ trả hàng HN+SG.
 
 Triển khai trong `server/marketingReport/`; CLI tại `server/scripts/capture-marketing-history.js`, `import-marketing-history.js`, `sync-pancake-marketing.js`. [Kế hoạch](tasks/2026-10-09-pancake-marketing/plan.md), [tiến độ](tasks/2026-10-09-pancake-marketing/todo.md), [cấu hình](docs/marketing-report-setup.md). Các tối ưu egress và vòng đời đơn của Claude trên main được giữ khi kết hợp nhánh Marketing.
+
+## Cập nhật 13/10/2026 — Công nợ theo lịch thanh toán
+
+- Tab Công nợ bỏ workbook Google Sheets và quy tắc 1-3-7-Hàng tuần. Mỗi dòng là khách + cơ sở (HN/SG); lịch TT = số ngày nợ tối đa, lưu `debt_payment_schedules`, Quản lý sửa trên web.
+- Chốt số liệu 15:00 mỗi ngày; nợ quá hạn = nợ hiện tại − (hóa đơn − trả hàng trong lịch); cảnh báo Quá hạn khi > 0đ.
+- Thêm cột Sale phản hồi, QL phản hồi; phản hồi/trạng thái/lịch sử chỉnh sửa reset theo bản chốt 15:00 hôm sau.
+- Module mới `server/debtSchedule/`, migration `0047_debt_schedule_report.sql`.
+
+Cập nhật gần nhất: 13/10/2026.

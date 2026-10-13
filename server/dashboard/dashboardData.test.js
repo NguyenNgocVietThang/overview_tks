@@ -29,8 +29,8 @@ const assert = require('node:assert/strict');
 function freshDashboardData() {
   delete require.cache[require.resolve('./dashboardData')];
   delete require.cache[require.resolve('./customerDebtActivityRepository')];
-  delete require.cache[require.resolve('../sheets/debtManagementSheetsClient')];
-  delete require.cache[require.resolve('./debtCollectionStatusRepository')];
+  delete require.cache[require.resolve('../debtSchedule/debtScheduleRepository')];
+  delete require.cache[require.resolve('../debtSchedule/debtScheduleService')];
   delete require.cache[require.resolve('./dashboardPgReader')];
   delete require.cache[require.resolve('./customerProductTopRepository')];
   delete require.cache[require.resolve('./dashboardRollupRepository')];
@@ -40,13 +40,15 @@ function freshDashboardData() {
   customerDebtActivityRepository.readOperationalPeriods = async () => ({
     HN1: [['Khách hàng']], HN3: [['Khách hàng']], HN7: [['Khách hàng']]
   });
-  const debtManagementSheetsClient = require('../sheets/debtManagementSheetsClient');
-  debtManagementSheetsClient.getDebtManagementSheet = async branch => ({
-    sourceSheet: branch === 'Sài Gòn' ? 'Công nợ SG' : 'Công nợ HN',
-    rows: []
-  });
-  const debtCollectionStatusRepository = require('./debtCollectionStatusRepository');
-  debtCollectionStatusRepository.listByBranch = async () => [];
+  // Cong no (server/debtSchedule): repository gia, mac dinh "chua co ban chot".
+  const debtRepo = {
+    version: 0,
+    readReportCalls: [],
+    report: { cycle: null, rows: [], amountsByCustomer: new Map() },
+    async readReport(branches) { this.readReportCalls.push(branches); return this.report; },
+    getVersion() { return this.version; }
+  };
+  require('../debtSchedule/debtScheduleRepository').getDebtScheduleRepository = () => debtRepo;
   const dashboardPgReader = require('./dashboardPgReader');
   mockPgSheets(dashboardPgReader, {});
   const customerProductTopRepository = require('./customerProductTopRepository');
@@ -61,7 +63,7 @@ function freshDashboardData() {
   customerInvoiceLinesRepository.readCustomerInvoiceLines = async () => null;
   const dashboardData = require('./dashboardData');
   return {
-    dashboardData, customerDebtActivityRepository, debtManagementSheetsClient, debtCollectionStatusRepository,
+    dashboardData, customerDebtActivityRepository, debtRepo,
     dashboardPgReader, customerProductTopRepository, dashboardRollupRepository, customerDirectoryRepository,
     customerInvoiceLinesRepository
   };
@@ -612,7 +614,7 @@ test('bo loc orders/returns cu trong yeu cau bi bo qua (khong anh huong ket qua 
 });
 
 test('cache cua Ha Noi khong ro ri sang Sai Gon — moi co so fetch rieng', async () => {
-  const { dashboardData, dashboardPgReader, customerDebtActivityRepository, debtManagementSheetsClient } = freshDashboardData();
+  const { dashboardData, dashboardPgReader, customerDebtActivityRepository } = freshDashboardData();
   const { BRANCHES } = require('../branch/branches');
   const seen = [];
   // Ghi de dashboardPgReader.readCoreDashboardSheets de biet getDashboardData
@@ -627,10 +629,6 @@ test('cache cua Ha Noi khong ro ri sang Sai Gon — moi co so fetch rieng', asyn
   customerDebtActivityRepository.readOperationalPeriods = async () => ({
     HN1: [['Khách hàng']], HN3: [['Khách hàng']], HN7: [['Khách hàng']]
   });
-  debtManagementSheetsClient.getDebtManagementSheet = async branch => ({
-    sourceSheet: branch === BRANCHES.SAIGON ? 'Công nợ SG' : 'Công nợ HN',
-    rows: []
-  });
   dashboardData.__test__.resetCaches();
 
   await dashboardData.getDashboardData(BASE_FILTERS, BRANCHES.HANOI);
@@ -642,234 +640,6 @@ test('cache cua Ha Noi khong ro ri sang Sai Gon — moi co so fetch rieng', asyn
     [BRANCHES.HANOI, BRANCHES.SAIGON],
     'moi co so fetch dung 1 lan; lan goi Ha Noi thu hai phai lay tu cache cua Ha Noi'
   );
-});
-
-test('dashboard tải song song nguồn vận hành và workbook công nợ rồi trả debtManagement thay cho debt cũ', async () => {
-  const { dashboardData, customerDebtActivityRepository, debtManagementSheetsClient } = freshDashboardData();
-  const started = [];
-  let releaseOperating;
-  let releaseDebt;
-  const operatingGate = new Promise(resolve => { releaseOperating = resolve; });
-  const debtGate = new Promise(resolve => { releaseDebt = resolve; });
-
-  customerDebtActivityRepository.readOperationalPeriods = async () => {
-    started.push('operating');
-    await operatingGate;
-    return { HN1: [['Khách hàng']], HN3: [['Khách hàng'], ['Khách A']], HN7: [['Khách hàng']] };
-  };
-  debtManagementSheetsClient.getDebtManagementSheet = async () => {
-    started.push('debt');
-    await debtGate;
-    return {
-      sourceSheet: 'Công nợ HN',
-      rows: [
-        ['Khách hàng', 'Sale', 'Lịch TT HN', 'Nợ đầu kỳ', 'Nợ hiện tại', 'Nợ quá hạn', '% nợ/Doanh số', '% quá hạn / TB DS', 'TB T6/26-T9/26'],
-        ['TỔNG'],
-        ['Khách A', 'Lan', 1, 0, 500000, 0, 0.5, 0, 1000000]
-      ]
-    };
-  };
-  dashboardData.__test__.resetCaches();
-
-  const pending = dashboardData.getDashboardData(BASE_FILTERS);
-  await new Promise(resolve => setImmediate(resolve));
-  assert.deepEqual(started.sort(), ['debt', 'operating']);
-  releaseOperating();
-  releaseDebt();
-  const result = await pending;
-
-  assert.equal(result.debt, undefined);
-  assert.equal(result.debtManagement.available, true);
-  assert.deepEqual(result.debtManagement.customers[0].alertCodes, ['uncollected']);
-});
-
-test('cache nguồn công nợ độc lập 90 giây và phiên bản nguồn nằm trong cache key kết quả', async () => {
-  const { dashboardData, customerDebtActivityRepository, debtManagementSheetsClient } = freshDashboardData();
-  let operatingFetches = 0;
-  let debtFetches = 0;
-  customerDebtActivityRepository.readOperationalPeriods = async () => {
-    operatingFetches += 1;
-    return { HN1: [['Khách hàng']], HN3: [['Khách hàng']], HN7: [['Khách hàng']] };
-  };
-  debtManagementSheetsClient.getDebtManagementSheet = async () => {
-    debtFetches += 1;
-    return { sourceSheet: 'Công nợ HN', rows: [] };
-  };
-  dashboardData.__test__.resetCaches();
-
-  await dashboardData.getDashboardData(BASE_FILTERS);
-  await dashboardData.getDashboardData(BASE_FILTERS);
-  assert.equal(operatingFetches, 1);
-  assert.equal(debtFetches, 1);
-  assert.equal(dashboardData.__test__.getComputeCallCount(), 1);
-
-  dashboardData.__test__.expireDebtManagementCache();
-  await dashboardData.getDashboardData(BASE_FILTERS);
-  assert.equal(operatingFetches, 1);
-  assert.equal(debtFetches, 2);
-  assert.equal(dashboardData.__test__.getComputeCallCount(), 2);
-});
-
-test('lỗi workbook công nợ chỉ làm debtManagement unavailable, không làm sập dashboard', async () => {
-  const { dashboardData, debtManagementSheetsClient } = freshDashboardData();
-  debtManagementSheetsClient.getDebtManagementSheet = async () => {
-    const error = new Error('Workbook chưa cấu hình');
-    error.code = 'BRANCH_NOT_CONFIGURED';
-    throw error;
-  };
-  dashboardData.__test__.resetCaches();
-
-  const result = await dashboardData.getDashboardData(BASE_FILTERS);
-  assert.equal(result.debtManagement.available, false);
-  assert.ok(result.debtManagement.dataWarnings.some(warning => warning.includes('Workbook chưa cấu hình')));
-  assert.ok(result.overview);
-});
-
-test('dashboard ghép workflow theo cơ sở, phân quyền sửa và khóa khi PostgreSQL lỗi', async () => {
-  const { dashboardData, customerDebtActivityRepository, debtManagementSheetsClient, debtCollectionStatusRepository } = freshDashboardData();
-  const { createAlertSignature } = require('./debtManagement');
-  customerDebtActivityRepository.readOperationalPeriods = async () => ({
-    HN1: [['Khách hàng']], HN3: [['Khách hàng']], HN7: [['Khách hàng']]
-  });
-  debtManagementSheetsClient.getDebtManagementSheet = async () => ({
-    sourceSheet: 'Công nợ HN',
-    rows: [
-      ['Khách hàng', 'Sale', 'Lịch TT HN', 'Nợ đầu kỳ', 'Nợ hiện tại', 'Nợ quá hạn', '% nợ/Doanh số', '% quá hạn / TB DS', 'TB T6/26-T9/26'],
-      ['TỔNG'],
-      ['Khách A', 'Lan', 7, 0, 500000, 500000, 0.5, 0.5, 1000000]
-    ]
-  });
-  const signature = createAlertSignature(['overdue'], 500000, 500000);
-  debtCollectionStatusRepository.listByBranch = async branch => [{
-    branch,
-    customer_key: require('node:crypto').createHash('sha256').update('khách a').digest('hex'),
-    status: 'Đã xử lý',
-    alert_signature: signature,
-    updated_by_name: 'Quản lý'
-  }];
-  dashboardData.__test__.resetCaches();
-
-  const manager = await dashboardData.getDashboardData(BASE_FILTERS, 'Hà Nội', { vaiTro: 'Quản lý' });
-  assert.equal(manager.debtManagement.customers[0].workflowStatus, 'Đã xử lý');
-  assert.equal(manager.debtManagement.customers[0].needsAction, false);
-  assert.equal(manager.debtManagement.customers[0].canEditStatus, true);
-
-  const accountant = await dashboardData.getDashboardData(BASE_FILTERS, 'Hà Nội', { vaiTro: 'Kế toán' });
-  assert.equal(accountant.debtManagement.customers[0].canEditStatus, false);
-
-  dashboardData.__test__.resetCaches();
-  debtCollectionStatusRepository.listByBranch = async () => { throw new Error('db down'); };
-  const unavailable = await dashboardData.getDashboardData(BASE_FILTERS, 'Hà Nội', { vaiTro: 'Quản lý' });
-  assert.equal(unavailable.debtManagement.customers[0].canEditStatus, false);
-  assert.ok(unavailable.debtManagement.dataWarnings.some(warning => warning.includes('trạng thái xử lý')));
-});
-
-test('findDebtCustomerBranches tra chu ky canh bao RIENG cua tung co so, co so khong doc duoc la "chua xac dinh"', async () => {
-  const { dashboardData, debtManagementSheetsClient } = freshDashboardData();
-  const crypto = require('node:crypto');
-  const { createAlertSignature } = require('./debtManagement');
-  const headerFor = branch => ['Khách hàng', 'Sale', branch === 'Sài Gòn' ? 'Lịch TT SG' : 'Lịch TT HN',
-    'Nợ đầu kỳ', 'Nợ hiện tại', 'Nợ quá hạn', '% nợ/Doanh số', '% quá hạn / TB DS', 'TB T6/26-T9/26'];
-  // Cung mot khach o CA HAI co so nhung so no khac nhau -> chu ky canh bao
-  // khac nhau: Ha Noi co no qua han (canh bao "Quá hạn"), Sai Gon thi khong.
-  const rowFor = branch => (branch === 'Sài Gòn'
-    ? ['Khách A', 'Lan', 7, 0, 700000, 0, 0, 0, 0]
-    : ['Khách A', 'Lan', 7, 0, 500000, 500000, 0, 0, 0]);
-  debtManagementSheetsClient.getDebtManagementSheet = async branch => ({
-    sourceSheet: branch === 'Sài Gòn' ? 'Công nợ SG' : 'Công nợ HN',
-    rows: [headerFor(branch), ['TỔNG'], rowFor(branch)]
-  });
-  dashboardData.__test__.resetCaches();
-
-  const keyA = crypto.createHash('sha256').update('khách a').digest('hex');
-  const hanoiSignature = createAlertSignature(['overdue'], 500000, 500000);
-  const saigonSignature = createAlertSignature([], 700000, 0);
-  assert.notEqual(hanoiSignature, saigonSignature);
-
-  const both = await dashboardData.findDebtCustomerBranches(keyA, ['Hà Nội', 'Sài Gòn']);
-  assert.deepEqual(both, {
-    found: [
-      { branch: 'Hà Nội', alertSignature: hanoiSignature },
-      { branch: 'Sài Gòn', alertSignature: saigonSignature }
-    ],
-    undetermined: []
-  });
-
-  const missing = await dashboardData.findDebtCustomerBranches('f'.repeat(64), ['Hà Nội', 'Sài Gòn']);
-  assert.deepEqual(missing, { found: [], undetermined: [] });
-
-  dashboardData.__test__.resetCaches();
-  debtManagementSheetsClient.getDebtManagementSheet = async branch => {
-    if (branch === 'Sài Gòn') throw new Error('Sheets loi');
-    return { sourceSheet: 'Công nợ HN', rows: [headerFor(branch), ['TỔNG'], rowFor(branch)] };
-  };
-  const partial = await dashboardData.findDebtCustomerBranches(keyA, ['Hà Nội', 'Sài Gòn']);
-  assert.deepEqual(partial, {
-    found: [{ branch: 'Hà Nội', alertSignature: hanoiSignature }],
-    undetermined: ['Sài Gòn']
-  });
-});
-
-test('Ca hai: trang thai ket thuc ghi kem chu ky RIENG tung co so thi khong bi het hieu luc o co so con lai', async () => {
-  const { dashboardData, debtManagementSheetsClient, debtCollectionStatusRepository } = freshDashboardData();
-  const crypto = require('node:crypto');
-  const { BRANCHES, BRANCH_BOTH } = require('../branch/branches');
-  const { createAlertSignature } = require('./debtManagement');
-  const headerFor = branch => ['Khách hàng', 'Sale', branch === BRANCHES.SAIGON ? 'Lịch TT SG' : 'Lịch TT HN',
-    'Nợ đầu kỳ', 'Nợ hiện tại', 'Nợ quá hạn', '% nợ/Doanh số', '% quá hạn / TB DS', 'TB'];
-  debtManagementSheetsClient.getDebtManagementSheet = async branch => ({
-    sourceSheet: branch === BRANCHES.SAIGON ? 'Công nợ SG' : 'Công nợ HN',
-    rows: [headerFor(branch), ['TỔNG'], branch === BRANCHES.SAIGON
-      ? ['Khách A', 'Lan', 7, 0, 800000, 800000, 0, 0, 0]
-      : ['Khách A', 'Lan', 7, 0, 500000, 500000, 0, 0, 0]]
-  });
-  const customerKey = crypto.createHash('sha256').update('khách a').digest('hex');
-  const signatureByBranch = {
-    [BRANCHES.HANOI]: createAlertSignature(['overdue'], 500000, 500000),
-    [BRANCHES.SAIGON]: createAlertSignature(['overdue'], 800000, 800000)
-  };
-  const storedStatus = (branch, alertSignature) => [{
-    branch, customer_key: customerKey, status: 'Đã xử lý', alert_signature: alertSignature, updated_by_name: 'Quản lý'
-  }];
-
-  // Sau khi sua: moi co so giu chu ky cua chinh no.
-  debtCollectionStatusRepository.listByBranch = async branchCode => storedStatus(
-    branchCode,
-    branchCode === 'saigon' ? signatureByBranch[BRANCHES.SAIGON] : signatureByBranch[BRANCHES.HANOI]
-  );
-  dashboardData.__test__.resetCaches();
-  const fixed = await dashboardData.getDashboardData(BASE_FILTERS, BRANCH_BOTH, { vaiTro: 'Quản lý' });
-  const mergedFixed = fixed.debtManagement.customers.find(customer => customer.customerKey === customerKey);
-  assert.equal(mergedFixed.workflowStatus, 'Đã xử lý');
-  assert.equal(mergedFixed.needsAction, false, 'khong con mau thuan "Đã xử lý" nhung van nam trong hang cho');
-
-  const saigonOnly = await dashboardData.getDashboardData(BASE_FILTERS, BRANCHES.SAIGON, { vaiTro: 'Quản lý' });
-  assert.equal(saigonOnly.debtManagement.customers[0].workflowStatus, 'Đã xử lý', 'xem rieng Sai Gon van la Đã xử lý');
-
-  // Loi cu: nhan ban chu ky Ha Noi sang Sai Gon -> Sai Gon het hieu luc.
-  debtCollectionStatusRepository.listByBranch = async branchCode => storedStatus(branchCode, signatureByBranch[BRANCHES.HANOI]);
-  dashboardData.__test__.resetCaches();
-  const broken = await dashboardData.getDashboardData(BASE_FILTERS, BRANCHES.SAIGON, { vaiTro: 'Quản lý' });
-  assert.equal(broken.debtManagement.customers[0].workflowStatus, 'Chưa xử lý');
-});
-
-test('findDebtCustomerBranches dung dung chu ky ma dashboard tinh cho tung co so', async () => {
-  const { dashboardData, debtManagementSheetsClient } = freshDashboardData();
-  const crypto = require('node:crypto');
-  const header = ['Khách hàng', 'Sale', 'Lịch TT SG', 'Nợ đầu kỳ', 'Nợ hiện tại', 'Nợ quá hạn', '% nợ/Doanh số', '% quá hạn / TB DS', 'TB T6/26-T9/26'];
-  debtManagementSheetsClient.getDebtManagementSheet = async () => ({
-    sourceSheet: 'Công nợ SG',
-    rows: [header, ['TỔNG'], ['Khách A', 'Lan', 7, 0, 900000, 300000, 0, 0, 0]]
-  });
-  dashboardData.__test__.resetCaches();
-
-  const keyA = crypto.createHash('sha256').update('khách a').digest('hex');
-  const { found } = await dashboardData.findDebtCustomerBranches(keyA, ['Sài Gòn']);
-  const dashboard = await dashboardData.getDashboardData(BASE_FILTERS, 'Sài Gòn', { vaiTro: 'Quản lý' });
-  const onScreen = dashboard.debtManagement.customers.find(customer => customer.customerKey === keyA);
-
-  assert.equal(found[0].alertSignature, onScreen.alertSignature,
-    'chu ky luu xuong DB phai trung chu ky debtManagement.js so sanh khi doc');
 });
 
 test('Ca hai cong KPI/bucket; hang hoa trung ma la 2 dong rieng, khach trung ten gop lai', async () => {
@@ -1066,33 +836,6 @@ test('cache Ca hai co scope rieng va doi key khi version mot nguon vat ly thay d
   assert.equal(dashboardData.__test__.getComputeCallCount(), aggregateComputeCount + 1);
 });
 
-test('Ca hai giu cong no nguon con lai khi mot workbook loi va neu ro nguon that bai', async () => {
-  const { dashboardData, debtManagementSheetsClient } = freshDashboardData();
-  const { BRANCHES, BRANCH_BOTH } = require('../branch/branches');
-  debtManagementSheetsClient.getDebtManagementSheet = async branch => {
-    if (branch === BRANCHES.SAIGON) throw new Error('Workbook SG lỗi');
-    return {
-      sourceSheet: 'Công nợ HN',
-      rows: [
-        ['Khách hàng', 'Sale', 'Lịch TT HN', 'Nợ đầu kỳ', 'Nợ hiện tại', 'Nợ quá hạn', '% nợ/Doanh số', '% quá hạn / TB DS', 'TB'],
-        ['TỔNG'],
-        ['Khách A', 'Lan', 7, 10, 500000, 100000, 0.5, 0.1, 1000000]
-      ]
-    };
-  };
-  dashboardData.__test__.resetCaches();
-
-  const data = await dashboardData.getDashboardData(BASE_FILTERS, BRANCH_BOTH);
-
-  assert.equal(data.debtManagement.available, true);
-  assert.equal(data.debtManagement.kpi.totalCurrentDebt, 500000);
-  assert.deepEqual(data.debtManagement.sources.map(source => [source.branch, source.available]), [
-    [BRANCHES.HANOI, true], [BRANCHES.SAIGON, false]
-  ]);
-  assert.ok(data.debtManagement.dataWarnings.some(warning => warning.includes('Sài Gòn') && warning.includes('Workbook SG lỗi')));
-  assert.deepEqual(data.debtManagement.customers[0].branchDetails.map(detail => detail.branch), [BRANCHES.HANOI]);
-});
-
 test('Ca hai fail request neu nguon van han cua mot co so loi', async () => {
   const { dashboardData, dashboardPgReader } = freshDashboardData();
   const { BRANCHES, BRANCH_BOTH } = require('../branch/branches');
@@ -1148,27 +891,6 @@ test('Ca hai: doanh so Hang moi nhap theo newlyImported rieng, gan nhan co so tu
   );
   assert.equal(data.products.newlyImported.salesRevenue, 400);
   assert.equal(data.products.newlyImported.salesQty, 2);
-});
-
-test('Ca hai cong truc tiep averageSales ke ca nguon co no qua han bang 0', async () => {
-  const { dashboardData, debtManagementSheetsClient } = freshDashboardData();
-  const { BRANCHES, BRANCH_BOTH } = require('../branch/branches');
-  debtManagementSheetsClient.getDebtManagementSheet = async branch => ({
-    sourceSheet: branch === BRANCHES.HANOI ? 'Công nợ HN' : 'Công nợ SG',
-    rows: [
-      ['Khách hàng', 'Sale', branch === BRANCHES.HANOI ? 'Lịch TT HN' : 'Lịch TT SG', 'Nợ đầu kỳ', 'Nợ hiện tại', 'Nợ quá hạn', '% nợ/Doanh số', '% quá hạn / TB DS', 'TB T6/26-T9/26'],
-      ['TỔNG'],
-      branch === BRANCHES.HANOI
-        ? ['Khách HN', 'Lan', 7, 0, 500000, 0, 0.5, 0, 1000000]
-        : ['Khách SG', 'Mai', 7, 0, 500000, 100000, 0.5, 0.1, 1000000]
-    ]
-  });
-  dashboardData.__test__.resetCaches();
-
-  const data = await dashboardData.getDashboardData(BASE_FILTERS, BRANCH_BOTH);
-
-  assert.equal(data.debtManagement.kpi.totalOverdueDebt, 100000);
-  assert.equal(data.debtManagement.kpi.overdueToSalesRatio, 0.05);
 });
 
 // ===== getCustomerProductRevenueReport (tab Khach hang, phan 4) =====
@@ -1967,14 +1689,14 @@ function installRichViewFixture(ctx) {
     getFirstPurchaseDates: [{ code: 'SP-01', name: 'Sản phẩm một', firstPurchaseDateText: `${today} 07:00:00` }],
     getInvoiceQuantitiesByCode: [{ code: 'HD-1', quantity: 3 }]
   });
-  ctx.debtManagementSheetsClient.getDebtManagementSheet = async branch => ({
-    sourceSheet: branch === 'Sài Gòn' ? 'Công nợ SG' : 'Công nợ HN',
-    rows: [
-      ['Khách hàng', 'Sale', 'Lịch TT HN', 'Nợ đầu kỳ', 'Nợ hiện tại', 'Nợ quá hạn', '% nợ/Doanh số', '% quá hạn / TB DS', 'TB'],
-      ['TỔNG'],
-      ['Khách A', 'Lan', 7, 0, 500000, 200000, 0, 0, 0]
-    ]
-  });
+  ctx.debtRepo.report = {
+    cycle: { cycleDate: '2026-10-13', takenAt: '2026-10-13T08:00:00.000Z' },
+    rows: [{
+      branch: 'hanoi', customerId: '1', customerCode: 'KH-A', customerName: 'Khách A', sale: 'Lan', scheduleDays: 7,
+      currentDebt: 500000, openingDebt: 0, avgRevenue4m: null, feedback: {}
+    }],
+    amountsByCustomer: new Map([['hanoi:1', [{ day: '2026-10-12', invoiceAmount: 300000, returnAmount: 0 }]]])
+  };
 }
 
 function expectedViewSlice(full, view) {
@@ -2055,8 +1777,7 @@ test('tung tab: Tong quan chi doc dung 4 bang nguon + 2 rollup, KHONG cham cong 
       ctx.dashboardRollupRepository[name] = async (...args) => { rollupCalls.push(name); return original(...args); };
     });
   let debtTouched = 0;
-  ctx.debtManagementSheetsClient.getDebtManagementSheet = async () => { debtTouched += 1; return { rows: [] }; };
-  ctx.debtCollectionStatusRepository.listByBranch = async () => { debtTouched += 1; return []; };
+  ctx.debtRepo.readReport = async () => { debtTouched += 1; return { cycle: null, rows: [], amountsByCustomer: new Map() }; };
   ctx.customerDebtActivityRepository.readOperationalPeriods = async () => { debtTouched += 1; return { HN1: [], HN3: [], HN7: [] }; };
   ctx.dashboardData.__test__.resetCaches();
 
@@ -2068,10 +1789,10 @@ test('tung tab: Tong quan chi doc dung 4 bang nguon + 2 rollup, KHONG cham cong 
     [CONFIG.SHEET_CATEGORIES, CONFIG.SHEET_CUSTOMERS, CONFIG.SHEET_INVOICES, CONFIG.SHEET_PRODUCTS].sort()
   );
   assert.deepEqual(rollupCalls.sort(), ['getInvoiceRevenueByDay']);
-  assert.equal(debtTouched, 0, 'Tong quan khong doc workbook cong no/workflow/CN1-3-7 (Google Sheets ~1s)');
+  assert.equal(debtTouched, 0, 'Tong quan khong doc cong no/CN1-3-7');
 });
 
-test('tung tab: Cong no khong doc bang nguon nao va khong goi rollup, chi doc CN1/3/7 + workbook + workflow', async () => {
+test('tung tab: Cong no khong doc bang nguon nao, khong goi rollup, khong doc CN1/3/7 — chi doc ban chot cong no', async () => {
   const ctx = freshDashboardData();
   installRichViewFixture(ctx);
   let coreReads = 0;
@@ -2087,8 +1808,55 @@ test('tung tab: Cong no khong doc bang nguon nao va khong goi rollup, chi doc CN
 
   assert.equal(coreReads, 0);
   assert.equal(rollupCalls, 0);
-  assert.equal(periods, 1);
+  assert.equal(periods, 0, 'quy tac 1-3-7 da bo, khong doc CN1/3/7');
+  assert.deepEqual(ctx.debtRepo.readReportCalls, [['hanoi']]);
   assert.equal(data.debtManagement.available, true);
+  const [customer] = data.debtManagement.customers;
+  assert.equal(customer.inScheduleDebt, 300000);
+  assert.equal(customer.overdueDebt, 200000);
+  assert.deepEqual(customer.alertCodes, ['overdue']);
+  assert.equal(customer.branch, 'HN');
+});
+
+test('Cong no: phien ban repository nam trong khoa cache — ghi phan hoi/lich TT thi lan doc sau tinh lai', async () => {
+  const ctx = freshDashboardData();
+  installRichViewFixture(ctx);
+  ctx.dashboardData.__test__.resetCaches();
+  const first = await ctx.dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['debt'] });
+  await ctx.dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['debt'] });
+  assert.equal(ctx.debtRepo.readReportCalls.length, 1, 'cung phien ban -> dung cache ket qua');
+  ctx.debtRepo.report = { ...ctx.debtRepo.report, rows: [{ ...ctx.debtRepo.report.rows[0], scheduleDays: 1 }] };
+  ctx.debtRepo.version += 1;
+  const second = await ctx.dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['debt'] });
+  assert.equal(ctx.debtRepo.readReportCalls.length, 2);
+  assert.equal(first.debtManagement.customers[0].overdueDebt, 200000);
+  assert.equal(second.debtManagement.customers[0].overdueDebt, 500000, 'lich 1 ngay: don 12/10 da qua han');
+});
+
+test('Cong no: quyen sua tung cot theo nguoi xem va khoa cache tach theo quyen', async () => {
+  const ctx = freshDashboardData();
+  installRichViewFixture(ctx);
+  ctx.dashboardData.__test__.resetCaches();
+  const sale = await ctx.dashboardData.getDashboardData(BASE_FILTERS, undefined, { permissions: ['reports.debt', 'reports.debt.saleFeedback'] }, { views: ['debt'] });
+  const manager = await ctx.dashboardData.getDashboardData(BASE_FILTERS, undefined, { permissions: ['reports.debt', 'reports.debt.managerFeedback', 'reports.debt.edit', 'reports.debt.schedule'] }, { views: ['debt'] });
+  assert.deepEqual(sale.debtManagement.access, { status: false, saleFeedback: true, managerFeedback: false, schedule: false });
+  assert.deepEqual(manager.debtManagement.access, { status: true, saleFeedback: false, managerFeedback: true, schedule: true });
+  assert.equal(sale.debtManagement.customers[0].canEditSaleFeedback, true);
+  assert.equal(manager.debtManagement.customers[0].canEditSaleFeedback, false);
+});
+
+test('Cong no "Ca hai": doc ca 2 co so, moi dong giu co so rieng (HN/SG)', async () => {
+  const ctx = freshDashboardData();
+  const { BRANCH_BOTH } = require('../branch/branches');
+  installRichViewFixture(ctx);
+  ctx.debtRepo.report.rows.push({ ...ctx.debtRepo.report.rows[0], branch: 'saigon', scheduleDays: null });
+  ctx.dashboardData.__test__.resetCaches();
+  const data = await ctx.dashboardData.getDashboardData(BASE_FILTERS, BRANCH_BOTH, VIEW_TEST_VIEWER, { views: ['debt'] });
+  assert.deepEqual(ctx.debtRepo.readReportCalls, [['hanoi', 'saigon']]);
+  assert.deepEqual(data.debtManagement.customers.map(item => [item.branch, item.paymentSchedule, item.overdueDebt]), [
+    ['HN', '7', 200000],
+    ['SG', '1', 500000]
+  ]);
 });
 
 test('tung tab: cache tach rieng — doi bo loc cua tab khac KHONG lam mat cache, doi bo loc cua chinh no thi tinh lai', async () => {
@@ -2211,17 +1979,6 @@ test('cache nguon theo tung bang: loi doc bang nguon tab dang mo duoc nem ra, la
   fail = false;
   const data = await ctx.dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['customers'] });
   assert.ok(data.customers, 'lan sau doc lai thanh cong sau khi loi');
-});
-
-test('findDebtCustomerBranches chi doc CN1/3/7 (khong keo 7 bang core ve chi de tinh chu ky)', async () => {
-  const ctx = freshDashboardData();
-  let coreReads = 0;
-  ctx.dashboardPgReader.readCoreDashboardSheets = async () => { coreReads += 1; return {}; };
-  ctx.dashboardData.__test__.resetCaches();
-
-  await ctx.dashboardData.findDebtCustomerBranches('a'.repeat(64), ['Hà Nội']);
-
-  assert.equal(coreReads, 0);
 });
 
 test('tham so views khong hop le bi tu choi 400, khong doc nguon nao', async () => {

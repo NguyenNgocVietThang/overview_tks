@@ -290,3 +290,9 @@ Mục tiêu giảm thao tác xuất/import SĐT hằng ngày bằng đồng bộ
 - **Vòng đời đơn hàng:** Bổ sung dải thẻ chỉ số tổng quát và lọc nhanh đầu trang; hỗ trợ 5 luồng đơn (HN, SG, Bắc-Nam `DonHang_MienNam`, Khách/Ship lấy tại kho `Khách_HN`/`Khách_SG`) và 6 loại cảnh báo có tên (Kế toán sót đơn [chỉ khi ở trạng thái Đơn đã gửi kế toán], Lái xe chưa chụp đơn, Lái xe quên chụp, Chưa nhận đơn quá 6 giờ, Khách/Ship chưa lấy, Chưa chụp bill tàu).
 - **Phân trang Nhân sự & Tài khoản:** Bổ sung điều khiển phân trang chuẩn (`table-controls.js`) cho bảng nhân sự, chấm công, nghỉ phép và quản trị người dùng.
 - **Giảm egress Supabase (migration 0044):** Tối ưu hóa đối soát phiếu nhập bằng hash (`purchases.raw_hash`), cache hóa đơn theo sự kiện, nạp lazy bot Telegram và realtime nghỉ phép rút gọn.
+
+## Bổ sung 13/10/2026 — Báo cáo công nợ theo lịch thanh toán
+
+Quy tắc cố định 1-3-7-Hàng tuần được thay bằng lịch thanh toán riêng cho từng khách tại từng cơ sở (số ngày nợ tối đa). Báo cáo chốt lúc 15:00 mỗi ngày, cảnh báo quá hạn khi có nợ vượt lịch, Sale và Quản lý phản hồi trực tiếp trên bảng (lưu DB, làm mới mỗi chu kỳ), mọi thay đổi có lịch sử.
+
+Cập nhật gần nhất: 13/10/2026.

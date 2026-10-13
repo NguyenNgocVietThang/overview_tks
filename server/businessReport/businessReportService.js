@@ -216,4 +216,4 @@ function buildDetail(kind, key, snap, extra = {}) {
   throw e;
 }
 
-module.exports = { buildOverview, buildSaleReport, buildCustomerReport, buildProductReport, buildDetail, last4Months };
+module.exports = { buildOverview, buildSaleReport, buildCustomerReport, buildProductReport, buildDetail, last4Months, customerRecords };

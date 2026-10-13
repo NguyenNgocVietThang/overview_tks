@@ -4,8 +4,7 @@ process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret';
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const repository = require('./debtCollectionStatusRepository');
-const dashboardData = require('./dashboardData');
+const debtScheduleRepository = require('../debtSchedule/debtScheduleRepository');
 const router = require('./debtManagementRoutes');
 
 function fakeRes() {
@@ -16,308 +15,101 @@ function fakeRes() {
   return res;
 }
 
-function routeStack() {
-  const layer = router.stack.find(item => item.route?.path === '/api/debt-management/status' && item.route.methods.patch);
+function routeStack(path, method = 'patch') {
+  const layer = router.stack.find(item => item.route?.path === path && item.route.methods[method]);
+  assert.ok(layer, `${method} ${path}`);
   return layer.route.stack.map(item => item.handle);
 }
 
-test('PATCH trả 401 khi chưa đăng nhập và 403 khi vai trò không được phép', async () => {
-  const [authGuard, roleGuard] = routeStack();
-  const unauthenticated = fakeRes();
-  await authGuard({ cookies: {} }, unauthenticated, () => assert.fail('không được next'));
-  assert.equal(unauthenticated.statusCode, 401);
+function withRepo(fake, run) {
+  const original = debtScheduleRepository.getDebtScheduleRepository;
+  debtScheduleRepository.getDebtScheduleRepository = () => fake;
+  return Promise.resolve(run()).finally(() => { debtScheduleRepository.getDebtScheduleRepository = original; });
+}
 
-  const forbidden = fakeRes();
-  roleGuard({ user: { vaiTro: 'Kế toán' } }, forbidden, () => assert.fail('không được next'));
-  assert.equal(forbidden.statusCode, 403);
+function allowed(guard, role) {
+  let nextCalled = false;
+  guard({ user: { vaiTro: role } }, fakeRes(), () => { nextCalled = true; });
+  return nextCalled;
+}
 
-  for (const role of ['Quản lý', 'Trợ lý']) {
-    let nextCalled = false;
-    roleGuard({ user: { vaiTro: role } }, fakeRes(), () => { nextCalled = true; });
-    assert.equal(nextCalled, true, role);
+test('quyen mac dinh: Sale phan hoi chi Nhan vien sale; QL phan hoi, trang thai, lich TT chi Quan ly', () => {
+  const cases = [
+    ['/api/debt-management/sale-feedback', { 'Nhân viên sale': true, 'Quản lý': false, 'Trợ lý': false }],
+    ['/api/debt-management/manager-feedback', { 'Nhân viên sale': false, 'Quản lý': true, 'Trợ lý': false }],
+    ['/api/debt-management/status', { 'Nhân viên sale': false, 'Quản lý': true, 'Trợ lý': false }],
+    ['/api/debt-management/schedule', { 'Nhân viên sale': false, 'Quản lý': true, 'Trợ lý': false }]
+  ];
+  for (const [path, expected] of cases) {
+    const [, featureGuard] = routeStack(path);
+    for (const [role, ok] of Object.entries(expected)) assert.equal(allowed(featureGuard, role), ok, `${path} ${role}`);
   }
 });
 
-test('PATCH kiểm tra allowlist, customerKey và chữ ký 64 hex', async () => {
-  const handler = routeStack().at(-1);
-  for (const body of [
-    { customerKey: '', status: 'Đang xử lý', alertSignature: 'a'.repeat(64) },
-    { customerKey: 'x'.repeat(64), status: 'Không hợp lệ', alertSignature: 'a'.repeat(64) },
-    { customerKey: 'x'.repeat(64), status: 'Đang xử lý', alertSignature: 'not-a-signature' }
-  ]) {
-    const res = fakeRes();
-    await handler({ branch: 'Hà Nội', user: { id: 'u1', hoTen: 'A' }, body }, res);
-    assert.equal(res.statusCode, 400);
-  }
+test('PATCH chua dang nhap tra 401', async () => {
+  const [authGuard] = routeStack('/api/debt-management/sale-feedback');
+  const res = fakeRes();
+  await authGuard({ cookies: {} }, res, () => assert.fail('khong duoc next'));
+  assert.equal(res.statusCode, 401);
 });
 
-test('PATCH lấy cơ sở từ session, upsert và xóa cache sau khi thành công', async () => {
-  const handler = routeStack().at(-1);
-  const originalUpsert = repository.upsertStatus;
-  const originalInvalidate = dashboardData.invalidateDebtWorkflowCache;
+test('PATCH sale-feedback chuyen dung tham so xuong repository, nguoi sua lay tu session', async () => {
+  const handler = routeStack('/api/debt-management/sale-feedback').at(-1);
   let received;
-  let invalidatedBranch;
-  repository.upsertStatus = async payload => {
-    received = payload;
-    return { ...payload, updated_at: '2026-09-15T00:00:00.000Z', updated_by_name: payload.userName };
-  };
-  dashboardData.invalidateDebtWorkflowCache = branch => { invalidatedBranch = branch; };
-
-  try {
-    const req = {
-      branch: 'Sài Gòn',
-      user: { id: '9ad42989-90ef-4da8-bf87-da505551ed15', hoTen: 'Trợ lý A', vaiTro: 'Trợ lý' },
-      body: {
-        customerKey: 'd'.repeat(64),
-        status: 'Đang xử lý',
-        alertSignature: 'e'.repeat(64),
-        branch: 'hanoi'
-      }
-    };
+  await withRepo({ saveFeedback: async payload => { received = payload; return { cycleDate: '2026-10-13', value: 'Hẹn thứ 6', by: 'Lan', changed: true }; } }, async () => {
     const res = fakeRes();
-    await handler(req, res);
-
+    await handler({ user: { id: 'u1', hoTen: 'Lan' }, body: { branch: 'hanoi', customerId: '42', cycleDate: '2026-10-13', value: 'Hẹn thứ 6' } }, res);
     assert.equal(res.statusCode, 200);
-    assert.equal(received.branch, 'saigon');
-    assert.equal(received.status, 'Đang xử lý');
-    assert.equal(received.userName, 'Trợ lý A');
-    assert.equal(invalidatedBranch, 'Sài Gòn');
-  } finally {
-    repository.upsertStatus = originalUpsert;
-    dashboardData.invalidateDebtWorkflowCache = originalInvalidate;
-  }
-});
-
-// ----- Pham vi "Cả hai": ghi nguyen tu cho ca hai co so vat ly -----
-
-// Chu ky cua dong GOP tren man hinh = chu ky cua co so dau tien co khach hang
-// (Ha Noi truoc Sai Gon) — do la thu client gui len.
-const HANOI_SIGNATURE = 'b'.repeat(64);
-const SAIGON_SIGNATURE = 'c'.repeat(64);
-const STALE_SIGNATURE = 'd'.repeat(64);
-
-function bothBranchesHarness({
-  upsertForBranches,
-  customerBranches = {
-    found: [
-      { branch: 'Hà Nội', alertSignature: HANOI_SIGNATURE },
-      { branch: 'Sài Gòn', alertSignature: SAIGON_SIGNATURE }
-    ],
-    undetermined: []
-  }
-} = {}) {
-  const originals = {
-    upsertStatus: repository.upsertStatus,
-    upsertStatusForBranches: repository.upsertStatusForBranches,
-    invalidate: dashboardData.invalidateDebtWorkflowCache,
-    findBranches: dashboardData.findDebtCustomerBranches
-  };
-  const log = [];
-  const state = { singleBranchCalls: 0, writtenTargets: null, invalidated: [], log };
-  Object.defineProperty(state, 'writtenBranches', {
-    get: () => (state.writtenTargets ? state.writtenTargets.map(target => target.branch) : null)
+    assert.equal(res.body.value, 'Hẹn thứ 6');
   });
-  repository.upsertStatus = async payload => {
-    state.singleBranchCalls += 1;
-    return { branch: payload.branch, customer_key: payload.customerKey, status: payload.status };
-  };
-  repository.upsertStatusForBranches = async payload => {
-    state.writtenTargets = payload.targets;
-    log.push('write');
-    if (upsertForBranches) return upsertForBranches(payload);
-    return payload.targets.map(target => ({
-      branch: target.branch,
-      customer_key: payload.customerKey,
-      status: payload.status,
-      alert_signature: target.alertSignature,
-      updated_by_name: payload.userName,
-      updated_at: '2026-09-21T00:00:00.000Z'
-    }));
-  };
-  dashboardData.findDebtCustomerBranches = async () => customerBranches;
-  dashboardData.invalidateDebtWorkflowCache = branch => {
-    state.invalidated.push(branch);
-    log.push(`invalidate:${branch}`);
-  };
-  state.restore = () => {
-    repository.upsertStatus = originals.upsertStatus;
-    repository.upsertStatusForBranches = originals.upsertStatusForBranches;
-    dashboardData.invalidateDebtWorkflowCache = originals.invalidate;
-    dashboardData.findDebtCustomerBranches = originals.findBranches;
-  };
-  return state;
-}
-
-function bothBranchesRequest(alertSignature = HANOI_SIGNATURE) {
-  return {
-    branch: 'Cả hai',
-    user: { id: '9ad42989-90ef-4da8-bf87-da505551ed15', hoTen: 'Quản lý A', vaiTro: 'Quản lý' },
-    body: { customerKey: 'a'.repeat(64), status: 'Đã xử lý', alertSignature }
-  };
-}
-
-test('PATCH ở "Cả hai" ghi cả hai cơ sở vật lý rồi xóa cache sau khi commit', async () => {
-  const handler = routeStack().at(-1);
-  const harness = bothBranchesHarness();
-  try {
-    const res = fakeRes();
-    await handler(bothBranchesRequest(), res);
-
-    assert.equal(res.statusCode, 200);
-    assert.deepEqual(harness.writtenBranches, ['hanoi', 'saigon']);
-    assert.equal(harness.singleBranchCalls, 0, 'không được dùng đường ghi một cơ sở');
-    assert.deepEqual(harness.invalidated, ['Hà Nội', 'Sài Gòn']);
-    assert.deepEqual(harness.log, ['write', 'invalidate:Hà Nội', 'invalidate:Sài Gòn'], 'chỉ xóa cache SAU khi ghi xong');
-    assert.deepEqual(res.body.branches, ['Hà Nội', 'Sài Gòn']);
-    assert.equal(res.body.status, 'Đã xử lý');
-  } finally {
-    harness.restore();
-  }
-});
-
-test('PATCH ở "Cả hai" lưu CHỮ KÝ RIÊNG của từng cơ sở, không nhân bản chữ ký Hà Nội sang Sài Gòn', async () => {
-  const handler = routeStack().at(-1);
-  const harness = bothBranchesHarness();
-  try {
-    const res = fakeRes();
-    await handler(bothBranchesRequest(), res);
-
-    assert.equal(res.statusCode, 200);
-    assert.deepEqual(harness.writtenTargets, [
-      { branch: 'hanoi', alertSignature: HANOI_SIGNATURE },
-      { branch: 'saigon', alertSignature: SAIGON_SIGNATURE }
-    ]);
-  } finally {
-    harness.restore();
-  }
-});
-
-test('PATCH ở "Cả hai" giữ chữ ký client gửi lên khi màn hình đã cũ (trạng thái sẽ tự hết hiệu lực như một cơ sở)', async () => {
-  const handler = routeStack().at(-1);
-  const harness = bothBranchesHarness();
-  try {
-    const res = fakeRes();
-    await handler(bothBranchesRequest(STALE_SIGNATURE), res);
-
-    assert.equal(res.statusCode, 200);
-    assert.deepEqual(harness.writtenTargets, [
-      { branch: 'hanoi', alertSignature: STALE_SIGNATURE },
-      { branch: 'saigon', alertSignature: STALE_SIGNATURE }
-    ]);
-  } finally {
-    harness.restore();
-  }
-});
-
-test('PATCH ở "Cả hai" không xóa cache khi transaction thất bại', async () => {
-  const handler = routeStack().at(-1);
-  const harness = bothBranchesHarness({
-    upsertForBranches: async () => { throw new Error('rollback'); }
+  assert.deepEqual(received, {
+    branch: 'hanoi', customerId: '42', cycleDate: '2026-10-13', field: 'sale', value: 'Hẹn thứ 6', user: { id: 'u1', hoTen: 'Lan' }
   });
-  try {
-    const res = fakeRes();
-    await handler(bothBranchesRequest(), res);
+});
 
+test('loi nghiep vu (409 sang chu ky moi) tra nguyen ma loi; loi DB tra 503', async () => {
+  const handler = routeStack('/api/debt-management/manager-feedback').at(-1);
+  const conflict = Object.assign(new Error('Bảng công nợ đã sang chu kỳ mới'), { statusCode: 409, code: 'DEBT_CYCLE_CHANGED' });
+  await withRepo({ saveFeedback: async () => { throw conflict; } }, async () => {
+    const res = fakeRes();
+    await handler({ user: {}, body: { branch: 'hanoi', customerId: '1', cycleDate: '2026-10-12', value: 'x' } }, res);
+    assert.equal(res.statusCode, 409);
+    assert.equal(res.body.code, 'DEBT_CYCLE_CHANGED');
+  });
+  await withRepo({ saveFeedback: async () => { throw new Error('db down'); } }, async () => {
+    const res = fakeRes();
+    await handler({ user: {}, body: { branch: 'hanoi', customerId: '1', value: 'x' } }, res);
     assert.equal(res.statusCode, 503);
-    assert.equal(res.body.code, 'DEBT_STATUS_UNAVAILABLE');
-    assert.deepEqual(harness.invalidated, []);
-  } finally {
-    harness.restore();
-  }
-});
-
-test('PATCH ở "Cả hai" chỉ ghi cơ sở thực sự có khách hàng này', async () => {
-  const handler = routeStack().at(-1);
-  const harness = bothBranchesHarness({
-    customerBranches: { found: [{ branch: 'Sài Gòn', alertSignature: SAIGON_SIGNATURE }], undetermined: [] }
   });
-  try {
-    const res = fakeRes();
-    // Khach chi co o Sai Gon nen dong gop mang chu ky cua Sai Gon.
-    await handler(bothBranchesRequest(SAIGON_SIGNATURE), res);
-
-    assert.equal(res.statusCode, 200);
-    assert.deepEqual(harness.writtenTargets, [{ branch: 'saigon', alertSignature: SAIGON_SIGNATURE }]);
-    assert.deepEqual(harness.invalidated, ['Sài Gòn']);
-    assert.deepEqual(res.body.branches, ['Sài Gòn']);
-  } finally {
-    harness.restore();
-  }
 });
 
-test('PATCH ở "Cả hai" trả 404 khi không cơ sở nào có khách hàng này', async () => {
-  const handler = routeStack().at(-1);
-  const harness = bothBranchesHarness({ customerBranches: { found: [], undetermined: [] } });
-  try {
+test('PATCH status tu choi trang thai ngoai danh sach truoc khi cham DB', async () => {
+  const handler = routeStack('/api/debt-management/status').at(-1);
+  await withRepo({ saveStatus: async () => assert.fail('khong duoc ghi') }, async () => {
     const res = fakeRes();
-    await handler(bothBranchesRequest(), res);
-
-    assert.equal(res.statusCode, 404);
-    assert.equal(res.body.code, 'DEBT_CUSTOMER_NOT_FOUND');
-    assert.equal(harness.writtenBranches, null);
-    assert.deepEqual(harness.invalidated, []);
-  } finally {
-    harness.restore();
-  }
-});
-
-test('PATCH ở "Cả hai" vẫn ghi cơ sở không đọc được nguồn công nợ (không âm thầm bỏ qua), dùng chữ ký client gửi lên cho cơ sở đó', async () => {
-  const handler = routeStack().at(-1);
-  const harness = bothBranchesHarness({
-    customerBranches: {
-      found: [{ branch: 'Hà Nội', alertSignature: HANOI_SIGNATURE }],
-      undetermined: ['Sài Gòn']
-    }
+    await handler({ user: {}, body: { branch: 'hanoi', customerId: '1', status: 'Không hợp lệ' } }, res);
+    assert.equal(res.statusCode, 400);
   });
-  try {
-    const res = fakeRes();
-    await handler(bothBranchesRequest(), res);
-
-    assert.equal(res.statusCode, 200);
-    assert.deepEqual(harness.writtenTargets, [
-      { branch: 'hanoi', alertSignature: HANOI_SIGNATURE },
-      { branch: 'saigon', alertSignature: HANOI_SIGNATURE }
-    ]);
-  } finally {
-    harness.restore();
-  }
 });
 
-test('PATCH một cơ sở vật lý giữ nguyên đường ghi cũ (không mở transaction hai cơ sở)', async () => {
-  const handler = routeStack().at(-1);
-  const harness = bothBranchesHarness();
-  try {
+test('PATCH schedule gui so ngay + nguoi sua xuong repository', async () => {
+  const handler = routeStack('/api/debt-management/schedule').at(-1);
+  let received;
+  await withRepo({ setSchedule: async payload => { received = payload; return { scheduleDays: 3, changed: true }; } }, async () => {
     const res = fakeRes();
-    await handler({
-      branch: 'Hà Nội',
-      user: { id: '9ad42989-90ef-4da8-bf87-da505551ed15', hoTen: 'Quản lý A', vaiTro: 'Quản lý' },
-      body: { customerKey: 'a'.repeat(64), status: 'Đã xử lý', alertSignature: 'b'.repeat(64) }
-    }, res);
-
+    await handler({ user: { hoTen: 'QL' }, body: { branch: 'saigon', customerId: '7', scheduleDays: '3' } }, res);
     assert.equal(res.statusCode, 200);
-    assert.equal(harness.singleBranchCalls, 1);
-    assert.equal(harness.writtenBranches, null, 'một cơ sở không được đi qua ghi hai cơ sở');
-    assert.deepEqual(harness.invalidated, ['Hà Nội']);
-    assert.equal(res.body.branches, undefined, 'phản hồi một cơ sở giữ nguyên hình dạng cũ');
-  } finally {
-    harness.restore();
-  }
+  });
+  assert.deepEqual(received, { branch: 'saigon', customerId: '7', days: '3', user: { hoTen: 'QL' } });
 });
 
-test('PATCH trả 503 khi PostgreSQL lỗi', async () => {
-  const handler = routeStack().at(-1);
-  const originalUpsert = repository.upsertStatus;
-  repository.upsertStatus = async () => { throw new Error('database unavailable'); };
-  try {
+test('GET feedback-history doc theo co so dang xem', async () => {
+  const handler = routeStack('/api/debt-management/feedback-history', 'get').at(-1);
+  let received;
+  await withRepo({ listFeedbackHistory: async payload => { received = payload; return { cycleDate: '2026-10-13', entries: [] }; } }, async () => {
     const res = fakeRes();
-    await handler({
-      branch: 'Hà Nội',
-      user: { id: '9ad42989-90ef-4da8-bf87-da505551ed15', hoTen: 'Quản lý' },
-      body: { customerKey: 'f'.repeat(64), status: 'Bỏ qua', alertSignature: 'a'.repeat(64) }
-    }, res);
-    assert.equal(res.statusCode, 503);
-    assert.equal(res.body.code, 'DEBT_STATUS_UNAVAILABLE');
-  } finally {
-    repository.upsertStatus = originalUpsert;
-  }
+    await handler({ branch: 'Cả hai', user: {} }, res);
+    assert.equal(res.statusCode, 200);
+  });
+  assert.deepEqual(received, { branches: ['hanoi', 'saigon'] });
 });

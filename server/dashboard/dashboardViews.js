@@ -7,7 +7,7 @@
 // GET /api/dashboard?view=<tab> de chi doc/tinh/tra phan cua tab do:
 //   - `coreKeys`: cac bang nguon (sheet "core") + CN1/3/7 tab nay can doc;
 //   - `rollups`: cac truy van rollup tab nay can;
-//   - `needsDebt`: co can workbook cong no + workflow (Google Sheets) hay khong;
+//   - `needsDebt`: co can bao cao cong no theo lich TT (server/debtSchedule) hay khong;
 //   - `filterKeys`: khoa cua object `filters` anh huong tab nay (vao cache key,
 //     nen doi bo loc cua tab khac khong lam mat cache cua tab nay);
 //   - VIEW_PAYLOAD: phan payload tab nay tra ve.
@@ -37,7 +37,9 @@ const CORE_SHEETS_ORDER = Object.freeze([
   CONFIG.SHEET_CATEGORIES, CONFIG.SHEET_PRODUCTS, CONFIG.SHEET_INVOICES,
   CONFIG.SHEET_RETURNS, CONFIG.SHEET_CUSTOMERS
 ]);
-const ALL_CORE_KEYS = Object.freeze([...CORE_SHEETS_ORDER, PERIODS_KEY]);
+// (2026-10-13: tab Cong no bo quy tac 1-3-7 nen khong tab nao con doc CN1/3/7 — PERIODS_KEY chi
+// con de mot tab khai bao 'periods: true' neu sau nay can lai.)
+const ALL_CORE_KEYS = Object.freeze([...CORE_SHEETS_ORDER]);
 
 const ALL_ROLLUPS = Object.freeze([
   'overviewRevenue', 'invoicesRevenue', 'productSales', 'newlyImportedSales', 'firstPurchase',
@@ -70,10 +72,11 @@ const VIEW_SOURCES = Object.freeze({
     rollups: [],
     needsDebt: false
   },
-  // Cong no: workbook Google Sheets + workflow Postgres + CN1/3/7, KHONG dung bang nguon core.
+  // Cong no (2026-10-13): ban chot 15:00 + lich TT trong Postgres (server/debtSchedule), doc
+  // rieng trong getDashboardData — KHONG dung bang nguon core lan CN1/3/7.
   debt: {
     sheets: [],
-    periods: true,
+    periods: false,
     rollups: [],
     needsDebt: true
   }

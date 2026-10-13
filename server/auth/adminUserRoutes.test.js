@@ -650,7 +650,7 @@ test('GET /api/admin/permissions/catalog tra ve danh muc + mac dinh theo vai tro
   const saleViewKeys = ['reports.overview', 'reports.products', 'reports.invoices', 'reports.customers', 'reports.debt', 'reports.business'];
   assert.deepEqual(
     res.body.roleDefaults['Nhân viên marketing'].filter(key => key !== 'reports.marketing'),
-    res.body.roleDefaults['Nhân viên sale'].filter(key => !saleViewKeys.includes(key) && !['shipment.lifecycle', 'shipment.lookup', 'shipment.history'].includes(key))
+    res.body.roleDefaults['Nhân viên sale'].filter(key => !saleViewKeys.includes(key) && key !== 'reports.debt.saleFeedback' && !['shipment.lifecycle', 'shipment.lookup', 'shipment.history'].includes(key))
   );
   assert.ok(res.body.roleDefaults['Nhân viên sale'].includes('reports.overview'));
   assert.ok(res.body.roleDefaults['Nhân viên marketing'].includes('reports.marketing'));

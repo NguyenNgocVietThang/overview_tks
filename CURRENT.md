@@ -1,6 +1,6 @@
 # CURRENT: BẢNG TRẠNG THÁI THỜI GIAN THỰC (REALTIME DASHBOARD)
 
-> **Cập nhật gần nhất:** 12/10/2026 (Asia/Ho_Chi_Minh), phiên "Pancake Marketing: khôi phục ID, đồng bộ thật, gộp main"  
+> **Cập nhật gần nhất:** 13/10/2026 (Asia/Ho_Chi_Minh), phiên "Công nợ theo lịch thanh toán" (đã commit, đã migrate 0047 + import lịch TT; CHƯA push/deploy)  
 > **Trạng thái Git:** `main` = `89d8828`, đã push cả `tks_web/main` (Render theo dõi) và `origin/main`. Chỉ còn nhánh `main`; mọi nhánh khác đã gộp hoặc bị xóa theo yêu cầu. Chưa xác nhận deploy Render.
 > **Quy tắc:** Cập nhật liên tục vào đầu và cuối mỗi phiên làm việc để không bị đứt đoạn ngữ cảnh dự án.
 
@@ -11,14 +11,23 @@
 | Hạng mục | Trạng thái | Chi tiết |
 |---|---|---|
 | **Mã nguồn Backend** | Hoàn thành | Node.js Express, hỗ trợ 7 tab báo cáo, sổ quỹ, nhân sự, tài khoản, bot Telegram |
-| **Cơ sở dữ liệu** | 0001 → 0046 | Migration `0044_pancake_marketing`, `0045_pancake_current_input`, `0046_pancake_history_identity` và `0044_purchases_raw_hash` đã áp lên DB dùng chung (kiểm `schema_migrations` ngày 12/10). `0043` đã áp. Hai file cùng tiền tố 0044 là chủ ý, runner chạy theo tên đầy đủ |
-| **Kiểm thử tự động** | 2.295/2.298 xanh | Chạy trên `main` đã gộp: 2.295 đạt, 3 skipped (theo cấu hình), 0 lỗi. 4 test tồn kho cũ đã đổi kỳ vọng theo giao diện hiện hành, logic không đổi |
+| **Cơ sở dữ liệu** | 0001 → 0047 | `0047_debt_schedule_report` đã áp lên DB dùng chung 13/10; đã import lịch TT SG 1.228 + HN 3.072 (nhật ký 4.300 dòng import). | Migration `0044_pancake_marketing`, `0045_pancake_current_input`, `0046_pancake_history_identity` và `0044_purchases_raw_hash` đã áp lên DB dùng chung (kiểm `schema_migrations` ngày 12/10). `0043` đã áp. Hai file cùng tiền tố 0044 là chủ ý, runner chạy theo tên đầy đủ |
+| **Kiểm thử tự động** | 2.296/2.299 xanh (13/10) | Sau thay đổi công nợ: 2.296 đạt, 3 skipped, 0 lỗi. Trước đó: | Chạy trên `main` đã gộp: 2.295 đạt, 3 skipped (theo cấu hình), 0 lỗi. 4 test tồn kho cũ đã đổi kỳ vọng theo giao diện hiện hành, logic không đổi |
 | **Knowledge Graph** | Đã cập nhật | Graphify updated ngày 12/10/2026 (thư mục cache `graphify-out/cache/ast/v0.9.55-s2/` cũ còn chưa theo dõi, xóa tay được) |
 | **Tài liệu hệ thống** | Đồng bộ 100% | `README.md`, `server/README.md`, `SCHEMA.md`, `implementation_plan.md`, SRS, BRD, MEMORY.md |
 
 ---
 
 ## 2. Các đầu việc vừa hoàn thành (Recently Completed — Tháng 10/2026)
+
+0. **Công nợ theo lịch thanh toán (13/10/2026, migration 0047 đã áp, lịch TT đã import — CHƯA push/deploy):**
+   - Bỏ workbook Google Sheets + quy tắc 1-3-7-Hàng tuần + ngưỡng 400k + cảnh báo "Chưa thu". Khóa dòng = khách + cơ sở (HN/SG). Lịch TT (1–90 ngày, mặc định 1) lưu `debt_payment_schedules`, Quản lý sửa trên web (`reports.debt.schedule`), nhật ký vĩnh viễn.
+   - Lý do không dùng trường facebook KiotViet: API public KiotViet KHÔNG trả trường này (đã gọi thử list + detail với `includeCustomerSocial` cho KH000601 HN / KH003622 SG).
+   - Chốt 15:00 VN mỗi ngày (`debtSchedule/debtCycleSnapshot.js`, scheduler); nợ quá hạn = nợ hiện tại − (hóa đơn − trả hàng trong N ngày), tính lại khi đọc nên đổi lịch TT có hiệu lực ngay. DS = TB 4 tháng của Báo cáo kinh doanh (theo cơ sở + mã KH).
+   - Cột Sale phản hồi / QL phản hồi / Trạng thái + Lịch sử chỉnh sửa (mọi thay đổi trên giao diện: 2 phản hồi, trạng thái, lịch TT) reset theo bản chốt 15:00 hôm sau. Quyền: `reports.debt.saleFeedback` (Sale), `reports.debt.managerFeedback` + `reports.debt.edit` + `reports.debt.schedule` (Quản lý). `reports.debt.saleFeedback` miễn kiểm tra leo thang (`isEscalationExempt`) để Trợ lý ủy quyền vẫn tạo/đặt lại mật khẩu tài khoản Sale.
+   - File cũ không xóa được trong phiên (bị chặn quyền), nên xóa tay: `server/sheets/debtManagementSheetsClient(.test).js`, `server/dashboard/debtCollectionStatusRepository(.test).js`; `dashboard/debtManagement.js` còn dùng `parseNullableNumber` cho supplierReturnImportService.
+   - Đã xong 13/10: migrate 0047; import SG 1.228/1.228, HN 3.072 (42 trống/"Khác" → mặc định 1); commit.
+   - **Việc tiếp theo:** push + deploy → sau 15:00 chạy tay `node debtSchedule/debtCycleSnapshot.js` (hoặc chờ job 15:00) → đối chiếu 3–5 khách với KiotViet.
 
 1. **Thiết kế lại các hộp "xem chi tiết" + sửa cảnh báo Kế toán sót đơn (12/10/2026, không migration):**
    - File mới `public/shared/detail-panel.css` (khung `.dp-*`), nối vào `index.html`, `shipment/lifecycle/index.html`, `humanresources/index.html`. Hộp: Chi tiết giao dịch, Doanh số theo khách (Báo cáo hàng hóa), Báo cáo kinh doanh (Sale/Khách/Mã hàng), Chi tiết đơn Vòng đời, Chi tiết nghỉ phép, Chi tiết Marketing — đều có hàng chỉ số tổng quan, không còn nút "Cột hiển thị" (`data-table-controls="off"`), 1 khung cuộn, responsive điện thoại, Sáng/Tối.
@@ -125,6 +134,18 @@
   - Hướng dẫn các Quản lý có Telegram ID bấm `/start` với bot quản lý để nhận thông báo duyệt đơn.
 
 ## Marketing Pancake — cập nhật phiên 12/10/2026
+
+### Trạng thái vận hành kiểm tra trực tiếp ngày 13/10/2026
+
+- Render `tokosi` đang dùng `MARKETING_REPORT_SOURCE=postgres` và `PANCAKE_MARKETING_SYNC_ENABLED=true` (đã có trước phiên kiểm tra, khác ghi chú ngày 12/10).
+- Theo yêu cầu đồng bộ và sáu token người dùng cung cấp trong phiên 13/10, đã thêm đủ sáu biến `PANCAKE_PAGE_TOKEN_<pageId>` vào Render. Không lưu giá trị token trong tài liệu hoặc Git.
+- Deploy cập nhật môi trường `dep-db6nte59fdbs73dkt680` thành công, Live lúc 07:43:58 giờ Việt Nam, mã `89d8828`. Lịch trong mã: 23:55 Asia/Ho_Chi_Minh.
+- Kiểm tra trong Web Shell của instance Render `zvcrq`: công tắc `true`, nguồn `postgres`, đủ 6 token; GET danh sách INBOX của cả 6 page đều HTTP 200, `success=true` và có mảng conversations. Đây là kiểm tra kết nối, không thay thế kết quả đồng bộ đầy đủ.
+- Đang chạy đồng bộ thủ công vào DB dùng chung: `pancake:2026-10-13`, run ID `8`, bắt đầu 07:41:22 giờ Việt Nam. Chưa xác nhận hoàn tất; báo cáo khi kết thúc: `tasks/2026-10-09-pancake-marketing/sync-2026-10-13.json`.
+- Web `/reports/#marketing` truy cập được bằng trình duyệt nhưng chuyển sang trang đăng nhập; chưa xác minh bảng Marketing bằng phiên đăng nhập web.
+- Chưa xác nhận ba đêm đối soát và quyết định nghiệp vụ về “chào lại”/tin ngoài nền Sheets; các lưu ý nghiệm thu ngày 12/10 vẫn còn.
+
+### Ghi nhận phiên 12/10 (lịch sử)
 
 Mã T3–T6 đã triển khai và qua kiểm thử; nguồn chính thức vẫn là Sheets. Ngày 12/10/2026 đã khôi phục ID tin nhắn từ sáu bản xuất đầy đủ (migration 0046): 18.304 dòng lịch sử thật đều có liên kết (18.294 duy nhất, 7 chỉ khác cách viết số +84/0 thừa đã kiểm cùng giây-cùng nhân viên, 3 dòng thuộc cặp tin tương đương = 6 liên kết); chỉ còn dòng tiêu đề lặp BL THÔ!1950 (không phải quan sát). 3.148 tin trong kỳ nằm ngoài nền Sheets được ghi sổ riêng, không tính. Đồng bộ thật đủ sáu page đạt (slot 12/10): 11.797 fact, 2.478 quan sát cùng ngày ghi nhận 12/10 (thay đổi nhân viên tích lũy từ lúc dán Sheets và 861 tin mới), 0 mục chưa giải quyết, 0 dòng lịch sử chưa liên kết; nền lịch sử khớp CHUẨN (11.942 nhóm SĐT); tổng khớp chi tiết 100/100 (T10) và 80/80 (T9). Công tắc job vẫn TẮT và nguồn vẫn Sheets: chưa có ba đợt hằng đêm đối soát, chưa cấu hình token trên Render. Lưu ý nghiệm thu: lần đồng bộ đầu dồn các thay đổi nhân viên cũ vào ngày 12/10 nên "chào lại" tháng 10 tăng mạnh (179 → 1.660); cần Quản lý xác nhận cách tính trước khi chuyển nguồn.
 

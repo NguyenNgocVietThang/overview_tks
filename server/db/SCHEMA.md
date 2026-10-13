@@ -160,7 +160,7 @@ Role Postgres cấp cho nhân viên dùng SQL client/BI tool để truy vấn tr
 
 | Bảng | Mục đích | Khóa chính | Cột chính |
 |---|---|---|---|
-| `debt_collection_statuses` | Trạng thái thu nợ do Quản lý/Trợ lý cập nhật, tách khỏi workbook Google Sheets chỉ đọc | `(branch, customer_key)` | `status`, `alert_signature`, `updated_by_user_id`, `updated_by_name`, `updated_at` |
+| `debt_collection_statuses` | Trạng thái thu nợ do Quản lý/Trợ lý cập nhật, tách khỏi workbook Google Sheets chỉ đọc | `(branch, customer_key)` | `status`, `alert_signature`, `updated_by_user_id`, `updated_by_name`, `updated_at` *(Không còn dùng từ 0047.)* |
 
 - `branch` chỉ nhận `hanoi` hoặc `saigon`; route lấy giá trị từ session/middleware, không nhận cơ sở từ body client.
 - `status` chỉ nhận `Chưa xử lý`, `Đang xử lý`, `Đã xử lý`, `Bỏ qua`.
@@ -426,6 +426,22 @@ Migration `0044_purchases_raw_hash.sql` thêm `purchases.raw_hash TEXT` (nullabl
 ## Marketing canonical input — migration 0045
 
 `0045_pancake_current_input.sql` thêm JSONB nullable `marketing_pancake_facts.current_input` với CHECK object, giữ canonical API state khi adoption không tạo observation. Không chứa dữ liệu đếm riêng; lịch sử/observation vẫn bất biến. Snapshot báo cáo `includeRaw:false` bỏ field này và JSON nguồn. Khóa advisory riêng giữ một job xuyên instance; thời điểm ghi nhận được lấy cuối transaction, qua nửa đêm rollback/thử lại để không cập nhật observation bất biến.
+
+## Công nợ theo lịch thanh toán — migration 0047
+
+`0047_debt_schedule_report.sql` (2026-10-13). Khóa nghiệp vụ của công nợ là **(cơ sở, khách KiotViet)**.
+
+| Bảng | Mục đích |
+|---|---|
+| `debt_payment_schedules` | Lịch TT (số ngày nợ tối đa, 1–90) theo `(branch, customer_id)`. Không có dòng = 1 ngày. |
+| `debt_payment_schedule_log` | Nhật ký sửa lịch TT (`source` = `import`/`web`), chỉ thêm (trigger chặn UPDATE/DELETE), giữ vĩnh viễn. |
+| `debt_cycle_runs` | Mốc chốt 15:00 VN mỗi ngày (`cycle_date` PK). Bản mới nhất = chu kỳ hiện tại. |
+| `debt_cycle_customers` | Khách đang nợ tại bản chốt: `current_debt`, `opening_debt` (nợ của bản chốt trước), `avg_revenue_4m`. FK CASCADE theo run. |
+| `debt_cycle_amounts` | Tổng hóa đơn chưa hủy / phiếu trả "Đã trả" theo ngày VN, 90 ngày tới 15:00 — để tính nợ trong lịch theo lịch TT hiện tại. |
+| `debt_cycle_feedback` | Sale phản hồi / QL phản hồi / Trạng thái của chu kỳ (`cycle_date, branch, customer_id`). |
+| `debt_feedback_history` | Lịch sử mọi thay đổi trên giao diện công nợ (`field` = `sale`/`manager`/`status`/`schedule`), theo chu kỳ. |
+
+Job chốt xóa run/feedback/history cũ hơn 7 ngày. SELECT của `reporting_readonly` bị thu hồi trên nhật ký lịch TT, phản hồi và lịch sử. Bảng `debt_collection_statuses` (0011) không còn được dùng.
 
 ## Marketing định danh lịch sử — migration 0046
 

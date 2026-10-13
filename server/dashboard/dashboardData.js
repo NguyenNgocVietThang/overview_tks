@@ -9,16 +9,16 @@
 // customerDebtActivityRepository, khong con phu thuoc cac tab HN1/HN3/HN7.
 // ==========================================
 const CONFIG = require('../config');
-const debtManagementSheetsClient = require('../sheets/debtManagementSheetsClient');
 const dashboardPgReader = require('./dashboardPgReader');
 const customerDebtActivityRepository = require('./customerDebtActivityRepository');
 const customerDirectoryRepository = require('./customerDirectoryRepository');
 const customerInvoiceLinesRepository = require('./customerInvoiceLinesRepository');
 const dashboardRollupRepository = require('./dashboardRollupRepository');
 const { BRANCHES, BRANCH_BOTH, branchLabelToCode, resolveBranchScope } = require('../branch/branches');
-const { hasFeature } = require('../auth/featureRegistry');
-const debtCollectionStatusRepository = require('./debtCollectionStatusRepository');
-const { deriveDebtManagement, PAYMENT_SCHEDULES, DEBT_TOTAL_AVERAGE_SALES } = require('./debtManagement');
+// Tab Cong no (2026-10-13): ban chot 15:00 + lich TT luu Postgres (server/debtSchedule), khong
+// con doc workbook Google Sheets / quy tac 1-3-7-Hang tuan.
+const debtScheduleService = require('../debtSchedule/debtScheduleService');
+const debtScheduleRepository = require('../debtSchedule/debtScheduleRepository');
 const { dashboardRollupEvents } = require('../kiotvietSync/dashboardRollupEvents');
 const { PERIODS_KEY, ALL_CORE_KEYS, ALL_ROLLUPS, resolveViewPlan, pickPayload, pickFilters } = require('./dashboardViews');
 // Tang moi lan rollup refresh xong — nam trong khoa dashboardResultCache de
@@ -729,120 +729,6 @@ function dashboardCoreSourcesNeedBlockingFetch(branch, keys) {
 // qua tinh tu bang cu het hieu luc ngay khi bang do duoc lam moi.
 function dashboardCoreSourcesVersion(branch, keys) {
   return keys.map(key => dashboardCoreEntry(branch, key).version).join('.');
-}
-
-// Workbook công nợ có vòng đời/cache riêng với spreadsheet vận hành. Mỗi cơ
-// sở đọc đúng một tab trong cùng workbook và giữ version riêng để cache kết
-// quả tổng hợp không thể che mất lần làm mới từ một trong hai nguồn.
-let debtManagementSheetsCacheByBranch = new Map();
-
-function debtManagementSheetsCacheFor(branch) {
-  const key = branch || BRANCHES.HANOI;
-  if (!debtManagementSheetsCacheByBranch.has(key)) {
-    debtManagementSheetsCacheByBranch.set(key, { data: null, version: 0, expiresAt: 0, loading: null });
-  }
-  return debtManagementSheetsCacheByBranch.get(key);
-}
-
-async function getCachedDebtManagementSource(branch) {
-  const cache = debtManagementSheetsCacheFor(branch);
-  if (cache.data && Date.now() < cache.expiresAt) return cache.data;
-  if (cache.loading) return cache.loading;
-
-  const loading = debtManagementSheetsClient.getDebtManagementSheet(branch)
-    .then(source => ({ ...source, error: null }))
-    .catch(error => ({
-      sourceSheet: branch === BRANCHES.SAIGON ? CONFIG.DEBT_MANAGEMENT_SHEET_SG : CONFIG.DEBT_MANAGEMENT_SHEET_HN,
-      rows: null,
-      error
-    }))
-    .then(source => {
-      cache.data = source;
-      cache.version += 1;
-      cache.expiresAt = Date.now() + DASHBOARD_SHEETS_CACHE_TTL_MS;
-      return source;
-    })
-    .finally(() => {
-      if (cache.loading === loading) cache.loading = null;
-    });
-  cache.loading = loading;
-  return loading;
-}
-
-let debtWorkflowCacheByBranch = new Map();
-
-function debtWorkflowCacheFor(branch) {
-  const key = branch || BRANCHES.HANOI;
-  if (!debtWorkflowCacheByBranch.has(key)) {
-    debtWorkflowCacheByBranch.set(key, { data: null, version: 0, expiresAt: 0, loading: null });
-  }
-  return debtWorkflowCacheByBranch.get(key);
-}
-
-async function getCachedDebtWorkflow(branch) {
-  const cache = debtWorkflowCacheFor(branch);
-  if (cache.data && Date.now() < cache.expiresAt) return cache.data;
-  if (cache.loading) return cache.loading;
-
-  const branchCode = branchLabelToCode(branch || BRANCHES.HANOI);
-  const loading = debtCollectionStatusRepository.listByBranch(branchCode)
-    .then(statuses => ({ available: true, statuses, error: null }))
-    .catch(error => ({ available: false, statuses: [], error }))
-    .then(data => {
-      cache.data = data;
-      cache.version += 1;
-      cache.expiresAt = Date.now() + DASHBOARD_SHEETS_CACHE_TTL_MS;
-      return data;
-    })
-    .finally(() => {
-      if (cache.loading === loading) cache.loading = null;
-    });
-  cache.loading = loading;
-  return loading;
-}
-
-/**
- * Cac co so (trong `branches`) that su co dong cong no cua `customerKey`, kem
- * CHU KY CANH BAO RIENG cua co so do.
- *
- * Dung khi GHI trang thai o pham vi "Cả hai". Hai vai tro:
- *  1. Mot dong da gop co the chi ton tai o mot co so — khong tao dong trang
- *     thai cho co so khong co khach nay.
- *  2. `debtManagement.js` huy trang thai ket thuc khi chu ky luu != chu ky
- *     TINH LAI TU SO LIEU CUA CHINH CO SO DO, nen moi co so phai duoc ghi chu
- *     ky cua chinh no (dong gop chi mang chu ky cua co so dau tien).
- *
- * Chu ky duoc tinh bang dung ham va dung nguon ma /api/dashboard dung
- * (`buildDebtManagementForBranch` + cache workbook cong no + cache 7 tab core
- * kem CN1/CN3/CN7), nen khong the lech voi luc doc. Co so khong doc duoc mot
- * trong hai nguon tra ve trong `undetermined` — o day KHONG doan la "khong
- * co" va cung khong doan chu ky.
- * @returns {Promise<{found: Array<{branch: string, alertSignature: string}>, undetermined: string[]}>}
- */
-async function findDebtCustomerBranches(customerKey, branches) {
-  const key = String(customerKey || '').trim().toLowerCase();
-  const scope = Array.isArray(branches) ? branches : [];
-  const results = await Promise.all(scope.map(async branch => {
-    const [debtManagementSource, sheets] = await Promise.all([
-      getCachedDebtManagementSource(branch),
-      // Chi can CN1/CN3/CN7 (dung dung nguon tab Cong no cua dashboard doc) —
-      // khong keo 7 bang core ve chi de tinh chu ky canh bao.
-      getCachedDashboardCoreSources(branch, [PERIODS_KEY]).catch(() => null)
-    ]);
-    // Thieu CN1/CN3/CN7 se lam tat canh bao "Chưa thu" va cho ra chu ky khac
-    // voi luc doc — coi nhu chua xac dinh thay vi ghi chu ky sai.
-    if (!sheets) return { branch, determined: false };
-    const derived = buildDebtManagementForBranch({ branch, sheets, debtManagementSource }, false);
-    if (!derived.available) return { branch, determined: false };
-    const customer = (derived.customers || []).find(item => item.customerKey === key);
-    return { branch, determined: true, alertSignature: customer?.alertSignature || '' };
-  }));
-  return {
-    found: results
-      .filter(item => item.determined && item.alertSignature)
-      .map(item => ({ branch: item.branch, alertSignature: item.alertSignature })),
-    undetermined: results.filter(item => !item.determined).map(item => item.branch)
-  };
 }
 
 /**
@@ -1845,130 +1731,6 @@ function mergeDashboardRollups(branchSources) {
   };
 }
 
-function buildDebtManagementForBranch(source, canEditDebtStatus) {
-  const debtManagement = deriveDebtManagement({
-    managementRows: source.debtManagementSource?.rows,
-    branch: source.branch,
-    sourceSheet: source.debtManagementSource?.sourceSheet || (source.branch === BRANCHES.SAIGON
-      ? CONFIG.DEBT_MANAGEMENT_SHEET_SG
-      : CONFIG.DEBT_MANAGEMENT_SHEET_HN),
-    operationalSheets: {
-      HN1: source.sheets.HN1,
-      HN3: source.sheets.HN3,
-      HN7: source.sheets.HN7
-    },
-    workflowStatuses: source.debtWorkflow?.statuses || [],
-    workflowAvailable: source.debtWorkflow?.available !== false,
-    userCanEdit: canEditDebtStatus
-  });
-  // Moi khach mang co so vat ly cua nguon cong no (cot "Cơ sở" cua bang).
-  if (Array.isArray(debtManagement.customers)) {
-    debtManagement.customers = debtManagement.customers.map(customer => ({ ...customer, branch: source.branch }));
-  }
-  if (source.debtManagementSource?.error) {
-    debtManagement.dataWarnings.unshift(`Không tải được workbook công nợ: ${source.debtManagementSource.error.message || 'Lỗi không xác định'}.`);
-  }
-  return debtManagement;
-}
-
-function mergeDebtManagementSources(branchSources, canEditDebtStatus) {
-  const derivedSources = branchSources.map(source => ({
-    branch: source.branch,
-    source: source.debtManagementSource,
-    data: buildDebtManagementForBranch(source, canEditDebtStatus)
-  }));
-  const sources = derivedSources.map(item => ({
-    branch: item.branch,
-    sourceSheet: item.data.sourceSheet,
-    available: item.data.available,
-    error: item.source?.error?.message || null
-  }));
-  const dataWarnings = derivedSources.flatMap(item =>
-    (item.data.dataWarnings || []).map(warning => `${item.branch}: ${warning}`)
-  );
-  const customersByKey = new Map();
-  derivedSources.forEach(item => (item.data.customers || []).forEach(customer => {
-    const key = customer.customerKey || normalizeSearchValue(customer.customerName);
-    const detail = { branch: item.branch, sourceSheet: item.data.sourceSheet, ...customer };
-    if (!customersByKey.has(key)) {
-      customersByKey.set(key, {
-        ...customer,
-        openingDebt: 0,
-        currentDebt: 0,
-        overdueDebt: 0,
-        alertCodes: [],
-        dataIssues: [],
-        branchDetails: []
-      });
-    }
-    const merged = customersByKey.get(key);
-    merged.openingDebt += Number(customer.openingDebt) || 0;
-    merged.currentDebt += Number(customer.currentDebt) || 0;
-    merged.overdueDebt += Number(customer.overdueDebt) || 0;
-    merged.alertCodes = Array.from(new Set([...merged.alertCodes, ...(customer.alertCodes || [])]));
-    merged.dataIssues = Array.from(new Set([...merged.dataIssues, ...(customer.dataIssues || [])]));
-    merged.needsAction = Boolean(merged.needsAction || customer.needsAction);
-    merged.canEditStatus = Boolean(merged.canEditStatus || customer.canEditStatus);
-    merged.branchDetails.push(detail);
-  }));
-  const customers = Array.from(customersByKey.values());
-  const totalCurrentDebt = customers.reduce((sum, customer) => sum + (Number(customer.currentDebt) || 0), 0);
-  const totalOverdueDebt = customers.reduce((sum, customer) => sum + (Number(customer.overdueDebt) || 0), 0);
-  const totalAverageSales = derivedSources.reduce((sum, item) => {
-    return sum + (Number(item.data[DEBT_TOTAL_AVERAGE_SALES]) || 0);
-  }, 0);
-  const toTopItem = customer => ({
-    customerKey: customer.customerKey,
-    customerName: customer.customerName,
-    sale: customer.sale,
-    paymentSchedule: customer.paymentSchedule,
-    currentDebt: customer.currentDebt,
-    overdueDebt: customer.overdueDebt,
-    needsAction: customer.needsAction
-  });
-  const summarizeBy = (field, values) => {
-    const map = new Map((values || []).map(value => [value, {
-      [field]: value, totalCurrentDebt: 0, totalOverdueDebt: 0, actionCustomerCount: 0, customerCount: 0
-    }]));
-    customers.forEach(customer => {
-      const value = customer[field];
-      if (!map.has(value)) map.set(value, {
-        [field]: value, totalCurrentDebt: 0, totalOverdueDebt: 0, actionCustomerCount: 0, customerCount: 0
-      });
-      const summary = map.get(value);
-      summary.totalCurrentDebt += Number(customer.currentDebt) || 0;
-      summary.totalOverdueDebt += Number(customer.overdueDebt) || 0;
-      summary.customerCount += 1;
-      if (customer.needsAction) summary.actionCustomerCount += 1;
-    });
-    return Array.from(map.values());
-  };
-  const bySale = summarizeBy('sale')
-    .sort((a, b) => b.totalOverdueDebt - a.totalOverdueDebt || b.totalCurrentDebt - a.totalCurrentDebt || String(a.sale).localeCompare(String(b.sale), 'vi'))
-    .slice(0, 15);
-  const scheduleSummaries = summarizeBy('paymentSchedule', PAYMENT_SCHEDULES);
-  const scheduleMap = new Map(scheduleSummaries.map(summary => [summary.paymentSchedule, summary]));
-
-  return {
-    available: derivedSources.some(item => item.data.available),
-    sourceSheet: sources.map(source => source.sourceSheet).filter(Boolean).join(' + '),
-    sources,
-    dataWarnings,
-    kpi: {
-      totalCurrentDebt,
-      totalOverdueDebt,
-      actionCustomerCount: customers.filter(customer => customer.needsAction).length,
-      overdueToSalesRatio: totalAverageSales > 0 ? totalOverdueDebt / totalAverageSales : 0
-    },
-    bySale,
-    byPaymentSchedule: PAYMENT_SCHEDULES.map(paymentSchedule => scheduleMap.get(paymentSchedule)),
-    topCurrentDebt: customers.filter(customer => customer.currentDebt > 0)
-      .sort((a, b) => b.currentDebt - a.currentDebt).slice(0, 10).map(toTopItem),
-    topOverdueDebt: customers.filter(customer => customer.overdueDebt > 0)
-      .sort((a, b) => b.overdueDebt - a.overdueDebt).slice(0, 10).map(toTopItem),
-    customers
-  };
-}
 
 const DASHBOARD_RESULT_CACHE_TTL_MS = DASHBOARD_SHEETS_CACHE_TTL_MS; // ket qua tinh toan khong the "tuoi" hon du lieu tho dung de tinh ra no
 const DASHBOARD_RESULT_CACHE_MAX_ENTRIES = 32; // chan bo nho: filters den tu query string nen so bo loc khac nhau la khong gioi han
@@ -2063,21 +1825,16 @@ function shareDashboardRollupFetch(branch, ranges, plan, rollupVersionSnapshot) 
 // Chi doc nguon "re" (cache trong bo nho, thuong tuc thi) — KHONG goi rollup
 // (cac cau SQL rollup) o day nua. getDashboardData() chi goi fetchDashboardRollups()
 // rieng, SAU khi da tra dashboardResultCache va bi mien (xem Task 1.1).
-// `plan` quyet dinh bang nguon nao duoc doc; workbook cong no + workflow (Google
-// Sheets/Postgres) chi doc khi co tab Cong no.
+// `plan` quyet dinh bang nguon nao duoc doc. Tab Cong no doc rieng qua
+// debtScheduleService (xem getDashboardData), khong dung bang nguon core.
 async function loadDashboardBaseSources(branch, physicalBranch = branch || BRANCHES.HANOI, plan = resolveViewPlan()) {
-  const [sheets, debtManagementSource, debtWorkflow] = await Promise.all([
-    getCachedDashboardCoreSources(branch, plan.coreKeys),
-    plan.needsDebt ? getCachedDebtManagementSource(branch) : null,
-    plan.needsDebt ? getCachedDebtWorkflow(branch) : null
-  ]);
-  return { branch: physicalBranch, sheets, debtManagementSource, debtWorkflow };
+  const sheets = await getCachedDashboardCoreSources(branch, plan.coreKeys);
+  return { branch: physicalBranch, sheets };
 }
 
 function dashboardSourceVersion(branch, plan) {
-  const debtPart = plan.needsDebt
-    ? `${debtManagementSheetsCacheFor(branch).version}:${debtWorkflowCacheFor(branch).version}`
-    : '-:-';
+  // Phien ban cong no tang moi lan ghi phan hoi/trang thai/lich TT hoac co ban chot moi.
+  const debtPart = plan.needsDebt ? `d${debtScheduleRepository.getDebtScheduleRepository().getVersion()}` : '-';
   return `${branch}:${dashboardCoreSourcesVersion(branch, plan.coreKeys)}:${debtPart}`;
 }
 
@@ -2103,9 +1860,6 @@ async function getDashboardData(filters, branch, viewer, options) {
   // 1 lan tinh, khong bao gio luu du lieu cu duoi khoa moi.
   const rollupVersionAtStart = rollupVersion;
   const plan = resolveViewPlan(options && options.views);
-  // Khop CHINH XAC voi guard cua PATCH /api/debt-management/status — neu khac
-  // thi nut sua trong bang se hien ra roi API tra 403 (hoac nguoc lai).
-  const canEditDebtStatus = hasFeature(viewer, 'reports.debt.edit');
   const requestedBranch = branch || BRANCHES.HANOI;
   const branchScope = resolveBranchScope(requestedBranch);
   if (!branchScope.length) {
@@ -2144,7 +1898,8 @@ async function getDashboardData(filters, branch, viewer, options) {
   const sourceVersions = branchScope.map(physicalBranch => dashboardSourceVersion(physicalBranch, plan)).join(';');
   // Tab khong dung rollup (Cong no) khong bi het hieu luc khi rollup doi.
   const versionTag = sourceVersions + (plan.rollups.size ? ':r' + rollupVersionAtStart : '');
-  const editTag = plan.needsDebt ? (canEditDebtStatus ? 'edit' : 'read') : 'n';
+  // Quyen sua tung cot cong no khac nhau theo nguoi xem -> nam trong khoa cache.
+  const editTag = plan.needsDebt ? debtScheduleService.debtAccessTag(viewer) : 'n';
   const cacheKey = dashboardResultCacheKey(requestedBranch, plan, `${versionTag}:${editTag}`, pickFilters(f, plan));
 
   const cached = dashboardResultCache.get(cacheKey);
@@ -2182,31 +1937,20 @@ async function getDashboardData(filters, branch, viewer, options) {
       })
     ));
 
+    // Cong no: moi dong la (co so, khach) nen "Cả hai" chi la ghep dong cua 2 co so.
+    const debtManagement = plan.has('debt')
+      ? await debtScheduleService.buildDebtManagement(branchScope, viewer)
+      : undefined;
     let data;
     if (branchSources.length === 1) {
       const source = branchSources[0];
-      data = computeDashboardData(
-        source.sheets,
-        f,
-        now,
-        source.debtManagementSource,
-        source.branch,
-        source.debtWorkflow,
-        canEditDebtStatus,
-        source.rollups,
-        undefined,
-        plan
-      );
+      data = computeDashboardData(source.sheets, f, now, source.branch, source.rollups, debtManagement, plan);
     } else {
-      const debtManagement = plan.has('debt') ? mergeDebtManagementSources(branchSources, canEditDebtStatus) : undefined;
       data = computeDashboardData(
         mergeDashboardSheets(branchSources),
         f,
         now,
-        null,
         BRANCH_BOTH,
-        null,
-        canEditDebtStatus,
         mergeDashboardRollups(branchSources),
         debtManagement,
         plan
@@ -2240,7 +1984,7 @@ async function getDashboardData(filters, branch, viewer, options) {
  * @param {Date} now
  * @returns {Object} Du lieu KPI, bieu do, bang xep hang cho dashboard
  */
-function computeDashboardData(sheets, filters, now, debtManagementSource, branch, debtWorkflow, canEditDebtStatus, rollups, debtManagementOverride, plan) {
+function computeDashboardData(sheets, filters, now, branch, rollups, debtManagementOverride, plan) {
   computeCallCountForTest += 1;
   // `plan` (dashboardViews.resolveViewPlan): chi tinh phan cua cac tab duoc chon.
   // Bang nguon/rollup cua tab khac KHONG duoc nap (xem `|| []` ben duoi) nen cac
@@ -2257,12 +2001,7 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   // Bo loc rieng tung bang (mac dinh = bo loc Hang hoa, xem withTableFilterFallbacks).
   const newlyImportedRange = resolveFilterRange(f.newlyImported, now);
 
-  const debtManagement = !view.has('debt') ? undefined : (debtManagementOverride || buildDebtManagementForBranch({
-    branch,
-    sheets,
-    debtManagementSource,
-    debtWorkflow
-  }, canEditDebtStatus));
+  const debtManagement = !view.has('debt') ? undefined : debtManagementOverride;
 
   const categoryData = sheets[CONFIG.SHEET_CATEGORIES] || [];
   const prodData = sheets[CONFIG.SHEET_PRODUCTS] || [];
@@ -2718,19 +2457,8 @@ function computeDashboardData(sheets, filters, now, debtManagementSource, branch
   return pickPayload(result, view);
 }
 
-function invalidateDebtWorkflowCache(branch) {
-  const cache = debtWorkflowCacheFor(branch);
-  cache.data = null;
-  cache.expiresAt = 0;
-  cache.version += 1;
-  const prefix = (branch || BRANCHES.HANOI) + '|';
-  for (const key of dashboardResultCache.keys()) {
-    if (key.startsWith(prefix)) dashboardResultCache.delete(key);
-  }
-}
-
 /**
- * Nap san cache "nguon re" (7 tab core + cong no + workflow) cho MOI co so
+ * Nap san cache "nguon re" (cac tab core) cho MOI co so
  * vat ly, goi 1 lan luc server khoi dong (xem server/index.js) de nguoi dung
  * dau tien sau restart/redeploy khong phai cho doc 7 tab (~13.5s). Duyet
  * TUAN TU (khong Promise.all) — tranh chiem pool ket noi Postgres dung luc
@@ -2743,8 +2471,6 @@ async function prewarmDashboardCaches({ log } = {}) {
   for (const physicalBranch of resolveBranchScope(BRANCH_BOTH)) {
     try {
       await getCachedDashboardCoreSources(physicalBranch, ALL_CORE_KEYS);
-      await getCachedDebtManagementSource(physicalBranch);
-      await getCachedDebtWorkflow(physicalBranch);
       logFn(`[Dashboard] Prewarm xong cho co so ${physicalBranch}`);
     } catch (err) {
       logFn(`[Dashboard] Prewarm loi cho co so ${physicalBranch}, bo qua: ${err.message}`);
@@ -2754,8 +2480,6 @@ async function prewarmDashboardCaches({ log } = {}) {
 
 module.exports = {
   getDashboardData,
-  findDebtCustomerBranches,
-  invalidateDebtWorkflowCache,
   searchCustomerDirectory,
   getCustomerProductRevenueReport,
   mergeEntityRows,
@@ -2766,8 +2490,6 @@ module.exports = {
     resetCaches() {
       dashboardSheetsCacheByBranch = new Map();
       dashboardCoreSheetsCacheByBranch = new Map();
-      debtManagementSheetsCacheByBranch = new Map();
-      debtWorkflowCacheByBranch = new Map();
       customerDirectoryCacheByBranch = new Map();
       dashboardResultCache = new Map();
       dashboardResultInflight = new Map();
@@ -2798,9 +2520,6 @@ module.exports = {
     },
     expireFullSheetsCacheSoftly(branch) {
       dashboardSheetsCacheFor(branch).expiresAt = Date.now() - 1000;
-    },
-    expireDebtManagementCache(branch) {
-      debtManagementSheetsCacheFor(branch).expiresAt = 0;
     },
     // Ban nhanh va ban Intl chuan cua getDashboardDateParts — test doi chieu 2 ban.
     dateParts: getDashboardDateParts,

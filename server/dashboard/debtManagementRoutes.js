@@ -1,135 +1,110 @@
 'use strict';
 
+// API ghi cua tab Cong no (2026-10-13, cong no theo lich TT — server/debtSchedule).
+// Moi cot sua duoc co quyen rieng (featureRegistry):
+//   Sale phan hoi  -> reports.debt.saleFeedback   (mac dinh Nhan vien sale)
+//   QL phan hoi    -> reports.debt.managerFeedback (mac dinh Quan ly)
+//   Trang thai     -> reports.debt.edit            (mac dinh Quan ly)
+//   Lich TT        -> reports.debt.schedule        (mac dinh Quan ly)
+// Phan hoi/trang thai chi ghi vao chu ky hien tai (ban chot 15:00 moi nhat); client gui kem
+// cycleDate dang xem, lech thi tra 409 de nguoi dung tai lai.
+
 const express = require('express');
 const { requireAuth, requireFeature } = require('../auth/authMiddleware');
 const { BRANCH_BOTH, branchLabelToCode, resolveBranchScope } = require('../branch/branches');
 const branchMiddleware = require('../branch/branchMiddleware');
-const repository = require('./debtCollectionStatusRepository');
-const dashboardData = require('./dashboardData');
+const debtScheduleRepository = require('../debtSchedule/debtScheduleRepository');
+const { WORKFLOW_STATUSES } = require('../debtSchedule/debtScheduleRules');
 
-const router = express.Router();
-const WORKFLOW_STATUSES = Object.freeze(['Chưa xử lý', 'Đang xử lý', 'Đã xử lý', 'Bỏ qua']);
-const WORKFLOW_STATUS_SET = new Set(WORKFLOW_STATUSES);
-const HEX_64 = /^[0-9a-f]{64}$/i;
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const CYCLE_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-function validationError(message, code) {
-  const error = new Error(message);
-  error.statusCode = 400;
-  error.code = code;
-  return error;
+function repository() {
+  return debtScheduleRepository.getDebtScheduleRepository();
 }
 
-function validatePayload(body) {
-  const customerKey = String(body?.customerKey || '').trim().toLowerCase();
-  const status = String(body?.status || '').trim();
-  const alertSignature = String(body?.alertSignature || '').trim().toLowerCase();
-  if (!HEX_64.test(customerKey)) {
-    throw validationError('Khóa khách hàng không hợp lệ.', 'INVALID_CUSTOMER_KEY');
-  }
-  if (!WORKFLOW_STATUS_SET.has(status)) {
-    throw validationError('Trạng thái xử lý không hợp lệ.', 'INVALID_DEBT_STATUS');
-  }
-  if (!HEX_64.test(alertSignature)) {
-    throw validationError('Chữ ký cảnh báo không hợp lệ.', 'INVALID_ALERT_SIGNATURE');
-  }
-  return { customerKey, status, alertSignature };
-}
-
-function statusResponse(row) {
-  const stored = row || {};
+function readTarget(body) {
+  const cycleDate = String(body?.cycleDate || '').trim();
   return {
-    customerKey: stored.customer_key || stored.customerKey,
-    status: stored.status,
-    alertSignature: stored.alert_signature || stored.alertSignature,
-    updatedBy: stored.updated_by_name || stored.updatedBy || '',
-    updatedAt: stored.updated_at || stored.updatedAt || null
+    branch: String(body?.branch || '').trim(),
+    customerId: String(body?.customerId || '').trim(),
+    cycleDate: CYCLE_DATE.test(cycleDate) ? cycleDate : undefined
   };
 }
 
-router.patch(
-  '/api/debt-management/status',
-  requireAuth,
-  requireFeature('reports.debt.edit'),
-  branchMiddleware.resolveBranch,
-  async (req, res) => {
-    let payload;
-    try {
-      payload = validatePayload(req.body);
-    } catch (error) {
-      return res.status(error.statusCode).json({ error: error.message, code: error.code });
-    }
-
-    const isBothBranches = req.branch === BRANCH_BOTH;
-    const branch = isBothBranches ? '' : branchLabelToCode(req.branch);
-    if (!isBothBranches && !branch) {
-      return res.status(400).json({ error: 'Cơ sở không hợp lệ.', code: 'INVALID_BRANCH' });
-    }
-
-    try {
-      const userId = UUID.test(String(req.user?.id || '')) ? req.user.id : null;
-      const writePayload = {
-        ...payload,
-        userId,
-        userName: req.user?.hoTen || req.user?.username || ''
-      };
-
-      // "Cả hai": dong khach hang tren man hinh la dong DA GOP cua 2 co so, nen
-      // trang thai phai ap cho ca 2 dong nguon trong MOT transaction — khong
-      // duoc de HN da doi con SG thi chua.
-      if (isBothBranches) {
-        const scope = resolveBranchScope(req.branch);
-        const { found, undetermined } = await dashboardData.findDebtCustomerBranches(payload.customerKey, scope);
-        const signatureByBranch = new Map(found.map(item => [item.branch, item.alertSignature]));
-        // Co so khong doc duoc nguon van duoc ghi: tha ghi thua mot dong vo
-        // hai (dong trang thai chi hien khi khop customer_key luc doc) con hon
-        // am tham bo sot mot co so, lam 2 co so lech trang thai.
-        const targets = scope.filter(item => signatureByBranch.has(item) || undetermined.includes(item));
-        if (!targets.length) {
-          return res.status(404).json({
-            error: 'Không tìm thấy khách hàng này trong công nợ của cơ sở nào.',
-            code: 'DEBT_CUSTOMER_NOT_FOUND'
-          });
-        }
-        // Dong GOP tren man hinh mang chu ky cua co so DAU TIEN co khach nay,
-        // nen chu ky client gui len phai trung chu ky do. Neu khong trung thi
-        // man hinh da cu: giu nguyen chu ky client cho moi co so de trang thai
-        // ket thuc tu het hieu luc o lan doc sau — dung nhu duong mot co so.
-        const mergedSignature = scope.map(item => signatureByBranch.get(item)).find(Boolean);
-        const clientViewIsCurrent = mergedSignature === payload.alertSignature;
-        const rows = await repository.upsertStatusForBranches({
-          targets: targets.map(item => ({
-            branch: branchLabelToCode(item),
-            // Moi co so ghi chu ky cua CHINH NO; co so khong doc duoc nguon
-            // (khong co chu ky) dung tam chu ky client gui len.
-            alertSignature: clientViewIsCurrent
-              ? (signatureByBranch.get(item) || payload.alertSignature)
-              : payload.alertSignature
-          })),
-          ...writePayload
-        });
-        // CHI xoa cache sau khi COMMIT. Khoa cache ket qua "Cả hai" chua phien
-        // ban debt workflow cua CA HAI co so vat ly (dashboardSourceVersion),
-        // nen xoa theo tung co so vat ly la du de ban tong hop cung tuoi lai.
-        targets.forEach(item => dashboardData.invalidateDebtWorkflowCache(item));
-        // Cac dong chi khac nhau o cot branch — lay dong dau lam phan hoi, kem
-        // danh sach co so da ghi (truong THEM, phan hoi mot co so giu nguyen).
-        return res.status(200).json({ ...statusResponse(rows[0]), branches: targets });
-      }
-
-      const row = await repository.upsertStatus({ branch, ...writePayload });
-      dashboardData.invalidateDebtWorkflowCache(req.branch);
-      return res.status(200).json(statusResponse(row));
-    } catch (error) {
-      console.error('[DebtManagement] Không thể cập nhật trạng thái:', error.message);
-      return res.status(503).json({
-        error: 'Không thể cập nhật trạng thái xử lý lúc này.',
-        code: 'DEBT_STATUS_UNAVAILABLE'
-      });
-    }
+function sendError(res, error, fallbackMessage, fallbackCode) {
+  if (error && error.statusCode && error.statusCode < 500) {
+    return res.status(error.statusCode).json({ error: error.message, code: error.code });
   }
-);
+  console.error(`[DebtManagement] ${fallbackMessage}:`, error && error.message);
+  return res.status(503).json({ error: fallbackMessage, code: fallbackCode });
+}
+
+function branchCodesFor(req) {
+  return resolveBranchScope(req.branch || BRANCH_BOTH).map(branchLabelToCode).filter(Boolean);
+}
+
+const router = express.Router();
+
+function feedbackRoute(path, field, feature) {
+  router.patch(path, requireAuth, requireFeature(feature), async (req, res) => {
+    try {
+      const result = await repository().saveFeedback({
+        ...readTarget(req.body), field, value: req.body?.value, user: req.user
+      });
+      return res.status(200).json(result);
+    } catch (error) {
+      return sendError(res, error, 'Không thể lưu phản hồi lúc này.', 'DEBT_FEEDBACK_UNAVAILABLE');
+    }
+  });
+}
+
+feedbackRoute('/api/debt-management/sale-feedback', 'sale', 'reports.debt.saleFeedback');
+feedbackRoute('/api/debt-management/manager-feedback', 'manager', 'reports.debt.managerFeedback');
+
+router.patch('/api/debt-management/status', requireAuth, requireFeature('reports.debt.edit'), async (req, res) => {
+  const status = String(req.body?.status || '').trim();
+  if (!WORKFLOW_STATUSES.includes(status)) {
+    return res.status(400).json({ error: 'Trạng thái xử lý không hợp lệ.', code: 'INVALID_DEBT_STATUS' });
+  }
+  try {
+    const result = await repository().saveStatus({ ...readTarget(req.body), status, user: req.user });
+    return res.status(200).json(result);
+  } catch (error) {
+    return sendError(res, error, 'Không thể cập nhật trạng thái xử lý lúc này.', 'DEBT_STATUS_UNAVAILABLE');
+  }
+});
+
+router.patch('/api/debt-management/schedule', requireAuth, requireFeature('reports.debt.schedule'), async (req, res) => {
+  try {
+    const { branch, customerId } = readTarget(req.body);
+    const result = await repository().setSchedule({ branch, customerId, days: req.body?.scheduleDays, user: req.user });
+    return res.status(200).json(result);
+  } catch (error) {
+    return sendError(res, error, 'Không thể lưu lịch thanh toán lúc này.', 'DEBT_SCHEDULE_UNAVAILABLE');
+  }
+});
+
+// Lich su sua Sale phan hoi / QL phan hoi cua chu ky hien tai (reset cung ban chot 15:00).
+router.get('/api/debt-management/feedback-history', requireAuth, requireFeature('reports.debt'),
+  branchMiddleware.resolveBranch, async (req, res) => {
+    try {
+      return res.json(await repository().listFeedbackHistory({ branches: branchCodesFor(req) }));
+    } catch (error) {
+      return sendError(res, error, 'Không thể tải lịch sử chỉnh sửa lúc này.', 'DEBT_HISTORY_UNAVAILABLE');
+    }
+  });
+
+// Nhat ky sua lich TT (giu vinh vien). Co branch + customerId thi loc theo 1 khach.
+router.get('/api/debt-management/schedule-log', requireAuth, requireFeature('reports.debt'), async (req, res) => {
+  try {
+    const branch = String(req.query.branch || '').trim();
+    const customerId = String(req.query.customerId || '').trim();
+    const entries = await repository().listScheduleLog(branch && customerId ? { branch, customerId } : {});
+    return res.json({ entries });
+  } catch (error) {
+    return sendError(res, error, 'Không thể tải nhật ký lịch thanh toán lúc này.', 'DEBT_SCHEDULE_LOG_UNAVAILABLE');
+  }
+});
 
 module.exports = router;
 module.exports.WORKFLOW_STATUSES = WORKFLOW_STATUSES;
-module.exports.validatePayload = validatePayload;

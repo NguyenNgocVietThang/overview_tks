@@ -302,14 +302,14 @@ Lớp hiệu ứng 3D và giám sát hiệu năng thích ứng đã gỡ bỏ v�
 
 | **Mã** | **Mô tả** | **Ưu tiên** | **Trạng thái** |
 |---|---|---|---|
-| FR-11.1 | Parse workbook công nợ theo header/alias, bỏ hàng tổng số 2, giữ `null` cho ô trống/`#N/A`, hỗ trợ số và phần trăm Việt Nam. | Cao | Hoàn thành |
-| FR-11.2 | Ghép khách với CN1/CN3/CN7 bằng tên chuẩn hóa Unicode/khoảng trắng/hoa thường, không fuzzy matching; tên trùng bị đánh `Lỗi dữ liệu` và khóa sửa trạng thái. | Cao | Hoàn thành |
-| FR-11.3 | Lịch 1/3 tạo cảnh báo `Chưa thu` theo ma trận đối chiếu; mọi lịch tạo `Quá hạn` khi nợ quá hạn dương; chỉ miễn cảnh báo khi cả nợ hiện tại và nợ quá hạn đều dưới 400.000đ. | Cao | Hoàn thành |
-| FR-11.4 | Thiếu bất kỳ CN1/CN3/CN7 sẽ tắt riêng cảnh báo `Chưa thu`; cảnh báo `Quá hạn` vẫn hoạt động. | Cao | Hoàn thành |
-| FR-11.5 | Dashboard gồm 4 KPI, biểu đồ theo sale/lịch, top nợ hiện tại/quá hạn, bảng 10 cột; hỗ trợ lọc, tìm, click biểu đồ, sort ba trạng thái và phân trang 100 dòng. | Cao | Hoàn thành |
-| FR-11.6 | Trạng thái `Chưa xử lý/Đang xử lý/Đã xử lý/Bỏ qua` lưu theo `(branch, customer_key)` trong `debt_collection_statuses`; Đã xử lý/Bỏ qua rời hàng chờ và tự hết hiệu lực khi chữ ký cảnh báo thay đổi. | Cao | Hoàn thành |
-| FR-11.7 | `PATCH /api/debt-management/status`: quyền `reports.debt.edit` (mặc định Quản lý + Trợ lý). Cơ sở lấy từ `req.branch`, không nhận từ payload; vai trò khác chỉ thấy pill đọc-only. | Cao | Hoàn thành |
-| FR-11.8 | Ở phạm vi `Cả hai`, một PATCH ghi trạng thái cho cả hai cơ sở vật lý trong đúng một transaction PostgreSQL (xem FR-12.6). | Cao | Hoàn thành |
+| FR-11.1 | (2026-10-13) Công nợ tính từ KiotViet trong Postgres, không còn đọc workbook Google Sheets / quy tắc 1-3-7-Hàng tuần. Mỗi dòng là **khách + cơ sở** (cột Cơ sở ghi tắt HN/SG); Sale = nhóm khách KiotViet; khách, mã, Sale và Lịch TT đọc trực tiếp lúc xem nên luôn khớp KiotViet / bản sửa mới nhất. | Cao | Hoàn thành |
+| FR-11.2 | **Lịch TT** = số ngày nợ tối đa (1–90) lưu trong `debt_payment_schedules` theo (cơ sở, khách). Nhập lần đầu bằng `debtSchedule/importDebtSchedules.js` (file mẫu KiotViet, cột "Mã khách hàng" + "Lịch TT"); sau đó sửa trên web (`reports.debt.schedule`, mặc định Quản lý). Khách chưa có lịch hoặc lịch không hợp lệ = 1 ngày. Mỗi lần sửa ghi `debt_payment_schedule_log` (giữ vĩnh viễn) và tính lại công nợ ngay. | Cao | Hoàn thành |
+| FR-11.3 | Chốt số liệu **mỗi ngày lúc 15:00** (giờ VN) bằng job `debtSchedule/debtCycleSnapshot.js` (đồng bộ khách KiotViet ngay trước khi chốt): nợ hiện tại (`customers.debt`), nợ đầu kỳ (= nợ hiện tại của bản chốt 15:00 hôm trước), doanh số TB 4 tháng (cùng số "TB 4 tháng" của Báo cáo kinh doanh, theo cơ sở + mã KH) và tổng hóa đơn chưa hủy / phiếu trả "Đã trả" theo từng ngày trong 90 ngày tới 15:00. | Cao | Hoàn thành |
+| FR-11.4 | **Nợ trong lịch** = Σ(hóa đơn − trả hàng) của các ngày từ (ngày chốt − N + 1) tới 15:00 ngày chốt (vd 15:00 thứ 6 8/8: lịch 1 → 8/8; lịch 3 → 6, 7, 8/8; lịch 7 → 2..8/8), không tính tiền khách đã trả, không âm. **Nợ quá hạn** = max(0, nợ hiện tại − nợ trong lịch). %Nợ/DS và %Quá hạn/DS chia cho doanh số TB 4 tháng (DS = 0 thì hiện "—"). | Cao | Hoàn thành |
+| FR-11.5 | Cảnh báo duy nhất **Quá hạn** khi nợ quá hạn > 0đ (bỏ ngưỡng 400.000đ và cảnh báo "Chưa thu"). Dashboard 4 KPI, biểu đồ theo sale / lịch TT (theo số ngày thực tế), top nợ; bảng 13 cột: Khách hàng, Sale, Lịch TT, Nợ đầu kỳ, Nợ hiện tại, Nợ quá hạn, %Nợ/DS, %Quá hạn/DS, Cảnh báo, **Sale phản hồi**, **QL phản hồi**, Trạng thái, Cơ sở. | Cao | Hoàn thành |
+| FR-11.6 | Sale phản hồi / QL phản hồi / Trạng thái lưu trong `debt_cycle_feedback` gắn với chu kỳ chốt (`cycle_date`): điền sau 15:00 hôm nay thì tự trống ở bản chốt 15:00 hôm sau. Mỗi cột một quyền: `reports.debt.saleFeedback` (mặc định Nhân viên sale), `reports.debt.managerFeedback` và `reports.debt.edit` (trạng thái, mặc định Quản lý); Quản lý cấp thêm từng tài khoản. | Cao | Hoàn thành |
+| FR-11.7 | **Lịch sử chỉnh sửa** (nút trên bảng): mọi thay đổi trên giao diện công nợ — Sale phản hồi, QL phản hồi, Trạng thái, Lịch TT — ghi `debt_feedback_history` (người sửa, thời điểm, cột, cũ → mới) và cũng reset theo chu kỳ 15:00; dữ liệu cũ hơn 7 ngày tự dọn. | Cao | Hoàn thành |
+| FR-11.8 | Ghi luôn vào chu kỳ hiện tại; client gửi kèm `cycleDate` đang xem — đã sang bản chốt mới thì trả `409 DEBT_CYCLE_CHANGED` và tải lại tab. | Cao | Hoàn thành |
 
 ## 3.12. FR-12: Phạm vi dữ liệu "Cả hai" cơ sở
 
@@ -494,7 +494,10 @@ Mọi API (trừ `health`, webhook, `auth/login`, quên mật khẩu, `google-co
 | `GET /api/product-report`, `GET /api/product-report/customers?code=` | `reports.products` hoặc `reports.overview` | Bảng Báo cáo hàng hóa và khung Chi tiết doanh số khách theo mã. |
 | `GET /api/inventory-value-history?from&to` | `reports.overview` | Giá trị tồn kho theo ngày theo cơ sở đang xem; bảng chưa migrate → trả rỗng. |
 | `GET /api/invoice-detail?code&branch` | `reports.invoices` | Chi tiết hóa đơn; `branch` bắt buộc khi đang xem "Cả hai" và phải thuộc phạm vi đang xem. |
-| `PATCH /api/debt-management/status` | `reports.debt.edit` | Body `{ customerKey, status, alertSignature }`; ở "Cả hai" ghi cả hai cơ sở trong 1 transaction, phản hồi thêm `branches`; lỗi `503 DEBT_STATUS_UNAVAILABLE`, `404 DEBT_CUSTOMER_NOT_FOUND`. |
+| `PATCH /api/debt-management/sale-feedback`, `/manager-feedback` | `reports.debt.saleFeedback` / `reports.debt.managerFeedback` | Body `{ branch: 'hanoi'\|'saigon', customerId, cycleDate, value }` (≤1000 ký tự); ghi phản hồi + 1 dòng lịch sử nếu nội dung đổi. 409 `DEBT_CYCLE_CHANGED`, 404 `DEBT_CUSTOMER_NOT_FOUND`. |
+| `PATCH /api/debt-management/status` | `reports.debt.edit` | Body `{ branch, customerId, cycleDate, status }`; trạng thái thuộc 4 giá trị cố định. |
+| `PATCH /api/debt-management/schedule` | `reports.debt.schedule` | Body `{ branch, customerId, scheduleDays }` (1–90); ghi nhật ký lịch TT + lịch sử chu kỳ. |
+| `GET /api/debt-management/feedback-history`, `GET /api/debt-management/schedule-log` | `reports.debt` | Lịch sử chỉnh sửa của chu kỳ hiện tại (theo cơ sở đang xem); nhật ký lịch TT (lọc `branch` + `customerId`). |
 | `GET /api/business-report/sales`, `/customers`, `/products` | `reports.business` | Ba bảng Báo cáo kinh doanh, gộp HN + SG: `months`, `kpis`, `rows` (mỗi dòng có `series` theo tháng, `current`, `normalized`, `prev`, `growth`, `avg4`, `active`) — FR-16. |
 | `GET /api/business-report/detail?kind=sale\|customer\|product&key=` | `reports.business` | Panel chi tiết; `key` = tên sale / `<branch>:<mã KH>` / mã hàng; 404 khi không tìm thấy, 400 khi `kind` sai. |
 | `POST /api/business-report/refreeze` | `reports.business.refreeze` | Body `{ month: 'YYYY-MM' }`; chốt lại một tháng đã qua (từ T3/2026), 400 nếu tháng không hợp lệ hoặc là tháng hiện tại. |
@@ -583,7 +586,7 @@ Ngày hiển thị `dd/MM/yyyy HH:mm` hoặc `dd/MM/yyyy` theo Asia/Ho_Chi_Minh 
 
 ## 7.4. Google Sheets còn dùng
 
-- **Bảng Công nợ:** tab `Công nợ HN`/`Công nợ SG` (cột Khách hàng, Lịch thanh toán, Nợ đầu kỳ, Nợ hiện tại, Nợ quá hạn, các tỷ lệ…), nhận diện theo header/alias.
+- **Bảng Công nợ:** không còn dùng từ 13/10/2026 (tab Công nợ tính từ KiotViet + lịch TT trong Postgres, FR-11). Biến `DEBT_MANAGEMENT_SPREADSHEET_ID` và `sheets/debtManagementSheetsClient.js` còn trong mã nhưng không được gọi.
 - **Vòng đời đơn hàng:** `DonHang_HN`, `DonHang_SG`, `DonHang_MienNam` (đơn Bắc-Nam, tính như đơn HN) (mã đơn, các mốc gửi kế toán/giao/nhận/ký nhận…) và tab `Lịch sử cập nhật` do server ghi khi ghi đè.
 - **Vị trí hàng:** `Vị trí HN`, `Vị trí SG` — bản đồ cột ở `docs/stock-locations-setup.md`.
 

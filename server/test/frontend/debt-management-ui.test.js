@@ -86,7 +86,7 @@ test('sidebar và tiêu đề thay Công nợ kỳ cũ bằng Công nợ', () =>
   assert.doesNotMatch(dashboard, /id="debtPeriodToggle"|setDebtPeriod\(|toggleDebtDetail\(|debt\.period/);
 });
 
-test('dashboard công nợ có đủ 4 KPI, 4 biểu đồ và bảng 11 cột', () => {
+test('dashboard công nợ có đủ 4 KPI, 4 biểu đồ và bảng 13 cột (thêm Sale phản hồi + QL phản hồi trước Trạng thái)', () => {
   const dashboard = html();
   ['dm-current', 'dm-overdue', 'dm-action-count', 'dm-overdue-ratio'].forEach(id => {
     assert.match(dashboard, new RegExp(`id="${id}"`));
@@ -96,7 +96,9 @@ test('dashboard công nợ có đủ 4 KPI, 4 biểu đồ và bảng 11 cột',
   });
   const table = dashboard.match(/<table[^>]*data-debt-management-table[\s\S]*?<\/table>/);
   assert.ok(table);
-  assert.equal((table[0].match(/<th(?:\s[^>]*)?>/g) || []).length, 11);
+  assert.equal((table[0].match(/<th(?:\s[^>]*)?>/g) || []).length, 13);
+  assert.match(table[0], /Cảnh báo tự động<\/th>\s*<th[^>]*>Sale phản hồi<\/th>\s*<th[^>]*>QL phản hồi<\/th>\s*<th[^>]*>Trạng thái xử lý/);
+  assert.doesNotMatch(dashboard, /Chưa thu/, 'đã bỏ cảnh báo Chưa thu');
   assert.match(table[0], /<th(?:\s[^>]*)?>Cơ sở<\/th>/);
   assert.match(table[0], /Khách hàng/);
   assert.match(table[0], /Cảnh báo tự động/);
@@ -175,5 +177,56 @@ test('lọc mặc định, sort toàn tập và PATCH thành công cập nhật 
   await dom.window.handleDebtStatusChange(select);
   assert.equal(document.querySelectorAll('#debtManagementRows tr[data-customer-key]').length, 0, 'đã xử lý phải rời hàng chờ mặc định');
   assert.equal(document.getElementById('dm-action-count').textContent, '0');
+  dom.window.close();
+});
+
+function scheduleDebtPayload() {
+  const payload = debtPayload();
+  payload.cycleDate = '2026-10-13';
+  payload.customers = payload.customers.map((customer, index) => ({
+    ...customer, customerKey: 'hanoi:' + (index + 1), customerId: String(index + 1), branchCode: 'hanoi', branch: 'HN',
+    saleFeedback: index === 0 ? 'Hẹn thứ 6' : '', saleFeedbackBy: index === 0 ? 'Lan' : '',
+    managerFeedback: '', managerFeedbackBy: '',
+    canEditSaleFeedback: true, canEditManagerFeedback: false, canEditSchedule: false
+  }));
+  return payload;
+}
+
+test('Sale phản hồi sửa được theo quyền, QL phản hồi chỉ đọc; lưu gửi kèm cơ sở + khách + chu kỳ', async () => {
+  const dom = createDashboard(scheduleDebtPayload());
+  const document = dom.window.document;
+  const row = document.querySelector('#debtManagementRows tr[data-customer-key="hanoi:1"]');
+  const cells = row.querySelectorAll('td');
+  assert.equal(cells[12].textContent, 'HN', 'cột Cơ sở ghi tắt');
+  const saleInput = cells[9].querySelector('textarea.debt-feedback-input');
+  assert.ok(saleInput, 'có quyền Sale phản hồi -> ô nhập');
+  assert.equal(saleInput.value, 'Hẹn thứ 6');
+  assert.equal(cells[10].querySelector('textarea'), null, 'không có quyền QL phản hồi -> chỉ đọc');
+
+  let sent;
+  dom.window.fetch = async (url, options) => { sent = { url, body: JSON.parse(options.body) }; return { ok: true, json: async () => ({ value: 'Hẹn thứ 7', by: 'Lan' }) }; };
+  saleInput.value = 'Hẹn thứ 7';
+  await dom.window.handleDebtFeedbackChange(saleInput);
+  assert.equal(sent.url, '/api/debt-management/sale-feedback');
+  assert.deepEqual(sent.body, { branch: 'hanoi', customerId: '1', cycleDate: '2026-10-13', value: 'Hẹn thứ 7' });
+  dom.window.close();
+});
+
+test('Lịch sử chỉnh sửa hiển thị mọi loại thay đổi (phản hồi, trạng thái, lịch TT)', async () => {
+  const dom = createDashboard(scheduleDebtPayload());
+  const document = dom.window.document;
+  dom.window.fetch = async () => ({ ok: true, json: async () => ({ cycleDate: '2026-10-13', entries: [
+    { id: '3', createdAt: '2026-10-13T09:00:00Z', branch: 'hanoi', customerId: '1', customerName: 'Khách A', field: 'schedule', oldValue: '', newValue: '3', actorName: 'QL' },
+    { id: '2', createdAt: '2026-10-13T08:30:00Z', branch: 'saigon', customerId: '2', customerName: 'Khách B', field: 'status', oldValue: 'Chưa xử lý', newValue: 'Đang xử lý', actorName: 'QL' },
+    { id: '1', createdAt: '2026-10-13T08:10:00Z', branch: 'hanoi', customerId: '1', customerName: 'Khách A', field: 'sale', oldValue: '', newValue: 'Hẹn', actorName: 'Lan' }
+  ] }) });
+  await dom.window.openDebtHistory();
+  const rows = [...document.querySelectorAll('#docModalBody tbody tr')].map(tr => [...tr.querySelectorAll('td')].slice(3).map(td => td.textContent));
+  assert.deepEqual(rows, [
+    ['HN', 'Lịch TT', '1 ngày (mặc định)', '3 ngày'],
+    ['SG', 'Trạng thái', 'Chưa xử lý', 'Đang xử lý'],
+    ['HN', 'Sale phản hồi', '—', 'Hẹn']
+  ]);
+  assert.match(document.getElementById('docModalSubtitle').textContent, /13\/10 · 3 lần sửa/);
   dom.window.close();
 });

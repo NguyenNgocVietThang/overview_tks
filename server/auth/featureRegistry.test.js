@@ -66,6 +66,9 @@ test('mac dinh theo vai tro: reports.* khop dung REPORTS_ROLES cu', () => {
     for (const key of registry.ANY_REPORTS_FEATURES) {
       // Tinh lai thang chot (2026-10-07) va sua Khach moi/Ghi chu Marketing (2026-10-08) chi danh cho Quan ly.
       if (['reports.business.refreeze', 'reports.marketing.edit'].includes(key) && role !== ROLES.QUAN_LY) continue;
+      // Cong no theo lich TT (2026-10-13): Sale phan hoi mac dinh chi Nhan vien sale; QL phan hoi, trang thai, lich TT chi Quan ly.
+      if (key === 'reports.debt.saleFeedback') continue;
+      if (['reports.debt.managerFeedback', 'reports.debt.edit', 'reports.debt.schedule'].includes(key) && role !== ROLES.QUAN_LY) continue;
       assert.ok(defaults.includes(key), `${role} phai co ${key}`);
     }
   }
@@ -151,9 +154,12 @@ test('Tra cuu / Lich su / Xuat / Ghi de GAN vao Vong doi don hang: thieu lifecyc
 
 const SALE_REPORT_VIEW_KEYS = ['reports.overview', 'reports.products', 'reports.invoices', 'reports.customers', 'reports.debt', 'reports.business'];
 
-test('Nhan vien sale xem du 5 tab bao cao mac dinh, KHONG co xuat Excel / sua cong no', () => {
+test('Nhan vien sale xem du 5 tab bao cao mac dinh + dien Sale phan hoi cong no, KHONG co xuat Excel / sua trang thai cong no', () => {
   const reportKeys = registry.defaultsForRole(ROLES.NHAN_VIEN_SALE).filter(key => key.startsWith('reports.'));
-  assert.deepEqual(reportKeys, SALE_REPORT_VIEW_KEYS);
+  assert.deepEqual(reportKeys.filter(key => key !== 'reports.debt.saleFeedback'), SALE_REPORT_VIEW_KEYS);
+  assert.ok(reportKeys.includes('reports.debt.saleFeedback'));
+  assert.ok(!reportKeys.includes('reports.debt.managerFeedback'));
+  assert.ok(!reportKeys.includes('reports.debt.schedule'));
   assert.ok(!reportKeys.includes('reports.export'));
   assert.ok(!reportKeys.includes('reports.debt.edit'));
   // Cac vai tro con lai khong thuoc REPORTS_ROLES van KHONG co reports.overview.
@@ -167,7 +173,7 @@ const SHIPMENT_LIFECYCLE_GROUP = ['shipment.lifecycle', 'shipment.lookup', 'ship
 test('Nhan vien marketing has own report, other permissions match sale excluding general reports and lifecycle', () => {
   assert.deepEqual(
     registry.defaultsForRole(ROLES.NHAN_VIEN_MARKETING).filter(key=>key!=='reports.marketing'),
-    registry.defaultsForRole(ROLES.NHAN_VIEN_SALE).filter(key => !SALE_REPORT_VIEW_KEYS.includes(key) && !SHIPMENT_LIFECYCLE_GROUP.includes(key))
+    registry.defaultsForRole(ROLES.NHAN_VIEN_SALE).filter(key => !SALE_REPORT_VIEW_KEYS.includes(key) && key !== 'reports.debt.saleFeedback' && !SHIPMENT_LIFECYCLE_GROUP.includes(key))
   );
 });
 
