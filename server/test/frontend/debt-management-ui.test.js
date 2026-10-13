@@ -86,14 +86,12 @@ test('sidebar và tiêu đề thay Công nợ kỳ cũ bằng Công nợ', () =>
   assert.doesNotMatch(dashboard, /id="debtPeriodToggle"|setDebtPeriod\(|toggleDebtDetail\(|debt\.period/);
 });
 
-test('dashboard công nợ có đủ 4 KPI, 4 biểu đồ và bảng 13 cột (thêm Sale phản hồi + QL phản hồi trước Trạng thái)', () => {
+test('dashboard công nợ có đủ 4 KPI, không còn biểu đồ và bảng 13 cột (thêm Sale phản hồi + QL phản hồi trước Trạng thái)', () => {
   const dashboard = html();
   ['dm-current', 'dm-overdue', 'dm-action-count', 'dm-overdue-ratio'].forEach(id => {
     assert.match(dashboard, new RegExp(`id="${id}"`));
   });
-  ['chartDebtBySale', 'chartDebtBySchedule', 'chartTopCurrentDebt', 'chartTopOverdueDebt'].forEach(id => {
-    assert.match(dashboard, new RegExp(`id="${id}"`));
-  });
+  assert.doesNotMatch(dashboard, /chartDebtBySale|chartDebtBySchedule|chartTopCurrentDebt|chartTopOverdueDebt|renderDebtComparisonChart|renderDebtTopChart/);
   const table = dashboard.match(/<table[^>]*data-debt-management-table[\s\S]*?<\/table>/);
   assert.ok(table);
   assert.equal((table[0].match(/<th(?:\s[^>]*)?>/g) || []).length, 13);
@@ -115,39 +113,12 @@ test('bộ lọc local mặc định Cần xử lý và hỗ trợ sale, lịch,
   assert.match(dashboard, /function sortDebtCustomers\(/);
 });
 
-test('click biểu đồ nối vào bộ lọc và cập nhật trạng thái dùng PATCH có rollback', () => {
+test('cập nhật trạng thái dùng PATCH có rollback', () => {
   const dashboard = html();
-  assert.match(dashboard, /function setDebtDimensionFilter\(/);
-  assert.match(dashboard, /onClick:[\s\S]*setDebtDimensionFilter/);
   assert.match(dashboard, /fetch\('\/api\/debt-management\/status'/);
   assert.match(dashboard, /selectEl\.value = previousStatus/);
   assert.match(dashboard, /row-highlight-update/);
   assert.match(dashboard, /customer\.canEditStatus/);
-});
-
-test('hover biểu đồ công nợ bám toàn bộ trục tương ứng cho cột dọc và ngang', () => {
-  const dom = createDashboard(debtPayload());
-
-  dom.window.renderDebtTopChart(
-    'chartTopCurrentDebt',
-    'topCurrentDebt',
-    [{ customerName: 'Khách A', currentDebt: 1200000 }],
-    'currentDebt'
-  );
-
-  const chartConfigs = dom.window.Chart.instances.map(chart => chart.config);
-  const verticalChart = chartConfigs.find(config => config.options.indexAxis !== 'y');
-  const horizontalChart = chartConfigs.find(config => config.options.indexAxis === 'y');
-
-  assert.deepEqual(
-    JSON.parse(JSON.stringify(verticalChart.options.interaction)),
-    { mode: 'index', intersect: false, axis: 'x' }
-  );
-  assert.deepEqual(
-    JSON.parse(JSON.stringify(horizontalChart.options.interaction)),
-    { mode: 'index', intersect: false, axis: 'y' }
-  );
-  dom.window.close();
 });
 
 test('script inline của dashboard vẫn biên dịch sau khi thay giao diện', () => {

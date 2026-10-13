@@ -2824,10 +2824,6 @@
       opacity: .6;
     }
 
-    .debt-chart-clickable canvas {
-      cursor: pointer;
-    }
-
     @keyframes rowPulseHighlight {
       0% { background-color: color-mix(in srgb, var(--green) 24%, transparent); }
       100% { background-color: transparent; }
@@ -4061,46 +4057,6 @@
 
           <section class="section">
             <div class="section-head"><span class="section-step">2</span>
-              <h2>Phân tích phân bổ <span class="section-note">nhấn cột biểu đồ để lọc bảng</span></h2>
-            </div>
-            <div class="grid">
-              <div class="panel col-7 debt-chart-clickable">
-                <div class="panel-head">
-                  <h2>Nợ theo sale</h2>
-                  <span class="drill-hint">Tối đa 15 sale · xếp theo nợ quá hạn</span>
-                </div>
-                <div class="chart-box tall"><canvas id="chartDebtBySale" role="img" aria-label="Nợ hiện tại và nợ quá hạn theo sale"></canvas></div>
-              </div>
-              <div class="panel col-5 debt-chart-clickable">
-                <div class="panel-head">
-                  <h2>Nợ theo lịch thanh toán</h2>
-                  <span class="drill-hint">Theo số ngày nợ tối đa của khách</span>
-                </div>
-                <div class="chart-box tall"><canvas id="chartDebtBySchedule" role="img" aria-label="Nợ hiện tại và nợ quá hạn theo lịch thanh toán"></canvas></div>
-              </div>
-            </div>
-          </section>
-
-          <section class="section">
-            <div class="section-head"><span class="section-step">3</span>
-              <h2>Khách hàng trọng điểm <span class="section-note">nhấn cột để tìm khách trong bảng</span></h2>
-            </div>
-            <div class="grid">
-              <div class="panel col-6 debt-chart-clickable">
-                <div class="panel-head">
-                  <h2>Top 10 nợ hiện tại</h2>
-                </div>
-                <div class="chart-box tall"><canvas id="chartTopCurrentDebt" role="img" aria-label="Top 10 khách nợ hiện tại"></canvas></div>
-              </div>
-              <div class="panel col-6 debt-chart-clickable">
-                <div class="panel-head"><h2>Top 10 nợ quá hạn</h2></div>
-                <div class="chart-box tall"><canvas id="chartTopOverdueDebt" role="img" aria-label="Top 10 khách nợ quá hạn"></canvas></div>
-              </div>
-            </div>
-          </section>
-
-          <section class="section">
-            <div class="section-head"><span class="section-step">4</span>
               <h2>Danh sách thao tác <span class="section-note">mỗi dòng là khách + cơ sở · phản hồi, trạng thái và lịch sử tự làm mới khi chốt 15:00 hôm sau</span></h2>
             </div>
             <div class="grid">
@@ -4213,11 +4169,11 @@
                   <table class="fixed-table" data-table-key="dashboard-table-15">
                     <thead id="businessSalesHead">
                       <tr>
-                        <th style="width:180px" data-column-key="sale">Sale</th>
-                        <th style="width:140px" data-column-key="team">Team</th>
-                        <th style="width:95px" data-column-key="sl-khach">SL Khách</th>
-                        <th style="width:140px" data-column-key="tb-4-thang">TB 4 tháng</th>
-                        <th style="width:105px" data-column-key="tang-truong">Tăng trưởng</th>
+                        <th style="width:105px" data-column-key="sale">Sale</th>
+                        <th style="width:113px" data-column-key="team">Team</th>
+                        <th style="width:82px" data-column-key="sl-khach">SL Khách</th>
+                        <th style="width:118px" data-column-key="tb-4-thang">TB 4 tháng</th>
+                        <th style="width:85px" data-column-key="tang-truong">Tăng trưởng</th>
                       </tr>
                     </thead>
                     <tbody id="businessSalesRows">
@@ -4258,11 +4214,11 @@
                   <table class="fixed-table" data-table-key="dashboard-table-16">
                     <thead id="businessCustomersHead">
                       <tr>
-                        <th style="width:260px" data-column-key="ten-khach">Tên khách</th>
-                        <th style="width:140px" data-column-key="sale">Sale</th>
-                        <th style="width:160px" data-column-key="level-gia">Level giá</th>
-                        <th style="width:140px" data-column-key="tb-4-thang">TB 4 tháng</th>
-                        <th style="width:105px" data-column-key="tang-truong">Tăng trưởng</th>
+                        <th style="width:154px" data-column-key="ten-khach">Tên khách</th>
+                        <th style="width:104px" data-column-key="sale">Sale</th>
+                        <th style="width:117px" data-column-key="level-gia">Level giá</th>
+                        <th style="width:115px" data-column-key="tb-4-thang">TB 4 tháng</th>
+                        <th style="width:89px" data-column-key="tang-truong">Tăng trưởng</th>
                       </tr>
                     </thead>
                     <tbody id="businessCustomersRows">
@@ -4299,10 +4255,10 @@
                   <table class="fixed-table" data-table-key="dashboard-table-17">
                     <thead id="businessProductsHead">
                       <tr>
-                        <th style="width:140px" data-column-key="ma-hang">Mã hàng</th>
-                        <th style="width:280px" data-column-key="ten-hang">Tên hàng</th>
-                        <th style="width:140px" data-column-key="tb-4-thang">TB 4 tháng</th>
-                        <th style="width:105px" data-column-key="tang-truong">Tăng trưởng</th>
+                        <th style="width:90px" data-column-key="ma-hang">Mã hàng</th>
+                        <th style="width:212px" data-column-key="ten-hang">Tên hàng</th>
+                        <th style="width:112px" data-column-key="tb-4-thang">TB 4 tháng</th>
+                        <th style="width:96px" data-column-key="tang-truong">Tăng trưởng</th>
                       </tr>
                     </thead>
                     <tbody id="businessProductsRows">
@@ -7393,9 +7349,14 @@
     const BUSINESS_KINDS = ['sales', 'customers', 'products'];
     const BUSINESS_TABLE_KEYS = { sales: 'businessSales', customers: 'businessCustomers', products: 'businessProducts' };
     const BUSINESS_FIXED_COLUMNS = {
-      sales: [['Sale', 180], ['Team', 140], ['SL Khách', 95]],
-      customers: [['Tên khách', 260], ['Sale', 140], ['Level giá', 160]],
-      products: [['Mã hàng', 140], ['Tên hàng', 280]]
+      sales: [['Sale', 105], ['Team', 113], ['SL Khách', 82]],
+      customers: [['Tên khách', 154], ['Sale', 104], ['Level giá', 117]],
+      products: [['Mã hàng', 90], ['Tên hàng', 212]]
+    };
+    const BUSINESS_METRIC_COLUMN_WIDTHS = {
+      sales: { average: 118, growth: 85, current: 113, month: 135 },
+      customers: { average: 115, growth: 89, current: 117, month: 112 },
+      products: { average: 112, growth: 96, current: 112, month: 112 }
     };
     state.business = { data: {}, loadedAt: 0, loading: false };
     TABLE_EXPLORER_CONFIGS.businessSales = { title: 'Tăng trưởng Sale', searchText: tableSearchText, identity: r => r.key };
@@ -7419,9 +7380,10 @@
     function businessHeadHtml(kind, data) {
       const today = data.today.split('-').reverse().join('/');
       const fixedKeys = { sales: ['sale', 'team', 'customerCount'], customers: ['customer', 'sale', 'priceLevel'], products: ['code', 'name'] };
+      const widths = BUSINESS_METRIC_COLUMN_WIDTHS[kind];
       const cols = BUSINESS_FIXED_COLUMNS[kind].map((c, i) => [c[0], c[1], fixedKeys[kind][i]])
-        .concat([['TB 4 tháng', 140, 'average4Months'], ['Tăng trưởng', 105, 'growth'], [today, 140, 'month-' + data.currentMonth]])
-        .concat(businessMonthColumns(data).map(m => [data.monthLabels[data.months.indexOf(m)], 135, 'month-' + m]));
+        .concat([['TB 4 tháng', widths.average, 'average4Months'], ['Tăng trưởng', widths.growth, 'growth'], [today, widths.current, 'month-' + data.currentMonth]])
+        .concat(businessMonthColumns(data).map(m => [data.monthLabels[data.months.indexOf(m)], widths.month, 'month-' + m]));
       return '<tr>' + cols.map(c => '<th data-column-key="' + escapeHtml(c[2]) + '" style="width:' + c[1] + 'px">' + escapeHtml(c[0]) + '</th>').join('') + '</tr>';
     }
 
@@ -8685,94 +8647,6 @@
       renderDebtManagementTable();
     }
 
-    function setDebtDimensionFilter(kind, value) {
-      if (kind === 'sale') {
-        state.debtFilters.sale = value;
-        document.getElementById('debtSaleFilter').value = value;
-      } else if (kind === 'schedule') {
-        state.debtFilters.schedule = value;
-        document.getElementById('debtScheduleFilter').value = value;
-      }
-      state.tablePages.debtManagement = 1;
-      renderDebtManagementTable();
-      document.getElementById('debtManagementSearch').focus({ preventScroll: true });
-    }
-
-    function setDebtCustomerFilter(customerName) {
-      state.debtFilters.queue = 'all';
-      state.debtFilters.search = customerName;
-      getTableSearchState('debtManagement').query = customerName;
-      document.getElementById('debtQueueFilter').value = 'all';
-      document.getElementById('debtManagementSearch').value = customerName;
-      state.tablePages.debtManagement = 1;
-      renderDebtManagementTable();
-    }
-
-    function renderDebtComparisonChart(canvasId, key, list, labelField, filterKind, formatLabel) {
-      destroyChart(key);
-      const canvas = document.getElementById(canvasId);
-      if (!canvas || !list.length) return;
-      // labels = gia tri loc (vd '3'); displayLabels = chu tren truc (vd '3 ngày').
-      const labels = list.map(function (item) { return item[labelField]; });
-      const displayLabels = formatLabel ? labels.map(formatLabel) : labels;
-      const theme = chartTheme();
-      const values = list.flatMap(function (item) { return [Number(item.totalCurrentDebt) || 0, Number(item.totalOverdueDebt) || 0]; });
-      const formatAxisMoney = createMoneyAxisFormatter(values);
-      state.charts[key] = new Chart(canvas.getContext('2d'), {
-        type: 'bar',
-        data: {
-          labels: displayLabels,
-          datasets: [
-            { label: 'Nợ hiện tại', data: list.map(function (item) { return Number(item.totalCurrentDebt) || 0; }), backgroundColor: theme.blue, borderColor: theme.blue, borderWidth: 1.5, borderRadius: 5 },
-            { label: 'Nợ quá hạn', data: list.map(function (item) { return Number(item.totalOverdueDebt) || 0; }), backgroundColor: theme.red, borderColor: theme.red, borderWidth: 1.5, borderRadius: 5 }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          animation: state.chartAnimation ? undefined : false,
-          interaction: { mode: 'index', intersect: false, axis: 'x' },
-          onClick: function (event, elements) {
-            if (elements && elements[0]) setDebtDimensionFilter(filterKind, labels[elements[0].index]);
-          },
-          plugins: { legend: { position: 'bottom', labels: { color: theme.text, usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8, padding: 16 } }, tooltip: { callbacks: { label: function (context) { return context.dataset.label + ': ' + fmtMoney(context.raw); } } } },
-          scales: {
-            x: { ticks: { color: theme.text, autoSkip: false, maxRotation: 45, minRotation: 0 }, grid: { display: false } },
-            y: { beginAtZero: true, ticks: { color: theme.muted, callback: formatAxisMoney }, grid: { color: theme.grid } }
-          }
-        }
-      });
-    }
-
-    function renderDebtTopChart(canvasId, key, list, valueField) {
-      destroyChart(key);
-      const canvas = document.getElementById(canvasId);
-      if (!canvas || !list.length) return;
-      const labels = list.map(function (item) { return item.customerName; });
-      const values = list.map(function (item) { return Number(item[valueField]) || 0; });
-      const theme = chartTheme();
-      const color = valueField === 'overdueDebt' ? theme.red : theme.blue;
-      state.charts[key] = new Chart(canvas.getContext('2d'), {
-        type: 'bar',
-        data: { labels: labels, datasets: [{ label: valueField === 'overdueDebt' ? 'Nợ quá hạn' : 'Nợ hiện tại', data: values, backgroundColor: color, borderColor: color, borderWidth: 1.5, borderRadius: 5 }] },
-        options: {
-          indexAxis: 'y',
-          responsive: true,
-          maintainAspectRatio: false,
-          animation: state.chartAnimation ? undefined : false,
-          interaction: { mode: 'index', intersect: false, axis: 'y' },
-          onClick: function (event, elements) {
-            if (elements && elements[0]) setDebtCustomerFilter(labels[elements[0].index]);
-          },
-          plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (context) { return fmtMoney(context.raw); } } } },
-          scales: {
-            x: { beginAtZero: true, ticks: { color: theme.muted, callback: createMoneyAxisFormatter(values) }, grid: { color: theme.grid } },
-            y: { ticks: { color: theme.text, autoSkip: false }, grid: { display: false } }
-          }
-        }
-      });
-    }
-
     function renderDebtManagementTable() {
       const debt = state.data && state.data.debtManagement;
       const sorted = sortDebtCustomers(getFilteredDebtCustomers());
@@ -8827,10 +8701,6 @@
       document.getElementById('debtQueueFilter').value = state.debtFilters.queue;
       document.getElementById('debtScheduleFilter').value = state.debtFilters.schedule;
       document.getElementById('debtManagementSearch').value = state.debtFilters.search;
-      renderDebtComparisonChart('chartDebtBySale', 'debtBySale', (debt && debt.bySale) || [], 'sale', 'sale');
-      renderDebtComparisonChart('chartDebtBySchedule', 'debtBySchedule', (debt && debt.byPaymentSchedule) || [], 'paymentSchedule', 'schedule', function (value) { return value + ' ngày'; });
-      renderDebtTopChart('chartTopCurrentDebt', 'topCurrentDebt', (debt && debt.topCurrentDebt) || [], 'currentDebt');
-      renderDebtTopChart('chartTopOverdueDebt', 'topOverdueDebt', (debt && debt.topOverdueDebt) || [], 'overdueDebt');
       renderDebtManagementTable();
     }
 
