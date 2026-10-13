@@ -11,7 +11,7 @@
 | Hạng mục | Trạng thái | Chi tiết |
 |---|---|---|
 | **Mã nguồn Backend** | Hoàn thành | Node.js Express, hỗ trợ 7 tab báo cáo, sổ quỹ, nhân sự, tài khoản, bot Telegram |
-| **Cơ sở dữ liệu** | 0001 → 0047 | `0047_debt_schedule_report` đã áp lên DB dùng chung 13/10; đã import lịch TT SG 1.228 + HN 3.072 (nhật ký 4.300 dòng import). | Migration `0044_pancake_marketing`, `0045_pancake_current_input`, `0046_pancake_history_identity` và `0044_purchases_raw_hash` đã áp lên DB dùng chung (kiểm `schema_migrations` ngày 12/10). `0043` đã áp. Hai file cùng tiền tố 0044 là chủ ý, runner chạy theo tên đầy đủ |
+| **Cơ sở dữ liệu** | 0001 → 0048 | `0047_debt_schedule_report` đã áp lên DB dùng chung 13/10; đã import lịch TT SG 1.228 + HN 3.072 (nhật ký 4.300 dòng import). | Migration `0044_pancake_marketing`, `0045_pancake_current_input`, `0046_pancake_history_identity` và `0044_purchases_raw_hash` đã áp lên DB dùng chung (kiểm `schema_migrations` ngày 12/10). `0043` đã áp. Hai file cùng tiền tố 0044 là chủ ý, runner chạy theo tên đầy đủ |
 | **Kiểm thử tự động** | 2.296/2.299 xanh (13/10) | Sau thay đổi công nợ: 2.296 đạt, 3 skipped, 0 lỗi. Trước đó: | Chạy trên `main` đã gộp: 2.295 đạt, 3 skipped (theo cấu hình), 0 lỗi. 4 test tồn kho cũ đã đổi kỳ vọng theo giao diện hiện hành, logic không đổi |
 | **Knowledge Graph** | Đã cập nhật | Graphify updated ngày 12/10/2026 (thư mục cache `graphify-out/cache/ast/v0.9.55-s2/` cũ còn chưa theo dõi, xóa tay được) |
 | **Tài liệu hệ thống** | Đồng bộ 100% | `README.md`, `server/README.md`, `SCHEMA.md`, `implementation_plan.md`, SRS, BRD, MEMORY.md |
@@ -21,6 +21,7 @@
 ## 2. Các đầu việc vừa hoàn thành (Recently Completed — Tháng 10/2026)
 
 0. **Vòng đời đơn hàng — bỏ đơn trước 10/10/2026 (13/10, chưa commit/deploy):** `kiotOrdersRepository.ALL_ORDERS_SQL` chỉ lấy đơn có ngày đặt ≥ 10/10/2026 (giờ VN) hoặc không có ngày; **đơn Phiếu tạm giữ mọi ngày**. Vì danh sách chỉ gồm đơn có trên Kiot nên dòng Sheet của đơn cũ cũng biến mất (mất cả KPI/cảnh báo/xuất Excel của chúng). Hằng số `LIFECYCLE_ORDER_FROM`; sửa ngày ở đó. Test shipment + frontend: 247 đạt.
+0. **Tiền phạt công nợ (13/10/2026, migration 0048 đã áp DB dùng chung, đã backfill phiên cho bản chốt hôm nay: 369 khách, 202 nợ chậm):** cột Số phiên liên tiếp (ẩn) + Tiền phạt phiên này, quyền `reports.debt.penalty`, bỏ trạng thái Đang xử lý. Test 2305 xanh.
 0. **Công nợ theo lịch thanh toán (13/10/2026, migration 0047 đã áp, lịch TT đã import — CHƯA push/deploy):**
    - **Tinh chỉnh bảng Công nợ (13/10, chưa push):** cột Cơ sở lên đầu; mặc định ẩn Cảnh báo; bỏ hàng chờ "Cần xử lý" (mặc định "Còn nợ"); bỏ Nợ đầu kỳ; thêm "DS trong kỳ" (`inScheduleDebt`) giữa Nợ hiện tại và Nợ quá hạn. Xuất Excel/HTML đồng bộ (bỏ Nợ đầu kỳ, thêm "Doanh số trong kỳ", đổi `DEBT_SORT_FIELDS`). Test: 2.298 (2.295 đạt, 3 skipped, 0 lỗi).
    - Bỏ workbook Google Sheets + quy tắc 1-3-7-Hàng tuần + ngưỡng 400k + cảnh báo "Chưa thu". Khóa dòng = khách + cơ sở (HN/SG). Lịch TT (1–90 ngày, mặc định 1) lưu `debt_payment_schedules`, Quản lý sửa trên web (`reports.debt.schedule`), nhật ký vĩnh viễn.

@@ -230,6 +230,6 @@ Triển khai trong `server/marketingReport/`; CLI tại `server/scripts/capture-
 - Tab Công nợ bỏ workbook Google Sheets và quy tắc 1-3-7-Hàng tuần. Mỗi dòng là khách + cơ sở (HN/SG); lịch TT = số ngày nợ tối đa, lưu `debt_payment_schedules`, Quản lý sửa trên web.
 - Chốt số liệu 15:00 mỗi ngày; nợ quá hạn = nợ hiện tại − (hóa đơn − trả hàng trong lịch); cảnh báo Quá hạn khi > 0đ.
 - Thêm cột Sale phản hồi, QL phản hồi; phản hồi/trạng thái/lịch sử chỉnh sửa reset theo bản chốt 15:00 hôm sau.
-- Module mới `server/debtSchedule/`, migration `0047_debt_schedule_report.sql`.
+- Module mới `server/debtSchedule/`, migration `0047_debt_schedule_report.sql`; 0048 thêm cột Số phiên liên tiếp + Tiền phạt phiên này (bỏ trạng thái Đang xử lý).
 
 Cập nhật gần nhất: 13/10/2026.
