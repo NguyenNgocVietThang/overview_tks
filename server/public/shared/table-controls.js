@@ -7,6 +7,7 @@
   var wiredHandles = new WeakSet();
   var picker = null, active = null, opener = null, drag = null, queued = false;
   var MIN_WIDTH = 64;
+  var textContext;
   var ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><line x1="9" y1="4" x2="9" y2="20"></line><line x1="15" y1="4" x2="15" y2="20"></line></svg>';
 
   function screenMode() { return window.innerWidth <= 600 ? 'mobile' : 'desktop'; }
@@ -68,6 +69,42 @@
   function hasLayout(table) {
     return table.isConnected && table.getClientRects().length > 0;
   }
+  // Native selects cannot wrap. Keep the longest option, arrow and cell padding
+  // readable instead of letting a fixed-layout column shrink underneath them.
+  function dropdownMinimums(ctrl) {
+    ctrl.columns.forEach(function (column) { column.minWidth = MIN_WIDTH; });
+    var sections = [ctrl.table.tHead].concat(Array.from(ctrl.table.tBodies), [ctrl.table.tFoot]).filter(Boolean);
+    var measured = new Map();
+    function horizontalSpace(style) {
+      return ['paddingLeft', 'paddingRight', 'borderLeftWidth', 'borderRightWidth'].reduce(function (sum, key) { return sum + (parseFloat(style[key]) || 0); }, 0);
+    }
+    sections.forEach(function (section) {
+      grid(section).entries.forEach(function (entry) {
+        entry.cell.querySelectorAll('select:not([multiple])').forEach(function (select) {
+          var style = window.getComputedStyle(select);
+          if (select.hidden || style.display === 'none') return;
+          if (textContext === undefined) textContext = document.createElement('canvas').getContext('2d');
+          if (!textContext) return;
+          textContext.font = style.font || [style.fontStyle, style.fontWeight, style.fontSize, style.fontFamily].join(' ');
+          var width = 0, spacing = parseFloat(style.letterSpacing) || 0;
+          Array.from(select.options).forEach(function (option) {
+            var label = option.label, key = textContext.font + '\u001f' + label;
+            if (!measured.has(key)) measured.set(key, textContext.measureText(label).width);
+            width = Math.max(width, measured.get(key) + Math.max(0, label.length - 1) * spacing);
+          });
+          width += horizontalSpace(style) + (style.appearance === 'none' ? 8 : 24);
+          for (var parent = select.parentElement; parent; parent = parent.parentElement) {
+            width += horizontalSpace(window.getComputedStyle(parent));
+            if (parent === entry.cell) break;
+          }
+          for (var index = entry.start; index < entry.start + entry.span; index++) {
+            if (ctrl.columns[index]) ctrl.columns[index].minWidth = Math.max(ctrl.columns[index].minWidth, Math.ceil(width / entry.span));
+          }
+        });
+      });
+    });
+    ctrl.columns.forEach(function (column) { column.width = Math.max(column.width, column.minWidth); });
+  }
   function fitOnce(ctrl) {
     if (ctrl.session.fitted || !hasLayout(ctrl.table)) return;
     var wrapper = ctrl.table.parentElement;
@@ -110,7 +147,7 @@
     }
     handle.dataset.columnKey = column.key;
     handle.setAttribute('aria-label', 'Độ rộng cột ' + column.label);
-    handle.setAttribute('aria-valuemin', String(MIN_WIDTH));
+    handle.setAttribute('aria-valuemin', String(column.minWidth || MIN_WIDTH));
     handle.setAttribute('aria-valuenow', String(Math.round(column.width)));
   }
   function preserveTextLines(table) {
@@ -171,7 +208,7 @@
   }
   function resize(ctrl, column, value) {
     if (!column) return;
-    column.width = Math.max(MIN_WIDTH, value); ctrl.session.fitted = true; apply(ctrl);
+    column.width = Math.max(column.minWidth || MIN_WIDTH, value); ctrl.session.fitted = true; apply(ctrl);
   }
   function finishDrag() {
     if (!drag) return;
@@ -326,7 +363,7 @@
       return column;
     });
     if (ctrl.columns.every(function (column) { return column.hidden; })) ctrl.columns[0].hidden = false;
-    table.classList.add('tks-controlled-table'); installButton(ctrl); apply(ctrl);
+    table.classList.add('tks-controlled-table'); installButton(ctrl); dropdownMinimums(ctrl); apply(ctrl);
     if (active === ctrl && picker && !picker.hidden) renderPicker();
     return ctrl;
   }
@@ -359,6 +396,7 @@
       })) schedule();
     }).observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['hidden', 'class', 'style', 'open'] });
     window.addEventListener('resize', schedule);
+    if (document.fonts) document.fonts.ready.then(schedule);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
   else start();

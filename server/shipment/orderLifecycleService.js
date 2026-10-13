@@ -301,6 +301,7 @@ function toOrderRow(record, overrideEntry) {
   const summary = computeEffectiveStatus(record, overrideEntry);
   return Object.assign(toDetail(record), {
     branch: record._branch,
+    flow: record._flow || FLOW_DELIVERY,
     summary
   }, warningFields(record, summary));
 }
@@ -324,6 +325,7 @@ async function findOrder(orderCode) {
   return {
     found: true,
     branch: record._branch,
+    flow: record._flow || FLOW_DELIVERY,
     summary: computeEffectiveStatus(record, overrides.get(target)),
     detail: toDetail(record)
   };

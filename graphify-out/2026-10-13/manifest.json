@@ -534,15 +534,15 @@
     "semantic_hash": ""
   },
   "server/shipment/orderLifecycleRepository.js": {
-    "mtime": 1791779410.4607852,
-    "seen": 1791859450.575905,
-    "ast_hash": "bc0c772d38db43f7f5550413d6b6dba0",
+    "mtime": 1791873742.8727877,
+    "seen": 1791874157.4424224,
+    "ast_hash": "8dd8db8ff235b7bda0916936e9387b62",
     "semantic_hash": ""
   },
   "server/shipment/orderLifecycleRepository.test.js": {
-    "mtime": 1791779619.5257323,
-    "seen": 1791859450.575905,
-    "ast_hash": "afd7086940f216fc0f727f2f254f4aa9",
+    "mtime": 1791873847.9170218,
+    "seen": 1791874157.4424224,
+    "ast_hash": "4fa5204fa1495d6637b4b61d793d2731",
     "semantic_hash": ""
   },
   "server/shipment/orderLifecycleRoutes.js": {
@@ -558,15 +558,15 @@
     "semantic_hash": ""
   },
   "server/shipment/orderLifecycleService.js": {
-    "mtime": 1791791953.9185884,
-    "seen": 1791859450.575905,
-    "ast_hash": "49a5038851114c7a7d1f2bc7b0b461d0",
+    "mtime": 1791873743.2534437,
+    "seen": 1791874157.4424224,
+    "ast_hash": "44ac2c6e95977a84454bb1c486795305",
     "semantic_hash": ""
   },
   "server/shipment/orderLifecycleService.test.js": {
-    "mtime": 1791779619.5257323,
-    "seen": 1791859450.575905,
-    "ast_hash": "0b8a4d8bde8eab4d229370558a7b874f",
+    "mtime": 1791873899.8119402,
+    "seen": 1791874157.4424224,
+    "ast_hash": "7eadad3284aa53d0629ee090e0c22d67",
     "semantic_hash": ""
   },
   "server/test/frontend/auth-guest-ui.test.js": {
@@ -654,9 +654,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1791859407.2804756,
-    "seen": 1791859450.576907,
-    "ast_hash": "2adba380b848e5e7c6b31fec08c9505b",
+    "mtime": 1791874137.1556008,
+    "seen": 1791874157.4424224,
+    "ast_hash": "e43a5c4a38251ce3ee6ace18e531a5b0",
     "semantic_hash": ""
   },
   "design-system/tks-dashboard/MASTER.md": {
@@ -672,9 +672,9 @@
     "semantic_hash": ""
   },
   "docs/02-srs/SRS_Dashboard_GoogleSheets.md": {
-    "mtime": 1791872449.730374,
-    "seen": 1791872464.8686962,
-    "ast_hash": "0433df541e170fc996e286994b67cc5e",
+    "mtime": 1791874137.1609826,
+    "seen": 1791874157.4424224,
+    "ast_hash": "28420a8418c4d4a5459c1f694c6800dc",
     "semantic_hash": ""
   },
   "docs/03-process/BPMN_Dashboard_GoogleSheets.md": {
@@ -786,9 +786,9 @@
     "semantic_hash": "58e700daf0c14819a97499bd94f6f2e1"
   },
   "server/README.md": {
-    "mtime": 1791859407.2804756,
-    "seen": 1791859450.576907,
-    "ast_hash": "3bb54eaddf5c2a3ff70d33338a3f80c2",
+    "mtime": 1791874137.1556008,
+    "seen": 1791874157.4424224,
+    "ast_hash": "b865b39d2c5a2308db172113f081f79a",
     "semantic_hash": ""
   },
   "server/kiotviet/API_ENDPOINTS.md": {
@@ -816,9 +816,9 @@
     "semantic_hash": ""
   },
   "server/public/index.html": {
-    "mtime": 1791871433.154746,
-    "seen": 1791872464.8686962,
-    "ast_hash": "288b620f5a826c61a3749a62d56da6b5",
+    "mtime": 1791872679.6571436,
+    "seen": 1791873454.4413195,
+    "ast_hash": "06fea58fb254abb1c4f900807194bc93",
     "semantic_hash": ""
   },
   "server/public/login/index.html": {
@@ -834,9 +834,9 @@
     "semantic_hash": ""
   },
   "server/public/shipment/lifecycle/index.html": {
-    "mtime": 1791871065.69541,
-    "seen": 1791872464.8686962,
-    "ast_hash": "b6041648fea34075cdc893df88a96412",
+    "mtime": 1791873807.07893,
+    "seen": 1791874157.4424224,
+    "ast_hash": "f374b8b5d1ce48d0a0f8cf9486f74fd8",
     "semantic_hash": ""
   },
   "Logo.jpg": {
@@ -2754,9 +2754,9 @@
     "semantic_hash": ""
   },
   "server/public/marketing-report.js": {
-    "mtime": 1791797928.9155092,
-    "seen": 1791859450.575905,
-    "ast_hash": "d2808cede9001f891d7aa926af9a0f7d",
+    "mtime": 1791872681.4083223,
+    "seen": 1791873454.4413195,
+    "ast_hash": "5e265386ca6b7c5012500df2be35994a",
     "semantic_hash": ""
   },
   "server/public/shared/search-clear.js": {
@@ -2796,15 +2796,15 @@
     "semantic_hash": ""
   },
   "server/shipment/kiotOrdersRepository.js": {
-    "mtime": 1790914681.1060383,
-    "seen": 1791859450.575905,
-    "ast_hash": "5a941014061eb95900b25ddf03debdf6",
+    "mtime": 1791873140.239591,
+    "seen": 1791873454.4413195,
+    "ast_hash": "2e4e26c152d615fddc845de01a95500a",
     "semantic_hash": ""
   },
   "server/shipment/kiotOrdersRepository.test.js": {
-    "mtime": 1790915538.7951646,
-    "seen": 1791859450.575905,
-    "ast_hash": "2b9a703f832773ed28be58675cba714f",
+    "mtime": 1791873096.2036028,
+    "seen": 1791873454.4413195,
+    "ast_hash": "09274f52c7e96835384e32dbd1dfd34f",
     "semantic_hash": ""
   },
   "server/shipment/orderLifecycleQuery.js": {
@@ -2958,9 +2958,9 @@
     "semantic_hash": ""
   },
   "server/test/frontend/branch-column-tables.test.js": {
-    "mtime": 1791797928.9155092,
-    "seen": 1791859450.575905,
-    "ast_hash": "d473a9b41c38f9dcf75491a8e1246257",
+    "mtime": 1791872783.253744,
+    "seen": 1791873454.4413195,
+    "ast_hash": "4a942528f0f19897e175ad661b8108fa",
     "semantic_hash": ""
   },
   "server/test/frontend/business-report.test.js": {
@@ -2982,9 +2982,9 @@
     "semantic_hash": ""
   },
   "server/test/frontend/document-detail-panel.test.js": {
-    "mtime": 1791791954.3366573,
-    "seen": 1791859450.575905,
-    "ast_hash": "da8a0ac1a783968f76e7e466bc7460cb",
+    "mtime": 1791872734.3351085,
+    "seen": 1791873454.4413195,
+    "ast_hash": "6ca27ca56bef3ad8121c480746ea8d71",
     "semantic_hash": ""
   },
   "server/test/frontend/fixed-table-widths.test.js": {
@@ -3054,9 +3054,9 @@
     "semantic_hash": ""
   },
   "server/test/frontend/marketing-report.test.js": {
-    "mtime": 1791797928.9155092,
-    "seen": 1791859450.575905,
-    "ast_hash": "ee4f7629c29bcfe6ac8833f635a4b6b7",
+    "mtime": 1791872813.2669756,
+    "seen": 1791873454.4413195,
+    "ast_hash": "66b07e149ddc9ec9c7755405fa4fe91e",
     "semantic_hash": ""
   },
   "server/test/frontend/order-lifecycle-columns.test.js": {
@@ -3066,9 +3066,9 @@
     "semantic_hash": ""
   },
   "server/test/frontend/order-lifecycle-kiot.test.js": {
-    "mtime": 1791794291.4251692,
-    "seen": 1791859450.575905,
-    "ast_hash": "a66e4b147df8d22d342f6a3f6ebdc567",
+    "mtime": 1791873867.8402114,
+    "seen": 1791874157.4424224,
+    "ast_hash": "b24dd7a9956da155dccfeb0f9f365754",
     "semantic_hash": ""
   },
   "server/test/frontend/overview-section-permissions.test.js": {
@@ -3378,9 +3378,9 @@
     "semantic_hash": ""
   },
   "CURRENT.md": {
-    "mtime": 1791872449.730374,
-    "seen": 1791872464.8686962,
-    "ast_hash": "0c53803c0bd73a44f129771230013417",
+    "mtime": 1791874137.1556008,
+    "seen": 1791874157.4424224,
+    "ast_hash": "a27a5edaac5bd52dbdeb2daa6cc3a55d",
     "semantic_hash": ""
   },
   "MEMORY.md": {

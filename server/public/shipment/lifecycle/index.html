@@ -217,6 +217,7 @@
   }
   .bulk-filter-btn:hover{ color:var(--text); border-color:#F97316; }
   .bulk-filter-btn.active{ color:#fff; background:#F97316; border-color:#F97316; }
+  .bulk-filter-btn[hidden]{ display:none; }
   .bulk-status-select{
     padding:7px 12px; border-radius:8px; border:1px solid var(--border); background:var(--panel);
     color:var(--text); font-size:12.5px; font-weight:600; cursor:pointer;
@@ -411,7 +412,7 @@
     .lc-detail-row{ grid-template-columns:minmax(0, 1fr); gap:2px; }
   }
 </style>
-  <link rel="stylesheet" href="/shared/table-controls.css?v=20261009-3">
+  <link rel="stylesheet" href="/shared/table-controls.css?v=20261013-1">
 </head>
 <body>
   <div class="receipt-header">
@@ -492,6 +493,7 @@
               </div>
               <div class="bulk-header-tools">
                 <span class="bulk-count" id="bulkCount"></span>
+                <button type="button" class="bulk-filter-btn" id="bulkClearSort" title="Bỏ sắp xếp theo cột, về thứ tự mặc định (đơn đặt mới nhất trước)" hidden>Bỏ sắp xếp</button>
                 <select class="bulk-status-select" id="bulkStatusFilter" aria-label="Lọc theo trạng thái">
                   <option value="">Tất cả trạng thái</option>
                   <option value="NOT_SENT">Chưa gửi kế toán</option>
@@ -581,6 +583,7 @@
               <h3>Lịch sử cập nhật</h3>
               <div class="bulk-header-tools">
                 <span class="bulk-count" id="historyCount"></span>
+                <button type="button" class="bulk-filter-btn" id="historyClearSort" title="Bỏ sắp xếp theo cột, về thứ tự mặc định (cập nhật mới nhất trước)" hidden>Bỏ sắp xếp</button>
                 <select class="bulk-status-select" id="historyStatusFilter" aria-label="Lọc theo trạng thái">
                   <option value="">Tất cả trạng thái</option>
                   <option value="NOT_SENT">Đơn chưa gửi kế toán</option>
@@ -641,7 +644,7 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Dat o cuoi than <body> thay vi <head>: script chan phan tich cu phap trong <head> se lam dung viec xu ly toan bo tai lieu. Khong dung `defer` vi script inline ben duoi dung TKSNav o cap cao nhat, va script inline luon chay truoc script defer. -->
-  <script src="/shared/table-controls.js?v=20261009-3"></script>
+  <script src="/shared/table-controls.js?v=20261013-1"></script>
   <script src="/shared/search-clear.js?v=20261009-1"></script>
   <script src="/shared/shared-nav.js?v=20261008"></script>
   <script src="/shared/table-align.js?v=20260928"></script>
@@ -680,24 +683,45 @@
     }
 
     // ---------- Du lieu tinh dung chung ----------
-    // group 'info' = khung "Thông tin đơn"; group 'step' = khung "Tiến trình xử lý" (milestone: mốc thời gian, tính vào
-    // chỉ số Tiến trình; Lái xe là tên người nên không tính).
-    // kiotOnly: chi hien khi du lieu co truong do (dong cua bang noi bo da gop Kiot); tra cuu cho Khach khong co.
-    const DETAIL_FIELDS = [
-      { key: 'orderCode', label: 'Mã đơn hàng', group: 'info' },
-      { key: 'orderDate', label: 'Thời gian đặt hàng', group: 'info', kiotOnly: true },
-      { key: 'kiotStatus', label: 'Trạng thái KiotViet', group: 'info', kiotOnly: true, badge: true },
-      { key: 'saleName', label: 'Nhân viên bán hàng', group: 'info' },
-      { key: 'customerName', label: 'Khách hàng', group: 'info' },
-      { key: 'note', label: 'Ghi chú', group: 'info', kiotOnly: true, multiline: true },
-      { key: 'saleSentAt', label: 'Sale gửi đơn cho kế toán', group: 'step', milestone: true },
-      { key: 'accountantApprovedOrderAt', label: 'Kế toán duyệt đơn', group: 'step', milestone: true },
-      { key: 'driverName', label: 'Lái xe', group: 'step' },
-      { key: 'driverConfirmedDeliveryAt', label: 'Tài xế gửi xác nhận giao hàng', group: 'step', milestone: true },
-      { key: 'accountantApprovedDeliveryAt', label: 'Kế toán duyệt giao hàng', group: 'step', milestone: true },
-      { key: 'shipReceivedAt', label: 'Ship nhận đơn', group: 'step', milestone: true },
-      { key: 'orderSignedAt', label: 'Đơn đã ký nhận', group: 'step', milestone: true }
+    // DETAIL_INFO_FIELDS = khung "Thông tin đơn". kiotOnly: chi hien khi du lieu co truong do (dong cua bang noi bo
+    // da gop Kiot); tra cuu cho Khach khong co.
+    const DETAIL_INFO_FIELDS = [
+      { key: 'orderCode', label: 'Mã đơn hàng' },
+      { key: 'orderDate', label: 'Thời gian đặt hàng', kiotOnly: true },
+      { key: 'kiotStatus', label: 'Trạng thái KiotViet', kiotOnly: true, badge: true },
+      { key: 'saleName', label: 'Nhân viên bán hàng' },
+      { key: 'customerName', label: 'Khách hàng' },
+      { key: 'note', label: 'Ghi chú', kiotOnly: true, multiline: true }
     ];
+    // Khung "Tiến trình xử lý" theo LUONG cua don (server tra order.flow, xem orderLifecycleRepository FLOW_*):
+    //   DELIVERY    DonHang_HN/SG — giao bang xe; con la luong mac dinh cho don chua co trong sheet nao.
+    //   NORTH_SOUTH DonHang_MienNam — Sale gui KT -> KT duyet don -> da ky nhan.
+    //   PICKUP      Khach_HN/SG — khach/ship lay tai kho; "Kho" la cot Lai xe.
+    // milestone: mốc thời gian, tính vào chỉ số Tiến trình; Lái xe / Kho là tên người nên không tính.
+    const STEP_SALE_SENT = { key: 'saleSentAt', label: 'Sale gửi đơn cho kế toán', milestone: true };
+    const STEP_ACCOUNTANT_ORDER = { key: 'accountantApprovedOrderAt', label: 'Kế toán duyệt đơn', milestone: true };
+    const STEP_SIGNED = { key: 'orderSignedAt', label: 'Đơn đã ký nhận', milestone: true };
+    const STEP_FIELDS_BY_FLOW = {
+      DELIVERY: [
+        STEP_SALE_SENT, STEP_ACCOUNTANT_ORDER,
+        { key: 'driverName', label: 'Lái xe' },
+        { key: 'driverConfirmedDeliveryAt', label: 'Tài xế gửi xác nhận giao hàng', milestone: true },
+        { key: 'accountantApprovedDeliveryAt', label: 'Kế toán duyệt giao hàng', milestone: true },
+        STEP_SIGNED
+      ],
+      NORTH_SOUTH: [STEP_SALE_SENT, STEP_ACCOUNTANT_ORDER, STEP_SIGNED],
+      PICKUP: [
+        STEP_SALE_SENT, STEP_ACCOUNTANT_ORDER,
+        { key: 'driverName', label: 'Kho' },
+        { key: 'shipReceivedAt', label: 'Ship/Khách nhận đơn', milestone: true }
+      ]
+    };
+    function stepFieldsFor(order){
+      return STEP_FIELDS_BY_FLOW[order && order.flow] || STEP_FIELDS_BY_FLOW.DELIVERY;
+    }
+    function milestonesFor(order){
+      return stepFieldsFor(order).filter(function(field){ return field.milestone; });
+    }
     const STATUS_BADGE_CLASS = {
       NOT_SENT: 'badge-not-sent',
       SENT_TO_ACCOUNTANT: 'badge-sent',
@@ -778,9 +802,6 @@
     let detailOrder = null;  // don dang xem (dong bang hoac ket qua tra cuu)
     let detailKiot = null;   // ket qua order-detail cua Kiot (null = chua nap / khong co)
 
-    const DETAIL_INFO_FIELDS = DETAIL_FIELDS.filter(function(field){ return field.group === 'info'; });
-    const DETAIL_STEP_FIELDS = DETAIL_FIELDS.filter(function(field){ return field.group === 'step'; });
-    const DETAIL_MILESTONES = DETAIL_STEP_FIELDS.filter(function(field){ return field.milestone; });
     const STEP_CHECK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>';
 
     function detailText(raw){ return (raw === undefined || raw === null || String(raw).trim() === '') ? '' : String(raw); }
@@ -810,11 +831,12 @@
       if(summary && summary.label){
         tiles.push({ label: 'Trạng thái đơn', html: renderBadge(summary), sub: summary.at ? 'Cập nhật ' + summary.at : '' });
       }
-      const doneMilestones = DETAIL_MILESTONES.filter(function(field){ return detailText(order[field.key]); });
+      const milestones = milestonesFor(order);
+      const doneMilestones = milestones.filter(function(field){ return detailText(order[field.key]); });
       const latest = doneMilestones.length ? doneMilestones[doneMilestones.length - 1].label : 'Chưa có mốc nào';
       tiles.push({
-        label: 'Tiến trình', value: doneMilestones.length + '/' + DETAIL_MILESTONES.length + ' mốc',
-        tone: doneMilestones.length === DETAIL_MILESTONES.length ? 'green' : (doneMilestones.length ? 'blue' : ''), sub: latest
+        label: 'Tiến trình', value: doneMilestones.length + '/' + milestones.length + ' mốc',
+        tone: doneMilestones.length === milestones.length ? 'green' : (doneMilestones.length ? 'blue' : ''), sub: latest
       });
       const total = kiot ? kiot.total : (hasOrderTotal(order) ? order.orderTotal : null);
       const pending = kiot ? !!kiot.phieuTam : hasSellableValue(order);
@@ -861,7 +883,7 @@
     }
 
     function detailStepsHtml(detail){
-      return DETAIL_STEP_FIELDS.map(function(field){
+      return stepFieldsFor(detail).map(function(field){
         const text = detailText(detail ? detail[field.key] : '');
         return '<li class="lc-step' + (text ? ' is-done' : '') + '"><span class="lc-step-dot">' + STEP_CHECK_SVG + '</span>' +
           '<span><span class="lc-step-label">' + escapeHtml(field.label) + '</span>' +
@@ -871,15 +893,17 @@
 
     // opts.withKiot: dong cua bang "Toan bo don hang" (vai tro noi bo) nap them chi tiet dong hang tu Kiot.
     // Khu A (tra cuu cho Khach) va tab Lich su KHONG truyen withKiot — khong bao gio goi API Kiot.
-    // opts.summary / opts.branch: bo sung khi `detail` (ket qua tra cuu) khong kem trang thai / co so.
+    // opts.summary / opts.branch / opts.flow: bo sung khi `detail` (ket qua tra cuu) khong kem trang thai / co so / luong.
     function openDetailModal(detail, opts){
       detail = detail || {};
       const order = Object.assign({}, detail);
       if(!order.summary && opts && opts.summary) order.summary = opts.summary;
       if(!order.branch && opts && opts.branch) order.branch = opts.branch;
+      if(!order.flow && opts && opts.flow) order.flow = opts.flow;
       detailOrder = order;
       detailKiot = null;
-      const doneMilestones = DETAIL_MILESTONES.filter(function(field){ return detailText(order[field.key]); }).length;
+      const milestones = milestonesFor(order);
+      const doneMilestones = milestones.filter(function(field){ return detailText(order[field.key]); }).length;
       const subtitle = [BRANCH_LABEL[order.branch] ? 'Cơ sở ' + BRANCH_LABEL[order.branch] : '', detailText(order.orderDate)].filter(Boolean).join(' · ');
       document.getElementById('lcDetailTitle').textContent = order.orderCode || '—';
       document.getElementById('lcDetailSubtitle').textContent = subtitle;
@@ -889,7 +913,7 @@
         '<div id="lcDetailStats"></div>' +
         '<div class="dp-split is-even">' +
           '<div class="dp-section">' + detailSectionHead('Thông tin đơn') + '<div class="dp-card">' + detailInfoHtml(order) + '</div></div>' +
-          '<div class="dp-section">' + detailSectionHead('Tiến trình xử lý', doneMilestones + '/' + DETAIL_MILESTONES.length + ' mốc') +
+          '<div class="dp-section">' + detailSectionHead('Tiến trình xử lý', doneMilestones + '/' + milestones.length + ' mốc') +
             '<div class="dp-card"><ol class="lc-steps">' + detailStepsHtml(order) + '</ol></div></div>' +
         '</div>' +
         '<div id="lcDetailKiot"></div>';
@@ -1036,7 +1060,7 @@
           lookupResultBadge.innerHTML = renderBadge(result.body.summary);
           if(result.body.found && result.body.detail){
             lastLookupDetail = result.body.detail;
-            lastLookupMeta = { summary: result.body.summary, branch: result.body.branch };
+            lastLookupMeta = { summary: result.body.summary, branch: result.body.branch, flow: result.body.flow };
             lookupDetailBtn.hidden = false;
           }
           lookupResult.classList.add('show');
@@ -1406,6 +1430,7 @@
         const ind = th.querySelector('.sort-ind');
         if(ind) ind.textContent = isActive ? (effective.dir === 1 ? '▲' : '▼') : '▲';
       });
+      document.getElementById('bulkClearSort').hidden = !sortKey;
     }
     syncSortHeaderUI();
 
@@ -1422,6 +1447,14 @@
         sortKey = null; // lan thu ba: bo sap xep, tro ve mac dinh (don moi dat nhat truoc)
         sortDir = 1;
       }
+      syncSortHeaderUI();
+      reloadBulk();
+    });
+
+    // Nut "Bo sap xep": cung ket qua voi bam lan thu ba tren tieu de cot, nhung nhin thay duoc.
+    document.getElementById('bulkClearSort').addEventListener('click', function(){
+      sortKey = null;
+      sortDir = 1;
       syncSortHeaderUI();
       reloadBulk();
     });
@@ -1867,8 +1900,10 @@
     let historyActiveBranchFilter = '';
     let historyActiveStatusFilter = '';
     let allHistoryRows = [];
-    let historySortKey = 'changedAt'; // mac dinh moi nhat truoc — khop thu tu API da tra ve san
-    let historySortDir = -1;
+    // Sap xep mac dinh = moi nhat truoc — khop thu tu API da tra ve san.
+    const HISTORY_DEFAULT_SORT = { key: 'changedAt', dir: -1 };
+    let historySortKey = HISTORY_DEFAULT_SORT.key;
+    let historySortDir = HISTORY_DEFAULT_SORT.dir;
     let historyLoaded = false;
     const historyRowNodes = new Map(); // history_id -> { tr, sig } — reconciliation giong bulkRowNodes
 
@@ -1901,8 +1936,17 @@
         const ind = th.querySelector('.sort-ind');
         if(ind) ind.textContent = isActive ? (historySortDir === 1 ? '▲' : '▼') : '▲';
       });
+      document.getElementById('historyClearSort').hidden =
+        historySortKey === HISTORY_DEFAULT_SORT.key && historySortDir === HISTORY_DEFAULT_SORT.dir;
     }
     syncHistorySortHeaderUI();
+
+    function resetHistorySort(){
+      historySortKey = HISTORY_DEFAULT_SORT.key;
+      historySortDir = HISTORY_DEFAULT_SORT.dir;
+      syncHistorySortHeaderUI();
+      applyHistoryFilters();
+    }
 
     historyHeadRow.addEventListener('click', function(e){
       const th = e.target.closest('th.sortable');
@@ -1914,12 +1958,14 @@
       } else if(historySortDir === 1){
         historySortDir = -1;
       } else {
-        historySortKey = null;
-        historySortDir = 1;
+        resetHistorySort(); // lan thu ba: bo sap xep, ve mac dinh (cap nhat moi nhat truoc)
+        return;
       }
       syncHistorySortHeaderUI();
       applyHistoryFilters();
     });
+
+    document.getElementById('historyClearSort').addEventListener('click', resetHistorySort);
 
     function historyRowKey(entry){ return entry.historyId || (entry.orderCode + '|' + entry.changedAt); }
 
@@ -1958,7 +2004,7 @@
             showToast('Không tìm thấy đơn hàng "' + orderCode + '".', 'error');
             return;
           }
-          openDetailModal(result.body.detail, { summary: result.body.summary, branch: result.body.branch });
+          openDetailModal(result.body.detail, { summary: result.body.summary, branch: result.body.branch, flow: result.body.flow });
         })
         .catch(function(){ showToast('Lỗi kết nối máy chủ.', 'error'); });
     }

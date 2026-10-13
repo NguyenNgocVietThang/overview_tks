@@ -304,7 +304,9 @@ test('truy van dau don: lay moi trang thai + ghi chu, ngay doc bang AT TIME ZONE
   const sql = __test__.ALL_ORDERS_SQL;
   assert.match(sql, /COALESCE\(o\.raw->>'statusValue', ''\) AS kiot_status/);
   assert.match(sql, /COALESCE\(o\.raw->>'description', ''\) AS note/);
-  assert.doesNotMatch(sql, /WHERE o\.raw->>'statusValue'/, 'khong loc trang thai');
+  // Chi bo don truoc 10/10/2026 TRU Phieu tam (khong loc theo trang thai khac).
+  assert.match(sql, /WHERE o\.raw->>'statusValue' = 'Phiếu tạm'\s+OR o\.order_date IS NULL\s+OR \(o\.order_date AT TIME ZONE 'UTC'\) >= TIMESTAMP '2026-10-10 00:00:00'/);
+  assert.equal(__test__.LIFECYCLE_ORDER_FROM, '2026-10-10');
   assert.match(sql, /o\.order_date AT TIME ZONE 'UTC'/);
   assert.match(sql, /regexp_replace\(COALESCE\(NULLIF\(o\.raw->>'soldByName', ''\), s\.name, ''\)/);
   assert.doesNotMatch(sql, /\$\d/);
@@ -319,48 +321,6 @@ test('truy van dong hang: chi don Phieu tam, loc statusValue NGUYEN VAN (trung i
 test('anh xa co so Vong doi (HN/SG) <-> DB (hanoi/saigon)', () => {
   assert.deepEqual({ ...LIFECYCLE_TO_DB_BRANCH }, { HN: 'hanoi', SG: 'saigon' });
   assert.deepEqual({ ...DB_TO_LIFECYCLE_BRANCH }, { hanoi: 'HN', saigon: 'SG' });
-});
-
-test('lifecycle SQL excludes VAT/ship-only orders, preserves mixed, empty and unknown orders in both branches', async () => {
-  const { PGlite } = require('@electric-sql/pglite');
-  const db = new PGlite();
-  try {
-    await db.exec(`
-      CREATE TABLE orders (branch text, id bigint, code text, total bigint, order_date timestamptz, sold_by_id bigint, raw jsonb);
-      CREATE TABLE staff (branch text, id bigint, name text);
-      CREATE TABLE products (branch text, id bigint, code text);
-      CREATE TABLE order_details (branch text, order_id bigint, product_id bigint, raw jsonb);
-      INSERT INTO orders
-      SELECT branch, id, 'DH' || id, 100, now(), NULL, '{"statusValue":"Hoàn thành"}'::jsonb
-      FROM unnest(ARRAY['hanoi','saigon']) branch CROSS JOIN generate_series(1, 7) id;
-      INSERT INTO products VALUES ('hanoi', 10, 'VATDA44'), ('saigon', 10, 'REAL');
-      INSERT INTO order_details VALUES
-        ('hanoi',1,NULL,'{"productCode":"VAT"}'),
-        ('hanoi',2,NULL,'{"productCode":" vat210826 "}'),
-        ('hanoi',2,NULL,'{"productCode":"VAT50"}'),
-        ('hanoi',3,10,'{}'),
-        ('hanoi',4,NULL,'{"productCode":" SP20691176 "}'),
-        ('hanoi',5,NULL,'{"productCode":"VAT"}'),
-        ('hanoi',5,NULL,'{"productCode":"SP20691176"}'),
-        ('hanoi',5,NULL,'{"productCode":"REAL"}'),
-        ('hanoi',7,NULL,'{}'),
-        ('saigon',1,NULL,'{"productCode":"vatda44"}'),
-        ('saigon',3,10,'{}');
-    `);
-    const result = await db.query(__test__.ALL_ORDERS_SQL);
-    assert.deepEqual(result.rows.map(row => `${row.branch}|${row.code}`).sort(), [
-      'hanoi|DH5', 'hanoi|DH6', 'hanoi|DH7',
-      'saigon|DH2', 'saigon|DH3', 'saigon|DH4', 'saigon|DH5', 'saigon|DH6', 'saigon|DH7'
-    ]);
-  } finally {
-    await db.close();
-  }
-});
-
-test('allocateSellable: ship fee is excluded from sellable inventory value', () => {
-  const parts = allocateSellable([line('o1', 'sp20691176', 1, 50000), line('o1', 'real', 2, 100)], () => 10);
-  assert.deepEqual(parts[0], { sellableQty: null, sellableAmount: null });
-  assert.equal(parts[1].sellableAmount, 200);
 });
 
 // ---------------------------------------------------------------------------

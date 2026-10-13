@@ -11,6 +11,11 @@ table.tks-controlled-table th button[data-col] {
   white-space:normal !important; min-width:0; box-sizing:border-box;
 }
 table.tks-controlled-table th .sort-button span:first-child { min-width:0; overflow-wrap:anywhere; }
+/* Form controls must stay inside their cells, including authored min-widths. */
+table.tks-controlled-table :is(th, td) :is(select, input:not([type=checkbox]):not([type=radio]), textarea, [role=combobox]) {
+  min-width:0 !important; max-width:100% !important; box-sizing:border-box;
+}
+table.tks-controlled-table :is(th, td) select:not([multiple]) { width:100%; }
 table.tks-controlled-table td .lc-note-text,
 table.tks-controlled-table td .pill,
 table.tks-controlled-table td .lc-badge,

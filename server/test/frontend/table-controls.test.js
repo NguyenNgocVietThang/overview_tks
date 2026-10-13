@@ -18,6 +18,31 @@ function state(ctx) { return JSON.parse(JSON.stringify(ctx.api.getState(ctx.tabl
 function open(ctx) { ctx.doc.querySelector('.tks-columns-button').click(); return ctx.doc.querySelector('.tks-columns-picker'); }
 function toggle(ctx,key) { const picker=open(ctx); const input=picker.querySelector('[data-column-key="'+key+'"]'); input.checked=!input.checked; input.dispatchEvent(new ctx.window.Event('change',{bubbles:true})); picker.querySelector('[data-action="close"]').click(); }
 
+test('dropdown columns keep enough room for every option on resize and after row replacement', t => {
+  const ctx=setup(t);
+  ctx.window.HTMLCanvasElement.prototype.getContext = () => ({ measureText: text => ({ width: text.length * 8 }) });
+  const cell=ctx.table.tBodies[0].rows[0].cells[1];
+  cell.style.padding='0 16px';
+  cell.innerHTML='<select style="padding:0 4px"><option>Ngắn</option><option>Đơn đã gửi kế toán</option></select>';
+  ctx.api.enhance(ctx.table);
+  const shrink=()=>{
+    const handle=ctx.table.querySelectorAll('.tks-column-resizer')[1];
+    for(let i=0;i<40;i++) handle.dispatchEvent(new ctx.window.KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true}));
+    return handle;
+  };
+  let handle=shrink();
+  const minimum=state(ctx).columns[1].width;
+  assert.ok(minimum >= 'Đơn đã gửi kế toán'.length*8+32+8+24, 'Include longest option, cell padding and native arrow');
+  assert.equal(Number(handle.getAttribute('aria-valuemin')),minimum);
+  assert.equal(state(ctx).columns[0].width,130,'Neighbouring columns keep their width');
+  cell.querySelector('select').innerHTML='<option>Trạng thái có nội dung dài hơn trước</option>';
+  ctx.api.refresh(ctx.table);
+  assert.ok(state(ctx).columns[1].width>minimum,'New options raise the minimum immediately');
+  cell.innerHTML='Văn bản có thể xuống dòng';
+  ctx.api.refresh(ctx.table); handle=shrink();
+  assert.equal(state(ctx).columns[1].width,64,'Text-only columns can still shrink');
+});
+
 test('declared picker is reused and direct panel export joins one top-right action group', t => {
   const ctx=setup(t, '<section class="panel"><div class="panel-head"><h2>Products</h2><button class="export-button" id="export">Xuất Excel</button><div class="table-search-tools">Search</div></div>'+fixture+'</section>');
   ctx.api.enhance(ctx.table); ctx.api.refresh(ctx.table);

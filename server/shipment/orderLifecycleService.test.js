@@ -244,6 +244,24 @@ test('findOrder: khớp mã không phân biệt hoa/thường và khoảng trắ
   }
 });
 
+test('findOrder + queryOrders trả `flow` của dòng sheet (mặc định DELIVERY khi dòng không mang _flow)', async () => {
+  const ctx = freshService([
+    record({ orderCode: 'HD001', saleSentAt: '01/09/2026' }),
+    record({ orderCode: 'HD002', saleSentAt: '01/09/2026', _flow: 'NORTH_SOUTH' }),
+    record({ orderCode: 'HD003', saleSentAt: '01/09/2026', _flow: 'PICKUP' })
+  ]);
+  try {
+    assert.equal((await ctx.service.findOrder('HD001')).flow, 'DELIVERY');
+    assert.equal((await ctx.service.findOrder('HD002')).flow, 'NORTH_SOUTH');
+    assert.equal((await ctx.service.findOrder('HD003')).flow, 'PICKUP');
+    const { orders } = await ctx.service.queryOrders({ pageSize: '10' });
+    const flowByCode = Object.fromEntries(orders.map(o => [o.orderCode, o.flow]));
+    assert.deepEqual(flowByCode, { HD001: 'DELIVERY', HD002: 'NORTH_SOUTH', HD003: 'PICKUP' });
+  } finally {
+    ctx.restore();
+  }
+});
+
 test('listAllOrders: lọc theo branch và giữ nguyên thứ tự hàng trong sheet', async () => {
   const ctx = freshService([
     record({ orderCode: 'HD001', _branch: 'HN' }),

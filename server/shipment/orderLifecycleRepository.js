@@ -137,8 +137,9 @@ const DELIVERY_FIELD_KEYS = SCHEMA.fieldKeys.filter(key => key !== 'shipReceived
 const NORTH_SOUTH_FIELD_KEYS = [
   'orderCode', 'saleName', 'customerName', 'saleSentAt', 'accountantApprovedOrderAt', 'orderSignedAt'
 ];
+// driverName = cot "Lai xe" cua tab Khach (buoc Kho trong hop chi tiet; chi hien ten, khong anh huong trang thai).
 const PICKUP_FIELD_KEYS = [
-  'orderCode', 'saleName', 'customerName', 'saleSentAt', 'accountantApprovedOrderAt', 'shipReceivedAt'
+  'orderCode', 'saleName', 'customerName', 'saleSentAt', 'accountantApprovedOrderAt', 'driverName', 'shipReceivedAt'
 ];
 
 async function readTab(sheetName, branch, { fieldKeys = DELIVERY_FIELD_KEYS, flow = FLOW_DELIVERY } = {}) {

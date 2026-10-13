@@ -12,8 +12,8 @@
 // va cong tat ca mat hang. KHONG tinh hang dang van chuyen (cot "Dieu chuyen SG" chi de tham khao) va
 // KHONG tru cac don Phieu tam khac. Don KHAC Phieu tam (da xac nhan/giao/hoan thanh/huy) khong co gia
 // tri co ban (ton hien tai khong con y nghia voi don da xuat). Ton thuc = tong `inventories[].onHand`
-// cua san pham trong retailer cua don. Dong ma "VAT..." va phi ship SP20691176 khong phai hang ton kho:
-// bo khoi phep tinh; don CHI gom cac dong nay bi loai khoi danh sach Vong doi (ke ca don co tren Sheet).
+// cua san pham trong retailer cua don. Dong ma "VAT..." la dong thue, khong phai hang ton kho — bo khoi
+// phep tinh (nhu dashboardData).
 //
 // Doc ~60 nghin don (do that 2026-10-02: 1,8-2,2 giay, ~17 MB JSON tho) nen:
 //   - cache TTL 2 phut + STALE-WHILE-REVALIDATE: het TTL thi tra ngay ban cu va lam moi o nen (nguoi
@@ -36,6 +36,9 @@ const LIFECYCLE_TO_DB_BRANCH = Object.freeze({ HN: 'hanoi', SG: 'saigon' });
 const DB_TO_LIFECYCLE_BRANCH = Object.freeze({ hanoi: 'HN', saigon: 'SG' });
 
 const PHIEU_TAM = 'Phiếu tạm';
+// Quyet dinh cua nguoi dung 2026-10-13: Vong doi chi hien don dat tu ngay nay tro di; don truoc ngay nay bi
+// bo (TRU don Phieu tam: giu ca don cu vi con phai xu ly). Ngay tinh theo gio VN (xem AT TIME ZONE 'UTC').
+const LIFECYCLE_ORDER_FROM = '2026-10-10';
 const DEFAULT_TTL_MS = 2 * 60 * 1000;
 const DEFAULT_STALE_MS = 15 * 60 * 1000;
 // Sau 1 lan lam moi nen that bai, doi it nhat chung nay moi thu lai (tranh moi request deu goi DB dang loi).
@@ -48,13 +51,9 @@ function makeError(message, statusCode, code) {
   return error;
 }
 
-// Ma phi ship do nguoi dung xac nhan; chi ap dung trong Vong doi don hang.
-const SHIPPING_PRODUCT_KEY = 'sp20691176';
-
-/** Dong thue VAT* va phi ship khong phai hang ton kho. */
+/** Dong ma VAT* la dong thue, khong phai hang ton kho. */
 function isServiceProductKey(productKey) {
-  const key = productKeyOf(productKey);
-  return key.startsWith('vat') || key === SHIPPING_PRODUCT_KEY;
+  return String(productKey || '').startsWith('vat');
 }
 
 function toNumber(value) {
@@ -100,9 +99,7 @@ function allocateSellable(lines, availableOf) {
   return out;
 }
 
-// Dau don CUA MOI TRANG THAI, tru don chi co thue/phi ship. Don rong/ma hang chua xac dinh van giu lai.
-// Loc tai nguon de danh sach, KPI, canh bao va xuat Excel cung loai cac don nay.
-// Trang thai Kiot + ghi chu + khach + sale. Sale lay tu
+// Dau don CUA MOI TRANG THAI (khong dong hang): trang thai Kiot + ghi chu + khach + sale. Sale lay tu
 // o.raw soldByName, thieu thi bang staff, roi cat ID Telegram (dashboard/saleName.js). Ngay dat doc bang
 // AT TIME ZONE 'UTC' ("gio treo tuong VN mang nhan UTC", xem dashboardPgReader.js).
 const ALL_ORDERS_SQL = `
@@ -119,16 +116,9 @@ const ALL_ORDERS_SQL = `
     COALESCE(o.raw->>'description', '') AS note
   FROM orders o
   LEFT JOIN staff s ON s.branch = o.branch AND s.id = o.sold_by_id
-  WHERE NOT EXISTS (
-    SELECT 1
-    FROM order_details fee
-    LEFT JOIN products product ON product.branch = fee.branch AND product.id = fee.product_id
-    WHERE fee.branch = o.branch AND fee.order_id = o.id
-    HAVING bool_and(
-      lower(btrim(COALESCE(NULLIF(btrim(fee.raw->>'productCode'), ''), product.code, ''))) LIKE 'vat%'
-      OR lower(btrim(COALESCE(NULLIF(btrim(fee.raw->>'productCode'), ''), product.code, ''))) = '${SHIPPING_PRODUCT_KEY}'
-    )
-  )`;
+  WHERE o.raw->>'statusValue' = '${PHIEU_TAM}'
+     OR o.order_date IS NULL
+     OR (o.order_date AT TIME ZONE 'UTC') >= TIMESTAMP '${LIFECYCLE_ORDER_FROM} 00:00:00'`;
 
 // Dong hang cua CAC DON PHIEU TAM (de tinh gia tri co ban). Bieu thuc loc statusValue GIU NGUYEN (khong
 // COALESCE) de trung dieu kien index mot phan 0028. Thanh tien dong = (price - discount) x quantity vi
@@ -371,5 +361,5 @@ module.exports = {
   kiotOrders,
   LIFECYCLE_TO_DB_BRANCH,
   DB_TO_LIFECYCLE_BRANCH,
-  __test__: { allocateSellable, productKeyOf, isServiceProductKey, ALL_ORDERS_SQL, PENDING_LINES_SQL, ON_HAND_BY_CODE_SQL }
+  __test__: { LIFECYCLE_ORDER_FROM, allocateSellable, productKeyOf, isServiceProductKey, ALL_ORDERS_SQL, PENDING_LINES_SQL, ON_HAND_BY_CODE_SQL }
 };

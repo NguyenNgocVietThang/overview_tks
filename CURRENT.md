@@ -20,6 +20,7 @@
 
 ## 2. Các đầu việc vừa hoàn thành (Recently Completed — Tháng 10/2026)
 
+0. **Vòng đời đơn hàng — bỏ đơn trước 10/10/2026 (13/10, chưa commit/deploy):** `kiotOrdersRepository.ALL_ORDERS_SQL` chỉ lấy đơn có ngày đặt ≥ 10/10/2026 (giờ VN) hoặc không có ngày; **đơn Phiếu tạm giữ mọi ngày**. Vì danh sách chỉ gồm đơn có trên Kiot nên dòng Sheet của đơn cũ cũng biến mất (mất cả KPI/cảnh báo/xuất Excel của chúng). Hằng số `LIFECYCLE_ORDER_FROM`; sửa ngày ở đó. Test shipment + frontend: 247 đạt.
 0. **Công nợ theo lịch thanh toán (13/10/2026, migration 0047 đã áp, lịch TT đã import — CHƯA push/deploy):**
    - **Tinh chỉnh bảng Công nợ (13/10, chưa push):** cột Cơ sở lên đầu; mặc định ẩn Cảnh báo; bỏ hàng chờ "Cần xử lý" (mặc định "Còn nợ"); bỏ Nợ đầu kỳ; thêm "DS trong kỳ" (`inScheduleDebt`) giữa Nợ hiện tại và Nợ quá hạn. Xuất Excel/HTML đồng bộ (bỏ Nợ đầu kỳ, thêm "Doanh số trong kỳ", đổi `DEBT_SORT_FIELDS`). Test: 2.298 (2.295 đạt, 3 skipped, 0 lỗi).
    - Bỏ workbook Google Sheets + quy tắc 1-3-7-Hàng tuần + ngưỡng 400k + cảnh báo "Chưa thu". Khóa dòng = khách + cơ sở (HN/SG). Lịch TT (1–90 ngày, mặc định 1) lưu `debt_payment_schedules`, Quản lý sửa trên web (`reports.debt.schedule`), nhật ký vĩnh viễn.
@@ -53,6 +54,12 @@
    - Đọc thêm tab `DonHang_MienNam` (cùng workbook `ORDER_LIFECYCLE_SPREADSHEET_ID`); tính như đơn Hà Nội, chỉ 4 mốc (Mã đơn / Sale gửi KT / KT duyệt đơn / Đã ký nhận), bỏ qua cột lái xe/ship, không cảnh báo 24h, fail-soft có log.
    - Code: `config.js`, `shipment/orderLifecycleRepository.js`, `shipment/orderLifecycleService.js`; 8 test mới (`orderLifecycleRepository.test.js`, `orderLifecycleWarning.test.js`). Đã kiểm tra thật: `DH043419` hiện Hà Nội, "Đơn đã gửi kế toán".
    - Kế hoạch/danh sách việc: `tasks/2026-10-12-lifecycle-north-south/`. Deploy chỉ cần restart server.
+
+5b. **Vòng đời đơn hàng — hộp chi tiết theo luồng + nút "Bỏ sắp xếp" (13/10/2026, không migration, chưa commit):**
+   - Server trả thêm `flow` (`DELIVERY`/`NORTH_SOUTH`/`PICKUP`) trên mỗi dòng bảng và kết quả tra cứu; tab Khách_HN/SG đọc thêm cột `Lái xe` (bước Kho).
+   - Hộp chi tiết chỉ hiện node đúng luồng: DonHang_HN/SG (và đơn chưa có trong sheet) 6 node, bỏ "Ship nhận đơn"; DonHang_MienNam 3 node (Sale gửi → KT duyệt đơn → Đã ký nhận); Khách_HN/SG 4 node (Sale gửi → KT duyệt đơn → Kho → Ship/Khách nhận đơn). Chỉ số Tiến trình tính theo mốc của luồng (5/3/3).
+   - Hai bảng (Toàn bộ đơn hàng, Lịch sử cập nhật) có nút "Bỏ sắp xếp" hiện khi đang sắp theo cột; lần bấm tiêu đề thứ ba của bảng Lịch sử cũng về mặc định (mới nhất trước).
+   - Test: `order-lifecycle-kiot.test.js` (sửa 2 + 3 test mới), `orderLifecycleService.test.js`, `orderLifecycleRepository.test.js`; toàn bộ 2.305 test xanh. Deploy chỉ cần restart server.
 
 6. **Giảm egress Supabase (Migration `0044`, nhánh `perf/egress-reduction`, chưa deploy):**
    - `purchases.raw_hash`: đối soát phiếu nhập so băm thay vì tải `raw`.

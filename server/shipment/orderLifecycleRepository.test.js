@@ -333,7 +333,7 @@ test('appendOverride: ghi đúng thứ tự cột theo HISTORY_SCHEMA_FIELD_KEYS
 // Header tab Khách_HN/Khách_SG (2026-10-12) giống DonHang_MienNam: chỉ đọc Mã đơn, Sale gửi KT, KT duyệt, Ship nhận đơn.
 const PICKUP_HEADERS = NORTH_SOUTH_HEADERS;
 
-test('readAll đọc tab Khách_HN/SG: chỉ giữ Mã đơn / Sale gửi KT / KT duyệt / Ship nhận đơn', async () => {
+test('readAll đọc tab Khách_HN/SG: chỉ giữ Mã đơn / Sale gửi KT / KT duyệt / Lái xe (Kho) / Ship nhận đơn', async () => {
   const ctx = freshRepository({
     pickupSg: [
       PICKUP_HEADERS,
@@ -348,7 +348,8 @@ test('readAll đọc tab Khách_HN/SG: chỉ giữ Mã đơn / Sale gửi KT / K
     assert.equal(row.saleSentAt, '12/10/2026 08:52');
     assert.equal(row.accountantApprovedOrderAt, '12/10/2026 09:10');
     assert.equal(row.shipReceivedAt, '13/10/2026 08:00');
-    ['driverName', 'driverConfirmedDeliveryAt', 'accountantApprovedDeliveryAt', 'deliveryConfirmedAt', 'orderSignedAt']
+    assert.equal(row.driverName, 'Tuấn Anh', 'cột Lái xe là bước Kho của luồng khách/ship lấy');
+    ['driverConfirmedDeliveryAt', 'accountantApprovedDeliveryAt', 'deliveryConfirmedAt', 'orderSignedAt']
       .forEach(key => assert.equal(row[key], '', `${key} phải bị bỏ qua`));
   } finally {
     ctx.restore();

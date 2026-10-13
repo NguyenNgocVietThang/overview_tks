@@ -368,6 +368,27 @@ test('sắp xếp theo "Trạng thái KiotViet" và "Ghi chú"; lần thứ ba b
   page.dom.window.close();
 });
 
+test('nút "Bỏ sắp xếp" chỉ hiện khi đang sắp theo cột; bấm → về mặc định, không gửi tham số sort', async () => {
+  const page = await renderPage({ orders: [
+    kiotOnlyOrder('A', { orderDate: '03/10/2026 10:00', note: 'beta' }),
+    kiotOnlyOrder('B', { orderDate: '02/10/2026 10:00', note: 'alpha' })
+  ] });
+  const { document } = page;
+  const clearBtn = document.getElementById('bulkClearSort');
+  assert.equal(clearBtn.hidden, true, 'mac dinh chua sap theo cot -> an');
+  headerNamed(document, 'note').click();
+  await settle();
+  assert.equal(clearBtn.hidden, false);
+  assert.deepEqual(codesOf(document), ['B', 'A']);
+  clearBtn.click();
+  await settle();
+  assert.equal(clearBtn.hidden, true);
+  assert.equal(lastListParams(page).has('sort'), false);
+  assert.deepEqual(codesOf(document), ['A', 'B']);
+  assert.ok(headerNamed(document, 'orderDate').classList.contains('sort-active'));
+  page.dom.window.close();
+});
+
 test('lọc thời gian theo "Ngày đặt hàng (Kiot)" đúng thời gian thật; dòng sheet không có ngày đặt bị loại khi đã chọn khoảng', async () => {
   const page = await renderPage({ orders: [
     kiotOnlyOrder('DA', { orderDate: '30/09/2026 23:30' }),
@@ -956,7 +977,7 @@ test('hộp chi tiết: hàng chỉ số tổng quan (trạng thái, tiến trì
   let stats = detailStats(document);
   assert.equal(stats['Trạng thái đơn'].value, 'Đơn đã gửi kế toán');
   assert.equal(stats['Trạng thái đơn'].sub, 'Cập nhật 01/10/2026 15:00');
-  assert.equal(stats['Tiến trình'].value, '2/6 mốc');
+  assert.equal(stats['Tiến trình'].value, '2/5 mốc');
   assert.equal(stats['Tiến trình'].sub, 'Kế toán duyệt đơn');
   assert.equal(stats['Giá trị đơn (Kiot)'].value, '2.000.000₫');
   assert.equal(stats['Mặt hàng'], undefined);
@@ -973,7 +994,7 @@ test('hộp chi tiết: hàng chỉ số tổng quan (trạng thái, tiến trì
   assert.equal(stats['Dòng thiếu hàng'].tone, 'is-red');
 
   const steps = [...document.querySelectorAll('#lcDetailBody .lc-step')];
-  assert.equal(steps.length, 7);
+  assert.equal(steps.length, 6, 'don khong co flow -> luong DonHang_HN/SG, khong con node Ship nhan don');
   assert.deepEqual(steps.filter(step => step.classList.contains('is-done')).map(step => step.querySelector('.lc-step-label').textContent),
     ['Sale gửi đơn cho kế toán', 'Kế toán duyệt đơn', 'Lái xe']);
   assert.equal(steps[0].querySelector('.lc-step-value').textContent, '01/10/2026 14:00');
@@ -1021,9 +1042,41 @@ test('tra cứu cho Khách / tab Lịch sử: hộp lấy trạng thái + cơ s�
   page.window.eval("openDetailModal({ orderCode: 'DH9', saleName: 'S', customerName: 'K', saleSentAt: '01/10/2026 08:00' }, { summary: { code: 'SENT_TO_ACCOUNTANT', label: 'Đơn đã gửi kế toán', at: '01/10/2026 08:05' }, branch: 'SG' })");
   const stats = detailStats(page.document);
   assert.deepEqual(Object.keys(stats), ['Trạng thái đơn', 'Tiến trình']);
-  assert.equal(stats['Tiến trình'].value, '1/6 mốc');
+  assert.equal(stats['Tiến trình'].value, '1/5 mốc');
   assert.equal(page.document.getElementById('lcDetailSubtitle').textContent, 'Cơ sở Sài Gòn');
   assert.equal(page.document.querySelector('#lcDetailBody .lc-detail-alert'), null, 'khong co canh bao thi khong hien khung canh bao');
+  page.dom.window.close();
+});
+
+const stepLabels = document => [...document.querySelectorAll('#lcDetailBody .lc-step .lc-step-label')].map(el => el.textContent);
+
+test('hộp chi tiết theo luồng: DELIVERY 6 node, NORTH_SOUTH 3 node, PICKUP 4 node (Kho + Ship/Khách nhận đơn)', async () => {
+  const page = await renderPage({ orders: [sheetOrder('DH1')] });
+  const open = (flow, extra) => page.window.eval(`openDetailModal(${JSON.stringify(Object.assign({ orderCode: 'DH9', flow }, extra))})`);
+
+  open('DELIVERY');
+  assert.deepEqual(stepLabels(page.document), ['Sale gửi đơn cho kế toán', 'Kế toán duyệt đơn', 'Lái xe',
+    'Tài xế gửi xác nhận giao hàng', 'Kế toán duyệt giao hàng', 'Đơn đã ký nhận']);
+
+  open('NORTH_SOUTH', { saleSentAt: '01/10/2026 08:00', orderSignedAt: '02/10/2026 08:00' });
+  assert.deepEqual(stepLabels(page.document), ['Sale gửi đơn cho kế toán', 'Kế toán duyệt đơn', 'Đơn đã ký nhận']);
+  assert.equal(detailStats(page.document)['Tiến trình'].value, '2/3 mốc');
+
+  open('PICKUP', { saleSentAt: '01/10/2026 08:00', driverName: 'Tuấn Anh', shipReceivedAt: '02/10/2026 08:00' });
+  assert.deepEqual(stepLabels(page.document), ['Sale gửi đơn cho kế toán', 'Kế toán duyệt đơn', 'Kho', 'Ship/Khách nhận đơn']);
+  const values = [...page.document.querySelectorAll('#lcDetailBody .lc-step .lc-step-value')].map(el => el.textContent);
+  assert.deepEqual(values, ['01/10/2026 08:00', 'Chưa có', 'Tuấn Anh', '02/10/2026 08:00']);
+  assert.equal(detailStats(page.document)['Tiến trình'].value, '2/3 mốc', 'Kho la ten nguoi nen khong tinh la moc');
+
+  open(undefined);
+  assert.equal(stepLabels(page.document).length, 6, 'thieu flow -> tam hien nhu DonHang_HN/SG');
+  page.dom.window.close();
+});
+
+test('hộp chi tiết lấy luồng từ kết quả tra cứu (opts.flow) khi detail không kèm flow', async () => {
+  const page = await renderPage({ orders: [sheetOrder('DH1')] });
+  page.window.eval("openDetailModal({ orderCode: 'DH9' }, { branch: 'HN', flow: 'NORTH_SOUTH' })");
+  assert.equal(stepLabels(page.document).length, 3);
   page.dom.window.close();
 });
 
