@@ -4114,9 +4114,9 @@
                   <div class="debt-filter-field">
                     <label for="debtQueueFilter">Hàng chờ</label>
                     <select id="debtQueueFilter" onchange="handleDebtFilterChange()">
-                      <option value="currentDebt" selected>Còn nợ</option>
+                      <option value="currentDebt">Còn nợ</option>
                       <option value="overdue">Quá hạn</option>
-                      <option value="all">Tất cả</option>
+                      <option value="all" selected>Tất cả</option>
                     </select>
                   </div>
                   <div class="debt-filter-field">
@@ -4455,7 +4455,7 @@
       // state.filters (khoa trong do di kem /api/dashboard va cache dashboard).
       inventoryHistory: { filter: { mode: 'days', days: 30 }, rows: [], loaded: false, failed: false, requestId: 0 },
       debtFilters: {
-        queue: 'currentDebt',
+        queue: 'all',
         sale: '',
         schedule: '',
         search: ''

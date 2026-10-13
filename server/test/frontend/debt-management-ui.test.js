@@ -105,9 +105,9 @@ test('dashboard công nợ có đủ 4 KPI, không còn biểu đồ và bảng 
   assert.match(table[0], /Xử lý/);
 });
 
-test('bộ lọc local mặc định Còn nợ (không còn Cần xử lý) và hỗ trợ sale, lịch, tìm khách/sale', () => {
+test('bộ lọc local mặc định Tất cả (không còn Cần xử lý) và hỗ trợ sale, lịch, tìm khách/sale', () => {
   const dashboard = html();
-  assert.match(dashboard, /id="debtQueueFilter"[\s\S]*?<option value="currentDebt" selected>Còn nợ<\/option>/);
+  assert.match(dashboard, /id="debtQueueFilter"[\s\S]*?<option value="all" selected>Tất cả<\/option>/);
   assert.doesNotMatch(dashboard, /<option value="needsAction"/);
   assert.match(dashboard, /id="debtSaleFilter"/);
   assert.match(dashboard, /id="debtScheduleFilter"/);
@@ -131,10 +131,10 @@ test('script inline của dashboard vẫn biên dịch sau khi thay giao diện'
   scripts.forEach(script => assert.doesNotThrow(() => new Function(script)));
 });
 
-test('lọc mặc định Còn nợ, sort toàn tập và PATCH thành công cập nhật trạng thái ngay', async () => {
+test('lọc mặc định Tất cả, sort toàn tập và PATCH thành công cập nhật trạng thái ngay', async () => {
   const dom = createDashboard(debtPayload());
   const document = dom.window.document;
-  assert.equal(document.getElementById('debtQueueFilter').value, 'currentDebt');
+  assert.equal(document.getElementById('debtQueueFilter').value, 'all');
   assert.equal(document.querySelectorAll('#debtManagementRows tr[data-customer-key]').length, 2, 'mặc định chỉ hiện khách còn nợ');
 
   const currentDebtHeader = document.querySelectorAll('[data-debt-management-table] thead th')[4].querySelector('button');
