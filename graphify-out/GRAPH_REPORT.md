@@ -1,7 +1,7 @@
 # Graph Report - Web TKS Dashboard  (2026-10-13)
 
 ## Corpus Check
-- 596 files · ~826,846 words
+- 596 files · ~827,041 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 22 file(s) not represented in the graph (top: .jfif 8, .css 7, .bpmn 3)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `690f3524`
+- Built from commit: `7880aea3`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -1761,6 +1761,6 @@ _Questions this graph is uniquely positioned to answer:_
 - **Why does `to()` connect `va` to `chart.umd.min.js`, `s`, `ref_node_test`, `Sổ quỹ (Cash book) — Thiết kế & hướng dẫn triển khai cho agent`?**
   _High betweenness centrality (0.042) - this node is a cross-community bridge._
 - **Why does `B()` connect `Qe` to `adminTelegram.test.js`, `e`, `@electric-sql/pglite`, `o`, `html2pdf.bundle.min.js`?**
-  _High betweenness centrality (0.029) - this node is a cross-community bridge._
+  _High betweenness centrality (0.028) - this node is a cross-community bridge._
 - **Are the 52 inferred relationships involving `e()` (e.g. with `html2pdf.bundle.min.js` and `Dr()`) actually correct?**
   _`e()` has 52 INFERRED edges - model-reasoned connections that need verification._

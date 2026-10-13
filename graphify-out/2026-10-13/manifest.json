@@ -216,21 +216,21 @@
     "semantic_hash": ""
   },
   "server/dashboard/dashboardData.test.js": {
-    "mtime": 1791858436.9780653,
-    "seen": 1791859450.575905,
-    "ast_hash": "1b4c93a495596d7855236f4f1736903d",
+    "mtime": 1791878218.5491571,
+    "seen": 1791878624.2451684,
+    "ast_hash": "7b7daa45c7b4c907f0104c79a36ca452",
     "semantic_hash": ""
   },
   "server/dashboard/exportService.js": {
-    "mtime": 1791870824.023869,
-    "seen": 1791872464.8686962,
-    "ast_hash": "b8091c5388537400324db98ac53083d4",
+    "mtime": 1791877935.7119706,
+    "seen": 1791878624.2451684,
+    "ast_hash": "63987bca2cd30de6b65c868f9af3ae1e",
     "semantic_hash": ""
   },
   "server/dashboard/exportService.test.js": {
-    "mtime": 1791870791.7838686,
-    "seen": 1791872464.8686962,
-    "ast_hash": "75a73b1a2f257d0f347328b005630b30",
+    "mtime": 1791878256.6374843,
+    "seen": 1791878624.2451684,
+    "ast_hash": "662ef7268edec09aff9dff5c1ee8a1ec",
     "semantic_hash": ""
   },
   "server/dashboard/stockoutCheck/jobManager.js": {
@@ -786,9 +786,9 @@
     "semantic_hash": "58e700daf0c14819a97499bd94f6f2e1"
   },
   "server/README.md": {
-    "mtime": 1791874137.1556008,
-    "seen": 1791874157.4424224,
-    "ast_hash": "b865b39d2c5a2308db172113f081f79a",
+    "mtime": 1791878598.1880069,
+    "seen": 1791878624.2451684,
+    "ast_hash": "0fd97ec559c940fe410b24cdb63f0e46",
     "semantic_hash": ""
   },
   "server/kiotviet/API_ENDPOINTS.md": {
@@ -816,9 +816,9 @@
     "semantic_hash": ""
   },
   "server/public/index.html": {
-    "mtime": 1791876442.912063,
-    "seen": 1791876571.1244545,
-    "ast_hash": "11553c8a4242c1e330703b5f733f9b43",
+    "mtime": 1791877907.6960094,
+    "seen": 1791878624.2451684,
+    "ast_hash": "ea4bb3f231ed20b8f0178467fa1f3dd7",
     "semantic_hash": ""
   },
   "server/public/login/index.html": {
@@ -1386,9 +1386,9 @@
     "semantic_hash": ""
   },
   "server/db/SCHEMA.md": {
-    "mtime": 1791859407.2804756,
-    "seen": 1791859450.576907,
-    "ast_hash": "21d112912fba4b987399e9a08d20dcbe",
+    "mtime": 1791878598.1880069,
+    "seen": 1791878624.2451684,
+    "ast_hash": "d18d3dce5a2dade540606556c958e620",
     "semantic_hash": ""
   },
   "server/auth/appUsersRepository.js": {
@@ -1476,9 +1476,9 @@
     "semantic_hash": "37e3f3784c4ec0f9740f3331b17b7eb3"
   },
   "server/dashboard/debtManagementRoutes.js": {
-    "mtime": 1791858316.9950874,
-    "seen": 1791859450.575905,
-    "ast_hash": "143637af522058b2d4d35ddf0937529d",
+    "mtime": 1791877861.5229638,
+    "seen": 1791878624.2451684,
+    "ast_hash": "c6fbd231f92928ab2442b56e4c859934",
     "semantic_hash": ""
   },
   "server/dashboard/debtManagementRoutes.test.js": {
@@ -1560,9 +1560,9 @@
     "semantic_hash": ""
   },
   "server/test/frontend/debt-management-ui.test.js": {
-    "mtime": 1791876448.4250326,
-    "seen": 1791876571.1244545,
-    "ast_hash": "0affe990569277e27dbd41b1769469ac",
+    "mtime": 1791878218.5491571,
+    "seen": 1791878624.2451684,
+    "ast_hash": "264ec82c0bc67328160e93340eba06c6",
     "semantic_hash": ""
   },
   "server/test/frontend/table-explorer.test.js": {
@@ -1788,15 +1788,15 @@
     "semantic_hash": ""
   },
   "server/auth/featureRegistry.js": {
-    "mtime": 1791859034.2945971,
-    "seen": 1791859450.575905,
-    "ast_hash": "61a2d2710f4b068316365072f8bcc261",
+    "mtime": 1791877866.4707243,
+    "seen": 1791878624.2451684,
+    "ast_hash": "4c2a1904c886563742481c8c985789de",
     "semantic_hash": ""
   },
   "server/auth/featureRegistry.test.js": {
-    "mtime": 1791858962.342865,
-    "seen": 1791859450.575905,
-    "ast_hash": "3fc936f16c87d0dac93a979673420bf7",
+    "mtime": 1791877882.4377904,
+    "seen": 1791878624.2451684,
+    "ast_hash": "7ba448439c4d61aed576cb4b4b898f0d",
     "semantic_hash": ""
   },
   "server/auth/pageGuard.js": {
@@ -3606,39 +3606,39 @@
     "semantic_hash": ""
   },
   "server/debtSchedule/debtCycleSnapshot.js": {
-    "mtime": 1791857826.457724,
-    "seen": 1791859450.575905,
-    "ast_hash": "93a6f73514f595d55ae03986d7f6f747",
+    "mtime": 1791877832.731932,
+    "seen": 1791878624.2451684,
+    "ast_hash": "7fdfcd1bdacde0372c0280bbf049ab0a",
     "semantic_hash": ""
   },
   "server/debtSchedule/debtScheduleDb.test.js": {
-    "mtime": 1791858680.298989,
-    "seen": 1791859450.575905,
-    "ast_hash": "32f0e34e0a4389fa0fb6f39738762c96",
+    "mtime": 1791878422.0453675,
+    "seen": 1791878624.2451684,
+    "ast_hash": "350a87eab423f8eaa9edbe2f29c62a5a",
     "semantic_hash": ""
   },
   "server/debtSchedule/debtScheduleRepository.js": {
-    "mtime": 1791858664.2683747,
-    "seen": 1791859450.575905,
-    "ast_hash": "7cfbc9fe201406967c28ff86e4cac2ec",
+    "mtime": 1791877861.10631,
+    "seen": 1791878624.2451684,
+    "ast_hash": "f339d3d48f3ef47e61e6d019d5496c3d",
     "semantic_hash": ""
   },
   "server/debtSchedule/debtScheduleRules.js": {
-    "mtime": 1791857788.5660388,
-    "seen": 1791859450.575905,
-    "ast_hash": "4306a2b16d258106a40458748c5dfda2",
+    "mtime": 1791877813.6335697,
+    "seen": 1791878624.2451684,
+    "ast_hash": "1d0ba17bea1b9a12d6e5888058fc3a8d",
     "semantic_hash": ""
   },
   "server/debtSchedule/debtScheduleRules.test.js": {
-    "mtime": 1791858485.421046,
-    "seen": 1791859450.575905,
-    "ast_hash": "218aa854ccfb222942a9ce4308c8b5a4",
+    "mtime": 1791878236.9017997,
+    "seen": 1791878624.2451684,
+    "ast_hash": "54dff9b7c30f621b77c6270b10fd0f2a",
     "semantic_hash": ""
   },
   "server/debtSchedule/debtScheduleService.js": {
-    "mtime": 1791858200.6303687,
-    "seen": 1791859450.575905,
-    "ast_hash": "37c8a2214e0d79154cb687f841f30056",
+    "mtime": 1791877861.1326358,
+    "seen": 1791878624.2451684,
+    "ast_hash": "b0ab8c37a77146c54888a6ead6d6681b",
     "semantic_hash": ""
   },
   "server/debtSchedule/importDebtSchedules.js": {
@@ -3651,6 +3651,18 @@
     "mtime": 1791855190.264037,
     "seen": 1791859450.576907,
     "ast_hash": "d56a30d9dff79d2834cba4b3e0f91681",
+    "semantic_hash": ""
+  },
+  "server/db/migrations/0048_debt_penalty.sql": {
+    "mtime": 1791877843.9250207,
+    "seen": 1791878624.2451684,
+    "ast_hash": "db35c49c1ecbb21a31dfce5ec48623c4",
+    "semantic_hash": ""
+  },
+  "server/debtSchedule/backfillOverdueStreak.js": {
+    "mtime": 1791877843.9576244,
+    "seen": 1791878624.2451684,
+    "ast_hash": "785afbd0c122bf83cd2212f0e21e8a39",
     "semantic_hash": ""
   }
 }

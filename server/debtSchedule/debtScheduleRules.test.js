@@ -99,3 +99,14 @@ test('nextOverdueStreak: +1 khi >= 400k, reset 0 khi duoi, Da xu ly giu nguyen',
   assert.equal(rules.nextOverdueStreak(500000, 0, 'Đã xử lý'), 1);
   assert.equal(rules.nextOverdueStreak(399999, 4, 'Bỏ qua'), 0);
 });
+
+test('buildCustomerRow: "Đã xử lý" đưa tiền phạt phiên này về 0, nhập tay vẫn được ưu tiên', () => {
+  const base = { branch: 'hanoi', customerId: 1, currentDebt: 900000, overdueStreak: 2, scheduleDays: 7 };
+  const open = rules.buildCustomerRow(base, { cycleDate: '2026-10-13', dailyAmounts: [] });
+  assert.ok(open.penaltyAmount > 0);
+  const done = rules.buildCustomerRow({ ...base, feedback: { status: 'Đã xử lý' } }, { cycleDate: '2026-10-13', dailyAmounts: [] });
+  assert.equal(done.penaltyAmount, 0);
+  assert.equal(done.suggestedPenalty, open.suggestedPenalty);
+  const manual = rules.buildCustomerRow({ ...base, feedback: { status: 'Đã xử lý' }, penaltyOverride: 40000 }, { cycleDate: '2026-10-13', dailyAmounts: [] });
+  assert.equal(manual.penaltyAmount, 40000);
+});

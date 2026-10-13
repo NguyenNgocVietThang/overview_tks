@@ -128,7 +128,8 @@ function buildCustomerRow(row, { cycleDate, dailyAmounts, access = {} }) {
     alertCodes,
     overdueStreak,
     suggestedPenalty: suggested,
-    penaltyAmount: hasManualPenalty ? Number(row.penaltyOverride) : suggested,
+    // "Da xu ly" -> tien phat phien nay ve 0 (tru khi co nguoi dien tay).
+    penaltyAmount: hasManualPenalty ? Number(row.penaltyOverride) : (workflowStatus === RESOLVED_STATUS ? 0 : suggested),
     penaltyIsManual: hasManualPenalty,
     penaltyBy: hasManualPenalty ? row.penaltyBy || '' : '',
     dataIssues: [],
