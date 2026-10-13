@@ -672,9 +672,9 @@
     "semantic_hash": ""
   },
   "docs/02-srs/SRS_Dashboard_GoogleSheets.md": {
-    "mtime": 1791874137.1609826,
-    "seen": 1791874157.4424224,
-    "ast_hash": "28420a8418c4d4a5459c1f694c6800dc",
+    "mtime": 1791883417.5077562,
+    "seen": 1791884208.5364203,
+    "ast_hash": "601a0c007d42aa7b18a466dd62c32f02",
     "semantic_hash": ""
   },
   "docs/03-process/BPMN_Dashboard_GoogleSheets.md": {
@@ -786,9 +786,9 @@
     "semantic_hash": "58e700daf0c14819a97499bd94f6f2e1"
   },
   "server/README.md": {
-    "mtime": 1791878598.1880069,
-    "seen": 1791878624.2451684,
-    "ast_hash": "0fd97ec559c940fe410b24cdb63f0e46",
+    "mtime": 1791884047.163803,
+    "seen": 1791884208.5364203,
+    "ast_hash": "43d8de0f87779faaacc06c1d9d406d4a",
     "semantic_hash": ""
   },
   "server/kiotviet/API_ENDPOINTS.md": {
@@ -810,15 +810,15 @@
     "semantic_hash": ""
   },
   "server/public/humanresources/index.html": {
-    "mtime": 1791875232.2334669,
-    "seen": 1791875727.1012073,
-    "ast_hash": "b36ca3485478c1a158c2a3315343fc8d",
+    "mtime": 1791883365.081101,
+    "seen": 1791884208.5364203,
+    "ast_hash": "e515ea9be82d0c8991b206aef17b7ac7",
     "semantic_hash": ""
   },
   "server/public/index.html": {
-    "mtime": 1791877907.6960094,
-    "seen": 1791878624.2451684,
-    "ast_hash": "ea4bb3f231ed20b8f0178467fa1f3dd7",
+    "mtime": 1791879428.1097598,
+    "seen": 1791884208.5364203,
+    "ast_hash": "e8352672d5a2499d0ec0fea15e22c329",
     "semantic_hash": ""
   },
   "server/public/login/index.html": {
@@ -1386,9 +1386,9 @@
     "semantic_hash": ""
   },
   "server/db/SCHEMA.md": {
-    "mtime": 1791878598.1880069,
-    "seen": 1791878624.2451684,
-    "ast_hash": "d18d3dce5a2dade540606556c958e620",
+    "mtime": 1791883417.505023,
+    "seen": 1791884208.5364203,
+    "ast_hash": "e7def598bb3de0c6a377fb7192e59f43",
     "semantic_hash": ""
   },
   "server/auth/appUsersRepository.js": {
@@ -1560,9 +1560,9 @@
     "semantic_hash": ""
   },
   "server/test/frontend/debt-management-ui.test.js": {
-    "mtime": 1791878218.5491571,
-    "seen": 1791878624.2451684,
-    "ast_hash": "264ec82c0bc67328160e93340eba06c6",
+    "mtime": 1791879449.427073,
+    "seen": 1791884208.5364203,
+    "ast_hash": "783778e09169db795dc344235b03b00a",
     "semantic_hash": ""
   },
   "server/test/frontend/table-explorer.test.js": {
@@ -2328,9 +2328,9 @@
     "semantic_hash": ""
   },
   "server/db/hrRuleDocumentsMigration.test.js": {
-    "mtime": 1791431748.9101844,
-    "seen": 1791859450.575905,
-    "ast_hash": "a1df456eb3236d9e1759c3198f876ec1",
+    "mtime": 1791883441.4692733,
+    "seen": 1791884208.5364203,
+    "ast_hash": "af6a227d6d327719aa50b75e035bc706",
     "semantic_hash": ""
   },
   "server/db/inventoryValueSnapshotsMigration.test.js": {
@@ -2604,15 +2604,15 @@
     "semantic_hash": ""
   },
   "server/hr/hrRuleDocumentRoutes.test.js": {
-    "mtime": 1791431738.3852954,
-    "seen": 1791859450.575905,
-    "ast_hash": "ce9d805ac282000857b6111d4a4f8a13",
+    "mtime": 1791883441.5164382,
+    "seen": 1791884208.5364203,
+    "ast_hash": "34980a1b3a86156f975271a3e237bbde",
     "semantic_hash": ""
   },
   "server/hr/hrRuleDocumentsRepository.js": {
-    "mtime": 1791431689.628515,
-    "seen": 1791859450.575905,
-    "ast_hash": "86be8d284ad1eba6dcdda08d8dc779ec",
+    "mtime": 1791883441.5832298,
+    "seen": 1791884208.5364203,
+    "ast_hash": "aad4c17f4c80603e9aba8639b864b423",
     "semantic_hash": ""
   },
   "server/hr/hrRuleDocumentsRepository.test.js": {
@@ -3024,9 +3024,9 @@
     "semantic_hash": ""
   },
   "server/test/frontend/hr-rule-documents.test.js": {
-    "mtime": 1791431765.9107108,
-    "seen": 1791859450.575905,
-    "ast_hash": "35e50385576a604a615f91e85005789f",
+    "mtime": 1791883441.6450312,
+    "seen": 1791884208.5364203,
+    "ast_hash": "bc6396037f0399b38d60d60af7965d24",
     "semantic_hash": ""
   },
   "server/test/frontend/inventory-history-chart.test.js": {
@@ -3378,9 +3378,9 @@
     "semantic_hash": ""
   },
   "CURRENT.md": {
-    "mtime": 1791878635.8083186,
-    "seen": 1791879404.4638577,
-    "ast_hash": "ebf338bc10451209f883b97615ce4ee6",
+    "mtime": 1791884047.1675086,
+    "seen": 1791884208.5364203,
+    "ast_hash": "57b0060c5dfef0f17449d89d367d93e9",
     "semantic_hash": ""
   },
   "MEMORY.md": {
@@ -3606,15 +3606,15 @@
     "semantic_hash": ""
   },
   "server/debtSchedule/debtCycleSnapshot.js": {
-    "mtime": 1791877832.731932,
-    "seen": 1791878624.2451684,
-    "ast_hash": "7fdfcd1bdacde0372c0280bbf049ab0a",
+    "mtime": 1791882756.942113,
+    "seen": 1791884208.5364203,
+    "ast_hash": "ec4a01b493558299888ac6bdaa5fb302",
     "semantic_hash": ""
   },
   "server/debtSchedule/debtScheduleDb.test.js": {
-    "mtime": 1791878422.0453675,
-    "seen": 1791878624.2451684,
-    "ast_hash": "350a87eab423f8eaa9edbe2f29c62a5a",
+    "mtime": 1791884047.163803,
+    "seen": 1791884208.5364203,
+    "ast_hash": "7d413e01129b9714a7f452e0bab5b348",
     "semantic_hash": ""
   },
   "server/debtSchedule/debtScheduleRepository.js": {
@@ -3624,15 +3624,15 @@
     "semantic_hash": ""
   },
   "server/debtSchedule/debtScheduleRules.js": {
-    "mtime": 1791879341.186286,
-    "seen": 1791879404.4638577,
-    "ast_hash": "4935bb1da92becc0969e1ee9fefcc3d8",
+    "mtime": 1791884047.163803,
+    "seen": 1791884208.5364203,
+    "ast_hash": "33ffc25a36dbd9778ea0765eb03ea7de",
     "semantic_hash": ""
   },
   "server/debtSchedule/debtScheduleRules.test.js": {
-    "mtime": 1791879352.7964785,
-    "seen": 1791879404.4638577,
-    "ast_hash": "370a4ebaf3c6f0e481f79363fe3b655f",
+    "mtime": 1791884047.163803,
+    "seen": 1791884208.5364203,
+    "ast_hash": "da7fd36bf9a10f1bd513b4ca691d9b1f",
     "semantic_hash": ""
   },
   "server/debtSchedule/debtScheduleService.js": {
@@ -3663,6 +3663,12 @@
     "mtime": 1791877843.9576244,
     "seen": 1791878624.2451684,
     "ast_hash": "785afbd0c122bf83cd2212f0e21e8a39",
+    "semantic_hash": ""
+  },
+  "server/db/migrations/0049_hr_rule_document_hold_goods.sql": {
+    "mtime": 1791883365.1802332,
+    "seen": 1791884208.5364203,
+    "ast_hash": "f320e3e83951c674f40753713ac75506",
     "semantic_hash": ""
   }
 }

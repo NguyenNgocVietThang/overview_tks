@@ -21,7 +21,8 @@ function fakeCan(vaiTro) {
 const BUILTINS = [
   { id: 1, kind: 'builtin', slug: 'gio-giac', builtinKey: 'gio-giac', title: 'Giờ giấc làm việc' },
   { id: 2, kind: 'builtin', slug: 'nghi-phep', builtinKey: 'nghi-phep', title: 'Quy định nghỉ phép' },
-  { id: 3, kind: 'builtin', slug: 'phuc-loi', builtinKey: 'phuc-loi', title: 'Chi tiêu & Phúc lợi' }
+  { id: 3, kind: 'builtin', slug: 'phuc-loi', builtinKey: 'phuc-loi', title: 'Chi tiêu & Phúc lợi' },
+  { id: 4, kind: 'builtin', slug: 'treo-hang', builtinKey: 'treo-hang', title: 'Quy định treo hàng' }
 ];
 const PDF = { id: 7, kind: 'pdf', slug: 'pdf-7', title: 'Nội quy kho', fileName: 'noi-quy-kho.pdf', sizeBytes: 2048, uploadedBy: 'Quản lý A', createdAt: '2026-09-30T03:00:00.000Z' };
 
@@ -96,7 +97,7 @@ const visibleViews = document => [...document.querySelectorAll('.rule-doc-view')
 test('dựng tab từ API: 2 tài liệu dựng sẵn + PDF, mặc định tài liệu đầu', async () => {
   const { window, document, server } = await openPage();
 
-  assert.deepEqual(tabSlugs(document), ['gio-giac', 'nghi-phep', 'phuc-loi', 'pdf-7']);
+  assert.deepEqual(tabSlugs(document), ['gio-giac', 'nghi-phep', 'phuc-loi', 'treo-hang', 'pdf-7']);
   assert.equal(activeTab(document).ruleDocTab, 'gio-giac');
   assert.deepEqual(visibleViews(document), ['gio-giac']);
   assert.equal(document.getElementById('ruleDocTitle').textContent, 'Giờ giấc làm việc');
@@ -173,7 +174,7 @@ test('nút Khôi phục chỉ hiện khi thiếu tài liệu mặc định; bấ
   await window.restoreRuleDefaults(); // inline onclick khong chay trong JSDOM outside-only
   await settle();
   assert.ok(server.requests.some(r => r.url === '/api/hr/rules/documents/restore-defaults' && r.method === 'POST'));
-  assert.deepEqual(tabSlugs(document), ['gio-giac', 'nghi-phep', 'phuc-loi', 'pdf-7']);
+  assert.deepEqual(tabSlugs(document), ['gio-giac', 'nghi-phep', 'phuc-loi', 'treo-hang', 'pdf-7']);
   assert.equal(restoreBtn.hidden, true);
   window.close();
 });
@@ -186,7 +187,7 @@ test('gỡ tài liệu: xác nhận → DELETE → tab biến mất, rơi về t
   await settle();
 
   assert.ok(server.requests.some(r => r.method === 'DELETE' && r.url === '/api/hr/rules/documents/7'));
-  assert.deepEqual(tabSlugs(document), ['gio-giac', 'nghi-phep', 'phuc-loi']);
+  assert.deepEqual(tabSlugs(document), ['gio-giac', 'nghi-phep', 'phuc-loi', 'treo-hang']);
   assert.equal(activeTab(document).ruleDocTab, 'gio-giac');
   window.close();
 });
@@ -197,7 +198,7 @@ test('hủy hộp xác nhận ⇒ không gọi DELETE', async () => {
   await window.deleteActiveRuleDoc();
   await settle();
   assert.equal(server.requests.some(r => r.method === 'DELETE'), false);
-  assert.equal(tabSlugs(document).length, 4);
+  assert.equal(tabSlugs(document).length, 5);
   window.close();
 });
 
@@ -226,7 +227,7 @@ test('tải lên: gửi FormData (file + title) rồi chọn tài liệu mới; 
   assert.equal(post.body.get('title'), 'Bảng lương');
   assert.equal(post.body.get('file').name, 'Bảng lương.pdf');
   assert.equal(document.getElementById('ruleUploadModal').hidden, true);
-  assert.deepEqual(tabSlugs(document), ['gio-giac', 'nghi-phep', 'phuc-loi', 'pdf-7', 'pdf-9']);
+  assert.deepEqual(tabSlugs(document), ['gio-giac', 'nghi-phep', 'phuc-loi', 'treo-hang', 'pdf-7', 'pdf-9']);
   assert.equal(activeTab(document).ruleDocTab, 'pdf-9');
   window.close();
 });
@@ -245,4 +246,11 @@ test('tài liệu dựng sẵn Chi tiêu & Phúc lợi có khối nội dung và
   assert.match(html, /data-rule-doc="phuc-loi"/);
   assert.match(html, /id="ruleDoc-phuc-loi"/);
   assert.match(html, /'phuc-loi': \{ elementId: 'ruleDoc-phuc-loi'/);
+});
+
+test('tài liệu dựng sẵn Quy định treo hàng có khối nội dung và khai báo trong RULE_DOC_BUILTINS', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', '..', 'public', 'humanresources', 'index.html'), 'utf8');
+  assert.match(html, /data-rule-doc="treo-hang"/);
+  assert.match(html, /id="ruleDoc-treo-hang"/);
+  assert.match(html, /'treo-hang': { elementId: 'ruleDoc-treo-hang'/);
 });

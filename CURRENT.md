@@ -26,7 +26,7 @@
    - **Tinh chỉnh bảng Công nợ (13/10, chưa push):** cột Cơ sở lên đầu; mặc định ẩn Cảnh báo; bỏ hàng chờ "Cần xử lý" (mặc định "Còn nợ"); bỏ Nợ đầu kỳ; thêm "DS trong kỳ" (`inScheduleDebt`) giữa Nợ hiện tại và Nợ quá hạn. Xuất Excel/HTML đồng bộ (bỏ Nợ đầu kỳ, thêm "Doanh số trong kỳ", đổi `DEBT_SORT_FIELDS`). Test: 2.298 (2.295 đạt, 3 skipped, 0 lỗi).
    - Bỏ workbook Google Sheets + quy tắc 1-3-7-Hàng tuần + ngưỡng 400k + cảnh báo "Chưa thu". Khóa dòng = khách + cơ sở (HN/SG). Lịch TT (1–90 ngày, mặc định 1) lưu `debt_payment_schedules`, Quản lý sửa trên web (`reports.debt.schedule`), nhật ký vĩnh viễn.
    - Lý do không dùng trường facebook KiotViet: API public KiotViet KHÔNG trả trường này (đã gọi thử list + detail với `includeCustomerSocial` cho KH000601 HN / KH003622 SG).
-   - Chốt 15:00 VN mỗi ngày (`debtSchedule/debtCycleSnapshot.js`, scheduler; chỉ hóa đơn `Hoàn thành`, nợ trong lịch không kẹp 0, "Đã xử lý" → tiền phạt 0, hàng chờ mặc định "Tất cả" — 13/10); nợ quá hạn = nợ hiện tại − (hóa đơn − trả hàng trong N ngày), tính lại khi đọc nên đổi lịch TT có hiệu lực ngay. DS = TB 4 tháng của Báo cáo kinh doanh (theo cơ sở + mã KH).
+   - Chốt 15:00 VN mỗi ngày (`debtSchedule/debtCycleSnapshot.js`, scheduler; chỉ hóa đơn `Hoàn thành`, nợ quá hạn = nợ hiện tại − hóa đơn + trả hàng trong lịch, "Đã xử lý" → tiền phạt 0, hàng chờ mặc định "Tất cả" — 13/10); nợ quá hạn = nợ hiện tại − (hóa đơn − trả hàng trong N ngày), tính lại khi đọc nên đổi lịch TT có hiệu lực ngay. DS = TB 4 tháng của Báo cáo kinh doanh (theo cơ sở + mã KH).
    - Cột Sale phản hồi / QL phản hồi / Trạng thái + Lịch sử chỉnh sửa (mọi thay đổi trên giao diện: 2 phản hồi, trạng thái, lịch TT) reset theo bản chốt 15:00 hôm sau. Quyền: `reports.debt.saleFeedback` (Sale), `reports.debt.managerFeedback` + `reports.debt.edit` + `reports.debt.schedule` (Quản lý). `reports.debt.saleFeedback` miễn kiểm tra leo thang (`isEscalationExempt`) để Trợ lý ủy quyền vẫn tạo/đặt lại mật khẩu tài khoản Sale.
    - File cũ không xóa được trong phiên (bị chặn quyền), nên xóa tay: `server/sheets/debtManagementSheetsClient(.test).js`, `server/dashboard/debtCollectionStatusRepository(.test).js`; `dashboard/debtManagement.js` còn dùng `parseNullableNumber` cho supplierReturnImportService.
    - Đã xong 13/10: migrate 0047; import SG 1.228/1.228, HN 3.072 (42 trống/"Khác" → mặc định 1); commit.
@@ -100,6 +100,7 @@
 
 13. **Quy định công ty — Tài liệu Chi tiêu & Phúc lợi (Migration `0039`):**
     - Bổ sung tài liệu dựng sẵn thứ 3 (`phuc-loi`) vào `hr_rule_documents`.
+    - 13/10/2026: thêm tài liệu dựng sẵn thứ 4 `treo-hang` "Quy định treo hàng" (Migration `0049`; chưa áp DB/deploy).
 
 14. **Báo cáo kinh doanh (Migration `0036`, `0037`):**
     - Chốt cứng doanh số tháng vào `business_monthly_*` với job `businessMonthlyRefresh.js`.

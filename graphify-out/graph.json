@@ -169,7 +169,7 @@
       "file_type": "code",
       "norm_label": "ruledocerror",
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L24"
+      "source_location": "L25"
     },
     {
       "id": "server_test_frontend_dashboard_live_updates_test_fakeeventsource",
@@ -2467,7 +2467,7 @@
       "file_type": "code",
       "norm_label": "createhrruledocumentsrepository()",
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L69"
+      "source_location": "L70"
     },
     {
       "id": "server_hr_hrruledocumentsrepository_createhrruledocumentsrepository_createpdfdocument",
@@ -2479,7 +2479,7 @@
       "file_type": "code",
       "norm_label": "createpdfdocument()",
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L106"
+      "source_location": "L107"
     },
     {
       "id": "server_hr_hrruledocumentsrepository_createhrruledocumentsrepository_deletedocument",
@@ -2491,7 +2491,7 @@
       "file_type": "code",
       "norm_label": "deletedocument()",
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L121"
+      "source_location": "L122"
     },
     {
       "id": "server_hr_hrruledocumentsrepository_createhrruledocumentsrepository_getfilecontent",
@@ -2503,7 +2503,7 @@
       "file_type": "code",
       "norm_label": "getfilecontent()",
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L95"
+      "source_location": "L96"
     },
     {
       "id": "server_hr_hrruledocumentsrepository_createhrruledocumentsrepository_getfilemeta",
@@ -2515,7 +2515,7 @@
       "file_type": "code",
       "norm_label": "getfilemeta()",
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L78"
+      "source_location": "L79"
     },
     {
       "id": "server_hr_hrruledocumentsrepository_createhrruledocumentsrepository_listdocuments",
@@ -2527,7 +2527,7 @@
       "file_type": "code",
       "norm_label": "listdocuments()",
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L70"
+      "source_location": "L71"
     },
     {
       "id": "server_hr_hrruledocumentsrepository_createhrruledocumentsrepository_restoredefaultdocuments",
@@ -2539,7 +2539,7 @@
       "file_type": "code",
       "norm_label": "restoredefaultdocuments()",
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L130"
+      "source_location": "L131"
     },
     {
       "id": "server_hr_hrruledocumentsrepository_maprow",
@@ -2551,7 +2551,7 @@
       "file_type": "code",
       "norm_label": "maprow()",
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L49"
+      "source_location": "L50"
     },
     {
       "id": "server_hr_hrruledocumentsrepository_ruledocerror_constructor",
@@ -2563,7 +2563,7 @@
       "file_type": "code",
       "norm_label": ".constructor()",
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L25"
+      "source_location": "L26"
     },
     {
       "id": "server_hr_hrruledocumentsrepository_slugfor",
@@ -2575,7 +2575,7 @@
       "file_type": "code",
       "norm_label": "slugfor()",
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L45"
+      "source_location": "L46"
     },
     {
       "id": "server_hr_hrruledocumentsrepository_test_fakepool",
@@ -2599,7 +2599,7 @@
       "file_type": "code",
       "norm_label": "toiso()",
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L39"
+      "source_location": "L40"
     },
     {
       "id": "server_hr_hrruledocumentsrepository_uuidornull",
@@ -2611,7 +2611,7 @@
       "file_type": "code",
       "norm_label": "uuidornull()",
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L34"
+      "source_location": "L35"
     },
     {
       "id": "server_dashboard_exportservice_aggregatecolumn",
@@ -12691,7 +12691,7 @@
       "file_type": "code",
       "norm_label": "activetab()",
       "source_file": "server/test/frontend/hr-rule-documents.test.js",
-      "source_location": "L93"
+      "source_location": "L94"
     },
     {
       "id": "server_test_frontend_hr_rule_documents_test_fakecan",
@@ -12715,7 +12715,7 @@
       "file_type": "code",
       "norm_label": "jsonresponse()",
       "source_file": "server/test/frontend/hr-rule-documents.test.js",
-      "source_location": "L28"
+      "source_location": "L29"
     },
     {
       "id": "server_test_frontend_hr_rule_documents_test_openpage",
@@ -12727,7 +12727,7 @@
       "file_type": "code",
       "norm_label": "openpage()",
       "source_file": "server/test/frontend/hr-rule-documents.test.js",
-      "source_location": "L38"
+      "source_location": "L39"
     },
     {
       "id": "server_test_frontend_hr_rule_documents_test_settle",
@@ -12739,7 +12739,7 @@
       "file_type": "code",
       "norm_label": "settle()",
       "source_file": "server/test/frontend/hr-rule-documents.test.js",
-      "source_location": "L88"
+      "source_location": "L89"
     },
     {
       "id": "server_test_frontend_hr_rule_documents_test_tabslugs",
@@ -12751,7 +12751,7 @@
       "file_type": "code",
       "norm_label": "tabslugs()",
       "source_file": "server/test/frontend/hr-rule-documents.test.js",
-      "source_location": "L92"
+      "source_location": "L93"
     },
     {
       "id": "server_test_frontend_hr_rule_documents_test_visibleviews",
@@ -12763,7 +12763,7 @@
       "file_type": "code",
       "norm_label": "visibleviews()",
       "source_file": "server/test/frontend/hr-rule-documents.test.js",
-      "source_location": "L94"
+      "source_location": "L95"
     },
     {
       "id": "server_test_frontend_business_report_test_businessurls",
@@ -37728,7 +37728,7 @@
       "file_type": "code",
       "norm_label": "repository",
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L151"
+      "source_location": "L152"
     },
     {
       "id": "server_hr_hrruledocumentsrepository_test",
@@ -40566,7 +40566,7 @@
       "node_kind": "heading",
       "norm_label": "3. hanh \u0111ong tiep theo can thuc hien (next steps & operations)",
       "source_file": "CURRENT.md",
-      "source_location": "L119"
+      "source_location": "L120"
     },
     {
       "id": "current_current_b\u1ea3ng_tr\u1ea1ng_th\u00e1i_th\u1eddi_gian_th\u1ef1c_realtime_dashboard",
@@ -40590,7 +40590,7 @@
       "node_kind": "heading",
       "norm_label": "ghi nhan phien 12/10 (lich su)",
       "source_file": "CURRENT.md",
-      "source_location": "L157"
+      "source_location": "L158"
     },
     {
       "id": "current_marketing_pancake_c\u1eadp_nh\u1eadt_phi\u00ean_12_10_2026",
@@ -40602,7 +40602,7 @@
       "node_kind": "heading",
       "norm_label": "marketing pancake \u2014 cap nhat phien 12/10/2026",
       "source_file": "CURRENT.md",
-      "source_location": "L145"
+      "source_location": "L146"
     },
     {
       "id": "current_tr\u1ea1ng_th\u00e1i_v\u1eadn_h\u00e0nh_ki\u1ec3m_tra_tr\u1ef1c_ti\u1ebfp_ng\u00e0y_13_10_2026",
@@ -40614,7 +40614,7 @@
       "node_kind": "heading",
       "norm_label": "trang thai van hanh kiem tra truc tiep ngay 13/10/2026",
       "source_file": "CURRENT.md",
-      "source_location": "L147"
+      "source_location": "L148"
     },
     {
       "id": "docs_superpowers_specs_2026_10_07_business_report_teams_merge_design",
@@ -49029,7 +49029,7 @@
       "file_type": "code",
       "norm_label": "pdf",
       "source_file": "server/test/frontend/hr-rule-documents.test.js",
-      "source_location": "L26"
+      "source_location": "L27"
     },
     {
       "id": "server_test_frontend_hr_rule_documents_test_test",
@@ -66339,6 +66339,17 @@
       "norm_label": "debt_cycle_penalties",
       "source_file": "server/db/migrations/0048_debt_penalty.sql",
       "source_location": "L15"
+    },
+    {
+      "id": "server_db_migrations_0049_hr_rule_document_hold_goods",
+      "label": "0049_hr_rule_document_hold_goods.sql",
+      "_origin": "ast",
+      "community": 388,
+      "community_name": "0049_hr_rule_document_hold_goods.sql",
+      "file_type": "code",
+      "norm_label": "0049_hr_rule_document_hold_goods.sql",
+      "source_file": "server/db/migrations/0049_hr_rule_document_hold_goods.sql",
+      "source_location": null
     },
     {
       "id": "server_dashboard_customerproducttoprepository",
@@ -95081,7 +95092,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L115",
+      "source_location": "L116",
       "weight": 1.0
     },
     {
@@ -95093,7 +95104,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L117",
+      "source_location": "L118",
       "weight": 1.0
     },
     {
@@ -95105,7 +95116,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L126",
+      "source_location": "L127",
       "weight": 1.0
     },
     {
@@ -95117,7 +95128,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L53",
+      "source_location": "L54",
       "weight": 1.0
     },
     {
@@ -95129,7 +95140,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L62",
+      "source_location": "L63",
       "weight": 1.0
     },
     {
@@ -128333,7 +128344,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/test/frontend/hr-rule-documents.test.js",
-      "source_location": "L45",
+      "source_location": "L46",
       "weight": 1.0
     },
     {
@@ -128345,7 +128356,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/test/frontend/hr-rule-documents.test.js",
-      "source_location": "L56",
+      "source_location": "L57",
       "weight": 1.0
     },
     {
@@ -128357,7 +128368,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/test/frontend/hr-rule-documents.test.js",
-      "source_location": "L84",
+      "source_location": "L85",
       "weight": 1.0
     },
     {
@@ -135005,7 +135016,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/test/frontend/hr-rule-documents.test.js",
-      "source_location": "L38",
+      "source_location": "L39",
       "weight": 1.0
     },
     {
@@ -135017,7 +135028,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/test/frontend/hr-rule-documents.test.js",
-      "source_location": "L88",
+      "source_location": "L89",
       "weight": 1.0
     },
     {
@@ -135029,7 +135040,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/test/frontend/hr-rule-documents.test.js",
-      "source_location": "L92",
+      "source_location": "L93",
       "weight": 1.0
     },
     {
@@ -135041,7 +135052,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/test/frontend/hr-rule-documents.test.js",
-      "source_location": "L93",
+      "source_location": "L94",
       "weight": 1.0
     },
     {
@@ -135053,7 +135064,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/test/frontend/hr-rule-documents.test.js",
-      "source_location": "L94",
+      "source_location": "L95",
       "weight": 1.0
     },
     {
@@ -168552,7 +168563,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CURRENT.md",
-      "source_location": "L119",
+      "source_location": "L120",
       "weight": 1.0
     },
     {
@@ -168563,7 +168574,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CURRENT.md",
-      "source_location": "L145",
+      "source_location": "L146",
       "weight": 1.0
     },
     {
@@ -168596,7 +168607,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CURRENT.md",
-      "source_location": "L147",
+      "source_location": "L148",
       "weight": 1.0
     },
     {
@@ -168607,7 +168618,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CURRENT.md",
-      "source_location": "L157",
+      "source_location": "L158",
       "weight": 1.0
     },
     {
@@ -189727,7 +189738,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L151",
+      "source_location": "L152",
       "weight": 1.0
     },
     {
@@ -189749,7 +189760,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L24",
+      "source_location": "L25",
       "weight": 1.0
     },
     {
@@ -189760,7 +189771,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L34",
+      "source_location": "L35",
       "weight": 1.0
     },
     {
@@ -189771,7 +189782,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L39",
+      "source_location": "L40",
       "weight": 1.0
     },
     {
@@ -189782,7 +189793,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L45",
+      "source_location": "L46",
       "weight": 1.0
     },
     {
@@ -189793,7 +189804,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L49",
+      "source_location": "L50",
       "weight": 1.0
     },
     {
@@ -208922,7 +208933,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/test/frontend/hr-rule-documents.test.js",
-      "source_location": "L26",
+      "source_location": "L27",
       "weight": 1.0
     },
     {
@@ -208933,7 +208944,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/test/frontend/hr-rule-documents.test.js",
-      "source_location": "L28",
+      "source_location": "L29",
       "weight": 1.0
     },
     {
@@ -213553,7 +213564,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L25",
+      "source_location": "L26",
       "weight": 1.0
     },
     {
@@ -220851,7 +220862,7 @@
       "confidence_score": 0.85,
       "context": "argument",
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L74",
+      "source_location": "L75",
       "weight": 1.0
     },
     {
@@ -220863,7 +220874,7 @@
       "confidence_score": 0.85,
       "context": "argument",
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L145",
+      "source_location": "L146",
       "weight": 1.0
     },
     {
@@ -230667,7 +230678,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L156",
+      "source_location": "L157",
       "weight": 1.0
     },
     {
@@ -230679,7 +230690,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L148",
+      "source_location": "L149",
       "weight": 1.0
     },
     {
@@ -230691,7 +230702,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L148",
+      "source_location": "L149",
       "weight": 1.0
     },
     {
@@ -230703,7 +230714,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L148",
+      "source_location": "L149",
       "weight": 1.0
     },
     {
@@ -230715,7 +230726,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L148",
+      "source_location": "L149",
       "weight": 1.0
     },
     {
@@ -230727,7 +230738,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L148",
+      "source_location": "L149",
       "weight": 1.0
     },
     {
@@ -230739,7 +230750,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "server/hr/hrRuleDocumentsRepository.js",
-      "source_location": "L148",
+      "source_location": "L149",
       "weight": 1.0
     },
     {
@@ -239719,5 +239730,5 @@
       "source_file": "docs/04-planning/2026-09-14-phase2-plan-supabase-kiotviet-sync.md"
     }
   ],
-  "built_at_commit": "7880aea37bdbe0b881ed4ee6b19e63d2021bda28"
+  "built_at_commit": "c5ec8e1eb7b09e5d421fc6da10fef4c1ea3eb541"
 }

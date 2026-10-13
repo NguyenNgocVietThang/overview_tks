@@ -37,3 +37,9 @@ test('migration 0039 thêm tài liệu dựng sẵn Chi tiêu & Phúc lợi, ch�
   assert.match(welfare, /'builtin',\s+'phuc-loi',\s+'Chi tiêu & Phúc lợi',\s+30\)/);
   assert.match(welfare, /ON CONFLICT \(builtin_key\) DO NOTHING/);
 });
+
+test('migration 0049 thêm tài liệu dựng sẵn Quy định treo hàng, chạy lại không lỗi', () => {
+  const hold = fs.readFileSync(path.join(__dirname, 'migrations', '0049_hr_rule_document_hold_goods.sql'), 'utf8');
+  assert.match(hold, /'builtin',\s+'treo-hang',\s+'Quy định treo hàng',\s+40\)/);
+  assert.match(hold, /ON CONFLICT \(builtin_key\) DO NOTHING/);
+});

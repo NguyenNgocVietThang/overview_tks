@@ -26,7 +26,7 @@ test('cua so lich TT dung vi du quy dinh: 15h thu 6 8/8', () => {
   assert.equal(rules.scheduleWindowStart('2026-03-01', 2), '2026-02-28', 'qua ranh gioi thang');
 });
 
-test('no trong lich = hoa don - tra hang trong lich; no qua han = no hien tai - no trong lich, khong am', () => {
+test('no qua han = no hien tai - hoa don + tra hang trong lich, khong am', () => {
   const daily = [
     { day: '2026-08-05', invoiceAmount: 100, returnAmount: 0 },
     { day: '2026-08-07', invoiceAmount: 300, returnAmount: 50 },

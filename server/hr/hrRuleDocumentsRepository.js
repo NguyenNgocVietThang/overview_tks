@@ -16,7 +16,8 @@ const { getPool } = require('../db/pool');
 const DEFAULT_BUILTIN_DOCUMENTS = Object.freeze([
   Object.freeze({ key: 'gio-giac', title: 'Giờ giấc làm việc', sortOrder: 10 }),
   Object.freeze({ key: 'nghi-phep', title: 'Quy định nghỉ phép', sortOrder: 20 }),
-  Object.freeze({ key: 'phuc-loi', title: 'Chi tiêu & Phúc lợi', sortOrder: 30 })
+  Object.freeze({ key: 'phuc-loi', title: 'Chi tiêu & Phúc lợi', sortOrder: 30 }),
+  Object.freeze({ key: 'treo-hang', title: 'Quy định treo hàng', sortOrder: 40 })
 ]);
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

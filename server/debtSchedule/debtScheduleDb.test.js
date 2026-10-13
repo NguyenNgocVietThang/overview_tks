@@ -158,7 +158,7 @@ test('repository: lich TT doc truc tiep (sua la doi no qua han ngay), phan hoi +
     const manager = { id: 'm1', hoTen: 'Quản lý A' };
     const set = await repo.setSchedule({ branch: 'hanoi', customerId: '1', days: 3, user: manager });
     assert.equal(set.changed, true);
-    assert.equal(await overdueOf(), 350, 'lich 3 ngay: 800 - (200 + 300 - 50)');
+    assert.equal(await overdueOf(), 350, 'lich 3 ngay: 800 - 200 - 300 + 50');
     assert.equal((await repo.setSchedule({ branch: 'hanoi', customerId: '1', days: '3', user: manager })).changed, false);
     const log = await repo.listScheduleLog({ branch: 'hanoi', customerId: '1' });
     assert.deepEqual(log.map(item => [item.oldDays, item.newDays, item.source, item.actorName, item.customerCode]), [[null, 3, 'web', 'Quản lý A', 'KH1']]);

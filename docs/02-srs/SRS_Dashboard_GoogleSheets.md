@@ -411,6 +411,7 @@ Tab cấp 2 `/reports/#marketing`; nguồn và nghiệm thu tại [marketing-rep
 |---|---|---|---|
 | FR-20.1 | Phân biệt trạng thái làm việc `employment_status` (`active` = Đang làm việc / `resigned` = Đã nghỉ việc) trong `hr_employees` (migration `0041`) khỏi cơ chế xóa mềm `is_active`. Chuyển sang `resigned` tự động khóa tài khoản liên kết (`lock_reason = 'hr_resigned'`); chuyển lại `active` tự động mở khóa. | Cao | Hoàn thành |
 | FR-20.2 | Tài liệu quy định công ty bổ sung tài liệu dựng sẵn thứ 3: "Chi tiêu & Phúc lợi" (`phuc-loi`, migration `0039`) hiển thị đầy đủ quy định chế độ phúc lợi và chi tiêu công đoàn. | Cao | Hoàn thành |
+| FR-20.3 | Tài liệu quy định công ty bổ sung tài liệu dựng sẵn thứ 4: "Quy định treo hàng" (`treo-hang`, migration `0049`) gồm quy định đơn treo chờ hàng, treo giữ hàng và mức phạt 100.000đ / 500.000đ / cân nhắc thôi việc. | Cao | Hoàn thành |
 
 # 4. Yêu cầu phi chức năng (Non-functional Requirements)
 

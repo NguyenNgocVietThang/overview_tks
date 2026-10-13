@@ -210,6 +210,7 @@ Hai file Kiot HN/SG **không còn** được server truy cập.
 | `0043` | `special_day_notice_log` — đánh dấu (ngày, sự kiện) đã báo lên chuông thông báo để job ngày lễ/sinh nhật không gửi trùng khi quét lặp hoặc restart; khóa chính `(day_key, event_key)` |
 
 | `0044` | `purchases.raw_hash` — băm raw phiếu nhập để đối soát không phải tải lại cột `raw` (NULL = chưa có hash, lượt quét đầu ghi lại một lượt) |
+| `0049` | Thêm tài liệu dựng sẵn thứ 4 `treo-hang` ("Quy định treo hàng") vào `hr_rule_documents` (nội dung nằm trong HTML trang Quản lý nhân sự) |
 
 
 Bot **xin nghỉ của nhân viên** chạy ngoài repo và đọc/ghi 3 bảng nền nghỉ phép trực tiếp; bot **quản lý** trong `telegram/` dùng chung đơn và sở hữu các bảng bổ sung ở migration `0029`. Hợp đồng dữ liệu ở `db/SCHEMA.md`.
@@ -295,7 +296,7 @@ Migration `0047_debt_schedule_report.sql`. Module `server/debtSchedule/`:
 | `debtScheduleService.js` | Dựng tab Công nợ của `/api/dashboard?view=debt` theo quyền người xem. |
 | `importDebtSchedules.js` | Import lịch TT lần đầu: `node debtSchedule/importDebtSchedules.js --branch=hanoi "<file>.xlsx"` (chạy thử) rồi thêm `--apply`. |
 
-**Công thức (13/10/2026):** nợ quá hạn = max(0, nợ hiện tại − nợ trong lịch); nợ trong lịch = tiền bán (chỉ hóa đơn `Hoàn thành`) − tiền trả hàng (phiếu `Đã trả`) của N ngày trong lịch, KHÔNG kẹp về 0 (trả nhiều hơn bán thì âm). Khách chuyển "Đã xử lý" và chưa ai nhập tay thì tiền phạt phiên này = 0. Hàng chờ mặc định "Tất cả"; bản chốt ghi TOÀN BỘ khách 2 cơ sở (kể cả nợ 0), lọc "Còn nợ" để chỉ xem khách đang nợ. Chốt tay ở tiến trình khác KHÔNG làm máy chủ đang chạy làm mới cache công nợ — phải khởi động lại máy chủ.
+**Công thức (13/10/2026):** nợ quá hạn = max(0, nợ hiện tại − hóa đơn `Hoàn thành` + trả hàng `Đã trả`) của N ngày trong lịch (nợ trong lịch = hóa đơn − trả hàng, KHÔNG kẹp về 0). Cột "DS trong kỳ" = nợ trong lịch. Khách chuyển "Đã xử lý" và chưa ai nhập tay thì tiền phạt phiên này = 0. Hàng chờ mặc định "Tất cả"; bản chốt ghi TOÀN BỘ khách 2 cơ sở (kể cả nợ 0), lọc "Còn nợ" để chỉ xem khách đang nợ. Chốt tay ở tiến trình khác KHÔNG làm máy chủ đang chạy làm mới cache công nợ — phải khởi động lại máy chủ.
 
 **Tiền phạt + số phiên liên tiếp (migration 0048, 13/10/2026):** cột "Số phiên liên tiếp" (ẩn mặc định) do job chốt 15:00 tính — quá hạn ≥ 400.000đ thì phiên trước + 1 (chu kỳ trước "Đã xử lý" thì giữ nguyên; "Bỏ qua"/"Chưa xử lý" thì +1), dưới ngưỡng reset 0. Cột "Tiền phạt phiên này" hiện mức gợi ý theo quy chế (nợ lẻ 25k; nợ chậm phiên 1–2 25k, 3 50k, 4 100k, 5 150k, ≥6 200k), người có quyền `reports.debt.penalty` (mặc định Quản lý) ghi đè qua `PATCH /api/debt-management/penalty` (bảng `debt_cycle_penalties`, giữ lâu dài). Đã bỏ trạng thái "Đang xử lý". Sau migrate chạy tay `node debtSchedule/backfillOverdueStreak.js` để tính phiên cho bản chốt hôm nay.
 
