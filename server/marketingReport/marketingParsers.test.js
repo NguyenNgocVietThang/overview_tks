@@ -60,3 +60,10 @@ test('numeric phone cells regain the leading zero', () => {
   const rows = [['SALE','ID','SĐT'],['','','',''],['An','KH1',912345678,'Hữu Nghị']];
   assert.equal(p.parseMonthly(rows, 'BC Tháng 10').rows[0].phone, '0912345678');
 });
+
+test('parseMonthly nhận BC tháng khi ô A1 bị xóa tiêu đề SALE nhưng cột B/D đúng bố cục', () => {
+  const header = ['  ', 'ID khách trên Kiot', 'SĐT', 'PAGE LẤY SỐ', 'Tình trạng'];
+  const result = p.parseMonthly([header, [], ['An', 'KH A', '0912345678', 'Bắc Lãm', 'Đã chốt đơn']], 'BC Tháng 10');
+  assert.equal(result.rows.length, 1);
+  assert.throws(() => p.parseMonthly([['  ', 'Khác', '', ''], []], 'BC Tháng 10'), /Thiếu tiêu đề BC tháng/);
+});

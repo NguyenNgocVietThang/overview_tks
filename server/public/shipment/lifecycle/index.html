@@ -69,6 +69,14 @@
   .lc-history-arrow{ color:var(--muted); font-weight:700; }
 
   .lc-badge{ display:inline-flex; align-items:center; padding:5px 12px; border-radius:8px; font-size:12.5px; font-weight:700; white-space:nowrap; }
+  .lc-status-cell{ white-space:nowrap; }
+  .lc-status-cell .lc-badge,
+  .lc-status-cell .status-select{
+    display:inline-block; padding:0; border:0; border-radius:0; background-color:transparent;
+    background-image:none; white-space:nowrap;
+  }
+  .lc-status-cell .lc-badge{ font-size:12.5px; }
+  .lc-status-cell .status-select{ min-width:0; padding-right:4px; }
   /* 1 don co the dinh nhieu canh bao: nhan nho hon, xuong dong khi het cho. */
   .lc-warning-badge{ padding:3px 8px; margin:2px 0; font-size:12px; }
   .badge-not-sent{ color:var(--muted); background:var(--surface-hover); border:1px solid var(--border); }
@@ -129,6 +137,11 @@
   .status-select.badge-cancelled{
     background-color:var(--surface-hover); color:var(--muted); border:1px dashed var(--border);
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  }
+
+  .lc-status-cell .status-select[class*="badge-"]{
+    padding:0 4px 0 0; border:0; border-radius:0; background:transparent;
+    background-image:none; appearance:auto; -webkit-appearance:auto; -moz-appearance:auto;
   }
 
   /* Toast — dung y het pattern cua server/public/humanresources/index.html */
@@ -1375,7 +1388,7 @@
       at: function(o){ return escapeHtml((o.summary && o.summary.at) || '—'); },
       warning: function(o){ return warningHtml(o); }
     };
-    const CELL_CLASS = { orderTotal: 'lc-money', sellableValue: 'lc-money', note: 'lc-note' };
+    const CELL_CLASS = { orderTotal: 'lc-money', sellableValue: 'lc-money', note: 'lc-note', status: 'lc-status-cell' };
 
     const DEFAULT_HIDDEN_COLUMNS = ['branch', 'note', 'kiotStatus'];
     if(window.TKSTables) window.TKSTables.enhance(bulkTable, {

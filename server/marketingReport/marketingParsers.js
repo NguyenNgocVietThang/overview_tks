@@ -39,7 +39,9 @@ function monthOfTitle(title) {
   return m && +m[1] >= 1 && +m[1] <= 12 ? +m[1] : null;
 }
 function parseMonthly(values, sheet) {
-  if (!values.length || norm(values[0][0]) !== 'sale') throw new Error(`Thiếu tiêu đề BC tháng: ${sheet}`);
+  // Ô A1 đôi khi bị xóa tiêu đề 'SALE': vẫn nhận nếu bố cục cột B/D đúng (ID khách ... / PAGE ...).
+  const h = values[0] || [];
+  if (!values.length || (norm(h[0]) !== 'sale' && !(norm(h[0]) === '' && norm(h[1]).includes('id khách') && norm(h[3]).includes('page')))) throw new Error(`Thiếu tiêu đề BC tháng: ${sheet}`);
   const rows = values.slice(2).flatMap((r, i) => {
     if (![r[0], r[1], r[2], r[3]].some(text)) return [];
     return [{ key: key(sheet, i + 2), sale: text(r[0]), customer: text(r[1]), phone: phoneText(r[2]), page: text(r[3]), status: text(r[4]), dataSource: text(r[5]), closedAt: dateText(r[6]), revenue: number(r[7]), newCustomer: text(r[8]), note: text(r[9]) }];
