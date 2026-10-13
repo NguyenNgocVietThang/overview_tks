@@ -355,7 +355,7 @@
       if (used.has(colKey)) colKey += ':' + index; used.add(colKey);
       var column = session.columns.get(colKey);
       if (!column) {
-        column = { key: colKey, width: Math.max(MIN_WIDTH, pxWidth(metadata.width) || pxWidth(cell.dataset.defaultWidth) || pxWidth(cell.style.width) || defaultWidth(colKey, label)), hidden: !!metadata.hidden, locked: !!metadata.locked };
+        column = { key: colKey, width: Math.max(MIN_WIDTH, pxWidth(metadata.width) || pxWidth(cell.dataset.defaultWidth) || pxWidth(cell.style.width) || defaultWidth(colKey, label)), hidden: !!metadata.hidden || cell.dataset.columnDefaultHidden === 'true', locked: !!metadata.locked };
         session.columns.set(colKey, column);
       }
       column.label = label; column.locked = !!metadata.locked || cell.dataset.columnLocked === 'true';

@@ -4123,8 +4123,8 @@
                         <th style="width:150px" data-column-key="sale">Sale</th>
                         <th style="width:100px" data-column-key="lich-tt">Lịch TT</th>
                         <th style="width:135px" data-column-key="no-hien-tai">Nợ hiện tại</th>
-                        <th style="width:135px" data-column-key="ds-trong-ky">DS trong kỳ</th>
                         <th style="width:130px" data-column-key="no-qua-han">Nợ quá hạn</th>
+                        <th style="width:135px" data-column-key="ds-trong-ky" data-column-default-hidden="true">DS trong kỳ</th>
                         <th style="width:125px" data-column-key="no-hien-tai-doanh-so">% Nợ hiện tại/DS</th>
                         <th style="width:80px" data-column-key="qua-han-doanh-so">% Quá hạn/DS</th>
                         <th style="width:130px" data-column-key="canh-bao-tu-dong">Cảnh báo</th>
@@ -8526,8 +8526,8 @@
 
     const DEBT_WORKFLOW_STATUSES = ['Chưa xử lý', 'Đang xử lý', 'Đã xử lý', 'Bỏ qua'];
     const DEBT_SORT_FIELDS = [
-      'branchLabel', 'customerName', 'sale', 'scheduleDays', 'currentDebt', 'inScheduleDebt',
-      'overdueDebt', 'currentDebtToSalesRatio', 'overdueToSalesRatio', 'alertCodes', 'saleFeedback', 'managerFeedback',
+      'branchLabel', 'customerName', 'sale', 'scheduleDays', 'currentDebt', 'overdueDebt',
+      'inScheduleDebt', 'currentDebtToSalesRatio', 'overdueToSalesRatio', 'alertCodes', 'saleFeedback', 'managerFeedback',
       'workflowStatus'
     ];
 
@@ -8696,8 +8696,8 @@
             '<td>' + escapeHtml(customer.sale) + '</td>' +
             '<td class="mono">' + debtScheduleHtml(customer) + '</td>' +
             '<td class="mono">' + formatNullableMoney(customer.currentDebt) + '</td>' +
-            '<td class="mono">' + formatNullableMoney(customer.inScheduleDebt) + '</td>' +
             '<td class="mono">' + formatNullableMoney(customer.overdueDebt) + '</td>' +
+            '<td class="mono">' + formatNullableMoney(customer.inScheduleDebt) + '</td>' +
             '<td class="mono">' + formatDebtRatio(customer.currentDebtToSalesRatio) + '</td>' +
             '<td class="mono">' + formatDebtRatio(customer.overdueToSalesRatio) + '</td>' +
             '<td>' + debtAlertHtml(customer) + '</td>' +

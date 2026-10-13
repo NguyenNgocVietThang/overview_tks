@@ -98,7 +98,7 @@ test('dashboard công nợ có đủ 4 KPI, không còn biểu đồ và bảng 
   assert.match(table[0], /Cảnh báo<\/th>\s*<th[^>]*>Sale phản hồi<\/th>\s*<th[^>]*>QL phản hồi<\/th>\s*<th[^>]*>Xử lý/);
   assert.doesNotMatch(dashboard, /Chưa thu/, 'đã bỏ cảnh báo Chưa thu');
   assert.match(table[0], /<tr>\s*<th[^>]*>Cơ sở<\/th>\s*<th[^>]*>Khách hàng<\/th>/, 'Cơ sở là cột đầu');
-  assert.match(table[0], /Nợ hiện tại<\/th>\s*<th[^>]*>DS trong kỳ<\/th>\s*<th[^>]*>Nợ quá hạn/);
+  assert.match(table[0], /Nợ hiện tại<\/th>\s*<th[^>]*>Nợ quá hạn<\/th>\s*<th[^>]*data-column-default-hidden="true"[^>]*>DS trong kỳ/, 'DS trong kỳ nằm sau Nợ quá hạn, mặc định ẩn');
   assert.doesNotMatch(table[0], /Nợ đầu kỳ/);
   assert.match(table[0], /Khách hàng/);
   assert.match(table[0], /Cảnh báo/);

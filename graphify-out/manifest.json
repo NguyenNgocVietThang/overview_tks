@@ -816,9 +816,9 @@
     "semantic_hash": ""
   },
   "server/public/index.html": {
-    "mtime": 1791875232.2801542,
-    "seen": 1791875727.1012073,
-    "ast_hash": "be487b0607d2878ec93222e2688066d6",
+    "mtime": 1791876442.912063,
+    "seen": 1791876571.1244545,
+    "ast_hash": "11553c8a4242c1e330703b5f733f9b43",
     "semantic_hash": ""
   },
   "server/public/login/index.html": {
@@ -1560,9 +1560,9 @@
     "semantic_hash": ""
   },
   "server/test/frontend/debt-management-ui.test.js": {
-    "mtime": 1791870553.8464139,
-    "seen": 1791872464.8686962,
-    "ast_hash": "a3546af418be7518c3a04fc3e1181393",
+    "mtime": 1791876448.4250326,
+    "seen": 1791876571.1244545,
+    "ast_hash": "0affe990569277e27dbd41b1769469ac",
     "semantic_hash": ""
   },
   "server/test/frontend/table-explorer.test.js": {
@@ -2766,9 +2766,9 @@
     "semantic_hash": ""
   },
   "server/public/shared/table-controls.js": {
-    "mtime": 1791875457.5770626,
-    "seen": 1791875727.1012073,
-    "ast_hash": "5c4c41b5ba3e9373ba0f3d549ed52b81",
+    "mtime": 1791876442.141198,
+    "seen": 1791876571.1244545,
+    "ast_hash": "7a14e8d9ee055b5696875d39e8156f27",
     "semantic_hash": ""
   },
   "server/public/stock-locations/stock-locations.js": {
