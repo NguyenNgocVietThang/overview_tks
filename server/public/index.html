@@ -2787,37 +2787,59 @@
     .debt-alerts {
       display: flex;
       gap: var(--space-sm);
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       min-width: 130px;
+      white-space: nowrap;
+    }
+
+    .debt-alert-text {
+      color: var(--red);
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
     }
 
     .debt-status-select {
       display: inline-flex;
       min-width: 124px;
-      padding: 4px 26px 4px 10px;
-      border: 1px solid var(--border);
-      border-radius: var(--radius-pill);
-      appearance: none;
-      background-color: var(--panel-2);
+      max-width: none;
+      padding: 2px 4px;
+      border: 0;
+      border-radius: 0;
+      background-color: transparent;
       color: var(--text);
       font: 600 11.5px var(--font-body);
       cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .debt-status-select option {
+      background-color: var(--panel);
+      color: var(--text);
+      font-weight: 500;
     }
 
     .debt-status-select[data-status="Đang xử lý"] {
-      border-color: color-mix(in srgb, var(--blue) 45%, var(--border));
       color: var(--blue);
     }
 
     .debt-status-select[data-status="Đã xử lý"] {
-      border-color: color-mix(in srgb, var(--green) 45%, var(--border));
       color: var(--green);
     }
 
     .debt-status-select[data-status="Bỏ qua"] {
-      border-color: color-mix(in srgb, var(--muted) 55%, var(--border));
       color: var(--muted);
     }
+
+    .debt-status-text {
+      font-size: 11.5px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .debt-status-text[data-status="Đang xử lý"] { color: var(--blue); }
+    .debt-status-text[data-status="Đã xử lý"] { color: var(--green); }
+    .debt-status-text[data-status="Bỏ qua"] { color: var(--muted); }
 
     .debt-status-select:disabled {
       cursor: not-allowed;
@@ -4072,8 +4094,7 @@
                   <div class="debt-filter-field">
                     <label for="debtQueueFilter">Hàng chờ</label>
                     <select id="debtQueueFilter" onchange="handleDebtFilterChange()">
-                      <option value="needsAction" selected>Cần xử lý</option>
-                      <option value="currentDebt">Còn nợ</option>
+                      <option value="currentDebt" selected>Còn nợ</option>
                       <option value="overdue">Quá hạn</option>
                       <option value="all">Tất cả</option>
                     </select>
@@ -4097,11 +4118,12 @@
                   <table class="fixed-table" data-debt-management-table data-table-key="dashboard-table-14">
                     <thead>
                       <tr>
+                        <th style="width:60px" data-column-key="co-so">Cơ sở</th>
                         <th style="width:140px" data-column-key="khach-hang">Khách hàng</th>
                         <th style="width:150px" data-column-key="sale">Sale</th>
                         <th style="width:100px" data-column-key="lich-tt">Lịch TT</th>
-                        <th style="width:135px" data-column-key="no-dau-ky">Nợ đầu kỳ</th>
                         <th style="width:135px" data-column-key="no-hien-tai">Nợ hiện tại</th>
+                        <th style="width:135px" data-column-key="ds-trong-ky">DS trong kỳ</th>
                         <th style="width:130px" data-column-key="no-qua-han">Nợ quá hạn</th>
                         <th style="width:125px" data-column-key="no-hien-tai-doanh-so">% Nợ hiện tại/DS</th>
                         <th style="width:80px" data-column-key="qua-han-doanh-so">% Quá hạn/DS</th>
@@ -4109,7 +4131,6 @@
                         <th style="width:125px" data-column-key="sale-phan-hoi">Sale phản hồi</th>
                         <th style="width:125px" data-column-key="ql-phan-hoi">QL phản hồi</th>
                         <th style="width:125px" data-column-key="trang-thai-xu-ly">Xử lý</th>
-                        <th style="width:60px" data-column-key="co-so">Cơ sở</th>
                       </tr>
                     </thead>
                     <tbody id="debtManagementRows">
@@ -4357,6 +4378,17 @@
   <script src="/js/pagination.js"></script>
   <script src="/js/table-explorer.js"></script>
   <script src="/shared/table-controls.js?v=20261009-3"></script>
+  <script>
+    // Bảng công nợ: mặc định ẩn cột Cảnh báo (người dùng vẫn bật lại được ở bộ chọn cột).
+    (function () {
+      var table = document.querySelector('[data-debt-management-table]');
+      if (!table || !window.TKSTables) return;
+      var columns = Array.from(table.tHead.rows[0].cells).map(function (cell) {
+        return { key: cell.dataset.columnKey, hidden: cell.dataset.columnKey === 'canh-bao-tu-dong' };
+      });
+      window.TKSTables.enhance(table, { columns: columns });
+    })();
+  </script>
   <script src="/shared/search-clear.js?v=20261009-1"></script>
   <script src="/shared/shared-nav.js?v=20261008"></script>
   <script src="/shared/table-align.js?v=20260928"></script>
@@ -4400,7 +4432,7 @@
       // state.filters (khoa trong do di kem /api/dashboard va cache dashboard).
       inventoryHistory: { filter: { mode: 'days', days: 30 }, rows: [], loaded: false, failed: false, requestId: 0 },
       debtFilters: {
-        queue: 'needsAction',
+        queue: 'currentDebt',
         sale: '',
         schedule: '',
         search: ''
@@ -8493,9 +8525,9 @@
 
     const DEBT_WORKFLOW_STATUSES = ['Chưa xử lý', 'Đang xử lý', 'Đã xử lý', 'Bỏ qua'];
     const DEBT_SORT_FIELDS = [
-      'customerName', 'sale', 'scheduleDays', 'openingDebt', 'currentDebt',
+      'branchLabel', 'customerName', 'sale', 'scheduleDays', 'currentDebt', 'inScheduleDebt',
       'overdueDebt', 'currentDebtToSalesRatio', 'overdueToSalesRatio', 'alertCodes', 'saleFeedback', 'managerFeedback',
-      'workflowStatus', 'branchLabel'
+      'workflowStatus'
     ];
 
     // Cong no theo lich TT (2026-10-13): moi dong la khach + co so, cot Co so ghi tat HN/SG.
@@ -8552,7 +8584,7 @@
 
     // Canh bao duy nhat: "Quá hạn" khi no qua han > 0 (da bo nguong 400k va canh bao chua thu).
     function debtAlertHtml(customer) {
-      return (customer.alertCodes || []).includes('overdue') ? '<div class="debt-alerts"><span class="pill bad">Quá hạn</span></div>' : '—';
+      return (customer.alertCodes || []).includes('overdue') ? '<div class="debt-alerts"><span class="debt-alert-text">Quá hạn</span></div>' : '—';
     }
 
     function debtWorkflowHtml(customer) {
@@ -8564,8 +8596,7 @@
             return '<option value="' + escapeHtml(status) + '"' + (status === customer.workflowStatus ? ' selected' : '') + '>' + escapeHtml(status) + '</option>';
           }).join('') + '</select>';
       }
-      const className = customer.workflowStatus === 'Đã xử lý' ? 'ok' : customer.workflowStatus === 'Đang xử lý' ? 'warn' : '';
-      return '<span class="pill ' + className + '">' + escapeHtml(customer.workflowStatus) + '</span>';
+      return '<span class="debt-status-text" data-status="' + escapeHtml(customer.workflowStatus) + '">' + escapeHtml(customer.workflowStatus) + '</span>';
     }
 
     function getFilteredDebtCustomers() {
@@ -8659,19 +8690,19 @@
         function (customer) {
           const flashClass = customer.customerKey === state.debtFlashCustomerKey ? ' class="row-highlight-update"' : '';
           return '<tr' + flashClass + ' data-customer-key="' + escapeHtml(customer.customerKey) + '">' +
+            '<td>' + escapeHtml(debtBranchLabel(customer)) + '</td>' +
             '<td class="name-cell">' + escapeHtml(customer.customerName) + '</td>' +
             '<td>' + escapeHtml(customer.sale) + '</td>' +
             '<td class="mono">' + debtScheduleHtml(customer) + '</td>' +
-            '<td class="mono">' + formatNullableMoney(customer.openingDebt) + '</td>' +
             '<td class="mono">' + formatNullableMoney(customer.currentDebt) + '</td>' +
+            '<td class="mono">' + formatNullableMoney(customer.inScheduleDebt) + '</td>' +
             '<td class="mono">' + formatNullableMoney(customer.overdueDebt) + '</td>' +
             '<td class="mono">' + formatDebtRatio(customer.currentDebtToSalesRatio) + '</td>' +
             '<td class="mono">' + formatDebtRatio(customer.overdueToSalesRatio) + '</td>' +
             '<td>' + debtAlertHtml(customer) + '</td>' +
             '<td>' + debtFeedbackHtml(customer, 'sale') + '</td>' +
             '<td>' + debtFeedbackHtml(customer, 'manager') + '</td>' +
-            '<td>' + debtWorkflowHtml(customer) + '</td>' +
-            '<td>' + escapeHtml(debtBranchLabel(customer)) + '</td></tr>';
+            '<td>' + debtWorkflowHtml(customer) + '</td></tr>';
         },
         13,
         debt && debt.available === false ? 'Chưa có bản chốt công nợ 15:00' : 'Không có khách phù hợp bộ lọc',

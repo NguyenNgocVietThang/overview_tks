@@ -86,7 +86,7 @@ test('sidebar và tiêu đề thay Công nợ kỳ cũ bằng Công nợ', () =>
   assert.doesNotMatch(dashboard, /id="debtPeriodToggle"|setDebtPeriod\(|toggleDebtDetail\(|debt\.period/);
 });
 
-test('dashboard công nợ có đủ 4 KPI, không còn biểu đồ và bảng 13 cột (thêm Sale phản hồi + QL phản hồi trước Trạng thái)', () => {
+test('dashboard công nợ có đủ 4 KPI, không còn biểu đồ và bảng 13 cột (Cơ sở đứng đầu, có DS trong kỳ, không còn Nợ đầu kỳ)', () => {
   const dashboard = html();
   ['dm-current', 'dm-overdue', 'dm-action-count', 'dm-overdue-ratio'].forEach(id => {
     assert.match(dashboard, new RegExp(`id="${id}"`));
@@ -97,15 +97,18 @@ test('dashboard công nợ có đủ 4 KPI, không còn biểu đồ và bảng 
   assert.equal((table[0].match(/<th(?:\s[^>]*)?>/g) || []).length, 13);
   assert.match(table[0], /Cảnh báo<\/th>\s*<th[^>]*>Sale phản hồi<\/th>\s*<th[^>]*>QL phản hồi<\/th>\s*<th[^>]*>Xử lý/);
   assert.doesNotMatch(dashboard, /Chưa thu/, 'đã bỏ cảnh báo Chưa thu');
-  assert.match(table[0], /<th(?:\s[^>]*)?>Cơ sở<\/th>/);
+  assert.match(table[0], /<tr>\s*<th[^>]*>Cơ sở<\/th>\s*<th[^>]*>Khách hàng<\/th>/, 'Cơ sở là cột đầu');
+  assert.match(table[0], /Nợ hiện tại<\/th>\s*<th[^>]*>DS trong kỳ<\/th>\s*<th[^>]*>Nợ quá hạn/);
+  assert.doesNotMatch(table[0], /Nợ đầu kỳ/);
   assert.match(table[0], /Khách hàng/);
   assert.match(table[0], /Cảnh báo/);
   assert.match(table[0], /Xử lý/);
 });
 
-test('bộ lọc local mặc định Cần xử lý và hỗ trợ sale, lịch, tìm khách/sale', () => {
+test('bộ lọc local mặc định Còn nợ (không còn Cần xử lý) và hỗ trợ sale, lịch, tìm khách/sale', () => {
   const dashboard = html();
-  assert.match(dashboard, /id="debtQueueFilter"[\s\S]*?<option value="needsAction" selected>Cần xử lý<\/option>/);
+  assert.match(dashboard, /id="debtQueueFilter"[\s\S]*?<option value="currentDebt" selected>Còn nợ<\/option>/);
+  assert.doesNotMatch(dashboard, /<option value="needsAction"/);
   assert.match(dashboard, /id="debtSaleFilter"/);
   assert.match(dashboard, /id="debtScheduleFilter"/);
   assert.match(dashboard, /id="debtManagementSearch"/);
@@ -128,25 +131,21 @@ test('script inline của dashboard vẫn biên dịch sau khi thay giao diện'
   scripts.forEach(script => assert.doesNotThrow(() => new Function(script)));
 });
 
-test('lọc mặc định, sort toàn tập và PATCH thành công cập nhật hàng chờ ngay', async () => {
+test('lọc mặc định Còn nợ, sort toàn tập và PATCH thành công cập nhật trạng thái ngay', async () => {
   const dom = createDashboard(debtPayload());
   const document = dom.window.document;
-  assert.equal(document.querySelectorAll('#debtManagementRows tr[data-customer-key]').length, 1, 'mặc định chỉ hiện khách cần xử lý');
+  assert.equal(document.getElementById('debtQueueFilter').value, 'currentDebt');
+  assert.equal(document.querySelectorAll('#debtManagementRows tr[data-customer-key]').length, 2, 'mặc định chỉ hiện khách còn nợ');
 
-  document.getElementById('debtQueueFilter').value = 'all';
-  dom.window.handleDebtFilterChange();
-  const currentDebtHeader = document.querySelectorAll('[data-debt-management-table] thead th')[5].querySelector('button');
+  const currentDebtHeader = document.querySelectorAll('[data-debt-management-table] thead th')[4].querySelector('button');
   currentDebtHeader.click();
   currentDebtHeader.click();
   assert.equal(document.querySelector('#debtManagementRows tr[data-customer-key] .name-cell').textContent, 'Khách B');
 
-  document.getElementById('debtQueueFilter').value = 'needsAction';
-  dom.window.handleDebtFilterChange();
-  const select = document.querySelector('#debtManagementRows .debt-status-select');
+  const select = [...document.querySelectorAll('#debtManagementRows .debt-status-select')].find(el => el.dataset.status === 'Chưa xử lý');
   dom.window.fetch = async () => ({ ok: true, json: async () => ({ status: 'Đã xử lý', updatedBy: 'Quản lý' }) });
   select.value = 'Đã xử lý';
   await dom.window.handleDebtStatusChange(select);
-  assert.equal(document.querySelectorAll('#debtManagementRows tr[data-customer-key]').length, 0, 'đã xử lý phải rời hàng chờ mặc định');
   assert.equal(document.getElementById('dm-action-count').textContent, '0');
   dom.window.close();
 });
@@ -168,11 +167,11 @@ test('Sale phản hồi sửa được theo quyền, QL phản hồi chỉ đọ
   const document = dom.window.document;
   const row = document.querySelector('#debtManagementRows tr[data-customer-key="hanoi:1"]');
   const cells = row.querySelectorAll('td');
-  assert.equal(cells[12].textContent, 'HN', 'cột Cơ sở ghi tắt');
-  const saleInput = cells[9].querySelector('textarea.debt-feedback-input');
+  assert.equal(cells[0].textContent, 'HN', 'cột Cơ sở ghi tắt');
+  const saleInput = cells[10].querySelector('textarea.debt-feedback-input');
   assert.ok(saleInput, 'có quyền Sale phản hồi -> ô nhập');
   assert.equal(saleInput.value, 'Hẹn thứ 6');
-  assert.equal(cells[10].querySelector('textarea'), null, 'không có quyền QL phản hồi -> chỉ đọc');
+  assert.equal(cells[11].querySelector('textarea'), null, 'không có quyền QL phản hồi -> chỉ đọc');
 
   let sent;
   dom.window.fetch = async (url, options) => { sent = { url, body: JSON.parse(options.body) }; return { ok: true, json: async () => ({ value: 'Hẹn thứ 7', by: 'Lan' }) }; };

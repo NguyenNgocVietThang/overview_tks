@@ -74,7 +74,7 @@ function buildDashboard() {
       customers: [
         {
           customerKey: 'khach-a', customerName: 'Khách A', sale: 'Lan', paymentSchedule: '1',
-          openingDebt: 100000, currentDebt: 800000, overdueDebt: 500000,
+          inScheduleDebt: 300000, currentDebt: 800000, overdueDebt: 500000,
           currentDebtToSalesRatio: 0.4, overdueToSalesRatio: 0.25,
           alertCodes: ['uncollected', 'overdue'], dataIssues: [],
           workflowStatus: 'Chưa xử lý', needsAction: true,
@@ -82,7 +82,7 @@ function buildDashboard() {
         },
         {
           customerKey: 'khach-b', customerName: 'Khách B', sale: 'Minh', paymentSchedule: '7',
-          openingDebt: null, currentDebt: 1200000, overdueDebt: 0,
+          inScheduleDebt: null, currentDebt: 1200000, overdueDebt: 0,
           currentDebtToSalesRatio: null, overdueToSalesRatio: null,
           alertCodes: [], dataIssues: ['duplicate_customer_name'],
           workflowStatus: 'Đã xử lý', needsAction: false,
@@ -484,14 +484,14 @@ test('file Quản lý công nợ giữ kiểu số/phần trăm/text, freeze, Au
   await withStubs({}, async () => {
     const payload = {
       tableKey: 'debt.management', context: { debtQueue: 'all' },
-      columns: { debt_management: ['customerName', 'openingDebt', 'currentDebtToSalesRatio', 'updatedBy', 'updatedAt'] }
+      columns: { debt_management: ['customerName', 'inScheduleDebt', 'currentDebtToSalesRatio', 'updatedBy', 'updatedAt'] }
     };
     const hn = await exportService.createExportWorkbook(payload, 'Hà Nội');
     assert.match(hn.fileName, /^HN_Quan_ly_cong_no_\d{8}_\d{4}\.xlsx$/);
     const workbook = await loadWorkbook(hn);
     const worksheet = workbook.worksheets[0];
     assert.equal(worksheet.name, 'Công nợ HN');
-    assert.equal(worksheet.getCell('B2').value, 100000);
+    assert.equal(worksheet.getCell('B2').value, 300000);
     assert.equal(worksheet.getCell('C2').value, 0.4);
     assert.equal(worksheet.getColumn(3).numFmt, '0.00%');
     assert.equal(worksheet.getCell('D2').value, "'=Người cập nhật");
@@ -1264,12 +1264,12 @@ test('Ca hai: hang hoa trung ma la hai dong rieng, ghep theo (co so, ma) va chi 
 test('Ca hai: loc Quan ly cong no tren hang GOP nhu man hinh, roi moi tach tung co so kem cot "Cơ sở"', async () => {
   const detail = (customerName, branch, currentDebt, needsAction, workflowStatus) => ({
     branch, sourceSheet: `Công nợ ${branch}`, customerName, sale: 'Lan', paymentSchedule: '1',
-    openingDebt: 0, currentDebt, overdueDebt: Math.max(currentDebt, 0), alertCodes: [], dataIssues: [], workflowStatus, needsAction,
+    inScheduleDebt: 0, currentDebt, overdueDebt: Math.max(currentDebt, 0), alertCodes: [], dataIssues: [], workflowStatus, needsAction,
     updatedBy: '', updatedAt: ''
   });
   // Hang gop nhu mergeDebtManagementSources: cong no cong don, needsAction la OR cua cac co so.
   const merged = (customerName, currentDebt, needsAction, branchDetails) => ({
-    customerName, sale: 'Lan', paymentSchedule: '1', openingDebt: 0, currentDebt, overdueDebt: Math.max(currentDebt, 0),
+    customerName, sale: 'Lan', paymentSchedule: '1', inScheduleDebt: 0, currentDebt, overdueDebt: Math.max(currentDebt, 0),
     needsAction, alertCodes: [], dataIssues: [], workflowStatus: 'Đã xử lý', branchDetails
   });
   const dashboard = {

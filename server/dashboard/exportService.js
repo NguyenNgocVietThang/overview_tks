@@ -32,9 +32,9 @@ const EXCEL_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.
 const DEBT_QUEUE_FILTERS = new Set(['needsAction', 'currentDebt', 'overdue', 'all']);
 // Khop thu tu cot bang Cong no tren man hinh (DEBT_SORT_FIELDS o public/index.html).
 const DEBT_SORT_FIELDS = [
-  'customerName', 'sale', 'paymentSchedule', 'openingDebt', 'currentDebt',
+  'branch', 'customerName', 'sale', 'paymentSchedule', 'currentDebt', 'inScheduleDebt',
   'overdueDebt', 'currentDebtToSalesRatio', 'overdueToSalesRatio', 'automaticAlert', 'saleFeedback',
-  'managerFeedback', 'workflowStatus', 'branch'
+  'managerFeedback', 'workflowStatus'
 ];
 
 // Gioi han tai: moi file Excel nap du lieu + ghi workbook trong RAM.
@@ -221,8 +221,8 @@ const DEBT_COLUMNS = [
   aggregateColumn('customerName', 'Khách hàng', 'text', 'Tên khách hàng trên KiotViet.'),
   aggregateColumn('sale', 'Nhân viên phụ trách (Sale)', 'text', 'Nhóm khách hàng của khách trên KiotViet.'),
   aggregateColumn('paymentSchedule', 'Lịch thanh toán', 'number', 'Số ngày nợ tối đa của khách tại cơ sở này; chưa đặt thì tính 1 ngày.'),
-  aggregateColumn('openingDebt', 'Nợ đầu kỳ', 'number', 'Nợ của khách tại bản chốt 15:00 hôm trước (VNĐ).'),
   aggregateColumn('currentDebt', 'Nợ hiện tại', 'number', 'Nợ của khách tại bản chốt 15:00 gần nhất (VNĐ).'),
+  aggregateColumn('inScheduleDebt', 'Doanh số trong kỳ', 'number', 'Doanh số trong lịch thanh toán = hóa đơn trừ trả hàng trong số ngày của lịch; bằng nợ hiện tại trừ nợ quá hạn (VNĐ).'),
   aggregateColumn('overdueDebt', 'Nợ quá hạn', 'number', 'Nợ hiện tại trừ nợ trong lịch thanh toán (hóa đơn trừ trả hàng trong số ngày của lịch), không âm (VNĐ).'),
   aggregateColumn('currentDebtToSalesRatio', 'Tỷ lệ nợ hiện tại trên doanh số', 'percent',
     'Nợ hiện tại chia cho doanh số trung bình 4 tháng (Báo cáo kinh doanh).'),
@@ -557,8 +557,8 @@ function debtManagementRows(debtManagement, context, aggregate = false) {
     branch: normalizeText(customer.branch) || debtBranchLabel(customer),
     sale: customer.sale,
     paymentSchedule: Number(customer.paymentSchedule) || null,
-    openingDebt: customer.openingDebt,
     currentDebt: customer.currentDebt,
+    inScheduleDebt: customer.inScheduleDebt,
     overdueDebt: customer.overdueDebt,
     currentDebtToSalesRatio: customer.currentDebtToSalesRatio,
     overdueToSalesRatio: customer.overdueToSalesRatio,

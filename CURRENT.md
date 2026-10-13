@@ -21,6 +21,7 @@
 ## 2. Các đầu việc vừa hoàn thành (Recently Completed — Tháng 10/2026)
 
 0. **Công nợ theo lịch thanh toán (13/10/2026, migration 0047 đã áp, lịch TT đã import — CHƯA push/deploy):**
+   - **Tinh chỉnh bảng Công nợ (13/10, chưa push):** cột Cơ sở lên đầu; mặc định ẩn Cảnh báo; bỏ hàng chờ "Cần xử lý" (mặc định "Còn nợ"); bỏ Nợ đầu kỳ; thêm "DS trong kỳ" (`inScheduleDebt`) giữa Nợ hiện tại và Nợ quá hạn. Xuất Excel/HTML đồng bộ (bỏ Nợ đầu kỳ, thêm "Doanh số trong kỳ", đổi `DEBT_SORT_FIELDS`). Test: 2.298 (2.295 đạt, 3 skipped, 0 lỗi).
    - Bỏ workbook Google Sheets + quy tắc 1-3-7-Hàng tuần + ngưỡng 400k + cảnh báo "Chưa thu". Khóa dòng = khách + cơ sở (HN/SG). Lịch TT (1–90 ngày, mặc định 1) lưu `debt_payment_schedules`, Quản lý sửa trên web (`reports.debt.schedule`), nhật ký vĩnh viễn.
    - Lý do không dùng trường facebook KiotViet: API public KiotViet KHÔNG trả trường này (đã gọi thử list + detail với `includeCustomerSocial` cho KH000601 HN / KH003622 SG).
    - Chốt 15:00 VN mỗi ngày (`debtSchedule/debtCycleSnapshot.js`, scheduler); nợ quá hạn = nợ hiện tại − (hóa đơn − trả hàng trong N ngày), tính lại khi đọc nên đổi lịch TT có hiệu lực ngay. DS = TB 4 tháng của Báo cáo kinh doanh (theo cơ sở + mã KH).

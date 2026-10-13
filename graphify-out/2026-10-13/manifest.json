@@ -816,9 +816,9 @@
     "semantic_hash": ""
   },
   "server/public/index.html": {
-    "mtime": 1791862314.647524,
-    "seen": 1791863104.449885,
-    "ast_hash": "589a02fb483b3aa5759ebd9bb3a61b04",
+    "mtime": 1791865669.6076238,
+    "seen": 1791865808.5134723,
+    "ast_hash": "b9de6586536383378ecc1b7bae73c5d7",
     "semantic_hash": ""
   },
   "server/public/login/index.html": {
@@ -1560,9 +1560,9 @@
     "semantic_hash": ""
   },
   "server/test/frontend/debt-management-ui.test.js": {
-    "mtime": 1791862324.21133,
-    "seen": 1791863104.449885,
-    "ast_hash": "f66c604cba0312a1c0523f4c9523dfcf",
+    "mtime": 1791865577.9653509,
+    "seen": 1791865808.5134723,
+    "ast_hash": "b67d11b20ebfc6bea1ebb3a2dcf4fa0b",
     "semantic_hash": ""
   },
   "server/test/frontend/table-explorer.test.js": {

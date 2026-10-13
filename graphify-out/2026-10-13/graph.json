@@ -4135,7 +4135,7 @@
       "file_type": "code",
       "norm_label": "scheduledebtpayload()",
       "source_file": "server/test/frontend/debt-management-ui.test.js",
-      "source_location": "L183"
+      "source_location": "L154"
     },
     {
       "id": "server_public_marketing_report_active",
@@ -127523,7 +127523,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/test/frontend/debt-management-ui.test.js",
-      "source_location": "L184",
+      "source_location": "L155",
       "weight": 1.0
     },
     {
@@ -134080,6 +134080,18 @@
     },
     {
       "source": "server_test_frontend_debt_management_ui_test",
+      "target": "server_test_frontend_debt_management_ui_test_scheduledebtpayload",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "server/test/frontend/debt-management-ui.test.js",
+      "source_location": "L154",
+      "weight": 1.0
+    },
+    {
+      "source": "server_test_frontend_debt_management_ui_test",
       "target": "server_test_frontend_debt_management_ui_test_createdashboard",
       "relation": "contains",
       "_origin": "ast",
@@ -134088,18 +134100,6 @@
       "context": "call",
       "source_file": "server/test/frontend/debt-management-ui.test.js",
       "source_location": "L16",
-      "weight": 1.0
-    },
-    {
-      "source": "server_test_frontend_debt_management_ui_test",
-      "target": "server_test_frontend_debt_management_ui_test_scheduledebtpayload",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "server/test/frontend/debt-management-ui.test.js",
-      "source_location": "L183",
       "weight": 1.0
     },
     {
@@ -239035,5 +239035,5 @@
       "source_file": "docs/04-planning/2026-09-14-phase2-plan-supabase-kiotviet-sync.md"
     }
   ],
-  "built_at_commit": "55da6ebd4fd0f0c10e5afd2cac23d24948dfa617"
+  "built_at_commit": "2e4b9e09fa069a16c3efb5a8bf14637a78a53371"
 }
