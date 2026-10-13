@@ -68,15 +68,16 @@ test('migration 0047: khoa chinh dung, lich TT 1..90, nhat ky lich TT chi them',
   } finally { await db.close(); }
 });
 
-test('chot 15:00: chi khach dang no, so tien theo ngay cat dung 15:00, chi don Hoan thanh, bo don huy/dang xu ly/phieu tra huy', async () => {
+test('chot 15:00: toan bo khach 2 co so (ca no 0), so tien theo ngay cat dung 15:00, chi don Hoan thanh, bo don huy/dang xu ly/phieu tra huy', async () => {
   const { db, pool } = await setup();
   try {
     await seedKiot(db);
     const result = await takeDebtCycleSnapshot(pool, '2026-08-08', { log: () => {}, loadAverages: async () => ({ branches: ['hanoi'], codes: ['KH1'], values: [4000] }) });
-    assert.deepEqual(result, { cycleDate: '2026-08-08', created: true, customers: 2 });
-    const { rows: customers } = await db.query(`SELECT branch, customer_id::int AS id, current_debt::int AS debt, opening_debt, avg_revenue_4m::int AS avg FROM debt_cycle_customers ORDER BY branch`);
+    assert.deepEqual(result, { cycleDate: '2026-08-08', created: true, customers: 3 });
+    const { rows: customers } = await db.query(`SELECT branch, customer_id::int AS id, current_debt::int AS debt, opening_debt, avg_revenue_4m::int AS avg FROM debt_cycle_customers ORDER BY branch, customer_id`);
     assert.deepEqual(customers, [
       { branch: 'hanoi', id: 1, debt: 800, opening_debt: null, avg: 4000 },
+      { branch: 'hanoi', id: 2, debt: 0, opening_debt: null, avg: null },
       { branch: 'saigon', id: 1, debt: 300, opening_debt: null, avg: null }
     ]);
     const { rows: amounts } = await db.query(`SELECT branch, day::text AS day, invoice_amount::int AS inv, return_amount::int AS ret FROM debt_cycle_amounts ORDER BY branch, day`);
@@ -90,7 +91,7 @@ test('chot 15:00: chi khach dang no, so tien theo ngay cat dung 15:00, chi don H
 
     await db.query(`UPDATE customers SET debt = 500 WHERE branch = 'hanoi' AND id = 1`);
     await takeDebtCycleSnapshot(pool, '2026-08-09', { log: () => {}, loadAverages: noAverages });
-    const { rows } = await db.query(`SELECT current_debt::int AS debt, opening_debt::int AS opening FROM debt_cycle_customers WHERE cycle_date = '2026-08-09' AND branch = 'hanoi'`);
+    const { rows } = await db.query(`SELECT current_debt::int AS debt, opening_debt::int AS opening FROM debt_cycle_customers WHERE cycle_date = '2026-08-09' AND branch = 'hanoi' AND customer_id = 1`);
     assert.deepEqual(rows, [{ debt: 500, opening: 800 }], 'no dau ky = no hien tai cua ban chot truoc');
   } finally { await db.close(); }
 });
@@ -180,7 +181,7 @@ test('repository: lich TT doc truc tiep (sua la doi no qua han ngay), phan hoi +
     assert.equal(report.rows[0].feedback.status, 'Bỏ qua');
 
     await assert.rejects(
-      repo.saveFeedback({ field: 'manager', branch: 'hanoi', customerId: '2', value: 'x', user: manager }),
+      repo.saveFeedback({ field: 'manager', branch: 'hanoi', customerId: '99', value: 'x', user: manager }),
       error => error.statusCode === 404, 'khach khong co trong ban chot'
     );
 

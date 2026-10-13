@@ -440,7 +440,7 @@ Migration `0044_purchases_raw_hash.sql` thêm `purchases.raw_hash TEXT` (nullabl
 | `debt_payment_schedules` | Lịch TT (số ngày nợ tối đa, 1–90) theo `(branch, customer_id)`. Không có dòng = 1 ngày. |
 | `debt_payment_schedule_log` | Nhật ký sửa lịch TT (`source` = `import`/`web`), chỉ thêm (trigger chặn UPDATE/DELETE), giữ vĩnh viễn. |
 | `debt_cycle_runs` | Mốc chốt 15:00 VN mỗi ngày (`cycle_date` PK). Bản mới nhất = chu kỳ hiện tại. |
-| `debt_cycle_customers` | Khách đang nợ tại bản chốt: `current_debt`, `opening_debt` (nợ của bản chốt trước), `avg_revenue_4m`. FK CASCADE theo run. |
+| `debt_cycle_customers` | TOÀN BỘ khách 2 cơ sở tại bản chốt (kể cả nợ 0, từ 13/10): `current_debt`, `opening_debt` (nợ của bản chốt trước), `avg_revenue_4m`. FK CASCADE theo run. |
 | `debt_cycle_amounts` | Tổng hóa đơn `Hoàn thành` / phiếu trả "Đã trả" theo ngày VN, 90 ngày tới 15:00 — để tính nợ trong lịch theo lịch TT hiện tại. |
 | `debt_cycle_feedback` | Sale phản hồi / QL phản hồi / Trạng thái của chu kỳ (`cycle_date, branch, customer_id`). |
 | `debt_feedback_history` | Lịch sử mọi thay đổi trên giao diện công nợ (`field` = `sale`/`manager`/`status`/`schedule`), theo chu kỳ. |

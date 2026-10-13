@@ -2,7 +2,7 @@
 
 // Ban chot CONG NO luc 15:00 gio VN moi ngay (migration 0047). Moi ngay dung 1 lan:
 //  - debt_cycle_runs(cycle_date)          : moc chu ky; phan hoi/trang thai gan voi no.
-//  - debt_cycle_customers                 : no hien tai (customers.debt) cua khach dang no,
+//  - debt_cycle_customers                 : no hien tai (customers.debt) cua TOAN BO khach 2 co so (ca no 0),
 //                                           no dau ky (= no hien tai cua ban chot truoc),
 //                                           doanh so TB 4 thang (Bao cao kinh doanh).
 //                                           + no qua han va SO PHIEN LIEN TIEP (migration 0048).
@@ -53,7 +53,7 @@ const INSERT_CUSTOMERS_SQL = `
   LEFT JOIN debt_cycle_customers p
     ON p.cycle_date = pr.cycle_date AND p.branch = c.branch AND p.customer_id = c.id
   LEFT JOIN avg4 a ON a.branch = c.branch AND a.code = btrim(c.code)
-  WHERE c.branch = ANY($2::text[]) AND c.debt > 0`;
+  WHERE c.branch = ANY($2::text[])`;
 
 // Hoa don HOAN THANH + phieu tra "Da tra" cua khach vua chot, gom theo ngay VN, 90 ngay toi 15:00.
 const INSERT_AMOUNTS_SQL = `
