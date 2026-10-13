@@ -295,7 +295,9 @@ Migration `0047_debt_schedule_report.sql`. Module `server/debtSchedule/`:
 | `debtScheduleService.js` | Dựng tab Công nợ của `/api/dashboard?view=debt` theo quyền người xem. |
 | `importDebtSchedules.js` | Import lịch TT lần đầu: `node debtSchedule/importDebtSchedules.js --branch=hanoi "<file>.xlsx"` (chạy thử) rồi thêm `--apply`. |
 
-API: `PATCH /api/debt-management/{sale-feedback,manager-feedback,status,schedule}`, `GET /api/debt-management/{feedback-history,schedule-log}`.
+**Tiền phạt + số phiên liên tiếp (migration 0048, 13/10/2026):** cột "Số phiên liên tiếp" (ẩn mặc định) do job chốt 15:00 tính — quá hạn ≥ 400.000đ thì phiên trước + 1 (chu kỳ trước "Đã xử lý" thì giữ nguyên; "Bỏ qua"/"Chưa xử lý" thì +1), dưới ngưỡng reset 0. Cột "Tiền phạt phiên này" hiện mức gợi ý theo quy chế (nợ lẻ 25k; nợ chậm phiên 1–2 25k, 3 50k, 4 100k, 5 150k, ≥6 200k), người có quyền `reports.debt.penalty` (mặc định Quản lý) ghi đè qua `PATCH /api/debt-management/penalty` (bảng `debt_cycle_penalties`, giữ lâu dài). Đã bỏ trạng thái "Đang xử lý". Sau migrate chạy tay `node debtSchedule/backfillOverdueStreak.js` để tính phiên cho bản chốt hôm nay.
+
+API: `PATCH /api/debt-management/{sale-feedback,manager-feedback,status,schedule,penalty}`, `GET /api/debt-management/{feedback-history,schedule-log}`.
 
 Thứ tự deploy: `npm run db:migrate` (0047) → import lịch TT HN + SG → deploy code → chạy tay `debtCycleSnapshot.js` sau 15:00 (hoặc chờ 15:00).
 

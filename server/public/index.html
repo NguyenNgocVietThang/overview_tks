@@ -2759,15 +2759,40 @@
       text-align: right;
     }
 
+    .debt-penalty-input {
+      width: 96px;
+      min-height: 30px;
+      padding: 4px 6px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-8);
+      background: var(--panel-2);
+      color: var(--text);
+      font: 600 12px var(--font-mono, var(--font-body));
+      text-align: right;
+    }
+
+    .debt-penalty-input[data-manual="true"] {
+      border-color: var(--blue);
+    }
+
+    .debt-penalty-note {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 10.5px;
+    }
+
     .debt-feedback-input:focus-visible,
     .debt-schedule-input:focus-visible,
+    .debt-penalty-input:focus-visible,
     .debt-history-button:focus-visible {
       outline: 2px solid var(--blue);
       outline-offset: 2px;
     }
 
     .debt-feedback-input[aria-busy="true"],
-    .debt-schedule-input[aria-busy="true"] {
+    .debt-schedule-input[aria-busy="true"],
+    .debt-penalty-input[aria-busy="true"] {
       opacity: .6;
     }
 
@@ -2819,10 +2844,6 @@
       font-weight: 500;
     }
 
-    .debt-status-select[data-status="Đang xử lý"] {
-      color: var(--blue);
-    }
-
     .debt-status-select[data-status="Đã xử lý"] {
       color: var(--green);
     }
@@ -2837,7 +2858,6 @@
       white-space: nowrap;
     }
 
-    .debt-status-text[data-status="Đang xử lý"] { color: var(--blue); }
     .debt-status-text[data-status="Đã xử lý"] { color: var(--green); }
     .debt-status-text[data-status="Bỏ qua"] { color: var(--muted); }
 
@@ -4128,6 +4148,8 @@
                         <th style="width:125px" data-column-key="no-hien-tai-doanh-so">% Nợ hiện tại/DS</th>
                         <th style="width:80px" data-column-key="qua-han-doanh-so">% Quá hạn/DS</th>
                         <th style="width:130px" data-column-key="canh-bao-tu-dong">Cảnh báo</th>
+                        <th style="width:110px" data-column-key="so-phien-lien-tiep" data-column-default-hidden="true">Số phiên liên tiếp</th>
+                        <th style="width:130px" data-column-key="tien-phat-phien-nay">Tiền phạt phiên này</th>
                         <th style="width:125px" data-column-key="sale-phan-hoi">Sale phản hồi</th>
                         <th style="width:125px" data-column-key="ql-phan-hoi">QL phản hồi</th>
                         <th style="width:125px" data-column-key="trang-thai-xu-ly">Xử lý</th>
@@ -4135,7 +4157,7 @@
                     </thead>
                     <tbody id="debtManagementRows">
                       <tr>
-                        <td colspan="13" class="table-note">Đang tải...</td>
+                        <td colspan="15" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -4379,12 +4401,13 @@
   <script src="/js/table-explorer.js"></script>
   <script src="/shared/table-controls.js?v=20261013-1"></script>
   <script>
-    // Bảng công nợ: mặc định ẩn cột Cảnh báo (người dùng vẫn bật lại được ở bộ chọn cột).
+    // Bảng công nợ: mặc định ẩn cột Cảnh báo và Số phiên liên tiếp (người dùng vẫn bật lại được ở bộ chọn cột).
     (function () {
       var table = document.querySelector('[data-debt-management-table]');
       if (!table || !window.TKSTables) return;
+      var hiddenByDefault = ['canh-bao-tu-dong', 'so-phien-lien-tiep'];
       var columns = Array.from(table.tHead.rows[0].cells).map(function (cell) {
-        return { key: cell.dataset.columnKey, hidden: cell.dataset.columnKey === 'canh-bao-tu-dong' };
+        return { key: cell.dataset.columnKey, hidden: hiddenByDefault.indexOf(cell.dataset.columnKey) !== -1 || cell.dataset.columnDefaultHidden === 'true' };
       });
       window.TKSTables.enhance(table, { columns: columns });
     })();
@@ -8524,11 +8547,11 @@
       applyActiveTableSorts();
     }
 
-    const DEBT_WORKFLOW_STATUSES = ['Chưa xử lý', 'Đang xử lý', 'Đã xử lý', 'Bỏ qua'];
+    const DEBT_WORKFLOW_STATUSES = ['Chưa xử lý', 'Đã xử lý', 'Bỏ qua'];
     const DEBT_SORT_FIELDS = [
       'branchLabel', 'customerName', 'sale', 'scheduleDays', 'currentDebt', 'overdueDebt',
-      'inScheduleDebt', 'currentDebtToSalesRatio', 'overdueToSalesRatio', 'alertCodes', 'saleFeedback', 'managerFeedback',
-      'workflowStatus'
+      'inScheduleDebt', 'currentDebtToSalesRatio', 'overdueToSalesRatio', 'alertCodes', 'overdueStreak', 'penaltyAmount',
+      'saleFeedback', 'managerFeedback', 'workflowStatus'
     ];
 
     // Cong no theo lich TT (2026-10-13): moi dong la khach + co so, cot Co so ghi tat HN/SG.
@@ -8568,6 +8591,27 @@
           'aria-label="Lịch thanh toán (ngày) của ' + escapeHtml(customer.customerName) + '" onchange="handleDebtScheduleChange(this)">';
       }
       return escapeHtml(customer.paymentSchedule || '—');
+    }
+
+    // Tien phat phien nay: o nhap hien san muc goi y theo quy che (no le 25k; no cham >= 400k theo so
+    // phien lien tiep), nguoi co quyen sua de ghi de; xoa trong o = ve muc goi y.
+    function debtPenaltyHtml(customer) {
+      const amount = Number(customer.penaltyAmount) || 0;
+      const note = customer.penaltyIsManual
+        ? '<span class="debt-penalty-note">Sửa tay' + (customer.penaltyBy ? ' · ' + escapeHtml(customer.penaltyBy) : '') + '</span>'
+        : '';
+      if (customer.canEditPenalty) {
+        return '<input class="debt-penalty-input" type="number" min="0" step="1000" inputmode="numeric" ' + debtCustomerAttrs(customer) + ' ' +
+          'value="' + amount + '" data-previous-value="' + amount + '" data-suggested="' + (Number(customer.suggestedPenalty) || 0) + '" ' +
+          'data-manual="' + (customer.penaltyIsManual ? 'true' : 'false') + '" ' +
+          'aria-label="Tiền phạt phiên này của ' + escapeHtml(customer.customerName) + '" onchange="handleDebtPenaltyChange(this)">' + note;
+      }
+      return (amount > 0 ? fmtTableMoney(amount) : '—') + note;
+    }
+
+    function debtStreakHtml(customer) {
+      const streak = Number(customer.overdueStreak) || 0;
+      return streak > 0 ? String(streak) : '—';
     }
 
     function normalizeDebtSearch(value) {
@@ -8701,11 +8745,13 @@
             '<td class="mono">' + formatDebtRatio(customer.currentDebtToSalesRatio) + '</td>' +
             '<td class="mono">' + formatDebtRatio(customer.overdueToSalesRatio) + '</td>' +
             '<td>' + debtAlertHtml(customer) + '</td>' +
+            '<td class="mono">' + debtStreakHtml(customer) + '</td>' +
+            '<td class="mono">' + debtPenaltyHtml(customer) + '</td>' +
             '<td>' + debtFeedbackHtml(customer, 'sale') + '</td>' +
             '<td>' + debtFeedbackHtml(customer, 'manager') + '</td>' +
             '<td>' + debtWorkflowHtml(customer) + '</td></tr>';
         },
-        13,
+        15,
         debt && debt.available === false ? 'Chưa có bản chốt công nợ 15:00' : 'Không có khách phù hợp bộ lọc',
         true // sortDebtCustomers() da sap xep toan bo `sorted` o tren, khong can sort lai
       );
@@ -8865,10 +8911,45 @@
       }
     }
 
-    const DEBT_HISTORY_FIELDS = { sale: 'Sale phản hồi', manager: 'QL phản hồi', status: 'Trạng thái', schedule: 'Lịch TT' };
+    // Ghi de tien phat: gui so tien; xoa trong o (hoac go ve dung muc goi y) = bo ghi de.
+    async function handleDebtPenaltyChange(inputEl) {
+      const previousValue = inputEl.dataset.previousValue || '0';
+      const raw = String(inputEl.value || '').trim();
+      if (raw === previousValue) return;
+      if (raw !== '' && !/^\d{1,12}$/.test(raw)) {
+        inputEl.value = previousValue;
+        showToast('Tiền phạt phải là số nguyên không âm (VNĐ).', 'error');
+        return;
+      }
+      const clearing = raw === '' || (inputEl.dataset.manual !== 'true' && raw === inputEl.dataset.suggested);
+      inputEl.setAttribute('aria-busy', 'true');
+      inputEl.disabled = true;
+      try {
+        const response = await fetch('/api/debt-management/penalty', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify(debtWriteTarget(inputEl, { amount: clearing ? null : Number(raw) }))
+        });
+        await readDebtWriteResponse(response, 'Không lưu được tiền phạt.');
+        showToast(clearing ? 'Đã đưa tiền phạt về mức gợi ý.' : 'Đã lưu tiền phạt ' + fmtTableMoney(Number(raw)) + '.');
+        loadData(undefined, true, 'debt');
+      } catch (error) {
+        inputEl.value = previousValue;
+        showToast(error.message || 'Không lưu được tiền phạt.', 'error');
+      } finally {
+        if (inputEl.isConnected) {
+          inputEl.disabled = false;
+          inputEl.removeAttribute('aria-busy');
+        }
+      }
+    }
+
+    const DEBT_HISTORY_FIELDS = { sale: 'Sale phản hồi', manager: 'QL phản hồi', status: 'Trạng thái', schedule: 'Lịch TT', penalty: 'Tiền phạt' };
 
     function debtHistoryValueHtml(entry, value, isOld) {
       if (entry.field === 'schedule') return escapeHtml(value ? value + ' ngày' : '1 ngày (mặc định)');
+      if (entry.field === 'penalty') return value === '' || value === null || value === undefined ? (isOld ? '<em>(mức gợi ý)</em>' : '<em>(về mức gợi ý)</em>') : escapeHtml(fmtTableMoney(Number(value)));
       if (!value) return isOld ? '—' : '<em>(xóa)</em>';
       return '<span class="debt-feedback-text">' + escapeHtml(value) + '</span>';
     }

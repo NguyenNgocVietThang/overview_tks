@@ -5,6 +5,7 @@
 //  - debt_cycle_customers                 : no hien tai (customers.debt) cua khach dang no,
 //                                           no dau ky (= no hien tai cua ban chot truoc),
 //                                           doanh so TB 4 thang (Bao cao kinh doanh).
+//                                           + no qua han va SO PHIEN LIEN TIEP (migration 0048).
 //  - debt_cycle_amounts                   : tong hoa don / tra hang THEO NGAY trong 90 ngay
 //                                           toi 15:00 — no trong lich tinh luc doc theo lich
 //                                           TT hien tai (doi lich la thay so ngay).
@@ -23,7 +24,10 @@ if (process.env.NODE_ENV !== 'production') {
 
 const { getPool } = require('../db/pool');
 const { vnDateKey, vnMinutesOfDay } = require('../kiotvietSync/vnTime');
-const { SNAPSHOT_MINUTE_OF_DAY, MAX_SCHEDULE_DAYS } = require('./debtScheduleRules');
+const {
+  SNAPSHOT_MINUTE_OF_DAY, MAX_SCHEDULE_DAYS, customerKeyOf, effectiveScheduleDays, inScheduleDebt, overdueDebt,
+  nextOverdueStreak
+} = require('./debtScheduleRules');
 
 const BRANCH_CODES = Object.freeze(['hanoi', 'saigon']);
 const RETENTION_DAYS = 7;
@@ -77,7 +81,34 @@ const INSERT_AMOUNTS_SQL = `
   JOIN debt_cycle_customers dc ON dc.cycle_date = $1::date AND dc.branch = d.branch AND dc.customer_id = d.customer_id
   GROUP BY d.branch, d.customer_id, d.day`;
 
-const UPDATE_RUN_COUNT_SQL = `UPDATE debt_cycle_runs SET customer_count =
+// So phien lien tiep (migration 0048): $1 cycle_date. Gom khach cua ban chot + lich TT hien tai
+// + so phien / trang thai xu ly cua chu ky TRUOC (neu co).
+const STREAK_CUSTOMERS_SQL = `
+  WITH prev_run AS (
+    SELECT MAX(cycle_date) AS cycle_date FROM debt_cycle_runs WHERE cycle_date < $1::date
+  )
+  SELECT dc.branch, dc.customer_id::text AS customer_id, dc.current_debt, s.schedule_days,
+         COALESCE(p.overdue_streak, 0) AS previous_streak, pf.status AS previous_status
+  FROM debt_cycle_customers dc
+  LEFT JOIN debt_payment_schedules s ON s.branch = dc.branch AND s.customer_id = dc.customer_id
+  LEFT JOIN prev_run pr ON true
+  LEFT JOIN debt_cycle_customers p
+    ON p.cycle_date = pr.cycle_date AND p.branch = dc.branch AND p.customer_id = dc.customer_id
+  LEFT JOIN debt_cycle_feedback pf
+    ON pf.cycle_date = pr.cycle_date AND pf.branch = dc.branch AND pf.customer_id = dc.customer_id
+  WHERE dc.cycle_date = $1::date`;
+
+const STREAK_AMOUNTS_SQL = `SELECT branch, customer_id::text AS customer_id, day::text AS day, invoice_amount, return_amount
+  FROM debt_cycle_amounts WHERE cycle_date = $1::date`;
+
+const UPDATE_STREAK_SQL = `
+  WITH v AS (
+    SELECT * FROM unnest($2::text[], $3::bigint[], $4::numeric[], $5::int[]) AS t(branch, customer_id, overdue, streak)
+  )
+  UPDATE debt_cycle_customers dc SET overdue_debt = v.overdue, overdue_streak = v.streak
+  FROM v WHERE dc.cycle_date = $1::date AND dc.branch = v.branch AND dc.customer_id = v.customer_id`;
+
+const UPDATE_RUN_COUNT_SQL =`UPDATE debt_cycle_runs SET customer_count =
   (SELECT COUNT(*) FROM debt_cycle_customers WHERE cycle_date = $1::date) WHERE cycle_date = $1::date`;
 
 const CLEANUP_SQL = [
@@ -85,6 +116,41 @@ const CLEANUP_SQL = [
   `DELETE FROM debt_cycle_feedback WHERE cycle_date < $1::date - ${RETENTION_DAYS}`,
   `DELETE FROM debt_feedback_history WHERE cycle_date < $1::date - ${RETENTION_DAYS}`
 ];
+
+/**
+ * Tinh no qua han + so phien lien tiep cho moi khach cua ban chot cycleDate va ghi vao
+ * debt_cycle_customers. Chay trong transaction cua lan chot; chay lai nhieu lan van ra cung
+ * ket qua (dung de bu cho ban chot lam truoc khi co migration 0048).
+ */
+async function applyOverdueStreaks(client, cycleDate) {
+  const [customers, amounts] = await Promise.all([
+    client.query(STREAK_CUSTOMERS_SQL, [cycleDate]),
+    client.query(STREAK_AMOUNTS_SQL, [cycleDate])
+  ]);
+  const dailyByCustomer = new Map();
+  for (const row of amounts.rows) {
+    const key = customerKeyOf(row.branch, row.customer_id);
+    if (!dailyByCustomer.has(key)) dailyByCustomer.set(key, []);
+    dailyByCustomer.get(key).push({
+      day: row.day, invoiceAmount: Number(row.invoice_amount) || 0, returnAmount: Number(row.return_amount) || 0
+    });
+  }
+  const branches = [];
+  const ids = [];
+  const overdues = [];
+  const streaks = [];
+  for (const row of customers.rows) {
+    const days = effectiveScheduleDays(row.schedule_days);
+    const inSchedule = inScheduleDebt(dailyByCustomer.get(customerKeyOf(row.branch, row.customer_id)) || [], cycleDate, days);
+    const overdue = overdueDebt(row.current_debt, inSchedule);
+    branches.push(row.branch);
+    ids.push(row.customer_id);
+    overdues.push(overdue);
+    streaks.push(nextOverdueStreak(overdue, row.previous_streak, row.previous_status));
+  }
+  if (branches.length) await client.query(UPDATE_STREAK_SQL, [cycleDate, branches, ids, overdues, streaks]);
+  return { customers: branches.length, slow: streaks.filter(streak => streak > 0).length };
+}
 
 /** Ngay VN can chot ngay bay gio, hoac null. Chi chot cho HOM NAY, tu 15:00. */
 function cycleDateDue(lastDate, now) {
@@ -127,6 +193,7 @@ async function takeDebtCycleSnapshot(pool, cycleDate, { log = console.log, loadA
     }
     await client.query(INSERT_CUSTOMERS_SQL, [cycleDate, BRANCH_CODES, averages.branches, averages.codes, averages.values]);
     await client.query(INSERT_AMOUNTS_SQL, [cycleDate, BRANCH_CODES]);
+    await applyOverdueStreaks(client, cycleDate);
     await client.query(UPDATE_RUN_COUNT_SQL, [cycleDate]);
     for (const sql of CLEANUP_SQL) await client.query(sql, [cycleDate]);
     const { rows } = await client.query('SELECT customer_count FROM debt_cycle_runs WHERE cycle_date = $1::date', [cycleDate]);
@@ -192,6 +259,7 @@ if (require.main === module) {
 
 module.exports = {
   takeDebtCycleSnapshot,
+  applyOverdueStreaks,
   takeDebtCycleSnapshotIfDue,
   startDebtCycleSnapshotSchedule,
   loadAverageRevenue,

@@ -86,7 +86,7 @@ test('sidebar và tiêu đề thay Công nợ kỳ cũ bằng Công nợ', () =>
   assert.doesNotMatch(dashboard, /id="debtPeriodToggle"|setDebtPeriod\(|toggleDebtDetail\(|debt\.period/);
 });
 
-test('dashboard công nợ có đủ 4 KPI, không còn biểu đồ và bảng 13 cột (Cơ sở đứng đầu, có DS trong kỳ, không còn Nợ đầu kỳ)', () => {
+test('dashboard công nợ có đủ 4 KPI, không còn biểu đồ và bảng 15 cột (Cơ sở đứng đầu, có DS trong kỳ, không còn Nợ đầu kỳ)', () => {
   const dashboard = html();
   ['dm-current', 'dm-overdue', 'dm-action-count', 'dm-overdue-ratio'].forEach(id => {
     assert.match(dashboard, new RegExp(`id="${id}"`));
@@ -94,8 +94,8 @@ test('dashboard công nợ có đủ 4 KPI, không còn biểu đồ và bảng 
   assert.doesNotMatch(dashboard, /chartDebtBySale|chartDebtBySchedule|chartTopCurrentDebt|chartTopOverdueDebt|renderDebtComparisonChart|renderDebtTopChart/);
   const table = dashboard.match(/<table[^>]*data-debt-management-table[\s\S]*?<\/table>/);
   assert.ok(table);
-  assert.equal((table[0].match(/<th(?:\s[^>]*)?>/g) || []).length, 13);
-  assert.match(table[0], /Cảnh báo<\/th>\s*<th[^>]*>Sale phản hồi<\/th>\s*<th[^>]*>QL phản hồi<\/th>\s*<th[^>]*>Xử lý/);
+  assert.equal((table[0].match(/<th(?:\s[^>]*)?>/g) || []).length, 15);
+  assert.match(table[0], /Cảnh báo<\/th>\s*<th[^>]*data-column-default-hidden="true"[^>]*>Số phiên liên tiếp<\/th>\s*<th[^>]*>Tiền phạt phiên này<\/th>\s*<th[^>]*>Sale phản hồi<\/th>\s*<th[^>]*>QL phản hồi<\/th>\s*<th[^>]*>Xử lý/);
   assert.doesNotMatch(dashboard, /Chưa thu/, 'đã bỏ cảnh báo Chưa thu');
   assert.match(table[0], /<tr>\s*<th[^>]*>Cơ sở<\/th>\s*<th[^>]*>Khách hàng<\/th>/, 'Cơ sở là cột đầu');
   assert.match(table[0], /Nợ hiện tại<\/th>\s*<th[^>]*>Nợ quá hạn<\/th>\s*<th[^>]*data-column-default-hidden="true"[^>]*>DS trong kỳ/, 'DS trong kỳ nằm sau Nợ quá hạn, mặc định ẩn');
@@ -168,10 +168,10 @@ test('Sale phản hồi sửa được theo quyền, QL phản hồi chỉ đọ
   const row = document.querySelector('#debtManagementRows tr[data-customer-key="hanoi:1"]');
   const cells = row.querySelectorAll('td');
   assert.equal(cells[0].textContent, 'HN', 'cột Cơ sở ghi tắt');
-  const saleInput = cells[10].querySelector('textarea.debt-feedback-input');
+  const saleInput = cells[12].querySelector('textarea.debt-feedback-input');
   assert.ok(saleInput, 'có quyền Sale phản hồi -> ô nhập');
   assert.equal(saleInput.value, 'Hẹn thứ 6');
-  assert.equal(cells[11].querySelector('textarea'), null, 'không có quyền QL phản hồi -> chỉ đọc');
+  assert.equal(cells[13].querySelector('textarea'), null, 'không có quyền QL phản hồi -> chỉ đọc');
 
   let sent;
   dom.window.fetch = async (url, options) => { sent = { url, body: JSON.parse(options.body) }; return { ok: true, json: async () => ({ value: 'Hẹn thứ 7', by: 'Lan' }) }; };
@@ -187,14 +187,14 @@ test('Lịch sử chỉnh sửa hiển thị mọi loại thay đổi (phản h�
   const document = dom.window.document;
   dom.window.fetch = async () => ({ ok: true, json: async () => ({ cycleDate: '2026-10-13', entries: [
     { id: '3', createdAt: '2026-10-13T09:00:00Z', branch: 'hanoi', customerId: '1', customerName: 'Khách A', field: 'schedule', oldValue: '', newValue: '3', actorName: 'QL' },
-    { id: '2', createdAt: '2026-10-13T08:30:00Z', branch: 'saigon', customerId: '2', customerName: 'Khách B', field: 'status', oldValue: 'Chưa xử lý', newValue: 'Đang xử lý', actorName: 'QL' },
+    { id: '2', createdAt: '2026-10-13T08:30:00Z', branch: 'saigon', customerId: '2', customerName: 'Khách B', field: 'status', oldValue: 'Chưa xử lý', newValue: 'Bỏ qua', actorName: 'QL' },
     { id: '1', createdAt: '2026-10-13T08:10:00Z', branch: 'hanoi', customerId: '1', customerName: 'Khách A', field: 'sale', oldValue: '', newValue: 'Hẹn', actorName: 'Lan' }
   ] }) });
   await dom.window.openDebtHistory();
   const rows = [...document.querySelectorAll('#docModalBody tbody tr')].map(tr => [...tr.querySelectorAll('td')].slice(3).map(td => td.textContent));
   assert.deepEqual(rows, [
     ['HN', 'Lịch TT', '1 ngày (mặc định)', '3 ngày'],
-    ['SG', 'Trạng thái', 'Chưa xử lý', 'Đang xử lý'],
+    ['SG', 'Trạng thái', 'Chưa xử lý', 'Bỏ qua'],
     ['HN', 'Sale phản hồi', '—', 'Hẹn']
   ]);
   assert.match(document.getElementById('docModalSubtitle').textContent, /13\/10 · 3 lần sửa/);

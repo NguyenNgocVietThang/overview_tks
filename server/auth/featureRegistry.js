@@ -62,6 +62,7 @@ const FEATURES = Object.freeze([
   { key: 'reports.debt.managerFeedback', groupKey: 'reports', label: 'Công nợ: điền QL phản hồi (cần Công nợ)', roles: MANAGER_ONLY, requires: 'reports.debt' },
   { key: 'reports.debt.edit', groupKey: 'reports', label: 'Công nợ: đổi trạng thái xử lý (cần Công nợ)', roles: MANAGER_ONLY, requires: 'reports.debt' },
   { key: 'reports.debt.schedule', groupKey: 'reports', label: 'Công nợ: sửa lịch thanh toán (cần Công nợ)', roles: MANAGER_ONLY, requires: 'reports.debt' },
+  { key: 'reports.debt.penalty', groupKey: 'reports', label: 'Công nợ: điền tiền phạt phiên này (cần Công nợ)', roles: MANAGER_ONLY, requires: 'reports.debt' },
   // 2026-10-07: Bao cao kinh doanh (tang truong Sale/Khach/Ma hang theo thang). Spec:
   // docs/superpowers/specs/2026-10-07-business-report-design.md.
   { key: 'reports.business', groupKey: 'reports', label: 'Báo cáo kinh doanh', roles: REPORT_VIEW_ROLES },

@@ -6,6 +6,7 @@
 //   QL phan hoi    -> reports.debt.managerFeedback (mac dinh Quan ly)
 //   Trang thai     -> reports.debt.edit            (mac dinh Quan ly)
 //   Lich TT        -> reports.debt.schedule        (mac dinh Quan ly)
+//   Tien phat      -> reports.debt.penalty         (mac dinh Quan ly)
 // Phan hoi/trang thai chi ghi vao chu ky hien tai (ban chot 15:00 moi nhat); client gui kem
 // cycleDate dang xem, lech thi tra 409 de nguoi dung tai lai.
 
@@ -81,6 +82,16 @@ router.patch('/api/debt-management/schedule', requireAuth, requireFeature('repor
     return res.status(200).json(result);
   } catch (error) {
     return sendError(res, error, 'Không thể lưu lịch thanh toán lúc này.', 'DEBT_SCHEDULE_UNAVAILABLE');
+  }
+});
+
+// Tien phat phien nay: Quan ly (hoac nguoi duoc phan quyen) ghi de muc phat goi y; rong = ve goi y.
+router.patch('/api/debt-management/penalty', requireAuth, requireFeature('reports.debt.penalty'), async (req, res) => {
+  try {
+    const result = await repository().savePenalty({ ...readTarget(req.body), amount: req.body?.amount, user: req.user });
+    return res.status(200).json(result);
+  } catch (error) {
+    return sendError(res, error, 'Không thể lưu tiền phạt lúc này.', 'DEBT_PENALTY_UNAVAILABLE');
   }
 });
 

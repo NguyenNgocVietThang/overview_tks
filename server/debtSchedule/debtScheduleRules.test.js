@@ -83,3 +83,19 @@ test('buildDebtReport: chua co ban chot -> unavailable kem canh bao; co ban chot
   assert.equal(report.kpi.overdueToSalesRatio, 0.2);
   assert.deepEqual(report.byPaymentSchedule.map(item => item.paymentSchedule), ['1', '3']);
 });
+
+test('suggestedPenalty: no le 25k, no cham theo bac phien, het qua han = 0', () => {
+  assert.equal(rules.suggestedPenalty(0, 3), 0);
+  assert.equal(rules.suggestedPenalty(399999, 5), 25000);
+  const tiers = [1, 2, 3, 4, 5, 6, 9].map(streak => rules.suggestedPenalty(400000, streak));
+  assert.deepEqual(tiers, [25000, 25000, 50000, 100000, 150000, 200000, 200000]);
+});
+
+test('nextOverdueStreak: +1 khi >= 400k, reset 0 khi duoi, Da xu ly giu nguyen', () => {
+  assert.equal(rules.nextOverdueStreak(400000, 0, undefined), 1);
+  assert.equal(rules.nextOverdueStreak(500000, 2, 'Chưa xử lý'), 3);
+  assert.equal(rules.nextOverdueStreak(500000, 2, 'Bỏ qua'), 3);
+  assert.equal(rules.nextOverdueStreak(500000, 2, 'Đã xử lý'), 2);
+  assert.equal(rules.nextOverdueStreak(500000, 0, 'Đã xử lý'), 1);
+  assert.equal(rules.nextOverdueStreak(399999, 4, 'Bỏ qua'), 0);
+});

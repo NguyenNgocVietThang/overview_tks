@@ -12,7 +12,8 @@ const DEBT_ACCESS_FEATURES = Object.freeze({
   saleFeedback: 'reports.debt.saleFeedback',
   managerFeedback: 'reports.debt.managerFeedback',
   status: 'reports.debt.edit',
-  schedule: 'reports.debt.schedule'
+  schedule: 'reports.debt.schedule',
+  penalty: 'reports.debt.penalty'
 });
 
 function debtAccessFor(viewer) {

@@ -11,7 +11,8 @@ const { takeDebtCycleSnapshot, takeDebtCycleSnapshotIfDue, __test__ } = require(
 const { createDebtScheduleRepository } = require('./debtScheduleRepository');
 const { buildCustomerRow } = require('./debtScheduleRules');
 
-const MIGRATION = fs.readFileSync(path.join(__dirname, '..', 'db', 'migrations', '0047_debt_schedule_report.sql'), 'utf8');
+const MIGRATION = ['0047_debt_schedule_report.sql', '0048_debt_penalty.sql']
+  .map(file => fs.readFileSync(path.join(__dirname, '..', 'db', 'migrations', file), 'utf8')).join(' ');
 
 // Bang toi thieu cua KiotViet ma job/repository doc.
 const BASE_SCHEMA = `
@@ -95,6 +96,30 @@ test('chot 15:00: chi khach dang no, so tien theo ngay cat dung 15:00, bo don hu
   } finally { await db.close(); }
 });
 
+test('so phien lien tiep: +1 moi chot khi qua han >= 400k, Da xu ly giu nguyen, het no cham reset 0', async () => {
+  const { db, pool } = await setup();
+  try {
+    await db.query(`INSERT INTO customers (branch, id, code, name, debt, raw) VALUES
+      ('hanoi', 1, 'KH1', 'A', 900000, '{}'), ('hanoi', 2, 'KH2', 'B', 300000, '{}')`);
+    await db.query(`INSERT INTO invoices (branch, id, customer_id, purchase_date, total, raw) VALUES
+      ('hanoi', 1, 1, '2026-08-08 02:00+00', 200000, '{}')`);
+    const take = date => takeDebtCycleSnapshot(pool, date, { log: () => {}, loadAverages: noAverages });
+    const streak = async date => (await db.query(`SELECT customer_id::int AS id, overdue_debt::int AS overdue, overdue_streak AS streak FROM debt_cycle_customers WHERE cycle_date = $1 ORDER BY customer_id`, [date])).rows;
+    await take('2026-08-08');
+    assert.deepEqual(await streak('2026-08-08'), [{ id: 1, overdue: 700000, streak: 1 }, { id: 2, overdue: 300000, streak: 0 }], 'chot dau: phien 1; no le = 0');
+    await take('2026-08-09');
+    assert.equal((await streak('2026-08-09'))[0].streak, 2);
+    await db.query(`INSERT INTO debt_cycle_feedback (cycle_date, branch, customer_id, status) VALUES ('2026-08-09', 'hanoi', 1, 'Đã xử lý')`);
+    await take('2026-08-10');
+    assert.equal((await streak('2026-08-10'))[0].streak, 2, 'Da xu ly o chu ky truoc: giu nguyen');
+    await take('2026-08-11');
+    assert.equal((await streak('2026-08-11'))[0].streak, 3, 'khong con Da xu ly: +1');
+    await db.query(`UPDATE customers SET debt = 100000 WHERE id = 1`);
+    await take('2026-08-12');
+    assert.equal((await streak('2026-08-12'))[0].streak, 0, 'het no cham thi reset 0');
+  } finally { await db.close(); }
+});
+
 test('den han chot: tu 15:00 VN, chi cho hom nay', () => {
   const { cycleDateDue } = __test__;
   assert.equal(cycleDateDue(null, new Date('2026-10-13T07:59:00Z')), null, '14:59 VN');
@@ -143,17 +168,17 @@ test('repository: lich TT doc truc tiep (sua la doi no qua han ngay), phan hoi +
     await repo.saveFeedback({ field: 'sale', branch: 'hanoi', customerId: '1', cycleDate: '2026-08-08', value: 'Khách hẹn thứ 2', user: sale });
     await repo.saveFeedback({ field: 'sale', branch: 'hanoi', customerId: '1', value: 'Khách hẹn thứ 3', user: sale });
     await repo.saveFeedback({ field: 'sale', branch: 'hanoi', customerId: '1', value: 'Khách hẹn thứ 3', user: sale });
-    await repo.saveStatus({ branch: 'hanoi', customerId: '1', status: 'Đang xử lý', user: manager });
+    await repo.saveStatus({ branch: 'hanoi', customerId: '1', status: 'Bỏ qua', user: manager });
     const history = await repo.listFeedbackHistory({ branches: ['hanoi'] });
     assert.deepEqual(history.entries.map(item => [item.field, item.oldValue, item.newValue, item.actorName]).sort(), [
       ['schedule', '', '3', 'Quản lý A'],
       ['sale', '', 'Khách hẹn thứ 2', 'Lan'],
       ['sale', 'Khách hẹn thứ 2', 'Khách hẹn thứ 3', 'Lan'],
-      ['status', 'Chưa xử lý', 'Đang xử lý', 'Quản lý A']
+      ['status', 'Chưa xử lý', 'Bỏ qua', 'Quản lý A']
     ].sort(), 'moi thay doi tren giao dien vao lich su; noi dung khong doi thi khong ghi');
     let report = await repo.readReport(['hanoi']);
     assert.equal(report.rows[0].feedback.saleFeedback, 'Khách hẹn thứ 3');
-    assert.equal(report.rows[0].feedback.status, 'Đang xử lý');
+    assert.equal(report.rows[0].feedback.status, 'Bỏ qua');
 
     await assert.rejects(
       repo.saveFeedback({ field: 'manager', branch: 'hanoi', customerId: '2', value: 'x', user: manager }),
@@ -172,5 +197,25 @@ test('repository: lich TT doc truc tiep (sua la doi no qua han ngay), phan hoi +
       repo.saveFeedback({ field: 'sale', branch: 'hanoi', customerId: '1', cycleDate: '2026-08-08', value: 'cũ', user: sale }),
       error => error.statusCode === 409, 'man hinh chu ky cu bi chan'
     );
+  } finally { await db.close(); }
+});
+
+test('tien phat: ghi de, xoa ve goi y, lich su, chi chu ky hien tai', async () => {
+  const { db, pool } = await setup();
+  try {
+    await seedKiot(db);
+    await takeDebtCycleSnapshot(pool, '2026-08-08', { log: () => {}, loadAverages: noAverages });
+    const repo = createDebtScheduleRepository({ pool });
+    const manager = { id: 'u1', hoTen: 'Quản lý A' };
+    const customerPenalty = async () => (await repo.readReport(['hanoi'])).rows[0].penaltyOverride;
+    assert.equal(await customerPenalty(), null);
+    await repo.savePenalty({ branch: 'hanoi', customerId: '1', amount: 40000, user: manager });
+    assert.equal(await customerPenalty(), 40000);
+    await repo.savePenalty({ branch: 'hanoi', customerId: '1', amount: null, user: manager });
+    assert.equal(await customerPenalty(), null);
+    await assert.rejects(repo.savePenalty({ branch: 'hanoi', customerId: '1', amount: -5, user: manager }), /không âm/);
+    await assert.rejects(repo.savePenalty({ branch: 'hanoi', customerId: '1', cycleDate: '2026-08-01', amount: 1, user: manager }), /chu kỳ mới/);
+    const history = await repo.listFeedbackHistory({ branches: ['hanoi'] });
+    assert.deepEqual(history.entries.map(e => [e.field, e.oldValue, e.newValue]), [['penalty', '40000', ''], ['penalty', '', '40000']]);
   } finally { await db.close(); }
 });

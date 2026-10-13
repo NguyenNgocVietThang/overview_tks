@@ -32,9 +32,9 @@ const EXCEL_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.
 const DEBT_QUEUE_FILTERS = new Set(['needsAction', 'currentDebt', 'overdue', 'all']);
 // Khop thu tu cot bang Cong no tren man hinh (DEBT_SORT_FIELDS o public/index.html).
 const DEBT_SORT_FIELDS = [
-  'branch', 'customerName', 'sale', 'paymentSchedule', 'currentDebt', 'inScheduleDebt',
-  'overdueDebt', 'currentDebtToSalesRatio', 'overdueToSalesRatio', 'automaticAlert', 'saleFeedback',
-  'managerFeedback', 'workflowStatus'
+  'branch', 'customerName', 'sale', 'paymentSchedule', 'currentDebt', 'overdueDebt',
+  'inScheduleDebt', 'currentDebtToSalesRatio', 'overdueToSalesRatio', 'automaticAlert', 'overdueStreak',
+  'penaltyAmount', 'saleFeedback', 'managerFeedback', 'workflowStatus'
 ];
 
 // Gioi han tai: moi file Excel nap du lieu + ghi workbook trong RAM.
@@ -230,6 +230,10 @@ const DEBT_COLUMNS = [
     'Nợ quá hạn chia cho doanh số trung bình 4 tháng (Báo cáo kinh doanh).'),
   aggregateColumn('automaticAlert', 'Cảnh báo tự động', 'text',
     'Quá hạn khi nợ quá hạn lớn hơn 0 đồng.', { wrapText: true }),
+  aggregateColumn('overdueStreak', 'Số phiên liên tiếp', 'number',
+    'Số phiên chốt 15:00 liên tiếp khách có nợ quá hạn từ 400.000đ; về 0 khi hết nợ chậm.', { selected: false }),
+  aggregateColumn('penaltyAmount', 'Tiền phạt phiên này', 'number',
+    'Tiền phạt nợ quá hạn của phiên: mức gợi ý theo quy chế (nợ lẻ 25.000đ, nợ chậm theo số phiên liên tiếp) hoặc số Quản lý đã điền (VNĐ).'),
   aggregateColumn('saleFeedback', 'Sale phản hồi', 'text', 'Phản hồi của Sale trong chu kỳ chốt hiện tại.', { wrapText: true }),
   aggregateColumn('managerFeedback', 'QL phản hồi', 'text', 'Phản hồi của Quản lý trong chu kỳ chốt hiện tại.', { wrapText: true }),
   aggregateColumn('workflowStatus', 'Trạng thái xử lý', 'text', 'Trạng thái xử lý công nợ trong chu kỳ chốt hiện tại.'),
@@ -563,6 +567,8 @@ function debtManagementRows(debtManagement, context, aggregate = false) {
     currentDebtToSalesRatio: customer.currentDebtToSalesRatio,
     overdueToSalesRatio: customer.overdueToSalesRatio,
     automaticAlert: debtAutomaticAlert(customer),
+    overdueStreak: Number(customer.overdueStreak) || 0,
+    penaltyAmount: Number(customer.penaltyAmount) || 0,
     saleFeedback: customer.saleFeedback || '',
     managerFeedback: customer.managerFeedback || '',
     workflowStatus: customer.workflowStatus,

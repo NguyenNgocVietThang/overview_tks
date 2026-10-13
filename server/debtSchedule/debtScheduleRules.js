@@ -13,8 +13,15 @@ const { addDaysToKey } = require('../kiotvietSync/vnTime');
 const DEFAULT_SCHEDULE_DAYS = 1;
 const MAX_SCHEDULE_DAYS = 90;
 const SNAPSHOT_MINUTE_OF_DAY = 15 * 60;
-const WORKFLOW_STATUSES = Object.freeze(['Chưa xử lý', 'Đang xử lý', 'Đã xử lý', 'Bỏ qua']);
+const WORKFLOW_STATUSES = Object.freeze(['Chưa xử lý', 'Đã xử lý', 'Bỏ qua']);
 const TERMINAL_WORKFLOW_STATUSES = new Set(['Đã xử lý', 'Bỏ qua']);
+const RESOLVED_STATUS = 'Đã xử lý';
+
+// Quy che phat no: no le (qua han duoi 400k) phat 25k/phien; no cham (>= 400k) phat theo so
+// phien lien tiep. Phien thu i phat PENALTY_BY_SESSION[i - 1], tu phien cuoi tro di giu muc cuoi.
+const SLOW_DEBT_THRESHOLD = 400000;
+const SMALL_DEBT_PENALTY = 25000;
+const PENALTY_BY_SESSION = Object.freeze([25000, 25000, 50000, 100000, 150000, 200000]);
 const BRANCH_SHORT = Object.freeze({ hanoi: 'HN', saigon: 'SG' });
 const UNGROUPED_SALE = 'Chưa phân nhóm';
 
@@ -53,6 +60,27 @@ function overdueDebt(currentDebt, inSchedule) {
   return Math.max(0, (Number(currentDebt) || 0) - (Number(inSchedule) || 0));
 }
 
+/**
+ * So phien lien tiep tai ban chot 15:00 nay. Qua han < 400k -> reset 0. Qua han >= 400k:
+ * chu ky truoc "Da xu ly" -> giu nguyen so phien (toi thieu 1); con lai (Chua xu ly / Bo qua)
+ * -> phien truoc + 1. Khach khong co dong o ban chot truoc coi nhu phien truoc = 0.
+ */
+function nextOverdueStreak(overdue, previousStreak, previousStatus) {
+  if (!((Number(overdue) || 0) >= SLOW_DEBT_THRESHOLD)) return 0;
+  const previous = Math.max(0, Math.trunc(Number(previousStreak) || 0));
+  if (previousStatus === RESOLVED_STATUS) return Math.max(1, previous);
+  return previous + 1;
+}
+
+/** Tien phat goi y theo quy che: 0 neu khong qua han; no le 25k; no cham theo so phien. */
+function suggestedPenalty(overdue, streak) {
+  const amount = Number(overdue) || 0;
+  if (amount <= 0) return 0;
+  if (amount < SLOW_DEBT_THRESHOLD) return SMALL_DEBT_PENALTY;
+  const session = Math.min(Math.max(1, Math.trunc(Number(streak) || 0)), PENALTY_BY_SESSION.length);
+  return PENALTY_BY_SESSION[session - 1];
+}
+
 function ratio(value, base) {
   const denominator = Number(base);
   return Number.isFinite(denominator) && denominator > 0 ? (Number(value) || 0) / denominator : null;
@@ -76,6 +104,9 @@ function buildCustomerRow(row, { cycleDate, dailyAmounts, access = {} }) {
   const feedback = row.feedback || {};
   const workflowStatus = WORKFLOW_STATUSES.includes(feedback.status) ? feedback.status : 'Chưa xử lý';
   const alertCodes = overdue > 0 ? ['overdue'] : [];
+  const overdueStreak = Math.max(0, Math.trunc(Number(row.overdueStreak) || 0));
+  const suggested = suggestedPenalty(overdue, overdueStreak);
+  const hasManualPenalty = row.penaltyOverride !== null && row.penaltyOverride !== undefined;
   return {
     customerKey: customerKeyOf(row.branch, row.customerId),
     customerId: String(row.customerId),
@@ -95,6 +126,11 @@ function buildCustomerRow(row, { cycleDate, dailyAmounts, access = {} }) {
     currentDebtToSalesRatio: ratio(currentDebt, averageSales),
     overdueToSalesRatio: ratio(overdue, averageSales),
     alertCodes,
+    overdueStreak,
+    suggestedPenalty: suggested,
+    penaltyAmount: hasManualPenalty ? Number(row.penaltyOverride) : suggested,
+    penaltyIsManual: hasManualPenalty,
+    penaltyBy: hasManualPenalty ? row.penaltyBy || '' : '',
     dataIssues: [],
     saleFeedback: feedback.saleFeedback || '',
     saleFeedbackBy: feedback.saleFeedbackBy || '',
@@ -107,7 +143,8 @@ function buildCustomerRow(row, { cycleDate, dailyAmounts, access = {} }) {
     canEditStatus: Boolean(access.status),
     canEditSaleFeedback: Boolean(access.saleFeedback),
     canEditManagerFeedback: Boolean(access.managerFeedback),
-    canEditSchedule: Boolean(access.schedule)
+    canEditSchedule: Boolean(access.schedule),
+    canEditPenalty: Boolean(access.penalty)
   };
 }
 
@@ -166,7 +203,8 @@ function buildDebtReport({ cycle, customers, access = {}, dataWarnings = [] }) {
       status: Boolean(access.status),
       saleFeedback: Boolean(access.saleFeedback),
       managerFeedback: Boolean(access.managerFeedback),
-      schedule: Boolean(access.schedule)
+      schedule: Boolean(access.schedule),
+      penalty: Boolean(access.penalty)
     },
     dataWarnings: warnings,
     kpi: {
@@ -192,8 +230,13 @@ module.exports = {
   MAX_SCHEDULE_DAYS,
   SNAPSHOT_MINUTE_OF_DAY,
   WORKFLOW_STATUSES,
+  RESOLVED_STATUS,
+  SLOW_DEBT_THRESHOLD,
+  PENALTY_BY_SESSION,
   BRANCH_SHORT,
   UNGROUPED_SALE,
+  nextOverdueStreak,
+  suggestedPenalty,
   parseScheduleDays,
   effectiveScheduleDays,
   scheduleWindowStart,

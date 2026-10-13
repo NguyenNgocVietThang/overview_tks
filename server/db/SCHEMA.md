@@ -427,6 +427,10 @@ Migration `0044_purchases_raw_hash.sql` thêm `purchases.raw_hash TEXT` (nullabl
 
 `0045_pancake_current_input.sql` thêm JSONB nullable `marketing_pancake_facts.current_input` với CHECK object, giữ canonical API state khi adoption không tạo observation. Không chứa dữ liệu đếm riêng; lịch sử/observation vẫn bất biến. Snapshot báo cáo `includeRaw:false` bỏ field này và JSON nguồn. Khóa advisory riêng giữ một job xuyên instance; thời điểm ghi nhận được lấy cuối transaction, qua nửa đêm rollback/thử lại để không cập nhật observation bất biến.
 
+## Tiền phạt công nợ + số phiên liên tiếp — migration 0048
+
+`0048_debt_penalty.sql` (2026-10-13): `debt_cycle_customers` thêm `overdue_debt`, `overdue_streak` (số phiên liên tiếp quá hạn ≥ 400k tại bản chốt); bảng `debt_cycle_penalties (cycle_date, branch, customer_id)` lưu tiền phạt Quản lý điền (không FK, không bị dọn 7 ngày; SELECT của `reporting_readonly` bị thu hồi); `debt_feedback_history.field` thêm `penalty`; `debt_cycle_feedback.status` bỏ `Đang xử lý` (dữ liệu cũ → `Chưa xử lý`).
+
 ## Công nợ theo lịch thanh toán — migration 0047
 
 `0047_debt_schedule_report.sql` (2026-10-13). Khóa nghiệp vụ của công nợ là **(cơ sở, khách KiotViet)**.

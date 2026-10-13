@@ -254,8 +254,8 @@ test('Quản lý công nợ xuất đúng một worksheet, lọc và sort trên 
     assert.equal(dataset.worksheets.length, 1);
     assert.equal(dataset.worksheets[0].name, 'Công nợ HN');
     assert.deepEqual(dataset.worksheets[0].rows.map(row => row.customerName), ['Khách B', 'Khách A']);
-    assert.equal(dataset.worksheets[0].columns.length, 15, '13 cot man hinh (gom Cơ sở + 2 cot phan hoi) + 2 cot cap nhat tuy chon');
-    assert.equal(dataset.worksheets[0].columns.filter(column => column.selected !== false).length, 13);
+    assert.equal(dataset.worksheets[0].columns.length, 17, '14 cot man hinh (gom Cơ sở, 2 cot phan hoi, Tien phat) + So phien + 2 cot cap nhat tuy chon');
+    assert.equal(dataset.worksheets[0].columns.filter(column => column.selected !== false).length, 14);
 
     const matched = await exportService.__test__.buildFixedDataset('debt.management', fixedEnv(stubs), {
       debtQueue: 'overdue', debtSale: 'Lan', debtSchedule: '1', debtSearch: 'khách a'
@@ -280,12 +280,13 @@ test('Quản lý công nợ phản ánh đủ bốn bộ lọc hàng chờ', asy
   });
 });
 
-test('Quản lý công nợ mặc định chọn 13 cột hiển thị (kèm Cơ sở, 2 cột phản hồi) và để 2 cột cập nhật là tùy chọn', async () => {
+test('Quản lý công nợ mặc định chọn 14 cột hiển thị (kèm Cơ sở, 2 cột phản hồi, Tiền phạt) và để Số phiên + 2 cột cập nhật là tùy chọn', async () => {
   const metadata = await exportService.getExportFields({ tableKey: 'debt.management', context: { debtQueue: 'all' } }, 'Hà Nội');
   const fields = metadata.worksheets[0].fields;
-  assert.equal(fields.length, 15);
+  assert.equal(fields.length, 17);
   assert.equal(fields[1].label, 'Cơ sở');
-  assert.equal(fields.filter(field => field.selected).length, 13);
+  assert.equal(fields.filter(field => field.selected).length, 14);
+  assert.equal(fields.find(field => field.key === 'overdueStreak').selected, false);
   assert.equal(fields.find(field => field.key === 'updatedBy').selected, false);
   assert.equal(fields.find(field => field.key === 'updatedAt').selected, false);
 });
@@ -462,7 +463,7 @@ test('moi bang co dinh tao duoc file xlsx tu danh sach truong API tra ve', async
         worksheet.fields.map(field => field.key)
       ]));
       if (tableKey === 'debt.management') {
-        assert.equal(metadata.worksheets[0].fields.filter(field => field.selected).length, 13);
+        assert.equal(metadata.worksheets[0].fields.filter(field => field.selected).length, 14);
       } else {
         assert.ok(metadata.worksheets.every(worksheet => worksheet.fields.every(field => field.selected)));
       }

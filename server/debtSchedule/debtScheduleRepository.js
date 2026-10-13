@@ -29,14 +29,17 @@ const CUSTOMERS_SQL = `
          btrim(COALESCE(c.code, '')) AS customer_code,
          COALESCE(NULLIF(btrim(c.name), ''), '') AS customer_name,
          NULLIF(btrim(c.raw->>'groups'), '') AS sale,
-         s.schedule_days,
+         s.schedule_days, dc.overdue_streak,
          f.sale_feedback, f.sale_feedback_by, f.manager_feedback, f.manager_feedback_by,
-         f.status, f.status_by, f.status_at
+         f.status, f.status_by, f.status_at,
+         pen.amount AS penalty_amount, pen.updated_by_name AS penalty_by
   FROM debt_cycle_customers dc
   LEFT JOIN customers c ON c.branch = dc.branch AND c.id = dc.customer_id
   LEFT JOIN debt_payment_schedules s ON s.branch = dc.branch AND s.customer_id = dc.customer_id
   LEFT JOIN debt_cycle_feedback f
     ON f.cycle_date = dc.cycle_date AND f.branch = dc.branch AND f.customer_id = dc.customer_id
+  LEFT JOIN debt_cycle_penalties pen
+    ON pen.cycle_date = dc.cycle_date AND pen.branch = dc.branch AND pen.customer_id = dc.customer_id
   WHERE dc.cycle_date = $1::date AND dc.branch = ANY($2::text[])`;
 
 const AMOUNTS_SQL = `SELECT branch, customer_id::text AS customer_id, day::text AS day, invoice_amount, return_amount
@@ -83,6 +86,9 @@ function mapCustomerRow(row) {
     customerName: row.customer_name,
     sale: row.sale,
     scheduleDays: row.schedule_days,
+    overdueStreak: Number(row.overdue_streak) || 0,
+    penaltyOverride: row.penalty_amount === null || row.penalty_amount === undefined ? null : Number(row.penalty_amount),
+    penaltyBy: row.penalty_by || '',
     currentDebt: Number(row.current_debt) || 0,
     openingDebt: row.opening_debt === null || row.opening_debt === undefined ? null : Number(row.opening_debt),
     avgRevenue4m: row.avg_revenue_4m === null || row.avg_revenue_4m === undefined ? null : Number(row.avg_revenue_4m),
@@ -244,6 +250,53 @@ function createDebtScheduleRepository({ pool = getPool() } = {}) {
     return result;
   }
 
+  /**
+   * Tien phat phien nay do Quan ly dien (ghi de muc goi y). amount rong/null = xoa, ve lai muc
+   * goi y. Chi ghi cho chu ky hien tai; ghi 1 dong lich su (field 'penalty') neu gia tri doi.
+   */
+  async function savePenalty({ branch, customerId, cycleDate, amount, user }) {
+    const code = assertBranch(branch);
+    const id = assertCustomerId(customerId);
+    const clearing = amount === null || amount === undefined || String(amount).trim() === '';
+    let value = null;
+    if (!clearing) {
+      const text = String(amount).trim();
+      if (!/^\d{1,12}$/.test(text)) throw httpError(400, 'Tiền phạt phải là số nguyên không âm (VNĐ).', 'INVALID_PENALTY');
+      value = Number(text);
+    }
+    const actor = actorOf(user);
+    const result = await withTransaction(async client => {
+      const { cycleDate: current } = await lockCurrentCycleCustomer(client, code, id, cycleDate);
+      const previous = await client.query(
+        'SELECT amount FROM debt_cycle_penalties WHERE cycle_date = $1::date AND branch = $2 AND customer_id = $3::bigint FOR UPDATE',
+        [current, code, id]
+      );
+      const oldValue = previous.rowCount ? Number(previous.rows[0].amount) : null;
+      if (oldValue === value) return { cycleDate: current, amount: value, by: actor.name, changed: false };
+      if (value === null) {
+        await client.query(
+          'DELETE FROM debt_cycle_penalties WHERE cycle_date = $1::date AND branch = $2 AND customer_id = $3::bigint',
+          [current, code, id]
+        );
+      } else {
+        await client.query(
+          `INSERT INTO debt_cycle_penalties (cycle_date, branch, customer_id, amount, updated_by_user_id, updated_by_name, updated_at)
+           VALUES ($1::date, $2, $3::bigint, $4, $5, $6, now())
+           ON CONFLICT (cycle_date, branch, customer_id) DO UPDATE SET
+             amount = EXCLUDED.amount, updated_by_user_id = EXCLUDED.updated_by_user_id,
+             updated_by_name = EXCLUDED.updated_by_name, updated_at = now()`,
+          [current, code, id, value, actor.id, actor.name]
+        );
+      }
+      await insertHistory(client, {
+        cycleDate: current, branch: code, customerId: id, field: 'penalty', oldValue, newValue: value, actor
+      });
+      return { cycleDate: current, amount: value, by: actor.name, changed: true };
+    });
+    if (result.changed) bumpVersion();
+    return result;
+  }
+
   async function listFeedbackHistory({ branches, cycleDate } = {}) {
     const scope = (branches || BRANCH_CODES).map(assertBranch);
     const cycle = cycleDate ? { cycleDate } : await readCurrentCycle();
@@ -350,6 +403,7 @@ function createDebtScheduleRepository({ pool = getPool() } = {}) {
     readCurrentCycle,
     saveFeedback,
     saveStatus,
+    savePenalty,
     listFeedbackHistory,
     setSchedule,
     setScheduleWith,
