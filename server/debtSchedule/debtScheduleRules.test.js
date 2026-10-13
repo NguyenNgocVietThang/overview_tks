@@ -26,18 +26,18 @@ test('cua so lich TT dung vi du quy dinh: 15h thu 6 8/8', () => {
   assert.equal(rules.scheduleWindowStart('2026-03-01', 2), '2026-02-28', 'qua ranh gioi thang');
 });
 
-test('no qua han = no hien tai - hoa don + tra hang trong lich, khong am', () => {
+test('no qua han = no hien tai - hoa don trong lich (khong tinh tra hang), khong am', () => {
   const daily = [
     { day: '2026-08-05', invoiceAmount: 100, returnAmount: 0 },
     { day: '2026-08-07', invoiceAmount: 300, returnAmount: 50 },
     { day: '2026-08-08', invoiceAmount: 200, returnAmount: 0 }
   ];
   assert.equal(rules.inScheduleDebt(daily, '2026-08-08', 1), 200);
-  assert.equal(rules.inScheduleDebt(daily, '2026-08-08', 3), 450);
-  assert.equal(rules.inScheduleDebt(daily, '2026-08-08', 7), 550);
-  assert.equal(rules.inScheduleDebt([{ day: '2026-08-08', invoiceAmount: 0, returnAmount: 90 }], '2026-08-08', 1), -90, 'chi co tra hang -> am, khong chan 0');
+  assert.equal(rules.inScheduleDebt(daily, '2026-08-08', 3), 500);
+  assert.equal(rules.inScheduleDebt(daily, '2026-08-08', 7), 600);
+  assert.equal(rules.inScheduleDebt([{ day: '2026-08-08', invoiceAmount: 0, returnAmount: 90 }], '2026-08-08', 1), 0, 'chi co tra hang -> 0: tra hang khong tinh');
   assert.equal(rules.overdueDebt(800000000, 200000000), 600000000, 'vi du cua nguoi dung');
-  assert.equal(rules.overdueDebt(100, 450), 0);
+  assert.equal(rules.overdueDebt(100, 500), 0);
 });
 
 test('buildCustomerRow: canh bao chi "Qua han" khi qua han > 0, khong con nguong 400k; co so ghi HN/SG', () => {

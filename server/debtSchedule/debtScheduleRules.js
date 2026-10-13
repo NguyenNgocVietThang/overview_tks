@@ -3,9 +3,9 @@
 // Quy tac cong no theo LICH THANH TOAN (ham thuan, khong I/O). Xem migration 0047.
 //
 // Lich TT = N ngay (so nguyen 1..90; khach chua co lich = 1). Tai ban chot 15:00 ngay D
-// (gio VN), no trong lich = tong hoa don - tong tra hang cua cac NGAY D-N+1 .. D (tinh ca
+// (gio VN), no trong lich = tong hoa don Hoan thanh (KHONG tru tra hang) cua cac NGAY D-N+1 .. D (tinh ca
 // hom nay toi 15:00); tien khach da tra KHONG tinh vao. No qua han = max(0, no hien tai -
-// no trong lich), nap ve 0 neu am. No qua han = no hien tai - hoa don + tra hang trong lich (khong chan no trong lich o 0). Vd luc 15:00 thu 6 8/8: lich 1 -> don 8/8 hop le; lich 3 -> 6, 7, 8/8;
+// no trong lich), nap ve 0 neu am. No qua han = no hien tai - hoa don trong lich. Vd luc 15:00 thu 6 8/8: lich 1 -> don 8/8 hop le; lich 3 -> 6, 7, 8/8;
 // lich 7 -> 2..8/8.
 
 const { addDaysToKey } = require('../kiotvietSync/vnTime');
@@ -44,13 +44,13 @@ function scheduleWindowStart(cycleDate, scheduleDays) {
   return addDaysToKey(cycleDate, -(effectiveScheduleDays(scheduleDays) - 1));
 }
 
-/** No trong lich = hoa don Hoan thanh - tra hang thanh cong trong lich (No qua han = No hien tai - hoa don + tra hang). */
+/** No trong lich = tong hoa don Hoan thanh trong lich. Tra hang KHONG tinh: da nam san trong no hien tai. */
 function inScheduleDebt(dailyAmounts, cycleDate, scheduleDays) {
   const start = scheduleWindowStart(cycleDate, scheduleDays);
   let total = 0;
   for (const item of dailyAmounts || []) {
     if (item.day >= start && item.day <= cycleDate) {
-      total += (Number(item.invoiceAmount) || 0) - (Number(item.returnAmount) || 0);
+      total += Number(item.invoiceAmount) || 0;
     }
   }
   return total;
