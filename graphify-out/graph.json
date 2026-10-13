@@ -40325,7 +40325,7 @@
       "node_kind": "heading",
       "norm_label": "3. hanh \u0111ong tiep theo can thuc hien (next steps & operations)",
       "source_file": "CURRENT.md",
-      "source_location": "L109"
+      "source_location": "L110"
     },
     {
       "id": "current_current_b\u1ea3ng_tr\u1ea1ng_th\u00e1i_th\u1eddi_gian_th\u1ef1c_realtime_dashboard",
@@ -40349,7 +40349,7 @@
       "node_kind": "heading",
       "norm_label": "ghi nhan phien 12/10 (lich su)",
       "source_file": "CURRENT.md",
-      "source_location": "L147"
+      "source_location": "L148"
     },
     {
       "id": "current_marketing_pancake_c\u1eadp_nh\u1eadt_phi\u00ean_12_10_2026",
@@ -40361,7 +40361,7 @@
       "node_kind": "heading",
       "norm_label": "marketing pancake \u2014 cap nhat phien 12/10/2026",
       "source_file": "CURRENT.md",
-      "source_location": "L135"
+      "source_location": "L136"
     },
     {
       "id": "current_tr\u1ea1ng_th\u00e1i_v\u1eadn_h\u00e0nh_ki\u1ec3m_tra_tr\u1ef1c_ti\u1ebfp_ng\u00e0y_13_10_2026",
@@ -40373,7 +40373,7 @@
       "node_kind": "heading",
       "norm_label": "trang thai van hanh kiem tra truc tiep ngay 13/10/2026",
       "source_file": "CURRENT.md",
-      "source_location": "L137"
+      "source_location": "L138"
     },
     {
       "id": "docs_superpowers_specs_2026_10_07_business_report_teams_merge_design",
@@ -80221,6 +80221,42 @@
       "type": "external"
     },
     {
+      "id": "server_debtschedule_debtcyclesnapshot_test",
+      "label": "server_debtschedule_debtcyclesnapshot_test",
+      "_origin": "semantic",
+      "community": 89,
+      "community_name": "debtScheduleDb.test.js",
+      "external": true,
+      "file_type": "concept",
+      "norm_label": "server_debtschedule_debtcyclesnapshot_test",
+      "source_file": "",
+      "type": "external"
+    },
+    {
+      "id": "server_debtschedule_debtschedulerules_max_schedule_days",
+      "label": "server_debtschedule_debtschedulerules_max_schedule_days",
+      "_origin": "semantic",
+      "community": 89,
+      "community_name": "debtScheduleDb.test.js",
+      "external": true,
+      "file_type": "concept",
+      "norm_label": "server_debtschedule_debtschedulerules_max_schedule_days",
+      "source_file": "",
+      "type": "external"
+    },
+    {
+      "id": "server_debtschedule_debtschedulerules_snapshot_minute_of_day",
+      "label": "server_debtschedule_debtschedulerules_snapshot_minute_of_day",
+      "_origin": "semantic",
+      "community": 89,
+      "community_name": "debtScheduleDb.test.js",
+      "external": true,
+      "file_type": "concept",
+      "norm_label": "server_debtschedule_debtschedulerules_snapshot_minute_of_day",
+      "source_file": "",
+      "type": "external"
+    },
+    {
       "id": "server_businessreport_businessmonths_retail_name",
       "label": "server_businessreport_businessmonths_retail_name",
       "_origin": "semantic",
@@ -80241,39 +80277,6 @@
       "external": true,
       "file_type": "concept",
       "norm_label": "server_auth_authmiddleware_auth_cookie_name",
-      "source_file": "",
-      "type": "external"
-    },
-    {
-      "id": "server_debtschedule_debtcyclesnapshot_test",
-      "label": "server_debtschedule_debtcyclesnapshot_test",
-      "community": 89,
-      "community_name": "debtScheduleDb.test.js",
-      "external": true,
-      "file_type": "concept",
-      "norm_label": "server_debtschedule_debtcyclesnapshot_test",
-      "source_file": "",
-      "type": "external"
-    },
-    {
-      "id": "server_debtschedule_debtschedulerules_max_schedule_days",
-      "label": "server_debtschedule_debtschedulerules_max_schedule_days",
-      "community": 89,
-      "community_name": "debtScheduleDb.test.js",
-      "external": true,
-      "file_type": "concept",
-      "norm_label": "server_debtschedule_debtschedulerules_max_schedule_days",
-      "source_file": "",
-      "type": "external"
-    },
-    {
-      "id": "server_debtschedule_debtschedulerules_snapshot_minute_of_day",
-      "label": "server_debtschedule_debtschedulerules_snapshot_minute_of_day",
-      "community": 89,
-      "community_name": "debtScheduleDb.test.js",
-      "external": true,
-      "file_type": "concept",
-      "norm_label": "server_debtschedule_debtschedulerules_snapshot_minute_of_day",
       "source_file": "",
       "type": "external"
     }
@@ -168003,7 +168006,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CURRENT.md",
-      "source_location": "L109",
+      "source_location": "L110",
       "weight": 1.0
     },
     {
@@ -168014,7 +168017,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CURRENT.md",
-      "source_location": "L135",
+      "source_location": "L136",
       "weight": 1.0
     },
     {
@@ -168047,7 +168050,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CURRENT.md",
-      "source_location": "L137",
+      "source_location": "L138",
       "weight": 1.0
     },
     {
@@ -168058,7 +168061,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CURRENT.md",
-      "source_location": "L147",
+      "source_location": "L148",
       "weight": 1.0
     },
     {
@@ -234720,7 +234723,7 @@
       "confidence_score": 0.95,
       "context": "createNotificationForUsers",
       "source_file": "CURRENT.md",
-      "source_location": "L63",
+      "source_location": "L64",
       "weight": 1.0
     },
     {
@@ -235128,7 +235131,7 @@
       "confidence_score": 0.95,
       "context": "getLeaveVersions",
       "source_file": "CURRENT.md",
-      "source_location": "L58",
+      "source_location": "L59",
       "weight": 1.0
     },
     {
@@ -235272,7 +235275,7 @@
       "confidence_score": 0.95,
       "context": "kpis",
       "source_file": "CURRENT.md",
-      "source_location": "L43",
+      "source_location": "L44",
       "weight": 1.0
     },
     {
@@ -235488,7 +235491,7 @@
       "confidence_score": 0.95,
       "context": "orderLifecycleQuery.countSummary",
       "source_file": "CURRENT.md",
-      "source_location": "L42",
+      "source_location": "L43",
       "weight": 1.0
     },
     {
@@ -235500,7 +235503,7 @@
       "confidence_score": 0.95,
       "context": "orderLifecycleService.computeWarnings",
       "source_file": "CURRENT.md",
-      "source_location": "L33",
+      "source_location": "L34",
       "weight": 1.0
     },
     {
@@ -235980,7 +235983,7 @@
       "confidence_score": 0.95,
       "context": "status",
       "source_file": "CURRENT.md",
-      "source_location": "L42",
+      "source_location": "L43",
       "weight": 1.0
     },
     {
@@ -239032,5 +239035,5 @@
       "source_file": "docs/04-planning/2026-09-14-phase2-plan-supabase-kiotviet-sync.md"
     }
   ],
-  "built_at_commit": "68afcf90af55baf518028d0eb0a715e9016c24e8"
+  "built_at_commit": "55da6ebd4fd0f0c10e5afd2cac23d24948dfa617"
 }

@@ -97,12 +97,12 @@ test('dashboard công nợ có đủ 4 KPI, 4 biểu đồ và bảng 13 cột (
   const table = dashboard.match(/<table[^>]*data-debt-management-table[\s\S]*?<\/table>/);
   assert.ok(table);
   assert.equal((table[0].match(/<th(?:\s[^>]*)?>/g) || []).length, 13);
-  assert.match(table[0], /Cảnh báo tự động<\/th>\s*<th[^>]*>Sale phản hồi<\/th>\s*<th[^>]*>QL phản hồi<\/th>\s*<th[^>]*>Trạng thái xử lý/);
+  assert.match(table[0], /Cảnh báo<\/th>\s*<th[^>]*>Sale phản hồi<\/th>\s*<th[^>]*>QL phản hồi<\/th>\s*<th[^>]*>Xử lý/);
   assert.doesNotMatch(dashboard, /Chưa thu/, 'đã bỏ cảnh báo Chưa thu');
   assert.match(table[0], /<th(?:\s[^>]*)?>Cơ sở<\/th>/);
   assert.match(table[0], /Khách hàng/);
-  assert.match(table[0], /Cảnh báo tự động/);
-  assert.match(table[0], /Trạng thái xử lý/);
+  assert.match(table[0], /Cảnh báo/);
+  assert.match(table[0], /Xử lý/);
 });
 
 test('bộ lọc local mặc định Cần xử lý và hỗ trợ sale, lịch, tìm khách/sale', () => {
