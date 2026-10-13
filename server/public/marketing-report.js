@@ -15,12 +15,12 @@
   let initialized = false, metadata = null, metadataRequest = null, detailSeq = 0, detailContext = null, opener = null;
   const escape = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const normalize = value => String(value == null ? '' : value).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').toLowerCase();
-  function format(value, type) {
+  function format(value, type, showCurrency = true) {
     if (value === null || value === undefined || value === '' || (typeof value === 'string' && value.startsWith('#'))) return '—';
     if (type === 'datetime') return time(value);
     if (type === 'date') { const match=String(value).match(/^(\d{4})-(\d{2})-(\d{2})/); return match ? match[3]+'/'+match[2]+'/'+match[1] : String(value); }
     if (!type || !Number.isFinite(Number(value))) return String(value);
-    return new Intl.NumberFormat('vi-VN', { maximumFractionDigits:type === 'money' ? 0 : 2 }).format(Number(value) * (type === 'percent' ? 100 : 1)) + (type === 'percent' ? '%' : type === 'money' ? ' ₫' : '');
+    return new Intl.NumberFormat('vi-VN', { maximumFractionDigits:type === 'money' ? 0 : 2 }).format(Number(value) * (type === 'percent' ? 100 : 1)) + (type === 'percent' ? '%' : type === 'money' && showCurrency ? ' ₫' : '');
   }
   // Tên nhân viên đuôi MKT hiện màu vàng (cột Sale/Nhân viên của mọi bảng).
   const NAME_KEYS = new Set(['sale','employee','firstEmployee','currentEmployee','repeatEmployee']);
@@ -171,7 +171,7 @@
     const editing = !!exportInfo && exportInfo.kind === 'monthly' && exportInfo.table === 'rows' && !database() && canEdit();
     function cellHtml(row, key, type, edit, index) {
       if (edit && EDIT_KEYS.has(key) && row.key) return '<td class="marketing-edit-cell"><textarea class="marketing-edit" rows="1" wrap="soft" maxlength="500" data-edit="'+key+'" data-edit-index="'+index+'" aria-label="'+escape(columns.find(c => c[0] === key)[1])+' của '+escape(row.customer || row.phone || 'dòng này')+'">'+escape(row[key] || '')+'</textarea></td>';
-      const text = escape(format(row[key],type));
+      const text = escape(format(row[key],type,false));
       if (NAME_KEYS.has(key) && isMkt(row[key])) return '<td><span class="mkt-name">'+text+'</span></td>';
       return '<td'+(type?' class="mono col-num"':'')+'>'+text+'</td>';
     }

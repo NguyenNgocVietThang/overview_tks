@@ -4135,7 +4135,7 @@
       "file_type": "code",
       "norm_label": "scheduledebtpayload()",
       "source_file": "server/test/frontend/debt-management-ui.test.js",
-      "source_location": "L154"
+      "source_location": "L153"
     },
     {
       "id": "server_public_marketing_report_active",
@@ -19387,7 +19387,7 @@
       "file_type": "code",
       "norm_label": "parsecheck()",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L55"
+      "source_location": "L57"
     },
     {
       "id": "server_marketingreport_marketingparsers_parsecosts",
@@ -19399,7 +19399,7 @@
       "file_type": "code",
       "norm_label": "parsecosts()",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L67"
+      "source_location": "L69"
     },
     {
       "id": "server_marketingreport_marketingparsers_parsemonthly",
@@ -19423,7 +19423,7 @@
       "file_type": "code",
       "norm_label": "parsephones()",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L61"
+      "source_location": "L63"
     },
     {
       "id": "server_marketingreport_marketingparsers_parseranking",
@@ -19435,7 +19435,7 @@
       "file_type": "code",
       "norm_label": "parseranking()",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L50"
+      "source_location": "L52"
     },
     {
       "id": "server_marketingreport_marketingparsers_phonetext",
@@ -40325,7 +40325,7 @@
       "node_kind": "heading",
       "norm_label": "3. hanh \u0111ong tiep theo can thuc hien (next steps & operations)",
       "source_file": "CURRENT.md",
-      "source_location": "L110"
+      "source_location": "L111"
     },
     {
       "id": "current_current_b\u1ea3ng_tr\u1ea1ng_th\u00e1i_th\u1eddi_gian_th\u1ef1c_realtime_dashboard",
@@ -40349,7 +40349,7 @@
       "node_kind": "heading",
       "norm_label": "ghi nhan phien 12/10 (lich su)",
       "source_file": "CURRENT.md",
-      "source_location": "L148"
+      "source_location": "L149"
     },
     {
       "id": "current_marketing_pancake_c\u1eadp_nh\u1eadt_phi\u00ean_12_10_2026",
@@ -40361,7 +40361,7 @@
       "node_kind": "heading",
       "norm_label": "marketing pancake \u2014 cap nhat phien 12/10/2026",
       "source_file": "CURRENT.md",
-      "source_location": "L136"
+      "source_location": "L137"
     },
     {
       "id": "current_tr\u1ea1ng_th\u00e1i_v\u1eadn_h\u00e0nh_ki\u1ec3m_tra_tr\u1ef1c_ti\u1ebfp_ng\u00e0y_13_10_2026",
@@ -40373,7 +40373,7 @@
       "node_kind": "heading",
       "norm_label": "trang thai van hanh kiem tra truc tiep ngay 13/10/2026",
       "source_file": "CURRENT.md",
-      "source_location": "L138"
+      "source_location": "L139"
     },
     {
       "id": "docs_superpowers_specs_2026_10_07_business_report_teams_merge_design",
@@ -54397,7 +54397,7 @@
       "file_type": "code",
       "norm_label": "cost_pages",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L66"
+      "source_location": "L68"
     },
     {
       "id": "server_kiotvietsync_scheduler_test",
@@ -97403,7 +97403,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L56",
+      "source_location": "L58",
       "weight": 1.0
     },
     {
@@ -97415,7 +97415,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L57",
+      "source_location": "L59",
       "weight": 1.0
     },
     {
@@ -97427,7 +97427,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L57",
+      "source_location": "L59",
       "weight": 1.0
     },
     {
@@ -97439,7 +97439,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L57",
+      "source_location": "L59",
       "weight": 1.0
     },
     {
@@ -97451,7 +97451,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L70",
+      "source_location": "L72",
       "weight": 1.0
     },
     {
@@ -97463,7 +97463,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L76",
+      "source_location": "L78",
       "weight": 1.0
     },
     {
@@ -97475,7 +97475,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L81",
+      "source_location": "L83",
       "weight": 1.0
     },
     {
@@ -97487,7 +97487,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L84",
+      "source_location": "L86",
       "weight": 1.0
     },
     {
@@ -97499,7 +97499,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L84",
+      "source_location": "L86",
       "weight": 1.0
     },
     {
@@ -97511,7 +97511,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L84",
+      "source_location": "L86",
       "weight": 1.0
     },
     {
@@ -97523,7 +97523,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L42",
+      "source_location": "L44",
       "weight": 1.0
     },
     {
@@ -97535,7 +97535,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L45",
+      "source_location": "L47",
       "weight": 1.0
     },
     {
@@ -97547,7 +97547,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L45",
+      "source_location": "L47",
       "weight": 1.0
     },
     {
@@ -97559,7 +97559,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L45",
+      "source_location": "L47",
       "weight": 1.0
     },
     {
@@ -97571,7 +97571,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L45",
+      "source_location": "L47",
       "weight": 1.0
     },
     {
@@ -97583,7 +97583,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L62",
+      "source_location": "L64",
       "weight": 1.0
     },
     {
@@ -97595,7 +97595,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L64",
+      "source_location": "L66",
       "weight": 1.0
     },
     {
@@ -97607,7 +97607,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L64",
+      "source_location": "L66",
       "weight": 1.0
     },
     {
@@ -97619,7 +97619,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L64",
+      "source_location": "L66",
       "weight": 1.0
     },
     {
@@ -97631,7 +97631,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L51",
+      "source_location": "L53",
       "weight": 1.0
     },
     {
@@ -97643,7 +97643,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L51",
+      "source_location": "L53",
       "weight": 1.0
     },
     {
@@ -97655,7 +97655,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L53",
+      "source_location": "L55",
       "weight": 1.0
     },
     {
@@ -97667,7 +97667,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L53",
+      "source_location": "L55",
       "weight": 1.0
     },
     {
@@ -127523,7 +127523,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/test/frontend/debt-management-ui.test.js",
-      "source_location": "L155",
+      "source_location": "L154",
       "weight": 1.0
     },
     {
@@ -134087,7 +134087,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/test/frontend/debt-management-ui.test.js",
-      "source_location": "L154",
+      "source_location": "L153",
       "weight": 1.0
     },
     {
@@ -168006,7 +168006,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CURRENT.md",
-      "source_location": "L110",
+      "source_location": "L111",
       "weight": 1.0
     },
     {
@@ -168017,7 +168017,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CURRENT.md",
-      "source_location": "L136",
+      "source_location": "L137",
       "weight": 1.0
     },
     {
@@ -168050,7 +168050,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CURRENT.md",
-      "source_location": "L138",
+      "source_location": "L139",
       "weight": 1.0
     },
     {
@@ -168061,7 +168061,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CURRENT.md",
-      "source_location": "L148",
+      "source_location": "L149",
       "weight": 1.0
     },
     {
@@ -193306,7 +193306,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L66",
+      "source_location": "L68",
       "weight": 1.0
     },
     {
@@ -220335,7 +220335,7 @@
       "confidence_score": 0.85,
       "context": "argument",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L44",
+      "source_location": "L46",
       "weight": 1.0
     },
     {
@@ -231351,7 +231351,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L99",
+      "source_location": "L101",
       "weight": 1.0
     },
     {
@@ -231363,7 +231363,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L99",
+      "source_location": "L101",
       "weight": 1.0
     },
     {
@@ -231375,7 +231375,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L99",
+      "source_location": "L101",
       "weight": 1.0
     },
     {
@@ -231387,7 +231387,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L99",
+      "source_location": "L101",
       "weight": 1.0
     },
     {
@@ -231399,7 +231399,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L99",
+      "source_location": "L101",
       "weight": 1.0
     },
     {
@@ -231411,7 +231411,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L99",
+      "source_location": "L101",
       "weight": 1.0
     },
     {
@@ -231423,7 +231423,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L99",
+      "source_location": "L101",
       "weight": 1.0
     },
     {
@@ -231435,7 +231435,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L99",
+      "source_location": "L101",
       "weight": 1.0
     },
     {
@@ -231447,7 +231447,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L99",
+      "source_location": "L101",
       "weight": 1.0
     },
     {
@@ -231459,7 +231459,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L99",
+      "source_location": "L101",
       "weight": 1.0
     },
     {
@@ -231471,7 +231471,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L99",
+      "source_location": "L101",
       "weight": 1.0
     },
     {
@@ -231483,7 +231483,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L99",
+      "source_location": "L101",
       "weight": 1.0
     },
     {
@@ -231495,7 +231495,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "server/marketingReport/marketingParsers.js",
-      "source_location": "L99",
+      "source_location": "L101",
       "weight": 1.0
     },
     {
@@ -234723,7 +234723,7 @@
       "confidence_score": 0.95,
       "context": "createNotificationForUsers",
       "source_file": "CURRENT.md",
-      "source_location": "L64",
+      "source_location": "L65",
       "weight": 1.0
     },
     {
@@ -235131,7 +235131,7 @@
       "confidence_score": 0.95,
       "context": "getLeaveVersions",
       "source_file": "CURRENT.md",
-      "source_location": "L59",
+      "source_location": "L60",
       "weight": 1.0
     },
     {
@@ -235195,6 +235195,18 @@
       "weight": 1.0
     },
     {
+      "source": "current_2_c\u00e1c_\u0111\u1ea7u_vi\u1ec7c_v\u1eeba_ho\u00e0n_th\u00e0nh_recently_completed_th\u00e1ng_10_2026",
+      "target": "server_debtschedule_debtschedulerules_inscheduledebt",
+      "relation": "references",
+      "_origin": "ast",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "context": "inScheduleDebt",
+      "source_file": "CURRENT.md",
+      "source_location": "L24",
+      "weight": 1.0
+    },
+    {
       "source": "docs_superpowers_specs_2026_10_09_hr_employee_status_design_2_backend",
       "target": "server_hr_hremployeesrepository_insertemployee",
       "relation": "references",
@@ -235227,7 +235239,7 @@
       "confidence_score": 0.95,
       "context": "isEscalationExempt",
       "source_file": "CURRENT.md",
-      "source_location": "L27",
+      "source_location": "L28",
       "weight": 1.0
     },
     {
@@ -235275,7 +235287,7 @@
       "confidence_score": 0.95,
       "context": "kpis",
       "source_file": "CURRENT.md",
-      "source_location": "L44",
+      "source_location": "L45",
       "weight": 1.0
     },
     {
@@ -235491,7 +235503,7 @@
       "confidence_score": 0.95,
       "context": "orderLifecycleQuery.countSummary",
       "source_file": "CURRENT.md",
-      "source_location": "L43",
+      "source_location": "L44",
       "weight": 1.0
     },
     {
@@ -235503,7 +235515,7 @@
       "confidence_score": 0.95,
       "context": "orderLifecycleService.computeWarnings",
       "source_file": "CURRENT.md",
-      "source_location": "L34",
+      "source_location": "L35",
       "weight": 1.0
     },
     {
@@ -235563,7 +235575,7 @@
       "confidence_score": 0.95,
       "context": "parseNullableNumber",
       "source_file": "CURRENT.md",
-      "source_location": "L28",
+      "source_location": "L29",
       "weight": 1.0
     },
     {
@@ -235983,7 +235995,7 @@
       "confidence_score": 0.95,
       "context": "status",
       "source_file": "CURRENT.md",
-      "source_location": "L43",
+      "source_location": "L44",
       "weight": 1.0
     },
     {
@@ -239035,5 +239047,5 @@
       "source_file": "docs/04-planning/2026-09-14-phase2-plan-supabase-kiotviet-sync.md"
     }
   ],
-  "built_at_commit": "2e4b9e09fa069a16c3efb5a8bf14637a78a53371"
+  "built_at_commit": "ecc563c335b02abe4aad5d828fa310b0f7d5a79c"
 }

@@ -913,7 +913,7 @@
     // ---------- Chi tiet dong hang theo Kiot (bang "Hang hoa trong don") ----------
     const QTY_FORMAT = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 3 });
     function formatQty(value){ return (value === null || value === undefined) ? '—' : QTY_FORMAT.format(Number(value) || 0); }
-    function formatMoneyOrDash(value){ return (value === null || value === undefined) ? '—' : formatVnd(value); }
+    function formatMoneyOrDash(value){ return (value === null || value === undefined) ? '—' : formatTableVnd(value); }
 
     /** Chuoi HTML phan "Hang hoa trong don" tu du lieu GET /api/shipment/lifecycle/order-detail. */
     function renderKiotLines(detail){
@@ -938,8 +938,8 @@
           '<td class="dp-code">' + escapeHtml(line.productCode || '—') + '</td>' +
           '<td class="dp-cell-main">' + escapeHtml(line.productName || '—') + '</td>' +
           '<td class="num">' + escapeHtml(formatQty(line.quantity)) + '</td>' +
-          '<td class="num">' + escapeHtml(formatVnd((Number(line.price) || 0) - (Number(line.discount) || 0))) + '</td>' +
-          '<td class="num">' + escapeHtml(formatVnd(line.amount)) + '</td>' +
+          '<td class="num">' + escapeHtml(formatTableVnd((Number(line.price) || 0) - (Number(line.discount) || 0))) + '</td>' +
+          '<td class="num">' + escapeHtml(formatTableVnd(line.amount)) + '</td>' +
           stockCell(line.onHand) + stockCell(line.inTransit) +
           '<td class="num' + (short ? ' is-short' : '') + '">' +
             (pending && !line.isService ? escapeHtml(formatQty(line.sellableQty)) : '—') + '</td>' +
@@ -1304,7 +1304,8 @@
     }
 
     const VND_FORMAT = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 });
-    function formatVnd(value){ return VND_FORMAT.format(Number(value) || 0) + '₫'; }
+    function formatTableVnd(value){ return VND_FORMAT.format(Number(value) || 0); }
+    function formatVnd(value){ return formatTableVnd(value) + '₫'; }
 
     // Khoa dong = co so + ma don: cung ma DH ton tai o ca HN va SG (hai co so deu dem tu DH000001).
     function rowKey(order){ return (order.branch || '') + '|' + normalizeSearchText(order.orderCode); }
@@ -1377,8 +1378,8 @@
       orderDate: function(o){ return escapeHtml(o.orderDate || '—'); },
       saleName: function(o){ return escapeHtml(o.saleName || '—'); },
       customerName: function(o){ return escapeHtml(o.customerName || '—'); },
-      orderTotal: function(o){ return hasOrderTotal(o) ? escapeHtml(formatVnd(o.orderTotal)) : '—'; },
-      sellableValue: function(o){ return hasSellableValue(o) ? escapeHtml(formatVnd(o.sellableValue)) : '—'; },
+      orderTotal: function(o){ return hasOrderTotal(o) ? escapeHtml(formatTableVnd(o.orderTotal)) : '—'; },
+      sellableValue: function(o){ return hasSellableValue(o) ? escapeHtml(formatTableVnd(o.sellableValue)) : '—'; },
       note: function(o){
         return o.note ? '<span class="lc-note-text" title="' + escapeHtml(o.note) + '">' + escapeHtml(o.note) + '</span>' : '—';
       },

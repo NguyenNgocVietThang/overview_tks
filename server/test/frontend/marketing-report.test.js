@@ -29,6 +29,7 @@ test('Marketing tables search, sort before pagination and expose the shared colu
   const p=page(); await p.window.TKSMarketing.load();
   const host=p.doc.getElementById('marketing-monthly-rows');
   assert.equal(host.querySelectorAll('tbody tr').length,100);
+  assert.equal(host.querySelector('tbody tr td:nth-child(8)').textContent, '101');
   host.querySelector('[data-sort="revenue"]').click();
   assert.match(host.querySelector('tbody tr').textContent,/Đặng An/);
   const search=host.querySelector('input[type="search"]'); search.value='dang an'; search.dispatchEvent(new p.window.Event('input'));

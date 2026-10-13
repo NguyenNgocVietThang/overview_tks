@@ -9283,7 +9283,7 @@
       "file_type": "code",
       "norm_label": "allocatesellable()",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L75"
+      "source_location": "L79"
     },
     {
       "id": "server_shipment_kiotordersrepository_createkiotordersrepository",
@@ -9295,7 +9295,7 @@
       "file_type": "code",
       "norm_label": "createkiotordersrepository()",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L159"
+      "source_location": "L175"
     },
     {
       "id": "server_shipment_kiotordersrepository_createkiotordersrepository_invalidate",
@@ -9307,7 +9307,7 @@
       "file_type": "code",
       "norm_label": "invalidate()",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L282"
+      "source_location": "L298"
     },
     {
       "id": "server_shipment_kiotordersrepository_createkiotordersrepository_queryorders",
@@ -9319,7 +9319,7 @@
       "file_type": "code",
       "norm_label": "queryorders()",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L172"
+      "source_location": "L188"
     },
     {
       "id": "server_shipment_kiotordersrepository_createkiotordersrepository_readorderdetail",
@@ -9331,7 +9331,7 @@
       "file_type": "code",
       "norm_label": "readorderdetail()",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L290"
+      "source_location": "L306"
     },
     {
       "id": "server_shipment_kiotordersrepository_createkiotordersrepository_readorders",
@@ -9343,7 +9343,7 @@
       "file_type": "code",
       "norm_label": "readorders()",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L272"
+      "source_location": "L288"
     },
     {
       "id": "server_shipment_kiotordersrepository_createkiotordersrepository_refresh",
@@ -9355,7 +9355,7 @@
       "file_type": "code",
       "norm_label": "refresh()",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L243"
+      "source_location": "L259"
     },
     {
       "id": "server_shipment_kiotordersrepository_createkiotordersrepository_view",
@@ -9367,7 +9367,7 @@
       "file_type": "code",
       "norm_label": "view()",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L238"
+      "source_location": "L254"
     },
     {
       "id": "server_shipment_kiotordersrepository_isserviceproductkey",
@@ -9379,7 +9379,7 @@
       "file_type": "code",
       "norm_label": "isserviceproductkey()",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L52"
+      "source_location": "L55"
     },
     {
       "id": "server_shipment_kiotordersrepository_makeerror",
@@ -9403,7 +9403,7 @@
       "file_type": "code",
       "norm_label": "productkeyof()",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L62"
+      "source_location": "L66"
     },
     {
       "id": "server_shipment_kiotordersrepository_readonhandbykey",
@@ -9415,7 +9415,7 @@
       "file_type": "code",
       "norm_label": "readonhandbykey()",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L142"
+      "source_location": "L158"
     },
     {
       "id": "server_shipment_kiotordersrepository_test_createfakepool",
@@ -9439,7 +9439,7 @@
       "file_type": "code",
       "norm_label": "detailfixture()",
       "source_file": "server/shipment/kiotOrdersRepository.test.js",
-      "source_location": "L328"
+      "source_location": "L370"
     },
     {
       "id": "server_shipment_kiotordersrepository_test_flush",
@@ -9475,7 +9475,7 @@
       "file_type": "code",
       "norm_label": "l()",
       "source_file": "server/shipment/kiotOrdersRepository.test.js",
-      "source_location": "L336"
+      "source_location": "L378"
     },
     {
       "id": "server_shipment_kiotordersrepository_test_line",
@@ -9523,7 +9523,7 @@
       "file_type": "code",
       "norm_label": "tonumber()",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L56"
+      "source_location": "L60"
     },
     {
       "id": "server_test_frontend_dashboard_per_view_loading_test_createpage",
@@ -22003,7 +22003,7 @@
       "file_type": "code",
       "norm_label": "databasepage()",
       "source_file": "server/test/frontend/marketing-report.test.js",
-      "source_location": "L205"
+      "source_location": "L206"
     },
     {
       "id": "server_test_frontend_marketing_report_test_monthlyjson",
@@ -22015,7 +22015,7 @@
       "file_type": "code",
       "norm_label": "monthlyjson()",
       "source_file": "server/test/frontend/marketing-report.test.js",
-      "source_location": "L156"
+      "source_location": "L157"
     },
     {
       "id": "server_test_frontend_marketing_report_test_page",
@@ -44443,7 +44443,7 @@
       "file_type": "code",
       "norm_label": "kiotorders",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L351"
+      "source_location": "L367"
     },
     {
       "id": "server_shipment_kiotordersrepository_lifecycle_to_db_branch",
@@ -125099,7 +125099,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L79",
+      "source_location": "L83",
       "weight": 1.0
     },
     {
@@ -125111,7 +125111,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L83",
+      "source_location": "L87",
       "weight": 1.0
     },
     {
@@ -125123,7 +125123,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L167",
+      "source_location": "L183",
       "weight": 1.0
     },
     {
@@ -125135,7 +125135,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L190",
+      "source_location": "L206",
       "weight": 1.0
     },
     {
@@ -125147,7 +125147,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L210",
+      "source_location": "L226",
       "weight": 1.0
     },
     {
@@ -125159,7 +125159,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L218",
+      "source_location": "L234",
       "weight": 1.0
     },
     {
@@ -125171,7 +125171,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L222",
+      "source_location": "L238",
       "weight": 1.0
     },
     {
@@ -125183,7 +125183,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L292",
+      "source_location": "L308",
       "weight": 1.0
     },
     {
@@ -125195,7 +125195,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L309",
+      "source_location": "L325",
       "weight": 1.0
     },
     {
@@ -125207,7 +125207,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L315",
+      "source_location": "L331",
       "weight": 1.0
     },
     {
@@ -125219,7 +125219,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L317",
+      "source_location": "L333",
       "weight": 1.0
     },
     {
@@ -125231,7 +125231,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L327",
+      "source_location": "L343",
       "weight": 1.0
     },
     {
@@ -125243,7 +125243,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L274",
+      "source_location": "L290",
       "weight": 1.0
     },
     {
@@ -125255,7 +125255,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L276",
+      "source_location": "L292",
       "weight": 1.0
     },
     {
@@ -125267,7 +125267,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L247",
+      "source_location": "L263",
       "weight": 1.0
     },
     {
@@ -125279,7 +125279,19 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L256",
+      "source_location": "L272",
+      "weight": 1.0
+    },
+    {
+      "source": "server_shipment_kiotordersrepository_isserviceproductkey",
+      "target": "server_shipment_kiotordersrepository_productkeyof",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "server/shipment/kiotOrdersRepository.js",
+      "source_location": "L56",
       "weight": 1.0
     },
     {
@@ -125291,7 +125303,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L147",
+      "source_location": "L163",
       "weight": 1.0
     },
     {
@@ -125303,7 +125315,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L147",
+      "source_location": "L163",
       "weight": 1.0
     },
     {
@@ -128003,7 +128015,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/test/frontend/marketing-report.test.js",
-      "source_location": "L206",
+      "source_location": "L207",
       "weight": 1.0
     },
     {
@@ -133019,7 +133031,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/shipment/kiotOrdersRepository.test.js",
-      "source_location": "L328",
+      "source_location": "L370",
       "weight": 1.0
     },
     {
@@ -133031,7 +133043,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/shipment/kiotOrdersRepository.test.js",
-      "source_location": "L336",
+      "source_location": "L378",
       "weight": 1.0
     },
     {
@@ -134855,7 +134867,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/test/frontend/marketing-report.test.js",
-      "source_location": "L156",
+      "source_location": "L157",
       "weight": 1.0
     },
     {
@@ -134867,7 +134879,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/test/frontend/marketing-report.test.js",
-      "source_location": "L205",
+      "source_location": "L206",
       "weight": 1.0
     },
     {
@@ -162324,6 +162336,18 @@
       "context": "import",
       "source_file": "server/shipment/kiotOrdersRepository.js",
       "source_location": "L31",
+      "weight": 1.0
+    },
+    {
+      "source": "server_shipment_kiotordersrepository_test",
+      "target": "ref_electric_sql_pglite",
+      "relation": "imports_from",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "import",
+      "source_file": "server/shipment/kiotOrdersRepository.test.js",
+      "source_location": "L325",
       "weight": 1.0
     },
     {
@@ -203063,7 +203087,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L142",
+      "source_location": "L158",
       "weight": 1.0
     },
     {
@@ -203123,17 +203147,6 @@
     },
     {
       "source": "server_shipment_kiotordersrepository",
-      "target": "server_shipment_kiotordersrepository_kiotorders",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L351",
-      "weight": 1.0
-    },
-    {
-      "source": "server_shipment_kiotordersrepository",
       "target": "server_shipment_kiotordersrepository_db_to_lifecycle_branch",
       "relation": "contains",
       "_origin": "ast",
@@ -203141,6 +203154,17 @@
       "confidence_score": 1.0,
       "source_file": "server/shipment/kiotOrdersRepository.js",
       "source_location": "L36",
+      "weight": 1.0
+    },
+    {
+      "source": "server_shipment_kiotordersrepository",
+      "target": "server_shipment_kiotordersrepository_kiotorders",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "server/shipment/kiotOrdersRepository.js",
+      "source_location": "L367",
       "weight": 1.0
     },
     {
@@ -203162,7 +203186,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L56",
+      "source_location": "L60",
       "weight": 1.0
     },
     {
@@ -203173,7 +203197,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L172",
+      "source_location": "L188",
       "weight": 1.0
     },
     {
@@ -203184,7 +203208,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L238",
+      "source_location": "L254",
       "weight": 1.0
     },
     {
@@ -203195,7 +203219,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L243",
+      "source_location": "L259",
       "weight": 1.0
     },
     {
@@ -233283,7 +233307,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L354",
+      "source_location": "L370",
       "weight": 1.0
     },
     {
@@ -233295,7 +233319,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L358",
+      "source_location": "L374",
       "weight": 1.0
     },
     {
@@ -233307,7 +233331,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L358",
+      "source_location": "L374",
       "weight": 1.0
     },
     {
@@ -233319,7 +233343,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L358",
+      "source_location": "L374",
       "weight": 1.0
     },
     {
@@ -233331,7 +233355,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L347",
+      "source_location": "L363",
       "weight": 1.0
     },
     {
@@ -233343,7 +233367,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L347",
+      "source_location": "L363",
       "weight": 1.0
     },
     {
@@ -233355,7 +233379,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "server/shipment/kiotOrdersRepository.js",
-      "source_location": "L347",
+      "source_location": "L363",
       "weight": 1.0
     },
     {
@@ -239047,5 +239071,5 @@
       "source_file": "docs/04-planning/2026-09-14-phase2-plan-supabase-kiotviet-sync.md"
     }
   ],
-  "built_at_commit": "ecc563c335b02abe4aad5d828fa310b0f7d5a79c"
+  "built_at_commit": "6b37885b09bbc467b2c3f669a6e71379d971e73e"
 }

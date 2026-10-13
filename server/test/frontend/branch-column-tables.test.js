@@ -129,7 +129,7 @@ test('ton kho Ca hai gop ma, cot HN/SG thang hang va khong co cot Co so', () => 
   ]);
   const inventory = rows(doc, 'inventoryValueRows');
   assert.equal(inventory.length, 1, 'cung ma o hai co so duoc gop mot dong');
-  assert.deepEqual(inventory[0], ['SP-1', 'Khay giấy bạc', '10₫', '5', '50', '2', '5', '2', '70₫']);
+  assert.deepEqual(inventory[0], ['SP-1', 'Khay giấy bạc', '10', '5', '50', '2', '5', '2', '70']);
   dom.window.close();
 });
 

@@ -103,9 +103,9 @@ test('cột "Giá trị đơn" hiện với MỌI đơn Kiot; "Giá trị có b�
   ] });
   const rows = rowsOf(page.document); // mac dinh: don moi dat nhat truoc, dong khong co ngay dat cuoi cung
   assert.deepEqual(codesOf(page.document), ['A', 'B', 'C', 'D']);
-  assert.deepEqual(rows.map(row => cellOf(row, 'sellableValue').textContent), ['21.750.000₫', '—', '0₫', '—'],
-    'chi Phieu tam co gia tri co ban; Phieu tam co gia tri 0 van hien 0₫ (khac "khong co gia tri")');
-  assert.deepEqual(rows.map(row => cellOf(row, 'orderTotal').textContent), ['32.000.000₫', '5.000.000₫', '2.000.000₫', '—'],
+  assert.deepEqual(rows.map(row => cellOf(row, 'sellableValue').textContent), ['21.750.000', '—', '0', '—'],
+    'chi Phieu tam co gia tri co ban; Phieu tam co gia tri 0 van hien 0 (khac "khong co gia tri")');
+  assert.deepEqual(rows.map(row => cellOf(row, 'orderTotal').textContent), ['32.000.000', '5.000.000', '2.000.000', '—'],
     'don Hoan thanh van co Gia tri don; dong chi co o Sheet thi khong');
   page.dom.window.close();
 });
@@ -667,8 +667,8 @@ test('bấm dòng: mở hộp chi tiết, gọi order-detail đúng mã/cơ sở
   assert.deepEqual(headers, ['Mã hàng', 'Tên hàng', 'SL đặt', 'Đơn giá', 'Thành tiền', 'Tồn kho', 'Điều chuyển SG', 'Có bán', 'Thành tiền có bán']);
   assert.ok(!headers.includes('Đang vận chuyển'), 'cot da doi ten');
   const rows = [...document.querySelectorAll('.lc-lines tbody tr')].map(tr => [...tr.cells].map(td => td.textContent));
-  assert.deepEqual(rows[0], ['A', 'Hàng A', '500', '1.000₫', '500.000₫', '40', '160', '40', '40.000₫']);
-  assert.deepEqual(rows[1], ['B', 'Hàng B', '70', '5.000₫', '350.000₫', '800', '0', '70', '350.000₫']);
+  assert.deepEqual(rows[0], ['A', 'Hàng A', '500', '1.000', '500.000', '40', '160', '40', '40.000']);
+  assert.deepEqual(rows[1], ['B', 'Hàng B', '70', '5.000', '350.000', '800', '0', '70', '350.000']);
   assert.deepEqual(rows[2].slice(5), ['—', '—', '—', '—'], 'dong thue VAT khong co ton/co ban');
   assert.ok(document.querySelectorAll('.lc-lines tbody tr')[2].classList.contains('is-service'));
   const text = document.getElementById('lcDetailBody').textContent;

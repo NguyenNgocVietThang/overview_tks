@@ -255,7 +255,7 @@ test('nhieu dong hang: bang co dong "Cộng hàng hóa" (tổng SL + tổng thà
   const foot = page.$('docModalBody').querySelector('tfoot tr');
   assert.ok(foot, 'co dong cong');
   assert.match(foot.textContent, /Cộng hàng hóa/);
-  assert.deepEqual([...foot.cells].map(cell => cell.textContent).filter(Boolean), ['Cộng hàng hóa', '5', '190₫']);
+  assert.deepEqual([...foot.cells].map(cell => cell.textContent).filter(Boolean), ['Cộng hàng hóa', '5', '190']);
   assert.equal(page.$('docModalBody').querySelectorAll('tbody tr').length, 2);
 
   const single = createPage();

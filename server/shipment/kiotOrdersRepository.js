@@ -12,8 +12,8 @@
 // va cong tat ca mat hang. KHONG tinh hang dang van chuyen (cot "Dieu chuyen SG" chi de tham khao) va
 // KHONG tru cac don Phieu tam khac. Don KHAC Phieu tam (da xac nhan/giao/hoan thanh/huy) khong co gia
 // tri co ban (ton hien tai khong con y nghia voi don da xuat). Ton thuc = tong `inventories[].onHand`
-// cua san pham trong retailer cua don. Dong ma "VAT..." la dong thue, khong phai hang ton kho — bo khoi
-// phep tinh (nhu dashboardData).
+// cua san pham trong retailer cua don. Dong ma "VAT..." va phi ship SP20691176 khong phai hang ton kho:
+// bo khoi phep tinh; don CHI gom cac dong nay bi loai khoi danh sach Vong doi (ke ca don co tren Sheet).
 //
 // Doc ~60 nghin don (do that 2026-10-02: 1,8-2,2 giay, ~17 MB JSON tho) nen:
 //   - cache TTL 2 phut + STALE-WHILE-REVALIDATE: het TTL thi tra ngay ban cu va lam moi o nen (nguoi
@@ -48,9 +48,13 @@ function makeError(message, statusCode, code) {
   return error;
 }
 
-/** Dong ma VAT* la dong thue, khong phai hang ton kho. */
+// Ma phi ship do nguoi dung xac nhan; chi ap dung trong Vong doi don hang.
+const SHIPPING_PRODUCT_KEY = 'sp20691176';
+
+/** Dong thue VAT* va phi ship khong phai hang ton kho. */
 function isServiceProductKey(productKey) {
-  return String(productKey || '').startsWith('vat');
+  const key = productKeyOf(productKey);
+  return key.startsWith('vat') || key === SHIPPING_PRODUCT_KEY;
 }
 
 function toNumber(value) {
@@ -96,7 +100,9 @@ function allocateSellable(lines, availableOf) {
   return out;
 }
 
-// Dau don CUA MOI TRANG THAI (khong dong hang): trang thai Kiot + ghi chu + khach + sale. Sale lay tu
+// Dau don CUA MOI TRANG THAI, tru don chi co thue/phi ship. Don rong/ma hang chua xac dinh van giu lai.
+// Loc tai nguon de danh sach, KPI, canh bao va xuat Excel cung loai cac don nay.
+// Trang thai Kiot + ghi chu + khach + sale. Sale lay tu
 // o.raw soldByName, thieu thi bang staff, roi cat ID Telegram (dashboard/saleName.js). Ngay dat doc bang
 // AT TIME ZONE 'UTC' ("gio treo tuong VN mang nhan UTC", xem dashboardPgReader.js).
 const ALL_ORDERS_SQL = `
@@ -112,7 +118,17 @@ const ALL_ORDERS_SQL = `
     COALESCE(o.raw->>'statusValue', '') AS kiot_status,
     COALESCE(o.raw->>'description', '') AS note
   FROM orders o
-  LEFT JOIN staff s ON s.branch = o.branch AND s.id = o.sold_by_id`;
+  LEFT JOIN staff s ON s.branch = o.branch AND s.id = o.sold_by_id
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM order_details fee
+    LEFT JOIN products product ON product.branch = fee.branch AND product.id = fee.product_id
+    WHERE fee.branch = o.branch AND fee.order_id = o.id
+    HAVING bool_and(
+      lower(btrim(COALESCE(NULLIF(btrim(fee.raw->>'productCode'), ''), product.code, ''))) LIKE 'vat%'
+      OR lower(btrim(COALESCE(NULLIF(btrim(fee.raw->>'productCode'), ''), product.code, ''))) = '${SHIPPING_PRODUCT_KEY}'
+    )
+  )`;
 
 // Dong hang cua CAC DON PHIEU TAM (de tinh gia tri co ban). Bieu thuc loc statusValue GIU NGUYEN (khong
 // COALESCE) de trung dieu kien index mot phan 0028. Thanh tien dong = (price - discount) x quantity vi
