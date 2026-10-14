@@ -521,6 +521,35 @@ test('nut xuat ket qua dut hang co timeout va bao loi tieng Viet thay vi ket o "
   h.win.close();
 });
 
+// Hoi quy: client luon gui cot 'branch' nen may chu tu choi (EXPORT_FIELD_NOT_ALLOWED) khi ket
+// qua quet o Ha Noi / Sai Gon; chi ket qua "Cả hai" moi co cot nguon.
+for (const scenario of [
+  { name: 'recent', route: '/api/products/stockout-recent/', fetchFn: 'fetchRecentStockoutResult', exportFn: 'exportRecentStockoutResult', worksheet: 'recent_stockout_result' },
+  { name: '90d', route: '/api/products/stockout-90d/', fetchFn: 'fetchStockout90dResult', exportFn: 'exportStockout90dResult', worksheet: 'stockout_90d_result' },
+  { name: '30d', route: '/api/products/stockout-30d/', fetchFn: 'fetchStockout30dResult', exportFn: 'exportStockout30dResult', worksheet: 'stockout_30d_result' }
+]) {
+  for (const branch of ['Hà Nội', 'Sài Gòn', 'Cả hai']) {
+    test(`xuat Excel dut hang (${scenario.name}) quet o "${branch}": chi gui cot "branch" khi la "Cả hai"`, async () => {
+      const result = {
+        branch,
+        rows: [{ code: 'SP001', name: 'Chổi lau nhà', stockoutCount: 1, totalStockoutDays: 6, currentOnHand: 0, lastOutOfStockDate: '2026-09-01', daysOutOfStock: 20, periods: [], ...(branch === 'Cả hai' ? { branch: 'Hà Nội' } : {}) }],
+        sources: {}, warnings: [], asOfDate: '2026-09-21', totalProductsScanned: 10
+      };
+      const h = createExportDashboard();
+      h.routes[scenario.route] = { ok: true, status: 200, json: async () => ({ result }) };
+      await h.win[scenario.fetchFn]('job-1');
+
+      const pending = h.win[scenario.exportFn]();
+      const keys = h.fileCalls()[0].body.columns[scenario.worksheet];
+      assert.equal(keys.includes('branch'), branch === 'Cả hai');
+      assert.equal(keys.includes('code'), true);
+      h.respondFile(h.fileCalls()[0], 'HN_Dut_hang.xlsx');
+      await pending;
+      h.win.close();
+    });
+  }
+}
+
 test('lop nen hop thoai Xuat Excel khong dung backdrop-filter de khong lam lag ca trang', () => {
   const html = readDashboardHtml();
   const block = html.match(/\.export-modal-backdrop\s*\{[\s\S]*?\n\s*\}/);

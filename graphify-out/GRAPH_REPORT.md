@@ -1,17 +1,17 @@
 # Graph Report - Web TKS Dashboard  (2026-10-14)
 
 ## Corpus Check
-- 597 files · ~828,344 words
+- 597 files · ~828,538 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 22 file(s) not represented in the graph (top: .jfif 8, .css 7, .bpmn 3)
 
 ## Summary
-- 6886 nodes · 13680 edges · 384 communities (320 shown, 64 thin omitted)
-- Extraction: 90% EXTRACTED · 10% INFERRED · 0% AMBIGUOUS · INFERRED: 1407 edges (avg confidence: 0.86)
+- 6886 nodes · 13681 edges · 384 communities (320 shown, 64 thin omitted)
+- Extraction: 90% EXTRACTED · 10% INFERRED · 0% AMBIGUOUS · INFERRED: 1408 edges (avg confidence: 0.86)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `6a971382`
+- Built from commit: `65d830f8`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -622,8 +622,8 @@ Nodes (25): createReportKit(), buildSummary(), categoryColumn(), dateColumn(), e
 
 ### Community 52 - "marketingDatabaseReportService.js"
 Cohesion: 0.16
-Nodes (21): {
-  aggregatePhones,countPhoneKpis,countMonthlyClosures
+Nodes (21): {
+  aggregatePhones,countPhoneKpis,countMonthlyClosures
 }, createDatabaseMarketingReportService(), customers(), detail(), directorySnapshot(), metadata(), period(), report() (+13 more)
 
 ### Community 53 - "effectiveUserResolver.js"

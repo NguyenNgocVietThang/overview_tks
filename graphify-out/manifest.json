@@ -816,9 +816,9 @@
     "semantic_hash": ""
   },
   "server/public/index.html": {
-    "mtime": 1791879428.1097598,
-    "seen": 1791884208.5364203,
-    "ast_hash": "e8352672d5a2499d0ec0fea15e22c329",
+    "mtime": 1791957057.3910694,
+    "seen": 1791957209.838975,
+    "ast_hash": "fbc13b371a3a7a5fffba3dc2aa421c41",
     "semantic_hash": ""
   },
   "server/public/login/index.html": {
@@ -2766,9 +2766,9 @@
     "semantic_hash": ""
   },
   "server/public/shared/table-controls.js": {
-    "mtime": 1791876442.141198,
-    "seen": 1791876571.1244545,
-    "ast_hash": "7a14e8d9ee055b5696875d39e8156f27",
+    "mtime": 1791957057.5466783,
+    "seen": 1791957209.838975,
+    "ast_hash": "5d9e42330f2f03fab05fd05c5450d321",
     "semantic_hash": ""
   },
   "server/public/stock-locations/stock-locations.js": {
@@ -3378,9 +3378,9 @@
     "semantic_hash": ""
   },
   "CURRENT.md": {
-    "mtime": 1791884957.7958865,
-    "seen": 1791956687.330034,
-    "ast_hash": "c64df0d4ba94aec136e0afc01fb0ff8b",
+    "mtime": 1791957204.177747,
+    "seen": 1791957209.838975,
+    "ast_hash": "5adc191bcf85fbdc366af9ca257e9a3f",
     "semantic_hash": ""
   },
   "MEMORY.md": {

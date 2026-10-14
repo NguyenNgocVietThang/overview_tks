@@ -5338,7 +5338,7 @@
           // Ket qua quet o "Cả hai" moi co cot nguon (theo ket qua da quet, khong
           // theo co so dang chon) — gui thua khoa nay o mot co so se bi tu choi.
           columns: {
-            recent_stockout_result: ['branch']
+            recent_stockout_result: (isMergedStockoutResult(result) ? ['branch'] : [])
               .concat(['code', 'name', 'lastOutOfStockDate', 'daysOutOfStock', 'periods'])
           }
         };
@@ -5587,7 +5587,7 @@
           },
           // Xem ghi chu tuong tu o exportRecentStockoutResult().
           columns: {
-            stockout_90d_result: ['branch']
+            stockout_90d_result: (isMergedStockoutResult(result) ? ['branch'] : [])
               .concat(['code', 'name', 'stockoutCount', 'totalStockoutDays', 'avgStockoutDays', 'currentOnHand', 'periods'])
           }
         };
@@ -5836,7 +5836,7 @@
           },
           // Xem ghi chu tuong tu o exportRecentStockoutResult().
           columns: {
-            stockout_30d_result: ['branch']
+            stockout_30d_result: (isMergedStockoutResult(result) ? ['branch'] : [])
               .concat(['code', 'name', 'stockoutCount', 'totalStockoutDays', 'avgStockoutDays', 'currentOnHand', 'periods'])
           }
         };
