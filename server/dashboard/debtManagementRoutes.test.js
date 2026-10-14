@@ -128,3 +128,37 @@ test('GET feedback-history doc theo co so dang xem', async () => {
   });
   assert.deepEqual(received, { branches: ['hanoi', 'saigon'] });
 });
+
+test('GET penalty-board: can quyen Cong no, lay thang cua chu ky dang mo + co so dang xem', async () => {
+  const [authGuard, featureGuard, , handler] = routeStack('/api/debt-management/penalty-board', 'get');
+  const res0 = fakeRes();
+  await authGuard({ cookies: {} }, res0, () => assert.fail('khong duoc next'));
+  assert.equal(res0.statusCode, 401);
+  assert.equal(allowed(featureGuard, 'Nhân viên sale'), true);
+  const days = [{ cycleDate: '2026-10-13', sale: 'Lan', penalizedCustomers: 2, amount: 50000 }];
+  let received;
+  await withRepo({
+    readCurrentCycle: async () => ({ cycleDate: '2026-10-14' }),
+    listPenaltyDays: async payload => { received = payload; return days; }
+  }, async () => {
+    const res = fakeRes();
+    await handler({ branch: 'Hà Nội', user: {} }, res);
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.body, { month: '2026-10', openCycleDate: '2026-10-14', days });
+  });
+  assert.deepEqual(received, { month: '2026-10', branches: ['hanoi'] });
+});
+
+test('GET penalty-board: chua co ban chot thi tra rong, loi DB tra 503', async () => {
+  const handler = routeStack('/api/debt-management/penalty-board', 'get').at(-1);
+  await withRepo({ readCurrentCycle: async () => null }, async () => {
+    const res = fakeRes();
+    await handler({ branch: 'Cả hai', user: {} }, res);
+    assert.deepEqual(res.body, { month: null, openCycleDate: null, days: [] });
+  });
+  await withRepo({ readCurrentCycle: async () => { throw new Error('db down'); } }, async () => {
+    const res = fakeRes();
+    await handler({ branch: 'Cả hai', user: {} }, res);
+    assert.equal(res.statusCode, 503);
+  });
+});

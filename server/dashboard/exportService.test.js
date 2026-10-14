@@ -1798,3 +1798,29 @@ test('HTML khach hang: KPI va bieu do chinh theo doanh thu / cong no TRONG KY, k
     ]);
   });
 });
+
+test('debt.penalty: gop ngay da chot so + ngay dang mo, xep theo tong phat, tim kiem theo ten sale', async () => {
+  await withStubs({}, async stubs => {
+    const env = fixedEnv(stubs);
+    env.dashboard = {
+      debtManagement: {
+        available: true, cycleDate: '2026-10-14',
+        customers: [
+          { sale: 'An', penaltyAmount: 25000 }, { sale: 'An', penaltyAmount: 0 },
+          { sale: 'Bình', penaltyAmount: 0 }, { sale: 'Chi', penaltyAmount: 50000 }
+        ]
+      },
+      penaltyDays: [
+        { cycleDate: '2026-10-13', sale: 'An', penalizedCustomers: 2, amount: 50000 },
+        { cycleDate: '2026-10-14', sale: 'An', penalizedCustomers: 9, amount: 999999 },
+        { cycleDate: '2026-09-30', sale: 'Chi', penalizedCustomers: 1, amount: 75000 }
+      ]
+    };
+    const dataset = await exportService.__test__.buildFixedDataset('debt.penalty', env, {});
+    assert.deepEqual(dataset.worksheets[0].rows.map(r => [r.rank, r.sale, r.penaltyDays, r.lastDayCustomers, r.total]), [
+      [1, 'An', 2, 1, 75000], [2, 'Chi', 1, 1, 50000], [3, 'Bình', 0, 0, 0]
+    ]);
+    const searched = await exportService.__test__.buildFixedDataset('debt.penalty', env, {}, { mode: 'normal', query: 'chi' });
+    assert.deepEqual(searched.worksheets[0].rows.map(r => r.sale), ['Chi']);
+  });
+});

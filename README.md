@@ -231,5 +231,6 @@ Triển khai trong `server/marketingReport/`; CLI tại `server/scripts/capture-
 - Chốt số liệu 15:00 mỗi ngày; nợ quá hạn = nợ hiện tại − (hóa đơn − trả hàng trong lịch); cảnh báo Quá hạn khi > 0đ.
 - Thêm cột Sale phản hồi, QL phản hồi; phản hồi/trạng thái/lịch sử chỉnh sửa reset theo bản chốt 15:00 hôm sau.
 - Module mới `server/debtSchedule/`, migration `0047_debt_schedule_report.sql`; 0048 thêm cột Số phiên liên tiếp + Tiền phạt phiên này (bỏ trạng thái Đang xử lý).
+- 14/10/2026: khung "Chỉ số then chốt" xếp 4 chỉ số dọc + bảng thưởng/phạt sale cộng dồn theo tháng (migration `0051_debt_penalty_ledger.sql`, `debtSchedule/debtPenaltyLedger.js`, `GET /api/debt-management/penalty-board`); bấm 1 dòng xem chi tiết từng ngày.
 
 Cập nhật gần nhất: 14/10/2026.

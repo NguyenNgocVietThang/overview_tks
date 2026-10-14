@@ -63,6 +63,12 @@ const CUSTOMERS_SQL = `
 const AMOUNTS_SQL = `SELECT branch, customer_id::text AS customer_id, day::text AS day, invoice_amount, return_amount
   FROM debt_cycle_amounts WHERE cycle_date = $1::date AND branch = ANY($2::text[])`;
 
+const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
+const PENALTY_DAYS_SQL = `SELECT cycle_date::text AS cycle_date, sale, COUNT(*)::int AS penalized_customers, SUM(amount) AS amount
+  FROM debt_penalty_daily
+  WHERE cycle_date >= $1::date AND cycle_date < ($1::date + interval '1 month') AND branch = ANY($2::text[])
+  GROUP BY cycle_date, sale ORDER BY cycle_date, sale`;
+
 function httpError(statusCode, message, code) {
   const error = new Error(message);
   error.statusCode = statusCode;
@@ -365,6 +371,20 @@ function createDebtScheduleRepository({ pool = getPool() } = {}) {
   }
 
   /**
+   * Tien phat DA CHOT SO (debt_penalty_daily) cua thang `month` ('YYYY-MM') theo ngay + sale, cac co so trong
+   * `branches`: [{ cycleDate, sale, penalizedCustomers, amount }]. Chu ky dang mo chua chot so nen khong co o day.
+   */
+  async function listPenaltyDays({ month, branches } = {}) {
+    const text = String(month || '').trim();
+    if (!MONTH_PATTERN.test(text)) throw httpError(400, 'Tháng không hợp lệ.', 'INVALID_MONTH');
+    const scope = (branches || BRANCH_CODES).map(assertBranch);
+    const { rows } = await pool.query(PENALTY_DAYS_SQL, [`${text}-01`, scope]);
+    return rows.map(row => ({
+      cycleDate: row.cycle_date, sale: row.sale, penalizedCustomers: Number(row.penalized_customers) || 0, amount: Number(row.amount) || 0
+    }));
+  }
+
+  /**
    * Dat lich TT cho 1 khach (sua tren web hoac import). Ghi log neu gia tri doi.
    * `client` cho phep import nhieu dong trong 1 transaction.
    */
@@ -448,6 +468,7 @@ function createDebtScheduleRepository({ pool = getPool() } = {}) {
     saveStatus,
     savePenalty,
     listFeedbackHistory,
+    listPenaltyDays,
     setSchedule,
     setScheduleWith,
     listScheduleLog,

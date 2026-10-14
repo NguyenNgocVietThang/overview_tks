@@ -200,3 +200,96 @@ test('Lịch sử chỉnh sửa hiển thị mọi loại thay đổi (phản h�
   assert.match(document.getElementById('docModalSubtitle').textContent, /13\/10 · 3 lần sửa/);
   dom.window.close();
 });
+
+test('khung Chỉ số then chốt: 4 chỉ số xếp dọc bên trái, bảng thưởng/phạt sale bên phải', () => {
+  const dom = createDashboard();
+  const document = dom.window.document;
+  const frame = document.querySelector('.debt-key-frame');
+  assert.ok(frame, 'có khung 2 cột');
+  const [stack, board] = frame.children;
+  assert.ok(stack.classList.contains('debt-key-stack'));
+  assert.deepEqual([...stack.querySelectorAll('.value')].map(el => el.id), ['dm-current', 'dm-overdue', 'dm-action-count', 'dm-overdue-ratio']);
+  assert.ok(board.classList.contains('debt-penalty-board'));
+  assert.ok(board.querySelector('#debtPenaltyTable'));
+  assert.equal(document.querySelectorAll('[data-table-key="dashboard-table-22"]').length, 1);
+  dom.window.close();
+});
+
+function penaltyDebtPayload() {
+  const payload = scheduleDebtPayload();
+  payload.cycleDate = '2026-10-14';
+  const base = payload.customers[0];
+  payload.customers = [
+    { ...base, customerKey: 'hanoi:1', customerId: '1', customerName: 'Khách A', sale: 'Lan', currentDebt: 500000, overdueDebt: 100000, averageSales: 1000000, penaltyAmount: 25000, needsAction: true },
+    { ...base, customerKey: 'hanoi:2', customerId: '2', customerName: 'Khách B', sale: 'Lan', currentDebt: 300000, overdueDebt: 0, averageSales: 1000000, penaltyAmount: 0, needsAction: false },
+    { ...base, customerKey: 'saigon:3', customerId: '3', customerName: 'Khách C', sale: 'Hoa', currentDebt: 0, overdueDebt: 0, averageSales: 0, penaltyAmount: 0, needsAction: false }
+  ];
+  return payload;
+}
+
+const PENALTY_BOARD = {
+  month: '2026-10',
+  openCycleDate: '2026-10-14',
+  days: [
+    { cycleDate: '2026-10-13', sale: 'Lan', penalizedCustomers: 2, amount: 75000 },
+    { cycleDate: '2026-10-13', sale: 'Mai', penalizedCustomers: 1, amount: 25000 },
+    { cycleDate: '2026-09-30', sale: 'Lan', penalizedCustomers: 9, amount: 900000 }
+  ]
+};
+
+test('bảng thưởng/phạt: cộng dồn ngày đã chốt + ngày đang mở, bỏ tháng khác, xếp theo tổng phạt, có dòng Không phạt', async () => {
+  const dom = createDashboard(penaltyDebtPayload());
+  const document = dom.window.document;
+  let url;
+  dom.window.fetch = async requested => { url = requested; return { ok: true, json: async () => PENALTY_BOARD }; };
+  await dom.window.loadDebtPenaltyBoard();
+  assert.equal(url, '/api/debt-management/penalty-board');
+  const rows = [...document.querySelectorAll('#debtPenaltyRows tr.doc-row')].map(tr => [...tr.querySelectorAll('td')].map(td => td.textContent.trim()));
+  assert.equal(rows.length, 3);
+  // Lan: 13/10 (2 khách, 75.000) + 14/10 đang mở (1 khách, 25.000); 30/09 thuộc tháng khác nên bị bỏ.
+  assert.deepEqual(rows[0].slice(0, 4), ['1', 'Lan', '2', '1']);
+  assert.match(rows[0][4], /100\.000/);
+  assert.deepEqual(rows[1].slice(0, 4), ['2', 'Mai', '1', '0']);
+  assert.match(rows[1][4], /25\.000/);
+  assert.deepEqual(rows[2].slice(0, 4), ['3', 'Hoa', '0', '0']);
+  assert.match(rows[2][4], /Không phạt/);
+  assert.match(document.querySelector('#debtPenaltyFoot tr.debt-penalty-total').textContent, /125\.000/);
+  assert.match(document.getElementById('debtPenaltyNote').textContent, /10\/2026/);
+  dom.window.close();
+});
+
+test('bấm 1 dòng sale mở hộp chi tiết: chỉ số + tiền phạt từng ngày (ngày đang mở ghi tạm tính)', async () => {
+  const dom = createDashboard(penaltyDebtPayload());
+  const document = dom.window.document;
+  dom.window.fetch = async () => ({ ok: true, json: async () => PENALTY_BOARD });
+  await dom.window.loadDebtPenaltyBoard();
+  document.querySelector('#debtPenaltyRows tr.doc-row[data-sale="Lan"]').click();
+  assert.equal(document.getElementById('docModalBackdrop').hidden, false);
+  assert.match(document.getElementById('docModalTitle').textContent, /Lan/);
+  const stats = Object.fromEntries([...document.querySelectorAll('#docModalBody .dp-stat')]
+    .map(el => [el.querySelector('.dp-stat-label').textContent, el.querySelector('.dp-stat-value').textContent]));
+  assert.equal(stats['Số ngày bị phạt'], '2');
+  assert.equal(stats['Khách phạt ngày gần nhất'], '1');
+  assert.match(stats['Tổng tiền phạt'], /100\.000/);
+  assert.match(stats['Tổng nợ hiện tại'], /800\.000/);
+  assert.match(stats['Tổng nợ quá hạn'], /100\.000/);
+  assert.equal(stats['Quá hạn / Doanh số'], '5%', '100.000 / (1.000.000 + 1.000.000)');
+  const dayRows = [...document.querySelectorAll('#docModalBody tbody tr')].map(tr => [...tr.querySelectorAll('td')].map(td => td.textContent.trim()));
+  assert.equal(dayRows.length, 2);
+  assert.match(dayRows[0][0], /^14\/10.*đang tạm tính/);
+  assert.equal(dayRows[0][1], '1');
+  assert.match(dayRows[1][0], /^13\/10/);
+  assert.equal(dayRows[1][1], '2');
+  assert.match(document.querySelector('#docModalBody tfoot').textContent, /3.*100\.000/);
+  dom.window.close();
+});
+
+test('bảng thưởng/phạt vẫn hiện ngày hôm nay khi không tải được các ngày đã chốt', async () => {
+  const dom = createDashboard(penaltyDebtPayload());
+  const document = dom.window.document;
+  dom.window.fetch = async () => ({ ok: false, status: 503, json: async () => ({}) });
+  await dom.window.loadDebtPenaltyBoard();
+  assert.match(document.getElementById('debtPenaltyRows').textContent, /Không tải được các ngày đã chốt/);
+  assert.equal(document.querySelectorAll('#debtPenaltyRows tr.doc-row').length, 2);
+  dom.window.close();
+});

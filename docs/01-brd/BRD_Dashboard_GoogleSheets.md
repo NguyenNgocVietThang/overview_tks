@@ -295,4 +295,6 @@ Mục tiêu giảm thao tác xuất/import SĐT hằng ngày bằng đồng bộ
 
 Quy tắc cố định 1-3-7-Hàng tuần được thay bằng lịch thanh toán riêng cho từng khách tại từng cơ sở (số ngày nợ tối đa). Báo cáo chốt lúc 15:00 mỗi ngày, cảnh báo quá hạn khi có nợ vượt lịch, Sale và Quản lý phản hồi trực tiếp trên bảng (lưu DB, làm mới mỗi chu kỳ), mọi thay đổi có lịch sử.
 
+Bổ sung 14/10/2026: tab Công nợ có bảng thưởng/phạt theo sale — cộng dồn tiền phạt nợ quá hạn của các khách thuộc sale từ ngày 01 của tháng, tự làm mới đầu tháng; bấm vào sale để xem số ngày bị phạt, số khách phạt, tổng tiền phạt, tổng nợ, nợ quá hạn, tỷ lệ quá hạn/doanh số và chi tiết từng ngày. Phần thưởng chưa có quy tắc nên chưa triển khai.
+
 Cập nhật gần nhất: 14/10/2026.

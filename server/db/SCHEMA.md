@@ -431,6 +431,10 @@ Migration `0044_purchases_raw_hash.sql` thêm `purchases.raw_hash TEXT` (nullabl
 
 `0048_debt_penalty.sql` (2026-10-13): `debt_cycle_customers` thêm `overdue_debt`, `overdue_streak` (số phiên liên tiếp quá hạn ≥ 400k tại bản chốt); bảng `debt_cycle_penalties (cycle_date, branch, customer_id)` lưu tiền phạt Quản lý điền (không FK, không bị dọn 7 ngày; SELECT của `reporting_readonly` bị thu hồi); `debt_feedback_history.field` thêm `penalty`; `debt_cycle_feedback.status` bỏ `Đang xử lý` (dữ liệu cũ → `Chưa xử lý`).
 
+## Sổ phạt công nợ theo ngày — migration 0051
+
+`0051_debt_penalty_ledger.sql` (2026-10-14): bảng `debt_penalty_daily (cycle_date, branch, customer_id)` lưu tiền phạt ĐÃ CHỐT SỔ của từng khách theo chu kỳ (`amount > 0`, kèm `sale`, `customer_code/name`, `overdue_debt`, `overdue_streak`, `is_manual`, `status` đóng băng tại lúc chốt; giữ vĩnh viễn, không FK vì `debt_cycle_*` chỉ giữ 7 ngày) và `debt_penalty_cycles (cycle_date)` đánh dấu chu kỳ đã chốt sổ (chu kỳ đang mở chưa có dòng). SELECT của `reporting_readonly` bị thu hồi (có tên khách). Nguồn của bảng thưởng/phạt sale (`GET /api/debt-management/penalty-board`).
+
 ## Công nợ theo lịch thanh toán — migration 0047
 
 `0047_debt_schedule_report.sql` (2026-10-13). Khóa nghiệp vụ của công nợ là **(cơ sở, khách KiotViet)**.

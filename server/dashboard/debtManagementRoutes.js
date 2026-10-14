@@ -137,6 +137,21 @@ router.get('/api/debt-management/feedback-history', requireAuth, requireFeature(
     }
   });
 
+// Bang xep hang phat sale cua THANG cua chu ky dang mo (2026-10-14): tien phat theo ngay + sale da chot so
+// (debtPenaltyLedger). Ngay dang mo chua chot so — giao dien tu tinh tu danh sach khach cua tab.
+router.get('/api/debt-management/penalty-board', requireAuth, requireFeature('reports.debt'),
+  branchMiddleware.resolveBranch, async (req, res) => {
+    try {
+      const cycle = await repository().readCurrentCycle();
+      if (!cycle) return res.json({ month: null, openCycleDate: null, days: [] });
+      const month = cycle.cycleDate.slice(0, 7);
+      const days = await repository().listPenaltyDays({ month, branches: branchCodesFor(req) });
+      return res.json({ month, openCycleDate: cycle.cycleDate, days });
+    } catch (error) {
+      return sendError(res, error, 'Không thể tải bảng phạt sale lúc này.', 'DEBT_PENALTY_BOARD_UNAVAILABLE');
+    }
+  });
+
 // Nhat ky sua lich TT (giu vinh vien). Co branch + customerId thi loc theo 1 khach.
 router.get('/api/debt-management/schedule-log', requireAuth, requireFeature('reports.debt'), async (req, res) => {
   try {

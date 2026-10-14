@@ -24,7 +24,8 @@ const debtScheduleService = require('../debtSchedule/debtScheduleService');
 const dashboardPgReader = require('./dashboardPgReader');
 const productReportRepository = require('./productReportRepository');
 const exportFieldCatalog = require('./exportFieldCatalog');
-const { BRANCHES, BRANCH_BOTH, resolveBranchScope } = require('../branch/branches');
+const { BRANCHES, BRANCH_BOTH, branchLabelToCode, resolveBranchScope } = require('../branch/branches');
+const debtScheduleRepository = require('../debtSchedule/debtScheduleRepository');
 const { HEADER_FONT, frozenNoGridlinesView, applyFullTableBorder } = require('../excelTableStyle');
 const { filterTableItems } = require('../public/js/table-explorer');
 const htmlReportRenderer = require('./exportHtmlReport');
@@ -55,6 +56,7 @@ const TABLE_TITLES = Object.freeze({
   'customers.productDetail': 'Bảng chi tiết sản phẩm theo khách',
   'overview.productReport': 'Báo cáo hàng hóa',
   'debt.management': 'Quản lý công nợ',
+  'debt.penalty': 'Thưởng/phạt sale theo công nợ',
   'stockout.recentScan': 'Hàng đứt gần đây',
   'stockout.check90d': 'Kiểm tra đứt hàng 90 ngày',
   'stockout.check30d': 'Kiểm tra đứt hàng 30 ngày'
@@ -242,6 +244,15 @@ const DEBT_COLUMNS = [
   aggregateColumn('workflowStatus', 'Trạng thái xử lý', 'text', 'Trạng thái xử lý công nợ trong chu kỳ chốt hiện tại.'),
   aggregateColumn('updatedBy', 'Người cập nhật', 'text', 'Người cập nhật trạng thái xử lý gần nhất.', { selected: false }),
   aggregateColumn('updatedAt', 'Cập nhật lúc', 'date', 'Thời điểm cập nhật trạng thái xử lý gần nhất.', { selected: false })
+];
+
+// Bang xep hang phat sale (khung Chi so then chot, tab Cong no) — khop cot man hinh.
+const DEBT_PENALTY_COLUMNS = [
+  aggregateColumn('rank', 'Hạng', 'number', 'Thứ hạng theo tổng tiền phạt trong tháng (cao nhất xếp trước).'),
+  aggregateColumn('sale', 'Sale', 'text', 'Nhân viên phụ trách (nhóm khách hàng trên KiotViet).'),
+  aggregateColumn('penaltyDays', 'Ngày bị phạt', 'number', 'Số ngày trong tháng (từ ngày 01) Sale có tiền phạt công nợ.'),
+  aggregateColumn('lastDayCustomers', 'Khách phạt (ngày gần nhất)', 'number', 'Số khách bị phạt của ngày chốt gần nhất.'),
+  aggregateColumn('total', 'Tổng tiền phạt', 'number', 'Tổng tiền phạt cộng dồn trong tháng (VNĐ), gồm ngày đang mở tạm tính.')
 ];
 
 const DEBT_BRANCH_COLUMN = aggregateColumn('branch', 'Cơ sở', 'text', 'Cơ sở của khoản công nợ (Hà Nội hoặc Sài Gòn).');
@@ -541,6 +552,52 @@ function debtBranchLabel(customer) {
   return labels.join(', ');
 }
 
+// Giong buildDebtPenaltyRows() o public/index.html: cac ngay da chot so (ledger) + ngay dang mo tinh tu danh sach khach.
+function debtPenaltyRows(debtManagement, ledgerDays) {
+  const debt = debtManagement && typeof debtManagement === 'object' ? debtManagement : {};
+  const days = Array.isArray(ledgerDays) ? ledgerDays : [];
+  const openDate = debt.available && debt.cycleDate ? String(debt.cycleDate) : null;
+  const month = openDate ? openDate.slice(0, 7) : (days[0] ? String(days[0].cycleDate).slice(0, 7) : null);
+  const customers = Array.isArray(debt.customers) ? debt.customers : [];
+  const bySale = new Map();
+  const entryOf = sale => {
+    const key = normalizeText(sale) || 'Chưa phân nhóm';
+    if (!bySale.has(key)) bySale.set(key, { sale: key, days: new Map(), total: 0 });
+    return bySale.get(key);
+  };
+  customers.forEach(customer => entryOf(customer.sale));
+  days.forEach(day => {
+    const cycleDate = String(day.cycleDate);
+    if (cycleDate === openDate || !month || cycleDate.slice(0, 7) !== month) return;
+    const entry = entryOf(day.sale);
+    const item = entry.days.get(cycleDate) || { customers: 0, amount: 0 };
+    item.customers += Number(day.penalizedCustomers) || 0;
+    item.amount += Number(day.amount) || 0;
+    entry.days.set(cycleDate, item);
+  });
+  if (openDate) {
+    customers.forEach(customer => {
+      const amount = Number(customer.penaltyAmount) || 0;
+      if (amount <= 0) return;
+      const entry = entryOf(customer.sale);
+      const item = entry.days.get(openDate) || { customers: 0, amount: 0 };
+      item.customers += 1;
+      item.amount += amount;
+      entry.days.set(openDate, item);
+    });
+  }
+  let lastDate = openDate || '';
+  if (!lastDate) days.forEach(day => { if (String(day.cycleDate) > lastDate) lastDate = String(day.cycleDate); });
+  const rows = Array.from(bySale.values()).map(entry => {
+    const total = Array.from(entry.days.values()).reduce((sum, item) => sum + item.amount, 0);
+    const last = entry.days.get(lastDate);
+    return { sale: entry.sale, penaltyDays: entry.days.size, lastDayCustomers: last ? last.customers : 0, total };
+  });
+  rows.sort((a, b) => b.total - a.total || b.penaltyDays - a.penaltyDays
+    || a.sale.localeCompare(b.sale, 'vi', { sensitivity: 'base' }));
+  return rows.map((row, index) => ({ rank: index + 1, ...row }));
+}
+
 function debtManagementRows(debtManagement, context, aggregate = false) {
   const debt = debtManagement && typeof debtManagement === 'object' ? debtManagement : {};
   const queue = DEBT_QUEUE_FILTERS.has(context.debtQueue) ? context.debtQueue : 'needsAction';
@@ -787,6 +844,10 @@ const TABLE_SPECS = {
     key: 'debt_management', name: 'Quản lý công nợ',
     columns: [DEBT_COLUMNS[0], DEBT_BRANCH_COLUMN, ...DEBT_COLUMNS.slice(1)],
     rows: dashboard => debtManagementRows(dashboard.debtManagement, context, scope.aggregate)
+  }),
+  'debt.penalty': () => aggregateTable({
+    key: 'debt_penalty', name: 'Thưởng phạt sale', columns: DEBT_PENALTY_COLUMNS,
+    rows: dashboard => debtPenaltyRows(dashboard.debtManagement, dashboard.penaltyDays)
   }),
   // Cac bang duoi day khong co loadRows: nguon du lieu rieng (bao cao khach/hang, payload quet ton).
   'customers.productDetail': () => ({
@@ -1081,8 +1142,18 @@ async function buildExportDataset(payload, branch, options = {}) {
     const dataset = await buildFixedDataset(tableKey, { dashboard: { debtManagement }, branch, signal }, description.context, request.tableSearch, options.selection);
     return { ...dataset, cycleDate: debtCycleDate };
   }
-  const dashboard = await dashboardData.getDashboardData(description.filters, branch);
+  let dashboard = await dashboardData.getDashboardData(description.filters, branch);
   throwIfAborted(signal);
+  if (tableKey === 'debt.penalty') {
+    // Cac ngay da chot so cua thang dang mo nam trong so phat (khong co trong dashboard) — them vao ban sao nong.
+    const month = String((dashboard.debtManagement || {}).cycleDate || '').slice(0, 7);
+    const branches = resolveBranchScope(branch || BRANCH_BOTH).map(branchLabelToCode).filter(Boolean);
+    const penaltyDays = month
+      ? await debtScheduleRepository.getDebtScheduleRepository().listPenaltyDays({ month, branches })
+      : [];
+    throwIfAborted(signal);
+    dashboard = { ...dashboard, penaltyDays };
+  }
   return buildFixedDataset(tableKey, { dashboard, branch, signal }, description.context, request.tableSearch, options.selection);
 }
 

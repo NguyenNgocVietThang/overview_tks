@@ -76,4 +76,6 @@ T1/T2/T3 đã có bằng chứng DB; T4–T6 mã nguồn được kiểm thử s
 
 Kiến trúc: `server/debtSchedule/` (quy tắc thuần, job chốt 15:00, repository, service, import) + migration 0047 (0048: tiền phạt nợ chậm, số phiên liên tiếp chốt 15:00). `dashboardData` lấy `debtManagement` từ `debtScheduleService.buildDebtManagement`; khóa cache kết quả gồm phiên bản repository (tăng khi ghi/chốt) và quyền sửa của người xem. Tab Công nợ không còn đọc bảng nguồn core, CN1/3/7 hay Google Sheets.
 
+**Bảng thưởng/phạt sale (14/10/2026):** migration 0051 (`debt_penalty_daily`, `debt_penalty_cycles`) + `debtSchedule/debtPenaltyLedger.js` chốt sổ tiền phạt chu kỳ cũ khi có bản chốt kế tiếp (scheduler bù chu kỳ sót); `GET /api/debt-management/penalty-board` trả các ngày đã chốt của tháng, ngày đang mở tính ở giao diện (`buildDebtPenaltyRows`). Hộp chi tiết sale dùng khung `.dp-*` (`DOC_DETAIL_KINDS.debtPenaltySale`, dữ liệu tính tại chỗ).
+
 Cập nhật gần nhất: 14/10/2026.

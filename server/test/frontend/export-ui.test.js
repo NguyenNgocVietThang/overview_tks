@@ -13,11 +13,11 @@ function readDashboardHtml() {
   return fs.readFileSync(htmlPath, 'utf8');
 }
 
-test('giao dien gan dung 11 nut xuat Excel cho 11 bang co dinh (khong con 2 bang Dat hang / Tra hang)', () => {
+test('giao dien gan dung 12 nut xuat Excel cho 12 bang co dinh (khong con 2 bang Dat hang / Tra hang)', () => {
   const html = readDashboardHtml();
   const matches = [...html.matchAll(/openExportDialog\('([^']+)'\)/g)].map(match => match[1]);
-  assert.equal(matches.length, 11);
-  assert.equal(new Set(matches).size, 11);
+  assert.equal(matches.length, 12);
+  assert.equal(new Set(matches).size, 12);
   assert.deepEqual(matches.sort(), [
     'customers.debt', 'customers.productDetail', 'customers.revenue', 'debt.management',
     'overview.new-products', 'overview.productReport', 'overview.transactions',
@@ -687,4 +687,34 @@ test('bang Cong no: hop thoai xuat cho chon ban chot (mac dinh moi nhat); chon b
 
   await openExportWithFields(h, exportMetadata(), 'products.all');
   assert.equal(row.hidden, true, 'bang khac khong co o chon ban chot');
+});
+
+test('bang Cong no: chi co 1 ban chot thi o chon van hien (khoa, kem ly do); loi tai danh sach thi bao ro va van xuat ban moi nhat', async () => {
+  const h = createExportDashboard();
+  const row = h.document.getElementById('exportCycleRow');
+  const select = h.document.getElementById('exportCycleSelect');
+  const hint = () => h.text('exportCycleHint');
+
+  h.routes['/api/debt-management/cycles'] = { ok: true, status: 200, json: async () => ({ cycles: [{ cycleDate: '2026-10-13' }] }) };
+  await openExportWithFields(h, exportMetadata({ tableKey: 'debt.management' }), 'debt.management');
+  assert.equal(row.hidden, false);
+  assert.equal(select.disabled, true);
+  assert.equal(select.options.length, 1);
+  assert.match(hint(), /mới lưu 1 bản chốt/);
+  h.win.closeExportDialog();
+
+  h.routes['/api/debt-management/cycles'] = { ok: false, status: 403, json: async () => ({}) };
+  await openExportWithFields(h, exportMetadata({ tableKey: 'debt.management' }), 'debt.management');
+  assert.equal(row.hidden, false);
+  assert.equal(select.disabled, true);
+  assert.match(hint(), /Không tải được danh sách bản chốt/);
+  h.click('exportConfirmButton');
+  assert.equal(h.fileCalls().at(-1).body.context.debtCycleDate, undefined, 'loi tai danh sach -> xuat ban moi nhat');
+  h.win.closeExportDialog();
+
+  // Mo lai sau khi da khoa: o phai duoc mo khoa khi co du >= 2 ban.
+  h.routes['/api/debt-management/cycles'] = { ok: true, status: 200, json: async () => ({ cycles: [{ cycleDate: '2026-10-14' }, { cycleDate: '2026-10-13' }] }) };
+  await openExportWithFields(h, exportMetadata({ tableKey: 'debt.management' }), 'debt.management');
+  assert.equal(select.disabled, false);
+  assert.equal(select.options.length, 2);
 });

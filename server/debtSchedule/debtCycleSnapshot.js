@@ -303,6 +303,9 @@ function startDebtCycleSnapshotSchedule(pool, {
     running = true;
     takeDebtCycleSnapshotIfDue(pool, { log, beforeSnapshot, onSnapshot })
       .catch(error => log(`[debtCycleSnapshot] Loi ${label}: ${error.message}`))
+      // Chu ky cu vua co ban chot ke tiep thi chot so phat (migration 0051); loi khong anh huong lan chot.
+      .then(() => require('./debtPenaltyLedger').finalizePendingPenaltyCycles(pool, { log }))
+      .catch(error => log(`[debtCycleSnapshot] Loi chot so phat: ${error.message}`))
       .finally(() => { running = false; });
   };
   scheduleImmediate(() => run('khi kiem tra lan dau'));
