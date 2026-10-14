@@ -44,6 +44,10 @@ function branchCodesFor(req) {
   return resolveBranchScope(req.branch || BRANCH_BOTH).map(branchLabelToCode).filter(Boolean);
 }
 
+function notifyDebtChange() {
+  require('../kiotvietSync/dashboardRollupEvents').dashboardRollupEvents.emit('updated', { at: Date.now() });
+}
+
 const router = express.Router();
 
 function feedbackRoute(path, field, feature) {
@@ -69,6 +73,7 @@ router.patch('/api/debt-management/status', requireAuth, requireFeature('reports
   }
   try {
     const result = await repository().saveStatus({ ...readTarget(req.body), status, user: req.user });
+    notifyDebtChange();
     return res.status(200).json(result);
   } catch (error) {
     return sendError(res, error, 'Không thể cập nhật trạng thái xử lý lúc này.', 'DEBT_STATUS_UNAVAILABLE');
@@ -79,6 +84,7 @@ router.patch('/api/debt-management/schedule', requireAuth, requireFeature('repor
   try {
     const { branch, customerId } = readTarget(req.body);
     const result = await repository().setSchedule({ branch, customerId, days: req.body?.scheduleDays, user: req.user });
+    notifyDebtChange();
     return res.status(200).json(result);
   } catch (error) {
     return sendError(res, error, 'Không thể lưu lịch thanh toán lúc này.', 'DEBT_SCHEDULE_UNAVAILABLE');
@@ -89,6 +95,7 @@ router.patch('/api/debt-management/schedule', requireAuth, requireFeature('repor
 router.patch('/api/debt-management/penalty', requireAuth, requireFeature('reports.debt.penalty'), async (req, res) => {
   try {
     const result = await repository().savePenalty({ ...readTarget(req.body), amount: req.body?.amount, user: req.user });
+    notifyDebtChange();
     return res.status(200).json(result);
   } catch (error) {
     return sendError(res, error, 'Không thể lưu tiền phạt lúc này.', 'DEBT_PENALTY_UNAVAILABLE');
@@ -121,8 +128,8 @@ router.post('/api/debt-management/refresh', requireAuth, requireFeature('reports
     repository().bumpVersion();
     // Ban chot hom nay vua duoc tao -> chot so phat cua chu ky truoc, nhu job 15:00.
     if (result.created) {
-      await require('../debtSchedule/debtPenaltyLedger').finalizePendingPenaltyCycles(require('../db/pool').getPool())
-        .catch(error => console.error('[DebtManagement] Chot so phat loi:', error && error.message));
+      await require('../debtSchedule/debtRewardClosing').settleDebtRewards(require('../db/pool').getPool())
+        .catch(error => console.error('[DebtManagement] Chot thuong/phat loi, se thu lai:', error && error.message));
     }
     // Bao cac trinh duyet dang mo SSE (tai khoan khac) tu tai lai so cong no moi.
     require('../kiotvietSync/dashboardRollupEvents').dashboardRollupEvents.emit('updated', { at: Date.now() });
@@ -144,16 +151,13 @@ router.get('/api/debt-management/feedback-history', requireAuth, requireFeature(
     }
   });
 
-// Bang xep hang phat sale cua THANG cua chu ky dang mo (2026-10-14): tien phat theo ngay + sale da chot so
-// (debtPenaltyLedger). Ngay dang mo chua chot so — giao dien tu tinh tu danh sach khach cua tab.
+// Shared server calculation: global HN+SG ranking and pool, branch filtering only after ranking.
 router.get('/api/debt-management/penalty-board', requireAuth, requireFeature('reports.debt'),
   branchMiddleware.resolveBranch, async (req, res) => {
     try {
-      const cycle = await repository().readCurrentCycle();
-      if (!cycle) return res.json({ month: null, openCycleDate: null, days: [] });
-      const month = cycle.cycleDate.slice(0, 7);
-      const days = await repository().listPenaltyDays({ month, branches: branchCodesFor(req) });
-      return res.json({ month, openCycleDate: cycle.cycleDate, days });
+      const board = await require('../debtSchedule/debtRewardService').getDebtRewardService()
+        .readBoard({ month: req.query?.month, branches: branchCodesFor(req) });
+      return res.json(board);
     } catch (error) {
       return sendError(res, error, 'Không thể tải bảng phạt sale lúc này.', 'DEBT_PENALTY_BOARD_UNAVAILABLE');
     }

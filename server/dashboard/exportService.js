@@ -25,7 +25,6 @@ const dashboardPgReader = require('./dashboardPgReader');
 const productReportRepository = require('./productReportRepository');
 const exportFieldCatalog = require('./exportFieldCatalog');
 const { BRANCHES, BRANCH_BOTH, branchLabelToCode, resolveBranchScope } = require('../branch/branches');
-const debtScheduleRepository = require('../debtSchedule/debtScheduleRepository');
 const { HEADER_FONT, frozenNoGridlinesView, applyFullTableBorder } = require('../excelTableStyle');
 const { filterTableItems } = require('../public/js/table-explorer');
 const htmlReportRenderer = require('./exportHtmlReport');
@@ -248,11 +247,19 @@ const DEBT_COLUMNS = [
 
 // Bang xep hang phat sale (khung Chi so then chot, tab Cong no) — khop cot man hinh.
 const DEBT_PENALTY_COLUMNS = [
-  aggregateColumn('rank', 'Hạng', 'number', 'Thứ hạng theo tổng tiền phạt trong tháng (cao nhất xếp trước).'),
+  aggregateColumn('rank', 'Hạng', 'number', 'Thứ hạng thưởng toàn hệ thống Hà Nội + Sài Gòn theo phạt/điểm; Sale không có điểm không xếp hạng.'),
   aggregateColumn('sale', 'Sale', 'text', 'Nhân viên phụ trách (nhóm khách hàng trên KiotViet).'),
+  aggregateColumn('points', 'Điểm', 'number', 'Điểm công nợ của Sale trong tháng theo quy chế thưởng.'),
+  aggregateColumn('ratio', 'Phạt/điểm', 'number', 'Phạt gốc chia cho điểm; để trống khi không có điểm.'),
   aggregateColumn('penaltyDays', 'Ngày bị phạt', 'number', 'Số ngày trong tháng (từ ngày 01) Sale có tiền phạt công nợ.'),
-  aggregateColumn('lastDayCustomers', 'Khách phạt (ngày gần nhất)', 'number', 'Số khách bị phạt của ngày chốt gần nhất.'),
-  aggregateColumn('total', 'Tổng tiền phạt', 'number', 'Tổng tiền phạt cộng dồn trong tháng (VNĐ), gồm ngày đang mở tạm tính.')
+  aggregateColumn('lastDayCustomers', 'Khách phạt gần nhất', 'number', 'Số khách bị phạt của ngày chốt gần nhất.'),
+  aggregateColumn('total', 'Phạt gốc', 'number', 'Tổng phạt gốc trong tháng trước miễn phạt theo hạng (VNĐ).'),
+  aggregateColumn('payablePenalty', 'Phạt phải nộp', 'number', 'Số tiền phạt phải nộp sau miễn phạt theo hạng (VNĐ).'),
+  aggregateColumn('reward', 'Tiền thưởng', 'number', 'Tổng thưởng theo hạng và theo điểm (VNĐ).'),
+  aggregateColumn('month', 'Tháng', 'text', 'Tháng thưởng/phạt được chọn (YYYY-MM).'),
+  aggregateColumn('status', 'Trạng thái', 'text', 'Tạm tính khi tháng đang mở; Đã chốt khi đã khóa kết quả tháng.'),
+  aggregateColumn('rankReward', 'Thưởng theo hạng', 'number', 'Phần tiền thưởng theo thứ hạng toàn hệ thống (VNĐ).', { selected: false }),
+  aggregateColumn('pointsReward', 'Thưởng theo điểm', 'number', 'Phần tiền thưởng phân bổ theo điểm (VNĐ).', { selected: false })
 ];
 
 const DEBT_BRANCH_COLUMN = aggregateColumn('branch', 'Cơ sở', 'text', 'Cơ sở của khoản công nợ (Hà Nội hoặc Sài Gòn).');
@@ -552,50 +559,41 @@ function debtBranchLabel(customer) {
   return labels.join(', ');
 }
 
-// Giong buildDebtPenaltyRows() o public/index.html: cac ngay da chot so (ledger) + ngay dang mo tinh tu danh sach khach.
-function debtPenaltyRows(debtManagement, ledgerDays) {
-  const debt = debtManagement && typeof debtManagement === 'object' ? debtManagement : {};
-  const days = Array.isArray(ledgerDays) ? ledgerDays : [];
-  const openDate = debt.available && debt.cycleDate ? String(debt.cycleDate) : null;
-  const month = openDate ? openDate.slice(0, 7) : (days[0] ? String(days[0].cycleDate).slice(0, 7) : null);
-  const customers = Array.isArray(debt.customers) ? debt.customers : [];
-  const bySale = new Map();
-  const entryOf = sale => {
-    const key = normalizeText(sale) || 'Chưa phân nhóm';
-    if (!bySale.has(key)) bySale.set(key, { sale: key, days: new Map(), total: 0 });
-    return bySale.get(key);
+function debtRewardStatusLabel(status) {
+  return status === 'finalized' ? 'Đã chốt' : 'Tạm tính';
+}
+
+function debtPenaltyRows(board) {
+  return board.rows.map(row => ({
+    ...row, month: board.month, status: debtRewardStatusLabel(board.status)
+  }));
+}
+
+function debtRewardMetadata(board) {
+  const amount = value => `${Number(value).toLocaleString('vi-VN')}đ`;
+  const coverage = board.coverage;
+  const summary = board.summary;
+  const notes = [
+    ['Tháng', board.month],
+    ['Trạng thái', debtRewardStatusLabel(board.status)],
+    ['Phạm vi xếp hạng', 'Hà Nội + Sài Gòn'],
+    ['Tổng phạt gốc toàn hệ thống', amount(summary.grossPenalty)],
+    ['Tổng phạt phải nộp toàn hệ thống', amount(summary.payablePenalty)],
+    ['Quỹ thưởng toàn hệ thống', amount(summary.pool)],
+    ['Quỹ từ tiền phạt', amount(summary.penaltyFund)],
+    ['Công ty bù', amount(summary.companyTopUp)],
+    ['Thưởng đã phân bổ', amount(summary.allocatedReward)],
+    ['Số Sale nhận thưởng toàn hệ thống', String(summary.recipientCount)],
+    ['Phạm vi dữ liệu', `${coverage.from} – ${coverage.to}`],
+    ['Đủ bản chốt', coverage.complete ? 'Đầy đủ' : 'Chưa đầy đủ'],
+    ['Ngày thiếu bản chốt', coverage.missingDays.length ? coverage.missingDays.join(', ') : 'Không có'],
+    ['Phiên bản quy chế', String(board.ruleVersion)]
+  ];
+  if (board.closedAt) notes.push(['Chốt tháng lúc', board.closedAt]);
+  return {
+    month: board.month, status: board.status, closedAt: board.closedAt,
+    ruleVersion: board.ruleVersion, summary, coverage, notes
   };
-  customers.forEach(customer => entryOf(customer.sale));
-  days.forEach(day => {
-    const cycleDate = String(day.cycleDate);
-    if (cycleDate === openDate || !month || cycleDate.slice(0, 7) !== month) return;
-    const entry = entryOf(day.sale);
-    const item = entry.days.get(cycleDate) || { customers: 0, amount: 0 };
-    item.customers += Number(day.penalizedCustomers) || 0;
-    item.amount += Number(day.amount) || 0;
-    entry.days.set(cycleDate, item);
-  });
-  if (openDate) {
-    customers.forEach(customer => {
-      const amount = Number(customer.penaltyAmount) || 0;
-      if (amount <= 0) return;
-      const entry = entryOf(customer.sale);
-      const item = entry.days.get(openDate) || { customers: 0, amount: 0 };
-      item.customers += 1;
-      item.amount += amount;
-      entry.days.set(openDate, item);
-    });
-  }
-  let lastDate = openDate || '';
-  if (!lastDate) days.forEach(day => { if (String(day.cycleDate) > lastDate) lastDate = String(day.cycleDate); });
-  const rows = Array.from(bySale.values()).map(entry => {
-    const total = Array.from(entry.days.values()).reduce((sum, item) => sum + item.amount, 0);
-    const last = entry.days.get(lastDate);
-    return { sale: entry.sale, penaltyDays: entry.days.size, lastDayCustomers: last ? last.customers : 0, total };
-  });
-  rows.sort((a, b) => b.total - a.total || b.penaltyDays - a.penaltyDays
-    || a.sale.localeCompare(b.sale, 'vi', { sensitivity: 'base' }));
-  return rows.map((row, index) => ({ rank: index + 1, ...row }));
 }
 
 function debtManagementRows(debtManagement, context, aggregate = false) {
@@ -847,7 +845,8 @@ const TABLE_SPECS = {
   }),
   'debt.penalty': () => aggregateTable({
     key: 'debt_penalty', name: 'Thưởng phạt sale', columns: DEBT_PENALTY_COLUMNS,
-    rows: dashboard => debtPenaltyRows(dashboard.debtManagement, dashboard.penaltyDays)
+    rows: dashboard => debtPenaltyRows(dashboard.debtReward),
+    summaryKeys: ['total', 'payablePenalty', 'reward']
   }),
   // Cac bang duoi day khong co loadRows: nguon du lieu rieng (bao cao khach/hang, payload quet ton).
   'customers.productDetail': () => ({
@@ -1085,6 +1084,12 @@ function describeExport(payload, branch) {
   const filters = normalizeFilters(request.filters);
   const context = plainObject(request.context);
 
+  if (tableKey === 'debt.penalty' && context.debtRewardMonth !== undefined && context.debtRewardMonth !== '') {
+    if (typeof context.debtRewardMonth !== 'string' || !/^\d{4}-(?:0[1-9]|1[0-2])$/.test(context.debtRewardMonth)) {
+      throw exportError('Tháng thưởng/phạt không hợp lệ (YYYY-MM).');
+    }
+  }
+
   const spec = getTableSpec(tableKey, context, branch);
   const description = {
     tableKey, title: TABLE_TITLES[tableKey], selectionMode: 'custom',
@@ -1132,6 +1137,15 @@ async function buildExportDataset(payload, branch, options = {}) {
   if (tableKey === 'overview.productReport') {
     return buildProductReportDataset(description, request, signal);
   }
+  if (tableKey === 'debt.penalty') {
+    const branches = resolveBranchScope(branch || BRANCH_BOTH).map(branchLabelToCode).filter(Boolean);
+    const month = description.context.debtRewardMonth || undefined;
+    const board = await require('../debtSchedule/debtRewardService').getDebtRewardService().readBoard({ month, branches });
+    throwIfAborted(signal);
+    if (!board.summary) throw exportError('Chưa có bản chốt công nợ để xuất thưởng/phạt.', 404, 'EXPORT_NO_DATA');
+    const dataset = await buildFixedDataset(tableKey, { dashboard: { debtReward: board }, branch, signal }, description.context, request.tableSearch, options.selection);
+    return { ...dataset, debtReward: debtRewardMetadata(board) };
+  }
   // Viewer bo trong = khong quyen sua cong no (giong xuat file truoc day). Ket qua
   // nam trong cache dung chung nen chi DOC, khong sua.
   // Bang cong no co the xuat ban chot cu (toi da 7 ngay): doc thang tu bang chot, khong qua cache dashboard.
@@ -1142,18 +1156,8 @@ async function buildExportDataset(payload, branch, options = {}) {
     const dataset = await buildFixedDataset(tableKey, { dashboard: { debtManagement }, branch, signal }, description.context, request.tableSearch, options.selection);
     return { ...dataset, cycleDate: debtCycleDate };
   }
-  let dashboard = await dashboardData.getDashboardData(description.filters, branch);
+  const dashboard = await dashboardData.getDashboardData(description.filters, branch);
   throwIfAborted(signal);
-  if (tableKey === 'debt.penalty') {
-    // Cac ngay da chot so cua thang dang mo nam trong so phat (khong co trong dashboard) — them vao ban sao nong.
-    const month = String((dashboard.debtManagement || {}).cycleDate || '').slice(0, 7);
-    const branches = resolveBranchScope(branch || BRANCH_BOTH).map(branchLabelToCode).filter(Boolean);
-    const penaltyDays = month
-      ? await debtScheduleRepository.getDebtScheduleRepository().listPenaltyDays({ month, branches })
-      : [];
-    throwIfAborted(signal);
-    dashboard = { ...dashboard, penaltyDays };
-  }
   return buildFixedDataset(tableKey, { dashboard, branch, signal }, description.context, request.tableSearch, options.selection);
 }
 
@@ -1370,13 +1374,16 @@ async function getExportDataset(payload, branch, options = {}) {
   // Ban chot cu cua cong no: ghi ngay chot vao tieu de va ten file de khong nham voi ban moi nhat.
   const cycleDate = dataset.cycleDate || '';
   const cycleLabel = cycleDate ? `${cycleDate.slice(8, 10)}/${cycleDate.slice(5, 7)}/${cycleDate.slice(0, 4)}` : '';
+  const reward = dataset.debtReward;
   return {
     meta: {
       tableKey: dataset.tableKey,
-      title: cycleLabel ? `${dataset.title} - chốt 15:00 ${cycleLabel}` : dataset.title,
+      title: reward ? `${dataset.title} - ${reward.month} (${debtRewardStatusLabel(reward.status)})`
+        : cycleLabel ? `${dataset.title} - chốt 15:00 ${cycleLabel}` : dataset.title,
       branch: fileBranch || '',
       generatedAt: new Date(),
-      fileBase: `${branchFilePrefix(fileBranch)}_${fileSlug(dataset.title)}${cycleDate ? `_chot_${cycleDate.replace(/-/g, '')}` : ''}_${fileTimestamp()}`
+      fileBase: `${branchFilePrefix(fileBranch)}_${fileSlug(dataset.title)}${reward ? `_thang_${reward.month.replace('-', '')}` : ''}${cycleDate ? `_chot_${cycleDate.replace(/-/g, '')}` : ''}_${fileTimestamp()}`,
+      ...(reward ? { debtReward: reward, debtRewardNotes: reward.notes } : {})
     },
     worksheets
   };
@@ -1429,6 +1436,20 @@ async function renderExcelWorkbook(dataset) {
     });
     styleWorksheet(worksheet, columns, sourceWorksheet.rows);
   });
+
+  if (dataset.meta.debtRewardNotes) {
+    const columns = [
+      aggregateColumn('label', 'Thông tin', 'text'),
+      aggregateColumn('value', 'Giá trị', 'text', undefined, { wrapText: true })
+    ];
+    const rows = dataset.meta.debtRewardNotes.map(([label, value]) => ({ label, value }));
+    const worksheet = workbook.addWorksheet(safeWorksheetName('Thông tin thưởng phạt', usedNames));
+    worksheet.columns = columns.map(column => ({ header: column.label, key: column.key }));
+    rows.forEach(row => worksheet.addRow({ label: toExcelValue(row.label, 'text'), value: toExcelValue(row.value, 'text') }));
+    styleWorksheet(worksheet, columns, rows);
+    worksheet.getColumn(1).width = 38;
+    worksheet.getColumn(2).width = 60;
+  }
 
   const buffer = await workbook.xlsx.writeBuffer();
   return { buffer, mimeType: EXCEL_MIME, fileName: `${dataset.meta.fileBase}.xlsx` };

@@ -2784,7 +2784,7 @@
     }
 
     .debt-penalty-wrap table {
-      min-width: 560px;
+      min-width: 1080px;
     }
 
     .debt-penalty-wrap thead th {
@@ -2793,6 +2793,34 @@
       z-index: 2;
       background: var(--panel);
     }
+
+    .debt-reward-toolbar {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: var(--space-sm);
+      margin-bottom: var(--space-sm);
+      font-size: 12px;
+    }
+
+    .debt-reward-toolbar select {
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm, 6px);
+      background: var(--panel);
+      color: var(--text);
+    }
+
+    .debt-reward-rules {
+      margin-bottom: var(--space-md);
+      color: var(--text-secondary);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .debt-reward-rules summary { cursor: pointer; }
+    .debt-reward-rules p { margin: var(--space-sm) 0; }
+    .debt-reward-positive { color: var(--green); font-weight: 600; }
 
     .debt-penalty-amount {
       color: var(--red);
@@ -4235,21 +4263,41 @@
                   <h2>Thưởng/phạt sale theo công nợ <span class="tag" id="tagDebtPenalty">—</span></h2>
                   <div class="panel-head-actions"><button class="export-button" type="button" onclick="openExportDialog('debt.penalty')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button></div>
                 </div>
-                <p class="debt-penalty-note" id="debtPenaltyNote">Tiền phạt cộng dồn theo tháng · bấm 1 dòng để xem chi tiết</p>
+                <div class="debt-reward-toolbar">
+                  <label for="debtRewardMonth">Tháng thưởng/phạt</label>
+                  <select id="debtRewardMonth" onchange="loadDebtPenaltyBoard(this.value)"><option value="">Tháng đang mở</option></select>
+                  <span class="tag" id="debtRewardStatus" role="status">Đang tải</span>
+                </div>
+                <p class="debt-penalty-note" id="debtPenaltyNote">Xếp hạng toàn công ty HN + SG · bấm 1 dòng để xem chi tiết</p>
+                <p class="debt-penalty-note" id="debtRewardSummary"></p>
+                <p class="debt-penalty-note" id="debtRewardCoverage" role="status"></p>
+                <details class="debt-reward-rules">
+                  <summary>Cách tính điểm, xếp hạng và thưởng</summary>
+                  <p>Điểm mỗi khách = điểm số hóa đơn + điểm doanh thu thuần trong tháng; doanh thu thuần = doanh thu hóa đơn trừ trả hàng. Khách hàng ở HN và SG được tính riêng, sale cùng tên được cộng chung.</p>
+                  <p>Số hóa đơn: 0 / 1 / 2 / 5 / 10 / 20 / 40 tương ứng 0 / 1 / 2 / 3 / 4 / 5 / 6 điểm.</p>
+                  <p>Doanh thu thuần âm: −1 điểm. Các mốc 0 / 5 triệu / 30 triệu / 100 triệu / 300 triệu / 1 tỷ / 3 tỷ / 6 tỷ / 9 tỷ tương ứng 0 / 1 / 2 / 3 / 4 / 5 / 6 / 7 / 8 điểm.</p>
+                  <p>Từ 30 điểm được xếp hạng theo Phạt gốc / Điểm tăng dần, rồi điểm giảm dần, rồi tên sale theo tiếng Việt. Chưa phân nhóm không có hạng hoặc thưởng. Hạng 1–20 được miễn phạt; thưởng dành cho hạng 1–10.</p>
+                  <p>Quỹ thưởng = mức lớn hơn giữa 80% phạt phải nộp và 3.000.000₫. Công ty bù phần thiếu. Một nửa quỹ chia theo trọng số hạng 19 / 17 / 15 / 13 / 11 / 9 / 7 / 5 / 3 / 1; một nửa chia theo điểm của người nhận. Khi có dưới 10 người nhận, chuẩn hóa theo tổng trọng số và tổng điểm thực tế.</p>
+                  <p>Tháng đang mở hiển thị tạm tính. Thiếu bản chốt sẽ được báo bên dưới; tháng đã chốt giữ nguyên điểm, hạng, tiền phạt và thưởng lịch sử.</p>
+                </details>
                 <div class="debt-penalty-wrap">
                   <table class="fixed-table" id="debtPenaltyTable" data-table-key="dashboard-table-22">
                     <thead>
                       <tr>
                         <th style="width:72px" data-column-key="hang">Hạng</th>
                         <th style="width:170px" data-column-key="sale">Sale</th>
-                        <th style="width:110px" data-column-key="so-ngay-bi-phat">Ngày bị phạt</th>
-                        <th style="width:130px" data-column-key="khach-phat-gan-nhat">Khách phạt (ngày gần nhất)</th>
-                        <th style="width:130px" data-column-key="tong-tien-phat">Tổng tiền phạt</th>
+                        <th style="width:80px" data-column-key="diem">Điểm</th>
+                        <th style="width:120px" data-column-key="phat-moi-diem">Phạt/điểm</th>
+                        <th style="width:100px" data-column-key="so-ngay-bi-phat">Ngày bị phạt</th>
+                        <th style="width:130px" data-column-key="khach-phat-gan-nhat">Khách phạt gần nhất</th>
+                        <th style="width:120px" data-column-key="tong-tien-phat">Phạt gốc</th>
+                        <th style="width:130px" data-column-key="phat-phai-nop">Phạt phải nộp</th>
+                        <th style="width:130px" data-column-key="tien-thuong">Tiền thưởng</th>
                       </tr>
                     </thead>
                     <tbody id="debtPenaltyRows">
                       <tr>
-                        <td colspan="5" class="table-note">Đang tải...</td>
+                        <td colspan="9" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                     <tfoot id="debtPenaltyFoot"></tfoot>
@@ -4631,8 +4679,8 @@
       },
       debtVisibleCustomers: [],
       debtFlashCustomerKey: '',
-      // Bảng thưởng/phạt sale (khung Chỉ số then chốt): các ngày ĐÃ chốt sổ của tháng từ /api/debt-management/penalty-board.
-      debtPenaltyBoard: { month: null, days: [], loaded: false, failed: false, requestId: 0 },
+      // Bảng thưởng/phạt sale: điểm và hạng HN + SG, bản chốt tháng từ /api/debt-management/penalty-board.
+      debtPenaltyBoard: { month: null, selectedMonth: null, months: [], rows: [], days: [], summary: {}, coverage: {}, loaded: false, loading: false, failed: false, requestId: 0 },
       tableSorts: {},
       tablePages: {}, // { [tableKey]: currentPage } — xem renderPaginatedRows()
       tableSearches: {},
@@ -6074,6 +6122,7 @@
           debtSchedule: state.debtFilters.schedule,
           debtSearch: state.debtFilters.search,
           debtSort: state.tableSorts.debtManagementRows || null,
+          debtRewardMonth: state.debtPenaltyBoard.selectedMonth || state.debtPenaltyBoard.month || null,
           customerProductCustomerCode: (state.customerProductReport.customer || {}).code || '',
           customerProductCustomerName: (state.customerProductReport.customer || {}).name || '',
           customerProductCode: state.customerProductReport.productCode || ''
@@ -9031,9 +9080,8 @@
     window.addEventListener('resize', autosizeDebtFeedbackInputs);
 
     // ===== Bảng thưởng/phạt sale theo công nợ (khung Chỉ số then chốt) =====
-    // Chỉ tính TIỀN PHẠT, cộng dồn từ ngày 1 của tháng của chu kỳ đang mở (tự về trống ở bản chốt 15:00 đầu tháng mới).
-    // Các ngày đã chốt sổ lấy từ server (debt_penalty_daily); ngày đang mở (còn sửa được) tính ngay tại đây từ
-    // danh sách khách của tab để khớp cột "Tiền phạt phiên này" khi Quản lý sửa tay / đổi trạng thái.
+    // Điểm, hạng và tiền thưởng do máy chủ tính trên HN + SG trước khi lọc quyền cơ sở.
+    // Không cộng lại dữ liệu live tại trình duyệt, để giữ đúng bản chốt của tháng lịch sử.
     function formatCycleDay(cycleDate) {
       const text = String(cycleDate || '');
       return text.length >= 10 ? text.slice(8, 10) + '/' + text.slice(5, 7) : text;
@@ -9044,74 +9092,55 @@
       return /^\d{4}-\d{2}$/.test(text) ? text.slice(5, 7) + '/' + text.slice(0, 4) : '';
     }
 
-    function loadDebtPenaltyBoard() {
+    function loadDebtPenaltyBoard(month) {
       const board = state.debtPenaltyBoard;
+      if (typeof month === 'string') board.selectedMonth = /^\d{4}-\d{2}$/.test(month) ? month : null;
+      const selectedMonth = board.selectedMonth;
       const requestId = ++board.requestId;
-      return fetch('/api/debt-management/penalty-board', { credentials: 'same-origin' })
+      if (board.controller) board.controller.abort();
+      board.controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      board.loading = true;
+      board.failed = false;
+      renderDebtPenaltyBoard();
+      const url = '/api/debt-management/penalty-board' + (selectedMonth ? '?month=' + encodeURIComponent(selectedMonth) : '');
+      return fetch(url, { credentials: 'same-origin', signal: board.controller ? board.controller.signal : undefined })
         .then(function (res) {
           if (!res.ok) throw new Error('HTTP ' + res.status);
           return res.json();
         })
         .then(function (payload) {
           if (requestId !== board.requestId) return;
-          board.month = payload.month || null;
+          board.month = payload.month || selectedMonth;
+          board.openCycleDate = payload.openCycleDate || null;
+          board.rows = Array.isArray(payload.rows) ? payload.rows : [];
           board.days = Array.isArray(payload.days) ? payload.days : [];
+          board.months = Array.isArray(payload.months) ? payload.months : [];
+          board.summary = payload.summary || {};
+          board.coverage = payload.coverage || {};
+          board.status = payload.status;
+          board.closedAt = payload.closedAt;
+          board.ruleVersion = payload.ruleVersion;
           board.loaded = true;
+          board.loading = false;
           board.failed = false;
           renderDebtPenaltyBoard();
         })
         .catch(function (error) {
-          console.error('Không tải được bảng phạt sale:', error);
-          if (requestId !== board.requestId) return;
+          if (requestId !== board.requestId || (error && error.name === 'AbortError')) return;
+          board.loading = false;
           board.failed = true;
           renderDebtPenaltyBoard();
         });
     }
 
-    // [{ sale, days: [{ cycleDate, customers, amount, live }] (mới nhất trước), penaltyDays, total, lastDayCustomers }]
     function buildDebtPenaltyRows() {
-      const debt = state.data && state.data.debtManagement;
       const board = state.debtPenaltyBoard;
-      const openDate = debt && debt.available && debt.cycleDate ? debt.cycleDate : null;
-      const month = openDate ? openDate.slice(0, 7) : board.month;
-      const customers = (debt && debt.customers) || [];
-      const bySale = new Map();
-      function entryOf(sale) {
-        const key = sale || 'Chưa phân nhóm';
-        if (!bySale.has(key)) bySale.set(key, { sale: key, days: [], penaltyDays: 0, total: 0, lastDayCustomers: 0 });
-        return bySale.get(key);
-      }
-      customers.forEach(function (customer) { entryOf(customer.sale); });
-      (board.days || []).forEach(function (day) {
-        if (day.cycleDate === openDate || !month || String(day.cycleDate).slice(0, 7) !== month) return;
-        entryOf(day.sale).days.push({ cycleDate: day.cycleDate, customers: Number(day.penalizedCustomers) || 0, amount: Number(day.amount) || 0, live: false });
-      });
-      if (openDate) {
-        const live = new Map();
-        customers.forEach(function (customer) {
-          const amount = Number(customer.penaltyAmount) || 0;
-          if (amount <= 0) return;
-          const entry = entryOf(customer.sale);
-          const item = live.get(entry) || { cycleDate: openDate, customers: 0, amount: 0, live: true };
-          item.customers += 1;
-          item.amount += amount;
-          live.set(entry, item);
-        });
-        live.forEach(function (item, entry) { entry.days.push(item); });
-      }
-      const lastDate = openDate || (board.days || []).reduce(function (max, day) { return day.cycleDate > max ? day.cycleDate : max; }, '');
-      const rows = Array.from(bySale.values());
-      rows.forEach(function (row) {
-        row.days.sort(function (a, b) { return a.cycleDate < b.cycleDate ? 1 : -1; });
-        row.penaltyDays = row.days.length;
-        row.total = row.days.reduce(function (sum, day) { return sum + day.amount; }, 0);
-        const last = row.days.find(function (day) { return day.cycleDate === lastDate; });
-        row.lastDayCustomers = last ? last.customers : 0;
-      });
-      rows.sort(function (a, b) {
-        return b.total - a.total || b.penaltyDays - a.penaltyDays || a.sale.localeCompare(b.sale, 'vi', { sensitivity: 'base' });
-      });
-      return { rows: rows, month: month, lastDate: lastDate };
+      return { rows: board.rows || [], month: board.month, lastDate: board.openCycleDate };
+    }
+
+    function debtRewardRankText(row) {
+      if (row.rank !== null && row.rank !== undefined) return fmtNumber(row.rank);
+      return row.sale === 'Chưa phân nhóm' ? '—' : 'Chưa đủ 30 điểm';
     }
 
     function renderDebtPenaltyBoard() {
@@ -9119,10 +9148,32 @@
       if (!body) return;
       const foot = document.getElementById('debtPenaltyFoot');
       foot.innerHTML = '';
-      const debt = state.data && state.data.debtManagement;
       const board = state.debtPenaltyBoard;
       const built = buildDebtPenaltyRows();
       state.debtPenaltyView = built;
+      const selector = document.getElementById('debtRewardMonth');
+      const selected = board.selectedMonth || board.month || '';
+      const months = Array.from(new Set((board.months || []).concat(board.month || [], selected || []))).filter(Boolean).sort().reverse();
+      selector.innerHTML = months.length ? months.map(function (month) {
+        return '<option value="' + escapeHtml(month) + '">' + escapeHtml(formatCycleMonth(month)) + '</option>';
+      }).join('') : '<option value="">Tháng đang mở</option>';
+      selector.value = selected;
+      const status = document.getElementById('debtRewardStatus');
+      status.textContent = board.loading ? 'Đang tải' : board.failed ? 'Không tải được' : board.status === 'finalized' ? 'Đã chốt' : board.loaded ? 'Tạm tính' : 'Đang tải';
+      document.getElementById('debtPenaltyNote').textContent = (selected ? 'Tháng ' + formatCycleMonth(selected) + ' · ' : '') +
+        'Xếp hạng toàn công ty HN + SG; lọc cơ sở không đổi hạng · bấm 1 dòng để xem chi tiết';
+      const summary = board.summary || {};
+      document.getElementById('debtRewardSummary').textContent = board.loaded && !board.loading && !board.failed
+        ? 'Quỹ thưởng toàn công ty: ' + fmtMoney(summary.pool) + ' · Công ty bù: ' + fmtMoney(summary.companyTopUp) +
+          ' · Quỹ từ phạt: ' + fmtMoney(summary.penaltyFund) + ' · Đã phân bổ: ' + fmtMoney(summary.allocatedReward) +
+          ' · ' + fmtNumber(summary.recipientCount) + ' người nhận'
+        : '';
+      const coverage = board.coverage || {};
+      const missing = Array.isArray(coverage.missingDays) ? coverage.missingDays : [];
+      document.getElementById('debtRewardCoverage').textContent = board.loaded && !board.loading && !board.failed
+        ? (coverage.complete ? 'Đủ bản chốt trong kỳ.' : 'Dữ liệu chưa đầy đủ' + (missing.length ? ': thiếu bản chốt ngày ' + missing.map(formatCycleDay).join(', ') : '.') ) +
+          (board.closedAt ? ' · Đã chốt lúc ' + new Date(board.closedAt).toLocaleString('vi-VN') : '')
+        : '';
       const searchState = getTableSearchState('debtPenalty');
       const config = TABLE_EXPLORER_CONFIGS.debtPenalty;
       state.tableRenderers.debtPenalty = renderDebtPenaltyBoard;
@@ -9130,92 +9181,92 @@
       const filtered = filterTableItems(built.rows, config, searchState);
       syncTableSearchControls('debtPenalty', filtered, built.rows.length);
       const query = searchState.query.trim();
-      document.getElementById('tagDebtPenalty').textContent = query ? filtered.items.length + '/' + built.rows.length : built.rows.length;
-      document.getElementById('debtPenaltyNote').textContent = built.month
-        ? 'Tháng ' + formatCycleMonth(built.month) + ' · từ ngày 01 · bấm 1 dòng để xem chi tiết'
-        : 'Tiền phạt cộng dồn theo tháng';
-      if (!debt || !debt.available) {
-        body.innerHTML = '<tr><td colspan="5" class="table-note">Chưa có bản chốt công nợ 15:00</td></tr>';
+      document.getElementById('tagDebtPenalty').textContent = board.loading || board.failed ? '—' : query ? filtered.items.length + '/' + built.rows.length : built.rows.length;
+      body.setAttribute('aria-busy', board.loading ? 'true' : 'false');
+      if (board.loading || !board.loaded && !board.failed) {
+        body.innerHTML = '<tr><td colspan="9" class="table-note">Đang tải bảng thưởng/phạt…</td></tr>';
         return;
       }
-      if (!built.rows.length) {
-        body.innerHTML = '<tr><td colspan="5" class="table-note">Chưa có sale nào trong bản chốt</td></tr>';
+      if (board.failed) {
+        body.innerHTML = '<tr><td colspan="9" class="table-note">Không tải được bảng thưởng/phạt. <button type="button" class="debt-history-button" onclick="loadDebtPenaltyBoard()">Thử lại</button></td></tr>';
         return;
       }
-      const failedNote = board.failed
-        ? '<tr><td colspan="5" class="table-note">Không tải được các ngày đã chốt trước đó — đang chỉ hiện ngày hôm nay.</td></tr>'
-        : '';
       if (!filtered.items.length) {
-        body.innerHTML = '<tr><td colspan="5" class="table-note">Không có sale nào chứa “' + escapeHtml(query) + '”</td></tr>';
+        body.innerHTML = '<tr><td colspan="9" class="table-note">' + (query ? 'Không có sale nào chứa “' + escapeHtml(query) + '”' : 'Chưa có sale nào trong tháng') + '</td></tr>';
         return;
       }
-      let totalAmount = 0;
-      const rowsHtml = filtered.items.map(function (row) {
-        const index = built.rows.indexOf(row);
-        totalAmount += row.total;
-        const amountHtml = row.total > 0
-          ? '<span class="debt-penalty-amount">' + fmtTableMoney(row.total) + '</span>'
-          : '<span class="debt-penalty-zero">Không phạt</span>';
+      let gross = 0, payable = 0, reward = 0, points = 0;
+      body.innerHTML = filtered.items.map(function (row) {
+        gross += Number(row.grossPenalty) || 0;
+        payable += Number(row.payablePenalty) || 0;
+        reward += Number(row.reward) || 0;
+        points += Number(row.points) || 0;
         return '<tr class="doc-row" tabindex="0" title="Bấm để xem chi tiết sale" data-sale="' + escapeHtml(row.sale) + '">' +
-          '<td class="mono">' + (index + 1) + '</td>' +
+          '<td class="mono">' + escapeHtml(debtRewardRankText(row)) + '</td>' +
           '<td class="name-cell">' + escapeHtml(row.sale) + '</td>' +
+          '<td class="mono">' + fmtNumber(row.points) + '</td>' +
+          '<td class="mono">' + (row.ratio === null || row.ratio === undefined ? '—' : fmtNumber(row.ratio)) + '</td>' +
           '<td class="mono">' + fmtNumber(row.penaltyDays) + '</td>' +
           '<td class="mono">' + fmtNumber(row.lastDayCustomers) + '</td>' +
-          '<td class="mono">' + amountHtml + '</td></tr>';
+          '<td class="mono debt-penalty-amount">' + fmtTableMoney(row.grossPenalty) + '</td>' +
+          '<td class="mono">' + fmtTableMoney(row.payablePenalty) + '</td>' +
+          '<td class="mono debt-reward-positive">' + fmtTableMoney(row.reward) + '</td></tr>';
       }).join('');
-      body.innerHTML = failedNote + rowsHtml;
-      foot.innerHTML = '<tr class="debt-penalty-total"><td></td><td>Tổng cộng</td><td></td><td></td><td class="mono">' + fmtTableMoney(totalAmount) + '</td></tr>';
+      foot.innerHTML = '<tr class="debt-penalty-total"><td></td><td>Tổng đang hiển thị</td><td class="mono">' + fmtNumber(points) + '</td><td></td><td></td><td></td>' +
+        '<td class="mono">' + fmtTableMoney(gross) + '</td><td class="mono">' + fmtTableMoney(payable) + '</td><td class="mono">' + fmtTableMoney(reward) + '</td></tr>';
     }
 
-    // Hộp chi tiết 1 sale: dữ liệu tính tại chỗ từ bảng (không gọi API thêm). Tỷ lệ quá hạn/doanh số dùng đúng công thức
-    // của chỉ số "Quá hạn / Doanh số" toàn tab (Σ nợ quá hạn / Σ doanh số TB 4 tháng của khách).
     function debtPenaltySaleDetail(item) {
-      const debt = state.data && state.data.debtManagement;
       const built = state.debtPenaltyView || buildDebtPenaltyRows();
-      const row = built.rows.find(function (entry) { return entry.sale === item.sale; }) || { sale: item.sale, days: [], penaltyDays: 0, total: 0, lastDayCustomers: 0 };
-      const customers = ((debt && debt.customers) || []).filter(function (customer) { return (customer.sale || 'Chưa phân nhóm') === item.sale; });
-      const totalAverage = customers.reduce(function (sum, customer) { return sum + (Number(customer.averageSales) > 0 ? Number(customer.averageSales) : 0); }, 0);
-      const totalOverdue = customers.reduce(function (sum, customer) { return sum + (Number(customer.overdueDebt) || 0); }, 0);
-      return {
-        row: row,
-        month: built.month,
-        lastDate: built.lastDate,
-        customerCount: customers.length,
-        totalCurrentDebt: customers.reduce(function (sum, customer) { return sum + (Number(customer.currentDebt) || 0); }, 0),
-        totalOverdue: totalOverdue,
-        overdueRatio: totalAverage > 0 ? totalOverdue / totalAverage : null,
-        actionCount: customers.filter(function (customer) { return customer.needsAction; }).length
-      };
+      const row = built.rows.find(function (entry) { return entry.sale === item.sale; }) || { sale: item.sale, days: [], scoreCustomers: [] };
+      return { row: row, month: built.month, lastDate: built.lastDate };
     }
 
     function renderDebtPenaltyDetailModal(body, subtitle, data) {
       const row = data.row;
-      subtitle.textContent = 'Tháng ' + formatCycleMonth(data.month) + ' · ' + fmtNumber(data.customerCount) + ' khách';
+      const days = Array.isArray(row.days) ? row.days : [];
+      const debtMetricsAvailable = row.debtMetricsAvailable !== false;
+      subtitle.textContent = 'Tháng ' + formatCycleMonth(data.month) + ' · ' + fmtNumber(row.customerCount) + ' khách · ' +
+        (state.debtPenaltyBoard.status === 'finalized' ? 'Đã chốt' : 'Tạm tính') + ' · HN + SG';
       const tiles = [
+        { label: 'Hạng toàn công ty', value: debtRewardRankText(row) },
+        { label: 'Điểm', value: fmtNumber(row.points) },
+        { label: 'Phạt / Điểm', value: row.ratio === null || row.ratio === undefined ? '—' : fmtNumber(row.ratio) },
         { label: 'Số ngày bị phạt', value: fmtNumber(row.penaltyDays), tone: row.penaltyDays > 0 ? 'amber' : '' },
-        { label: 'Khách phạt ngày gần nhất', value: fmtNumber(row.lastDayCustomers), sub: data.lastDate ? 'Ngày ' + formatCycleDay(data.lastDate) : '' },
-        { label: 'Tổng tiền phạt', value: fmtMoney(row.total), tone: row.total > 0 ? 'red' : '' },
-        { label: 'Tổng nợ hiện tại', value: fmtMoney(data.totalCurrentDebt), tone: 'blue' },
-        { label: 'Tổng nợ quá hạn', value: fmtMoney(data.totalOverdue), tone: data.totalOverdue > 0 ? 'red' : '' },
-        { label: 'Quá hạn / Doanh số', value: formatDebtRatio(data.overdueRatio) },
-        { label: 'Khách cần xử lý', value: fmtNumber(data.actionCount), tone: data.actionCount > 0 ? 'amber' : '' }
+        { label: 'Khách phạt ngày gần nhất', value: fmtNumber(row.lastDayCustomers) },
+        { label: 'Phạt gốc', value: fmtMoney(row.grossPenalty), tone: row.grossPenalty > 0 ? 'red' : '' },
+        { label: 'Phạt phải nộp', value: fmtMoney(row.payablePenalty) },
+        { label: 'Thưởng theo hạng', value: fmtMoney(row.rankReward), tone: 'green' },
+        { label: 'Thưởng theo điểm', value: fmtMoney(row.pointsReward), tone: 'green' },
+        { label: 'Tiền thưởng', value: fmtMoney(row.reward), tone: 'green' },
+        { label: 'Tổng nợ hiện tại', value: debtMetricsAvailable ? fmtMoney(row.totalCurrentDebt) : '—', tone: debtMetricsAvailable ? 'blue' : '' },
+        { label: 'Tổng nợ quá hạn', value: debtMetricsAvailable ? fmtMoney(row.totalOverdue) : '—', tone: debtMetricsAvailable && row.totalOverdue > 0 ? 'red' : '' },
+        { label: 'Quá hạn / Doanh số', value: debtMetricsAvailable ? formatDebtRatio(row.overdueRatio) : '—' },
+        { label: 'Khách cần xử lý', value: debtMetricsAvailable ? fmtNumber(row.actionCount) : '—', tone: debtMetricsAvailable && row.actionCount > 0 ? 'amber' : '' }
       ];
-      const totalCustomers = row.days.reduce(function (sum, day) { return sum + day.customers; }, 0);
-      const dayRows = row.days.length
-        ? row.days.map(function (day) {
-          return '<tr><td class="dp-cell-main">' + escapeHtml(formatCycleDay(day.cycleDate)) +
-            (day.live ? ' <span class="muted">· đang tạm tính</span>' : '') + '</td>' +
-            '<td class="num">' + fmtNumber(day.customers) + '</td>' +
-            '<td class="num">' + fmtTableMoney(day.amount) + '</td></tr>';
-        }).join('')
-        : '<tr><td colspan="3" class="table-note">Chưa có ngày nào bị phạt trong tháng.</td></tr>';
-      const foot = row.days.length > 1
-        ? '<tfoot><tr><td>Cộng</td><td class="num">' + fmtNumber(totalCustomers) + '</td><td class="num">' + fmtTableMoney(row.total) + '</td></tr></tfoot>'
-        : '';
+      const totalCustomers = days.reduce(function (sum, day) { return sum + (Number(day.customers) || 0); }, 0);
+      const dayRows = days.length ? days.map(function (day) {
+        return '<tr><td class="dp-cell-main">' + escapeHtml(formatCycleDay(day.cycleDate)) +
+          (day.live ? ' <span class="muted">· đang tạm tính</span>' : '') + '</td>' +
+          '<td class="num">' + fmtNumber(day.customers) + '</td><td class="num">' + fmtTableMoney(day.amount) + '</td></tr>';
+      }).join('') : '<tr><td colspan="3" class="table-note">Chưa có ngày nào bị phạt trong tháng.</td></tr>';
+      const scoreCustomers = Array.isArray(row.scoreCustomers) ? row.scoreCustomers : [];
+      const scoreRows = scoreCustomers.length ? scoreCustomers.map(function (customer) {
+        return '<tr><td>' + escapeHtml(customer.branch === 'hanoi' ? 'HN' : customer.branch === 'saigon' ? 'SG' : customer.branch || '—') + '</td>' +
+          '<td>' + escapeHtml(customer.code || '—') + '</td><td class="dp-cell-main">' + escapeHtml(customer.name || '—') + '</td>' +
+          '<td class="num">' + fmtNumber(customer.invoiceCount) + '</td><td class="num">' + fmtTableMoney(customer.netRevenue) + '</td>' +
+          '<td class="num">' + fmtNumber(customer.invoicePoints) + '</td><td class="num">' + fmtNumber(customer.revenuePoints) + '</td><td class="num">' + fmtNumber(customer.points) + '</td></tr>';
+      }).join('') : '<tr><td colspan="8" class="table-note">Chưa có dữ liệu điểm khách hàng trong tháng.</td></tr>';
       body.innerHTML = detailStatsHtml(tiles) +
-        '<div class="dp-section">' + detailSectionHeadHtml('Tiền phạt từng ngày', fmtNumber(row.penaltyDays) + ' ngày · mới nhất trước') +
+        (debtMetricsAvailable ? '' : '<p class="debt-penalty-note">Không còn bản chốt công nợ để đối chiếu</p>') +
+        '<div class="dp-section">' + detailSectionHeadHtml('Tiền phạt từng ngày', fmtNumber(row.penaltyDays) + ' ngày') +
         '<div class="dp-table-wrap is-flow"><table class="dp-table is-min-wide" data-table-controls="off" data-table-key="dashboard-table-23"><thead><tr>' +
-        '<th>Ngày</th><th class="num">Số khách bị phạt</th><th class="num">Tiền phạt</th></tr></thead><tbody>' + dayRows + '</tbody>' + foot + '</table></div></div>';
+        '<th>Ngày</th><th class="num">Số khách bị phạt</th><th class="num">Tiền phạt</th></tr></thead><tbody>' + dayRows +
+        '</tbody><tfoot><tr><td>Cộng phạt gốc</td><td class="num">' + fmtNumber(totalCustomers) + '</td><td class="num">' + fmtTableMoney(row.grossPenalty) + '</td></tr></tfoot></table></div></div>' +
+        '<div class="dp-section">' + detailSectionHeadHtml('Đối chiếu điểm từng khách', 'Số hóa đơn + doanh thu thuần') +
+        '<div class="dp-table-wrap is-flow"><table class="dp-table is-min-wide" data-table-controls="off"><thead><tr><th>Cơ sở</th><th>Mã khách</th><th>Khách hàng</th>' +
+        '<th class="num">Số hóa đơn</th><th class="num">Doanh thu thuần</th><th class="num">Điểm hóa đơn</th><th class="num">Điểm doanh thu</th><th class="num">Điểm</th></tr></thead><tbody>' + scoreRows +
+        '</tbody><tfoot><tr><td colspan="7">Tổng điểm sale</td><td class="num">' + fmtNumber(row.points) + '</td></tr></tfoot></table></div></div>';
     }
 
     (function initDebtPenaltyBoard() {
@@ -9299,6 +9350,7 @@
             if (row) row.classList.remove('row-highlight-update');
           }, 2600);
         }
+        loadDebtPenaltyBoard();
         showToast('Đã cập nhật trạng thái thành "' + newStatus + '".');
       } catch (error) {
         selectEl.value = previousStatus;
@@ -9406,6 +9458,7 @@
         await readDebtWriteResponse(response, 'Không lưu được lịch thanh toán.');
         showToast('Đã đổi lịch TT thành ' + value + ' ngày. Đang tính lại công nợ…');
         // Lich TT doi -> no trong lich / qua han / canh bao / KPI deu doi: tai lai tab tu may chu.
+        loadDebtPenaltyBoard();
         loadData(undefined, true, 'debt');
       } catch (error) {
         inputEl.value = previousValue;
@@ -9440,6 +9493,7 @@
         });
         await readDebtWriteResponse(response, 'Không lưu được tiền phạt.');
         showToast(clearing ? 'Đã đưa tiền phạt về mức gợi ý.' : 'Đã lưu tiền phạt ' + fmtTableMoney(Number(raw)) + '.');
+        loadDebtPenaltyBoard();
         loadData(undefined, true, 'debt');
       } catch (error) {
         inputEl.value = previousValue;
@@ -9793,6 +9847,8 @@
               showToast('Lỗi hiển thị dữ liệu: ' + (err && err.message ? err.message : err), 'error');
             }
           }
+          // Điểm/hạng có thể đổi khi doanh thu tháng đổi, dù payload công nợ giống nhau.
+          if (isActiveView && targetView === 'debt' && !changed && !isManualRefresh) loadDebtPenaltyBoard();
           saveDashboardCache();
           settleManual();
         })

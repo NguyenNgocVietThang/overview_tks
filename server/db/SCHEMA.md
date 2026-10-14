@@ -454,3 +454,7 @@ Job chốt xóa run/feedback/history cũ hơn 7 ngày. SELECT của `reporting_r
 ## Marketing định danh lịch sử — migration 0046
 
 `0046_pancake_history_identity.sql` thêm `marketing_history_identities` (dòng lịch sử → ID tin nhắn Pancake; nhiều dòng có thể cùng một ID, một dòng có thể thuộc nhóm tương đương nhiều ID; `resolution` = unique / verified-notation / equivalent, kèm `group_key` và `evidence` JSONB không chứa SĐT) và `marketing_baseline_messages` (tin trong kỳ nền Sheets nhưng Sheets chưa từng tính, ghi sổ riêng để đồng bộ không coi là mới). Cả hai bất biến (trigger) và thu hồi SELECT của `reporting_readonly`. Bỏ UNIQUE của `marketing_pancake_facts.historical_row_id` vì cặp tin tương đương dùng chung một dòng neo. Lịch sử không bị sửa hay gộp.
+
+## Kết quả thưởng sale theo tháng — migration 0052
+
+`debt_reward_months`: `month DATE` khóa chính (ngày 01), `rule_version TEXT`, `finalized_at TIMESTAMPTZ`, `result JSONB` chứa summary, coverage, rows cùng audit điểm/chi tiết phạt. Không FK theo bản chốt công nợ, giữ vĩnh viễn. Dịch vụ chỉ INSERT ON CONFLICT DO NOTHING; khóa advisory theo tháng trong transaction, retry serialization 40001; không cập nhật lại kết quả đã chốt. Phạt tháng cũ phải chốt hết và `business_monthly_state` phải có tháng doanh số trước khi lưu.

@@ -878,6 +878,7 @@ async function renderHtmlReport(dataset) {
       <li>Cơ sở <b>${escape(meta.branch || 'Tất cả')}</b></li>
       <li>Xuất lúc <b>${escape(generatedAt)}</b></li>
       <li><b>${escape(totalRows.toLocaleString('vi-VN'))}</b> dòng</li>
+      ${(meta.debtRewardNotes || []).map(([label, value]) => `<li>${escape(label)} <b>${escape(value)}</b></li>`).join('\n      ')}
     </ul>
   </header>
 

@@ -27,6 +27,13 @@ function withRepo(fake, run) {
   return Promise.resolve(run()).finally(() => { debtScheduleRepository.getDebtScheduleRepository = original; });
 }
 
+function withRewards(fake, run) {
+  const service = require('../debtSchedule/debtRewardService');
+  const original = service.getDebtRewardService;
+  service.getDebtRewardService = () => fake;
+  return Promise.resolve(run()).finally(() => { service.getDebtRewardService = original; });
+}
+
 function allowed(guard, role) {
   let nextCalled = false;
   guard({ user: { vaiTro: role } }, fakeRes(), () => { nextCalled = true; });
@@ -129,7 +136,7 @@ test('GET feedback-history doc theo co so dang xem', async () => {
   assert.deepEqual(received, { branches: ['hanoi', 'saigon'] });
 });
 
-test('GET penalty-board: can quyen Cong no, lay thang cua chu ky dang mo + co so dang xem', async () => {
+test('GET penalty-board: debt permission, requested month and display branch reach shared reward service', async () => {
   const [authGuard, featureGuard, , handler] = routeStack('/api/debt-management/penalty-board', 'get');
   const res0 = fakeRes();
   await authGuard({ cookies: {} }, res0, () => assert.fail('khong duoc next'));
@@ -137,28 +144,38 @@ test('GET penalty-board: can quyen Cong no, lay thang cua chu ky dang mo + co so
   assert.equal(allowed(featureGuard, 'Nhân viên sale'), true);
   const days = [{ cycleDate: '2026-10-13', sale: 'Lan', penalizedCustomers: 2, amount: 50000 }];
   let received;
-  await withRepo({
-    readCurrentCycle: async () => ({ cycleDate: '2026-10-14' }),
-    listPenaltyDays: async payload => { received = payload; return days; }
+  const board = { month: '2026-09', openCycleDate: null, days, rows: [{ sale: 'Lan', rank: 7 }], status: 'finalized' };
+  await withRewards({
+    readBoard: async payload => { received = payload; return board; }
   }, async () => {
     const res = fakeRes();
-    await handler({ branch: 'Hà Nội', user: {} }, res);
+    await handler({ branch: 'Hà Nội', user: {}, query: { month: '2026-09' } }, res);
     assert.equal(res.statusCode, 200);
-    assert.deepEqual(res.body, { month: '2026-10', openCycleDate: '2026-10-14', days });
+    assert.deepEqual(res.body, board);
   });
-  assert.deepEqual(received, { month: '2026-10', branches: ['hanoi'] });
+  assert.deepEqual(received, { month: '2026-09', branches: ['hanoi'] });
 });
 
 test('GET penalty-board: chua co ban chot thi tra rong, loi DB tra 503', async () => {
   const handler = routeStack('/api/debt-management/penalty-board', 'get').at(-1);
-  await withRepo({ readCurrentCycle: async () => null }, async () => {
+  await withRewards({ readBoard: async () => ({ month: null, openCycleDate: null, days: [] }) }, async () => {
     const res = fakeRes();
     await handler({ branch: 'Cả hai', user: {} }, res);
     assert.deepEqual(res.body, { month: null, openCycleDate: null, days: [] });
   });
-  await withRepo({ readCurrentCycle: async () => { throw new Error('db down'); } }, async () => {
+  await withRewards({ readBoard: async () => { throw new Error('db down'); } }, async () => {
     const res = fakeRes();
     await handler({ branch: 'Cả hai', user: {} }, res);
     assert.equal(res.statusCode, 503);
+  });
+});
+
+test('reward month errors preserve invalid/unavailable status and code', async () => {
+  const handler = routeStack('/api/debt-management/penalty-board', 'get').at(-1);
+  for (const statusCode of [400,404]) await withRewards({readBoard:async()=>{
+    throw Object.assign(new Error('month'),{statusCode,code:'REWARD_MONTH'});
+  }},async()=>{
+    const res=fakeRes();await handler({branch:'Cả hai',query:{month:'x'},user:{}},res);
+    assert.equal(res.statusCode,statusCode);assert.equal(res.body.code,'REWARD_MONTH');
   });
 });

@@ -308,11 +308,14 @@ function startDebtCycleSnapshotSchedule(pool, {
   const run = (label) => {
     if (running) return;
     running = true;
-    takeDebtCycleSnapshotIfDue(pool, { log, beforeSnapshot, onSnapshot })
+    takeDebtCycleSnapshotIfDue(pool, { log, beforeSnapshot })
+      .then(async result => {
+        // Also retry settlement when today's snapshot already exists (restart / previous failure).
+        try { await require('./debtRewardClosing').settleDebtRewards(pool, { log }); }
+        catch (error) { log(`[debtCycleSnapshot] Loi chot thuong/phat, se thu lai: ${error.message}`); }
+        if (result.created && onSnapshot) onSnapshot(result);
+      })
       .catch(error => log(`[debtCycleSnapshot] Loi ${label}: ${error.message}`))
-      // Chu ky cu vua co ban chot ke tiep thi chot so phat (migration 0051); loi khong anh huong lan chot.
-      .then(() => require('./debtPenaltyLedger').finalizePendingPenaltyCycles(pool, { log }))
-      .catch(error => log(`[debtCycleSnapshot] Loi chot so phat: ${error.message}`))
       .finally(() => { running = false; });
   };
   scheduleImmediate(() => run('khi kiem tra lan dau'));

@@ -360,7 +360,7 @@ test('cot o buoc lay truong == cot cua dataset o buoc xuat cho moi bang co dinh'
     computedAt: '2026-09-23T00:05:00.000Z'
   });
   try {
-    await withStubs({}, async () => {
+    await withRewardService(async () => historicalRewardBoard(), () => withStubs({}, async () => {
       const payloads = ALL_STATIC_TABLES.map(tableKey => payloadFor(tableKey));
       payloads.push(payloadFor('products.top-selling', { context: { productAnalysis: 'parentCategory' } }));
       for (const payload of payloads) {
@@ -376,7 +376,7 @@ test('cot o buoc lay truong == cot cua dataset o buoc xuat cho moi bang co dinh'
           assert.deepEqual(worksheet.columns.map(column => column.type), fields.map(field => field.type), where);
         });
       }
-    });
+    }));
   } finally {
     dashboardData.getCustomerProductRevenueReport = originals.report;
     productReportRepository.getProductReport = originals.productReport;
@@ -404,7 +404,9 @@ function assertStandardLabels(worksheets, where) {
       assert.equal(label, label.normalize('NFC').trim(), spot);
       assert.doesNotMatch(label, /\s{2,}/, spot);
       assert.match(label, /^\p{Lu}/u, `${spot}: phai viet hoa chu dau`);
-      assert.doesNotMatch(label, /[\[\]:*?/\\]/, `${spot}: ky tu khong hop le cho header`);
+      // The requested Phạt/điểm column uses slash as division, valid in an Excel cell header.
+      const debtRatioLabel = where === 'debt.penalty' && field.key === 'ratio' && label === 'Phạt/điểm';
+      assert.doesNotMatch(label, debtRatioLabel ? /[\[\]:*?\\]/ : /[\[\]:*?/\\]/, `${spot}: ky tu khong hop le cho header`);
       assert.doesNotMatch(label, /^[=+\-@]/, spot);
       [['label', label], ['description', field.description]].forEach(([part, text]) => {
         if (typeof text !== 'string') return;
@@ -1799,28 +1801,163 @@ test('HTML khach hang: KPI va bieu do chinh theo doanh thu / cong no TRONG KY, k
   });
 });
 
-test('debt.penalty: gop ngay da chot so + ngay dang mo, xep theo tong phat, tim kiem theo ten sale', async () => {
+test('debt.penalty: preserves shared reward ranking and searches sale before projecting columns', async () => {
   await withStubs({}, async stubs => {
     const env = fixedEnv(stubs);
     env.dashboard = {
-      debtManagement: {
-        available: true, cycleDate: '2026-10-14',
-        customers: [
-          { sale: 'An', penaltyAmount: 25000 }, { sale: 'An', penaltyAmount: 0 },
-          { sale: 'Bình', penaltyAmount: 0 }, { sale: 'Chi', penaltyAmount: 50000 }
+      debtReward: {
+        month: '2026-10', status: 'provisional',
+        rows: [
+          { rank: 1, sale: 'Bình', points: 100, ratio: 0, penaltyDays: 0, lastDayCustomers: 0, total: 0, payablePenalty: 0, reward: 100000 },
+          { rank: 2, sale: 'Chi', points: 50, ratio: 1000, penaltyDays: 1, lastDayCustomers: 1, total: 50000, payablePenalty: 25000, reward: 50000 },
+          { rank: null, sale: 'An', points: 0, ratio: null, penaltyDays: 2, lastDayCustomers: 1, total: 75000, payablePenalty: 75000, reward: 0 }
         ]
-      },
-      penaltyDays: [
-        { cycleDate: '2026-10-13', sale: 'An', penalizedCustomers: 2, amount: 50000 },
-        { cycleDate: '2026-10-14', sale: 'An', penalizedCustomers: 9, amount: 999999 },
-        { cycleDate: '2026-09-30', sale: 'Chi', penalizedCustomers: 1, amount: 75000 }
-      ]
+      }
     };
     const dataset = await exportService.__test__.buildFixedDataset('debt.penalty', env, {});
     assert.deepEqual(dataset.worksheets[0].rows.map(r => [r.rank, r.sale, r.penaltyDays, r.lastDayCustomers, r.total]), [
-      [1, 'An', 2, 1, 75000], [2, 'Chi', 1, 1, 50000], [3, 'Bình', 0, 0, 0]
+      [1, 'Bình', 0, 0, 0], [2, 'Chi', 1, 1, 50000], [null, 'An', 2, 1, 75000]
     ]);
-    const searched = await exportService.__test__.buildFixedDataset('debt.penalty', env, {}, { mode: 'normal', query: 'chi' });
-    assert.deepEqual(searched.worksheets[0].rows.map(r => r.sale), ['Chi']);
+    const searched = await exportService.__test__.buildFixedDataset('debt.penalty', env, {}, { mode: 'normal', query: 'chi' }, { debt_penalty: ['rank', 'points', 'reward'] });
+    assert.deepEqual(searched.worksheets[0].rows, [{ rank: 2, points: 50, reward: 50000 }]);
+  });
+});
+
+test('debt.penalty: field selection is query-free and offers reward amounts with null-safe ratio', async () => {
+  await withStubs({ onDashboard: () => { throw new Error('field selection queried dashboard'); } }, async () => {
+    const fields = await exportService.getExportFields({ tableKey: 'debt.penalty', context: { debtRewardMonth: '2026-09' } }, 'Hà Nội');
+    const byKey = new Map(fields.worksheets[0].fields.map(field => [field.key, field]));
+    assert.equal(byKey.get('points')?.type, 'number');
+    assert.equal(byKey.get('ratio')?.type, 'number');
+    assert.equal(byKey.get('total')?.label, 'Phạt gốc');
+    assert.equal(byKey.get('payablePenalty')?.label, 'Phạt phải nộp');
+    assert.equal(byKey.get('reward')?.label, 'Tiền thưởng');
+    assert.equal(byKey.get('rankReward')?.selected, false);
+    assert.equal(byKey.get('pointsReward')?.selected, false);
+    assert.equal(byKey.get('month')?.label, 'Tháng');
+    assert.equal(byKey.get('status')?.label, 'Trạng thái');
+  });
+});
+
+test('debt.penalty: rejects malformed history month before loading data', async () => {
+  await withStubs({ onDashboard: () => { throw new Error('invalid request queried dashboard'); } }, async () => {
+    for (const debtRewardMonth of ['2026-13', '2026-00', '26-09', '2026-9', {}, '2026-09-01']) {
+      await assert.rejects(exportService.getExportFields({ tableKey: 'debt.penalty', context: { debtRewardMonth } }), error => error.statusCode === 400 && error.code === 'EXPORT_INVALID_REQUEST');
+    }
+  });
+});
+
+test('debt.penalty: HTML displays escaped global reward metadata outside filtered row metrics', async () => {
+  const renderer = require('./exportHtmlReport');
+  const file = await renderer.renderHtmlReport({
+    meta: { title: 'Thưởng/phạt sale theo công nợ', branch: 'Hà Nội', fileBase: 'debt', debtRewardNotes: [
+      ['Tháng', '2026-09'], ['Trạng thái', 'Đã chốt'], ['Phạm vi xếp hạng', 'Hà Nội + Sài Gòn'],
+      ['Quỹ thưởng toàn hệ thống', '1.000.000đ'], ['Công ty bù', '500.000đ'],
+      ['Ngày thiếu bản chốt', '<img src=x onerror=alert(1)>']
+    ] },
+    worksheets: [{ key: 'debt_penalty', name: 'Thưởng phạt sale', columns: [{ key: 'sale', label: 'Sale', type: 'text' }], rows: [{ sale: 'Chi' }] }]
+  });
+  const document = new JSDOM(file.buffer.toString('utf8')).window.document;
+  const metadata = document.querySelector('header .meta').textContent;
+  assert.match(metadata, /2026-09/);
+  assert.match(metadata, /Đã chốt/);
+  assert.match(metadata, /Hà Nội \+ Sài Gòn/);
+  assert.match(metadata, /1\.000\.000đ/);
+  assert.match(metadata, /500\.000đ/);
+  assert.equal(document.querySelector('header img'), null);
+  assert.match(metadata, /<img src=x onerror=alert\(1\)>/);
+});
+
+// Replace only the new DB-backed service boundary; export projection/rendering remains real.
+async function withRewardService(readBoard, fn) {
+  const serviceModule = require('../debtSchedule/debtRewardService');
+  const original = serviceModule.getDebtRewardService;
+  serviceModule.getDebtRewardService = () => ({ readBoard });
+  try { return await fn(); } finally { serviceModule.getDebtRewardService = original; }
+}
+
+function historicalRewardBoard() {
+  return deepFreeze({
+    month: '2026-09', status: 'finalized', closedAt: '2026-10-01T08:00:00Z', ruleVersion: 1,
+    months: ['2026-10', '2026-09'], openCycleDate: '2026-10-14', days: [],
+    rows: [
+      { sale: 'Bình', points: 100, ratio: 0, rank: 1, total: 0, grossPenalty: 0, payablePenalty: 0, rankReward: 700000, pointsReward: 200000, reward: 900000, penaltyDays: 0, lastDayCustomers: 0, branches: ['saigon'], days: [], scoreCustomers: 1 },
+      { sale: 'Chi', points: 50, ratio: 1000, rank: 2, total: 50000, grossPenalty: 50000, payablePenalty: 25000, rankReward: 100000, pointsReward: 50000, reward: 150000, penaltyDays: 1, lastDayCustomers: 1, branches: ['hanoi'], days: [], scoreCustomers: 1 },
+      { sale: 'An', points: 0, ratio: null, rank: null, total: 75000, grossPenalty: 75000, payablePenalty: 75000, rankReward: 0, pointsReward: 0, reward: 0, penaltyDays: 2, lastDayCustomers: 1, branches: ['hanoi'], days: [], scoreCustomers: 0 }
+    ],
+    summary: { grossPenalty: 125000, payablePenalty: 100000, pool: 1050000, penaltyFund: 50000, companyTopUp: 1000000, allocatedReward: 1050000, recipientCount: 2 },
+    coverage: { from: '2026-09-01', to: '2026-09-30', missingDays: ['2026-09-03'], complete: false }
+  });
+}
+
+test('debt.penalty: selected historical month and branch use shared board without dashboard or legacy ledger', async () => {
+  await withStubs({ onDashboard: () => { throw new Error('legacy dashboard loading'); } }, async () => {
+    await withRewardService(async options => {
+      assert.deepEqual(options, { month: '2026-09', branches: ['hanoi'] });
+      const board = historicalRewardBoard();
+      return { ...board, rows: board.rows.filter(row => row.branches.includes('hanoi')) };
+    }, async () => {
+      const dataset = await exportService.getExportDataset({
+        tableKey: 'debt.penalty', context: { debtRewardMonth: '2026-09' }, tableSearch: { mode: 'normal', query: 'chi' },
+        columns: { debt_penalty: ['rank', 'points', 'ratio', 'total', 'payablePenalty', 'reward', 'month', 'status'] }
+      }, 'Hà Nội');
+      assert.deepEqual(dataset.worksheets[0].rows, [{ rank: 2, points: 50, ratio: 1000, total: 50000, payablePenalty: 25000, reward: 150000, month: '2026-09', status: 'Đã chốt' }]);
+      assert.equal(dataset.meta.debtReward.month, '2026-09');
+      assert.equal(dataset.meta.debtReward.summary.pool, 1050000);
+      assert.equal(dataset.meta.debtReward.summary.companyTopUp, 1000000);
+      assert.deepEqual(dataset.meta.debtReward.coverage.missingDays, ['2026-09-03']);
+      assert.match(dataset.meta.fileBase, /202609/);
+    });
+  });
+});
+
+test('debt.penalty: workbook records global fund and coverage despite sale/branch filtering', async () => {
+  await withStubs({ onDashboard: () => { throw new Error('legacy dashboard loading'); } }, async () => {
+    await withRewardService(async options => {
+      const board = historicalRewardBoard();
+      return { ...board, rows: board.rows.filter(row => row.branches.some(branch => options.branches.includes(branch))) };
+    }, async () => {
+      const file = await exportService.createExportWorkbook({ tableKey: 'debt.penalty', context: { debtRewardMonth: '2026-09' }, tableSearch: { mode: 'normal', query: 'an' }, columns: { debt_penalty: ['rank', 'sale', 'ratio', 'reward'] } }, 'Hà Nội');
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(file.buffer);
+      const sheet = workbook.getWorksheet('Thưởng phạt sale');
+      assert.deepEqual(sheet.getRow(1).values.slice(1), ['Hạng', 'Sale', 'Phạt/điểm', 'Tiền thưởng']);
+      assert.equal(sheet.rowCount, 2);
+      assert.equal(sheet.getRow(2).getCell(2).value, 'An');
+      assert.equal(sheet.getRow(2).getCell(1).value, null);
+      assert.equal(sheet.getRow(2).getCell(3).value, null);
+      const metadata = workbook.getWorksheet('Thông tin thưởng phạt');
+      assert.ok(metadata, 'Workbook must describe the global pool independently of filtered rows');
+      const notes = new Map(metadata.getRows(2, metadata.rowCount - 1).map(row => [row.getCell(1).value, row.getCell(2).value]));
+      assert.equal(notes.get('Tháng'), '2026-09');
+      assert.equal(notes.get('Trạng thái'), 'Đã chốt');
+      assert.equal(notes.get('Phạm vi xếp hạng'), 'Hà Nội + Sài Gòn');
+      assert.equal(notes.get('Quỹ thưởng toàn hệ thống'), '1.050.000đ');
+      assert.equal(notes.get('Công ty bù'), '1.000.000đ');
+      assert.equal(notes.get('Ngày thiếu bản chốt'), '2026-09-03');
+    });
+  });
+});
+
+test('debt.penalty: service errors propagate and release the export slot', async () => {
+  const unavailable = Object.assign(new Error('Reward snapshot unavailable'), { statusCode: 503, code: 'DEBT_REWARD_UNAVAILABLE' });
+  await withStubs({ onDashboard: () => { throw new Error('legacy dashboard loading'); } }, async () => {
+    await withRewardService(async options => {
+      assert.deepEqual(options.branches, ['hanoi', 'saigon']);
+      throw unavailable;
+    }, async () => {
+      await assert.rejects(exportService.createExportWorkbook({ tableKey: 'debt.penalty', columns: { debt_penalty: ['sale'] } }), error => error === unavailable);
+      assert.deepEqual(exportService.__test__.limiterState(), { active: 0, queued: 0 });
+    });
+  });
+});
+
+test('debt.penalty: no debt snapshot rejects with no-data error instead of producing partial results', async () => {
+  await withRewardService(async () => ({
+    month: null, openCycleDate: null, days: [], rows: [], summary: null, status: 'provisional',
+    coverage: { from: null, to: null, missingDays: [], complete: false }, months: [], ruleVersion: 1, closedAt: null
+  }), async () => {
+    await assert.rejects(exportService.createExportWorkbook({ tableKey: 'debt.penalty', columns: { debt_penalty: ['sale'] } }), error => error.statusCode === 404 && error.code === 'EXPORT_NO_DATA');
+    assert.deepEqual(exportService.__test__.limiterState(), { active: 0, queued: 0 });
   });
 });
