@@ -55,11 +55,14 @@ const INSERT_CUSTOMERS_SQL = `
   LEFT JOIN avg4 a ON a.branch = c.branch AND a.code = btrim(c.code)
   WHERE c.branch = ANY($2::text[])`;
 
-// Hoa don HOAN THANH + phieu tra "Da tra" cua khach vua chot, gom theo ngay VN, 90 ngay toi 15:00.
+// Hoa don HOAN THANH + phieu tra "Da tra" cua khach vua chot, gom theo ngay VN, 90 ngay toi
+// LUC CHOT THAT ($3 = takenAt, cung thoi diem lay customers.debt). Khong cat cung o 15:00:
+// server chot tre (vd 16:53) hoac Tinh lai bang tay thi no hien tai da gom don toi luc do,
+// cat 15:00 se bo sot don khoi "no trong lich" -> no qua han du dung bang tong cac don ay.
 const INSERT_AMOUNTS_SQL = `
   WITH bounds AS (
     SELECT (($1::date - ${MAX_SCHEDULE_DAYS - 1})::timestamp AT TIME ZONE 'UTC') AS from_at,
-           (($1::date + time '15:00') AT TIME ZONE 'UTC') AS to_at
+           (($3::timestamptz AT TIME ZONE 'Asia/Ho_Chi_Minh') AT TIME ZONE 'UTC') AS to_at
   ), docs AS (
     SELECT i.branch, i.customer_id, (i.purchase_date AT TIME ZONE 'UTC')::date AS day,
            COALESCE(i.total, 0)::numeric AS invoice_amount, 0::numeric AS return_amount
@@ -181,7 +184,9 @@ async function loadAverageRevenue(pool, { log = console.log, createBusinessRepos
 }
 
 /** Chot cho cycleDate ('YYYY-MM-DD'). Da co ban chot ngay do thi khong lam gi. */
-async function takeDebtCycleSnapshot(pool, cycleDate, { log = console.log, loadAverages = loadAverageRevenue } = {}) {
+async function takeDebtCycleSnapshot(pool, cycleDate, {
+  log = console.log, loadAverages = loadAverageRevenue, takenAt = new Date()
+} = {}) {
   const averages = await loadAverages(pool, { log });
   const client = await pool.connect();
   try {
@@ -192,7 +197,7 @@ async function takeDebtCycleSnapshot(pool, cycleDate, { log = console.log, loadA
       return { cycleDate, created: false, customers: 0 };
     }
     await client.query(INSERT_CUSTOMERS_SQL, [cycleDate, BRANCH_CODES, averages.branches, averages.codes, averages.values]);
-    await client.query(INSERT_AMOUNTS_SQL, [cycleDate, BRANCH_CODES]);
+    await client.query(INSERT_AMOUNTS_SQL, [cycleDate, BRANCH_CODES, takenAt]);
     await applyOverdueStreaks(client, cycleDate);
     await client.query(UPDATE_RUN_COUNT_SQL, [cycleDate]);
     for (const sql of CLEANUP_SQL) await client.query(sql, [cycleDate]);
@@ -201,6 +206,66 @@ async function takeDebtCycleSnapshot(pool, cycleDate, { log = console.log, loadA
     const customers = Number(rows[0] && rows[0].customer_count) || 0;
     log(`[debtCycleSnapshot] Chot cong no ${cycleDate}: ${customers} khach.`);
     return { cycleDate, created: true, customers };
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+const LOCK_LATEST_RUN_SQL = `SELECT cycle_date::text AS cycle_date, refreshed_at FROM debt_cycle_runs
+  WHERE cycle_date = (SELECT MAX(cycle_date) FROM debt_cycle_runs) FOR UPDATE`;
+
+const REFRESH_CLEAR_SQL = [
+  'DELETE FROM debt_cycle_amounts WHERE cycle_date = $1::date',
+  'DELETE FROM debt_cycle_customers WHERE cycle_date = $1::date'
+];
+
+const MARK_REFRESHED_SQL = `UPDATE debt_cycle_runs SET refreshed_at = $2, refreshed_by_name = $3
+  WHERE cycle_date = $1::date`;
+
+const REFRESH_COOLDOWN_MS = 60 * 1000;
+
+function refreshError(statusCode, message, code) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  error.code = code;
+  return error;
+}
+
+/**
+ * Tinh lai CHU KY DANG MO (ban chot moi nhat) tai thoi diem takenAt: ghi de no hien tai, tien
+ * theo ngay, no qua han. Giu cycle_date -> phan hoi/trang thai/tien phat con nguyen; so phien
+ * tinh theo chu ky truoc nen bam nhieu lan khong cong phien. Toan bo trong 1 transaction.
+ * Chua co ban chot nao thi 409; vua tinh lai < 1 phut thi 429.
+ */
+async function refreshDebtCycle(pool, {
+  log = console.log, loadAverages = loadAverageRevenue, takenAt = new Date(), userName = ''
+} = {}) {
+  const averages = await loadAverages(pool, { log });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows: runs } = await client.query(LOCK_LATEST_RUN_SQL);
+    const run = runs[0];
+    if (!run) throw refreshError(409, 'Chưa có bản chốt công nợ nào để tính lại.', 'DEBT_CYCLE_MISSING');
+    const last = run.refreshed_at ? new Date(run.refreshed_at).getTime() : 0;
+    if (last && takenAt.getTime() - last < REFRESH_COOLDOWN_MS) {
+      throw refreshError(429, 'Công nợ vừa được tính lại, vui lòng chờ 1 phút.', 'DEBT_REFRESH_TOO_SOON');
+    }
+    const cycleDate = run.cycle_date;
+    for (const sql of REFRESH_CLEAR_SQL) await client.query(sql, [cycleDate]);
+    await client.query(INSERT_CUSTOMERS_SQL, [cycleDate, BRANCH_CODES, averages.branches, averages.codes, averages.values]);
+    await client.query(INSERT_AMOUNTS_SQL, [cycleDate, BRANCH_CODES, takenAt]);
+    await applyOverdueStreaks(client, cycleDate);
+    await client.query(UPDATE_RUN_COUNT_SQL, [cycleDate]);
+    await client.query(MARK_REFRESHED_SQL, [cycleDate, takenAt, String(userName || '')]);
+    const { rows } = await client.query('SELECT customer_count FROM debt_cycle_runs WHERE cycle_date = $1::date', [cycleDate]);
+    await client.query('COMMIT');
+    const customers = Number(rows[0] && rows[0].customer_count) || 0;
+    log(`[debtCycleSnapshot] Tinh lai cong no ${cycleDate} (${userName || '?'}): ${customers} khach.`);
+    return { cycleDate, refreshedAt: takenAt.toISOString(), customers };
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
     throw error;
@@ -259,6 +324,7 @@ if (require.main === module) {
 
 module.exports = {
   takeDebtCycleSnapshot,
+  refreshDebtCycle,
   applyOverdueStreaks,
   takeDebtCycleSnapshotIfDue,
   startDebtCycleSnapshotSchedule,

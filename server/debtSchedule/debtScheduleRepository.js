@@ -21,7 +21,7 @@ const FEEDBACK_FIELDS = Object.freeze({
   manager: { column: 'manager_feedback', by: 'manager_feedback_by', at: 'manager_feedback_at' }
 });
 
-const LATEST_RUN_SQL = `SELECT cycle_date::text AS cycle_date, taken_at, customer_count
+const LATEST_RUN_SQL = `SELECT cycle_date::text AS cycle_date, taken_at, customer_count, refreshed_at, refreshed_by_name
   FROM debt_cycle_runs ORDER BY cycle_date DESC LIMIT 1`;
 
 const CUSTOMERS_SQL = `
@@ -117,7 +117,8 @@ function createDebtScheduleRepository({ pool = getPool() } = {}) {
   async function readCurrentCycle(db = pool) {
     const { rows } = await db.query(LATEST_RUN_SQL);
     if (!rows.length) return null;
-    return { cycleDate: rows[0].cycle_date, takenAt: rows[0].taken_at, customerCount: Number(rows[0].customer_count) || 0 };
+    return { cycleDate: rows[0].cycle_date, takenAt: rows[0].taken_at, customerCount: Number(rows[0].customer_count) || 0,
+      refreshedAt: rows[0].refreshed_at || null, refreshedBy: rows[0].refreshed_by_name || '' };
   }
 
   /**

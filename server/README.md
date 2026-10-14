@@ -212,6 +212,7 @@ Hai file Kiot HN/SG **không còn** được server truy cập.
 
 | `0044` | `purchases.raw_hash` — băm raw phiếu nhập để đối soát không phải tải lại cột `raw` (NULL = chưa có hash, lượt quét đầu ghi lại một lượt) |
 | `0049` | Thêm tài liệu dựng sẵn thứ 4 `treo-hang` ("Quy định treo hàng") vào `hr_rule_documents` (nội dung nằm trong HTML trang Quản lý nhân sự) |
+| `0050` | `debt_cycle_runs.refreshed_at` / `refreshed_by_name`: nút "Tính lại công nợ" (`POST /api/debt-management/refresh`, quyền `reports.debt.refresh`) ghi đè chu kỳ đang mở tại thời điểm bấm |
 
 
 Bot **xin nghỉ của nhân viên** chạy ngoài repo và đọc/ghi 3 bảng nền nghỉ phép trực tiếp; bot **quản lý** trong `telegram/` dùng chung đơn và sở hữu các bảng bổ sung ở migration `0029`. Hợp đồng dữ liệu ở `db/SCHEMA.md`.

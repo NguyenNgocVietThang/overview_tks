@@ -218,7 +218,10 @@ function createPollingScheduler({
       })
     ];
   }
-  return { startPollingScheduler, runGroup };
+  // Nut Tinh lai cong no: dong bo khach (no hien tai) ngay truoc khi tinh.
+  const syncCustomers = () => runGroup([customersEntity]);
+
+  return { startPollingScheduler, runGroup, syncCustomers };
 }
 
 const scheduler = createPollingScheduler();

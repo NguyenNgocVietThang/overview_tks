@@ -106,6 +106,7 @@
 13. **Quy định công ty — Tài liệu Chi tiêu & Phúc lợi (Migration `0039`):**
     - Bổ sung tài liệu dựng sẵn thứ 3 (`phuc-loi`) vào `hr_rule_documents`.
     - 13/10/2026: thêm tài liệu dựng sẵn thứ 4 `treo-hang` "Quy định treo hàng" (Migration `0049`; chưa áp DB/deploy).
+    - 14/10/2026 — Công nợ: sửa nợ quá hạn dư đúng bằng các đơn lập từ 15:00 tới lúc chốt khi job chốt trễ (13/10 chốt 16:53 → dư HD027936 28.980.000đ); tiền theo ngày giờ cắt tại lúc chốt thật. Thêm nút "Tính lại công nợ" (Quản lý, `reports.debt.refresh`, Migration `0050` đã áp DB 14/10; chưa commit/deploy).
 
 14. **Báo cáo kinh doanh (Migration `0036`, `0037`):**
     - Chốt cứng doanh số tháng vào `business_monthly_*` với job `businessMonthlyRefresh.js`.

@@ -95,6 +95,38 @@ router.patch('/api/debt-management/penalty', requireAuth, requireFeature('report
   }
 });
 
+// Tinh lai cong no tai thoi diem bam (2026-10-14): dong bo khach KiotViet roi ghi de chu ky dang
+// mo (debtCycleSnapshot.refreshDebtCycle). 1 lan chay tai 1 thoi diem; loi dong bo khach thi
+// van tinh voi no hien tai dang co trong DB.
+let refreshRunning = false;
+
+router.post('/api/debt-management/refresh', requireAuth, requireFeature('reports.debt.refresh'), async (req, res) => {
+  if (refreshRunning) {
+    return res.status(409).json({ error: 'Đang tính lại công nợ, vui lòng chờ.', code: 'DEBT_REFRESH_RUNNING' });
+  }
+  refreshRunning = true;
+  try {
+    const { syncCustomers } = require('../kiotvietSync/scheduler');
+    const { refreshDebtCycle } = require('../debtSchedule/debtCycleSnapshot');
+    let syncWarning = '';
+    try {
+      await syncCustomers();
+    } catch (error) {
+      syncWarning = 'Không đồng bộ được khách từ KiotViet, đã tính với nợ hiện tại đang có.';
+      console.error('[DebtManagement] Dong bo khach truoc khi tinh lai loi:', error && error.message);
+    }
+    const result = await refreshDebtCycle(require('../db/pool').getPool(), {
+      userName: (req.user && (req.user.hoTen || req.user.username)) || ''
+    });
+    repository().bumpVersion();
+    return res.status(200).json({ ...result, warning: syncWarning });
+  } catch (error) {
+    return sendError(res, error, 'Không thể tính lại công nợ lúc này.', 'DEBT_REFRESH_UNAVAILABLE');
+  } finally {
+    refreshRunning = false;
+  }
+});
+
 // Lich su sua Sale phan hoi / QL phan hoi cua chu ky hien tai (reset cung ban chot 15:00).
 router.get('/api/debt-management/feedback-history', requireAuth, requireFeature('reports.debt'),
   branchMiddleware.resolveBranch, async (req, res) => {

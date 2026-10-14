@@ -7,11 +7,11 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { PGlite } = require('@electric-sql/pglite');
-const { takeDebtCycleSnapshot, takeDebtCycleSnapshotIfDue, __test__ } = require('./debtCycleSnapshot');
+const { takeDebtCycleSnapshot, refreshDebtCycle, takeDebtCycleSnapshotIfDue, __test__ } = require('./debtCycleSnapshot');
 const { createDebtScheduleRepository } = require('./debtScheduleRepository');
 const { buildCustomerRow } = require('./debtScheduleRules');
 
-const MIGRATION = ['0047_debt_schedule_report.sql', '0048_debt_penalty.sql']
+const MIGRATION = ['0047_debt_schedule_report.sql', '0048_debt_penalty.sql', '0050_debt_cycle_manual_refresh.sql']
   .map(file => fs.readFileSync(path.join(__dirname, '..', 'db', 'migrations', file), 'utf8')).join(' ');
 
 // Bang toi thieu cua KiotViet ma job/repository doc.
@@ -36,6 +36,9 @@ async function setup() {
 }
 
 const noAverages = async () => ({ branches: [], codes: [], values: [] });
+
+// Chot dung 15:00 VN ngay date.
+const at15 = date => new Date(`${date}T08:00:00Z`);
 
 async function seedKiot(db) {
   await db.exec(`
@@ -72,7 +75,7 @@ test('chot 15:00: toan bo khach 2 co so (ca no 0), so tien theo ngay cat dung 15
   const { db, pool } = await setup();
   try {
     await seedKiot(db);
-    const result = await takeDebtCycleSnapshot(pool, '2026-08-08', { log: () => {}, loadAverages: async () => ({ branches: ['hanoi'], codes: ['KH1'], values: [4000] }) });
+    const result = await takeDebtCycleSnapshot(pool, '2026-08-08', { takenAt: at15('2026-08-08'), log: () => {}, loadAverages: async () => ({ branches: ['hanoi'], codes: ['KH1'], values: [4000] }) });
     assert.deepEqual(result, { cycleDate: '2026-08-08', created: true, customers: 3 });
     const { rows: customers } = await db.query(`SELECT branch, customer_id::int AS id, current_debt::int AS debt, opening_debt, avg_revenue_4m::int AS avg FROM debt_cycle_customers ORDER BY branch, customer_id`);
     assert.deepEqual(customers, [
@@ -86,13 +89,50 @@ test('chot 15:00: toan bo khach 2 co so (ca no 0), so tien theo ngay cat dung 15
       { branch: 'hanoi', day: '2026-08-07', inv: 300, ret: 50 },
       { branch: 'hanoi', day: '2026-08-08', inv: 200, ret: 0 }
     ]);
-    const again = await takeDebtCycleSnapshot(pool, '2026-08-08', { log: () => {}, loadAverages: noAverages });
+    const again = await takeDebtCycleSnapshot(pool, '2026-08-08', { takenAt: at15('2026-08-08'), log: () => {}, loadAverages: noAverages });
     assert.equal(again.created, false, 'moi ngay chot 1 lan');
 
     await db.query(`UPDATE customers SET debt = 500 WHERE branch = 'hanoi' AND id = 1`);
-    await takeDebtCycleSnapshot(pool, '2026-08-09', { log: () => {}, loadAverages: noAverages });
+    await takeDebtCycleSnapshot(pool, '2026-08-09', { takenAt: at15('2026-08-09'), log: () => {}, loadAverages: noAverages });
     const { rows } = await db.query(`SELECT current_debt::int AS debt, opening_debt::int AS opening FROM debt_cycle_customers WHERE cycle_date = '2026-08-09' AND branch = 'hanoi' AND customer_id = 1`);
     assert.deepEqual(rows, [{ debt: 500, opening: 800 }], 'no dau ky = no hien tai cua ban chot truoc');
+  } finally { await db.close(); }
+});
+
+test('chot TRE (16:53): don sau 15:00 truoc luc chot da nam trong no hien tai nen cung tinh vao no trong lich', async () => {
+  const { db, pool } = await setup();
+  try {
+    await seedKiot(db);
+    await takeDebtCycleSnapshot(pool, '2026-08-08', { takenAt: new Date('2026-08-08T09:53:00Z'), log: () => {}, loadAverages: noAverages });
+    const { rows } = await db.query(`SELECT invoice_amount::int AS inv, overdue_debt::int AS overdue
+      FROM debt_cycle_amounts a JOIN debt_cycle_customers c USING (cycle_date, branch, customer_id)
+      WHERE a.branch = 'hanoi' AND a.customer_id = 1 AND a.day = '2026-08-08'`);
+    assert.deepEqual(rows, [{ inv: 1199, overdue: 0 }], 'no 800 - trong lich 1199 -> qua han 0, khong du 999');
+  } finally { await db.close(); }
+});
+
+test('tinh lai bang tay: ghi de chu ky dang mo tai luc bam, giu phan hoi, khong cong phien, chan bam lien', async () => {
+  const { db, pool } = await setup();
+  try {
+    await assert.rejects(refreshDebtCycle(pool, { log: () => {}, loadAverages: noAverages }), err => err.statusCode === 409);
+    await seedKiot(db);
+    await db.query("UPDATE customers SET debt = 2000000 WHERE branch = 'hanoi' AND id = 1");
+    await takeDebtCycleSnapshot(pool, '2026-08-08', { takenAt: at15('2026-08-08'), log: () => {}, loadAverages: noAverages });
+    await db.query("INSERT INTO debt_cycle_feedback (cycle_date, branch, customer_id, sale_feedback) VALUES ('2026-08-08', 'hanoi', 1, 'hen thu 9/8')");
+    const before = (await db.query("SELECT overdue_debt::int AS o, overdue_streak AS s FROM debt_cycle_customers WHERE branch = 'hanoi' AND customer_id = 1")).rows[0];
+    // Sang 9/8 09:00 (truoc chot 15:00): khach tra bot no, co them don 9/8.
+    await db.query("UPDATE customers SET debt = 1500000 WHERE branch = 'hanoi' AND id = 1");
+    await db.query(`INSERT INTO invoices VALUES ('hanoi', 30, 1, '2026-08-09 08:00+00', 1000, '{"statusValue":"Hoàn thành"}')`);
+    const result = await refreshDebtCycle(pool, { takenAt: new Date('2026-08-09T02:00:00Z'), userName: 'QL A', log: () => {}, loadAverages: noAverages });
+    assert.equal(result.cycleDate, '2026-08-08', 'van la chu ky dang mo');
+    const after = (await db.query("SELECT current_debt::int AS d, overdue_debt::int AS o, overdue_streak AS s FROM debt_cycle_customers WHERE branch = 'hanoi' AND customer_id = 1")).rows[0];
+    // lich 1 ngay: trong lich = don 8/8 (200 + 999) + don 9/8 (1000).
+    assert.deepEqual(after, { d: 1500000, o: 1500000 - 2199, s: before.s }, 'no moi, khong cong phien');
+    const fb = (await db.query("SELECT sale_feedback FROM debt_cycle_feedback WHERE cycle_date = '2026-08-08'")).rows;
+    assert.deepEqual(fb, [{ sale_feedback: 'hen thu 9/8' }], 'phan hoi giu nguyen');
+    const run = (await db.query("SELECT refreshed_by_name, customer_count FROM debt_cycle_runs")).rows[0];
+    assert.deepEqual(run, { refreshed_by_name: 'QL A', customer_count: 3 });
+    await assert.rejects(refreshDebtCycle(pool, { takenAt: new Date('2026-08-09T02:00:30Z'), log: () => {}, loadAverages: noAverages }), err => err.statusCode === 429);
   } finally { await db.close(); }
 });
 
@@ -103,7 +143,7 @@ test('so phien lien tiep: +1 moi chot khi qua han >= 400k, Da xu ly giu nguyen, 
       ('hanoi', 1, 'KH1', 'A', 900000, '{}'), ('hanoi', 2, 'KH2', 'B', 300000, '{}')`);
     await db.query(`INSERT INTO invoices (branch, id, customer_id, purchase_date, total, raw) VALUES
       ('hanoi', 1, 1, '2026-08-08 02:00+00', 200000, '{"statusValue":"Hoàn thành"}')`);
-    const take = date => takeDebtCycleSnapshot(pool, date, { log: () => {}, loadAverages: noAverages });
+    const take = date => takeDebtCycleSnapshot(pool, date, { takenAt: at15(date), log: () => {}, loadAverages: noAverages });
     const streak = async date => (await db.query(`SELECT customer_id::int AS id, overdue_debt::int AS overdue, overdue_streak AS streak FROM debt_cycle_customers WHERE cycle_date = $1 ORDER BY customer_id`, [date])).rows;
     await take('2026-08-08');
     assert.deepEqual(await streak('2026-08-08'), [{ id: 1, overdue: 700000, streak: 1 }, { id: 2, overdue: 300000, streak: 0 }], 'chot dau: phien 1; no le = 0');
@@ -146,7 +186,7 @@ test('repository: lich TT doc truc tiep (sua la doi no qua han ngay), phan hoi +
   const { db, pool } = await setup();
   try {
     await seedKiot(db);
-    await takeDebtCycleSnapshot(pool, '2026-08-08', { log: () => {}, loadAverages: noAverages });
+    await takeDebtCycleSnapshot(pool, '2026-08-08', { takenAt: at15('2026-08-08'), log: () => {}, loadAverages: noAverages });
     const repo = createDebtScheduleRepository({ pool });
     const overdueOf = async () => {
       const { cycle, rows, amountsByCustomer } = await repo.readReport(['hanoi']);
@@ -185,7 +225,7 @@ test('repository: lich TT doc truc tiep (sua la doi no qua han ngay), phan hoi +
       error => error.statusCode === 404, 'khach khong co trong ban chot'
     );
 
-    await takeDebtCycleSnapshot(pool, '2026-08-09', { log: () => {}, loadAverages: noAverages });
+    await takeDebtCycleSnapshot(pool, '2026-08-09', { takenAt: at15('2026-08-09'), log: () => {}, loadAverages: noAverages });
     repo.bumpVersion();
     report = await repo.readReport(['hanoi']);
     assert.equal(report.cycle.cycleDate, '2026-08-09');
@@ -204,7 +244,7 @@ test('tien phat: ghi de, xoa ve goi y, lich su, chi chu ky hien tai', async () =
   const { db, pool } = await setup();
   try {
     await seedKiot(db);
-    await takeDebtCycleSnapshot(pool, '2026-08-08', { log: () => {}, loadAverages: noAverages });
+    await takeDebtCycleSnapshot(pool, '2026-08-08', { takenAt: at15('2026-08-08'), log: () => {}, loadAverages: noAverages });
     const repo = createDebtScheduleRepository({ pool });
     const manager = { id: 'u1', hoTen: 'Quản lý A' };
     const customerPenalty = async () => (await repo.readReport(['hanoi'])).rows[0].penaltyOverride;

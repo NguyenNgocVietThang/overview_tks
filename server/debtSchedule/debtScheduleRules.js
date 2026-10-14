@@ -44,12 +44,16 @@ function scheduleWindowStart(cycleDate, scheduleDays) {
   return addDaysToKey(cycleDate, -(effectiveScheduleDays(scheduleDays) - 1));
 }
 
-/** No trong lich = tong hoa don Hoan thanh trong lich. Tra hang KHONG tinh: da nam san trong no hien tai. */
+/**
+ * No trong lich = tong hoa don Hoan thanh trong lich. Tra hang KHONG tinh: da nam san trong no hien tai.
+ * Ngay SAU cycleDate chi co khi Tinh lai bang tay sang ngay hom sau (truoc 15:00): no hien tai
+ * da gom cac don do va chung moi hon moi lich -> tinh la trong lich.
+ */
 function inScheduleDebt(dailyAmounts, cycleDate, scheduleDays) {
   const start = scheduleWindowStart(cycleDate, scheduleDays);
   let total = 0;
   for (const item of dailyAmounts || []) {
-    if (item.day >= start && item.day <= cycleDate) {
+    if (item.day >= start) {
       total += Number(item.invoiceAmount) || 0;
     }
   }
@@ -200,12 +204,15 @@ function buildDebtReport({ cycle, customers, access = {}, dataWarnings = [] }) {
     sourceSheet: cycle ? `Chốt lúc 15:00 ${cycle.cycleDate.slice(8, 10)}/${cycle.cycleDate.slice(5, 7)}` : '',
     cycleDate: cycle ? cycle.cycleDate : null,
     takenAt: cycle ? cycle.takenAt : null,
+    refreshedAt: cycle && cycle.refreshedAt ? cycle.refreshedAt : null,
+    refreshedBy: cycle && cycle.refreshedBy ? cycle.refreshedBy : '',
     access: {
       status: Boolean(access.status),
       saleFeedback: Boolean(access.saleFeedback),
       managerFeedback: Boolean(access.managerFeedback),
       schedule: Boolean(access.schedule),
-      penalty: Boolean(access.penalty)
+      penalty: Boolean(access.penalty),
+      refresh: Boolean(access.refresh)
     },
     dataWarnings: warnings,
     kpi: {

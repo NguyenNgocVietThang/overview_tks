@@ -2735,6 +2735,11 @@
       border-color: var(--blue);
     }
 
+    .debt-history-button[disabled] {
+      opacity: .6;
+      cursor: progress;
+    }
+
     .debt-feedback-input {
       width: 100%;
       min-height: 34px;
@@ -4106,6 +4111,7 @@
                 <div class="panel-head">
                   <h2>Khách hàng <span class="tag" id="tagDebtManagement">—</span></h2>
                   <div class="debt-head-actions">
+                  <button class="debt-history-button" type="button" id="debtRefreshButton" hidden onclick="refreshDebtNow(this)" title="Đồng bộ khách KiotViet và tính lại nợ hiện tại / nợ quá hạn tại thời điểm bấm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.5 15a9 9 0 1 1-2.1-9.4L23 10"></path></svg><span>Tính lại công nợ</span></button>
                   <button class="debt-history-button" type="button" onclick="openDebtHistory(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path><polyline points="3 3 3 8 8 8"></polyline><polyline points="12 7 12 12 15 14"></polyline></svg>Lịch sử chỉnh sửa</button>
                   <button class="export-button" type="button" onclick="openExportDialog('debt.management')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>
                   </div>
@@ -8765,7 +8771,9 @@
       const messages = (debt && debt.dataWarnings) || [];
       warnings.hidden = messages.length === 0;
       warnings.innerHTML = messages.map(function (message) { return '<div class="debt-warning-item">' + escapeHtml(message) + '</div>'; }).join('');
-      document.getElementById('debtSourceLabel').textContent = debt && debt.sourceSheet ? 'Số liệu ' + debt.sourceSheet.toLowerCase() : 'chưa có bản chốt 15:00';
+      document.getElementById('debtSourceLabel').textContent = (debt && debt.sourceSheet ? 'Số liệu ' + debt.sourceSheet.toLowerCase() : 'chưa có bản chốt 15:00') +
+        (debt && debt.refreshedAt ? ' · tính lại lúc ' + formatDebtRefreshTime(debt.refreshedAt) + (debt.refreshedBy ? ' bởi ' + debt.refreshedBy : '') : '');
+      document.getElementById('debtRefreshButton').hidden = !(debt && debt.available && debt.access && debt.access.refresh);
 
       const kpi = (debt && debt.kpi) || {};
       document.getElementById('dm-current').textContent = debt && debt.available ? fmtMoney(kpi.totalCurrentDebt) : '—';
@@ -8837,6 +8845,33 @@
         customerId: el.dataset.customerId,
         cycleDate: debt && debt.cycleDate
       }, extra || {});
+    }
+
+    function formatDebtRefreshTime(value) {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return '';
+      return date.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
+    }
+
+    // Tinh lai cong no tai thoi diem bam (Quan ly): dong bo khach KiotViet + ghi de chu ky dang mo.
+    async function refreshDebtNow(button) {
+      if (button.disabled) return;
+      if (!window.confirm('Tính lại nợ hiện tại và nợ quá hạn tại thời điểm này? Phản hồi, trạng thái và tiền phạt được giữ nguyên.')) return;
+      const label = button.querySelector('span');
+      button.disabled = true;
+      label.textContent = 'Đang tính lại…';
+      try {
+        const response = await fetch('/api/debt-management/refresh', { method: 'POST', credentials: 'same-origin' });
+        const payload = await response.json().catch(function () { return {}; });
+        if (!response.ok) throw new Error(payload.error || 'Không thể tính lại công nợ lúc này.');
+        showToast(payload.warning || ('Đã tính lại công nợ (' + fmtNumber(Number(payload.customers) || 0) + ' khách).'), payload.warning ? 'error' : 'success');
+        loadData(undefined, true, 'debt');
+      } catch (error) {
+        showToast(error.message, 'error');
+      } finally {
+        button.disabled = false;
+        label.textContent = 'Tính lại công nợ';
+      }
     }
 
     async function readDebtWriteResponse(response, fallbackMessage) {
