@@ -26,8 +26,18 @@ function mapRow(row) {
 }
 
 async function getProductReport({ pool = getPool() } = {}) {
+  // Loc trang thai hien tai khi doc de snapshot ban dem, KPI va file xuat
+  // cung chi gom ma con kinh doanh o it nhat mot co so. NULL giu quy uoc
+  // mac dinh dang kinh doanh nhu bao cao dut hang; khong loc theo ton/doanh so.
   const { rows } = await pool.query(
-    'SELECT * FROM product_report ORDER BY product_code'
+    `SELECT * FROM product_report
+     WHERE EXISTS (
+       SELECT 1 FROM products p
+       WHERE p.code = product_report.product_code
+         AND p.branch IN ('hanoi', 'saigon')
+         AND p.is_active IS NOT FALSE
+     )
+     ORDER BY product_code`
   );
   const items = rows.map(mapRow);
   const computedAt = items.length ? items.reduce((latest, item) => (

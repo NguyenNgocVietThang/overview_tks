@@ -1,6 +1,6 @@
 # CURRENT: BẢNG TRẠNG THÁI THỜI GIAN THỰC (REALTIME DASHBOARD)
 
-> **Cập nhật gần nhất:** 13/10/2026 (Asia/Ho_Chi_Minh), phiên "Công nợ theo lịch thanh toán" (đã commit, đã migrate 0047 + import lịch TT; CHƯA push/deploy)  
+> **Cập nhật gần nhất:** 14/10/2026 (Asia/Ho_Chi_Minh), phiên "Báo cáo hàng hóa chỉ mã đang kinh doanh" (chưa commit/push/deploy)
 > **Trạng thái Git:** `main` = `89d8828`, đã push cả `tks_web/main` (Render theo dõi) và `origin/main`. Chỉ còn nhánh `main`; mọi nhánh khác đã gộp hoặc bị xóa theo yêu cầu. Chưa xác nhận deploy Render.
 > **Quy tắc:** Cập nhật liên tục vào đầu và cuối mỗi phiên làm việc để không bị đứt đoạn ngữ cảnh dự án.
 
@@ -19,6 +19,8 @@
 ---
 
 ## 2. Các đầu việc vừa hoàn thành (Recently Completed — Tháng 10/2026)
+
+0. **Báo cáo hàng hóa — chỉ mã đang kinh doanh (14/10/2026, chưa commit/push/deploy):** `productReportRepository.getProductReport` lọc snapshot theo `products.is_active IS NOT FALSE` tại ít nhất một cơ sở HN/SG. Bảng, KPI và xuất XLSX/HTML dùng cùng nguồn; mã ngừng cả hai cơ sở hoặc không còn trong danh mục bị loại, mã đang kinh doanh hết tồn/chưa bán vẫn giữ. Trạng thái được kiểm tra khi đọc, không cần chốt lại báo cáo. Kiểm thử SQL thực bằng PGlite: 9/9 đạt (bao gồm thay đổi trạng thái sau bản chốt). Toàn bộ test ngoài sandbox: 2.309 đạt, 3 skipped, 0 lỗi (2.312 tổng); sandbox chặn ghi file tạm/kết nối HTTP nội bộ nên lần chạy sandbox có lỗi môi trường. Graphify đã cập nhật.
 
 0. **Vòng đời đơn hàng — bỏ đơn trước 10/10/2026 (13/10, chưa commit/deploy):** `kiotOrdersRepository.ALL_ORDERS_SQL` chỉ lấy đơn có ngày đặt ≥ 10/10/2026 (giờ VN) hoặc không có ngày; **đơn Phiếu tạm giữ mọi ngày**. Vì danh sách chỉ gồm đơn có trên Kiot nên dòng Sheet của đơn cũ cũng biến mất (mất cả KPI/cảnh báo/xuất Excel của chúng). Hằng số `LIFECYCLE_ORDER_FROM`; sửa ngày ở đó. Test shipment + frontend: 247 đạt.
 0. **Tiền phạt công nợ (13/10/2026, migration 0048 đã áp DB dùng chung, đã backfill phiên cho bản chốt hôm nay: 369 khách, 202 nợ chậm):** cột Số phiên liên tiếp (ẩn) + Tiền phạt phiên này, quyền `reports.debt.penalty`, bỏ trạng thái Đang xử lý. Test 2305 xanh.

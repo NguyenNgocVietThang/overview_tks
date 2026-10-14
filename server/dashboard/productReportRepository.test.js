@@ -4,6 +4,38 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { getProductReport, getProductReportCustomers, __test__ } = require('./productReportRepository');
 
+test('getProductReport chi giu ma dang kinh doanh o it nhat mot co so, ke ca het ton/chua ban', async () => {
+  const { PGlite } = require('@electric-sql/pglite');
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const db = new PGlite();
+  try {
+    await db.exec(fs.readFileSync(path.join(__dirname, '../db/migrations/0018_product_report.sql'), 'utf8'));
+    await db.exec(`
+      CREATE TABLE products (branch text, code text, is_active boolean);
+      INSERT INTO products VALUES
+        ('hanoi', 'ACTIVE', true), ('saigon', 'ACTIVE', true),
+        ('hanoi', 'SG_ONLY', false), ('saigon', 'SG_ONLY', true),
+        ('hanoi', 'STOPPED', false), ('saigon', 'STOPPED', false),
+        ('hanoi', 'UNKNOWN', null);
+      INSERT INTO product_report (product_code, product_name) VALUES
+        ('ACTIVE', 'Active'), ('SG_ONLY', 'Active SG'),
+        ('STOPPED', 'Stopped'), ('UNKNOWN', 'Unknown'), ('MISSING', 'Missing');
+    `);
+    const result = await getProductReport({ pool: db });
+    assert.deepEqual(result.rows.map(row => row.code), ['ACTIVE', 'SG_ONLY', 'UNKNOWN']);
+    assert.equal(result.rows[0].availableToSell, 0);
+    assert.equal(result.rows[0].revenue90d, 0);
+
+    // Trang thai moi phai co hieu luc ca khi snapshot ban dem chua duoc tinh lai.
+    await db.exec("UPDATE products SET is_active = false WHERE code = 'ACTIVE'");
+    const updated = await getProductReport({ pool: db });
+    assert.deepEqual(updated.rows.map(row => row.code), ['SG_ONLY', 'UNKNOWN']);
+  } finally {
+    await db.close();
+  }
+});
+
 test('mapRow chuyen doi cot Postgres (snake_case, string so) sang camelCase (number)', () => {
   const row = __test__.mapRow({
     product_code: 'SP001',

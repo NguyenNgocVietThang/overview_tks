@@ -106,6 +106,7 @@
     ctrl.columns.forEach(function (column) { column.width = Math.max(column.width, column.minWidth); });
   }
   function fitOnce(ctrl) {
+    if (ctrl.table.dataset.tableFit === 'off') return;
     if (ctrl.session.fitted || !hasLayout(ctrl.table)) return;
     var wrapper = ctrl.table.parentElement;
     var width = wrapper.clientWidth;
