@@ -292,3 +292,28 @@ test('tien phat: ghi de, xoa ve goi y, lich su, chi chu ky hien tai', async () =
     assert.deepEqual(history.entries.map(e => [e.field, e.oldValue, e.newValue]), [['penalty', '40000', ''], ['penalty', '', '40000']]);
   } finally { await db.close(); }
 });
+
+test('tinh lai sau 15:00 khi chua co ban chot hom nay: TAO ban chot hom nay', async () => {
+  const { db, pool } = await setup();
+  try {
+    await seedKiot(db);
+    await takeDebtCycleSnapshot(pool, '2026-08-08', { takenAt: at15('2026-08-08'), log: () => {}, loadAverages: noAverages });
+    // 9/8 15:40 VN (08:40Z): chua co ban chot 9/8.
+    const result = await refreshDebtCycle(pool, { takenAt: new Date('2026-08-09T08:40:00Z'), userName: 'QL A', log: () => {}, loadAverages: noAverages });
+    assert.equal(result.cycleDate, '2026-08-09');
+    assert.equal(result.created, true);
+    const runs = (await db.query('SELECT cycle_date::text AS d FROM debt_cycle_runs ORDER BY 1')).rows.map(r => r.d);
+    assert.deepEqual(runs, ['2026-08-08', '2026-08-09']);
+  } finally { await db.close(); }
+});
+
+test('tinh lai khi ban chot cuoi da cu 3 ngay: tao ban chot dung ngay muc tieu (truoc 15:00 = hom qua)', async () => {
+  const { db, pool } = await setup();
+  try {
+    await seedKiot(db);
+    await takeDebtCycleSnapshot(pool, '2026-08-08', { takenAt: at15('2026-08-08'), log: () => {}, loadAverages: noAverages });
+    const result = await refreshDebtCycle(pool, { takenAt: new Date('2026-08-11T02:00:00Z'), log: () => {}, loadAverages: noAverages });
+    assert.equal(result.cycleDate, '2026-08-10');
+    assert.equal(result.created, true);
+  } finally { await db.close(); }
+});

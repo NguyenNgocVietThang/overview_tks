@@ -23,7 +23,7 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 const { getPool } = require('../db/pool');
-const { vnDateKey, vnMinutesOfDay } = require('../kiotvietSync/vnTime');
+const { vnDateKey, vnMinutesOfDay, addDaysToKey } = require('../kiotvietSync/vnTime');
 const {
   SNAPSHOT_MINUTE_OF_DAY, MAX_SCHEDULE_DAYS, customerKeyOf, effectiveScheduleDays, inScheduleDebt, overdueDebt,
   nextOverdueStreak
@@ -235,7 +235,8 @@ function refreshError(statusCode, message, code) {
 }
 
 /**
- * Tinh lai CHU KY DANG MO (ban chot moi nhat) tai thoi diem takenAt: ghi de no hien tai, tien
+ * Tinh lai TU DAU ban chot dang mo tai thoi diem takenAt (hom nay tu 15:00, hom qua truoc 15:00;
+ * chua co thi tao moi, bat ke ban chot truoc la ngay nao): ghi de no hien tai, tien
  * theo ngay, no qua han. Giu cycle_date -> phan hoi/trang thai/tien phat con nguyen; so phien
  * tinh theo chu ky truoc nen bam nhieu lan khong cong phien. Toan bo trong 1 transaction.
  * Chua co ban chot nao thi 409; vua tinh lai < 1 phut thi 429.
@@ -254,8 +255,14 @@ async function refreshDebtCycle(pool, {
     if (last && takenAt.getTime() - last < REFRESH_COOLDOWN_MS) {
       throw refreshError(429, 'Công nợ vừa được tính lại, vui lòng chờ 1 phút.', 'DEBT_REFRESH_TOO_SOON');
     }
-    const cycleDate = run.cycle_date;
-    for (const sql of REFRESH_CLEAR_SQL) await client.query(sql, [cycleDate]);
+    // Tinh lai = tinh TU DAU theo quy tac tai luc bam, khong phu thuoc ban chot truoc la ngay nao:
+    // chu ky muc tieu = hom nay (tu 15:00) hoac hom qua (truoc 15:00). Chua co thi tao, co roi thi ghi de.
+    const today = vnDateKey(takenAt);
+    const target = vnMinutesOfDay(takenAt) >= SNAPSHOT_MINUTE_OF_DAY ? today : addDaysToKey(today, -1);
+    const cycleDate = target > run.cycle_date ? target : run.cycle_date;
+    const startsNew = cycleDate !== run.cycle_date;
+    if (startsNew) await client.query(INSERT_RUN_SQL, [cycleDate]);
+    else for (const sql of REFRESH_CLEAR_SQL) await client.query(sql, [cycleDate]);
     await client.query(INSERT_CUSTOMERS_SQL, [cycleDate, BRANCH_CODES, averages.branches, averages.codes, averages.values]);
     await client.query(INSERT_AMOUNTS_SQL, [cycleDate, BRANCH_CODES, takenAt]);
     await applyOverdueStreaks(client, cycleDate, vnDateKey(takenAt));
@@ -265,7 +272,7 @@ async function refreshDebtCycle(pool, {
     await client.query('COMMIT');
     const customers = Number(rows[0] && rows[0].customer_count) || 0;
     log(`[debtCycleSnapshot] Tinh lai cong no ${cycleDate} (${userName || '?'}): ${customers} khach.`);
-    return { cycleDate, refreshedAt: takenAt.toISOString(), customers };
+    return { cycleDate, refreshedAt: takenAt.toISOString(), customers, created: startsNew };
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
     throw error;
