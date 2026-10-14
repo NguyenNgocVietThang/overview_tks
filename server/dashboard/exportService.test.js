@@ -254,8 +254,8 @@ test('Quản lý công nợ xuất đúng một worksheet, lọc và sort trên 
     assert.equal(dataset.worksheets.length, 1);
     assert.equal(dataset.worksheets[0].name, 'Công nợ HN');
     assert.deepEqual(dataset.worksheets[0].rows.map(row => row.customerName), ['Khách B', 'Khách A']);
-    assert.equal(dataset.worksheets[0].columns.length, 17, '14 cot man hinh (gom Cơ sở, 2 cot phan hoi, Tien phat) + So phien + 2 cot cap nhat tuy chon');
-    assert.equal(dataset.worksheets[0].columns.filter(column => column.selected !== false).length, 14);
+    assert.equal(dataset.worksheets[0].columns.length, 18, '16 cot man hinh (gom Cơ sở, So phien, 2 cot Tien phat, 2 cot phan hoi) + 2 cot cap nhat tuy chon');
+    assert.equal(dataset.worksheets[0].columns.filter(column => column.selected !== false).length, 16);
 
     const matched = await exportService.__test__.buildFixedDataset('debt.management', fixedEnv(stubs), {
       debtQueue: 'overdue', debtSale: 'Lan', debtSchedule: '1', debtSearch: 'khách a'
@@ -280,13 +280,13 @@ test('Quản lý công nợ phản ánh đủ bốn bộ lọc hàng chờ', asy
   });
 });
 
-test('Quản lý công nợ mặc định chọn 14 cột hiển thị (kèm Cơ sở, 2 cột phản hồi, Tiền phạt) và để Số phiên + 2 cột cập nhật là tùy chọn', async () => {
+test('Quản lý công nợ mặc định chọn 16 cột hiển thị (kèm Cơ sở, Số phiên, 2 cột Tiền phạt, 2 cột phản hồi) và để 2 cột cập nhật là tùy chọn', async () => {
   const metadata = await exportService.getExportFields({ tableKey: 'debt.management', context: { debtQueue: 'all' } }, 'Hà Nội');
   const fields = metadata.worksheets[0].fields;
-  assert.equal(fields.length, 17);
+  assert.equal(fields.length, 18);
   assert.equal(fields[1].label, 'Cơ sở');
-  assert.equal(fields.filter(field => field.selected).length, 14);
-  assert.equal(fields.find(field => field.key === 'overdueStreak').selected, false);
+  assert.equal(fields.filter(field => field.selected).length, 16);
+  assert.equal(fields.find(field => field.key === 'overdueStreak').selected, true);
   assert.equal(fields.find(field => field.key === 'updatedBy').selected, false);
   assert.equal(fields.find(field => field.key === 'updatedAt').selected, false);
 });
@@ -463,7 +463,7 @@ test('moi bang co dinh tao duoc file xlsx tu danh sach truong API tra ve', async
         worksheet.fields.map(field => field.key)
       ]));
       if (tableKey === 'debt.management') {
-        assert.equal(metadata.worksheets[0].fields.filter(field => field.selected).length, 14);
+        assert.equal(metadata.worksheets[0].fields.filter(field => field.selected).length, 16);
       } else {
         assert.ok(metadata.worksheets.every(worksheet => worksheet.fields.every(field => field.selected)));
       }
@@ -512,6 +512,38 @@ test('file Quản lý công nợ giữ kiểu số/phần trăm/text, freeze, Au
     const workbook = await loadWorkbook(sg);
     assert.equal(workbook.worksheets[0].name, 'Công nợ SG');
   });
+});
+
+test('Quản lý công nợ: debtCycleDate rỗng = bản mới nhất; có ngày thì đọc bản chốt cũ, ghi ngày vào tên file', async () => {
+  const debtScheduleService = require('../debtSchedule/debtScheduleService');
+  const original = debtScheduleService.buildDebtManagement;
+  const calls = [];
+  const oldReport = buildDashboard().debtManagement;
+  oldReport.sourceSheet = 'Chốt lúc 15:00 11/10';
+  oldReport.customers = oldReport.customers.map(customer => ({ ...customer, customerName: `${customer.customerName} (cu)` }));
+  debtScheduleService.buildDebtManagement = async (branchLabels, viewer, options) => { calls.push({ branchLabels, options }); return oldReport; };
+  try {
+    await withStubs({}, async () => {
+      const base = { tableKey: 'debt.management', columns: { debt_management: ['customerName'] } };
+      const latest = await exportService.createExportWorkbook({ ...base, context: { debtQueue: 'all' } }, 'Hà Nội');
+      assert.equal(calls.length, 0, 'khong chon ngay -> khong dung duong doc ban cu');
+      assert.match(latest.fileName, /^HN_Quan_ly_cong_no_\d{8}_\d{4}\.xlsx$/);
+
+      const file = await exportService.createExportWorkbook({ ...base, context: { debtQueue: 'all', debtCycleDate: '2026-10-11' } }, 'Hà Nội');
+      assert.equal(calls.length, 1);
+      assert.deepEqual(calls[0].branchLabels, ['Hà Nội']);
+      assert.equal(calls[0].options.cycleDate, '2026-10-11');
+      assert.match(file.fileName, /^HN_Quan_ly_cong_no_chot_20261011_\d{8}_\d{4}\.xlsx$/);
+      const worksheet = (await loadWorkbook(file)).worksheets[0];
+      assert.match(String(worksheet.getCell('A2').value), /\(cu\)$/, 'du lieu lay tu ban chot cu');
+
+      const both = await exportService.createExportWorkbook({ ...base, context: { debtQueue: 'all', debtCycleDate: '2026-10-11' } }, 'Cả hai');
+      assert.deepEqual(calls[1].branchLabels, ['Hà Nội', 'Sài Gòn']);
+      assert.match(both.fileName, /^TKS_Quan_ly_cong_no_chot_20261011_/);
+    });
+  } finally {
+    debtScheduleService.buildDebtManagement = original;
+  }
 });
 
 test('workbook giu ma co so 0 dau, chan chuoi cong thuc va bat freeze/autofilter', async () => {

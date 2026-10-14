@@ -1751,6 +1751,44 @@
       border-bottom: 1px solid var(--border);
     }
 
+    .export-cycle {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .export-cycle[hidden] {
+      display: none;
+    }
+
+    .export-cycle-label {
+      font-weight: 600;
+    }
+
+    .export-cycle-select {
+      min-height: 34px;
+      padding: 7px 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-7);
+      background: var(--panel-2);
+      color: var(--text);
+      font-family: var(--font-body);
+      font-size: 12px;
+    }
+
+    .export-cycle-label {
+      font-size: 12px;
+    }
+
+    .export-cycle-hint {
+      flex-basis: 100%;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
     .export-field-search {
       flex: 1;
       min-width: 0;
@@ -2749,7 +2787,9 @@
       background: var(--panel-2);
       color: var(--text);
       font: 500 12px/1.4 var(--font-body);
-      resize: vertical;
+      resize: none;
+      overflow: hidden;
+      field-sizing: content;
     }
 
     .debt-schedule-input {
@@ -4154,7 +4194,8 @@
                         <th style="width:125px" data-column-key="no-hien-tai-doanh-so">% Nợ hiện tại/DS</th>
                         <th style="width:80px" data-column-key="qua-han-doanh-so">% Quá hạn/DS</th>
                         <th style="width:130px" data-column-key="canh-bao-tu-dong">Cảnh báo</th>
-                        <th style="width:110px" data-column-key="so-phien-lien-tiep" data-column-default-hidden="true">Số phiên liên tiếp</th>
+                        <th style="width:110px" data-column-key="so-phien-lien-tiep">Số phiên liên tiếp</th>
+                        <th style="width:130px" data-column-key="tien-phat-phien-truoc">Tiền phạt phiên trước</th>
                         <th style="width:130px" data-column-key="tien-phat-phien-nay">Tiền phạt phiên này</th>
                         <th style="width:125px" data-column-key="sale-phan-hoi">Sale phản hồi</th>
                         <th style="width:125px" data-column-key="ql-phan-hoi">QL phản hồi</th>
@@ -4163,7 +4204,7 @@
                     </thead>
                     <tbody id="debtManagementRows">
                       <tr>
-                        <td colspan="15" class="table-note">Đang tải...</td>
+                        <td colspan="16" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -4349,6 +4390,11 @@
         <button class="export-modal-close" id="exportModalClose" type="button" onclick="closeExportDialog()"
           aria-label="Đóng">×</button>
       </div>
+      <div class="export-cycle" id="exportCycleRow" hidden>
+        <label class="export-cycle-label" for="exportCycleSelect">Bản chốt công nợ</label>
+        <select class="export-cycle-select" id="exportCycleSelect" aria-describedby="exportCycleHint"></select>
+        <span class="export-cycle-hint" id="exportCycleHint">Mặc định là bản mới nhất; có thể tải bản chốt cũ trong 7 ngày gần nhất.</span>
+      </div>
       <div class="export-toolbar" id="exportToolbar" hidden>
         <input class="export-field-search" id="exportFieldSearch" type="search" placeholder="Tìm tên trường…"
           oninput="filterExportFields()">
@@ -4407,11 +4453,11 @@
   <script src="/js/table-explorer.js"></script>
   <script src="/shared/table-controls.js?v=20261013-1"></script>
   <script>
-    // Bảng công nợ: mặc định ẩn cột Cảnh báo và Số phiên liên tiếp (người dùng vẫn bật lại được ở bộ chọn cột).
+    // Bảng công nợ: mặc định ẩn cột Cảnh báo (người dùng vẫn bật lại được ở bộ chọn cột).
     (function () {
       var table = document.querySelector('[data-debt-management-table]');
       if (!table || !window.TKSTables) return;
-      var hiddenByDefault = ['canh-bao-tu-dong', 'so-phien-lien-tiep'];
+      var hiddenByDefault = ['canh-bao-tu-dong'];
       var columns = Array.from(table.tHead.rows[0].cells).map(function (cell) {
         return { key: cell.dataset.columnKey, hidden: hiddenByDefault.indexOf(cell.dataset.columnKey) !== -1 || cell.dataset.columnDefaultHidden === 'true' };
       });
@@ -6096,8 +6142,47 @@
       dialog.autoAll = false;
       document.getElementById('exportModalTitle').textContent = 'Xuất file';
       document.getElementById('exportFieldSearch').value = '';
+      resetExportCycleRow();
       showExportDialog();
+      if (!source && payload && payload.tableKey === 'debt.management') loadExportCycles();
       await loadExportFields();
+    }
+
+    // Bang Cong no: ban chot 15:00 duoc luu 7 ngay nen cho chon xuat ban cu; mac dinh (gia tri rong) = ban moi nhat.
+    // Loi tai danh sach chi an o chon, van xuat duoc ban moi nhat.
+    function resetExportCycleRow() {
+      document.getElementById('exportCycleRow').hidden = true;
+      document.getElementById('exportCycleSelect').innerHTML = '';
+    }
+
+    function formatExportCycleOption(cycle, isLatest) {
+      const date = String(cycle.cycleDate || '');
+      const label = date.slice(8, 10) + '/' + date.slice(5, 7) + '/' + date.slice(0, 4);
+      return (isLatest ? 'Mới nhất — ' : '') + 'Chốt 15:00 ngày ' + label;
+    }
+
+    async function loadExportCycles() {
+      const dialog = state.exportDialog;
+      const payload = dialog.payload;
+      try {
+        const response = await fetch('/api/debt-management/cycles');
+        if (!response.ok) return;
+        const body = await response.json();
+        const cycles = body && Array.isArray(body.cycles) ? body.cycles : [];
+        if (dialog.payload !== payload || !cycles.length) return; // hop thoai da dong / mo lai bang khac
+        const select = document.getElementById('exportCycleSelect');
+        select.innerHTML = cycles.map(function (cycle, index) {
+          return '<option value="' + (index === 0 ? '' : escapeHtml(cycle.cycleDate)) + '">' + escapeHtml(formatExportCycleOption(cycle, index === 0)) + '</option>';
+        }).join('');
+        document.getElementById('exportCycleRow').hidden = cycles.length < 2;
+      } catch (err) {
+        resetExportCycleRow();
+      }
+    }
+
+    function exportCycleDate() {
+      const row = document.getElementById('exportCycleRow');
+      return row.hidden ? '' : document.getElementById('exportCycleSelect').value;
     }
 
     function showExportFieldsFailure(message) {
@@ -6215,6 +6300,8 @@
       const failMessage = isHtml ? 'Không thể tạo báo cáo HTML.' : 'Không thể tạo file Excel.';
       const payload = Object.assign({}, dialog.payload);
       if (isHtml) payload.format = 'html';
+      const debtCycleDate = payload.tableKey === 'debt.management' ? exportCycleDate() : '';
+      if (debtCycleDate) payload.context = Object.assign({}, payload.context, { debtCycleDate: debtCycleDate });
       if (!autoAllFields) {
         const columns = selectedExportColumns();
         const selectedCount = Object.values(columns).reduce((sum, list) => sum + list.length, 0);
@@ -8556,7 +8643,7 @@
     const DEBT_WORKFLOW_STATUSES = ['Chưa xử lý', 'Đã xử lý', 'Bỏ qua'];
     const DEBT_SORT_FIELDS = [
       'branchLabel', 'customerName', 'sale', 'scheduleDays', 'currentDebt', 'overdueDebt',
-      'inScheduleDebt', 'currentDebtToSalesRatio', 'overdueToSalesRatio', 'alertCodes', 'overdueStreak', 'penaltyAmount',
+      'inScheduleDebt', 'currentDebtToSalesRatio', 'overdueToSalesRatio', 'alertCodes', 'overdueStreak', 'previousPenaltyAmount', 'penaltyAmount',
       'saleFeedback', 'managerFeedback', 'workflowStatus'
     ];
 
@@ -8752,18 +8839,39 @@
             '<td class="mono">' + formatDebtRatio(customer.overdueToSalesRatio) + '</td>' +
             '<td>' + debtAlertHtml(customer) + '</td>' +
             '<td class="mono">' + debtStreakHtml(customer) + '</td>' +
+            '<td class="mono">' + (customer.previousPenaltyAmount === null || customer.previousPenaltyAmount === undefined ? '—' : formatNullableMoney(customer.previousPenaltyAmount)) + '</td>' +
             '<td class="mono">' + debtPenaltyHtml(customer) + '</td>' +
             '<td>' + debtFeedbackHtml(customer, 'sale') + '</td>' +
             '<td>' + debtFeedbackHtml(customer, 'manager') + '</td>' +
             '<td>' + debtWorkflowHtml(customer) + '</td></tr>';
         },
-        15,
+        16,
         debt && debt.available === false ? 'Chưa có bản chốt công nợ 15:00' : 'Không có khách phù hợp bộ lọc',
         true // sortDebtCustomers() da sap xep toan bo `sorted` o tren, khong can sort lai
       );
       const activeSort = state.tableSorts.debtManagementRows;
       updateTableSortHeader('debtManagementRows', activeSort ? activeSort.columnIndex : -1, activeSort ? activeSort.direction : null);
+      autosizeDebtFeedbackInputs();
     }
+
+    // O phan hoi tu gian theo noi dung (field-sizing chi co o trinh duyet moi, day la du phong).
+    const debtFieldSizingSupported = !!(window.CSS && CSS.supports && CSS.supports('field-sizing', 'content'));
+
+    function autosizeDebtFeedbackInput(el) {
+      el.style.height = 'auto';
+      el.style.height = el.scrollHeight + 2 + 'px';
+    }
+
+    function autosizeDebtFeedbackInputs() {
+      if (debtFieldSizingSupported) return;
+      document.querySelectorAll('textarea.debt-feedback-input').forEach(autosizeDebtFeedbackInput);
+    }
+
+    document.addEventListener('input', function (event) {
+      const el = event.target;
+      if (!debtFieldSizingSupported && el && el.matches && el.matches('textarea.debt-feedback-input')) autosizeDebtFeedbackInput(el);
+    });
+    window.addEventListener('resize', autosizeDebtFeedbackInputs);
 
     function renderDebtManagement() {
       const debt = state.data && state.data.debtManagement;

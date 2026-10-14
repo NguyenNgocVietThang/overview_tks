@@ -46,6 +46,21 @@ test('quyen mac dinh: Sale phan hoi chi Nhan vien sale; QL phan hoi, trang thai,
   }
 });
 
+test('GET /cycles: can quyen xuat file, tra danh sach ban chot tu repository', async () => {
+  const [authGuard, featureGuard, handler] = routeStack('/api/debt-management/cycles', 'get');
+  const res0 = fakeRes();
+  await authGuard({ cookies: {} }, res0, () => assert.fail('khong duoc next'));
+  assert.equal(res0.statusCode, 401);
+  assert.equal(typeof featureGuard, 'function');
+  const cycles = [{ cycleDate: '2026-10-13', takenAt: 'x' }, { cycleDate: '2026-10-12', takenAt: 'y' }];
+  await withRepo({ listCycles: async () => cycles }, async () => {
+    const res = fakeRes();
+    await handler({ user: { vaiTro: 'Quản lý' } }, res);
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.body, { cycles });
+  });
+});
+
 test('PATCH chua dang nhap tra 401', async () => {
   const [authGuard] = routeStack('/api/debt-management/sale-feedback');
   const res = fakeRes();

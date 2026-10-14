@@ -30,11 +30,13 @@ function debtAccessTag(viewer) {
 }
 
 /** @param {string[]} branchLabels - co so vat ly dang hien thi (BRANCHES.*) */
-async function buildDebtManagement(branchLabels, viewer, { repository = debtScheduleRepository.getDebtScheduleRepository() } = {}) {
+async function buildDebtManagement(branchLabels, viewer, {
+  repository = debtScheduleRepository.getDebtScheduleRepository(), cycleDate
+} = {}) {
   const branches = branchLabels.map(label => branchLabelToCode(label)).filter(Boolean);
   const access = debtAccessFor(viewer);
   try {
-    const { cycle, rows, amountsByCustomer } = await repository.readReport(branches);
+    const { cycle, rows, amountsByCustomer } = await repository.readReport(branches, cycleDate);
     const customers = cycle
       ? rows.map(row => buildCustomerRow(row, {
         cycleDate: cycle.cycleDate,
@@ -44,6 +46,8 @@ async function buildDebtManagement(branchLabels, viewer, { repository = debtSche
       : [];
     return buildDebtReport({ cycle, customers, access });
   } catch (error) {
+    // Xuat ban chot cu: ngay sai/het han phai bao loi ro rang, khong tra bang rong.
+    if (cycleDate && error.statusCode) throw error;
     console.error('[debtSchedule] Khong doc duoc cong no:', error.message);
     return buildDebtReport({ cycle: null, customers: [], access, dataWarnings: [`Không tải được công nợ: ${error.message}`] });
   }

@@ -86,7 +86,7 @@ test('sidebar và tiêu đề thay Công nợ kỳ cũ bằng Công nợ', () =>
   assert.doesNotMatch(dashboard, /id="debtPeriodToggle"|setDebtPeriod\(|toggleDebtDetail\(|debt\.period/);
 });
 
-test('dashboard công nợ có đủ 4 KPI, không còn biểu đồ và bảng 15 cột (Cơ sở đứng đầu, có DS trong kỳ, không còn Nợ đầu kỳ)', () => {
+test('dashboard công nợ có đủ 4 KPI, không còn biểu đồ và bảng 16 cột (Cơ sở đứng đầu, có DS trong kỳ, không còn Nợ đầu kỳ)', () => {
   const dashboard = html();
   ['dm-current', 'dm-overdue', 'dm-action-count', 'dm-overdue-ratio'].forEach(id => {
     assert.match(dashboard, new RegExp(`id="${id}"`));
@@ -94,8 +94,8 @@ test('dashboard công nợ có đủ 4 KPI, không còn biểu đồ và bảng 
   assert.doesNotMatch(dashboard, /chartDebtBySale|chartDebtBySchedule|chartTopCurrentDebt|chartTopOverdueDebt|renderDebtComparisonChart|renderDebtTopChart/);
   const table = dashboard.match(/<table[^>]*data-debt-management-table[\s\S]*?<\/table>/);
   assert.ok(table);
-  assert.equal((table[0].match(/<th(?:\s[^>]*)?>/g) || []).length, 15);
-  assert.match(table[0], /Cảnh báo<\/th>\s*<th[^>]*data-column-default-hidden="true"[^>]*>Số phiên liên tiếp<\/th>\s*<th[^>]*>Tiền phạt phiên này<\/th>\s*<th[^>]*>Sale phản hồi<\/th>\s*<th[^>]*>QL phản hồi<\/th>\s*<th[^>]*>Xử lý/);
+  assert.equal((table[0].match(/<th(?:\s[^>]*)?>/g) || []).length, 16);
+  assert.match(table[0], /Cảnh báo<\/th>\s*<th[^>]*>Số phiên liên tiếp<\/th>\s*<th[^>]*>Tiền phạt phiên trước<\/th>\s*<th[^>]*>Tiền phạt phiên này<\/th>\s*<th[^>]*>Sale phản hồi<\/th>\s*<th[^>]*>QL phản hồi<\/th>\s*<th[^>]*>Xử lý/);
   assert.doesNotMatch(dashboard, /Chưa thu/, 'đã bỏ cảnh báo Chưa thu');
   assert.match(table[0], /<tr>\s*<th[^>]*>Cơ sở<\/th>\s*<th[^>]*>Khách hàng<\/th>/, 'Cơ sở là cột đầu');
   assert.match(table[0], /Nợ hiện tại<\/th>\s*<th[^>]*>Nợ quá hạn<\/th>\s*<th[^>]*data-column-default-hidden="true"[^>]*>DS trong kỳ/, 'DS trong kỳ nằm sau Nợ quá hạn, mặc định ẩn');
@@ -168,10 +168,10 @@ test('Sale phản hồi sửa được theo quyền, QL phản hồi chỉ đọ
   const row = document.querySelector('#debtManagementRows tr[data-customer-key="hanoi:1"]');
   const cells = row.querySelectorAll('td');
   assert.equal(cells[0].textContent, 'HN', 'cột Cơ sở ghi tắt');
-  const saleInput = cells[12].querySelector('textarea.debt-feedback-input');
+  const saleInput = cells[13].querySelector('textarea.debt-feedback-input');
   assert.ok(saleInput, 'có quyền Sale phản hồi -> ô nhập');
   assert.equal(saleInput.value, 'Hẹn thứ 6');
-  assert.equal(cells[13].querySelector('textarea'), null, 'không có quyền QL phản hồi -> chỉ đọc');
+  assert.equal(cells[14].querySelector('textarea'), null, 'không có quyền QL phản hồi -> chỉ đọc');
 
   let sent;
   dom.window.fetch = async (url, options) => { sent = { url, body: JSON.parse(options.body) }; return { ok: true, json: async () => ({ value: 'Hẹn thứ 7', by: 'Lan' }) }; };

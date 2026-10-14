@@ -99,6 +99,39 @@ test('chot 15:00: toan bo khach 2 co so (ca no 0), so tien theo ngay cat dung 15
   } finally { await db.close(); }
 });
 
+test('xuat ban chot cu: listCycles moi nhat truoc (toi da 7), readReport(ngay) doc dung ban do, ngoai 7 ngay/sai dinh dang bi tu choi', async () => {
+  const { db, pool } = await setup();
+  try {
+    await seedKiot(db);
+    const repo = createDebtScheduleRepository({ pool });
+    await takeDebtCycleSnapshot(pool, '2026-08-08', { takenAt: at15('2026-08-08'), log: () => {}, loadAverages: noAverages });
+    await db.query(`UPDATE customers SET debt = 500 WHERE branch = 'hanoi' AND id = 1`);
+    await takeDebtCycleSnapshot(pool, '2026-08-09', { takenAt: at15('2026-08-09'), log: () => {}, loadAverages: noAverages });
+
+    const cycles = await repo.listCycles();
+    assert.deepEqual(cycles.map(cycle => cycle.cycleDate), ['2026-08-09', '2026-08-08']);
+
+    const latest = await repo.readReport(['hanoi']);
+    assert.equal(latest.cycle.cycleDate, '2026-08-09', 'bo trong ngay = ban moi nhat');
+    const old = await repo.readReport(['hanoi'], '2026-08-08');
+    assert.equal(old.cycle.cycleDate, '2026-08-08');
+    assert.equal(old.rows.find(row => row.customerId === '1').currentDebt, 800, 'no cua ban chot ngay 8, khong phai no hien tai');
+    assert.equal(latest.rows.find(row => row.customerId === '1').currentDebt, 500);
+    assert.equal((await repo.readReport(['hanoi'])).cycle.cycleDate, '2026-08-09', 'doc ban cu khong lam hong cache ban moi nhat');
+
+    await assert.rejects(repo.readReport(['hanoi'], '2026-08-01'), err => err.statusCode === 404 && err.code === 'DEBT_CYCLE_NOT_FOUND');
+    await assert.rejects(repo.readReport(['hanoi'], '8/8'), err => err.statusCode === 400 && err.code === 'INVALID_CYCLE_DATE');
+
+    // Chi 7 ban gan nhat duoc xuat: them 7 ngay moi thi ngay 8/8 roi khoi danh sach.
+    for (let day = 10; day <= 16; day += 1) {
+      const date = `2026-08-${day}`;
+      await takeDebtCycleSnapshot(pool, date, { takenAt: at15(date), log: () => {}, loadAverages: noAverages });
+    }
+    assert.equal((await repo.listCycles()).length, 7);
+    await assert.rejects(repo.readReport(['hanoi'], '2026-08-08'), err => err.code === 'DEBT_CYCLE_NOT_FOUND');
+  } finally { await db.close(); }
+});
+
 test('chot TRE (16:53): don sau 15:00 truoc luc chot da nam trong no hien tai nen cung tinh vao no trong lich', async () => {
   const { db, pool } = await setup();
   try {

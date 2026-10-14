@@ -1,6 +1,6 @@
 # CURRENT: BẢNG TRẠNG THÁI THỜI GIAN THỰC (REALTIME DASHBOARD)
 
-> **Cập nhật gần nhất:** 14/10/2026 (Asia/Ho_Chi_Minh), phiên "Báo cáo hàng hóa chỉ mã đang kinh doanh" (chưa commit/push/deploy)
+> **Cập nhật gần nhất:** 14/10/2026 (Asia/Ho_Chi_Minh), phiên "Xuất bản chốt công nợ cũ ≤ 7 ngày" (chưa commit/push/deploy)
 > **Trạng thái Git:** `main` = `89d8828`, đã push cả `tks_web/main` (Render theo dõi) và `origin/main`. Chỉ còn nhánh `main`; mọi nhánh khác đã gộp hoặc bị xóa theo yêu cầu. Chưa xác nhận deploy Render.
 > **Quy tắc:** Cập nhật liên tục vào đầu và cuối mỗi phiên làm việc để không bị đứt đoạn ngữ cảnh dự án.
 

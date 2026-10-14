@@ -149,5 +149,14 @@ router.get('/api/debt-management/schedule-log', requireAuth, requireFeature('rep
   }
 });
 
+// Cac ban chot con luu (7 ngay gan nhat, moi nhat truoc) de hop thoai Xuat file chon chu ky.
+router.get('/api/debt-management/cycles', requireAuth, requireFeature('reports.export'), async (req, res) => {
+  try {
+    return res.json({ cycles: await repository().listCycles() });
+  } catch (error) {
+    return sendError(res, error, 'Không thể tải danh sách bản chốt công nợ lúc này.', 'DEBT_CYCLES_UNAVAILABLE');
+  }
+});
+
 module.exports = router;
 module.exports.WORKFLOW_STATUSES = WORKFLOW_STATUSES;

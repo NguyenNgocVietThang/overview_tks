@@ -232,4 +232,4 @@ Triển khai trong `server/marketingReport/`; CLI tại `server/scripts/capture-
 - Thêm cột Sale phản hồi, QL phản hồi; phản hồi/trạng thái/lịch sử chỉnh sửa reset theo bản chốt 15:00 hôm sau.
 - Module mới `server/debtSchedule/`, migration `0047_debt_schedule_report.sql`; 0048 thêm cột Số phiên liên tiếp + Tiền phạt phiên này (bỏ trạng thái Đang xử lý).
 
-Cập nhật gần nhất: 13/10/2026.
+Cập nhật gần nhất: 14/10/2026.

@@ -41,7 +41,7 @@ Giai đoạn 1 đến hiện tại: Báo cáo tổng hợp (7 tab, gồm Báo c�
 - Dữ liệu cập nhật **gần thời gian thực**: engine đồng bộ polling KiotViet (nhóm fast 7 phút, nhóm slow 20 phút), rollup tính lại ngay sau mỗi lượt fast, và trình duyệt tự tải lại tab đang xem khi nhận sự kiện SSE `dashboard-updated`.
 - Báo cáo tổng hợp **tải dữ liệu theo từng tab** để phản hồi nhanh; cache hai tầng.
 - Mọi ngày giờ ("hôm nay", mốc lọc, `updatedAt`) theo múi giờ **Asia/Ho_Chi_Minh (UTC+7)**, không phụ thuộc múi giờ máy chủ.
-- **Xuất Excel/HTML** cho các bảng và báo cáo nghỉ phép/danh sách nhân sự, với tùy chọn trường linh hoạt.
+- **Xuất Excel/HTML** cho các bảng và báo cáo nghỉ phép/danh sách nhân sự, với tùy chọn trường linh hoạt. Bảng Quản lý công nợ còn cho xuất lại bản chốt 15:00 của 7 ngày gần nhất (mặc định bản mới nhất).
 - Ba kỳ công nợ **CN1 / CN3 / CN7** do `customerDebtReportRefresh.js` tính 5 phút/lần vào `customer_debt_activity_periods` để phục vụ cảnh báo "Chưa thu" trên màn hình Quản lý công nợ.
 - **Kiểm tra đứt hàng** dựa trên dữ liệu đã đồng bộ và dữ liệu Trả NCC do người dùng tự upload (Excel xuất từ KiotViet).
 - **Phân hệ nghỉ phép:** tự gửi trên web từ hồ sơ HR hoạt động hoặc bot nhân viên ngoài repo; người được cấp quyền duyệt theo phòng ban/cơ sở. Web có lịch nghỉ phép.
@@ -295,4 +295,4 @@ Mục tiêu giảm thao tác xuất/import SĐT hằng ngày bằng đồng bộ
 
 Quy tắc cố định 1-3-7-Hàng tuần được thay bằng lịch thanh toán riêng cho từng khách tại từng cơ sở (số ngày nợ tối đa). Báo cáo chốt lúc 15:00 mỗi ngày, cảnh báo quá hạn khi có nợ vượt lịch, Sale và Quản lý phản hồi trực tiếp trên bảng (lưu DB, làm mới mỗi chu kỳ), mọi thay đổi có lịch sử.
 
-Cập nhật gần nhất: 13/10/2026.
+Cập nhật gần nhất: 14/10/2026.

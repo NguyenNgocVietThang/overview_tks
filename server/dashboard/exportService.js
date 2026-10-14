@@ -20,6 +20,7 @@
 
 const ExcelJS = require('exceljs');
 const dashboardData = require('./dashboardData');
+const debtScheduleService = require('../debtSchedule/debtScheduleService');
 const dashboardPgReader = require('./dashboardPgReader');
 const productReportRepository = require('./productReportRepository');
 const exportFieldCatalog = require('./exportFieldCatalog');
@@ -34,7 +35,7 @@ const DEBT_QUEUE_FILTERS = new Set(['needsAction', 'currentDebt', 'overdue', 'al
 const DEBT_SORT_FIELDS = [
   'branch', 'customerName', 'sale', 'paymentSchedule', 'currentDebt', 'overdueDebt',
   'inScheduleDebt', 'currentDebtToSalesRatio', 'overdueToSalesRatio', 'automaticAlert', 'overdueStreak',
-  'penaltyAmount', 'saleFeedback', 'managerFeedback', 'workflowStatus'
+  'previousPenaltyAmount', 'penaltyAmount', 'saleFeedback', 'managerFeedback', 'workflowStatus'
 ];
 
 // Gioi han tai: moi file Excel nap du lieu + ghi workbook trong RAM.
@@ -231,7 +232,9 @@ const DEBT_COLUMNS = [
   aggregateColumn('automaticAlert', 'Cảnh báo tự động', 'text',
     'Quá hạn khi nợ quá hạn lớn hơn 0 đồng.', { wrapText: true }),
   aggregateColumn('overdueStreak', 'Số phiên liên tiếp', 'number',
-    'Số phiên chốt 15:00 liên tiếp khách có nợ quá hạn từ 400.000đ; về 0 khi hết nợ chậm.', { selected: false }),
+    'Số phiên chốt 15:00 liên tiếp khách có nợ quá hạn từ 400.000đ; về 0 khi hết nợ chậm.'),
+  aggregateColumn('previousPenaltyAmount', 'Tiền phạt phiên trước', 'number',
+    'Tiền phạt của phiên chốt 15:00 liền trước (số Quản lý đã điền hoặc mức gợi ý); để trống nếu khách chưa có ở phiên trước.'),
   aggregateColumn('penaltyAmount', 'Tiền phạt phiên này', 'number',
     'Tiền phạt nợ quá hạn của phiên: mức gợi ý theo quy chế (nợ lẻ 25.000đ, nợ chậm theo số phiên liên tiếp) hoặc số Quản lý đã điền (VNĐ).'),
   aggregateColumn('saleFeedback', 'Sale phản hồi', 'text', 'Phản hồi của Sale trong chu kỳ chốt hiện tại.', { wrapText: true }),
@@ -568,6 +571,7 @@ function debtManagementRows(debtManagement, context, aggregate = false) {
     overdueToSalesRatio: customer.overdueToSalesRatio,
     automaticAlert: debtAutomaticAlert(customer),
     overdueStreak: Number(customer.overdueStreak) || 0,
+    previousPenaltyAmount: customer.previousPenaltyAmount === null || customer.previousPenaltyAmount === undefined ? null : Number(customer.previousPenaltyAmount),
     penaltyAmount: Number(customer.penaltyAmount) || 0,
     saleFeedback: customer.saleFeedback || '',
     managerFeedback: customer.managerFeedback || '',
@@ -1069,6 +1073,14 @@ async function buildExportDataset(payload, branch, options = {}) {
   }
   // Viewer bo trong = khong quyen sua cong no (giong xuat file truoc day). Ket qua
   // nam trong cache dung chung nen chi DOC, khong sua.
+  // Bang cong no co the xuat ban chot cu (toi da 7 ngay): doc thang tu bang chot, khong qua cache dashboard.
+  const debtCycleDate = tableKey === 'debt.management' ? normalizeText(description.context.debtCycleDate) : '';
+  if (debtCycleDate) {
+    const debtManagement = await debtScheduleService.buildDebtManagement(resolveBranchScope(branch || BRANCHES.HANOI), undefined, { cycleDate: debtCycleDate });
+    throwIfAborted(signal);
+    const dataset = await buildFixedDataset(tableKey, { dashboard: { debtManagement }, branch, signal }, description.context, request.tableSearch, options.selection);
+    return { ...dataset, cycleDate: debtCycleDate };
+  }
   const dashboard = await dashboardData.getDashboardData(description.filters, branch);
   throwIfAborted(signal);
   return buildFixedDataset(tableKey, { dashboard, branch, signal }, description.context, request.tableSearch, options.selection);
@@ -1284,13 +1296,16 @@ async function getExportDataset(payload, branch, options = {}) {
     throw exportError('Vui lòng chọn ít nhất một trường để xuất.', 400, 'EXPORT_NO_FIELDS_SELECTED');
   }
   const fileBranch = dataset.sourceBranch || branch;
+  // Ban chot cu cua cong no: ghi ngay chot vao tieu de va ten file de khong nham voi ban moi nhat.
+  const cycleDate = dataset.cycleDate || '';
+  const cycleLabel = cycleDate ? `${cycleDate.slice(8, 10)}/${cycleDate.slice(5, 7)}/${cycleDate.slice(0, 4)}` : '';
   return {
     meta: {
       tableKey: dataset.tableKey,
-      title: dataset.title,
+      title: cycleLabel ? `${dataset.title} - chốt 15:00 ${cycleLabel}` : dataset.title,
       branch: fileBranch || '',
       generatedAt: new Date(),
-      fileBase: `${branchFilePrefix(fileBranch)}_${fileSlug(dataset.title)}_${fileTimestamp()}`
+      fileBase: `${branchFilePrefix(fileBranch)}_${fileSlug(dataset.title)}${cycleDate ? `_chot_${cycleDate.replace(/-/g, '')}` : ''}_${fileTimestamp()}`
     },
     worksheets
   };

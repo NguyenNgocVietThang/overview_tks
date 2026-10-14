@@ -24,6 +24,15 @@ const FEEDBACK_FIELDS = Object.freeze({
 const LATEST_RUN_SQL = `SELECT cycle_date::text AS cycle_date, taken_at, customer_count, refreshed_at, refreshed_by_name
   FROM debt_cycle_runs ORDER BY cycle_date DESC LIMIT 1`;
 
+// Ban chot cu duoc giu 7 ngay (RETENTION_DAYS o debtCycleSnapshot.js); chi cho xuat nhung ban con trong khoang nay.
+const CYCLE_HISTORY_DAYS = 7;
+const CYCLE_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const CYCLE_LIST_SQL = `SELECT cycle_date::text AS cycle_date, taken_at
+  FROM debt_cycle_runs ORDER BY cycle_date DESC LIMIT $1`;
+const CYCLE_BY_DATE_SQL = `SELECT cycle_date::text AS cycle_date, taken_at, customer_count, refreshed_at, refreshed_by_name
+  FROM (SELECT * FROM debt_cycle_runs ORDER BY cycle_date DESC LIMIT $2) recent
+  WHERE cycle_date = $1::date`;
+
 const CUSTOMERS_SQL = `
   SELECT dc.branch, dc.customer_id::text AS customer_id, dc.current_debt, dc.opening_debt, dc.avg_revenue_4m,
          btrim(COALESCE(c.code, '')) AS customer_code,
@@ -32,7 +41,9 @@ const CUSTOMERS_SQL = `
          s.schedule_days, dc.overdue_streak,
          f.sale_feedback, f.sale_feedback_by, f.manager_feedback, f.manager_feedback_by,
          f.status, f.status_by, f.status_at,
-         pen.amount AS penalty_amount, pen.updated_by_name AS penalty_by
+         pen.amount AS penalty_amount, pen.updated_by_name AS penalty_by,
+         pdc.customer_id IS NOT NULL AS has_prev, pdc.overdue_debt AS prev_overdue, pdc.overdue_streak AS prev_streak,
+         pf.status AS prev_status, ppen.amount AS prev_penalty_amount
   FROM debt_cycle_customers dc
   LEFT JOIN customers c ON c.branch = dc.branch AND c.id = dc.customer_id
   LEFT JOIN debt_payment_schedules s ON s.branch = dc.branch AND s.customer_id = dc.customer_id
@@ -40,6 +51,13 @@ const CUSTOMERS_SQL = `
     ON f.cycle_date = dc.cycle_date AND f.branch = dc.branch AND f.customer_id = dc.customer_id
   LEFT JOIN debt_cycle_penalties pen
     ON pen.cycle_date = dc.cycle_date AND pen.branch = dc.branch AND pen.customer_id = dc.customer_id
+  LEFT JOIN debt_cycle_customers pdc
+    ON pdc.cycle_date = (SELECT MAX(cycle_date) FROM debt_cycle_runs WHERE cycle_date < dc.cycle_date)
+   AND pdc.branch = dc.branch AND pdc.customer_id = dc.customer_id
+  LEFT JOIN debt_cycle_feedback pf
+    ON pf.cycle_date = pdc.cycle_date AND pf.branch = pdc.branch AND pf.customer_id = pdc.customer_id
+  LEFT JOIN debt_cycle_penalties ppen
+    ON ppen.cycle_date = pdc.cycle_date AND ppen.branch = pdc.branch AND ppen.customer_id = pdc.customer_id
   WHERE dc.cycle_date = $1::date AND dc.branch = ANY($2::text[])`;
 
 const AMOUNTS_SQL = `SELECT branch, customer_id::text AS customer_id, day::text AS day, invoice_amount, return_amount
@@ -89,6 +107,12 @@ function mapCustomerRow(row) {
     overdueStreak: Number(row.overdue_streak) || 0,
     penaltyOverride: row.penalty_amount === null || row.penalty_amount === undefined ? null : Number(row.penalty_amount),
     penaltyBy: row.penalty_by || '',
+    previousCycle: row.has_prev ? {
+      overdueDebt: Number(row.prev_overdue) || 0,
+      overdueStreak: Number(row.prev_streak) || 0,
+      status: row.prev_status || 'Chưa xử lý',
+      penaltyOverride: row.prev_penalty_amount === null || row.prev_penalty_amount === undefined ? null : Number(row.prev_penalty_amount)
+    } : null,
     currentDebt: Number(row.current_debt) || 0,
     openingDebt: row.opening_debt === null || row.opening_debt === undefined ? null : Number(row.opening_debt),
     avgRevenue4m: row.avg_revenue_4m === null || row.avg_revenue_4m === undefined ? null : Number(row.avg_revenue_4m),
@@ -121,16 +145,33 @@ function createDebtScheduleRepository({ pool = getPool() } = {}) {
       refreshedAt: rows[0].refreshed_at || null, refreshedBy: rows[0].refreshed_by_name || '' };
   }
 
+  /** Cac ban chot con luu (toi da CYCLE_HISTORY_DAYS ngay), moi nhat truoc: [{ cycleDate, takenAt }]. */
+  async function listCycles() {
+    const { rows } = await pool.query(CYCLE_LIST_SQL, [CYCLE_HISTORY_DAYS]);
+    return rows.map(row => ({ cycleDate: row.cycle_date, takenAt: row.taken_at }));
+  }
+
+  async function readCycleByDate(cycleDate) {
+    const text = String(cycleDate || '').trim();
+    if (!CYCLE_DATE_PATTERN.test(text)) throw httpError(400, 'Ngày chu kỳ công nợ không hợp lệ.', 'INVALID_CYCLE_DATE');
+    const { rows } = await pool.query(CYCLE_BY_DATE_SQL, [text, CYCLE_HISTORY_DAYS]);
+    if (!rows.length) throw httpError(404, 'Không có bản chốt công nợ của ngày này (chỉ lưu 7 ngày gần nhất).', 'DEBT_CYCLE_NOT_FOUND');
+    return { cycleDate: rows[0].cycle_date, takenAt: rows[0].taken_at, customerCount: Number(rows[0].customer_count) || 0,
+      refreshedAt: rows[0].refreshed_at || null, refreshedBy: rows[0].refreshed_by_name || '' };
+  }
+
   /**
-   * Du lieu tho cua chu ky hien tai cho cac co so: { cycle, rows, amountsByCustomer }.
-   * cycle = null khi chua co ban chot nao.
+   * Du lieu tho cua mot chu ky cho cac co so: { cycle, rows, amountsByCustomer }.
+   * Bo trong cycleDate = chu ky moi nhat (co cache); cycle = null khi chua co ban chot nao.
+   * Co cycleDate = ban chot cu (toi da 7 ngay) — chi dung de xuat file nen khong cache.
    */
-  async function readReport(branches) {
+  async function readReport(branches, cycleDate) {
     const scope = (branches || []).map(assertBranch);
+    const historical = Boolean(cycleDate);
     const branchesKey = scope.slice().sort().join(',');
-    if (cache && cache.version === version && cache.branchesKey === branchesKey) return cache.data;
+    if (!historical && cache && cache.version === version && cache.branchesKey === branchesKey) return cache.data;
     const startedVersion = version;
-    const cycle = await readCurrentCycle();
+    const cycle = historical ? await readCycleByDate(cycleDate) : await readCurrentCycle();
     let data = { cycle: null, rows: [], amountsByCustomer: new Map() };
     if (cycle) {
       const [customers, amounts] = await Promise.all([
@@ -148,7 +189,7 @@ function createDebtScheduleRepository({ pool = getPool() } = {}) {
       data = { cycle, rows: customers.rows.map(mapCustomerRow), amountsByCustomer };
     }
     // Co ghi trong luc dang doc -> khong cache ban co the da cu.
-    if (startedVersion === version) cache = { version, branchesKey, data };
+    if (!historical && startedVersion === version) cache = { version, branchesKey, data };
     return data;
   }
 
@@ -402,6 +443,7 @@ function createDebtScheduleRepository({ pool = getPool() } = {}) {
   return {
     readReport,
     readCurrentCycle,
+    listCycles,
     saveFeedback,
     saveStatus,
     savePenalty,

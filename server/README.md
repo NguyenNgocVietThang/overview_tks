@@ -302,8 +302,10 @@ Migration `0047_debt_schedule_report.sql`. Module `server/debtSchedule/`:
 
 **Tiền phạt + số phiên liên tiếp (migration 0048, 13/10/2026):** cột "Số phiên liên tiếp" (ẩn mặc định) do job chốt 15:00 tính — quá hạn ≥ 400.000đ thì phiên trước + 1 (chu kỳ trước "Đã xử lý" thì giữ nguyên; "Bỏ qua"/"Chưa xử lý" thì +1), dưới ngưỡng reset 0. Cột "Tiền phạt phiên này" hiện mức gợi ý theo quy chế (nợ lẻ 25k; nợ chậm phiên 1–2 25k, 3 50k, 4 100k, 5 150k, ≥6 200k), người có quyền `reports.debt.penalty` (mặc định Quản lý) ghi đè qua `PATCH /api/debt-management/penalty` (bảng `debt_cycle_penalties`, giữ lâu dài). Đã bỏ trạng thái "Đang xử lý". Sau migrate chạy tay `node debtSchedule/backfillOverdueStreak.js` để tính phiên cho bản chốt hôm nay.
 
-API: `PATCH /api/debt-management/{sale-feedback,manager-feedback,status,schedule,penalty}`, `GET /api/debt-management/{feedback-history,schedule-log}`.
+API: `PATCH /api/debt-management/{sale-feedback,manager-feedback,status,schedule,penalty}`, `GET /api/debt-management/{feedback-history,schedule-log,cycles}`.
+
+**Xuất bản chốt cũ (14/10/2026):** hộp thoại Xuất file của bảng Quản lý công nợ có ô "Bản chốt công nợ" — mặc định bản mới nhất, chọn được bản chốt 15:00 của 7 ngày gần nhất (đúng thời hạn lưu `debt_cycle_*`). `GET /api/debt-management/cycles` (quyền `reports.export`) trả danh sách; export nhận `context.debtCycleDate` (`YYYY-MM-DD`, bỏ trống = mới nhất), đọc qua `readReport(branches, cycleDate)` không qua cache dashboard; tên file thêm `_chot_YYYYMMDD`. Lịch TT, tên khách, Sale vẫn lấy theo dữ liệu hiện tại (không phải ảnh chụp ngày chốt).
 
 Thứ tự deploy: `npm run db:migrate` (0047) → import lịch TT HN + SG → deploy code → chạy tay `debtCycleSnapshot.js` sau 15:00 (hoặc chờ 15:00).
 
-Cập nhật gần nhất: 13/10/2026.
+Cập nhật gần nhất: 14/10/2026.

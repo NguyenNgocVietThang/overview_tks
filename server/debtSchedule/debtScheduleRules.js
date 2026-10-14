@@ -85,6 +85,14 @@ function suggestedPenalty(overdue, streak) {
   return PENALTY_BY_SESSION[session - 1];
 }
 
+/** Tien phat cua phien truoc (chu ky ngay truoc): so tay neu co, "Da xu ly" -> 0, con lai theo goi y. null = khong co dong phien truoc. */
+function previousPenaltyOf(previous) {
+  if (!previous) return null;
+  if (previous.penaltyOverride !== null && previous.penaltyOverride !== undefined) return Number(previous.penaltyOverride);
+  if (previous.status === RESOLVED_STATUS) return 0;
+  return suggestedPenalty(previous.overdueDebt, previous.overdueStreak);
+}
+
 function ratio(value, base) {
   const denominator = Number(base);
   return Number.isFinite(denominator) && denominator > 0 ? (Number(value) || 0) / denominator : null;
@@ -134,6 +142,7 @@ function buildCustomerRow(row, { cycleDate, dailyAmounts, access = {} }) {
     suggestedPenalty: suggested,
     // "Da xu ly" -> tien phat phien nay ve 0 (tru khi co nguoi dien tay).
     penaltyAmount: hasManualPenalty ? Number(row.penaltyOverride) : (workflowStatus === RESOLVED_STATUS ? 0 : suggested),
+    previousPenaltyAmount: previousPenaltyOf(row.previousCycle),
     penaltyIsManual: hasManualPenalty,
     penaltyBy: hasManualPenalty ? row.penaltyBy || '' : '',
     dataIssues: [],

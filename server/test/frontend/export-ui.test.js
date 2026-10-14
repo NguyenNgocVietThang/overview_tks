@@ -661,3 +661,30 @@ test('Xuat HTML ma may chu tra file .xlsx (server cu) thi bao loi, khong luu fil
   assert.equal(h.exportStatusIsError(), true);
   h.win.close();
 });
+
+test('bang Cong no: hop thoai xuat cho chon ban chot (mac dinh moi nhat); chon ban cu thi gui debtCycleDate', async () => {
+  const h = createExportDashboard();
+  const cycles = [{ cycleDate: '2026-10-13' }, { cycleDate: '2026-10-12' }, { cycleDate: '2026-10-11' }];
+  h.routes['/api/debt-management/cycles'] = { ok: true, status: 200, json: async () => ({ cycles }) };
+  const row = h.document.getElementById('exportCycleRow');
+  const select = h.document.getElementById('exportCycleSelect');
+
+  await openExportWithFields(h, exportMetadata({ tableKey: 'debt.management' }), 'debt.management');
+  assert.equal(row.hidden, false, 'bang cong no hien o chon ban chot');
+  assert.deepEqual(Array.from(select.options).map(option => option.value), ['', '2026-10-12', '2026-10-11']);
+  assert.match(select.options[0].textContent, /^Mới nhất — Chốt 15:00 ngày 13\/10\/2026$/);
+  assert.equal(select.value, '', 'mac dinh la ban moi nhat');
+
+  h.click('exportConfirmButton');
+  assert.equal(h.fileCalls().at(-1).body.context.debtCycleDate, undefined, 'ban moi nhat khong gui ngay');
+  h.win.closeExportDialog();
+
+  await openExportWithFields(h, exportMetadata({ tableKey: 'debt.management' }), 'debt.management');
+  h.document.getElementById('exportCycleSelect').value = '2026-10-11';
+  h.click('exportConfirmButton');
+  assert.equal(h.fileCalls().at(-1).body.context.debtCycleDate, '2026-10-11');
+  h.win.closeExportDialog();
+
+  await openExportWithFields(h, exportMetadata(), 'products.all');
+  assert.equal(row.hidden, true, 'bang khac khong co o chon ban chot');
+});
