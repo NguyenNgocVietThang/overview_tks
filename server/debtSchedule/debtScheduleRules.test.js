@@ -119,3 +119,14 @@ test('previousPenaltyAmount: so tay > Da xu ly = 0 > goi y theo phien truoc; kho
   assert.equal(build({ overdueDebt: 900000, overdueStreak: 2, status: 'Đã xử lý', penaltyOverride: null }).previousPenaltyAmount, 0);
   assert.equal(build({ overdueDebt: 900000, overdueStreak: 2, status: 'Đã xử lý', penaltyOverride: 40000 }).previousPenaltyAmount, 40000);
 });
+
+test('anchorDate (tinh lai sang hom sau): cua so truot theo ngay tinh lai, van dung N ngay', () => {
+  const daily = [
+    { day: '2026-08-07', invoiceAmount: 100, returnAmount: 0 },
+    { day: '2026-08-08', invoiceAmount: 200, returnAmount: 0 },
+    { day: '2026-08-09', invoiceAmount: 300, returnAmount: 0 }
+  ];
+  assert.equal(rules.inScheduleDebt(daily, '2026-08-08', 1, '2026-08-09'), 300);
+  assert.equal(rules.inScheduleDebt(daily, '2026-08-08', 2, '2026-08-09'), 500);
+  assert.equal(rules.inScheduleDebt(daily.slice(0, 2), '2026-08-08', 2, '2026-08-08'), 300);
+});

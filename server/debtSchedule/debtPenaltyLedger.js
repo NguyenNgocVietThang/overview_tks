@@ -14,6 +14,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 const { getPool } = require('../db/pool');
 const { buildCustomerRow } = require('./debtScheduleRules');
+const { vnDateKey } = require('../kiotvietSync/vnTime');
 const { createDebtScheduleRepository } = require('./debtScheduleRepository');
 
 const BRANCH_CODES = Object.freeze(['hanoi', 'saigon']);
@@ -43,6 +44,7 @@ async function penalizedCustomers(repository, cycleDate) {
   return rows
     .map(row => buildCustomerRow(row, {
       cycleDate: cycle.cycleDate,
+      anchorDate: cycle.refreshedAt ? vnDateKey(cycle.refreshedAt) : undefined,
       dailyAmounts: amountsByCustomer.get(`${row.branch}:${row.customerId}`) || []
     }))
     .filter(customer => customer.penaltyAmount > 0);

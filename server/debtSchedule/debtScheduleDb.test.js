@@ -159,8 +159,8 @@ test('tinh lai bang tay: ghi de chu ky dang mo tai luc bam, giu phan hoi, khong 
     const result = await refreshDebtCycle(pool, { takenAt: new Date('2026-08-09T02:00:00Z'), userName: 'QL A', log: () => {}, loadAverages: noAverages });
     assert.equal(result.cycleDate, '2026-08-08', 'van la chu ky dang mo');
     const after = (await db.query("SELECT current_debt::int AS d, overdue_debt::int AS o, overdue_streak AS s FROM debt_cycle_customers WHERE branch = 'hanoi' AND customer_id = 1")).rows[0];
-    // lich 1 ngay: trong lich = don 8/8 (200 + 999) + don 9/8 (1000).
-    assert.deepEqual(after, { d: 1500000, o: 1500000 - 2199, s: before.s }, 'no moi, khong cong phien');
+    // Tinh lai luc 9/8: cua so truot theo ngay tinh lai, lich 1 ngay = CHI don 9/8 (1000).
+    assert.deepEqual(after, { d: 1500000, o: 1500000 - 1000, s: before.s }, 'no moi, khong cong phien');
     const fb = (await db.query("SELECT sale_feedback FROM debt_cycle_feedback WHERE cycle_date = '2026-08-08'")).rows;
     assert.deepEqual(fb, [{ sale_feedback: 'hen thu 9/8' }], 'phan hoi giu nguyen');
     const run = (await db.query("SELECT refreshed_by_name, customer_count FROM debt_cycle_runs")).rows[0];

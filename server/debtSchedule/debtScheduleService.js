@@ -6,6 +6,7 @@
 const { hasFeature } = require('../auth/featureRegistry');
 const { branchLabelToCode } = require('../branch/branches');
 const { buildCustomerRow, buildDebtReport } = require('./debtScheduleRules');
+const { vnDateKey } = require('../kiotvietSync/vnTime');
 const debtScheduleRepository = require('./debtScheduleRepository');
 
 const DEBT_ACCESS_FEATURES = Object.freeze({
@@ -40,6 +41,7 @@ async function buildDebtManagement(branchLabels, viewer, {
     const customers = cycle
       ? rows.map(row => buildCustomerRow(row, {
         cycleDate: cycle.cycleDate,
+        anchorDate: cycle.refreshedAt ? vnDateKey(cycle.refreshedAt) : undefined,
         dailyAmounts: amountsByCustomer.get(`${row.branch}:${row.customerId}`) || [],
         access
       }))

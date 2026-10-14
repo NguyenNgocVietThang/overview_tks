@@ -15,6 +15,7 @@ const { startCustomerInvoiceLinesSchedule } = require('./customerInvoiceLinesRef
 const { startInventoryValueSnapshotSchedule } = require('./inventoryValueSnapshot');
 const { startBusinessMonthlySchedule } = require('./businessMonthlyRefresh');
 const { startDebtCycleSnapshotSchedule } = require('../debtSchedule/debtCycleSnapshot');
+const { dashboardRollupEvents } = require('./dashboardRollupEvents');
 const debtScheduleRepository = require('../debtSchedule/debtScheduleRepository');
 
 // orderSuppliers ("Dat hang nhap") o nhom fast: doi soat toan bo ~350 phieu chi vai
@@ -214,7 +215,11 @@ function createPollingScheduler({
         scheduleImmediate,
         log: logger.log ? logger.log.bind(logger) : logger,
         beforeSnapshot: () => runGroup([customersEntity]),
-        onSnapshot: () => debtScheduleRepository.getDebtScheduleRepository().bumpVersion()
+        onSnapshot: () => {
+          debtScheduleRepository.getDebtScheduleRepository().bumpVersion();
+          // Ban chot 15:00 moi: bao client dang mo SSE tai lai, khong cho rollup 5 phut.
+          dashboardRollupEvents.emit('updated', { at: Date.now() });
+        }
       })
     ];
   }

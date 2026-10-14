@@ -125,7 +125,7 @@ const CLEANUP_SQL = [
  * debt_cycle_customers. Chay trong transaction cua lan chot; chay lai nhieu lan van ra cung
  * ket qua (dung de bu cho ban chot lam truoc khi co migration 0048).
  */
-async function applyOverdueStreaks(client, cycleDate) {
+async function applyOverdueStreaks(client, cycleDate, anchorDate) {
   const [customers, amounts] = await Promise.all([
     client.query(STREAK_CUSTOMERS_SQL, [cycleDate]),
     client.query(STREAK_AMOUNTS_SQL, [cycleDate])
@@ -144,7 +144,7 @@ async function applyOverdueStreaks(client, cycleDate) {
   const streaks = [];
   for (const row of customers.rows) {
     const days = effectiveScheduleDays(row.schedule_days);
-    const inSchedule = inScheduleDebt(dailyByCustomer.get(customerKeyOf(row.branch, row.customer_id)) || [], cycleDate, days);
+    const inSchedule = inScheduleDebt(dailyByCustomer.get(customerKeyOf(row.branch, row.customer_id)) || [], cycleDate, days, anchorDate);
     const overdue = overdueDebt(row.current_debt, inSchedule);
     branches.push(row.branch);
     ids.push(row.customer_id);
@@ -258,7 +258,7 @@ async function refreshDebtCycle(pool, {
     for (const sql of REFRESH_CLEAR_SQL) await client.query(sql, [cycleDate]);
     await client.query(INSERT_CUSTOMERS_SQL, [cycleDate, BRANCH_CODES, averages.branches, averages.codes, averages.values]);
     await client.query(INSERT_AMOUNTS_SQL, [cycleDate, BRANCH_CODES, takenAt]);
-    await applyOverdueStreaks(client, cycleDate);
+    await applyOverdueStreaks(client, cycleDate, vnDateKey(takenAt));
     await client.query(UPDATE_RUN_COUNT_SQL, [cycleDate]);
     await client.query(MARK_REFRESHED_SQL, [cycleDate, takenAt, String(userName || '')]);
     const { rows } = await client.query('SELECT customer_count FROM debt_cycle_runs WHERE cycle_date = $1::date', [cycleDate]);

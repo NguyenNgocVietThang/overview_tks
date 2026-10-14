@@ -119,6 +119,8 @@ router.post('/api/debt-management/refresh', requireAuth, requireFeature('reports
       userName: (req.user && (req.user.hoTen || req.user.username)) || ''
     });
     repository().bumpVersion();
+    // Bao cac trinh duyet dang mo SSE (tai khoan khac) tu tai lai so cong no moi.
+    require('../kiotvietSync/dashboardRollupEvents').dashboardRollupEvents.emit('updated', { at: Date.now() });
     return res.status(200).json({ ...result, warning: syncWarning });
   } catch (error) {
     return sendError(res, error, 'Không thể tính lại công nợ lúc này.', 'DEBT_REFRESH_UNAVAILABLE');

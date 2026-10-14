@@ -44,13 +44,18 @@ function scheduleWindowStart(cycleDate, scheduleDays) {
   return addDaysToKey(cycleDate, -(effectiveScheduleDays(scheduleDays) - 1));
 }
 
+/** Ngay (YYYY-MM-DD) muon hon trong hai ngay; bo trong anchorDate -> cycleDate. */
+function laterDay(cycleDate, anchorDate) {
+  return anchorDate && anchorDate > cycleDate ? anchorDate : cycleDate;
+}
+
 /**
  * No trong lich = tong hoa don Hoan thanh trong lich. Tra hang KHONG tinh: da nam san trong no hien tai.
- * Ngay SAU cycleDate chi co khi Tinh lai bang tay sang ngay hom sau (truoc 15:00): no hien tai
- * da gom cac don do va chung moi hon moi lich -> tinh la trong lich.
+ * Tinh lai bang tay sang ngay hom sau (truoc 15:00) thi anchorDate = ngay tinh lai (> cycleDate):
+ * cua so truot theo anchorDate, van dung N ngay (anchor-N+1 .. anchor), khong thua 1 ngay.
  */
-function inScheduleDebt(dailyAmounts, cycleDate, scheduleDays) {
-  const start = scheduleWindowStart(cycleDate, scheduleDays);
+function inScheduleDebt(dailyAmounts, cycleDate, scheduleDays, anchorDate) {
+  const start = scheduleWindowStart(laterDay(cycleDate, anchorDate), scheduleDays);
   let total = 0;
   for (const item of dailyAmounts || []) {
     if (item.day >= start) {
@@ -107,10 +112,10 @@ function customerKeyOf(branch, customerId) {
  * (currentDebt, openingDebt, avgRevenue4m), thong tin khach doc truc tiep (code, name,
  * sale, scheduleDays) va phan hoi cua chu ky (feedback). `access` = quyen nguoi xem.
  */
-function buildCustomerRow(row, { cycleDate, dailyAmounts, access = {} }) {
+function buildCustomerRow(row, { cycleDate, dailyAmounts, anchorDate, access = {} }) {
   const scheduleDays = effectiveScheduleDays(row.scheduleDays);
   const currentDebt = Number(row.currentDebt) || 0;
-  const inSchedule = inScheduleDebt(dailyAmounts, cycleDate, scheduleDays);
+  const inSchedule = inScheduleDebt(dailyAmounts, cycleDate, scheduleDays, anchorDate);
   const overdue = overdueDebt(currentDebt, inSchedule);
   const averageSales = row.avgRevenue4m === null || row.avgRevenue4m === undefined ? null : Number(row.avgRevenue4m);
   const feedback = row.feedback || {};

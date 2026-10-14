@@ -19,7 +19,7 @@ test('giao dien gan dung 12 nut xuat Excel cho 12 bang co dinh (khong con 2 bang
   assert.equal(matches.length, 12);
   assert.equal(new Set(matches).size, 12);
   assert.deepEqual(matches.sort(), [
-    'customers.debt', 'customers.productDetail', 'customers.revenue', 'debt.management',
+    'customers.debt', 'customers.productDetail', 'customers.revenue', 'debt.management', 'debt.penalty',
     'overview.new-products', 'overview.productReport', 'overview.transactions',
     'products.all', 'products.inventory', 'products.newly-imported', 'products.top-selling'
   ].sort());
