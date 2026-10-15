@@ -455,10 +455,6 @@ router.get('/api/hr/leave-work-schedules/:employeeId',...authManager,async(req,r
   try {await scheduleEmployee(req);res.status(200).json({schedule:await schedules.getSchedule(req.params.employeeId,req.query.date)});}
   catch(err){handleError(res,err,'GET work schedule');}
 });
-router.put('/api/hr/leave-work-schedules/:employeeId',...authManager,async(req,res)=>{
-  try {await scheduleEmployee(req);res.status(200).json({schedule:await schedules.setSchedule(req.params.employeeId,req.body || {})});}
-  catch(err){handleError(res,err,'PUT work schedule');}
-});
 
 // ---------------------------------------------------------------------------
 // GET /api/hr/employees/export — xuat Excel Danh sach nhan su dang tim kiem

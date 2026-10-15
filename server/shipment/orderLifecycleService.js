@@ -23,6 +23,9 @@ const STATUS = Object.freeze({
   DELIVERED: 'DELIVERED',
   SHIP_RECEIVED: 'SHIP_RECEIVED',
   SIGNED: 'SIGNED',
+  // Luong don ke toan/chung tu (tab KeToan_ChungTu, 2026-10-15): chi 2 trang thai la NOT_SENT (phieu tam Kiot chua co
+  // trong tab nao) va COMPLETED (ma da duoc ke toan ghi vao tab). COMPLETED khong chon duoc qua ghi de thu cong.
+  COMPLETED: 'COMPLETED',
   // 2 trang thai CHI dat duoc qua ghi de thu cong (Quan ly/Ke toan) — khong
   // co moc thoi gian tuong ung nen computeStatus() khong bao gio tra ve.
   EXCEPTION: 'EXCEPTION',
@@ -36,6 +39,7 @@ const STATUS_LABEL = Object.freeze({
   [STATUS.DELIVERED]: 'Đơn đã giao thành công',
   [STATUS.SHIP_RECEIVED]: 'Đã nhận (Tại kho)',
   [STATUS.SIGNED]: 'Đã nhận (Đi giao xong)',
+  [STATUS.COMPLETED]: 'Hoàn thành',
   [STATUS.EXCEPTION]: 'Sự cố',
   [STATUS.CANCELLED]: 'Đã hủy'
 });
@@ -50,7 +54,9 @@ const STATUS_RANK = Object.freeze({
   [STATUS.DELIVERING]: 2,
   [STATUS.DELIVERED]: 3,
   [STATUS.SHIP_RECEIVED]: 4,
-  [STATUS.SIGNED]: 5
+  [STATUS.SIGNED]: 5,
+  // Cao hon moi muc con lai: don ke toan da xong thi ghi de thuong khong ha trang thai (chi EXCEPTION/CANCELLED thang).
+  [STATUS.COMPLETED]: 6
 });
 
 // Phai khop orderLifecycleRepository.FLOW_* (test repository co kiem tra) — khai bao lai o day de test
@@ -58,6 +64,7 @@ const STATUS_RANK = Object.freeze({
 const FLOW_DELIVERY = 'DELIVERY';
 const FLOW_PICKUP = 'PICKUP';
 const FLOW_NORTH_SOUTH = 'NORTH_SOUTH';
+const FLOW_ACCOUNTING = 'ACCOUNTING';
 
 function hasValue(value) {
   return value !== undefined && value !== null && String(value).trim() !== '';
@@ -72,6 +79,15 @@ function hasValue(value) {
  * lieu bot loi) van ap dung bang nay, KHONG doc D/G.
  */
 function computeStatus(record) {
+  // Luong ke toan/chung tu: dong co trong tab KeToan_ChungTu = da gui ke toan xong.
+  if (record && record._flow === FLOW_ACCOUNTING) {
+    return {
+      code: STATUS.COMPLETED,
+      label: STATUS_LABEL[STATUS.COMPLETED],
+      actor: record.accountingSender || '',
+      at: record.saleSentAt || null
+    };
+  }
   if (record && hasValue(record.orderSignedAt)) {
     return { code: STATUS.SIGNED, label: STATUS_LABEL[STATUS.SIGNED], actor: null, at: record.orderSignedAt };
   }
@@ -281,7 +297,7 @@ function latestOverrideByCode(historyRows) {
  * client dam nhiem hien thi, o day chi tra chuoi rong nguyen ban).
  */
 function toDetail(record) {
-  return {
+  const detail = {
     orderCode: record.orderCode,
     saleName: record.saleName,
     customerName: record.customerName,
@@ -294,6 +310,9 @@ function toDetail(record) {
     shipReceivedAt: record.shipReceivedAt,
     orderSignedAt: record.orderSignedAt
   };
+  // Chi luong ke toan/chung tu co truong nay (cot "Nguoi gui (ke toan)" cua tab KeToan_ChungTu).
+  if (record._flow === FLOW_ACCOUNTING) detail.accountingSender = record.accountingSender || '';
+  return detail;
 }
 
 /** 1 dong cua bang "Toan bo don hang": chi tiet + co so + trang thai hieu luc + canh bao. */
@@ -303,8 +322,7 @@ function toOrderRow(record, overrideEntry) {
     branch: record._branch,
     flow: record._flow || FLOW_DELIVERY,
     summary
-  }, warningFields(record, summary));
-}
+  }, warningFields(record, summary));}
 
 /**
  * Tra cuu 1 don theo ma (trim, khong phan biet hoa/thuong). Ma khong ton tai
@@ -384,6 +402,24 @@ function kiotOnlyRow(order) {
 }
 
 /**
+ * Don Kiot ung voi 1 ma trong tab KeToan_ChungTu. Cung ma DH co the ton tai o ca HN lan SG (xem tren) ma tab
+ * khong ghi co so: chi 1 ben co thi lay ben do; ca 2 ben thi uu tien don con Phieu tam (day la don can gui ke toan),
+ * van hoa nhau thi lay don dat gan day nhat, bang nhau lay HN. Khong co don nao -> undefined.
+ */
+function pickAccountingKiotOrder(code, kiotByKey) {
+  if (!normalizeCode(code)) return undefined;
+  const candidates = ['HN', 'SG'].map(branch => kiotByKey.get(kiotKey(branch, code))).filter(Boolean);
+  if (candidates.length <= 1) return candidates[0];
+  const pending = candidates.filter(order => order.kiotStatus === 'Phiếu tạm');
+  if (pending.length === 1) return pending[0];
+  const time = order => {
+    const ms = query.parseDateTimeValue(order.orderDate);
+    return ms === null ? -Infinity : ms;
+  };
+  return time(candidates[1]) > time(candidates[0]) ? candidates[1] : candidates[0];
+}
+
+/**
  * HAM THUAN. Gop dong sheet + don Kiot (moi trang thai) thanh danh sach dong cho bang.
  * `kiotResult` = ket qua readOrders() ({ok, orders}); khong ok/khong co thi chi con dong sheet (khong co du lieu Kiot).
  * Thu tu: dong sheet nhu cu, sau do don chi-Kiot (da sap moi nhat truoc boi kiotOrdersRepository).
@@ -396,12 +432,17 @@ function mergeRows({ records, overrides, kiotResult }) {
 
   const rows = [];
   records.forEach(record => {
-    const key = kiotKey(record._branch, record.orderCode);
-    const kiotOrder = normalizeCode(record.orderCode) ? kiotByKey.get(key) : undefined;
+    // Tab KeToan_ChungTu dung chung HN+SG (khong co cot co so) -> co so lay theo don Kiot cung ma (pickAccountingKiotOrder).
+    const isAccounting = record._flow === FLOW_ACCOUNTING;
+    const kiotOrder = isAccounting
+      ? pickAccountingKiotOrder(record.orderCode, kiotByKey)
+      : (normalizeCode(record.orderCode) ? kiotByKey.get(kiotKey(record._branch, record.orderCode)) : undefined);
+    const key = kiotKey(isAccounting ? (kiotOrder ? kiotOrder.branch : '') : record._branch, record.orderCode);
     // Doc duoc Kiot: bang CHI gom don co tren Kiot — dong sheet khong khop (khong co tren Kiot) bi bo; moi don
     // chi 1 dong (sheet trung ma thi lay dong dau). Kiot loi: giu dong sheet nhu cu (giao dien hien canh bao).
     if (kiotOk && (!kiotOrder || matched.has(key))) return;
     const row = toOrderRow(record, overrides.get(normalizeCode(record.orderCode)));
+    if (isAccounting) row.branch = kiotOrder ? kiotOrder.branch : ''; // Kiot loi: khong biet co so, chi hien o "Ca hai"
     if (kiotOrder) matched.add(key);
     Object.assign(row, {
       source: 'sheet',
@@ -590,5 +631,5 @@ module.exports = {
   STATUS, STATUS_LABEL, STATUS_RANK,
   computeStatus, computeEffectiveStatus, WARNING, WARNING_LABEL, computeWarnings, workingMsBetween, parseSheetTimeMs, findOrder, listAllOrders, queryOrders,
   exportOrders, overrideStatus, listHistory,
-  mergeRows
+  mergeRows, pickAccountingKiotOrder
 };

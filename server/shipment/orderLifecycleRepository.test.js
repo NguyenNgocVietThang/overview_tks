@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-function freshRepository({ hn, sg, northSouth, northSouthError, pickupHn, pickupSg, pickupError, historyRows, historyClientOverrides }) {
+function freshRepository({ hn, sg, northSouth, northSouthError, pickupHn, pickupSg, pickupError, accounting, accountingError, historyRows, historyClientOverrides }) {
   const clientPath = require.resolve('../sheets/orderLifecycleSheetsClient');
   const historyClientPath = require.resolve('../sheets/orderLifecycleHistoryClient');
   const configPath = require.resolve('../config');
@@ -17,13 +17,15 @@ function freshRepository({ hn, sg, northSouth, northSouthError, pickupHn, pickup
     [CONFIG.ORDER_LIFECYCLE_SHEET_SG]: sg || [],
     [CONFIG.ORDER_LIFECYCLE_SHEET_NORTH_SOUTH]: northSouth || [],
     [CONFIG.ORDER_LIFECYCLE_SHEET_PICKUP_HN]: pickupHn || [],
-    [CONFIG.ORDER_LIFECYCLE_SHEET_PICKUP_SG]: pickupSg || []
+    [CONFIG.ORDER_LIFECYCLE_SHEET_PICKUP_SG]: pickupSg || [],
+    [CONFIG.ORDER_LIFECYCLE_SHEET_ACCOUNTING]: accounting || []
   };
 
   const clientExports = {
     getValues: async sheetName => {
       if (northSouthError && sheetName === CONFIG.ORDER_LIFECYCLE_SHEET_NORTH_SOUTH) throw northSouthError;
       if (pickupError && sheetName === CONFIG.ORDER_LIFECYCLE_SHEET_PICKUP_HN) throw pickupError;
+      if (accountingError && sheetName === CONFIG.ORDER_LIFECYCLE_SHEET_ACCOUNTING) throw accountingError;
       return values[sheetName] || [];
     }
   };
@@ -363,6 +365,46 @@ test('readAll DonHang_HN/SG: bỏ qua cột "Ship nhận đơn" (luồng ship/kh
     assert.equal(row._flow, ctx.repo.FLOW_DELIVERY);
     assert.equal(row.shipReceivedAt, '');
   } finally {
+    ctx.restore();
+  }
+});
+
+test('readAll đọc tab KeToan_ChungTu: _flow ACCOUNTING, không có cơ sở, đọc theo TÊN header, bỏ dòng thiếu mã', async () => {
+  const ctx = freshRepository({
+    accounting: [
+      ['Thời gian gửi', 'Mã đơn hàng', 'Người gửi (kế toán)'],
+      ['14/10/2026 10:30', 'DH043419', 'Kế toán Lan'],
+      ['14/10/2026 11:00', '', 'Kế toán Hoa']
+    ]
+  });
+  try {
+    const rows = await ctx.repo.readAll();
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0]._flow, ctx.repo.FLOW_ACCOUNTING);
+    assert.equal(ctx.repo.FLOW_ACCOUNTING, 'ACCOUNTING'); // service khai báo lại đúng giá trị này
+    assert.equal(rows[0]._branch, null);
+    assert.equal(rows[0].orderCode, 'DH043419');
+    assert.equal(rows[0].accountingSender, 'Kế toán Lan');
+    assert.equal(rows[0].saleSentAt, '14/10/2026 10:30');
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('readAll: tab KeToan_ChungTu lỗi -> fail-soft, các tab khác vẫn đọc', async () => {
+  const ctx = freshRepository({
+    hn: [HEADERS, ['HD001', '', '', '01/09/2026', '', '', '', '', '', '', '']],
+    accountingError: new Error("Unable to parse range: 'KeToan_ChungTu'")
+  });
+  const realError = console.error;
+  const logged = [];
+  console.error = line => logged.push(String(line));
+  try {
+    const rows = await ctx.repo.readAll();
+    assert.deepEqual(rows.map(r => r.orderCode), ['HD001']);
+    assert.ok(logged.some(line => line.includes('KeToan_ChungTu')));
+  } finally {
+    console.error = realError;
     ctx.restore();
   }
 });

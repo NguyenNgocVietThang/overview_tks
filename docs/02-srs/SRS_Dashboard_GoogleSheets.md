@@ -402,7 +402,7 @@ Tab cấp 2 `/reports/#marketing`; nguồn và nghiệm thu tại [marketing-rep
 
 | **Mã** | **Yêu cầu chi tiết** | **Mức ưu tiên** | **Trạng thái** |
 |---|---|---|---|
-| FR-19.1 | Lịch làm việc theo ngày và nhân viên lưu trong `hr_leave_work_schedules` (migration `0038`); giờ bắt đầu ca làm việc mặc định toàn công ty là sáng **07:45** và chiều **12:30**. | Cao | Hoàn thành |
+| FR-19.1 | Lịch làm việc theo ngày và nhân viên lưu trong `hr_leave_work_schedules` (migration `0038`); giờ bắt đầu ca làm việc mặc định toàn công ty là sáng **07:45** và chiều **12:30**. Giao diện chỉnh lịch theo ngày (nút "Lịch làm việc") đã gỡ từ 2026-10-15. | Cao | Hoàn thành |
 | FR-19.2 | Hệ thống tính toán hạn nộp đơn tự động và gán nhãn `timing_status` (`Đúng hạn`, `Xin muộn`, `Vi phạm`) độc lập với trạng thái phê duyệt. Lịch sử các lần gửi đơn được lưu bất biến trong `hr_leave_submissions`. | Cao | Hoàn thành |
 | FR-19.3 | Cho phép mọi tài khoản nội bộ đang hoạt động (trừ Khách) dù chưa được liên kết với hồ sơ `hr_employees` vẫn có thể tự gửi đơn xin nghỉ phép qua web (migration `0042`); cơ sở lấy từ đơn và áp dụng giờ làm việc mặc định. | Cao | Hoàn thành |
 
@@ -591,7 +591,7 @@ Ngày hiển thị `dd/MM/yyyy HH:mm` hoặc `dd/MM/yyyy` theo Asia/Ho_Chi_Minh 
 ## 7.4. Google Sheets còn dùng
 
 - **Bảng Công nợ:** không còn dùng từ 13/10/2026 (tab Công nợ tính từ KiotViet + lịch TT trong Postgres, FR-11). Biến `DEBT_MANAGEMENT_SPREADSHEET_ID` và `sheets/debtManagementSheetsClient.js` còn trong mã nhưng không được gọi.
-- **Vòng đời đơn hàng:** `DonHang_HN`, `DonHang_SG`, `DonHang_MienNam` (đơn Bắc-Nam, tính như đơn HN) (mã đơn, các mốc gửi kế toán/giao/nhận/ký nhận…) và tab `Lịch sử cập nhật` do server ghi khi ghi đè.
+- **Vòng đời đơn hàng:** `DonHang_HN`, `DonHang_SG`, `DonHang_MienNam` (đơn Bắc-Nam, tính như đơn HN), `KeToan_ChungTu` (đơn kế toán/chứng từ dùng chung HN+SG: mã đơn, người gửi, thời gian gửi; có dòng = trạng thái Hoàn thành, cơ sở theo đơn Kiot cùng mã) (mã đơn, các mốc gửi kế toán/giao/nhận/ký nhận…) và tab `Lịch sử cập nhật` do server ghi khi ghi đè.
 - **Vị trí hàng:** `Vị trí HN`, `Vị trí SG` — bản đồ cột ở `docs/stock-locations-setup.md`.
 
 # 8. Ma trận truy vết yêu cầu (Traceability Matrix)

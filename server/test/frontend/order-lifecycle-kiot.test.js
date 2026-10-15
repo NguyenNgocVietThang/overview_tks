@@ -1068,6 +1068,12 @@ test('hộp chi tiết theo luồng: DELIVERY 6 node, NORTH_SOUTH 3 node, PICKUP
   assert.deepEqual(values, ['01/10/2026 08:00', 'Chưa có', 'Tuấn Anh', '02/10/2026 08:00']);
   assert.equal(detailStats(page.document)['Tiến trình'].value, '2/3 mốc', 'Kho la ten nguoi nen khong tinh la moc');
 
+  open('ACCOUNTING', { accountingSender: 'Kế toán Lan', saleSentAt: '14/10/2026 10:30' });
+  assert.deepEqual(stepLabels(page.document), ['Người gửi (kế toán)', 'Thời gian gửi']);
+  const accountingValues = [...page.document.querySelectorAll('#lcDetailBody .lc-step .lc-step-value')].map(el => el.textContent);
+  assert.deepEqual(accountingValues, ['Kế toán Lan', '14/10/2026 10:30']);
+  assert.equal(detailStats(page.document)['Tiến trình'].value, '1/1 mốc', 'luong ke toan: chi Thoi gian gui la moc');
+
   open(undefined);
   assert.equal(stepLabels(page.document).length, 6, 'thieu flow -> tam hien nhu DonHang_HN/SG');
   page.dom.window.close();

@@ -136,7 +136,9 @@ test('server reward rows retain global rank, eligibility, ratio and filtered tot
   assert.equal(rows[2][3], '—');
   assert.match(rows[0][6], /100\.000/);
   assert.match(rows[0][8], /1\.500\.000/);
-  assert.match(doc.getElementById('debtPenaltyNote').textContent, /HN.*SG/);
+  for (const id of ['debtPenaltyNote', 'debtRewardSummary', 'debtRewardCoverage']) assert.equal(doc.getElementById(id), null, id);
+  assert.ok(doc.querySelector('.debt-penalty-wrap.tks-table-scroll #debtPenaltyTable'), 'bảng phải nằm trực tiếp trong khung cuộn để tiêu đề sticky hoạt động');
+  assert.equal(doc.querySelectorAll('.debt-penalty-wrap .tks-table-scroll').length, 0);
   const search = dom.window.getTableSearchState('debtPenalty');
   search.query = 'Mai';
   dom.window.renderDebtPenaltyBoard();
@@ -182,8 +184,6 @@ test('reward board clearly renders funding, missing coverage and failed request 
   serve(dom, boardPayload({ status: 'finalized' }));
   await dom.window.loadDebtPenaltyBoard();
   const doc = dom.window.document;
-  assert.match(doc.getElementById('debtRewardSummary').textContent, /3\.000\.000.*2\.980\.000/);
-  assert.match(doc.getElementById('debtRewardCoverage').textContent, /02\/10/);
   assert.match(doc.getElementById('debtRewardStatus').textContent, /Đã chốt/);
   dom.window.fetch = async () => ({ ok: false, status: 503 });
   await dom.window.loadDebtPenaltyBoard();
@@ -293,10 +293,6 @@ test('open month shows daily provisional reward amounts and distinguishes offici
   await dom.window.loadDebtPenaltyBoard();
   const doc = dom.window.document;
   assert.equal(doc.getElementById('debtRewardStatus').textContent, 'Thưởng tạm tính');
-  assert.match(doc.getElementById('debtRewardSummary').textContent, /Thưởng tạm tính, sẽ chốt chính thức vào cuối tháng/);
-  assert.match(doc.getElementById('debtRewardSummary').textContent, /Tổng thưởng tạm tính/);
-  assert.doesNotMatch(doc.getElementById('debtRewardSummary').textContent, /Đã phân bổ/);
-  assert.match(doc.getElementById('debtRewardSummary').textContent, /3\.000\.000.*2\.980\.000/);
   assert.equal(doc.querySelector('#debtPenaltyTable th[data-column-key="tien-thuong"] .sort-button > span').textContent, 'Thưởng tạm tính');
   assert.equal(doc.querySelector('#debtPenaltyRows tr[data-sale="Lan"]').cells[8].textContent.trim(), '1.500.000');
   assert.equal(doc.querySelector('#debtPenaltyFoot tr').cells[8].textContent.trim(), '1.500.000');
@@ -313,7 +309,6 @@ test('open month shows daily provisional reward amounts and distinguishes offici
   await dom.window.loadDebtPenaltyBoard();
   assert.equal(doc.getElementById('debtRewardStatus').textContent, 'Đã chốt');
   assert.equal(doc.querySelector('#debtPenaltyTable th[data-column-key="tien-thuong"] .sort-button > span').textContent, 'Tiền thưởng');
-  assert.doesNotMatch(doc.getElementById('debtRewardSummary').textContent, /Thưởng tạm tính/);
   assert.equal(doc.querySelector('#debtPenaltyRows tr[data-sale="Lan"]').cells[8].textContent.trim(), '1.500.000');
   dom.window.close();
 });
@@ -323,6 +318,5 @@ test('board keeps last finalized penalty date distinct from currently open cycle
   serve(dom, boardPayload({ lastPenaltyDate: '2026-10-13', openCycleDate: '2026-10-14' }));
   await dom.window.loadDebtPenaltyBoard();
   assert.equal(dom.window.buildDebtPenaltyRows().lastDate, '2026-10-13');
-  assert.match(dom.window.document.getElementById('debtPenaltyNote').textContent, /Tiền phạt cộng dồn các ngày đã chốt trong tháng/);
   dom.window.close();
 });

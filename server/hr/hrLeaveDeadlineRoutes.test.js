@@ -11,6 +11,6 @@ test('preview and resubmit delegate trusted identity and history hides unrelated
 });
 test('schedule GET/PUT require fresh employee approval scope before reading or updating',async()=>{
  let writes=0,reads=0;const app=createHrLeaveRoutes({schedules:{getEmployee:async()=>({id:'2',branch:'saigon',bo_phan:'SALE'}),getSchedule:async()=>{reads++;},setSchedule:async()=>{writes++;}},authorization:{authorizeEmployee:async()=>{throw Object.assign(Error('forbidden'),{statusCode:403});}}});
- for(const method of ['get','put']){const response=res();await handler(app,method,'/api/hr/leave-work-schedules/:employeeId')({user:{id:'m'},params:{employeeId:'2'},query:{date:'2030-01-01'},body:{date:'2030-01-01',morningStart:'08:00',afternoonStart:null}},response);assert.equal(response.code,403);}
+ for(const method of ['get']){const response=res();await handler(app,method,'/api/hr/leave-work-schedules/:employeeId')({user:{id:'m'},params:{employeeId:'2'},query:{date:'2030-01-01'},body:{date:'2030-01-01',morningStart:'08:00',afternoonStart:null}},response);assert.equal(response.code,403);}
  assert.equal(writes,0);assert.equal(reads,0);
 });

@@ -30655,7 +30655,7 @@
       "file_type": "code",
       "norm_label": "createdebtrewardservice()",
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L38"
+      "source_location": "L52"
     },
     {
       "id": "server_debtschedule_debtrewardservice_createdebtrewardservice_buildmonth",
@@ -30667,7 +30667,7 @@
       "file_type": "code",
       "norm_label": "buildmonth()",
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L93"
+      "source_location": "L107"
     },
     {
       "id": "server_debtschedule_debtrewardservice_createdebtrewardservice_clearscores",
@@ -30679,7 +30679,7 @@
       "file_type": "code",
       "norm_label": "clearscores()",
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L40"
+      "source_location": "L54"
     },
     {
       "id": "server_debtschedule_debtrewardservice_createdebtrewardservice_finalizemonth",
@@ -30691,7 +30691,7 @@
       "file_type": "code",
       "norm_label": "finalizemonth()",
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L190"
+      "source_location": "L204"
     },
     {
       "id": "server_debtschedule_debtrewardservice_createdebtrewardservice_finalizemonthonce",
@@ -30703,7 +30703,7 @@
       "file_type": "code",
       "norm_label": "finalizemonthonce()",
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L169"
+      "source_location": "L183"
     },
     {
       "id": "server_debtschedule_debtrewardservice_createdebtrewardservice_finalizependingmonths",
@@ -30715,7 +30715,7 @@
       "file_type": "code",
       "norm_label": "finalizependingmonths()",
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L197"
+      "source_location": "L211"
     },
     {
       "id": "server_debtschedule_debtrewardservice_createdebtrewardservice_loadscores",
@@ -30727,7 +30727,7 @@
       "file_type": "code",
       "norm_label": "loadscores()",
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L42"
+      "source_location": "L56"
     },
     {
       "id": "server_debtschedule_debtrewardservice_createdebtrewardservice_readboard",
@@ -30739,7 +30739,7 @@
       "file_type": "code",
       "norm_label": "readboard()",
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L149"
+      "source_location": "L163"
     },
     {
       "id": "server_debtschedule_debtrewardservice_error",
@@ -30763,7 +30763,7 @@
       "file_type": "code",
       "norm_label": "getdebtrewardservice()",
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L224"
+      "source_location": "L238"
     },
     {
       "id": "server_debtschedule_debtrewardservice_test_setup",
@@ -81915,6 +81915,18 @@
       "type": "external"
     },
     {
+      "id": "server_debtschedule_debtrewardrules_rule_version",
+      "label": "server_debtschedule_debtrewardrules_rule_version",
+      "_origin": "semantic",
+      "community": 54,
+      "community_name": "debtRewardService.js",
+      "external": true,
+      "file_type": "concept",
+      "norm_label": "server_debtschedule_debtrewardrules_rule_version",
+      "source_file": "",
+      "type": "external"
+    },
+    {
       "id": "server_dashboard_stockoutcheck_stockouteventloader_stale_sync_threshold_ms",
       "label": "server_dashboard_stockoutcheck_stockouteventloader_stale_sync_threshold_ms",
       "_origin": "semantic",
@@ -81987,6 +81999,18 @@
       "type": "external"
     },
     {
+      "id": "ref_node_events",
+      "label": "ref_node_events",
+      "_origin": "semantic",
+      "community": 76,
+      "community_name": "syncDriver.js",
+      "external": true,
+      "file_type": "concept",
+      "norm_label": "ref_node_events",
+      "source_file": "",
+      "type": "external"
+    },
+    {
       "id": "server_auth_userrepository_ishardcodedadmin",
       "label": "server_auth_userrepository_ishardcodedadmin",
       "_origin": "semantic",
@@ -82019,28 +82043,6 @@
       "external": true,
       "file_type": "concept",
       "norm_label": "server_auth_authmiddleware_auth_cookie_name",
-      "source_file": "",
-      "type": "external"
-    },
-    {
-      "id": "server_debtschedule_debtrewardrules_rule_version",
-      "label": "server_debtschedule_debtrewardrules_rule_version",
-      "community": 54,
-      "community_name": "debtRewardService.js",
-      "external": true,
-      "file_type": "concept",
-      "norm_label": "server_debtschedule_debtrewardrules_rule_version",
-      "source_file": "",
-      "type": "external"
-    },
-    {
-      "id": "ref_node_events",
-      "label": "ref_node_events",
-      "community": 76,
-      "community_name": "syncDriver.js",
-      "external": true,
-      "file_type": "concept",
-      "norm_label": "ref_node_events",
       "source_file": "",
       "type": "external"
     }
@@ -94012,90 +94014,6 @@
     },
     {
       "source": "server_debtschedule_debtrewardservice_createdebtrewardservice_buildmonth",
-      "target": "server_debtschedule_debtrewardservice_error",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L110",
-      "weight": 1.0
-    },
-    {
-      "source": "server_debtschedule_debtrewardservice_createdebtrewardservice_buildmonth",
-      "target": "server_debtschedule_debtschedulerules_buildcustomerrow",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L118",
-      "weight": 1.0
-    },
-    {
-      "source": "server_debtschedule_debtrewardservice_createdebtrewardservice_buildmonth",
-      "target": "server_kiotvietsync_vntime_vndatekey",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L119",
-      "weight": 1.0
-    },
-    {
-      "source": "server_debtschedule_debtrewardservice_createdebtrewardservice_buildmonth",
-      "target": "server_debtschedule_debtrewardrules_salekey",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L121",
-      "weight": 1.0
-    },
-    {
-      "source": "server_debtschedule_debtrewardservice_createdebtrewardservice_buildmonth",
-      "target": "server_debtschedule_debtrewardrules_saleof",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L122",
-      "weight": 1.0
-    },
-    {
-      "source": "server_debtschedule_debtrewardservice_createdebtrewardservice_buildmonth",
-      "target": "server_kiotvietsync_vntime_adddaystokey",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L131",
-      "weight": 1.0
-    },
-    {
-      "source": "server_debtschedule_debtrewardservice_createdebtrewardservice_buildmonth",
-      "target": "server_debtschedule_debtrewardrules_buildrewardboard",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L135",
-      "weight": 1.0
-    },
-    {
-      "source": "server_debtschedule_debtrewardservice_createdebtrewardservice_buildmonth",
       "target": "server_businessreport_businessmonths_addmonths",
       "relation": "calls",
       "_origin": "ast",
@@ -94103,7 +94021,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L95",
+      "source_location": "L109",
       "weight": 1.0
     },
     {
@@ -94115,7 +94033,91 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L97",
+      "source_location": "L111",
+      "weight": 1.0
+    },
+    {
+      "source": "server_debtschedule_debtrewardservice_createdebtrewardservice_buildmonth",
+      "target": "server_debtschedule_debtrewardservice_error",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "server/debtSchedule/debtRewardService.js",
+      "source_location": "L124",
+      "weight": 1.0
+    },
+    {
+      "source": "server_debtschedule_debtrewardservice_createdebtrewardservice_buildmonth",
+      "target": "server_debtschedule_debtschedulerules_buildcustomerrow",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "server/debtSchedule/debtRewardService.js",
+      "source_location": "L132",
+      "weight": 1.0
+    },
+    {
+      "source": "server_debtschedule_debtrewardservice_createdebtrewardservice_buildmonth",
+      "target": "server_kiotvietsync_vntime_vndatekey",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "server/debtSchedule/debtRewardService.js",
+      "source_location": "L133",
+      "weight": 1.0
+    },
+    {
+      "source": "server_debtschedule_debtrewardservice_createdebtrewardservice_buildmonth",
+      "target": "server_debtschedule_debtrewardrules_salekey",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "server/debtSchedule/debtRewardService.js",
+      "source_location": "L135",
+      "weight": 1.0
+    },
+    {
+      "source": "server_debtschedule_debtrewardservice_createdebtrewardservice_buildmonth",
+      "target": "server_debtschedule_debtrewardrules_saleof",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "server/debtSchedule/debtRewardService.js",
+      "source_location": "L136",
+      "weight": 1.0
+    },
+    {
+      "source": "server_debtschedule_debtrewardservice_createdebtrewardservice_buildmonth",
+      "target": "server_kiotvietsync_vntime_adddaystokey",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "server/debtSchedule/debtRewardService.js",
+      "source_location": "L145",
+      "weight": 1.0
+    },
+    {
+      "source": "server_debtschedule_debtrewardservice_createdebtrewardservice_buildmonth",
+      "target": "server_debtschedule_debtrewardrules_buildrewardboard",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "server/debtSchedule/debtRewardService.js",
+      "source_location": "L149",
       "weight": 1.0
     },
     {
@@ -94127,7 +94129,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L192",
+      "source_location": "L206",
       "weight": 1.0
     },
     {
@@ -94139,7 +94141,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L178",
+      "source_location": "L192",
       "weight": 1.0
     },
     {
@@ -94151,7 +94153,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L179",
+      "source_location": "L193",
       "weight": 1.0
     },
     {
@@ -94163,7 +94165,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L180",
+      "source_location": "L194",
       "weight": 1.0
     },
     {
@@ -94175,7 +94177,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L200",
+      "source_location": "L214",
       "weight": 1.0
     },
     {
@@ -94187,7 +94189,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L201",
+      "source_location": "L215",
       "weight": 1.0
     },
     {
@@ -94199,7 +94201,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L211",
+      "source_location": "L225",
       "weight": 1.0
     },
     {
@@ -94211,7 +94213,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L46",
+      "source_location": "L60",
       "weight": 1.0
     },
     {
@@ -94223,7 +94225,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L48",
+      "source_location": "L62",
       "weight": 1.0
     },
     {
@@ -94235,7 +94237,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L56",
+      "source_location": "L70",
       "weight": 1.0
     },
     {
@@ -94247,7 +94249,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L72",
+      "source_location": "L86",
       "weight": 1.0
     },
     {
@@ -94259,7 +94261,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L73",
+      "source_location": "L87",
       "weight": 1.0
     },
     {
@@ -94271,7 +94273,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L78",
+      "source_location": "L92",
       "weight": 1.0
     },
     {
@@ -94283,7 +94285,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L151",
+      "source_location": "L165",
       "weight": 1.0
     },
     {
@@ -94295,7 +94297,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L162",
+      "source_location": "L176",
       "weight": 1.0
     },
     {
@@ -94307,7 +94309,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L163",
+      "source_location": "L177",
       "weight": 1.0
     },
     {
@@ -94319,7 +94321,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L225",
+      "source_location": "L239",
       "weight": 1.0
     },
     {
@@ -190746,13 +190748,24 @@
     },
     {
       "source": "server_debtschedule_debtrewardservice_createdebtrewardservice",
+      "target": "server_debtschedule_debtrewardservice_createdebtrewardservice_buildmonth",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "server/debtSchedule/debtRewardService.js",
+      "source_location": "L107",
+      "weight": 1.0
+    },
+    {
+      "source": "server_debtschedule_debtrewardservice_createdebtrewardservice",
       "target": "server_debtschedule_debtrewardservice_createdebtrewardservice_finalizemonthonce",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L169",
+      "source_location": "L183",
       "weight": 1.0
     },
     {
@@ -190763,7 +190776,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L190",
+      "source_location": "L204",
       "weight": 1.0
     },
     {
@@ -190774,18 +190787,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L42",
-      "weight": 1.0
-    },
-    {
-      "source": "server_debtschedule_debtrewardservice_createdebtrewardservice",
-      "target": "server_debtschedule_debtrewardservice_createdebtrewardservice_buildmonth",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L93",
+      "source_location": "L56",
       "weight": 1.0
     },
     {
@@ -234205,7 +234207,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L228",
+      "source_location": "L242",
       "weight": 1.0
     },
     {
@@ -234217,7 +234219,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L228",
+      "source_location": "L242",
       "weight": 1.0
     },
     {
@@ -234229,7 +234231,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L228",
+      "source_location": "L242",
       "weight": 1.0
     },
     {
@@ -234241,7 +234243,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L220",
+      "source_location": "L234",
       "weight": 1.0
     },
     {
@@ -234253,7 +234255,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L220",
+      "source_location": "L234",
       "weight": 1.0
     },
     {
@@ -234265,7 +234267,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "server/debtSchedule/debtRewardService.js",
-      "source_location": "L220",
+      "source_location": "L234",
       "weight": 1.0
     },
     {
@@ -244841,5 +244843,5 @@
       "source_file": "docs/04-planning/2026-09-14-phase2-plan-supabase-kiotviet-sync.md"
     }
   ],
-  "built_at_commit": "7c08be180d044fba9b34fadd7236e5baece455a8"
+  "built_at_commit": "560352c1d1315fea18cb09e6676f7c170feed5e2"
 }

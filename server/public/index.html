@@ -4268,9 +4268,6 @@
                   <select id="debtRewardMonth" onchange="loadDebtPenaltyBoard(this.value)"><option value="">Tháng đang mở</option></select>
                   <span class="tag" id="debtRewardStatus" role="status">Đang tải</span>
                 </div>
-                <p class="debt-penalty-note" id="debtPenaltyNote">Xếp hạng toàn công ty HN + SG · bấm 1 dòng để xem chi tiết</p>
-                <p class="debt-penalty-note" id="debtRewardSummary"></p>
-                <p class="debt-penalty-note" id="debtRewardCoverage" role="status"></p>
                 <details class="debt-reward-rules">
                   <summary>Cách tính điểm, xếp hạng và thưởng</summary>
                   <p>Chỉ tính khách hàng đang hoạt động trên KiotViet, kể cả khách đã hết nợ. Điểm mỗi khách = điểm số hóa đơn + điểm doanh thu thuần trong tháng; doanh thu thuần = doanh thu hóa đơn trừ trả hàng. Khách hàng ở HN và SG được tính riêng, sale cùng tên được cộng chung.</p>
@@ -4280,7 +4277,7 @@
                   <p>Quỹ thưởng = mức lớn hơn giữa 80% phạt phải nộp và 3.000.000₫. Công ty bù phần thiếu. Một nửa quỹ chia theo trọng số hạng 19 / 17 / 15 / 13 / 11 / 9 / 7 / 5 / 3 / 1; một nửa chia theo điểm của người nhận. Nhóm đồng hạng gộp trọng số các vị trí chiếm trong Top 10 rồi chia đều; vị trí ngoài 10 không thêm trọng số. Chuẩn hóa để chia hết quỹ; làm tròn đến đồng.</p>
                   <p>Tiền phạt mỗi ngày được chốt lúc 14:59 cho chu kỳ trước, trước khi đặt lại chu kỳ lúc 15:00. Bảng tháng chỉ cộng các ngày đã chốt. Tiền thưởng được tạm tính mỗi ngày và chốt chính thức vào cuối tháng; tháng đã chốt giữ nguyên điểm, hạng, tiền phạt và thưởng lịch sử.</p>
                 </details>
-                <div class="debt-penalty-wrap">
+                <div class="debt-penalty-wrap tks-table-scroll">
                   <table class="fixed-table" id="debtPenaltyTable" data-table-key="dashboard-table-22">
                     <thead>
                       <tr>
@@ -9161,9 +9158,6 @@
       selector.value = selected;
       const status = document.getElementById('debtRewardStatus');
       status.textContent = board.loading ? 'Đang tải' : board.failed ? 'Không tải được' : board.status === 'finalized' ? 'Đã chốt' : board.loaded ? 'Thưởng tạm tính' : 'Đang tải';
-      document.getElementById('debtPenaltyNote').textContent = (selected ? 'Tháng ' + formatCycleMonth(selected) + ' · ' : '') +
-        'Tiền phạt cộng dồn các ngày đã chốt trong tháng; cùng khách bị phạt ở cả 2 cơ sở chỉ tính mức cao nhất · Xếp hạng toàn công ty HN + SG; lọc cơ sở không đổi hạng · bấm 1 dòng để xem chi tiết';
-      const summary = board.summary || {};
       const rewardFinalized = board.status === 'finalized';
       const rewardLabel = rewardFinalized ? 'Tiền thưởng' : 'Thưởng tạm tính';
       const rewardHeader = document.querySelector('#debtPenaltyTable th[data-column-key="tien-thuong"]');
@@ -9173,17 +9167,6 @@
         rewardHeaderButton.title = rewardHeaderButton.title.replace(/(?:Tiền thưởng|Thưởng tạm tính)$/, rewardLabel);
         rewardHeaderButton.setAttribute('aria-label', rewardHeaderButton.getAttribute('aria-label').replace(/(?:Tiền thưởng|Thưởng tạm tính)$/, rewardLabel));
       } else rewardHeader.textContent = rewardLabel;
-      document.getElementById('debtRewardSummary').textContent = board.loaded && !board.loading && !board.failed
-        ? (rewardFinalized ? '' : 'Thưởng tạm tính, sẽ chốt chính thức vào cuối tháng · ') + 'Quỹ thưởng toàn công ty: ' + fmtMoney(summary.pool) + ' · Công ty bù: ' + fmtMoney(summary.companyTopUp) +
-          ' · Quỹ từ phạt: ' + fmtMoney(summary.penaltyFund) + (rewardFinalized ? ' · Đã phân bổ: ' : ' · Tổng thưởng tạm tính: ') + fmtMoney(summary.allocatedReward) +
-          ' · ' + fmtNumber(summary.recipientCount) + ' người nhận'
-        : '';
-      const coverage = board.coverage || {};
-      const missing = Array.isArray(coverage.missingDays) ? coverage.missingDays : [];
-      document.getElementById('debtRewardCoverage').textContent = board.loaded && !board.loading && !board.failed
-        ? (coverage.complete ? 'Đủ bản chốt trong kỳ.' : 'Dữ liệu chưa đầy đủ' + (missing.length ? ': thiếu bản chốt ngày ' + missing.map(formatCycleDay).join(', ') : '.') ) +
-          (board.closedAt ? ' · Đã chốt lúc ' + new Date(board.closedAt).toLocaleString('vi-VN') : '')
-        : '';
       const searchState = getTableSearchState('debtPenalty');
       const config = TABLE_EXPLORER_CONFIGS.debtPenalty;
       state.tableRenderers.debtPenalty = renderDebtPenaltyBoard;

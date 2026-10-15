@@ -654,9 +654,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1792027961.4170537,
-    "seen": 1792028376.6209261,
-    "ast_hash": "8214b73037b7eea63497a219f4b169f3",
+    "mtime": 1792028548.8942993,
+    "seen": 1792028791.713742,
+    "ast_hash": "01735a5dcf5b7ed00362fff80ec65244",
     "semantic_hash": ""
   },
   "design-system/tks-dashboard/MASTER.md": {
@@ -666,15 +666,15 @@
     "semantic_hash": ""
   },
   "docs/01-brd/BRD_Dashboard_GoogleSheets.md": {
-    "mtime": 1792027981.6829324,
-    "seen": 1792028376.6209261,
-    "ast_hash": "8373a9b7713a40cb3d73b6a97185cf71",
+    "mtime": 1792028563.407974,
+    "seen": 1792028791.713742,
+    "ast_hash": "13298d7a24582730d6fae56b90390583",
     "semantic_hash": ""
   },
   "docs/02-srs/SRS_Dashboard_GoogleSheets.md": {
-    "mtime": 1792027981.6818285,
-    "seen": 1792028376.6209261,
-    "ast_hash": "1f83b5ac378463007314cf3d6da0b33d",
+    "mtime": 1792028564.1390214,
+    "seen": 1792028791.713742,
+    "ast_hash": "da2442fa9a965a4c8af59b75eecc94d3",
     "semantic_hash": ""
   },
   "docs/03-process/BPMN_Dashboard_GoogleSheets.md": {
@@ -684,9 +684,9 @@
     "semantic_hash": ""
   },
   "docs/04-planning/implementation_plan.md": {
-    "mtime": 1792027981.684218,
-    "seen": 1792028376.6209261,
-    "ast_hash": "eb35a953192d72e39415d5a8852c7470",
+    "mtime": 1792028554.5851448,
+    "seen": 1792028791.713742,
+    "ast_hash": "b3b68d1fce1cf0fd1435792d757cc711",
     "semantic_hash": ""
   },
   "docs/superpowers/plans/2026-08-13-dashboard-result-cache.md": {
@@ -786,9 +786,9 @@
     "semantic_hash": "58e700daf0c14819a97499bd94f6f2e1"
   },
   "server/README.md": {
-    "mtime": 1792027961.4210737,
-    "seen": 1792028376.6209261,
-    "ast_hash": "f5a8c58e28a0ae15a83d9c929ad56820",
+    "mtime": 1792028550.24272,
+    "seen": 1792028791.713742,
+    "ast_hash": "fe828f6f1713482ebdc16fbaca3846ee",
     "semantic_hash": ""
   },
   "server/kiotviet/API_ENDPOINTS.md": {
@@ -816,9 +816,9 @@
     "semantic_hash": ""
   },
   "server/public/index.html": {
-    "mtime": 1792027691.3903184,
-    "seen": 1792028376.6209261,
-    "ast_hash": "ce34354f5df25e70484f4e6772667782",
+    "mtime": 1792028490.1655734,
+    "seen": 1792028791.713742,
+    "ast_hash": "525c5db87b82822d20468117672ef682",
     "semantic_hash": ""
   },
   "server/public/login/index.html": {
@@ -1386,9 +1386,9 @@
     "semantic_hash": ""
   },
   "server/db/SCHEMA.md": {
-    "mtime": 1792027961.4339974,
-    "seen": 1792028376.6209261,
-    "ast_hash": "b56ae7269ec1cf7ed9ea46e4475c2e0f",
+    "mtime": 1792028562.6814167,
+    "seen": 1792028791.713742,
+    "ast_hash": "1659a20dd971882a226bab6550bbe33f",
     "semantic_hash": ""
   },
   "server/auth/appUsersRepository.js": {
@@ -3378,9 +3378,9 @@
     "semantic_hash": ""
   },
   "CURRENT.md": {
-    "mtime": 1792027961.40843,
-    "seen": 1792028376.6209261,
-    "ast_hash": "b0d4cdd5a0c6a60cd8636d0b7d0b8607",
+    "mtime": 1792028549.2700195,
+    "seen": 1792028791.713742,
+    "ast_hash": "18a7cd2690bd1bd6f9ce9b42b89e3c52",
     "semantic_hash": ""
   },
   "MEMORY.md": {
@@ -3714,9 +3714,9 @@
     "semantic_hash": ""
   },
   "server/debtSchedule/debtRewardRules.js": {
-    "mtime": 1792027666.149182,
-    "seen": 1792028376.6209261,
-    "ast_hash": "85a0bb87c688911fe9c0b58e3e4d0e56",
+    "mtime": 1792028489.947148,
+    "seen": 1792028791.713742,
+    "ast_hash": "36b15fb65ef7d728f9fecb2c1c290f14",
     "semantic_hash": ""
   },
   "server/debtSchedule/debtRewardRules.test.js": {
@@ -3726,15 +3726,15 @@
     "semantic_hash": ""
   },
   "server/debtSchedule/debtRewardService.js": {
-    "mtime": 1792027691.3798664,
-    "seen": 1792028376.6209261,
-    "ast_hash": "3b727136e0c12e1cd0a84a37b3124557",
+    "mtime": 1792028489.9032578,
+    "seen": 1792028791.713742,
+    "ast_hash": "75fb7c1dcb6dcb64d7de2ccc6c9e573c",
     "semantic_hash": ""
   },
   "server/debtSchedule/debtRewardService.test.js": {
-    "mtime": 1792027691.3798664,
-    "seen": 1792028376.6209261,
-    "ast_hash": "eeca20c6a4e7ccc2442c6186e29abca8",
+    "mtime": 1792028471.893682,
+    "seen": 1792028791.713742,
+    "ast_hash": "2969e74ac55e93a43c1bbe46c3f9793c",
     "semantic_hash": ""
   },
   "server/test/frontend/debt-reward-ui.test.js": {

@@ -87,6 +87,8 @@ const CONFIG = {
   // Khach/Ship lay hang tai kho (2026-10-12): tach khoi DonHang_HN/SG.
   ORDER_LIFECYCLE_SHEET_PICKUP_HN: 'Khách_HN',
   ORDER_LIFECYCLE_SHEET_PICKUP_SG: 'Khách_SG',
+  // Don ke toan/chung tu (2026-10-15): 1 tab DUNG CHUNG HN+SG (khong co cot co so) — xem orderLifecycleRepository.
+  ORDER_LIFECYCLE_SHEET_ACCOUNTING: 'KeToan_ChungTu',
   ORDER_LIFECYCLE_SHEET_HISTORY: 'Lịch sử cập nhật',
 
   // ==========================================

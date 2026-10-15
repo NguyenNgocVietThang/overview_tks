@@ -129,25 +129,6 @@ test('unrelated self-only row cannot expose edit or history while own history sh
     assert.match(text,/06\/10\/2026 01:30/);
   }finally{d.window.close();
   }});
-test('manager schedules fetch and save nullable hours for selected employee date',async()=>{const d=page();
-  const w=d.window;
-  try{let save;
-    w.fetch=async(url,o)=>{if(url==='/api/hr/employees')return response({employees:[{rowIndex:42,hoTen:'Nhân sự',boPhan:'Kho',coSo:'Hà Nội'}]});
-      if(o?.method==='PUT'){save={url,body:JSON.parse(o.body)};
-        return response({schedule:{version:2}});
-      }return response({schedule:{morningStart:'08:00',afternoonStart:null,version:1}});
-    };
-    await w.openLeaveSchedule();
-    w.document.getElementById('lsEmployee').value='42';
-    w.document.getElementById('lsDate').value='2026-10-06';
-    await w.loadLeaveSchedule();
-    assert.equal(w.document.getElementById('lsMorning').value,'08:00');
-    assert.equal(w.document.getElementById('lsAfternoon').value,'');
-    await w.saveLeaveSchedule(event);
-    assert.equal(save.url,'/api/hr/leave-work-schedules/42');
-    assert.deepEqual(save.body,{date:'2026-10-06',morningStart:'08:00',afternoonStart:null});
-  }finally{d.window.close();
-  }});
 test('manual absence uses linked employee ID and actual deadline without requiring schedule read permission',async()=>{const d=page(['hr.leave.absence.manage','hr.employees']);
   const w=d.window;
   try{let sent;
@@ -167,45 +148,6 @@ test('manual absence uses linked employee ID and actual deadline without requiri
     assert.equal(w.document.getElementById('manualAbsenceModal').hidden,false);
   }finally{d.window.close();
   }});
-
-test('schedule save waits for loaded selection, failed load cannot clear persisted hours, reopening resets identity', async () => {
-  const dom = page();
-  const w = dom.window;
-  try {
-    const pending = [];
-    const writes = [];
-    w.fetch = async (url, options) => {
-      if (url === '/api/hr/employees') return response({ employees: [{ id: 42, hoTen: 'A' }] });
-      if (options?.method === 'PUT') { writes.push(JSON.parse(options.body));
-        return response({ schedule: { version: 2 } });
-      }
-      return new Promise(resolve => pending.push(resolve));
-    };
-    await w.openLeaveSchedule();
-    w.document.getElementById('lsEmployee').value = '42';
-    w.document.getElementById('lsDate').value = '2026-10-06';
-    const load = w.loadLeaveSchedule();
-    assert.equal(w.document.getElementById('lsSave').disabled, true);
-    await w.saveLeaveSchedule(event);
-    assert.equal(writes.length, 0);
-    pending[0](response({ error: 'Không có quyền' }, false, 403));
-    await load;
-    await w.saveLeaveSchedule(event);
-    assert.equal(writes.length, 0);
-    const retry = w.loadLeaveSchedule();
-    pending[1](response({ schedule: { morningStart: '08:00', afternoonStart: '13:00', version: 1 } }));
-    await retry;
-    w.document.getElementById('lsMorning').value = '';
-    w.document.getElementById('lsAfternoon').value = '';
-    await w.saveLeaveSchedule(event);
-    assert.deepEqual(writes, [{ date: '2026-10-06', morningStart: null, afternoonStart: null }]);
-    await w.openLeaveSchedule();
-    assert.equal(w.document.getElementById('lsEmployee').value, '');
-    assert.equal(w.document.getElementById('lsDate').value, '');
-    assert.equal(w.document.getElementById('lsSave').disabled, true);
-  } finally { dom.window.close();
-  }
-});
 
 test('leave boundary sorting is based on UTC calendar order without invented start hours', () => {
   const dom = page();

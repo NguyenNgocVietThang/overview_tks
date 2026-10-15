@@ -497,6 +497,7 @@
                 <select class="bulk-status-select" id="bulkStatusFilter" aria-label="Lọc theo trạng thái">
                   <option value="">Tất cả trạng thái</option>
                   <option value="NOT_SENT">Chưa gửi kế toán</option>
+                  <option value="COMPLETED">Hoàn thành (kế toán/chứng từ)</option>
                   <option value="SENT_TO_ACCOUNTANT">Đã gửi kế toán</option>
                   <option value="DELIVERING">Đang được giao</option>
                   <option value="SHIP_RECEIVED">Đã nhận (Tại kho)</option>
@@ -587,6 +588,7 @@
                 <select class="bulk-status-select" id="historyStatusFilter" aria-label="Lọc theo trạng thái">
                   <option value="">Tất cả trạng thái</option>
                   <option value="NOT_SENT">Đơn chưa gửi kế toán</option>
+                  <option value="COMPLETED">Hoàn thành</option>
                   <option value="SENT_TO_ACCOUNTANT">Đơn đã gửi kế toán</option>
                   <option value="DELIVERING">Đơn đang được giao</option>
                   <option value="DELIVERED">Đơn đã giao thành công</option>
@@ -714,6 +716,11 @@
         STEP_SALE_SENT, STEP_ACCOUNTANT_ORDER,
         { key: 'driverName', label: 'Kho' },
         { key: 'shipReceivedAt', label: 'Ship/Khách nhận đơn', milestone: true }
+      ],
+      // Kế toán/Chứng từ (tab KeToan_ChungTu): đã có dòng là Hoàn thành; chỉ có người gửi + thời gian gửi.
+      ACCOUNTING: [
+        { key: 'accountingSender', label: 'Người gửi (kế toán)' },
+        { key: 'saleSentAt', label: 'Thời gian gửi', milestone: true }
       ]
     };
     function stepFieldsFor(order){
@@ -729,6 +736,7 @@
       DELIVERED: 'badge-delivered',
       SHIP_RECEIVED: 'badge-ship-received',
       SIGNED: 'badge-signed',
+      COMPLETED: 'badge-signed',
       EXCEPTION: 'badge-exception',
       CANCELLED: 'badge-cancelled'
     };
@@ -747,6 +755,7 @@
     ];
     const STATUS_LABEL_BY_CODE = {};
     STATUS_LABEL_BY_CODE.NOT_SENT = 'Đơn chưa gửi kế toán';
+    STATUS_LABEL_BY_CODE.COMPLETED = 'Hoàn thành';
     STATUS_OPTIONS.forEach(function(opt){ STATUS_LABEL_BY_CODE[opt.code] = opt.label; });
     const BRANCH_LABEL = { HN: 'Hà Nội', SG: 'Sài Gòn' };
     // Quyen xem Khu B (toan bo don) / ghi de trang thai lay tu TKSNav.can(),
@@ -783,8 +792,8 @@
         return '<option value="' + escapeHtml(opt.code) + '"' + (opt.code === code ? ' selected' : '') + '>' + escapeHtml(opt.label) + '</option>';
       }).join('');
       // Don dang o NOT_SENT: giu 1 option an (khong chon lai duoc) de select hien dung trang thai hien tai.
-      if(code === 'NOT_SENT'){
-        options = '<option value="NOT_SENT" selected disabled hidden>' + escapeHtml(STATUS_LABEL_BY_CODE.NOT_SENT) + '</option>' + options;
+      if(code === 'NOT_SENT' || code === 'COMPLETED'){
+        options = '<option value="' + code + '" selected disabled hidden>' + escapeHtml(STATUS_LABEL_BY_CODE[code]) + '</option>' + options;
       }
       return '<select class="status-select ' + cls + '" data-order-code="' + escapeHtml(opts.orderCode) + '" ' +
         'data-prev-status="' + escapeHtml(code) + '" onchange="handleLifecycleStatusChange(this)" ' +

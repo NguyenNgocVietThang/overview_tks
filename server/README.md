@@ -162,7 +162,7 @@ Entity `suppliers` đã bỏ khỏi scheduler (migration `0026`); file `kiotviet
 
 Server **không còn đọc tab Trả NCC** từ Google Sheets HN/SG (đã chuyển sang upload Excel vào Postgres `supplier_return_imports`). Service account vẫn cần quyền:
 - **Viewer** trên workbook `DEBT_MANAGEMENT_SPREADSHEET_ID` (Công nợ HN/SG).
-- **Viewer** trên workbook `ORDER_LIFECYCLE_SPREADSHEET_ID` (tra cứu vòng đời đơn hàng — server đọc tab `DonHang_HN`, `DonHang_SG`, `DonHang_MienNam`, `Khách_HN`, `Khách_SG`; ghi tab `Lịch sử cập nhật` nên cần **Editor**).
+- **Viewer** trên workbook `ORDER_LIFECYCLE_SPREADSHEET_ID` (tra cứu vòng đời đơn hàng — server đọc tab `DonHang_HN`, `DonHang_SG`, `DonHang_MienNam`, `Khách_HN`, `Khách_SG`, `KeToan_ChungTu`; ghi tab `Lịch sử cập nhật` nên cần **Editor**).
 - **Viewer** trên workbook `STOCK_LOCATIONS_SPREADSHEET_ID` (Vị trí hàng HN/SG, chỉ đọc).
 - Workbook HR **không còn được đọc và không còn biến cấu hình** — danh sách nhân sự lấy từ Postgres `hr_employees`.
 

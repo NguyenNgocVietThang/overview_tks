@@ -6,6 +6,7 @@
 
 ---
 
+0. **Vòng đời đơn hàng: luồng thứ 6 Kế toán/Chứng từ (15/10/2026, chưa commit/deploy):** đọc tab `KeToan_ChungTu` (Mã đơn hàng / Người gửi (kế toán) / Thời gian gửi; dùng chung HN+SG; cấu hình `ORDER_LIFECYCLE_SHEET_ACCOUNTING`) trong cùng workbook, fail-soft. Mã có trong tab → trạng thái mới `COMPLETED` "Hoàn thành"; phiếu tạm Kiot chưa có trong tab nào vẫn "Đơn chưa gửi kế toán" (có sẵn). Cơ sở lấy từ đơn Kiot cùng mã (cùng mã ở HN và SG: ưu tiên Phiếu tạm rồi đơn đặt gần nhất); mã không có trên Kiot bị bỏ như các tab khác. Không cảnh báo, ghi đè thường không hạ Hoàn thành; mã đã ở tab giao hàng khác thì không nhân đôi (dòng trước thắng). Hộp chi tiết 2 node; bộ lọc trạng thái thêm "Hoàn thành". Không migration, deploy chỉ cần restart. Việc cần làm khi deploy: service account phải đọc được tab `KeToan_ChungTu`; nhờ kế toán xác nhận mã trong tab không trùng tab khác. `npm test` 2.402 đạt, 3 skipped, 0 lỗi.
 0. **Công nợ chỉ tính khách hoạt động (15/10/2026, main):** đồng bộ chuẩn hóa `customers.raw.isActive`; nhận `removedIds` từ KiotViet, đối soát toàn bộ lần đầu/mỗi ngày và chỉ đánh dấu khách vắng mặt sau khi kiểm tra đủ dữ liệu. Không xóa hồ sơ hoặc sổ phạt. Bộ lọc áp trước khi lấy khách trùng mã, loại doanh số khách ngừng/không còn hồ sơ khỏi điểm thưởng; bản chốt công nợ cũ đang xem cũng lọc trạng thái hiện tại. Đồng bộ xong xóa cache + thông báo trình duyệt; cache dự phòng 60 giây. Quy tắc thưởng mới `debt-reward-2026-10-v3-active-customers`; kết quả thưởng tháng đã chốt vẫn giữ nguyên. Đã đối soát DB thật: 8.089 khách hoạt động, 46 khách bị loại (HN 34, SG 12), không còn khách không hoạt động trong báo cáo công nợ. Chưa push/deploy.
 
 ## 1. Tổng quan trạng thái hiện tại (Current Status)
@@ -120,6 +121,7 @@
 
 15. **Hạn đăng ký nghỉ phép & Lịch làm việc (Migration `0038`):**
     - Snapshot thời gian tại DB, giờ bắt đầu ca cố định 07:45 / 12:30, gán nhãn Đúng hạn / Xin muộn / Vi phạm.
+    - 2026-10-15: đã gỡ nút/hộp "Lịch làm việc" (cấu hình giờ ca theo ngày) khỏi tab Nghỉ phép và API `PUT /api/hr/leave-work-schedules/:id`; giữ `GET` (xem trước khi ghi nhận vắng) và giờ mặc định 07:45 / 12:30.
 
 16. **Sổ quỹ toàn công ty (Migration `0033`, `0034`, `0035`):**
     - Hiển thị số dư theo 5 nhóm tài khoản (`account_balance_groups`), phân tách cột ngân hàng riêng.
