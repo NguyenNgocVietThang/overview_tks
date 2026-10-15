@@ -122,6 +122,7 @@ router.post('/api/debt-management/refresh', requireAuth, requireFeature('reports
       syncWarning = 'Không đồng bộ được khách từ KiotViet, đã tính với nợ hiện tại đang có.';
       console.error('[DebtManagement] Dong bo khach truoc khi tinh lai loi:', error && error.message);
     }
+    await require('../debtSchedule/debtPenaltyLedger').finalizePenaltyBeforeReset(require('../db/pool').getPool(),{beforeReset:true});
     const result = await refreshDebtCycle(require('../db/pool').getPool(), {
       userName: (req.user && (req.user.hoTen || req.user.username)) || ''
     });

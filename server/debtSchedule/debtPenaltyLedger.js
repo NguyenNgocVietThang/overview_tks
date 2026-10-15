@@ -1,9 +1,9 @@
 'use strict';
 
 // So phat cong no theo ngay (migration 0051). Chu ky DANG MO (ban chot 15:00 moi nhat) van sua
-// duoc tien phat / trang thai nen chi CHOT SO khi da co ban chot ke tiep: moi chu ky cu duoc ghi
+// duoc tien phat / trang thai toi 14:59 hom sau, CHOT SO truoc reset 15:00: moi chu ky cu duoc ghi
 // vao debt_penalty_daily (giu vinh vien, dong bang ten sale) roi danh dau o debt_penalty_cycles.
-// Bang xep hang phat sale cua tab Cong no doc so nay (+ chu ky dang mo tinh o giao dien).
+// Bang tong chi cong cac ngay da chot, khong cong tien phat cua chu ky dang mo.
 //
 // Tien phat tung khach tinh bang CHINH buildCustomerRow cua man hinh (so Quan ly dien tay >
 // "Da xu ly" = 0 > muc goi y theo quy che) nen so chot khop so da thay tren bang khach.
@@ -14,7 +14,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 const { getPool } = require('../db/pool');
 const { buildCustomerRow } = require('./debtScheduleRules');
-const { vnDateKey } = require('../kiotvietSync/vnTime');
+const { vnDateKey, vnMinutesOfDay, addDaysToKey } = require('../kiotvietSync/vnTime');
 const { createDebtScheduleRepository } = require('./debtScheduleRepository');
 
 const BRANCH_CODES = Object.freeze(['hanoi', 'saigon']);
@@ -55,10 +55,18 @@ async function penalizedCustomers(repository, cycleDate) {
  * (chay lai nhieu lan van ra cung ket qua).
  */
 async function finalizePenaltyCycle(pool, cycleDate, { repository = createDebtScheduleRepository({ pool }) } = {}) {
-  const customers = await penalizedCustomers(repository, cycleDate);
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    // Serialize with edits (which take FOR SHARE on the run) before reading amounts.
+    await client.query('SELECT cycle_date FROM debt_cycle_runs WHERE cycle_date=$1::date FOR UPDATE',[cycleDate]);
+    const sealed=await client.query('SELECT 1 FROM debt_penalty_cycles WHERE cycle_date=$1::date',[cycleDate]);
+    if(sealed.rows.length) {
+      const existing=await client.query('SELECT COUNT(*)::int AS customers, COALESCE(SUM(amount),0) AS amount FROM debt_penalty_daily WHERE cycle_date=$1::date',[cycleDate]);
+      await client.query('COMMIT');
+      return {cycleDate,customers:existing.rows[0].customers,amount:Number(existing.rows[0].amount)};
+    }
+    const customers = await penalizedCustomers(repository, cycleDate);
     await client.query('DELETE FROM debt_penalty_daily WHERE cycle_date = $1::date', [cycleDate]);
     if (customers.length) {
       await client.query(INSERT_SQL, [
@@ -90,6 +98,20 @@ async function finalizePenaltyCycle(pool, cycleDate, { repository = createDebtSc
   }
 }
 
+// 14:59 VN closes the cycle dated yesterday; missed runs catch up before 15:00 reset.
+async function finalizePenaltyBeforeReset(pool, {now=new Date(),repository=createDebtScheduleRepository({pool}),beforeReset=false}={}) {
+  const cycle=await repository.readCurrentCycle();
+  if(!cycle) return null;
+  const today=vnDateKey(now);
+  const minute=vnMinutesOfDay(now);
+  const target=minute>=900?today:addDaysToKey(today,-1);
+  const advancing=beforeReset && cycle.cycleDate<target;
+  if(cycle.cycleDate>=today || (!advancing && minute<899)) return null;
+  const sealed=await pool.query('SELECT 1 FROM debt_penalty_cycles WHERE cycle_date=$1::date',[cycle.cycleDate]);
+  if(sealed.rows.length) return null;
+  return finalizePenaltyCycle(pool,cycle.cycleDate,{repository});
+}
+
 /** Chot so moi chu ky cu con thieu (khong gom chu ky dang mo). Loi 1 chu ky chi log, khong chan cac chu ky sau. */
 async function finalizePendingPenaltyCycles(pool, { log = console.log, repository } = {}) {
   const { rows } = await pool.query(PENDING_SQL);
@@ -119,4 +141,4 @@ if (require.main === module) {
   }).finally(() => getPool().end && getPool().end());
 }
 
-module.exports = { finalizePenaltyCycle, finalizePendingPenaltyCycles, __sql__: { PENDING_SQL, INSERT_SQL } };
+module.exports = { finalizePenaltyCycle, finalizePendingPenaltyCycles, finalizePenaltyBeforeReset, __sql__: { PENDING_SQL, INSERT_SQL } };

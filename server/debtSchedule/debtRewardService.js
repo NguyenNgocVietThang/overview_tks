@@ -94,7 +94,7 @@ function createDebtRewardService({ pool = getPool(), repository = createDebtSche
       cycleDate: row.cycle_date, amount: Number(row.amount), customers: row.customers, live: false }));
     const open = !closing && cycle && cycle.cycleDate.slice(0, 7) === month;
     const known = new Set(cycleDays.rows.map(row => row.cycle_date));
-    const lastDate = open ? cycle.cycleDate : [...known].sort().at(-1) || null;
+    const lastDate = [...known].sort().at(-1) || null;
     let report = null;
     if (open) {
       report = await repository.readReport(BRANCHES);
@@ -104,8 +104,7 @@ function createDebtRewardService({ pool = getPool(), repository = createDebtSche
       catch (e) { if (e.statusCode !== 404) throw e; }
     }
     if (report && report.cycle) {
-      // Ignore any duplicate finalized entry for the still-editable cycle.
-      if (open) for (let i = penalties.length - 1; i >= 0; i--) if (penalties[i].cycleDate === cycle.cycleDate) penalties.splice(i, 1);
+      // Debt metrics may be live; the monthly penalty total only uses sealed daily entries.
       for (const source of report.rows) {
         const customer = buildCustomerRow(source, { cycleDate: report.cycle.cycleDate,
           anchorDate: report.cycle.refreshedAt ? vnDateKey(report.cycle.refreshedAt) : undefined,
@@ -118,16 +117,13 @@ function createDebtRewardService({ pool = getPool(), repository = createDebtSche
         entry.totalOverdue = (entry.totalOverdue || 0) + customer.overdueDebt;
         entry.totalAverage = (entry.totalAverage || 0) + Math.max(0, customer.averageSales || 0);
         entry.actionCount = (entry.actionCount || 0) + Number(customer.needsAction);
-        if (open && customer.penaltyAmount > 0) penalties.push({ sale: customer.sale, branch: customer.branchCode,
-          cycleDate: cycle.cycleDate, amount: customer.penaltyAmount, customers: 1, live: true });
       }
     }
-    if (open) known.add(cycle.cycleDate);
-    const to = open ? cycle.cycleDate : addDaysToKey(end, -1);
+    const to = open ? (known.has(cycle.cycleDate) ? cycle.cycleDate : addDaysToKey(cycle.cycleDate,-1)) : addDaysToKey(end, -1);
     const missingDays = [];
     for (let day = start; day <= to; day = addDaysToKey(day, 1)) if (!known.has(day)) missingDays.push(day);
     const from = [...known].sort()[0] || null;
-    const board = buildRewardBoard({ sales: entries, penalties, lastDate });
+    const board = buildRewardBoard({ sales: entries, penalties, lastDate, allocateRewards:closing });
     for (const row of board.rows) {
       row.debtMetricsAvailable = Boolean(report && report.cycle);
       if (!row.debtMetricsAvailable) {
@@ -135,7 +131,7 @@ function createDebtRewardService({ pool = getPool(), repository = createDebtSche
         row.totalCurrentDebt = row.totalOverdue = row.overdueRatio = row.actionCount = null;
       }
     }
-    return { month, openCycleDate: open ? cycle.cycleDate : null, status: 'provisional', closedAt: null, ruleVersion: RULE_VERSION,
+    return { month, openCycleDate: open ? cycle.cycleDate : null, lastPenaltyDate:lastDate, status: 'provisional', closedAt: null, ruleVersion: RULE_VERSION,
       ...board, coverage: { from, to, missingDays, complete: missingDays.length === 0 },
       days: penalties.filter(day => !day.live).map(day => ({ cycleDate: day.cycleDate, sale: day.sale,
         penalizedCustomers: day.customers, amount: day.amount, branch: day.branch })) };

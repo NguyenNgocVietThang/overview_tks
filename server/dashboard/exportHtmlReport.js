@@ -285,13 +285,15 @@ function createReportKit() {
   // hints (tuy chon): { labelKey, categoryKey } chi dinh cot nhan cho bieu do Top va cot phan loai
   // cho bieu do co cau/bo loc khi doan tu dong chon sai; cot khong co trong file thi bo qua.
   function planFor(columns, rows, summaryKeys, hints) {
-    var metrics = metricColumns(columns);
+    var excludedMetricKeys = hints && hints.excludedMetricKeys || [];
+    var eligibleMetric = function (index) { return excludedMetricKeys.indexOf(columns[index].key) < 0; };
+    var metrics = metricColumns(columns).filter(eligibleMetric);
     // Bang co the chi dinh cot so dung lam KPI/bieu do chinh (vd so lieu "trong ky" thay vi tong toan thoi gian
     // cua KiotViet) de tong hop bam dung bo loc thoi gian; cot khong co trong file thi bo qua.
     var preferred = [];
     (summaryKeys || []).forEach(function (key) {
       var index = columns.findIndex(function (column) { return column.key === key && column.type === 'number'; });
-      if (index >= 0 && preferred.indexOf(index) < 0) preferred.push(index);
+      if (index >= 0 && eligibleMetric(index) && preferred.indexOf(index) < 0) preferred.push(index);
     });
     if (preferred.length) metrics = preferred.concat(metrics.filter(function (index) { return preferred.indexOf(index) < 0; }));
     var keyIndex = function (key) {
@@ -843,6 +845,11 @@ async function renderHtmlReport(dataset) {
   const escape = kit.escapeHtml;
   const meta = dataset.meta;
   const worksheets = dataset.worksheets.map(embedWorksheet);
+  if (meta.debtReward && meta.debtReward.status !== 'finalized') {
+    worksheets.forEach(worksheet => {
+      worksheet.hints = { ...worksheet.hints, excludedMetricKeys: ['reward', 'rankReward', 'pointsReward'] };
+    });
+  }
   const first = worksheets[0];
   const summary = kit.buildSummary(first.columns, first.rows, kit.planFor(first.columns, first.rows, first.summaryKeys, first.hints));
   const totalRows = worksheets.reduce((sum, worksheet) => sum + worksheet.rows.length, 0);

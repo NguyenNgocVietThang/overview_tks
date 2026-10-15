@@ -11,7 +11,7 @@ const { takeDebtCycleSnapshot, refreshDebtCycle, takeDebtCycleSnapshotIfDue, __t
 const { createDebtScheduleRepository } = require('./debtScheduleRepository');
 const { buildCustomerRow } = require('./debtScheduleRules');
 
-const MIGRATION = ['0047_debt_schedule_report.sql', '0048_debt_penalty.sql', '0050_debt_cycle_manual_refresh.sql']
+const MIGRATION = ['0047_debt_schedule_report.sql', '0048_debt_penalty.sql', '0050_debt_cycle_manual_refresh.sql','0051_debt_penalty_ledger.sql']
   .map(file => fs.readFileSync(path.join(__dirname, '..', 'db', 'migrations', file), 'utf8')).join(' ');
 
 // Bang toi thieu cua KiotViet ma job/repository doc.

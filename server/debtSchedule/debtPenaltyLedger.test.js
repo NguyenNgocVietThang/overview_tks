@@ -9,7 +9,7 @@ const path = require('node:path');
 const { PGlite } = require('@electric-sql/pglite');
 const { takeDebtCycleSnapshot } = require('./debtCycleSnapshot');
 const { createDebtScheduleRepository } = require('./debtScheduleRepository');
-const { finalizePenaltyCycle, finalizePendingPenaltyCycles } = require('./debtPenaltyLedger');
+const { finalizePenaltyCycle, finalizePendingPenaltyCycles, finalizePenaltyBeforeReset } = require('./debtPenaltyLedger');
 
 const MIGRATION = ['0047_debt_schedule_report.sql', '0048_debt_penalty.sql', '0050_debt_cycle_manual_refresh.sql', '0051_debt_penalty_ledger.sql']
   .map(file => fs.readFileSync(path.join(__dirname, '..', 'db', 'migrations', file), 'utf8')).join(' ');
@@ -46,6 +46,31 @@ const noAverages = async () => ({ branches: [], codes: [], values: [] });
 const at15 = date => new Date(`${date}T08:00:00Z`);
 const snapshot = (pool, date) => takeDebtCycleSnapshot(pool, date, { takenAt: at15(date), log: () => {}, loadAverages: noAverages });
 const user = { id: 'u1', hoTen: 'Quản lý A' };
+
+test('14:59 freezes yesterday before reset and retries cannot rewrite the daily ledger', async () => {
+  const { db,pool,repository }=await setup();
+  try {
+    await snapshot(pool,'2026-08-08');
+    await repository.savePenalty({branch:'hanoi',customerId:'1',amount:90000,user});
+    assert.equal(await finalizePenaltyBeforeReset(pool,{repository,now:new Date('2026-08-09T07:58:59Z')}),null);
+    await repository.savePenalty({branch:'hanoi',customerId:'1',amount:120000,user});
+    await finalizePenaltyBeforeReset(pool,{repository,now:new Date('2026-08-09T07:59:00Z')});
+    assert.equal((await db.query("SELECT amount::int AS amount FROM debt_penalty_daily WHERE branch='hanoi'")).rows[0].amount,120000);
+    await assert.rejects(repository.savePenalty({branch:'hanoi',customerId:'1',amount:1,user}),e=>e.code==='DEBT_CYCLE_FINALIZED');
+    await db.exec("UPDATE debt_cycle_penalties SET amount=1 WHERE branch='hanoi'");
+    await finalizePenaltyBeforeReset(pool,{repository,now:new Date('2026-08-09T08:00:00Z')});
+    assert.equal((await db.query("SELECT amount::int AS amount FROM debt_penalty_daily WHERE branch='hanoi'")).rows[0].amount,120000);
+  } finally {await db.close();}
+});
+
+test('manual refresh only seals early when advancing a missed cycle, not ordinary morning recalculation',async()=>{
+ const {db,pool,repository}=await setup();try {
+  await snapshot(pool,'2026-08-08');
+  assert.equal(await finalizePenaltyBeforeReset(pool,{repository,beforeReset:true,now:new Date('2026-08-09T03:00:00Z')}),null);
+  const closed=await finalizePenaltyBeforeReset(pool,{repository,beforeReset:true,now:new Date('2026-08-10T03:00:00Z')});
+  assert.equal(closed.cycleDate,'2026-08-08');
+ }finally{await db.close();}
+});
 
 test('chot so phat: chi khi co ban chot ke tiep, ghi dung so tay / "Da xu ly" = 0 / goi y, chay lai khong nhan doi', async () => {
   const { db, pool, repository } = await setup();

@@ -1806,7 +1806,7 @@ test('debt.penalty: preserves shared reward ranking and searches sale before pro
     const env = fixedEnv(stubs);
     env.dashboard = {
       debtReward: {
-        month: '2026-10', status: 'provisional',
+        month: '2026-09', status: 'finalized',
         rows: [
           { rank: 1, sale: 'Bình', points: 100, ratio: 0, penaltyDays: 0, lastDayCustomers: 0, total: 0, payablePenalty: 0, reward: 100000 },
           { rank: 2, sale: 'Chi', points: 50, ratio: 1000, penaltyDays: 1, lastDayCustomers: 1, total: 50000, payablePenalty: 25000, reward: 50000 },
@@ -1959,5 +1959,41 @@ test('debt.penalty: no debt snapshot rejects with no-data error instead of produ
   }), async () => {
     await assert.rejects(exportService.createExportWorkbook({ tableKey: 'debt.penalty', columns: { debt_penalty: ['sale'] } }), error => error.statusCode === 404 && error.code === 'EXPORT_NO_DATA');
     assert.deepEqual(exportService.__test__.limiterState(), { active: 0, queued: 0 });
+  });
+});
+
+test('debt.penalty: open-month Excel and HTML leave all reward cells blank and show pending metadata', async () => {
+  const finalized = historicalRewardBoard();
+  const board = deepFreeze({
+    ...finalized, month: '2026-10', status: 'provisional', closedAt: null,
+    rows: finalized.rows.map(row => ({ ...row, reward: null, rankReward: null, pointsReward: null })),
+    summary: { ...finalized.summary, pool: null, penaltyFund: null, companyTopUp: null, allocatedReward: null, recipientCount: 0 }
+  });
+  await withRewardService(async () => board, async () => {
+    const payload = { tableKey: 'debt.penalty', context: { debtRewardMonth: '2026-10' }, columns: { debt_penalty: ['sale', 'total', 'payablePenalty', 'reward', 'rankReward', 'pointsReward'] } };
+    const excel = await exportService.createExportWorkbook(payload, 'Cả hai');
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(excel.buffer);
+    const sheet = workbook.getWorksheet('Thưởng phạt sale');
+    for (let row = 2; row <= 4; row++) {
+      for (const column of [4, 5, 6]) assert.equal(sheet.getRow(row).getCell(column).value, null);
+    }
+    assert.equal(sheet.getRow(3).getCell(2).value, 50000);
+    const metadata = workbook.getWorksheet('Thông tin thưởng phạt');
+    const notes = new Map(metadata.getRows(2, metadata.rowCount - 1).map(row => [row.getCell(1).value, row.getCell(2).value]));
+    for (const key of ['Quỹ thưởng toàn hệ thống', 'Quỹ từ tiền phạt', 'Công ty bù', 'Thưởng đã phân bổ']) {
+      assert.equal(notes.get(key), 'Chưa chốt tháng');
+    }
+    assert.equal(notes.get('Tiền thưởng'), 'Tiền thưởng chỉ tính và hiển thị khi chốt tháng');
+    const html = await exportService.createExportHtml(payload, 'Cả hai');
+    const document = new JSDOM(html.buffer.toString('utf8')).window.document;
+    assert.match(document.querySelector('header .meta').textContent, /Tiền thưởng chỉ tính và hiển thị khi chốt tháng/);
+    assert.doesNotMatch(document.querySelector('#kpis').textContent, /thưởng/i);
+    const embedded = embeddedData(html.buffer.toString('utf8')).worksheets[0];
+    assert.deepEqual(embedded.rows.map(row => row.slice(3)), [[null, null, null], [null, null, null], [null, null, null]]);
+    const opened = await openHtmlReport(html);
+    assert.match(opened.doc.querySelector('#tbody').textContent, /Bình/);
+    assert.doesNotMatch(opened.doc.querySelector('#kpis').textContent, /thưởng/i);
+    opened.dom.window.close();
   });
 });

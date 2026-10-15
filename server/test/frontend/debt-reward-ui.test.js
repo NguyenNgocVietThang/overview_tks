@@ -83,13 +83,13 @@ const baseRow = {
   total: 100000, grossPenalty: 100000, payablePenalty: 0, rankReward: 800000,
   pointsReward: 700000, reward: 1500000, penaltyDays: 2, lastDayCustomers: 1,
   customerCount: 2, totalCurrentDebt: 800000, totalOverdue: 100000, overdueRatio: 0.05, actionCount: 1,
-  days: [{ cycleDate: '2026-10-14', customers: 1, amount: 25000, live: true },
+  days: [{ cycleDate: '2026-10-14', customers: 1, amount: 25000, live: false },
     { cycleDate: '2026-10-13', customers: 2, amount: 75000, live: false }],
   scoreCustomers: [{ branch: 'hanoi', code: 'KH1', name: 'Khách lịch sử', invoiceCount: 40,
     netRevenue: -500000, invoicePoints: 6, revenuePoints: -1, points: 5 }]
 };
 function boardPayload(overrides = {}) {
-  return { month: '2026-10', openCycleDate: '2026-10-14', days: [],
+  const payload = { month: '2026-10', openCycleDate: '2026-10-14', days: [],
     rows: [baseRow, { ...baseRow, sale: 'Mai', rank: null, points: 29, ratio: 1000,
       grossPenalty: 25000, total: 25000, payablePenalty: 25000, reward: 0, rankReward: 0, pointsReward: 0 },
       { ...baseRow, sale: 'Chưa phân nhóm', rank: null, points: 0, ratio: null, grossPenalty: 0, total: 0,
@@ -98,12 +98,17 @@ function boardPayload(overrides = {}) {
       companyTopUp: 2980000, allocatedReward: 3000000, recipientCount: 2 },
     coverage: { from: '2026-10-01', to: '2026-10-14', missingDays: ['2026-10-02'], complete: false },
     status: 'provisional', closedAt: null, ruleVersion: 'debt-reward-v1', months: ['2026-10', '2026-09'], ...overrides };
+  if (payload.status !== 'finalized') {
+    payload.rows = payload.rows.map(row => ({ ...row, reward: null, rankReward: null, pointsReward: null }));
+    payload.summary = { ...payload.summary, pool: null, penaltyFund: null, companyTopUp: null, allocatedReward: null, recipientCount: 0 };
+  }
+  return payload;
 }
 function serve(dom, payload) { dom.window.fetch = async () => ({ ok: true, json: async () => payload }); }
 
 test('server reward rows retain global rank, eligibility, ratio and filtered totals', async () => {
   const dom = createDashboard();
-  serve(dom, boardPayload());
+  serve(dom, boardPayload({ status: 'finalized' }));
   await dom.window.loadDebtPenaltyBoard();
   const doc = dom.window.document;
   const rows = [...doc.querySelectorAll('#debtPenaltyRows tr.doc-row')].map(tr => [...tr.cells].map(td => td.textContent.trim()));
@@ -157,12 +162,12 @@ test('monthly selector loads and exports selected history month; stale response 
 
 test('reward board clearly renders funding, missing coverage and failed request without fabricated ranks', async () => {
   const dom = createDashboard();
-  serve(dom, boardPayload());
+  serve(dom, boardPayload({ status: 'finalized' }));
   await dom.window.loadDebtPenaltyBoard();
   const doc = dom.window.document;
   assert.match(doc.getElementById('debtRewardSummary').textContent, /3\.000\.000.*2\.980\.000/);
   assert.match(doc.getElementById('debtRewardCoverage').textContent, /02\/10/);
-  assert.match(doc.getElementById('debtRewardStatus').textContent, /Tạm tính/);
+  assert.match(doc.getElementById('debtRewardStatus').textContent, /Đã chốt/);
   dom.window.fetch = async () => ({ ok: false, status: 503 });
   await dom.window.loadDebtPenaltyBoard();
   assert.match(doc.getElementById('debtPenaltyRows').textContent, /Không tải được bảng thưởng/);
@@ -173,7 +178,7 @@ test('reward board clearly renders funding, missing coverage and failed request 
 
 test('sale detail uses frozen metrics and shows daily penalties, reward split and customer point audit', async () => {
   const dom = createDashboard({ available: true, customers: [{ sale: 'Lan', currentDebt: 9999999, overdueDebt: 9999999 }], kpi: {} });
-  serve(dom, boardPayload());
+  serve(dom, boardPayload({ status: 'finalized' }));
   await dom.window.loadDebtPenaltyBoard();
   const doc = dom.window.document;
   doc.querySelector('#debtPenaltyRows tr[data-sale="Lan"]').click();
@@ -184,7 +189,8 @@ test('sale detail uses frozen metrics and shows daily penalties, reward split an
   assert.match(stats['Thưởng theo điểm'], /700\.000/);
   assert.equal(stats['Quá hạn / Doanh số'], '5%');
   assert.match(doc.getElementById('docModalBody').textContent, /Khách lịch sử.*40.*-500\.000.*6.*-1.*5/);
-  assert.match(doc.getElementById('docModalBody').textContent, /14\/10.*đang tạm tính/);
+  assert.match(doc.getElementById('docModalBody').textContent, /14\/10/);
+  assert.doesNotMatch(doc.getElementById('docModalBody').textContent, /đang tạm tính/);
   dom.window.close();
 });
 
@@ -261,5 +267,38 @@ test('finalized detail marks unavailable debt snapshot without presenting zero d
   assert.match(stats['Tiền thưởng'], /1\.500\.000/);
   assert.match(doc.getElementById('docModalBody').textContent, /Khách lịch sử/);
   assert.match(doc.getElementById('docModalSubtitle').textContent, /1 khách/);
+  dom.window.close();
+});
+
+test('open month hides reward amounts across table, footer, funding and detail until finalized', async () => {
+  const dom = createDashboard(editableDebt());
+  serve(dom, boardPayload({ status: 'finalized' }));
+  await dom.window.loadDebtPenaltyBoard();
+  assert.match(dom.window.document.getElementById('debtRewardSummary').textContent, /3\.000\.000/);
+  serve(dom, boardPayload());
+  await dom.window.loadDebtPenaltyBoard();
+  const doc = dom.window.document;
+  assert.match(doc.getElementById('debtRewardStatus').textContent, /Tạm tính/);
+  assert.equal(doc.getElementById('debtRewardSummary').textContent, 'Tiền thưởng chỉ tính và hiển thị khi chốt tháng');
+  assert.deepEqual([...doc.querySelectorAll('#debtPenaltyRows tr.doc-row')].map(tr => tr.cells[8].textContent.trim()), ['—', '—', '—']);
+  assert.equal(doc.querySelector('#debtPenaltyFoot tr').cells[8].textContent.trim(), '—');
+  doc.querySelector('#debtPenaltyRows tr[data-sale="Lan"]').click();
+  const stats = Object.fromEntries([...doc.querySelectorAll('#docModalBody .dp-stat')]
+    .map(el => [el.querySelector('.dp-stat-label').textContent, el.querySelector('.dp-stat-value').textContent]));
+  assert.equal(stats['Thưởng theo hạng'], '—');
+  assert.equal(stats['Thưởng theo điểm'], '—');
+  assert.equal(stats['Tiền thưởng'], '—');
+  assert.match(doc.getElementById('docModalBody').textContent, /Tiền thưởng chỉ tính và hiển thị khi chốt tháng/);
+  assert.match(stats['Phạt gốc'], /100\.000/);
+  assert.equal(stats['Điểm'], '40');
+  dom.window.close();
+});
+
+test('board keeps last finalized penalty date distinct from currently open cycle date', async () => {
+  const dom = createDashboard(editableDebt());
+  serve(dom, boardPayload({ lastPenaltyDate: '2026-10-13', openCycleDate: '2026-10-14' }));
+  await dom.window.loadDebtPenaltyBoard();
+  assert.equal(dom.window.buildDebtPenaltyRows().lastDate, '2026-10-13');
+  assert.match(dom.window.document.getElementById('debtPenaltyNote').textContent, /Tiền phạt cộng dồn các ngày đã chốt trong tháng/);
   dom.window.close();
 });

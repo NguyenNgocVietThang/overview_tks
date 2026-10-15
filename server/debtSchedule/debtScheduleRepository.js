@@ -226,6 +226,8 @@ function createDebtScheduleRepository({ pool = getPool() } = {}) {
     if (expectedCycleDate && expectedCycleDate !== cycleDate) {
       throw httpError(409, 'Bảng công nợ đã sang chu kỳ mới (chốt 15:00). Vui lòng tải lại trang.', 'DEBT_CYCLE_CHANGED');
     }
+    const finalized=await client.query('SELECT 1 FROM debt_penalty_cycles WHERE cycle_date=$1::date',[cycleDate]);
+    if(finalized.rows.length) throw httpError(409,'Chu kỳ đã chốt phạt lúc 14:59. Vui lòng chờ bản chốt 15:00.','DEBT_CYCLE_FINALIZED');
     const exists = await client.query(
       'SELECT 1 FROM debt_cycle_customers WHERE cycle_date = $1::date AND branch = $2 AND customer_id = $3::bigint',
       [cycleDate, branch, customerId]

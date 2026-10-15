@@ -313,3 +313,5 @@ API: `PATCH /api/debt-management/{sale-feedback,manager-feedback,status,schedule
 Thứ tự deploy: `npm run db:migrate` (0047; 0051 cho bảng phạt sale — sau deploy chạy tay `node debtSchedule/debtPenaltyLedger.js` để backfill các chu kỳ cũ) → import lịch TT HN + SG → deploy code → chạy tay `debtCycleSnapshot.js` sau 15:00 (hoặc chờ 15:00).
 
 Cập nhật gần nhất: 14/10/2026.
+
+Điều chỉnh 15/10/2026: trong tháng chỉ hiển thị điểm/hạng và tổng phạt từ các ngày ĐÃ CHỐT, không cộng chu kỳ đang mở. Lúc 14:59 giờ Việt Nam lưu bản cuối của chu kỳ 15:00 hôm trước–14:59 hôm sau, mỗi chu kỳ đúng một lần và không ghi đè; 15:00 mới reset. Nhiều lần Tính lại trong chu kỳ chỉ cập nhật bản đang mở, không cộng thành nhiều ngày. Chỉ tính/phân bổ/hiển thị tiền thưởng khi chốt tháng; trước đó Tiền thưởng là — (API null, file xuất để trống).

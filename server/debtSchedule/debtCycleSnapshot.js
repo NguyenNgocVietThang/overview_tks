@@ -308,7 +308,14 @@ function startDebtCycleSnapshotSchedule(pool, {
   const run = (label) => {
     if (running) return;
     running = true;
-    takeDebtCycleSnapshotIfDue(pool, { log, beforeSnapshot })
+    require('./debtPenaltyLedger').finalizePenaltyBeforeReset(pool)
+      .then(closed => {
+        if(closed) {
+          log(`[debtCycleSnapshot] Đã chốt phạt 14:59 cho ${closed.cycleDate}.`);
+          require('../kiotvietSync/dashboardRollupEvents').dashboardRollupEvents.emit('updated',{at:Date.now()});
+        }
+        return takeDebtCycleSnapshotIfDue(pool, { log, beforeSnapshot });
+      })
       .then(async result => {
         // Also retry settlement when today's snapshot already exists (restart / previous failure).
         try { await require('./debtRewardClosing').settleDebtRewards(pool, { log }); }

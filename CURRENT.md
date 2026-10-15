@@ -1,6 +1,6 @@
 # CURRENT: BẢNG TRẠNG THÁI THỜI GIAN THỰC (REALTIME DASHBOARD)
 
-> **Cập nhật gần nhất:** 14/10/2026 (Asia/Ho_Chi_Minh), phiên triển khai điểm/thưởng/phạt sale trong Công nợ.
+> **Cập nhật gần nhất:** 15/10/2026 (Asia/Ho_Chi_Minh), điều chỉnh chốt phạt 14:59 theo ngày và chỉ tính thưởng khi chốt tháng.
 > **Trạng thái Git:** làm việc trực tiếp trên `main` theo yêu cầu; thay đổi thưởng/phạt sale hoàn tất và qua kiểm thử; chưa push/deploy phiên này.
 > **Quy tắc:** Cập nhật liên tục vào đầu và cuối mỗi phiên làm việc để không bị đứt đoạn ngữ cảnh dự án.
 
@@ -19,6 +19,8 @@
 ---
 
 ## 2. Các đầu việc vừa hoàn thành (Recently Completed — Tháng 10/2026)
+
+0. **Điều chỉnh ngày/tháng thưởng phạt (15/10/2026, main):** Điều chỉnh 15/10/2026: trong tháng chỉ hiển thị điểm/hạng và tổng phạt từ các ngày ĐÃ CHỐT, không cộng chu kỳ đang mở. Lúc 14:59 giờ Việt Nam lưu bản cuối của chu kỳ 15:00 hôm trước–14:59 hôm sau, mỗi chu kỳ đúng một lần và không ghi đè; 15:00 mới reset. Nhiều lần Tính lại trong chu kỳ chỉ cập nhật bản đang mở, không cộng thành nhiều ngày. Chỉ tính/phân bổ/hiển thị tiền thưởng khi chốt tháng; trước đó Tiền thưởng là — (API null, file xuất để trống). Đã có kiểm thử cutoff, hai lần sửa trong ngày, bất biến chạy lại và nguồn chỉ từ sổ ngày; Kiểm thử tổng: 2.370 đạt, 3 skipped, 0 lỗi; kiểm thử SQL bổ sung 23/23 đạt. Chưa push/deploy.
 
 0. **Bảng thưởng/phạt sale tab Công nợ (14/10/2026, trên main; migration 0051 + 0052 đã áp DB, hoàn tất trên main; chưa push/deploy):** Điểm theo từng khách (cơ sở + mã): số hóa đơn Hoàn thành và doanh số sau trừ trả hàng trong tháng; >=30 điểm mới xếp hạng chung HN + SG theo phạt gốc/điểm tăng dần, điểm giảm dần, tên A–Z. Top 1–20 miễn phạt; Top 10 nhận quỹ max(80% phạt phải nộp, 3 triệu), 50% theo trọng số hạng 19–17–15–13–11–9–7–5–3–1 và 50% theo tỷ trọng điểm; thiếu 10 người chuẩn hóa trọng số, chia hết quỹ đến đồng. Sửa phạt chỉ thay phạt gốc từng khách; miễn phạt áp ở mức sale. GET /api/debt-management/penalty-board?month=YYYY-MM trả bảng từ backend (mặc định tháng chu kỳ đang mở), lọc cơ sở sau khi tính hạng/quỹ toàn công ty. Giao diện, hộp chi tiết và xuất Excel/HTML dùng cùng kết quả; context.debtRewardMonth chọn tháng xuất. Kết quả tháng cũ lưu bất biến trong debt_reward_months sau bản chốt 15:00 đầu tháng mới, khi đã chốt hết sổ phạt và doanh số tháng. Lỗi chốt thử lại mỗi phút; thiếu lịch sử phạt có cảnh báo rõ, không bù thành 0. Kiểm thử SQL PGlite: nguồn điểm, sale đổi nhóm, thứ hạng/quỹ toàn công ty, chốt bất biến, retry 40001; jsdom + xuất Excel/HTML đã kiểm tra. Kiểm thử tổng ngoài sandbox: 2.366 đạt, 3 skipped, 0 lỗi (2.369 tổng). Đối chiếu DB thật: 62 sale, 43 đủ điều kiện, tổng thưởng đúng 3 triệu; lịch sử phạt hiện từ 13/10. Chưa push/deploy.
 0. **Sửa xuất Excel đứt hàng ở một cơ sở (14/10/2026):** 3 nút "Xuất Excel" (Hàng đứt gần đây, đứt 90 ngày, đứt 30 ngày) trong `server/public/index.html` luôn gửi cột `branch`, trong khi `exportService` chỉ chấp nhận cột này khi kết quả quét là "Cả hai" (`EXPORT_FIELD_NOT_ALLOWED`) nên chọn Hà Nội/Sài Gòn không xuất được. Nay chỉ gửi `branch` khi `isMergedStockoutResult(result)`. Thêm 9 test hồi quy trong `test/frontend/export-ui.test.js` (3 bảng × 3 cơ sở; 6 ca một cơ sở fail khi chưa sửa). `npm test`: 2318 pass, 0 fail. Chưa commit/deploy.

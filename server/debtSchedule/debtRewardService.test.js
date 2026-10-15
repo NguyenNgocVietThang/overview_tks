@@ -43,18 +43,24 @@ test('real monthly SQL counts completed invoices, net returns and debt-free cust
     assert.equal(b.rows.find(r=>r.sale==='An').points,30);
     assert.equal(b.rows.find(r=>r.sale==='Bình').points,29);
     assert.equal(b.rows.find(r=>r.sale==='An').scoreCustomers[0].invoiceCount,5);
-    assert.equal(b.summary.recipientCount,1);assert.equal(b.rows.find(r=>r.sale==='An').reward,3000000);
+    assert.equal(b.summary.recipientCount,0);assert.equal(b.rows.find(r=>r.sale==='An').reward,null);
+    assert.equal(b.summary.pool,null);assert.equal(b.summary.allocatedReward,null);
     assert.equal(b.coverage.complete,false);assert.ok(b.coverage.missingDays.includes('2026-10-01'));
   } finally {await f.db.close();}
 });
 
-test('branch filtering preserves global ranking and pool; live manual penalty is never stale',async()=>{
+test('monthly board sums sealed days only and branch filtering preserves global ranking',async()=>{
   const f=await setup();try {
     await f.repository.savePenalty({branch:'hanoi',customerId:'1',amount:90000,user:{hoTen:'QL'}});
+    assert.equal((await f.service.readBoard()).rows.find(r=>r.sale==='An').grossPenalty,0);
+    await f.snapshot('2026-10-15');f.repository.bumpVersion();
+    await finalizePendingPenaltyCycles(f.pool,{repository:f.repository,log(){}});
     const all=await f.service.readBoard();const one=await f.service.readBoard({branches:['hanoi']});
     assert.equal(one.rows.length,1);assert.equal(one.rows[0].rank,2);assert.deepEqual(one.summary,all.summary);
     await f.repository.savePenalty({branch:'hanoi',customerId:'1',amount:120000,user:{hoTen:'QL'}});
-    assert.equal((await f.service.readBoard()).rows.find(r=>r.sale==='An').grossPenalty,120000);
+    const board=await f.service.readBoard();
+    assert.equal(board.rows.find(r=>r.sale==='An').grossPenalty,90000);
+    assert.equal(board.lastPenaltyDate,'2026-10-14');
   } finally {await f.db.close();}
 });
 
@@ -76,6 +82,7 @@ test('month closes after next-month snapshot, final ledger and frozen sales; rem
     const closed=await f.service.readBoard({month:'2026-10'});
     assert.equal(closed.status,'finalized');assert.equal(closed.rows.find(r=>r.sale==='An').grossPenalty,90000);
     assert.equal(closed.rows.find(r=>r.sale==='An').points,30);
+    assert.equal(closed.rows.reduce((sum,r)=>sum+r.reward,0),3000000);
     await f.db.exec("UPDATE customers SET raw='{}'; DELETE FROM business_monthly_customer_sales; DELETE FROM debt_cycle_runs;");
     const unchanged=await f.service.readBoard({month:'2026-10'});
     assert.deepEqual(unchanged.rows,closed.rows);assert.deepEqual(unchanged.summary,closed.summary);
@@ -91,15 +98,15 @@ test('invalid, future and unavailable history months fail clearly instead of fab
   } finally {await f.db.close();}
 });
 
-test('customer reassignment moves refreshed points and live penalties together after the score TTL',async()=>{
+test('customer reassignment refreshes points without adding live penalties to monthly totals',async()=>{
   const f=await setup();try {
     await f.repository.savePenalty({branch:'hanoi',customerId:'1',amount:90000,user:{hoTen:'QL'}});
-    assert.equal((await f.service.readBoard()).rows.find(r=>r.sale==='An').grossPenalty,90000);
+    assert.equal((await f.service.readBoard()).rows.find(r=>r.sale==='An').grossPenalty,0);
     await f.db.exec(`UPDATE customers SET raw='{"groups":"Chi"}' WHERE branch='hanoi'`);
     f.setNow('2026-10-14T09:01:01Z');
     const board=await f.service.readBoard();
     assert.equal(board.rows.find(r=>r.sale==='Chi').points,30);
-    assert.equal(board.rows.find(r=>r.sale==='Chi').grossPenalty,90000);
+    assert.equal(board.rows.find(r=>r.sale==='Chi').grossPenalty,0);
     assert.equal(board.rows.some(r=>r.sale==='An'),false);
   } finally {await f.db.close();}
 });
