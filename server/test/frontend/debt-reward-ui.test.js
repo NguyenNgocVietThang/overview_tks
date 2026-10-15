@@ -102,6 +102,26 @@ function boardPayload(overrides = {}) {
 }
 function serve(dom, payload) { dom.window.fetch = async () => ({ ok: true, json: async () => payload }); }
 
+test('equal server ranks remain shared in rendered rows and rule text explains boundary ties',async()=>{
+ const dom=createDashboard();
+ serve(dom,boardPayload({rows:[{...baseRow,sale:'An',rank:1},{...baseRow,sale:'Bình',rank:1}]}));
+ await dom.window.loadDebtPenaltyBoard();
+ assert.deepEqual([...dom.window.document.querySelectorAll('#debtPenaltyRows tr.doc-row')].map(tr=>tr.cells[0].textContent.trim()),['1','1']);
+ assert.match(dom.window.document.querySelector('.debt-reward-rules').textContent,/1–2–2–4/);
+ dom.window.close();
+});
+
+test('penalty ratio identifies dong per point and explains decimal comma with the actual division',async()=>{
+ const dom=createDashboard();
+ serve(dom,boardPayload({rows:[{...baseRow,points:192,grossPenalty:25000,ratio:25000/192}]}));
+ await dom.window.loadDebtPenaltyBoard();
+ const cell=dom.window.document.querySelector('#debtPenaltyRows tr.doc-row').cells[3];
+ assert.equal(cell.textContent.trim(),'130,208');
+ assert.match(cell.title,/25\.000.*192.*130,208.*đồng\/điểm/);
+ assert.match(dom.window.document.querySelector('#debtPenaltyTable th[data-column-key="phat-moi-diem"]').textContent,/đồng/);
+ dom.window.close();
+});
+
 test('server reward rows retain global rank, eligibility, ratio and filtered totals', async () => {
   const dom = createDashboard();
   serve(dom, boardPayload({ status: 'finalized' }));

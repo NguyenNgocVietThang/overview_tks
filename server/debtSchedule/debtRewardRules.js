@@ -1,6 +1,6 @@
 'use strict';
 
-const RULE_VERSION = 'debt-reward-2026-10-v1';
+const RULE_VERSION = 'debt-reward-2026-10-v2-shared-ranks';
 const INVOICE_THRESHOLDS = [0, 1, 2, 5, 10, 20, 40];
 const REVENUE_THRESHOLDS = [0, 5000000, 30000000, 100000000, 300000000, 1000000000, 3000000000, 6000000000, 9000000000];
 const RANK_WEIGHTS = [19, 17, 15, 13, 11, 9, 7, 5, 3, 1];
@@ -74,15 +74,29 @@ function buildRewardBoard({ sales = [], penalties = [], lastDate = null } = {}) 
   const compareName = (a, b) => a.sale.localeCompare(b.sale, 'vi', { sensitivity: 'base' }) || a.sale.localeCompare(b.sale, 'vi');
   const ranked = rows.filter(row => row.points >= 30 && saleKey(row.sale) !== saleKey(UNGROUPED));
   ranked.sort((a, b) => a.grossPenalty * b.points - b.grossPenalty * a.points || b.points - a.points || compareName(a, b));
-  ranked.forEach((row, i) => { row.rank = i + 1; });
+  ranked.forEach((row, i) => {
+    const previous=ranked[i-1];
+    row.rank=previous && row.points===previous.points && row.grossPenalty===previous.grossPenalty ? previous.rank : i+1;
+  });
   for (const row of rows) row.payablePenalty = row.rank && row.rank <= 20 ? 0 : row.grossPenalty;
   const grossPenalty = rows.reduce((sum, row) => sum + row.grossPenalty, 0);
   const payablePenalty = rows.reduce((sum, row) => sum + row.payablePenalty, 0);
   const penaltyFund = Math.round(payablePenalty * 0.8);
   const pool = Math.max(penaltyFund, 3000000);
-  const recipients = ranked.slice(0, 10);
+  const recipients = ranked.filter(row=>row.rank<=10);
   const rankMoney = Math.floor(pool / 2);
-  const rankRewards = allocateMoney(rankMoney, RANK_WEIGHTS.slice(0, recipients.length));
+  // A tie shares the combined weights of the occupied slots. Slots beyond 10 add
+  // no weight, but all members of a group whose rank is <=10 remain recipients.
+  const weights=[];
+  for(let start=0;start<recipients.length;) {
+    let end=start+1;
+    while(end<recipients.length && recipients[end].rank===recipients[start].rank) end++;
+    const weight=RANK_WEIGHTS.slice(recipients[start].rank-1,recipients[start].rank-1+end-start)
+      .reduce((sum,value)=>sum+value,0)/(end-start);
+    for(let i=start;i<end;i++) weights.push(weight);
+    start=end;
+  }
+  const rankRewards = allocateMoney(rankMoney, weights);
   const pointsRewards = allocateMoney(pool - rankMoney, recipients.map(row => row.points));
   recipients.forEach((row, i) => { row.rankReward = rankRewards[i]; row.pointsReward = pointsRewards[i]; row.reward = row.rankReward + row.pointsReward; });
   rows.sort((a, b) => (a.rank || Infinity) - (b.rank || Infinity) || b.points - a.points || compareName(a, b));

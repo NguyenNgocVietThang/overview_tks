@@ -4276,8 +4276,8 @@
                   <p>Điểm mỗi khách = điểm số hóa đơn + điểm doanh thu thuần trong tháng; doanh thu thuần = doanh thu hóa đơn trừ trả hàng. Khách hàng ở HN và SG được tính riêng, sale cùng tên được cộng chung.</p>
                   <p>Số hóa đơn: 0 / 1 / 2 / 5 / 10 / 20 / 40 tương ứng 0 / 1 / 2 / 3 / 4 / 5 / 6 điểm.</p>
                   <p>Doanh thu thuần âm: −1 điểm. Các mốc 0 / 5 triệu / 30 triệu / 100 triệu / 300 triệu / 1 tỷ / 3 tỷ / 6 tỷ / 9 tỷ tương ứng 0 / 1 / 2 / 3 / 4 / 5 / 6 / 7 / 8 điểm.</p>
-                  <p>Từ 30 điểm được xếp hạng theo Phạt gốc / Điểm tăng dần, rồi điểm giảm dần, rồi tên sale theo tiếng Việt. Chưa phân nhóm không có hạng hoặc thưởng. Hạng 1–20 được miễn phạt; thưởng dành cho hạng 1–10.</p>
-                  <p>Quỹ thưởng = mức lớn hơn giữa 80% phạt phải nộp và 3.000.000₫. Công ty bù phần thiếu. Một nửa quỹ chia theo trọng số hạng 19 / 17 / 15 / 13 / 11 / 9 / 7 / 5 / 3 / 1; một nửa chia theo điểm của người nhận. Khi có dưới 10 người nhận, chuẩn hóa theo tổng trọng số và tổng điểm thực tế.</p>
+                  <p>Từ 30 điểm được xếp hạng theo Phạt gốc / Điểm tăng dần, rồi điểm giảm dần. Bằng cả tỷ lệ và điểm thì đồng hạng kiểu 1–2–2–4; tên chỉ dùng để sắp dòng hiển thị. Chưa phân nhóm không có hạng hoặc thưởng. Tất cả sale đồng hạng 20 đều miễn phạt; tất cả sale đồng hạng 10 đều nhận thưởng.</p>
+                  <p>Quỹ thưởng = mức lớn hơn giữa 80% phạt phải nộp và 3.000.000₫. Công ty bù phần thiếu. Một nửa quỹ chia theo trọng số hạng 19 / 17 / 15 / 13 / 11 / 9 / 7 / 5 / 3 / 1; một nửa chia theo điểm của người nhận. Nhóm đồng hạng gộp trọng số các vị trí chiếm trong Top 10 rồi chia đều; vị trí ngoài 10 không thêm trọng số. Chuẩn hóa để chia hết quỹ; làm tròn đến đồng.</p>
                   <p>Tiền phạt mỗi ngày được chốt lúc 14:59 cho chu kỳ trước, trước khi đặt lại chu kỳ lúc 15:00. Bảng tháng chỉ cộng các ngày đã chốt. Tiền thưởng được tạm tính mỗi ngày và chốt chính thức vào cuối tháng; tháng đã chốt giữ nguyên điểm, hạng, tiền phạt và thưởng lịch sử.</p>
                 </details>
                 <div class="debt-penalty-wrap">
@@ -4287,7 +4287,7 @@
                         <th style="width:72px" data-column-key="hang">Hạng</th>
                         <th style="width:170px" data-column-key="sale">Sale</th>
                         <th style="width:80px" data-column-key="diem">Điểm</th>
-                        <th style="width:120px" data-column-key="phat-moi-diem">Phạt/điểm</th>
+                        <th style="width:120px" data-column-key="phat-moi-diem" title="Đơn vị đồng/điểm. Dấu phẩy là phần thập phân, dấu chấm phân cách hàng nghìn.">Phạt/điểm (đồng)</th>
                         <th style="width:100px" data-column-key="so-ngay-bi-phat">Ngày bị phạt</th>
                         <th style="width:130px" data-column-key="khach-phat-gan-nhat">Khách phạt gần nhất</th>
                         <th style="width:120px" data-column-key="tong-tien-phat">Phạt gốc</th>
@@ -9215,7 +9215,7 @@
           '<td class="mono">' + escapeHtml(debtRewardRankText(row)) + '</td>' +
           '<td class="name-cell">' + escapeHtml(row.sale) + '</td>' +
           '<td class="mono">' + fmtNumber(row.points) + '</td>' +
-          '<td class="mono">' + (row.ratio === null || row.ratio === undefined ? '—' : fmtNumber(row.ratio)) + '</td>' +
+          '<td class="mono" title="' + (row.ratio === null || row.ratio === undefined ? 'Không có điểm để chia' : escapeHtml(fmtNumber(row.grossPenalty) + ' đồng ÷ ' + fmtNumber(row.points) + ' điểm = ' + fmtNumber(row.ratio) + ' đồng/điểm. Dấu phẩy là phần thập phân; xếp hạng dùng số chưa làm tròn.')) + '">' + (row.ratio === null || row.ratio === undefined ? '—' : fmtNumber(row.ratio)) + '</td>' +
           '<td class="mono">' + fmtNumber(row.penaltyDays) + '</td>' +
           '<td class="mono">' + fmtNumber(row.lastDayCustomers) + '</td>' +
           '<td class="mono debt-penalty-amount">' + fmtTableMoney(row.grossPenalty) + '</td>' +
