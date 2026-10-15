@@ -461,7 +461,7 @@ test('Khach no: doanh thu trong ky la doanh thu thuc te (tru tra hang), noi theo
   assert.deepEqual(ranged.customers.topDebt.map(row => row.name), ['Khách A'], 'khoang ngay chi giu khach co phat sinh');
 });
 
-test('inactive debt is excluded before branch/name merging without reducing general customer counts', async () => {
+test('inactive customers are excluded before branch/name merging from debt and customer counts', async () => {
   const { dashboardData, dashboardPgReader } = freshDashboardData();
   const CONFIG = require('../config');
   const { BRANCHES, BRANCH_BOTH } = require('../branch/branches');
@@ -473,7 +473,7 @@ test('inactive debt is excluded before branch/name merging without reducing gene
     return result;
   };
   const data = await dashboardData.getDashboardData({ ...BASE_FILTERS, customers: { mode: 'all' } }, BRANCH_BOTH);
-  assert.equal(data.kpi.totalCustomers, 3);
+  assert.equal(data.kpi.totalCustomers, 2);
   assert.equal(data.kpi.customersWithDebt, 2);
   assert.equal(data.kpi.totalDebt, 150);
   const same = data.customers.topDebt.find(row => row.name === 'Same customer');
@@ -481,7 +481,7 @@ test('inactive debt is excluded before branch/name merging without reducing gene
   assert.deepEqual(same.debtByBranch, { [BRANCHES.SAIGON]: 100 });
   assert.equal(data.customers.topDebt.some(row => row.name === 'Inactive only'), false);
   const hanoi = await dashboardData.getDashboardData({ ...BASE_FILTERS, customers: { mode: 'all' } }, BRANCHES.HANOI);
-  assert.equal(hanoi.kpi.totalCustomers, 2);
+  assert.equal(hanoi.kpi.totalCustomers, 0);
   assert.equal(hanoi.kpi.totalDebt, 0);
 });
 
@@ -2311,4 +2311,32 @@ test('cache Hoa don: lan doc dang chay khi bi het han duoc luu o trang thai qua 
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(reads.length, 2, 'ket qua doc truoc khi het han phai duoc lam moi o request ke tiep');
   assert.deepEqual(reads[1], [CONFIG.SHEET_INVOICES]);
+});
+
+test('getDashboardData bo khach ngung hoat dong khoi tong khach va xep hang doanh thu theo khach', async () => {
+  const { dashboardData, dashboardPgReader } = freshDashboardData();
+  const CONFIG = require('../config');
+  mockPgSheets(dashboardPgReader, {
+    [CONFIG.SHEET_CUSTOMERS]: [
+      ['Mã khách hàng', 'Tên khách hàng', 'Điện thoại', 'Nợ hiện tại', 'Đang hoạt động'],
+      ['KH-01', 'Khách Còn Hoạt Động', '0901111111', 0, 'true'],
+      ['KH-02', 'Khách Ngừng', '0902222222', 0, 'false']
+    ],
+    [CONFIG.SHEET_INVOICES]: [
+      ['Mã hóa đơn', 'Ngày bán', 'Khách hàng', 'Trạng thái', 'Tổng tiền hàng', 'Mã khách hàng', 'Khách ngừng hoạt động'],
+      ['HD-01', '10/08/2026 10:00:00', 'Khách Còn Hoạt Động', 'Hoàn thành', 500000, 'KH-01', ''],
+      ['HD-02', '11/08/2026 15:00:00', 'Khách Ngừng', 'Hoàn thành', 1200000, 'KH-02', 'Có']
+    ],
+    [CONFIG.SHEET_RETURNS]: [
+      ['Mã trả hàng', 'Ngày trả', 'Khách hàng', 'Tổng tiền trả', 'Trạng thái', 'Mã khách hàng', 'Khách ngừng hoạt động'],
+      ['TH-01', '12/08/2026 09:00:00', 'Khách Ngừng', 200000, 'Đã trả', 'KH-02', 'Có']
+    ]
+  });
+  dashboardData.__test__.resetCaches();
+
+  const data = await dashboardData.getDashboardData({ ...BASE_FILTERS, customers: { mode: 'all' } });
+
+  assert.deepEqual(data.customers.topRevenue.all.map(entry => entry.code), ['KH-01']);
+  assert.equal(data.customers.topRevenue.all[0].revenue, 500000);
+  assert.equal(data.kpi.totalCustomers, 1);
 });

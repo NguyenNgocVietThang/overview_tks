@@ -197,3 +197,21 @@ test('snapshot doc team tu sale_teams; thieu bang sale_teams thi teams rong, bao
     assert.ok(snap.customers.length > 0);
   } finally { await db.close(); }
 });
+
+test('snapshot bo khach va ma hang ngung hoat dong (chi ma ngung o moi co so moi bi loai)', async () => {
+  const { PGlite } = require('@electric-sql/pglite');
+  const db = new PGlite();
+  try {
+    await seed(db);
+    // KH2 ngung hoat dong; SP2 ngung kinh doanh.
+    await db.exec(`UPDATE customers SET raw = '{"isActive":false}' WHERE code = 'KH2';
+      UPDATE products SET is_active = false WHERE code = 'SP2'`);
+    const repo = createRepository({ pool: poolFrom(db), now: () => new Date('2026-10-06T03:00:00Z') });
+    const snap = await repo.snapshot();
+    assert.equal(snap.customers.some(r => r.customerCode === 'KH2'), false);
+    assert.equal(snap.directory.some(d => d.code === 'KH2'), false);
+    assert.ok(snap.customers.some(r => r.customerCode === 'KH1'));
+    assert.equal(snap.products.some(r => r.productCode === 'SP2'), false);
+    assert.ok(snap.products.some(r => r.productCode === 'SP1'));
+  } finally { await db.close(); }
+});

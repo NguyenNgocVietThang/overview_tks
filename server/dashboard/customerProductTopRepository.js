@@ -93,6 +93,9 @@ const BRANCH_RANK_SQL = `CASE branch WHEN 'hanoi' THEN 0 WHEN 'saigon' THEN 1 EL
  * (hang, khach) TRUOC khi xep hang top-N — khong the gop hai top-N rieng cua tung
  * co so vi khach hang co the chi vao top khi cong ca hai co so.
  */
+// Khach ngung hoat dong (isActive = false) khong vao top khach; c NULL (khach le / khong khop) van tinh.
+const ACTIVE_CUSTOMER_JOIN_SQL = `COALESCE(c.raw->>'isActive', c.raw->>'IsActive', 'true') <> 'false'`;
+
 function buildTopCustomersQuery(rankBy, aggregate = false) {
   const rankOrder = rankBy === 'revenue'
     ? 'revenue DESC, qty DESC'
@@ -120,6 +123,7 @@ function buildTopCustomersQuery(rankBy, aggregate = false) {
       LEFT JOIN customers c ON c.branch = i.branch AND c.id = i.customer_id
       WHERE ${branchPredicate('d.branch')}
         AND i.status = 1
+        AND ${ACTIVE_CUSTOMER_JOIN_SQL}
         AND lower(${PRODUCT_CODE_SQL}) = ANY($2)
         AND ($3::timestamptz IS NULL OR i.purchase_date >= $3)
         AND ($4::timestamptz IS NULL OR i.purchase_date <= $4)
@@ -150,6 +154,7 @@ function buildTopCustomersQuery(rankBy, aggregate = false) {
       LEFT JOIN customers c ON c.branch = r.branch AND c.id = r.customer_id
       WHERE ${branchPredicate('rd.branch')}
         AND r.status = 1
+        AND ${ACTIVE_CUSTOMER_JOIN_SQL}
         AND lower(${RETURN_PRODUCT_CODE_SQL}) = ANY($2)
         AND ($3::timestamptz IS NULL OR r.return_date >= $3)
         AND ($4::timestamptz IS NULL OR r.return_date <= $4)

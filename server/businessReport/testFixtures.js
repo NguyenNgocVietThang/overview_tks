@@ -8,7 +8,7 @@ const MIGRATION = fs.readFileSync(path.join(__dirname, '..', 'db', 'migrations',
 const TEAMS_MIGRATION = fs.readFileSync(path.join(__dirname, '..', 'db', 'migrations', '0037_sale_teams.sql'), 'utf8');
 const BASE = `
   CREATE TABLE customers(branch text, id bigint, code text, name text, raw jsonb);
-  CREATE TABLE products(branch text, id bigint, code text, name text);
+  CREATE TABLE products(branch text, id bigint, code text, name text, is_active boolean);
   CREATE TABLE invoices(branch text, id bigint, code text, purchase_date timestamptz, total numeric, status int, raw jsonb);
   CREATE TABLE invoice_details(branch text, invoice_id bigint, line_no int, product_id bigint, quantity numeric, price numeric, discount numeric, raw jsonb);
   CREATE TABLE returns(branch text, id bigint, code text, return_date timestamptz, total numeric, status int, raw jsonb);

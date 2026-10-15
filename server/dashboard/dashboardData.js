@@ -882,6 +882,9 @@ function aggregateCustomerReportRevenueByCode(range, customerReportData) {
  */
 // Khoa doanh thu khach: theo TEN chuan hoa (khach cua hai co so co ma khac nhau
 // van la mot), roi ve ma khi khong co ten.
+// Cot danh dau hoa don/phieu tra cua khach ngung hoat dong (dashboardPgReader.js) — bo qua khi xep hang khach.
+const INACTIVE_CUSTOMER_HEADER = 'Khách ngừng hoạt động';
+
 function customerRevenueKey(name, code) {
   const normalizedName = normalizeSearchValue(name);
   if (normalizedName) return 'name:' + normalizedName;
@@ -950,10 +953,12 @@ function aggregateCustomerRevenueFromSheetRows(range, invData, custData, retData
   const invPhoneIdx = invHeaders.findIndex(h => String(h || '').trim() === 'SĐT khách');
   const invTotalIdx = invHeaders.findIndex(h => String(h || '').trim() === 'Tổng tiền hàng');
   const invFacilityIdx = invHeaders.findIndex(h => String(h || '').trim() === SHEET_FACILITY_HEADER);
+  const invInactiveIdx = invHeaders.findIndex(h => String(h || '').trim() === INACTIVE_CUSTOMER_HEADER);
 
   if (Array.isArray(invData)) {
     for (let r = 1; r < invData.length; r++) {
       const row = invData[r];
+      if (invInactiveIdx >= 0 && row[invInactiveIdx] === 'Có') continue;
       const status = String((invStatusIdx >= 0 ? row[invStatusIdx] : row[9]) || 'Hoàn thành').trim();
       if (status !== 'Hoàn thành') continue;
 
@@ -1009,9 +1014,11 @@ function aggregateCustomerRevenueFromSheetRows(range, invData, custData, retData
     const retNameIdx = retHeaders.findIndex(h => String(h || '').trim() === 'Khách hàng');
     const retTotalIdx = retHeaders.findIndex(h => String(h || '').trim() === 'Tổng tiền trả');
     const retFacilityIdx = retHeaders.findIndex(h => String(h || '').trim() === SHEET_FACILITY_HEADER);
+    const retInactiveIdx = retHeaders.findIndex(h => String(h || '').trim() === INACTIVE_CUSTOMER_HEADER);
 
     for (let r = 1; r < retData.length; r++) {
       const row = retData[r];
+      if (retInactiveIdx >= 0 && row[retInactiveIdx] === 'Có') continue;
       // Phieu tra hoan tat co statusValue 'Đã trả' (tab Tra hang); 'Hoàn thành' chi con o du lieu cu.
       // Truoc day chi nhan 'Hoàn thành' nen KHONG phieu tra that nao duoc tru khoi doanh thu khach.
       const status = String((retStatusIdx >= 0 ? row[retStatusIdx] : row[5]) || 'Đã trả').trim();
@@ -2375,7 +2382,8 @@ function computeDashboardData(sheets, filters, now, branch, rollups, debtManagem
     });
   }
 
-  const totalCustomers = custData.slice(1).filter(row => row[customerCodeIndex]).length;
+  // Tong khach chi dem khach DANG HOAT DONG (debtCustomerData da loai khach ngung, xem activeCustomerDebtSheet).
+  const totalCustomers = (debtCustomerData || custData).slice(1).filter(row => row[customerCodeIndex]).length;
   let customersWithDebt = 0, totalDebt = 0;
   let topDebt = [];
 

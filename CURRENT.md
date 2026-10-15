@@ -1,12 +1,13 @@
 # CURRENT: BẢNG TRẠNG THÁI THỜI GIAN THỰC (REALTIME DASHBOARD)
 
-> **Cập nhật gần nhất:** 15/10/2026 (Asia/Ho_Chi_Minh), Công nợ chỉ tính khách đang hoạt động: danh sách, KPI, điểm, phạt, xuất file và nhập lịch TT.
+> **Cập nhật gần nhất:** 15/10/2026 (Asia/Ho_Chi_Minh), mọi tab chỉ tính khách và mã hàng đang hoạt động.
 > **Trạng thái Git:** làm việc trực tiếp trên `main` theo yêu cầu; thay đổi thưởng/phạt sale hoàn tất và qua kiểm thử; chưa push/deploy phiên này.
 > **Quy tắc:** Cập nhật liên tục vào đầu và cuối mỗi phiên làm việc để không bị đứt đoạn ngữ cảnh dự án.
 
 ---
 
 0. **Vòng đời đơn hàng: luồng thứ 6 Kế toán/Chứng từ (15/10/2026, chưa commit/deploy):** đọc tab `KeToan_ChungTu` (Mã đơn hàng / Người gửi (kế toán) / Thời gian gửi; dùng chung HN+SG; cấu hình `ORDER_LIFECYCLE_SHEET_ACCOUNTING`) trong cùng workbook, fail-soft. Mã có trong tab → trạng thái mới `COMPLETED` "Hoàn thành"; phiếu tạm Kiot chưa có trong tab nào vẫn "Đơn chưa gửi kế toán" (có sẵn). Cơ sở lấy từ đơn Kiot cùng mã (cùng mã ở HN và SG: ưu tiên Phiếu tạm rồi đơn đặt gần nhất); mã không có trên Kiot bị bỏ như các tab khác. Không cảnh báo, ghi đè thường không hạ Hoàn thành; mã đã ở tab giao hàng khác thì không nhân đôi (dòng trước thắng). Hộp chi tiết 2 node; bộ lọc trạng thái thêm "Hoàn thành". Không migration, deploy chỉ cần restart. Việc cần làm khi deploy: service account phải đọc được tab `KeToan_ChungTu`; nhờ kế toán xác nhận mã trong tab không trùng tab khác. `npm test` 2.402 đạt, 3 skipped, 0 lỗi.
+0. **Chỉ tính khách/mã hàng đang hoạt động ở mọi tab (15/10/2026, chưa commit):** tổng khách (Tổng quan) và bảng xếp hạng doanh thu theo khách bỏ khách `isActive=false` (hóa đơn/phiếu trả được đánh dấu cột mới `Khách ngừng hoạt động`, doanh thu công ty theo ngày giữ nguyên); gợi ý tìm khách, top khách theo mã hàng, Báo cáo hàng hóa (doanh số theo khách) và Báo cáo kinh doanh (khách + mã hàng, đọc lúc xem) cũng loại. Mã hàng ngừng kinh doanh vốn đã loại ở tab Hàng hóa, top bán chạy, ngày nhập đầu, báo cáo hàng hóa, đứt hàng và giá trị tồn.
 0. **Công nợ chỉ tính khách hoạt động (15/10/2026, main):** đồng bộ chuẩn hóa `customers.raw.isActive`; nhận `removedIds` từ KiotViet, đối soát toàn bộ lần đầu/mỗi ngày và chỉ đánh dấu khách vắng mặt sau khi kiểm tra đủ dữ liệu. Không xóa hồ sơ hoặc sổ phạt. Bộ lọc áp trước khi lấy khách trùng mã, loại doanh số khách ngừng/không còn hồ sơ khỏi điểm thưởng; bản chốt công nợ cũ đang xem cũng lọc trạng thái hiện tại. Đồng bộ xong xóa cache + thông báo trình duyệt; cache dự phòng 60 giây. Quy tắc thưởng mới `debt-reward-2026-10-v3-active-customers`; kết quả thưởng tháng đã chốt vẫn giữ nguyên. Đã đối soát DB thật: 8.089 khách hoạt động, 46 khách bị loại (HN 34, SG 12), không còn khách không hoạt động trong báo cáo công nợ. Chưa push/deploy.
 
 ## 1. Tổng quan trạng thái hiện tại (Current Status)

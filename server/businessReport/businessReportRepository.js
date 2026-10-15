@@ -143,10 +143,14 @@ function createRepository({
       ['SELECT 1 FROM business_monthly_customer_product_sales LIMIT 0'],
       [`SELECT DISTINCT ON (branch, btrim(code)) branch, btrim(code) AS code, name,
                          COALESCE(NULLIF(btrim(raw->>'groups'), ''), $1) AS sale_name,
-                         COALESCE(btrim(raw->>'comments'), '') AS price_level
+                         COALESCE(btrim(raw->>'comments'), '') AS price_level,
+                         COALESCE(raw->>'isActive', raw->>'IsActive', 'true') <> 'false' AS is_active
                   FROM customers WHERE btrim(COALESCE(code, '')) <> ''
                   ORDER BY branch, btrim(code), id DESC`, [UNGROUPED_SALE]],
-      ['SELECT sale_name, team_name FROM sale_teams']
+      ['SELECT sale_name, team_name FROM sale_teams'],
+      // Ma hang ngung kinh doanh o MOI co so co san pham do: khong dua vao bang xep hang ma hang.
+      [`SELECT lower(btrim(code)) AS code FROM products WHERE btrim(COALESCE(code, '')) <> ''
+                  GROUP BY lower(btrim(code)) HAVING bool_and(is_active IS FALSE)`]
     ]);
     let missingMigration = false;
     const values = results.map((result, index) => {
@@ -157,26 +161,36 @@ function createRepository({
       }
       // sale_teams chua migrate: moi sale thuoc 'Chua co team', bao cao van chay.
       if (index === 6 && missingMonthlyRelation(result.reason)) return { rows: [] };
+      // Truy van ma hang ngung kinh doanh chi la bo loc: loi thi bo qua, bao cao van chay.
+      if (index === 7) return { rows: [] };
       throw result.reason;
     });
-    const [state, frozenCustomers, frozenProducts, frozenSales, , directory, teams] = values;
+    const [state, frozenCustomers, frozenProducts, frozenSales, , directory, teams, inactiveProducts] = values;
+    // Chi tinh khach/ma hang dang hoat dong; khach khong co trong danh ba van giu (khach le, du lieu cu).
+    const inactiveCustomerKeys = new Set(directory.rows.filter(r => r.is_active === false)
+      .map(r => JSON.stringify([r.branch, r.code])));
+    directory.rows = directory.rows.filter(r => r.is_active !== false);
+    const inactiveProductCodes = new Set(inactiveProducts.rows.map(r => r.code));
     // Schema chua du: bo state de khong tron lich su chot thieu bang.
     if (missingMigration) state.rows = [];
     const frozenMonths = state.rows.map(r => r.month).filter(m => m < currentMonth).sort();
     const pending = new Set(state.rows.filter(r => !/^[a-f0-9]{32}$/.test(r.group_hash || '')).map(r => r.month));
     const frozen = new Set(frozenMonths);
-    const customers = frozenCustomers.rows.filter(r => frozen.has(r.month)).map(r => ({
+    const customers = frozenCustomers.rows.filter(r => frozen.has(r.month)
+      && !inactiveCustomerKeys.has(JSON.stringify([r.branch, String(r.customer_code || '').trim()]))).map(r => ({
       month: r.month, branch: r.branch, customerCode: r.customer_code, customerName: r.customer_name, netRevenue: num(r.net_revenue)
     }));
-    const products = frozenProducts.rows.filter(r => frozen.has(r.month)).map(r => ({
+    const products = frozenProducts.rows.filter(r => frozen.has(r.month)
+      && !inactiveProductCodes.has(String(r.product_code || '').trim().toLowerCase())).map(r => ({
       month: r.month, productCode: r.product_code, productName: r.product_name, netRevenue: num(r.net_revenue), netQty: num(r.net_qty)
     }));
     for (const month of months.filter(m => !frozen.has(m))) {
       // Tai nen cua snapshot: cho ban live MOI (wait) de snapshot moi khong mang ban live cu.
       const data = await live(month, { wait: true });
-      for (const r of data.customers) customers.push({ month, branch: r.branch, customerCode: r.customer_code, customerName: r.customer_name, netRevenue: num(r.net_revenue) });
+      for (const r of data.customers.filter(row => !inactiveCustomerKeys.has(JSON.stringify([row.branch, String(row.customer_code || '').trim()])))) customers.push({ month, branch: r.branch, customerCode: r.customer_code, customerName: r.customer_name, netRevenue: num(r.net_revenue) });
       const byCode = new Map();
       for (const r of data.customerProducts) {
+        if (inactiveProductCodes.has(String(r.product_code || '').trim().toLowerCase())) continue;
         const p = byCode.get(r.product_code) || { month, productCode: r.product_code, productName: r.product_name, netRevenue: 0, netQty: 0 };
         p.netRevenue += num(r.net_revenue); p.netQty += num(r.net_qty);
         if (r.product_name) p.productName = r.product_name;

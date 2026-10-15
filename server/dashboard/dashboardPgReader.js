@@ -138,6 +138,19 @@ const BRANCH_HEADER = 'Cơ sở';
 const BRANCH_COLUMN = 'co_so';
 const BRANCH_SQL = `CASE $1::text WHEN 'saigon' THEN '${BRANCHES.SAIGON}' ELSE '${BRANCHES.HANOI}' END`;
 
+// Khach NGUNG HOAT DONG (KiotViet isActive = false) khong duoc tinh vao xep hang khach: tab Khach hang
+// da loai khach do ngay o SQL, con hoa don/tra hang cua ho (van la doanh thu cong ty) chi duoc DANH DAU
+// 'Có' o cot nay de bang xep hang doanh thu theo khach bo qua. `rowRef` la ten/alias bang chua dong.
+const INACTIVE_CUSTOMER_HEADER = 'Khách ngừng hoạt động';
+const INACTIVE_CUSTOMER_COLUMN = 'khach_ngung_hoat_dong';
+function inactiveCustomerSql(rowRef) {
+  return `CASE WHEN EXISTS (
+          SELECT 1 FROM customers c
+          WHERE c.branch = ${rowRef}.branch AND c.id = ${rowRef}.customer_id
+            AND COALESCE(c.raw->>'isActive', c.raw->>'IsActive', 'true') = 'false'
+        ) THEN 'Có' ELSE '' END`;
+}
+
 const TABS = [
   {
     sheetName: CONFIG.SHEET_CATEGORIES,
@@ -226,14 +239,14 @@ const TABS = [
       'Chi nhánh', 'Tổng tiền hàng', 'Giảm giá', 'Khách đã trả', 'Trạng thái',
       'ID hóa đơn', 'Mã đặt hàng', 'ID chi nhánh', 'ID nhân viên bán',
       'ID khách hàng', 'Mã khách hàng', 'Mã trạng thái', 'Tên trạng thái API',
-      'Ghi chú', 'Thu hộ COD', 'Ngày tạo'
+      'Ghi chú', 'Thu hộ COD', 'Ngày tạo', INACTIVE_CUSTOMER_HEADER
     ],
     columns: [
       'ma_hoa_don', 'ngay_ban', 'khach_hang', 'sdt_khach', 'nhan_vien_ban',
       'chi_nhanh', 'tong_tien_hang', 'giam_gia', 'khach_da_tra', 'trang_thai',
       'id_hoa_don', 'ma_dat_hang', 'id_chi_nhanh', 'id_nhan_vien_ban',
       'id_khach_hang', 'ma_khach_hang', 'ma_trang_thai', 'ten_trang_thai_api',
-      'ghi_chu', 'thu_ho_cod', 'ngay_tao'
+      'ghi_chu', 'thu_ho_cod', 'ngay_tao', INACTIVE_CUSTOMER_COLUMN
     ],
     codeColumn: 'ma_hoa_don',
     buildSql: byCode => `-- tab: Hóa đơn
@@ -259,6 +272,7 @@ const TABS = [
         ${text(`i.raw->>'description'`)}                           AS ghi_chu,
         ${boolText(`i.raw->>'usingCod'`)}                          AS thu_ho_cod,
         ${fmtTs('i.created_date')}                                 AS ngay_tao,
+        ${inactiveCustomerSql('i')}                                AS ${INACTIVE_CUSTOMER_COLUMN},
         ${BRANCH_SQL}                              AS co_so
       FROM invoices i
       LEFT JOIN staff s ON s.branch = i.branch AND s.id = i.sold_by_id
@@ -353,14 +367,14 @@ const TABS = [
       'ID trả hàng', 'ID hóa đơn gốc', 'ID chi nhánh', 'Chi nhánh',
       'ID người nhận trả', 'Nhân viên bán', 'ID khách hàng', 'Mã khách hàng',
       'Giảm giá trả hàng', 'Phí trả hàng', 'Tổng thanh toán', 'Mã trạng thái',
-      'Tên trạng thái API', 'Ngày tạo', 'Ngày cập nhật'
+      'Tên trạng thái API', 'Ngày tạo', 'Ngày cập nhật', INACTIVE_CUSTOMER_HEADER
     ],
     columns: [
       'ma_tra_hang', 'ngay_tra', 'khach_hang', 'tong_tien_tra', 'trang_thai',
       'id_tra_hang', 'id_hoa_don_goc', 'id_chi_nhanh', 'chi_nhanh',
       'id_nguoi_nhan_tra', 'nhan_vien_ban', 'id_khach_hang', 'ma_khach_hang',
       'giam_gia_tra_hang', 'phi_tra_hang', 'tong_thanh_toan', 'ma_trang_thai',
-      'ten_trang_thai_api', 'ngay_tao', 'ngay_cap_nhat'
+      'ten_trang_thai_api', 'ngay_tao', 'ngay_cap_nhat', INACTIVE_CUSTOMER_COLUMN
     ],
     codeColumn: 'ma_tra_hang',
     buildSql: byCode => `-- tab: Trả hàng
@@ -385,6 +399,7 @@ const TABS = [
         ${text(`raw->>'statusValue'`)}                         AS ten_trang_thai_api,
         ${fmtTs('created_date')}                               AS ngay_tao,
         ${fmtTs('modified_date')}                              AS ngay_cap_nhat,
+        ${inactiveCustomerSql('returns')}                      AS ${INACTIVE_CUSTOMER_COLUMN},
         ${BRANCH_SQL}                              AS co_so
       FROM returns
       WHERE branch = $1${codeFilter(byCode, 'code')}

@@ -138,6 +138,8 @@ const INVOICE_FIELDS = [
     'Có nếu hóa đơn giao hàng và thu hộ tiền (COD), Không nếu không dùng.'),
   field('ngay_tao', 'Ngày tạo', 'Ngày tạo', 'date',
     'Ngày giờ hóa đơn được tạo trên KiotViet, có thể khác Ngày bán.'),
+  field('khach_ngung_hoat_dong', 'Khách ngừng hoạt động', 'Khách ngừng hoạt động', 'general',
+    'Có nếu khách của chứng từ đã ngừng hoạt động; trống nếu còn hoạt động.'),
   field('co_so', 'Cơ sở', 'Cơ sở', 'text',
     'Cơ sở (Hà Nội hoặc Sài Gòn) nơi dữ liệu này được đồng bộ.')
 ];
@@ -234,6 +236,8 @@ const RETURN_FIELDS = [
     'Ngày giờ phiếu trả hàng được tạo trên KiotViet, có thể khác Ngày trả hàng.'),
   field('ngay_cap_nhat', 'Ngày cập nhật', 'Ngày cập nhật', 'date',
     'Ngày giờ KiotViet cập nhật phiếu trả hàng lần cuối; trống nếu chưa từng cập nhật.'),
+  field('khach_ngung_hoat_dong', 'Khách ngừng hoạt động', 'Khách ngừng hoạt động', 'general',
+    'Có nếu khách của chứng từ đã ngừng hoạt động; trống nếu còn hoạt động.'),
   field('co_so', 'Cơ sở', 'Cơ sở', 'text',
     'Cơ sở (Hà Nội hoặc Sài Gòn) nơi dữ liệu này được đồng bộ.')
 ];

@@ -30,7 +30,10 @@ function createCustomerDirectoryRepository({ pool = getPool() } = {}) {
       ? resolveBranchScope(BRANCH_BOTH).map(resolveBranchCode)
       : [resolveBranchCode(branch)];
     const result = await pool.query(
-      `SELECT branch, code, name FROM customers WHERE branch = ANY($1::text[]) ORDER BY branch, code`,
+      `SELECT branch, code, name FROM customers
+       WHERE branch = ANY($1::text[])
+         AND COALESCE(raw->>'isActive', raw->>'IsActive', 'true') <> 'false'
+       ORDER BY branch, code`,
       [branchCodes]
     );
     return result.rows.map(row => ({ branch: row.branch, code: row.code || '', name: row.name || '' }));

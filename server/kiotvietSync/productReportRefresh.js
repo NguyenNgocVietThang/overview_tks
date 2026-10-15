@@ -118,6 +118,7 @@ const REFRESH_SQL = `
     CROSS JOIN vn_today
     WHERE d.branch = ANY($1::text[])
       AND COALESCE(i.raw->>'statusValue', '') != 'Đã hủy'
+      AND COALESCE(c.raw->>'isActive', c.raw->>'IsActive', 'true') <> 'false'
       AND i.purchase_date >= ((vn_today.today - 90)::timestamp AT TIME ZONE 'UTC')
       AND i.purchase_date <  (vn_today.today::timestamp AT TIME ZONE 'UTC'))
     UNION ALL
@@ -137,6 +138,7 @@ const REFRESH_SQL = `
     CROSS JOIN vn_today
     WHERE rd.branch = ANY($1::text[])
       AND r.raw->>'statusValue' = 'Đã trả'
+      AND COALESCE(c.raw->>'isActive', c.raw->>'IsActive', 'true') <> 'false'
       AND r.return_date >= ((vn_today.today - 90)::timestamp AT TIME ZONE 'UTC')
       AND r.return_date <  (vn_today.today::timestamp AT TIME ZONE 'UTC'))
   ),
