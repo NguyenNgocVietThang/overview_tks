@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Yêu cầu chuyển tiền · TOKOSI Dashboard</title>
+    <link rel="icon" type="image/jpeg" href="/Logo.jpg" />
+    <script>
+      try {
+        document.documentElement.dataset.theme =
+          localStorage.getItem("tks-dashboard-theme") === "light" ? "light" : "dark";
+      } catch (error) {
+        document.documentElement.dataset.theme = "dark";
+      }
+      document.documentElement.style.visibility = "hidden";
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&display=swap"
+    />
+    <link rel="stylesheet" href="/shared/shared.css?v=20261009" />
+    <link rel="stylesheet" href="/shared/detail-panel.css?v=20261015" />
+    <link rel="stylesheet" href="/shared/search-clear.css?v=20261009-1" />
+    <link rel="stylesheet" href="/shared/table-controls.css?v=20261013-1" />
+    <style>
+      /* Yêu cầu chuyển tiền (server/transfers). Kế toán duyệt; người có quyền
+         "Đánh dấu đã chuyển" mở dòng Đã duyệt để quét VietQR. Chỉ dùng token màu
+         của shared.css nên tự đúng cả Sáng/Tối. */
+      [hidden] { display: none !important; }
+      .tr-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+      .tr-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 12px; }
+      .tr-tab {
+        display: inline-flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 12px;
+        border: 1px solid var(--border); border-radius: var(--radius-sm, 8px); background: var(--panel);
+        color: var(--text); font: 600 12.5px var(--font-body); cursor: pointer;
+      }
+      .tr-tab[aria-pressed="true"] { border-color: var(--blue); background: var(--panel-2); color: var(--blue); }
+      .tr-tab .tr-count {
+        min-width: 22px; padding: 1px 6px; border-radius: 99px; background: var(--panel-2);
+        font-family: var(--font-data); font-variant-numeric: tabular-nums; font-size: 11.5px; text-align: center;
+      }
+      .tr-tab .tr-count:empty { display: none; }
+      .tr-tab[data-status="CHO_DUYET"] .tr-count:not(:empty) { color: var(--amber); }
+      .tr-tab[data-status="DA_DUYET"] .tr-count:not(:empty) { color: var(--blue); }
+      .tr-filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 0 0 12px; }
+      .tr-filters input {
+        min-height: 36px; padding: 0 10px; border: 1px solid var(--border); border-radius: var(--radius-sm, 8px);
+        background: var(--panel); color: var(--text); font: 500 13px var(--font-body);
+      }
+      .tr-filters input[type="search"] { flex: 1 1 260px; min-width: 0; }
+      .tr-filters label { font-size: 12px; color: var(--canvas-text); }
+      .tr-table-wrap { overflow: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); }
+      .tr-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; color: var(--text); }
+      .tr-table th {
+        position: sticky; top: 0; z-index: 1; padding: 9px 10px; background: var(--panel-2); color: var(--muted);
+        border-bottom: 1px solid var(--border); font: 700 10.5px var(--font-body); letter-spacing: .06em;
+        text-transform: uppercase; text-align: left; white-space: nowrap;
+      }
+      .tr-table td { padding: 9px 10px; border-bottom: 1px solid var(--row-divider); vertical-align: top; }
+      .tr-table tbody tr.is-open { cursor: pointer; }
+      .tr-table tbody tr.is-locked td { color: var(--muted); }
+      .tr-table tbody tr.is-open:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+      .tr-table .num { text-align: right; font-family: var(--font-data); font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .tr-table .mono { font-family: var(--font-data); font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .tr-table .empty { padding: 28px 12px; text-align: center; color: var(--muted); }
+      .tr-badge {
+        display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 99px; border: 1px solid currentColor;
+        font: 700 11px var(--font-body); white-space: nowrap;
+      }
+      .tr-badge.CHO_DUYET { color: var(--amber); }
+      .tr-badge.DA_DUYET { color: var(--blue); }
+      .tr-badge.DA_CHUYEN { color: var(--green); }
+      .tr-badge.DA_HUY { color: var(--muted); }
+      .tr-warn { color: var(--amber); font-weight: 600; }
+      .tr-pager { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 10px; font-size: 12.5px; color: var(--canvas-text); }
+      .tr-dialog { max-width: 820px; }
+      .tr-alert { padding: 10px 14px; border-radius: 10px; border: 1px solid currentColor; font-weight: 600; font-size: 13px; }
+      .tr-alert.is-red { color: var(--red); background: color-mix(in srgb, var(--red) 10%, transparent); }
+      .tr-alert.is-amber { color: var(--amber); background: color-mix(in srgb, var(--amber) 10%, transparent); }
+      .tr-alert.is-blue { color: var(--blue); background: color-mix(in srgb, var(--blue) 10%, transparent); }
+      .tr-alert button { margin-left: 8px; }
+      #dtAlert:empty, #dtConfirm:empty { display: none; }
+      .tr-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 16px; }
+      .tr-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--muted); min-width: 0; }
+      .tr-form .is-wide { grid-column: 1 / -1; }
+      .tr-form input, .tr-form select, .tr-form textarea, .tr-confirm textarea {
+        min-height: 36px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px;
+        background: var(--panel-2); color: var(--text); font: 500 13px var(--font-body); min-width: 0;
+      }
+      .tr-form textarea, .tr-confirm textarea { min-height: 64px; resize: vertical; }
+      .tr-form .tr-hint { font-weight: 500; color: var(--amber); font-size: 11.5px; }
+      .tr-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+      .tr-btn {
+        min-height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel-2);
+        color: var(--text); font: 700 12.5px var(--font-body); cursor: pointer;
+      }
+      .tr-btn:disabled { opacity: .5; cursor: not-allowed; }
+      .tr-btn.is-primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+      .tr-btn.is-green { background: var(--green); border-color: var(--green); color: #fff; }
+      .tr-btn.is-red { color: var(--red); border-color: var(--red); background: transparent; }
+      .tr-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+      .tr-qr { display: grid; grid-template-columns: minmax(0, 260px) minmax(0, 1fr); gap: 18px; align-items: start; }
+      .tr-qr-code { background: #fff; border-radius: 12px; padding: 10px; border: 1px solid var(--border); }
+      .tr-qr-code svg { display: block; width: 100%; height: auto; }
+      .tr-qr .dp-stat-value { font-size: 18px; }
+      .tr-confirm { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2); }
+      .tr-confirm p { margin: 0; font-size: 13px; font-weight: 600; }
+      .tr-history { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; }
+      .tr-history li { padding: 8px 10px; border-left: 3px solid var(--border); background: var(--panel-2); border-radius: 0 8px 8px 0; }
+      .tr-history .when { color: var(--muted); font-size: 11.5px; }
+      .tr-history ul { margin: 4px 0 0 16px; padding: 0; }
+      .tr-source { display: inline-block; margin-left: 6px; color: var(--amber); font-size: 11px; font-weight: 600; }
+      @media (max-width: 640px) {
+        .tr-qr { grid-template-columns: 1fr; }
+        .tr-qr-code { max-width: 280px; margin: 0 auto; }
+        .tr-actions .tr-btn { flex: 1 1 auto; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="receipt-header">
+      <div class="brand">
+        <button class="menu-btn" id="menuBtn" type="button" aria-label="Mở menu điều hướng" aria-expanded="false" aria-controls="sidebar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"></path></svg>
+        </button>
+        <div class="brand-mark"><img src="/Logo.jpg" alt="TOKOSI Logo" width="44" height="44" /></div>
+        <div class="brand-text"><h1>Tổng kho gia dụng Tokosi</h1></div>
+      </div>
+      <div class="status-line">
+        <button class="theme-toggle" id="themeToggle" type="button" aria-label="Chuyển chế độ giao diện">
+          <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2"></path></svg
+          ><svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg
+          ><span id="themeLabel">Light mode</span>
+        </button>
+        <div class="account-chip" id="accountChip"></div>
+      </div>
+    </div>
+    <div class="shell">
+      <div class="backdrop" id="backdrop"></div>
+      <div class="sidebar" id="sidebar" data-tks-active-top="transfers"></div>
+      <main class="content">
+        <div class="tr-head">
+          <div>
+            <h2 class="view-title">Yêu cầu chuyển tiền</h2>
+            <p class="view-sub" id="viewSub">Sale gửi qua bot Telegram · Kế toán duyệt · quét VietQR rồi bấm Đã chuyển · <span id="liveStatus" role="status">Đang kết nối…</span></p>
+          </div>
+        </div>
+        <p class="tr-alert is-amber" id="unlinkedNote" hidden>
+          Tài khoản của bạn chưa gắn Telegram ID nên chưa thấy yêu cầu nào. Nhờ Quản lý điền Telegram ID ở mục Quản lý người dùng.
+        </p>
+        <div class="tr-tabs" id="statusTabs" role="group" aria-label="Lọc theo trạng thái">
+          <button type="button" class="tr-tab" data-status="" aria-pressed="false">Tất cả <span class="tr-count" data-count="ALL"></span></button>
+          <button type="button" class="tr-tab" data-status="CHO_DUYET" aria-pressed="false">Chờ duyệt <span class="tr-count" data-count="CHO_DUYET"></span></button>
+          <button type="button" class="tr-tab" data-status="DA_DUYET" aria-pressed="false">Đã duyệt – chờ chuyển <span class="tr-count" data-count="DA_DUYET"></span></button>
+          <button type="button" class="tr-tab" data-status="DA_CHUYEN" aria-pressed="false">Đã chuyển <span class="tr-count" data-count="DA_CHUYEN"></span></button>
+          <button type="button" class="tr-tab" data-status="DA_HUY" aria-pressed="false">Đã hủy <span class="tr-count" data-count="DA_HUY"></span></button>
+        </div>
+        <form class="tr-filters" id="filters" role="search">
+          <input type="search" id="q" placeholder="Tìm mã, tên khách, STK, chủ TK, sale…" aria-label="Tìm kiếm" />
+          <label>Từ <input type="date" id="from" aria-label="Từ ngày" /></label>
+          <label>Đến <input type="date" id="to" aria-label="Đến ngày" /></label>
+        </form>
+        <div class="tr-table-wrap">
+          <table class="tr-table" id="transfersTable" data-table-key="transfers">
+            <thead>
+              <tr>
+                <th data-column-key="code">Mã</th>
+                <th data-column-key="createdAt">Thời gian</th>
+                <th data-column-key="sale">Sale</th>
+                <th data-column-key="customer">Tên khách</th>
+                <th data-column-key="amount" class="num">Số tiền</th>
+                <th data-column-key="bank">Ngân hàng</th>
+                <th data-column-key="account">Số tài khoản</th>
+                <th data-column-key="holder">Chủ tài khoản</th>
+                <th data-column-key="status">Trạng thái</th>
+                <th data-column-key="approvedBy">Người duyệt</th>
+                <th data-column-key="paidBy">Người chuyển</th>
+                <th data-column-key="paidAt">Thời điểm chuyển</th>
+                <th data-column-key="note">Ghi chú</th>
+              </tr>
+            </thead>
+            <tbody id="rows"><tr><td colspan="13" class="empty">Đang tải…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="tr-pager">
+          <span id="pageInfo"></span>
+          <button type="button" class="tr-btn" id="prevPage">‹ Trước</button>
+          <button type="button" class="tr-btn" id="nextPage">Sau ›</button>
+        </div>
+      </main>
+    </div>
+
+    <div class="tks-profile-overlay" id="detailOverlay" hidden>
+      <div class="tks-profile-dialog tr-dialog" role="dialog" aria-modal="true" aria-labelledby="dtTitle">
+        <div class="dp-head">
+          <div class="dp-head-text">
+            <p class="dp-kicker">Yêu cầu chuyển tiền</p>
+            <h3 class="dp-title" id="dtTitle"></h3>
+            <p class="dp-subtitle" id="dtSubtitle"></p>
+          </div>
+          <button type="button" class="dp-close" id="dtClose" aria-label="Đóng">×</button>
+        </div>
+        <div class="dp-body" id="dtBody"></div>
+      </div>
+    </div>
+
+    <script src="/shared/table-controls.js?v=20261013-1"></script>
+    <script src="/shared/search-clear.js?v=20261009-1"></script>
+    <script src="/shared/shared-nav.js?v=20261015"></script>
+    <script src="/transfers/transfers.js?v=20261015"></script>
+    <script src="/shared/shooting-star.js?v=20261009"></script>
+  </body>
+</html>

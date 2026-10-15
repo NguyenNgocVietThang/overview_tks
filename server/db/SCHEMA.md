@@ -459,3 +459,12 @@ Job chốt xóa run/feedback/history cũ hơn 7 ngày. SELECT của `reporting_r
 ## Kết quả thưởng sale theo tháng — migration 0052
 
 `debt_reward_months`: `month DATE` khóa chính (ngày 01), `rule_version TEXT`, `finalized_at TIMESTAMPTZ`, `result JSONB` chứa summary, coverage, rows cùng audit điểm/chi tiết phạt. Không FK theo bản chốt công nợ, giữ vĩnh viễn. Dịch vụ chỉ INSERT ON CONFLICT DO NOTHING; khóa advisory theo tháng trong transaction, retry serialization 40001; không cập nhật lại kết quả đã chốt. Phạt tháng cũ phải chốt hết và `business_monthly_state` phải có tháng doanh số trước khi lưu.
+
+## Yêu cầu chuyển tiền — migration 0053
+
+`0053_transfer_requests.sql` (2026-10-15), module `server/transfers/`:
+
+- `bank_bins (bin PK 6 chữ số, code, short_name, name, aliases TEXT[], is_active)`: 75 ngân hàng theo api.vietqr.io/v2/banks; `aliases` đã bỏ dấu/viết thường (cùng danh sách `app/banks.json` của bot).
+- `transfer_requests`: `request_code` (YC-YYYYMMDD-NNNN, bot cấp) và `idempotency_key` UNIQUE; `source` telegram|cutover; `input_kind` text|qr_image|manual; `sale_telegram_id` (khớp `app_users.telegram_id` để lấy tên sale và lọc "của mình"), `sale_name_bot`; `customer_name`, `amount_vnd NUMERIC(15,0)`, `bank_account` (chuỗi, giữ số 0), `account_type` ACCOUNT|CARD, `account_holder`, `bank_bin` FK (NULL = chưa xác định, không duyệt được), `bank_name_raw`, `note`, `accountant_note`, `qr_payload`, `field_sources` JSONB (qr / image_ai); `status` CHO_DUYET|DA_DUYET|DA_CHUYEN|DA_HUY, `version`; `approved_*`, `paid_*`, `canceled_*` (by_type SALE|ACCOUNTANT, lý do bắt buộc khi kế toán hủy). Trigger: tăng version, chỉ cho phép CHO_DUYET→DA_DUYET|DA_HUY, DA_DUYET→CHO_DUYET|DA_CHUYEN|DA_HUY, DA_CHUYEN→DA_DUYET (thu hồi); DA_HUY là cuối; thông tin chuyển tiền chỉ đổi khi CHO_DUYET; cấm DELETE.
+- `transfer_request_events`: 1 dòng / thay đổi, cùng giao dịch, `UNIQUE (request_id, version)`, `changes` JSONB `[{field,label,before,after}]`, `actor_*`, `reason`; chỉ được set `bot_delivered_at` một lần (bot fetch → lưu → ack), cấm sửa/xóa khác.
+- Bật RLS (không policy: server kết nối bằng chủ sở hữu) và thu hồi SELECT của `reporting_readonly` (có STK khách).

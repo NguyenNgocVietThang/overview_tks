@@ -74,6 +74,7 @@ server/
 ├── branch/               # Phân tách Hà Nội / Sài Gòn
 ├── businessReport/       # Báo cáo kinh doanh: SQL doanh số tháng, repository (chốt + live), service, API, xuất Excel/HTML
 ├── cashbook/             # Sổ quỹ toàn công ty: số dư, sổ chi tiết, lịch sử chốt và xuất Excel/HTML
+├── transfers/            # Yêu cầu chuyển tiền: API bot Telegram, duyệt/đã chuyển, VietQR (migration 0053)
 ├── dashboard/            # Tổng hợp dashboard (dashboardData + dashboardViews: API theo tab), xuất Excel/HTML, kiểm tra đứt hàng
 │   ├── documentDetailRepository.js  # Chi tiết hóa đơn (popup bảng Chi tiết giao dịch) và chi tiết đơn đặt hàng (trang Vòng đời đơn hàng)
 │   └── stockoutCheck/    # Engine kiểm tra đứt hàng + upload Trả NCC Excel
@@ -87,6 +88,7 @@ server/
 ├── notifications/        # Chuông thông báo, gửi email OTP và job báo ngày lễ/sinh nhật (specialDayNotifier.js)
 ├── public/               # Frontend HTML/CSS/JS
 │   ├── cashbook/         # Trang Sổ quỹ: bộ lọc/hash, số dư, chốt và xuất chọn cột
+│   ├── transfers/        # Trang Yêu cầu chuyển tiền: Kế toán duyệt, quét VietQR, Đã chuyển
 │   └── shared/
 │       └── detail-panel.css # Khung xem chi tiết dùng chung (.dp-): chỉ số tổng quan, bảng 1 khung cuộn, tắt nút chọn cột
 ├── scripts/              # Script thủ công (migrate dữ liệu, cài đặt ban đầu)
@@ -233,6 +235,7 @@ Triển khai trong `server/marketingReport/`; CLI tại `server/scripts/capture-
 ## Cập nhật 13/10/2026 — Công nợ theo lịch thanh toán
 
 - 15/10/2026: Mọi tab chỉ tính khách và mã hàng đang hoạt động: tổng khách, xếp hạng doanh thu theo khách, gợi ý tìm khách, top khách theo mã hàng, Báo cáo hàng hóa và Báo cáo kinh doanh bỏ khách `isActive=false` và mã hàng ngừng kinh doanh; hóa đơn/phiếu trả có thêm cột `Khách ngừng hoạt động`.
+- 15/10/2026: Yêu cầu chuyển tiền (`/transfers/`, module `server/transfers/`, migration 0053) thay Google Sheet "Yêu cầu ck cho khách": bot Telegram đẩy yêu cầu (chữ hoặc ảnh VietQR) qua `/api/transfer-bot/*` (biến môi trường `TRANSFER_BOT_INGEST_SECRET`); Kế toán sửa/duyệt (`transfers.review`), Quản lý quét VietQR dựng ở server rồi bấm Đã chuyển (`transfers.markPaid`), sale xem yêu cầu của mình theo Telegram ID (`transfers.own`). Mọi người thấy ai đã chuyển. Do Kế toán có quyền duyệt, Trợ lý không còn tạo/đổi tài khoản sang vai trò Kế toán (luật chống nâng quyền).
 - 15/10/2026: Công nợ chỉ tính khách đang hoạt động, gồm danh sách, KPI, điểm thưởng, phạt, xuất file và nhập lịch TT. KiotViet đồng bộ `raw.isActive`, xử lý `removedIds`, đối soát đầy đủ lần đầu/mỗi ngày; nguồn thiếu không được dùng để đánh dấu hàng loạt khách vắng mặt. Bản chốt công nợ cũ lọc trạng thái hiện tại, kết quả thưởng tháng đã chốt vẫn giữ nguyên. Không xóa hồ sơ khách hoặc sổ phạt.
 
 - Tab Công nợ bỏ workbook Google Sheets và quy tắc 1-3-7-Hàng tuần. Mỗi dòng là khách + cơ sở (HN/SG); lịch TT = số ngày nợ tối đa, lưu `debt_payment_schedules`, Quản lý sửa trên web.
