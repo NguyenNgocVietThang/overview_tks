@@ -459,3 +459,16 @@ Job chốt xóa run/feedback/history cũ hơn 7 ngày. SELECT của `reporting_r
 ## Kết quả thưởng sale theo tháng — migration 0052
 
 `debt_reward_months`: `month DATE` khóa chính (ngày 01), `rule_version TEXT`, `finalized_at TIMESTAMPTZ`, `result JSONB` chứa summary, coverage, rows cùng audit điểm/chi tiết phạt. Không FK theo bản chốt công nợ, giữ vĩnh viễn. Dịch vụ chỉ INSERT ON CONFLICT DO NOTHING; khóa advisory theo tháng trong transaction, retry serialization 40001; không cập nhật lại kết quả đã chốt. Phạt tháng cũ phải chốt hết và `business_monthly_state` phải có tháng doanh số trước khi lưu.
+
+## Hàng dự kiến — migration 0053 (15/10/2026)
+
+`0053_product_containers.sql` tạo snapshot hiện hành độc lập với `product_report`/`product_report_customers` chốt ban đêm. Đã áp lên DB dùng chung lúc 16:26 ngày 15/10/2026 theo yêu cầu người dùng; đã xác minh hai bảng, NUMERIC, singleton và thu hồi SELECT của reporting_readonly.
+
+| Bảng | Hợp đồng dữ liệu |
+|---|---|
+| `product_container_sync` | Một dòng `singleton=true`; `version UUID`, `last_success_at`, `last_attempt_at` kiểu TIMESTAMPTZ, `last_error TEXT`, `warnings JSONB` mặc định `[]`. Version null = chưa có snapshot thành công. |
+| `product_container_lines` | PK `(sheet_name, source_row)`; giữ `sheet_order`, `container_row`, mã gốc và `product_key` chuẩn hóa, tên CONT, `status SMALLINT` 1–5, nhãn trạng thái, ngày về/ngày lên list nguyên văn, màu, ghi chú sale, người đặt. `quantity NUMERIC NOT NULL CHECK >=0`; `units_per_package`, `package_count`, `vietnam_price` NUMERIC nullable. Index `(product_key,status)`. |
+
+Đồng bộ chỉ đọc đủ 6 sheet mỗi 2 tiếng, khóa advisory chống chạy chồng. Dòng và metadata thành công được thay trong cùng transaction; lỗi giữ snapshot cũ, cập nhật mốc thử/lỗi riêng. Không lưu lịch sử từng lần đồng bộ; vẫn giữ trạng thái 4/5 ở snapshot hiện tại để người có quyền đầy đủ xem. Tổng hợp chỉ cộng trạng thái 1/2 (Chưa bốc) và 3 (Đã bốc), giữ NUMERIC khi cộng.
+
+Migration thu hồi ALL trên cả hai bảng khỏi `reporting_readonly` nếu role tồn tại; truy cập thông qua API ứng dụng có kiểm tra quyền `reports.overview.containers.full`. Không cấp SELECT mặc định cho bảng chứa người đặt/giá/cảnh báo nguồn.

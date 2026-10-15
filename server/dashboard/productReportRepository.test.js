@@ -11,6 +11,7 @@ test('getProductReport chi giu ma dang kinh doanh o it nhat mot co so, ke ca het
   const db = new PGlite();
   try {
     await db.exec(fs.readFileSync(path.join(__dirname, '../db/migrations/0018_product_report.sql'), 'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname, '../db/migrations/0053_product_containers.sql'), 'utf8'));
     await db.exec(`
       CREATE TABLE products (branch text, code text, is_active boolean);
       INSERT INTO products VALUES
@@ -82,7 +83,7 @@ test('getProductReport doc bang product_report va tinh computedAt = moc gan nhat
     }
   };
   const result = await getProductReport({ pool });
-  assert.equal(pool.calls.length, 1);
+  assert.equal(pool.calls.length, 2);
   assert.match(pool.calls[0], /FROM product_report/);
   assert.equal(result.rows.length, 2);
   assert.equal(result.computedAt, '2026-09-23T00:06:00.000Z');
@@ -91,7 +92,9 @@ test('getProductReport doc bang product_report va tinh computedAt = moc gan nhat
 test('getProductReport tra computedAt = null neu bang rong', async () => {
   const pool = { query: async () => ({ rows: [] }) };
   const result = await getProductReport({ pool });
-  assert.deepEqual(result, { rows: [], computedAt: null });
+  assert.deepEqual(result.rows, []);
+  assert.equal(result.computedAt, null);
+  assert.equal(result.containerSync.available, false);
 });
 
 test('getProductReportCustomers tra khach xep giam dan theo doanh so, share = khach / tong cac khach', async () => {

@@ -3108,6 +3108,13 @@
       overflow-y: auto;
     }
 
+    #productCustomerContent { display:grid; gap:18px; min-width:0; }
+    #productContainerContent .dp-table { min-width:920px; }
+    #productContainerContent td { vertical-align:top; }
+    #productContainerContent td:nth-child(-n+3) { min-width:115px; }
+    #productContainerContent td:nth-child(4) { min-width:170px; }
+    #productContainerContent td:nth-child(5) { min-width:210px; }
+
     .doc-modal-body .dp-table-wrap {
       --dp-table-max: 340px;
     }
@@ -3592,6 +3599,7 @@
               <h2>Báo cáo hàng hóa <span class="section-note" id="productReportUpdatedAt">—</span></h2>
             </div>
             <div class="kpi-grid section-kpis" id="productReportKpis"></div>
+            <p class="section-note" id="productContainerUpdatedAt" role="status">Hàng dự kiến: chưa có dữ liệu đồng bộ.</p>
             <div class="grid">
               <div class="panel col-12">
                 <div class="panel-head">
@@ -3608,6 +3616,8 @@
                       <tr>
                         <th style="width:140px" data-column-key="ma-sp">Mã SP</th>
                         <th style="width:300px" data-column-key="ten-sp">Tên SP</th>
+                        <th style="width:105px" data-column-key="chua-boc">Chưa bốc</th>
+                        <th style="width:105px" data-column-key="da-boc">Đã bốc</th>
                         <th style="width:95px" data-column-key="ton-hn">Tồn HN</th>
                         <th style="width:95px" data-column-key="ton-sg">Tồn SG</th>
                         <th title="Tồn có bán = Tồn HN + Tồn SG − Khách đặt (phiếu tạm). Tính lại mỗi đêm." style="width:125px" data-column-key="ton-co-ban">Tồn có bán</th>
@@ -3620,7 +3630,7 @@
                     </thead>
                     <tbody id="productReportRows">
                       <tr>
-                        <td colspan="10" class="table-note">Đang tải...</td>
+                        <td colspan="12" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -4663,7 +4673,7 @@
       productAnalysis: 'product',
       currentUser: null,
       supplierReturnImport: { submitting: false },
-      productReport: { rows: [], computedAt: null, loaded: false },
+      productReport: { rows: [], computedAt: null, containerSync: null, loaded: false, loading: false },
       // Bieu do "Gia tri ton kho theo ngay" (tab Tong quan, muc 1): tu tai qua
       // /api/inventory-value-history, bo loc Tu-Den rieng (mac dinh 7 ngay) nen KHONG nam trong
       // state.filters (khoa trong do di kem /api/dashboard va cache dashboard).
@@ -6615,6 +6625,7 @@
       if (view === 'marketing') { TKSMarketing.load(false); return; }
       // Marketing opens independently; only load the other report sources when their view is opened.
       if (view === 'products' && marketingProductDeferred) { marketingProductDeferred = false; loadProductReport(); }
+      refreshProductContainerMeta();
       if (view === 'overview' && marketingHistoryDeferred) { marketingHistoryDeferred = false; loadInventoryHistory(); }
       // Moi tab tai rieng khi duoc mo (xem ensureViewData): tab da co du lieu van ve ngay
       // tu du lieu cu roi cap nhat khi ban moi ve; tab chua co du lieu hien man che "Dang tai".
@@ -7590,10 +7601,9 @@
       };
     }
 
-    // ===== Tab Tổng quan, phần 4 — "Báo cáo hàng hóa" (bảng đã tính sẵn trong
-    // DB 1 lần/đêm — xem server/dashboard/productReportRepository.js — trang
-    // chỉ gọi API 1 lần khi tải trang, KHÔNG tham gia vòng lặp loadData()/SSE
-    // của các bảng theo bộ lọc thời gian vì dữ liệu chỉ đổi 1 lần/ngày) =====
+    // ===== Tab Tổng quan — "Báo cáo hàng hóa" =====
+    // Doanh số/tồn chốt mỗi đêm; hàng dự kiến có snapshot riêng 2 tiếng.
+    // Metadata CONT được kiểm tra khi bảng đang hiển thị, độc lập loadData()/SSE. =====
     TABLE_EXPLORER_CONFIGS.productReport = {
       title: 'Báo cáo hàng hóa', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true
     };
@@ -7607,12 +7617,24 @@
       });
     }
 
+    function productContainerQuantityCell(value) {
+      return '<td class="mono" data-sort-value="' + (value == null ? '-1' : escapeHtml(String(value))) + '">' +
+        (value == null ? '—' : fmtNumber(value)) + '</td>';
+    }
+
+    function productContainerSyncText(sync) {
+      if (!sync || !sync.available) return 'Hàng dự kiến: chưa có dữ liệu đồng bộ.';
+      return 'Hàng dự kiến: ' + formatProductReportUpdatedAt(sync.lastSuccessAt) +
+        (sync.lastError ? ' · Lần cập nhật mới nhất thất bại, đang hiển thị dữ liệu cũ.' : sync.stale ? ' · Đang hiển thị dữ liệu cũ.' : '');
+    }
+
     function productReportRowHtml(p) {
       const code = escapeHtml(p.code);
       const shareValue = p.topCustomerShare === null || p.topCustomerShare === undefined ? -1 : p.topCustomerShare;
-      return '<tr class="doc-row" tabindex="0" title="Bấm để xem doanh số theo khách" data-table-item-id="' + code + '">' +
+      return '<tr class="doc-row" tabindex="0" title="Bấm để xem doanh số theo khách và hàng dự kiến" data-table-item-id="' + code + '">' +
         '<td class="mono muted">' + code + '</td>' +
         '<td class="name-cell">' + escapeHtml(p.name) + '</td>' +
+        productContainerQuantityCell(p.unloadedQty) + productContainerQuantityCell(p.loadedQty) +
         '<td class="mono" data-sort-value="' + p.stockHanoi + '">' + fmtNumber(p.stockHanoi) + '</td>' +
         '<td class="mono" data-sort-value="' + p.stockSaigon + '">' + fmtNumber(p.stockSaigon) + '</td>' +
         '<td class="mono" data-sort-value="' + p.availableToSell + '">' + fmtNumber(p.availableToSell) + '</td>' +
@@ -7628,6 +7650,7 @@
       const rows = state.productReport.rows;
       document.getElementById('tagProductReportRows').textContent = rows.length ? String(rows.length) : '—';
       document.getElementById('productReportUpdatedAt').textContent = formatProductReportUpdatedAt(state.productReport.computedAt);
+      document.getElementById('productContainerUpdatedAt').textContent = productContainerSyncText(state.productReport.containerSync);
       renderSectionKpis('productReportKpis', [
         { label: 'Số mã hàng', value: rows.length ? fmtNumber(rows.length) : '—', accent: 'amber' },
         { label: 'Doanh số 90 ngày', value: fmtMoney(sumBy(rows, p => p.revenue90d)), accent: 'green' },
@@ -7642,13 +7665,15 @@
         },
         rows,
         productReportRowHtml,
-        10,
+        12,
         state.productReport.loaded ? 'Chưa có dữ liệu báo cáo hàng hóa.' : 'Đang tải...'
       );
     }
 
     function loadProductReport() {
-      fetch('/api/product-report')
+      if (state.productReport.loading) return Promise.resolve();
+      state.productReport.loading = true;
+      return fetch('/api/product-report')
         .then(function (res) {
           if (!res.ok) throw new Error('HTTP ' + res.status);
           return res.json();
@@ -7656,15 +7681,45 @@
         .then(function (data) {
           state.productReport.rows = (data && data.rows) || [];
           state.productReport.computedAt = data && data.computedAt;
+          state.productReport.containerSync = data && data.containerSync;
           state.productReport.loaded = true;
           renderProductReport();
         })
         .catch(function (err) {
           console.error('Không tải được báo cáo hàng hóa:', err);
-          state.productReport.loaded = true;
-          document.getElementById('productReportRows').innerHTML =
-            '<tr><td colspan="10" class="table-note">Không tải được báo cáo hàng hóa.</td></tr>';
-        });
+          if (!state.productReport.loaded) {
+            state.productReport.loaded = true;
+            document.getElementById('productReportRows').innerHTML =
+              '<tr><td colspan="12" class="table-note">Không tải được báo cáo hàng hóa.</td></tr>';
+          }
+        }).finally(function () { state.productReport.loading = false; });
+    }
+
+    let productContainerMetaLoading = false;
+    function productContainerReportVisible() {
+      const view = document.getElementById('productReportRows').closest('.view');
+      return document.visibilityState !== 'hidden' && view && view.classList.contains('active') && canViewReport(state.view);
+    }
+
+    function refreshProductContainerMeta() {
+      if (!productContainerReportVisible() || productContainerMetaLoading || state.productReport.loading) return;
+      productContainerMetaLoading = true;
+      return fetch('/api/product-report/containers/meta').then(function (res) {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+      }).then(function (data) {
+        const previous = state.productReport.containerSync;
+        const next = data.containerSync;
+        if (!state.productReport.loaded || (next && (!previous || next.version !== previous.version))) {
+          return loadProductReport().then(function () {
+            if (docDetail.tableKey === 'productReport' && docDetail.item) loadDocumentDetail();
+          });
+        }
+        state.productReport.containerSync = next;
+        document.getElementById('productContainerUpdatedAt').textContent = productContainerSyncText(next);
+      }).catch(function () {
+        // Keep the last usable report; the next visible interval retries metadata.
+      }).finally(function () { productContainerMetaLoading = false; });
     }
 
     function productDetailRowHtml(row) {
@@ -8030,7 +8085,7 @@
     const DOC_DETAIL_KINDS = {
       // Báo cáo hàng hóa (tab Tổng quan): doanh số 90 ngày từng khách của 1 mã hàng — bảng + biểu đồ tròn.
       productReport: {
-        api: '/api/product-report/customers', title: 'Doanh số theo khách', size: 'wide',
+        api: '/api/product-report/customers', title: 'Chi tiết hàng hóa', size: 'wide',
         query: function (item) { return '?code=' + encodeURIComponent(item.code); },
         failure: 'Không tải được doanh số khách của sản phẩm này.'
       },
@@ -8165,7 +8220,7 @@
       ];
       body.innerHTML = detailStatsHtml(tiles) +
         '<div class="dp-split">' +
-        '<div class="dp-section">' + detailSectionHeadHtml('Doanh số theo khách', fmtNumber(rows.length) + ' khách') +
+        '<div class="dp-section">' + detailSectionHeadHtml('Khách hàng', fmtNumber(rows.length) + ' khách') +
         '<div class="dp-table-wrap product-detail-table"><table class="dp-table" data-table-controls="off" data-table-key="dashboard-table-21"><thead><tr><th>Khách hàng</th><th class="num">Doanh số 90 ngày</th><th class="num">% của SP</th></tr></thead>' +
         '<tbody>' + rows.map(function (row, index) { return productDetailRowHtml(row, index, top.revenue); }).join('') + '</tbody></table></div></div>' +
         '<div class="dp-section">' + detailSectionHeadHtml('Tỷ trọng doanh số') +
@@ -8181,6 +8236,66 @@
         row.addEventListener('mouseenter', function () { highlightProductSlice(Number(row.dataset.slice)); });
         row.addEventListener('mouseleave', function () { highlightProductSlice(null); });
       });
+    }
+
+    function renderProductContainers(body, data) {
+      const sync = data.containerSync;
+      let content = '<p class="dp-chart-caption">' + escapeHtml(productContainerSyncText(sync)) + '</p>';
+      if (!sync || !sync.available) {
+        body.innerHTML = content;
+        return;
+      }
+      const full = data.fullAccess === true;
+      const columns = [
+        ['containerName', 'Tên CONT'], ['statusLabel', 'Trạng thái'], ['eta', 'Ngày về'],
+        ['color', 'Màu sắc'], ['saleNote', 'Ghi chú sale']
+      ];
+      if (full) columns.push(['orderedBy', 'Người đặt'], ['listedAt', 'Ngày lên list'],
+        ['unitsPerPackage', 'Số cái/kiện', true], ['packageCount', 'Số kiện', true]);
+      columns.push(['quantity', 'Tổng số lượng', true]);
+      if (full) columns.push(['vietnamPrice', 'Giá hàng về VN', true]);
+      const rows = data.rows || [];
+      if (!rows.length) content += '<div class="doc-modal-note">Không có hàng dự kiến phù hợp cho sản phẩm này.</div>';
+      else content += '<div class="dp-table-wrap is-flow"><table class="dp-table is-min-wide" data-table-controls="off"><thead><tr>' +
+        columns.map(function (col) { return '<th' + (col[2] ? ' class="num"' : '') + '>' + col[1] + '</th>'; }).join('') +
+        '</tr></thead><tbody>' + rows.map(function (row) {
+          return '<tr>' + columns.map(function (col) {
+            const value = row[col[0]];
+            const text = value == null || String(value).trim() === '' ? '—' : col[2] ? fmtNumber(value) : String(value);
+            return '<td' + (col[2] ? ' class="num"' : ' class="dp-note-text"') + '>' + escapeHtml(text) + '</td>';
+          }).join('') + '</tr>';
+        }).join('') + '</tbody></table></div>';
+      if (full && data.warnings && data.warnings.length) content += '<details class="dp-chart-caption"><summary>' +
+        fmtNumber(data.warnings.length) + ' cảnh báo dữ liệu nguồn</summary><ul>' + data.warnings.map(function (warning) {
+          return '<li>' + escapeHtml(warning.sheetName || '—') + ' · Dòng ' + escapeHtml(String(warning.row || '—')) +
+            ': ' + escapeHtml(warning.reason || 'Dữ liệu không hợp lệ') + '</li>';
+        }).join('') + '</ul></details>';
+      body.innerHTML = content;
+    }
+
+    function loadProductDocumentSections(requestId, item) {
+      const customerBody = document.getElementById('productCustomerContent');
+      const containerBody = document.getElementById('productContainerContent');
+      function load(url, target, render, failure) {
+        return fetch(url).then(function (res) {
+          return res.json().then(function (data) {
+            if (!res.ok && !(target === containerBody && data.code === 'CONTAINER_SNAPSHOT_UNAVAILABLE')) throw new Error('HTTP ' + res.status);
+            return data;
+          });
+        }).then(function (data) {
+          if (requestId !== docDetail.requestId) return;
+          render(target, data);
+        }).catch(function () {
+          if (requestId !== docDetail.requestId) return;
+          target.innerHTML = '<div class="doc-modal-note">' + escapeHtml(failure) +
+            '<br><button class="dp-btn" type="button" onclick="retryDocumentDetail()">Thử lại</button></div>';
+        });
+      }
+      const query = '?code=' + encodeURIComponent(item.code);
+      load('/api/product-report/customers' + query, customerBody, function (body, data) {
+        renderProductReportModal(body, document.getElementById('docModalSubtitle'), data);
+      }, DOC_DETAIL_KINDS.productReport.failure);
+      load('/api/product-report/containers' + query, containerBody, renderProductContainers, 'Không tải được hàng dự kiến của sản phẩm này.');
     }
 
     function setDocumentDetailTitle(kindText, separator, name) {
@@ -8209,7 +8324,12 @@
       else if (isProduct) setDocumentDetailTitle(kind.title, ' · ', item.code + (item.name ? ' – ' + item.name : ''));
       else setDocumentDetailTitle(kind.title, ' ', item.code);
       subtitle.textContent = isBusiness || isDebtPenalty ? '' : isProduct ? '90 ngày gần nhất' : (item.branch ? 'Cơ sở ' + item.branch : '');
-      if (status === 'ready' && isBusiness) {
+      if (status === 'loading' && isProduct) {
+        body.innerHTML = '<section class="dp-section" id="productCustomerSection" aria-label="Doanh số theo khách">' +
+          detailSectionHeadHtml('Doanh số theo khách') + '<div id="productCustomerContent"><div class="doc-modal-note">Đang tải doanh số theo khách...</div></div></section>' +
+          '<section class="dp-section" id="productContainerSection" aria-label="Hàng dự kiến">' + detailSectionHeadHtml('Hàng dự kiến') +
+          '<div id="productContainerContent"><div class="doc-modal-note">Đang tải hàng dự kiến...</div></div></section>';
+      } else if (status === 'ready' && isBusiness) {
         renderBusinessDetailModal(body, subtitle, data);
       } else if (status === 'ready' && isDebtPenalty) {
         renderDebtPenaltyDetailModal(body, subtitle, data);
@@ -8234,6 +8354,10 @@
         return;
       }
       renderDocumentDetail('loading');
+      if (docDetail.tableKey === 'productReport') {
+        loadProductDocumentSections(requestId, item);
+        return;
+      }
       const query = kind.query ? kind.query(item) : '?code=' + encodeURIComponent(item.code) + '&branch=' + encodeURIComponent(item.branch || '');
       fetch(kind.api + query)
         .then(function (res) {
@@ -8282,7 +8406,15 @@
       destroyChart('businessDetailTrend');
       document.getElementById('docModalBody').innerHTML = '';
       document.body.style.overflow = '';
-      const returnFocus = docDetail.returnFocus;
+      let returnFocus = docDetail.returnFocus;
+      if ((!returnFocus || !returnFocus.isConnected) && docDetail.tableKey === 'productReport' && docDetail.item) {
+        // Snapshot refresh replaces table rows while this modal can remain open.
+        const code = String(docDetail.item.code);
+        returnFocus = Array.from(document.getElementById('productReportRows').querySelectorAll('tr.doc-row')).find(function (row) {
+          return row.dataset.tableItemId === code;
+        }) || document.querySelector('[data-table-search="productReport"] .table-search-input') ||
+          document.querySelector('button[onclick="openExportDialog(\'overview.productReport\')"]');
+      }
       docDetail.returnFocus = null;
       docDetail.item = null;
       if (returnFocus && returnFocus.isConnected && typeof returnFocus.focus === 'function') returnFocus.focus();
@@ -10000,6 +10132,9 @@
     // loadData()/SSE o duoi).
     initDocumentDetail();
     if (initialReportView() !== 'marketing') loadProductReport();
+    setInterval(refreshProductContainerMeta, 60000);
+    window.addEventListener('focus', refreshProductContainerMeta);
+    document.addEventListener('visibilitychange', refreshProductContainerMeta);
     // Bieu do gia tri ton kho theo ngay (muc 1 Xu huong): cung ly do nhu bao cao hang hoa o tren.
     if (initialReportView() !== 'marketing') loadInventoryHistory();
 

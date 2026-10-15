@@ -6,6 +6,8 @@ Mọi bảng trên web và trong file HTML xuất ra có nút **Cột hiển th�
 
 ## Kiến trúc hiện tại
 
+- **Hàng dự kiến — Báo cáo hàng hóa**: module `server/productContainers/` đọc 6 sheet YIWU, VK-DUNG, HÀ BẮC, SD, GDONG, KHÁC của workbook TKS2 ĐẶT CONT bằng service account chỉ đọc mỗi 2 tiếng; lưu snapshot PostgreSQL độc lập KiotViet và doanh số chốt đêm. Hai cột Chưa bốc/Đã bốc nằm trước Tồn HN/Tồn SG, dùng chung cho web và xuất Excel/HTML. Hộp chi tiết hiện đồng thời Doanh số theo khách và Hàng dự kiến; quyền `reports.overview.containers.full` kiểm soát các cột hạn chế và CONT 4/5 tại máy chủ. Xem [kế hoạch và prompt](tasks/plan-product-report-containers.md).
+
 - **Báo cáo Marketing** tại `/reports/#marketing` đọc ba workbook TRỰC PAGE, SĐT và ADS; gồm BC tháng, Check tỷ lệ nhận số, Sao lưu SĐT và Chi phí. Bấm dòng tổng quan mở hộp chi tiết; quyền `reports.marketing` mặc định Quản lý, Trợ lý, Nhân viên Marketing. Chỉ đọc, giữ kết quả công thức Sheets, làm mới khi đang xem mỗi 5 phút. Xem [cấu hình nguồn và nghiệm thu](docs/marketing-report-setup.md).
 
 - **Vị trí hàng** đọc trực tiếp hai sheet `VỊ TRÍ HN` / `Vị trí SG` của workbook `STOCK_LOCATIONS_SPREADSHEET_ID`. Trang `/stock-locations/` có hai tab theo cơ sở đang chọn, bảng 6 cột (Mã hàng, Tên hàng, Tổng SL, Ghi chú hàng hóa, Ngày về, Vị trí) 100 dòng/trang, tìm mã/tên/vị trí không dấu và sort toàn bộ dữ liệu trước phân trang. Có nút hiện/ẩn cột, nhớ riêng điện thoại/máy tính; điện thoại ưu tiên Tên hàng, Tổng SL, Vị trí. Không xuất file hoặc tải định kỳ. Mọi vai trò nội bộ có quyền mặc định; Khách bị chặn hoàn toàn. Xem [cấu hình và nghiệm thu](docs/stock-locations-setup.md).
@@ -47,6 +49,7 @@ Mở `http://localhost:3000`.
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | Service account Google (bắt buộc khi khởi động). Quyền Viewer cho Công nợ và Vị trí hàng; **Editor** cho workbook Vòng đời đơn hàng (ghi tab `Lịch sử cập nhật`) |
 | `DEBT_MANAGEMENT_SPREADSHEET_ID` | (Không còn dùng từ 13/10/2026 — tab Công nợ tính từ KiotViet + lịch TT trong Postgres) |
 | `STOCK_LOCATIONS_SPREADSHEET_ID` | Workbook vị trí hàng HN/SG dùng chung, chỉ đọc |
+| `PRODUCT_CONTAINER_SPREADSHEET_ID` | Workbook TKS2 ĐẶT CONT; chỉ đọc 6 sheet CONT mỗi 7.200.000 ms; service account cần Viewer |
 | `SHIPPING_MEASURE_SPREADSHEET_ID` | Workbook có sheet `CÂN ĐO` (thể tích/cước đơn), chỉ đọc; để trống = dùng `STOCK_LOCATIONS_SPREADSHEET_ID` |
 | `MARKETING_REPORT_SPREADSHEET_ID`, `MARKETING_PHONES_SPREADSHEET_ID`, `MARKETING_ADS_SPREADSHEET_ID` | Ba workbook Báo cáo Marketing, chỉ đọc; service account cần Viewer trên cả ba |
 | `ORDER_LIFECYCLE_SPREADSHEET_ID` | Workbook vòng đời đơn hàng (`DonHang_HN`, `DonHang_SG`, `DonHang_MienNam` = đơn Bắc-Nam tính như đơn Hà Nội, `Khách_HN`/`Khách_SG` = khách/ship lấy tại kho, `KeToan_ChungTu` = đơn kế toán/chứng từ dùng chung HN+SG, `Lịch sử cập nhật`) |
@@ -78,13 +81,14 @@ server/
 │   ├── documentDetailRepository.js  # Chi tiết hóa đơn (popup bảng Chi tiết giao dịch) và chi tiết đơn đặt hàng (trang Vòng đời đơn hàng)
 │   └── stockoutCheck/    # Engine kiểm tra đứt hàng + upload Trả NCC Excel
 ├── data/                 # Dữ liệu lưu trữ local (users.json, notifications.json, ...)
-├── db/                   # Migration Supabase (0001–0044) + SCHEMA.md (hợp đồng schema)
+├── db/                   # Migration Supabase (0001–0053; 0053 đã áp DB dùng chung 15/10) + SCHEMA.md
 ├── hr/                   # Nhân sự, nghỉ phép tự gửi, phạm vi duyệt chung, tài liệu quy định và cầu Postgres → SSE
 ├── kiotviet/             # KiotViet API client và webhook receiver
 ├── kiotvietSync/         # Webhook, polling, backfill và rollup
 ├── lib/                  # Thư viện tiện ích nội bộ (TTL cache, ...)
 ├── marketingReport/      # Báo cáo Marketing: đọc 3 workbook Google Sheets, đối chiếu doanh số KiotViet theo tên khách, cập nhật ngược Sheets, xuất Excel/HTML
 ├── notifications/        # Chuông thông báo, gửi email OTP và job báo ngày lễ/sinh nhật (specialDayNotifier.js)
+├── productContainers/    # Parser CONT, snapshot repository, đồng bộ Sheets chỉ đọc mỗi 2 tiếng và kiểm thử
 ├── public/               # Frontend HTML/CSS/JS
 │   ├── cashbook/         # Trang Sổ quỹ: bộ lọc/hash, số dư, chốt và xuất chọn cột
 │   └── shared/
@@ -105,6 +109,8 @@ Migration `0014_customer_debt_activity_periods.sql` tạo bảng tổng hợp ba
 Migration `0015_app_users_telegram_id.sql` thêm `app_users.telegram_id` để bot có thể liên kết trực tiếp qua Supabase Postgres. Giao diện/API tạo mã liên kết cũ không còn đọc hoặc ghi tab `_HR_TELEGRAM_LINKS`.
 
 ## Cập nhật gần nhất
+
+2026-10-15 — **Hàng dự kiến trong Báo cáo hàng hóa**: thêm Chưa bốc (CONT 1/2), Đã bốc (CONT 3), tổng toàn công ty; CONT 4/5 chỉ trong chi tiết có quyền đầy đủ. Snapshot đủ 6 sheet mới công bố, lỗi giữ bản cũ; chưa có bản thành công hiện —. Service account đọc đủ 6 sheet: 11.589 dòng hợp lệ, 17 cảnh báo. Đã kiểm tra migration/snapshot bằng PGlite cục bộ, đối chiếu OTD10N = 11.880/0 và TRHB500 = 2.250/300, Chrome thật hai mức quyền ở desktop/mobile không có lỗi trang. Kiểm thử toàn bộ cuối: 2.463 đạt, 3 skipped, 0 lỗi; xem [bằng chứng](tasks/plan-product-report-containers.md). Migration `0053_product_containers.sql` đã áp DB dùng chung lúc 16:26 ngày 15/10/2026; chưa kích hoạt website đang triển khai, chưa push/deploy.
 
 2026-10-15 — **Vòng đời đơn hàng: thể tích (m³) và giá cước nhà xe trong hộp chi tiết (không migration)**: `GET /api/shipment/lifecycle/order-detail` trả thêm `lines[].measure` và `freight`; thể tích/cân nặng/số thùng tính theo SL đặt từ sheet **CÂN ĐO** (`shipment/measureSheet.js`, đọc lại khi mở hộp, cache 30 giây, fail-soft), giá cước hai nhà xe tính ở `shipment/freightCalculator.js` (Đức Mạnh 550k/m³ tối thiểu 350k, so với kg×1.330; Việt Linh 465k/m³, ≤0,6 m³ tính 500k, phụ thu 200k khi dưới 2 m³; J&T tính theo từng mã hàng: mỗi thùng max(40k, 4k×dài×rộng×cao/6000, kg×4k) × số thùng, cộng các mã, không phụ thu). Hộp chi tiết có dropdown Đức Mạnh/Việt Linh/J&T, cột "Thể tích (m³)", tổng thể tích/cân nặng/số thùng và bảng tính cước; còn mã thiếu dữ liệu trong CÂN ĐO thì không tính cước. Biến môi trường mới tùy chọn `SHIPPING_MEASURE_SPREADSHEET_ID` (mặc định dùng chung workbook Vị trí hàng).
 

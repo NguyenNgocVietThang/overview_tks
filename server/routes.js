@@ -10,12 +10,13 @@ const router = express.Router();
 
 const { getExportFields, createExport, buildExportErrorBody } = require('./dashboard/exportService');
 const { getProductReport, getProductReportCustomers } = require('./dashboard/productReportRepository');
+const containerRepository = require('./productContainers/repository');
 const { getInventoryValueHistory } = require('./dashboard/inventoryValueHistory');
 const { getInvoiceDetail } = require('./dashboard/documentDetailRepository');
 const authRoutes = require('./auth/authRoutes');
 const adminUserRoutes = require('./auth/adminUserRoutes');
 const { requireAuth, requireFeature } = require('./auth/authMiddleware');
-const { REPORT_VIEW_FEATURES, permissionsHave } = require('./auth/featureRegistry');
+const { REPORT_VIEW_FEATURES, permissionsHave, hasFeature } = require('./auth/featureRegistry');
 const { parseViewsParam, VIEW_FEATURE } = require('./dashboard/dashboardViews');
 const { filterDashboardForUser } = require('./dashboard/dashboardPermissionFilter');
 const { resolveBranch } = require('./branch/branchMiddleware');
@@ -326,6 +327,31 @@ router.get('/api/product-report', async (req, res) => {
       error: err.statusCode && err.statusCode < 500 ? err.message : 'Không lấy được báo cáo hàng hóa.',
       detail: err.message,
       code: err.code
+    });
+  }
+});
+
+router.get('/api/product-report/containers/meta', async (req, res) => {
+  try {
+    res.status(200).json(await containerRepository.getContainerMeta());
+  } catch {
+    res.status(503).json({ error: 'Không lấy được trạng thái cập nhật CONT.' });
+  }
+});
+
+router.get('/api/product-report/containers', async (req, res) => {
+  try {
+    const data = await containerRepository.getContainerDetails({
+      code: req.query.code,
+      fullAccess: hasFeature(req.user, 'reports.overview.containers.full')
+    });
+    res.status(200).json(data);
+  } catch (error) {
+    const status = [400,404,503].includes(error.statusCode) ? error.statusCode : 503;
+    res.status(status).json({
+      error: error.statusCode ? error.message : 'Không lấy được dữ liệu Hàng dự kiến.',
+      ...(error.code && error.statusCode ? { code:error.code } : {}),
+      ...(error.containerSync ? { containerSync:error.containerSync } : {})
     });
   }
 });

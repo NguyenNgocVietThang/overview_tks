@@ -653,7 +653,22 @@ Nhân viên HR hoạt động tự gửi đơn web bằng danh tính server, gi�
 
 Nguồn DB sau công tắc: sáu Facebook page; ngày ghi nhận khác thời điểm tạo; tổng quy đổi lần đầu + chào lại/5; tỷ lệ chốt chia tổng quy đổi và mẫu số 0 hiển thị —. Quản lý tạo/sửa BC tháng bằng ID/version, chọn khách KiotViet; Marketing chỉ xem và không thể được cấp quyền ghi qua override. Sửa ánh xạ tính lại cả tháng cũ. ADS giữ Sheets; xuất/chi tiết giữ bộ lọc. Mã T3–T6 đã triển khai và qua kiểm thử; nguồn chính thức vẫn là Sheets. Ngày 12/10/2026 đã khôi phục ID tin nhắn từ sáu bản xuất đầy đủ (migration 0046): 18.304 dòng lịch sử thật đều có liên kết (18.294 duy nhất, 7 chỉ khác cách viết số +84/0 thừa đã kiểm cùng giây-cùng nhân viên, 3 dòng thuộc cặp tin tương đương = 6 liên kết); chỉ còn dòng tiêu đề lặp BL THÔ!1950 (không phải quan sát). 3.148 tin trong kỳ nằm ngoài nền Sheets được ghi sổ riêng, không tính. Đồng bộ thật đủ sáu page đạt (slot 12/10): 11.797 fact, 2.478 quan sát cùng ngày ghi nhận 12/10 (thay đổi nhân viên tích lũy từ lúc dán Sheets và 861 tin mới), 0 mục chưa giải quyết, 0 dòng lịch sử chưa liên kết; nền lịch sử khớp CHUẨN (11.942 nhóm SĐT); tổng khớp chi tiết 100/100 (T10) và 80/80 (T9). Công tắc job vẫn TẮT và nguồn vẫn Sheets: chưa có ba đợt hằng đêm đối soát, chưa cấu hình token trên Render. Lưu ý nghiệm thu: lần đồng bộ đầu dồn các thay đổi nhân viên cũ vào ngày 12/10 nên "chào lại" tháng 10 tăng mạnh (179 → 1.660); cần Quản lý xác nhận cách tính trước khi chuyển nguồn.
 
-## Bổ sung 12/10/2026 — Vòng đời đơn hàng, Detail panel & Giảm egress
+## Bổ sung 15/10/2026 — Hàng dự kiến (FR-CONT)
+
+| Mã | Yêu cầu |
+|---|---|
+| FR-CONT.1 | Đọc A:X của đúng 6 sheet YIWU, VK-DUNG, HÀ BẮC, SD, GDONG, KHÁC trong `PRODUCT_CONTAINER_SPREADSHEET_ID`, client chỉ đọc. A bắt đầu bằng từ CONT mở khối, B là trạng thái 1–5, C ngày về nguyên văn; CONT mới đóng khối cũ, END dừng sheet, 20 dòng A:X trống liên tiếp đóng khối rồi tiếp tục tìm CONT. Bỏ dữ liệu trước CONT và tiêu đề lặp. |
+| FR-CONT.2 | Mã lấy A dòng sản phẩm, trim và không phân biệt hoa/thường, giữ số 0 đầu. Chỉ dùng O hữu hạn không âm (gồm 0/thập phân), không thay bằng M×N. CONT trạng thái lạ/dòng O lỗi bị bỏ kèm cảnh báo nguồn; M/N/X lỗi chỉ để trống trường. Mỗi dòng nguồn độc lập, không gộp/trừ trùng. |
+| FR-CONT.3 | Chưa bốc = O thuộc trạng thái 1/2, Đã bốc = O thuộc 3; trước Tồn HN/Tồn SG, tổng toàn công ty không phụ thuộc cơ sở. Danh mục mã đang kinh doanh giữ nguyên. Snapshot hợp lệ không có mã = 0, chưa có snapshot = —. Xuất tổng hợp Excel/HTML cùng nguồn và thứ tự, kèm mốc/trạng thái cập nhật, không xuất chi tiết CONT. |
+| FR-CONT.4 | Một modal cùng hiện Doanh số theo khách và Hàng dự kiến, tải/lỗi độc lập và chặn phản hồi cũ. Quyền thường chỉ nhận trạng thái 1/2/3 và tên CONT, trạng thái, ngày về, màu E, ghi chú sale F, số lượng O. `reports.overview.containers.full` mặc định Quản lý, phụ thuộc `reports.overview`, override theo tài khoản; nhận ngay 1–5 và thêm người đặt H, ngày lên list L, số cái/kiện M, số kiện N, giá VN X. Backend whitelist dữ liệu, chỉ quyền đầy đủ nhận cảnh báo sheet/dòng. |
+| FR-CONT.5 | Snapshot hiện hành PostgreSQL (`product_container_lines`, `product_container_sync`, migration 0053), số lượng NUMERIC. Đồng bộ mỗi 7.200.000 ms độc lập KiotViet; mốc thử bền vững, khóa advisory chống chồng. Chỉ thay snapshot + metadata thành công trong transaction sau khi đủ 6 sheet; lỗi giữ bản trước. Không lưu lịch sử snapshot; giữ dòng 4/5 phục vụ quyền đầy đủ. |
+| FR-CONT.6 | `GET /api/product-report` thêm `unloadedQty`, `loadedQty`, `containerSync` và giữ `computedAt` doanh số. `GET /api/product-report/containers?code=` dùng quyền báo cáo hiện hành: thiếu mã 400, mã ngoài danh sách 404, chưa có snapshot 503. `GET /api/product-report/containers/meta` chỉ đọc DB; kiểm tra 60 giây khi Tổng quan hiện và khi quay lại trang, tải lại khi version đổi, giữ tìm kiếm/sắp xếp/phân trang. Hiển thị mốc CONT riêng và thông báo khi đang giữ dữ liệu cũ. |
+
+NFR-CONT: không cấp quyền đọc trực tiếp hai bảng cho `reporting_readonly`; log thời gian/số dòng/kết quả/lỗi, không log toàn bộ ghi chú hoặc giá. Kiểm thử parser ranh giới 19/20 dòng, END, mã nhiều CONT/sheet, O khác M×N; kiểm thử transaction rollback, khóa đồng bộ, quyền API, hai phần modal và xuất file. Nghiệm thu ít nhất một mã nhiều CONT và một mã nhiều sheet với hai mức quyền.
+
+Trạng thái 15/10/2026: migration 0053 đã áp DB dùng chung lúc 16:26 ngày 15/10/2026, đã kiểm chứng nguồn thật và Chrome trên DB PGlite cục bộ, toàn bộ 2.463 kiểm thử đạt, 3 skipped, 0 lỗi; chưa kích hoạt website đang triển khai; chưa push/deploy.
+
+## Chi tiết bổ sung 12/10/2026 — FR-21
 
 | Mã | Yêu cầu |
 |---|---|

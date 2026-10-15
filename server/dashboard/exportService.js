@@ -285,6 +285,8 @@ const CUSTOMER_PRODUCT_DETAIL_COLUMNS = [
 const PRODUCT_REPORT_COLUMNS = [
   aggregateColumn('code', 'Mã sản phẩm', 'text', 'Mã sản phẩm.'),
   aggregateColumn('name', 'Tên sản phẩm', undefined, 'Tên sản phẩm.'),
+  aggregateColumn('unloadedQty', 'Chưa bốc', 'number', 'Tổng số lượng toàn công ty trong CONT trạng thái 1 hoặc 2; trống khi chưa có dữ liệu.'),
+  aggregateColumn('loadedQty', 'Đã bốc', 'number', 'Tổng số lượng toàn công ty trong CONT trạng thái 3; trống khi chưa có dữ liệu.'),
   aggregateColumn('stockHanoi', 'Tồn Hà Nội', 'number', 'Tồn kho hiện tại tại cơ sở Hà Nội.'),
   aggregateColumn('stockSaigon', 'Tồn Sài Gòn', 'number', 'Tồn kho hiện tại tại cơ sở Sài Gòn.'),
   aggregateColumn('availableToSell', 'Tổng tồn có thể bán', 'number',
@@ -995,8 +997,27 @@ async function buildProductReportDataset(description, payload, signal) {
   const worksheet = description.worksheets[0];
   return applyTableSearchToDataset({
     tableKey: 'overview.productReport', title: TABLE_TITLES['overview.productReport'], selectionMode: 'custom',
+    reportNotes: productContainerExportNotes(data.containerSync),
     worksheets: [{ ...worksheet, rows: pickAggregateRows(data.rows, worksheet.columns) }]
   }, payload.tableSearch);
+}
+
+function productContainerExportNotes(sync) {
+  const available = Boolean(sync && sync.available);
+  const timestamp = sync && sync.lastSuccessAt ? new Date(sync.lastSuccessAt) : null;
+  const updatedAt = timestamp && Number.isFinite(timestamp.getTime())
+    ? new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'
+    }).format(timestamp) : '—';
+  const status = !available ? 'Dữ liệu chưa sẵn sàng; số lượng để trống.'
+    : sync.lastError ? 'Đang dùng dữ liệu cũ; lần cập nhật gần nhất thất bại.'
+      : sync.stale ? 'Đang dùng dữ liệu cũ; chờ cập nhật.' : 'Dữ liệu sẵn sàng.';
+  return [
+    ['Cập nhật CONT thành công lúc', updatedAt],
+    ['Trạng thái hàng dự kiến', status],
+    ['Phạm vi hàng dự kiến', 'Toàn công ty (Hà Nội + Sài Gòn)']
+  ];
 }
 
 function formatStockoutDate(dateKey) {
@@ -1390,6 +1411,7 @@ async function getExportDataset(payload, branch, options = {}) {
       branch: fileBranch || '',
       generatedAt: new Date(),
       fileBase: `${branchFilePrefix(fileBranch)}_${fileSlug(dataset.title)}${reward ? `_thang_${reward.month.replace('-', '')}` : ''}${cycleDate ? `_chot_${cycleDate.replace(/-/g, '')}` : ''}_${fileTimestamp()}`,
+      ...(dataset.reportNotes ? { reportNotes: dataset.reportNotes } : {}),
       ...(reward ? { debtReward: reward, debtRewardNotes: reward.notes } : {})
     },
     worksheets
@@ -1444,13 +1466,18 @@ async function renderExcelWorkbook(dataset) {
     styleWorksheet(worksheet, columns, sourceWorksheet.rows);
   });
 
-  if (dataset.meta.debtRewardNotes) {
+  const metadataSheets = [
+    ['Thông tin thưởng phạt', dataset.meta.debtRewardNotes],
+    ['Thông tin hàng dự kiến', dataset.meta.reportNotes]
+  ];
+  for (const [name, notes] of metadataSheets) {
+    if (!notes) continue;
     const columns = [
       aggregateColumn('label', 'Thông tin', 'text'),
       aggregateColumn('value', 'Giá trị', 'text', undefined, { wrapText: true })
     ];
-    const rows = dataset.meta.debtRewardNotes.map(([label, value]) => ({ label, value }));
-    const worksheet = workbook.addWorksheet(safeWorksheetName('Thông tin thưởng phạt', usedNames));
+    const rows = notes.map(([label, value]) => ({ label, value }));
+    const worksheet = workbook.addWorksheet(safeWorksheetName(name, usedNames));
     worksheet.columns = columns.map(column => ({ header: column.label, key: column.key }));
     rows.forEach(row => worksheet.addRow({ label: toExcelValue(row.label, 'text'), value: toExcelValue(row.value, 'text') }));
     styleWorksheet(worksheet, columns, rows);
