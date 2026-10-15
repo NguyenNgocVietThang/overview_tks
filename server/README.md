@@ -337,3 +337,5 @@ Cập nhật gần nhất: 15/10/2026.
 Cùng khách ở 2 cơ sở (15/10/2026): ở bảng tổng thưởng/phạt sale, cùng 1 khách (cùng tên, không phân biệt hoa/thường và khoảng trắng thừa) bị phạt ở cả HN và SG trong cùng 1 ngày chốt chỉ tính mức phạt cao nhất ở 1 cơ sở, không cộng dồn (bằng nhau lấy Hà Nội); khách đó đếm 1 lần trong "Khách phạt", tổng các dòng ngày ở hộp chi tiết sale khớp Phạt gốc. Chỉ đổi lúc đọc (`debtRewardService.DAYS_SQL`); sổ `debt_penalty_daily`, bảng chi tiết khách và tháng đã chốt giữ nguyên, không migration. Quy tắc mới debt-reward-2026-10-v4-cross-branch-max.
 
 Cột Phạt/điểm làm tròn hiển thị đến số nguyên đồng trên bảng, hộp chi tiết và file xuất; rê chuột xem phép chia gốc. Ví dụ 25.000 / 192 hiển thị 130 đồng/điểm; API và xếp hạng vẫn dùng tỷ lệ gốc chưa làm tròn.
+
+15/10/2026 16:51 VN — Đã cấu hình nguồn trong .env cục bộ, công bố snapshot thật 11.592 dòng/6 sheet vào DB dùng chung và restart dashboard localhost:3000. Lịch nền đã nhận mốc 2 tiếng; thiếu biến PRODUCT_CONTAINER_SPREADSHEET_ID làm scheduler tắt nên chỉ áp migration/restart mà chưa cấu hình sẽ vẫn hiện —. Không push/deploy từ xa.

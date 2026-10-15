@@ -654,9 +654,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1792054843.6494687,
-    "seen": 1792055268.5422962,
-    "ast_hash": "e8d211467256c073c617b22a6a218622",
+    "mtime": 1792056444.841833,
+    "seen": 1792058435.3941858,
+    "ast_hash": "c4e3e0cc49090a6aa7eb775b50717f69",
     "semantic_hash": ""
   },
   "design-system/tks-dashboard/MASTER.md": {
@@ -666,15 +666,15 @@
     "semantic_hash": ""
   },
   "docs/01-brd/BRD_Dashboard_GoogleSheets.md": {
-    "mtime": 1792054955.0836065,
-    "seen": 1792055268.5422962,
-    "ast_hash": "c0f4ec15924266cab5ecafd437a46037",
+    "mtime": 1792056444.8498578,
+    "seen": 1792058435.3941858,
+    "ast_hash": "c954b788a0064ba8820329c97a512855",
     "semantic_hash": ""
   },
   "docs/02-srs/SRS_Dashboard_GoogleSheets.md": {
-    "mtime": 1792054975.436129,
-    "seen": 1792055268.5422962,
-    "ast_hash": "d06a860f73b0dcacadcb959d29bea0ea",
+    "mtime": 1792056444.8498578,
+    "seen": 1792058435.3941858,
+    "ast_hash": "970db64c476cf828b0c32cfdf86c5e40",
     "semantic_hash": ""
   },
   "docs/03-process/BPMN_Dashboard_GoogleSheets.md": {
@@ -684,9 +684,9 @@
     "semantic_hash": ""
   },
   "docs/04-planning/implementation_plan.md": {
-    "mtime": 1792054954.908247,
-    "seen": 1792055268.5422962,
-    "ast_hash": "0296ef71a9ec5a409ed765804320fec0",
+    "mtime": 1792056444.8498578,
+    "seen": 1792058435.3941858,
+    "ast_hash": "a647ec1d1736c78ede4efab0a17c00be",
     "semantic_hash": ""
   },
   "docs/superpowers/plans/2026-08-13-dashboard-result-cache.md": {
@@ -786,9 +786,9 @@
     "semantic_hash": "58e700daf0c14819a97499bd94f6f2e1"
   },
   "server/README.md": {
-    "mtime": 1792054975.22505,
-    "seen": 1792055268.5422962,
-    "ast_hash": "030d7e1df27e3d9fa8c1a8e442e55dd1",
+    "mtime": 1792057970.2401307,
+    "seen": 1792058435.3941858,
+    "ast_hash": "f679075383817f99c154d7c614abe4f9",
     "semantic_hash": ""
   },
   "server/kiotviet/API_ENDPOINTS.md": {
@@ -1386,9 +1386,9 @@
     "semantic_hash": ""
   },
   "server/db/SCHEMA.md": {
-    "mtime": 1792054900.6464283,
-    "seen": 1792055268.5422962,
-    "ast_hash": "4c25cb2794c85fec4b65271cad63d6ad",
+    "mtime": 1792056444.841833,
+    "seen": 1792058435.3941858,
+    "ast_hash": "59b6426cc8ed781c1992f537e6d87454",
     "semantic_hash": ""
   },
   "server/auth/appUsersRepository.js": {
@@ -3378,9 +3378,9 @@
     "semantic_hash": ""
   },
   "CURRENT.md": {
-    "mtime": 1792054903.1402695,
-    "seen": 1792055268.5422962,
-    "ast_hash": "efbe55554513c172d7ab40f1dba45b0f",
+    "mtime": 1792057970.2391317,
+    "seen": 1792058435.3941858,
+    "ast_hash": "f448be9b2d2206e4f193ad112cbe3299",
     "semantic_hash": ""
   },
   "MEMORY.md": {
@@ -3840,9 +3840,9 @@
     "semantic_hash": ""
   },
   "tasks/plan-product-report-containers.md": {
-    "mtime": 1792055481.11876,
-    "seen": 1792055492.8901415,
-    "ast_hash": "5cc71c13d6b4e61a8800213ea3969a82",
+    "mtime": 1792057970.2401307,
+    "seen": 1792058435.3941858,
+    "ast_hash": "0e12bf8e6bfcb9b65c57ee35e0af6198",
     "semantic_hash": ""
   }
 }

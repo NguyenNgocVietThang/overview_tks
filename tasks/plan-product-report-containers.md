@@ -101,3 +101,7 @@ Kiểm thử parser, transaction/scheduler, quyền API, frontend và xuất; np
 ## 7. Áp migration DB đích — 15/10/2026, 16:26 (Asia/Ho_Chi_Minh)
 
 Người dùng đã yêu cầu áp migration. Đã chạy đúng `0053_product_containers.sql` trong transaction và ghi `schema_migrations` (UTC 2026-10-15T09:26:47.586Z). Xác minh hai bảng tồn tại, 24 cột tổng cộng, quantity NUMERIC, singleton đúng một dòng, reporting_readonly không có SELECT trên cả hai bảng. Chưa chạy đồng bộ đầu tiên: version/last_success_at vẫn null. Không push/deploy.
+
+## 8. Kích hoạt và đồng bộ DB thật — 15/10/2026, 16:51 VN
+
+Sửa thiếu cấu hình PRODUCT_CONTAINER_SPREADSHEET_ID trong server/.env. Đã đọc đủ 6 sheet và công bố snapshot 20bbcbed-78de-4193-890a-3855dfa3aa7c vào DB dùng chung: 11.592 dòng, 17 cảnh báo, 4.112 mã báo cáo/1.244 mã có hàng 1–3. OTD10N 11.880 chưa bốc/0 đã bốc; TRHB500 2.250/300. Đã restart Node dashboard localhost:3000 để nạp cấu hình và lịch nền. Xác minh HTTP đáp ứng/giữ xác thực, available=true/stale=false/lastError=null, lần kiểm tra đồng bộ sau trả not-due và hẹn 18:51 VN. Không push/deploy từ xa.
