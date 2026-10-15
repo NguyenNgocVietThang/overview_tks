@@ -3,7 +3,7 @@
 // So phat cong no theo ngay (migration 0051). Chu ky DANG MO (ban chot 15:00 moi nhat) van sua
 // duoc tien phat / trang thai toi 14:59 hom sau, CHOT SO truoc reset 15:00: moi chu ky cu duoc ghi
 // vao debt_penalty_daily (giu vinh vien, dong bang ten sale) roi danh dau o debt_penalty_cycles.
-// Bang tong chi cong cac ngay da chot, khong cong tien phat cua chu ky dang mo.
+// Bang tong cong cac ngay da chot tu so nay, CONG THEM tien phat dang mo tinh truc tiep (debtRewardService).
 //
 // Tien phat tung khach tinh bang CHINH buildCustomerRow cua man hinh (so Quan ly dien tay >
 // "Da xu ly" = 0 > muc goi y theo quy che) nen so chot khop so da thay tren bang khach.
