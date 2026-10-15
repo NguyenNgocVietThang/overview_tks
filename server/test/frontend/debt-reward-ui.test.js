@@ -111,13 +111,14 @@ test('equal server ranks remain shared in rendered rows and rule text explains b
  dom.window.close();
 });
 
-test('penalty ratio identifies dong per point and explains decimal comma with the actual division',async()=>{
+test('penalty ratio rounds displayed dong per point without changing the source used for ranking',async()=>{
  const dom=createDashboard();
  serve(dom,boardPayload({rows:[{...baseRow,points:192,grossPenalty:25000,ratio:25000/192}]}));
  await dom.window.loadDebtPenaltyBoard();
  const cell=dom.window.document.querySelector('#debtPenaltyRows tr.doc-row').cells[3];
- assert.equal(cell.textContent.trim(),'130,208');
+ assert.equal(cell.textContent.trim(),'130');
  assert.match(cell.title,/25\.000.*192.*130,208.*đồng\/điểm/);
+ assert.match(cell.title,/làm tròn/);
  assert.match(dom.window.document.querySelector('#debtPenaltyTable th[data-column-key="phat-moi-diem"]').textContent,/đồng/);
  dom.window.close();
 });

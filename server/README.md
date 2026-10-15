@@ -318,4 +318,4 @@ Cập nhật gần nhất: 14/10/2026.
 
 Đồng hạng (15/10/2026): bằng Phạt gốc/Điểm và tổng điểm thì cùng hạng, xếp 1–2–2–4. Tất cả đồng hạng 10 nhận thưởng, đồng hạng 20 miễn phạt. Nhóm đồng hạng gộp trọng số các vị trí chiếm trong Top 10 rồi chia đều, các vị trí ngoài 10 không thêm trọng số; giữ nguyên tổng quỹ, thưởng theo điểm chia trong toàn bộ nhóm nhận thưởng. Bản tháng đã chốt giữ nguyên quy tắc cũ; bản mới dùng debt-reward-2026-10-v2-shared-ranks.
 
-Cột Phạt/điểm có đơn vị đồng/điểm, dùng định dạng vi-VN (phẩy thập phân, chấm hàng nghìn); rê chuột xem phép chia phạt gốc/điểm. Ví dụ 25.000 / 192 = 130,208 đồng/điểm; xếp hạng không làm tròn tỷ lệ.
+Cột Phạt/điểm làm tròn hiển thị đến số nguyên đồng trên bảng, hộp chi tiết và file xuất; rê chuột xem phép chia gốc. Ví dụ 25.000 / 192 hiển thị 130 đồng/điểm; API và xếp hạng vẫn dùng tỷ lệ gốc chưa làm tròn.

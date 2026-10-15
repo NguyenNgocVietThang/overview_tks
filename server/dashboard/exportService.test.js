@@ -1809,12 +1809,14 @@ test('debt.penalty: preserves shared reward ranking and searches sale before pro
         month: '2026-09', status: 'finalized',
         rows: [
           { rank: 1, sale: 'Bình', points: 100, ratio: 0, penaltyDays: 0, lastDayCustomers: 0, total: 0, payablePenalty: 0, reward: 100000 },
-          { rank: 2, sale: 'Chi', points: 50, ratio: 1000, penaltyDays: 1, lastDayCustomers: 1, total: 50000, payablePenalty: 25000, reward: 50000 },
+          { rank: 2, sale: 'Chi', points: 50, ratio: 1000.6, penaltyDays: 1, lastDayCustomers: 1, total: 50000, payablePenalty: 25000, reward: 50000 },
           { rank: null, sale: 'An', points: 0, ratio: null, penaltyDays: 2, lastDayCustomers: 1, total: 75000, payablePenalty: 75000, reward: 0 }
         ]
       }
     };
     const dataset = await exportService.__test__.buildFixedDataset('debt.penalty', env, {});
+    assert.equal(dataset.worksheets[0].rows[1].ratio,1001);
+    assert.equal(env.dashboard.debtReward.rows[1].ratio,1000.6);
     assert.deepEqual(dataset.worksheets[0].rows.map(r => [r.rank, r.sale, r.penaltyDays, r.lastDayCustomers, r.total]), [
       [1, 'Bình', 0, 0, 0], [2, 'Chi', 1, 1, 50000], [null, 'An', 2, 1, 75000]
     ]);

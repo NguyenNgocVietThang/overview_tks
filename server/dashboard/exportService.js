@@ -565,7 +565,8 @@ function debtRewardStatusLabel(status) {
 
 function debtPenaltyRows(board) {
   return board.rows.map(row => ({
-    ...row, month: board.month, status: debtRewardStatusLabel(board.status)
+    ...row, ratio: row.ratio === null || row.ratio === undefined ? null : Math.round(row.ratio),
+    month: board.month, status: debtRewardStatusLabel(board.status)
   }));
 }
 

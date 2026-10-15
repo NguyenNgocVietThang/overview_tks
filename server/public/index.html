@@ -4287,7 +4287,7 @@
                         <th style="width:72px" data-column-key="hang">Hạng</th>
                         <th style="width:170px" data-column-key="sale">Sale</th>
                         <th style="width:80px" data-column-key="diem">Điểm</th>
-                        <th style="width:120px" data-column-key="phat-moi-diem" title="Đơn vị đồng/điểm. Dấu phẩy là phần thập phân, dấu chấm phân cách hàng nghìn.">Phạt/điểm (đồng)</th>
+                        <th style="width:120px" data-column-key="phat-moi-diem" title="Đơn vị đồng/điểm, hiển thị làm tròn đến đồng. Xếp hạng dùng tỷ lệ gốc chưa làm tròn.">Phạt/điểm (đồng)</th>
                         <th style="width:100px" data-column-key="so-ngay-bi-phat">Ngày bị phạt</th>
                         <th style="width:130px" data-column-key="khach-phat-gan-nhat">Khách phạt gần nhất</th>
                         <th style="width:120px" data-column-key="tong-tien-phat">Phạt gốc</th>
@@ -9215,7 +9215,7 @@
           '<td class="mono">' + escapeHtml(debtRewardRankText(row)) + '</td>' +
           '<td class="name-cell">' + escapeHtml(row.sale) + '</td>' +
           '<td class="mono">' + fmtNumber(row.points) + '</td>' +
-          '<td class="mono" title="' + (row.ratio === null || row.ratio === undefined ? 'Không có điểm để chia' : escapeHtml(fmtNumber(row.grossPenalty) + ' đồng ÷ ' + fmtNumber(row.points) + ' điểm = ' + fmtNumber(row.ratio) + ' đồng/điểm. Dấu phẩy là phần thập phân; xếp hạng dùng số chưa làm tròn.')) + '">' + (row.ratio === null || row.ratio === undefined ? '—' : fmtNumber(row.ratio)) + '</td>' +
+          '<td class="mono" data-sort-value="' + (row.ratio === null || row.ratio === undefined ? '' : Number(row.ratio)) + '" title="' + (row.ratio === null || row.ratio === undefined ? 'Không có điểm để chia' : escapeHtml(fmtNumber(row.grossPenalty) + ' đồng ÷ ' + fmtNumber(row.points) + ' điểm = ' + fmtNumber(row.ratio) + ' đồng/điểm. Hiển thị làm tròn đến đồng; xếp hạng dùng số chưa làm tròn.')) + '">' + (row.ratio === null || row.ratio === undefined ? '—' : fmtNumber(Math.round(row.ratio))) + '</td>' +
           '<td class="mono">' + fmtNumber(row.penaltyDays) + '</td>' +
           '<td class="mono">' + fmtNumber(row.lastDayCustomers) + '</td>' +
           '<td class="mono debt-penalty-amount">' + fmtTableMoney(row.grossPenalty) + '</td>' +
@@ -9242,7 +9242,7 @@
       const tiles = [
         { label: 'Hạng toàn công ty', value: debtRewardRankText(row) },
         { label: 'Điểm', value: fmtNumber(row.points) },
-        { label: 'Phạt / Điểm', value: row.ratio === null || row.ratio === undefined ? '—' : fmtNumber(row.ratio) },
+        { label: 'Phạt / Điểm', value: row.ratio === null || row.ratio === undefined ? '—' : fmtNumber(Math.round(row.ratio)) },
         { label: 'Số ngày bị phạt', value: fmtNumber(row.penaltyDays), tone: row.penaltyDays > 0 ? 'amber' : '' },
         { label: 'Khách phạt ngày gần nhất', value: fmtNumber(row.lastDayCustomers) },
         { label: 'Phạt gốc', value: fmtMoney(row.grossPenalty), tone: row.grossPenalty > 0 ? 'red' : '' },

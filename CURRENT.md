@@ -175,3 +175,5 @@ Kiểm thử cập nhật thưởng tạm tính hằng ngày: backend/giao diệ
 Đồng hạng (15/10/2026): bằng Phạt gốc/Điểm và tổng điểm thì cùng hạng, xếp 1–2–2–4. Tất cả đồng hạng 10 nhận thưởng, đồng hạng 20 miễn phạt. Nhóm đồng hạng gộp trọng số các vị trí chiếm trong Top 10 rồi chia đều, các vị trí ngoài 10 không thêm trọng số; giữ nguyên tổng quỹ, thưởng theo điểm chia trong toàn bộ nhóm nhận thưởng. Bản tháng đã chốt giữ nguyên quy tắc cũ; bản mới dùng debt-reward-2026-10-v2-shared-ranks.
 
 Đã kiểm tra đồng hạng và định dạng Phạt/điểm: 36/36 kiểm thử backend/giao diện đạt; nhóm xuất file cùng kiểm thử liên quan 109/109 đạt. Cột hiển thị đơn vị đồng và tooltip phép chia, dấu phẩy là phần thập phân; thứ hạng dùng tỷ lệ gốc chưa làm tròn. Chưa push/deploy.
+
+15/10/2026: làm tròn hiển thị Phạt/điểm đến số nguyên đồng trên bảng, chi tiết và Excel/HTML; tooltip giữ phép chia gốc, API/thứ hạng không làm tròn.
