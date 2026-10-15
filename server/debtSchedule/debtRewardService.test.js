@@ -101,6 +101,30 @@ test('invalid, future and unavailable history months fail clearly instead of fab
   } finally {await f.db.close();}
 });
 
+test('inactive customers contribute neither monthly points nor sealed penalties, even with stale snapshots',async()=>{
+  const f=await setup();try {
+    await f.repository.savePenalty({branch:'hanoi',customerId:'1',amount:90000,user:{hoTen:'QL'}});
+    await f.snapshot('2026-10-15'); f.repository.bumpVersion();
+    await finalizePendingPenaltyCycles(f.pool,{repository:f.repository,log(){}});
+    await f.service.readBoard(); // Warm both caches before the status changes.
+    await f.db.exec(`UPDATE customers SET raw=raw || '{"isActive":false}'::jsonb WHERE branch='hanoi' AND id=1;
+      UPDATE customers SET raw=raw || '{"IsActive":false}'::jsonb WHERE branch='saigon';
+      INSERT INTO customers VALUES ('hanoi',99,'KH2','Inactive duplicate',0,'{"groups":"Wrong sale","isActive":false}');
+      INSERT INTO invoices VALUES ('hanoi',999,'ORPHAN',999,'2026-10-10Z',9000000000,1,'{"customerCode":"UNKNOWN","statusValue":"Hoàn thành"}');`);
+    f.service.clearScores(); f.repository.bumpVersion();
+    const board=await f.service.readBoard();
+    assert.equal(board.rows.length,1);
+    assert.equal(board.rows[0].sale,'An');
+    assert.equal(board.rows[0].points,25);
+    assert.equal(board.rows[0].scoreCustomers.length,5);
+    assert.equal(board.rows[0].customerCount,5);
+    assert.equal(board.rows[0].grossPenalty,0);
+    assert.equal(board.summary.allocatedReward,0);
+    assert.deepEqual(board.days,[]);
+    assert.equal((await f.db.query('SELECT COUNT(*)::int n FROM debt_penalty_daily')).rows[0].n,1);
+  } finally {await f.db.close();}
+});
+
 test('customer reassignment refreshes points without adding live penalties to monthly totals',async()=>{
   const f=await setup();try {
     await f.repository.savePenalty({branch:'hanoi',customerId:'1',amount:90000,user:{hoTen:'QL'}});

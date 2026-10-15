@@ -17,12 +17,20 @@ function validateMonth(month, now) {
   return month;
 }
 
-const DIRECTORY_SQL = `SELECT g.branch, g.code, g.sale_name, c.name
-  FROM (${businessSql.CURRENT_CUSTOMER_GROUPS_SQL}) g
-  JOIN customers c ON c.branch = g.branch AND c.id = g.id`;
-const DAYS_SQL = `SELECT cycle_date::text AS cycle_date, branch, sale, COUNT(*)::int AS customers, SUM(amount) AS amount
-  FROM debt_penalty_daily WHERE cycle_date >= $1::date AND cycle_date < $2::date
-  GROUP BY cycle_date, branch, sale ORDER BY cycle_date`;
+// Same branch/code canonical identity as Business Report, selecting the newest
+// active record before deduplication so an inactive duplicate cannot hide it.
+const DIRECTORY_SQL = `SELECT DISTINCT ON (c.branch, btrim(c.code)) c.branch, btrim(c.code) AS code, c.name,
+    COALESCE(NULLIF(btrim(c.raw->>'groups'), ''), 'Chưa phân nhóm') AS sale_name
+  FROM customers c
+  WHERE btrim(COALESCE(c.code, '')) <> ''
+    AND COALESCE(c.raw->>'isActive', c.raw->>'IsActive', 'true') <> 'false'
+  ORDER BY c.branch, btrim(c.code), c.id DESC`;
+const DAYS_SQL = `SELECT p.cycle_date::text AS cycle_date, p.branch, p.sale, COUNT(*)::int AS customers, SUM(p.amount) AS amount
+  FROM debt_penalty_daily p
+  JOIN customers c ON c.branch = p.branch AND c.id = p.customer_id
+  WHERE p.cycle_date >= $1::date AND p.cycle_date < $2::date
+    AND COALESCE(c.raw->>'isActive', c.raw->>'IsActive', 'true') <> 'false'
+  GROUP BY p.cycle_date, p.branch, p.sale ORDER BY p.cycle_date`;
 const CYCLES_SQL = `SELECT cycle_date::text AS cycle_date FROM debt_penalty_cycles
   WHERE cycle_date >= $1::date AND cycle_date < $2::date ORDER BY cycle_date`;
 const MONTHS_SQL = `SELECT to_char(month, 'YYYY-MM') AS month FROM debt_reward_months ORDER BY month DESC`;
@@ -57,7 +65,8 @@ function createDebtRewardService({ pool = getPool(), repository = createDebtSche
       stats.delete(key);
       return { ...row, ...amounts, code: row.code, name: row.name || amounts.customer_name || row.code };
     });
-    for (const row of stats.values()) records.push({ ...row, code: row.customer_code, name: row.customer_name, sale_name: 'Chưa phân nhóm' });
+    // Only current active customer identities belong to debt rewards. Unmatched
+    // sales can belong to an inactive/deleted customer and must not re-enter as unassigned.
     const sales = new Map();
     for (const record of records) {
       const sale = saleOf(record.sale_name);

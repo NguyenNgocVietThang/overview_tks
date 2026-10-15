@@ -53,7 +53,8 @@ const INSERT_CUSTOMERS_SQL = `
   LEFT JOIN debt_cycle_customers p
     ON p.cycle_date = pr.cycle_date AND p.branch = c.branch AND p.customer_id = c.id
   LEFT JOIN avg4 a ON a.branch = c.branch AND a.code = btrim(c.code)
-  WHERE c.branch = ANY($2::text[])`;
+  WHERE c.branch = ANY($2::text[])
+    AND COALESCE(c.raw->>'isActive', c.raw->>'IsActive', 'true') <> 'false'`;
 
 // Hoa don HOAN THANH + phieu tra "Da tra" cua khach vua chot, gom theo ngay VN, 90 ngay toi
 // LUC CHOT THAT ($3 = takenAt, cung thoi diem lay customers.debt). Khong cat cung o 15:00:
@@ -93,13 +94,15 @@ const STREAK_CUSTOMERS_SQL = `
   SELECT dc.branch, dc.customer_id::text AS customer_id, dc.current_debt, s.schedule_days,
          COALESCE(p.overdue_streak, 0) AS previous_streak, pf.status AS previous_status
   FROM debt_cycle_customers dc
+  JOIN customers c ON c.branch = dc.branch AND c.id = dc.customer_id
   LEFT JOIN debt_payment_schedules s ON s.branch = dc.branch AND s.customer_id = dc.customer_id
   LEFT JOIN prev_run pr ON true
   LEFT JOIN debt_cycle_customers p
     ON p.cycle_date = pr.cycle_date AND p.branch = dc.branch AND p.customer_id = dc.customer_id
   LEFT JOIN debt_cycle_feedback pf
     ON pf.cycle_date = pr.cycle_date AND pf.branch = dc.branch AND pf.customer_id = dc.customer_id
-  WHERE dc.cycle_date = $1::date`;
+  WHERE dc.cycle_date = $1::date
+    AND COALESCE(c.raw->>'isActive', c.raw->>'IsActive', 'true') <> 'false'`;
 
 const STREAK_AMOUNTS_SQL = `SELECT branch, customer_id::text AS customer_id, day::text AS day, invoice_amount, return_amount
   FROM debt_cycle_amounts WHERE cycle_date = $1::date`;

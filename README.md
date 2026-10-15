@@ -227,6 +227,8 @@ Triển khai trong `server/marketingReport/`; CLI tại `server/scripts/capture-
 
 ## Cập nhật 13/10/2026 — Công nợ theo lịch thanh toán
 
+- 15/10/2026: Công nợ chỉ tính khách đang hoạt động, gồm danh sách, KPI, điểm thưởng, phạt, xuất file và nhập lịch TT. KiotViet đồng bộ `raw.isActive`, xử lý `removedIds`, đối soát đầy đủ lần đầu/mỗi ngày; nguồn thiếu không được dùng để đánh dấu hàng loạt khách vắng mặt. Bản chốt công nợ cũ lọc trạng thái hiện tại, kết quả thưởng tháng đã chốt vẫn giữ nguyên. Không xóa hồ sơ khách hoặc sổ phạt.
+
 - Tab Công nợ bỏ workbook Google Sheets và quy tắc 1-3-7-Hàng tuần. Mỗi dòng là khách + cơ sở (HN/SG); lịch TT = số ngày nợ tối đa, lưu `debt_payment_schedules`, Quản lý sửa trên web.
 - Chốt số liệu 15:00 mỗi ngày; nợ quá hạn = nợ hiện tại − (hóa đơn − trả hàng trong lịch); cảnh báo Quá hạn khi > 0đ.
 - Thêm cột Sale phản hồi, QL phản hồi; phản hồi/trạng thái/lịch sử chỉnh sửa reset theo bản chốt 15:00 hôm sau.

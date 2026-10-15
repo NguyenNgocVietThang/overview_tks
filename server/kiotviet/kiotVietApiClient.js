@@ -99,11 +99,21 @@ function createKiotVietClient(config) {
     let total = Infinity;
     let pagesLoaded = 0;
     let recordsLoaded = 0;
+    let snapshotTotal;
 
     while (currentItem < total) {
       const params = new URLSearchParams({ ...query, pageSize: String(pageSize), currentItem: String(currentItem) });
       const page = await authorizedRequest(`/${endpoint}`, params);
       const items = page.data || [];
+      if (options.requireComplete) {
+        const count = Number(page.total);
+        if (page.total == null || !Number.isInteger(count) || count < 0 || !Array.isArray(page.data)
+          || (snapshotTotal !== undefined && snapshotTotal !== count)
+          || items.length !== Math.min(pageSize, Math.max(0, count - currentItem))) {
+          throw new Error(`Incomplete ${endpoint} snapshot: invalid total or truncated page at ${currentItem}`);
+        }
+        snapshotTotal = count;
+      }
       total = page.total || 0;
       pagesLoaded++;
       recordsLoaded += items.length;
@@ -111,7 +121,9 @@ function createKiotVietClient(config) {
 
       // nextItem la vi tri de tiep tuc neu tien trinh bi dung ngay sau trang
       // nay -- dung cho co che resume backfill (xem backfillProgressRepository.js).
-      await onPage(items, { pagesLoaded, recordsLoaded, total, nextItem: currentItem });
+      const removedIds = [page.removedIds, page.removeIds, page.removeId]
+        .flatMap(ids => ids == null ? [] : Array.isArray(ids) ? ids : [ids]);
+      await onPage(items, { pagesLoaded, recordsLoaded, total, nextItem: currentItem, removedIds });
 
       if (items.length === 0) break;
     }

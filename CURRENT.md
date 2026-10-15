@@ -1,10 +1,12 @@
 # CURRENT: BẢNG TRẠNG THÁI THỜI GIAN THỰC (REALTIME DASHBOARD)
 
-> **Cập nhật gần nhất:** 15/10/2026 (Asia/Ho_Chi_Minh), điều chỉnh chốt phạt 14:59 theo ngày và hiển thị thưởng tạm tính mỗi ngày và chốt thưởng chính thức cuối tháng.
+> **Cập nhật gần nhất:** 15/10/2026 (Asia/Ho_Chi_Minh), Công nợ chỉ tính khách đang hoạt động: danh sách, KPI, điểm, phạt, xuất file và nhập lịch TT.
 > **Trạng thái Git:** làm việc trực tiếp trên `main` theo yêu cầu; thay đổi thưởng/phạt sale hoàn tất và qua kiểm thử; chưa push/deploy phiên này.
 > **Quy tắc:** Cập nhật liên tục vào đầu và cuối mỗi phiên làm việc để không bị đứt đoạn ngữ cảnh dự án.
 
 ---
+
+0. **Công nợ chỉ tính khách hoạt động (15/10/2026, main):** đồng bộ chuẩn hóa `customers.raw.isActive`; nhận `removedIds` từ KiotViet, đối soát toàn bộ lần đầu/mỗi ngày và chỉ đánh dấu khách vắng mặt sau khi kiểm tra đủ dữ liệu. Không xóa hồ sơ hoặc sổ phạt. Bộ lọc áp trước khi lấy khách trùng mã, loại doanh số khách ngừng/không còn hồ sơ khỏi điểm thưởng; bản chốt công nợ cũ đang xem cũng lọc trạng thái hiện tại. Đồng bộ xong xóa cache + thông báo trình duyệt; cache dự phòng 60 giây. Quy tắc thưởng mới `debt-reward-2026-10-v3-active-customers`; kết quả thưởng tháng đã chốt vẫn giữ nguyên. Đã đối soát DB thật: 8.089 khách hoạt động, 46 khách bị loại (HN 34, SG 12), không còn khách không hoạt động trong báo cáo công nợ. Chưa push/deploy.
 
 ## 1. Tổng quan trạng thái hiện tại (Current Status)
 

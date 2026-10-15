@@ -4,6 +4,26 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createPollingScheduler } = require('./scheduler');
 
+test('completed customer sync invalidates debt snapshots and reward scores before notifying browsers', () => {
+  const { dashboardRollupEvents: events } = require('./dashboardRollupEvents');
+  const repository = require('../debtSchedule/debtScheduleRepository').getDebtScheduleRepository();
+  const rewards = require('../debtSchedule/debtRewardService').getDebtRewardService();
+  const bump = repository.bumpVersion, clear = rewards.clearScores;
+  const calls = [];
+  const updated = () => calls.push('notify');
+  repository.bumpVersion = () => calls.push('debt');
+  rewards.clearScores = () => calls.push('scores');
+  events.on('updated', updated);
+  try {
+    events.emit('customersChanged', { branch: 'hanoi' });
+    assert.deepEqual(calls, ['debt', 'scores', 'notify']);
+  } finally {
+    repository.bumpVersion = bump;
+    rewards.clearScores = clear;
+    events.off('updated', updated);
+  }
+});
+
 test('disabled scheduler creates no timers and touches no configuration, API, database, or rollup dependency', () => {
   let touched = 0;
   const scheduler = createPollingScheduler({
@@ -199,6 +219,22 @@ test('one branch/entity failure is recorded without blocking other work', async 
   await timers[0].fn();
   assert.ok(calls.includes('saigon:orders'));
   assert.deepEqual(failures, [['hanoi','invoices','down']]);
+});
+
+test('explicit customer sync reports branch failures instead of claiming a complete refresh', async () => {
+  const completed = [], failures = [];
+  const scheduler = createPollingScheduler({
+    getConfiguredBranches: () => [{ branch: 'hanoi' }, { branch: 'saigon' }],
+    createKiotVietClient: () => ({}),
+    pollEntityOnce: async (_api, branch) => {
+      if (branch === 'hanoi') throw Error('source unavailable');
+      completed.push(branch);
+    },
+    recordFailure: async (...args) => failures.push(args)
+  });
+  await assert.rejects(scheduler.syncCustomers(), /chưa hoàn tất.*source unavailable/);
+  assert.deepEqual(completed, ['saigon']);
+  assert.deepEqual(failures, [['hanoi', 'customers', 'source unavailable']]);
 });
 
 function bankScheduler({empty=true,queryError=false,clientError=false,pollError=false,recordError=false}={}) {

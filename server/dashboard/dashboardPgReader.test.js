@@ -40,6 +40,24 @@ test('readDashboardSheets tra dung 7 sheet, dung header (ten + thu tu) nhu Sheet
   });
 });
 
+test('customer sheets preserve all source customers and expose active flags for debt-only filtering', async () => {
+  const { PGlite } = require('@electric-sql/pglite');
+  const db = new PGlite();
+  try {
+    await db.exec(`CREATE TABLE customers(branch text,id bigint,code text,name text,phone text,debt numeric,total_revenue numeric,created_date timestamptz,raw jsonb);
+      INSERT INTO customers VALUES ('hanoi',1,'A','Legacy','',50,0,NULL,'{}'),
+        ('hanoi',2,'B','Inactive','',900,0,NULL,'{"isActive":false}'),
+        ('hanoi',3,'C','Inactive upper','',700,0,NULL,'{"IsActive":false}');`);
+    const reader = createDashboardPgReader({ pool: db });
+    const sheet = (await reader.readCoreDashboardSheets('Hà Nội', [CONFIG.SHEET_CUSTOMERS]))[CONFIG.SHEET_CUSTOMERS];
+    const active = sheet[0].indexOf('Đang hoạt động');
+    assert.notEqual(active, -1);
+    assert.equal(sheet.length, 4);
+    assert.deepEqual(sheet.slice(1).map(row => row[active]), ['true', 'false', 'false']);
+    assert.equal(sheet[2][sheet[0].indexOf('Nợ hiện tại')], 900);
+  } finally { await db.close(); }
+});
+
 test('readDashboardSheets truyen dung branch code Postgres (hanoi/saigon) cho ca 7 truy van', async () => {
   const pool = fakePool();
   const reader = createDashboardPgReader({ pool });

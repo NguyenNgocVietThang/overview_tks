@@ -220,3 +220,89 @@ test('sync hoa don chi phat invoicesChanged khi trang co dong va da COMMIT; enti
   await driver.pollEntityOnce(api, 'hanoi', { ...base, entity: 'orders', endpoint: 'orders' });
   assert.equal(seen.length, 1, 'entity khac khong lam het han cache Hoa don');
 });
+
+test('customers force initial reconciliation, preserve daily marker, then use incremental removals transactionally', async () => {
+  const { EventEmitter } = require('node:events');
+  const pool = fakePool();
+  const events = new EventEmitter();
+  const notices = [], missing = [], metadata = [], queries = [];
+  let clock = Date.parse('2026-10-15T01:00:00Z');
+  let checkpoint = { last_synced_at: '2026-10-15T00:50:00Z', note: null };
+  events.on('customersChanged', data => notices.push({ ...data, committed: pool.transactions.at(-1).includes('COMMIT') }));
+  const driver = createSyncDriver({ pool, events, now: () => clock, checkpointRepository: {
+    getCheckpoint: async () => checkpoint,
+    advanceCheckpoint: async (_b, _e, at, options) => { checkpoint = { last_synced_at: at, note: options.note }; }
+  }});
+  const entity = { ...require('./entities/customers'), upsertPage: pool.upsert,
+    applyPageMetadata: async (client, branch, info) => { metadata.push(info.removedIds); await client.query('METADATA'); },
+    markMissing: async (client, branch, ids) => { missing.push(ids); await client.query('MISSING'); }
+  };
+  const api = { fetchAllPages: async (_e, query, cb, options) => {
+    queries.push(query);
+    if (!query.lastModifiedFrom) assert.equal(options.requireComplete, true);
+    await cb([{ id: 1 }, { id: 2 }], { total: 2, removedIds: [3] });
+  }};
+  await driver.pollEntityOnce(api, 'hanoi', entity);
+  assert.equal(queries[0].lastModifiedFrom, undefined);
+  assert.deepEqual(missing, [['1', '2']]);
+  assert.equal(JSON.parse(checkpoint.note).activeCustomersReconciledAt, '2026-10-15T01:00:00.000Z');
+  clock += 60000;
+  await driver.pollEntityOnce(api, 'hanoi', entity);
+  assert.equal(queries[1].lastModifiedFrom, '2026-10-15T01:00:00.000Z');
+  assert.equal(queries[1].includeRemoveIds, 'true');
+  assert.equal(missing.length, 1);
+  assert.equal(JSON.parse(checkpoint.note).activeCustomersReconciledAt, '2026-10-15T01:00:00.000Z');
+  clock += 24 * 60 * 60 * 1000;
+  await driver.pollEntityOnce(api, 'hanoi', entity);
+  assert.equal(queries[2].lastModifiedFrom, undefined);
+  assert.equal(missing.length, 2);
+  assert.deepEqual(metadata, [[3], [3], [3]]);
+  assert.deepEqual(notices, Array(3).fill({ branch: 'hanoi', committed: true }));
+  assert.ok(pool.transactions.filter(tx => tx.includes('METADATA')).every(tx => tx.join(',') === 'BEGIN,METADATA,COMMIT,RELEASE'));
+});
+
+test('invalid or interrupted customer scans never mark missing or publish completion/event', async () => {
+  const cases = [
+    async cb => { await cb([{ id: 1 }], { total: 2 }); },
+    async cb => { await cb([{ id: 1 }, { id: 1 }], { total: 2 }); },
+    async cb => { await cb([{ id: 1 }], { total: 1 }); throw new Error('interrupted'); },
+    async cb => { await cb([], { total: 0 }); },
+    async cb => { await cb([{ id: 1 }]); },
+    async cb => { await cb([{ id: 1 }], { total: 2 }); await cb([{ id: 2 }], { total: 3 }); }
+  ];
+  for (const stream of cases) {
+    let marked = 0, advanced = 0, emitted = 0;
+    const driver = createSyncDriver({ pool: fakePool(), events: { emit: () => emitted++ }, checkpointRepository: {
+      getCheckpoint: async () => ({ last_synced_at: '2026-10-15T00:00:00Z' }), advanceCheckpoint: async () => advanced++
+    }});
+    const entity = { ...require('./entities/customers'), upsertPage: async () => {}, applyPageMetadata: async () => {}, markMissing: async () => marked++ };
+    await assert.rejects(driver.pollEntityOnce({ fetchAllPages: async (_e, _q, cb) => stream(cb) }, 'saigon', entity), /Incomplete.*customer.*snapshot|interrupted/);
+    assert.equal(marked, 0);
+    assert.equal(advanced, 0);
+    assert.equal(emitted, 0);
+  }
+});
+
+test('overlapping customer callers both await the shared scan completion', async () => {
+  let release, calls = 0, emitted = 0;
+  const pending = new Promise(resolve => { release = resolve; });
+  const driver = createSyncDriver({ pool: fakePool(), events: { emit: () => emitted++ }, checkpointRepository: {
+    getCheckpoint: async () => null, advanceCheckpoint: async () => {}
+  }});
+  const entity = { ...require('./entities/customers'), upsertPage: async () => {}, applyPageMetadata: async () => {}, markMissing: async () => {} };
+  const api = { fetchAllPages: async (_e, _q, cb) => { calls++; await pending; await cb([{ id: 1 }], { total: 1 }); } };
+  let firstDone = false, secondDone = false;
+  const first = driver.pollEntityOnce(api, 'hanoi', entity).then(() => { firstDone = true; });
+  await new Promise(resolve => setImmediate(resolve));
+  const second = driver.pollEntityOnce(api, 'hanoi', entity).then(() => { secondDone = true; });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(calls, 1);
+  assert.equal(emitted, 0);
+  assert.equal(firstDone, false);
+  assert.equal(secondDone, false, 'Manual refresh must not return before the existing scan commits');
+  release();
+  await Promise.all([first, second]);
+  assert.equal(firstDone, true);
+  assert.equal(secondDone, true);
+  assert.equal(emitted, 1);
+});

@@ -9,13 +9,15 @@
 //
 // Cache: ket qua doc giu trong bo nho theo `version`; moi lan ghi (phan hoi, trang thai,
 // lich TT) hoac co ban chot moi thi tang version -> lan doc sau doc lai DB. Gia dinh 1
-// instance (nhu toan codebase).
+// instance (nhu toan codebase). Cache cung het han sau 60 giay de trang thai active moi khong bi giu cu.
 
 const { getPool } = require('../db/pool');
 const { parseScheduleDays, WORKFLOW_STATUSES } = require('./debtScheduleRules');
 
 const BRANCH_CODES = Object.freeze(['hanoi', 'saigon']);
 const FEEDBACK_MAX_LENGTH = 1000;
+const REPORT_CACHE_TTL_MS = 60 * 1000;
+const ACTIVE_CUSTOMER_SQL = "COALESCE(c.raw->>'isActive', c.raw->>'IsActive', 'true') <> 'false'";
 const FEEDBACK_FIELDS = Object.freeze({
   sale: { column: 'sale_feedback', by: 'sale_feedback_by', at: 'sale_feedback_at' },
   manager: { column: 'manager_feedback', by: 'manager_feedback_by', at: 'manager_feedback_at' }
@@ -45,7 +47,7 @@ const CUSTOMERS_SQL = `
          pdc.customer_id IS NOT NULL AS has_prev, pdc.overdue_debt AS prev_overdue, pdc.overdue_streak AS prev_streak,
          pf.status AS prev_status, ppen.amount AS prev_penalty_amount
   FROM debt_cycle_customers dc
-  LEFT JOIN customers c ON c.branch = dc.branch AND c.id = dc.customer_id
+  JOIN customers c ON c.branch = dc.branch AND c.id = dc.customer_id
   LEFT JOIN debt_payment_schedules s ON s.branch = dc.branch AND s.customer_id = dc.customer_id
   LEFT JOIN debt_cycle_feedback f
     ON f.cycle_date = dc.cycle_date AND f.branch = dc.branch AND f.customer_id = dc.customer_id
@@ -58,16 +60,20 @@ const CUSTOMERS_SQL = `
     ON pf.cycle_date = pdc.cycle_date AND pf.branch = pdc.branch AND pf.customer_id = pdc.customer_id
   LEFT JOIN debt_cycle_penalties ppen
     ON ppen.cycle_date = pdc.cycle_date AND ppen.branch = pdc.branch AND ppen.customer_id = pdc.customer_id
-  WHERE dc.cycle_date = $1::date AND dc.branch = ANY($2::text[])`;
+  WHERE dc.cycle_date = $1::date AND dc.branch = ANY($2::text[]) AND ${ACTIVE_CUSTOMER_SQL}`;
 
-const AMOUNTS_SQL = `SELECT branch, customer_id::text AS customer_id, day::text AS day, invoice_amount, return_amount
-  FROM debt_cycle_amounts WHERE cycle_date = $1::date AND branch = ANY($2::text[])`;
+const AMOUNTS_SQL = `SELECT a.branch, a.customer_id::text AS customer_id, a.day::text AS day, a.invoice_amount, a.return_amount
+  FROM debt_cycle_amounts a
+  JOIN customers c ON c.branch = a.branch AND c.id = a.customer_id
+  WHERE a.cycle_date = $1::date AND a.branch = ANY($2::text[]) AND ${ACTIVE_CUSTOMER_SQL}`;
 
 const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
-const PENALTY_DAYS_SQL = `SELECT cycle_date::text AS cycle_date, sale, COUNT(*)::int AS penalized_customers, SUM(amount) AS amount
-  FROM debt_penalty_daily
-  WHERE cycle_date >= $1::date AND cycle_date < ($1::date + interval '1 month') AND branch = ANY($2::text[])
-  GROUP BY cycle_date, sale ORDER BY cycle_date, sale`;
+const PENALTY_DAYS_SQL = `SELECT d.cycle_date::text AS cycle_date, d.sale, COUNT(*)::int AS penalized_customers, SUM(d.amount) AS amount
+  FROM debt_penalty_daily d
+  JOIN customers c ON c.branch = d.branch AND c.id = d.customer_id
+  WHERE d.cycle_date >= $1::date AND d.cycle_date < ($1::date + interval '1 month') AND d.branch = ANY($2::text[])
+    AND ${ACTIVE_CUSTOMER_SQL}
+  GROUP BY d.cycle_date, d.sale ORDER BY d.cycle_date, d.sale`;
 
 function httpError(statusCode, message, code) {
   const error = new Error(message);
@@ -134,9 +140,9 @@ function mapCustomerRow(row) {
   };
 }
 
-function createDebtScheduleRepository({ pool = getPool() } = {}) {
+function createDebtScheduleRepository({ pool = getPool(), now = Date.now } = {}) {
   let version = 0;
-  let cache = null; // { version, branchesKey, data }
+  let cache = null; // { version, branchesKey, expiresAt, data }
 
   function bumpVersion() {
     version += 1;
@@ -175,7 +181,7 @@ function createDebtScheduleRepository({ pool = getPool() } = {}) {
     const scope = (branches || []).map(assertBranch);
     const historical = Boolean(cycleDate);
     const branchesKey = scope.slice().sort().join(',');
-    if (!historical && cache && cache.version === version && cache.branchesKey === branchesKey) return cache.data;
+    if (!historical && cache && cache.version === version && cache.branchesKey === branchesKey && now() < cache.expiresAt) return cache.data;
     const startedVersion = version;
     const cycle = historical ? await readCycleByDate(cycleDate) : await readCurrentCycle();
     let data = { cycle: null, rows: [], amountsByCustomer: new Map() };
@@ -195,7 +201,7 @@ function createDebtScheduleRepository({ pool = getPool() } = {}) {
       data = { cycle, rows: customers.rows.map(mapCustomerRow), amountsByCustomer };
     }
     // Co ghi trong luc dang doc -> khong cache ban co the da cu.
-    if (!historical && startedVersion === version) cache = { version, branchesKey, data };
+    if (!historical && startedVersion === version) cache = { version, branchesKey, expiresAt: now() + REPORT_CACHE_TTL_MS, data };
     return data;
   }
 
@@ -229,7 +235,10 @@ function createDebtScheduleRepository({ pool = getPool() } = {}) {
     const finalized=await client.query('SELECT 1 FROM debt_penalty_cycles WHERE cycle_date=$1::date',[cycleDate]);
     if(finalized.rows.length) throw httpError(409,'Chu kỳ đã chốt phạt lúc 14:59. Vui lòng chờ bản chốt 15:00.','DEBT_CYCLE_FINALIZED');
     const exists = await client.query(
-      'SELECT 1 FROM debt_cycle_customers WHERE cycle_date = $1::date AND branch = $2 AND customer_id = $3::bigint',
+      `SELECT 1 FROM debt_cycle_customers dc
+       JOIN customers c ON c.branch = dc.branch AND c.id = dc.customer_id
+       WHERE dc.cycle_date = $1::date AND dc.branch = $2 AND dc.customer_id = $3::bigint
+         AND ${ACTIVE_CUSTOMER_SQL} FOR SHARE OF c`,
       [cycleDate, branch, customerId]
     );
     if (!exists.rowCount) throw httpError(404, 'Không tìm thấy khách này trong bản chốt công nợ.', 'DEBT_CUSTOMER_NOT_FOUND');
@@ -356,8 +365,8 @@ function createDebtScheduleRepository({ pool = getPool() } = {}) {
               h.old_value, h.new_value, h.actor_name,
               btrim(COALESCE(c.code, '')) AS customer_code, COALESCE(c.name, '') AS customer_name
        FROM debt_feedback_history h
-       LEFT JOIN customers c ON c.branch = h.branch AND c.id = h.customer_id
-       WHERE h.cycle_date = $1::date AND h.branch = ANY($2::text[])
+       JOIN customers c ON c.branch = h.branch AND c.id = h.customer_id
+       WHERE h.cycle_date = $1::date AND h.branch = ANY($2::text[]) AND ${ACTIVE_CUSTOMER_SQL}
        ORDER BY h.created_at DESC, h.id DESC
        LIMIT 1000`,
       [cycle.cycleDate, scope]
@@ -397,7 +406,8 @@ function createDebtScheduleRepository({ pool = getPool() } = {}) {
     if (!scheduleDays) throw httpError(400, 'Lịch TT phải là số ngày từ 1 đến 90.', 'INVALID_SCHEDULE');
     const actor = actorOf(user);
     const customer = await client.query(
-      'SELECT btrim(COALESCE(code, \'\')) AS code, COALESCE(name, \'\') AS name FROM customers WHERE branch = $1 AND id = $2::bigint',
+      `SELECT btrim(COALESCE(c.code, '')) AS code, COALESCE(c.name, '') AS name
+       FROM customers c WHERE c.branch = $1 AND c.id = $2::bigint AND ${ACTIVE_CUSTOMER_SQL} FOR SHARE OF c`,
       [code, id]
     );
     if (!customer.rowCount) throw httpError(404, 'Không tìm thấy khách hàng trên KiotViet.', 'CUSTOMER_NOT_FOUND');
@@ -446,13 +456,15 @@ function createDebtScheduleRepository({ pool = getPool() } = {}) {
     let where = '';
     if (branch && customerId) {
       params.push(assertBranch(branch), assertCustomerId(customerId));
-      where = 'WHERE branch = $1 AND customer_id = $2::bigint';
+      where = 'AND l.branch = $1 AND l.customer_id = $2::bigint';
     }
     const { rows } = await pool.query(
-      `SELECT id::text AS id, created_at, branch, customer_id::text AS customer_id, customer_code, customer_name,
-              old_days, new_days, source, actor_name
-       FROM debt_payment_schedule_log ${where}
-       ORDER BY created_at DESC, id DESC LIMIT 500`,
+      `SELECT l.id::text AS id, l.created_at, l.branch, l.customer_id::text AS customer_id, l.customer_code, l.customer_name,
+              l.old_days, l.new_days, l.source, l.actor_name
+       FROM debt_payment_schedule_log l
+       JOIN customers c ON c.branch = l.branch AND c.id = l.customer_id
+       WHERE ${ACTIVE_CUSTOMER_SQL} ${where}
+       ORDER BY l.created_at DESC, l.id DESC LIMIT 500`,
       params
     );
     return rows.map(row => ({

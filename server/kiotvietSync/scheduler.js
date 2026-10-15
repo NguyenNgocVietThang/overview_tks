@@ -18,6 +18,14 @@ const { startDebtCycleSnapshotSchedule } = require('../debtSchedule/debtCycleSna
 const { dashboardRollupEvents } = require('./dashboardRollupEvents');
 const debtScheduleRepository = require('../debtSchedule/debtScheduleRepository');
 
+// Activity changes affect existing snapshots and monthly scoring immediately.
+// Subscribe once per module, rather than once per scheduler/timer instance.
+dashboardRollupEvents.on('customersChanged', () => {
+  debtScheduleRepository.getDebtScheduleRepository().bumpVersion();
+  require('../debtSchedule/debtRewardService').getDebtRewardService().clearScores();
+  dashboardRollupEvents.emit('updated', { at: Date.now() });
+});
+
 // orderSuppliers ("Dat hang nhap") o nhom fast: doi soat toan bo ~350 phieu chi vai
 // request, va nhip 7 phut gan nhip snapshot ton kho (10 phut) nen hang vua nhap
 // khong bi dem ca "dang van chuyen" lan "ton kho" lau.
@@ -73,12 +81,14 @@ function createPollingScheduler({
     catch (error) { logger.error('[KiotViet Sync] Lỗi sổ quỹ:', error.message); }
     finally { cashbookRunning = false; }
   }
-  async function runGroup(entities) {
+  async function runGroup(entities, { throwOnError = false } = {}) {
     const branches = getBranches();
     if (!branches.length) {
       logger.warn('[KiotViet Sync] Không có cơ sở đủ cấu hình; bỏ qua nhịp polling.');
+      if (throwOnError) throw new Error('Không có cơ sở KiotViet đủ cấu hình để đồng bộ khách hàng.');
       return;
     }
+    const failures = [];
     await Promise.allSettled(branches.map(async (branchConfig) => {
       // 1 client/co so/luot: token OAuth duoc cache trong client, tao client
       // rieng cho tung entity se xin token moi lien tuc. Loi tao client van
@@ -91,12 +101,14 @@ function createPollingScheduler({
           if (clientError) throw clientError;
           await poll(api, branchConfig.branch, entity);
         } catch (error) {
+          failures.push(error);
           await record(branchConfig.branch, entity.entity, error.message).catch((recordError) => {
             logger.error('[KiotViet Sync] Không ghi được lỗi checkpoint:', recordError.message);
           });
         }
       }));
     }));
+    if (throwOnError && failures.length) throw new Error('Đồng bộ khách hàng chưa hoàn tất: ' + failures.map(error => error.message).join('; '));
   }
 
   /**
@@ -214,7 +226,7 @@ function createPollingScheduler({
         setIntervalFn,
         scheduleImmediate,
         log: logger.log ? logger.log.bind(logger) : logger,
-        beforeSnapshot: () => runGroup([customersEntity]),
+        beforeSnapshot: () => runGroup([customersEntity], { throwOnError: true }),
         onSnapshot: () => {
           debtScheduleRepository.getDebtScheduleRepository().bumpVersion();
           // Ban chot 15:00 moi: bao client dang mo SSE tai lai, khong cho rollup 5 phut.
@@ -224,7 +236,7 @@ function createPollingScheduler({
     ];
   }
   // Nut Tinh lai cong no: dong bo khach (no hien tai) ngay truoc khi tinh.
-  const syncCustomers = () => runGroup([customersEntity]);
+  const syncCustomers = () => runGroup([customersEntity], { throwOnError: true });
 
   return { startPollingScheduler, runGroup, syncCustomers };
 }

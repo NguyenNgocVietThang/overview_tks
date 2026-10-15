@@ -6,6 +6,8 @@
 
 ---
 
+- **Khách hoạt động trong Công nợ (15/10/2026):** danh sách/KPI/điểm/phạt/xuất file chỉ dùng khách hiện còn hoạt động. KiotViet retail không trả cờ hoạt động trong các payload khách đã kiểm tra và bỏ qua query `isActive`; đồng bộ chuẩn hóa `customers.raw.isActive` từ cờ rõ ràng nếu có, danh sách hiện hành và `removedIds`. Đối soát đầy đủ lần đầu/mỗi ngày, không đánh dấu vắng mặt khi thiếu trang/tổng thay đổi/trùng ID/lỗi giữa chừng; không xóa dữ liệu nguồn hoặc audit. Lọc hoạt động trước chọn ID mới nhất của cơ sở+mã. Kết quả thưởng tháng đã chốt bất biến.
+
 ## 1. Hồ sơ dự án (Project Profile)
 
 - **Tên dự án:** TOKOSI Dashboard (Web TKS Dashboard).

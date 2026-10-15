@@ -52,7 +52,9 @@ async function importDebtSchedules({ pool = getPool(), branch, filePath, apply =
   const skipped = rows.filter(row => !row.days);
   const { rows: customers } = await pool.query(
     `SELECT DISTINCT ON (btrim(code)) btrim(code) AS code, id::text AS id
-     FROM customers WHERE branch = $1 AND btrim(code) = ANY($2::text[]) ORDER BY btrim(code), id DESC`,
+     FROM customers WHERE branch = $1 AND btrim(code) = ANY($2::text[])
+       AND COALESCE(raw->>'isActive', raw->>'IsActive', 'true') <> 'false'
+     ORDER BY btrim(code), id DESC`,
     [branch, valid.map(row => row.code)]
   );
   const idByCode = new Map(customers.map(row => [row.code, row.id]));

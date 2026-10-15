@@ -37,6 +37,88 @@ async function setup() {
 
 const noAverages = async () => ({ branches: [], codes: [], values: [] });
 
+test('active-only snapshot skips normalized and legacy inactive customers, preserving normalized precedence and missing flags', async () => {
+  const { db, pool } = await setup();
+  try {
+    await seedKiot(db);
+    await db.exec(`UPDATE customers SET raw = '{"isActive":false}' WHERE branch='hanoi' AND id=1;
+      UPDATE customers SET raw = '{"IsActive":false}' WHERE branch='hanoi' AND id=2;
+      INSERT INTO customers VALUES
+        ('hanoi',3,'KH3','Active normalized',100,'{"isActive":true,"IsActive":false}'),
+        ('hanoi',4,'KH4','Legacy inactive',100,'{"isActive":null,"IsActive":false}');`);
+    const result = await takeDebtCycleSnapshot(pool, '2026-08-08', { takenAt: at15('2026-08-08'), log: () => {}, loadAverages: noAverages });
+    assert.equal(result.customers, 2);
+    assert.deepEqual((await db.query('SELECT branch, customer_id::text AS id FROM debt_cycle_customers ORDER BY branch, customer_id')).rows,
+      [{ branch: 'hanoi', id: '3' }, { branch: 'saigon', id: '1' }]);
+    assert.equal((await db.query('SELECT COUNT(*)::int AS n FROM debt_cycle_amounts')).rows[0].n, 0);
+    assert.equal((await db.query('SELECT COUNT(*)::int AS n FROM customers')).rows[0].n, 5);
+  } finally { await db.close(); }
+});
+
+test('inactive stale snapshots disappear from current and historical reports without deleting stored audit', async () => {
+  const { db, pool } = await setup();
+  try {
+    await seedKiot(db);
+    for (const date of ['2026-08-08','2026-08-09']) await takeDebtCycleSnapshot(pool, date, { takenAt: at15(date), log: () => {}, loadAverages: noAverages });
+    const repo = createDebtScheduleRepository({ pool });
+    assert.equal((await repo.readReport(['hanoi','saigon'])).rows.length, 3);
+    await db.exec(`UPDATE customers SET raw = '{"isActive":false}' WHERE branch='hanoi' AND id=1;
+      UPDATE customers SET raw = '{"IsActive":false}' WHERE branch='hanoi' AND id=2;`);
+    repo.bumpVersion();
+    for (const date of [undefined, '2026-08-08']) {
+      const report = await repo.readReport(['hanoi','saigon'], date);
+      assert.deepEqual(report.rows.map(row => row.branch + ':' + row.customerId), ['saigon:1']);
+      assert.equal(report.amountsByCustomer.has('hanoi:1'), false);
+    }
+    assert.equal((await db.query('SELECT COUNT(*)::int AS n FROM debt_cycle_customers')).rows[0].n, 6);
+    assert.ok((await db.query('SELECT COUNT(*)::int AS n FROM debt_cycle_amounts')).rows[0].n > 0);
+  } finally { await db.close(); }
+});
+
+test('inactive customer edits are rejected and visible history is filtered while audit rows survive', async () => {
+  const { db, pool } = await setup();
+  try {
+    await seedKiot(db);
+    await takeDebtCycleSnapshot(pool, '2026-08-08', { takenAt: at15('2026-08-08'), log: () => {}, loadAverages: noAverages });
+    const repo = createDebtScheduleRepository({ pool });
+    const target = { branch:'hanoi', customerId:'1', user:{ id:'m1', hoTen:'Manager' } };
+    await repo.setSchedule({ ...target, days:3 });
+    await repo.saveFeedback({ ...target, field:'sale', value:'Original' });
+    await repo.savePenalty({ ...target, amount:12345 });
+    const auditCount = (await db.query('SELECT COUNT(*)::int AS n FROM debt_feedback_history')).rows[0].n;
+    await db.exec(`UPDATE customers SET raw = '{"isActive":false}' WHERE branch='hanoi' AND id=1`);
+    for (const write of [
+      () => repo.setSchedule({ ...target, days:7 }),
+      () => repo.withTransaction(client => repo.setScheduleWith(client, { ...target, days:7, source:'import' })),
+      () => repo.saveFeedback({ ...target, field:'sale', value:'Changed' }),
+      () => repo.saveFeedback({ ...target, field:'manager', value:'Changed' }),
+      () => repo.saveStatus({ ...target, status:'Đã xử lý' }),
+      () => repo.savePenalty({ ...target, amount:99999 })
+    ]) await assert.rejects(write, error => error.statusCode === 404);
+    assert.deepEqual((await repo.listFeedbackHistory({ branches:['hanoi'] })).entries, []);
+    assert.deepEqual(await repo.listScheduleLog(), []);
+    assert.deepEqual(await repo.listScheduleLog({ branch:'hanoi', customerId:'1' }), []);
+    assert.equal((await db.query('SELECT COUNT(*)::int AS n FROM debt_feedback_history')).rows[0].n, auditCount);
+    assert.equal((await db.query('SELECT COUNT(*)::int AS n FROM debt_payment_schedule_log')).rows[0].n, 1);
+    assert.equal((await db.query('SELECT schedule_days FROM debt_payment_schedules')).rows[0].schedule_days, 3);
+    assert.equal(Number((await db.query('SELECT amount FROM debt_cycle_penalties')).rows[0].amount), 12345);
+  } finally { await db.close(); }
+});
+
+test('report cache expires so customer activity changes cannot leave stale reports indefinitely', async () => {
+  const { db, pool } = await setup();
+  try {
+    await seedKiot(db);
+    await takeDebtCycleSnapshot(pool, '2026-08-08', { takenAt: at15('2026-08-08'), log: () => {}, loadAverages: noAverages });
+    let now = 1000;
+    const repo = createDebtScheduleRepository({ pool, now: () => now });
+    assert.equal((await repo.readReport(['hanoi'])).rows.length, 2);
+    await db.exec(`UPDATE customers SET raw = '{"isActive":false}' WHERE branch='hanoi' AND id=1`);
+    now += 61000;
+    assert.deepEqual((await repo.readReport(['hanoi'])).rows.map(row => row.customerId), ['2']);
+  } finally { await db.close(); }
+});
+
 // Chot dung 15:00 VN ngay date.
 const at15 = date => new Date(`${date}T08:00:00Z`);
 

@@ -395,12 +395,12 @@ const TABS = [
     headers: [
       'Mã khách hàng', 'Tên khách hàng', 'Điện thoại', 'Nhóm khách hàng',
       'Địa chỉ', 'Nợ hiện tại', 'Tổng bán', 'ID khách hàng', 'Điện thoại phụ',
-      'Công ty', 'Tổng doanh thu', 'ID gian hàng', 'Ngày tạo'
+      'Công ty', 'Tổng doanh thu', 'ID gian hàng', 'Ngày tạo', 'Đang hoạt động'
     ],
     columns: [
       'ma_khach_hang', 'ten_khach_hang', 'dien_thoai', 'nhom_khach_hang',
       'dia_chi', 'no_hien_tai', 'tong_ban', 'id_khach_hang', 'dien_thoai_phu',
-      'cong_ty', 'tong_doanh_thu', 'id_gian_hang', 'ngay_tao'
+      'cong_ty', 'tong_doanh_thu', 'id_gian_hang', 'ngay_tao', 'dang_hoat_dong'
     ],
     codeColumn: 'ma_khach_hang',
     buildSql: byCode => `-- tab: Khách hàng
@@ -418,6 +418,7 @@ const TABS = [
         ${num('total_revenue')}                  AS tong_doanh_thu,
         ${text(`raw->>'retailerId'`)}            AS id_gian_hang,
         ${fmtTs('created_date')}                 AS ngay_tao,
+        COALESCE(raw->>'isActive', raw->>'IsActive', 'true') AS dang_hoat_dong,
         ${BRANCH_SQL}                              AS co_so
       FROM customers
       WHERE branch = $1${codeFilter(byCode, 'code')}

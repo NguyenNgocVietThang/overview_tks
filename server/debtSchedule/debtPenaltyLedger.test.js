@@ -47,6 +47,24 @@ const at15 = date => new Date(`${date}T08:00:00Z`);
 const snapshot = (pool, date) => takeDebtCycleSnapshot(pool, date, { takenAt: at15(date), log: () => {}, loadAverages: noAverages });
 const user = { id: 'u1', hoTen: 'Quản lý A' };
 
+test('inactive finalized penalties are excluded from aggregates without deleting ledger rows', async () => {
+  const { db, pool, repository } = await setup();
+  try {
+    await snapshot(pool, '2026-08-08');
+    await finalizePenaltyCycle(pool, '2026-08-08', { repository });
+    assert.equal((await repository.listPenaltyDays({ month:'2026-08' })).length, 2);
+    await db.exec(`UPDATE customers SET raw = '{"isActive":false}' WHERE branch='hanoi' AND id=1`);
+    assert.deepEqual(await repository.listPenaltyDays({ month:'2026-08' }),
+      [{ cycleDate:'2026-08-08', sale:'Chưa phân nhóm', penalizedCustomers:1, amount:25000 }]);
+    assert.deepEqual(await repository.listPenaltyDays({ month:'2026-08', branches:['hanoi'] }), []);
+    assert.equal((await db.query('SELECT COUNT(*)::int AS n FROM debt_penalty_daily')).rows[0].n, 2);
+    await snapshot(pool, '2026-08-09');
+    await db.exec(`UPDATE customers SET raw = '{"IsActive":false}' WHERE branch='saigon' AND id=1`);
+    assert.equal((await finalizePenaltyCycle(pool, '2026-08-09', { repository })).customers, 0);
+    assert.equal((await db.query('SELECT COUNT(*)::int AS n FROM debt_penalty_daily')).rows[0].n, 2);
+  } finally { await db.close(); }
+});
+
 test('14:59 freezes yesterday before reset and retries cannot rewrite the daily ledger', async () => {
   const { db,pool,repository }=await setup();
   try {

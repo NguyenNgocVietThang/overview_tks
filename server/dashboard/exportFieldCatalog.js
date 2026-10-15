@@ -266,6 +266,8 @@ const CUSTOMER_FIELDS = [
     'Số định danh gian hàng do KiotViet cấp, khác tên gian hàng; cả cơ sở dùng chung một số.'),
   field('ngay_tao', 'Ngày tạo', 'Ngày tạo', 'date',
     'Ngày giờ khách hàng được tạo trên KiotViet.'),
+  field('dang_hoat_dong', 'Đang hoạt động', 'Đang hoạt động', 'general',
+    'Trạng thái hoạt động của khách; thiếu dữ liệu thì xem là còn hoạt động.'),
   field('co_so', 'Cơ sở', 'Cơ sở', 'text',
     'Cơ sở (Hà Nội hoặc Sài Gòn) nơi dữ liệu này được đồng bộ.')
 ];

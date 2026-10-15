@@ -53,6 +53,7 @@ const REFRESH_SQL = `
      AND (a.activity_at AT TIME ZONE 'UTC')::date >=
          (now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date - (p.period_days - 1)
     JOIN customers c ON c.branch = $1 AND c.id = a.customer_id
+    WHERE COALESCE(c.raw->>'isActive', c.raw->>'IsActive', 'true') <> 'false'
   ), upserted AS (
     INSERT INTO customer_debt_activity_periods
       (branch, period_days, customer_id, customer_name, refreshed_at)

@@ -27,3 +27,16 @@ test('từ chối cơ sở không hợp lệ trước khi query', async () => {
   const repo = createCustomerDebtActivityRepository({ pool: { query: async () => assert.fail('không được query') } });
   await assert.rejects(() => repo.readOperationalPeriods('Khác'), error => error.code === 'INVALID_BRANCH');
 });
+
+test('reads exclude inactive customers immediately while keeping legacy active records', async () => {
+  const { PGlite } = require('@electric-sql/pglite');
+  const db = new PGlite();
+  try {
+    await db.exec(`CREATE TABLE customers(branch text,id bigint,raw jsonb);
+      CREATE TABLE customer_debt_activity_periods(branch text,period_days int,customer_id bigint,customer_name text);
+      INSERT INTO customers VALUES ('hanoi',1,'{}'),('hanoi',2,'{"isActive":false}'),('hanoi',3,'{"IsActive":false}');
+      INSERT INTO customer_debt_activity_periods VALUES ('hanoi',1,1,'Legacy'),('hanoi',1,2,'Inactive'),('hanoi',1,3,'Inactive upper');`);
+    const repo = createCustomerDebtActivityRepository({ pool: db });
+    assert.deepEqual((await repo.readOperationalPeriods('Hà Nội')).HN1, [['Khách hàng'], ['Legacy']]);
+  } finally { await db.close(); }
+});

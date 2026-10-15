@@ -1602,6 +1602,20 @@ function mergeTransactionalSheet(branchSources, sheetName) {
   return [targetHeaders, ...rows];
 }
 
+// Filter physical customer records before merging names across branches: one
+// inactive branch must not contribute debt to an otherwise active customer.
+function activeCustomerDebtSheet(branchSources) {
+  const sources = branchSources.map(source => {
+    const sheet = source.sheets[CONFIG.SHEET_CUSTOMERS] || [];
+    const activeIndex = sheetHeaderIndex(sheet[0] || [], 'Đang hoạt động');
+    const rows = activeIndex < 0 ? sheet : [sheet[0], ...sheet.slice(1).filter(row => String(row[activeIndex]) !== 'false')];
+    return { branch: source.branch, sheets: { [CONFIG.SHEET_CUSTOMERS]: rows } };
+  });
+  if (sources.length === 1) return sources[0].sheets[CONFIG.SHEET_CUSTOMERS];
+  const spec = ENTITY_MERGE_SPECS[CONFIG.SHEET_CUSTOMERS];
+  return mergeEntitySheet(sources, CONFIG.SHEET_CUSTOMERS, spec.codeHeader, spec.additiveHeaders, spec.options);
+}
+
 function concatenateSheet(branchSources, sheetName) {
   const targetHeaders = firstSheetHeaders(branchSources, sheetName);
   if (!targetHeaders) return [];
@@ -1941,10 +1955,11 @@ async function getDashboardData(filters, branch, viewer, options) {
     const debtManagement = plan.has('debt')
       ? await debtScheduleService.buildDebtManagement(branchScope, viewer)
       : undefined;
+    const debtCustomerData = activeCustomerDebtSheet(branchSources);
     let data;
     if (branchSources.length === 1) {
       const source = branchSources[0];
-      data = computeDashboardData(source.sheets, f, now, source.branch, source.rollups, debtManagement, plan);
+      data = computeDashboardData(source.sheets, f, now, source.branch, source.rollups, debtManagement, plan, debtCustomerData);
     } else {
       data = computeDashboardData(
         mergeDashboardSheets(branchSources),
@@ -1953,7 +1968,8 @@ async function getDashboardData(filters, branch, viewer, options) {
         BRANCH_BOTH,
         mergeDashboardRollups(branchSources),
         debtManagement,
-        plan
+        plan,
+        debtCustomerData
       );
     }
     dashboardResultCache.set(cacheKey, { data, expiresAt: Date.now() + DASHBOARD_RESULT_CACHE_TTL_MS });
@@ -1984,7 +2000,7 @@ async function getDashboardData(filters, branch, viewer, options) {
  * @param {Date} now
  * @returns {Object} Du lieu KPI, bieu do, bang xep hang cho dashboard
  */
-function computeDashboardData(sheets, filters, now, branch, rollups, debtManagementOverride, plan) {
+function computeDashboardData(sheets, filters, now, branch, rollups, debtManagementOverride, plan, debtCustomerData) {
   computeCallCountForTest += 1;
   // `plan` (dashboardViews.resolveViewPlan): chi tinh phan cua cac tab duoc chon.
   // Bang nguon/rollup cua tab khac KHONG duoc nap (xem `|| []` ben duoi) nen cac
@@ -2359,14 +2375,15 @@ function computeDashboardData(sheets, filters, now, branch, rollups, debtManagem
     });
   }
 
-  let totalCustomers = 0, customersWithDebt = 0, totalDebt = 0;
+  const totalCustomers = custData.slice(1).filter(row => row[customerCodeIndex]).length;
+  let customersWithDebt = 0, totalDebt = 0;
   let topDebt = [];
 
-  for (let r = 1; r < custData.length; r++) {
-    const row = custData[r];
+  const debtCustomers = debtCustomerData || custData;
+  for (let r = 1; r < debtCustomers.length; r++) {
+    const row = debtCustomers[r];
     const code = row[customerCodeIndex];
     if (!code) continue;
-    totalCustomers++;
     const debt = Number(row[customerDebtIndex]) || 0;
     if (debt > 0) {
       customersWithDebt++;
