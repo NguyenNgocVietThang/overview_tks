@@ -98,10 +98,6 @@ function boardPayload(overrides = {}) {
       companyTopUp: 2980000, allocatedReward: 3000000, recipientCount: 2 },
     coverage: { from: '2026-10-01', to: '2026-10-14', missingDays: ['2026-10-02'], complete: false },
     status: 'provisional', closedAt: null, ruleVersion: 'debt-reward-v1', months: ['2026-10', '2026-09'], ...overrides };
-  if (payload.status !== 'finalized') {
-    payload.rows = payload.rows.map(row => ({ ...row, reward: null, rankReward: null, pointsReward: null }));
-    payload.summary = { ...payload.summary, pool: null, penaltyFund: null, companyTopUp: null, allocatedReward: null, recipientCount: 0 };
-  }
   return payload;
 }
 function serve(dom, payload) { dom.window.fetch = async () => ({ ok: true, json: async () => payload }); }
@@ -270,27 +266,34 @@ test('finalized detail marks unavailable debt snapshot without presenting zero d
   dom.window.close();
 });
 
-test('open month hides reward amounts across table, footer, funding and detail until finalized', async () => {
+test('open month shows daily provisional reward amounts and distinguishes official finalized rewards', async () => {
   const dom = createDashboard(editableDebt());
-  serve(dom, boardPayload({ status: 'finalized' }));
-  await dom.window.loadDebtPenaltyBoard();
-  assert.match(dom.window.document.getElementById('debtRewardSummary').textContent, /3\.000\.000/);
   serve(dom, boardPayload());
   await dom.window.loadDebtPenaltyBoard();
   const doc = dom.window.document;
-  assert.match(doc.getElementById('debtRewardStatus').textContent, /Tạm tính/);
-  assert.equal(doc.getElementById('debtRewardSummary').textContent, 'Tiền thưởng chỉ tính và hiển thị khi chốt tháng');
-  assert.deepEqual([...doc.querySelectorAll('#debtPenaltyRows tr.doc-row')].map(tr => tr.cells[8].textContent.trim()), ['—', '—', '—']);
-  assert.equal(doc.querySelector('#debtPenaltyFoot tr').cells[8].textContent.trim(), '—');
+  assert.equal(doc.getElementById('debtRewardStatus').textContent, 'Thưởng tạm tính');
+  assert.match(doc.getElementById('debtRewardSummary').textContent, /Thưởng tạm tính, sẽ chốt chính thức vào cuối tháng/);
+  assert.match(doc.getElementById('debtRewardSummary').textContent, /Tổng thưởng tạm tính/);
+  assert.doesNotMatch(doc.getElementById('debtRewardSummary').textContent, /Đã phân bổ/);
+  assert.match(doc.getElementById('debtRewardSummary').textContent, /3\.000\.000.*2\.980\.000/);
+  assert.equal(doc.querySelector('#debtPenaltyTable th[data-column-key="tien-thuong"] .sort-button > span').textContent, 'Thưởng tạm tính');
+  assert.equal(doc.querySelector('#debtPenaltyRows tr[data-sale="Lan"]').cells[8].textContent.trim(), '1.500.000');
+  assert.equal(doc.querySelector('#debtPenaltyFoot tr').cells[8].textContent.trim(), '1.500.000');
   doc.querySelector('#debtPenaltyRows tr[data-sale="Lan"]').click();
   const stats = Object.fromEntries([...doc.querySelectorAll('#docModalBody .dp-stat')]
     .map(el => [el.querySelector('.dp-stat-label').textContent, el.querySelector('.dp-stat-value').textContent]));
-  assert.equal(stats['Thưởng theo hạng'], '—');
-  assert.equal(stats['Thưởng theo điểm'], '—');
-  assert.equal(stats['Tiền thưởng'], '—');
-  assert.match(doc.getElementById('docModalBody').textContent, /Tiền thưởng chỉ tính và hiển thị khi chốt tháng/);
+  assert.match(stats['Thưởng theo hạng'], /800\.000/);
+  assert.match(stats['Thưởng theo điểm'], /700\.000/);
+  assert.match(stats['Thưởng tạm tính'], /1\.500\.000/);
+  assert.match(doc.getElementById('docModalBody').textContent, /Thưởng tạm tính, sẽ chốt chính thức vào cuối tháng/);
   assert.match(stats['Phạt gốc'], /100\.000/);
   assert.equal(stats['Điểm'], '40');
+  serve(dom, boardPayload({ status: 'finalized' }));
+  await dom.window.loadDebtPenaltyBoard();
+  assert.equal(doc.getElementById('debtRewardStatus').textContent, 'Đã chốt');
+  assert.equal(doc.querySelector('#debtPenaltyTable th[data-column-key="tien-thuong"] .sort-button > span').textContent, 'Tiền thưởng');
+  assert.doesNotMatch(doc.getElementById('debtRewardSummary').textContent, /Thưởng tạm tính/);
+  assert.equal(doc.querySelector('#debtPenaltyRows tr[data-sale="Lan"]').cells[8].textContent.trim(), '1.500.000');
   dom.window.close();
 });
 

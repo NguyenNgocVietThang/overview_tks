@@ -255,11 +255,11 @@ const DEBT_PENALTY_COLUMNS = [
   aggregateColumn('lastDayCustomers', 'Khách phạt gần nhất', 'number', 'Số khách bị phạt của ngày chốt gần nhất.'),
   aggregateColumn('total', 'Phạt gốc', 'number', 'Tổng phạt gốc trong tháng trước miễn phạt theo hạng (VNĐ).'),
   aggregateColumn('payablePenalty', 'Phạt phải nộp', 'number', 'Số tiền phạt phải nộp sau miễn phạt theo hạng (VNĐ).'),
-  aggregateColumn('reward', 'Tiền thưởng', 'number', 'Tổng thưởng theo hạng và theo điểm khi đã chốt tháng (VNĐ); để trống trong tháng.'),
+  aggregateColumn('reward', 'Tiền thưởng', 'number', 'Tổng thưởng theo hạng và theo điểm (VNĐ); tạm tính trong tháng, chính thức khi chốt tháng.'),
   aggregateColumn('month', 'Tháng', 'text', 'Tháng thưởng/phạt được chọn (YYYY-MM).'),
-  aggregateColumn('status', 'Trạng thái', 'text', 'Tạm tính khi tháng đang mở; Đã chốt khi đã khóa kết quả tháng.'),
-  aggregateColumn('rankReward', 'Thưởng theo hạng', 'number', 'Phần tiền thưởng theo thứ hạng toàn hệ thống khi đã chốt tháng (VNĐ); để trống trong tháng.', { selected: false }),
-  aggregateColumn('pointsReward', 'Thưởng theo điểm', 'number', 'Phần tiền thưởng phân bổ theo điểm khi đã chốt tháng (VNĐ); để trống trong tháng.', { selected: false })
+  aggregateColumn('status', 'Trạng thái', 'text', 'Thưởng tạm tính khi tháng đang mở; Đã chốt khi đã khóa kết quả tháng.'),
+  aggregateColumn('rankReward', 'Thưởng theo hạng', 'number', 'Phần thưởng theo thứ hạng toàn hệ thống (VNĐ); tạm tính trong tháng, chính thức khi chốt tháng.', { selected: false }),
+  aggregateColumn('pointsReward', 'Thưởng theo điểm', 'number', 'Phần thưởng phân bổ theo điểm (VNĐ); tạm tính trong tháng, chính thức khi chốt tháng.', { selected: false })
 ];
 
 const DEBT_BRANCH_COLUMN = aggregateColumn('branch', 'Cơ sở', 'text', 'Cơ sở của khoản công nợ (Hà Nội hoặc Sài Gòn).');
@@ -560,7 +560,7 @@ function debtBranchLabel(customer) {
 }
 
 function debtRewardStatusLabel(status) {
-  return status === 'finalized' ? 'Đã chốt' : 'Tạm tính';
+  return status === 'finalized' ? 'Đã chốt' : 'Thưởng tạm tính';
 }
 
 function debtPenaltyRows(board) {
@@ -570,7 +570,7 @@ function debtPenaltyRows(board) {
 }
 
 function debtRewardMetadata(board) {
-  const amount = value => value === null ? 'Chưa chốt tháng' : `${Number(value).toLocaleString('vi-VN')}đ`;
+  const amount = value => `${Number(value).toLocaleString('vi-VN')}đ`;
   const coverage = board.coverage;
   const summary = board.summary;
   const notes = [
@@ -582,14 +582,14 @@ function debtRewardMetadata(board) {
     ['Quỹ thưởng toàn hệ thống', amount(summary.pool)],
     ['Quỹ từ tiền phạt', amount(summary.penaltyFund)],
     ['Công ty bù', amount(summary.companyTopUp)],
-    ['Thưởng đã phân bổ', amount(summary.allocatedReward)],
-    ['Số Sale nhận thưởng toàn hệ thống', board.status === 'finalized' ? String(summary.recipientCount) : 'Chưa chốt tháng'],
+    [board.status === 'finalized' ? 'Thưởng đã phân bổ' : 'Tổng thưởng tạm tính', amount(summary.allocatedReward)],
+    ['Số Sale nhận thưởng toàn hệ thống', String(summary.recipientCount)],
     ['Phạm vi dữ liệu', `${coverage.from} – ${coverage.to}`],
     ['Đủ bản chốt', coverage.complete ? 'Đầy đủ' : 'Chưa đầy đủ'],
     ['Ngày thiếu bản chốt', coverage.missingDays.length ? coverage.missingDays.join(', ') : 'Không có'],
     ['Phiên bản quy chế', String(board.ruleVersion)]
   ];
-  if (board.status !== 'finalized') notes.push(['Tiền thưởng', 'Tiền thưởng chỉ tính và hiển thị khi chốt tháng']);
+  if (board.status !== 'finalized') notes.push(['Tiền thưởng', 'Thưởng tạm tính, sẽ chốt chính thức vào cuối tháng']);
   if (board.closedAt) notes.push(['Chốt tháng lúc', board.closedAt]);
   return {
     month: board.month, status: board.status, closedAt: board.closedAt,
@@ -1145,6 +1145,11 @@ async function buildExportDataset(payload, branch, options = {}) {
     throwIfAborted(signal);
     if (!board.summary) throw exportError('Chưa có bản chốt công nợ để xuất thưởng/phạt.', 404, 'EXPORT_NO_DATA');
     const dataset = await buildFixedDataset(tableKey, { dashboard: { debtReward: board }, branch, signal }, description.context, request.tableSearch, options.selection);
+    if (board.status !== 'finalized') {
+      dataset.worksheets.forEach(worksheet => {
+        worksheet.columns = worksheet.columns.map(column => column.key === 'reward' ? { ...column, label: 'Thưởng tạm tính' } : column);
+      });
+    }
     return { ...dataset, debtReward: debtRewardMetadata(board) };
   }
   // Viewer bo trong = khong quyen sua cong no (giong xuat file truoc day). Ket qua

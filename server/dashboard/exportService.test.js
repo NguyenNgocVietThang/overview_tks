@@ -1962,38 +1962,40 @@ test('debt.penalty: no debt snapshot rejects with no-data error instead of produ
   });
 });
 
-test('debt.penalty: open-month Excel and HTML leave all reward cells blank and show pending metadata', async () => {
+test('debt.penalty: open-month Excel and HTML show numeric provisional rewards with clear status', async () => {
   const finalized = historicalRewardBoard();
   const board = deepFreeze({
-    ...finalized, month: '2026-10', status: 'provisional', closedAt: null,
-    rows: finalized.rows.map(row => ({ ...row, reward: null, rankReward: null, pointsReward: null })),
-    summary: { ...finalized.summary, pool: null, penaltyFund: null, companyTopUp: null, allocatedReward: null, recipientCount: 0 }
+    ...finalized, month: '2026-10', status: 'provisional', closedAt: null
   });
   await withRewardService(async () => board, async () => {
-    const payload = { tableKey: 'debt.penalty', context: { debtRewardMonth: '2026-10' }, columns: { debt_penalty: ['sale', 'total', 'payablePenalty', 'reward', 'rankReward', 'pointsReward'] } };
+    const payload = { tableKey: 'debt.penalty', context: { debtRewardMonth: '2026-10' }, columns: { debt_penalty: ['sale', 'total', 'payablePenalty', 'reward', 'rankReward', 'pointsReward', 'status'] } };
     const excel = await exportService.createExportWorkbook(payload, 'Cả hai');
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(excel.buffer);
     const sheet = workbook.getWorksheet('Thưởng phạt sale');
-    for (let row = 2; row <= 4; row++) {
-      for (const column of [4, 5, 6]) assert.equal(sheet.getRow(row).getCell(column).value, null);
-    }
+    assert.equal(sheet.getRow(1).getCell(4).value, 'Thưởng tạm tính');
+    assert.deepEqual(sheet.getRows(2, 3).map(row => [4, 5, 6].map(column => row.getCell(column).value)), [[900000, 700000, 200000], [150000, 100000, 50000], [0, 0, 0]]);
+    assert.equal(sheet.getRow(2).getCell(7).value, 'Thưởng tạm tính');
     assert.equal(sheet.getRow(3).getCell(2).value, 50000);
     const metadata = workbook.getWorksheet('Thông tin thưởng phạt');
     const notes = new Map(metadata.getRows(2, metadata.rowCount - 1).map(row => [row.getCell(1).value, row.getCell(2).value]));
-    for (const key of ['Quỹ thưởng toàn hệ thống', 'Quỹ từ tiền phạt', 'Công ty bù', 'Thưởng đã phân bổ']) {
-      assert.equal(notes.get(key), 'Chưa chốt tháng');
-    }
-    assert.equal(notes.get('Tiền thưởng'), 'Tiền thưởng chỉ tính và hiển thị khi chốt tháng');
+    assert.equal(notes.get('Quỹ thưởng toàn hệ thống'), '1.050.000đ');
+    assert.equal(notes.get('Quỹ từ tiền phạt'), '50.000đ');
+    assert.equal(notes.get('Công ty bù'), '1.000.000đ');
+    assert.equal(notes.get('Tổng thưởng tạm tính'), '1.050.000đ');
+    assert.equal(notes.has('Thưởng đã phân bổ'), false);
+    assert.equal(notes.get('Số Sale nhận thưởng toàn hệ thống'), '2');
+    assert.equal(notes.get('Trạng thái'), 'Thưởng tạm tính');
+    assert.equal(notes.get('Tiền thưởng'), 'Thưởng tạm tính, sẽ chốt chính thức vào cuối tháng');
     const html = await exportService.createExportHtml(payload, 'Cả hai');
     const document = new JSDOM(html.buffer.toString('utf8')).window.document;
-    assert.match(document.querySelector('header .meta').textContent, /Tiền thưởng chỉ tính và hiển thị khi chốt tháng/);
-    assert.doesNotMatch(document.querySelector('#kpis').textContent, /thưởng/i);
+    assert.match(document.querySelector('header .meta').textContent, /Thưởng tạm tính, sẽ chốt chính thức vào cuối tháng/);
+    assert.match(document.querySelector('#kpis').textContent, /thưởng tạm tính1\.050\.000/i);
     const embedded = embeddedData(html.buffer.toString('utf8')).worksheets[0];
-    assert.deepEqual(embedded.rows.map(row => row.slice(3)), [[null, null, null], [null, null, null], [null, null, null]]);
+    assert.deepEqual(embedded.rows.map(row => row.slice(3, 6)), [[900000, 700000, 200000], [150000, 100000, 50000], [0, 0, 0]]);
     const opened = await openHtmlReport(html);
     assert.match(opened.doc.querySelector('#tbody').textContent, /Bình/);
-    assert.doesNotMatch(opened.doc.querySelector('#kpis').textContent, /thưởng/i);
+    assert.match(opened.doc.querySelector('#kpis').textContent, /thưởng tạm tính1\.050\.000/i);
     opened.dom.window.close();
   });
 });

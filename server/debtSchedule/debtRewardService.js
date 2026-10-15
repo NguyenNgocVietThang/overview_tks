@@ -123,7 +123,7 @@ function createDebtRewardService({ pool = getPool(), repository = createDebtSche
     const missingDays = [];
     for (let day = start; day <= to; day = addDaysToKey(day, 1)) if (!known.has(day)) missingDays.push(day);
     const from = [...known].sort()[0] || null;
-    const board = buildRewardBoard({ sales: entries, penalties, lastDate, allocateRewards:closing });
+    const board = buildRewardBoard({ sales: entries, penalties, lastDate });
     for (const row of board.rows) {
       row.debtMetricsAvailable = Boolean(report && report.cycle);
       if (!row.debtMetricsAvailable) {

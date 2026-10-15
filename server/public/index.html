@@ -4278,7 +4278,7 @@
                   <p>Doanh thu thuần âm: −1 điểm. Các mốc 0 / 5 triệu / 30 triệu / 100 triệu / 300 triệu / 1 tỷ / 3 tỷ / 6 tỷ / 9 tỷ tương ứng 0 / 1 / 2 / 3 / 4 / 5 / 6 / 7 / 8 điểm.</p>
                   <p>Từ 30 điểm được xếp hạng theo Phạt gốc / Điểm tăng dần, rồi điểm giảm dần, rồi tên sale theo tiếng Việt. Chưa phân nhóm không có hạng hoặc thưởng. Hạng 1–20 được miễn phạt; thưởng dành cho hạng 1–10.</p>
                   <p>Quỹ thưởng = mức lớn hơn giữa 80% phạt phải nộp và 3.000.000₫. Công ty bù phần thiếu. Một nửa quỹ chia theo trọng số hạng 19 / 17 / 15 / 13 / 11 / 9 / 7 / 5 / 3 / 1; một nửa chia theo điểm của người nhận. Khi có dưới 10 người nhận, chuẩn hóa theo tổng trọng số và tổng điểm thực tế.</p>
-                  <p>Tiền phạt mỗi ngày được chốt lúc 14:59 cho chu kỳ trước, trước khi đặt lại chu kỳ lúc 15:00. Bảng tháng chỉ cộng các ngày đã chốt. Tiền thưởng chỉ tính một lần khi chốt tháng; tháng đã chốt giữ nguyên điểm, hạng, tiền phạt và thưởng lịch sử.</p>
+                  <p>Tiền phạt mỗi ngày được chốt lúc 14:59 cho chu kỳ trước, trước khi đặt lại chu kỳ lúc 15:00. Bảng tháng chỉ cộng các ngày đã chốt. Tiền thưởng được tạm tính mỗi ngày và chốt chính thức vào cuối tháng; tháng đã chốt giữ nguyên điểm, hạng, tiền phạt và thưởng lịch sử.</p>
                 </details>
                 <div class="debt-penalty-wrap">
                   <table class="fixed-table" id="debtPenaltyTable" data-table-key="dashboard-table-22">
@@ -9160,15 +9160,23 @@
       }).join('') : '<option value="">Tháng đang mở</option>';
       selector.value = selected;
       const status = document.getElementById('debtRewardStatus');
-      status.textContent = board.loading ? 'Đang tải' : board.failed ? 'Không tải được' : board.status === 'finalized' ? 'Đã chốt' : board.loaded ? 'Tạm tính' : 'Đang tải';
+      status.textContent = board.loading ? 'Đang tải' : board.failed ? 'Không tải được' : board.status === 'finalized' ? 'Đã chốt' : board.loaded ? 'Thưởng tạm tính' : 'Đang tải';
       document.getElementById('debtPenaltyNote').textContent = (selected ? 'Tháng ' + formatCycleMonth(selected) + ' · ' : '') +
         'Tiền phạt cộng dồn các ngày đã chốt trong tháng · Xếp hạng toàn công ty HN + SG; lọc cơ sở không đổi hạng · bấm 1 dòng để xem chi tiết';
       const summary = board.summary || {};
       const rewardFinalized = board.status === 'finalized';
+      const rewardLabel = rewardFinalized ? 'Tiền thưởng' : 'Thưởng tạm tính';
+      const rewardHeader = document.querySelector('#debtPenaltyTable th[data-column-key="tien-thuong"]');
+      const rewardHeaderButton = rewardHeader.querySelector('.sort-button');
+      if (rewardHeaderButton) {
+        rewardHeaderButton.firstElementChild.textContent = rewardLabel;
+        rewardHeaderButton.title = rewardHeaderButton.title.replace(/(?:Tiền thưởng|Thưởng tạm tính)$/, rewardLabel);
+        rewardHeaderButton.setAttribute('aria-label', rewardHeaderButton.getAttribute('aria-label').replace(/(?:Tiền thưởng|Thưởng tạm tính)$/, rewardLabel));
+      } else rewardHeader.textContent = rewardLabel;
       document.getElementById('debtRewardSummary').textContent = board.loaded && !board.loading && !board.failed
-        ? (rewardFinalized ? 'Quỹ thưởng toàn công ty: ' + fmtMoney(summary.pool) + ' · Công ty bù: ' + fmtMoney(summary.companyTopUp) +
-          ' · Quỹ từ phạt: ' + fmtMoney(summary.penaltyFund) + ' · Đã phân bổ: ' + fmtMoney(summary.allocatedReward) +
-          ' · ' + fmtNumber(summary.recipientCount) + ' người nhận' : 'Tiền thưởng chỉ tính và hiển thị khi chốt tháng')
+        ? (rewardFinalized ? '' : 'Thưởng tạm tính, sẽ chốt chính thức vào cuối tháng · ') + 'Quỹ thưởng toàn công ty: ' + fmtMoney(summary.pool) + ' · Công ty bù: ' + fmtMoney(summary.companyTopUp) +
+          ' · Quỹ từ phạt: ' + fmtMoney(summary.penaltyFund) + (rewardFinalized ? ' · Đã phân bổ: ' : ' · Tổng thưởng tạm tính: ') + fmtMoney(summary.allocatedReward) +
+          ' · ' + fmtNumber(summary.recipientCount) + ' người nhận'
         : '';
       const coverage = board.coverage || {};
       const missing = Array.isArray(coverage.missingDays) ? coverage.missingDays : [];
@@ -9212,10 +9220,10 @@
           '<td class="mono">' + fmtNumber(row.lastDayCustomers) + '</td>' +
           '<td class="mono debt-penalty-amount">' + fmtTableMoney(row.grossPenalty) + '</td>' +
           '<td class="mono">' + fmtTableMoney(row.payablePenalty) + '</td>' +
-          '<td class="mono' + (rewardFinalized ? ' debt-reward-positive' : '') + '">' + (rewardFinalized ? fmtTableMoney(row.reward) : '—') + '</td></tr>';
+          '<td class="mono debt-reward-positive">' + fmtTableMoney(row.reward) + '</td></tr>';
       }).join('');
       foot.innerHTML = '<tr class="debt-penalty-total"><td></td><td>Tổng đang hiển thị</td><td class="mono">' + fmtNumber(points) + '</td><td></td><td></td><td></td>' +
-        '<td class="mono">' + fmtTableMoney(gross) + '</td><td class="mono">' + fmtTableMoney(payable) + '</td><td class="mono">' + (rewardFinalized ? fmtTableMoney(reward) : '—') + '</td></tr>';
+        '<td class="mono">' + fmtTableMoney(gross) + '</td><td class="mono">' + fmtTableMoney(payable) + '</td><td class="mono">' + fmtTableMoney(reward) + '</td></tr>';
     }
 
     function debtPenaltySaleDetail(item) {
@@ -9230,7 +9238,7 @@
       const debtMetricsAvailable = row.debtMetricsAvailable !== false;
       const rewardFinalized = state.debtPenaltyBoard.status === 'finalized';
       subtitle.textContent = 'Tháng ' + formatCycleMonth(data.month) + ' · ' + fmtNumber(row.customerCount) + ' khách · ' +
-        (state.debtPenaltyBoard.status === 'finalized' ? 'Đã chốt' : 'Tạm tính') + ' · HN + SG';
+        (rewardFinalized ? 'Đã chốt' : 'Thưởng tạm tính') + ' · HN + SG';
       const tiles = [
         { label: 'Hạng toàn công ty', value: debtRewardRankText(row) },
         { label: 'Điểm', value: fmtNumber(row.points) },
@@ -9239,9 +9247,9 @@
         { label: 'Khách phạt ngày gần nhất', value: fmtNumber(row.lastDayCustomers) },
         { label: 'Phạt gốc', value: fmtMoney(row.grossPenalty), tone: row.grossPenalty > 0 ? 'red' : '' },
         { label: 'Phạt phải nộp', value: fmtMoney(row.payablePenalty) },
-        { label: 'Thưởng theo hạng', value: rewardFinalized ? fmtMoney(row.rankReward) : '—', tone: rewardFinalized ? 'green' : '' },
-        { label: 'Thưởng theo điểm', value: rewardFinalized ? fmtMoney(row.pointsReward) : '—', tone: rewardFinalized ? 'green' : '' },
-        { label: 'Tiền thưởng', value: rewardFinalized ? fmtMoney(row.reward) : '—', tone: rewardFinalized ? 'green' : '' },
+        { label: 'Thưởng theo hạng', value: fmtMoney(row.rankReward), tone: 'green' },
+        { label: 'Thưởng theo điểm', value: fmtMoney(row.pointsReward), tone: 'green' },
+        { label: rewardFinalized ? 'Tiền thưởng' : 'Thưởng tạm tính', value: fmtMoney(row.reward), tone: 'green' },
         { label: 'Tổng nợ hiện tại', value: debtMetricsAvailable ? fmtMoney(row.totalCurrentDebt) : '—', tone: debtMetricsAvailable ? 'blue' : '' },
         { label: 'Tổng nợ quá hạn', value: debtMetricsAvailable ? fmtMoney(row.totalOverdue) : '—', tone: debtMetricsAvailable && row.totalOverdue > 0 ? 'red' : '' },
         { label: 'Quá hạn / Doanh số', value: debtMetricsAvailable ? formatDebtRatio(row.overdueRatio) : '—' },
@@ -9261,7 +9269,7 @@
           '<td class="num">' + fmtNumber(customer.invoicePoints) + '</td><td class="num">' + fmtNumber(customer.revenuePoints) + '</td><td class="num">' + fmtNumber(customer.points) + '</td></tr>';
       }).join('') : '<tr><td colspan="8" class="table-note">Chưa có dữ liệu điểm khách hàng trong tháng.</td></tr>';
       body.innerHTML = detailStatsHtml(tiles) +
-        (rewardFinalized ? '' : '<p class="debt-penalty-note">Tiền thưởng chỉ tính và hiển thị khi chốt tháng</p>') +
+        (rewardFinalized ? '' : '<p class="debt-penalty-note">Thưởng tạm tính, sẽ chốt chính thức vào cuối tháng</p>') +
         (debtMetricsAvailable ? '' : '<p class="debt-penalty-note">Không còn bản chốt công nợ để đối chiếu</p>') +
         '<div class="dp-section">' + detailSectionHeadHtml('Tiền phạt từng ngày', fmtNumber(row.penaltyDays) + ' ngày') +
         '<div class="dp-table-wrap is-flow"><table class="dp-table is-min-wide" data-table-controls="off" data-table-key="dashboard-table-23"><thead><tr>' +

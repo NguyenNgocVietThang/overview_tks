@@ -33,7 +33,7 @@ function allocateMoney(amount, weights) {
   return values;
 }
 
-function buildRewardBoard({ sales = [], penalties = [], lastDate = null, allocateRewards = true } = {}) {
+function buildRewardBoard({ sales = [], penalties = [], lastDate = null } = {}) {
   const bySale = new Map();
   function entryOf(sale) {
     const key = saleKey(sale);
@@ -78,11 +78,6 @@ function buildRewardBoard({ sales = [], penalties = [], lastDate = null, allocat
   for (const row of rows) row.payablePenalty = row.rank && row.rank <= 20 ? 0 : row.grossPenalty;
   const grossPenalty = rows.reduce((sum, row) => sum + row.grossPenalty, 0);
   const payablePenalty = rows.reduce((sum, row) => sum + row.payablePenalty, 0);
-  if (!allocateRewards) {
-    for (const row of rows) row.reward = row.rankReward = row.pointsReward = null;
-    rows.sort((a,b)=>(a.rank||Infinity)-(b.rank||Infinity)||b.points-a.points||compareName(a,b));
-    return {rows,summary:{grossPenalty,payablePenalty,penaltyFund:null,pool:null,companyTopUp:null,allocatedReward:null,recipientCount:0}};
-  }
   const penaltyFund = Math.round(payablePenalty * 0.8);
   const pool = Math.max(penaltyFund, 3000000);
   const recipients = ranked.slice(0, 10);

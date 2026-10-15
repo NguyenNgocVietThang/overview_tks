@@ -43,8 +43,11 @@ test('real monthly SQL counts completed invoices, net returns and debt-free cust
     assert.equal(b.rows.find(r=>r.sale==='An').points,30);
     assert.equal(b.rows.find(r=>r.sale==='Bình').points,29);
     assert.equal(b.rows.find(r=>r.sale==='An').scoreCustomers[0].invoiceCount,5);
-    assert.equal(b.summary.recipientCount,0);assert.equal(b.rows.find(r=>r.sale==='An').reward,null);
-    assert.equal(b.summary.pool,null);assert.equal(b.summary.allocatedReward,null);
+    assert.equal(b.status,'provisional');
+    assert.equal(b.summary.recipientCount,1);assert.equal(b.rows.find(r=>r.sale==='An').reward,3000000);
+    assert.equal(b.summary.pool,3000000);assert.equal(b.summary.allocatedReward,3000000);
+    await f.service.readBoard();
+    assert.equal((await f.db.query('SELECT COUNT(*)::int AS count FROM debt_reward_months')).rows[0].count,0);
     assert.equal(b.coverage.complete,false);assert.ok(b.coverage.missingDays.includes('2026-10-01'));
   } finally {await f.db.close();}
 });
