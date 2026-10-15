@@ -25,12 +25,26 @@ const DIRECTORY_SQL = `SELECT DISTINCT ON (c.branch, btrim(c.code)) c.branch, bt
   WHERE btrim(COALESCE(c.code, '')) <> ''
     AND COALESCE(c.raw->>'isActive', c.raw->>'IsActive', 'true') <> 'false'
   ORDER BY c.branch, btrim(c.code), c.id DESC`;
-const DAYS_SQL = `SELECT p.cycle_date::text AS cycle_date, p.branch, p.sale, COUNT(*)::int AS customers, SUM(p.amount) AS amount
-  FROM debt_penalty_daily p
-  JOIN customers c ON c.branch = p.branch AND c.id = p.customer_id
-  WHERE p.cycle_date >= $1::date AND p.cycle_date < $2::date
-    AND COALESCE(c.raw->>'isActive', c.raw->>'IsActive', 'true') <> 'false'
-  GROUP BY p.cycle_date, p.branch, p.sale ORDER BY p.cycle_date`;
+// Cung 1 khach (cung ten) bi phat o ca 2 co so trong 1 ngay chi tinh muc cao nhat o 1 co so:
+// cong trong tung co so truoc (hiem khi trung ten), roi lay co so cao nhat (bang nhau -> hanoi).
+// Khach thieu ten khong gop nhau (khoa du phong theo co so + id). So chot goc khong doi.
+const DAYS_SQL = `WITH per_branch AS (
+    SELECT p.cycle_date, p.branch, p.sale,
+      COALESCE(NULLIF(lower(regexp_replace(normalize(btrim(p.customer_name), NFKC), '\\s+', ' ', 'g')), ''),
+        p.branch || ':' || p.customer_id) AS customer_key,
+      SUM(p.amount) AS amount, COUNT(*)::int AS customers
+    FROM debt_penalty_daily p
+    JOIN customers c ON c.branch = p.branch AND c.id = p.customer_id
+    WHERE p.cycle_date >= $1::date AND p.cycle_date < $2::date
+      AND COALESCE(c.raw->>'isActive', c.raw->>'IsActive', 'true') <> 'false'
+    GROUP BY p.cycle_date, p.branch, p.sale, customer_key
+  ), best AS (
+    SELECT DISTINCT ON (cycle_date, sale, customer_key) cycle_date, branch, sale, amount, customers
+    FROM per_branch
+    ORDER BY cycle_date, sale, customer_key, amount DESC, branch
+  )
+  SELECT cycle_date::text AS cycle_date, branch, sale, SUM(customers)::int AS customers, SUM(amount) AS amount
+  FROM best GROUP BY cycle_date, branch, sale ORDER BY cycle_date`;
 const CYCLES_SQL = `SELECT cycle_date::text AS cycle_date FROM debt_penalty_cycles
   WHERE cycle_date >= $1::date AND cycle_date < $2::date ORDER BY cycle_date`;
 const MONTHS_SQL = `SELECT to_char(month, 'YYYY-MM') AS month FROM debt_reward_months ORDER BY month DESC`;

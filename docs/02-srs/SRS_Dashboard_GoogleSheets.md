@@ -9,7 +9,7 @@
 | Tên dự án          | Hệ thống Dashboard nội bộ TOKOSI                           |
 | Phiên bản          | 3.0                                                        |
 | Ngày tạo           | 27/07/2026                                                 |
-| Ngày cập nhật      | 06/10/2026                                                 |
+| Ngày cập nhật      | 15/10/2026                                                 |
 | Tài liệu liên quan | BRD v2.2 · BPMN v3.0 · Implementation Plan (cập nhật 05/10/2026) · CSNS-NP-01 (Chính sách nghỉ phép) · `server/db/SCHEMA.md` · Design System MASTER (mục 7 — ràng buộc hiệu năng) |
 | Trạng thái         | Nội dung nền rà soát tại HEAD `11751c4` (05/10); FR-15 Sổ quỹ bổ sung và kiểm chứng 06/10. Migration `0033` đã áp thành công lên Supabase DB. Deploy production còn chờ. Số kiểm thử 1.704/1.701/0/3 là mốc lịch sử 05/10. |
 
@@ -663,6 +663,8 @@ Nguồn DB sau công tắc: sáu Facebook page; ngày ghi nhận khác thời đ
 | FR-21.5 | **Xuất bản chốt công nợ cũ (14/10/2026):** Hộp thoại Xuất file của bảng Quản lý công nợ có ô chọn bản chốt 15:00; mặc định là bản mới nhất, có thể tải bản của tối đa 7 ngày gần nhất (đúng thời hạn lưu `debt_cycle_*`). Chỉ ảnh hưởng xuất file, màn hình công nợ vẫn là chu kỳ hiện tại. Lịch TT/tên khách/Sale lấy theo dữ liệu hiện tại. |
 
 Đồng hạng (15/10/2026): bằng Phạt gốc/Điểm và tổng điểm thì cùng hạng, xếp 1–2–2–4. Tất cả đồng hạng 10 nhận thưởng, đồng hạng 20 miễn phạt. Nhóm đồng hạng gộp trọng số các vị trí chiếm trong Top 10 rồi chia đều, các vị trí ngoài 10 không thêm trọng số; giữ nguyên tổng quỹ, thưởng theo điểm chia trong toàn bộ nhóm nhận thưởng. Bản tháng đã chốt giữ nguyên quy tắc cũ; bản mới dùng debt-reward-2026-10-v2-shared-ranks.
+
+Cùng khách ở 2 cơ sở (15/10/2026): ở bảng tổng thưởng/phạt sale, cùng 1 khách (cùng tên, không phân biệt hoa/thường và khoảng trắng thừa) bị phạt ở cả HN và SG trong cùng 1 ngày chốt chỉ tính mức phạt cao nhất ở 1 cơ sở, không cộng dồn (bằng nhau lấy Hà Nội); khách đó đếm 1 lần trong "Khách phạt", tổng các dòng ngày ở hộp chi tiết sale khớp Phạt gốc. Chỉ đổi lúc đọc (`debtRewardService.DAYS_SQL`); sổ `debt_penalty_daily`, bảng chi tiết khách và tháng đã chốt giữ nguyên, không migration. Quy tắc mới debt-reward-2026-10-v4-cross-branch-max.
 
 
 Khách hoạt động (15/10/2026): toàn bộ tính năng Công nợ chỉ dùng khách đang hoạt động, kể cả khách đã hết nợ khi tính điểm. Lọc danh sách/KPI/bản chốt đang xem, phạt theo ngày và tháng, điểm thưởng, hộp chi tiết, xuất file và nhập lịch TT; khách không còn hồ sơ không được chuyển thành điểm Chưa phân nhóm. Lọc trước bước chọn khách mới nhất theo cơ sở+mã. Đồng bộ chuẩn hóa raw.isActive, xử lý removedIds và đối soát toàn bộ lần đầu/mỗi ngày; chỉ đánh dấu khách vắng mặt sau một lượt đầy đủ đã kiểm tra tổng/trang/ID. Không xóa dữ liệu nguồn hoặc sổ phạt; kết quả thưởng tháng đã chốt vẫn bất biến. Quy tắc mới debt-reward-2026-10-v3-active-customers; không migration.

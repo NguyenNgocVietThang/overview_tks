@@ -9162,7 +9162,7 @@
       const status = document.getElementById('debtRewardStatus');
       status.textContent = board.loading ? 'Đang tải' : board.failed ? 'Không tải được' : board.status === 'finalized' ? 'Đã chốt' : board.loaded ? 'Thưởng tạm tính' : 'Đang tải';
       document.getElementById('debtPenaltyNote').textContent = (selected ? 'Tháng ' + formatCycleMonth(selected) + ' · ' : '') +
-        'Tiền phạt cộng dồn các ngày đã chốt trong tháng · Xếp hạng toàn công ty HN + SG; lọc cơ sở không đổi hạng · bấm 1 dòng để xem chi tiết';
+        'Tiền phạt cộng dồn các ngày đã chốt trong tháng; cùng khách bị phạt ở cả 2 cơ sở chỉ tính mức cao nhất · Xếp hạng toàn công ty HN + SG; lọc cơ sở không đổi hạng · bấm 1 dòng để xem chi tiết';
       const summary = board.summary || {};
       const rewardFinalized = board.status === 'finalized';
       const rewardLabel = rewardFinalized ? 'Tiền thưởng' : 'Thưởng tạm tính';

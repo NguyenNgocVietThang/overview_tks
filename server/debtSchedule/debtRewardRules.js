@@ -1,6 +1,6 @@
 'use strict';
 
-const RULE_VERSION = 'debt-reward-2026-10-v3-active-customers';
+const RULE_VERSION = 'debt-reward-2026-10-v4-cross-branch-max';
 const INVOICE_THRESHOLDS = [0, 1, 2, 5, 10, 20, 40];
 const REVENUE_THRESHOLDS = [0, 5000000, 30000000, 100000000, 300000000, 1000000000, 3000000000, 6000000000, 9000000000];
 const RANK_WEIGHTS = [19, 17, 15, 13, 11, 9, 7, 5, 3, 1];

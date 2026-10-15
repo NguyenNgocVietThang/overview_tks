@@ -158,3 +158,35 @@ test('a serialization conflict during monthly insert retries with a fresh transa
     assert.equal((await f.db.query('SELECT COUNT(*)::int AS count FROM debt_reward_months')).rows[0].count,1);
   } finally {await f.db.close();}
 });
+
+test('sealed penalties count a same-name customer once per day using the higher branch amount',async()=>{
+  const f=await setup();try {
+    const customers=[['hanoi',101,'KX1','Nguyễn Văn X'],['saigon',201,'KY1','nguyễn  văn x '],
+      ['hanoi',102,'KX2','Trần B'],['saigon',202,'KY2','Lê C'],
+      ['hanoi',103,'KX3','Dup'],['hanoi',104,'KX4','Dup'],['saigon',203,'KY3','dup'],
+      ['hanoi',105,'KX5',''],['saigon',205,'KY5','']];
+    for (const [branch,id,code,name] of customers) await f.db.query('INSERT INTO customers VALUES ($1,$2,$3,$4,0,$5)',[branch,id,code,name,JSON.stringify({groups:'An'})]);
+    const rows=[['2026-10-01','hanoi',101,'Nguyễn Văn X',90000],['2026-10-01','saigon',201,'nguyễn  văn x ',120000],
+      ['2026-10-02','hanoi',101,'Nguyễn Văn X',50000],['2026-10-02','saigon',201,'nguyễn  văn x ',50000],
+      ['2026-10-03','hanoi',101,'Nguyễn Văn X',70000],
+      ['2026-10-04','hanoi',102,'Trần B',40000],['2026-10-04','saigon',202,'Lê C',25000],
+      ['2026-10-05','hanoi',103,'Dup',10000],['2026-10-05','hanoi',104,'Dup',10000],['2026-10-05','saigon',203,'dup',15000],
+      ['2026-10-06','hanoi',105,'',10000],['2026-10-06','saigon',205,'',10000]];
+    for (const [date,branch,id,name,amount] of rows) await f.db.query(
+      "INSERT INTO debt_penalty_daily(cycle_date,branch,customer_id,sale,customer_name,amount) VALUES ($1,$2,$3,'An',$4,$5)",[date,branch,id,name,amount]);
+    for (const date of ['2026-10-01','2026-10-02','2026-10-03','2026-10-04','2026-10-05','2026-10-06']) await f.db.query('INSERT INTO debt_penalty_cycles(cycle_date) VALUES ($1)',[date]);
+    const an=(await f.service.readBoard()).rows.find(r=>r.sale==='An');
+    const byDay=Object.fromEntries(an.days.map(d=>[d.cycleDate,d]));
+    assert.deepEqual([byDay['2026-10-01'].amount,byDay['2026-10-01'].customers],[120000,1]);
+    assert.deepEqual([byDay['2026-10-02'].amount,byDay['2026-10-02'].customers],[50000,1]);
+    assert.deepEqual([byDay['2026-10-03'].amount,byDay['2026-10-03'].customers],[70000,1]);
+    assert.deepEqual([byDay['2026-10-04'].amount,byDay['2026-10-04'].customers],[65000,2]);
+    assert.deepEqual([byDay['2026-10-05'].amount,byDay['2026-10-05'].customers],[20000,2]);
+    assert.deepEqual([byDay['2026-10-06'].amount,byDay['2026-10-06'].customers],[20000,2]);
+    assert.equal(an.grossPenalty,345000);assert.equal(an.penaltyDays,6);assert.equal(an.lastDayCustomers,2);
+    assert.equal(an.days.reduce((sum,d)=>sum+d.amount,0),an.grossPenalty);
+    const board=await f.service.readBoard();
+    assert.equal(board.days.find(d=>d.cycleDate==='2026-10-02').branch,'hanoi');
+    assert.equal(board.summary.grossPenalty,345000);
+  } finally {await f.db.close();}
+});
