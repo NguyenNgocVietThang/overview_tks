@@ -6,21 +6,26 @@
 //   Duc Manh : 550.000 d/m3, toi thieu 350.000 d, khong phu thu.
 //              m3 x 550.000 <= 350.000 -> 350.000; nguoc lai max(kg x 1.330, m3 x 550.000).
 //   Viet Linh: m3 > 0,6 -> m3 x 465.000; nguoc lai 500.000. Phu thu 200.000 khi m3 < 2.
+//   J&T      : (chot 2026-10-15) tinh THEO TUNG DONG HANG, khong theo tong don:
+//              cuoc 1 thung = max(40.000, 4.000 x dai x rong x cao(cm) / 6000, kg thung x 4.000);
+//              cuoc dong = cuoc 1 thung x so thung; tong cuoc = tong cac dong. Khong phu thu.
 // (Khong ap dung "giao ra chanh 490k + ve chanh 70k" va nha xe Lien Viet — chi la ghi chu trong sheet.)
 // Doi gia chi sua hang so o day.
 // ==========================================
 
 const RATES = Object.freeze({
   DM: Object.freeze({ perM3: 550000, minimum: 350000, perKg: 1330 }),
-  VL: Object.freeze({ perM3: 465000, smallOrderM3: 0.6, smallOrderFee: 500000, surchargeBelowM3: 2, surcharge: 200000 })
+  VL: Object.freeze({ perM3: 465000, smallOrderM3: 0.6, smallOrderFee: 500000, surchargeBelowM3: 2, surcharge: 200000 }),
+  JT: Object.freeze({ minimumPerCarton: 40000, perUnit: 4000, volumetricDivisor: 6000 })
 });
 
 const CARRIER_NOTES = Object.freeze({
   DM: 'Cước nhà xe Đức Mạnh 550k/m³, cước tối thiểu 350k.',
-  VL: 'Cước nhà xe Việt Linh 465k/m³, đơn từ 0,6 m³ trở xuống tính 500k, phụ thu 200k khi dưới 2 m³.'
+  VL: 'Cước nhà xe Việt Linh 465k/m³, đơn từ 0,6 m³ trở xuống tính 500k, phụ thu 200k khi dưới 2 m³.',
+  JT: 'Cước J&T tính theo từng mã hàng: mỗi thùng lấy lớn nhất của 40k, 4k × dài × rộng × cao / 6000 (cm) và cân nặng × 4k; nhân số thùng rồi cộng các mã.'
 });
 
-const CARRIER_LABELS = Object.freeze({ DM: 'Đức Mạnh', VL: 'Việt Linh' });
+const CARRIER_LABELS = Object.freeze({ DM: 'Đức Mạnh', VL: 'Việt Linh', JT: 'J&T' });
 
 const M3_TEXT = new Intl.NumberFormat('vi-VN', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 const KG_TEXT = new Intl.NumberFormat('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -60,6 +65,24 @@ function calculateVietLinh(m3) {
 }
 
 /**
+ * J&T: cuoc theo tung dong. @param items [{ productCode, cartons, m3PerCarton, kgPerCarton }]
+ */
+function calculateJT(items) {
+  const { minimumPerCarton, perUnit, volumetricDivisor } = RATES.JT;
+  const steps = [];
+  let freight = 0;
+  for (const item of items) {
+    const volumetricKg = (item.m3PerCarton * 1e6) / volumetricDivisor;
+    const perCarton = Math.max(minimumPerCarton, perUnit * volumetricKg, perUnit * item.kgPerCarton);
+    const amount = perCarton * item.cartons;
+    freight += amount;
+    steps.push(step(`${item.productCode}: ${item.cartons} thùng × ${Math.round(perCarton).toLocaleString('vi-VN')}`, amount));
+  }
+  const rounded = Math.round(freight);
+  return { carrier: 'JT', label: CARRIER_LABELS.JT, note: CARRIER_NOTES.JT, freight: rounded, surcharge: 0, total: rounded, steps };
+}
+
+/**
  * @param {{ m3: number, kg: number }} totals
  * @returns {{ DM: object|null, VL: object|null }} moi nha xe: { carrier, label, note, freight, surcharge, total, steps };
  *   null khi thieu the tich (m3 <= 0 hoac khong hop le) — khi do khong tinh cuoc.
@@ -78,7 +101,7 @@ function calculateFreight({ m3, kg }) {
   };
 }
 
-module.exports = { calculateFreight, RATES, CARRIER_LABELS, CARRIER_NOTES };
+module.exports = { calculateFreight, calculateJT, RATES, CARRIER_LABELS, CARRIER_NOTES };
 
 /**
  * HAM THUAN. Gop the tich/can nang cua cac dong hang don + gia cuoc 2 nha xe.
@@ -87,9 +110,15 @@ module.exports = { calculateFreight, RATES, CARRIER_LABELS, CARRIER_NOTES };
  * @returns { lineMeasures, freight } — lineMeasures song song voi `lines`: { status: 'ok'|'missing'|'service', m3, kg, cartons }.
  *   Con ma thieu -> carriers = null (KHONG tinh cuoc, quyet dinh 2026-10-15), chi bao missingCodes.
  */
+// calculateFreight tra DM/VL = null khi thieu the tich; khi do J&T cung khong co gi de tinh.
+function withJT(carriers, jtItems) {
+  return { ...carriers, JT: jtItems.length && carriers.DM ? calculateJT(jtItems) : null };
+}
+
 function buildOrderFreight(lines, measures) {
   const totals = { m3: 0, kg: 0, cartons: 0 };
   const missingCodes = [];
+  const jtItems = [];
   const lineMeasures = lines.map(line => {
     if (line.isService) return { status: 'service', m3: null, kg: null, cartons: null };
     const quantity = Number(line.quantity) || 0;
@@ -102,6 +131,15 @@ function buildOrderFreight(lines, measures) {
     const m3 = quantity * entry.m3PerUnit;
     const kg = quantity * (entry.kgPerUnit || 0);
     const cartons = Math.round(quantity / entry.perCarton);
+    // Dong co SL > 0 ma lam tron ra 0 thung van phai tra it nhat 1 thung cuoc.
+    if (quantity > 0) {
+      jtItems.push({
+        productCode: String(line.productCode ?? '').trim(),
+        cartons: Math.max(1, cartons),
+        m3PerCarton: entry.m3PerUnit * entry.perCarton,
+        kgPerCarton: (entry.kgPerUnit || 0) * entry.perCarton
+      });
+    }
     totals.m3 += m3; totals.kg += kg; totals.cartons += cartons;
     return { status: 'ok', m3, kg, cartons };
   });
@@ -112,7 +150,7 @@ function buildOrderFreight(lines, measures) {
       unavailable: false,
       totals,
       missingCodes,
-      carriers: complete ? calculateFreight(totals) : null
+      carriers: complete ? withJT(calculateFreight(totals), jtItems) : null
     }
   };
 }

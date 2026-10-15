@@ -1015,7 +1015,7 @@
 
     // ---------- The tich & cuoc van chuyen (sheet CAN DO, tinh o may chu; client chi chon nha xe) ----------
     const M3_FORMAT = new Intl.NumberFormat('vi-VN', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
-    const CARRIER_KEYS = ['DM', 'VL'];
+    const CARRIER_KEYS = ['DM', 'VL', 'JT'];
     const CARRIER_STORE = 'tks.lifecycle.carrier';
     let selectedCarrier = 'DM';
     try { const saved = localStorage.getItem(CARRIER_STORE); if(CARRIER_KEYS.indexOf(saved) >= 0) selectedCarrier = saved; } catch(_e){ /* trinh duyet chan storage: dung mac dinh */ }
@@ -1064,6 +1064,7 @@
         '<select class="lc-freight-select" id="lcCarrierSelect">' +
           '<option value="DM"' + (selectedCarrier === 'DM' ? ' selected' : '') + '>Đức Mạnh</option>' +
           '<option value="VL"' + (selectedCarrier === 'VL' ? ' selected' : '') + '>Việt Linh</option>' +
+          '<option value="JT"' + (selectedCarrier === 'JT' ? ' selected' : '') + '>J&amp;T</option>' +
         '</select></div>' +
         '<div id="lcFreightBody">' + freightBodyHtml(freight) + '</div>';
     }
