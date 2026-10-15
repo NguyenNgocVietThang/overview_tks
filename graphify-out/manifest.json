@@ -204,9 +204,9 @@
     "semantic_hash": ""
   },
   "server/config.js": {
-    "mtime": 1792031052.4501467,
-    "seen": 1792031445.373393,
-    "ast_hash": "2d7cb53cdf29cbefe61f082642b0960c",
+    "mtime": 1792038496.4210188,
+    "seen": 1792039042.6503341,
+    "ast_hash": "ae56d193240a1dc54be8cba76ba1f7df",
     "semantic_hash": ""
   },
   "server/dashboard/dashboardData.js": {
@@ -654,9 +654,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1792036102.8383732,
-    "seen": 1792036123.592881,
-    "ast_hash": "6dd689bcada2e635e9d69daf003a3112",
+    "mtime": 1792038845.595298,
+    "seen": 1792039042.6503341,
+    "ast_hash": "fa9e691dbc76981587346fbb95c98098",
     "semantic_hash": ""
   },
   "design-system/tks-dashboard/MASTER.md": {
@@ -672,9 +672,9 @@
     "semantic_hash": ""
   },
   "docs/02-srs/SRS_Dashboard_GoogleSheets.md": {
-    "mtime": 1792036106.7648585,
-    "seen": 1792036123.592881,
-    "ast_hash": "82da2a551de1162fb3eb9a7b57584da8",
+    "mtime": 1792038856.3955848,
+    "seen": 1792039042.6503341,
+    "ast_hash": "73be59818859d07a4bc09b6c84fdedb4",
     "semantic_hash": ""
   },
   "docs/03-process/BPMN_Dashboard_GoogleSheets.md": {
@@ -786,9 +786,9 @@
     "semantic_hash": "58e700daf0c14819a97499bd94f6f2e1"
   },
   "server/README.md": {
-    "mtime": 1792036102.8393736,
-    "seen": 1792036123.592881,
-    "ast_hash": "2d9047672f030bc4605334b4dd36cd38",
+    "mtime": 1792038845.595298,
+    "seen": 1792039042.6538575,
+    "ast_hash": "3a2db709eacf4cc6f79f3dbd103949b4",
     "semantic_hash": ""
   },
   "server/kiotviet/API_ENDPOINTS.md": {
@@ -834,9 +834,9 @@
     "semantic_hash": ""
   },
   "server/public/shipment/lifecycle/index.html": {
-    "mtime": 1792031107.688821,
-    "seen": 1792031445.373393,
-    "ast_hash": "ba336dcad504e6014176b7826736336c",
+    "mtime": 1792038595.64318,
+    "seen": 1792039042.6538575,
+    "ast_hash": "780d77947d6517475e4d010228f645d2",
     "semantic_hash": ""
   },
   "Logo.jpg": {
@@ -2796,15 +2796,15 @@
     "semantic_hash": ""
   },
   "server/shipment/kiotOrdersRepository.js": {
-    "mtime": 1791874710.9092371,
-    "seen": 1791875727.1012073,
-    "ast_hash": "3238e045acdaae09981fb0c4af067ca4",
+    "mtime": 1792038541.7423153,
+    "seen": 1792039042.6503341,
+    "ast_hash": "83a154f6c80be521204771aad1ac19f1",
     "semantic_hash": ""
   },
   "server/shipment/kiotOrdersRepository.test.js": {
-    "mtime": 1791874742.1681864,
-    "seen": 1791875727.1012073,
-    "ast_hash": "f49c4f3a7b1a802a3a44d2f6181afde3",
+    "mtime": 1792038550.7657137,
+    "seen": 1792039042.6503341,
+    "ast_hash": "c0618f59eb8c4492460102341c41b7af",
     "semantic_hash": ""
   },
   "server/shipment/orderLifecycleQuery.js": {
@@ -3066,9 +3066,9 @@
     "semantic_hash": ""
   },
   "server/test/frontend/order-lifecycle-kiot.test.js": {
-    "mtime": 1792031207.3911934,
-    "seen": 1792031445.373393,
-    "ast_hash": "bcc19ef815fb30f1710ed3c458ed54ef",
+    "mtime": 1792038720.9967735,
+    "seen": 1792039042.6503341,
+    "ast_hash": "185a4a403364f04bea5130c8845256f7",
     "semantic_hash": ""
   },
   "server/test/frontend/overview-section-permissions.test.js": {
@@ -3378,9 +3378,9 @@
     "semantic_hash": ""
   },
   "CURRENT.md": {
-    "mtime": 1792036102.836374,
-    "seen": 1792036123.592881,
-    "ast_hash": "5c4d49b4129cd143c3a7192e0f304224",
+    "mtime": 1792038856.3955848,
+    "seen": 1792039042.6503341,
+    "ast_hash": "08dbec2b293a0f2963812a6ce8ace0e6",
     "semantic_hash": ""
   },
   "MEMORY.md": {
@@ -3747,6 +3747,42 @@
     "mtime": 1792031153.6414485,
     "seen": 1792031445.373393,
     "ast_hash": "24c01ebf56bd07549405202b064c215b",
+    "semantic_hash": ""
+  },
+  "server/shipment/freightCalculator.js": {
+    "mtime": 1792038819.2956977,
+    "seen": 1792039042.6503341,
+    "ast_hash": "f557a3c00d6da96564dae5288cba86cd",
+    "semantic_hash": ""
+  },
+  "server/shipment/freightCalculator.test.js": {
+    "mtime": 1792038534.5139737,
+    "seen": 1792039042.6503341,
+    "ast_hash": "dae3d6207fd231fbb270c1dfbe157ad2",
+    "semantic_hash": ""
+  },
+  "server/shipment/measureSheet.js": {
+    "mtime": 1792038516.7945871,
+    "seen": 1792039042.6503341,
+    "ast_hash": "e7fad47148ce6b1ae3c8afd8bf0e00d2",
+    "semantic_hash": ""
+  },
+  "server/shipment/measureSheet.test.js": {
+    "mtime": 1792038516.832085,
+    "seen": 1792039042.6503341,
+    "ast_hash": "1655c04589b5a359b52725cbf30c0029",
+    "semantic_hash": ""
+  },
+  "tasks/plan-shipping-volume.md": {
+    "mtime": 1792038445.435588,
+    "seen": 1792039042.6538575,
+    "ast_hash": "2f8ee1fff2d4880cc3248c7917d321a8",
+    "semantic_hash": ""
+  },
+  "tasks/todo-shipping-volume.md": {
+    "mtime": 1792038856.4514031,
+    "seen": 1792039042.6538575,
+    "ast_hash": "e820e743b728a7cd4f46c7f3a69a81b3",
     "semantic_hash": ""
   }
 }
