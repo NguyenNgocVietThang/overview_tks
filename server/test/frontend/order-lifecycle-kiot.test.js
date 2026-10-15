@@ -660,10 +660,17 @@ function kiotDetail(overrides = {}) {
     code: 'DH041173', branch: 'HN', date: '01/10/2026 13:14', status: 'Phiếu tạm', total: 855000, phieuTam: true, sellableValue: 550000,
     lines: [
       // SL dat 500, ton 40 -> co ban 40 (cong thuc moi min(SL dat, ton kho)); hang dieu chuyen SG 160 chi de tham khao.
-      { productCode: 'A', productName: 'Hàng A', quantity: 500, price: 1000, discount: 0, amount: 500000, isService: false, onHand: 40, inTransit: 160, sellableQty: 40, sellableAmount: 40000 },
-      { productCode: 'B', productName: 'Hàng B', quantity: 70, price: 5000, discount: 0, amount: 350000, isService: false, onHand: 800, inTransit: 0, sellableQty: 70, sellableAmount: 350000 },
-      { productCode: 'VATDA44', productName: 'VAT', quantity: 1, price: 5000, discount: 0, amount: 5000, isService: true, onHand: null, inTransit: null, sellableQty: null, sellableAmount: null }
+      { productCode: 'A', productName: 'Hàng A', quantity: 500, price: 1000, discount: 0, amount: 500000, isService: false, onHand: 40, inTransit: 160, sellableQty: 40, sellableAmount: 40000, measure: { status: 'ok', m3: 1.5, kg: 20, cartons: 5 } },
+      { productCode: 'B', productName: 'Hàng B', quantity: 70, price: 5000, discount: 0, amount: 350000, isService: false, onHand: 800, inTransit: 0, sellableQty: 70, sellableAmount: 350000, measure: { status: 'ok', m3: 0.25, kg: 3, cartons: 1 } },
+      { productCode: 'VATDA44', productName: 'VAT', quantity: 1, price: 5000, discount: 0, amount: 5000, isService: true, onHand: null, inTransit: null, sellableQty: null, sellableAmount: null, measure: { status: 'service', m3: null, kg: null, cartons: null } }
     ],
+    freight: {
+      unavailable: false, totals: { m3: 1.75, kg: 23, cartons: 6 }, missingCodes: [],
+      carriers: {
+        DM: { carrier: 'DM', label: 'Đức Mạnh', note: 'Ghi chú ĐM', freight: 962500, surcharge: 0, total: 962500, steps: [{ label: 'Theo thể tích', amount: 962500 }] },
+        VL: { carrier: 'VL', label: 'Việt Linh', note: 'Ghi chú VL', freight: 813750, surcharge: 200000, total: 1013750, steps: [{ label: 'm³ × 465.000', amount: 813750 }, { label: 'Phụ thu', amount: 200000 }] }
+      }
+    },
     ...overrides
   };
 }
@@ -685,12 +692,12 @@ test('bấm dòng: mở hộp chi tiết, gọi order-detail đúng mã/cơ sở
   assert.ok(document.querySelector('.lc-detail-dialog').classList.contains('is-wide'));
 
   const headers = [...document.querySelectorAll('.lc-lines thead th')].map(th => th.textContent);
-  assert.deepEqual(headers, ['Mã hàng', 'Tên hàng', 'SL đặt', 'Đơn giá', 'Thành tiền', 'Tồn kho', 'Điều chuyển SG', 'Có bán', 'Thành tiền có bán']);
+  assert.deepEqual(headers, ['Mã hàng', 'Tên hàng', 'SL đặt', 'Thể tích (m³)', 'Đơn giá', 'Thành tiền', 'Tồn kho', 'Điều chuyển SG', 'Có bán', 'Thành tiền có bán']);
   assert.ok(!headers.includes('Đang vận chuyển'), 'cot da doi ten');
   const rows = [...document.querySelectorAll('.lc-lines tbody tr')].map(tr => [...tr.cells].map(td => td.textContent));
-  assert.deepEqual(rows[0], ['A', 'Hàng A', '500', '1.000', '500.000', '40', '160', '40', '40.000']);
-  assert.deepEqual(rows[1], ['B', 'Hàng B', '70', '5.000', '350.000', '800', '0', '70', '350.000']);
-  assert.deepEqual(rows[2].slice(5), ['—', '—', '—', '—'], 'dong thue VAT khong co ton/co ban');
+  assert.deepEqual(rows[0], ['A', 'Hàng A', '500', '1,500', '1.000', '500.000', '40', '160', '40', '40.000']);
+  assert.deepEqual(rows[1], ['B', 'Hàng B', '70', '0,250', '5.000', '350.000', '800', '0', '70', '350.000']);
+  assert.deepEqual(rows[2].slice(6), ['—', '—', '—', '—'], 'dong thue VAT khong co ton/co ban');
   assert.ok(document.querySelectorAll('.lc-lines tbody tr')[2].classList.contains('is-service'));
   const text = document.getElementById('lcDetailBody').textContent;
   assert.match(text, /Giá trị đơn \(Kiot\)855\.000₫/);
@@ -713,7 +720,7 @@ test('đơn không còn Phiếu tạm: bảng hàng hóa không có tồn/có b�
   rowsOf(page.document)[0].click();
   await settle();
   const cells = [...page.document.querySelectorAll('.lc-lines tbody tr')[0].cells].map(td => td.textContent);
-  assert.deepEqual(cells.slice(5), ['—', '—', '—', '—']);
+  assert.deepEqual(cells.slice(6), ['—', '—', '—', '—']);
   const text = page.document.getElementById('lcDetailBody').textContent;
   assert.match(text, /không còn ở trạng thái Phiếu tạm/);
   assert.doesNotMatch(text, /Giá trị có bán/);
@@ -1100,5 +1107,55 @@ test('hộp chi tiết KHÔNG có nút "Cột hiển thị" / thanh kéo độ r
   window.TKSTables.refreshAll();
   assert.equal(document.getElementById('lcDetailOverlay').querySelectorAll('.tks-columns-button, .tks-column-resizer').length, 0);
   assert.doesNotMatch(document.getElementById('lcDetailOverlay').textContent, /Cột hiển thị/);
+  page.dom.window.close();
+});
+
+test('khối Thể tích & cước: mặc định Đức Mạnh, đổi dropdown sang Việt Linh đổi ghi chú, bảng tính và tổng cước', async () => {
+  const page = await renderPage({
+    orders: [kiotOnlyOrder('DH041173', { branch: 'HN' })],
+    fetchImpl: url => (url.includes('/order-detail') ? { ok: true, status: 200, json: async () => ({ detail: kiotDetail() }) } : null)
+  });
+  const { document } = page;
+  rowsOf(document)[0].click();
+  await settle();
+  const select = document.getElementById('lcCarrierSelect');
+  assert.equal(select.value, 'DM');
+  let text = document.getElementById('lcFreightBody').textContent;
+  assert.match(text, /Tổng thể tích1,750 m³/);
+  assert.match(text, /Số thùng6/);
+  assert.match(text, /Ghi chú ĐM/);
+  assert.match(text, /962.500/);
+  select.value = 'VL';
+  select.dispatchEvent(new page.dom.window.Event('change', { bubbles: true }));
+  text = document.getElementById('lcFreightBody').textContent;
+  assert.match(text, /Ghi chú VL/);
+  assert.match(text, /Phụ thu/);
+  assert.match(text, /1.013.750/);
+  page.dom.window.close();
+});
+
+test('khối Thể tích & cước: thiếu mã -> cảnh báo, không có tổng cước; sheet lỗi -> thông báo nhỏ', async () => {
+  const missing = kiotDetail({ freight: { unavailable: false, totals: { m3: 1, kg: 2, cartons: 1 }, missingCodes: ['ZZZ'], carriers: null } });
+  let page = await renderPage({
+    orders: [kiotOnlyOrder('DH1')],
+    fetchImpl: url => (url.includes('/order-detail') ? { ok: true, status: 200, json: async () => ({ detail: missing }) } : null)
+  });
+  rowsOf(page.document)[0].click();
+  await settle();
+  let text = page.document.getElementById('lcFreightBody').textContent;
+  assert.match(text, /thiếu dữ liệu trong sheet CÂN ĐO cho mã ZZZ/);
+  assert.match(text, /Tổng cước—/);
+  page.dom.window.close();
+
+  const broken = kiotDetail({ freight: { unavailable: true, message: 'Không đọc được sheet CÂN ĐO.' } });
+  page = await renderPage({
+    orders: [kiotOnlyOrder('DH1')],
+    fetchImpl: url => (url.includes('/order-detail') ? { ok: true, status: 200, json: async () => ({ detail: broken }) } : null)
+  });
+  rowsOf(page.document)[0].click();
+  await settle();
+  text = page.document.getElementById('lcFreight').textContent;
+  assert.match(text, /Không đọc được sheet CÂN ĐO/);
+  assert.equal(page.document.getElementById('lcCarrierSelect'), null);
   page.dom.window.close();
 });

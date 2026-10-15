@@ -29,6 +29,8 @@ const { getPool } = require('../db/pool');
 const { readInTransitByCode } = require('../dashboard/inTransitSource');
 const { saleNameSql } = require('../dashboard/saleName');
 const { getOrderDetail } = require('../dashboard/documentDetailRepository');
+const measureSheet = require('./measureSheet');
+const { buildOrderFreight } = require('./freightCalculator');
 
 // Nhan co so cua Vong doi don hang ('HN'|'SG', nhan tab nguon Sheets) <-> ma co so trong DB.
 // RIENG cho tinh nang nay, KHONG tron voi branch/branches.js (xem memory ve 3 he dinh danh co so).
@@ -168,7 +170,8 @@ function createKiotOrdersRepository({
   ttlMs = DEFAULT_TTL_MS,
   staleMs = DEFAULT_STALE_MS,
   readInTransit = readInTransitByCode,
-  fetchOrderDetail = getOrderDetail
+  fetchOrderDetail = getOrderDetail,
+  lookupMeasures = measureSheet.lookup
 } = {}) {
   const getDb = () => (typeof pool === 'function' ? pool() : (pool || getPool()));
   let cache = null; // { result, at, failed }
@@ -341,11 +344,24 @@ function createKiotOrdersRepository({
         sellableAmount: part.sellableAmount === null ? null : Math.round(part.sellableAmount)
       };
     });
+    // The tich + cuoc (sheet CAN DO). FAIL-SOFT: loi Sheets khong lam hong hop chi tiet.
+    let freight;
+    let lineMeasures = null;
+    try {
+      const codes = lines.filter(line => !line.isService).map(line => line.productCode);
+      const built = buildOrderFreight(lines, await lookupMeasures(codes));
+      freight = built.freight;
+      lineMeasures = built.lineMeasures;
+    } catch (error) {
+      console.warn('[KiotOrders] measure unavailable:', error.code || error.message);
+      freight = { unavailable: true, message: error.statusCode === 503 ? error.message : 'Không tính được thể tích và cước lúc này.' };
+    }
     return {
       ...detail,
       branch,
       phieuTam: isPending,
-      lines,
+      lines: lineMeasures ? lines.map((line, index) => ({ ...line, measure: lineMeasures[index] })) : lines,
+      freight,
       sellableValue: isPending ? Math.round(sellableValue) : null
     };
   }

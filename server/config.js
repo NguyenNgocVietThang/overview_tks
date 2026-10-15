@@ -24,6 +24,10 @@ const CONFIG = {
   MARKETING_ADS_SPREADSHEET_ID: process.env.MARKETING_ADS_SPREADSHEET_ID || null,
   STOCK_LOCATIONS_SHEET_HN: 'Vị trí HN',
   STOCK_LOCATIONS_SHEET_SG: 'Vị trí SG',
+  // Sheet "CÂN ĐO" (kich thuoc/can nang thung) de tinh the tich + cuoc trong hop chi tiet Vong doi don.
+  // De trong = dung chung workbook voi Vi tri hang.
+  SHIPPING_MEASURE_SPREADSHEET_ID: process.env.SHIPPING_MEASURE_SPREADSHEET_ID || process.env.STOCK_LOCATIONS_SPREADSHEET_ID || null,
+  SHIPPING_MEASURE_SHEET: 'CÂN ĐO',
   GOOGLE_SERVICE_ACCOUNT_JSON: required('GOOGLE_SERVICE_ACCOUNT_JSON'),
   PORT: process.env.PORT || 3000,
 

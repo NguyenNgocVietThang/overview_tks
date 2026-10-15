@@ -47,6 +47,7 @@ Mở `http://localhost:3000`.
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | Service account Google (bắt buộc khi khởi động). Quyền Viewer cho Công nợ và Vị trí hàng; **Editor** cho workbook Vòng đời đơn hàng (ghi tab `Lịch sử cập nhật`) |
 | `DEBT_MANAGEMENT_SPREADSHEET_ID` | (Không còn dùng từ 13/10/2026 — tab Công nợ tính từ KiotViet + lịch TT trong Postgres) |
 | `STOCK_LOCATIONS_SPREADSHEET_ID` | Workbook vị trí hàng HN/SG dùng chung, chỉ đọc |
+| `SHIPPING_MEASURE_SPREADSHEET_ID` | Workbook có sheet `CÂN ĐO` (thể tích/cước đơn), chỉ đọc; để trống = dùng `STOCK_LOCATIONS_SPREADSHEET_ID` |
 | `MARKETING_REPORT_SPREADSHEET_ID`, `MARKETING_PHONES_SPREADSHEET_ID`, `MARKETING_ADS_SPREADSHEET_ID` | Ba workbook Báo cáo Marketing, chỉ đọc; service account cần Viewer trên cả ba |
 | `ORDER_LIFECYCLE_SPREADSHEET_ID` | Workbook vòng đời đơn hàng (`DonHang_HN`, `DonHang_SG`, `DonHang_MienNam` = đơn Bắc-Nam tính như đơn Hà Nội, `Khách_HN`/`Khách_SG` = khách/ship lấy tại kho, `KeToan_ChungTu` = đơn kế toán/chứng từ dùng chung HN+SG, `Lịch sử cập nhật`) |
 | `HR_SPREADSHEET_ID`, `HR_SPREADSHEET_ID_SG` | **Đã gỡ khỏi `config.js` và `.env.example` (2026-10-05)** — danh sách nhân sự nay ở Postgres `hr_employees`; biến còn trong môi trường cũ thì bỏ qua được |
@@ -104,6 +105,8 @@ Migration `0014_customer_debt_activity_periods.sql` tạo bảng tổng hợp ba
 Migration `0015_app_users_telegram_id.sql` thêm `app_users.telegram_id` để bot có thể liên kết trực tiếp qua Supabase Postgres. Giao diện/API tạo mã liên kết cũ không còn đọc hoặc ghi tab `_HR_TELEGRAM_LINKS`.
 
 ## Cập nhật gần nhất
+
+2026-10-15 — **Vòng đời đơn hàng: thể tích (m³) và giá cước nhà xe trong hộp chi tiết (không migration)**: `GET /api/shipment/lifecycle/order-detail` trả thêm `lines[].measure` và `freight`; thể tích/cân nặng/số thùng tính theo SL đặt từ sheet **CÂN ĐO** (`shipment/measureSheet.js`, đọc lại khi mở hộp, cache 30 giây, fail-soft), giá cước hai nhà xe tính ở `shipment/freightCalculator.js` (Đức Mạnh 550k/m³ tối thiểu 350k, so với kg×1.330; Việt Linh 465k/m³, ≤0,6 m³ tính 500k, phụ thu 200k khi dưới 2 m³). Hộp chi tiết có dropdown Đức Mạnh/Việt Linh, cột "Thể tích (m³)", tổng thể tích/cân nặng/số thùng và bảng tính cước; còn mã thiếu dữ liệu trong CÂN ĐO thì không tính cước. Biến môi trường mới tùy chọn `SHIPPING_MEASURE_SPREADSHEET_ID` (mặc định dùng chung workbook Vị trí hàng).
 
 2026-10-12 — **Giao diện: thiết kế lại các hộp "xem chi tiết" (không migration)**: khung dùng chung `public/shared/detail-panel.css` (tiền tố `.dp-`: đầu hộp, hàng **chỉ số tổng quan**, khối thông tin, bảng 1 khung cuộn, trạng thái đang tải/lỗi) áp cho mọi hộp chi tiết — Báo cáo tổng hợp (Chi tiết giao dịch, Doanh số theo khách của mã hàng, Báo cáo kinh doanh Sale/Khách/Mã hàng), Vòng đời đơn hàng (chỉ số trạng thái/tiến trình/giá trị/dòng thiếu hàng + tiến trình theo mốc), Nghỉ phép (trạng thái/số ngày/loại/nhãn thời hạn) và hộp chi tiết Marketing. **Bảng trong các hộp này không còn nút "Cột hiển thị"** (`data-table-controls="off"`); bảng ngoài trang vẫn giữ. Biểu đồ tròn của hộp sản phẩm bỏ chú giải riêng, bảng khách tô màu từng lát. **Đổi quy tắc cảnh báo**: "Kế toán sót đơn" chỉ áp dụng khi trạng thái hiệu lực còn là "Đơn đã gửi kế toán" — đơn đã sang Đang giao / Đã nhận / Đã ký nhận (hoặc ghi đè thủ công) thì bỏ cảnh báo.
 

@@ -121,6 +121,7 @@ function repoFor(pool, extra = {}) {
     ttlMs: 120_000,
     staleMs: 900_000,
     readInTransit: async () => { inTransitCalls.n++; return new Map([['a', 160]]); },
+    lookupMeasures: async () => new Map(),
     ...extra
   });
   return { repo, inTransitCalls, advance: ms => { clock += ms; } };
@@ -388,4 +389,37 @@ test('readOrderDetail: truyen dung co so SG -> saigon', async () => {
   // ton SG 1 < SL dat 2 => chi co ban 1 (hang dieu chuyen 160 khong duoc cong them)
   assert.equal(detail.lines[0].sellableQty, 1);
   assert.equal(detail.lines[0].inTransit, 160);
+});
+
+test('readOrderDetail: gan the tich theo SL dat + cuoc 2 nha xe; dong VAT bo qua', async () => {
+  const pool = createFakePool({ onHand: { hanoi: { A: 40 } } });
+  const lines = [L('A', 250, 1000), L('VATDA44', 1, 160000)];
+  const { repo } = repoFor(pool, {
+    fetchOrderDetail: async () => detailFixture('Hoàn thành', lines),
+    lookupMeasures: async () => new Map([['a', { perCarton: 100, m3PerUnit: 0.01, kgPerUnit: 0.5 }]])
+  });
+  const detail = await repo.readOrderDetail({ branch: 'HN', code: 'DH000001' });
+  assert.equal(detail.lines[0].measure.m3, 2.5);
+  assert.equal(detail.lines[1].measure.status, 'service');
+  assert.equal(detail.freight.totals.m3, 2.5);
+  assert.equal(detail.freight.carriers.DM.total, Math.round(Math.max(2.5 * 550000, 125 * 1330)));
+  assert.equal(detail.freight.carriers.VL.total, Math.round(2.5 * 465000));
+});
+
+test('readOrderDetail: ma thieu trong CAN DO -> khong tinh cuoc, liet ke ma thieu', async () => {
+  const { repo } = repoFor(createFakePool({}), { fetchOrderDetail: async () => detailFixture('Hoàn thành', [L('ZZZ', 5, 1000)]) });
+  const detail = await repo.readOrderDetail({ branch: 'HN', code: 'DH000001' });
+  assert.deepEqual(detail.freight.missingCodes, ['ZZZ']);
+  assert.equal(detail.freight.carriers, null);
+});
+
+test('readOrderDetail: doc sheet loi -> fail-soft, van tra chi tiet don', async () => {
+  const { repo } = repoFor(createFakePool({}), {
+    fetchOrderDetail: async () => detailFixture('Hoàn thành', [L('A', 5, 1000)]),
+    lookupMeasures: async () => { const e = new Error('Không đọc được sheet CÂN ĐO.'); e.statusCode = 503; e.code = 'MEASURE_SOURCE_UNAVAILABLE'; throw e; }
+  });
+  const detail = await repo.readOrderDetail({ branch: 'HN', code: 'DH000001' });
+  assert.equal(detail.freight.unavailable, true);
+  assert.match(detail.freight.message, /CÂN ĐO/);
+  assert.equal(detail.lines.length, 1);
 });

@@ -372,10 +372,21 @@
   /* Bang "Hang hoa trong don" (du lieu Kiot) trong hop chi tiet */
   #lcDetailStats:empty, #lcDetailKiot:empty{ display:none; }
   .lc-lines-status{ margin:0; color:var(--muted); font-size:12.5px; }
-  .lc-lines{ min-width:780px; }
+  .lc-lines{ min-width:860px; }
   .lc-lines tr.is-service td{ color:var(--muted); }
   .lc-lines td.is-short{ color:var(--amber); font-weight:700; }
   .lc-lines-note{ margin:8px 0 0; color:var(--muted); font-size:12px; line-height:1.5; }
+  .lc-lines td.is-missing{ color:var(--amber); font-weight:600; }
+  /* Khoi The tich & cuoc van chuyen trong hop chi tiet */
+  .lc-freight{ margin-top:16px; }
+  .lc-freight-bar{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+  .lc-freight-bar label{ color:var(--muted); font-size:12px; font-weight:600; }
+  .lc-freight-select{
+    font:inherit; font-size:13px; color:var(--text); background:var(--panel-2); border:1px solid var(--border);
+    border-radius:var(--radius-sm); padding:6px 10px; min-height:34px;
+  }
+  .lc-freight-alert{ margin:0 0 10px; color:var(--amber); font-size:12.5px; line-height:1.5; }
+  .lc-freight-steps{ margin-top:10px; }
 
   /* Dien thoai: moi khoi xep thanh cot kin chieu ngang panel; bo loc Tu - Den cung
      khuon voi Bao cao tong hop / Nghi phep (2 cot, nhan tren o dd/mm/yyyy). */
@@ -958,6 +969,7 @@
       }
       let html = head + '<div class="dp-table-wrap is-flow"><table class="dp-table lc-lines" data-table-controls="off" data-table-key="shipment-lifecycle-table-3"><thead><tr>' +
         '<th>Mã hàng</th><th>Tên hàng</th><th class="num">SL đặt</th>' +
+        '<th class="num" title="Thể tích = SL đặt × m³ mỗi cái (theo sheet CÂN ĐO)">Thể tích (m³)</th>' +
         '<th class="num" title="Đơn giá sau chiết khấu của dòng">Đơn giá</th><th class="num">Thành tiền</th>' +
         '<th class="num" title="Tồn thực tế của Kiot (cơ sở của đơn)">Tồn kho</th>' +
         '<th class="num" title="Hàng đang điều chuyển cho Sài Gòn (phiếu Đặt hàng nhập đã xác nhận NCC trên Kiot SG), cùng một số cho cả hai cơ sở. Chỉ để tham khảo — không tính vào số lượng có bán.">Điều chuyển SG</th>' +
@@ -971,6 +983,7 @@
           '<td class="dp-code">' + escapeHtml(line.productCode || '—') + '</td>' +
           '<td class="dp-cell-main">' + escapeHtml(line.productName || '—') + '</td>' +
           '<td class="num">' + escapeHtml(formatQty(line.quantity)) + '</td>' +
+          measureCell(line) +
           '<td class="num">' + escapeHtml(formatTableVnd((Number(line.price) || 0) - (Number(line.discount) || 0))) + '</td>' +
           '<td class="num">' + escapeHtml(formatTableVnd(line.amount)) + '</td>' +
           stockCell(line.onHand) + stockCell(line.inTransit) +
@@ -986,8 +999,71 @@
       } else {
         html += '<p class="lc-lines-note">Đơn này không còn ở trạng thái Phiếu tạm trên Kiot nên không tính tồn kho / giá trị có bán.</p>';
       }
+      return html + '<div class="lc-freight" id="lcFreight">' + freightHtml(detail) + '</div>';
+    }
+
+    // ---------- The tich & cuoc van chuyen (sheet CAN DO, tinh o may chu; client chi chon nha xe) ----------
+    const M3_FORMAT = new Intl.NumberFormat('vi-VN', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+    const CARRIER_KEYS = ['DM', 'VL'];
+    const CARRIER_STORE = 'tks.lifecycle.carrier';
+    let selectedCarrier = 'DM';
+    try { const saved = localStorage.getItem(CARRIER_STORE); if(CARRIER_KEYS.indexOf(saved) >= 0) selectedCarrier = saved; } catch(_e){ /* trinh duyet chan storage: dung mac dinh */ }
+
+    function measureCell(line){
+      const m = line.measure;
+      if(!m || m.status === 'service') return '<td class="num">—</td>';
+      if(m.status === 'missing') return '<td class="num is-missing" title="Mã chưa đủ dữ liệu trong sheet CÂN ĐO">Thiếu</td>';
+      return '<td class="num">' + escapeHtml(M3_FORMAT.format(m.m3)) + '</td>';
+    }
+
+    function freightBodyHtml(freight){
+      const carrier = freight.carriers && freight.carriers[selectedCarrier];
+      const totals = freight.totals;
+      let html = '';
+      if(freight.missingCodes && freight.missingCodes.length){
+        html += '<p class="lc-freight-alert">Chưa tính được giá cước: thiếu dữ liệu trong sheet CÂN ĐO cho mã ' +
+          escapeHtml(freight.missingCodes.join(', ')) + '. Tổng thể tích dưới đây chỉ gồm các mã đã đo.</p>';
+      }
+      html += detailStatsHtml([
+        { label: 'Tổng thể tích', value: M3_FORMAT.format(totals.m3) + ' m³' },
+        { label: 'Tổng cân nặng', value: formatQty(Math.round(totals.kg * 10) / 10) + ' kg' },
+        { label: 'Số thùng', value: formatQty(totals.cartons) },
+        { label: 'Tổng cước', value: carrier ? formatTableVnd(carrier.total) + ' đ' : '—', tone: carrier ? 'blue' : '' }
+      ]);
+      if(carrier){
+        html += '<div class="lc-freight-steps dp-table-wrap is-flow"><table class="dp-table" data-table-controls="off"><thead><tr>' +
+          '<th>Bảng tính cước · ' + escapeHtml(carrier.label) + '</th><th class="num">Số tiền (đ)</th></tr></thead><tbody>' +
+          carrier.steps.map(function(step){
+            return '<tr><td>' + escapeHtml(step.label) + '</td><td class="num">' + escapeHtml(formatTableVnd(step.amount)) + '</td></tr>';
+          }).join('') +
+          '<tr><td><strong>Tổng cước' + (carrier.surcharge ? ' (đã gồm phụ thu)' : '') + '</strong></td><td class="num"><strong>' +
+          escapeHtml(formatTableVnd(carrier.total)) + '</strong></td></tr></tbody></table></div>' +
+          '<p class="lc-lines-note">' + escapeHtml(carrier.note) + '</p>';
+      }
       return html;
     }
+
+    function freightHtml(detail){
+      const freight = detail.freight;
+      const head = detailSectionHead('Thể tích & cước vận chuyển', 'Theo sheet CÂN ĐO · SL đặt');
+      if(!freight) return '';
+      if(freight.unavailable) return head + '<p class="lc-lines-status">' + escapeHtml(freight.message || 'Không tính được thể tích và cước lúc này.') + '</p>';
+      return head +
+        '<div class="lc-freight-bar"><label for="lcCarrierSelect">Nhà xe</label>' +
+        '<select class="lc-freight-select" id="lcCarrierSelect">' +
+          '<option value="DM"' + (selectedCarrier === 'DM' ? ' selected' : '') + '>Đức Mạnh</option>' +
+          '<option value="VL"' + (selectedCarrier === 'VL' ? ' selected' : '') + '>Việt Linh</option>' +
+        '</select></div>' +
+        '<div id="lcFreightBody">' + freightBodyHtml(freight) + '</div>';
+    }
+
+    // Uy quyen su kien: hop chi tiet duoc ve lai nhieu lan, khong gan listener lai moi lan.
+    detailBody.addEventListener('change', function(e){
+      if(!e.target || e.target.id !== 'lcCarrierSelect' || !detailKiot || !detailKiot.freight) return;
+      selectedCarrier = CARRIER_KEYS.indexOf(e.target.value) >= 0 ? e.target.value : 'DM';
+      try { localStorage.setItem(CARRIER_STORE, selectedCarrier); } catch(_e){ /* bo qua */ }
+      document.getElementById('lcFreightBody').innerHTML = freightBodyHtml(detailKiot.freight);
+    });
 
     function loadKiotLines(order){
       const requestId = detailRequestId;

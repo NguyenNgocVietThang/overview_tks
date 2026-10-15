@@ -70,7 +70,7 @@ Chưa áp migration `0036` → các API trả 503 `BUSINESS_REPORT_NOT_READY` (g
 Query string (đều tùy chọn; giá trị sai → 400 kèm mã): `branch` (HN|SG), `status` (trạng thái vòng đời), `kiotStatus`, `dateField` (saleSentAt|at|orderDate) + `from`/`to` (YYYY-MM-DD), `mode` (code|sale|customer) + `q`, `sort` (orderCode, orderDate, saleName, customerName, orderTotal, sellableValue, note, saleSentAt, kiotStatus, status, at, warning) + `dir` (asc|desc), `page`, `pageSize` (mặc định 100, tối đa 200). Không chọn `sort` → đơn mới đặt nhất trước. Logic lọc / sắp xếp / cắt trang nằm trong `shipment/orderLifecycleQuery.js` (hàm thuần, kết quả lọc + sắp xếp được cache để lật trang không sắp xếp lại); danh sách đã gộp được dùng lại giữa các request khi dữ liệu nguồn không đổi (khóa có cả phút hiện tại vì cảnh báo quá 24h phụ thuộc đồng hồ). Trình duyệt chỉ nhận 1 trang (~8 KB) thay vì cả danh sách.
 
 - `shipment/kiotOrdersRepository.js` — đọc đầu đơn của mọi trạng thái (một truy vấn ~2 giây, ~17 MB JSON thô) + dòng hàng **chỉ của đơn Phiếu tạm** + tồn thực của **đúng cơ sở của đơn**, rồi tính **Giá trị có bán** = Σ từng mặt hàng `min(SL đặt, max(0, tồn kho)) × đơn giá sau chiết khấu` (bỏ dòng mã `VAT*`; cùng mã hàng xuất hiện nhiều dòng thì gộp trước khi lấy min). Từ 2026-10-02 **không còn cộng hàng đang vận chuyển** vào số lượng có bán. Cache 2 phút kiểu stale-while-revalidate (hết hạn → trả ngay bản cũ và làm mới nền; lỗi → bản cũ đánh dấu `stale`, thử lại sau 15 giây; quá 15 phút mới chờ đọc lại).
-- `GET /api/shipment/lifecycle/order-detail?code=<mã>&branch=HN|SG` — chi tiết đơn + từng dòng hàng kèm tồn kho / **Điều chuyển SG** (hàng đang vận chuyển, `dashboard/inTransitSource.js`; chỉ để tham khảo, không tính vào có bán) / có bán (404 `ORDER_NOT_FOUND`, 400 `INVALID_CODE` / `INVALID_BRANCH`).
+- `GET /api/shipment/lifecycle/order-detail?code=<mã>&branch=HN|SG` — chi tiết đơn + từng dòng hàng kèm tồn kho / **Điều chuyển SG** (hàng đang vận chuyển, `dashboard/inTransitSource.js`; chỉ để tham khảo, không tính vào có bán) / có bán (404 `ORDER_NOT_FOUND`, 400 `INVALID_CODE` / `INVALID_BRANCH`). Từ 15/10/2026 trả thêm `lines[].measure` (`status` ok/missing/service, `m3`, `kg`, `cartons`) và `freight` (`totals`, `missingCodes`, `carriers.DM|VL` = cước + phụ thu + các bước tính; `carriers = null` khi còn mã thiếu trong sheet CÂN ĐO; `unavailable: true` khi không đọc được sheet, hộp chi tiết vẫn dùng được).
 - `POST /api/shipment/lifecycle/export` (quyền `shipment.export`, mặc định **chỉ Quản lý**) nhận **chính bộ tham số lọc / sắp xếp** của `GET /` (không cần `page`) và xuất **mọi dòng khớp**, tối đa 20.000 dòng (vượt → 400 `TOO_MANY_ROWS`; 60.000 dòng chặn máy chủ ~7 giây). File có thêm cột Ghi chú và Trạng thái KiotViet.
 - Tên sale lấy từ Kiot có dạng `<tên> - <ID Telegram>`: `dashboard/saleName.js` (`stripTelegramId` / `saleNameSql`) bỏ hậu tố ID ở mọi nơi hiển thị (chỉ đổi hiển thị, dữ liệu gốc giữ nguyên).
 - Công thức **Tồn có thể bán** dùng chung toàn dashboard: `Tồn thực tế − Đặt hàng Phiếu tạm (Khách đặt)` (từ 2026-10-06 không còn cộng Hàng đang vận chuyển; cột Vận chuyển chỉ để xem) (bảng "Cơ cấu tồn kho" tab Hàng hóa, bảng "Báo cáo hàng hóa" tab Tổng quan do job đêm `kiotvietSync/productReportRefresh.js` dựng, và các file xuất tương ứng).
@@ -164,7 +164,7 @@ Entity `suppliers` đã bỏ khỏi scheduler (migration `0026`); file `kiotviet
 Server **không còn đọc tab Trả NCC** từ Google Sheets HN/SG (đã chuyển sang upload Excel vào Postgres `supplier_return_imports`). Service account vẫn cần quyền:
 - **Viewer** trên workbook `DEBT_MANAGEMENT_SPREADSHEET_ID` (Công nợ HN/SG).
 - **Viewer** trên workbook `ORDER_LIFECYCLE_SPREADSHEET_ID` (tra cứu vòng đời đơn hàng — server đọc tab `DonHang_HN`, `DonHang_SG`, `DonHang_MienNam`, `Khách_HN`, `Khách_SG`, `KeToan_ChungTu`; ghi tab `Lịch sử cập nhật` nên cần **Editor**).
-- **Viewer** trên workbook `STOCK_LOCATIONS_SPREADSHEET_ID` (Vị trí hàng HN/SG, chỉ đọc).
+- **Viewer** trên workbook `STOCK_LOCATIONS_SPREADSHEET_ID` (Vị trí hàng HN/SG, chỉ đọc); cùng workbook này chứa sheet `CÂN ĐO` (hoặc đặt `SHIPPING_MEASURE_SPREADSHEET_ID`).
 - Workbook HR **không còn được đọc và không còn biến cấu hình** — danh sách nhân sự lấy từ Postgres `hr_employees`.
 
 Hai file Kiot HN/SG **không còn** được server truy cập.
@@ -314,7 +314,7 @@ API: `PATCH /api/debt-management/{sale-feedback,manager-feedback,status,schedule
 
 Thứ tự deploy: `npm run db:migrate` (0047; 0051 cho bảng phạt sale — sau deploy chạy tay `node debtSchedule/debtPenaltyLedger.js` để backfill các chu kỳ cũ) → import lịch TT HN + SG → deploy code → chạy tay `debtCycleSnapshot.js` sau 15:00 (hoặc chờ 15:00).
 
-Cập nhật gần nhất: 14/10/2026.
+Cập nhật gần nhất: 15/10/2026.
 
 Điều chỉnh 15/10/2026: trong tháng hiển thị điểm/hạng, thưởng tạm tính và tổng phạt từ các ngày ĐÃ CHỐT, không cộng chu kỳ đang mở. Lúc 14:59 giờ Việt Nam lưu bản cuối của chu kỳ 15:00 hôm trước–14:59 hôm sau, mỗi chu kỳ đúng một lần và không ghi đè; 15:00 mới reset. Nhiều lần Tính lại trong chu kỳ chỉ cập nhật bản đang mở, không cộng thành nhiều ngày. Tiền thưởng hiện mỗi ngày với nhãn Thưởng tạm tính, thay đổi theo điểm và tổng phạt đã chốt ngày; chỉ chốt/lưu thưởng chính thức một lần khi kết thúc tháng. Web, hộp chi tiết và file xuất đều phân biệt tạm tính/đã chốt.
 
