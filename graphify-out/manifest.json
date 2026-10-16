@@ -654,9 +654,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1792146522.8926277,
-    "seen": 1792147157.80127,
-    "ast_hash": "6785e422b6994532526bad8e7ba313a8",
+    "mtime": 1792148172.94001,
+    "seen": 1792148208.662964,
+    "ast_hash": "ec9e8c8dfcbae907a3f2d812b68fd6e9",
     "semantic_hash": ""
   },
   "design-system/tks-dashboard/MASTER.md": {
@@ -672,9 +672,9 @@
     "semantic_hash": ""
   },
   "docs/02-srs/SRS_Dashboard_GoogleSheets.md": {
-    "mtime": 1792143030.1706135,
-    "seen": 1792143244.6781673,
-    "ast_hash": "42e672ddbde250a9b043776a0a4c5b90",
+    "mtime": 1792148135.263121,
+    "seen": 1792148208.662964,
+    "ast_hash": "dab47b7f6ca4c68ef9e4a8a823903db6",
     "semantic_hash": ""
   },
   "docs/03-process/BPMN_Dashboard_GoogleSheets.md": {
@@ -684,9 +684,9 @@
     "semantic_hash": ""
   },
   "docs/04-planning/implementation_plan.md": {
-    "mtime": 1792143030.1706135,
-    "seen": 1792143244.6781673,
-    "ast_hash": "f7dbae410bf890d2218a6c0d44bf4992",
+    "mtime": 1792147510.1449673,
+    "seen": 1792148208.662964,
+    "ast_hash": "344b2e375c50fb9648c21c139d38bd96",
     "semantic_hash": ""
   },
   "docs/superpowers/plans/2026-08-13-dashboard-result-cache.md": {
@@ -786,9 +786,9 @@
     "semantic_hash": "58e700daf0c14819a97499bd94f6f2e1"
   },
   "server/README.md": {
-    "mtime": 1792143030.1601453,
-    "seen": 1792143244.6781673,
-    "ast_hash": "8551f519d242c7e9f58c0260065c78e2",
+    "mtime": 1792148151.531551,
+    "seen": 1792148208.662964,
+    "ast_hash": "672ba5ed766d202a1a55f0ce11bde189",
     "semantic_hash": ""
   },
   "server/kiotviet/API_ENDPOINTS.md": {
@@ -1386,9 +1386,9 @@
     "semantic_hash": ""
   },
   "server/db/SCHEMA.md": {
-    "mtime": 1792144009.6988957,
-    "seen": 1792147157.8066955,
-    "ast_hash": "961a1e96aede11dca0c38f02def1b7ef",
+    "mtime": 1792147332.7592392,
+    "seen": 1792148208.662964,
+    "ast_hash": "8777fe3bf3138067159591bacae7228c",
     "semantic_hash": ""
   },
   "server/auth/appUsersRepository.js": {
@@ -2754,9 +2754,9 @@
     "semantic_hash": ""
   },
   "server/public/marketing-report.js": {
-    "mtime": 1792143894.5907478,
-    "seen": 1792147157.80127,
-    "ast_hash": "d11cd56a8bda9da67a16f976e96505b0",
+    "mtime": 1792147613.706939,
+    "seen": 1792148208.662964,
+    "ast_hash": "f0535e7f62f8dad59d33a9293eba673d",
     "semantic_hash": ""
   },
   "server/public/shared/search-clear.js": {
@@ -2802,9 +2802,9 @@
     "semantic_hash": ""
   },
   "server/shipment/kiotOrdersRepository.test.js": {
-    "mtime": 1792146389.4169931,
-    "seen": 1792147157.80127,
-    "ast_hash": "9652b6ff9a2196df3c27872f3970877c",
+    "mtime": 1792147613.9329925,
+    "seen": 1792148208.662964,
+    "ast_hash": "e015e402cb99c7f24d7dc2fe3f195959",
     "semantic_hash": ""
   },
   "server/shipment/orderLifecycleQuery.js": {
@@ -3048,9 +3048,9 @@
     "semantic_hash": ""
   },
   "server/test/frontend/marketing-report.test.js": {
-    "mtime": 1792143882.0685656,
-    "seen": 1792147157.80127,
-    "ast_hash": "5bd82cad0867ef04072ef7beb973b597",
+    "mtime": 1792147614.28132,
+    "seen": 1792148208.662964,
+    "ast_hash": "ad8d3431af25c68be45901c478dc451b",
     "semantic_hash": ""
   },
   "server/test/frontend/order-lifecycle-columns.test.js": {
@@ -3060,9 +3060,9 @@
     "semantic_hash": ""
   },
   "server/test/frontend/order-lifecycle-kiot.test.js": {
-    "mtime": 1792146480.613475,
-    "seen": 1792147157.80127,
-    "ast_hash": "64fe934d80f27188e2df6e714fe66ce3",
+    "mtime": 1792147614.2842906,
+    "seen": 1792148208.662964,
+    "ast_hash": "4c8434b5aed40611114301474b345be0",
     "semantic_hash": ""
   },
   "server/test/frontend/overview-section-permissions.test.js": {
@@ -3072,8 +3072,8 @@
     "semantic_hash": ""
   },
   "server/test/frontend/product-report-detail.test.js": {
-    "mtime": 1792144104.2906086,
-    "seen": 1792147157.80127,
+    "mtime": 1792147614.2859209,
+    "seen": 1792148208.662964,
     "ast_hash": "fbe59faa752ae3e802867fbb4d1da4db",
     "semantic_hash": ""
   },
@@ -3114,8 +3114,8 @@
     "semantic_hash": ""
   },
   "server/test/frontend/table-time-sort.test.js": {
-    "mtime": 1792143922.717052,
-    "seen": 1792147157.80127,
+    "mtime": 1792147614.399044,
+    "seen": 1792148208.662964,
     "ast_hash": "a142197446b3990fb37bdfd988b79f6b",
     "semantic_hash": ""
   },
@@ -3324,9 +3324,9 @@
     "semantic_hash": ""
   },
   "server/notifications/specialDayNotifier.test.js": {
-    "mtime": 1791533295.5577707,
-    "seen": 1792137926.7121809,
-    "ast_hash": "f623bfae22ae4e0fa9fcf8aa3c2f5c0a",
+    "mtime": 1792148119.066554,
+    "seen": 1792148208.662964,
+    "ast_hash": "9097c60f99757263cbd93974250fd0b0",
     "semantic_hash": ""
   },
   "server/public/shared/fireworks.js": {
@@ -3336,9 +3336,9 @@
     "semantic_hash": ""
   },
   "server/public/shared/special-days.js": {
-    "mtime": 1791534255.3207996,
-    "seen": 1792137926.7121809,
-    "ast_hash": "56c042ea04ca6091f88be58629e238fe",
+    "mtime": 1792148087.8680518,
+    "seen": 1792148208.662964,
+    "ast_hash": "8eda1377eb68918a408922571eebdb48",
     "semantic_hash": ""
   },
   "server/test/frontend/fireworks.test.js": {
@@ -3348,9 +3348,9 @@
     "semantic_hash": ""
   },
   "server/test/frontend/special-days.test.js": {
-    "mtime": 1791533254.2716725,
-    "seen": 1792137926.7121809,
-    "ast_hash": "7c14532f865764382f4c6496ac236c29",
+    "mtime": 1792148109.1488593,
+    "seen": 1792148208.662964,
+    "ast_hash": "72493984f49dcf4a0d336fec5e80df74",
     "semantic_hash": ""
   },
   ".agents/rules/graphify.md": {
@@ -3372,9 +3372,9 @@
     "semantic_hash": ""
   },
   "CURRENT.md": {
-    "mtime": 1792147101.5748918,
-    "seen": 1792147157.80127,
-    "ast_hash": "b518c33e07e6debfa788307b6cfc605d",
+    "mtime": 1792147612.1799424,
+    "seen": 1792148208.662964,
+    "ast_hash": "5141fb0cf23a25e7857fe0e8bebafcb8",
     "semantic_hash": ""
   },
   "MEMORY.md": {
@@ -3744,26 +3744,26 @@
     "semantic_hash": ""
   },
   "server/shipment/freightCalculator.js": {
-    "mtime": 1792146262.6363704,
-    "seen": 1792147157.80127,
-    "ast_hash": "1c660fbae4ae8278f2929e518a7750d8",
+    "mtime": 1792147613.9304178,
+    "seen": 1792148208.662964,
+    "ast_hash": "a8f0f39413c6b94ec51ddc8af2c413db",
     "semantic_hash": ""
   },
   "server/shipment/freightCalculator.test.js": {
-    "mtime": 1792146289.3341625,
-    "seen": 1792147157.80127,
-    "ast_hash": "ad15be5944eb7f734df7857b7f1a323d",
+    "mtime": 1792147613.9319682,
+    "seen": 1792148208.662964,
+    "ast_hash": "27aba32c4f2f5f08f36f1a4bc94d8462",
     "semantic_hash": ""
   },
   "server/shipment/measureSheet.js": {
-    "mtime": 1792146547.8115973,
-    "seen": 1792147157.80127,
+    "mtime": 1792147613.9340186,
+    "seen": 1792148208.662964,
     "ast_hash": "eed3089cd972d3abb46ef5221748227f",
     "semantic_hash": ""
   },
   "server/shipment/measureSheet.test.js": {
-    "mtime": 1792146547.8125973,
-    "seen": 1792147157.80127,
+    "mtime": 1792147613.9345334,
+    "seen": 1792148208.662964,
     "ast_hash": "2b6d2ac73d2b1247aa7f96f4ef1c2fc6",
     "semantic_hash": ""
   },
@@ -3804,14 +3804,14 @@
     "semantic_hash": ""
   },
   "server/productContainers/repository.js": {
-    "mtime": 1792146246.9285257,
-    "seen": 1792147157.80127,
-    "ast_hash": "b0eb5708d70247d7adb9a6d6311dd3ed",
+    "mtime": 1792147613.4759762,
+    "seen": 1792148208.662964,
+    "ast_hash": "fa97dd7f373b602a16d5af3b672f075c",
     "semantic_hash": ""
   },
   "server/productContainers/repository.test.js": {
-    "mtime": 1792146652.5670214,
-    "seen": 1792147157.80127,
+    "mtime": 1792147613.4787822,
+    "seen": 1792148208.662964,
     "ast_hash": "059b3a0b9ea3b34312ad359495e45144",
     "semantic_hash": ""
   },
@@ -3822,9 +3822,9 @@
     "semantic_hash": ""
   },
   "server/productContainers/sync.js": {
-    "mtime": 1792146247.074675,
-    "seen": 1792147157.80127,
-    "ast_hash": "585e2675a92713c2d8ea193d6df011bc",
+    "mtime": 1792147613.4809122,
+    "seen": 1792148208.662964,
+    "ast_hash": "e7a9fe0c2a21f905e2e30dab0d1609ad",
     "semantic_hash": ""
   },
   "server/productContainers/sync.test.js": {

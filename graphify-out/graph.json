@@ -42349,12 +42349,12 @@
     },
     {
       "id": "server_shipment_kiotordersrepository_test_createkiotordersrepository_lifecycle_to_db_branch_db_to_lifecycle_branch_test",
-      "label": "{\n  createKiotOrdersRepository, LIFECYCLE_TO_DB_BRANCH, DB_TO_LIFECYCLE_BRANCH, __test__\n}",
+      "label": "{\r\n  createKiotOrdersRepository, LIFECYCLE_TO_DB_BRANCH, DB_TO_LIFECYCLE_BRANCH, __test__\r\n}",
       "_origin": "ast",
       "community": 112,
       "community_name": "kiotOrdersRepository.test.js",
       "file_type": "code",
-      "norm_label": "{\n  createkiotordersrepository, lifecycle_to_db_branch, db_to_lifecycle_branch, __test__\n}",
+      "norm_label": "{\r\n  createkiotordersrepository, lifecycle_to_db_branch, db_to_lifecycle_branch, __test__\r\n}",
       "source_file": "server/shipment/kiotOrdersRepository.test.js",
       "source_location": "L7"
     },
@@ -46634,7 +46634,7 @@
       "node_kind": "heading",
       "norm_label": "2. cac \u0111au viec vua hoan thanh (recently completed \u2014 thang 10/2026)",
       "source_file": "CURRENT.md",
-      "source_location": "L45"
+      "source_location": "L47"
     },
     {
       "id": "server_notifications_notificationroutes_test",
@@ -71800,7 +71800,7 @@
       "node_kind": "heading",
       "norm_label": "1. tong quan trang thai hien tai (current status)",
       "source_file": "CURRENT.md",
-      "source_location": "L31"
+      "source_location": "L33"
     },
     {
       "id": "current_3_h\u00e0nh_\u0111\u1ed9ng_ti\u1ebfp_theo_c\u1ea7n_th\u1ef1c_hi\u1ec7n_next_steps_operations",
@@ -71812,7 +71812,7 @@
       "node_kind": "heading",
       "norm_label": "3. hanh \u0111ong tiep theo can thuc hien (next steps & operations)",
       "source_file": "CURRENT.md",
-      "source_location": "L154"
+      "source_location": "L156"
     },
     {
       "id": "current_current_b\u1ea3ng_tr\u1ea1ng_th\u00e1i_th\u1eddi_gian_th\u1ef1c_realtime_dashboard",
@@ -71836,7 +71836,7 @@
       "node_kind": "heading",
       "norm_label": "ghi nhan phien 12/10 (lich su)",
       "source_file": "CURRENT.md",
-      "source_location": "L194"
+      "source_location": "L196"
     },
     {
       "id": "current_marketing_pancake_c\u1eadp_nh\u1eadt_phi\u00ean_12_10_2026",
@@ -71848,7 +71848,7 @@
       "node_kind": "heading",
       "norm_label": "marketing pancake \u2014 cap nhat phien 12/10/2026",
       "source_file": "CURRENT.md",
-      "source_location": "L182"
+      "source_location": "L184"
     },
     {
       "id": "current_tr\u1ea1ng_th\u00e1i_v\u1eadn_h\u00e0nh_ki\u1ec3m_tra_tr\u1ef1c_ti\u1ebfp_ng\u00e0y_13_10_2026",
@@ -71860,7 +71860,7 @@
       "node_kind": "heading",
       "norm_label": "trang thai van hanh kiem tra truc tiep ngay 13/10/2026",
       "source_file": "CURRENT.md",
-      "source_location": "L184"
+      "source_location": "L186"
     },
     {
       "id": "docs_superpowers_plans_2026_10_07_business_report_task_6_\u0111\u1ed1i_chi\u1ebfu_tr\u00ean_db_th\u1eadt_to\u00e0n_b\u1ed9_test_t\u00e0i_li\u1ec7u",
@@ -179151,7 +179151,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CURRENT.md",
-      "source_location": "L154",
+      "source_location": "L156",
       "weight": 1.0
     },
     {
@@ -179162,7 +179162,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CURRENT.md",
-      "source_location": "L182",
+      "source_location": "L184",
       "weight": 1.0
     },
     {
@@ -179173,7 +179173,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CURRENT.md",
-      "source_location": "L31",
+      "source_location": "L33",
       "weight": 1.0
     },
     {
@@ -179184,7 +179184,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CURRENT.md",
-      "source_location": "L45",
+      "source_location": "L47",
       "weight": 1.0
     },
     {
@@ -179195,7 +179195,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CURRENT.md",
-      "source_location": "L184",
+      "source_location": "L186",
       "weight": 1.0
     },
     {
@@ -179206,7 +179206,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CURRENT.md",
-      "source_location": "L194",
+      "source_location": "L196",
       "weight": 1.0
     },
     {
@@ -233293,7 +233293,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CURRENT.md",
-      "source_location": "L33",
+      "source_location": "L35",
       "weight": 1.0
     },
     {
@@ -250140,7 +250140,7 @@
       "confidence_score": 0.95,
       "context": "createNotificationForUsers",
       "source_file": "CURRENT.md",
-      "source_location": "L105",
+      "source_location": "L107",
       "weight": 1.0
     },
     {
@@ -250248,7 +250248,7 @@
       "confidence_score": 0.95,
       "context": "daysToOrder",
       "source_file": "CURRENT.md",
-      "source_location": "L11",
+      "source_location": "L13",
       "weight": 1.0
     },
     {
@@ -250560,7 +250560,7 @@
       "confidence_score": 0.95,
       "context": "getFirstPurchaseDates",
       "source_file": "CURRENT.md",
-      "source_location": "L17",
+      "source_location": "L19",
       "weight": 1.0
     },
     {
@@ -250572,7 +250572,7 @@
       "confidence_score": 0.95,
       "context": "getLeaveVersions",
       "source_file": "CURRENT.md",
-      "source_location": "L100",
+      "source_location": "L102",
       "weight": 1.0
     },
     {
@@ -250620,7 +250620,7 @@
       "confidence_score": 0.95,
       "context": "getProductSalesBreakdown",
       "source_file": "CURRENT.md",
-      "source_location": "L17",
+      "source_location": "L19",
       "weight": 1.0
     },
     {
@@ -250668,7 +250668,7 @@
       "confidence_score": 0.95,
       "context": "inScheduleDebt",
       "source_file": "CURRENT.md",
-      "source_location": "L58",
+      "source_location": "L60",
       "weight": 1.0
     },
     {
@@ -250704,7 +250704,7 @@
       "confidence_score": 0.95,
       "context": "isEscalationExempt",
       "source_file": "CURRENT.md",
-      "source_location": "L62",
+      "source_location": "L64",
       "weight": 1.0
     },
     {
@@ -250764,7 +250764,7 @@
       "confidence_score": 0.95,
       "context": "kpis",
       "source_file": "CURRENT.md",
-      "source_location": "L79",
+      "source_location": "L81",
       "weight": 1.0
     },
     {
@@ -250992,7 +250992,7 @@
       "confidence_score": 0.95,
       "context": "orderLifecycleQuery.countSummary",
       "source_file": "CURRENT.md",
-      "source_location": "L78",
+      "source_location": "L80",
       "weight": 1.0
     },
     {
@@ -251004,7 +251004,7 @@
       "confidence_score": 0.95,
       "context": "orderLifecycleService.computeWarnings",
       "source_file": "CURRENT.md",
-      "source_location": "L69",
+      "source_location": "L71",
       "weight": 1.0
     },
     {
@@ -251064,7 +251064,7 @@
       "confidence_score": 0.95,
       "context": "parseNullableNumber",
       "source_file": "CURRENT.md",
-      "source_location": "L63",
+      "source_location": "L65",
       "weight": 1.0
     },
     {
@@ -251100,7 +251100,7 @@
       "confidence_score": 0.95,
       "context": "productReportRepository.getProductReport",
       "source_file": "CURRENT.md",
-      "source_location": "L53",
+      "source_location": "L55",
       "weight": 1.0
     },
     {
@@ -251184,7 +251184,7 @@
       "confidence_score": 0.95,
       "context": "readOrderDetail",
       "source_file": "CURRENT.md",
-      "source_location": "L26",
+      "source_location": "L28",
       "weight": 1.0
     },
     {
@@ -251544,7 +251544,7 @@
       "confidence_score": 0.95,
       "context": "status",
       "source_file": "CURRENT.md",
-      "source_location": "L78",
+      "source_location": "L80",
       "weight": 1.0
     },
     {
@@ -254596,5 +254596,5 @@
       "source_file": "docs/04-planning/2026-09-14-phase2-plan-supabase-kiotviet-sync.md"
     }
   ],
-  "built_at_commit": "0bcc85b60c046ec7c2bf5eefda2cbd26e46b116c"
+  "built_at_commit": "edd460f5b811f9b896aeb69ae252697f24ab2c1f"
 }

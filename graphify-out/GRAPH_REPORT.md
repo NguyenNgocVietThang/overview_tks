@@ -1,7 +1,7 @@
 # Graph Report - Web TKS Dashboard  (2026-10-16)
 
 ## Corpus Check
-- 638 files · ~896,433 words
+- 638 files · ~897,097 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 23 file(s) not represented in the graph (top: .jfif 8, .css 7, .bpmn 3)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `0bcc85b6`
+- Built from commit: `edd460f5`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -892,8 +892,8 @@ Nodes (16): 3.1 — Bỏ việc đọc toàn bộ lịch sử hóa đơn/đặt 
 
 ### Community 112 - "kiotOrdersRepository.test.js"
 Cohesion: 0.15
-Nodes (5): DB_TO_LIFECYCLE_BRANCH, LIFECYCLE_TO_DB_BRANCH, assert, {
-  createKiotOrdersRepository, LIFECYCLE_TO_DB_BRANCH, DB_TO_LIFECYCLE_BRANCH, __test__
+Nodes (5): DB_TO_LIFECYCLE_BRANCH, LIFECYCLE_TO_DB_BRANCH, assert, {
+  createKiotOrdersRepository, LIFECYCLE_TO_DB_BRANCH, DB_TO_LIFECYCLE_BRANCH, __test__
 }, test
 
 ### Community 113 - "debt-management-ui.test.js"
@@ -1809,7 +1809,7 @@ _Questions this graph is uniquely positioned to answer:_
 - **What is the exact relationship between `server/db/migrate.js runner` and `Migrations 0001-0006 (16 tables)`?**
   _Edge tagged AMBIGUOUS (relation: calls) - confidence is low._
 - **Why does `label()` connect `s` to `chart.umd.min.js`, `product-report-detail.test.js`, `exportFieldCatalog.test.js`?**
-  _High betweenness centrality (0.136) - this node is a cross-community bridge._
+  _High betweenness centrality (0.135) - this node is a cross-community bridge._
 - **Why does `B()` connect `Qe` to `adminTelegram.test.js`, `e`, `ref_node_path`, `o`, `html2pdf.bundle.min.js`?**
   _High betweenness centrality (0.040) - this node is a cross-community bridge._
 - **Why does `getPool()` connect `getPool` to `hrRuleDocumentsRepository.js`, `customerDebtActivityRepository.js`, `productReportRefresh.js`, `kiotOrdersRepository.js`, `customerInvoiceLinesRepository.test.js`, `hrLeaveSelfService.js`, `documentDetailRepository.js`, `managerLeaveStore.js`, `stockoutCheckRoutes.js`, `backfill.js`, `debtScheduleRules.js`, `fullSync.integration.test.js`, `customerProductTopRepository.js`, `dashboardPgReader.js`, `pool.js`, `stockoutPgSource.js`, `debtCycleSnapshot.js`, `branchLabelToCode`, `kiotvietSyncStatusRoutes.js`, `businessReportRepository.js`, `migrate.integration.test.js`, `routes.js`, `hrLeaveRepository.js`, `debtRewardService.js`, `managerLeaveRuntime.js`, `webhookEventQueue.test.js`, `productReportRepository.js`, `customerDebtReportRefresh.js`, `syncDriver.js`, `dashboardRollupRefresh.js`, `reconcileCounts.test.js`, `debtCollectionStatusRepository.test.js`, `scheduler.js`, `createKiotOrdersRepository`, `cashbookRepository.js`, `customerInvoiceLinesRefresh.js`, `debtScheduleRepository.js`, `sync.js`, `vnDateKey`, `hrLeaveWorkSchedulesRepository.js`, `repository.js`?**

@@ -137,27 +137,27 @@
 
   // Dương lịch cố định, khoá "MM-DD".
   var SOLAR_DAYS = {
-    '01-01': { key: 'new_year', type: 'holiday', title: '🎆 Chào năm mới', message: 'Hôm nay là Tết Dương lịch. TOKOSI chúc toàn thể anh chị em một năm mới sức khỏe, bình an và thật nhiều thành công!' },
-    '03-08': { key: 'womens_day', type: 'holiday', title: '🌸 Quốc tế Phụ nữ 8/3', message: 'Hôm nay là Ngày Quốc tế Phụ nữ 8/3. TOKOSI gửi lời tri ân và chúc các chị em luôn xinh đẹp, hạnh phúc và tràn đầy năng lượng!' },
-    '04-30': { key: 'reunification_day', type: 'holiday', title: '🇻🇳 Ngày Giải phóng miền Nam 30/4', message: 'Hôm nay là Ngày Giải phóng miền Nam, thống nhất đất nước 30/4. Chúc mọi người có kỳ nghỉ lễ thật vui, nạp đầy năng lượng bên gia đình!' },
-    '05-01': { key: 'labour_day', type: 'holiday', title: '🛠️ Quốc tế Lao động 1/5', message: 'Hôm nay là Ngày Quốc tế Lao động 1/5. Cảm ơn mọi người đã cùng nhau nỗ lực mỗi ngày. Chúc cả nhà một ngày nghỉ thật thoải mái!' },
-    '09-02': { key: 'national_day', type: 'holiday', title: '🇻🇳 Quốc khánh 2/9', message: 'Hôm nay là Quốc khánh 2/9. Chúc mọi người một kỳ nghỉ lễ vui vẻ, bình an bên người thân và bạn bè!' },
-    '10-20': { key: 'vn_womens_day', type: 'holiday', title: '🌹 Ngày Phụ nữ Việt Nam 20/10', message: 'Hôm nay là Ngày Phụ nữ Việt Nam 20/10. Chúc các chị em luôn rạng rỡ, được yêu thương và trân trọng!' },
-    '10-27': { key: 'birthday_thang', type: 'birthday', title: '🎂 Sinh nhật', message: 'Hôm nay là sinh nhật ' + BIRTHDAY_NAME + ' BA' },
-    '11-20': { key: 'teachers_day', type: 'holiday', title: '📚 Ngày Nhà giáo Việt Nam 20/11', message: 'Hôm nay là Ngày Nhà giáo Việt Nam 20/11. Xin tri ân những người thầy, người cô đã dìu dắt chúng ta trưởng thành!' },
-    '12-25': { key: 'christmas', type: 'holiday', title: '🎄 Giáng sinh', message: 'Hôm nay là Giáng sinh. Chúc mọi người một mùa Noel ấm áp, an lành bên gia đình và bạn bè!' }
+    '01-01': { key: 'new_year', type: 'holiday', title: '🎆 Chào năm mới', message: 'Chào đón năm mới! TOKOSI kính chúc toàn thể anh chị em và gia đình một năm mới dồi dào sức khỏe, an khang thịnh vượng, vạn sự như ý và cùng nhau chinh phục những đỉnh cao mới rực rỡ!' },
+    '03-08': { key: 'womens_day', type: 'holiday', title: '🌸 Quốc tế Phụ nữ 8/3', message: 'Nhân ngày Quốc tế Phụ nữ 8/3, TOKOSI xin trân trọng gửi lời tri ân sâu sắc và chúc các chị em luôn xinh đẹp, rạng ngời, ngập tràn hạnh phúc và luôn là nguồn cảm hứng ấm áp, tuyệt vời trong công việc cũng như cuộc sống!' },
+    '04-30': { key: 'reunification_day', type: 'holiday', title: '🇻🇳 Ngày Giải phóng miền Nam 30/4', message: 'Kỷ niệm Ngày Giải phóng miền Nam, thống nhất đất nước 30/4! Hòa trong niềm tự hào non sông liền một dải, TOKOSI chúc toàn thể anh chị em có một kỳ nghỉ lễ thật ý nghĩa, trọn vẹn niềm vui và ấm áp bên gia đình người thân!' },
+    '05-01': { key: 'labour_day', type: 'holiday', title: '🛠️ Quốc tế Lao động 1/5', message: 'Chào mừng Ngày Quốc tế Lao động 1/5! TOKOSI xin gửi lời cảm ơn chân thành đến những đóng góp bền bỉ và tâm huyết của toàn thể anh chị em. Chúc đại gia đình một kỳ nghỉ lễ thật thoải mái, thư thái và tái tạo năng lượng dồi dào!' },
+    '09-02': { key: 'national_day', type: 'holiday', title: '🇻🇳 Quốc khánh 2/9', message: 'Nhiệt liệt chào mừng Ngày Quốc khánh nước Cộng hòa Xã hội Chủ nghĩa Việt Nam 2/9! Chúc toàn thể anh chị em có một kỳ nghỉ Tết Độc lập thật nhiều niềm vui, bình an và hạnh phúc bên những người thân yêu!' },
+    '10-20': { key: 'vn_womens_day', type: 'holiday', title: '🌹 Ngày Phụ nữ Việt Nam 20/10', message: 'Chào mừng ngày Phụ nữ Việt Nam 20/10! Cảm ơn những cống hiến, tâm huyết và sự duyên dáng mà các chị em mang đến cho đại gia đình TOKOSI. Chúc các chị em luôn dồi dào năng lượng, công việc thuận lợi và gặt hái thật nhiều thành công!' },
+    '10-27': { key: 'birthday_thang', type: 'birthday', title: '🎂 Sinh nhật', message: 'Chúc mừng sinh nhật ' + BIRTHDAY_NAME + ' BA! Chúc bạn tuổi mới luôn tràn đầy năng lượng, đam mê sáng tạo, luôn là điểm tựa vững vàng và chạm tới những mục tiêu tuyệt vời nhất!' },
+    '11-20': { key: 'teachers_day', type: 'holiday', title: '📚 Ngày Nhà giáo Việt Nam 20/11', message: 'Nhân ngày Nhà giáo Việt Nam 20/11, TOKOSI xin trân trọng tri ân những người thầy, người cô cùng những người dẫn dắt thầm lặng trong công việc và cuộc sống. Kính chúc quý thầy cô luôn mạnh khỏe, hạnh phúc và giữ trọn ngọn lửa nhiệt huyết với sự nghiệp trồng người!' },
+    '12-25': { key: 'christmas', type: 'holiday', title: '🎄 Giáng sinh', message: 'Giáng sinh an lành và ấm áp! TOKOSI thân chúc toàn thể anh chị em cùng gia đình đón một mùa Noel ngập tràn tiếng cười, đong đầy yêu thương, an yên và đón nhận những điều kỳ diệu tươi đẹp nhất!' }
   };
 
   // Âm lịch, khoá "tháng-ngày" (chỉ tháng thường, không tính tháng nhuận).
   var LUNAR_DAYS = {
-    '1-1': { key: 'tet_1', type: 'holiday', title: '🧧 Mùng 1 Tết Nguyên đán', message: 'Mùng 1 Tết: TOKOSI chúc toàn thể anh chị em năm mới an khang, thịnh vượng, vạn sự như ý!' },
-    '1-2': { key: 'tet_2', type: 'holiday', title: '🧧 Mùng 2 Tết Nguyên đán', message: 'Mùng 2 Tết: chúc mọi người một năm mới bình an, gặp nhiều may mắn và niềm vui bên gia đình!' },
-    '1-3': { key: 'tet_3', type: 'holiday', title: '🧧 Mùng 3 Tết Nguyên đán', message: 'Mùng 3 Tết: chúc mọi người đủ đầy sức khỏe, công việc hanh thông, tài lộc dồi dào cả năm!' },
-    '3-10': { key: 'hung_kings', type: 'holiday', title: '🏯 Giỗ Tổ Hùng Vương 10/3 âm lịch', message: 'Hôm nay là Giỗ Tổ Hùng Vương. "Dù ai đi ngược về xuôi, nhớ ngày Giỗ Tổ mùng mười tháng ba." Chúc mọi người một kỳ nghỉ lễ vui vẻ!' },
-    '8-15': { key: 'mid_autumn', type: 'holiday', title: '🥮 Tết Trung thu', message: 'Hôm nay là Tết Trung thu 15/8 âm lịch. Chúc mọi người một đêm rằm sum vầy, ấm áp bên gia đình và các bé!' }
+    '1-1': { key: 'tet_1', type: 'holiday', title: '🧧 Mùng 1 Tết Nguyên đán', message: 'Mùng 1 Tết Nguyên đán: Khởi đầu một mùa xuân mới rạng rỡ, TOKOSI kính chúc toàn thể anh chị em và gia đình một năm mới An khang thịnh vượng, Vạn sự như ý, Sức khỏe dồi dào và Đắc tài đắc lộc!' },
+    '1-2': { key: 'tet_2', type: 'holiday', title: '🧧 Mùng 2 Tết Nguyên đán', message: 'Mùng 2 Tết Nguyên đán: TOKOSI thân chúc toàn thể anh chị em những ngày đầu xuân ngập tràn tiếng cười, gia đạo bình an, gặp nhiều may mắn và thắt chặt tình thân bên gia đình, bè bạn!' },
+    '1-3': { key: 'tet_3', type: 'holiday', title: '🧧 Mùng 3 Tết Nguyên đán', message: 'Mùng 3 Tết Nguyên đán: Chúc toàn thể anh chị em trọn vẹn niềm vui sum vầy, tinh thần phấn chấn, nạp đầy khí thế để cùng sẵn sàng cho một năm mới bứt phá mạnh mẽ, công việc hanh thông và tài lộc dồi dào!' },
+    '3-10': { key: 'hung_kings', type: 'holiday', title: '🏯 Giỗ Tổ Hùng Vương 10/3 âm lịch', message: 'Tưởng nhớ cội nguồn dân tộc - Ngày Giỗ Tổ Hùng Vương mùng 10 tháng 3 âm lịch: "Dù ai đi ngược về xuôi, nhớ ngày Giỗ Tổ mùng mười tháng ba." TOKOSI kính chúc anh chị em cùng gia đình một ngày lễ ý nghĩa, an vui và trân quý từng phút giây sum họp!' },
+    '8-15': { key: 'mid_autumn', type: 'holiday', title: '🥮 Tết Trung thu', message: 'Tết Trung thu sum vầy và đoàn viên! TOKOSI chúc toàn thể anh chị em cùng gia đình và các bé có một đêm hội trăng rằm rộn rã niềm vui, ngọt ngào bánh nướng, bánh dẻo và ấm áp trọn vẹn bên mâm cỗ đoàn viên!' }
   };
 
-  var TET_EVE = { key: 'tet_eve', type: 'holiday', title: '🧧 Giao thừa', message: 'Hôm nay là Giao thừa. Chúc mọi người đón năm mới sum vầy, bình an và khởi đầu một năm thật nhiều tài lộc!' };
+  var TET_EVE = { key: 'tet_eve', type: 'holiday', title: '🧧 Giao thừa', message: 'Khoảnh khắc thiêng liêng chuyển giao năm mới - Đêm Giao thừa! TOKOSI kính chúc toàn thể anh chị em cùng gia đình một đêm trừ tịch đoàn viên ấm áp, khép lại năm cũ trọn vẹn và sẵn sàng đón chào năm mới bình an, cát tường, vạn sự hanh thông!' };
 
   function parseKey(dateKey) {
     var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateKey || ''));

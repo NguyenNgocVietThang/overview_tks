@@ -54,7 +54,7 @@ test('27/10 là sinh nhật với đúng nguyên văn thông báo, mọi năm', 
   for (const y of [2026, 2027, 2030]) {
     const day = sd.getSpecialDay(`${y}-10-27`);
     assert.equal(day.type, 'birthday');
-    assert.equal(day.message, 'Hôm nay là sinh nhật Nguyễn Ngọc Việt Thắng BA');
+    assert.equal(day.message, 'Chúc mừng sinh nhật Nguyễn Ngọc Việt Thắng BA! Chúc bạn tuổi mới luôn tràn đầy năng lượng, đam mê sáng tạo, luôn là điểm tựa vững vàng và chạm tới những mục tiêu tuyệt vời nhất!');
     assert.match(day.title, /Sinh nhật/);
   }
 });

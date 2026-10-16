@@ -66,7 +66,7 @@ test('sinh nhật 27/10: đúng nguyên văn, chỉ gửi tài khoản đang ho�
     assert.equal(sent.length, 1);
     assert.deepEqual(sent[0].ids, ['a', 'b']);
     assert.equal(sent[0].payload.type, TYPE_BIRTHDAY);
-    assert.equal(sent[0].payload.message, 'Hôm nay là sinh nhật Nguyễn Ngọc Việt Thắng BA');
+    assert.equal(sent[0].payload.message, 'Chúc mừng sinh nhật Nguyễn Ngọc Việt Thắng BA! Chúc bạn tuổi mới luôn tràn đầy năng lượng, đam mê sáng tạo, luôn là điểm tựa vững vàng và chạm tới những mục tiêu tuyệt vời nhất!');
     assert.equal(sent[0].payload.relatedType, null);
     assert.equal(sent[0].payload.relatedId, '2026-10-27:birthday_thang');
   } finally { await db.close(); }
