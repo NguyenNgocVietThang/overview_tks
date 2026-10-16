@@ -36,6 +36,7 @@ const FEATURE_GROUPS = Object.freeze([
   { key: 'stockLocations', label: 'Vị trí hàng' },
   { key: 'hr', label: 'Quản lý nhân sự' },
   { key: 'cashbook', label: 'Sổ quỹ' },
+  { key: 'transfers', label: 'Yêu cầu chuyển tiền' },
   { key: 'account', label: 'Quản lý tài khoản' },
   { key: 'system', label: 'Hệ thống' }
 ]);
@@ -101,6 +102,14 @@ const FEATURES = Object.freeze([
   // --- Sổ quỹ: chỉ xem/xuất; tồn quỹ tự tính từ KiotViet nên không còn quyền chốt số dư ---
   { key: 'cashbook.view', groupKey: 'cashbook', label: 'Xem sổ quỹ', roles: MANAGER_ONLY },
 
+  // --- Yêu cầu chuyển tiền cho khách (2026-10-15, server/transfers): sale gửi qua bot Telegram,
+  // Kế toán sửa/duyệt, người có quyền "Đánh dấu đã chuyển" quét VietQR rồi bấm Đã chuyển.
+  // Thu hồi "Đã chuyển" chỉ dành cho quản trị viên hệ thống (không phải quyền cấp được).
+  { key: 'transfers.view', groupKey: 'transfers', label: 'Xem toàn bộ yêu cầu chuyển tiền', roles: [ROLES.QUAN_LY, ROLES.KE_TOAN] },
+  { key: 'transfers.review', groupKey: 'transfers', label: 'Kiểm tra / sửa / duyệt / hủy yêu cầu (cần Xem toàn bộ)', roles: [ROLES.KE_TOAN], requires: 'transfers.view' },
+  { key: 'transfers.markPaid', groupKey: 'transfers', label: 'Quét QR và đánh dấu Đã chuyển (cần Xem toàn bộ)', roles: MANAGER_ONLY, requires: 'transfers.view' },
+  { key: 'transfers.own', groupKey: 'transfers', label: 'Xem yêu cầu của chính mình (theo Telegram ID)', roles: [ROLES.NHAN_VIEN_SALE], escalationExempt: true },
+
   // --- Quan ly tai khoan ---
   { key: 'account.profile', groupKey: 'account', label: 'Quản lý hồ sơ', roles: ALL_ROLES, alwaysOn: true },
   { key: 'account.users', groupKey: 'account', label: 'Quản lý người dùng (xem)', roles: MANAGER_ONLY },
@@ -135,6 +144,7 @@ const PAGE_FEATURES = Object.freeze([
   { path: '/humanresources', href: '/humanresources/', anyOf: ['hr.rules', 'hr.employees', 'hr.leave', 'hr.leave.submit'] },
   { path: '/stock-locations', href: '/stock-locations/', anyOf: ['stockLocations.view'] },
   { path: '/cashbook', href: '/cashbook/', anyOf: ['cashbook.view'] },
+  { path: '/transfers', href: '/transfers/', anyOf: ['transfers.view', 'transfers.own'] },
   { path: '/account', href: '/account/', anyOf: ['account.profile'] }
 ]);
 

@@ -345,6 +345,9 @@
     roleChangeRequest: '/account/#users',
     accountCreated: '/account/#users',
     leaveRequest: '/humanresources/#leave',
+    transfer_request: function(relatedId){
+      return '/transfers/' + (relatedId ? '#open=' + encodeURIComponent(relatedId) : '');
+    },
     // Gia tri co the la ham (relatedId) => url: thong bao tai lieu quy dinh tro toi
     // dung tai lieu (relatedId = slug), khong co thi ve tab Quy dinh cong ty.
     ruleDocument: function(relatedId){
@@ -1567,6 +1570,11 @@
         key: 'cashbook', feature: 'cashbook.view', href: '/cashbook/', label: 'Sổ quỹ',
         active: currentPath === '/cashbook', dataAttr: 'data-tks-nav-key="cashbook"',
         icon: '<path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path>'
+      },
+      {
+        key: 'transfers', feature: ['transfers.view', 'transfers.own'], href: '/transfers/', label: 'Yêu cầu chuyển tiền',
+        active: currentPath === '/transfers', dataAttr: 'data-tks-nav-key="transfers"',
+        icon: '<path d="M17 3l4 4-4 4"></path><path d="M3 7h18"></path><path d="M7 21l-4-4 4-4"></path><path d="M21 17H3"></path>'
       },
       {
         key: 'account', label: 'Quản lý tài khoản', active: activeTop === 'account', items: accountItems,

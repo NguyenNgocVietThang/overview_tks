@@ -91,9 +91,11 @@ test('checkGrant: chi duoc THEM quyen ma chinh actor co', () => {
 
 test('checkGrant: doi sang vai tro co quyen mac dinh vuot actor bi chan, vai tro thap hon thi duoc', () => {
   const actor = troLy();
-  // Quan ly co shipment.override va nhieu quyen khac (Tro ly khong co); Ke toan nay <= Tro ly.
+  // Quan ly co shipment.override va nhieu quyen khac (Tro ly khong co).
   assert.ok(policy.checkGrant(actor, user('Khách'), user('Quản lý')));
-  assert.equal(policy.checkGrant(actor, user('Khách'), user('Kế toán')), null);
+  // 2026-10-15: Ke toan co quyen duyet yeu cau chuyen tien (transfers.review) ma Tro ly khong co.
+  assert.ok(policy.checkGrant(actor, user('Khách'), user('Kế toán')));
+  assert.equal(policy.checkGrant(actor, user('Khách'), user('Trưởng kho')), null);
   assert.equal(policy.checkGrant(actor, null, user('Khách')), null);
   assert.equal(policy.checkGrant(actor, null, user('Nhân viên kho')), null);
 });

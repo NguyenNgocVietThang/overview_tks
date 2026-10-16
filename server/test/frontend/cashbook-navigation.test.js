@@ -31,7 +31,9 @@ test('Sổ quỹ là mục cấp 1 ngay dưới Quản lý nhân sự và đang 
   assert.equal(link.textContent, 'Sổ quỹ');
   assert.equal(link.parentElement, mount, 'mục cấp 1 không nằm trong nhóm con');
   assert.equal(link.previousElementSibling.querySelector('[data-tks-nav-group]').dataset.tksNavGroup, 'hr');
-  assert.equal(link.nextElementSibling.querySelector('[data-tks-nav-group]').dataset.tksNavGroup, 'account');
+  // 2026-10-15: mục cấp 1 "Yêu cầu chuyển tiền" nằm giữa Sổ quỹ và Quản lý tài khoản.
+  assert.equal(link.nextElementSibling.getAttribute('href'), '/transfers/');
+  assert.equal(link.nextElementSibling.nextElementSibling.querySelector('[data-tks-nav-group]').dataset.tksNavGroup, 'account');
   assert.ok(link.classList.contains('has-active'));
   assert.equal(link.getAttribute('aria-current'), 'page');
   assert.ok(link.querySelector('svg.ic'));
