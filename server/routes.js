@@ -38,8 +38,6 @@ const debtManagementRoutes = require('./dashboard/debtManagementRoutes');
 const orderLifecycleRoutes = require('./shipment/orderLifecycleRoutes');
 const stockLocationsRoutes = require('./stockLocations/stockLocationsRoutes');
 const cashbookRoutes = require('./cashbook/cashbookRoutes');
-const { createTransferRouter } = require('./transfers/transferRoutes');
-const { createTransferIngestRouter } = require('./transfers/transferIngestRoutes');
 const { createBusinessReportRouter } = require('./businessReport/businessReportRoutes');
 const { createMarketingReportRouter } = require('./marketingReport/marketingReportRoutes');
 const { dashboardRollupEvents } = require('./kiotvietSync/dashboardRollupEvents');
@@ -64,10 +62,6 @@ router.use(createManagerLeaveWebhook({
   wake: () => managerLeaveRuntime.drain()
 }));
 
-// Bot Telegram "Yêu cầu chuyển tiền" day/huy yeu cau va nhan su kien — xac thuc bang khoa
-// bi mat (X-Transfer-Bot-Secret), khong phai cookie dang nhap. Xem server/transfers/.
-router.use(createTransferIngestRouter({ secret: CONFIG.TRANSFER_BOT_INGEST_SECRET }));
-
 router.use(createManagerLeaveMiniApp({enabled:!!managerLeaveRuntime,token:CONFIG.HR_MANAGER_TELEGRAM_BOT_TOKEN,getManager:id=>managerLeaveRuntime.getManager(id)}));
 
 // /api/auth/* mount truoc — POST /login va POST /logout khong doi hoi da dang
@@ -81,8 +75,6 @@ router.use(branchRoutes);
 router.use(stockLocationsRoutes);
 // Sổ quỹ toàn công ty: không áp cookie hoặc middleware chọn cơ sở.
 router.use('/api/cashbook', cashbookRoutes);
-// Yêu cầu chuyển tiền cho khách (Kế toán duyệt, Quản lý quét VietQR) — toàn công ty, không áp cơ sở.
-router.use('/api/transfers', requireAuth, createTransferRouter());
 // Báo cáo kinh doanh (tăng trưởng Sale/Khách/Mã hàng): gộp HN + SG, cũng không áp cookie cơ sở.
 router.use('/api/business-report', createBusinessReportRouter());
 router.use('/api/marketing-report', createMarketingReportRouter());

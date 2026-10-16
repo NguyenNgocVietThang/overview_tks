@@ -216,7 +216,6 @@ Hai file Kiot HN/SG **không còn** được server truy cập.
 | `0044` | `purchases.raw_hash` — băm raw phiếu nhập để đối soát không phải tải lại cột `raw` (NULL = chưa có hash, lượt quét đầu ghi lại một lượt) |
 | `0049` | Thêm tài liệu dựng sẵn thứ 4 `treo-hang` ("Quy định treo hàng") vào `hr_rule_documents` (nội dung nằm trong HTML trang Quản lý nhân sự) |
 | `0050` | `debt_cycle_runs.refreshed_at` / `refreshed_by_name`: nút "Tính lại công nợ" (`POST /api/debt-management/refresh`, quyền `reports.debt.refresh`) ghi đè chu kỳ đang mở tại thời điểm bấm |
-| `0054` | Yêu cầu chuyển tiền: `bank_bins` (mã BIN NAPAS cho VietQR), `transfer_requests` (CHO_DUYET → DA_DUYET → DA_CHUYEN / DA_HUY, `version`, ai duyệt / ai chuyển / ai hủy; trigger chặn bước sai và khóa thông tin sau khi duyệt), `transfer_request_events` (nhật ký chỉ thêm, `bot_delivered_at` cho bot ack). Bật RLS, thu hồi SELECT của `reporting_readonly` |
 | `0051` | `debt_penalty_daily` (tiền phạt đã chốt sổ theo ngày + khách, đóng băng tên sale, giữ vĩnh viễn) + `debt_penalty_cycles` (đánh dấu chu kỳ đã chốt sổ): nguồn của bảng thưởng/phạt sale tab Công nợ |
 | `0053` | `product_container_lines`, `product_container_sync` — snapshot Hàng dự kiến hiện hành, số lượng NUMERIC, thu hồi quyền `reporting_readonly`; đã áp DB dùng chung 15/10/2026 |
 
@@ -340,37 +339,3 @@ Cùng khách ở 2 cơ sở (15/10/2026): ở bảng tổng thưởng/phạt sal
 Cột Phạt/điểm làm tròn hiển thị đến số nguyên đồng trên bảng, hộp chi tiết và file xuất; rê chuột xem phép chia gốc. Ví dụ 25.000 / 192 hiển thị 130 đồng/điểm; API và xếp hạng vẫn dùng tỷ lệ gốc chưa làm tròn.
 
 15/10/2026 16:51 VN — Đã cấu hình nguồn trong .env cục bộ, công bố snapshot thật 11.592 dòng/6 sheet vào DB dùng chung và restart dashboard localhost:3000. Lịch nền đã nhận mốc 2 tiếng; thiếu biến PRODUCT_CONTAINER_SPREADSHEET_ID làm scheduler tắt nên chỉ áp migration/restart mà chưa cấu hình sẽ vẫn hiện —. Không push/deploy từ xa.
-
-## Yêu cầu chuyển tiền (2026-10-15, module `transfers/`)
-
-Thay Google Sheet "Yêu cầu ck cho khách". Sale gửi yêu cầu qua bot Telegram (repo `bot-yeu-cau-ck`, chữ hoặc ảnh mã VietQR); bot đẩy lên đây.
-Kế toán kiểm tra/sửa/duyệt ở `/transfers/`; người có `transfers.markPaid` mở yêu cầu **đã duyệt**, quét VietQR do server tạo rồi bấm Đã chuyển.
-
-| Quyền | Mặc định | Ý nghĩa |
-|---|---|---|
-| `transfers.view` | Quản lý, Kế toán | Xem toàn bộ danh sách; mở được yêu cầu Đã duyệt / Đã chuyển |
-| `transfers.review` | Kế toán (cần view) | Sửa khi Chờ duyệt, Duyệt, Bỏ duyệt, Hủy (bắt buộc lý do), ghi chú kế toán; mở mọi yêu cầu |
-| `transfers.markPaid` | Quản lý (cần view) | Xem VietQR, đánh dấu Đã chuyển |
-| `transfers.own` | Nhân viên sale | Chỉ xem yêu cầu có `sale_telegram_id` = `app_users.telegram_id` của mình, chỉ đọc |
-
-Thu hồi "Đã chuyển" chỉ dành cho quản trị viên hệ thống (`isHardcodedAdmin`), bắt buộc lý do.
-
-| API (cookie đăng nhập) | Mô tả |
-|---|---|
-| `GET /api/transfers?status&q&from&to&page&pageSize` | Danh sách phân trang (100/trang) + đếm theo trạng thái; mỗi dòng có `canOpen` |
-| `GET /api/transfers/stream` | SSE: chỉ id/version/status (client tự tải lại qua API) |
-| `GET /api/transfers/banks` | Danh mục ngân hàng (review) |
-| `GET /api/transfers/:id` | Chi tiết + lịch sử + `allowed` (403 nếu không được mở) |
-| `GET /api/transfers/:id/vietqr` | Chuỗi VietQR + SVG dựng từ DB (chỉ DA_DUYET; không dùng img.vietqr.io) |
-| `PATCH /api/transfers/:id` | Sửa trường (kèm `expectedVersion`) |
-| `POST /api/transfers/:id/{approve,unapprove,cancel,mark-paid,revert-paid}` | Đổi trạng thái (kèm `expectedVersion`; mark-paid sau khi sale hủy ⇒ 409 `TRANSFER_CANCELED`) |
-
-| API cho bot (header `X-Transfer-Bot-Secret` = `TRANSFER_BOT_INGEST_SECRET`, mount trước `requireAuth`) | Mô tả |
-|---|---|
-| `POST /api/transfer-bot/requests` | Tạo (idempotent theo `idempotencyKey`; 201 / 200 trùng / 409 `CODE_CLASH`); DB lỗi ⇒ 503 để bot thử lại |
-| `POST /api/transfer-bot/requests/:code/cancel` | Sale hủy (200 / 409 `ALREADY_PAID` / 404 / 403 `NOT_OWNER`) |
-| `GET /api/transfer-bot/events?limit` + `POST /api/transfer-bot/events/ack` | Sự kiện chưa giao (kèm ảnh chụp yêu cầu + `idempotencyKey` để bot đối chiếu) rồi ack |
-| `GET /api/transfer-bot/sales/:telegramId` | Tên tài khoản web gắn Telegram ID (bot dùng thay tên sale tự gõ) |
-
-Chuông thông báo: yêu cầu mới → người có `transfers.review`; được duyệt → `transfers.markPaid`; sale hủy yêu cầu đã duyệt → cả hai (khẩn).
-SSE phát trong tiến trình (đủ 1 instance Render). Thứ tự deploy: `npm run db:migrate` (0054) → đặt `TRANSFER_BOT_INGEST_SECRET` → deploy → bot chạy `python -m app cutover` (xem `docs/DEPLOYMENT.md` của bot).
