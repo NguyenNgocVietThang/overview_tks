@@ -8,6 +8,7 @@
 const { getPool } = require('../db/pool');
 const { readContainerSummary } = require('../productContainers/repository');
 const { normalizeCode } = require('../productContainers/parser');
+const { readInTransitByCode } = require('./inTransitSource');
 
 function mapRow(row) {
   return {
@@ -46,7 +47,13 @@ async function getProductReport({ pool = getPool() } = {}) {
     !latest || (item.computedAt && item.computedAt > latest) ? item.computedAt : latest
   ), null) : null;
   const { containerSync, totals } = await readContainerSummary(pool);
+  const inTransitByCode = await readInTransitByCode(pool);
   for (const item of items) {
+    item.inTransit = inTransitByCode.get(normalizeCode(item.code)) || 0;
+    // The nightly base already equals sellable HN + sellable SG (on-hand
+    // less pending customer orders). Add SG transit once at read time, shared
+    // by the UI and exports; never fold it back into the stored base.
+    item.availableToSell += item.inTransit;
     const quantities = totals[normalizeCode(item.code)];
     item.unloadedQty = containerSync.available ? Number(quantities?.unloadedQty || 0) : null;
     item.loadedQty = containerSync.available ? Number(quantities?.loadedQty || 0) : null;

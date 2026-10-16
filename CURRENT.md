@@ -1,10 +1,12 @@
 # CURRENT: BẢNG TRẠNG THÁI THỜI GIAN THỰC (REALTIME DASHBOARD)
 
-> **Cập nhật gần nhất:** 15/10/2026 (Asia/Ho_Chi_Minh), mọi tab chỉ tính khách và mã hàng đang hoạt động.
+> **Cập nhật gần nhất:** 16/10/2026 (Asia/Ho_Chi_Minh), mọi tab chỉ tính khách và mã hàng đang hoạt động.
 > **Trạng thái Git:** làm việc trực tiếp trên `main` theo yêu cầu; thay đổi thưởng/phạt sale hoàn tất và qua kiểm thử; chưa push/deploy phiên này.
 > **Quy tắc:** Cập nhật liên tục vào đầu và cuối mỗi phiên làm việc để không bị đứt đoạn ngữ cảnh dự án.
 
 ---
+
+0. **Điều chuyển SG trong Tổng quan (16/10/2026):** 16/10/2026 — Theo yêu cầu, Báo cáo hàng hóa (Tổng quan) thêm cột **Điều chuyển SG** giữa **Tồn HN** và **Tồn SG**, giữ Chưa bốc/Đã bốc. API và Excel/HTML dùng chung inTransitSource: tổng số lượng Đặt hàng nhập Đã xác nhận NCC của Kiot Sài Gòn trong DB, ghép mã trim/không phân biệt hoa thường. Theo yêu cầu tiếp theo, Tồn có bán = Có bán HN + Có bán SG + Điều chuyển SG, áp dụng riêng Báo cáo hàng hóa; hai cột Chưa bốc/Đã bốc không cộng vào công thức. Snapshot DB giữ số nền HN+SG đã trừ phiếu tạm, repository cộng điều chuyển đúng một lần khi đọc cho web/xuất file. Không migration, không sửa nguồn Sheets. 114 kiểm thử liên quan đạt; Chrome Light/Dark desktop/mobile kiểm tra cột và công thức đạt. Đối chiếu DB thật 010PARA: có bán HN+SG 1.000 + điều chuyển 500 = 1.500. Đã nạp lại server localhost; kiểm thử tổng cuối 2.464 đạt, 3 skipped, 0 lỗi (2.467 tổng). Graphify đã cập nhật.
 
 0. **Kích hoạt Hàng dự kiến localhost (15/10/2026, đồng bộ 16:51 VN):** nguyên nhân dấu — sau restart là thiếu PRODUCT_CONTAINER_SPREADSHEET_ID trong server/.env, khiến scheduler tắt. Đã cấu hình workbook, đồng bộ thật vào DB dùng chung: 11.592 dòng/6 sheet, 17 cảnh báo dòng lỗi, 4.112 mã báo cáo trong đó 1.244 mã có hàng 1/2/3. OTD10N 11.880/0; TRHB500 2.250/300. Snapshot available=true, stale=false, lastError=null; kiểm tra tiếp theo not-due, kỳ sau 18:51 VN. Đã restart đúng Node dashboard cổng 3000, server đáp ứng và vẫn yêu cầu đăng nhập; không cần người dùng restart thêm. Chưa push/deploy từ xa.
 

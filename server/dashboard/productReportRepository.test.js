@@ -83,7 +83,7 @@ test('getProductReport doc bang product_report va tinh computedAt = moc gan nhat
     }
   };
   const result = await getProductReport({ pool });
-  assert.equal(pool.calls.length, 2);
+  assert.equal(pool.calls.length, 3);
   assert.match(pool.calls[0], /FROM product_report/);
   assert.equal(result.rows.length, 2);
   assert.equal(result.computedAt, '2026-09-23T00:06:00.000Z');
@@ -149,4 +149,19 @@ test('getProductReportCustomers nem loi 400 neu thieu ma hang', async () => {
     (error) => error.statusCode === 400 && /mã hàng/i.test(error.message)
   );
   await assert.rejects(() => getProductReportCustomers({ pool }), (error) => error.statusCode === 400);
+});
+
+
+test('Điều chuyển SG uses the existing DB transit source per normalized code', async () => {
+  const pool = { query: async (sql, params) => {
+    if (sql.includes('-- in-transit:')) {
+      assert.deepEqual(params, ['Đã xác nhận NCC']);
+      return {rows:[{product_key:'sku-01',qty:'175.5'}]};
+    }
+    if (sql.includes('FROM product_report')) return {rows:[{product_code:'SKU-01',stock_hanoi:10,stock_saigon:20,available_to_sell:25}]};
+    return {rows:[]};
+  }};
+  const result = await getProductReport({pool});
+  assert.equal(result.rows[0].inTransit,175.5);
+  assert.equal(result.rows[0].availableToSell,200.5);
 });

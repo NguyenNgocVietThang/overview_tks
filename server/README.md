@@ -339,3 +339,6 @@ Cùng khách ở 2 cơ sở (15/10/2026): ở bảng tổng thưởng/phạt sal
 Cột Phạt/điểm làm tròn hiển thị đến số nguyên đồng trên bảng, hộp chi tiết và file xuất; rê chuột xem phép chia gốc. Ví dụ 25.000 / 192 hiển thị 130 đồng/điểm; API và xếp hạng vẫn dùng tỷ lệ gốc chưa làm tròn.
 
 15/10/2026 16:51 VN — Đã cấu hình nguồn trong .env cục bộ, công bố snapshot thật 11.592 dòng/6 sheet vào DB dùng chung và restart dashboard localhost:3000. Lịch nền đã nhận mốc 2 tiếng; thiếu biến PRODUCT_CONTAINER_SPREADSHEET_ID làm scheduler tắt nên chỉ áp migration/restart mà chưa cấu hình sẽ vẫn hiện —. Không push/deploy từ xa.
+
+
+16/10/2026 — Theo yêu cầu, Báo cáo hàng hóa (Tổng quan) thêm cột **Điều chuyển SG** giữa **Tồn HN** và **Tồn SG**, giữ Chưa bốc/Đã bốc. API và Excel/HTML dùng chung inTransitSource: tổng số lượng Đặt hàng nhập Đã xác nhận NCC của Kiot Sài Gòn trong DB, ghép mã trim/không phân biệt hoa thường. Theo yêu cầu tiếp theo, Tồn có bán = Có bán HN + Có bán SG + Điều chuyển SG, áp dụng riêng Báo cáo hàng hóa; hai cột Chưa bốc/Đã bốc không cộng vào công thức. Snapshot DB giữ số nền HN+SG đã trừ phiếu tạm, repository cộng điều chuyển đúng một lần khi đọc cho web/xuất file. Không migration, không sửa nguồn Sheets.

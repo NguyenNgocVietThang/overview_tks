@@ -3,7 +3,9 @@
 //   - tab Hang hoa (dashboardPgReader.js, cột `Đang vận chuyển`),
 //   - Cot "Dieu chuyen SG" o chi tiet don cua Vong doi don hang (shipment/kiotOrdersRepository.js).
 // Chi de HIEN THI: khong con tinh vao ton co the ban (Vong doi don hang tu 2026-10-02; tab Hang hoa +
-// Bao cao hang hoa tu 2026-10-06 — ton co the ban = ton thuc te - Phieu tam).
+// Bao cao hang hoa tu 2026-10-06 den 15/10 — ton co the ban = ton thuc te - Phieu tam).
+// Rieng Bao cao hang hoa tu 16/10/2026: repository cong them dieu chuyen SG
+// vao tong co ban HN + SG theo yeu cau moi. Hai luong con lai giu quy tac cu.
 //
 // Dinh nghia: tong so luong hang trong cac phieu "Dat hang nhap" (KiotViet: Mua hang -> Dat hang
 // nhap) co trang thai 'Đã xác nhận NCC' cua Kiot SAI GON (bang order_suppliers, migration 0024) —

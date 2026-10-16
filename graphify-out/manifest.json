@@ -222,15 +222,15 @@
     "semantic_hash": ""
   },
   "server/dashboard/exportService.js": {
-    "mtime": 1792054456.2520604,
-    "seen": 1792055268.5422962,
-    "ast_hash": "e14c5223e91e2d29a42c47db827923e4",
+    "mtime": 1792112257.8893783,
+    "seen": 1792112436.2042155,
+    "ast_hash": "78166694fe1fa4cbce3fc72a26e93b53",
     "semantic_hash": ""
   },
   "server/dashboard/exportService.test.js": {
-    "mtime": 1792054426.2747746,
-    "seen": 1792055268.5422962,
-    "ast_hash": "eb32d643b86883e88f80c259eab1ab96",
+    "mtime": 1792111976.2644892,
+    "seen": 1792112189.927167,
+    "ast_hash": "64ace72f8624fd38a6732867b7c3d653",
     "semantic_hash": ""
   },
   "server/dashboard/stockoutCheck/jobManager.js": {
@@ -654,9 +654,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1792056444.841833,
-    "seen": 1792058435.3941858,
-    "ast_hash": "c4e3e0cc49090a6aa7eb775b50717f69",
+    "mtime": 1792112293.7896335,
+    "seen": 1792112436.2042155,
+    "ast_hash": "ed7e45c4071cd7364ba04c7a535e067e",
     "semantic_hash": ""
   },
   "design-system/tks-dashboard/MASTER.md": {
@@ -666,15 +666,15 @@
     "semantic_hash": ""
   },
   "docs/01-brd/BRD_Dashboard_GoogleSheets.md": {
-    "mtime": 1792056444.8498578,
-    "seen": 1792058435.3941858,
-    "ast_hash": "c954b788a0064ba8820329c97a512855",
+    "mtime": 1792112293.7896335,
+    "seen": 1792112436.2042155,
+    "ast_hash": "72b6d03dd601795e64a2bcdacbd4895d",
     "semantic_hash": ""
   },
   "docs/02-srs/SRS_Dashboard_GoogleSheets.md": {
-    "mtime": 1792056444.8498578,
-    "seen": 1792058435.3941858,
-    "ast_hash": "970db64c476cf828b0c32cfdf86c5e40",
+    "mtime": 1792112293.7896335,
+    "seen": 1792112436.2042155,
+    "ast_hash": "0ff05a02319afe6425eb957d371be5a5",
     "semantic_hash": ""
   },
   "docs/03-process/BPMN_Dashboard_GoogleSheets.md": {
@@ -684,9 +684,9 @@
     "semantic_hash": ""
   },
   "docs/04-planning/implementation_plan.md": {
-    "mtime": 1792056444.8498578,
-    "seen": 1792058435.3941858,
-    "ast_hash": "a647ec1d1736c78ede4efab0a17c00be",
+    "mtime": 1792112293.7896335,
+    "seen": 1792112436.2042155,
+    "ast_hash": "2217764ad025f099175850c7695ca1bc",
     "semantic_hash": ""
   },
   "docs/superpowers/plans/2026-08-13-dashboard-result-cache.md": {
@@ -786,9 +786,9 @@
     "semantic_hash": "58e700daf0c14819a97499bd94f6f2e1"
   },
   "server/README.md": {
-    "mtime": 1792057970.2401307,
-    "seen": 1792058435.3941858,
-    "ast_hash": "f679075383817f99c154d7c614abe4f9",
+    "mtime": 1792112293.7896335,
+    "seen": 1792112436.214456,
+    "ast_hash": "8d26473f60b05086cc312d13a269b048",
     "semantic_hash": ""
   },
   "server/kiotviet/API_ENDPOINTS.md": {
@@ -816,9 +816,9 @@
     "semantic_hash": ""
   },
   "server/public/index.html": {
-    "mtime": 1792055347.3047118,
-    "seen": 1792055492.8901415,
-    "ast_hash": "6577d43af09abc0a10d506d183546b0f",
+    "mtime": 1792112257.7574167,
+    "seen": 1792112436.214456,
+    "ast_hash": "1e01aff76e09b88c5723a9984774ddee",
     "semantic_hash": ""
   },
   "server/public/login/index.html": {
@@ -1866,15 +1866,15 @@
     "semantic_hash": ""
   },
   "server/dashboard/productReportRepository.js": {
-    "mtime": 1792054705.240409,
-    "seen": 1792055268.5422962,
-    "ast_hash": "de3dba437bfc40b8facf125dc4c69944",
+    "mtime": 1792112257.5921795,
+    "seen": 1792112436.2042155,
+    "ast_hash": "d8cd0dfe56327ed6a7f3fe0481892439",
     "semantic_hash": ""
   },
   "server/dashboard/productReportRepository.test.js": {
-    "mtime": 1792054705.6479673,
-    "seen": 1792055268.5422962,
-    "ast_hash": "987eb6477e95c5f9c42f40da743b7d60",
+    "mtime": 1792112254.4722676,
+    "seen": 1792112436.2042155,
+    "ast_hash": "50fb0c70618a90a1e9cee8bdda5aaa91",
     "semantic_hash": ""
   },
   "server/db/featurePermissionsMigration.test.js": {
@@ -1914,9 +1914,9 @@
     "semantic_hash": ""
   },
   "server/kiotvietSync/productReportRefresh.js": {
-    "mtime": 1792035239.9443605,
-    "seen": 1792036123.592881,
-    "ast_hash": "b78038a8a3c995213a0399a18debe727",
+    "mtime": 1792112293.239398,
+    "seen": 1792112436.2042155,
+    "ast_hash": "6c004b45f6e90fad896b9b6419e0e86c",
     "semantic_hash": ""
   },
   "server/kiotvietSync/productReportRefresh.test.js": {
@@ -2256,9 +2256,9 @@
     "semantic_hash": ""
   },
   "server/dashboard/inTransitSource.js": {
-    "mtime": 1791268873.680049,
-    "seen": 1791859450.575905,
-    "ast_hash": "a67eaac7b2ae440ae52412a3bf5a80c1",
+    "mtime": 1792112293.0892332,
+    "seen": 1792112436.2042155,
+    "ast_hash": "8cdf2f72a78d18d77264a06e7c2d2d11",
     "semantic_hash": ""
   },
   "server/dashboard/inventoryValueHistory.js": {
@@ -3078,9 +3078,9 @@
     "semantic_hash": ""
   },
   "server/test/frontend/product-report-detail.test.js": {
-    "mtime": 1792055333.1999457,
-    "seen": 1792055492.8901415,
-    "ast_hash": "7f4284d6c243b11d69fa549e3ed332f6",
+    "mtime": 1792111959.3232875,
+    "seen": 1792112189.929926,
+    "ast_hash": "d4f93c096e25ec2a9f4f071436c6b27e",
     "semantic_hash": ""
   },
   "server/test/frontend/profile-email-change.test.js": {
@@ -3378,9 +3378,9 @@
     "semantic_hash": ""
   },
   "CURRENT.md": {
-    "mtime": 1792057970.2391317,
-    "seen": 1792058435.3941858,
-    "ast_hash": "f448be9b2d2206e4f193ad112cbe3299",
+    "mtime": 1792112293.7896335,
+    "seen": 1792112436.2042155,
+    "ast_hash": "0657a6d25d36c8ca6741b13579d627f8",
     "semantic_hash": ""
   },
   "MEMORY.md": {
@@ -3840,9 +3840,9 @@
     "semantic_hash": ""
   },
   "tasks/plan-product-report-containers.md": {
-    "mtime": 1792057970.2401307,
-    "seen": 1792058435.3941858,
-    "ast_hash": "0e12bf8e6bfcb9b65c57ee35e0af6198",
+    "mtime": 1792112293.7896335,
+    "seen": 1792112436.214456,
+    "ast_hash": "d9115e0dc58e4bcde42f67d6a9579a37",
     "semantic_hash": ""
   }
 }

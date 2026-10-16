@@ -16,7 +16,7 @@ const html = fs.readFileSync(path.join(publicDir, 'index.html'), 'utf8');
 const settle = async () => { for (let i = 0; i < 8; i++) await new Promise(resolve => setImmediate(resolve)); };
 
 const PRODUCTS = [
-  { code: 'SP-1', name: 'Khay giấy bạc', stockHanoi: 5, stockSaigon: 3, availableToSell: 8, qtySold30d: 4, revenue90d: 1000, customerCount90d: 3, topCustomerRevenue90d: 600, topCustomerName: 'KH A', topCustomerShare: 0.6 },
+  { code: 'SP-1', name: 'Khay giấy bạc', inTransit: 75, stockHanoi: 5, stockSaigon: 3, availableToSell: 8, qtySold30d: 4, revenue90d: 1000, customerCount90d: 3, topCustomerRevenue90d: 600, topCustomerName: 'KH A', topCustomerShare: 0.6 },
   { code: 'SP-2', name: 'Bình nước nhựa', stockHanoi: 0, stockSaigon: 0, availableToSell: 0, qtySold30d: 0, revenue90d: 0, customerCount90d: 0, topCustomerRevenue90d: 0, topCustomerName: '', topCustomerShare: null }
 ];
 
@@ -81,20 +81,21 @@ const pieCharts = page => page.charts.filter(chart => chart.config.type === 'dou
 const rowOf = (page, code) => [...page.$('productReportRows').querySelectorAll('tr.doc-row')].find(tr => tr.dataset.tableItemId === code);
 const modalText = page => page.$('docModalBody').textContent.replace(/\s+/g, ' ');
 
-test('bang bo cot "DS Khach lon nhat" va KHONG con cot/nut "Chi tiet" (12 cot), dong bam duoc', async () => {
+test('bang bo cot "DS Khach lon nhat" va KHONG con cot/nut "Chi tiet" (13 cot), dong bam duoc', async () => {
   const page = createPage();
   await settle();
 
   const headers = [...page.$('productReportRows').closest('table').querySelectorAll('thead th')].map(th => th.textContent.replace(/[↕▲▼]/g, '').trim());
   assert.deepEqual(headers, [
-    'Mã SP', 'Tên SP', 'Chưa bốc', 'Đã bốc', 'Tồn HN', 'Tồn SG', 'Tồn có bán', 'Tổng SL 30 ngày', 'DS 90 ngày',
+    'Mã SP', 'Tên SP', 'Chưa bốc', 'Đã bốc', 'Tồn HN', 'Điều chuyển SG', 'Tồn SG', 'Tồn có bán', 'Tổng SL 30 ngày', 'DS 90 ngày',
     'SL khách bán', 'Khách lớn nhất', '% Khách lớn'
   ]);
 
   const firstRow = page.$('productReportRows').querySelector('tr');
-  assert.equal(firstRow.cells.length, 12);
-  assert.match(firstRow.cells[10].textContent, /KH A/);
-  assert.match(firstRow.cells[11].textContent, /60/);
+  assert.equal(firstRow.cells.length, 13);
+  assert.equal(firstRow.cells[5].textContent, '75');
+  assert.match(firstRow.cells[11].textContent, /KH A/);
+  assert.match(firstRow.cells[12].textContent, /60/);
   assert.equal(page.$('productReportRows').querySelector('button'), null);
   assert.equal(firstRow.getAttribute('tabindex'), '0');
 });

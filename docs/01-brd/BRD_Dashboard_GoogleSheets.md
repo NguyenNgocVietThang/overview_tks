@@ -317,3 +317,6 @@ Cùng khách ở 2 cơ sở (15/10/2026): ở bảng tổng thưởng/phạt sal
 
 
 Khách hoạt động (15/10/2026): toàn bộ tính năng Công nợ chỉ dùng khách đang hoạt động, kể cả khách đã hết nợ khi tính điểm. Lọc danh sách/KPI/bản chốt đang xem, phạt theo ngày và tháng, điểm thưởng, hộp chi tiết, xuất file và nhập lịch TT; khách không còn hồ sơ không được chuyển thành điểm Chưa phân nhóm. Lọc trước bước chọn khách mới nhất theo cơ sở+mã. Đồng bộ chuẩn hóa raw.isActive, xử lý removedIds và đối soát toàn bộ lần đầu/mỗi ngày; chỉ đánh dấu khách vắng mặt sau một lượt đầy đủ đã kiểm tra tổng/trang/ID. Không xóa dữ liệu nguồn hoặc sổ phạt; kết quả thưởng tháng đã chốt vẫn bất biến. Quy tắc mới debt-reward-2026-10-v3-active-customers; không migration.
+
+
+16/10/2026 — Theo yêu cầu, Báo cáo hàng hóa (Tổng quan) thêm cột **Điều chuyển SG** giữa **Tồn HN** và **Tồn SG**, giữ Chưa bốc/Đã bốc. API và Excel/HTML dùng chung inTransitSource: tổng số lượng Đặt hàng nhập Đã xác nhận NCC của Kiot Sài Gòn trong DB, ghép mã trim/không phân biệt hoa thường. Theo yêu cầu tiếp theo, Tồn có bán = Có bán HN + Có bán SG + Điều chuyển SG, áp dụng riêng Báo cáo hàng hóa; hai cột Chưa bốc/Đã bốc không cộng vào công thức. Snapshot DB giữ số nền HN+SG đã trừ phiếu tạm, repository cộng điều chuyển đúng một lần khi đọc cho web/xuất file. Không migration, không sửa nguồn Sheets.

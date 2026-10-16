@@ -29,7 +29,7 @@ test('product report exports include numeric container quantities before stock a
   try {
     const request = { tableKey: 'overview.productReport' };
     const fields = (await exportService.getExportFields(request)).worksheets[0].fields;
-    assert.deepEqual(fields.slice(0, 6).map(field => field.key), ['code', 'name', 'unloadedQty', 'loadedQty', 'stockHanoi', 'stockSaigon']);
+    assert.deepEqual(fields.slice(0, 7).map(field => field.key), ['code', 'name', 'unloadedQty', 'loadedQty', 'stockHanoi', 'inTransit', 'stockSaigon']);
     assert.ok(fields.slice(2, 4).every(field => field.selected && field.type === 'number'));
     request.columns = { product_report: ['code', 'unloadedQty', 'loadedQty', 'stockHanoi'] };
     const file = await exportService.createExportWorkbook(request);
@@ -473,7 +473,8 @@ function assertStandardLabels(worksheets, where) {
           const inventoryBranchLabel = where === 'products.inventory' && part === 'label' &&
             ({ inTransit: 'Vận chuyển SG', availableHanoi: 'Có bán HN', availableSaigon: 'Có bán SG' })[field.key] === label &&
             ['HN', 'SG'].includes(token.toUpperCase());
-          assert.ok(!FORBIDDEN_ABBREVIATIONS.has(token.toUpperCase()) || inventoryBranchLabel, `${spot} ${part}: viet tat "${token}"`);
+          const requestedTransferLabel = where === 'overview.productReport' && field.key === 'inTransit' && label === 'Điều chuyển SG' && token.toUpperCase() === 'SG';
+          assert.ok(!FORBIDDEN_ABBREVIATIONS.has(token.toUpperCase()) || inventoryBranchLabel || requestedTransferLabel, `${spot} ${part}: viet tat "${token}"`);
         });
       });
       assert.ok(!labels.has(label), `${spot}: nhan trung trong worksheet`);

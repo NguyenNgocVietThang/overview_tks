@@ -3619,8 +3619,9 @@
                         <th style="width:105px" data-column-key="chua-boc">Chưa bốc</th>
                         <th style="width:105px" data-column-key="da-boc">Đã bốc</th>
                         <th style="width:95px" data-column-key="ton-hn">Tồn HN</th>
+                        <th style="width:125px" data-column-key="dieu-chuyen-sg" title="Số lượng đặt hàng nhập Đã xác nhận NCC tại Kiot Sài Gòn; cộng vào tồn có bán của Báo cáo hàng hóa">Điều chuyển SG</th>
                         <th style="width:95px" data-column-key="ton-sg">Tồn SG</th>
-                        <th title="Tồn có bán = Tồn HN + Tồn SG − Khách đặt (phiếu tạm). Tính lại mỗi đêm." style="width:125px" data-column-key="ton-co-ban">Tồn có bán</th>
+                        <th title="Tồn có bán = Có bán HN + Có bán SG + Điều chuyển SG. Có bán HN/SG đã trừ khách đặt (phiếu tạm)." style="width:125px" data-column-key="ton-co-ban">Tồn có bán</th>
                         <th style="width:165px" data-column-key="tong-sl-30-ngay">Tổng SL 30 ngày</th>
                         <th style="width:135px" data-column-key="ds-90-ngay">DS 90 ngày</th>
                         <th style="width:140px" data-column-key="sl-khach-ban">SL khách bán</th>
@@ -3630,7 +3631,7 @@
                     </thead>
                     <tbody id="productReportRows">
                       <tr>
-                        <td colspan="12" class="table-note">Đang tải...</td>
+                        <td colspan="13" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -7636,6 +7637,7 @@
         '<td class="name-cell">' + escapeHtml(p.name) + '</td>' +
         productContainerQuantityCell(p.unloadedQty) + productContainerQuantityCell(p.loadedQty) +
         '<td class="mono" data-sort-value="' + p.stockHanoi + '">' + fmtNumber(p.stockHanoi) + '</td>' +
+        '<td class="mono" data-sort-value="' + (p.inTransit || 0) + '">' + fmtNumber(p.inTransit) + '</td>' +
         '<td class="mono" data-sort-value="' + p.stockSaigon + '">' + fmtNumber(p.stockSaigon) + '</td>' +
         '<td class="mono" data-sort-value="' + p.availableToSell + '">' + fmtNumber(p.availableToSell) + '</td>' +
         '<td class="mono" data-sort-value="' + p.qtySold30d + '">' + fmtNumber(p.qtySold30d) + '</td>' +
@@ -7665,7 +7667,7 @@
         },
         rows,
         productReportRowHtml,
-        12,
+        13,
         state.productReport.loaded ? 'Chưa có dữ liệu báo cáo hàng hóa.' : 'Đang tải...'
       );
     }
@@ -7690,7 +7692,7 @@
           if (!state.productReport.loaded) {
             state.productReport.loaded = true;
             document.getElementById('productReportRows').innerHTML =
-              '<tr><td colspan="12" class="table-note">Không tải được báo cáo hàng hóa.</td></tr>';
+              '<tr><td colspan="13" class="table-note">Không tải được báo cáo hàng hóa.</td></tr>';
           }
         }).finally(function () { state.productReport.loading = false; });
     }

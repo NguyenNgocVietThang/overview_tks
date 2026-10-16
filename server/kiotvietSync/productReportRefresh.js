@@ -21,7 +21,8 @@ const { sqlLiteral } = require('../dashboard/inTransitSource');
 const BRANCH_CODES = Object.freeze(['hanoi', 'saigon']);
 
 // Don dat hang cua khach ("Phieu tam") dang giu cho hang — chi trang thai nay bi tru khoi ton
-// co the ban (quy tac 2026-10-06: Ton thuc - Dat hang phieu tam; hang dang van chuyen khong con tinh vao).
+// co the ban cua snapshot nen (Ton thuc - Dat hang phieu tam). Tu 16/10/2026,
+// productReportRepository cong dieu chuyen SG khi doc; khong cong o SQL nay de tranh tinh hai lan.
 const PENDING_ORDER_STATUS = 'Phiếu tạm';
 
 // Gia tri 1 dong return_details (alias rd), tuyet doi - ban sao cua RETURN_AMOUNT_SQL
