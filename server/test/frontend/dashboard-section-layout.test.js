@@ -22,11 +22,13 @@ function sectionTitles(name) {
   }));
 }
 
-test('Tổng quan có 3 phần (Xu hướng đứng đầu; Báo cáo hàng hóa đã chuyển sang tab Hàng hóa)', () => {
+test('Tổng quan có 2 phần (Xu hướng đứng đầu; Báo cáo hàng hóa sang tab Hàng hóa, doanh thu theo khách sang tab Khách hàng)', () => {
   const titles = sectionTitles('overview');
-  assert.deepEqual(titles.map(s => s.step), ['1', '2', '3']);
+  assert.deepEqual(titles.map(s => s.step), ['1', '2']);
   assert.ok(!titles.some(s => /nhóm hàng/.test(s.title)), 'phan nhom hang da bi go');
-  assert.deepEqual(titles.map(s => s.title), ['Xu hướng', 'Báo cáo doanh thu theo khách', 'Kiểm tra đứt hàng']);
+  assert.deepEqual(titles.map(s => s.title), ['Xu hướng', 'Kiểm tra đứt hàng']);
+  assert.equal(view('overview').querySelector('#cpCustomerSearchInput'), null, 'doanh thu theo khach da chuyen sang tab Khach hang');
+  assert.ok(view('business').querySelector('#cpCustomerSearchInput'), 'doanh thu theo khach phai nam o tab Khach hang');
   ['endOfDayRows', 'chartTopTransactions', 'todayNewProductRows'].forEach(id => {
     assert.equal(view('overview').querySelector('#' + id), null, id + ' khong duoc nam o Tong quan');
   });
@@ -86,9 +88,7 @@ test('không còn mục Chỉ số then chốt đầu tab; mỗi mục con có h
     sections.forEach((section, index) => {
       assert.ok(section.querySelector('.section-kpis'), name + ' muc ' + (index + 1) + ' thieu chi so then chot');
       const firstBlock = section.querySelector(':scope > .section-head').nextElementSibling;
-      if (name !== 'overview' || index !== 1) {
-        assert.ok(firstBlock.classList.contains('section-kpis'), name + ' muc ' + (index + 1) + ': chi so phai o dau muc');
-      }
+      assert.ok(firstBlock.classList.contains('section-kpis'), name + ' muc ' + (index + 1) + ': chi so phai o dau muc');
     });
   });
 });

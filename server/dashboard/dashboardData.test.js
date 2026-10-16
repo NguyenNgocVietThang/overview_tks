@@ -974,6 +974,34 @@ test('getDashboardData: doanh thu thuc te (Tong quan/Hoa don) la doanh thu ban t
   });
 });
 
+test('getDashboardData: doanh thu theo ngay tach theo co so (cot chong HN/SG), 1 co so chi co khoa cua co so do', async () => {
+  const { dashboardData, dashboardRollupRepository } = freshDashboardData();
+  const { BRANCHES, BRANCH_BOTH } = require('../branch/branches');
+  mockDashboardRollups(dashboardRollupRepository, {
+    getInvoiceRevenueByDay: ({ branch }) => (branch === BRANCHES.HANOI
+      ? [{ dateKey: '10/08/2026', revenue: 380, grossRevenue: 500, returnAmount: 120, returnCount: 1, invoiceCount: 3 }]
+      : [{ dateKey: '10/08/2026', revenue: 200, grossRevenue: 200, returnAmount: 0, returnCount: 0, invoiceCount: 1 },
+        { dateKey: '11/08/2026', revenue: 50, grossRevenue: 50, returnAmount: 0, returnCount: 0, invoiceCount: 1 }])
+  });
+  dashboardData.__test__.resetCaches();
+  const filters = { ...BASE_FILTERS, invoices: { mode: 'range', from: '2026-08-10', to: '2026-08-12' } };
+
+  const both = await dashboardData.getDashboardData(filters, BRANCH_BOTH);
+  [both.overview, both.invoices].forEach(period => {
+    assert.deepEqual(period.revenueByDay.map(d => [d.date, d.revenue, d.revenueHanoi, d.revenueSaigon]), [
+      ['10/08/2026', 580, 380, 200],
+      ['11/08/2026', 50, 0, 50],
+      ['12/08/2026', 0, 0, 0]
+    ]);
+  });
+
+  dashboardData.__test__.resetCaches();
+  const hanoi = await dashboardData.getDashboardData(filters, BRANCHES.HANOI);
+  assert.deepEqual(hanoi.overview.revenueByDay.map(d => [d.revenue, d.revenueHanoi, 'revenueSaigon' in d]), [
+    [380, 380, false], [0, 0, false], [0, 0, false]
+  ]);
+});
+
 test('getDashboardData: cot SL cua "Chi tiết giao dịch" doc tu getInvoiceQuantitiesByCode (rollup)', async () => {
   const { dashboardData, dashboardPgReader, dashboardRollupRepository } = freshDashboardData();
   const CONFIG = require('../config');

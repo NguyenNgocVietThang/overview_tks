@@ -1,6 +1,6 @@
 'use strict';
-// Quyen truy cap cac API cua tab "Tong quan" (routes.js): muc 2 (doanh thu theo khach) + muc 3
-// (Bao cao hang hoa) nam ngay trong tab nay nen cac API CHI DOC cua chung mo theo quyen Tong quan.
+// Quyen truy cap cac API doc cua cac tab bao cao (routes.js). Doanh thu theo khach nay nam o tab Khach hang
+// (reports.business); cac API con lai mo theo quyen cua tab chua chung.
 // Nhan vien sale mac dinh co du 5 tab xem (2026-10-02) nen goi duoc ca API muc 4 + chi tiet hoa don;
 // xuat Excel (/api/export) van bi chan voi Sale.
 process.env.GOOGLE_SERVICE_ACCOUNT_JSON = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '{}';
@@ -56,6 +56,8 @@ async function passesGuards(urlPath, vaiTro) {
 const OVERVIEW_READ_ENDPOINTS = [
   '/api/dashboard',
   '/api/inventory-value-history',
+  // Bao cao doanh thu theo khach da chuyen sang dau tab Khach hang (2026-10-16): 2 API nay mo theo
+  // quyen reports.business; Sale + Tro ly deu co quyen nay mac dinh, marketing thi khong.
   '/api/customer-suggest',
   '/api/customer-product-revenue',
   '/api/product-report',
