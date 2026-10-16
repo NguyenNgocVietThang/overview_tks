@@ -22,48 +22,12 @@ const ALWAYS_KEPT_KEYS = Object.freeze(['updatedAt', 'filters', 'kpi']);
 // Khoa top-level -> quyen can co de nhan duoc khoa do.
 const SECTION_FEATURE = Object.freeze({
   overview: 'reports.overview',
-  products: 'reports.products',
-  allProducts: 'reports.products',
   invoices: 'reports.invoices',
   debtManagement: 'reports.debt'
 });
 
-// Quyen xem gia von ("Don gia") va gia tri ton cua tab Hang hoa (2026-10-06). Thieu quyen thi cat
-// cac truong: allProducts[].cost/stockValue, kpi.totalInventoryValue, products.newProducts.products[].cost/price.
-const PRODUCT_COST_FEATURE = 'reports.products.cost';
-const PRODUCT_COST_FIELDS = Object.freeze(['cost', 'stockValue']);
-const NEW_PRODUCT_COST_FIELDS = Object.freeze(['cost', 'price']);
-
-function omitFields(item, fields) {
-  if (!item || typeof item !== 'object') return item;
-  const copy = {};
-  for (const key of Object.keys(item)) {
-    if (!fields.includes(key)) copy[key] = item[key];
-  }
-  return copy;
-}
-
-/** Ban sao cua payload da bo cac truong gia von / gia tri ton (khong sua object dau vao). */
-function stripProductCost(filtered) {
-  const result = { ...filtered };
-  if (Array.isArray(result.allProducts)) {
-    result.allProducts = result.allProducts.map(item => omitFields(item, PRODUCT_COST_FIELDS));
-  }
-  if (result.kpi && typeof result.kpi === 'object') {
-    result.kpi = omitFields(result.kpi, ['totalInventoryValue']);
-  }
-  const newProducts = result.products && result.products.newProducts;
-  if (newProducts && Array.isArray(newProducts.products)) {
-    result.products = {
-      ...result.products,
-      newProducts: {
-        ...newProducts,
-        products: newProducts.products.map(item => omitFields(item, NEW_PRODUCT_COST_FIELDS))
-      }
-    };
-  }
-  return result;
-}
+// (2026-10-16: tab Hang hoa cu da go nen quyen reports.products.cost va viec cat gia von / gia tri ton khoi payload
+// khong con nghia — Bao cao hang hoa khong tra gia von.)
 
 /**
  * Tra ve mot object MOI chi chua cac phan `permissions` cho phep.
@@ -80,11 +44,10 @@ function filterDashboardForUser(data, permissions) {
     }
     if (permissionsHave(permissions, feature)) filtered[key] = data[key];
   }
-  return permissionsHave(permissions, PRODUCT_COST_FEATURE) ? filtered : stripProductCost(filtered);
+  return filtered;
 }
 
 module.exports = {
-  PRODUCT_COST_FEATURE,
   ALWAYS_KEPT_KEYS,
   SECTION_FEATURE,
   filterDashboardForUser

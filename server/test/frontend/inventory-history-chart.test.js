@@ -69,7 +69,7 @@ test('bộ lọc riêng không nằm trong state.filters/TAB_FILTER_PREFIXES (kh
   const match = html.match(/const TAB_FILTER_PREFIXES = \{([\s\S]*?)\};/);
   const map = new Function('return {' + match[1] + '}')();
   assert.equal(map.inventoryHistory, undefined);
-  assert.doesNotMatch(html.match(/filters: \{\s*topSelling[\s\S]*?\n      \},/)[0], /inventoryHistory/);
+  assert.doesNotMatch(html.match(/filters: \{\s*invoices[\s\S]*?\n      \},/)[0], /inventoryHistory/);
 });
 
 test('khởi động: tải mặc định 30 ngày gần nhất (Từ = hôm nay − 29 ngày, Đến = hôm nay) và điền vào ô lọc', async () => {

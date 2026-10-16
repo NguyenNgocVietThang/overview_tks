@@ -20,7 +20,6 @@ dashboardData.getDashboardData = async (filters, branch, viewer, options) => {
     filters: { invoices: { label: '30 ngày' } },
     kpi: {},
     invoices: { periodRevenue: 1 },
-    products: { childCategorySalesByParent: {}, availableParentCategories: [] },
     debtManagement: { available: true }
   };
 };
@@ -47,7 +46,7 @@ function request(query, permissions = ALL_PERMISSIONS) {
   return { query, branch: 'Hà Nội', user: { permissions } };
 }
 
-test('khong co view: ca 5 tab nhu cu (khong truyen options.views), payload duoc cat theo quyen', async () => {
+test('khong co view: ca 3 tab nhu cu (khong truyen options.views), payload duoc cat theo quyen', async () => {
   calls.length = 0;
   const res = fakeRes();
   await dashboardHandler()(request({ days: '30' }, ['reports.invoices']), res);
@@ -69,22 +68,18 @@ test('view=invoices: truyen views=[invoices] xuong getDashboardData', async () =
   assert.equal(res.body.invoices.periodRevenue, 1);
 });
 
-test('bo loc rieng tung bang: ni doc tu query, khong gui thi de undefined (getDashboardData fallback ve pr)', async () => {
+test('chi con bo loc invoices: pr*/np*/ni*/cu* cua tab Hang hoa va Khach hang cu bi bo qua', async () => {
   calls.length = 0;
   await dashboardHandler()(request({
     inMode: 'days', inDays: '7', prMode: 'days', prDays: '30',
-    niMode: 'range', niFrom: '2026-07-01', niTo: '2026-07-31',
+    niMode: 'range', niFrom: '2026-07-01', niTo: '2026-07-31', npMode: 'all', cuMode: 'all',
     // or*/rt* la bo loc cua 2 bang Dat hang / Tra hang da bo o tab Hoa don (2026-10-01): khong con duoc doc.
     orMode: 'days', orDays: '90',
     rtMode: 'all'
   }), fakeRes());
-  assert.deepEqual(calls[0].filters.newlyImported, { mode: 'range', days: undefined, from: '2026-07-01', to: '2026-07-31' });
+  assert.deepEqual(Object.keys(calls[0].filters), ['invoices']);
   assert.equal('orders' in calls[0].filters, false, 'orMode/... khong con duoc phan tich');
   assert.equal('returns' in calls[0].filters, false, 'rtMode/... khong con duoc phan tich');
-
-  calls.length = 0;
-  await dashboardHandler()(request({ days: '30', inMode: 'days', inDays: '7' }), fakeRes());
-  assert.equal(calls[0].filters.newlyImported, undefined);
 });
 
 test('view co nhieu tab: cach nhau dau phay, chi giu tab tai khoan co quyen', async () => {

@@ -17,12 +17,11 @@
 
 const CONFIG = require('../config');
 
-const VIEW_NAMES = Object.freeze(['overview', 'products', 'invoices', 'debt']);
+const VIEW_NAMES = Object.freeze(['overview', 'invoices', 'debt']);
 
 // Quyen can co de xem tung tab — khop SECTION_FEATURE (dashboardPermissionFilter.js).
 const VIEW_FEATURE = Object.freeze({
   overview: 'reports.overview',
-  products: 'reports.products',
   invoices: 'reports.invoices',
   debt: 'reports.debt'
 });
@@ -32,31 +31,22 @@ const PERIODS_KEY = '@periods';
 
 // (2026-10-01: bo bang "Đặt hàng" khoi cac bang core — ~23K dong, ~2,8s moi lan doc, chi tab Hoa don
 // tung can cho 2 bang Dat hang / Tra hang da bo; don Phieu tam nay hien o trang Vong doi don hang.)
-// (2026-10-16: bo bang Tra hang khoi cac bang core — chi tab Khach hang cu doc, tab do da go.)
-const CORE_SHEETS_ORDER = Object.freeze([
-  CONFIG.SHEET_CATEGORIES, CONFIG.SHEET_PRODUCTS, CONFIG.SHEET_INVOICES, CONFIG.SHEET_CUSTOMERS
-]);
+// (2026-10-16: bo bang Tra hang, Khach hang, Hang hoa, Nhom hang khoi cac bang core — chi 2 tab Khach hang / Hang hoa
+// cu doc, 2 tab do da go; Bao cao hang hoa va Tang truong ma hang co API rieng.)
+const CORE_SHEETS_ORDER = Object.freeze([CONFIG.SHEET_INVOICES]);
 // (2026-10-13: tab Cong no bo quy tac 1-3-7 nen khong tab nao con doc CN1/3/7 — PERIODS_KEY chi
 // con de mot tab khai bao 'periods: true' neu sau nay can lai.)
 const ALL_CORE_KEYS = Object.freeze([...CORE_SHEETS_ORDER]);
 
 const ALL_ROLLUPS = Object.freeze([
-  'overviewRevenue', 'invoicesRevenue', 'productSales', 'newlyImportedSales', 'firstPurchase',
-  'invoiceQuantity'
+  'overviewRevenue', 'invoicesRevenue', 'invoiceQuantity'
 ]);
 
 const VIEW_SOURCES = Object.freeze({
-  // Tong quan: KPI (hang hoa/khach hang) + xu huong doanh thu theo bo loc `invoices`.
+  // Tong quan: xu huong doanh thu theo bo loc `invoices` (+ so hoa don huy tu bang Hoa don).
   overview: {
-    sheets: [CONFIG.SHEET_CATEGORIES, CONFIG.SHEET_PRODUCTS, CONFIG.SHEET_INVOICES, CONFIG.SHEET_CUSTOMERS],
+    sheets: [CONFIG.SHEET_INVOICES],
     rollups: ['overviewRevenue'],
-    needsDebt: false
-  },
-  products: {
-    sheets: [CONFIG.SHEET_CATEGORIES, CONFIG.SHEET_PRODUCTS],
-    // newlyImportedSales: doanh so Hang moi nhap theo bo loc rieng `newlyImported`
-    // (cung khoang voi Hang hoa thi fetchDashboardRollups dung lai productSales).
-    rollups: ['productSales', 'newlyImportedSales', 'firstPurchase'],
     needsDebt: false
   },
   // (2026-10-05: bo bang Tra hang — chi phuc vu the chi so "Trả hàng" returnsCount/totalReturns da go;
@@ -81,7 +71,6 @@ const VIEW_SOURCES = Object.freeze({
 // (Bo loc rieng `overview` (ov*) da bo 2026-10-05 — Tong quan dung bo loc `invoices`.)
 const VIEW_FILTER_KEYS = Object.freeze({
   overview: ['invoices'],
-  products: ['products', 'newProducts', 'newlyImported'],
   invoices: ['invoices'],
   debt: []
 });
@@ -94,20 +83,8 @@ const VIEW_PAYLOAD = Object.freeze({
   overview: {
     top: ['overview'],
     nested: {},
-    kpi: [
-      'totalStock', 'totalProducts',
-      'lowStockCount', 'totalInventoryValue', 'totalCustomers', 'customersWithDebt', 'totalDebt'
-    ],
+    kpi: [],
     filters: ['invoices']
-  },
-  products: {
-    top: ['products', 'allProducts'],
-    nested: {},
-    kpi: [
-      'totalProducts', 'totalStock', 'inStockCodes',
-      'lowStockCount', 'totalInventoryValue'
-    ],
-    filters: ['products', 'newProducts', 'newlyImported']
   },
   invoices: {
     top: ['invoices'],
@@ -131,7 +108,7 @@ function invalidViewError(name) {
 }
 
 /**
- * Doc tham so query `view` ("overview" hoac "overview,products"). Bo trong =>
+ * Doc tham so query `view` ("overview" hoac "overview,invoices"). Bo trong =>
  * null (ca 4 tab). Ten sai => nem loi 400 INVALID_VIEW.
  */
 function parseViewsParam(raw) {
@@ -168,7 +145,7 @@ function resolveViewPlan(rawViews) {
   const coreKeys = needsPeriods ? [...sheets, PERIODS_KEY] : sheets;
   const rollups = new Set(unionInOrder(ALL_ROLLUPS, views.map(name => VIEW_SOURCES[name].rollups)));
   const filterKeys = unionInOrder(
-    ['products', 'invoices', 'newProducts', 'newlyImported'],
+    ['invoices'],
     views.map(name => VIEW_FILTER_KEYS[name])
   );
 

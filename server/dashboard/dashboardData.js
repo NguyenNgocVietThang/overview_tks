@@ -37,8 +37,6 @@ dashboardRollupEvents.on('updated', () => {
   }
 });
 
-const OUT_OF_STOCK_LEVEL = 0;
-const TOP_SELLING_LIMIT = 15;
 const DASHBOARD_SHEETS_CACHE_TTL_MS = 90 * 1000;
 // Hoa don / Chi tiet hoa don (bang nang nhat: HN ~30K dong ~19 MB) chi doi khi
 // luot sync KiotViet ghi vao Postgres — va moi luot sync fast deu chay rollup
@@ -129,14 +127,6 @@ function getDashboardDateParts(date) {
 function formatDMY(date) {
   const { day, month, year } = getDashboardDateParts(date);
   return `${day}/${month}/${year}`;
-}
-
-function daysSince(date) {
-  const toUtcMidnight = d => {
-    const { day, month, year } = getDashboardDateParts(d);
-    return Date.UTC(Number(year), Number(month) - 1, Number(day));
-  };
-  return Math.round((toUtcMidnight(new Date()) - toUtcMidnight(date)) / DAY_MS);
 }
 
 function formatDMYHMS(date) {
@@ -261,21 +251,10 @@ function resolveFilterRange(spec, now) {
   return { mode: 'days', days, start, end, label: `${days} ngày` };
 }
 
-function hasFilterSpecValue(spec) {
-  return Boolean(spec && typeof spec === 'object' &&
-    ['mode', 'days', 'from', 'to'].some(key => spec[key] !== undefined && spec[key] !== null && spec[key] !== ''));
-}
-
-// Bo loc rieng tung bang (Hang moi nhap) — thieu hoac rong thi dung bo loc cha (Hang hoa)
-// nhu truoc de client/test cu khong doi. (2026-10-01: bo 2 bang Dat hang / Tra hang cua tab Hoa
-// don nen khong con bo loc rieng `orders` / `returns`; the "Tra hang" theo bo loc `invoices`.)
-// Tra object MOI (khong sua filters cua nguoi goi); idempotent.
+// Tra ban sao bo loc (khong sua filters cua nguoi goi); idempotent. (2026-10-16: tab Hang hoa cu da go nen
+// khong con bo loc rieng `products` / `newProducts` / `newlyImported` de gom ve bo loc cha.)
 function withTableFilterFallbacks(filters) {
-  const f = filters || {};
-  return {
-    ...f,
-    newlyImported: hasFilterSpecValue(f.newlyImported) ? f.newlyImported : f.products
-  };
+  return { ...(filters || {}) };
 }
 
 function isWithinRange(date, range) {
@@ -305,70 +284,8 @@ function rangeToDateBounds(range) {
   return { from: toCalendarDateKey(range.start), to: toCalendarDateKey(range.end) };
 }
 
-function normalizeCategoryName(value) {
-  return String(value || '').trim().toLocaleLowerCase('vi-VN');
-}
-
-function isVatProductCode(value) {
-  return String(value || '').trim().toUpperCase().startsWith('VAT');
-}
-
 function normalizePhone(value) {
   return String(value || '').replace(/\D/g, '');
-}
-
-function buildParentCategoryResolver(categoryData) {
-  const categoriesById = new Map();
-  const categoriesByName = new Map();
-
-  for (let r = 1; r < categoryData.length; r++) {
-    const row = categoryData[r];
-    const id = String(row[0] || '').trim();
-    const name = String(row[1] || '').trim();
-    const parentId = String(row[2] || '').trim();
-    if (!id || !name) continue;
-    const category = { id, name, parentId };
-    categoriesById.set(id, category);
-    const normalizedName = normalizeCategoryName(name);
-    if (!categoriesByName.has(normalizedName)) categoriesByName.set(normalizedName, []);
-    categoriesByName.get(normalizedName).push(category);
-  }
-
-  const rootCache = new Map();
-  function findRoot(category) {
-    if (rootCache.has(category.id)) return rootCache.get(category.id);
-    const visited = new Set();
-    let current = category;
-
-    while (current) {
-      // Chỉ các dòng để trống "Mã nhóm cha" mới là nhóm cha gốc.
-      if (!current.parentId) {
-        rootCache.set(category.id, current);
-        return current;
-      }
-      if (visited.has(current.id)) break;
-      visited.add(current.id);
-      current = categoriesById.get(current.parentId);
-    }
-
-    rootCache.set(category.id, null);
-    return null;
-  }
-
-  return function resolveParentCategory(categoryName, categoryId) {
-    const id = String(categoryId || '').trim();
-    const candidates = id && categoriesById.has(id)
-      ? [categoriesById.get(id)]
-      : (categoriesByName.get(normalizeCategoryName(categoryName)) || []);
-    if (!candidates.length) return 'Chưa xác định';
-
-    const roots = new Map();
-    candidates.forEach(category => {
-      const root = findRoot(category);
-      if (root) roots.set(root.id, root);
-    });
-    return roots.size === 1 ? roots.values().next().value.name : 'Chưa xác định';
-  };
 }
 
 // ---------- Cache THEO CO SO -------------------------------------------------
@@ -1369,20 +1286,6 @@ function mergeTransactionalSheet(branchSources, sheetName) {
   return [targetHeaders, ...rows];
 }
 
-// Filter physical customer records before merging names across branches: one
-// inactive branch must not contribute debt to an otherwise active customer.
-function activeCustomerDebtSheet(branchSources) {
-  const sources = branchSources.map(source => {
-    const sheet = source.sheets[CONFIG.SHEET_CUSTOMERS] || [];
-    const activeIndex = sheetHeaderIndex(sheet[0] || [], 'Đang hoạt động');
-    const rows = activeIndex < 0 ? sheet : [sheet[0], ...sheet.slice(1).filter(row => String(row[activeIndex]) !== 'false')];
-    return { branch: source.branch, sheets: { [CONFIG.SHEET_CUSTOMERS]: rows } };
-  });
-  if (sources.length === 1) return sources[0].sheets[CONFIG.SHEET_CUSTOMERS];
-  const spec = ENTITY_MERGE_SPECS[CONFIG.SHEET_CUSTOMERS];
-  return mergeEntitySheet(sources, CONFIG.SHEET_CUSTOMERS, spec.codeHeader, spec.additiveHeaders, spec.options);
-}
-
 function concatenateSheet(branchSources, sheetName) {
   const targetHeaders = firstSheetHeaders(branchSources, sheetName);
   if (!targetHeaders) return [];
@@ -1470,22 +1373,6 @@ function mergeRollupRows(branchSources, field, keyOf, additiveFields, sort) {
 }
 
 function mergeDashboardRollups(branchSources) {
-  // Hang hoa cung ma o hai co so la hai dong rieng: dong rollup khong gop ma gan
-  // nhan co so vat ly de computeDashboardData tra dung dong hang hoa.
-  const firstPurchaseRows = branchSources.flatMap(source =>
-    (source.rollups.firstPurchaseRows || []).map(row => ({ ...row, branch: source.branch }))
-  );
-  const productSalesRows = branchSources.flatMap(source =>
-    (source.rollups.productSalesRows || []).map(row => ({ ...row, branch: source.branch }))
-  );
-  // Khong co co so nao tra newlyImportedSalesRows (rollup cu/test) -> de undefined
-  // de computeDashboardData tu dung productSalesRows.
-  const newlyImportedSalesRows = branchSources.some(source => source.rollups.newlyImportedSalesRows !== undefined)
-    ? branchSources.flatMap(source =>
-      (source.rollups.newlyImportedSalesRows || []).map(row => ({ ...row, branch: source.branch }))
-    )
-    : undefined;
-
   const invoiceQuantityRows = branchSources.flatMap(source =>
     (source.rollups.invoiceQuantityRows || []).map(row => ({ ...row, branch: source.branch }))
   );
@@ -1505,9 +1392,6 @@ function mergeDashboardRollups(branchSources) {
       ['revenue', 'grossRevenue', 'returnAmount', 'returnCount', 'invoiceCount'],
       (a, b) => (parseSheetDate(a.dateKey)?.getTime() || 0) - (parseSheetDate(b.dateKey)?.getTime() || 0)
     ),
-    productSalesRows,
-    newlyImportedSalesRows,
-    firstPurchaseRows,
     invoiceQuantityRows
   };
 }
@@ -1546,43 +1430,21 @@ function dashboardResultCacheKey(branch, plan, sourceVersions, filters) {
  * `|| []`), vd tab Tong quan khong phai cho getInvoiceQuantitiesByCode (~3,3s
  * khi nguoi) chi Hoa don moi can. Bo trong = du 6 truy van nhu cu.
  */
-async function fetchDashboardRollups(branch, { productsRange, invoicesRange, newlyImportedRange }, plan) {
+async function fetchDashboardRollups(branch, { invoicesRange }, plan) {
   const wanted = plan ? plan.rollups : new Set(ALL_ROLLUPS);
   const run = (name, load) => (wanted.has(name) ? load() : undefined);
   const invoicesBounds = rangeToDateBounds(invoicesRange);
   // Xu huong doanh thu theo ngay cua tab Tong quan dung bo loc `invoices` (chung voi bang Chi tiet giao dich).
   const overviewBounds = invoicesBounds;
-  const productsBounds = rangeToDateBounds(productsRange);
-  // Thieu newlyImportedRange (nguoi goi cu) -> cung khoang voi Hang hoa.
-  const newlyImportedBounds = newlyImportedRange ? rangeToDateBounds(newlyImportedRange) : productsBounds;
-  const loadProductSales = bounds => dashboardRollupRepository.getProductSalesBreakdown({
-    branch,
-    from: bounds.from,
-    to: bounds.to,
-    preserveNameSource: true
-  });
-  const productSalesPromise = run('productSales', () => loadProductSales(productsBounds));
-  // Hang moi nhap cung khoang ngay voi Hang hoa -> dung lai dung 1 truy van.
-  const sameSalesBounds = newlyImportedBounds.from === productsBounds.from && newlyImportedBounds.to === productsBounds.to;
-  const newlyImportedSalesPromise = run('newlyImportedSales', () =>
-    (sameSalesBounds && productSalesPromise ? productSalesPromise : loadProductSales(newlyImportedBounds)));
-
   const [
-    overviewRevenueRows, invoicesRevenueRows, productSalesRows, newlyImportedSalesRows,
-    firstPurchaseRows, invoiceQuantityRows
+    overviewRevenueRows, invoicesRevenueRows, invoiceQuantityRows
   ] = await Promise.all([
     run('overviewRevenue', () => dashboardRollupRepository.getInvoiceRevenueByDay({ branch, from: overviewBounds.from, to: overviewBounds.to })),
     run('invoicesRevenue', () => dashboardRollupRepository.getInvoiceRevenueByDay({ branch, from: invoicesBounds.from, to: invoicesBounds.to })),
-    productSalesPromise,
-    newlyImportedSalesPromise,
-    run('firstPurchase', () => dashboardRollupRepository.getFirstPurchaseDates({ branch })),
     run('invoiceQuantity', () => dashboardRollupRepository.getInvoiceQuantitiesByCode({ branch, from: invoicesBounds.from, to: invoicesBounds.to }))
   ]);
 
-  return {
-    overviewRevenueRows, invoicesRevenueRows, productSalesRows, newlyImportedSalesRows,
-    firstPurchaseRows, invoiceQuantityRows
-  };
+  return { overviewRevenueRows, invoicesRevenueRows, invoiceQuantityRows };
 }
 
 // Rollup dang bay theo (co so, tab, khoang ngay, phien ban rollup): nhieu request nguoi
@@ -1591,8 +1453,7 @@ async function fetchDashboardRollups(branch, { productsRange, invoicesRange, new
 const dashboardRollupFetchInflight = new Map();
 
 function shareDashboardRollupFetch(branch, ranges, plan, rollupVersionSnapshot) {
-  const bounds = ['productsRange', 'invoicesRange', 'newlyImportedRange']
-    .map(name => rangeToDateBounds(ranges[name]));
+  const bounds = ['invoicesRange'].map(name => rangeToDateBounds(ranges[name]));
   const key = [branch || '', plan.key, JSON.stringify(bounds), rollupVersionSnapshot].join('|');
   const existing = dashboardRollupFetchInflight.get(key);
   if (existing) return existing;
@@ -1651,10 +1512,8 @@ async function getDashboardData(filters, branch, viewer, options) {
   }
   const now = new Date();
   // (Bo loc rieng `overview` (ov*) da bo 2026-10-05: tab Tong quan dung bo loc `invoices`.)
-  const productsRange = resolveFilterRange(f.products, now);
   const invoicesRange = resolveFilterRange(f.invoices, now);
-  const newlyImportedRange = resolveFilterRange(f.newlyImported, now);
-  const ranges = { productsRange, invoicesRange, newlyImportedRange };
+  const ranges = { invoicesRange };
   // sourceArguments[i] la tham so branch thuc su truyen cho pgReader/rollup —
   // dung lai y het cho ca loadDashboardBaseSources va fetchDashboardRollups
   // ben duoi de tranh lech logic giua 2 cho.
@@ -1722,11 +1581,10 @@ async function getDashboardData(filters, branch, viewer, options) {
     const debtManagement = plan.has('debt')
       ? await debtScheduleService.buildDebtManagement(branchScope, viewer)
       : undefined;
-    const debtCustomerData = activeCustomerDebtSheet(branchSources);
     let data;
     if (branchSources.length === 1) {
       const source = branchSources[0];
-      data = computeDashboardData(source.sheets, f, now, source.branch, source.rollups, debtManagement, plan, debtCustomerData);
+      data = computeDashboardData(source.sheets, f, now, source.branch, source.rollups, debtManagement, plan);
     } else {
       data = computeDashboardData(
         mergeDashboardSheets(branchSources),
@@ -1735,8 +1593,7 @@ async function getDashboardData(filters, branch, viewer, options) {
         BRANCH_BOTH,
         mergeDashboardRollups(branchSources),
         debtManagement,
-        plan,
-        debtCustomerData
+        plan
       );
     }
     dashboardResultCache.set(cacheKey, { data, expiresAt: Date.now() + DASHBOARD_RESULT_CACHE_TTL_MS });
@@ -1767,7 +1624,7 @@ async function getDashboardData(filters, branch, viewer, options) {
  * @param {Date} now
  * @returns {Object} Du lieu KPI, bieu do, bang xep hang cho dashboard
  */
-function computeDashboardData(sheets, filters, now, branch, rollups, debtManagementOverride, plan, debtCustomerData) {
+function computeDashboardData(sheets, filters, now, branch, rollups, debtManagementOverride, plan) {
   computeCallCountForTest += 1;
   // `plan` (dashboardViews.resolveViewPlan): chi tinh phan cua cac tab duoc chon.
   // Bang nguon/rollup cua tab khac KHONG duoc nap (xem `|| []` ben duoi) nen cac
@@ -1777,173 +1634,16 @@ function computeDashboardData(sheets, filters, now, branch, rollups, debtManagem
   const f = withTableFilterFallbacks(filters);
   rollups = rollups || {};
 
-  const productsRange = resolveFilterRange(f.products, now);
   const invoicesRange = resolveFilterRange(f.invoices, now);
-  const newProductsRange = resolveFilterRange(f.newProducts, now);
-  // Bo loc rieng tung bang (mac dinh = bo loc Hang hoa, xem withTableFilterFallbacks).
-  const newlyImportedRange = resolveFilterRange(f.newlyImported, now);
 
   const debtManagement = !view.has('debt') ? undefined : debtManagementOverride;
 
-  const categoryData = sheets[CONFIG.SHEET_CATEGORIES] || [];
-  const prodData = sheets[CONFIG.SHEET_PRODUCTS] || [];
   const invData = sheets[CONFIG.SHEET_INVOICES] || [];
   // "Chi tiết hóa đơn" KHONG con doc tu `sheets` o day — tab nang nhat, da bo
   // khoi cache "core" (xem getCachedDashboardCoreSources()) va duoc thay bang
   // dashboardRollupRepository.js qua tham so `rollups`.
   // (Bang "Đặt hàng" khong con doc o day: don dat hang "Phieu tam" nay hien o trang Vong doi don hang.)
-  const custData = sheets[CONFIG.SHEET_CUSTOMERS] || [];
-
-  // ---------- HÀNG HÓA ----------
-  // Doc theo ten cot de schema co the bo cot khong dung ma khong lam lech KPI.
-  // Toan bo phan nay la so lieu TON KHO TAI THOI DIEM HIEN TAI (snapshot) —
-  // khong gan voi 1 ngay phat sinh cu the nen KHONG loc theo bo loc thoi gian.
-  // Hang hoa cung ma o hai co so la HAI dong rieng ("Cả hai"): moi tra cuu theo ma
-  // dung khoa (co so, ma) — co so lay tu cot "Cơ sở"/nhan rollup, hoac chinh co so
-  // dang xem khi nguon chi co 1 co so.
   const singleBranch = branch && branch !== BRANCH_BOTH ? branch : '';
-  const productKey = (rowBranch, code) => invoiceIdentity(rowBranch || singleBranch, code);
-  let totalProducts = 0, totalStock = 0, inStockCodes = 0, lowStockCount = 0;
-  // Gia tri ton kho = tong (ton > 0) x gia von cua hang dang kinh doanh. (2026-10-05: bo bieu do
-  // ton/gia tri ton theo nhom hang cha — stockByCategory/stockValueByCategory — giao dien khong dung.)
-  let totalInventoryValue = 0;
-  let stockList = [];
-  const productParentCategoryByKey = new Map();
-  const productStatusByKey = new Map();
-  const isInactiveKey = key => productStatusByKey.get(key) === 'Ngừng kinh doanh';
-  const resolveParentCategory = buildParentCategoryResolver(categoryData);
-  const productHeaders = prodData[0] || [];
-  const productIndex = (header, fallback) => {
-    const index = productHeaders.findIndex(value => String(value || '').trim() === header);
-    return index >= 0 ? index : fallback;
-  };
-  const productCodeIndex = productIndex('Mã hàng', 0);
-  const productNameIndex = productIndex('Tên hàng', 1);
-  const productCategoryIndex = productIndex('Nhóm hàng', 2);
-  const productCostIndex = productIndex('Giá vốn', 5);
-  const productPriceIndex = productIndex('Giá bán', 6);
-  const productStockIndex = productIndex('Tồn kho', 7);
-  const productReservedIndex = productIndex('Khách đặt', 8);
-  // Chi co khi tab Hang hoa doc tu Postgres (cot moi) — khong co header thi = 0.
-  const productInTransitIndex = productIndex('Đang vận chuyển', -1);
-  const productStatusIndex = productIndex('Trạng thái', 9);
-  const productCategoryIdIndex = productIndex('Mã nhóm hàng', 11);
-  // Chi co khi tab Hang hoa doc tu Postgres (hoac sheet co cot tuong ung) — khong co header thi de rong.
-  const productLocationIndex = productIndex('Vị trí', -1);
-  const productDescriptionIndex = productIndex('Mô tả', -1);
-  const productBranchIndex = productIndex(SHEET_FACILITY_HEADER, -1);
-  const productCreatedDateIndex = productHeaders.findIndex(header => String(header || '').trim() === 'Ngày tạo');
-  const todayNewProducts = [];
-
-  for (let r = 1; r < prodData.length; r++) {
-    const row = prodData[r];
-    const code = row[productCodeIndex];
-    if (!code || isVatProductCode(code)) continue;
-    const ton = Number(row[productStockIndex]) || 0;
-    const cost = Math.max(Number(row[productCostIndex]) || 0, 0);
-    const price = Math.max(Number(row[productPriceIndex]) || 0, 0);
-    const stockValue = Math.max(ton, 0) * cost;
-    const reserved = Number(row[productReservedIndex]) || 0;
-    const inTransit = productInTransitIndex >= 0 ? Number(row[productInTransitIndex]) || 0 : 0;
-    const status = String(row[productStatusIndex] || 'Đang kinh doanh').trim();
-    const rowBranch = (productBranchIndex >= 0 && row[productBranchIndex]) || singleBranch;
-    const key = productKey(rowBranch, code);
-    productStatusByKey.set(key, status);
-    // Chi quan tam hang "Đang kinh doanh" — hang ngung kinh doanh bo qua hoan toan.
-    if (status === 'Ngừng kinh doanh') continue;
-    const categoryName = (row[productCategoryIndex] && String(row[productCategoryIndex]).trim()) || '';
-    const categoryId = productCategoryIdIndex >= 0 ? row[productCategoryIdIndex] : '';
-    const parentCategoryName = resolveParentCategory(categoryName, categoryId);
-
-    const createdAt = productCreatedDateIndex >= 0 ? parseSheetDate(row[productCreatedDateIndex]) : null;
-    if (createdAt && isWithinRange(createdAt, newProductsRange)) {
-      todayNewProducts.push({
-        code,
-        branch: rowBranch,
-        name: row[productNameIndex] || code,
-        category: row[productCategoryIndex] || 'Chưa phân nhóm',
-        parentCategory: parentCategoryName,
-        createdAt: formatDMYHMS(createdAt),
-        cost,
-        price,
-        _sortTime: createdAt.getTime()
-      });
-    }
-
-    totalProducts++;
-    totalStock += ton;
-    if (ton > 0) inStockCodes++;
-    stockList.push({
-      code,
-      branch: rowBranch,
-      name: row[productNameIndex],
-      stock: ton,
-      reserved,
-      inTransit,
-      status,
-      cost,
-      stockValue,
-      location: productLocationIndex >= 0 ? String(row[productLocationIndex] || '').trim() : '',
-      description: productDescriptionIndex >= 0 ? String(row[productDescriptionIndex] || '').trim() : ''
-    });
-    if (ton === OUT_OF_STOCK_LEVEL) lowStockCount++;
-
-    productParentCategoryByKey.set(key, parentCategoryName);
-    totalInventoryValue += stockValue;
-  }
-  todayNewProducts.sort((a, b) => b._sortTime - a._sortTime);
-  const todayNewProductRows = todayNewProducts.map(({ _sortTime, ...rest }) => rest);
-
-  stockList.sort((a, b) => b.stock - a.stock);
-
-  const allProducts = stockList.map(p => ({
-    code: p.code,
-    branch: p.branch,
-    name: p.name,
-    stock: p.stock,
-    reserved: p.reserved,
-    // Ton co the ban = ton thuc te - hang khach da dat (phieu tam), khong kep ve 0 (am = da giu
-    // qua ton). (2026-10-06: bo "+ hang dang van chuyen" — chi con la cot tham khao.) `reserved` la
-    // so "Khach dat" cua Kiot (doi chieu 2026-10-01 ~ tong Phieu tam, lech < 0,1%). Lam tron 6 chu so
-    // thap phan de hang ban theo can (so le) khong lo sai so dau phay dong.
-    available: Math.round((p.stock - p.reserved) * 1e6) / 1e6,
-    // So luong trong phieu Dat hang nhap 'Đã xác nhận NCC' cua Kiot Sai Gon, khop theo ma
-    // (cung 1 so cho ca 2 co so, xem inTransitSource.js); chi hien thi, KHONG tinh vao `available`.
-    inTransit: p.inTransit,
-    status: p.status,
-    cost: p.cost,
-    stockValue: p.stockValue,
-    location: p.location,
-    description: p.description,
-    pct: totalStock > 0 ? (p.stock / totalStock) * 100 : 0
-  }));
-
-  // ---------- HÀNG MỚI NHẬP (theo bộ lọc riêng newlyImported, mặc định = Hàng hóa) ----------
-  // Ngay nhap SOM NHAT cho tung ma hang, tu product_first_purchase (rollup
-  // toan bo lich su, khong gioi han cua so refresh — xem
-  // dashboardRollupRepository.getFirstPurchaseDates()). Mot
-  // ma (theo tung co so) chi xuat hien neu ngay nhap dau tien nam trong khoang
-  // newlyImportedRange va dang kinh doanh.
-  const firstPurchaseRows = (rollups && rollups.firstPurchaseRows) || [];
-  const newlyImportedProducts = [];
-  firstPurchaseRows.forEach(entry => {
-    const code = entry.code;
-    if (!code || isVatProductCode(code)) return;
-    const importDate = parseSheetDate(entry.firstPurchaseDateText);
-    if (!importDate || !isWithinRange(importDate, newlyImportedRange)) return;
-    const key = productKey(entry.branch, code);
-    if (isInactiveKey(key)) return;
-    newlyImportedProducts.push({
-      code,
-      branch: entry.branch || singleBranch,
-      name: entry.name || code,
-      firstImportDate: formatDMY(importDate),
-      daysOnHand: daysSince(importDate),
-      _sortTime: importDate.getTime()
-    });
-  });
-  newlyImportedProducts.sort((a, b) => b._sortTime - a._sortTime);
-  const newlyImportedKeySet = new Set(newlyImportedProducts.map(p => productKey(p.branch, p.code)));
 
   // ---------- HÓA ĐƠN: index 1 lần, dùng lại cho mọi bộ lọc ----------
   // Cột: [0]Mã hóa đơn [1]Ngày bán [2]Khách hàng [3]SĐT khách [4]Nhân viên bán [5]Chi nhánh [6]Tổng tiền hàng [7]Giảm giá [8]Khách đã trả [9]Trạng thái
@@ -2012,152 +1712,19 @@ function computeDashboardData(sheets, filters, now, branch, rollups, debtManagem
     ? invoiceRecords.filter(record => record.isCancelled && isWithinRange(record._dt, invoicesRange)).length
     : 0;
 
-  // ---------- SẢN PHẨM BÁN CHẠY -> TOP SẢN PHẨM/NHÓM HÀNG (theo bộ lọc Hàng hóa) ----------
-  // Nguon: daily_product_sales (rollup, da tong hop san theo ma hang cho
-  // productsRange, loai hoa don status=2 "Đã hủy" tu luc refresh — xem
-  // dashboardRollupRepository.getProductSalesBreakdown()) thay vi quet "Chi
-  // tiết hóa đơn" (da bo khoi cache "core"). Nhom cha/con van tra cuu qua
-  // productParentCategoryByKey/productChildCategoryByKey (khoa co so+ma, tu tab Hang
-  // hoa/Nhom hang, van con trong cache "core").
-  const productSalesMap = {};
-  const parentCategorySalesMap = {};
-  const newlyImportedProductSalesMap = new Map();
-  const productSalesRows = (rollups && rollups.productSalesRows) || [];
-  productSalesRows.forEach(row => {
-    const code = row.code;
-    if (!code) return;
-    const trimmedCode = productKey(row.branch, code);
-    if (isInactiveKey(trimmedCode)) return;
-    const rowBranch = row.branch || singleBranch;
-
-    const name = row.name || code;
-    const qty = row.qty;
-    const revenue = row.revenue;
-
-    if (!productSalesMap[trimmedCode]) productSalesMap[trimmedCode] = { code, branch: rowBranch, name, qty: 0, revenue: 0 };
-    productSalesMap[trimmedCode].qty += qty;
-    productSalesMap[trimmedCode].revenue += revenue;
-
-    const parentCategoryName = productParentCategoryByKey.get(trimmedCode) || 'Chưa xác định';
-    if (!parentCategorySalesMap[parentCategoryName]) {
-      parentCategorySalesMap[parentCategoryName] = {
-        name: parentCategoryName,
-        qty: 0,
-        revenue: 0,
-        productCodes: new Set()
-      };
-    }
-    parentCategorySalesMap[parentCategoryName].qty += qty;
-    parentCategorySalesMap[parentCategoryName].revenue += revenue;
-    parentCategorySalesMap[parentCategoryName].productCodes.add(trimmedCode);
-  });
-  // Doanh so Hang moi nhap tinh theo newlyImportedRange (rollup rieng
-  // newlyImportedSalesRows); rollup cu/test khong co thi dung productSalesRows.
-  const newlyImportedSalesRows = rollups && rollups.newlyImportedSalesRows !== undefined
-    ? (rollups.newlyImportedSalesRows || [])
-    : productSalesRows;
-  newlyImportedSalesRows.forEach(row => {
-    const code = row.code;
-    if (!code) return;
-    const trimmedCode = productKey(row.branch, code);
-    if (isInactiveKey(trimmedCode)) return;
-    const rowBranch = row.branch || singleBranch;
-    const name = row.name || code;
-    const qty = row.qty;
-    const revenue = row.revenue;
-
-    if (newlyImportedKeySet.has(trimmedCode)) {
-      if (!newlyImportedProductSalesMap.has(trimmedCode)) {
-        newlyImportedProductSalesMap.set(trimmedCode, { code, branch: rowBranch, name, qty: 0, revenue: 0 });
-      }
-      const newlyImportedProductSale = newlyImportedProductSalesMap.get(trimmedCode);
-      newlyImportedProductSale.qty += qty;
-      newlyImportedProductSale.revenue += revenue;
-    }
-  });
-  const allSellingProducts = Object.values(productSalesMap)
-    .sort((a, b) => b.revenue - a.revenue);
-  const allSellingParentCategories = Object.values(parentCategorySalesMap)
-    .map(category => ({
-      name: category.name,
-      qty: category.qty,
-      revenue: category.revenue,
-      productCount: category.productCodes.size
-    }))
-    .sort((a, b) => b.revenue - a.revenue);
-  const topSellingProducts = allSellingProducts.slice(0, TOP_SELLING_LIMIT);
-  const topSellingParentCategories = allSellingParentCategories.slice(0, TOP_SELLING_LIMIT);
-
-  const newlyImportedRows = newlyImportedProducts.map(({ _sortTime, ...product }) => {
-    const sales = newlyImportedProductSalesMap.get(productKey(product.branch, product.code));
-    return {
-      ...product,
-      revenue: sales ? sales.revenue : 0
-    };
-  });
-  // Chi so "Doanh thu hàng mới nhập"/"Số lượng đã bán" (FE dung): tong doanh so cac ma co ngay nhap
-  // dau tien trong newlyImportedRange. (2026-10-05: bo topByRevenue/salesByCategory/countByCategory —
-  // bieu do khong con o giao dien.)
-  let newlyImportedSalesRevenue = 0;
-  let newlyImportedSalesQty = 0;
-  newlyImportedProductSalesMap.forEach(sale => {
-    newlyImportedSalesRevenue += sale.revenue;
-    newlyImportedSalesQty += sale.qty;
-  });
-
   // (2026-10-05: the chi so "Trả hàng" cua tab Hoa don — invoices.returnsCount/totalReturns — da go vi
   // giao dien khong dung. Doanh thu van = ban − tra hang, tinh tu rollup daily_invoice_summary, khong
   // phu thuoc vong lap nay.)
-
-  // ---------- KHÁCH HÀNG ----------
-  const customerHeaders = custData[0] || [];
-  const customerIndex = (header, fallback) => {
-    const index = customerHeaders.findIndex(value => String(value || '').trim() === header);
-    return index >= 0 ? index : fallback;
-  };
-  const customerCodeIndex = customerIndex('Mã khách hàng', 0);
-  const customerNameIndex = customerIndex('Tên khách hàng', 1);
-  const customerDebtIndex = customerIndex('Nợ hiện tại', 7);
-  // "Nợ hiện tại" là số dư TẠI THỜI ĐIỂM HIỆN TẠI (snapshot) nên KPI tổng
-  // (totalCustomers/customersWithDebt/totalDebt) không lọc theo thời gian.
-  // (2026-10-16: bỏ tab Khách hàng cũ — danh sách khách nợ topDebt và top doanh thu theo khách
-  // không còn; chi tiết công nợ nằm ở tab Công nợ, tăng trưởng khách ở tab Khách hàng mới.)
-
-  // Tong khach chi dem khach DANG HOAT DONG (debtCustomerData da loai khach ngung, xem activeCustomerDebtSheet).
-  const totalCustomers = (debtCustomerData || custData).slice(1).filter(row => row[customerCodeIndex]).length;
-  let customersWithDebt = 0, totalDebt = 0;
-
-  const debtCustomers = debtCustomerData || custData;
-  for (let r = 1; r < debtCustomers.length; r++) {
-    const row = debtCustomers[r];
-    if (!row[customerCodeIndex]) continue;
-    const debt = Number(row[customerDebtIndex]) || 0;
-    if (debt > 0) {
-      customersWithDebt++;
-      totalDebt += debt;
-    }
-  }
 
   // Ban day du (shape cu). pickPayload() giu nguyen khi chay du 5 tab, cat ve
   // dung phan cua tab duoc chon khi chay theo tung tab (dashboardViews.js).
   const result = {
     updatedAt: formatDMYHMS(now),
     filters: {
-      products: productsRange,
-      invoices: invoicesRange,
-      newProducts: newProductsRange,
-      newlyImported: newlyImportedRange
+      invoices: invoicesRange
     },
-    kpi: {
-      totalProducts,
-      totalStock,
-      inStockCodes,
-      lowStockCount,
-      totalInventoryValue,
-      totalCustomers,
-      customersWithDebt,
-      totalDebt
-    },
+    // (2026-10-16: bo cac chi so KPI hang hoa/khach hang — giao dien khong con dung; giu khoa rong cho dung shape.)
+    kpi: {},
     overview: {
       revenueByDay: overviewPeriod.revenueByDay,
       periodRevenue: overviewPeriod.periodRevenue,
@@ -2165,25 +1732,6 @@ function computeDashboardData(sheets, filters, now, branch, rollups, debtManagem
       periodReturnAmount: overviewPeriod.periodReturnAmount,
       periodInvoices: overviewPeriod.periodInvoices,
       periodCancelledInvoices
-    },
-    products: {
-      newProducts: {
-        label: newProductsRange.label,
-        count: todayNewProductRows.length,
-        dateColumnAvailable: productCreatedDateIndex >= 0,
-        products: todayNewProductRows
-      },
-      topSellingProducts,
-      topSellingParentCategories,
-      allSellingProducts,
-      allSellingParentCategories,
-      newlyImported: {
-        label: newlyImportedRange.label,
-        count: newlyImportedRows.length,
-        products: newlyImportedRows,
-        salesRevenue: newlyImportedSalesRevenue,
-        salesQty: newlyImportedSalesQty
-      }
     },
     invoices: {
       revenueByDay: invoicesPeriod.revenueByDay,
@@ -2193,7 +1741,6 @@ function computeDashboardData(sheets, filters, now, branch, rollups, debtManagem
       periodCancelledInvoices,
       transactionsReport
     },
-    allProducts,
     debtManagement
   };
   return pickPayload(result, view);

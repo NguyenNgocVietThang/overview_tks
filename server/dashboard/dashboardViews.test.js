@@ -10,50 +10,50 @@ const {
   parseViewsParam, resolveViewPlan, pickPayload, pickFilters
 } = require('./dashboardViews');
 const { SECTION_FEATURE } = require('./dashboardPermissionFilter');
-const dashboardPgReader = require('./dashboardPgReader');
 
-test('parseViewsParam: bo trong = ca 5 tab (null), tach dau phay, bo trung/khoang trang', () => {
+test('chi con 3 tab co payload /api/dashboard: Tong quan, Hoa don, Cong no (Hang hoa / Khach hang da co API rieng)', () => {
+  assert.deepEqual([...VIEW_NAMES], ['overview', 'invoices', 'debt']);
+});
+
+test('parseViewsParam: bo trong = ca 3 tab (null), tach dau phay, bo trung/khoang trang', () => {
   assert.equal(parseViewsParam(undefined), null);
   assert.equal(parseViewsParam(null), null);
   assert.equal(parseViewsParam(''), null);
   assert.equal(parseViewsParam(' , '), null);
   assert.deepEqual(parseViewsParam('overview'), ['overview']);
-  assert.deepEqual(parseViewsParam(' overview , products,overview '), ['overview', 'products']);
+  assert.deepEqual(parseViewsParam(' overview , invoices,overview '), ['overview', 'invoices']);
   assert.deepEqual(parseViewsParam(['invoices', 'debt']), ['invoices', 'debt']);
 });
 
-test('parseViewsParam: ten tab sai bi tu choi 400 INVALID_VIEW, khong bo qua im lang', () => {
+test('parseViewsParam: ten tab sai (ke ca tab da go: products, customers) bi tu choi 400 INVALID_VIEW', () => {
   assert.throws(
     () => parseViewsParam('overview,hoadon'),
     error => error.code === 'INVALID_VIEW' && error.statusCode === 400 && /hoadon/.test(error.message)
   );
   assert.throws(() => parseViewsParam('__proto__'), error => error.code === 'INVALID_VIEW');
+  assert.throws(() => parseViewsParam('products'), error => error.code === 'INVALID_VIEW');
+  assert.throws(() => parseViewsParam('customers'), error => error.code === 'INVALID_VIEW');
 });
 
-test('ke hoach ca 5 tab (khong truyen view) = doc du 5 bang (khong con Dat hang, khong con CN1/3/7) + du 6 rollup + cong no, khoa cache "all"', () => {
+test('ke hoach ca 3 tab (khong truyen view) = chi doc bang Hoa don + 3 rollup + cong no, khoa cache "all"', () => {
   const plan = resolveViewPlan();
   assert.equal(plan.all, true);
   assert.deepEqual(plan.views, VIEW_NAMES);
   assert.equal(plan.key, 'all');
   assert.deepEqual(plan.coreKeys, ALL_CORE_KEYS);
   assert.deepEqual([...plan.rollups], ALL_ROLLUPS);
+  assert.deepEqual([...plan.rollups].sort(), ['invoiceQuantity', 'invoicesRevenue', 'overviewRevenue']);
   assert.equal(plan.needsDebt, true);
-  // Bang nguon cua ke hoach = cac tab core cua pgReader TRU bang Dat hang (2026-10-01: khong tab nao con can ~23K dong
-  // Dat hang; don Phieu tam xem o trang Vong doi don hang). pgReader van doc duoc Dat hang cho tim kiem/xuat file.
-  assert.deepEqual(
-    plan.coreKeys.filter(key => key !== PERIODS_KEY).sort(),
-    [...dashboardPgReader.CORE_SHEET_NAMES].filter(name => name !== CONFIG.SHEET_ORDERS && name !== CONFIG.SHEET_RETURNS).sort()
-  );
+  assert.deepEqual(plan.coreKeys, [CONFIG.SHEET_INVOICES]);
   assert.ok(!plan.coreKeys.includes(CONFIG.SHEET_ORDERS));
   assert.ok(!plan.coreKeys.includes(PERIODS_KEY), 'quy tac 1-3-7 da bo');
 });
 
-test('Tong quan KHONG doc Dat hang/Tra hang/cong no va khong chay rollup so luong hoa don', () => {
+test('Tong quan chi doc bang Hoa don, KHONG doc Dat hang/Tra hang/cong no va khong chay rollup so luong hoa don', () => {
   const plan = resolveViewPlan(['overview']);
   assert.equal(plan.all, false);
   assert.equal(plan.key, 'overview');
-  assert.deepEqual(plan.coreKeys, [CONFIG.SHEET_CATEGORIES, CONFIG.SHEET_PRODUCTS, CONFIG.SHEET_INVOICES, CONFIG.SHEET_CUSTOMERS]);
-  assert.ok(!plan.coreKeys.includes(CONFIG.SHEET_ORDERS), 'Dat hang ~23K dong chi tab Hoa don can');
+  assert.deepEqual(plan.coreKeys, [CONFIG.SHEET_INVOICES]);
   assert.ok(!plan.coreKeys.includes(PERIODS_KEY));
   assert.deepEqual([...plan.rollups].sort(), ['overviewRevenue']);
   assert.equal(plan.needsDebt, false);
@@ -62,14 +62,13 @@ test('Tong quan KHONG doc Dat hang/Tra hang/cong no va khong chay rollup so luon
 
 test('moi tab chi doc dung nguon cua no; Cong no khong doc bang nguon core nao (doc ban chot rieng)', () => {
   const sheetsOf = name => resolveViewPlan([name]).coreKeys;
-  assert.deepEqual(sheetsOf('products'), [CONFIG.SHEET_CATEGORIES, CONFIG.SHEET_PRODUCTS]);
   assert.deepEqual(sheetsOf('invoices'), [CONFIG.SHEET_INVOICES], 'Hoa don khong doc Dat hang/Tra hang (the chi so Tra hang da go)');
   assert.throws(() => sheetsOf('customers'), error => error.code === 'INVALID_VIEW', 'tab Khach hang cu da go');
+  assert.throws(() => sheetsOf('products'), error => error.code === 'INVALID_VIEW', 'tab Hang hoa cu da go');
   assert.deepEqual(sheetsOf('debt'), []);
   assert.equal(resolveViewPlan(['debt']).needsDebt, true);
   assert.equal(resolveViewPlan(['debt']).rollups.size, 0);
   assert.deepEqual([...resolveViewPlan(['invoices']).rollups].sort(), ['invoiceQuantity', 'invoicesRevenue']);
-  assert.deepEqual([...resolveViewPlan(['products']).rollups].sort(), ['firstPurchase', 'newlyImportedSales', 'productSales']);
 });
 
 test('nhieu tab: hop cac nguon theo thu tu chuan, khoa cache on dinh khong phu thuoc thu tu truyen vao', () => {
@@ -94,7 +93,7 @@ test('moi khoa payload top-level cua tab dung quyen cua chinh tab do (khop SECTI
   });
 });
 
-test('pickFilters: chi giu bo loc anh huong tab (cache key), ke hoach ca 5 tab giu nguyen', () => {
+test('pickFilters: chi giu bo loc anh huong tab (cache key), ke hoach ca 3 tab giu nguyen', () => {
   const filters = {
     overview: { mode: 'days', days: 30 }, products: { mode: 'days', days: 7 }, invoices: { mode: 'days', days: 3 },
     customers: { mode: 'all' }, newProducts: { mode: 'days', days: 30 }
@@ -102,62 +101,34 @@ test('pickFilters: chi giu bo loc anh huong tab (cache key), ke hoach ca 5 tab g
   assert.equal(pickFilters(filters, resolveViewPlan()), filters);
   assert.deepEqual(pickFilters(filters, resolveViewPlan(['invoices'])), { invoices: { mode: 'days', days: 3 } });
   assert.deepEqual(pickFilters(filters, resolveViewPlan(['debt'])), {});
-  // Doi bo loc Hoa don khong doi khoa cua Hang hoa. (Tong quan dung chung bo loc `invoices` cho bieu do Xu huong.)
-  const changed = { ...filters, invoices: { mode: 'days', days: 90 } };
-  assert.deepEqual(pickFilters(changed, resolveViewPlan(['products'])), pickFilters(filters, resolveViewPlan(['products'])));
-});
-
-test('pickFilters: bo loc rieng bang Hang moi nhap vao cache key cua dung tab; bo loc orders/returns cu bi bo qua', () => {
-  const filters = {
-    products: { mode: 'days', days: 7 }, invoices: { mode: 'days', days: 3 },
-    newlyImported: { mode: 'days', days: 14 }, orders: { mode: 'days', days: 60 }, returns: { mode: 'all' }
-  };
-  assert.deepEqual(pickFilters(filters, resolveViewPlan(['products'])), {
-    products: { mode: 'days', days: 7 }, newlyImported: { mode: 'days', days: 14 }
-  });
-  // Client cu con gui orders/returns (2 bang da bo 2026-10-01): khong con anh huong cache key cua tab Hoa don.
-  assert.deepEqual(pickFilters(filters, resolveViewPlan(['invoices'])), { invoices: { mode: 'days', days: 3 } });
+  // Bo loc cu cua tab Hang hoa / Khach hang / orders / returns da go: khong con anh huong cache key.
   assert.deepEqual(pickFilters(filters, resolveViewPlan(['overview'])), { invoices: { mode: 'days', days: 3 } });
-  assert.deepEqual(VIEW_PAYLOAD.products.filters, ['products', 'newProducts', 'newlyImported']);
   assert.deepEqual(VIEW_PAYLOAD.invoices.filters, ['invoices']);
 });
 
-test('pickPayload: cat dung phan cua tab, khong sua ban day du, Tong quan khong con khoa `products`', () => {
+test('pickPayload: cat dung phan cua tab, khong sua ban day du', () => {
   const full = {
     updatedAt: 'x',
-    filters: { products: 2, invoices: 3, customers: 4, newProducts: 6 },
-    kpi: {
-      totalStock: 4, totalProducts: 5, lowStockCount: 6,
-      totalCustomers: 7, customersWithDebt: 8, totalDebt: 9, inStockCodes: 11
-    },
+    filters: { invoices: 3 },
+    kpi: {},
     overview: { a: 1 },
-    products: { childCategorySalesByParent: { X: [] }, availableParentCategories: ['X'], allSellingProducts: [1, 2, 3] },
-    invoices: { big: 1 }, customers: { topDebt: [] }, allProducts: [1], debtManagement: { k: 1 }
+    invoices: { big: 1 }, debtManagement: { k: 1 }
   };
   const snapshot = JSON.stringify(full);
 
   const overview = pickPayload(full, resolveViewPlan(['overview']));
   assert.deepEqual(Object.keys(overview).sort(), ['filters', 'kpi', 'overview', 'updatedAt']);
   assert.deepEqual(overview.filters, { invoices: 3 });
-  assert.equal(overview.kpi.totalStock, 4);
-  ['revenueToday', 'invoicesToday', 'cancelledToday', 'activeProducts', 'inventoryValueCategoryCount'].forEach(key => {
-    assert.equal(VIEW_NAMES.some(view => VIEW_PAYLOAD[view].kpi.includes(key)), false, `kpi.${key} da go`);
-  });
-  assert.equal(overview.kpi.inStockCodes, undefined, 'KPI ma con hang khong thuoc tab Tong quan');
+  assert.equal(overview.invoices, undefined);
 
-  const products = pickPayload(full, resolveViewPlan(['products']));
-  assert.equal(products.products, full.products, 'tab Hang hoa lay nguyen ca khoa products');
-  assert.deepEqual(products.allProducts, [1]);
-  assert.equal(products.invoices, undefined);
-
-  const both = pickPayload(full, resolveViewPlan(['overview', 'products']));
-  assert.equal(both.products, full.products, 'khi co ca Hang hoa thi products day du thang partial cua Tong quan');
+  const both = pickPayload(full, resolveViewPlan(['overview', 'invoices']));
   assert.equal(both.overview.a, 1);
+  assert.equal(both.invoices, full.invoices);
 
   const debt = pickPayload(full, resolveViewPlan(['debt']));
   assert.deepEqual(Object.keys(debt).sort(), ['debtManagement', 'filters', 'kpi', 'updatedAt']);
   assert.deepEqual(debt.kpi, {});
 
-  assert.equal(pickPayload(full, resolveViewPlan()), full, 'ke hoach ca 5 tab tra nguyen ban day du');
+  assert.equal(pickPayload(full, resolveViewPlan()), full, 'ke hoach ca 3 tab tra nguyen ban day du');
   assert.equal(JSON.stringify(full), snapshot, 'khong duoc sua ban day du (co the la object trong cache dung chung)');
 });

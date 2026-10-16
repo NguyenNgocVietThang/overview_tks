@@ -25,7 +25,7 @@ function createDashboard({ data, hash = '#overview' } = {}) {
     dom.window.sessionStorage.setItem('tksDashboardCache', JSON.stringify({
       data,
       days: 30,
-      filters: { products: { mode: 'days', days: 30 }, invoices: { mode: 'days', days: 30 }, customers: { mode: 'all' } }
+      filters: { products: { mode: 'days', days: 30 }, invoices: { mode: 'days', days: 30 } }
     }));
   }
   dom.window.HTMLCanvasElement.prototype.getContext = () => ({});
@@ -66,21 +66,21 @@ function invoicesPayload(transactions) {
       allSellingProducts: [],
       newlyImported: { products: [], salesRevenue: 0, salesQty: 0 }
     },
-    allProducts: [],
+    endOfDay: [],
     customers: { topDebt: [], topRevenue: { top15: [], all: [], label: 'Tất cả' } }
   };
 }
 
 const ALL_PRODUCTS_IDS = {
-  tbody: 'allProductRows', pagination: 'allProductsPagination',
-  firstBtn: 'allProductsFirstPage', prevBtn: 'allProductsPrevPage',
-  nextBtn: 'allProductsNextPage', lastBtn: 'allProductsLastPage', label: 'allProductsPageLabel'
+  tbody: 'endOfDayRows', pagination: 'endOfDayPagination',
+  firstBtn: 'endOfDayFirstPage', prevBtn: 'endOfDayPrevPage',
+  nextBtn: 'endOfDayNextPage', lastBtn: 'endOfDayLastPage', label: 'endOfDayPageLabel'
 };
 
 // Cot chi co chuoi hien thi, KHONG co data-sort-value: dung lai dung truong hop cua cac o thoi gian chua duoc danh dau.
 const plainDateRow = item => `<tr><td>${item.code}</td><td>${item.when}</td></tr>`;
 
-const secondColumn = doc => [...doc.querySelectorAll('#allProductRows tr td:nth-child(2)')].map(td => td.textContent.trim());
+const secondColumn = doc => [...doc.querySelectorAll('#endOfDayRows tr td:nth-child(2)')].map(td => td.textContent.trim());
 
 test('parseSortableDateText: doc dung dd/MM/yyyy[ HH:mm[:ss]] va yyyy-MM-dd[ HH:mm[:ss]] thanh epoch ms (khong lech mui gio)', () => {
   const dom = createDashboard();
@@ -147,17 +147,17 @@ test('bang >100 dong: cot thoi gian sort theo THOI GIAN that tren TOAN BO du lie
   });
   const chronological = items.map(item => item.when).reverse(); // som nhat -> moi nhat
 
-  dom.window.renderPaginatedRows('allProducts', ALL_PRODUCTS_IDS, items, plainDateRow, 2, 'Không có dữ liệu');
+  dom.window.renderPaginatedRows('endOfDay', ALL_PRODUCTS_IDS, items, plainDateRow, 2, 'Không có dữ liệu');
   assert.deepEqual(secondColumn(doc).slice(0, 2), [items[0].when, items[1].when], 'chua sort: giu thu tu nguon');
 
-  dom.window.setTableSort('allProductRows', 1); // tang dan
+  dom.window.setTableSort('endOfDayRows', 1); // tang dan
   assert.deepEqual(secondColumn(doc), chronological.slice(0, 100), 'trang 1 = 100 moc som nhat theo dung thu tu thoi gian');
-  assert.match(doc.getElementById('allProductsPageLabel').textContent, /Trang 1\/3/);
-  doc.getElementById('allProductsLastPage').click();
+  assert.match(doc.getElementById('endOfDayPageLabel').textContent, /Trang 1\/3/);
+  doc.getElementById('endOfDayLastPage').click();
   assert.deepEqual(secondColumn(doc), chronological.slice(200), 'trang cuoi = 50 moc moi nhat');
 
-  dom.window.setTableSort('allProductRows', 1); // giam dan
-  doc.getElementById('allProductsFirstPage').click();
+  dom.window.setTableSort('endOfDayRows', 1); // giam dan
+  doc.getElementById('endOfDayFirstPage').click();
   assert.deepEqual(secondColumn(doc), chronological.slice().reverse().slice(0, 100), 'giam dan: trang 1 bat dau tu moc moi nhat');
   assert.equal(secondColumn(doc)[0], '01/10/2026 08:30');
   dom.window.close();
@@ -174,15 +174,15 @@ test('o thoi gian dang yyyy-MM-dd va dd/MM/yyyy cung sort dung; o trong/"—" lu
     { code: 'E', when: '' },
     { code: 'F', when: '2026-01-05 07:00' }
   ];
-  dom.window.renderPaginatedRows('allProducts', ALL_PRODUCTS_IDS, items, plainDateRow, 2, 'Không có dữ liệu');
-  const codes = () => [...doc.querySelectorAll('#allProductRows tr td:nth-child(1)')].map(td => td.textContent.trim());
+  dom.window.renderPaginatedRows('endOfDay', ALL_PRODUCTS_IDS, items, plainDateRow, 2, 'Không có dữ liệu');
+  const codes = () => [...doc.querySelectorAll('#endOfDayRows tr td:nth-child(1)')].map(td => td.textContent.trim());
 
   const lastTwo = () => codes().slice(4).sort();
 
-  dom.window.setTableSort('allProductRows', 1);
+  dom.window.setTableSort('endOfDayRows', 1);
   assert.deepEqual(codes().slice(0, 4), ['C', 'F', 'D', 'A'], 'tang dan: 31/12/2025 < 05/01/2026 < 30/09/2026 < 01/10/2026');
   assert.deepEqual(lastTwo(), ['B', 'E'], 'tang dan: 2 o trong (— va rong) nam cuoi');
-  dom.window.setTableSort('allProductRows', 1);
+  dom.window.setTableSort('endOfDayRows', 1);
   assert.deepEqual(codes().slice(0, 4), ['A', 'D', 'F', 'C'], 'giam dan');
   assert.deepEqual(lastTwo(), ['B', 'E'], 'giam dan: o trong van o cuoi');
   dom.window.close();
@@ -191,12 +191,12 @@ test('o thoi gian dang yyyy-MM-dd va dd/MM/yyyy cung sort dung; o trong/"—" lu
 test('bang khong phan trang (sortTableRows) cung sort o thoi gian theo thoi gian that', () => {
   const dom = createDashboard();
   const doc = dom.window.document;
-  const tbody = doc.getElementById('allProductRows');
+  const tbody = doc.getElementById('endOfDayRows');
   tbody.innerHTML = ['30/09/2026 10:00', '01/10/2026 09:00', '15/02/2026 23:59', '—']
     .map((when, index) => `<tr><td>R${index}</td><td>${when}</td></tr>`).join('');
-  dom.window.sortTableRows('allProductRows', 1, 'asc');
+  dom.window.sortTableRows('endOfDayRows', 1, 'asc');
   assert.deepEqual([...tbody.rows].map(row => row.cells[0].textContent), ['R2', 'R0', 'R1', 'R3']);
-  dom.window.sortTableRows('allProductRows', 1, 'desc');
+  dom.window.sortTableRows('endOfDayRows', 1, 'desc');
   assert.deepEqual([...tbody.rows].map(row => row.cells[0].textContent), ['R1', 'R0', 'R2', 'R3']);
   dom.window.close();
 });

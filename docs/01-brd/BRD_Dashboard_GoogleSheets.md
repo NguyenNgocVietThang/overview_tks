@@ -68,7 +68,7 @@ Giai đoạn 1 đến hiện tại: Báo cáo tổng hợp (6 tab, gồm Khách 
 - **Nguồn dữ liệu:**
   - **Supabase PostgreSQL:** toàn bộ dữ liệu KiotViet (nhóm hàng, hàng hóa, hóa đơn + chi tiết + thanh toán, đặt hàng, trả hàng, khách hàng, nhập hàng, phiếu đặt hàng nhập, thu chi), bảng tổng hợp (rollup theo ngày, báo cáo hàng hóa, chi tiết hóa đơn 90 ngày, giá trị tồn kho theo ngày, CN1/CN3/CN7, doanh số tháng đã chốt của Báo cáo kinh doanh), Trả NCC upload, tài khoản `app_users`, nhân sự `hr_employees`, nghỉ phép và liên kết Telegram, trạng thái xử lý công nợ, tài liệu quy định công ty.
   - **Google Sheets:** Bảng Công nợ (`DEBT_MANAGEMENT_SPREADSHEET_ID`, chỉ đọc); Vòng đời đơn hàng (`ORDER_LIFECYCLE_SPREADSHEET_ID`, đọc `DonHang_HN`/`DonHang_SG`, ghi tab `Lịch sử cập nhật`); Vị trí hàng (`STOCK_LOCATIONS_SPREADSHEET_ID`, chỉ đọc); Báo cáo Marketing (ba workbook `MARKETING_*_SPREADSHEET_ID`, chỉ đọc).
-- **Báo cáo tổng hợp (6 tab):** Tổng quan (Xu hướng, Báo cáo doanh thu theo khách, Báo cáo hàng hóa, Kiểm tra đứt hàng), Hàng hóa (Cơ cấu tồn kho, Phân tích, Tất cả mã hàng, Hàng mới nhập, Mã mới tạo), Hóa đơn (Chi tiết giao dịch), Khách hàng (Tăng trưởng Sale, Tăng trưởng Khách hàng, Tăng trưởng Mã hàng; trước đây là tab Báo cáo kinh doanh), Quản lý công nợ, Báo cáo Marketing (BC tháng, Check tỷ lệ nhận số, Sao lưu SĐT, Chi phí).
+- **Báo cáo tổng hợp (6 tab):** Tổng quan (Xu hướng, Báo cáo doanh thu theo khách, Kiểm tra đứt hàng), Hàng hóa (Báo cáo hàng hóa, Tăng trưởng mã hàng), Hóa đơn (Chi tiết giao dịch), Khách hàng (Tăng trưởng Sale, Tăng trưởng Khách hàng; trước đây là tab Báo cáo kinh doanh), Quản lý công nợ, Báo cáo Marketing (BC tháng, Check tỷ lệ nhận số, Sao lưu SĐT, Chi phí).
 - **Báo cáo kinh doanh:** thay báo cáo tăng trưởng làm tay trên Google Sheets. Doanh số tháng = hóa đơn hoàn thành trừ hàng khách trả, gộp HN + SG, từ T3/2026; sale = nhóm khách hàng trên KiotViet (khách chưa có nhóm gộp vào "Chưa phân nhóm"); tháng đang chạy quy đổi về 30 ngày để so tăng trưởng với tháng trước, kèm trung bình 4 tháng; các tháng đã qua được chốt cứng mỗi ngày mùng 1, Quản lý có thể tính lại.
 - **Màn hình Quản lý công nợ:** kết hợp Bảng Công nợ, đối chiếu CN1/CN3/CN7 và trạng thái xử lý lưu trong PostgreSQL.
 - **Vòng đời đơn hàng, Vị trí hàng, Sổ quỹ (5 nhóm số dư), Quản lý nhân sự (Quy định công ty kèm Phúc lợi, Danh sách nhân sự theo trạng thái làm việc, Nghỉ phép theo lịch làm việc/hạn nộp và đơn cho tài khoản nội bộ), Quản lý tài khoản (Lịch sử chỉnh sửa tài khoản).**
@@ -128,12 +128,12 @@ Chỉ hàng **Đang kinh doanh** được tính; không còn KPI nhà cung cấp
 
 ## 5.3. Biểu đồ & bảng dữ liệu chi tiết
 
-- **Tổng quan:** biểu đồ doanh thu thực tế theo ngày; biểu đồ cột chồng **Giá trị tồn kho theo ngày** (HN + SG, bản chụp 23:59 mỗi ngày); **Báo cáo doanh thu theo khách** (chọn 1 khách để xem doanh thu 90 ngày theo sản phẩm); **Báo cáo hàng hóa** gộp hai cơ sở với nút Chi tiết xem doanh số 90 ngày từng khách; **Kiểm tra đứt hàng** (nhập Trả NCC, hàng đứt gần đây, kiểm tra 30/90 ngày).
-- **Hàng hóa:** Cơ cấu tồn kho (bảng chi tiết theo sản phẩm với Tồn kho, Tồn có thể bán, Hàng đang vận chuyển); Sản phẩm bán chạy (doanh thu thực tế); Tất cả mã hàng; Hàng mới nhập; Mã mới tạo và tỷ lệ theo nhóm hàng.
+- **Tổng quan:** biểu đồ doanh thu thực tế theo ngày; biểu đồ cột chồng **Giá trị tồn kho theo ngày** (HN + SG, bản chụp 23:59 mỗi ngày); **Báo cáo doanh thu theo khách** (chọn 1 khách để xem doanh thu 90 ngày theo sản phẩm); **Kiểm tra đứt hàng** (nhập Trả NCC, hàng đứt gần đây, kiểm tra 30/90 ngày).
+- **Hàng hóa:** Báo cáo hàng hóa gộp hai cơ sở (nút Chi tiết xem doanh số 90 ngày từng khách) và Tăng trưởng mã hàng theo tháng. Các mục cũ (Cơ cấu tồn kho, Sản phẩm bán chạy, Tất cả mã hàng, Hàng mới nhập, Mã mới tạo) đã gỡ ngày 16/10/2026.
 - **Hóa đơn:** bảng Chi tiết giao dịch; bấm một dòng để xem chi tiết hóa đơn (dòng hàng, tổng tiền, thanh toán).
 - **Khách hàng:** báo cáo tăng trưởng Sale / Khách hàng / Mã hàng theo tháng (tab Báo cáo kinh doanh cũ). Bảng Top khách theo doanh thu và Chi tiết khách nợ của tab Khách hàng cũ đã gỡ (16/10/2026); công nợ theo khách xem ở tab Công nợ.
 - **Công thức Tồn có thể bán** = Tồn thực tế − Đặt hàng Phiếu tạm của khách (không kẹp về 0; không cộng hàng đang vận chuyển).
-- **Giá vốn / giá trị tồn tab Hàng hóa:** chỉ vai trò có quyền `reports.products.cost` (mặc định Quản lý, Trợ lý) xem cột Đơn giá, Giá trị tồn và KPI giá trị tồn kho; Nhân viên sale không thấy.
+- **Giá vốn / giá trị tồn tab Hàng hóa:** quyền `reports.products.cost` đã gỡ cùng các mục cũ của tab (Báo cáo hàng hóa không hiển thị giá vốn).
 - Mọi bảng có cột **Cơ sở**; cột thời gian sắp xếp theo thời gian thật.
 
 ## 5.4. Bộ lọc thời gian
@@ -322,3 +322,5 @@ Khách hoạt động (15/10/2026): toàn bộ tính năng Công nợ chỉ dùn
 16/10/2026 — Theo yêu cầu, Báo cáo hàng hóa (Tổng quan) thêm cột **Điều chuyển SG** giữa **Tồn HN** và **Tồn SG**, giữ Chưa bốc/Đã bốc. API và Excel/HTML dùng chung inTransitSource: tổng số lượng Đặt hàng nhập Đã xác nhận NCC của Kiot Sài Gòn trong DB, ghép mã trim/không phân biệt hoa thường. Theo yêu cầu tiếp theo, Tồn có bán = Có bán HN + Có bán SG + Điều chuyển SG, áp dụng riêng Báo cáo hàng hóa; hai cột Chưa bốc/Đã bốc không cộng vào công thức. Snapshot DB giữ số nền HN+SG đã trừ phiếu tạm, repository cộng điều chuyển đúng một lần khi đọc cho web/xuất file. Không migration, không sửa nguồn Sheets.
 
 16/10/2026 — Gỡ tab Khách hàng cũ (Top khách theo doanh thu, Chi tiết khách nợ, quyền `reports.customers`, `view=customers`); tab Báo cáo kinh doanh đổi tên thành **Khách hàng** (giữ khóa quyền `reports.business`), Báo cáo tổng hợp còn 6 tab.
+
+16/10/2026 — Tab Hàng hóa còn Báo cáo hàng hóa (từ Tổng quan) + Tăng trưởng mã hàng (từ tab Khách hàng); các mục cũ của tab Hàng hóa và quyền `reports.products.cost` đã gỡ.

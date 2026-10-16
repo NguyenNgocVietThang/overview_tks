@@ -121,13 +121,13 @@ const reportsUser = (...features) => [requireAuth, requireFeature(...features), 
 // dung quyen cua tab do.
 router.use('/api/debug', ...reportsUser(...REPORT_VIEW_FEATURES));
 router.use('/api/dashboard', ...reportsUser(...REPORT_VIEW_FEATURES));
-// Muc 2 (doanh thu theo khach) va muc 3 (Bao cao hang hoa) nam ngay trong tab Tong quan
-// nen nguoi co quyen Tong quan (vd Nhan vien sale) cung doc duoc cac API CHI DOC nay;
-// nguoi co quyen cua tab goc van duoc nhu cu. Phan ghi/nang (quet dut hang, nhap Tra NCC)
-// duoi '/api/products' van chi reports.products.
+// Muc 2 (Bao cao doanh thu theo khach) nam ngay trong tab Tong quan nen nguoi co quyen Tong quan
+// (vd Nhan vien sale) cung doc duoc 2 API CHI DOC goi y khach / doanh thu theo khach. Bao cao hang hoa
+// (/api/product-report) nam o tab Hang hoa nen chi doi reports.products; phan ghi/nang (quet dut hang,
+// nhap Tra NCC) duoi '/api/products' cung chi reports.products.
 router.use('/api/customer-suggest', ...reportsUser('reports.overview'));
 router.use('/api/customer-product-revenue', ...reportsUser('reports.overview'));
-router.use('/api/product-report', ...reportsUser('reports.products', 'reports.overview'));
+router.use('/api/product-report', ...reportsUser('reports.products'));
 router.use('/api/inventory-value-history', ...reportsUser('reports.overview'));
 router.use('/api/invoice-detail', ...reportsUser('reports.invoices'));
 router.use('/api/export', ...reportsUser('reports.export'));
@@ -168,14 +168,6 @@ function parseFilterSpec(query, prefix, legacyDays) {
   };
 }
 
-// Nhu parseFilterSpec nhung tra undefined khi query KHONG co tham so nao cua
-// prefix — de getDashboardData tu dung bo loc cha (vd `ni` -> `pr`) cho client
-// cu chua gui bo loc rieng tung bang.
-function parseOptionalFilterSpec(query, prefix, legacyDays) {
-  const present = ['Mode', 'Days', 'From', 'To'].some(suffix => query[prefix + suffix] !== undefined);
-  return present ? parseFilterSpec(query, prefix, legacyDays) : undefined;
-}
-
 // ?view=<tab> (overview|products|invoices|debt, co the nhieu
 // tab cach nhau dau phay): CHI doc/tinh/tra phan cua tab do — trang bao cao goi
 // khi nguoi dung mo tung tab (xem dashboardViews.js). Bo trong = ca 4 tab nhu
@@ -198,12 +190,8 @@ router.get('/api/dashboard', async (req, res) => {
     const legacyDays = req.query.days;
     const filters = {
       // (Bo loc `ov*` cua Tong quan da bo 2026-10-05: tab Tong quan dung bo loc `in*`.)
-      products: parseFilterSpec(req.query, 'pr'),
-      invoices: parseFilterSpec(req.query, 'in', legacyDays),
-      newProducts: parseFilterSpec(req.query, 'np'),
-      // Bo loc rieng bang Hang moi nhap (ni). Khong gui -> undefined -> dung bo loc Hang hoa nhu truoc.
-      // (Bo loc `or`/`rt` cua 2 bang Dat hang / Tra hang da bo 2026-10-01; tham so cu bi bo qua.)
-      newlyImported: parseOptionalFilterSpec(req.query, 'ni')
+      // (2026-10-16: bo cac bo loc `pr`/`np`/`ni` cung tab Hang hoa cu; tham so cu bi bo qua.)
+      invoices: parseFilterSpec(req.query, 'in', legacyDays)
     };
     const data = await getDashboardData(filters, req.branch, req.user, allowedViews ? { views: allowedViews } : undefined);
     // Object tra ve co the den tu cache dung chung — filterDashboardForUser()

@@ -29,7 +29,7 @@ function kpi(extra = {}) {
   };
 }
 
-// Payload moi tab NHU SERVER TRA (xem VIEW_PAYLOAD): Tong quan khong mang khoa `products`.
+// Payload moi tab NHU SERVER TRA (xem VIEW_PAYLOAD): Tong quan khong mang khoa `invoices`.
 function payloadFor(view, marker = 'A') {
   const filters = label => ({ label });
   switch (view) {
@@ -38,19 +38,6 @@ function payloadFor(view, marker = 'A') {
         updatedAt: marker, kpi: kpi(),
         filters: { invoices: filters('30 ngày') },
         overview: { revenueByDay: [], periodRevenue: 0, periodInvoices: 0 }
-      };
-    case 'products':
-      return {
-        updatedAt: marker,
-        kpi: { totalProducts: 4, totalStock: 120, inStockCodes: 3, inactiveProducts: 1, lowStockCount: 1, totalInventoryValue: 5000 },
-        filters: { products: filters('30 ngày'), newProducts: filters('30 ngày') },
-        products: {
-          newProducts: { label: '30 ngày', count: 0, dateColumnAvailable: true, products: [] },
-          topSellingProducts: [], topSellingParentCategories: [], allSellingProducts: [{ code: 'SP-1', name: 'Bán chạy', qty: 2, revenue: 200000 }],
-          allSellingParentCategories: [],
-          newlyImported: { label: '30 ngày', count: 0, products: [], salesRevenue: 0, salesQty: 0 }
-        },
-        allProducts: [{ code: 'SP-1', name: 'Sản phẩm một', stock: 5, reserved: 0, status: 'Đang kinh doanh', cost: 1000, stockValue: 5000, pct: 100 }]
       };
     case 'invoices':
       return {
@@ -220,7 +207,7 @@ test('doi bo loc tab dang xem chi tai lai tab do, khong keo tab khac', async () 
   assert.match(page.calls[2].url, /view=invoices&days=30&inMode=range&inFrom=2026-09-01&inTo=2026-09-07/);
 });
 
-test('doi bo loc Hoa don lam Tong quan tai lai (chung bo loc Xu huong); doi bo loc Hang hoa thi khong', async () => {
+test('doi bo loc Hoa don lam Tong quan tai lai (chung bo loc Xu huong); mo tab Hang hoa khong goi /api/dashboard', async () => {
   const page = createPage();
   await settle();
   page.run("switchView('invoices')");
@@ -234,16 +221,12 @@ test('doi bo loc Hoa don lam Tong quan tai lai (chung bo loc Xu huong); doi bo l
   assert.equal(page.calls.length, before + 1, 'Tong quan dung bo loc Hoa don cho Xu huong -> tai lai 1 lan');
   assert.match(page.calls[page.calls.length - 1].url, /view=overview.*inFrom=2026-09-01/);
 
+  // Tab Hang hoa khong con goi /api/dashboard (Bao cao hang hoa + Tang truong ma hang co API rieng).
+  const afterOverview = page.calls.length;
   page.run("switchView('products')");
   await settle();
-  page.run("setTableDateFilter('topSelling', '2026-09-01', '2026-09-07')");
-  await settle();
-  const afterProducts = page.calls.length;
-  assert.match(page.calls[afterProducts - 1].url, /view=products.*prFrom=2026-09-01/);
-
-  page.run("switchView('overview')");
-  await settle();
-  assert.equal(page.calls.length, afterProducts, 'chu ky Tong quan khong gom bo loc Hang hoa -> khong tai lai');
+  assert.equal(page.calls.length, afterOverview, 'mo tab Hang hoa khong goi /api/dashboard');
+  assert.ok(page.calls.every(call => call.view !== 'products'));
 });
 
 test('khong con bo loc trang thai kinh doanh: khong co ham setProductStatus va khong tab nao gui prStatus', async () => {
@@ -254,26 +237,6 @@ test('khong con bo loc trang thai kinh doanh: khong co ham setProductStatus va k
   assert.equal(page.run('typeof setProductStatus'), 'undefined');
   assert.equal(page.doc.getElementById('productStatusToggle'), null);
   page.calls.forEach(call => assert.doesNotMatch(call.url, /prStatus/));
-});
-
-test('gop payload: Tong quan va Hang hoa (day du) khong ghi de mat truong cua nhau', async () => {
-  const page = createPage();
-  await settle();
-  page.run("switchView('products')");
-  await settle();
-
-  const { state } = page.dash;
-  assert.deepEqual(Object.keys(state.data.products).sort().includes('allSellingProducts'), true);
-  assert.equal(state.data.kpi.totalCustomers, 9, 'kpi Tong quan con nguyen sau khi tab Hang hoa gop kpi cua no');
-  assert.equal(state.data.kpi.inStockCodes, 3, 'kpi Hang hoa duoc gop them, khong thay the');
-
-  // Tong quan tai lai (mang 1 phan `products`) khong duoc xoa bang san pham cua tab Hang hoa.
-  page.dash.state.dataEpoch += 1;
-  page.run("switchView('overview')");
-  await settle();
-  assert.equal(state.data.products.allSellingProducts.length, 1);
-  assert.equal(state.data.allProducts.length, 1);
-  assert.equal(state.data.filters.newProducts.label, '30 ngày');
 });
 
 test('tab tu tai lai khi server bao co du lieu moi (dataEpoch tang): tab dang xem ngay, tab khac khi mo', async () => {
@@ -312,11 +275,11 @@ test('moi tab co request rieng: chuyen tab KHONG huy request tab khac; doi bo lo
   page.calls[0].resolve(payloadFor('overview'));
   await settle();
 
-  page.run("switchView('products')");
+  page.run("switchView('debt')");
   const productsCall = page.calls[1];
   page.run("switchView('invoices')");
   const invoicesCall = page.calls[2];
-  assert.equal(productsCall.signal.aborted, false, 'chuyen sang Hoa don khong duoc huy request cua Hang hoa');
+  assert.equal(productsCall.signal.aborted, false, 'chuyen sang Hoa don khong duoc huy request cua Cong no');
   assert.equal(invoicesCall.signal.aborted, false);
 
   page.run("setTableDateFilter('invoices', '2026-09-01', '2026-09-07')");
@@ -327,7 +290,7 @@ test('moi tab co request rieng: chuyen tab KHONG huy request tab khac; doi bo lo
 
   // Response cua request bi huy (ve tay cham) khong ghi de du lieu.
   newInvoicesCall.resolve(payloadFor('invoices', 'MOI'));
-  productsCall.resolve(payloadFor('products'));
+  productsCall.resolve(payloadFor('debt'));
   await settle();
   assert.match(page.text('endOfDayRows'), /HD-MOI/);
   assert.equal(page.veilOn(), false, 'tat ca request da xong/huy -> tat man che');
@@ -360,7 +323,7 @@ test('loi tai tab dang xem (chua co du lieu) hien hop loi + thu lai; loi tai tab
   assert.equal(page.doc.getElementById('dashboardLoadError').hidden, true);
 
   // Tab da chuyen di khi request cu that bai -> khong bat hop loi cho tab dang xem.
-  page.run("switchView('products')");
+  page.run("switchView('debt')");
   const productsCall = page.calls[3];
   page.run("switchView('overview')");
   productsCall.fail(500);
@@ -371,8 +334,8 @@ test('loi tai tab dang xem (chua co du lieu) hien hop loi + thu lai; loi tai tab
 test('renderView bo qua tab chua tai xong (khong nem loi khi state.data moi co payload tab khac)', async () => {
   const page = createPage();
   await settle();
-  assert.equal(page.dash.viewIsLoaded('products'), false);
-  assert.doesNotThrow(() => page.dash.renderView('products'));
+  assert.equal(page.dash.viewIsLoaded('invoices'), false);
+  assert.doesNotThrow(() => page.dash.renderView('invoices'));
   assert.doesNotThrow(() => page.run('toggleTheme()'));
 });
 

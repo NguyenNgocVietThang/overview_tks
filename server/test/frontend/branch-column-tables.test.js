@@ -1,7 +1,7 @@
 'use strict';
 
-// Cot "Cơ sở" o cac bang dong theo co so (tru bang ton kho gop ma), hang hoa cung ma o hai co so la hai dong rieng,
-// khong con bo loc trang thai kinh doanh / thanh tim kiem chung. (Bang khach hang cua tab Khach hang cu da go 2026-10-16.)
+// Cot "Cơ sở" o bang Chi tiet giao dich (hoa don cung ma o hai co so la hai dong rieng) va thanh tim kiem chung da bo.
+// (Cac bang cua tab Hang hoa cu va tab Khach hang cu da go 2026-10-16.)
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -17,9 +17,6 @@ const SG = 'Sài Gòn';
 const BOTH = 'Hà Nội, Sài Gòn';
 
 function payload() {
-  const product = (branch, stock) => ({
-    code: 'SP-1', branch, name: 'Khay giấy bạc', stock, reserved: 0, pct: 50, status: 'Đang kinh doanh', cost: 10, stockValue: stock * 10, inTransit: branch === SG ? 50 : 0
-  });
   return {
     kpi: {
       totalStock: 7, totalProducts: 2, lowStockCount: 1,
@@ -36,25 +33,6 @@ function payload() {
         topTransactions: [], summary: { quantity: 3, quantityKnown: true, revenue: 30, discount: 0, paid: 30 }
       }
     },
-    products: {
-      newProducts: { label: '30 ngày', count: 2, dateColumnAvailable: true, products: [
-        { code: 'MOI-1', branch: HN, name: 'Hàng mới', category: 'Nhóm X', createdAt: '18/09/2026 14:28:00' },
-        { code: 'MOI-1', branch: SG, name: 'Hàng mới', category: 'Nhóm X', createdAt: '18/09/2026 14:29:00' }
-      ] },
-      topSellingProducts: [], topSellingParentCategories: [], childCategorySalesByParent: {}, availableParentCategories: [],
-      allSellingProducts: [
-        { code: 'SP-1', branch: HN, name: 'Khay giấy bạc', qty: 3, revenue: 300 },
-        { code: 'SP-1', branch: SG, name: 'Khay giấy bạc', qty: 1, revenue: 100 }
-      ],
-      newlyImported: {
-        products: [
-          { code: 'SP-1', branch: HN, name: 'Khay giấy bạc', firstImportDate: '01/09/2026', daysOnHand: 20, revenue: 300 },
-          { code: 'SP-1', branch: SG, name: 'Khay giấy bạc', firstImportDate: '02/09/2026', daysOnHand: 19, revenue: 100 }
-        ],
-        salesRevenue: 0, salesQty: 0
-      }
-    },
-    allProducts: [product(HN, 5), product(SG, 2)]
   };
 }
 
@@ -96,7 +74,6 @@ function rows(doc, tbodyId) {
 }
 
 const TABLES_WITH_BRANCH = {
-  products: [ 'topSellingRows', 'allProductRows', 'newlyImportedRows', 'todayNewProductRows'],
   invoices: ['endOfDayRows']
 };
 
@@ -111,45 +88,6 @@ test('cac bang dong theo co so co cot "Cơ sở" va dong nao cung ghi co so', ()
         assert.ok(cells.some(text => [HN, SG, BOTH].includes(text)), id + ' dong ' + JSON.stringify(cells) + ' phai ghi co so');
       });
     });
-  });
-  dom.window.close();
-});
-
-test('ton kho Ca hai gop ma, cot HN/SG thang hang va khong co cot Co so', () => {
-  const dom = createPage();
-  const doc = dom.window.document;
-  dom.window.eval("switchView('products')");
-  assert.deepEqual(headers(doc, 'inventoryValueRows'), [
-    'Mã hàng', 'Tên sản phẩm', 'Đơn giá', 'Tồn HN', 'Vận chuyển SG', 'Tồn SG', 'Có bán HN', 'Có bán SG', 'Giá trị tồn'
-  ]);
-  const inventory = rows(doc, 'inventoryValueRows');
-  assert.equal(inventory.length, 1, 'cung ma o hai co so duoc gop mot dong');
-  assert.deepEqual(inventory[0], ['SP-1', 'Khay giấy bạc', '10', '5', '50', '2', '5', '2', '70']);
-  dom.window.close();
-});
-
-test('hang hoa cung ma o hai co so la hai dong rieng voi khoa dinh danh khac nhau', () => {
-  const dom = createPage();
-  const doc = dom.window.document;
-  dom.window.eval("switchView('products')");
-  const allProducts = rows(doc, 'allProductRows');
-  assert.equal(allProducts.length, 2, 'SP-1 hien 2 dong (Hà Nội, Sài Gòn)');
-  assert.deepEqual(allProducts.map(cells => cells[cells.length - 1]).sort(), [HN, SG]);
-  const ids = [...doc.querySelectorAll('#allProductRows tr')].map(tr => tr.dataset.tableItemId);
-  assert.deepEqual(ids, ['Hà Nội|SP-1', 'Sài Gòn|SP-1']);
-  const topSelling = rows(doc, 'topSellingRows');
-  assert.equal(topSelling.length, 2);
-  dom.window.close();
-});
-
-test('khong con bo loc trang thai kinh doanh, cot trang thai kinh doanh va the "Ngừng kinh doanh"', () => {
-  const dom = createPage();
-  const doc = dom.window.document;
-  assert.equal(doc.getElementById('productStatusToggle'), null);
-  assert.equal(doc.getElementById('pr-inactive'), null);
-  dom.window.eval("switchView('products')");
-  ['allProductRows'].forEach(id => {
-    assert.ok(!headers(doc, id).some(text => /Trạng thái/.test(text)), id + ' khong con cot trang thai kinh doanh');
   });
   dom.window.close();
 });

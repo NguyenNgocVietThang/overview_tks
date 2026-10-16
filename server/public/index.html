@@ -3397,7 +3397,7 @@
         <!-- ============ TỔNG QUAN ============ -->
         <div class="view active" id="view-overview">
           <div class="view-title">Tổng quan</div>
-          <div class="view-sub">Xu hướng doanh thu → báo cáo doanh thu theo khách → báo cáo hàng hóa → kiểm tra đứt hàng · mỗi mục có chỉ số then chốt ở đầu</div>
+          <div class="view-sub">Xu hướng doanh thu → báo cáo doanh thu theo khách → kiểm tra đứt hàng · mỗi mục có chỉ số then chốt ở đầu</div>
 
           <section class="section">
             <div class="section-head"><span class="section-step">1</span>
@@ -3545,61 +3545,8 @@
             </div>
           </section>
 
-          <section class="section">
-            <div class="section-head"><span class="section-step">3</span>
-              <h2>Báo cáo hàng hóa <span class="section-note" id="productReportUpdatedAt">—</span></h2>
-            </div>
-            <div class="kpi-grid section-kpis" id="productReportKpis"></div>
-            <p class="section-note" id="productContainerUpdatedAt" role="status">Hàng dự kiến: chưa có dữ liệu đồng bộ.</p>
-            <div class="grid">
-              <div class="panel col-12">
-                <div class="panel-head">
-                  <h2>Báo cáo hàng hóa <span class="tag" id="tagProductReportRows">—</span></h2>
-                  <div class="panel-head-actions">
-                    <button class="export-button" type="button" onclick="openExportDialog('overview.productReport')">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file
-                    </button>
-                  </div>
-                </div>
-                <div class="scroll-list" style="max-height:600px;">
-                  <table class="fixed-table" data-table-key="dashboard-table-2">
-                    <thead>
-                      <tr>
-                        <th style="width:140px" data-column-key="ma-sp">Mã SP</th>
-                        <th style="width:300px" data-column-key="ten-sp">Tên SP</th>
-                        <th style="width:105px" data-column-key="chua-boc">Chưa bốc</th>
-                        <th style="width:105px" data-column-key="da-boc">Đã bốc</th>
-                        <th style="width:95px" data-column-key="ton-hn">Tồn HN</th>
-                        <th style="width:125px" data-column-key="dieu-chuyen-sg" title="Số lượng đặt hàng nhập Đã xác nhận NCC tại Kiot Sài Gòn; cộng vào tồn có bán của Báo cáo hàng hóa">Điều chuyển SG</th>
-                        <th style="width:95px" data-column-key="ton-sg">Tồn SG</th>
-                        <th title="Tồn có bán = Có bán HN + Có bán SG + Điều chuyển SG. Có bán HN/SG đã trừ khách đặt (phiếu tạm)." style="width:125px" data-column-key="ton-co-ban">Tồn có bán</th>
-                        <th style="width:165px" data-column-key="tong-sl-30-ngay">Tổng SL 30 ngày</th>
-                        <th style="width:135px" data-column-key="ds-90-ngay">DS 90 ngày</th>
-                        <th style="width:140px" data-column-key="sl-khach-ban">SL khách bán</th>
-                        <th style="width:220px" data-column-key="khach-lon-nhat">Khách lớn nhất</th>
-                        <th style="width:105px" data-column-key="khach-lon">% Khách lớn</th>
-                      </tr>
-                    </thead>
-                    <tbody id="productReportRows">
-                      <tr>
-                        <td colspan="13" class="table-note">Đang tải...</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <div class="pagination-controls" id="productReportPagination" hidden>
-                  <button type="button" id="productReportFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
-                  <button type="button" id="productReportPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
-                  <span id="productReportPageLabel">Trang 1/1</span>
-                  <button type="button" id="productReportNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
-                  <button type="button" id="productReportLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
-                </div>
-              </div>
-            </div>
-          </section>
-
           <section class="section" id="overviewStockoutSection">
-            <div class="section-head"><span class="section-step">4</span>
+            <div class="section-head"><span class="section-step">3</span>
               <h2>Kiểm tra đứt hàng <span class="section-note">đối chiếu dữ liệu KiotViet đã đồng bộ</span></h2>
             </div>
             <div class="kpi-grid section-kpis" id="stockoutKpis"></div>
@@ -3764,257 +3711,96 @@
         <!-- ============ HÀNG HÓA ============ -->
         <div class="view" id="view-products">
           <div class="view-title">Hàng hóa</div>
-          <div class="view-sub">Cơ cấu tồn kho → sản phẩm bán chạy → chi tiết từng mã hàng → hàng mới nhập → mã mới tạo · mỗi mục có chỉ số then chốt ở đầu</div>
+          <div class="view-sub">Báo cáo hàng hóa → tăng trưởng doanh số theo mã hàng · mỗi mục có chỉ số then chốt ở đầu</div>
 
           <section class="section">
             <div class="section-head"><span class="section-step">1</span>
-              <h2>Cơ cấu tồn kho <span class="section-note">tồn thực tế, tồn có thể bán và hàng đang vận chuyển theo sản phẩm</span></h2>
+              <h2>Báo cáo hàng hóa <span class="section-note" id="productReportUpdatedAt">—</span></h2>
             </div>
-            <div class="kpi-grid section-kpis">
-              <div class="kpi-card accent-amber col-3">
-                <div class="eyebrow">Tổng số mặt hàng</div>
-                <div class="value" id="pr-total">—</div>
-              </div>
-              <div class="kpi-card col-3">
-                <div class="eyebrow">Mã còn hàng</div>
-                <div class="value" id="pr-stock">—</div>
-              </div>
-              <div class="kpi-card accent-red col-3">
-                <div class="eyebrow">Đã hết hàng</div>
-                <div class="value" id="pr-lowstock">—</div>
-              </div>
-              <div class="kpi-card accent-green col-3">
-                <div class="eyebrow">Giá trị tồn kho</div>
-                <div class="value" id="pr-stockvalue">—</div>
-                <div class="sub">Theo giá vốn</div>
-              </div>
-            </div>
-            <div class="grid">
-              <div class="panel col-12 top-selling-table-panel is-full" id="inventoryTablePanel">
-                <div class="panel-head">
-                  <h2>Chi tiết tồn kho theo sản phẩm <span class="tag" id="tagInventoryTable">—</span></h2>
-                  <div class="panel-head-actions"><button class="export-button" type="button"
-                      onclick="openExportDialog('products.inventory')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button></div>
-                </div>
-                <div class="scroll-list top-selling-table-scroll">
-                  <!-- Cot luon nam trong DOM, chi an/hien theo che do (data-inv-cols): 'one' = chon 1 co so,
-                       'both' = "Cả hai" (1 dong/ma, cot HN/SG rieng) — de chi so cot dung cho sap xep khong lech. -->
-                  <table class="fixed-table" data-table-key="dashboard-table-6">
-                    <thead>
-                      <tr>
-                        <th style="width:105px" data-column-key="ma-hang">Mã hàng</th>
-                        <th style="width:300px" data-column-key="ten-san-pham">Tên sản phẩm</th>
-                        <th data-cost-col title="Giá vốn (Cả hai: bình quân theo tồn); giá trị tồn = giá vốn × tồn kho" style="width:110px" data-column-key="don-gia">Đơn giá</th>
-                        <th data-inv-cols="one" title="Tồn thực tế trên KiotViet" style="width:105px" data-column-key="ton-kho">Tồn kho</th>
-                        <th data-inv-cols="both" hidden title="Tồn thực tế tại Hà Nội" style="width:95px" data-column-key="ton-hn">Tồn HN</th>
-                        <th title="Số lượng trong phiếu Đặt hàng nhập trạng thái “Đã xác nhận NCC” của Kiot Sài Gòn (Mua hàng → Đặt hàng nhập), ghép theo mã hàng" style="width:125px" data-column-key="van-chuyen-sg">Vận chuyển SG</th>
-                        <th data-inv-cols="both" hidden title="Tồn thực tế tại Sài Gòn" style="width:95px" data-column-key="ton-sg">Tồn SG</th>
-                        <th data-inv-cols="one" title="Tồn có thể bán = Tồn kho − Khách đặt (phiếu tạm, chưa giao)" style="width:155px" data-column-key="ton-co-the-ban">Tồn có thể bán</th>
-                        <th data-inv-cols="both" hidden title="Tồn có thể bán tại Hà Nội = Tồn kho − Khách đặt (phiếu tạm)" style="width:110px" data-column-key="co-ban-hn">Có bán HN</th>
-                        <th data-inv-cols="both" hidden title="Tồn có thể bán tại Sài Gòn = Tồn kho − Khách đặt (phiếu tạm)" style="width:110px" data-column-key="co-ban-sg">Có bán SG</th>
-                        <th data-cost-col title="Giá trị tồn = giá vốn × tồn kho" style="width:140px" data-column-key="gia-tri-ton">Giá trị tồn</th>
-                      </tr>
-                    </thead>
-                    <tbody id="inventoryValueRows">
-                      <tr>
-                        <td colspan="12" class="table-note">Đang tải...</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <div class="pagination-controls" id="inventoryValuePagination" hidden>
-                  <button type="button" id="inventoryValueFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
-                  <button type="button" id="inventoryValuePrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
-                  <span id="inventoryValuePageLabel">Trang 1/1</span>
-                  <button type="button" id="inventoryValueNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
-                  <button type="button" id="inventoryValueLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section class="section">
-            <div class="section-head"><span class="section-step">2</span>
-              <h2>Phân tích <span class="section-note" id="productAnalysisPeriod">doanh thu thực tế (đã trừ trả hàng) trong 30 ngày</span></h2>
-            </div>
-            <div class="kpi-grid section-kpis" id="topSellingKpis"></div>
-            <div class="period-toggle analysis-toggle" id="productAnalysisToggle" role="group"
-              aria-label="Kiểu phân tích doanh thu">
-              <button type="button" class="active" data-analysis="product" onclick="setProductAnalysis('product')">Theo
-                mặt hàng</button>
-              <button type="button" data-analysis="parentCategory" onclick="setProductAnalysis('parentCategory')">Theo
-                nhóm cha</button>
-            </div>
-            <div class="grid">
-              <div class="panel col-12 top-selling-table-panel is-full" id="topSellingTablePanel">
-                <div class="panel-head">
-                  <h2 id="topSellingTableTitle">Chi tiết sản phẩm bán chạy</h2><button class="export-button"
-                    type="button" onclick="openExportDialog('products.top-selling')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>
-                </div>
-                <div class="scroll-list top-selling-table-scroll">
-                  <table class="fixed-table" data-table-key="dashboard-table-7">
-                    <thead>
-                      <tr>
-                        <th id="topSellingCodeHeader" style="width:140px" data-column-key="ma-hang">Mã hàng</th>
-                        <th id="topSellingNameHeader" style="width:300px" data-column-key="san-pham">Sản phẩm</th>
-                        <th style="width:100px" data-column-key="sl-ban">SL bán</th>
-                        <th style="width:135px" data-column-key="doanh-thu">Doanh thu</th>
-                        <th id="topSellingStockHeader" style="width:105px" data-column-key="ton-kho">Tồn kho</th>
-                        <th id="topSellingBranchHeader" style="width:130px" data-column-key="co-so">Cơ sở</th>
-                      </tr>
-                    </thead>
-                    <tbody id="topSellingRows">
-                      <tr>
-                        <td colspan="5" class="table-note">Đang tải...</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <div class="pagination-controls" id="topSellingPagination" hidden>
-                  <button type="button" id="topSellingFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
-                  <button type="button" id="topSellingPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
-                  <span id="topSellingPageLabel">Trang 1/1</span>
-                  <button type="button" id="topSellingNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
-                  <button type="button" id="topSellingLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section class="section">
-            <div class="section-head"><span class="section-step">3</span>
-              <h2>Dữ liệu chi tiết <span class="section-note">toàn bộ danh mục hàng hóa</span></h2>
-            </div>
-            <div class="kpi-grid section-kpis" id="allProductsKpis"></div>
+            <div class="kpi-grid section-kpis" id="productReportKpis"></div>
+            <p class="section-note" id="productContainerUpdatedAt" role="status">Hàng dự kiến: chưa có dữ liệu đồng bộ.</p>
             <div class="grid">
               <div class="panel col-12">
                 <div class="panel-head">
-                  <h2>Tất cả mã hàng <span class="tag" id="tagAllProducts">—</span></h2>
-                  <div class="panel-head-actions"><button class="export-button" type="button"
-                      onclick="openExportDialog('products.all')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button></div>
+                  <h2>Báo cáo hàng hóa <span class="tag" id="tagProductReportRows">—</span></h2>
+                  <div class="panel-head-actions">
+                    <button class="export-button" type="button" onclick="openExportDialog('overview.productReport')">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file
+                    </button>
+                  </div>
                 </div>
-                <div class="scroll-list" style="max-height:420px;">
-                  <table class="fixed-table" data-table-key="dashboard-table-8">
+                <div class="scroll-list" style="max-height:600px;">
+                  <table class="fixed-table" data-table-key="dashboard-table-2">
                     <thead>
                       <tr>
-                        <th style="width:140px" data-column-key="ma-hang">Mã hàng</th>
-                        <th style="width:300px" data-column-key="ten-san-pham">Tên sản phẩm</th>
-                        <th style="width:140px" data-column-key="vi-tri">Vị trí</th>
-                        <th style="width:280px" data-column-key="mo-ta">Mô tả</th>
-                        <th style="width:80px" data-column-key="ton">Tồn</th>
-                        <th style="width:80px" data-column-key="dat">Đặt</th>
-                        <th style="width:90px" data-column-key="ty-le">Tỷ lệ</th>
-                        <th style="width:130px" data-column-key="co-so">Cơ sở</th>
+                        <th style="width:140px" data-column-key="ma-sp">Mã SP</th>
+                        <th style="width:300px" data-column-key="ten-sp">Tên SP</th>
+                        <th style="width:105px" data-column-key="chua-boc">Chưa bốc</th>
+                        <th style="width:105px" data-column-key="da-boc">Đã bốc</th>
+                        <th style="width:95px" data-column-key="ton-hn">Tồn HN</th>
+                        <th style="width:125px" data-column-key="dieu-chuyen-sg" title="Số lượng đặt hàng nhập Đã xác nhận NCC tại Kiot Sài Gòn; cộng vào tồn có bán của Báo cáo hàng hóa">Điều chuyển SG</th>
+                        <th style="width:95px" data-column-key="ton-sg">Tồn SG</th>
+                        <th title="Tồn có bán = Có bán HN + Có bán SG + Điều chuyển SG. Có bán HN/SG đã trừ khách đặt (phiếu tạm)." style="width:125px" data-column-key="ton-co-ban">Tồn có bán</th>
+                        <th style="width:165px" data-column-key="tong-sl-30-ngay">Tổng SL 30 ngày</th>
+                        <th style="width:135px" data-column-key="ds-90-ngay">DS 90 ngày</th>
+                        <th style="width:140px" data-column-key="sl-khach-ban">SL khách bán</th>
+                        <th style="width:220px" data-column-key="khach-lon-nhat">Khách lớn nhất</th>
+                        <th style="width:105px" data-column-key="khach-lon">% Khách lớn</th>
                       </tr>
                     </thead>
-                    <tbody id="allProductRows">
+                    <tbody id="productReportRows">
                       <tr>
-                        <td colspan="8" class="table-note">Đang tải...</td>
+                        <td colspan="13" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
                 </div>
-                <div class="pagination-controls" id="allProductsPagination" hidden>
-                  <button type="button" id="allProductsFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
-                  <button type="button" id="allProductsPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
-                  <span id="allProductsPageLabel">Trang 1/1</span>
-                  <button type="button" id="allProductsNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
-                  <button type="button" id="allProductsLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
+                <div class="pagination-controls" id="productReportPagination" hidden>
+                  <button type="button" id="productReportFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                  <button type="button" id="productReportPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
+                  <span id="productReportPageLabel">Trang 1/1</span>
+                  <button type="button" id="productReportNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                  <button type="button" id="productReportLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
                 </div>
               </div>
             </div>
           </section>
 
-          <section class="section">
-            <div class="section-head"><span class="section-step">4</span>
-              <h2>Hàng mới nhập <span class="section-note" id="newlyImportedPeriod">ngày nhập đầu tiên trong 30
-                  ngày</span></h2>
-            </div>
-            <div class="kpi-grid section-kpis" id="newlyImportedKpis"></div>
+          <section class="section" id="productGrowthSection" hidden>
+            <div class="section-head"><span class="section-step">2</span><h2>Tăng trưởng mã hàng <span id="businessProductsReadiness" class="table-note" role="status" hidden>Đang dựng dữ liệu tháng cũ…</span></h2></div>
+            <div class="kpi-grid section-kpis" id="businessProductsKpis"></div>
             <div class="grid">
-              <div class="panel col-12 newly-imported-table-panel">
+              <div class="panel col-12">
                 <div class="panel-head">
-                  <h2>Hàng mới nhập <span class="tag" id="tagNewlyImported">—</span></h2><button class="export-button"
-                    type="button" onclick="openExportDialog('products.newly-imported')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>
+                  <h2>Doanh số theo mã hàng <span class="tag" id="tagBusinessProducts">—</span></h2>
+                  <div class="panel-head-actions business-export" data-kind="products">
+                    <button class="export-button" type="button"
+                      onclick="openBusinessExportDialog('products')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>
+                  </div>
                 </div>
-                <div class="scroll-list newly-imported-table-scroll">
-                  <table class="fixed-table" data-table-key="dashboard-table-9">
-                    <thead>
+                <div class="scroll-list" style="max-height:600px;">
+                  <table class="fixed-table" data-table-key="dashboard-table-17">
+                    <thead id="businessProductsHead">
                       <tr>
-                        <th style="width:140px" data-column-key="ma-hang">Mã hàng</th>
-                        <th style="width:300px" data-column-key="ten-hang">Tên hàng</th>
-                        <th style="width:190px" data-column-key="ngay-nhap-dau-tien">Ngày nhập đầu tiên</th>
-                        <th style="width:165px" data-column-key="so-ngay-ton-tai">Số ngày tồn tại</th>
-                        <th style="width:135px" data-column-key="doanh-thu">Doanh thu</th>
-                        <th style="width:130px" data-column-key="co-so">Cơ sở</th>
+                        <th style="width:90px" data-column-key="ma-hang">Mã hàng</th>
+                        <th style="width:212px" data-column-key="ten-hang">Tên hàng</th>
+                        <th style="width:112px" data-column-key="tb-4-thang">TB 4 tháng</th>
+                        <th style="width:96px" data-column-key="tang-truong">Tăng trưởng</th>
                       </tr>
                     </thead>
-                    <tbody id="newlyImportedRows">
+                    <tbody id="businessProductsRows">
                       <tr>
-                        <td colspan="6" class="table-note">Đang tải...</td>
+                        <td colspan="4" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
                 </div>
-                <div class="pagination-controls" id="newlyImportedPagination" hidden>
-                  <button type="button" id="newlyImportedFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
-                  <button type="button" id="newlyImportedPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
-                  <span id="newlyImportedPageLabel">Trang 1/1</span>
-                  <button type="button" id="newlyImportedNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
-                  <button type="button" id="newlyImportedLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section class="section">
-            <div class="section-head"><span class="section-step">5</span>
-              <h2>Mã mới tạo <span class="section-note">các mã hàng có Ngày tạo trong khoảng Từ – Đến của bảng</span></h2>
-            </div>
-            <div class="kpi-grid section-kpis" id="newProductsKpis"></div>
-            <div class="grid">
-              <div class="panel col-8">
-                <div class="panel-head">
-                  <h2>Danh sách mã mới <span class="tag" id="tagTodayNewProductsDate">—</span></h2>
-                  <div class="panel-head-actions"><span class="drill-hint" id="today-new-products-count">—</span><button
-                      class="export-button" type="button" onclick="openExportDialog('overview.new-products')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất
-                      file</button></div>
-                </div>
-                <div class="scroll-list" style="max-height:420px;">
-                  <table class="fixed-table" data-table-key="dashboard-table-10">
-                    <thead>
-                      <tr>
-                        <th style="width:140px" data-column-key="ma">Mã</th>
-                        <th style="width:300px" data-column-key="ten">Tên</th>
-                        <th style="width:200px" data-column-key="nhom-hang">Nhóm hàng</th>
-                        <th style="width:175px" data-column-key="thoi-gian-tao-ma">Thời gian tạo mã</th>
-                        <th style="width:130px" data-column-key="co-so">Cơ sở</th>
-                      </tr>
-                    </thead>
-                    <tbody id="todayNewProductRows">
-                      <tr>
-                        <td colspan="5" class="table-note">Đang tải...</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <div class="pagination-controls" id="todayNewProductsPagination" hidden>
-                  <button type="button" id="todayNewProductsFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
-                  <button type="button" id="todayNewProductsPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
-                  <span id="todayNewProductsPageLabel">Trang 1/1</span>
-                  <button type="button" id="todayNewProductsNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
-                  <button type="button" id="todayNewProductsLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
-                </div>
-              </div>
-              <div class="panel col-4 new-products-chart-panel">
-                <div class="panel-head">
-                  <h2>Tỷ lệ số mã theo nhóm hàng <span class="tag" id="tagNewProductsCategory">—</span></h2>
-                </div>
-                <div class="chart-box" id="newProductsCategoryChartBox">
-                  <canvas id="chartNewProductsCategory" role="img"
-                    aria-label="Biểu đồ tròn tỷ lệ số lượng mã mới tạo theo nhóm hàng"></canvas>
-                  <div class="chart-empty" id="newProductsCategoryChartEmpty" hidden>Chưa có mã hàng mới tạo trong khoảng
-                    đã chọn</div>
+                <div class="pagination-controls" id="businessProductsPagination" hidden>
+                  <button type="button" id="businessProductsFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                  <button type="button" id="businessProductsPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
+                  <span id="businessProductsPageLabel">Trang 1/1</span>
+                  <button type="button" id="businessProductsNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                  <button type="button" id="businessProductsLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
                 </div>
               </div>
             </div>
@@ -4348,45 +4134,6 @@
             </div>
           </section>
 
-          <section class="section">
-            <div class="section-head"><span class="section-step">4</span><h2>Tăng trưởng mã hàng</h2></div>
-            <div class="kpi-grid section-kpis" id="businessProductsKpis"></div>
-            <div class="grid">
-              <div class="panel col-12">
-                <div class="panel-head">
-                  <h2>Doanh số theo mã hàng <span class="tag" id="tagBusinessProducts">—</span></h2>
-                  <div class="panel-head-actions business-export" data-kind="products">
-                    <button class="export-button" type="button"
-                      onclick="openBusinessExportDialog('products')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>
-                  </div>
-                </div>
-                <div class="scroll-list" style="max-height:600px;">
-                  <table class="fixed-table" data-table-key="dashboard-table-17">
-                    <thead id="businessProductsHead">
-                      <tr>
-                        <th style="width:90px" data-column-key="ma-hang">Mã hàng</th>
-                        <th style="width:212px" data-column-key="ten-hang">Tên hàng</th>
-                        <th style="width:112px" data-column-key="tb-4-thang">TB 4 tháng</th>
-                        <th style="width:96px" data-column-key="tang-truong">Tăng trưởng</th>
-                      </tr>
-                    </thead>
-                    <tbody id="businessProductsRows">
-                      <tr>
-                        <td colspan="4" class="table-note">Đang tải...</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <div class="pagination-controls" id="businessProductsPagination" hidden>
-                  <button type="button" id="businessProductsFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
-                  <button type="button" id="businessProductsPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
-                  <span id="businessProductsPageLabel">Trang 1/1</span>
-                  <button type="button" id="businessProductsNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
-                  <button type="button" id="businessProductsLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
-                </div>
-              </div>
-            </div>
-          </section>
         </div>
 
       </div>
@@ -4517,7 +4264,6 @@
       view: 'overview',
       charts: {},
       chartAnimation: true,
-      productAnalysis: 'product',
       currentUser: null,
       supplierReturnImport: { submitting: false },
       productReport: { rows: [], computedAt: null, containerSync: null, loaded: false, loading: false },
@@ -4543,9 +4289,6 @@
       tableTableBodies: {},
       // Moi bang co bo loc thoi gian rieng (xem TABLE_DATE_FILTERS / TAB_FILTER_PREFIXES).
       filters: {
-        topSelling: { mode: 'days', days: 30 },
-        newlyImported: { mode: 'days', days: 30 },
-        newProducts: { mode: 'days', days: 30 },
         invoices: { mode: 'days', days: 30 }
       },
       exportDialog: {
@@ -5929,20 +5672,12 @@
 
     function currentExportFilters() {
       return {
-        products: cloneExportFilter(state.filters.topSelling),
-        newlyImported: cloneExportFilter(state.filters.newlyImported),
-        invoices: cloneExportFilter(state.filters.invoices),
-        newProducts: cloneExportFilter(state.filters.newProducts)
+        invoices: cloneExportFilter(state.filters.invoices)
       };
     }
 
     const EXPORT_TABLE_SEARCH_KEYS = {
       'overview.transactions': 'endOfDay',
-      'overview.new-products': 'todayNewProducts',
-      'products.top-selling': 'topSelling',
-      'products.all': 'allProducts',
-      'products.inventory': 'inventoryValue',
-      'products.newly-imported': 'newlyImported',
       'customers.productDetail': 'cpDetail',
       'overview.productReport': 'productReport',
       'debt.management': 'debtManagement',
@@ -5954,7 +5689,6 @@
         tableKey: tableKey,
         filters: currentExportFilters(),
         context: {
-          productAnalysis: state.productAnalysis,
           debtQueue: state.debtFilters.queue,
           debtSale: state.debtFilters.sale,
           debtSchedule: state.debtFilters.schedule,
@@ -6444,7 +6178,7 @@
       document.getElementById('backdrop').classList.remove('show');
       document.getElementById('menuBtn').setAttribute('aria-expanded', 'false');
       document.getElementById('menuBtn').setAttribute('aria-label', 'Mở menu điều hướng');
-      if (view !== 'business' && view !== 'marketing' && viewIsLoaded(view)) {
+      if (view !== 'business' && view !== 'products' && view !== 'marketing' && viewIsLoaded(view)) {
         state.chartAnimation = false;
         renderView(view);
         state.chartAnimation = true;
@@ -6457,19 +6191,13 @@
       // Marketing opens independently; only load the other report sources when their view is opened.
       if (view === 'products' && marketingProductDeferred) { marketingProductDeferred = false; loadProductReport(); }
       refreshProductContainerMeta();
+      // Tab Hang hoa khong co payload /api/dashboard: Bao cao hang hoa tu tai (loadProductReport), muc Tang truong
+      // ma hang dung API /api/business-report/products va chi hien cho tai khoan co quyen reports.business.
+      if (view === 'products') { loadProductGrowth(); return; }
       if (view === 'overview' && marketingHistoryDeferred) { marketingHistoryDeferred = false; loadInventoryHistory(); }
       // Moi tab tai rieng khi duoc mo (xem ensureViewData): tab da co du lieu van ve ngay
       // tu du lieu cu roi cap nhat khi ban moi ve; tab chua co du lieu hien man che "Dang tai".
       ensureViewData(view);
-    }
-
-    function setProductAnalysis(mode) {
-      if (mode !== 'product' && mode !== 'parentCategory') return;
-      state.productAnalysis = mode;
-      document.querySelectorAll('#productAnalysisToggle button').forEach(function (button) {
-        button.classList.toggle('active', button.dataset.analysis === mode);
-      });
-      if (state.data) renderProductSalesAnalysis(state.data);
     }
 
     // Moi bang co 1 bo loc thoi gian rieng (khoa cua state.filters) -> tien to tham so
@@ -6477,9 +6205,6 @@
     // nhap, np = ma moi tao, in = giao dich (+ bieu do/chi so Xu huong va the "Tra hang"),
     // (cu = doanh thu theo khach da bo 2026-10-16 cung tab Khach hang cu; or/rt cua 2 bang Dat hang / Tra hang da bo 2026-10-01.)
     const TAB_FILTER_PREFIXES = {
-      topSelling: ['pr'],
-      newlyImported: ['ni'],
-      newProducts: ['np'],
       invoices: ['in']
     };
 
@@ -6488,9 +6213,6 @@
     // ngay" dung chung khoa 'invoices' voi bang Chi tiet giao dich (o [data-date-filter-slot]).
     // Bo trong ca 2 o = Tat ca.
     const TABLE_DATE_FILTERS = {
-      topSelling: 'topSelling',
-      newlyImported: 'newlyImported',
-      todayNewProducts: 'newProducts',
       endOfDay: 'invoices'
     };
 
@@ -6927,185 +6649,6 @@
       });
     }
 
-    const INVENTORY_BOTH_LABEL = 'Hà Nội, Sài Gòn';
-
-    // Bang "Chi tiet ton kho": 1 dong / ma hang. Chon 1 co so -> dung nguyen dong cua co so do.
-    // "Cả hai" (allProducts co dong cua ca 2 co so) -> gop theo ma: ton/ton co the ban/gia tri ton
-    // tach theo tung co so, "Đơn giá" = gia von binh quan theo ton duong (nhu mergeEntitySheet),
-    // "Hàng đang vận chuyển" cung 1 so theo ma nen lay 1 lan (uu tien dong Sai Gon), khong cong don.
-    function buildInventoryRows(products) {
-      const list = Array.isArray(products) ? products : [];
-      const branchNames = new Set(list.map(function (p) { return p.branch; }));
-      const isBoth = branchNames.has('Hà Nội') && branchNames.has('Sài Gòn');
-      const sortRows = function (rows) {
-        return rows.sort(function (a, b) {
-          return (b.stockValue || 0) - (a.stockValue || 0) || (b.stock || 0) - (a.stock || 0);
-        });
-      };
-      if (!isBoth) {
-        return {
-          isBoth: false,
-          rows: sortRows(list.map(function (p) {
-            return {
-              code: p.code, name: p.name, branch: p.branch, cost: p.cost || 0,
-              stock: p.stock || 0, available: p.available === undefined ? (p.stock || 0) - (p.reserved || 0) : p.available,
-              inTransit: p.inTransit || 0, stockValue: p.stockValue || 0
-            };
-          }))
-        };
-      }
-      const byCode = new Map();
-      list.forEach(function (p) {
-        const key = String(p.code || '');
-        if (!byCode.has(key)) {
-          byCode.set(key, {
-            code: p.code, name: p.name, branches: [], cost: 0, positiveStock: 0,
-            stockHanoi: null, stockSaigon: null, availableHanoi: null, availableSaigon: null,
-            inTransit: 0, stock: 0, stockValue: 0
-          });
-        }
-        const row = byCode.get(key);
-        const stock = p.stock || 0;
-        const available = p.available === undefined ? stock - (p.reserved || 0) : p.available;
-        if (p.branch === 'Hà Nội') { row.stockHanoi = stock; row.availableHanoi = available; if (p.name) row.name = p.name; }
-        else if (p.branch === 'Sài Gòn') { row.stockSaigon = stock; row.availableSaigon = available; if (!row.name) row.name = p.name; }
-        row.branches.push(p.branch);
-        row.stock += stock;
-        row.stockValue += p.stockValue || 0;
-        row.positiveStock += Math.max(stock, 0);
-        row.inTransit = p.branch === 'Sài Gòn' ? (p.inTransit || 0) : (row.inTransit || p.inTransit || 0);
-      });
-      const rows = Array.from(byCode.values()).map(function (row) {
-        row.branch = row.branches.length > 1 ? INVENTORY_BOTH_LABEL : row.branches[0];
-        row.cost = row.positiveStock > 0 ? row.stockValue / row.positiveStock : 0;
-        return row;
-      });
-      return { isBoth: true, rows: sortRows(rows) };
-    }
-
-    // Hien/an cot theo che do (th co data-inv-cols="one"|"both"); o <td> luon co mat trong dong de chi so cot khong lech.
-    function applyInventoryColumnMode(isBoth, showCost) {
-      const table = document.getElementById('inventoryValueRows').closest('table');
-      table.querySelectorAll('thead th[data-inv-cols]').forEach(function (th) {
-        th.hidden = (th.dataset.invCols === 'both') !== isBoth;
-      });
-      // "Đơn giá" + "Giá trị tồn": tài khoản không có quyền reports.products.cost (vd Nhân viên sale) không thấy.
-      table.querySelectorAll('thead th[data-cost-col]').forEach(function (th) { th.hidden = !showCost; });
-    }
-
-    // Máy chủ cắt giá vốn / giá trị tồn khỏi payload khi tài khoản thiếu quyền reports.products.cost
-    // (dashboardPermissionFilter.js) → kpi.totalInventoryValue vắng mặt. Giao diện chỉ theo payload nên
-    // không phụ thuộc thời điểm nạp quyền của shared-nav.
-    function canSeeProductCost(d) {
-      return !!(d && d.kpi && d.kpi.totalInventoryValue !== undefined);
-    }
-
-    function renderInventoryStructure(d) {
-      const built = buildInventoryRows(d.allProducts);
-      const isBoth = built.isBoth;
-      const showCost = canSeeProductCost(d);
-      applyInventoryColumnMode(isBoth, showCost);
-      document.getElementById('tagInventoryTable').textContent = fmtNumber(built.rows.length);
-
-      const cell = function (value, hiddenCell, muted) {
-        const num = Number(value) || 0;
-        return '<td class="mono' + (muted ? ' muted' : '') + '"' + (hiddenCell ? ' hidden' : '') +
-          ' data-sort-value="' + num + '">' + fmtNumber(num) + '</td>';
-      };
-      const optionalCell = function (value, hiddenCell) {
-        return value === null || value === undefined
-          ? '<td class="mono muted"' + (hiddenCell ? ' hidden' : '') + '>—</td>'
-          : cell(value, hiddenCell, false);
-      };
-      renderPaginatedRows(
-        'inventoryValue',
-        { tbody: 'inventoryValueRows', pagination: 'inventoryValuePagination', firstBtn: 'inventoryValueFirstPage', prevBtn: 'inventoryValuePrevPage', nextBtn: 'inventoryValueNextPage', lastBtn: 'inventoryValueLastPage', label: 'inventoryValuePageLabel' },
-        built.rows,
-        p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td><td class="name-cell">' + escapeHtml(p.name) + '</td>' +
-          '<td class="mono muted"' + (showCost ? '' : ' hidden') + ' data-sort-value="' + (p.cost || 0) + '">' + fmtTableMoney(p.cost) + '</td>' +
-          cell(p.stock, isBoth, false) +
-          optionalCell(p.stockHanoi, !isBoth) +
-          (p.inTransit ? cell(p.inTransit, false, false) : '<td class="mono muted" data-sort-value="0">—</td>') +
-          optionalCell(p.stockSaigon, !isBoth) +
-          cell(p.available, isBoth, false) +
-          optionalCell(p.availableHanoi, !isBoth) +
-          optionalCell(p.availableSaigon, !isBoth) +
-          '<td class="mono"' + (showCost ? '' : ' hidden') + ' data-sort-value="' + (p.stockValue || 0) + '">' + fmtTableMoney(p.stockValue) + '</td>' +
-          '</tr>',
-        12,
-        'Không có dữ liệu'
-      );
-    }
-
-    function renderProductSalesAnalysis(d) {
-      const productsData = d.products || {};
-      const isParentCategory = state.productAnalysis === 'parentCategory';
-      const chartRows = isParentCategory
-        ? (productsData.topSellingParentCategories || [])
-        : (productsData.topSellingProducts || []);
-      const analysisRows = isParentCategory
-        ? (productsData.allSellingParentCategories || chartRows)
-        : (productsData.allSellingProducts || chartRows);
-      const tableTitle = isParentCategory ? 'Chi tiết doanh thu theo nhóm cha' : 'Chi tiết sản phẩm bán chạy';
-      const firstColumnLabel = isParentCategory ? 'Nhóm cha' : 'Sản phẩm';
-
-      // Không có biểu đồ, bảng rộng full. Theo mặt hàng có thêm cột tồn kho (tra theo mã từ allProducts).
-      const stockByCode = new Map();
-      if (!isParentCategory) {
-        (d.allProducts || []).forEach(p => stockByCode.set(productIdentity(p), p.stock));
-      }
-      const tableRows = isParentCategory
-        ? analysisRows
-        : analysisRows.map(item => Object.assign({}, item, { stock: stockByCode.get(productIdentity(item)) }));
-      document.getElementById('topSellingStockHeader').hidden = isParentCategory;
-      document.getElementById('topSellingBranchHeader').hidden = isParentCategory;
-
-      document.querySelectorAll('#productAnalysisToggle button').forEach(function (button) {
-        button.classList.toggle('active', button.dataset.analysis === state.productAnalysis);
-      });
-      document.getElementById('topSellingTableTitle').textContent = tableTitle;
-
-      [
-        ['topSellingCodeHeader', isParentCategory ? 'Số mặt hàng' : 'Mã hàng'],
-        ['topSellingNameHeader', firstColumnLabel]
-      ].forEach(function (header) {
-        const headerCell = document.getElementById(header[0]);
-        const headerButton = headerCell.querySelector('.sort-button');
-        if (headerButton) headerButton.firstElementChild.textContent = header[1];
-        else headerCell.textContent = header[1];
-      });
-
-      renderPaginatedRows(
-        'topSelling',
-        { tbody: 'topSellingRows', pagination: 'topSellingPagination', firstBtn: 'topSellingFirstPage', prevBtn: 'topSellingPrevPage', nextBtn: 'topSellingNextPage', lastBtn: 'topSellingLastPage', label: 'topSellingPageLabel' },
-        tableRows,
-        item => '<tr>' +
-          (isParentCategory
-            ? '<td class="mono muted" data-sort-value="' + Number(item.productCount || 0) + '">' + fmtNumber(Number(item.productCount || 0)) + '</td>'
-            : '<td class="mono muted">' + escapeHtml(item.code) + '</td>') +
-          '<td class="name-cell">' + escapeHtml(item.name) + '</td>' +
-          '<td class="mono muted" data-sort-value="' + item.qty + '">' + fmtNumber(Number(item.qty || 0)) +
-          '</td><td class="mono" data-sort-value="' + item.revenue + '">' + fmtTableMoney(item.revenue) + '</td>' +
-          (isParentCategory
-            ? '<td hidden></td>'
-            : item.stock === undefined
-              ? '<td class="mono muted">—</td>'
-              : '<td class="mono muted" data-sort-value="' + item.stock + '">' + fmtNumber(Number(item.stock || 0)) + '</td>') +
-          (isParentCategory ? '<td hidden></td>' : '<td>' + branchCellText(item) + '</td>') +
-          '</tr>',
-        isParentCategory ? 4 : 6,
-        'Chưa có dữ liệu chi tiết hóa đơn'
-      );
-
-      const activeSort = state.tableSorts.topSellingRows;
-      if (activeSort) {
-        sortTableRows('topSellingRows', activeSort.columnIndex, activeSort.direction);
-        updateTableSortHeader('topSellingRows', activeSort.columnIndex, activeSort.direction);
-      } else {
-        updateTableSortHeader('topSellingRows', -1, null);
-      }
-    }
-
     function statusPill(status) {
       if (status === 'Đã hủy') return '<span class="pill bad">Đã hủy</span>';
       if (status === 'Đang xử lý') return '<span class="pill warn">Đang xử lý</span>';
@@ -7135,16 +6678,6 @@
       stockout90d: { title: 'Kết quả kiểm tra đứt hàng 90 ngày', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
       stockout30d: { title: 'Kết quả kiểm tra đứt hàng 30 ngày', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
       endOfDay: { title: 'Chi tiết giao dịch', searchText: tableSearchText, code: p => p.code, identity: productIdentity, supportsCodes: true },
-      todayNewProducts: { title: 'Danh sách mã mới', searchText: tableSearchText, code: p => p.code, identity: productIdentity, supportsCodes: true },
-      topSelling: {
-        title: 'Chi tiết sản phẩm bán chạy', searchText: tableSearchText,
-        code: p => state.productAnalysis === 'product' ? p.code : '',
-        identity: p => state.productAnalysis === 'product' ? p.code : 'parent:' + p.name,
-        supportsCodes: () => state.productAnalysis === 'product'
-      },
-      allProducts: { title: 'Tất cả mã hàng', searchText: tableSearchText, code: p => p.code, identity: productIdentity, supportsCodes: true },
-      inventoryValue: { title: 'Chi tiết tồn kho theo sản phẩm', searchText: tableSearchText, code: p => p.code, identity: productIdentity, supportsCodes: true },
-      newlyImported: { title: 'Hàng mới nhập', searchText: tableSearchText, code: p => p.code, identity: productIdentity, supportsCodes: true },
       debtManagement: { title: 'Khách hàng công nợ', searchText: tableSearchText, identity: p => p.customerKey, customControl: true },
       debtPenalty: { title: 'Thưởng/phạt sale theo công nợ', searchText: row => row.sale, identity: row => row.sale }
     };
@@ -7580,7 +7113,10 @@
       customers: { average: 115, growth: 89, current: 117, month: 112 },
       products: { average: 112, growth: 96, current: 112, month: 112 }
     };
-    state.business = { data: {}, loadedAt: 0, loading: false };
+    // Tab Khách hàng (sales, customers, overview) và mục Tăng trưởng mã hàng của tab Hàng hóa (products) tải riêng
+    // từng nhóm API, nên loadedAt/loading theo từng scope.
+    const BUSINESS_SCOPES = { business: ['sales', 'customers', 'overview'], products: ['products'] };
+    state.business = { data: {}, loadedAt: { business: 0, products: 0 }, loading: { business: false, products: false } };
     TABLE_EXPLORER_CONFIGS.businessSales = { title: 'Tăng trưởng Sale', searchText: tableSearchText, identity: r => r.key };
     TABLE_EXPLORER_CONFIGS.businessCustomers = { title: 'Tăng trưởng khách hàng', searchText: tableSearchText, identity: r => r.key };
     TABLE_EXPLORER_CONFIGS.businessProducts = { title: 'Tăng trưởng mã hàng', searchText: tableSearchText, code: r => r.code, identity: r => r.key, supportsCodes: true };
@@ -7710,7 +7246,9 @@
       const overview = state.business.data.overview;
       if (overview) renderSectionKpis('businessOverviewKpis', businessKpiCards(overview.kpis));
       const notice = document.getElementById('businessReadiness');
-      notice.hidden = !BUSINESS_KINDS.some(kind => state.business.data[kind] && state.business.data[kind].notReady);
+      notice.hidden = !['sales', 'customers'].some(kind => state.business.data[kind] && state.business.data[kind].notReady);
+      const productsNotReady = !!(state.business.data.products && state.business.data.products.notReady);
+      document.getElementById('businessProductsReadiness').hidden = !productsNotReady;
       const sales = state.business.data.sales;
       if (sales) {
         fillBusinessSelect('businessCustomersSale', 'Tất cả sale', sales.rows.map(r => r.saleName));
@@ -7722,26 +7260,29 @@
       document.querySelectorAll('.business-export').forEach(el => { el.hidden = !can('reports.export'); });
     }
 
-    function showBusinessLoadError(err) {
+    function showBusinessLoadError(err, scope) {
+      const kinds = BUSINESS_SCOPES[scope];
       const message = err && err.code === 'BUSINESS_REPORT_NOT_READY'
         ? 'Đang dựng dữ liệu tháng cũ… Báo cáo sẽ hiện khi máy chủ dựng xong, vui lòng quay lại sau.'
         : 'Không tải được báo cáo kinh doanh' + (err && err.message ? ': ' + err.message : '.');
       // Đã có số liệu cũ trên màn hình thì giữ lại, chỉ báo lỗi.
-      if (state.business.data.sales && state.business.data.customers && state.business.data.products && state.business.data.overview) {
+      if (kinds.every(kind => state.business.data[kind])) {
         showToast(message, 'error');
         return;
       }
-      BUSINESS_KINDS.forEach(function (kind) {
+      kinds.filter(kind => BUSINESS_TABLE_KEYS[kind]).forEach(function (kind) {
         document.getElementById(BUSINESS_TABLE_KEYS[kind] + 'Rows').innerHTML =
           '<tr><td colspan="' + businessColumnCount(kind, null) + '" class="table-note">' + escapeHtml(message) + '</td></tr>';
       });
     }
 
-    function loadBusinessReport(force) {
-      if (state.business.loading) return;
-      if (!force && Date.now() - state.business.loadedAt < 60000 && state.business.data.sales) { renderBusinessReport(); return; }
-      state.business.loading = true;
-      Promise.all(BUSINESS_KINDS.concat('overview').map(function (kind) {
+    function loadBusinessReport(force, scope) {
+      scope = scope || 'business';
+      const kinds = BUSINESS_SCOPES[scope];
+      if (state.business.loading[scope]) return;
+      if (!force && Date.now() - state.business.loadedAt[scope] < 60000 && state.business.data[kinds[0]]) { renderBusinessReport(); return; }
+      state.business.loading[scope] = true;
+      Promise.all(kinds.map(function (kind) {
         return fetch('/api/business-report/' + kind).then(function (res) {
           if (res.status === 401) {
             window.location.href = '/login/?next=' + encodeURIComponent(window.location.pathname + window.location.search + window.location.hash);
@@ -7756,14 +7297,14 @@
           });
         });
       })).then(function (payloads) {
-        BUSINESS_KINDS.concat('overview').forEach(function (kind, i) { state.business.data[kind] = payloads[i]; });
-        state.business.loadedAt = Date.now();
-        state.business.loading = false;
+        kinds.forEach(function (kind, i) { state.business.data[kind] = payloads[i]; });
+        state.business.loadedAt[scope] = Date.now();
+        state.business.loading[scope] = false;
         renderBusinessReport();
       }).catch(function (err) {
-        state.business.loading = false;
+        state.business.loading[scope] = false;
         console.error('Không tải được báo cáo kinh doanh:', err);
-        showBusinessLoadError(err);
+        showBusinessLoadError(err, scope);
       });
     }
 
@@ -7811,7 +7352,11 @@
       if (!month || !month.trim()) return;
       fetch('/api/business-report/refreeze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ month: month.trim() }) })
         .then(res => res.json().catch(() => ({})).then(body => { if (!res.ok) throw new Error(body.error || 'HTTP ' + res.status); return body; }))
-        .then(() => { showToast('Đã tính lại tháng ' + month.trim() + '.', 'success'); loadBusinessReport(true); })
+        .then(() => {
+          showToast('Đã tính lại tháng ' + month.trim() + '.', 'success');
+          loadBusinessReport(true);
+          loadBusinessReport(true, 'products');
+        })
         .catch(err => showToast('Không tính lại được: ' + err.message, 'error'));
     }
 
@@ -8610,115 +8155,6 @@
         document.getElementById('in-cancelled-sub').textContent = trendRangeLabel;
         renderRevenueChart('chartInvoiceRevenue', 'invoiceRevenue', trend.revenueByDay || [], true);
         renderInventoryHistoryChart();
-      }
-      else if (view === 'products') {
-        const productRangeLabel = d.filters && d.filters.products ? d.filters.products.label : '30 ngày';
-        const newlyImportedRangeLabel = d.filters && d.filters.newlyImported ? d.filters.newlyImported.label : productRangeLabel;
-        document.getElementById('productAnalysisPeriod').textContent = 'doanh thu thực tế (đã trừ trả hàng): ' + productRangeLabel;
-        document.getElementById('newlyImportedPeriod').textContent = 'ngày nhập đầu tiên: ' + newlyImportedRangeLabel;
-        document.getElementById('pr-total').textContent = d.kpi.totalProducts;
-        document.getElementById('pr-stock').textContent = fmtNumber(d.kpi.inStockCodes);
-        document.getElementById('pr-lowstock').textContent = d.kpi.lowStockCount;
-        const showProductCost = canSeeProductCost(d);
-        const stockValueEl = document.getElementById('pr-stockvalue');
-        stockValueEl.closest('.kpi-card').hidden = !showProductCost;
-        if (showProductCost) stockValueEl.textContent = fmtMoney(d.kpi.totalInventoryValue);
-        renderInventoryStructure(d);
-
-        const filteredProducts = d.allProducts || [];
-        document.getElementById('tagAllProducts').textContent = filteredProducts.length;
-        renderSectionKpis('allProductsKpis', [
-          { label: 'Tổng số mã hàng', value: fmtNumber(filteredProducts.length), accent: 'amber' }
-        ].concat(showProductCost ? [
-          { label: 'Tổng giá trị tồn kho', value: fmtMoney(sumBy(filteredProducts, p => Math.max(Number(p.stock) || 0, 0) * (Number(p.cost) || 0))), sub: 'Theo giá vốn', accent: 'blue' },
-          { label: 'Tổng giá trị khách đặt', value: fmtMoney(sumBy(filteredProducts, p => Math.max(Number(p.reserved) || 0, 0) * (Number(p.cost) || 0))), sub: 'Theo giá vốn' }
-        ] : []));
-        renderPaginatedRows(
-          'allProducts',
-          { tbody: 'allProductRows', pagination: 'allProductsPagination', firstBtn: 'allProductsFirstPage', prevBtn: 'allProductsPrevPage', nextBtn: 'allProductsNextPage', lastBtn: 'allProductsLastPage', label: 'allProductsPageLabel' },
-          filteredProducts,
-          p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td><td class="name-cell">' + escapeHtml(p.name) + '</td>' +
-            '<td class="mono muted">' + (p.location ? escapeHtml(p.location) : '—') + '</td>' +
-            '<td class="muted"' + (p.description ? ' title="' + escapeHtml(p.description) + '"' : '') + '>' + (p.description ? escapeHtml(p.description) : '—') + '</td>' +
-            '<td class="mono" data-sort-value="' + p.stock + '">' + p.stock + '</td><td class="mono" data-sort-value="' + p.reserved + '">' + p.reserved + '</td>' +
-            '<td class="mono" data-sort-value="' + p.pct + '">' + p.pct.toFixed(2) + '%</td>' +
-            '<td>' + branchCellText(p) + '</td></tr>',
-          8,
-          'Không có dữ liệu'
-        );
-
-        const newlyImported = (d.products && d.products.newlyImported && d.products.newlyImported.products) || [];
-        document.getElementById('tagNewlyImported').textContent = newlyImported.length;
-        renderPaginatedRows(
-          'newlyImported',
-          { tbody: 'newlyImportedRows', pagination: 'newlyImportedPagination', firstBtn: 'newlyImportedFirstPage', prevBtn: 'newlyImportedPrevPage', nextBtn: 'newlyImportedNextPage', lastBtn: 'newlyImportedLastPage', label: 'newlyImportedPageLabel' },
-          newlyImported,
-          p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td><td class="name-cell">' + escapeHtml(p.name) + '</td>' +
-            '<td class="mono muted">' + escapeHtml(p.firstImportDate) + '</td>' +
-            '<td class="mono muted" data-sort-value="' + (Number(p.daysOnHand) || 0) + '">' + escapeHtml(String(p.daysOnHand)) + '</td>' +
-            '<td class="mono" data-sort-value="' + (Number(p.revenue) || 0) + '">' + fmtTableMoney(p.revenue) + '</td>' +
-            '<td>' + branchCellText(p) + '</td></tr>',
-          6,
-          'Không có mã hàng mới nhập · ' + escapeHtml(newlyImportedRangeLabel)
-        );
-
-        const newlyImportedInfo = (d.products && d.products.newlyImported) || {};
-        renderSectionKpis('newlyImportedKpis', [
-          { label: 'Mã mới nhập', value: fmtNumber(newlyImported.length), sub: newlyImportedRangeLabel, accent: 'amber' },
-          { label: 'Doanh thu hàng mới nhập', value: fmtMoney(newlyImportedInfo.salesRevenue), sub: newlyImportedRangeLabel, accent: 'green' },
-          { label: 'Số lượng đã bán', value: fmtNumber(newlyImportedInfo.salesQty), sub: newlyImportedRangeLabel, accent: 'blue' }
-        ]);
-
-        const todayNewProducts = (d.products && d.products.newProducts) || { label: '—', count: 0, dateColumnAvailable: true, products: [] };
-        const newProductRows = todayNewProducts.products || [];
-        document.getElementById('tagTodayNewProductsDate').textContent = todayNewProducts.label || '—';
-        document.getElementById('today-new-products-count').textContent = 'Tổng ' + fmtNumber(Number(todayNewProducts.count || 0)) + ' mã mới';
-        renderPaginatedRows(
-          'todayNewProducts',
-          { tbody: 'todayNewProductRows', pagination: 'todayNewProductsPagination', firstBtn: 'todayNewProductsFirstPage', prevBtn: 'todayNewProductsPrevPage', nextBtn: 'todayNewProductsNextPage', lastBtn: 'todayNewProductsLastPage', label: 'todayNewProductsPageLabel' },
-          newProductRows,
-          p => '<tr><td class="mono muted">' + escapeHtml(p.code) + '</td>' +
-            '<td class="name-cell">' + escapeHtml(p.name) + '</td>' +
-            '<td>' + escapeHtml(p.category || 'Chưa phân nhóm') + '</td>' +
-            '<td class="mono muted">' + escapeHtml(p.createdAt || '—') + '</td>' +
-            '<td>' + branchCellText(p) + '</td></tr>',
-          5,
-          todayNewProducts.dateColumnAvailable === false ? 'Sheet Hàng hóa chưa có cột Ngày tạo' : 'Chưa có mã hàng mới tạo trong khoảng đã chọn'
-        );
-
-        // Tỷ lệ số mã theo nhóm cha: đếm trên toàn bộ danh sách (không theo trang), hiển thị đủ từng nhóm cha (không gộp "Còn lại")
-        const newProductCategoryCounts = new Map();
-        newProductRows.forEach(p => {
-          const name = String(p.parentCategory || p.category || '').trim() || 'Chưa phân nhóm';
-          newProductCategoryCounts.set(name, (newProductCategoryCounts.get(name) || 0) + 1);
-        });
-        const newProductCategories = [...newProductCategoryCounts.entries()]
-          .map(([name, count]) => ({ name, count }))
-          .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'vi'));
-        renderSectionKpis('newProductsKpis', [
-          { label: 'Mã mới tạo', value: fmtNumber(Number(todayNewProducts.count || 0)), sub: todayNewProducts.label || '—', accent: 'amber' },
-          { label: 'Số nhóm hàng', value: fmtNumber(newProductCategories.length), sub: 'Có mã mới tạo trong khoảng', accent: 'blue' }
-        ]);
-        const hasNewProductChart = newProductCategories.length > 0;
-        document.getElementById('tagNewProductsCategory').textContent = hasNewProductChart ? newProductCategoryCounts.size + ' nhóm' : '0 nhóm';
-        document.getElementById('newProductsCategoryChartBox').classList.toggle('is-empty', !hasNewProductChart);
-        document.getElementById('chartNewProductsCategory').hidden = !hasNewProductChart;
-        document.getElementById('newProductsCategoryChartEmpty').hidden = hasNewProductChart;
-        if (hasNewProductChart) {
-          renderPieChartList('chartNewProductsCategory', 'newProductsCategory', newProductCategories, c => c.name, c => c.count, v => fmtNumber(Number(v)) + ' mã', 'Tổng số mã');
-        } else {
-          destroyChart('newProductsCategory');
-        }
-
-        renderProductSalesAnalysis(d);
-        // Luon tinh tren danh sach mat hang (khong doi theo nut Theo mat hang/Theo nhom cha).
-        const sellingProducts = (d.products && d.products.allSellingProducts) || [];
-        renderSectionKpis('topSellingKpis', [
-          { label: 'Doanh thu thực tế trong kỳ', value: fmtMoney(sumBy(sellingProducts, p => p.revenue)), sub: productRangeLabel + ' · đã trừ trả hàng', accent: 'green' },
-          { label: 'Số lượng bán thực tế', value: fmtNumber(sumBy(sellingProducts, p => p.qty)), sub: productRangeLabel + ' · đã trừ trả hàng', accent: 'blue' },
-          // Ma co tra hang nhieu hon ban trong ky (so luong rong <= 0) khong tinh la "co ban".
-          { label: 'Số mã có bán', value: fmtNumber(sellingProducts.filter(p => Number(p.qty) > 0).length), sub: productRangeLabel, accent: 'amber' }
-        ]);
       }
       else if (view === 'invoices') {
         const invoiceData = d.invoices || d;
@@ -9533,7 +8969,6 @@
     // API theo tab, cache la ban day du 6 tab) da co du lieu cua tab nao.
     const VIEW_DATA_KEYS = {
       overview: ['kpi'],
-      products: ['products', 'allProducts'],
       invoices: ['invoices'],
       debt: ['debtManagement']
     };
@@ -9541,7 +8976,6 @@
     // Bo loc (khoa cua state.filters) anh huong tung tab — khop VIEW_FILTER_KEYS phia server.
     const VIEW_FILTER_SOURCES = {
       overview: ['invoices'],
-      products: ['topSelling', 'newlyImported', 'newProducts'],
       invoices: ['invoices'],
       debt: []
     };
@@ -9651,6 +9085,13 @@
 
     // Man che "Dang tai" dung chung cho nhieu tab tai cung luc: bat khi co it nhat 1
     // yeu cau thu cong dang cho, tat khi tat ca xong (thanh cong/loi/bi huy).
+    function loadProductGrowth() {
+      const section = document.getElementById('productGrowthSection');
+      const allowed = typeof TKSNav !== 'undefined' && typeof TKSNav.can === 'function' && !!TKSNav.can('reports.business');
+      section.hidden = !allowed;
+      if (allowed) loadBusinessReport(false, 'products');
+    }
+
     function setManualLoading(delta) {
       manualLoadingCount = Math.max(0, manualLoadingCount + delta);
       setLoading(manualLoadingCount > 0);
@@ -9689,6 +9130,8 @@
         if (state.view === 'business') loadBusinessReport(false);
         return;
       }
+      // Tab Hang hoa cung khong co payload /api/dashboard (view=products da go, server tra 400).
+      if (targetView === 'products') return;
       const sig = buildDashboardQuery(targetView, days);
       // Danh so + huy request cu CUA CHINH TAB NAY: doi bo loc nhanh (A -> B) ma
       // response A ve SAU response B se ghi de man hinh bang du lieu cu (sai bo loc).

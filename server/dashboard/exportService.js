@@ -45,11 +45,6 @@ const EXPORT_BUSY_MESSAGE = 'Hệ thống đang xử lý nhiều yêu cầu xu�
 
 const TABLE_TITLES = Object.freeze({
   'overview.transactions': 'Chi tiết giao dịch',
-  'overview.new-products': 'Danh sách mã mới',
-  'products.top-selling': 'Sản phẩm bán chạy',
-  'products.all': 'Tất cả mã hàng',
-  'products.newly-imported': 'Hàng mới nhập',
-  'products.inventory': 'Chi tiết tồn kho theo sản phẩm',
   'customers.productDetail': 'Bảng chi tiết sản phẩm theo khách',
   'overview.productReport': 'Báo cáo hàng hóa',
   'debt.management': 'Quản lý công nợ',
@@ -103,16 +98,8 @@ function normalizeFilterSpec(spec, fallbackMode = 'days') {
 function normalizeFilters(rawFilters) {
   const raw = rawFilters && typeof rawFilters === 'object' ? rawFilters : {};
   // (Bo loc `overview` da bo 2026-10-05 — getDashboardData khong con dung; client chua bao gio gui.)
-  const products = normalizeFilterSpec(raw.products);
-  const invoices = normalizeFilterSpec(raw.invoices);
-  return {
-    products,
-    invoices,
-    newProducts: normalizeFilterSpec(raw.newProducts),
-    // Bo loc rieng bang Hang moi nhap; khong gui thi dung bo loc Hang hoa.
-    // (Bo loc `orders`/`returns` cua 2 bang Dat hang / Tra hang da bo 2026-10-01.)
-    newlyImported: raw.newlyImported ? normalizeFilterSpec(raw.newlyImported) : products
-  };
+  // (2026-10-16: tab Hang hoa cu da go nen khong con bo loc `products` / `newProducts` / `newlyImported`.)
+  return { invoices: normalizeFilterSpec(raw.invoices) };
 }
 
 function inferColumnType(label) {
@@ -259,13 +246,6 @@ const DEBT_PENALTY_COLUMNS = [
 ];
 
 const DEBT_BRANCH_COLUMN = aggregateColumn('branch', 'Cơ sở', 'text', 'Cơ sở của khoản công nợ (Hà Nội hoặc Sài Gòn).');
-
-const PARENT_CATEGORY_COLUMNS = [
-  aggregateColumn('name', 'Nhóm cha', undefined, 'Tên nhóm hàng cấp cha.'),
-  aggregateColumn('qty', 'Số lượng bán', 'number', 'Tổng số lượng hàng bán ra của nhóm trong kỳ.'),
-  aggregateColumn('revenue', 'Doanh thu', 'number', 'Tổng doanh thu bán hàng của nhóm trong kỳ (VNĐ).'),
-  aggregateColumn('productCount', 'Số mã hàng', 'number', 'Số mã hàng thuộc nhóm có phát sinh bán trong kỳ.')
-];
 
 const CUSTOMER_PRODUCT_DETAIL_COLUMNS = [
   aggregateColumn('name', 'Tên hàng', undefined, 'Tên hàng khách đã mua.'),
@@ -467,8 +447,6 @@ async function loadSourceRowsForItems(source, env, items, perBranch) {
 
 // ---------- Dinh nghia tung bang (worksheets + ham nap dong) ----------
 
-const BRANCH_HANOI_LABEL = 'Hà Nội';
-const BRANCH_SAIGON_LABEL = 'Sài Gòn';
 
 /** Bang 1 worksheet: cac dong logic (ma) ghep voi dong tho cua 1 nguon catalogue. */
 function singleSourceTable(options) {
@@ -641,97 +619,6 @@ function debtManagementRows(debtManagement, context, aggregate = false) {
   return { rows: expanded, name: normalizeText(debt.sourceSheet) };
 }
 
-// ---------- Chi tiet ton kho theo san pham ----------
-// Khop bang "Chi tiết tồn kho theo sản phẩm" tren man hinh (buildInventoryRows o public/index.html):
-// 1 dong / ma hang. "Ca hai" -> gop theo ma, ton / ton co the ban tach cot tung co so.
-
-const INVENTORY_COLUMN_DEFS = {
-  code: ['Mã hàng', 'text', 'Mã hàng trên KiotViet.'],
-  name: ['Tên sản phẩm', undefined, 'Tên sản phẩm.'],
-  cost: ['Đơn giá', 'number', 'Giá vốn của mặt hàng (VNĐ); ở chế độ Cả hai là giá vốn bình quân theo tồn kho dương.'],
-  stock: ['Tồn kho', 'number', 'Tồn thực tế trên KiotViet, chưa trừ hàng khách đã đặt.'],
-  stockHanoi: ['Tồn kho Hà Nội', 'number', 'Tồn thực tế tại cơ sở Hà Nội; để trống nếu mã không có ở cơ sở này.'],
-  stockSaigon: ['Tồn kho Sài Gòn', 'number', 'Tồn thực tế tại cơ sở Sài Gòn; để trống nếu mã không có ở cơ sở này.'],
-  available: ['Tồn có thể bán', 'number', 'Tồn thực tế trừ số lượng khách đã đặt (phiếu tạm); âm nghĩa là đã giữ quá tồn.'],
-  availableHanoi: ['Có bán HN', 'number', 'Tồn có thể bán tại cơ sở Hà Nội; để trống nếu mã không có ở cơ sở này.'],
-  availableSaigon: ['Có bán SG', 'number', 'Tồn có thể bán tại cơ sở Sài Gòn; để trống nếu mã không có ở cơ sở này.'],
-  inTransit: ['Vận chuyển SG', 'number', 'Số lượng trong phiếu đặt hàng nhập ở trạng thái "Đã xác nhận nhà cung cấp" của Kiot Sài Gòn, ghép theo mã hàng.'],
-  stockValue: ['Giá trị tồn', 'number', 'Giá vốn nhân tồn kho dương (VNĐ).'],
-  branch: ['Cơ sở', 'text', 'Cơ sở (Hà Nội hoặc Sài Gòn) của dòng tồn kho; mã có ở cả hai cơ sở ghi "Hà Nội, Sài Gòn".']
-};
-
-// Thu tu cot giong bang tren man hinh: 1 co so -> Tồn kho / Tồn có thể bán; "Ca hai" -> tach Ha Noi / Sai Gon.
-const INVENTORY_COLUMN_ORDER = {
-  one: ['code', 'name', 'cost', 'stock', 'inTransit', 'available', 'stockValue'],
-  both: ['code', 'name', 'cost', 'stockHanoi', 'inTransit', 'stockSaigon', 'availableHanoi', 'availableSaigon', 'stockValue']
-};
-
-function inventoryColumns(aggregate) {
-  return INVENTORY_COLUMN_ORDER[aggregate ? 'both' : 'one'].map(key => {
-    const [label, type, description] = INVENTORY_COLUMN_DEFS[key];
-    return aggregateColumn(key, label, type, description);
-  });
-}
-
-function inventoryAvailable(product) {
-  const stock = Number(product.stock) || 0;
-  // Cung cong thuc voi dashboardData.js (allProducts.available): ton thuc te - khach dat (phieu tam).
-  return product.available === undefined
-    ? stock - (Number(product.reserved) || 0)
-    : product.available;
-}
-
-function sortInventoryRows(rows) {
-  return rows.sort((a, b) => (b.stockValue || 0) - (a.stockValue || 0) || (b.stock || 0) - (a.stock || 0));
-}
-
-/** Dong ton kho tu dashboard.allProducts; aggregate ("Ca hai") gop theo ma nhu buildInventoryRows o man hinh. */
-function inventoryRows(allProducts, aggregate) {
-  const list = Array.isArray(allProducts) ? allProducts : [];
-  if (!aggregate) {
-    return sortInventoryRows(list.map(product => ({
-      code: product.code, name: product.name, branch: product.branch, cost: product.cost || 0,
-      stock: product.stock || 0, available: inventoryAvailable(product),
-      inTransit: product.inTransit || 0, stockValue: product.stockValue || 0
-    })));
-  }
-  const byCode = new Map();
-  list.forEach(product => {
-    const key = String(product.code || '');
-    if (!byCode.has(key)) {
-      byCode.set(key, {
-        code: product.code, name: product.name, branches: [], positiveStock: 0,
-        stockHanoi: null, stockSaigon: null, availableHanoi: null, availableSaigon: null,
-        inTransit: 0, stock: 0, stockValue: 0
-      });
-    }
-    const row = byCode.get(key);
-    const stock = product.stock || 0;
-    const available = inventoryAvailable(product);
-    if (product.branch === BRANCH_HANOI_LABEL) {
-      row.stockHanoi = stock; row.availableHanoi = available;
-      if (product.name) row.name = product.name;
-    } else if (product.branch === BRANCH_SAIGON_LABEL) {
-      row.stockSaigon = stock; row.availableSaigon = available;
-      if (!row.name) row.name = product.name;
-    }
-    row.branches.push(product.branch);
-    row.stock += stock;
-    row.stockValue += product.stockValue || 0;
-    row.positiveStock += Math.max(stock, 0);
-    // Hang dang van chuyen la 1 so theo ma (lay tu phieu Sai Gon): uu tien dong Sai Gon, khong cong don.
-    row.inTransit = product.branch === BRANCH_SAIGON_LABEL ? (product.inTransit || 0) : (row.inTransit || product.inTransit || 0);
-  });
-  return sortInventoryRows(Array.from(byCode.values()).map(row => {
-    const { branches, positiveStock, ...rest } = row;
-    return {
-      ...rest,
-      branch: branches.length > 1 ? `${BRANCH_HANOI_LABEL}, ${BRANCH_SAIGON_LABEL}` : branches[0],
-      cost: positiveStock > 0 ? row.stockValue / positiveStock : 0
-    };
-  }));
-}
-
 // Worksheet cua bang khong doc dashboard/Postgres (du lieu tu bao cao rieng hoac payload).
 function reportWorksheet(key, name, columns) {
   return { key, name, columns, codeKey: columns.some(column => column.key === 'code') ? 'code' : undefined };
@@ -745,54 +632,6 @@ const TABLE_SPECS = {
     items: dashboard => (((dashboard.invoices || {}).transactionsReport || {}).transactions) || [],
     derived: [{ key: 'quantity', label: 'Số lượng', type: 'number', description: 'Tổng số lượng hàng của hóa đơn; để trống nếu chưa xác định được.' }],
     derivedValues: { quantity: item => (item.quantityKnown ? item.quantity : '') }
-  }),
-  'overview.new-products': (context, scope) => singleSourceTable({
-    key: 'new_products', name: 'Mã mới tạo', sourceKey: 'products', branchColumn: scope.aggregate,
-    items: dashboard => (((dashboard.products || {}).newProducts || {}).products) || []
-  }),
-  'products.top-selling': (context, scope) => {
-    if (context.productAnalysis === 'parentCategory') {
-      return aggregateTable({
-        key: 'top_parent_categories', name: 'Top nhóm cha', columns: PARENT_CATEGORY_COLUMNS,
-        rows: dashboard => (dashboard.products || {}).allSellingParentCategories
-          || (dashboard.products || {}).topSellingParentCategories || []
-      });
-    }
-    return singleSourceTable({
-      key: 'top_products', name: 'Top sản phẩm', sourceKey: 'products', branchColumn: scope.aggregate,
-      items: dashboard => (dashboard.products || {}).allSellingProducts
-        || (dashboard.products || {}).topSellingProducts || [],
-      derived: [
-        { key: 'sold_qty', label: 'Số lượng bán', type: 'number', description: 'Tổng số lượng hàng bán ra trong kỳ.' },
-        { key: 'sales_revenue', label: 'Doanh thu', type: 'number', description: 'Tổng doanh thu bán hàng trong kỳ (VNĐ).' }
-      ],
-      derivedValues: { sold_qty: item => item.qty, sales_revenue: item => item.revenue }
-    });
-  },
-  'products.all': (context, scope) => singleSourceTable({
-    key: 'all_products', name: 'Tất cả mã hàng', sourceKey: 'products', branchColumn: scope.aggregate,
-    items: dashboard => dashboard.allProducts || [],
-    derived: [{ key: 'stock_ratio', label: 'Tỷ trọng tồn kho', type: 'percent', description: 'Phần trăm tồn kho của mặt hàng trên tổng tồn kho của tất cả hàng hóa.' }],
-    derivedValues: { stock_ratio: item => Number(item.pct || 0) / 100 }
-  }),
-  'products.newly-imported': (context, scope) => singleSourceTable({
-    key: 'newly_imported', name: 'Hàng mới nhập', sourceKey: 'products', branchColumn: scope.aggregate,
-    items: dashboard => (((dashboard.products || {}).newlyImported || {}).products) || [],
-    derived: [
-      { key: 'first_import_date', label: 'Ngày nhập đầu tiên', type: 'date', description: 'Ngày đầu tiên mặt hàng được nhập kho.' },
-      { key: 'days_on_hand', label: 'Số ngày tồn tại', type: 'number', description: 'Số ngày kể từ lần nhập đầu tiên đến hiện tại.' },
-      { key: 'revenue', label: 'Doanh thu', type: 'number', description: 'Doanh thu bán hàng của mặt hàng kể từ khi nhập (VNĐ).' }
-    ],
-    derivedValues: {
-      first_import_date: item => item.firstImportDate,
-      days_on_hand: item => item.daysOnHand,
-      revenue: item => item.revenue
-    }
-  }),
-  'products.inventory': (context, scope) => aggregateTable({
-    key: 'inventory', name: 'Chi tiết tồn kho', columns: inventoryColumns(scope.aggregate), codeKey: 'code',
-    rows: dashboard => inventoryRows(dashboard.allProducts, scope.aggregate),
-    summaryKeys: ['stockValue', 'stock', 'stockHanoi', 'stockSaigon']
   }),
   'debt.management': (context, scope) => aggregateTable({
     key: 'debt_management', name: 'Quản lý công nợ',

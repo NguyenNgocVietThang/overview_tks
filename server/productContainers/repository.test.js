@@ -64,7 +64,7 @@ test('full detail permission defaults to manager and follows grant/revoke and pa
   const granted={vaiTro:'Nhân viên sale',featurePermissions:{[feature]:true}};
   assert.ok(resolvePermissions(granted).includes(feature));
   assert.equal(hasFeature({vaiTro:'Quản lý',featurePermissions:{[feature]:false}},feature),false);
-  assert.equal(hasFeature({...granted,featurePermissions:{[feature]:true,'reports.overview':false}},feature),false);
+  assert.equal(hasFeature({...granted,featurePermissions:{[feature]:true,'reports.products':false}},feature),false);
 });
 test('migration revokes inherited SELECT from reporting_readonly for both restricted tables',async()=>{
   const db=new PGlite();

@@ -277,23 +277,10 @@ test('active account with inactive linked HR profile cannot get self submission 
   assert.ok(!registry.resolvePermissions({ vaiTro: ROLES.NHAN_VIEN_SALE, hrManaged: true, hrRowIndex: 123, trangThai: 'Đang hoạt động', hrEmployeeActive: false }).includes('hr.leave.submit'));
 });
 
-test('reports.products.cost (don gia + gia tri ton tab Hang hoa): chi Quan ly + Tro ly, Nhan vien sale KHONG co, cap rieng duoc', () => {
-  for (const role of Object.values(ROLES)) {
-    assert.equal(
-      registry.defaultsForRole(role).includes('reports.products.cost'),
-      REPORTS_ROLES.includes(role),
-      role
-    );
-  }
-  const granted = registry.resolvePermissions({ vaiTro: ROLES.NHAN_VIEN_SALE, featurePermissions: { 'reports.products.cost': true } });
-  assert.ok(granted.includes('reports.products.cost'));
-  // Gan vao Hang hoa: mat reports.products thi quyen nay cung bi bo, du da duoc cap rieng.
-  const revoked = registry.resolvePermissions({
-    vaiTro: ROLES.NHAN_VIEN_SALE,
-    featurePermissions: { 'reports.products': false, 'reports.products.cost': true }
-  });
-  assert.ok(!revoked.includes('reports.products'));
-  assert.ok(!revoked.includes('reports.products.cost'));
+test('reports.products.cost da go cung tab Hang hoa cu: khong con trong registry, quyen ghi de cu bi bo qua', () => {
+  assert.ok(!registry.FEATURE_KEYS.includes('reports.products.cost'));
+  const resolved = registry.resolvePermissions({ vaiTro: ROLES.QUAN_LY, featurePermissions: { 'reports.products.cost': true } });
+  assert.ok(!resolved.includes('reports.products.cost'));
 });
 
 test('bao cao kinh doanh: xem theo vai tro xem bao cao, tinh lai thang chi Quan ly', () => {

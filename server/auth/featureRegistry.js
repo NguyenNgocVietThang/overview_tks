@@ -48,11 +48,8 @@ const FEATURE_GROUPS = Object.freeze([
 const FEATURES = Object.freeze([
   // --- Bao cao tong hop ---
   { key: 'reports.overview', groupKey: 'reports', label: 'Tổng quan', roles: REPORT_VIEW_ROLES },
-  { key: 'reports.overview.containers.full', groupKey: 'reports', label: 'Xem đầy đủ chi tiết CONT', roles: MANAGER_ONLY, requires: 'reports.overview' },
-  { key: 'reports.products', groupKey: 'reports', label: 'Hàng hóa (gồm Kiểm tra đứt hàng)', roles: REPORT_VIEW_ROLES },
-  // 2026-10-06: giá vốn ("Đơn giá") và giá trị tồn của tab Hàng hóa không cho Nhân viên sale xem.
-  // Máy chủ cắt các trường này khỏi payload (dashboardPermissionFilter.js); thiếu Hàng hóa thì bỏ luôn.
-  { key: 'reports.products.cost', groupKey: 'reports', label: 'Hàng hóa: xem đơn giá & giá trị tồn (cần Hàng hóa)', roles: REPORTS_ROLES, requires: 'reports.products' },
+  { key: 'reports.overview.containers.full', groupKey: 'reports', label: 'Xem đầy đủ chi tiết CONT (cần Hàng hóa)', roles: MANAGER_ONLY, requires: 'reports.products' },
+  { key: 'reports.products', groupKey: 'reports', label: 'Hàng hóa (Báo cáo hàng hóa, Tăng trưởng mã hàng, Kiểm tra đứt hàng)', roles: REPORT_VIEW_ROLES },
   { key: 'reports.invoices', groupKey: 'reports', label: 'Hóa đơn', roles: REPORT_VIEW_ROLES },
   // 2026-10-07: Bao cao kinh doanh (tang truong Sale/Khach/Ma hang theo thang). Spec:
   // docs/superpowers/specs/2026-10-07-business-report-design.md.
