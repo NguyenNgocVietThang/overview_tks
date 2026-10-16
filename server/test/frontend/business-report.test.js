@@ -97,7 +97,7 @@ const rowsOf = (page, tbodyId) => [...page.$(tbodyId).querySelectorAll('tr.doc-r
 const rowById = (page, tbodyId, id) => rowsOf(page, tbodyId).find(tr => tr.dataset.tableItemId === id);
 const businessUrls = page => page.urls.map(u => u.href).filter(h => h.startsWith('/api/business-report/'));
 
-test('sub-nav co tab "Khách hàng" (thay tab Khach hang cu) va #view-business co 3 muc (1 = Chi so tong quat; Tang truong ma hang da chuyen sang tab Hang hoa)', () => {
+test('sub-nav co tab "Khách hàng" (thay tab Khach hang cu) va #view-business co 4 muc (1 = Bao cao doanh thu theo khach, chuyen tu Tong quan; Tang truong ma hang da chuyen sang tab Hang hoa)', () => {
   const page = createPage();
   const btn = page.doc.querySelector('.report-subnav-item[data-view="business"]');
   assert.ok(btn, 'thieu nut sub-nav business');
@@ -106,11 +106,15 @@ test('sub-nav co tab "Khách hàng" (thay tab Khach hang cu) va #view-business c
   const view = page.$('view-business');
   assert.ok(view, 'thieu #view-business');
   assert.equal(view.querySelector('.view-title').textContent.trim(), 'Khách hàng');
-  const titles = [...view.querySelectorAll('.section-head h2')].map(h => h.textContent.trim());
-  assert.deepEqual(titles, ['Chỉ số tổng quát', 'Tăng trưởng Sale', 'Tăng trưởng khách hàng']);
+  const sectionTitles = [...view.querySelectorAll(':scope > section.section > .section-head h2')]
+    .map(h => h.firstChild.textContent.trim());
+  assert.deepEqual(sectionTitles, ['Báo cáo doanh thu theo khách', 'Chỉ số tổng quát', 'Tăng trưởng Sale', 'Tăng trưởng khách hàng']);
   assert.equal(view.querySelector('#businessProductsRows'), null, 'Tang truong ma hang khong con trong tab Khach hang');
-  const steps = [...view.querySelectorAll('.section-step')].map(s => s.textContent.trim());
-  assert.deepEqual(steps, ['1', '2', '3']);
+  const steps = [...view.querySelectorAll(':scope > section.section > .section-head > .section-step')].map(s => s.textContent.trim());
+  assert.deepEqual(steps, ['1', '2', '3', '4']);
+  const firstSection = view.querySelector(':scope > section.section');
+  assert.ok(firstSection.querySelector('#cpCustomerSearchInput'), 'o tim khach nam o dau tab Khach hang');
+  assert.equal(page.$('view-overview').querySelector('#cpCustomerSearchInput'), null, 'Tong quan khong con o tim khach');
 });
 
 test('sidebar dung chung co muc Khách hàng (reports.business), khong con reports.customers', () => {

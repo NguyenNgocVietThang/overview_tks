@@ -121,12 +121,12 @@ const reportsUser = (...features) => [requireAuth, requireFeature(...features), 
 // dung quyen cua tab do.
 router.use('/api/debug', ...reportsUser(...REPORT_VIEW_FEATURES));
 router.use('/api/dashboard', ...reportsUser(...REPORT_VIEW_FEATURES));
-// Muc 2 (Bao cao doanh thu theo khach) nam ngay trong tab Tong quan nen nguoi co quyen Tong quan
-// (vd Nhan vien sale) cung doc duoc 2 API CHI DOC goi y khach / doanh thu theo khach. Bao cao hang hoa
+// Bao cao doanh thu theo khach nam o dau tab Khach hang (chuyen tu Tong quan 2026-10-16) nen 2 API CHI DOC
+// goi y khach / doanh thu theo khach mo theo quyen Khach hang (reports.business). Bao cao hang hoa
 // (/api/product-report) nam o tab Hang hoa nen chi doi reports.products; phan ghi/nang (quet dut hang,
 // nhap Tra NCC) duoi '/api/products' cung chi reports.products.
-router.use('/api/customer-suggest', ...reportsUser('reports.overview'));
-router.use('/api/customer-product-revenue', ...reportsUser('reports.overview'));
+router.use('/api/customer-suggest', ...reportsUser('reports.business'));
+router.use('/api/customer-product-revenue', ...reportsUser('reports.business'));
 router.use('/api/product-report', ...reportsUser('reports.products'));
 router.use('/api/inventory-value-history', ...reportsUser('reports.overview'));
 router.use('/api/invoice-detail', ...reportsUser('reports.invoices'));

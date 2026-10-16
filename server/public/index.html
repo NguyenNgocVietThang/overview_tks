@@ -3397,7 +3397,7 @@
         <!-- ============ TỔNG QUAN ============ -->
         <div class="view active" id="view-overview">
           <div class="view-title">Tổng quan</div>
-          <div class="view-sub">Xu hướng doanh thu → báo cáo doanh thu theo khách → kiểm tra đứt hàng · mỗi mục có chỉ số then chốt ở đầu</div>
+          <div class="view-sub">Xu hướng doanh thu → kiểm tra đứt hàng · mỗi mục có chỉ số then chốt ở đầu</div>
 
           <section class="section">
             <div class="section-head"><span class="section-step">1</span>
@@ -3441,112 +3441,8 @@
             </div>
           </section>
 
-          <section class="section">
-            <div class="section-head"><span class="section-step">2</span>
-              <h2>Báo cáo doanh thu theo khách <span class="section-note">chọn 1 khách để xem doanh thu 90 ngày gần
-                  nhất · đã trừ hàng trả lại</span></h2>
-            </div>
-            <div class="search-input-wrap">
-              <svg class="search-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="1.8"></circle>
-                <path d="M16 16L21 21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
-              </svg>
-              <input class="search-input" id="cpCustomerSearchInput" type="search" autocomplete="off"
-                spellcheck="false" role="combobox" aria-autocomplete="list" aria-controls="cpCustomerSuggestions"
-                aria-expanded="false" placeholder="Tìm khách hàng theo mã hoặc tên"
-                oninput="handleCustomerProductSearchInput()" onkeydown="handleCustomerProductSearchKeydown(event)">
-              <button class="search-clear" id="cpCustomerClearBtn" type="button"
-                onclick="clearCustomerProductSelection()" aria-label="Bỏ chọn khách" hidden>
-                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path d="M7 7L17 17M17 7L7 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-                  </path>
-                </svg>
-              </button>
-              <div class="suggestions" id="cpCustomerSuggestions" role="listbox"></div>
-            </div>
-            <div class="table-note" id="cpEmptyState" style="margin-top:10px;">Chưa chọn khách hàng — hãy tìm và
-              chọn 1 khách ở trên.</div>
-
-            <div id="cpContent" hidden>
-              <div class="kpi-grid section-kpis" id="cpKpis" style="margin-top:14px;"></div>
-              <div class="grid" style="margin-top:14px;">
-                <div class="panel col-12">
-                  <div class="panel-head">
-                    <h2><span id="cpSelectedCustomerName">—</span></h2>
-                    <span class="drill-hint" id="cpWindowHint">90 ngày gần đây</span>
-                  </div>
-                  <div class="search-input-wrap" style="margin-bottom:10px;">
-                    <input class="search-input" id="cpProductFilterInput" type="search" autocomplete="off"
-                      spellcheck="false" role="combobox" aria-autocomplete="list" aria-controls="cpProductSuggestions"
-                      aria-expanded="false" placeholder="Tất cả sản phẩm (90 ngày gần nhất)"
-                      oninput="handleCustomerProductFilterInput()" onkeydown="handleCustomerProductFilterKeydown(event)">
-                    <button class="search-clear" id="cpProductClearBtn" type="button"
-                      onclick="clearCustomerProductFilter()" aria-label="Bỏ lọc sản phẩm" hidden>
-                      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                        <path d="M7 7L17 17M17 7L7 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-                        </path>
-                      </svg>
-                    </button>
-                    <div class="suggestions" id="cpProductSuggestions" role="listbox"></div>
-                  </div>
-                  <div class="chart-box wide"><canvas id="chartCustomerProductRevenue" role="img"
-                      aria-label="Biểu đồ đường doanh thu theo ngày của khách hàng đã chọn"></canvas></div>
-                </div>
-              </div>
-
-              <div class="grid" style="margin-top:14px;">
-                <div class="panel col-12">
-                  <div class="panel-head">
-                    <h2>Doanh thu theo sản phẩm</h2>
-                    <span class="drill-hint" id="cpBarChartHint">Tất cả sản phẩm</span>
-                  </div>
-                  <div class="chart-box wide chart-scroll-x" id="cpBarChartBox">
-                    <div class="chart-scroll-inner" id="cpBarChartInner"><canvas id="chartCustomerProductBar" role="img"
-                        aria-label="Biểu đồ cột doanh thu theo sản phẩm của khách hàng đã chọn"></canvas></div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="grid" style="margin-top:14px;">
-                <div class="panel col-12">
-                  <div class="panel-head">
-                    <h2>Bảng chi tiết sản phẩm <span class="tag" id="cpDetailCount">—</span></h2>
-                    <div class="panel-head-actions"><button class="export-button" type="button"
-                        onclick="openExportDialog('customers.productDetail')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button></div>
-                  </div>
-                  <div class="table-wrap scroll-list transaction-detail-scroll">
-                    <table class="fixed-table" data-table-key="dashboard-table-1">
-                      <thead>
-                        <tr>
-                          <th style="width:320px" data-column-key="ten-hang">Tên hàng</th>
-                          <th style="width:105px" data-column-key="so-luong">Số lượng</th>
-                          <th style="width:135px" data-column-key="doanh-so">Doanh số</th>
-                          <th style="width:135px" data-column-key="t-nay">T.này</th>
-                          <th style="width:135px" data-column-key="t-truoc">T.trước</th>
-                          <th style="width:135px" data-column-key="t-truoc-nua">T.trước nữa</th>
-                        </tr>
-                      </thead>
-                      <tbody id="cpDetailRows">
-                        <tr>
-                          <td colspan="6" class="table-note">Chưa có dữ liệu</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                  <div class="pagination-controls" id="cpDetailPagination" hidden>
-                    <button type="button" id="cpDetailFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
-                    <button type="button" id="cpDetailPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
-                    <span id="cpDetailPageLabel">Trang 1/1</span>
-                    <button type="button" id="cpDetailNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
-                    <button type="button" id="cpDetailLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-
           <section class="section" id="overviewStockoutSection">
-            <div class="section-head"><span class="section-step">3</span>
+            <div class="section-head"><span class="section-step">2</span>
               <h2>Kiểm tra đứt hàng <span class="section-note">đối chiếu dữ liệu KiotViet đã đồng bộ</span></h2>
             </div>
             <div class="kpi-grid section-kpis" id="stockoutKpis"></div>
@@ -4041,12 +3937,116 @@
           </div>
 
           <section class="section">
-            <div class="section-head"><span class="section-step">1</span><h2>Chỉ số tổng quát</h2></div>
+            <div class="section-head"><span class="section-step">1</span>
+              <h2>Báo cáo doanh thu theo khách <span class="section-note">chọn 1 khách để xem doanh thu 90 ngày gần
+                  nhất · đã trừ hàng trả lại</span></h2>
+            </div>
+            <div class="search-input-wrap">
+              <svg class="search-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="1.8"></circle>
+                <path d="M16 16L21 21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+              </svg>
+              <input class="search-input" id="cpCustomerSearchInput" type="search" autocomplete="off"
+                spellcheck="false" role="combobox" aria-autocomplete="list" aria-controls="cpCustomerSuggestions"
+                aria-expanded="false" placeholder="Tìm khách hàng theo mã hoặc tên"
+                oninput="handleCustomerProductSearchInput()" onkeydown="handleCustomerProductSearchKeydown(event)">
+              <button class="search-clear" id="cpCustomerClearBtn" type="button"
+                onclick="clearCustomerProductSelection()" aria-label="Bỏ chọn khách" hidden>
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M7 7L17 17M17 7L7 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                  </path>
+                </svg>
+              </button>
+              <div class="suggestions" id="cpCustomerSuggestions" role="listbox"></div>
+            </div>
+            <div class="table-note" id="cpEmptyState" style="margin-top:10px;">Chưa chọn khách hàng — hãy tìm và
+              chọn 1 khách ở trên.</div>
+
+            <div id="cpContent" hidden>
+              <div class="kpi-grid section-kpis" id="cpKpis" style="margin-top:14px;"></div>
+              <div class="grid" style="margin-top:14px;">
+                <div class="panel col-12">
+                  <div class="panel-head">
+                    <h2><span id="cpSelectedCustomerName">—</span></h2>
+                    <span class="drill-hint" id="cpWindowHint">90 ngày gần đây</span>
+                  </div>
+                  <div class="search-input-wrap" style="margin-bottom:10px;">
+                    <input class="search-input" id="cpProductFilterInput" type="search" autocomplete="off"
+                      spellcheck="false" role="combobox" aria-autocomplete="list" aria-controls="cpProductSuggestions"
+                      aria-expanded="false" placeholder="Tất cả sản phẩm (90 ngày gần nhất)"
+                      oninput="handleCustomerProductFilterInput()" onkeydown="handleCustomerProductFilterKeydown(event)">
+                    <button class="search-clear" id="cpProductClearBtn" type="button"
+                      onclick="clearCustomerProductFilter()" aria-label="Bỏ lọc sản phẩm" hidden>
+                      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M7 7L17 17M17 7L7 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                        </path>
+                      </svg>
+                    </button>
+                    <div class="suggestions" id="cpProductSuggestions" role="listbox"></div>
+                  </div>
+                  <div class="chart-box wide"><canvas id="chartCustomerProductRevenue" role="img"
+                      aria-label="Biểu đồ đường doanh thu theo ngày của khách hàng đã chọn"></canvas></div>
+                </div>
+              </div>
+
+              <div class="grid" style="margin-top:14px;">
+                <div class="panel col-12">
+                  <div class="panel-head">
+                    <h2>Doanh thu theo sản phẩm</h2>
+                    <span class="drill-hint" id="cpBarChartHint">Tất cả sản phẩm</span>
+                  </div>
+                  <div class="chart-box wide chart-scroll-x" id="cpBarChartBox">
+                    <div class="chart-scroll-inner" id="cpBarChartInner"><canvas id="chartCustomerProductBar" role="img"
+                        aria-label="Biểu đồ cột doanh thu theo sản phẩm của khách hàng đã chọn"></canvas></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="grid" style="margin-top:14px;">
+                <div class="panel col-12">
+                  <div class="panel-head">
+                    <h2>Bảng chi tiết sản phẩm <span class="tag" id="cpDetailCount">—</span></h2>
+                    <div class="panel-head-actions"><button class="export-button" type="button"
+                        onclick="openExportDialog('customers.productDetail')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button></div>
+                  </div>
+                  <div class="table-wrap scroll-list transaction-detail-scroll">
+                    <table class="fixed-table" data-table-key="dashboard-table-1">
+                      <thead>
+                        <tr>
+                          <th style="width:320px" data-column-key="ten-hang">Tên hàng</th>
+                          <th style="width:105px" data-column-key="so-luong">Số lượng</th>
+                          <th style="width:135px" data-column-key="doanh-so">Doanh số</th>
+                          <th style="width:135px" data-column-key="t-nay">T.này</th>
+                          <th style="width:135px" data-column-key="t-truoc">T.trước</th>
+                          <th style="width:135px" data-column-key="t-truoc-nua">T.trước nữa</th>
+                        </tr>
+                      </thead>
+                      <tbody id="cpDetailRows">
+                        <tr>
+                          <td colspan="6" class="table-note">Chưa có dữ liệu</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div class="pagination-controls" id="cpDetailPagination" hidden>
+                    <button type="button" id="cpDetailFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                    <button type="button" id="cpDetailPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
+                    <span id="cpDetailPageLabel">Trang 1/1</span>
+                    <button type="button" id="cpDetailNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                    <button type="button" id="cpDetailLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section">
+            <div class="section-head"><span class="section-step">2</span><h2>Chỉ số tổng quát</h2></div>
             <div class="kpi-grid section-kpis" id="businessOverviewKpis"></div>
           </section>
 
           <section class="section">
-            <div class="section-head"><span class="section-step">2</span><h2>Tăng trưởng Sale</h2></div>
+            <div class="section-head"><span class="section-step">3</span><h2>Tăng trưởng Sale</h2></div>
             <div class="kpi-grid section-kpis" id="businessSalesKpis"></div>
             <div class="grid">
               <div class="panel col-12">
@@ -4090,7 +4090,7 @@
           </section>
 
           <section class="section">
-            <div class="section-head"><span class="section-step">3</span><h2>Tăng trưởng khách hàng</h2></div>
+            <div class="section-head"><span class="section-step">4</span><h2>Tăng trưởng khách hàng</h2></div>
             <div class="kpi-grid section-kpis" id="businessCustomersKpis"></div>
             <div class="grid">
               <div class="panel col-12">
@@ -4306,7 +4306,7 @@
         // { fields(payload, request), file(payload, request) } tra ve Response cua fetch.
         source: null
       },
-      // Tab Tổng quan, phần 2 — "Báo cáo doanh thu theo khách" (xem
+      // Tab Khách hàng, phần 1 — "Báo cáo doanh thu theo khách" (xem
       // renderCustomerProductReport() và các ham handleCustomerProduct*()).
       customerProductReport: {
         customer: null, // { code, name } sau khi chon khach
@@ -6346,60 +6346,81 @@
       if (state.charts[key]) { state.charts[key].destroy(); delete state.charts[key]; }
     }
 
+    // Cot chong Ha Noi + Sai Gon cua "Doanh thu thuc te theo ngay" (giong bieu do Gia tri ton kho theo ngay):
+    // chi co cho day co khoa revenueHanoi/revenueSaigon (chuoi doanh thu theo co so); chi co so dang xem co mat.
+    const REVENUE_BRANCH_SERIES = [
+      { key: 'revenueHanoi', label: 'Hà Nội', color: 'amber' },
+      { key: 'revenueSaigon', label: 'Sài Gòn', color: 'blue' }
+    ];
+
     function renderRevenueChart(canvasId, key, revenueByDay, asBar) {
       destroyChart(key);
       const ctx = document.getElementById(canvasId).getContext('2d');
       const theme = chartTheme();
       const revenueValues = revenueByDay.map(d => Number(d.revenue) || 0);
       const formatAxisMoney = createMoneyAxisFormatter(revenueValues);
-      const dataset = asBar
-        ? {
-          label: 'Doanh thu',
-          data: revenueValues,
-          backgroundColor: theme.amber,
+      const branchSeries = asBar ? REVENUE_BRANCH_SERIES.filter(s => revenueByDay.some(d => d[s.key] !== undefined)) : [];
+      const stacked = branchSeries.length > 0;
+      const datasets = stacked
+        ? branchSeries.map(s => ({
+          label: s.label,
+          data: revenueByDay.map(d => Number(d[s.key]) || 0),
+          backgroundColor: theme[s.color],
           borderRadius: 3,
           maxBarThickness: 28
-        }
-        : {
-          label: 'Doanh thu',
-          data: revenueValues,
-          backgroundColor: 'rgba(240,166,58,0.35)',
-          borderColor: theme.amber,
-          borderWidth: 2,
-          borderRadius: 3,
-          fill: true,
-          tension: 0.3,
-          pointRadius: 0
-        };
+        }))
+        : [asBar
+          ? {
+            label: 'Doanh thu',
+            data: revenueValues,
+            backgroundColor: theme.amber,
+            borderRadius: 3,
+            maxBarThickness: 28
+          }
+          : {
+            label: 'Doanh thu',
+            data: revenueValues,
+            backgroundColor: 'rgba(240,166,58,0.35)',
+            borderColor: theme.amber,
+            borderWidth: 2,
+            borderRadius: 3,
+            fill: true,
+            tension: 0.3,
+            pointRadius: 0
+          }];
       state.charts[key] = new Chart(ctx, {
         type: asBar ? 'bar' : 'line',
         data: {
           labels: revenueByDay.map(d => d.label),
-          datasets: [dataset]
+          datasets
         },
         options: {
           animation: chartAnimationOption(),
           responsive: true, maintainAspectRatio: false,
           interaction: { mode: 'index', intersect: false, axis: 'x' },
           plugins: {
-            legend: { display: false },
+            legend: branchSeries.length > 1 ? { labels: { color: theme.text, boxWidth: 12, font: { size: 11 } } } : { display: false },
             tooltip: {
               callbacks: {
-                label: c => fmtMoney(c.raw),
+                label: c => (stacked ? c.dataset.label + ': ' : '') + fmtMoney(c.raw),
                 // Chuoi doanh thu thuc te theo ngay co kem doanh thu ban/tra hang; chuoi khac (vd theo khach) thi khong.
-                afterLabel: c => {
-                  const day = revenueByDay[c.dataIndex] || {};
+                footer: items => {
+                  if (!items.length) return '';
+                  const day = revenueByDay[items[0].dataIndex] || {};
+                  const lines = [];
+                  if (branchSeries.length > 1) lines.push('Tổng: ' + fmtMoney(Number(day.revenue) || 0));
                   const returned = Number(day.returnAmount) || 0;
-                  return returned > 0
-                    ? ['Doanh thu bán: ' + fmtMoney(Number(day.grossRevenue) || 0), 'Trả hàng: -' + fmtMoney(returned)]
-                    : '';
+                  if (returned > 0) {
+                    lines.push('Doanh thu bán: ' + fmtMoney(Number(day.grossRevenue) || 0), 'Trả hàng: -' + fmtMoney(returned));
+                  }
+                  return lines;
                 }
               }
             }
           },
           scales: {
-            x: { ticks: { color: theme.muted, maxTicksLimit: 10, font: { size: 10.5 } }, grid: { display: false } },
-            y: { beginAtZero: true, ticks: { color: theme.muted, callback: formatAxisMoney, font: { size: 10.5 } }, grid: { color: theme.grid } }
+            x: { stacked, ticks: { color: theme.muted, maxTicksLimit: 10, font: { size: 10.5 } }, grid: { display: false } },
+            y: { stacked, beginAtZero: true, ticks: { color: theme.muted, callback: formatAxisMoney, font: { size: 10.5 } }, grid: { color: theme.grid } }
           }
         }
       });
@@ -7837,7 +7858,7 @@
       });
     }
 
-    // ===== Tab Tổng quan, phần 2 — "Báo cáo doanh thu theo khách" =====
+    // ===== Tab Khách hàng, phần 1 — "Báo cáo doanh thu theo khách" =====
     function hideCustomerProductSuggestions() {
       const box = document.getElementById('cpCustomerSuggestions');
       box.classList.remove('show');

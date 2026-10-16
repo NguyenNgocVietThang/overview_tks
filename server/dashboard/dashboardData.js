@@ -696,6 +696,27 @@ function buildRevenuePeriod(range, invoiceRecords) {
   return { revenueByDay, periodRevenue, periodInvoices };
 }
 
+// Doanh thu thuc te theo tung co so tren moi dong rollup (de ve cot chong Ha Noi + Sai Gon).
+const REVENUE_BRANCH_FIELDS = ['revenueHanoi', 'revenueSaigon'];
+
+function revenueBranchField(physicalBranch) {
+  if (physicalBranch === BRANCHES.HANOI) return 'revenueHanoi';
+  if (physicalBranch === BRANCHES.SAIGON) return 'revenueSaigon';
+  return null;
+}
+
+/**
+ * Gan `revenueHanoi`/`revenueSaigon` (= `revenue` cua dong) vao cac dong doanh thu theo ngay cua 1 co so vat ly,
+ * de buoc gop "Cả hai" (cong theo ngay) giu duoc phan cua tung co so. Tra ban sao — `rollups` co the
+ * dang duoc chia se giua cac request dang bay.
+ */
+function tagRollupBranch(rollups, physicalBranch) {
+  const field = revenueBranchField(physicalBranch);
+  if (!field || !rollups) return rollups;
+  const tag = rows => (rows || []).map(row => ({ ...row, [field]: Number(row.revenue) || 0 }));
+  return { ...rollups, overviewRevenueRows: tag(rollups.overviewRevenueRows), invoicesRevenueRows: tag(rollups.invoicesRevenueRows) };
+}
+
 /**
  * Ban sao cua buildRevenuePeriod() nhung nguon la cac dong da tong hop san tu
  * daily_invoice_summary (dashboardRollupRepository.getInvoiceRevenueByDay) —
@@ -709,7 +730,14 @@ function buildRevenuePeriodFromRollup(range, rollupRows) {
   const dayBuckets = {};
   const dayOrder = [];
 
-  const newBucket = () => ({ revenue: 0, grossRevenue: 0, returnAmount: 0, count: 0 });
+  // Doanh thu theo co so (cot chong HN/SG cua bieu do): chi co khoa cua co so nao CO mat trong du lieu
+  // (xem tagRollupBranch), ngay khong phat sinh thi 0.
+  const branchSeries = REVENUE_BRANCH_FIELDS.filter(field => rollupRows.some(row => row[field] !== undefined));
+  const newBucket = () => {
+    const bucket = { revenue: 0, grossRevenue: 0, returnAmount: 0, count: 0 };
+    branchSeries.forEach(field => { bucket[field] = 0; });
+    return bucket;
+  };
 
   if (range.mode === 'all') {
     rollupRows.forEach(row => {
@@ -739,16 +767,21 @@ function buildRevenuePeriodFromRollup(range, rollupRows) {
     bucket.grossRevenue += row.grossRevenue !== undefined ? Number(row.grossRevenue) || 0 : row.revenue + returnAmount;
     bucket.returnAmount += returnAmount;
     bucket.count += row.invoiceCount;
+    branchSeries.forEach(field => { bucket[field] += Number(row[field]) || 0; });
   });
 
-  const revenueByDay = dayOrder.map(key => ({
-    date: key,
-    label: key.substring(0, 5),
-    revenue: dayBuckets[key].revenue,
-    grossRevenue: dayBuckets[key].grossRevenue,
-    returnAmount: dayBuckets[key].returnAmount,
-    count: dayBuckets[key].count
-  }));
+  const revenueByDay = dayOrder.map(key => {
+    const day = {
+      date: key,
+      label: key.substring(0, 5),
+      revenue: dayBuckets[key].revenue,
+      grossRevenue: dayBuckets[key].grossRevenue,
+      returnAmount: dayBuckets[key].returnAmount,
+      count: dayBuckets[key].count
+    };
+    branchSeries.forEach(field => { day[field] = dayBuckets[key][field]; });
+    return day;
+  });
   const periodRevenue = revenueByDay.reduce((s, d) => s + d.revenue, 0);
   const periodGrossRevenue = revenueByDay.reduce((s, d) => s + d.grossRevenue, 0);
   const periodReturnAmount = revenueByDay.reduce((s, d) => s + d.returnAmount, 0);
@@ -1382,14 +1415,14 @@ function mergeDashboardRollups(branchSources) {
       branchSources,
       'overviewRevenueRows',
       row => row.dateKey,
-      ['revenue', 'grossRevenue', 'returnAmount', 'returnCount', 'invoiceCount'],
+      ['revenue', 'grossRevenue', 'returnAmount', 'returnCount', 'invoiceCount', ...REVENUE_BRANCH_FIELDS],
       (a, b) => (parseSheetDate(a.dateKey)?.getTime() || 0) - (parseSheetDate(b.dateKey)?.getTime() || 0)
     ),
     invoicesRevenueRows: mergeRollupRows(
       branchSources,
       'invoicesRevenueRows',
       row => row.dateKey,
-      ['revenue', 'grossRevenue', 'returnAmount', 'returnCount', 'invoiceCount'],
+      ['revenue', 'grossRevenue', 'returnAmount', 'returnCount', 'invoiceCount', ...REVENUE_BRANCH_FIELDS],
       (a, b) => (parseSheetDate(a.dateKey)?.getTime() || 0) - (parseSheetDate(b.dateKey)?.getTime() || 0)
     ),
     invoiceQuantityRows
@@ -1573,7 +1606,7 @@ async function getDashboardData(filters, branch, viewer, options) {
     // dang mong doi (doc branchSources[i].rollups).
     await Promise.all(branchSources.map((source, index) =>
       (earlyRollups ? earlyRollups[index] : fetchDashboardRollups(sourceArguments[index], ranges, plan)).then(rollups => {
-        source.rollups = rollups;
+        source.rollups = tagRollupBranch(rollups, source.branch);
       })
     ));
 
