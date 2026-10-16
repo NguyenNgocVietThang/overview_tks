@@ -460,11 +460,11 @@ Job chốt xóa run/feedback/history cũ hơn 7 ngày. SELECT của `reporting_r
 
 `debt_reward_months`: `month DATE` khóa chính (ngày 01), `rule_version TEXT`, `finalized_at TIMESTAMPTZ`, `result JSONB` chứa summary, coverage, rows cùng audit điểm/chi tiết phạt. Không FK theo bản chốt công nợ, giữ vĩnh viễn. Dịch vụ chỉ INSERT ON CONFLICT DO NOTHING; khóa advisory theo tháng trong transaction, retry serialization 40001; không cập nhật lại kết quả đã chốt. Phạt tháng cũ phải chốt hết và `business_monthly_state` phải có tháng doanh số trước khi lưu.
 
-## Làm mới tăng dần doanh thu theo khách — migration 0054 (16/10/2026, chưa áp DB)
+## Làm mới tăng dần doanh thu theo khách — migration 0054 (đã áp Supabase 16/10/2026)
 
 `0054_customer_invoice_lines_incremental.sql`: thêm `customer_invoice_lines_state.last_full_at TIMESTAMPTZ` (NULL = chưa dựng đầy đủ ở chế độ tăng dần ⇒ job dựng đầy đủ trước; không backfill) và hai index `idx_invoices_synced_at (branch, synced_at)`, `idx_returns_synced_at (branch, synced_at)` để lượt tăng dần chỉ đọc đuôi index. Ở chế độ tăng dần `computed_at` là lần kiểm tra gần nhất (nhãn "cập nhật lúc" của giao diện) còn `window_end` = hôm nay. Mã chịu thiếu migration: thiếu cột/bảng (`42703`/`42P01`) thì bỏ qua lượt tăng dần và giữ luồng chốt đêm. Lý do dùng `synced_at` thay `modified_date`: đo 16/10/2026 có 43.074/47.141 hóa đơn và 1.896/2.794 phiếu trả với `modified_date` NULL.
 
-## Trạng thái báo cáo hàng hóa tăng dần — migration 0055 (16/10/2026, chưa áp DB)
+## Trạng thái báo cáo hàng hóa tăng dần — migration 0055 (đã áp Supabase 16/10/2026)
 
 `0055_product_report_state.sql` tạo `product_report_state` (1 dòng, `id = 1`): `computed_at` = lần kiểm tra/làm mới gần nhất (nhãn "Dữ liệu cập nhật lúc"), `version BIGINT` chỉ tăng khi `product_report`/`product_report_customers` có dòng thật sự đổi (client và cache máy chủ dựa vào đây), `last_full_at` = lần gần nhất chạy phần nặng (NULL = chưa). Ở chế độ tăng dần `product_report.computed_at` từng dòng chỉ còn là "lần đổi gần nhất" và bảng chỉ giữ mã đang kinh doanh ở ít nhất một cơ sở (trước đó lọc lúc đọc). Thêm `idx_customers_synced_at` và (IF NOT EXISTS) `idx_invoices_synced_at`, `idx_returns_synced_at` cho cổng "có chứng từ mới" của job. Mã chịu thiếu migration (`42P01`/`42703`): bỏ qua, giữ luồng chốt đêm TRUNCATE.
 
@@ -485,5 +485,5 @@ Job chốt xóa run/feedback/history cũ hơn 7 ngày. SELECT của `reporting_r
 
 Migration thu hồi ALL trên cả hai bảng khỏi `reporting_readonly` nếu role tồn tại; truy cập thông qua API ứng dụng có kiểm tra quyền `reports.overview.containers.full`. Không cấp SELECT mặc định cho bảng chứa người đặt/giá/cảnh báo nguồn.
 
-## 0056 — Pancake độc lập
+## 0056 — Pancake độc lập (đã áp Supabase 16/10/2026)
 marketing_pancake_independent_page_state lưu trạng thái/coverage sáu page; marketing_pancake_independent_facts định danh page + message và ngày tạo bất biến; marketing_pancake_independent_observations lưu nhật ký assignment chỉ từ Pancake. Lịch sử marketing_history_rows, baseline và observations cũ được giữ riêng. Các bảng mới chứa dữ liệu cá nhân, không cấp reporting_readonly.
