@@ -88,4 +88,38 @@ function countMonthlyClosures(monthlyRows, { year, month } = {}) {
   return [...groups.values()];
 }
 
-module.exports = { aggregatePhones, countPhoneKpis, countMonthlyClosures, isPhoneReportObservation };
+const vietnamDate = value => value && Number.isFinite(+new Date(value)) ? new Date(+new Date(value)+7*3600000).toISOString().slice(0,10) : null;
+
+// Creation time establishes first receipt; assignment history starts only when
+// we actually observe Pancake. A current assignment is never historical proof.
+function aggregateIndependentPhones(rawRows, aliases = []) {
+  const groups = new Map();
+  for (const row of rawRows) {
+    const key=JSON.stringify([row.pageId,row.phoneKey??row.phone]);
+    if(!groups.has(key))groups.set(key,[]);
+    groups.get(key).push(row);
+  }
+  const order=(a,b)=>String(a.observedAt).localeCompare(String(b.observedAt))||String(a.sourceCreatedAt).localeCompare(String(b.sourceCreatedAt))||String(a.sourceKey).localeCompare(String(b.sourceKey))||Number(BigInt(a.sourceOrder)-BigInt(b.sourceOrder));
+  return [...groups.values()].map(rows=>{
+    rows.sort(order);
+    const earliest=[...rows].sort((a,b)=>String(a.sourceCreatedAt).localeCompare(String(b.sourceCreatedAt))||order(a,b))[0];
+    const first=rows.find(r=>r.sourceKey===earliest.sourceKey),last=rows.at(-1);
+    const firstDay=vietnamDate(first.observedAt), previous=new Map();
+    let evidence=null;
+    for(const row of rows){
+      const before=previous.get(row.sourceKey);
+      if(before?.employeeRaw&&row.employeeRaw&&before.employeeRaw!==row.employeeRaw&&vietnamDate(before.observedAt)!==vietnamDate(row.observedAt))evidence=row;
+      previous.set(row.sourceKey,row);
+    }
+    const result=aggregatePhones([{...first,sourceOrder:'1',creditedDate:vietnamDate(earliest.sourceCreatedAt)}, {...last,sourceOrder:'2',creditedDate:vietnamDate(last.observedAt)}],aliases)[0];
+    const repeat=Boolean(first.employeeRaw&&last.employeeRaw&&first.employeeRaw!==last.employeeRaw&&evidence&&evidence.employeeRaw===last.employeeRaw&&firstDay!==vietnamDate(evidence.observedAt));
+    result.repeatEmployee=repeat?last.employeeRaw:'';
+    result.mappedRepeatEmployee=repeat?(aliases.find(a=>a.rawName===last.employeeRaw)?.reportEmployee??null):null;
+    result.repeatAt=repeat?vietnamDate(evidence.observedAt):null;
+    result.trace=rows.map(r=>({origin:'pancake-independent',id:r.id??null,sourceOrder:String(r.sourceOrder),factId:r.factId??null,runId:r.runId??null,sourceKey:r.sourceKey,observedAt:r.observedAt}));
+    result.assignmentSource='Pancake current_assign_users + nhật ký quan sát; không tái dựng nhân viên lịch sử';
+    return result;
+  });
+}
+
+module.exports = { aggregatePhones, aggregateIndependentPhones, vietnamDate, countPhoneKpis, countMonthlyClosures, isPhoneReportObservation };

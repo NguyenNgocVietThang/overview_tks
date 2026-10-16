@@ -95,15 +95,16 @@ async function createExportFile(kind, table, format, result, rows, columnKeys) {
   const columns = columnKeys ? all.filter(c => columnKeys.includes(c.key)) : all;
   const fileBase = `TKS_Marketing_${kind.replace(/-/g, '_')}_${table}`;
   const title = `Marketing · ${KIND_TITLES[kind]} · ${TABLE_TITLES[table]}`;
+  const provenance=[['Tập dữ liệu',result.dataset||result.sourceMode||'sheets'],['Snapshot',result.snapshotId||''],['Tính lúc',result.computedAt||''],...Object.entries(result.sources||{}).map(([key,value])=>[key,typeof value==='string'?value:JSON.stringify(value)]),...(result.warnings||[]).map(w=>['Ghi chú',w])];
   if (format === 'html') {
     return renderHtmlReport({
-      meta: { title, branch: 'Hà Nội + Sài Gòn', generatedAt: result.computedAt ? new Date(result.computedAt) : new Date(), fileBase },
+      meta: { title, reportNotes:provenance, branch: 'Hà Nội + Sài Gòn', generatedAt: result.computedAt ? new Date(result.computedAt) : new Date(), fileBase },
       worksheets: [{
         key: table,
         name: TABLE_TITLES[table],
         columns: columns.map(({ key, label, type }) => ({ key, label, type: type === 'text' ? 'general' : type })),
         rows: rows.map(row => Object.fromEntries(columns.map(c => [c.key, cell(row, c)])))
-      }]
+      },{key:'provenance',name:'Nguồn và trạng thái',columns:[{key:'label',label:'Mục',type:'general'},{key:'value',label:'Nội dung',type:'general'}],rows:provenance.map(([label,value])=>({label,value}))}]
     });
   }
   const workbook = new ExcelJS.Workbook();
@@ -127,6 +128,9 @@ async function createExportFile(kind, table, format, result, rows, columnKeys) {
   sheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
   sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: Math.max(1, rows.length + 1), column: columns.length } };
   applyFullTableBorder(sheet, columns.length, rows.length + 1);
+  const sourceSheet=workbook.addWorksheet('Nguồn và trạng thái');
+  sourceSheet.columns=[{header:'Mục',width:24},{header:'Nội dung',width:100}];
+  for(const pair of provenance)sourceSheet.addRow(pair.map(safeText));
   return {
     buffer: Buffer.from(await workbook.xlsx.writeBuffer()),
     mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

@@ -25,6 +25,7 @@ async function setup(t) {
   t.after(() => db.close());
   await db.exec(fs.readFileSync(migrationPath, 'utf8'));
   await db.exec(fs.readFileSync(path.join(__dirname,'../db/migrations/0045_pancake_current_input.sql'),'utf8'));
+  await db.exec(fs.readFileSync(path.join(__dirname,'../db/migrations/0056_pancake_independent.sql'),'utf8'));
   const pool = { query: (...args) => db.query(...args), connect: async () => ({ query: (...args) => db.query(...args), release() {} }) };
   return { db, repo: exports.createMarketingRepository({ pool }) };
 }
@@ -226,3 +227,46 @@ test('adopted facts retain current API input without an observation and update i
 });
 
 test('report snapshot excludes raw payloads and canonical facts but preserves aggregation provenance',async t=>{const {repo}=await setup(t);await repo.importHistory({batchKey:'lean',workbookId:'book',rawRows:[historical()],monthlyRows:[{...monthly,sourceTab:'BC tháng 10',sourceRow:3,raw:['private source']}]},actor);const full=await repo.readSnapshot(),lean=await repo.readSnapshot({includeRaw:false});assert.equal(lean.rawRows.length,full.rawRows.length);assert.equal(lean.rawRows[0].sourceOrder,full.rawRows[0].sourceOrder);assert.equal(lean.rawRows[0].raw,undefined);assert.equal(lean.monthlyRows[0].sourceRaw,undefined);assert.deepEqual(lean.facts,[]);assert.equal(lean.monthlyRows[0].id,full.monthlyRows[0].id);});
+
+const independentCoverage={complete:true,since:0,until:1791000000,paginationExhausted:true};
+test('Pancake independent store ignores imported baseline, preserves creation day, observes transitions and isolates failures',async t=>{
+ const {repo,db}=await setup(t);
+ await repo.importHistory({batchKey:'legacy',workbookId:'old',rawRows:[historical()],monthlyRows:[{...monthly,sourceRow:2,sourceTab:'BC'}]},actor);
+ await repo.createMonthlyRow(monthly,actor);
+ async function sync(key,employeeRaw,completedAt,pageId=HN){const run=await repo.startSyncRun({runKey:'pancake-independent:'+key});return repo.commitIndependentPageSync({runId:run.id,pageId,completedAt,rows:[apiRow({employeeRaw,sourceCreatedAt:'2026-09-30T17:30:00Z'})],coverage:independentCoverage});}
+ await sync('one','A','2026-10-02T16:59:00Z');
+ let snap=await repo.readIndependentSnapshot();assert.equal(snap.rawRows.length,1);assert.equal(snap.rawRows[0].creditedDate,'2026-10-01');assert.equal(snap.rawRows[0].observedAt,'2026-10-02T16:59:00.000Z');assert.equal(snap.monthlyRows.length,1);assert.equal(snap.monthlyRows[0].origin,'manual');assert.equal(snap.pages.find(p=>p.pageId===HN).coverage.complete,true);
+ await sync('two','A','2026-10-02T17:01:00Z');assert.equal((await repo.readIndependentSnapshot()).rawRows.length,1);
+ await sync('three','B','2026-10-02T17:02:00Z');await sync('four','A','2026-10-03T17:02:00Z');
+ snap=await repo.readIndependentSnapshot();assert.deepEqual(snap.rawRows.map(r=>[r.employeeRaw,r.creditedDate]),[['A','2026-10-01'],['B','2026-10-03'],['A','2026-10-04']]);
+ const failed=await repo.startSyncRun({runKey:'pancake-independent:failed'});await repo.failIndependentPageSync({runId:failed.id,pageId:HN,completedAt:'2026-10-04T17:02:00Z'});
+ const after=await repo.readIndependentSnapshot({includeRaw:false});assert.equal(after.rawRows.length,3);assert.equal(after.pages.find(p=>p.pageId===HN).lastSuccessAt,'2026-10-03T17:02:00.000Z');assert.equal(after.pages.find(p=>p.pageId===HN).status,'error');assert.equal(after.rawRows[0].raw,undefined);
+ assert.equal((await db.query('SELECT count(*)::int AS n FROM marketing_pancake_observations')).rows[0].n,0);assert.equal((await db.query('SELECT count(*)::int AS n FROM marketing_history_rows')).rows[0].n,1);
+ await sync('other-page','A','2026-10-04T17:03:00Z',TT);assert.equal((await repo.readIndependentSnapshot()).rawRows.length,4);
+});
+test('independent store rejects incomplete fetch and changed creation timestamps, and employee list reordering is idempotent',async t=>{
+ const {repo}=await setup(t);const run=await repo.startSyncRun({runKey:'pancake-independent:first'});
+ const args={runId:run.id,pageId:HN,completedAt:'2026-10-02T17:00:00Z',rows:[apiRow({employeeRaw:'A, B'})],coverage:independentCoverage};
+ await assert.rejects(repo.commitIndependentPageSync({...args,coverage:{...independentCoverage,complete:false}}),{code:'INVALID_MARKETING_INPUT'});
+ await repo.commitIndependentPageSync(args);
+ const next=await repo.startSyncRun({runKey:'pancake-independent:next'});await repo.commitIndependentPageSync({...args,runId:next.id,rows:[apiRow({employeeRaw:'B, A'})]});assert.equal((await repo.readIndependentSnapshot()).rawRows.length,1);
+ const third=await repo.startSyncRun({runKey:'pancake-independent:third'});await assert.rejects(repo.commitIndependentPageSync({...args,runId:third.id,rows:[apiRow({sourceCreatedAt:'2026-10-01T00:00:00Z'})]}),{code:'INVALID_MARKETING_INPUT'});assert.equal((await repo.readIndependentSnapshot()).rawRows.length,1);
+});
+
+test('independent commits batch thousands of facts with bounded queries and immutable observations',async t=>{
+ const {db}=await setup(t);let queries=0;const query=async(...args)=>{queries++;return db.query(...args);};const repo=require(repositoryPath).createMarketingRepository({pool:{query,connect:async()=>({query,release(){}})}});
+ const run=await repo.startSyncRun({runKey:'pancake-independent:bulk'});queries=0;
+ const rows=Array.from({length:1001},(_,i)=>apiRow({sourceKey:'m'+String(i).padStart(4,'0'),messageId:'m'+i}));
+ const saved=await repo.commitIndependentPageSync({runId:run.id,pageId:HN,rows,coverage:independentCoverage,completedAt:'2026-10-01T17:00:00Z'});assert.equal(saved.newFacts,1001);assert.equal(saved.newObservations,1001);assert.ok(queries<20,'batch SQL query count must not grow per row');
+ await assert.rejects(db.query('UPDATE marketing_pancake_independent_observations SET credited_date=credited_date'));assert.equal((await repo.readIndependentSnapshot()).rawRows.length,1001);
+});
+
+test('assignment observation day precedes midnight publication and never shifts on repeated fetch',async t=>{
+ const {repo}=await setup(t);
+ async function sync(key,employeeRaw,assignmentObservedAt,completedAt){const run=await repo.startSyncRun({runKey:'pancake-independent:'+key});return repo.commitIndependentPageSync({runId:run.id,pageId:HN,rows:[apiRow({employeeRaw,raw:{assignmentObservedAt}})],coverage:independentCoverage,completedAt});}
+ await sync('first-observation','A','2026-09-30T16:59:00Z','2026-09-30T17:30:00Z');
+ await sync('second-observation','B','2026-10-01T16:59:00Z','2026-10-01T18:30:00Z');
+ await sync('repeated-observation','B','2026-10-02T18:00:00Z','2026-10-02T18:30:00Z');
+ const rows=(await repo.readIndependentSnapshot()).rawRows;assert.equal(rows.length,2);assert.equal(rows[1].observedAt,'2026-10-01T16:59:00.000Z');assert.equal(rows[1].creditedDate,'2026-10-01');assert.equal(rows[0].observedAt,'2026-09-30T16:59:00.000Z');
+ await assert.rejects(sync('invalid-future','C','2026-10-03T18:00:00Z','2026-10-02T18:30:00Z'),{code:'INVALID_MARKETING_INPUT'});
+});

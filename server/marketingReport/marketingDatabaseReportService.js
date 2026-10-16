@@ -3,7 +3,7 @@ const {
   randomUUID
 }=require('node:crypto');
 const {
-  aggregatePhones,countPhoneKpis,countMonthlyClosures
+  aggregatePhones,aggregateIndependentPhones,countPhoneKpis,countMonthlyClosures
 }=require('./marketingAggregation');
 const {
   norm
@@ -19,7 +19,7 @@ const kpi=(label,value,format='number')=>({
 });
 const sum=(rows,key)=>rows.reduce((n,r)=>n+(typeof r[key]==='number'?r[key]:0),0);
 function createDatabaseMarketingReportService({
-  repository,legacy,revenue, businessRepository,now=Date.now
+  repository,legacy,revenue, businessRepository,independent=false,now=Date.now
 }={
 }){
   repository ||= require('./marketingRepository').createMarketingRepository();
@@ -28,6 +28,10 @@ function createDatabaseMarketingReportService({
   });
   const business=()=>businessRepository ||= require('../businessReport/businessReportRepository').createRepository();
   const snapshots=new Map();
+  const readSnapshot=options=>independent?repository.readIndependentSnapshot(options):repository.readSnapshot(options);
+  const aggregateSource=independent?aggregateIndependentPhones:aggregatePhones;
+  const sourceInfo={phones:independent?'pancake-independent':'legacy-db',closures:independent?'manual-db':'legacy-db',revenue:'kiotviet',costs:'sheets'};
+  const completeness=s=>({complete:s.pages.length===6&&s.pages.every(p=>p.lastSuccessAt&&p.coverage?.complete===true&&p.status==='success'),pages:s.pages});
   async function directorySnapshot(){try{return await business().snapshot();}catch{throw fail(503,'MARKETING_CUSTOMERS_UNAVAILABLE','Không đọc được danh sách khách KiotViet. Vui lòng thử lại.');}}
   function period(q={
   }){
@@ -42,20 +46,20 @@ function createDatabaseMarketingReportService({
       month,year
     };
   }
-  const displayPhones=s=>aggregatePhones(s.rawRows,s.aliases).map(r=>({
+  const displayPhones=s=>aggregateSource(s.rawRows,s.aliases).map(r=>({
     key:r.key,pageId:r.pageId,page:s.pages.find(p=>p.pageId===r.pageId)?.name||r.pageId,phone:r.phone,firstEmployee:r.mappedFirstEmployee||r.firstEmployee,currentEmployee:r.mappedCurrentEmployee||r.currentEmployee,repeatEmployee:r.mappedRepeatEmployee||r.repeatEmployee,firstAt:r.firstAt,currentAt:r.currentAt,repeatAt:r.repeatAt,unresolved:r.unresolved,trace:r.trace
   }));
   async function metadata(){
-    const s=await repository.readSnapshot({
+    const s=await readSnapshot({
       includeRaw:false
     }),current=period();
     let ads;
     try{
-      ads=await legacy.metadata();
+      if(!independent)ads=await legacy.metadata();
     }catch{
     }const periods=unique([...s.monthlyRows.map(r=>`${r.reportYear}-${String(r.reportMonth).padStart(2,'0')}`),...s.rawRows.map(r=>r.creditedDate?.slice(0,7))]);
     return {
-      sourceMode:'database',periods:periods.map(p=>({year:Number(p.slice(0,4)),month:Number(p.slice(5,7))})),pages:s.pages.map(p=>({
+      sourceMode:'database',dataset:independent?'pancake-independent':'legacy-db',completeness:independent?completeness(s):null,periods:periods.map(p=>({year:Number(p.slice(0,4)),month:Number(p.slice(5,7))})),pages:s.pages.map(p=>({
         pageId:p.pageId,name:p.name
       })),currentMonth:current.month,currentYear:current.year,years:unique([String(current.year),...periods.map(p=>p.slice(0,4))]).map(Number).sort((a,b)=>b-a),months:{
         monthly:unique(s.monthlyRows.map(r=>String(r.reportMonth))).map(Number).sort((a,b)=>b-a),check:Array.from({
@@ -64,12 +68,13 @@ function createDatabaseMarketingReportService({
           length:12
         },(_,i)=>12-i)
       },sources:{
+        closures:{source:sourceInfo.closures},revenue:{source:'kiotviet'},
         report:{
           available:true
         },phones:{
           available:true
         },ads:ads?.sources?.ads||{
-          available:false
+          available:independent?null:false,source:'sheets',status:independent?'checked-on-costs-request':'unavailable'
         }
       }
     };
@@ -84,9 +89,16 @@ function createDatabaseMarketingReportService({
     if(!['monthly','receipt-check','phones'].includes(kind))throw fail(400,'MARKETING_INVALID_KIND','Loại báo cáo không hợp lệ.');
     const {
       month,year
-    }=period(q),s=await repository.readSnapshot({
+    }=period(q),s=await readSnapshot({
       includeRaw:false
     }),phones=displayPhones(s),warnings=[];
+    const closureAvailable=!independent||s.monthlyRows.some(r=>r.reportYear===year&&r.reportMonth===month);
+    const coverage=independent?completeness(s):null;
+    if(independent){
+      warnings.push('Nguồn SĐT: Pancake; lần đầu theo ngày tạo tin (giờ Việt Nam). Nhân viên từ snapshot và nhật ký quan sát, không suy diễn lịch sử trước theo dõi.');
+      if(!coverage.complete)warnings.push('Dữ liệu Pancake chưa đầy đủ hoặc cập nhật lỗi; giữ dữ liệu thành công gần nhất. Xem trạng thái từng page.');
+      warnings.push(closureAvailable?'Khách chốt: các dòng BC tháng nhập trên web và lưu DB; không phải sự kiện chốt Pancake.':'Chưa có dữ liệu khách chốt đáng tin cậy; khách chốt và tỷ lệ hiển thị —.');
+    }
     const monthly=s.monthlyRows.filter(r=>r.reportYear===year&&r.reportMonth===month).map(({
       sourceRaw,workbookId,sourceTab,sourceRow,...r
     })=>({
@@ -116,7 +128,7 @@ function createDatabaseMarketingReportService({
       rows=monthly;
       const selected=rows.filter(r=>matches(r,q));
       summaryRows=[...aggregate(selected,'page','page'),...aggregate(selected,'sale','sale')];
-      kpis=[kpi('Doanh số tháng (KiotViet)',selected.some(r=>typeof r.revenue==='number')?sum(selected,'revenue'):null,'money'),kpi('Khách chốt',selected.length),kpi('Số nhân viên',unique(selected.map(r=>r.sale)).length)];
+      kpis=[kpi('Doanh số tháng (KiotViet)',selected.some(r=>typeof r.revenue==='number')?sum(selected,'revenue'):null,'money'),kpi('Khách chốt',closureAvailable?selected.length:null),kpi('Số nhân viên',unique(selected.map(r=>r.sale)).length)];
     }
     if(kind==='phones'){
       rows=phones;
@@ -131,7 +143,7 @@ function createDatabaseMarketingReportService({
       kpis=[kpi('Dòng SĐT',selected.length),kpi('Page',unique(selected.map(r=>r.page)).length)];
     }
     if(kind==='receipt-check'){
-      const counts=countPhoneKpis(aggregatePhones(s.rawRows,[...s.aliases,...unique(s.rawRows.map(r=>r.employeeRaw)).filter(n=>!s.aliases.some(a=>a.rawName===n)).map(n=>({
+      const counts=countPhoneKpis(aggregateSource(s.rawRows,[...s.aliases,...unique(s.rawRows.map(r=>r.employeeRaw)).filter(n=>!s.aliases.some(a=>a.rawName===n)).map(n=>({
         rawName:n,reportEmployee:n
       }))]),{
         year,month,mapped:true
@@ -150,7 +162,7 @@ function createDatabaseMarketingReportService({
         target.closed+=r.closed||0;
       }
       const ratio=r=>({
-        ...r,equivalent:r.first+r.repeat/5,rate:r.first+r.repeat/5?r.closed/(r.first+r.repeat/5):null
+        ...r,closed:closureAvailable?r.closed:null,equivalent:r.first+r.repeat/5,rate:closureAvailable&&(r.first+r.repeat/5)?r.closed/(r.first+r.repeat/5):null
       });
       rows=[...groups.values()].map(ratio);
       const selected=rows.filter(r=>matches(r,q));
@@ -169,9 +181,10 @@ function createDatabaseMarketingReportService({
     }
     const all=rows;
     rows=rows.filter(r=>matches(r,q));
+    if(independent&&!s.pages.some(p=>p.lastSuccessAt)&&kind!=='monthly')kpis=kpis.map(k=>({...k,value:null}));
     if(phones.some(r=>Object.values(r.unresolved).some(Boolean)))warnings.push('Một số SĐT thiếu nhân viên, ngày ghi nhận hoặc ánh xạ; dữ liệu vẫn được lưu.');
     const result={
-      sourceMode:'database',kind,month:kind==='phones'?null:month,year,snapshotId:randomUUID(),computedAt:new Date(now()).toISOString(),rows,summaryRows,kpis,charts:[],warnings,filters:{
+      sourceMode:'database',dataset:independent?'pancake-independent':'legacy-db',sources:sourceInfo,completeness:coverage,publicationStatus:!independent?'legacy':coverage.complete?'complete':s.pages.some(p=>p.lastSuccessAt)?'partial':'pending',kind,month:kind==='phones'?null:month,year,snapshotId:randomUUID(),computedAt:new Date(now()).toISOString(),rows,summaryRows,kpis,charts:[],warnings,filters:{
         pages:unique(all.map(r=>r.page)),employees:unique(all.flatMap(r=>[r.employee,r.sale,r.firstEmployee,r.currentEmployee,r.repeatEmployee].flatMap(names))),statuses:unique(all.map(r=>r.status)),dataSources:unique(all.map(r=>r.dataSource))
       }
     };
@@ -222,11 +235,11 @@ function createDatabaseMarketingReportService({
     if(q.kind==='phones'||q.kind==='receipt-check'){
       const visible=groups.filter(g=>g.kind==='phones').flatMap(g=>g.rows);
       const selectedKeys=new Set(visible.flatMap(r=>r.trace.map(t=>t.sourceOrder)));
-      const raw=sourceRows.filter(r=>selectedKeys.has(String(r.sourceOrder))).map(({raw,...r})=>({id:r.id,pageId:r.pageId,page:phones.find(p=>p.pageId===r.pageId)?.page||r.pageId,phone:r.phone,employeeRaw:r.employeeRaw,sourceCreatedAt:r.sourceCreatedAt,sourceCreatedText:r.sourceCreatedText,creditedDate:r.creditedDate,origin:r.origin,sourceOrder:r.sourceOrder,workbookId:r.workbookId,tab:r.tab,rowNumber:r.rowNumber,factId:r.factId,runId:r.runId,sourceKey:r.sourceKey}));
+      const raw=sourceRows.filter(r=>selectedKeys.has(String(r.sourceOrder))).map(({raw,...r})=>({id:r.id,pageId:r.pageId,page:phones.find(p=>p.pageId===r.pageId)?.page||r.pageId,phone:r.phone,employeeRaw:r.employeeRaw,observedAt:r.observedAt,sourceCreatedAt:r.sourceCreatedAt,sourceCreatedText:r.sourceCreatedText,creditedDate:r.creditedDate,origin:r.origin,sourceOrder:r.sourceOrder,workbookId:r.workbookId,tab:r.tab,rowNumber:r.rowNumber,factId:r.factId,runId:r.runId,sourceKey:r.sourceKey}));
       groups.push({title:'Lịch sử nhân viên và ngày nguồn',kind:'phone-source',rows:raw});
     }
     const found=q.kind==='receipt-check'?{
-      first:groups[0].rows.length,repeat:groups[1].rows.length,closed:groups[2].rows.length
+      first:groups[0].rows.length,repeat:groups[1].rows.length,closed:selected.closed===null?null:groups[2].rows.length
     }:{
       rows:groups[0].rows.length
     };
@@ -257,7 +270,7 @@ function createDatabaseMarketingReportService({
     if(create&&['customerDirectoryId','customer','sale','phone','status','dataSource','closedAt'].some(k=>typeof body[k]!=='string'||!body[k].trim()))throw fail(400,'MARKETING_INVALID_VALUE','Vui lòng nhập đầy đủ thông tin BC tháng và chọn khách KiotViet.');
   }
   async function validateCustomer(body,rowId){
-    const snap=await repository.readSnapshot({
+    const snap=await readSnapshot({
       includeRaw:false
     });
     const page=snap.pages.find(p=>p.pageId===body.pageId||(!body.pageId&&p.name===body.page));
@@ -275,14 +288,14 @@ function createDatabaseMarketingReportService({
   }
   return {
     metadata,report,detail,customers,async syncStatus(){
-      const s=await repository.readSnapshot({
+      const s=await readSnapshot({
         includeRaw:false
       });
       return {
-        sourceMode:'database',pages:s.pages,latestRun:s.latestRun
+        sourceMode:'database',dataset:independent?'pancake-independent':'legacy-db',sources:sourceInfo,completeness:independent?completeness(s):null,pages:s.pages,latestRun:s.latestRun
       };
     },async aliases(){
-      const s=await repository.readSnapshot({
+      const s=await readSnapshot({
         includeRaw:false
       });
       const mapped=new Set(s.aliases.map(a=>a.rawName));
@@ -301,7 +314,7 @@ function createDatabaseMarketingReportService({
       };
     },async updateMonthlyRow(id,body,actor){
       validateInput(body);
-      const snap=await repository.readSnapshot({includeRaw:false});
+      const snap=await readSnapshot({includeRaw:false});
       const old=snap.monthlyRows.find(r=>r.id===String(id));
       if(!old||String(old.version)!==String(body.version))throw fail(409,'MARKETING_VERSION_CONFLICT','Dòng đã thay đổi. Vui lòng tải lại trước khi lưu.');
       const keys=['reportYear','reportMonth','sale','customer','customerDirectoryId','phone','pageId','page','status','dataSource','closedAt','newCustomer','note'];

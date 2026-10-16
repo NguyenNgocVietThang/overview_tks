@@ -1,7 +1,7 @@
 # Marketing tính độc lập từ Pancake
 
 Ngày kiểm tra: 16/10/2026, Asia/Ho_Chi_Minh.
-Trạng thái: đã kiểm tra nguồn thật; đề xuất thiết kế, chưa sửa runtime hoặc bật nguồn mới. Cần xác nhận chính sách ngày trước khi lập kế hoạch triển khai.
+Trạng thái: phương án B đã được người dùng phê duyệt và triển khai trên main; cấu hình local đã bật, backfill đầu tiên đang chạy. Chưa deploy mã hoặc cấu hình production. Kết quả kiểm tra ban đầu dưới đây được giữ để truy vết.
 
 ## Mục tiêu
 
@@ -79,3 +79,6 @@ Thay đổi ít nhưng không đáp ứng yêu cầu nguồn Pancake độc lậ
 Chọn A để giữ ngày ghi nhận lịch sử và tự động hóa từ mốc chuyển đổi, hoặc B để có tập nguồn chỉ Pancake và chấp nhận tính lại theo ngày tạo tin cùng giới hạn lịch sử nhân viên. Đây là quyết định thay đổi ý nghĩa số liệu theo tháng, không chỉ là cấu hình kỹ thuật.
 
 Chưa thay đổi mã chạy, biến môi trường, lịch đồng bộ hoặc dữ liệu DB trong phiên kiểm tra này.
+
+## Phê duyệt triển khai
+Ngày 16/10/2026 người dùng chọn B, yêu cầu thực hiện trực tiếp main và tự xử lý lựa chọn kỹ thuật thông thường. Không còn điều kiện chờ khớp Sheets hoặc xác nhận chính sách ngày. Theo dõi kết quả triển khai/kiểm thử trong docs/marketing-report-setup.md.

@@ -24,7 +24,10 @@ function createPancakeClient({fetch:fetchFn=globalThis.fetch,tokens=Object.fromE
    if(response.status===401||response.status===403) throw safeError('PANCAKE_UNAUTHORIZED');
    if(response.status===429||response.status>=500) {if(attempt===maxAttempts-1) throw safeError();await sleep(Math.min(500*2**attempt,15000));continue;}
    if(!response.ok) throw safeError();
-   if(body?.success!==true||!Array.isArray(body[arrayField])) throw safeError('PANCAKE_INVALID_RESPONSE');return body[arrayField];
+   if(body?.success!==true||!Array.isArray(body[arrayField])) throw safeError('PANCAKE_INVALID_RESPONSE');
+   const total=body.total_count??body.total??body.pagination?.total;
+   if(total!==undefined&&(!Number.isInteger(total)||total<0))throw safeError('PANCAKE_INVALID_RESPONSE');
+   Object.defineProperty(body[arrayField],'declaredTotal',{value:total});return body[arrayField];
   }} finally {release();if(queues.get(pageId)===turn) queues.delete(pageId);}
  }
  async function fetchPage(pageId,{since,until}) {
@@ -32,23 +35,25 @@ function createPancakeClient({fetch:fetchFn=globalThis.fetch,tokens=Object.fromE
   if(!tokens[pageId]) throw safeError('PANCAKE_UNAUTHORIZED');
   const conversations=[],seenConversations=new Set();
   for(const type of ['INBOX','COMMENT']) {
-   let cursor;const seen=new Set();let exhausted=false;
+   let cursor;const seen=new Set();let exhausted=false,declaredTotal;
    for(let page=0;page<maxConversationPages;page++) {
     const batch=await request(pageId,`v2/pages/${pageId}/conversations`,{type,order_by:'updated_at',since,until,...(cursor?{last_conversation_id:cursor}:{})},'conversations');
+    if(batch.declaredTotal!==undefined){if(declaredTotal!==undefined&&declaredTotal!==batch.declaredTotal)throw safeError('PANCAKE_INVALID_RESPONSE');declaredTotal=batch.declaredTotal;}
     if(batch.length>60) throw safeError('PANCAKE_INVALID_RESPONSE');
-    for(const c of batch) {if(!c||typeof c.id!=='string'||!c.id||seen.has(c.id)) throw safeError('PANCAKE_INVALID_RESPONSE');seen.add(c.id);if(!seenConversations.has(c.id)){seenConversations.add(c.id);conversations.push(c);}}
+    for(const c of batch) {if(!c||typeof c.id!=='string'||!c.id||seen.has(c.id)) throw safeError('PANCAKE_INVALID_RESPONSE');seen.add(c.id);if(!seenConversations.has(c.id)){seenConversations.add(c.id);conversations.push({...c,assignmentObservedAt:new Date(now()).toISOString()});}}
     if(batch.length<60){exhausted=true;break;}cursor=batch.at(-1).id;
    }
-   if(!exhausted) throw safeError('PANCAKE_INVALID_RESPONSE');
+   if(!exhausted||declaredTotal!==undefined&&seen.size!==declaredTotal) throw safeError('PANCAKE_INVALID_RESPONSE');
   }
-  const rows=[],messageIds=new Set();
+  const rows=[],messageIds=new Set();let fetchedMessageCount=0;
   for(const c of conversations) {
    // Proven has_phone=false may skip; an absent flag must fetch messages.
    if(c.has_phone===false) continue;
    const users=c.current_assign_users??[];if(!Array.isArray(users)||users.some(u=>typeof u?.name!=='string')) throw safeError('PANCAKE_INVALID_RESPONSE');
-   const employeeRaw=users.map(u=>u.name).filter(Boolean).join(', ');const seen=new Set();let exhausted=false;
+   const employeeRaw=users.map(u=>u.name).filter(Boolean).join(', ');const seen=new Set();let exhausted=false,declaredTotal;
    for(let page=0;page<maxMessagePages;page++) {
     const messages=await request(pageId,`v1/pages/${pageId}/conversations/${encodeURIComponent(c.id)}/messages`,{current_count:page*30},'messages');
+    if(messages.declaredTotal!==undefined){if(declaredTotal!==undefined&&declaredTotal!==messages.declaredTotal)throw safeError('PANCAKE_INVALID_RESPONSE');declaredTotal=messages.declaredTotal;}
     if(messages.length>30) throw safeError('PANCAKE_INVALID_RESPONSE');let progress=0;const batchIds=new Set();
     for(const m of messages) {
      if(!m||typeof m.id!=='string'||!m.id) throw safeError('PANCAKE_INVALID_RESPONSE');
@@ -61,13 +66,15 @@ function createPancakeClient({fetch:fetchFn=globalThis.fetch,tokens=Object.fromE
      const sourceCreatedAt=sourceTimestamp(m.inserted_at);
      if(+new Date(sourceCreatedAt)>until*1000) continue;
      const phone=m.phone_info.map(p=>p.phone_number).join(', ');
-     rows.push({sourceKey:m.id,messageId:m.id,conversationId:c.id,type:m.type,phone,phoneKey:phone,employeeRaw,sourceCreatedAt,raw:{message:m,currentAssignUsers:users}});
+     rows.push({sourceKey:m.id,messageId:m.id,conversationId:c.id,type:m.type,phone,phoneKey:phone,employeeRaw,sourceCreatedAt,raw:{message:m,currentAssignUsers:users,assignmentObservedAt:c.assignmentObservedAt}});
     }
     if(messages.length&&progress===0) throw safeError('PANCAKE_INVALID_RESPONSE');
     if(messages.length<30){exhausted=true;break;}
    }
-   if(!exhausted) throw safeError('PANCAKE_INVALID_RESPONSE');
+   if(!exhausted||declaredTotal!==undefined&&seen.size!==declaredTotal) throw safeError('PANCAKE_INVALID_RESPONSE');
+   fetchedMessageCount+=seen.size;
   }
+  Object.defineProperty(rows,'coverage',{value:{complete:true,since,until,conversationCount:conversations.length,messageCount:fetchedMessageCount,phoneMessageCount:rows.length,earliestSourceCreatedAt:rows.reduce((v,r)=>!v||r.sourceCreatedAt<v?r.sourceCreatedAt:v,null),latestSourceCreatedAt:rows.reduce((v,r)=>!v||r.sourceCreatedAt>v?r.sourceCreatedAt:v,null),paginationExhausted:true,scope:'Pancake public API accessible INBOX/COMMENT conversations in declared updated_at range; deleted or inaccessible records cannot be reconstructed'}});
   return rows.sort((a,b)=>a.sourceCreatedAt.localeCompare(b.sourceCreatedAt)||a.sourceKey.localeCompare(b.sourceKey));
  }
  return {fetchPage};

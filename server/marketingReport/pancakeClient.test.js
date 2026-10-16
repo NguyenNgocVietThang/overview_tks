@@ -30,3 +30,13 @@ test('messages created after the fixed run cutoff wait for the next synchronizat
 test('short final message pages reject duplicate IDs',async()=>{const wire=transport(u=>u.pathname.endsWith('/messages')?{success:true,messages:[message('same'),message('same')]}:{success:true,conversations:u.searchParams.get('type')==='INBOX'?[{id:'c'}]:[]});await assert.rejects(api().createPancakeClient({...wire,tokens:{[PAGE]:'secret'}}).fetchPage(PAGE,{since:1,until:1791000000}),{code:'PANCAKE_INVALID_RESPONSE'});});
 
 test('Pancake six-digit zero-padded microseconds normalize without losing source precision',()=>{const {sourceTimestamp}=api();assert.equal(sourceTimestamp('2026-09-27T03:00:00.000000'),'2026-09-27T03:00:00.000Z');assert.equal(sourceTimestamp('2026-09-27T03:00:00.123000'),'2026-09-27T03:00:00.123Z');assert.throws(()=>sourceTimestamp('2026-09-27T03:00:00.123001'),{code:'PANCAKE_INVALID_RESPONSE'});});
+
+test('full accessible API coverage exposes exhaustion and rejects advertised totals that do not match fetched records',async()=>{
+ const wire=transport(u=>({success:true,conversations:[]}));const rows=await api().createPancakeClient({...wire,tokens:{[PAGE]:'secret'}}).fetchPage(PAGE,{since:0,until:1791000000});assert.equal(rows.coverage.complete,true);assert.equal(rows.coverage.since,0);assert.equal(rows.coverage.paginationExhausted,true);
+ for(const scope of ['conversation','message']){const bad=transport(u=>u.pathname.endsWith('/messages')?{success:true,total:2,messages:[message('one')]}:{success:true,total:scope==='conversation'?2:1,conversations:[{id:'c'}]});await assert.rejects(api().createPancakeClient({...bad,tokens:{[PAGE]:'secret'}}).fetchPage(PAGE,{since:0,until:1791000000}),{code:'PANCAKE_INVALID_RESPONSE'});}
+});
+
+test('assignment evidence records conversation observation time before a long message fetch crosses midnight',async()=>{
+ let observed=Date.parse('2026-09-30T16:59:00Z');const wire=transport(u=>{if(u.pathname.endsWith('/messages')){observed=Date.parse('2026-09-30T18:10:00Z');return {success:true,messages:[message('m')]};}return {success:true,conversations:u.searchParams.get('type')==='INBOX'?[{id:'c',current_assign_users:[{name:'B'}]}]:[]};});
+ const rows=await api().createPancakeClient({...wire,now:()=>observed,tokens:{[PAGE]:'secret'}}).fetchPage(PAGE,{since:0,until:1791000000});assert.equal(rows[0].raw.assignmentObservedAt,'2026-09-30T16:59:00.000Z');
+});

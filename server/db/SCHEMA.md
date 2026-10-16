@@ -480,3 +480,6 @@ Job chốt xóa run/feedback/history cũ hơn 7 ngày. SELECT của `reporting_r
 Đồng bộ chỉ đọc đủ 6 sheet mỗi 2 tiếng, khóa advisory chống chạy chồng. Dòng và metadata thành công được thay trong cùng transaction; lỗi giữ snapshot cũ, cập nhật mốc thử/lỗi riêng. Không lưu lịch sử từng lần đồng bộ; vẫn giữ trạng thái 4/5 ở snapshot hiện tại để người có quyền đầy đủ xem. Tổng hợp chỉ cộng trạng thái 1/2 (Chưa bốc) và 3 (Đã bốc), giữ NUMERIC khi cộng.
 
 Migration thu hồi ALL trên cả hai bảng khỏi `reporting_readonly` nếu role tồn tại; truy cập thông qua API ứng dụng có kiểm tra quyền `reports.overview.containers.full`. Không cấp SELECT mặc định cho bảng chứa người đặt/giá/cảnh báo nguồn.
+
+## 0056 — Pancake độc lập
+marketing_pancake_independent_page_state lưu trạng thái/coverage sáu page; marketing_pancake_independent_facts định danh page + message và ngày tạo bất biến; marketing_pancake_independent_observations lưu nhật ký assignment chỉ từ Pancake. Lịch sử marketing_history_rows, baseline và observations cũ được giữ riêng. Các bảng mới chứa dữ liệu cá nhân, không cấp reporting_readonly.

@@ -33,3 +33,9 @@ test('xlsx and html files are produced; formula-like text is neutralised', async
   assert.match(html.fileName, /\.html$/);
   await assert.rejects(createExportFile('nope', 'rows', 'xlsx', result, [], null), { statusCode: 400 });
 });
+
+test('exports disclose independent source, snapshot and incomplete coverage warnings',async()=>{
+ const r={...result,dataset:'pancake-independent',snapshotId:'snapshot-proof',sources:{phones:'pancake-independent',closures:'manual-db'},warnings:['Dữ liệu chưa đầy đủ']};
+ const ExcelJS=require('exceljs');const file=await createExportFile('monthly','rows','xlsx',r,r.rows);const book=new ExcelJS.Workbook();await book.xlsx.load(file.buffer);const provenance=book.getWorksheet('Nguồn và trạng thái');assert.ok(provenance);assert.equal(provenance.getCell('B2').value,'pancake-independent');assert.equal(provenance.getCell('B3').value,'snapshot-proof');
+ const html=await createExportFile('monthly','rows','html',r,r.rows);assert.match(html.buffer.toString(),/pancake-independent/);assert.match(html.buffer.toString(),/Dữ liệu chưa đầy đủ/);
+});

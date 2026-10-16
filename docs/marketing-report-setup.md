@@ -1,3 +1,4 @@
+<!-- Chính sách hiện hành: mục 16/10/2026 — Tập Pancake độc lập ở cuối tài liệu. Các mốc cũ giữ làm lịch sử. -->
 # Báo cáo Marketing — cấu hình và nghiệm thu
 
 16/10/2026 — Đã đọc trực tiếp công thức sáu page và trạng thái DB để đánh giá tính độc lập từ Pancake. [Kết quả kiểm tra và phương án chuyển nguồn](superpowers/specs/2026-10-16-marketing-pancake-independent-design.md). Chưa bật nguồn mới; cần chốt ngày ghi nhận lịch sử hay ngày tạo tin nhắn trước khi triển khai.
@@ -52,3 +53,26 @@ Migration `0044_pancake_marketing.sql` và `0045_pancake_current_input.sql` đã
 `GET /api/marketing-report/metadata` trả năm/tháng có dữ liệu và quyền ghi đã xác minh ở máy chủ; `/sync-status` trả kết quả an toàn từng page. API đọc, chi tiết và xuất xlsx/html giữ cùng bộ lọc/snapshot. `POST /monthly/rows`, `PUT /monthly/rows/:id`, `PUT /aliases` cần vai trò Quản lý và `reports.marketing.edit`; `GET /monthly/rows/:id/audit` chỉ Quản lý. ID khách chọn từ danh mục KiotViet theo cơ sở/mã, sửa cần version; báo cáo tháng tách ngày chốt. Không tự chọn page cho lịch sử chưa xác định.
 
 Chạy từ thư mục server: `npm run marketing:history:capture -- --output PRIVATE.json`; `npm run marketing:history:import -- --input PRIVATE.json --year 2026 --dry-run`; `npm run marketing:pancake:sync -- --date YYYY-MM-DD --dry-run`. `--apply` ghi DB; `--retry` yêu cầu thêm một lần thử cho slot lỗi. Chạy mặc định dry-run không truy cập API/DB. File xuất và snapshot chứa SĐT, phải giữ ngoài Git. Không coi ba lần thử cùng ngày là ba đợt hằng ngày.
+
+## 16/10/2026 — Tập Pancake độc lập (phương án B đã duyệt)
+
+Đặt MARKETING_REPORT_SOURCE=pancake và PANCAKE_MARKETING_SYNC_ENABLED=true sau khi áp migration 0056_pancake_independent.sql. Chế độ postgres cũ vẫn là lịch sử hỗn hợp; không dùng để công bố dữ liệu chỉ Pancake. Hai tập tách bảng, không xóa/sửa lịch sử. Trong Sao lưu SĐT và Check tỷ lệ nhận số có bộ chọn Lịch sử cũ (có nguồn Sheets) để tra cứu; dataset=legacy được truyền cả vào chi tiết và xuất file.
+
+- Scheduler backend chạy độc lập việc mở dashboard: bắt kịp slot gần nhất khi server khởi động, sau đó 23:55 Asia/Ho_Chi_Minh; khóa PostgreSQL ngăn trùng nhiều tiến trình. Production cần dịch vụ luôn chạy; dịch vụ ngủ không thể chạy đúng giờ (sẽ bắt kịp khi thức).
+- Sáu page fetch từ since=0 tới thời điểm bắt đầu job, hết phân trang INBOX/COMMENT và tin nhắn; lưu coverage từng page (phạm vi, số trang/tin và giới hạn truy cập API). Complete chỉ xác nhận đã đọc hết phạm vi API trả về, không cam kết phục hồi tin đã xóa hoặc không được cấp quyền. Page lỗi không commit dữ liệu dở dang, giữ snapshot thành công và công bố cảnh báo thiếu dữ liệu.
+- Không đọc marketing_baseline_messages, liên kết lịch sử, CHUẨN, CHECK hoặc bảng tên Sheets để tính tập mới. Không cần đối soát Sheets để công bố. Giữ nguyên chuỗi SĐT nguồn, nhóm riêng theo page; không tự gộp +84/0.
+- Lần đầu là ngày tạo tin sớm nhất đổi UTC+7. Nhân viên lần đầu là assignment được hệ thống quan sát trên tin đó, không phải bằng chứng người phụ trách tại thời điểm tạo tin. Chào lại cần người đầu/cuối nguồn khác nhau, có chuyển người trên cùng tin được quan sát qua các ngày khác nhau; ngày là ngày quan sát bằng chứng. Đổi cùng ngày, thiếu người, A→B→A không tạo chào lại theo quy tắc đầu/cuối. Ánh xạ tên sau chọn đầu/cuối; nhiều tên nguồn về một nhân viên vẫn giữ bằng chứng đổi tên nguồn. Quy đổi = lần đầu + chào lại/5.
+- Khách chốt chưa có sự kiện Pancake được xác minh. Chỉ đếm dòng BC tháng nhập web (origin=manual), không trộn dòng Sheets cũ. Chưa có dòng tháng thì khách chốt/tỷ lệ là null (—); có dòng thì ghi rõ nguồn manual-db, không tuyên bố đã nhập đủ toàn bộ tháng. Tỷ lệ tổng = tổng dòng nhập / tổng quy đổi, mẫu số 0 là —.
+- Doanh số: KiotViet. ADS/VAT/phí thuê: Sheets. Metadata Pancake không gọi Sheets; lỗi ADS chỉ ảnh hưởng phần chi phí. Sửa/ánh xạ BC tháng vẫn yêu cầu Quản lý và quyền sửa; có version/audit DB.
+- Chi tiết pin snapshot trong 30 phút. XLSX/HTML dùng cùng report service và kèm nguồn, snapshot, cảnh báo. Rerun cùng slot không tăng số; --retry cho một lần thử bổ sung khi slot lỗi. Ngày tạo tin được giữ bất biến; sai thời gian nguồn làm page lỗi.
+
+Lệnh kiểm tra: cd server; node --test marketingReport/*.test.js test/frontend/marketing-report.test.js
+Lệnh nạp thật: npm run marketing:pancake:sync -- --apply --date YYYY-MM-DD --report-file PATH (cấu hình source=pancake).
+Không đưa token hoặc dữ liệu cá nhân vào log/tài liệu công khai. Xem phần trạng thái triển khai mới nhất bên dưới; mã trên main không có nghĩa production đã được deploy.
+
+### Trạng thái thực hiện 16/10/2026
+- Đã áp riêng migration 0056 vào PostgreSQL đang cấu hình; không áp 0054/0055 ngoài phạm vi và không sửa/xóa dữ liệu lịch sử.
+- Local .env đã đặt source=pancake, sync=true; đủ sáu token. Run 28 (pancake-independent:2026-10-16) bắt đầu 14:24 giờ Việt Nam, đang backfill API. Chưa xác nhận đủ sáu page; báo cáo trả pending/null trong lúc chưa có page thành công. CLI ghi kết quả cuối vào marketing-independent-sync-status.json tại workspace (không chứa dữ liệu khách).
+- Scheduler trong backend sẽ chạy khi tiến trình server hoạt động; việc mở dashboard không kích hoạt hoặc duy trì job. Trong phiên này chỉ chạy CLI backfill, chưa khởi động server như dịch vụ thường trú.
+- Full npm test: 2486 tests, 2483 pass, 0 fail, 3 skipped. Sau rà soát có kiểm thử bổ sung cho nhả khóa khi DB lỗi, metadata ADS chưa thăm dò, KPI pending và lựa chọn lịch sử/nguồn xuất file; các nhóm kiểm thử liên quan đạt.
+- Chưa push/deploy code, chưa đổi biến môi trường Render/production; không tuyên bố production đã kích hoạt. DB được cấu hình local có thể dùng chung môi trường khác: migration bổ sung đã áp nhưng đó không phải deploy ứng dụng production.

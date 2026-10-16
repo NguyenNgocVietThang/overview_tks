@@ -297,12 +297,12 @@ function createMarketingRepository({ pool = require('../db/pool').getPool() } = 
   async function finishSyncRun(runId) {
     runId=id(runId);
     return transaction(async client => {
-      const run=(await client.query('SELECT status FROM marketing_sync_runs WHERE id=$1 FOR UPDATE',[runId])).rows[0];
+      const run=(await client.query('SELECT status,run_key FROM marketing_sync_runs WHERE id=$1 FOR UPDATE',[runId])).rows[0];
       if (!run) throw error('MARKETING_SYNC_CONFLICT',409);
       if (run.status==='running') {
         const pending=(await client.query(`SELECT page_id FROM marketing_sync_pages WHERE run_id=$1 AND status='pending' ORDER BY page_id`,[runId])).rows;
         for (const item of pending) {
-          await client.query(`UPDATE marketing_pages SET status='error',last_attempt_at=now(),error_code='MARKETING_SYNC_INTERRUPTED' WHERE page_id=$1`,[item.page_id]);
+          await client.query(`UPDATE ${run.run_key?.startsWith('pancake-independent:')?'marketing_pancake_independent_page_state':'marketing_pages'} SET status='error',last_attempt_at=now(),error_code='MARKETING_SYNC_INTERRUPTED' WHERE page_id=$1`,[item.page_id]);
         }
         await client.query(`UPDATE marketing_sync_pages SET status='error',completed_at=now(),error_code='MARKETING_SYNC_INTERRUPTED' WHERE run_id=$1 AND status='pending'`,[runId]);
         await client.query(`UPDATE marketing_sync_runs SET status=CASE WHEN EXISTS(SELECT 1 FROM marketing_sync_pages WHERE run_id=$1 AND status!='success') THEN 'error' ELSE 'success' END,finished_at=now() WHERE id=$1`,[runId]);
@@ -329,6 +329,77 @@ function createMarketingRepository({ pool = require('../db/pool').getPool() } = 
   async function listMonthlyAudit(rowId) {
     return (await pool.query('SELECT id::text AS id,row_id::text AS row_id,action,version::text AS version,actor,before_row AS before,after_row AS after,created_at FROM marketing_monthly_audit WHERE row_id=$1 ORDER BY version',[id(rowId)])).rows.map(camel);
   }
+  async function failIndependentPageSync({runId,pageId,completedAt=new Date().toISOString(),errorCode='PANCAKE_UNAVAILABLE'}) {
+    runId=id(runId);pageId=page(pageId);completedAt=timestamp(completedAt);
+    const code=SAFE_FAILURES.has(errorCode)?errorCode:'PANCAKE_UNAVAILABLE';
+    return transaction(async client=>{
+      const {run,result}=await lockPage(client,runId,pageId);
+      if(run.status!=='running'||result.status==='success')throw error('MARKETING_SYNC_CONFLICT',409);
+      await client.query("UPDATE marketing_sync_pages SET status='error',completed_at=$3::timestamptz,error_code=$4 WHERE run_id=$1 AND page_id=$2",[runId,pageId,completedAt,code]);
+      await client.query("UPDATE marketing_pancake_independent_page_state SET status='error',last_attempt_at=$2::timestamptz,error_code=$3 WHERE page_id=$1",[pageId,completedAt,code]);
+      return {pageId,status:'error',errorCode:code};
+    });
+  }
+  async function commitIndependentPageSync({runId,pageId,rows,completedAt=new Date().toISOString(),coverage}) {
+    runId=id(runId);pageId=page(pageId);completedAt=timestamp(completedAt);
+    if(!Array.isArray(rows)||coverage?.complete!==true||coverage.since!==0||!Number.isInteger(coverage.until))invalid();
+    const inputs=rows.map(apiInput).sort((a,b)=>a.sourceCreatedAt.localeCompare(b.sourceCreatedAt)||a.sourceKey.localeCompare(b.sourceKey));
+    if(new Set(inputs.map(r=>r.sourceKey)).size!==inputs.length)invalid();
+    const payloadHash=hash(inputs.map(factHash));
+    return transaction(async client=>{
+      const {run,result}=await lockPage(client,runId,pageId);
+      const key=(await client.query('SELECT run_key FROM marketing_sync_runs WHERE id=$1',[runId])).rows[0]?.run_key;
+      if(!key?.startsWith('pancake-independent:'))throw error('MARKETING_SYNC_CONFLICT',409);
+      if(result.status==='success'){if(result.payload_hash!==payloadHash)throw error('MARKETING_SYNC_CONFLICT',409);return camel(result);}
+      if(run.status!=='running')throw error('MARKETING_SYNC_CONFLICT',409);
+      let newFacts=0,newObservations=0;
+      // Page lock serializes writers; bounded bulk batches avoid one network round trip per message.
+      for(let offset=0;offset<inputs.length;offset+=1000){
+        const batch=inputs.slice(offset,offset+1000);
+        const existing=(await client.query('SELECT id::text AS id,source_key,latest_hash,source_created_at FROM marketing_pancake_independent_facts WHERE page_id=$1 AND source_key=ANY($2::text[]) FOR UPDATE',[pageId,batch.map(r=>r.sourceKey)])).rows;
+        const byKey=new Map(existing.map(f=>[f.source_key,f]));
+        const changes=[];
+        for(const row of batch){
+          const fact=byKey.get(row.sourceKey);
+          if(fact&&iso(fact.source_created_at)!==row.sourceCreatedAt)throw error('INVALID_MARKETING_INPUT');
+          const content=hash({...row,raw:null,historicalRowId:null,employeeRaw:row.employeeRaw.split(', ').filter(Boolean).sort().join(', ')});
+          if(fact?.latest_hash===content)continue;
+          const observedAt=timestamp(row.raw?.assignmentObservedAt??completedAt);
+          if(observedAt>completedAt)throw error('INVALID_MARKETING_INPUT');
+          changes.push({observed_at:observedAt,source_key:row.sourceKey,source_created_at:row.sourceCreatedAt,content_hash:content,input:row,
+            credited_date:new Date(+new Date(fact?observedAt:row.sourceCreatedAt)+7*3600000).toISOString().slice(0,10)});
+          if(!fact)newFacts++;
+        }
+        if(!changes.length)continue;
+        const savedFacts=(await client.query(`INSERT INTO marketing_pancake_independent_facts(page_id,source_key,source_created_at,latest_hash,current_input)
+          SELECT $1,t.source_key,t.source_created_at::timestamptz,t.content_hash,t.input
+          FROM jsonb_to_recordset($2::jsonb) AS t(source_key text,source_created_at text,content_hash text,input jsonb)
+          ORDER BY t.source_created_at,t.source_key
+          ON CONFLICT(page_id,source_key) DO UPDATE SET latest_hash=excluded.latest_hash,current_input=excluded.current_input
+          RETURNING id::text AS id,source_key`,[pageId,JSON.stringify(changes)])).rows;
+        const ids=new Map(savedFacts.map(f=>[f.source_key,f.id]));
+        await client.query(`INSERT INTO marketing_pancake_independent_observations(fact_id,run_id,observed_at,credited_date,input)
+          SELECT t.fact_id,$1,t.observed_at::timestamptz,t.credited_date::date,t.input
+          FROM jsonb_to_recordset($2::jsonb) AS t(fact_id bigint,observed_at text,credited_date text,input jsonb) ORDER BY t.input->>'sourceCreatedAt',t.input->>'sourceKey'`,
+          [runId,JSON.stringify(changes.map(change=>({fact_id:ids.get(change.source_key),observed_at:change.observed_at,credited_date:change.credited_date,input:change.input})))]);
+        newObservations+=changes.length;
+      }
+      const saved=(await client.query("UPDATE marketing_sync_pages SET status='success',completed_at=$3::timestamptz,error_code=NULL,payload_hash=$4,input_count=$5,new_facts=$6,new_observations=$7 WHERE run_id=$1 AND page_id=$2 RETURNING *",[runId,pageId,completedAt,payloadHash,inputs.length,newFacts,newObservations])).rows[0];
+      await client.query("UPDATE marketing_pancake_independent_page_state SET status='success',last_success_at=$2::timestamptz,last_attempt_at=$2::timestamptz,error_code=NULL,coverage=$3::jsonb WHERE page_id=$1",[pageId,completedAt,JSON.stringify(coverage)]);
+      return camel(saved);
+    });
+  }
+  async function readIndependentSnapshot({includeRaw=true}={}) {
+    return transaction(async client=>{
+      const pages=(await client.query('SELECT p.page_id,p.name,p.platform,s.status,s.last_success_at,s.last_attempt_at,s.error_code,s.coverage FROM marketing_pages p JOIN marketing_pancake_independent_page_state s ON s.page_id=p.page_id ORDER BY p.page_id')).rows.map(camel);
+      const aliases=(await client.query('SELECT raw_name,report_employee,updated_at,actor FROM marketing_employee_aliases ORDER BY raw_name')).rows.map(camel);
+      const observations=(await client.query(`SELECT o.id::text AS id,o.fact_id::text AS fact_id,o.run_id::text AS run_id,o.source_order::text AS source_order,o.observed_at,o.credited_date::text AS credited_date,${includeRaw?'o.input':"o.input - 'raw'"} AS input,f.page_id,f.source_key FROM marketing_pancake_independent_observations o JOIN marketing_pancake_independent_facts f ON f.id=o.fact_id ORDER BY o.source_order`)).rows;
+      const rawRows=observations.map(row=>{const {input,...meta}=row;const out={...input,...camel(meta),origin:'pancake',independent:true};if(!includeRaw)delete out.raw;return out;});
+      const monthlyRows=(await client.query(`SELECT ${includeRaw?monthlyColumns:monthlyColumns.replace(',source_raw','')} FROM marketing_monthly_rows WHERE origin='manual' ORDER BY report_year,report_month,id`)).rows.map(monthlyShape);
+      const latest=(await client.query("SELECT id::text AS id FROM marketing_sync_runs WHERE starts_with(run_key,'pancake-independent:') ORDER BY id DESC LIMIT 1")).rows[0];
+      return {pages,aliases,rawRows,monthlyRows,facts:[],latestRun:latest?await syncRun(client,latest.id):null};
+    },true);
+  }
   async function readSnapshot({ includeRaw = true, includeIdentities = false } = {}) {
     return transaction(async client => {
       const pages=(await client.query('SELECT page_id,name,platform,status,last_success_at,last_attempt_at,error_code FROM marketing_pages ORDER BY page_id')).rows.map(camel);
@@ -338,14 +409,14 @@ function createMarketingRepository({ pool = require('../db/pool').getPool() } = 
       const observations=(await client.query(`SELECT o.id::text AS id,o.fact_id::text AS fact_id,o.run_id::text AS run_id,o.source_order::text AS source_order,f.page_id,f.source_key,f.historical_row_id::text AS historical_row_id,o.source_created_at,o.credited_date::text AS credited_date,o.message_id,o.conversation_id,o.type,o.phone,o.phone_key,o.employee_raw${includeRaw ? ",o.raw" : ""} FROM marketing_pancake_observations o JOIN marketing_pancake_facts f ON f.id=o.fact_id ORDER BY o.source_order`)).rows.map(row=>({...camel(row),origin:'pancake',sourceCreatedAt:iso(row.source_created_at)}));
       const rawRows=[...history,...observations].sort((a,b)=>BigInt(a.sourceOrder)<BigInt(b.sourceOrder) ? -1 : 1);
       const monthlyRows=(await client.query(`SELECT ${includeRaw ? monthlyColumns : monthlyColumns.replace(",source_raw", "")} FROM marketing_monthly_rows ORDER BY report_year,report_month,id`)).rows.map(monthlyShape);
-      const latestRunId=(await client.query('SELECT id::text AS id FROM marketing_sync_runs ORDER BY id DESC LIMIT 1')).rows[0]?.id;
+      const latestRunId=(await client.query("SELECT id::text AS id FROM marketing_sync_runs WHERE NOT starts_with(run_key,'pancake-independent:') ORDER BY id DESC LIMIT 1")).rows[0]?.id;
       // Identity links are only needed by sync; report reads skip them.
       const identities=includeIdentities ? (await client.query('SELECT history_row_id::text AS history_row_id,page_id,message_id,resolution FROM marketing_history_identities')).rows.map(camel) : [];
       const baselineMessages=includeIdentities ? (await client.query('SELECT page_id,message_id FROM marketing_baseline_messages')).rows.map(camel) : [];
       return {pages,aliases,facts,rawRows,monthlyRows,identities,baselineMessages,latestRun:latestRunId ? await syncRun(client,latestRunId) : null};
     },true);
   }
-  return Object.fromEntries(Object.entries({importHistory,importIdentities,upsertAlias,startSyncRun,commitPageSync,failPageSync,finishSyncRun,getSyncRun,getLatestSlotRun,readSnapshot,createMonthlyRow,updateMonthlyRow,listMonthlyRows,listMonthlyAudit}).map(([name,fn])=>[name,safe(fn)]));
+  return Object.fromEntries(Object.entries({importHistory,importIdentities,readIndependentSnapshot,commitIndependentPageSync,failIndependentPageSync,upsertAlias,startSyncRun,commitPageSync,failPageSync,finishSyncRun,getSyncRun,getLatestSlotRun,readSnapshot,createMonthlyRow,updateMonthlyRow,listMonthlyRows,listMonthlyAudit}).map(([name,fn])=>[name,safe(fn)]));
 }
 
 module.exports={createMarketingRepository,PAGE_IDS,PAGE_NAMES};

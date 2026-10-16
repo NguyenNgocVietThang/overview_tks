@@ -8,7 +8,7 @@ function setup() {
   let now=Date.UTC(2026,9,8), total=999, reads=0;
   const client={listSheetTitles:async()=>['BC Tháng 10','BẢNG XẾP HẠNG'],getValues:async name=>{reads++;return name==='BẢNG XẾP HẠNG'?ranking:monthValues(total);}};
   const denied={listSheetTitles:async()=>{throw new Error('secret upstream credential');}};
-  const svc=createMarketingReportService({clients:{report:client,phones:denied,ads:denied},now:()=>now});
+  const svc=createMarketingReportService({source:'sheets',clients:{report:client,phones:denied,ads:denied},now:()=>now});
   return {svc,reads:()=>reads,advance:()=>{now+=300001;total=1000;}};
 }
 test('metadata allows sources to fail independently and month is Vietnam current month',async()=>{
@@ -40,7 +40,7 @@ test('costs without monthly totals sum valid daily cells and disclose missing va
   ['Ngày','Chi phí','Chi phí +VAT','SL mess','Chi phí /mess','SL SĐT','Chi phí /SĐT'],
   ['01/10',10,12,2,6,1,12],['02/10','#N/A','#N/A',3,'#N/A',2,'#N/A']
  ]};
- const svc=createMarketingReportService({clients:{ads},now:()=>Date.UTC(2026,9,8)});
+ const svc=createMarketingReportService({source:'sheets',clients:{ads},now:()=>Date.UTC(2026,9,8)});
  const data=await svc.report('costs',{month:'10'});
  assert.equal(data.summaryRows[0].totalCost,12);
  assert.equal(data.summaryRows[0].messages,5);
@@ -57,7 +57,7 @@ test('employee/page check detail uses source row and phone aliases within select
   ['Số điện thoại','Nhân viên lần đầu','Nhân viên hiện tại','Tính chào lại','THỜI GIAN','THỜI GIAN','Tính chào lại'],
   ['0912345678','Alias','Alias','','01/10','01/10',''],['0922222222','Alias','Alias','','01/09','01/09','']
  ]};
- const svc=createMarketingReportService({clients:{report,phones},now:()=>Date.UTC(2026,9,8)});
+ const svc=createMarketingReportService({source:'sheets',clients:{report,phones},now:()=>Date.UTC(2026,9,8)});
  const data=await svc.report('receipt-check',{month:'10'});
  const detail=await svc.detail({kind:'receipt-check',key:data.rows[0].key,snapshotId:data.snapshotId});
  assert.equal(detail.groups[0].rows.length,1);
@@ -72,7 +72,7 @@ function kiotSetup(writer) {
     ['Bình','KH Không Có','0900000000','Hữu Nghị','Đã chốt đơn','Mới','02/10/2026',6],
     ['Bình','KH Chưa Mua','0911111111','Hữu Nghị','Chưa chốt','Mới','',7]]};
   const revenue=async month=>({available:month===10,revenueOf:name=>({'kh a khiêm':1200000,'kh chưa mua':0})[String(name).toLowerCase()]??null});
-  return createMarketingReportService({clients:{report:client},now:()=>Date.UTC(2026,9,8),revenue,writer});
+  return createMarketingReportService({source:'sheets',clients:{report:client},now:()=>Date.UTC(2026,9,8),revenue,writer});
 }
 
 test('doanh số lấy từ KiotViet theo tên khách; không khớp là — và được báo',async()=>{
@@ -84,7 +84,7 @@ test('doanh số lấy từ KiotViet theo tên khách; không khớp là — và
 });
 
 test('tháng chưa có dữ liệu KiotViet: doanh số — kèm cảnh báo',async()=>{
-  const svc=createMarketingReportService({clients:{report:{listSheetTitles:async()=>['BC Tháng 2'],getValues:async()=>[['SALE'],[],['An','KH A','0912345678','Hữu Nghị','','','',5]]}},now:()=>Date.UTC(2026,9,8),revenue:async()=>({available:false,revenueOf:()=>null})});
+  const svc=createMarketingReportService({source:'sheets',clients:{report:{listSheetTitles:async()=>['BC Tháng 2'],getValues:async()=>[['SALE'],[],['An','KH A','0912345678','Hữu Nghị','','','',5]]}},now:()=>Date.UTC(2026,9,8),revenue:async()=>({available:false,revenueOf:()=>null})});
   const data=await svc.report('monthly',{month:'2'});
   assert.equal(data.rows[0].revenue,null);assert.ok(data.warnings.some(w=>w.includes('Chưa có dữ liệu doanh số KiotViet')));
 });

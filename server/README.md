@@ -1,3 +1,4 @@
+<!-- Chính sách hiện hành: mục 16/10/2026 — Tập Pancake độc lập ở cuối tài liệu. Các mốc cũ giữ làm lịch sử. -->
 # TOKOSI Dashboard Server
 
 Express backend cho dashboard TOKOSI.
@@ -354,3 +355,19 @@ Cột Phạt/điểm làm tròn hiển thị đến số nguyên đồng trên b
 16/10/2026 — Gỡ tab Khách hàng cũ và đổi tên tab Báo cáo kinh doanh thành Khách hàng (xem mục Cập nhật gần nhất).
 
 16/10/2026 — Tab Hàng hóa còn Báo cáo hàng hóa (từ Tổng quan) + Tăng trưởng mã hàng (từ tab Khách hàng); các mục cũ của tab Hàng hóa và quyền `reports.products.cost` đã gỡ.
+
+## 16/10/2026 — Tập Pancake độc lập (phương án B đã duyệt)
+
+Đặt MARKETING_REPORT_SOURCE=pancake và PANCAKE_MARKETING_SYNC_ENABLED=true sau khi áp migration 0056_pancake_independent.sql. Chế độ postgres cũ vẫn là lịch sử hỗn hợp; không dùng để công bố dữ liệu chỉ Pancake. Hai tập tách bảng, không xóa/sửa lịch sử. Trong Sao lưu SĐT và Check tỷ lệ nhận số có bộ chọn Lịch sử cũ (có nguồn Sheets) để tra cứu; dataset=legacy được truyền cả vào chi tiết và xuất file.
+
+- Scheduler backend chạy độc lập việc mở dashboard: bắt kịp slot gần nhất khi server khởi động, sau đó 23:55 Asia/Ho_Chi_Minh; khóa PostgreSQL ngăn trùng nhiều tiến trình. Production cần dịch vụ luôn chạy; dịch vụ ngủ không thể chạy đúng giờ (sẽ bắt kịp khi thức).
+- Sáu page fetch từ since=0 tới thời điểm bắt đầu job, hết phân trang INBOX/COMMENT và tin nhắn; lưu coverage từng page (phạm vi, số trang/tin và giới hạn truy cập API). Complete chỉ xác nhận đã đọc hết phạm vi API trả về, không cam kết phục hồi tin đã xóa hoặc không được cấp quyền. Page lỗi không commit dữ liệu dở dang, giữ snapshot thành công và công bố cảnh báo thiếu dữ liệu.
+- Không đọc marketing_baseline_messages, liên kết lịch sử, CHUẨN, CHECK hoặc bảng tên Sheets để tính tập mới. Không cần đối soát Sheets để công bố. Giữ nguyên chuỗi SĐT nguồn, nhóm riêng theo page; không tự gộp +84/0.
+- Lần đầu là ngày tạo tin sớm nhất đổi UTC+7. Nhân viên lần đầu là assignment được hệ thống quan sát trên tin đó, không phải bằng chứng người phụ trách tại thời điểm tạo tin. Chào lại cần người đầu/cuối nguồn khác nhau, có chuyển người trên cùng tin được quan sát qua các ngày khác nhau; ngày là ngày quan sát bằng chứng. Đổi cùng ngày, thiếu người, A→B→A không tạo chào lại theo quy tắc đầu/cuối. Ánh xạ tên sau chọn đầu/cuối; nhiều tên nguồn về một nhân viên vẫn giữ bằng chứng đổi tên nguồn. Quy đổi = lần đầu + chào lại/5.
+- Khách chốt chưa có sự kiện Pancake được xác minh. Chỉ đếm dòng BC tháng nhập web (origin=manual), không trộn dòng Sheets cũ. Chưa có dòng tháng thì khách chốt/tỷ lệ là null (—); có dòng thì ghi rõ nguồn manual-db, không tuyên bố đã nhập đủ toàn bộ tháng. Tỷ lệ tổng = tổng dòng nhập / tổng quy đổi, mẫu số 0 là —.
+- Doanh số: KiotViet. ADS/VAT/phí thuê: Sheets. Metadata Pancake không gọi Sheets; lỗi ADS chỉ ảnh hưởng phần chi phí. Sửa/ánh xạ BC tháng vẫn yêu cầu Quản lý và quyền sửa; có version/audit DB.
+- Chi tiết pin snapshot trong 30 phút. XLSX/HTML dùng cùng report service và kèm nguồn, snapshot, cảnh báo. Rerun cùng slot không tăng số; --retry cho một lần thử bổ sung khi slot lỗi. Ngày tạo tin được giữ bất biến; sai thời gian nguồn làm page lỗi.
+
+Lệnh kiểm tra: cd server; node --test marketingReport/*.test.js test/frontend/marketing-report.test.js
+Lệnh nạp thật: npm run marketing:pancake:sync -- --apply --date YYYY-MM-DD --report-file PATH (cấu hình source=pancake).
+Không đưa token hoặc dữ liệu cá nhân vào log/tài liệu công khai. Xem phần trạng thái triển khai mới nhất bên dưới; mã trên main không có nghĩa production đã được deploy.

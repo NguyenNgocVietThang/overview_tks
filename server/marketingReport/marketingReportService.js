@@ -244,6 +244,12 @@ function createMarketingReportService({clients, now=Date.now, revenue, writer, r
     return {ok:true,field,value};
   }
   const legacy={metadata,report,detail,updateRow};
+  if(source==='pancake'){
+    const create=require('./marketingDatabaseReportService').createDatabaseMarketingReportService;
+    const primary=create({repository,businessRepository,legacy,revenue,now,independent:true});
+    const history=create({repository,businessRepository,legacy,revenue,now});
+    return {...primary,report:(kind,q={})=>q.dataset==='legacy'?history.report(kind,q):primary.report(kind,q),detail:(q={})=>q.dataset==='legacy'?history.detail(q):primary.detail(q)};
+  }
   if(source==='postgres')return require('./marketingDatabaseReportService').createDatabaseMarketingReportService({repository,businessRepository,legacy,revenue,now});
   return legacy;
 }

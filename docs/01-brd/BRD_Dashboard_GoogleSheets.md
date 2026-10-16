@@ -324,3 +324,6 @@ Khách hoạt động (15/10/2026): toàn bộ tính năng Công nợ chỉ dùn
 16/10/2026 — Gỡ tab Khách hàng cũ (Top khách theo doanh thu, Chi tiết khách nợ, quyền `reports.customers`, `view=customers`); tab Báo cáo kinh doanh đổi tên thành **Khách hàng** (giữ khóa quyền `reports.business`), Báo cáo tổng hợp còn 6 tab.
 
 16/10/2026 — Tab Hàng hóa còn Báo cáo hàng hóa (từ Tổng quan) + Tăng trưởng mã hàng (từ tab Khách hàng); các mục cũ của tab Hàng hóa và quyền `reports.products.cost` đã gỡ.
+
+## Marketing 16/10/2026
+Phương án B đã duyệt: tập SĐT/KPI Pancake riêng trong PostgreSQL, ngày tạo tin UTC+7, assignment chỉ từ nhật ký quan sát; không phụ thuộc đối soát hay baseline Sheets. BC chốt nhập web/DB có nguồn riêng, chưa đủ thì —. Doanh số KiotViet; chi phí ADS/VAT/phí thuê Sheets. Xem docs/marketing-report-setup.md về nguồn, coverage và trạng thái kích hoạt.

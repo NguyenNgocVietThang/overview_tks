@@ -290,3 +290,12 @@ test('hộp chi tiết Marketing: hàng chỉ số dạng .dp-stat và bảng tr
   assert.equal(dialog.querySelector('th .sort-indicator').textContent,'▲▼');
   p.dom.window.close();
 });
+
+test('Pancake independent dataset labels sources and preserves legacy selection in details and exports',async()=>{
+ const p=page(async url=>{const reply=json=>({ok:true,status:200,json:async()=>json});if(url.includes('/metadata?'))return reply({sourceMode:'database',dataset:'pancake-independent',canEdit:true,currentMonth:10,currentYear:2026,months:{monthly:[10],check:[10],costs:[10]},pages:[]});if(url.includes('/sync-status?'))return reply({pages:[]});});
+ await p.window.TKSMarketing.load();assert.match(p.doc.getElementById('marketingSourceStatus').textContent,/Pancake độc lập/);
+ for(const kind of ['phones','monthly','receipt-check'])assert.ok(p.doc.getElementById('marketing-'+kind+'-dataset'));
+ const select=p.doc.getElementById('marketing-monthly-dataset');select.value='legacy';select.dispatchEvent(new p.window.Event('change'));await settle();assert.equal(p.doc.querySelector('#marketing-monthly-rows .mini-filter-apply'),null);
+ const phones=p.doc.getElementById('marketing-phones-dataset');phones.value='legacy';phones.dispatchEvent(new p.window.Event('change'));await settle();
+ p.doc.querySelector('#marketing-phones-rows [data-detail-key]').click();await settle();const detail=p.urls.filter(u=>u.includes('/detail?')).at(-1);assert.equal(new URL(detail,'https://example.test').searchParams.get('dataset'),'legacy');p.dom.window.close();
+});

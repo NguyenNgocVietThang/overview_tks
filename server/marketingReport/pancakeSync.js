@@ -3,10 +3,10 @@ const {createMarketingRepository,PAGE_IDS}=require('./marketingRepository');
 const {createPancakeClient,safeError}=require('./pancakeClient');
 const {phoneText}=require('./marketingParsers');
 const {isPhoneReportObservation}=require('./marketingAggregation');
-const LOCK_KEYS=[731042,2355];
-function createPostgresSyncLock({pool=require('../db/pool').getPool()}={}) {
+function createPostgresSyncLock({pool=require('../db/pool').getPool(),independent=false}={}) {
+ const LOCK_KEYS=[731042,independent?2356:2355];
  return {async acquire(){let client;try{client=await pool.connect();const result=await client.query('SELECT pg_try_advisory_lock($1,$2) AS locked',LOCK_KEYS);if(!result.rows[0]?.locked){client.release();return null;}}catch{client?.release(true);throw safeError('MARKETING_STORAGE_ERROR');}
-  let released=false;return {listRunningRunIds:async()=>{try{return (await client.query("SELECT id::text AS id FROM marketing_sync_runs WHERE status='running' ORDER BY id")).rows.map(r=>r.id);}catch{throw safeError('MARKETING_STORAGE_ERROR');}},async release(){if(released)return;released=true;try{const result=await client.query('SELECT pg_advisory_unlock($1,$2) AS unlocked',LOCK_KEYS);if(result.rows[0]?.unlocked!==true)throw Error();client.release();}catch{client.release(true);throw safeError('MARKETING_STORAGE_ERROR');}}};}};
+  let released=false;return {listRunningRunIds:async()=>{try{return (await client.query("SELECT id::text AS id FROM marketing_sync_runs WHERE status='running' AND starts_with(run_key,$1) ORDER BY id",[independent?'pancake-independent:':'pancake:'])).rows.map(r=>r.id);}catch{throw safeError('MARKETING_STORAGE_ERROR');}},async release(){if(released)return;released=true;try{const result=await client.query('SELECT pg_advisory_unlock($1,$2) AS unlocked',LOCK_KEYS);if(result.rows[0]?.unlocked!==true)throw Error();client.release();}catch{client.release(true);throw safeError('MARKETING_STORAGE_ERROR');}}};}};
 }
 const phoneParts=value=>String(value).split(',').map(s=>s.trim()).sort();
 const employeeParts=value=>String(value??'').split(', ').filter(Boolean).sort();
@@ -67,12 +67,13 @@ function preparePageRows(rows,snapshot,pageId) {
  return Object.defineProperty(planned,'skipped',{value:skipped});
 }
 function pageHorizon(snapshot,pageId){const times=snapshot.rawRows.filter(r=>r.origin==='sheet'&&r.pageId===pageId&&isPhoneReportObservation(r)&&r.sourceCreatedAt).map(r=>+new Date(r.sourceCreatedAt));return times.length?Math.max(0,Math.floor(Math.min(...times)/1000)-86400):0;}
-function createPancakeSync({repository=createMarketingRepository(),client=createPancakeClient(),lock=createPostgresSyncLock(),now=()=>new Date()}={}) {
+function createPancakeSync({repository=createMarketingRepository(),client=createPancakeClient(),lock,now=()=>new Date(),independent=process.env.MARKETING_REPORT_SOURCE==='pancake'}={}) {
+ lock??=createPostgresSyncLock({independent});
  async function run({slotDate,retry=false}={}) {
   const parsedSlot=new Date(slotDate+'T00:00:00Z');
   if(!/^\d{4}-\d{2}-\d{2}$/.test(slotDate||'')||!Number.isFinite(+parsedSlot)||parsedSlot.toISOString().slice(0,10)!==slotDate)throw safeError('INVALID_MARKETING_INPUT');
   const lease=await lock.acquire();if(!lease)return {skipped:'busy'};
-  try {const runStartedAt=now();const until=Math.floor(+runStartedAt/1000);const baseKey='pancake:'+slotDate;let recovered=false,recoveryKey=null;
+  try {const runStartedAt=now();const until=Math.floor(+runStartedAt/1000);const baseKey=(independent?'pancake-independent:':'pancake:')+slotDate;let recovered=false,recoveryKey=null;
    for(const id of await lease.listRunningRunIds()){const stale=await repository.getSyncRun(id);await repository.finishSyncRun(id);if(stale.runKey===baseKey)recovered=true;
     else if(stale.runKey.startsWith(baseKey+':retry:1')&&stale.status==='running'){recovered=true;recoveryKey=stale.runKey+':recovery';}}
    let run=await repository.startSyncRun({runKey:baseKey,startedAt:runStartedAt.toISOString()});
@@ -84,17 +85,25 @@ function createPancakeSync({repository=createMarketingRepository(),client=create
     run=await repository.startSyncRun({runKey:recoveryKey||baseKey+':retry:1',startedAt:runStartedAt.toISOString()});
     if(run.status!=='running')return {...await repository.getSyncRun(run.id),replayed:true};
    }
-   const snapshot=await repository.readSnapshot({includeIdentities:true});const unresolved=[],baselineSkipped=[];const adoptedIds=new Set([...snapshot.facts.map(f=>f.historicalRowId),...(snapshot.identities||[]).map(l=>l.historyRowId)].filter(Boolean));
+   const snapshot=independent?{rawRows:[],facts:[]}:await repository.readSnapshot({includeIdentities:true});const unresolved=[],baselineSkipped=[];const adoptedIds=new Set([...snapshot.facts.map(f=>f.historicalRowId),...(snapshot.identities||[]).map(l=>l.historyRowId)].filter(Boolean));
    // Pages use independent tokens and rate limits, so read them concurrently (the largest page dominates the run);
    // everything is still prepared and committed one page at a time.
-   const fetches=new Map(PAGE_IDS.map(pageId=>[pageId,client.fetchPage(pageId,{since:pageHorizon(snapshot,pageId),until}).then(rows=>({rows}),error=>({error}))]));
-   for(const pageId of PAGE_IDS){try {
-    const fetched=await fetches.get(pageId);if(fetched.error)throw fetched.error;const rows=fetched.rows;
-    const prepared=preparePageRows(rows,snapshot,pageId);
-    await repository.commitPageSync({runId:run.id,pageId,rows:prepared,completedAt:now().toISOString(),completionNow:now});
+   const fetches=new Map(PAGE_IDS.map(pageId=>[pageId,client.fetchPage(pageId,{since:independent?0:pageHorizon(snapshot,pageId),until}).then(rows=>({rows}),error=>({error}))]));
+   let committing=Promise.resolve();
+   const processPage=async pageId=>{
+    const fetched=await fetches.get(pageId);
+    const previous=committing;let releaseCommit;committing=new Promise(resolve=>{releaseCommit=resolve;});await previous;
+    try {
+    if(fetched.error)throw fetched.error;const rows=fetched.rows;
+    const prepared=independent?rows:preparePageRows(rows,snapshot,pageId);
+    await repository[independent?'commitIndependentPageSync':'commitPageSync']({runId:run.id,pageId,rows:prepared,completedAt:now().toISOString(),completionNow:now,coverage:rows.coverage});
     if(prepared.skipped&&(prepared.skipped.baselineExcluded||prepared.skipped.preWindow))baselineSkipped.push({pageId,...prepared.skipped});
     for(const row of prepared)if(row.historicalRowId)adoptedIds.add(row.historicalRowId);
-   }catch(error){if(error.unresolved)unresolved.push(...error.unresolved);await repository.failPageSync({runId:run.id,pageId,completedAt:now().toISOString(),errorCode:error.code||'PANCAKE_UNAVAILABLE'});}}
+   }catch(error){if(error.unresolved)unresolved.push(...error.unresolved);await repository[independent?'failIndependentPageSync':'failPageSync']({runId:run.id,pageId,completedAt:now().toISOString(),errorCode:error.code||'PANCAKE_UNAVAILABLE'});}finally{releaseCommit();}};
+   if(independent){
+    const results=await Promise.allSettled(PAGE_IDS.map(processPage));
+    const failure=results.find(r=>r.status==='rejected');if(failure)throw failure.reason;
+   }else for(const pageId of PAGE_IDS)await processPage(pageId);
    const unlinkedHistoricalRows=PAGE_IDS.map(pageId=>({pageId,rowReferences:snapshot.rawRows.filter(r=>r.origin==='sheet'&&r.pageId===pageId&&isPhoneReportObservation(r)&&!adoptedIds.has(r.id)).map(rowRef)})).filter(r=>r.rowReferences.length);
    return {...await repository.finishSyncRun(run.id),unresolved,unlinkedHistoricalRows,baselineSkipped};
   }finally{await lease.release();}
