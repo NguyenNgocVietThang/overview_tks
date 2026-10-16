@@ -6,6 +6,8 @@
 // dung cho ca route GET va luong xuat Excel (exportService.js) de khong viet
 // trung logic map cot o 2 noi.
 const { getPool } = require('../db/pool');
+const { readContainerSummary } = require('../productContainers/repository');
+const { normalizeCode } = require('../productContainers/parser');
 
 function mapRow(row) {
   return {
@@ -43,7 +45,13 @@ async function getProductReport({ pool = getPool() } = {}) {
   const computedAt = items.length ? items.reduce((latest, item) => (
     !latest || (item.computedAt && item.computedAt > latest) ? item.computedAt : latest
   ), null) : null;
-  return { rows: items, computedAt };
+  const { containerSync, totals } = await readContainerSummary(pool);
+  for (const item of items) {
+    const quantities = totals[normalizeCode(item.code)];
+    item.unloadedQty = containerSync.available ? Number(quantities?.unloadedQty || 0) : null;
+    item.loadedQty = containerSync.available ? Number(quantities?.loadedQty || 0) : null;
+  }
+  return { rows: items, computedAt, containerSync };
 }
 
 // Khung "Chi tiet" duoi bang: doanh so 90 ngay cua tung khach da mua ma hang nay

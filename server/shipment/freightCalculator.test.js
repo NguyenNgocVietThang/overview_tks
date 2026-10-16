@@ -77,3 +77,29 @@ test('buildOrderFreight: co ma thieu -> khong tinh cuoc, liet ke ma thieu', () =
   assert.deepEqual(freight.missingCodes, ['X', 'Z']);
   assert.equal(freight.carriers, null);
 });
+
+test('J&T: moi thung = max(40k, 4k x the tich quy doi, kg x 4k); cuoc dong = cuoc thung x so thung', () => {
+  // 100 sp/thung, 0,01 m3/sp => 1 m3/thung => 1e6 cm3 / 6000 x 4k = 666.667; 0,5 kg/sp => 50 kg => 200.000.
+  const measures = new Map([
+    ['a', { perCarton: 100, m3PerUnit: 0.01, kgPerUnit: 0.5 }],
+    ['b', { perCarton: 10, m3PerUnit: 0.0001, kgPerUnit: 0.01 }],
+    ['c', { perCarton: 10, m3PerUnit: 0.0001, kgPerUnit: 20 }]
+  ]);
+  const { freight } = buildOrderFreight([
+    { productCode: 'A', quantity: 200 }, { productCode: 'B', quantity: 10 }, { productCode: 'C', quantity: 10 }
+  ], measures);
+  const { JT } = freight.carriers;
+  assert.equal(JT.label, 'J&T');
+  assert.equal(JT.surcharge, 0);
+  // A: 2 thung x 666.667 | B: 1 thung, the tich 0,001 m3 -> 667 < 40k -> 40k | C: 200 kg x 4k = 800.000
+  assert.equal(JT.steps.length, 3);
+  assert.equal(JT.total, Math.round(2 * (1e6 / 6000) * 4000) + 40000 + 800000);
+});
+
+test('J&T: SL > 0 nhung lam tron 0 thung van tinh toi thieu 1 thung; dong dich vu bi bo qua', () => {
+  const measures = new Map([['a', { perCarton: 100, m3PerUnit: 0.0001, kgPerUnit: 0 }]]);
+  const { freight } = buildOrderFreight([
+    { productCode: 'A', quantity: 10 }, { productCode: 'VAT8', quantity: 1, isService: true }
+  ], measures);
+  assert.equal(freight.carriers.JT.total, 40000);
+});

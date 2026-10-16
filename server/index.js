@@ -141,6 +141,10 @@ async function startServer() {
     // scheduler do tat khi khong bat KiotViet.
     if (CONFIG.SPECIAL_DAYS_NOTIFY_ENABLED) startSpecialDayNotifySchedule();
 
+    const containerSchedule = require('./productContainers/sync').startContainerSchedule();
+    process.once('SIGTERM', () => containerSchedule.stop());
+    process.once('SIGINT', () => containerSchedule.stop());
+
     if (CONFIG.PANCAKE_MARKETING_SYNC_ENABLED) {
       const pancakeScheduler = require('./marketingReport/pancakeScheduler').createPancakeScheduler({ enabled: true });
       pancakeScheduler.start();

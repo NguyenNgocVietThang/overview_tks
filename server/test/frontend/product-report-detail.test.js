@@ -31,7 +31,7 @@ function customersPayload(code, count = 3) {
   return { code, totalRevenue: total, customerCount: count, rows };
 }
 
-function createPage({ customers = code => customersPayload(code) } = {}) {
+function createPage({ customers = code => customersPayload(code), containers, meta, report, containerStatus = 200 } = {}) {
   const dom = new JSDOM(html, { runScripts: 'outside-only', url: 'https://tokosi.example/' });
   dom.window.HTMLCanvasElement.prototype.getContext = () => ({});
   const charts = [];
@@ -50,8 +50,13 @@ function createPage({ customers = code => customersPayload(code) } = {}) {
     const href = String(url);
     urls.push(href);
     if (href === '/api/product-report') {
-      return Promise.resolve({ ok: true, status: 200, json: async () => ({ rows: PRODUCTS, computedAt: '2026-09-29T00:15:00.000Z' }) });
+      return Promise.resolve({ ok: true, status: 200, json: async () => report ? report() : ({ rows: PRODUCTS, computedAt: '2026-09-29T00:15:00.000Z' }) });
     }
+    if (href.startsWith('/api/product-report/containers?code=') && containers) {
+      const payload = containers(decodeURIComponent(href.split('code=')[1]));
+      return Promise.resolve(payload).then(data => ({ ok: !(data instanceof Error) && containerStatus < 400, status: data instanceof Error ? 500 : containerStatus, json: async () => data }));
+    }
+    if (href === '/api/product-report/containers/meta' && meta) return Promise.resolve({ ok: true, json: async () => ({ containerSync: meta() }) });
     if (href.startsWith('/api/product-report/customers?code=')) {
       const code = decodeURIComponent(href.split('code=')[1]);
       const payload = customers(code);
@@ -66,7 +71,7 @@ function createPage({ customers = code => customersPayload(code) } = {}) {
   });
   const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(match => match[1]).filter(script => script.trim());
   const mainIndex = scripts.reduce((best, script, index) => (script.length > scripts[best].length ? index : best), 0);
-  scripts.forEach(script => dom.window.eval(script));
+  scripts.forEach((script, index) => dom.window.eval(script + (index === mainIndex ? '\nwindow.__reportTestState = state;' : '')));
 
   const doc = dom.window.document;
   return { dom, doc, charts, urls, run: code => dom.window.eval(code), $: id => doc.getElementById(id) };
@@ -76,20 +81,20 @@ const pieCharts = page => page.charts.filter(chart => chart.config.type === 'dou
 const rowOf = (page, code) => [...page.$('productReportRows').querySelectorAll('tr.doc-row')].find(tr => tr.dataset.tableItemId === code);
 const modalText = page => page.$('docModalBody').textContent.replace(/\s+/g, ' ');
 
-test('bang bo cot "DS Khach lon nhat" va KHONG con cot/nut "Chi tiet" (10 cot), dong bam duoc', async () => {
+test('bang bo cot "DS Khach lon nhat" va KHONG con cot/nut "Chi tiet" (12 cot), dong bam duoc', async () => {
   const page = createPage();
   await settle();
 
   const headers = [...page.$('productReportRows').closest('table').querySelectorAll('thead th')].map(th => th.textContent.replace(/[↕▲▼]/g, '').trim());
   assert.deepEqual(headers, [
-    'Mã SP', 'Tên SP', 'Tồn HN', 'Tồn SG', 'Tồn có bán', 'Tổng SL 30 ngày', 'DS 90 ngày',
+    'Mã SP', 'Tên SP', 'Chưa bốc', 'Đã bốc', 'Tồn HN', 'Tồn SG', 'Tồn có bán', 'Tổng SL 30 ngày', 'DS 90 ngày',
     'SL khách bán', 'Khách lớn nhất', '% Khách lớn'
   ]);
 
   const firstRow = page.$('productReportRows').querySelector('tr');
-  assert.equal(firstRow.cells.length, 10);
-  assert.match(firstRow.cells[8].textContent, /KH A/);
-  assert.match(firstRow.cells[9].textContent, /60/);
+  assert.equal(firstRow.cells.length, 12);
+  assert.match(firstRow.cells[10].textContent, /KH A/);
+  assert.match(firstRow.cells[11].textContent, /60/);
   assert.equal(page.$('productReportRows').querySelector('button'), null);
   assert.equal(firstRow.getAttribute('tabindex'), '0');
 });
@@ -244,4 +249,128 @@ test('hop KHONG co nut "Cột hiển thị" / thanh keo do rong cot: bang khach 
   page.dom.window.TKSTables.refreshAll();
   assert.equal(page.$('docModalBackdrop').querySelectorAll('.tks-columns-button, .tks-column-resizer').length, 0);
   assert.doesNotMatch(page.$('docModalBackdrop').textContent, /Cột hiển thị/);
+});
+
+const CONTAINER_ROW = { containerName: 'CONT 10-7G', status: 2, statusLabel: '2. Chưa bốc', eta: 'DK 14-16/10', color: 'Đỏ/Vàng', saleNote: '<b>Trinh</b>', quantity: 50, orderedBy: 'Ánh', listedAt: '15/10', unitsPerPackage: 10, packageCount: 5, vietnamPrice: 26420 };
+const READY_SYNC = { available: true, version: 'v1', lastSuccessAt: '2026-10-15T02:00:00Z' };
+
+test('hang du kien hien dong thoi voi doanh so, 6 cot cho sale va 11 cot cho quyen day du', async () => {
+  for (const fullAccess of [false, true]) {
+    const page = createPage({ containers: code => ({ code, fullAccess, rows: [CONTAINER_ROW], containerSync: READY_SYNC }) });
+    await settle();
+    rowOf(page, 'SP-1').click();
+    await settle();
+    const section = page.$('productContainerSection');
+    assert.ok(section, 'hang du kien luon hien ben duoi doanh so');
+    assert.ok(page.$('productDetailChart'));
+    assert.equal(section.querySelectorAll('thead th').length, fullAccess ? 11 : 6);
+    assert.equal(section.querySelector('tbody tr').cells.length, fullAccess ? 11 : 6);
+    assert.match(section.textContent, /CONT 10-7G.*2. Chưa bốc.*DK 14-16\/10.*Đỏ\/Vàng.*<b>Trinh<\/b>/s);
+    assert.equal(section.querySelector('b'), null, 'ghi chu khong duoc chen HTML');
+    assert.equal(section.textContent.includes('Ánh'), fullAccess);
+    assert.equal(pieCharts(page).length, 1);
+  }
+});
+
+test('loi rieng tung phan khong lam mat phan kia va snapshot chua san sang khong gia thanh 0', async () => {
+  const page = createPage({ customers: () => new Error('fail'), containers: code => ({ code, fullAccess: false, rows: [CONTAINER_ROW], containerSync: READY_SYNC }) });
+  await settle(); rowOf(page, 'SP-1').click(); await settle();
+  assert.match(page.$('productCustomerSection').textContent, /Không tải được/);
+  assert.match(page.$('productContainerSection').textContent, /CONT 10-7G/);
+  assert.equal(rowOf(page, 'SP-1').cells[2].textContent, '—');
+  const page2 = createPage({ containers: () => new Error('fail') });
+  await settle(); rowOf(page2, 'SP-1').click(); await settle();
+  assert.ok(page2.$('productDetailChart'));
+  assert.match(page2.$('productContainerSection').textContent, /Không tải được/);
+});
+
+test('phan hoi CONT cu khong duoc ghi de ma moi hoac mo lai hop da dong', async () => {
+  let resolveFirst;
+  const page = createPage({ containers: code => code === 'SP-1' ? new Promise(resolve => { resolveFirst = resolve; }) : ({ code, rows: [{ ...CONTAINER_ROW, containerName: 'CONT NEW' }], containerSync: READY_SYNC }) });
+  await settle(); rowOf(page, 'SP-1').click(); await settle();
+  rowOf(page, 'SP-2').click(); await settle();
+  resolveFirst({ rows: [CONTAINER_ROW], containerSync: READY_SYNC }); await settle();
+  assert.match(page.$('productContainerSection').textContent, /CONT NEW/);
+  assert.doesNotMatch(page.$('productContainerSection').textContent, /CONT 10-7G/);
+  page.run('closeDocumentDetail()'); await settle();
+  assert.equal(page.$('docModalBody').innerHTML, '');
+});
+
+test('snapshot chua dong bo503 hien tinh trang ro rang, khong loi chung; cot giu 0 va so thap phan', async () => {
+  const page = createPage({
+    report: () => ({ rows: [{ ...PRODUCTS[0], unloadedQty: 0, loadedQty: 3.25 }], containerSync: READY_SYNC }),
+    containerStatus: 503,
+    containers: () => ({ code: 'CONTAINER_SNAPSHOT_UNAVAILABLE', containerSync: { available: false } })
+  });
+  await settle();
+  assert.equal(rowOf(page, 'SP-1').cells[2].textContent, '0');
+  assert.equal(rowOf(page, 'SP-1').cells[3].textContent, '3,25');
+  rowOf(page, 'SP-1').click(); await settle();
+  assert.match(page.$('productContainerSection').textContent, /chưa có dữ liệu đồng bộ/);
+  assert.doesNotMatch(page.$('productContainerSection').textContent, /Không tải được/);
+});
+
+test('metadata thay doi moi tai lai bang va giu tim kiem, sort, trang; an view khong goi API', async () => {
+  let version = 'v1';
+  const page = createPage({ meta: () => ({ ...READY_SYNC, version }), report: () => ({ rows: PRODUCTS.map(p => ({ ...p, unloadedQty: version === 'v1' ? 10 : 20, loadedQty: 0 })), containerSync: { ...READY_SYNC, version } }) });
+  await settle();
+  const calls = () => page.urls.filter(url => url === '/api/product-report').length;
+  const initialCalls = calls();
+  page.run("document.querySelectorAll('.view').forEach(el => el.classList.remove('active')); document.getElementById('productReportRows').closest('.view').classList.add('active'); window.__reportTestState.view = document.getElementById('productReportRows').closest('.view').id.replace('view-', '');");
+  await page.run('refreshProductContainerMeta()'); await settle();
+  assert.equal(calls(), initialCalls, 'cung version khong tai lai');
+  page.run("getTableSearchState('productReport').query = 'SP-1'; window.__reportTestState.tableSorts.productReportRows = { columnIndex: 2, direction: 'desc' }; window.__reportTestState.tablePages.productReport = 1;");
+  version = 'v2';
+  await page.run('refreshProductContainerMeta()'); await settle();
+  assert.equal(calls(), initialCalls + 1);
+  assert.equal(rowOf(page, 'SP-1').cells[2].textContent, '20');
+  assert.equal(rowOf(page, 'SP-2'), undefined, 'bo loc tim kiem van duoc giu');
+  assert.equal(page.run("getTableSearchState('productReport').query"), 'SP-1');
+  assert.equal(page.run('window.__reportTestState.tableSorts.productReportRows.columnIndex'), 2);
+  assert.equal(page.run('window.__reportTestState.tablePages.productReport'), 1);
+  const metaCalls = page.urls.filter(url => url.includes('/containers/meta')).length;
+  page.run("document.getElementById('productReportRows').closest('.view').classList.remove('active')");
+  version = 'v3'; await page.run('refreshProductContainerMeta()'); await settle();
+  assert.equal(page.urls.filter(url => url.includes('/containers/meta')).length, metaCalls);
+});
+
+test('quan ly xem canh bao nguon an toan va ngay du kien de nguyen van', async () => {
+  const page = createPage({ containers: () => ({ fullAccess: true, rows: [{ ...CONTAINER_ROW, eta: '', saleNote: null }], containerSync: { ...READY_SYNC, lastError: 'sync failed', stale: true }, warnings: [{ sheetName: 'YIWU', row: 35, reason: '<script>bad</script>' }] }) });
+  await settle(); rowOf(page, 'SP-1').click(); await settle();
+  const section = page.$('productContainerSection');
+  assert.equal(section.querySelector('tbody tr').cells[2].textContent, '—');
+  assert.equal(section.querySelector('tbody tr').cells[4].textContent, '—');
+  assert.match(section.textContent, /Lần cập nhật mới nhất thất bại/);
+  assert.match(section.querySelector('details').textContent, /YIWU.*Dòng 35.*<script>bad<\/script>/s);
+  assert.equal(section.querySelector('script'), null);
+});
+
+test('dong chi tiet sau metadata refresh tra focus ve dong ma moi thay vi dong da tach DOM', async () => {
+  let version = 'v1';
+  const page = createPage({
+    meta: () => ({ ...READY_SYNC, version }),
+    report: () => ({ rows: PRODUCTS, containerSync: { ...READY_SYNC, version } }),
+    containers: () => ({ rows: [], containerSync: READY_SYNC })
+  });
+  await settle();
+  const oldRow = rowOf(page, 'SP-1');
+  oldRow.focus(); oldRow.click(); await settle();
+  page.run("document.querySelectorAll('.view').forEach(el => el.classList.remove('active')); document.getElementById('productReportRows').closest('.view').classList.add('active'); window.__reportTestState.view = document.getElementById('productReportRows').closest('.view').id.replace('view-', '');");
+  version = 'v2';
+  await page.run('refreshProductContainerMeta()'); await settle();
+  const newRow = rowOf(page, 'SP-1');
+  assert.equal(oldRow.isConnected, false);
+  assert.notEqual(newRow, oldRow);
+  page.run('closeDocumentDetail()');
+  assert.equal(page.doc.activeElement, newRow);
+});
+
+test('dong chi tiet tra focus ve tim kiem bao cao khi ma khong con tren trang', async () => {
+  const page = createPage({ containers: () => ({ rows: [], containerSync: READY_SYNC }) });
+  await settle();
+  rowOf(page, 'SP-1').click(); await settle();
+  page.run("getTableSearchState('productReport').query = 'SP-2'; renderProductReport();");
+  assert.equal(rowOf(page, 'SP-1'), undefined);
+  page.run('closeDocumentDetail()');
+  assert.equal(page.doc.activeElement, page.doc.querySelector('[data-table-search="productReport"] .table-search-input'));
 });

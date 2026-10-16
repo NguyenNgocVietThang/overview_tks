@@ -9,7 +9,7 @@ const insert = (db) => db.query(`INSERT INTO transfer_requests
   VALUES ('YC-20261015-0001', 'key-00000001', '123', 'Khách', 1000, '0123456789', 'NGUYEN A', '970418', now())
   RETURNING id, version`);
 
-test('migration 0053: bank BIN seed, constraints, trigger state machine and immutable events', async (t) => {
+test('migration 0054: bank BIN seed, constraints, trigger state machine and immutable events', async (t) => {
   const { db } = await createTransferDb();
   try {
     await t.test('seeds NAPAS banks with folded aliases', async () => {

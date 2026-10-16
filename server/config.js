@@ -161,7 +161,9 @@ const CONFIG = {
   // Nap san cache "nguon re" cho dashboard luc server khoi dong, tranh nguoi
   // dung dau tien sau restart/redeploy phai cho doc 7 tab (~13.5s). Mac dinh
   // BAT — tat bang DASHBOARD_PREWARM=false (vd moi truong dev khong can).
-  DASHBOARD_PREWARM: process.env.DASHBOARD_PREWARM !== 'false'
+  DASHBOARD_PREWARM: process.env.DASHBOARD_PREWARM !== 'false',
+  // Read-only incoming goods snapshot, independent from KiotViet sync.
+  PRODUCT_CONTAINER_SPREADSHEET_ID: process.env.PRODUCT_CONTAINER_SPREADSHEET_ID || null
 };
 
 module.exports = CONFIG;

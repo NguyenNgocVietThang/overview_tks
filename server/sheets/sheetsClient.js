@@ -71,12 +71,12 @@ function createClient(getSpreadsheetId, branchLabel) {
   /**
    * Doc toan bo du lieu cua 1 sheet, tra ve mang 2 chieu (giong getDataRange().getValues()).
    */
-  async function getValues(sheetName, { valueRenderOption = 'UNFORMATTED_VALUE' } = {}) {
+  async function getValues(sheetName, { valueRenderOption = 'UNFORMATTED_VALUE', cellRange = '' } = {}) {
     const spreadsheetId = requireSpreadsheetId();
     const sheets = await getSheetsApi();
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: quoteSheetName(sheetName),
+      range: quoteSheetName(sheetName) + (cellRange ? `!${cellRange}` : ''),
       // Dashboard can tinh toan tren gia tri so goc. Neu dung mac dinh
       // FORMATTED_VALUE, locale vi-VN tra 1021937723 thanh "1.021.937.723"
       // va Number(...) se bien gia tri nay thanh NaN/0.

@@ -144,6 +144,7 @@ Webhook KiotViet đi vào `POST /api/kiotviet/webhook/<KIOTVIET_WEBHOOK_SECRET>`
 | Rollup đầy đủ | `daily_invoice_summary`, `daily_product_sales`, `product_first_purchase` (cửa sổ 400 ngày) | 30 phút |
 | CN1/CN3/CN7 | `customerDebtReportRefresh.js` → `customer_debt_activity_periods` | 5 phút |
 | Báo cáo hàng hóa | `productReportRefresh.js` → `product_report`, `product_report_customers` | kiểm tra mỗi 5 phút, tính **1 lần/đêm** |
+| Hàng dự kiến | `productContainers/sync.js` → `product_container_lines`, `product_container_sync`; chỉ đọc đủ 6 sheet rồi công bố | 2 tiếng, độc lập engine KiotViet |
 | Chi tiết hóa đơn 90 ngày theo khách | `customerInvoiceLinesRefresh.js` → `customer_invoice_lines_90d` | kiểm tra mỗi 5 phút, dựng 1 lần/đêm sau 00:10 VN |
 | Giá trị tồn kho | `inventoryValueSnapshot.js` → `inventory_value_snapshots` | kiểm tra mỗi phút, chụp lúc 23:59 VN |
 | Báo cáo kinh doanh | `businessMonthlyRefresh.js` → `business_monthly_customer_sales`, `business_monthly_customer_product_sales`, `business_monthly_product_sales`, `business_monthly_sale_sales`, `business_monthly_state` | kiểm tra mỗi 5 phút; chốt tháng vừa qua khi ≥ 00:10 VN ngày mùng 1, mỗi tháng **1 lần**; dựng sale khi hash nhóm hiện tại khác `group_hash` đã lưu hoặc sau chốt/chốt lại (chỉ ghi dòng đổi) |
@@ -215,13 +216,16 @@ Hai file Kiot HN/SG **không còn** được server truy cập.
 | `0044` | `purchases.raw_hash` — băm raw phiếu nhập để đối soát không phải tải lại cột `raw` (NULL = chưa có hash, lượt quét đầu ghi lại một lượt) |
 | `0049` | Thêm tài liệu dựng sẵn thứ 4 `treo-hang` ("Quy định treo hàng") vào `hr_rule_documents` (nội dung nằm trong HTML trang Quản lý nhân sự) |
 | `0050` | `debt_cycle_runs.refreshed_at` / `refreshed_by_name`: nút "Tính lại công nợ" (`POST /api/debt-management/refresh`, quyền `reports.debt.refresh`) ghi đè chu kỳ đang mở tại thời điểm bấm |
-| `0053` | Yêu cầu chuyển tiền: `bank_bins` (mã BIN NAPAS cho VietQR), `transfer_requests` (CHO_DUYET → DA_DUYET → DA_CHUYEN / DA_HUY, `version`, ai duyệt / ai chuyển / ai hủy; trigger chặn bước sai và khóa thông tin sau khi duyệt), `transfer_request_events` (nhật ký chỉ thêm, `bot_delivered_at` cho bot ack). Bật RLS, thu hồi SELECT của `reporting_readonly` |
+| `0054` | Yêu cầu chuyển tiền: `bank_bins` (mã BIN NAPAS cho VietQR), `transfer_requests` (CHO_DUYET → DA_DUYET → DA_CHUYEN / DA_HUY, `version`, ai duyệt / ai chuyển / ai hủy; trigger chặn bước sai và khóa thông tin sau khi duyệt), `transfer_request_events` (nhật ký chỉ thêm, `bot_delivered_at` cho bot ack). Bật RLS, thu hồi SELECT của `reporting_readonly` |
 | `0051` | `debt_penalty_daily` (tiền phạt đã chốt sổ theo ngày + khách, đóng băng tên sale, giữ vĩnh viễn) + `debt_penalty_cycles` (đánh dấu chu kỳ đã chốt sổ): nguồn của bảng thưởng/phạt sale tab Công nợ |
+| `0053` | `product_container_lines`, `product_container_sync` — snapshot Hàng dự kiến hiện hành, số lượng NUMERIC, thu hồi quyền `reporting_readonly`; đã áp DB dùng chung 15/10/2026 |
 
 
 Bot **xin nghỉ của nhân viên** chạy ngoài repo và đọc/ghi 3 bảng nền nghỉ phép trực tiếp; bot **quản lý** trong `telegram/` dùng chung đơn và sở hữu các bảng bổ sung ở migration `0029`. Hợp đồng dữ liệu ở `db/SCHEMA.md`.
 
 ## Cập nhật gần nhất
+
+2026-10-15 — **Hàng dự kiến**: module `productContainers/` gồm `parser.js`, `repository.js`, `sync.js` và các kiểm thử tương ứng; thêm hai cột Chưa bốc/Đã bốc trước Tồn HN/Tồn SG trong báo cáo và xuất Excel/HTML. Hộp chi tiết giữ Doanh số theo khách và thêm Hàng dự kiến cùng hiển thị. Service account đã đọc đủ 6 sheet thật (11.589 dòng hợp lệ, 17 cảnh báo); engine đồng bộ/migration kiểm tra trên PGlite cục bộ, đối chiếu hai mã và Chrome thật Quản lý/Sale ở desktop/mobile đạt, 0 lỗi trang. Kiểm thử toàn bộ cuối: **2.463 đạt, 3 skipped, 0 lỗi (2.466 tổng)**. Graphify sau code cuối: 7.195 nút/14.257 cạnh/400 cộng đồng. Migration `0053_product_containers.sql` đã áp DB dùng chung lúc 16:26 ngày 15/10/2026; chưa kích hoạt website đang triển khai, chưa push/deploy. [Bằng chứng chi tiết](../tasks/plan-product-report-containers.md).
 2026-10-12 — **Giao diện: thiết kế lại các hộp "xem chi tiết" (không migration)**: khung dùng chung `public/shared/detail-panel.css` (tiền tố `.dp-`: đầu hộp, hàng **chỉ số tổng quan**, khối thông tin, bảng 1 khung cuộn, trạng thái đang tải/lỗi) áp cho mọi hộp chi tiết — Báo cáo tổng hợp (Chi tiết giao dịch, Doanh số theo khách của mã hàng, Báo cáo kinh doanh Sale/Khách/Mã hàng), Vòng đời đơn hàng (chỉ số trạng thái/tiến trình/giá trị/dòng thiếu hàng + tiến trình theo mốc), Nghỉ phép (trạng thái/số ngày/loại/nhãn thời hạn) và hộp chi tiết Marketing. **Bảng trong các hộp này không còn nút "Cột hiển thị"** (`data-table-controls="off"`); bảng ngoài trang vẫn giữ. Biểu đồ tròn của hộp sản phẩm bỏ chú giải riêng, bảng khách tô màu từng lát. **Đổi quy tắc cảnh báo**: "Kế toán sót đơn" chỉ áp dụng khi trạng thái hiệu lực còn là "Đơn đã gửi kế toán" (`orderLifecycleService.computeWarnings`: lấy `summary.code`, mặc định `computeStatus(record)`); đơn sang Đang giao / Đã nhận / Đã ký nhận hoặc ghi đè thủ công thì bỏ cảnh báo.
 
 2026-10-12 — **Phân trang bảng nhân sự & quản trị tài khoản (không migration)**: bổ sung phân trang chuẩn (`table-controls.js`) cho bảng danh sách nhân sự, bảng chấm công, bảng nghỉ phép tại `/humanresources/` và bảng quản trị người dùng tại `/account/` (test `test/frontend/hr-account-pagination.test.js`).
@@ -317,6 +321,16 @@ Thứ tự deploy: `npm run db:migrate` (0047; 0051 cho bảng phạt sale — s
 
 Cập nhật gần nhất: 15/10/2026.
 
+## Hàng dự kiến — vận hành và API (15/10/2026)
+
+- Nguồn `PRODUCT_CONTAINER_SPREADSHEET_ID=1T233BdyYBxgSUhR2CwVn2CChgK6Z8OmY8f_s4LalmbE`; service account cần Viewer. Đọc A:X của YIWU, VK-DUNG, HÀ BẮC, SD, GDONG, KHÁC bằng client chỉ đọc. Không ghi workbook.
+- `productContainers/parser.js` nhận CONT ở đầu A, trạng thái 1–5 từ B, ngày về nguyên văn C; END dừng sheet, 20 dòng A:X trống liên tiếp đóng khối và tiếp tục tìm CONT mới. Bỏ tiêu đề lặp, CONT trạng thái lạ và dòng O lỗi/âm; ghi cảnh báo theo sheet/dòng. Mã trim và không phân biệt hoa/thường, giữ số 0 đầu. Chỉ dùng O, không tính M×N thay; mỗi dòng nguồn được giữ độc lập.
+- `productContainers/sync.js` chạy mỗi 7.200.000 ms, độc lập `KIOTVIET_SYNC_ENABLED`; lưu mốc thử bền vững để restart không đọc dồn. Khóa advisory PostgreSQL chống chạy chồng. Đủ 6 sheet mới thay snapshot và metadata trong cùng transaction; đọc/ghi lỗi giữ bản thành công trước. Không có lịch sử snapshot.
+- `GET /api/product-report` thêm `unloadedQty` (trạng thái 1/2), `loadedQty` (3), `containerSync`; tổng toàn công ty không phụ thuộc bộ lọc cơ sở. Không đổi `computedAt` của doanh số. Có snapshot nhưng mã không có hàng = 0; chưa có snapshot = null, hiển thị —.
+- `GET /api/product-report/containers?code=...`: cùng quyền báo cáo hiện hành; thiếu mã trả 400, mã ngoài danh sách báo cáo trả 404, chưa có snapshot trả 503 `CONTAINER_SNAPSHOT_UNAVAILABLE`. Quyền thường chỉ nhận CONT 1/2/3 và các trường tên CONT, trạng thái, ngày về, màu sắc, ghi chú sale, số lượng. Quyền `reports.overview.containers.full` (phụ thuộc `reports.overview`, mặc định Quản lý, có override từng tài khoản) cho đủ 11 cột và trạng thái 1–5, kèm cảnh báo nguồn; backend lọc trường/dòng trước khi trả JSON.
+- `GET /api/product-report/containers/meta`: chỉ đọc DB; trình duyệt kiểm tra mỗi 60 giây khi Tổng quan hiển thị và khi quay lại trang, tải lại khi version đổi, giữ tìm kiếm/sắp xếp/phân trang. Hiển thị thời điểm CONT riêng, giữ dữ liệu cũ khi lỗi. Hai phần modal tải độc lập, bảo vệ phản hồi cũ.
+- Migration `0053` tạo `product_container_lines` và `product_container_sync`; thu hồi quyền của `reporting_readonly` vì chứa người đặt, giá và cảnh báo nguồn. Khi triển khai được phép: kiểm thử migration trước, áp DB đích, cấu hình workbook + Viewer, restart và đối chiếu một snapshot đủ 6 sheet. Xem [kế hoạch/prompt](../tasks/plan-product-report-containers.md).
+
 Điều chỉnh 15/10/2026: trong tháng hiển thị điểm/hạng, thưởng tạm tính và tổng phạt từ các ngày ĐÃ CHỐT, không cộng chu kỳ đang mở. Lúc 14:59 giờ Việt Nam lưu bản cuối của chu kỳ 15:00 hôm trước–14:59 hôm sau, mỗi chu kỳ đúng một lần và không ghi đè; 15:00 mới reset. Nhiều lần Tính lại trong chu kỳ chỉ cập nhật bản đang mở, không cộng thành nhiều ngày. Tiền thưởng hiện mỗi ngày với nhãn Thưởng tạm tính, thay đổi theo điểm và tổng phạt đã chốt ngày; chỉ chốt/lưu thưởng chính thức một lần khi kết thúc tháng. Web, hộp chi tiết và file xuất đều phân biệt tạm tính/đã chốt.
 
 Đồng hạng (15/10/2026): bằng Phạt gốc/Điểm và tổng điểm thì cùng hạng, xếp 1–2–2–4. Tất cả đồng hạng 10 nhận thưởng, đồng hạng 20 miễn phạt. Nhóm đồng hạng gộp trọng số các vị trí chiếm trong Top 10 rồi chia đều, các vị trí ngoài 10 không thêm trọng số; giữ nguyên tổng quỹ, thưởng theo điểm chia trong toàn bộ nhóm nhận thưởng. Bản tháng đã chốt giữ nguyên quy tắc cũ; bản mới dùng debt-reward-2026-10-v2-shared-ranks.
@@ -324,6 +338,8 @@ Cập nhật gần nhất: 15/10/2026.
 Cùng khách ở 2 cơ sở (15/10/2026): ở bảng tổng thưởng/phạt sale, cùng 1 khách (cùng tên, không phân biệt hoa/thường và khoảng trắng thừa) bị phạt ở cả HN và SG trong cùng 1 ngày chốt chỉ tính mức phạt cao nhất ở 1 cơ sở, không cộng dồn (bằng nhau lấy Hà Nội); khách đó đếm 1 lần trong "Khách phạt", tổng các dòng ngày ở hộp chi tiết sale khớp Phạt gốc. Chỉ đổi lúc đọc (`debtRewardService.DAYS_SQL`); sổ `debt_penalty_daily`, bảng chi tiết khách và tháng đã chốt giữ nguyên, không migration. Quy tắc mới debt-reward-2026-10-v4-cross-branch-max.
 
 Cột Phạt/điểm làm tròn hiển thị đến số nguyên đồng trên bảng, hộp chi tiết và file xuất; rê chuột xem phép chia gốc. Ví dụ 25.000 / 192 hiển thị 130 đồng/điểm; API và xếp hạng vẫn dùng tỷ lệ gốc chưa làm tròn.
+
+15/10/2026 16:51 VN — Đã cấu hình nguồn trong .env cục bộ, công bố snapshot thật 11.592 dòng/6 sheet vào DB dùng chung và restart dashboard localhost:3000. Lịch nền đã nhận mốc 2 tiếng; thiếu biến PRODUCT_CONTAINER_SPREADSHEET_ID làm scheduler tắt nên chỉ áp migration/restart mà chưa cấu hình sẽ vẫn hiện —. Không push/deploy từ xa.
 
 ## Yêu cầu chuyển tiền (2026-10-15, module `transfers/`)
 
@@ -357,4 +373,4 @@ Thu hồi "Đã chuyển" chỉ dành cho quản trị viên hệ thống (`isHa
 | `GET /api/transfer-bot/sales/:telegramId` | Tên tài khoản web gắn Telegram ID (bot dùng thay tên sale tự gõ) |
 
 Chuông thông báo: yêu cầu mới → người có `transfers.review`; được duyệt → `transfers.markPaid`; sale hủy yêu cầu đã duyệt → cả hai (khẩn).
-SSE phát trong tiến trình (đủ 1 instance Render). Thứ tự deploy: `npm run db:migrate` (0053) → đặt `TRANSFER_BOT_INGEST_SECRET` → deploy → bot chạy `python -m app cutover` (xem `docs/DEPLOYMENT.md` của bot).
+SSE phát trong tiến trình (đủ 1 instance Render). Thứ tự deploy: `npm run db:migrate` (0054) → đặt `TRANSFER_BOT_INGEST_SECRET` → deploy → bot chạy `python -m app cutover` (xem `docs/DEPLOYMENT.md` của bot).

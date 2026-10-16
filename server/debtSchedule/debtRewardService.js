@@ -119,6 +119,7 @@ function createDebtRewardService({ pool = getPool(), repository = createDebtSche
     const known = new Set(cycleDays.rows.map(row => row.cycle_date));
     const lastDate = [...known].sort().at(-1) || null;
     let report = null;
+    let liveDate = null;
     if (open) {
       report = await repository.readReport(BRANCHES);
       if (!report.cycle || report.cycle.cycleDate !== cycle.cycleDate) throw error(409, 'Chu kỳ công nợ vừa thay đổi, vui lòng tải lại.', 'DEBT_CYCLE_CHANGED');
@@ -127,11 +128,21 @@ function createDebtRewardService({ pool = getPool(), repository = createDebtSche
       catch (e) { if (e.statusCode !== 404) throw e; }
     }
     if (report && report.cycle) {
-      // Debt metrics may be live; the monthly penalty total only uses sealed daily entries.
+      // Debt metrics and the open cycle's penalties are live; sealed days come from the ledger.
+      // Same customer name in both branches counts once (highest amount, tie -> hanoi), as in DAYS_SQL.
+      const liveBest = new Map();
       for (const source of report.rows) {
         const customer = buildCustomerRow(source, { cycleDate: report.cycle.cycleDate,
           anchorDate: report.cycle.refreshedAt ? vnDateKey(report.cycle.refreshedAt) : undefined,
           dailyAmounts: report.amountsByCustomer.get(`${source.branch}:${source.customerId}`) || [] });
+        if (open && !known.has(report.cycle.cycleDate) && customer.penaltyAmount > 0) {
+          const name = String(customer.customerName || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
+          const key = `${saleKey(customer.sale)}|${name || customer.branchCode + ':' + customer.customerId}`;
+          const best = liveBest.get(key);
+          if (!best || customer.penaltyAmount > best.amount || (customer.penaltyAmount === best.amount && customer.branchCode === 'hanoi' && best.branch !== 'hanoi')) {
+            liveBest.set(key, { sale: customer.sale, branch: customer.branchCode, amount: customer.penaltyAmount });
+          }
+        }
         let entry = entries.find(row => saleKey(row.sale) === saleKey(customer.sale));
         if (!entry) { entry = { sale: saleOf(customer.sale), points: 0, branches: [], scoreCustomers: [] }; entries.push(entry); }
         entry.branches = [...new Set([...entry.branches, customer.branchCode])];
@@ -141,12 +152,22 @@ function createDebtRewardService({ pool = getPool(), repository = createDebtSche
         entry.totalAverage = (entry.totalAverage || 0) + Math.max(0, customer.averageSales || 0);
         entry.actionCount = (entry.actionCount || 0) + Number(customer.needsAction);
       }
+      const liveDays = new Map();
+      for (const item of liveBest.values()) {
+        const key = `${saleKey(item.sale)}|${item.branch}`;
+        const day = liveDays.get(key) || { sale: item.sale, branch: item.branch, cycleDate: report.cycle.cycleDate, amount: 0, customers: 0, live: true };
+        day.amount += item.amount;
+        day.customers += 1;
+        liveDays.set(key, day);
+      }
+      penalties.push(...liveDays.values());
+      if (liveDays.size) liveDate = report.cycle.cycleDate;
     }
     const to = open ? (known.has(cycle.cycleDate) ? cycle.cycleDate : addDaysToKey(cycle.cycleDate,-1)) : addDaysToKey(end, -1);
     const missingDays = [];
     for (let day = start; day <= to; day = addDaysToKey(day, 1)) if (!known.has(day)) missingDays.push(day);
     const from = [...known].sort()[0] || null;
-    const board = buildRewardBoard({ sales: entries, penalties, lastDate });
+    const board = buildRewardBoard({ sales: entries, penalties, lastDate: liveDate || lastDate });
     for (const row of board.rows) {
       row.debtMetricsAvailable = Boolean(report && report.cycle);
       if (!row.debtMetricsAvailable) {
@@ -154,7 +175,7 @@ function createDebtRewardService({ pool = getPool(), repository = createDebtSche
         row.totalCurrentDebt = row.totalOverdue = row.overdueRatio = row.actionCount = null;
       }
     }
-    return { month, openCycleDate: open ? cycle.cycleDate : null, lastPenaltyDate:lastDate, status: 'provisional', closedAt: null, ruleVersion: RULE_VERSION,
+    return { month, openCycleDate: open ? cycle.cycleDate : null, lastPenaltyDate: liveDate || lastDate, status: 'provisional', closedAt: null, ruleVersion: RULE_VERSION,
       ...board, coverage: { from, to, missingDays, complete: missingDays.length === 0 },
       days: penalties.filter(day => !day.live).map(day => ({ cycleDate: day.cycleDate, sale: day.sale,
         penalizedCustomers: day.customers, amount: day.amount, branch: day.branch })) };

@@ -52,18 +52,18 @@ test('real monthly SQL counts completed invoices, net returns and debt-free cust
   } finally {await f.db.close();}
 });
 
-test('monthly board sums sealed days only and branch filtering preserves global ranking',async()=>{
+test('monthly board adds the open-cycle live penalty to sealed days and branch filtering preserves global ranking',async()=>{
   const f=await setup();try {
     await f.repository.savePenalty({branch:'hanoi',customerId:'1',amount:90000,user:{hoTen:'QL'}});
-    assert.equal((await f.service.readBoard()).rows.find(r=>r.sale==='An').grossPenalty,0);
+    assert.equal((await f.service.readBoard()).rows.find(r=>r.sale==='An').grossPenalty,90000);
     await f.snapshot('2026-10-15');f.repository.bumpVersion();
     await finalizePendingPenaltyCycles(f.pool,{repository:f.repository,log(){}});
     const all=await f.service.readBoard();const one=await f.service.readBoard({branches:['hanoi']});
     assert.equal(one.rows.length,1);assert.equal(one.rows[0].rank,2);assert.deepEqual(one.summary,all.summary);
     await f.repository.savePenalty({branch:'hanoi',customerId:'1',amount:120000,user:{hoTen:'QL'}});
     const board=await f.service.readBoard();
-    assert.equal(board.rows.find(r=>r.sale==='An').grossPenalty,90000);
-    assert.equal(board.lastPenaltyDate,'2026-10-14');
+    assert.equal(board.rows.find(r=>r.sale==='An').grossPenalty,210000);
+    assert.equal(board.lastPenaltyDate,'2026-10-15');
   } finally {await f.db.close();}
 });
 
@@ -125,15 +125,15 @@ test('inactive customers contribute neither monthly points nor sealed penalties,
   } finally {await f.db.close();}
 });
 
-test('customer reassignment refreshes points without adding live penalties to monthly totals',async()=>{
+test('customer reassignment refreshes points and moves the open-cycle live penalty to the new sale',async()=>{
   const f=await setup();try {
     await f.repository.savePenalty({branch:'hanoi',customerId:'1',amount:90000,user:{hoTen:'QL'}});
-    assert.equal((await f.service.readBoard()).rows.find(r=>r.sale==='An').grossPenalty,0);
+    assert.equal((await f.service.readBoard()).rows.find(r=>r.sale==='An').grossPenalty,90000);
     await f.db.exec(`UPDATE customers SET raw='{"groups":"Chi"}' WHERE branch='hanoi'`);
     f.setNow('2026-10-14T09:01:01Z');
     const board=await f.service.readBoard();
     assert.equal(board.rows.find(r=>r.sale==='Chi').points,30);
-    assert.equal(board.rows.find(r=>r.sale==='Chi').grossPenalty,0);
+    assert.equal(board.rows.find(r=>r.sale==='Chi').grossPenalty,90000);
     assert.equal(board.rows.some(r=>r.sale==='An'),false);
   } finally {await f.db.close();}
 });

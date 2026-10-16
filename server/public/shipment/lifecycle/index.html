@@ -824,7 +824,18 @@
 
     const STEP_CHECK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>';
 
-    function detailText(raw){ return (raw === undefined || raw === null || String(raw).trim() === '') ? '' : String(raw); }
+    // Moi o ngay gio hien thi cung 1 dang "dd/mm/yyyy HH:mm": nhan ca "YYYY-MM-DD HH:mm[:ss]" (changed_at / summary.at)
+    // va "dd/mm/yyyy HH:mm[:ss]"; chuoi khong phai ngay gio (ghi chu, trang thai...) giu nguyen.
+    function formatDisplayDateTime(value){
+      const text = String(value == null ? '' : value).trim();
+      let m = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::\d{2})?)?$/);
+      if(m) return m[3] + '/' + m[2] + '/' + m[1] + (m[4] ? ' ' + m[4] + ':' + m[5] : '');
+      m = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::\d{2})?)?$/);
+      if(m) return m[1].padStart(2, '0') + '/' + m[2].padStart(2, '0') + '/' + m[3] + (m[4] ? ' ' + m[4].padStart(2, '0') + ':' + m[5] : '');
+      return text;
+    }
+
+    function detailText(raw){ return (raw === undefined || raw === null || String(raw).trim() === '') ? '' : formatDisplayDateTime(raw); }
 
     // tiles: [{ label, value | html, sub?, tone?: 'green'|'amber'|'red'|'blue' }]; the rong (null) bi bo qua.
     function detailStatsHtml(tiles){
@@ -849,7 +860,7 @@
       const tiles = [];
       const summary = order.summary;
       if(summary && summary.label){
-        tiles.push({ label: 'Trạng thái đơn', html: renderBadge(summary), sub: summary.at ? 'Cập nhật ' + summary.at : '' });
+        tiles.push({ label: 'Trạng thái đơn', html: renderBadge(summary), sub: summary.at ? 'Cập nhật ' + formatDisplayDateTime(summary.at) : '' });
       }
       const milestones = milestonesFor(order);
       const doneMilestones = milestones.filter(function(field){ return detailText(order[field.key]); });
@@ -1004,7 +1015,7 @@
 
     // ---------- The tich & cuoc van chuyen (sheet CAN DO, tinh o may chu; client chi chon nha xe) ----------
     const M3_FORMAT = new Intl.NumberFormat('vi-VN', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
-    const CARRIER_KEYS = ['DM', 'VL'];
+    const CARRIER_KEYS = ['DM', 'VL', 'JT'];
     const CARRIER_STORE = 'tks.lifecycle.carrier';
     let selectedCarrier = 'DM';
     try { const saved = localStorage.getItem(CARRIER_STORE); if(CARRIER_KEYS.indexOf(saved) >= 0) selectedCarrier = saved; } catch(_e){ /* trinh duyet chan storage: dung mac dinh */ }
@@ -1053,6 +1064,7 @@
         '<select class="lc-freight-select" id="lcCarrierSelect">' +
           '<option value="DM"' + (selectedCarrier === 'DM' ? ' selected' : '') + '>Đức Mạnh</option>' +
           '<option value="VL"' + (selectedCarrier === 'VL' ? ' selected' : '') + '>Việt Linh</option>' +
+          '<option value="JT"' + (selectedCarrier === 'JT' ? ' selected' : '') + '>J&amp;T</option>' +
         '</select></div>' +
         '<div id="lcFreightBody">' + freightBodyHtml(freight) + '</div>';
     }
@@ -1484,7 +1496,7 @@
     const CELL_HTML = {
       orderCode: function(o){ return escapeHtml(o.orderCode); },
       branch: function(o){ return escapeHtml(BRANCH_LABEL[o.branch] || o.branch || '—'); },
-      orderDate: function(o){ return escapeHtml(o.orderDate || '—'); },
+      orderDate: function(o){ return escapeHtml(formatDisplayDateTime(o.orderDate) || '—'); },
       saleName: function(o){ return escapeHtml(o.saleName || '—'); },
       customerName: function(o){ return escapeHtml(o.customerName || '—'); },
       orderTotal: function(o){ return hasOrderTotal(o) ? escapeHtml(formatTableVnd(o.orderTotal)) : '—'; },
@@ -1492,10 +1504,10 @@
       note: function(o){
         return o.note ? '<span class="lc-note-text" title="' + escapeHtml(o.note) + '">' + escapeHtml(o.note) + '</span>' : '—';
       },
-      saleSentAt: function(o){ return escapeHtml(o.saleSentAt || '—'); },
+      saleSentAt: function(o){ return escapeHtml(formatDisplayDateTime(o.saleSentAt) || '—'); },
       kiotStatus: function(o){ return kiotStatusHtml(o.kiotStatus); },
       status: function(o){ return renderBadge(o.summary, { editable: isEditableRow(o), orderCode: o.orderCode }); },
-      at: function(o){ return escapeHtml((o.summary && o.summary.at) || '—'); },
+      at: function(o){ return escapeHtml(formatDisplayDateTime(o.summary && o.summary.at) || '—'); },
       warning: function(o){ return warningHtml(o); }
     };
     const CELL_CLASS = { orderTotal: 'lc-money', sellableValue: 'lc-money', note: 'lc-note', status: 'lc-status-cell' };
@@ -1627,7 +1639,7 @@
           order.warnings = body.order.warnings || [];
           // Tim o theo data-col (cot co the bi an / doi thu tu, khong dung chi so).
           const atCell = tr.querySelector('[data-col="at"]');
-          if(atCell) atCell.textContent = (order.summary && order.summary.at) || '—';
+          if(atCell) atCell.textContent = formatDisplayDateTime(order.summary && order.summary.at) || '—';
           const warningCell = tr.querySelector('[data-col="warning"]');
           if(warningCell) warningCell.innerHTML = warningHtml(order);
           const entry = bulkRowNodes.get(rowKey(order));
@@ -1995,10 +2007,7 @@
     // changed_at ghi boi repo.appendOverride() dung Date#toLocaleString('sv-SE', ...)
     // -> dinh dang "YYYY-MM-DD HH:mm:ss" (parseDateTimeValue doc duoc ca 2 dang).
     function formatHistoryDateTime(value){
-      const text = String(value == null ? '' : value).trim();
-      const m = text.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
-      if(!m) return text || '—';
-      return m[3] + '/' + m[2] + '/' + m[1] + ' ' + m[4] + ':' + m[5];
+      return formatDisplayDateTime(value) || '—';
     }
 
     const HISTORY_SORT_ACCESSORS = {

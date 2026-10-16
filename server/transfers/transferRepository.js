@@ -1,5 +1,5 @@
 'use strict';
-// SQL cho yeu cau chuyen tien (migration 0053). Moi thay doi trang thai/truong di qua
+// SQL cho yeu cau chuyen tien (migration 0054). Moi thay doi trang thai/truong di qua
 // updateWithEvent: khoa dong (FOR UPDATE), kiem version + trang thai, UPDATE roi ghi 1 su kien
 // trong CUNG giao dich — trigger DB la rao chan cuoi cung.
 

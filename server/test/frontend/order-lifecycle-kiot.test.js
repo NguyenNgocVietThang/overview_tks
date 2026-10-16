@@ -668,7 +668,8 @@ function kiotDetail(overrides = {}) {
       unavailable: false, totals: { m3: 1.75, kg: 23, cartons: 6 }, missingCodes: [],
       carriers: {
         DM: { carrier: 'DM', label: 'Đức Mạnh', note: 'Ghi chú ĐM', freight: 962500, surcharge: 0, total: 962500, steps: [{ label: 'Theo thể tích', amount: 962500 }] },
-        VL: { carrier: 'VL', label: 'Việt Linh', note: 'Ghi chú VL', freight: 813750, surcharge: 200000, total: 1013750, steps: [{ label: 'm³ × 465.000', amount: 813750 }, { label: 'Phụ thu', amount: 200000 }] }
+        VL: { carrier: 'VL', label: 'Việt Linh', note: 'Ghi chú VL', freight: 813750, surcharge: 200000, total: 1013750, steps: [{ label: 'm³ × 465.000', amount: 813750 }, { label: 'Phụ thu', amount: 200000 }] },
+        JT: { carrier: 'JT', label: 'J&T', note: 'Ghi chú JT', freight: 1200000, surcharge: 0, total: 1200000, steps: [{ label: 'A: 5 thùng × 240.000', amount: 1200000 }] }
       }
     },
     ...overrides
@@ -1131,6 +1132,12 @@ test('khối Thể tích & cước: mặc định Đức Mạnh, đổi dropdown
   assert.match(text, /Ghi chú VL/);
   assert.match(text, /Phụ thu/);
   assert.match(text, /1.013.750/);
+  select.value = 'JT';
+  select.dispatchEvent(new page.dom.window.Event('change', { bubbles: true }));
+  text = document.getElementById('lcFreightBody').textContent;
+  assert.match(text, /Ghi chú JT/);
+  assert.match(text, /A: 5 thùng × 240.000/);
+  assert.match(text, /1.200.000/);
   page.dom.window.close();
 });
 

@@ -1,11 +1,11 @@
 'use strict';
-// Dung DB PGlite co migration 0053 + bang app_users toi thieu cho test module transfers.
+// Dung DB PGlite co migration 0054 + bang app_users toi thieu cho test module transfers.
 
 const fs = require('node:fs');
 const path = require('node:path');
 const { PGlite } = require('@electric-sql/pglite');
 
-const MIGRATION = fs.readFileSync(path.join(__dirname, '../db/migrations/0053_transfer_requests.sql'), 'utf8');
+const MIGRATION = fs.readFileSync(path.join(__dirname, '../db/migrations/0054_transfer_requests.sql'), 'utf8');
 
 async function createTransferDb() {
   const db = new PGlite();

@@ -15,6 +15,61 @@ const productReportRepository = require('./productReportRepository');
 const catalog = require('./exportFieldCatalog');
 const exportService = require('./exportService');
 
+test('product report exports include numeric container quantities before stock and preserve unavailable blanks', async () => {
+  const original = productReportRepository.getProductReport;
+  productReportRepository.getProductReport = async () => ({
+    computedAt: '2026-10-14T17:05:00.000Z',
+    containerSync: { available: true, version: 'v1', lastSuccessAt: '2026-10-15T01:00:00.000Z', stale: true, lastError: 'read failed' },
+    rows: [
+      { code: '001', name: 'Một', unloadedQty: 150.5, loadedQty: 30.25, stockHanoi: 7, stockSaigon: 8 },
+      { code: '002', name: 'Hai', unloadedQty: null, loadedQty: null },
+      { code: '003', name: 'Ba', unloadedQty: 0, loadedQty: 0 }
+    ]
+  });
+  try {
+    const request = { tableKey: 'overview.productReport' };
+    const fields = (await exportService.getExportFields(request)).worksheets[0].fields;
+    assert.deepEqual(fields.slice(0, 6).map(field => field.key), ['code', 'name', 'unloadedQty', 'loadedQty', 'stockHanoi', 'stockSaigon']);
+    assert.ok(fields.slice(2, 4).every(field => field.selected && field.type === 'number'));
+    request.columns = { product_report: ['code', 'unloadedQty', 'loadedQty', 'stockHanoi'] };
+    const file = await exportService.createExportWorkbook(request);
+    const workbook = await new ExcelJS.Workbook().xlsx.load(file.buffer);
+    const sheet = workbook.getWorksheet('Báo cáo hàng hóa');
+    assert.deepEqual(sheet.getRow(1).values.slice(1), ['Mã sản phẩm', 'Chưa bốc', 'Đã bốc', 'Tồn Hà Nội']);
+    assert.equal(sheet.getCell('A2').value, '001');
+    assert.equal(sheet.getCell('B2').value, 150.5);
+    assert.equal(sheet.getCell('C2').value, 30.25);
+    assert.equal(sheet.getCell('B3').value, null);
+    assert.equal(sheet.getCell('C3').value, null);
+    assert.equal(sheet.getCell('B4').value, 0);
+    const notes = workbook.getWorksheet('Thông tin hàng dự kiến');
+    assert.ok(notes);
+    assert.match(notes.getColumn(2).values.join(' '), /15\/10\/2026.*08:00:00/);
+    assert.match(notes.getColumn(2).values.join(' '), /cũ/);
+    const htmlFile = await exportService.createExportHtml(request);
+    const document = new JSDOM(htmlFile.buffer.toString('utf8')).window.document;
+    assert.match(document.querySelector('header .meta').textContent, /15\/10\/2026.*08:00:00/);
+    assert.match(document.querySelector('header .meta').textContent, /cũ/);
+    const dataset = await exportService.getExportDataset(request);
+    assert.equal(dataset.worksheets[0].rows[1].unloadedQty, null);
+  } finally { productReportRepository.getProductReport = original; }
+});
+
+test('product report export notes distinguish missing container snapshots from zero quantities', async () => {
+  const original = productReportRepository.getProductReport;
+  productReportRepository.getProductReport = async () => ({ rows: [{ code: '001', unloadedQty: null, loadedQty: null }], containerSync: { available: false } });
+  try {
+    const request = { tableKey: 'overview.productReport', columns: { product_report: ['code', 'unloadedQty', 'loadedQty'] } };
+    const htmlFile = await exportService.createExportHtml(request);
+    const document = new JSDOM(htmlFile.buffer.toString('utf8')).window.document;
+    assert.match(document.querySelector('header .meta').textContent, /chưa sẵn sàng/i);
+    const file = await exportService.createExportWorkbook(request);
+    const workbook = await new ExcelJS.Workbook().xlsx.load(file.buffer);
+    assert.equal(workbook.getWorksheet('Báo cáo hàng hóa').getCell('B2').value, null);
+    assert.match(workbook.getWorksheet('Thông tin hàng dự kiến').getColumn(2).values.join(' '), /chưa sẵn sàng/i);
+  } finally { productReportRepository.getProductReport = original; }
+});
+
 function deepFreeze(value) {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
     Object.values(value).forEach(deepFreeze);

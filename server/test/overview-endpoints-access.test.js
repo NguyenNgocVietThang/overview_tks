@@ -59,6 +59,8 @@ const OVERVIEW_READ_ENDPOINTS = [
   '/api/customer-suggest',
   '/api/customer-product-revenue',
   '/api/product-report',
+  '/api/product-report/containers',
+  '/api/product-report/containers/meta',
   '/api/product-report/customers'
 ];
 

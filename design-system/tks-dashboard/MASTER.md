@@ -10,6 +10,7 @@
 > và (2026-10-06) `cashbook/` (Sổ quỹ — dựng theo khuôn tab Báo cáo, xem `pages/cashbook.md`);
 > trạng thái hiện tại của từng mục nợ ở mục 12 đã được kiểm tra lại bằng grep (bảng "Trạng thái kiểm tra lại" đầu mục 12). Các component mới phát hiện đã được chuẩn hoá vào mục 5;
 > sai lệch/nợ thiết kế phát hiện được liệt kê đầy đủ ở **mục 12**. Chi tiết theo từng trang: `pages/*.md`.
+> **Cập nhật 2026-10-12:** Thiết kế lại toàn bộ hộp "Xem chi tiết" bằng `public/shared/detail-panel.css` (`.dp-*`), áp dụng cho `index.html`, `shipment/lifecycle/index.html`, `humanresources/index.html`; phân trang chuẩn (`table-controls.js`) cho bảng nhân sự và quản trị tài khoản; 5 luồng vòng đời đơn hàng + 6 cảnh báo có tên + dải KPI đầu trang. **Cập nhật 2026-10-15:** Gỡ nút "Lịch làm việc" khỏi tab Nghỉ phép; Vòng đời bổ sung luồng thứ 6 Kế toán/Chứng từ (`KeToan_ChungTu`) và cột Thể tích + giá cước nhà xe; Tab Công nợ có bảng thưởng/phạt sale đầy đủ.
 
 ---
 
@@ -700,8 +701,9 @@ bất kể Dark/Light Mode của app, giống nguyên tắc "buộc sáng" ở m
 ### 5.18 Detail Panel (Khung "Xem Chi Tiết" Dùng Chung — `detail-panel.css`)
 
 Áp dụng đồng bộ cho các hộp xem chi tiết pop-up/slide-over trên toàn hệ thống (Báo cáo tổng hợp, Vòng đời đơn hàng, Nhân sự, Báo cáo Marketing, Báo cáo kinh doanh):
+- **File:** `server/public/shared/detail-panel.css` — import bằng thẻ `<link>` trong trang cần dùng, không chép vào `<style>` nội tuyến.
 - **Tiền tố lớp (Prefix):** `.dp-*`
-  - `.dp-head`: Đầu hộp gồm kicker, tiêu đề (`.dp-title`), phân loại (`.dp-title-kind`), phụ đề và nút đóng (`.dp-close`).
+  - `.dp-head`: Đầu hộp gồm kicker (`.dp-kicker`), tiêu đề (`.dp-title`), phân loại (`.dp-title-kind`), phụ đề (`.dp-subtitle`) và nút đóng (`.dp-close`).
   - `.dp-stats`: Dải thẻ **chỉ số tổng quan** ở đầu thân hộp (`.dp-stat`, `.dp-stat-label`, `.dp-stat-value`, `.dp-stat-sub`; hỗ trợ modifier màu `.is-green`, `.is-amber`, `.is-red`, `.is-blue`).
   - `.dp-card` / `.dp-section`: Các khối thông tin, thuộc tính (`.dp-meta`), ghi chú (`.dp-note-text`).
   - `.dp-table-wrap` / `.dp-table`: Bảng dữ liệu trong hộp.
@@ -709,6 +711,23 @@ bất kể Dark/Light Mode của app, giống nguyên tắc "buộc sáng" ở m
   1. **Một khung cuộn duy nhất:** Bảng bên trong hộp có tiêu đề dính (`position: sticky; top: 0`), không tạo hai thanh cuộn lồng nhau.
   2. **Tắt nút Cột hiển thị:** Mọi bảng trong panel chi tiết bắt buộc đặt `data-table-controls="off"` — không hiển thị nút "Cột hiển thị" để giữ giao diện xem chi tiết tinh gọn và tập trung.
   3. **Không dùng hiệu ứng 3D:** Sử dụng biến token màu và bo góc có sẵn của hệ thống (`shared.css`), tự động tương thích Dark/Light Mode.
+  4. **Responsive điện thoại:** Panel tự co thành bottom-sheet hoặc full-screen trên màn ≤ 600px; bảng cuộn ngang trong `.dp-table-wrap` khi thiếu chiều rộng.
+
+### 5.19 Lifecycle KPI Strip (Dải Thẻ Chỉ Số Tổng Quan — Vòng Đời Đơn Hàng)
+
+Pattern xuất hiện ở `shipment/lifecycle/index.html`: dải thẻ đếm nhanh đầu bảng, bấm thẻ = lọc bảng, bấm lại = bỏ lọc.
+
+```css
+.lc-kpi-grid  { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--space-md); }
+.lc-kpi-card  { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-md);
+                padding: 10px 14px; cursor: pointer; transition: border-color .15s ease, background .15s ease; }
+.lc-kpi-card:hover { border-color: rgba(59,130,246,.4); background: var(--panel-2); }
+.lc-kpi-card.is-active { border-color: var(--primary); background: rgba(59,130,246,.1); }
+.lc-kpi-card .kpi-label { font-size: 11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .05em; }
+.lc-kpi-card .kpi-value { font-family: var(--font-data); font-size: 22px; font-weight: 700; color: var(--text); }
+```
+
+Quy tắc: API luôn trả `kpis: { status, warnings }` kèm kết quả chính; thẻ trạng thái bỏ lọc `status`, thẻ cảnh báo bỏ lọc `warning` — tính trong RAM, không truy vấn DB thêm.
 
 ---
 
@@ -851,11 +870,11 @@ Trước khi nghiệm thu bất kỳ giao diện nào, lập trình viên phải
 
 ## 12. Nợ Thiết Kế & Sai Lệch Cần Khắc Phục (Audit Toàn Diện 2026-09-15)
 
-### Trạng thái kiểm tra lại 2026-10-05
+### Trạng thái kiểm tra lại 2026-10-15
 
 Kiểm tra bằng `grep` trên `server/public/` (chưa đo lại bằng trình duyệt). Các mục không có trong bảng chưa được kiểm tra lại — coi như theo audit gốc bên dưới.
 
-| Mục (audit 2026-09-15) | Trạng thái 2026-10-05 |
+| Mục (audit 2026-09-15) | Trạng thái 2026-10-15 |
 |---|---|
 | 12.1 `index.html` `.export-modal-backdrop` có `backdrop-filter` + nền hardcode | **Đã sửa phần blur**: không còn `backdrop-filter` (có chú thích lý do); nền vẫn là `rgba(5,10,18,.74)` hardcode, chưa dùng `--overlay-bg` |
 | 12.1 `account/index.html` `.modal-overlay` | **Còn**: `backdrop-filter:blur(3px)` (dòng ~255) |
@@ -873,6 +892,9 @@ Kiểm tra bằng `grep` trên `server/public/` (chưa đo lại bằng trình d
 | 12.3 `.tks-profile-*` khai báo ở cả `index.html` và `shared.css` | **Còn** (2 nguồn) |
 | 12.4 `account` `.users-table` thiếu sticky `<th>`/hover | **Đã sửa** (có `position:sticky` và `tr.row-clickable:hover`) |
 | 12.4 `.action-icon-btn` 32×32 | Selector không còn trong `account/index.html` |
+| 5.18 `.dp-*` áp đủ 3 trang | **Hoàn thành** (12/10/2026): `index.html`, `shipment/lifecycle/index.html`, `humanresources/index.html` đều dùng `detail-panel.css` |
+| Phân trang bảng `humanresources` + `account` | **Hoàn thành** (12/10/2026): `table-controls.js` áp cho bảng nhân sự, chấm công, nghỉ phép và quản trị người dùng |
+| Gỡ "Lịch làm việc" (`PUT /api/hr/leave-work-schedules/:id`) | **Hoàn thành** (15/10/2026): nút/hộp gỡ khỏi tab Nghỉ phép, giữ `GET` và giờ mặc định 07:45 / 12:30 |
 
 
 Danh sách này ghi nhận **hiện trạng thực tế** của mã nguồn so với các quy tắc ở trên, phát hiện qua

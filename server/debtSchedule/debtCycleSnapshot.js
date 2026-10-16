@@ -60,6 +60,11 @@ const INSERT_CUSTOMERS_SQL = `
 // LUC CHOT THAT ($3 = takenAt, cung thoi diem lay customers.debt). Khong cat cung o 15:00:
 // server chot tre (vd 16:53) hoac Tinh lai bang tay thi no hien tai da gom don toi luc do,
 // cat 15:00 se bo sot don khoi "no trong lich" -> no qua han du dung bang tong cac don ay.
+// Bang debt_cycle_customers vua chen trong CUNG giao dich chua co thong ke -> planner uoc luong 1 dong
+// va lap nested loop 8k lan tren hoa don 90 ngay (>2 phut, bi statement_timeout tren Render).
+// ANALYZE truoc khi chen so tien de no chon hash join.
+const ANALYZE_CUSTOMERS_SQL = 'ANALYZE debt_cycle_customers';
+
 const INSERT_AMOUNTS_SQL = `
   WITH bounds AS (
     SELECT (($1::date - ${MAX_SCHEDULE_DAYS - 1})::timestamp AT TIME ZONE 'UTC') AS from_at,
@@ -200,6 +205,7 @@ async function takeDebtCycleSnapshot(pool, cycleDate, {
       return { cycleDate, created: false, customers: 0 };
     }
     await client.query(INSERT_CUSTOMERS_SQL, [cycleDate, BRANCH_CODES, averages.branches, averages.codes, averages.values]);
+    await client.query(ANALYZE_CUSTOMERS_SQL);
     await client.query(INSERT_AMOUNTS_SQL, [cycleDate, BRANCH_CODES, takenAt]);
     await applyOverdueStreaks(client, cycleDate);
     await client.query(UPDATE_RUN_COUNT_SQL, [cycleDate]);
@@ -267,6 +273,7 @@ async function refreshDebtCycle(pool, {
     if (startsNew) await client.query(INSERT_RUN_SQL, [cycleDate]);
     else for (const sql of REFRESH_CLEAR_SQL) await client.query(sql, [cycleDate]);
     await client.query(INSERT_CUSTOMERS_SQL, [cycleDate, BRANCH_CODES, averages.branches, averages.codes, averages.values]);
+    await client.query(ANALYZE_CUSTOMERS_SQL);
     await client.query(INSERT_AMOUNTS_SQL, [cycleDate, BRANCH_CODES, takenAt]);
     await applyOverdueStreaks(client, cycleDate, vnDateKey(takenAt));
     await client.query(UPDATE_RUN_COUNT_SQL, [cycleDate]);

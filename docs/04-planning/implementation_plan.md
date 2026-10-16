@@ -1,5 +1,14 @@
 # Implementation plan hiện tại
 
+## Bổ sung 15/10/2026 — Hàng dự kiến trong Báo cáo hàng hóa
+
+- Kế hoạch chi tiết và prompt triển khai: [plan-product-report-containers.md](../../tasks/plan-product-report-containers.md).
+- Module `server/productContainers/` tách parser, repository, đồng bộ chỉ đọc 6 sheet TKS2 ĐẶT CONT; snapshot 2 tiếng độc lập KiotViet/doanh số đêm, khóa PostgreSQL chống chạy chồng và công bố đủ 6 sheet trong transaction. Lỗi giữ snapshot trước; trạng thái 4/5 vẫn lưu để xem có quyền.
+- API tổng hợp thêm hai số lượng và `containerSync`; thêm `/api/product-report/containers?code=` và `/api/product-report/containers/meta`. Quyền riêng `reports.overview.containers.full` phụ thuộc Tổng quan, mặc định Quản lý, override từng tài khoản; giới hạn dòng/cột tại backend.
+- Giao diện và xuất tổng hợp Excel/HTML đặt Chưa bốc/Đã bốc trước Tồn HN/SG. Modal hai phần đồng thời; metadata kiểm tra 60 giây chỉ khi xem Tổng quan. Tổng toàn công ty giữ nguyên khi đổi cơ sở.
+- Migration `0053_product_containers.sql` **đã áp DB dùng chung lúc 16:26 ngày 15/10/2026**. Khi triển khai được phép cần kiểm thử migration, cấu hình `PRODUCT_CONTAINER_SPREADSHEET_ID` và quyền Viewer, xác nhận snapshot đủ 6 sheet rồi đối chiếu mã nhiều CONT/mã nhiều sheet bằng hai mức quyền.
+- Trạng thái 15/10: kiểm thử toàn bộ 2.463 đạt, 3 skipped, 0 lỗi; service account đọc đủ 6 sheet, đối chiếu OTD10N/TRHB500 và Chrome Light/Dark, desktop/mobile đạt trên PGlite cục bộ. Đã áp 0053 lên DB dùng chung lúc 16:26 ngày 15/10/2026, chưa kích hoạt bản triển khai, chưa push/deploy. Các mốc kiểm thử cũ bên dưới không phải kết quả của tính năng này.
+
 Cập nhật: 2026-10-12 (Giảm egress Supabase: purchases.raw_hash, cache hóa đơn theo sự kiện, bot/realtime nghỉ phép nhẹ hơn; Đã hoàn thiện Ngày đặc biệt (thông báo chuông + pháo hoa), Báo cáo kinh doanh, Báo cáo Marketing, Sổ quỹ, Lịch làm việc & Hạn nghỉ phép, Trạng thái nhân sự, Audit log, Table controls; hệ thống schema đạt migration 0001–0044).
 
 ## Kiến trúc đã triển khai
