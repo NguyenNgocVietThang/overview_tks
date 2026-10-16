@@ -10,12 +10,25 @@ const { readContainerSummary, getContainerMeta } = require('../productContainers
 const { normalizeCode } = require('../productContainers/parser');
 const { readInTransitByCode } = require('./inTransitSource');
 
+// NULL = dong chua duoc tinh lai sau migration 0057 -> null (giao dien hien "—"), khong gia thanh 0.
+function nullableNumber(value) {
+  if (value === null || value === undefined) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
 function mapRow(row) {
   return {
     code: row.product_code,
     name: row.product_name,
     stockHanoi: Number(row.stock_hanoi) || 0,
     stockSaigon: Number(row.stock_saigon) || 0,
+    // "Co ban" tung co so (ton thuc - Phieu tam cua co so do); cong hai cot = available_to_sell luu san.
+    availableHanoi: nullableNumber(row.available_hanoi),
+    availableSaigon: nullableNumber(row.available_saigon),
+    // Truong "Mo ta" cua san pham tren KiotViet (nhan vien ghi bang gia cho sale tra cuu).
+    descriptionHanoi: row.description_hanoi || '',
+    descriptionSaigon: row.description_saigon || '',
     availableToSell: Number(row.available_to_sell) || 0,
     qtySold30d: Number(row.qty_sold_30d) || 0,
     revenue90d: Number(row.revenue_90d) || 0,
@@ -93,19 +106,40 @@ function createProductReportReader({ pool, now = Date.now } = {}) {
   return { read, probeState };
 }
 
+// "Ngay can dat" = (Tong co ban + Chua boc + Da boc) / SL ban 30 ngay * 30, lam tron 1 chu so thap phan (giong cot
+// "Ngay can dat" cua file mau). null khi khong ban duoc ngay nao (chia cho 0) hoac chua co snapshot CONT (thieu
+// Chua boc/Da boc thi so ngay se thap sai). Co the am khi hang da bi giu qua ton - khong kep ve 0.
+function daysToOrder(availableToSell, unloadedQty, loadedQty, qtySold30d) {
+  if (unloadedQty === null || loadedQty === null || !(qtySold30d > 0)) return null;
+  // Nhan truoc roi chia: 7 / 3 * 30 ra 70.00000000000001, (7 * 30) / 3 ra dung 70.
+  const days = (availableToSell + unloadedQty + loadedQty) * 30 / qtySold30d;
+  return Number.isFinite(days) ? Math.round(days * 10) / 10 : null;
+}
+
+// Cong ton co phan le (vd 16.4) hay ra 16.400000000000002; lam tron 3 chu so de web/Excel khong hien duoi thap phan thua.
+function roundQuantity(value) {
+  return Math.round(value * 1000) / 1000;
+}
+
 // Ghep dong goc (da cache) voi CONT + hang van chuyen thanh phan hoi; tao dong moi de khong sua cache.
 function compose({ base, computedAt, containerSync, totals, inTransitByCode }) {
   const rows = base.map((row) => {
     const inTransit = inTransitByCode.get(normalizeCode(row.code)) || 0;
     const quantities = totals[normalizeCode(row.code)];
+    // The stored base already equals sellable HN + sellable SG (on-hand less pending customer orders).
+    // Add SG transit once at read time, never fold it back into the stored base.
+    const availableToSell = row.availableToSell + inTransit;
+    const unloadedQty = containerSync.available ? Number(quantities?.unloadedQty || 0) : null;
+    const loadedQty = containerSync.available ? Number(quantities?.loadedQty || 0) : null;
     return {
       ...row,
       inTransit,
-      // The stored base already equals sellable HN + sellable SG (on-hand less pending customer orders).
-      // Add SG transit once at read time, never fold it back into the stored base.
-      availableToSell: row.availableToSell + inTransit,
-      unloadedQty: containerSync.available ? Number(quantities?.unloadedQty || 0) : null,
-      loadedQty: containerSync.available ? Number(quantities?.loadedQty || 0) : null
+      availableToSell,
+      // "Tong ton thuc + DC" = ton thuc HN + ton thuc SG + dieu chuyen SG.
+      totalStock: roundQuantity(row.stockHanoi + row.stockSaigon + inTransit),
+      unloadedQty,
+      loadedQty,
+      daysToOrder: daysToOrder(availableToSell, unloadedQty, loadedQty, row.qtySold30d)
     };
   });
   return { rows, computedAt, containerSync };
@@ -189,5 +223,5 @@ async function getProductReportCustomers({ code, pool = getPool() } = {}) {
 
 module.exports = {
   getProductReport, getProductReportCustomers, getProductReportVersion, createProductReportReader,
-  __test__: { mapRow }
+  __test__: { mapRow, daysToOrder }
 };

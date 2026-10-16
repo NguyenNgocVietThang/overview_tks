@@ -29,13 +29,23 @@ test('product report exports include numeric container quantities before stock a
   try {
     const request = { tableKey: 'overview.productReport' };
     const fields = (await exportService.getExportFields(request)).worksheets[0].fields;
-    assert.deepEqual(fields.slice(0, 7).map(field => field.key), ['code', 'name', 'unloadedQty', 'loadedQty', 'stockHanoi', 'inTransit', 'stockSaigon']);
+    // Thứ tự theo file mẫu HÀNG HÓA.xlsx (A→R) + cột Khách lớn nhất được giữ lại.
+    assert.deepEqual(fields.map(field => field.key), [
+      'code', 'name', 'unloadedQty', 'loadedQty', 'stockHanoi', 'availableHanoi', 'inTransit', 'stockSaigon', 'availableSaigon',
+      'descriptionHanoi', 'descriptionSaigon', 'totalStock', 'availableToSell', 'qtySold30d', 'daysToOrder', 'revenue90d',
+      'customerCount90d', 'topCustomerRevenue90d', 'topCustomerName', 'topCustomerShare'
+    ]);
     assert.ok(fields.slice(2, 4).every(field => field.selected && field.type === 'number'));
+    const byKey = key => fields.find(field => field.key === key);
+    // Nhãn có chữ "ngày" sẽ bị suy ra thành kiểu ngày tháng nếu không khai báo tường minh.
+    assert.equal(byKey('daysToOrder').type, 'number');
+    assert.equal(byKey('daysToOrder').label, 'Ngày cần đặt');
+    assert.ok(['descriptionHanoi', 'descriptionSaigon'].every(key => byKey(key).type === 'text'));
     request.columns = { product_report: ['code', 'unloadedQty', 'loadedQty', 'stockHanoi'] };
     const file = await exportService.createExportWorkbook(request);
     const workbook = await new ExcelJS.Workbook().xlsx.load(file.buffer);
     const sheet = workbook.getWorksheet('Báo cáo hàng hóa');
-    assert.deepEqual(sheet.getRow(1).values.slice(1), ['Mã sản phẩm', 'Chưa bốc', 'Đã bốc', 'Tồn Hà Nội']);
+    assert.deepEqual(sheet.getRow(1).values.slice(1), ['Mã sản phẩm', 'Chưa bốc', 'Đã bốc', 'Tồn thực Hà Nội']);
     assert.equal(sheet.getCell('A2').value, '001');
     assert.equal(sheet.getCell('B2').value, 150.5);
     assert.equal(sheet.getCell('C2').value, 30.25);
@@ -67,6 +77,41 @@ test('product report export notes distinguish missing container snapshots from z
     const workbook = await new ExcelJS.Workbook().xlsx.load(file.buffer);
     assert.equal(workbook.getWorksheet('Báo cáo hàng hóa').getCell('B2').value, null);
     assert.match(workbook.getWorksheet('Thông tin hàng dự kiến').getColumn(2).values.join(' '), /chưa sẵn sàng/i);
+  } finally { productReportRepository.getProductReport = original; }
+});
+
+test('product report export carries per-branch stock, descriptions and the days-to-order number; blanks stay blank', async () => {
+  const original = productReportRepository.getProductReport;
+  productReportRepository.getProductReport = async () => ({
+    containerSync: { available: true, version: 'v1', lastSuccessAt: '2026-10-15T01:00:00.000Z' },
+    rows: [
+      {
+        code: '001', name: 'Một', stockHanoi: 799, availableHanoi: -20, inTransit: 5, stockSaigon: 200, availableSaigon: 10,
+        descriptionHanoi: 'T50 # 30/9 # 1T -37200 | VAT+3200đ', descriptionSaigon: '', totalStock: 1004, availableToSell: 650,
+        qtySold30d: 3500, daysToOrder: 32.6
+      },
+      { code: '002', name: 'Hai', availableHanoi: null, availableSaigon: null, daysToOrder: null }
+    ]
+  });
+  try {
+    const keys = ['code', 'availableHanoi', 'availableSaigon', 'descriptionHanoi', 'descriptionSaigon', 'totalStock', 'daysToOrder'];
+    const request = { tableKey: 'overview.productReport', columns: { product_report: keys } };
+    const file = await exportService.createExportWorkbook(request);
+    const sheet = (await new ExcelJS.Workbook().xlsx.load(file.buffer)).getWorksheet('Báo cáo hàng hóa');
+    assert.deepEqual(sheet.getRow(1).values.slice(1), [
+      'Mã sản phẩm', 'Có bán Hà Nội', 'Có bán Sài Gòn', 'Mô tả Hà Nội', 'Mô tả Sài Gòn', 'Tổng tồn thực và điều chuyển', 'Ngày cần đặt'
+    ]);
+    assert.equal(sheet.getCell('B2').value, -20, 'có bán âm giữ nguyên dấu');
+    assert.equal(sheet.getCell('C2').value, 10);
+    assert.equal(sheet.getCell('D2').value, 'T50 # 30/9 # 1T -37200 | VAT+3200đ');
+    assert.equal(sheet.getCell('F2').value, 1004);
+    assert.equal(sheet.getCell('G2').value, 32.6, 'Ngày cần đặt là số, không phải ngày tháng');
+    assert.equal(typeof sheet.getCell('G2').value, 'number');
+    assert.equal(sheet.getCell('B3').value, null, 'chưa tính lại => ô trống, không giả thành 0');
+    assert.equal(sheet.getCell('G3').value, null);
+    // Mô tả dài (bảng giá) phải xuống dòng trong ô Excel thay vì kéo tràn.
+    const columns = (await exportService.getExportDataset(request)).worksheets[0].columns;
+    assert.deepEqual(['descriptionHanoi', 'descriptionSaigon'].map(key => columns.find(item => item.key === key).wrapText), [true, true]);
   } finally { productReportRepository.getProductReport = original; }
 });
 

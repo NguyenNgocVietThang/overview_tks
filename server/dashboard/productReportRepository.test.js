@@ -11,6 +11,7 @@ test('getProductReport chi giu ma dang kinh doanh o it nhat mot co so, ke ca het
   const db = new PGlite();
   try {
     await db.exec(fs.readFileSync(path.join(__dirname, '../db/migrations/0018_product_report.sql'), 'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname, '../db/migrations/0057_product_report_branch_columns.sql'), 'utf8'));
     await db.exec(fs.readFileSync(path.join(__dirname, '../db/migrations/0053_product_containers.sql'), 'utf8'));
     await db.exec(`
       CREATE TABLE products (branch text, code text, is_active boolean);
@@ -27,6 +28,11 @@ test('getProductReport chi giu ma dang kinh doanh o it nhat mot co so, ke ca het
     assert.deepEqual(result.rows.map(row => row.code), ['ACTIVE', 'SG_ONLY', 'UNKNOWN']);
     assert.equal(result.rows[0].availableToSell, 0);
     assert.equal(result.rows[0].revenue90d, 0);
+    // Dong chua duoc tinh lai sau migration 0057: cot theo co so la NULL -> null / chuoi rong, khong gia thanh 0.
+    assert.equal(result.rows[0].availableHanoi, null);
+    assert.equal(result.rows[0].availableSaigon, null);
+    assert.equal(result.rows[0].descriptionHanoi, '');
+    assert.equal(result.rows[0].descriptionSaigon, '');
 
     // Trang thai moi phai co hieu luc ca khi snapshot ban dem chua duoc tinh lai.
     await db.exec("UPDATE products SET is_active = false WHERE code = 'ACTIVE'");
@@ -50,13 +56,29 @@ test('mapRow chuyen doi cot Postgres (snake_case, string so) sang camelCase (num
     top_customer_revenue_90d: '500000',
     top_customer_name: 'Nguyen Van A',
     top_customer_share: '0.5555',
+    available_hanoi: '7',
+    available_saigon: '-2',
+    description_hanoi: 'T50 # 30/9 # 1T -37200',
+    description_saigon: null,
     computed_at: '2026-09-23T00:05:00.000Z'
   });
   assert.deepEqual(row, {
     code: 'SP001', name: 'San pham 1', stockHanoi: 10, stockSaigon: 5, availableToSell: 12,
+    availableHanoi: 7, availableSaigon: -2, descriptionHanoi: 'T50 # 30/9 # 1T -37200', descriptionSaigon: '',
     qtySold30d: 3, revenue90d: 900000, customerCount90d: 2, topCustomerRevenue90d: 500000,
     topCustomerName: 'Nguyen Van A', topCustomerShare: 0.5555, computedAt: '2026-09-23T00:05:00.000Z'
   });
+});
+
+test('mapRow: cot theo co so NULL (chua tinh lai sau migration 0057) -> null/chuoi rong, so 0 that van la 0', () => {
+  const pending = __test__.mapRow({ product_code: 'SP003', product_name: 'SP3', available_hanoi: null, available_saigon: undefined });
+  assert.equal(pending.availableHanoi, null);
+  assert.equal(pending.availableSaigon, null);
+  assert.equal(pending.descriptionHanoi, '');
+  assert.equal(pending.descriptionSaigon, '');
+  const zero = __test__.mapRow({ product_code: 'SP004', product_name: 'SP4', available_hanoi: '0', available_saigon: 0 });
+  assert.equal(zero.availableHanoi, 0);
+  assert.equal(zero.availableSaigon, 0);
 });
 
 test('mapRow tra ve topCustomerShare null neu khong co du lieu (thay vi NaN/0)', () => {
@@ -168,6 +190,48 @@ test('Điều chuyển SG uses the existing DB transit source per normalized cod
   assert.equal(result.rows[0].availableToSell,200.5);
 });
 
+test('daysToOrder = (Tong co ban + Chua boc + Da boc) * 30 / SL ban 30 ngay, lam tron 1 so le; null khi khong tinh duoc', () => {
+  const { daysToOrder } = __test__;
+  assert.equal(daysToOrder(799, 3000, 0, 3500), 32.6); // 3799 * 30 / 3500 = 32,56...
+  assert.equal(daysToOrder(0, 0, 0, 10), 0);
+  assert.equal(daysToOrder(-2800, 1500, 3500, 4200), 15.7); // am van tinh dung, khong ep ve 0
+  assert.equal(daysToOrder(-9000, 0, 0, 30), -9000);
+  assert.equal(daysToOrder(7, 0, 0, 3), 70, 'nhan truoc roi chia: 7 / 3 * 30 se ra 70.00000000000001');
+  assert.equal(daysToOrder(100, 0, 0, 0), null, 'khong ban duoc ngay nao (chia cho 0) => null, khong Infinity/NaN');
+  assert.equal(daysToOrder(100, null, 5, 10), null, 'chua co snapshot CONT => null');
+  assert.equal(daysToOrder(100, 5, null, 10), null);
+  assert.equal(daysToOrder(100, 0, 0, -3), null);
+});
+
+test('hang bao cao tra them Co ban/Mo ta theo co so, Tong ton thuc + DC va Ngay can dat (cung cho route va xuat file)', async () => {
+  const pool = { query: async (sql) => {
+    if (sql.includes('-- in-transit:')) return { rows: [{ product_key: 'sku-01', qty: '500' }, { product_key: 'sku-02', qty: '0.4' }] };
+    if (sql.includes('FROM product_report')) {
+      return { rows: [
+        { product_code: 'SKU-01', stock_hanoi: 799, stock_saigon: 200, available_to_sell: 150, qty_sold_30d: 3500,
+          available_hanoi: 100, available_saigon: 50, description_hanoi: 'T50 # 30/9', description_saigon: null },
+        { product_code: 'SKU-02', stock_hanoi: 16, stock_saigon: 0, available_to_sell: 7, qty_sold_30d: 0,
+          available_hanoi: null, available_saigon: null, description_hanoi: null, description_saigon: null }
+      ] };
+    }
+    return { rows: [] };
+  } };
+  const [first, second] = (await getProductReport({ pool })).rows;
+  assert.equal(first.availableHanoi, 100);
+  assert.equal(first.availableSaigon, 50);
+  assert.equal(first.inTransit, 500);
+  assert.equal(first.availableToSell, 650, 'co ban HN + co ban SG + dieu chuyen');
+  assert.equal(first.availableToSell, first.availableHanoi + first.availableSaigon + first.inTransit);
+  assert.equal(first.totalStock, 1499, 'ton thuc HN + ton thuc SG + dieu chuyen');
+  assert.equal(first.descriptionHanoi, 'T50 # 30/9');
+  assert.equal(first.descriptionSaigon, '');
+  assert.equal(first.unloadedQty, null, 'chua co snapshot CONT');
+  assert.equal(first.daysToOrder, null, 'chua co snapshot CONT => khong tinh Ngay can dat');
+  assert.equal(second.availableHanoi, null);
+  assert.equal(second.totalStock, 16.4, 'lam tron 3 so le, khong ra 16.400000000000002');
+  assert.equal(second.daysToOrder, null);
+});
+
 // ---- Bo doc theo phien ban (product_report_state, migration 0055) ----
 async function versionedFixture() {
   const { PGlite } = require('@electric-sql/pglite');
@@ -176,10 +240,12 @@ async function versionedFixture() {
   const migrations = path.join(__dirname, '../db/migrations');
   const db = new PGlite();
   await db.exec(fs.readFileSync(path.join(migrations, '0018_product_report.sql'), 'utf8'));
+  await db.exec(fs.readFileSync(path.join(migrations, '0057_product_report_branch_columns.sql'), 'utf8'));
   await db.exec(fs.readFileSync(path.join(migrations, '0053_product_containers.sql'), 'utf8'));
   const m55 = fs.readFileSync(path.join(migrations, '0055_product_report_state.sql'), 'utf8');
   await db.exec(m55.slice(m55.indexOf('CREATE TABLE'), m55.indexOf(');', m55.indexOf('CREATE TABLE')) + 2));
-  await db.exec(`INSERT INTO product_report (product_code, product_name, stock_hanoi, available_to_sell) VALUES ('A','Sp A',10,10),('B','Sp B',5,5);
+  await db.exec(`INSERT INTO product_report (product_code, product_name, stock_hanoi, available_to_sell, available_hanoi, available_saigon, qty_sold_30d, description_hanoi)
+      VALUES ('A','Sp A',10,10,10,0,30,'Mo ta A'),('B','Sp B',5,5,NULL,NULL,0,NULL);
     INSERT INTO product_report_state (id, computed_at, version) VALUES (1, '2026-10-16T05:00:00Z', 3);
     UPDATE product_container_sync SET version='00000000-0000-4000-8000-000000000001', last_success_at=now();
     INSERT INTO product_container_lines(sheet_name,sheet_order,container_row,source_row,product_code,product_key,container_name,status,status_label,quantity)
@@ -200,6 +266,11 @@ test('bo doc theo phien ban: chi keo 10,9K dong ve khi version doi; tong CONT ch
     assert.equal(new Date(first.computedAt).toISOString(), '2026-10-16T05:00:00.000Z');
     assert.deepEqual(first.rows.map(r => r.code), ['A', 'B']);
     assert.equal(first.rows[0].unloadedQty, 40);
+    assert.equal(first.rows[0].availableHanoi, 10);
+    assert.equal(first.rows[0].descriptionHanoi, 'Mo ta A');
+    assert.equal(first.rows[0].daysToOrder, 50, '(10 + 40 + 0) * 30 / 30');
+    assert.equal(first.rows[1].availableHanoi, null);
+    assert.equal(first.rows[1].daysToOrder, null);
     assert.equal(reads(calls, /SELECT \* FROM product_report ORDER BY/), 1);
     assert.equal(reads(calls, /jsonb_object_agg/), 1);
     // Tuy y sua ket qua tra ve khong lam ban cache.

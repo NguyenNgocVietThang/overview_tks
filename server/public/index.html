@@ -2740,11 +2740,12 @@
       display: flex;
       flex-direction: column;
       gap: var(--space-md);
-      contain: size;
+      align-self: start;
     }
 
     .debt-key-stack .kpi-card {
-      flex: 1 1 0;
+      flex: 0 0 76px;
+      height: 76px;
       min-width: 0;
       min-height: 0;
       padding: 10px 16px;
@@ -3025,6 +3026,33 @@
     tr.doc-row:focus-visible {
       outline: 2px solid var(--blue);
       outline-offset: -2px;
+    }
+
+    /* Số trong ô bảng dẫn thẳng tới 1 mục của hộp chi tiết: Chưa bốc / Đã bốc → Hàng dự kiến, Tỉ trọng khách lớn nhất → Khách hàng. */
+    .cell-link {
+      appearance: none;
+      background: transparent;
+      border: 0;
+      margin: 0;
+      padding: 0;
+      font: inherit;
+      color: var(--blue);
+      text-align: inherit;
+      cursor: pointer;
+      text-decoration: underline;
+      text-decoration-color: transparent;
+      text-underline-offset: 3px;
+    }
+
+    .cell-link:hover,
+    .cell-link:focus-visible {
+      text-decoration-color: currentColor;
+    }
+
+    .cell-link:focus-visible {
+      outline: 2px solid var(--blue);
+      outline-offset: 2px;
+      border-radius: 3px;
     }
 
     .doc-modal-backdrop {
@@ -3650,26 +3678,34 @@
                 </div>
                 <div class="scroll-list" style="max-height:600px;">
                   <table class="fixed-table" data-table-key="dashboard-table-2">
+                    <!-- 19 cột theo file HÀNG HÓA.xlsx (A→R) + cột Khách lớn nhất. data-hint = chú giải khi rê chuột
+                         (không dùng title: nút sắp xếp thay nội dung th và che mất title của th). Không dùng ký tự dấu lớn hơn trong data-hint. -->
                     <thead>
                       <tr>
-                        <th style="width:140px" data-column-key="ma-sp">Mã SP</th>
-                        <th style="width:300px" data-column-key="ten-sp">Tên SP</th>
-                        <th style="width:105px" data-column-key="chua-boc">Chưa bốc</th>
-                        <th style="width:105px" data-column-key="da-boc">Đã bốc</th>
-                        <th style="width:95px" data-column-key="ton-hn">Tồn HN</th>
-                        <th style="width:125px" data-column-key="dieu-chuyen-sg" title="Số lượng đặt hàng nhập Đã xác nhận NCC tại Kiot Sài Gòn; cộng vào tồn có bán của Báo cáo hàng hóa">Điều chuyển SG</th>
-                        <th style="width:95px" data-column-key="ton-sg">Tồn SG</th>
-                        <th title="Tồn có bán = Có bán HN + Có bán SG + Điều chuyển SG. Có bán HN/SG đã trừ khách đặt (phiếu tạm)." style="width:125px" data-column-key="ton-co-ban">Tồn có bán</th>
-                        <th style="width:165px" data-column-key="tong-sl-30-ngay">Tổng SL 30 ngày</th>
+                        <th style="width:120px" data-column-key="ma-sp">Mã sản phẩm</th>
+                        <th style="width:260px" data-column-key="ten-sp">Tên sản phẩm</th>
+                        <th style="width:100px" data-column-key="chua-boc" data-hint="Hàng dự kiến chưa bốc (CONT trạng thái 1 và 2), toàn công ty. Bấm số để xem chi tiết hàng dự kiến.">Chưa bốc</th>
+                        <th style="width:100px" data-column-key="da-boc" data-hint="Hàng dự kiến đã bốc (CONT trạng thái 3), toàn công ty. Bấm số để xem chi tiết hàng dự kiến.">Đã bốc</th>
+                        <th style="width:105px" data-column-key="ton-thuc-hn">Tồn thực HN</th>
+                        <th style="width:100px" data-column-key="co-ban-hn" data-hint="Có bán HN = Tồn thực HN trừ số lượng khách đặt (phiếu tạm) tại Hà Nội.">Có bán HN</th>
+                        <th style="width:125px" data-column-key="dieu-chuyen-sg" data-hint="Số lượng đặt hàng nhập Đã xác nhận NCC tại Kiot Sài Gòn; cộng vào tổng tồn thực và tổng có bán.">Điều chuyển SG</th>
+                        <th style="width:105px" data-column-key="ton-thuc-sg">Tồn thực SG</th>
+                        <th style="width:100px" data-column-key="co-ban-sg" data-hint="Có bán SG = Tồn thực SG trừ số lượng khách đặt (phiếu tạm) tại Sài Gòn.">Có bán SG</th>
+                        <th style="width:280px" data-column-key="mo-ta-hn" data-hint="Mô tả sản phẩm trên KiotViet Hà Nội (thường ghi bảng giá cho sale tra cứu).">Mô tả HN</th>
+                        <th style="width:280px" data-column-key="mo-ta-sg" data-hint="Mô tả sản phẩm trên KiotViet Sài Gòn (thường ghi bảng giá cho sale tra cứu).">Mô tả SG</th>
+                        <th style="width:130px" data-column-key="tong-ton-thuc" data-hint="Tổng tồn thực + ĐC = Tồn thực HN + Tồn thực SG + Điều chuyển SG.">Tổng tồn thực + ĐC</th>
+                        <th style="width:130px" data-column-key="tong-co-ban" data-hint="Tổng có bán + ĐC = Có bán HN + Có bán SG + Điều chuyển SG. Có bán từng cơ sở đã trừ khách đặt (phiếu tạm).">Tổng có bán + ĐC</th>
+                        <th style="width:120px" data-column-key="sl-ban-30-ngay" data-hint="Tổng số lượng bán 30 ngày gần nhất (tính đến hết hôm qua).">SL bán 30 ngày</th>
+                        <th style="width:110px" data-column-key="ngay-can-dat" data-hint="Ngày cần đặt = (Tổng có bán + Chưa bốc + Đã bốc) × 30 ÷ SL bán 30 ngày, tức số ngày hàng còn đủ bán. Để trống khi không bán được trong 30 ngày hoặc chưa có dữ liệu hàng dự kiến.">Ngày cần đặt</th>
                         <th style="width:135px" data-column-key="ds-90-ngay">DS 90 ngày</th>
-                        <th style="width:140px" data-column-key="sl-khach-ban">SL khách bán</th>
-                        <th style="width:220px" data-column-key="khach-lon-nhat">Khách lớn nhất</th>
-                        <th style="width:105px" data-column-key="khach-lon">% Khách lớn</th>
+                        <th style="width:115px" data-column-key="sl-khach-ban" data-hint="Số khách khác nhau đã mua mã này trong 90 ngày.">SL khách bán</th>
+                        <th style="width:200px" data-column-key="khach-lon-nhat">Khách lớn nhất</th>
+                        <th style="width:135px" data-column-key="ti-trong-khach-lon-nhat" data-hint="Doanh số của khách mua nhiều nhất chia cho doanh số 90 ngày. Bấm tỉ trọng để xem danh sách khách.">Tỉ trọng khách lớn nhất</th>
                       </tr>
                     </thead>
                     <tbody id="productReportRows">
                       <tr>
-                        <td colspan="13" class="table-note">Đang tải...</td>
+                        <td colspan="19" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -4512,6 +4548,13 @@
       document.querySelectorAll('table').forEach(initSortableTable);
     }
 
+    // Chu giai cot (data-hint tren <th>) noi them vao tooltip cua nut sap xep: nut thay noi dung th nen title cua chinh th
+    // khong bao gio hien ra khi re chuot len tieu de.
+    function headerHintSuffix(th) {
+      const hint = th && th.dataset ? th.dataset.hint : '';
+      return hint ? '\n' + hint : '';
+    }
+
     // Gan nut sap xep cho cac <th> cua 1 bang — goi lai sau khi thead duoc ve lai dong
     // (vd bang Bao cao kinh doanh co so cot thang thay doi theo du lieu).
     function initSortableTable(table) {
@@ -4529,7 +4572,7 @@
         th.setAttribute('aria-sort', 'none');
         button.type = 'button';
         button.className = 'sort-button';
-        button.title = 'Sắp xếp tăng dần theo ' + label;
+        button.title = 'Sắp xếp tăng dần theo ' + label + headerHintSuffix(th);
         button.setAttribute('aria-label', 'Sắp xếp tăng dần theo cột ' + label);
         labelSpan.className = 'sort-label';
         labelSpan.textContent = label;
@@ -4657,7 +4700,7 @@
           const nextAction = isActive
             ? (direction === 'asc' ? 'Sắp xếp giảm dần' : 'Bỏ sắp xếp')
             : 'Sắp xếp tăng dần';
-          button.title = nextAction + ' theo ' + label;
+          button.title = nextAction + ' theo ' + label + headerHintSuffix(th);
           button.setAttribute('aria-label', nextAction + ' theo cột ' + label);
         }
       });
@@ -7005,7 +7048,7 @@
       };
     }
 
-    // ===== Tab Tổng quan — "Báo cáo hàng hóa" =====
+    // ===== Tab Hàng hóa — "Báo cáo hàng hóa" (19 cột theo file HÀNG HÓA.xlsx) =====
     // Doanh số/tồn chốt mỗi đêm; hàng dự kiến có snapshot riêng 10 phút.
     // Metadata CONT được kiểm tra khi bảng đang hiển thị, độc lập loadData()/SSE. =====
     TABLE_EXPLORER_CONFIGS.productReport = {
@@ -7032,22 +7075,56 @@
         (sync.lastError ? ' · Lần cập nhật mới nhất thất bại, đang hiển thị dữ liệu cũ.' : sync.stale ? ' · Đang hiển thị dữ liệu cũ.' : '');
     }
 
+    // Ô số có thể ÂM (Có bán khi hàng bị giữ quá tồn, Ngày cần đặt) hoặc chưa có (null) nên KHÔNG dùng mốc -1 như
+    // productContainerQuantityCell: ô "—" không có data-sort-value → xếp cuối ở cả hai chiều sắp xếp.
+    function productReportNullableCell(value, format) {
+      if (value === null || value === undefined || !Number.isFinite(Number(value))) return '<td class="mono">—</td>';
+      return '<td class="mono" data-sort-value="' + Number(value) + '">' + format(value) + '</td>';
+    }
+
+    // Chưa bốc / Đã bốc / Tỉ trọng khách lớn nhất: số > 0 là nút dẫn tới mục tương ứng của hộp chi tiết
+    // (containers = Hàng dự kiến ở đầu hộp, customers = Doanh số theo khách → Khách hàng ở dưới); 0 hoặc chưa có thì chỉ là chữ.
+    function productReportLinkCell(value, focus, text, hint, sortValue) {
+      const link = Number(value) > 0
+        ? '<button type="button" class="cell-link" data-detail-focus="' + focus + '" title="' + escapeHtml(hint) + '">' + text + '</button>'
+        : text;
+      return '<td class="mono" data-sort-value="' + sortValue + '">' + link + '</td>';
+    }
+
+    function productReportContainerCell(value, p, hint) {
+      if (value === null || value === undefined) return productContainerQuantityCell(value);
+      return productReportLinkCell(value, 'containers', fmtNumber(value), hint + ' ' + p.code, escapeHtml(String(value)));
+    }
+
+    function productReportDescriptionCell(text) {
+      return '<td>' + (text ? escapeHtml(text) : '<span class="muted">—</span>') + '</td>';
+    }
+
+    // 19 ô theo đúng thứ tự thead (file HÀNG HÓA.xlsx A→R + Khách lớn nhất); hàm thuần vì sắp xếp toàn bộ dữ liệu chạy lại
+    // hàm này cho mọi dòng rồi đọc ô theo chỉ số cột (sortItemsByRenderedColumn).
     function productReportRowHtml(p) {
       const code = escapeHtml(p.code);
-      const shareValue = p.topCustomerShare === null || p.topCustomerShare === undefined ? -1 : p.topCustomerShare;
-      return '<tr class="doc-row" tabindex="0" title="Bấm để xem doanh số theo khách và hàng dự kiến" data-table-item-id="' + code + '">' +
+      const hasShare = p.topCustomerShare !== null && p.topCustomerShare !== undefined;
+      return '<tr class="doc-row" tabindex="0" title="Bấm để xem hàng dự kiến và doanh số theo khách" data-table-item-id="' + code + '">' +
         '<td class="mono muted">' + code + '</td>' +
         '<td class="name-cell">' + escapeHtml(p.name) + '</td>' +
-        productContainerQuantityCell(p.unloadedQty) + productContainerQuantityCell(p.loadedQty) +
+        productReportContainerCell(p.unloadedQty, p, 'Xem hàng dự kiến của') + productReportContainerCell(p.loadedQty, p, 'Xem hàng dự kiến của') +
         '<td class="mono" data-sort-value="' + p.stockHanoi + '">' + fmtNumber(p.stockHanoi) + '</td>' +
+        productReportNullableCell(p.availableHanoi, fmtNumber) +
         '<td class="mono" data-sort-value="' + (p.inTransit || 0) + '">' + fmtNumber(p.inTransit) + '</td>' +
         '<td class="mono" data-sort-value="' + p.stockSaigon + '">' + fmtNumber(p.stockSaigon) + '</td>' +
+        productReportNullableCell(p.availableSaigon, fmtNumber) +
+        productReportDescriptionCell(p.descriptionHanoi) + productReportDescriptionCell(p.descriptionSaigon) +
+        productReportNullableCell(p.totalStock, fmtNumber) +
         '<td class="mono" data-sort-value="' + p.availableToSell + '">' + fmtNumber(p.availableToSell) + '</td>' +
         '<td class="mono" data-sort-value="' + p.qtySold30d + '">' + fmtNumber(p.qtySold30d) + '</td>' +
+        productReportNullableCell(p.daysToOrder, function (value) { return VN_NUMBER_1DP.format(Number(value)); }) +
         '<td class="mono" data-sort-value="' + p.revenue90d + '">' + fmtTableMoney(p.revenue90d) + '</td>' +
         '<td class="mono" data-sort-value="' + p.customerCount90d + '">' + fmtNumber(p.customerCount90d) + '</td>' +
         '<td>' + (p.topCustomerName ? escapeHtml(p.topCustomerName) : '<span class="muted">—</span>') + '</td>' +
-        '<td class="mono" data-sort-value="' + shareValue + '">' + formatDebtRatio(p.topCustomerShare) + '</td>' +
+        (hasShare
+          ? productReportLinkCell(p.topCustomerShare, 'customers', formatDebtRatio(p.topCustomerShare), 'Xem danh sách khách của ' + p.code, p.topCustomerShare)
+          : '<td class="mono" data-sort-value="-1">—</td>') +
         '</tr>';
     }
 
@@ -7070,7 +7147,7 @@
         },
         rows,
         productReportRowHtml,
-        13,
+        19,
         state.productReport.loaded ? 'Chưa có dữ liệu báo cáo hàng hóa.' : 'Đang tải...'
       );
     }
@@ -7096,9 +7173,38 @@
           if (!state.productReport.loaded) {
             state.productReport.loaded = true;
             document.getElementById('productReportRows').innerHTML =
-              '<tr><td colspan="13" class="table-note">Không tải được báo cáo hàng hóa.</td></tr>';
+              '<tr><td colspan="19" class="table-note">Không tải được báo cáo hàng hóa.</td></tr>';
           }
         }).finally(function () { state.productReport.loading = false; });
+    }
+
+    // Khung nhìn MẶC ĐỊNH của bảng Báo cáo hàng hóa theo ghi chú trong file HÀNG HÓA.xlsx: Nhân viên sale hiện cột A→K + DS 90 ngày
+    // (ẩn các cột tổng hợp/khách), Quản lý và mọi vai trò khác ẩn cột E→K (tồn/có bán/mô tả từng cơ sở). Chỉ là mặc định hiển thị:
+    // dữ liệu vẫn có đủ trong API và ai cũng bật/tắt lại được bằng nút "Cột hiển thị" (lựa chọn chỉ giữ trong lần xem).
+    const PRODUCT_REPORT_SALE_ROLE = 'Nhân viên sale';
+    const PRODUCT_REPORT_HIDDEN_BY_PROFILE = {
+      sale: ['tong-ton-thuc', 'tong-co-ban', 'sl-ban-30-ngay', 'ngay-can-dat', 'sl-khach-ban', 'khach-lon-nhat', 'ti-trong-khach-lon-nhat'],
+      manager: ['ton-thuc-hn', 'co-ban-hn', 'dieu-chuyen-sg', 'ton-thuc-sg', 'co-ban-sg', 'mo-ta-hn', 'mo-ta-sg']
+    };
+    let productReportColumnProfile = '';
+
+    // Vai trò chỉ biết sau authGuard() trong khi table-controls đã dựng bảng lúc tải trang (chưa ẩn cột nào), và cột ẩn mặc định
+    // chỉ áp lúc phiên cột được tạo. Nên đổi khóa phiên theo hồ sơ ("dashboard-table-2:sale|manager") để dựng phiên mới có sẵn cột ẩn,
+    // cùng cách marketing-report.js / stock-locations.js đang dùng. Không làm gì khi chưa biết vai trò hoặc chưa nạp table-controls.
+    function applyProductReportColumnView() {
+      const user = state.currentUser;
+      if (!user || !window.TKSTables || typeof window.TKSTables.enhance !== 'function') return;
+      const profile = user.vaiTro === PRODUCT_REPORT_SALE_ROLE ? 'sale' : 'manager';
+      if (profile === productReportColumnProfile) return;
+      const table = document.getElementById('productReportRows').closest('table');
+      const hidden = PRODUCT_REPORT_HIDDEN_BY_PROFILE[profile];
+      productReportColumnProfile = profile;
+      window.TKSTables.enhance(table, {
+        key: table.dataset.tableKey + ':' + profile,
+        columns: Array.from(table.tHead.rows[0].cells).map(function (cell) {
+          return { key: cell.dataset.columnKey, hidden: hidden.indexOf(cell.dataset.columnKey) !== -1 };
+        })
+      });
     }
 
     let productContainerMetaLoading = false;
@@ -7553,7 +7659,7 @@
     // nay mở ở trang Vòng đời đơn hàng — /api/shipment/lifecycle/order-detail.)
     // size: 'medium' (bảng nhiều cột) | 'wide' (bảng + biểu đồ cạnh nhau); bỏ trống = hộp hẹp.
     const DOC_DETAIL_KINDS = {
-      // Báo cáo hàng hóa (tab Tổng quan): doanh số 90 ngày từng khách của 1 mã hàng — bảng + biểu đồ tròn.
+      // Báo cáo hàng hóa (tab Hàng hóa): hàng dự kiến + doanh số 90 ngày từng khách của 1 mã hàng — bảng + biểu đồ tròn.
       productReport: {
         api: '/api/product-report/customers', title: 'Chi tiết hàng hóa', size: 'wide',
         query: function (item) { return '?code=' + encodeURIComponent(item.code); },
@@ -7578,7 +7684,8 @@
         title: 'Thưởng/phạt sale', size: 'wide', local: item => debtPenaltySaleDetail(item), failure: 'Không dựng được chi tiết sale.'
       }
     };
-    const docDetail = { requestId: 0, tableKey: '', item: null, returnFocus: null };
+    // focus: mục của hộp Báo cáo hàng hóa cần cuộn tới khi mở từ 1 nút trong ô bảng ('containers' | 'customers'); dùng 1 lần.
+    const docDetail = { requestId: 0, tableKey: '', item: null, returnFocus: null, focus: null };
 
     // Hóa đơn: hàng chỉ số (tổng tiền hàng, đã trả, còn phải thu, giảm giá) → thông tin chung → bảng hàng hóa có dòng Cộng.
     function docDetailBodyHtml(tableKey, data) {
@@ -7731,7 +7838,9 @@
         '</tr></thead><tbody>' + rows.map(function (row) {
           return '<tr>' + columns.map(function (col) {
             const value = row[col[0]];
-            const text = value == null || String(value).trim() === '' ? '—' : col[2] ? fmtNumber(value) : String(value);
+            const text = value == null || String(value).trim() === '' ? '—'
+              : col[0] === 'vietnamPrice' ? fmtNumber(Math.round(Number(value)))
+              : col[2] ? fmtNumber(value) : String(value);
             return '<td' + (col[2] ? ' class="num"' : ' class="dp-note-text"') + '>' + escapeHtml(text) + '</td>';
           }).join('') + '</tr>';
         }).join('') + '</tbody></table></div>';
@@ -7762,10 +7871,27 @@
         });
       }
       const query = '?code=' + encodeURIComponent(item.code);
-      load('/api/product-report/customers' + query, customerBody, function (body, data) {
+      const customersLoaded = load('/api/product-report/customers' + query, customerBody, function (body, data) {
         renderProductReportModal(body, document.getElementById('docModalSubtitle'), data);
       }, DOC_DETAIL_KINDS.productReport.failure);
-      load('/api/product-report/containers' + query, containerBody, renderProductContainers, 'Không tải được hàng dự kiến của sản phẩm này.');
+      const containersLoaded = load('/api/product-report/containers' + query, containerBody, renderProductContainers, 'Không tải được hàng dự kiến của sản phẩm này.');
+      // load() đã tự nuốt lỗi từng phần; chỉ cuộn khi CẢ HAI phần đã vẽ xong vì chiều cao Hàng dự kiến quyết định vị trí Khách hàng.
+      Promise.all([customersLoaded, containersLoaded]).then(function () { scrollProductDetailToFocus(requestId); });
+    }
+
+    // Mở hộp từ nút trong ô bảng (Chưa bốc / Đã bốc → Hàng dự kiến, Tỉ trọng khách lớn nhất → Doanh số theo khách): đưa mục
+    // tương ứng lên đầu khung cuộn của hộp. Dùng 1 lần — tải lại hộp (metadata đổi, bấm Thử lại) không cuộn lại; nếu lượt tải này
+    // đã bị thay bằng lượt mới thì giữ nguyên mục tiêu cho lượt mới.
+    function scrollProductDetailToFocus(requestId) {
+      if (requestId !== docDetail.requestId) return;
+      const focus = docDetail.focus;
+      docDetail.focus = null;
+      const target = focus && document.getElementById(focus === 'customers' ? 'productCustomerSection' : 'productContainerSection');
+      if (!target || typeof target.scrollIntoView !== 'function') return;
+      // Nút "Cột hiển thị" do table-controls gắn vào đầu từng khối làm đổi chiều cao: dựng xong rồi mới đo.
+      if (window.TKSTables && typeof window.TKSTables.refreshAll === 'function') window.TKSTables.refreshAll();
+      const reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      target.scrollIntoView({ block: 'start', behavior: reducedMotion ? 'auto' : 'smooth' });
     }
 
     function setDocumentDetailTitle(kindText, separator, name) {
@@ -7795,10 +7921,11 @@
       else setDocumentDetailTitle(kind.title, ' ', item.code);
       subtitle.textContent = isBusiness || isDebtPenalty ? '' : isProduct ? '90 ngày gần nhất' : (item.branch ? 'Cơ sở ' + item.branch : '');
       if (status === 'loading' && isProduct) {
-        body.innerHTML = '<section class="dp-section" id="productCustomerSection" aria-label="Doanh số theo khách">' +
-          detailSectionHeadHtml('Doanh số theo khách') + '<div id="productCustomerContent"><div class="doc-modal-note">Đang tải doanh số theo khách...</div></div></section>' +
-          '<section class="dp-section" id="productContainerSection" aria-label="Hàng dự kiến">' + detailSectionHeadHtml('Hàng dự kiến') +
-          '<div id="productContainerContent"><div class="doc-modal-note">Đang tải hàng dự kiến...</div></div></section>';
+        // Thứ tự: Hàng dự kiến (đầu hộp) → Doanh số theo khách (chỉ số, bảng Khách hàng, biểu đồ tỷ trọng).
+        body.innerHTML = '<section class="dp-section" id="productContainerSection" aria-label="Hàng dự kiến">' + detailSectionHeadHtml('Hàng dự kiến') +
+          '<div id="productContainerContent"><div class="doc-modal-note">Đang tải hàng dự kiến...</div></div></section>' +
+          '<section class="dp-section" id="productCustomerSection" aria-label="Doanh số theo khách">' +
+          detailSectionHeadHtml('Doanh số theo khách') + '<div id="productCustomerContent"><div class="doc-modal-note">Đang tải doanh số theo khách...</div></div></section>';
       } else if (status === 'ready' && isBusiness) {
         renderBusinessDetailModal(body, subtitle, data);
       } else if (status === 'ready' && isDebtPenalty) {
@@ -7871,6 +7998,7 @@
 
     function closeDocumentDetail() {
       docDetail.requestId++; // bỏ qua kết quả của request đang chờ
+      docDetail.focus = null;
       document.getElementById('docModalBackdrop').hidden = true;
       destroyChart('productDetailCustomers');
       destroyChart('businessDetailTrend');
@@ -7914,6 +8042,9 @@
           const selection = window.getSelection && window.getSelection();
           // Đang bôi đen chữ trong dòng (để sao chép mã) thì không mở panel.
           if (selection && !selection.isCollapsed && row.contains(selection.anchorNode)) return;
+          // Nút trong ô (Chưa bốc / Đã bốc / Tỉ trọng khách lớn nhất) mở hộp rồi cuộn tới mục của nó; bấm chỗ khác thì không cuộn.
+          const link = event.target.closest && event.target.closest('[data-detail-focus]');
+          docDetail.focus = link && tableKey === 'productReport' ? link.dataset.detailFocus : null;
           openFromRow(row);
         });
         tbody.addEventListener('keydown', function (event) {
@@ -9481,6 +9612,7 @@
     if (typeof TKSNav !== 'undefined' && TKSNav.authGuard) {
       TKSNav.authGuard().then(function(user){
         state.currentUser = user;
+        applyProductReportColumnView();
         applyReportViewPermissions();
         applyExportPermission();
         syncSidebarActiveView();

@@ -34,7 +34,7 @@ test('summary distinguishes unavailable from empty snapshot, sums only 1/2/3', a
     assert.deepEqual((await readContainerSummary(db)).totals,{});
   } finally {await db.close();}
 });
-test('detail SQL whitelists fields/status and validates eligible active report codes',async()=>{
+test('detail includes statuses 1–5 for ordinary users while restricting internal fields and validating active codes',async()=>{
   const db=await fixture();
   try {
     await assert.rejects(getContainerDetails({pool:db,code:' '}),{statusCode:400});
@@ -42,13 +42,19 @@ test('detail SQL whitelists fields/status and validates eligible active report c
     await assert.rejects(getContainerDetails({pool:db,code:'001A'}),{statusCode:503});
     await db.exec(`UPDATE product_container_sync SET version='00000000-0000-4000-8000-000000000001',last_success_at=now(),warnings='[{"sheetName":"YIWU","row":3,"reason":"O lỗi"}]';
       INSERT INTO product_container_lines(sheet_name,sheet_order,container_row,source_row,product_code,product_key,container_name,status,status_label,quantity,ordered_by,vietnam_price)
-      VALUES ('YIWU',0,1,2,'001A','001a','CONT A',2,'2.Chưa bốc',50,'SECRET',12345),('SD',3,1,2,'001A','001a','CONT B',5,'5.Đã về',9,'SECRET',999);`);
+      VALUES ('YIWU',0,1,2,'001A','001a','CONT A',2,'2.Chưa bốc',50,'SECRET',12345),
+      ('YIWU',0,3,4,'001A','001a','CONT C',1,'1.Chưa có lịch',10,'SECRET',111),
+      ('YIWU',0,5,6,'001A','001a','CONT D',3,'3.Đã bốc',20,'SECRET',222),
+      ('SD',3,1,2,'001A','001a','CONT B',5,'5.Đã về',9,'SECRET',999),
+      ('SD',3,3,4,'001A','001a','CONT E',4,'4.Đã về',8,'SECRET',888);`);
     const sale=await getContainerDetails({pool:db,code:' 001a '});
-    assert.equal(sale.rows.length,1);
-    assert.deepEqual(Object.keys(sale.rows[0]).sort(),['containerName','status','statusLabel','eta','color','saleNote','quantity'].sort());
+    assert.deepEqual(sale.rows.map(row=>row.status),[2,1,3,5,4]);
+    for (const row of sale.rows) {
+      assert.deepEqual(Object.keys(row).sort(),['containerName','status','statusLabel','eta','color','saleNote','quantity'].sort());
+    }
     assert.doesNotMatch(JSON.stringify(sale),/SECRET|12345|warnings|sheetName|sourceRow/);
     const manager=await getContainerDetails({pool:db,code:'001A',fullAccess:true});
-    assert.equal(manager.rows.length,2);
+    assert.equal(manager.rows.length,5);
     assert.equal(manager.rows[0].vietnamPrice,12345);
     assert.equal(manager.warnings[0].row,3);
   } finally {await db.close();}

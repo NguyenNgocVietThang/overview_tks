@@ -16,6 +16,8 @@
 // (a) cua so gom HOM NAY, (b) khach lon nhat doc tu bang tam kieu NUMERIC de luot nang va luot nhe cho
 // cung mot bieu dien (khong "nhap nhay" ghi lai), (c) xep hang hoa them customer_key de on dinh khi
 // bang doanh so, (d) chi giu ma dang kinh doanh o it nhat 1 co so (bo loc truoc day nam o luc doc).
+// 4 cot theo co so (co ban HN/SG, mo ta HN/SG - migration 0057) do chinh REFRESH_SQL cung cap nen mo ta sua tren
+// KiotViet cung cap nhat sau moi luot nay.
 
 const CONFIG = require('../config');
 const { __sql__: legacy } = require('./productReportRefresh');
@@ -63,9 +65,11 @@ function windowed({ includeToday }) {
   };
 }
 
+// Thu tu PHAI khop dung danh sach SELECT cua fillProducts ben duoi (INSERT theo vi tri).
 const PRODUCT_COLUMNS = [
   'product_code', 'product_name', 'stock_hanoi', 'stock_saigon', 'available_to_sell', 'qty_sold_30d',
-  'revenue_90d', 'customer_count_90d', 'top_customer_revenue_90d', 'top_customer_name', 'top_customer_share'
+  'revenue_90d', 'customer_count_90d', 'top_customer_revenue_90d', 'top_customer_name', 'top_customer_share',
+  'available_hanoi', 'available_saigon', 'description_hanoi', 'description_saigon'
 ];
 
 const CREATE_STAGE_SQL = [
@@ -119,6 +123,10 @@ function buildSql({ includeToday = true } = {}) {
     COALESCE(ct.top_customer_revenue, 0),
     ct.top_customer_name,
     CASE WHEN COALESCE(s90.revenue, 0) > 0 THEN LEAST(1, COALESCE(ct.top_customer_revenue, 0) / s90.revenue) ELSE NULL END,
+    hn.on_hand - COALESCE(po.qty_hanoi, 0),
+    COALESCE(sg.on_hand, 0) - COALESCE(po.qty_saigon, 0),
+    hn.description,
+    sg.description,
     now()
   FROM hn_products hn
   LEFT JOIN sg_products sg ON sg.code = hn.code

@@ -63,7 +63,7 @@ async function getContainerDetails({ code, fullAccess = false, pool = getPool() 
         SELECT sheet_order,source_row,jsonb_build_object('containerName',container_name,
           'status',status,'statusLabel',status_label,'eta',eta,'color',color,
           'saleNote',sale_note,'quantity',quantity ${extra}) AS item
-        FROM product_container_lines WHERE product_key = $1 ${fullAccess ? '' : 'AND status IN (1,2,3)'}
+        FROM product_container_lines WHERE product_key = $1
       ) lines), '[]'::jsonb) AS items
       FROM product_container_sync s WHERE singleton = true`,[key]);
     snapshot = rows[0];

@@ -26,6 +26,9 @@ const BRANCH_CODES = Object.freeze(['hanoi', 'saigon']);
 // productReportRepository cong dieu chuyen SG khi doc; khong cong o SQL nay de tranh tinh hai lan.
 const PENDING_ORDER_STATUS = 'Phiếu tạm';
 
+// Ky tu bi cat o hai dau "Mo ta" san pham: dau cach, tab, CR, LF (E'...' cua Postgres, dung literal \t \r \n).
+const DESCRIPTION_TRIM_CHARS = "E' \\t\\r\\n'";
+
 // Gia tri 1 dong return_details (alias rd), tuyet doi - ban sao cua RETURN_AMOUNT_SQL
 // trong customerProductTopRepository.js (cung ly do khong import o duoi).
 const RETURN_AMOUNT_SQL = `CASE
@@ -59,7 +62,10 @@ const REFRESH_SQL = `
       p.code,
       COALESCE(NULLIF(p.raw->>'fullName', ''), p.name) AS name,
       (SELECT COALESCE(SUM(COALESCE((inv->>'onHand')::float8, 0)), 0)
-         FROM jsonb_array_elements(COALESCE(p.raw->'inventories', '[]'::jsonb)) inv) AS on_hand
+         FROM jsonb_array_elements(COALESCE(p.raw->'inventories', '[]'::jsonb)) inv) AS on_hand,
+      -- "Mo ta" san pham tren KiotViet (nhan vien ghi bang gia cho sale tra cuu), tung co so mot. btrim phai cat ca
+      -- tab/xuong dong (mac dinh chi cat dau cach): mo ta chi con xuong dong coi nhu trong.
+      NULLIF(btrim(p.raw->>'description', ${DESCRIPTION_TRIM_CHARS}), '') AS description
     FROM products p
     WHERE p.branch = 'hanoi' AND COALESCE(p.code, '') <> ''
   ),
@@ -67,7 +73,8 @@ const REFRESH_SQL = `
     SELECT
       p.code,
       (SELECT COALESCE(SUM(COALESCE((inv->>'onHand')::float8, 0)), 0)
-         FROM jsonb_array_elements(COALESCE(p.raw->'inventories', '[]'::jsonb)) inv) AS on_hand
+         FROM jsonb_array_elements(COALESCE(p.raw->'inventories', '[]'::jsonb)) inv) AS on_hand,
+      NULLIF(btrim(p.raw->>'description', ${DESCRIPTION_TRIM_CHARS}), '') AS description
     FROM products p
     WHERE p.branch = 'saigon' AND COALESCE(p.code, '') <> ''
   ),
@@ -79,9 +86,12 @@ const REFRESH_SQL = `
     -- ((raw->>'statusValue') = 'Phiếu tạm', KHONG boc COALESCE) nen Postgres chi doc ~900 don thay
     -- vi quet order_details: do 2026-10-16 750ms/13.500 block doc dia -> 37ms/0 doc dia.
     -- OFFSET 0 giu nguyen vai tro "doc don truoc, tra cuu dong chi tiet sau".
+    -- qty = tong hai co so (cot available_to_sell); qty_hanoi/qty_saigon = phan giu cho cua tung co so (cot "Co ban" HN/SG).
     SELECT
       lower(btrim(COALESCE(NULLIF(d.raw->>'productCode', ''), p.code, ''))) AS product_key,
-      SUM(COALESCE(d.quantity, 0))::float8 AS qty
+      SUM(COALESCE(d.quantity, 0))::float8 AS qty,
+      COALESCE(SUM(COALESCE(d.quantity, 0)) FILTER (WHERE d.branch = 'hanoi'), 0)::float8 AS qty_hanoi,
+      COALESCE(SUM(COALESCE(d.quantity, 0)) FILTER (WHERE d.branch = 'saigon'), 0)::float8 AS qty_saigon
     FROM (
       SELECT branch, id FROM orders
       WHERE branch = ANY($1::text[])
@@ -184,7 +194,8 @@ const REFRESH_SQL = `
   INSERT INTO product_report (
     product_code, product_name, stock_hanoi, stock_saigon, available_to_sell,
     qty_sold_30d, revenue_90d, customer_count_90d, top_customer_revenue_90d,
-    top_customer_name, top_customer_share, computed_at
+    top_customer_name, top_customer_share,
+    available_hanoi, available_saigon, description_hanoi, description_saigon, computed_at
   )
   SELECT
     hn.code,
@@ -198,6 +209,10 @@ const REFRESH_SQL = `
     COALESCE(ct.top_customer_revenue, 0),
     ct.top_customer_name,
     CASE WHEN COALESCE(s90.revenue, 0) > 0 THEN LEAST(1, COALESCE(ct.top_customer_revenue, 0) / s90.revenue) ELSE NULL END,
+    hn.on_hand - COALESCE(po.qty_hanoi, 0),
+    COALESCE(sg.on_hand, 0) - COALESCE(po.qty_saigon, 0),
+    hn.description,
+    sg.description,
     now()
   FROM hn_products hn
   LEFT JOIN sg_products sg ON sg.code = hn.code
@@ -259,13 +274,28 @@ async function refreshProductReportIfDue(pool, {
       // chua chay migration 0055: roi xuong luong chot dem cu ben duoi
     }
   }
-  const { rows } = await pool.query('SELECT MAX(computed_at) AS last_computed_at FROM product_report');
+  const { rows } = await readLastComputed(pool);
   const lastComputedAt = rows[0] && rows[0].last_computed_at;
-  if (lastComputedAt && vnDateKey(new Date(lastComputedAt)) === today) {
+  // Dong con NULL o cot theo co so (vua ap migration 0057, chua tinh lai) => tinh lai ngay thay vi doi sang ngay moi.
+  const needsBranchColumns = Boolean(rows[0] && rows[0].needs_branch_columns);
+  if (lastComputedAt && vnDateKey(new Date(lastComputedAt)) === today && !needsBranchColumns) {
     return { skipped: true };
   }
   const { rowCount } = await refreshProductReport(pool, { log });
   return { skipped: false, rowCount };
+}
+
+// Chua ap migration 0057 (thieu cot available_hanoi, 42703) thi chi doc moc thoi gian nhu truoc do.
+const LAST_COMPUTED_SQL = 'SELECT MAX(computed_at) AS last_computed_at FROM product_report';
+const LAST_COMPUTED_WITH_BRANCH_COLUMNS_SQL = `SELECT MAX(computed_at) AS last_computed_at,
+  COALESCE(bool_or(available_hanoi IS NULL), false) AS needs_branch_columns FROM product_report`;
+async function readLastComputed(pool) {
+  try {
+    return await pool.query(LAST_COMPUTED_WITH_BRANCH_COLUMNS_SQL);
+  } catch (error) {
+    if (error.code !== '42703') throw error;
+    return pool.query(LAST_COMPUTED_SQL);
+  }
 }
 
 function startProductReportSchedule(pool, {
@@ -303,6 +333,6 @@ module.exports = {
   refreshProductReport,
   refreshProductReportIfDue,
   startProductReportSchedule,
-  __sql__: { REFRESH_SQL },
+  __sql__: { REFRESH_SQL, DESCRIPTION_TRIM_CHARS },
   __test__: { vnDateKey }
 };

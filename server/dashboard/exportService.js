@@ -263,17 +263,25 @@ const PRODUCT_REPORT_COLUMNS = [
   aggregateColumn('name', 'Tên sản phẩm', undefined, 'Tên sản phẩm.'),
   aggregateColumn('unloadedQty', 'Chưa bốc', 'number', 'Tổng số lượng toàn công ty trong CONT trạng thái 1 hoặc 2; trống khi chưa có dữ liệu.'),
   aggregateColumn('loadedQty', 'Đã bốc', 'number', 'Tổng số lượng toàn công ty trong CONT trạng thái 3; trống khi chưa có dữ liệu.'),
-  aggregateColumn('stockHanoi', 'Tồn Hà Nội', 'number', 'Tồn kho hiện tại tại cơ sở Hà Nội.'),
+  aggregateColumn('stockHanoi', 'Tồn thực Hà Nội', 'number', 'Tồn kho hiện tại tại cơ sở Hà Nội.'),
+  aggregateColumn('availableHanoi', 'Có bán Hà Nội', 'number', 'Tồn thực Hà Nội trừ số lượng khách đặt phiếu tạm tại Hà Nội; trống khi báo cáo chưa được tính lại.'),
   aggregateColumn('inTransit', 'Điều chuyển SG', 'number', 'Số lượng đặt hàng nhập Đã xác nhận nhà cung cấp tại Kiot Sài Gòn, cộng vào tồn có thể bán của báo cáo này.'),
-  aggregateColumn('stockSaigon', 'Tồn Sài Gòn', 'number', 'Tồn kho hiện tại tại cơ sở Sài Gòn.'),
-  aggregateColumn('availableToSell', 'Tổng tồn có thể bán', 'number',
-    'Tồn có thể bán Hà Nội cộng tồn có thể bán Sài Gòn cộng điều chuyển Sài Gòn; tồn có thể bán từng cơ sở đã trừ khách đặt phiếu tạm.'),
+  aggregateColumn('stockSaigon', 'Tồn thực Sài Gòn', 'number', 'Tồn kho hiện tại tại cơ sở Sài Gòn.'),
+  aggregateColumn('availableSaigon', 'Có bán Sài Gòn', 'number', 'Tồn thực Sài Gòn trừ số lượng khách đặt phiếu tạm tại Sài Gòn; trống khi báo cáo chưa được tính lại.'),
+  aggregateColumn('descriptionHanoi', 'Mô tả Hà Nội', 'text', 'Mô tả sản phẩm trên KiotViet của cơ sở Hà Nội (thường ghi bảng giá cho nhân viên bán hàng tra cứu).', { wrapText: true }),
+  aggregateColumn('descriptionSaigon', 'Mô tả Sài Gòn', 'text', 'Mô tả sản phẩm trên KiotViet của cơ sở Sài Gòn (thường ghi bảng giá cho nhân viên bán hàng tra cứu).', { wrapText: true }),
+  aggregateColumn('totalStock', 'Tổng tồn thực và điều chuyển', 'number', 'Tồn thực Hà Nội cộng tồn thực Sài Gòn cộng điều chuyển Sài Gòn.'),
+  aggregateColumn('availableToSell', 'Tổng có bán và điều chuyển', 'number',
+    'Có bán Hà Nội cộng có bán Sài Gòn cộng điều chuyển Sài Gòn; có bán từng cơ sở đã trừ khách đặt phiếu tạm.'),
   aggregateColumn('qtySold30d', 'Số lượng bán 30 ngày', 'number', 'Tổng số lượng bán ra trong 30 ngày gần nhất (tính đến hết hôm qua).'),
+  // Kiểu 'number' khai báo tường minh: nhãn có chữ "ngày" sẽ bị inferColumnType suy ra thành cột ngày tháng.
+  aggregateColumn('daysToOrder', 'Ngày cần đặt', 'number',
+    '(Tổng có bán và điều chuyển + Chưa bốc + Đã bốc) chia số lượng bán 30 ngày, nhân 30; trống khi không có số lượng bán hoặc chưa có dữ liệu CONT.'),
   aggregateColumn('revenue90d', 'Doanh số 90 ngày', 'number', 'Doanh số trong 90 ngày gần nhất (tính đến hết hôm qua, đơn vị tiền Việt Nam).'),
   aggregateColumn('customerCount90d', 'Số lượng khách mua', 'number', 'Số khách hàng khác nhau đã mua mã này trong 90 ngày.'),
   aggregateColumn('topCustomerRevenue90d', 'Doanh số khách lớn nhất', 'number', 'Doanh số của khách mua nhiều nhất trong 90 ngày.'),
   aggregateColumn('topCustomerName', 'Khách lớn nhất', 'text', 'Tên khách hàng mua nhiều nhất trong 90 ngày.'),
-  aggregateColumn('topCustomerShare', 'Tỷ lệ khách lớn nhất', 'percent', 'Doanh số khách lớn nhất chia cho doanh số 90 ngày.')
+  aggregateColumn('topCustomerShare', 'Tỉ trọng khách lớn nhất', 'percent', 'Doanh số khách lớn nhất chia cho doanh số 90 ngày.')
 ];
 
 const STOCKOUT_RECENT_COLUMNS = [

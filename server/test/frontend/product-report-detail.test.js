@@ -1,7 +1,7 @@
 'use strict';
 
-// Bang "Bao cao hang hoa" (tab Tong quan): bo cot "DS Khach lon nhat" (giu ten khach + %), KHONG co
-// nut "Chi tiet" nua. Bam vao 1 dong mo hop chi tiet giua man hinh (dung chung voi bang giao dich/dat hang/tra hang)
+// Bang "Bao cao hang hoa" (tab Hang hoa): 19 cot theo file HANG HOA.xlsx (+ Khach lon nhat), KHONG co
+// nut "Chi tiet" rieng; so Chua boc / Da boc / Ti trong khach lon nhat la nut mo hop chi tiet o dung muc. Bam vao 1 dong mo hop chi tiet giua man hinh (dung chung voi bang giao dich/dat hang/tra hang)
 // gom bang doanh so tung khach 90 ngay (so tien + %) va bieu do tron dat canh ben.
 
 const test = require('node:test');
@@ -16,7 +16,10 @@ const html = fs.readFileSync(path.join(publicDir, 'index.html'), 'utf8');
 const settle = async () => { for (let i = 0; i < 8; i++) await new Promise(resolve => setImmediate(resolve)); };
 
 const PRODUCTS = [
-  { code: 'SP-1', name: 'Khay giấy bạc', inTransit: 75, stockHanoi: 5, stockSaigon: 3, availableToSell: 8, qtySold30d: 4, revenue90d: 1000, customerCount90d: 3, topCustomerRevenue90d: 600, topCustomerName: 'KH A', topCustomerShare: 0.6 },
+  {
+    code: 'SP-1', name: 'Khay giấy bạc', inTransit: 75, stockHanoi: 5, stockSaigon: 3, availableToSell: 8, qtySold30d: 4, revenue90d: 1000, customerCount90d: 3, topCustomerRevenue90d: 600, topCustomerName: 'KH A', topCustomerShare: 0.6,
+    availableHanoi: -2, availableSaigon: 5, descriptionHanoi: 'T50 # 30/9 | <b>VAT</b>+3200đ', descriptionSaigon: '', totalStock: 83, daysToOrder: 12.5
+  },
   { code: 'SP-2', name: 'Bình nước nhựa', stockHanoi: 0, stockSaigon: 0, availableToSell: 0, qtySold30d: 0, revenue90d: 0, customerCount90d: 0, topCustomerRevenue90d: 0, topCustomerName: '', topCustomerShare: null }
 ];
 
@@ -42,7 +45,10 @@ function createPage({ customers = code => customersPayload(code), containers, me
   };
   dom.window.setInterval = () => 1;
   dom.window.requestAnimationFrame = callback => callback();
-  dom.window.HTMLElement.prototype.scrollIntoView = function () { dom.window.__scrolled = (dom.window.__scrolled || 0) + 1; };
+  dom.window.HTMLElement.prototype.scrollIntoView = function () {
+    dom.window.__scrolled = (dom.window.__scrolled || 0) + 1;
+    (dom.window.__scrolledTo = dom.window.__scrolledTo || []).push(this.id);
+  };
   dom.window.TKSNav = { authGuard: () => new Promise(() => {}), can: () => true, handleBranchError: () => false, renderTopSidebar() {} };
 
   const urls = [];
@@ -71,7 +77,7 @@ function createPage({ customers = code => customersPayload(code), containers, me
   });
   const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(match => match[1]).filter(script => script.trim());
   const mainIndex = scripts.reduce((best, script, index) => (script.length > scripts[best].length ? index : best), 0);
-  scripts.forEach((script, index) => dom.window.eval(script + (index === mainIndex ? '\nwindow.__reportTestState = state;' : '')));
+  scripts.forEach((script, index) => dom.window.eval(script + (index === mainIndex ? '\nwindow.__reportTestState = state; window.__reportTestInternals = { docDetail, hiddenByProfile: PRODUCT_REPORT_HIDDEN_BY_PROFILE };' : '')));
 
   const doc = dom.window.document;
   return { dom, doc, charts, urls, run: code => dom.window.eval(code), $: id => doc.getElementById(id) };
@@ -81,23 +87,239 @@ const pieCharts = page => page.charts.filter(chart => chart.config.type === 'dou
 const rowOf = (page, code) => [...page.$('productReportRows').querySelectorAll('tr.doc-row')].find(tr => tr.dataset.tableItemId === code);
 const modalText = page => page.$('docModalBody').textContent.replace(/\s+/g, ' ');
 
-test('bang bo cot "DS Khach lon nhat" va KHONG con cot/nut "Chi tiet" (13 cot), dong bam duoc', async () => {
+const HEADERS = [
+  'Mã sản phẩm', 'Tên sản phẩm', 'Chưa bốc', 'Đã bốc', 'Tồn thực HN', 'Có bán HN', 'Điều chuyển SG', 'Tồn thực SG', 'Có bán SG',
+  'Mô tả HN', 'Mô tả SG', 'Tổng tồn thực + ĐC', 'Tổng có bán + ĐC', 'SL bán 30 ngày', 'Ngày cần đặt', 'DS 90 ngày', 'SL khách bán',
+  'Khách lớn nhất', 'Tỉ trọng khách lớn nhất'
+];
+const reportTable = page => page.$('productReportRows').closest('table');
+const columnKeys = page => [...reportTable(page).querySelectorAll('thead th')].map(th => th.dataset.columnKey);
+const scrolledSections = page => (page.dom.window.__scrolledTo || []).filter(id => id === 'productContainerSection' || id === 'productCustomerSection');
+const READY = { available: true, version: 'v1', lastSuccessAt: '2026-10-15T02:00:00Z' };
+
+test('bang Bao cao hang hoa co 19 cot theo file HANG HOA.xlsx (+ cot Khach lon nhat), moi dong du 19 o, dong bam duoc', async () => {
   const page = createPage();
   await settle();
 
-  const headers = [...page.$('productReportRows').closest('table').querySelectorAll('thead th')].map(th => th.textContent.replace(/[↕▲▼]/g, '').trim());
-  assert.deepEqual(headers, [
-    'Mã SP', 'Tên SP', 'Chưa bốc', 'Đã bốc', 'Tồn HN', 'Điều chuyển SG', 'Tồn SG', 'Tồn có bán', 'Tổng SL 30 ngày', 'DS 90 ngày',
-    'SL khách bán', 'Khách lớn nhất', '% Khách lớn'
-  ]);
+  const headers = [...reportTable(page).querySelectorAll('thead th')].map(th => th.textContent.replace(/[↕▲▼]/g, '').trim());
+  assert.deepEqual(headers, HEADERS);
+  assert.equal(new Set(columnKeys(page)).size, 19, 'data-column-key duy nhat cho tung cot');
 
   const firstRow = page.$('productReportRows').querySelector('tr');
-  assert.equal(firstRow.cells.length, 13);
-  assert.equal(firstRow.cells[5].textContent, '75');
-  assert.match(firstRow.cells[11].textContent, /KH A/);
-  assert.match(firstRow.cells[12].textContent, /60/);
-  assert.equal(page.$('productReportRows').querySelector('button'), null);
+  assert.equal(firstRow.cells.length, 19);
+  const text = i => firstRow.cells[i].textContent;
+  assert.equal(text(0), 'SP-1');
+  assert.equal(text(2), '—', 'chua co snapshot CONT => —');
+  assert.equal(text(4), '5');      // Tồn thực HN
+  assert.equal(text(5), '-2');     // Có bán HN (âm giữ nguyên dấu)
+  assert.equal(text(6), '75');     // Điều chuyển SG
+  assert.equal(text(7), '3');      // Tồn thực SG
+  assert.equal(text(8), '5');      // Có bán SG
+  assert.equal(text(11), '83');    // Tổng tồn thực + ĐC
+  assert.equal(text(12), '8');     // Tổng có bán + ĐC
+  assert.equal(text(13), '4');     // SL bán 30 ngày
+  assert.equal(text(14), '12,5');  // Ngày cần đặt: 1 số thập phân
+  assert.equal(text(16), '3');     // SL khách bán
+  assert.match(text(17), /KH A/);  // Khách lớn nhất (giữ lại)
+  assert.match(text(18), /60/);    // Tỉ trọng khách lớn nhất
   assert.equal(firstRow.getAttribute('tabindex'), '0');
+  assert.match(firstRow.title, /hàng dự kiến.*doanh số theo khách/);
+  [...page.$('productReportRows').querySelectorAll('tr.doc-row')].forEach(row => assert.equal(row.cells.length, 19));
+});
+
+test('o chua co so (Co ban, Tong ton, Ngay can dat, Mo ta) hien "—", KHONG gia thanh 0 va KHONG dung moc sort -1 (so am hop le)', async () => {
+  const page = createPage();
+  await settle();
+  const sp2 = rowOf(page, 'SP-2');
+  [5, 8, 9, 10, 11, 14].forEach(index => assert.equal(sp2.cells[index].textContent.trim(), '—', 'cot ' + index));
+  // So co the am (Co ban, Ngay can dat) nen o trong khong duoc co data-sort-value (-1 se xep lan voi so am that).
+  [5, 8, 11, 14].forEach(index => assert.equal(sp2.cells[index].hasAttribute('data-sort-value'), false, 'cot ' + index));
+  const sp1 = rowOf(page, 'SP-1');
+  assert.equal(sp1.cells[5].getAttribute('data-sort-value'), '-2');
+  assert.equal(sp1.cells[14].getAttribute('data-sort-value'), '12.5');
+  // Sap xep theo "Co ban HN": so am dung truoc so duong, o trong luon cuoi o ca hai chieu.
+  page.run("setTableSort('productReportRows', 5)");
+  assert.deepEqual([...page.$('productReportRows').querySelectorAll('tr.doc-row')].map(tr => tr.dataset.tableItemId), ['SP-1', 'SP-2']);
+  page.run("setTableSort('productReportRows', 5)");
+  assert.deepEqual([...page.$('productReportRows').querySelectorAll('tr.doc-row')].map(tr => tr.dataset.tableItemId), ['SP-1', 'SP-2'], 'o trong van o cuoi khi sap giam dan');
+});
+
+test('Mo ta HN/SG hien nguyen van, an toan HTML, rong thi "—"; tim kiem tim duoc theo noi dung mo ta', async () => {
+  const page = createPage();
+  await settle();
+  const sp1 = rowOf(page, 'SP-1');
+  assert.equal(sp1.cells[9].textContent, 'T50 # 30/9 | <b>VAT</b>+3200đ');
+  assert.equal(sp1.cells[9].querySelector('b'), null, 'mo ta khong duoc chen HTML');
+  assert.equal(sp1.cells[10].textContent.trim(), '—');
+  page.run("getTableSearchState('productReport').query = 'T50'; renderProductReport();");
+  assert.deepEqual([...page.$('productReportRows').querySelectorAll('tr.doc-row')].map(tr => tr.dataset.tableItemId), ['SP-1']);
+});
+
+test('Chua boc / Da boc / Ti trong khach lon nhat la nut chi khi co so > 0; 0 va null chi la chu', async () => {
+  const page = createPage({ report: () => ({ rows: [
+    { ...PRODUCTS[0], unloadedQty: 150, loadedQty: 0 },
+    { ...PRODUCTS[1], unloadedQty: null, loadedQty: null }
+  ], containerSync: READY }) });
+  await settle();
+  const sp1 = rowOf(page, 'SP-1'); const sp2 = rowOf(page, 'SP-2');
+  const link = (row, index) => row.cells[index].querySelector('button.cell-link');
+  assert.equal(link(sp1, 2).dataset.detailFocus, 'containers');
+  assert.equal(link(sp1, 2).textContent, '150');
+  assert.equal(link(sp1, 3), null, 'Da boc = 0 => khong co muc de xem');
+  assert.equal(sp1.cells[3].textContent, '0');
+  assert.equal(link(sp1, 18).dataset.detailFocus, 'customers');
+  assert.match(link(sp1, 18).textContent, /60/);
+  assert.equal(link(sp2, 2), null);
+  assert.equal(sp2.cells[2].textContent.trim(), '—');
+  assert.equal(link(sp2, 18), null, 'khong co ti trong => khong co nut');
+  // Nut chi nam o 3 cot nay.
+  assert.deepEqual([...page.$('productReportRows').querySelectorAll('button')].map(button => button.closest('td').cellIndex), [2, 18]);
+});
+
+test('hop chi tiet: Hang du kien dung TRUOC Doanh so theo khach (kem bang Khach hang va bieu do)', async () => {
+  const page = createPage({ containers: code => ({ code, fullAccess: false, rows: [CONTAINER_ROW], containerSync: READY }) });
+  await settle();
+  rowOf(page, 'SP-1').click();
+  await settle();
+  const containers = page.$('productContainerSection');
+  const customers = page.$('productCustomerSection');
+  assert.ok(containers && customers);
+  assert.ok(containers.compareDocumentPosition(customers) & page.dom.window.Node.DOCUMENT_POSITION_FOLLOWING, 'Hang du kien o tren');
+  assert.equal([...page.$('docModalBody').querySelectorAll(':scope > section')].map(section => section.id).join(','), 'productContainerSection,productCustomerSection');
+  assert.match(containers.querySelector('.dp-section-title').textContent, /Hàng dự kiến/);
+  assert.match(customers.querySelector('.dp-section-title').textContent, /Doanh số theo khách/);
+  assert.ok(customers.querySelector('#productDetailChart'), 'bieu do ty trong nam trong Doanh so theo khach');
+  assert.match(customers.textContent, /Khách hàng/);
+});
+
+test('bam so Ti trong khach lon nhat: mo hop va cuon toi Doanh so theo khach (o duoi) SAU khi ca hai phan da tai xong', async () => {
+  const page = createPage({ report: () => ({ rows: [{ ...PRODUCTS[0], unloadedQty: 150, loadedQty: 0 }], containerSync: READY }),
+    containers: code => ({ code, fullAccess: false, rows: [CONTAINER_ROW], containerSync: READY }) });
+  await settle();
+  rowOf(page, 'SP-1').cells[18].querySelector('button').click();
+  await settle();
+  assert.equal(page.$('docModalBackdrop').hidden, false);
+  assert.deepEqual(scrolledSections(page), ['productCustomerSection']);
+  assert.equal(page.dom.window.__reportTestInternals.docDetail.focus, null, 'muc tieu chi dung 1 lan');
+  // Tai lai hop (metadata doi / Thu lai) khong cuon lai.
+  page.run('loadDocumentDetail()'); await settle();
+  assert.deepEqual(scrolledSections(page), ['productCustomerSection']);
+});
+
+test('bam so Chua bot / Da boc: mo hop va dua muc Hang du kien ve dau khung cuon', async () => {
+  const page = createPage({ report: () => ({ rows: [{ ...PRODUCTS[0], unloadedQty: 150, loadedQty: 20 }], containerSync: READY }),
+    containers: code => ({ code, fullAccess: false, rows: [CONTAINER_ROW], containerSync: READY }) });
+  await settle();
+  rowOf(page, 'SP-1').cells[3].querySelector('button').click();
+  await settle();
+  assert.equal(page.$('docModalBackdrop').hidden, false);
+  assert.equal(page.urls.filter(url => url === '/api/product-report/customers?code=SP-1').length, 1, 'nut khong mo hop hai lan');
+  assert.deepEqual(scrolledSections(page), ['productContainerSection']);
+});
+
+test('bam o thuong (khong phai nut) mo hop khong cuon; dong dong hop huy muc tieu dang cho', async () => {
+  let release;
+  const page = createPage({ report: () => ({ rows: [{ ...PRODUCTS[0], unloadedQty: 150, loadedQty: 0 }], containerSync: READY }),
+    containers: code => new Promise(resolve => { release = () => resolve({ code, rows: [CONTAINER_ROW], containerSync: READY }); }) });
+  await settle();
+  rowOf(page, 'SP-1').cells[1].click();
+  await settle();
+  assert.equal(page.dom.window.__reportTestInternals.docDetail.focus, null);
+  release(); await settle();
+  assert.deepEqual(scrolledSections(page), []);
+  page.run('closeDocumentDetail()');
+
+  // Bam nut roi dong hop truoc khi Hang du kien ve: khong cuon, khong de lai muc tieu cho lan mo sau.
+  rowOf(page, 'SP-1').cells[18].querySelector('button').click();
+  await settle();
+  assert.equal(page.dom.window.__reportTestInternals.docDetail.focus, 'customers');
+  page.run('closeDocumentDetail()');
+  assert.equal(page.dom.window.__reportTestInternals.docDetail.focus, null);
+  release(); await settle();
+  assert.deepEqual(scrolledSections(page), []);
+});
+
+function sessionHidden(page) {
+  const state = page.dom.window.TKSTables.getState(reportTable(page));
+  // Mang tao trong realm cua jsdom khong deepEqual duoc voi mang cua test => sao chep ra mang thuong.
+  return { key: state.key, hidden: Array.from(state.columns).filter(column => column.hidden).map(column => column.key) };
+}
+function pageWithTableControls() {
+  const page = createPage();
+  page.dom.window.eval(fs.readFileSync(path.join(publicDir, 'shared', 'table-controls.js'), 'utf8'));
+  return page;
+}
+
+test('khung nhin mac dinh: Nhan vien sale hien A→K + DS 90 ngay; Quan ly / Tro ly an E→K (theo file HANG HOA.xlsx)', async () => {
+  const keys = (page) => columnKeys(page);
+  const sale = pageWithTableControls();
+  await settle();
+  sale.dom.window.TKSTables.refreshAll();
+  assert.deepEqual(sessionHidden(sale).hidden, [], 'truoc khi biet vai tro chua an cot nao');
+  sale.run("window.__reportTestState.currentUser = { vaiTro: 'Nhân viên sale' }; applyProductReportColumnView();");
+  const saleView = sessionHidden(sale);
+  assert.equal(saleView.key, 'dashboard-table-2:sale');
+  const columns = keys(sale);
+  assert.deepEqual(columns.filter(key => !saleView.hidden.includes(key)), [...columns.slice(0, 11), columns[15]], 'sale: A→K + cot P (DS 90 ngay)');
+  assert.deepEqual(saleView.hidden, [...columns.slice(11, 15), ...columns.slice(16)]);
+
+  for (const vaiTro of ['Quản lý', 'Trợ lý']) {
+    const manager = pageWithTableControls();
+    await settle();
+    manager.dom.window.TKSTables.refreshAll();
+    manager.run("window.__reportTestState.currentUser = { vaiTro: '" + vaiTro + "' }; applyProductReportColumnView();");
+    const view = sessionHidden(manager);
+    assert.equal(view.key, 'dashboard-table-2:manager');
+    assert.deepEqual(view.hidden, columns.slice(4, 11), vaiTro + ': an E→K');
+    const hiddenHeaders = [...reportTable(manager).querySelectorAll('thead th.tks-column-hidden')].map(th => th.dataset.columnKey);
+    assert.deepEqual(hiddenHeaders, columns.slice(4, 11), 'cot an that su bi an tren giao dien');
+    const bodyRows = [...reportTable(manager).querySelectorAll('tbody tr.doc-row')];
+    assert.ok(bodyRows.length > 0);
+    bodyRows.forEach(row => {
+      [4, 5, 6, 7, 8, 9, 10].forEach(index => assert.ok(row.cells[index].classList.contains('tks-column-hidden'), 'o E→K bi an, cot ' + index));
+      [0, 1, 2, 3, 11, 14, 15, 18].forEach(index => assert.equal(row.cells[index].classList.contains('tks-column-hidden'), false, 'cot ' + index));
+    });
+  }
+});
+
+test('khung nhin theo vai tro: nguoi dung bat lai cot bang "Cot hien thi" thi duoc giu; goi lai khong ghi de', async () => {
+  const page = pageWithTableControls();
+  await settle();
+  page.dom.window.TKSTables.refreshAll();
+  page.run("window.__reportTestState.currentUser = { vaiTro: 'Quản lý' }; applyProductReportColumnView();");
+  const keys = columnKeys(page);
+  assert.ok(sessionHidden(page).hidden.includes('ton-thuc-hn'));
+  reportTable(page).closest('.panel').querySelector('.tks-columns-button').click();
+  const box = page.doc.querySelector('.tks-columns-picker input[data-column-key="ton-thuc-hn"]');
+  box.checked = true; box.dispatchEvent(new page.dom.window.Event('change', { bubbles: true }));
+  assert.equal(sessionHidden(page).hidden.includes('ton-thuc-hn'), false);
+  // authGuard ve lai / dong goi lai cung hoi so: khong dua cot vua bat ve trang thai an.
+  page.run('applyProductReportColumnView()');
+  assert.equal(sessionHidden(page).hidden.includes('ton-thuc-hn'), false);
+  assert.deepEqual(sessionHidden(page).hidden, keys.slice(5, 11));
+});
+
+test('khung nhin theo vai tro: chua biet vai tro hoac chua nap table-controls thi khong lam gi, khong loi', async () => {
+  const page = createPage();
+  await settle();
+  assert.equal(page.dom.window.TKSTables, undefined);
+  page.run("window.__reportTestState.currentUser = { vaiTro: 'Quản lý' }; applyProductReportColumnView();");
+  const withControls = pageWithTableControls();
+  await settle();
+  withControls.dom.window.TKSTables.refreshAll();
+  withControls.run('applyProductReportColumnView()'); // currentUser = null
+  assert.deepEqual(sessionHidden(withControls), { key: 'dashboard-table-2', hidden: [] });
+});
+
+test('cot an mac dinh khop file mau: khoa an cua tung ho so deu co trong thead', async () => {
+  const page = createPage();
+  await settle();
+  const keys = columnKeys(page);
+  const raw = page.dom.window.__reportTestInternals.hiddenByProfile;
+  const lists = { sale: Array.from(raw.sale), manager: Array.from(raw.manager) };
+  [...lists.sale, ...lists.manager].forEach(key => assert.ok(keys.includes(key), key));
+  assert.deepEqual(keys.filter(key => !lists.manager.includes(key)), [...keys.slice(0, 4), ...keys.slice(11)]);
+  assert.deepEqual(keys.filter(key => !lists.sale.includes(key)), [...keys.slice(0, 11), keys[15]]);
 });
 
 test('khung "Doanh so theo khach" va o tim san pham duoi bang da bi go', async () => {
