@@ -1,7 +1,7 @@
 # Marketing tính độc lập từ Pancake
 
 Ngày kiểm tra: 16/10/2026, Asia/Ho_Chi_Minh.
-Trạng thái: phương án B đã được người dùng phê duyệt và triển khai trên main; cấu hình local đã bật, backfill đầu tiên đang chạy. Chưa deploy mã hoặc cấu hình production. Kết quả kiểm tra ban đầu dưới đây được giữ để truy vết.
+Trạng thái: phương án B đã được người dùng phê duyệt, triển khai trên main và bật production Render ngày 16/10/2026 lúc 14:51 giờ Việt Nam; source=pancake, scheduler=true. Backfill đầu tiên chưa được xác nhận hoàn tất. Xem docs/marketing-report-setup.md về bằng chứng deployment và phạm vi kiểm tra. Kết quả kiểm tra ban đầu dưới đây được giữ để truy vết.
 
 ## Mục tiêu
 

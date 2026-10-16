@@ -76,3 +76,10 @@ Không đưa token hoặc dữ liệu cá nhân vào log/tài liệu công khai.
 - Scheduler trong backend sẽ chạy khi tiến trình server hoạt động; việc mở dashboard không kích hoạt hoặc duy trì job. Trong phiên này chỉ chạy CLI backfill, chưa khởi động server như dịch vụ thường trú.
 - Full npm test: 2486 tests, 2483 pass, 0 fail, 3 skipped. Sau rà soát có kiểm thử bổ sung cho nhả khóa khi DB lỗi, metadata ADS chưa thăm dò, KPI pending và lựa chọn lịch sử/nguồn xuất file; các nhóm kiểm thử liên quan đạt.
 - Chưa push/deploy code, chưa đổi biến môi trường Render/production; không tuyên bố production đã kích hoạt. DB được cấu hình local có thể dùng chung môi trường khác: migration bổ sung đã áp nhưng đó không phải deploy ứng dụng production.
+
+### Kích hoạt production Render — 16/10/2026, 14:51 (Việt Nam)
+Đã xác minh dịch vụ tokosi (srv-d9k1ikp42hec739su3j0), project TKS Website / Production, đang chạy commit dac24b8 có thay đổi Pancake độc lập. Đã đổi MARKETING_REPORT_SOURCE từ postgres sang pancake và giữ PANCAKE_MARKETING_SYNC_ENABLED=true; xác minh đủ sáu token đã lưu, không thay token hoặc biến ngoài Marketing. Lưu và triển khai lại qua Render Dashboard, deployment dep-db8termq1p3s739b6880 báo Deploy succeeded | Live (37 giây); /health trả HTTP 200 với status ok. Đã đọc lại hai giá trị đã lưu sau deploy. Scheduler backend được bật, lịch 23:55 Asia/Ho_Chi_Minh, không cần mở dashboard.
+
+Lần nạp đầu run 28 còn running và sáu page pending tại lúc xác minh; chưa xác nhận dữ liệu đầy đủ. Cấu hình production đã hoạt động không đồng nghĩa backfill hoàn tất. Nguồn chốt vẫn manual-db, doanh số KiotViet, chi phí Sheets. Tab báo cáo chưa được kiểm tra bằng phiên đăng nhập người dùng trong lần cấu hình này; smoke test gồm health, deployment và giá trị environment đã lưu.
+
+[Deployment production](https://dashboard.render.com/web/srv-d9k1ikp42hec739su3j0/deploys/dep-db8termq1p3s739b6880). Không push thay đổi tài liệu chỉ để tránh tạo thêm deployment không cần thiết.
