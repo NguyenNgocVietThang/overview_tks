@@ -464,6 +464,10 @@ Job chốt xóa run/feedback/history cũ hơn 7 ngày. SELECT của `reporting_r
 
 `0054_customer_invoice_lines_incremental.sql`: thêm `customer_invoice_lines_state.last_full_at TIMESTAMPTZ` (NULL = chưa dựng đầy đủ ở chế độ tăng dần ⇒ job dựng đầy đủ trước; không backfill) và hai index `idx_invoices_synced_at (branch, synced_at)`, `idx_returns_synced_at (branch, synced_at)` để lượt tăng dần chỉ đọc đuôi index. Ở chế độ tăng dần `computed_at` là lần kiểm tra gần nhất (nhãn "cập nhật lúc" của giao diện) còn `window_end` = hôm nay. Mã chịu thiếu migration: thiếu cột/bảng (`42703`/`42P01`) thì bỏ qua lượt tăng dần và giữ luồng chốt đêm. Lý do dùng `synced_at` thay `modified_date`: đo 16/10/2026 có 43.074/47.141 hóa đơn và 1.896/2.794 phiếu trả với `modified_date` NULL.
 
+## Trạng thái báo cáo hàng hóa tăng dần — migration 0055 (16/10/2026, chưa áp DB)
+
+`0055_product_report_state.sql` tạo `product_report_state` (1 dòng, `id = 1`): `computed_at` = lần kiểm tra/làm mới gần nhất (nhãn "Dữ liệu cập nhật lúc"), `version BIGINT` chỉ tăng khi `product_report`/`product_report_customers` có dòng thật sự đổi (client và cache máy chủ dựa vào đây), `last_full_at` = lần gần nhất chạy phần nặng (NULL = chưa). Ở chế độ tăng dần `product_report.computed_at` từng dòng chỉ còn là "lần đổi gần nhất" và bảng chỉ giữ mã đang kinh doanh ở ít nhất một cơ sở (trước đó lọc lúc đọc). Thêm `idx_customers_synced_at` và (IF NOT EXISTS) `idx_invoices_synced_at`, `idx_returns_synced_at` cho cổng "có chứng từ mới" của job. Mã chịu thiếu migration (`42P01`/`42703`): bỏ qua, giữ luồng chốt đêm TRUNCATE.
+
 ## Hàng dự kiến — migration 0053 (15/10/2026)
 
 `0053_product_containers.sql` tạo snapshot hiện hành độc lập với `product_report`/`product_report_customers` chốt ban đêm. Đã áp lên DB dùng chung lúc 16:26 ngày 15/10/2026 theo yêu cầu người dùng; đã xác minh hai bảng, NUMERIC, singleton và thu hồi SELECT của reporting_readonly.

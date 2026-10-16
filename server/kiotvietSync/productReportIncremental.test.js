@@ -1,0 +1,262 @@
+'use strict';
+
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const { refreshProductReportIncremental, buildSql, __sql__, __test__ } = require('./productReportIncremental');
+const { refreshProductReportIfDue } = require('./productReportRefresh');
+
+const NOW = new Date('2026-10-16T05:00:00Z'); // 12:00 ngay 16/10 theo lich VN
+const FULL_TODAY = new Date('2026-10-15T17:30:00Z'); // 00:30 ngay 16/10 VN
+const FULL_YESTERDAY = new Date('2026-10-14T17:30:00Z');
+
+function fakeClient({ failOn = null, counts = {} } = {}) {
+  const calls = [];
+  return {
+    calls,
+    query: async (sql, params) => {
+      calls.push({ sql, params });
+      if (failOn && sql === failOn) throw new Error('boom');
+      if (sql === __sql__.UPSERT_STATE_SQL) return { rows: [{ version: '7', computed_at: NOW }], rowCount: 1 };
+      return { rowCount: counts[sql] || 0, rows: [] };
+    },
+    release: () => {}
+  };
+}
+function fakePool(client, { state, gate } = {}) {
+  return {
+    query: async sql => {
+      if (sql === __sql__.READ_STATE_SQL) return { rows: state ? [state] : [] };
+      if (sql === __sql__.GATE_SQL) return { rows: [gate || { invoices_changed: false, returns_changed: false, customers_changed: false }] };
+      throw new Error('cau khong mong doi: ' + sql);
+    },
+    connect: async () => client
+  };
+}
+const STATE_TODAY = { computed_at: new Date('2026-10-16T04:55:00Z'), last_full_at: FULL_TODAY, version: '6' };
+
+test('tat co => khong dong vao DB; thieu migration 0055 => bo qua', async () => {
+  assert.deepEqual(await refreshProductReportIncremental({ query: async () => { throw new Error('khong duoc'); } }, { enabled: false }), { skipped: 'disabled' });
+  for (const code of ['42P01', '42703']) {
+    const pool = { query: async () => { throw Object.assign(new Error('x'), { code }); } };
+    assert.deepEqual(await refreshProductReportIncremental(pool, { enabled: true, now: () => NOW }), { skipped: 'migration-missing' });
+  }
+  const pool = { query: async () => { throw new Error('db down'); } };
+  await assert.rejects(() => refreshProductReportIncremental(pool, { enabled: true, now: () => NOW }), /db down/);
+});
+
+test('decideHeavy: chua co moc / sang ngay moi / co chung tu moi => nang; con lai => nhe', () => {
+  const { decideHeavy } = __test__;
+  const quiet = { invoices_changed: false, returns_changed: false, customers_changed: false };
+  assert.equal(decideHeavy(null, null, NOW).heavy, true);
+  assert.equal(decideHeavy({ last_full_at: null }, null, NOW).heavy, true);
+  assert.deepEqual(decideHeavy({ last_full_at: FULL_YESTERDAY }, quiet, NOW), { heavy: true, reason: 'sang-ngay-moi' });
+  for (const key of Object.keys(quiet)) {
+    assert.deepEqual(decideHeavy({ last_full_at: FULL_TODAY }, { ...quiet, [key]: true }, NOW), { heavy: true, reason: 'co-chung-tu-moi' });
+  }
+  assert.deepEqual(decideHeavy({ last_full_at: FULL_TODAY }, quiet, NOW), { heavy: false, reason: 'khong-doi' });
+});
+
+test('luot NANG: nap khach vao bang tam, ghi khac biet ca 2 bang, danh dau last_full_at, 1 giao dich', async () => {
+  const client = fakeClient({ counts: { [__sql__.UPDATE_PRODUCTS_SQL]: 3 } });
+  const pool = fakePool(client, { state: STATE_TODAY, gate: { invoices_changed: true, returns_changed: false, customers_changed: false } });
+  const logs = [];
+  const result = await refreshProductReportIncremental(pool, { enabled: true, now: () => NOW, log: m => logs.push(m) });
+
+  assert.deepEqual(client.calls.map(c => c.sql), [
+    'BEGIN',
+    __sql__.ADVISORY_LOCK_SQL,
+    "SET LOCAL work_mem = '32MB'",
+    "SET LOCAL statement_timeout = '60s'",
+    ...__sql__.CREATE_STAGE_SQL,
+    __sql__.fillCustomers,
+    __sql__.fillProductsHeavy,
+    __sql__.DELETE_CUSTOMERS_SQL, __sql__.UPDATE_CUSTOMERS_SQL, __sql__.INSERT_CUSTOMERS_SQL,
+    __sql__.DELETE_PRODUCTS_SQL, __sql__.UPDATE_PRODUCTS_SQL, __sql__.INSERT_PRODUCTS_SQL,
+    __sql__.UPSERT_STATE_SQL,
+    'COMMIT'
+  ]);
+  const upsert = client.calls.find(c => c.sql === __sql__.UPSERT_STATE_SQL);
+  assert.deepEqual(upsert.params, [true, true], 'changed=true (3 dong doi), heavy=true');
+  assert.equal(result.mode, 'heavy');
+  assert.equal(result.reason, 'co-chung-tu-moi');
+  assert.equal(result.changed, true);
+  assert.equal(result.version, 7);
+  assert.match(logs[0], /heavy/);
+});
+
+test('luot NHE: khong dung toi phan nang/khach, doc khach lon nhat tu bang that, khong co thay doi => version giu nguyen', async () => {
+  const client = fakeClient();
+  const result = await refreshProductReportIncremental(fakePool(client, { state: STATE_TODAY }), { enabled: true, now: () => NOW, log: () => {} });
+  const sqls = client.calls.map(c => c.sql);
+  assert.equal(result.mode, 'light');
+  assert.ok(sqls.includes(__sql__.fillProductsLight));
+  assert.ok(!sqls.includes(__sql__.fillCustomers));
+  assert.ok(![__sql__.DELETE_CUSTOMERS_SQL, __sql__.UPDATE_CUSTOMERS_SQL, __sql__.INSERT_CUSTOMERS_SQL].some(sql => sqls.includes(sql)));
+  assert.deepEqual(client.calls.find(c => c.sql === __sql__.UPSERT_STATE_SQL).params, [false, false]);
+  assert.equal(result.changed, false);
+  assert.match(__sql__.fillProductsLight, /FROM product_report_customers\b/);
+  assert.match(__sql__.fillProductsHeavy, /FROM pr_customers_new\b/);
+});
+
+test('loi giua chung => ROLLBACK, khong ghi state, nem loi', async () => {
+  const client = fakeClient({ failOn: __sql__.INSERT_PRODUCTS_SQL });
+  await assert.rejects(
+    () => refreshProductReportIncremental(fakePool(client, { state: STATE_TODAY }), { enabled: true, now: () => NOW, log: () => {} }),
+    /boom/
+  );
+  const sqls = client.calls.map(c => c.sql);
+  assert.ok(sqls.includes('ROLLBACK'));
+  assert.ok(!sqls.includes('COMMIT'));
+  assert.ok(!sqls.includes(__sql__.UPSERT_STATE_SQL));
+});
+
+test('SQL tang dan: cua so gom hom nay (30 ngay = today-29..today, 90 ngay = today-89..today), nguon cat tu REFRESH_SQL', () => {
+  const today = buildSql({ includeToday: true });
+  const legacy = buildSql({ includeToday: false });
+  assert.match(today.fillProductsHeavy, /dps\.sale_date >= vn_today\.today - 29 AND dps\.sale_date <= vn_today\.today\b(?! - )/);
+  assert.match(today.fillProductsHeavy, /dps\.sale_date >= vn_today\.today - 89 AND dps\.sale_date <= vn_today\.today\b(?! - )/);
+  assert.equal((today.fillCustomers.match(/\(vn_today\.today - 89\)::timestamp/g) || []).length, 2, 'hoa don + phieu tra');
+  assert.equal((today.fillCustomers.match(/\(\(vn_today\.today \+ 1\)::timestamp AT TIME ZONE 'UTC'\)/g) || []).length, 2);
+  // Cung cau nhung cua so cu (ket thuc hom qua) phai giu nguyen dinh nghia cua luot chot dem.
+  assert.match(legacy.fillProductsHeavy, /vn_today\.today - 30 AND dps\.sale_date <= vn_today\.today - 1/);
+  assert.match(legacy.fillCustomers, /\(vn_today\.today - 90\)::timestamp/);
+  // Cung dinh nghia hoa don hop le / tra hang / tru phieu tam nhu luong chot dem.
+  assert.match(today.fillCustomers, /!= 'Đã hủy'/);
+  assert.match(today.fillCustomers, /r\.raw->>'statusValue' = 'Đã trả'/);
+  assert.match(today.fillProductsHeavy, /\(raw->>'statusValue'\) = 'Phiếu tạm'/);
+});
+
+test('SQL tang dan: chi giu ma dang kinh doanh, xep hang on dinh, ghi khac biet khong TRUNCATE', () => {
+  const all = Object.values(__sql__).flat().join('\n');
+  assert.match(__sql__.fillProductsHeavy, /p\.is_active IS NOT FALSE/);
+  assert.match(__sql__.fillProductsHeavy, /ORDER BY revenue DESC, customer_key/);
+  assert.doesNotMatch(all, /TRUNCATE/i);
+  assert.match(__sql__.UPDATE_PRODUCTS_SQL, /IS DISTINCT FROM/);
+  assert.match(__sql__.UPDATE_CUSTOMERS_SQL, /IS DISTINCT FROM/);
+  assert.match(__sql__.UPSERT_STATE_SQL, /product_report_state\.version \+ CASE WHEN \$1::boolean THEN 1 ELSE 0 END/);
+});
+
+test('IfDue che do tang dan: da chay phan nang hom nay => bo qua; chua => chay; chua migrate => luong cu', async () => {
+  const stateQuery = rows => async sql => {
+    if (sql === __sql__.READ_STATE_SQL) { if (rows instanceof Error) throw rows; return { rows }; }
+    throw new Error('khong mong doi: ' + sql.slice(0, 40));
+  };
+  assert.deepEqual(
+    await refreshProductReportIfDue({ query: stateQuery([{ last_full_at: FULL_TODAY }]) }, { incremental: true, now: () => NOW, log: () => {} }),
+    { skipped: true }
+  );
+  // Chua co state => chay luot tang dan (khong TRUNCATE).
+  const client = fakeClient();
+  const pool = { query: async sql => (sql === __sql__.READ_STATE_SQL ? { rows: [] } : { rows: [{}] }), connect: async () => client };
+  const result = await refreshProductReportIfDue(pool, { incremental: true, now: () => NOW, log: () => {} });
+  assert.equal(result.skipped, false);
+  assert.equal(result.mode, 'heavy');
+  assert.ok(!client.calls.some(c => /TRUNCATE/i.test(c.sql)));
+  // Thieu bang state => roi xuong luong chot dem cu (TRUNCATE).
+  const legacyClient = fakeClient();
+  const legacyPool = {
+    query: async sql => {
+      if (sql === __sql__.READ_STATE_SQL) throw Object.assign(new Error('missing'), { code: '42P01' });
+      return { rows: [{ last_computed_at: null }] };
+    },
+    connect: async () => legacyClient
+  };
+  const legacy = await refreshProductReportIfDue(legacyPool, { incremental: true, now: () => NOW, log: () => {} });
+  assert.equal(legacy.skipped, false);
+  assert.ok(legacyClient.calls.some(c => /TRUNCATE/i.test(c.sql)));
+});
+
+// ---- SQL ghi khac biet tren Postgres that (PGlite) ----
+async function diffFixture() {
+  const { PGlite } = require('@electric-sql/pglite');
+  const db = new PGlite();
+  const migrations = path.join(__dirname, '../db/migrations');
+  await db.exec(fs.readFileSync(path.join(migrations, '0018_product_report.sql'), 'utf8'));
+  await db.exec(fs.readFileSync(path.join(migrations, '0023_product_report_customers.sql'), 'utf8'));
+  // Chi cau CREATE TABLE cua 0055 (cac index cua no can bang hoa don/khach cua DB that).
+  const m55 = fs.readFileSync(path.join(migrations, '0055_product_report_state.sql'), 'utf8');
+  await db.exec(m55.slice(m55.indexOf('CREATE TABLE'), m55.indexOf(');', m55.indexOf('CREATE TABLE')) + 2));
+  for (const statement of __sql__.CREATE_STAGE_SQL) await db.exec(statement.replace(' ON COMMIT DROP', '')); // PGlite tu commit tung cau
+  return db;
+}
+const ROW = (code, over = {}) => ({
+  product_code: code, product_name: 'SP ' + code, stock_hanoi: 10, stock_saigon: 5, available_to_sell: 15, qty_sold_30d: 3,
+  revenue_90d: 900000, customer_count_90d: 2, top_customer_revenue_90d: 500000, top_customer_name: 'KH A', top_customer_share: 0.5555555555,
+  ...over
+});
+async function stage(db, rows) {
+  await db.exec('DELETE FROM pr_new');
+  for (const r of rows) {
+    await db.query(`INSERT INTO pr_new (product_code, product_name, stock_hanoi, stock_saigon, available_to_sell, qty_sold_30d, revenue_90d,
+      customer_count_90d, top_customer_revenue_90d, top_customer_name, top_customer_share, computed_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, now())`,
+    [r.product_code, r.product_name, r.stock_hanoi, r.stock_saigon, r.available_to_sell, r.qty_sold_30d, r.revenue_90d,
+      r.customer_count_90d, r.top_customer_revenue_90d, r.top_customer_name, r.top_customer_share]);
+  }
+}
+async function applyProducts(db) {
+  return {
+    deleted: (await db.query(__sql__.DELETE_PRODUCTS_SQL)).affectedRows,
+    updated: (await db.query(__sql__.UPDATE_PRODUCTS_SQL)).affectedRows,
+    inserted: (await db.query(__sql__.INSERT_PRODUCTS_SQL)).affectedRows
+  };
+}
+
+test('ghi khac biet product_report (SQL that): chi dong doi bi cham, dong y het giu nguyen ctid va computed_at', async () => {
+  const db = await diffFixture();
+  try {
+    await stage(db, [ROW('A'), ROW('B'), ROW('C')]);
+    assert.deepEqual(await applyProducts(db), { deleted: 0, updated: 0, inserted: 3 });
+    const before = (await db.query('SELECT product_code, ctid::text AS ctid, computed_at::text AS at FROM product_report ORDER BY 1')).rows;
+
+    // Y het => 0 dong ghi, ctid + computed_at khong doi.
+    await stage(db, [ROW('A'), ROW('B'), ROW('C')]);
+    assert.deepEqual(await applyProducts(db), { deleted: 0, updated: 0, inserted: 0 });
+    assert.deepEqual((await db.query('SELECT product_code, ctid::text AS ctid, computed_at::text AS at FROM product_report ORDER BY 1')).rows, before);
+
+    // B doi ton, C mat (khong con kinh doanh), D moi.
+    await stage(db, [ROW('A'), ROW('B', { stock_hanoi: 99 }), ROW('D')]);
+    assert.deepEqual(await applyProducts(db), { deleted: 1, updated: 1, inserted: 1 });
+    const after = (await db.query('SELECT product_code, stock_hanoi::text AS s, ctid::text AS ctid FROM product_report ORDER BY 1')).rows;
+    assert.deepEqual(after.map(r => r.product_code), ['A', 'B', 'D']);
+    assert.equal(after.find(r => r.product_code === 'B').s, '99');
+    assert.equal(after.find(r => r.product_code === 'A').ctid, before.find(r => r.product_code === 'A').ctid, 'dong A khong bi ghi lai');
+
+    // NULL vs gia tri: IS DISTINCT FROM phai nhan ra top_customer_name doi tu NULL sang chu.
+    await stage(db, [ROW('A', { top_customer_name: null, top_customer_share: null }), ROW('B', { stock_hanoi: 99 }), ROW('D')]);
+    assert.equal((await applyProducts(db)).updated, 1);
+    await stage(db, [ROW('A'), ROW('B', { stock_hanoi: 99 }), ROW('D')]);
+    assert.equal((await applyProducts(db)).updated, 1);
+  } finally { await db.close(); }
+});
+
+test('ghi khac biet product_report_customers + state (SQL that): version chi tang khi co dong doi', async () => {
+  const db = await diffFixture();
+  try {
+    const put = async (rows) => {
+      await db.exec('DELETE FROM pr_customers_new');
+      for (const [pk, ck, name, revenue] of rows) {
+        await db.query('INSERT INTO pr_customers_new (product_key, customer_key, customer_name, revenue) VALUES ($1,$2,$3,$4)', [pk, ck, name, revenue]);
+      }
+      return {
+        deleted: (await db.query(__sql__.DELETE_CUSTOMERS_SQL)).affectedRows,
+        updated: (await db.query(__sql__.UPDATE_CUSTOMERS_SQL)).affectedRows,
+        inserted: (await db.query(__sql__.INSERT_CUSTOMERS_SQL)).affectedRows
+      };
+    };
+    assert.deepEqual(await put([['a', 'code:1', 'KH 1', 100], ['a', 'code:2', 'KH 2', 50]]), { deleted: 0, updated: 0, inserted: 2 });
+    assert.deepEqual(await put([['a', 'code:1', 'KH 1', 100], ['a', 'code:2', 'KH 2', 50]]), { deleted: 0, updated: 0, inserted: 0 });
+    assert.deepEqual(await put([['a', 'code:1', 'KH 1', 120], ['b', 'name:x', 'X', 7]]), { deleted: 1, updated: 1, inserted: 1 });
+
+    const v1 = (await db.query(__sql__.UPSERT_STATE_SQL, [true, true])).rows[0];
+    assert.equal(Number(v1.version), 1);
+    const v2 = (await db.query(__sql__.UPSERT_STATE_SQL, [false, false])).rows[0];
+    assert.equal(Number(v2.version), 1, 'khong doi => version giu nguyen');
+    const v3 = (await db.query(__sql__.UPSERT_STATE_SQL, [true, false])).rows[0];
+    assert.equal(Number(v3.version), 2);
+    const state = (await db.query('SELECT last_full_at IS NOT NULL AS has_full FROM product_report_state')).rows[0];
+    assert.equal(state.has_full, true, 'luot nhe khong xoa moc last_full_at');
+  } finally { await db.close(); }
+});

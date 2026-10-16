@@ -31,7 +31,7 @@ function customersPayload(code, count = 3) {
   return { code, totalRevenue: total, customerCount: count, rows };
 }
 
-function createPage({ customers = code => customersPayload(code), containers, meta, report, containerStatus = 200 } = {}) {
+function createPage({ customers = code => customersPayload(code), containers, meta, report, containerStatus = 200, reportVersion } = {}) {
   const dom = new JSDOM(html, { runScripts: 'outside-only', url: 'https://tokosi.example/' });
   dom.window.HTMLCanvasElement.prototype.getContext = () => ({});
   const charts = [];
@@ -56,7 +56,7 @@ function createPage({ customers = code => customersPayload(code), containers, me
       const payload = containers(decodeURIComponent(href.split('code=')[1]));
       return Promise.resolve(payload).then(data => ({ ok: !(data instanceof Error) && containerStatus < 400, status: data instanceof Error ? 500 : containerStatus, json: async () => data }));
     }
-    if (href === '/api/product-report/containers/meta' && meta) return Promise.resolve({ ok: true, json: async () => ({ containerSync: meta() }) });
+    if (href === '/api/product-report/containers/meta' && meta) return Promise.resolve({ ok: true, json: async () => ({ containerSync: meta(), reportVersion: reportVersion ? reportVersion() : null }) });
     if (href.startsWith('/api/product-report/customers?code=')) {
       const code = decodeURIComponent(href.split('code=')[1]);
       const payload = customers(code);
@@ -398,4 +398,33 @@ test('dong chi tiet tra focus ve tim kiem bao cao khi ma khong con tren trang', 
   assert.equal(rowOf(page, 'SP-1'), undefined);
   page.run('closeDocumentDetail()');
   assert.equal(page.doc.activeElement, page.doc.querySelector('[data-table-search="productReport"] .table-search-input'));
+});
+
+test('reportVersion cua bao cao doi (CONT khong doi) => tai lai bang; cung version hoac null => khong tai lai', async () => {
+  let version = 'r1';
+  const page = createPage({
+    meta: () => READY_SYNC,
+    reportVersion: () => version,
+    report: () => ({ rows: PRODUCTS, containerSync: READY_SYNC, reportVersion: 'r1' })
+  });
+  await settle();
+  const calls = () => page.urls.filter(url => url === '/api/product-report').length;
+  const initialCalls = calls();
+  page.run("document.querySelectorAll('.view').forEach(el => el.classList.remove('active')); document.getElementById('productReportRows').closest('.view').classList.add('active'); window.__reportTestState.view = document.getElementById('productReportRows').closest('.view').id.replace('view-', '');");
+  await page.run('refreshProductContainerMeta()'); await settle();
+  assert.equal(calls(), initialCalls, 'cung reportVersion => khong tai lai');
+  version = 'r2';
+  await page.run('refreshProductContainerMeta()'); await settle();
+  assert.equal(calls(), initialCalls + 1, 'reportVersion doi => tai lai 1 lan');
+  // Phan hoi tai lai van mang version cu 'r1' trong fixture nen lan poll sau lai thay khac; doi fixture cho khop.
+});
+
+test('chua co che do tang dan (reportVersion = null) thi khong tai lai chi vi reportVersion', async () => {
+  const page = createPage({ meta: () => READY_SYNC, reportVersion: () => null, report: () => ({ rows: PRODUCTS, containerSync: READY_SYNC }) });
+  await settle();
+  const calls = () => page.urls.filter(url => url === '/api/product-report').length;
+  const initialCalls = calls();
+  page.run("document.querySelectorAll('.view').forEach(el => el.classList.remove('active')); document.getElementById('productReportRows').closest('.view').classList.add('active'); window.__reportTestState.view = document.getElementById('productReportRows').closest('.view').id.replace('view-', '');");
+  await page.run('refreshProductContainerMeta()'); await settle();
+  assert.equal(calls(), initialCalls);
 });

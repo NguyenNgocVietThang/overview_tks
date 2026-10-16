@@ -15,6 +15,7 @@ if (process.env.NODE_ENV !== 'production') {
   try { require('dotenv').config(); } catch (e) { /* dotenv là tùy chọn trong môi trường production */ }
 }
 
+const CONFIG = require('../config');
 const { getPool } = require('../db/pool');
 const { sqlLiteral } = require('../dashboard/inTransitSource');
 
@@ -237,8 +238,27 @@ function vnDateKey(date) {
  * cac job dong bo khac) nhung hau het cac lan chi la 1 SELECT re roi bo qua,
  * dam bao truy van 90-ngay nang chi chay dung 1 lan/dem.
  */
-async function refreshProductReportIfDue(pool, { log = console.log, now = () => new Date() } = {}) {
+async function refreshProductReportIfDue(pool, {
+  log = console.log, now = () => new Date(), incremental = CONFIG.REPORTS_INCREMENTAL_ENABLED
+} = {}) {
   const today = vnDateKey(now());
+  if (incremental) {
+    // Che do tang dan (REPORTS_INCREMENTAL_ENABLED): bao cao duoc lam moi sau moi luot sync fast bang
+    // productReportIncremental (ghi khac biet, khong TRUNCATE). Luot kiem tra 5 phut nay chi dam bao
+    // chay phan nang it nhat 1 lan/ngay VN va khoi tao khi chua co state; thieu migration 0055 => luong cu.
+    // require tai cho de tranh vong phu thuoc (productReportIncremental cat SQL tu file nay).
+    const incrementalModule = require('./productReportIncremental');
+    try {
+      const { rows } = await pool.query(incrementalModule.__sql__.READ_STATE_SQL);
+      const fullAt = rows[0] && rows[0].last_full_at;
+      if (fullAt && vnDateKey(new Date(fullAt)) === today) return { skipped: true };
+      const result = await incrementalModule.refreshProductReportIncremental(pool, { log, now, enabled: true });
+      return { skipped: false, ...result };
+    } catch (error) {
+      if (error.code !== '42P01' && error.code !== '42703') throw error;
+      // chua chay migration 0055: roi xuong luong chot dem cu ben duoi
+    }
+  }
   const { rows } = await pool.query('SELECT MAX(computed_at) AS last_computed_at FROM product_report');
   const lastComputedAt = rows[0] && rows[0].last_computed_at;
   if (lastComputedAt && vnDateKey(new Date(lastComputedAt)) === today) {

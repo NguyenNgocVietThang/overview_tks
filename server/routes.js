@@ -9,7 +9,7 @@ const {
 const router = express.Router();
 
 const { getExportFields, createExport, buildExportErrorBody } = require('./dashboard/exportService');
-const { getProductReport, getProductReportCustomers } = require('./dashboard/productReportRepository');
+const { getProductReport, getProductReportCustomers, getProductReportVersion } = require('./dashboard/productReportRepository');
 const containerRepository = require('./productContainers/repository');
 const { getInventoryValueHistory } = require('./dashboard/inventoryValueHistory');
 const { getInvoiceDetail } = require('./dashboard/documentDetailRepository');
@@ -315,7 +315,10 @@ router.get('/api/product-report', async (req, res) => {
 
 router.get('/api/product-report/containers/meta', async (req, res) => {
   try {
-    res.status(200).json(await containerRepository.getContainerMeta());
+    // reportVersion: phien ban bao cao hang hoa (chi tang khi du lieu that su doi, migration 0055); client so
+    // voi phien ban da tai de quyet dinh co tai lai ca bang khong. null = chua co che do tang dan.
+    const meta = await containerRepository.getContainerMeta();
+    res.status(200).json({ ...meta, reportVersion: await getProductReportVersion() });
   } catch {
     res.status(503).json({ error: 'Không lấy được trạng thái cập nhật CONT.' });
   }

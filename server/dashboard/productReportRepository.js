@@ -6,7 +6,7 @@
 // dung cho ca route GET va luong xuat Excel (exportService.js) de khong viet
 // trung logic map cot o 2 noi.
 const { getPool } = require('../db/pool');
-const { readContainerSummary } = require('../productContainers/repository');
+const { readContainerSummary, getContainerMeta } = require('../productContainers/repository');
 const { normalizeCode } = require('../productContainers/parser');
 const { readInTransitByCode } = require('./inTransitSource');
 
@@ -28,7 +28,108 @@ function mapRow(row) {
   };
 }
 
-async function getProductReport({ pool = getPool() } = {}) {
+// Hang dang van chuyen (order_suppliers) nho (vai tram dong) nhung doi sau moi luot sync; doc lai toi da
+// moi chu ky nay thay vi moi request.
+const IN_TRANSIT_TTL_MS = 60 * 1000;
+const STATE_PROBE_SQL = 'SELECT version::text AS version, computed_at FROM product_report_state WHERE id = 1';
+
+/**
+ * Bo doc "Bao cao hang hoa". Khi co bang product_report_state (migration 0055, che do lam moi tang dan) thi
+ * doc theo PHIEN BAN: 10,9K dong chi bi keo tu DB ve may chu 1 lan moi khi `version` doi (chi tang khi co dong
+ * that su doi), tong CONT chi doc lai khi version CONT doi, hang van chuyen cache toi da 60 giay; nhieu nguoi
+ * xem/xuat file dung chung. Chua co state => luong cu (loc is_active luc doc, khong cache).
+ * Cache nam trong bo bo doc, nen moi lan goi voi pool truyen vao (test) la bo doc moi, khong dung chung.
+ */
+function createProductReportReader({ pool, now = Date.now } = {}) {
+  let rowsCache = null; // { version, rows }  - dong da map, KHONG bi sua
+  let containerCache = null; // { version, totals }
+  let transitCache = null; // { at, byCode }
+
+  async function probeState() {
+    try {
+      const { rows } = await pool.query(STATE_PROBE_SQL);
+      return rows[0] && rows[0].version != null ? rows[0] : null;
+    } catch (error) {
+      if (error.code === '42P01') return null; // chua chay migration 0055
+      throw error;
+    }
+  }
+
+  async function readInTransit() {
+    if (!transitCache || now() - transitCache.at > IN_TRANSIT_TTL_MS) {
+      transitCache = { at: now(), byCode: await readInTransitByCode(pool) };
+    }
+    return transitCache.byCode;
+  }
+
+  async function readVersioned(state) {
+    if (!rowsCache || rowsCache.version !== state.version) {
+      // Bang da chi giu ma dang kinh doanh (job tang dan loc is_active khi ghi) nen khong con EXISTS luc doc.
+      const { rows } = await pool.query('SELECT * FROM product_report ORDER BY product_code');
+      rowsCache = { version: state.version, rows: rows.map(mapRow) };
+    }
+    const { containerSync } = await getContainerMeta({ pool });
+    let totals = {};
+    if (containerSync.available) {
+      if (!containerCache || containerCache.version !== containerSync.version) {
+        const summary = await readContainerSummary(pool);
+        containerCache = { version: summary.containerSync.version, totals: summary.totals };
+      }
+      totals = containerCache.totals;
+    }
+    const inTransitByCode = await readInTransit();
+    return { base: rowsCache.rows, computedAt: state.computed_at, containerSync, totals, inTransitByCode };
+  }
+
+  async function read() {
+    const state = await probeState();
+    if (state) {
+      const part = await readVersioned(state);
+      return { ...compose(part), reportVersion: state.version };
+    }
+    return { ...(await readLegacy(pool)), reportVersion: null };
+  }
+
+  return { read, probeState };
+}
+
+// Ghep dong goc (da cache) voi CONT + hang van chuyen thanh phan hoi; tao dong moi de khong sua cache.
+function compose({ base, computedAt, containerSync, totals, inTransitByCode }) {
+  const rows = base.map((row) => {
+    const inTransit = inTransitByCode.get(normalizeCode(row.code)) || 0;
+    const quantities = totals[normalizeCode(row.code)];
+    return {
+      ...row,
+      inTransit,
+      // The stored base already equals sellable HN + sellable SG (on-hand less pending customer orders).
+      // Add SG transit once at read time, never fold it back into the stored base.
+      availableToSell: row.availableToSell + inTransit,
+      unloadedQty: containerSync.available ? Number(quantities?.unloadedQty || 0) : null,
+      loadedQty: containerSync.available ? Number(quantities?.loadedQty || 0) : null
+    };
+  });
+  return { rows, computedAt, containerSync };
+}
+
+let defaultReader = null;
+async function getProductReport({ pool } = {}) {
+  if (pool) return createProductReportReader({ pool }).read();
+  if (!defaultReader) defaultReader = createProductReportReader({ pool: getPool() });
+  return defaultReader.read();
+}
+
+// Chi phien ban bao cao (nhe, 1 dong) cho /containers/meta; null neu chua co state/loi.
+async function getProductReportVersion({ pool } = {}) {
+  try {
+    const reader = pool ? createProductReportReader({ pool }) : (defaultReader ||= createProductReportReader({ pool: getPool() }));
+    const state = await reader.probeState();
+    return state ? state.version : null;
+  } catch {
+    return null;
+  }
+}
+
+async function readLegacy(pool) {
   // Loc trang thai hien tai khi doc de snapshot ban dem, KPI va file xuat
   // cung chi gom ma con kinh doanh o it nhat mot co so. NULL giu quy uoc
   // mac dinh dang kinh doanh nhu bao cao dut hang; khong loc theo ton/doanh so.
@@ -48,17 +149,7 @@ async function getProductReport({ pool = getPool() } = {}) {
   ), null) : null;
   const { containerSync, totals } = await readContainerSummary(pool);
   const inTransitByCode = await readInTransitByCode(pool);
-  for (const item of items) {
-    item.inTransit = inTransitByCode.get(normalizeCode(item.code)) || 0;
-    // The nightly base already equals sellable HN + sellable SG (on-hand
-    // less pending customer orders). Add SG transit once at read time, shared
-    // by the UI and exports; never fold it back into the stored base.
-    item.availableToSell += item.inTransit;
-    const quantities = totals[normalizeCode(item.code)];
-    item.unloadedQty = containerSync.available ? Number(quantities?.unloadedQty || 0) : null;
-    item.loadedQty = containerSync.available ? Number(quantities?.loadedQty || 0) : null;
-  }
-  return { rows: items, computedAt, containerSync };
+  return compose({ base: items, computedAt, containerSync, totals, inTransitByCode });
 }
 
 // Khung "Chi tiet" duoi bang: doanh so 90 ngay cua tung khach da mua ma hang nay
@@ -96,4 +187,7 @@ async function getProductReportCustomers({ code, pool = getPool() } = {}) {
   };
 }
 
-module.exports = { getProductReport, getProductReportCustomers, __test__: { mapRow } };
+module.exports = {
+  getProductReport, getProductReportCustomers, getProductReportVersion, createProductReportReader,
+  __test__: { mapRow }
+};

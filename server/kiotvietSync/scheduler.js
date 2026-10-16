@@ -11,6 +11,7 @@ const {
 } = require('./dashboardRollupRefresh');
 const { startCustomerDebtReportRefreshSchedule } = require('./customerDebtReportRefresh');
 const { startProductReportSchedule } = require('./productReportRefresh');
+const { refreshProductReportIncremental } = require('./productReportIncremental');
 const { startCustomerInvoiceLinesSchedule, refreshCustomerInvoiceLinesIncremental } = require('./customerInvoiceLinesRefresh');
 const { startInventoryValueSnapshotSchedule } = require('./inventoryValueSnapshot');
 const { startBusinessMonthlySchedule } = require('./businessMonthlyRefresh');
@@ -69,6 +70,7 @@ function createPollingScheduler({
   startProductReportSchedule: startProductReport = startProductReportSchedule,
   startCustomerInvoiceLinesSchedule: startCustomerInvoiceLines = startCustomerInvoiceLinesSchedule,
   refreshCustomerInvoiceLinesIncremental: refreshInvoiceLinesIncremental = refreshCustomerInvoiceLinesIncremental,
+  refreshProductReportIncremental: refreshProductReportIncrementally = refreshProductReportIncremental,
   startInventoryValueSnapshotSchedule: startInventoryValueSnapshot = startInventoryValueSnapshotSchedule,
   startBusinessMonthlySchedule: startBusinessMonthly = startBusinessMonthlySchedule,
   startDebtCycleSnapshotSchedule: startDebtCycleSnapshot = startDebtCycleSnapshotSchedule,
@@ -135,6 +137,13 @@ function createPollingScheduler({
       getConfiguredBranches: getBranches,
       log: logger.log ? logger.log.bind(logger) : logger
     });
+    // Bao cao hang hoa doc doanh so tu rollup 'nong' vua xong nen phai chay SAU no (chi khi
+    // REPORTS_INCREMENTAL_ENABLED=true; ghi khac biet nen luot nhan roi ghi ~0 dong).
+    try {
+      await refreshProductReportIncrementally(getPoolFn(), { log: logger.log ? logger.log.bind(logger) : logger });
+    } catch (error) {
+      logger.error('[KiotViet Sync] Lỗi làm mới tăng dần báo cáo hàng hóa:', error.message);
+    }
   }
 
   async function syncBankAccountsIfEmpty() {

@@ -4266,7 +4266,7 @@
       chartAnimation: true,
       currentUser: null,
       supplierReturnImport: { submitting: false },
-      productReport: { rows: [], computedAt: null, containerSync: null, loaded: false, loading: false },
+      productReport: { rows: [], computedAt: null, containerSync: null, reportVersion: null, loaded: false, loading: false },
       // Bieu do "Gia tri ton kho theo ngay" (tab Tong quan, muc 1): tu tai qua
       // /api/inventory-value-history, bo loc Tu-Den rieng (mac dinh 7 ngay) nen KHONG nam trong
       // state.filters (khoa trong do di kem /api/dashboard va cache dashboard).
@@ -7043,6 +7043,7 @@
           state.productReport.rows = (data && data.rows) || [];
           state.productReport.computedAt = data && data.computedAt;
           state.productReport.containerSync = data && data.containerSync;
+          state.productReport.reportVersion = data && data.reportVersion != null ? data.reportVersion : null;
           state.productReport.loaded = true;
           renderProductReport();
         })
@@ -7071,7 +7072,9 @@
       }).then(function (data) {
         const previous = state.productReport.containerSync;
         const next = data.containerSync;
-        if (!state.productReport.loaded || (next && (!previous || next.version !== previous.version))) {
+        // reportVersion chi doi khi bang bao cao that su doi (lam moi tang dan) -> khong tai lai khi khong co gi moi.
+        const reportChanged = data.reportVersion != null && data.reportVersion !== state.productReport.reportVersion;
+        if (!state.productReport.loaded || reportChanged || (next && (!previous || next.version !== previous.version))) {
           return loadProductReport().then(function () {
             if (docDetail.tableKey === 'productReport' && docDetail.item) loadDocumentDetail();
           });
