@@ -61,3 +61,19 @@ test('unlock failure discards the DB session instead of leaking its advisory loc
   await refreshContainers({pool:{connect:async()=>conn},spreadsheetId:'fixture',now:()=>fixed,logger:{info(){},error(){}}});
   assert.ok(releasedWith instanceof Error);
 });
+test('unchanged sheet keeps rows and version: no DELETE/INSERT, only freshness timestamps',async()=>{
+  const conn=fakeConnection();const original=conn.query;
+  conn.query=async function(sql,params){
+    if(sql.includes('jsonb_populate_recordset')&&sql.includes('AS unchanged'))return {rows:[{unchanged:true}]};
+    return original.call(this,sql,params);
+  };
+  const result=await refreshContainers({pool:{connect:async()=>conn},spreadsheetId:'fixture',now:()=>fixed,
+    client:{listSheetTitles:async()=>SHEET_NAMES,getValues:async()=>{const row=Array(24).fill('');row[0]='SKU';row[14]=2;return [['CONT A','2.Chưa bốc'],row];}},logger:{info(){},error(){}}});
+  const sql=conn.calls.filter(x=>x.sql).map(x=>x.sql);
+  assert.equal(result.status,'unchanged');
+  assert.equal(sql.some(x=>x.startsWith('DELETE')||x.startsWith('INSERT INTO product_container_lines')),false);
+  assert.equal(sql.some(x=>/SET version=/.test(x)),false,'khong doi version khi noi dung khong doi');
+  const touch=sql.find(x=>/UPDATE product_container_sync SET last_success_at/.test(x));
+  assert.ok(touch&&!/version/.test(touch));
+  assert.ok(sql.includes('COMMIT'));
+});

@@ -60,7 +60,9 @@ test('REFRESH_SQL tru hang khach tra khoi doanh so rong cua khach (khop revenue_
 test('REFRESH_SQL: Ton co ban = ton HN + ton SG - Dat hang PHIEU TAM (quy tac 2026-10-06, khong cong hang dang van chuyen)', () => {
   const sql = __sql__.REFRESH_SQL;
   // Chi Phieu tam bi tru (khong con 'Đang xử lý' / 'Đã xác nhận').
-  assert.match(sql, /COALESCE\(o\.raw->>'statusValue', ''\) = 'Phiếu tạm'/);
+  // Khop nguyen van dieu kien cua idx_orders_phieu_tam (khong boc COALESCE) de dung duoc index rieng.
+  assert.match(sql, /\(raw->>'statusValue'\) = 'Phiếu tạm'/);
+  assert.doesNotMatch(sql, /COALESCE\(o\.raw->>'statusValue'/, 'COALESCE lam mat index idx_orders_phieu_tam');
   assert.doesNotMatch(sql, /statusValue', ''\) IN \(/, 'khong con loc nhieu trang thai (IN (...)) cho don dat hang');
   assert.match(sql, /hn\.on_hand \+ COALESCE\(sg\.on_hand, 0\) - COALESCE\(po\.qty, 0\),/);
   // Hang dang van chuyen (order_suppliers) khong con tinh vao ton co the ban.

@@ -35,6 +35,14 @@ const WINDOW_DAYS = 90;
 const SETTLE_MINUTES_AFTER_MIDNIGHT = 10;
 const REFRESH_WORK_MEM = '32MB';
 
+// BAT PLANNER (do tren DB that 2026-10-16): khi uoc luong it hoa don/phieu tra (cua so hep, hoac
+// thong ke cu), Postgres chon Merge Left Join chi theo `branch` roi loc bang bieu thuc
+// normalize/regexp tren ~7.300 ten khach cho TUNG chung tu: cua so 7 ngay 41s, phan phieu tra
+// 90 ngay 26s (dung nhan cua so 90 ngay hoa don thi 2,8s nen khong ai thay). Tat merge join
+// trong giao dich nay buoc dung hash join theo name_key: 7 ngay 0,68s, phieu tra 90 ngay 0,19s,
+// hoa don 90 ngay 3,1s, ket qua giong het. SET LOCAL nen khong anh huong ket noi tra ve pool.
+const PLANNER_GUARD_SQL = 'SET LOCAL enable_mergejoin = off';
+
 const CREATE_STAGING_SQL = `
   CREATE TEMP TABLE customer_invoice_lines_new
     (LIKE customer_invoice_lines_90d) ON COMMIT DROP`;
@@ -156,6 +164,7 @@ async function refreshCustomerInvoiceLines(pool, { log = console.log, now = () =
   try {
     await client.query('BEGIN');
     await client.query(`SET LOCAL work_mem = '${REFRESH_WORK_MEM}'`);
+    await client.query(PLANNER_GUARD_SQL);
     await client.query(CREATE_STAGING_SQL);
     await client.query(FILL_STAGING_SQL, [BRANCH_CODES, window.start, window.end]);
     await client.query(FILL_STAGING_RETURNS_SQL, [BRANCH_CODES, window.start, window.end]);
@@ -233,6 +242,6 @@ module.exports = {
   refreshCustomerInvoiceLines,
   refreshCustomerInvoiceLinesIfDue,
   startCustomerInvoiceLinesSchedule,
-  __sql__: { FILL_STAGING_SQL, FILL_STAGING_RETURNS_SQL, DELETE_STALE_SQL, INSERT_MISSING_SQL, UPSERT_STATE_SQL, LAST_COMPUTED_SQL, CREATE_STAGING_SQL },
+  __sql__: { FILL_STAGING_SQL, FILL_STAGING_RETURNS_SQL, DELETE_STALE_SQL, INSERT_MISSING_SQL, UPSERT_STATE_SQL, LAST_COMPUTED_SQL, CREATE_STAGING_SQL, PLANNER_GUARD_SQL },
   __test__: { vnDateKey, vnMinutesOfDay, computeWindow, isRefreshDue }
 };

@@ -74,14 +74,21 @@ const REFRESH_SQL = `
     -- "Dat hang cua khach" (bang orders, KHONG PHAI purchases-NCC) o trang thai Phieu tam —
     -- so nay bi tru khoi ton co the ban vi da bi giu cho (truoc 2026-10-01 con tinh them
     -- 'Đang xử lý'/'Đã xác nhận' — gan nhu khong co don nao o 2 trang thai nay).
+    -- Vi tu loc phieu tam KHOP NGUYEN VAN dieu kien cua idx_orders_phieu_tam
+    -- ((raw->>'statusValue') = 'Phiếu tạm', KHONG boc COALESCE) nen Postgres chi doc ~900 don thay
+    -- vi quet order_details: do 2026-10-16 750ms/13.500 block doc dia -> 37ms/0 doc dia.
+    -- OFFSET 0 giu nguyen vai tro "doc don truoc, tra cuu dong chi tiet sau".
     SELECT
       lower(btrim(COALESCE(NULLIF(d.raw->>'productCode', ''), p.code, ''))) AS product_key,
       SUM(COALESCE(d.quantity, 0))::float8 AS qty
-    FROM order_details d
-    JOIN orders o ON o.branch = d.branch AND o.id = d.order_id
+    FROM (
+      SELECT branch, id FROM orders
+      WHERE branch = ANY($1::text[])
+        AND (raw->>'statusValue') = ${sqlLiteral(PENDING_ORDER_STATUS)}
+      OFFSET 0
+    ) o
+    JOIN order_details d ON d.branch = o.branch AND d.order_id = o.id
     LEFT JOIN products p ON p.branch = d.branch AND p.id = d.product_id
-    WHERE d.branch = ANY($1::text[])
-      AND COALESCE(o.raw->>'statusValue', '') = ${sqlLiteral(PENDING_ORDER_STATUS)}
     GROUP BY 1
   ),
   sales_30d AS (

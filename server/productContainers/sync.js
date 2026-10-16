@@ -7,6 +7,19 @@ const { SHEET_NAMES, INTERVAL_MS, parseContainerSheet } = require('./parser');
 const LOCK_KEY = 20531015;
 const SAFE_ERROR = 'Không đọc hoặc lưu được đủ 6 sheet CONT. Giữ nguyên bản thành công gần nhất.';
 
+// true khi tap dong sheet moi GIONG HET bang hien tai (cung so dong, tung dong theo khoa (sheet,source_row)
+// khong khac cot nao) va canh bao khong doi. ROW(i.*) so sanh ca dong cung kieu bang nen numeric 1.0 = 1.
+const UNCHANGED_SQL = `WITH incoming AS (
+    SELECT * FROM jsonb_populate_recordset(NULL::product_container_lines,$1::jsonb)
+  )
+  SELECT (SELECT count(*) FROM incoming) = (SELECT count(*) FROM product_container_lines)
+    AND NOT EXISTS (
+      SELECT 1 FROM incoming i
+      LEFT JOIN product_container_lines l ON l.sheet_name = i.sheet_name AND l.source_row = i.source_row
+      WHERE l.sheet_name IS NULL OR ROW(i.*) IS DISTINCT FROM ROW(l.*))
+    AND COALESCE((SELECT version IS NOT NULL AND warnings = $2::jsonb
+                  FROM product_container_sync WHERE singleton = true), false) AS unchanged`;
+
 async function refreshContainers({
   pool = getPool(), spreadsheetId = CONFIG.PRODUCT_CONTAINER_SPREADSHEET_ID,
   client = createReadOnlyClient(() => spreadsheetId, 'Hàng dự kiến'),
@@ -55,6 +68,18 @@ async function refreshContainers({
       package_count:row.packageCount,quantity:row.quantity,vietnam_price:row.vietnamPrice
     })));
     await connection.query('BEGIN'); transaction = true;
+    // Noi dung sheet khong doi => KHONG xoa/nap lai 11K dong va GIU NGUYEN `version`. Client so `version`
+    // de quyet dinh tai lai ca bao cao hang hoa (10,9K dong); neu moi lan sync deu doi version thi rut chu ky
+    // xuong 10 phut se bat moi nguoi xem tai lai + ghi WAL lien tuc du khong co gi moi (xem
+    // docs/superpowers/specs/2026-10-16-realtime-customer-product-reports-design.md muc 3.C).
+    const same = await connection.query(UNCHANGED_SQL,[JSON.stringify(lines),JSON.stringify(warnings)]);
+    if (same.rows[0]?.unchanged === true) {
+      await connection.query(`UPDATE product_container_sync SET last_success_at=$1,
+        last_attempt_at=$2,last_error=NULL WHERE singleton=true`,[now(),attemptAt]);
+      await connection.query('COMMIT'); transaction = false;
+      logger.info('[ProductContainers] Unchanged', { durationMs:Date.now()-started, rows:lines.length });
+      return { status:'unchanged',rowCount:lines.length,nextAttemptAt };
+    }
     await connection.query('DELETE FROM product_container_lines');
     if (lines.length) await connection.query(`INSERT INTO product_container_lines
       SELECT * FROM jsonb_populate_recordset(NULL::product_container_lines,$1::jsonb)`,[JSON.stringify(lines)]);
@@ -116,4 +141,4 @@ function startContainerSchedule({
   const ready = tick();
   return {ready,stop(){stopped=true;if(timer)clearTimeoutFn(timer);}};
 }
-module.exports = { refreshContainers, startContainerSchedule };
+module.exports = { refreshContainers, startContainerSchedule, __sql__: { UNCHANGED_SQL } };

@@ -32,6 +32,7 @@ test('refreshCustomerInvoiceLines chay dung trinh tu trong 1 giao dich va bao so
   assert.deepEqual(client.calls.map(c => c.sql), [
     'BEGIN',
     "SET LOCAL work_mem = '32MB'",
+    'SET LOCAL enable_mergejoin = off',
     __sql__.CREATE_STAGING_SQL,
     __sql__.FILL_STAGING_SQL,
     __sql__.FILL_STAGING_RETURNS_SQL,
@@ -40,9 +41,9 @@ test('refreshCustomerInvoiceLines chay dung trinh tu trong 1 giao dich va bao so
     __sql__.UPSERT_STATE_SQL,
     'COMMIT'
   ]);
-  assert.deepEqual(client.calls[3].params, [['hanoi', 'saigon'], '2026-06-30', '2026-09-27']);
   assert.deepEqual(client.calls[4].params, [['hanoi', 'saigon'], '2026-06-30', '2026-09-27']);
-  assert.deepEqual(client.calls[7].params, ['2026-06-30', '2026-09-27']);
+  assert.deepEqual(client.calls[5].params, [['hanoi', 'saigon'], '2026-06-30', '2026-09-27']);
+  assert.deepEqual(client.calls[8].params, ['2026-06-30', '2026-09-27']);
   assert.deepEqual(result, { window: { start: '2026-06-30', end: '2026-09-27' }, rowCount: 65914, inserted: 9, deleted: 4 });
   assert.match(logs[0], /65914/);
 });
