@@ -160,7 +160,9 @@ const CONFIG = {
   // BAT — tat bang DASHBOARD_PREWARM=false (vd moi truong dev khong can).
   DASHBOARD_PREWARM: process.env.DASHBOARD_PREWARM !== 'false',
   // Read-only incoming goods snapshot, independent from KiotViet sync.
-  PRODUCT_CONTAINER_SPREADSHEET_ID: process.env.PRODUCT_CONTAINER_SPREADSHEET_ID || null
+  PRODUCT_CONTAINER_SPREADSHEET_ID: process.env.PRODUCT_CONTAINER_SPREADSHEET_ID || null,
+  // Bao cao doanh thu theo khach / hang hoa lam moi TANG DAN sau moi luot sync (mac dinh TAT => chot dem).
+  REPORTS_INCREMENTAL_ENABLED: String(process.env.REPORTS_INCREMENTAL_ENABLED || '').toLowerCase() === 'true'
 };
 
 module.exports = CONFIG;

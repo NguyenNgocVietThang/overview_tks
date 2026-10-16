@@ -7939,12 +7939,56 @@
       destroyChart('cpBar');
     }
 
-    // Bao cao dung san moi dem (co computedAt) chi tinh den het ngay hom qua: ghi
-    // ro de khong ai tuong hoa don phat sinh hom nay bi mat.
+    // Ngay + gio theo lich VN cua computedAt: { date: 'dd/mm/yyyy', time: 'HH:mm' } hoac null.
+    function vnDateTimeParts(value) {
+      const date = new Date(value);
+      if (isNaN(date.getTime())) return null;
+      const parts = {};
+      new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+      }).formatToParts(date).forEach(function (part) { parts[part.type] = part.value; });
+      return { date: parts.day + '/' + parts.month + '/' + parts.year, time: parts.hour + ':' + parts.minute };
+    }
+
+    // Bao cao doc tu bang dung san (co computedAt): cua so ket thuc HOM QUA (chot dem) hoac, khi lam moi
+    // tang dan, ket thuc chinh ngay cap nhat => ghi "den hom nay" kem gio cap nhat de biet so lieu moi den dau.
     function customerProductWindowHint(data) {
-      return data && data.computedAt && data.range && data.range.to
-        ? '90 ngày đến hết ' + data.range.to
-        : '90 ngày gần đây';
+      if (!(data && data.computedAt && data.range && data.range.to)) return '90 ngày gần đây';
+      const stamp = vnDateTimeParts(data.computedAt);
+      if (stamp && stamp.date === data.range.to) return '90 ngày đến hôm nay · cập nhật lúc ' + stamp.time;
+      return '90 ngày đến hết ' + data.range.to;
+    }
+
+    // Duoc goi khi server bao co du lieu moi (SSE): tai lai NGAM bao cao khach dang xem, khong hien
+    // "Dang tai" va chi ve lai khi so lieu that su doi (bo computedAt khoi so sanh).
+    function refreshCustomerProductReportQuietly() {
+      const report = state.customerProductReport;
+      const content = document.getElementById('cpContent');
+      if (!report.customer || !report.data || !content || content.hidden) return Promise.resolve(false);
+      if (document.visibilityState === 'hidden') return Promise.resolve(false);
+      const view = content.closest('.view');
+      if (view && !view.classList.contains('active')) return Promise.resolve(false);
+      const requested = report.customer;
+      const comparable = function (data) {
+        const copy = Object.assign({}, data);
+        delete copy.computedAt;
+        return JSON.stringify(copy);
+      };
+      return fetch('/api/customer-product-revenue?code=' + encodeURIComponent(requested.code) + '&name=' + encodeURIComponent(requested.name))
+        .then(function (response) {
+          if (!response.ok) throw new Error('HTTP ' + response.status);
+          return response.json();
+        })
+        .then(function (data) {
+          if (state.customerProductReport.customer !== requested) return false;
+          const changed = comparable(data) !== comparable(state.customerProductReport.data);
+          state.customerProductReport.data = data;
+          document.getElementById('cpWindowHint').textContent = customerProductWindowHint(data);
+          if (changed) renderCustomerProductReport();
+          return changed;
+        })
+        .catch(function () { return false; });
     }
 
     async function loadCustomerProductReport() {
@@ -9434,7 +9478,10 @@
           // luot rollup (~7 phut) - neu goi loadData() ngay, tat ca goi
           // /api/dashboard dong thoi, don tai pool ket noi DB. Tre ngau nhien
           // 0-3s de rai request ra.
-          setTimeout(function () { loadData(state.days, false); }, Math.floor(Math.random() * 3000));
+          setTimeout(function () {
+            loadData(state.days, false);
+            refreshCustomerProductReportQuietly();
+          }, Math.floor(Math.random() * 3000));
         });
         stream.onopen = function () {
           consecutiveErrors = 0;

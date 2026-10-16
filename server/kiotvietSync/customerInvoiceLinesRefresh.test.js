@@ -3,7 +3,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  refreshCustomerInvoiceLines, refreshCustomerInvoiceLinesIfDue, startCustomerInvoiceLinesSchedule, __sql__, __test__
+  refreshCustomerInvoiceLines, refreshCustomerInvoiceLinesIfDue, refreshCustomerInvoiceLinesIncremental,
+  startCustomerInvoiceLinesSchedule, __sql__, __test__
 } = require('./customerInvoiceLinesRefresh');
 
 const NOW = new Date('2026-09-27T18:00:00Z'); // 01:00 sang 28/09 theo lich VN
@@ -177,4 +178,158 @@ test('loi khi kiem tra/dung lai duoc ghi log, khong nem ra ngoai lam sap tien tr
   tick();
   await new Promise(resolve => setImmediate(resolve));
   assert.match(logs[0], /db down/);
+});
+
+// ===== Che do TANG DAN (REPORTS_INCREMENTAL_ENABLED) =====
+const NOW_INCR = new Date('2026-10-16T05:00:00Z'); // 12:00 ngay 16/10 theo lich VN
+
+function incrClient({ failOn = null } = {}) {
+  const calls = [];
+  return {
+    calls,
+    query: async (sql, params) => {
+      calls.push({ sql, params });
+      if (failOn && sql === failOn) throw new Error('boom');
+      if (sql === __sql__.FILL_CHANGED_SQL) return { rowCount: 7 };
+      if (sql === __sql__.DELETE_STALE_INCR_SQL) return { rowCount: 2 };
+      if (sql === __sql__.DELETE_OUT_OF_WINDOW_SQL) return { rowCount: 5 };
+      if (sql === __sql__.INSERT_MISSING_SQL) return { rowCount: 3 };
+      if (sql === __sql__.UPDATE_STATE_INCR_SQL) return { rows: [{ row_count: 66000 }], rowCount: 1 };
+      if (sql === __sql__.UPSERT_STATE_FULL_SQL) return { rows: [{ row_count: 66100 }], rowCount: 1 };
+      return { rowCount: 0 };
+    },
+    release: () => {}
+  };
+}
+function incrPool(client, state) {
+  return {
+    query: async sql => { assert.equal(sql, __sql__.READ_STATE_SQL); return { rows: state ? [state] : [] }; },
+    connect: async () => client
+  };
+}
+
+test('tang dan: tat co => khong dong vao DB', async () => {
+  const pool = { query: async () => { throw new Error('khong duoc doc DB'); } };
+  assert.deepEqual(await refreshCustomerInvoiceLinesIncremental(pool, { enabled: false }), { skipped: 'disabled' });
+});
+
+test('tang dan: chua chay migration 0054 (thieu cot/bang) => bo qua, giu luong chot dem', async () => {
+  for (const code of ['42703', '42P01']) {
+    const pool = { query: async () => { throw Object.assign(new Error('x'), { code }); } };
+    assert.deepEqual(await refreshCustomerInvoiceLinesIncremental(pool, { enabled: true, now: () => NOW_INCR }), { skipped: 'migration-missing' });
+  }
+  const pool = { query: async () => { throw new Error('db down'); } };
+  await assert.rejects(() => refreshCustomerInvoiceLinesIncremental(pool, { enabled: true, now: () => NOW_INCR }), /db down/);
+});
+
+test('tang dan: chua co last_full_at hoac bang cu hon 7 ngay => dung lai DAY DU (cua so den hom nay, danh dau last_full_at)', async () => {
+  for (const state of [null, { computed_at: new Date('2026-10-15T17:10:00Z'), last_full_at: null },
+    { computed_at: new Date('2026-10-01T00:00:00Z'), last_full_at: new Date('2026-10-01T00:00:00Z') }]) {
+    const client = incrClient();
+    const result = await refreshCustomerInvoiceLinesIncremental(incrPool(client, state), { enabled: true, now: () => NOW_INCR, log: () => {} });
+    assert.equal(result.mode, 'full');
+    assert.deepEqual(result.window, { start: '2026-07-19', end: '2026-10-16' });
+    const sqls = client.calls.map(c => c.sql);
+    assert.ok(sqls.includes(__sql__.ADVISORY_LOCK_SQL), 'tuan tu voi luot tang dan');
+    assert.ok(sqls.includes(__sql__.UPSERT_STATE_FULL_SQL));
+    assert.ok(!sqls.includes(__sql__.UPSERT_STATE_SQL));
+  }
+});
+
+test('tang dan: chay dung trinh tu trong 1 giao dich, loc theo synced_at, cua so gom hom nay', async () => {
+  const client = incrClient();
+  const state = { computed_at: new Date('2026-10-16T04:50:00Z'), last_full_at: new Date('2026-10-15T17:10:00Z') };
+  const logs = [];
+  const result = await refreshCustomerInvoiceLinesIncremental(incrPool(client, state), { enabled: true, now: () => NOW_INCR, log: m => logs.push(m) });
+
+  assert.deepEqual(client.calls.map(c => c.sql), [
+    'BEGIN',
+    __sql__.ADVISORY_LOCK_SQL,
+    "SET LOCAL work_mem = '32MB'",
+    'SET LOCAL enable_mergejoin = off',
+    "SET LOCAL statement_timeout = '30s'",
+    __sql__.CREATE_STAGING_SQL,
+    __sql__.CREATE_CHANGED_SQL,
+    __sql__.FILL_CHANGED_SQL,
+    __sql__.FILL_STAGING_INCR_SQL,
+    __sql__.FILL_STAGING_RETURNS_INCR_SQL,
+    __sql__.DELETE_STALE_INCR_SQL,
+    __sql__.DELETE_OUT_OF_WINDOW_SQL,
+    __sql__.INSERT_MISSING_SQL,
+    __sql__.UPDATE_STATE_INCR_SQL,
+    'COMMIT'
+  ]);
+  const since = '2026-10-16T02:50:00.000Z'; // computed_at - 2 gio
+  assert.deepEqual(client.calls[7].params, [['hanoi', 'saigon'], since]);
+  assert.deepEqual(client.calls[8].params, [['hanoi', 'saigon'], '2026-07-19', '2026-10-16', since]);
+  assert.deepEqual(client.calls[9].params, [['hanoi', 'saigon'], '2026-07-19', '2026-10-16', since]);
+  assert.deepEqual(client.calls[11].params, ['2026-07-19']);
+  assert.deepEqual(client.calls[13].params, ['2026-07-19', '2026-10-16']);
+  assert.deepEqual(result, {
+    skipped: false, mode: 'incremental', window: { start: '2026-07-19', end: '2026-10-16' }, since,
+    changedDocs: 7, rowCount: 66000, inserted: 3, deleted: 2, slid: 5
+  });
+  assert.match(logs[0], /Tang dan/);
+});
+
+test('tang dan: loi giua chung => ROLLBACK, khong ghi state, nem loi', async () => {
+  const client = incrClient({ failOn: __sql__.INSERT_MISSING_SQL });
+  const state = { computed_at: new Date('2026-10-16T04:50:00Z'), last_full_at: new Date('2026-10-15T17:10:00Z') };
+  await assert.rejects(
+    () => refreshCustomerInvoiceLinesIncremental(incrPool(client, state), { enabled: true, now: () => NOW_INCR, log: () => {} }),
+    /boom/
+  );
+  const sqls = client.calls.map(c => c.sql);
+  assert.ok(sqls.includes('ROLLBACK'));
+  assert.ok(!sqls.includes('COMMIT'));
+  assert.ok(!sqls.includes(__sql__.UPDATE_STATE_INCR_SQL));
+});
+
+test('cau tang dan: loc theo synced_at (modified_date NULL o 91% hoa don), xoa gioi han trong tap chung tu doi, khong TRUNCATE', () => {
+  const all = Object.values(__sql__).join('\n');
+  assert.match(__sql__.FILL_STAGING_INCR_SQL, /i\.synced_at >= \$4::timestamptz/);
+  assert.match(__sql__.FILL_STAGING_RETURNS_INCR_SQL, /r\.synced_at >= \$4::timestamptz/);
+  assert.match(__sql__.FILL_CHANGED_SQL, /FROM invoices[\s\S]*synced_at >= \$2[\s\S]*UNION ALL[\s\S]*SELECT branch, -id FROM returns/);
+  assert.doesNotMatch(all, /modified_date/);
+  assert.match(__sql__.DELETE_STALE_INCR_SQL, /USING customer_invoice_changed c/);
+  assert.match(__sql__.DELETE_STALE_INCR_SQL, /l\.invoice_id = c\.invoice_id/);
+  assert.doesNotMatch(all, /TRUNCATE/i);
+  // Ban tang dan giu nguyen moi dieu kien cua ban day du, chi them dieu kien synced_at.
+  assert.equal(__sql__.FILL_STAGING_INCR_SQL.replace('AND i.synced_at >= $4::timestamptz\n    ', ''), __sql__.FILL_STAGING_SQL);
+  assert.equal(__sql__.FILL_STAGING_RETURNS_INCR_SQL.replace('AND r.synced_at >= $4::timestamptz\n    ', ''), __sql__.FILL_STAGING_RETURNS_SQL);
+});
+
+test('computeWindow includeToday: 90 ngay ket thuc HOM NAY theo lich VN', () => {
+  assert.deepEqual(__test__.computeWindow(new Date('2026-10-16T05:00:00Z'), { includeToday: true }), { start: '2026-07-19', end: '2026-10-16' });
+  // 23:30 UTC = 06:30 ngay hom sau theo VN.
+  assert.deepEqual(__test__.computeWindow(new Date('2026-10-15T23:30:00Z'), { includeToday: true }), { start: '2026-07-19', end: '2026-10-16' });
+});
+
+test('IfDue che do tang dan: chot doi soat dua vao last_full_at (computed_at bi cap nhat moi luot)', async () => {
+  let connected = 0;
+  const makePool = state => ({
+    query: async sql => { assert.equal(sql, __sql__.READ_STATE_SQL); return { rows: state ? [state] : [] }; },
+    connect: async () => { connected++; return incrClient(); }
+  });
+  // Da doi soat luc 00:30 VN hom nay => bo qua du computed_at moi.
+  let result = await refreshCustomerInvoiceLinesIfDue(makePool({ computed_at: NOW_INCR, last_full_at: new Date('2026-10-15T17:30:00Z') }), { incremental: true, now: () => NOW_INCR, log: () => {} });
+  assert.deepEqual(result, { skipped: true });
+  // Doi soat gan nhat la hom qua => dung lai day du.
+  result = await refreshCustomerInvoiceLinesIfDue(makePool({ computed_at: NOW_INCR, last_full_at: new Date('2026-10-14T17:30:00Z') }), { incremental: true, now: () => NOW_INCR, log: () => {} });
+  assert.equal(result.skipped, false);
+  // Chua co last_full_at => dung lai day du.
+  result = await refreshCustomerInvoiceLinesIfDue(makePool({ computed_at: NOW_INCR, last_full_at: null }), { incremental: true, now: () => NOW_INCR, log: () => {} });
+  assert.equal(result.skipped, false);
+  assert.equal(connected, 2);
+});
+
+test('IfDue che do tang dan: thieu cot last_full_at (chua migrate) => quay ve luong chot dem cu', async () => {
+  const pool = {
+    query: async sql => {
+      if (sql === __sql__.READ_STATE_SQL) throw Object.assign(new Error('no column'), { code: '42703' });
+      assert.equal(sql, __sql__.LAST_COMPUTED_SQL);
+      return { rows: [{ computed_at: new Date('2026-10-15T17:30:00Z') }] };
+    }
+  };
+  assert.deepEqual(await refreshCustomerInvoiceLinesIfDue(pool, { incremental: true, now: () => NOW_INCR, log: () => {} }), { skipped: true });
 });

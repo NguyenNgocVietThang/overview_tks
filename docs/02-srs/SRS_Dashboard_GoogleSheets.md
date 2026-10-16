@@ -71,7 +71,7 @@ Node.js Sync Engine (server/kiotvietSync/)    server/kiotviet/webhookEventQueue.
     ├── dashboardRollupRefresh.js    : rollup nóng 7 ngày sau mỗi lượt fast; rollup đầy đủ 400 ngày mỗi 30 phút
     ├── customerDebtReportRefresh.js : CN1/CN3/CN7 mỗi 5 phút
     ├── productReportRefresh.js      : product_report + product_report_customers, 1 lần/đêm
-    ├── customerInvoiceLinesRefresh.js : customer_invoice_lines_90d, 1 lần/đêm sau 00:10 VN
+    ├── customerInvoiceLinesRefresh.js : customer_invoice_lines_90d, 1 lần/đêm sau 00:10 VN (+ lượt tăng dần sau mỗi sync fast khi REPORTS_INCREMENTAL_ENABLED)
     └── inventoryValueSnapshot.js    : inventory_value_snapshots, chụp 23:59 VN
     |
     v
@@ -231,6 +231,7 @@ Quyền mặc định ở trên tính từ `featureRegistry.js`; Quản lý có 
 | FR-06.7 | Tồn kho: entity `product_on_hands` (nhẹ) + `product_on_hands_snapshot` quét toàn bộ `/productOnHands` tối đa 10 phút/lần vì `modifiedDate` của endpoint này không bump theo bán/nhập hàng; chỉ `UPDATE` `onHand`/`reserved` trong `products.raw->'inventories'`, giữ `cost`. | Cao | Hoàn thành |
 | FR-06.8 | `customerDebtReportRefresh.js`: mỗi 5 phút làm mới `customer_debt_activity_periods` (CN1/CN3/CN7) chỉ ghi dòng đổi tên/mới và xóa dòng không còn. | Cao | Hoàn thành |
 | FR-06.9 | `productReportRefresh.js`: kiểm tra mỗi 5 phút, tính lại `product_report` + `product_report_customers` **1 lần/đêm** (TRUNCATE + nạp một câu lệnh); chạy tay: `node kiotvietSync/productReportRefresh.js` (trong `server/`). | Cao | Hoàn thành |
+| FR-06.10a | Che do tang dan (`REPORTS_INCREMENTAL_ENABLED=true`, mặc định TẮT): sau mỗi lượt sync fast `refreshCustomerInvoiceLinesIncremental` chỉ dựng lại dòng của hóa đơn/phiếu trả có `synced_at` mới (chồng 2 giờ; **không** dùng `modified_date` vì 91% hóa đơn có `modified_date` NULL), cửa sổ 90 ngày gồm HÔM NAY và trượt mỗi lượt, `computed_at` = lần kiểm tra gần nhất; lượt dựng đầy đủ sau 00:10 VN giữ vai trò chốt đối soát (đổi tên/mã khách) và đánh dấu `last_full_at`. Hai lượt tuần tự qua `pg_advisory_xact_lock`. Giao diện ghi "90 ngày đến hôm nay · cập nhật lúc HH:mm" và tự tải lại ngầm khách đang xem khi nhận SSE. |
 | FR-06.10 | `customerInvoiceLinesRefresh.js`: dựng `customer_invoice_lines_90d` 1 lần/đêm sau 00:10 VN (nạp bảng tạm rồi chỉ DELETE/INSERT phần khác biệt trong một giao dịch), cửa sổ 90 ngày kết thúc hôm qua; chưa dựng thì API quay về cách tính cũ. | Cao | Hoàn thành |
 | FR-06.11 | `inventoryValueSnapshot.js`: kiểm tra mỗi phút, chụp giá trị tồn kho từng cơ sở lúc 23:59 VN (`INSERT … ON CONFLICT DO NOTHING`); lỡ giờ thì chụp bù trước 12:00 hôm sau. | Cao | Hoàn thành |
 | FR-06.12 | `GET /api/internal/kiotviet-sync/status` (quyền `system.syncStatus`, mặc định Quản lý) báo trạng thái đồng bộ; fail-soft 503 nếu chưa có DB. | Trung bình | Hoàn thành |

@@ -145,7 +145,7 @@ Webhook KiotViet đi vào `POST /api/kiotviet/webhook/<KIOTVIET_WEBHOOK_SECRET>`
 | CN1/CN3/CN7 | `customerDebtReportRefresh.js` → `customer_debt_activity_periods` | 5 phút |
 | Báo cáo hàng hóa | `productReportRefresh.js` → `product_report`, `product_report_customers` | kiểm tra mỗi 5 phút, tính **1 lần/đêm** |
 | Hàng dự kiến | `productContainers/sync.js` → `product_container_lines`, `product_container_sync`; chỉ đọc đủ 6 sheet rồi công bố khác biệt | 10 phút (`PRODUCT_CONTAINER_SYNC_INTERVAL_MS`), độc lập engine KiotViet |
-| Chi tiết hóa đơn 90 ngày theo khách | `customerInvoiceLinesRefresh.js` → `customer_invoice_lines_90d` | kiểm tra mỗi 5 phút, dựng 1 lần/đêm sau 00:10 VN |
+| Chi tiết hóa đơn 90 ngày theo khách | `customerInvoiceLinesRefresh.js` → `customer_invoice_lines_90d` | kiểm tra mỗi 5 phút, dựng 1 lần/đêm sau 00:10 VN; khi `REPORTS_INCREMENTAL_ENABLED=true` thêm lượt tăng dần sau mỗi lượt sync fast (~7 phút), cửa sổ gồm hôm nay |
 | Giá trị tồn kho | `inventoryValueSnapshot.js` → `inventory_value_snapshots` | kiểm tra mỗi phút, chụp lúc 23:59 VN |
 | Báo cáo kinh doanh | `businessMonthlyRefresh.js` → `business_monthly_customer_sales`, `business_monthly_customer_product_sales`, `business_monthly_product_sales`, `business_monthly_sale_sales`, `business_monthly_state` | kiểm tra mỗi 5 phút; chốt tháng vừa qua khi ≥ 00:10 VN ngày mùng 1, mỗi tháng **1 lần**; dựng sale khi hash nhóm hiện tại khác `group_hash` đã lưu hoặc sau chốt/chốt lại (chỉ ghi dòng đổi) |
 
@@ -217,6 +217,7 @@ Hai file Kiot HN/SG **không còn** được server truy cập.
 | `0049` | Thêm tài liệu dựng sẵn thứ 4 `treo-hang` ("Quy định treo hàng") vào `hr_rule_documents` (nội dung nằm trong HTML trang Quản lý nhân sự) |
 | `0050` | `debt_cycle_runs.refreshed_at` / `refreshed_by_name`: nút "Tính lại công nợ" (`POST /api/debt-management/refresh`, quyền `reports.debt.refresh`) ghi đè chu kỳ đang mở tại thời điểm bấm |
 | `0051` | `debt_penalty_daily` (tiền phạt đã chốt sổ theo ngày + khách, đóng băng tên sale, giữ vĩnh viễn) + `debt_penalty_cycles` (đánh dấu chu kỳ đã chốt sổ): nguồn của bảng thưởng/phạt sale tab Công nợ |
+| `0054` | `customer_invoice_lines_state.last_full_at` (mốc dựng đầy đủ gần nhất) + index `invoices(branch, synced_at)`, `returns(branch, synced_at)` cho làm mới tăng dần doanh thu theo khách; chưa áp DB |
 | `0053` | `product_container_lines`, `product_container_sync` — snapshot Hàng dự kiến hiện hành, số lượng NUMERIC, thu hồi quyền `reporting_readonly`; đã áp DB dùng chung 15/10/2026 |
 
 

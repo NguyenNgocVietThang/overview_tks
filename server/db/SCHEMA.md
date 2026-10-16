@@ -460,6 +460,10 @@ Job chốt xóa run/feedback/history cũ hơn 7 ngày. SELECT của `reporting_r
 
 `debt_reward_months`: `month DATE` khóa chính (ngày 01), `rule_version TEXT`, `finalized_at TIMESTAMPTZ`, `result JSONB` chứa summary, coverage, rows cùng audit điểm/chi tiết phạt. Không FK theo bản chốt công nợ, giữ vĩnh viễn. Dịch vụ chỉ INSERT ON CONFLICT DO NOTHING; khóa advisory theo tháng trong transaction, retry serialization 40001; không cập nhật lại kết quả đã chốt. Phạt tháng cũ phải chốt hết và `business_monthly_state` phải có tháng doanh số trước khi lưu.
 
+## Làm mới tăng dần doanh thu theo khách — migration 0054 (16/10/2026, chưa áp DB)
+
+`0054_customer_invoice_lines_incremental.sql`: thêm `customer_invoice_lines_state.last_full_at TIMESTAMPTZ` (NULL = chưa dựng đầy đủ ở chế độ tăng dần ⇒ job dựng đầy đủ trước; không backfill) và hai index `idx_invoices_synced_at (branch, synced_at)`, `idx_returns_synced_at (branch, synced_at)` để lượt tăng dần chỉ đọc đuôi index. Ở chế độ tăng dần `computed_at` là lần kiểm tra gần nhất (nhãn "cập nhật lúc" của giao diện) còn `window_end` = hôm nay. Mã chịu thiếu migration: thiếu cột/bảng (`42703`/`42P01`) thì bỏ qua lượt tăng dần và giữ luồng chốt đêm. Lý do dùng `synced_at` thay `modified_date`: đo 16/10/2026 có 43.074/47.141 hóa đơn và 1.896/2.794 phiếu trả với `modified_date` NULL.
+
 ## Hàng dự kiến — migration 0053 (15/10/2026)
 
 `0053_product_containers.sql` tạo snapshot hiện hành độc lập với `product_report`/`product_report_customers` chốt ban đêm. Đã áp lên DB dùng chung lúc 16:26 ngày 15/10/2026 theo yêu cầu người dùng; đã xác minh hai bảng, NUMERIC, singleton và thu hồi SELECT của reporting_readonly.

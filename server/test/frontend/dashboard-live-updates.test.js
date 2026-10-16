@@ -39,6 +39,7 @@ class FakeEventSource {
 function run({ lastFetchAt = Date.now() } = {}) {
   FakeEventSource.instances = [];
   const loadCalls = [];
+  const quietCalls = [];
   const timeouts = [];
   const documentHandlers = {};
   const state = { days: 30, lastFetchAt };
@@ -51,6 +52,7 @@ function run({ lastFetchAt = Date.now() } = {}) {
     EventSource: FakeEventSource,
     state,
     loadData: (days, manual) => loadCalls.push({ days, manual }),
+    refreshCustomerProductReportQuietly: () => quietCalls.push(true),
     document: fakeDocument,
     setTimeout: (fn, ms) => { timeouts.push({ fn, ms }); return timeouts.length; },
     clearTimeout: () => {},
@@ -61,7 +63,7 @@ function run({ lastFetchAt = Date.now() } = {}) {
   new vm.Script(liveUpdateSource()).runInContext(context);
 
   return {
-    loadCalls, timeouts, state, documentHandlers, document: fakeDocument,
+    loadCalls, quietCalls, timeouts, state, documentHandlers, document: fakeDocument,
     streams: FakeEventSource.instances,
     latestStream: () => FakeEventSource.instances[FakeEventSource.instances.length - 1]
   };
@@ -86,6 +88,8 @@ test('su kien dashboard-updated giai nhip bang setTimeout ngau nhien 0-3s roi mo
 
   entry.fn();
   assert.deepEqual(app.loadCalls, [{ days: 30, manual: false }]);
+  // Bao cao doanh thu theo khach dang xem cung duoc tai lai ngam (khong dung vao man che/loadData).
+  assert.equal(app.quietCalls.length, 1);
 });
 
 test('stream chet khong con lam trang treo vinh vien: co lich ket noi lai', () => {

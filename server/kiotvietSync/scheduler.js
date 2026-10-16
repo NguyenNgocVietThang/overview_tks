@@ -11,7 +11,7 @@ const {
 } = require('./dashboardRollupRefresh');
 const { startCustomerDebtReportRefreshSchedule } = require('./customerDebtReportRefresh');
 const { startProductReportSchedule } = require('./productReportRefresh');
-const { startCustomerInvoiceLinesSchedule } = require('./customerInvoiceLinesRefresh');
+const { startCustomerInvoiceLinesSchedule, refreshCustomerInvoiceLinesIncremental } = require('./customerInvoiceLinesRefresh');
 const { startInventoryValueSnapshotSchedule } = require('./inventoryValueSnapshot');
 const { startBusinessMonthlySchedule } = require('./businessMonthlyRefresh');
 const { startDebtCycleSnapshotSchedule } = require('../debtSchedule/debtCycleSnapshot');
@@ -68,6 +68,7 @@ function createPollingScheduler({
   startCustomerDebtReportRefreshSchedule: startCustomerDebtReportRefresh = startCustomerDebtReportRefreshSchedule,
   startProductReportSchedule: startProductReport = startProductReportSchedule,
   startCustomerInvoiceLinesSchedule: startCustomerInvoiceLines = startCustomerInvoiceLinesSchedule,
+  refreshCustomerInvoiceLinesIncremental: refreshInvoiceLinesIncremental = refreshCustomerInvoiceLinesIncremental,
   startInventoryValueSnapshotSchedule: startInventoryValueSnapshot = startInventoryValueSnapshotSchedule,
   startBusinessMonthlySchedule: startBusinessMonthly = startBusinessMonthlySchedule,
   startDebtCycleSnapshotSchedule: startDebtCycleSnapshot = startDebtCycleSnapshotSchedule,
@@ -120,6 +121,14 @@ function createPollingScheduler({
    */
   async function runFastGroupAndRollup() {
     await runGroup(fastEntities);
+    // Doanh thu theo khach lam moi TANG DAN ngay sau khi hoa don vua ve (chi khi
+    // REPORTS_INCREMENTAL_ENABLED=true; tat thi tra ve ngay). Chay TRUOC rollup + SSE de khi client duoc bao
+    // "co du lieu moi" va tai lai thi bang chi tiet da cap nhat. Loi o day khong duoc lam hong luot rollup.
+    try {
+      await refreshInvoiceLinesIncremental(getPoolFn(), { log: logger.log ? logger.log.bind(logger) : logger });
+    } catch (error) {
+      logger.error('[KiotViet Sync] Lỗi làm mới tăng dần doanh thu theo khách:', error.message);
+    }
     await refreshHotRollup(getPoolFn(), {
       windowDays: HOT_WINDOW_DAYS,
       includeFirstPurchase: false,

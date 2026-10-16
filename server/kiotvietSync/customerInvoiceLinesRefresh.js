@@ -17,6 +17,16 @@
 // thuong chi ghi ~1 ngay du lieu (ngay moi vao cua so, ngay cu ra khoi cua so).
 // Doc dong thoi van thay ban cu cho toi luc COMMIT (khong khoa doc nhu TRUNCATE).
 //
+// CHE DO TANG DAN (REPORTS_INCREMENTAL_ENABLED=true, ke hoach
+// docs/superpowers/specs/2026-10-16-realtime-customer-product-reports-design.md muc 3.A):
+// sau MOI luot sync fast, refreshCustomerInvoiceLinesIncremental chi dung lai dong cua cac
+// hoa don/phieu tra duoc dong bo (synced_at) >= (lan kiem tra truoc - 2 gio) - chon theo synced_at
+// (index 0054) chu KHONG theo modified_date: 91% hoa don co modified_date NULL (KiotViet chi ghi khi co sua
+// sau khi tao, do 2026-10-16) nen loc theo no bo sot hoa don moi; cung KHONG theo ngay ban vi hoa don cu van bi sua muon (662 hoa don/30 ngay do
+// 2026-10-16). Cua so 90 ngay GOM HOM NAY va truot moi lan. Luot dung lai day du van chay
+// 1 lan/dem sau 00:10 VN nhu CHOT DOI SOAT (bat doi ten/doi ma khach vi ma khach khop theo ten
+// chuan hoa, khong di qua synced_at cua hoa don). Hai luot tuan tu qua pg_advisory_xact_lock.
+//
 // LUU Y MUI GIO / TRANG THAI: giong quy uoc dashboardRollupRefresh.js - purchase_date
 // luu "gio treo tuong VN mang nhan UTC" (doc bang AT TIME ZONE 'UTC'); moc "hom
 // nay" lay tu dong ho that theo lich VN; trang thai loc theo statusValue (chuoi
@@ -26,6 +36,7 @@ if (process.env.NODE_ENV !== 'production') {
   try { require('dotenv').config(); } catch (e) { /* dotenv là tùy chọn trong môi trường production */ }
 }
 
+const CONFIG = require('../config');
 const { getPool } = require('../db/pool');
 const { DETAIL_AMOUNT_SQL, RETURN_AMOUNT_SQL, INVOICE_STATUS_SQL, normalizedNameSql, CUSTOMER_BY_NAME_CTE } = require('./salesSqlFragments');
 const { vnDateKey, vnMinutesOfDay, addDaysToKey } = require('./vnTime');
@@ -34,6 +45,12 @@ const BRANCH_CODES = Object.freeze(['hanoi', 'saigon']);
 const WINDOW_DAYS = 90;
 const SETTLE_MINUTES_AFTER_MIDNIGHT = 10;
 const REFRESH_WORK_MEM = '32MB';
+// Luot tang dan doc lai chung tu co synced_at tu (lan kiem tra truoc - OVERLAP): bu do tre dong bo
+// KiotViet (7-10 phut) va dong ho lech; chung tu doc lai chi tao dong ghi neu noi dung THAT SU doi.
+const INCREMENTAL_OVERLAP_MS = 2 * 60 * 60 * 1000;
+// Bang cu hon nguong nay (may chu tat lau) thi dung lai day du thay vi tang dan.
+const INCREMENTAL_MAX_GAP_MS = 7 * 24 * 60 * 60 * 1000;
+const ADVISORY_LOCK_SQL = 'SELECT pg_advisory_xact_lock(20531022)';
 
 // BAT PLANNER (do tren DB that 2026-10-16): khi uoc luong it hoa don/phieu tra (cua so hep, hoac
 // thong ke cu), Postgres chon Merge Left Join chi theo `branch` roi loc bang bieu thuc
@@ -113,6 +130,28 @@ const FILL_STAGING_RETURNS_SQL = `${CUSTOMER_BY_NAME_CTE}
     AND btrim(r.code) <> ''
     AND COALESCE(NULLIF(btrim(r.raw->>'customerCode'), ''), cbn.code) IS NOT NULL`;
 
+// Ban tang dan: cung cau, them dieu kien synced_at ($4). Tao bang replace + kiem tra de khong
+// am tham tro thanh ban sao y nguyen ban day du khi ai do sua dinh dang cau goc.
+function withSince(sql, anchor, filter) {
+  const next = sql.replace(anchor, `${filter}\n    ${anchor}`);
+  if (next === sql) throw new Error('customerInvoiceLinesRefresh: khong tim thay neo de them dieu kien synced_at');
+  return next;
+}
+const FILL_STAGING_INCR_SQL = withSince(FILL_STAGING_SQL, "AND btrim(i.code) <> ''", 'AND i.synced_at >= $4::timestamptz');
+const FILL_STAGING_RETURNS_INCR_SQL = withSince(FILL_STAGING_RETURNS_SQL, "AND btrim(r.code) <> ''", 'AND r.synced_at >= $4::timestamptz');
+
+// Tap chung tu da doi (ke ca chung tu GIO KHONG con thoa dieu kien, vd hoa don vua huy => dong cua no
+// phai bi xoa). invoice_id cua phieu tra la -id nhu trong bang chinh. $1 co so, $2 moc synced_at.
+const CREATE_CHANGED_SQL = `
+  CREATE TEMP TABLE customer_invoice_changed (branch TEXT NOT NULL, invoice_id BIGINT NOT NULL) ON COMMIT DROP`;
+const FILL_CHANGED_SQL = `
+  INSERT INTO customer_invoice_changed (branch, invoice_id)
+  SELECT branch, id FROM invoices
+  WHERE branch = ANY($1::text[]) AND synced_at >= $2::timestamptz
+  UNION ALL
+  SELECT branch, -id FROM returns
+  WHERE branch = ANY($1::text[]) AND synced_at >= $2::timestamptz`;
+
 const LINE_MATCH_SQL =`n.branch = l.branch AND n.invoice_id = l.invoice_id AND n.line_no = l.line_no`;
 
 // Xoa dong da bien mat khoi cua so HOAC da doi noi dung (hoa don bi sua/huy,
@@ -137,6 +176,38 @@ const INSERT_MISSING_SQL = `
   FROM customer_invoice_lines_new n
   WHERE NOT EXISTS (SELECT 1 FROM customer_invoice_lines_90d l WHERE ${LINE_MATCH_SQL})`;
 
+// Chi xet dong cua chung tu da doi: khong co dong moi giong het thi xoa (de chen lai o cau ke tiep).
+const DELETE_STALE_INCR_SQL = `
+  DELETE FROM customer_invoice_lines_90d l
+  USING customer_invoice_changed c
+  WHERE l.branch = c.branch AND l.invoice_id = c.invoice_id
+    AND NOT EXISTS (
+      SELECT 1 FROM customer_invoice_lines_new n
+      WHERE ${LINE_MATCH_SQL}
+        AND ROW(n.invoice_code, n.sold_date, n.customer_code, n.customer_name,
+                n.item_code, n.item_name, n.quantity, n.revenue)
+          = ROW(l.invoice_code, l.sold_date, l.customer_code, l.customer_name,
+                l.item_code, l.item_name, l.quantity, l.revenue)
+    )`;
+// Cua so truot: dong cu hon ngay dau cua so ($1) roi khoi bang (dung index PK khong; bang chi ~68K dong).
+const DELETE_OUT_OF_WINDOW_SQL = 'DELETE FROM customer_invoice_lines_90d WHERE sold_date < $1::date';
+// $1 ngay dau cua so, $2 ngay cuoi cua so. computed_at = LAN KIEM TRA gan nhat (nhan "cap nhat luc" cua UI).
+const UPDATE_STATE_INCR_SQL = `
+  UPDATE customer_invoice_lines_state
+  SET window_start = $1::date, window_end = $2::date,
+      row_count = (SELECT count(*) FROM customer_invoice_lines_90d), computed_at = now()
+  WHERE id = 1
+  RETURNING row_count`;
+// Ban day du khi che do tang dan bat: them moc last_full_at (migration 0054) de lich dem biet da doi soat chua.
+const UPSERT_STATE_FULL_SQL = `
+  INSERT INTO customer_invoice_lines_state (id, window_start, window_end, row_count, computed_at, last_full_at)
+  VALUES (1, $1::date, $2::date, (SELECT count(*) FROM customer_invoice_lines_90d), now(), now())
+  ON CONFLICT (id) DO UPDATE
+    SET window_start = EXCLUDED.window_start, window_end = EXCLUDED.window_end,
+        row_count = EXCLUDED.row_count, computed_at = EXCLUDED.computed_at, last_full_at = EXCLUDED.last_full_at
+  RETURNING row_count`;
+const READ_STATE_SQL = 'SELECT computed_at, last_full_at, window_end FROM customer_invoice_lines_state WHERE id = 1';
+
 // $1 ngay dau cua so, $2 ngay cuoi cua so.
 const UPSERT_STATE_SQL = `
   INSERT INTO customer_invoice_lines_state (id, window_start, window_end, row_count, computed_at)
@@ -148,9 +219,12 @@ const UPSERT_STATE_SQL = `
 
 const LAST_COMPUTED_SQL = 'SELECT computed_at FROM customer_invoice_lines_state WHERE id = 1';
 
-/** 90 ngay ket thuc HOM QUA (theo lich VN): {start, end} dang 'YYYY-MM-DD'. */
-function computeWindow(now = new Date()) {
-  const end = addDaysToKey(vnDateKey(now), -1);
+/**
+ * 90 ngay ket thuc HOM QUA (theo lich VN): {start, end} dang 'YYYY-MM-DD'. Che do tang dan
+ * (includeToday) ket thuc HOM NAY de gom hoa don vua phat sinh.
+ */
+function computeWindow(now = new Date(), { includeToday = false } = {}) {
+  const end = includeToday ? vnDateKey(now) : addDaysToKey(vnDateKey(now), -1);
   return { start: addDaysToKey(end, -(WINDOW_DAYS - 1)), end };
 }
 
@@ -158,11 +232,12 @@ function computeWindow(now = new Date()) {
  * Dung lai bang chi tiet 90 ngay trong 1 giao dich (loi giua chung => ROLLBACK,
  * bang van la ban cu, khong co trang thai "nua voi").
  */
-async function refreshCustomerInvoiceLines(pool, { log = console.log, now = () => new Date() } = {}) {
-  const window = computeWindow(now());
+async function refreshCustomerInvoiceLines(pool, { log = console.log, now = () => new Date(), incremental = false } = {}) {
+  const window = computeWindow(now(), { includeToday: incremental });
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    if (incremental) await client.query(ADVISORY_LOCK_SQL);
     await client.query(`SET LOCAL work_mem = '${REFRESH_WORK_MEM}'`);
     await client.query(PLANNER_GUARD_SQL);
     await client.query(CREATE_STAGING_SQL);
@@ -170,7 +245,7 @@ async function refreshCustomerInvoiceLines(pool, { log = console.log, now = () =
     await client.query(FILL_STAGING_RETURNS_SQL, [BRANCH_CODES, window.start, window.end]);
     const deleted = await client.query(DELETE_STALE_SQL);
     const inserted = await client.query(INSERT_MISSING_SQL);
-    const state = await client.query(UPSERT_STATE_SQL, [window.start, window.end]);
+    const state = await client.query(incremental ? UPSERT_STATE_FULL_SQL : UPSERT_STATE_SQL, [window.start, window.end]);
     await client.query('COMMIT');
     const result = {
       window,
@@ -190,6 +265,66 @@ async function refreshCustomerInvoiceLines(pool, { log = console.log, now = () =
 }
 
 /**
+ * Luot TANG DAN (chay sau moi luot sync fast): dung lai dong cua chung tu co synced_at moi,
+ * truot cua so den hom nay. Chua co moc last_full_at / bang qua cu => dung lai day du truoc.
+ * Thieu cot last_full_at (chua chay migration 0054) => bo qua, giu luong chot dem cu.
+ */
+async function refreshCustomerInvoiceLinesIncremental(pool, {
+  log = console.log, now = () => new Date(), enabled = CONFIG.REPORTS_INCREMENTAL_ENABLED
+} = {}) {
+  if (!enabled) return { skipped: 'disabled' };
+  let state;
+  try {
+    ({ rows: [state] } = await pool.query(READ_STATE_SQL));
+  } catch (error) {
+    if (error.code === '42703' || error.code === '42P01') return { skipped: 'migration-missing' };
+    throw error;
+  }
+  const current = now();
+  if (!state || !state.last_full_at || current.getTime() - new Date(state.computed_at).getTime() > INCREMENTAL_MAX_GAP_MS) {
+    const result = await refreshCustomerInvoiceLines(pool, { log, now, incremental: true });
+    return { skipped: false, mode: 'full', ...result };
+  }
+
+  const window = computeWindow(current, { includeToday: true });
+  const since = new Date(new Date(state.computed_at).getTime() - INCREMENTAL_OVERLAP_MS).toISOString();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(ADVISORY_LOCK_SQL);
+    await client.query(`SET LOCAL work_mem = '${REFRESH_WORK_MEM}'`);
+    await client.query(PLANNER_GUARD_SQL);
+    await client.query("SET LOCAL statement_timeout = '30s'");
+    await client.query(CREATE_STAGING_SQL);
+    await client.query(CREATE_CHANGED_SQL);
+    const changed = await client.query(FILL_CHANGED_SQL, [BRANCH_CODES, since]);
+    await client.query(FILL_STAGING_INCR_SQL, [BRANCH_CODES, window.start, window.end, since]);
+    await client.query(FILL_STAGING_RETURNS_INCR_SQL, [BRANCH_CODES, window.start, window.end, since]);
+    const deleted = await client.query(DELETE_STALE_INCR_SQL);
+    const slid = await client.query(DELETE_OUT_OF_WINDOW_SQL, [window.start]);
+    const inserted = await client.query(INSERT_MISSING_SQL);
+    const saved = await client.query(UPDATE_STATE_INCR_SQL, [window.start, window.end]);
+    await client.query('COMMIT');
+    const result = {
+      window, since,
+      changedDocs: changed.rowCount || 0,
+      rowCount: Number(saved.rows && saved.rows[0] && saved.rows[0].row_count) || 0,
+      inserted: inserted.rowCount || 0,
+      deleted: deleted.rowCount || 0,
+      slid: slid.rowCount || 0
+    };
+    log(`[customerInvoiceLinesRefresh] Tang dan ${window.start}..${window.end}: ${result.changedDocs} chung tu doi, `
+      + `them ${result.inserted}, xoa ${result.deleted}, truot ${result.slid}, tong ${result.rowCount} dong.`);
+    return { skipped: false, mode: 'incremental', ...result };
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/**
  * Den han khi: chua tung dung, hoac lan dung gan nhat KHONG phai ngay VN hom nay
  * VA da qua SETTLE_MINUTES_AFTER_MIDNIGHT phut dau ngay (cho hoa don cuoi ngay hom
  * truoc kip dong bo). Khoi dong lai giua ngay ma bang cu tu hom qua => dung ngay.
@@ -200,7 +335,24 @@ function isRefreshDue(lastComputedAt, now) {
   return vnMinutesOfDay(now) >= SETTLE_MINUTES_AFTER_MIDNIGHT;
 }
 
-async function refreshCustomerInvoiceLinesIfDue(pool, { log = console.log, now = () => new Date() } = {}) {
+async function refreshCustomerInvoiceLinesIfDue(pool, {
+  log = console.log, now = () => new Date(), incremental = CONFIG.REPORTS_INCREMENTAL_ENABLED
+} = {}) {
+  if (incremental) {
+    // Che do tang dan: computed_at bi cap nhat moi luot kiem tra nen chot dem dua vao last_full_at.
+    let state;
+    try {
+      ({ rows: [state] } = await pool.query(READ_STATE_SQL));
+    } catch (error) {
+      if (error.code !== '42703' && error.code !== '42P01') throw error;
+      incremental = false; // chua chay migration 0054: dung luong chot dem cu
+    }
+    if (incremental) {
+      if (!isRefreshDue(state && state.last_full_at, now())) return { skipped: true };
+      const result = await refreshCustomerInvoiceLines(pool, { log, now, incremental: true });
+      return { skipped: false, ...result };
+    }
+  }
   const { rows } = await pool.query(LAST_COMPUTED_SQL);
   const lastComputedAt = rows[0] && rows[0].computed_at;
   if (!isRefreshDue(lastComputedAt, now())) return { skipped: true };
@@ -241,7 +393,13 @@ if (require.main === module) {
 module.exports = {
   refreshCustomerInvoiceLines,
   refreshCustomerInvoiceLinesIfDue,
+  refreshCustomerInvoiceLinesIncremental,
   startCustomerInvoiceLinesSchedule,
-  __sql__: { FILL_STAGING_SQL, FILL_STAGING_RETURNS_SQL, DELETE_STALE_SQL, INSERT_MISSING_SQL, UPSERT_STATE_SQL, LAST_COMPUTED_SQL, CREATE_STAGING_SQL, PLANNER_GUARD_SQL },
+  __sql__: {
+    FILL_STAGING_SQL, FILL_STAGING_RETURNS_SQL, DELETE_STALE_SQL, INSERT_MISSING_SQL, UPSERT_STATE_SQL, LAST_COMPUTED_SQL,
+    CREATE_STAGING_SQL, PLANNER_GUARD_SQL, FILL_STAGING_INCR_SQL, FILL_STAGING_RETURNS_INCR_SQL, CREATE_CHANGED_SQL,
+    FILL_CHANGED_SQL, DELETE_STALE_INCR_SQL, DELETE_OUT_OF_WINDOW_SQL, UPDATE_STATE_INCR_SQL, UPSERT_STATE_FULL_SQL,
+    READ_STATE_SQL, ADVISORY_LOCK_SQL
+  },
   __test__: { vnDateKey, vnMinutesOfDay, computeWindow, isRefreshDue }
 };

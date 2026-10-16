@@ -64,3 +64,39 @@ test('o goi y cua so 90 ngay co id de loadCustomerProductReport cap nhat', () =>
   assert.equal(element.textContent, '90 ngày gần đây');
   dom.window.close();
 });
+
+test('lam moi tang dan: cua so ket thuc chinh ngay cap nhat => ghi "den hom nay" kem gio cap nhat theo gio VN', () => {
+  const dom = createDashboard();
+  // 2026-10-16T05:07:00Z = 12:07 ngay 16/10 theo lich VN.
+  const hint = dom.window.customerProductWindowHint({
+    computedAt: '2026-10-16T05:07:00.000Z',
+    range: { from: '19/07/2026', to: '16/10/2026', days: 90, label: '90 ngày' }
+  });
+  assert.equal(hint, '90 ngày đến hôm nay · cập nhật lúc 12:07');
+  // Sau nua dem UTC nhung van la ngay 16/10 theo VN => van la "hom nay".
+  assert.equal(dom.window.customerProductWindowHint({
+    computedAt: '2026-10-15T20:30:00.000Z', range: { to: '16/10/2026' }
+  }), '90 ngày đến hôm nay · cập nhật lúc 03:30');
+  dom.window.close();
+});
+
+test('computedAt khong hop le van tra nhan an toan, khong nem loi', () => {
+  const dom = createDashboard();
+  assert.equal(dom.window.customerProductWindowHint({ computedAt: 'khong-phai-ngay', range: { to: '16/10/2026' } }), '90 ngày đến hết 16/10/2026');
+  dom.window.close();
+});
+
+test('tai lai ngam khi chua chon khach thi khong goi API', async () => {
+  const dom = createDashboard();
+  let calls = 0;
+  dom.window.fetch = () => { calls++; return new Promise(() => {}); };
+  assert.equal(await dom.window.refreshCustomerProductReportQuietly(), false);
+  assert.equal(calls, 0);
+  dom.window.close();
+});
+
+test('su kien SSE dashboard-updated cung tai lai ngam bao cao khach dang xem', () => {
+  const source = fs.readFileSync(indexPath, 'utf8');
+  const handler = source.slice(source.indexOf("stream.addEventListener('dashboard-updated'"));
+  assert.match(handler.slice(0, 900), /loadData\(state\.days, false\);\s*refreshCustomerProductReportQuietly\(\);/);
+});
