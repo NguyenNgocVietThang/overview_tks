@@ -22,7 +22,7 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&display=swap"
     />
-    <link rel="stylesheet" href="/shared/shared.css?v=20261009" />
+    <link rel="stylesheet" href="/shared/shared.css?v=20261016" />
   <link rel="stylesheet" href="/shared/search-clear.css?v=20261009-1">
     <style>
       /* Sổ quỹ dùng lại khuôn của tab Báo cáo tổng hợp (index.html): section-head có số
@@ -400,41 +400,9 @@
         color: var(--muted);
         font-size: 11.5px;
       }
-      .cb-sort {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        width: 100%;
-        padding: 0;
-        border: 0;
-        background: none;
-        color: inherit;
-        font: inherit;
-        cursor: pointer;
-        white-space: nowrap;
-      }
-      .cb-sort.money {
-        justify-content: flex-end;
-      }
-      .cb-sort:hover {
-        color: var(--text);
-      }
-      .cb-sort:focus-visible {
-        outline: 2px solid var(--blue);
-        outline-offset: 2px;
-        border-radius: var(--radius-xs);
-      }
-      .cb-sort-mark {
-        color: var(--muted);
-        font-family: var(--font-data);
-        font-size: 9px;
-        font-weight: 600;
-      }
-      .cb-table thead th[aria-sort="ascending"] .cb-sort,
-      .cb-table thead th[aria-sort="descending"] .cb-sort,
-      .cb-table thead th[aria-sort="ascending"] .cb-sort-mark,
-      .cb-table thead th[aria-sort="descending"] .cb-sort-mark {
-        color: var(--amber);
+      /* Nút + biểu tượng sắp xếp ▲▼ dính mép phải ô tiêu đề: quy ước chung ở shared/shared.css; cột tiền căn phải. */
+      .cb-table thead th.money .sort-button {
+        text-align: right;
       }
       .cb-row-button {
         min-height: 30px;
@@ -1120,7 +1088,7 @@
         }
       }
     </style>
-    <link rel="stylesheet" href="/shared/table-controls.css?v=20261013-1">
+    <link rel="stylesheet" href="/shared/table-controls.css?v=20261016-1">
 </head>
   <body>
     <div class="receipt-header">
@@ -1409,7 +1377,7 @@
         </div>
       </div>
     </dialog>
-  <script src="/shared/table-controls.js?v=20261013-1"></script>
+  <script src="/shared/table-controls.js?v=20261016-1"></script>
   <script src="/shared/search-clear.js?v=20261009-1"></script>
     <script src="/shared/shared-nav.js?v=20261008"></script>
     <script src="/shared/dateInput.js?v=20260912"></script>
@@ -1715,9 +1683,10 @@
             if (view === "balances" && SORT_FIELDS.has(field)) {
               const active = balanceSort.field === field ? balanceSort.dir : null;
               const button = document.createElement("button"),
+                text = document.createElement("span"),
                 mark = document.createElement("span");
               button.type = "button";
-              button.className = "cb-sort" + (MONEY.has(field) ? " money" : "");
+              button.className = "sort-button";
               button.dataset.sort = field;
               const next = !active
                 ? "Sắp xếp tăng dần"
@@ -1726,10 +1695,13 @@
                   : "Bỏ sắp xếp";
               button.title = next + " theo " + label;
               button.setAttribute("aria-label", next + " theo cột " + label);
-              mark.className = "cb-sort-mark";
+              text.className = "sort-label";
+              text.textContent = label;
+              mark.className = "sort-indicator";
               mark.setAttribute("aria-hidden", "true");
-              mark.textContent = !active ? "↕" : active === "asc" ? "▼" : "▲";
-              button.append(label, mark);
+              // Chưa sắp ▲▼ · tăng dần ▼ · giảm dần ▲ (như mọi bảng khác).
+              mark.textContent = !active ? "▲▼" : active === "asc" ? "▼" : "▲";
+              button.append(text, mark);
               th.appendChild(button);
               th.setAttribute(
                 "aria-sort",

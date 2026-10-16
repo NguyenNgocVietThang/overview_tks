@@ -240,17 +240,41 @@ test('it khach (<= 3): khong co the "Top 3 khach" (luon 100%)', async () => {
   assert.ok(statsOf(page)['Doanh số 90 ngày']);
 });
 
-test('hop KHONG co nut "Cột hiển thị" / thanh keo do rong cot: bang khach tat bo chon cot', async () => {
+test('hop co sort, thanh keo do rong cot va nut "Cột hiển thị" o dau khoi Khach hang; sort theo so (data-sort-value)', async () => {
   const page = createPage();
   await settle();
   page.dom.window.eval(fs.readFileSync(path.join(publicDir, 'shared', 'table-controls.js'), 'utf8'));
   rowOf(page, 'SP-1').click();
   await settle();
-  assert.equal(page.$('docModalBody').querySelector('table').getAttribute('data-table-controls'), 'off');
+  const table = page.$('docModalBody').querySelector('table');
+  assert.equal(table.getAttribute('data-table-controls'), null);
   page.dom.window.TKSTables.refreshAll();
-  assert.equal(page.$('docModalBackdrop').querySelectorAll('.tks-columns-button, .tks-column-resizer').length, 0);
-  assert.doesNotMatch(page.$('docModalBackdrop').textContent, /Cột hiển thị/);
+  const buttons = page.$('docModalBackdrop').querySelectorAll('.tks-columns-button');
+  assert.equal(buttons.length, 1);
+  assert.ok(buttons[0].parentElement.classList.contains('dp-section-head'), 'nut nam o dau khoi, khong them hang cong cu');
+  assert.equal(table.querySelectorAll('th > .tks-column-resizer').length, 3);
+
+  // sort theo cot "Doanh so 90 ngay": tang dan roi giam dan, thu tu goc khi bam lan 3
+  const names = () => [...table.tBodies[0].rows].map(row => row.cells[0].textContent.trim());
+  const original = names();
+  const header = table.tHead.rows[0].cells[1];
+  header.querySelector('.sort-button').click();
+  const ascending = names();
+  assert.deepEqual(ascending, original.slice().sort((a, b) => revenueOf(table, a) - revenueOf(table, b)));
+  header.querySelector('.sort-button').click();
+  assert.deepEqual(names(), ascending.slice().reverse());
+  header.querySelector('.sort-button').click();
+  assert.deepEqual(names(), original);
+  // an cot: du lieu van con, chi cot bi an
+  buttons[0].click();
+  const picker = page.$('docModalBackdrop').ownerDocument.querySelector('.tks-columns-picker');
+  assert.equal(picker.hidden, false);
 });
+
+function revenueOf(table, name) {
+  const row = [...table.tBodies[0].rows].find(item => item.cells[0].textContent.trim() === name);
+  return Number(row.cells[1].getAttribute('data-sort-value'));
+}
 
 const CONTAINER_ROW = { containerName: 'CONT 10-7G', status: 2, statusLabel: '2. Chưa bốc', eta: 'DK 14-16/10', color: 'Đỏ/Vàng', saleNote: '<b>Trinh</b>', quantity: 50, orderedBy: 'Ánh', listedAt: '15/10', unitsPerPackage: 10, packageCount: 5, vietnamPrice: 26420 };
 const READY_SYNC = { available: true, version: 'v1', lastSuccessAt: '2026-10-15T02:00:00Z' };

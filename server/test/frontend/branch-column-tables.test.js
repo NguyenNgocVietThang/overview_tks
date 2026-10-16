@@ -90,7 +90,7 @@ function createPage() {
 
 function headers(doc, tbodyId) {
   return [...doc.getElementById(tbodyId).closest('table').querySelectorAll('thead th')].filter(th => !th.hidden)
-    .map(th => th.textContent.replace(/[↕↑↓]/g, '').trim());
+    .map(th => th.textContent.replace(/[↕↑↓▲▼]/g, '').trim());
 }
 
 function rows(doc, tbodyId) {

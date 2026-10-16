@@ -15,9 +15,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Roboto:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="/shared/shared.css?v=20261009">
+<link rel="stylesheet" href="/shared/shared.css?v=20261016">
   <link rel="stylesheet" href="/shared/search-clear.css?v=20261009-1">
-  <link rel="stylesheet" href="/shared/detail-panel.css?v=20261012">
+  <link rel="stylesheet" href="/shared/detail-panel.css?v=20261016">
 <style>
   .lookup-wrap{ width:100%; max-width:none; margin:0; }
   .lookup-hero{ margin-bottom:20px; }
@@ -260,10 +260,8 @@
   /* Padding ngang 16px + do rong cot gon (sat noi dung) de cac cot mac dinh vua khung man hinh pho thong, khong bi cat o cot cuoi. */
   .bulk-table th,.bulk-table td{ padding:12px 16px; text-align:left; border-bottom:1px solid var(--border); }
   .bulk-table th{ color:var(--muted); font-size:11.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; background:var(--surface-hover); }
-  .bulk-table th.sortable{ cursor:pointer; user-select:none; }
+  /* Nut + bieu tuong sap xep (▲▼ dinh mep phai o tieu de): quy uoc chung o shared/shared.css ("Tieu de cot sap xep duoc"). */
   .bulk-table th.sortable:hover{ color:var(--text); }
-  .bulk-table th .sort-ind{ display:inline-block; margin-left:4px; font-size:10px; opacity:.5; }
-  .bulk-table th.sort-active .sort-ind{ opacity:1; color:var(--blue); }
   .bulk-table td{ font-size:13.5px; }
   .bulk-table td:first-child{ font-family:var(--font-data); font-weight:600; color:var(--text); }
   .bulk-table tbody tr{ cursor:pointer; transition:background-color .12s ease; }
@@ -423,7 +421,7 @@
     .lc-detail-row{ grid-template-columns:minmax(0, 1fr); gap:2px; }
   }
 </style>
-  <link rel="stylesheet" href="/shared/table-controls.css?v=20261013-1">
+  <link rel="stylesheet" href="/shared/table-controls.css?v=20261016-1">
 </head>
 <body>
   <div class="receipt-header">
@@ -563,19 +561,19 @@
             <div class="bulk-scroll bulk-scroll-y">
               <table class="bulk-table fixed-table" id="bulkTable" data-table-key="bulkTable" data-columns-button="bulkColumnsBtn">
                 <thead><tr id="bulkHeadRow">
-                  <th class="sortable" data-col="orderCode" data-sort="orderCode" style="width:130px" data-column-key="orderCode">Mã đơn<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-col="branch" data-sort="branch" style="width:100px" data-column-key="branch">Cơ sở<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-col="orderDate" data-sort="orderDate" style="width:150px" title="Thời gian đặt hàng trên Kiot (bảng Đặt hàng)." data-column-key="orderDate">Thời gian đặt hàng<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-col="saleName" data-sort="saleName" style="width:150px" data-column-key="saleName">Sale<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-col="customerName" data-sort="customerName" style="width:220px" data-column-key="customerName">Khách hàng<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-col="orderTotal" data-sort="orderTotal" style="width:150px" title="Giá trị đơn hàng trên Kiot (tổng tiền của phiếu)." data-column-key="orderTotal">Giá trị đơn<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-col="sellableValue" data-sort="sellableValue" style="width:150px" title="Giá trị đơn bán được ngay: từng mặt hàng lấy min(số lượng đặt, tồn kho thực tế của Kiot) × đơn giá. Chỉ có với đơn đang là Phiếu tạm trên Kiot." data-column-key="sellableValue">Giá trị có bán<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-col="note" data-sort="note" style="width:220px" title="Ghi chú của đơn trên Kiot." data-column-key="note">Ghi chú<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-col="saleSentAt" data-sort="saleSentAt" style="width:155px" data-column-key="saleSentAt">Sale ra đơn<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-col="kiotStatus" data-sort="kiotStatus" style="width:150px" title="Trạng thái của đơn đặt hàng trên KiotViet." data-column-key="kiotStatus">Trạng thái KiotViet<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-col="status" data-sort="status" style="width:200px" data-column-key="status">Trạng thái<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-col="at" data-sort="at" style="width:155px" data-column-key="at">Cập nhật gần nhất<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-col="warning" data-sort="warning" style="width:170px" data-column-key="warning">Cảnh báo<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-col="orderCode" data-sort="orderCode" style="width:130px" data-column-key="orderCode" aria-sort="none"><button type="button" class="sort-button"><span class="sort-label">Mã đơn</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                  <th class="sortable" data-col="branch" data-sort="branch" style="width:100px" data-column-key="branch" aria-sort="none"><button type="button" class="sort-button"><span class="sort-label">Cơ sở</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                  <th class="sortable" data-col="orderDate" data-sort="orderDate" style="width:150px" title="Thời gian đặt hàng trên Kiot (bảng Đặt hàng)." data-column-key="orderDate" aria-sort="none"><button type="button" class="sort-button"><span class="sort-label">Thời gian đặt hàng</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                  <th class="sortable" data-col="saleName" data-sort="saleName" style="width:150px" data-column-key="saleName" aria-sort="none"><button type="button" class="sort-button"><span class="sort-label">Sale</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                  <th class="sortable" data-col="customerName" data-sort="customerName" style="width:220px" data-column-key="customerName" aria-sort="none"><button type="button" class="sort-button"><span class="sort-label">Khách hàng</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                  <th class="sortable" data-col="orderTotal" data-sort="orderTotal" style="width:150px" title="Giá trị đơn hàng trên Kiot (tổng tiền của phiếu)." data-column-key="orderTotal" aria-sort="none"><button type="button" class="sort-button"><span class="sort-label">Giá trị đơn</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                  <th class="sortable" data-col="sellableValue" data-sort="sellableValue" style="width:150px" title="Giá trị đơn bán được ngay: từng mặt hàng lấy min(số lượng đặt, tồn kho thực tế của Kiot) × đơn giá. Chỉ có với đơn đang là Phiếu tạm trên Kiot." data-column-key="sellableValue" aria-sort="none"><button type="button" class="sort-button"><span class="sort-label">Giá trị có bán</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                  <th class="sortable" data-col="note" data-sort="note" style="width:220px" title="Ghi chú của đơn trên Kiot." data-column-key="note" aria-sort="none"><button type="button" class="sort-button"><span class="sort-label">Ghi chú</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                  <th class="sortable" data-col="saleSentAt" data-sort="saleSentAt" style="width:155px" data-column-key="saleSentAt" aria-sort="none"><button type="button" class="sort-button"><span class="sort-label">Sale ra đơn</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                  <th class="sortable" data-col="kiotStatus" data-sort="kiotStatus" style="width:150px" title="Trạng thái của đơn đặt hàng trên KiotViet." data-column-key="kiotStatus" aria-sort="none"><button type="button" class="sort-button"><span class="sort-label">Trạng thái KiotViet</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                  <th class="sortable" data-col="status" data-sort="status" style="width:200px" data-column-key="status" aria-sort="none"><button type="button" class="sort-button"><span class="sort-label">Trạng thái</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                  <th class="sortable" data-col="at" data-sort="at" style="width:155px" data-column-key="at" aria-sort="none"><button type="button" class="sort-button"><span class="sort-label">Cập nhật gần nhất</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                  <th class="sortable" data-col="warning" data-sort="warning" style="width:170px" data-column-key="warning" aria-sort="none"><button type="button" class="sort-button"><span class="sort-label">Cảnh báo</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
                 </tr></thead>
                 <tbody id="bulkBody"></tbody>
               </table>
@@ -623,11 +621,11 @@
             <div class="bulk-scroll">
               <table class="bulk-table fixed-table" data-table-key="shipment-lifecycle-table-2">
                 <thead><tr id="historyHeadRow">
-                  <th class="sortable" data-sort="orderCode" style="width:160px" data-column-key="orderCode">Mã đơn<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-sort="statusLabel" style="width:250px" data-column-key="statusLabel">Thay đổi trạng thái<span class="sort-ind">▲</span></th>
-                  <th class="sortable" data-sort="changedBy" style="width:200px" data-column-key="changedBy">Người thực hiện<span class="sort-ind">▲</span></th>
+                  <th class="sortable" data-sort="orderCode" style="width:160px" data-column-key="orderCode" aria-sort="none"><button type="button" class="sort-button"><span class="sort-label">Mã đơn</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                  <th class="sortable" data-sort="statusLabel" style="width:250px" data-column-key="statusLabel" aria-sort="none"><button type="button" class="sort-button"><span class="sort-label">Thay đổi trạng thái</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                  <th class="sortable" data-sort="changedBy" style="width:200px" data-column-key="changedBy" aria-sort="none"><button type="button" class="sort-button"><span class="sort-label">Người thực hiện</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
                   <th style="width:300px" data-column-key="ghi-chu">Ghi chú</th>
-                  <th class="sortable" data-sort="changedAt" style="width:225px" data-column-key="changedAt">Thời gian cập nhật<span class="sort-ind">▼</span></th>
+                  <th class="sortable" data-sort="changedAt" style="width:225px" data-column-key="changedAt" aria-sort="none"><button type="button" class="sort-button"><span class="sort-label">Thời gian cập nhật</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
                 </tr></thead>
                 <tbody id="historyBody"></tbody>
               </table>
@@ -657,7 +655,7 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Dat o cuoi than <body> thay vi <head>: script chan phan tich cu phap trong <head> se lam dung viec xu ly toan bo tai lieu. Khong dung `defer` vi script inline ben duoi dung TKSNav o cap cao nhat, va script inline luon chay truoc script defer. -->
-  <script src="/shared/table-controls.js?v=20261013-1"></script>
+  <script src="/shared/table-controls.js?v=20261016-1"></script>
   <script src="/shared/search-clear.js?v=20261009-1"></script>
   <script src="/shared/shared-nav.js?v=20261008"></script>
   <script src="/shared/table-align.js?v=20260928"></script>
@@ -978,7 +976,7 @@
       if(!lines.length){
         return head + '<p class="lc-lines-status">Đơn này chưa có dòng hàng nào trên Kiot.</p>';
       }
-      let html = head + '<div class="dp-table-wrap is-flow"><table class="dp-table lc-lines" data-table-controls="off" data-table-key="shipment-lifecycle-table-3"><thead><tr>' +
+      let html = head + '<div class="dp-table-wrap is-flow"><table class="dp-table lc-lines" data-table-key="shipment-lifecycle-table-3"><thead><tr>' +
         '<th>Mã hàng</th><th>Tên hàng</th><th class="num">SL đặt</th>' +
         '<th class="num" title="Thể tích = SL đặt × m³ mỗi cái (theo sheet CÂN ĐO)">Thể tích (m³)</th>' +
         '<th class="num" title="Đơn giá sau chiết khấu của dòng">Đơn giá</th><th class="num">Thành tiền</th>' +
@@ -1042,7 +1040,7 @@
         { label: 'Tổng cước', value: carrier ? formatTableVnd(carrier.total) + ' đ' : '—', tone: carrier ? 'blue' : '' }
       ]);
       if(carrier){
-        html += '<div class="lc-freight-steps dp-table-wrap is-flow"><table class="dp-table" data-table-controls="off"><thead><tr>' +
+        html += '<div class="lc-freight-steps dp-table-wrap is-flow"><table class="dp-table" data-table-controls="off" data-table-sort="off" data-table-key="shipment-lifecycle-freight-steps"><thead><tr>' +
           '<th>Bảng tính cước · ' + escapeHtml(carrier.label) + '</th><th class="num">Số tiền (đ)</th></tr></thead><tbody>' +
           carrier.steps.map(function(step){
             return '<tr><td>' + escapeHtml(step.label) + '</td><td class="num">' + escapeHtml(formatTableVnd(step.amount)) + '</td></tr>';
@@ -1519,13 +1517,26 @@
     });
 
     // ---------- Sap xep (do may chu thuc hien; o day chi giu trang thai + chi bao tren tieu de cot) ----------
+    // Bieu tuong sap xep dung chung moi bang (vi tri/mau o shared/shared.css): chua sap ▲▼ · tang dan ▼ · giam dan ▲.
+    const SORT_GLYPH = { none: '▲▼', ascending: '▼', descending: '▲' };
+    function paintSortHeader(th, isActive, dir){
+      const state = isActive ? (dir === 1 ? 'ascending' : 'descending') : 'none';
+      th.classList.toggle('sort-active', isActive);
+      th.setAttribute('aria-sort', state);
+      const ind = th.querySelector('.sort-indicator');
+      if(ind) ind.textContent = SORT_GLYPH[state];
+      const button = th.querySelector('.sort-button');
+      if(button){
+        const action = state === 'none' ? 'Sắp xếp tăng dần' : state === 'ascending' ? 'Sắp xếp giảm dần' : 'Bỏ sắp xếp';
+        const label = th.querySelector('.sort-label').textContent;
+        button.title = action + ' theo ' + label;
+        button.setAttribute('aria-label', action + ' theo cột ' + label);
+      }
+    }
     function syncSortHeaderUI(){
       const effective = sortKey ? { key: sortKey, dir: sortDir } : DEFAULT_SORT;
       bulkHeadRow.querySelectorAll('th.sortable').forEach(function(th){
-        const isActive = th.dataset.sort === effective.key;
-        th.classList.toggle('sort-active', isActive);
-        const ind = th.querySelector('.sort-ind');
-        if(ind) ind.textContent = isActive ? (effective.dir === 1 ? '▲' : '▼') : '▲';
+        paintSortHeader(th, th.dataset.sort === effective.key, effective.dir);
       });
       document.getElementById('bulkClearSort').hidden = !sortKey;
     }
@@ -2025,10 +2036,7 @@
 
     function syncHistorySortHeaderUI(){
       historyHeadRow.querySelectorAll('th.sortable').forEach(function(th){
-        const isActive = th.dataset.sort === historySortKey;
-        th.classList.toggle('sort-active', isActive);
-        const ind = th.querySelector('.sort-ind');
-        if(ind) ind.textContent = isActive ? (historySortDir === 1 ? '▲' : '▼') : '▲';
+        paintSortHeader(th, th.dataset.sort === historySortKey, historySortDir);
       });
       document.getElementById('historyClearSort').hidden =
         historySortKey === HISTORY_DEFAULT_SORT.key && historySortDir === HISTORY_DEFAULT_SORT.dir;

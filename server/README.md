@@ -224,6 +224,8 @@ Bot **xin nghỉ của nhân viên** chạy ngoài repo và đọc/ghi 3 bảng 
 
 ## Cập nhật gần nhất
 
+2026-10-16 — **Giao diện: thống nhất biểu tượng sắp xếp + bảng trong hộp chi tiết (không migration)**: mọi bảng dùng một quy ước tiêu đề sắp xếp trong `public/shared/shared.css` (▲▼ chưa sắp, ▼ tăng dần, ▲ giảm dần; biểu tượng là cột flex độ rộng cố định dính mép phải ô, nhãn tự xuống dòng khi kéo hẹp cột) cùng khung `.users-table`; các trang Báo cáo, Nhân sự, Tài khoản, Vòng đời đơn, Sổ quỹ, Vị trí hàng, Marketing bỏ CSS sort riêng (test `sort-icons.test.js` chặn tự định nghĩa lại). `public/shared/table-controls.js` thêm sắp xếp tại chỗ cho bảng trong hộp chi tiết (`.dp-table`): cùng với kéo độ rộng cột và nút "Cột hiển thị" (đặt ở đầu khối `.dp-section-head`); bảng tính cước vận chuyển giữ `data-table-controls="off"`.
+
 2026-10-15 — **Hàng dự kiến**: module `productContainers/` gồm `parser.js`, `repository.js`, `sync.js` và các kiểm thử tương ứng; thêm hai cột Chưa bốc/Đã bốc trước Tồn HN/Tồn SG trong báo cáo và xuất Excel/HTML. Hộp chi tiết giữ Doanh số theo khách và thêm Hàng dự kiến cùng hiển thị. Service account đã đọc đủ 6 sheet thật (11.589 dòng hợp lệ, 17 cảnh báo); engine đồng bộ/migration kiểm tra trên PGlite cục bộ, đối chiếu hai mã và Chrome thật Quản lý/Sale ở desktop/mobile đạt, 0 lỗi trang. Kiểm thử toàn bộ cuối: **2.463 đạt, 3 skipped, 0 lỗi (2.466 tổng)**. Graphify sau code cuối: 7.195 nút/14.257 cạnh/400 cộng đồng. Migration `0053_product_containers.sql` đã áp DB dùng chung lúc 16:26 ngày 15/10/2026; chưa kích hoạt website đang triển khai, chưa push/deploy. [Bằng chứng chi tiết](../tasks/plan-product-report-containers.md).
 2026-10-12 — **Giao diện: thiết kế lại các hộp "xem chi tiết" (không migration)**: khung dùng chung `public/shared/detail-panel.css` (tiền tố `.dp-`: đầu hộp, hàng **chỉ số tổng quan**, khối thông tin, bảng 1 khung cuộn, trạng thái đang tải/lỗi) áp cho mọi hộp chi tiết — Báo cáo tổng hợp (Chi tiết giao dịch, Doanh số theo khách của mã hàng, Báo cáo kinh doanh Sale/Khách/Mã hàng), Vòng đời đơn hàng (chỉ số trạng thái/tiến trình/giá trị/dòng thiếu hàng + tiến trình theo mốc), Nghỉ phép (trạng thái/số ngày/loại/nhãn thời hạn) và hộp chi tiết Marketing. **Bảng trong các hộp này không còn nút "Cột hiển thị"** (`data-table-controls="off"`); bảng ngoài trang vẫn giữ. Biểu đồ tròn của hộp sản phẩm bỏ chú giải riêng, bảng khách tô màu từng lát. **Đổi quy tắc cảnh báo**: "Kế toán sót đơn" chỉ áp dụng khi trạng thái hiệu lực còn là "Đơn đã gửi kế toán" (`orderLifecycleService.computeWarnings`: lấy `summary.code`, mặc định `computeStatus(record)`); đơn sang Đang giao / Đã nhận / Đã ký nhận hoặc ghi đè thủ công thì bỏ cảnh báo.
 
@@ -318,7 +320,7 @@ API: `PATCH /api/debt-management/{sale-feedback,manager-feedback,status,schedule
 
 Thứ tự deploy: `npm run db:migrate` (0047; 0051 cho bảng phạt sale — sau deploy chạy tay `node debtSchedule/debtPenaltyLedger.js` để backfill các chu kỳ cũ) → import lịch TT HN + SG → deploy code → chạy tay `debtCycleSnapshot.js` sau 15:00 (hoặc chờ 15:00).
 
-Cập nhật gần nhất: 15/10/2026.
+Cập nhật gần nhất: 16/10/2026.
 
 ## Hàng dự kiến — vận hành và API (15/10/2026)
 

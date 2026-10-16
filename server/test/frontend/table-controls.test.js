@@ -214,3 +214,76 @@ test('replacing the table in a retained toolbar binds the picker to the new sche
   const input=picker.querySelector('[data-column-key="notes"]');input.checked=false;input.dispatchEvent(new ctx.window.Event('change',{bubbles:true}));
   assert.equal(ctx.table.tHead.rows[0].cells[3].classList.contains('tks-column-hidden'),true);
 });
+
+// ---------- Bang trong hop chi tiet (.dp-table): sort tai cho + nut o dau khoi ----------
+const dialogFixture = '<div class="dp-section"><div class="dp-section-head"><h3 class="dp-section-title">Hàng hóa</h3><span class="dp-section-note">3 dòng</span></div>' +
+  '<div class="dp-table-wrap"><table class="dp-table" data-table-key="detail-lines"><thead><tr><th>Mã hàng</th><th class="num">Thành tiền</th><th>Ngày</th><th class="num" data-no-sort>Ghi chú</th></tr></thead><tbody>' +
+  '<tr><td>B2</td><td class="num">1.200.000₫</td><td>30/09/2026</td><td class="num">x</td></tr>' +
+  '<tr><td>A1</td><td class="num">95.000₫</td><td>01/10/2026</td><td class="num">y</td></tr>' +
+  '<tr><td>C3</td><td class="num">—</td><td>—</td><td class="num">z</td></tr>' +
+  '<tr><td>D4</td><td class="num">12,5%</td><td>05/01/2027</td><td class="num">w</td></tr>' +
+  '</tbody><tfoot><tr><td>Cộng</td><td class="num">1.307.500₫</td><td></td><td></td></tr></tfoot></table></div></div>';
+const colOf = (ctx, index) => [...ctx.table.tBodies[0].rows].map(row => row.cells[index].textContent);
+const sortButton = (ctx, index) => ctx.table.tHead.rows[0].cells[index].querySelector('.sort-button');
+
+test('dialog table: header sort cycles asc → desc → original, ▲▼ / ▼ / ▲ glyphs and aria-sort', t => {
+  const ctx=setup(t,dialogFixture); assert.ok(ctx.api); ctx.api.enhance(ctx.table);
+  const th=ctx.table.tHead.rows[0].cells[0], mark=()=>th.querySelector('.sort-indicator').textContent;
+  assert.equal(mark(),'▲▼'); assert.equal(th.getAttribute('aria-sort'),'none');
+  assert.ok(th.querySelector(':scope > .sort-button > .sort-label'),'label wrapped so the glyph is a separate flex column');
+  assert.equal(ctx.table.tHead.rows[0].cells[3].querySelector('.sort-button'),null,'data-no-sort opts a column out');
+  sortButton(ctx,0).click();
+  assert.deepEqual(colOf(ctx,0),['A1','B2','C3','D4']); assert.equal(mark(),'▼'); assert.equal(th.getAttribute('aria-sort'),'ascending');
+  assert.deepEqual(state(ctx).sort,{key:'Mã hàng',direction:'asc'});
+  sortButton(ctx,0).click();
+  assert.deepEqual(colOf(ctx,0),['D4','C3','B2','A1']); assert.equal(mark(),'▲'); assert.equal(th.getAttribute('aria-sort'),'descending');
+  sortButton(ctx,0).click();
+  assert.deepEqual(colOf(ctx,0),['B2','A1','C3','D4']); assert.equal(mark(),'▲▼'); assert.equal(state(ctx).sort,null);
+  assert.match(ctx.table.tFoot.textContent,/Cộng/,'footer total stays out of the sort');
+});
+
+test('dialog table: money, percent and dd/MM/yyyy sort by value; empty cells stay last in both directions', t => {
+  const ctx=setup(t,dialogFixture); ctx.api.enhance(ctx.table);
+  sortButton(ctx,1).click();                         // 12,5% < 95.000 < 1.200.000, — last
+  assert.deepEqual(colOf(ctx,0),['D4','A1','B2','C3']);
+  sortButton(ctx,1).click();
+  assert.deepEqual(colOf(ctx,0),['B2','A1','D4','C3']);
+  sortButton(ctx,2).click();                         // 30/09/2026 < 01/10/2026 < 05/01/2027 (not string order)
+  assert.deepEqual(colOf(ctx,0),['B2','A1','D4','C3']);
+  sortButton(ctx,2).click();
+  assert.deepEqual(colOf(ctx,0),['D4','A1','B2','C3']);
+});
+
+test('dialog table: Cột hiển thị button sits in the section head; re-rendered rows are re-sorted; no redraw loop', async t => {
+  const ctx=setup(t,dialogFixture); ctx.api.enhance(ctx.table);
+  const head=ctx.doc.querySelector('.dp-section-head');
+  assert.equal(head.querySelectorAll('.tks-columns-button').length,1);
+  assert.equal(head.lastElementChild.classList.contains('tks-columns-button'),true,'button joins the note on the right');
+  assert.equal(ctx.doc.querySelectorAll('.tks-table-tools').length,0,'no extra tools row above the table');
+  ctx.api.refresh(ctx.table); ctx.api.refresh(ctx.table);
+  assert.equal(head.querySelectorAll('.tks-columns-button').length,1);
+  sortButton(ctx,0).click();
+  ctx.table.tBodies[0].innerHTML='<tr><td>Z</td><td class="num">1</td><td></td><td></td></tr><tr><td>M</td><td class="num">2</td><td></td><td></td></tr>';
+  await new Promise(r=>ctx.window.setTimeout(r,60));
+  assert.deepEqual(colOf(ctx,0),['M','Z'],'rows redrawn by the page are sorted again');
+  // MutationObserver must settle: a second wait leaves the DOM untouched
+  const snapshot=ctx.table.outerHTML; await new Promise(r=>ctx.window.setTimeout(r,60));
+  assert.equal(ctx.table.outerHTML,snapshot);
+});
+
+test('dialog table: data-table-sort=off and data-table-controls=off opt out', t => {
+  const noSort=setup(t,dialogFixture.replace('data-table-key="detail-lines"','data-table-key="detail-lines" data-table-sort="off"')); noSort.api.enhance(noSort.table);
+  assert.equal(noSort.table.querySelector('.sort-button'),null);
+  assert.equal(noSort.table.querySelectorAll('th > .tks-column-resizer').length,4,'resize + column picker remain');
+  const off=setup(t,dialogFixture.replace('data-table-key="detail-lines"','data-table-controls="off"')); off.api.enhance(off.table);
+  assert.equal(off.table.querySelector('.sort-button, .tks-column-resizer'),null);
+  assert.equal(off.doc.querySelector('.tks-columns-button'),null);
+});
+
+test('pages with their own sorting keep their markup: a header that already has a .sort-button is left alone', t => {
+  const ctx=setup(t,'<table class="dp-table"><thead><tr><th class="sortable" aria-sort="none"><button class="sort-button"><span class="sort-label">Mã</span><span class="sort-indicator">▲▼</span></button></th><th>Tên</th></tr></thead><tbody><tr><td>b</td><td>x</td></tr><tr><td>a</td><td>y</td></tr></tbody></table>');
+  ctx.api.enhance(ctx.table);
+  assert.equal(ctx.table.tHead.rows[0].cells[0].querySelectorAll('.sort-button').length,1);
+  assert.equal(ctx.table.tHead.rows[0].cells[0].querySelector('[data-tks-sort]'),null);
+  assert.equal(ctx.table.tHead.rows[0].cells[1].querySelectorAll('.sort-button').length,1);
+});

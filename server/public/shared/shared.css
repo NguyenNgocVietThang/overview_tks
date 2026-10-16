@@ -1542,8 +1542,96 @@ table td.col-num {
 }
 
 table th.col-num .sort-button {
-  justify-content: flex-end;
+  text-align: right;
 }
+
+/* ---------- Tiêu đề cột sắp xếp được: MỘT quy ước cho mọi bảng ----------
+   <th class="sortable" aria-sort="none|ascending|descending">
+     <button type="button" class="sort-button"><span class="sort-label">Nhãn</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button>
+   </th>
+   Biểu tượng: chưa sắp ▲▼ · tăng dần ▼ · giảm dần ▲ (chữ trong JS của từng trang, màu/vị trí ở đây).
+   Biểu tượng là 1 cột flex riêng, độ rộng cố định, dính MÉP PHẢI ô tiêu đề — KHÔNG nằm sau đuôi chữ:
+   kéo hẹp cột thì nhãn tự xuống dòng còn biểu tượng đứng yên, đổi trạng thái sắp xếp cũng không làm nhãn nhảy dòng. */
+th.sortable { cursor: pointer; user-select: none; }
+
+.sort-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sort-button > .sort-label,
+.sort-button > span:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.sort-button:hover {
+  color: var(--text);
+}
+
+.sort-button:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs, 4px);
+}
+
+.sort-indicator {
+  flex: none;
+  width: 20px;
+  color: var(--muted);
+  font-family: var(--font-data, inherit);
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -1px;
+  text-align: right;
+  text-transform: none;
+  white-space: nowrap;
+  opacity: .7;
+}
+
+.sort-button:hover .sort-indicator {
+  opacity: 1;
+}
+
+th[aria-sort="ascending"] .sort-button,
+th[aria-sort="descending"] .sort-button,
+th[aria-sort="ascending"] .sort-indicator,
+th[aria-sort="descending"] .sort-indicator {
+  color: var(--amber);
+}
+
+th[aria-sort="ascending"] .sort-indicator,
+th[aria-sort="descending"] .sort-indicator {
+  opacity: 1;
+}
+
+/* ---------- Bảng danh sách "users-table" (Tài khoản, Nhân sự: nghỉ phép, danh bạ…) ----------
+   Khung chung của các bảng dạng danh sách; mỗi trang chỉ thêm phần riêng (ô người dùng, huy hiệu, dòng bấm được). */
+.users-table { width: 100%; border-collapse: collapse; text-align: left; }
+.users-table th, .users-table td { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.users-table th {
+  background: var(--panel-2); color: var(--muted); font-size: 11.5px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .04em; white-space: nowrap;
+}
+.users-table td { vertical-align: top; }
+.users-table th.sortable:hover { color: var(--text); }
 
 /* ---------- Bảng độ rộng cột cố định (class "fixed-table") ----------
    Độ rộng mỗi cột khai báo bằng width trên <th> (ước lượng theo dữ liệu dài

@@ -46,10 +46,10 @@
       setTimeout(unhide, 1200);
     })();
   </script>
-  <link rel="stylesheet" href="/shared/shared.css?v=20261009">
+  <link rel="stylesheet" href="/shared/shared.css?v=20261016">
   <link rel="stylesheet" href="/shared/search-clear.css?v=20261009-1">
-  <link rel="stylesheet" href="/shared/detail-panel.css?v=20261012">
-  <link rel="stylesheet" href="/marketing-report.css?v=20261012-database-2">
+  <link rel="stylesheet" href="/shared/detail-panel.css?v=20261016">
+  <link rel="stylesheet" href="/marketing-report.css?v=20261016-sort">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&display=swap">
@@ -2523,53 +2523,8 @@
       text-align: left;
     }
 
-    .sort-button {
-      display: inline-flex;
-      align-items: center;
-      /* can trai nhan cot + mui ten sap xep nhu 1 khoi — .sort-button la
-         flex container nen text-align cua the cha khong tu can no, phai tu
-         dat justify-content. */
-      justify-content: flex-start;
-      gap: 0;
-      background: none;
-      border: none;
-      padding: 0;
-      margin: 0;
-      font-family: inherit;
-      font-size: inherit;
-      font-weight: inherit;
-      color: inherit;
-      cursor: pointer;
-      width: 100%;
-    }
-
-    .sort-button:hover {
-      color: var(--text);
-    }
-
-    .sort-button:focus-visible {
-      outline: 2px solid var(--blue);
-      outline-offset: -2px;
-      border-radius: var(--radius-4);
-    }
-
-    .sort-indicator {
-      min-width: 25px;
-      color: var(--muted);
-      font-family: var(--font-data);
-      font-size: 9px;
-      font-weight: 600;
-      letter-spacing: 0;
-      text-align: right;
-      white-space: nowrap;
-    }
-
-    thead th[aria-sort="ascending"] .sort-button,
-    thead th[aria-sort="descending"] .sort-button,
-    thead th[aria-sort="ascending"] .sort-indicator,
-    thead th[aria-sort="descending"] .sort-indicator {
-      color: var(--amber);
-    }
+    /* Nút + biểu tượng sắp xếp ở tiêu đề cột (.sort-button, .sort-indicator ▲▼ dính mép phải ô) dùng quy ước chung
+       ở shared/shared.css ("Tiêu đề cột sắp xếp được"); trang chỉ dựng nút trong initSortableTable(). */
 
     tbody td {
       padding: 9px 8px;
@@ -3363,7 +3318,7 @@
     }
     td.num-neg { color: var(--red) !important; }
   </style>
-  <link rel="stylesheet" href="/shared/table-controls.css?v=20261013-1">
+  <link rel="stylesheet" href="/shared/table-controls.css?v=20261016-1">
 </head>
 
 <body>
@@ -4624,7 +4579,7 @@
   <script src="/vendor/chart.umd.min.js"></script>
   <script src="/js/pagination.js"></script>
   <script src="/js/table-explorer.js"></script>
-  <script src="/shared/table-controls.js?v=20261013-1"></script>
+  <script src="/shared/table-controls.js?v=20261016-1"></script>
   <script>
     // Bảng công nợ: mặc định ẩn cột Cảnh báo (người dùng vẫn bật lại được ở bộ chọn cột).
     (function () {
@@ -4641,7 +4596,7 @@
   <script src="/shared/shared-nav.js?v=20261008"></script>
   <script src="/shared/table-align.js?v=20260928"></script>
   <script src="/shared/dateInput.js?v=20260912"></script>
-  <script src="/marketing-report.js?v=20261012-database-2"></script>
+  <script src="/marketing-report.js?v=20261016-sort"></script>
 
   <script>
     // Toast thong bao inline — thay the window.alert() cho loi/canh bao (khong chan luong,
@@ -4894,6 +4849,9 @@
       };
     }
 
+    // Biểu tượng sắp xếp dùng chung mọi bảng: chưa sắp ▲▼ · tăng dần ▼ · giảm dần ▲ (vị trí/màu ở shared/shared.css).
+    const SORT_GLYPH = { none: '▲▼', ascending: '▼', descending: '▲' };
+
     function initSortableTables() {
       document.querySelectorAll('table').forEach(initSortableTable);
     }
@@ -4917,10 +4875,11 @@
         button.className = 'sort-button';
         button.title = 'Sắp xếp tăng dần theo ' + label;
         button.setAttribute('aria-label', 'Sắp xếp tăng dần theo cột ' + label);
+        labelSpan.className = 'sort-label';
         labelSpan.textContent = label;
         indicator.className = 'sort-indicator';
         indicator.setAttribute('aria-hidden', 'true');
-        indicator.textContent = '↕';
+        indicator.textContent = SORT_GLYPH.none;
         button.append(labelSpan, indicator);
         button.addEventListener('click', function () { setTableSort(tbody.id, columnIndex); });
         th.replaceChildren(button);
@@ -5037,7 +4996,7 @@
         const label = button ? button.firstElementChild.textContent : th.textContent.trim();
         const isActive = index === columnIndex;
         th.setAttribute('aria-sort', isActive ? (direction === 'asc' ? 'ascending' : 'descending') : 'none');
-        if (indicator) indicator.textContent = isActive ? (direction === 'asc' ? '▼' : '▲') : '↕';
+        if (indicator) indicator.textContent = isActive ? (direction === 'asc' ? SORT_GLYPH.ascending : SORT_GLYPH.descending) : SORT_GLYPH.none;
         if (button) {
           const nextAction = isActive
             ? (direction === 'asc' ? 'Sắp xếp giảm dần' : 'Bỏ sắp xếp')
@@ -7998,7 +7957,8 @@
 
     // ===== Hộp chi tiết dùng chung (#docModalBackdrop) — khung .dp-* ở shared/detail-panel.css =====
     // Mọi hộp cùng một nhịp: đầu hộp (tiêu đề + phụ đề) → hàng CHỈ SỐ TỔNG QUAN (detailStatsHtml) → các khối chi tiết.
-    // Bảng trong hộp đều tắt bộ chọn cột (data-table-controls="off"): hộp chỉ để đọc nhanh, không cần ẩn/hiện cột.
+    // Bảng trong hộp (.dp-table) do shared/table-controls.js bật sẵn: bấm tiêu đề để sắp xếp, kéo mép cột đổi độ rộng, nút
+    // "Cột hiển thị" nằm ở đầu khối (.dp-section-head). Mỗi bảng cần data-table-key riêng để nhớ độ rộng/cột ẩn trong phiên.
 
     // tiles: [{ label, value, sub?, tone?: 'green'|'amber'|'red'|'blue', text?: true }]; thẻ rỗng (null/false) bị bỏ qua.
     function detailStatsHtml(tiles, extraClass) {
@@ -8038,7 +7998,7 @@
       if (data.kind === 'sale') {
         const customers = data.customers || [];
         head = detailSectionHeadHtml('Khách của sale', fmtNumber(customers.length) + ' khách');
-        table = '<div class="dp-table-wrap"><table class="dp-table" data-table-controls="off" data-table-key="dashboard-table-18"><thead><tr><th>Khách hàng</th><th class="num">TB 4 tháng</th><th class="num">Tăng trưởng</th><th class="num">Tháng này</th></tr></thead><tbody>' +
+        table = '<div class="dp-table-wrap"><table class="dp-table" data-table-key="dashboard-table-18"><thead><tr><th>Khách hàng</th><th class="num">TB 4 tháng</th><th class="num">Tăng trưởng</th><th class="num">Tháng này</th></tr></thead><tbody>' +
           (customers.length ? customers.map(c => '<tr class="doc-row business-detail-customer is-clickable" tabindex="0" title="Bấm để xem chi tiết khách" data-key="' + escapeHtml(c.key) + '">' +
             '<td class="dp-cell-main">' + escapeHtml(c.name) +
             '</td><td class="num">' + fmtTableMoney(c.avg4) + '</td><td class="num">' + businessGrowthHtml(c.growth) + '</td><td class="num">' + fmtTableMoney(c.current) + '</td></tr>').join('')
@@ -8048,7 +8008,7 @@
         const isCustomer = data.kind === 'customer';
         const list = (isCustomer ? data.topProducts : data.topCustomers) || [];
         head = detailSectionHeadHtml(isCustomer ? 'Top mã hàng 4 tháng' : 'Top khách 4 tháng', fmtNumber(list.length) + (isCustomer ? ' mã' : ' khách'));
-        table = '<div class="dp-table-wrap"><table class="dp-table" data-table-controls="off" data-table-key="dashboard-table-19"><thead><tr>' +
+        table = '<div class="dp-table-wrap"><table class="dp-table" data-table-key="dashboard-table-19"><thead><tr>' +
           (isCustomer ? '<th>Mã hàng</th><th>Tên hàng</th>' : '<th>Khách hàng</th>') + '<th class="num">Doanh số</th><th class="num">SL</th></tr></thead><tbody>' +
           (list.length ? list.map(r => '<tr>' +
             (isCustomer ? '<td class="dp-code">' + escapeHtml(r.productCode) + '</td><td class="dp-cell-main">' + escapeHtml(r.productName || '') + '</td>'
@@ -8161,7 +8121,7 @@
       return detailStatsHtml(tiles) +
         '<div class="dp-card"><dl class="dp-meta">' + meta.join('') + '</dl></div>' +
         '<div class="dp-section">' + detailSectionHeadHtml('Hàng hóa', fmtNumber(data.lineCount) + ' dòng · ' + fmtNumber(data.totalQuantity) + ' sản phẩm') +
-        '<div class="dp-table-wrap is-flow"><table class="dp-table is-min-wide" data-table-controls="off" data-table-key="dashboard-table-20"><thead><tr>' + head + '</tr></thead><tbody>' + rows + '</tbody>' + foot + '</table></div></div>';
+        '<div class="dp-table-wrap is-flow"><table class="dp-table is-min-wide" data-table-key="dashboard-table-20"><thead><tr>' + head + '</tr></thead><tbody>' + rows + '</tbody>' + foot + '</table></div></div>';
     }
 
     // Dòng bảng khách của 1 sản phẩm: ô màu = màu lát tương ứng trên biểu đồ tròn (bảng đóng vai chú giải, cuộn được
@@ -8223,7 +8183,7 @@
       body.innerHTML = detailStatsHtml(tiles) +
         '<div class="dp-split">' +
         '<div class="dp-section">' + detailSectionHeadHtml('Khách hàng', fmtNumber(rows.length) + ' khách') +
-        '<div class="dp-table-wrap product-detail-table"><table class="dp-table" data-table-controls="off" data-table-key="dashboard-table-21"><thead><tr><th>Khách hàng</th><th class="num">Doanh số 90 ngày</th><th class="num">% của SP</th></tr></thead>' +
+        '<div class="dp-table-wrap product-detail-table"><table class="dp-table" data-table-key="dashboard-table-21"><thead><tr><th>Khách hàng</th><th class="num">Doanh số 90 ngày</th><th class="num">% của SP</th></tr></thead>' +
         '<tbody>' + rows.map(function (row, index) { return productDetailRowHtml(row, index, top.revenue); }).join('') + '</tbody></table></div></div>' +
         '<div class="dp-section">' + detailSectionHeadHtml('Tỷ trọng doanh số') +
         '<div class="dp-chart is-donut"><canvas id="productDetailChart" role="img" ' +
@@ -8258,7 +8218,7 @@
       if (full) columns.push(['vietnamPrice', 'Giá hàng về VN', true]);
       const rows = data.rows || [];
       if (!rows.length) content += '<div class="doc-modal-note">Không có hàng dự kiến phù hợp cho sản phẩm này.</div>';
-      else content += '<div class="dp-table-wrap is-flow"><table class="dp-table is-min-wide" data-table-controls="off"><thead><tr>' +
+      else content += '<div class="dp-table-wrap is-flow"><table class="dp-table is-min-wide" data-table-key="dashboard-table-product-containers"><thead><tr>' +
         columns.map(function (col) { return '<th' + (col[2] ? ' class="num"' : '') + '>' + col[1] + '</th>'; }).join('') +
         '</tr></thead><tbody>' + rows.map(function (row) {
           return '<tr>' + columns.map(function (col) {
@@ -9389,11 +9349,11 @@
         (rewardFinalized ? '' : '<p class="debt-penalty-note">Thưởng tạm tính, sẽ chốt chính thức vào cuối tháng</p>') +
         (debtMetricsAvailable ? '' : '<p class="debt-penalty-note">Không còn bản chốt công nợ để đối chiếu</p>') +
         '<div class="dp-section">' + detailSectionHeadHtml('Tiền phạt từng ngày', fmtNumber(row.penaltyDays) + ' ngày') +
-        '<div class="dp-table-wrap is-flow"><table class="dp-table is-min-wide" data-table-controls="off" data-table-key="dashboard-table-23"><thead><tr>' +
+        '<div class="dp-table-wrap is-flow"><table class="dp-table is-min-wide" data-table-key="dashboard-table-23"><thead><tr>' +
         '<th>Ngày</th><th class="num">Số khách bị phạt</th><th class="num">Tiền phạt</th></tr></thead><tbody>' + dayRows +
         '</tbody><tfoot><tr><td>Cộng phạt gốc</td><td class="num">' + fmtNumber(totalCustomers) + '</td><td class="num">' + fmtTableMoney(row.grossPenalty) + '</td></tr></tfoot></table></div></div>' +
         '<div class="dp-section">' + detailSectionHeadHtml('Đối chiếu điểm từng khách', 'Số hóa đơn + doanh thu thuần') +
-        '<div class="dp-table-wrap is-flow"><table class="dp-table is-min-wide" data-table-controls="off"><thead><tr><th>Cơ sở</th><th>Mã khách</th><th>Khách hàng</th>' +
+        '<div class="dp-table-wrap is-flow"><table class="dp-table is-min-wide" data-table-key="dashboard-table-debt-score-customers"><thead><tr><th>Cơ sở</th><th>Mã khách</th><th>Khách hàng</th>' +
         '<th class="num">Số hóa đơn</th><th class="num">Doanh thu thuần</th><th class="num">Điểm hóa đơn</th><th class="num">Điểm doanh thu</th><th class="num">Điểm</th></tr></thead><tbody>' + scoreRows +
         '</tbody><tfoot><tr><td colspan="7">Tổng điểm sale</td><td class="num">' + fmtNumber(row.points) + '</td></tr></tfoot></table></div></div>';
     }
@@ -9684,7 +9644,7 @@
           '<input type="search" id="debtHistorySearch" placeholder="Tìm khách, người sửa, giá trị…" autocomplete="off" style="flex:1 1 240px;' + fieldStyle + '">' +
           '<select id="debtHistoryField" aria-label="Lọc theo cột chỉnh sửa" style="' + fieldStyle + '"><option value="">Tất cả cột chỉnh sửa</option>' + fieldOptions + '</select>' +
           '</div>' +
-          '<div class="dp-table-wrap"><table class="dp-table" data-table-controls="off" data-table-key="dashboard-table-debt-history"><thead><tr>' +
+          '<div class="dp-table-wrap"><table class="dp-table" data-table-key="dashboard-table-debt-history"><thead><tr>' +
           '<th>Thời gian</th><th>Người sửa</th><th>Khách hàng</th><th>Cơ sở</th><th>Cột</th><th>Giá trị cũ</th><th>Giá trị mới</th></tr></thead><tbody id="debtHistoryRows"></tbody></table></div>';
         const rowsEl = document.getElementById('debtHistoryRows');
         const searchEl = document.getElementById('debtHistorySearch');

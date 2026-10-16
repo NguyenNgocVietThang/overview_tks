@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="/shared/shared.css?v=20261009">
+<link rel="stylesheet" href="/shared/shared.css?v=20261016">
   <link rel="stylesheet" href="/shared/search-clear.css?v=20261009-1">
 <style>
   /* ---------- Account Page Custom Styles ---------- */
@@ -215,17 +215,8 @@
     opacity:.4;
     cursor:default;
   }
-  .users-table{ width:100%; border-collapse:collapse; text-align:left; }
-  .users-table th, .users-table td{ padding:12px 16px; border-bottom:1px solid var(--border); font-size:13px; }
-  .users-table th{
-    background:var(--panel-2); color:var(--muted); font-size:11.5px; font-weight:600;
-    text-transform:uppercase; letter-spacing:.04em; white-space:nowrap;
-    position:sticky; top:0; z-index:2;
-  }
-  .users-table th.sortable{ cursor:pointer; user-select:none; }
-  .users-table th.sortable:hover{ color:var(--text); }
-  .sort-icon{ display:inline-block; margin-left:4px; font-size:10px; color:var(--muted); }
-  .sort-active{ color:var(--amber); }
+  /* Khung bang .users-table + nut/bieu tuong sap xep ▲▼: shared/shared.css; trang chi them tieu de dinh khi cuon. */
+  .users-table th{ position:sticky; top:0; z-index:2; }
 
   .user-cell{ display:flex; align-items:center; gap:10px; }
   .user-avatar{
@@ -373,7 +364,7 @@
     to{ transform:translateY(0); opacity:1; }
   }
 </style>
-  <link rel="stylesheet" href="/shared/table-controls.css?v=20261013-1">
+  <link rel="stylesheet" href="/shared/table-controls.css?v=20261016-1">
 </head>
 <body>
   <div class="receipt-header">
@@ -650,11 +641,11 @@
               <table class="users-table fixed-table" id="usersTable" data-table-key="usersTable" data-columns-button="usersColumnsBtn">
                 <thead>
                   <tr>
-                    <th class="sortable" onclick="handleSort('hoTen')" style="width:260px" data-column-key="hoTen" data-column-locked="true">Họ và tên <span class="sort-icon" id="sort-hoTen">↕</span></th>
-                    <th class="sortable" onclick="handleSort('username')" style="width:240px" data-column-key="username">Tài khoản <span class="sort-icon" id="sort-username">↕</span></th>
-                    <th class="sortable" onclick="handleSort('vaiTro')" style="width:200px" data-column-key="vaiTro">Vai trò <span class="sort-icon" id="sort-vaiTro">↕</span></th>
-                    <th class="sortable" onclick="handleSort('coSo')" style="width:110px" data-column-key="coSo">Cơ sở <span class="sort-icon" id="sort-coSo">↕</span></th>
-                    <th class="sortable" onclick="handleSort('trangThai')" style="width:130px" data-column-key="trangThai">Trạng thái <span class="sort-icon" id="sort-trangThai">↕</span></th>
+                    <th class="sortable" onclick="handleSort('hoTen')" style="width:260px" data-column-key="hoTen" data-column-locked="true" aria-sort="none"><button type="button" class="sort-button"><span class="sort-label">Họ và tên</span><span class="sort-indicator" id="sort-hoTen" aria-hidden="true">▲▼</span></button></th>
+                    <th class="sortable" onclick="handleSort('username')" style="width:240px" data-column-key="username" aria-sort="none"><button type="button" class="sort-button"><span class="sort-label">Tài khoản</span><span class="sort-indicator" id="sort-username" aria-hidden="true">▲▼</span></button></th>
+                    <th class="sortable" onclick="handleSort('vaiTro')" style="width:200px" data-column-key="vaiTro" aria-sort="none"><button type="button" class="sort-button"><span class="sort-label">Vai trò</span><span class="sort-indicator" id="sort-vaiTro" aria-hidden="true">▲▼</span></button></th>
+                    <th class="sortable" onclick="handleSort('coSo')" style="width:110px" data-column-key="coSo" aria-sort="none"><button type="button" class="sort-button"><span class="sort-label">Cơ sở</span><span class="sort-indicator" id="sort-coSo" aria-hidden="true">▲▼</span></button></th>
+                    <th class="sortable" onclick="handleSort('trangThai')" style="width:130px" data-column-key="trangThai" aria-sort="none"><button type="button" class="sort-button"><span class="sort-label">Trạng thái</span><span class="sort-indicator" id="sort-trangThai" aria-hidden="true">▲▼</span></button></th>
                   </tr>
                 </thead>
                 <tbody id="usersTableBody">
@@ -1012,7 +1003,7 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Đặt ở cuối thẻ body thay vì trong <head>: script chặn phân tích cú pháp trong <head> sẽ làm dừng việc xử lý toàn bộ tài liệu. Không dùng `defer` vì script inline bên dưới dùng TKSNav ở cấp cao nhất, và script inline luôn chạy trước script defer. -->
-  <script src="/shared/table-controls.js?v=20261013-1"></script>
+  <script src="/shared/table-controls.js?v=20261016-1"></script>
   <script src="/shared/search-clear.js?v=20261009-1"></script>
   <script src="/shared/shared-nav.js?v=20261008"></script>
   <script src="/shared/table-align.js?v=20260928"></script>
@@ -1072,6 +1063,8 @@
     let rawAdminUsers = [];
     let sortField = 'ngayTao';
     let sortAsc = false;
+    // Biểu tượng sắp xếp dùng chung mọi bảng (vị trí/màu ở shared/shared.css): chưa sắp ▲▼ · tăng dần ▼ · giảm dần ▲.
+    const SORT_GLYPH = { none: '▲▼', ascending: '▼', descending: '▲' };
 
     function syncThemeControl(){
       const isLight = document.documentElement.dataset.theme === 'light';
@@ -1877,13 +1870,10 @@
       userColumnCatalog.forEach(({ key: f }) => {
         const icon = document.getElementById(`sort-${f}`);
         if(icon){
-          if(f === sortField){
-            icon.textContent = sortAsc ? '▲' : '▼';
-            icon.classList.add('sort-active');
-          } else {
-            icon.textContent = '↕';
-            icon.classList.remove('sort-active');
-          }
+          const state = f === sortField ? (sortAsc ? 'ascending' : 'descending') : 'none';
+          icon.textContent = SORT_GLYPH[state];
+          const th = icon.closest('th');
+          if(th) th.setAttribute('aria-sort', state);
         }
       });
 
@@ -1928,7 +1918,8 @@
     function renderUserColumnHeaders(){
       document.querySelector('#usersTable thead tr').innerHTML = userColumnCatalog.map(field => {
         const key = field.key;
-        return `<th class="sortable" data-field="${escapeHtml(key)}" data-column-key="${escapeHtml(key)}" onclick="handleSort('${key}')" style="width:${key === 'hoTen' ? 260 : key === 'username' ? 240 : 180}px">${escapeHtml(key === 'username' ? 'Tài khoản' : field.label)} <span class="sort-icon" id="sort-${key}">${sortField === key ? (sortAsc ? '▲' : '▼') : '↕'}</span></th>`;
+        const sortState = sortField === key ? (sortAsc ? 'ascending' : 'descending') : 'none';
+        return `<th class="sortable" aria-sort="${sortState}" data-field="${escapeHtml(key)}" data-column-key="${escapeHtml(key)}" onclick="handleSort('${key}')" style="width:${key === 'hoTen' ? 260 : key === 'username' ? 240 : 180}px"><button type="button" class="sort-button"><span class="sort-label">${escapeHtml(key === 'username' ? 'Tài khoản' : field.label)}</span><span class="sort-indicator" id="sort-${key}" aria-hidden="true">${SORT_GLYPH[sortState]}</span></button></th>`;
       }).join('');
       if(window.TKSTables) window.TKSTables.enhance(document.getElementById('usersTable'), {
         columns: userColumnCatalog.map(field => ({ key: field.key, label: field.key === 'username' ? 'Tài khoản' : field.label, hidden: !DEFAULT_USER_COLUMNS.includes(field.key), locked: field.key === 'hoTen' })),

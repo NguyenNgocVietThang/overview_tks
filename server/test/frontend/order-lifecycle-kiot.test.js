@@ -312,7 +312,7 @@ test('show all and hide all retain the locked lifecycle identifier', async () =>
 // Sap xep / loc (do may chu) theo gia tri co ban (SO) va ngay dat hang (THOI GIAN THAT)
 // ---------------------------------------------------------------------------
 
-test('mặc định sắp theo "Thời gian đặt hàng" mới nhất trước (tiêu đề cột báo ▼, không gửi tham số sort)', async () => {
+test('mặc định sắp theo "Thời gian đặt hàng" mới nhất trước (tiêu đề cột báo ▲ giảm dần, không gửi tham số sort)', async () => {
   const page = await renderPage({ orders: [
     kiotOnlyOrder('CU', { orderDate: '30/09/2026 23:30' }),
     kiotOnlyOrder('MOI', { orderDate: '05/01/2027 09:00' }),
@@ -322,7 +322,9 @@ test('mặc định sắp theo "Thời gian đặt hàng" mới nhất trước 
   assert.equal(lastListParams(page).has('sort'), false);
   const header = headerNamed(page.document, 'orderDate');
   assert.ok(header.classList.contains('sort-active'));
-  assert.equal(header.querySelector('.sort-ind').textContent, '▼');
+  assert.equal(header.querySelector('.sort-indicator').textContent, '▲', 'giam dan = ▲ (tang dan ▼, chua sap ▲▼)');
+  assert.equal(header.getAttribute('aria-sort'), 'descending');
+  assert.equal(headerNamed(page.document, 'orderCode').querySelector('.sort-indicator').textContent, '▲▼');
   page.dom.window.close();
 });
 
@@ -692,7 +694,7 @@ test('bấm dòng: mở hộp chi tiết, gọi order-detail đúng mã/cơ sở
   assert.equal(detailCall.url, '/api/shipment/lifecycle/order-detail?code=DH041173&branch=HN');
   assert.ok(document.querySelector('.lc-detail-dialog').classList.contains('is-wide'));
 
-  const headers = [...document.querySelectorAll('.lc-lines thead th')].map(th => th.textContent);
+  const headers = [...document.querySelectorAll('.lc-lines thead th')].map(th => th.querySelector('.sort-label').textContent);
   assert.deepEqual(headers, ['Mã hàng', 'Tên hàng', 'SL đặt', 'Thể tích (m³)', 'Đơn giá', 'Thành tiền', 'Tồn kho', 'Điều chuyển SG', 'Có bán', 'Thành tiền có bán']);
   assert.ok(!headers.includes('Đang vận chuyển'), 'cot da doi ten');
   const rows = [...document.querySelectorAll('.lc-lines tbody tr')].map(tr => [...tr.cells].map(td => td.textContent));
@@ -1094,7 +1096,7 @@ test('hộp chi tiết lấy luồng từ kết quả tra cứu (opts.flow) khi 
   page.dom.window.close();
 });
 
-test('hộp chi tiết KHÔNG có nút "Cột hiển thị" / thanh kéo độ rộng cột: bảng hàng hóa tắt bộ chọn cột (bảng chính vẫn có)', async () => {
+test('hộp chi tiết CÓ sort, thanh kéo độ rộng cột và nút "Cột hiển thị" ở đầu khối Hàng hóa (bảng tính cước giữ nguyên)', async () => {
   const page = await renderPage({
     orders: [kiotOnlyOrder('DH041173')],
     fetchImpl: url => (url.includes('/order-detail') ? { ok: true, status: 200, json: async () => ({ detail: kiotDetail() }) } : null)
@@ -1103,11 +1105,43 @@ test('hộp chi tiết KHÔNG có nút "Cột hiển thị" / thanh kéo độ r
   assert.ok(document.querySelectorAll('.tks-columns-button').length > 0, 'bang chinh co nut Cot hien thi');
   rowsOf(document)[0].click();
   await settle();
-  const linesTable = document.querySelector('#lcDetailBody .lc-lines');
-  assert.equal(linesTable.getAttribute('data-table-controls'), 'off');
   window.TKSTables.refreshAll();
-  assert.equal(document.getElementById('lcDetailOverlay').querySelectorAll('.tks-columns-button, .tks-column-resizer').length, 0);
-  assert.doesNotMatch(document.getElementById('lcDetailOverlay').textContent, /Cột hiển thị/);
+  const overlay = document.getElementById('lcDetailOverlay');
+  const linesTable = overlay.querySelector('.lc-lines');
+  assert.equal(linesTable.getAttribute('data-table-controls'), null);
+
+  // nut nam ngay tren dau khoi "Hang hoa trong don", khong them 1 hang cong cu rieng
+  const buttons = overlay.querySelectorAll('.tks-columns-button');
+  assert.equal(buttons.length, 1);
+  assert.ok(buttons[0].parentElement.classList.contains('dp-section-head'));
+  assert.equal(overlay.querySelectorAll('.tks-table-tools').length, 0);
+  assert.equal(linesTable.querySelectorAll('.tks-column-resizer').length, 10);
+
+  // sort: bam "Thanh tien" -> tang dan (VAT 5.000 < B 350.000 < A 500.000), bam lai -> giam dan, bam lan 3 -> thu tu goc
+  const codes = () => [...linesTable.tBodies[0].rows].map(row => row.cells[0].textContent);
+  const amount = [...linesTable.tHead.rows[0].cells].find(th => th.querySelector('.sort-label').textContent === 'Thành tiền');
+  assert.deepEqual(codes(), ['A', 'B', 'VATDA44']);
+  amount.querySelector('.sort-button').click();
+  assert.deepEqual(codes(), ['VATDA44', 'B', 'A']);
+  assert.equal(amount.querySelector('.sort-indicator').textContent, '▼');
+  assert.equal(amount.getAttribute('aria-sort'), 'ascending');
+  amount.querySelector('.sort-button').click();
+  assert.deepEqual(codes(), ['A', 'B', 'VATDA44']);
+  assert.equal(amount.querySelector('.sort-indicator').textContent, '▲');
+  amount.querySelector('.sort-button').click();
+  assert.deepEqual(codes(), ['A', 'B', 'VATDA44']);
+  assert.equal(amount.querySelector('.sort-indicator').textContent, '▲▼');
+  // o khong co gia tri luon xuong cuoi ca 2 chieu: "Ton kho" cua dong VAT la —
+  const stock = [...linesTable.tHead.rows[0].cells].find(th => th.querySelector('.sort-label').textContent === 'Tồn kho');
+  stock.querySelector('.sort-button').click();
+  assert.deepEqual(codes(), ['A', 'B', 'VATDA44']);
+  stock.querySelector('.sort-button').click();
+  assert.deepEqual(codes(), ['B', 'A', 'VATDA44']);
+
+  // bang tinh cuoc la cac buoc noi tiep co dong tong: khong sort / khong chon cot
+  const freight = overlay.querySelector('.lc-freight-steps table');
+  assert.equal(freight.getAttribute('data-table-controls'), 'off');
+  assert.equal(freight.querySelector('.tks-column-resizer, .sort-button'), null);
   page.dom.window.close();
 });
 

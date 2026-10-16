@@ -62,7 +62,9 @@
   min-width:0; padding:14px 16px; border:1px solid var(--border); border-radius:var(--radius-lg, 12px);
 }
 .dp-section{ min-width:0; }
-.dp-section-head{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin:0 0 9px; }
+/* Tiêu đề bám trái; ghi chú + nút "Cột hiển thị" (nếu khối có bảng) dồn về mép phải. */
+.dp-section-head{ display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-start; gap:6px 10px; margin:0 0 9px; }
+.dp-section-head > .dp-section-title{ margin-right:auto; }
 .dp-section-title{
   margin:0; font-family:var(--font-body); font-size:12px; font-weight:700; letter-spacing:.05em;
   text-transform:uppercase; color:var(--text-secondary);
@@ -81,7 +83,9 @@
 .dp-meta dd .muted{ color:var(--muted); }
 .dp-note-text{ white-space:pre-line; }
 
-/* ---------- Bảng trong hộp: 1 khung cuộn duy nhất, tiêu đề dính trên, KHÔNG có nút Cột hiển thị ---------- */
+/* ---------- Bảng trong hộp: 1 khung cuộn duy nhất, tiêu đề dính trên ----------
+   Bảng được shared/table-controls.js bật sẵn: bấm tiêu đề để sắp xếp, kéo mép cột để đổi độ rộng, nút "Cột hiển thị"
+   nằm ở đầu khối (.dp-section-head). Tắt từng bảng bằng data-table-controls="off" / data-table-sort="off". */
 .dp-table-wrap{
   max-height:var(--dp-table-max, 360px); overflow:auto; border:1px solid var(--border); border-radius:var(--radius-md, 10px);
   background:var(--panel);
@@ -101,6 +105,7 @@
 .dp-table tbody tr:hover td{ background:var(--surface-hover); }
 .dp-table .num{ text-align:right; font-family:var(--font-data); font-variant-numeric:tabular-nums; white-space:nowrap; }
 .dp-table th.num{ font-family:var(--font-body); }
+.dp-table th.num .sort-button{ text-align:right; }
 .dp-table .dp-cell-main{ min-width:150px; font-weight:500; overflow-wrap:anywhere; }
 .dp-table .dp-code{ font-family:var(--font-data); font-variant-numeric:tabular-nums; color:var(--text-secondary); white-space:nowrap; }
 .dp-table .dp-line-note{ display:block; margin-top:2px; color:var(--muted); font-size:11px; font-weight:400; white-space:pre-line; }

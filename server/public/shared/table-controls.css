@@ -6,11 +6,20 @@ table.tks-controlled-table th, table.tks-controlled-table td {
   height:auto; vertical-align:top;
 }
 table.tks-controlled-table th .sort-button,
-table.tks-controlled-table th .locations-sort-button,
 table.tks-controlled-table th button[data-col] {
   white-space:normal !important; min-width:0; box-sizing:border-box;
 }
-table.tks-controlled-table th .sort-button span:first-child { min-width:0; overflow-wrap:anywhere; }
+/* Nhãn cột tự xuống dòng khi kéo hẹp; biểu tượng ▲▼ (.sort-indicator, shared.css) là cột flex riêng dính mép phải ô. */
+table.tks-controlled-table th .sort-button > .sort-label,
+table.tks-controlled-table th .sort-button > span:first-child { min-width:0; overflow-wrap:anywhere; }
+/* Bảng trong hộp chi tiết (.dp-table, shared/detail-panel.css): giữ tiêu đề dính + căn giữa dọc như khi chưa bật bộ điều khiển cột. */
+table.tks-controlled-table.dp-table { border-collapse:separate; border-spacing:0; }
+table.tks-controlled-table.dp-table th,
+table.tks-controlled-table.dp-table td { vertical-align:middle; }
+table.tks-controlled-table.dp-table .sort-indicator { font-size:8px; }
+/* Số tiền / mã hàng không bị bẻ dòng giữa chừng (cột đã có độ rộng tối thiểu theo giá trị dài nhất: numberMinimums). */
+table.tks-controlled-table.dp-table td.num,
+table.tks-controlled-table.dp-table td.dp-code { white-space:nowrap !important; overflow-wrap:normal !important; }
 /* Form controls must stay inside their cells, including authored min-widths. */
 table.tks-controlled-table :is(th, td) :is(select, input:not([type=checkbox]):not([type=radio]), textarea, [role=combobox]) {
   min-width:0 !important; max-width:100% !important; box-sizing:border-box;
@@ -37,6 +46,9 @@ table.tks-controlled-table .tks-row-hidden { display:none !important; }
   display:inline-flex; align-items:center; justify-content:center; gap:6px; white-space:nowrap;
 }
 .tks-columns-button svg { width:15px; height:15px; flex:none; }
+/* Trong hộp chi tiết nút nằm ở đầu khối (.dp-section-head) nên gọn hơn nút của khung bảng chính. */
+.dp-section-head > .tks-columns-button { min-height:28px; padding:0 10px; font-size:12px; }
+.dp-section-head > .tks-columns-button svg { width:14px; height:14px; }
 .tks-columns-button:hover { border-color:var(--muted,#64748b); }
 .tks-columns-button:focus-visible, .tks-column-resizer:focus-visible,
 .tks-columns-picker button:focus-visible, .tks-columns-picker input:focus-visible {
@@ -78,5 +90,5 @@ body.tks-table-resizing, body.tks-table-resizing * { cursor:col-resize !importan
 .tks-columns-list input { flex:none; margin:2px 0 0; accent-color:var(--green,#16a34a); }
 .tks-columns-list span { overflow-wrap:anywhere; }
 .tks-columns-list input:disabled + span { color:var(--muted,#64748b); }
-@media(max-width:600px) { .tks-columns-list { grid-template-columns:1fr; } .tks-columns-button { min-height:40px; } }
+@media(max-width:600px) { .tks-columns-list { grid-template-columns:1fr; } .tks-columns-button { min-height:40px; } .dp-section-head > .tks-columns-button { min-height:34px; } }
 @media print { .tks-table-tools,.tks-columns-button,.tks-columns-overlay,table.tks-controlled-table .tks-column-resizer { display:none !important; } }

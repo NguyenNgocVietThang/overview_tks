@@ -51,7 +51,8 @@
     document.querySelectorAll('[data-sort-field]').forEach(button => {
       const selected = current.sortField === button.dataset.sortField;
       button.closest('th').setAttribute('aria-sort', selected ? current.sortDirection === 'asc' ? 'ascending' : 'descending' : 'none');
-      button.querySelector('.locations-sort-icon').textContent = selected ? current.sortDirection === 'asc' ? '↑' : '↓' : '↕';
+      // Chưa sắp ▲▼ · tăng dần ▼ · giảm dần ▲ (như mọi bảng khác).
+      button.querySelector('.sort-indicator').textContent = selected ? current.sortDirection === 'asc' ? '▼' : '▲' : '▲▼';
       button.title = selected ? current.sortDirection === 'asc' ? 'Sắp xếp giảm dần' : 'Về thứ tự gốc' : 'Sắp xếp tăng dần';
     });
   }
@@ -77,12 +78,13 @@
       th.dataset.defaultWidth = widths[field];
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = 'locations-sort-button';
+      button.className = 'sort-button';
       button.dataset.sortField = field;
       const label = document.createElement('span');
+      label.className = 'sort-label';
       label.textContent = LABELS[field];
       const icon = document.createElement('span');
-      icon.className = 'locations-sort-icon';
+      icon.className = 'sort-indicator';
       icon.setAttribute('aria-hidden', 'true');
       button.append(label, icon);
       th.appendChild(button);

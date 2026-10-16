@@ -265,17 +265,51 @@ test('nhieu dong hang: bang co dong "Cộng hàng hóa" (tổng SL + tổng thà
   assert.equal(single.$('docModalBody').querySelector('tfoot'), null);
 });
 
-test('hop chi tiet KHONG co nut "Cột hiển thị": bang trong hop tat bo chon cot (data-table-controls=off), bang chinh van co', async () => {
-  const page = createPage({ withTableControls: true });
+test('hop chi tiet co sort, keo do rong cot va nut "Cột hiển thị" o dau khoi Hang hoa (cung quy uoc voi bang chinh)', async () => {
+  const two = { ...INVOICE_DETAIL, lineCount: 2, totalQuantity: 5, lines: [
+    { productCode: 'A1', productName: 'Hàng A', quantity: 3, price: 30, discount: 0, amount: 90, note: '' },
+    { productCode: 'B2', productName: 'Hàng B', quantity: 12, price: 50, discount: 0, amount: 600, note: '' },
+    { productCode: 'C3', productName: 'Hàng C', quantity: 2, price: 50, discount: 0, amount: 100, note: '' }
+  ] };
+  const page = createPage({ withTableControls: true, respond: () => Promise.resolve({ ok: true, status: 200, json: async () => two }) });
   await settle();
   const mainButtons = page.doc.querySelectorAll('.tks-columns-button').length;
-  assert.ok(mainButtons > 0, 'bang chinh van co nut Cot hien thi');
+  assert.ok(mainButtons > 0, 'bang chinh co nut Cot hien thi');
 
   firstTransactionRow(page).click();
   await settle();
   const modalTable = page.$('docModalBody').querySelector('table');
-  assert.equal(modalTable.getAttribute('data-table-controls'), 'off');
+  assert.equal(modalTable.getAttribute('data-table-controls'), null);
   page.dom.window.TKSTables.refreshAll();
-  assert.equal(page.$('docModalBackdrop').querySelectorAll('.tks-columns-button, .tks-column-resizer').length, 0);
-  assert.doesNotMatch(page.$('docModalBackdrop').textContent, /Cột hiển thị/);
+  const buttons = page.$('docModalBackdrop').querySelectorAll('.tks-columns-button');
+  assert.equal(buttons.length, 1);
+  assert.ok(buttons[0].parentElement.classList.contains('dp-section-head'));
+  assert.equal(page.$('docModalBackdrop').querySelectorAll('.tks-table-tools').length, 0);
+  const headers = [...modalTable.tHead.rows[0].cells];
+  assert.equal(modalTable.querySelectorAll('th > .tks-column-resizer').length, headers.length);
+
+  // so (SL, thanh tien) sort theo gia tri that, khong theo chuoi: 12 > 3 > 2 du "12" < "2" theo chu
+  const codes = () => [...modalTable.tBodies[0].rows].map(row => row.cells[0].textContent);
+  const quantity = headers.find(th => th.querySelector('.sort-label').textContent === 'SL');
+  quantity.querySelector('.sort-button').click();
+  assert.deepEqual(codes(), ['C3', 'A1', 'B2']);
+  quantity.querySelector('.sort-button').click();
+  assert.deepEqual(codes(), ['B2', 'A1', 'C3']);
+  assert.equal(quantity.getAttribute('aria-sort'), 'descending');
+  assert.equal(quantity.querySelector('.sort-indicator').textContent, '▲');
+  quantity.querySelector('.sort-button').click();
+  assert.deepEqual(codes(), ['A1', 'B2', 'C3']);
+  assert.equal(quantity.querySelector('.sort-indicator').textContent, '▲▼');
+  // dong "Cong hang hoa" nam trong tfoot nen khong bi tron vao khi sap xep
+  assert.match(modalTable.tFoot.textContent, /Cộng hàng hóa/);
+
+  // an 1 cot: chi cot do bi an (dong cong va cac cot con lai nguyen ven)
+  buttons[0].click();
+  const picker = page.doc.querySelector('.tks-columns-picker');
+  assert.equal(picker.hidden, false);
+  const input = picker.querySelector('input[data-column-key="Đơn giá"]');
+  input.checked = false;
+  input.dispatchEvent(new page.dom.window.Event('change', { bubbles: true }));
+  assert.equal(headers.find(th => th.querySelector('.sort-label').textContent === 'Đơn giá').classList.contains('tks-column-hidden'), true);
+  assert.equal(modalTable.tFoot.rows[0].cells[0].colSpan, 2);
 });

@@ -68,7 +68,7 @@ test('bảng nghỉ phép có 9 cột: Người gửi, Phòng ban, Cơ sở tác
   await new Promise(resolve => setTimeout(resolve, 0));
   await new Promise(resolve => setTimeout(resolve, 0));
 
-  const headers = [...window.document.querySelectorAll('#leaveTable thead th')].map(th => th.textContent.replace('↕', '').replace('↑', '').replace('↓', '').trim());
+  const headers = [...window.document.querySelectorAll('#leaveTable thead th')].map(th => th.textContent.replace(/[↕↑↓▲▼]/g, '').trim());
   assert.equal(headers.length, 9, 'Bảng phải có đúng 9 cột');
   assert.equal(headers[headers.length - 1], 'Trạng thái', 'Cột cuối cùng phải là Trạng thái');
   assert.ok(!headers.includes('Hành động'), 'Không còn cột Hành động riêng biệt');

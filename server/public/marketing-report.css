@@ -14,8 +14,7 @@
 .marketing-table-scroll { max-height: 560px; overflow: auto; }
 .marketing-table table { width: 100%; border-collapse: collapse; white-space: normal; }
 .marketing-table thead th { position: sticky; top: 0; z-index: 1; background: var(--panel); }
-.marketing-table th .sort-button { white-space: normal; }
-.marketing-table th.col-num .sort-button { justify-content: flex-end; gap: 4px; }
+/* Nút + biểu tượng sắp xếp ở tiêu đề: quy ước chung shared/shared.css (cột số căn phải bằng th.col-num). */
 .marketing-table td.col-num { text-align: right; }
 .marketing-table tbody tr:hover { background: var(--panel-2); }
 .marketing-row-link { cursor: pointer; }
