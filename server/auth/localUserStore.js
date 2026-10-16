@@ -40,7 +40,10 @@ const HARDCODED_ADMINS = Object.freeze([
   'thangnnv2003@gmail',
   'thangnnv2003',
   'admin@tokosi.vn',
-  'admin'
+  'admin',
+  // 2026-10-16: Chu Minh Vu (Tro ly) — toan quyen theo yeu cau chu du an de nghiem thu Yeu cau chuyen tien
+  // (gom thu hoi "Da chuyen"). Go dong nay de tra ve quyen Tro ly binh thuong.
+  'chuminhvuofficial@gmail.com'
 ]);
 
 function isProtectedSuperAdmin(identifier) {
