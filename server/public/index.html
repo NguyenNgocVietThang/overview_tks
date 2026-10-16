@@ -3379,17 +3379,13 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"></path><path d="M14 8H8"></path><path d="M16 12H8"></path><path d="M13 16H8"></path></svg>
           Hóa đơn
         </button>
-        <button type="button" class="report-subnav-item" data-view="customers" role="tab" aria-selected="false" onclick="goReportView('customers')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 2v2"></path><path d="M8 2v2"></path><rect x="3" y="4" width="18" height="18" rx="2"></rect><circle cx="12" cy="11" r="3"></circle><path d="M8 18a4 4 0 0 1 8 0"></path></svg>
+        <button type="button" class="report-subnav-item" data-view="business" role="tab" aria-selected="false" onclick="goReportView('business')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"></path><path d="m19 9-5 5-4-4-3 3"></path></svg>
           Khách hàng
         </button>
         <button type="button" class="report-subnav-item" data-view="debt" role="tab" aria-selected="false" onclick="goReportView('debt')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path></svg>
           Công nợ
-        </button>
-        <button type="button" class="report-subnav-item" data-view="business" role="tab" aria-selected="false" onclick="goReportView('business')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"></path><path d="m19 9-5 5-4-4-3 3"></path></svg>
-          Báo cáo kinh doanh
         </button>
         <button id="marketingReportTab" type="button" class="report-subnav-item" data-view="marketing" role="tab" aria-selected="false" onclick="goReportView('marketing')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 11 18-5v12L3 14z"></path><path d="m7 15 2 6h4l-2-5"></path></svg>
@@ -4090,111 +4086,6 @@
           </section>
         </div>
 
-        <!-- ============ KHÁCH HÀNG ============ -->
-        <div class="view" id="view-customers">
-          <div class="view-title">Khách hàng</div>
-          <div class="view-sub">Top khách hàng theo doanh thu → phân tích công nợ theo khách · mỗi mục có chỉ số then chốt ở đầu</div>
-
-          <section class="section">
-            <div class="section-head"><span class="section-step">1</span>
-              <h2>Top khách hàng theo doanh thu <span class="section-note">lọc theo khoảng Từ – Đến ở bảng chi tiết · đã trừ hàng trả lại</span></h2>
-            </div>
-            <div class="kpi-grid section-kpis" id="customerRevenueKpis"></div>
-            <div class="grid transaction-analysis-grid">
-              <div class="panel col-12">
-                <div class="panel-head">
-                  <h2>Chi tiết doanh thu theo khách <span class="tag" id="tagCustomerRevenue">—</span></h2>
-                  <div class="panel-head-actions"><span class="drill-hint">Tất cả khách có doanh thu trong
-                      kỳ</span><button class="export-button" type="button"
-                      onclick="openExportDialog('customers.revenue')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button></div>
-                </div>
-                <div class="table-wrap scroll-list transaction-detail-scroll">
-                  <table class="fixed-table" data-table-key="dashboard-table-12">
-                    <thead>
-                      <tr>
-                        <th style="width:300px" data-column-key="khach-hang">Khách hàng</th>
-                        <th style="width:125px" data-column-key="sl-don-ban">SL đơn bán</th>
-                        <th style="width:135px" data-column-key="doanh-thu">Doanh thu</th>
-                        <th style="width:135px" data-column-key="doanh-thu-hn">Doanh thu HN</th>
-                        <th style="width:135px" data-column-key="doanh-thu-sg">Doanh thu SG</th>
-                        <th style="width:130px" data-column-key="co-so">Cơ sở</th>
-                      </tr>
-                    </thead>
-                    <tbody id="customerRevenueRows">
-                      <tr>
-                        <td colspan="6" class="table-note">Đang tải...</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <div class="pagination-controls" id="customerRevenuePagination" hidden>
-                  <button type="button" id="customerRevenueFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
-                  <button type="button" id="customerRevenuePrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
-                  <span id="customerRevenuePageLabel">Trang 1/1</span>
-                  <button type="button" id="customerRevenueNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
-                  <button type="button" id="customerRevenueLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section class="section">
-            <div class="section-head"><span class="section-step">2</span>
-              <h2>Phân tích khách hàng công nợ <span class="section-note">nợ tập trung ở những khách nào</span></h2>
-            </div>
-            <div class="kpi-grid section-kpis">
-              <div class="kpi-card col-4 accent-blue">
-                <div class="eyebrow">Tổng khách hàng</div>
-                <div class="value" id="cu-total">—</div>
-              </div>
-              <div class="kpi-card col-4 accent-red">
-                <div class="eyebrow">Khách đang nợ</div>
-                <div class="value" id="cu-debtcount">—</div>
-              </div>
-              <div class="kpi-card col-4 accent-amber">
-                <div class="eyebrow">Tổng công nợ</div>
-                <div class="value" id="cu-totaldebt">—</div>
-              </div>
-            </div>
-            <div class="grid transaction-analysis-grid">
-              <div class="panel col-12">
-                <div class="panel-head">
-                  <h2>Chi tiết khách nợ <span class="tag" id="tagDebt">—</span></h2>
-                  <div class="panel-head-actions"><span class="drill-hint">Xem diễn biến nợ theo kỳ ở tab Công
-                      nợ</span><button class="export-button" type="button"
-                      onclick="openExportDialog('customers.debt')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button></div>
-                </div>
-                <div class="table-wrap scroll-list transaction-detail-scroll">
-                  <table class="fixed-table" data-table-key="dashboard-table-13">
-                    <thead>
-                      <tr>
-                        <th style="width:300px" data-column-key="ten-khach-hang">Tên khách hàng</th>
-                        <th style="width:130px" data-column-key="dien-thoai">Điện thoại</th>
-                        <th style="width:135px" data-column-key="cong-no">Công nợ</th>
-                        <th style="width:135px" data-column-key="cong-no-hn">Công nợ HN</th>
-                        <th style="width:135px" data-column-key="cong-no-sg">Công nợ SG</th>
-                        <th style="width:130px" data-column-key="co-so">Cơ sở</th>
-                      </tr>
-                    </thead>
-                    <tbody id="debtRows">
-                      <tr>
-                        <td colspan="6" class="table-note">Đang tải...</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <div class="pagination-controls" id="topDebtPagination" hidden>
-                  <button type="button" id="topDebtFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
-                  <button type="button" id="topDebtPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
-                  <span id="topDebtPageLabel">Trang 1/1</span>
-                  <button type="button" id="topDebtNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
-                  <button type="button" id="topDebtLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
-                </div>
-              </div>
-            </div>
-          </section>
-        </div>
-
         <!-- ============ QUẢN LÝ CÔNG NỢ ============ -->
         <div class="view" id="view-debt">
           <div class="view-title">Công nợ</div>
@@ -4355,9 +4246,9 @@
           <div id="marketingSections"></div>
         </div>
 
-        <!-- ============ BÁO CÁO KINH DOANH ============ -->
+        <!-- ============ KHÁCH HÀNG (id view-business: trước là Báo cáo kinh doanh) ============ -->
         <div class="view" id="view-business">
-          <div class="view-title">Báo cáo kinh doanh</div>
+          <div class="view-title">Khách hàng</div>
           <div class="view-sub">Doanh số = hóa đơn hoàn thành − trả hàng (đã trừ giảm giá) · gộp Hà Nội + Sài Gòn · tháng trước chốt cứng, tháng này cập nhật trực tiếp · tăng trưởng = tháng này quy đổi 30 ngày ÷ tháng trước <span id="businessReadiness" class="table-note" role="status" hidden>Đang dựng dữ liệu tháng cũ…</span>
               <span class="section-note" id="businessUpdatedAt">—</span>
             <button class="export-button" type="button" id="businessRefreezeBtn" data-not-export hidden onclick="refreezeBusinessMonth()">Tính lại tháng</button>
@@ -4655,8 +4546,7 @@
         topSelling: { mode: 'days', days: 30 },
         newlyImported: { mode: 'days', days: 30 },
         newProducts: { mode: 'days', days: 30 },
-        invoices: { mode: 'days', days: 30 },
-        customers: { mode: 'all' }
+        invoices: { mode: 'days', days: 30 }
       },
       exportDialog: {
         payload: null,
@@ -5124,26 +5014,10 @@
       return escapeHtml((item && item.branch) || '—');
     }
 
-    // Hai o "… HN" / "… SG": so tien cua khach o tung co so vat ly. Payload cu chua co map theo co so
-    // thi dong cua dung 1 co so lay tron tong o co so do.
-    function branchAmountCells(item, mapKey, total, style) {
-      const map = item && item[mapKey];
-      const attr = style ? ' style="' + style + '"' : '';
-      return ['Hà Nội', 'Sài Gòn'].map(branch => {
-        const value = map ? Number(map[branch]) || 0 : (item && item.branch === branch ? Number(total) || 0 : 0);
-        return '<td class="mono" data-sort-value="' + value + '"' + (value < 0 ? ' style="color:var(--red);"' : attr) + '>' + fmtTableMoney(value) + '</td>';
-      }).join('');
-    }
-
     // Khoa dinh danh dong hang hoa: cung ma o hai co so la hai dong khac nhau.
     function productIdentity(item) {
       const code = String((item && item.code) || '');
       return item && item.branch ? String(item.branch) + '|' + code : code;
-    }
-
-    // Khach gop theo ten (ma khach khac nhau giua hai co so) nen khoa theo ten chuan hoa.
-    function customerIdentity(item) {
-      return String((item && item.name) || '').normalize('NFC').trim().toLocaleLowerCase('vi-VN');
     }
 
     function isMergedStockoutResult(result) {
@@ -6058,7 +5932,6 @@
         products: cloneExportFilter(state.filters.topSelling),
         newlyImported: cloneExportFilter(state.filters.newlyImported),
         invoices: cloneExportFilter(state.filters.invoices),
-        customers: cloneExportFilter(state.filters.customers, 'all'),
         newProducts: cloneExportFilter(state.filters.newProducts)
       };
     }
@@ -6070,8 +5943,6 @@
       'products.all': 'allProducts',
       'products.inventory': 'inventoryValue',
       'products.newly-imported': 'newlyImported',
-      'customers.revenue': 'customerRevenue',
-      'customers.debt': 'topDebt',
       'customers.productDetail': 'cpDetail',
       'overview.productReport': 'productReport',
       'debt.management': 'debtManagement',
@@ -6604,13 +6475,12 @@
     // Moi bang co 1 bo loc thoi gian rieng (khoa cua state.filters) -> tien to tham so
     // gui backend (xem parseFilterSpec trong routes.js): pr = ban chay, ni = hang moi
     // nhap, np = ma moi tao, in = giao dich (+ bieu do/chi so Xu huong va the "Tra hang"),
-    // cu = doanh thu theo khach. (or/rt cua 2 bang Dat hang / Tra hang da bo 2026-10-01.)
+    // (cu = doanh thu theo khach da bo 2026-10-16 cung tab Khach hang cu; or/rt cua 2 bang Dat hang / Tra hang da bo 2026-10-01.)
     const TAB_FILTER_PREFIXES = {
       topSelling: ['pr'],
       newlyImported: ['ni'],
       newProducts: ['np'],
-      invoices: ['in'],
-      customers: ['cu']
+      invoices: ['in']
     };
 
     // Bo loc thoi gian nam ngay trong tung bang (canh o tim kiem), chi gom "Tu ... Den ..."
@@ -6621,8 +6491,7 @@
       topSelling: 'topSelling',
       newlyImported: 'newlyImported',
       todayNewProducts: 'newProducts',
-      endOfDay: 'invoices',
-      customerRevenue: 'customers'
+      endOfDay: 'invoices'
     };
 
     function isoDateOffset(daysAgo) {
@@ -7276,8 +7145,6 @@
       allProducts: { title: 'Tất cả mã hàng', searchText: tableSearchText, code: p => p.code, identity: productIdentity, supportsCodes: true },
       inventoryValue: { title: 'Chi tiết tồn kho theo sản phẩm', searchText: tableSearchText, code: p => p.code, identity: productIdentity, supportsCodes: true },
       newlyImported: { title: 'Hàng mới nhập', searchText: tableSearchText, code: p => p.code, identity: productIdentity, supportsCodes: true },
-      customerRevenue: { title: 'Chi tiết doanh thu theo khách', searchText: tableSearchText, identity: customerIdentity },
-      topDebt: { title: 'Chi tiết khách nợ', searchText: tableSearchText, identity: customerIdentity },
       debtManagement: { title: 'Khách hàng công nợ', searchText: tableSearchText, identity: p => p.customerKey, customControl: true },
       debtPenalty: { title: 'Thưởng/phạt sale theo công nợ', searchText: row => row.sale, identity: row => row.sale }
     };
@@ -7697,7 +7564,7 @@
       });
     }
 
-    // ===== Báo cáo kinh doanh (tab #business) — API riêng /api/business-report (xem
+    // ===== Tab Khách hàng (id #business; trước là Báo cáo kinh doanh) — API riêng /api/business-report (xem
     // server/businessReport/). Tháng trước chốt cứng trong DB, tháng này tính trực tiếp (cache 60s
     // phía máy chủ) nên tab tự tải lại khi mở nếu dữ liệu đã cũ hơn 60s. Máy chủ tính sẵn
     // tăng trưởng / TB 4 tháng / hoạt động — trang chỉ hiển thị, không tính lại. =====
@@ -7981,14 +7848,14 @@
       return '<div' + (wide ? ' class="is-wide"' : '') + '><dt>' + label + '</dt><dd>' + valueHtml + '</dd></div>';
     }
 
-    // Thẻ KPI của Báo cáo kinh doanh ({label, value, accent}) → thẻ chỉ số của hộp chi tiết.
+    // Thẻ KPI của tab Khách hàng ({label, value, accent}) → thẻ chỉ số của hộp chi tiết.
     function businessDetailTiles(kpis) {
       return businessKpiCards(kpis).map(function (card) {
         return { label: card.label, value: card.value, tone: card.accent || '' };
       });
     }
 
-    // Panel chi tiết Báo cáo kinh doanh: hàng chỉ số + biểu đồ cột doanh số theo tháng (cột tháng này là số đến
+    // Panel chi tiết tab Khách hàng: hàng chỉ số + biểu đồ cột doanh số theo tháng (cột tháng này là số đến
     // hôm nay, chưa quy đổi — nhãn có dấu *) cạnh bảng phụ (khách của sale / top mã của khách / top khách của mã,
     // 4 tháng gần nhất).
     function renderBusinessDetailModal(body, subtitle, data) {
@@ -8039,7 +7906,7 @@
       });
     }
 
-    // ===== Hộp chi tiết chứng từ giữa màn hình (tab Hóa đơn, Báo cáo hàng hóa, Báo cáo kinh doanh) =====
+    // ===== Hộp chi tiết chứng từ giữa màn hình (tab Hóa đơn, Báo cáo hàng hóa, Khách hàng) =====
     // Bấm 1 dòng ở "Chi tiết giao dịch" / "Báo cáo hàng hóa" → lấy các dòng hàng của chứng từ đó từ
     // /api/invoice-detail (bảng invoice_details) / /api/product-report/customers. (Chi tiết đơn đặt hàng "Phiếu tạm"
     // nay mở ở trang Vòng đời đơn hàng — /api/shipment/lifecycle/order-detail.)
@@ -8052,7 +7919,7 @@
         failure: 'Không tải được doanh số khách của sản phẩm này.'
       },
       endOfDay: { api: '/api/invoice-detail', title: 'Chi tiết giao dịch', size: 'medium', dateLabel: 'Thời gian bán', sellerLabel: 'Nhân viên bán hàng', failure: 'Không tải được chi tiết giao dịch.' },
-      // Báo cáo kinh doanh (tab #business): thẻ tổng quan + biểu đồ cột theo tháng + bảng phụ.
+      // Tab Khách hàng (#business): thẻ tổng quan + biểu đồ cột theo tháng + bảng phụ.
       businessSales: {
         api: '/api/business-report/detail', title: 'Sale', size: 'wide',
         query: item => '?kind=sale&key=' + encodeURIComponent(item.key), failure: 'Không tải được chi tiết sale.'
@@ -8891,45 +8758,6 @@
           'Chưa có giao dịch trong khoảng đã chọn'
         );
       }
-      else if (view === 'customers') {
-        const customerData = d.customers || d;
-        const topDebt = customerData.topDebt || [];
-        document.getElementById('cu-total').textContent = fmtNumber(d.kpi.totalCustomers);
-        document.getElementById('cu-debtcount').textContent = d.kpi.customersWithDebt;
-        document.getElementById('cu-totaldebt').textContent = fmtMoney(d.kpi.totalDebt);
-        document.getElementById('tagDebt').textContent = topDebt.length;
-        renderPaginatedRows(
-          'topDebt',
-          { tbody: 'debtRows', pagination: 'topDebtPagination', firstBtn: 'topDebtFirstPage', prevBtn: 'topDebtPrevPage', nextBtn: 'topDebtNextPage', lastBtn: 'topDebtLastPage', label: 'topDebtPageLabel' },
-          topDebt,
-          c => '<tr><td class="name-cell">' + escapeHtml(c.name) + '</td>' +
-            '<td class="mono muted">' + (c.phone ? escapeHtml(c.phone) : '—') + '</td><td class="mono" data-sort-value="' + c.debt + '"' + (Number(c.debt) < 0 ? ' style="color:var(--red);"' : '') + '>' + fmtTableMoney(c.debt) + '</td>' +
-            branchAmountCells(c, 'debtByBranch', c.debt, '') + '<td>' + branchCellText(c) + '</td></tr>',
-          6,
-          'Không có khách hàng nợ'
-        );
-
-        const topRevenue = customerData.topRevenue || { top15: [], all: [], label: '—' };
-        // top50 is retained as a fallback while older cached dashboard payloads expire.
-        const allCustomerRevenue = topRevenue.all || topRevenue.top50 || [];
-        document.getElementById('tagCustomerRevenue').textContent = allCustomerRevenue.length;
-        renderSectionKpis('customerRevenueKpis', [
-          { label: 'Khách có doanh thu', value: fmtNumber(allCustomerRevenue.length), sub: topRevenue.label || '—', accent: 'blue' },
-          { label: 'Tổng doanh thu', value: fmtMoney(sumBy(allCustomerRevenue, c => c.revenue)), sub: topRevenue.label || '—', accent: 'green' },
-          { label: 'Số đơn hàng', value: fmtNumber(sumBy(allCustomerRevenue, c => c.saleOrderCount)), sub: topRevenue.label || '—', accent: 'amber' }
-        ]);
-        renderPaginatedRows(
-          'customerRevenue',
-          { tbody: 'customerRevenueRows', pagination: 'customerRevenuePagination', firstBtn: 'customerRevenueFirstPage', prevBtn: 'customerRevenuePrevPage', nextBtn: 'customerRevenueNextPage', lastBtn: 'customerRevenueLastPage', label: 'customerRevenuePageLabel' },
-          allCustomerRevenue,
-          c => '<tr><td class="name-cell">' + escapeHtml(c.name) + '</td>' +
-            '<td class="mono">' + fmtNumber(Number(c.saleOrderCount || 0)) + '</td>' +
-            '<td class="mono" data-sort-value="' + c.revenue + '">' + fmtTableMoney(c.revenue) + '</td>' +
-            branchAmountCells(c, 'revenueByBranch', c.revenue, '') + '<td>' + branchCellText(c) + '</td></tr>',
-          6,
-          'Không có dữ liệu doanh thu trong khoảng đã chọn'
-        );
-      }
       else if (view === 'debt') {
         renderDebtManagement();
         loadDebtPenaltyBoard();
@@ -9707,7 +9535,6 @@
       overview: ['kpi'],
       products: ['products', 'allProducts'],
       invoices: ['invoices'],
-      customers: ['customers'],
       debt: ['debtManagement']
     };
 
@@ -9716,7 +9543,6 @@
       overview: ['invoices'],
       products: ['topSelling', 'newlyImported', 'newProducts'],
       invoices: ['invoices'],
-      customers: ['customers'],
       debt: []
     };
 
@@ -9986,9 +9812,15 @@
 
     // Vao thang mot tab bao cao tu sidebar cua trang khac (vd /reports/#products) —
     // cac trang khac dieu huong toi day bang hash roi trang nay tu chuyen view.
-    const REPORT_VIEW_NAMES = ['overview', 'products', 'invoices', 'customers', 'debt', 'business', 'marketing'];
-    function applyReportViewFromHash() {
+    const REPORT_VIEW_NAMES = ['overview', 'products', 'invoices', 'debt', 'business', 'marketing'];
+    // Tab "Khách hàng" cu da go (2026-10-16), tab Bao cao kinh doanh doi ten thanh Khach hang: link cu
+    // /reports/#customers tro ve tab moi (view-business).
+    function reportViewFromHash() {
       const hashView = (window.location.hash || '').replace('#', '');
+      return hashView === 'customers' ? 'business' : hashView;
+    }
+    function applyReportViewFromHash() {
+      const hashView = reportViewFromHash();
       if (REPORT_VIEW_NAMES.indexOf(hashView) !== -1) switchView(hashView);
     }
     // Khoi phuc cache TRUOC lan switchView dau tien: chi fetch du lieu 1 lan khi vao trang qua
@@ -10011,7 +9843,7 @@
 
     /** Tab can tai luc khoi dong: theo hash neu hop le, khong thi tab dang mo. */
     function initialReportView() {
-      const hashView = (window.location.hash || '').replace('#', '');
+      const hashView = reportViewFromHash();
       return REPORT_VIEW_NAMES.indexOf(hashView) !== -1 ? hashView : state.view;
     }
 

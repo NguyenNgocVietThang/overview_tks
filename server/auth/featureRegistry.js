@@ -54,7 +54,12 @@ const FEATURES = Object.freeze([
   // Máy chủ cắt các trường này khỏi payload (dashboardPermissionFilter.js); thiếu Hàng hóa thì bỏ luôn.
   { key: 'reports.products.cost', groupKey: 'reports', label: 'Hàng hóa: xem đơn giá & giá trị tồn (cần Hàng hóa)', roles: REPORTS_ROLES, requires: 'reports.products' },
   { key: 'reports.invoices', groupKey: 'reports', label: 'Hóa đơn', roles: REPORT_VIEW_ROLES },
-  { key: 'reports.customers', groupKey: 'reports', label: 'Khách hàng', roles: REPORT_VIEW_ROLES },
+  // 2026-10-07: Bao cao kinh doanh (tang truong Sale/Khach/Ma hang theo thang). Spec:
+  // docs/superpowers/specs/2026-10-07-business-report-design.md.
+  // 2026-10-16: tab nay thay tab Khach hang cu (da go, quyen reports.customers bo) nen hien ten "Khách hàng";
+  // giu nguyen khoa `reports.business` de khong mat quyen da cap.
+  { key: 'reports.business', groupKey: 'reports', label: 'Khách hàng', roles: REPORT_VIEW_ROLES },
+  { key: 'reports.business.refreeze', groupKey: 'reports', label: 'Khách hàng: tính lại tháng đã chốt (cần Khách hàng)', roles: MANAGER_ONLY, requires: 'reports.business' },
   { key: 'reports.debt', groupKey: 'reports', label: 'Công nợ', roles: REPORT_VIEW_ROLES },
   // 2026-10-13: cong no theo lich TT (server/debtSchedule). Moi cot sua duoc la 1 quyen
   // rieng: Sale phan hoi (mac dinh Nhan vien sale), QL phan hoi + Trang thai + Lich TT (mac
@@ -65,13 +70,9 @@ const FEATURES = Object.freeze([
   { key: 'reports.debt.schedule', groupKey: 'reports', label: 'Công nợ: sửa lịch thanh toán (cần Công nợ)', roles: MANAGER_ONLY, requires: 'reports.debt' },
   { key: 'reports.debt.penalty', groupKey: 'reports', label: 'Công nợ: điền tiền phạt phiên này (cần Công nợ)', roles: MANAGER_ONLY, requires: 'reports.debt' },
   { key: 'reports.debt.refresh', groupKey: 'reports', label: 'Công nợ: tính lại công nợ tại thời điểm bấm (cần Công nợ)', roles: MANAGER_ONLY, requires: 'reports.debt' },
-  // 2026-10-07: Bao cao kinh doanh (tang truong Sale/Khach/Ma hang theo thang). Spec:
-  // docs/superpowers/specs/2026-10-07-business-report-design.md.
-  { key: 'reports.business', groupKey: 'reports', label: 'Báo cáo kinh doanh', roles: REPORT_VIEW_ROLES },
   { key: 'reports.marketing', groupKey: 'reports', label: 'Báo cáo Marketing', roles: [...REPORTS_ROLES, ROLES.NHAN_VIEN_MARKETING] },
   // 2026-10-08: sua 2 cot Khach moi/Ghi chu cua BC thang Marketing va ghi nguoc Google Sheets.
   { key: 'reports.marketing.edit', groupKey: 'reports', label: 'Báo cáo Marketing: quản lý BC tháng và ánh xạ nhân viên (chỉ Quản lý)', roles: MANAGER_ONLY, forbiddenRoles: ALL_ROLES.filter(role => role !== ROLES.QUAN_LY), requires: 'reports.marketing' },
-  { key: 'reports.business.refreeze', groupKey: 'reports', label: 'Báo cáo kinh doanh: tính lại tháng đã chốt (cần Báo cáo kinh doanh)', roles: MANAGER_ONLY, requires: 'reports.business' },
   { key: 'reports.export', groupKey: 'reports', label: 'Xuất Excel báo cáo', roles: REPORTS_ROLES },
 
   // --- Quan ly don hang ---
@@ -118,7 +119,7 @@ const ALWAYS_ON_KEYS = Object.freeze(FEATURES.filter(f => f.alwaysOn).map(f => f
 /** Moi key `reports.*` — dung cho cac endpoint dung chung (/api/dashboard, /api/debug). */
 const REPORT_VIEW_FEATURES = Object.freeze([
   'reports.overview', 'reports.products', 'reports.invoices',
-  'reports.customers', 'reports.debt', 'reports.business'
+  'reports.debt', 'reports.business'
 ]);
 const ANY_REPORTS_FEATURES = Object.freeze(FEATURE_KEYS.filter(k => k.startsWith('reports.')));
 

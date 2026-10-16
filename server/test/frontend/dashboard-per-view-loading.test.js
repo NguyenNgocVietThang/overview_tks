@@ -63,11 +63,6 @@ function payloadFor(view, marker = 'A') {
           }
         }
       };
-    case 'customers':
-      return {
-        updatedAt: marker, kpi: { totalCustomers: 9, customersWithDebt: 2, totalDebt: 300000 }, filters: { customers: filters('Tất cả') },
-        customers: { topDebt: [], topRevenue: { top15: [], all: [], label: 'Tất cả' } }
-      };
     case 'debt':
       return {
         updatedAt: marker, kpi: {}, filters: {},
@@ -171,15 +166,15 @@ test('bam sang tab chua tai: tai dung tab do roi ve; quay lai tab da tai thi kho
   await settle();
   assert.deepEqual(page.viewsCalled(), ['overview']);
 
-  page.run("switchView('customers')");
+  page.run("switchView('invoices')");
   await settle();
-  assert.deepEqual(page.viewsCalled(), ['overview', 'customers']);
-  assert.equal(page.text('cu-total'), '9', 'tab Khach hang ve tu payload cua chinh no');
+  assert.deepEqual(page.viewsCalled(), ['overview', 'invoices']);
+  assert.match(page.text('endOfDayRows'), /HD-A/);
 
   page.run("switchView('overview')");
-  page.run("switchView('customers')");
+  page.run("switchView('invoices')");
   await settle();
-  assert.deepEqual(page.viewsCalled(), ['overview', 'customers'], 'tab con moi (cung bo loc, chua het han) khong tai lai');
+  assert.deepEqual(page.viewsCalled(), ['overview', 'invoices'], 'tab con moi (cung bo loc, chua het han) khong tai lai');
 });
 
 test('tab chua co du lieu hien man che "Dang tai" toi khi tai xong', async () => {
@@ -284,31 +279,31 @@ test('gop payload: Tong quan va Hang hoa (day du) khong ghi de mat truong cua nh
 test('tab tu tai lai khi server bao co du lieu moi (dataEpoch tang): tab dang xem ngay, tab khac khi mo', async () => {
   const page = createPage();
   await settle();
-  page.run("switchView('customers')");
+  page.run("switchView('invoices')");
   await settle();
-  assert.deepEqual(page.viewsCalled(), ['overview', 'customers']);
+  assert.deepEqual(page.viewsCalled(), ['overview', 'invoices']);
 
   page.dash.state.dataEpoch += 1; // nhu SSE 'dashboard-updated'
   page.run("switchView('overview')");
   await settle();
-  assert.deepEqual(page.viewsCalled(), ['overview', 'customers', 'overview'], 'Tong quan da cu -> tai lai khi mo');
+  assert.deepEqual(page.viewsCalled(), ['overview', 'invoices', 'overview'], 'Tong quan da cu -> tai lai khi mo');
   assert.equal(page.veilOn(), false, 'da co du lieu cu de ve nen khong bat man che');
 });
 
 test('du lieu tab qua VIEW_MAX_AGE (5 phut) duoc tai lai khi mo tab, du khong co su kien nao', async () => {
   const page = createPage();
   await settle();
-  page.run("switchView('customers')");
+  page.run("switchView('invoices')");
   await settle();
   page.run("switchView('overview')");
   await settle();
   const before = page.calls.length;
 
-  page.dash.state.viewMeta.customers.at -= 6 * 60 * 1000;
-  page.run("switchView('customers')");
+  page.dash.state.viewMeta.invoices.at -= 6 * 60 * 1000;
+  page.run("switchView('invoices')");
   await settle();
   assert.equal(page.calls.length, before + 1);
-  assert.equal(page.calls[before].view, 'customers');
+  assert.equal(page.calls[before].view, 'invoices');
 });
 
 test('moi tab co request rieng: chuyen tab KHONG huy request tab khac; doi bo loc cua chinh tab huy request cu cua no', async () => {
@@ -352,15 +347,15 @@ test('loi tai tab dang xem (chua co du lieu) hien hop loi + thu lai; loi tai tab
   const page = createPage({ respond: url => (viewOf(url) === 'overview' ? payloadFor('overview') : undefined) });
   await settle();
 
-  page.run("switchView('customers')");
+  page.run("switchView('invoices')");
   page.calls[1].fail(500);
   await settle();
   assert.equal(page.doc.getElementById('dashboardLoadError').hidden, false, 'tab dang xem chua co du lieu -> hien hop loi');
   assert.equal(page.veilOn(), false, 'loi cung phai tat man che');
 
   page.run("retryLoadData()");
-  assert.equal(page.calls[2].view, 'customers', 'Thu lai tai dung tab dang xem');
-  page.calls[2].resolve(payloadFor('customers'));
+  assert.equal(page.calls[2].view, 'invoices', 'Thu lai tai dung tab dang xem');
+  page.calls[2].resolve(payloadFor('invoices'));
   await settle();
   assert.equal(page.doc.getElementById('dashboardLoadError').hidden, true);
 
@@ -384,34 +379,34 @@ test('renderView bo qua tab chua tai xong (khong nem loi khi state.data moi co p
 test('cache sessionStorage luu theo tab (kem views) va khoi phuc: ve ngay tu cache, van hoi lai server cho tab dang mo', async () => {
   const first = createPage();
   await settle();
-  first.run("switchView('customers')");
+  first.run("switchView('invoices')");
   await settle();
   const cache = JSON.parse(first.dom.window.sessionStorage.getItem('tksDashboardCache'));
-  assert.deepEqual(Object.keys(cache.views).sort(), ['customers', 'overview']);
+  assert.deepEqual(Object.keys(cache.views).sort(), ['invoices', 'overview']);
   assert.match(cache.views.overview.sig, /^view=overview&days=30&inMode=days&inDays=30$/);
   assert.equal(cache.data.kpi.totalCustomers, 9);
 
-  const second = createPage({ hash: '#customers', cache, respond: () => undefined });
-  assert.equal(second.text('cu-total'), '9', 've ngay tu cache truoc khi server tra loi');
+  const second = createPage({ hash: '#invoices', cache, respond: () => undefined });
+  assert.match(second.text('endOfDayRows'), /HD-A/);
   assert.equal(second.veilOn(), false, 'da co du lieu trong cache -> khong bat man che');
   await settle();
-  assert.deepEqual(second.viewsCalled(), ['customers'], 'van hoi lai server cho tab dang mo, khong keo tab khac');
+  assert.deepEqual(second.viewsCalled(), ['invoices'], 'van hoi lai server cho tab dang mo, khong keo tab khac');
 });
 
 test('cache cu (ban day du 6 tab, khong co views) van dung duoc: cac tab du khoa du lieu duoc coi la da tai va tai lai khi mo', async () => {
   const legacy = {
-    data: { ...payloadFor('overview'), ...payloadFor('customers'), kpi: { ...kpi() } },
+    data: { ...payloadFor('overview'), ...payloadFor('debt'), kpi: { ...kpi() } },
     days: 30,
-    filters: { products: { mode: 'days', days: 30 }, invoices: { mode: 'days', days: 30 }, customers: { mode: 'all' } },
+    filters: { products: { mode: 'days', days: 30 }, invoices: { mode: 'days', days: 30 } },
     productStatus: 'all'
   };
   const page = createPage({ cache: legacy, respond: () => undefined });
   assert.equal(page.dash.viewIsLoaded('overview'), true);
-  assert.equal(page.dash.viewIsLoaded('customers'), true);
+  assert.equal(page.dash.viewIsLoaded('debt'), true);
   assert.equal(page.dash.viewIsLoaded('invoices'), false);
 
-  page.run("switchView('customers')");
-  assert.equal(page.calls.filter(call => call.view === 'customers').length, 1, 'cache cu chua co chu ky -> phai hoi lai server');
+  page.run("switchView('debt')");
+  assert.equal(page.calls.filter(call => call.view === 'debt').length, 1, 'cache cu chua co chu ky -> phai hoi lai server');
 });
 
 test('sessionStorage day: bo cache cu thay vi giu ban cu hon man hinh', async () => {
@@ -422,13 +417,13 @@ test('sessionStorage day: bo cache cu thay vi giu ban cu hon man hinh', async ()
   const realSetItem = page.dom.window.Storage.prototype.setItem;
   page.dom.window.Storage.prototype.setItem = () => { throw new Error('QuotaExceededError'); };
   try {
-    page.run("switchView('customers')");
+    page.run("switchView('invoices')");
     await settle();
   } finally {
     page.dom.window.Storage.prototype.setItem = realSetItem;
   }
   assert.equal(storage.getItem('tksDashboardCache'), null);
-  assert.equal(page.text('cu-total'), '9', 'loi luu cache khong duoc lam hong man hinh');
+  assert.match(page.text('endOfDayRows'), /HD-A/);
 });
 
 test('sau khi nap quyen: hash tro toi tab khong duoc xem -> van tai tab dang mo (khong bi trang)', async () => {
@@ -472,7 +467,7 @@ test('hop bao loi cua tab truoc bien mat khi chuyen sang tab khac (khong con hie
   const page = createPage({ respond: url => (viewOf(url) === 'overview' ? payloadFor('overview') : undefined) });
   await settle();
 
-  page.run("switchView('customers')");
+  page.run("switchView('invoices')");
   page.calls[1].fail(500);
   await settle();
   assert.equal(page.doc.getElementById('dashboardLoadError').hidden, false);

@@ -43,13 +43,13 @@ function createDashboard() {
   return dom;
 }
 
-test('registry bao phủ đủ 18 bảng trong Báo cáo tổng hợp (không còn 2 bảng Đặt hàng / Trả hàng của tab Hóa đơn; thêm 3 bảng Báo cáo kinh doanh)', () => {
+test('registry bao phủ đủ 16 bảng trong Báo cáo tổng hợp (không còn Đặt hàng / Trả hàng / Khách hàng cũ; có 3 bảng của tab Khách hàng mới)', () => {
   const dom = createDashboard();
   const expected = [
     'cpDetail', 'productReport', 'recentStockout', 'stockout90d', 'stockout30d',
     'endOfDay', 'todayNewProducts', 'topSelling',
     'allProducts', 'inventoryValue', 'newlyImported',
-    'customerRevenue', 'topDebt', 'debtManagement', 'debtPenalty',
+    'debtManagement', 'debtPenalty',
     'businessSales', 'businessCustomers', 'businessProducts'
   ];
   const actual = Object.keys(dom.window.TABLE_EXPLORER_CONFIGS);
@@ -208,26 +208,6 @@ test('điều hướng biểu đồ xóa tìm kiếm, chuyển đúng trang và 
   dom.window.close();
 });
 
-test('điều hướng tới dòng doanh thu khách theo tên khách (khách gộp hai cơ sở, không còn mã KH)', () => {
-  const dom = createDashboard();
-  const document = dom.window.document;
-  const customers = [
-    { name: 'Công ty Minh Anh', branch: 'Hà Nội', revenue: 100, saleOrderCount: 1 },
-    { name: 'Công ty Hồng Hà', branch: 'Hà Nội, Sài Gòn', revenue: 200, saleOrderCount: 2 }
-  ];
-  const ids = {
-    tbody: 'customerRevenueRows', pagination: 'customerRevenuePagination',
-    firstBtn: 'customerRevenueFirstPage', prevBtn: 'customerRevenuePrevPage',
-    nextBtn: 'customerRevenueNextPage', lastBtn: 'customerRevenueLastPage', label: 'customerRevenuePageLabel'
-  };
-  dom.window.renderPaginatedRows('customerRevenue', ids, customers,
-    item => `<tr><td>${item.code}</td><td>${item.name}</td></tr>`, 2, 'Không có dữ liệu');
-  dom.window.navigateChartToTable('customerRevenue', dom.window.customerIdentity(customers[1]));
-
-  assert.equal(document.querySelector('#customerRevenueRows tr.table-row-target').dataset.tableItemId, 'công ty hồng hà');
-  dom.window.close();
-});
-
 test('mục biểu đồ đã biến mất chỉ thông báo và giữ nguyên bộ lọc bảng', () => {
   const dom = createDashboard();
   const document = dom.window.document;
@@ -280,8 +260,7 @@ test('xuất file (Excel/HTML) gửi đúng bộ lọc thời gian riêng của 
   // khóa bộ lọc của bảng trên trang -> [khoảng ngày]; mỗi bảng một khoảng khác nhau để phát hiện lẫn lộn.
   const ranges = {
     topSelling: ['2026-01-01', '2026-01-07'], newlyImported: ['2026-02-01', '2026-02-07'],
-    newProducts: ['2026-03-01', '2026-03-07'], invoices: ['2026-04-01', '2026-04-07'],
-    customers: ['2026-07-01', '2026-07-07']
+    newProducts: ['2026-03-01', '2026-03-07'], invoices: ['2026-04-01', '2026-04-07']
   };
   Object.entries(ranges).forEach(([key, [from, to]]) => win.setTableDateFilter(key, from, to));
 
@@ -290,9 +269,7 @@ test('xuất file (Excel/HTML) gửi đúng bộ lọc thời gian riêng của 
     'products.top-selling': ['products', 'topSelling'],
     'products.newly-imported': ['newlyImported', 'newlyImported'],
     'overview.new-products': ['newProducts', 'newProducts'],
-    'overview.transactions': ['invoices', 'invoices'],
-    'customers.revenue': ['customers', 'customers'],
-    'customers.debt': ['customers', 'customers']
+    'overview.transactions': ['invoices', 'invoices']
   };
   Object.entries(exportTables).forEach(([tableKey, [payloadKey, stateKey]]) => {
     const [from, to] = ranges[stateKey];

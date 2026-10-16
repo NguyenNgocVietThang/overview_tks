@@ -97,22 +97,25 @@ const rowsOf = (page, tbodyId) => [...page.$(tbodyId).querySelectorAll('tr.doc-r
 const rowById = (page, tbodyId, id) => rowsOf(page, tbodyId).find(tr => tr.dataset.tableItemId === id);
 const businessUrls = page => page.urls.map(u => u.href).filter(h => h.startsWith('/api/business-report/'));
 
-test('sub-nav co tab "Báo cáo kinh doanh" va #view-business co 4 muc (1 = Chi so tong quat)', () => {
+test('sub-nav co tab "Khách hàng" (thay tab Khach hang cu) va #view-business co 4 muc (1 = Chi so tong quat)', () => {
   const page = createPage();
   const btn = page.doc.querySelector('.report-subnav-item[data-view="business"]');
   assert.ok(btn, 'thieu nut sub-nav business');
-  assert.match(btn.textContent, /Báo cáo kinh doanh/);
+  assert.match(btn.textContent, /Khách hàng/);
+  assert.equal(page.doc.querySelectorAll('.report-subnav-item[data-view="customers"]').length, 0, 'tab Khach hang cu da go');
   const view = page.$('view-business');
   assert.ok(view, 'thieu #view-business');
+  assert.equal(view.querySelector('.view-title').textContent.trim(), 'Khách hàng');
   const titles = [...view.querySelectorAll('.section-head h2')].map(h => h.textContent.trim());
   assert.deepEqual(titles, ['Chỉ số tổng quát', 'Tăng trưởng Sale', 'Tăng trưởng khách hàng', 'Tăng trưởng mã hàng']);
   const steps = [...view.querySelectorAll('.section-step')].map(s => s.textContent.trim());
   assert.deepEqual(steps, ['1', '2', '3', '4']);
 });
 
-test('sidebar dung chung co muc Báo cáo kinh doanh (reports.business)', () => {
+test('sidebar dung chung co muc Khách hàng (reports.business), khong con reports.customers', () => {
   const nav = fs.readFileSync(path.join(publicDir, 'shared', 'shared-nav.js'), 'utf8');
-  assert.match(nav, /feature: 'reports\.business', view: 'business', label: 'Báo cáo kinh doanh'/);
+  assert.match(nav, /feature: 'reports\.business', view: 'business', label: 'Khách hàng'/);
+  assert.doesNotMatch(nav, /reports\.customers/);
 });
 
 test('mo tab: goi dung 4 API /api/business-report (3 bang + overview), KHONG goi /api/dashboard?view=business', async () => {

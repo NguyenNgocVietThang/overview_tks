@@ -25,7 +25,6 @@ const SECTION_FEATURE = Object.freeze({
   products: 'reports.products',
   allProducts: 'reports.products',
   invoices: 'reports.invoices',
-  customers: 'reports.customers',
   debtManagement: 'reports.debt'
 });
 

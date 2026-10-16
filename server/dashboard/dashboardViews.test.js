@@ -42,7 +42,7 @@ test('ke hoach ca 5 tab (khong truyen view) = doc du 5 bang (khong con Dat hang,
   // Dat hang; don Phieu tam xem o trang Vong doi don hang). pgReader van doc duoc Dat hang cho tim kiem/xuat file.
   assert.deepEqual(
     plan.coreKeys.filter(key => key !== PERIODS_KEY).sort(),
-    [...dashboardPgReader.CORE_SHEET_NAMES].filter(name => name !== CONFIG.SHEET_ORDERS).sort()
+    [...dashboardPgReader.CORE_SHEET_NAMES].filter(name => name !== CONFIG.SHEET_ORDERS && name !== CONFIG.SHEET_RETURNS).sort()
   );
   assert.ok(!plan.coreKeys.includes(CONFIG.SHEET_ORDERS));
   assert.ok(!plan.coreKeys.includes(PERIODS_KEY), 'quy tac 1-3-7 da bo');
@@ -64,13 +64,12 @@ test('moi tab chi doc dung nguon cua no; Cong no khong doc bang nguon core nao (
   const sheetsOf = name => resolveViewPlan([name]).coreKeys;
   assert.deepEqual(sheetsOf('products'), [CONFIG.SHEET_CATEGORIES, CONFIG.SHEET_PRODUCTS]);
   assert.deepEqual(sheetsOf('invoices'), [CONFIG.SHEET_INVOICES], 'Hoa don khong doc Dat hang/Tra hang (the chi so Tra hang da go)');
-  assert.deepEqual(sheetsOf('customers'), [CONFIG.SHEET_INVOICES, CONFIG.SHEET_RETURNS, CONFIG.SHEET_CUSTOMERS]);
+  assert.throws(() => sheetsOf('customers'), error => error.code === 'INVALID_VIEW', 'tab Khach hang cu da go');
   assert.deepEqual(sheetsOf('debt'), []);
   assert.equal(resolveViewPlan(['debt']).needsDebt, true);
   assert.equal(resolveViewPlan(['debt']).rollups.size, 0);
   assert.deepEqual([...resolveViewPlan(['invoices']).rollups].sort(), ['invoiceQuantity', 'invoicesRevenue']);
   assert.deepEqual([...resolveViewPlan(['products']).rollups].sort(), ['firstPurchase', 'newlyImportedSales', 'productSales']);
-  assert.equal(resolveViewPlan(['customers']).rollups.size, 0);
 });
 
 test('nhieu tab: hop cac nguon theo thu tu chuan, khoa cache on dinh khong phu thuoc thu tu truyen vao', () => {

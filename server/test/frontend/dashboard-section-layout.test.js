@@ -72,14 +72,13 @@ test('không còn thanh lọc thời gian chung; bộ lọc Từ – Đến gắ
   // Moi bang 1 bo loc rieng (2 bang Dat hang / Tra hang cua tab Hoa don da bo 2026-10-01).
   assert.deepEqual(map, {
     topSelling: 'topSelling', newlyImported: 'newlyImported', todayNewProducts: 'newProducts',
-    endOfDay: 'invoices',
-    customerRevenue: 'customers'
+    endOfDay: 'invoices'
   });
   assert.equal(new Set(Object.values(map)).size, Object.keys(map).length, 'khong bang nao dung chung bo loc');
 });
 
 test('không còn mục Chỉ số then chốt đầu tab; mỗi mục con có hàng chỉ số ngay dưới tiêu đề', () => {
-  ['overview', 'products', 'invoices', 'customers'].forEach(name => {
+  ['overview', 'products', 'invoices'].forEach(name => {
     const sections = [...view(name).querySelectorAll(':scope > section.section')];
     assert.ok(!sectionTitles(name).some(s => s.title === 'Chỉ số then chốt'), name);
     sections.forEach((section, index) => {
@@ -98,8 +97,7 @@ test('tham số bộ lọc gửi backend: np theo Hàng hóa, không còn ov/de'
   const map = new Function('return {' + match[1] + '}')();
   assert.deepEqual(map, {
     topSelling: ['pr'], newlyImported: ['ni'], newProducts: ['np'],
-    invoices: ['in'],
-    customers: ['cu']
+    invoices: ['in']
   });
   assert.equal(map.overview, undefined);
 });
@@ -110,7 +108,7 @@ function createRenderedDashboard(data) {
   dom.window.sessionStorage.setItem('tksDashboardCache', JSON.stringify({
     data,
     days: 30,
-    filters: { products: { mode: 'days', days: 30 }, invoices: { mode: 'days', days: 30 }, customers: { mode: 'all' } },
+    filters: { products: { mode: 'days', days: 30 }, invoices: { mode: 'days', days: 30 } },
     productStatus: 'all'
   }));
   dom.window.HTMLCanvasElement.prototype.getContext = () => ({});
@@ -154,7 +152,6 @@ function samplePayload() {
       newlyImported: { products: [], salesRevenue: 0, salesQty: 0 }
     },
     allProducts: [],
-    customers: { topDebt: [], topRevenue: { top15: [], all: [], label: '—' } }
   };
 }
 

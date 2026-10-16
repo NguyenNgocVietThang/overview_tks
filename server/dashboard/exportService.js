@@ -50,8 +50,6 @@ const TABLE_TITLES = Object.freeze({
   'products.all': 'Tất cả mã hàng',
   'products.newly-imported': 'Hàng mới nhập',
   'products.inventory': 'Chi tiết tồn kho theo sản phẩm',
-  'customers.revenue': 'Doanh thu theo khách',
-  'customers.debt': 'Chi tiết khách nợ',
   'customers.productDetail': 'Bảng chi tiết sản phẩm theo khách',
   'overview.productReport': 'Báo cáo hàng hóa',
   'debt.management': 'Quản lý công nợ',
@@ -107,11 +105,9 @@ function normalizeFilters(rawFilters) {
   // (Bo loc `overview` da bo 2026-10-05 — getDashboardData khong con dung; client chua bao gio gui.)
   const products = normalizeFilterSpec(raw.products);
   const invoices = normalizeFilterSpec(raw.invoices);
-  const customers = normalizeFilterSpec(raw.customers, 'all');
   return {
     products,
     invoices,
-    customers,
     newProducts: normalizeFilterSpec(raw.newProducts),
     // Bo loc rieng bang Hang moi nhap; khong gui thi dung bo loc Hang hoa.
     // (Bo loc `orders`/`returns` cua 2 bang Dat hang / Tra hang da bo 2026-10-01.)
@@ -227,9 +223,9 @@ const DEBT_COLUMNS = [
   aggregateColumn('inScheduleDebt', 'Doanh số trong kỳ', 'number', 'Doanh số trong lịch thanh toán = hóa đơn trừ trả hàng trong số ngày của lịch; bằng nợ hiện tại trừ nợ quá hạn (VNĐ).'),
   aggregateColumn('overdueDebt', 'Nợ quá hạn', 'number', 'Nợ hiện tại trừ nợ trong lịch thanh toán (hóa đơn trừ trả hàng trong số ngày của lịch), không âm (VNĐ).'),
   aggregateColumn('currentDebtToSalesRatio', 'Tỷ lệ nợ hiện tại trên doanh số', 'percent',
-    'Nợ hiện tại chia cho doanh số trung bình 4 tháng (Báo cáo kinh doanh).'),
+    'Nợ hiện tại chia cho doanh số trung bình 4 tháng (tab Khách hàng).'),
   aggregateColumn('overdueToSalesRatio', 'Nợ quá hạn trên doanh số trung bình', 'percent',
-    'Nợ quá hạn chia cho doanh số trung bình 4 tháng (Báo cáo kinh doanh).'),
+    'Nợ quá hạn chia cho doanh số trung bình 4 tháng (tab Khách hàng).'),
   aggregateColumn('automaticAlert', 'Cảnh báo tự động', 'text',
     'Quá hạn khi nợ quá hạn lớn hơn 0 đồng.', { wrapText: true }),
   aggregateColumn('overdueStreak', 'Số phiên liên tiếp', 'number',
@@ -471,20 +467,8 @@ async function loadSourceRowsForItems(source, env, items, perBranch) {
 
 // ---------- Dinh nghia tung bang (worksheets + ham nap dong) ----------
 
-function customerRevenueRows(dashboard) {
-  const topRevenue = ((dashboard.customers || {}).topRevenue || {});
-  return topRevenue.all || topRevenue.top50 || [];
-}
-
 const BRANCH_HANOI_LABEL = 'Hà Nội';
 const BRANCH_SAIGON_LABEL = 'Sài Gòn';
-
-/** So tien cua khach o 1 co so vat ly: map theo co so, thieu map thi dong 1 co so lay tron tong. */
-function amountInBranch(item, mapKey, total, branchLabel) {
-  const map = item && item[mapKey];
-  if (map) return Number(map[branchLabel]) || 0;
-  return item && item.branch === branchLabel ? Number(total) || 0 : 0;
-}
 
 /** Bang 1 worksheet: cac dong logic (ma) ghep voi dong tho cua 1 nguon catalogue. */
 function singleSourceTable(options) {
@@ -809,39 +793,6 @@ const TABLE_SPECS = {
     key: 'inventory', name: 'Chi tiết tồn kho', columns: inventoryColumns(scope.aggregate), codeKey: 'code',
     rows: dashboard => inventoryRows(dashboard.allProducts, scope.aggregate),
     summaryKeys: ['stockValue', 'stock', 'stockHanoi', 'stockSaigon']
-  }),
-  'customers.revenue': (context, scope) => singleSourceTable({
-    key: 'customer_revenue', name: 'Doanh thu theo khách', sourceKey: 'customers', branchColumn: scope.aggregate ? 'customer' : false,
-    items: customerRevenueRows,
-    derived: [
-      { key: 'sale_order_count', label: 'Số đơn bán', type: 'number', description: 'Số đơn bán của khách trong kỳ.' },
-      { key: 'period_revenue', label: 'Doanh thu trong kỳ', type: 'number', description: 'Doanh thu thực tế bán cho khách trong kỳ, đã trừ hàng trả lại (VNĐ).' },
-      { key: 'revenue_hn', label: 'Doanh thu Hà Nội', type: 'number', description: 'Doanh thu bán cho khách ở cơ sở Hà Nội trong kỳ (VNĐ).' },
-      { key: 'revenue_sg', label: 'Doanh thu Sài Gòn', type: 'number', description: 'Doanh thu bán cho khách ở cơ sở Sài Gòn trong kỳ (VNĐ).' }
-    ],
-    derivedValues: {
-      sale_order_count: item => item.saleOrderCount,
-      period_revenue: item => item.revenue,
-      revenue_hn: item => amountInBranch(item, 'revenueByBranch', item.revenue, BRANCH_HANOI_LABEL),
-      revenue_sg: item => amountInBranch(item, 'revenueByBranch', item.revenue, BRANCH_SAIGON_LABEL)
-    },
-    // HTML: KPI/bieu do chinh theo doanh thu TRONG KY (khong phai "Tổng doanh thu" ca doi cua khach).
-    summaryKeys: ['d_period_revenue', 'd_revenue_hn', 'd_revenue_sg']
-  }),
-  'customers.debt': (context, scope) => singleSourceTable({
-    key: 'customer_debt', name: 'Khách còn nợ', sourceKey: 'customers', branchColumn: scope.aggregate ? 'customer' : false,
-    items: dashboard => (dashboard.customers || {}).topDebt || [],
-    derived: [
-      { key: 'period_revenue', label: 'Doanh thu trong kỳ', type: 'number', description: 'Doanh thu thực tế bán cho khách trong kỳ, đã trừ hàng trả lại (VNĐ).' },
-      { key: 'debt_hn', label: 'Công nợ Hà Nội', type: 'number', description: 'Công nợ của khách ở cơ sở Hà Nội (VNĐ).' },
-      { key: 'debt_sg', label: 'Công nợ Sài Gòn', type: 'number', description: 'Công nợ của khách ở cơ sở Sài Gòn (VNĐ).' }
-    ],
-    derivedValues: {
-      period_revenue: item => item.periodRevenue,
-      debt_hn: item => amountInBranch(item, 'debtByBranch', item.debt, BRANCH_HANOI_LABEL),
-      debt_sg: item => amountInBranch(item, 'debtByBranch', item.debt, BRANCH_SAIGON_LABEL)
-    },
-    summaryKeys: ['no_hien_tai', 'd_debt_hn', 'd_debt_sg']
   }),
   'debt.management': (context, scope) => aggregateTable({
     key: 'debt_management', name: 'Quản lý công nợ',

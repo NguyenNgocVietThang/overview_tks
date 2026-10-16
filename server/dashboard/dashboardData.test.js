@@ -333,134 +333,6 @@ test('prewarmDashboardCaches van resolve (khong nem loi) va chi log loi khi mot 
   assert.ok(logs.some(msg => msg.includes('Sài Gòn') && msg.includes('loi')), 'co so loi phai duoc log loi, khong lam prewarm crash');
 });
 
-test('getDashboardData tong hop topRevenue tu sheet Hoa don khi sheet Bao cao ban hang khong co', async () => {
-  const { dashboardData, dashboardPgReader } = freshDashboardData();
-  const CONFIG = require('../config');
-  mockPgSheets(dashboardPgReader, {
-    [CONFIG.SHEET_CUSTOMERS]: [
-      ['Mã khách hàng', 'Tên khách hàng', 'Điện thoại', 'Giới tính', 'Nhóm khách hàng', 'Địa chỉ', 'Email', 'Nợ hiện tại'],
-      ['KH-01', 'Khách Số Một', '0901111111', '', '', '', '', 0],
-      ['KH-02', 'Khách Số Hai', '0902222222', '', '', '', '', 0]
-    ],
-    [CONFIG.SHEET_INVOICES]: [
-      ['Mã hóa đơn', 'Ngày bán', 'Khách hàng', 'SĐT khách', 'Nhân viên bán', 'Chi nhánh', 'Tổng tiền hàng', 'Giảm giá', 'Khách đã trả', 'Trạng thái', 'ID', 'ID gian', 'Mã đặt', 'ID CN', 'ID NV', 'ID KH', 'Mã khách hàng'],
-      ['HD-01', '10/08/2026 10:00:00', 'Khách Số Một', '0901111111', '', '', 500000, 0, 500000, 'Hoàn thành', '', '', '', '', '', '', 'KH-01'],
-      ['HD-02', '11/08/2026 14:00:00', 'Khách Số Một', '0901111111', '', '', 300000, 0, 300000, 'Hoàn thành', '', '', '', '', '', '', 'KH-01'],
-      ['HD-03', '11/08/2026 15:00:00', 'Khách Số Hai', '0902222222', '', '', 1200000, 0, 1200000, 'Hoàn thành', '', '', '', '', '', '', 'KH-02'],
-      ['HD-04', '11/08/2026 16:00:00', 'Khách Hủy', '0903333333', '', '', 9999999, 0, 0, 'Đã hủy', '', '', '', '', '', '', 'KH-03']
-    ],
-    [CONFIG.SHEET_RETURNS]: [
-      ['Mã trả hàng', 'Ngày trả', 'Mã hóa đơn', 'Khách hàng', 'Tổng tiền trả', 'Trạng thái', 'ID', 'ID gian', 'ID HĐ', 'ID CN', 'CN', 'ID NV', 'NV', 'ID KH', 'Mã khách hàng'],
-      ['TH-01', '12/08/2026 09:00:00', 'HD-03', 'Khách Số Hai', 200000, 'Hoàn thành', '', '', '', '', '', '', '', '', 'KH-02']
-    ]
-  });
-  dashboardData.__test__.resetCaches();
-
-  const data = await dashboardData.getDashboardData({
-    ...BASE_FILTERS,
-    customers: { mode: 'all' }
-  });
-
-  const topRevenue = data.customers.topRevenue;
-  assert.ok(topRevenue, 'co topRevenue trong customers');
-  assert.equal(topRevenue.top15.length, 2, 'co dung 2 khach hoan thanh giao dich');
-  assert.equal(topRevenue.all.length, 2, 'bang chi tiet co tat ca khach hang co doanh thu');
-  // KH-02: 1,200,000 - 200,000 = 1,000,000
-  assert.equal(topRevenue.top15[0].code, 'KH-02');
-  assert.equal(topRevenue.top15[0].revenue, 1000000);
-  assert.equal(topRevenue.top15[0].saleOrderCount, 1);
-  // KH-01: 500,000 + 300,000 = 800,000
-  assert.equal(topRevenue.top15[1].code, 'KH-01');
-  assert.equal(topRevenue.top15[1].revenue, 800000);
-  assert.equal(topRevenue.top15[1].saleOrderCount, 2);
-});
-
-test('Ca hai: doanh thu cua khach (gop theo ten) tach theo tung co so, tra hang tru dung co so', async () => {
-  const { dashboardData, dashboardPgReader } = freshDashboardData();
-  const CONFIG = require('../config');
-  const { BRANCHES, BRANCH_BOTH } = require('../branch/branches');
-  const invoiceHeader = ['Mã hóa đơn', 'Ngày bán', 'Khách hàng', 'SĐT khách', 'Nhân viên bán', 'Chi nhánh', 'Tổng tiền hàng', 'Giảm giá', 'Khách đã trả', 'Trạng thái', 'ID', 'ID gian', 'Mã đặt', 'ID CN', 'ID NV', 'ID KH', 'Mã khách hàng'];
-  const returnHeader = ['Mã trả hàng', 'Ngày trả', 'Mã hóa đơn', 'Khách hàng', 'Tổng tiền trả', 'Trạng thái'];
-  dashboardPgReader.readCoreDashboardSheets = async branch => {
-    const result = Object.fromEntries(dashboardPgReader.CORE_SHEET_NAMES.map(name => [name, []]));
-    result[CONFIG.SHEET_INVOICES] = branch === BRANCHES.HANOI
-      ? [invoiceHeader, ['HD-1', '10/08/2026 10:00:00', 'Khách Chung', '', '', '', 500, 0, 500, 'Hoàn thành', '', '', '', '', '', '', 'KH-1']]
-      : [invoiceHeader, ['HD-9', '11/08/2026 10:00:00', 'Khách Chung', '', '', '', 300, 0, 300, 'Hoàn thành', '', '', '', '', '', '', 'KH-9']];
-    result[CONFIG.SHEET_RETURNS] = branch === BRANCHES.SAIGON
-      ? [returnHeader, ['TH-9', '12/08/2026 10:00:00', 'HD-9', 'Khách Chung', 100, 'Hoàn thành']]
-      : [returnHeader];
-    return result;
-  };
-  dashboardData.__test__.resetCaches();
-
-  const data = await dashboardData.getDashboardData({ ...BASE_FILTERS, customers: { mode: 'all' } }, BRANCH_BOTH);
-
-  const [row] = data.customers.topRevenue.all;
-  assert.equal(data.customers.topRevenue.all.length, 1, 'khach cung ten o hai co so gop lam mot dong');
-  assert.equal(row.revenue, 700);
-  assert.deepEqual(row.revenueByBranch, { [BRANCHES.HANOI]: 500, [BRANCHES.SAIGON]: 200 });
-});
-
-test('Doanh thu theo khach tru phieu tra "Đã trả", bo qua Phiếu tạm, khach chi co tra hang ra so am', async () => {
-  const { dashboardData, dashboardPgReader } = freshDashboardData();
-  const CONFIG = require('../config');
-  const { BRANCHES } = require('../branch/branches');
-  const invoiceHeader = ['Mã hóa đơn', 'Ngày bán', 'Khách hàng', 'SĐT khách', 'Nhân viên bán', 'Chi nhánh', 'Tổng tiền hàng', 'Giảm giá', 'Khách đã trả', 'Trạng thái', 'ID', 'ID gian', 'Mã đặt', 'ID CN', 'ID NV', 'ID KH', 'Mã khách hàng'];
-  const returnHeader = ['Mã trả hàng', 'Ngày trả', 'Mã hóa đơn', 'Khách hàng', 'Tổng tiền trả', 'Trạng thái'];
-  dashboardPgReader.readCoreDashboardSheets = async () => {
-    const result = Object.fromEntries(dashboardPgReader.CORE_SHEET_NAMES.map(name => [name, []]));
-    result[CONFIG.SHEET_INVOICES] = [invoiceHeader,
-      ['HD-1', '10/08/2026 10:00:00', 'Khách A', '', '', '', 1000, 0, 1000, 'Hoàn thành', '', '', '', '', '', '', 'KH-A']];
-    result[CONFIG.SHEET_RETURNS] = [returnHeader,
-      ['TH-1', '11/08/2026 10:00:00', 'HD-1', 'Khách A', 300, 'Đã trả'],
-      ['TH-2', '11/08/2026 11:00:00', 'HD-1', 'Khách A', 999, 'Phiếu tạm'],
-      ['TH-3', '11/08/2026 12:00:00', 'HD-X', 'Khách B', 50, 'Đã trả']];
-    return result;
-  };
-  dashboardData.__test__.resetCaches();
-
-  const data = await dashboardData.getDashboardData({ ...BASE_FILTERS, customers: { mode: 'all' } }, BRANCHES.HANOI);
-
-  const byName = Object.fromEntries(data.customers.topRevenue.all.map(row => [row.name, row]));
-  assert.equal(byName['Khách A'].revenue, 700, '1000 ban - 300 tra (Phiếu tạm không tính)');
-  assert.equal(byName['Khách A'].saleOrderCount, 1);
-  assert.equal(byName['Khách B'].revenue, -50, 'khach chi co tra hang van co dong, doanh thu am');
-  assert.equal(byName['Khách B'].saleOrderCount, 0);
-});
-
-test('Khach no: doanh thu trong ky la doanh thu thuc te (tru tra hang), noi theo ten khach chu khong theo SDT', async () => {
-  const { dashboardData, dashboardPgReader } = freshDashboardData();
-  const CONFIG = require('../config');
-  const { BRANCHES } = require('../branch/branches');
-  const invoiceHeader = ['Mã hóa đơn', 'Ngày bán', 'Khách hàng', 'SĐT khách', 'Nhân viên bán', 'Chi nhánh', 'Tổng tiền hàng', 'Giảm giá', 'Khách đã trả', 'Trạng thái', 'ID', 'ID gian', 'Mã đặt', 'ID CN', 'ID NV', 'ID KH', 'Mã khách hàng'];
-  const returnHeader = ['Mã trả hàng', 'Ngày trả', 'Mã hóa đơn', 'Khách hàng', 'Tổng tiền trả', 'Trạng thái'];
-  const customerHeader = ['Mã khách hàng', 'Tên khách hàng', 'Điện thoại', 'Nhóm khách hàng', 'Địa chỉ', 'Nợ hiện tại'];
-  dashboardPgReader.readCoreDashboardSheets = async () => {
-    const result = Object.fromEntries(dashboardPgReader.CORE_SHEET_NAMES.map(name => [name, []]));
-    // Hoa don khong co SDT (giong du lieu Postgres that).
-    result[CONFIG.SHEET_INVOICES] = [invoiceHeader,
-      ['HD-1', '10/08/2026 10:00:00', 'Khách A', '', '', '', 1000, 0, 1000, 'Hoàn thành', '', '', '', '', '', '', 'KH-A']];
-    result[CONFIG.SHEET_RETURNS] = [returnHeader,
-      ['TH-1', '11/08/2026 10:00:00', 'HD-1', 'Khách A', 300, 'Đã trả']];
-    result[CONFIG.SHEET_CUSTOMERS] = [customerHeader,
-      ['KH-A', 'Khách A', '0901', '', '', 500],
-      ['KH-C', 'Khách C', '0903', '', '', 200]];
-    return result;
-  };
-  dashboardData.__test__.resetCaches();
-
-  const all = await dashboardData.getDashboardData({ ...BASE_FILTERS, customers: { mode: 'all' } }, BRANCHES.HANOI);
-  const byName = Object.fromEntries(all.customers.topDebt.map(row => [row.name, row]));
-  assert.equal(byName['Khách A'].periodRevenue, 700, '1000 ban - 300 tra');
-  assert.equal(byName['Khách C'].periodRevenue, 0, 'khach no khong phat sinh trong ky');
-
-  dashboardData.__test__.resetCaches();
-  const ranged = await dashboardData.getDashboardData({
-    ...BASE_FILTERS, customers: { mode: 'range', from: '2026-08-01', to: '2026-08-31' }
-  }, BRANCHES.HANOI);
-  assert.deepEqual(ranged.customers.topDebt.map(row => row.name), ['Khách A'], 'khoang ngay chi giu khach co phat sinh');
-});
-
 test('inactive customers are excluded before branch/name merging from debt and customer counts', async () => {
   const { dashboardData, dashboardPgReader } = freshDashboardData();
   const CONFIG = require('../config');
@@ -476,33 +348,9 @@ test('inactive customers are excluded before branch/name merging from debt and c
   assert.equal(data.kpi.totalCustomers, 2);
   assert.equal(data.kpi.customersWithDebt, 2);
   assert.equal(data.kpi.totalDebt, 150);
-  const same = data.customers.topDebt.find(row => row.name === 'Same customer');
-  assert.equal(same.debt, 100);
-  assert.deepEqual(same.debtByBranch, { [BRANCHES.SAIGON]: 100 });
-  assert.equal(data.customers.topDebt.some(row => row.name === 'Inactive only'), false);
   const hanoi = await dashboardData.getDashboardData({ ...BASE_FILTERS, customers: { mode: 'all' } }, BRANCHES.HANOI);
   assert.equal(hanoi.kpi.totalCustomers, 0);
   assert.equal(hanoi.kpi.totalDebt, 0);
-});
-
-test('getDashboardData tra toan bo khach hang trong bang chi tiet doanh thu, khong gioi han 50', async () => {
-  const { dashboardData, dashboardPgReader } = freshDashboardData();
-  const CONFIG = require('../config');
-  const invoiceHeader = ['Mã hóa đơn', 'Ngày bán', 'Khách hàng', 'SĐT khách', 'Nhân viên bán', 'Chi nhánh', 'Tổng tiền hàng', 'Giảm giá', 'Khách đã trả', 'Trạng thá', 'ID', 'ID gian', 'Mã đặt', 'ID CN', 'ID NV', 'ID KH', 'Mã khách hàng'];
-  const invoiceRows = Array.from({ length: 55 }, (_, index) => {
-    const number = String(index + 1).padStart(2, '0');
-    return [`HD-${number}`, '10/08/2026 10:00:00', `Khách ${number}`, '', '', '', 100000 - index, 0, 100000 - index, 'Hoàn thành', '', '', '', '', '', '', `KH-${number}`];
-  });
-  mockPgSheets(dashboardPgReader, {
-    [CONFIG.SHEET_INVOICES]: [invoiceHeader, ...invoiceRows]
-  });
-  dashboardData.__test__.resetCaches();
-
-  const data = await dashboardData.getDashboardData(BASE_FILTERS);
-
-  assert.equal(data.customers.topRevenue.top15.length, 15, 'bieu do van chi hien top 15');
-  assert.equal(data.customers.topRevenue.all.length, 55, 'bang chi tiet tra du 55 khach hang');
-  assert.equal(data.customers.topRevenue.all[54].code, 'KH-55');
 });
 
 test('getDashboardData tra toan bo giao dich trong bang chi tiet, bieu do van chi top 15', async () => {
@@ -726,13 +574,6 @@ test('Ca hai cong KPI/bucket; hang hoa trung ma la 2 dong rieng, khach trung ten
     assert.equal(product.cost, 10);
     assert.equal(product.stockValue, product.stock * 10);
   });
-  assert.equal(data.customers.topDebt.find(customer => customer.name === 'Khách Hà Nội').branch, 'Hà Nội, Sài Gòn');
-  assert.deepEqual(
-    data.customers.topDebt.find(customer => customer.name === 'Khách Hà Nội').debtByBranch,
-    { [BRANCHES.HANOI]: 100, [BRANCHES.SAIGON]: 200 },
-    'cong no cua khach gop theo ten van tach duoc theo tung co so'
-  );
-  assert.deepEqual(data.customers.topDebt.find(customer => customer.name === 'Khách 2').debtByBranch, { [BRANCHES.HANOI]: 50 });
 });
 
 test('allProducts co "available" (ton - khach dat, KHONG cong van chuyen) va "inTransit" (cot Đang vận chuyển chi de xem), thieu cot thi = 0', async () => {
@@ -1921,24 +1762,22 @@ test('tung tab: tab khong dung rollup/cong no khong bi het hieu luc khi rollup d
   const compute = () => dashboardData.__test__.getComputeCallCount();
 
   await dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['debt'] });
-  await dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['customers'] });
-  assert.equal(compute(), 2);
+  assert.equal(compute(), 1);
 
   const { dashboardRollupEvents } = require('../kiotvietSync/dashboardRollupEvents');
   dashboardRollupEvents.emit('updated', { at: Date.now() });
 
   await dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['debt'] });
-  await dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['customers'] });
   await new Promise(resolve => setImmediate(resolve));
-  await dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['customers'] });
-  // Rollup chay theo timer, khong co hoa don moi -> bang Hoa don giu nguyen cache.
-  assert.equal(compute(), 2, 'Cong no va Khach hang khong dung rollup nen rollup doi khong lam tinh lai');
+  await dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['debt'] });
+  // Rollup chay theo timer, khong co hoa don moi -> Cong no (khong dung rollup) giu nguyen cache.
+  assert.equal(compute(), 1, 'Cong no khong dung rollup nen rollup doi khong lam tinh lai');
 
   await dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['overview'] });
-  assert.equal(compute(), 3);
+  assert.equal(compute(), 2);
   dashboardRollupEvents.emit('updated', { at: Date.now() });
   await dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['overview'] });
-  assert.equal(compute(), 4, 'Tong quan dung rollup nen phai tinh lai khi rollup doi');
+  assert.equal(compute(), 3, 'Tong quan dung rollup nen phai tinh lai khi rollup doi');
 });
 
 test('cache nguon theo tung bang: mo them tab chi doc bang con thieu, bang con han duoc dung lai', async () => {
@@ -1957,10 +1796,8 @@ test('cache nguon theo tung bang: mo them tab chi doc bang con thieu, bang con h
   assert.equal(reads.length, 1,
     'tab Hoa don chi can bang Hoa don, da co san tu tab Tong quan (khong doc Dat hang/Tra hang)');
 
-  await dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['customers'] });
-  assert.equal(reads.length, 2);
-  assert.deepEqual([...reads[1]], [CONFIG.SHEET_RETURNS],
-    'Khach hang chi doc them Tra hang; Hoa don/Khach hang da co trong cache');
+  await dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['products'] });
+  assert.equal(reads.length, 1, 'tab Hang hoa dung lai Nhom hang + Hang hoa da co trong cache tu tab Tong quan');
 });
 
 test('cache nguon theo tung bang: het han mem chi lam moi nen dung bang qua han, van tra du lieu cu ngay', async () => {
@@ -1997,12 +1834,12 @@ test('cache nguon theo tung bang: loi doc bang nguon tab dang mo duoc nem ra, la
   ctx.dashboardData.__test__.resetCaches();
 
   await assert.rejects(
-    ctx.dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['customers'] }),
+    ctx.dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['invoices'] }),
     /mat ket noi Postgres/
   );
   fail = false;
-  const data = await ctx.dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['customers'] });
-  assert.ok(data.customers, 'lan sau doc lai thanh cong sau khi loi');
+  const data = await ctx.dashboardData.getDashboardData(BASE_FILTERS, undefined, VIEW_TEST_VIEWER, { views: ['invoices'] });
+  assert.ok(data.invoices, 'lan sau doc lai thanh cong sau khi loi');
 });
 
 test('tham so views khong hop le bi tu choi 400, khong doc nguon nao', async () => {
@@ -2313,7 +2150,7 @@ test('cache Hoa don: lan doc dang chay khi bi het han duoc luu o trang thai qua 
   assert.deepEqual(reads[1], [CONFIG.SHEET_INVOICES]);
 });
 
-test('getDashboardData bo khach ngung hoat dong khoi tong khach va xep hang doanh thu theo khach', async () => {
+test('getDashboardData bo khach ngung hoat dong khoi tong khach', async () => {
   const { dashboardData, dashboardPgReader } = freshDashboardData();
   const CONFIG = require('../config');
   mockPgSheets(dashboardPgReader, {
@@ -2336,7 +2173,5 @@ test('getDashboardData bo khach ngung hoat dong khoi tong khach va xep hang doan
 
   const data = await dashboardData.getDashboardData({ ...BASE_FILTERS, customers: { mode: 'all' } });
 
-  assert.deepEqual(data.customers.topRevenue.all.map(entry => entry.code), ['KH-01']);
-  assert.equal(data.customers.topRevenue.all[0].revenue, 500000);
   assert.equal(data.kpi.totalCustomers, 1);
 });

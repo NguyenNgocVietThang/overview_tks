@@ -67,7 +67,7 @@ function columnsFor(kind, report) {
 function exportFieldsFor(kind, report, rows) {
   if (!KINDS.includes(kind)) throw invalid('Bảng xuất không hợp lệ.');
   return {
-    title: `Báo cáo kinh doanh · ${TITLES[kind]}`,
+    title: `Khách hàng · ${TITLES[kind]}`,
     selectionMode: 'custom',
     worksheets: [{
       key: kind,
@@ -127,7 +127,7 @@ async function createExportFile(kind, format, report, rows, columnKeys) {
   if (format === 'html') {
     return renderHtmlReport({
       meta: {
-        title: `Báo cáo kinh doanh · ${TITLES[kind]}`,
+        title: `Khách hàng · ${TITLES[kind]}`,
         branch: 'Hà Nội + Sài Gòn',
         generatedAt: report.computedAt ? new Date(report.computedAt) : new Date(),
         fileBase

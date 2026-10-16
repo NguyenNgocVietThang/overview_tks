@@ -21,8 +21,7 @@ dashboardData.getDashboardData = async (filters, branch, viewer, options) => {
     kpi: {},
     invoices: { periodRevenue: 1 },
     products: { childCategorySalesByParent: {}, availableParentCategories: [] },
-    debtManagement: { available: true },
-    customers: { topDebt: [] }
+    debtManagement: { available: true }
   };
 };
 
@@ -41,7 +40,7 @@ function dashboardHandler() {
 }
 
 const ALL_PERMISSIONS = [
-  'reports.overview', 'reports.products', 'reports.invoices', 'reports.customers', 'reports.debt'
+  'reports.overview', 'reports.products', 'reports.invoices', 'reports.business', 'reports.debt'
 ];
 
 function request(query, permissions = ALL_PERMISSIONS) {

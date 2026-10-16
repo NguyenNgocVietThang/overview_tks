@@ -13,13 +13,13 @@ function readDashboardHtml() {
   return fs.readFileSync(htmlPath, 'utf8');
 }
 
-test('giao dien gan dung 12 nut xuat Excel cho 12 bang co dinh (khong con 2 bang Dat hang / Tra hang)', () => {
+test('giao dien gan dung 10 nut xuat Excel cho 10 bang co dinh (khong con Dat hang / Tra hang / Khach hang cu)', () => {
   const html = readDashboardHtml();
   const matches = [...html.matchAll(/openExportDialog\('([^']+)'\)/g)].map(match => match[1]);
-  assert.equal(matches.length, 12);
-  assert.equal(new Set(matches).size, 12);
+  assert.equal(matches.length, 10);
+  assert.equal(new Set(matches).size, 10);
   assert.deepEqual(matches.sort(), [
-    'customers.debt', 'customers.productDetail', 'customers.revenue', 'debt.management', 'debt.penalty',
+    'customers.productDetail', 'debt.management', 'debt.penalty',
     'overview.new-products', 'overview.productReport', 'overview.transactions',
     'products.all', 'products.inventory', 'products.newly-imported', 'products.top-selling'
   ].sort());

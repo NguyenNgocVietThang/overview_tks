@@ -119,10 +119,6 @@ function buildDashboard() {
     invoices: {
       transactionsReport: { transactions: [{ code: 'HD-01', quantity: 2, quantityKnown: true }] }
     },
-    customers: {
-      topRevenue: { all: [{ code: 'KH-01', saleOrderCount: 2, revenue: 300000 }] },
-      topDebt: [{ code: 'KH-01', periodRevenue: 300000 }]
-    },
     debtManagement: {
       available: true,
       sourceSheet: 'Công nợ HN',
@@ -198,7 +194,7 @@ async function withStubs(options, fn) {
 const FIXED_TABLES = [
   'overview.transactions', 'overview.new-products',
   'products.top-selling', 'products.all', 'products.inventory', 'products.newly-imported',
-  'customers.revenue', 'customers.debt', 'debt.management'
+  'debt.management'
 ];
 
 const FIXED_CONTEXT = { productAnalysis: 'product', debtQueue: 'all' };
@@ -624,18 +620,6 @@ test('workbook giu ma co so 0 dau, chan chuoi cong thuc va bat freeze/autofilter
   });
 });
 
-test('dien thoai khach giu so 0 dau (text) khi xuat', async () => {
-  await withStubs({}, async () => {
-    const file = await exportService.createExportWorkbook({
-      tableKey: 'customers.revenue',
-      columns: { customer_revenue: ['ma_khach_hang', 'dien_thoai', 'd_period_revenue'] }
-    });
-    const workbook = await loadWorkbook(file);
-    assert.equal(workbook.worksheets[0].getCell('B2').value, '0900123456');
-    assert.equal(workbook.worksheets[0].getCell('C2').value, 300000);
-  });
-});
-
 test('cot number toan gia tri so nguyen thi khong hien .00', async () => {
   await withStubs({}, async () => {
     const file = await exportService.createExportWorkbook({
@@ -724,29 +708,29 @@ test('normalizeFilters: newlyImported rieng, thieu thi theo products; khong con 
   // Hai bang Dat hang / Tra hang cua tab Hoa don da bo: bo loc cua chung khong con duoc nhan.
   assert.equal('orders' in own, false);
   assert.equal('returns' in own, false);
-  assert.deepEqual(Object.keys(own).sort(), ['customers', 'invoices', 'newProducts', 'newlyImported', 'products']);
+  assert.deepEqual(Object.keys(own).sort(), ['invoices', 'newProducts', 'newlyImported', 'products']);
 });
 
 test('readRowsByCodes nhan dung tab, co so va danh sach ma logic; getDashboardData nhan dung bo loc', async () => {
   await withStubs({}, async stubs => {
     await exportService.createExportWorkbook({
-      tableKey: 'customers.revenue',
+      tableKey: 'products.all',
       filters: {
-        customers: { mode: 'days', days: 45 },
+        products: { mode: 'days', days: 45 },
         invoices: { mode: 'range', from: '2026-01-01T00:00:00', to: '2026-01-31' },
         overview: { mode: 'days', days: 7 } // bo loc cu da bo -> bi bo qua
       },
-      columns: { customer_revenue: ['ma_khach_hang'] }
+      columns: { all_products: ['ma_hang'] }
     }, 'Sài Gòn');
     assert.equal(stubs.calls.dashboard.length, 1);
     const [filters, branch, viewer] = stubs.calls.dashboard[0];
     assert.equal(branch, 'Sài Gòn');
     assert.equal(viewer, undefined, 'viewer bo trong = khong quyen sua cong no');
-    assert.deepEqual(filters.customers, { mode: 'days', days: 45 });
+    assert.deepEqual(filters.products, { mode: 'days', days: 45 });
     assert.deepEqual(filters.invoices, { mode: 'range', from: '2026-01-01', to: '2026-01-31' });
     assert.equal('overview' in filters, false, 'bo loc overview (ov*) da bo');
-    assert.deepEqual(filters.products, { mode: 'days', days: 30 });
-    assert.deepEqual(stubs.calls.rows, [{ sheetName: CONFIG.SHEET_CUSTOMERS, branch: 'Sài Gòn', codes: ['KH-01'] }]);
+    assert.equal('customers' in filters, false, 'bo loc customers (cu*) da bo cung tab Khach hang cu');
+    assert.deepEqual(stubs.calls.rows, [{ sheetName: CONFIG.SHEET_PRODUCTS, branch: 'Sài Gòn', codes: ['00123'] }]);
   });
 
   await withStubs({}, async stubs => {
@@ -759,9 +743,9 @@ test('readRowsByCodes nhan dung tab, co so va danh sach ma logic; getDashboardDa
 
 test('bang khong co ma logic thi khong query Postgres', async () => {
   const dashboard = buildDashboard();
-  dashboard.customers.topDebt = [];
+  dashboard.allProducts = [];
   await withStubs({ dashboard }, async stubs => {
-    const dataset = await exportService.__test__.buildFixedDataset('customers.debt', fixedEnv(stubs), {});
+    const dataset = await exportService.__test__.buildFixedDataset('products.all', fixedEnv(stubs), {});
     assert.equal(dataset.worksheets[0].rows.length, 0);
     assert.equal(stubs.calls.rows.length, 0);
   });
@@ -1257,7 +1241,7 @@ function worksheetTable(workbook, index = 0) {
 
 test('Cot "Cơ sở" nam san trong catalogue cua moi nguon: buoc lay truong khong nap du lieu, Ca hai va co so vat ly giong nhau', async () => {
   await withStubs({}, async stubs => {
-    for (const tableKey of ['overview.transactions', 'products.all', 'customers.debt']) {
+    for (const tableKey of ['overview.transactions', 'products.all']) {
       const both = await exportService.getExportFields(payloadFor(tableKey), BOTH);
       const physical = await exportService.getExportFields(payloadFor(tableKey), HN);
       assert.deepEqual(both, physical, `${tableKey}: Ca hai va co so vat ly cung bo truong`);
@@ -1666,63 +1650,6 @@ test('trinh duyet khong co DecompressionStream thi bao ro thay vi trang trang', 
   dom.window.close();
 });
 
-test('Ca hai: bang khach hang gop theo TEN - moi co so doc ma khach RIENG cua no, cot Co so ghi "Hà Nội, Sài Gòn"', async () => {
-  const dashboard = {
-    customers: {
-      topDebt: [{
-        code: 'KH-1', name: 'Khách An', branch: `${HN}, ${SG}`, periodRevenue: 5,
-        codesByBranch: { [HN]: 'KH-1', [SG]: 'KH-9' }
-      }]
-    }
-  };
-  await withStubs({ dashboard }, async () => {
-    const calls = [];
-    stubRowsByBranch({
-      [HN]: { [CONFIG.SHEET_CUSTOMERS]: [sourceRow('customers', { ma_khach_hang: 'KH-1', ten_khach_hang: 'Khách An', no_hien_tai: 100 })] },
-      [SG]: { [CONFIG.SHEET_CUSTOMERS]: [sourceRow('customers', { ma_khach_hang: 'KH-9', ten_khach_hang: 'Khách An', no_hien_tai: 200 })] }
-    }, calls);
-    const table = worksheetTable(await loadWorkbook(await exportService.createExportWorkbook({
-      tableKey: 'customers.debt',
-      columns: { customer_debt: ['ten_khach_hang', 'no_hien_tai', 'co_so', 'd_period_revenue'] }
-    }, BOTH)));
-    assert.deepEqual(table.rows, [['Khách An', 300, `${HN}, ${SG}`, 5]], 'cong no hai co so cong lai, mot dong');
-    assert.deepEqual(calls.map(call => [call.branch, call.codes]), [[HN, ['KH-1']], [SG, ['KH-9']]]);
-  });
-});
-
-test('Ca hai: file doanh thu/cong no cua khach co cot tach theo tung co so', async () => {
-  const dashboard = {
-    customers: {
-      topDebt: [{
-        code: 'KH-1', name: 'Khách An', branch: `${HN}, ${SG}`, debt: 300, periodRevenue: 5,
-        debtByBranch: { [HN]: 100, [SG]: 200 }, codesByBranch: { [HN]: 'KH-1', [SG]: 'KH-9' }
-      }],
-      topRevenue: {
-        all: [{
-          code: 'KH-1', name: 'Khách An', branch: `${HN}, ${SG}`, saleOrderCount: 3, revenue: 700,
-          revenueByBranch: { [HN]: 500, [SG]: 200 }, codesByBranch: { [HN]: 'KH-1', [SG]: 'KH-9' }
-        }]
-      }
-    }
-  };
-  await withStubs({ dashboard }, async () => {
-    stubRowsByBranch({
-      [HN]: { [CONFIG.SHEET_CUSTOMERS]: [sourceRow('customers', { ma_khach_hang: 'KH-1', ten_khach_hang: 'Khách An' })] },
-      [SG]: { [CONFIG.SHEET_CUSTOMERS]: [sourceRow('customers', { ma_khach_hang: 'KH-9', ten_khach_hang: 'Khách An' })] }
-    }, []);
-    const debt = worksheetTable(await loadWorkbook(await exportService.createExportWorkbook({
-      tableKey: 'customers.debt',
-      columns: { customer_debt: ['ten_khach_hang', 'd_debt_hn', 'd_debt_sg'] }
-    }, BOTH)));
-    assert.deepEqual(debt.rows, [['Khách An', 100, 200]]);
-    const revenue = worksheetTable(await loadWorkbook(await exportService.createExportWorkbook({
-      tableKey: 'customers.revenue',
-      columns: { customer_revenue: ['ten_khach_hang', 'd_revenue_hn', 'd_revenue_sg'] }
-    }, BOTH)));
-    assert.deepEqual(revenue.rows, [['Khách An', 500, 200]]);
-  });
-});
-
 // ---------- Chi tiet ton kho + bo loc thoi gian theo tung bang + KPI HTML theo ky ----------
 
 const INVENTORY_PRODUCTS = [
@@ -1798,11 +1725,9 @@ test('moi bang co bo loc thoi gian rieng: getDashboardData nhan dung bo loc cua 
     products: { mode: 'range', from: '2026-01-01', to: '2026-01-07' },
     newlyImported: { mode: 'range', from: '2026-02-01', to: '2026-02-07' },
     newProducts: { mode: 'days', days: 5 },
-    invoices: { mode: 'range', from: '2026-03-01', to: '2026-03-07' },
-    customers: { mode: 'range', from: '2026-06-01', to: '2026-06-07' }
+    invoices: { mode: 'range', from: '2026-03-01', to: '2026-03-07' }
   };
-  const tableKeys = ['products.top-selling', 'products.newly-imported', 'overview.new-products', 'overview.transactions',
-    'customers.revenue', 'customers.debt'];
+  const tableKeys = ['products.top-selling', 'products.newly-imported', 'overview.new-products', 'overview.transactions'];
   await withStubs({}, async stubs => {
     for (const tableKey of tableKeys) {
       const metadata = await exportService.getExportFields({ tableKey, filters }, HN);
@@ -1814,46 +1739,6 @@ test('moi bang co bo loc thoi gian rieng: getDashboardData nhan dung bo loc cua 
     stubs.calls.dashboard.forEach(([sent]) => {
       Object.keys(filters).forEach(key => assert.deepEqual(sent[key], filters[key], `bo loc ${key} phai giu nguyen den getDashboardData`));
     });
-  });
-});
-
-test('HTML khach hang: KPI va bieu do chinh theo doanh thu / cong no TRONG KY, khong phai tong ca doi cua khach', async () => {
-  const dashboard = {
-    customers: {
-      topRevenue: {
-        all: [
-          { code: 'KH-1', name: 'Khách An', branch: `${HN}, ${SG}`, saleOrderCount: 3, revenue: 700, revenueByBranch: { [HN]: 500, [SG]: 200 }, codesByBranch: { [HN]: 'KH-1', [SG]: 'KH-9' } },
-          { code: 'KH-2', name: 'Khách Bình', branch: HN, saleOrderCount: 1, revenue: 100, revenueByBranch: { [HN]: 100 }, codesByBranch: { [HN]: 'KH-2' } }
-        ]
-      },
-      topDebt: [
-        { code: 'KH-1', name: 'Khách An', branch: `${HN}, ${SG}`, debt: 300, periodRevenue: 5, debtByBranch: { [HN]: 100, [SG]: 200 }, codesByBranch: { [HN]: 'KH-1', [SG]: 'KH-9' } },
-        { code: 'KH-2', name: 'Khách Bình', branch: HN, debt: 50, periodRevenue: 900, debtByBranch: { [HN]: 50 }, codesByBranch: { [HN]: 'KH-2' } }
-      ]
-    }
-  };
-  const customerRow = (code, name, lifetime, debt) => sourceRow('customers', {
-    ma_khach_hang: code, ten_khach_hang: name, tong_doanh_thu: lifetime, tong_ban: lifetime, no_hien_tai: debt
-  });
-  const rowsBySheet = {
-    [CONFIG.SHEET_CUSTOMERS]: [
-      customerRow('KH-1', 'Khách An', 99000000, 100), customerRow('KH-9', 'Khách An', 1000000, 200), customerRow('KH-2', 'Khách Bình', 5000000, 50)
-    ]
-  };
-  await withStubs({ dashboard, rowsBySheet }, async () => {
-    const kpiLabels = async tableKey => {
-      const metadata = await exportService.getExportFields({ tableKey, filters: {} }, BOTH);
-      const columns = Object.fromEntries(metadata.worksheets.map(worksheet => [worksheet.key, worksheet.fields.map(field => field.key)]));
-      const file = await exportService.createExportHtml({ tableKey, filters: {}, columns }, BOTH);
-      const staticDoc = new JSDOM(file.buffer.toString('utf8')).window.document;
-      return [...staticDoc.querySelectorAll('#kpis .kpi-label')].map(node => node.textContent);
-    };
-    assert.deepEqual(await kpiLabels('customers.revenue'), [
-      'Số dòng dữ liệu', 'Tổng doanh thu trong kỳ', 'Tổng doanh thu Hà Nội', 'Tổng doanh thu Sài Gòn'
-    ]);
-    assert.deepEqual(await kpiLabels('customers.debt'), [
-      'Số dòng dữ liệu', 'Tổng nợ hiện tại', 'Tổng công nợ Hà Nội', 'Tổng công nợ Sài Gòn'
-    ]);
   });
 });
 

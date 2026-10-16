@@ -49,7 +49,7 @@
 
 ### 2.4. Sổ quỹ, Báo cáo & Hàng hóa
 - **Sổ quỹ (`/cashbook/`):** Tồn quỹ = tổng phiếu thu trừ phiếu chi chưa hủy; gom quỹ ngân hàng HN + SG cùng số tài khoản; phân loại theo 5 nhóm tài khoản (`account_balance_groups`). Không dùng cache; kiểm tra revision tự động mỗi 15 giây khi tab đang xem.
-- **Báo cáo kinh doanh (`/reports/#business`):** Doanh số tháng = Hóa đơn Hoàn thành − Phiếu trả Đã trả (giờ VN). Tháng đã qua chốt cứng vào `business_monthly_*` (migration `0036`); tháng hiện tại tính live SQL; sale đi theo nhóm khách hàng hiện tại; team nạp từ `sale_teams` (migration `0037`).
+- **Tab Khách hàng (id nội bộ `business`, `/reports/#business`; trước là "Báo cáo kinh doanh", tab Khách hàng cũ đã gỡ 16/10/2026 — bỏ `reports.customers`, `view=customers`, `customers.revenue/debt`; `#customers` tự chuyển sang `#business`; khóa quyền giữ `reports.business`):** Doanh số tháng = Hóa đơn Hoàn thành − Phiếu trả Đã trả (giờ VN). Tháng đã qua chốt cứng vào `business_monthly_*` (migration `0036`); tháng hiện tại tính live SQL; sale đi theo nhóm khách hàng hiện tại; team nạp từ `sale_teams` (migration `0037`).
 - **Báo cáo Marketing (`/reports/#marketing`):** Đọc 3 workbook Google Sheets, đối chiếu doanh số KiotViet theo tên khách hàng; hỗ trợ sửa trực tiếp Khách mới / Ghi chú ngược lại Sheets và xuất file XLSX/HTML.
 - **Hàng hóa & Tồn kho:** "Tồn có thể bán" = Tồn thực tế − Đặt hàng Phiếu tạm (không cộng hàng đang vận chuyển). Ẩn đơn giá và giá trị tồn đối với nhân viên không có quyền `reports.products.cost`.
 

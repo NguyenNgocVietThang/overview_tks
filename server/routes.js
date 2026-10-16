@@ -115,7 +115,7 @@ router.use('/api/shipment/lifecycle', requireAuth, orderLifecycleRoutes);
 // Khach chi duoc dung route tra cuu vong doi don hang o tren. Trang tra cuu
 // cong khai cho khach hang (Phase 1) se nam o route rieng, KHONG qua requireAuth.
 const reportsUser = (...features) => [requireAuth, requireFeature(...features), resolveBranch];
-// /api/dashboard phuc vu CA 5 tab bao cao nen chi doi hoi "co it nhat mot
+// /api/dashboard phuc vu CA 4 tab bao cao nen chi doi hoi "co it nhat mot
 // quyen reports.*"; phan du lieu cua tung tab duoc cat bot sau do
 // (dashboardPermissionFilter.js). Cac endpoint rieng cua tung tab thi doi hoi
 // dung quyen cua tab do.
@@ -125,8 +125,8 @@ router.use('/api/dashboard', ...reportsUser(...REPORT_VIEW_FEATURES));
 // nen nguoi co quyen Tong quan (vd Nhan vien sale) cung doc duoc cac API CHI DOC nay;
 // nguoi co quyen cua tab goc van duoc nhu cu. Phan ghi/nang (quet dut hang, nhap Tra NCC)
 // duoi '/api/products' van chi reports.products.
-router.use('/api/customer-suggest', ...reportsUser('reports.customers', 'reports.overview'));
-router.use('/api/customer-product-revenue', ...reportsUser('reports.customers', 'reports.overview'));
+router.use('/api/customer-suggest', ...reportsUser('reports.overview'));
+router.use('/api/customer-product-revenue', ...reportsUser('reports.overview'));
 router.use('/api/product-report', ...reportsUser('reports.products', 'reports.overview'));
 router.use('/api/inventory-value-history', ...reportsUser('reports.overview'));
 router.use('/api/invoice-detail', ...reportsUser('reports.invoices'));
@@ -176,9 +176,9 @@ function parseOptionalFilterSpec(query, prefix, legacyDays) {
   return present ? parseFilterSpec(query, prefix, legacyDays) : undefined;
 }
 
-// ?view=<tab> (overview|products|invoices|customers|debt, co the nhieu
+// ?view=<tab> (overview|products|invoices|debt, co the nhieu
 // tab cach nhau dau phay): CHI doc/tinh/tra phan cua tab do — trang bao cao goi
-// khi nguoi dung mo tung tab (xem dashboardViews.js). Bo trong = ca 5 tab nhu
+// khi nguoi dung mo tung tab (xem dashboardViews.js). Bo trong = ca 4 tab nhu
 // truoc day. Tab tai khoan khong co quyen xem bi bo qua NGAY (khong doc/tinh gi):
 // tra payload rong thay vi 403, giong viec filterDashboardForUser() cat ban day du.
 router.get('/api/dashboard', async (req, res) => {
@@ -200,12 +200,6 @@ router.get('/api/dashboard', async (req, res) => {
       // (Bo loc `ov*` cua Tong quan da bo 2026-10-05: tab Tong quan dung bo loc `in*`.)
       products: parseFilterSpec(req.query, 'pr'),
       invoices: parseFilterSpec(req.query, 'in', legacyDays),
-      // Tab Khách hàng mặc định xem toàn thời gian; bo loc cuMode/cuDays/
-      // cuFrom/cuTo duoc dung cho Top khach doanh thu.
-      customers: {
-        ...parseFilterSpec(req.query, 'cu'),
-        mode: req.query.cuMode || 'all'
-      },
       newProducts: parseFilterSpec(req.query, 'np'),
       // Bo loc rieng bang Hang moi nhap (ni). Khong gui -> undefined -> dung bo loc Hang hoa nhu truoc.
       // (Bo loc `or`/`rt` cua 2 bang Dat hang / Tra hang da bo 2026-10-01; tham so cu bi bo qua.)

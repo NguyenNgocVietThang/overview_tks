@@ -1,7 +1,7 @@
 // ==========================================
 // TAB (VIEW) CUA "BAO CAO TONG HOP" — khai bao thuan (khong I/O).
 //
-// Truoc day GET /api/dashboard luon doc + tinh + tra du lieu cua CA 5 tab du
+// Truoc day GET /api/dashboard luon doc + tinh + tra du lieu cua CA 4 tab du
 // nguoi dung chi dang xem 1 tab (do that: doc nguon ~9,8s khi cache nguoi, doi
 // 1 bo loc ~0,9s, payload 5,25 MB). Bay gio client co the goi
 // GET /api/dashboard?view=<tab> de chi doc/tinh/tra phan cua tab do:
@@ -11,20 +11,19 @@
 //   - `filterKeys`: khoa cua object `filters` anh huong tab nay (vao cache key,
 //     nen doi bo loc cua tab khac khong lam mat cache cua tab nay);
 //   - VIEW_PAYLOAD: phan payload tab nay tra ve.
-// Bo trong `view` = ca 5 tab, y het hanh vi cu (test + nguoi goi cu khong doi).
+// Bo trong `view` = ca 4 tab, y het hanh vi cu (test + nguoi goi cu khong doi).
 // ==========================================
 'use strict';
 
 const CONFIG = require('../config');
 
-const VIEW_NAMES = Object.freeze(['overview', 'products', 'invoices', 'customers', 'debt']);
+const VIEW_NAMES = Object.freeze(['overview', 'products', 'invoices', 'debt']);
 
 // Quyen can co de xem tung tab — khop SECTION_FEATURE (dashboardPermissionFilter.js).
 const VIEW_FEATURE = Object.freeze({
   overview: 'reports.overview',
   products: 'reports.products',
   invoices: 'reports.invoices',
-  customers: 'reports.customers',
   debt: 'reports.debt'
 });
 
@@ -33,9 +32,9 @@ const PERIODS_KEY = '@periods';
 
 // (2026-10-01: bo bang "Đặt hàng" khoi cac bang core — ~23K dong, ~2,8s moi lan doc, chi tab Hoa don
 // tung can cho 2 bang Dat hang / Tra hang da bo; don Phieu tam nay hien o trang Vong doi don hang.)
+// (2026-10-16: bo bang Tra hang khoi cac bang core — chi tab Khach hang cu doc, tab do da go.)
 const CORE_SHEETS_ORDER = Object.freeze([
-  CONFIG.SHEET_CATEGORIES, CONFIG.SHEET_PRODUCTS, CONFIG.SHEET_INVOICES,
-  CONFIG.SHEET_RETURNS, CONFIG.SHEET_CUSTOMERS
+  CONFIG.SHEET_CATEGORIES, CONFIG.SHEET_PRODUCTS, CONFIG.SHEET_INVOICES, CONFIG.SHEET_CUSTOMERS
 ]);
 // (2026-10-13: tab Cong no bo quy tac 1-3-7 nen khong tab nao con doc CN1/3/7 — PERIODS_KEY chi
 // con de mot tab khai bao 'periods: true' neu sau nay can lai.)
@@ -61,15 +60,11 @@ const VIEW_SOURCES = Object.freeze({
     needsDebt: false
   },
   // (2026-10-05: bo bang Tra hang — chi phuc vu the chi so "Trả hàng" returnsCount/totalReturns da go;
-  // doanh thu = ban − tra hang lay tu rollup daily_invoice_summary. Tab Khach hang van doc Tra hang.)
+  // doanh thu = ban − tra hang lay tu rollup daily_invoice_summary. 2026-10-16: tab Khach hang cu da go nen
+  // khong tab nao con doc bang Tra hang.)
   invoices: {
     sheets: [CONFIG.SHEET_INVOICES],
     rollups: ['invoicesRevenue', 'invoiceQuantity'],
-    needsDebt: false
-  },
-  customers: {
-    sheets: [CONFIG.SHEET_CUSTOMERS, CONFIG.SHEET_INVOICES, CONFIG.SHEET_RETURNS],
-    rollups: [],
     needsDebt: false
   },
   // Cong no (2026-10-13): ban chot 15:00 + lich TT trong Postgres (server/debtSchedule), doc
@@ -88,7 +83,6 @@ const VIEW_FILTER_KEYS = Object.freeze({
   overview: ['invoices'],
   products: ['products', 'newProducts', 'newlyImported'],
   invoices: ['invoices'],
-  customers: ['customers'],
   debt: []
 });
 
@@ -121,12 +115,6 @@ const VIEW_PAYLOAD = Object.freeze({
     kpi: [],
     filters: ['invoices']
   },
-  customers: {
-    top: ['customers'],
-    nested: {},
-    kpi: ['totalCustomers', 'customersWithDebt', 'totalDebt'],
-    filters: ['customers']
-  },
   debt: {
     top: ['debtManagement'],
     nested: {},
@@ -144,7 +132,7 @@ function invalidViewError(name) {
 
 /**
  * Doc tham so query `view` ("overview" hoac "overview,products"). Bo trong =>
- * null (ca 5 tab). Ten sai => nem loi 400 INVALID_VIEW.
+ * null (ca 4 tab). Ten sai => nem loi 400 INVALID_VIEW.
  */
 function parseViewsParam(raw) {
   if (raw === undefined || raw === null) return null;
@@ -164,7 +152,7 @@ function unionInOrder(order, lists) {
 
 /**
  * Ke hoach doc/tinh cho 1 tap tab. `rawViews` = mang ten tab, hoac
- * undefined/null = ca 5 tab (hanh vi cu).
+ * undefined/null = ca 4 tab (hanh vi cu).
  */
 function resolveViewPlan(rawViews) {
   const all = rawViews === undefined || rawViews === null;
@@ -180,7 +168,7 @@ function resolveViewPlan(rawViews) {
   const coreKeys = needsPeriods ? [...sheets, PERIODS_KEY] : sheets;
   const rollups = new Set(unionInOrder(ALL_ROLLUPS, views.map(name => VIEW_SOURCES[name].rollups)));
   const filterKeys = unionInOrder(
-    ['products', 'invoices', 'customers', 'newProducts', 'newlyImported'],
+    ['products', 'invoices', 'newProducts', 'newlyImported'],
     views.map(name => VIEW_FILTER_KEYS[name])
   );
 
@@ -198,7 +186,7 @@ function resolveViewPlan(rawViews) {
 
 /**
  * Cat ban tinh day du (shape cu cua computeDashboardData) ve dung phan cua cac
- * tab trong `plan`. Ke hoach "ca 5 tab" tra nguyen ban day du (khong doi shape).
+ * tab trong `plan`. Ke hoach "ca 4 tab" tra nguyen ban day du (khong doi shape).
  * Luon tra object MOI cho ban cat — khong sua `full` (co the la object trong cache).
  */
 function pickPayload(full, plan) {
@@ -230,7 +218,7 @@ function pickPayload(full, plan) {
   return picked;
 }
 
-/** Chi giu cac bo loc anh huong `plan` — dung lam cache key (ke hoach ca 5 tab: giu het). */
+/** Chi giu cac bo loc anh huong `plan` — dung lam cache key (ke hoach ca 4 tab: giu het). */
 function pickFilters(filters, plan) {
   const source = filters || {};
   if (plan.all) return source;

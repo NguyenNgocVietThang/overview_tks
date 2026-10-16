@@ -18,7 +18,6 @@ function samplePayload() {
     products: { topSellingProducts: [{ code: 'A' }] },
     allProducts: [{ code: 'A' }],
     invoices: { revenueByDay: [2] },
-    customers: { topRevenue: [{ name: 'KH' }] },
     debtManagement: { customers: [{ customerName: 'KH nợ' }] }
   };
 }
@@ -32,7 +31,7 @@ test('giu lai updatedAt/filters/kpi va dung cac phan duoc phep', () => {
   assert.ok(filtered.overview);
   assert.ok(filtered.debtManagement);
 
-  for (const key of ['products', 'allProducts', 'invoices', 'customers']) {
+  for (const key of ['products', 'allProducts', 'invoices']) {
     assert.equal(key in filtered, false, `${key} phai bi cat bo`);
   }
 });

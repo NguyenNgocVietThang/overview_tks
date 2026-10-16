@@ -78,7 +78,6 @@ const DASHBOARD_UTC_OFFSET = '+07:00';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_RANGE_DAYS = 3660; // ~10 nam — chan vong lap tao bucket ngay bi vo tan/qua lon
 const TOP_REPORT_TRANSACTIONS = 15;
-const TOP_CUSTOMER_REVENUE_CHART_LIMIT = 15;
 const CUSTOMER_PRODUCT_REVENUE_WINDOW_DAYS = 90;
 const CUSTOMER_PRODUCT_REVENUE_MONTH_DAYS = 30;
 
@@ -838,245 +837,6 @@ function buildRevenuePeriodFromRollup(range, rollupRows) {
   const periodReturnAmount = revenueByDay.reduce((s, d) => s + d.returnAmount, 0);
   const periodInvoices = revenueByDay.reduce((s, d) => s + d.count, 0);
   return { revenueByDay, periodRevenue, periodGrossRevenue, periodReturnAmount, periodInvoices };
-}
-
-/**
- * Gop cac dong giao dich trong sheet "Bao cao ban hang" (moi dong la 1 hoa
- * don HOAC 1 phieu tra hang cua 1 khach, xem buildCustomerReportValues_ trong
- * CustomerReport.gs) thanh doanh thu theo tung khach trong `range`. Cot E/H
- * (SL don ban/Doanh thu) trong sheet la tong TOAN THOI GIAN nen khong dung
- * duoc truc tiep — phai tu cong don tu cot M (Thoi gian theo giao dich, index
- * 12) va cot R (Doanh thu theo giao dich, index 17). Quy uoc: doanh thu dong
- * >= 0 la don ban (cong vao saleOrderCount), < 0 la dong tra hang (khong tinh
- * vao saleOrderCount nhung van cong don vao revenue vi cot nay da tru tra
- * hang o tung dong).
- */
-function aggregateCustomerReportRevenueByCode(range, customerReportData) {
-  const customers = new Map();
-
-  for (let r = 1; r < customerReportData.length; r++) {
-    const row = customerReportData[r];
-    const code = String(row[0] || '').trim();
-    const name = String(row[1] || '').trim();
-    if (!code && !name) continue;
-
-    const dt = parseSheetDate(row[12]);
-    if (!isWithinRange(dt, range)) continue;
-
-    const key = code || ('name:' + name.toLocaleLowerCase('vi-VN'));
-    if (!customers.has(key)) {
-      customers.set(key, { code: code || '—', name: name || '(Không xác định)', saleOrderCount: 0, revenue: 0 });
-    }
-    const entry = customers.get(key);
-    const revenue = Number(row[17]) || 0;
-    entry.revenue += revenue;
-    if (revenue >= 0) entry.saleOrderCount += 1;
-  }
-
-  return customers;
-}
-
-/**
- * Tinh tong doanh thu theo tung khach hang tu cac sheet co ban ("Hoa don",
- * "Khach hang", "Tra hang") khi sheet "Bao cao ban hang" khong ton tai hoac rong.
- */
-// Khoa doanh thu khach: theo TEN chuan hoa (khach cua hai co so co ma khac nhau
-// van la mot), roi ve ma khi khong co ten.
-// Cot danh dau hoa don/phieu tra cua khach ngung hoat dong (dashboardPgReader.js) — bo qua khi xep hang khach.
-const INACTIVE_CUSTOMER_HEADER = 'Khách ngừng hoạt động';
-
-function customerRevenueKey(name, code) {
-  const normalizedName = normalizeSearchValue(name);
-  if (normalizedName) return 'name:' + normalizedName;
-  const normalizedCode = String(code || '').trim();
-  return normalizedCode ? 'code:' + normalizedCode : 'name:';
-}
-
-function finalizeCustomerRevenue(customers, fallbackBranch) {
-  customers.forEach(entry => {
-    entry.branch = Array.from(entry._branches).join(', ') || fallbackBranch || '';
-    if (!Object.keys(entry.codesByBranch).length && entry.code && entry.code !== '—' && fallbackBranch) {
-      entry.codesByBranch[fallbackBranch] = entry.code;
-    }
-    delete entry._branches;
-  });
-  return customers;
-}
-
-/** Doc cot "Mã khách hàng theo cơ sở" (JSON); khong co -> chi co ma cua co so dang xem. */
-function parseCodesByBranch(raw, singleBranch, code) {
-  if (raw) {
-    try {
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object') return parsed;
-    } catch (_error) { /* roi ve ma don */ }
-  }
-  return singleBranch && code ? { [singleBranch]: code } : {};
-}
-
-/** Doc cot JSON so tien theo co so; khong co -> toan bo so tien thuoc co so cua dong (khi chi co 1 co so). */
-function parseAmountsByBranch(raw, rowBranch, total) {
-  if (raw) {
-    try {
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object') return parsed;
-    } catch (_error) { /* roi ve co so cua dong */ }
-  }
-  return rowBranch && !String(rowBranch).includes(',') ? { [rowBranch]: total } : {};
-}
-
-function aggregateCustomerRevenueFromSheetRows(range, invData, custData, retData, fallbackBranch = '') {
-  const customers = new Map();
-  const custCodeByPhone = new Map();
-  const custCodeByName = new Map();
-  const custNameByCode = new Map();
-
-  if (Array.isArray(custData)) {
-    for (let r = 1; r < custData.length; r++) {
-      const row = custData[r];
-      const code = String(row[0] || '').trim();
-      const name = String(row[1] || '').trim();
-      const phone = normalizePhone(row[2]);
-      if (code) {
-        if (name) custNameByCode.set(code, name);
-        if (phone) custCodeByPhone.set(phone, code);
-        if (name) custCodeByName.set(name.toLocaleLowerCase('vi-VN'), code);
-      }
-    }
-  }
-
-  const invHeaders = (Array.isArray(invData) && invData[0]) || [];
-  const invCodeIdx = invHeaders.findIndex(h => String(h || '').trim() === 'Mã khách hàng');
-  const invStatusIdx = invHeaders.findIndex(h => String(h || '').trim() === 'Trạng thái');
-  const invDateIdx = invHeaders.findIndex(h => String(h || '').trim() === 'Ngày bán');
-  const invNameIdx = invHeaders.findIndex(h => String(h || '').trim() === 'Khách hàng');
-  const invPhoneIdx = invHeaders.findIndex(h => String(h || '').trim() === 'SĐT khách');
-  const invTotalIdx = invHeaders.findIndex(h => String(h || '').trim() === 'Tổng tiền hàng');
-  const invFacilityIdx = invHeaders.findIndex(h => String(h || '').trim() === SHEET_FACILITY_HEADER);
-  const invInactiveIdx = invHeaders.findIndex(h => String(h || '').trim() === INACTIVE_CUSTOMER_HEADER);
-
-  if (Array.isArray(invData)) {
-    for (let r = 1; r < invData.length; r++) {
-      const row = invData[r];
-      if (invInactiveIdx >= 0 && row[invInactiveIdx] === 'Có') continue;
-      const status = String((invStatusIdx >= 0 ? row[invStatusIdx] : row[9]) || 'Hoàn thành').trim();
-      if (status !== 'Hoàn thành') continue;
-
-      const dateVal = invDateIdx >= 0 ? row[invDateIdx] : row[1];
-      const dt = parseSheetDate(dateVal);
-      if (!isWithinRange(dt, range)) continue;
-
-      let code = String((invCodeIdx >= 0 ? row[invCodeIdx] : row[16]) || '').trim();
-      let name = String((invNameIdx >= 0 ? row[invNameIdx] : row[2]) || '').trim();
-      const phone = normalizePhone(invPhoneIdx >= 0 ? row[invPhoneIdx] : row[3]);
-
-      if (!code && phone && custCodeByPhone.has(phone)) {
-        code = custCodeByPhone.get(phone);
-      }
-      if (!code && name && custCodeByName.has(name.toLocaleLowerCase('vi-VN'))) {
-        code = custCodeByName.get(name.toLocaleLowerCase('vi-VN'));
-      }
-      if (code && !name && custNameByCode.has(code)) {
-        name = custNameByCode.get(code);
-      }
-
-      const key = customerRevenueKey(name, code);
-      if (!customers.has(key)) {
-        customers.set(key, {
-          code: code || '—',
-          name: name || '(Không xác định)',
-          saleOrderCount: 0,
-          revenue: 0,
-          revenueByBranch: {},
-          codesByBranch: {},
-          _branches: new Set()
-        });
-      }
-      const entry = customers.get(key);
-      const rowFacility = invFacilityIdx >= 0 ? String(row[invFacilityIdx] || '').trim() : '';
-      if (rowFacility) {
-        entry._branches.add(rowFacility);
-        if (code && !entry.codesByBranch[rowFacility]) entry.codesByBranch[rowFacility] = code;
-      }
-      const total = Number(invTotalIdx >= 0 ? row[invTotalIdx] : row[6]) || 0;
-      entry.revenue += total;
-      entry.saleOrderCount += 1;
-      const revenueBranch = rowFacility || fallbackBranch;
-      if (revenueBranch) entry.revenueByBranch[revenueBranch] = (entry.revenueByBranch[revenueBranch] || 0) + total;
-    }
-  }
-
-  if (Array.isArray(retData) && retData.length > 1) {
-    const retHeaders = retData[0] || [];
-    const retCodeIdx = retHeaders.findIndex(h => String(h || '').trim() === 'Mã khách hàng');
-    const retStatusIdx = retHeaders.findIndex(h => String(h || '').trim() === 'Trạng thái');
-    const retDateIdx = retHeaders.findIndex(h => String(h || '').trim() === 'Ngày trả');
-    const retNameIdx = retHeaders.findIndex(h => String(h || '').trim() === 'Khách hàng');
-    const retTotalIdx = retHeaders.findIndex(h => String(h || '').trim() === 'Tổng tiền trả');
-    const retFacilityIdx = retHeaders.findIndex(h => String(h || '').trim() === SHEET_FACILITY_HEADER);
-    const retInactiveIdx = retHeaders.findIndex(h => String(h || '').trim() === INACTIVE_CUSTOMER_HEADER);
-
-    for (let r = 1; r < retData.length; r++) {
-      const row = retData[r];
-      if (retInactiveIdx >= 0 && row[retInactiveIdx] === 'Có') continue;
-      // Phieu tra hoan tat co statusValue 'Đã trả' (tab Tra hang); 'Hoàn thành' chi con o du lieu cu.
-      // Truoc day chi nhan 'Hoàn thành' nen KHONG phieu tra that nao duoc tru khoi doanh thu khach.
-      const status = String((retStatusIdx >= 0 ? row[retStatusIdx] : row[5]) || 'Đã trả').trim();
-      if (status !== 'Đã trả' && status !== 'Hoàn thành') continue;
-
-      const dateVal = retDateIdx >= 0 ? row[retDateIdx] : row[1];
-      const dt = parseSheetDate(dateVal);
-      if (!isWithinRange(dt, range)) continue;
-
-      let code = String((retCodeIdx >= 0 ? row[retCodeIdx] : row[14]) || '').trim();
-      let name = String((retNameIdx >= 0 ? row[retNameIdx] : row[3]) || '').trim();
-      if (!code && name && custCodeByName.has(name.toLocaleLowerCase('vi-VN'))) {
-        code = custCodeByName.get(name.toLocaleLowerCase('vi-VN'));
-      }
-      if (code && !name && custNameByCode.has(code)) name = custNameByCode.get(code);
-      const key = customerRevenueKey(name, code);
-      const retBranch = (retFacilityIdx >= 0 ? String(row[retFacilityIdx] || '').trim() : '') || fallbackBranch;
-      // Khach chi co tra hang trong ky (khong co hoa don) van la 1 dong, doanh thu am,
-      // de tong doanh thu theo khach khop doanh thu thuc te o bieu do theo ngay.
-      if (!customers.has(key)) {
-        customers.set(key, {
-          code: code || '—',
-          name: name || '(Không xác định)',
-          saleOrderCount: 0,
-          revenue: 0,
-          revenueByBranch: {},
-          codesByBranch: {},
-          _branches: new Set()
-        });
-      }
-      const entry = customers.get(key);
-      const retTotal = Number(retTotalIdx >= 0 ? row[retTotalIdx] : row[4]) || 0;
-      entry.revenue -= retTotal;
-      if (retBranch) {
-        entry._branches.add(retBranch);
-        if (code && !entry.codesByBranch[retBranch]) entry.codesByBranch[retBranch] = code;
-        entry.revenueByBranch[retBranch] = (entry.revenueByBranch[retBranch] || 0) - retTotal;
-      }
-    }
-  }
-
-  return finalizeCustomerRevenue(customers, fallbackBranch);
-}
-
-function buildTopCustomersByRevenue(range, customerReportData, invData, custData, retData, fallbackBranch = '') {
-  let customers;
-  if (Array.isArray(customerReportData) && customerReportData.length > 1) {
-    customers = aggregateCustomerReportRevenueByCode(range, customerReportData);
-  } else {
-    customers = aggregateCustomerRevenueFromSheetRows(range, invData, custData, retData, fallbackBranch);
-  }
-  const sorted = Array.from(customers.values()).sort((a, b) => b.revenue - a.revenue);
-
-  return {
-    label: range.label,
-    top15: sorted.slice(0, TOP_CUSTOMER_REVENUE_CHART_LIMIT),
-    all: sorted
-  };
 }
 
 /**
@@ -1867,7 +1627,7 @@ function dashboardSourceVersion(branch, plan) {
  * @param {Object} filters - xem computeDashboardData
  * @param {Object} [options]
  * @param {string[]} [options.views] - chi doc/tinh/tra cac tab nay ('overview' |
- *   'products' | 'invoices' | 'customers' | 'debt'); bo trong =
+ *   'products' | 'invoices' | 'debt'); bo trong =
  *   ca 5 tab nhu truoc day (xem dashboardViews.js). Cache ket qua tach rieng theo
  *   tap tab + chi theo cac bo loc tab do dung.
  * @returns {Object} Du lieu KPI, bieu do, bang xep hang cho dashboard
@@ -2019,7 +1779,6 @@ function computeDashboardData(sheets, filters, now, branch, rollups, debtManagem
 
   const productsRange = resolveFilterRange(f.products, now);
   const invoicesRange = resolveFilterRange(f.invoices, now);
-  const customersRange = resolveFilterRange(f.customers, now);
   const newProductsRange = resolveFilterRange(f.newProducts, now);
   // Bo loc rieng tung bang (mac dinh = bo loc Hang hoa, xem withTableFilterFallbacks).
   const newlyImportedRange = resolveFilterRange(f.newlyImported, now);
@@ -2033,9 +1792,7 @@ function computeDashboardData(sheets, filters, now, branch, rollups, debtManagem
   // khoi cache "core" (xem getCachedDashboardCoreSources()) va duoc thay bang
   // dashboardRollupRepository.js qua tham so `rollups`.
   // (Bang "Đặt hàng" khong con doc o day: don dat hang "Phieu tam" nay hien o trang Vong doi don hang.)
-  const returnData = sheets[CONFIG.SHEET_RETURNS] || [];
   const custData = sheets[CONFIG.SHEET_CUSTOMERS] || [];
-  const customerReportData = sheets[CONFIG.SHEET_CUSTOMER_REPORT] || [];
 
   // ---------- HÀNG HÓA ----------
   // Doc theo ten cot de schema co the bo cot khong dung ma khong lam lech KPI.
@@ -2359,62 +2116,27 @@ function computeDashboardData(sheets, filters, now, branch, rollups, debtManagem
     return index >= 0 ? index : fallback;
   };
   const customerCodeIndex = customerIndex('Mã khách hàng', 0);
-  const customerFacilityIndex = customerIndex(SHEET_FACILITY_HEADER, -1);
-  const customerCodesIndex = customerIndex(CUSTOMER_CODES_HEADER, -1);
-  const customerDebtByBranchIndex = customerIndex(CUSTOMER_DEBT_BY_BRANCH_HEADER, -1);
   const customerNameIndex = customerIndex('Tên khách hàng', 1);
-  const customerPhoneIndex = customerIndex('Điện thoại', 2);
   const customerDebtIndex = customerIndex('Nợ hiện tại', 7);
   // "Nợ hiện tại" là số dư TẠI THỜI ĐIỂM HIỆN TẠI (snapshot) nên KPI tổng
   // (totalCustomers/customersWithDebt/totalDebt) không lọc theo thời gian.
-  // Danh sách/biểu đồ khách nợ (topDebt) thì thu hẹp theo khách CÓ phát sinh
-  // bán/trả hàng trong khoảng đã chọn, kèm doanh thu THỰC TẾ (đã trừ hàng trả) trong
-  // kỳ đó. Lấy thẳng từ "Top khách hàng theo doanh thu" (cùng khoảng, cùng khóa
-  // tên chuẩn hóa/mã) nên khớp số ở bảng doanh thu theo khách; không nối bằng SĐT
-  // vì cột "SĐT khách" của hóa đơn rỗng khi đọc từ Postgres.
-  const topCustomersByRevenue = view.has('customers')
-    ? buildTopCustomersByRevenue(customersRange, customerReportData, invData, custData, returnData, singleBranch)
-    : undefined;
-  const customerPeriodRevenue = new Map();
-  if (topCustomersByRevenue) {
-    topCustomersByRevenue.all.forEach(entry => {
-      customerPeriodRevenue.set(customerRevenueKey(entry.name, entry.code), entry.revenue);
-    });
-  }
+  // (2026-10-16: bỏ tab Khách hàng cũ — danh sách khách nợ topDebt và top doanh thu theo khách
+  // không còn; chi tiết công nợ nằm ở tab Công nợ, tăng trưởng khách ở tab Khách hàng mới.)
 
   // Tong khach chi dem khach DANG HOAT DONG (debtCustomerData da loai khach ngung, xem activeCustomerDebtSheet).
   const totalCustomers = (debtCustomerData || custData).slice(1).filter(row => row[customerCodeIndex]).length;
   let customersWithDebt = 0, totalDebt = 0;
-  let topDebt = [];
 
   const debtCustomers = debtCustomerData || custData;
   for (let r = 1; r < debtCustomers.length; r++) {
     const row = debtCustomers[r];
-    const code = row[customerCodeIndex];
-    if (!code) continue;
+    if (!row[customerCodeIndex]) continue;
     const debt = Number(row[customerDebtIndex]) || 0;
     if (debt > 0) {
       customersWithDebt++;
       totalDebt += debt;
-      const revenueKey = customerRevenueKey(row[customerNameIndex], code);
-      const periodRevenue = customerPeriodRevenue.get(revenueKey) || 0;
-      const includeInPeriod = customersRange.mode === 'all' || customerPeriodRevenue.has(revenueKey);
-      if (includeInPeriod) {
-        const rowBranch = (customerFacilityIndex >= 0 && row[customerFacilityIndex]) || singleBranch;
-        topDebt.push({
-          code,
-          branch: rowBranch,
-          codesByBranch: parseCodesByBranch(customerCodesIndex >= 0 ? row[customerCodesIndex] : '', singleBranch, code),
-          name: row[customerNameIndex],
-          phone: row[customerPhoneIndex],
-          debt,
-          debtByBranch: parseAmountsByBranch(customerDebtByBranchIndex >= 0 ? row[customerDebtByBranchIndex] : '', rowBranch, debt),
-          periodRevenue
-        });
-      }
     }
   }
-  topDebt.sort((a, b) => b.debt - a.debt);
 
   // Ban day du (shape cu). pickPayload() giu nguyen khi chay du 5 tab, cat ve
   // dung phan cua tab duoc chon khi chay theo tung tab (dashboardViews.js).
@@ -2423,7 +2145,6 @@ function computeDashboardData(sheets, filters, now, branch, rollups, debtManagem
     filters: {
       products: productsRange,
       invoices: invoicesRange,
-      customers: customersRange,
       newProducts: newProductsRange,
       newlyImported: newlyImportedRange
     },
@@ -2471,10 +2192,6 @@ function computeDashboardData(sheets, filters, now, branch, rollups, debtManagem
       periodInvoices: invoicesPeriod.periodInvoices,
       periodCancelledInvoices,
       transactionsReport
-    },
-    customers: {
-      topDebt,
-      topRevenue: topCustomersByRevenue
     },
     allProducts,
     debtManagement

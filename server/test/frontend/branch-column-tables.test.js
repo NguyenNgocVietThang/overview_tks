@@ -1,7 +1,7 @@
 'use strict';
 
-// Cot "Cơ sở" o cac bang dong theo co so (tru bang ton kho gop ma), hang hoa cung ma o hai co so la hai dong rieng, khach gop theo ten
-// (khong con cot Ma KH), khong con bo loc trang thai kinh doanh / thanh tim kiem chung.
+// Cot "Cơ sở" o cac bang dong theo co so (tru bang ton kho gop ma), hang hoa cung ma o hai co so la hai dong rieng,
+// khong con bo loc trang thai kinh doanh / thanh tim kiem chung. (Bang khach hang cua tab Khach hang cu da go 2026-10-16.)
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -54,11 +54,7 @@ function payload() {
         salesRevenue: 0, salesQty: 0
       }
     },
-    allProducts: [product(HN, 5), product(SG, 2)],
-    customers: {
-      topDebt: [{ code: 'KH-1', branch: BOTH, name: 'Khách Hà Nội', phone: '0901', debt: 500, periodRevenue: 0, codesByBranch: { [HN]: 'KH-1', [SG]: 'KH-9' }, debtByBranch: { [HN]: 200, [SG]: 300 } }],
-      topRevenue: { top15: [], all: [{ code: 'KH-1', branch: BOTH, name: 'Khách Hà Nội', saleOrderCount: 3, revenue: 999, revenueByBranch: { [HN]: 600, [SG]: 399 } }], label: 'Tất cả' }
-    }
+    allProducts: [product(HN, 5), product(SG, 2)]
   };
 }
 
@@ -67,7 +63,7 @@ function createPage() {
   dom.window.sessionStorage.setItem('tksDashboardCache', JSON.stringify({
     data: payload(),
     days: 30,
-    filters: { products: { mode: 'days', days: 30 }, invoices: { mode: 'days', days: 30 }, customers: { mode: 'all' } }
+    filters: { products: { mode: 'days', days: 30 }, invoices: { mode: 'days', days: 30 } }
   }));
   dom.window.HTMLCanvasElement.prototype.getContext = () => ({});
   dom.window.Chart = class FakeChart {
@@ -101,8 +97,7 @@ function rows(doc, tbodyId) {
 
 const TABLES_WITH_BRANCH = {
   products: [ 'topSellingRows', 'allProductRows', 'newlyImportedRows', 'todayNewProductRows'],
-  invoices: ['endOfDayRows'],
-  customers: ['debtRows', 'customerRevenueRows']
+  invoices: ['endOfDayRows']
 };
 
 test('cac bang dong theo co so co cot "Cơ sở" va dong nao cung ghi co so', () => {
@@ -144,35 +139,6 @@ test('hang hoa cung ma o hai co so la hai dong rieng voi khoa dinh danh khac nha
   assert.deepEqual(ids, ['Hà Nội|SP-1', 'Sài Gòn|SP-1']);
   const topSelling = rows(doc, 'topSellingRows');
   assert.equal(topSelling.length, 2);
-  dom.window.close();
-});
-
-test('bang khach hang khong con cot Mã KH, khach gop theo ten hien "Hà Nội, Sài Gòn"', () => {
-  const dom = createPage();
-  const doc = dom.window.document;
-  dom.window.eval("switchView('customers')");
-  ['debtRows', 'customerRevenueRows'].forEach(id => {
-    const head = headers(doc, id);
-    assert.ok(!head.includes('Mã KH'), id + ' khong con Mã KH');
-    assert.equal(head[0].includes('Khách hàng') || head[0].includes('Tên khách hàng'), true);
-  });
-  assert.deepEqual([rows(doc, 'debtRows')[0][0], rows(doc, 'debtRows')[0].at(-1)], ['Khách Hà Nội', BOTH]);
-  assert.deepEqual([rows(doc, 'customerRevenueRows')[0][0], rows(doc, 'customerRevenueRows')[0].at(-1)], ['Khách Hà Nội', BOTH]);
-  dom.window.close();
-});
-
-test('bang khach hang: bo bieu do, them cot doanh thu / cong no theo tung co so', () => {
-  const dom = createPage();
-  const doc = dom.window.document;
-  dom.window.eval("switchView('customers')");
-  ['chartTopCustomerRevenue', 'chartDebt'].forEach(id => assert.equal(doc.getElementById(id), null, id + ' da bi go'));
-  assert.deepEqual(headers(doc, 'customerRevenueRows').slice(2), ['Doanh thu', 'Doanh thu HN', 'Doanh thu SG', 'Cơ sở']);
-  assert.deepEqual(headers(doc, 'debtRows').slice(2), ['Công nợ', 'Công nợ HN', 'Công nợ SG', 'Cơ sở']);
-  assert.deepEqual(rows(doc, 'customerRevenueRows')[0].slice(2, 5).map(text => text.replace(/\D/g, '')), ['999', '600', '399']);
-  assert.deepEqual(rows(doc, 'debtRows')[0].slice(2, 5).map(text => text.replace(/\D/g, '')), ['500', '200', '300']);
-  // Payload cu chua co map theo co so: dong cua 1 co so lay tron tong o co so do.
-  const html = dom.window.branchAmountCells({ branch: SG }, 'debtByBranch', 70, '');
-  assert.deepEqual([...html.matchAll(/data-sort-value="(\d+)"/g)].map(match => match[1]), ['0', '70']);
   dom.window.close();
 });
 
