@@ -189,3 +189,140 @@ test('chot an toan: ung vien khac nhau o 2 lan lien tiep khong duoc coi la xac n
     assert.equal((await db.query('SELECT count(*)::int AS n FROM product_container_lines')).rows[0].n, 10);
   } finally { await db.close(); }
 });
+
+function cachePool() {
+  let queries = 0;
+  let bytes = 0;
+  let fail = false;
+  const result = value => { bytes += Buffer.byteLength(JSON.stringify(value)); return value; };
+  const pool = { query: async sql => {
+    queries++;
+    if (fail) throw new Error('transient');
+    if (sql.includes('SELECT 1 FROM product_report')) return result({ rows: [{}] });
+    return result({ rows: [{ sync: { version: 'v1', last_success_at: new Date().toISOString(), warnings: [{ reason: 'secret' }] }, items: [
+      { sheetName: 'A', containerRow: 1, containerName: 'Same', quantity: 2, orderedBy: 'SECRET', packageCount: 1 },
+      { sheetName: 'A', containerRow: 1, containerName: 'Same', quantity: 3, orderedBy: 'SECRET', packageCount: 2 },
+      { sheetName: 'A', containerRow: 9, containerName: 'Same', quantity: 7, orderedBy: 'SECRET' }
+    ] }] });
+  } };
+  return { pool, count: () => queries, bytes: () => bytes, setFail: value => { fail = value; } };
+}
+test('two tabs reuse one DB payload instead of transferring the same snapshot twice', async () => {
+  const a = cachePool();
+  const { invalidateContainerDetails } = require('./repository');
+  await getContainerDetails({ pool:a.pool, code:'SKU' });
+  const firstReadBytes = a.bytes();
+  await getContainerDetails({ pool:a.pool, code:'sku', fullAccess:true });
+  assert.equal(a.bytes(), firstReadBytes, 'second tab adds zero DB response bytes');
+  assert.equal(a.count(), 2, 'shared cache: one eligibility + one snapshot query');
+  invalidateContainerDetails(a.pool);
+  await getContainerDetails({ pool:a.pool, code:'sku' });
+  assert.equal(a.count(), 4, 'without reusable cache the same scenario needs four queries');
+  assert.equal(a.bytes(), firstReadBytes * 2, 'serialized DB fixture payload halves for two reads');
+});
+test('shared detail cache coalesces requests, groups source identity, filters each permission and isolates pools', async () => {
+  const a = cachePool();
+  const [publicResult, privateResult] = await Promise.all([
+    getContainerDetails({ pool: a.pool, code: ' SKU ' }),
+    getContainerDetails({ pool: a.pool, code: 'sku', fullAccess: true })
+  ]);
+  assert.equal(a.count(), 2, 'one eligibility and one snapshot read for concurrent callers');
+  assert.deepEqual(publicResult.rows.map(row => row.quantity), [5, 7]);
+  assert.doesNotMatch(JSON.stringify(publicResult), /SECRET|warnings|sheetName|containerRow/);
+  assert.equal(privateResult.rows[0].orderedBy, 'SECRET');
+  assert.equal(privateResult.rows[0].packageCount, 3);
+  privateResult.rows[0].quantity = 999;
+  privateResult.warnings[0].reason = 'mutated';
+  const again = await getContainerDetails({ pool: a.pool, code: 'SKU', fullAccess: true });
+  assert.equal(again.rows[0].quantity, 5);
+  assert.equal(again.warnings[0].reason, 'secret');
+  assert.equal(a.count(), 2);
+  const b = cachePool();
+  await getContainerDetails({ pool: b.pool, code: 'sku' });
+  assert.equal(b.count(), 2);
+});
+test('cache expires at five minutes, invalidates explicitly, and never caches failures', async () => {
+  const { invalidateContainerDetails } = require('./repository');
+  const a = cachePool();
+  let time = 1;
+  const read = () => getContainerDetails({ pool: a.pool, code: 'sku', now: () => time });
+  await read();
+  time += 299999;
+  await read();
+  assert.equal(a.count(), 2);
+  time++;
+  await read();
+  assert.equal(a.count(), 4);
+  invalidateContainerDetails(a.pool);
+  a.setFail(true);
+  await assert.rejects(read(), /transient/);
+  a.setFail(false);
+  await read();
+  assert.equal(a.count(), 7);
+});
+test('LRU retains hot keys and bounds cache at 500 products', async () => {
+  const a = cachePool();
+  for (let i = 0; i < 500; i++) await getContainerDetails({ pool: a.pool, code: 'sku' + i });
+  await getContainerDetails({ pool: a.pool, code: 'sku0' });
+  await getContainerDetails({ pool: a.pool, code: 'sku500' });
+  await getContainerDetails({ pool: a.pool, code: 'sku0' });
+  assert.equal(a.count(), 1002);
+  await getContainerDetails({ pool: a.pool, code: 'sku1' });
+  assert.equal(a.count(), 1004);
+});
+test('empty container results are cached', async () => {
+  let count = 0;
+  const pool = { query: async sql => {
+    count++;
+    return sql.includes('SELECT 1 FROM product_report') ? { rows: [{}] }
+      : { rows: [{ sync: { version: 'v1', last_success_at: new Date().toISOString() }, items: [] }] };
+  } };
+  assert.deepEqual((await getContainerDetails({ pool, code: 'sku' })).rows, []);
+  await getContainerDetails({ pool, code: 'sku' });
+  assert.equal(count, 2);
+});
+
+test('successful changed and unchanged syncs invalidate shared cached details', async () => {
+  const { refreshContainers } = require('./sync');
+  const db = await fixture();
+  let snapshotReads = 0;
+  const pool = {
+    connect: async () => connectionOver(db),
+    query: async (sql, args) => {
+      if (sql.includes('jsonb_agg(item')) snapshotReads++;
+      return db.query(sql, args);
+    }
+  };
+  const sync = at => refreshContainers({ pool, spreadsheetId: 'fixture', client: sheetClient({ YIWU: [['001A', 3]] }),
+    now: () => new Date(at), logger: { info() {}, error() {} } });
+  try {
+    assert.equal((await sync(T0)).status, 'updated');
+    await getContainerDetails({ pool, code: '001A' });
+    await getContainerDetails({ pool, code: '001A' });
+    assert.equal(snapshotReads, 1);
+    assert.equal((await sync(T1)).status, 'unchanged');
+    const result = await getContainerDetails({ pool, code: '001A' });
+    assert.equal(snapshotReads, 2);
+    assert.equal(new Date(result.containerSync.lastSuccessAt).toISOString(), new Date(T1).toISOString());
+  } finally { await db.close(); }
+});
+test('invalidation while a read is pending cannot repopulate old cache', async () => {
+  const { invalidateContainerDetails } = require('./repository');
+  const base = cachePool();
+  let release;
+  let started;
+  const waiting = new Promise(resolve => { started = resolve; });
+  const gate = new Promise(resolve => { release = resolve; });
+  let first = true;
+  const pool = { query: async sql => {
+    if (first && sql.includes('jsonb_agg(item')) { first = false; started(); await gate; }
+    return base.pool.query(sql);
+  } };
+  const pending = getContainerDetails({ pool, code: 'sku' });
+  await waiting;
+  invalidateContainerDetails(pool);
+  release();
+  await pending;
+  await getContainerDetails({ pool, code: 'sku' });
+  assert.equal(base.count(), 4);
+});

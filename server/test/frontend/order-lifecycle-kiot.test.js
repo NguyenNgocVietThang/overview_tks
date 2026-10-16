@@ -51,7 +51,10 @@ async function renderPage({ orders = [], kiot = { ok: true, stale: false, fetche
   const calls = [];
   const source = { orders }; // test co the doi `page.source.orders` roi goi loadBulkOrders(true) de gia lap du lieu moi
   window.setInterval = () => 1;
+  window.eval(fs.readFileSync(path.join(publicDir, 'shared/shared-nav.js'), 'utf8'));
+  const readCachedJSON = window.TKSNav.readCachedJSON;
   window.TKSNav = {
+    readCachedJSON,
     authGuard: () => Promise.resolve({ vaiTro }),
     can: fakeCan(vaiTro),
     handleBranchError: () => false
@@ -71,6 +74,7 @@ async function renderPage({ orders = [], kiot = { ok: true, stale: false, fetche
   window.URL.createObjectURL = () => 'blob:test';
   window.URL.revokeObjectURL = () => {};
   window.HTMLAnchorElement.prototype.click = () => {};
+  window.HTMLCanvasElement.prototype.getContext = () => null;
   window.alert = () => {};
   if (hiddenColumns) window.localStorage.setItem('tks-lifecycle-hidden-columns', JSON.stringify(hiddenColumns));
   window.HTMLDialogElement.prototype.showModal = function() { this.setAttribute('open', ''); };
@@ -695,12 +699,12 @@ test('bấm dòng: mở hộp chi tiết, gọi order-detail đúng mã/cơ sở
   assert.ok(document.querySelector('.lc-detail-dialog').classList.contains('is-wide'));
 
   const headers = [...document.querySelectorAll('.lc-lines thead th')].map(th => th.querySelector('.sort-label').textContent);
-  assert.deepEqual(headers, ['Mã hàng', 'Tên hàng', 'SL đặt', 'Thể tích (m³)', 'Đơn giá', 'Thành tiền', 'Tồn kho', 'Điều chuyển SG', 'Có bán', 'Thành tiền có bán']);
+  assert.deepEqual(headers, ['Mã hàng', 'Tên hàng', 'SL đặt', 'Đơn giá', 'Thành tiền', 'Tồn HN', 'Điều chuyển SG', 'Có bán', 'Thành tiền có bán']);
   assert.ok(!headers.includes('Đang vận chuyển'), 'cot da doi ten');
   const rows = [...document.querySelectorAll('.lc-lines tbody tr')].map(tr => [...tr.cells].map(td => td.textContent));
-  assert.deepEqual(rows[0], ['A', 'Hàng A', '500', '1,500', '1.000', '500.000', '40', '160', '40', '40.000']);
-  assert.deepEqual(rows[1], ['B', 'Hàng B', '70', '0,250', '5.000', '350.000', '800', '0', '70', '350.000']);
-  assert.deepEqual(rows[2].slice(6), ['—', '—', '—', '—'], 'dong thue VAT khong co ton/co ban');
+  assert.deepEqual(rows[0], ['A', 'Hàng A', '500', '1.000', '500.000', '40', '160', '40', '40.000']);
+  assert.deepEqual(rows[1], ['B', 'Hàng B', '70', '5.000', '350.000', '800', '0', '70', '350.000']);
+  assert.deepEqual(rows[2].slice(5), ['—', '—', '—', '—'], 'dong thue VAT khong co ton/co ban');
   assert.ok(document.querySelectorAll('.lc-lines tbody tr')[2].classList.contains('is-service'));
   const text = document.getElementById('lcDetailBody').textContent;
   assert.match(text, /Giá trị đơn \(Kiot\)855\.000₫/);
@@ -723,7 +727,7 @@ test('đơn không còn Phiếu tạm: bảng hàng hóa không có tồn/có b�
   rowsOf(page.document)[0].click();
   await settle();
   const cells = [...page.document.querySelectorAll('.lc-lines tbody tr')[0].cells].map(td => td.textContent);
-  assert.deepEqual(cells.slice(6), ['—', '—', '—', '—']);
+  assert.deepEqual(cells.slice(5), ['—', '—', '—', '—']);
   const text = page.document.getElementById('lcDetailBody').textContent;
   assert.match(text, /không còn ở trạng thái Phiếu tạm/);
   assert.doesNotMatch(text, /Giá trị có bán/);
@@ -1112,10 +1116,10 @@ test('hộp chi tiết CÓ sort, thanh kéo độ rộng cột và nút "Cột h
 
   // nut nam ngay tren dau khoi "Hang hoa trong don", khong them 1 hang cong cu rieng
   const buttons = overlay.querySelectorAll('.tks-columns-button');
-  assert.equal(buttons.length, 1);
+  assert.equal(buttons.length, 2);
   assert.ok(buttons[0].parentElement.classList.contains('dp-section-head'));
   assert.equal(overlay.querySelectorAll('.tks-table-tools').length, 0);
-  assert.equal(linesTable.querySelectorAll('.tks-column-resizer').length, 10);
+  assert.equal(linesTable.querySelectorAll('.tks-column-resizer').length, 9);
 
   // sort: bam "Thanh tien" -> tang dan (VAT 5.000 < B 350.000 < A 500.000), bam lai -> giam dan, bam lan 3 -> thu tu goc
   const codes = () => [...linesTable.tBodies[0].rows].map(row => row.cells[0].textContent);
@@ -1132,7 +1136,7 @@ test('hộp chi tiết CÓ sort, thanh kéo độ rộng cột và nút "Cột h
   assert.deepEqual(codes(), ['A', 'B', 'VATDA44']);
   assert.equal(amount.querySelector('.sort-indicator').textContent, '▲▼');
   // o khong co gia tri luon xuong cuoi ca 2 chieu: "Ton kho" cua dong VAT la —
-  const stock = [...linesTable.tHead.rows[0].cells].find(th => th.querySelector('.sort-label').textContent === 'Tồn kho');
+  const stock = [...linesTable.tHead.rows[0].cells].find(th => th.querySelector('.sort-label').textContent === 'Tồn HN');
   stock.querySelector('.sort-button').click();
   assert.deepEqual(codes(), ['A', 'B', 'VATDA44']);
   stock.querySelector('.sort-button').click();
@@ -1153,11 +1157,14 @@ test('khối Thể tích & cước: mặc định Đức Mạnh, đổi dropdown
   const { document } = page;
   rowsOf(document)[0].click();
   await settle();
-  const select = document.getElementById('lcCarrierSelect');
+  let select = document.getElementById('lcCarrierSelect');
   assert.equal(select.value, 'DM');
   let text = document.getElementById('lcFreightBody').textContent;
   assert.match(text, /Tổng thể tích1,750 m³/);
-  assert.match(text, /Số thùng6/);
+  assert.doesNotMatch(text, /Số thùng/);
+  const totals = document.getElementById('lcCarrierTotals').textContent;
+  assert.match(totals, /Đức Mạnh962.500 đViệt Linh1.013.750 đJ&T1.200.000 đ/);
+  assert.equal(document.querySelector('.lc-measures tbody tr').cells[2].textContent, '20 kg');
   assert.match(text, /Ghi chú ĐM/);
   assert.match(text, /962.500/);
   select.value = 'VL';
@@ -1166,12 +1173,15 @@ test('khối Thể tích & cước: mặc định Đức Mạnh, đổi dropdown
   assert.match(text, /Ghi chú VL/);
   assert.match(text, /Phụ thu/);
   assert.match(text, /1.013.750/);
+  select = document.getElementById('lcCarrierSelect');
   select.value = 'JT';
   select.dispatchEvent(new page.dom.window.Event('change', { bubbles: true }));
   text = document.getElementById('lcFreightBody').textContent;
   assert.match(text, /Ghi chú JT/);
   assert.match(text, /A: 5 thùng × 240.000/);
   assert.match(text, /1.200.000/);
+  assert.equal(document.getElementById('lcCarrierTotals').textContent, totals);
+  assert.equal(page.calls.filter(call => call.url.includes('/order-detail')).length, 1);
   page.dom.window.close();
 });
 
@@ -1185,7 +1195,8 @@ test('khối Thể tích & cước: thiếu mã -> cảnh báo, không có tổn
   await settle();
   let text = page.document.getElementById('lcFreightBody').textContent;
   assert.match(text, /thiếu dữ liệu trong sheet CÂN ĐO cho mã ZZZ/);
-  assert.match(text, /Tổng cước—/);
+  assert.equal(page.document.querySelectorAll('#lcCarrierTotals .dp-stat').length, 3);
+  assert.match(text, /Chưa tính được/);
   page.dom.window.close();
 
   const broken = kiotDetail({ freight: { unavailable: true, message: 'Không đọc được sheet CÂN ĐO.' } });
@@ -1198,5 +1209,93 @@ test('khối Thể tích & cước: thiếu mã -> cảnh báo, không có tổn
   text = page.document.getElementById('lcFreight').textContent;
   assert.match(text, /Không đọc được sheet CÂN ĐO/);
   assert.equal(page.document.getElementById('lcCarrierSelect'), null);
+  page.dom.window.close();
+});
+
+test('cân đo từng hàng giữ phần đã có, cảnh báo đúng ô và hiển thị ba cước tạm tính', async () => {
+  const detail = kiotDetail();
+  detail.lines[0].measure = { status: 'missing', kg: 20, m3: null, missingVolume: true, missingWeight: false };
+  detail.freight.provisional = true;
+  detail.freight.missingCodes = ['A'];
+  const page = await renderPage({ orders: [kiotOnlyOrder('DH1', { branch: 'SG' })],
+    fetchImpl: url => url.includes('/order-detail') ? { ok:true, status:200, json:async () => ({ detail }) } : null });
+  rowsOf(page.document)[0].click();
+  await settle();
+  const row = page.document.querySelector('.lc-measures tbody tr');
+  assert.equal(row.cells[2].textContent, '20 kg');
+  assert.equal(row.cells[3].textContent, 'Chưa cân đo');
+  assert.equal(page.document.querySelectorAll('#lcCarrierTotals .dp-stat-sub').length, 3);
+  assert.match(page.document.querySelector('.lc-lines thead').textContent, /Tồn SG/);
+  page.dom.window.close();
+});
+
+test('CONT cấp 2 dùng cache, hỗ trợ bàn phím và đóng độc lập với đơn hàng', async () => {
+  const page = await renderPage({ orders:[kiotOnlyOrder('DH1')], fetchImpl: url => {
+    if(url.includes('/order-detail')) return { ok:true, status:200, json:async () => ({ detail:kiotDetail() }) };
+    if(url.includes('/containers?')) return { ok:true, status:200, json:async () => ({ rows:[
+      { containerName:'CONT A', status:5, statusLabel:'Đã về', eta:'16/10/2026', quantity:123 }
+    ], containerSync:{ stale:true } }) };
+  } });
+  const { document, window } = page;
+  rowsOf(document)[0].click();
+  await settle();
+  const row = document.querySelector('.lc-lines [data-line-index]');
+  row.focus();
+  row.dispatchEvent(new window.KeyboardEvent('keydown', { key:'Enter', bubbles:true }));
+  await settle();
+  const overlay = document.getElementById('lcContainerOverlay');
+  assert.equal(overlay.hidden, false);
+  assert.match(overlay.textContent, /CONT AĐã về16\/10\/2026123/);
+  assert.match(overlay.textContent, /lần đồng bộ thành công gần nhất/);
+  assert.equal(document.querySelector('.lc-detail-dialog').inert, true);
+  document.dispatchEvent(new window.KeyboardEvent('keydown', { key:'Escape', bubbles:true }));
+  assert.equal(overlay.hidden, true);
+  assert.equal(document.getElementById('lcDetailOverlay').hidden, false);
+  assert.equal(document.activeElement, row);
+  row.click();
+  await settle();
+  document.getElementById('lcContainerClose').click();
+  assert.equal(document.getElementById('lcDetailOverlay').hidden, false);
+  row.click();
+  await settle();
+  overlay.click();
+  assert.equal(overlay.hidden, true);
+  assert.equal(page.calls.filter(call => call.url.includes('/containers?')).length, 1);
+  document.getElementById('lcDetailClose').click();
+  rowsOf(document)[0].click();
+  await settle();
+  assert.equal(page.calls.filter(call => call.url.includes('/order-detail')).length, 1);
+  page.dom.window.close();
+});
+
+test('đổi mã hàng bỏ qua phản hồi CONT cũ; lỗi tải và rỗng giữ nguyên cửa sổ đơn', async () => {
+  let resolveA;
+  let mode = 'pending';
+  const page = await renderPage({ orders:[kiotOnlyOrder('DH1')], fetchImpl: url => {
+    if(url.includes('/order-detail')) return { ok:true, status:200, json:async () => ({ detail:kiotDetail() }) };
+    if(url.endsWith('code=A')) return { ok:true, status:200, json:() => new Promise(resolve => { resolveA = resolve; }) };
+    if(url.includes('/containers?')) return mode === 'empty'
+      ? { ok:true, status:200, json:async () => ({ rows:[] }) }
+      : { ok:false, status:503, json:async () => ({ error:'Không tải được CONT.' }) };
+  } });
+  const { document } = page;
+  rowsOf(document)[0].click();
+  await settle();
+  const rows = document.querySelectorAll('.lc-lines [data-line-index]');
+  rows[0].click();
+  await settle();
+  document.getElementById('lcContainerClose').click();
+  rows[1].click();
+  await settle();
+  assert.match(document.getElementById('lcContainerBody').textContent, /Không tải được CONT/);
+  resolveA({ rows:[{ containerName:'OLD', quantity:999 }] });
+  await settle();
+  assert.doesNotMatch(document.getElementById('lcContainerBody').textContent, /OLD/);
+  document.getElementById('lcContainerClose').click();
+  mode = 'empty';
+  rows[1].click();
+  await settle();
+  assert.match(document.getElementById('lcContainerBody').textContent, /Chưa có CONT/);
+  assert.equal(document.getElementById('lcDetailOverlay').hidden, false);
   page.dom.window.close();
 });

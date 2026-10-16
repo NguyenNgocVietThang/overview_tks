@@ -51,6 +51,52 @@ function loadSharedNav(url) {
   return dom;
 }
 
+test('shared JSON cache coalesces reads, expires, bounds memory and isolates auth changes', async () => {
+  const dom = loadSharedNav('https://tokosi.example/');
+  const nav = dom.window.TKSNav;
+  let now = 1000;
+  let calls = 0;
+  let fail = false;
+  dom.window.Date.now = () => now;
+  dom.window.fetch = async () => ({ ok: !fail, status: fail ? 500 : 200, json: async () => ({ call: ++calls }) });
+  const user = { id: 'a', username: 'one', permissions: ['x', 'y'] };
+  nav.setPermissions(user);
+  const [first, concurrent] = await Promise.all([nav.readCachedJSON('/cont'), nav.readCachedJSON('/cont')]);
+  assert.equal(first, concurrent);
+  assert.equal(calls, 1);
+  nav.setPermissions({ ...user, permissions: ['y', 'x'] });
+  assert.equal(await nav.readCachedJSON('/cont'), first);
+  now += 60001;
+  await nav.readCachedJSON('/cont');
+  assert.equal(calls, 2);
+  fail = true;
+  await nav.readCachedJSON('/failure');
+  await nav.readCachedJSON('/failure');
+  assert.equal(calls, 4);
+  fail = false;
+  for(let i = 0; i < 101; i++) await nav.readCachedJSON('/bounded/' + i);
+  const before = calls;
+  await nav.readCachedJSON('/cont');
+  assert.equal(calls, before + 1);
+  nav.setPermissions({ ...user, permissions: ['x'] });
+  await nav.readCachedJSON('/cont');
+  assert.equal(calls, before + 2);
+  nav.setPermissions({ ...user, permissions: ['x'], coSo: 'Hà Nội' });
+  await nav.readCachedJSON('/cont');
+  assert.equal(calls, before + 3);
+  nav.clearCachedJSON();
+  await nav.readCachedJSON('/cont');
+  assert.equal(calls, before + 4);
+  let release;
+  dom.window.fetch = () => new Promise(resolve => { release = resolve; });
+  const stale = nav.readCachedJSON('/pending');
+  await Promise.resolve();
+  nav.setPermissions({ ...user, id: 'b' });
+  release({ ok: true, status: 200, json: async () => ({ secret: true }) });
+  await assert.rejects(stale, /AUTH_SCOPE_CHANGED/);
+  dom.window.close();
+});
+
 test('shared nav khong con mang vai tro cung — menu dung tu danh sach quyen', () => {
   const script = readPublic('shared/shared-nav.js');
   assert.doesNotThrow(() => new Function(script));

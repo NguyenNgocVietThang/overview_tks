@@ -391,7 +391,7 @@ test('readOrderDetail: truyen dung co so SG -> saigon', async () => {
   assert.equal(detail.lines[0].inTransit, 160);
 });
 
-test('readOrderDetail: gan the tich theo SL dat + cuoc 2 nha xe; dong VAT bo qua', async () => {
+test('readOrderDetail: gan the tich theo SL dat + cuoc 3 nha xe; dong VAT bo qua', async () => {
   const pool = createFakePool({ onHand: { hanoi: { A: 40 } } });
   const lines = [L('A', 250, 1000), L('VATDA44', 1, 160000)];
   const { repo } = repoFor(pool, {
@@ -404,13 +404,46 @@ test('readOrderDetail: gan the tich theo SL dat + cuoc 2 nha xe; dong VAT bo qua
   assert.equal(detail.freight.totals.m3, 2.5);
   assert.equal(detail.freight.carriers.DM.total, Math.round(Math.max(2.5 * 550000, 125 * 1330)));
   assert.equal(detail.freight.carriers.VL.total, Math.round(2.5 * 465000));
+  assert.equal(detail.freight.carriers.JT.total, Math.round(2.5 * 1e6 / 6000 * 4000));
+  assert.equal(detail.freight.provisional, false);
 });
 
-test('readOrderDetail: ma thieu trong CAN DO -> khong tinh cuoc, liet ke ma thieu', async () => {
+test('readOrderDetail: partial CAN DO preserves usable measures and all provisional carrier estimates', async () => {
+  const lookupCalls = [];
+  const { repo } = repoFor(createFakePool({}), {
+    fetchOrderDetail: async () => detailFixture('Hoàn thành', [L('A', 2, 1000), L('B', 3, 1000), L('VATDA44', 1, 1000)]),
+    lookupMeasures: async codes => {
+      lookupCalls.push(codes);
+      return new Map([
+        ['a', { m3PerUnit: null, kgPerUnit: 2 }],
+        ['b', { m3PerUnit: 0.01, kgPerUnit: null }]
+      ]);
+    }
+  });
+  const detail = await repo.readOrderDetail({ branch: 'HN', code: 'DH000001' });
+  assert.deepEqual(lookupCalls, [['A', 'B']]);
+  assert.deepEqual(detail.freight.totals, { m3: 0.03, kg: 4 });
+  assert.deepEqual(detail.freight.missingCodes, ['A', 'B']);
+  assert.equal(detail.freight.provisional, true);
+  assert.equal(detail.lines[0].measure.m3, null);
+  assert.equal(detail.lines[0].measure.kg, 4);
+  assert.equal(detail.lines[0].measure.missingVolume, true);
+  assert.equal(detail.lines[1].measure.m3, 0.03);
+  assert.equal(detail.lines[1].measure.kg, null);
+  assert.equal(detail.lines[1].measure.missingWeight, true);
+  assert.equal(detail.lines[2].measure.status, 'service');
+  assert.deepEqual(Object.values(detail.freight.carriers).map(carrier => carrier.provisional), [true, true, true]);
+  assert.equal(detail.freight.carriers.DM.total, 350000);
+  assert.equal(detail.freight.carriers.VL.total, 700000);
+  assert.equal(detail.freight.carriers.JT.total, 36000);
+});
+
+test('readOrderDetail: moi ma deu thieu CAN DO -> liet ke ma thieu va khong tao gia cuoc', async () => {
   const { repo } = repoFor(createFakePool({}), { fetchOrderDetail: async () => detailFixture('Hoàn thành', [L('ZZZ', 5, 1000)]) });
   const detail = await repo.readOrderDetail({ branch: 'HN', code: 'DH000001' });
   assert.deepEqual(detail.freight.missingCodes, ['ZZZ']);
-  assert.equal(detail.freight.carriers, null);
+  assert.deepEqual(detail.freight.carriers, { DM: null, VL: null, JT: null });
+  assert.equal(detail.freight.provisional, true);
 });
 
 test('readOrderDetail: doc sheet loi -> fail-soft, van tra chi tiet don', async () => {

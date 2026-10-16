@@ -1,105 +1,68 @@
 'use strict';
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { calculateFreight } = require('./freightCalculator');
+const { calculateFreight, buildOrderFreight } = require('./freightCalculator');
 
-test('thieu the tich (0, am, NaN) -> khong tinh cuoc', () => {
-  for (const m3 of [0, -1, NaN, undefined]) {
-    assert.deepEqual(calculateFreight({ m3, kg: 10 }), { DM: null, VL: null });
-  }
-});
-
-test('Duc Manh: m3 x 550k <= 350k -> cuoc toi thieu 350k', () => {
-  const { DM } = calculateFreight({ m3: 0.5, kg: 900 });
-  assert.equal(DM.total, 350000);
-  assert.equal(DM.surcharge, 0);
-});
-
-test('Duc Manh: tren nguong -> max(kg x 1330, m3 x 550k); nhanh the tich thang', () => {
-  assert.equal(calculateFreight({ m3: 1, kg: 100 }).DM.total, 550000);
-});
-
-test('Duc Manh: nhanh can nang thang khi hang nang', () => {
+test('existing DM and VL tariffs remain unchanged with volume', () => {
+  assert.equal(calculateFreight({ m3: 0.5, kg: 900 }).DM.total, 350000);
   assert.equal(calculateFreight({ m3: 1, kg: 600 }).DM.total, 798000);
+  assert.equal(calculateFreight({ m3: 0.6, kg: 5 }).VL.total, 700000);
+  assert.equal(calculateFreight({ m3: 1, kg: 5 }).VL.total, 665000);
+  assert.equal(calculateFreight({ m3: 2, kg: 5 }).VL.total, 930000);
 });
-
-test('Viet Linh: <= 0,6 m3 -> 500k + phu thu 200k', () => {
-  const { VL } = calculateFreight({ m3: 0.6, kg: 5 });
-  assert.equal(VL.freight, 500000);
-  assert.equal(VL.surcharge, 200000);
-  assert.equal(VL.total, 700000);
+test('no usable measurements has no carrier estimates', () => {
+  const { freight, lineMeasures } = buildOrderFreight([{ productCode: 'X', quantity: 2 }], new Map());
+  assert.deepEqual(freight.carriers, { DM: null, VL: null, JT: null });
+  assert.equal(lineMeasures[0].m3, null);
+  assert.equal(lineMeasures[0].kg, null);
 });
-
-test('Viet Linh: > 0,6 m3 va < 2 m3 -> m3 x 465k + phu thu 200k', () => {
-  const { VL } = calculateFreight({ m3: 1, kg: 5 });
-  assert.equal(VL.freight, 465000);
-  assert.equal(VL.total, 665000);
-});
-
-test('Viet Linh: dung 2 m3 khong phu thu', () => {
-  const { VL } = calculateFreight({ m3: 2, kg: 5 });
-  assert.equal(VL.surcharge, 0);
-  assert.equal(VL.total, 930000);
-});
-
-test('moi nha xe tra ve nhan, ghi chu va cac buoc tinh', () => {
-  const result = calculateFreight({ m3: 3, kg: 10 });
-  assert.equal(result.DM.label, 'Đức Mạnh');
-  assert.equal(result.VL.label, 'Việt Linh');
-  assert.ok(result.DM.steps.length >= 1 && result.VL.note.length > 0);
-});
-
-const { buildOrderFreight } = require('./freightCalculator');
-
-const MEASURES = new Map([
-  ['a', { perCarton: 100, m3PerUnit: 0.01, kgPerUnit: 0.5 }],
-  ['x', { missing: true }]
-]);
-
-test('buildOrderFreight: cong the tich/kg/thung theo SL dat, bo dong dich vu, tinh cuoc', () => {
-  const { lineMeasures, freight } = buildOrderFreight([
-    { productCode: 'A', quantity: 250 }, { productCode: 'VAT8', quantity: 1, isService: true }
-  ], MEASURES);
-  assert.equal(lineMeasures[0].status, 'ok');
-  assert.equal(lineMeasures[0].m3, 2.5);
-  assert.equal(lineMeasures[0].cartons, 3);
-  assert.equal(lineMeasures[1].status, 'service');
-  assert.deepEqual(freight.totals, { m3: 2.5, kg: 125, cartons: 3 });
-  assert.equal(freight.carriers.VL.total, Math.round(2.5 * 465000));
-});
-
-test('buildOrderFreight: co ma thieu -> khong tinh cuoc, liet ke ma thieu', () => {
-  const { lineMeasures, freight } = buildOrderFreight([
-    { productCode: 'A', quantity: 10 }, { productCode: 'X', quantity: 5 }, { productCode: 'Z', quantity: 1 }
-  ], MEASURES);
-  assert.equal(lineMeasures[1].status, 'missing');
-  assert.deepEqual(freight.missingCodes, ['X', 'Z']);
-  assert.equal(freight.carriers, null);
-});
-
-test('J&T: moi thung = max(40k, 4k x the tich quy doi, kg x 4k); cuoc dong = cuoc thung x so thung', () => {
-  // 100 sp/thung, 0,01 m3/sp => 1 m3/thung => 1e6 cm3 / 6000 x 4k = 666.667; 0,5 kg/sp => 50 kg => 200.000.
+test('partial measurements remain independent and still produce provisional freight', () => {
   const measures = new Map([
-    ['a', { perCarton: 100, m3PerUnit: 0.01, kgPerUnit: 0.5 }],
-    ['b', { perCarton: 10, m3PerUnit: 0.0001, kgPerUnit: 0.01 }],
-    ['c', { perCarton: 10, m3PerUnit: 0.0001, kgPerUnit: 20 }]
+    ['a', { m3PerUnit: null, kgPerUnit: 2 }],
+    ['b', { m3PerUnit: 0.01, kgPerUnit: null }]
+  ]);
+  const { freight, lineMeasures } = buildOrderFreight([
+    { productCode: 'A', quantity: 2 }, { productCode: 'B', quantity: 3 },
+    { productCode: 'X', quantity: 1 }, { productCode: 'VAT', quantity: 1, isService: true }
+  ], measures);
+  assert.equal(lineMeasures[0].m3, null);
+  assert.equal(lineMeasures[0].kg, 4);
+  assert.equal(lineMeasures[0].missingVolume, true);
+  assert.equal(lineMeasures[1].missingWeight, true);
+  assert.deepEqual(freight.totals, { m3: 0.03, kg: 4 });
+  assert.deepEqual(freight.missingCodes, ['A', 'B', 'X']);
+  assert.equal(freight.provisional, true);
+  assert.equal(freight.carriers.JT.total, 36000);
+  assert.equal(freight.carriers.DM.provisional, true);
+  assert.equal(lineMeasures[3].status, 'service');
+});
+test('JT uses ordered units, no carton rounding or minimum, and sums per-code maxima', () => {
+  const measures = new Map([
+    ['a', { perCarton: 100, m3PerUnit: 0.0001, kgPerUnit: 0.01 }],
+    ['b', { perCarton: 100, m3PerUnit: 0.00001, kgPerUnit: 2 }]
+  ]);
+  const { freight } = buildOrderFreight([{ productCode: 'A', quantity: 10 }, { productCode: 'B', quantity: 10 }], measures);
+  assert.equal(freight.carriers.JT.total, Math.round(0.001 * 1e6 / 6000 * 4000 + 20 * 4000));
+  assert.equal(freight.provisional, false);
+  assert.equal(freight.carriers.JT.steps.length, 2);
+  assert.ok(!freight.carriers.JT.note.includes('40k'));
+});
+test('weight-only orders can still estimate carriers', () => {
+  const { freight } = buildOrderFreight([{ productCode: 'A', quantity: 400 }], new Map([['a', { kgPerUnit: 1, m3PerUnit: null }]]));
+  assert.equal(freight.carriers.DM.total, 532000);
+  assert.equal(freight.carriers.VL.total, 700000);
+  assert.equal(freight.carriers.JT.total, 1600000);
+});
+
+test('JT combines duplicate SKU lines and rounds only the final sum', () => {
+  const measures = new Map([
+    ['a', { m3PerUnit: 0.000001, kgPerUnit: 0.0001 }],
+    ['b', { m3PerUnit: 0.000001, kgPerUnit: 0.0001 }]
   ]);
   const { freight } = buildOrderFreight([
-    { productCode: 'A', quantity: 200 }, { productCode: 'B', quantity: 10 }, { productCode: 'C', quantity: 10 }
+    { productCode: ' A ', quantity: 0.5 }, { productCode: 'a', quantity: 0.5 },
+    { productCode: 'B', quantity: 1 }
   ], measures);
-  const { JT } = freight.carriers;
-  assert.equal(JT.label, 'J&T');
-  assert.equal(JT.surcharge, 0);
-  // A: 2 thung x 666.667 | B: 1 thung, the tich 0,001 m3 -> 667 < 40k -> 40k | C: 200 kg x 4k = 800.000
-  assert.equal(JT.steps.length, 3);
-  assert.equal(JT.total, Math.round(2 * (1e6 / 6000) * 4000) + 40000 + 800000);
-});
-
-test('J&T: SL > 0 nhung lam tron 0 thung van tinh toi thieu 1 thung; dong dich vu bi bo qua', () => {
-  const measures = new Map([['a', { perCarton: 100, m3PerUnit: 0.0001, kgPerUnit: 0 }]]);
-  const { freight } = buildOrderFreight([
-    { productCode: 'A', quantity: 10 }, { productCode: 'VAT8', quantity: 1, isService: true }
-  ], measures);
-  assert.equal(freight.carriers.JT.total, 40000);
+  assert.equal(freight.carriers.JT.steps.length, 2);
+  assert.equal(freight.carriers.JT.total, 1);
 });

@@ -1833,7 +1833,7 @@
       });
 
       // Sorting
-      filtered.sort((a, b) => {
+      if(sortField) filtered.sort((a, b) => {
         // Cot thoi gian ("Ngay tao", dd/MM/yyyy): sap theo THOI GIAN that — so sanh chuoi se xep 30/09 sau 01/10.
         // Tai khoan chua co ngay tao luon xuong cuoi, bat ke chieu sap xep.
         if(sortField === 'ngayTao' || sortField === 'dangNhapGanNhat'){
@@ -1860,7 +1860,8 @@
 
     function handleSort(field){
       if(sortField === field){
-        sortAsc = !sortAsc;
+        if(sortAsc) sortAsc = false;
+        else { sortField = null; sortAsc = true; }
       } else {
         sortField = field;
         sortAsc = true;
@@ -1874,6 +1875,8 @@
           icon.textContent = SORT_GLYPH[state];
           const th = icon.closest('th');
           if(th) th.setAttribute('aria-sort', state);
+          const button = th && th.querySelector('.sort-button');
+          if(button) button.title = state === 'ascending' ? 'Sắp xếp giảm dần' : state === 'descending' ? 'Bỏ sắp xếp' : 'Sắp xếp tăng dần';
         }
       });
 

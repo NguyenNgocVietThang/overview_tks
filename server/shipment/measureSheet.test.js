@@ -23,7 +23,8 @@ test('parseMeasureRows: m3 va kg moi cai, lay hang dau khi trung ma (khong phan 
 });
 
 test('parseMeasureRows: thieu kich thuoc/SL-thung -> missing', () => {
-  assert.deepEqual(parseMeasureRows(VALUES).get('thieu'), { missing: true });
+  assert.equal(parseMeasureRows(VALUES).get('thieu').m3PerUnit, null);
+  assert.equal(parseMeasureRows(VALUES).get('thieu').kgPerUnit, 0.5);
 });
 
 test('parseMeasureRows: khong co hang tieu de -> loi 503', () => {
@@ -59,4 +60,18 @@ test('lookup: loi Google -> 503 gon, khong lo chi tiet', async () => {
 test('lookup: chua cau hinh id -> 503 MEASURE_NOT_CONFIGURED', async () => {
   const sheet = createMeasureSheet({ getSpreadsheetId: () => null, client: fakeClient({ n: 0 }) });
   await assert.rejects(sheet.lookup(['a']), { statusCode: 503, code: 'MEASURE_NOT_CONFIGURED' });
+});
+
+test('parseMeasureRows preserves partial measures and marks absent conversion', () => {
+  const table = parseMeasureRows([HEADER,
+    ['WEIGHT', '', '', 10, 5, 40, 30, ''],
+    ['VOLUME', '', '', 10, '', 40, 30, 20],
+    ['NOCOUNT', '', '', '', 5, 40, 30, 20]
+  ]);
+  assert.equal(table.get('weight').m3PerUnit, null);
+  assert.equal(table.get('weight').kgPerUnit, 0.5);
+  assert.ok(Math.abs(table.get('volume').m3PerUnit - 0.0024) < 1e-12);
+  assert.equal(table.get('volume').kgPerUnit, null);
+  assert.equal(table.get('nocount').m3PerUnit, null);
+  assert.equal(table.get('nocount').kgPerUnit, null);
 });

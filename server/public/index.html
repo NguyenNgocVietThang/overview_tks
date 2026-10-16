@@ -4290,7 +4290,7 @@
     })();
   </script>
   <script src="/shared/search-clear.js?v=20261009-1"></script>
-  <script src="/shared/shared-nav.js?v=20261008"></script>
+  <script src="/shared/shared-nav.js?v=20261016-freight"></script>
   <script src="/shared/table-align.js?v=20260928"></script>
   <script src="/shared/dateInput.js?v=20260912"></script>
   <script src="/marketing-report.js?v=20261016-sort"></script>
@@ -7179,12 +7179,17 @@
     }
 
     // Khung nhìn MẶC ĐỊNH của bảng Báo cáo hàng hóa theo ghi chú trong file HÀNG HÓA.xlsx: Nhân viên sale hiện cột A→K + DS 90 ngày
-    // (ẩn các cột tổng hợp/khách), Quản lý và mọi vai trò khác ẩn cột E→K (tồn/có bán/mô tả từng cơ sở). Chỉ là mặc định hiển thị:
+    // (ẩn các cột tổng hợp/khách), Quản lý và mọi vai trò khác ẩn cột E→K (tồn/có bán/mô tả từng cơ sở) và Khách lớn nhất. Chỉ là mặc định hiển thị:
     // dữ liệu vẫn có đủ trong API và ai cũng bật/tắt lại được bằng nút "Cột hiển thị" (lựa chọn chỉ giữ trong lần xem).
     const PRODUCT_REPORT_SALE_ROLE = 'Nhân viên sale';
     const PRODUCT_REPORT_HIDDEN_BY_PROFILE = {
       sale: ['tong-ton-thuc', 'tong-co-ban', 'sl-ban-30-ngay', 'ngay-can-dat', 'sl-khach-ban', 'khach-lon-nhat', 'ti-trong-khach-lon-nhat'],
-      manager: ['ton-thuc-hn', 'co-ban-hn', 'dieu-chuyen-sg', 'ton-thuc-sg', 'co-ban-sg', 'mo-ta-hn', 'mo-ta-sg']
+      manager: ['ton-thuc-hn', 'co-ban-hn', 'dieu-chuyen-sg', 'ton-thuc-sg', 'co-ban-sg', 'mo-ta-hn', 'mo-ta-sg', 'khach-lon-nhat']
+    };
+    // Độ rộng theo ảnh mẫu, cùng thứ tự với thead; khai báo rõ để không lấy độ rộng đã giãn từ phiên chưa biết vai trò.
+    const PRODUCT_REPORT_WIDTHS_BY_PROFILE = {
+      sale: [120, 260, 100, 100, 105, 100, 125, 105, 100, 110, 110, 130, 105, 100, 95, 135, 115, 200, 135],
+      manager: [120, 225, 100, 100, 105, 100, 125, 105, 100, 110, 110, 130, 105, 100, 95, 112, 115, 200, 135]
     };
     let productReportColumnProfile = '';
 
@@ -7201,8 +7206,8 @@
       productReportColumnProfile = profile;
       window.TKSTables.enhance(table, {
         key: table.dataset.tableKey + ':' + profile,
-        columns: Array.from(table.tHead.rows[0].cells).map(function (cell) {
-          return { key: cell.dataset.columnKey, hidden: hidden.indexOf(cell.dataset.columnKey) !== -1 };
+        columns: Array.from(table.tHead.rows[0].cells).map(function (cell, index) {
+          return { key: cell.dataset.columnKey, width: PRODUCT_REPORT_WIDTHS_BY_PROFILE[profile][index], hidden: hidden.indexOf(cell.dataset.columnKey) !== -1 };
         })
       });
     }
@@ -7224,6 +7229,9 @@
         const next = data.containerSync;
         // reportVersion chi doi khi bang bao cao that su doi (lam moi tang dan) -> khong tai lai khi khong co gi moi.
         const reportChanged = data.reportVersion != null && data.reportVersion !== state.productReport.reportVersion;
+        if (next && previous && next.version !== previous.version && typeof TKSNav.clearCachedJSON === 'function') {
+          TKSNav.clearCachedJSON();
+        }
         if (!state.productReport.loaded || reportChanged || (next && (!previous || next.version !== previous.version))) {
           return loadProductReport().then(function () {
             if (docDetail.tableKey === 'productReport' && docDetail.item) loadDocumentDetail();
@@ -7856,11 +7864,13 @@
       const customerBody = document.getElementById('productCustomerContent');
       const containerBody = document.getElementById('productContainerContent');
       function load(url, target, render, failure) {
-        return fetch(url).then(function (res) {
-          return res.json().then(function (data) {
+        const read = target === containerBody && typeof TKSNav.readCachedJSON === 'function'
+          ? TKSNav.readCachedJSON(url, { cacheKey: 'containers:' + String(item.code || '').trim().toUpperCase() })
+          : fetch(url).then(function (res) { return res.json().then(function (body) { return { ok: res.ok, status: res.status, body: body }; }); });
+        return read.then(function (res) {
+          const data = res.body;
             if (!res.ok && !(target === containerBody && data.code === 'CONTAINER_SNAPSHOT_UNAVAILABLE')) throw new Error('HTTP ' + res.status);
             return data;
-          });
         }).then(function (data) {
           if (requestId !== docDetail.requestId) return;
           render(target, data);

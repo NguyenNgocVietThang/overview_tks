@@ -89,6 +89,9 @@ test('bang nguoi dung: cung quy uoc bieu tuong, nhan nam trong .sort-label', () 
   dom.window.handleSort('hoTen');
   assert.equal(icon.textContent, DESC);
   assert.equal(th.getAttribute('aria-sort'), 'descending');
+  dom.window.handleSort('hoTen');
+  assert.equal(icon.textContent, NONE);
+  assert.equal(th.getAttribute('aria-sort'), 'none');
   // doi sang cot khac: cot cu tro lai ▲▼
   dom.window.handleSort('username');
   assert.equal(icon.textContent, NONE);

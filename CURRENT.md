@@ -1,6 +1,8 @@
 # CURRENT: BẢNG TRẠNG THÁI THỜI GIAN THỰC (REALTIME DASHBOARD)
 
-> **Cập nhật gần nhất:** 16/10/2026 (Asia/Ho_Chi_Minh), cơ cấu lại bảng Báo cáo hàng hóa theo file HÀNG HÓA.xlsx (migration 0057, chưa áp).
+> **Cập nhật migration 16/10/2026:** Đã áp thành công `0054_customer_invoice_lines_incremental.sql`, `0055_product_report_state.sql` và `0057_product_report_branch_columns.sql` lên DB dùng chung (Supabase), ghi nhận đầy đủ trong `schema_migrations`. Toàn bộ migration (0001 → 0057) hiện đã áp xong. Cờ `REPORTS_INCREMENTAL_ENABLED` hiện chưa bật trên môi trường chạy.
+
+> **Cập nhật gần nhất:** 16/10/2026 (Asia/Ho_Chi_Minh), đã áp xong migration 0054, 0055, 0057 lên Supabase.
 > **Trạng thái Git:** làm việc trực tiếp trên `main` theo yêu cầu; thay đổi thưởng/phạt sale hoàn tất và qua kiểm thử; chưa push/deploy phiên này.
 > **Quy tắc:** Cập nhật liên tục vào đầu và cuối mỗi phiên làm việc để không bị đứt đoạn ngữ cảnh dự án.
 

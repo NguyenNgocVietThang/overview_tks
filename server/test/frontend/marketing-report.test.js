@@ -25,6 +25,23 @@ function page(customFetch) {
   window.eval(source);
   return {dom,window,doc:window.document,urls};
 }
+test('Marketing sort cycles back to source order before pagination',async()=>{
+  const p=page();
+  try {
+    await p.window.TKSMarketing.load();
+    const host=p.doc.getElementById('marketing-monthly-rows');
+    const click=field=>host.querySelector('[data-sort="'+field+'"]').click();
+    const state=field=>host.querySelector('th[data-column-key="'+field+'"]').getAttribute('aria-sort');
+    const first=()=>host.querySelector('tbody tr td:nth-child(8)').textContent;
+    click('revenue'); assert.equal(state('revenue'),'ascending'); assert.equal(first(),'1');
+    click('revenue'); assert.equal(state('revenue'),'descending'); assert.equal(first(),'101');
+    click('revenue'); assert.equal(state('revenue'),'none'); assert.equal(first(),'101');
+    assert.equal(host._marketingState.sort,null);
+    click('revenue'); assert.equal(state('revenue'),'ascending');
+    click('sale'); assert.equal(state('sale'),'ascending'); assert.equal(state('revenue'),'none');
+  } finally { p.dom.window.close(); }
+});
+
 test('Marketing tables search, sort before pagination and expose the shared column picker alongside export',async()=>{
   const p=page(); await p.window.TKSMarketing.load();
   const host=p.doc.getElementById('marketing-monthly-rows');

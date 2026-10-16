@@ -385,6 +385,10 @@
   }
   .lc-freight-alert{ margin:0 0 10px; color:var(--amber); font-size:12.5px; line-height:1.5; }
   .lc-freight-steps{ margin-top:10px; }
+  #lcContainerOverlay{ z-index:1200; }
+  .lc-product-open{ cursor:pointer; }
+  .lc-product-open:focus-visible{ outline:2px solid var(--blue, #3388ff); outline-offset:-2px; }
+  .lc-measures{ margin:12px 0; }
 
   /* Dien thoai: moi khoi xep thanh cot kin chieu ngang panel; bo loc Tu - Den cung
      khuon voi Bao cao tong hop / Nghi phep (2 cot, nhan tren o dd/mm/yyyy). */
@@ -652,12 +656,22 @@
     </div>
   </div>
 
+  <div class="tks-profile-overlay" id="lcContainerOverlay" hidden>
+    <div class="tks-profile-dialog lc-detail-dialog" role="dialog" aria-modal="true" aria-labelledby="lcContainerTitle">
+      <div class="dp-head">
+        <div class="dp-head-text"><p class="dp-kicker">CONT của mặt hàng</p><h3 class="dp-title" id="lcContainerTitle"></h3></div>
+        <button type="button" class="dp-close" id="lcContainerClose" aria-label="Đóng chi tiết CONT">×</button>
+      </div>
+      <div class="dp-body" id="lcContainerBody" aria-live="polite"></div>
+    </div>
+  </div>
+
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Dat o cuoi than <body> thay vi <head>: script chan phan tich cu phap trong <head> se lam dung viec xu ly toan bo tai lieu. Khong dung `defer` vi script inline ben duoi dung TKSNav o cap cao nhat, va script inline luon chay truoc script defer. -->
   <script src="/shared/table-controls.js?v=20261016-1"></script>
   <script src="/shared/search-clear.js?v=20261009-1"></script>
-  <script src="/shared/shared-nav.js?v=20261008"></script>
+  <script src="/shared/shared-nav.js?v=20261016-freight"></script>
   <script src="/shared/table-align.js?v=20260928"></script>
   <script src="/shared/dateInput.js?v=20260912"></script>
 
@@ -924,6 +938,7 @@
     // Khu A (tra cuu cho Khach) va tab Lich su KHONG truyen withKiot — khong bao gio goi API Kiot.
     // opts.summary / opts.branch / opts.flow: bo sung khi `detail` (ket qua tra cuu) khong kem trang thai / co so / luong.
     function openDetailModal(detail, opts){
+      closeContainerModal();
       detail = detail || {};
       const order = Object.assign({}, detail);
       if(!order.summary && opts && opts.summary) order.summary = opts.summary;
@@ -956,6 +971,7 @@
       }
     }
     function closeDetailModal(){
+      closeContainerModal();
       detailRequestId++;
       detailOrder = null;
       detailKiot = null;
@@ -978,21 +994,19 @@
       }
       let html = head + '<div class="dp-table-wrap is-flow"><table class="dp-table lc-lines" data-table-key="shipment-lifecycle-table-3"><thead><tr>' +
         '<th>Mã hàng</th><th>Tên hàng</th><th class="num">SL đặt</th>' +
-        '<th class="num" title="Thể tích = SL đặt × m³ mỗi cái (theo sheet CÂN ĐO)">Thể tích (m³)</th>' +
         '<th class="num" title="Đơn giá sau chiết khấu của dòng">Đơn giá</th><th class="num">Thành tiền</th>' +
-        '<th class="num" title="Tồn thực tế của Kiot (cơ sở của đơn)">Tồn kho</th>' +
+        '<th class="num" title="Tồn thực tế của Kiot tại cơ sở của đơn">Tồn ' + escapeHtml(detailOrder && detailOrder.branch === 'SG' ? 'SG' : 'HN') + '</th>' +
         '<th class="num" title="Hàng đang điều chuyển cho Sài Gòn (phiếu Đặt hàng nhập đã xác nhận NCC trên Kiot SG), cùng một số cho cả hai cơ sở. Chỉ để tham khảo — không tính vào số lượng có bán.">Điều chuyển SG</th>' +
         '<th class="num" title="Số lượng bán được ngay = min(SL đặt, tồn kho)">Có bán</th>' +
         '<th class="num" title="Thành tiền của phần có bán = số lượng có bán × đơn giá sau chiết khấu">Thành tiền có bán</th>' +
         '</tr></thead><tbody>';
-      lines.forEach(function(line){
+      lines.forEach(function(line, index){
         const stockCell = function(value){ return '<td class="num">' + (pending && !line.isService ? escapeHtml(formatQty(value)) : '—') + '</td>'; };
         const short = pending && !line.isService && line.sellableQty !== null && line.sellableQty < line.quantity;
-        html += '<tr' + (line.isService ? ' class="is-service"' : '') + '>' +
+        html += '<tr' + (line.isService ? ' class="is-service"' : ' class="lc-product-open" tabindex="0" data-line-index="' + index + '" aria-label="Xem CONT của ' + escapeHtml(line.productCode || '') + '"') + '>' +
           '<td class="dp-code">' + escapeHtml(line.productCode || '—') + '</td>' +
           '<td class="dp-cell-main">' + escapeHtml(line.productName || '—') + '</td>' +
           '<td class="num">' + escapeHtml(formatQty(line.quantity)) + '</td>' +
-          measureCell(line) +
           '<td class="num">' + escapeHtml(formatTableVnd((Number(line.price) || 0) - (Number(line.discount) || 0))) + '</td>' +
           '<td class="num">' + escapeHtml(formatTableVnd(line.amount)) + '</td>' +
           stockCell(line.onHand) + stockCell(line.inTransit) +
@@ -1018,11 +1032,11 @@
     let selectedCarrier = 'DM';
     try { const saved = localStorage.getItem(CARRIER_STORE); if(CARRIER_KEYS.indexOf(saved) >= 0) selectedCarrier = saved; } catch(_e){ /* trinh duyet chan storage: dung mac dinh */ }
 
-    function measureCell(line){
+    function measureCell(line, field){
       const m = line.measure;
-      if(!m || m.status === 'service') return '<td class="num">—</td>';
-      if(m.status === 'missing') return '<td class="num is-missing" title="Mã chưa đủ dữ liệu trong sheet CÂN ĐO">Thiếu</td>';
-      return '<td class="num">' + escapeHtml(M3_FORMAT.format(m.m3)) + '</td>';
+      if(line.isService || (m && m.status === 'service')) return '<td class="num">—</td>';
+      if(!m || m[field] == null) return '<td class="num is-missing">Chưa cân đo</td>';
+      return '<td class="num">' + escapeHtml(field === 'm3' ? M3_FORMAT.format(m.m3) + ' m³' : formatQty(m.kg) + ' kg') + '</td>';
     }
 
     function freightBodyHtml(freight){
@@ -1030,15 +1044,30 @@
       const totals = freight.totals;
       let html = '';
       if(freight.missingCodes && freight.missingCodes.length){
-        html += '<p class="lc-freight-alert">Chưa tính được giá cước: thiếu dữ liệu trong sheet CÂN ĐO cho mã ' +
-          escapeHtml(freight.missingCodes.join(', ')) + '. Tổng thể tích dưới đây chỉ gồm các mã đã đo.</p>';
+        html += '<p class="lc-freight-alert">Cước tạm tính: thiếu dữ liệu trong sheet CÂN ĐO cho mã ' +
+          escapeHtml(freight.missingCodes.join(', ')) + '. Chỉ tính phần cân nặng và thể tích đã có.</p>';
       }
       html += detailStatsHtml([
         { label: 'Tổng thể tích', value: M3_FORMAT.format(totals.m3) + ' m³' },
-        { label: 'Tổng cân nặng', value: formatQty(Math.round(totals.kg * 10) / 10) + ' kg' },
-        { label: 'Số thùng', value: formatQty(totals.cartons) },
-        { label: 'Tổng cước', value: carrier ? formatTableVnd(carrier.total) + ' đ' : '—', tone: carrier ? 'blue' : '' }
+        { label: 'Tổng cân nặng', value: formatQty(Math.round(totals.kg * 10) / 10) + ' kg' }
       ]);
+      html += detailSectionHead('Cân đo từng mặt hàng', 'Theo SL đặt') + '<div class="lc-measures dp-table-wrap is-flow"><table class="dp-table" data-table-key="shipment-lifecycle-measures"><thead><tr>' +
+        '<th>Mã hàng</th><th>Tên hàng</th><th class="num">Cân nặng</th><th class="num">Thể tích</th></tr></thead><tbody>' +
+        ((detailKiot && detailKiot.lines) || []).map(function(line){
+          return '<tr' + (line.isService ? ' class="is-service"' : '') + '><td>' + escapeHtml(line.productCode || '—') + '</td><td>' +
+            escapeHtml(line.productName || '—') + '</td>' + measureCell(line, 'kg') + measureCell(line, 'm3') + '</tr>';
+        }).join('') + '</tbody></table></div>';
+      html += '<div id="lcCarrierTotals">' + detailStatsHtml(CARRIER_KEYS.map(function(key){
+        const value = freight.carriers && freight.carriers[key];
+        return { label: { DM:'Đức Mạnh', VL:'Việt Linh', JT:'J&T' }[key],
+          value: value ? formatTableVnd(value.total) + ' đ' : 'Chưa tính được', tone: value ? 'blue' : '',
+          sub: value && freight.provisional ? 'Tạm tính' : '' };
+      })) + '</div>';
+      html += '<div class="lc-freight-bar"><label for="lcCarrierSelect">Nhà xe</label>' +
+        '<select class="lc-freight-select" id="lcCarrierSelect">' + CARRIER_KEYS.map(function(key){
+          return '<option value="' + key + '"' + (selectedCarrier === key ? ' selected' : '') + '>' +
+            escapeHtml({ DM:'Đức Mạnh', VL:'Việt Linh', JT:'J&T' }[key]) + '</option>';
+        }).join('') + '</select></div>';
       if(carrier){
         html += '<div class="lc-freight-steps dp-table-wrap is-flow"><table class="dp-table" data-table-controls="off" data-table-sort="off" data-table-key="shipment-lifecycle-freight-steps"><thead><tr>' +
           '<th>Bảng tính cước · ' + escapeHtml(carrier.label) + '</th><th class="num">Số tiền (đ)</th></tr></thead><tbody>' +
@@ -1057,14 +1086,7 @@
       const head = detailSectionHead('Thể tích & cước vận chuyển', 'Theo sheet CÂN ĐO · SL đặt');
       if(!freight) return '';
       if(freight.unavailable) return head + '<p class="lc-lines-status">' + escapeHtml(freight.message || 'Không tính được thể tích và cước lúc này.') + '</p>';
-      return head +
-        '<div class="lc-freight-bar"><label for="lcCarrierSelect">Nhà xe</label>' +
-        '<select class="lc-freight-select" id="lcCarrierSelect">' +
-          '<option value="DM"' + (selectedCarrier === 'DM' ? ' selected' : '') + '>Đức Mạnh</option>' +
-          '<option value="VL"' + (selectedCarrier === 'VL' ? ' selected' : '') + '>Việt Linh</option>' +
-          '<option value="JT"' + (selectedCarrier === 'JT' ? ' selected' : '') + '>J&amp;T</option>' +
-        '</select></div>' +
-        '<div id="lcFreightBody">' + freightBodyHtml(freight) + '</div>';
+      return head + '<div id="lcFreightBody">' + freightBodyHtml(freight) + '</div>';
     }
 
     // Uy quyen su kien: hop chi tiet duoc ve lai nhieu lan, khong gan listener lai moi lan.
@@ -1073,15 +1095,15 @@
       selectedCarrier = CARRIER_KEYS.indexOf(e.target.value) >= 0 ? e.target.value : 'DM';
       try { localStorage.setItem(CARRIER_STORE, selectedCarrier); } catch(_e){ /* bo qua */ }
       document.getElementById('lcFreightBody').innerHTML = freightBodyHtml(detailKiot.freight);
+      document.getElementById('lcCarrierSelect').focus();
     });
 
     function loadKiotLines(order){
       const requestId = detailRequestId;
       const holder = document.getElementById('lcDetailKiot');
       holder.innerHTML = '<p class="lc-lines-status">Đang tải chi tiết hàng hóa từ Kiot…</p>';
-      fetch('/api/shipment/lifecycle/order-detail?code=' + encodeURIComponent(order.orderCode) +
-        '&branch=' + encodeURIComponent(order.branch), { credentials: 'same-origin' })
-        .then(function(res){ return res.json().catch(function(){ return {}; }).then(function(body){ return { ok: res.ok, status: res.status, body: body }; }); })
+      readDetailJSON('/api/shipment/lifecycle/order-detail?code=' + encodeURIComponent(order.orderCode) +
+        '&branch=' + encodeURIComponent(order.branch))
         .then(function(result){
           if(requestId !== detailRequestId) return; // hop da dong / doi don
           if(!result.ok){
@@ -1100,9 +1122,87 @@
           if(requestId === detailRequestId) holder.innerHTML = '<p class="lc-lines-status">Lỗi kết nối khi tải chi tiết hàng hóa.</p>';
         });
     }
-    function onDetailKeydown(e){ if(e.key === 'Escape') closeDetailModal(); }
+    function readDetailJSON(url, options){
+      if(TKSNav.readCachedJSON) return TKSNav.readCachedJSON(url, options);
+      return fetch(url, { credentials:'same-origin' }).then(function(res){
+        return res.json().then(function(body){ return { ok:res.ok, status:res.status, body:body }; });
+      });
+    }
+
+    const containerOverlay = document.getElementById('lcContainerOverlay');
+    const containerBody = document.getElementById('lcContainerBody');
+    const containerClose = document.getElementById('lcContainerClose');
+    let containerRequestId = 0;
+    let containerTrigger = null;
+
+    function closeContainerModal(){
+      containerRequestId++;
+      if(containerOverlay.hidden) return;
+      containerOverlay.hidden = true;
+      detailDialog.inert = false;
+      detailDialog.removeAttribute('aria-hidden');
+      if(containerTrigger && containerTrigger.isConnected) containerTrigger.focus({ preventScroll:true });
+      containerTrigger = null;
+    }
+
+    function openContainerModal(row){
+      const line = detailKiot && detailKiot.lines[Number(row.dataset.lineIndex)];
+      if(!line || line.isService || !line.productCode) return;
+      const requestId = ++containerRequestId;
+      containerTrigger = row;
+      document.getElementById('lcContainerTitle').textContent = line.productCode + ' · ' + (line.productName || '');
+      containerBody.innerHTML = '<p class="lc-lines-status">Đang tải CONT…</p>';
+      containerOverlay.hidden = false;
+      containerClose.focus();
+      detailDialog.inert = true;
+      detailDialog.setAttribute('aria-hidden', 'true');
+      readDetailJSON('/api/shipment/lifecycle/containers?code=' + encodeURIComponent(line.productCode),
+        { cacheKey:'containers:' + line.productCode.trim().toLowerCase() }).then(function(result){
+        if(requestId !== containerRequestId || containerOverlay.hidden) return;
+        if(!result.ok) throw new Error(result.body.error || 'Không tải được dữ liệu CONT.');
+        const data = result.body;
+        const rows = Array.isArray(data.rows) ? data.rows : [];
+        let html = data.containerSync && data.containerSync.stale ? '<p class="lc-freight-alert">Dữ liệu CONT chưa được cập nhật mới nhất. Đang dùng lần đồng bộ thành công gần nhất.</p>' : '';
+        html += rows.length ? '<div class="dp-table-wrap is-flow"><table class="dp-table" data-table-key="shipment-lifecycle-containers"><thead><tr>' +
+          '<th>Tên CONT</th><th>Trạng thái</th><th>Ngày về</th><th class="num">Tổng số lượng</th></tr></thead><tbody>' +
+          rows.map(function(item){
+            return '<tr><td>' + escapeHtml(item.containerName || '—') + '</td><td>' + escapeHtml(item.statusLabel || String(item.status || '—')) +
+              '</td><td>' + escapeHtml(item.eta || '—') + '</td><td class="num">' + escapeHtml(formatQty(item.quantity)) + '</td></tr>';
+          }).join('') + '</tbody></table></div>' : '<p class="lc-lines-status">Chưa có CONT chứa mã hàng này.</p>';
+        containerBody.innerHTML = html;
+      }).catch(function(error){
+        if(requestId === containerRequestId && !containerOverlay.hidden)
+          containerBody.innerHTML = '<p class="lc-freight-alert">' + escapeHtml(error.message || 'Không tải được dữ liệu CONT.') + '</p>';
+      });
+    }
+
+    detailBody.addEventListener('click', function(e){
+      const row = e.target.closest('[data-line-index]');
+      if(row && containerOverlay.hidden) openContainerModal(row);
+    });
+    detailBody.addEventListener('keydown', function(e){
+      const row = e.target.closest('[data-line-index]');
+      if(row && (e.key === 'Enter' || e.key === ' ') && containerOverlay.hidden){
+        e.preventDefault(); openContainerModal(row);
+      }
+    });
+    containerClose.addEventListener('click', closeContainerModal);
+    containerOverlay.addEventListener('click', function(e){ if(e.target === containerOverlay) closeContainerModal(); });
+    function onDetailKeydown(e){
+      if(!containerOverlay.hidden){
+        if(e.key === 'Escape'){ e.preventDefault(); e.stopImmediatePropagation(); closeContainerModal(); }
+        if(e.key === 'Tab'){
+          const controls = Array.from(containerOverlay.querySelectorAll('button, [href], input, select, [tabindex="0"]')).filter(function(el){ return !el.disabled && !el.hidden; });
+          const first = controls[0], last = controls[controls.length - 1];
+          if(e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+          else if(!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+        }
+        return;
+      }
+      if(e.key === 'Escape') closeDetailModal();
+    }
     document.getElementById('lcDetailClose').addEventListener('click', closeDetailModal);
-    detailOverlay.addEventListener('click', function(e){ if(e.target === detailOverlay) closeDetailModal(); });
+    detailOverlay.addEventListener('click', function(e){ if(e.target === detailOverlay && containerOverlay.hidden) closeDetailModal(); });
 
     // ---------- Khu A: tra cuu 1 don ----------
     const lookupForm = document.getElementById('lookupForm');

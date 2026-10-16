@@ -1,7 +1,7 @@
 # Graph Report - Web TKS Dashboard  (2026-10-16)
 
 ## Corpus Check
-- 638 files · ~893,486 words
+- 638 files · ~893,590 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 23 file(s) not represented in the graph (top: .jfif 8, .css 7, .bpmn 3)
 

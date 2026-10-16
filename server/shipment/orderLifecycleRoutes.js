@@ -25,6 +25,7 @@ const { createLifecycleExportFile, MAX_EXPORT_ROWS } = require('./orderLifecycle
 // Don cua KiotViet (moi trang thai) gop vao bang "Toan bo don hang" + chi tiet dong hang. Goi qua
 // thuoc tinh cua module (khong destructure) de test thay the duoc `kiotOrders.*`.
 const kiotRepository = require('./kiotOrdersRepository');
+const containerRepository = require('../productContainers/repository');
 
 // Phan quyen theo TINH NANG (server/auth/featureRegistry.js), khong con theo
 // mang vai tro — cung mot nguon su that voi menu phia client.
@@ -123,6 +124,19 @@ router.get('/order-detail', ...authBulk, async (req, res) => {
 // ---------------------------------------------------------------------------
 // GET /api/shipment/lifecycle/:orderCode — tra cuu 1 don (Khach + noi bo)
 // ---------------------------------------------------------------------------
+
+router.get('/containers', ...authBulk, async (req, res) => {
+  try {
+    // Same repository/cache as the product report; lifecycle only needs public CONT fields.
+    const data = await containerRepository.getContainerDetails({ code: req.query.code, fullAccess: false });
+    res.status(200).json(data);
+  } catch (error) {
+    const status = [400, 404, 503].includes(error.statusCode) ? error.statusCode : 503;
+    const knownError = ['CONTAINER_CODE_REQUIRED', 'CONTAINER_PRODUCT_NOT_FOUND', 'CONTAINER_SNAPSHOT_UNAVAILABLE'].includes(error.code);
+    res.status(status).json({ error: knownError ? error.message : 'Không tải được dữ liệu CONT.',
+      ...(error.containerSync ? { containerSync: error.containerSync } : {}) });
+  }
+});
 
 router.get('/:orderCode', ...authLookup, async (req, res) => {
   try {

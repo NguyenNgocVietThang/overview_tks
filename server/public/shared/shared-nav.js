@@ -17,9 +17,61 @@
   // ---------- Quyen tinh nang cua phien hien tai ----------
   var currentPermissions = [];
   var currentPageFeatures = [];
+  var jsonReadCache = new Map();
+  var jsonReadInflight = new Map();
+  var jsonReadScope = '';
+  var jsonReadGeneration = 0;
+
+  function clearJSONReads(){
+    jsonReadGeneration++;
+    jsonReadCache.clear();
+    jsonReadInflight.clear();
+  }
+  // Known source-version changes can invalidate page memory without another metadata request.
+  TKSNav.clearCachedJSON = clearJSONReads;
+
+  /** Page-memory only: bounded 60-second GET cache, with concurrent reads coalesced. */
+  TKSNav.readCachedJSON = function readCachedJSON(url, options){
+    var key = String(url) + '\n' + String(options && options.cacheKey || '');
+    var cached = jsonReadCache.get(key);
+    if(cached && cached.expiresAt > Date.now()){
+      jsonReadCache.delete(key);
+      jsonReadCache.set(key, cached);
+      return Promise.resolve(cached.value);
+    }
+    jsonReadCache.delete(key);
+    if(jsonReadInflight.has(key)) return jsonReadInflight.get(key);
+    var generation = jsonReadGeneration;
+    var pending = Promise.resolve().then(function(){
+      return fetch(url, { credentials: 'same-origin' });
+    }).then(function(res){
+      return res.json().then(function(body){
+        // Never return a response belonging to an earlier account/permission scope.
+        if(generation !== jsonReadGeneration) throw new Error('AUTH_SCOPE_CHANGED');
+        var value = { ok: res.ok, status: res.status, body: body };
+        if(res.status === 401 || res.status === 403) clearJSONReads();
+        if(res.ok){
+          jsonReadCache.set(key, { value: value, expiresAt: Date.now() + 60000 });
+          while(jsonReadCache.size > 100) jsonReadCache.delete(jsonReadCache.keys().next().value);
+        }
+        return value;
+      });
+    }).finally(function(){
+      if(jsonReadInflight.get(key) === pending) jsonReadInflight.delete(key);
+    });
+    jsonReadInflight.set(key, pending);
+    return pending;
+  };
 
   /** Nap quyen tu object user cua /api/auth/me. Goi tu authGuard/renderTopSidebar. */
   TKSNav.setPermissions = function setPermissions(user){
+    var scope = JSON.stringify([
+      user && user.id, user && user.username,
+      user && user.branch, user && user.coSo, user && user.vaiTro,
+      user && Array.isArray(user.branches) ? user.branches.slice().sort() : [],
+      user && Array.isArray(user.permissions) ? user.permissions.slice().sort() : []
+    ]);
+    if(scope !== jsonReadScope){ clearJSONReads(); jsonReadScope = scope; }
     currentPermissions = (user && Array.isArray(user.permissions)) ? user.permissions.slice() : [];
     currentPageFeatures = (user && Array.isArray(user.pageFeatures)) ? user.pageFeatures.slice() : [];
   };
@@ -281,6 +333,7 @@
         return user;
       })
       .catch(function(){
+        clearJSONReads();
         document.documentElement.style.visibility = '';
         // Xoa cache dashboard + ket qua kiem tra dut hang (sessionStorage) de neu
         // nguoi dung khac dang nhap tren cung tab sau khi phien nay het han,
@@ -298,6 +351,7 @@
     if(!window.confirm('Bạn có chắc chắn muốn đăng xuất?')){
       return Promise.resolve(false);
     }
+    clearJSONReads();
     return fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' })
       .finally(function(){
         // Xoa cache dashboard + ket qua kiem tra dut hang (sessionStorage) de neu

@@ -280,7 +280,15 @@ test('trang Tai khoan: thu tu mac dinh (ngayTao moi nhat truoc) theo THOI GIAN t
   const usernames = () => [...window.document.querySelectorAll('#usersTableBody .user-username')].map(node => node.textContent.trim().replace(/^@/, ''));
   assert.deepEqual(usernames(), ['thang10', 'thang9', 'thang2', 'namtruoc', 'khongngay'], 'moi nhat truoc: 01/10/2026, 30/09/2026, 15/02/2026, 31/12/2025');
 
-  window.handleSort('ngayTao'); // dao chieu: cu nhat truoc, tai khoan khong co ngay tao van o cuoi
+  window.handleSort('ngayTao'); // bo sap xep mac dinh dang giam dan, tra ve thu tu API
+  assert.deepEqual(usernames(), users.map(user => user.username));
+  window.handleFilterUsers();
+  assert.deepEqual(usernames(), users.map(user => user.username), 'loc lai khong bat sort tro lai');
+  window.handleSort('ngayTao'); // bat lai: cu nhat truoc, tai khoan khong co ngay tao van o cuoi
   assert.deepEqual(usernames(), ['namtruoc', 'thang2', 'thang9', 'thang10', 'khongngay']);
+  window.handleSort('ngayTao');
+  assert.deepEqual(usernames(), ['thang10', 'thang9', 'thang2', 'namtruoc', 'khongngay']);
+  window.handleSort('ngayTao');
+  assert.deepEqual(usernames(), users.map(user => user.username));
   window.close();
 });

@@ -35,7 +35,7 @@ function toPositive(value) {
   return Number.isFinite(number) && number > 0 ? number : null;
 }
 
-/** values (mang 2 chieu) -> Map<codeKey, { perCarton, m3PerUnit, kgPerUnit } | { missing: true }> */
+/** Rows -> Map<codeKey, { perCarton, m3PerUnit, kgPerUnit, missingVolume, missingWeight }>; unavailable measurements are null. */
 function parseMeasureRows(values) {
   const fields = Object.entries(HEADERS);
   let indexes;
@@ -59,9 +59,9 @@ function parseMeasureRows(values) {
     const l = toPositive(row[iL]);
     const w = toPositive(row[iW]);
     const h = toPositive(row[iH]);
-    table.set(key, perCarton && l && w && h
-      ? { perCarton, m3PerUnit: (l * w * h / 1000000) / perCarton, kgPerUnit: kg ? kg / perCarton : null }
-      : { missing: true });
+    const m3PerUnit = perCarton && l && w && h ? (l * w * h / 1000000) / perCarton : null;
+    const kgPerUnit = perCarton && kg ? kg / perCarton : null;
+    table.set(key, { perCarton, m3PerUnit, kgPerUnit, missingVolume: m3PerUnit === null, missingWeight: kgPerUnit === null });
   }
   return table;
 }

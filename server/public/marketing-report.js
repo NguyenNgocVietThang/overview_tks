@@ -187,7 +187,17 @@
       host.querySelector('[data-page-label]').textContent = 'Trang '+saved.page+'/'+pages;
       ['first','prev'].forEach(name => { host.querySelector('#'+id+'-'+name).disabled=saved.page<=1; });
       ['next','last'].forEach(name => { host.querySelector('#'+id+'-'+name).disabled=saved.page>=pages; });
-      host.querySelectorAll('[data-sort]').forEach(button => button.addEventListener('click', () => { saved.direction=saved.sort===button.dataset.sort?-saved.direction:1; saved.sort=button.dataset.sort; saved.page=1; draw(); }));
+      host.querySelectorAll('[data-sort]').forEach(button => {
+        const selected = saved.sort === button.dataset.sort;
+        button.title = selected ? (saved.direction === 1 ? 'Sắp xếp giảm dần' : 'Bỏ sắp xếp') : 'Sắp xếp tăng dần';
+        button.addEventListener('click', () => {
+          const key = button.dataset.sort;
+          if (saved.sort !== key) { saved.sort = key; saved.direction = 1; }
+          else if (saved.direction === 1) saved.direction = -1;
+          else { saved.sort = null; saved.direction = 1; }
+          saved.page=1; draw();
+        });
+      });
       host.querySelectorAll('[data-edit]').forEach(input => {
         const row = slice[Number(input.dataset.editIndex)];
         growEditor(input);

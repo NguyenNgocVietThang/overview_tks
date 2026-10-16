@@ -426,3 +426,65 @@ test('POST /api/shipment/lifecycle/:orderCode/override — lỗi từ service đ
   assert.equal(res.statusCode, 404);
   assert.equal(res.body.code, 'ORDER_NOT_FOUND');
 });
+
+// CONT details reuse the report repository, while lifecycle never exposes its
+// privileged fields, even to managers or callers supplying fullAccess=true.
+for (const role of LIFECYCLE_VIEW_ROLES) {
+  test(`GET /containers allows lifecycle role ${role} with public fields only`, async () => {
+    const repository = require('../productContainers/repository');
+    const original = repository.getContainerDetails;
+    let received;
+    repository.getContainerDetails = async args => { received = args; return { rows: [], fullAccess: args.fullAccess }; };
+    try {
+      const req = reqAs(role, {}, { code: 'SKU', fullAccess: 'true' });
+      const res = fakeRes();
+      await callRoute('get', '/containers', req, res);
+      assert.equal(res.statusCode, 200);
+      assert.deepEqual(received, { code: 'SKU', fullAccess: false });
+      assert.equal(res.body.fullAccess, false);
+    } finally { repository.getContainerDetails = original; }
+  });
+}
+test('GET /containers denies anonymous, guest, missing lifecycle roles and revoked permissions before reading data', async () => {
+  const repository = require('../productContainers/repository');
+  const original = repository.getContainerDetails;
+  let calls = 0;
+  repository.getContainerDetails = async () => { calls++; return { rows: [] }; };
+  try {
+    const anonymous = fakeRes();
+    await callRoute('get', '/containers', { cookies: {}, query: { code: 'SKU' }, params: {} }, anonymous);
+    assert.equal(anonymous.statusCode, 401);
+    for (const role of ['Khách', ...NO_LIFECYCLE_ROLES]) {
+      const res = fakeRes();
+      await callRoute('get', '/containers', reqAs(role, {}, { code: 'SKU' }), res);
+      assert.equal(res.statusCode, 403);
+    }
+    const revoked = reqAs('Quản lý', {}, { code: 'SKU' });
+    testUsers.get('u-Quản lý').featurePermissions = { 'shipment.lifecycle': false };
+    const denied = fakeRes();
+    await callRoute('get', '/containers', revoked, denied);
+    assert.equal(denied.statusCode, 403);
+    assert.equal(calls, 0);
+  } finally { repository.getContainerDetails = original; }
+});
+test('GET /containers sanitizes unexpected DB errors and retains unavailable snapshot metadata', async () => {
+  const repository = require('../productContainers/repository');
+  const original = repository.getContainerDetails;
+  try {
+    repository.getContainerDetails = async () => { throw Error('private DB credentials'); };
+    const res = fakeRes();
+    await callRoute('get', '/containers', reqAs('Quản lý', {}, { code: 'SKU' }), res);
+    assert.equal(res.statusCode, 503);
+    assert.doesNotMatch(JSON.stringify(res.body), /private|credentials/);
+    repository.getContainerDetails = async () => {
+      throw Object.assign(Error('Chưa sẵn sàng'), { statusCode: 503, code: 'CONTAINER_SNAPSHOT_UNAVAILABLE', containerSync: { available: false } });
+    };
+    await callRoute('get', '/containers', reqAs('Quản lý', {}, { code: 'SKU' }), res);
+    assert.equal(res.statusCode, 503);
+    assert.equal(res.body.containerSync.available, false);
+  } finally { repository.getContainerDetails = original; }
+});
+test('GET /containers precedes the dynamic order-code route', () => {
+  const paths = router.stack.filter(layer => layer.route?.methods.get).map(layer => layer.route.path);
+  assert.ok(paths.indexOf('/containers') < paths.indexOf('/:orderCode'));
+});

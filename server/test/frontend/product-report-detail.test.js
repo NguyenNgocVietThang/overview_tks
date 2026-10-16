@@ -270,13 +270,13 @@ test('khung nhin mac dinh: Nhan vien sale hien A→K + DS 90 ngay; Quan ly / Tro
     manager.run("window.__reportTestState.currentUser = { vaiTro: '" + vaiTro + "' }; applyProductReportColumnView();");
     const view = sessionHidden(manager);
     assert.equal(view.key, 'dashboard-table-2:manager');
-    assert.deepEqual(view.hidden, columns.slice(4, 11), vaiTro + ': an E→K');
+    assert.deepEqual(view.hidden, [...columns.slice(4, 11), columns[17]], vaiTro + ': an E→K');
     const hiddenHeaders = [...reportTable(manager).querySelectorAll('thead th.tks-column-hidden')].map(th => th.dataset.columnKey);
-    assert.deepEqual(hiddenHeaders, columns.slice(4, 11), 'cot an that su bi an tren giao dien');
+    assert.deepEqual(hiddenHeaders, [...columns.slice(4, 11), columns[17]], 'cot an that su bi an tren giao dien');
     const bodyRows = [...reportTable(manager).querySelectorAll('tbody tr.doc-row')];
     assert.ok(bodyRows.length > 0);
     bodyRows.forEach(row => {
-      [4, 5, 6, 7, 8, 9, 10].forEach(index => assert.ok(row.cells[index].classList.contains('tks-column-hidden'), 'o E→K bi an, cot ' + index));
+      [4, 5, 6, 7, 8, 9, 10, 17].forEach(index => assert.ok(row.cells[index].classList.contains('tks-column-hidden'), 'o E→K bi an, cot ' + index));
       [0, 1, 2, 3, 11, 14, 15, 18].forEach(index => assert.equal(row.cells[index].classList.contains('tks-column-hidden'), false, 'cot ' + index));
     });
   }
@@ -296,7 +296,7 @@ test('khung nhin theo vai tro: nguoi dung bat lai cot bang "Cot hien thi" thi du
   // authGuard ve lai / dong goi lai cung hoi so: khong dua cot vua bat ve trang thai an.
   page.run('applyProductReportColumnView()');
   assert.equal(sessionHidden(page).hidden.includes('ton-thuc-hn'), false);
-  assert.deepEqual(sessionHidden(page).hidden, keys.slice(5, 11));
+  assert.deepEqual(sessionHidden(page).hidden, [...keys.slice(5, 11), keys[17]]);
 });
 
 test('khung nhin theo vai tro: chua biet vai tro hoac chua nap table-controls thi khong lam gi, khong loi', async () => {
@@ -318,7 +318,7 @@ test('cot an mac dinh khop file mau: khoa an cua tung ho so deu co trong thead',
   const raw = page.dom.window.__reportTestInternals.hiddenByProfile;
   const lists = { sale: Array.from(raw.sale), manager: Array.from(raw.manager) };
   [...lists.sale, ...lists.manager].forEach(key => assert.ok(keys.includes(key), key));
-  assert.deepEqual(keys.filter(key => !lists.manager.includes(key)), [...keys.slice(0, 4), ...keys.slice(11)]);
+  assert.deepEqual(keys.filter(key => !lists.manager.includes(key)), [...keys.slice(0, 4), ...keys.slice(11, 17), keys[18]]);
   assert.deepEqual(keys.filter(key => !lists.sale.includes(key)), [...keys.slice(0, 11), keys[15]]);
 });
 
