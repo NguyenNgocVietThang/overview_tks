@@ -1,0 +1,186 @@
+/* ==========================================
+   DETAIL-PANEL.CSS — khung "xem chi tiết" dùng chung (tiền tố .dp-).
+   Dùng cho: hộp chi tiết ở Báo cáo tổng hợp (#docModalBackdrop), Vòng đời đơn hàng (#lcDetailOverlay),
+   Nghỉ phép (#leaveDetailModal) và hộp chi tiết Marketing. Chỉ dùng token màu/bo góc có sẵn
+   (shared.css) nên tự đúng cả Sáng/Tối. Không dùng hiệu ứng 3D (xem test no-3d-effects).
+   Bố cục một hộp: [đầu hộp .dp-head] → [chỉ số tổng quan .dp-stats] → [các khối .dp-card / .dp-section].
+   ========================================== */
+
+/* ---------- Đầu hộp ---------- */
+.dp-head{
+  display:flex; align-items:flex-start; justify-content:space-between; gap:16px;
+  padding:18px 22px 16px; border-bottom:1px solid var(--border);
+}
+.dp-head-text{ min-width:0; flex:1 1 auto; }
+.dp-kicker{
+  margin:0 0 5px; font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted);
+}
+.dp-title{
+  margin:0; font-family:var(--font-display); font-size:17px; font-weight:700; line-height:1.35;
+  color:var(--text); overflow-wrap:anywhere;
+}
+.dp-title-kind{ color:var(--muted); font-weight:600; }
+.dp-subtitle{ margin:5px 0 0; font-size:12.5px; line-height:1.45; color:var(--muted); }
+.dp-subtitle:empty{ display:none; }
+.dp-head-actions{ display:flex; align-items:center; gap:8px; flex:none; }
+.dp-close{
+  flex:none; width:32px; height:32px; display:inline-flex; align-items:center; justify-content:center;
+  border:1px solid transparent; border-radius:var(--radius-sm, 8px); background:transparent;
+  color:var(--muted); font-size:20px; line-height:1; cursor:pointer;
+  transition:background-color .15s ease, color .15s ease, border-color .15s ease;
+}
+.dp-close:hover{ background:var(--surface-hover); color:var(--text); border-color:var(--border); }
+.dp-close:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+
+/* ---------- Thân hộp ---------- */
+.dp-body{ display:flex; flex-direction:column; gap:18px; padding:18px 22px 24px; min-width:0; }
+
+/* ---------- Chỉ số tổng quan ---------- */
+.dp-stats{
+  display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:10px; margin:0; padding:0; list-style:none;
+}
+.dp-stat{
+  min-width:0; padding:12px 14px; background:var(--panel-2); border:1px solid var(--border);
+  border-radius:var(--radius-lg, 12px);
+}
+.dp-stat-label{
+  font-size:10.5px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--muted);
+}
+.dp-stat-value{
+  margin-top:6px; font-family:var(--font-data); font-size:20px; font-weight:700; line-height:1.2;
+  font-variant-numeric:tabular-nums; color:var(--text); overflow-wrap:break-word;
+}
+.dp-stat-value.is-text{ font-family:var(--font-body); font-size:15px; line-height:1.3; }
+.dp-stat-sub{ margin-top:4px; font-size:11.5px; line-height:1.4; color:var(--muted); overflow-wrap:anywhere; }
+.dp-stat.is-green .dp-stat-value{ color:var(--green); }
+.dp-stat.is-amber .dp-stat-value{ color:var(--amber); }
+.dp-stat.is-red .dp-stat-value{ color:var(--red); }
+.dp-stat.is-blue .dp-stat-value{ color:var(--blue); }
+
+/* ---------- Khối nội dung ---------- */
+.dp-card{
+  min-width:0; padding:14px 16px; border:1px solid var(--border); border-radius:var(--radius-lg, 12px);
+}
+.dp-section{ min-width:0; }
+/* Tiêu đề bám trái; ghi chú + nút "Cột hiển thị" (nếu khối có bảng) dồn về mép phải. */
+.dp-section-head{ display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-start; gap:6px 10px; margin:0 0 9px; }
+.dp-section-head > .dp-section-title{ margin-right:auto; }
+.dp-section-title{
+  margin:0; font-family:var(--font-body); font-size:12px; font-weight:700; letter-spacing:.05em;
+  text-transform:uppercase; color:var(--text-secondary);
+}
+.dp-section-note{ font-size:11.5px; font-weight:400; color:var(--muted); text-align:right; }
+.dp-split{ display:grid; grid-template-columns:minmax(0, 1.35fr) minmax(0, 1fr); gap:18px; align-items:start; }
+.dp-split.is-even{ grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); }
+.dp-split.is-table-wide{ grid-template-columns:minmax(0, 1fr) minmax(0, 1.4fr); }
+
+/* ---------- Danh sách thuộc tính (nhãn nhỏ phía trên, giá trị phía dưới) ---------- */
+.dp-meta{ display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:14px 22px; margin:0; }
+.dp-meta > div{ min-width:0; }
+.dp-meta .is-wide{ grid-column:1 / -1; }
+.dp-meta dt{ margin:0 0 3px; font-size:11px; font-weight:600; color:var(--muted); }
+.dp-meta dd{ margin:0; font-size:13px; line-height:1.45; color:var(--text); overflow-wrap:anywhere; }
+.dp-meta dd .muted{ color:var(--muted); }
+.dp-note-text{ white-space:pre-line; }
+
+/* ---------- Bảng trong hộp: 1 khung cuộn duy nhất, tiêu đề dính trên ----------
+   Bảng được shared/table-controls.js bật sẵn: bấm tiêu đề để sắp xếp, kéo mép cột để đổi độ rộng, nút "Cột hiển thị"
+   nằm ở đầu khối (.dp-section-head). Tắt từng bảng bằng data-table-controls="off" / data-table-sort="off". */
+.dp-table-wrap{
+  max-height:var(--dp-table-max, 360px); overflow:auto; border:1px solid var(--border); border-radius:var(--radius-md, 10px);
+  background:var(--panel);
+}
+/* Hộp đã cuộn dọc cả khối: bảng không tự giới hạn chiều cao (tránh 2 thanh cuộn chồng nhau). */
+.dp-table-wrap.is-flow{ max-height:none; }
+.dp-table-wrap::-webkit-scrollbar{ width:8px; height:8px; }
+.dp-table-wrap::-webkit-scrollbar-thumb{ background:var(--border); border-radius:4px; }
+.dp-table{ width:100%; border-collapse:separate; border-spacing:0; font-size:12.5px; color:var(--text); }
+.dp-table th{
+  position:sticky; top:0; z-index:1; padding:9px 12px; background:var(--panel-2); color:var(--muted);
+  border-bottom:1px solid var(--border); font-family:var(--font-body); font-size:10.5px; font-weight:700;
+  letter-spacing:.06em; text-transform:uppercase; text-align:left; white-space:nowrap;
+}
+.dp-table td{ padding:9px 12px; border-bottom:1px solid var(--row-divider); vertical-align:middle; }
+.dp-table tbody tr:last-child td{ border-bottom:0; }
+.dp-table tbody tr:hover td{ background:var(--surface-hover); }
+.dp-table .num{ text-align:right; font-family:var(--font-data); font-variant-numeric:tabular-nums; white-space:nowrap; }
+.dp-table th.num{ font-family:var(--font-body); }
+.dp-table th.num .sort-button{ text-align:right; }
+.dp-table .dp-cell-main{ min-width:150px; font-weight:500; overflow-wrap:anywhere; }
+.dp-table .dp-code{ font-family:var(--font-data); font-variant-numeric:tabular-nums; color:var(--text-secondary); white-space:nowrap; }
+.dp-table .dp-line-note{ display:block; margin-top:2px; color:var(--muted); font-size:11px; font-weight:400; white-space:pre-line; }
+.dp-table tfoot td{
+  position:sticky; bottom:0; padding:10px 12px; background:var(--panel-2); border-top:1px solid var(--border);
+  border-bottom:0; font-weight:700;
+}
+.dp-table .table-note{ padding:22px 12px; text-align:center; color:var(--muted); font-weight:400; }
+.dp-table tr.is-clickable{ cursor:pointer; }
+.dp-table tr.is-clickable:focus-visible{ outline:2px solid var(--blue); outline-offset:-2px; }
+.dp-table.is-min-wide{ min-width:560px; }
+
+/* Ô tỷ trọng: số % + thanh nhỏ */
+.dp-share{ display:inline-flex; align-items:center; justify-content:flex-end; gap:9px; }
+.dp-bar{ flex:0 0 52px; height:5px; border-radius:99px; background:var(--panel-3); overflow:hidden; }
+.dp-bar > i{ display:block; height:100%; border-radius:inherit; background:var(--dp-bar-color, var(--blue)); }
+.dp-swatch{ display:inline-block; width:9px; height:9px; margin-right:9px; border-radius:3px; flex:none; }
+
+/* ---------- Biểu đồ ---------- */
+.dp-chart{ position:relative; height:260px; }
+.dp-chart.is-donut{ height:290px; }
+.dp-chart-caption{ margin:8px 0 0; font-size:11.5px; text-align:center; color:var(--muted); }
+
+/* ---------- Trạng thái: đang tải / lỗi / ghi chú ---------- */
+.dp-state{ padding:34px 12px; text-align:center; color:var(--muted); font-size:12.5px; line-height:1.55; }
+.dp-state .dp-btn{ margin-top:12px; }
+.dp-spinner{
+  display:block; width:22px; height:22px; margin:0 auto 12px; border:2px solid var(--border);
+  border-top-color:var(--blue); border-radius:50%; animation:dp-spin .8s linear infinite;
+}
+@keyframes dp-spin{ to{ transform:rotate(360deg); } }
+.dp-note{ margin:0; font-size:12px; line-height:1.55; color:var(--muted); }
+.dp-btn{
+  display:inline-flex; align-items:center; justify-content:center; min-height:34px; padding:0 14px;
+  border:1px solid var(--border); border-radius:var(--radius-sm, 8px); background:var(--panel-2); color:var(--text);
+  font-family:var(--font-body); font-size:12.5px; font-weight:600; cursor:pointer;
+  transition:border-color .15s ease, background-color .15s ease;
+}
+.dp-btn:hover{ border-color:var(--muted); }
+.dp-btn:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+
+/* ---------- Huy hiệu trạng thái ---------- */
+.dp-pill{
+  display:inline-flex; align-items:center; padding:2px 10px; border-radius:var(--radius-pill, 9999px);
+  font-size:11px; font-weight:600; line-height:1.6; background:var(--panel-3); color:var(--text-secondary);
+}
+.dp-pill.is-ok{ background:var(--alert-success-bg); color:var(--green); }
+.dp-pill.is-warn{ background:var(--alert-warning-bg); color:var(--amber); }
+.dp-pill.is-bad{ background:var(--alert-error-bg); color:var(--red); }
+.dp-pill.is-info{ background:var(--accent-blue-12); color:var(--blue); }
+
+/* ---------- Điện thoại: hộp gần kín màn hình, mọi cột xếp dọc ---------- */
+@media (max-width:860px){
+  .dp-split, .dp-split.is-even, .dp-split.is-table-wide{ grid-template-columns:minmax(0, 1fr); }
+}
+@media (max-width:640px){
+  .dp-head{ padding:14px 16px 12px; }
+  .dp-body{ padding:14px 16px 20px; gap:14px; }
+  .dp-title{ font-size:16px; }
+  .dp-stats{ grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px; }
+  .dp-stat{ padding:10px 12px; }
+  .dp-stat-value{ font-size:15px; letter-spacing:-.02em; }
+  .dp-stat-value.is-text{ font-size:14px; letter-spacing:0; }
+  .dp-meta{ grid-template-columns:repeat(2, minmax(0, 1fr)); gap:11px 14px; }
+  .dp-chart.is-donut{ height:250px; }
+  .dp-table th, .dp-table td{ padding:8px 10px; }
+  .dp-table th{ white-space:normal; }
+  .dp-table .dp-cell-main{ min-width:108px; }
+  .dp-bar{ display:none; }
+}
+/* Man hinh cam ung khong co "re chuot" */
+@media (hover:none){
+  .dp-chart-caption{ display:none; }
+}
+@media (prefers-reduced-motion:reduce){
+  .dp-spinner{ animation:none; }
+  .dp-close, .dp-btn{ transition:none; }
+}

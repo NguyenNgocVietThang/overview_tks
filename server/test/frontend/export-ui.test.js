@@ -13,17 +13,14 @@ function readDashboardHtml() {
   return fs.readFileSync(htmlPath, 'utf8');
 }
 
-test('giao dien gan dung 18 nut xuat Excel cho 18 bang co dinh', () => {
+test('giao dien gan dung 5 nut xuat Excel cho 5 bang co dinh (khong con Dat hang / Tra hang / Khach hang cu / cac muc cu cua Hang hoa)', () => {
   const html = readDashboardHtml();
   const matches = [...html.matchAll(/openExportDialog\('([^']+)'\)/g)].map(match => match[1]);
-  assert.equal(matches.length, 18);
-  assert.equal(new Set(matches).size, 18);
+  assert.equal(matches.length, 5);
+  assert.equal(new Set(matches).size, 5);
   assert.deepEqual(matches.sort(), [
-    'customers.debt', 'customers.productDetail', 'customers.productMonthlyCompare', 'customers.revenue', 'debt.management',
-    'invoices.orders', 'invoices.returns',
-    'overview.new-products', 'overview.productReport', 'overview.productRevenueSearch', 'overview.purchases', 'overview.transactions',
-    'products.all', 'products.child-categories', 'products.low-stock', 'products.newly-imported', 'products.top-selling',
-    'suppliers.list'
+    'customers.productDetail', 'debt.management', 'debt.penalty',
+    'overview.productReport', 'overview.transactions'
   ].sort());
 });
 
@@ -38,12 +35,12 @@ test('modal co du dieu khien chon truong va script inline bien dich hop le', () 
   assert.match(html, /field\.selected !== false \? ' checked' : ''/);
 });
 
-test('nut xuat ket qua tim kiem bi an rieng o tab Tong quan', () => {
+test('thanh tim kiem chung dau tab da bo: khong con form tim kiem toan cuc va nut xuat ket qua tim kiem', () => {
   const html = readDashboardHtml();
-  const functionMatch = html.match(/function searchExportButtonHtml\(\)\s*\{([\s\S]*?)\n\s*\}/);
-  assert.ok(functionMatch, 'phai co helper tao nut xuat cho ket qua tim kiem');
-  assert.match(functionMatch[1], /state\.view === 'overview'/);
-  assert.match(functionMatch[1], /openExportDialog\(\\'search\.results\\'\)/);
+  assert.ok(!html.includes('dashboardSearchForm'));
+  assert.ok(!html.includes('searchExportButtonHtml'));
+  assert.ok(!html.includes('search.results'));
+  assert.match(html, /const TABLE_DATE_FILTERS = /, 'bo loc thoi gian nam trong tung bang');
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -66,7 +63,7 @@ function createExportDashboard() {
   };
   win.setInterval = () => 1;
   win.requestAnimationFrame = callback => callback();
-  win.TKSNav = { authGuard: () => new Promise(() => {}), handleBranchError: () => false, renderTopSidebar() {} };
+  win.TKSNav = { authGuard: () => new Promise(() => {}), can: () => true, handleBranchError: () => false, renderTopSidebar() {} };
 
   const harness = { win, document: win.document, calls: [], timers: [], downloads: [], alerts: [], routes: {}, ignoreAbort: false };
   // setTimeout do test dieu khien: ghi lai do tre de kiem tra timeout 30s / 180s va kich hoat ngay lap tuc.
@@ -191,7 +188,7 @@ test('hop thoai lay danh sach truong voi chu thich tieng Viet, khong con nhac Go
   await flush();
 
   assert.equal(h.activeTimeouts(30000), 0, 'timeout phai duoc go khi da co phan hoi');
-  assert.equal(h.text('exportModalTitle'), 'Xuất Excel · Tất cả sản phẩm');
+  assert.equal(h.text('exportModalTitle'), 'Xuất file · Tất cả sản phẩm');
   assert.equal(h.text('exportModalSubtitle'), 'Đã chọn sẵn các trường mặc định; có thể bổ sung hoặc bỏ các trường không cần.');
   const boxes = [...document.querySelectorAll('#exportFields input[type="checkbox"]')];
   assert.deepEqual(boxes.map(box => [box.value, box.checked]), [['code', true], ['name', true], ['category', false]]);
@@ -276,7 +273,7 @@ test('phan hoi tre sau khi da dong hoac mo lai khong ve de len hop thoai', async
   assert.equal(document.body.style.overflow, '');
 
   // Bam lien tiep nhieu nut Xuat Excel: request cu bi huy, chi request cuoi cung con hieu luc.
-  h.win.openExportDialog('products.low-stock');
+  h.win.openExportDialog('products.all');
   h.win.openExportDialog('products.top-selling');
   const [, second, third] = h.fieldsCalls();
   assert.equal(h.fieldsCalls().length, 3);
@@ -287,11 +284,11 @@ test('phan hoi tre sau khi da dong hoac mo lai khong ve de len hop thoai', async
   h.respondJson(second, exportMetadata({ title: 'Lần hai' }));
   await flush();
   assert.equal(h.text('exportFields'), 'Đang lấy danh sách trường…', 'phan hoi cu khong duoc ve de len lan mo moi');
-  assert.equal(h.text('exportModalTitle'), 'Xuất Excel');
+  assert.equal(h.text('exportModalTitle'), 'Xuất file');
 
   h.respondJson(third, exportMetadata({ title: 'Lần ba' }));
   await flush();
-  assert.equal(h.text('exportModalTitle'), 'Xuất Excel · Lần ba');
+  assert.equal(h.text('exportModalTitle'), 'Xuất file · Lần ba');
   assert.equal(document.querySelectorAll('#exportFields input[type="checkbox"]').length, 3);
 
   h.win.closeExportDialog();
@@ -466,13 +463,15 @@ test('ket qua nhieu nguon (all-only) tu tao file voi toan bo truong, huy duoc va
   await openExportWithFields(h, twoSheetMetadata());
   h.win.closeExportDialog();
 
-  h.win.openExportDialog('search.results');
-  h.respondJson(h.fieldsCalls().pop(), Object.assign(twoSheetMetadata(), { tableKey: 'search.results', selectionMode: 'all-only' }));
+  // (Bang search.results — nguon all-only duy nhat truoc day — da go cung /api/search;
+  // test giu lai de khoa hanh vi hop thoai voi metadata all-only bat ky.)
+  h.win.openExportDialog('products.all');
+  h.respondJson(h.fieldsCalls().pop(), Object.assign(twoSheetMetadata(), { tableKey: 'products.all', selectionMode: 'all-only' }));
   await flush();
   assert.equal(h.text('exportModalSubtitle'), 'Kết quả có nhiều nguồn; mỗi nguồn sẽ nằm trong một worksheet riêng.');
   assert.equal(h.text('exportFields'), 'Đang tạo file với toàn bộ trường của 2 nguồn dữ liệu…');
   assert.equal(h.fileCalls().length, 1);
-  assert.equal(h.fileCalls()[0].body.tableKey, 'search.results');
+  assert.equal(h.fileCalls()[0].body.tableKey, 'products.all');
   assert.equal('columns' in h.fileCalls()[0].body, false, 'all-only khong gui danh sach cot');
 
   h.fireTimeout(180000);
@@ -520,6 +519,35 @@ test('nut xuat ket qua dut hang co timeout va bao loi tieng Viet thay vi ket o "
   assert.equal(button.innerHTML, originalLabel);
   h.win.close();
 });
+
+// Hoi quy: client luon gui cot 'branch' nen may chu tu choi (EXPORT_FIELD_NOT_ALLOWED) khi ket
+// qua quet o Ha Noi / Sai Gon; chi ket qua "Cả hai" moi co cot nguon.
+for (const scenario of [
+  { name: 'recent', route: '/api/products/stockout-recent/', fetchFn: 'fetchRecentStockoutResult', exportFn: 'exportRecentStockoutResult', worksheet: 'recent_stockout_result' },
+  { name: '90d', route: '/api/products/stockout-90d/', fetchFn: 'fetchStockout90dResult', exportFn: 'exportStockout90dResult', worksheet: 'stockout_90d_result' },
+  { name: '30d', route: '/api/products/stockout-30d/', fetchFn: 'fetchStockout30dResult', exportFn: 'exportStockout30dResult', worksheet: 'stockout_30d_result' }
+]) {
+  for (const branch of ['Hà Nội', 'Sài Gòn', 'Cả hai']) {
+    test(`xuat Excel dut hang (${scenario.name}) quet o "${branch}": chi gui cot "branch" khi la "Cả hai"`, async () => {
+      const result = {
+        branch,
+        rows: [{ code: 'SP001', name: 'Chổi lau nhà', stockoutCount: 1, totalStockoutDays: 6, currentOnHand: 0, lastOutOfStockDate: '2026-09-01', daysOutOfStock: 20, periods: [], ...(branch === 'Cả hai' ? { branch: 'Hà Nội' } : {}) }],
+        sources: {}, warnings: [], asOfDate: '2026-09-21', totalProductsScanned: 10
+      };
+      const h = createExportDashboard();
+      h.routes[scenario.route] = { ok: true, status: 200, json: async () => ({ result }) };
+      await h.win[scenario.fetchFn]('job-1');
+
+      const pending = h.win[scenario.exportFn]();
+      const keys = h.fileCalls()[0].body.columns[scenario.worksheet];
+      assert.equal(keys.includes('branch'), branch === 'Cả hai');
+      assert.equal(keys.includes('code'), true);
+      h.respondFile(h.fileCalls()[0], 'HN_Dut_hang.xlsx');
+      await pending;
+      h.win.close();
+    });
+  }
+}
 
 test('lop nen hop thoai Xuat Excel khong dung backdrop-filter de khong lam lag ca trang', () => {
   const html = readDashboardHtml();
@@ -590,14 +618,102 @@ test('mat ket noi giua luc doc body (TypeError cua trinh duyet) van hien thong b
   h.win.close();
 });
 
-test('nut Xuat Excel cua ket qua tim kiem doanh thu theo hang bi khoa khi khong co san pham khop', () => {
+
+test('nut Xuat HTML canh Xuat Excel gui format html cung cac truong da chon, loi thi Thu lai dung dinh dang', async () => {
   const h = createExportDashboard();
-  const button = h.document.getElementById('prExportButton');
-  assert.ok(button, 'nut phai co id de khoa/mo');
-  assert.match(button.getAttribute('onclick'), /openExportDialog\('overview\.productRevenueSearch'\)/);
-  button.disabled = false;
-  h.win.renderProductRevenueResults(); // trang thai ban dau: chua co ket qua nao
-  assert.equal(button.disabled, true);
-  assert.match(readDashboardHtml(), /getElementById\('prExportButton'\)\.disabled = !results\.length/);
+  const { document } = h;
+  assert.equal(document.getElementById('exportHtmlButton').hidden, true, 'chua co danh sach truong thi an');
+  await openExportWithFields(h, twoSheetMetadata());
+  assert.equal(document.getElementById('exportHtmlButton').hidden, false);
+
+  assert.equal(h.click('exportHtmlButton'), true);
+  const call = h.fileCalls()[0];
+  assert.equal(call.body.format, 'html');
+  assert.deepEqual(call.body.columns, { products: ['code', 'name'], sales: ['qty'] });
+  assert.equal(h.text('exportStatus'), 'Đang tạo báo cáo HTML… (dữ liệu lớn có thể mất vài chục giây)');
+  assert.equal(document.getElementById('exportHtmlButton').disabled, true, 'dang tao file thi khoa nut');
+
+  h.respondJson(call, { error: 'Không thể tạo báo cáo HTML.', detail: 'Dữ liệu có 6.000 dòng, vượt giới hạn — dùng Xuất Excel.' }, 413);
+  await flush();
+  assert.match(h.text('exportStatus'), /Xuất Excel/);
+  assert.equal(h.click('exportRetryButton'), true);
+  assert.equal(h.fileCalls()[1].body.format, 'html', 'Thu lai giu dinh dang HTML');
+  h.respondFile(h.fileCalls()[1], 'HN_San_pham_20260925_1000.html');
+  await flush();
+  assert.equal(h.downloads[0].name, 'HN_San_pham_20260925_1000.html');
+
+  // Nut Xuat Excel van gui yeu cau KHONG co format (giu hanh vi cu).
+  await openExportWithFields(h, twoSheetMetadata());
+  h.click('exportConfirmButton');
+  assert.equal('format' in h.fileCalls()[2].body, false);
   h.win.close();
+});
+
+test('Xuat HTML ma may chu tra file .xlsx (server cu) thi bao loi, khong luu file sai dinh dang', async () => {
+  const h = createExportDashboard();
+  await openExportWithFields(h, twoSheetMetadata());
+  h.click('exportHtmlButton');
+  h.respondFile(h.fileCalls()[0], 'HN_San_pham_20260925_1000.xlsx');
+  await flush();
+  assert.equal(h.downloads.length, 0);
+  assert.match(h.text('exportStatus'), /chưa hỗ trợ xuất HTML/);
+  assert.equal(h.exportStatusIsError(), true);
+  h.win.close();
+});
+
+test('bang Cong no: hop thoai xuat cho chon ban chot (mac dinh moi nhat); chon ban cu thi gui debtCycleDate', async () => {
+  const h = createExportDashboard();
+  const cycles = [{ cycleDate: '2026-10-13' }, { cycleDate: '2026-10-12' }, { cycleDate: '2026-10-11' }];
+  h.routes['/api/debt-management/cycles'] = { ok: true, status: 200, json: async () => ({ cycles }) };
+  const row = h.document.getElementById('exportCycleRow');
+  const select = h.document.getElementById('exportCycleSelect');
+
+  await openExportWithFields(h, exportMetadata({ tableKey: 'debt.management' }), 'debt.management');
+  assert.equal(row.hidden, false, 'bang cong no hien o chon ban chot');
+  assert.deepEqual(Array.from(select.options).map(option => option.value), ['', '2026-10-12', '2026-10-11']);
+  assert.match(select.options[0].textContent, /^Mới nhất — Chốt 15:00 ngày 13\/10\/2026$/);
+  assert.equal(select.value, '', 'mac dinh la ban moi nhat');
+
+  h.click('exportConfirmButton');
+  assert.equal(h.fileCalls().at(-1).body.context.debtCycleDate, undefined, 'ban moi nhat khong gui ngay');
+  h.win.closeExportDialog();
+
+  await openExportWithFields(h, exportMetadata({ tableKey: 'debt.management' }), 'debt.management');
+  h.document.getElementById('exportCycleSelect').value = '2026-10-11';
+  h.click('exportConfirmButton');
+  assert.equal(h.fileCalls().at(-1).body.context.debtCycleDate, '2026-10-11');
+  h.win.closeExportDialog();
+
+  await openExportWithFields(h, exportMetadata(), 'products.all');
+  assert.equal(row.hidden, true, 'bang khac khong co o chon ban chot');
+});
+
+test('bang Cong no: chi co 1 ban chot thi o chon van hien (khoa, kem ly do); loi tai danh sach thi bao ro va van xuat ban moi nhat', async () => {
+  const h = createExportDashboard();
+  const row = h.document.getElementById('exportCycleRow');
+  const select = h.document.getElementById('exportCycleSelect');
+  const hint = () => h.text('exportCycleHint');
+
+  h.routes['/api/debt-management/cycles'] = { ok: true, status: 200, json: async () => ({ cycles: [{ cycleDate: '2026-10-13' }] }) };
+  await openExportWithFields(h, exportMetadata({ tableKey: 'debt.management' }), 'debt.management');
+  assert.equal(row.hidden, false);
+  assert.equal(select.disabled, true);
+  assert.equal(select.options.length, 1);
+  assert.match(hint(), /mới lưu 1 bản chốt/);
+  h.win.closeExportDialog();
+
+  h.routes['/api/debt-management/cycles'] = { ok: false, status: 403, json: async () => ({}) };
+  await openExportWithFields(h, exportMetadata({ tableKey: 'debt.management' }), 'debt.management');
+  assert.equal(row.hidden, false);
+  assert.equal(select.disabled, true);
+  assert.match(hint(), /Không tải được danh sách bản chốt/);
+  h.click('exportConfirmButton');
+  assert.equal(h.fileCalls().at(-1).body.context.debtCycleDate, undefined, 'loi tai danh sach -> xuat ban moi nhat');
+  h.win.closeExportDialog();
+
+  // Mo lai sau khi da khoa: o phai duoc mo khoa khi co du >= 2 ban.
+  h.routes['/api/debt-management/cycles'] = { ok: true, status: 200, json: async () => ({ cycles: [{ cycleDate: '2026-10-14' }, { cycleDate: '2026-10-13' }] }) };
+  await openExportWithFields(h, exportMetadata({ tableKey: 'debt.management' }), 'debt.management');
+  assert.equal(select.disabled, false);
+  assert.equal(select.options.length, 2);
 });

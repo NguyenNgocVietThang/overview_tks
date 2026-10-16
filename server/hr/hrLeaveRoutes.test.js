@@ -4,7 +4,20 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const repo = require('./hrLeaveRepository');
 const employeeDirectory = require('./employeeDirectory');
-const router = require('./hrLeaveRoutes');
+const schedulesRepo=require('./hrLeaveWorkSchedulesRepository');
+const { createHrLeaveDecisionService } = require('./hrLeaveDecisionService');
+const { createHrLeaveRoutes } = require('./hrLeaveRoutes');
+// These route tests cover formatting, events and branch propagation. Scope enforcement
+// is exercised separately with the shared authorization service and a real DB fixture.
+const decisions = createHrLeaveDecisionService({
+  repo: {
+    getLeaveRequestById: async id => ({ request_id: id, co_so: 'Hà Nội', bo_phan: 'KHO', decision_version: '0' }),
+    updateLeaveRequestStatus: (...args) => repo.updateLeaveRequestStatus(...args)
+  },
+  authorization: { authorize: async user => user, routingFor: async () => ({ users: [] }) },
+  notifyManagers: async () => {}, findEmployee: async () => null
+});
+const router = createHrLeaveRoutes({ decisions, notifyAllUsers: async () => {} });
 
 function fakeRes() {
   const res = { statusCode: null, body: null };
@@ -23,6 +36,8 @@ function getRouteHandler(method, routePath) {
 
 test('route nhập tay tính đúng số buổi và chuyển khoảng nghỉ dạng cấu trúc', async () => {
   const originalCreate = repo.createLeaveRequest;
+  const originalResolve=schedulesRepo.resolveEmployee;
+  schedulesRepo.resolveEmployee=async()=>({id:'1',ho_ten:'Nhân viên A',bo_phan:'KHO',branch:'hanoi'});
   let received;
   repo.createLeaveRequest = async payload => { received = payload; return payload; };
   try {
@@ -50,6 +65,7 @@ test('route nhập tay tính đúng số buổi và chuyển khoảng nghỉ d�
     assert.equal(received.tong_buoi_nghi, 4);
   } finally {
     repo.createLeaveRequest = originalCreate;
+    schedulesRepo.resolveEmployee=originalResolve;
   }
 });
 
@@ -99,7 +115,7 @@ test('PATCH status phát sự kiện LEAVE_STATUS_CHANGED qua hrLeaveEvents', as
     const req = {
       params: { id: 'NP-20260822-005' },
       user: { ...MANAGER_BOTH, hoTen: 'Quản lý Nguyễn' },
-      body: { status: 'Đã duyệt' }
+      body: { expectedVersion: '0', status: 'Đã duyệt' }
     };
     const res = fakeRes();
     await handler(req, res);
@@ -111,6 +127,46 @@ test('PATCH status phát sự kiện LEAVE_STATUS_CHANGED qua hrLeaveEvents', as
     assert.equal(broadcastReceived.data.trang_thai, 'Đã duyệt');
   } finally {
     leaveEvents.removeListener('leave-event', onEvent);
+    repo.updateLeaveRequestStatus = originalUpdate;
+  }
+});
+
+test('PATCH status chuyển lý do từ chối (đã trim) xuống repo; không gửi note thì để undefined', async () => {
+  const originalUpdate = repo.updateLeaveRequestStatus;
+  const received = [];
+  repo.updateLeaveRequestStatus = async (id, data) => {
+    received.push(data);
+    return { request_id: id, trang_thai: data.status, co_so: 'Hà Nội' };
+  };
+  try {
+    const handler = getRouteHandler('patch', '/api/hr/leave-requests/:id/status');
+    const user = { ...MANAGER_BOTH };
+    await handler({ params: { id: 'NP-1' }, user, body: { expectedVersion: '0', status: 'Từ chối', note: '  Thiếu người trực ca ' } }, fakeRes());
+    await handler({ params: { id: 'NP-2' }, user, body: { expectedVersion: '0', status: 'Từ chối', note: '' } }, fakeRes());
+    await handler({ params: { id: 'NP-3' }, user, body: { expectedVersion: '0', status: 'Đã duyệt' } }, fakeRes());
+
+    assert.equal(received[0].note, 'Người duyệt: Quản lý - Quản lý\nLý do từ chối: Thiếu người trực ca');
+    assert.equal(received[1].note, 'Người duyệt: Quản lý - Quản lý');
+    assert.equal(received[2].note, 'Người duyệt: Quản lý - Quản lý');
+  } finally {
+    repo.updateLeaveRequestStatus = originalUpdate;
+  }
+});
+
+test('PATCH status từ chối lý do quá 500 ký tự hoặc không phải chuỗi (400 INVALID_NOTE)', async () => {
+  const originalUpdate = repo.updateLeaveRequestStatus;
+  let called = false;
+  repo.updateLeaveRequestStatus = async () => { called = true; return {}; };
+  try {
+    const handler = getRouteHandler('patch', '/api/hr/leave-requests/:id/status');
+    for (const note of ['x'.repeat(501), 123, { a: 1 }]) {
+      const res = fakeRes();
+      await handler({ params: { id: 'NP-1' }, user: { ...MANAGER_BOTH }, body: { expectedVersion: '0', status: 'Từ chối', note } }, res);
+      assert.equal(res.statusCode, 400);
+      assert.equal(res.body.code, 'INVALID_NOTE');
+    }
+    assert.equal(called, false);
+  } finally {
     repo.updateLeaveRequestStatus = originalUpdate;
   }
 });
@@ -133,11 +189,15 @@ test('GET /api/hr/employees trả về nhân sự mọi cơ sở được phép 
     assert.equal(resAll.statusCode, 200);
     assert.deepEqual(resAll.body.employees.map(e => e.hoTen), ['Nguyễn Văn A', 'Nguyễn Văn B', 'Trần Thị C']);
     assert.deepEqual(resAll.body.employees.map(e => e.coSo), ['Hà Nội', 'Hà Nội', 'Sài Gòn']);
-    assert.deepEqual(Object.keys(resAll.body.employees[0]).sort(), ['boPhan', 'coSo', 'email', 'hoTen', 'soDienThoai']);
+    assert.deepEqual(Object.keys(resAll.body.employees[0]).sort(), ['boPhan', 'coSo', 'email', 'hoTen', 'id', 'ngayThem', 'soDienThoai', 'trangThai'], 'Quản lý có quyền hr.employees.manage nên thấy cả ngayThem');
+    const resStaff = fakeRes();
+    await handler({ user: STAFF_HANOI, query: {} }, resStaff);
+    assert.deepEqual(Object.keys(resStaff.body.employees[0]).sort(), ['boPhan', 'coSo', 'email', 'hoTen', 'id', 'soDienThoai', 'trangThai'], 'người thường không nhận ngayThem');
+    assert.equal(resStaff.body.canManage, false);
 
     const resOne = fakeRes();
     await handler({ user: STAFF_HANOI, query: {} }, resOne);
-    assert.deepEqual(resOne.body.employees.map(e => e.hoTen), ['Nguyễn Văn A', 'Nguyễn Văn B'], 'tài khoản 1 cơ sở không thấy cơ sở khác');
+    assert.deepEqual(resOne.body.employees.map(e => e.hoTen), ['Nguyễn Văn A', 'Nguyễn Văn B', 'Trần Thị C'], 'cơ sở chỉ là bộ lọc xem, tài khoản 1 cơ sở vẫn thấy cả hai');
   } finally {
     employeeDirectory.getSnapshot = originalGetSnapshot;
   }
@@ -158,13 +218,13 @@ test('GET /api/hr/leave-requests mặc định gộp mọi cơ sở được ph�
     assert.deepEqual(received.branch, ['Sài Gòn']);
 
     await handler({ user: STAFF_HANOI, query: {} }, fakeRes());
-    assert.deepEqual(received.branch, ['Hà Nội'], '"Tất cả" không vượt quá cơ sở được phép');
+    assert.deepEqual(received.branch, ['Hà Nội', 'Sài Gòn'], '"Tất cả" gồm cả hai cơ sở, không phụ thuộc coSo được gán');
   } finally {
     repo.getLeaveRequests = originalGet;
   }
 });
 
-test('GET /api/hr/leave-requests từ chối cơ sở ngoài quyền hoặc không hợp lệ, không chạm DB', async () => {
+test('GET /api/hr/leave-requests cho xem cơ sở khác coSo được gán, từ chối cơ sở không hợp lệ, không chạm DB', async () => {
   const originalGet = repo.getLeaveRequests;
   let called = false;
   repo.getLeaveRequests = async () => { called = true; return []; };
@@ -173,8 +233,9 @@ test('GET /api/hr/leave-requests từ chối cơ sở ngoài quyền hoặc khô
 
     const forbidden = fakeRes();
     await handler({ user: STAFF_HANOI, query: { branch: 'Sài Gòn' } }, forbidden);
-    assert.equal(forbidden.statusCode, 403);
-    assert.equal(forbidden.body.code, 'BRANCH_FORBIDDEN');
+    assert.equal(forbidden.statusCode, 200, 'coSo chỉ là mặc định, tài khoản Hà Nội vẫn xem được Sài Gòn');
+    assert.equal(called, true);
+    called = false;
 
     const invalid = fakeRes();
     await handler({ user: MANAGER_BOTH, query: { branch: 'Đà Nẵng' } }, invalid);
@@ -200,7 +261,7 @@ test('PATCH status tìm đơn ở mọi cơ sở được phép và phát sự k
   try {
     const handler = getRouteHandler('patch', '/api/hr/leave-requests/:id/status');
     // Quản lý đang chọn Hà Nội ở thanh điều hướng nhưng sửa đơn của Sài Gòn từ danh sách "Tất cả cơ sở".
-    await handler({ params: { id: 'NP-SG-1' }, branch: 'Hà Nội', user: MANAGER_BOTH, body: { status: 'Đã duyệt' } }, fakeRes());
+    await handler({ params: { id: 'NP-SG-1' }, branch: 'Hà Nội', user: MANAGER_BOTH, body: { expectedVersion: '0', status: 'Đã duyệt' } }, fakeRes());
     assert.deepEqual(searchedBranches, ['Hà Nội', 'Sài Gòn']);
     assert.equal(broadcast.branch, 'Sài Gòn');
   } finally {
@@ -225,20 +286,9 @@ test('luồng tạo mã Telegram cũ đã ngừng và không ghi Google Sheets',
   }
 });
 
-test('trạng thái Telegram đọc từ app_users qua req.user, không đọc Google Sheets', async () => {
-  const originalFindLink = repo.findLinkByWebUsername;
-  let sheetCalled = false;
-  repo.findLinkByWebUsername = async () => { sheetCalled = true; };
-  try {
-    const handler = getRouteHandler('get', '/api/hr/telegram/link-status');
-    const res = fakeRes();
-    await handler({ user: { telegramId: '6205968899' } }, res);
-    assert.equal(res.statusCode, 200);
-    assert.deepEqual(res.body, { linked: true, telegramId: '6205968899', source: 'postgres' });
-    assert.equal(sheetCalled, false);
-  } finally {
-    repo.findLinkByWebUsername = originalFindLink;
-  }
+test('GET /api/hr/telegram/link-status đã gỡ (không giao diện nào gọi) -> không còn route, Express trả 404', () => {
+  const exists = router.stack.some(item => item.route && item.route.path === '/api/hr/telegram/link-status');
+  assert.equal(exists, false);
 });
 
 // ---------------------------------------------------------------------------
@@ -252,12 +302,22 @@ const { leaveEvents } = require('./hrLeaveEvents');
 function stubHrProfileSources({ employees = [], users = [] } = {}) {
   const originalSnapshot = employeeDirectory.getSnapshot;
   const originalFindUser = userRepository.findUserByUsername;
+  const originalResolve=schedulesRepo.resolveEmployee;
+  schedulesRepo.resolveEmployee=async({employeeId,username})=>{
+    if(employeeId) {
+      const employee=employees[Number(employeeId)-1];
+      return employee ? {id:String(employeeId),ho_ten:employee.hoTen,bo_phan:'KHO',branch:employee.sourceBranch==='Sài Gòn' ? 'saigon' : 'hanoi'} : null;
+    }
+    const user=users.find(item=>item.username===username);
+    return user ? {id:'1',username:user.username,ho_ten:'Nhân viên A',bo_phan:'KHO',branch:user.hrSourceBranch==='Sài Gòn' ? 'saigon' : 'hanoi'} : null;
+  };
   employeeDirectory.getSnapshot = async () => ({ employees });
   userRepository.findUserByUsername = async username =>
     users.find(user => user.username === username) || null;
   return () => {
     employeeDirectory.getSnapshot = originalSnapshot;
     userRepository.findUserByUsername = originalFindUser;
+    schedulesRepo.resolveEmployee=originalResolve;
   };
 }
 
@@ -298,10 +358,10 @@ async function postLeaveRequest({ branch, body, employees, users, onCreate }) {
   }
 }
 
-test('tạo đơn ở "Cả hai": cơ sở lấy từ hồ sơ nhân sự (họ tên), không phải cơ sở đang chọn', async () => {
+test('tạo đơn ở "Cả hai": cơ sở lấy từ định danh nhân sự, bỏ qua họ tên giả', async () => {
   const { res, calls } = await postLeaveRequest({
     branch: 'Cả hai',
-    body: manualAbsenceBody({ ho_ten: 'Nhân viên A' }),
+    body: manualAbsenceBody({ hr_employee_id:'1',ho_ten: 'Tên giả' }),
     employees: [
       { hoTen: 'Nhân viên A', sourceBranch: 'Sài Gòn' },
       { hoTen: 'Nhân viên B', sourceBranch: 'Hà Nội' }
@@ -333,8 +393,8 @@ test('tạo đơn ở "Cả hai": không xác định được cơ sở của nh
   });
 
   assert.equal(res.statusCode, 400);
-  assert.equal(res.body.code, 'LEAVE_BRANCH_UNRESOLVED');
-  assert.match(res.body.error, /cơ sở/i);
+  assert.equal(res.body.code, 'LEAVE_EMPLOYEE_REQUIRED');
+  assert.match(res.body.error, /nhân sự/i);
   assert.equal(calls.length, 0);
 });
 
@@ -349,14 +409,14 @@ test('tạo đơn ở "Cả hai": trùng tên ở cả hai cơ sở -> 400, khô
   });
 
   assert.equal(res.statusCode, 400);
-  assert.equal(res.body.code, 'LEAVE_BRANCH_UNRESOLVED');
+  assert.equal(res.body.code, 'LEAVE_EMPLOYEE_REQUIRED');
   assert.equal(calls.length, 0);
 });
 
 test('tạo đơn ở "Cả hai": sự kiện realtime mang cơ sở vật lý của bản ghi', async () => {
   const { events } = await postLeaveRequest({
     branch: 'Cả hai',
-    body: manualAbsenceBody({ ho_ten: 'Nhân viên A' }),
+    body: manualAbsenceBody({ hr_employee_id:'1',ho_ten: 'Nhân viên A' }),
     employees: [{ hoTen: 'Nhân viên A', sourceBranch: 'Sài Gòn' }],
     // Ban ghi tra ve thieu co_so (phong thu) — su kien van khong duoc mang "Cả hai".
     onCreate: payload => Object.assign({}, payload, { id: 'REQ-1', co_so: '' })
@@ -366,15 +426,15 @@ test('tạo đơn ở "Cả hai": sự kiện realtime mang cơ sở vật lý c
   assert.equal(events[0].branch, 'Sài Gòn');
 });
 
-test('tạo đơn ở cơ sở vật lý: giữ nguyên hành vi cũ (không tra hồ sơ nhân sự)', async () => {
+test('tạo đơn ở cơ sở vật lý vẫn từ chối khi thiếu định danh nhân sự', async () => {
   const { res, calls } = await postLeaveRequest({
     branch: 'Hà Nội',
     body: manualAbsenceBody({ ho_ten: 'Người lạ' }),
     employees: []
   });
 
-  assert.equal(res.statusCode, 201);
-  assert.equal(calls[0].branch, 'Hà Nội');
+  assert.equal(res.statusCode, 400);
+  assert.equal(calls.length,0);
 });
 
 test('đổi trạng thái ở "Cả hai": sự kiện realtime không bao giờ mang nhãn "Cả hai"', async () => {
@@ -387,7 +447,7 @@ test('đổi trạng thái ở "Cả hai": sự kiện realtime không bao giờ
     const handler = getRouteHandler('patch', '/api/hr/leave-requests/:id/status');
     const req = {
       user: MANAGER_BOTH, branch: 'Cả hai',
-      params: { id: 'REQ-1' }, body: { status: 'Đã duyệt' }
+      params: { id: 'REQ-1' }, body: { expectedVersion: '0', status: 'Đã duyệt' }
     };
     const res = fakeRes();
     await handler(req, res);
@@ -419,11 +479,11 @@ test('GET /api/hr/leave-requests?branch="Cả hai": lọc theo mọi cơ sở đ
     assert.equal(res.statusCode, 200);
     assert.deepEqual(received.branch, ['Hà Nội', 'Sài Gòn']);
 
-    // Tai khoan mot co so: "Cả hai" KHONG duoc mo rong pham vi.
+    // Tai khoan mot co so cung xem duoc ca hai.
     const staffRes = fakeRes();
     await handler({ user: STAFF_HANOI, query: { branch: 'Cả hai' } }, staffRes);
     assert.equal(staffRes.statusCode, 200);
-    assert.deepEqual(received.branch, ['Hà Nội']);
+    assert.deepEqual(received.branch, ['Hà Nội', 'Sài Gòn']);
   } finally {
     repo.getLeaveRequests = originalGet;
   }

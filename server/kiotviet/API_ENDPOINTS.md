@@ -48,15 +48,25 @@ Nếu tham số được API tôn trọng, `total` phải về 0.
 |---|---|---|---|---|
 | categories | `/categories` | `hierachicalData=false` (đúng chính tả lỗi của KiotViet — không sửa) | `lastModifiedFrom` | Live probe: total 98→0. `modifiedFrom` bị thử và **không hoạt động** (total không đổi) — không dùng tên này. |
 | products | `/products` | `includeInventory=true&includeQuantity=true&IncludeProductShelves=true&includeSoftDeletedAttribute=false` | `lastModifiedFrom` | Live probe: total 10378→0. Cấu hình hiện nằm trong engine `server/kiotvietSync/`. **Cập nhật 2026-09-18**: đã bỏ `includePricebook`/`IncludeSerials`/`IncludeBatchExpires`/`includeWarranties`/`includeMaterial` (có trong bản listQuery trước đây) vì làm `products.raw` phình lên ~35MB/13.949 dòng, làm chậm các câu JOIN với `products` — không có chỗ nào trong repo đọc các trường này. Xem ghi chú quyết định tại `server/kiotvietSync/entities/products.js`. Muốn dùng lại dữ liệu bảng giá theo kênh/serial/hạn dùng lô/bảo hành/vật liệu phải bật lại tham số tương ứng **và backfill lại toàn bộ `products`**. |
-| customers | `/customers` | `includeTotal=true&includeCustomerGroup=true&includeCustomerSocial=true` | `lastModifiedFrom` | Live probe: total 5246→0. |
-| suppliers | `/suppliers` | `includeTotal=true&includeSupplierGroup=true` | `lastModifiedFrom` | Live probe: total 122→0. |
+| customers | `/customers` | `includeTotal=true&includeCustomerGroup=true&includeCustomerSocial=true&includeRemoveIds=true` | `lastModifiedFrom` | Live probe: total 5246→0. Metadata thực tế `removedIds` (hỗ trợ thêm `removeIds`/`removeId`); chuẩn hóa `raw.isActive`, đối soát đầy đủ lần đầu/mỗi 24 giờ. Query `isActive=true/false` đã thử và bị API bỏ qua, không dùng làm bộ lọc trạng thái. |
+| ~~suppliers~~ | `/suppliers` | | | **Đã bỏ đồng bộ (migration `0026`)**: tab Nhà cung cấp không còn trên dashboard; tên NCC của phiếu nhập lấy từ `purchases.raw`. |
 | invoices | `/invoices` | `includePayment=true&includeInvoiceDelivery=true&IncludeSaleChannel=true` | `lastModifiedFrom` | Live probe: total 23988→0. `fromPurchaseDate`/`toPurchaseDate` lọc theo *ngày bán*, không bắt được hóa đơn cũ bị **sửa**; dùng `lastModifiedFrom` cho checkpoint incremental. Line items nằm trong `InvoiceDetails[]`/`invoiceDetails[]` của cùng response. |
 | orders | `/orders` | `includePayment=true&includeOrderDelivery=true` | `lastModifiedFrom` | **Live probe: `fromOrderDate` bị API bỏ qua hoàn toàn (total không đổi khi set = ngày tương lai) — khác giả định ban đầu trong PlanDB-Phase1-Spec.md §9.1.** `lastModifiedFrom` được xác nhận hoạt động (total 34972→0). Dùng `lastModifiedFrom`, không dùng `fromOrderDate`/`toOrderDate`. |
 | returns | `/returns` | `includePayment=true` | `lastModifiedFrom` | Live probe: total 1348→0. Khớp cách `server/dashboard/stockoutCheck/stockoutEventLoader.js` đã gọi `client.fetchAllPages('returns', { lastModifiedFrom: fromDate }, ...)` trong production. |
-| purchases | `/purchaseorders` (**không phải** `/purchases`) | `includePayment=true&includeOrderDelivery=true` | `lastModifiedFrom` | Live probe: total 3276→0. `fromPurchaseDate`/`toPurchaseDate` cũng xác nhận hoạt động (đã dùng production ở `stockoutEventLoader.js`), nhưng dùng `lastModifiedFrom` để nhất quán và bắt được phiếu nhập cũ bị sửa. |
+| purchases | `/purchaseorders` (**không phải** `/purchases`) | `includePayment=true&includeOrderDelivery=true` | Đối soát danh sách từ mốc sàn đứt hàng, dùng `fromPurchaseDate` | Probe 28/09/2026: `lastModifiedFrom` bỏ sót phiếu tạo lại giữ ngày nhập cũ (PN002517). Không dùng bộ lọc này để chứng minh dữ liệu đầy đủ. Xem phần đối soát cuối tài liệu. |
+| order_suppliers | `/ordersuppliers` (**"Đặt hàng nhập"**, khác `/purchaseorders` = "Nhập hàng") | *(không có)* | **Không dùng** — đối soát toàn bộ danh sách mỗi lượt (`pollFullSnapshot`) | Live probe 2026-09-29 (tài khoản Sài Gòn thật): 348 phiếu; `lastModifiedFrom=2027-01-01` vẫn trả `total=348` ⇒ **bị API bỏ qua**. Mỗi phiếu có `id, code, orderDate, status, statusValue, supplierId, total, createdDate, orderSupplierDetails[]`, **không có `modifiedDate`**; dòng chi tiết `{productId, quantity, price, ...}` **không có `productCode`** (phải nối `products` theo `productId`). `status` 1 = "Đã xác nhận NCC", 3 = "Hoàn thành", 4 = "Đã hủy" (nhưng luôn lọc theo chuỗi `statusValue`). |
 | cash_flows | `/cashflow` | `includeAccount=true&includeBranch=true&includeUser=true` | `startDate` + `endDate` (**`lastModifiedFrom` bị API bỏ qua** — live probe xác nhận total không đổi) | Gọi **2 lần**: `isReceipt=true` và `isReceipt=false`, gộp kết quả; cùng scope `PublicApi.Access`. |
 | staff | *(không gọi endpoint riêng)* | — | — | Suy ra từ `SoldById`/`CreatedById`/`UserId`... trong response của invoices/orders/returns/purchases/cash_flows qua `staffSync.upsertStaffFromEntity()`. Quyết định giữ nguyên như spec dù `GET /users` đã xác nhận tồn tại (xem ghi chú bên dưới). |
 | product_on_hands | `/productOnHands` (**endpoint chuyên ton kho, KHAC** `/products`) | *(không có — xem ghi chú bên dưới)* | `lastModifiedFrom` | Live probe 2026-09-23 (mã `010GDYE`, tài khoản Hà Nội thật): total 0 khi `lastModifiedFrom=2027-01-01` → tham số hoạt động đúng. |
+
+## Nhóm polling trong `scheduler.js` (cập nhật 2026-10-05)
+
+| Nhóm | Entity | Nhịp mặc định |
+|---|---|---|
+| fast | `invoices`, `orders`, `product_on_hands`, `product_on_hands_snapshot`, `order_suppliers` | 7 phút (`KIOTVIET_SYNC_FAST_INTERVAL_MS`); sau mỗi lượt chạy ngay rollup "nóng" 7 ngày |
+| slow | `categories`, `products`, `customers`, `returns`, `purchases`, `cash_flows` | 20 phút (`KIOTVIET_SYNC_SLOW_INTERVAL_MS`) |
+
+`staff` không có endpoint riêng (suy ra từ các entity trên) và `suppliers` đã bỏ khỏi scheduler (migration `0026`; file `entities/suppliers.js` chỉ còn lại như mã chết có test). Webhook KiotViet gọi `POST /api/kiotviet/webhook/<KIOTVIET_WEBHOOK_SECRET>` (secret nằm trên đường dẫn; sai → 404) và hiện **chỉ được lưu thô** vào `webhook_events_raw`, không upsert dữ liệu nghiệp vụ — nguồn dữ liệu thật là polling ở bảng trên.
 
 ## Ghi chú quan trọng: `GET /users`
 
@@ -101,6 +111,17 @@ hợp lệ). Không tạo bảng riêng để không phải sửa lại các nơ
 `products.raw->'inventories'` (`stockoutPgSource.js`, `dashboardPgReader.js`,
 `productReportRefresh.js`).
 
+**Cập nhật 2026-09-29 — `lastModifiedFrom` của `/productOnHands` KHÔNG đủ để giữ tồn "thời gian thực".**
+Đo trên DB thật: sau đợt làm mới, 0/47 mã Sài Gòn và 0/4 mã Hà Nội có hóa đơn mới được cập nhật tồn
+(MCRY301 SG: DB `onHand=0`, KiotViet 2.250 rồi 2.100), trong khi checkpoint `product_on_hands` vẫn báo
+thành công mỗi nhịp. Nghĩa là `modifiedDate` của endpoint này không bump theo bán/nhập hàng. Cách khắc phục:
+- Entity `product_on_hands_snapshot` (`entities/productOnHandsSnapshot.js`): quét TOÀN BỘ `/productOnHands`
+  (không lọc ngày) tối đa mỗi `KIOTVIET_SYNC_ONHAND_SNAPSHOT_INTERVAL_MS` (mặc định 10 phút; Hà Nội ~108
+  request/lượt, Sài Gòn ~36), chạy trong nhóm fast; `syncDriver` bỏ qua khi lần trước còn mới và không chạy chồng.
+- `productOnHands.upsertPage` nay GỘP theo `branchId` (giữ `cost`, `onOrder`... của `/products`, chỉ ghi đè
+  `onHand`/`reserved`) và chỉ UPDATE dòng thực sự đổi. Bản cũ ghi đè cả mảng nên làm mất `cost` (Giá vốn) của
+  6.786 dòng Hà Nội / 1.300 dòng Sài Gòn — phục hồi bằng một lượt đồng bộ lại `products` toàn bộ.
+
 **Quyết định về `fetchProductOnHand()` (`kiotVietApiClient.js`, gọi `/products/code/{code}`):**
 giữ lại nguyên trạng — hàm này hiện là dead code trong production (chỉ có test gọi), nhưng vẫn có
 giá trị riêng: gọi API cho **đúng 1 mã tại 1 thời điểm** (đọc trực tiếp `/products/code/...`, không
@@ -142,3 +163,33 @@ vì giả vờ chia theo tháng trong khi API không thực sự hỗ trợ.
 - `partnerType=C` trên `/cashflow` (lọc theo khách hàng) —
   Phase 1 lấy **toàn bộ** `cash_flows` (cả khách hàng lẫn nhà cung cấp) vì bảng `cash_flows` có
   cả `customer_id` lẫn `supplier_id`, không lọc `partnerType` ở tầng sync.
+
+## Đối soát phiếu nhập và đứt hàng — 2026-09-28
+
+Kiểm tra trực tiếp thẻ kho MCRY301 tại Hà Nội: PN002517 nhập 4.500 ngày
+14/09/2026, nhưng không có trong Postgres. API `/purchaseorders` không lọc
+ngày sửa trả đúng phiếu id 16136771 (createdDate 17/09); cùng API với
+`lastModifiedFrom=2026-09-16T00:00:00Z` không trả phiếu này. Vì vậy việc
+tham số làm thay đổi `total` **không chứng minh đồng bộ tăng dần đầy đủ**.
+Tài liệu chính thức mục 2.15.1 chỉ liệt kê fromPurchaseDate/toPurchaseDate,
+không cam kết lastModifiedFrom cho phiếu nhập:
+https://www.kiotviet.vn/huong-dan-su-dung-kiotviet/retail-ket-noi-api/public-api/
+
+Trong dữ liệu từ 01/06 đến 28/09, đối chiếu ID phát hiện thiếu 37 phiếu tại
+Hà Nội (1.127 mã hàng) và 11 phiếu tại Sài Gòn (427 mã hàng). Các số này là
+ảnh chụp lúc kiểm tra, không phải tổng số sai lệch cố định.
+
+Sửa: purchases polling đối soát toàn bộ danh sách từ mốc sàn đứt hàng (`STOCKOUT_DATA_FLOOR_DATE_KEY`, hiện là 01/02/2026; thời điểm viết đoạn này mốc là 01/06/2026), gồm cả phiếu hủy; so
+sánh raw để chỉ ghi phiếu mới/thay đổi. Các entity chỉ tiến checkpoint sau
+khi **mọi trang** thành công; lỗi giữa chừng giữ mốc cũ để replay an toàn.
+Chi phí: mỗi lượt purchases polling cần đọc toàn bộ trang API, nhưng không
+viết lại chi tiết của phiếu không thay đổi. Cần khởi động lại server để nạp
+logic polling mới. Không sửa chứng từ nguồn trên KiotViet.
+
+## Đối soát Sổ quỹ — 07/10/2026
+
+Live probe HN/SG đối chiếu phương thức Cash và status=0 khớp các tổng trên web KiotViet. Phiếu method=Cash có thể vẫn có accountId, kể cả -1: phân loại tiền mặt theo method. Timestamp trả về không có zone là giờ Việt Nam; query có Z được API chuyển sang giờ Việt Nam (00:00Z–07:00Z cho kết quả giống 07:00–14:00 không zone). Không truyền startDate/endDate chỉ trả một phần phiếu; đối soát đầy đủ dùng startDate=1970-01-01T00:00:00.000Z và endDate của lượt chạy.
+
+startDate/endDate lọc theo transDate, không phát hiện mọi sửa/hủy hoặc nhập lùi ngày. cash_flows đối soát toàn bộ mỗi ngày; giữa các lần đối soát replay 7 ngày. Metadata mốc hoàn tất lưu JSON trong sync_checkpoints.note. Tài liệu API chính thức (2.14.1): https://www.kiotviet.vn/huong-dan-su-dung-kiotviet/retail-ket-noi-api/public-api/
+
+Phân trang cashflow: orderBy=Id/orderDirection=ASC đã xác minh. Theo TransDate có thể trùng/thiếu phiếu cùng giờ. Phát hiện SG TT016464: ID cũ 206806358 không còn trên API (lọc ids trả total=0); cùng mã trả ID mới 206806359. Đối soát cần đánh dấu ID cũ bằng source_missing_at, giữ lịch sử nhưng không cộng trùng. Chỉ đánh dấu sau snapshot đủ ID duy nhất theo total API.

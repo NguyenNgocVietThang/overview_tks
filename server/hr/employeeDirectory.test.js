@@ -8,6 +8,7 @@ const assert = require('node:assert/strict');
 const {
   parseEmployeeRows,
   roleForDepartment,
+  DEPARTMENT_FOR_ROLE,
   findEmployeeByIdentifier,
   createEmployeeDirectory,
   HrDirectoryError
@@ -38,6 +39,9 @@ test('parseEmployeeRows maps headers, normalizes identifiers and remembers sourc
 
 test('roleForDepartment implements the approved department matrix', () => {
   const expected = new Map([
+    ['BAN QUẢN TRỊ', 'Quản lý'],
+    [' ban quản trị ', 'Quản lý'],
+    ['ban quan tri', 'Quản lý'],
     ['BAN QUẢN LÝ', 'Quản lý'],
     ['TRƯỞNG CHI NHÁNH', 'Quản lý'],
     ['KẾ TOÁN', 'Kế toán'],
@@ -48,7 +52,8 @@ test('roleForDepartment implements the approved department matrix', () => {
     ['SALE', 'Nhân viên sale'],
     ['MUA HÀNG', 'Nhân viên mua hàng'],
     ['ĐẶT HÀNG', 'Nhân viên mua hàng'],
-    ['MARKETING', 'Khách'],
+    ['MARKETING', 'Nhân viên marketing'],
+    ['HẬU CẦN - BẢO VỆ', 'Khách'],
     ['HẬU CẦN', 'Khách'],
     ['BẢO VỆ', 'Khách'],
     ['BỘ PHẬN MỚI', 'Khách']
@@ -169,4 +174,21 @@ test('writeDepartmentForRole is a no-op when branch or row index is missing', as
 
   assert.equal(await directory.writeDepartmentForRole('', 2, 'Kế toán'), false);
   assert.equal(await directory.writeDepartmentForRole('Hà Nội', 0, 'Kế toán'), false);
+});
+
+test('bo phan MARKETING anh xa hai chieu sang vai tro Nhan vien marketing', () => {
+  for (const variant of ['MARKETING', 'Marketing', ' marketing ']) {
+    assert.equal(roleForDepartment(variant), 'Nhân viên marketing', variant);
+  }
+  assert.equal(DEPARTMENT_FOR_ROLE['Nhân viên marketing'], 'MARKETING');
+  assert.equal(roleForDepartment(DEPARTMENT_FOR_ROLE['Nhân viên marketing']), 'Nhân viên marketing');
+});
+
+test('manager department writes use Ban quản trị and retain manager permissions', async () => {
+  const repo = createFakeHrEmployeesRepository([{ id: 1, branch: 'hanoi', hoTen: 'A', boPhan: 'KHO' }]);
+  const directory = createEmployeeDirectory({ repo });
+  assert.equal(await directory.writeDepartmentForRole('Hà Nội', 1, 'Quản lý'), true);
+  const employee = (await directory.getSnapshot()).employees[0];
+  assert.equal(employee.boPhan, 'BAN QUẢN TRỊ');
+  assert.equal(employee.sheetVaiTro, 'Quản lý');
 });

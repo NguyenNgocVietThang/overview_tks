@@ -16,6 +16,12 @@ async function withFakeLeaveRequests(items, fn) {
     repo.getLeaveRequests = original;
   }
 }
+test('Excel export keeps independent timing and deadline after approval',async()=>{
+ await withFakeLeaveRequests([{request_id:'R1',trang_thai:'Đã duyệt',timing_status:'Vi phạm',registration_deadline_date:'2026-10-04'}],async()=>{
+  const {buffer}=await buildLeaveRequestsWorkbook({},BRANCHES.HANOI);const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(buffer);const sheet=workbook.worksheets[0],headers=sheet.getRow(1).values.slice(1);
+  assert.equal(sheet.getRow(2).getCell(headers.indexOf('Thời hạn đăng ký')+1).value,'Vi phạm');assert.equal(sheet.getRow(2).getCell(headers.indexOf('Hạn đăng ký')+1).value,'2026-10-04');
+ });
+});
 
 test('buildLeaveRequestsWorkbook: header freeze, khong to mau, chu den, an gridline, full border', async () => {
   await withFakeLeaveRequests([{ request_id: 'R1', ho_ten: 'Nguyễn Văn A' }], async () => {

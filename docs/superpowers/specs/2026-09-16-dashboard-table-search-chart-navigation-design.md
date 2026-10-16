@@ -95,7 +95,7 @@ tái sử dụng, không tạo ô trùng:
 
 - `prResultRows`: tiếp tục dùng ô Báo cáo doanh thu theo hàng và hai chế độ tìm
   hiện có, nhưng dùng cùng quy tắc chuẩn hóa/lọc kết quả.
-- `cpDetailRows` và `cpMonthlyRows`: tiếp tục dùng một ô sản phẩm chung của báo
+- `cpDetailRows` (đã gộp cả cột so sánh tháng): tiếp tục dùng một ô sản phẩm chung của báo
   cáo doanh thu theo khách, nhưng đổi từ chọn duy nhất sang lọc chứa cụm từ trên
   toàn bộ sản phẩm; chọn một gợi ý vẫn tạo phép khớp chính xác sản phẩm đó.
 - `debtManagementRows`: tiếp tục dùng `debtManagementSearch`, đồng thời mở rộng

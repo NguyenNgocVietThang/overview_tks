@@ -1,19 +1,108 @@
 # Implementation plan hiện tại
 
-Cập nhật: 2026-09-19.
+## Bổ sung 15/10/2026 — Hàng dự kiến trong Báo cáo hàng hóa
+
+- Kế hoạch chi tiết và prompt triển khai: [plan-product-report-containers.md](../../tasks/plan-product-report-containers.md).
+- Module `server/productContainers/` tách parser, repository, đồng bộ chỉ đọc 6 sheet TKS2 ĐẶT CONT; snapshot 2 tiếng độc lập KiotViet/doanh số đêm, khóa PostgreSQL chống chạy chồng và công bố đủ 6 sheet trong transaction. Lỗi giữ snapshot trước; trạng thái 4/5 vẫn lưu để xem có quyền.
+- API tổng hợp thêm hai số lượng và `containerSync`; thêm `/api/product-report/containers?code=` và `/api/product-report/containers/meta`. Quyền riêng `reports.overview.containers.full` phụ thuộc Tổng quan, mặc định Quản lý, override từng tài khoản; giới hạn dòng/cột tại backend.
+- Giao diện và xuất tổng hợp Excel/HTML đặt Chưa bốc/Đã bốc trước Tồn HN/SG. Modal hai phần đồng thời; metadata kiểm tra 60 giây chỉ khi xem Tổng quan. Tổng toàn công ty giữ nguyên khi đổi cơ sở.
+- Migration `0053_product_containers.sql` **đã áp DB dùng chung lúc 16:26 ngày 15/10/2026**. Khi triển khai được phép cần kiểm thử migration, cấu hình `PRODUCT_CONTAINER_SPREADSHEET_ID` và quyền Viewer, xác nhận snapshot đủ 6 sheet rồi đối chiếu mã nhiều CONT/mã nhiều sheet bằng hai mức quyền.
+- Trạng thái 15/10: kiểm thử toàn bộ 2.463 đạt, 3 skipped, 0 lỗi; service account đọc đủ 6 sheet, đối chiếu OTD10N/TRHB500 và Chrome Light/Dark, desktop/mobile đạt trên PGlite cục bộ. Đã áp 0053 lên DB dùng chung lúc 16:26 ngày 15/10/2026, chưa kích hoạt bản triển khai, chưa push/deploy. Các mốc kiểm thử cũ bên dưới không phải kết quả của tính năng này.
+
+Cập nhật: 2026-10-12 (Giảm egress Supabase: purchases.raw_hash, cache hóa đơn theo sự kiện, bot/realtime nghỉ phép nhẹ hơn; Đã hoàn thiện Ngày đặc biệt (thông báo chuông + pháo hoa), Báo cáo kinh doanh, Báo cáo Marketing, Sổ quỹ, Lịch làm việc & Hạn nghỉ phép, Trạng thái nhân sự, Audit log, Table controls; hệ thống schema đạt migration 0001–0044).
 
 ## Kiến trúc đã triển khai
 
-1. KiotViet API được đồng bộ vào Supabase bởi `server/kiotvietSync/`.
-2. Dashboard đọc các bảng vận hành từ Supabase qua `dashboardPgReader.js`.
+1. KiotViet API được đồng bộ vào Supabase bởi `server/kiotvietSync/` (webhook + polling + backfill).
+2. Dashboard đọc các bảng vận hành từ Supabase qua `dashboardPgReader.js`; không còn đọc dữ liệu vận hành từ Google Sheets.
 3. CN1/CN3/CN7 (công nợ 1/3/7 ngày, trước đây gọi là HN1/HN3/HN7) được refresh vào `customer_debt_activity_periods` và đọc bằng `customerDebtActivityRepository.js`.
-4. Hai file Google Sheets HN/SG chỉ giữ `Trả NCC` để nhập thủ công.
-5. Apps Script HN/SG, tab `Users` và module vận chuyển cũ đã được xóa; tính năng tra cứu Vòng đời đơn hàng tiếp tục được duy trì qua Google Sheets (`ORDER_LIFECYCLE_SPREADSHEET_ID`).
-6. Tài khoản và Telegram ID nằm trong PostgreSQL (`app_users`); HR tiếp tục dùng workbook riêng cho nghiệp vụ nghỉ phép, nhưng luồng liên kết Telegram qua `_HR_TELEGRAM_LINKS` tạm ngừng.
+4. **Trả NCC** đã hoàn toàn rời Google Sheets: người dùng tự upload file Excel xuất từ KiotViet, server lưu vào `supplier_return_imports` (migration `0017`) — pipeline kiểm tra đứt hàng (`stockoutPgSource.js`) đọc trực tiếp từ Postgres.
+5. Apps Script HN/SG, tab `Users` và module vận chuyển cũ đã được xóa. Google Sheets còn dùng cho: Công nợ (`DEBT_MANAGEMENT_SPREADSHEET_ID`, chỉ đọc), Vòng đời đơn hàng (`ORDER_LIFECYCLE_SPREADSHEET_ID`, đọc + ghi tab `Lịch sử cập nhật`) và Vị trí hàng (`STOCK_LOCATIONS_SPREADSHEET_ID`, chỉ đọc). Workbook HR không còn được đọc: danh sách nhân sự nằm ở Postgres `hr_employees`.
+6. Tài khoản và Telegram ID nằm trong PostgreSQL (`app_users`). Luồng liên kết Telegram hoàn thiện bởi migration `0016`: 3 bảng `hr_leave_requests`/`hr_telegram_links`/`hr_telegram_sessions`; trigger tự đồng bộ `app_users.telegram_id` từ `hr_telegram_links`.
+7. Phân quyền theo tính năng từng tài khoản (`feature_permissions JSONB`, migration `0020`) và vai trò `Nhân viên marketing` (migration `0019`).
+8. Báo cáo tổng hợp tải **theo từng tab**: `GET /api/dashboard?view=<tab>` chỉ đọc/tính/trả phần của tab (khai báo ở `dashboardViews.js`); cache bảng nguồn theo từng bảng, cache kết quả theo (cơ sở, tab, bộ lọc của tab).
+9. Biểu đồ **Giá trị tồn kho theo ngày** (migration `0025`, job `inventoryValueSnapshot.js`), Báo cáo hàng hóa gộp 2 cơ sở (`product_report` migration `0018`), bảng chi tiết doanh số 90 ngày từng khách (`product_report_customers` migration `0023`).
+10. **Vòng đời đơn hàng hợp nhất đơn KiotViet mọi trạng thái**: bảng ~60K đơn (Phiếu tạm, Đã xác nhận, Đang giao hàng, Hoàn thành, Đã hủy) ghép Google Sheet; lọc/sắp xếp/phân trang chạy ở server (`shipment/orderLifecycleQuery.js`); xuất Excel quyền `shipment.export` chỉ Quản lý; cache stale-while-revalidate 2 phút (`shipment/kiotOrdersRepository.js`). Từ 2026-10-03 mọi quyền phụ (Tra cứu, Lịch sử, Xuất, Ghi đè) gắn vào `shipment.lifecycle`; Nhân viên kho/marketing/mua hàng và Khách không còn trang này.
+10b. **Vòng đời đơn hàng — luồng Đơn Bắc-Nam (12/10/2026)**: đọc thêm tab `DonHang_MienNam` của workbook `ORDER_LIFECYCLE_SPREADSHEET_ID`, tính như đơn Hà Nội (`_branch: 'HN'`), chỉ 4 mốc Mã đơn/Sale gửi KT/KT duyệt đơn/Đã ký nhận, không cảnh báo 24h, fail-soft; kế hoạch tại [tasks/2026-10-12-lifecycle-north-south](../../tasks/2026-10-12-lifecycle-north-south/plan.md).
+10c. **Vòng đời đơn hàng — 5 luồng + cảnh báo có tên (12/10/2026)**: tab `Khách_HN`/`Khách_SG` (`_flow: PICKUP`), `computeWarnings` (6 mã, giờ làm việc 6h–18h cho Kế toán sót đơn), bộ lọc `warning`, xuất Excel ghi tên cảnh báo. Tính trong RAM, không migration.
+10c2. **Vòng đời đơn hàng — luồng thứ 6 Kế toán/Chứng từ (15/10/2026)**: đọc tab `KeToan_ChungTu` (dùng chung HN+SG, `_flow: ACCOUNTING`, fail-soft); mã có trong tab = `COMPLETED` "Hoàn thành", cơ sở theo đơn Kiot cùng mã; phiếu tạm Kiot chưa có trong tab nào vẫn là "Đơn chưa gửi kế toán". Không cảnh báo, không migration.
+10d. **Hộp "xem chi tiết" dùng chung (12/10/2026)**: `public/shared/detail-panel.css` (`.dp-*`) cho hộp chi tiết giao dịch/sản phẩm/báo cáo kinh doanh, đơn vòng đời, nghỉ phép, Marketing; hàng chỉ số tổng quan, 1 khung cuộn; bảng trong hộp ban đầu tắt bộ chọn cột, từ 16/10/2026 (mục 10f) đã có lại sort, kéo cột và "Cột hiển thị". "Kế toán sót đơn" chỉ áp dụng khi trạng thái còn "Đơn đã gửi kế toán".
+10e. **Phân trang bảng nhân sự & quản trị tài khoản (12/10/2026)**: áp dụng điều khiển phân trang chuẩn (`table-controls.js`) cho bảng nhân sự, chấm công, nghỉ phép tại `/humanresources/` và bảng quản lý người dùng tại `/account/` (test `test/frontend/hr-account-pagination.test.js`).
+10f. **Quy ước tiêu đề sắp xếp + bảng trong hộp chi tiết (16/10/2026)**: `public/shared/shared.css` giữ MỘT quy ước cho mọi bảng (`.sort-button` > `.sort-label` + `.sort-indicator`; ▲▼ chưa sắp, ▼ tăng dần, ▲ giảm dần; biểu tượng là cột flex độ rộng cố định dính mép phải ô) cùng khung `.users-table`; trang không tự định nghĩa lại (test `sort-icons.test.js`). `public/shared/table-controls.js` thêm sắp xếp tại chỗ cho `.dp-table` (hoặc `data-table-sort="local"`), nút "Cột hiển thị" đặt ở `.dp-section-head`, co cột vừa khung hộp và độ rộng tối thiểu theo số/mã/từ dài nhất của tiêu đề. Bảng tính cước giữ `data-table-controls="off"`.
+11. **Quy định công ty** (tab HR): bảng `hr_rule_documents` (migration `0027`), 2 tài liệu dựng sẵn + PDF upload, quyền `hr.rules`/`hr.rules.manage`, thông báo chuông.
+12. Dọn bảng `suppliers` và `daily_purchase_summary` (migration `0026`) sau khi gỡ tab Nhà cung cấp.
+13. **Vị trí hàng** (2026-10-03): module `stockLocations/` đọc trực tiếp hai sheet HN/SG của workbook dùng chung, trang `/stock-locations/` 6 cột (Mã hàng, Tên hàng, Tổng SL, Ghi chú hàng hóa, Ngày về, Vị trí), quyền `stockLocations.view` (Khách bị chặn). Không migration, không job; xem [thiết lập](../stock-locations-setup.md).
+14. **Tài khoản** (2026-10-03): tự đăng ký bị khóa (`ALLOW_SELF_REGISTRATION`), ID Telegram lưu trong một giao dịch đồng bộ `app_users`/`hr_telegram_links`/`hr_employees` và chỉ Quản lý được sửa; trang Quản lý người dùng nhập hộ ID.
+15. **Nghỉ phép (web)**: gỡ trạng thái `Tạm duyệt` (migration `0030`), bảng nghỉ phép có phân trang, lịch nghỉ phép cạnh chuông thông báo (quyền `hr.leave`). Đơn xin nghỉ do bot ngoài repo ghi trực tiếp; web chỉ nhập tay "Tự ý nghỉ" và duyệt.
+16. **Bảo mật hồ sơ & dọn API** (2026-10-05, đã commit): hồ sơ cá nhân không tự đổi email/SĐT (TK nhân sự chỉ Quản lý đổi; TK thường đổi email qua OTP gửi tới email mới — `/api/auth/profile/contact-change`); TK đã gắn dòng nhân sự không tự nhảy sang dòng khác. Gỡ API không còn dùng: `GET /api/search`, `GET /api/customer-product-top`, export `search.results`, `/api/auth/register/{channels,send-otp,verify}`, `GET /api/hr/telegram/link-status`, `POST /api/shipment/lifecycle/lookup`; gỡ trường payload dashboard không hiển thị (KPI "hôm nay", `activeProducts`, `stockByCategory`…, bộ lọc `ov*`). Không migration.
+17. **Sổ quỹ** (2026-10-06 đến 2026-10-08): module `cashbook/` đọc phiếu thu/chi KiotViet, danh mục tài khoản ngân hàng `cash_book_accounts` và tên ngân hàng tùy chỉnh `cash_book_account_banks` (migration `0033`, `0034`); đối soát giữ lịch sử bằng `source_missing_at` (migration `0035`); bảng số dư hiển thị theo 5 nhóm tài khoản (`account_balance_groups`), phân tách cột ngân hàng riêng, bộ lọc nhóm và xuất Excel/HTML chọn cột. Tự cập nhật mốc revision mỗi 15 giây.
+18. **Báo cáo kinh doanh** (2026-10-07 đến 2026-10-08; từ 2026-10-16 hiện tên tab **Khách hàng** và thay tab Khách hàng cũ đã gỡ; mục Tăng trưởng mã hàng chuyển sang tab Hàng hóa cùng Báo cáo hàng hóa): tab `/reports/#business` theo dõi tăng trưởng Sale / Khách hàng / Mã hàng theo tháng từ T3/2026 gộp HN + SG; doanh số tháng chốt cứng vào các bảng `business_monthly_*` (migration `0036`) bởi job `businessMonthlyRefresh.js`; phân chia Team cho sale theo `sale_teams` (migration `0037`, nạp từ `chia team.xlsx`); gộp khách hàng theo tên chuẩn hóa; panel chi tiết và hộp thoại xuất file tùy chọn cột.
+19. **Báo cáo Marketing** (2026-10-08): tab `/reports/#marketing` kết nối 3 workbook Google Sheets (Trực page, SĐT, Ads); đối chiếu doanh số KiotViet theo tên khách hàng; Quản lý/Marketing có thể sửa trực tiếp Khách mới và Ghi chú đồng bộ ngược lại Google Sheets (`PUT /api/marketing-report/monthly/row`); xuất báo cáo XLSX và HTML.
+20. **Lịch làm việc & Hạn đăng ký nghỉ phép** (migration `0038`, `0042`): bảng `hr_leave_work_schedules` và `hr_leave_submissions` bất biến; ca làm việc cố định sáng 07:45 / chiều 12:30; tự động gán nhãn `timing_status` Đúng hạn / Xin muộn / Vi phạm; cho phép mọi tài khoản nội bộ đang hoạt động (trừ Khách) chưa gắn hồ sơ nhân sự vẫn gửi được đơn xin nghỉ qua web.
+21. **Quản lý trạng thái nhân sự & Quy định phúc lợi** (migration `0039`, `0041`): tài liệu Chi tiêu & Phúc lợi (`phuc-loi`), `hr_employees.employment_status` (`active` = Đang làm việc / `resigned` = Đã nghỉ việc) tách khỏi xóa mềm `is_active`, tự động khóa tài khoản liên kết khi nhân sự nghỉ việc (`lock_reason = 'hr_resigned'`) và mở khóa lại khi kích hoạt.
+22. **Lịch sử chỉnh sửa tài khoản** (migration `0040`): bảng `account_audit_log` ghi log bất biến mọi thao tác tạo, sửa thông tin, đặt lại mật khẩu, xóa, phân quyền tài khoản; tab `/account/#history` phục vụ tra cứu quản trị.
+23. **Chuẩn hóa điều khiển bảng dùng chung**: `public/shared/table-controls.js` (chọn cột, kéo chỉnh độ rộng cột, phân trang) và tiện ích `search-clear` trên toàn bộ hệ thống; tối ưu hóa giao diện responsive desktop/mobile.
+24. **Ngày đặc biệt: thông báo chuông + pháo hoa** (migration `0043`): `public/shared/special-days.js` (ngày lễ Việt Nam dương/âm lịch + sinh nhật 27/10, dùng chung server/trình duyệt), job `notifications/specialDayNotifier.js` báo lên chuông cho tài khoản có `hr.leave` (chống trùng bằng `special_day_notice_log`), `public/shared/fireworks.js` thay sao băng trong các ngày này; lịch nghỉ phép không đổi.
+25. **Vòng đời đơn hàng: chỉ số tổng quát đầu trang** (2026-10-12, không migration): `GET /api/shipment/lifecycle` trả thêm `kpis` (`orderLifecycleQuery.countSummary`: Chưa gửi KT chỉ tính Phiếu tạm / Đã gửi KT / Đang giao + số đơn vi phạm theo từng mã cảnh báo, đếm theo bộ lọc hiện tại, tính trong RAM); dải thẻ bấm-để-lọc ở `public/shipment/lifecycle/index.html`.
+26. **Giảm egress Supabase** (migration `0044`): đối soát phiếu nhập bằng `purchases.raw_hash`; cache Hóa đơn/Chi tiết hóa đơn hết hạn theo sự kiện `invoicesChanged` (dự phòng 15 phút, guard thế hệ); bot Telegram quản lý cache danh sách 5 phút nạp lazy; realtime nghỉ phép chỉ poll `getLeaveVersions`.
+
+## Bot Telegram quản lý nghỉ phép — kế hoạch đã duyệt 02/10/2026
+
+Bot riêng cho quản lý chạy trong Express, dùng webhook xác thực secret và quét PostgreSQL mỗi 5 giây mặc định. Bot xin nghỉ của nhân viên hiện có tiếp tục chạy ngoài repo. Phạm vi/chấp thuận chi tiết ở [kế hoạch lưu](../superpowers/plans/2026-10-02-telegram-manager-leave.md); hướng dẫn cấu hình ở [thiết lập bot](../telegram-manager-leave-setup.md).
+
+| Hạng mục | Nội dung | Trạng thái |
+|---|---|---|
+| Schema | Migration `0029_hr_manager_telegram.sql`: `decision_version`, sự kiện tạo/đổi đơn, giao tin/lease/retry, phiên từ chối, inbox update idempotent và singleton mốc bật lần đầu; `0030` gỡ `Tạm duyệt` | Đã triển khai trong code |
+| Quyết định | `hrLeaveDecisionService.js` dùng chung web/Telegram; khóa final trên Telegram, web sửa/mở lại; lý do tối đa 500 ký tự | Đã triển khai trong code |
+| Bot quản lý | `server/telegram/`: render, API native fetch, webhook, xử lý quyền/cơ sở, runtime quét và đồng bộ bản tin; chỉ hai nút Phê duyệt / Từ chối | Đã triển khai trong code (02/10) |
+| Cầu web | `hrLeaveDbRealtime.js` phát SSE khi DB đổi ngoài repo, bản chụp/phiên bản dùng chung; connect/reconnect làm mới danh sách | Đã triển khai trong code |
+| Vận hành | Biến môi trường, `telegram-manager:set-webhook`, Start bot mới cho từng quản lý, kiểm tra cơ sở và trạng thái | Chờ cấu hình và kiểm tra môi trường triển khai |
+
+Thứ tự vận hành: **áp migration 0029 và 0030 trước khi chạy bản web mới, kể cả khi bot tắt** → cấu hình token/secret/origin → khởi động server → đăng ký webhook → quản lý Start bot → kiểm tra giao tin, quyết định, reopen và retry. Không thay `decision_notified_at` hay phiên bot nhân viên. Cần máy chủ luôn chạy để đạt gần thời gian thực; tắt `HR_MANAGER_TELEGRAM_ENABLED` dừng bot quản lý và giữ luồng web/bot nhân viên.
 
 ## Vận hành
 
 - Chạy migration trước khi deploy: `npm run db:migrate`.
 - Bật `KIOTVIET_SYNC_ENABLED=true` khi cấu hình KiotViet và Supabase đã hợp lệ.
-- Service account có quyền Viewer trên hai file Kiot HN/SG và quyền đọc/ghi trên workbook Vòng đời đơn hàng / HR.
+- Service account cần quyền Viewer trên workbook Công nợ (`DEBT_MANAGEMENT_SPREADSHEET_ID`) và Vị trí hàng (`STOCK_LOCATIONS_SPREADSHEET_ID`), Editor trên workbook Vòng đời đơn hàng (`ORDER_LIFECYCLE_SPREADSHEET_ID`).
+- Webhook KiotViet trỏ về `/api/kiotviet/webhook/<KIOTVIET_WEBHOOK_SECRET>`; sau khi đổi, đặt `KIOTVIET_WEBHOOK_LEGACY_PATH_ENABLED=false`. Webhook chỉ lưu thô — dữ liệu do polling cập nhật.
+- Sau khi áp migration báo cáo mới (`0022`, `0023`, `0025`), chạy tay lần đầu `node kiotvietSync/customerInvoiceLinesRefresh.js`, `node kiotvietSync/productReportRefresh.js` trong `server/` để có dữ liệu ngay thay vì chờ job đêm.
+- Hai file Kiot HN/SG **không còn** được server truy cập (không cần cấu hình `SPREADSHEET_ID`/`SPREADSHEET_ID_SG`).
 - Không tạo lại các tab KiotViet khác hoặc cài Apps Script vào hai file này.
+
+
+## Nâng cấp nghỉ phép/phân quyền 05/10/2026
+
+Kế hoạch/checklist riêng tại [tasks/2026-10-05-hr-approval](../../tasks/2026-10-05-hr-approval/plan.md). Migration `0031` áp staging trước ứng dụng; nghiệm thu Telegram thật/latency và production chưa hoàn tất. Kế hoạch tasks có trước được giữ nguyên.
+
+## Marketing Pancake — trạng thái 12/10/2026
+
+Mã T3–T6 đã triển khai và qua kiểm thử; nguồn chính thức vẫn là Sheets. Ngày 12/10/2026 đã khôi phục ID tin nhắn từ sáu bản xuất đầy đủ (migration 0046): 18.304 dòng lịch sử thật đều có liên kết (18.294 duy nhất, 7 chỉ khác cách viết số +84/0 thừa đã kiểm cùng giây-cùng nhân viên, 3 dòng thuộc cặp tin tương đương = 6 liên kết); chỉ còn dòng tiêu đề lặp BL THÔ!1950 (không phải quan sát). 3.148 tin trong kỳ nằm ngoài nền Sheets được ghi sổ riêng, không tính. Đồng bộ thật đủ sáu page đạt (slot 12/10): 11.797 fact, 2.478 quan sát cùng ngày ghi nhận 12/10 (thay đổi nhân viên tích lũy từ lúc dán Sheets và 861 tin mới), 0 mục chưa giải quyết, 0 dòng lịch sử chưa liên kết; nền lịch sử khớp CHUẨN (11.942 nhóm SĐT); tổng khớp chi tiết 100/100 (T10) và 80/80 (T9). Công tắc job vẫn TẮT và nguồn vẫn Sheets: chưa có ba đợt hằng đêm đối soát, chưa cấu hình token trên Render. Lưu ý nghiệm thu: lần đồng bộ đầu dồn các thay đổi nhân viên cũ vào ngày 12/10 nên "chào lại" tháng 10 tăng mạnh (179 → 1.660); cần Quản lý xác nhận cách tính trước khi chuyển nguồn.
+
+`PANCAKE_MARKETING_SYNC_ENABLED=false` mặc định; chỉ bật sau khi khôi phục ID và thử đồng bộ đạt. `MARKETING_REPORT_SOURCE=sheets` mặc định; đặt `postgres` sau ít nhất ba đợt hằng ngày đối soát đủ sáu page. Token `PANCAKE_PAGE_TOKEN_<pageId>` chỉ ở phía máy chủ, không commit hoặc trả API. Giữ riêng Tạo lúc và ngày ghi nhận thành công Việt Nam; lịch sử giữ ngày cũ. ADS luôn đọc Sheets (kể cả Quảng Châu); doanh số luôn lấy KiotViet theo tên, bán trừ trả hàng HN+SG.
+
+T1/T2/T3 đã có bằng chứng DB; T4–T6 mã nguồn được kiểm thử sau công tắc; T7 chưa đạt. Khôi phục ID từ bản xuất đầy đủ trước đồng bộ thật, sau đó nghiệm thu ba ngày và mới chuyển nguồn.
+
+## Công nợ theo lịch thanh toán (13/10/2026)
+
+Kiến trúc: `server/debtSchedule/` (quy tắc thuần, job chốt 15:00, repository, service, import) + migration 0047 (0048: tiền phạt nợ chậm, số phiên liên tiếp chốt 15:00). `dashboardData` lấy `debtManagement` từ `debtScheduleService.buildDebtManagement`; khóa cache kết quả gồm phiên bản repository (tăng khi ghi/chốt) và quyền sửa của người xem. Tab Công nợ không còn đọc bảng nguồn core, CN1/3/7 hay Google Sheets.
+
+**Bảng thưởng/phạt sale (14/10/2026):** đã triển khai bộ tính dùng chung `debtRewardRules`, dịch vụ dữ liệu `debtRewardService`, chốt tháng `debtRewardClosing`, migration 0052; bảng và xuất file dùng API chung, không tính lại ở frontend. Điểm theo từng khách (cơ sở + mã): số hóa đơn Hoàn thành và doanh số sau trừ trả hàng trong tháng; >=30 điểm mới xếp hạng chung HN + SG theo phạt gốc/điểm tăng dần, điểm giảm dần; bằng tỷ lệ và điểm thì đồng hạng kiểu 1–2–2–4, tên chỉ dùng sắp dòng hiển thị. Top 1–20 miễn phạt; Top 10 nhận quỹ max(80% phạt phải nộp, 3 triệu), 50% theo trọng số hạng 19–17–15–13–11–9–7–5–3–1 và 50% theo tỷ trọng điểm; thiếu 10 người chuẩn hóa trọng số, chia hết quỹ đến đồng. Sửa phạt chỉ thay phạt gốc từng khách; miễn phạt áp ở mức sale. GET /api/debt-management/penalty-board?month=YYYY-MM trả bảng từ backend (mặc định tháng chu kỳ đang mở), lọc cơ sở sau khi tính hạng/quỹ toàn công ty. Giao diện, hộp chi tiết và xuất Excel/HTML dùng cùng kết quả; context.debtRewardMonth chọn tháng xuất. Kết quả tháng cũ lưu bất biến trong debt_reward_months sau bản chốt 15:00 đầu tháng mới, khi đã chốt hết sổ phạt và doanh số tháng. Lỗi chốt thử lại mỗi phút; thiếu lịch sử phạt có cảnh báo rõ, không bù thành 0.
+
+Cập nhật gần nhất: 16/10/2026.
+
+Điều chỉnh 15/10/2026: trong tháng hiển thị điểm/hạng, thưởng tạm tính và tổng phạt từ các ngày ĐÃ CHỐT, không cộng chu kỳ đang mở. Lúc 14:59 giờ Việt Nam lưu bản cuối của chu kỳ 15:00 hôm trước–14:59 hôm sau, mỗi chu kỳ đúng một lần và không ghi đè; 15:00 mới reset. Nhiều lần Tính lại trong chu kỳ chỉ cập nhật bản đang mở, không cộng thành nhiều ngày. Tiền thưởng hiện mỗi ngày với nhãn Thưởng tạm tính, thay đổi theo điểm và tổng phạt đã chốt ngày; chỉ chốt/lưu thưởng chính thức một lần khi kết thúc tháng. Web, hộp chi tiết và file xuất đều phân biệt tạm tính/đã chốt.
+
+Đồng hạng (15/10/2026): bằng Phạt gốc/Điểm và tổng điểm thì cùng hạng, xếp 1–2–2–4. Tất cả đồng hạng 10 nhận thưởng, đồng hạng 20 miễn phạt. Nhóm đồng hạng gộp trọng số các vị trí chiếm trong Top 10 rồi chia đều, các vị trí ngoài 10 không thêm trọng số; giữ nguyên tổng quỹ, thưởng theo điểm chia trong toàn bộ nhóm nhận thưởng. Bản tháng đã chốt giữ nguyên quy tắc cũ; bản mới dùng debt-reward-2026-10-v2-shared-ranks.
+
+Cùng khách ở 2 cơ sở (15/10/2026): ở bảng tổng thưởng/phạt sale, cùng 1 khách (cùng tên, không phân biệt hoa/thường và khoảng trắng thừa) bị phạt ở cả HN và SG trong cùng 1 ngày chốt chỉ tính mức phạt cao nhất ở 1 cơ sở, không cộng dồn (bằng nhau lấy Hà Nội); khách đó đếm 1 lần trong "Khách phạt", tổng các dòng ngày ở hộp chi tiết sale khớp Phạt gốc. Chỉ đổi lúc đọc (`debtRewardService.DAYS_SQL`); sổ `debt_penalty_daily`, bảng chi tiết khách và tháng đã chốt giữ nguyên, không migration. Quy tắc mới debt-reward-2026-10-v4-cross-branch-max.
+
+
+Khách hoạt động (15/10/2026): toàn bộ tính năng Công nợ chỉ dùng khách đang hoạt động, kể cả khách đã hết nợ khi tính điểm. Lọc danh sách/KPI/bản chốt đang xem, phạt theo ngày và tháng, điểm thưởng, hộp chi tiết, xuất file và nhập lịch TT; khách không còn hồ sơ không được chuyển thành điểm Chưa phân nhóm. Lọc trước bước chọn khách mới nhất theo cơ sở+mã. Đồng bộ chuẩn hóa raw.isActive, xử lý removedIds và đối soát toàn bộ lần đầu/mỗi ngày; chỉ đánh dấu khách vắng mặt sau một lượt đầy đủ đã kiểm tra tổng/trang/ID. Không xóa dữ liệu nguồn hoặc sổ phạt; kết quả thưởng tháng đã chốt vẫn bất biến. Quy tắc mới debt-reward-2026-10-v3-active-customers; không migration.
+
+
+16/10/2026 — Theo yêu cầu, Báo cáo hàng hóa (Tổng quan) thêm cột **Điều chuyển SG** giữa **Tồn HN** và **Tồn SG**, giữ Chưa bốc/Đã bốc. API và Excel/HTML dùng chung inTransitSource: tổng số lượng Đặt hàng nhập Đã xác nhận NCC của Kiot Sài Gòn trong DB, ghép mã trim/không phân biệt hoa thường. Theo yêu cầu tiếp theo, Tồn có bán = Có bán HN + Có bán SG + Điều chuyển SG, áp dụng riêng Báo cáo hàng hóa; hai cột Chưa bốc/Đã bốc không cộng vào công thức. Snapshot DB giữ số nền HN+SG đã trừ phiếu tạm, repository cộng điều chuyển đúng một lần khi đọc cho web/xuất file. Không migration, không sửa nguồn Sheets.
+
+16/10/2026 — Gỡ tab Khách hàng cũ (Top khách theo doanh thu, Chi tiết khách nợ, quyền `reports.customers`, `view=customers`); tab Báo cáo kinh doanh đổi tên thành **Khách hàng** (giữ khóa quyền `reports.business`), Báo cáo tổng hợp còn 6 tab.
+
+16/10/2026 — Tab Hàng hóa còn Báo cáo hàng hóa (từ Tổng quan) + Tăng trưởng mã hàng (từ tab Khách hàng); các mục cũ của tab Hàng hóa và quyền `reports.products.cost` đã gỡ.

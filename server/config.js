@@ -15,6 +15,19 @@ const CONFIG = {
   // Workbook "Bảng Công nợ" dùng chung cho hai cơ sở, server chỉ đọc hai
   // tab Công nợ HN/SG. Optional để thiếu cấu hình không làm sập dashboard.
   DEBT_MANAGEMENT_SPREADSHEET_ID: process.env.DEBT_MANAGEMENT_SPREADSHEET_ID || null,
+  STOCK_LOCATIONS_SPREADSHEET_ID: process.env.STOCK_LOCATIONS_SPREADSHEET_ID || null,
+  // Pancake daily sync is independent of KiotViet and the report source switch.
+  PANCAKE_MARKETING_SYNC_ENABLED: process.env.PANCAKE_MARKETING_SYNC_ENABLED === 'true',
+  MARKETING_REPORT_SOURCE: process.env.MARKETING_REPORT_SOURCE === 'postgres' ? 'postgres' : 'sheets',
+  MARKETING_REPORT_SPREADSHEET_ID: process.env.MARKETING_REPORT_SPREADSHEET_ID || null,
+  MARKETING_PHONES_SPREADSHEET_ID: process.env.MARKETING_PHONES_SPREADSHEET_ID || null,
+  MARKETING_ADS_SPREADSHEET_ID: process.env.MARKETING_ADS_SPREADSHEET_ID || null,
+  STOCK_LOCATIONS_SHEET_HN: 'Vị trí HN',
+  STOCK_LOCATIONS_SHEET_SG: 'Vị trí SG',
+  // Sheet "CÂN ĐO" (kich thuoc/can nang thung) de tinh the tich + cuoc trong hop chi tiet Vong doi don.
+  // De trong = dung chung workbook voi Vi tri hang.
+  SHIPPING_MEASURE_SPREADSHEET_ID: process.env.SHIPPING_MEASURE_SPREADSHEET_ID || process.env.STOCK_LOCATIONS_SPREADSHEET_ID || null,
+  SHIPPING_MEASURE_SHEET: 'CÂN ĐO',
   GOOGLE_SERVICE_ACCOUNT_JSON: required('GOOGLE_SERVICE_ACCOUNT_JSON'),
   PORT: process.env.PORT || 3000,
 
@@ -30,6 +43,11 @@ const CONFIG = {
   // lam sap server. Khong can GOOGLE_CLIENT_SECRET vi dung ID token flow
   // (Google Identity Services), khong dung authorization-code flow.
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || null,
+
+  // Tu dang ky tai khoan moi (form /register, dang ky nhan su qua OTP, Google tao tai khoan
+  // lan dau) BI KHOA tu 2026-10-03: tai khoan moi do Quan ly tao trong trang Quan ly nguoi dung.
+  // Dat ALLOW_SELF_REGISTRATION=true de mo lai. Tai khoan da co van dang nhap binh thuong.
+  ALLOW_SELF_REGISTRATION: process.env.ALLOW_SELF_REGISTRATION === 'true',
 
   // ==========================================
   // GUI OTP QUEN MAT KHAU — Email (Gmail SMTP)
@@ -55,41 +73,48 @@ const CONFIG = {
   SHEET_CUSTOMERS: 'Khách hàng',
   SHEET_CUSTOMER_REPORT: 'Báo cáo bán hàng',
   SHEET_CUSTOMER_BY_PRODUCT_REPORT: 'Khách theo hàng hóa',
-  SHEET_SUPPLIERS: 'Nhà cung cấp',
-  SHEET_PURCHASES: 'Nhập hàng',
 
   DEBT_MANAGEMENT_SHEET_HN: 'Công nợ HN',
   DEBT_MANAGEMENT_SHEET_SG: 'Công nợ SG',
 
   // ==========================================
-  // VONG DOI DON HANG — spreadsheet RIENG (2 tab DonHang_HN/DonHang_SG trong
-  // CUNG 1 spreadsheet). Server CHI DOC 2 tab do.
+  // VONG DOI DON HANG — spreadsheet RIENG (5 tab DonHang_HN/DonHang_SG/
+  // DonHang_MienNam/Khách_HN/Khách_SG trong CUNG 1 spreadsheet). Server CHI DOC 5 tab do.
+  // DonHang_MienNam = don Bac-Nam (don cua Kiot Ha Noi, tinh nhu don HN).
   // Tab "Lich su cap nhat" (ORDER_LIFECYCLE_SHEET_HISTORY) la NGOAI LE: do
   // server tu tao/ghi (ghi de trang thai thu cong cua Quan ly/Ke toan).
   // ==========================================
   ORDER_LIFECYCLE_SPREADSHEET_ID: process.env.ORDER_LIFECYCLE_SPREADSHEET_ID || null,
   ORDER_LIFECYCLE_SHEET_HN: 'DonHang_HN',
   ORDER_LIFECYCLE_SHEET_SG: 'DonHang_SG',
+  ORDER_LIFECYCLE_SHEET_NORTH_SOUTH: 'DonHang_MienNam',
+  // Khach/Ship lay hang tai kho (2026-10-12): tach khoi DonHang_HN/SG.
+  ORDER_LIFECYCLE_SHEET_PICKUP_HN: 'Khách_HN',
+  ORDER_LIFECYCLE_SHEET_PICKUP_SG: 'Khách_SG',
+  // Don ke toan/chung tu (2026-10-15): 1 tab DUNG CHUNG HN+SG (khong co cot co so) — xem orderLifecycleRepository.
+  ORDER_LIFECYCLE_SHEET_ACCOUNTING: 'KeToan_ChungTu',
   ORDER_LIFECYCLE_SHEET_HISTORY: 'Lịch sử cập nhật',
 
   // ==========================================
-  // QUAN LY NHAN SU — Spreadsheet rieng (HR_*)
+  // QUAN LY NHAN SU — du lieu nhan su/nghi phep nam o Postgres (hr_employees,
+  // hr_leave_requests); khong con doc spreadsheet nhan su.
   // ==========================================
-  // Optional — neu chua set thi log canh bao khi module HR duoc goi, khong
-  // lam crash server hien tai.
-  HR_SPREADSHEET_ID: process.env.HR_SPREADSHEET_ID || null,
-  // Nguon nhan su rieng cua co so Sai Gon (se cung cap sau) — bo trong thi tab
-  // "Quan ly nhan su" o co so Sai Gon bao "Chua duoc cau hinh".
-  HR_SPREADSHEET_ID_SG: process.env.HR_SPREADSHEET_ID_SG || null,
-
-  HR_SHEET_EMPLOYEES: 'Danh sách nhân sự',
-
   // Co "nghi gap": tin nhan gui tu gio nay tro di (gio Bangkok, 0-23) VA ca
   // nghi bat dau ngay hom sau lien ke thi tu dong gan co, chi de canh bao,
   // khong tu tu choi.
   HR_URGENT_LATE_NIGHT_HOUR: Number(process.env.HR_URGENT_LATE_NIGHT_HOUR) || 22,
   // So lan nghi gap/thang vuot nguong nay thi hien badge canh bao cho Quan ly.
   HR_URGENT_FLAG_MONTHLY_THRESHOLD: Number(process.env.HR_URGENT_FLAG_MONTHLY_THRESHOLD) || 2,
+
+  // Bot rieng cho Quan ly; token KHAC bot nhan don xin nghi hien tai.
+  HR_MANAGER_TELEGRAM_ENABLED: process.env.HR_MANAGER_TELEGRAM_ENABLED === 'true',
+  HR_MANAGER_TELEGRAM_BOT_TOKEN: process.env.HR_MANAGER_TELEGRAM_BOT_TOKEN || null,
+  HR_MANAGER_TELEGRAM_WEBHOOK_SECRET: process.env.HR_MANAGER_TELEGRAM_WEBHOOK_SECRET || null,
+  HR_MANAGER_TELEGRAM_WEB_URL: process.env.HR_MANAGER_TELEGRAM_WEB_URL || null,
+  HR_MANAGER_TELEGRAM_SCAN_INTERVAL_MS: Math.min(60000, Math.max(1000, Number(process.env.HR_MANAGER_TELEGRAM_SCAN_INTERVAL_MS) || 5000)),
+  HR_LEAVE_DB_REALTIME_ENABLED: process.env.HR_LEAVE_DB_REALTIME_ENABLED !== 'false',
+  // Bao ngay le / sinh nhat len chuong thong bao (notifications/specialDayNotifier.js).
+  SPECIAL_DAYS_NOTIFY_ENABLED: process.env.SPECIAL_DAYS_NOTIFY_ENABLED !== 'false',
 
   // ==========================================
   // SUPABASE POSTGRES — dong bo KiotViet, xem
@@ -101,13 +126,41 @@ const CONFIG = {
   // Optional — mac dinh true khi production (Supabase Postgres can SSL), false
   // khi dev local (Postgres qua Docker thuong khong bat SSL).
   PGSSL: process.env.PGSSL ? process.env.PGSSL === 'true' : process.env.NODE_ENV === 'production',
+  // Tran so ket noi cua pool pg TREN MOI INSTANCE. Supabase session pooler chi
+  // co pool_size 15 dung chung; khi deploy, instance cu + moi chay chong nhau
+  // (~30s) nen 2 x max phai <= 15 (7 x 2 = 14), neu khong se dinh
+  // EMAXCONNSESSION. Chi tang khi da doi sang transaction pooler / them ket noi.
+  PG_POOL_MAX: Number(process.env.PG_POOL_MAX) > 0 ? Number(process.env.PG_POOL_MAX) : 7,
   // Cong tac chinh cua toan bo engine dong bo KiotViet->Supabase (webhook +
   // polling). Mac dinh TAT tuong minh — khong co logic tu bat theo NODE_ENV.
   KIOTVIET_SYNC_ENABLED: process.env.KIOTVIET_SYNC_ENABLED === 'true',
   KIOTVIET_SYNC_FAST_INTERVAL_MS: Number(process.env.KIOTVIET_SYNC_FAST_INTERVAL_MS) > 0
     ? Number(process.env.KIOTVIET_SYNC_FAST_INTERVAL_MS) : 7 * 60 * 1000,
   KIOTVIET_SYNC_SLOW_INTERVAL_MS: Number(process.env.KIOTVIET_SYNC_SLOW_INTERVAL_MS) > 0
-    ? Number(process.env.KIOTVIET_SYNC_SLOW_INTERVAL_MS) : 20 * 60 * 1000
+    ? Number(process.env.KIOTVIET_SYNC_SLOW_INTERVAL_MS) : 20 * 60 * 1000,
+  // Sổ quỹ có thể đồng bộ riêng khi engine tổng đang tắt.
+  KIOTVIET_CASHBOOK_SYNC_ENABLED: process.env.KIOTVIET_CASHBOOK_SYNC_ENABLED === 'true',
+  KIOTVIET_CASHBOOK_SYNC_INTERVAL_MS: Number.isFinite(Number(process.env.KIOTVIET_CASHBOOK_SYNC_INTERVAL_MS))
+    ? Math.max(60000, Number(process.env.KIOTVIET_CASHBOOK_SYNC_INTERVAL_MS) || 60000) : 60000,
+  // Chu ky toi thieu giua 2 lan quet TOAN BO ton kho (/productOnHands, xem
+  // kiotvietSync/entities/productOnHandsSnapshot.js). Mac dinh 10 phut.
+  KIOTVIET_SYNC_ONHAND_SNAPSHOT_INTERVAL_MS: Number(process.env.KIOTVIET_SYNC_ONHAND_SNAPSHOT_INTERVAL_MS) > 0
+    ? Number(process.env.KIOTVIET_SYNC_ONHAND_SNAPSHOT_INTERVAL_MS) : 10 * 60 * 1000,
+  // Bi mat gan vao duong dan webhook KiotViet: cau hinh ben KiotViet tro toi
+  // /api/kiotviet/webhook/<secret>. Bat buoc de nhan su kien — de trong thi
+  // duong dan co secret bi tat hoan toan (404).
+  KIOTVIET_WEBHOOK_SECRET: process.env.KIOTVIET_WEBHOOK_SECRET || '',
+  // Duong dan cu KHONG co secret (/api/kiotviet/webhook) — giu bat trong giai
+  // doan chuyen tiep de khong mat su kien truoc khi doi cau hinh ben KiotViet.
+  // Doi URL ben KiotViet xong thi dat bien nay = 'false'.
+  KIOTVIET_WEBHOOK_LEGACY_PATH_ENABLED: process.env.KIOTVIET_WEBHOOK_LEGACY_PATH_ENABLED !== 'false',
+
+  // Nap san cache "nguon re" cho dashboard luc server khoi dong, tranh nguoi
+  // dung dau tien sau restart/redeploy phai cho doc 7 tab (~13.5s). Mac dinh
+  // BAT — tat bang DASHBOARD_PREWARM=false (vd moi truong dev khong can).
+  DASHBOARD_PREWARM: process.env.DASHBOARD_PREWARM !== 'false',
+  // Read-only incoming goods snapshot, independent from KiotViet sync.
+  PRODUCT_CONTAINER_SPREADSHEET_ID: process.env.PRODUCT_CONTAINER_SPREADSHEET_ID || null
 };
 
 module.exports = CONFIG;

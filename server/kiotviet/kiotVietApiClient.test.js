@@ -263,3 +263,23 @@ test('fetchProductOnHand tra found=false khi khong tim thay ma hang (404)', asyn
   const result = await client.fetchProductOnHand('KHONGTONTAI');
   assert.deepEqual(result, { code: 'KHONGTONTAI', found: false, onHand: 0 });
 });
+
+test('fetchAllPages preserves every customer removal metadata spelling including scalar removeId', async () => {
+  const client = createKiotVietClient({ clientId: 'id', clientSecret: 's', retailer: 'r', fetchImpl: tokenFetchImpl(async () =>
+    jsonResponse(200, { total: 1, data: [{ id: 1 }], removedIds: [2], removeIds: [3], removeId: 4 })) });
+  let removedIds;
+  await client.fetchAllPages('customers', {}, async (_items, info) => { removedIds = info.removedIds; });
+  assert.deepEqual(removedIds, [2, 3, 4]);
+});
+
+test('validated full snapshots reject missing/changing totals, empty and truncated pages', async () => {
+  const cases = [
+    [{ data: [] }], [{ total: 1, data: [] }], [{ total: 2, data: [{ id: 1 }] }],
+    [{ total: 2, data: [{ id: 1 }] }, { total: 3, data: [{ id: 2 }] }]
+  ];
+  for (const responses of cases) {
+    let index = 0;
+    const client = createKiotVietClient({ clientId: 'id', clientSecret: 's', retailer: 'r', fetchImpl: tokenFetchImpl(async () => jsonResponse(200, responses[index++])) });
+    await assert.rejects(client.fetchAllPages('customers', { pageSize: responses.length > 1 ? 1 : 100 }, async () => {}, { requireComplete: true }), /Incomplete.*snapshot/);
+  }
+});

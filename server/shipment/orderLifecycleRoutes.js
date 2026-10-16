@@ -1,8 +1,9 @@
 // ==========================================
 // ORDER LIFECYCLE ROUTES — /api/shipment/lifecycle/* : tra cuu "Vong doi don
 // hang" (spreadsheet RIENG, doc-only). Router RIENG (khong gop vao
-// shipmentOrderRoutes.js) vi mo hinh quyen khac han: Khach duoc dung lookup,
-// 5 vai tro noi bo duoc ca lookup + bulk-list.
+// shipmentOrderRoutes.js) vi mo hinh quyen khac han. Tu 2026-10-03 moi quyen
+// ('shipment.lookup', '.history', '.export', '.override') GAN vao 'shipment.lifecycle'
+// (featureRegistry `requires`): khong co Vong doi don hang thi khong co cac quyen kia.
 //
 // Mount trong server/routes.js TRUOC gate '/api/shipment' chung (giong cach
 // POST /api/shipment/invoice-status duoc dac cach cho Khach):
@@ -17,29 +18,26 @@
 const express = require('express');
 const router = express.Router();
 
-const { requireAuth, requireRole } = require('../auth/authMiddleware');
-const { ROLES } = require('../auth/userRepository');
+const { requireAuth, requireFeature } = require('../auth/authMiddleware');
 const { LIFECYCLE_BRANCH } = require('./orderLifecycleRepository');
 const service = require('./orderLifecycleService');
-const { createLifecycleExportFile } = require('./orderLifecycleExport');
+const { createLifecycleExportFile, MAX_EXPORT_ROWS } = require('./orderLifecycleExport');
+// Don cua KiotViet (moi trang thai) gop vao bang "Toan bo don hang" + chi tiet dong hang. Goi qua
+// thuoc tinh cua module (khong destructure) de test thay the duoc `kiotOrders.*`.
+const kiotRepository = require('./kiotOrdersRepository');
 
-// Tra cuu 1 don: Khach (xem don cua minh) + 5 vai tro noi bo lien quan truc
-// tiep den luong don to/xe cong ty.
-const ORDER_LOOKUP_ROLES = [
-  ROLES.KHACH, ROLES.KE_TOAN, ROLES.TRUONG_KHO, ROLES.QUAN_LY, ROLES.TRO_LY, ROLES.NHAN_VIEN_SALE
-];
-// Xem toan bo don (nhu mo ca bang Google Sheet): CHI 5 vai tro noi bo, Khach
-// khong duoc dung.
-const ORDER_LIFECYCLE_BULK_ROLES = [
-  ROLES.KE_TOAN, ROLES.TRUONG_KHO, ROLES.QUAN_LY, ROLES.TRO_LY, ROLES.NHAN_VIEN_SALE
-];
-
-// Ghi de trang thai thu cong: CHI Quan ly va Ke toan (chat hon ca authBulk).
-const OVERRIDE_ROLES = [ROLES.QUAN_LY, ROLES.KE_TOAN];
-
-const authLookup = [requireAuth, requireRole(...ORDER_LOOKUP_ROLES)];
-const authBulk = [requireAuth, requireRole(...ORDER_LIFECYCLE_BULK_ROLES)];
-const authOverride = [requireAuth, requireRole(...OVERRIDE_ROLES)];
+// Phan quyen theo TINH NANG (server/auth/featureRegistry.js), khong con theo
+// mang vai tro — cung mot nguon su that voi menu phia client.
+//   shipment.lifecycle — xem toan bo don (mac dinh: noi bo tru NV kho/marketing/mua hang)
+//   shipment.lookup    — tra cuu 1 don (cung nhom vai tro voi lifecycle)
+//   shipment.history   — lich su cap nhat (cung nhom vai tro voi lifecycle)
+//   shipment.export    — xuat Excel (mac dinh: chi Quan ly)
+//   shipment.override  — ghi de trang thai thu cong (mac dinh: chi Quan ly)
+const authLookup = [requireAuth, requireFeature('shipment.lookup')];
+const authBulk = [requireAuth, requireFeature('shipment.lifecycle')];
+const authHistory = [requireAuth, requireFeature('shipment.history')];
+const authExport = [requireAuth, requireFeature('shipment.export')];
+const authOverride = [requireAuth, requireFeature('shipment.override')];
 
 function handleError(res, err, context) {
   if (err.statusCode && err.statusCode < 500) {
@@ -56,7 +54,12 @@ function handleError(res, err, context) {
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/shipment/lifecycle — toan bo don tu ca 2 tab (chi 5 vai tro noi bo)
+// GET /api/shipment/lifecycle — MOT TRANG cua bang "Toan bo don hang" (don Kiot moi trang thai + moc thoi
+// gian tu sheet). Loc/sap xep/cat trang tren may chu vi co ~60 nghin don: query string branch (HN|SG), status
+// (trang thai vong doi), kiotStatus, dateField (saleSentAt|at|orderDate), from, to (YYYY-MM-DD), mode
+// (code|sale|customer), q, sort, dir (asc|desc), page, pageSize (toi da 200; mac dinh 100). Tham so sai -> 400.
+// Tra { orders, page, pageSize, totalPages, total, filteredTotal, kiotStatuses, kiot } — `kiot` bao tinh trang
+// nguon Kiot ({ok, stale, fetchedAt, count}) de giao dien hien canh bao khi loi.
 //
 // Duong dan RELATIVE ('/' khong phai '/api/shipment/lifecycle') vi router nay
 // duoc mount tai prefix '/api/shipment/lifecycle' (server/routes.js) — Express
@@ -66,15 +69,8 @@ function handleError(res, err, context) {
 
 router.get('/', ...authBulk, async (req, res) => {
   try {
-    const { branch } = req.query;
-    if (branch && branch !== LIFECYCLE_BRANCH.HN && branch !== LIFECYCLE_BRANCH.SG) {
-      return res.status(400).json({
-        error: `Tham số "branch" phải là "${LIFECYCLE_BRANCH.HN}" hoặc "${LIFECYCLE_BRANCH.SG}".`,
-        code: 'INVALID_BRANCH'
-      });
-    }
-    const orders = await service.listAllOrders(branch || undefined);
-    res.status(200).json({ orders });
+    const result = await service.queryOrders(req.query, { kiot: kiotRepository.kiotOrders });
+    res.status(200).json(result);
   } catch (err) {
     handleError(res, err, 'GET /api/shipment/lifecycle');
   }
@@ -88,12 +84,39 @@ router.get('/', ...authBulk, async (req, res) => {
 // dang ky) va route nay se khong bao gio duoc goi toi.
 // ---------------------------------------------------------------------------
 
-router.get('/history', ...authBulk, async (req, res) => {
+router.get('/history', ...authHistory, async (req, res) => {
   try {
     const history = await service.listHistory();
     res.status(200).json({ history });
   } catch (err) {
     handleError(res, err, 'GET /api/shipment/lifecycle/history');
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/shipment/lifecycle/order-detail?code=&branch=HN|SG — chi tiet dong hang cua 1 don
+// theo du lieu KiotViet (kem ton thuc / dang van chuyen / so co ban cua don Phieu tam). Chi vai tro
+// xem duoc bang toan bo don (shipment.lifecycle) — KHONG mo cho Khach. PHAI dat TRUOC '/:orderCode'
+// (nhu '/history'), neu khong 'order-detail' bi hieu la 1 ma don hang.
+// ---------------------------------------------------------------------------
+
+router.get('/order-detail', ...authBulk, async (req, res) => {
+  try {
+    const code = typeof req.query.code === 'string' ? req.query.code.trim() : '';
+    const branch = req.query.branch;
+    if (!code || code.length > 100) {
+      return res.status(400).json({ error: 'Thiếu hoặc sai mã đơn hàng.', code: 'INVALID_CODE' });
+    }
+    if (branch !== LIFECYCLE_BRANCH.HN && branch !== LIFECYCLE_BRANCH.SG) {
+      return res.status(400).json({
+        error: `Tham số "branch" phải là "${LIFECYCLE_BRANCH.HN}" hoặc "${LIFECYCLE_BRANCH.SG}".`,
+        code: 'INVALID_BRANCH'
+      });
+    }
+    const detail = await kiotRepository.kiotOrders.readOrderDetail({ branch, code });
+    res.status(200).json({ detail });
+  } catch (err) {
+    handleError(res, err, 'GET /api/shipment/lifecycle/order-detail');
   }
 });
 
@@ -134,30 +157,21 @@ router.post('/:orderCode/override', ...authOverride, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// POST /api/shipment/lifecycle/lookup — tra cuu NHIEU ma don cung luc (dung
-// cho khu vuc moi o tab "Tong quan"). Cung quyen voi GET /:orderCode.
+// POST /api/shipment/lifecycle/export — xuat Excel bang "Toan bo don hang" (quyen 'shipment.export', mac dinh
+// chi Quan ly). Body = cung bo tham so loc/sap xep cua GET '/' (khong co page/pageSize — xuat MOI trang): file khop
+// dung bang dang hien tren man hinh. Khong gui bo loc nao -> xuat toan bo don (moi dat nhat truoc). Qua MAX_EXPORT_ROWS
+// dong -> 400 TOO_MANY_ROWS (dung file lon chan ca may chu vai giay vi chay 1 tien trinh): yeu cau loc bot roi xuat lai.
 // ---------------------------------------------------------------------------
 
-router.post('/lookup', ...authLookup, async (req, res) => {
+router.post('/export', ...authExport, async (req, res) => {
   try {
-    const results = await service.findOrdersBulk(req.body.codes);
-    res.status(200).json({ results });
-  } catch (err) {
-    handleError(res, err, 'POST /api/shipment/lifecycle/lookup');
-  }
-});
-
-// ---------------------------------------------------------------------------
-// POST /api/shipment/lifecycle/export — xuat Excel bang "Toan bo don hang"
-// (chi 5 vai tro noi bo, cung quyen voi GET '/'). Body { codes: string[] }
-// tuy chon — danh sach + thu tu ma dang hien tren UI sau khi loc/sap xep;
-// khong truyen -> xuat toan bo theo thu tu trong sheet.
-// ---------------------------------------------------------------------------
-
-router.post('/export', ...authBulk, async (req, res) => {
-  try {
-    const codes = Array.isArray(req.body.codes) ? req.body.codes : undefined;
-    const orders = await service.exportOrdersByCodes(codes);
+    const orders = await service.exportOrders(req.body, { kiot: kiotRepository.kiotOrders });
+    if (orders.length > MAX_EXPORT_ROWS) {
+      return res.status(400).json({
+        error: `Có ${orders.length.toLocaleString('vi-VN')} đơn khớp bộ lọc, vượt giới hạn ${MAX_EXPORT_ROWS.toLocaleString('vi-VN')} đơn mỗi lần xuất. Hãy lọc thêm theo cơ sở, trạng thái hoặc khoảng thời gian rồi xuất lại.`,
+        code: 'TOO_MANY_ROWS'
+      });
+    }
     const file = await createLifecycleExportFile(orders);
     res.setHeader('Content-Type', file.mimeType);
     res.setHeader('Content-Disposition', `attachment; filename="${file.fileName}"`);

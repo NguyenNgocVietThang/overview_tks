@@ -16,8 +16,21 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 const { getPool } = require('../db/pool');
+const { sqlLiteral } = require('../dashboard/inTransitSource');
 
 const BRANCH_CODES = Object.freeze(['hanoi', 'saigon']);
+
+// Don dat hang cua khach ("Phieu tam") dang giu cho hang — chi trang thai nay bi tru khoi ton
+// co the ban cua snapshot nen (Ton thuc - Dat hang phieu tam). Tu 16/10/2026,
+// productReportRepository cong dieu chuyen SG khi doc; khong cong o SQL nay de tranh tinh hai lan.
+const PENDING_ORDER_STATUS = 'Phiếu tạm';
+
+// Gia tri 1 dong return_details (alias rd), tuyet doi - ban sao cua RETURN_AMOUNT_SQL
+// trong customerProductTopRepository.js (cung ly do khong import o duoi).
+const RETURN_AMOUNT_SQL = `CASE
+    WHEN rd.raw ? 'subTotal' THEN abs(COALESCE((rd.raw->>'subTotal')::float8, 0))
+    ELSE abs(COALESCE(rd.price, 0)::float8 * COALESCE(rd.quantity, 0)::float8)
+  END`;
 
 // "Thanh tien" tren 1 dong invoice_details - dung LAI CHINH XAC dinh nghia da
 // co o customerProductTopRepository.js/dashboardRollupRefresh.js (khong import
@@ -58,9 +71,9 @@ const REFRESH_SQL = `
     WHERE p.branch = 'saigon' AND COALESCE(p.code, '') <> ''
   ),
   pending_orders AS (
-    -- "Dat hang cua khach" (bang orders, KHONG PHAI purchases-NCC) dang o
-    -- trang thai chua hoan tat - so nay bi tru khoi ton kha ban vi da bi giu
-    -- cho, khac voi phieu nhap NCC (se CONG them khi ve, khong tru).
+    -- "Dat hang cua khach" (bang orders, KHONG PHAI purchases-NCC) o trang thai Phieu tam —
+    -- so nay bi tru khoi ton co the ban vi da bi giu cho (truoc 2026-10-01 con tinh them
+    -- 'Đang xử lý'/'Đã xác nhận' — gan nhu khong co don nao o 2 trang thai nay).
     SELECT
       lower(btrim(COALESCE(NULLIF(d.raw->>'productCode', ''), p.code, ''))) AS product_key,
       SUM(COALESCE(d.quantity, 0))::float8 AS qty
@@ -68,7 +81,7 @@ const REFRESH_SQL = `
     JOIN orders o ON o.branch = d.branch AND o.id = d.order_id
     LEFT JOIN products p ON p.branch = d.branch AND p.id = d.product_id
     WHERE d.branch = ANY($1::text[])
-      AND COALESCE(o.raw->>'statusValue', '') IN ('Phiếu tạm', 'Đang xử lý', 'Đã xác nhận')
+      AND COALESCE(o.raw->>'statusValue', '') = ${sqlLiteral(PENDING_ORDER_STATUS)}
     GROUP BY 1
   ),
   sales_30d AS (
@@ -87,8 +100,10 @@ const REFRESH_SQL = `
     WHERE dps.sale_date >= vn_today.today - 90 AND dps.sale_date <= vn_today.today - 1
     GROUP BY p.code
   ),
+  -- Doanh so rong cua khach: dong ban (duong) + dong hang khach tra (am, theo ngay
+  -- tra) de khop revenue_90d (daily_product_sales da tru tra hang).
   sales90_lines AS (
-    SELECT
+    (SELECT
       lower(btrim(COALESCE(NULLIF(d.raw->>'productCode', ''), p.code, ''))) AS product_key,
       CASE
         WHEN COALESCE(NULLIF(i.raw->>'customerCode', ''), c.code, '') <> ''
@@ -104,14 +119,47 @@ const REFRESH_SQL = `
     CROSS JOIN vn_today
     WHERE d.branch = ANY($1::text[])
       AND COALESCE(i.raw->>'statusValue', '') != 'Đã hủy'
+      AND COALESCE(c.raw->>'isActive', c.raw->>'IsActive', 'true') <> 'false'
       AND i.purchase_date >= ((vn_today.today - 90)::timestamp AT TIME ZONE 'UTC')
-      AND i.purchase_date <  (vn_today.today::timestamp AT TIME ZONE 'UTC')
+      AND i.purchase_date <  (vn_today.today::timestamp AT TIME ZONE 'UTC'))
+    UNION ALL
+    (SELECT
+      lower(btrim(COALESCE(NULLIF(rd.raw->>'productCode', ''), p.code, ''))) AS product_key,
+      CASE
+        WHEN COALESCE(NULLIF(r.raw->>'customerCode', ''), c.code, '') <> ''
+          THEN 'code:' || lower(COALESCE(NULLIF(r.raw->>'customerCode', ''), c.code, ''))
+        ELSE 'name:' || lower(COALESCE(NULLIF(r.raw->>'customerName', ''), NULLIF(c.name, ''), 'Khách lẻ'))
+      END AS customer_key,
+      COALESCE(NULLIF(r.raw->>'customerName', ''), NULLIF(c.name, ''), 'Khách lẻ') AS customer_name,
+      -(${RETURN_AMOUNT_SQL}) AS amount
+    FROM return_details rd
+    JOIN returns r ON r.branch = rd.branch AND r.id = rd.return_id
+    LEFT JOIN products p ON p.branch = rd.branch AND p.id = rd.product_id
+    LEFT JOIN customers c ON c.branch = r.branch AND c.id = r.customer_id
+    CROSS JOIN vn_today
+    WHERE rd.branch = ANY($1::text[])
+      AND r.raw->>'statusValue' = 'Đã trả'
+      AND COALESCE(c.raw->>'isActive', c.raw->>'IsActive', 'true') <> 'false'
+      AND r.return_date >= ((vn_today.today - 90)::timestamp AT TIME ZONE 'UTC')
+      AND r.return_date <  (vn_today.today::timestamp AT TIME ZONE 'UTC'))
   ),
-  customer_agg AS (
+  -- MATERIALIZED: customer_agg duoc doc 2 lan (xep hang khach lon nhat + luu vao
+  -- product_report_customers cho khung "Chi tiet" cua bang) nen phai tinh dung 1
+  -- lan, khong de planner quet lai 90 ngay invoice_details. HAVING > 0: khach tra
+  -- het (hoac tra nhieu hon da mua trong ky) khong con la khach mua hang cua ma nay.
+  customer_agg AS MATERIALIZED (
     SELECT product_key, customer_key, MIN(customer_name) AS customer_name, SUM(amount) AS revenue
     FROM sales90_lines
     WHERE product_key <> ''
     GROUP BY product_key, customer_key
+    HAVING SUM(amount) > 0
+  ),
+  -- CTE ghi du lieu luon chay du 1 lan du cau lenh chinh khong doc RETURNING.
+  saved_customers AS (
+    INSERT INTO product_report_customers (product_key, customer_key, customer_name, revenue)
+    SELECT product_key, customer_key, customer_name, revenue
+    FROM customer_agg
+    RETURNING 1
   ),
   customer_ranked AS (
     SELECT
@@ -141,7 +189,7 @@ const REFRESH_SQL = `
     COALESCE(ct.customer_count, 0),
     COALESCE(ct.top_customer_revenue, 0),
     ct.top_customer_name,
-    CASE WHEN COALESCE(s90.revenue, 0) > 0 THEN COALESCE(ct.top_customer_revenue, 0) / s90.revenue ELSE NULL END,
+    CASE WHEN COALESCE(s90.revenue, 0) > 0 THEN LEAST(1, COALESCE(ct.top_customer_revenue, 0) / s90.revenue) ELSE NULL END,
     now()
   FROM hn_products hn
   LEFT JOIN sg_products sg ON sg.code = hn.code
@@ -151,15 +199,15 @@ const REFRESH_SQL = `
   LEFT JOIN customer_top ct ON ct.product_key = lower(btrim(hn.code))`;
 
 /**
- * Tinh lai TOAN BO bang product_report (khong theo tung co so - bang gom ca
- * 2 co so tren 1 dong/ma hang). Xoa trang roi nap lai trong 1 transaction de
+ * Tinh lai TOAN BO bang product_report va product_report_customers (khong theo
+ * tung co so - bang gom ca 2 co so tren 1 dong/ma hang). Xoa trang roi nap lai trong 1 transaction de
  * khong co trang thai "nua vơi" neu loi giua chung.
  */
 async function refreshProductReport(pool, { log = console.log } = {}) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    await client.query('TRUNCATE product_report');
+    await client.query('TRUNCATE product_report, product_report_customers');
     const result = await client.query(REFRESH_SQL, [BRANCH_CODES]);
     await client.query('COMMIT');
     log(`[productReportRefresh] Da tinh lai ${result.rowCount || 0} ma hang.`);

@@ -38,7 +38,22 @@ test('getPool returns one lazy pg Pool instance when SUPABASE_DB_URL is configur
   assert.equal(typeof first.query, 'function');
 });
 
+test('pool max mac dinh 7 de 2 instance chay chong nhau luc deploy khong vuot pool_size 15', () => {
+  delete process.env.PG_POOL_MAX;
+  const { getPool } = loadPoolModule('postgresql://user:password@localhost:5432/test');
+
+  assert.equal(getPool().options.max, 7);
+});
+
+test('PG_POOL_MAX ghi de tran ket noi cua pool', () => {
+  process.env.PG_POOL_MAX = '9';
+  const { getPool } = loadPoolModule('postgresql://user:password@localhost:5432/test');
+
+  assert.equal(getPool().options.max, 9);
+});
+
 test.after(() => {
+  delete process.env.PG_POOL_MAX;
   delete process.env.SUPABASE_DB_URL;
   delete require.cache[POOL_MODULE];
   delete require.cache[CONFIG_MODULE];

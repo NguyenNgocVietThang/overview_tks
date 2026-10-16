@@ -155,6 +155,101 @@ test('PATCH approved role request creates a persistent override for HR-managed u
   assert.equal(updatedUser.roleSource, 'override');
 });
 
+test('PATCH: người duyệt không phải Quản lý không được nâng ai lên Quản lý — yêu cầu vẫn Chờ duyệt', async () => {
+  localUserStore.setInMemoryUsers([
+    { id: 'u1', username: 'nva', hoTen: 'Nguyễn Văn A', vaiTro: 'Trợ lý', trangThai: 'Đang hoạt động' },
+    { id: 'd1', username: 'delegate', hoTen: 'Được ủy quyền', vaiTro: 'Trợ lý', trangThai: 'Đang hoạt động',
+      featurePermissions: { 'account.users.manage': true } }
+  ]);
+  roleRepo.setInMemoryRequests([]);
+  notificationRepo.setInMemoryNotifications([]);
+  const created = await roleRepo.createRequest({ userId: 'u1', username: 'nva', hoTen: 'Nguyễn Văn A', currentRole: 'Trợ lý', requestedRole: 'Quản lý', reason: 'x' });
+
+  const handler = getRouteHandler(roleChangeRequestRoutes, 'patch', '/api/role-requests/:id/status');
+  const res = fakeRes();
+  await handler({
+    user: { id: 'd1', username: 'delegate', hoTen: 'Được ủy quyền', vaiTro: 'Trợ lý', featurePermissions: { 'account.users.manage': true } },
+    params: { id: created.id },
+    body: { status: roleRepo.ROLE_REQUEST_STATUS.APPROVED }
+  }, res);
+
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.body.code, 'ACCOUNT_POLICY_DENIED');
+  assert.equal((await localUserStore.getUserById('u1')).vaiTro, 'Trợ lý');
+  assert.equal((await roleRepo.getRequestById(created.id)).status, roleRepo.ROLE_REQUEST_STATUS.PENDING);
+  assert.equal((await notificationRepo.listForUser('u1')).length, 0);
+});
+
+test('PATCH: người duyệt không phải Quản lý vẫn duyệt được yêu cầu trong phạm vi quyền của mình', async () => {
+  localUserStore.setInMemoryUsers([
+    { id: 'u1', username: 'nva', hoTen: 'Nguyễn Văn A', vaiTro: 'Khách', trangThai: 'Đang hoạt động' },
+    { id: 'd1', username: 'delegate', hoTen: 'Được ủy quyền', vaiTro: 'Trợ lý', trangThai: 'Đang hoạt động',
+      featurePermissions: { 'account.users.manage': true } }
+  ]);
+  roleRepo.setInMemoryRequests([]);
+  notificationRepo.setInMemoryNotifications([]);
+  const created = await roleRepo.createRequest({ userId: 'u1', username: 'nva', hoTen: 'Nguyễn Văn A', currentRole: 'Khách', requestedRole: 'Nhân viên kho', reason: 'x' });
+
+  const res = fakeRes();
+  await getRouteHandler(roleChangeRequestRoutes, 'patch', '/api/role-requests/:id/status')({
+    user: { id: 'd1', username: 'delegate', hoTen: 'Được ủy quyền', vaiTro: 'Trợ lý', featurePermissions: { 'account.users.manage': true } },
+    params: { id: created.id },
+    body: { status: roleRepo.ROLE_REQUEST_STATUS.APPROVED }
+  }, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal((await localUserStore.getUserById('u1')).vaiTro, 'Nhân viên kho');
+});
+
+test('PATCH: Quản lý thường KHÔNG duyệt yêu cầu HẠ vai trò của Quản lý khác (chỉ Quản lý cấp cao); yêu cầu vẫn Chờ duyệt', async () => {
+  localUserStore.setInMemoryUsers([
+    { id: 'm2', username: 'ql2', hoTen: 'Quản lý 2', vaiTro: 'Quản lý', trangThai: 'Đang hoạt động' }
+  ]);
+  roleRepo.setInMemoryRequests([]);
+  notificationRepo.setInMemoryNotifications([]);
+  const created = await roleRepo.createRequest({ userId: 'm2', username: 'ql2', hoTen: 'Quản lý 2', currentRole: 'Quản lý', requestedRole: 'Trợ lý', reason: 'x' });
+
+  const handler = getRouteHandler(roleChangeRequestRoutes, 'patch', '/api/role-requests/:id/status');
+  const denied = fakeRes();
+  await handler({
+    user: { id: 'm1', username: 'ql1', hoTen: 'Quản lý 1', vaiTro: 'Quản lý' },
+    params: { id: created.id },
+    body: { status: roleRepo.ROLE_REQUEST_STATUS.APPROVED }
+  }, denied);
+  assert.equal(denied.statusCode, 403);
+  assert.equal(denied.body.code, 'ACCOUNT_POLICY_DENIED');
+  assert.match(denied.body.error, /Chỉ Quản lý cấp cao mới được duyệt yêu cầu hạ vai trò của Quản lý khác/);
+  assert.equal((await localUserStore.getUserById('m2')).vaiTro, 'Quản lý');
+  assert.equal((await roleRepo.getRequestById(created.id)).status, roleRepo.ROLE_REQUEST_STATUS.PENDING);
+
+  // Quản lý cấp cao (admin cứng) vẫn duyệt được.
+  const ok = fakeRes();
+  await handler({
+    user: { id: 'adm', username: 'admin', hoTen: 'Admin', vaiTro: 'Quản lý' },
+    params: { id: created.id },
+    body: { status: roleRepo.ROLE_REQUEST_STATUS.APPROVED }
+  }, ok);
+  assert.equal(ok.statusCode, 200);
+  assert.equal((await localUserStore.getUserById('m2')).vaiTro, 'Trợ lý');
+});
+
+test('PATCH: Quản lý thường vẫn từ chối được yêu cầu hạ vai trò của Quản lý khác (từ chối không đổi quyền ai)', async () => {
+  localUserStore.setInMemoryUsers([
+    { id: 'm2', username: 'ql2', hoTen: 'Quản lý 2', vaiTro: 'Quản lý', trangThai: 'Đang hoạt động' }
+  ]);
+  roleRepo.setInMemoryRequests([]);
+  notificationRepo.setInMemoryNotifications([]);
+  const created = await roleRepo.createRequest({ userId: 'm2', username: 'ql2', hoTen: 'Quản lý 2', currentRole: 'Quản lý', requestedRole: 'Trợ lý', reason: 'x' });
+  const res = fakeRes();
+  await getRouteHandler(roleChangeRequestRoutes, 'patch', '/api/role-requests/:id/status')({
+    user: { id: 'm1', username: 'ql1', hoTen: 'Quản lý 1', vaiTro: 'Quản lý' },
+    params: { id: created.id },
+    body: { status: roleRepo.ROLE_REQUEST_STATUS.REJECTED }
+  }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal((await localUserStore.getUserById('m2')).vaiTro, 'Quản lý');
+});
+
 test('PATCH /api/role-requests/:id/status từ chối -> KHÔNG đổi vaiTro', async () => {
   localUserStore.setInMemoryUsers([
     { id: 'u1', username: 'nva', hoTen: 'Nguyễn Văn A', vaiTro: 'Trợ lý', trangThai: 'Đang hoạt động' }
@@ -238,4 +333,22 @@ test('POST /api/role-requests chấp nhận yêu cầu chuyển sang các vai tr
     assert.equal(res.statusCode, 201, `Yêu cầu đổi sang ${role} thất bại`);
     assert.equal(res.body.request.requestedRole, role);
   }
+});
+
+
+test('role request promotion to manager requires explicitly selected approval departments before any write', async () => {
+  localUserStore.setInMemoryUsers([{ id: 'scope-staff', username: 'scope-staff', vaiTro: 'Trợ lý', trangThai: 'Đang hoạt động' }]);
+  roleRepo.setInMemoryRequests([]);
+  const request = await roleRepo.createRequest({ userId: 'scope-staff', username: 'scope-staff', currentRole: 'Trợ lý', requestedRole: 'Quản lý' });
+  const handler = getRouteHandler(roleChangeRequestRoutes, 'patch', '/api/role-requests/:id/status');
+  const req = { user: { id: 'scope-admin', username: 'scope-admin', vaiTro: 'Quản lý' }, params: { id: request.id }, body: { status: roleRepo.ROLE_REQUEST_STATUS.APPROVED } };
+  let res = fakeRes();
+  await handler(req, res);
+  assert.equal(res.statusCode, 400);
+  assert.equal((await localUserStore.getUserById('scope-staff')).vaiTro, 'Trợ lý');
+  assert.equal((await roleRepo.getRequestById(request.id)).status, roleRepo.ROLE_REQUEST_STATUS.PENDING);
+  res = fakeRes();
+  await handler({ ...req, body: { ...req.body, leaveApprovalDepartments: ['KHO'] } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual((await localUserStore.getUserById('scope-staff')).leaveApprovalDepartments, ['KHO']);
 });

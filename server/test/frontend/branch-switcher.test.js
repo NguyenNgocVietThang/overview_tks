@@ -23,6 +23,19 @@ function loadNav() {
   return dom;
 }
 
+const { defaultsForRole, resolvePermissions, PAGE_FEATURES } = require('../../auth/featureRegistry');
+
+/** Tien ich: dung sidebar cho mot vai tro voi QUYEN MAC DINH cua vai tro do. */
+function renderForRole(vaiTro) {
+  return renderFor({
+    vaiTro,
+    branches: ['Hà Nội'],
+    branch: 'Hà Nội',
+    permissions: defaultsForRole(vaiTro),
+    pageFeatures: PAGE_FEATURES
+  });
+}
+
 function renderFor(user) {
   const dom = loadNav();
   const { window } = dom;
@@ -101,21 +114,75 @@ test('handleBranchError hien bang thong bao rieng cho hai ma loi co so', () => {
   assert.equal(TKSNav.handleBranchError(null), false);
 });
 
-test('renderTopSidebar: kiem tra hien thi menu cho 3 vai tro moi', () => {
-  const { sidebar: sbKho } = renderFor({ vaiTro: 'Nhân viên kho', branches: ['Hà Nội'], branch: 'Hà Nội' });
-  assert.match(sbKho.innerHTML, /Quản lý đơn hàng/);
-  assert.match(sbKho.innerHTML, /Vòng đời đơn hàng/);
+test('renderTopSidebar: menu dung theo QUYEN, khong theo vai tro cung', () => {
+  // NV kho khong con Vong doi don hang (2026-10-03) -> ca nhom "Quan ly don hang" bi an.
+  const sbKho = renderForRole('Nhân viên kho').sidebar;
+  assert.doesNotMatch(sbKho.innerHTML, /Quản lý đơn hàng/);
+  assert.doesNotMatch(sbKho.innerHTML, /Vòng đời đơn hàng/);
   assert.doesNotMatch(sbKho.innerHTML, />Tổng quan<\/a>/);
   assert.match(sbKho.innerHTML, /Quản lý nhân sự/);
   assert.doesNotMatch(sbKho.innerHTML, /Báo cáo tổng hợp/);
 
-  const { sidebar: sbSale } = renderFor({ vaiTro: 'Nhân viên sale', branches: ['Hà Nội'], branch: 'Hà Nội' });
+  // Nhan vien sale: xem du 5 tab bao cao (tab Khach hang cu da go 2026-10-16; Bao cao kinh doanh doi ten thanh Khach hang).
+  const sbSale = renderForRole('Nhân viên sale').sidebar;
   assert.match(sbSale.innerHTML, /Quản lý đơn hàng/);
   assert.match(sbSale.innerHTML, /Quản lý nhân sự/);
-  assert.doesNotMatch(sbSale.innerHTML, /Báo cáo tổng hợp/);
+  assert.match(sbSale.innerHTML, /Báo cáo tổng hợp/);
+  assert.match(sbSale.innerHTML, />Tổng quan<\/a>/);
+  assert.match(sbSale.innerHTML, />Hàng hóa<\/a>/);
+  assert.match(sbSale.innerHTML, />Hóa đơn<\/a>/);
+  assert.match(sbSale.innerHTML, />Khách hàng<\/a>/);
+  assert.match(sbSale.innerHTML, />Công nợ<\/a>/);
+  assert.doesNotMatch(sbSale.innerHTML, />Báo cáo kinh doanh<\/a>/);
 
-  const { sidebar: sbMuaHang } = renderFor({ vaiTro: 'Nhân viên mua hàng', branches: ['Hà Nội'], branch: 'Hà Nội' });
+  // Nhan vien marketing / mua hang: khong co Bao cao va khong co Vong doi don hang -> menu giong Nhan vien kho.
+  const sbMarketing = renderForRole('Nhân viên marketing').sidebar;
+  assert.match(sbMarketing.innerHTML, /Báo cáo tổng hợp/);
+  assert.match(sbMarketing.innerHTML, /Báo cáo Marketing/);
+  assert.doesNotMatch(sbMarketing.innerHTML, />Tổng quan<\/a>/);
+  assert.doesNotMatch(sbMarketing.innerHTML, /Quản lý đơn hàng/);
+
+  const sbMuaHang = renderForRole('Nhân viên mua hàng').sidebar;
   assert.doesNotMatch(sbMuaHang.innerHTML, /Quản lý đơn hàng/);
   assert.match(sbMuaHang.innerHTML, /Quản lý nhân sự/);
   assert.doesNotMatch(sbMuaHang.innerHTML, /Báo cáo tổng hợp/);
+
+  const sbQuanLy = renderForRole('Quản lý').sidebar;
+  assert.match(sbQuanLy.innerHTML, /Báo cáo tổng hợp/);
+  assert.match(sbQuanLy.innerHTML, /Quản lý người dùng/);
+});
+
+test('renderTopSidebar: ghi de quyen theo tai khoan an/hien dung muc menu', () => {
+  // Tro ly bi chan rieng tab "Quan ly cong no".
+  const { sidebar } = renderFor({
+    vaiTro: 'Trợ lý', branches: ['Hà Nội'], branch: 'Hà Nội',
+    permissions: resolvePermissions({ vaiTro: 'Trợ lý', featurePermissions: { 'reports.debt': false } }),
+    pageFeatures: PAGE_FEATURES
+  });
+  assert.match(sidebar.innerHTML, /Báo cáo tổng hợp/);
+  assert.match(sidebar.innerHTML, /Tổng quan/);
+  assert.doesNotMatch(sidebar.innerHTML, />Công nợ</);
+
+  // Ke toan duoc cap them quyen xem Tong quan -> nhom Bao cao hien ra.
+  const { sidebar: sbKeToan } = renderFor({
+    vaiTro: 'Kế toán', branches: ['Hà Nội'], branch: 'Hà Nội',
+    permissions: resolvePermissions({ vaiTro: 'Kế toán', featurePermissions: { 'reports.overview': true } }),
+    pageFeatures: PAGE_FEATURES
+  });
+  assert.match(sbKeToan.innerHTML, /Báo cáo tổng hợp/);
+  assert.match(sbKeToan.innerHTML, /Tổng quan/);
+  assert.doesNotMatch(sbKeToan.innerHTML, /Hóa đơn/);
+});
+
+test('renderTopSidebar: an ca NHOM khi khong con muc con nao duoc phep', () => {
+  const { sidebar } = renderFor({
+    vaiTro: 'Nhân viên sale', branches: ['Hà Nội'], branch: 'Hà Nội',
+    permissions: resolvePermissions({
+      vaiTro: 'Nhân viên sale',
+      featurePermissions: { 'hr.rules': false, 'hr.employees': false, 'hr.leave': false }
+    }),
+    pageFeatures: PAGE_FEATURES
+  });
+  assert.doesNotMatch(sidebar.innerHTML, /Quản lý nhân sự/);
+  assert.match(sidebar.innerHTML, /Quản lý đơn hàng/);
 });

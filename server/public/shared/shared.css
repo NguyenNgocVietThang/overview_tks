@@ -109,6 +109,9 @@
   --role-nhan-vien-sale-bg:rgba(6,182,212,0.14);
   --role-nhan-vien-sale-fg:#22d3ee;
   --role-nhan-vien-sale-border:rgba(6,182,212,0.3);
+  --role-nhan-vien-marketing-bg:rgba(132,204,22,0.14);
+  --role-nhan-vien-marketing-fg:#a3e635;
+  --role-nhan-vien-marketing-border:rgba(132,204,22,0.3);
   --role-nhan-vien-mua-hang-bg:rgba(236,72,153,0.14);
   --role-nhan-vien-mua-hang-fg:#f472b6;
   --role-nhan-vien-mua-hang-border:rgba(236,72,153,0.3);
@@ -215,6 +218,9 @@
   --role-nhan-vien-sale-bg:rgba(14,116,144,0.10);
   --role-nhan-vien-sale-fg:#0E7490;
   --role-nhan-vien-sale-border:rgba(14,116,144,0.25);
+  --role-nhan-vien-marketing-bg:rgba(77,124,15,0.10);
+  --role-nhan-vien-marketing-fg:#4D7C0F;
+  --role-nhan-vien-marketing-border:rgba(77,124,15,0.25);
   --role-nhan-vien-mua-hang-bg:rgba(190,24,93,0.10);
   --role-nhan-vien-mua-hang-fg:#BE185D;
   --role-nhan-vien-mua-hang-border:rgba(190,24,93,0.25);
@@ -384,18 +390,18 @@ body::before{
 .profile-trigger .who .role{ color:var(--muted); font-size:11px; }
 
 /* ---------- Chuong thong bao (dung chung moi trang) ---------- */
-.tks-notif-wrap{ position:relative; }
-.tks-notif-bell{
+.tks-notif-wrap, .tks-cal-wrap{ position:relative; }
+.tks-notif-bell, .tks-cal-btn{
   position:relative; display:flex; align-items:center; justify-content:center;
   width:40px; height:40px; padding:0;
   background:var(--panel-2); border:1px solid var(--border); border-radius:10px;
   cursor:pointer; color:var(--text);
   transition:border-color .15s ease, background-color .15s ease, transform .15s ease;
 }
-.tks-notif-bell:hover{ border-color:var(--muted); background:var(--surface-hover); transform:translateY(-1px); }
-.tks-notif-bell:active{ transform:translateY(0); }
-.tks-notif-bell:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
-.tks-notif-bell svg{ width:18px; height:18px; }
+.tks-notif-bell:hover, .tks-cal-btn:hover{ border-color:var(--muted); background:var(--surface-hover); transform:translateY(-1px); }
+.tks-notif-bell:active, .tks-cal-btn:active{ transform:translateY(0); }
+.tks-notif-bell:focus-visible, .tks-cal-btn:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+.tks-notif-bell svg, .tks-cal-btn svg{ width:18px; height:18px; }
 .tks-notif-badge{
   position:absolute; top:2px; right:2px; min-width:16px; height:16px; padding:0 4px;
   border-radius:9999px; background:#EF4444; color:#fff; font-size:10px; font-weight:700;
@@ -462,6 +468,93 @@ body::before{
 .tks-notif-reject{ background:var(--panel-2); color:var(--text); }
 .tks-notif-approve:disabled, .tks-notif-reject:disabled{ opacity:.6; cursor:not-allowed; }
 
+/* ---------- Lich nghi phep o header (xem shared-nav.js renderLeaveCalendar) ---------- */
+.tks-cal-dropdown{
+  position:fixed; max-width:calc(100vw - 24px);
+  overflow-y:auto; z-index:60; padding:12px;
+  background:var(--panel); border:1px solid var(--border); border-radius:14px;
+  box-shadow:var(--shadow-modal, 0 12px 32px rgba(0,0,0,0.25));
+  opacity:0; transform:translateY(-6px);
+  transition:opacity .15s ease, transform .15s ease;
+}
+.tks-cal-dropdown:not([hidden]){ opacity:1; transform:translateY(0); }
+@media (prefers-reduced-motion: reduce){
+  .tks-cal-dropdown{ transition:none; }
+}
+.tks-cal-head{ display:flex; align-items:center; gap:6px; margin-bottom:8px; }
+.tks-cal-title{ flex:1; text-align:center; font-family:var(--font-body); font-weight:700; font-size:14px; color:var(--text); }
+.tks-cal-nav, .tks-cal-today{
+  height:30px; padding:0 10px; border:1px solid var(--border); border-radius:8px; cursor:pointer;
+  background:var(--panel-2); color:var(--text); font-size:13px; font-weight:600;
+  transition:border-color .15s ease, background-color .15s ease;
+}
+.tks-cal-nav{ width:30px; padding:0; font-size:16px; line-height:1; }
+.tks-cal-today{ font-size:11.5px; color:var(--blue); }
+.tks-cal-nav:hover, .tks-cal-today:hover{ border-color:var(--muted); background:var(--surface-hover); }
+.tks-cal-nav:focus-visible, .tks-cal-today:focus-visible,
+.tks-cal-day:focus-visible, .tks-cal-item-head:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+.tks-cal-weekdays, .tks-cal-grid{ display:grid; grid-template-columns:repeat(7, 1fr); gap:2px; }
+.tks-cal-weekdays span{ text-align:center; font-size:11px; font-weight:600; color:var(--muted); padding:4px 0; }
+.tks-cal-cell{ min-height:44px; }
+.tks-cal-day{
+  position:relative; height:44px; min-height:44px; padding:3px 0; display:grid;
+  grid-template-rows:18px 14px; align-content:center; justify-items:center; gap:2px;
+  background:transparent; border:1px solid transparent; border-radius:8px; cursor:pointer;
+  color:var(--text); font-size:13px;
+  transition:background-color .12s ease, border-color .12s ease;
+}
+.tks-cal-num{ line-height:18px; }
+.tks-cal-count-slot{ height:14px; display:flex; align-items:center; justify-content:center; }
+.tks-cal-inline{ min-width:0; padding:16px; background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-lg); }
+.tks-cal-inline .tks-cal-head{ margin-bottom:8px; }
+.tks-cal-inline .tks-cal-nav, .tks-cal-inline .tks-cal-today{ min-height:30px; height:30px; }
+.tks-cal-inline .tks-cal-nav{ width:30px; }
+.tks-cal-inline .tks-cal-grid{ gap:2px; }
+.tks-cal-inline .tks-cal-day{ height:44px; }
+.tks-cal-inline .tks-cal-cell{ min-height:44px; }
+@media (min-width:801px){
+  .tks-cal-inline .tks-cal-day{ height:56px; }
+  .tks-cal-inline .tks-cal-cell{ min-height:56px; }
+  .tks-cal-inline .tks-cal-grid{ gap:4px; }
+  .tks-cal-inline .tks-cal-weekdays span{ padding:8px 0; }
+}
+.tks-cal-hint{ margin:12px 0 0; font-size:12px; line-height:1.5; color:var(--muted); }
+.tks-cal-day:hover{ background:var(--surface-hover); }
+.tks-cal-day.is-today{ border-color:var(--blue); }
+.tks-cal-day.is-selected{ background:var(--blue); color:#fff; border-color:var(--blue); }
+.tks-cal-count{
+  min-width:16px; height:14px; padding:0 4px; border-radius:9999px; line-height:14px;
+  background:var(--amber); color:#fff; font-size:10px; font-weight:700; text-align:center;
+}
+.tks-cal-day.is-selected .tks-cal-count{ background:#fff; color:var(--blue); }
+.tks-cal-list-head{
+  margin:10px 0 6px; padding-top:10px; border-top:1px solid var(--border);
+  font-size:12.5px; font-weight:700; color:var(--text);
+}
+.tks-cal-empty{ margin:0; padding:14px 4px; text-align:center; color:var(--muted); font-size:12.5px; }
+.tks-cal-item{ border:1px solid var(--border); border-radius:10px; margin-bottom:6px; background:var(--panel-2); }
+.tks-cal-item-head{
+  width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px;
+  padding:8px 10px; background:none; border:none; border-radius:10px; cursor:pointer;
+  color:var(--text); text-align:left; font:inherit;
+}
+.tks-cal-item-head:hover{ background:var(--surface-hover); }
+.tks-cal-item-main{ display:flex; flex-direction:column; min-width:0; gap:2px; }
+.tks-cal-item-name{ font-size:13px; font-weight:700; overflow:hidden; text-overflow:ellipsis; }
+.tks-cal-item-sub{ font-size:11.5px; color:var(--muted); }
+.tks-cal-item-side{ display:flex; flex-direction:column; align-items:flex-end; gap:3px; flex:0 0 auto; }
+.tks-cal-when{ font-size:11.5px; font-weight:600; color:var(--text); }
+.tks-cal-status{ font-size:10.5px; font-weight:700; padding:1px 8px; border-radius:9999px; }
+.tks-cal-status.is-pending{ background:var(--status-pending-bg); color:var(--amber); }
+.tks-cal-status.is-approved{ background:var(--status-active-bg); color:var(--green); }
+.tks-cal-status.is-violation{ background:var(--status-locked-bg); color:var(--red); }
+.tks-cal-urgent{ margin-left:4px; font-size:10px; font-weight:700; color:var(--red); }
+.tks-cal-detail{ margin:0; padding:2px 10px 10px; border-top:1px solid var(--border); }
+.tks-cal-detail[hidden]{ display:none; }
+.tks-cal-row{ display:flex; gap:8px; padding-top:6px; font-size:12px; }
+.tks-cal-row dt{ flex:0 0 92px; color:var(--muted); }
+.tks-cal-row dd{ margin:0; flex:1; min-width:0; color:var(--text); overflow-wrap:anywhere; }
+
 .logout-btn-standalone{
   min-height:40px; padding:0 14px; border:1px solid var(--border); border-radius:10px; cursor:pointer;
   background:var(--panel-2); color:var(--text); font-family:var(--font-body); font-size:12px; font-weight:600;
@@ -520,12 +613,10 @@ body::before{
 .tks-btn-primary:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
 
 .tks-btn-danger{
-  min-height:38px; padding:0 var(--space-xl); border:1px solid rgba(239,68,68,0.3); border-radius:8px; cursor:pointer;
-  background:rgba(239,68,68,0.12); color:var(--red); font-family:var(--font-body); font-size:12.5px; font-weight:700;
-  transition:background-color .15s ease, color .15s ease, border-color .15s ease;
+  min-height:38px; padding:0 var(--space-xl); border:1px solid var(--red); border-radius:8px; cursor:pointer;
+  background:var(--red); color:#fff; font-family:var(--font-body); font-size:12.5px; font-weight:700;
   display:inline-flex; align-items:center; justify-content:center; gap:6px;
 }
-.tks-btn-danger:hover{ background:var(--red); color:#fff; border-color:var(--red); }
 .tks-btn-danger:focus-visible{ outline:2px solid var(--red); outline-offset:2px; }
 
 /* ---------- Layout: sidebar + content ---------- */
@@ -575,21 +666,30 @@ body::before{
 
 .nav-group-toggle{
   display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px;
-  width:100%; background:none; border:none; border-left:3px solid transparent;
-  color:var(--muted); font-size:13.5px; font-weight:500; font-family:var(--font-body);
-  text-align:left; cursor:pointer; margin-bottom:2px; min-height:42px;
-  transition:background .15s ease, color .15s ease;
+  width:100%; background:none; border:1px solid rgba(249,115,22,0.45);
+  color:#F97316; font-size:13.5px; font-weight:700; font-family:var(--font-body);
+  text-align:left; cursor:pointer; margin-top:6px; margin-bottom:4px; min-height:42px;
+  transition:background .15s ease, color .15s ease, border-color .15s ease;
 }
+:root[data-theme="light"] .nav-group-toggle{ color:#EA580C; border-color:rgba(234,88,12,0.5); }
 .nav-group-toggle .ic{
   width:18px; height:18px; flex-shrink:0;
 }
 .nav-group-toggle span{ flex:1; }
 .nav-group-toggle:hover{
-  background:var(--surface-hover);
-  color:var(--text);
+  background:rgba(249,115,22,0.05);
+  border-color:#F97316;
 }
-.nav-group-toggle:focus-visible{ outline:2px solid var(--blue); outline-offset:-2px; }
-.nav-group-toggle.has-active{ color:var(--text); font-weight:600; }
+.nav-group-toggle:focus-visible{ outline:2px solid #F97316; outline-offset:2px; }
+.nav-group-toggle.has-active{
+  border-color:#F97316; background:rgba(249,115,22,0.07);
+  box-shadow:inset 3px 0 0 #F97316, 0 2px 8px rgba(249,115,22,0.18);
+}
+:root[data-theme="light"] .nav-group-toggle.has-active{
+  border-color:#EA580C;
+  box-shadow:inset 3px 0 0 #EA580C, 0 2px 8px rgba(234,88,12,0.18);
+}
+a.nav-group-link{ text-decoration:none; box-sizing:border-box; }
 .nav-group-chevron{ width:14px; height:14px; flex-shrink:0; transition:transform .18s var(--ease-out); }
 .nav-group-toggle[aria-expanded="false"] .nav-group-chevron{ transform:rotate(-90deg); }
 .nav-group-list{ padding-left:14px; margin-bottom:4px; }
@@ -730,20 +830,17 @@ body.tks-sidebar-resizing .sidebar{ transition:none; }
 .tks-btn-secondary:disabled{ opacity:.55; cursor:not-allowed; transform:none !important; box-shadow:none !important; }
 
 .btn-danger{
-  background:rgba(239,68,68,0.12); color:var(--red); border:1px solid rgba(239,68,68,0.3); border-radius:10px;
+  background:var(--red); color:#fff; border:1px solid var(--red); border-radius:10px;
   padding:11px 20px; font-family:var(--font-display); font-weight:700; font-size:13.5px; cursor:pointer;
   display:inline-flex; align-items:center; justify-content:center; gap:8px;
 }
+/* Nut nguy hiem: nen do + chu trang co dinh, KHONG doi mau/nang/bong khi hover hay nhan. */
 .btn-danger:hover:not(:disabled),
-.tks-btn-danger:hover:not(:disabled){
-  background:var(--red); color:#fff; border-color:var(--red);
-  transform: translateY(-2px);
-  box-shadow: 0 12px 24px -6px rgba(239, 68, 68, 0.35), 0 0 15px rgba(239, 68, 68, 0.25);
-}
+.tks-btn-danger:hover:not(:disabled),
 .btn-danger:active:not(:disabled),
 .tks-btn-danger:active:not(:disabled){
-  transform: translateY(1px);
-  box-shadow: 0 2px 6px -2px rgba(239, 68, 68, 0.2);
+  background:var(--red); color:#fff; border-color:var(--red);
+  transform:none; box-shadow:none;
 }
 .btn-danger:focus-visible{ outline:2px solid var(--red); outline-offset:2px; }
 .btn-danger:disabled,
@@ -907,6 +1004,42 @@ tbody tr {
 
 tbody tr:hover {
   background: var(--panel-2);
+}
+
+/* Chung cho bảng dữ liệu, kể cả bảng trong hộp chi tiết.
+   Bảng tài liệu giữ đường kẻ và định dạng in của tài liệu. */
+:root table:not(.doc-table) > :is(thead, tbody, tfoot) > tr > :is(th, td):not(:last-child) {
+  border-right: 1px solid var(--row-divider);
+}
+
+:root table:not(.doc-table) > tbody > tr > :is(th, td) {
+  border-bottom: 1px solid var(--row-divider);
+}
+
+:root table:not(.doc-table) > tbody > tr:last-child > :is(th, td) {
+  border-bottom: none;
+}
+
+/* Tô từng ô để nền riêng của ô không che phản hồi của dòng.
+   Dòng đang chọn vẫn giữ nền lựa chọn của trang. */
+@media (hover: hover) {
+  :root table:not(.doc-table) > tbody > tr:not(.is-selected):hover > :is(th, td) {
+    background-color: var(--panel-2);
+  }
+
+  :root table:not(.doc-table) > tbody > tr > :is(th, td):hover {
+    outline: 1px solid var(--border);
+    outline-offset: -1px;
+  }
+
+  :root table:not(.doc-table) > tbody > tr:not(.is-selected) > :is(th, td):hover {
+    background-color: var(--surface-hover);
+  }
+}
+
+:root table:not(.doc-table) > tbody > tr > :is(th, td):focus-within {
+  outline: 1px solid var(--border);
+  outline-offset: -1px;
 }
 
 /* ---------- Search Box ---------- */
@@ -1401,3 +1534,237 @@ tbody tr:hover {
   min-width: 0;
 }
 
+
+/* ---------- Cột số liệu căn phải (gắn tự động bởi shared/table-align.js) ---------- */
+table th.col-num,
+table td.col-num {
+  text-align: right;
+}
+
+table th.col-num .sort-button {
+  text-align: right;
+}
+
+/* ---------- Tiêu đề cột sắp xếp được: MỘT quy ước cho mọi bảng ----------
+   <th class="sortable" aria-sort="none|ascending|descending">
+     <button type="button" class="sort-button"><span class="sort-label">Nhãn</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button>
+   </th>
+   Biểu tượng: chưa sắp ▲▼ · tăng dần ▼ · giảm dần ▲ (chữ trong JS của từng trang, màu/vị trí ở đây).
+   Biểu tượng là 1 cột flex riêng, độ rộng cố định, dính MÉP PHẢI ô tiêu đề — KHÔNG nằm sau đuôi chữ:
+   kéo hẹp cột thì nhãn tự xuống dòng còn biểu tượng đứng yên, đổi trạng thái sắp xếp cũng không làm nhãn nhảy dòng. */
+th.sortable { cursor: pointer; user-select: none; }
+
+.sort-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sort-button > .sort-label,
+.sort-button > span:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.sort-button:hover {
+  color: var(--text);
+}
+
+.sort-button:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs, 4px);
+}
+
+.sort-indicator {
+  flex: none;
+  width: 20px;
+  color: var(--muted);
+  font-family: var(--font-data, inherit);
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -1px;
+  text-align: right;
+  text-transform: none;
+  white-space: nowrap;
+  opacity: .7;
+}
+
+.sort-button:hover .sort-indicator {
+  opacity: 1;
+}
+
+th[aria-sort="ascending"] .sort-button,
+th[aria-sort="descending"] .sort-button,
+th[aria-sort="ascending"] .sort-indicator,
+th[aria-sort="descending"] .sort-indicator {
+  color: var(--amber);
+}
+
+th[aria-sort="ascending"] .sort-indicator,
+th[aria-sort="descending"] .sort-indicator {
+  opacity: 1;
+}
+
+/* ---------- Bảng danh sách "users-table" (Tài khoản, Nhân sự: nghỉ phép, danh bạ…) ----------
+   Khung chung của các bảng dạng danh sách; mỗi trang chỉ thêm phần riêng (ô người dùng, huy hiệu, dòng bấm được). */
+.users-table { width: 100%; border-collapse: collapse; text-align: left; }
+.users-table th, .users-table td { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.users-table th {
+  background: var(--panel-2); color: var(--muted); font-size: 11.5px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .04em; white-space: nowrap;
+}
+.users-table td { vertical-align: top; }
+.users-table th.sortable:hover { color: var(--text); }
+
+/* ---------- Bảng độ rộng cột cố định (class "fixed-table") ----------
+   Độ rộng mỗi cột khai báo bằng width trên <th> (ước lượng theo dữ liệu dài
+   nhất của cột), KHÔNG đổi theo nội dung nên sort/lọc/phân trang không làm
+   cột "nhảy". Tổng độ rộng cột lớn hơn khung thì bảng cuộn ngang; nhỏ hơn thì
+   phần dư chia đều theo tỉ lệ. Chữ dài trong ô hẹp xuống dòng thay vì tràn
+   sang cột bên cạnh. */
+table.fixed-table {
+  table-layout: fixed;
+}
+
+table.fixed-table td {
+  overflow-wrap: break-word;
+}
+
+
+/* ==========================================
+   GIAO DIỆN ĐIỆN THOẠI (dùng chung mọi trang nội bộ)
+   Nguyên tắc: (1) KHÔNG phần tử nào được rộng hơn khung nhìn — nếu có, iOS tự
+   thu nhỏ cả trang nên header/panel trông như "rộng cố định" không full chiều
+   ngang; (2) ô nhập ≥16px để iOS không tự phóng to khi chạm; (3) mọi bộ lọc
+   Từ – Đến cùng một khuôn: 2 cột bằng nhau, nhãn nằm trên ô dd/mm/yyyy.
+   Đặt CUỐI file + tiền tố `body` để thắng CSS inline của từng trang.
+   ========================================== */
+@media (max-width:900px){
+  /* Nút tròn thu/mở sidebar chỉ dành cho desktop. Khối @media ở đầu file bị rule
+     nền (khai báo sau đó) đè mất nên nút vẫn lòi ra, chồng lên nội dung. */
+  body .sidebar-toggle-btn{ display:none; }
+
+  /* Trạng thái "thu gọn" (width:0) là của desktop; trên điện thoại sidebar là
+     drawer nên luôn phải có đủ bề rộng khi mở, bất kể localStorage từng lưu gì. */
+  body .sidebar.tks-collapsed{
+    width:var(--sidebar-w); padding:18px 12px; border-right-color:var(--border);
+  }
+
+  /* Nút ≡ ghim góc trên trái (đúng chỗ của nó trong header lúc chưa cuộn) và luôn
+     hiện khi cuộn, nên ở cuối trang vẫn mở được menu mà không phải cuộn ngược lên đầu.
+     Khi drawer mở, nút dời sang mép phải drawer để bấm đóng. */
+  body .menu-btn{
+    position:fixed; z-index:40; left:12px; top:calc(10px + env(safe-area-inset-top, 0px));
+    width:40px; height:40px; border-radius:10px;
+    background:var(--panel-2); border:1px solid var(--border);
+    box-shadow:0 4px 14px rgba(0,0,0,0.35);
+    transition:left .28s var(--ease-out), background-color .15s ease, border-color .15s ease;
+  }
+  body .menu-btn[aria-expanded="true"]{ left:calc(var(--sidebar-w) + 12px); background:var(--panel-2); }
+}
+
+@media (max-width:760px){
+  html{ -webkit-text-size-adjust:100%; text-size-adjust:100%; }
+  html, body{ max-width:100%; overflow-x:clip; }
+
+  /* ---------- Header: 2 hàng cân xứng, mọi hàng đều kín chiều ngang ---------- */
+  body .receipt-header{ padding:10px 12px 12px; gap:10px; align-items:stretch; }
+  body .receipt-header .brand{ flex:1 1 100%; min-width:0; gap:10px; padding-left:50px; } /* chừa chỗ cho nút ≡ ghim */
+  body .receipt-header .brand-mark{ width:40px; height:40px; border-radius:10px; }
+  body .receipt-header .brand-text{ flex:1 1 0; min-width:0; }
+  body .receipt-header .brand-text h1{ font-size:15.5px; line-height:1.25; }
+  body .receipt-header .status-line{
+    flex:1 1 100%; width:100%; flex-wrap:wrap; justify-content:stretch; align-items:center; gap:8px;
+  }
+  /* Hàng 2: [chế độ sáng/tối] [cơ sở — giãn hết chỗ] [chuông] */
+  body .receipt-header .theme-toggle{ flex:0 0 40px; width:40px; min-height:40px; padding:0; justify-content:center; border-radius:10px; }
+  body .receipt-header .theme-toggle span{ display:none; }
+  body .receipt-header .tks-branch-mount{ flex:1 1 0; min-width:0; }
+  body .receipt-header .tks-branch{ width:100%; min-height:40px; }
+  body .receipt-header .tks-branch-select{ max-width:none; width:100%; font-size:14px; }
+  body .receipt-header .tks-notif-wrap, body .receipt-header .tks-cal-wrap{ flex:0 0 40px; }
+  /* Hàng 3: [hồ sơ — giãn hết chỗ] [Đăng xuất] */
+  body .receipt-header #accountChip{ flex:1 1 100%; min-width:0; gap:8px; }
+  body .receipt-header .profile-trigger{ flex:1 1 0; min-width:0; }
+  body .receipt-header .profile-trigger .who{ min-width:0; }
+  body .receipt-header .profile-trigger .who .name,
+  body .receipt-header .profile-trigger .who .role{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  body .receipt-header .tks-btn-danger{ flex:0 0 auto; min-height:40px; border-radius:10px; }
+
+  /* ---------- Khung nội dung & panel kín chiều ngang ---------- */
+  body .shell, body .content{ width:100%; max-width:100%; min-width:0; }
+  body .content{ padding:14px 12px 24px; }
+  body .panel{ padding:14px 12px; border-radius:var(--radius-lg); }
+  /* Tiêu đề bên trái, nút "Xuất file" góc trên bên phải; chú thích/ô lọc xuống hàng dưới */
+  body .panel-head{
+    display:grid; grid-template-columns:minmax(0, 1fr) auto; align-items:center; gap:8px 10px; min-width:0;
+  }
+  body .panel-head > *{ min-width:0; }
+  body .panel-head > h2{ grid-column:1; grid-row:1; }
+  body .panel-head-actions{ display:contents; }
+  body .panel-head > .export-button,
+  body .panel-head-actions > .export-button{ grid-column:2; grid-row:1; justify-self:end; min-height:36px; }
+  body .panel-head-actions > .drill-hint{ grid-column:1 / -1; grid-row:2; }
+  body .panel-head > .table-search-tools{ grid-column:1 / -1; }
+  /* Tiêu đề kèm ghi chú: ghi chú xuống dòng riêng, không xé thành 2 cột */
+  body .panel h2{ flex-wrap:wrap; row-gap:2px; }
+  body .panel h2 .section-note{
+    display:block; flex:1 1 100%; color:var(--muted); font-size:11.5px; font-weight:500;
+  }
+
+  /* ---------- Ô ngày dd/mm/yyyy: cả khối là MỘT ô nhập, lịch nằm trong ô ---------- */
+  body .dmy-date-wrap{
+    display:flex; width:100%; min-width:0; flex:1 1 0; gap:0; min-height:42px;
+    background:var(--panel-2); border:1px solid var(--border); border-radius:var(--radius-sm);
+  }
+  body .dmy-date-wrap:focus-within{ border-color:var(--blue); }
+  body .dmy-date-wrap .dmy-date-input.dmy-date-input{
+    flex:1 1 0; width:0; min-width:0; min-height:40px; padding:0 2px 0 10px;
+    border:0; border-radius:0; background:transparent; box-shadow:none; outline:none;
+    color:var(--text); font-size:16px;
+  }
+  body .dmy-date-wrap .dmy-date-trigger{ width:32px; height:40px; }
+  body .dmy-date-wrap .dmy-date-trigger svg{ width:18px; height:18px; }
+
+  /* ---------- Thanh tìm kiếm trong bảng ---------- */
+  body .table-search-tools{ min-width:0; gap:8px; }
+  body .table-search-modes{ width:100%; }
+  body .table-search-mode{ flex:1 1 0; min-height:36px; font-size:12px; }
+  body .table-search-input-wrap{ flex:1 1 100%; width:100%; min-width:0; min-height:42px; }
+  body .table-search-input{ min-height:40px; padding:8px 10px; font-size:16px; }
+  body .table-search-clear{ width:36px; height:36px; }
+
+  /* ---------- Thanh công cụ danh sách (Nhân sự / Tài khoản) ---------- */
+  body .admin-toolbar{ flex-direction:column; align-items:stretch; gap:10px; }
+  body .admin-filters{ flex:none; width:100%; min-width:0; gap:8px; }
+  body .admin-filters .search-box{ flex:1 1 100%; min-width:0; }
+  body .admin-filters .search-box input{ min-height:42px; font-size:16px; }
+  body .admin-filters .filter-select{ flex:1 1 140px; min-width:0; min-height:42px; font-size:16px; }
+  /* Nút hành động (Xuất Excel, Thêm…) lên đầu thanh công cụ, căn góc trên bên phải */
+  body .admin-toolbar .row-actions{ order:-1; width:100%; gap:8px; justify-content:flex-end; flex-wrap:nowrap; }
+  body .admin-toolbar .row-actions > *{ flex:0 1 auto; min-height:42px; justify-content:center; }
+}
+
+/* Màn hình rất hẹp (≤380px): rút gọn ô ngày để dd/mm/yyyy không bị cắt chữ cuối. */
+@media (max-width:380px){
+  body .dmy-date-wrap .dmy-date-input.dmy-date-input{ padding-left:8px; letter-spacing:-0.03em; }
+  body .dmy-date-wrap .dmy-date-trigger{ width:28px; }
+  body .dmy-date-wrap .dmy-date-trigger svg{ width:16px; height:16px; }
+}

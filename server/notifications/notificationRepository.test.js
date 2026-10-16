@@ -48,6 +48,29 @@ test('createNotificationForUsers tạo 1 bản ghi cho mỗi người nhận', a
   assert.equal(list2.length, 1);
 });
 
+test('createNotificationForUsers chỉ ghi file đúng 1 lần cho cả lô người nhận', async (t) => {
+  repo.setInMemoryNotifications([]);
+  const writeSpy = t.mock.method(fs, 'writeFileSync');
+  const ids = Array.from({ length: 25 }, (_, i) => `u-${i}`);
+  const created = await repo.createNotificationForUsers(ids, { type: 'special_day', title: 'T', message: 'M' });
+  assert.equal(writeSpy.mock.callCount(), 1);
+  assert.equal(created.length, 25);
+  assert.equal(new Set(created.map(n => n.id)).size, 25);
+  assert.equal(created[0].relatedType, null);
+  assert.equal(created[0].isRead, false);
+  assert.equal((await repo.listForUser('u-24')).length, 1);
+});
+
+test('createNotificationForUsers: danh sách rỗng trả [] và không ghi file; thiếu type/id thì throw', async (t) => {
+  repo.setInMemoryNotifications([]);
+  const writeSpy = t.mock.method(fs, 'writeFileSync');
+  assert.deepEqual(await repo.createNotificationForUsers([], { type: 't' }), []);
+  assert.equal(writeSpy.mock.callCount(), 0);
+  await assert.rejects(repo.createNotificationForUsers(['x'], { title: 'no type' }), /type/);
+  await assert.rejects(repo.createNotificationForUsers(['x', null], { type: 't' }), /recipientUserId/);
+  assert.equal(writeSpy.mock.callCount(), 0);
+});
+
 test('listForUser chỉ trả bản ghi của đúng người nhận, mới nhất trước', async () => {
   repo.setInMemoryNotifications([]);
   await repo.createNotification({ recipientUserId: 'a', type: 't', title: 'first', message: '' });

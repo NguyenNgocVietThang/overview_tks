@@ -25,6 +25,10 @@ function createDashboard() {
   dom.window.requestAnimationFrame = callback => callback();
   dom.window.TKSNav = {
     authGuard: () => new Promise(() => {}),
+    // Trang bao cao goi TKSNav.can('reports.<tab>') de biet tab nao duoc xem
+    // (nguon: user.permissions tu /api/auth/me) — test nay khong kiem tra phan
+    // quyen nen mo het.
+    can: () => true,
     handleBranchError: () => false,
     renderTopSidebar() {}
   };
@@ -39,13 +43,13 @@ function createDashboard() {
   return dom;
 }
 
-test('registry bao phủ đủ 21 bảng trong Báo cáo tổng hợp', () => {
+test('registry bao phủ đủ 11 bảng trong Báo cáo tổng hợp (Hàng hóa chỉ còn Báo cáo hàng hóa + Tăng trưởng mã hàng; không còn Đặt hàng / Trả hàng / Khách hàng cũ)', () => {
   const dom = createDashboard();
   const expected = [
-    'cpDetail', 'cpMonthly', 'productRevenueSearch', 'productReport', 'recentStockout', 'stockout90d', 'stockout30d',
-    'endOfDay', 'overviewPurchase', 'todayNewProducts', 'topSelling', 'lowStock',
-    'allProducts', 'newlyImported', 'childCategory', 'orders', 'returns',
-    'customerRevenue', 'topDebt', 'suppliers', 'debtManagement'
+    'cpDetail', 'productReport', 'recentStockout', 'stockout90d', 'stockout30d',
+    'endOfDay',
+    'debtManagement', 'debtPenalty',
+    'businessSales', 'businessCustomers', 'businessProducts'
   ];
   const actual = Object.keys(dom.window.TABLE_EXPLORER_CONFIGS);
   assert.deepEqual([...actual].sort(), expected.sort());
@@ -62,12 +66,12 @@ test('tìm từng bảng lọc toàn bộ dữ liệu trước phân trang và g
   }));
 
   dom.window.renderPaginatedRows(
-    'allProducts',
+    'productReport',
     {
-      tbody: 'allProductRows', pagination: 'allProductsPagination',
-      firstBtn: 'allProductsFirstPage', prevBtn: 'allProductsPrevPage',
-      nextBtn: 'allProductsNextPage', lastBtn: 'allProductsLastPage',
-      label: 'allProductsPageLabel'
+      tbody: 'productReportRows', pagination: 'productReportPagination',
+      firstBtn: 'productReportFirstPage', prevBtn: 'productReportPrevPage',
+      nextBtn: 'productReportNextPage', lastBtn: 'productReportLastPage',
+      label: 'productReportPageLabel'
     },
     products,
     item => `<tr><td>${item.code}</td><td>${item.name}</td></tr>`,
@@ -75,15 +79,15 @@ test('tìm từng bảng lọc toàn bộ dữ liệu trước phân trang và g
     'Không có dữ liệu'
   );
 
-  const input = document.querySelector('[data-table-search="allProducts"] .table-search-input');
+  const input = document.querySelector('[data-table-search="productReport"] .table-search-input');
   input.value = 'choi lau nha';
   input.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
 
-  const rows = [...document.querySelectorAll('#allProductRows tr[data-table-item-id]')];
+  const rows = [...document.querySelectorAll('#productReportRows tr[data-table-item-id]')];
   assert.equal(rows.length, 2);
   assert.deepEqual(rows.map(row => row.dataset.tableItemId), ['SP101', 'SP102']);
-  assert.match(document.querySelector('[data-table-search-count="allProducts"]').textContent, /2\s*\/\s*105/);
-  assert.match(document.getElementById('allProductsPageLabel').textContent, /Trang 1\/1/);
+  assert.equal(document.querySelector('[data-table-search-count="productReport"]').textContent, '');
+  assert.match(document.getElementById('productReportPageLabel').textContent, /Trang 1\/1/);
   dom.window.close();
 });
 
@@ -98,24 +102,24 @@ test('sort cột áp dụng cho toàn bộ dữ liệu đã lọc, không chỉ 
     stock: 249 - index
   }));
   const ids = {
-    tbody: 'allProductRows', pagination: 'allProductsPagination',
-    firstBtn: 'allProductsFirstPage', prevBtn: 'allProductsPrevPage',
-    nextBtn: 'allProductsNextPage', lastBtn: 'allProductsLastPage', label: 'allProductsPageLabel'
+    tbody: 'productReportRows', pagination: 'productReportPagination',
+    firstBtn: 'productReportFirstPage', prevBtn: 'productReportPrevPage',
+    nextBtn: 'productReportNextPage', lastBtn: 'productReportLastPage', label: 'productReportPageLabel'
   };
-  dom.window.renderPaginatedRows('allProducts', ids, products,
+  dom.window.renderPaginatedRows('productReport', ids, products,
     item => `<tr><td>${item.code}</td><td data-sort-value="${item.stock}">${item.stock}</td></tr>`,
     2, 'Không có dữ liệu');
 
-  dom.window.setTableSort('allProductRows', 1); // sort tang dan theo cot stock (cot index 1)
+  dom.window.setTableSort('productReportRows', 1); // sort tang dan theo cot stock (cot index 1)
 
-  const stocksOnPage1 = [...document.querySelectorAll('#allProductRows tr td:nth-child(2)')]
+  const stocksOnPage1 = [...document.querySelectorAll('#productReportRows tr td:nth-child(2)')]
     .map(td => Number(td.getAttribute('data-sort-value')));
   assert.equal(stocksOnPage1.length, 100);
   assert.deepEqual(stocksOnPage1, Array.from({ length: 100 }, (_, i) => i));
-  assert.match(document.getElementById('allProductsPageLabel').textContent, /Trang 1\/3/);
+  assert.match(document.getElementById('productReportPageLabel').textContent, /Trang 1\/3/);
 
-  document.getElementById('allProductsNextPage').click();
-  const stocksOnPage2 = [...document.querySelectorAll('#allProductRows tr td:nth-child(2)')]
+  document.getElementById('productReportNextPage').click();
+  const stocksOnPage2 = [...document.querySelectorAll('#productReportRows tr td:nth-child(2)')]
     .map(td => Number(td.getAttribute('data-sort-value')));
   assert.deepEqual(stocksOnPage2, Array.from({ length: 100 }, (_, i) => i + 100));
 
@@ -131,24 +135,24 @@ test('chế độ nhiều mã khớp chính xác trên toàn bộ bảng và bá
     { code: '00123', name: 'Sản phẩm giữ số 0' }
   ];
   const ids = {
-    tbody: 'allProductRows', pagination: 'allProductsPagination',
-    firstBtn: 'allProductsFirstPage', prevBtn: 'allProductsPrevPage',
-    nextBtn: 'allProductsNextPage', lastBtn: 'allProductsLastPage', label: 'allProductsPageLabel'
+    tbody: 'productReportRows', pagination: 'productReportPagination',
+    firstBtn: 'productReportFirstPage', prevBtn: 'productReportPrevPage',
+    nextBtn: 'productReportNextPage', lastBtn: 'productReportLastPage', label: 'productReportPageLabel'
   };
-  dom.window.renderPaginatedRows('allProducts', ids, products,
-    item => `<tr><td>${item.code}</td><td>${item.name}</td></tr>`, 2, 'Không có dữ liệu');
+  dom.window.renderPaginatedRows('productReport', ids, products,
+    item => `<tr><td>${item.name}</td><td>${item.branch}</td></tr>`, 2, 'Không có dữ liệu');
 
-  document.querySelector('[data-table-search="allProducts"] [data-table-search-mode="codes"]').click();
-  const input = document.querySelector('[data-table-search="allProducts"] .table-search-input');
+  document.querySelector('[data-table-search="productReport"] [data-table-search-mode="codes"]').click();
+  const input = document.querySelector('[data-table-search="productReport"] .table-search-input');
   input.value = '00123, SP404; sp002';
   input.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
 
   assert.deepEqual(
-    [...document.querySelectorAll('#allProductRows tr[data-table-item-id]')].map(row => row.dataset.tableItemId),
+    [...document.querySelectorAll('#productReportRows tr[data-table-item-id]')].map(row => row.dataset.tableItemId),
     ['SP002', '00123']
   );
-  assert.match(document.querySelector('[data-table-search-count="allProducts"]').textContent, /Đã tìm thấy 2\/3 mã/);
-  assert.match(document.querySelector('[data-table-search-count="allProducts"]').textContent, /SP404/);
+  assert.match(document.querySelector('[data-table-search-count="productReport"]').textContent, /Đã tìm thấy 2\/3 mã/);
+  assert.match(document.querySelector('[data-table-search-count="productReport"]').textContent, /SP404/);
   dom.window.close();
 });
 
@@ -185,44 +189,21 @@ test('điều hướng biểu đồ xóa tìm kiếm, chuyển đúng trang và 
     name: `Sản phẩm ${index + 1}`
   }));
   const ids = {
-    tbody: 'allProductRows', pagination: 'allProductsPagination',
-    firstBtn: 'allProductsFirstPage', prevBtn: 'allProductsPrevPage',
-    nextBtn: 'allProductsNextPage', lastBtn: 'allProductsLastPage', label: 'allProductsPageLabel'
+    tbody: 'productReportRows', pagination: 'productReportPagination',
+    firstBtn: 'productReportFirstPage', prevBtn: 'productReportPrevPage',
+    nextBtn: 'productReportNextPage', lastBtn: 'productReportLastPage', label: 'productReportPageLabel'
   };
-  dom.window.renderPaginatedRows('allProducts', ids, products,
+  dom.window.renderPaginatedRows('productReport', ids, products,
     item => `<tr><td>${item.code}</td><td>${item.name}</td></tr>`, 2, 'Không có dữ liệu');
 
-  const input = document.querySelector('[data-table-search="allProducts"] .table-search-input');
+  const input = document.querySelector('[data-table-search="productReport"] .table-search-input');
   input.value = 'SP001';
   input.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
-  dom.window.navigateChartToTable('allProducts', 'SP120');
+  dom.window.navigateChartToTable('productReport', 'SP120');
 
   assert.equal(input.value, '');
-  assert.equal(document.getElementById('allProductsPageLabel').textContent, 'Trang 2/2');
-  assert.equal(document.querySelector('#allProductRows tr.table-row-target').dataset.tableItemId, 'SP120');
-  dom.window.close();
-});
-
-test('điều hướng dùng mã nguồn khi hai nhãn biểu đồ trùng nhau', () => {
-  const dom = createDashboard();
-  const document = dom.window.document;
-  const customers = [
-    { code: 'KH01', name: 'Công ty Minh Anh', revenue: 100, saleOrderCount: 1 },
-    { code: 'KH02', name: 'Công ty Minh Anh', revenue: 200, saleOrderCount: 2 }
-  ];
-  const ids = {
-    tbody: 'customerRevenueRows', pagination: 'customerRevenuePagination',
-    firstBtn: 'customerRevenueFirstPage', prevBtn: 'customerRevenuePrevPage',
-    nextBtn: 'customerRevenueNextPage', lastBtn: 'customerRevenueLastPage', label: 'customerRevenuePageLabel'
-  };
-  dom.window.renderPaginatedRows('customerRevenue', ids, customers,
-    item => `<tr><td>${item.code}</td><td>${item.name}</td></tr>`, 2, 'Không có dữ liệu');
-  dom.window.renderTopCustomerRevenueChart({ top15: customers });
-
-  const chart = dom.window.Chart.instances.at(-1);
-  chart.config.options.onClick({}, [{ index: 1 }]);
-
-  assert.equal(document.querySelector('#customerRevenueRows tr.table-row-target').dataset.tableItemId, 'KH02');
+  assert.equal(document.getElementById('productReportPageLabel').textContent, 'Trang 2/2');
+  assert.equal(document.querySelector('#productReportRows tr.table-row-target').dataset.tableItemId, 'SP120');
   dom.window.close();
 });
 
@@ -230,20 +211,20 @@ test('mục biểu đồ đã biến mất chỉ thông báo và giữ nguyên b
   const dom = createDashboard();
   const document = dom.window.document;
   const ids = {
-    tbody: 'allProductRows', pagination: 'allProductsPagination',
-    firstBtn: 'allProductsFirstPage', prevBtn: 'allProductsPrevPage',
-    nextBtn: 'allProductsNextPage', lastBtn: 'allProductsLastPage', label: 'allProductsPageLabel'
+    tbody: 'productReportRows', pagination: 'productReportPagination',
+    firstBtn: 'productReportFirstPage', prevBtn: 'productReportPrevPage',
+    nextBtn: 'productReportNextPage', lastBtn: 'productReportLastPage', label: 'productReportPageLabel'
   };
-  dom.window.renderPaginatedRows('allProducts', ids, [{ code: 'SP001', name: 'Sản phẩm 1' }],
+  dom.window.renderPaginatedRows('productReport', ids, [{ code: 'SP001', name: 'Sản phẩm 1' }],
     item => `<tr><td>${item.code}</td><td>${item.name}</td></tr>`, 2, 'Không có dữ liệu');
-  const input = document.querySelector('[data-table-search="allProducts"] .table-search-input');
+  const input = document.querySelector('[data-table-search="productReport"] .table-search-input');
   input.value = 'SP001';
   input.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
 
-  dom.window.navigateChartToTable('allProducts', 'SP404');
+  dom.window.navigateChartToTable('productReport', 'SP404');
 
   assert.equal(input.value, 'SP001');
-  assert.equal(document.getElementById('allProductsPageLabel').textContent, 'Trang 1/1');
+  assert.equal(document.getElementById('productReportPageLabel').textContent, 'Trang 1/1');
   assert.equal(document.getElementById('tableNavigationStatus').textContent, 'Không còn tìm thấy dòng tương ứng');
   dom.window.close();
 });
@@ -252,22 +233,36 @@ test('payload xuất Excel mang theo chế độ và từ khóa của đúng b�
   const dom = createDashboard();
   const document = dom.window.document;
   const ids = {
-    tbody: 'allProductRows', pagination: 'allProductsPagination',
-    firstBtn: 'allProductsFirstPage', prevBtn: 'allProductsPrevPage',
-    nextBtn: 'allProductsNextPage', lastBtn: 'allProductsLastPage', label: 'allProductsPageLabel'
+    tbody: 'productReportRows', pagination: 'productReportPagination',
+    firstBtn: 'productReportFirstPage', prevBtn: 'productReportPrevPage',
+    nextBtn: 'productReportNextPage', lastBtn: 'productReportLastPage', label: 'productReportPageLabel'
   };
-  dom.window.renderPaginatedRows('allProducts', ids, [{ code: 'SP001', name: 'Chổi lau nhà' }],
+  dom.window.renderPaginatedRows('productReport', ids, [{ code: 'SP001', name: 'Chổi lau nhà' }],
     item => `<tr><td>${item.code}</td><td>${item.name}</td></tr>`, 2, 'Không có dữ liệu');
-  document.querySelector('[data-table-search="allProducts"] [data-table-search-mode="codes"]').click();
-  const input = document.querySelector('[data-table-search="allProducts"] .table-search-input');
+  document.querySelector('[data-table-search="productReport"] [data-table-search-mode="codes"]').click();
+  const input = document.querySelector('[data-table-search="productReport"] .table-search-input');
   input.value = 'SP001 SP404';
   input.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
 
-  const payload = dom.window.buildExportPayload('products.all');
+  const payload = dom.window.buildExportPayload('overview.productReport');
   assert.deepEqual(JSON.parse(JSON.stringify(payload.tableSearch)), {
     mode: 'codes',
     query: 'SP001 SP404'
   });
+  dom.window.close();
+});
+
+test('xuất file (Excel/HTML) gửi đúng bộ lọc thời gian của bảng Chi tiết giao dịch, xóa lọc thì gửi "Tất cả"', () => {
+  const dom = createDashboard();
+  const win = dom.window;
+  const clone = value => JSON.parse(JSON.stringify(value));
+  win.setTableDateFilter('invoices', '2026-04-01', '2026-04-07');
+  const filters = clone(win.buildExportPayload('overview.transactions').filters);
+  assert.deepEqual(filters, { invoices: { mode: 'range', from: '2026-04-01', to: '2026-04-07' } },
+    'payload chỉ còn bộ lọc invoices (bộ lọc products/newProducts/newlyImported/customers/orders/returns đã bỏ)');
+
+  win.setTableDateFilter('invoices', '', '');
+  assert.deepEqual(clone(win.buildExportPayload('overview.transactions').filters.invoices), { mode: 'all' });
   dom.window.close();
 });
 

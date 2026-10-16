@@ -20,7 +20,18 @@ const INTERNAL_ROLES = Object.freeze([
   ROLES.LAI_XE,
   ROLES.NHAN_VIEN_KHO,
   ROLES.NHAN_VIEN_SALE,
+  ROLES.NHAN_VIEN_MARKETING,
   ROLES.NHAN_VIEN_MUA_HANG
+]);
+
+// Vai tro MAC DINH duoc xem "Bao cao tong hop". Day chi la du lieu dau vao cho
+// bang mac dinh trong server/auth/featureRegistry.js (cac quyen reports.*);
+// KHONG dung truc tiep lam route guard nua — moi route gac bang
+// requireFeature(), va client dung menu tu danh sach quyen server tra ve, nen
+// khong con canh "sua 1 ben quen ben kia".
+const REPORTS_ROLES = Object.freeze([
+  ROLES.QUAN_LY,
+  ROLES.TRO_LY
 ]);
 
 function normalizeUsername(raw) {
@@ -134,6 +145,7 @@ async function findUserByIdentifier(identifier) {
 module.exports = {
   ROLES,
   INTERNAL_ROLES,
+  REPORTS_ROLES,
   ACTIVE_STATUS,
   INACTIVE_STATUS,
   PENDING_STATUS,

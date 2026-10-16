@@ -15,7 +15,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="/shared/shared.css?v=20260914">
+<link rel="stylesheet" href="/shared/shared.css?v=20261016">
+  <link rel="stylesheet" href="/shared/search-clear.css?v=20261009-1">
 <style>
   /* ---------- Account Page Custom Styles ---------- */
   .account-wrap{ width:100%; max-width:none; margin:0; }
@@ -95,6 +96,11 @@
   }
   .form-control:focus{ outline:none; border-color:var(--blue); box-shadow:0 0 0 3px var(--accent-blue-18); }
   .form-control:disabled{ color:var(--muted); background:var(--surface-hover); cursor:not-allowed; }
+  .form-control[readonly]{ color:var(--text-secondary); background:var(--surface-hover); }
+  /* Ô email chỉ đọc + nút "Đổi email" cùng một hàng */
+  .email-row{ display:flex; align-items:stretch; gap:8px; }
+  .email-row .form-control{ flex:1 1 auto; min-width:0; }
+  .email-row .btn-secondary{ flex-shrink:0; white-space:nowrap; }
 
   /* KPI Summary Cards */
   .kpi-row{
@@ -104,7 +110,9 @@
     .kpi-row{ grid-template-columns:repeat(2, minmax(0, 1fr)); }
   }
   @media (max-width:480px){
-    .kpi-row{ grid-template-columns:1fr; }
+    .kpi-row{ gap:10px; }
+    .kpi-row .kpi-stat{ padding:12px 14px; }
+    .kpi-row .kpi-stat:last-child:nth-child(odd){ grid-column:1 / -1; }
   }
   .kpi-stat{
     background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-lg); padding:14px 16px;
@@ -148,17 +156,67 @@
     background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-xl); overflow:hidden;
     box-shadow:var(--card-shadow);
   }
-  .users-table-scroll{ overflow-x:auto; }
-  .users-table{ width:100%; border-collapse:collapse; text-align:left; }
-  .users-table th, .users-table td{ padding:12px 16px; border-bottom:1px solid var(--border); font-size:13px; }
-  .users-table th{
-    background:var(--panel-2); color:var(--muted); font-size:11.5px; font-weight:600;
-    text-transform:uppercase; letter-spacing:.04em; white-space:nowrap;
+  /* Cuon doc ngay trong khung: tieu de cot dinh tren cung (cung mau voi bang "Toan bo don hang"). */
+  .users-table-scroll{
+    overflow-x:auto;
+    overflow-y:auto;
+    max-height:min(560px, 65vh);
+    overscroll-behavior:contain;
+    scrollbar-width:thin;
+    scrollbar-color:var(--border) transparent;
   }
-  .users-table th.sortable{ cursor:pointer; user-select:none; }
-  .users-table th.sortable:hover{ color:var(--text); }
-  .sort-icon{ display:inline-block; margin-left:4px; font-size:10px; color:var(--muted); }
-  .sort-active{ color:var(--amber); }
+  .users-table-scroll::-webkit-scrollbar{
+    width:8px;
+    height:8px;
+  }
+  .users-table-scroll::-webkit-scrollbar-thumb{
+    background:var(--border);
+    border-radius:var(--radius-xs);
+  }
+
+  .pagination-controls{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+    padding:12px 16px;
+    border-top:1px solid var(--border);
+    font-family:var(--font-data);
+    font-size:11.5px;
+    color:var(--muted);
+    font-variant-numeric:tabular-nums;
+  }
+  .pagination-controls[hidden]{
+    display:none;
+  }
+  .pagination-controls button{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-width:30px;
+    min-height:30px;
+    padding:0 8px;
+    border:1px solid var(--border);
+    border-radius:var(--radius-sm);
+    background:var(--panel-2);
+    color:var(--text);
+    font-family:var(--font-data);
+    font-size:12.5px;
+    font-weight:600;
+    font-variant-numeric:tabular-nums;
+    line-height:1;
+    cursor:pointer;
+    transition:border-color .15s ease, opacity .15s ease;
+  }
+  .pagination-controls button:hover:not(:disabled){
+    border-color:var(--muted);
+  }
+  .pagination-controls button:disabled{
+    opacity:.4;
+    cursor:default;
+  }
+  /* Khung bang .users-table + nut/bieu tuong sap xep ▲▼: shared/shared.css; trang chi them tieu de dinh khi cuon. */
+  .users-table th{ position:sticky; top:0; z-index:2; }
 
   .user-cell{ display:flex; align-items:center; gap:10px; }
   .user-avatar{
@@ -179,8 +237,11 @@
   .role-lai-xe{ background:var(--role-lai-xe-bg); color:var(--role-lai-xe-fg); border:1px solid var(--role-lai-xe-border); }
   .role-nhan-vien-kho{ background:var(--role-nhan-vien-kho-bg); color:var(--role-nhan-vien-kho-fg); border:1px solid var(--role-nhan-vien-kho-border); }
   .role-nhan-vien-sale{ background:var(--role-nhan-vien-sale-bg); color:var(--role-nhan-vien-sale-fg); border:1px solid var(--role-nhan-vien-sale-border); }
+  .role-nhan-vien-marketing{ background:var(--role-nhan-vien-marketing-bg); color:var(--role-nhan-vien-marketing-fg); border:1px solid var(--role-nhan-vien-marketing-border); }
   .role-nhan-vien-mua-hang{ background:var(--role-nhan-vien-mua-hang-bg); color:var(--role-nhan-vien-mua-hang-fg); border:1px solid var(--role-nhan-vien-mua-hang-border); }
   .role-khach{ background:var(--role-khach-bg); color:var(--role-khach-fg); border:1px solid var(--role-khach-border); }
+  /* Bảng người dùng: vai trò hiển thị dạng chữ thuần, chỉ giữ màu chữ theo vai trò */
+  .users-table .role-badge{ padding:0; border:0; background:none; border-radius:0; font-size:12.5px; }
 
   /* Status Pills */
   .status-pill{
@@ -191,16 +252,69 @@
   .status-pill.status-locked{ background:var(--status-locked-bg); color:var(--red); }
   .status-pill.status-pending{ background:var(--status-pending-bg); color:var(--amber); }
 
-  /* Table Action Buttons */
-  .row-actions{ display:flex; align-items:center; gap:6px; }
-  .action-icon-btn{
-    width:32px; height:32px; border:1px solid var(--border); border-radius:var(--radius-xs);
-    background:var(--panel-2); color:var(--muted); cursor:pointer;
-    display:inline-flex; align-items:center; justify-content:center;
-    transition:border-color .15s, color .15s, background-color .15s;
+  /* Bấm dòng tài khoản để mở hộp thao tác */
+  /* Tab Lịch sử chỉnh sửa */
+  .history-date-label{ display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--muted); }
+  .history-empty{ text-align:center; color:var(--muted); padding:30px !important; }
+  .history-time{ font-family:var(--font-data); font-size:12.5px; white-space:nowrap; }
+  .history-changes{ margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:4px; }
+  .history-changes li{ line-height:1.45; overflow-wrap:anywhere; }
+  .history-change-label{ font-weight:600; color:var(--text); }
+  .history-old{ color:var(--muted); text-decoration:line-through; }
+  .history-new{ color:var(--text); }
+  .history-added{ color:var(--green); }
+  .history-removed{ color:var(--red); }
+  .history-pager{ display:flex; align-items:center; justify-content:flex-end; gap:10px; margin-top:12px; font-size:13px; color:var(--muted); }
+  .users-table tr.row-clickable{ cursor:pointer; }
+  .users-table tr.row-clickable:hover td{ background:var(--surface-hover); }
+  .action-menu-box{ max-width:380px; }
+  .action-menu-list{ display:flex; flex-direction:column; gap:10px; }
+  .action-menu-item{
+    display:flex; align-items:center; gap:12px; width:100%; padding:14px 16px; text-align:left;
+    border:1px solid var(--border); border-radius:var(--radius-xs); background:var(--panel-2);
+    color:var(--text); font:inherit; font-size:14px; font-weight:600; cursor:pointer;
+    transition:border-color .15s, background-color .15s;
   }
-  .action-icon-btn:hover{ color:var(--text); border-color:var(--muted); background:var(--surface-hover); }
-  .action-icon-btn svg{ width:15px; height:15px; }
+  .action-menu-item:hover{ border-color:var(--muted); background:var(--surface-hover); }
+  .action-menu-item small{ display:block; margin-top:2px; font-size:11.5px; font-weight:400; color:var(--muted); }
+  .action-menu-item.danger{ color:var(--red); }
+
+  /* Phan quyen chi tiet */
+  .perm-modal-box{ max-width:620px; }
+  /* Danh sach quyen dai: cuon doc rieng, tieu de + nut Luu cua hop thoai luon thay duoc. */
+  #permGroups{ max-height:min(52vh, 460px); overflow-y:auto; overscroll-behavior:contain; padding-right:4px; }
+  .perm-intro{
+    margin:0 0 14px; padding:10px 12px; border:1px solid var(--border); border-radius:var(--radius-xs);
+    background:var(--panel-2); font-size:12.5px; line-height:1.55; color:var(--text-secondary);
+  }
+  .perm-intro strong{ color:var(--text); }
+  .perm-group{ border:1px solid var(--border); border-radius:var(--radius-xs); margin-bottom:12px; overflow:hidden; }
+  .perm-group-head{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:9px 12px; background:var(--panel-2); border-bottom:1px solid var(--border);
+  }
+  .perm-group-title{ font-size:12.5px; font-weight:700; color:var(--text); }
+  .perm-group-reset{
+    border:none; background:none; padding:0; cursor:pointer; font-size:11.5px; color:var(--blue);
+  }
+  .perm-group-reset:hover{ text-decoration:underline; }
+  .perm-row{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    padding:8px 12px; border-top:1px solid var(--border);
+  }
+  .perm-group-head + .perm-row{ border-top:none; }
+  .perm-row-label{ font-size:12.5px; color:var(--text); }
+  .perm-row-hint{ display:block; font-size:11px; color:var(--muted); margin-top:2px; }
+  .perm-row select{ flex:0 0 190px; }
+  .perm-badge{
+    display:inline-block; margin-left:6px; padding:1px 6px; border-radius:4px; font-size:10px; font-weight:700;
+    background:var(--accent-blue-18); color:var(--blue);
+  }
+  /* Man hinh hep: xep doc thay vi ep nhan xuong dong lien tuc canh o chon. */
+  @media (max-width: 560px){
+    .perm-row{ flex-direction:column; align-items:stretch; gap:6px; }
+    .perm-row select{ flex:1 1 auto; width:100%; }
+  }
 
   /* Modals */
   .modal-overlay{
@@ -250,6 +364,7 @@
     to{ transform:translateY(0); opacity:1; }
   }
 </style>
+  <link rel="stylesheet" href="/shared/table-controls.css?v=20261016-1">
 </head>
 <body>
   <div class="receipt-header">
@@ -294,6 +409,10 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="15" r="3"></circle><circle cx="9" cy="7" r="4"></circle><path d="M10 15H6a4 4 0 0 0-4 4v2"></path><path d="m21.7 16.4-.9-.3"></path><path d="m15.2 13.9-.9-.3"></path><path d="m16.6 18.7.3-.9"></path><path d="m19.1 12.2.3-.9"></path><path d="m19.6 18.7-.4-.8"></path><path d="m16.8 12.3-.4-.8"></path><path d="m14.3 16.6.8-.4"></path><path d="m20.7 13.8.8-.4"></path></svg>
             Quản lý người dùng
           </button>
+          <button type="button" class="account-subnav-item" data-subtab="history" role="tab" aria-selected="false" id="tabBtnHistory" onclick="switchAccountTab('history')" style="display:none;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path><polyline points="3 3 3 8 8 8"></polyline><polyline points="12 7 12 12 15 15"></polyline></svg>
+            Lịch sử chỉnh sửa
+          </button>
         </div>
 
         <!-- TAB 1: QUẢN LÝ HỒ SƠ -->
@@ -305,7 +424,7 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
                 Thông tin cá nhân
               </div>
-              <p class="profile-card-desc">Cập nhật họ tên hiển thị và địa chỉ email của tài khoản.</p>
+              <p class="profile-card-desc">Cập nhật họ tên hiển thị và ID Telegram của tài khoản. Đổi email cần xác thực bằng mã OTP.</p>
               <form id="profileForm" onsubmit="handleSaveProfile(event)">
                 <div class="form-group">
                   <label for="profHoTen">Họ và tên</label>
@@ -313,7 +432,17 @@
                 </div>
                 <div class="form-group">
                   <label for="profEmail">Email</label>
-                  <input type="email" id="profEmail" class="form-control" maxlength="254" required>
+                  <!-- Email chỉ đọc: không gửi kèm khi "Lưu thay đổi"; đổi qua hộp OTP (TK thường) hoặc nhờ Quản lý (TK nhân sự). -->
+                  <div class="email-row">
+                    <input type="email" id="profEmail" class="form-control" maxlength="254" readonly aria-describedby="profEmailHint">
+                    <button type="button" class="btn-secondary" id="btnOpenEmailChange" onclick="openEmailChangeModal()" style="display:none;">Đổi email</button>
+                  </div>
+                  <p id="profEmailHint" class="profile-card-desc" style="display:none; margin:6px 0 0;">Email tài khoản nhân sự chỉ Quản lý được đổi. Vui lòng liên hệ Quản lý.</p>
+                </div>
+                <div class="form-group">
+                  <label for="profTelegramId">ID Telegram</label>
+                  <input type="text" id="profTelegramId" class="form-control" inputmode="numeric" pattern="[1-9][0-9]{0,19}" maxlength="20" placeholder="Ví dụ: 6205968899" aria-describedby="profTelegramIdHint">
+                  <p id="profTelegramIdHint" class="profile-card-desc" style="margin:6px 0 0;">Nhập ID Telegram dạng số của bạn. Để trống để hủy liên kết.</p>
                 </div>
                 <div id="profileFormMsg" class="alert-box alert-error" style="display:none;"></div>
                 <button type="submit" id="btnSaveProfile" class="btn-primary">Lưu thay đổi</button>
@@ -326,7 +455,7 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
                 Quyền hạn &amp; Hệ thống
               </div>
-              <p class="profile-card-desc">Thông tin tài khoản phân quyền và phạm vi cơ sở hoạt động.</p>
+              <p class="profile-card-desc">Thông tin tài khoản phân quyền và cơ sở mặc định khi đăng nhập.</p>
               <div class="form-group">
                 <label>Tài khoản đăng nhập</label>
                 <input type="text" id="profUsername" class="form-control" disabled>
@@ -336,7 +465,7 @@
                 <div style="margin-top:4px;"><span id="profRoleBadge" class="role-badge role-khach">—</span></div>
               </div>
               <div class="form-group" style="margin-bottom:0;">
-                <label>Cơ sở phụ trách</label>
+                <label>Cơ sở mặc định</label>
                 <input type="text" id="profFacility" class="form-control" disabled>
               </div>
               <div class="form-group" style="margin-top:12px; margin-bottom:0;">
@@ -475,6 +604,7 @@
                 <option value="Lái xe">Lái xe</option>
                 <option value="Nhân viên kho">Nhân viên kho</option>
                 <option value="Nhân viên sale">Nhân viên sale</option>
+                <option value="Nhân viên marketing">Nhân viên marketing</option>
                 <option value="Nhân viên mua hàng">Nhân viên mua hàng</option>
                 <option value="Khách">Khách</option>
               </select>
@@ -486,7 +616,7 @@
               </select>
               <select id="userStatusFilter" class="filter-select" onchange="handleFilterUsers()">
                 <option value="">Tất cả trạng thái</option>
-                <option value="Đang hoạt động">Đang hoạt động</option>
+                <option value="Đang hoạt động" selected>Đang hoạt động</option>
                 <option value="Không hoạt động">Không hoạt động</option>
                 <option value="Chờ duyệt">Chờ duyệt</option>
                 <option value="Khóa">Khóa</option>
@@ -500,25 +630,82 @@
 
           <!-- Bảng danh sách -->
           <div class="users-table-panel">
+            <div class="tks-table-tools">
+              <button type="button" id="usersColumnsBtn">Cột hiển thị</button>
+<button type="button" class="btn-secondary" id="btnExportUsers" onclick="openExportUsersModal()" style="display:none;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;vertical-align:-3px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              Xuất Excel
+            </button>
+            </div>
             <div class="users-table-scroll">
-              <table class="users-table" id="usersTable">
+              <table class="users-table fixed-table" id="usersTable" data-table-key="usersTable" data-columns-button="usersColumnsBtn">
                 <thead>
                   <tr>
-                    <th class="sortable" onclick="handleSort('hoTen')">Họ và tên <span class="sort-icon" id="sort-hoTen">↕</span></th>
-                    <th class="sortable" onclick="handleSort('username')">Tài khoản <span class="sort-icon" id="sort-username">↕</span></th>
-                    <th class="sortable" onclick="handleSort('email')">Email <span class="sort-icon" id="sort-email">↕</span></th>
-                    <th class="sortable" onclick="handleSort('vaiTro')">Vai trò <span class="sort-icon" id="sort-vaiTro">↕</span></th>
-                    <th class="sortable" onclick="handleSort('coSo')">Cơ sở <span class="sort-icon" id="sort-coSo">↕</span></th>
-                    <th class="sortable" onclick="handleSort('trangThai')">Trạng thái <span class="sort-icon" id="sort-trangThai">↕</span></th>
-                    <th class="sortable" onclick="handleSort('ngayTao')">Ngày tạo <span class="sort-icon" id="sort-ngayTao">↕</span></th>
-                    <th style="text-align:right;">Thao tác</th>
+                    <th class="sortable" onclick="handleSort('hoTen')" style="width:260px" data-column-key="hoTen" data-column-locked="true" aria-sort="none"><button type="button" class="sort-button"><span class="sort-label">Họ và tên</span><span class="sort-indicator" id="sort-hoTen" aria-hidden="true">▲▼</span></button></th>
+                    <th class="sortable" onclick="handleSort('username')" style="width:240px" data-column-key="username" aria-sort="none"><button type="button" class="sort-button"><span class="sort-label">Tài khoản</span><span class="sort-indicator" id="sort-username" aria-hidden="true">▲▼</span></button></th>
+                    <th class="sortable" onclick="handleSort('vaiTro')" style="width:200px" data-column-key="vaiTro" aria-sort="none"><button type="button" class="sort-button"><span class="sort-label">Vai trò</span><span class="sort-indicator" id="sort-vaiTro" aria-hidden="true">▲▼</span></button></th>
+                    <th class="sortable" onclick="handleSort('coSo')" style="width:110px" data-column-key="coSo" aria-sort="none"><button type="button" class="sort-button"><span class="sort-label">Cơ sở</span><span class="sort-indicator" id="sort-coSo" aria-hidden="true">▲▼</span></button></th>
+                    <th class="sortable" onclick="handleSort('trangThai')" style="width:130px" data-column-key="trangThai" aria-sort="none"><button type="button" class="sort-button"><span class="sort-label">Trạng thái</span><span class="sort-indicator" id="sort-trangThai" aria-hidden="true">▲▼</span></button></th>
                   </tr>
                 </thead>
                 <tbody id="usersTableBody">
-                  <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px;">Đang tải danh sách...</td></tr>
+                  <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:30px;">Đang tải danh sách...</td></tr>
                 </tbody>
               </table>
             </div>
+            <div class="pagination-controls" id="usersPagination" hidden>
+              <button type="button" id="usersFirst" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+              <button type="button" id="usersPrev" aria-label="Trang trước" title="Trang trước">&lt;</button>
+              <span id="usersPageLabel">Trang 1/1</span>
+              <button type="button" id="usersNext" aria-label="Trang sau" title="Trang sau">&gt;</button>
+              <button type="button" id="usersLast" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 3: LỊCH SỬ CHỈNH SỬA (ai có quyền xem Quản lý người dùng) -->
+        <div class="account-subtab-panel" id="accountSubtab-history" role="tabpanel" style="display:none;">
+          <div class="admin-toolbar">
+            <div class="admin-filters">
+              <div class="search-box">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" id="historySearchInput" placeholder="Tìm theo người sửa hoặc tài khoản..." oninput="scheduleHistoryReload()">
+              </div>
+              <select id="historyActionFilter" class="filter-select" onchange="reloadAuditHistory()">
+                <option value="">Tất cả thao tác</option>
+                <option value="create">Tạo tài khoản</option>
+                <option value="update">Sửa thông tin</option>
+                <option value="permissions">Sửa phân quyền</option>
+                <option value="reset_password">Đặt lại mật khẩu</option>
+                <option value="delete">Xóa tài khoản</option>
+              </select>
+              <label class="history-date-label">Từ <input type="date" id="historyFromDate" class="filter-select" onchange="reloadAuditHistory()"></label>
+              <label class="history-date-label">Đến <input type="date" id="historyToDate" class="filter-select" onchange="reloadAuditHistory()"></label>
+            </div>
+          </div>
+
+          <div class="users-table-panel">
+            <div class="users-table-scroll">
+              <table class="users-table fixed-table" id="historyTable" data-table-key="historyTable">
+                <thead>
+                  <tr>
+                    <th style="width:150px" data-column-key="thoi-gian">Thời gian</th>
+                    <th style="width:200px" data-column-key="nguoi-sua">Người sửa</th>
+                    <th style="width:200px" data-column-key="tai-khoan">Tài khoản</th>
+                    <th style="width:150px" data-column-key="thao-tac">Thao tác</th>
+                    <th style="width:420px" data-column-key="chi-tiet">Chi tiết</th>
+                  </tr>
+                </thead>
+                <tbody id="historyTableBody">
+                  <tr><td colspan="5" class="history-empty">Đang tải lịch sử...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="history-pager">
+            <span id="historyPagerInfo"></span>
+            <button type="button" class="btn-secondary" id="historyPrevBtn" onclick="changeHistoryPage(-1)" disabled>Trước</button>
+            <button type="button" class="btn-secondary" id="historyNextBtn" onclick="changeHistoryPage(1)" disabled>Sau</button>
           </div>
         </div>
 
@@ -570,19 +757,21 @@
               <option value="Lái xe">Lái xe</option>
               <option value="Nhân viên kho">Nhân viên kho</option>
               <option value="Nhân viên sale">Nhân viên sale</option>
+              <option value="Nhân viên marketing">Nhân viên marketing</option>
               <option value="Nhân viên mua hàng">Nhân viên mua hàng</option>
               <option value="Khách" selected>Khách</option>
             </select>
           </div>
           <div class="form-group">
-            <label for="createCoSo">Cơ sở phụ trách</label>
+            <label for="createCoSo">Cơ sở mặc định</label>
             <select id="createCoSo" class="form-control">
-              <option value="">-- Không phân cơ sở --</option>
+              <option value="">-- Mặc định: Cả hai --</option>
               <option value="Hà Nội">Hà Nội</option>
               <option value="Sài Gòn">Sài Gòn</option>
               <option value="Cả hai">Cả hai</option>
             </select>
           </div>
+          <div class="form-group"><label>Phòng ban được duyệt nghỉ phép</label><div id="createLeaveDepartments" style="display:grid;gap:6px;max-height:180px;overflow:auto;"></div><small style="color:var(--muted)">Quản lý mới phải chọn ít nhất một phòng ban. Quyền duyệt còn cần cơ sở được giao.</small></div>
           <div id="createUserError" class="alert-box alert-error" style="display:none;"></div>
         </div>
         <div class="modal-footer">
@@ -590,6 +779,30 @@
           <button type="submit" id="btnSubmitCreate" class="btn-primary">Tạo tài khoản</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- MODAL: XUẤT EXCEL DANH SÁCH TÀI KHOẢN -->
+  <div class="modal-overlay" id="exportUsersModal" hidden>
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Xuất Excel danh sách tài khoản</h3>
+        <button type="button" class="modal-close" onclick="closeModal('exportUsersModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <p id="exportUsersScope" style="margin:0 0 10px;color:var(--muted);font-size:13px;"></p>
+        <div style="display:flex;gap:8px;margin-bottom:10px;">
+          <button type="button" class="btn-secondary" onclick="setExportFieldsAll(true)">Chọn tất cả</button>
+          <button type="button" class="btn-secondary" onclick="setExportFieldsAll(false)">Bỏ chọn tất cả</button>
+          <button type="button" class="btn-secondary" onclick="setExportFieldsDefault()">Mặc định</button>
+        </div>
+        <div id="exportUsersFields" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px 14px;max-height:340px;overflow:auto;"></div>
+        <div id="exportUsersError" class="alert-box alert-error" style="display:none;margin-top:10px;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" onclick="closeModal('exportUsersModal')">Hủy</button>
+        <button type="button" id="btnConfirmExportUsers" class="btn-primary" onclick="confirmExportUsers()">Tải file Excel</button>
+      </div>
     </div>
   </div>
 
@@ -603,9 +816,6 @@
       <form id="editUserForm" onsubmit="handleSaveEditUser(event)">
         <input type="hidden" id="editUserId">
         <div class="modal-body">
-          <div id="editSelfNotice" class="alert-box alert-warning" style="display:none;">
-            Bạn đang sửa tài khoản của chính mình. Vai trò Quản lý và trạng thái Hoạt động được bảo vệ an toàn.
-          </div>
           <div class="form-group">
             <label for="editUsername">Tên tài khoản</label>
             <input type="text" id="editUsername" class="form-control" disabled>
@@ -623,37 +833,38 @@
             <input type="tel" id="editPhone" class="form-control" placeholder="vd: 0912345678">
           </div>
           <div class="form-group">
-            <label for="editVaiTro">Vai trò</label>
-            <select id="editVaiTro" class="form-control" required>
-              <option value="Quản lý">Quản lý</option>
-              <option value="Kế toán">Kế toán</option>
-              <option value="Trưởng kho">Trưởng kho</option>
-              <option value="Trợ lý">Trợ lý</option>
-              <option value="Lái xe">Lái xe</option>
-              <option value="Nhân viên kho">Nhân viên kho</option>
-              <option value="Nhân viên sale">Nhân viên sale</option>
-              <option value="Nhân viên mua hàng">Nhân viên mua hàng</option>
-              <option value="Khách">Khách</option>
-            </select>
+            <label for="editTelegramId">ID Telegram</label>
+            <input type="text" id="editTelegramId" class="form-control" inputmode="numeric" pattern="[1-9][0-9]{0,19}" maxlength="20" placeholder="Ví dụ: 6205968899" aria-describedby="editTelegramIdHint">
+            <p id="editTelegramIdHint" class="profile-card-desc" style="margin:6px 0 0;">Nhập ID Telegram dạng số của nhân viên. Để trống để hủy liên kết.</p>
           </div>
           <div class="form-group">
-            <label for="editCoSo">Cơ sở phụ trách</label>
+            <label for="editCoSo">Cơ sở mặc định</label>
             <select id="editCoSo" class="form-control">
-              <option value="">-- Không phân cơ sở --</option>
+              <option value="">-- Mặc định: Cả hai --</option>
               <option value="Hà Nội">Hà Nội</option>
               <option value="Sài Gòn">Sài Gòn</option>
               <option value="Cả hai">Cả hai</option>
             </select>
           </div>
           <div class="form-group">
-            <label for="editTrangThai">Trạng thái tài khoản</label>
-            <select id="editTrangThai" class="form-control" required>
-              <option value="Đang hoạt động">Đang hoạt động</option>
-              <option value="Không hoạt động">Không hoạt động</option>
-              <option value="Chờ duyệt">Chờ duyệt</option>
-              <option value="Khóa">Khóa</option>
-            </select>
+            <label for="editNewPassword">Mật khẩu mới (để trống nếu không đổi)</label>
+            <div class="password-wrap">
+              <input type="password" id="editNewPassword" class="form-control" placeholder="Tối thiểu 8 ký tự" autocomplete="new-password">
+              <button type="button" class="password-toggle-btn" onclick="togglePassword('editNewPassword', this)" aria-label="Hiện mật khẩu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              </button>
+            </div>
           </div>
+          <div class="form-group">
+            <label for="editConfirmPassword">Xác nhận mật khẩu mới</label>
+            <div class="password-wrap">
+              <input type="password" id="editConfirmPassword" class="form-control" placeholder="Nhập lại mật khẩu mới" autocomplete="new-password">
+              <button type="button" class="password-toggle-btn" onclick="togglePassword('editConfirmPassword', this)" aria-label="Hiện mật khẩu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              </button>
+            </div>
+          </div>
+          <div class="form-group"><label>Phòng ban được duyệt nghỉ phép</label><div id="editLeaveDepartments" style="display:grid;gap:6px;max-height:180px;overflow:auto;"></div><small style="color:var(--muted)">Quản lý mới phải chọn ít nhất một phòng ban. Quyền duyệt còn cần cơ sở được giao.</small></div>
           <div id="editUserError" class="alert-box alert-error" style="display:none;"></div>
         </div>
         <div class="modal-footer">
@@ -664,42 +875,52 @@
     </div>
   </div>
 
-  <!-- MODAL: ĐẶT LẠI MẬT KHẨU (ADMIN) -->
-  <div class="modal-overlay" id="resetPasswordModal" hidden>
-    <div class="modal-box">
+  <!-- MODAL: HỘP THAO TÁC KHI BẤM VÀO DÒNG TÀI KHOẢN -->
+  <div class="modal-overlay" id="userActionModal" hidden>
+    <div class="modal-box action-menu-box">
       <div class="modal-header">
-        <h3>Đặt lại mật khẩu</h3>
-        <button type="button" class="modal-close" onclick="closeModal('resetPasswordModal')">✕</button>
+        <h3 id="userActionTitle">Thao tác tài khoản</h3>
+        <button type="button" class="modal-close" onclick="closeModal('userActionModal')">✕</button>
       </div>
-      <form id="resetPasswordForm" onsubmit="handleResetPassword(event)">
-        <input type="hidden" id="resetUserId">
+      <div class="modal-body">
+        <div class="action-menu-list" id="userActionList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: SỬA QUYỀN (VAI TRÒ + PHÂN QUYỀN CHI TIẾT) -->
+  <div class="modal-overlay" id="permissionsModal" hidden>
+    <div class="modal-box perm-modal-box">
+      <div class="modal-header">
+        <h3>Sửa quyền</h3>
+        <button type="button" class="modal-close" onclick="closeModal('permissionsModal')">✕</button>
+      </div>
+      <form id="permissionsForm" onsubmit="handleSavePermissions(event)">
         <div class="modal-body">
-          <p style="margin:0 0 14px;color:var(--text-secondary);font-size:13px;">
-            Cấp mật khẩu mới cho tài khoản: <strong id="resetTargetUsername" style="color:var(--text);"></strong>
-          </p>
           <div class="form-group">
-            <label for="resetNewPassword">Mật khẩu mới *</label>
-            <div class="password-wrap">
-              <input type="password" id="resetNewPassword" class="form-control" placeholder="Tối thiểu 8 ký tự" required minlength="8">
-              <button type="button" class="password-toggle-btn" onclick="togglePassword('resetNewPassword', this)" aria-label="Hiện mật khẩu">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-              </button>
-            </div>
+            <label for="permVaiTro">Vai trò (quyền tổng quan)</label>
+            <select id="permVaiTro" class="form-control">
+              <option value="Quản lý">Quản lý</option>
+              <option value="Kế toán">Kế toán</option>
+              <option value="Trưởng kho">Trưởng kho</option>
+              <option value="Trợ lý">Trợ lý</option>
+              <option value="Lái xe">Lái xe</option>
+              <option value="Nhân viên kho">Nhân viên kho</option>
+              <option value="Nhân viên sale">Nhân viên sale</option>
+              <option value="Nhân viên marketing">Nhân viên marketing</option>
+              <option value="Nhân viên mua hàng">Nhân viên mua hàng</option>
+              <option value="Khách">Khách</option>
+            </select>
           </div>
-          <div class="form-group">
-            <label for="resetConfirmPassword">Xác nhận mật khẩu *</label>
-            <div class="password-wrap">
-              <input type="password" id="resetConfirmPassword" class="form-control" placeholder="Nhập lại mật khẩu mới" required minlength="8">
-              <button type="button" class="password-toggle-btn" onclick="togglePassword('resetConfirmPassword', this)" aria-label="Hiện mật khẩu">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-              </button>
-            </div>
-          </div>
-          <div id="resetPasswordError" class="alert-box alert-error" style="display:none;"></div>
+          <p class="perm-intro" id="permIntro"></p>
+          <div id="permGroups"></div>
+          <div class="form-group"><label>Phòng ban được duyệt nghỉ phép</label><div id="permLeaveDepartments" style="display:grid;gap:6px;max-height:180px;overflow:auto;"></div><small style="color:var(--muted)">Quản lý mới phải chọn ít nhất một phòng ban. Quyền duyệt còn cần cơ sở được giao.</small></div>
+          <div id="permissionsError" class="alert-box alert-error" style="display:none;"></div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn-secondary" onclick="closeModal('resetPasswordModal')">Hủy</button>
-          <button type="submit" id="btnSubmitReset" class="btn-primary">Đặt mật khẩu</button>
+          <button type="button" class="btn-secondary" onclick="resetAllPermissions()">Đặt lại tất cả về mặc định</button>
+          <button type="button" class="btn-secondary" onclick="closeModal('permissionsModal')">Hủy</button>
+          <button type="submit" id="btnSubmitPermissions" class="btn-primary">Lưu thay đổi</button>
         </div>
       </form>
     </div>
@@ -725,6 +946,7 @@
               <option value="Lái xe">Lái xe</option>
               <option value="Nhân viên kho">Nhân viên kho</option>
               <option value="Nhân viên sale">Nhân viên sale</option>
+              <option value="Nhân viên marketing">Nhân viên marketing</option>
               <option value="Nhân viên mua hàng">Nhân viên mua hàng</option>
               <option value="Khách">Khách</option>
             </select>
@@ -743,19 +965,106 @@
     </div>
   </div>
 
+  <!-- MODAL: ĐỔI EMAIL (2 bước: nhập email mới -> nhập OTP) -->
+  <div class="modal-overlay" id="emailChangeModal" hidden>
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Đổi email</h3>
+        <button type="button" class="modal-close" onclick="closeEmailChangeModal()">✕</button>
+      </div>
+      <form id="emailChangeForm" onsubmit="handleEmailChangeSubmit(event)">
+        <div class="modal-body">
+          <div id="emailChangeStep1">
+            <div class="form-group">
+              <label for="emailChangeNew">Email mới *</label>
+              <input type="email" id="emailChangeNew" class="form-control" maxlength="254" autocomplete="email" placeholder="Ví dụ: ten@domain.com">
+            </div>
+            <p class="profile-card-desc">Hệ thống sẽ gửi mã xác thực (OTP) để xác nhận email mới.</p>
+          </div>
+          <div id="emailChangeStep2" hidden>
+            <div class="alert-box alert-success" id="emailChangeSentNote"></div>
+            <div class="form-group">
+              <label for="emailChangeOtp">Mã OTP *</label>
+              <input type="text" id="emailChangeOtp" class="form-control" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="Nhập mã đã nhận">
+            </div>
+            <button type="button" class="btn-secondary" id="btnEmailChangeResend" onclick="requestEmailChangeOtp()">Gửi lại mã</button>
+          </div>
+          <div id="emailChangeError" class="alert-box alert-error" style="display:none; margin:14px 0 0;"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" onclick="closeEmailChangeModal()">Hủy</button>
+          <button type="submit" id="btnEmailChangeSubmit" class="btn-primary">Gửi mã</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Khung chứa thông báo Toast -->
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Đặt ở cuối thẻ body thay vì trong <head>: script chặn phân tích cú pháp trong <head> sẽ làm dừng việc xử lý toàn bộ tài liệu. Không dùng `defer` vì script inline bên dưới dùng TKSNav ở cấp cao nhất, và script inline luôn chạy trước script defer. -->
-  <script src="/shared/shared-nav.js?v=20260914"></script>
+  <script src="/shared/table-controls.js?v=20261016-1"></script>
+  <script src="/shared/search-clear.js?v=20261009-1"></script>
+  <script src="/shared/shared-nav.js?v=20261008"></script>
+  <script src="/shared/table-align.js?v=20260928"></script>
 
   <script>
     const THEME_STORAGE_KEY = 'tks-dashboard-theme';
     let currentUser = null;
     let isManager = false;
+    let canViewUsers = false;
+    let canEditPermissions = false;
+
+    /** Quyen cua phien hien tai — nguon: user.permissions tu /api/auth/me. */
+    function accountCan(feature){
+      return !!(window.TKSNav && typeof window.TKSNav.can === 'function' && window.TKSNav.can(feature));
+    }
+    /**
+     * Người không phải Quản lý chỉ được thêm/nâng những gì chính họ có
+     * (server/auth/accountPolicy.js chặn thật ở API — phần dưới chỉ ẩn lựa chọn
+     * vô ích cho đỡ nhầm).
+     */
+    function actorIsManager(){
+      return !!(currentUser && currentUser.vaiTro === 'Quản lý');
+    }
+
+    /**
+     * Quản lý cấp cao = admin cứng (server trả isSeniorAdmin trong /api/auth/me). Quản lý thường
+     * KHÔNG được đặt lại mật khẩu / đổi email-SĐT / hạ vai trò / rút quyền / khóa / xóa tài khoản
+     * của Quản lý KHÁC (server/auth/accountPolicy.js checkProtectedManager chặn thật ở API —
+     * phần dưới chỉ ẩn thao tác vô ích cho đỡ nhầm).
+     */
+    function actorIsSenior(){
+      return !!(currentUser && currentUser.isSeniorAdmin);
+    }
+
+    function isProtectedManagerRow(u){
+      return actorIsManager() && !actorIsSenior() && !!u && u.vaiTro === 'Quản lý' && !isSelfUser(u);
+    }
+
+    function isAssignableRole(role, keepRole){
+      if(actorIsManager() || role === keepRole) return true;
+      if(role === 'Quản lý') return false;
+      // Chưa tải danh mục quyền thì chỉ chặn 'Quản lý', server sẽ quyết định phần còn lại.
+      if(!permCatalog || !permCatalog.roleDefaults) return true;
+      return (permCatalog.roleDefaults[role] || []).every(accountCan);
+    }
+
+    function applyRoleOptions(selectId, keepRole){
+      const select = document.getElementById(selectId);
+      if(!select) return;
+      Array.prototype.forEach.call(select.options, opt => {
+        const ok = isAssignableRole(opt.value, keepRole);
+        opt.hidden = !ok;
+        opt.disabled = !ok;
+      });
+    }
+
     let rawAdminUsers = [];
     let sortField = 'ngayTao';
     let sortAsc = false;
+    // Biểu tượng sắp xếp dùng chung mọi bảng (vị trí/màu ở shared/shared.css): chưa sắp ▲▼ · tăng dần ▼ · giảm dần ▲.
+    const SORT_GLYPH = { none: '▲▼', ascending: '▼', descending: '▲' };
 
     function syncThemeControl(){
       const isLight = document.documentElement.dataset.theme === 'light';
@@ -803,33 +1112,35 @@
       }, 3500);
     }
 
+    // Tab con cua /account/: 'users' va 'history' can quyen 'account.users' (cung quyen voi
+    // GET /api/admin/users va GET /api/admin/audit-log o server).
+    const ACCOUNT_SUBTABS = ['profile', 'users', 'history'];
+    function normalizeAccountSubtab(name){
+      if(name === 'adminUsers') return 'users';
+      return ACCOUNT_SUBTABS.includes(name) ? name : '';
+    }
+
     function switchAccountTab(tabName, skipHashUpdate){
-      const validTab = (tabName === 'users' || tabName === 'adminUsers') ? 'users' : 'profile';
-      
-      // Nếu chọn tab users mà là Khách (hoặc chưa đăng nhập) thì quay về profile
-      if(validTab === 'users' && (!currentUser || currentUser.vaiTro === 'Khách')){
+      const validTab = normalizeAccountSubtab(tabName) || 'profile';
+
+      // Không có quyền 'account.users' (hoặc chưa đăng nhập) thì quay về profile
+      if(validTab !== 'profile' && (!currentUser || !canViewUsers)){
         return switchAccountTab('profile', skipHashUpdate);
       }
 
       document.querySelectorAll('.account-subnav-item, .subnav-tab').forEach(btn => {
-        const active = (btn.dataset.subtab === validTab) || (validTab === 'profile' && btn.id === 'tabBtnProfile') || (validTab === 'users' && btn.id === 'tabBtnAdminUsers');
+        const active = btn.dataset.subtab === validTab;
         btn.classList.toggle('active', active);
         btn.setAttribute('aria-selected', String(active));
       });
 
-      const panelProfile = document.getElementById('accountSubtab-profile') || document.getElementById('tabContentProfile');
-      const panelUsers = document.getElementById('accountSubtab-users') || document.getElementById('tabContentAdminUsers');
-
-      if(panelProfile){
-        const active = validTab === 'profile';
-        panelProfile.classList.toggle('active', active);
-        panelProfile.style.display = active ? 'block' : 'none';
-      }
-      if(panelUsers){
-        const active = validTab === 'users';
-        panelUsers.classList.toggle('active', active);
-        panelUsers.style.display = active ? 'block' : 'none';
-      }
+      ACCOUNT_SUBTABS.forEach(name => {
+        const panel = document.getElementById('accountSubtab-' + name);
+        if(!panel) return;
+        const active = validTab === name;
+        panel.classList.toggle('active', active);
+        panel.style.display = active ? 'block' : 'none';
+      });
 
       // Cập nhật active class trên sidebar nếu có
       const sidebarSubItems = document.querySelectorAll('#tksAccountGroupList .nav-item');
@@ -842,11 +1153,13 @@
       });
 
       if(!skipHashUpdate && history.replaceState){
-        history.replaceState(null, '', `#${validTab}`);
+        history.replaceState(null, '', '#' + validTab);
       }
 
       if(validTab === 'users'){
         loadAdminUsers();
+      } else if(validTab === 'history'){
+        reloadAuditHistory();
       } else {
         loadProfileData();
         checkPendingRoleRequest();
@@ -854,8 +1167,7 @@
     }
 
     function applyAccountSubtabFromHash(){
-      const rawHash = (window.location.hash || '').replace('#', '');
-      const name = (rawHash === 'users' || rawHash === 'adminUsers') ? 'users' : (rawHash === 'profile' ? 'profile' : '');
+      const name = normalizeAccountSubtab((window.location.hash || '').replace('#', ''));
       if(name){
         switchAccountTab(name, true);
       }
@@ -901,6 +1213,18 @@
         .then(profile => {
           document.getElementById('profHoTen').value = profile.hoTen || '';
           document.getElementById('profEmail').value = profile.email || '';
+          // Email luôn chỉ đọc. TK nhân sự (hrManaged) không tự đổi được -> ẩn nút, hiện gợi ý;
+          // TK thường đổi qua hộp OTP (server chặn thật: EMAIL_CHANGE_LOCKED / EMAIL_CHANGE_REQUIRES_OTP).
+          const hrManaged = !!profile.hrManaged;
+          document.getElementById('btnOpenEmailChange').style.display = hrManaged ? 'none' : '';
+          document.getElementById('profEmailHint').style.display = hrManaged ? 'block' : 'none';
+          document.getElementById('profTelegramId').value = profile.telegramId || '';
+          // Chi Quan ly duoc them/sua ID Telegram (server van la ranh gioi that: 403 TELEGRAM_ID_LOCKED).
+          const telegramEditable = !!profile.telegramEditable;
+          document.getElementById('profTelegramId').disabled = !telegramEditable;
+          document.getElementById('profTelegramIdHint').textContent = telegramEditable
+            ? 'Nhập ID Telegram dạng số của bạn. Để trống để hủy liên kết.'
+            : 'Chỉ Quản lý mới được thêm hoặc sửa ID Telegram. Vui lòng liên hệ Quản lý nếu cần thay đổi.';
           document.getElementById('profUsername').value = profile.username || '';
           document.getElementById('profFacility').value = profile.coSo || 'Toàn hệ thống';
 
@@ -925,7 +1249,7 @@
     function handleSaveProfile(e){
       e.preventDefault();
       const hoTen = document.getElementById('profHoTen').value.trim();
-      const email = document.getElementById('profEmail').value.trim();
+      const telegramInput = document.getElementById('profTelegramId');
       const msgEl = document.getElementById('profileFormMsg');
       const btn = document.getElementById('btnSaveProfile');
 
@@ -935,7 +1259,8 @@
       fetch('/api/auth/profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hoTen, email })
+        // Không gửi email: đổi email đi riêng qua /api/auth/profile/contact-change (OTP).
+        body: JSON.stringify(telegramInput.disabled ? { hoTen } : { hoTen, telegramId: telegramInput.value.trim() })
       })
         .then(parseApiResponse)
         .then(result => {
@@ -946,10 +1271,11 @@
             return;
           }
           showToast('Đã cập nhật thông tin cá nhân thành công!');
+          document.getElementById('profTelegramId').value = result.data.telegramId || '';
           if(window.TKSNav && window.TKSNav.renderAccountChip){
             if(!currentUser) currentUser = {};
             currentUser.hoTen = result.data.hoTen;
-            currentUser.email = result.data.email;
+            if(result.data.email) currentUser.email = result.data.email;
             window.TKSNav.renderAccountChip(currentUser);
           }
         })
@@ -957,6 +1283,178 @@
           btn.disabled = false;
           msgEl.textContent = 'Lỗi kết nối, vui lòng thử lại.';
           msgEl.style.display = 'block';
+        });
+    }
+
+    // ---------- Đổi email (TK thường, xác thực OTP) ----------
+    // Bước 1: POST /api/auth/profile/contact-change { field:'email', value } -> { challengeId, targetMasked }
+    // Bước 2: POST /api/auth/profile/contact-change/verify { challengeId, otp } -> hồ sơ công khai (email mới).
+    const emailChange = { step: 1, challengeId: null, value: '', busy: false, cooldown: 0, timer: null };
+
+    function setEmailChangeError(message){
+      const errEl = document.getElementById('emailChangeError');
+      errEl.textContent = message || '';
+      errEl.style.display = message ? 'block' : 'none';
+    }
+
+    function stopEmailChangeCooldown(){
+      if(emailChange.timer) clearInterval(emailChange.timer);
+      emailChange.timer = null;
+      emailChange.cooldown = 0;
+    }
+
+    /** Đồng bộ nhãn/trạng thái disabled của các nút theo bước, đang gửi và thời gian chờ gửi lại. */
+    function renderEmailChangeButtons(){
+      const submitBtn = document.getElementById('btnEmailChangeSubmit');
+      const resendBtn = document.getElementById('btnEmailChangeResend');
+      const waiting = emailChange.cooldown > 0;
+      const waitLabel = `Gửi lại sau ${emailChange.cooldown} giây`;
+      if(emailChange.step === 1){
+        submitBtn.textContent = emailChange.busy ? 'Đang gửi...' : (waiting ? waitLabel : 'Gửi mã');
+        submitBtn.disabled = emailChange.busy || waiting;
+      } else {
+        submitBtn.textContent = emailChange.busy ? 'Đang xác nhận...' : 'Xác nhận';
+        submitBtn.disabled = emailChange.busy;
+      }
+      resendBtn.textContent = waiting ? waitLabel : 'Gửi lại mã';
+      resendBtn.disabled = emailChange.busy || waiting;
+    }
+
+    function startEmailChangeCooldown(seconds){
+      stopEmailChangeCooldown();
+      emailChange.cooldown = Math.max(0, Math.ceil(Number(seconds) || 0));
+      if(emailChange.cooldown > 0){
+        emailChange.timer = setInterval(() => {
+          emailChange.cooldown -= 1;
+          if(emailChange.cooldown <= 0) stopEmailChangeCooldown();
+          renderEmailChangeButtons();
+        }, 1000);
+      }
+      renderEmailChangeButtons();
+    }
+
+    function showEmailChangeStep(step){
+      emailChange.step = step;
+      document.getElementById('emailChangeStep1').hidden = step !== 1;
+      document.getElementById('emailChangeStep2').hidden = step !== 2;
+      renderEmailChangeButtons();
+    }
+
+    function openEmailChangeModal(){
+      stopEmailChangeCooldown();
+      emailChange.challengeId = null;
+      emailChange.value = '';
+      emailChange.busy = false;
+      document.getElementById('emailChangeNew').value = '';
+      document.getElementById('emailChangeOtp').value = '';
+      document.getElementById('emailChangeSentNote').textContent = '';
+      setEmailChangeError('');
+      showEmailChangeStep(1);
+      openModal('emailChangeModal');
+    }
+
+    function closeEmailChangeModal(){
+      stopEmailChangeCooldown();
+      closeModal('emailChangeModal');
+    }
+
+    function handleEmailChangeSubmit(e){
+      e.preventDefault();
+      if(emailChange.step === 1) requestEmailChangeOtp();
+      else verifyEmailChangeOtp();
+    }
+
+    function requestEmailChangeOtp(){
+      if(emailChange.busy || emailChange.cooldown > 0) return;
+      const value = emailChange.step === 1
+        ? document.getElementById('emailChangeNew').value.trim()
+        : emailChange.value;
+      if(!value){
+        setEmailChangeError('Vui lòng nhập email mới.');
+        return;
+      }
+      if(value.toLowerCase() === document.getElementById('profEmail').value.trim().toLowerCase()){
+        setEmailChangeError('Email mới trùng với email hiện tại.');
+        return;
+      }
+      setEmailChangeError('');
+      emailChange.busy = true;
+      renderEmailChangeButtons();
+
+      fetch('/api/auth/profile/contact-change', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ field: 'email', value })
+      })
+        .then(parseApiResponse)
+        .then(result => {
+          emailChange.busy = false;
+          if(!result.ok){
+            setEmailChangeError(result.data.error || 'Không gửi được mã xác thực.');
+            if(result.data.waitSeconds) startEmailChangeCooldown(result.data.waitSeconds);
+            else renderEmailChangeButtons();
+            return;
+          }
+          emailChange.challengeId = result.data.challengeId;
+          emailChange.value = value;
+          document.getElementById('emailChangeOtp').value = '';
+          // textContent: targetMasked đến từ server, không chèn dạng HTML.
+          document.getElementById('emailChangeSentNote').textContent = `Đã gửi mã tới ${result.data.targetMasked || value}`;
+          showEmailChangeStep(2);
+        })
+        .catch(() => {
+          emailChange.busy = false;
+          setEmailChangeError('Lỗi kết nối, vui lòng thử lại.');
+          renderEmailChangeButtons();
+        });
+    }
+
+    function verifyEmailChangeOtp(){
+      if(emailChange.busy) return;
+      const otp = document.getElementById('emailChangeOtp').value.trim();
+      if(!otp){
+        setEmailChangeError('Vui lòng nhập mã OTP.');
+        return;
+      }
+      setEmailChangeError('');
+      emailChange.busy = true;
+      renderEmailChangeButtons();
+
+      fetch('/api/auth/profile/contact-change/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ challengeId: emailChange.challengeId, otp })
+      })
+        .then(parseApiResponse)
+        .then(result => {
+          emailChange.busy = false;
+          if(!result.ok){
+            setEmailChangeError(result.data.error || 'Không xác nhận được mã OTP.');
+            // Phiên OTP hết hạn: quay lại bước 1 (giữ email đã nhập) để xin mã mới.
+            if(result.data.code === 'CONTACT_CHALLENGE_EXPIRED'){
+              emailChange.challengeId = null;
+              document.getElementById('emailChangeNew').value = emailChange.value;
+              showEmailChangeStep(1);
+            } else {
+              renderEmailChangeButtons();
+            }
+            return;
+          }
+          const newEmail = result.data.email || emailChange.value;
+          document.getElementById('profEmail').value = newEmail;
+          if(window.TKSNav && window.TKSNav.renderAccountChip){
+            if(!currentUser) currentUser = {};
+            if(result.data.hoTen) currentUser.hoTen = result.data.hoTen;
+            currentUser.email = newEmail;
+            window.TKSNav.renderAccountChip(currentUser);
+          }
+          closeEmailChangeModal();
+          showToast('Đã đổi email thành công!');
+        })
+        .catch(() => {
+          emailChange.busy = false;
+          setEmailChangeError('Lỗi kết nối, vui lòng thử lại.');
+          renderEmailChangeButtons();
         });
     }
 
@@ -1119,7 +1617,123 @@
         .catch(err => {
           console.error('Lỗi tải danh sách người dùng:', err);
           document.getElementById('usersTableBody').innerHTML =
-            '<tr><td colspan="8" style="text-align:center;color:var(--red);padding:24px;">Không có quyền truy cập hoặc lỗi kết nối.</td></tr>';
+            `<tr><td colspan="${userColumnCatalog.length}" style="text-align:center;color:var(--red);padding:24px;">Không có quyền truy cập hoặc lỗi kết nối.</td></tr>`;
+        });
+    }
+
+    // ---------- Lịch sử chỉnh sửa tài khoản ----------
+    const HISTORY_ACTION_LABELS = {
+      create: 'Tạo tài khoản',
+      update: 'Sửa thông tin',
+      permissions: 'Sửa phân quyền',
+      reset_password: 'Đặt lại mật khẩu',
+      delete: 'Xóa tài khoản'
+    };
+    const HISTORY_PAGE_SIZE = 50;
+    let historyPage = 1;
+    let historyTotal = 0;
+    let historyReloadTimer = null;
+    let historyRequestSeq = 0;
+
+    function scheduleHistoryReload(){
+      clearTimeout(historyReloadTimer);
+      historyReloadTimer = setTimeout(reloadAuditHistory, 300);
+    }
+
+    function reloadAuditHistory(){
+      historyPage = 1;
+      loadAuditHistory();
+    }
+
+    function changeHistoryPage(delta){
+      const lastPage = Math.max(1, Math.ceil(historyTotal / HISTORY_PAGE_SIZE));
+      historyPage = Math.min(lastPage, Math.max(1, historyPage + delta));
+      loadAuditHistory();
+    }
+
+    function formatHistoryTime(iso){
+      const d = new Date(iso);
+      if(isNaN(d.getTime())) return '';
+      return d.toLocaleString('vi-VN', {
+        timeZone: 'Asia/Ho_Chi_Minh', hour12: false,
+        day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+      });
+    }
+
+    function historyPersonHtml(person){
+      const name = person && (person.name || person.username) || '—';
+      const username = person && person.username && person.username !== name ? person.username : '';
+      return '<div class="user-name">' + escapeHtml(name) + '</div>' +
+        (username ? '<div class="user-username">' + escapeHtml(username) + '</div>' : '');
+    }
+
+    function historyChangesHtml(entry){
+      const changes = Array.isArray(entry.changes) ? entry.changes : [];
+      if(entry.action === 'reset_password') return '<span class="history-new">Đặt mật khẩu mới</span>';
+      if(entry.action === 'delete') return '<span class="history-removed">Đã xóa tài khoản</span>';
+      if(!changes.length) return '<span class="history-old">—</span>';
+      const items = changes.map(change => {
+        const label = '<span class="history-change-label">' + escapeHtml(change.label || change.field) + ':</span> ';
+        if(change.field === 'permissions'){
+          const parts = [];
+          (change.added || []).forEach(name => parts.push('<span class="history-added">+ ' + escapeHtml(name) + '</span>'));
+          (change.removed || []).forEach(name => parts.push('<span class="history-removed">− ' + escapeHtml(name) + '</span>'));
+          return '<li>' + label + parts.join('; ') + '</li>';
+        }
+        const before = change.before ? '<span class="history-old">' + escapeHtml(change.before) + '</span> → ' : '';
+        const after = change.after ? '<span class="history-new">' + escapeHtml(change.after) + '</span>' : '<span class="history-old">(trống)</span>';
+        return '<li>' + label + before + after + '</li>';
+      });
+      return '<ul class="history-changes">' + items.join('') + '</ul>';
+    }
+
+    function renderAuditHistory(data){
+      const body = document.getElementById('historyTableBody');
+      const entries = (data && data.entries) || [];
+      historyTotal = Number(data && data.total) || 0;
+      if(!entries.length){
+        body.innerHTML = '<tr><td colspan="5" class="history-empty">Chưa có lịch sử chỉnh sửa phù hợp.</td></tr>';
+      } else {
+        body.innerHTML = entries.map(entry =>
+          '<tr>' +
+            '<td class="history-time">' + escapeHtml(formatHistoryTime(entry.createdAt)) + '</td>' +
+            '<td>' + historyPersonHtml(entry.actor) + '</td>' +
+            '<td>' + historyPersonHtml(entry.target) + '</td>' +
+            '<td>' + escapeHtml(HISTORY_ACTION_LABELS[entry.action] || entry.action) + '</td>' +
+            '<td>' + historyChangesHtml(entry) + '</td>' +
+          '</tr>'
+        ).join('');
+      }
+      const lastPage = Math.max(1, Math.ceil(historyTotal / HISTORY_PAGE_SIZE));
+      document.getElementById('historyPagerInfo').textContent = historyTotal
+        ? 'Trang ' + historyPage + '/' + lastPage + ' · ' + historyTotal + ' thay đổi'
+        : '';
+      document.getElementById('historyPrevBtn').disabled = historyPage <= 1;
+      document.getElementById('historyNextBtn').disabled = historyPage >= lastPage;
+    }
+
+    function loadAuditHistory(){
+      const params = new URLSearchParams({ page: String(historyPage), pageSize: String(HISTORY_PAGE_SIZE) });
+      const q = document.getElementById('historySearchInput').value.trim();
+      const action = document.getElementById('historyActionFilter').value;
+      const from = document.getElementById('historyFromDate').value;
+      const to = document.getElementById('historyToDate').value;
+      if(q) params.set('q', q);
+      if(action) params.set('action', action);
+      if(from) params.set('from', from);
+      if(to) params.set('to', to);
+      const seq = ++historyRequestSeq;
+      fetch('/api/admin/audit-log?' + params.toString(), { credentials: 'same-origin' })
+        .then(res => {
+          if(!res.ok) throw new Error('HTTP ' + res.status);
+          return res.json();
+        })
+        .then(data => { if(seq === historyRequestSeq) renderAuditHistory(data); })
+        .catch(err => {
+          if(seq !== historyRequestSeq) return;
+          console.error('Lỗi tải lịch sử chỉnh sửa:', err);
+          document.getElementById('historyTableBody').innerHTML =
+            '<tr><td colspan="5" class="history-empty" style="color:var(--red);">Không có quyền truy cập hoặc lỗi kết nối.</td></tr>';
         });
     }
 
@@ -1137,7 +1751,69 @@
       return String(value || '').normalize('NFC').replace(/\s+/gu, ' ').trim().toLocaleLowerCase('vi-VN');
     }
 
-    function handleFilterUsers(){
+    // Doc "dd/MM/yyyy[ HH:mm[:ss]]" thanh epoch ms (Date.UTC tren dung cac so hien thi, khong lech mui gio);
+    // khong doc duoc / ngay khong ton tai (31/02) -> null.
+    function parseVnDateTime(text){
+      const match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/.exec(String(text == null ? '' : text).trim());
+      if(!match) return null;
+      const [day, month, year, hour, minute, second] = [match[1], match[2], match[3], match[4] || 0, match[5] || 0, match[6] || 0].map(Number);
+      const time = Date.UTC(year, month - 1, day, hour, minute, second);
+      const check = new Date(time);
+      if(check.getUTCFullYear() !== year || check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day ||
+         check.getUTCHours() !== hour || check.getUTCMinutes() !== minute || check.getUTCSeconds() !== second) return null;
+      return time;
+    }
+
+    const userPaging = { page: 1, size: 50 };
+    let currentFilteredUsers = [];
+
+    function paginateUsersTable(){
+      const total = currentFilteredUsers.length;
+      const pages = Math.max(1, Math.ceil(total / userPaging.size));
+      userPaging.page = Math.min(Math.max(1, userPaging.page), pages);
+      const start = (userPaging.page - 1) * userPaging.size;
+      const pageUsers = currentFilteredUsers.slice(start, start + userPaging.size);
+
+      renderUsersTable(pageUsers);
+
+      const pager = document.getElementById('usersPagination');
+      if(pager){
+        pager.hidden = total === 0;
+        const label = document.getElementById('usersPageLabel');
+        if(label) label.textContent = `Trang ${userPaging.page}/${pages}`;
+        const firstBtn = document.getElementById('usersFirst');
+        const prevBtn = document.getElementById('usersPrev');
+        const nextBtn = document.getElementById('usersNext');
+        const lastBtn = document.getElementById('usersLast');
+        if(firstBtn){
+          firstBtn.disabled = userPaging.page <= 1;
+          firstBtn.onclick = () => changeUserPage(1);
+        }
+        if(prevBtn){
+          prevBtn.disabled = userPaging.page <= 1;
+          prevBtn.onclick = () => changeUserPage(userPaging.page - 1);
+        }
+        if(nextBtn){
+          nextBtn.disabled = userPaging.page >= pages;
+          nextBtn.onclick = () => changeUserPage(userPaging.page + 1);
+        }
+        if(lastBtn){
+          lastBtn.disabled = userPaging.page >= pages;
+          lastBtn.onclick = () => changeUserPage(pages);
+        }
+      }
+    }
+
+    function changeUserPage(newPage){
+      const pages = Math.max(1, Math.ceil(currentFilteredUsers.length / userPaging.size));
+      userPaging.page = Math.min(Math.max(1, newPage), pages);
+      paginateUsersTable();
+      const scroller = document.querySelector('#usersTable')?.parentElement;
+      if(scroller) scroller.scrollTop = 0;
+    }
+
+    function handleFilterUsers(resetPage = true){
+      if(resetPage) userPaging.page = 1;
       const q = normalizeNameQuery(document.getElementById('userSearchInput').value);
       const roleFilter = document.getElementById('userRoleFilter').value;
       const facFilter = document.getElementById('userFacilityFilter').value;
@@ -1158,8 +1834,19 @@
 
       // Sorting
       filtered.sort((a, b) => {
-        let valA = a[sortField] || '';
-        let valB = b[sortField] || '';
+        // Cot thoi gian ("Ngay tao", dd/MM/yyyy): sap theo THOI GIAN that — so sanh chuoi se xep 30/09 sau 01/10.
+        // Tai khoan chua co ngay tao luon xuong cuoi, bat ke chieu sap xep.
+        if(sortField === 'ngayTao' || sortField === 'dangNhapGanNhat'){
+          const timeA = parseVnDateTime(a[sortField]);
+          const timeB = parseVnDateTime(b[sortField]);
+          if(timeA === null || timeB === null){
+            if(timeA === timeB) return 0;
+            return timeA === null ? 1 : -1;
+          }
+          return sortAsc ? timeA - timeB : timeB - timeA;
+        }
+        let valA = userColumnValue(a, sortField);
+        let valB = userColumnValue(b, sortField);
         if(typeof valA === 'string') valA = valA.toLowerCase();
         if(typeof valB === 'string') valB = valB.toLowerCase();
         if(valA < valB) return sortAsc ? -1 : 1;
@@ -1167,7 +1854,8 @@
         return 0;
       });
 
-      renderUsersTable(filtered);
+      currentFilteredUsers = filtered;
+      paginateUsersTable();
     }
 
     function handleSort(field){
@@ -1179,16 +1867,13 @@
       }
 
       // Update sort indicators
-      ['hoTen', 'username', 'email', 'vaiTro', 'coSo', 'trangThai', 'ngayTao'].forEach(f => {
+      userColumnCatalog.forEach(({ key: f }) => {
         const icon = document.getElementById(`sort-${f}`);
         if(icon){
-          if(f === sortField){
-            icon.textContent = sortAsc ? '▲' : '▼';
-            icon.classList.add('sort-active');
-          } else {
-            icon.textContent = '↕';
-            icon.classList.remove('sort-active');
-          }
+          const state = f === sortField ? (sortAsc ? 'ascending' : 'descending') : 'none';
+          icon.textContent = SORT_GLYPH[state];
+          const th = icon.closest('th');
+          if(th) th.setAttribute('aria-sort', state);
         }
       });
 
@@ -1205,6 +1890,7 @@
       else if(r === 'Lái xe') cls = 'role-lai-xe';
       else if(r === 'Nhân viên kho') cls = 'role-nhan-vien-kho';
       else if(r === 'Nhân viên sale') cls = 'role-nhan-vien-sale';
+      else if(r === 'Nhân viên marketing') cls = 'role-nhan-vien-marketing';
       else if(r === 'Nhân viên mua hàng') cls = 'role-nhan-vien-mua-hang';
       return `<span class="role-badge ${cls}">${escapeHtml(r)}</span>`;
     }
@@ -1221,10 +1907,48 @@
       return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
+    const DEFAULT_USER_COLUMNS = ['hoTen', 'username', 'vaiTro', 'coSo', 'trangThai'];
+    let userColumnCatalog = DEFAULT_USER_COLUMNS.map((key, index) => ({ key, label: ['Họ và tên', 'Tài khoản', 'Vai trò', 'Cơ sở', 'Trạng thái'][index] }));
+    let hiddenUserColumns = [];
+    function initializeUserColumns(){
+      const ordered = [...DEFAULT_USER_COLUMNS, ...userColumnCatalog.map(field => field.key).filter(key => !DEFAULT_USER_COLUMNS.includes(key))];
+      userColumnCatalog = ordered.map(key => userColumnCatalog.find(field => field.key === key)).filter(Boolean);
+      renderUserColumnHeaders();
+    }
+    function renderUserColumnHeaders(){
+      document.querySelector('#usersTable thead tr').innerHTML = userColumnCatalog.map(field => {
+        const key = field.key;
+        const sortState = sortField === key ? (sortAsc ? 'ascending' : 'descending') : 'none';
+        return `<th class="sortable" aria-sort="${sortState}" data-field="${escapeHtml(key)}" data-column-key="${escapeHtml(key)}" onclick="handleSort('${key}')" style="width:${key === 'hoTen' ? 260 : key === 'username' ? 240 : 180}px"><button type="button" class="sort-button"><span class="sort-label">${escapeHtml(key === 'username' ? 'Tài khoản' : field.label)}</span><span class="sort-indicator" id="sort-${key}" aria-hidden="true">${SORT_GLYPH[sortState]}</span></button></th>`;
+      }).join('');
+      if(window.TKSTables) window.TKSTables.enhance(document.getElementById('usersTable'), {
+        columns: userColumnCatalog.map(field => ({ key: field.key, label: field.key === 'username' ? 'Tài khoản' : field.label, hidden: !DEFAULT_USER_COLUMNS.includes(field.key), locked: field.key === 'hoTen' })),
+        onVisibilityChange(hiddenKeys){
+          const newlyHiddenSort = hiddenKeys.includes(sortField) && !hiddenUserColumns.includes(sortField);
+          hiddenUserColumns = hiddenKeys;
+          if(newlyHiddenSort) handleSort('hoTen');
+        }
+      });
+      if(window.TKSTables) hiddenUserColumns = window.TKSTables.getState(document.getElementById('usersTable')).columns.filter(column => column.hidden).map(column => column.key);
+    }
+    function userColumnValue(user, key){
+      if(key === 'hasPassword') return user.hasPassword ? 'Có' : 'Không';
+      if(key === 'nguon') return user.hrManaged ? 'Đồng bộ HR' : 'Tạo thủ công';
+      if(key === 'roleSource') return ({ sheet: 'Danh sách nhân sự', override: 'Ghi đè thủ công', local: 'Tạo thủ công' })[user.roleSource || (user.hrManaged ? 'sheet' : 'local')] || '';
+      if(key === 'permissionsGranted' || key === 'permissionsRevoked'){
+        if(typeof user[key] === 'string') return user[key];
+        const wanted = key === 'permissionsGranted';
+        return Object.keys(user.featurePermissions || {}).filter(feature => user.featurePermissions[feature] === wanted)
+          .map(feature => (permCatalog && permCatalog.features.find(item => item.key === feature)?.label) || feature).join('; ');
+      }
+      const value = user[key];
+      return Array.isArray(value) ? value.join('; ') : String(value == null ? '' : value);
+    }
     function renderUsersTable(users){
       const tbody = document.getElementById('usersTableBody');
       if(!users.length){
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:36px;">Không tìm thấy tài khoản nào phù hợp.</td></tr>';
+        tbody.innerHTML = `<tr><td colspan="${userColumnCatalog.length}" style="text-align:center;color:var(--muted);padding:36px;">Không tìm thấy tài khoản nào phù hợp.</td></tr>`;
+        if(window.TKSTables) window.TKSTables.refresh(document.getElementById('usersTable'));
         return;
       }
 
@@ -1234,60 +1958,442 @@
         const isThang = (u.email && u.email.toLowerCase() === 'thangnnv2003@gmail.com') ||
                         (u.username && u.username.toLowerCase() === 'thangnnv2003@gmail.com') ||
                         (u.username && u.username.toLowerCase() === 'thangnnv2003');
-        const lockIcon = u.trangThai === 'Khóa'
-          ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 9.9-1"></path></svg>'
-          : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>';
-        const lockTitle = u.trangThai === 'Khóa' ? 'Mở khóa tài khoản' : 'Khóa tài khoản';
-
-        // Riêng tài khoản thangnnv2003@gmail.com không ai có quyền xóa hay khóa
-        const canLockOrDelete = !isSelf && !isThang;
+        // Người không phải Quản lý không được tác động lên tài khoản Quản lý
+        // (server/auth/accountPolicy.js vẫn chặn thật ở API, đây chỉ là UX).
+        const lockedManagerRow = !actorIsManager() && u.vaiTro === 'Quản lý';
+        const clickable = isManager && !lockedManagerRow;
+        const rowTitle = lockedManagerRow ? ' title="Chỉ Quản lý mới được thao tác trên tài khoản Quản lý"' : '';
 
         return `
-          <tr>
+          <tr${clickable ? ` class="row-clickable" data-uid="${escapeHtml(u.id)}"` : rowTitle}>
             <td>
               <div class="user-cell">
                 <div class="user-avatar">${escapeHtml(initial)}</div>
                 <div>
                   <div class="user-name">${escapeHtml(u.hoTen || u.username)} ${isSelf ? '<span style="font-size:10.5px;color:var(--blue);font-weight:700;">(Bạn)</span>' : (isThang ? '<span style="font-size:10px;color:var(--amber);font-weight:700;background:rgba(245,158,11,0.12);padding:2px 6px;border-radius:4px;">(Super Admin)</span>' : '')}</div>
-                  <div class="user-username">@${escapeHtml(u.username)}</div>
                 </div>
               </div>
             </td>
-            <td><code style="font-family:var(--font-data);color:var(--text-secondary);">${escapeHtml(u.username)}</code></td>
-            <td>${escapeHtml(u.email || '—')}</td>
-            <td>${getRoleBadgeHtml(u.vaiTro)}</td>
-            <td>${escapeHtml(u.coSo || '—')}</td>
-            <td>${getStatusPillHtml(u.trangThai)}</td>
-            <td style="font-family:var(--font-data);font-size:12px;color:var(--muted);">${escapeHtml(u.ngayTao || '—')}</td>
-            <td style="text-align:right;">
-              <div class="row-actions" style="justify-content:flex-end;">
-                ${isManager ? `
-                <button type="button" class="action-icon-btn" title="Chỉnh sửa tài khoản" onclick="openEditUserModal('${u.id}')">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-                </button>
-                <button type="button" class="action-icon-btn" title="Đặt lại mật khẩu" onclick="openResetPasswordModal('${u.id}', '${escapeHtml(u.username)}')">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-1.5 1.5L10 13l-4 1 1-4 7.5-7.5m1.5-1.5L21 2z"></path></svg>
-                </button>
-                ${canLockOrDelete ? `
-                  <button type="button" class="action-icon-btn" title="${lockTitle}" onclick="toggleUserLock('${u.id}', '${u.trangThai}')">
-                    ${lockIcon}
-                  </button>
-                  <button type="button" class="action-icon-btn" title="Xóa tài khoản" onclick="handleDeleteUser('${u.id}', '${escapeHtml(u.username)}')">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                  </button>
-                ` : ''}
-                ` : '<span style="color:var(--muted);font-size:12px;">—</span>'}
-              </div>
-            </td>
+            ${userColumnCatalog.filter(field => field.key !== 'hoTen').map(({ key }) => `<td>${key === 'username' ? '<span class="user-username">@' + escapeHtml(u.username || '—') + '</span>' : key === 'vaiTro' ? getRoleBadgeHtml(u.vaiTro) + (hasCustomPermissions(u) ? '<span class="perm-badge">tuỳ chỉnh</span>' : '') : key === 'trangThai' ? getStatusPillHtml(u.trangThai) : escapeHtml(userColumnValue(u, key) || '—')}</td>`).join('')}
           </tr>
         `;
       }).join('');
+      if(window.TKSTables) window.TKSTables.refresh(document.getElementById('usersTable'));
+    }
+
+    // ---------- Hộp thao tác khi bấm vào dòng tài khoản ----------
+    function isSuperAdminUser(u){
+      if(!u) return false;
+      return (u.email && u.email.toLowerCase() === 'thangnnv2003@gmail.com') ||
+             (u.username && u.username.toLowerCase() === 'thangnnv2003@gmail.com') ||
+             (u.username && u.username.toLowerCase() === 'thangnnv2003');
+    }
+
+    function isSelfUser(u){
+      return !!currentUser && (String(currentUser.id) === String(u.id) || currentUser.username.toLowerCase() === u.username.toLowerCase());
+    }
+
+    function openUserActionModal(id){
+      const u = rawAdminUsers.find(x => String(x.id) === String(id));
+      if(!u) return;
+      const isThang = isSuperAdminUser(u);
+      const isSelf = isSelfUser(u);
+      const locked = u.trangThai === 'Khóa';
+
+      document.getElementById('userActionTitle').textContent = `${u.hoTen || u.username} (@${u.username})`;
+      // Quản lý thường mở dòng Quản lý khác: chỉ còn sửa họ tên/cơ sở (không sửa quyền, không khóa).
+      const protectedManager = isProtectedManagerRow(u);
+      const items = [];
+      if(!isThang && !protectedManager){
+        items.push({ label: 'Sửa quyền', hint: 'Vai trò và quyền chi tiết', action: () => openPermissionsModal(u.id) });
+      }
+      items.push({
+        label: 'Sửa thông tin cá nhân',
+        hint: protectedManager ? 'Họ tên, cơ sở (email, SĐT, mật khẩu chỉ Quản lý cấp cao đổi được)' : 'Họ tên, email, số điện thoại, cơ sở, mật khẩu',
+        action: () => openEditUserModal(u.id)
+      });
+      // Không ai được khóa chính mình hoặc tài khoản Quản trị viên tối cao.
+      if(!isSelf && !isThang && !protectedManager){
+        items.push({
+          label: locked ? 'Mở khóa tài khoản' : 'Khóa tài khoản',
+          hint: locked ? 'Cho phép đăng nhập trở lại' : 'Chặn đăng nhập, giữ nguyên dữ liệu',
+          danger: !locked,
+          action: () => toggleUserLock(u.id, u.trangThai)
+        });
+      }
+
+      const list = document.getElementById('userActionList');
+      list.innerHTML = '';
+      items.forEach(item => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'action-menu-item' + (item.danger ? ' danger' : '');
+        const text = document.createElement('span');
+        text.textContent = item.label;
+        const hint = document.createElement('small');
+        hint.textContent = item.hint;
+        text.appendChild(hint);
+        btn.appendChild(text);
+        btn.addEventListener('click', () => {
+          closeModal('userActionModal');
+          item.action();
+        });
+        list.appendChild(btn);
+      });
+      openModal('userActionModal');
+    }
+
+    document.getElementById('usersTableBody').addEventListener('click', e => {
+      const row = e.target.closest('tr.row-clickable');
+      if(row) openUserActionModal(row.dataset.uid);
+    });
+
+    // ---------- Phân quyền chi tiết ----------
+    // Danh mục tính năng + mặc định theo vai trò đến từ
+    // GET /api/admin/permissions/catalog (server/auth/featureRegistry.js) —
+    // trang này KHÔNG chép lại danh sách quyền hay nhãn tiếng Việt.
+    let permCatalog = null;
+    let permTargetUser = null;
+
+    function hasCustomPermissions(u){
+      return !!(u && u.featurePermissions && Object.keys(u.featurePermissions).length > 0);
+    }
+
+    function loadPermissionsCatalog(){
+      if(permCatalog) return Promise.resolve(permCatalog);
+      return fetch('/api/admin/permissions/catalog', { credentials: 'same-origin' })
+        .then(parseApiResponse)
+        .then(result => {
+          if(!result.ok) throw new Error(result.data.error || 'Không tải được danh mục quyền.');
+          permCatalog = result.data;
+          return permCatalog;
+        });
+    }
+
+    function renderDepartmentSelection(containerId, user = {}, disabled = false){
+      const persisted = user.leaveApprovalDepartments || [];
+      const selected = new Set(persisted.length ? persisted : user.vaiTro !== 'Quản lý' && !(user.effective || []).includes('hr.leave.manage') ? [user.boPhan].filter(Boolean) : []);
+      const departments = [...new Set([...(permCatalog && permCatalog.departments || []), user.boPhan, ...persisted].filter(Boolean))];
+      const own = new Set(currentUser && currentUser.leaveApprovalDepartments || []);
+      const box = document.getElementById(containerId);
+      box.innerHTML = departments.length ? departments.map(department => `<label><input type="checkbox" value="${escapeHtml(department)}"${selected.has(department) ? ' checked' : ''}${disabled || (!actorIsManager() && !own.has(department) && !persisted.includes(department)) ? ' disabled' : ''}> ${escapeHtml(department)}</label>`).join('') : '<small>Chưa có phòng ban trong danh sách nhân sự.</small>';
+      box.dataset.ready = '1';
+    }
+    function loadDepartmentSelection(containerId, user = {}, disabled = false){
+      renderDepartmentSelection(containerId, user, disabled);
+      loadPermissionsCatalog().then(() => renderDepartmentSelection(containerId, user, disabled)).catch(() => {});
+    }
+    function selectedDepartments(containerId){
+      return [...document.querySelectorAll('#' + containerId + ' input:checked')].map(input => input.value);
+    }
+
+    function openPermissionsModal(id){
+      const u = rawAdminUsers.find(x => String(x.id) === String(id));
+      if(!u) return;
+      permTargetUser = u;
+      document.getElementById('permissionsError').style.display = 'none';
+      document.getElementById('permGroups').innerHTML =
+        '<p style="color:var(--muted);font-size:12.5px;padding:8px 0;">Đang tải phân quyền...</p>';
+      document.getElementById('permIntro').textContent = '';
+
+      // Vai trò (tổng quan): không ai tự đổi vai trò của mình hay của Quản trị viên tối cao.
+      const roleSelect = document.getElementById('permVaiTro');
+      applyRoleOptions('permVaiTro', u.vaiTro);
+      roleSelect.value = u.vaiTro || 'Khách';
+      roleSelect.disabled = isSelfUser(u) || isSuperAdminUser(u);
+      openModal('permissionsModal');
+
+      if(!canEditPermissions){
+        document.getElementById('permGroups').innerHTML = '';
+        return;
+      }
+
+      Promise.all([
+        loadPermissionsCatalog(),
+        fetch(`/api/admin/users/${encodeURIComponent(id)}/permissions`, { credentials: 'same-origin' })
+          .then(parseApiResponse)
+      ])
+        .then(([catalog, result]) => {
+          if(!result.ok) throw new Error(result.data.error || 'Không tải được phân quyền.');
+          renderPermissionsForm(catalog, result.data);
+          roleSelect.onchange = () => {
+            const overrides = {};
+            document.querySelectorAll('#permGroups .perm-select').forEach(select => {
+              if(select.value !== 'default') overrides[select.dataset.feature] = select.value === 'allow';
+            });
+            renderPermissionsForm(catalog, { ...result.data, vaiTro: roleSelect.value,
+              defaults: catalog.roleDefaults[roleSelect.value] || [], overrides });
+          };
+        })
+        .catch(err => {
+          document.getElementById('permGroups').innerHTML = '';
+          const errEl = document.getElementById('permissionsError');
+          errEl.textContent = err.message || 'Lỗi kết nối, vui lòng thử lại.';
+          errEl.style.display = 'block';
+        });
+    }
+
+    function renderPermissionsForm(catalog, data){
+      renderDepartmentSelection('permLeaveDepartments', data, isProtectedManagerRow(permTargetUser) || isSuperAdminUser(permTargetUser));
+      const defaults = new Set(data.defaults || []);
+      const overrides = data.overrides || {};
+
+      document.getElementById('permIntro').innerHTML =
+        `Tài khoản <strong>${escapeHtml(data.hoTen || data.username)}</strong> (@${escapeHtml(data.username)}) — ` +
+        `vai trò <strong>${escapeHtml(data.vaiTro)}</strong>. Mỗi mục để ở <em>Theo vai trò</em> sẽ đi theo quyền mặc định ` +
+        `của vai trò; chỉ những mục bạn đổi khác mặc định mới được lưu riêng cho tài khoản này.`;
+
+      const html = catalog.groups.map(group => {
+        const features = catalog.features.filter(f => f.groupKey === group.key);
+        if(!features.length) return '';
+        const rows = features.map(f => {
+          const isDefaultOn = defaults.has(f.key);
+          const current = Object.prototype.hasOwnProperty.call(overrides, f.key)
+            ? (overrides[f.key] ? 'allow' : 'deny')
+            : 'default';
+          if((f.forbiddenRoles || []).includes(data.vaiTro)){
+            return `<div class="perm-row">
+              <span class="perm-row-label">${escapeHtml(f.label)}<span class="perm-row-hint">Vai trò này không được sử dụng tính năng</span></span>
+              <select class="form-control" disabled aria-label="${escapeHtml(f.label)}"><option>Không được cấp</option></select>
+            </div>`;
+          }
+          if(f.dynamic){ return `<div class="perm-row"><span class="perm-row-label">${escapeHtml(f.label)}<span class="perm-row-hint">Tự động theo tài khoản nhân sự đang hoạt động</span></span></div>`; }
+          if(f.alwaysOn){
+            return `
+              <div class="perm-row">
+                <span class="perm-row-label">${escapeHtml(f.label)}
+                  <span class="perm-row-hint">Quyền cơ bản, không thể thu hồi</span>
+                </span>
+                <select class="form-control" disabled><option>Luôn bật</option></select>
+              </div>`;
+          }
+          // Không được cấp thêm quyền mà chính mình không có (trừ khi là Quản lý).
+          const cannotGrant = !actorIsManager() && !accountCan(f.key);
+          return `
+            <div class="perm-row">
+              <span class="perm-row-label">${escapeHtml(f.label)}
+                <span class="perm-row-hint">Mặc định của vai trò: ${isDefaultOn ? 'Có' : 'Không'}${cannotGrant ? ' · Bạn không có quyền này nên không thể cấp thêm' : ''}</span>
+              </span>
+              <select class="form-control perm-select" data-feature="${escapeHtml(f.key)}" data-default="${isDefaultOn ? '1' : '0'}"${f.requires ? ` data-requires="${escapeHtml(f.requires)}"` : ''}>
+                <option value="default"${current === 'default' ? ' selected' : ''}>Theo vai trò (${isDefaultOn ? 'Có' : 'Không'})</option>
+                <option value="allow"${current === 'allow' ? ' selected' : ''}${cannotGrant && current !== 'allow' ? ' disabled' : ''}>Cho phép</option>
+                <option value="deny"${current === 'deny' ? ' selected' : ''}>Chặn</option>
+              </select>
+            </div>`;
+        }).join('');
+        return `
+          <div class="perm-group">
+            <div class="perm-group-head">
+              <span class="perm-group-title">${escapeHtml(group.label)}</span>
+              <button type="button" class="perm-group-reset" onclick="resetPermissionGroup('${escapeHtml(group.key)}')">Về mặc định</button>
+            </div>
+            ${rows}
+          </div>`;
+      }).join('');
+
+      const permGroupsEl = document.getElementById('permGroups');
+      permGroupsEl.innerHTML = html;
+      permGroupsEl.onchange = syncPermissionDependencies;
+      syncPermissionDependencies();
+    }
+
+    // Quyền phụ thuộc (vd Tra cứu/Lịch sử/Xuất/Ghi đè cần Vòng đời đơn hàng): khi quyền gốc đang tắt thì
+    // khóa ô chọn của quyền phụ. Chỉ là UX — server mới là chốt thật (resolvePermissions).
+    function syncPermissionDependencies(){
+      const selects = Array.prototype.slice.call(document.querySelectorAll('#permGroups .perm-select'));
+      const isOn = select => select.value === 'allow' || (select.value === 'default' && select.dataset.default === '1');
+      const byKey = {};
+      selects.forEach(select => { byKey[select.dataset.feature] = select; });
+      selects.forEach(select => {
+        const parent = byKey[select.dataset.requires];
+        if(!parent) return;
+        const blocked = !isOn(parent);
+        select.disabled = blocked;
+        // Dùng nhãn quyền cha trong catalog, áp dụng cả Sổ quỹ và Đơn hàng.
+        const parentLabel = parent.closest('.perm-row').querySelector('.perm-row-label').firstChild.textContent.trim();
+        select.title = blocked ? `Cần bật ${parentLabel} trước` : '';
+      });
+    }
+
+    function resetPermissionGroup(groupKey){
+      if(!permCatalog) return;
+      const keys = permCatalog.features.filter(f => f.groupKey === groupKey).map(f => f.key);
+      document.querySelectorAll('#permGroups .perm-select').forEach(select => {
+        if(keys.indexOf(select.dataset.feature) !== -1) select.value = 'default';
+      });
+      syncPermissionDependencies();
+    }
+
+    function resetAllPermissions(){
+      document.querySelectorAll('#permGroups .perm-select').forEach(select => { select.value = 'default'; });
+      syncPermissionDependencies();
+    }
+
+    function handleSavePermissions(e){
+      e.preventDefault();
+      if(!permTargetUser) return;
+      const overrides = {};
+      document.querySelectorAll('#permGroups .perm-select').forEach(select => {
+        if(select.value === 'allow') overrides[select.dataset.feature] = true;
+        else if(select.value === 'deny') overrides[select.dataset.feature] = false;
+        // 'default' -> không gửi: server hiểu là quay về mặc định theo vai trò
+      });
+
+      const errEl = document.getElementById('permissionsError');
+      const btn = document.getElementById('btnSubmitPermissions');
+      errEl.style.display = 'none';
+      btn.disabled = true;
+
+      // Bước 1: đổi vai trò nếu khác hiện tại. Bước 2: lưu quyền chi tiết.
+      const roleSelect = document.getElementById('permVaiTro');
+      const roleChanged = !roleSelect.disabled && roleSelect.value !== permTargetUser.vaiTro;
+      const saveRole = roleChanged
+        ? fetch(`/api/admin/users/${encodeURIComponent(permTargetUser.id)}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ vaiTro: roleSelect.value, leaveApprovalDepartments: selectedDepartments('permLeaveDepartments') })
+          }).then(parseApiResponse)
+        : Promise.resolve({ ok: true, data: {} });
+
+      saveRole
+        .then(roleResult => {
+          if(!roleResult.ok) return roleResult;
+          if(!canEditPermissions) return roleResult;
+          return fetch(`/api/admin/users/${encodeURIComponent(permTargetUser.id)}/permissions`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ overrides, leaveApprovalDepartments: selectedDepartments('permLeaveDepartments') })
+          }).then(parseApiResponse);
+        })
+        .then(result => {
+          btn.disabled = false;
+          if(!result.ok){
+            errEl.textContent = result.data.error || 'Không lưu được phân quyền.';
+            errEl.style.display = 'block';
+            if(roleChanged) loadAdminUsers();
+            return;
+          }
+          closeModal('permissionsModal');
+          showToast(`Đã cập nhật quyền cho "${permTargetUser.username}".`);
+          loadAdminUsers();
+        })
+        .catch(() => {
+          btn.disabled = false;
+          errEl.textContent = 'Lỗi kết nối, vui lòng thử lại.';
+          errEl.style.display = 'block';
+        });
     }
 
     // Modal Create
+    // ---------- Xuat Excel danh sach tai khoan (chi Quan ly) ----------
+    const EXPORT_FIELDS_STORAGE_KEY = 'tks-account-export-fields';
+    let exportFieldCatalog = null;
+
+    async function ensureExportFieldCatalog(){
+      if(exportFieldCatalog) return exportFieldCatalog;
+      const res = await fetch('/api/admin/users/export/fields', { credentials: 'same-origin' });
+      const { data } = await parseApiResponse(res);
+      if(!res.ok) throw new Error(data.error || 'Không tải được danh sách trường.');
+      exportFieldCatalog = data;
+      return data;
+    }
+
+    function readSavedExportFields(){
+      try{
+        const saved = JSON.parse(localStorage.getItem(EXPORT_FIELDS_STORAGE_KEY) || 'null');
+        return Array.isArray(saved) ? saved : null;
+      }catch(err){ return null; }
+    }
+
+    function setExportFieldChecks(keys){
+      const set = new Set(keys);
+      document.querySelectorAll('#exportUsersFields input[type=checkbox]').forEach(cb => { cb.checked = set.has(cb.value); });
+    }
+
+    function setExportFieldsAll(checked){
+      document.querySelectorAll('#exportUsersFields input[type=checkbox]').forEach(cb => { cb.checked = checked; });
+    }
+
+    function setExportFieldsDefault(){
+      if(exportFieldCatalog) setExportFieldChecks(exportFieldCatalog.defaults);
+    }
+
+    async function openExportUsersModal(){
+      const errorBox = document.getElementById('exportUsersError');
+      errorBox.style.display = 'none';
+      try{
+        const catalog = await ensureExportFieldCatalog();
+        const box = document.getElementById('exportUsersFields');
+        if(!box.children.length){
+          box.innerHTML = catalog.fields.map(f =>
+            `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" value="${escapeHtml(f.key)}"> ${escapeHtml(f.label)}</label>`
+          ).join('');
+        }
+        const valid = new Set(catalog.fields.map(f => f.key));
+        const saved = (readSavedExportFields() || []).filter(k => valid.has(k));
+        setExportFieldChecks(saved.length ? saved : catalog.defaults);
+        document.getElementById('exportUsersScope').textContent =
+          'File xuất theo đúng bộ lọc và ô tìm kiếm đang áp dụng ở danh sách tài khoản.';
+        openModal('exportUsersModal');
+      }catch(err){
+        showToast(err.message || 'Không mở được hộp xuất Excel.', 'error');
+      }
+    }
+
+    async function confirmExportUsers(){
+      const errorBox = document.getElementById('exportUsersError');
+      const btn = document.getElementById('btnConfirmExportUsers');
+      const fields = Array.from(document.querySelectorAll('#exportUsersFields input:checked')).map(cb => cb.value);
+      if(!fields.length){
+        errorBox.textContent = 'Vui lòng chọn ít nhất một trường thông tin để xuất.';
+        errorBox.style.display = 'block';
+        return;
+      }
+      errorBox.style.display = 'none';
+      try{ localStorage.setItem(EXPORT_FIELDS_STORAGE_KEY, JSON.stringify(fields)); }catch(err){}
+      const params = new URLSearchParams({
+        fields: fields.join(','),
+        q: document.getElementById('userSearchInput').value || '',
+        role: document.getElementById('userRoleFilter').value,
+        coSo: document.getElementById('userFacilityFilter').value,
+        trangThai: document.getElementById('userStatusFilter').value
+      });
+      btn.disabled = true;
+      try{
+        const res = await fetch('/api/admin/users/export?' + params.toString(), { credentials: 'same-origin' });
+        if(!res.ok){
+          const { data } = await parseApiResponse(res);
+          errorBox.textContent = data.error || 'Không xuất được file Excel.';
+          errorBox.style.display = 'block';
+          return;
+        }
+        const blob = await res.blob();
+        const disposition = res.headers.get('Content-Disposition') || '';
+        const match = /filename="?([^"]+)"?/.exec(disposition);
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = match ? match[1] : 'danh-sach-tai-khoan.xlsx';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+        closeModal('exportUsersModal');
+      }catch(err){
+        errorBox.textContent = 'Lỗi kết nối máy chủ khi xuất Excel.';
+        errorBox.style.display = 'block';
+      }finally{
+        btn.disabled = false;
+      }
+    }
+
     function openCreateUserModal(){
       document.getElementById('createUserForm').reset();
       document.getElementById('createUserError').style.display = 'none';
+      applyRoleOptions('createVaiTro');
+      loadDepartmentSelection('createLeaveDepartments');
       openModal('createUserModal');
     }
 
@@ -1309,7 +2415,7 @@
       fetch('/api/admin/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, hoTen, email, soDienThoai, vaiTro, coSo })
+        body: JSON.stringify({ username, password, hoTen, email, soDienThoai, vaiTro, coSo, leaveApprovalDepartments: selectedDepartments('createLeaveDepartments') })
       })
         .then(parseApiResponse)
         .then(result => {
@@ -1340,35 +2446,24 @@
       document.getElementById('editHoTen').value = u.hoTen || '';
       document.getElementById('editEmail').value = u.email || '';
       document.getElementById('editPhone').value = u.soDienThoai || '';
-      document.getElementById('editVaiTro').value = u.vaiTro || 'Khách';
+      document.getElementById('editTelegramId').value = u.telegramId || '';
       document.getElementById('editCoSo').value = u.coSo || '';
-      document.getElementById('editTrangThai').value = u.trangThai || 'Đang hoạt động';
+      document.getElementById('editNewPassword').value = '';
+      document.getElementById('editConfirmPassword').value = '';
       document.getElementById('editUserError').style.display = 'none';
 
-      const isSelf = currentUser && (String(currentUser.id) === String(u.id) || currentUser.username.toLowerCase() === u.username.toLowerCase());
-      const isThang = (u.email && u.email.toLowerCase() === 'thangnnv2003@gmail.com') ||
-                      (u.username && u.username.toLowerCase() === 'thangnnv2003@gmail.com') ||
-                      (u.username && u.username.toLowerCase() === 'thangnnv2003');
-      const selfNotice = document.getElementById('editSelfNotice');
-      const roleSelect = document.getElementById('editVaiTro');
-      const statusSelect = document.getElementById('editTrangThai');
-
-      if(isThang){
-        selfNotice.textContent = 'Tài khoản Quản trị viên tối cao (thangnnv2003@gmail.com) luôn giữ vai trò Quản lý và trạng thái Hoạt động. Không ai có quyền xóa hay hạ quyền.';
-        selfNotice.style.display = 'block';
-        roleSelect.disabled = true;
-        statusSelect.disabled = true;
-      } else if(isSelf){
-        selfNotice.textContent = 'Bạn đang sửa tài khoản của chính mình. Vai trò Quản lý và trạng thái Hoạt động được bảo vệ an toàn.';
-        selfNotice.style.display = 'block';
-        roleSelect.disabled = true;
-        statusSelect.disabled = true;
-      } else {
-        selfNotice.style.display = 'none';
-        roleSelect.disabled = false;
-        statusSelect.disabled = false;
-      }
-
+      // Quản lý khác + người sửa là Quản lý thường: khóa email/SĐT, ẩn đặt lại mật khẩu (xem actorIsSenior).
+      const protectedManager = isProtectedManagerRow(u);
+      ['editEmail', 'editPhone', 'editTelegramId'].forEach(fieldId => {
+        const input = document.getElementById(fieldId);
+        input.disabled = protectedManager;
+        input.title = protectedManager ? 'Chỉ Quản lý cấp cao mới được đổi thông tin liên hệ của Quản lý khác' : '';
+      });
+      ['editNewPassword', 'editConfirmPassword'].forEach(fieldId => {
+        const group = document.getElementById(fieldId).closest('.form-group');
+        if(group) group.style.display = protectedManager ? 'none' : '';
+      });
+      loadDepartmentSelection('editLeaveDepartments', u, protectedManager || isSuperAdminUser(u));
       openModal('editUserModal');
     }
 
@@ -1378,92 +2473,49 @@
       const hoTen = document.getElementById('editHoTen').value.trim();
       const email = document.getElementById('editEmail').value.trim();
       const soDienThoai = document.getElementById('editPhone').value.trim();
-      const vaiTro = document.getElementById('editVaiTro').value;
+      const telegramId = document.getElementById('editTelegramId').value.trim();
       const coSo = document.getElementById('editCoSo').value;
-      const trangThai = document.getElementById('editTrangThai').value;
+      const newPassword = document.getElementById('editNewPassword').value;
+      const confirmPassword = document.getElementById('editConfirmPassword').value;
       const errEl = document.getElementById('editUserError');
       const btn = document.getElementById('btnSubmitEdit');
 
       errEl.style.display = 'none';
+      const showError = msg => { errEl.textContent = msg; errEl.style.display = 'block'; };
+
+      if(newPassword || confirmPassword){
+        if(newPassword.length < 8) return showError('Mật khẩu mới tối thiểu 8 ký tự.');
+        if(newPassword !== confirmPassword) return showError('Xác nhận mật khẩu không khớp.');
+      }
+
       btn.disabled = true;
+      const json = { 'Content-Type': 'application/json' };
 
-      const payload = { hoTen, email, soDienThoai, coSo };
-      // Chỉ gửi vaiTro / trangThai nếu không bị disable (không phải tự sửa chính mình hoặc sửa thangnnv2003@gmail.com)
-      if(!document.getElementById('editVaiTro').disabled) payload.vaiTro = vaiTro;
-      if(!document.getElementById('editTrangThai').disabled) payload.trangThai = trangThai;
-
-      fetch(`/api/admin/users/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
+      // Bước 1: lưu thông tin cá nhân. Bước 2 (nếu có nhập): đặt lại mật khẩu.
+      const fields = { hoTen, email, soDienThoai, coSo };
+      if(!isProtectedManagerRow(rawAdminUsers.find(user => String(user.id) === String(id)))) fields.leaveApprovalDepartments = selectedDepartments('editLeaveDepartments');
+      if(!document.getElementById('editTelegramId').disabled) fields.telegramId = telegramId;
+      fetch(`/api/admin/users/${id}`, { method: 'PUT', headers: json, body: JSON.stringify(fields) })
         .then(parseApiResponse)
+        .then(result => {
+          if(!result.ok || !newPassword) return result;
+          return fetch(`/api/admin/users/${id}/reset-password`, { method: 'POST', headers: json, body: JSON.stringify({ newPassword }) })
+            .then(parseApiResponse);
+        })
         .then(result => {
           btn.disabled = false;
           if(!result.ok){
-            errEl.textContent = result.data.error || 'Không cập nhật được tài khoản.';
-            errEl.style.display = 'block';
+            showError(result.data.error || 'Không cập nhật được tài khoản.');
+            loadAdminUsers();
             return;
           }
           closeModal('editUserModal');
-          showToast('Đã cập nhật thông tin tài khoản!');
+          showToast(newPassword ? 'Đã cập nhật thông tin và mật khẩu!' : 'Đã cập nhật thông tin tài khoản!');
           loadAdminUsers();
         })
         .catch(() => {
           btn.disabled = false;
-          errEl.textContent = 'Lỗi kết nối, vui lòng thử lại.';
-          errEl.style.display = 'block';
-        });
-    }
-
-    // Modal Reset Password
-    function openResetPasswordModal(id, username){
-      document.getElementById('resetUserId').value = id;
-      document.getElementById('resetTargetUsername').textContent = username;
-      document.getElementById('resetNewPassword').value = '';
-      document.getElementById('resetConfirmPassword').value = '';
-      document.getElementById('resetPasswordError').style.display = 'none';
-      openModal('resetPasswordModal');
-    }
-
-    function handleResetPassword(e){
-      e.preventDefault();
-      const id = document.getElementById('resetUserId').value;
-      const newPassword = document.getElementById('resetNewPassword').value;
-      const confirm = document.getElementById('resetConfirmPassword').value;
-      const errEl = document.getElementById('resetPasswordError');
-      const btn = document.getElementById('btnSubmitReset');
-
-      errEl.style.display = 'none';
-
-      if(newPassword !== confirm){
-        errEl.textContent = 'Xác nhận mật khẩu không khớp.';
-        errEl.style.display = 'block';
-        return;
-      }
-
-      btn.disabled = true;
-
-      fetch(`/api/admin/users/${id}/reset-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ newPassword })
-      })
-        .then(parseApiResponse)
-        .then(result => {
-          btn.disabled = false;
-          if(!result.ok){
-            errEl.textContent = result.data.error || 'Không đặt lại được mật khẩu.';
-            errEl.style.display = 'block';
-            return;
-          }
-          closeModal('resetPasswordModal');
-          showToast('Đã đặt lại mật khẩu mới cho tài khoản!');
-        })
-        .catch(() => {
-          btn.disabled = false;
-          errEl.textContent = 'Lỗi kết nối, vui lòng thử lại.';
-          errEl.style.display = 'block';
+          showError('Lỗi kết nối, vui lòng thử lại.');
         });
     }
 
@@ -1498,34 +2550,6 @@
         });
     }
 
-    // Delete User
-    function handleDeleteUser(id, username){
-      const target = rawAdminUsers.find(x => String(x.id) === String(id));
-      if (target && ((target.email && target.email.toLowerCase() === 'thangnnv2003@gmail.com') || (target.username && target.username.toLowerCase() === 'thangnnv2003@gmail.com') || (target.username && target.username.toLowerCase() === 'thangnnv2003'))) {
-        showToast('Không ai có quyền xóa tài khoản Quản trị viên tối cao (thangnnv2003@gmail.com)!', 'error');
-        return;
-      }
-
-      if(!confirm(`CẢNH BÁO: Bạn có chắc chắn muốn xóa vĩnh viễn tài khoản "${username}"?`)) return;
-
-      fetch(`/api/admin/users/${id}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' }
-      })
-        .then(parseApiResponse)
-        .then(result => {
-          if(!result.ok){
-            showToast(result.data.error || 'Không thể xóa tài khoản', 'error');
-            return;
-          }
-          showToast(`Đã xóa tài khoản "${username}" thành công!`);
-          loadAdminUsers();
-        })
-        .catch(() => {
-          showToast('Lỗi kết nối khi xóa tài khoản', 'error');
-        });
-    }
-
     // ---------- Logout ----------
     function handleLogout(){
       if(window.TKSNav && window.TKSNav.logout){
@@ -1545,34 +2569,42 @@
         window.TKSNav.authGuard()
           .then(user => {
             currentUser = user;
-            isManager = (user.vaiTro === 'Quản lý');
+            document.getElementById('userStatusFilter').value = 'Đang hoạt động';
+            initializeUserColumns();
+            ensureExportFieldCatalog().then(catalog => { if(Array.isArray(catalog.fields)){ userColumnCatalog = catalog.fields; initializeUserColumns(); handleFilterUsers(); } }).catch(() => {});
+            // Quyen lay tu user.permissions (/api/auth/me) — CUNG MOT nguon voi
+            // requireFeature o server/auth/adminUserRoutes.js.
+            isManager = accountCan('account.users.manage');
+            canViewUsers = accountCan('account.users');
+            canEditPermissions = accountCan('account.permissions');
             if(sidebar) window.TKSNav.renderTopSidebar(sidebar, 'account', user);
 
-            // Moi vai tro tru Khach deu xem duoc tab Quan ly người dùng
-            if(user.vaiTro !== 'Khách'){
+            if(canViewUsers){
               const adminTabBtn = document.getElementById('tabBtnAdminUsers');
               if(adminTabBtn) adminTabBtn.style.display = 'inline-flex';
+              const historyTabBtn = document.getElementById('tabBtnHistory');
+              if(historyTabBtn) historyTabBtn.style.display = 'inline-flex';
             }
 
-            // Chi Quan ly moi duoc them tai khoan moi
+            // Chi ai co quyen 'account.users.manage' moi duoc them tai khoan moi
             const btnAddUser = document.getElementById('btnAddUserAccount');
             if(btnAddUser) btnAddUser.style.display = isManager ? 'inline-flex' : 'none';
+            const btnExportUsers = document.getElementById('btnExportUsers');
+            if(btnExportUsers) btnExportUsers.style.display = isManager ? 'inline-flex' : 'none';
 
-            // Áp dụng tab từ hash URL nếu có (ví dụ /account/#users hoặc /account/#profile)
-            const initialHash = (window.location.hash || '').replace('#', '');
-            if(initialHash === 'users' || initialHash === 'adminUsers'){
-              if(user.vaiTro !== 'Khách'){
-                switchAccountTab('users', true);
-              } else {
-                switchAccountTab('profile', true);
-              }
-            } else {
-              switchAccountTab('profile', true);
+            // Nguoi khong phai Quan ly: nap danh muc quyen som de loc dropdown vai tro
+            // va khoa lua chon "Cho phep" (best-effort — server van chan that).
+            if(!actorIsManager() && canViewUsers){
+              loadPermissionsCatalog().catch(() => {});
             }
+
+            // Áp dụng tab từ hash URL nếu có (ví dụ /account/#users, #history hoặc #profile)
+            const initialTab = normalizeAccountSubtab((window.location.hash || '').replace('#', ''));
+            switchAccountTab(initialTab || 'profile', true);
           });
       }
     });
   </script>
-  <script src="/shared/shooting-star.js?v=20260830"></script>
+  <script src="/shared/shooting-star.js?v=20261009"></script>
 </body>
 </html>

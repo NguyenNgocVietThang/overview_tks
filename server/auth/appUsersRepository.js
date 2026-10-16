@@ -13,6 +13,8 @@
 // ==========================================
 'use strict';
 
+const normalizeDepartments = value => require('../hr/hrApprovalDepartments').normalizeDepartments(value || []);
+
 const { getPool } = require('../db/pool');
 const { BRANCHES, BRANCH_BOTH, normalizeCoSo, branchCodeToLabel } = require('../branch/branches');
 
@@ -62,6 +64,10 @@ function rowToUser(row) {
     passwordHash: row.password_hash || '',
     vaiTro: row.vai_tro || '',
     coSo: coSoFromDb(row.co_so),
+    assignedCoSo: coSoFromDb(row.co_so),
+    boPhan: row.hr_bo_phan || '',
+    hrEmployeeActive: row.hr_employee_id == null || row.hr_employee_active === undefined ? undefined : !!row.hr_employee_active,
+    leaveApprovalDepartments: normalizeDepartments(row.leave_approval_departments || []),
     trangThai: row.trang_thai || '',
     ngayTao: row.ngay_tao || '',
     dangNhapGanNhat: row.dang_nhap_gan_nhat || '',
@@ -81,6 +87,9 @@ function rowToUser(row) {
     vaiTroOverride: row.vai_tro_override || '',
     coSoOverride: row.co_so_override || '',
     roleSource: row.role_source || '',
+    featurePermissions: (row.feature_permissions && typeof row.feature_permissions === 'object')
+      ? row.feature_permissions
+      : {},
     legacyOverride: !!row.legacy_override,
     verifiedEmail: !!row.verified_email,
     verifiedPhone: !!row.verified_phone,
@@ -115,6 +124,10 @@ const WRITABLE_COLUMNS = Object.freeze([
   ['vaiTroOverride', 'vai_tro_override', v => String(v || '')],
   ['coSoOverride', 'co_so_override', v => String(v || '')],
   ['roleSource', 'role_source', v => String(v || '')],
+  // Ghi de quyen theo tung tai khoan — xem featureRegistry.js. Luon ghi mot
+  // object JSON (JSONB), gia tri la se thanh {} thay vi lam hong hang.
+  ['leaveApprovalDepartments', 'leave_approval_departments', normalizeDepartments],
+  ['featurePermissions', 'feature_permissions', v => (v && typeof v === 'object' && !Array.isArray(v) ? v : {})],
   ['legacyOverride', 'legacy_override', v => !!v],
   ['verifiedEmail', 'verified_email', v => !!v],
   ['verifiedPhone', 'verified_phone', v => !!v],
@@ -122,7 +135,7 @@ const WRITABLE_COLUMNS = Object.freeze([
 ]);
 
 const SELECT_SQL = `
-  SELECT u.*, e.branch AS hr_branch
+  SELECT u.*, e.branch AS hr_branch, e.bo_phan AS hr_bo_phan, e.is_active AS hr_employee_active
   FROM app_users u
   LEFT JOIN hr_employees e ON e.id = u.hr_employee_id
 `;
@@ -150,13 +163,13 @@ async function insertUser(user) {
   }
   const sql = `INSERT INTO app_users (${columns.join(', ')}) VALUES (${placeholders.join(', ')}) RETURNING *`;
   const { rows } = await getPool().query(sql, values);
-  return rowToUser({ ...rows[0], hr_branch: null });
+  return attachBranch(rows[0]);
 }
 
 async function attachBranch(row) {
   if (!row.hr_employee_id) return rowToUser({ ...row, hr_branch: null });
-  const { rows } = await getPool().query('SELECT branch FROM hr_employees WHERE id = $1', [row.hr_employee_id]);
-  return rowToUser({ ...row, hr_branch: rows[0] ? rows[0].branch : null });
+  const { rows } = await getPool().query('SELECT branch, bo_phan, is_active FROM hr_employees WHERE id = $1', [row.hr_employee_id]);
+  return rowToUser({ ...row, hr_branch: rows[0] ? rows[0].branch : null, hr_bo_phan: rows[0] ? rows[0].bo_phan : null, hr_employee_active: !!(rows[0] && rows[0].is_active) });
 }
 
 /**
@@ -186,6 +199,82 @@ async function updateUserRow(id, patch) {
   return attachBranch(rows[0]);
 }
 
+function profileError(message, statusCode, code) {
+  return Object.assign(new Error(message), { statusCode, code });
+}
+
+// Save profile and Telegram ownership together. The bot's link table is the
+// source of truth; its trigger maintains app_users.telegram_id.
+async function updateProfileRow(id, patch, pool = getPool()) {
+  const client = await pool.connect();
+  const hasTelegramId = Object.hasOwn(patch, 'telegramId');
+  const telegramId = hasTelegramId ? patch.telegramId : undefined;
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query('SELECT * FROM app_users WHERE id = $1 AND NOT is_deleted FOR UPDATE', [id]);
+    const current = rows[0];
+    if (!current) throw profileError('Không tìm thấy tài khoản.', 404, 'USER_NOT_FOUND');
+
+    if (hasTelegramId) {
+      if (telegramId) {
+        // Serialize web claims of the same ID, including employees with no
+        // web account. Bot claims are also guarded by the DB unique indexes.
+        await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [telegramId]);
+        const conflict = await client.query(`SELECT 1 FROM app_users
+          WHERE telegram_id = $1 AND id <> $2 AND NOT is_deleted
+          UNION ALL SELECT 1 FROM hr_telegram_links
+          WHERE telegram_chat_id = $1 AND user_id <> $2 AND status = 'linked'
+          UNION ALL SELECT 1 FROM hr_employees
+          WHERE telegram_id = $1 AND is_active AND id IS DISTINCT FROM $3::bigint
+          LIMIT 1`, [telegramId, id, current.hr_employee_id]);
+        if (conflict.rows.length) {
+          throw profileError('ID Telegram này đã được sử dụng bởi tài khoản hoặc nhân viên khác.', 409, 'TELEGRAM_ID_EXISTS');
+        }
+      }
+      const linked = await client.query("SELECT telegram_chat_id FROM hr_telegram_links WHERE user_id = $1 AND status = 'linked'", [id]);
+      const linkedId = linked.rows[0] ? linked.rows[0].telegram_chat_id : '';
+      await client.query(`UPDATE hr_telegram_links SET status = 'revoked', revoked_at = now()
+        WHERE user_id = $1 AND status = 'pending'`, [id]);
+      if (telegramId !== current.telegram_id || telegramId !== linkedId) {
+        await client.query(`UPDATE hr_telegram_links SET status = 'revoked', revoked_at = now()
+          WHERE user_id = $1 AND status = 'linked'`, [id]);
+        if (telegramId) {
+          await client.query(`INSERT INTO hr_telegram_links
+            (user_id, status, link_method, telegram_chat_id, linked_at)
+            VALUES ($1, 'linked', 'manual', $2, now())`, [id, telegramId]);
+        }
+      }
+      // Keep the directory fallback used by the bot from restoring an old ID.
+      if (current.hr_employee_id != null) {
+        await client.query('UPDATE hr_employees SET telegram_id = $1, updated_at = now() WHERE id = $2',
+          [telegramId, current.hr_employee_id]);
+      }
+    }
+    const sets = [];
+    const values = [];
+    for (const [jsKey, dbCol, toSql] of WRITABLE_COLUMNS) {
+      if (!Object.hasOwn(patch, jsKey)) continue;
+      values.push(toSql(patch[jsKey]));
+      sets.push(`${dbCol} = $${values.length}`);
+    }
+    sets.push('updated_at = now()');
+    values.push(id);
+    await client.query(`UPDATE app_users SET ${sets.join(', ')} WHERE id = $${values.length}`, values);
+    const saved = await client.query(`${SELECT_SQL} WHERE u.id = $1`, [id]);
+    const user = rowToUser(saved.rows[0]);
+    await client.query('COMMIT');
+    return user;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    if (err.code === '23505' && ['app_users_telegram_id_key', 'hr_telegram_links_chat_linked_key', 'hr_telegram_links_user_linked_key'].includes(err.constraint)) {
+      throw profileError('ID Telegram này đã được sử dụng. Vui lòng kiểm tra lại.', 409, 'TELEGRAM_ID_EXISTS');
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 async function softDeleteUser(id) {
   const sql = `
     UPDATE app_users
@@ -198,12 +287,23 @@ async function softDeleteUser(id) {
   return attachBranch(rows[0]);
 }
 
+async function selectApprovalDepartmentCatalog(pool = getPool()) {
+  const { rows } = await pool.query(`
+    SELECT bo_phan FROM hr_employees
+    UNION SELECT unnest(leave_approval_departments) AS bo_phan FROM app_users WHERE NOT is_deleted
+    UNION SELECT bo_phan FROM hr_leave_requests
+  `);
+  return normalizeDepartments(rows.map(row => row.bo_phan || ''));
+}
+
 module.exports = {
+  selectApprovalDepartmentCatalog,
   coSoToDb,
   coSoFromDb,
   rowToUser,
   selectAllRows,
   insertUser,
   updateUserRow,
+  updateProfileRow,
   softDeleteUser
 };

@@ -1,0 +1,44 @@
+.locations-title{margin:0 0 20px;font-family:var(--font-display);font-size:24px;color:var(--canvas-text);letter-spacing:-.02em}
+.locations-tabs{display:flex;gap:6px;border-bottom:1px solid var(--canvas-subnav-border);margin-bottom:20px}
+.locations-tabs a{padding:10px 16px;color:var(--canvas-text);text-decoration:none;font-size:13px;font-weight:600;border-bottom:2px solid transparent;margin-bottom:-1px}
+.locations-tabs a[aria-current="page"]{border-bottom-color:var(--blue);font-weight:700}
+.locations-tabs a[hidden]{display:none}
+.locations-panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-xl);box-shadow:var(--card-shadow);overflow:hidden}
+.locations-toolbar{display:flex;align-items:center;gap:16px;padding:16px;flex-wrap:wrap}
+.locations-toolbar h3{margin:0;font-family:var(--font-display);font-size:16px;color:var(--text)}
+.locations-search{position:relative;display:block;flex:1;min-width:200px}
+.locations-search input{box-sizing:border-box;width:100%;min-height:40px;padding:9px 12px 9px 36px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel-2);color:var(--text);font:13px var(--font-body)}
+.locations-search svg{position:absolute;left:12px;top:12px;width:16px;height:16px;color:var(--muted);pointer-events:none}
+.locations-search input:focus-visible,.locations-tabs a:focus-visible,.locations-pager button:focus-visible,.locations-scroll:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.locations-scroll{overflow:auto;max-height:65vh}
+.locations-table{width:100%;min-width:var(--locations-min-width,850px);table-layout:fixed;border-collapse:collapse;text-align:left}
+/* Khung bảng (padding, viền, kiểu tiêu đề) + nút/biểu tượng sắp xếp ▲▼: lớp .users-table và quy ước sắp xếp ở shared/shared.css. */
+.locations-table th{position:sticky;top:0;z-index:1}
+.locations-table td{color:var(--text);white-space:pre-wrap;overflow-wrap:anywhere}
+.locations-table td[data-field="code"]{font-family:var(--font-data)}
+.locations-table [data-field="totalQuantity"]{text-align:right;font-variant-numeric:tabular-nums}
+.locations-table th[data-field="totalQuantity"] .sort-button{text-align:right}
+.locations-columns-button:focus-visible,.locations-columns-dialog button:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
+.locations-columns-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:40px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel-2);color:var(--text);font:13px var(--font-body);white-space:nowrap;cursor:pointer}
+.locations-columns-button svg{width:16px;height:16px}
+.locations-status{margin:0;padding:8px 16px 20px;color:var(--muted);font-size:13px}
+.locations-status:empty{display:none}
+.locations-status[data-error="true"]{color:var(--red)}
+.locations-pager{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:8px;padding:12px 16px;background:var(--panel-2);color:var(--muted);font-size:12.5px}
+.locations-pager[hidden]{display:none}
+.locations-pager-controls{display:flex;align-items:center;gap:10px}
+.locations-pager button{min-width:40px;min-height:40px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel);color:var(--text);font:14px var(--font-data);cursor:pointer}
+.locations-pager button:disabled{opacity:.45;cursor:not-allowed}
+.locations-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media(max-width:600px){
+  .locations-toolbar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;padding:12px}
+  .locations-search{grid-column:1 / -1;grid-row:2;min-width:0}
+  .locations-columns-button{font-size:12px}
+  .locations-table th,.locations-table td{padding:10px 8px;font-size:12px}
+  .locations-table th{font-size:10.5px;letter-spacing:.01em}
+  .locations-table .sort-button{gap:3px}
+  .locations-table [data-field="name"]{position:sticky;left:0;background:var(--panel);z-index:1;box-shadow:1px 0 0 var(--border)}
+  .locations-table th[data-field="name"]{background:var(--panel-2);z-index:3}
+  .locations-table td{line-height:1.5}
+  .locations-pager{padding:12px;gap:10px}
+}

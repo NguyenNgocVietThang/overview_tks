@@ -67,9 +67,10 @@ function pagedKiotVietClient(pages, { failOnPage } = {}) {
   };
 }
 
-test('loi giua trang 3/4 roi goi lai pollEntityOnce: tu phuc hoi dung, khong mat va khong tua lai tien do da luu', async () => {
+test('loi giua trang 3/4 phai giu checkpoint cu de doc lai cac trang chua hoan tat', async () => {
   const pool = createFakeCheckpointPool();
   const checkpoints = createCheckpointRepository({ pool });
+  await pool.query('INSERT INTO sync_checkpoints', ['hanoi', 'purchases', '2026-09-14T01:00:00.000Z', null]);
   let upsertedCount = 0;
   const entity = {
     entity: 'purchases', endpoint: 'purchaseorders', listQuery: {}, incrementalParam: 'lastModifiedFrom',
@@ -84,7 +85,7 @@ test('loi giua trang 3/4 roi goi lai pollEntityOnce: tu phuc hoi dung, khong mat
   );
 
   const afterRun1 = await checkpoints.getCheckpoint('hanoi', 'purchases');
-  assert.equal(new Date(afterRun1.last_synced_at).toISOString(), '2026-09-14T02:00:00.000Z');
+  assert.equal(new Date(afterRun1.last_synced_at).toISOString(), '2026-09-14T01:00:00.000Z');
   assert.equal(upsertedCount, 2, 'chi trang 1 va 2 duoc upsert, trang 3 chua bao gio chay upsertPage');
 
   const run2Client = pagedKiotVietClient([[1], [2], [3], [4]]);
@@ -93,8 +94,8 @@ test('loi giua trang 3/4 roi goi lai pollEntityOnce: tu phuc hoi dung, khong mat
 
   assert.equal(
     run2Client.calls[0].lastModifiedFrom,
-    '2026-09-14T02:00:00.000Z',
-    'lan goi lai phai tiep tuc dung tu checkpoint da luu o lan truoc, khong phai now()-1h va khong tua lai tu dau'
+    '2026-09-14T01:00:00.000Z',
+    'lan goi lai phai doc lai cua so chua hoan tat, khong duoc bo cac trang chua luu'
   );
   const afterRun2 = await checkpoints.getCheckpoint('hanoi', 'purchases');
   assert.equal(new Date(afterRun2.last_synced_at).toISOString(), '2026-09-14T02:10:00.000Z');

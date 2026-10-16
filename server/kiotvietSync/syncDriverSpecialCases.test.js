@@ -57,6 +57,7 @@ function createFakeSyncPool() {
           if (sql === 'BEGIN') { pending = []; return; }
           if (sql === 'COMMIT') { const staged = pending; pending = []; for (const [s, p] of staged) await apply(s, p); return; }
           if (sql === 'ROLLBACK') { pending = []; return; }
+          if (sql.startsWith('SELECT id,raw,account_id')) return {rows:[]};
           pending.push([sql, params]);
         },
         release() {}
@@ -74,7 +75,17 @@ function noopKiotVietClient(queries) {
   };
 }
 
-test('orders (hasUpperBound:false, entity module that) khong bi syncDriver gan them tham so chan tren khi poll', async () => {
+function seedCheckpoint(pool, branch, entity, lastSyncedAt) {
+  pool.getCheckpointStore().set(`${branch}::${entity}`, {
+    branch,
+    entity,
+    last_synced_at: lastSyncedAt,
+    last_success_at: lastSyncedAt,
+    note: null
+  });
+}
+
+test('orders (entity module that) quet toan bo du lieu o lan sync dau, khong co lastModifiedFrom', async () => {
   const pool = createFakeSyncPool();
   const checkpoints = createCheckpointRepository({ pool });
   const driver = createSyncDriver({ pool, checkpointRepository: checkpoints, now: () => Date.parse('2026-09-14T05:00:00Z') });
@@ -82,11 +93,11 @@ test('orders (hasUpperBound:false, entity module that) khong bi syncDriver gan t
   await driver.pollEntityOnce(noopKiotVietClient(queries), 'hanoi', ordersEntity);
   assert.equal(queries.length, 1);
   assert.deepEqual(queries[0].query, {
-    includePayment: 'true', includeOrderDelivery: 'true', pageSize: '20', lastModifiedFrom: '2026-09-14T04:00:00.000Z'
+    includePayment: 'true', includeOrderDelivery: 'true', pageSize: '20'
   });
 });
 
-test('returns (hasUpperBound:false, entity module that) khong bi syncDriver gan them tham so chan tren khi poll', async () => {
+test('returns (entity module that) quet toan bo du lieu o lan sync dau, khong co lastModifiedFrom', async () => {
   const pool = createFakeSyncPool();
   const checkpoints = createCheckpointRepository({ pool });
   const driver = createSyncDriver({ pool, checkpointRepository: checkpoints, now: () => Date.parse('2026-09-14T05:00:00Z') });
@@ -94,9 +105,30 @@ test('returns (hasUpperBound:false, entity module that) khong bi syncDriver gan 
   await driver.pollEntityOnce(noopKiotVietClient(queries), 'hanoi', returnsEntity);
   assert.equal(queries.length, 1);
   assert.deepEqual(queries[0].query, {
-    includePayment: 'true', lastModifiedFrom: '2026-09-14T04:00:00.000Z'
+    includePayment: 'true'
   });
 });
+
+for (const [label, entityModule, listQuery] of [
+  ['orders', ordersEntity, { includePayment: 'true', includeOrderDelivery: 'true', pageSize: '20' }],
+  ['returns', returnsEntity, { includePayment: 'true' }]
+]) {
+  test(`${label} (entity module that) dung lastModifiedFrom khi da co checkpoint`, async () => {
+    const pool = createFakeSyncPool();
+    const checkpoints = createCheckpointRepository({ pool });
+    seedCheckpoint(pool, 'hanoi', entityModule.entity, '2026-09-14T03:30:00Z');
+    const driver = createSyncDriver({ pool, checkpointRepository: checkpoints, now: () => Date.parse('2026-09-14T05:00:00Z') });
+    const queries = [];
+
+    await driver.pollEntityOnce(noopKiotVietClient(queries), 'hanoi', entityModule);
+
+    assert.equal(queries.length, 1);
+    assert.deepEqual(queries[0].query, {
+      ...listQuery,
+      lastModifiedFrom: '2026-09-14T03:30:00.000Z'
+    });
+  });
+}
 
 test('invoices (doi chung, hasUpperBound mac dinh true, entity module that): syncDriver van chi dung dung 1 tham so lastModifiedFrom, khong co tham so chan tren nao o cap poll', async () => {
   const pool = createFakeSyncPool();
@@ -150,5 +182,5 @@ test('cash_flows (entity module that): syncDriver goi API dung 2 lan isReceipt=t
   assert.equal(byId(502).params[3], false, 'item lay tu vong lap isReceipt=false phai duoc gan is_receipt=false du item goc khong co field nay');
 
   const checkpoint = await checkpoints.getCheckpoint('saigon', 'cash_flows');
-  assert.equal(checkpoint.note, '2026-09-14T02:00:00.000Z', 'cua so da dung (endDate) phai duoc luu vao note, khong dung last_synced_at de tinh khoang ngay lan sau');
+  assert.deepEqual(JSON.parse(checkpoint.note), {windowEnd:'2026-09-14T02:00:00.000Z',reconciledAt:'2026-09-14T02:00:00.000Z'});
 });

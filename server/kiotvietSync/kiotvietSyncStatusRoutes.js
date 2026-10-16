@@ -11,12 +11,12 @@ const BUSINESS_TABLES = Object.freeze([
   { table: 'categories', orderColumn: 'modified_date' },
   { table: 'products', orderColumn: 'modified_date' },
   { table: 'customers', orderColumn: 'modified_date' },
-  { table: 'suppliers', orderColumn: 'modified_date' },
   { table: 'staff', orderColumn: 'last_seen_at' },
   { table: 'invoices', orderColumn: 'modified_date' },
   { table: 'orders', orderColumn: 'modified_date' },
   { table: 'returns', orderColumn: 'modified_date' },
   { table: 'purchases', orderColumn: 'modified_date' },
+  { table: 'order_suppliers', orderColumn: 'synced_at' },
   { table: 'cash_flows', orderColumn: 'synced_at' }
 ]);
 

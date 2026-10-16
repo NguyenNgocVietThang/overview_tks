@@ -6,6 +6,16 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { JSDOM } = require('jsdom');
 
+// TKSNav that dung TKSNav.can(<quyen>) (nguon: user.permissions tu /api/auth/me)
+// thay cho kiem tra vai tro cung — mock phai co ham do, lay dung quyen mac dinh
+// cua vai tro tu server/auth/featureRegistry.js.
+const { defaultsForRole } = require('../../auth/featureRegistry');
+function fakeCan(vaiTro) {
+  const permissions = defaultsForRole(vaiTro);
+  return (...keys) => keys.some(key => (Array.isArray(key) ? key : [key]).some(k => permissions.includes(k)));
+}
+
+
 const htmlPath = path.join(__dirname, '..', '..', 'public', 'humanresources', 'index.html');
 
 const EMPLOYEES = [
@@ -25,6 +35,7 @@ async function openPage({ branches = ['Hà Nội', 'Sài Gòn'] } = {}) {
   const requestedUrls = [];
   window.TKSNav = {
     authGuard: async () => ({ username: 'manager', vaiTro: 'Quản lý', branches }),
+    can: fakeCan('Quản lý'),
     renderTopSidebar() {}
   };
   window.fetch = async url => {
@@ -104,8 +115,8 @@ test('tab Danh sách nhân sự hiện cột Cơ sở và lọc theo cơ sở/ph
   const doc = window.document;
   const names = () => [...doc.querySelectorAll('#employeeDirectoryTableBody tr')].map(tr => tr.cells[0].textContent);
 
-  const headers = [...doc.querySelectorAll('#employeeDirectoryTable thead th')].map(th => th.textContent.replace(/[↕▲▼]/g, '').trim());
-  assert.deepEqual(headers, ['Họ và tên', 'Chức vụ', 'Cơ sở', 'Số điện thoại', 'Email']);
+  const headers = [...doc.querySelectorAll('#employeeDirectoryTable thead th')].filter(th => !th.hidden).map(th => th.textContent.replace(/[↕▲▼]/g, '').trim());
+  assert.deepEqual(headers, ['Họ và tên', 'Chức vụ', 'Cơ sở', 'Số điện thoại', 'Email', 'Trạng thái']);
   assert.equal(doc.getElementById('employeeBranchFilter').value, '');
   assert.equal(doc.getElementById('employeeDepartmentFilter').value, '');
   assert.deepEqual(names(), ['An Kho', 'Bình Sale', 'Cường Kho', 'Dũng Trợ Lý', 'Em Kho']);

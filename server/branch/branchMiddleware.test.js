@@ -22,18 +22,23 @@ function run(user, cookieValue) {
   return { req, res, nexted };
 }
 
-test('tai khoan chua gan co so bi chan 403 BRANCH_UNASSIGNED', () => {
-  const { res, nexted } = run({ coSo: '' });
-  assert.equal(nexted, false);
-  assert.equal(res.statusCode, 403);
-  assert.equal(res.body.code, 'BRANCH_UNASSIGNED');
+test('tai khoan chua gan co so khong bi chan, mac dinh Ca hai', () => {
+  const { req, res, nexted } = run({ coSo: '' });
+  assert.equal(nexted, true);
+  assert.equal(req.branch, BRANCH_BOTH);
+  assert.equal(res.cookies[BRANCH_COOKIE_NAME], BRANCH_BOTH);
 });
 
-test('cookie tro toi co so khong duoc phep thi rot ve co so mac dinh', () => {
-  const { req, res, nexted } = run({ coSo: 'Hà Nội' }, BRANCHES.SAIGON);
+test('cookie co so da chon duoc ton trong bat ke coSo duoc gan', () => {
+  const { req, nexted } = run({ coSo: 'Hà Nội' }, BRANCHES.SAIGON);
   assert.equal(nexted, true);
-  assert.equal(req.branch, BRANCHES.HANOI);
-  assert.equal(res.cookies[BRANCH_COOKIE_NAME], BRANCHES.HANOI);
+  assert.equal(req.branch, BRANCHES.SAIGON);
+});
+
+test('cookie gia tri la thi rot ve co so mac dinh va viet lai cookie', () => {
+  const { req, res } = run({ coSo: 'Hà Nội' }, 'Đà Nẵng');
+  assert.equal(req.branch, BRANCH_BOTH);
+  assert.equal(res.cookies[BRANCH_COOKIE_NAME], BRANCH_BOTH);
 });
 
 test('cookie hop le duoc ton trong voi tai khoan phu trach ca hai co so', () => {
@@ -48,17 +53,18 @@ test('khong co cookie thi mac dinh Ca hai cho tai khoan phu trach ca hai co so v
   assert.equal(res.cookies[BRANCH_COOKIE_NAME], 'Cả hai');
 });
 
-test('khong co cookie thi dung co so duy nhat va viet lai cookie', () => {
+test('khong co cookie thi mac dinh Ca hai cho tai khoan gan co so don', () => {
   const { req, res } = run({ coSo: 'Sài Gòn' });
-  assert.equal(req.branch, BRANCHES.SAIGON);
-  assert.equal(res.cookies[BRANCH_COOKIE_NAME], BRANCHES.SAIGON);
+  assert.equal(req.branch, BRANCH_BOTH);
+  assert.equal(res.cookies[BRANCH_COOKIE_NAME], BRANCH_BOTH);
 });
 
 test('currentBranchFor dung chung logic nhung khong ghi cookie', () => {
   const req = { cookies: { [BRANCH_COOKIE_NAME]: BRANCHES.SAIGON } };
   assert.equal(currentBranchFor(req, { coSo: 'Cả hai' }), BRANCHES.SAIGON);
-  assert.equal(currentBranchFor(req, { coSo: 'Hà Nội' }), BRANCHES.HANOI);
-  assert.equal(currentBranchFor(req, { coSo: '' }), null);
+  assert.equal(currentBranchFor(req, { coSo: 'Hà Nội' }), BRANCHES.SAIGON);
+  assert.equal(currentBranchFor({ cookies: {} }, { coSo: 'Hà Nội' }), BRANCH_BOTH);
+  assert.equal(currentBranchFor({ cookies: {} }, { coSo: '' }), BRANCH_BOTH);
 });
 
 test('Ca hai la lua chon hop le cho tai khoan co du hai co so', () => {
@@ -68,10 +74,8 @@ test('Ca hai la lua chon hop le cho tai khoan co du hai co so', () => {
   assert.equal(currentBranchFor({ cookies: { [BRANCH_COOKIE_NAME]: BRANCH_BOTH } }, { coSo: 'Cả hai' }), BRANCH_BOTH);
 });
 
-test('cookie Ca hai bi thu hoi quyen phai rot ve co so vat ly mac dinh va viet lai cookie', () => {
-  const { req, res, nexted } = run({ coSo: 'Hà Nội' }, BRANCH_BOTH);
+test('Ca hai la lua chon hop le voi tai khoan gan co so don', () => {
+  const { req, nexted } = run({ coSo: 'Hà Nội' }, BRANCH_BOTH);
   assert.equal(nexted, true);
-  assert.equal(req.branch, BRANCHES.HANOI);
-  assert.equal(res.cookies[BRANCH_COOKIE_NAME], BRANCHES.HANOI);
-  assert.equal(currentBranchFor({ cookies: { [BRANCH_COOKIE_NAME]: BRANCH_BOTH } }, { coSo: 'Hà Nội' }), BRANCHES.HANOI);
+  assert.equal(req.branch, BRANCH_BOTH);
 });

@@ -15,6 +15,7 @@ delete require.cache[require.resolve('./orderLifecycleRoutes')];
 const { AUTH_COOKIE_NAME } = require('../auth/authMiddleware');
 const router = require('./orderLifecycleRoutes');
 const service = require('./orderLifecycleService');
+const kiotRepository = require('./kiotOrdersRepository');
 
 function fakeRes() {
   const res = { statusCode: null, body: null, headers: {}, sentBuffer: null };
@@ -57,17 +58,24 @@ function reqAs(vaiTro, params, query, body) {
 test.beforeEach(() => {
   service.findOrder = async () => ({ found: true, branch: 'HN', summary: { code: 'DELIVERED' }, detail: {} });
   service.listAllOrders = async () => ([{ orderCode: 'HD001' }]);
-  service.findOrdersBulk = async () => ([{ code: 'HD001', found: true }]);
-  service.exportOrdersByCodes = async () => ([{ orderCode: 'HD001', branch: 'HN', summary: { label: 'Đã giao' } }]);
+  // Bang "Toan bo don hang" goi queryOrders (1 TRANG, loc/sap xep tren may chu, gop don Kiot moi trang thai).
+  service.queryOrders = async () => ({
+    orders: [{ orderCode: 'HD001' }], page: 1, pageSize: 100, totalPages: 1, total: 1, filteredTotal: 1, kiotStatuses: [],
+    kiot: { ok: true, stale: false, fetchedAt: null, count: 0 }
+  });
+  // Khong cham DB that: thay chi tiet dong hang cua Kiot bang ban gia.
+  kiotRepository.kiotOrders.readOrderDetail = async ({ branch, code }) => ({ code, branch, phieuTam: true, lines: [] });
+  service.exportOrders = async () => ([{ orderCode: 'HD001', branch: 'HN', summary: { label: 'Đã giao' } }]);
   service.overrideStatus = async () => ({ orderCode: 'HD001', branch: 'HN', summary: { code: 'CANCELLED', isOverride: true } });
   service.listHistory = async () => ([{ historyId: 'OVR-1', orderCode: 'HD001', statusCode: 'CANCELLED' }]);
 });
 
-test('GET /api/shipment/lifecycle/:orderCode — Khách gọi được (200)', async () => {
+// 2026-10-03: Tra cuu theo ma + Lich su GAN vao Vong doi don hang -> Khach (khong co lifecycle) bi 403.
+test('GET /api/shipment/lifecycle/:orderCode — Khách bị 403 (tra cứu theo mã cần Vòng đời đơn hàng)', async () => {
   const req = reqAs('Khách', { orderCode: 'HD001' });
   const res = fakeRes();
   await callRoute('get', '/:orderCode', req, res);
-  assert.equal(res.statusCode, 200);
+  assert.equal(res.statusCode, 403);
 });
 
 test('GET /api/shipment/lifecycle — Khách bị 403', async () => {
@@ -77,16 +85,26 @@ test('GET /api/shipment/lifecycle — Khách bị 403', async () => {
   assert.equal(res.statusCode, 403);
 });
 
-const INTERNAL_ROLES = ['Kế toán', 'Trưởng kho', 'Quản lý', 'Trợ lý', 'Nhân viên sale'];
+// Xem toan bo don (GET /, GET /order-detail), Tra cuu 1 don (GET /:orderCode) va Lich su (GET /history)
+// CUNG nhom vai tro: noi bo TRU Nhan vien kho (2026-10-03), Nhan vien mua hang va Nhan vien marketing (2026-10-02);
+// cac vai tro do (va Khach) khong con gi trong Vong doi don hang. XUAT EXCEL (POST /export) chi Quan ly (2026-10-02).
+const INTERNAL_ROLES = [
+  'Kế toán', 'Trưởng kho', 'Quản lý', 'Trợ lý', 'Nhân viên sale',
+  'Lái xe', 'Nhân viên kho', 'Nhân viên mua hàng'
+];
+const NO_LIFECYCLE_ROLES = ['Nhân viên kho', 'Nhân viên mua hàng', 'Nhân viên marketing'];
+const LIFECYCLE_VIEW_ROLES = INTERNAL_ROLES.filter(role => !NO_LIFECYCLE_ROLES.includes(role));
 
-for (const role of INTERNAL_ROLES) {
+for (const role of LIFECYCLE_VIEW_ROLES) {
   test(`GET /api/shipment/lifecycle/:orderCode — ${role} gọi được (200)`, async () => {
     const req = reqAs(role, { orderCode: 'HD001' });
     const res = fakeRes();
     await callRoute('get', '/:orderCode', req, res);
     assert.equal(res.statusCode, 200);
   });
+}
 
+for (const role of LIFECYCLE_VIEW_ROLES) {
   test(`GET /api/shipment/lifecycle — ${role} gọi được (200)`, async () => {
     const req = reqAs(role);
     const res = fakeRes();
@@ -95,21 +113,20 @@ for (const role of INTERNAL_ROLES) {
   });
 }
 
-const OUTSIDER_ROLES = ['Lái xe', 'Nhân viên kho', 'Nhân viên mua hàng'];
-
-for (const role of OUTSIDER_ROLES) {
-  test(`GET /api/shipment/lifecycle/:orderCode — ${role} bị 403`, async () => {
-    const req = reqAs(role, { orderCode: 'HD001' });
-    const res = fakeRes();
-    await callRoute('get', '/:orderCode', req, res);
-    assert.equal(res.statusCode, 403);
-  });
-
-  test(`GET /api/shipment/lifecycle — ${role} bị 403`, async () => {
-    const req = reqAs(role);
-    const res = fakeRes();
-    await callRoute('get', '/', req, res);
-    assert.equal(res.statusCode, 403);
+for (const role of NO_LIFECYCLE_ROLES) {
+  test(`GET /api/shipment/lifecycle, /order-detail, /:orderCode, /history — ${role} bị 403 (không có Vòng đời đơn hàng)`, async () => {
+    const list = fakeRes();
+    await callRoute('get', '/', reqAs(role), list);
+    assert.equal(list.statusCode, 403);
+    const detail = fakeRes();
+    await callRoute('get', '/order-detail', reqAs(role, {}, { code: 'DH1', branch: 'HN' }), detail);
+    assert.equal(detail.statusCode, 403);
+    const lookup = fakeRes();
+    await callRoute('get', '/:orderCode', reqAs(role, { orderCode: 'HD001' }), lookup);
+    assert.equal(lookup.statusCode, 403, 'tra cuu theo ma gan voi Vong doi don hang');
+    const history = fakeRes();
+    await callRoute('get', '/history', reqAs(role), history);
+    assert.equal(history.statusCode, 403);
   });
 }
 
@@ -120,22 +137,13 @@ test('GET /api/shipment/lifecycle/history — Khách bị 403', async () => {
   assert.equal(res.statusCode, 403);
 });
 
-for (const role of INTERNAL_ROLES) {
+for (const role of LIFECYCLE_VIEW_ROLES) {
   test(`GET /api/shipment/lifecycle/history — ${role} gọi được (200)`, async () => {
     const req = reqAs(role);
     const res = fakeRes();
     await callRoute('get', '/history', req, res);
     assert.equal(res.statusCode, 200);
     assert.deepEqual(res.body.history, [{ historyId: 'OVR-1', orderCode: 'HD001', statusCode: 'CANCELLED' }]);
-  });
-}
-
-for (const role of OUTSIDER_ROLES) {
-  test(`GET /api/shipment/lifecycle/history — ${role} bị 403`, async () => {
-    const req = reqAs(role);
-    const res = fakeRes();
-    await callRoute('get', '/history', req, res);
-    assert.equal(res.statusCode, 403);
   });
 }
 
@@ -146,13 +154,38 @@ test('GET /api/shipment/lifecycle/history KHÔNG bị route /:orderCode nuốt m
   assert.deepEqual(Object.keys(res.body), ['history']);
 });
 
-test('GET /api/shipment/lifecycle?branch=XX không hợp lệ -> 400', async () => {
-  const req = reqAs('Quản lý', {}, { branch: 'XX' });
+test('GET /api/shipment/lifecycle trả 1 TRANG đơn (gộp đơn Kiot mọi trạng thái): truyền nguyên query + kiot repository, trả đúng phần phân trang và trạng thái nguồn `kiot`', async () => {
+  let received = null;
+  const payload = {
+    orders: [{ orderCode: 'DH1', source: 'kiotviet', kiotStatus: 'Hoàn thành' }], page: 2, pageSize: 100, totalPages: 7, total: 650,
+    filteredTotal: 650, kiotStatuses: ['Phiếu tạm', 'Hoàn thành'], kiot: { ok: false, stale: false, fetchedAt: null, count: 0 }
+  };
+  service.queryOrders = async (params, options) => {
+    received = { params, options };
+    return payload;
+  };
+  const query = { branch: 'SG', kiotStatus: 'Hoàn thành', page: '2', sort: 'note', dir: 'desc' };
   const res = fakeRes();
-  await callRoute('get', '/', req, res);
+  await callRoute('get', '/', reqAs('Nhân viên sale', {}, query), res);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body, payload);
+  assert.deepEqual(received.params, query, 'bo loc/sap xep/trang di thang xuong service (service kiem tra hop le)');
+  assert.equal(received.options.kiot, kiotRepository.kiotOrders, 'phai truyen repository doc don cua Kiot');
+});
+
+test('GET /api/shipment/lifecycle: tham số sai (service ném 400) -> trả 400 kèm mã, không phải 500', async () => {
+  service.queryOrders = async () => {
+    const err = new Error('Tham số "branch" phải là "HN" hoặc "SG".');
+    err.statusCode = 400;
+    err.code = 'INVALID_BRANCH';
+    throw err;
+  };
+  const res = fakeRes();
+  await callRoute('get', '/', reqAs('Quản lý', {}, { branch: 'XX' }), res);
   assert.equal(res.statusCode, 400);
   assert.equal(res.body.code, 'INVALID_BRANCH');
 });
+
 
 test('GET /api/shipment/lifecycle/:orderCode không đăng nhập -> 401', async () => {
   const req = { cookies: {}, params: { orderCode: 'HD001' }, query: {} };
@@ -161,87 +194,156 @@ test('GET /api/shipment/lifecycle/:orderCode không đăng nhập -> 401', async
   assert.equal(res.statusCode, 401);
 });
 
-test('POST /api/shipment/lifecycle/lookup — Khách gọi được (200)', async () => {
-  const req = reqAs('Khách', {}, {}, { codes: ['HD001'] });
-  const res = fakeRes();
-  await callRoute('post', '/lookup', req, res);
-  assert.equal(res.statusCode, 200);
-  assert.deepEqual(res.body.results, [{ code: 'HD001', found: true }]);
+test('POST /api/shipment/lifecycle/lookup đã gỡ (không giao diện nào gọi): không route POST nào khớp "/lookup" -> Express trả 404', () => {
+  const matching = router.stack.filter(l => l.route && l.route.methods.post && l.match('/lookup'));
+  assert.deepEqual(matching.map(l => l.route.path), []);
 });
 
-for (const role of INTERNAL_ROLES) {
-  test(`POST /api/shipment/lifecycle/lookup — ${role} gọi được (200)`, async () => {
-    const req = reqAs(role, {}, {}, { codes: ['HD001'] });
-    const res = fakeRes();
-    await callRoute('post', '/lookup', req, res);
-    assert.equal(res.statusCode, 200);
-  });
-}
-
-for (const role of OUTSIDER_ROLES) {
-  test(`POST /api/shipment/lifecycle/lookup — ${role} bị 403`, async () => {
-    const req = reqAs(role, {}, {}, { codes: ['HD001'] });
-    const res = fakeRes();
-    await callRoute('post', '/lookup', req, res);
-    assert.equal(res.statusCode, 403);
-  });
-}
-
+// Xuat Excel (2026-10-02): CHI Quan ly co quyen mac dinh. Moi vai tro khac (ke ca Tro ly, Ke toan) bi 403.
 test('POST /api/shipment/lifecycle/export — Khách bị 403', async () => {
-  const req = reqAs('Khách', {}, {}, { codes: ['HD001'] });
+  const req = reqAs('Khách', {}, {}, {});
   const res = fakeRes();
   await callRoute('post', '/export', req, res);
   assert.equal(res.statusCode, 403);
 });
 
-for (const role of INTERNAL_ROLES) {
-  test(`POST /api/shipment/lifecycle/export — ${role} gọi được (200, trả file xlsx)`, async () => {
-    const req = reqAs(role, {}, {}, { codes: ['HD001'] });
-    const res = fakeRes();
-    await callRoute('post', '/export', req, res);
-    assert.equal(res.statusCode, 200);
-    assert.equal(res.headers['Content-Type'], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    assert.ok(res.sentBuffer && res.sentBuffer.length > 0);
-  });
-}
-
-for (const role of OUTSIDER_ROLES) {
-  test(`POST /api/shipment/lifecycle/export — ${role} bị 403`, async () => {
-    const req = reqAs(role, {}, {}, { codes: ['HD001'] });
+for (const role of INTERNAL_ROLES.filter(item => item !== 'Quản lý')) {
+  test(`POST /api/shipment/lifecycle/export — ${role} bị 403 (chỉ Quản lý được xuất file)`, async () => {
+    let exported = false;
+    service.exportOrders = async () => { exported = true; return []; };
+    const req = reqAs(role, {}, {}, {});
     const res = fakeRes();
     await callRoute('post', '/export', req, res);
     assert.equal(res.statusCode, 403);
+    assert.equal(exported, false, 'khong doc du lieu khi khong co quyen');
   });
 }
 
+test('POST /api/shipment/lifecycle/export — Quản lý gọi được (200, trả file xlsx)', async () => {
+  const req = reqAs('Quản lý', {}, {}, {});
+  const res = fakeRes();
+  await callRoute('post', '/export', req, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.headers['Content-Type'], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  assert.ok(res.sentBuffer && res.sentBuffer.length > 0);
+});
+
+test('POST /api/shipment/lifecycle/export — tài khoản được Quản lý cấp thêm quyền shipment.export (ghi đè theo tài khoản) cũng xuất được', async () => {
+  const req = reqAs('Kế toán', {}, {}, {});
+  testUsers.get('u-Kế toán').featurePermissions = { 'shipment.export': true };
+  const res = fakeRes();
+  await callRoute('post', '/export', req, res);
+  testUsers.get('u-Kế toán').featurePermissions = undefined;
+  assert.equal(res.statusCode, 200);
+});
+
+test('POST /api/shipment/lifecycle/export gửi BỘ LỌC (body) + kiot repository cho service, không gửi danh sách mã', async () => {
+  let received = null;
+  service.exportOrders = async (params, options) => {
+    received = { params, options };
+    return [{ orderCode: 'DH1', branch: 'HN', summary: { label: 'Đơn chưa gửi kế toán' }, kiotStatus: 'Hoàn thành' }];
+  };
+  const body = { branch: 'HN', kiotStatus: 'Hoàn thành', sort: 'orderCode', dir: 'desc' };
+  const res = fakeRes();
+  await callRoute('post', '/export', reqAs('Quản lý', {}, {}, body), res);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(received.params, body);
+  assert.equal(received.options.kiot, kiotRepository.kiotOrders);
+});
+
+test('POST /api/shipment/lifecycle/export — quá giới hạn số dòng -> 400 TOO_MANY_ROWS (không dựng file lớn làm nghẽn máy chủ)', async () => {
+  const { MAX_EXPORT_ROWS } = require('./orderLifecycleExport');
+  service.exportOrders = async () => Array.from({ length: MAX_EXPORT_ROWS + 1 }, (_, i) => ({ orderCode: 'DH' + i, branch: 'HN', summary: {} }));
+  const res = fakeRes();
+  await callRoute('post', '/export', reqAs('Quản lý', {}, {}, {}), res);
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.code, 'TOO_MANY_ROWS');
+  assert.match(res.body.error, /vượt giới hạn 20\.000 đơn/);
+  assert.equal(res.sentBuffer, null);
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/shipment/lifecycle/order-detail — chi tiet dong hang theo Kiot (chi vai tro xem duoc bang toan bo don)
+// ---------------------------------------------------------------------------
+
+test('GET /order-detail — Khách bị 403 (không lộ giá/tồn kho cho khách tra cứu)', async () => {
+  const res = fakeRes();
+  await callRoute('get', '/order-detail', reqAs('Khách', {}, { code: 'DH1', branch: 'HN' }), res);
+  assert.equal(res.statusCode, 403);
+});
+
+test('GET /order-detail — không đăng nhập -> 401', async () => {
+  const res = fakeRes();
+  await callRoute('get', '/order-detail', { cookies: {}, params: {}, query: { code: 'DH1', branch: 'HN' } }, res);
+  assert.equal(res.statusCode, 401);
+});
+
+for (const role of LIFECYCLE_VIEW_ROLES) {
+  test(`GET /order-detail — ${role} gọi được (200) và truyền đúng cơ sở/mã`, async () => {
+    let received = null;
+    kiotRepository.kiotOrders.readOrderDetail = async args => { received = args; return { code: args.code, branch: args.branch, phieuTam: true, lines: [] }; };
+    const res = fakeRes();
+    await callRoute('get', '/order-detail', reqAs(role, {}, { code: ' DH041173 ', branch: 'HN' }), res);
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(received, { branch: 'HN', code: 'DH041173' });
+    assert.equal(res.body.detail.code, 'DH041173');
+  });
+}
+
+test('GET /order-detail KHÔNG bị route /:orderCode nuốt mất (không lẫn với tra cứu mã đơn "order-detail")', async () => {
+  let lookupCalled = false;
+  service.findOrder = async () => { lookupCalled = true; return { found: false }; };
+  const res = fakeRes();
+  await callRoute('get', '/order-detail', reqAs('Quản lý', {}, { code: 'DH1', branch: 'SG' }), res);
+  assert.equal(lookupCalled, false);
+  assert.deepEqual(Object.keys(res.body), ['detail']);
+});
+
+test('GET /order-detail — thiếu/sai mã hoặc cơ sở -> 400', async () => {
+  const noCode = fakeRes();
+  await callRoute('get', '/order-detail', reqAs('Quản lý', {}, { branch: 'HN' }), noCode);
+  assert.equal(noCode.statusCode, 400);
+  assert.equal(noCode.body.code, 'INVALID_CODE');
+
+  const badBranch = fakeRes();
+  await callRoute('get', '/order-detail', reqAs('Quản lý', {}, { code: 'DH1', branch: 'Hà Nội' }), badBranch);
+  assert.equal(badBranch.statusCode, 400);
+  assert.equal(badBranch.body.code, 'INVALID_BRANCH');
+
+  const longCode = fakeRes();
+  await callRoute('get', '/order-detail', reqAs('Quản lý', {}, { code: 'D'.repeat(101), branch: 'HN' }), longCode);
+  assert.equal(longCode.statusCode, 400);
+});
+
+test('GET /order-detail — lỗi 404 của kho dữ liệu được trả đúng statusCode/code', async () => {
+  kiotRepository.kiotOrders.readOrderDetail = async () => {
+    const err = new Error('Không tìm thấy đơn đặt hàng này.');
+    err.statusCode = 404;
+    err.code = 'ORDER_NOT_FOUND';
+    throw err;
+  };
+  const res = fakeRes();
+  await callRoute('get', '/order-detail', reqAs('Quản lý', {}, { code: 'DH999', branch: 'HN' }), res);
+  assert.equal(res.statusCode, 404);
+  assert.equal(res.body.code, 'ORDER_NOT_FOUND');
+});
+
 test('POST /api/shipment/lifecycle/export — lỗi từ service được trả về đúng statusCode', async () => {
-  service.exportOrdersByCodes = async () => { throw new Error('Lỗi Google Sheets'); };
+  service.exportOrders = async () => { throw new Error('Lỗi Google Sheets'); };
   const req = reqAs('Quản lý', {}, {}, { codes: ['HD001'] });
   const res = fakeRes();
   await callRoute('post', '/export', req, res);
   assert.equal(res.statusCode, 500);
 });
 
-test('POST /api/shipment/lifecycle/lookup — body không hợp lệ -> lỗi từ service được trả về đúng statusCode', async () => {
-  service.findOrdersBulk = async () => {
-    const err = new Error('Danh sách mã đơn hàng không hợp lệ.');
-    err.statusCode = 400;
-    err.code = 'INVALID_CODES';
-    throw err;
-  };
-  const req = reqAs('Quản lý', {}, {}, { codes: 'khong-phai-mang' });
-  const res = fakeRes();
-  await callRoute('post', '/lookup', req, res);
-  assert.equal(res.statusCode, 400);
-  assert.equal(res.body.code, 'INVALID_CODES');
-});
-
 // ---------------------------------------------------------------------------
-// POST /api/shipment/lifecycle/:orderCode/override — chi Quan ly/Ke toan
+// POST /api/shipment/lifecycle/:orderCode/override — mac dinh chi Quan ly (Ke toan phai duoc Quan ly cap rieng, 2026-10-03)
 // ---------------------------------------------------------------------------
 
-const OVERRIDE_ROLES = ['Quản lý', 'Kế toán'];
-const NON_OVERRIDE_INTERNAL_ROLES = ['Trưởng kho', 'Trợ lý', 'Nhân viên sale'];
+const OVERRIDE_ROLES = ['Quản lý'];
+const NON_OVERRIDE_INTERNAL_ROLES = [
+  'Kế toán', 'Trưởng kho', 'Trợ lý', 'Nhân viên sale', 'Lái xe', 'Nhân viên kho', 'Nhân viên mua hàng'
+];
 
 for (const role of OVERRIDE_ROLES) {
   test(`POST /api/shipment/lifecycle/:orderCode/override — ${role} gọi được (200)`, async () => {
@@ -262,14 +364,21 @@ for (const role of NON_OVERRIDE_INTERNAL_ROLES) {
   });
 }
 
-for (const role of OUTSIDER_ROLES) {
-  test(`POST /api/shipment/lifecycle/:orderCode/override — ${role} bị 403`, async () => {
-    const req = reqAs(role, { orderCode: 'HD001' }, {}, { status: 'CANCELLED' });
-    const res = fakeRes();
-    await callRoute('post', '/:orderCode/override', req, res);
-    assert.equal(res.statusCode, 403);
-  });
-}
+test('POST /api/shipment/lifecycle/:orderCode/override — Kế toán được Quản lý cấp riêng shipment.override thì gọi được; NV kho (không có Vòng đời) có cấp cũng 403', async () => {
+  const accountant = reqAs('Kế toán', { orderCode: 'HD001' }, {}, { status: 'CANCELLED' });
+  testUsers.get('u-Kế toán').featurePermissions = { 'shipment.override': true };
+  const ok = fakeRes();
+  await callRoute('post', '/:orderCode/override', accountant, ok);
+  testUsers.get('u-Kế toán').featurePermissions = undefined;
+  assert.equal(ok.statusCode, 200);
+
+  const keeper = reqAs('Nhân viên kho', { orderCode: 'HD001' }, {}, { status: 'CANCELLED' });
+  testUsers.get('u-Nhân viên kho').featurePermissions = { 'shipment.override': true };
+  const denied = fakeRes();
+  await callRoute('post', '/:orderCode/override', keeper, denied);
+  testUsers.get('u-Nhân viên kho').featurePermissions = undefined;
+  assert.equal(denied.statusCode, 403);
+});
 
 test('POST /api/shipment/lifecycle/:orderCode/override — Khách bị 403', async () => {
   const req = reqAs('Khách', { orderCode: 'HD001' }, {}, { status: 'CANCELLED' });
@@ -293,8 +402,10 @@ test('POST /api/shipment/lifecycle/:orderCode/override — truyền đúng chang
     return { orderCode, branch: 'HN', summary: { code: opts.code, isOverride: true } };
   };
   const req = reqAs('Kế toán', { orderCode: 'HD001' }, {}, { status: 'EXCEPTION', note: 'khách báo hỏng hàng' });
+  testUsers.get('u-Kế toán').featurePermissions = { 'shipment.override': true };
   const res = fakeRes();
   await callRoute('post', '/:orderCode/override', req, res);
+  testUsers.get('u-Kế toán').featurePermissions = undefined;
   assert.equal(res.statusCode, 200);
   assert.equal(received.orderCode, 'HD001');
   assert.equal(received.opts.code, 'EXCEPTION');

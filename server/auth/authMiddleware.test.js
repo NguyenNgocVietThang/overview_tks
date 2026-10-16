@@ -4,7 +4,7 @@ process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret';
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { AUTH_COOKIE_NAME, requireAuth, requireRole, createRequireAuth } = require('./authMiddleware');
+const { AUTH_COOKIE_NAME, requireAuth, requireRole, requireFeature, createRequireAuth } = require('./authMiddleware');
 const { signToken } = require('./authService');
 
 function fakeRes() {
@@ -125,4 +125,76 @@ test('requireRole: Nhan vien kho, Nhan vien sale, Nhan vien mua hang hop le khi 
     assert.equal(nextCalled, true, `Role ${role} phai duoc phep`);
     assert.equal(res.statusCode, null);
   }
+});
+
+// ---------------------------------------------------------------------------
+// requireFeature — cong chinh cua he phan quyen theo tinh nang
+// ---------------------------------------------------------------------------
+
+test('requireFeature: chua dang nhap -> 401', () => {
+  const res = fakeRes();
+  let nextCalled = false;
+  requireFeature('hr.leave')({}, res, () => { nextCalled = true; });
+  assert.equal(res.statusCode, 401);
+  assert.equal(nextCalled, false);
+});
+
+test('requireFeature: co quyen -> di tiep', () => {
+  const req = { user: { vaiTro: 'Kế toán', permissions: ['hr.leave', 'shipment.lifecycle'] } };
+  const res = fakeRes();
+  let nextCalled = false;
+  requireFeature('hr.leave')(req, res, () => { nextCalled = true; });
+  assert.equal(nextCalled, true);
+  assert.equal(res.statusCode, null);
+});
+
+test('requireFeature: thieu quyen -> 403 kem code FEATURE_FORBIDDEN va ten quyen', () => {
+  const req = { user: { vaiTro: 'Kế toán', permissions: ['hr.leave'] } };
+  const res = fakeRes();
+  let nextCalled = false;
+  requireFeature('reports.debt.edit')(req, res, () => { nextCalled = true; });
+  assert.equal(res.statusCode, 403);
+  assert.equal(nextCalled, false);
+  assert.equal(res.body.code, 'FEATURE_FORBIDDEN');
+  assert.equal(res.body.feature, 'reports.debt.edit');
+});
+
+test('requireFeature: nhieu quyen dung ngu nghia HOAC (co mot la du)', () => {
+  const req = { user: { vaiTro: 'Khách', permissions: ['shipment.lookup'] } };
+  const res = fakeRes();
+  let nextCalled = false;
+  requireFeature('shipment.lifecycle', 'shipment.lookup')(req, res, () => { nextCalled = true; });
+  assert.equal(nextCalled, true);
+});
+
+test('requireFeature: user chua co permissions thi tu giai theo vai tro + ghi de', () => {
+  const res = fakeRes();
+  let nextCalled = false;
+  requireFeature('reports.overview')({ user: { vaiTro: 'Trợ lý' } }, res, () => { nextCalled = true; });
+  assert.equal(nextCalled, true);
+
+  const res2 = fakeRes();
+  let next2 = false;
+  requireFeature('reports.overview')(
+    { user: { vaiTro: 'Trợ lý', featurePermissions: { 'reports.overview': false } } },
+    res2,
+    () => { next2 = true; }
+  );
+  assert.equal(res2.statusCode, 403, 'ghi de "chan" phai thang mac dinh cua vai tro');
+  assert.equal(next2, false);
+});
+
+test('requireAuth gan req.user.permissions da giai san', async () => {
+  const guard = createRequireAuth({
+    verifyToken: () => ({ id: 'u1' }),
+    findUserById: async () => ({ id: 'u1', vaiTro: 'Quản lý', trangThai: 'Đang hoạt động' }),
+    resolveUser: async user => user
+  });
+  const req = { cookies: { [AUTH_COOKIE_NAME]: 'token' } };
+  const res = fakeRes();
+  let nextCalled = false;
+  await guard(req, res, () => { nextCalled = true; });
+  assert.equal(nextCalled, true);
+  assert.ok(Array.isArray(req.user.permissions));
+  assert.ok(req.user.permissions.includes('account.permissions'));
 });

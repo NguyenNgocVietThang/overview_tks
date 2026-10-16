@@ -22,75 +22,82 @@ function sectionTitles(name) {
   }));
 }
 
-test('Tổng quan có 6 phần: thêm Doanh thu sản phẩm theo nhóm hàng, không còn giao dịch/hàng nhập/mã mới tạo', () => {
+test('Tổng quan có 3 phần (Xu hướng đứng đầu; Báo cáo hàng hóa đã chuyển sang tab Hàng hóa)', () => {
   const titles = sectionTitles('overview');
-  assert.deepEqual(titles.map(s => s.step), ['1', '2', '3', '4', '5', '6']);
-  assert.equal(titles[1].title, 'Doanh thu sản phẩm theo nhóm hàng');
-  ['endOfDayRows', 'chartTopTransactions', 'overviewPurchaseRows', 'chartOverviewPurchases', 'todayNewProductRows'].forEach(id => {
+  assert.deepEqual(titles.map(s => s.step), ['1', '2', '3']);
+  assert.ok(!titles.some(s => /nhóm hàng/.test(s.title)), 'phan nhom hang da bi go');
+  assert.deepEqual(titles.map(s => s.title), ['Xu hướng', 'Báo cáo doanh thu theo khách', 'Kiểm tra đứt hàng']);
+  ['endOfDayRows', 'chartTopTransactions', 'todayNewProductRows'].forEach(id => {
     assert.equal(view('overview').querySelector('#' + id), null, id + ' khong duoc nam o Tong quan');
   });
+  assert.equal(view('overview').querySelector('#productReportRows'), null, 'productReportRows da chuyen sang tab Hang hoa');
 });
 
-test('Doanh thu theo nhóm hàng gộp 2 biểu đồ tròn + nhóm con vào 1 phần ở Tổng quan, Hàng hóa không còn', () => {
-  const section = [...view('overview').querySelectorAll(':scope > section.section')][1];
-  ['chartGroupRevenue', 'chartGroupQty', 'childCategoryParentSelect', 'chartChildCategoryRevenue',
-    'chartChildCategoryQty', 'childCategoryRows'].forEach(id => {
-    assert.ok(section.querySelector('#' + id), id + ' phai nam trong phan Doanh thu san pham theo nhom hang');
-  });
-  ['chartNewlyImportedRevenue', 'chartNewlyImportedQty', 'childCategoryParentSelect', 'childCategoryRows'].forEach(id => {
-    assert.equal(view('products').querySelector('#' + id), null, id + ' da bi go khoi Hang hoa');
+test('Tổng quan không còn phần nhóm hàng, Hàng hóa không còn phần nhóm con', () => {
+  ['chartGroupRevenue', 'chartGroupQty', 'childCategoryParentSelect', 'chartChildCategoryRevenue', 'childCategoryRows'].forEach(id => {
+    assert.equal(document.getElementById(id), null, id + ' da bi go khoi dashboard');
   });
 });
 
-test('Hóa đơn chứa phần Giao dịch ngay sau Xu hướng, không còn Hóa đơn gần đây', () => {
+test('Hóa đơn: chỉ còn Giao dịch (đã bỏ phần Phân tích/Trả hàng; Xu hướng đã chuyển sang Tổng quan), không còn Hóa đơn gần đây', () => {
   const titles = sectionTitles('invoices');
-  assert.deepEqual(titles.map(s => s.step), ['1', '2', '3']);
-  assert.deepEqual(titles.map(s => s.title), ['Xu hướng', 'Giao dịch', 'Phân tích']);
-  ['endOfDayRows', 'chartTopTransactions', 'endOfDayPagination'].forEach(id => {
+  assert.deepEqual(titles.map(s => s.step), ['1']);
+  assert.deepEqual(titles.map(s => s.title), ['Giao dịch']);
+  ['in-returns-total', 'in-returns-count'].forEach(id => assert.equal(document.getElementById(id), null, id + ' da bi go'));
+  ['chartInvoiceRevenue', 'in-revenue'].forEach(id => {
+    assert.equal(view('invoices').querySelector('#' + id), null, id + ' da chuyen sang Tong quan');
+    assert.ok(view('overview').querySelector('#' + id), id + ' phai nam o Tong quan');
+  });
+  ['endOfDayRows', 'endOfDayPagination'].forEach(id => {
     assert.ok(view('invoices').querySelector('#' + id), id + ' phai nam o Hoa don');
   });
+  assert.equal(view('invoices').querySelector('#chartTopTransactions'), null, 'bieu do top giao dich da bi go');
   ['invoiceRows', 'invoicesPagination', 'tagInvoices'].forEach(id => {
     assert.equal(view('invoices').querySelector('#' + id), null, id + ' da bi go khoi Hoa don');
   });
 });
 
-test('Nhà cung cấp chứa phần Hàng nhập giữa Chỉ số và Phân tích nợ', () => {
-  const titles = sectionTitles('suppliers');
-  assert.deepEqual(titles.map(s => s.step), ['1', '2', '3']);
-  assert.deepEqual(titles.map(s => s.title), ['Chỉ số then chốt', 'Hàng nhập', 'Phân tích & chi tiết']);
-  ['sp-purchase-count', 'sp-purchase-total', 'sp-purchase-suppliers', 'chartOverviewPurchases', 'overviewPurchaseRows'].forEach(id => {
-    assert.ok(view('suppliers').querySelector('#' + id), id + ' phai nam o Nha cung cap');
-  });
-});
-
-test('Hàng hóa chứa phần Mã mới tạo sau Hàng mới nhập', () => {
+test('Hàng hóa chỉ còn 2 phần: Báo cáo hàng hóa (từ Tổng quan) và Tăng trưởng mã hàng (từ Khách hàng)', () => {
   const titles = sectionTitles('products');
-  assert.deepEqual(titles.map(s => s.step), ['1', '2', '3', '4', '5', '6']);
-  assert.deepEqual(titles.slice(4).map(s => s.title), ['Hàng mới nhập', 'Mã mới tạo']);
-  assert.ok(view('products').querySelector('#todayNewProductRows'));
-});
-
-test('mỗi tab có thời gian lọc riêng: Tổng quan dùng chung bộ lọc Hàng hóa cho phần nhóm hàng', () => {
-  const groups = [...document.querySelectorAll('#filterBar .filter-group')]
-    .flatMap(group => (group.dataset.filterView || '').split(/\s+/));
-  assert.ok(groups.includes('overview'), 'Tong quan phai hien bo loc thoi gian cho phan nhom hang');
-  const overviewGroups = [...document.querySelectorAll('#filterBar .filter-group')]
-    .filter(group => (group.dataset.filterView || '').split(/\s+/).includes('overview'));
-  assert.ok(overviewGroups.every(group => group.dataset.filterView.split(/\s+/).includes('products')),
-    'bo loc o Tong quan phai la bo loc Hang hoa dung chung, khong tach rieng');
-  ['products', 'invoices', 'suppliers', 'customers'].forEach(name => {
-    assert.ok(groups.includes(name), name + ' phai co nhom loc');
-    assert.ok(document.getElementById('miniFrom-' + name) || name === 'products', 'thieu o chon ngay cua ' + name);
+  assert.deepEqual(titles.map(s => s.step), ['1', '2']);
+  assert.deepEqual(titles.map(s => s.title), ['Báo cáo hàng hóa', 'Tăng trưởng mã hàng']);
+  ['productReportRows', 'businessProductsRows'].forEach(id => assert.ok(view('products').querySelector('#' + id), id));
+  ['todayNewProductRows', 'newlyImportedRows', 'allProductRows', 'topSellingRows', 'inventoryValueRows'].forEach(id => {
+    assert.equal(document.getElementById(id), null, id + ' da bi go cung cac muc cu cua tab Hang hoa');
   });
 });
 
-test('tham số bộ lọc gửi backend: pu theo Nhà cung cấp, np theo Hàng hóa, không còn ov/de', () => {
+test('không còn thanh lọc thời gian chung; bộ lọc Từ – Đến gắn vào từng bảng có lọc thời gian', () => {
+  assert.equal(document.getElementById('filterBar'), null);
+  const match = html.match(/const TABLE_DATE_FILTERS = \{([\s\S]*?)\};/);
+  assert.ok(match, 'phai co TABLE_DATE_FILTERS');
+  const map = new Function('return {' + match[1] + '}')();
+  // Moi bang 1 bo loc rieng (2 bang Dat hang / Tra hang cua tab Hoa don da bo 2026-10-01).
+  assert.deepEqual(map, {
+    endOfDay: 'invoices'
+  });
+  assert.equal(new Set(Object.values(map)).size, Object.keys(map).length, 'khong bang nao dung chung bo loc');
+});
+
+test('không còn mục Chỉ số then chốt đầu tab; mỗi mục con có hàng chỉ số ngay dưới tiêu đề', () => {
+  ['overview', 'products', 'invoices'].forEach(name => {
+    const sections = [...view(name).querySelectorAll(':scope > section.section')];
+    assert.ok(!sectionTitles(name).some(s => s.title === 'Chỉ số then chốt'), name);
+    sections.forEach((section, index) => {
+      assert.ok(section.querySelector('.section-kpis'), name + ' muc ' + (index + 1) + ' thieu chi so then chot');
+      const firstBlock = section.querySelector(':scope > .section-head').nextElementSibling;
+      if (name !== 'overview' || index !== 1) {
+        assert.ok(firstBlock.classList.contains('section-kpis'), name + ' muc ' + (index + 1) + ': chi so phai o dau muc');
+      }
+    });
+  });
+});
+
+test('tham số bộ lọc gửi backend: chỉ còn in (Hóa đơn/Xu hướng); pr/ni/np/cu/ov/de đã bỏ', () => {
   const match = html.match(/const TAB_FILTER_PREFIXES = \{([\s\S]*?)\};/);
   assert.ok(match, 'phai co TAB_FILTER_PREFIXES');
   const map = new Function('return {' + match[1] + '}')();
-  assert.deepEqual(map.products, ['pr', 'np']);
-  assert.deepEqual(map.invoices, ['in']);
-  assert.deepEqual(map.suppliers, ['pu']);
+  assert.deepEqual(map, { invoices: ['in'] });
   assert.equal(map.overview, undefined);
 });
 
@@ -100,7 +107,7 @@ function createRenderedDashboard(data) {
   dom.window.sessionStorage.setItem('tksDashboardCache', JSON.stringify({
     data,
     days: 30,
-    filters: { products: { mode: 'days', days: 30 }, invoices: { mode: 'days', days: 30 }, customers: { mode: 'all' } },
+    filters: { products: { mode: 'days', days: 30 }, invoices: { mode: 'days', days: 30 } },
     productStatus: 'all'
   }));
   dom.window.HTMLCanvasElement.prototype.getContext = () => ({});
@@ -111,7 +118,7 @@ function createRenderedDashboard(data) {
   };
   dom.window.setInterval = () => 1;
   dom.window.requestAnimationFrame = callback => callback();
-  dom.window.TKSNav = { authGuard: () => new Promise(() => {}), handleBranchError: () => false, renderTopSidebar() {} };
+  dom.window.TKSNav = { authGuard: () => new Promise(() => {}), can: () => true, handleBranchError: () => false, renderTopSidebar() {} };
   dom.window.fetch = () => new Promise(() => {});
   ['pagination.js', 'table-explorer.js'].forEach(file => {
     dom.window.eval(fs.readFileSync(path.join(__dirname, '..', '..', 'public', 'js', file), 'utf8'));
@@ -123,38 +130,24 @@ function createRenderedDashboard(data) {
 }
 
 function samplePayload() {
-  const kpi = { revenueToday: 0, invoicesToday: 0, cancelledToday: 0, totalStock: 0, totalProducts: 0, lowStockCount: 0,
-    totalCustomers: 0, customersWithDebt: 0, totalDebt: 0, totalSuppliers: 4, suppliersWithDebt: 1, totalSupplierDebt: 500,
-    totalPurchaseSpend: 9000, inStockCodes: 0, inactiveProducts: 0, inventoryValueCategoryCount: 0, totalInventoryValue: 0 };
+  const kpi = { totalStock: 0, totalProducts: 0, lowStockCount: 0,
+    totalCustomers: 0, customersWithDebt: 0, totalDebt: 0,
+    inStockCodes: 0, inactiveProducts: 0, totalInventoryValue: 0 };
   return {
     kpi,
     filters: { products: { label: '30 ngày' }, invoices: { label: '30 ngày' } },
     invoices: {
       periodRevenue: 0, periodInvoices: 0, periodCancelledInvoices: 0, revenueByDay: [],
-      periodOrders: [], periodReturns: [],
       transactionsReport: {
         transactions: [{ code: 'HD-777', time: '21/09 09:08', customer: 'KH A', employee: 'NV B', quantity: 3, quantityKnown: true, revenue: 1200000, discount: 0, paid: 1200000, status: 'Hoàn thành' }],
         topTransactions: [{ code: 'HD-777', revenue: 1200000, status: 'Hoàn thành' }],
         summary: { quantity: 3, quantityKnown: true, revenue: 1200000, discount: 0, paid: 1200000 }
       }
     },
-    newPurchases: {
-      label: '30 ngày', orderCount: 1, totalAmount: 777000, supplierCount: 1,
-      bySupplier: [{ name: 'NCC Z', orderCount: 1, total: 777000 }],
-      orders: [{ code: 'PN-555', date: '21/09/2026 08:17', supplier: 'NCC Z', total: 777000, status: 'Đã nhập hàng' }]
-    },
-    products: {
-      newProducts: { label: '30 ngày', count: 1, dateColumnAvailable: true,
-        products: [{ code: 'MOI-01', name: 'Hàng mới tạo', category: 'Nhóm X', createdAt: '18/09/2026 14:28:00', cost: 0, price: 0 }] },
-      topSellingProducts: [], topSellingParentCategories: [], childCategorySalesByParent: {}, availableParentCategories: [],
-      newlyImported: { products: [], topByRevenue: [], salesByCategory: [], countByCategory: [], salesRevenue: 0, salesQty: 0 }
-    },
-    lowStock: [], stockValueByCategory: [], allProducts: [], stockByCategory: [], suppliers: [],
-    customers: { topDebt: [], topRevenue: { top15: [], top50: [], label: '—' } }
   };
 }
 
-test('render: giao dịch hiện ở Hóa đơn, phiếu nhập ở Nhà cung cấp, mã mới tạo ở Hàng hóa', () => {
+test('render: giao dịch hiện ở Hóa đơn; mở tab Hàng hóa không ném lỗi', () => {
   const dom = createRenderedDashboard(samplePayload());
   const doc = dom.window.document;
   const text = id => doc.getElementById(id).textContent;
@@ -164,74 +157,8 @@ test('render: giao dịch hiện ở Hóa đơn, phiếu nhập ở Nhà cung c�
   assert.match(text('end-day-total-revenue'), /1\.200\.000/);
   assert.match(text('end-day-table-count'), /1 giao dịch/);
 
-  dom.window.eval("switchView('suppliers')");
-  assert.match(text('overviewPurchaseRows'), /PN-555/);
-  assert.equal(text('sp-purchase-count'), '1');
-  assert.match(text('sp-purchase-total'), /777\.000/);
-  assert.equal(text('sp-purchase-suppliers'), '1');
-
-  dom.window.eval("switchView('products')");
-  assert.match(text('todayNewProductRows'), /MOI-01/);
-  assert.match(text('today-new-products-count'), /1 mã mới/);
-  // Bảng chỉ còn 4 cột (bỏ Giá vốn/Giá bán) và có biểu đồ tỷ lệ số mã theo nhóm
-  assert.equal(doc.querySelectorAll('#todayNewProductRows tr:first-child td').length, 4);
-  assert.equal(doc.querySelector('#todayNewProductRows').closest('table').querySelectorAll('th').length, 4);
-  assert.equal(text('tagNewProductsCategory'), '1 nhóm');
-  assert.equal(doc.getElementById('chartNewProductsCategory').hidden, false);
+  assert.doesNotThrow(() => dom.window.eval("switchView('products')"));
 
   // Chuyển về Tổng quan không được ném lỗi dù dữ liệu tab khác có mặt
   assert.doesNotThrow(() => dom.window.eval("switchView('overview')"));
-});
-
-test('render: Tổng quan vẽ biểu đồ doanh thu + số lượng theo nhóm hàng, nhấn lát để xem nhóm con', () => {
-  const payload = samplePayload();
-  const child = (name, qty, revenue) => ({ name, qty, revenue, productCount: 1 });
-  payload.products.childCategorySalesByParent = {
-    'NHÀ BẾP': [child('Nồi', 10, 5000000), child('Chảo', 5, 3000000)],
-    'PHÒNG ĂN': [child('Bát', 100, 2000000)],
-    'Chưa xác định': [child('Chưa phân nhóm', 1, 100000)]
-  };
-  payload.products.availableParentCategories = ['NHÀ BẾP', 'PHÒNG ĂN', 'KHO TRỐNG'];
-  const dom = createRenderedDashboard(payload);
-  const doc = dom.window.document;
-  const text = id => doc.getElementById(id).textContent;
-
-  dom.window.eval("switchView('overview')");
-  assert.equal(doc.getElementById('chartGroupRevenue').hidden, false);
-  assert.equal(doc.getElementById('chartGroupQty').hidden, false);
-  assert.equal(text('tagGroupRevenue'), '10.1tr₫');
-  assert.equal(text('tagGroupQty'), '116');
-  assert.match(text('groupRevenuePeriod'), /30 ngày/);
-
-  // Ô Nhóm cha gồm nhóm có bán, nhóm chưa có doanh thu và nhóm chỉ có trong dữ liệu bán
-  const options = [...doc.querySelectorAll('#childCategoryParentSelect option')].map(o => o.value);
-  assert.deepEqual(options, ['', 'Chưa xác định', 'KHO TRỐNG', 'NHÀ BẾP', 'PHÒNG ĂN']);
-  assert.equal(doc.getElementById('childCategoryPanels').hidden, true);
-
-  // Chọn nhóm cha -> hiện biểu đồ số lượng + doanh thu nhóm con và bảng chi tiết
-  dom.window.eval("selectChildCategoryParentFromChart({ name: 'NHÀ BẾP' })");
-  assert.equal(doc.getElementById('childCategoryParentSelect').value, 'NHÀ BẾP');
-  assert.equal(doc.getElementById('childCategoryPanels').hidden, false);
-  assert.equal(doc.getElementById('chartChildCategoryRevenue').hidden, false);
-  assert.equal(doc.getElementById('chartChildCategoryQty').hidden, false);
-  assert.equal(doc.querySelectorAll('#childCategoryRows tr').length, 2);
-
-  // Lát "Khác" không phải nhóm thật nên bấm vào không đổi lựa chọn
-  dom.window.eval("selectChildCategoryParentFromChart({ name: 'Khác (2 nhóm)', isOther: true })");
-  assert.equal(doc.getElementById('childCategoryParentSelect').value, 'NHÀ BẾP');
-
-  // Hàng hóa không còn phần này nhưng vẫn render bình thường
-  assert.doesNotThrow(() => dom.window.eval("switchView('products')"));
-});
-
-test('biểu đồ nhóm hàng hiển thị đủ từng nhóm (không gộp "Khác") và bỏ nhóm không có giá trị dương', () => {
-  const dom = createRenderedDashboard(samplePayload());
-  const groups = Array.from({ length: 12 }, (_, index) => ({ name: 'G' + index, qty: 12 - index, revenue: (12 - index) * 1000 }));
-  groups.push({ name: 'ZERO', qty: 0, revenue: 0 });
-  dom.window.eval('window.__groups = ' + JSON.stringify(groups));
-  const slices = dom.window.eval("groupChartSlices(window.__groups, 'revenue')");
-  assert.equal(slices.length, 12);
-  assert.equal(slices[0].name, 'G0');
-  assert.equal(slices[11].name, 'G11');
-  assert.ok(!slices.some(slice => slice.name === 'ZERO'));
 });

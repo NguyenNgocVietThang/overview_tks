@@ -13,3 +13,46 @@ test('purchases uses PurchaseOrderId consistently for parent and child replaceme
   const deletion=calls.find((call)=>call[0].includes('DELETE FROM purchase_details'));
   assert.deepEqual(deletion[1],['hanoi',91]);
 });
+
+test('purchase reconciliation writes new or changed receipts, skips unchanged raw regardless of key order', async () => {
+  const same = { id: 1, code: 'PN1', status: 3, purchaseOrderDetails: [{ productId: 3, quantity: 5 }] };
+  const changed = { id: 2, code: 'PN2', status: 4, purchaseOrderDetails: [] };
+  const added = { id: 3, code: 'PN3', status: 3, purchaseOrderDetails: [{ productId: 3, quantity: 4500 }] };
+  const calls = [];
+  const pg = { query: async (sql, params) => {
+    calls.push({ sql, params });
+    if (sql.startsWith('SELECT')) return { rows: [
+      { id: '1', raw_hash: entity.rawHash({ status: 3, code: 'PN1', id: 1, purchaseOrderDetails: [{ quantity: 5, productId: 3 }] }) },
+      { id: '2', raw_hash: entity.rawHash({ ...changed, status: 3 }) }
+    ] };
+    return { rows: [] };
+  }};
+  await entity.reconcilePage(pg, 'hanoi', [same, changed, added]);
+  assert.deepEqual(calls.filter(x => x.sql.startsWith('INSERT INTO purchases')).map(x => x.params[1]), [2, 3]);
+  assert.deepEqual(calls.filter(x => x.sql.startsWith('DELETE FROM purchase_details')).map(x => x.params), [['hanoi', 2], ['hanoi', 3]]);
+  assert.deepEqual(calls[0].params, ['hanoi', [1, 2, 3]]);
+  assert.doesNotMatch(calls[0].sql, /raw(?!_hash)/);
+  const hashUpdate = calls.find(x => x.sql.startsWith('UPDATE purchases'));
+  assert.deepEqual(hashUpdate.params, ['hanoi', [2, 3], [entity.rawHash(changed), entity.rawHash(added)]]);
+});
+
+test('purchase reconciliation does no writes when every hash matches', async () => {
+  const item = { id: 5, code: 'PN5' };
+  const calls = [];
+  await entity.reconcilePage({ query: async (sql) => { calls.push(sql); return { rows: [{ id: '5', raw_hash: entity.rawHash(item) }] }; } }, 'saigon', [item]);
+  assert.equal(calls.length, 1);
+});
+
+test('purchase reconciliation batches large receipt details without losing line order or raw data', async () => {
+  const details = Array.from({ length: 501 }, (_, i) => ({ productId: i + 10, quantity: i + 1, price: 7 }));
+  const writes = [];
+  await entity.upsertPage({ query: async (sql, params) => writes.push({ sql, params }) }, 'hanoi', [{ id: 99, code: 'PN99', purchaseOrderDetails: details }]);
+  const inserts = writes.filter(x => x.sql.startsWith('INSERT INTO purchase_details'));
+  assert.equal(inserts.length, 2);
+  const rows = inserts.flatMap(x => Array.from({ length: x.params.length / 7 }, (_, i) => x.params.slice(i * 7, i * 7 + 7)));
+  assert.equal(rows.length, 501);
+  assert.deepEqual(rows[0], ['hanoi', 99, 0, 10, 1, 7, details[0]]);
+  assert.deepEqual(rows[500], ['hanoi', 99, 500, 510, 501, 7, details[500]]);
+  assert.match(inserts[0].sql, /\$3500/);
+  assert.doesNotMatch(inserts[1].sql, /\$8\b/);
+});

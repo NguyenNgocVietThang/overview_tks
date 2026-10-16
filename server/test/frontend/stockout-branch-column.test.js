@@ -25,6 +25,10 @@ function createDashboard() {
   dom.window.requestAnimationFrame = callback => callback();
   dom.window.TKSNav = {
     authGuard: () => new Promise(() => {}),
+    // Trang bao cao goi TKSNav.can('reports.<tab>') de biet tab nao duoc xem
+    // (nguon: user.permissions tu /api/auth/me) — test nay khong kiem tra phan
+    // quyen nen mo het.
+    can: () => true,
     handleBranchError: () => false,
     renderTopSidebar() {}
   };
@@ -81,20 +85,21 @@ test('Hàng đứt gần đây quét ở "Cả hai": bảng có cột Cơ sở v
   const dom = createDashboard();
   dom.window.renderRecentStockoutResultTable(RECENT_BOTH);
 
-  assert.equal(visibleHeaders(dom.window.document, 'recentStockoutResultRows')[0], 'Cơ sở');
-  assert.deepEqual(visibleCells(dom.window.document, 'recentStockoutResultRows').map(cells => cells[0]), ['Hà Nội', 'Sài Gòn']);
+  assert.equal(visibleHeaders(dom.window.document, 'recentStockoutResultRows').at(-1), 'Cơ sở');
+  assert.deepEqual(visibleCells(dom.window.document, 'recentStockoutResultRows').map(cells => cells.at(-1)), ['Hà Nội', 'Sài Gòn']);
   dom.window.close();
 });
 
-test('Hàng đứt gần đây quét ở một cơ sở: không thêm cột Cơ sở', () => {
+test('Hàng đứt gần đây quét ở một cơ sở: vẫn có cột Cơ sở, ghi cơ sở của lần quét', () => {
   const dom = createDashboard();
-  dom.window.renderRecentStockoutResultTable({ ...RECENT_BOTH, branch: 'Hà Nội', rows: [RECENT_BOTH.rows[0]] });
+  const { branch: _rowBranch, ...rowWithoutBranch } = RECENT_BOTH.rows[0];
+  dom.window.renderRecentStockoutResultTable({ ...RECENT_BOTH, branch: 'Hà Nội', rows: [rowWithoutBranch] });
 
   const headers = visibleHeaders(dom.window.document, 'recentStockoutResultRows');
-  assert.equal(headers.includes('Cơ sở'), false);
+  assert.equal(headers.at(-1), 'Cơ sở');
   assert.equal(headers[0], 'Mã SP');
   assert.deepEqual(visibleCells(dom.window.document, 'recentStockoutResultRows'), [
-    ['SP001', 'Áo thun', '2026-09-10', '11', '', '']
+    ['SP001', 'Áo thun', '2026-09-10', '11', '', 'Hà Nội']
   ]);
   dom.window.close();
 });
@@ -103,16 +108,17 @@ test('Kiểm tra đứt hàng 90 ngày quét ở "Cả hai": bảng có cột C�
   const dom = createDashboard();
   dom.window.renderStockout90dResultTable(NINETY_BOTH);
 
-  assert.equal(visibleHeaders(dom.window.document, 'stockout90dResultRows')[0], 'Cơ sở');
-  assert.deepEqual(visibleCells(dom.window.document, 'stockout90dResultRows').map(cells => cells[0]), ['Hà Nội', 'Sài Gòn']);
+  assert.equal(visibleHeaders(dom.window.document, 'stockout90dResultRows').at(-1), 'Cơ sở');
+  assert.deepEqual(visibleCells(dom.window.document, 'stockout90dResultRows').map(cells => cells.at(-1)), ['Hà Nội', 'Sài Gòn']);
   dom.window.close();
 });
 
-test('Kiểm tra đứt hàng 90 ngày quét ở một cơ sở: không thêm cột Cơ sở', () => {
+test('Kiểm tra đứt hàng 90 ngày quét ở một cơ sở: vẫn có cột Cơ sở', () => {
   const dom = createDashboard();
   dom.window.renderStockout90dResultTable({ ...NINETY_BOTH, branch: 'Sài Gòn', rows: [NINETY_BOTH.rows[1]] });
 
-  assert.equal(visibleHeaders(dom.window.document, 'stockout90dResultRows').includes('Cơ sở'), false);
+  assert.equal(visibleHeaders(dom.window.document, 'stockout90dResultRows').at(-1), 'Cơ sở');
+  assert.equal(visibleCells(dom.window.document, 'stockout90dResultRows')[0].at(-1), 'Sài Gòn');
   dom.window.close();
 });
 
@@ -120,15 +126,16 @@ test('Kiểm tra đứt hàng 30 ngày quét ở "Cả hai": bảng có cột C�
   const dom = createDashboard();
   dom.window.renderStockout30dResultTable({ ...NINETY_BOTH, fromDate: '2026-08-23' });
 
-  assert.equal(visibleHeaders(dom.window.document, 'stockout30dResultRows')[0], 'Cơ sở');
-  assert.deepEqual(visibleCells(dom.window.document, 'stockout30dResultRows').map(cells => cells[0]), ['Hà Nội', 'Sài Gòn']);
+  assert.equal(visibleHeaders(dom.window.document, 'stockout30dResultRows').at(-1), 'Cơ sở');
+  assert.deepEqual(visibleCells(dom.window.document, 'stockout30dResultRows').map(cells => cells.at(-1)), ['Hà Nội', 'Sài Gòn']);
   dom.window.close();
 });
 
-test('Kiểm tra đứt hàng 30 ngày quét ở một cơ sở: không thêm cột Cơ sở', () => {
+test('Kiểm tra đứt hàng 30 ngày quét ở một cơ sở: vẫn có cột Cơ sở', () => {
   const dom = createDashboard();
   dom.window.renderStockout30dResultTable({ ...NINETY_BOTH, branch: 'Sài Gòn', rows: [NINETY_BOTH.rows[1]] });
 
-  assert.equal(visibleHeaders(dom.window.document, 'stockout30dResultRows').includes('Cơ sở'), false);
+  assert.equal(visibleHeaders(dom.window.document, 'stockout30dResultRows').at(-1), 'Cơ sở');
+  assert.equal(visibleCells(dom.window.document, 'stockout30dResultRows')[0].at(-1), 'Sài Gòn');
   dom.window.close();
 });

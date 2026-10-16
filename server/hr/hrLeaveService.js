@@ -46,23 +46,6 @@ function computeDurationSessions(startDate, startSession, endDate, endSession) {
   return totalSessions;
 }
 
-function getSessionStartTime(startDate, startSession) {
-  if (startDate == null) return null;
-  const start = new Date(startDate);
-  if (!Number.isFinite(start.getTime())) return null;
-  if (startSession === 'Sáng') start.setHours(7, 45, 0, 0);
-  else if (startSession === 'Chiều') start.setHours(12, 30, 0, 0);
-  else return null;
-  return start;
-}
-
-function computeSubmissionViolation(messageTime, startDate, startSession) {
-  const submittedAt = new Date(messageTime);
-  const sessionStartsAt = getSessionStartTime(startDate, startSession);
-  if (!Number.isFinite(submittedAt.getTime()) || !sessionStartsAt) return false;
-  return submittedAt.getTime() > sessionStartsAt.getTime();
-}
-
 function parseIsoDateOnly(value) {
   const match = String(value || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return null;
@@ -148,12 +131,12 @@ function formatLeaveBoundary(date, session) {
   return formattedDate ? `${session} ${formattedDate}` : null;
 }
 
-const BANGKOK_TIME_ZONE = 'Asia/Bangkok';
+const VIETNAM_TIME_ZONE = 'Asia/Ho_Chi_Minh';
 
-/** Quy doi 1 thoi diem (instant) sang ngay-lich + gio theo gio Bangkok. */
-function getBangkokDateHour(instant) {
+/** Quy doi 1 thoi diem (instant) sang ngay-lich + gio theo gio Viet Nam. */
+function getVietnamDateHour(instant) {
   const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: BANGKOK_TIME_ZONE,
+    timeZone: VIETNAM_TIME_ZONE,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -170,17 +153,17 @@ function getBangkokDateHour(instant) {
 /**
  * "Nghi gap" (tu dong gan co, KHONG tu tu choi — dung tinh than
  * CHINH-SACH-NGHI-PHEP.md dieu 6.6.3): tin nhan gui tu HR_URGENT_LATE_NIGHT_HOUR
- * tro di (gio Bangkok) VA ca nghi bat dau ngay hom sau lien ke (theo lich Bangkok).
+ * tro di (gio Viet Nam) VA ca nghi bat dau ngay hom sau lien ke (theo lich Viet Nam).
  */
 function computeIsUrgent(startTime, messageTime) {
   const startMs = new Date(startTime).getTime();
   const msgMs = new Date(messageTime).getTime();
   if (!isFinite(startMs) || !isFinite(msgMs)) return false;
 
-  const msg = getBangkokDateHour(new Date(msgMs));
+  const msg = getVietnamDateHour(new Date(msgMs));
   if (msg.hour < CONFIG.HR_URGENT_LATE_NIGHT_HOUR) return false;
 
-  const start = getBangkokDateHour(new Date(startMs));
+  const start = getVietnamDateHour(new Date(startMs));
   const nextDay = new Date(msg.dateOnly);
   nextDay.setDate(nextDay.getDate() + 1);
   return start.dateOnly.getTime() === nextDay.getTime();
@@ -250,17 +233,22 @@ function resolveApproverName(reqUser) {
 }
 
 /**
- * Bao Quan ly khac (tru nguoi thao tac) ve 1 su kien nghi phep, qua thong bao
- * chuong tren web -- dung chung cho ca luong web nhap tay (hrLeaveRoutes.js)
- * va luong Telegram (hrTelegramBot.js) de nhat quan "chi Quan ly thay tren
- * web, khong broadcast Telegram cho tat ca tai khoan". Best-effort: loi bao
- * thong bao khong duoc lam hong luong tao/duyet don chinh.
- *
- * Chi bao Quan ly duoc phep xem `branch` cua don nghi phep (isBranchAllowed) —
- * Quan ly gan 1 co so cu the KHONG nhan thong bao cua co so kia; Quan ly
- * "Ca hai" (hoac chua gan coSo, mac dinh xem Ca hai) van nhan ca hai ben.
- * @param {string} branch - Co so cua don nghi phep ('Hà Nội' | 'Sài Gòn')
+ * Bao tat ca tai khoan ve mot nhan su nghi phep qua chuong tren web.
+ * Quyen thao tac tren thong bao van duoc giao dien va API kiem tra rieng.
+ * Best-effort: loi thong bao khong duoc lam hong luong tao don chinh.
  */
+async function notifyAllUsers(_actingUserId, _branch, payload) {
+  try {
+    const allUsers = await userRepository.getAllUsers();
+    const userIds = allUsers
+      .filter(u => u && u.id != null)
+      .map(u => u.id);
+    await notificationRepository.createNotificationForUsers(userIds, payload);
+  } catch (notifyErr) {
+    console.error('Lỗi báo thông báo nghỉ phép cho người dùng:', notifyErr.message);
+  }
+}
+
 async function notifyOtherManagers(actingUserId, branch, payload) {
   try {
     const effectiveBranch = branch || BRANCHES.HANOI;
@@ -279,9 +267,8 @@ async function notifyOtherManagers(actingUserId, branch, payload) {
 }
 
 module.exports = {
+  VIETNAM_TIME_ZONE,
   computeDurationSessions,
-  getSessionStartTime,
-  computeSubmissionViolation,
   parseIsoDateOnly,
   parseVietnameseDate,
   formatVietnameseDate,
@@ -290,5 +277,6 @@ module.exports = {
   resolveSenderIdentity,
   resolveApproverName,
   resolveEmployeeBranch,
+  notifyAllUsers,
   notifyOtherManagers
 };

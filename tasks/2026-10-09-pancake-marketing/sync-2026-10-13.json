@@ -1,0 +1,86 @@
+{
+  "mode": "apply",
+  "id": "8",
+  "status": "success",
+  "runKey": "pancake:2026-10-13",
+  "replayed": false,
+  "pages": [
+    {
+      "pageId": "1094883173717378",
+      "status": "success",
+      "errorCode": null,
+      "inputCount": 2546,
+      "newFacts": 30,
+      "newObservations": 34
+    },
+    {
+      "pageId": "1144127138790204",
+      "status": "success",
+      "errorCode": null,
+      "inputCount": 1949,
+      "newFacts": 4,
+      "newObservations": 6
+    },
+    {
+      "pageId": "1184366971419195",
+      "status": "success",
+      "errorCode": null,
+      "inputCount": 4154,
+      "newFacts": 66,
+      "newObservations": 79
+    },
+    {
+      "pageId": "1222318524308489",
+      "status": "success",
+      "errorCode": null,
+      "inputCount": 106,
+      "newFacts": 3,
+      "newObservations": 3
+    },
+    {
+      "pageId": "1387564787764418",
+      "status": "success",
+      "errorCode": null,
+      "inputCount": 170,
+      "newFacts": 5,
+      "newObservations": 5
+    },
+    {
+      "pageId": "430840296781378",
+      "status": "success",
+      "errorCode": null,
+      "inputCount": 2986,
+      "newFacts": 6,
+      "newObservations": 9
+    }
+  ],
+  "unresolved": [],
+  "unlinkedHistoricalRows": [],
+  "baselineSkipped": [
+    {
+      "pageId": "1184366971419195",
+      "baselineExcluded": 2336,
+      "preWindow": 1235
+    },
+    {
+      "pageId": "1144127138790204",
+      "baselineExcluded": 133,
+      "preWindow": 21
+    },
+    {
+      "pageId": "430840296781378",
+      "baselineExcluded": 362,
+      "preWindow": 188
+    },
+    {
+      "pageId": "1094883173717378",
+      "baselineExcluded": 312,
+      "preWindow": 1
+    },
+    {
+      "pageId": "1222318524308489",
+      "baselineExcluded": 5,
+      "preWindow": 1
+    }
+  ]
+}

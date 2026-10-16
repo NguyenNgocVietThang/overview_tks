@@ -93,6 +93,9 @@ const BRANCH_RANK_SQL = `CASE branch WHEN 'hanoi' THEN 0 WHEN 'saigon' THEN 1 EL
  * (hang, khach) TRUOC khi xep hang top-N — khong the gop hai top-N rieng cua tung
  * co so vi khach hang co the chi vao top khi cong ca hai co so.
  */
+// Khach ngung hoat dong (isActive = false) khong vao top khach; c NULL (khach le / khong khop) van tinh.
+const ACTIVE_CUSTOMER_JOIN_SQL = `COALESCE(c.raw->>'isActive', c.raw->>'IsActive', 'true') <> 'false'`;
+
 function buildTopCustomersQuery(rankBy, aggregate = false) {
   const rankOrder = rankBy === 'revenue'
     ? 'revenue DESC, qty DESC'
@@ -120,6 +123,7 @@ function buildTopCustomersQuery(rankBy, aggregate = false) {
       LEFT JOIN customers c ON c.branch = i.branch AND c.id = i.customer_id
       WHERE ${branchPredicate('d.branch')}
         AND i.status = 1
+        AND ${ACTIVE_CUSTOMER_JOIN_SQL}
         AND lower(${PRODUCT_CODE_SQL}) = ANY($2)
         AND ($3::timestamptz IS NULL OR i.purchase_date >= $3)
         AND ($4::timestamptz IS NULL OR i.purchase_date <= $4)
@@ -150,6 +154,7 @@ function buildTopCustomersQuery(rankBy, aggregate = false) {
       LEFT JOIN customers c ON c.branch = r.branch AND c.id = r.customer_id
       WHERE ${branchPredicate('rd.branch')}
         AND r.status = 1
+        AND ${ACTIVE_CUSTOMER_JOIN_SQL}
         AND lower(${RETURN_PRODUCT_CODE_SQL}) = ANY($2)
         AND ($3::timestamptz IS NULL OR r.return_date >= $3)
         AND ($4::timestamptz IS NULL OR r.return_date <= $4)
@@ -177,9 +182,9 @@ function buildTopCustomersQuery(rankBy, aggregate = false) {
     ORDER BY product_key, rn`;
 }
 
-const TOP_BY_QUANTITY_SQL = buildTopCustomersQuery('quantity');
+// (2026-10-05: ban xep theo so luong — findTopCustomersByProducts, phuc vu
+// /api/customer-product-top — da go cung endpoint do.)
 const TOP_BY_REVENUE_SQL = buildTopCustomersQuery('revenue');
-const TOP_BY_QUANTITY_AGGREGATE_SQL = buildTopCustomersQuery('quantity', true);
 const TOP_BY_REVENUE_AGGREGATE_SQL = buildTopCustomersQuery('revenue', true);
 
 function normalizeCodes(codes) {
@@ -230,31 +235,6 @@ function createCustomerProductTopRepository({ pool = getPool() } = {}) {
   }
 
   /**
-   * Top khach mua NHIEU NHAT (theo so luong) cho tung ma hang trong khoang
-   * `range` — thay cho sheet "Khách theo hàng hóa" o searchTopCustomersByProducts.
-   * @param {Object} params
-   * @param {string} params.branch nhan co so ('Hà Nội'/'Sài Gòn')
-   * @param {string[]} params.codes danh sach ma hang nguoi dung nhap
-   * @param {{mode: string, start?: Date, end?: Date}} params.range bo loc thoi gian
-   * @param {number} [params.limit] so khach toi da moi ma hang
-   */
-  async function findTopCustomersByProducts({ branch, codes, range, limit = DEFAULT_TOP_LIMIT }) {
-    const normalizedCodes = normalizeCodes(codes);
-    if (!normalizedCodes.length) return [];
-    const isAll = !range || range.mode === 'all';
-    const scope = resolveScope(branch, { physical: TOP_BY_QUANTITY_SQL, aggregate: TOP_BY_QUANTITY_AGGREGATE_SQL });
-    const params = [
-      scope.branchParam,
-      normalizedCodes,
-      isAll ? null : toWallClockInstant(range.start),
-      isAll ? null : toWallClockInstant(range.end),
-      limit
-    ];
-    const result = await pool.query(scope.sql, params);
-    return result.rows.map(mapRow);
-  }
-
-  /**
    * Top khach theo DOANH SO tren toan bo lich su cho 1 ma hang — thay cho
    * computeTopCustomersByRevenueForProduct (phan "Chi tiết" cua bao cao doanh
    * thu theo hang).
@@ -268,19 +248,21 @@ function createCustomerProductTopRepository({ pool = getPool() } = {}) {
     return result.rows.map(mapRow);
   }
 
-  return { findTopCustomersByProducts, findTopCustomersByRevenueForProduct };
+  return { findTopCustomersByRevenueForProduct };
 }
 
 const repository = createCustomerProductTopRepository();
 
 module.exports = {
   createCustomerProductTopRepository,
-  findTopCustomersByProducts: (...args) => repository.findTopCustomersByProducts(...args),
   findTopCustomersByRevenueForProduct: (...args) => repository.findTopCustomersByRevenueForProduct(...args),
   DEFAULT_TOP_LIMIT,
   // "Thanh tien" tren 1 dong invoice_details — dashboardRollupRefresh.js tai
   // dung CHINH XAC cong thuc nay khi tinh daily_product_sales.revenue, tranh
   // viet trung logic o 2 noi va lech so lieu.
   DETAIL_AMOUNT_SQL,
+  // Gia tri 1 dong return_details (alias `rd`), tuyet doi — rollup/bang chi tiet 90 ngay
+  // dung de TRU tra hang khoi doanh thu.
+  RETURN_AMOUNT_SQL,
   __test__: { toWallClockInstant, fromWallClockInstant }
 };

@@ -8,8 +8,8 @@ test('invoices, purchases va cashFlows co backfillRangeParam dung nhu API_ENDPOI
   assert.deepEqual(require('./cashFlows').backfillRangeParam, { from: 'startDate', to: 'endDate' });
 });
 
-test('du lieu nen (categories/products/customers/suppliers) khong co backfillRangeParam', () => {
-  for (const name of ['categories', 'products', 'customers', 'suppliers']) {
+test('du lieu nen (categories/products/customers) khong co backfillRangeParam', () => {
+  for (const name of ['categories', 'products', 'customers']) {
     assert.equal(require(`./${name}`).backfillRangeParam, undefined, `${name} khong duoc co backfillRangeParam`);
   }
 });

@@ -30,6 +30,7 @@ const ROLES = Object.freeze({
   LAI_XE: 'Lái xe',
   NHAN_VIEN_KHO: 'Nhân viên kho',
   NHAN_VIEN_SALE: 'Nhân viên sale',
+  NHAN_VIEN_MARKETING: 'Nhân viên marketing',
   NHAN_VIEN_MUA_HANG: 'Nhân viên mua hàng',
   KHACH: 'Khách'
 });
@@ -375,6 +376,10 @@ async function createUser(userData) {
     hoTen: String(userData.hoTen || username).trim(),
     email,
     soDienThoai: userData.soDienThoai ? String(userData.soDienThoai).trim() : '',
+    boPhan: String(userData.boPhan || '').trim(),
+    hrManaged: !!userData.hrManaged,
+    hrRowIndex: userData.hrRowIndex || '',
+    leaveApprovalDepartments: require('../hr/hrApprovalDepartments').normalizeDepartments(userData.leaveApprovalDepartments || []),
     telegramId: String(userData.telegramId || '').trim(),
     emailKhoiPhuc,
     sdtKhoiPhuc: userData.sdtKhoiPhuc ? String(userData.sdtKhoiPhuc).trim() : '',
@@ -385,9 +390,15 @@ async function createUser(userData) {
     coSo: normalizeCoSo(userData.coSo) || (isTargetAdmin ? BRANCH_BOTH : ''),
     trangThai: isTargetAdmin ? ACTIVE_STATUS : (userData.trangThai || ACTIVE_STATUS),
     ngayTao: userData.ngayTao || formatDateVN(),
-    dangNhapGanNhat: userData.dangNhapGanNhat || ''
+    dangNhapGanNhat: userData.dangNhapGanNhat || '',
+    // Ghi de quyen theo tung tai khoan (featureRegistry.js) — tai khoan moi
+    // luon bat dau bang quyen mac dinh cua vai tro, khong co ghi de nao.
+    featurePermissions: (userData.featurePermissions && typeof userData.featurePermissions === 'object')
+      ? userData.featurePermissions
+      : {}
   };
 
+  newUser.assignedCoSo = newUser.coSo;
   const inserted = await repository.insertUser(newUser);
   cache.clear();
   return inserted;
@@ -436,7 +447,7 @@ async function updateUser(id, updates) {
 
   const safeCoSo = isTargetAdmin
     ? BRANCH_BOTH
-    : (updates.coSo !== undefined ? normalizeCoSo(updates.coSo) : normalizeCoSo(current.coSo));
+    : (updates.coSo !== undefined ? normalizeCoSo(updates.coSo) : normalizeCoSo(Object.hasOwn(current, 'assignedCoSo') ? current.assignedCoSo : current.coSo));
   const safeVaiTro = (isTargetThang || isTargetAdmin)
     ? ROLES.QUAN_LY
     : (updates.vaiTro !== undefined ? String(updates.vaiTro).trim() : current.vaiTro);
@@ -449,6 +460,8 @@ async function updateUser(id, updates) {
     ...updates,
     id: current.id,
     coSo: safeCoSo,
+    assignedCoSo: safeCoSo,
+    leaveApprovalDepartments: require('../hr/hrApprovalDepartments').normalizeDepartments(Object.hasOwn(updates, 'leaveApprovalDepartments') ? updates.leaveApprovalDepartments : current.leaveApprovalDepartments || []),
     vaiTro: safeVaiTro,
     trangThai: safeTrangThai,
     username: updates.username !== undefined ? String(updates.username).trim() : current.username,
@@ -459,9 +472,17 @@ async function updateUser(id, updates) {
     sdtKhoiPhuc: updates.sdtKhoiPhuc !== undefined ? String(updates.sdtKhoiPhuc).trim() : (current.sdtKhoiPhuc || '')
   };
 
-  const saved = await repository.updateUserRow(id, updated);
+  const saved = Object.hasOwn(updates, 'telegramId')
+    ? await repository.updateProfileRow(id, updated)
+    : await repository.updateUserRow(id, updated);
   cache.clear();
   return saved || { ...updated };
+}
+
+async function updateUserProfile(id, fields) {
+  const saved = await repository.updateProfileRow(id, fields);
+  cache.clear();
+  return saved;
 }
 
 async function deleteUser(id) {
@@ -515,6 +536,7 @@ module.exports = {
   getActiveUserByUsername,
   createUser,
   updateUser,
+  updateUserProfile,
   deleteUser,
   setInMemoryUsers,
   formatDateVN,

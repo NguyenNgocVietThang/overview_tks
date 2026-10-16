@@ -4,10 +4,30 @@
  * Hiệu ứng sao băng rơi theo hướng 4 giờ (120°) có quỹ đạo uốn cong nhẹ,
  * vệt sáng lấp lánh và bụi sao. Hoạt động trên mọi trang/tab của hệ thống.
  * Chạy ở tầng nền (z-index: 0), không đè lên các khung/panel/thẻ/bảng.
+ *
+ * Vào NGÀY ĐẶC BIỆT (ngày lễ, sinh nhật — xem special-days.js) hiệu ứng được
+ * thay bằng pháo hoa (fireworks.js) trên cùng canvas. Thêm ?fireworks=1 vào URL
+ * để xem thử pháo hoa vào ngày thường.
  * ============================================================================
  */
 (function() {
   'use strict';
+
+  // Query "?v=..." của chính file này, dùng lại khi nạp special-days.js / fireworks.js
+  var SELF_QUERY = (function() {
+    var src = document.currentScript && document.currentScript.src;
+    var i = src ? src.indexOf('?') : -1;
+    return i >= 0 ? src.slice(i) : '';
+  })();
+
+  function loadScript(path, onLoad, onError) {
+    var el = document.createElement('script');
+    el.src = path + SELF_QUERY;
+    el.async = true;
+    el.onload = onLoad;
+    el.onerror = onError;
+    document.head.appendChild(el);
+  }
 
   function initShootingStar() {
     // Đảm bảo không khởi tạo 2 lần trên cùng 1 trang
@@ -218,7 +238,6 @@
       ctx.restore();
       requestAnimationFrame(loop);
     }
-    requestAnimationFrame(loop);
 
     // Chỉ bỏ qua khi người dùng đang thao tác trên các control tương tác (nút bấm, ô nhập liệu, link)
     function isInteractiveControl(el) {
@@ -249,17 +268,51 @@
       spawnStar(spawnX, spawnY);
     }
 
-    document.addEventListener('pointerdown', function(e) {
-      if (e.button !== undefined && e.button !== 0) return;
-      handleTrigger(e.clientX, e.clientY, e.target);
-    });
+    function startShootingStars() {
+      requestAnimationFrame(loop);
 
-    // Tự động bắn 1 ngôi sao băng chào mừng nhẹ sau khi trang tải 1 giây
-    setTimeout(function() {
-      spawnStar(window.innerWidth * 0.25, window.innerHeight * 0.15);
-    }, 1000);
+      document.addEventListener('pointerdown', function(e) {
+        if (e.button !== undefined && e.button !== 0) return;
+        handleTrigger(e.clientX, e.clientY, e.target);
+      });
 
-    window.spawnShootingStar = spawnStar;
+      // Tự động bắn 1 ngôi sao băng chào mừng nhẹ sau khi trang tải 1 giây
+      setTimeout(function() {
+        spawnStar(window.innerWidth * 0.25, window.innerHeight * 0.15);
+      }, 1000);
+
+      window.spawnShootingStar = spawnStar;
+    }
+
+    function startFireworks() {
+      var fw = window.TKSFireworks.mount({
+        canvas: canvas,
+        ctx: ctx,
+        isInteractiveControl: isInteractiveControl
+      });
+      window.spawnShootingStar = fw.fire;
+    }
+
+    // Chọn hiệu ứng: ngày đặc biệt (giờ Việt Nam) -> pháo hoa, còn lại -> sao băng.
+    // Mọi lỗi nạp script đều quay về sao băng.
+    var forceFireworks = /[?&]fireworks=1(&|$)/.test(window.location.search);
+    function chooseEffect() {
+      var special = false;
+      try {
+        special = forceFireworks || !!(window.TKSSpecialDays && window.TKSSpecialDays.getSpecialToday());
+      } catch (e) {
+        special = false;
+      }
+      if (!special) { startShootingStars(); return; }
+      if (window.TKSFireworks) { startFireworks(); return; }
+      loadScript('/shared/fireworks.js', startFireworks, startShootingStars);
+    }
+
+    if (window.TKSSpecialDays) {
+      chooseEffect();
+    } else {
+      loadScript('/shared/special-days.js', chooseEffect, startShootingStars);
+    }
   }
 
   if (document.readyState === 'loading') {

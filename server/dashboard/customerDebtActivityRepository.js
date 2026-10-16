@@ -15,10 +15,11 @@ function createCustomerDebtActivityRepository({ pool = getPool() } = {}) {
       throw error;
     }
     const result = await pool.query(`
-      SELECT period_days, customer_name
-      FROM customer_debt_activity_periods
-      WHERE branch = $1
-      ORDER BY period_days, customer_name`, [branchCode]);
+      SELECT p.period_days, p.customer_name
+      FROM customer_debt_activity_periods p
+      JOIN customers c ON c.branch = p.branch AND c.id = p.customer_id
+      WHERE p.branch = $1 AND COALESCE(c.raw->>'isActive', c.raw->>'IsActive', 'true') <> 'false'
+      ORDER BY p.period_days, p.customer_name`, [branchCode]);
     const sheets = { HN1: [['Khách hàng']], HN3: [['Khách hàng']], HN7: [['Khách hàng']] };
     for (const row of result.rows || []) {
       const sheetName = PERIOD_TO_SHEET[Number(row.period_days)];

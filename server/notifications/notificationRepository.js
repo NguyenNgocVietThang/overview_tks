@@ -39,11 +39,18 @@ function loadFromDisk() {
         return inMemoryNotifications;
       }
     } catch (err) {
-      console.error('Lỗi khi đọc file notifications.json, khởi tạo lại bộ nhớ:', err.message);
+      console.error('Lỗi khi đọc file notifications.json:', err.message);
+      if (Array.isArray(inMemoryNotifications) && inMemoryNotifications.length > 0) {
+        return inMemoryNotifications;
+      }
     }
   }
-  inMemoryNotifications = [];
-  saveToDisk(inMemoryNotifications);
+  if (!Array.isArray(inMemoryNotifications)) {
+    inMemoryNotifications = [];
+    if (!fs.existsSync(currentStorePath)) {
+      saveToDisk(inMemoryNotifications);
+    }
+  }
   return inMemoryNotifications;
 }
 
@@ -51,7 +58,32 @@ function saveToDisk(notifications) {
   ensureDataDir(currentStorePath);
   const tempPath = `${currentStorePath}.${Date.now()}.${Math.random().toString(36).substring(2, 7)}.tmp`;
   fs.writeFileSync(tempPath, JSON.stringify(notifications, null, 2), 'utf8');
-  fs.renameSync(tempPath, currentStorePath);
+  let renamed = false;
+  let lastErr = null;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      fs.renameSync(tempPath, currentStorePath);
+      renamed = true;
+      break;
+    } catch (err) {
+      lastErr = err;
+      if (err.code === 'EPERM' || err.code === 'EBUSY' || err.code === 'EACCES') {
+        const sleepEnd = Date.now() + 20 * (attempt + 1);
+        while (Date.now() < sleepEnd) {}
+      } else {
+        break;
+      }
+    }
+  }
+  if (!renamed) {
+    try {
+      fs.copyFileSync(tempPath, currentStorePath);
+      fs.unlinkSync(tempPath);
+    } catch (fallbackErr) {
+      try { if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath); } catch (_) {}
+      throw (lastErr || fallbackErr);
+    }
+  }
   try {
     lastLoadedMtime = fs.statSync(currentStorePath).mtimeMs;
   } catch (e) {}
@@ -108,11 +140,27 @@ async function createNotification({ recipientUserId, type, title, message, relat
  * Tạo cùng 1 thông báo cho nhiều người nhận (vd: toàn bộ Quản lý).
  */
 async function createNotificationForUsers(recipientUserIds, payload) {
-  const created = [];
-  for (const recipientUserId of recipientUserIds) {
-    created.push(await createNotification({ ...payload, recipientUserId }));
-  }
-  return created;
+  const ids = Array.from(recipientUserIds || []);
+  if (!ids.length) return [];
+  if (!payload || !payload.type) throw new Error('Thiếu type khi tạo thông báo.');
+  if (ids.some(id => !id)) throw new Error('Thiếu recipientUserId khi tạo thông báo.');
+  // Đẩy tất cả rồi ghi file đúng 1 lần (trước đây ghi lại cả file cho từng người nhận).
+  const notifications = ensureLoaded();
+  const createdAt = new Date().toISOString();
+  const created = ids.map(recipientUserId => ({
+    id: crypto.randomUUID(),
+    recipientUserId: String(recipientUserId),
+    type: payload.type,
+    title: payload.title || '',
+    message: payload.message || '',
+    relatedType: payload.relatedType || null,
+    relatedId: payload.relatedId || null,
+    isRead: false,
+    createdAt
+  }));
+  notifications.push(...created);
+  saveToDisk(notifications);
+  return created.map(n => ({ ...n }));
 }
 
 async function listForUser(userId, { unreadOnly } = {}) {

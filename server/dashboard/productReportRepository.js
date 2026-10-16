@@ -6,6 +6,9 @@
 // dung cho ca route GET va luong xuat Excel (exportService.js) de khong viet
 // trung logic map cot o 2 noi.
 const { getPool } = require('../db/pool');
+const { readContainerSummary } = require('../productContainers/repository');
+const { normalizeCode } = require('../productContainers/parser');
+const { readInTransitByCode } = require('./inTransitSource');
 
 function mapRow(row) {
   return {
@@ -26,14 +29,71 @@ function mapRow(row) {
 }
 
 async function getProductReport({ pool = getPool() } = {}) {
+  // Loc trang thai hien tai khi doc de snapshot ban dem, KPI va file xuat
+  // cung chi gom ma con kinh doanh o it nhat mot co so. NULL giu quy uoc
+  // mac dinh dang kinh doanh nhu bao cao dut hang; khong loc theo ton/doanh so.
   const { rows } = await pool.query(
-    'SELECT * FROM product_report ORDER BY product_code'
+    `SELECT * FROM product_report
+     WHERE EXISTS (
+       SELECT 1 FROM products p
+       WHERE p.code = product_report.product_code
+         AND p.branch IN ('hanoi', 'saigon')
+         AND p.is_active IS NOT FALSE
+     )
+     ORDER BY product_code`
   );
   const items = rows.map(mapRow);
   const computedAt = items.length ? items.reduce((latest, item) => (
     !latest || (item.computedAt && item.computedAt > latest) ? item.computedAt : latest
   ), null) : null;
-  return { rows: items, computedAt };
+  const { containerSync, totals } = await readContainerSummary(pool);
+  const inTransitByCode = await readInTransitByCode(pool);
+  for (const item of items) {
+    item.inTransit = inTransitByCode.get(normalizeCode(item.code)) || 0;
+    // The nightly base already equals sellable HN + sellable SG (on-hand
+    // less pending customer orders). Add SG transit once at read time, shared
+    // by the UI and exports; never fold it back into the stored base.
+    item.availableToSell += item.inTransit;
+    const quantities = totals[normalizeCode(item.code)];
+    item.unloadedQty = containerSync.available ? Number(quantities?.unloadedQty || 0) : null;
+    item.loadedQty = containerSync.available ? Number(quantities?.loadedQty || 0) : null;
+  }
+  return { rows: items, computedAt, containerSync };
 }
 
-module.exports = { getProductReport, __test__: { mapRow } };
+// Khung "Chi tiet" duoi bang: doanh so 90 ngay cua tung khach da mua ma hang nay
+// (bang product_report_customers, cung snapshot voi product_report - xem migration
+// 0023). % = doanh so khach / TONG doanh so cac khach cua ma hang nen luon cong
+// lai 100%; co the lech rat nhe so voi cot "% Khach lon nhat" vi mau so cot do la
+// revenue_90d lay tu rollup daily_product_sales.
+async function getProductReportCustomers({ code, pool = getPool() } = {}) {
+  const trimmed = typeof code === 'string' ? code.trim() : '';
+  if (!trimmed) {
+    const error = new Error('Thiếu mã hàng.');
+    error.statusCode = 400;
+    throw error;
+  }
+  const { rows } = await pool.query(
+    `SELECT customer_name, revenue
+     FROM product_report_customers
+     WHERE product_key = lower(btrim($1))
+     ORDER BY revenue DESC, customer_name`,
+    [code]
+  );
+  const totalRevenue = rows.reduce((sum, row) => sum + (Number(row.revenue) || 0), 0);
+  return {
+    code: trimmed,
+    totalRevenue,
+    customerCount: rows.length,
+    rows: rows.map((row) => {
+      const revenue = Number(row.revenue) || 0;
+      return {
+        customerName: row.customer_name || '',
+        revenue,
+        share: totalRevenue > 0 ? revenue / totalRevenue : null
+      };
+    })
+  };
+}
+
+module.exports = { getProductReport, getProductReportCustomers, __test__: { mapRow } };

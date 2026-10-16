@@ -13,6 +13,7 @@ node_modules/
 
 # server/.env chứa CLIENT_ID/CLIENT_SECRET của KiotViet — KHÔNG đẩy lên GitHub
 server/.env
+server/.env.render-manager-bot
 
 # Local development preview (không cần commit)
 dev/
@@ -53,3 +54,4 @@ server/data/roleChangeRequests.json*
 # File nay duoc tao tu dong khi server khoi dong lan dau (xem server/auth/localUserStore.js)
 # De seed du lieu ban dau: copy server/data/users.json.example -> server/data/users.json
 server/data/users.json
+.codex_tmp/

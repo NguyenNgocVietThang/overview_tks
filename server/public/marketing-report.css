@@ -1,0 +1,72 @@
+/* Báo cáo Marketing: dùng lại component của các tab khác (section-head, kpi-card, panel, debt-filter-field,
+   table-search-*, sort-button, pagination-controls, mini-filter-apply). Ở đây chỉ còn phần riêng của trang. */
+#view-marketing .marketing-toolbar { margin: 0 0 20px; justify-content: flex-end; }
+.marketing-section { scroll-margin-top: 16px; }
+.marketing-section .debt-filter-controls { padding-top: 0; padding-bottom: 12px; }
+.marketing-section .debt-filter-field { min-width: 160px; }
+.marketing-status, .marketing-warnings { margin: 0 0 12px; color: var(--muted); font-size: 11.5px; }
+.marketing-status:empty, .marketing-warnings:empty { display: none; }
+.marketing-warnings { color: var(--amber); }
+.marketing-section .kpi-card, .marketing-dialog .kpi-card { min-width: 0; }
+.marketing-section .kpi-card .value, .marketing-dialog .kpi-card .value { overflow-wrap: normal; word-break: normal; font-size: clamp(19px, 1.8vw, 23px); }
+.marketing-section .panel { min-width: 0; }
+.marketing-table .table-wrap { min-width: 0; }
+.marketing-table-scroll { max-height: 560px; overflow: auto; }
+.marketing-table table { width: 100%; border-collapse: collapse; white-space: normal; }
+.marketing-table thead th { position: sticky; top: 0; z-index: 1; background: var(--panel); }
+/* Nút + biểu tượng sắp xếp ở tiêu đề: quy ước chung shared/shared.css (cột số căn phải bằng th.col-num). */
+.marketing-table td.col-num { text-align: right; }
+.marketing-table tbody tr:hover { background: var(--panel-2); }
+.marketing-row-link { cursor: pointer; }
+.marketing-row-link:hover td:first-child { color: var(--amber); }
+.marketing-dialog { width: min(1120px, calc(100vw - 32px)); max-height: 90vh; padding: 0; color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-12); box-shadow: var(--shadow-modal); }
+.marketing-dialog::backdrop { background: var(--overlay-bg, color-mix(in srgb, var(--bg) 75%, transparent)); }
+/* Đầu hộp (.dp-head) và hàng chỉ số (.dp-stats) dùng khung chung shared/detail-panel.css. */
+.marketing-dialog-body { padding: 18px 22px 24px; overflow: auto; max-height: calc(90vh - 90px); }
+.marketing-dialog .panel:last-child { margin-bottom: 0; }
+#view-marketing :focus-visible, .marketing-dialog :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+@media (max-width: 768px) {
+  .marketing-section .grid > .panel { grid-column: span 12; }
+  .marketing-section .kpi-grid > .kpi-card, .marketing-dialog .kpi-grid > .kpi-card { grid-column: span 6; }
+  .marketing-dialog .mini-filter-apply { min-height: 40px; }
+  .marketing-section .debt-filter-field { flex: 1 1 140px; }
+  #view-marketing .marketing-toolbar { align-items: stretch; }
+  .marketing-dialog-body { padding: 14px; }
+}
+@media (max-width: 480px) {
+  .marketing-section .kpi-grid > .kpi-card, .marketing-dialog .kpi-grid > .kpi-card { grid-column: span 12; }
+}
+@media (prefers-reduced-motion: reduce) { #view-marketing *, .marketing-dialog * { scroll-behavior: auto; transition: none; animation: none; } }
+
+.marketing-chart-scroll { height: auto; max-height: 340px; overflow-x: hidden; overflow-y: auto; }
+.marketing-chart-inner { position: relative; }
+.marketing-split { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 16px; align-items: start; }
+.marketing-split > .grid { display: block; }
+.marketing-split > .grid > .panel { width: 100%; }
+@media (max-width: 1100px) { .marketing-split { grid-template-columns: minmax(0, 1fr); } }
+#view-marketing .marketing-toolbar { display: none; }
+.marketing-table .marketing-filters { flex: 1 1 auto; justify-content: flex-start; padding: 0; margin: 0; }
+.marketing-section > * + *:not(:empty), .marketing-dialog-body > * + *:not(:empty) { margin-top: 16px; }
+.marketing-section > .section-head + *, .marketing-section > .marketing-status + *, .marketing-section > .marketing-warnings + * { margin-top: 0; }
+.marketing-section > .marketing-status:not(:empty), .marketing-section > .marketing-warnings:not(:empty) { margin-bottom: 12px; }
+.marketing-section .grid, .marketing-split { margin-bottom: 0; }
+
+/* Tên nhân viên đuôi MKT: chữ vàng (sáng ở nền tối, đậm hơn ở nền sáng để đủ tương phản). */
+.mkt-name { color: #FACC15; font-weight: 600; }
+:root[data-theme="light"] .mkt-name { color: #A16207; }
+/* Ô sửa tại chỗ Khách mới / Ghi chú (ghi ngược Google Sheets). */
+.marketing-edit { box-sizing: border-box; width: 100%; min-width: 0; min-height: 30px; resize: none; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; padding: 4px 8px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: inherit; font: inherit; }
+.marketing-edit:hover { border-color: var(--border, rgba(148,163,184,.35)); }
+.marketing-edit:focus { outline: none; border-color: var(--amber); background: var(--panel-2); }
+.marketing-edit.is-saved { border-color: #22C55E; }
+.marketing-edit.is-error { border-color: #EF4444; }
+.marketing-edit:disabled { opacity: .6; }
+
+.marketing-entry-grid, .marketing-sync-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+.marketing-entry-form label { display:flex; flex-direction:column; gap:6px; color:var(--text); }
+.marketing-entry-form input, .marketing-entry-form select, .marketing-filters input { min-width:0; padding:9px; border:1px solid var(--border); border-radius:6px; background:var(--panel-2); color:var(--text); font:inherit; }
+.marketing-entry-form > * + * { margin-top:16px; }
+.marketing-customer-search [data-customers] { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+.marketing-operations { padding:20px; }
+.marketing-sync-grid p { color:var(--muted); overflow-wrap:anywhere; }
+@media(max-width:600px) { .marketing-entry-grid,.marketing-sync-grid { grid-template-columns:minmax(0,1fr); } }

@@ -53,3 +53,11 @@ test('reconcileEntity: ghep dung ket qua total KiotViet (gia) + count Postgres (
   assert.equal(result.postgresCount, 500);
   assert.equal(result.severity, 'ok');
 });
+
+test('branchless bank catalog reconciliation compares only IDs returned by the selected retailer',async t=>{
+ const {PGlite}=require('@electric-sql/pglite');const db=new PGlite();t.after(()=>db.close());
+ await db.exec('CREATE TABLE cash_book_accounts(id bigint primary key); INSERT INTO cash_book_accounts VALUES(11),(12),(99)');
+ const api={fetchAllPages:async(_endpoint,_query,onPage)=>{await onPage([{id:11}],{total:2});await onPage([{Id:12}],{total:2});}};
+ const result=await reconcileEntity(api,db,'hanoi',{entity:'cash_book_accounts',endpoint:'bankaccounts',branchless:true});
+ assert.equal(result.postgresCount,2);assert.equal(result.kiotVietTotal,2);assert.equal(result.severity,'ok');
+});

@@ -6,7 +6,12 @@ const CONFIG = require('./config');
 const routes = require('./routes');
 const localUserStore = require('./auth/localUserStore');
 const { startPollingScheduler } = require('./kiotvietSync/scheduler');
+const { prewarmDashboardCaches } = require('./dashboard/dashboardData');
 const { captureWebhookRawBody, webhookJsonErrorHandler } = require('./kiotviet/kiotvietWebhookRoutes');
+const { pageGuard } = require('./auth/pageGuard');
+const { createLeaveDbRealtime } = require('./hr/hrLeaveDbRealtime');
+const { getConfiguredManagerLeaveRuntime } = require('./telegram/managerLeaveRuntime');
+const { startSpecialDayNotifySchedule } = require('./notifications/specialDayNotifier');
 
 process.on('uncaughtException', (err) => {
   console.error('[Process] Uncaught exception:', err);
@@ -44,6 +49,12 @@ app.use('/api', (req, res, next) => {
 
 // API + auth routes TRUOC static (tranh express.static chop mat /api/*)
 app.use(routes);
+
+// Chan mo TRANG HTML noi bo ngay o server (xem server/auth/pageGuard.js) —
+// dat TRUOC ca route /reports lan express.static de bookmark/tab cu khong con
+// tai duoc trang ma tai khoan khong co quyen. Tai nguyen tinh (/shared/*,
+// /js/*, /vendor/*) va trang dang nhap/dang ky khong bi anh huong.
+app.use(pageGuard);
 
 // "/reports" la duong dan tuong duong "tab lon" cua trang bao cao tong hop
 // (public/index.html o thu muc goc), de khop pattern URL "tab lon/#tab nho"
@@ -122,9 +133,38 @@ async function startServer() {
   app.listen(CONFIG.PORT, () => {
     console.log(`TOKOSI dashboard server dang chay tren port ${CONFIG.PORT}`);
 
+    if (CONFIG.HR_LEAVE_DB_REALTIME_ENABLED) createLeaveDbRealtime().start();
+    const managerLeaveRuntime = getConfiguredManagerLeaveRuntime();
+    if (managerLeaveRuntime) managerLeaveRuntime.start();
 
-    if (CONFIG.KIOTVIET_SYNC_ENABLED) {
+    // Ngay le / sinh nhat -> chuong thong bao. Khong nam trong startPollingScheduler vi
+    // scheduler do tat khi khong bat KiotViet.
+    if (CONFIG.SPECIAL_DAYS_NOTIFY_ENABLED) startSpecialDayNotifySchedule();
+
+    const containerSchedule = require('./productContainers/sync').startContainerSchedule();
+    process.once('SIGTERM', () => containerSchedule.stop());
+    process.once('SIGINT', () => containerSchedule.stop());
+
+    if (CONFIG.PANCAKE_MARKETING_SYNC_ENABLED) {
+      const pancakeScheduler = require('./marketingReport/pancakeScheduler').createPancakeScheduler({ enabled: true });
+      pancakeScheduler.start();
+      process.once('SIGTERM', () => pancakeScheduler.stop());
+      process.once('SIGINT', () => pancakeScheduler.stop());
+    }
+
+    if (CONFIG.KIOTVIET_SYNC_ENABLED || CONFIG.KIOTVIET_CASHBOOK_SYNC_ENABLED) {
       startPollingScheduler();
+    }
+
+    // Nap san cache dashboard ngay sau khi server san sang nhan request, KHONG
+    // await de khong chan callback nay — chay nen, nguoi dung dau tien van
+    // duoc phuc vu ngay (co the cho DB neu prewarm chua xong), chi la khong
+    // phai la nguoi kich hoat lan doc 7 tab dau tien. Tat bang
+    // DASHBOARD_PREWARM=false (vd moi truong dev khong can).
+    if (CONFIG.DASHBOARD_PREWARM) {
+      prewarmDashboardCaches({ log: console.log }).catch((err) => {
+        console.error('[Dashboard] Prewarm that bai:', err.message);
+      });
     }
   });
 }

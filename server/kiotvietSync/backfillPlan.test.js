@@ -41,6 +41,14 @@ test('categories (du lieu nen, khong backfillRangeParam) tra dung 1 chunk full, 
   assert.equal(chunks[0].chunkKey, 'full');
   assert.deepEqual(chunks[0].query, {});
 });
+test('bankaccounts full snapshot omits null incremental query parameter', () => {
+  const bankAccounts = require('./entities/bankAccounts');
+  const chunks = buildBackfillPlan(bankAccounts, {
+    fromDate: new Date('2026-01-01T00:00:00Z'),
+    now: new Date('2026-10-06T00:00:00Z')
+  });
+  assert.deepEqual(chunks, [{ chunkKey: 'full', query: {} }]);
+});
 
 test('fromDate cung thang voi now (case bien) chi tra 1 chunk duy nhat', () => {
   const entityModule = { backfillRangeParam: { from: 'startDate', to: 'endDate' } };

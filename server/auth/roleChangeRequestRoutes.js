@@ -13,14 +13,19 @@
 const express = require('express');
 const router = express.Router();
 
-const { requireAuth, requireRole } = require('./authMiddleware');
+const { requireAuth, requireFeature } = require('./authMiddleware');
+const { hasFeature } = require('./featureRegistry');
 const localUserStore = require('./localUserStore');
+const accountPolicy = require('./accountPolicy');
 const { ROLES } = localUserStore;
 const repo = require('./roleChangeRequestRepository');
 const notificationRepo = require('../notifications/notificationRepository');
 
 const VALID_ROLES = Object.values(ROLES);
-const authManager = [requireAuth, requireRole(ROLES.QUAN_LY)];
+// Duyet/tu choi yeu cau doi vai tro = mot thao tac quan tri tai khoan, nen
+// dung dung quyen 'account.users.manage' — khop voi dieu kien hien nut
+// Duyet/Tu choi tren chuong thong bao (shared-nav.js renderNotifBell).
+const authManager = [requireAuth, requireFeature('account.users.manage')];
 
 function handleError(res, err, context) {
   if (err.statusCode && err.statusCode < 500) {
@@ -68,10 +73,13 @@ router.post('/api/role-requests', requireAuth, async (req, res) => {
       reason
     });
 
-    // Bao toan bo Quan ly best-effort — KHONG duoc lam hong response da tao request.
+    // Bao cho MOI NGUOI CO QUYEN DUYET (khong chi vai tro Quan ly) best-effort
+    // — KHONG duoc lam hong response da tao request.
     try {
       const allUsers = await localUserStore.getAllUsers();
-      const managerIds = allUsers.filter(u => u.vaiTro === ROLES.QUAN_LY).map(u => u.id);
+      const managerIds = allUsers
+        .filter(u => hasFeature(u, 'account.users.manage'))
+        .map(u => u.id);
       await notificationRepo.createNotificationForUsers(managerIds, {
         type: 'role_change_request',
         title: 'Yêu cầu đổi vai trò mới',
@@ -96,7 +104,7 @@ router.post('/api/role-requests', requireAuth, async (req, res) => {
 
 router.get('/api/role-requests', requireAuth, async (req, res) => {
   try {
-    const isManager = req.user.vaiTro === ROLES.QUAN_LY;
+    const isManager = hasFeature(req.user, 'account.users.manage');
     const requests = await repo.listRequests({
       status: req.query.status,
       userId: isManager ? undefined : req.user.id
@@ -117,7 +125,7 @@ router.get('/api/role-requests/:id', requireAuth, async (req, res) => {
     if (!request) {
       return res.status(404).json({ error: 'Không tìm thấy yêu cầu.', code: 'ROLE_REQUEST_NOT_FOUND' });
     }
-    const isManager = req.user.vaiTro === ROLES.QUAN_LY;
+    const isManager = hasFeature(req.user, 'account.users.manage');
     if (!isManager && request.userId !== String(req.user.id)) {
       return res.status(403).json({ error: 'Bạn không có quyền xem yêu cầu này.', code: 'ROLE_REQUEST_FORBIDDEN' });
     }
@@ -158,7 +166,27 @@ router.patch('/api/role-requests/:id/status', ...authManager, async (req, res) =
     // vi bi khoa vinh vien o trang thai "Da duyet" trong khi vaiTro chua doi.
     if (status === repo.ROLE_REQUEST_STATUS.APPROVED) {
       const targetUser = await localUserStore.getUserById(target.userId);
+      // Nguoi duyet khong phai Quan ly khong duoc nang ai len vai tro/quyen cao hon
+      // chinh ho (dac biet la Quan ly); yeu cau van giu trang thai Cho duyet.
+      if (targetUser) {
+        // Duyet yeu cau HA vai tro cua 1 Quan ly cung la ha quyen Quan ly khac: chi Quan ly cap cao.
+        const denied = accountPolicy.checkTargetWritable(req.user, targetUser) ||
+                       (target.requestedRole !== ROLES.QUAN_LY &&
+                         accountPolicy.checkProtectedManager(req.user, targetUser, 'duyệt yêu cầu hạ vai trò')) ||
+                       accountPolicy.checkGrant(req.user, targetUser, { ...targetUser, vaiTro: target.requestedRole });
+        if (denied) return accountPolicy.sendDenied(res, denied);
+      }
       const roleUpdates = { vaiTro: target.requestedRole };
+      const explicitScope = Object.hasOwn(req.body, 'leaveApprovalDepartments');
+      if (explicitScope) {
+        roleUpdates.leaveApprovalDepartments = require('../hr/hrApprovalDepartments').normalizeDepartments(req.body.leaveApprovalDepartments);
+        const denied = accountPolicy.checkDepartmentGrant(req.user, targetUser, roleUpdates.leaveApprovalDepartments) ||
+          (JSON.stringify(roleUpdates.leaveApprovalDepartments) !== JSON.stringify(targetUser && targetUser.leaveApprovalDepartments || []) && accountPolicy.checkProtectedManager(req.user, targetUser, 'đổi phạm vi duyệt phòng ban'));
+        if (denied) return accountPolicy.sendDenied(res, denied);
+      }
+      if (target.requestedRole === ROLES.QUAN_LY && targetUser && targetUser.vaiTro !== ROLES.QUAN_LY && (!explicitScope || !roleUpdates.leaveApprovalDepartments.length)) {
+        return res.status(400).json({ error: 'Vui lòng chọn ít nhất một phòng ban duyệt cho Quản lý mới tại trang Quản lý tài khoản.', code: 'LEAVE_DEPARTMENTS_REQUIRED' });
+      }
       if (targetUser && targetUser.hrManaged) {
         roleUpdates.vaiTroOverride = target.requestedRole;
         roleUpdates.roleSource = 'override';

@@ -121,3 +121,16 @@ test('hydrateFromSheets: Postgres loi -> khong throw (fail-soft)', async () => {
   });
   await assert.doesNotReject(() => localUserStore.hydrateFromSheets());
 });
+
+
+test('create and update preserve assigned branch and leave approval selection through cache refresh', async () => {
+  const { store } = freshStore();
+  const user = await store.createUser({ username: 'scoped-user', hrManaged: true, hrRowIndex: 123, boPhan: 'KHO', coSo: '', leaveApprovalDepartments: ['  KHO  ', 'KHO'] });
+  assert.equal(user.assignedCoSo, '');
+  assert.deepEqual(user.leaveApprovalDepartments, ['KHO']);
+  assert.equal(user.boPhan, 'KHO');
+  await store.updateUser(user.id, { hoTen: 'New name', boPhan: 'KẾ TOÁN' });
+  const updated = await store.getUserById(user.id);
+  assert.equal(updated.assignedCoSo, '');
+  assert.deepEqual(updated.leaveApprovalDepartments, ['KHO']);
+});

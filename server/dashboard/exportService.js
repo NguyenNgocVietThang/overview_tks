@@ -13,22 +13,29 @@
 //      roi ghep theo ma; nhan/kieu/mo ta cot theo exportFieldCatalog.js.
 //   4. Buoc lay truong voi bang co dinh KHONG cham DB/Google (rowCount = null).
 //   5. Gioi han tai: toi da 2 file dong thoi + hang doi 8; tran -> 503 EXPORT_BUSY.
+//   6. getExportDataset() la tang lay/tong hop DUNG CHUNG; chi buoc render khac nhau:
+//      renderExcelWorkbook (ExcelJS) va exportHtmlReport.renderHtmlReport (HTML tu chua).
+//      runExport() boc ca hai trong cung slot/hang doi va AbortSignal.
 // ==========================================
 
 const ExcelJS = require('exceljs');
 const dashboardData = require('./dashboardData');
+const debtScheduleService = require('../debtSchedule/debtScheduleService');
 const dashboardPgReader = require('./dashboardPgReader');
 const productReportRepository = require('./productReportRepository');
 const exportFieldCatalog = require('./exportFieldCatalog');
-const { BRANCHES, BRANCH_BOTH, resolveBranchScope } = require('../branch/branches');
+const { BRANCHES, BRANCH_BOTH, branchLabelToCode, resolveBranchScope } = require('../branch/branches');
 const { HEADER_FONT, frozenNoGridlinesView, applyFullTableBorder } = require('../excelTableStyle');
 const { filterTableItems } = require('../public/js/table-explorer');
+const htmlReportRenderer = require('./exportHtmlReport');
 
 const EXCEL_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const DEBT_QUEUE_FILTERS = new Set(['needsAction', 'currentDebt', 'overdue', 'all']);
+// Khop thu tu cot bang Cong no tren man hinh (DEBT_SORT_FIELDS o public/index.html).
 const DEBT_SORT_FIELDS = [
-  'customerName', 'sale', 'paymentSchedule', 'openingDebt', 'currentDebt',
-  'overdueDebt', 'currentDebtToSalesRatio', 'overdueToSalesRatio', 'automaticAlert', 'workflowStatus'
+  'branch', 'customerName', 'sale', 'paymentSchedule', 'currentDebt', 'overdueDebt',
+  'inScheduleDebt', 'currentDebtToSalesRatio', 'overdueToSalesRatio', 'automaticAlert', 'overdueStreak',
+  'previousPenaltyAmount', 'penaltyAmount', 'saleFeedback', 'managerFeedback', 'workflowStatus'
 ];
 
 // Gioi han tai: moi file Excel nap du lieu + ghi workbook trong RAM.
@@ -38,24 +45,10 @@ const EXPORT_BUSY_MESSAGE = 'Hệ thống đang xử lý nhiều yêu cầu xu�
 
 const TABLE_TITLES = Object.freeze({
   'overview.transactions': 'Chi tiết giao dịch',
-  'overview.purchases': 'Danh sách nhập hàng',
-  'overview.new-products': 'Danh sách mã mới',
-  'products.top-selling': 'Sản phẩm bán chạy',
-  'products.low-stock': 'Hàng đã hết',
-  'products.all': 'Tất cả mã hàng',
-  'products.newly-imported': 'Hàng mới nhập',
-  'products.child-categories': 'Chi tiết nhóm con',
-  'invoices.orders': 'Danh sách đặt hàng',
-  'invoices.returns': 'Danh sách trả hàng',
-  'customers.revenue': 'Doanh thu theo khách',
-  'customers.debt': 'Chi tiết khách nợ',
   'customers.productDetail': 'Bảng chi tiết sản phẩm theo khách',
-  'customers.productMonthlyCompare': 'Bảng so sánh doanh số theo tháng',
-  'overview.productRevenueSearch': 'Doanh thu theo hàng',
   'overview.productReport': 'Báo cáo hàng hóa',
-  'suppliers.list': 'Danh sách nhà cung cấp',
   'debt.management': 'Quản lý công nợ',
-  'search.results': 'Kết quả tìm kiếm',
+  'debt.penalty': 'Thưởng/phạt sale theo công nợ',
   'stockout.recentScan': 'Hàng đứt gần đây',
   'stockout.check90d': 'Kiểm tra đứt hàng 90 ngày',
   'stockout.check30d': 'Kiểm tra đứt hàng 30 ngày'
@@ -104,21 +97,9 @@ function normalizeFilterSpec(spec, fallbackMode = 'days') {
 
 function normalizeFilters(rawFilters) {
   const raw = rawFilters && typeof rawFilters === 'object' ? rawFilters : {};
-  const overview = normalizeFilterSpec(raw.overview);
-  const products = normalizeFilterSpec(raw.products);
-  const invoices = normalizeFilterSpec(raw.invoices);
-  const customers = normalizeFilterSpec(raw.customers, 'all');
-  const productStatus = ['Đang kinh doanh', 'Ngừng kinh doanh'].includes(raw.products && raw.products.status)
-    ? raw.products.status
-    : 'all';
-  return {
-    overview,
-    products: { ...products, status: productStatus },
-    invoices,
-    customers,
-    newPurchases: normalizeFilterSpec(raw.newPurchases || overview),
-    newProducts: normalizeFilterSpec(raw.newProducts || overview)
-  };
+  // (Bo loc `overview` da bo 2026-10-05 — getDashboardData khong con dung; client chua bao gio gui.)
+  // (2026-10-16: tab Hang hoa cu da go nen khong con bo loc `products` / `newProducts` / `newlyImported`.)
+  return { invoices: normalizeFilterSpec(raw.invoices) };
 }
 
 function inferColumnType(label) {
@@ -222,59 +203,57 @@ function aggregateColumn(key, label, type, description, options = {}) {
 
 // Cot cua cac bang tong hop/nguon dong — dung chung cho buoc lay truong va buoc tao file.
 const DEBT_COLUMNS = [
-  aggregateColumn('customerName', 'Khách hàng', 'text', 'Tên khách hàng trong bảng quản lý công nợ.'),
-  aggregateColumn('sale', 'Nhân viên phụ trách (Sale)', 'text', 'Nhân viên bán hàng phụ trách công nợ của khách.'),
-  aggregateColumn('paymentSchedule', 'Lịch thanh toán', 'text', 'Chu kỳ thanh toán đã thỏa thuận với khách.'),
-  aggregateColumn('openingDebt', 'Nợ đầu kỳ', 'number', 'Số nợ của khách ở đầu kỳ theo dõi (VNĐ).'),
-  aggregateColumn('currentDebt', 'Nợ hiện tại', 'number', 'Số tiền khách còn nợ tại thời điểm xuất (VNĐ).'),
-  aggregateColumn('overdueDebt', 'Nợ quá hạn', 'number', 'Phần nợ đã quá hạn thanh toán (VNĐ).'),
+  aggregateColumn('customerName', 'Khách hàng', 'text', 'Tên khách hàng trên KiotViet.'),
+  aggregateColumn('sale', 'Nhân viên phụ trách (Sale)', 'text', 'Nhóm khách hàng của khách trên KiotViet.'),
+  aggregateColumn('paymentSchedule', 'Lịch thanh toán', 'number', 'Số ngày nợ tối đa của khách tại cơ sở này; chưa đặt thì tính 1 ngày.'),
+  aggregateColumn('currentDebt', 'Nợ hiện tại', 'number', 'Nợ của khách tại bản chốt 15:00 gần nhất (VNĐ).'),
+  aggregateColumn('inScheduleDebt', 'Doanh số trong kỳ', 'number', 'Doanh số trong lịch thanh toán = hóa đơn trừ trả hàng trong số ngày của lịch; bằng nợ hiện tại trừ nợ quá hạn (VNĐ).'),
+  aggregateColumn('overdueDebt', 'Nợ quá hạn', 'number', 'Nợ hiện tại trừ nợ trong lịch thanh toán (hóa đơn trừ trả hàng trong số ngày của lịch), không âm (VNĐ).'),
   aggregateColumn('currentDebtToSalesRatio', 'Tỷ lệ nợ hiện tại trên doanh số', 'percent',
-    'Nợ hiện tại chia cho doanh số của khách, hiển thị theo phần trăm.'),
+    'Nợ hiện tại chia cho doanh số trung bình 4 tháng (tab Khách hàng).'),
   aggregateColumn('overdueToSalesRatio', 'Nợ quá hạn trên doanh số trung bình', 'percent',
-    'Nợ quá hạn chia cho doanh số trung bình của khách, hiển thị theo phần trăm.'),
+    'Nợ quá hạn chia cho doanh số trung bình 4 tháng (tab Khách hàng).'),
   aggregateColumn('automaticAlert', 'Cảnh báo tự động', 'text',
-    'Cảnh báo hệ thống tự tính: Chưa thu, Quá hạn hoặc Lỗi dữ liệu.', { wrapText: true }),
-  aggregateColumn('workflowStatus', 'Trạng thái xử lý', 'text', 'Trạng thái xử lý công nợ do nhân viên cập nhật.'),
+    'Quá hạn khi nợ quá hạn lớn hơn 0 đồng.', { wrapText: true }),
+  aggregateColumn('overdueStreak', 'Số phiên liên tiếp', 'number',
+    'Số phiên chốt 15:00 liên tiếp khách có nợ quá hạn từ 400.000đ; về 0 khi hết nợ chậm.'),
+  aggregateColumn('previousPenaltyAmount', 'Tiền phạt phiên trước', 'number',
+    'Tiền phạt của phiên chốt 15:00 liền trước (số Quản lý đã điền hoặc mức gợi ý); để trống nếu khách chưa có ở phiên trước.'),
+  aggregateColumn('penaltyAmount', 'Tiền phạt phiên này', 'number',
+    'Tiền phạt nợ quá hạn của phiên: mức gợi ý theo quy chế (nợ lẻ 25.000đ, nợ chậm theo số phiên liên tiếp) hoặc số Quản lý đã điền (VNĐ).'),
+  aggregateColumn('saleFeedback', 'Sale phản hồi', 'text', 'Phản hồi của Sale trong chu kỳ chốt hiện tại.', { wrapText: true }),
+  aggregateColumn('managerFeedback', 'QL phản hồi', 'text', 'Phản hồi của Quản lý trong chu kỳ chốt hiện tại.', { wrapText: true }),
+  aggregateColumn('workflowStatus', 'Trạng thái xử lý', 'text', 'Trạng thái xử lý công nợ trong chu kỳ chốt hiện tại.'),
   aggregateColumn('updatedBy', 'Người cập nhật', 'text', 'Người cập nhật trạng thái xử lý gần nhất.', { selected: false }),
   aggregateColumn('updatedAt', 'Cập nhật lúc', 'date', 'Thời điểm cập nhật trạng thái xử lý gần nhất.', { selected: false })
 ];
 
-const DEBT_BRANCH_COLUMN = aggregateColumn('branch', 'Cơ sở', 'text', 'Cơ sở (Hà Nội hoặc Sài Gòn) của khoản công nợ.');
-
-const PARENT_CATEGORY_COLUMNS = [
-  aggregateColumn('name', 'Nhóm cha', undefined, 'Tên nhóm hàng cấp cha.'),
-  aggregateColumn('qty', 'Số lượng bán', 'number', 'Tổng số lượng hàng bán ra của nhóm trong kỳ.'),
-  aggregateColumn('revenue', 'Doanh thu', 'number', 'Tổng doanh thu bán hàng của nhóm trong kỳ (VNĐ).'),
-  aggregateColumn('productCount', 'Số mã hàng', 'number', 'Số mã hàng thuộc nhóm có phát sinh bán trong kỳ.')
+// Bang xep hang phat sale (khung Chi so then chot, tab Cong no) — khop cot man hinh.
+const DEBT_PENALTY_COLUMNS = [
+  aggregateColumn('rank', 'Hạng', 'number', 'Thứ hạng thưởng toàn hệ thống Hà Nội + Sài Gòn theo phạt/điểm; Sale không có điểm không xếp hạng.'),
+  aggregateColumn('sale', 'Sale', 'text', 'Nhân viên phụ trách (nhóm khách hàng trên KiotViet).'),
+  aggregateColumn('points', 'Điểm', 'number', 'Điểm công nợ của Sale trong tháng theo quy chế thưởng.'),
+  aggregateColumn('ratio', 'Phạt/điểm', 'number', 'Phạt gốc chia cho điểm; để trống khi không có điểm.'),
+  aggregateColumn('penaltyDays', 'Ngày bị phạt', 'number', 'Số ngày trong tháng (từ ngày 01) Sale có tiền phạt công nợ.'),
+  aggregateColumn('lastDayCustomers', 'Khách phạt gần nhất', 'number', 'Số khách bị phạt của ngày chốt gần nhất.'),
+  aggregateColumn('total', 'Phạt gốc', 'number', 'Tổng phạt gốc trong tháng trước miễn phạt theo hạng (VNĐ).'),
+  aggregateColumn('payablePenalty', 'Phạt phải nộp', 'number', 'Số tiền phạt phải nộp sau miễn phạt theo hạng (VNĐ).'),
+  aggregateColumn('reward', 'Tiền thưởng', 'number', 'Tổng thưởng theo hạng và theo điểm (VNĐ); tạm tính trong tháng, chính thức khi chốt tháng.'),
+  aggregateColumn('month', 'Tháng', 'text', 'Tháng thưởng/phạt được chọn (YYYY-MM).'),
+  aggregateColumn('status', 'Trạng thái', 'text', 'Thưởng tạm tính khi tháng đang mở; Đã chốt khi đã khóa kết quả tháng.'),
+  aggregateColumn('rankReward', 'Thưởng theo hạng', 'number', 'Phần thưởng theo thứ hạng toàn hệ thống (VNĐ); tạm tính trong tháng, chính thức khi chốt tháng.', { selected: false }),
+  aggregateColumn('pointsReward', 'Thưởng theo điểm', 'number', 'Phần thưởng phân bổ theo điểm (VNĐ); tạm tính trong tháng, chính thức khi chốt tháng.', { selected: false })
 ];
 
-const CHILD_CATEGORY_COLUMNS = [
-  aggregateColumn('parent', 'Nhóm cha', undefined, 'Tên nhóm hàng cấp cha đang xem.'),
-  aggregateColumn('name', 'Nhóm con', undefined, 'Tên nhóm hàng cấp con thuộc nhóm cha.'),
-  aggregateColumn('qty', 'Số lượng bán', 'number', 'Tổng số lượng hàng bán ra của nhóm con trong kỳ.'),
-  aggregateColumn('revenue', 'Doanh thu', 'number', 'Tổng doanh thu bán hàng của nhóm con trong kỳ (VNĐ).'),
-  aggregateColumn('productCount', 'Số mã hàng', 'number', 'Số mã hàng thuộc nhóm con có phát sinh bán trong kỳ.')
-];
+const DEBT_BRANCH_COLUMN = aggregateColumn('branch', 'Cơ sở', 'text', 'Cơ sở của khoản công nợ (Hà Nội hoặc Sài Gòn).');
 
 const CUSTOMER_PRODUCT_DETAIL_COLUMNS = [
   aggregateColumn('name', 'Tên hàng', undefined, 'Tên hàng khách đã mua.'),
   aggregateColumn('quantity', 'Số lượng', 'number', 'Tổng số lượng hàng khách đã mua.'),
-  aggregateColumn('revenue', 'Doanh thu', 'number', 'Tổng doanh thu của mặt hàng với khách (VNĐ).')
-];
-
-const CUSTOMER_PRODUCT_MONTHLY_COLUMNS = [
-  aggregateColumn('name', 'Tên hàng', undefined, 'Tên hàng khách đã mua.'),
+  aggregateColumn('revenue', 'Doanh thu', 'number', 'Tổng doanh thu của mặt hàng với khách (VNĐ).'),
   aggregateColumn('month1Revenue', 'Doanh thu tháng này', 'number', 'Doanh thu của mặt hàng với khách trong tháng hiện tại (VNĐ).'),
   aggregateColumn('month2Revenue', 'Doanh thu tháng trước', 'number', 'Doanh thu của mặt hàng với khách trong tháng trước (VNĐ).'),
   aggregateColumn('month3Revenue', 'Doanh thu 2 tháng trước', 'number', 'Doanh thu của mặt hàng với khách cách đây hai tháng (VNĐ).')
-];
-
-const PRODUCT_REVENUE_SEARCH_COLUMNS = [
-  aggregateColumn('code', 'Mã hàng', 'text', 'Mã hàng tìm thấy theo từ khóa.'),
-  aggregateColumn('name', 'Tên hàng', undefined, 'Tên hàng tìm thấy theo từ khóa.'),
-  aggregateColumn('ds90', 'Doanh thu 90 ngày', 'number', 'Doanh thu của mặt hàng trong 90 ngày gần nhất (VNĐ).'),
-  aggregateColumn('sl90', 'Số lượng bán 90 ngày', 'number', 'Số lượng hàng bán ra trong 90 ngày gần nhất.'),
-  aggregateColumn('tonKho', 'Tồn kho hiện tại', 'number', 'Số lượng tồn kho hiện tại của mặt hàng.')
 ];
 
 // Bao cao hang hoa (tab Tong quan) - doc thang tu bang product_report da tinh
@@ -282,10 +261,13 @@ const PRODUCT_REVENUE_SEARCH_COLUMNS = [
 const PRODUCT_REPORT_COLUMNS = [
   aggregateColumn('code', 'Mã sản phẩm', 'text', 'Mã sản phẩm.'),
   aggregateColumn('name', 'Tên sản phẩm', undefined, 'Tên sản phẩm.'),
+  aggregateColumn('unloadedQty', 'Chưa bốc', 'number', 'Tổng số lượng toàn công ty trong CONT trạng thái 1 hoặc 2; trống khi chưa có dữ liệu.'),
+  aggregateColumn('loadedQty', 'Đã bốc', 'number', 'Tổng số lượng toàn công ty trong CONT trạng thái 3; trống khi chưa có dữ liệu.'),
   aggregateColumn('stockHanoi', 'Tồn Hà Nội', 'number', 'Tồn kho hiện tại tại cơ sở Hà Nội.'),
+  aggregateColumn('inTransit', 'Điều chuyển SG', 'number', 'Số lượng đặt hàng nhập Đã xác nhận nhà cung cấp tại Kiot Sài Gòn, cộng vào tồn có thể bán của báo cáo này.'),
   aggregateColumn('stockSaigon', 'Tồn Sài Gòn', 'number', 'Tồn kho hiện tại tại cơ sở Sài Gòn.'),
   aggregateColumn('availableToSell', 'Tổng tồn có thể bán', 'number',
-    'Tổng tồn 2 cơ sở trừ số lượng đang bị giữ chỗ trong đơn đặt hàng của khách chưa hoàn tất.'),
+    'Tồn có thể bán Hà Nội cộng tồn có thể bán Sài Gòn cộng điều chuyển Sài Gòn; tồn có thể bán từng cơ sở đã trừ khách đặt phiếu tạm.'),
   aggregateColumn('qtySold30d', 'Số lượng bán 30 ngày', 'number', 'Tổng số lượng bán ra trong 30 ngày gần nhất (tính đến hết hôm qua).'),
   aggregateColumn('revenue90d', 'Doanh số 90 ngày', 'number', 'Doanh số trong 90 ngày gần nhất (tính đến hết hôm qua, đơn vị tiền Việt Nam).'),
   aggregateColumn('customerCount90d', 'Số lượng khách mua', 'number', 'Số khách hàng khác nhau đã mua mã này trong 90 ngày.'),
@@ -294,25 +276,11 @@ const PRODUCT_REPORT_COLUMNS = [
   aggregateColumn('topCustomerShare', 'Tỷ lệ khách lớn nhất', 'percent', 'Doanh số khách lớn nhất chia cho doanh số 90 ngày.')
 ];
 
-const CUSTOMER_PRODUCT_TOP_COLUMNS = [
-  aggregateColumn('productCode', 'Mã hàng', 'text', 'Mã hàng được tìm kiếm.'),
-  aggregateColumn('productName', 'Tên hàng', undefined, 'Tên hàng được tìm kiếm.'),
-  aggregateColumn('customerCode', 'Mã khách hàng', 'text', 'Mã khách hàng đã mua mặt hàng.'),
-  aggregateColumn('customerName', 'Khách hàng', undefined, 'Tên khách hàng đã mua mặt hàng.'),
-  aggregateColumn('purchasedQuantity', 'Tổng số lượng mua', 'number', 'Tổng số lượng khách đã mua mặt hàng.'),
-  aggregateColumn('purchaseRevenue', 'Tổng doanh thu mua', 'number', 'Tổng doanh thu bán mặt hàng cho khách (VNĐ).'),
-  aggregateColumn('returnedQuantityAllTime', 'Số lượng trả (toàn thời gian)', 'number', 'Tổng số lượng khách đã trả lại từ trước đến nay.'),
-  aggregateColumn('returnValueAllTime', 'Giá trị trả (toàn thời gian)', 'number', 'Tổng giá trị hàng khách đã trả lại từ trước đến nay (VNĐ).'),
-  aggregateColumn('netRevenue', 'Doanh thu thuần', 'number', 'Doanh thu sau khi trừ giá trị hàng trả lại (VNĐ).'),
-  aggregateColumn('lastPurchaseDate', 'Ngày mua cuối cùng', 'date', 'Ngày khách mua mặt hàng gần nhất.')
-];
-
 const STOCKOUT_RECENT_COLUMNS = [
   aggregateColumn('code', 'Mã hàng', 'text', 'Mã hàng bị đứt hàng.'),
   aggregateColumn('name', 'Tên hàng', undefined, 'Tên hàng bị đứt hàng.'),
   aggregateColumn('lastOutOfStockDate', 'Ngày hết hàng gần nhất', 'date', 'Ngày gần nhất mặt hàng hết tồn kho.'),
   aggregateColumn('daysOutOfStock', 'Số ngày đứt hàng', 'number', 'Số ngày mặt hàng đứt hàng trong kỳ quét.'),
-  aggregateColumn('dataWarning', 'Cảnh báo dữ liệu', undefined, 'Cảnh báo khi dữ liệu chưa đủ tin cậy để kết luận.', { wrapText: true }),
   aggregateColumn('periods', 'Các đợt đứt hàng', undefined, 'Từng đợt đứt hàng, mỗi đợt một dòng (từ ngày -> đến ngày).', { wrapText: true })
 ];
 
@@ -328,7 +296,6 @@ const STOCKOUT_90D_COLUMNS = [
   aggregateColumn('totalStockoutDays', 'Số ngày đứt hàng', 'number', 'Tổng số ngày đứt hàng trong 90 ngày gần nhất.'),
   aggregateColumn('avgStockoutDays', 'Số ngày đứt hàng trung bình', 'number', 'Tổng số ngày đứt hàng chia cho số lần đứt hàng.'),
   aggregateColumn('currentOnHand', 'Tồn kho hiện tại', 'number', 'Số lượng tồn kho hiện tại của mặt hàng.'),
-  aggregateColumn('dataWarning', 'Cảnh báo dữ liệu', undefined, 'Cảnh báo khi dữ liệu chưa đủ tin cậy để kết luận.', { wrapText: true }),
   aggregateColumn('periods', 'Các đợt đứt hàng', undefined, 'Từng đợt đứt hàng, mỗi đợt một dòng (từ ngày -> đến ngày).', { wrapText: true })
 ];
 
@@ -339,7 +306,6 @@ const STOCKOUT_30D_COLUMNS = [
   aggregateColumn('totalStockoutDays', 'Số ngày đứt hàng', 'number', 'Tổng số ngày đứt hàng trong 30 ngày gần nhất.'),
   aggregateColumn('avgStockoutDays', 'Số ngày đứt hàng trung bình', 'number', 'Tổng số ngày đứt hàng chia cho số lần đứt hàng.'),
   aggregateColumn('currentOnHand', 'Tồn kho hiện tại', 'number', 'Số lượng tồn kho hiện tại của mặt hàng.'),
-  aggregateColumn('dataWarning', 'Cảnh báo dữ liệu', undefined, 'Cảnh báo khi dữ liệu chưa đủ tin cậy để kết luận.', { wrapText: true }),
   aggregateColumn('periods', 'Các đợt đứt hàng', undefined, 'Từng đợt đứt hàng, mỗi đợt một dòng (từ ngày -> đến ngày).', { wrapText: true })
 ];
 
@@ -412,6 +378,7 @@ function compositeKey(branch, code) {
  * binh quan theo ton kho, cot con lai lay gia tri that dau tien theo Ha Noi -> Sai Gon.
  */
 function mergeEntitySourceRows(source, rowsByBranch) {
+  // (san pham khong gop nua — chi khach/NCC; xem ENTITY_MERGE_SPECS trong dashboardData.js)
   const fields = exportFieldCatalog.getSourceFields(source.key);
   const keys = fields.map(item => item.key);
   const headers = fields.map(item => item.sheetHeader);
@@ -440,6 +407,20 @@ async function loadSourceRowsForItems(source, env, items, perBranch) {
     return { byKey: rowsByCode(sourceRows, source.codeKey), keyOf: byCodeKey };
   }
   const scope = resolveBranchScope(BRANCH_BOTH);
+  if (perBranch === 'customer') {
+    // Khach gop theo TEN: moi co so doc cac ma khach cua chinh no (item.codesByBranch),
+    // gop dong tho theo ten (giong man hinh) roi ghep lai theo ten.
+    const groups = await Promise.all(scope.map(async physicalBranch => ({
+      branch: physicalBranch,
+      rows: await readSourceRows(
+        source,
+        { ...env, branch: physicalBranch },
+        items.map(item => (item.codesByBranch || {})[physicalBranch]).filter(Boolean)
+      )
+    })));
+    const byKey = rowsByCode(mergeEntitySourceRows(source, groups), 'ten_khach_hang');
+    return { byKey, keyOf: item => normalizeCode(item.name) };
+  }
   if (perBranch) {
     const groups = await Promise.all(scope.map(async physicalBranch => ({
       branch: physicalBranch,
@@ -466,33 +447,23 @@ async function loadSourceRowsForItems(source, env, items, perBranch) {
 
 // ---------- Dinh nghia tung bang (worksheets + ham nap dong) ----------
 
-function customerRevenueRows(dashboard) {
-  return (((dashboard.customers || {}).topRevenue || {}).top50 || []);
-}
-
-const BRANCH_COLUMN_LABEL = 'Cơ sở';
-const BRANCH_COLUMN_DESCRIPTION = 'Cơ sở (Hà Nội hoặc Sài Gòn) nơi phát sinh chứng từ.';
-const BRANCH_ITEM_VALUE = item => normalizeText(item.branch);
-
-function branchDerivedColumn() {
-  return derivedColumn('branch', BRANCH_COLUMN_LABEL, 'text', BRANCH_COLUMN_DESCRIPTION);
-}
 
 /** Bang 1 worksheet: cac dong logic (ma) ghep voi dong tho cua 1 nguon catalogue. */
 function singleSourceTable(options) {
-  const { key, name, sourceKey, derived = [], items, branchColumn = false } = options;
+  // branchColumn: true => "Ca hai" ghep dong tho theo (co so, ma) (chung tu/hang hoa cung ma o ca
+  // hai co so la hai dong rieng); 'customer' => khach gop theo ten (xem loadSourceRowsForItems).
+  const { key, name, sourceKey, derived = [], items, branchColumn = false, derivedValues, summaryKeys } = options;
   const source = exportFieldCatalog.getSource(sourceKey);
-  // "Ca hai" + bang giao dich: them cot "Cơ sở" va ghep dong tho theo (co so, ma).
-  const derivedValues = branchColumn ? { ...options.derivedValues, branch: BRANCH_ITEM_VALUE } : options.derivedValues;
   const worksheet = {
     key,
     name,
     codeKey: source.codeKey,
     columns: sourceColumns(sourceKey).concat(
-      derived.map(def => derivedColumn(def.key, def.label, def.type, def.description)),
-      branchColumn ? [branchDerivedColumn()] : []
+      derived.map(def => derivedColumn(def.key, def.label, def.type, def.description))
     )
   };
+  // Cot so lam KPI/bieu do chinh cua bao cao HTML (xem exportHtmlReport.planFor).
+  if (summaryKeys) worksheet.summaryKeys = summaryKeys;
   return {
     worksheets: [worksheet],
     async loadRows(env, activeFor) {
@@ -507,6 +478,7 @@ function singleSourceTable(options) {
 function aggregateTable(options) {
   const { key, name, columns, rows } = options;
   const worksheet = { key, name, columns, codeKey: options.codeKey };
+  if (options.summaryKeys) worksheet.summaryKeys = options.summaryKeys;
   return {
     worksheets: [worksheet],
     async loadRows(env, activeFor) {
@@ -518,57 +490,12 @@ function aggregateTable(options) {
   };
 }
 
-function purchasesTable(aggregate = false) {
-  const source = exportFieldCatalog.getSource('purchases');
-  const extraColumns = aggregate ? [branchDerivedColumn()] : [];
-  const derivedValues = aggregate ? { branch: BRANCH_ITEM_VALUE } : undefined;
-  const summary = {
-    key: 'purchase_summary', name: 'Tổng hợp phiếu', codeKey: source.codeKey,
-    columns: sourceColumns('purchases', exportFieldCatalog.PURCHASE_SUMMARY_KEYS).concat(extraColumns)
-  };
-  const details = {
-    key: 'purchase_details', name: 'Chi tiết mặt hàng', codeKey: source.codeKey,
-    columns: sourceColumns('purchases').concat(extraColumns)
-  };
-  return {
-    worksheets: [summary, details],
-    async loadRows(env, activeFor) {
-      const items = ((env.dashboard.newPurchases || {}).orders || []);
-      const { byKey, keyOf } = await loadSourceRowsForItems(source, env, items, aggregate);
-      const summaryRows = buildLogicalRows(items, byKey, activeFor(summary), derivedValues, keyOf);
-      const detailColumns = activeFor(details);
-      const detailSourceColumns = detailColumns.filter(column => !column.derivedKey);
-      const detailDerivedColumns = detailColumns.filter(column => column.derivedKey);
-      const detailRows = [];
-      const seen = new Set();
-      items.forEach(item => {
-        if (detailColumns.length === 0) return; // khong chon cot nao cua worksheet chi tiet
-        const key = keyOf(item);
-        if (seen.has(key)) return;
-        seen.add(key);
-        (byKey.get(key) || []).forEach(sourceRow => {
-          const row = pickSourceValues({}, detailSourceColumns, sourceRow);
-          detailDerivedColumns.forEach(column => { row[column.key] = derivedValues[column.derivedKey](item); });
-          detailRows.push(row);
-        });
-      });
-      return [{ rows: summaryRows }, { rows: detailRows }];
-    }
-  };
-}
-
 function normalizeDebtSearch(value) {
   return normalizeText(value).normalize('NFC').replace(/\s+/g, ' ').toLocaleLowerCase('vi-VN');
 }
 
 function debtAutomaticAlert(customer) {
-  const labels = (customer.alertCodes || []).map(code => {
-    if (code === 'uncollected') return 'Chưa thu';
-    if (code === 'overdue') return 'Quá hạn';
-    return '';
-  }).filter(Boolean);
-  if ((customer.dataIssues || []).length) labels.push('Lỗi dữ liệu');
-  return labels.join(', ');
+  return (customer.alertCodes || []).includes('overdue') ? 'Quá hạn' : '';
 }
 
 function sortDebtManagementRows(rows, sort) {
@@ -588,6 +515,52 @@ function sortDebtManagementRows(rows, sort) {
     if (comparison === 0) comparison = left.index - right.index;
     return direction === 'asc' ? comparison : -comparison;
   }).map(entry => entry.row);
+}
+
+// Cot "Cơ sở": khach gop hai co so liet ke tung co so (branchDetails), khong thi co so cua chinh dong.
+function debtBranchLabel(customer) {
+  const details = Array.isArray(customer.branchDetails) ? customer.branchDetails : [];
+  const labels = details.map(detail => normalizeText(detail.branch)).filter(Boolean);
+  return labels.join(', ');
+}
+
+function debtRewardStatusLabel(status) {
+  return status === 'finalized' ? 'Đã chốt' : 'Thưởng tạm tính';
+}
+
+function debtPenaltyRows(board) {
+  return board.rows.map(row => ({
+    ...row, ratio: row.ratio === null || row.ratio === undefined ? null : Math.round(row.ratio),
+    month: board.month, status: debtRewardStatusLabel(board.status)
+  }));
+}
+
+function debtRewardMetadata(board) {
+  const amount = value => `${Number(value).toLocaleString('vi-VN')}đ`;
+  const coverage = board.coverage;
+  const summary = board.summary;
+  const notes = [
+    ['Tháng', board.month],
+    ['Trạng thái', debtRewardStatusLabel(board.status)],
+    ['Phạm vi xếp hạng', 'Hà Nội + Sài Gòn'],
+    ['Tổng phạt gốc toàn hệ thống', amount(summary.grossPenalty)],
+    ['Tổng phạt phải nộp toàn hệ thống', amount(summary.payablePenalty)],
+    ['Quỹ thưởng toàn hệ thống', amount(summary.pool)],
+    ['Quỹ từ tiền phạt', amount(summary.penaltyFund)],
+    ['Công ty bù', amount(summary.companyTopUp)],
+    [board.status === 'finalized' ? 'Thưởng đã phân bổ' : 'Tổng thưởng tạm tính', amount(summary.allocatedReward)],
+    ['Số Sale nhận thưởng toàn hệ thống', String(summary.recipientCount)],
+    ['Phạm vi dữ liệu', `${coverage.from} – ${coverage.to}`],
+    ['Đủ bản chốt', coverage.complete ? 'Đầy đủ' : 'Chưa đầy đủ'],
+    ['Ngày thiếu bản chốt', coverage.missingDays.length ? coverage.missingDays.join(', ') : 'Không có'],
+    ['Phiên bản quy chế', String(board.ruleVersion)]
+  ];
+  if (board.status !== 'finalized') notes.push(['Tiền thưởng', 'Thưởng tạm tính, sẽ chốt chính thức vào cuối tháng']);
+  if (board.closedAt) notes.push(['Chốt tháng lúc', board.closedAt]);
+  return {
+    month: board.month, status: board.status, closedAt: board.closedAt,
+    ruleVersion: board.ruleVersion, summary, coverage, notes
+  };
 }
 
 function debtManagementRows(debtManagement, context, aggregate = false) {
@@ -610,15 +583,20 @@ function debtManagementRows(debtManagement, context, aggregate = false) {
   });
   const toRow = customer => ({
     customerName: customer.customerName,
-    branch: normalizeText(customer.branch),
+    branch: normalizeText(customer.branch) || debtBranchLabel(customer),
     sale: customer.sale,
-    paymentSchedule: customer.paymentSchedule,
-    openingDebt: customer.openingDebt,
+    paymentSchedule: Number(customer.paymentSchedule) || null,
     currentDebt: customer.currentDebt,
+    inScheduleDebt: customer.inScheduleDebt,
     overdueDebt: customer.overdueDebt,
     currentDebtToSalesRatio: customer.currentDebtToSalesRatio,
     overdueToSalesRatio: customer.overdueToSalesRatio,
     automaticAlert: debtAutomaticAlert(customer),
+    overdueStreak: Number(customer.overdueStreak) || 0,
+    previousPenaltyAmount: customer.previousPenaltyAmount === null || customer.previousPenaltyAmount === undefined ? null : Number(customer.previousPenaltyAmount),
+    penaltyAmount: Number(customer.penaltyAmount) || 0,
+    saleFeedback: customer.saleFeedback || '',
+    managerFeedback: customer.managerFeedback || '',
     workflowStatus: customer.workflowStatus,
     updatedBy: customer.updatedBy,
     updatedAt: customer.updatedAt
@@ -655,102 +633,19 @@ const TABLE_SPECS = {
     derived: [{ key: 'quantity', label: 'Số lượng', type: 'number', description: 'Tổng số lượng hàng của hóa đơn; để trống nếu chưa xác định được.' }],
     derivedValues: { quantity: item => (item.quantityKnown ? item.quantity : '') }
   }),
-  'overview.purchases': (context, scope) => purchasesTable(scope.aggregate),
-  'overview.new-products': () => singleSourceTable({
-    key: 'new_products', name: 'Mã mới tạo', sourceKey: 'products',
-    items: dashboard => (((dashboard.products || {}).newProducts || {}).products) || []
-  }),
-  'products.top-selling': context => {
-    if (context.productAnalysis === 'parentCategory') {
-      return aggregateTable({
-        key: 'top_parent_categories', name: 'Top nhóm cha', columns: PARENT_CATEGORY_COLUMNS,
-        rows: dashboard => (dashboard.products || {}).topSellingParentCategories || []
-      });
-    }
-    return singleSourceTable({
-      key: 'top_products', name: 'Top sản phẩm', sourceKey: 'products',
-      items: dashboard => (dashboard.products || {}).topSellingProducts || [],
-      derived: [
-        { key: 'sold_qty', label: 'Số lượng bán', type: 'number', description: 'Tổng số lượng hàng bán ra trong kỳ.' },
-        { key: 'sales_revenue', label: 'Doanh thu', type: 'number', description: 'Tổng doanh thu bán hàng trong kỳ (VNĐ).' }
-      ],
-      derivedValues: { sold_qty: item => item.qty, sales_revenue: item => item.revenue }
-    });
-  },
-  'products.low-stock': () => singleSourceTable({
-    key: 'low_stock', name: 'Hàng đã hết', sourceKey: 'products',
-    items: dashboard => dashboard.lowStock || []
-  }),
-  'products.all': () => singleSourceTable({
-    key: 'all_products', name: 'Tất cả mã hàng', sourceKey: 'products',
-    items: dashboard => dashboard.allProducts || [],
-    derived: [{ key: 'stock_ratio', label: 'Tỷ trọng tồn kho', type: 'percent', description: 'Phần trăm tồn kho của mặt hàng trên tổng tồn kho của tất cả hàng hóa.' }],
-    derivedValues: { stock_ratio: item => Number(item.pct || 0) / 100 }
-  }),
-  'products.newly-imported': () => singleSourceTable({
-    key: 'newly_imported', name: 'Hàng mới nhập', sourceKey: 'products',
-    items: dashboard => (((dashboard.products || {}).newlyImported || {}).products) || [],
-    derived: [
-      { key: 'first_import_date', label: 'Ngày nhập đầu tiên', type: 'date', description: 'Ngày đầu tiên mặt hàng được nhập kho.' },
-      { key: 'days_on_hand', label: 'Số ngày tồn tại', type: 'number', description: 'Số ngày kể từ lần nhập đầu tiên đến hiện tại.' },
-      { key: 'revenue', label: 'Doanh thu', type: 'number', description: 'Doanh thu bán hàng của mặt hàng kể từ khi nhập (VNĐ).' }
-    ],
-    derivedValues: {
-      first_import_date: item => item.firstImportDate,
-      days_on_hand: item => item.daysOnHand,
-      revenue: item => item.revenue
-    }
-  }),
-  'products.child-categories': context => aggregateTable({
-    key: 'child_categories', name: 'Chi tiết nhóm con', columns: CHILD_CATEGORY_COLUMNS,
-    rows: dashboard => {
-      const parent = normalizeText(context.childCategoryParent);
-      return ((((dashboard.products || {}).childCategorySalesByParent || {})[parent]) || []).map(item => ({
-        parent, name: item.name, qty: item.qty, revenue: item.revenue, productCount: item.productCount
-      }));
-    }
-  }),
-  'invoices.orders': (context, scope) => singleSourceTable({
-    key: 'orders', name: 'Đặt hàng', sourceKey: 'orders', branchColumn: scope.aggregate,
-    items: dashboard => (dashboard.invoices || {}).periodOrders || []
-  }),
-  'invoices.returns': (context, scope) => singleSourceTable({
-    key: 'returns', name: 'Trả hàng', sourceKey: 'returns', branchColumn: scope.aggregate,
-    items: dashboard => (dashboard.invoices || {}).periodReturns || []
-  }),
-  'customers.revenue': () => singleSourceTable({
-    key: 'customer_revenue', name: 'Doanh thu theo khách', sourceKey: 'customers',
-    items: customerRevenueRows,
-    derived: [
-      { key: 'sale_order_count', label: 'Số đơn bán', type: 'number', description: 'Số đơn bán của khách trong kỳ.' },
-      { key: 'period_revenue', label: 'Doanh thu trong kỳ', type: 'number', description: 'Doanh thu bán cho khách trong kỳ (VNĐ).' }
-    ],
-    derivedValues: { sale_order_count: item => item.saleOrderCount, period_revenue: item => item.revenue }
-  }),
-  'customers.debt': () => singleSourceTable({
-    key: 'customer_debt', name: 'Khách còn nợ', sourceKey: 'customers',
-    items: dashboard => (dashboard.customers || {}).topDebt || [],
-    derived: [{ key: 'period_revenue', label: 'Doanh thu trong kỳ', type: 'number', description: 'Doanh thu bán cho khách trong kỳ (VNĐ).' }],
-    derivedValues: { period_revenue: item => item.periodRevenue }
-  }),
-  'suppliers.list': () => singleSourceTable({
-    key: 'suppliers', name: 'Nhà cung cấp', sourceKey: 'suppliers',
-    items: dashboard => dashboard.suppliers || []
-  }),
   'debt.management': (context, scope) => aggregateTable({
     key: 'debt_management', name: 'Quản lý công nợ',
-    columns: scope.aggregate ? [DEBT_COLUMNS[0], DEBT_BRANCH_COLUMN, ...DEBT_COLUMNS.slice(1)] : DEBT_COLUMNS,
+    columns: [DEBT_COLUMNS[0], DEBT_BRANCH_COLUMN, ...DEBT_COLUMNS.slice(1)],
     rows: dashboard => debtManagementRows(dashboard.debtManagement, context, scope.aggregate)
+  }),
+  'debt.penalty': () => aggregateTable({
+    key: 'debt_penalty', name: 'Thưởng phạt sale', columns: DEBT_PENALTY_COLUMNS,
+    rows: dashboard => debtPenaltyRows(dashboard.debtReward),
+    summaryKeys: ['total', 'payablePenalty', 'reward']
   }),
   // Cac bang duoi day khong co loadRows: nguon du lieu rieng (bao cao khach/hang, payload quet ton).
   'customers.productDetail': () => ({
     worksheets: [reportWorksheet('customer_product_detail', 'Bảng chi tiết sản phẩm', CUSTOMER_PRODUCT_DETAIL_COLUMNS)]
-  }),
-  'customers.productMonthlyCompare': () => ({
-    worksheets: [reportWorksheet('customer_product_monthly_compare', 'Bảng so sánh doanh số theo tháng', CUSTOMER_PRODUCT_MONTHLY_COLUMNS)]
-  }),
-  'overview.productRevenueSearch': () => ({
-    worksheets: [reportWorksheet('product_revenue_search', 'Doanh thu theo hàng', PRODUCT_REVENUE_SEARCH_COLUMNS)]
   }),
   'overview.productReport': () => ({
     worksheets: [reportWorksheet('product_report', 'Báo cáo hàng hóa', PRODUCT_REPORT_COLUMNS)]
@@ -790,29 +685,16 @@ function filterWorksheetRows(worksheet, tableSearch) {
   return { ...worksheet, rows: filtered.items };
 }
 
-function applyTableSearchToWorksheets(tableKey, worksheets, tableSearch) {
+function applyTableSearchToWorksheets(worksheets, tableSearch) {
   if (!hasTableSearch(tableSearch)) return worksheets;
-  if (tableKey !== 'overview.purchases') {
-    return worksheets.map(worksheet => filterWorksheetRows(worksheet, tableSearch));
-  }
-
-  const summary = filterWorksheetRows(worksheets[0], tableSearch);
-  // "Ca hai": cung ma phieu o hai co so la hai phieu khac nhau -> giu theo (co so, ma). Bang co
-  // so vat ly khong co cot "d_branch" nen khoa chi con la ma nhu cu.
-  const retentionKey = (row, codeKey) => compositeKey(row.d_branch, row[codeKey]);
-  const retainedCodes = new Set((summary.rows || []).map(row => retentionKey(row, summary.codeKey)));
-  const detail = worksheets[1];
-  return [summary, {
-    ...detail,
-    rows: (detail.rows || []).filter(row => retainedCodes.has(retentionKey(row, detail.codeKey)))
-  }];
+  return worksheets.map(worksheet => filterWorksheetRows(worksheet, tableSearch));
 }
 
 function applyTableSearchToDataset(dataset, tableSearch) {
   if (!dataset || !hasTableSearch(tableSearch)) return dataset;
   return {
     ...dataset,
-    worksheets: applyTableSearchToWorksheets(dataset.tableKey, dataset.worksheets || [], tableSearch)
+    worksheets: applyTableSearchToWorksheets(dataset.worksheets || [], tableSearch)
   };
 }
 
@@ -855,9 +737,10 @@ async function buildFixedDataset(tableKey, env, context, tableSearch = {}, selec
     name: (loaded[index] && loaded[index].name) || worksheet.name,
     columns: worksheet.columns,
     codeKey: worksheet.codeKey,
+    ...(worksheet.summaryKeys ? { summaryKeys: worksheet.summaryKeys } : {}),
     rows: (loaded[index] && loaded[index].rows) || []
   }));
-  worksheets = applyTableSearchToWorksheets(tableKey, worksheets, tableSearch);
+  worksheets = applyTableSearchToWorksheets(worksheets, tableSearch);
   if (searching && selection) {
     worksheets = worksheets.map(worksheet => projectWorksheetRows(worksheet, selection[worksheet.key]));
   }
@@ -866,86 +749,6 @@ async function buildFixedDataset(tableKey, env, context, tableSearch = {}, selec
     title: TABLE_TITLES[tableKey],
     selectionMode: 'custom',
     worksheets
-  };
-}
-
-function searchColumnType(sheetName, header) {
-  const source = exportFieldCatalog.getSourceBySheetName(sheetName);
-  const wanted = normalizeText(header).normalize('NFC');
-  const found = source && source.fields.find(item => normalizeText(item.sheetHeader).normalize('NFC') === wanted);
-  return found ? found.type : inferColumnType(header);
-}
-
-function fieldsToWorksheet(sourceKey, sourceLabel, results) {
-  const source = exportFieldCatalog.getSource(sourceKey);
-  const sheetName = source ? source.sheetName : sourceLabel;
-  const maxFieldCount = results.reduce((max, result) => Math.max(max, (result.fields || []).length), 0);
-  const sample = results.find(result => (result.fields || []).length === maxFieldCount) || { fields: [] };
-  const columns = (sample.fields || []).map((field, index) => ({
-    key: `c${index}`,
-    label: normalizeText(exportFieldCatalog.labelForSheetHeader(sheetName, field.label)) || `Cột ${index + 1}`,
-    type: searchColumnType(sheetName, field.label)
-  }));
-  const rows = results.map(result => {
-    const row = {};
-    columns.forEach((column, index) => {
-      const field = (result.fields || [])[index];
-      row[column.key] = !field ? '' : (Object.prototype.hasOwnProperty.call(field, 'rawValue') ? field.rawValue : (field.value === '—' ? '' : field.value));
-    });
-    return row;
-  });
-  // "Ca hai": ket qua giao dich mang co so vat ly cua tung dong (ma co the trung giua hai co so).
-  if (results.length > 0 && results.every(result => typeof result.branch === 'string')) {
-    columns.push({ key: 'co_so', label: BRANCH_COLUMN_LABEL, type: 'text' });
-    rows.forEach((row, index) => { row.co_so = results[index].branch; });
-  }
-  return { key: `search_${sourceKey}`, name: sourceLabel, columns, rows };
-}
-
-async function buildSearchDataset(payload, filters, branch, signal) {
-  const search = payload.search && typeof payload.search === 'object' ? payload.search : {};
-  const view = normalizeText(search.view);
-  const mode = normalizeText(search.mode) || 'normal';
-  const query = normalizeText(search.query);
-  if (view === 'overview') {
-    throw exportError('Tìm kiếm ở Tổng quan không hỗ trợ xuất Excel.', 400, 'EXPORT_OVERVIEW_SEARCH_DISABLED');
-  }
-  if (!['products', 'invoices', 'customers', 'suppliers'].includes(view)) {
-    throw exportError('Tab tìm kiếm không hợp lệ.', 400, 'EXPORT_SEARCH_VIEW_INVALID');
-  }
-  if (!query) throw exportError('Không có từ khóa tìm kiếm để xuất.', 400, 'EXPORT_SEARCH_QUERY_EMPTY');
-
-  if (mode === 'customer-products') {
-    if (view !== 'customers') throw exportError('Chế độ tìm kiếm này chỉ dùng cho tab Khách hàng.');
-    const result = await dashboardData.searchTopCustomersByProducts(query, filters.customers, undefined, branch);
-    throwIfAborted(signal);
-    return {
-      tableKey: 'search.results', title: 'Top khách hàng theo sản phẩm', selectionMode: 'custom',
-      worksheets: [{
-        key: 'customer_product_top', name: 'Top khách hàng theo sản phẩm',
-        columns: CUSTOMER_PRODUCT_TOP_COLUMNS,
-        rows: pickAggregateRows(result.results || [], CUSTOMER_PRODUCT_TOP_COLUMNS)
-      }]
-    };
-  }
-
-  // Doi so thu 5 la bo loc thoi gian (chi tab Khach hang dung de tinh doanh thu), doi so thu 6 moi la co so.
-  const result = await dashboardData.searchDashboardRecords(
-    view, query, 'all', mode === 'codes' ? 'codes' : undefined,
-    view === 'customers' ? filters.customers : undefined, branch
-  );
-  throwIfAborted(signal);
-  const groups = new Map();
-  (result.results || []).forEach(item => {
-    if (!groups.has(item.source)) groups.set(item.source, { label: item.sourceLabel, results: [] });
-    groups.get(item.source).results.push(item);
-  });
-  if (groups.size === 0) throw exportError('Không có kết quả tìm kiếm để xuất.', 404, 'EXPORT_NO_DATA');
-  const worksheets = Array.from(groups.entries()).map(([sourceKey, group]) =>
-    fieldsToWorksheet(sourceKey, group.label, group.results));
-  return {
-    tableKey: 'search.results', title: 'Kết quả tìm kiếm',
-    selectionMode: worksheets.length > 1 ? 'all-only' : 'custom', worksheets
   };
 }
 
@@ -972,27 +775,10 @@ async function buildCustomerProductRevenueDataset(tableKey, description, payload
   };
 }
 
-async function buildProductRevenueSearchDataset(description, payload, branch, signal) {
-  const context = description.context;
-  const query = normalizeText(context.productRevenueQuery);
-  const mode = normalizeText(context.productRevenueMode) || 'normal';
-
-  const data = await dashboardData.searchProductRevenueOverview(query, mode, branch);
-  throwIfAborted(signal);
-  if (!data.results.length) throw exportError('Không có kết quả tìm kiếm để xuất.', 404, 'EXPORT_NO_DATA');
-
-  const worksheet = description.worksheets[0];
-  return applyTableSearchToDataset({
-    tableKey: 'overview.productRevenueSearch', title: TABLE_TITLES['overview.productRevenueSearch'], selectionMode: 'custom',
-    worksheets: [{ ...worksheet, rows: pickAggregateRows(data.results, worksheet.columns) }]
-  }, payload.tableSearch);
-}
-
 /**
- * Bao cao hang hoa - khac productRevenueSearch o cho KHONG can tu khoa (bang
- * hien toan bo, tim kiem tren UI chi loc phia client) - doc thang bang da
- * tinh san, ap lai dung bo loc mã/tên dang hien thi (payload.tableSearch) de
- * file xuat khop dung phan dang xem.
+ * Bao cao hang hoa - bang hien toan bo, tim kiem tren UI chi loc phia client -
+ * doc thang bang da tinh san, ap lai dung bo loc mã/tên dang hien thi
+ * (payload.tableSearch) de file xuat khop dung phan dang xem.
  */
 async function buildProductReportDataset(description, payload, signal) {
   const data = await productReportRepository.getProductReport();
@@ -1002,8 +788,27 @@ async function buildProductReportDataset(description, payload, signal) {
   const worksheet = description.worksheets[0];
   return applyTableSearchToDataset({
     tableKey: 'overview.productReport', title: TABLE_TITLES['overview.productReport'], selectionMode: 'custom',
+    reportNotes: productContainerExportNotes(data.containerSync),
     worksheets: [{ ...worksheet, rows: pickAggregateRows(data.rows, worksheet.columns) }]
   }, payload.tableSearch);
+}
+
+function productContainerExportNotes(sync) {
+  const available = Boolean(sync && sync.available);
+  const timestamp = sync && sync.lastSuccessAt ? new Date(sync.lastSuccessAt) : null;
+  const updatedAt = timestamp && Number.isFinite(timestamp.getTime())
+    ? new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'
+    }).format(timestamp) : '—';
+  const status = !available ? 'Dữ liệu chưa sẵn sàng; số lượng để trống.'
+    : sync.lastError ? 'Đang dùng dữ liệu cũ; lần cập nhật gần nhất thất bại.'
+      : sync.stale ? 'Đang dùng dữ liệu cũ; chờ cập nhật.' : 'Dữ liệu sẵn sàng.';
+  return [
+    ['Cập nhật CONT thành công lúc', updatedAt],
+    ['Trạng thái hàng dự kiến', status],
+    ['Phạm vi hàng dự kiến', 'Toàn công ty (Hà Nội + Sài Gòn)']
+  ];
 }
 
 function formatStockoutDate(dateKey) {
@@ -1022,15 +827,11 @@ function withStockoutBranchColumn(worksheet, result) {
   return { ...worksheet, columns: [STOCKOUT_BRANCH_COLUMN, ...worksheet.columns] };
 }
 
-function stockoutDataWarning(row) {
-  return row.hasUnreliableData ? 'Thiếu dữ liệu trả hàng nhà cung cấp trong kỳ — cần đối chiếu thủ công' : '';
-}
-
 function buildRecentStockoutResultDataset(description, payload) {
   const result = payload.recentStockoutResult && typeof payload.recentStockoutResult === 'object' ? payload.recentStockoutResult : null;
   const rows = result && Array.isArray(result.rows) ? result.rows : [];
   if (rows.length === 0) throw exportError('Chưa có kết quả hàng đứt gần đây để xuất.', 400, 'EXPORT_NO_DATA');
-  const dataRows = rows.map(row => ({ ...row, periods: formatStockoutPeriods(row.periods), dataWarning: stockoutDataWarning(row) }));
+  const dataRows = rows.map(row => ({ ...row, periods: formatStockoutPeriods(row.periods) }));
   const worksheet = withStockoutBranchColumn(description.worksheets[0], result);
   return {
     tableKey: 'stockout.recentScan',
@@ -1052,8 +853,7 @@ function buildStockout90dResultDataset(description, payload) {
   const dataRows = rows.map(row => ({
     ...row,
     avgStockoutDays: row.stockoutCount ? Math.round((row.totalStockoutDays / row.stockoutCount) * 100) / 100 : 0,
-    periods: formatStockoutPeriods(row.periods),
-    dataWarning: stockoutDataWarning(row)
+    periods: formatStockoutPeriods(row.periods)
   }));
   const worksheet = withStockoutBranchColumn(description.worksheets[0], result);
   return {
@@ -1073,8 +873,7 @@ function buildStockout30dResultDataset(description, payload) {
   const dataRows = rows.map(row => ({
     ...row,
     avgStockoutDays: row.stockoutCount ? Math.round((row.totalStockoutDays / row.stockoutCount) * 100) / 100 : 0,
-    periods: formatStockoutPeriods(row.periods),
-    dataWarning: stockoutDataWarning(row)
+    periods: formatStockoutPeriods(row.periods)
   }));
   const worksheet = withStockoutBranchColumn(description.worksheets[0], result);
   return {
@@ -1091,7 +890,6 @@ function buildStockout30dResultDataset(description, payload) {
  * Kiem tra yeu cau + tra ve dinh nghia worksheets TINH — KHONG I/O (khong goi
  * getDashboardData/readRowsByCodes/Google/DB). Bang stockout co dataset tu payload
  * (khong I/O) nen duoc dung luon de giu dung loi EXPORT_NO_DATA cu.
- * search.results co worksheets dong (phu thuoc ket qua tim kiem) -> dynamic = true.
  */
 function describeExport(payload, branch) {
   const request = plainObject(payload);
@@ -1099,22 +897,23 @@ function describeExport(payload, branch) {
   if (!Object.prototype.hasOwnProperty.call(TABLE_TITLES, tableKey)) throw exportError('Bảng yêu cầu xuất không hợp lệ.', 400, 'EXPORT_TABLE_NOT_ALLOWED');
   const filters = normalizeFilters(request.filters);
   const context = plainObject(request.context);
-  if (tableKey === 'search.results') {
-    return { tableKey, title: TABLE_TITLES[tableKey], selectionMode: 'custom', dynamic: true, filters, context, worksheets: null };
+
+  if (tableKey === 'debt.penalty' && context.debtRewardMonth !== undefined && context.debtRewardMonth !== '') {
+    if (typeof context.debtRewardMonth !== 'string' || !/^\d{4}-(?:0[1-9]|1[0-2])$/.test(context.debtRewardMonth)) {
+      throw exportError('Tháng thưởng/phạt không hợp lệ (YYYY-MM).');
+    }
   }
 
   const spec = getTableSpec(tableKey, context, branch);
   const description = {
-    tableKey, title: TABLE_TITLES[tableKey], selectionMode: 'custom', dynamic: false,
+    tableKey, title: TABLE_TITLES[tableKey], selectionMode: 'custom',
     filters, context, worksheets: spec.worksheets, spec
   };
 
-  if (tableKey === 'customers.productDetail' || tableKey === 'customers.productMonthlyCompare') {
+  if (tableKey === 'customers.productDetail') {
     if (!normalizeText(context.customerProductCustomerCode)) {
       throw exportError('Chưa chọn khách hàng để xuất.', 400, 'EXPORT_NO_CUSTOMER_SELECTED');
     }
-  } else if (tableKey === 'overview.productRevenueSearch') {
-    if (!normalizeText(context.productRevenueQuery)) throw exportError('Chưa có từ khóa tìm kiếm để xuất.', 400, 'EXPORT_NO_QUERY');
   } else if (tableKey === 'stockout.recentScan' || tableKey === 'stockout.check90d' || tableKey === 'stockout.check30d') {
     const dataset = tableKey === 'stockout.recentScan'
       ? buildRecentStockoutResultDataset(description, request)
@@ -1145,19 +944,37 @@ async function buildExportDataset(payload, branch, options = {}) {
   throwIfAborted(signal);
   const description = options.description || describeExport(request, branch);
   const { tableKey } = description;
-  if (description.dynamic) return buildSearchDataset(request, description.filters, branch, signal);
   if (description.dataset) return description.dataset;
-  if (tableKey === 'customers.productDetail' || tableKey === 'customers.productMonthlyCompare') {
+  if (tableKey === 'customers.productDetail') {
     return buildCustomerProductRevenueDataset(tableKey, description, request, branch, signal);
-  }
-  if (tableKey === 'overview.productRevenueSearch') {
-    return buildProductRevenueSearchDataset(description, request, branch, signal);
   }
   if (tableKey === 'overview.productReport') {
     return buildProductReportDataset(description, request, signal);
   }
+  if (tableKey === 'debt.penalty') {
+    const branches = resolveBranchScope(branch || BRANCH_BOTH).map(branchLabelToCode).filter(Boolean);
+    const month = description.context.debtRewardMonth || undefined;
+    const board = await require('../debtSchedule/debtRewardService').getDebtRewardService().readBoard({ month, branches });
+    throwIfAborted(signal);
+    if (!board.summary) throw exportError('Chưa có bản chốt công nợ để xuất thưởng/phạt.', 404, 'EXPORT_NO_DATA');
+    const dataset = await buildFixedDataset(tableKey, { dashboard: { debtReward: board }, branch, signal }, description.context, request.tableSearch, options.selection);
+    if (board.status !== 'finalized') {
+      dataset.worksheets.forEach(worksheet => {
+        worksheet.columns = worksheet.columns.map(column => column.key === 'reward' ? { ...column, label: 'Thưởng tạm tính' } : column);
+      });
+    }
+    return { ...dataset, debtReward: debtRewardMetadata(board) };
+  }
   // Viewer bo trong = khong quyen sua cong no (giong xuat file truoc day). Ket qua
   // nam trong cache dung chung nen chi DOC, khong sua.
+  // Bang cong no co the xuat ban chot cu (toi da 7 ngay): doc thang tu bang chot, khong qua cache dashboard.
+  const debtCycleDate = tableKey === 'debt.management' ? normalizeText(description.context.debtCycleDate) : '';
+  if (debtCycleDate) {
+    const debtManagement = await debtScheduleService.buildDebtManagement(resolveBranchScope(branch || BRANCHES.HANOI), undefined, { cycleDate: debtCycleDate });
+    throwIfAborted(signal);
+    const dataset = await buildFixedDataset(tableKey, { dashboard: { debtManagement }, branch, signal }, description.context, request.tableSearch, options.selection);
+    return { ...dataset, cycleDate: debtCycleDate };
+  }
   const dashboard = await dashboardData.getDashboardData(description.filters, branch);
   throwIfAborted(signal);
   return buildFixedDataset(tableKey, { dashboard, branch, signal }, description.context, request.tableSearch, options.selection);
@@ -1171,17 +988,11 @@ function toFieldMeta(column) {
 
 /**
  * Danh sach truong cho modal Xuat Excel. Bang co dinh tra ve TUC THI tu dinh nghia
- * tinh (rowCount = null, khong query). Chi search.results chay tim kiem that.
+ * tinh (rowCount = null, khong query).
  */
 async function getExportFields(payload, branch) {
   const request = plainObject(payload);
-  const description = describeExport(request, branch);
-  let source = description;
-  let rowCountOf = () => null;
-  if (description.dynamic) {
-    source = await buildSearchDataset(request, description.filters, branch);
-    rowCountOf = worksheet => worksheet.rows.length;
-  }
+  const source = describeExport(request, branch);
   return {
     tableKey: source.tableKey,
     title: source.title,
@@ -1189,7 +1000,7 @@ async function getExportFields(payload, branch) {
     worksheets: source.worksheets.map(worksheet => ({
       key: worksheet.key,
       name: worksheet.name,
-      rowCount: rowCountOf(worksheet),
+      rowCount: null,
       fields: worksheet.columns.map(toFieldMeta)
     }))
   };
@@ -1334,12 +1145,76 @@ function branchFilePrefix(branch) {
   return 'TKS';
 }
 
+// ---------- Tang dataset dung chung (Excel + HTML) ----------
+
+const EXPORT_FORMATS = new Set(['xlsx', 'html']);
+
+// Ngan tran cho bao cao HTML, tinh theo O (dong x cot) vi chi phi ti le voi so o chu khong
+// voi so dong: du lieu nen gzip ~8-10 lan nen 1 trieu o ~ 5-8MB file, va tab trinh duyet
+// (giai nen + loc/sap xep tren mang JS) van muot tren may van phong. Bang it cot (Bao cao
+// hang hoa 11 cot) ~90.000 dong; nhieu cot (Chi tiet nhap hang 24 cot) ~40.000 dong.
+// Lon hon nua thi Excel (AutoFilter, khong gioi han) phu hop hon.
+const HTML_MAX_CELLS = 1000000;
+
+function normalizeExportFormat(value) {
+  const format = normalizeText(value).toLowerCase() || 'xlsx';
+  if (!EXPORT_FORMATS.has(format)) throw exportError('Định dạng xuất không hợp lệ.', 400, 'EXPORT_FORMAT_INVALID');
+  return format;
+}
+
 /**
- * Tao file Excel. Toi da EXPORT_MAX_CONCURRENT file chay dong thoi (them EXPORT_MAX_QUEUED
- * cho trong hang doi, tran -> 503 EXPORT_BUSY). `options.signal` (AbortSignal) huy yeu cau:
- * bo qua muc dang cho + dung sau moi buoc nap du lieu (loi EXPORT_ABORTED).
+ * Lay + tong hop du lieu xuat, DUNG CHUNG cho moi renderer. Tra ve
+ * { meta, worksheets: [{ key, name, columns, rows }] } voi columns = dung cac cot
+ * da chon (theo thu tu cot nguon) — renderer chi viec ve, khong tu loc/chon cot.
+ * Goi ben trong slot xuat file (xem runExport). `options.description`/`selection`
+ * da validate san thi truyen vao de khong tinh lai.
  */
-async function createExportWorkbook(payload, branch, options = {}) {
+async function getExportDataset(payload, branch, options = {}) {
+  const request = plainObject(payload);
+  const signal = options.signal;
+  const description = options.description || describeExport(request, branch);
+  const selection = options.selection !== undefined
+    ? options.selection
+    : resolveSelection(description.selectionMode, description.worksheets, request.columns);
+  const dataset = await buildExportDataset(request, branch, { signal, description, selection });
+  throwIfAborted(signal);
+
+  const worksheets = dataset.worksheets.map(sourceWorksheet => ({
+    key: sourceWorksheet.key,
+    name: sourceWorksheet.name,
+    columns: selectedColumnsForWorksheet(dataset.selectionMode, sourceWorksheet, request.columns),
+    ...(sourceWorksheet.summaryKeys ? { summaryKeys: sourceWorksheet.summaryKeys } : {}),
+    rows: sourceWorksheet.rows
+  })).filter(worksheet => worksheet.columns.length > 0);
+  if (worksheets.length === 0) {
+    throw exportError('Vui lòng chọn ít nhất một trường để xuất.', 400, 'EXPORT_NO_FIELDS_SELECTED');
+  }
+  const fileBranch = dataset.sourceBranch || branch;
+  // Ban chot cu cua cong no: ghi ngay chot vao tieu de va ten file de khong nham voi ban moi nhat.
+  const cycleDate = dataset.cycleDate || '';
+  const cycleLabel = cycleDate ? `${cycleDate.slice(8, 10)}/${cycleDate.slice(5, 7)}/${cycleDate.slice(0, 4)}` : '';
+  const reward = dataset.debtReward;
+  return {
+    meta: {
+      tableKey: dataset.tableKey,
+      title: reward ? `${dataset.title} - ${reward.month} (${debtRewardStatusLabel(reward.status)})`
+        : cycleLabel ? `${dataset.title} - chốt 15:00 ${cycleLabel}` : dataset.title,
+      branch: fileBranch || '',
+      generatedAt: new Date(),
+      fileBase: `${branchFilePrefix(fileBranch)}_${fileSlug(dataset.title)}${reward ? `_thang_${reward.month.replace('-', '')}` : ''}${cycleDate ? `_chot_${cycleDate.replace(/-/g, '')}` : ''}_${fileTimestamp()}`,
+      ...(dataset.reportNotes ? { reportNotes: dataset.reportNotes } : {}),
+      ...(reward ? { debtReward: reward, debtRewardNotes: reward.notes } : {})
+    },
+    worksheets
+  };
+}
+
+/**
+ * Khung chung cua moi lan xuat: validate re (khong I/O) -> xin slot (dung chung
+ * EXPORT_MAX_CONCURRENT/EXPORT_MAX_QUEUED cho MOI dinh dang) -> getExportDataset ->
+ * render. Slot giu ca buoc render vi ghi workbook/HTML cung ton RAM.
+ */
+async function runExport(payload, branch, options, render) {
   const request = plainObject(payload);
   const signal = options && options.signal;
   throwIfAborted(signal);
@@ -1347,52 +1222,93 @@ async function createExportWorkbook(payload, branch, options = {}) {
   // Kiem tra re (khong I/O) TRUOC khi xin slot: yeu cau sai khong chiem hang doi va
   // khong cham DB.
   const description = describeExport(request, branch);
-  const selection = description.dynamic
-    ? undefined
-    : resolveSelection(description.selectionMode, description.worksheets, request.columns);
+  const selection = resolveSelection(description.selectionMode, description.worksheets, request.columns);
 
   const release = await acquireExportSlot(signal);
   try {
     throwIfAborted(signal);
-    const dataset = await buildExportDataset(request, branch, { signal, description, selection });
+    const dataset = await getExportDataset(request, branch, { signal, description, selection });
     throwIfAborted(signal);
-
-    const workbook = new ExcelJS.Workbook();
-    workbook.creator = 'TOKOSI Dashboard';
-    workbook.created = new Date();
-    workbook.modified = new Date();
-    workbook.properties.date1904 = false;
-    const usedNames = new Set();
-    let exportedWorksheetCount = 0;
-
-    dataset.worksheets.forEach(sourceWorksheet => {
-      const columns = selectedColumnsForWorksheet(dataset.selectionMode, sourceWorksheet, request.columns);
-      if (columns.length === 0) return;
-      exportedWorksheetCount += 1;
-      const worksheet = workbook.addWorksheet(safeWorksheetName(sourceWorksheet.name, usedNames));
-      worksheet.columns = columns.map(column => ({ header: column.label, key: column.key }));
-      sourceWorksheet.rows.forEach(sourceRow => {
-        const output = {};
-        columns.forEach(column => { output[column.key] = toExcelValue(sourceRow[column.key], column.type); });
-        worksheet.addRow(output);
-      });
-      styleWorksheet(worksheet, columns, sourceWorksheet.rows);
-    });
-
-    if (exportedWorksheetCount === 0) {
-      throw exportError('Vui lòng chọn ít nhất một trường để xuất.', 400, 'EXPORT_NO_FIELDS_SELECTED');
-    }
-
-    throwIfAborted(signal);
-    const buffer = await workbook.xlsx.writeBuffer();
-    return {
-      buffer,
-      mimeType: EXCEL_MIME,
-      fileName: `${branchFilePrefix(dataset.sourceBranch || branch)}_${fileSlug(dataset.title)}_${fileTimestamp()}.xlsx`
-    };
+    return await render(dataset, signal);
   } finally {
     release();
   }
+}
+
+// ---------- Renderer: Excel ----------
+
+async function renderExcelWorkbook(dataset) {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'TOKOSI Dashboard';
+  workbook.created = new Date();
+  workbook.modified = new Date();
+  workbook.properties.date1904 = false;
+  const usedNames = new Set();
+
+  dataset.worksheets.forEach(sourceWorksheet => {
+    const columns = sourceWorksheet.columns;
+    const worksheet = workbook.addWorksheet(safeWorksheetName(sourceWorksheet.name, usedNames));
+    worksheet.columns = columns.map(column => ({ header: column.label, key: column.key }));
+    sourceWorksheet.rows.forEach(sourceRow => {
+      const output = {};
+      columns.forEach(column => { output[column.key] = toExcelValue(sourceRow[column.key], column.type); });
+      worksheet.addRow(output);
+    });
+    styleWorksheet(worksheet, columns, sourceWorksheet.rows);
+  });
+
+  const metadataSheets = [
+    ['Thông tin thưởng phạt', dataset.meta.debtRewardNotes],
+    ['Thông tin hàng dự kiến', dataset.meta.reportNotes]
+  ];
+  for (const [name, notes] of metadataSheets) {
+    if (!notes) continue;
+    const columns = [
+      aggregateColumn('label', 'Thông tin', 'text'),
+      aggregateColumn('value', 'Giá trị', 'text', undefined, { wrapText: true })
+    ];
+    const rows = notes.map(([label, value]) => ({ label, value }));
+    const worksheet = workbook.addWorksheet(safeWorksheetName(name, usedNames));
+    worksheet.columns = columns.map(column => ({ header: column.label, key: column.key }));
+    rows.forEach(row => worksheet.addRow({ label: toExcelValue(row.label, 'text'), value: toExcelValue(row.value, 'text') }));
+    styleWorksheet(worksheet, columns, rows);
+    worksheet.getColumn(1).width = 38;
+    worksheet.getColumn(2).width = 60;
+  }
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  return { buffer, mimeType: EXCEL_MIME, fileName: `${dataset.meta.fileBase}.xlsx` };
+}
+
+/**
+ * Tao file Excel. Toi da EXPORT_MAX_CONCURRENT file chay dong thoi (them EXPORT_MAX_QUEUED
+ * cho trong hang doi, tran -> 503 EXPORT_BUSY). `options.signal` (AbortSignal) huy yeu cau:
+ * bo qua muc dang cho + dung sau moi buoc nap du lieu (loi EXPORT_ABORTED).
+ */
+function createExportWorkbook(payload, branch, options = {}) {
+  return runExport(payload, branch, options, renderExcelWorkbook);
+}
+
+/** Bao cao HTML tu chua (KPI + bieu do + bang loc offline); chung hang doi voi Excel. */
+function createExportHtml(payload, branch, options = {}) {
+  return runExport(payload, branch, options, (dataset, signal) => {
+    const totalRows = dataset.worksheets.reduce((sum, worksheet) => sum + worksheet.rows.length, 0);
+    const totalCells = dataset.worksheets.reduce((sum, worksheet) => sum + worksheet.rows.length * worksheet.columns.length, 0);
+    if (totalCells > HTML_MAX_CELLS) {
+      throw exportError(
+        `Dữ liệu có ${totalRows.toLocaleString('vi-VN')} dòng (${totalCells.toLocaleString('vi-VN')} ô), vượt giới hạn ${HTML_MAX_CELLS.toLocaleString('vi-VN')} ô của báo cáo HTML. Vui lòng bỏ bớt cột, thu hẹp bộ lọc hoặc dùng Xuất Excel.`,
+        413, 'EXPORT_HTML_TOO_LARGE'
+      );
+    }
+    throwIfAborted(signal);
+    return htmlReportRenderer.renderHtmlReport(dataset);
+  });
+}
+
+/** Chon renderer theo `payload.format` ('xlsx' mac dinh — giu hanh vi cu khi khong gui). */
+async function createExport(payload, branch, options = {}) {
+  const format = normalizeExportFormat(plainObject(payload).format);
+  return format === 'html' ? createExportHtml(payload, branch, options) : createExportWorkbook(payload, branch, options);
 }
 
 // Ma loi cho phep tra thong diep (tieng Viet) cho client: EXPORT_* (exportService/
@@ -1413,8 +1329,12 @@ module.exports = {
   TABLE_TITLES,
   EXPORT_MAX_CONCURRENT,
   EXPORT_MAX_QUEUED,
+  HTML_MAX_CELLS,
   getExportFields,
+  getExportDataset,
+  createExport,
   createExportWorkbook,
+  createExportHtml,
   buildExportErrorBody,
   __test__: {
     buildFixedDataset,
