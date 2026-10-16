@@ -215,3 +215,30 @@ test('snapshot bo khach va ma hang ngung hoat dong (chi ma ngung o moi co so moi
     assert.ok(snap.products.some(r => r.productCode === 'SP1'));
   } finally { await db.close(); }
 });
+
+test('setSaleTeam: doi team, team moi, bo khoi team, khop khong phan biet hoa/thuong, xoa cache snapshot', async () => {
+  const { PGlite } = require('@electric-sql/pglite');
+  const db = new PGlite();
+  try {
+    await seed(db);
+    await db.exec(`INSERT INTO sale_teams (sale_name, team_name) VALUES ('Khang', 'Team Khang'), ('Trinh', 'Team Trinh')`);
+    const repo = createRepository({ pool: poolFrom(db), now: () => new Date('2026-10-06T03:00:00Z') });
+    const teamOf = async name => ((await repo.snapshot()).teams.find(t => t.saleName === name) || {}).teamName;
+    assert.equal(await teamOf('Khang'), 'Team Khang');
+    const count = async () => (await db.query('SELECT count(*)::int AS n FROM sale_teams')).rows[0].n;
+    const before = await count();
+    // Doi sang team co san, go khac hoa/thuong => dung cach viet da co, khong tao dong trung.
+    assert.deepEqual(await repo.setSaleTeam('khang', 'team   TRINH'), { saleName: 'Khang', team: 'Team Trinh' });
+    assert.equal(await teamOf('Khang'), 'Team Trinh');
+    assert.equal(await count(), before);
+    // Team moi
+    assert.deepEqual(await repo.setSaleTeam('Khang', 'Team Mới'), { saleName: 'Khang', team: 'Team Mới' });
+    assert.equal(await teamOf('Khang'), 'Team Mới');
+    // Bo khoi team => xoa dong, 'Chua co team'
+    assert.deepEqual(await repo.setSaleTeam('Khang', 'Chưa có team'), { saleName: 'Khang', team: 'Chưa có team' });
+    assert.equal(await teamOf('Khang'), undefined);
+    // Sale chua tung co trong sale_teams
+    assert.deepEqual(await repo.setSaleTeam('Sale Mới', 'Team Trinh'), { saleName: 'Sale Mới', team: 'Team Trinh' });
+    assert.equal(await teamOf('Sale Mới'), 'Team Trinh');
+  } finally { await db.close(); }
+});

@@ -9,7 +9,7 @@
 | Tên dự án         | Hệ thống Dashboard nội bộ TOKOSI (KiotViet → Supabase PostgreSQL → Web; Google Sheets bổ trợ) |
 | Phiên bản         | 2.3                                                                 |
 | Ngày tạo          | 27/07/2026                                                          |
-| Ngày cập nhật     | 15/10/2026                                                          |
+| Ngày cập nhật     | 16/10/2026                                                          |
 | Đối tượng sử dụng | Ban lãnh đạo, nhân viên nội bộ công ty                              |
 | Trạng thái        | Nội dung nền rà soát tại HEAD `11751c4` (05/10); bổ sung Sổ quỹ đã kiểm chứng cục bộ 06/10, migration `0033` và deploy production còn chờ. |
 
@@ -69,7 +69,7 @@ Giai đoạn 1 đến hiện tại: Báo cáo tổng hợp (6 tab, gồm Khách 
   - **Supabase PostgreSQL:** toàn bộ dữ liệu KiotViet (nhóm hàng, hàng hóa, hóa đơn + chi tiết + thanh toán, đặt hàng, trả hàng, khách hàng, nhập hàng, phiếu đặt hàng nhập, thu chi), bảng tổng hợp (rollup theo ngày, báo cáo hàng hóa, chi tiết hóa đơn 90 ngày, giá trị tồn kho theo ngày, CN1/CN3/CN7, doanh số tháng đã chốt của Báo cáo kinh doanh), Trả NCC upload, tài khoản `app_users`, nhân sự `hr_employees`, nghỉ phép và liên kết Telegram, trạng thái xử lý công nợ, tài liệu quy định công ty.
   - **Google Sheets:** Bảng Công nợ (`DEBT_MANAGEMENT_SPREADSHEET_ID`, chỉ đọc); Vòng đời đơn hàng (`ORDER_LIFECYCLE_SPREADSHEET_ID`, đọc `DonHang_HN`/`DonHang_SG`, ghi tab `Lịch sử cập nhật`); Vị trí hàng (`STOCK_LOCATIONS_SPREADSHEET_ID`, chỉ đọc); Báo cáo Marketing (ba workbook `MARKETING_*_SPREADSHEET_ID`, chỉ đọc).
 - **Báo cáo tổng hợp (6 tab):** Tổng quan (Xu hướng, Kiểm tra đứt hàng), Hàng hóa (Báo cáo hàng hóa, Tăng trưởng mã hàng), Hóa đơn (Chi tiết giao dịch), Khách hàng (Báo cáo doanh thu theo khách, Chỉ số tổng quát, Tăng trưởng Sale, Tăng trưởng Khách hàng; trước đây là tab Báo cáo kinh doanh), Quản lý công nợ, Báo cáo Marketing (BC tháng, Check tỷ lệ nhận số, Sao lưu SĐT, Chi phí).
-- **Báo cáo kinh doanh:** thay báo cáo tăng trưởng làm tay trên Google Sheets. Doanh số tháng = hóa đơn hoàn thành trừ hàng khách trả, gộp HN + SG, từ T3/2026; sale = nhóm khách hàng trên KiotViet (khách chưa có nhóm gộp vào "Chưa phân nhóm"); tháng đang chạy quy đổi về 30 ngày để so tăng trưởng với tháng trước, kèm trung bình 4 tháng; các tháng đã qua được chốt cứng mỗi ngày mùng 1, Quản lý có thể tính lại.
+- **Báo cáo kinh doanh:** thay báo cáo tăng trưởng làm tay trên Google Sheets. Doanh số tháng = hóa đơn hoàn thành trừ hàng khách trả, gộp HN + SG, từ T3/2026; sale = nhóm khách hàng trên KiotViet (khách chưa có nhóm gộp vào "Chưa phân nhóm"); tháng đang chạy quy đổi về 30 ngày để so tăng trưởng với tháng trước, kèm trung bình 4 tháng; các tháng đã qua được chốt cứng mỗi ngày mùng 1, Quản lý có thể tính lại và đổi team của từng sale bằng dropdown ngay trên bảng Tăng trưởng Sale.
 - **Màn hình Quản lý công nợ:** kết hợp Bảng Công nợ, đối chiếu CN1/CN3/CN7 và trạng thái xử lý lưu trong PostgreSQL.
 - **Vòng đời đơn hàng, Vị trí hàng, Sổ quỹ (5 nhóm số dư), Quản lý nhân sự (Quy định công ty kèm Phúc lợi, Danh sách nhân sự theo trạng thái làm việc, Nghỉ phép theo lịch làm việc/hạn nộp và đơn cho tài khoản nội bộ), Quản lý tài khoản (Lịch sử chỉnh sửa tài khoản).**
 - **Cập nhật dữ liệu dashboard** bằng nút "Làm mới", SSE `dashboard-updated` và tải bù khi quay lại tab trình duyệt.

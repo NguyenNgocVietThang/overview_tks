@@ -1304,6 +1304,29 @@
       cursor: pointer;
     }
 
+    /* Tang truong Sale: dropdown doi team ngay trong o Team (chi Quan ly thay) */
+    .business-team-select {
+      width: 100%;
+      min-width: 112px;
+      padding: 3px 6px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background-color: var(--panel);
+      color: var(--text);
+      font: 500 12.5px var(--font-body);
+      cursor: pointer;
+    }
+
+    .business-team-select:disabled {
+      opacity: .6;
+      cursor: progress;
+    }
+
+    .business-team-select option {
+      background-color: var(--panel);
+      color: var(--text);
+    }
+
     .table-search-tools {
       display: flex;
       align-items: center;
@@ -7169,12 +7192,61 @@
       return '<tr>' + cols.map(c => '<th data-column-key="' + escapeHtml(c[2]) + '" style="width:' + c[1] + 'px">' + escapeHtml(c[0]) + '</th>').join('') + '</tr>';
     }
 
+    const BUSINESS_NO_TEAM = 'Chưa có team';
+    const BUSINESS_NEW_TEAM = '__new__';
+
+    function businessCanEditTeam() {
+      return typeof TKSNav !== 'undefined' && typeof TKSNav.can === 'function' && !!TKSNav.can('reports.business.editTeam');
+    }
+
+    // Ô Team của bảng Sale: Quản lý (reports.business.editTeam) thấy dropdown đổi team, người khác chỉ thấy chữ.
+    function businessTeamCellHtml(r, data) {
+      const team = r.team || BUSINESS_NO_TEAM;
+      if (!businessCanEditTeam() || r.saleName === 'Chưa phân nhóm') return '<td>' + escapeHtml(team) + '</td>';
+      const names = (data.teams || []).filter(t => t !== BUSINESS_NO_TEAM);
+      if (names.indexOf(team) < 0 && team !== BUSINESS_NO_TEAM) names.push(team);
+      const option = (value, label) => '<option value="' + escapeHtml(value) + '"' + (value === team ? ' selected' : '') + '>' + escapeHtml(label) + '</option>';
+      return '<td data-sort-value="' + escapeHtml(team) + '"><select class="business-team-select" data-sale="' + escapeHtml(r.saleName) + '" data-current="' + escapeHtml(team) + '" aria-label="Team của ' + escapeHtml(r.saleName) + '">' +
+        option(BUSINESS_NO_TEAM, BUSINESS_NO_TEAM) + names.map(t => option(t, t)).join('') +
+        '<option value="' + BUSINESS_NEW_TEAM + '">+ Team mới…</option></select></td>';
+    }
+
+    // Lưu team mới của 1 sale (PUT /api/business-report/sale-team), xong tải lại cả bảng để bộ lọc team + chỉ số khớp.
+    function saveBusinessSaleTeam(select) {
+      const saleName = select.dataset.sale;
+      const current = select.dataset.current;
+      let team = select.value;
+      if (team === BUSINESS_NEW_TEAM) {
+        const typed = window.prompt('Tên team mới cho ' + saleName + ':', '');
+        team = typed ? typed.trim().replace(/\s+/g, ' ') : '';
+        if (!team) { select.value = current; return; }
+      }
+      if (team === current) return;
+      select.disabled = true;
+      fetch('/api/business-report/sale-team', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ saleName: saleName, teamName: team }) })
+        .then(res => res.json().catch(() => ({})).then(body => { if (!res.ok) throw new Error(body.error || 'HTTP ' + res.status); return body; }))
+        .then(body => {
+          showToast('Đã chuyển ' + saleName + ' sang ' + body.team + '.', 'success');
+          loadBusinessReport(true);
+        })
+        .catch(err => {
+          select.disabled = false;
+          select.value = current;
+          showToast('Không đổi được team: ' + err.message, 'error');
+        });
+    }
+
+    document.getElementById('businessSalesRows').addEventListener('change', function (event) {
+      const select = event.target.closest && event.target.closest('.business-team-select');
+      if (select) saveBusinessSaleTeam(select);
+    });
+
     function businessRowHtml(kind, data) {
       const months = businessMonthColumns(data);
       const money = v => '<td class="mono" data-sort-value="' + (Number(v) || 0) + '">' + fmtTableMoney(v || 0) + '</td>';
       return function (r) {
         const fixed = kind === 'sales'
-          ? '<td class="name-cell">' + escapeHtml(r.saleName) + '</td><td>' + escapeHtml(r.team || '') + '</td><td class="mono" data-sort-value="' + r.activeCustomers + '">' + fmtNumber(r.activeCustomers) + '</td>'
+          ? '<td class="name-cell">' + escapeHtml(r.saleName) + '</td>' + businessTeamCellHtml(r, data) + '<td class="mono" data-sort-value="' + r.activeCustomers + '">' + fmtNumber(r.activeCustomers) + '</td>'
           : kind === 'customers'
             ? '<td class="name-cell">' + escapeHtml(r.name) + '</td><td>' + escapeHtml(r.saleName) + '</td><td>' + escapeHtml(r.priceLevel || '') + '</td>'
             : '<td class="mono muted">' + escapeHtml(r.code) + '</td><td class="name-cell">' + escapeHtml(r.name) + '</td>';
@@ -7837,6 +7909,8 @@
         tbody.addEventListener('click', function (event) {
           const row = event.target.closest && event.target.closest('tr.doc-row');
           if (!row) return;
+          // Bấm dropdown đổi team không được mở hộp chi tiết.
+          if (event.target.closest('select, option')) return;
           const selection = window.getSelection && window.getSelection();
           // Đang bôi đen chữ trong dòng (để sao chép mã) thì không mở panel.
           if (selection && !selection.isCollapsed && row.contains(selection.anchorNode)) return;

@@ -11,7 +11,7 @@
 
 const { getPool } = require('../db/pool');
 const sql = require('./businessMonthlySql');
-const { FIRST_MONTH, UNGROUPED_SALE, monthKey, addMonths, monthsBetween, vnToday, dayOfMonth, parseClosedMonth } = require('./businessMonths');
+const { FIRST_MONTH, UNGROUPED_SALE, NO_TEAM, nameKey, monthKey, addMonths, monthsBetween, vnToday, dayOfMonth, parseClosedMonth } = require('./businessMonths');
 const { freezeMonth, rebuildSaleTable } = require('../kiotvietSync/businessMonthlyRefresh');
 
 const num = v => Number(v) || 0;
@@ -274,7 +274,37 @@ function createRepository({
     return result;
   }
 
-  return { snapshot, customerProducts, productCustomers, refreeze };
+  // Gan sale vao team (teamName rong = bo khoi team -> 'Chua co team'). Ten sale / team khop khong phan
+  // biet hoa/thuong; giu cach viet da co trong sale_teams de khong sinh 2 team trung ten.
+  async function setSaleTeam(saleName, teamName) {
+    const client = await pool.connect();
+    let team = String(teamName == null ? '' : teamName).trim();
+    let sale = String(saleName).trim();
+    try {
+      await client.query('BEGIN');
+      const { rows } = await client.query('SELECT sale_name, team_name FROM sale_teams');
+      const saleKey = nameKey(sale);
+      const teamKey = nameKey(team);
+      const existing = rows.filter(r => nameKey(r.sale_name) === saleKey);
+      if (existing.length) sale = existing[0].sale_name;
+      const sameTeam = rows.find(r => nameKey(r.team_name) === teamKey);
+      if (sameTeam) team = sameTeam.team_name;
+      if (existing.length) await client.query('DELETE FROM sale_teams WHERE sale_name = ANY($1::text[])', [existing.map(r => r.sale_name)]);
+      if (teamKey && teamKey !== nameKey(NO_TEAM)) {
+        await client.query('INSERT INTO sale_teams (sale_name, team_name) VALUES ($1, $2)', [sale, team]);
+      } else team = NO_TEAM;
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+    snapshotCache.clear();
+    return { saleName: sale, team };
+  }
+
+  return { snapshot, customerProducts, productCustomers, refreeze, setSaleTeam };
 }
 
 module.exports = { createRepository };

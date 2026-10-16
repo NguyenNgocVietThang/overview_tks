@@ -51,6 +51,10 @@ function createPage({ can = () => true, notReady = false, hash = '#business' } =
         json: async () => ({ error: 'Báo cáo kinh doanh chưa sẵn sàng (chưa áp migration 0036).', code: 'BUSINESS_REPORT_NOT_READY' })
       });
     }
+    if (href === '/api/business-report/sale-team') {
+      const sent = JSON.parse(opts.body);
+      return ok({ saleName: sent.saleName, team: sent.teamName || 'Chưa có team' });
+    }
     if (href === '/api/business-report/sales') return ok(svc.buildSaleReport(snap));
     if (href === '/api/business-report/customers') return ok(svc.buildCustomerReport(snap));
     if (href === '/api/business-report/products') return ok(svc.buildProductReport(snap));
@@ -174,7 +178,7 @@ test('bang Sale: cot co dinh + TB 4 thang + Tang truong + hom nay + cac thang gi
     ['Sale', 'Team', 'SL Khách', 'TB 4 tháng', 'Tăng trưởng', '06/10/2026', 'T9/26', 'T8/26', 'T7/26']);
   const khang = rowById(page, 'businessSalesRows', 'Khang');
   assert.ok(khang, 'co dong Khang');
-  assert.equal(khang.cells[1].textContent.trim(), 'Team Khang');
+  assert.equal(khang.cells[1].querySelector('select').value, 'Team Khang'); // Quan ly: dropdown doi team
   assert.equal(khang.cells[4].textContent.trim(), '100%');
   const ungrouped = rowById(page, 'businessSalesRows', 'Chưa phân nhóm');
   assert.ok(ungrouped, 'co dong Chua phan nhom');
@@ -500,4 +504,33 @@ test('xuat bang Sale gui team dang loc', async () => {
   assert.equal(fieldsParams.get('kind'), 'sales');
   assert.equal(fieldsParams.get('team'), 'Team Khang');
   assert.equal(fieldsParams.get('branch'), null);
+});
+
+test('Team trong bang Sale: Quan ly (reports.business.editTeam) thay dropdown, doi team goi PUT roi tai lai; nguoi khac chi thay chu', async () => {
+  const viewer = createPage({ can: k => k !== 'reports.business.editTeam' });
+  viewer.run("switchView('business')");
+  await settle();
+  assert.equal(viewer.$('businessSalesRows').querySelectorAll('select.business-team-select').length, 0);
+  assert.match(rowById(viewer, 'businessSalesRows', 'Khang').textContent, /Team Khang/);
+
+  const page = createPage();
+  page.run("switchView('business')");
+  await settle();
+  const row = rowById(page, 'businessSalesRows', 'Khang');
+  const select = row.querySelector('select.business-team-select');
+  assert.ok(select, 'o Team la dropdown');
+  assert.equal(select.value, 'Team Khang');
+  assert.deepEqual([...select.options].map(o => o.textContent), ['Chưa có team', 'Team Khang', 'Team Trinh', '+ Team mới…']);
+  // Bam vao dropdown khong mo hop chi tiet
+  select.click();
+  await settle();
+  assert.equal(page.$('docModalBackdrop').hidden, true);
+  const before = businessUrls(page).filter(h => h === '/api/business-report/sales').length;
+  select.value = 'Team Trinh';
+  select.dispatchEvent(new page.dom.window.Event('change', { bubbles: true }));
+  await settle();
+  const put = page.urls.find(u => u.href === '/api/business-report/sale-team');
+  assert.equal(put.opts.method, 'PUT');
+  assert.deepEqual(JSON.parse(put.opts.body), { saleName: 'Khang', teamName: 'Team Trinh' });
+  assert.equal(businessUrls(page).filter(h => h === '/api/business-report/sales').length, before + 1, 'tai lai bang Sale sau khi luu');
 });

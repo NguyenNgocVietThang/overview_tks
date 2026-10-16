@@ -175,3 +175,22 @@ test('missing migration end-to-end HTTP 200 keeps current live tables and detail
   assert.equal(detail.data.topProducts[0].revenue,950);
  }finally{await db.close();}
 });
+
+test('PUT /sale-team: can reports.business.editTeam, chi nhan sale co trong bang, goi repository.setSaleTeam', async () => {
+  const body = { saleName: 'Khang', teamName: 'Team Trinh' };
+  const setSaleTeam = async (sale, team) => ({ saleName: sale, team });
+  const denied = await request('/sale-team', { method: 'PUT', body });
+  assert.equal(denied.status, 403);
+  const editor = { permissions: ['reports.business', 'reports.business.editTeam'] };
+  const calls = [];
+  const ok = await request('/sale-team', { method: 'PUT', body: { saleName: ' Khang ', teamName: '  Team   Trinh ' }, ...editor, repo: { setSaleTeam: async (s, t) => { calls.push([s, t]); return { saleName: s, team: t }; } } });
+  assert.equal(ok.status, 200);
+  assert.deepEqual(ok.data, { saleName: 'Khang', team: 'Team Trinh' });
+  assert.deepEqual(calls, [['Khang', 'Team Trinh']]);
+  const clear = await request('/sale-team', { method: 'PUT', body: { saleName: 'Khang', teamName: '' }, ...editor, repo: { setSaleTeam } });
+  assert.equal(clear.status, 200);
+  assert.equal((await request('/sale-team', { method: 'PUT', body: { saleName: 'Khong co', teamName: 'X' }, ...editor, repo: { setSaleTeam } })).status, 404);
+  assert.equal((await request('/sale-team', { method: 'PUT', body: { saleName: 'Chưa phân nhóm', teamName: 'X' }, ...editor, repo: { setSaleTeam } })).status, 400);
+  assert.equal((await request('/sale-team', { method: 'PUT', body: { saleName: '', teamName: 'X' }, ...editor, repo: { setSaleTeam } })).status, 400);
+  assert.equal((await request('/sale-team', { method: 'PUT', body: { saleName: 'Khang', teamName: 'x'.repeat(61) }, ...editor, repo: { setSaleTeam } })).status, 400);
+});

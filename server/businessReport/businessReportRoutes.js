@@ -8,7 +8,7 @@ const { requireAuth, requireFeature } = require('../auth/authMiddleware');
 const { createRepository } = require('./businessReportRepository');
 const svc = require('./businessReportService');
 const { createExportFile, filterRows, exportFieldsFor, resolveColumnKeys } = require('./businessReportExport');
-const { nameKey, RETAIL_NAME } = require('./businessMonths');
+const { nameKey, RETAIL_NAME, UNGROUPED_SALE } = require('./businessMonths');
 
 const BUILDERS = { sales: svc.buildSaleReport, customers: svc.buildCustomerReport, products: svc.buildProductReport };
 
@@ -69,6 +69,20 @@ function createBusinessReportRouter({ repository = createRepository() } = {}) {
 
   router.post('/refreeze', requireAuth, requireFeature('reports.business.refreeze'), express.json(),
     handle(async (req, res) => res.json(await repository.refreeze(req.body && req.body.month))));
+
+  // Doi team cua 1 sale (dropdown cot Team bang Tang truong Sale). team rong / 'Chua co team' = bo khoi team.
+  router.put('/sale-team', requireAuth, requireFeature('reports.business.editTeam'), express.json(), handle(async (req, res) => {
+    const body = req.body || {};
+    const saleName = String(body.saleName == null ? '' : body.saleName).trim();
+    const teamName = String(body.teamName == null ? '' : body.teamName).trim().replace(/\s+/g, ' ');
+    const bad = message => { const e = new Error(message); e.statusCode = 400; e.code = 'INVALID_SALE_TEAM'; return e; };
+    if (!saleName || saleName === UNGROUPED_SALE) throw bad('Sale không hợp lệ.');
+    if (teamName.length > 60) throw bad('Tên team tối đa 60 ký tự.');
+    // Chi nhan sale dang co trong bang (khong de ghi khoa tuy y vao sale_teams).
+    const known = svc.buildSaleReport(await repository.snapshot()).rows.some(r => r.key === saleName);
+    if (!known) { const e = new Error('Không tìm thấy sale này.'); e.statusCode = 404; throw e; }
+    res.json(await repository.setSaleTeam(saleName, teamName));
+  }));
 
   // Can DONG THOI reports.business va reports.export (hai requireFeature rieng = AND).
   const exportGuard = [...view, requireFeature('reports.export')];

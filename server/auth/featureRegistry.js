@@ -57,6 +57,8 @@ const FEATURES = Object.freeze([
   // giu nguyen khoa `reports.business` de khong mat quyen da cap.
   { key: 'reports.business', groupKey: 'reports', label: 'Khách hàng', roles: REPORT_VIEW_ROLES },
   { key: 'reports.business.refreeze', groupKey: 'reports', label: 'Khách hàng: tính lại tháng đã chốt (cần Khách hàng)', roles: MANAGER_ONLY, requires: 'reports.business' },
+  // 2026-10-16: Quan ly doi team cua tung sale ngay tren bang "Tang truong Sale" (bang sale_teams).
+  { key: 'reports.business.editTeam', groupKey: 'reports', label: 'Khách hàng: sửa team của sale (cần Khách hàng)', roles: MANAGER_ONLY, requires: 'reports.business' },
   { key: 'reports.debt', groupKey: 'reports', label: 'Công nợ', roles: REPORT_VIEW_ROLES },
   // 2026-10-13: cong no theo lich TT (server/debtSchedule). Moi cot sua duoc la 1 quyen
   // rieng: Sale phan hoi (mac dinh Nhan vien sale), QL phan hoi + Trang thai + Lich TT (mac
