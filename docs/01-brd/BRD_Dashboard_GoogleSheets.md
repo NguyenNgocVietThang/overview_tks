@@ -21,7 +21,7 @@
 
 ## Bổ sung nghiệp vụ 15/10/2026 — Hàng dự kiến
 
-Sale cần biết số hàng đặt theo mã đang Chưa bốc/Đã bốc và chi tiết từng CONT trong Báo cáo hàng hóa của Tổng quan. Nguồn bổ trợ là workbook TKS2 ĐẶT CONT, chỉ đọc 6 sheet YIWU, VK-DUNG, HÀ BẮC, SD, GDONG, KHÁC mỗi 2 tiếng, độc lập đồng bộ KiotViet và doanh số chốt đêm.
+Sale cần biết số hàng đặt theo mã đang Chưa bốc/Đã bốc và chi tiết từng CONT trong Báo cáo hàng hóa của Tổng quan. Nguồn bổ trợ là workbook TKS2 ĐẶT CONT, chỉ đọc 6 sheet YIWU, VK-DUNG, HÀ BẮC, SD, GDONG, KHÁC mỗi 10 phút (từ 16/10/2026), độc lập đồng bộ KiotViet và doanh số chốt đêm.
 
 - Giữ danh mục mã đang kinh doanh hiện hành. Cột Chưa bốc cộng O của CONT trạng thái 1/2, Đã bốc cộng O của trạng thái 3; không tính 4/5 vào tổng. Tổng chung công ty, trước Tồn HN/SG, đồng nhất web và xuất Excel/HTML. Không có hàng = 0 khi đã có snapshot; chưa có dữ liệu = —.
 - Hộp chi tiết đồng thời có Doanh số theo khách và Hàng dự kiến. Sale xem từng dòng CONT 1/2/3: tên CONT, trạng thái, ngày về nếu có, màu, ghi chú sale, số lượng. Không lọc theo người đặt/team, không gộp dòng nguồn. Người có quyền đầy đủ thấy ngay trạng thái 1–5 và thêm người đặt, ngày lên list, số cái/kiện, số kiện, giá hàng về VN; quyền mặc định Quản lý và có thể cấp/thu hồi từng tài khoản.

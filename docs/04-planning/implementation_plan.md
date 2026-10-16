@@ -3,7 +3,7 @@
 ## Bổ sung 15/10/2026 — Hàng dự kiến trong Báo cáo hàng hóa
 
 - Kế hoạch chi tiết và prompt triển khai: [plan-product-report-containers.md](../../tasks/plan-product-report-containers.md).
-- Module `server/productContainers/` tách parser, repository, đồng bộ chỉ đọc 6 sheet TKS2 ĐẶT CONT; snapshot 2 tiếng độc lập KiotViet/doanh số đêm, khóa PostgreSQL chống chạy chồng và công bố đủ 6 sheet trong transaction. Lỗi giữ snapshot trước; trạng thái 4/5 vẫn lưu để xem có quyền.
+- Module `server/productContainers/` tách parser, repository, đồng bộ chỉ đọc 6 sheet TKS2 ĐẶT CONT; snapshot 10 phút độc lập KiotViet/doanh số đêm, ghi khác biệt (version chỉ đổi khi nội dung đổi, chốt an toàn khi số dòng giảm >30%), khóa PostgreSQL chống chạy chồng và công bố đủ 6 sheet trong transaction. Lỗi giữ snapshot trước; trạng thái 4/5 vẫn lưu để xem có quyền.
 - API tổng hợp thêm hai số lượng và `containerSync`; thêm `/api/product-report/containers?code=` và `/api/product-report/containers/meta`. Quyền riêng `reports.overview.containers.full` phụ thuộc Tổng quan, mặc định Quản lý, override từng tài khoản; giới hạn dòng/cột tại backend.
 - Giao diện và xuất tổng hợp Excel/HTML đặt Chưa bốc/Đã bốc trước Tồn HN/SG. Modal hai phần đồng thời; metadata kiểm tra 60 giây chỉ khi xem Tổng quan. Tổng toàn công ty giữ nguyên khi đổi cơ sở.
 - Migration `0053_product_containers.sql` **đã áp DB dùng chung lúc 16:26 ngày 15/10/2026**. Khi triển khai được phép cần kiểm thử migration, cấu hình `PRODUCT_CONTAINER_SPREADSHEET_ID` và quyền Viewer, xác nhận snapshot đủ 6 sheet rồi đối chiếu mã nhiều CONT/mã nhiều sheet bằng hai mức quyền.

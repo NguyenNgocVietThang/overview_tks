@@ -100,3 +100,86 @@ test('real transaction rollback restores previous snapshot after replacement ins
     assert.equal(summary.containerSync.stale,true);
   } finally {await db.close();}
 });
+
+// ---- Ghi khac biet tren SQL that (PGlite) ----
+function sheetClient(rowsBySheet) {
+  return { listSheetTitles: async () => require('./parser').SHEET_NAMES,
+    getValues: async (name) => {
+      const out = [['CONT '+name,'2.Chưa bốc']];
+      for (const [code, qty] of rowsBySheet[name] || []) { const row = Array(24).fill(''); row[0] = code; row[14] = qty; out.push(row); }
+      return out;
+    } };
+}
+function connectionOver(db) {
+  return { release() {}, query: async (sql, args) => {
+    if (sql.includes('pg_try_advisory_lock')) return { rows: [{ locked: true }] };
+    if (sql.includes('pg_advisory_unlock')) return { rows: [{}] };
+    return db.query(sql, args);
+  } };
+}
+async function runSync(db, rowsBySheet, at) {
+  const { refreshContainers } = require('./sync');
+  return refreshContainers({ pool: { connect: async () => connectionOver(db) }, spreadsheetId: 'fixture',
+    client: sheetClient(rowsBySheet), now: () => new Date(at), logger: { info() {}, error() {} } });
+}
+const T0 = '2026-10-16T01:00:00Z', T1 = '2026-10-16T01:11:00Z', T2 = '2026-10-16T01:22:00Z', T3 = '2026-10-16T01:33:00Z';
+const many = (n, qty = 1) => Array.from({ length: n }, (_, i) => ['SKU' + i, qty]);
+
+test('diff-write: lan dau tao version; sheet y het => version, dong va ctid khong doi; doi 1 dong => doi dung 1 dong', async () => {
+  const { __test__ } = require('./sync'); __test__.resetPendingShrink();
+  const db = await fixture();
+  try {
+    const first = await runSync(db, { YIWU: many(5), SD: many(3) }, T0);
+    assert.equal(first.status, 'updated');
+    const v1 = (await db.query('SELECT version FROM product_container_sync')).rows[0].version;
+    const ctids1 = (await db.query('SELECT sheet_name, source_row, ctid::text AS c FROM product_container_lines ORDER BY 1,2')).rows;
+
+    const same = await runSync(db, { YIWU: many(5), SD: many(3) }, T1);
+    assert.equal(same.status, 'unchanged');
+    assert.deepEqual([same.inserted, same.deleted], [0, 0]);
+    const metaSame = (await db.query('SELECT version, last_success_at FROM product_container_sync')).rows[0];
+    assert.equal(metaSame.version, v1, 'version phai giu nguyen khi noi dung khong doi');
+    assert.equal(new Date(metaSame.last_success_at).toISOString(), new Date(T1).toISOString(), 'moc thanh cong van duoc cap nhat');
+    assert.deepEqual((await db.query('SELECT sheet_name, source_row, ctid::text AS c FROM product_container_lines ORDER BY 1,2')).rows, ctids1, 'khong dong nao bi ghi lai');
+
+    const changedRows = { YIWU: many(5), SD: many(3) }; changedRows.SD[0] = ['SKU0', 99];
+    const changed = await runSync(db, changedRows, T2);
+    assert.equal(changed.status, 'updated');
+    assert.deepEqual([changed.inserted, changed.deleted], [1, 1]);
+    assert.notEqual((await db.query('SELECT version FROM product_container_sync')).rows[0].version, v1);
+    assert.equal(String((await db.query("SELECT quantity FROM product_container_lines WHERE sheet_name='SD' AND source_row=2")).rows[0].quantity), '99');
+  } finally { await db.close(); }
+});
+
+test('chot an toan: giam >30% dong bi giu lai, chi nhan o lan doc thu 2 giong het; giam nhe thi nhan ngay', async () => {
+  const { __test__ } = require('./sync'); __test__.resetPendingShrink();
+  const db = await fixture();
+  try {
+    await runSync(db, { YIWU: many(10) }, T0);
+    const held = await runSync(db, { YIWU: many(2) }, T1);
+    assert.equal(held.status, 'held');
+    assert.equal((await db.query('SELECT count(*)::int AS n FROM product_container_lines')).rows[0].n, 10, 'bang cu con nguyen');
+    const meta = (await db.query('SELECT last_error FROM product_container_sync')).rows[0];
+    assert.match(meta.last_error, /chờ xác nhận/);
+
+    const confirmed = await runSync(db, { YIWU: many(2) }, T2);
+    assert.equal(confirmed.status, 'updated');
+    assert.equal((await db.query('SELECT count(*)::int AS n FROM product_container_lines')).rows[0].n, 2);
+    assert.equal((await db.query('SELECT last_error FROM product_container_sync')).rows[0].last_error, null);
+
+    await runSync(db, { YIWU: many(10) }, T3);
+    const mild = await runSync(db, { YIWU: many(8) }, '2026-10-16T01:44:00Z');
+    assert.equal(mild.status, 'updated');
+  } finally { await db.close(); }
+});
+
+test('chot an toan: ung vien khac nhau o 2 lan lien tiep khong duoc coi la xac nhan', async () => {
+  const { __test__ } = require('./sync'); __test__.resetPendingShrink();
+  const db = await fixture();
+  try {
+    await runSync(db, { YIWU: many(10) }, T0);
+    assert.equal((await runSync(db, { YIWU: many(2) }, T1)).status, 'held');
+    assert.equal((await runSync(db, { YIWU: many(3) }, T2)).status, 'held');
+    assert.equal((await db.query('SELECT count(*)::int AS n FROM product_container_lines')).rows[0].n, 10);
+  } finally { await db.close(); }
+});

@@ -6,7 +6,7 @@ Mọi bảng trên web và trong file HTML xuất ra có nút **Cột hiển th�
 
 ## Kiến trúc hiện tại
 
-- **Hàng dự kiến — Báo cáo hàng hóa**: module `server/productContainers/` đọc 6 sheet YIWU, VK-DUNG, HÀ BẮC, SD, GDONG, KHÁC của workbook TKS2 ĐẶT CONT bằng service account chỉ đọc mỗi 2 tiếng; lưu snapshot PostgreSQL độc lập KiotViet và doanh số chốt đêm. Hai cột Chưa bốc/Đã bốc nằm trước Tồn HN/Tồn SG, dùng chung cho web và xuất Excel/HTML. Hộp chi tiết hiện đồng thời Doanh số theo khách và Hàng dự kiến; quyền `reports.overview.containers.full` kiểm soát các cột hạn chế và CONT 4/5 tại máy chủ. Xem [kế hoạch và prompt](tasks/plan-product-report-containers.md).
+- **Hàng dự kiến — Báo cáo hàng hóa**: module `server/productContainers/` đọc 6 sheet YIWU, VK-DUNG, HÀ BẮC, SD, GDONG, KHÁC của workbook TKS2 ĐẶT CONT bằng service account chỉ đọc mỗi 10 phút (ghi khác biệt, version chỉ đổi khi nội dung đổi); lưu snapshot PostgreSQL độc lập KiotViet và doanh số chốt đêm. Hai cột Chưa bốc/Đã bốc nằm trước Tồn HN/Tồn SG, dùng chung cho web và xuất Excel/HTML. Hộp chi tiết hiện đồng thời Doanh số theo khách và Hàng dự kiến; quyền `reports.overview.containers.full` kiểm soát các cột hạn chế và CONT 4/5 tại máy chủ. Xem [kế hoạch và prompt](tasks/plan-product-report-containers.md).
 
 - **Báo cáo Marketing** tại `/reports/#marketing` đọc ba workbook TRỰC PAGE, SĐT và ADS; gồm BC tháng, Check tỷ lệ nhận số, Sao lưu SĐT và Chi phí. Bấm dòng tổng quan mở hộp chi tiết; quyền `reports.marketing` mặc định Quản lý, Trợ lý, Nhân viên Marketing. Chỉ đọc, giữ kết quả công thức Sheets, làm mới khi đang xem mỗi 5 phút. Xem [cấu hình nguồn và nghiệm thu](docs/marketing-report-setup.md).
 
@@ -88,7 +88,7 @@ server/
 ├── lib/                  # Thư viện tiện ích nội bộ (TTL cache, ...)
 ├── marketingReport/      # Báo cáo Marketing: đọc 3 workbook Google Sheets, đối chiếu doanh số KiotViet theo tên khách, cập nhật ngược Sheets, xuất Excel/HTML
 ├── notifications/        # Chuông thông báo, gửi email OTP và job báo ngày lễ/sinh nhật (specialDayNotifier.js)
-├── productContainers/    # Parser CONT, snapshot repository, đồng bộ Sheets chỉ đọc mỗi 2 tiếng và kiểm thử
+├── productContainers/    # Parser CONT, snapshot repository, đồng bộ Sheets chỉ đọc mỗi 10 phút (ghi khác biệt) và kiểm thử
 ├── public/               # Frontend HTML/CSS/JS
 │   ├── cashbook/         # Trang Sổ quỹ: bộ lọc/hash, số dư, chốt và xuất chọn cột
 │   └── shared/

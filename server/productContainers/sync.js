@@ -1,5 +1,5 @@
 'use strict';
-const { randomUUID } = require('node:crypto');
+const { createHash, randomUUID } = require('node:crypto');
 const CONFIG = require('../config');
 const { getPool } = require('../db/pool');
 const { createReadOnlyClient } = require('../sheets/sheetsClient');
@@ -7,18 +7,36 @@ const { SHEET_NAMES, INTERVAL_MS, parseContainerSheet } = require('./parser');
 const LOCK_KEY = 20531015;
 const SAFE_ERROR = 'Không đọc hoặc lưu được đủ 6 sheet CONT. Giữ nguyên bản thành công gần nhất.';
 
-// true khi tap dong sheet moi GIONG HET bang hien tai (cung so dong, tung dong theo khoa (sheet,source_row)
-// khong khac cot nao) va canh bao khong doi. ROW(i.*) so sanh ca dong cung kieu bang nen numeric 1.0 = 1.
-const UNCHANGED_SQL = `WITH incoming AS (
-    SELECT * FROM jsonb_populate_recordset(NULL::product_container_lines,$1::jsonb)
-  )
-  SELECT (SELECT count(*) FROM incoming) = (SELECT count(*) FROM product_container_lines)
-    AND NOT EXISTS (
-      SELECT 1 FROM incoming i
-      LEFT JOIN product_container_lines l ON l.sheet_name = i.sheet_name AND l.source_row = i.source_row
-      WHERE l.sheet_name IS NULL OR ROW(i.*) IS DISTINCT FROM ROW(l.*))
-    AND COALESCE((SELECT version IS NOT NULL AND warnings = $2::jsonb
-                  FROM product_container_sync WHERE singleton = true), false) AS unchanged`;
+// GHI KHAC BIET (mau LEFT JOIN/NOT EXISTS rut ra tu su co IO 2026-09-28): nap sheet vao bang tam roi chi
+// XOA dong da mat/doi va CHEN dong moi. Sheet khong doi => 0 dong ghi, `version` giu nguyen. Client so
+// `version` de quyet dinh tai lai ca bao cao hang hoa (10,9K dong) nen chu ky 10 phut chi bat moi nguoi
+// xem tai lai khi noi dung THAT SU doi. Ten bang tam KHONG bat dau bang 'product_container_lines'.
+// ROW(n.*) so sanh ca dong cung kieu bang nen numeric 1.0 = 1.
+const CREATE_STAGE_SQL = 'CREATE TEMP TABLE container_lines_stage (LIKE product_container_lines) ON COMMIT DROP';
+const FILL_STAGE_SQL = `INSERT INTO container_lines_stage
+  SELECT * FROM jsonb_populate_recordset(NULL::product_container_lines,$1::jsonb)`;
+const COUNT_LINES_SQL = 'SELECT count(*)::int AS n FROM product_container_lines';
+const DELETE_STALE_SQL = `DELETE FROM product_container_lines l WHERE NOT EXISTS (
+  SELECT 1 FROM container_lines_stage n
+  WHERE n.sheet_name = l.sheet_name AND n.source_row = l.source_row AND ROW(n.*) IS NOT DISTINCT FROM ROW(l.*))`;
+const INSERT_MISSING_SQL = `INSERT INTO product_container_lines
+  SELECT n.* FROM container_lines_stage n WHERE NOT EXISTS (
+    SELECT 1 FROM product_container_lines l WHERE l.sheet_name = n.sheet_name AND l.source_row = n.source_row)`;
+const SYNC_META_SQL = `SELECT (version IS NULL) AS first_run, (warnings IS DISTINCT FROM $1::jsonb) AS warnings_changed
+  FROM product_container_sync WHERE singleton = true`;
+const UPDATE_SYNC_SQL = `UPDATE product_container_sync SET
+  version = CASE WHEN $1::boolean THEN $2::uuid ELSE version END,
+  last_success_at=$3, last_attempt_at=$4, last_error=NULL, warnings=$5::jsonb WHERE singleton=true`;
+
+// CHOT AN TOAN: sheet dang sua do / bi xoa nham co the lam so dong tut manh; ban chup moi giam hon
+// 30% so voi bang hien tai chi duoc nhan khi 2 lan doc LIEN TIEP cho dung cung ket qua. Trang thai
+// cho xac nhan nam trong bo nho tien trinh (1 instance); nhieu instance thi xac nhan cham hon chu
+// khong sai: instance khac chua tung thay ung vien nen se giu bang cu them 1 vong.
+const SHRINK_GUARD_RATIO = 0.7;
+const HELD_ERROR = 'Số dòng CONT giảm mạnh bất thường; đang chờ xác nhận ở lần đọc kế tiếp. Giữ nguyên bản thành công gần nhất.';
+let pendingShrink = null;
+const fingerprint = (lines, warnings) =>
+  createHash('sha1').update(JSON.stringify({ lines, warnings })).digest('hex');
 
 async function refreshContainers({
   pool = getPool(), spreadsheetId = CONFIG.PRODUCT_CONTAINER_SPREADSHEET_ID,
@@ -68,27 +86,32 @@ async function refreshContainers({
       package_count:row.packageCount,quantity:row.quantity,vietnam_price:row.vietnamPrice
     })));
     await connection.query('BEGIN'); transaction = true;
-    // Noi dung sheet khong doi => KHONG xoa/nap lai 11K dong va GIU NGUYEN `version`. Client so `version`
-    // de quyet dinh tai lai ca bao cao hang hoa (10,9K dong); neu moi lan sync deu doi version thi rut chu ky
-    // xuong 10 phut se bat moi nguoi xem tai lai + ghi WAL lien tuc du khong co gi moi (xem
-    // docs/superpowers/specs/2026-10-16-realtime-customer-product-reports-design.md muc 3.C).
-    const same = await connection.query(UNCHANGED_SQL,[JSON.stringify(lines),JSON.stringify(warnings)]);
-    if (same.rows[0]?.unchanged === true) {
-      await connection.query(`UPDATE product_container_sync SET last_success_at=$1,
-        last_attempt_at=$2,last_error=NULL WHERE singleton=true`,[now(),attemptAt]);
-      await connection.query('COMMIT'); transaction = false;
-      logger.info('[ProductContainers] Unchanged', { durationMs:Date.now()-started, rows:lines.length });
-      return { status:'unchanged',rowCount:lines.length,nextAttemptAt };
+    await connection.query(CREATE_STAGE_SQL);
+    await connection.query(FILL_STAGE_SQL,[JSON.stringify(lines)]);
+    const previousRows = Number((await connection.query(COUNT_LINES_SQL)).rows[0]?.n) || 0;
+    if (previousRows > 0 && lines.length < previousRows * SHRINK_GUARD_RATIO) {
+      const candidate = fingerprint(lines,warnings);
+      if (pendingShrink !== candidate) {
+        pendingShrink = candidate;
+        await connection.query('ROLLBACK'); transaction = false;
+        await connection.query('UPDATE product_container_sync SET last_error=$1 WHERE singleton=true',[HELD_ERROR]);
+        logger.error('[ProductContainers] Held abnormal shrink', { previousRows, rows:lines.length, durationMs:Date.now()-started });
+        return { status:'held',previousRows,rowCount:lines.length,nextAttemptAt };
+      }
     }
-    await connection.query('DELETE FROM product_container_lines');
-    if (lines.length) await connection.query(`INSERT INTO product_container_lines
-      SELECT * FROM jsonb_populate_recordset(NULL::product_container_lines,$1::jsonb)`,[JSON.stringify(lines)]);
+    pendingShrink = null;
+    const deleted = (await connection.query(DELETE_STALE_SQL)).rowCount || 0;
+    const inserted = (await connection.query(INSERT_MISSING_SQL)).rowCount || 0;
+    const meta = (await connection.query(SYNC_META_SQL,[JSON.stringify(warnings)])).rows[0] || {};
+    const changed = deleted + inserted > 0 || meta.first_run === true || meta.warnings_changed === true;
     const version = randomUUID();
-    await connection.query(`UPDATE product_container_sync SET version=$1,last_success_at=$2,
-      last_attempt_at=$3,last_error=NULL,warnings=$4::jsonb WHERE singleton=true`,[version,now(),attemptAt,JSON.stringify(warnings)]);
+    await connection.query(UPDATE_SYNC_SQL,[changed,version,now(),attemptAt,JSON.stringify(warnings)]);
     await connection.query('COMMIT'); transaction = false;
-    logger.info('[ProductContainers] Updated', { durationMs:Date.now()-started, sheets:SHEET_NAMES.map((sheetName,index)=>({sheetName,rows:parsed[index].rows.length,skipped:parsed[index].warnings.length})),version });
-    return { status:'updated',version,rowCount:lines.length,nextAttemptAt };
+    logger.info(changed ? '[ProductContainers] Updated' : '[ProductContainers] Unchanged', {
+      durationMs:Date.now()-started, inserted, deleted, rows:lines.length,
+      sheets:SHEET_NAMES.map((sheetName,index)=>({sheetName,rows:parsed[index].rows.length,skipped:parsed[index].warnings.length})), ...(changed ? { version } : {})
+    });
+    return { status:changed ? 'updated' : 'unchanged',...(changed ? { version } : {}),rowCount:lines.length,inserted,deleted,nextAttemptAt };
   } catch (error) {
     if (transaction) {
       try { await connection.query('ROLLBACK'); }
@@ -141,4 +164,4 @@ function startContainerSchedule({
   const ready = tick();
   return {ready,stop(){stopped=true;if(timer)clearTimeoutFn(timer);}};
 }
-module.exports = { refreshContainers, startContainerSchedule, __sql__: { UNCHANGED_SQL } };
+module.exports = { refreshContainers, startContainerSchedule, __sql__: { CREATE_STAGE_SQL, FILL_STAGE_SQL, DELETE_STALE_SQL, INSERT_MISSING_SQL, UPDATE_SYNC_SQL }, __test__: { resetPendingShrink() { pendingShrink = null; } } };

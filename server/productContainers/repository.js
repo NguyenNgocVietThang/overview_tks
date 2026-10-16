@@ -1,6 +1,6 @@
 'use strict';
 const { getPool } = require('../db/pool');
-const { INTERVAL_MS, normalizeCode } = require('./parser');
+const { STALE_AFTER_MS, normalizeCode } = require('./parser');
 
 function syncMetadata(row = {}, now = Date.now()) {
   const available = Boolean(row.version && row.last_success_at);
@@ -9,7 +9,7 @@ function syncMetadata(row = {}, now = Date.now()) {
     lastSuccessAt: row.last_success_at || null,
     lastAttemptAt: row.last_attempt_at || null,
     lastError: row.last_error ? 'Không cập nhật được dữ liệu CONT. Đang giữ lần thành công gần nhất.' : null,
-    stale: available && (Boolean(row.last_error) || now - new Date(row.last_success_at).getTime() > INTERVAL_MS)
+    stale: available && (Boolean(row.last_error) || now - new Date(row.last_success_at).getTime() > STALE_AFTER_MS)
   };
 }
 
