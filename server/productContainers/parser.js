@@ -7,6 +7,8 @@ const INTERVAL_MS = Math.max(60 * 1000, Number(process.env.PRODUCT_CONTAINER_SYN
 const STALE_AFTER_MS = 3 * INTERVAL_MS;
 const text = value => String(value ?? '').trim();
 const normalizeCode = value => text(value).toLowerCase();
+// Ô A của dòng tiêu đề cột dưới mỗi CONT: "STT" hoặc "Mã SP / Mã sản phẩm / Mã hàng".
+const HEADER_CODE = /^(?:stt|m[aã]\s*(?:sp|sản phẩm|hàng))$/i;
 
 // Google UNFORMATTED_VALUE supplies numbers for numeric/formula cells. Accept
 // plain numeric text as well, never guess locale-dependent separators.
@@ -21,6 +23,7 @@ function parseContainerSheet(sheetName, values, formattedValues = values) {
   const warnings = [];
   let current = null;
   let blankCount = 0;
+  let awaitingHeader = false;
   for (let index = 0; index < values.length; index++) {
     const row = values[index] || [];
     const display = formattedValues[index] || [];
@@ -32,6 +35,7 @@ function parseContainerSheet(sheetName, values, formattedValues = values) {
       current = match ? { containerName: code, status: Number(match[1]), statusLabel: text(display[1]) || statusText, eta: text(display[2]), containerRow: index + 1 } : null;
       if (!current) warnings.push({ sheetName, row: index + 1, reason: 'Trạng thái CONT không hợp lệ' });
       blankCount = 0;
+      awaitingHeader = true;
       continue;
     }
     if (!Array.from({ length: 24 }, (_, col) => text(display[col])).some(Boolean)) {
@@ -39,8 +43,14 @@ function parseContainerSheet(sheetName, values, formattedValues = values) {
       continue;
     }
     blankCount = 0;
-    if (!current || !code || /^m[aã]\s*(?:sp|sản phẩm|hàng)$/i.test(code)) continue;
+    if (!current || !code) continue;
+    if (HEADER_CODE.test(code)) { awaitingHeader = false; continue; }
     const quantity = numeric(row[14]);
+    // Cấu trúc khối: dòng CONT → dòng tiêu đề cột → dữ liệu. Dòng có mã đầu tiên dưới CONT mà cột O
+    // không phải số là tiêu đề viết khác mẫu (không phải lỗi dữ liệu) nên bỏ qua, không cảnh báo.
+    const firstUnderCont = awaitingHeader;
+    awaitingHeader = false;
+    if (quantity === null && firstUnderCont) continue;
     if (quantity === null) {
       warnings.push({ sheetName, row: index + 1, reason: 'Tổng số lượng O không hợp lệ' });
       continue;

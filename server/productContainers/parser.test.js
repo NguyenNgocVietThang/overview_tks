@@ -30,6 +30,14 @@ test('invalid status skips entire block and invalid O never falls back to M*N', 
   assert.equal(parsed.rows[0].vietnamPrice,null);
   assert.equal(parsed.warnings.length,4);
 });
+test('header row under CONT (STT or any text in O) is skipped without warning, bad data rows still warn', () => {
+  const header = Object.assign(Array(24).fill(''), { 0: 'STT', 1: 'Tên SP', 14: 'Tổng số lượng' });
+  const odd = Object.assign(Array(24).fill(''), { 0: 'Số TT', 14: 'Tổng SL' });
+  const values = [['CONT A','2.Chưa bốc'], header, row('A',4), row('B','abc'), ['CONT B','2.Chưa bốc'], odd, row('C',7), ['CONT C','2.Chưa bốc'], row('D',5)];
+  const parsed = parseContainerSheet('YIWU', values);
+  assert.deepEqual(parsed.rows.map(x => x.productCode), ['A', 'C', 'D']);
+  assert.deepEqual(parsed.warnings.map(x => x.row), [4]);
+});
 test('formatted dates are preserved and blank formulas use displayed value', () => {
   const raw = [['CONT A','3.Đã bốc',45678],row('SKU',50,{11:45670})];
   const displayed = [['CONT A','3.Đã bốc','DK 10/10'],row('SKU','50',{11:'15/10'})];
