@@ -3841,6 +3841,66 @@
 
           <section class="section">
             <div class="section-head"><span class="section-step">1</span>
+              <h2>Kiểm tra công nợ <span class="section-note" id="debtAgingSourceLabel">số tính sẵn theo lần đồng bộ KiotViet mới nhất · không chờ chốt 15:00</span></h2>
+            </div>
+            <div class="grid">
+              <div class="panel col-12">
+                <div class="panel-head">
+                  <h2>Khách hàng <span class="tag" id="tagDebtAging">—</span></h2>
+                  <div class="debt-head-actions">
+                  <button class="export-button" type="button" onclick="openExportDialog('debt.aging')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>
+                  </div>
+                </div>
+                <div class="debt-warning-list" id="debtAgingWarning" role="status" aria-live="polite" hidden></div>
+                <div class="debt-filter-controls" aria-label="Bộ lọc tuổi nợ">
+                  <div class="debt-filter-field">
+                    <label for="debtAgingSaleFilter">Sale</label>
+                    <select id="debtAgingSaleFilter" onchange="handleDebtAgingFilterChange()"><option value="">Tất cả sale</option></select>
+                  </div>
+                  <div class="debt-filter-field">
+                    <label for="debtAgingScheduleFilter">Lịch thanh toán</label>
+                    <select id="debtAgingScheduleFilter" onchange="handleDebtAgingFilterChange()"><option value="">Tất cả lịch</option></select>
+                  </div>
+                  <div class="debt-filter-field search-field">
+                    <label for="debtAgingSearch">Tìm khách / sale</label>
+                    <input id="debtAgingSearch" type="search" autocomplete="off" placeholder="Nhập tên khách hoặc sale" oninput="handleDebtAgingFilterChange()">
+                  </div>
+                </div>
+                <div class="debt-table-wrap">
+                  <table class="fixed-table" data-debt-aging-table data-table-key="dashboard-table-24">
+                    <thead>
+                      <tr>
+                        <th style="width:60px" data-column-key="co-so">Cơ sở</th>
+                        <th style="width:160px" data-column-key="khach-hang">Khách hàng</th>
+                        <th style="width:150px" data-column-key="sale">Sale</th>
+                        <th style="width:90px" data-column-key="lich-tt">Lịch TT</th>
+                        <th style="width:135px" data-column-key="no-hien-tai">Nợ hiện tại</th>
+                        <th style="width:130px" data-column-key="no-qua-han">Nợ quá hạn</th>
+                        <th style="width:120px" data-column-key="ngay-het-no" data-column-default-hidden="true">Ngày hết nợ</th>
+                        <th style="width:120px" data-column-key="ngay-no-tuong-duong">Ngày nợ tương đương</th>
+                        <th style="width:100px" data-column-key="con-han">Còn hạn</th>
+                      </tr>
+                    </thead>
+                    <tbody id="debtAgingRows">
+                      <tr>
+                        <td colspan="9" class="table-note">Đang tải...</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="pagination-controls" id="debtAgingPagination" hidden>
+                  <button type="button" id="debtAgingFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                  <button type="button" id="debtAgingPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
+                  <span id="debtAgingPageLabel">Trang 1/1</span>
+                  <button type="button" id="debtAgingNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                  <button type="button" id="debtAgingLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section">
+            <div class="section-head"><span class="section-step">2</span>
               <h2>Chỉ số then chốt <span class="section-note" id="debtSourceLabel">nguồn công nợ đang tải</span></h2>
             </div>
             <div class="debt-key-frame">
@@ -3909,7 +3969,7 @@
           </section>
 
           <section class="section">
-            <div class="section-head"><span class="section-step">2</span>
+            <div class="section-head"><span class="section-step">3</span>
               <h2>Danh sách thao tác <span class="section-note">mỗi dòng là khách + cơ sở · phản hồi, trạng thái và lịch sử tự làm mới khi chốt 15:00 hôm sau</span></h2>
             </div>
             <div class="grid">
@@ -3986,65 +4046,6 @@
             </div>
           </section>
 
-          <section class="section">
-            <div class="section-head"><span class="section-step">3</span>
-              <h2>Tuổi nợ theo hóa đơn <span class="section-note" id="debtAgingSourceLabel">số tính sẵn theo lần đồng bộ KiotViet mới nhất · không chờ chốt 15:00</span></h2>
-            </div>
-            <div class="grid">
-              <div class="panel col-12">
-                <div class="panel-head">
-                  <h2>Khách hàng <span class="tag" id="tagDebtAging">—</span></h2>
-                  <div class="debt-head-actions">
-                  <button class="export-button" type="button" onclick="openExportDialog('debt.aging')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>
-                  </div>
-                </div>
-                <div class="debt-warning-list" id="debtAgingWarning" role="status" aria-live="polite" hidden></div>
-                <div class="debt-filter-controls" aria-label="Bộ lọc tuổi nợ">
-                  <div class="debt-filter-field">
-                    <label for="debtAgingSaleFilter">Sale</label>
-                    <select id="debtAgingSaleFilter" onchange="handleDebtAgingFilterChange()"><option value="">Tất cả sale</option></select>
-                  </div>
-                  <div class="debt-filter-field">
-                    <label for="debtAgingScheduleFilter">Lịch thanh toán</label>
-                    <select id="debtAgingScheduleFilter" onchange="handleDebtAgingFilterChange()"><option value="">Tất cả lịch</option></select>
-                  </div>
-                  <div class="debt-filter-field search-field">
-                    <label for="debtAgingSearch">Tìm khách / sale</label>
-                    <input id="debtAgingSearch" type="search" autocomplete="off" placeholder="Nhập tên khách hoặc sale" oninput="handleDebtAgingFilterChange()">
-                  </div>
-                </div>
-                <div class="debt-table-wrap">
-                  <table class="fixed-table" data-debt-aging-table data-table-key="dashboard-table-24">
-                    <thead>
-                      <tr>
-                        <th style="width:60px" data-column-key="co-so">Cơ sở</th>
-                        <th style="width:160px" data-column-key="khach-hang">Khách hàng</th>
-                        <th style="width:150px" data-column-key="sale">Sale</th>
-                        <th style="width:90px" data-column-key="lich-tt">Lịch TT</th>
-                        <th style="width:135px" data-column-key="no-hien-tai">Nợ hiện tại</th>
-                        <th style="width:130px" data-column-key="no-qua-han">Nợ quá hạn</th>
-                        <th style="width:120px" data-column-key="ngay-het-no" data-column-default-hidden="true">Ngày hết nợ</th>
-                        <th style="width:120px" data-column-key="ngay-no-tuong-duong">Ngày nợ tương đương</th>
-                        <th style="width:100px" data-column-key="con-han">Còn hạn</th>
-                      </tr>
-                    </thead>
-                    <tbody id="debtAgingRows">
-                      <tr>
-                        <td colspan="9" class="table-note">Đang tải...</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <div class="pagination-controls" id="debtAgingPagination" hidden>
-                  <button type="button" id="debtAgingFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
-                  <button type="button" id="debtAgingPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
-                  <span id="debtAgingPageLabel">Trang 1/1</span>
-                  <button type="button" id="debtAgingNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
-                  <button type="button" id="debtAgingLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
-                </div>
-              </div>
-            </div>
-          </section>
         </div>
 
         <div class="view" id="view-marketing">
