@@ -36,6 +36,7 @@ const FEATURE_GROUPS = Object.freeze([
   { key: 'stockLocations', label: 'Vị trí hàng' },
   { key: 'hr', label: 'Quản lý nhân sự' },
   { key: 'cashbook', label: 'Sổ quỹ' },
+  { key: 'accounting', label: 'Kế toán' },
   { key: 'account', label: 'Quản lý tài khoản' },
   { key: 'system', label: 'Hệ thống' }
 ]);
@@ -101,6 +102,10 @@ const FEATURES = Object.freeze([
   // --- Sổ quỹ: chỉ xem/xuất; tồn quỹ tự tính từ KiotViet nên không còn quyền chốt số dư ---
   { key: 'cashbook.view', groupKey: 'cashbook', label: 'Xem sổ quỹ', roles: MANAGER_ONLY },
 
+  // --- Ke toan: Nhap VAT (port vat-draft-app, 2026-10-17). Mac dinh chi Quan ly (+ admin cung);
+  // Quan ly bat rieng cho tung tai khoan Ke toan o /account/ — KHONG cap theo vai tro Ke toan.
+  { key: 'accounting.vatDraft', groupKey: 'accounting', label: 'Nháp VAT (Xử lý hóa đơn, Tra cứu nguồn, Tạo QR)', roles: MANAGER_ONLY, forbiddenRoles: [ROLES.KHACH] },
+
   // --- Quan ly tai khoan ---
   { key: 'account.profile', groupKey: 'account', label: 'Quản lý hồ sơ', roles: ALL_ROLES, alwaysOn: true },
   { key: 'account.users', groupKey: 'account', label: 'Quản lý người dùng (xem)', roles: MANAGER_ONLY },
@@ -135,6 +140,7 @@ const PAGE_FEATURES = Object.freeze([
   { path: '/humanresources', href: '/humanresources/', anyOf: ['hr.rules', 'hr.employees', 'hr.leave', 'hr.leave.submit'] },
   { path: '/stock-locations', href: '/stock-locations/', anyOf: ['stockLocations.view'] },
   { path: '/cashbook', href: '/cashbook/', anyOf: ['cashbook.view'] },
+  { path: '/vat-draft', href: '/vat-draft/', anyOf: ['accounting.vatDraft'] },
   { path: '/account', href: '/account/', anyOf: ['account.profile'] }
 ]);
 

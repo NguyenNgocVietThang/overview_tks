@@ -104,6 +104,26 @@ Bot riêng cho quản lý chạy cùng tiến trình Express; `telegram/managerL
 
 Thông báo gần thời gian thực cần máy chủ chạy liên tục. Khi máy chủ ngủ/tắt, quét và giao tin dừng; công việc bền vững được xử lý lại khi máy chủ hoạt động. Tắt `HR_MANAGER_TELEGRAM_ENABLED` để dừng bot quản lý, vẫn giữ migration, luồng duyệt web và bot xin nghỉ cũ.
 
+## Kế toán – Nháp VAT (`/api/vat-draft`)
+
+Port 1:1 app Streamlit `vat-draft-app` (3 chức năng: Xử lý hóa đơn, Tra cứu nguồn, Tạo QR) vào module `vatDraft/`, trang `public/vat-draft/`. Mọi route cần quyền `accounting.vatDraft` (mặc định chỉ Quản lý + admin cứng; Quản lý bật riêng cho tài khoản Kế toán ở `/account/`; Khách bị cấm). Thuật toán chạy ở máy chủ, KHÔNG đổi so với app cũ (`allocation.js`, `sourceLookup.js`, `nameMatching.js`, `normalization.js`); `pyCompat.js` mô phỏng `round()` banker's, `sum()` Neumaier, `casefold()`, `float()`, `urllib.parse.quote` của Python để kết quả khớp từng chữ số.
+
+- **Master data**: 2 Google Sheet công khai "Gộp VAT" (gid 0) và "Khớp mã" (gid 1192158065) đọc qua URL export CSV (`sheetsSource.js`, không dùng service account), parse theo chữ cái cột trong `vatDraftConfig.js` và mô phỏng cách pandas đọc ô trống/`#N/A` (chuỗi `nan` ở cột chữ). Cache 10 phút (stale tối đa 6 giờ khi Sheets lỗi). Sheet hết chia sẻ công khai → 503 `SHEET_NOT_PUBLIC`.
+- **Chứng từ** (`documentsRepository.js`): hóa đơn (trừ Đã hủy) + đơn đặt hàng chưa lên hóa đơn (không Hoàn thành/Đã hủy, chưa có hóa đơn không hủy trỏ `raw->>'orderCode'`). Dòng hàng đưa về đúng 7 trường của file "Danh sách chi tiết hóa đơn" KiotViet: Mã hàng, Tên hàng, Số lượng, Giá bán (= `price - discount`, tính bằng NUMERIC), Ghi chú hàng hóa (`invoice_details.raw->>'note'`), Mã hóa đơn, Thành tiền (`subTotal` với HD; `(price - discount) × quantity` với DH) + **Ghi chú tổng** (`raw->>'description'` của chứng từ).
+- **Tài khoản VietQR** cấu hình trong `vatDraft/vatDraftConfig.js` (17 tài khoản, map nguồn → tài khoản, map đơn vị bán → tài khoản); ảnh QR qua `img.vietqr.io` (Quick Link, không API key).
+
+| Method | Path | Ghi chú |
+|---|---|---|
+| GET | `/api/vat-draft/meta` | Trạng thái master data (số dòng, lúc tải, stale, lỗi), mốc đồng bộ KiotViet hóa đơn/đơn hàng, danh sách tài khoản QR |
+| POST | `/api/vat-draft/master-data/refresh` | Ép tải lại 2 sheet |
+| GET | `/api/vat-draft/documents?kind=all|invoice|order&from&to&q&page&pageSize` | Danh sách HD/DH theo cookie cơ sở, lọc ngày giờ VN, tìm khách/mã không dấu, tối đa 100/trang |
+| POST | `/api/vat-draft/documents/resolve` `{ text }` | Dán mã HD/DH (tối đa 300) → `found` (kèm `warning`: đã hủy / đơn đã xuất hóa đơn), `notFound`, `ambiguous` (mã có ở cả HN lẫn SG), `invalid` |
+| POST | `/api/vat-draft/allocate` | `{ source: 'documents', documents: [{kind,branch,code}] }` (≤ 200 chứng từ / 5.000 dòng) hoặc `{ source: 'paste', text }` → `columns`, `rows[{values, reason}]`, `metrics`, `qr` (nội dung CK = mã chứng từ đã chọn, số tiền mặc định theo nguồn / gộp) |
+| POST | `/api/vat-draft/lookup` | Cùng đầu vào → mọi nguồn của Mã VAT + bảng "Các dòng cần kiểm tra" |
+| POST | `/api/vat-draft/export` `{ view, columns, rows }` | xlsx (ExcelJS) cho `allocation`/`lookup`/`lookupIssues`; cột theo danh sách cho phép, chặn công thức, ≤ 10.000 dòng |
+| POST | `/api/vat-draft/qr/url` | `{ accountKey }` hoặc `{ manual: { bankId, accountNo, accountName } }` + `amount`, `addInfo` → URL ảnh QR |
+| POST | `/api/vat-draft/qr/parse-text` `{ text }` | Text hóa đơn PDF (trình duyệt trích bằng pdf.js) → đơn vị bán, tổng thanh toán, ký hiệu, tài khoản gợi ý |
+
 ## Tài khoản, đăng ký và ID Telegram
 
 - **Tự đăng ký bị khóa từ 2026-10-03** (`ALLOW_SELF_REGISTRATION`, mặc định tắt): `POST /api/auth/register` trả 403 `REGISTRATION_DISABLED` (luồng đăng ký nhân sự bằng OTP `/register/channels`, `/register/send-otp`, `/register/verify` đã gỡ 2026-10-05); đăng nhập Google chỉ liên kết/đăng nhập tài khoản **đã có** (`linkVerifiedGoogleIdentity` với `allowCreate=false`) và không tạo Khách mới. Admin cứng (`HARDCODED_ADMINS`) luôn đăng ký/đăng nhập được. `GET /api/auth/google-config` trả `{ clientId, registrationOpen }` để trang login/register ẩn link và khóa form. Tài khoản mới do Quản lý tạo ở `/account/#users` (`POST /api/admin/users`).
@@ -111,7 +131,7 @@ Thông báo gần thời gian thực cần máy chủ chạy liên tục. Khi m�
 - **Email/SĐT đăng nhập** (từ 2026-10-05): `POST /api/auth/profile` chỉ đổi họ tên (+ ID Telegram nếu là Quản lý), không đổi email — gửi email khác email hiện tại thì tài khoản nhân sự (`hrManaged`) nhận 403 `EMAIL_CHANGE_LOCKED`, tài khoản thường nhận 409 `EMAIL_CHANGE_REQUIRES_OTP`. Email tài khoản nhân sự chỉ Quản lý đổi qua `PUT /api/admin/users/:id` (đồng bộ `hr_employees`). Tài khoản thường (Khách, nội bộ không gắn nhân sự) đổi email bằng OTP gửi tới email mới: `POST /api/auth/profile/contact-change` `{ field: 'email', value }` → `POST /api/auth/profile/contact-change/verify` `{ challengeId, otp }`; thành công đặt `verifiedEmail = true`, chỉ ghi `app_users`; giới hạn: 5 lần gửi mã/giờ, 10 lần nhập sai/giờ (tính qua mọi lần xin mã), 1 lần gửi đồng thời, và 20 yêu cầu/người dùng + 60/IP mỗi 10 phút cho cả 2 route — vượt thì 429 (`OTP_SEND_LIMIT`, `OTP_TOO_MANY_ATTEMPTS`, `OTP_IN_PROGRESS`, `RATE_LIMITED`, kèm `waitSeconds`); email mới khớp nhân sự đã có tài khoản khác, hoặc xung đột với SĐT hiện có → 409 không ghi; danh bạ nhân sự lỗi → 503. `POST /api/auth/recovery` chỉ đổi email khôi phục; body có `soDienThoai` → 400 `PHONE_CHANGE_NOT_ALLOWED` (SĐT chỉ Quản lý đổi ở trang quản trị). Tài khoản đã gắn một dòng nhân sự (`hr_employee_id`) không tự gắn sang dòng khác khi email/SĐT đổi — resolver giữ ràng buộc cũ và ghi log cảnh báo. Giao diện `/account/#profile` và hộp hồ sơ chung (`shared-nav.js`) hiển thị email chỉ đọc kèm gợi ý "liên hệ Quản lý" (TK nhân sự) hoặc "Đổi email" mở hộp OTP 2 bước (TK thường).
 - **Trang quản trị người dùng** (`POST`/`PUT /api/admin/users`, từ 2026-10-05): không ai ngoài Quản lý cấp cao được đặt email/username/SĐT trùng định danh admin cứng (403 `PROTECTED_IDENTITY`); không tự đổi email/SĐT của chính mình qua trang này (403 `SELF_CONTACT_CHANGE`, trừ cấp cao); người không phải Quản lý không được tạo/sửa/nâng tài khoản mang bất kỳ định danh nào (email, SĐT, username) trùng nhân sự có vai trò cao hơn mức họ được cấp (403 `HR_ROLE_ESCALATION`; danh bạ lỗi → 503). Đổi email/SĐT tài khoản không gắn nhân sự đặt lại `verifiedEmail`/`verifiedPhone = false`; đổi liên hệ tài khoản nhân sự chỉ ghi sau khi mọi kiểm tra khác đã qua. Quản lý thường không đổi trạng thái (mọi giá trị, kể cả "Chờ duyệt") hay cơ sở của Quản lý khác.
 - **Đăng nhập Google liên kết nhân sự**: chỉ tự liên kết vào tài khoản chưa gắn khi tài khoản đó khớp **theo email** với email Google; khớp chỉ qua SĐT/username, hoặc tài khoản đã gắn dòng nhân sự khác → 409 `HR_IDENTITY_CONFLICT`, không ghi gì. Quản lý tạo sẵn tài khoản cho nhân sự phải dùng đúng email của họ.
-- **Phân quyền** nằm ở `auth/featureRegistry.js` (quyền mặc định theo vai trò + ghi đè riêng từng tài khoản trong `app_users.feature_permissions`, và `requires` cho quyền phụ thuộc). Nhóm: Báo cáo tổng hợp (`reports.*`), Quản lý đơn hàng (`shipment.*`), Vị trí hàng (`stockLocations.view`), Quản lý nhân sự (`hr.*`), Sổ quỹ (`cashbook.view`, `cashbook.manage`), Quản lý tài khoản (`account.*`), Hệ thống (`system.syncStatus`). Sổ quỹ đặt ngay sau Nhân sự; mặc định chỉ Quản lý có quyền, chốt số dư cần quyền xem. Sidebar có liên kết cấp 1 `/cashbook/` ngay dưới Quản lý nhân sự, hiện theo quyền xem và không phụ thuộc cơ sở. `GET /api/auth/me` trả `permissions`, `pageFeatures`, `isSeniorAdmin`; `auth/pageGuard.js` chặn trang theo quyền, bao gồm `/cashbook`, `/cashbook/` và `/cashbook/index.html` trước static.
+- **Phân quyền** nằm ở `auth/featureRegistry.js` (quyền mặc định theo vai trò + ghi đè riêng từng tài khoản trong `app_users.feature_permissions`, và `requires` cho quyền phụ thuộc). Nhóm: Báo cáo tổng hợp (`reports.*`), Quản lý đơn hàng (`shipment.*`), Vị trí hàng (`stockLocations.view`), Quản lý nhân sự (`hr.*`), Sổ quỹ (`cashbook.view`, `cashbook.manage`), Kế toán (`accounting.vatDraft` — trang `/vat-draft/`, mặc định chỉ Quản lý, Khách bị cấm), Quản lý tài khoản (`account.*`), Hệ thống (`system.syncStatus`). Sổ quỹ đặt ngay sau Nhân sự; mặc định chỉ Quản lý có quyền, chốt số dư cần quyền xem. Sidebar có liên kết cấp 1 `/cashbook/` ngay dưới Quản lý nhân sự, hiện theo quyền xem và không phụ thuộc cơ sở. `GET /api/auth/me` trả `permissions`, `pageFeatures`, `isSeniorAdmin`; `auth/pageGuard.js` chặn trang theo quyền, bao gồm `/cashbook`, `/cashbook/` và `/cashbook/index.html` trước static.
 - Đăng nhập: JWT cookie `tks_auth`; sai mật khẩu 5 lần khóa 5 phút; quên mật khẩu qua OTP 6 số hiệu lực 5 phút, tối đa 5 lần nhập, giãn cách gửi lại 60 giây, giới hạn 8 yêu cầu/10 phút theo định danh và 20/10 phút theo IP (`/api/auth/forgot-password/*`).
 
 ## Lệnh
@@ -226,10 +246,13 @@ Hai file Kiot HN/SG **không còn** được server truy cập.
 | `0055` | `product_report_state` (computed_at / version / last_full_at) cho làm mới tăng dần báo cáo hàng hóa + index `customers(branch, synced_at)` (và `IF NOT EXISTS` hai index synced_at của 0054); đã áp DB dùng chung 16/10/2026 |
 | `0056` | `marketing_pancake_independent_*` — bảng dữ liệu độc lập Pancake cho báo cáo Marketing; đã áp DB dùng chung 16/10/2026 |
 | `0057` | `product_report` thêm 4 cột nullable `available_hanoi`, `available_saigon` (Có bán từng cơ sở = tồn thực − phiếu tạm của cơ sở), `description_hanoi`, `description_saigon` (Mô tả sản phẩm KiotViet từng cơ sở); đã áp DB dùng chung 16/10/2026 |
+| `0058` | index `orders(branch, order_date)` cho danh sách "đơn đặt hàng chưa xuất hóa đơn" của trang Kế toán – Nháp VAT (không đổi dữ liệu; trang vẫn chạy khi chưa áp, chỉ chậm hơn); chưa áp DB |
 
 Bot **xin nghỉ của nhân viên** chạy ngoài repo và đọc/ghi 3 bảng nền nghỉ phép trực tiếp; bot **quản lý** trong `telegram/` dùng chung đơn và sở hữu các bảng bổ sung ở migration `0029`. Hợp đồng dữ liệu ở `db/SCHEMA.md`.
 
 ## Cập nhật gần nhất
+
+2026-10-17 — **Kế toán – Nháp VAT** (`vatDraft/`, `public/vat-draft/`, migration `0058`): xem mục [Kế toán – Nháp VAT](#kế-toán--nháp-vat-apivat-draft). Đối chiếu với app Python: snapshot Sheets thật (8.432 dòng tồn / 2.998 dòng khớp mã), file mẫu KiotViet và 3.000 dòng ngẫu nhiên đều khớp 100%; dòng đọc từ DB của HD028344–46 khớp file KiotViet.
 
 2026-10-16 — **Chi tiết đơn: cân đo, 3 cước và CONT (không migration)**: bảng hàng hóa có 9 cột, tồn theo cơ sở của đơn; bảng cân đo riêng theo SL đặt và 3 ô cước Đức Mạnh/Việt Linh/J&T. J&T cộng max(cước thể tích, cước cân nặng) theo từng mã, bỏ số thùng và mức tối thiểu 40k. Thiếu cân đo giữ phần đã có, cảnh báo từng dòng và đánh dấu cước tạm tính. `GET /api/shipment/lifecycle/containers?code=` dùng quyền lifecycle, trả trường CONT cơ bản qua cùng repository với báo cáo hàng hóa; cộng SL theo CONT nguồn. Cache CONT máy chủ LRU 500 mã/5 phút, gộp request đồng thời và vô hiệu hóa sau đồng bộ thành công; trình duyệt cache 60 giây, xóa khi đổi tài khoản/quyền/cơ sở. Cache hit không đọc DB; cache chỉ dùng chung trong cùng tiến trình máy chủ. CÂN ĐO tiếp tục dùng cache Sheets 30 giây.
 
@@ -337,7 +360,7 @@ API: `PATCH /api/debt-management/{sale-feedback,manager-feedback,status,schedule
 
 Thứ tự deploy: `npm run db:migrate` (0047; 0051 cho bảng phạt sale — sau deploy chạy tay `node debtSchedule/debtPenaltyLedger.js` để backfill các chu kỳ cũ) → import lịch TT HN + SG → deploy code → chạy tay `debtCycleSnapshot.js` sau 15:00 (hoặc chờ 15:00).
 
-Cập nhật gần nhất: 16/10/2026.
+Cập nhật gần nhất: 17/10/2026.
 
 ## Hàng dự kiến — vận hành và API (15/10/2026)
 

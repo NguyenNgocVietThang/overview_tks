@@ -1,6 +1,6 @@
 # Supabase schema cho đồng bộ KiotViet
 
-Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0044`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
+Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0058`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
 
 ## Quy ước chung
 
@@ -487,3 +487,7 @@ Migration thu hồi ALL trên cả hai bảng khỏi `reporting_readonly` nếu 
 
 ## 0056 — Pancake độc lập (đã áp Supabase 16/10/2026)
 marketing_pancake_independent_page_state lưu trạng thái/coverage sáu page; marketing_pancake_independent_facts định danh page + message và ngày tạo bất biến; marketing_pancake_independent_observations lưu nhật ký assignment chỉ từ Pancake. Lịch sử marketing_history_rows, baseline và observations cũ được giữ riêng. Các bảng mới chứa dữ liệu cá nhân, không cấp reporting_readonly.
+
+## Index ngày đặt hàng cho Kế toán – Nháp VAT — migration 0058 (17/10/2026, chưa áp DB)
+
+`0058_orders_order_date_index.sql`: `CREATE INDEX IF NOT EXISTS idx_orders_order_date ON orders (branch, order_date)`. Chỉ thêm index, không đổi dữ liệu. Phục vụ danh sách "đơn đặt hàng chưa xuất hóa đơn" của trang `/vat-draft/` (`server/vatDraft/documentsRepository.js`) — lọc `orders.order_date` theo khoảng ngày kế toán chọn; trước index phải quét cả bảng `orders` (~65.000 dòng, cột `raw` rộng, ~650 ms/lần khi lọc 90 ngày, EXPLAIN ANALYZE 16/10/2026). Trang đọc ghi chú tổng ở `invoices.raw->>'description'` / `orders.raw->>'description'` và ghi chú dòng ở `invoice_details.raw->>'note'` / `order_details.raw->>'note'`; đơn đã có hóa đơn so khớp qua `invoices.raw->>'orderCode'`. Áp trước hay sau khi deploy đều được.
