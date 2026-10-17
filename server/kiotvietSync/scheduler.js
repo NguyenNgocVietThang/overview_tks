@@ -18,6 +18,7 @@ const { startBusinessMonthlySchedule } = require('./businessMonthlyRefresh');
 const { startDebtCycleSnapshotSchedule } = require('../debtSchedule/debtCycleSnapshot');
 const { dashboardRollupEvents } = require('./dashboardRollupEvents');
 const debtScheduleRepository = require('../debtSchedule/debtScheduleRepository');
+const { requestDebtAgingRefresh } = require('../debtSchedule/debtAgingRefresh');
 
 // Activity changes affect existing snapshots and monthly scoring immediately.
 // Subscribe once per module, rather than once per scheduler/timer instance.
@@ -25,6 +26,10 @@ dashboardRollupEvents.on('customersChanged', () => {
   debtScheduleRepository.getDebtScheduleRepository().bumpVersion();
   require('../debtSchedule/debtRewardService').getDebtRewardService().clearScores();
   dashboardRollupEvents.emit('updated', { at: Date.now() });
+  // No hien tai vua doi -> tinh lai bang Tuoi no (migration 0059); doi thi bao client tai lai.
+  requestDebtAgingRefresh().then(result => {
+    if (result && result.changed) dashboardRollupEvents.emit('updated', { at: Date.now() });
+  });
 });
 
 // orderSuppliers ("Dat hang nhap") o nhom fast: doi soat toan bo ~350 phieu chi vai
@@ -71,6 +76,7 @@ function createPollingScheduler({
   startCustomerInvoiceLinesSchedule: startCustomerInvoiceLines = startCustomerInvoiceLinesSchedule,
   refreshCustomerInvoiceLinesIncremental: refreshInvoiceLinesIncremental = refreshCustomerInvoiceLinesIncremental,
   refreshProductReportIncremental: refreshProductReportIncrementally = refreshProductReportIncremental,
+  refreshDebtAging = requestDebtAgingRefresh,
   startInventoryValueSnapshotSchedule: startInventoryValueSnapshot = startInventoryValueSnapshotSchedule,
   startBusinessMonthlySchedule: startBusinessMonthly = startBusinessMonthlySchedule,
   startDebtCycleSnapshotSchedule: startDebtCycleSnapshot = startDebtCycleSnapshotSchedule,
@@ -131,6 +137,9 @@ function createPollingScheduler({
     } catch (error) {
       logger.error('[KiotViet Sync] Lỗi làm mới tăng dần doanh thu theo khách:', error.message);
     }
+    // Bang Tuoi no theo hoa don (migration 0059) tinh lai TRUOC rollup + SSE de client tai lai
+    // thay ngay hoa don vua ve; ghi khac biet, nuot loi (khong lam hong luot rollup).
+    await refreshDebtAging(getPoolFn(), { log: logger.log ? logger.log.bind(logger) : logger });
     await refreshHotRollup(getPoolFn(), {
       windowDays: HOT_WINDOW_DAYS,
       includeFirstPurchase: false,

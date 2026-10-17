@@ -69,6 +69,7 @@ async function setup(t, { hash = '#xu-ly', responses = api(), vaiTro = 'Quản l
       blob: async () => new window.Blob(['x'])
     };
   };
+  window.eval(fs.readFileSync(path.join(publicDir, 'vat-draft/cell-select.js'), 'utf8'));
   window.eval(code);
   await window.TKSVatDraft.init();
   await tick();
@@ -279,4 +280,35 @@ test('bang luon vua khung: do rong cot theo ti le %, bang 100%', async t => {
   assert.ok(widths.length && widths.every(w => w.endsWith('%')), widths.join());
   const sum = widths.reduce((s, w) => s + parseFloat(w), 0);
   assert.ok(Math.abs(sum - 100) < 0.01, String(sum));
+});
+
+test('chon o kieu Google Sheet: keo chuot chon vung, Shift+click noi, Ctrl+C chep TSV khong kem tieu de', async t => {
+  const { doc, window } = await setup(t);
+  doc.querySelector('#vdDocsRows tr[data-key] input').click();
+  doc.getElementById('vdRunDocs').click();
+  await tick(); await tick();
+  const cell = (r, c) => doc.querySelectorAll('#vdAllocRows tr')[r].cells[c];
+  const fire = (el, type, init = {}) => {
+    const event = new window.MouseEvent(type, { bubbles: true, cancelable: true, button: 0, ...init });
+    el.dispatchEvent(event);
+    return event;
+  };
+  const down = fire(cell(0, 1), 'mousedown');
+  assert.equal(down.defaultPrevented, true);
+  fire(cell(1, 2), 'mouseover');
+  fire(doc, 'mouseup');
+  assert.equal(doc.querySelectorAll('#vdAllocRows td.vd-cell-sel').length, 4);
+  assert.ok(cell(0, 1).classList.contains('vd-cell-anchor'));
+  fire(cell(2, 2), 'mousedown', { shiftKey: true });
+  fire(doc, 'mouseup');
+  assert.equal(doc.querySelectorAll('#vdAllocRows td.vd-cell-sel').length, 6);
+  let copied = null;
+  const copy = new window.Event('copy', { bubbles: true, cancelable: true });
+  copy.clipboardData = { setData: (type, text) => { copied = { type, text }; } };
+  doc.dispatchEvent(copy);
+  assert.equal(copy.defaultPrevented, true);
+  assert.deepEqual(copied, { type: 'text/plain', text: 'SP01\tTên SP01\nSP01\tTên SP01\nKHONGCO\tTên KHONGCO' });
+  doc.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
+  assert.equal(doc.querySelectorAll('td.vd-cell-sel').length, 0);
+  assert.equal(doc.getElementById('vdDocsTable').dataset.cellSelect, undefined);
 });

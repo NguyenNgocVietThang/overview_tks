@@ -43,12 +43,12 @@ function createDashboard() {
   return dom;
 }
 
-test('registry bao phủ đủ 11 bảng trong Báo cáo tổng hợp (Hàng hóa chỉ còn Báo cáo hàng hóa + Tăng trưởng mã hàng; không còn Đặt hàng / Trả hàng / Khách hàng cũ)', () => {
+test('registry bao phủ đủ 12 bảng trong Báo cáo tổng hợp (Hàng hóa chỉ còn Báo cáo hàng hóa + Tăng trưởng mã hàng; không còn Đặt hàng / Trả hàng / Khách hàng cũ)', () => {
   const dom = createDashboard();
   const expected = [
     'cpDetail', 'productReport', 'recentStockout', 'stockout90d', 'stockout30d',
     'endOfDay',
-    'debtManagement', 'debtPenalty',
+    'debtManagement', 'debtPenalty', 'debtAging',
     'businessSales', 'businessCustomers', 'businessProducts'
   ];
   const actual = Object.keys(dom.window.TABLE_EXPLORER_CONFIGS);
