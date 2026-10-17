@@ -3690,12 +3690,14 @@
                 </div>
                 <div class="scroll-list" style="max-height:600px;">
                   <table class="fixed-table" data-table-key="dashboard-table-2">
-                    <!-- 19 cột theo file HÀNG HÓA.xlsx (A→R) + cột Khách lớn nhất. data-hint = chú giải khi rê chuột
+                    <!-- 19 cột theo file HÀNG HÓA.xlsx (A→R) + cột Khách lớn nhất + 2 cột Đơn giá HN/SG sau Tên sản phẩm (mặc định ẩn, chỉ Quản lý/Trợ lý). data-hint = chú giải khi rê chuột
                          (không dùng title: nút sắp xếp thay nội dung th và che mất title của th). Không dùng ký tự dấu lớn hơn trong data-hint. -->
                     <thead>
                       <tr>
                         <th style="width:120px" data-column-key="ma-sp">Mã sản phẩm</th>
                         <th style="width:260px" data-column-key="ten-sp">Tên sản phẩm</th>
+                        <th style="width:110px" data-column-key="don-gia-hn" data-price-column data-hint="Đơn giá bán chung của mã hàng trên KiotViet Hà Nội (chỉ Quản lý và Trợ lý thấy).">Đơn giá HN</th>
+                        <th style="width:110px" data-column-key="don-gia-sg" data-price-column data-hint="Đơn giá bán chung của mã hàng trên KiotViet Sài Gòn (chỉ Quản lý và Trợ lý thấy).">Đơn giá SG</th>
                         <th style="width:100px" data-column-key="chua-boc" data-hint="Hàng dự kiến chưa bốc (CONT trạng thái 1 và 2), toàn công ty. Bấm số để xem chi tiết hàng dự kiến.">Chưa bốc</th>
                         <th style="width:100px" data-column-key="da-boc" data-hint="Hàng dự kiến đã bốc (CONT trạng thái 3), toàn công ty. Bấm số để xem chi tiết hàng dự kiến.">Đã bốc</th>
                         <th style="width:105px" data-column-key="ton-thuc-hn">Tồn thực HN</th>
@@ -3717,7 +3719,7 @@
                     </thead>
                     <tbody id="productReportRows">
                       <tr>
-                        <td colspan="19" class="table-note">Đang tải...</td>
+                        <td colspan="21" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -7189,7 +7191,7 @@
       return '<td>' + (text ? escapeHtml(text) : '<span class="muted">—</span>') + '</td>';
     }
 
-    // 19 ô theo đúng thứ tự thead (file HÀNG HÓA.xlsx A→R + Khách lớn nhất); hàm thuần vì sắp xếp toàn bộ dữ liệu chạy lại
+    // 21 ô theo đúng thứ tự thead (file HÀNG HÓA.xlsx A→R + Khách lớn nhất + Đơn giá HN/SG sau Tên sản phẩm); hàm thuần vì sắp xếp toàn bộ dữ liệu chạy lại
     // hàm này cho mọi dòng rồi đọc ô theo chỉ số cột (sortItemsByRenderedColumn).
     function productReportRowHtml(p) {
       const code = escapeHtml(p.code);
@@ -7197,6 +7199,7 @@
       return '<tr class="doc-row" tabindex="0" title="Bấm để xem hàng dự kiến và doanh số theo khách" data-table-item-id="' + code + '">' +
         '<td class="mono muted">' + code + '</td>' +
         '<td class="name-cell">' + escapeHtml(p.name) + '</td>' +
+        productReportNullableCell(p.priceHanoi, fmtNumber) + productReportNullableCell(p.priceSaigon, fmtNumber) +
         productReportContainerCell(p.unloadedQty, p, 'Xem hàng dự kiến của') + productReportContainerCell(p.loadedQty, p, 'Xem hàng dự kiến của') +
         '<td class="mono" data-sort-value="' + p.stockHanoi + '">' + fmtNumber(p.stockHanoi) + '</td>' +
         productReportNullableCell(p.availableHanoi, fmtNumber) +
@@ -7236,7 +7239,7 @@
         },
         rows,
         productReportRowHtml,
-        19,
+        21,
         state.productReport.loaded ? 'Chưa có dữ liệu báo cáo hàng hóa.' : 'Đang tải...'
       );
     }
@@ -7262,7 +7265,7 @@
           if (!state.productReport.loaded) {
             state.productReport.loaded = true;
             document.getElementById('productReportRows').innerHTML =
-              '<tr><td colspan="19" class="table-note">Không tải được báo cáo hàng hóa.</td></tr>';
+              '<tr><td colspan="21" class="table-note">Không tải được báo cáo hàng hóa.</td></tr>';
           }
         }).finally(function () { state.productReport.loading = false; });
     }
@@ -7272,13 +7275,13 @@
     // dữ liệu vẫn có đủ trong API và ai cũng bật/tắt lại được bằng nút "Cột hiển thị" (lựa chọn chỉ giữ trong lần xem).
     const PRODUCT_REPORT_SALE_ROLE = 'Nhân viên sale';
     const PRODUCT_REPORT_HIDDEN_BY_PROFILE = {
-      sale: ['tong-ton-thuc', 'tong-co-ban', 'sl-ban-30-ngay', 'ngay-can-dat', 'sl-khach-ban', 'khach-lon-nhat', 'ti-trong-khach-lon-nhat'],
-      manager: ['ton-thuc-hn', 'co-ban-hn', 'dieu-chuyen-sg', 'ton-thuc-sg', 'co-ban-sg', 'mo-ta-hn', 'mo-ta-sg', 'khach-lon-nhat']
+      sale: ['don-gia-hn', 'don-gia-sg', 'tong-ton-thuc', 'tong-co-ban', 'sl-ban-30-ngay', 'ngay-can-dat', 'sl-khach-ban', 'khach-lon-nhat', 'ti-trong-khach-lon-nhat'],
+      manager: ['don-gia-hn', 'don-gia-sg', 'ton-thuc-hn', 'co-ban-hn', 'dieu-chuyen-sg', 'ton-thuc-sg', 'co-ban-sg', 'mo-ta-hn', 'mo-ta-sg', 'khach-lon-nhat']
     };
     // Độ rộng theo ảnh mẫu, cùng thứ tự với thead; khai báo rõ để không lấy độ rộng đã giãn từ phiên chưa biết vai trò.
     const PRODUCT_REPORT_WIDTHS_BY_PROFILE = {
-      sale: [120, 260, 100, 100, 105, 100, 125, 105, 100, 110, 110, 130, 105, 100, 95, 135, 115, 200, 135],
-      manager: [120, 225, 100, 100, 105, 100, 125, 105, 100, 110, 110, 130, 105, 100, 95, 112, 115, 200, 135]
+      sale: [120, 260, 110, 110, 100, 100, 105, 100, 125, 105, 100, 110, 110, 130, 105, 100, 95, 135, 115, 200, 135],
+      manager: [120, 225, 110, 110, 100, 100, 105, 100, 125, 105, 100, 110, 110, 130, 105, 100, 95, 112, 115, 200, 135]
     };
     let productReportColumnProfile = '';
 
@@ -7292,6 +7295,13 @@
       if (profile === productReportColumnProfile) return;
       const table = document.getElementById('productReportRows').closest('table');
       const hidden = PRODUCT_REPORT_HIDDEN_BY_PROFILE[profile];
+      // Cột Đơn giá chỉ dành cho tài khoản có quyền reports.products.price: cột bị gỡ khỏi bảng và khỏi hộp "Cột hiển thị"
+      // (API cũng không trả giá cho tài khoản khác). Có quyền thì cột vẫn ẩn mặc định, bật lại bằng "Cột hiển thị".
+      const priceAllowed = typeof TKSNav !== 'undefined' && typeof TKSNav.can === 'function' && TKSNav.can('reports.products.price');
+      table.querySelectorAll('thead th[data-price-column]').forEach(function (cell) {
+        cell.hidden = !priceAllowed;
+        if (priceAllowed) delete cell.dataset.columnUnlisted; else cell.dataset.columnUnlisted = 'true';
+      });
       productReportColumnProfile = profile;
       window.TKSTables.enhance(table, {
         key: table.dataset.tableKey + ':' + profile,

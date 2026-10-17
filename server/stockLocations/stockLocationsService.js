@@ -1,7 +1,6 @@
 'use strict';
 
-const CONFIG = require('../config');
-const { createReadOnlyClient } = require('../sheets/sheetsClient');
+const { getPool } = require('../db/pool');
 
 const HEADERS = Object.freeze({
   HN: { code: 'MÃ SẢN PHẨM', name: 'TÊN SẢN PHẨM', totalQuantity: 'TỔNG SL', notes: 'MÔ TẢ', location: 'KHU', arrivalDate: 'NGÀY VỀ' },
@@ -38,42 +37,54 @@ function parseLocationRows(values, branch) {
   });
 }
 
-function createStockLocationsService({
-  getSpreadsheetId = () => CONFIG.STOCK_LOCATIONS_SPREADSHEET_ID,
-  client = createReadOnlyClient(getSpreadsheetId, 'Vị trí hàng'),
-  sheetNames = { HN: CONFIG.STOCK_LOCATIONS_SHEET_HN, SG: CONFIG.STOCK_LOCATIONS_SHEET_SG }
-} = {}) {
-  const inFlight = new Map();
+// Du lieu doc tu bang stock_location_lines do server/sheetSnapshots/sync.js dong bo tu Google Sheets
+// (3 phut/lan). Web KHONG goi Google moi request. Qua 15 phut khong dong bo thanh cong => stale.
+const STALE_AFTER_MS = 15 * 60 * 1000;
 
-  function getLocations(branch) {
+function createStockLocationsService({ getDb = getPool, now = () => Date.now() } = {}) {
+  // Cache theo co so, khoa = last_success_at. Moi request chi doc 1 dong trang thai (vai tram byte);
+  // ~10K dong chi duoc keo tu DB khi lan dong bo thanh cong ke tiep thay doi moc do (giam egress DB).
+  const cache = new Map();
+
+  async function getLocations(branch) {
     if (!Object.hasOwn(HEADERS, branch)) throw sourceError('INVALID_BRANCH', 'Cơ sở không hợp lệ.');
-    const spreadsheetId = getSpreadsheetId();
-    if (!spreadsheetId) throw sourceError('STOCK_LOCATIONS_NOT_CONFIGURED', 'Vị trí hàng chưa được cấu hình nguồn dữ liệu.');
-    const key = `${spreadsheetId}:${branch}`;
-    if (inFlight.has(key)) return inFlight.get(key);
-
-    const loading = (async () => {
-      try {
-        const titles = await client.listSheetTitles();
-        const actualTitle = titles.find(title => title === sheetNames[branch]) ||
-          titles.find(title => normalizeHeader(title) === normalizeHeader(sheetNames[branch]));
-        if (!actualTitle) {
-          throw sourceError('STOCK_LOCATIONS_SHEET_MISSING', `Không tìm thấy sheet ${sheetNames[branch]}.`);
+    let sync;
+    let rows;
+    try {
+      const db = getDb();
+      sync = (await db.query('SELECT last_success_at, last_error FROM sheet_snapshot_sync WHERE source = $1',
+        ['stock_locations_' + branch.toLowerCase()])).rows[0];
+      if (sync?.last_success_at) {
+        const version = new Date(sync.last_success_at).getTime();
+        const cached = cache.get(branch);
+        if (cached && cached.version === version) rows = cached.rows;
+        else {
+          const lines = await db.query(`SELECT code, name, total_quantity, notes, location, arrival_date FROM stock_location_lines
+            WHERE branch = $1 ORDER BY source_row`, [branch]);
+          rows = lines.rows.map(row => ({
+            code: row.code, name: row.name, totalQuantity: row.total_quantity,
+            notes: row.notes, location: row.location, arrivalDate: row.arrival_date
+          }));
+          cache.set(branch, { version, rows });
         }
-        const values = await client.getValues(actualTitle, { valueRenderOption: 'FORMATTED_VALUE' });
-        return { branch, rows: parseLocationRows(values, branch) };
-      } catch (error) {
-        if (error.statusCode === 503) throw error;
-        // Không chuyển lỗi Google thô (request/auth metadata) về trình duyệt.
-        console.error('[StockLocations] Sheets read failed:', error.response?.status || error.code || 'UNKNOWN');
-        throw sourceError('STOCK_LOCATIONS_SOURCE_UNAVAILABLE', `Không đọc được dữ liệu Vị trí ${branch}. Vui lòng kiểm tra nguồn Google Sheets và quyền truy cập.`);
       }
-    })().finally(() => { inFlight.delete(key); });
-    inFlight.set(key, loading);
-    return loading;
+    } catch (error) {
+      console.error('[StockLocations] DB read failed:', error.code || 'UNKNOWN');
+      throw sourceError('STOCK_LOCATIONS_SOURCE_UNAVAILABLE', `Không đọc được dữ liệu Vị trí ${branch}.`);
+    }
+    if (!sync?.last_success_at) {
+      throw sourceError('STOCK_LOCATIONS_NOT_SYNCED', `Vị trí ${branch} chưa được đồng bộ từ Google Sheets. Vui lòng thử lại sau ít phút.`);
+    }
+    const syncedAt = new Date(sync.last_success_at);
+    return {
+      branch,
+      rows,
+      syncedAt: syncedAt.toISOString(),
+      stale: Boolean(sync.last_error) || now() - syncedAt.getTime() > STALE_AFTER_MS
+    };
   }
 
   return { getLocations };
 }
 
-module.exports = { parseLocationRows, createStockLocationsService, ...createStockLocationsService() };
+module.exports = { parseLocationRows, normalizeHeader, createStockLocationsService, ...createStockLocationsService() };

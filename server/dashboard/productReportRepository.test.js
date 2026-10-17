@@ -12,6 +12,7 @@ test('getProductReport chi giu ma dang kinh doanh o it nhat mot co so, ke ca het
   try {
     await db.exec(fs.readFileSync(path.join(__dirname, '../db/migrations/0018_product_report.sql'), 'utf8'));
     await db.exec(fs.readFileSync(path.join(__dirname, '../db/migrations/0057_product_report_branch_columns.sql'), 'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname, '../db/migrations/0063_product_report_price_columns.sql'), 'utf8'));
     await db.exec(fs.readFileSync(path.join(__dirname, '../db/migrations/0053_product_containers.sql'), 'utf8'));
     await db.exec(`
       CREATE TABLE products (branch text, code text, is_active boolean);
@@ -33,6 +34,8 @@ test('getProductReport chi giu ma dang kinh doanh o it nhat mot co so, ke ca het
     assert.equal(result.rows[0].availableSaigon, null);
     assert.equal(result.rows[0].descriptionHanoi, '');
     assert.equal(result.rows[0].descriptionSaigon, '');
+    assert.equal(result.rows[0].priceHanoi, null);
+    assert.equal(result.rows[0].priceSaigon, null);
 
     // Trang thai moi phai co hieu luc ca khi snapshot ban dem chua duoc tinh lai.
     await db.exec("UPDATE products SET is_active = false WHERE code = 'ACTIVE'");
@@ -60,11 +63,14 @@ test('mapRow chuyen doi cot Postgres (snake_case, string so) sang camelCase (num
     available_saigon: '-2',
     description_hanoi: 'T50 # 30/9 # 1T -37200',
     description_saigon: null,
+    price_hanoi: '12000',
+    price_saigon: null,
     computed_at: '2026-09-23T00:05:00.000Z'
   });
   assert.deepEqual(row, {
     code: 'SP001', name: 'San pham 1', stockHanoi: 10, stockSaigon: 5, availableToSell: 12,
     availableHanoi: 7, availableSaigon: -2, descriptionHanoi: 'T50 # 30/9 # 1T -37200', descriptionSaigon: '',
+    priceHanoi: 12000, priceSaigon: null,
     qtySold30d: 3, revenue90d: 900000, customerCount90d: 2, topCustomerRevenue90d: 500000,
     topCustomerName: 'Nguyen Van A', topCustomerShare: 0.5555, computedAt: '2026-09-23T00:05:00.000Z'
   });

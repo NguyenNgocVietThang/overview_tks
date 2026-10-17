@@ -29,6 +29,9 @@ function mapRow(row) {
     // Truong "Mo ta" cua san pham tren KiotViet (nhan vien ghi bang gia cho sale tra cuu).
     descriptionHanoi: row.description_hanoi || '',
     descriptionSaigon: row.description_saigon || '',
+    // "Don gia" tung co so (products.base_price); chi route /api/product-report moi tra cho tai khoan co quyen xem gia.
+    priceHanoi: nullableNumber(row.price_hanoi),
+    priceSaigon: nullableNumber(row.price_saigon),
     availableToSell: Number(row.available_to_sell) || 0,
     qtySold30d: Number(row.qty_sold_30d) || 0,
     revenue90d: Number(row.revenue_90d) || 0,

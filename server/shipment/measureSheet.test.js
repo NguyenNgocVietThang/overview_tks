@@ -31,35 +31,41 @@ test('parseMeasureRows: khong co hang tieu de -> loi 503', () => {
   assert.throws(() => parseMeasureRows([['a', 'b']]), { statusCode: 503, code: 'MEASURE_HEADERS_MISSING' });
 });
 
-function fakeClient(counter, values = VALUES) {
+function fakeDb({ sync = { last_success_at: '2026-10-17T03:00:00Z', last_error: null }, rows = [], fail = false } = {}) {
+  const calls = [];
   return {
-    listSheetTitles: async () => ['CÂN ĐO', 'Hoa'],
-    getValues: async () => { counter.n += 1; return values; }
+    calls,
+    query: async (sql, params) => {
+      calls.push({ sql, params });
+      if (fail) throw Object.assign(new Error('secret'), { code: 'ECONNREFUSED' });
+      if (sql.includes('FROM sheet_snapshot_sync')) return { rows: sync ? [sync] : [] };
+      return { rows: rows.filter(row => params[0].includes(row.code_key)) };
+    }
   };
 }
 
-test('lookup: tra ma co, bo ma khong co; cache TTL va gop request dang chay', async () => {
-  const counter = { n: 0 };
-  let t = 0;
-  const sheet = createMeasureSheet({ getSpreadsheetId: () => 'x', client: fakeClient(counter), now: () => t, ttlMs: 1000 });
-  const [a, b] = await Promise.all([sheet.lookup(['10GFED', 'none']), sheet.lookup(['abc'])]);
-  assert.ok(a.has('10gfed') && !a.has('none') && b.has('abc'));
-  assert.equal(counter.n, 1);
-  t = 500; await sheet.lookup(['abc']);
-  assert.equal(counter.n, 1);
-  t = 2000; await sheet.lookup(['abc']);
-  assert.equal(counter.n, 2);
+const ROW = { code_key: '10gfed', per_carton: '280', m3_per_unit: '0.00121500', kg_per_unit: null };
+
+test('lookup: đọc DB, chuẩn hóa mã, bỏ mã không có, số numeric -> Number, thiếu -> missing', async () => {
+  const db = fakeDb({ rows: [ROW, { code_key: 'abc', per_carton: '100', m3_per_unit: '0.5', kg_per_unit: '0.1' }] });
+  const sheet = createMeasureSheet({ getDb: () => db, now: () => Date.parse('2026-10-17T03:01:00Z') });
+  const result = await sheet.lookup(['10GFED', ' 10gfed ', 'none', '']);
+  assert.deepEqual([...result.keys()], ['10gfed']);
+  assert.deepEqual(result.get('10gfed'), { perCarton: 280, m3PerUnit: 0.001215, kgPerUnit: null, missingVolume: false, missingWeight: true });
+  assert.deepEqual(db.calls[1].params, [['10gfed', 'none']]);
 });
 
-test('lookup: loi Google -> 503 gon, khong lo chi tiet', async () => {
-  const client = { listSheetTitles: async () => { const e = new Error('secret'); e.response = { status: 403 }; throw e; }, getValues: async () => [] };
-  const sheet = createMeasureSheet({ getSpreadsheetId: () => 'x', client });
-  await assert.rejects(sheet.lookup(['a']), err => err.statusCode === 503 && err.code === 'MEASURE_SOURCE_UNAVAILABLE' && !/secret/.test(err.message));
+test('lookup: danh sách mã rỗng không truy vấn bảng measures', async () => {
+  const db = fakeDb();
+  assert.equal((await createMeasureSheet({ getDb: () => db }).lookup([])).size, 0);
+  assert.equal(db.calls.length, 1);
 });
 
-test('lookup: chua cau hinh id -> 503 MEASURE_NOT_CONFIGURED', async () => {
-  const sheet = createMeasureSheet({ getSpreadsheetId: () => null, client: fakeClient({ n: 0 }) });
-  await assert.rejects(sheet.lookup(['a']), { statusCode: 503, code: 'MEASURE_NOT_CONFIGURED' });
+test('lookup: chưa đồng bộ -> 503 MEASURE_NOT_SYNCED; DB lỗi -> 503 gọn, không lộ chi tiết', async () => {
+  await assert.rejects(createMeasureSheet({ getDb: () => fakeDb({ sync: null }) }).lookup(['a']),
+    { statusCode: 503, code: 'MEASURE_NOT_SYNCED' });
+  await assert.rejects(createMeasureSheet({ getDb: () => fakeDb({ fail: true }) }).lookup(['a']),
+    err => err.statusCode === 503 && err.code === 'MEASURE_SOURCE_UNAVAILABLE' && !/secret/.test(err.message));
 });
 
 test('parseMeasureRows preserves partial measures and marks absent conversion', () => {

@@ -1,6 +1,6 @@
 # Supabase schema cho đồng bộ KiotViet
 
-Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0059`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
+Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0064`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
 
 ## Quy ước chung
 
@@ -480,6 +480,10 @@ Job chốt xóa run/feedback/history cũ hơn 7 ngày. SELECT của `reporting_r
 
 `0057_product_report_branch_columns.sql` thêm 4 cột **nullable, không DEFAULT** vào `product_report`: `available_hanoi NUMERIC`, `available_saigon NUMERIC` (Có bán từng cơ sở = `stock_hanoi`/`stock_saigon` trừ số lượng đang giữ trong đơn đặt hàng **Phiếu tạm của chính cơ sở đó**; không kẹp về 0; cộng hai cột luôn bằng `available_to_sell` đã lưu, cột này giữ nguyên công thức và điều chuyển SG vẫn cộng lúc đọc) và `description_hanoi TEXT`, `description_saigon TEXT` (trường *Mô tả* của sản phẩm KiotViet, `products.raw->>'description'` của từng cơ sở, cắt khoảng trắng/tab/xuống dòng hai đầu, rỗng → NULL). NULL nghĩa là dòng chưa được tính lại sau migration: API trả `null` (giao diện hiện "—"), không giả thành 0. `productReportRefresh.js` (`REFRESH_SQL`: `pending_orders` tách `qty_hanoi`/`qty_saigon` bằng `FILTER`, hai CTE sản phẩm lấy `description`) và `productReportIncremental.js` (`PRODUCT_COLUMNS`) cùng ghi 4 cột; ở chế độ chốt đêm, `refreshProductReportIfDue` tính lại ngay khi còn dòng `available_hanoi IS NULL` (thiếu cột `42703` thì giữ hành vi cũ). **Thứ tự triển khai: áp 0057 trước khi chạy mã mới** (mã mới INSERT các cột này; chưa áp thì lượt tính lại lỗi `42703` và rollback, bảng cũ vẫn được đọc bình thường). API `GET /api/product-report` cộng thêm `totalStock`, `daysToOrder` khi đọc (không lưu).
 
+## Đơn giá theo cơ sở của Báo cáo hàng hóa — migration 0063 (17/10/2026, chưa áp DB)
+
+`0063_product_report_price_columns.sql` thêm 2 cột **nullable, không DEFAULT** vào `product_report`: `price_hanoi NUMERIC`, `price_saigon NUMERIC` (giá bán chung `products.base_price` của mã hàng ở từng cơ sở). `price_hanoi` luôn có số sau khi tính lại (danh sách mã lấy theo Hà Nội, thiếu giá coi như 0); `price_saigon` NULL khi Sài Gòn không có mã. NULL ở cả hai cột = chưa tính lại sau migration (giao diện hiện "—"). Job đêm (`productReportRefresh`) và lượt tăng dần (`productReportIncremental`) cùng ghi; job đêm tự tính lại khi còn dòng `price_hanoi IS NULL`. Chỉ `GET /api/product-report` trả `priceHanoi`/`priceSaigon` và chỉ khi tài khoản có quyền `reports.products.price`; không có trong file xuất.
+
 ## Hàng dự kiến — migration 0053 (15/10/2026)
 
 `0053_product_containers.sql` tạo snapshot hiện hành độc lập với `product_report`/`product_report_customers` chốt ban đêm. Đã áp lên DB dùng chung lúc 16:26 ngày 15/10/2026 theo yêu cầu người dùng; đã xác minh hai bảng, NUMERIC, singleton và thu hồi SELECT của reporting_readonly.
@@ -503,3 +507,13 @@ marketing_pancake_independent_page_state lưu trạng thái/coverage sáu page; 
 ## Tuổi nợ theo hóa đơn — migration 0059 (17/10/2026, chưa áp DB)
 
 `0059_debt_aging.sql`: bảng KẾT QUẢ tính sẵn, web chỉ đọc. `debt_aging_customers (branch, customer_id)` — 1 dòng/khách đang hoạt động/cơ sở: `customer_code`, `customer_name`, `sale` (nhãn hiển thị, "Chưa phân nhóm" khi trống), `schedule_days`, `has_stored_schedule`, `current_debt NUMERIC` (= `customers.debt`), `overdue_debt NUMERIC` (nợ hiện tại − hóa đơn Hoàn thành trong N ngày tới hôm nay, không âm), `payoff_day DATE` (ngày hết nợ), `beyond_history` (trừ hết 30 ngày hóa đơn vẫn còn nợ → `payoff_day` = ngày đầu khoảng tra cứu), `equivalent_days`, `remaining_days` (NULL khi nợ ≤ 0). `debt_aging_state (id = 1)`: `as_of_day` (ngày VN đã tính), `refreshed_at`, `customers_synced_at` (`max(customers.synced_at)`), `version` (tăng khi nội dung đổi). Ghi bởi `server/debtSchedule/debtAgingRefresh.js` theo mẫu ghi khác biệt (LEFT JOIN bảng đích + `IS DISTINCT FROM` ở SELECT, xóa khách không còn; đọc ra 0 khách thì không xóa). Nguồn: `customers` (lọc `isActive`), `debt_payment_schedules`, `invoices` (`raw->>'statusValue' = 'Hoàn thành'`, `purchase_date >= ngày::timestamp AT TIME ZONE 'UTC'` để dùng index `(branch, purchase_date)`), chỉ khách `debt > 0`. Chưa áp thì API trả `available: false`, job bỏ qua lỗi `42P01`.
+
+## Bản chụp Google Sheets: Vị trí hàng + CÂN ĐO — migration 0064 (17/10/2026, chưa áp DB)
+
+`0064_sheet_snapshots.sql` chỉ thêm 3 bảng; web chỉ đọc, `server/sheetSnapshots/sync.js` là nơi duy nhất ghi (ghi khác biệt, dòng không đổi không bị ghi lại).
+
+- `sheet_snapshot_sync (source PK)`: `last_success_at`, `last_attempt_at`, `last_error`. `source` ∈ `stock_locations_hn`, `stock_locations_sg`, `shipping_measures`. `last_attempt_at` là cổng "chưa đến hạn" dùng chung giữa các instance.
+- `stock_location_lines (branch 'HN'|'SG', source_row)`: `code`, `name`, `total_quantity`, `notes`, `location`, `arrival_date` (đều TEXT, giữ nguyên giá trị hiển thị của sheet, kể cả mã có số 0 đầu). `source_row` là thứ tự dòng đã lọc của sheet, dùng để đọc đúng thứ tự nguồn; gồm cả dòng trùng mã và SL = 0.
+- `shipping_measures (code_key PK)`: `per_carton`, `m3_per_unit`, `kg_per_unit` (NUMERIC, NULL khi sheet thiếu dữ liệu). `code_key` = `lower(trim(mã))`; mã trùng lấy dòng đầu.
+
+Cập nhật: 17/10/2026.

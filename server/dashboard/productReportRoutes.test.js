@@ -12,6 +12,10 @@ const realRepository = require(repositoryPath);
 const calls = [];
 require.cache[repositoryPath].exports = {
   ...realRepository,
+  getProductReport: async () => ({
+    rows: [{ code: 'SP1', name: 'SP 1', priceHanoi: 15000, priceSaigon: 16500, stockHanoi: 1 }],
+    computedAt: '2026-10-17T00:00:00.000Z'
+  }),
   getProductReportCustomers: async (args) => {
     calls.push(args);
     if (!args.code) {
@@ -67,4 +71,39 @@ test('/api/product-report (ke ca /customers) chung guard reports.products, dat t
   const routeIndex = router.stack.indexOf(routeLayer('get', '/api/product-report/customers'));
   assert.ok(guardIndex >= 0, 'phai co middleware guard khop /api/product-report/customers');
   assert.ok(guardIndex < routeIndex, 'guard phai dung truoc route handler');
+});
+
+test('GET /api/product-report: don gia HN/SG chi tra cho tai khoan co quyen reports.products.price (Quan ly, Tro ly)', async () => {
+  const handle = routeLayer('get', '/api/product-report').route.stack.at(-1).handle;
+  for (const vaiTro of ['Quản lý', 'Trợ lý']) {
+    const res = fakeRes();
+    await handle({ user: { vaiTro } }, res);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.rows[0].priceHanoi, 15000, vaiTro);
+    assert.equal(res.body.rows[0].priceSaigon, 16500, vaiTro);
+  }
+  for (const vaiTro of ['Nhân viên sale', 'Kế toán']) {
+    const res = fakeRes();
+    await handle({ user: { vaiTro } }, res);
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(Object.keys(res.body.rows[0]).filter(key => /^price/.test(key)), [], vaiTro + ' khong nhan truong gia');
+    assert.equal(res.body.rows[0].stockHanoi, 1, 'cac truong khac giu nguyen');
+  }
+  // Quan ly cap rieng cho 1 sale: co quyen thi nhan gia (khi sale da co reports.products).
+  const granted = fakeRes();
+  await handle({ user: { vaiTro: 'Nhân viên sale', featurePermissions: { 'reports.products.price': true } } }, granted);
+  assert.equal(granted.body.rows[0].priceHanoi, 15000);
+  // Gỡ quyền của một Quản lý cụ thể.
+  const revoked = fakeRes();
+  await handle({ user: { vaiTro: 'Quản lý', featurePermissions: { 'reports.products.price': false } } }, revoked);
+  assert.equal('priceHanoi' in revoked.body.rows[0], false);
+});
+
+test('GET /api/product-report: bo doc dung chung khong bi xoa truong gia sau khi loc cho tai khoan khac', async () => {
+  const handle = routeLayer('get', '/api/product-report').route.stack.at(-1).handle;
+  const sale = fakeRes();
+  await handle({ user: { vaiTro: 'Nhân viên sale' } }, sale);
+  const manager = fakeRes();
+  await handle({ user: { vaiTro: 'Quản lý' } }, manager);
+  assert.equal(manager.body.rows[0].priceHanoi, 15000);
 });

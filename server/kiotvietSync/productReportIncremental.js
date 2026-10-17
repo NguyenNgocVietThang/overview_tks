@@ -69,7 +69,8 @@ function windowed({ includeToday }) {
 const PRODUCT_COLUMNS = [
   'product_code', 'product_name', 'stock_hanoi', 'stock_saigon', 'available_to_sell', 'qty_sold_30d',
   'revenue_90d', 'customer_count_90d', 'top_customer_revenue_90d', 'top_customer_name', 'top_customer_share',
-  'available_hanoi', 'available_saigon', 'description_hanoi', 'description_saigon'
+  'available_hanoi', 'available_saigon', 'description_hanoi', 'description_saigon',
+  'price_hanoi', 'price_saigon'
 ];
 
 const CREATE_STAGE_SQL = [
@@ -127,6 +128,8 @@ function buildSql({ includeToday = true } = {}) {
     COALESCE(sg.on_hand, 0) - COALESCE(po.qty_saigon, 0),
     hn.description,
     sg.description,
+    hn.price,
+    sg.price,
     now()
   FROM hn_products hn
   LEFT JOIN sg_products sg ON sg.code = hn.code
