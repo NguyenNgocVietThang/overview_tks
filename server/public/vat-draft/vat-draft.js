@@ -749,6 +749,7 @@
   }
 
   function bindEvents() {
+    if (window.TKSCellSelect) window.TKSCellSelect.init(['vdAllocTable', 'vdLookupIssuesTable', 'vdLookupTable'].map($));
     $('vdRefreshSheets').addEventListener('click', refreshSheets);
     document.querySelectorAll('[data-input-mode]').forEach(b => b.addEventListener('click', () => selectMode(b.dataset.inputMode)));
     ['vdSortPrimary', 'vdSortPrimaryDir', 'vdSortSecondary', 'vdSortSecondaryDir'].forEach(id => $(id).addEventListener('change', () => { if (state.alloc) renderAllocRows(); }));

@@ -92,7 +92,7 @@ server/
 ├── productContainers/    # Parser CONT, snapshot repository, đồng bộ Sheets chỉ đọc mỗi 10 phút (ghi khác biệt) và kiểm thử
 ├── public/               # Frontend HTML/CSS/JS
 │   ├── cashbook/         # Trang Sổ quỹ: bộ lọc/hash, số dư, chốt và xuất chọn cột
-│   ├── vat-draft/        # Trang Kế toán – Nháp VAT: chọn HD/DH hoặc dán dữ liệu, kết quả phân bổ + Ghi chú tổng, QR, Tạo QR từ PDF
+│   ├── vat-draft/        # Trang Kế toán – Nháp VAT: chọn HD/DH hoặc dán dữ liệu, kết quả phân bổ + Ghi chú tổng, QR, Tạo QR từ PDF; cell-select.js chọn ô kiểu Google Sheet + Ctrl+C
 │   ├── vendor/pdfjs/     # pdf.js 4.10.38 (legacy build) đọc text hóa đơn PDF ngay trong trình duyệt
 │   └── shared/
 │       └── detail-panel.css # Khung xem chi tiết dùng chung (.dp-): chỉ số tổng quan, bảng 1 khung cuộn, tắt nút chọn cột
@@ -113,6 +113,8 @@ Migration `0014_customer_debt_activity_periods.sql` tạo bảng tổng hợp ba
 Migration `0015_app_users_telegram_id.sql` thêm `app_users.telegram_id` để bot có thể liên kết trực tiếp qua Supabase Postgres. Giao diện/API tạo mã liên kết cũ không còn đọc hoặc ghi tab `_HR_TELEGRAM_LINKS`.
 
 ## Cập nhật gần nhất
+
+2026-10-17 — **Nháp VAT: chọn ô kiểu Google Sheet**: ở 3 bảng kết quả (Danh sách sản phẩm, Tra cứu nguồn, Mã có vấn đề) bấm/kéo chuột chọn vùng ô thay vì bôi đen chữ, Shift+click nới vùng, Ctrl+C chép TSV không kèm tiêu đề để dán sang Excel/Google Sheet (ô nhiều dòng giữ trong 1 ô), Esc bỏ chọn (`public/vat-draft/cell-select.js`).
 
 2026-10-17 — **Kế toán – Nháp VAT (`/vat-draft/`, port vat-draft-app; migration `0058`)**: gộp đủ 3 chức năng của app Streamlit cũ vào tks_web — 🧾 Xử lý hóa đơn (phân bổ SL ra các nguồn theo TỒN CÓ THỂ NHÁP, GIÁ NHÁP = Giá bán/(1+%VAT)), 🔎 Tra cứu nguồn, 💳 Tạo QR (VietQR, đọc số tiền từ PDF hóa đơn GTGT bằng pdf.js trong trình duyệt). Thay cho bước xuất file "Danh sách chi tiết hóa đơn" từ KiotViet: kế toán **chọn thẳng hóa đơn (HD) và đơn đặt hàng chưa xuất HĐ (DH)** trên web (dán nhiều mã, lọc ngày/loại/khách, tick chọn); vẫn giữ ô "Dán dữ liệu" tay; bỏ upload .xlsx. Bảng kết quả thêm cột **Ghi chú tổng** (ghi chú cả đơn, `raw->>'description'`) ngay cạnh Ghi chú hàng hóa; lý do dòng "Không có mã" hiện khi rê chuột; tải Excel và CSV (định dạng như app cũ); nội dung chuyển khoản QR tự điền mã chứng từ đã chọn. Thuật toán port 1:1 (helper `vatDraft/pyCompat.js` mô phỏng round()/sum()/casefold()/float() của Python) — đối chiếu với app Python trên snapshot Sheets thật + file mẫu + 3.000 dòng ngẫu nhiên: khớp 100%; dòng đọc từ DB của HD028344–46 khớp file KiotViet. Master data vẫn đọc 2 Google Sheet công khai "Gộp VAT"/"Khớp mã" (cache 10 phút, nút 🔄). **Quyền** `accounting.vatDraft` (nhóm "Kế toán"): mặc định chỉ Quản lý + admin cứng; tài khoản Kế toán cần Quản lý bật riêng ở /account/; Khách không được cấp. Migration `0058` chỉ thêm index `orders(branch, order_date)` (danh sách 90 ngày nhanh hơn; trang vẫn chạy khi chưa áp). Chi tiết: [server/README.md](server/README.md#kế-toán--nháp-vat-apivat-draft).
 
