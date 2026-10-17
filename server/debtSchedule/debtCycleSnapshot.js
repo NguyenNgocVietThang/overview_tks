@@ -6,7 +6,7 @@
 //                                           no dau ky (= no hien tai cua ban chot truoc),
 //                                           doanh so TB 4 thang (Bao cao kinh doanh).
 //                                           + no qua han va SO PHIEN LIEN TIEP (migration 0048).
-//  - debt_cycle_amounts                   : tong hoa don / tra hang THEO NGAY trong 90 ngay
+//  - debt_cycle_amounts                   : tong hoa don / tra hang THEO NGAY trong 30 ngay
 //                                           toi 15:00 — no trong lich tinh luc doc theo lich
 //                                           TT hien tai (doi lich la thay so ngay).
 // Don du lieu cu hon 7 ngay ngay trong lan chot.
@@ -56,12 +56,12 @@ const INSERT_CUSTOMERS_SQL = `
   WHERE c.branch = ANY($2::text[])
     AND COALESCE(c.raw->>'isActive', c.raw->>'IsActive', 'true') <> 'false'`;
 
-// Hoa don HOAN THANH + phieu tra "Da tra" cua khach vua chot, gom theo ngay VN, 90 ngay toi
+// Hoa don HOAN THANH + phieu tra "Da tra" cua khach vua chot, gom theo ngay VN, 30 ngay toi
 // LUC CHOT THAT ($3 = takenAt, cung thoi diem lay customers.debt). Khong cat cung o 15:00:
 // server chot tre (vd 16:53) hoac Tinh lai bang tay thi no hien tai da gom don toi luc do,
 // cat 15:00 se bo sot don khoi "no trong lich" -> no qua han du dung bang tong cac don ay.
 // Bang debt_cycle_customers vua chen trong CUNG giao dich chua co thong ke -> planner uoc luong 1 dong
-// va lap nested loop 8k lan tren hoa don 90 ngay (>2 phut, bi statement_timeout tren Render).
+// va lap nested loop 8k lan tren hoa don 30 ngay (>2 phut, bi statement_timeout tren Render).
 // ANALYZE truoc khi chen so tien de no chon hash join.
 const ANALYZE_CUSTOMERS_SQL = 'ANALYZE debt_cycle_customers';
 

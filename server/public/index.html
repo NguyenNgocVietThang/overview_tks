@@ -8027,7 +8027,7 @@
       }).join('') : '<tr><td colspan="5" class="table-note">Không có hóa đơn hoàn thành trong khoảng này.</td></tr>';
       const foot = invoices.length > 1
         ? '<tfoot><tr><td colspan="4">Cộng</td><td class="num">' + fmtTableMoney(data.total) + '</td></tr></tfoot>' : '';
-      const notes = (data.beyondHistory ? '<div class="doc-modal-note">Khoảng tra cứu 365 ngày chưa đủ bù hết nợ.</div>' : '') +
+      const notes = (data.beyondHistory ? '<div class="doc-modal-note">Khoảng tra cứu 30 ngày chưa đủ bù hết nợ.</div>' : '') +
         (data.truncated ? '<div class="doc-modal-note">Chỉ hiện ' + fmtNumber(invoices.length) + ' hóa đơn gần nhất.</div>' : '');
       body.innerHTML = detailStatsHtml(tiles) + notes +
         '<div class="dp-section">' + detailSectionHeadHtml('Hóa đơn gần đây', fmtNumber(invoices.length) + ' hóa đơn') +
@@ -8677,7 +8677,7 @@
 
     function debtScheduleHtml(customer) {
       if (customer.canEditSchedule) {
-        return '<input class="debt-schedule-input" type="number" min="1" max="90" step="1" inputmode="numeric" ' + debtCustomerAttrs(customer) + ' ' +
+        return '<input class="debt-schedule-input" type="number" min="1" max="30" step="1" inputmode="numeric" ' + debtCustomerAttrs(customer) + ' ' +
           'value="' + escapeHtml(customer.paymentSchedule) + '" data-previous-value="' + escapeHtml(customer.paymentSchedule) + '" ' +
           'aria-label="Lịch thanh toán (ngày) của ' + escapeHtml(customer.customerName) + '" onchange="handleDebtScheduleChange(this)">';
       }
@@ -8915,7 +8915,7 @@
       return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text.slice(8, 10) + '/' + text.slice(5, 7) + '/' + text.slice(0, 4) : '—';
     }
 
-    // Vuot 365 ngay hoa don van con no: so ngay la can duoi (≥), con han la can tren (≤).
+    // Vuot 30 ngay hoa don van con no: so ngay la can duoi (≥), con han la can tren (≤).
     function debtAgingDaysHtml(customer, field) {
       const value = customer[field];
       if (value === null || value === undefined) return '—';
@@ -9390,7 +9390,7 @@
       if (value === previousValue) return;
       if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 90) {
         inputEl.value = previousValue;
-        showToast('Lịch TT phải là số ngày từ 1 đến 90.', 'error');
+        showToast('Lịch TT phải là số ngày từ 1 đến 30.', 'error');
         return;
       }
       inputEl.setAttribute('aria-busy', 'true');

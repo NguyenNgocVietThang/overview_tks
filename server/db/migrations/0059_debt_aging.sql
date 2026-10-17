@@ -3,7 +3,7 @@
 -- server/debtSchedule/debtAgingRefresh.js sau moi luot dong bo KiotViet; web chi doc bang nay.
 --
 -- 1 dong / khach / co so (khach dang hoat dong). Ghi khac biet: dong khong doi khong bi ghi lai.
--- payoff_day/equivalent_days/remaining_days NULL khi no <= 0. beyond_history = tru het 365 ngay
+-- payoff_day/equivalent_days/remaining_days NULL khi no <= 0. beyond_history = tru het 30 ngay
 -- hoa don van con no (payoff_day = ngay dau khoang tra cuu).
 -- Chi them bang moi, khong doi/xoa du lieu cu. Code tra bang rong (canh bao) khi chua ap.
 

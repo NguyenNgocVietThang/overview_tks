@@ -12,10 +12,12 @@
 
 const { addDaysToKey } = require('../kiotvietSync/vnTime');
 const {
-  BRANCH_SHORT, UNGROUPED_SALE, effectiveScheduleDays, parseScheduleDays, inScheduleDebt, overdueDebt, customerKeyOf
+  MAX_SCHEDULE_DAYS, BRANCH_SHORT, UNGROUPED_SALE, effectiveScheduleDays, parseScheduleDays, inScheduleDebt, overdueDebt, customerKeyOf
 } = require('./debtScheduleRules');
 
-const AGING_LOOKBACK_DAYS = 365;
+// 30 ngay (truoc la 365): job chay moi luot dong bo hoa don (7 phut) nen khoang quet dai lam tang CPU/RAM
+// tren Render (17/10/2026); khach no vuot 30 ngay hien "≥"/"≤" (beyondHistory).
+const AGING_LOOKBACK_DAYS = MAX_SCHEDULE_DAYS;
 
 /** Ngay dau tien (YYYY-MM-DD) con trong khoang tra cuu hoa don tinh tu `today`. */
 function agingHistoryStart(today) {
