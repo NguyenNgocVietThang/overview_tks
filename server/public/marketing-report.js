@@ -20,7 +20,7 @@
     if (type === 'datetime') return time(value);
     if (type === 'date') { const match=String(value).match(/^(\d{4})-(\d{2})-(\d{2})/); return match ? match[3]+'/'+match[2]+'/'+match[1] : String(value); }
     if (!type || !Number.isFinite(Number(value))) return String(value);
-    return new Intl.NumberFormat('vi-VN', { maximumFractionDigits:type === 'money' ? 0 : 2 }).format(Number(value) * (type === 'percent' ? 100 : 1)) + (type === 'percent' ? '%' : type === 'money' && showCurrency ? ' ₫' : '');
+    return new Intl.NumberFormat('en-US', { maximumFractionDigits:type === 'money' ? 0 : 2 }).format(Number(value) * (type === 'percent' ? 100 : 1)) + (type === 'percent' ? '%' : type === 'money' && showCurrency ? ' ₫' : '');
   }
   // Tên nhân viên đuôi MKT hiện màu vàng (cột Sale/Nhân viên của mọi bảng).
   const NAME_KEYS = new Set(['sale','employee','firstEmployee','currentEmployee','repeatEmployee']);

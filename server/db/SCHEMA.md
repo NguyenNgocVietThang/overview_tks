@@ -1,6 +1,6 @@
 # Supabase schema cho đồng bộ KiotViet
 
-Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0058`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
+Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0059`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
 
 ## Quy ước chung
 
@@ -297,11 +297,17 @@ Gỡ bỏ tab "Nhà cung cấp" khỏi dashboard:
 
 ### Quản lý tài liệu quy định công ty (migration `0027`)
 
-Bảng `hr_rule_documents` lưu trữ tài liệu quy định công ty (cả tài liệu dựng sẵn và file PDF upload):
-- `kind`: `builtin` (dựng sẵn, `builtin_key` NOT NULL, `content` NULL) hoặc `pdf` (tài liệu tải lên, lưu trong `content` BYTEA).
-- Gồm `title`, `sort_order`, `file_name`, `size_bytes`, `sha256`, `uploaded_by_user_id`, `uploaded_by_name`.
+Bảng `hr_rule_documents` lưu trữ tài liệu quy định công ty (tài liệu dựng sẵn, file PDF upload, và từ migration `0060` là tài liệu Quản lý gõ trực tiếp):
+- `kind`: `builtin` (dựng sẵn, `builtin_key` NOT NULL, `content`/`body` NULL), `pdf` (tài liệu tải lên, lưu trong `content` BYTEA) hoặc `text` (Quản lý gõ tay, lưu HTML đã lọc trong `body`, `content`/`file_name`/`size_bytes`/`sha256` NULL). Hình dạng mỗi `kind` ép bằng CHECK `hr_rule_documents_kind_shape`.
+- Gồm `title`, `sort_order`, `file_name`, `size_bytes`, `sha256`, `body`, `uploaded_by_user_id`, `uploaded_by_name`, `updated_at`, `updated_by_name` (2 cột cuối chỉ dùng cho `kind='text'` — tài liệu gõ tay sửa tại chỗ qua `PUT .../:id/text`, khác PDF chỉ thay-mới-xóa-cũ).
 - Seed 4 tài liệu mặc định: `gio-giac` (Giờ giấc làm việc, sort 10), `nghi-phep` (Quy định nghỉ phép, sort 20) và `phuc-loi` (Chi tiêu & Phúc lợi, sort 30 — thêm ở migration 0039) và `treo-hang` (Quy định treo hàng, sort 40 — thêm ở migration 0049).
 - Thu hồi quyền `SELECT` của `reporting_readonly` do chứa tài liệu nội bộ.
+
+**Rich text (migration `0061`):** `body` của `kind='text'` từ chỗ văn bản thuần (hiển thị `textContent`) nâng thành HTML đã lọc qua whitelist XSS (`hr/hrRuleDocumentSanitizer.js`, thư viện `sanitize-html`) rồi hiển thị bằng `innerHTML` — an toàn vì mọi nội dung đã qua lọc trước khi lưu, không phải chèn thẳng input người dùng vào DOM. Thẻ cho phép: `p br b strong i em u s strike h1 h2 ul ol li span a table thead tbody tr th td img`; `style` chỉ nhận `color`/`background-color` (hex/rgb) trên `span` và `text-align` trên `p`; `<a href>` chỉ http/https, luôn ép `rel="noopener noreferrer" target="_blank"`; `<img src>` chỉ nhận đúng dạng `/api/hr/rules/documents/:id/images/:imageId` (chặn ảnh từ domain ngoài — tránh rò IP người xem qua request ảnh). `script/style/iframe/object/embed/svg/form` bị loại cả thẻ lẫn nội dung bên trong (`nonTextTags`), các thẻ khác ngoài whitelist bị loại thẻ nhưng giữ chữ bên trong.
+- `body_check` CHECK nâng từ 20.000 lên **200.000 ký tự** (HTML tốn chỗ hơn văn bản thuần; ảnh đã tách khỏi `body` nên không tính vào giới hạn này).
+- Dữ liệu `kind='text'` có sẵn trước `0061` được chính migration chuyển sang HTML tương đương: thoát `& < > "` rồi đổi `\n` → `<br>`, không mất nội dung.
+- Bảng mới `hr_rule_document_images`: `id`, `document_id` (FK `hr_rule_documents(id)` `ON DELETE CASCADE`), `content` BYTEA, `content_type` (`image/png|jpeg|gif|webp`), `size_bytes` (CHECK ≤ 5.242.880 = 5 MB), `sha256` (ETag), `created_at`. Ảnh gửi lên dạng Data URI, server tách ra bảng này rồi thay `src` bằng đường dẫn thật (`hr/hrRuleDocumentImages.js`) **trong cùng 1 transaction** với việc lưu/sửa `hr_rule_documents` — tạo tài liệu mới chèn placeholder `body='<p></p>'` lấy `id` trước, sửa tài liệu khóa dòng bằng `SELECT ... FOR UPDATE` và xác nhận tồn tại trước khi tách ảnh (tránh vi phạm FK thành lỗi 500 thay vì 404 khi sửa id không tồn tại). Ảnh không còn được nhắc tới trong `body` mới bị xóa tự động khi sửa tài liệu (`pruneUnreferencedImages`). Thu hồi quyền `SELECT` của `reporting_readonly`.
+- API tạo/sửa (`POST`/`PUT .../text`) gọi `repo.isRichTextReady()` (kiểm `to_regclass('public.hr_rule_document_images') IS NOT NULL`) trước khi ghi, trả `503 RULE_DOC_RICH_TEXT_NOT_READY` nếu `0061` chưa áp — tránh code rich text deploy trước migration ghi dữ liệu không khớp schema.
 
 ### Lịch sử chỉnh sửa tài khoản (migration `0040`)
 
@@ -442,11 +448,11 @@ Migration `0044_purchases_raw_hash.sql` thêm `purchases.raw_hash TEXT` (nullabl
 
 | Bảng | Mục đích |
 |---|---|
-| `debt_payment_schedules` | Lịch TT (số ngày nợ tối đa, 1–90) theo `(branch, customer_id)`. Không có dòng = 1 ngày. |
+| `debt_payment_schedules` | Lịch TT (số ngày nợ tối đa, 1–30; CHECK DB vẫn cho tới 90 nhưng ứng dụng chặn ở 30) theo `(branch, customer_id)`. Không có dòng = 1 ngày. |
 | `debt_payment_schedule_log` | Nhật ký sửa lịch TT (`source` = `import`/`web`), chỉ thêm (trigger chặn UPDATE/DELETE), giữ vĩnh viễn. |
 | `debt_cycle_runs` | Mốc chốt 15:00 VN mỗi ngày (`cycle_date` PK). Bản mới nhất = chu kỳ hiện tại. `refreshed_at` / `refreshed_by_name` (0050): lần Tính lại bằng tay gần nhất — ghi đè `debt_cycle_customers`/`debt_cycle_amounts` của chu kỳ đang mở, giữ phản hồi/trạng thái/tiền phạt, không cộng phiên. Tiền theo ngày cắt tại lúc chốt/tính lại thật, không cắt cứng 15:00. |
 | `debt_cycle_customers` | TOÀN BỘ khách 2 cơ sở tại bản chốt (kể cả nợ 0, từ 13/10): `current_debt`, `opening_debt` (nợ của bản chốt trước), `avg_revenue_4m`. FK CASCADE theo run. |
-| `debt_cycle_amounts` | Tổng hóa đơn `Hoàn thành` / phiếu trả "Đã trả" theo ngày VN, 90 ngày tới 15:00 — để tính nợ trong lịch theo lịch TT hiện tại. |
+| `debt_cycle_amounts` | Tổng hóa đơn `Hoàn thành` / phiếu trả "Đã trả" theo ngày VN, 30 ngày tới 15:00 — để tính nợ trong lịch theo lịch TT hiện tại. |
 | `debt_cycle_feedback` | Sale phản hồi / QL phản hồi / Trạng thái của chu kỳ (`cycle_date, branch, customer_id`). |
 | `debt_feedback_history` | Lịch sử mọi thay đổi trên giao diện công nợ (`field` = `sale`/`manager`/`status`/`schedule`), theo chu kỳ. |
 
@@ -491,3 +497,7 @@ marketing_pancake_independent_page_state lưu trạng thái/coverage sáu page; 
 ## Index ngày đặt hàng cho Kế toán – Nháp VAT — migration 0058 (17/10/2026, chưa áp DB)
 
 `0058_orders_order_date_index.sql`: `CREATE INDEX IF NOT EXISTS idx_orders_order_date ON orders (branch, order_date)`. Chỉ thêm index, không đổi dữ liệu. Phục vụ danh sách "đơn đặt hàng chưa xuất hóa đơn" của trang `/vat-draft/` (`server/vatDraft/documentsRepository.js`) — lọc `orders.order_date` theo khoảng ngày kế toán chọn; trước index phải quét cả bảng `orders` (~65.000 dòng, cột `raw` rộng, ~650 ms/lần khi lọc 90 ngày, EXPLAIN ANALYZE 16/10/2026). Trang đọc ghi chú tổng ở `invoices.raw->>'description'` / `orders.raw->>'description'` và ghi chú dòng ở `invoice_details.raw->>'note'` / `order_details.raw->>'note'`; đơn đã có hóa đơn so khớp qua `invoices.raw->>'orderCode'`. Áp trước hay sau khi deploy đều được.
+
+## Tuổi nợ theo hóa đơn — migration 0059 (17/10/2026, chưa áp DB)
+
+`0059_debt_aging.sql`: bảng KẾT QUẢ tính sẵn, web chỉ đọc. `debt_aging_customers (branch, customer_id)` — 1 dòng/khách đang hoạt động/cơ sở: `customer_code`, `customer_name`, `sale` (nhãn hiển thị, "Chưa phân nhóm" khi trống), `schedule_days`, `has_stored_schedule`, `current_debt NUMERIC` (= `customers.debt`), `overdue_debt NUMERIC` (nợ hiện tại − hóa đơn Hoàn thành trong N ngày tới hôm nay, không âm), `payoff_day DATE` (ngày hết nợ), `beyond_history` (trừ hết 30 ngày hóa đơn vẫn còn nợ → `payoff_day` = ngày đầu khoảng tra cứu), `equivalent_days`, `remaining_days` (NULL khi nợ ≤ 0). `debt_aging_state (id = 1)`: `as_of_day` (ngày VN đã tính), `refreshed_at`, `customers_synced_at` (`max(customers.synced_at)`), `version` (tăng khi nội dung đổi). Ghi bởi `server/debtSchedule/debtAgingRefresh.js` theo mẫu ghi khác biệt (LEFT JOIN bảng đích + `IS DISTINCT FROM` ở SELECT, xóa khách không còn; đọc ra 0 khách thì không xóa). Nguồn: `customers` (lọc `isActive`), `debt_payment_schedules`, `invoices` (`raw->>'statusValue' = 'Hoàn thành'`, `purchase_date >= ngày::timestamp AT TIME ZONE 'UTC'` để dùng index `(branch, purchase_date)`), chỉ khách `debt > 0`. Chưa áp thì API trả `available: false`, job bỏ qua lỗi `42P01`.

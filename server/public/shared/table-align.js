@@ -5,14 +5,14 @@
 (function () {
   'use strict';
 
-  // 1.234.567 · -12,5 · 45% · 1.200đ · 3 ngày. Không khớp ngày (12/09), mã (SP001).
-  var NUMERIC = /^[+\-−–]?\s*\d[\d.,\s]*\s*(%|đ|₫|vnđ|vnd|ngày|lần|kg|g)?$/i;
+  // 1.234.567 · -12,5 · 45% · 1.200đ · 3 ngày · ≥ 364 · ≤ -363 (cận trên/dưới). Không khớp ngày (12/09), mã (SP001).
+  var NUMERIC = /^[≥≤]?\s*[+\-−–]?\s*\d[\d.,\s]*\s*(%|đ|₫|vnđ|vnd|ngày|lần|kg|g)?$/i;
   // Số điện thoại / mã vạch: chuỗi số dài không có dấu phân cách → không phải số liệu.
   var ID_LIKE = /^(0\d{8,}|\d{11,})$/;
   var EMPTY = /^[\s\-–—]*$/;
 
   // Tiêu đề thuộc nhóm số lượng / tiền / tỷ lệ → luôn căn phải, kể cả khi có ô chữ lẫn vào.
-  var NUM_HEADER = /số lượng|(^|\s)sl(\s|$)|doanh thu|doanh số|^ds(\s|$)|giá|tiền|tồn|tỷ lệ|tỉ lệ|%|số ngày|số lần|(^|\s)nợ(\s|$)|thuế|chiết khấu|giảm giá|^đặt$|khách đặt|^t\./i;
+  var NUM_HEADER = /số lượng|(^|\s)sl(\s|$)|doanh thu|doanh số|^ds(\s|$)|giá|tiền|tồn|tỷ lệ|tỉ lệ|%|số ngày|số lần|^còn hạn$|(^|\s)nợ(\s|$)|thuế|chiết khấu|giảm giá|^đặt$|khách đặt|^t\./i;
 
   function isNumericText(t) {
     if (!NUMERIC.test(t)) return false;

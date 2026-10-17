@@ -38,6 +38,12 @@ const DEBT_SORT_FIELDS = [
   'previousPenaltyAmount', 'penaltyAmount', 'saleFeedback', 'managerFeedback', 'workflowStatus'
 ];
 
+// Khop thu tu cot bang Tuoi no theo hoa don (DEBT_AGING_SORT_FIELDS o public/index.html).
+const DEBT_AGING_SORT_FIELDS = [
+  'branch', 'customerName', 'sale', 'paymentSchedule', 'currentDebt', 'overdueDebt',
+  'payoffDay', 'equivalentDays', 'remainingDays'
+];
+
 // Gioi han tai: moi file Excel nap du lieu + ghi workbook trong RAM.
 const EXPORT_MAX_CONCURRENT = 2;
 const EXPORT_MAX_QUEUED = 8;
@@ -49,6 +55,7 @@ const TABLE_TITLES = Object.freeze({
   'overview.productReport': 'Báo cáo hàng hóa',
   'debt.management': 'Quản lý công nợ',
   'debt.penalty': 'Thưởng/phạt sale theo công nợ',
+  'debt.aging': 'Tuổi nợ theo hóa đơn',
   'stockout.recentScan': 'Hàng đứt gần đây',
   'stockout.check90d': 'Kiểm tra đứt hàng 90 ngày',
   'stockout.check30d': 'Kiểm tra đứt hàng 30 ngày'
@@ -197,7 +204,9 @@ function aggregateColumn(key, label, type, description, options = {}) {
     type: type || inferColumnType(label),
     description,
     wrapText: options.wrapText === true,
-    selected: options.selected !== false
+    selected: options.selected !== false,
+    // Cot so tu to mau theo dau (am do, 0 vang, duong xanh la) o ca Excel va HTML.
+    ...(options.signTone === true ? { signTone: true } : {})
   };
 }
 
@@ -207,8 +216,8 @@ const DEBT_COLUMNS = [
   aggregateColumn('sale', 'Nhân viên phụ trách (Sale)', 'text', 'Nhóm khách hàng của khách trên KiotViet.'),
   aggregateColumn('paymentSchedule', 'Lịch thanh toán', 'number', 'Số ngày nợ tối đa của khách tại cơ sở này; chưa đặt thì tính 1 ngày.'),
   aggregateColumn('currentDebt', 'Nợ hiện tại', 'number', 'Nợ của khách tại bản chốt 15:00 gần nhất (VNĐ).'),
-  aggregateColumn('inScheduleDebt', 'Doanh số trong kỳ', 'number', 'Doanh số trong lịch thanh toán = hóa đơn trừ trả hàng trong số ngày của lịch; bằng nợ hiện tại trừ nợ quá hạn (VNĐ).'),
-  aggregateColumn('overdueDebt', 'Nợ quá hạn', 'number', 'Nợ hiện tại trừ nợ trong lịch thanh toán (hóa đơn trừ trả hàng trong số ngày của lịch), không âm (VNĐ).'),
+  aggregateColumn('inScheduleDebt', 'Doanh số trong kỳ', 'number', 'Doanh số trong lịch thanh toán = tổng hóa đơn hoàn thành trong số ngày của lịch (không trừ trả hàng) (VNĐ).'),
+  aggregateColumn('overdueDebt', 'Nợ quá hạn', 'number', 'Nợ hiện tại trừ tổng hóa đơn hoàn thành trong số ngày của lịch thanh toán (không trừ trả hàng), không âm (VNĐ).'),
   aggregateColumn('currentDebtToSalesRatio', 'Tỷ lệ nợ hiện tại trên doanh số', 'percent',
     'Nợ hiện tại chia cho doanh số trung bình 4 tháng (tab Khách hàng).'),
   aggregateColumn('overdueToSalesRatio', 'Nợ quá hạn trên doanh số trung bình', 'percent',
@@ -243,6 +252,19 @@ const DEBT_PENALTY_COLUMNS = [
   aggregateColumn('status', 'Trạng thái', 'text', 'Thưởng tạm tính khi tháng đang mở; Đã chốt khi đã khóa kết quả tháng.'),
   aggregateColumn('rankReward', 'Thưởng theo hạng', 'number', 'Phần thưởng theo thứ hạng toàn hệ thống (VNĐ); tạm tính trong tháng, chính thức khi chốt tháng.', { selected: false }),
   aggregateColumn('pointsReward', 'Thưởng theo điểm', 'number', 'Phần thưởng phân bổ theo điểm (VNĐ); tạm tính trong tháng, chính thức khi chốt tháng.', { selected: false })
+];
+
+// Bang Tuoi no theo hoa don (muc 3 tab Cong no) — so song, khop cot man hinh.
+const DEBT_AGING_COLUMNS = [
+  aggregateColumn('branch', 'Cơ sở', 'text', 'Cơ sở của khoản công nợ (Hà Nội hoặc Sài Gòn).'),
+  aggregateColumn('customerName', 'Khách hàng', 'text', 'Tên khách hàng trên KiotViet.'),
+  aggregateColumn('sale', 'Sale', 'text', 'Nhóm khách hàng của khách trên KiotViet.'),
+  aggregateColumn('paymentSchedule', 'Lịch thanh toán', 'number', 'Số ngày nợ tối đa của khách tại cơ sở này; chưa đặt thì tính 1 ngày.'),
+  aggregateColumn('currentDebt', 'Nợ hiện tại', 'number', 'Nợ của khách theo lần đồng bộ KiotViet mới nhất (VNĐ).'),
+  aggregateColumn('overdueDebt', 'Nợ quá hạn', 'number', 'Nợ hiện tại trừ tổng hóa đơn hoàn thành trong số ngày của lịch thanh toán tính tới hôm nay (không trừ trả hàng), không âm (VNĐ).'),
+  aggregateColumn('payoffDay', 'Ngày hết nợ', 'text', 'Trừ dần nợ hiện tại bằng hóa đơn hoàn thành từ hôm nay lùi về; ngày làm nợ còn lại ≤ 0. "Trước …" = trừ hết 365 ngày hóa đơn vẫn còn nợ.'),
+  aggregateColumn('equivalentDays', 'Ngày nợ tương đương', 'number', 'Hôm nay trừ ngày hết nợ cộng 1 (ngày, tính cả ngày hết nợ); để trống khi không còn nợ.'),
+  aggregateColumn('remainingDays', 'Còn hạn', 'number', 'Lịch thanh toán trừ ngày nợ tương đương (ngày); dương (xanh lá) là còn hạn, 0 (vàng) là chạm lịch, âm (đỏ) là quá lịch thanh toán.', { signTone: true })
 ];
 
 const DEBT_BRANCH_COLUMN = aggregateColumn('branch', 'Cơ sở', 'text', 'Cơ sở của khoản công nợ (Hà Nội hoặc Sài Gòn).');
@@ -506,10 +528,10 @@ function debtAutomaticAlert(customer) {
   return (customer.alertCodes || []).includes('overdue') ? 'Quá hạn' : '';
 }
 
-function sortDebtManagementRows(rows, sort) {
+function sortDebtManagementRows(rows, sort, fieldOverride) {
   const columnIndex = Number(sort && sort.columnIndex);
   const direction = sort && sort.direction;
-  const field = Number.isInteger(columnIndex) ? DEBT_SORT_FIELDS[columnIndex] : '';
+  const field = fieldOverride || (Number.isInteger(columnIndex) ? DEBT_SORT_FIELDS[columnIndex] : '');
   if (!field || !['asc', 'desc'].includes(direction)) return rows.slice();
   return rows.map((row, index) => ({ row, index })).sort((left, right) => {
     const a = left.row[field];
@@ -544,7 +566,7 @@ function debtPenaltyRows(board) {
 }
 
 function debtRewardMetadata(board) {
-  const amount = value => `${Number(value).toLocaleString('vi-VN')}đ`;
+  const amount = value => `${Number(value).toLocaleString('en-US')}đ`;
   const coverage = board.coverage;
   const summary = board.summary;
   const notes = [
@@ -627,6 +649,40 @@ function debtManagementRows(debtManagement, context, aggregate = false) {
   return { rows: expanded, name: normalizeText(debt.sourceSheet) };
 }
 
+function formatDayKey(day) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(day || '')) ? `${day.slice(8, 10)}/${day.slice(5, 7)}/${day.slice(0, 4)}` : '';
+}
+
+// Bang Tuoi no: ap lai bo loc Sale / Lich TT / Tim + sap xep cua man hinh (context.debtAging*).
+function debtAgingRows(debtAging, context) {
+  const customers = Array.isArray(debtAging && debtAging.customers) ? debtAging.customers : [];
+  const sale = normalizeText(context.debtAgingSale);
+  const schedule = normalizeText(context.debtAgingSchedule);
+  const query = normalizeDebtSearch(context.debtAgingSearch);
+  const rows = customers.filter(customer => {
+    if (sale && customer.sale !== sale) return false;
+    if (schedule && customer.paymentSchedule !== schedule) return false;
+    if (query && !normalizeDebtSearch(customer.customerName).includes(query) && !normalizeDebtSearch(customer.sale).includes(query)) return false;
+    return true;
+  }).map(customer => ({
+    branch: customer.branch,
+    customerName: customer.customerName,
+    sale: customer.sale,
+    paymentSchedule: Number(customer.paymentSchedule) || null,
+    currentDebt: customer.currentDebt,
+    overdueDebt: customer.overdueDebt,
+    payoffDay: customer.payoffDay ? `${customer.beyondHistory ? 'Trước ' : ''}${formatDayKey(customer.payoffDay)}` : '',
+    payoffDayKey: customer.payoffDay || '',
+    equivalentDays: customer.equivalentDays,
+    remainingDays: customer.remainingDays
+  }));
+  const sort = context.debtAgingSort;
+  const field = DEBT_AGING_SORT_FIELDS[Number(sort && sort.columnIndex)];
+  // Ngay het no sap theo khoa YYYY-MM-DD, khong theo chuoi dd/mm hien thi.
+  const sortField = field === 'payoffDay' ? 'payoffDayKey' : field;
+  return sortField ? sortDebtManagementRows(rows, sort, sortField) : rows;
+}
+
 // Worksheet cua bang khong doc dashboard/Postgres (du lieu tu bao cao rieng hoac payload).
 function reportWorksheet(key, name, columns) {
   return { key, name, columns, codeKey: columns.some(column => column.key === 'code') ? 'code' : undefined };
@@ -650,6 +706,10 @@ const TABLE_SPECS = {
     key: 'debt_penalty', name: 'Thưởng phạt sale', columns: DEBT_PENALTY_COLUMNS,
     rows: dashboard => debtPenaltyRows(dashboard.debtReward),
     summaryKeys: ['total', 'payablePenalty', 'reward']
+  }),
+  'debt.aging': context => aggregateTable({
+    key: 'debt_aging', name: 'Tuổi nợ theo hóa đơn', columns: DEBT_AGING_COLUMNS,
+    rows: dashboard => debtAgingRows(dashboard.debtAging, context)
   }),
   // Cac bang duoi day khong co loadRows: nguon du lieu rieng (bao cao khach/hang, payload quet ton).
   'customers.productDetail': () => ({
@@ -973,6 +1033,12 @@ async function buildExportDataset(payload, branch, options = {}) {
     }
     return { ...dataset, debtReward: debtRewardMetadata(board) };
   }
+  if (tableKey === 'debt.aging') {
+    const branches = resolveBranchScope(branch || BRANCH_BOTH).map(branchLabelToCode).filter(Boolean);
+    const debtAging = await debtScheduleService.buildDebtAging(branches);
+    throwIfAborted(signal);
+    return buildFixedDataset(tableKey, { dashboard: { debtAging }, branch, signal }, description.context, request.tableSearch, options.selection);
+  }
   // Viewer bo trong = khong quyen sua cong no (giong xuat file truoc day). Ket qua
   // nam trong cache dung chung nen chi DOC, khong sua.
   // Bang cong no co the xuat ban chot cu (toi da 7 ngay): doc thang tu bang chot, khong qua cache dashboard.
@@ -1130,6 +1196,19 @@ function styleWorksheet(worksheet, columns, rows) {
     if (column.type === 'percent') excelColumn.numFmt = '0.00%';
     if (column.type === 'date') excelColumn.numFmt = 'dd/mm/yyyy hh:mm:ss';
     excelColumn.alignment = { vertical: 'top', wrapText: column.wrapText === true };
+    if (column.signTone) applySignToneFont(worksheet, index + 1, rows, column);
+  });
+}
+
+// Chu am do / 0 vang dam / duong xanh la (khop mau cot Con han tren man hinh va file HTML).
+const SIGN_TONE_ARGB = { neg: 'FFB91C1C', zero: 'FFB8860B', pos: 'FF047857' };
+
+function applySignToneFont(worksheet, columnNumber, rows, column) {
+  rows.forEach((row, index) => {
+    const value = toExcelValue(row[column.key], column.type);
+    if (typeof value !== 'number') return;
+    const tone = value < 0 ? 'neg' : value === 0 ? 'zero' : 'pos';
+    worksheet.getRow(index + 2).getCell(columnNumber).font = { bold: true, color: { argb: SIGN_TONE_ARGB[tone] } };
   });
 }
 
@@ -1304,7 +1383,7 @@ function createExportHtml(payload, branch, options = {}) {
     const totalCells = dataset.worksheets.reduce((sum, worksheet) => sum + worksheet.rows.length * worksheet.columns.length, 0);
     if (totalCells > HTML_MAX_CELLS) {
       throw exportError(
-        `Dữ liệu có ${totalRows.toLocaleString('vi-VN')} dòng (${totalCells.toLocaleString('vi-VN')} ô), vượt giới hạn ${HTML_MAX_CELLS.toLocaleString('vi-VN')} ô của báo cáo HTML. Vui lòng bỏ bớt cột, thu hẹp bộ lọc hoặc dùng Xuất Excel.`,
+        `Dữ liệu có ${totalRows.toLocaleString('en-US')} dòng (${totalCells.toLocaleString('en-US')} ô), vượt giới hạn ${HTML_MAX_CELLS.toLocaleString('en-US')} ô của báo cáo HTML. Vui lòng bỏ bớt cột, thu hẹp bộ lọc hoặc dùng Xuất Excel.`,
         413, 'EXPORT_HTML_TOO_LARGE'
       );
     }

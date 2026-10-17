@@ -82,7 +82,7 @@ function buildUnreliableDataWarning({ analyzed, unreliable }) {
   if (!(analyzed >= UNRELIABLE_WARNING_MIN_ANALYZED)) return null;
   if (unreliable / analyzed <= UNRELIABLE_WARNING_RATIO) return null;
   const percent = Math.round((unreliable / analyzed) * 100);
-  return `${unreliable.toLocaleString('vi-VN')}/${analyzed.toLocaleString('vi-VN')} mã (${percent}%) có ngày tồn kho tính ngược bị âm nên bị loại khỏi kết quả. ` +
+  return `${unreliable.toLocaleString('en-US')}/${analyzed.toLocaleString('en-US')} mã (${percent}%) có ngày tồn kho tính ngược bị âm nên bị loại khỏi kết quả. ` +
     'Dữ liệu Trả NCC nhiều khả năng sai cơ sở hoặc thiếu lịch sử — hãy kiểm tra lại file Excel đã nhập rồi quét lại.';
 }
 

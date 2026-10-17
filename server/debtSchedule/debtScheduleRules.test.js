@@ -4,11 +4,11 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const rules = require('./debtScheduleRules');
 
-test('parseScheduleDays: chi nhan so nguyen 1..90', () => {
+test('parseScheduleDays: chi nhan so nguyen 1..30', () => {
   assert.equal(rules.parseScheduleDays('3'), 3);
   assert.equal(rules.parseScheduleDays(7), 7);
   assert.equal(rules.parseScheduleDays(' 10 '), 10);
-  for (const bad of ['', null, undefined, 'Hàng tuần', 'Khác', 'https://facebook.com/x', '0', '91', '2.5', '-1']) {
+  for (const bad of ['', null, undefined, 'Hàng tuần', 'Khác', 'https://facebook.com/x', '0', '31', '90', '91', '2.5', '-1']) {
     assert.equal(rules.parseScheduleDays(bad), null, String(bad));
   }
 });

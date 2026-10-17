@@ -439,10 +439,16 @@ test('buoc lay truong van validate re: bang khong hop le, thieu khach/tu khoa, t
 });
 
 test('cot o buoc lay truong == cot cua dataset o buoc xuat cho moi bang co dinh', async () => {
+  const debtScheduleService = require('../debtSchedule/debtScheduleService');
   const originals = {
     report: dashboardData.getCustomerProductRevenueReport,
-    productReport: productReportRepository.getProductReport
+    productReport: productReportRepository.getProductReport,
+    debtAging: debtScheduleService.buildDebtAging
   };
+  debtScheduleService.buildDebtAging = async () => ({ available: true, customers: [
+    { branch: 'HN', customerName: 'Khách A', sale: 'Sale A', paymentSchedule: '1', currentDebt: 1, overdueDebt: 0,
+      payoffDay: '2026-10-17', beyondHistory: false, equivalentDays: 0, remainingDays: 1 }
+  ] });
   dashboardData.getCustomerProductRevenueReport = async () => ({
     products: [{ code: 'SP-01', name: 'Sản phẩm một', quantity: 3, revenue: 300, month1Revenue: 1, month2Revenue: 2, month3Revenue: 3 }]
   });
@@ -473,6 +479,7 @@ test('cot o buoc lay truong == cot cua dataset o buoc xuat cho moi bang co dinh'
   } finally {
     dashboardData.getCustomerProductRevenueReport = originals.report;
     productReportRepository.getProductReport = originals.productReport;
+    debtScheduleService.buildDebtAging = originals.debtAging;
   }
 });
 
@@ -1533,12 +1540,12 @@ test('bao cao HTML tu chua: KPI render san, Chart.js inline, khong tai tai nguye
     const kpis = [...staticDoc.querySelectorAll('#kpis .kpi')].map(card => card.textContent);
     assert.ok(kpis.length >= 2 && kpis.length <= 4);
     assert.match(kpis[0], /Số dòng dữ liệu\s*2/);
-    assert.ok(kpis.some(text => /Tổng nợ hiện tại/.test(text) && /2\.000\.000/.test(text)), kpis.join(' | '));
+    assert.ok(kpis.some(text => /Tổng nợ hiện tại/.test(text) && /2,000,000/.test(text)), kpis.join(' | '));
 
     // Bang render tu du lieu nhung, dinh dang so/phan tram tieng Viet.
     const cells = [...doc.querySelectorAll('#tbody tr')].map(row => [...row.cells].map(cell => cell.textContent));
     assert.equal(cells.length, 2);
-    assert.deepEqual(cells[0].slice(0, 5), ['Khách A', 'Lan', '800.000', '500.000', '40%']);
+    assert.deepEqual(cells[0].slice(0, 5), ['Khách A', 'Lan', '800,000', '500,000', '40%']);
     assert.equal(cells[1][4], '—', 'o trong hien gach ngang');
   });
 });
@@ -1643,7 +1650,7 @@ test('du lieu nhung duoc nen gzip: nho hon nhieu lan JSON tho va giai nen ra dun
   const input = doc.getElementById('q');
   input.value = 'sp19999 quan';
   input.dispatchEvent(new dom.window.Event('input'));
-  assert.match(doc.getElementById('count').textContent, /Hiển thị 1 \/ 20\.000 dòng/);
+  assert.match(doc.getElementById('count').textContent, /Hiển thị 1 \/ 20,000 dòng/);
   dom.window.close();
 });
 
@@ -1814,8 +1821,8 @@ test('debt.penalty: workbook records global fund and coverage despite sale/branc
       assert.equal(notes.get('Tháng'), '2026-09');
       assert.equal(notes.get('Trạng thái'), 'Đã chốt');
       assert.equal(notes.get('Phạm vi xếp hạng'), 'Hà Nội + Sài Gòn');
-      assert.equal(notes.get('Quỹ thưởng toàn hệ thống'), '1.050.000đ');
-      assert.equal(notes.get('Công ty bù'), '1.000.000đ');
+      assert.equal(notes.get('Quỹ thưởng toàn hệ thống'), '1,050,000đ');
+      assert.equal(notes.get('Công ty bù'), '1,000,000đ');
       assert.equal(notes.get('Ngày thiếu bản chốt'), '2026-09-03');
     });
   });
@@ -1861,10 +1868,10 @@ test('debt.penalty: open-month Excel and HTML show numeric provisional rewards w
     assert.equal(sheet.getRow(3).getCell(2).value, 50000);
     const metadata = workbook.getWorksheet('Thông tin thưởng phạt');
     const notes = new Map(metadata.getRows(2, metadata.rowCount - 1).map(row => [row.getCell(1).value, row.getCell(2).value]));
-    assert.equal(notes.get('Quỹ thưởng toàn hệ thống'), '1.050.000đ');
-    assert.equal(notes.get('Quỹ từ tiền phạt'), '50.000đ');
-    assert.equal(notes.get('Công ty bù'), '1.000.000đ');
-    assert.equal(notes.get('Tổng thưởng tạm tính'), '1.050.000đ');
+    assert.equal(notes.get('Quỹ thưởng toàn hệ thống'), '1,050,000đ');
+    assert.equal(notes.get('Quỹ từ tiền phạt'), '50,000đ');
+    assert.equal(notes.get('Công ty bù'), '1,000,000đ');
+    assert.equal(notes.get('Tổng thưởng tạm tính'), '1,050,000đ');
     assert.equal(notes.has('Thưởng đã phân bổ'), false);
     assert.equal(notes.get('Số Sale nhận thưởng toàn hệ thống'), '2');
     assert.equal(notes.get('Trạng thái'), 'Thưởng tạm tính');
@@ -1872,12 +1879,60 @@ test('debt.penalty: open-month Excel and HTML show numeric provisional rewards w
     const html = await exportService.createExportHtml(payload, 'Cả hai');
     const document = new JSDOM(html.buffer.toString('utf8')).window.document;
     assert.match(document.querySelector('header .meta').textContent, /Thưởng tạm tính, sẽ chốt chính thức vào cuối tháng/);
-    assert.match(document.querySelector('#kpis').textContent, /thưởng tạm tính1\.050\.000/i);
+    assert.match(document.querySelector('#kpis').textContent, /thưởng tạm tính1,050,000/i);
     const embedded = embeddedData(html.buffer.toString('utf8')).worksheets[0];
     assert.deepEqual(embedded.rows.map(row => row.slice(3, 6)), [[900000, 700000, 200000], [150000, 100000, 50000], [0, 0, 0]]);
     const opened = await openHtmlReport(html);
     assert.match(opened.doc.querySelector('#tbody').textContent, /Bình/);
-    assert.match(opened.doc.querySelector('#kpis').textContent, /thưởng tạm tính1\.050\.000/i);
+    assert.match(opened.doc.querySelector('#kpis').textContent, /thưởng tạm tính1,050,000/i);
     opened.dom.window.close();
   });
+});
+
+const DEBT_AGING = {
+  available: true, asOfDay: '2026-10-17',
+  customers: [
+    { branch: 'HN', customerName: 'Anh Bình', sale: 'Duy Thái', paymentSchedule: '5', currentDebt: 600, overdueDebt: 300,
+      payoffDay: '2026-10-10', beyondHistory: false, equivalentDays: 7, remainingDays: -2 },
+    { branch: 'HN', customerName: 'Chị An', sale: 'Duy Thái', paymentSchedule: '1', currentDebt: 0, overdueDebt: 0,
+      payoffDay: null, beyondHistory: false, equivalentDays: null, remainingDays: null },
+    { branch: 'SG', customerName: 'Anh Sài', sale: 'Tú Uyên', paymentSchedule: '2', currentDebt: 9000, overdueDebt: 9000,
+      payoffDay: '2025-10-18', beyondHistory: true, equivalentDays: 364, remainingDays: -362 }
+  ]
+};
+
+test('debt.aging: ap bo loc Sale/Lich/Tim + sap xep man hinh, ngay het no dd/mm/yyyy va "Trước" khi vuot lich su', async () => {
+  await withStubs({}, async stubs => {
+    const env = { ...fixedEnv(stubs), dashboard: { debtAging: DEBT_AGING } };
+    const all = await exportService.__test__.buildFixedDataset('debt.aging', env, {});
+    assert.deepEqual(all.worksheets[0].rows.map(row => [row.branch, row.customerName, row.payoffDay, row.equivalentDays, row.remainingDays]), [
+      ['HN', 'Anh Bình', '10/10/2026', 7, -2], ['HN', 'Chị An', '', null, null], ['SG', 'Anh Sài', 'Trước 18/10/2025', 364, -362]
+    ]);
+    assert.ok(!('payoffDayKey' in all.worksheets[0].rows[0]), 'khoa sap xep noi bo khong ra file');
+    const filtered = await exportService.__test__.buildFixedDataset('debt.aging', env, { debtAgingSale: 'Duy Thái', debtAgingSearch: 'bình' });
+    assert.deepEqual(filtered.worksheets[0].rows.map(row => row.customerName), ['Anh Bình']);
+    // Cot 6 = Ngay het no: sap theo ngay that, khong theo chuoi dd/mm.
+    const sorted = await exportService.__test__.buildFixedDataset('debt.aging', env, { debtAgingSort: { columnIndex: 6, direction: 'asc' } });
+    assert.deepEqual(sorted.worksheets[0].rows.map(row => row.customerName), ['Anh Sài', 'Anh Bình', 'Chị An']);
+    const remaining = await exportService.__test__.buildFixedDataset('debt.aging', env, { debtAgingSort: { columnIndex: 8, direction: 'asc' } });
+    assert.deepEqual(remaining.worksheets[0].rows.map(row => row.customerName), ['Anh Sài', 'Anh Bình', 'Chị An']);
+  });
+});
+
+test('debt.aging: tao file doc bang tinh san theo co so dang xem', async () => {
+  const debtScheduleService = require('../debtSchedule/debtScheduleService');
+  const original = debtScheduleService.buildDebtAging;
+  const calls = [];
+  debtScheduleService.buildDebtAging = async branches => { calls.push(branches); return DEBT_AGING; };
+  try {
+    await withStubs({}, async () => {
+      const file = await exportService.createExportWorkbook({ tableKey: 'debt.aging', context: {}, columns: { debt_aging: ['branch', 'customerName', 'remainingDays'] } }, 'Cả hai');
+      assert.deepEqual(calls, [['hanoi', 'saigon']]);
+      const worksheet = (await loadWorkbook(file)).worksheets[0];
+      assert.equal(worksheet.getCell('A1').value, 'Cơ sở');
+      assert.equal(worksheet.rowCount, 4);
+    });
+  } finally {
+    debtScheduleService.buildDebtAging = original;
+  }
 });

@@ -2,7 +2,7 @@
 
 // Quy tac cong no theo LICH THANH TOAN (ham thuan, khong I/O). Xem migration 0047.
 //
-// Lich TT = N ngay (so nguyen 1..90; khach chua co lich = 1). Tai ban chot 15:00 ngay D
+// Lich TT = N ngay (so nguyen 1..30; khach chua co lich = 1). Tai ban chot 15:00 ngay D
 // (gio VN), no trong lich = tong hoa don Hoan thanh (KHONG tru tra hang) cua cac NGAY D-N+1 .. D (tinh ca
 // hom nay toi 15:00); tien khach da tra KHONG tinh vao. No qua han = max(0, no hien tai -
 // no trong lich), nap ve 0 neu am. No qua han = no hien tai - hoa don trong lich. Vd luc 15:00 thu 6 8/8: lich 1 -> don 8/8 hop le; lich 3 -> 6, 7, 8/8;
@@ -11,7 +11,9 @@
 const { addDaysToKey } = require('../kiotvietSync/vnTime');
 
 const DEFAULT_SCHEDULE_DAYS = 1;
-const MAX_SCHEDULE_DAYS = 90;
+// 30 ngay (truoc la 90, 17/10/2026): toan bo tab Cong no chi doc hoa don trong 30 ngay gan nhat (giam tai CPU/RAM
+// tren Render); lich TT lon nhat dang dung la 30 nen cua so 30 ngay van du cho moi khach.
+const MAX_SCHEDULE_DAYS = 30;
 const SNAPSHOT_MINUTE_OF_DAY = 15 * 60;
 const WORKFLOW_STATUSES = Object.freeze(['Chưa xử lý', 'Đã xử lý', 'Bỏ qua']);
 const TERMINAL_WORKFLOW_STATUSES = new Set(['Đã xử lý', 'Bỏ qua']);
@@ -25,7 +27,7 @@ const PENALTY_BY_SESSION = Object.freeze([25000, 25000, 50000, 100000, 150000, 2
 const BRANCH_SHORT = Object.freeze({ hanoi: 'HN', saigon: 'SG' });
 const UNGROUPED_SALE = 'Chưa phân nhóm';
 
-/** So ngay lich TT hop le (1..90) tu gia tri nhap, hoac null neu khong hop le. */
+/** So ngay lich TT hop le (1..30) tu gia tri nhap, hoac null neu khong hop le. */
 function parseScheduleDays(raw) {
   if (raw === null || raw === undefined) return null;
   const text = String(raw).trim();

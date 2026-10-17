@@ -45,7 +45,7 @@ async function createVatDraftWorkbook({ view, columns, rows }) {
     throw invalid('Cột xuất không hợp lệ.');
   }
   if (!Array.isArray(rows) || rows.some(r => !Array.isArray(r) || r.length !== columns.length)) throw invalid('Dữ liệu xuất không hợp lệ.');
-  if (rows.length > MAX_EXPORT_ROWS) throw invalid(`Tối đa ${MAX_EXPORT_ROWS.toLocaleString('vi-VN')} dòng mỗi lần xuất.`);
+  if (rows.length > MAX_EXPORT_ROWS) throw invalid(`Tối đa ${MAX_EXPORT_ROWS.toLocaleString('en-US')} dòng mỗi lần xuất.`);
 
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'TOKOSI Dashboard';

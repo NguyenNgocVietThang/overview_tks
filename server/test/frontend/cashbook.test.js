@@ -150,7 +150,7 @@ test('5 ô số dư theo nhóm đúng thứ tự, giữ số âm và tìm tài k
   const cards = [...doc.querySelectorAll('#groupBalances .kpi-card')];
   assert.deepEqual(cards.map(card => card.querySelector('.eyebrow').textContent),
     ['Anh Quân', 'Chị Nguyệt', 'Anh Duy', 'Công ty', 'Khác']);
-  assert.deepEqual(cards.map(card => card.querySelector('.value').textContent), ['-1.234,5', '0', '0', '0', '0']);
+  assert.deepEqual(cards.map(card => card.querySelector('.value').textContent), ['-1,234.5', '0', '0', '0', '0']);
   assert.ok(cards[0].querySelector('.value').classList.contains('negative'));
   assert.equal(doc.querySelector('#balancesBody [data-field="accountGroup"]').textContent, 'Anh Quân');
   const count = calls.length;
@@ -159,18 +159,18 @@ test('5 ô số dư theo nhóm đúng thứ tự, giữ số âm và tìm tài k
   search.dispatchEvent(new w.Event('input', {bubbles: true}));
   assert.deepEqual([...doc.querySelectorAll('#balancesBody tr[data-fund]')].map(row => row.dataset.fund), ['-1,7']);
   assert.equal(calls.length, count);
-  assert.equal(cards[0].querySelector('.value').textContent, '-1.234,5');
+  assert.equal(cards[0].querySelector('.value').textContent, '-1,234.5');
 });
 
 test("tiền null khác số 0, dấu âm và chuỗi thập phân giữ chính xác", async (t) => {
   const { api } = await setup(t);
   assert.equal(api.money(null), "—");
   assert.equal(api.money(0), "0");
-  assert.equal(api.money(-1234567.5), "-1.234.567,5");
-  assert.equal(api.money(1e-21), "0,000000000000000000001");
+  assert.equal(api.money(-1234567.5), "-1,234,567.5");
+  assert.equal(api.money(1e-21), "0.000000000000000000001");
   assert.equal(
     api.money("9007199254740990.123456789"),
-    "9.007.199.254.740.990,123456789",
+    "9,007,199,254,740,990.123456789",
   );
 });
 test("query giữ danh sách rỗng và quỹ -1, mã nhóm không bị decode hai lần", async (t) => {
@@ -232,14 +232,14 @@ test("ngày VN độc lập múi giờ máy khách", async (t) => {
 test("lũy kế luôn hiện theo số máy chủ trả về, ô trống khi không có số", async (t) => {
   const { api } = await setup(t);
   assert.equal(api.runningText({ runningBalance: 10 }), "10");
-  assert.equal(api.runningText({ runningBalance: -1234.5 }), "-1.234,5");
+  assert.equal(api.runningText({ runningBalance: -1234.5 }), "-1,234.5");
   assert.equal(api.runningText({ runningBalance: null }), "");
 });
 test("khởi tạo render API thật, tồn quỹ HN/SG/tổng, negative đỏ và text không thành HTML", async (t) => {
   const { init, doc } = await setup(t);
   await init();
   const row = doc.querySelector('#balancesBody tr[data-fund="-1,7"]');
-  assert.equal(row.querySelector('[data-field="balanceHanoi"]').textContent, "-1.534,5");
+  assert.equal(row.querySelector('[data-field="balanceHanoi"]').textContent, "-1,534.5");
   assert.equal(row.querySelector('[data-field="balanceSaigon"]').textContent, "300");
   assert.equal(
     doc.querySelector('#balancesBody tr[data-fund="cash"] [data-field="balance"]').textContent,
@@ -247,7 +247,7 @@ test("khởi tạo render API thật, tồn quỹ HN/SG/tổng, negative đỏ v
   );
   assert.equal(
     doc.querySelector('#balancesBody [data-field="balance"]').textContent,
-    "-1.234,5",
+    "-1,234.5",
   );
   assert.ok(
     doc
@@ -256,13 +256,13 @@ test("khởi tạo render API thật, tồn quỹ HN/SG/tổng, negative đỏ v
   );
   assert.match(
     doc.getElementById("balanceTotal").textContent,
-    /Tổng tồn quỹ HN \+ SG: -1\.234,5/,
+    /Tổng tồn quỹ HN \+ SG: -1,234\.5/,
   );
   assert.equal(doc.querySelector("#entriesBody img"), null);
   assert.match(doc.getElementById("entriesBody").textContent, /<img src=x>/);
   assert.equal(
     doc.querySelector('#entriesBody [data-field="runningBalance"]').textContent,
-    "-1.234,5",
+    "-1,234.5",
   );
   assert.equal(doc.getElementById("checkpointsBody"), null);
 });
@@ -768,7 +768,7 @@ test("lọc nhóm số dư kết hợp tìm kiếm và sắp xếp, không tải
   choose("");
   assert.deepEqual(order(), ["-1,7", "cash"]);
   assert.equal(calls.length, count);
-  assert.match(doc.getElementById("balanceTotal").textContent, /-1\.234,5/);
+  assert.match(doc.getElementById("balanceTotal").textContent, /-1,234\.5/);
 });
 
 test("sắp xếp tên và nhóm dùng đúng cột, không dùng STK", async (t) => {

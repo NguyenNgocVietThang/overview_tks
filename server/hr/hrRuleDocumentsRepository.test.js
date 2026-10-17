@@ -5,15 +5,21 @@ const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const { createHrRuleDocumentsRepository, DEFAULT_BUILTIN_DOCUMENTS } = require('./hrRuleDocumentsRepository');
 
+// client.connect() tra ve chinh "client" nay (cung mang `calls` va `rowsQueue` voi
+// pool.query thuong) de mo phong 1 transaction BEGIN/.../COMMIT that su dung 1 ket noi.
+// BEGIN/COMMIT/ROLLBACK khong tieu thu rowsQueue (khong co ket qua can gia lap).
 function fakePool(rowsQueue = []) {
   const calls = [];
-  return {
+  const client = {
     calls,
     async query(sql, params) {
       calls.push({ sql, params });
+      if (/^\s*(BEGIN|COMMIT|ROLLBACK)\s*$/i.test(sql)) return { rows: [] };
       return { rows: rowsQueue.length ? rowsQueue.shift() : [] };
-    }
+    },
+    release() {}
   };
+  return Object.assign(client, { connect: async () => client });
 }
 
 const PDF_ROW = {
@@ -61,6 +67,82 @@ test('createPdfDocument tính sha256 + kích thước và bỏ id không phải 
     title: 'x', fileName: 'x.pdf', content, uploadedByUserId: uuid
   });
   assert.equal(pool2.calls[0].params[5], uuid);
+});
+
+const TEXT_ROW = {
+  id: '9', kind: 'text', builtin_key: null, title: 'Hướng dẫn dùng bot', body: 'Bước 1: ...',
+  uploaded_by_name: 'Quản lý A', created_at: new Date('2026-10-17T03:00:00.000Z'),
+  updated_at: null, updated_by_name: ''
+};
+
+test('createTextDocument: INSERT placeholder lấy id, lọc HTML, UPDATE body, COMMIT — trong 1 transaction', async () => {
+  const pool = fakePool([[{ id: 9 }], [TEXT_ROW]]);
+  const doc = await createHrRuleDocumentsRepository({ pool }).createTextDocument({
+    title: 'Hướng dẫn dùng bot', body: 'Bước 1: ...', createdByUserId: 'admin-default', createdByName: 'Quản lý A'
+  });
+
+  const calls = pool.calls;
+  assert.match(calls[0].sql, /^BEGIN$/);
+  assert.match(calls[1].sql, /INSERT INTO hr_rule_documents/);
+  assert.match(calls[1].sql, /VALUES \('text', \$1, '<p><\/p>', \$2, \$3\)/);
+  assert.deepEqual(calls[1].params, ['Hướng dẫn dùng bot', null, 'Quản lý A']);
+  assert.match(calls[2].sql, /UPDATE hr_rule_documents SET body = \$2 WHERE id = \$1/);
+  assert.deepEqual(calls[2].params, [9, 'Bước 1: ...']); // van ban thuan: sanitize-html giu nguyen
+  assert.match(calls[3].sql, /^COMMIT$/);
+  assert.equal(doc.slug, 'text-9');
+  assert.equal(doc.kind, 'text');
+});
+
+test('createTextDocument: nội dung toàn thẻ bị cấm (vd script) ⇒ rỗng sau lọc, ROLLBACK, ném RuleDocError', async () => {
+  const pool = fakePool([[{ id: 9 }]]);
+  await assert.rejects(
+    () => createHrRuleDocumentsRepository({ pool }).createTextDocument({ title: 'x', body: '<script>alert(1)</script>' }),
+    err => { assert.equal(err.code, 'RULE_DOC_BODY_EMPTY'); assert.equal(err.statusCode, 400); return true; }
+  );
+  assert.ok(pool.calls.some(c => /^ROLLBACK$/.test(c.sql)));
+  assert.ok(!pool.calls.some(c => /^COMMIT$/.test(c.sql)));
+});
+
+test('updateTextDocument: lọc HTML, dọn ảnh không còn nhắc tới, sửa tại chỗ (chỉ khi kind = text), trả null nếu không có', async () => {
+  const updatedRow = { ...TEXT_ROW, title: 'Hướng dẫn mới', body: '<b>Nội dung mới</b>', updated_by_name: 'Quản lý B' };
+  // SELECT ton tai -> DELETE anh khong con nhac toi -> UPDATE ... RETURNING.
+  const pool = fakePool([[{ id: 9 }], [], [updatedRow]]);
+  const repo = createHrRuleDocumentsRepository({ pool });
+
+  const doc = await repo.updateTextDocument(9, { title: 'Hướng dẫn mới', body: '<b>Nội dung mới</b>', updatedByName: 'Quản lý B' });
+  const updateCall = pool.calls.find(c => /^UPDATE hr_rule_documents SET title/.test(c.sql));
+  assert.match(updateCall.sql, /WHERE id = \$1 AND kind = 'text'/);
+  assert.deepEqual(updateCall.params, [9, 'Hướng dẫn mới', '<b>Nội dung mới</b>', 'Quản lý B']);
+  assert.ok(pool.calls.some(c => /DELETE FROM hr_rule_document_images/.test(c.sql)));
+  assert.equal(doc.title, 'Hướng dẫn mới');
+  assert.equal(doc.updatedBy, 'Quản lý B');
+
+  const poolNotFound = fakePool([[]]);
+  assert.equal(await createHrRuleDocumentsRepository({ pool: poolNotFound }).updateTextDocument(99, { title: 'x', body: 'y' }), null);
+  assert.ok(poolNotFound.calls.some(c => /^ROLLBACK$/.test(c.sql)));
+});
+
+test('createTextDocument: HTML chỉ có thẻ rỗng/br/nbsp cũng bị coi là nội dung rỗng', async () => {
+  for (const body of ['<p><br></p>', '<div>&nbsp;</div>']) {
+    const pool = fakePool([[{ id: 9 }]]);
+    await assert.rejects(
+      () => createHrRuleDocumentsRepository({ pool }).createTextDocument({ title: 'x', body }),
+      err => err.code === 'RULE_DOC_BODY_EMPTY'
+    );
+    assert.ok(pool.calls.some(c => c.sql === 'ROLLBACK'));
+  }
+});
+
+test('updateTextDocument: id không tồn tại trả null TRƯỚC khi tách ảnh (không gây lỗi FK/500)', async () => {
+  const pool = fakePool([[]]); // SELECT FOR UPDATE khong tim thay document
+  const repo = createHrRuleDocumentsRepository({ pool });
+  const tinyPng = Buffer.from([0x89,0x50,0x4e,0x47]).toString('base64');
+  const result = await repo.updateTextDocument(999, {
+    title: 'x', body: `<p>x</p><img src="data:image/png;base64,${tinyPng}">`
+  });
+  assert.equal(result, null);
+  assert.equal(pool.calls.some(call => /INSERT INTO hr_rule_document_images/.test(call.sql)), false);
+  assert.ok(pool.calls.some(call => call.sql === 'ROLLBACK'));
 });
 
 test('deleteDocument trả tài liệu đã xóa hoặc null khi không có', async () => {
