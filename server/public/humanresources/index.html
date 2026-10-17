@@ -340,10 +340,19 @@
   .doc-page .doc-section h4{ font-family:'Be Vietnam Pro', var(--font-display); font-size:13.5px; font-weight:700; color:#14161c; }
   .doc-page .doc-section p,
   .doc-page .doc-section li{ font-family:'Noto Serif', Georgia, serif; font-size:13px; color:#31353f; line-height:1.7; }
-  /* Tai lieu go tay (kind=text): giu nguyen xuong dong nguoi dung da go, van dung dung
-     font/co chu/mau cua .doc-page .doc-section p o tren (khong tach rule rieng). */
-  .doc-page .doc-section p.rule-doc-text-body{ white-space:pre-wrap; }
   .doc-page .doc-section li strong{ color:#14161c; }
+  /* Tai lieu go tay rich text (kind=text, migration 0061): tieu de/bang nguoi dung tu
+     chen qua trinh soan thao (khong co class rieng — sanitizer khong cho phep thuoc
+     tinh class tren the nguoi dung nhap, xem hrRuleDocumentSanitizer.js). */
+  .doc-page .doc-section h1{ font-family:'Be Vietnam Pro', var(--font-display); font-size:19px; font-weight:800; color:#14161c; margin:0 0 12px; }
+  .doc-page .doc-section h2{ font-family:'Be Vietnam Pro', var(--font-display); font-size:15px; font-weight:700; color:#14161c; margin:0 0 10px; }
+  .doc-page .rule-doc-rich-body,
+  .doc-page .rule-doc-rich-body div{ font-family:'Noto Serif', Georgia, serif; font-size:13px; color:#31353f; line-height:1.7; }
+  .doc-page .rule-doc-rich-body p{ margin:0 0 10px; }
+  .doc-page .rule-doc-rich-body img{ display:block; max-width:100%; height:auto; margin:10px auto; }
+  .doc-page .rule-doc-rich-body ul, .doc-page .rule-doc-rich-body ol{ padding-left:26px; }
+  .doc-page .doc-section table{ border-collapse:collapse; width:100%; margin:0 0 16px; font-family:'Noto Serif', Georgia, serif; font-size:12.5px; }
+  .doc-page .doc-section table td, .doc-page .doc-section table th{ border:1px solid #d8d5cb; padding:6px 10px; color:#31353f; }
   .doc-page .doc-table{ table-layout:fixed; }
   .doc-page .doc-table th, .doc-page .doc-table td{ white-space:normal; overflow-wrap:anywhere; border-color:#d8d5cb; font-family:'Inter', var(--font-body); font-size:12.5px; }
   .doc-page .doc-table th{ background:#f1efe8; color:#14161c; text-align:center; }
@@ -398,6 +407,7 @@
   }
   .modal-overlay[hidden]{ display:none; }
   .modal-box{ width:100%; max-width:480px; max-height:90vh; overflow-y:auto; background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-xl); box-shadow:var(--shadow-modal); }
+  .modal-box-wide{ max-width:760px; }
   .modal-header{ display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--border); }
   .modal-header h3{ margin:0; font-family:var(--font-display); font-size:16px; font-weight:700; color:var(--text); }
   .modal-close{ width:30px; height:30px; border:none; background:transparent; color:var(--muted); font-size:16px; cursor:pointer; border-radius:var(--radius-xs); }
@@ -405,6 +415,55 @@
   .modal-body{ padding:20px; }
   #selfLeaveModal .btn-mini{ padding:8px 16px; min-height:38px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--panel); color:var(--text); font:inherit; cursor:pointer; }
   .modal-footer{ display:flex; align-items:center; justify-content:flex-end; gap:10px; padding:14px 20px; border-top:1px solid var(--border); background:var(--panel-2); }
+
+  /* ---- Soan tai lieu go tay: thanh cong cu dinh dang + vung contenteditable ---- */
+  .rte-toolbar{
+    display:flex; flex-wrap:wrap; align-items:center; gap:4px; padding:6px;
+    border:1px solid var(--border); border-bottom:none; border-radius:var(--radius-sm) var(--radius-sm) 0 0;
+    background:var(--panel-2);
+  }
+  .rte-sep{ width:1px; height:22px; background:var(--border); margin:0 4px; flex-shrink:0; }
+  .rte-btn{
+    min-width:30px; height:30px; padding:0 8px; border:1px solid transparent; border-radius:var(--radius-xs);
+    background:transparent; color:var(--text); font:inherit; font-size:13px; cursor:pointer; white-space:nowrap;
+  }
+  .rte-btn:hover{ background:var(--surface-hover); border-color:var(--border); }
+  .rte-btn.active{ background:rgba(249,115,22,0.18); border-color:#f97316; }
+  .rte-select{
+    height:30px; padding:0 6px; border:1px solid var(--border); border-radius:var(--radius-xs);
+    background:var(--panel); color:var(--text); font:inherit; font-size:12.5px; cursor:pointer;
+  }
+  .rte-color-btn{
+    display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px;
+    border:1px solid var(--border); border-radius:var(--radius-xs); cursor:pointer; font-size:13px; color:var(--text);
+    position:relative; background:var(--panel);
+  }
+  .rte-color-btn:hover{ background:var(--surface-hover); }
+  .rte-color-btn input[type="color"]{ position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; }
+  .rte-icon-picker{ display:flex; flex-wrap:wrap; gap:6px; }
+  .rte-icon-option{
+    width:36px; height:36px; display:inline-flex; align-items:center; justify-content:center;
+    border:1px solid var(--border); border-radius:var(--radius-xs); background:var(--panel); color:var(--text);
+    cursor:pointer; padding:0;
+  }
+  .rte-icon-option:hover{ background:var(--surface-hover); }
+  .rte-icon-option.active{ background:rgba(249,115,22,0.18); border-color:#f97316; color:#f97316; }
+  .rte-icon-option svg{ width:18px; height:18px; }
+  .rte-doc-icon{ display:inline-flex; margin-right:8px; vertical-align:-4px; color:#14161c; }
+  .rte-doc-icon svg{ width:20px; height:20px; }
+  .rte-editor{
+    min-height:260px; max-height:50vh; overflow-y:auto; padding:16px 18px; background:#fff; color:#23262f;
+    border:1px solid var(--border); border-radius:0 0 var(--radius-sm) var(--radius-sm);
+    font-family:'Noto Serif', Georgia, serif; font-size:13px; line-height:1.7;
+  }
+  .rte-editor:focus{ outline:2px solid #f97316; outline-offset:-1px; }
+  .rte-editor h1{ font-family:'Be Vietnam Pro', var(--font-display); font-size:20px; font-weight:800; margin:0 0 10px; color:#14161c; }
+  .rte-editor h2{ font-family:'Be Vietnam Pro', var(--font-display); font-size:16px; font-weight:700; margin:0 0 8px; color:#14161c; }
+  .rte-editor p{ margin:0 0 10px; }
+  .rte-editor ul, .rte-editor ol{ margin:0 0 10px; padding-left:22px; }
+  .rte-editor table{ border-collapse:collapse; margin:0 0 10px; width:100%; }
+  .rte-editor table td, .rte-editor table th{ border:1px solid #d8d5cb; padding:6px 8px; min-width:40px; }
+  .rte-editor img, .doc-page .doc-section img{ max-width:100%; height:auto; display:block; margin:8px 0; }
 
   .alert-box{ padding:10px 14px; border-radius:var(--radius-sm); font-size:12.5px; margin-bottom:14px; line-height:1.45; }
   .alert-warning{ background:var(--alert-warning-bg); border:1px solid var(--alert-warning-border); color:var(--amber); }
@@ -946,21 +1005,21 @@
           </div>
 
           <!-- Tai lieu go tay (kind=text): dung DUNG khung .doc-page nhu tai lieu dung san
-               (logo + tieu de + gach ngang) de giu nguyen font/dinh dang/logo cong ty; chi
-               phan noi dung la van ban thuan, ghi bang textContent (khong render HTML). -->
+               (logo + tieu de + gach ngang) de giu nguyen font/dinh dang/logo cong ty.
+               Noi dung (rich text, migration 0061) da duoc server loc qua whitelist XSS
+               (hrRuleDocumentSanitizer.js) truoc khi luu — an toan de hien bang innerHTML
+               o day. KHONG BAO GIO gan doc.body qua innerHTML o cho nao khac ngoai day. -->
           <div class="rule-doc-view doc-page-wrap" id="ruleDocTextView" hidden>
             <div class="doc-page">
               <div class="doc-page-header">
                 <img src="/Logo.jpg" alt="TOKOSI">
                 <div class="doc-page-title">
-                  <h1 id="ruleDocTextH1"></h1>
+                  <h1><span class="rte-doc-icon" id="ruleDocTextIcon" hidden></span><span id="ruleDocTextH1"></span></h1>
                   <p id="ruleDocTextBanner"></p>
                 </div>
               </div>
               <hr class="doc-divider">
-              <div class="doc-section">
-                <p class="rule-doc-text-body" id="ruleDocTextBody"></p>
-              </div>
+              <div class="doc-section" id="ruleDocTextBody"></div>
             </div>
           </div>
         </div>
@@ -1194,7 +1253,7 @@
 
   <!-- Modal: soan / sua tai lieu quy dinh go tay (kind=text) -->
   <div class="modal-overlay" id="ruleTextModal" hidden>
-    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="ruleTextHeading">
+    <div class="modal-box modal-box-wide" role="dialog" aria-modal="true" aria-labelledby="ruleTextHeading">
       <div class="modal-header">
         <h3 id="ruleTextHeading">Soạn tài liệu quy định</h3>
         <button type="button" class="modal-close" onclick="closeModal('ruleTextModal')" aria-label="Đóng">✕</button>
@@ -1207,8 +1266,42 @@
             <input type="text" id="ruleTextName" class="form-control" maxlength="120" required>
           </div>
           <div class="form-group">
-            <label for="ruleTextBody">Nội dung * (văn bản thuần, tối đa 20.000 ký tự)</label>
-            <textarea id="ruleTextBody" class="form-control" rows="14" maxlength="20000" required></textarea>
+            <label>Icon (tùy chọn — hiện cạnh tiêu đề)</label>
+            <!-- Chi CHON tu danh sach co dinh (hrRuleDocumentIcons.js / ICON_DEFS ben duoi),
+                 khong go tay duoc — khong di qua bo loc XSS, khong co nguy co chen SVG doc hai. -->
+            <div class="rte-icon-picker" id="rteIconPicker"></div>
+            <input type="hidden" id="ruleTextIcon" value="">
+          </div>
+          <div class="form-group">
+            <label>Nội dung *</label>
+            <div class="rte-toolbar" id="rteToolbar">
+              <button type="button" class="rte-btn" data-cmd="bold" title="Đậm (Ctrl+B)"><b>B</b></button>
+              <button type="button" class="rte-btn" data-cmd="italic" title="Nghiêng (Ctrl+I)"><i>I</i></button>
+              <button type="button" class="rte-btn" data-cmd="underline" title="Gạch chân (Ctrl+U)"><u>U</u></button>
+              <button type="button" class="rte-btn" data-cmd="strikeThrough" title="Gạch ngang"><s>S</s></button>
+              <span class="rte-sep"></span>
+              <select class="rte-select" id="rteHeadingSelect" title="Kiểu đoạn văn">
+                <option value="P">Normal</option>
+                <option value="H1">Heading 1</option>
+                <option value="H2">Heading 2</option>
+              </select>
+              <span class="rte-sep"></span>
+              <button type="button" class="rte-btn" data-cmd="insertUnorderedList" title="Danh sách gạch đầu dòng">• ≡</button>
+              <button type="button" class="rte-btn" data-cmd="insertOrderedList" title="Danh sách đánh số">1. ≡</button>
+              <span class="rte-sep"></span>
+              <button type="button" class="rte-btn" data-cmd="justifyLeft" title="Căn trái">Trái</button>
+              <button type="button" class="rte-btn" data-cmd="justifyCenter" title="Căn giữa">Giữa</button>
+              <button type="button" class="rte-btn" data-cmd="justifyRight" title="Căn phải">Phải</button>
+              <span class="rte-sep"></span>
+              <label class="rte-color-btn" title="Màu chữ">A<input type="color" id="rteForeColor" value="#000000"></label>
+              <label class="rte-color-btn" title="Màu nền">🖍<input type="color" id="rteBackColor" value="#ffff00"></label>
+              <span class="rte-sep"></span>
+              <button type="button" class="rte-btn" id="rteInsertTableBtn" title="Chèn bảng">Bảng</button>
+              <button type="button" class="rte-btn" id="rteInsertImageBtn" title="Chèn ảnh">Ảnh</button>
+              <input type="file" id="ruleTextImageInput" accept="image/png,image/jpeg,image/gif,image/webp" onchange="onRuleTextImageSelected()" hidden>
+            </div>
+            <div id="ruleTextEditor" class="rte-editor form-control" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Nội dung tài liệu" onpaste="onRuleEditorPaste(event)"></div>
+            <p class="rule-doc-hint" id="rteSizeHint"></p>
           </div>
         </div>
         <div class="modal-footer">
@@ -1402,11 +1495,15 @@
         if(dateText) parts.push(dateText);
         ruleDocEl('ruleDocMeta').textContent = parts.join(' · ');
         setRuleDocStatus('');
-        // Khung .doc-page (logo + tieu de + gach ngang) giong het tai lieu dung san —
-        // textContent cho ca tieu de lan noi dung, khong innerHTML, tranh XSS.
+        // Body do server sanitize bang whitelist truoc khi luu. Tieu de van dung
+        // textContent; chi body rich-text duoc render HTML da loc.
         ruleDocEl('ruleDocTextH1').textContent = doc.title;
         ruleDocEl('ruleDocTextBanner').textContent = `TOKOSI · Nội bộ${dateText ? ` · Cập nhật: ${dateText}` : ''}`;
-        ruleDocEl('ruleDocTextBody').textContent = doc.body || '';
+        ruleDocEl('ruleDocTextBody').innerHTML = doc.body || '';
+        const iconEl = ruleDocEl('ruleDocTextIcon');
+        const iconDef = doc.iconKey && ICON_DEFS[doc.iconKey];
+        if(iconDef){ iconEl.innerHTML = iconDef.svg; iconEl.hidden = false; } // ICON_DEFS: hang so trong code
+        else { iconEl.innerHTML = ''; iconEl.hidden = true; }
         ruleDocEl('ruleDocTextView').hidden = false;
       }else{
         const parts = [];
@@ -1578,7 +1675,193 @@
     }
 
     // ----- Quan ly: soan / sua tai lieu go tay (kind=text) -----
+    // ICON_DEFS: markup SVG TIN CAY, nam san trong code — nguoi dung chi CHON 1 khoa
+    // (vd 'clock'), khong go duoc ma SVG. Phai khop danh sach trong migration 0062 /
+    // hrRuleDocumentIcons.js.
+    const ICON_DEFS = {
+      clock: { label: 'Giờ giấc', svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>' },
+      calendar: { label: 'Nghỉ phép', svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>' },
+      gift: { label: 'Phúc lợi', svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12v10H4V12"></path><path d="M2 7h20v5H2z"></path><path d="M12 22V7"></path><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"></path><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"></path></svg>' },
+      box: { label: 'Hàng hóa', svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>' },
+      info: { label: 'Thông tin', svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>' },
+      warning: { label: 'Cảnh báo', svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 20h20L12 2z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>' },
+      document: { label: 'Tài liệu', svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>' },
+      users: { label: 'Nhân sự', svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>' }
+    };
+    let ruleTextSelectedIcon = '';
+
+    function renderIconPicker(){
+      const wrap = ruleDocEl('rteIconPicker');
+      wrap.innerHTML = '';
+      const none = document.createElement('button');
+      none.type = 'button';
+      none.className = 'rte-icon-option';
+      none.title = 'Không có icon';
+      none.textContent = '—';
+      none.addEventListener('click', () => selectRuleTextIcon(''));
+      wrap.appendChild(none);
+      Object.keys(ICON_DEFS).forEach(key => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'rte-icon-option';
+        btn.title = ICON_DEFS[key].label;
+        btn.innerHTML = ICON_DEFS[key].svg; // ICON_DEFS la hang so trong code, khong phai du lieu nguoi dung.
+        btn.addEventListener('click', () => selectRuleTextIcon(key));
+        wrap.appendChild(btn);
+      });
+    }
+
+    function selectRuleTextIcon(key){
+      ruleTextSelectedIcon = ICON_DEFS[key] ? key : '';
+      ruleDocEl('ruleTextIcon').value = ruleTextSelectedIcon;
+      ruleDocEl('rteIconPicker').querySelectorAll('.rte-icon-option').forEach((btn, index) => {
+        btn.classList.toggle('active', index === 0 ? !ruleTextSelectedIcon : Object.keys(ICON_DEFS)[index - 1] === ruleTextSelectedIcon);
+      });
+    }
+
     let ruleTextEditingId = null; // null = tao moi, co gia tri = dang sua tai lieu do
+    let ruleEditorSavedRange = null;
+
+    function ruleEditor(){ return ruleDocEl('ruleTextEditor'); }
+
+    function saveRuleEditorSelection(){
+      const selection = window.getSelection && window.getSelection();
+      if(!selection || !selection.rangeCount) return;
+      const range = selection.getRangeAt(0);
+      if(ruleEditor().contains(range.commonAncestorContainer)) ruleEditorSavedRange = range.cloneRange();
+    }
+
+    function restoreRuleEditorSelection(){
+      if(!ruleEditorSavedRange) return;
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(ruleEditorSavedRange);
+    }
+
+    function focusRuleEditor(){
+      const editor = ruleEditor();
+      if(editor){ editor.focus(); restoreRuleEditorSelection(); }
+    }
+
+    function ruleEditorCommand(command, value){
+      focusRuleEditor();
+      document.execCommand(command, false, value == null ? null : value);
+    }
+
+    function ruleEditorBlock(tag){
+      ruleEditorCommand('formatBlock', tag);
+    }
+
+    function ruleEditorColor(property, value){
+      if(!value) return;
+      ruleEditorCommand(property === 'backgroundColor' ? 'hiliteColor' : 'foreColor', value);
+    }
+
+    function insertRuleTable(){
+      const rawRows = window.prompt('Số dòng của bảng:', '3');
+      if(rawRows == null) return;
+      const rawCols = window.prompt('Số cột của bảng:', '3');
+      if(rawCols == null) return;
+      const rows = Math.max(1, Math.min(20, Number.parseInt(rawRows,10) || 0));
+      const cols = Math.max(1, Math.min(10, Number.parseInt(rawCols,10) || 0));
+      if(!rows || !cols){ showToast('Số dòng/cột không hợp lệ.', 'error'); return; }
+      let html = '<table><tbody>';
+      for(let r=0;r<rows;r++){
+        html += '<tr>';
+        for(let c=0;c<cols;c++) html += r === 0 ? '<th>Tiêu đề</th>' : '<td>Nội dung</td>';
+        html += '</tr>';
+      }
+      html += '</tbody></table><p><br></p>';
+      ruleEditorCommand('insertHTML', html);
+    }
+
+    function insertRuleImageFile(file){
+      if(!file) return;
+      if(!['image/png','image/jpeg','image/gif','image/webp'].includes(file.type)){
+        showToast('Chỉ nhận ảnh PNG, JPG, GIF hoặc WEBP.', 'error'); return;
+      }
+      if(file.size > 5 * 1024 * 1024){ showToast('Ảnh quá lớn, tối đa 5 MB.', 'error'); return; }
+      const reader = new FileReader();
+      reader.onload = () => ruleEditorCommand('insertImage', reader.result);
+      reader.onerror = () => showToast('Không đọc được ảnh.', 'error');
+      reader.readAsDataURL(file);
+    }
+
+    function insertRuleImage(){
+      const input = ruleDocEl('ruleTextImageInput');
+      input.value = '';
+      input.click();
+    }
+
+    function onRuleTextImageSelected(){
+      insertRuleImageFile(ruleDocEl('ruleTextImageInput').files[0]);
+    }
+
+    function onRuleEditorPaste(event){
+      const items = Array.from((event.clipboardData && event.clipboardData.items) || []);
+      const imageItem = items.find(item => item.kind === 'file' && item.type.startsWith('image/'));
+      if(imageItem){
+        event.preventDefault();
+        insertRuleImageFile(imageItem.getAsFile());
+        return;
+      }
+
+      // Chan HTML nguy hiem / anh ngoai tai ngay luc paste (truoc khi bam Luu),
+      // de khong phat sinh request ra ngoai tu <img src=https://...>. Server van
+      // sanitize lai bang sanitize-html — day chi la lop phong thu som cho editor.
+      const html = event.clipboardData && event.clipboardData.getData('text/html');
+      if(!html) return; // van ban thuan de trinh duyet xu ly binh thuong
+      event.preventDefault();
+      const template = document.createElement('template');
+      template.innerHTML = html;
+      template.content.querySelectorAll('script,style,iframe,object,embed,form,svg,meta,link').forEach(el => el.remove());
+      template.content.querySelectorAll('*').forEach(el => {
+        Array.from(el.attributes).forEach(attr => {
+          const name = attr.name.toLowerCase();
+          if(name.startsWith('on') || name === 'srcdoc') el.removeAttribute(attr.name);
+        });
+        if(el.tagName === 'IMG'){
+          const src = el.getAttribute('src') || '';
+          if(!src.startsWith('data:image/')) el.remove();
+        }
+      });
+      ruleEditorCommand('insertHTML', template.innerHTML);
+    }
+
+    function ruleEditorHasContent(html){
+      const holder = document.createElement('div');
+      holder.innerHTML = html || '';
+      return !!holder.textContent.trim() || !!holder.querySelector('img,table');
+    }
+
+    function updateRuleEditorSizeHint(){
+      const editor = ruleEditor();
+      const hint = ruleDocEl('rteSizeHint');
+      if(!editor || !hint) return;
+      const chars = editor.innerHTML.length;
+      hint.textContent = `Nội dung HTML: ${chars.toLocaleString('vi-VN')} ký tự · Ảnh tối đa 5 MB/ảnh`;
+    }
+
+    function initRuleTextEditor(){
+      document.querySelectorAll('#rteToolbar [data-cmd]').forEach(button => {
+        button.addEventListener('mousedown', event => event.preventDefault());
+        button.addEventListener('click', () => ruleEditorCommand(button.dataset.cmd));
+      });
+      ruleDocEl('rteHeadingSelect').addEventListener('change', event => ruleEditorBlock(event.target.value));
+      ruleDocEl('rteForeColor').addEventListener('input', event => ruleEditorColor('color', event.target.value));
+      ruleDocEl('rteBackColor').addEventListener('input', event => ruleEditorColor('backgroundColor', event.target.value));
+      ruleDocEl('rteInsertTableBtn').addEventListener('click', insertRuleTable);
+      ruleDocEl('rteInsertImageBtn').addEventListener('click', insertRuleImage);
+      ruleEditor().addEventListener('input', updateRuleEditorSizeHint);
+      ruleEditor().addEventListener('keyup', saveRuleEditorSelection);
+      ruleEditor().addEventListener('mouseup', saveRuleEditorSelection);
+      ruleEditor().addEventListener('focus', saveRuleEditorSelection);
+      document.addEventListener('selectionchange', saveRuleEditorSelection);
+      // Buoc trinh duyet dung inline CSS cho mau/can le; server chi giu dung cac
+      // thuoc tinh CSS trong whitelist.
+      try{ document.execCommand('styleWithCSS', false, true); }catch(err){}
+      renderIconPicker();
+    }
 
     function openRuleTextModal(doc){
       if(!hrCan('hr.rules.manage')) return;
@@ -1589,10 +1872,11 @@
       ruleTextEditingId = isEdit ? doc.id : null;
       ruleDocEl('ruleTextHeading').textContent = isEdit ? 'Sửa tài liệu quy định' : 'Soạn tài liệu quy định';
       ruleDocEl('ruleTextSubmit').textContent = isEdit ? 'Lưu' : 'Tạo tài liệu';
-      if(isEdit){
-        ruleDocEl('ruleTextName').value = doc.title || '';
-        ruleDocEl('ruleTextBody').value = doc.body || '';
-      }
+      ruleEditor().innerHTML = isEdit ? (doc.body || '') : '<p><br></p>';
+      ruleEditorSavedRange = null;
+      if(isEdit) ruleDocEl('ruleTextName').value = doc.title || '';
+      selectRuleTextIcon(isEdit ? (doc.iconKey || '') : '');
+      updateRuleEditorSizeHint();
       openModal('ruleTextModal');
     }
 
@@ -1604,9 +1888,9 @@
       errBox.hidden = true;
 
       const title = ruleDocEl('ruleTextName').value.trim();
-      const body = ruleDocEl('ruleTextBody').value.trim();
+      const body = ruleEditor().innerHTML.trim();
       if(!title){ showError('Vui lòng nhập tên tài liệu.'); return; }
-      if(!body){ showError('Vui lòng nhập nội dung.'); return; }
+      if(!ruleEditorHasContent(body)){ showError('Vui lòng nhập nội dung.'); return; }
 
       const editingId = ruleTextEditingId;
       const url = editingId ? `/api/hr/rules/documents/${editingId}/text` : '/api/hr/rules/documents/text';
@@ -1618,7 +1902,7 @@
         const res = await fetch(url, {
           method, credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title, body })
+          body: JSON.stringify({ title, body, icon: ruleTextSelectedIcon })
         });
         const { ok, data } = await parseApiResponse(res);
         if(!ok){ showError((data && data.error) || 'Không lưu được tài liệu.'); return; }
@@ -3023,6 +3307,7 @@
     // ---------- Init ----------
     window.addEventListener('DOMContentLoaded', () => {
       syncThemeControl();
+      initRuleTextEditor();
       const sidebar = document.getElementById('sidebar');
       if(window.TKSNav && window.TKSNav.authGuard){
         window.TKSNav.authGuard().then(user => {

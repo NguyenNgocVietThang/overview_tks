@@ -60,3 +60,32 @@ test('migration 0060 cho phép kind text và giữ nguyên ràng buộc builtin/
   assert.match(text, /kind = 'pdf' AND builtin_key IS NULL AND content IS NOT NULL[\s\S]*?AND body IS NULL/);
   assert.match(text, /kind = 'text' AND builtin_key IS NULL AND content IS NULL[\s\S]*?AND body IS NOT NULL/);
 });
+
+test('migration 0061 chuyển body cũ (văn bản thuần) sang HTML an toàn trước khi nâng rich text', () => {
+  const sql = fs.readFileSync(path.join(__dirname, 'migrations', '0061_hr_rule_document_rich_text.sql'), 'utf8');
+  // Thu tu thoat phai la & truoc, roi moi < > " — nguoc lai se thoat kep (&lt; -> &amp;lt;)
+  const ampIdx = sql.indexOf("'&', '&amp;'");
+  const ltIdx = sql.indexOf("'<', '&lt;'");
+  const gtIdx = sql.indexOf("'>', '&gt;'");
+  assert.ok(ampIdx !== -1 && ltIdx !== -1 && gtIdx !== -1, 'phai co du 3 buoc thoat & < >');
+  assert.ok(ampIdx < ltIdx && ltIdx < gtIdx, 'phai thoat & TRUOC < va >');
+  assert.match(sql, /E'\\n', '<br>'/);
+  assert.match(sql, /WHERE kind = 'text' AND body IS NOT NULL/);
+});
+
+test('migration 0061 nâng giới hạn body lên 200000 ký tự (HTML tốn chỗ hơn văn bản thuần)', () => {
+  const sql = fs.readFileSync(path.join(__dirname, 'migrations', '0061_hr_rule_document_rich_text.sql'), 'utf8');
+  assert.match(sql, /DROP CONSTRAINT IF EXISTS hr_rule_documents_body_check/);
+  assert.match(sql, /CHECK \(body IS NULL OR char_length\(body\) BETWEEN 1 AND 200000\)/);
+});
+
+test('migration 0061 tạo bảng hr_rule_document_images (BYTEA, giới hạn 5MB, cascade xóa theo tài liệu)', () => {
+  const sql = fs.readFileSync(path.join(__dirname, 'migrations', '0061_hr_rule_document_rich_text.sql'), 'utf8');
+  assert.match(sql, /CREATE TABLE hr_rule_document_images/);
+  assert.match(sql, /document_id\s+BIGINT NOT NULL REFERENCES hr_rule_documents\(id\) ON DELETE CASCADE/);
+  assert.match(sql, /content\s+BYTEA NOT NULL/);
+  assert.match(sql, /content_type\s+TEXT NOT NULL CHECK \(content_type IN \('image\/png', 'image\/jpeg', 'image\/gif', 'image\/webp'\)\)/);
+  assert.match(sql, /size_bytes\s+INTEGER NOT NULL CHECK \(size_bytes > 0 AND size_bytes <= 5242880\)/);
+  assert.match(sql, /sha256\s+CHAR\(64\) NOT NULL CHECK \(sha256 ~ '\^\[0-9a-f\]\{64\}\$'\)/);
+  assert.match(sql, /REVOKE SELECT ON hr_rule_document_images FROM reporting_readonly/);
+});

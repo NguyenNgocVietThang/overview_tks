@@ -97,7 +97,7 @@ test('GET /meta: trang thai master data, dong bo, danh sach tai khoan', async ()
   const res = await request('/meta');
   assert.deepEqual([res.body.masterData.stockRows, res.body.masterData.mappingRows, res.body.masterData.error], [3, 2, null]);
   assert.equal(res.body.sync[0].entity, 'invoices');
-  assert.equal(res.body.vietqr.accounts.length, 17);
+  assert.equal(res.body.vietqr.accounts.length, 18);
   const broken = await request('/meta', { masterData: fakeMaster({ fail: true }) });
   assert.equal(broken.status, 200);
   assert.match(broken.body.masterData.error, /chia sẻ công khai/);
