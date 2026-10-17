@@ -439,10 +439,16 @@ test('buoc lay truong van validate re: bang khong hop le, thieu khach/tu khoa, t
 });
 
 test('cot o buoc lay truong == cot cua dataset o buoc xuat cho moi bang co dinh', async () => {
+  const debtScheduleService = require('../debtSchedule/debtScheduleService');
   const originals = {
     report: dashboardData.getCustomerProductRevenueReport,
-    productReport: productReportRepository.getProductReport
+    productReport: productReportRepository.getProductReport,
+    debtAging: debtScheduleService.buildDebtAging
   };
+  debtScheduleService.buildDebtAging = async () => ({ available: true, customers: [
+    { branch: 'HN', customerName: 'Khách A', sale: 'Sale A', paymentSchedule: '1', currentDebt: 1, overdueDebt: 0,
+      payoffDay: '2026-10-17', beyondHistory: false, equivalentDays: 0, remainingDays: 1 }
+  ] });
   dashboardData.getCustomerProductRevenueReport = async () => ({
     products: [{ code: 'SP-01', name: 'Sản phẩm một', quantity: 3, revenue: 300, month1Revenue: 1, month2Revenue: 2, month3Revenue: 3 }]
   });
@@ -473,6 +479,7 @@ test('cot o buoc lay truong == cot cua dataset o buoc xuat cho moi bang co dinh'
   } finally {
     dashboardData.getCustomerProductRevenueReport = originals.report;
     productReportRepository.getProductReport = originals.productReport;
+    debtScheduleService.buildDebtAging = originals.debtAging;
   }
 });
 
@@ -1880,4 +1887,52 @@ test('debt.penalty: open-month Excel and HTML show numeric provisional rewards w
     assert.match(opened.doc.querySelector('#kpis').textContent, /thưởng tạm tính1\.050\.000/i);
     opened.dom.window.close();
   });
+});
+
+const DEBT_AGING = {
+  available: true, asOfDay: '2026-10-17',
+  customers: [
+    { branch: 'HN', customerName: 'Anh Bình', sale: 'Duy Thái', paymentSchedule: '5', currentDebt: 600, overdueDebt: 300,
+      payoffDay: '2026-10-10', beyondHistory: false, equivalentDays: 7, remainingDays: -2 },
+    { branch: 'HN', customerName: 'Chị An', sale: 'Duy Thái', paymentSchedule: '1', currentDebt: 0, overdueDebt: 0,
+      payoffDay: null, beyondHistory: false, equivalentDays: null, remainingDays: null },
+    { branch: 'SG', customerName: 'Anh Sài', sale: 'Tú Uyên', paymentSchedule: '2', currentDebt: 9000, overdueDebt: 9000,
+      payoffDay: '2025-10-18', beyondHistory: true, equivalentDays: 364, remainingDays: -362 }
+  ]
+};
+
+test('debt.aging: ap bo loc Sale/Lich/Tim + sap xep man hinh, ngay het no dd/mm/yyyy va "Trước" khi vuot lich su', async () => {
+  await withStubs({}, async stubs => {
+    const env = { ...fixedEnv(stubs), dashboard: { debtAging: DEBT_AGING } };
+    const all = await exportService.__test__.buildFixedDataset('debt.aging', env, {});
+    assert.deepEqual(all.worksheets[0].rows.map(row => [row.branch, row.customerName, row.payoffDay, row.equivalentDays, row.remainingDays]), [
+      ['HN', 'Anh Bình', '10/10/2026', 7, -2], ['HN', 'Chị An', '', null, null], ['SG', 'Anh Sài', 'Trước 18/10/2025', 364, -362]
+    ]);
+    assert.ok(!('payoffDayKey' in all.worksheets[0].rows[0]), 'khoa sap xep noi bo khong ra file');
+    const filtered = await exportService.__test__.buildFixedDataset('debt.aging', env, { debtAgingSale: 'Duy Thái', debtAgingSearch: 'bình' });
+    assert.deepEqual(filtered.worksheets[0].rows.map(row => row.customerName), ['Anh Bình']);
+    // Cot 6 = Ngay het no: sap theo ngay that, khong theo chuoi dd/mm.
+    const sorted = await exportService.__test__.buildFixedDataset('debt.aging', env, { debtAgingSort: { columnIndex: 6, direction: 'asc' } });
+    assert.deepEqual(sorted.worksheets[0].rows.map(row => row.customerName), ['Anh Sài', 'Anh Bình', 'Chị An']);
+    const remaining = await exportService.__test__.buildFixedDataset('debt.aging', env, { debtAgingSort: { columnIndex: 8, direction: 'asc' } });
+    assert.deepEqual(remaining.worksheets[0].rows.map(row => row.customerName), ['Anh Sài', 'Anh Bình', 'Chị An']);
+  });
+});
+
+test('debt.aging: tao file doc bang tinh san theo co so dang xem', async () => {
+  const debtScheduleService = require('../debtSchedule/debtScheduleService');
+  const original = debtScheduleService.buildDebtAging;
+  const calls = [];
+  debtScheduleService.buildDebtAging = async branches => { calls.push(branches); return DEBT_AGING; };
+  try {
+    await withStubs({}, async () => {
+      const file = await exportService.createExportWorkbook({ tableKey: 'debt.aging', context: {}, columns: { debt_aging: ['branch', 'customerName', 'remainingDays'] } }, 'Cả hai');
+      assert.deepEqual(calls, [['hanoi', 'saigon']]);
+      const worksheet = (await loadWorkbook(file)).worksheets[0];
+      assert.equal(worksheet.getCell('A1').value, 'Cơ sở');
+      assert.equal(worksheet.rowCount, 4);
+    });
+  } finally {
+    debtScheduleService.buildDebtAging = original;
+  }
 });

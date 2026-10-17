@@ -13,13 +13,13 @@ function readDashboardHtml() {
   return fs.readFileSync(htmlPath, 'utf8');
 }
 
-test('giao dien gan dung 5 nut xuat Excel cho 5 bang co dinh (khong con Dat hang / Tra hang / Khach hang cu / cac muc cu cua Hang hoa)', () => {
+test('giao dien gan dung 6 nut xuat Excel cho 6 bang co dinh (khong con Dat hang / Tra hang / Khach hang cu / cac muc cu cua Hang hoa)', () => {
   const html = readDashboardHtml();
   const matches = [...html.matchAll(/openExportDialog\('([^']+)'\)/g)].map(match => match[1]);
-  assert.equal(matches.length, 5);
-  assert.equal(new Set(matches).size, 5);
+  assert.equal(matches.length, 6);
+  assert.equal(new Set(matches).size, 6);
   assert.deepEqual(matches.sort(), [
-    'customers.productDetail', 'debt.management', 'debt.penalty',
+    'customers.productDetail', 'debt.aging', 'debt.management', 'debt.penalty',
     'overview.productReport', 'overview.transactions'
   ].sort());
 });

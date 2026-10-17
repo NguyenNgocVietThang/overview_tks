@@ -5,9 +5,10 @@
 
 const { hasFeature } = require('../auth/featureRegistry');
 const { branchLabelToCode } = require('../branch/branches');
-const { buildCustomerRow, buildDebtReport } = require('./debtScheduleRules');
+const { buildCustomerRow, buildDebtReport, customerKeyOf, BRANCH_SHORT, UNGROUPED_SALE } = require('./debtScheduleRules');
 const { vnDateKey } = require('../kiotvietSync/vnTime');
 const debtScheduleRepository = require('./debtScheduleRepository');
+const debtAgingRepository = require('./debtAgingRepository');
 
 const DEBT_ACCESS_FEATURES = Object.freeze({
   saleFeedback: 'reports.debt.saleFeedback',
@@ -55,4 +56,34 @@ async function buildDebtManagement(branchLabels, viewer, {
   }
 }
 
-module.exports = { DEBT_ACCESS_FEATURES, debtAccessFor, debtAccessTag, buildDebtManagement };
+/**
+ * Bang "Tuoi no theo hoa don" (so song, khong theo ban chot 15:00) cho cac co so (ma hanoi/saigon).
+ * Chi doc bang da tinh san (debtAgingRefresh.js). Thu tu mac dinh: co so, ten khach.
+ */
+async function buildDebtAging(branches, { repository = debtAgingRepository.getDebtAgingRepository() } = {}) {
+  let data;
+  try {
+    data = await repository.readAging(branches);
+  } catch (error) {
+    // Chua ap migration 0059: bang rong + canh bao, khong 503.
+    if (error && error.code === '42P01') return { available: false, asOfDay: null, refreshedAt: null, customersSyncedAt: null, customers: [] };
+    throw error;
+  }
+  const { state, rows } = data;
+  const customers = rows.map(row => ({
+    ...row,
+    customerKey: customerKeyOf(row.branchCode, row.customerId),
+    branch: BRANCH_SHORT[row.branchCode] || row.branchCode,
+    sale: row.sale || UNGROUPED_SALE,
+    paymentSchedule: String(row.scheduleDays)
+  })).sort((a, b) => a.branch.localeCompare(b.branch) || a.customerName.localeCompare(b.customerName, 'vi'));
+  return {
+    available: Boolean(state),
+    asOfDay: state ? state.asOfDay : null,
+    refreshedAt: state ? state.refreshedAt : null,
+    customersSyncedAt: state ? state.customersSyncedAt : null,
+    customers
+  };
+}
+
+module.exports = { DEBT_ACCESS_FEATURES, debtAccessFor, debtAccessTag, buildDebtManagement, buildDebtAging };

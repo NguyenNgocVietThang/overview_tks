@@ -1,6 +1,6 @@
 # Supabase schema cho đồng bộ KiotViet
 
-Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0058`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
+Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0059`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
 
 ## Quy ước chung
 
@@ -491,3 +491,7 @@ marketing_pancake_independent_page_state lưu trạng thái/coverage sáu page; 
 ## Index ngày đặt hàng cho Kế toán – Nháp VAT — migration 0058 (17/10/2026, chưa áp DB)
 
 `0058_orders_order_date_index.sql`: `CREATE INDEX IF NOT EXISTS idx_orders_order_date ON orders (branch, order_date)`. Chỉ thêm index, không đổi dữ liệu. Phục vụ danh sách "đơn đặt hàng chưa xuất hóa đơn" của trang `/vat-draft/` (`server/vatDraft/documentsRepository.js`) — lọc `orders.order_date` theo khoảng ngày kế toán chọn; trước index phải quét cả bảng `orders` (~65.000 dòng, cột `raw` rộng, ~650 ms/lần khi lọc 90 ngày, EXPLAIN ANALYZE 16/10/2026). Trang đọc ghi chú tổng ở `invoices.raw->>'description'` / `orders.raw->>'description'` và ghi chú dòng ở `invoice_details.raw->>'note'` / `order_details.raw->>'note'`; đơn đã có hóa đơn so khớp qua `invoices.raw->>'orderCode'`. Áp trước hay sau khi deploy đều được.
+
+## Tuổi nợ theo hóa đơn — migration 0059 (17/10/2026, chưa áp DB)
+
+`0059_debt_aging.sql`: bảng KẾT QUẢ tính sẵn, web chỉ đọc. `debt_aging_customers (branch, customer_id)` — 1 dòng/khách đang hoạt động/cơ sở: `customer_code`, `customer_name`, `sale` (nhãn hiển thị, "Chưa phân nhóm" khi trống), `schedule_days`, `has_stored_schedule`, `current_debt NUMERIC` (= `customers.debt`), `overdue_debt NUMERIC` (nợ hiện tại − hóa đơn Hoàn thành trong N ngày tới hôm nay, không âm), `payoff_day DATE` (ngày hết nợ), `beyond_history` (trừ hết 365 ngày hóa đơn vẫn còn nợ → `payoff_day` = ngày đầu khoảng tra cứu), `equivalent_days`, `remaining_days` (NULL khi nợ ≤ 0). `debt_aging_state (id = 1)`: `as_of_day` (ngày VN đã tính), `refreshed_at`, `customers_synced_at` (`max(customers.synced_at)`), `version` (tăng khi nội dung đổi). Ghi bởi `server/debtSchedule/debtAgingRefresh.js` theo mẫu ghi khác biệt (LEFT JOIN bảng đích + `IS DISTINCT FROM` ở SELECT, xóa khách không còn; đọc ra 0 khách thì không xóa). Nguồn: `customers` (lọc `isActive`), `debt_payment_schedules`, `invoices` (`raw->>'statusValue' = 'Hoàn thành'`, `purchase_date >= ngày::timestamp AT TIME ZONE 'UTC'` để dùng index `(branch, purchase_date)`), chỉ khách `debt > 0`. Chưa áp thì API trả `available: false`, job bỏ qua lỗi `42P01`.
