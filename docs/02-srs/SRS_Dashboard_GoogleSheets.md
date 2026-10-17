@@ -715,3 +715,5 @@ Phương án B đã duyệt: tập SĐT/KPI Pancake riêng trong PostgreSQL, ng�
 - **FR-VAT-6 (master data)**: 2 Google Sheet công khai "Gộp VAT" và "Khớp mã" đọc qua CSV export theo chữ cái cột; cache 10 phút, nút 🔄 tải lại; Sheets lỗi thì dùng bản cũ ≤ 6 giờ kèm cảnh báo, không có bản cũ thì báo lỗi 503 rõ ràng.
 - **FR-VAT-7 (quyền)**: `accounting.vatDraft` mặc định chỉ Quản lý (+ admin cứng); tài khoản Kế toán được Quản lý bật riêng; Khách không thể được cấp. Trang bị `pageGuard` chặn, API trả 403 `FEATURE_FORBIDDEN`.
 - **NFR**: danh sách 7 ngày ~0,2 s trên DB thật; migration `0058` (index `orders(branch, order_date)`) cho khoảng ngày dài.
+
+- **FR-VAT-SEL (17/10/2026):** các bảng kết quả (Danh sách sản phẩm, Tra cứu nguồn, Mã có vấn đề) cho chọn vùng ô bằng chuột như Google Sheet (bấm, kéo, Shift+click); Ctrl+C chép giá trị đang hiển thị dạng TSV, không kèm tiêu đề, bỏ cột đang ẩn; Esc hoặc bấm ra ngoài để bỏ chọn.
