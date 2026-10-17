@@ -14,8 +14,8 @@ const CARRIER_NOTES = Object.freeze({
   VL: 'Cước nhà xe Việt Linh: lấy lớn hơn giữa 465k/m³ (đơn từ 0,6 m³ trở xuống tính 500k) và 1.550đ/kg, phụ thu 200k khi dưới 2 m³. Giao ra chành: đơn giá thể tích 490k/m³ và cộng vé chành 70k.',
   JT: 'Cước J&T tính theo từng mã hàng: lấy lớn hơn giữa thể tích (m³) × 1.000.000 / 6.000 × 4.000đ và cân nặng (kg) × 4.000đ, rồi cộng các mã.'
 });
-const M3_TEXT = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 3 });
-const KG_TEXT = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 });
+const M3_TEXT = new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 });
+const KG_TEXT = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
 const step = (label, amount) => ({ label, amount: Math.round(amount) });
 const positive = value => typeof value === 'number' && Number.isFinite(value) && value > 0;
 const wrap = (carrier, result) => ({ carrier, label: CARRIER_LABELS[carrier], note: CARRIER_NOTES[carrier], ...result, total: result.freight + result.surcharge });
@@ -39,7 +39,7 @@ function calculateVL(volume, weight, withChanh) {
   const byWeight = weight * RATES.VL.perKg;
   const freight = Math.max(byVolume, byWeight);
   const surcharge = volume < RATES.VL.surchargeBelowM3 ? RATES.VL.surcharge : 0;
-  const rateText = perM3.toLocaleString('vi-VN');
+  const rateText = perM3.toLocaleString('en-US');
   const steps = [step(small ? 'Theo thể tích: đơn từ 0,6 m³ trở xuống' : `Theo thể tích: ${M3_TEXT.format(volume)} m³ × ${rateText}`, byVolume)];
   if (weight) steps.push(step(`Theo cân nặng: ${KG_TEXT.format(weight)} kg × 1.550`, byWeight));
   if (weight) steps.push(step('Cước tính (lớn hơn giữa thể tích và cân nặng)', freight));
@@ -64,7 +64,7 @@ function calculateJT(items) {
     const byWeight = (item.kg || 0) * RATES.JT.perUnit;
     const amount = Math.max(byVolume, byWeight);
     freight += amount;
-    steps.push(step(`${item.productCode}: max(${Math.round(byVolume).toLocaleString('vi-VN')}, ${Math.round(byWeight).toLocaleString('vi-VN')})`, amount));
+    steps.push(step(`${item.productCode}: max(${Math.round(byVolume).toLocaleString('en-US')}, ${Math.round(byWeight).toLocaleString('en-US')})`, amount));
   }
   return wrap('JT', { freight: Math.round(freight), surcharge: 0, steps });
 }

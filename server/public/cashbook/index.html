@@ -1539,10 +1539,10 @@
           const parts = text.replace(/^[+-]/, "").split(".");
           const integer = parts[0]
             .replace(/^0+(?=\d)/, "")
-            .replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+            .replace(/\B(?=(\d{3})+(?!\d))/g, ",");
           const fraction = (parts[1] || "").replace(/0+$/, "");
           return (
-            (negative ? "-" : "") + integer + (fraction ? "," + fraction : "")
+            (negative ? "-" : "") + integer + (fraction ? "." + fraction : "")
           );
         }
         function plainDecimal(value) {
@@ -1793,7 +1793,7 @@
             "/" +
             pageCounts[view] +
             " · " +
-            result.total.toLocaleString("vi-VN") +
+            result.total.toLocaleString('en-US') +
             " dòng";
           $(view + "First").disabled = $(view + "Previous").disabled =
             result.page <= 1;

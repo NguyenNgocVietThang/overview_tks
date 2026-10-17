@@ -4585,17 +4585,17 @@
     // sẽ khởi tạo (hoặc tìm kiếm) một Intl.NumberFormat trong mỗi lần gọi; một trang bảng
     // ở đây có 100 dòng với nhiều cột số, do đó hàm này chạy hàng nghìn lần mỗi lần kết xuất.
     // Việc đưa instance định dạng ra ngoài giúp mỗi lệnh gọi trở thành format() trực tiếp mà không cần đàm phán locale.
-    const VN_NUMBER = new Intl.NumberFormat('vi-VN');
-    const VN_NUMBER_1DP = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 });
+    const VN_NUMBER = new Intl.NumberFormat('en-US');
+    const VN_NUMBER_1DP = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
 
     function fmtNumber(n) { return VN_NUMBER.format(Number(n) || 0); }
     // Tiền luôn làm tròn thành số nguyên, không hiện phần thập phân.
-    const VN_MONEY = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 });
+    const VN_MONEY = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
     function fmtTableMoney(n) { return VN_MONEY.format(Number(n) || 0); }
     function fmtMoney(n) { return fmtTableMoney(n) + '₫'; }
     function fmtMoneyShort(n) {
       n = Number(n) || 0;
-      if (n >= 1000000000) return (n / 1000000000).toFixed(1).replace('.0', '').replace('.', ',') + ' tỷ₫';
+      if (n >= 1000000000) return (n / 1000000000).toFixed(1).replace('.0', '') + ' tỷ₫';
       if (n >= 1000000) return (n / 1000000).toFixed(1).replace('.0', '') + 'tr₫';
       if (n >= 1000) return (n / 1000).toFixed(0) + 'k₫';
       return n + '₫';
@@ -5004,7 +5004,7 @@
     function formatSupplierReturnStatus(status) {
       if (!status.rowCount) return status.branch + ': chưa nhập dữ liệu';
       const imported = status.importedAt ? new Date(status.importedAt).toLocaleString('vi-VN') : '—';
-      return status.branch + ': ' + status.rowCount.toLocaleString('vi-VN') + ' dòng, từ ' +
+      return status.branch + ': ' + status.rowCount.toLocaleString('en-US') + ' dòng, từ ' +
         formatDdMmYyyy(status.earliestDate) + ' đến ' + formatDdMmYyyy(status.latestDate) +
         ' (nhập lúc ' + imported + (status.importedBy ? ' bởi ' + status.importedBy : '') + ')';
     }
@@ -5067,7 +5067,7 @@
         if (!response.ok) throw new Error(payload.error || 'Nhập dữ liệu Trả NCC thất bại.');
 
         resultBox.hidden = false;
-        resultText.textContent = 'Đã nhập ' + payload.imported.toLocaleString('vi-VN') + ' dòng' +
+        resultText.textContent = 'Đã nhập ' + payload.imported.toLocaleString('en-US') + ' dòng' +
           (payload.skipped ? ', bỏ qua ' + payload.skipped + ' dòng lỗi' : '') +
           ' cho ' + branch + ' (từ ' + formatDdMmYyyy(payload.earliestDate) + ' đến ' + formatDdMmYyyy(payload.latestDate) + ').';
         fileInput.value = '';
@@ -8721,7 +8721,7 @@
 
     function formatDebtRatio(value) {
       if (value === null || value === undefined || !Number.isFinite(Number(value))) return '—';
-      return new Intl.NumberFormat('vi-VN', { style: 'percent', maximumFractionDigits: 1 }).format(Number(value));
+      return new Intl.NumberFormat('en-US', { style: 'percent', maximumFractionDigits: 1 }).format(Number(value));
     }
 
     // Canh bao duy nhat: "Quá hạn" khi no qua han > 0 (da bo nguong 400k va canh bao chua thu).

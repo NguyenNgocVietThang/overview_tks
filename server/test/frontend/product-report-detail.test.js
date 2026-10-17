@@ -118,7 +118,7 @@ test('bang Bao cao hang hoa co 19 cot theo file HANG HOA.xlsx (+ cot Khach lon n
   assert.equal(text(11), '83');    // Tổng tồn thực + ĐC
   assert.equal(text(12), '8');     // Tổng có bán + ĐC
   assert.equal(text(13), '4');     // SL bán 30 ngày
-  assert.equal(text(14), '12,5');  // Ngày cần đặt: 1 số thập phân
+  assert.equal(text(14), '12.5');  // Ngày cần đặt: 1 số thập phân
   assert.equal(text(16), '3');     // SL khách bán
   assert.match(text(17), /KH A/);  // Khách lớn nhất (giữ lại)
   assert.match(text(18), /60/);    // Tỉ trọng khách lớn nhất
@@ -441,13 +441,13 @@ test('hop co hang chi so tong quan: doanh so, so khach, khach lon nhat, top 3, t
 
   const stats = statsOf(page);
   // 14 khach, doanh so (14 - i) * 100 => tong 10.500; khach lon nhat 1.400 (13,3%); top 3 = 3.900 (37,1%)
-  assert.match(stats['Doanh số 90 ngày'].value, /10.500₫/);
+  assert.match(stats['Doanh số 90 ngày'].value, /10,500₫/);
   assert.equal(stats['Số khách mua'].value, '14');
   assert.equal(stats['Số khách mua'].sub, 'TB 750₫ / khách');
   assert.match(stats['Khách lớn nhất'].value, /13[.,]3%/);
   assert.equal(stats['Khách lớn nhất'].sub, 'KH A');
   assert.match(stats['Top 3 khách'].value, /37[.,]1%/);
-  assert.match(stats['Top 3 khách'].sub, /3.900₫/);
+  assert.match(stats['Top 3 khách'].sub, /3,900₫/);
   assert.equal(stats['Tồn HN · SG'].value, '5 · 3');
   assert.equal(stats['Tồn HN · SG'].sub, 'Có thể bán 8');
   assert.equal(stats['SL bán 30 ngày'].value, '4');
@@ -551,7 +551,7 @@ test('snapshot chua dong bo503 hien tinh trang ro rang, khong loi chung; cot giu
   });
   await settle();
   assert.equal(rowOf(page, 'SP-1').cells[2].textContent, '0');
-  assert.equal(rowOf(page, 'SP-1').cells[3].textContent, '3,25');
+  assert.equal(rowOf(page, 'SP-1').cells[3].textContent, '3.25');
   rowOf(page, 'SP-1').click(); await settle();
   assert.match(page.$('productContainerSection').textContent, /chưa có dữ liệu đồng bộ/);
   assert.doesNotMatch(page.$('productContainerSection').textContent, /Không tải được/);

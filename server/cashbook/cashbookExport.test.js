@@ -47,7 +47,7 @@ test('HTML sổ chi tiết là dashboard: KPI, ô tìm, bộ lọc, biểu đồ
   assert.match(html, /<title>Sổ quỹ · Sổ chi tiết \(01\/10\/2026 – 06\/10\/2026\) · TOKOSI<\/title>/);
   for (const id of ['id="kpis"', 'id="q"', 'id="category"', 'id="charts"', 'id="thead"'])
     assert.ok(html.includes(id), id);
-  assert.match(html, /Tổng thu[\s\S]*1\.000[\s\S]*Tổng chi[\s\S]*400/);
+  assert.match(html, /Tổng thu[\s\S]*1,000[\s\S]*Tổng chi[\s\S]*400/);
   assert.match(html, /Content-Security-Policy/);
   assert.deepEqual(
     data.columns.map((c) => [c.key, c.type]),
@@ -82,7 +82,7 @@ test('HTML số dư: KPI tổng tồn quỹ, HN, SG; chữ được escape khi r
   const { html, data } = embedded(file);
   assert.ok(!html.includes('<b>A</b>'));
   assert.match(html, /Tổng tồn quỹ<\/[\s\S]*850/);
-  assert.match(html, /Tổng tồn quỹ HN[\s\S]*1\.050/);
+  assert.match(html, /Tổng tồn quỹ HN[\s\S]*1,050/);
   assert.deepEqual(data.summaryKeys, ['balance', 'balanceHanoi', 'balanceSaigon']);
   assert.deepEqual(data.rows[0], ['123', '<b>A</b>', 1000, -200, 800]);
   assert.deepEqual(data.rows[1].slice(0, 2), ['Tiền mặt', 'Tiền mặt']);

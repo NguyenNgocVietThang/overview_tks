@@ -1540,12 +1540,12 @@ test('bao cao HTML tu chua: KPI render san, Chart.js inline, khong tai tai nguye
     const kpis = [...staticDoc.querySelectorAll('#kpis .kpi')].map(card => card.textContent);
     assert.ok(kpis.length >= 2 && kpis.length <= 4);
     assert.match(kpis[0], /Số dòng dữ liệu\s*2/);
-    assert.ok(kpis.some(text => /Tổng nợ hiện tại/.test(text) && /2\.000\.000/.test(text)), kpis.join(' | '));
+    assert.ok(kpis.some(text => /Tổng nợ hiện tại/.test(text) && /2,000,000/.test(text)), kpis.join(' | '));
 
     // Bang render tu du lieu nhung, dinh dang so/phan tram tieng Viet.
     const cells = [...doc.querySelectorAll('#tbody tr')].map(row => [...row.cells].map(cell => cell.textContent));
     assert.equal(cells.length, 2);
-    assert.deepEqual(cells[0].slice(0, 5), ['Khách A', 'Lan', '800.000', '500.000', '40%']);
+    assert.deepEqual(cells[0].slice(0, 5), ['Khách A', 'Lan', '800,000', '500,000', '40%']);
     assert.equal(cells[1][4], '—', 'o trong hien gach ngang');
   });
 });
@@ -1650,7 +1650,7 @@ test('du lieu nhung duoc nen gzip: nho hon nhieu lan JSON tho va giai nen ra dun
   const input = doc.getElementById('q');
   input.value = 'sp19999 quan';
   input.dispatchEvent(new dom.window.Event('input'));
-  assert.match(doc.getElementById('count').textContent, /Hiển thị 1 \/ 20\.000 dòng/);
+  assert.match(doc.getElementById('count').textContent, /Hiển thị 1 \/ 20,000 dòng/);
   dom.window.close();
 });
 
@@ -1821,8 +1821,8 @@ test('debt.penalty: workbook records global fund and coverage despite sale/branc
       assert.equal(notes.get('Tháng'), '2026-09');
       assert.equal(notes.get('Trạng thái'), 'Đã chốt');
       assert.equal(notes.get('Phạm vi xếp hạng'), 'Hà Nội + Sài Gòn');
-      assert.equal(notes.get('Quỹ thưởng toàn hệ thống'), '1.050.000đ');
-      assert.equal(notes.get('Công ty bù'), '1.000.000đ');
+      assert.equal(notes.get('Quỹ thưởng toàn hệ thống'), '1,050,000đ');
+      assert.equal(notes.get('Công ty bù'), '1,000,000đ');
       assert.equal(notes.get('Ngày thiếu bản chốt'), '2026-09-03');
     });
   });
@@ -1868,10 +1868,10 @@ test('debt.penalty: open-month Excel and HTML show numeric provisional rewards w
     assert.equal(sheet.getRow(3).getCell(2).value, 50000);
     const metadata = workbook.getWorksheet('Thông tin thưởng phạt');
     const notes = new Map(metadata.getRows(2, metadata.rowCount - 1).map(row => [row.getCell(1).value, row.getCell(2).value]));
-    assert.equal(notes.get('Quỹ thưởng toàn hệ thống'), '1.050.000đ');
-    assert.equal(notes.get('Quỹ từ tiền phạt'), '50.000đ');
-    assert.equal(notes.get('Công ty bù'), '1.000.000đ');
-    assert.equal(notes.get('Tổng thưởng tạm tính'), '1.050.000đ');
+    assert.equal(notes.get('Quỹ thưởng toàn hệ thống'), '1,050,000đ');
+    assert.equal(notes.get('Quỹ từ tiền phạt'), '50,000đ');
+    assert.equal(notes.get('Công ty bù'), '1,000,000đ');
+    assert.equal(notes.get('Tổng thưởng tạm tính'), '1,050,000đ');
     assert.equal(notes.has('Thưởng đã phân bổ'), false);
     assert.equal(notes.get('Số Sale nhận thưởng toàn hệ thống'), '2');
     assert.equal(notes.get('Trạng thái'), 'Thưởng tạm tính');
@@ -1879,12 +1879,12 @@ test('debt.penalty: open-month Excel and HTML show numeric provisional rewards w
     const html = await exportService.createExportHtml(payload, 'Cả hai');
     const document = new JSDOM(html.buffer.toString('utf8')).window.document;
     assert.match(document.querySelector('header .meta').textContent, /Thưởng tạm tính, sẽ chốt chính thức vào cuối tháng/);
-    assert.match(document.querySelector('#kpis').textContent, /thưởng tạm tính1\.050\.000/i);
+    assert.match(document.querySelector('#kpis').textContent, /thưởng tạm tính1,050,000/i);
     const embedded = embeddedData(html.buffer.toString('utf8')).worksheets[0];
     assert.deepEqual(embedded.rows.map(row => row.slice(3, 6)), [[900000, 700000, 200000], [150000, 100000, 50000], [0, 0, 0]]);
     const opened = await openHtmlReport(html);
     assert.match(opened.doc.querySelector('#tbody').textContent, /Bình/);
-    assert.match(opened.doc.querySelector('#kpis').textContent, /thưởng tạm tính1\.050\.000/i);
+    assert.match(opened.doc.querySelector('#kpis').textContent, /thưởng tạm tính1,050,000/i);
     opened.dom.window.close();
   });
 });

@@ -37,8 +37,8 @@ function getChartJsSource() {
  * tham chieu bien ngoai) vi duoc nhung bang Function.prototype.toString().
  */
 function createReportKit() {
-  var numberFormat = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 });
-  var shortFormat = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 });
+  var numberFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
+  var shortFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
 
   function isEmpty(value) {
     return value === undefined || value === null || value === '' || value === '—';
@@ -690,7 +690,7 @@ const REPORT_SCRIPT = `
         }).join('') + '</tr>';
       }).join('');
     }
-    var fmt = new Intl.NumberFormat('vi-VN');
+    var fmt = new Intl.NumberFormat('en-US');
     $('pageInfo').textContent = rows.length ? 'Dòng ' + fmt.format(start + 1) + '–' + fmt.format(start + slice.length) + ' / ' + fmt.format(rows.length) : '0 dòng';
     $('pageLabel').textContent = 'Trang ' + (state.page + 1) + ' / ' + pages;
     $('prevPage').disabled = state.page === 0;
@@ -718,7 +718,7 @@ const REPORT_SCRIPT = `
     var colors = palette();
     var ink = cssVar('--muted');
     var grid = cssVar('--grid');
-    var fmt = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 });
+    var fmt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
     Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
     Chart.defaults.color = ink;
     summary.charts.forEach(function (spec, index) {
@@ -882,7 +882,7 @@ async function renderHtmlReport(dataset) {
     <ul class="meta">
       <li>Cơ sở <b>${escape(meta.branch || 'Tất cả')}</b></li>
       <li>Xuất lúc <b>${escape(generatedAt)}</b></li>
-      <li><b>${escape(totalRows.toLocaleString('vi-VN'))}</b> dòng</li>
+      <li><b>${escape(totalRows.toLocaleString('en-US'))}</b> dòng</li>
       ${(meta.debtRewardNotes || []).map(([label, value]) => `<li>${escape(label)} <b>${escape(value)}</b></li>`).join('\n      ')}
       ${(meta.reportNotes || []).map(([label, value]) => `<li>${escape(label)} <b>${escape(value)}</b></li>`).join('\n      ')}
     </ul>

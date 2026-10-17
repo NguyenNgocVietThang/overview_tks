@@ -1304,7 +1304,7 @@
 
     function formatFileSize(bytes){
       const n = Number(bytes) || 0;
-      if(n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1).replace('.', ',') + ' MB';
+      if(n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
       return Math.max(1, Math.round(n / 1024)) + ' KB';
     }
 
@@ -2056,7 +2056,7 @@
 
     function fmtSoNgay(n){
       const v = Math.round((Number(n) || 0) * 100) / 100;
-      return v.toLocaleString('vi-VN');
+      return v.toLocaleString('en-US');
     }
 
     function renderTable(allRequests){

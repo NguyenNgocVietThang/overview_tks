@@ -566,7 +566,7 @@ function debtPenaltyRows(board) {
 }
 
 function debtRewardMetadata(board) {
-  const amount = value => `${Number(value).toLocaleString('vi-VN')}đ`;
+  const amount = value => `${Number(value).toLocaleString('en-US')}đ`;
   const coverage = board.coverage;
   const summary = board.summary;
   const notes = [
@@ -1383,7 +1383,7 @@ function createExportHtml(payload, branch, options = {}) {
     const totalCells = dataset.worksheets.reduce((sum, worksheet) => sum + worksheet.rows.length * worksheet.columns.length, 0);
     if (totalCells > HTML_MAX_CELLS) {
       throw exportError(
-        `Dữ liệu có ${totalRows.toLocaleString('vi-VN')} dòng (${totalCells.toLocaleString('vi-VN')} ô), vượt giới hạn ${HTML_MAX_CELLS.toLocaleString('vi-VN')} ô của báo cáo HTML. Vui lòng bỏ bớt cột, thu hẹp bộ lọc hoặc dùng Xuất Excel.`,
+        `Dữ liệu có ${totalRows.toLocaleString('en-US')} dòng (${totalCells.toLocaleString('en-US')} ô), vượt giới hạn ${HTML_MAX_CELLS.toLocaleString('en-US')} ô của báo cáo HTML. Vui lòng bỏ bớt cột, thu hẹp bộ lọc hoặc dùng Xuất Excel.`,
         413, 'EXPORT_HTML_TOO_LARGE'
       );
     }
