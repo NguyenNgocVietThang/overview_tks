@@ -83,6 +83,13 @@
                 <option value="order">Đặt hàng chưa xuất HĐ (DH)</option>
               </select>
             </label>
+            <label>Cơ sở
+              <select id="vdBranch">
+                <option value="all">Cả hai cơ sở</option>
+                <option value="hanoi">Hà Nội</option>
+                <option value="saigon">Sài Gòn</option>
+              </select>
+            </label>
             <label>Từ ngày <input type="date" id="vdFrom"></label>
             <label>Đến ngày <input type="date" id="vdTo"></label>
             <label class="vd-search">Tìm khách hàng / mã
@@ -94,16 +101,16 @@
             <table class="users-table vd-table" id="vdDocsTable" data-table-key="vatDraftDocuments" data-table-sort="off">
               <thead>
                 <tr>
-                  <th scope="col" data-column-key="select" data-column-locked="true" data-no-sort data-default-width="64"><input type="checkbox" id="vdSelectPage" aria-label="Chọn tất cả chứng từ trong trang"><span class="vd-sr-only">Chọn</span></th>
-                  <th scope="col" data-column-key="code" data-default-width="120">Mã chứng từ</th>
-                  <th scope="col" data-column-key="kind" data-default-width="110">Loại</th>
-                  <th scope="col" data-column-key="branch" data-default-width="90">Cơ sở</th>
-                  <th scope="col" data-column-key="date" data-default-width="140">Thời gian</th>
-                  <th scope="col" data-column-key="customer" data-default-width="220">Khách hàng</th>
-                  <th scope="col" data-column-key="note" data-default-width="260">Ghi chú tổng</th>
-                  <th scope="col" data-column-key="status" data-default-width="120">Trạng thái</th>
-                  <th scope="col" data-column-key="lines" data-default-width="80">Số dòng</th>
-                  <th scope="col" data-column-key="total" data-default-width="130">Tổng tiền</th>
+                  <th scope="col" data-column-key="select" data-column-locked="true" data-no-sort data-default-width="44"><input type="checkbox" id="vdSelectPage" aria-label="Chọn tất cả chứng từ trong trang"><span class="vd-sr-only">Chọn</span></th>
+                  <th scope="col" data-column-key="code" data-default-width="100">Mã chứng từ</th>
+                  <th scope="col" data-column-key="kind" data-default-width="80">Loại</th>
+                  <th scope="col" data-column-key="branch" data-default-width="76">Cơ sở</th>
+                  <th scope="col" data-column-key="date" data-default-width="124">Thời gian</th>
+                  <th scope="col" data-column-key="customer" data-default-width="190">Khách hàng</th>
+                  <th scope="col" data-column-key="note" data-default-width="220">Ghi chú tổng</th>
+                  <th scope="col" data-column-key="status" data-default-width="100">Trạng thái</th>
+                  <th scope="col" data-column-key="lines" data-default-width="68">Số dòng</th>
+                  <th scope="col" data-column-key="total" data-default-width="112">Tổng tiền</th>
                 </tr>
               </thead>
               <tbody id="vdDocsRows"></tbody>
@@ -169,8 +176,15 @@
           <button class="btn-secondary vd-small-btn export-button" id="vdAllocCsv" type="button" data-not-export>⬇️ Tải kết quả CSV</button>
           <button class="btn-primary vd-small-btn export-button" id="vdAllocExcel" type="button">⬇️ Tải kết quả Excel</button>
         </div>
+        <div class="vd-sort" id="vdAllocSort">
+          <label>Sắp xếp chính theo cột <select id="vdSortPrimary"></select></label>
+          <label>Thứ tự <select id="vdSortPrimaryDir"><option value="asc">Tăng dần</option><option value="desc">Giảm dần</option></select></label>
+          <label>Sau đó theo cột <select id="vdSortSecondary"></select></label>
+          <label>Thứ tự <select id="vdSortSecondaryDir"><option value="asc">Tăng dần</option><option value="desc">Giảm dần</option></select></label>
+        </div>
+        <p class="vd-message" id="vdSortNote" role="status" aria-live="polite"></p>
         <div class="vd-scroll vd-result-scroll" tabindex="0" aria-label="Bảng kết quả xử lý hóa đơn">
-          <table class="users-table vd-table" id="vdAllocTable" data-table-key="vatDraftAllocation" data-table-sort="local">
+          <table class="users-table vd-table" id="vdAllocTable" data-table-key="vatDraftAllocation" data-table-sort="off">
             <thead><tr>
               <th scope="col" data-column-key="trang-thai">Trạng thái</th>
               <th scope="col" data-column-key="ma-sp">MÃ SP</th>
@@ -208,10 +222,10 @@
           <div class="vd-scroll" tabindex="0" aria-label="Các dòng cần kiểm tra">
             <table class="users-table vd-table" id="vdLookupIssuesTable" data-table-key="vatDraftLookupIssues" data-table-sort="off">
               <thead><tr>
-                <th scope="col" data-column-key="dong-nhap" data-default-width="90">Dòng nhập</th>
-                <th scope="col" data-column-key="ma-sp" data-default-width="140">Mã SP</th>
-                <th scope="col" data-column-key="ten-sp" data-default-width="240">Tên SP</th>
-                <th scope="col" data-column-key="noi-dung" data-default-width="360">Nội dung</th>
+                <th scope="col" data-column-key="dong-nhap" data-default-width="80">Dòng nhập</th>
+                <th scope="col" data-column-key="ma-sp" data-default-width="110">Mã SP</th>
+                <th scope="col" data-column-key="ten-sp" data-default-width="200">Tên SP</th>
+                <th scope="col" data-column-key="noi-dung" data-default-width="320">Nội dung</th>
               </tr></thead>
               <tbody id="vdLookupIssuesRows"></tbody>
             </table>

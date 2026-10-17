@@ -107,7 +107,12 @@ test('GET /documents va POST /documents/resolve dung co so tu cookie (Ca hai -> 
   const repository = fakeRepository();
   await request('/documents?kind=order&from=2026-10-10&to=2026-10-17&q=lan', { repository });
   assert.deepEqual(repository.calls.list, { branchCodes: ['hanoi', 'saigon'], kind: 'order', from: '2026-10-10', to: '2026-10-17', q: 'lan', page: undefined, pageSize: undefined });
-  const res = await request('/documents/resolve', { method: 'POST', body: { text: 'hd1, HD2 abc' }, repository });
+  await request('/documents?branch=saigon&from=2026-10-10&to=2026-10-17', { repository });
+  assert.deepEqual(repository.calls.list.branchCodes, ['saigon'], 'bo loc Co so tren trang uu tien hon cookie');
+  await request('/documents?branch=xyz&from=2026-10-10&to=2026-10-17', { repository });
+  assert.deepEqual(repository.calls.list.branchCodes, ['hanoi', 'saigon'], 'gia tri la -> theo cookie');
+  const res = await request('/documents/resolve?branch=hanoi', { method: 'POST', body: { text: 'hd1, HD2 abc' }, repository });
+  assert.deepEqual(repository.calls.resolve.branchCodes, ['hanoi']);
   assert.deepEqual(repository.calls.resolve.codes, ['HD1', 'HD2']);
   assert.deepEqual(res.body.invalid, ['ABC']);
 });

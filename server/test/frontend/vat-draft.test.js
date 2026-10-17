@@ -80,6 +80,7 @@ test('tai trang: trang thai Sheets/KiotViet, mac dinh 7 ngay, danh sach chung tu
   assert.match(doc.getElementById('vdSheetsStatus').textContent, /Gộp VAT 8\.432 dòng · Khớp mã 2\.998 dòng/);
   const list = calls.find(c => c.key === 'GET /documents');
   assert.equal(list.query.kind, 'all');
+  assert.equal(list.query.branch, 'all', 'user Ca hai -> loc ca hai co so');
   assert.match(list.query.from, /^\d{4}-\d{2}-\d{2}$/);
   assert.equal(Math.round((Date.parse(list.query.to) - Date.parse(list.query.from)) / 86400000), 6);
   const rows = doc.querySelectorAll('#vdDocsRows tr[data-key]');
@@ -150,13 +151,26 @@ test('xu ly chung tu: bang co Ghi chu tong canh Ghi chu hang hoa, ly do khi re c
   assert.ok(calls.some(c => c.key.startsWith('GET /image/MB-606266688888-compact2.png')), 'tai anh QR ve');
 });
 
-test('xuat Excel theo thu tu dang hien thi sau khi sap xep', async t => {
-  const { doc, calls } = await setup(t);
+test('sap xep 2 cot nhu app cu, xuat Excel theo dung thu tu dang hien thi', async t => {
+  const { doc, window, calls } = await setup(t);
   doc.querySelector('#vdDocsRows tr[data-key] input').click();
   doc.getElementById('vdRunDocs').click();
   await tick(); await tick();
-  const slHeader = [...doc.querySelectorAll('#vdAllocTable thead th')].find(th => th.textContent.trim().startsWith('SL'));
-  slHeader.querySelector('.sort-button').click();
+  const choose = (id, value) => { doc.getElementById(id).value = value; doc.getElementById(id).dispatchEvent(new window.Event('change')); };
+  const column = name => [...doc.querySelectorAll('#vdAllocRows tr')].map(tr => tr.children[ALLOC_COLUMNS.indexOf(name)].firstChild.textContent);
+  // Chi chon cot phu -> nhac chon cot chinh truoc, chua sap xep.
+  choose('vdSortSecondary', 'SL');
+  assert.match(doc.getElementById('vdSortNote').textContent, /Chọn cột sắp xếp chính trước/);
+  assert.deepEqual(column('SL'), ['150', '50', '10']);
+  // Chinh: Trang thai giam dan, phu: SL tang dan.
+  choose('vdSortPrimary', 'Trạng thái');
+  choose('vdSortPrimaryDir', 'desc');
+  assert.deepEqual(column('Trạng thái'), ['OK', 'OK', 'Không có mã']);
+  assert.deepEqual(column('SL'), ['50', '150', '10']);
+  assert.match(doc.getElementById('vdSortNote').textContent, /Đang sắp xếp theo cột đã chọn/);
+  choose('vdSortPrimary', 'SL');
+  choose('vdSortPrimaryDir', 'asc');
+  assert.equal(doc.querySelector('#vdAllocTable thead th[title="GIÁ NHÁP (Giá bán/(1+%VAT))"]').dataset.defaultWidth, '96');
   doc.getElementById('vdAllocExcel').click();
   await tick();
   const exported = calls.find(c => c.key === 'POST /export').body;
@@ -207,4 +221,17 @@ test('loi may chu hien ro cho nguoi dung', async t => {
   doc.getElementById('vdRunPasteInvoice').click();
   await tick(); await tick();
   assert.equal(doc.getElementById('vdRunError').textContent, 'Không có');
+});
+
+test('bo loc Co so: doi sang Sai Gon thi tai lai danh sach va dan ma theo dung co so', async t => {
+  const { doc, window, calls } = await setup(t);
+  const select = doc.getElementById('vdBranch');
+  select.value = 'saigon';
+  select.dispatchEvent(new window.Event('change'));
+  await tick(); await tick();
+  assert.equal(calls.filter(c => c.key === 'GET /documents').pop().query.branch, 'saigon');
+  doc.getElementById('vdCodesInput').value = 'DH044391';
+  doc.getElementById('vdAddCodes').click();
+  await tick(); await tick();
+  assert.equal(calls.find(c => c.key === 'POST /documents/resolve').query.branch, 'saigon');
 });

@@ -26,7 +26,7 @@
 .vd-codes-row{display:flex;gap:10px;align-items:flex-start}
 .vd-codes-row textarea{flex:1}
 .vd-codes-row .btn-primary{white-space:nowrap}
-.vd-filters{display:grid;grid-template-columns:repeat(3,minmax(140px,180px)) minmax(200px,1fr);gap:10px;align-items:end}
+.vd-filters{display:grid;grid-template-columns:repeat(4,minmax(130px,170px)) minmax(200px,1fr);gap:10px;align-items:end}
 .vd-message{margin:0;font-size:12.5px;color:var(--muted);white-space:pre-line}
 .vd-message:empty{display:none}
 .vd-error{color:var(--red)}
@@ -97,3 +97,12 @@
 .vd-qr-viewer-box{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-xl);padding:16px;display:flex;flex-direction:column;align-items:center;gap:12px;max-width:min(560px,100%);max-height:100%;overflow:auto}
 .vd-qr-viewer-box img{width:min(500px,calc(100vw - 64px));height:auto;background:#fff;border-radius:var(--radius-md)}
 .vd-qr-viewer-box p{margin:0;font-size:13px;color:var(--text);text-align:center}
+/* Bang gon nhu app cu: moi o 1 dong, cat "…" (noi dung day du trong title). Tieu de khi keo hep
+   cung cat "…" thay vi xuong dong lam cao hang tieu de. */
+.vd-table{table-layout:fixed}
+.vd-table th,.vd-table td{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;overflow-wrap:normal;padding:8px 10px;font-size:12.5px;line-height:1.4;vertical-align:middle}
+.vd-table th .sort-button,.vd-table th .sort-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vd-table th .sort-label{display:block}
+.vd-table td input[type="checkbox"],.vd-table th input[type="checkbox"]{margin:0;width:16px;height:16px;cursor:pointer}
+.vd-sort{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,2fr) minmax(0,1fr);gap:10px;align-items:end}
+@media(max-width:900px){.vd-sort{grid-template-columns:repeat(2,minmax(0,1fr))}}

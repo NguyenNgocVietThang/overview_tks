@@ -24,7 +24,13 @@ function createVatDraftRouter({
     next();
   });
   const guard = [requireAuth, requireFeature('accounting.vatDraft')];
-  const branchCodes = req => resolveBranchScope(req.branch).map(branchLabelToCode);
+  // Bo loc "Cơ sở" tren trang (?branch=hanoi|saigon|all) uu tien hon cookie co so o header.
+  const branchCodes = req => {
+    const picked = String((req.query && req.query.branch) || '').trim();
+    if (picked === 'hanoi' || picked === 'saigon') return [picked];
+    if (picked === 'all') return ['hanoi', 'saigon'];
+    return resolveBranchScope(req.branch).map(branchLabelToCode);
+  };
 
   function handle(fn) {
     return async (req, res) => {

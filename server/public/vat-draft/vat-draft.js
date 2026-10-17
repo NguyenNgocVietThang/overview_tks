@@ -267,19 +267,20 @@
   function renderDocs() {
     const { rows, total, page, loading } = state.list;
     const body = $('vdDocsRows');
-    const showBranch = !state.user || !state.user.branch || state.user.branch === 'Cả hai';
+    // Moi o 1 dong (cat "…"), noi dung day du trong title khi re chuot.
+    const cell = (text, cls = '') => `<td${cls ? ` class="${cls}"` : ''} title="${escapeHtml(text)}">${escapeHtml(text)}</td>`;
     if (loading && !rows.length) body.innerHTML = '<tr class="vd-empty"><td colspan="10">Đang tải chứng từ…</td></tr>';
     else if (!rows.length) body.innerHTML = '<tr class="vd-empty"><td colspan="10">Không có chứng từ nào trong khoảng đã chọn.</td></tr>';
     else {
       body.innerHTML = rows.map(doc => `<tr data-key="${escapeHtml(docKey(doc))}">
         <td><input type="checkbox" aria-label="Chọn ${escapeHtml(doc.code)}"></td>
-        <td class="code">${escapeHtml(doc.code)}</td>
-        <td>${KIND_LABEL[doc.kind] || ''}</td>
-        <td>${showBranch ? BRANCH_LABEL[doc.branch] || doc.branch : BRANCH_LABEL[doc.branch] || ''}</td>
-        <td>${escapeHtml(doc.date)}</td>
-        <td>${escapeHtml(doc.customerName)}${doc.customerCode ? `<br><span class="vd-muted">${escapeHtml(doc.customerCode)}</span>` : ''}</td>
-        <td>${escapeHtml(doc.note)}</td>
-        <td>${escapeHtml(doc.status)}${doc.orderCode ? `<br><span class="vd-muted">${escapeHtml(doc.orderCode)}</span>` : ''}</td>
+        ${cell(doc.code, 'code')}
+        ${cell(KIND_LABEL[doc.kind] || '')}
+        ${cell(BRANCH_LABEL[doc.branch] || doc.branch)}
+        ${cell(doc.date)}
+        ${cell(doc.customerName + (doc.customerCode ? ' · ' + doc.customerCode : ''))}
+        ${cell(doc.note)}
+        ${cell(doc.status + (doc.orderCode ? ' · ' + doc.orderCode : ''))}
         <td class="num">${intFormat.format(doc.lineCount || 0)}</td>
         <td class="num">${intFormat.format(doc.total || 0)}</td></tr>`).join('');
     }
@@ -296,7 +297,7 @@
     state.list.loading = true;
     renderDocs();
     const params = new URLSearchParams({
-      kind: $('vdKind').value, from: $('vdFrom').value, to: $('vdTo').value,
+      kind: $('vdKind').value, branch: $('vdBranch').value, from: $('vdFrom').value, to: $('vdTo').value,
       q: $('vdSearch').value.trim(), page: String(state.list.page), pageSize: String(PAGE_SIZE)
     });
     try {
@@ -323,7 +324,7 @@
     if (!text.trim()) { setMessage('vdCodesMessage', 'Hãy dán ít nhất một mã chứng từ.', 'warning'); return; }
     $('vdAddCodes').disabled = true;
     try {
-      const result = await api('/documents/resolve', { method: 'POST', body: { text } });
+      const result = await api('/documents/resolve?branch=' + encodeURIComponent($('vdBranch').value), { method: 'POST', body: { text } });
       const messages = [];
       let added = 0;
       for (const doc of result.found) {
@@ -384,11 +385,94 @@
       const title = column === GIA_NHAP && value !== null && value !== undefined && value !== '' ? ` title="${escapeHtml(decFormat.format(Number(value)))}"` : '';
       return `<td class="num"${sortValue}${title}>${escapeHtml(formatNumber(column, value))}</td>`;
     }
-    return `<td${CODE_COLUMNS.has(column) ? ' class="code"' : ''}${extra}>${escapeHtml(value)}</td>`;
+    // Moi o 1 dong (cat "…"); noi dung day du hien khi re chuot.
+    const text = value === null || value === undefined ? '' : String(value);
+    return `<td${CODE_COLUMNS.has(column) ? ' class="code"' : ''}${extra || (text ? ` title="${escapeHtml(text)}"` : '')}>${escapeHtml(text)}</td>`;
   }
 
+  // Do rong mac dinh gon nhu bang cua app cu; nguoi dung van keo rong duoc.
+  const COLUMN_WIDTHS = {
+    'Trạng thái': 96, 'MÃ SP': 88, 'TÊN SP': 170, 'Mã VAT': 84, 'TÊN VAT': 170, 'Mã hóa đơn': 96,
+    'Ghi chú hàng hóa': 150, 'Ghi chú tổng': 150, 'NGUỒN': 84, 'TỒN CÒN NHÁP': 96, 'Giá bán': 84,
+    'TÊN KẾ TOÁN': 180, 'ĐVT': 64, 'SL': 72, [GIA_NHAP]: 96, '%VAT': 64, 'Thành tiền': 108,
+    'Mã kiot': 88, 'Tên kiot': 180, 'Tên VAT': 180, 'Mã kế toán': 180, 'Nguồn': 84, 'Tồn nháp được': 96
+  };
+  const headerLabel = column => column === GIA_NHAP ? 'GIÁ NHÁP (Giá bán/(1+%VAT))' : column;
+
   function headerHtml(columns, keyPrefix = '') {
-    return '<tr>' + columns.map(c => `<th scope="col" data-column-key="${keyPrefix}${slug(c)}"${NUMERIC.has(c) ? ' class="num"' : ''}>${escapeHtml(c)}</th>`).join('') + '</tr>';
+    return '<tr>' + columns.map(c => `<th scope="col" data-column-key="${keyPrefix}${slug(c)}" data-default-width="${COLUMN_WIDTHS[c] || 120}" title="${escapeHtml(headerLabel(c))}"${NUMERIC.has(c) ? ' class="num"' : ''}>${escapeHtml(headerLabel(c))}</th>`).join('') + '</tr>';
+  }
+
+  // ---- Sap xep 2 cap nhu app cu (pandas sort_values kind="stable", o trong luon cuoi) ----
+  const NO_SORT = '';
+
+  function compareValues(a, b) {
+    const emptyA = a === null || a === undefined || (typeof a === 'number' && Number.isNaN(a));
+    const emptyB = b === null || b === undefined || (typeof b === 'number' && Number.isNaN(b));
+    if (emptyA || emptyB) return emptyA === emptyB ? 0 : null; // null = o trong, xu ly rieng
+    if (typeof a === 'number' && typeof b === 'number') return a - b;
+    const x = String(a);
+    const y = String(b);
+    return x < y ? -1 : x > y ? 1 : 0;
+  }
+
+  function sortKeys() {
+    const keys = [];
+    const primary = $('vdSortPrimary').value;
+    const secondary = $('vdSortSecondary').value;
+    if (primary !== NO_SORT) {
+      keys.push({ column: primary, dir: $('vdSortPrimaryDir').value });
+      if (secondary !== NO_SORT && secondary !== primary) keys.push({ column: secondary, dir: $('vdSortSecondaryDir').value });
+    }
+    return keys;
+  }
+
+  function sortedAllocIndexes() {
+    const data = state.alloc;
+    const indexes = data.rows.map((_, i) => i);
+    const keys = sortKeys().map(k => ({ ...k, idx: data.columns.indexOf(k.column) })).filter(k => k.idx >= 0);
+    if (!keys.length) return indexes;
+    return indexes.sort((i, j) => {
+      for (const key of keys) {
+        const a = data.rows[i].values[key.idx];
+        const b = data.rows[j].values[key.idx];
+        const result = compareValues(a, b);
+        if (result === null) {
+          const emptyA = a === null || a === undefined || Number.isNaN(a);
+          return emptyA ? 1 : -1; // o trong cuoi ca 2 chieu (na_position="last")
+        }
+        if (result) return key.dir === 'desc' ? -result : result;
+      }
+      return i - j;
+    });
+  }
+
+  function renderSortOptions() {
+    const columns = state.alloc.columns;
+    const options = `<option value="${NO_SORT}">(Không sắp xếp)</option>` + columns.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(headerLabel(c))}</option>`).join('');
+    ['vdSortPrimary', 'vdSortSecondary'].forEach(id => {
+      const select = $(id);
+      const keep = select.value;
+      select.innerHTML = options;
+      select.value = columns.includes(keep) ? keep : NO_SORT;
+    });
+  }
+
+  function renderAllocRows() {
+    const data = state.alloc;
+    const statusIdx = data.columns.indexOf('Trạng thái');
+    const keys = sortKeys();
+    $('vdSortNote').textContent = keys.length
+      ? 'ℹ️ Đang sắp xếp theo cột đã chọn — các dòng cùng Mã hóa đơn có thể không còn liền kề.'
+      : $('vdSortSecondary').value !== NO_SORT ? '⚠️ Chọn cột sắp xếp chính trước khi chọn cột sắp xếp phụ.' : '';
+    $('vdAllocRows').innerHTML = sortedAllocIndexes().map(index => {
+      const row = data.rows[index];
+      return '<tr data-index="' + index + '">' + row.values.map((value, i) => {
+        if (i !== statusIdx) return cellHtml(data.columns[i], value);
+        const title = ` title="${escapeHtml(row.reason || value)}"`;
+        return `<td class="${statusClass(value)}"${title}>${escapeHtml(value)}${row.reason ? `<span class="vd-sr-only"> — ${escapeHtml(row.reason)}</span>` : ''}</td>`;
+      }).join('') + '</tr>';
+    }).join('');
   }
 
   function renderAlloc() {
@@ -410,19 +494,15 @@
       banner.dataset.tone = '';
     }
     const table = $('vdAllocTable');
-    const statusIdx = data.columns.indexOf('Trạng thái');
     table.tHead.innerHTML = headerHtml(data.columns);
-    $('vdAllocRows').innerHTML = data.rows.map((row, index) => '<tr data-index="' + index + '">' + row.values.map((value, i) => {
-      if (i !== statusIdx) return cellHtml(data.columns[i], value);
-      const title = row.reason ? ` title="${escapeHtml(row.reason)}"` : '';
-      return `<td class="${statusClass(value)}"${title}>${escapeHtml(value)}${row.reason ? `<span class="vd-sr-only"> — ${escapeHtml(row.reason)}</span>` : ''}</td>`;
-    }).join('') + '</tr>').join('');
+    renderSortOptions();
+    renderAllocRows();
     if (window.TKSTables) window.TKSTables.refresh(table);
     renderQr();
   }
 
   function orderedRows(tbodyId, rows) {
-    // Thứ tự đang hiển thị (sau khi người dùng bấm sắp xếp ở tiêu đề cột).
+    // Thứ tự đang hiển thị (sau khi sắp xếp).
     return [...$(tbodyId).querySelectorAll('tr[data-index]')].map(tr => rows[Number(tr.dataset.index)]);
   }
 
@@ -545,6 +625,7 @@
     $('vdLookupIssuesRows').innerHTML = data.issues.map((row, index) => '<tr data-index="' + index + '">' + row.map((v, i) => cellHtml(data.issueColumns[i], v)).join('') + '</tr>').join('');
     $('vdLookupBox').hidden = !data.rows.length && !!data.issues.length;
     $('vdLookupEmpty').hidden = !!data.rows.length || !!data.issues.length;
+    $('vdLookupTable').tHead.innerHTML = headerHtml(data.columns);
     $('vdLookupRows').innerHTML = data.rows.map((row, index) => '<tr data-index="' + index + '">' + row.map((v, i) => cellHtml(data.columns[i], v)).join('') + '</tr>').join('');
     if (window.TKSTables) { window.TKSTables.refresh($('vdLookupTable')); window.TKSTables.refresh($('vdLookupIssuesTable')); }
   }
@@ -633,7 +714,8 @@
   function bindEvents() {
     $('vdRefreshSheets').addEventListener('click', refreshSheets);
     document.querySelectorAll('[data-input-mode]').forEach(b => b.addEventListener('click', () => selectMode(b.dataset.inputMode)));
-    ['vdKind', 'vdFrom', 'vdTo'].forEach(id => $(id).addEventListener('change', () => { state.list.page = 1; loadDocs(); }));
+    ['vdSortPrimary', 'vdSortPrimaryDir', 'vdSortSecondary', 'vdSortSecondaryDir'].forEach(id => $(id).addEventListener('change', () => { if (state.alloc) renderAllocRows(); }));
+    ['vdKind', 'vdBranch', 'vdFrom', 'vdTo'].forEach(id => $(id).addEventListener('change', () => { state.list.page = 1; loadDocs(); }));
     $('vdSearch').addEventListener('input', scheduleLoadDocs);
     $('vdDocsPrev').addEventListener('click', () => { state.list.page = Math.max(1, state.list.page - 1); loadDocs(); });
     $('vdDocsNext').addEventListener('click', () => { state.list.page += 1; loadDocs(); });
@@ -751,6 +833,8 @@
     $('backdrop').addEventListener('click', toggleSidebar);
 
     state.user = await window.TKSNav.authGuard();
+    // Bo loc Co so mac dinh theo co so dang chon o header.
+    $('vdBranch').value = state.user && state.user.branch === 'Hà Nội' ? 'hanoi' : state.user && state.user.branch === 'Sài Gòn' ? 'saigon' : 'all';
     $('vdFrom').value = vnDate(-6);
     $('vdTo').value = vnDate(0);
     loadSelection();
