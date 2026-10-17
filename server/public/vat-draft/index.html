@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="/shared/shared.css?v=20261016">
   <link rel="stylesheet" href="/shared/search-clear.css?v=20261009-1">
-  <link rel="stylesheet" href="/vat-draft/vat-draft.css?v=20261017-2">
+  <link rel="stylesheet" href="/vat-draft/vat-draft.css?v=20261017-3">
   <link rel="stylesheet" href="/shared/table-controls.css?v=20261016-1">
 </head>
 <body>
@@ -40,21 +40,20 @@
     <div class="backdrop" id="backdrop"></div>
     <div class="sidebar" id="sidebar" data-tks-active-top="accounting"></div>
     <main class="content vd-page">
-      <h2 class="vd-title">Kế toán – Nháp VAT</h2>
+      <h2 class="vd-title" id="vdTitle">Kế toán – Nháp VAT</h2>
 
-      <div class="vd-sourcebar" id="vdSourceBar" role="status" aria-live="polite">
+      <div class="vd-sourcebar" id="vdSourceBar" role="status" aria-live="polite" data-requires-processing>
         <span id="vdSheetsStatus">Đang tải dữ liệu Google Sheets…</span>
         <button class="btn-secondary vd-small-btn" id="vdRefreshSheets" type="button" title="Tải lại 2 sheet Gộp VAT và Khớp mã">🔄 Cập nhật</button>
         <span id="vdSyncStatus" class="vd-muted"></span>
       </div>
 
-      <nav class="vd-tabs" aria-label="Chức năng Nháp VAT">
+      <nav class="vd-tabs" aria-label="Chức năng Nháp VAT" data-requires-processing>
         <a href="#xu-ly" data-vat-draft-tab="xu-ly">🧾 Xử lý hóa đơn</a>
-        <a href="#tra-cuu" data-vat-draft-tab="tra-cuu">🔎 Tra cứu nguồn</a>
         <a href="#tao-qr" data-vat-draft-tab="tao-qr">💳 Tạo QR</a>
       </nav>
 
-      <!-- 1. Nhap du lieu (dung chung Xu ly hoa don + Tra cuu nguon) -->
+      <!-- 1. Nhap du lieu cho Xu ly hoa don -->
       <section class="vd-panel" id="vdInputPanel" aria-labelledby="vdInputTitle">
         <div class="vd-panel-head">
           <h3 id="vdInputTitle">1. Nhập dữ liệu</h3>
@@ -138,23 +137,12 @@
         </div>
 
         <div id="vdPastePane" hidden>
-          <div data-paste-for="xu-ly">
-            <p class="vd-hint">Dán các cột từ Excel theo thứ tự Mã SP, Tên SP, SL, Giá bán, Ghi chú hàng hóa (cách nhau bằng phím Tab).</p>
-            <label for="vdPasteInvoice">Khu vực dán dữ liệu</label>
-            <textarea id="vdPasteInvoice" rows="6"></textarea>
-            <div class="vd-actions">
-              <button class="btn-primary" id="vdRunPasteInvoice" type="button">📥 Đọc và kiểm tra dữ liệu</button>
-              <button class="btn-secondary" type="button" data-clear-paste="vdPasteInvoice">🗑️ Xóa toàn bộ</button>
-            </div>
-          </div>
-          <div data-paste-for="tra-cuu" hidden>
-            <p class="vd-hint">Chỉ cần Mã SP hoặc Tên SP; SL và Giá bán là tùy chọn.</p>
-            <label for="vdPasteLookup">Dán dữ liệu (các cột cách nhau bằng phím Tab)</label>
-            <textarea id="vdPasteLookup" rows="6"></textarea>
-            <div class="vd-actions">
-              <button class="btn-primary" id="vdRunPasteLookup" type="button">🔎 Tra cứu nguồn</button>
-              <button class="btn-secondary" type="button" data-clear-paste="vdPasteLookup">🗑️ Xóa toàn bộ</button>
-            </div>
+          <p class="vd-hint">Dán các cột từ Excel theo thứ tự Mã SP, Tên SP, SL, Giá bán, Ghi chú hàng hóa (cách nhau bằng phím Tab).</p>
+          <label for="vdPasteInvoice">Khu vực dán dữ liệu</label>
+          <textarea id="vdPasteInvoice" rows="6"></textarea>
+          <div class="vd-actions">
+            <button class="btn-primary" id="vdRunPasteInvoice" type="button">📥 Đọc và kiểm tra dữ liệu</button>
+            <button class="btn-secondary" type="button" data-clear-paste="vdPasteInvoice">🗑️ Xóa toàn bộ</button>
           </div>
         </div>
         <p class="vd-message vd-error" id="vdRunError" role="alert"></p>
@@ -209,81 +197,38 @@
         </div>
       </section>
 
-      <!-- Ket qua Tra cuu nguon -->
-      <section class="vd-panel" id="vdLookupResult" data-tab-section="tra-cuu" hidden aria-labelledby="vdLookupTitle">
-        <div class="vd-panel-head"><h3 id="vdLookupTitle">Kết quả tra cứu nguồn</h3></div>
-        <p class="vd-hint">Hiển thị mọi nguồn có trong sheet; nguồn còn tồn dương được xếp trước, sau đó đến nguồn hết/âm tồn.</p>
-        <div id="vdLookupIssuesBox" hidden>
-          <p class="vd-banner" data-tone="warning" id="vdLookupIssuesBanner"></p>
-          <div class="vd-toolbar">
-            <h4>Các dòng cần kiểm tra</h4>
-            <button class="btn-secondary vd-small-btn export-button" id="vdLookupIssuesExcel" type="button">⬇️ Tải Excel</button>
-          </div>
-          <div class="vd-scroll" tabindex="0" aria-label="Các dòng cần kiểm tra">
-            <table class="users-table vd-table" data-table-fit="contain" id="vdLookupIssuesTable" data-table-key="vatDraftLookupIssues" data-table-sort="local">
-              <thead><tr>
-                <th scope="col" data-column-key="dong-nhap" data-default-width="80">Dòng nhập</th>
-                <th scope="col" data-column-key="ma-sp" data-default-width="110">Mã SP</th>
-                <th scope="col" data-column-key="ten-sp" data-default-width="200">Tên SP</th>
-                <th scope="col" data-column-key="noi-dung" data-default-width="320">Nội dung</th>
-              </tr></thead>
-              <tbody id="vdLookupIssuesRows"></tbody>
-            </table>
-          </div>
-        </div>
-        <div id="vdLookupBox">
-          <div class="vd-toolbar">
-            <h4>Danh sách nguồn</h4>
-            <button class="btn-secondary vd-small-btn export-button" id="vdLookupCsv" type="button" data-not-export>⬇️ Tải kết quả CSV</button>
-            <button class="btn-primary vd-small-btn export-button" id="vdLookupExcel" type="button">⬇️ Tải kết quả Excel</button>
-          </div>
-          <div class="vd-scroll vd-result-scroll" tabindex="0" aria-label="Bảng tra cứu nguồn">
-            <table class="users-table vd-table" data-table-fit="contain" id="vdLookupTable" data-table-key="vatDraftLookup" data-table-sort="local">
-              <thead><tr>
-                <th scope="col" data-column-key="ma-kiot">Mã kiot</th>
-                <th scope="col" data-column-key="ten-kiot">Tên kiot</th>
-                <th scope="col" data-column-key="sl">SL</th>
-                <th scope="col" data-column-key="gia-ban">Giá bán</th>
-                <th scope="col" data-column-key="ma-vat">Mã VAT</th>
-                <th scope="col" data-column-key="ten-vat">Tên VAT</th>
-                <th scope="col" data-column-key="ma-ke-toan">Mã kế toán</th>
-                <th scope="col" data-column-key="dvt">ĐVT</th>
-                <th scope="col" data-column-key="nguon">Nguồn</th>
-                <th scope="col" data-column-key="ton-nhap-duoc">Tồn nháp được</th>
-                <th scope="col" data-column-key="vat">%VAT</th>
-              </tr></thead>
-              <tbody id="vdLookupRows"></tbody>
-            </table>
-          </div>
-          <p class="vd-hint" id="vdLookupEmpty" hidden>Không có nguồn phù hợp để hiển thị.</p>
-        </div>
-      </section>
-
-      <!-- Tao QR -->
+      <!-- Tao QR: form ben trai, ma QR to ben phai (dien thoai: QR nam duoi form) -->
       <section class="vd-panel" id="vdQrPage" data-tab-section="tao-qr" hidden aria-labelledby="vdQrPageTitle">
-        <div class="vd-panel-head"><h3 id="vdQrPageTitle">1. Tải hóa đơn lên (tùy chọn)</h3></div>
-        <p class="vd-hint">Chọn file PDF hóa đơn GTGT điện tử — trang tự đọc số tiền và gợi ý tài khoản, bạn chỉ cần kiểm tra và bấm Tạo mã QR. File chỉ được đọc trong trình duyệt, không tải lên máy chủ.</p>
-        <input type="file" id="vdPdfInput" accept="application/pdf,.pdf" aria-label="File PDF hóa đơn">
-        <p class="vd-banner" id="vdPdfInfo" hidden></p>
+        <div class="vd-qr-layout">
+          <div class="vd-qr-form-col">
+            <div class="vd-panel-head"><h3 id="vdQrPageTitle">1. Tải hóa đơn lên (tùy chọn)</h3></div>
+            <p class="vd-hint">Chọn file PDF hóa đơn GTGT điện tử — trang tự đọc số tiền và gợi ý tài khoản, bạn chỉ cần kiểm tra và bấm Tạo mã QR. File chỉ được đọc trong trình duyệt, không tải lên máy chủ.</p>
+            <input type="file" id="vdPdfInput" accept="application/pdf,.pdf" aria-label="File PDF hóa đơn">
+            <p class="vd-banner" id="vdPdfInfo" hidden></p>
 
-        <div class="vd-panel-head vd-panel-head--inner"><h3>2. Thông tin QR</h3></div>
-        <p class="vd-hint">Chọn tài khoản nhận tiền, nhập số tiền và nội dung chuyển khoản.</p>
-        <div class="vd-form">
-          <label>Tài khoản nhận tiền
-            <select id="vdManualAccount"></select>
-          </label>
-          <div class="vd-manual" id="vdManualFields" hidden>
-            <p class="vd-hint" id="vdBankCodes"></p>
-            <label>Mã ngân hàng (VD: VCB, MB, ACB...) <input type="text" id="vdManualBank" class="vd-input" autocomplete="off"></label>
-            <label>Số tài khoản <input type="text" id="vdManualNo" class="vd-input" inputmode="numeric" autocomplete="off"></label>
-            <label>Tên chủ tài khoản (tùy chọn) <input type="text" id="vdManualName" class="vd-input" autocomplete="off"></label>
+            <div class="vd-panel-head vd-panel-head--inner"><h3>2. Thông tin QR</h3></div>
+            <p class="vd-hint">Chọn tài khoản nhận tiền, nhập số tiền và nội dung chuyển khoản.</p>
+            <div class="vd-form">
+              <label>Tài khoản nhận tiền
+                <select id="vdManualAccount"></select>
+              </label>
+              <div class="vd-manual" id="vdManualFields" hidden>
+                <p class="vd-hint" id="vdBankCodes"></p>
+                <label>Mã ngân hàng (VD: VCB, MB, ACB...) <input type="text" id="vdManualBank" class="vd-input" autocomplete="off"></label>
+                <label>Số tài khoản <input type="text" id="vdManualNo" class="vd-input" inputmode="numeric" autocomplete="off"></label>
+                <label>Tên chủ tài khoản (tùy chọn) <input type="text" id="vdManualName" class="vd-input" autocomplete="off"></label>
+              </div>
+              <label>Số tiền <input type="text" id="vdManualAmount" class="vd-input" inputmode="numeric" value="0 đ" autocomplete="off"></label>
+              <label>Nội dung chuyển khoản (để trống cũng được) <input type="text" id="vdManualContent" class="vd-input" autocomplete="off"></label>
+              <p class="vd-message vd-warning" id="vdManualInvalid" hidden>⚠️ Nhập đủ Mã ngân hàng và Số tài khoản để tạo QR.</p>
+              <div class="vd-actions"><button class="btn-primary" id="vdManualGenerate" type="button">🔲 Tạo mã QR</button></div>
+            </div>
           </div>
-          <label>Số tiền <input type="text" id="vdManualAmount" class="vd-input" inputmode="numeric" value="0 đ" autocomplete="off"></label>
-          <label>Nội dung chuyển khoản (để trống cũng được) <input type="text" id="vdManualContent" class="vd-input" autocomplete="off"></label>
-          <p class="vd-message vd-warning" id="vdManualInvalid" hidden>⚠️ Nhập đủ Mã ngân hàng và Số tài khoản để tạo QR.</p>
-          <div class="vd-actions"><button class="btn-primary" id="vdManualGenerate" type="button">🔲 Tạo mã QR</button></div>
+          <aside class="vd-qr-preview" aria-label="Mã QR đã tạo" aria-live="polite">
+            <p class="vd-qr-placeholder" id="vdQrPlaceholder">Mã QR sẽ hiện ở đây</p>
+            <div class="vd-qr-result" id="vdManualResult" hidden></div>
+          </aside>
         </div>
-        <div class="vd-qr-result" id="vdManualResult" hidden></div>
       </section>
     </main>
   </div>
@@ -299,9 +244,9 @@
   </div>
   <script src="/shared/table-controls.js?v=20261016-1"></script>
   <script src="/shared/search-clear.js?v=20261009-1"></script>
-  <script src="/shared/shared-nav.js?v=20261017"></script>
+  <script src="/shared/shared-nav.js?v=20261017-1"></script>
   <script src="/vat-draft/cell-select.js?v=20261017-1"></script>
-  <script src="/vat-draft/vat-draft.js?v=20261017-2"></script>
+  <script src="/vat-draft/vat-draft.js?v=20261017-3"></script>
   <script>window.addEventListener('DOMContentLoaded', function () { TKSVatDraft.init(); });</script>
   <script src="/shared/shooting-star.js?v=20261009"></script>
 </body>

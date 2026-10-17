@@ -92,7 +92,7 @@ server/
 ├── productContainers/    # Parser CONT, snapshot repository, đồng bộ Sheets chỉ đọc mỗi 10 phút (ghi khác biệt) và kiểm thử
 ├── public/               # Frontend HTML/CSS/JS
 │   ├── cashbook/         # Trang Sổ quỹ: bộ lọc/hash, số dư, chốt và xuất chọn cột
-│   ├── vat-draft/        # Trang Kế toán – Nháp VAT: chọn HD/DH hoặc dán dữ liệu, kết quả phân bổ + Ghi chú tổng, QR, Tạo QR từ PDF; cell-select.js chọn ô kiểu Google Sheet + Ctrl+C
+│   ├── vat-draft/        # Trang Kế toán – Nháp VAT: chọn HD/DH hoặc dán dữ liệu, kết quả phân bổ + Ghi chú tổng, QR; Tạo QR từ PDF (2 cột, QR to bên phải; sale dùng được qua accounting.qr); cell-select.js chọn ô kiểu Google Sheet + Ctrl+C
 │   ├── vendor/pdfjs/     # pdf.js 4.10.38 (legacy build) đọc text hóa đơn PDF ngay trong trình duyệt
 │   └── shared/
 │       └── detail-panel.css # Khung xem chi tiết dùng chung (.dp-): chỉ số tổng quan, bảng 1 khung cuộn, tắt nút chọn cột
@@ -113,6 +113,8 @@ Migration `0014_customer_debt_activity_periods.sql` tạo bảng tổng hợp ba
 Migration `0015_app_users_telegram_id.sql` thêm `app_users.telegram_id` để bot có thể liên kết trực tiếp qua Supabase Postgres. Giao diện/API tạo mã liên kết cũ không còn đọc hoặc ghi tab `_HR_TELEGRAM_LINKS`.
 
 ## Cập nhật gần nhất
+
+2026-10-17 (chiều) — **Nháp VAT: gỡ Tra cứu nguồn, QR to bên phải, mở Tạo QR cho Nhân viên sale** (không migration): gỡ hẳn chức năng 🔎 Tra cứu nguồn (tab, mục menu, `POST /api/vat-draft/lookup`, `vatDraft/sourceLookup.js`, bộ đọc dán tay riêng, view xuất Excel `lookup`/`lookupIssues`). Tab 💳 Tạo QR chia 2 cột: form bên trái, mã QR to (tối đa ~480px) ở cột phải dính khi cuộn, chưa tạo thì hiện "Mã QR sẽ hiện ở đây"; dưới 900px QR xuống dưới form. Quyền mới **`accounting.qr`** (nhóm Kế toán, "Tạo QR chuyển khoản"): mặc định Quản lý + Nhân viên sale, Khách bị cấm, không tính leo thang (Trợ lý được ủy quyền vẫn tạo được TK Sale). Tài khoản chỉ có `accounting.qr` vào `/vat-draft/` chỉ thấy Tạo QR (ẩn tab Xử lý hóa đơn, trạng thái Sheets/KiotViet, không tải danh sách chứng từ; menu chỉ có mục Tạo QR); API chỉ mở `/meta` (chỉ trả danh sách tài khoản), `/qr/url`, `/qr/parse-text` — các route Xử lý hóa đơn vẫn cần `accounting.vatDraft`.
 
 2026-10-17 — **Quy định công ty: tài liệu gõ trực tiếp dạng rich text** (migration `0060` đã áp, `0061` chưa áp DB): Quản lý tự soạn/sửa tài liệu ngay trên web qua trình soạn thảo kiểu Word (đậm/nghiêng/gạch chân, Heading, căn lề, màu chữ/nền, danh sách, bảng, chèn ảnh tối đa 5 MB), không cần tải PDF. Nội dung luôn qua bộ lọc XSS whitelist (`sanitize-html`) trước khi lưu; ảnh chèn vào tách ra bảng riêng `hr_rule_document_images` trong cùng transaction với việc lưu tài liệu. API tạo/sửa tự khóa `503` cho tới khi migration `0061` được áp, tránh deploy code trước migration làm hỏng hiển thị tài liệu cũ. Chi tiết: [server/README.md](server/README.md).
 

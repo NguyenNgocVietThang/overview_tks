@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseInvoicePasteRows, parseLookupPasteRows, rowsToQueries, parseDocumentCodes } = require('./pasteParser');
+const { parseInvoicePasteRows, rowsToQueries, parseDocumentCodes } = require('./pasteParser');
 
 test('dan tay trang Xu ly hoa don: bo dong trang, bo tieu de "Mã SP ... SL", dem 5 cot', () => {
   const rows = parseInvoicePasteRows('\nMã SP\tTên SP\tSL\tGiá bán\nSP01\tSản phẩm 1\t200\t10000\n\n  \nSP02\tSản phẩm 2\t50\n');
@@ -12,11 +12,6 @@ test('dan tay trang Xu ly hoa don: bo dong trang, bo tieu de "Mã SP ... SL", de
   ]);
   // Tieu de chi bi bo khi cot 3 la "SL".
   assert.equal(parseInvoicePasteRows('Mã SP\tTên\tSố lượng').length, 1);
-});
-
-test('dan tay trang Tra cuu nguon: splitlines (ca CRLF), bo tieu de "Mã kiot"', () => {
-  const rows = parseLookupPasteRows('Mã kiot\tTên\r\nSP01\tA\r\n\r\nSP02');
-  assert.deepEqual(rows, [['SP01', 'A', '', '', ''], ['SP02', '', '', '', '']]);
 });
 
 test('rowsToQueries: orderIndex tinh ca dong bi bo vi trong ca ma lan ten', () => {

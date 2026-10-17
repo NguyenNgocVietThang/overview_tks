@@ -195,6 +195,10 @@ test('tab Tao QR: tai khoan nhap tay can du ma ngan hang + so TK, hash doi tab',
   const { doc, window } = await setup(t, { hash: '#tao-qr' });
   assert.equal(doc.getElementById('vdInputPanel').hidden, true);
   assert.equal(doc.getElementById('vdQrPage').hidden, false);
+  // Tra cuu nguon da go: chi con 2 tab tren trang va trong menu.
+  assert.deepEqual([...doc.querySelectorAll('.vd-tabs [data-vat-draft-tab]')].map(a => a.dataset.vatDraftTab), ['xu-ly', 'tao-qr']);
+  assert.deepEqual([...doc.querySelectorAll('#sidebar a[href^="/vat-draft/"]')].map(a => a.getAttribute('href')), ['/vat-draft/#xu-ly', '/vat-draft/#tao-qr']);
+  assert.equal(doc.getElementById('vdLookupResult'), null);
   const select = doc.getElementById('vdManualAccount');
   assert.equal(select.value, '__manual__');
   assert.equal(doc.getElementById('vdManualGenerate').disabled, true);
@@ -207,10 +211,40 @@ test('tab Tao QR: tai khoan nhap tay can du ma ngan hang + so TK, hash doi tab',
   select.dispatchEvent(new window.Event('change'));
   assert.equal(doc.getElementById('vdManualFields').hidden, true);
   const changed = new Promise(resolve => window.addEventListener('hashchange', resolve, { once: true }));
-  window.location.hash = 'tra-cuu';
+  window.location.hash = 'xu-ly';
   await changed;
   assert.equal(doc.getElementById('vdInputPanel').hidden, false);
-  assert.match(doc.getElementById('vdRunDocs').textContent, /Tra cứu nguồn/);
+  assert.equal(doc.getElementById('vdQrPage').hidden, true);
+});
+
+test('tab Tao QR: QR hien o cot phai, thay cho dong "Mã QR sẽ hiện ở đây"', async t => {
+  const { doc, calls } = await setup(t, { hash: '#tao-qr' });
+  const preview = doc.querySelector('#vdQrPage .vd-qr-preview');
+  assert.ok(preview && preview.contains(doc.getElementById('vdManualResult')));
+  assert.equal(doc.getElementById('vdQrPlaceholder').hidden, false);
+  assert.equal(doc.getElementById('vdManualResult').hidden, true);
+  const select = doc.getElementById('vdManualAccount');
+  select.value = 'tks_group';
+  select.dispatchEvent(new doc.defaultView.Event('change'));
+  doc.getElementById('vdManualGenerate').click();
+  await tick(); await tick();
+  assert.equal(calls.find(c => c.key === 'POST /qr/url').body.accountKey, 'tks_group');
+  assert.equal(doc.getElementById('vdQrPlaceholder').hidden, true);
+  assert.ok(preview.querySelector('figure img').src.startsWith('https://img.vietqr.io/'));
+  assert.ok(preview.querySelector('[data-qr-download]'));
+});
+
+test('Nhan vien sale: chi thay Tao QR, khong tai chung tu, hash #xu-ly van o Tao QR', async t => {
+  const responses = api({ 'GET /meta': { vietqr: api()['GET /meta'].vietqr } });
+  const { doc, calls } = await setup(t, { hash: '#xu-ly', responses, vaiTro: 'Nhân viên sale' });
+  assert.equal(doc.getElementById('vdQrPage').hidden, false);
+  assert.equal(doc.getElementById('vdInputPanel').hidden, true);
+  assert.equal(doc.querySelector('.vd-tabs').hidden, true);
+  assert.equal(doc.getElementById('vdSourceBar').hidden, true);
+  assert.equal(doc.getElementById('vdTitle').textContent, 'Tạo QR chuyển khoản');
+  assert.ok(!calls.some(c => c.key === 'GET /documents'), 'sale khong goi danh sach chung tu');
+  assert.deepEqual([...doc.querySelectorAll('#sidebar a[href^="/vat-draft/"]')].map(a => a.getAttribute('href')), ['/vat-draft/#tao-qr']);
+  assert.ok(doc.getElementById('vdManualAccount').querySelector('option[value="tks_group"]'), 'van co danh sach tai khoan');
 });
 
 test('loi may chu hien ro cho nguoi dung', async t => {
