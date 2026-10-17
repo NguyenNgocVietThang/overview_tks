@@ -110,7 +110,7 @@ Port 1:1 app Streamlit `vat-draft-app` (3 chức năng: Xử lý hóa đơn, Tra
 
 - **Master data**: 2 Google Sheet công khai "Gộp VAT" (gid 0) và "Khớp mã" (gid 1192158065) đọc qua URL export CSV (`sheetsSource.js`, không dùng service account), parse theo chữ cái cột trong `vatDraftConfig.js` và mô phỏng cách pandas đọc ô trống/`#N/A` (chuỗi `nan` ở cột chữ). Cache 10 phút (stale tối đa 6 giờ khi Sheets lỗi). Sheet hết chia sẻ công khai → 503 `SHEET_NOT_PUBLIC`.
 - **Chứng từ** (`documentsRepository.js`): hóa đơn (trừ Đã hủy) + đơn đặt hàng chưa lên hóa đơn (không Hoàn thành/Đã hủy, chưa có hóa đơn không hủy trỏ `raw->>'orderCode'`). Dòng hàng đưa về đúng 7 trường của file "Danh sách chi tiết hóa đơn" KiotViet: Mã hàng, Tên hàng, Số lượng, Giá bán (= `price - discount`, tính bằng NUMERIC), Ghi chú hàng hóa (`invoice_details.raw->>'note'`), Mã hóa đơn, Thành tiền (`subTotal` với HD; `(price - discount) × quantity` với DH) + **Ghi chú tổng** (`raw->>'description'` của chứng từ).
-- **Tài khoản VietQR** cấu hình trong `vatDraft/vatDraftConfig.js` (17 tài khoản, map nguồn → tài khoản, map đơn vị bán → tài khoản); ảnh QR qua `img.vietqr.io` (Quick Link, không API key).
+- **Tài khoản VietQR** cấu hình trong `vatDraft/vatDraftConfig.js` (18 tài khoản; danh sách thay theo file Ngân hàng 17/10/2026, bỏ các dòng "Không vào QR", map nguồn → tài khoản, map đơn vị bán → tài khoản); ảnh QR qua `img.vietqr.io` (Quick Link, không API key).
 
 | Method | Path | Ghi chú |
 |---|---|---|
