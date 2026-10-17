@@ -3,8 +3,8 @@
 > **Cập nhật migration 16/10/2026:** Đã áp thành công `0054_customer_invoice_lines_incremental.sql`, `0055_product_report_state.sql` và `0057_product_report_branch_columns.sql` lên DB dùng chung (Supabase), ghi nhận đầy đủ trong `schema_migrations`. Toàn bộ migration (0001 → 0057) hiện đã áp xong. Cờ `REPORTS_INCREMENTAL_ENABLED` hiện chưa bật trên môi trường chạy.
 
 > **Cập nhật gần nhất:** 17/10/2026 (Asia/Ho_Chi_Minh), gọn tin Telegram của bot duyệt nghỉ phép và thêm dòng "Thời gian nghỉ" (các thứ trong tuần); trước đó đổi công thức cước Đức Mạnh/Việt Linh và thêm nút tick "Giao ra chành" cho Việt Linh (490k/m³ + vé chành 70k, chưa deploy). Đồng thời gộp trang Kế toán – Nháp VAT (port vat-draft-app) từ nhánh `feat/vat-draft`.
-> **Quy định công ty — tài liệu gõ trực tiếp dạng rich text:** migration `0060` đã áp DB production (Render), code đã deploy. Migration `0061` (rich text + bảng ảnh `hr_rule_document_images`) **CHƯA áp DB**, đang nằm ở local chưa commit — xem `server/README.md` mục 2026-10-17. API tạo/sửa tự khóa 503 cho tới khi `0061` được áp (`repo.isRichTextReady()`), nên deploy code sớm không hỏng gì. Toàn bộ 2.701/2.705 test xanh (1 lỗi `sort-icons.test.js` có sẵn từ trước, không liên quan).
-> **Trạng thái Git:** làm việc trên `main`; `0060` đã push, `0061` + trình soạn thảo rich text đang ở working tree, chưa commit.
+> **Quy định công ty — tài liệu gõ trực tiếp dạng rich text + icon:** migration `0060` đã áp DB production (Render), code đã deploy. Migration `0061` (rich text + bảng ảnh) và `0062` (icon_key, 8 icon cố định) **CHƯA áp DB**. API tạo/sửa tự khóa 503 cho tới khi CẢ HAI được áp (`repo.isRichTextReady()` kiểm cả bảng ảnh lẫn cột icon_key), nên deploy code sớm không hỏng gì. Xem `server/README.md` mục 2026-10-17.
+> **Trạng thái Git:** làm việc trên `main`; `0060` đã push. `0061` + `0062` + trình soạn thảo rich text + icon picker đang chuẩn bị push.
 > **Quy tắc:** Cập nhật liên tục vào đầu và cuối mỗi phiên làm việc để không bị đứt đoạn ngữ cảnh dự án.
 
 ---

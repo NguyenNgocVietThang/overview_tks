@@ -440,6 +440,17 @@
   }
   .rte-color-btn:hover{ background:var(--surface-hover); }
   .rte-color-btn input[type="color"]{ position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; }
+  .rte-icon-picker{ display:flex; flex-wrap:wrap; gap:6px; }
+  .rte-icon-option{
+    width:36px; height:36px; display:inline-flex; align-items:center; justify-content:center;
+    border:1px solid var(--border); border-radius:var(--radius-xs); background:var(--panel); color:var(--text);
+    cursor:pointer; padding:0;
+  }
+  .rte-icon-option:hover{ background:var(--surface-hover); }
+  .rte-icon-option.active{ background:rgba(249,115,22,0.18); border-color:#f97316; color:#f97316; }
+  .rte-icon-option svg{ width:18px; height:18px; }
+  .rte-doc-icon{ display:inline-flex; margin-right:8px; vertical-align:-4px; color:#14161c; }
+  .rte-doc-icon svg{ width:20px; height:20px; }
   .rte-editor{
     min-height:260px; max-height:50vh; overflow-y:auto; padding:16px 18px; background:#fff; color:#23262f;
     border:1px solid var(--border); border-radius:0 0 var(--radius-sm) var(--radius-sm);
@@ -1003,7 +1014,7 @@
               <div class="doc-page-header">
                 <img src="/Logo.jpg" alt="TOKOSI">
                 <div class="doc-page-title">
-                  <h1 id="ruleDocTextH1"></h1>
+                  <h1><span class="rte-doc-icon" id="ruleDocTextIcon" hidden></span><span id="ruleDocTextH1"></span></h1>
                   <p id="ruleDocTextBanner"></p>
                 </div>
               </div>
@@ -1255,6 +1266,13 @@
             <input type="text" id="ruleTextName" class="form-control" maxlength="120" required>
           </div>
           <div class="form-group">
+            <label>Icon (tùy chọn — hiện cạnh tiêu đề)</label>
+            <!-- Chi CHON tu danh sach co dinh (hrRuleDocumentIcons.js / ICON_DEFS ben duoi),
+                 khong go tay duoc — khong di qua bo loc XSS, khong co nguy co chen SVG doc hai. -->
+            <div class="rte-icon-picker" id="rteIconPicker"></div>
+            <input type="hidden" id="ruleTextIcon" value="">
+          </div>
+          <div class="form-group">
             <label>Nội dung *</label>
             <div class="rte-toolbar" id="rteToolbar">
               <button type="button" class="rte-btn" data-cmd="bold" title="Đậm (Ctrl+B)"><b>B</b></button>
@@ -1482,6 +1500,10 @@
         ruleDocEl('ruleDocTextH1').textContent = doc.title;
         ruleDocEl('ruleDocTextBanner').textContent = `TOKOSI · Nội bộ${dateText ? ` · Cập nhật: ${dateText}` : ''}`;
         ruleDocEl('ruleDocTextBody').innerHTML = doc.body || '';
+        const iconEl = ruleDocEl('ruleDocTextIcon');
+        const iconDef = doc.iconKey && ICON_DEFS[doc.iconKey];
+        if(iconDef){ iconEl.innerHTML = iconDef.svg; iconEl.hidden = false; } // ICON_DEFS: hang so trong code
+        else { iconEl.innerHTML = ''; iconEl.hidden = true; }
         ruleDocEl('ruleDocTextView').hidden = false;
       }else{
         const parts = [];
@@ -1653,6 +1675,50 @@
     }
 
     // ----- Quan ly: soan / sua tai lieu go tay (kind=text) -----
+    // ICON_DEFS: markup SVG TIN CAY, nam san trong code — nguoi dung chi CHON 1 khoa
+    // (vd 'clock'), khong go duoc ma SVG. Phai khop danh sach trong migration 0062 /
+    // hrRuleDocumentIcons.js.
+    const ICON_DEFS = {
+      clock: { label: 'Giờ giấc', svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>' },
+      calendar: { label: 'Nghỉ phép', svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>' },
+      gift: { label: 'Phúc lợi', svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12v10H4V12"></path><path d="M2 7h20v5H2z"></path><path d="M12 22V7"></path><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"></path><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"></path></svg>' },
+      box: { label: 'Hàng hóa', svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>' },
+      info: { label: 'Thông tin', svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>' },
+      warning: { label: 'Cảnh báo', svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 20h20L12 2z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>' },
+      document: { label: 'Tài liệu', svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>' },
+      users: { label: 'Nhân sự', svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>' }
+    };
+    let ruleTextSelectedIcon = '';
+
+    function renderIconPicker(){
+      const wrap = ruleDocEl('rteIconPicker');
+      wrap.innerHTML = '';
+      const none = document.createElement('button');
+      none.type = 'button';
+      none.className = 'rte-icon-option';
+      none.title = 'Không có icon';
+      none.textContent = '—';
+      none.addEventListener('click', () => selectRuleTextIcon(''));
+      wrap.appendChild(none);
+      Object.keys(ICON_DEFS).forEach(key => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'rte-icon-option';
+        btn.title = ICON_DEFS[key].label;
+        btn.innerHTML = ICON_DEFS[key].svg; // ICON_DEFS la hang so trong code, khong phai du lieu nguoi dung.
+        btn.addEventListener('click', () => selectRuleTextIcon(key));
+        wrap.appendChild(btn);
+      });
+    }
+
+    function selectRuleTextIcon(key){
+      ruleTextSelectedIcon = ICON_DEFS[key] ? key : '';
+      ruleDocEl('ruleTextIcon').value = ruleTextSelectedIcon;
+      ruleDocEl('rteIconPicker').querySelectorAll('.rte-icon-option').forEach((btn, index) => {
+        btn.classList.toggle('active', index === 0 ? !ruleTextSelectedIcon : Object.keys(ICON_DEFS)[index - 1] === ruleTextSelectedIcon);
+      });
+    }
+
     let ruleTextEditingId = null; // null = tao moi, co gia tri = dang sua tai lieu do
     let ruleEditorSavedRange = null;
 
@@ -1794,6 +1860,7 @@
       // Buoc trinh duyet dung inline CSS cho mau/can le; server chi giu dung cac
       // thuoc tinh CSS trong whitelist.
       try{ document.execCommand('styleWithCSS', false, true); }catch(err){}
+      renderIconPicker();
     }
 
     function openRuleTextModal(doc){
@@ -1808,6 +1875,7 @@
       ruleEditor().innerHTML = isEdit ? (doc.body || '') : '<p><br></p>';
       ruleEditorSavedRange = null;
       if(isEdit) ruleDocEl('ruleTextName').value = doc.title || '';
+      selectRuleTextIcon(isEdit ? (doc.iconKey || '') : '');
       updateRuleEditorSizeHint();
       openModal('ruleTextModal');
     }
@@ -1834,7 +1902,7 @@
         const res = await fetch(url, {
           method, credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title, body })
+          body: JSON.stringify({ title, body, icon: ruleTextSelectedIcon })
         });
         const { ok, data } = await parseApiResponse(res);
         if(!ok){ showError((data && data.error) || 'Không lưu được tài liệu.'); return; }

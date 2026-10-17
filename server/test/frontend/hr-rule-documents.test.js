@@ -64,7 +64,7 @@ async function openPage({ vaiTro = 'Quản lý', hash = '#quydinh', docs = [...B
     }
     if (u === '/api/hr/rules/documents/text' && method === 'POST') {
       const payload = JSON.parse(opts.body);
-      const created = { ...TEXT, id: 10, slug: 'text-10', title: payload.title, body: payload.body };
+      const created = { ...TEXT, id: 10, slug: 'text-10', title: payload.title, body: payload.body, iconKey: payload.icon || null };
       server.docs.push(created);
       return jsonResponse({ document: created }, 201);
     }
@@ -72,7 +72,7 @@ async function openPage({ vaiTro = 'Quản lý', hash = '#quydinh', docs = [...B
     if (updateText && method === 'PUT') {
       const payload = JSON.parse(opts.body);
       const index = server.docs.findIndex(d => String(d.id) === updateText[1]);
-      server.docs[index] = { ...server.docs[index], title: payload.title, body: payload.body, updatedBy: 'Quản lý A' };
+      server.docs[index] = { ...server.docs[index], title: payload.title, body: payload.body, iconKey: payload.icon || null, updatedBy: 'Quản lý A' };
       return jsonResponse({ document: server.docs[index] });
     }
     const file = /^\/api\/hr\/rules\/documents\/(\d+)\/file$/.exec(u);
@@ -280,8 +280,55 @@ test('tạo rich-text gửi innerHTML (không phải textContent) và chọn tab
   await window.submitRuleText();
   await settle();
   const post = server.requests.find(r => r.url === '/api/hr/rules/documents/text' && r.method === 'POST');
-  assert.deepEqual(JSON.parse(post.body), { title: 'Quy định mới', body: '<h1>Tiêu đề</h1><p><strong>Nội dung</strong></p>' });
+  assert.deepEqual(JSON.parse(post.body), { title: 'Quy định mới', body: '<h1>Tiêu đề</h1><p><strong>Nội dung</strong></p>', icon: '' });
   assert.equal(activeTab(document).ruleDocTab, 'text-10');
+  window.close();
+});
+
+test('icon tài liệu: picker hiện đủ "không có" + 8 icon cố định, bấm chọn gửi đúng khóa trong payload', async () => {
+  const { window, document, server } = await openPage();
+  window.openRuleTextModal(null);
+
+  const options = [...document.querySelectorAll('#rteIconPicker .rte-icon-option')];
+  assert.equal(options.length, 9); // 1 "không có" + 8 icon (clock/calendar/gift/box/info/warning/document/users)
+  assert.equal(document.getElementById('ruleTextIcon').value, '');
+
+  options[2].click(); // icon thu 2 sau "khong co" — tuong ung khoa 'calendar' (thu tu Object.keys ICON_DEFS)
+  assert.equal(document.getElementById('ruleTextIcon').value, 'calendar');
+  assert.ok(options[2].classList.contains('active'));
+  assert.ok(!options[0].classList.contains('active'));
+
+  document.getElementById('ruleTextName').value = 'Tài liệu có icon';
+  document.getElementById('ruleTextEditor').innerHTML = '<p>Nội dung</p>';
+  await window.submitRuleText();
+  await settle();
+  const post = server.requests.find(r => r.url === '/api/hr/rules/documents/text' && r.method === 'POST');
+  assert.equal(JSON.parse(post.body).icon, 'calendar');
+  window.close();
+});
+
+test('icon tài liệu: tài liệu có iconKey hiện SVG cạnh tiêu đề, tài liệu không có icon thì ẩn', async () => {
+  const withIcon = { ...TEXT, iconKey: 'box' };
+  const { window, document } = await openPage({ docs: [...BUILTINS, PDF, withIcon] });
+  document.querySelector('[data-rule-doc-tab="text-8"]').click();
+  await settle();
+
+  const iconEl = document.getElementById('ruleDocTextIcon');
+  assert.equal(iconEl.hidden, false);
+  assert.match(iconEl.innerHTML, /<svg/);
+  window.close();
+});
+
+test('icon tài liệu: mở form Sửa điền sẵn đúng icon đã chọn trước đó', async () => {
+  const withIcon = { ...TEXT, iconKey: 'gift' };
+  const { window, document } = await openPage({ docs: [...BUILTINS, PDF, withIcon] });
+  document.querySelector('[data-rule-doc-tab="text-8"]').click();
+  await settle();
+  window.openRuleTextModal(withIcon);
+
+  assert.equal(document.getElementById('ruleTextIcon').value, 'gift');
+  const active = document.querySelector('#rteIconPicker .rte-icon-option.active');
+  assert.ok(active, 'phai co 1 icon dang active');
   window.close();
 });
 

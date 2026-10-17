@@ -275,7 +275,7 @@ router.post('/api/hr/rules/documents/text', ...authManage, async (req, res) => {
   try {
     if (!(await repo.isRichTextReady())) {
       return res.status(503).json({
-        error: 'Chức năng soạn văn bản đang chờ cập nhật cơ sở dữ liệu (migration 0061).',
+        error: 'Chức năng soạn văn bản đang chờ cập nhật cơ sở dữ liệu (migration 0061, 0062).',
         code: 'RULE_DOC_RICH_TEXT_NOT_READY'
       });
     }
@@ -294,6 +294,7 @@ router.post('/api/hr/rules/documents/text', ...authManage, async (req, res) => {
     const document = await repo.createTextDocument({
       title,
       body,
+      iconKey: req.body && req.body.icon,
       createdByUserId: req.user && req.user.id,
       createdByName: (req.user && (req.user.hoTen || req.user.username)) || ''
     });
@@ -313,7 +314,7 @@ router.put('/api/hr/rules/documents/:id/text', ...authManage, async (req, res) =
   try {
     if (!(await repo.isRichTextReady())) {
       return res.status(503).json({
-        error: 'Chức năng soạn văn bản đang chờ cập nhật cơ sở dữ liệu (migration 0061).',
+        error: 'Chức năng soạn văn bản đang chờ cập nhật cơ sở dữ liệu (migration 0061, 0062).',
         code: 'RULE_DOC_RICH_TEXT_NOT_READY'
       });
     }
@@ -335,6 +336,7 @@ router.put('/api/hr/rules/documents/:id/text', ...authManage, async (req, res) =
     const document = await repo.updateTextDocument(id, {
       title,
       body,
+      iconKey: req.body && req.body.icon,
       updatedByName: (req.user && (req.user.hoTen || req.user.username)) || ''
     });
     if (!document) return res.status(404).json({ error: 'Không tìm thấy tài liệu.', code: 'RULE_DOC_NOT_FOUND' });

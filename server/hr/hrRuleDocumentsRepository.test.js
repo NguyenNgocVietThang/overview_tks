@@ -78,14 +78,14 @@ const TEXT_ROW = {
 test('createTextDocument: INSERT placeholder lấy id, lọc HTML, UPDATE body, COMMIT — trong 1 transaction', async () => {
   const pool = fakePool([[{ id: 9 }], [TEXT_ROW]]);
   const doc = await createHrRuleDocumentsRepository({ pool }).createTextDocument({
-    title: 'Hướng dẫn dùng bot', body: 'Bước 1: ...', createdByUserId: 'admin-default', createdByName: 'Quản lý A'
+    title: 'Hướng dẫn dùng bot', body: 'Bước 1: ...', iconKey: 'clock', createdByUserId: 'admin-default', createdByName: 'Quản lý A'
   });
 
   const calls = pool.calls;
   assert.match(calls[0].sql, /^BEGIN$/);
   assert.match(calls[1].sql, /INSERT INTO hr_rule_documents/);
-  assert.match(calls[1].sql, /VALUES \('text', \$1, '<p><\/p>', \$2, \$3\)/);
-  assert.deepEqual(calls[1].params, ['Hướng dẫn dùng bot', null, 'Quản lý A']);
+  assert.match(calls[1].sql, /VALUES \('text', \$1, '<p><\/p>', \$2, \$3, \$4\)/);
+  assert.deepEqual(calls[1].params, ['Hướng dẫn dùng bot', 'clock', null, 'Quản lý A']);
   assert.match(calls[2].sql, /UPDATE hr_rule_documents SET body = \$2 WHERE id = \$1/);
   assert.deepEqual(calls[2].params, [9, 'Bước 1: ...']); // van ban thuan: sanitize-html giu nguyen
   assert.match(calls[3].sql, /^COMMIT$/);
@@ -109,10 +109,10 @@ test('updateTextDocument: lọc HTML, dọn ảnh không còn nhắc tới, sử
   const pool = fakePool([[{ id: 9 }], [], [updatedRow]]);
   const repo = createHrRuleDocumentsRepository({ pool });
 
-  const doc = await repo.updateTextDocument(9, { title: 'Hướng dẫn mới', body: '<b>Nội dung mới</b>', updatedByName: 'Quản lý B' });
+  const doc = await repo.updateTextDocument(9, { title: 'Hướng dẫn mới', body: '<b>Nội dung mới</b>', iconKey: 'gift', updatedByName: 'Quản lý B' });
   const updateCall = pool.calls.find(c => /^UPDATE hr_rule_documents SET title/.test(c.sql));
   assert.match(updateCall.sql, /WHERE id = \$1 AND kind = 'text'/);
-  assert.deepEqual(updateCall.params, [9, 'Hướng dẫn mới', '<b>Nội dung mới</b>', 'Quản lý B']);
+  assert.deepEqual(updateCall.params, [9, 'Hướng dẫn mới', '<b>Nội dung mới</b>', 'gift', 'Quản lý B']);
   assert.ok(pool.calls.some(c => /DELETE FROM hr_rule_document_images/.test(c.sql)));
   assert.equal(doc.title, 'Hướng dẫn mới');
   assert.equal(doc.updatedBy, 'Quản lý B');

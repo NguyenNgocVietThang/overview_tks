@@ -12,6 +12,7 @@ const crypto = require('crypto');
 const { getPool } = require('../db/pool');
 const { sanitizeRuleDocumentHtml, hasMeaningfulRuleDocumentContent } = require('./hrRuleDocumentSanitizer');
 const { extractAndPersistImages, pruneUnreferencedImages } = require('./hrRuleDocumentImages');
+const { normalizeIconKey } = require('./hrRuleDocumentIcons');
 
 // Phai khop cac dong seed cua migration 0027 + 0039 (dung cho "Khoi phuc tai lieu mac dinh"
 // va cho danh sach du phong khi bang chua duoc migrate).
@@ -61,6 +62,7 @@ function mapRow(row) {
     doc.builtinKey = row.builtin_key;
   } else if (row.kind === 'text') {
     doc.body = row.body || '';
+    doc.iconKey = row.icon_key || null;
     doc.uploadedBy = row.uploaded_by_name || '';
     doc.createdAt = toIso(row.created_at);
     doc.updatedBy = row.updated_by_name || '';
@@ -80,13 +82,19 @@ function mapRow(row) {
 // o hrRuleDocumentRoutes.js.
 const BODY_MAX_LENGTH = 200000;
 
-const LIST_COLUMNS = 'id, kind, builtin_key, title, file_name, size_bytes, uploaded_by_name, created_at, body, updated_at, updated_by_name';
+const LIST_COLUMNS = 'id, kind, builtin_key, title, file_name, size_bytes, uploaded_by_name, created_at, body, updated_at, updated_by_name, icon_key';
 
 function createHrRuleDocumentsRepository({ pool = getPool() } = {}) {
+  // Rich text san sang khi CA bang anh (migration 0061) LAN cot icon_key (migration
+  // 0062) deu da ap — gop 1 cong duy nhat de khong co trang thai lung chung giua 2 migration.
   async function isRichTextReady() {
-    const { rows } = await pool.query(
-      "SELECT to_regclass('public.hr_rule_document_images') IS NOT NULL AS ready"
-    );
+    const { rows } = await pool.query(`
+      SELECT to_regclass('public.hr_rule_document_images') IS NOT NULL
+        AND EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'hr_rule_documents' AND column_name = 'icon_key'
+        ) AS ready
+    `);
     return Boolean(rows[0] && rows[0].ready);
   }
 
@@ -155,7 +163,7 @@ function createHrRuleDocumentsRepository({ pool = getPool() } = {}) {
   }
 
   /**
-   * @param {{title:string, body:string, createdByUserId?:string, createdByName?:string}} data
+   * @param {{title:string, body:string, iconKey?:string, createdByUserId?:string, createdByName?:string}} data
    */
   async function createTextDocument(data) {
     const client = await pool.connect();
@@ -163,10 +171,11 @@ function createHrRuleDocumentsRepository({ pool = getPool() } = {}) {
       await client.query('BEGIN');
       // body dat tam '<p></p>' (hop le voi CHECK rang buoc hinh dang kind='text') de
       // lay duoc id truoc — can id de tach anh gan dung document_id ngay tu dau.
+      // icon_key la enum co dinh (hrRuleDocumentIcons.js), KHONG di qua bo loc XSS.
       const inserted = await client.query(
-        `INSERT INTO hr_rule_documents (kind, title, body, uploaded_by_user_id, uploaded_by_name)
-         VALUES ('text', $1, '<p></p>', $2, $3) RETURNING id`,
-        [data.title, uuidOrNull(data.createdByUserId), data.createdByName || '']
+        `INSERT INTO hr_rule_documents (kind, title, body, icon_key, uploaded_by_user_id, uploaded_by_name)
+         VALUES ('text', $1, '<p></p>', $2, $3, $4) RETURNING id`,
+        [data.title, normalizeIconKey(data.iconKey), uuidOrNull(data.createdByUserId), data.createdByName || '']
       );
       const id = inserted.rows[0].id;
       const finalHtml = await processBodyForStorage(client, id, data.body);
@@ -185,7 +194,7 @@ function createHrRuleDocumentsRepository({ pool = getPool() } = {}) {
   }
 
   /**
-   * @param {{title:string, body:string, updatedByName?:string}} data
+   * @param {{title:string, body:string, iconKey?:string, updatedByName?:string}} data
    */
   async function updateTextDocument(id, data) {
     const client = await pool.connect();
@@ -205,10 +214,10 @@ function createHrRuleDocumentsRepository({ pool = getPool() } = {}) {
       // Anh nguoi dung da xoa khoi noi dung (khong con duoc nhac toi) bi don luon o day.
       await pruneUnreferencedImages(client, id, finalHtml);
       const { rows } = await client.query(
-        `UPDATE hr_rule_documents SET title = $2, body = $3, updated_at = now(), updated_by_name = $4
+        `UPDATE hr_rule_documents SET title = $2, body = $3, icon_key = $4, updated_at = now(), updated_by_name = $5
          WHERE id = $1 AND kind = 'text'
          RETURNING ${LIST_COLUMNS}`,
-        [id, data.title, finalHtml, data.updatedByName || '']
+        [id, data.title, finalHtml, normalizeIconKey(data.iconKey), data.updatedByName || '']
       );
       await client.query(rows[0] ? 'COMMIT' : 'ROLLBACK');
       return rows[0] ? mapRow(rows[0]) : null;
