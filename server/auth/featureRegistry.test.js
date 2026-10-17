@@ -301,3 +301,19 @@ test('hr.employees.manage: mặc định chỉ Quản lý, cần hr.employees', 
   const feature = registry.FEATURES.find(f => f.key === 'hr.employees.manage');
   assert.equal(feature.requires, 'hr.employees');
 });
+
+test('Nháp VAT (accounting.vatDraft): mặc định chỉ Quản lý, Kế toán chỉ có khi được cấp riêng, Khách không bao giờ có', () => {
+  for (const role of Object.values(ROLES)) {
+    assert.equal(registry.defaultsForRole(role).includes('accounting.vatDraft'), role === ROLES.QUAN_LY, role);
+  }
+  assert.ok(!registry.resolvePermissions({ vaiTro: ROLES.KE_TOAN }).includes('accounting.vatDraft'));
+  assert.ok(registry.resolvePermissions({ vaiTro: ROLES.KE_TOAN, featurePermissions: { 'accounting.vatDraft': true } }).includes('accounting.vatDraft'));
+  assert.ok(!registry.resolvePermissions({ vaiTro: ROLES.KHACH, featurePermissions: { 'accounting.vatDraft': true } }).includes('accounting.vatDraft'));
+  assert.ok(registry.resolvePermissions({ username: 'admin', vaiTro: ROLES.KE_TOAN }).includes('accounting.vatDraft'));
+  assert.ok(registry.FEATURE_GROUPS.some(g => g.key === 'accounting' && g.label === 'Kế toán'));
+  for (const url of ['/vat-draft', '/vat-draft/', '/vat-draft/index.html']) {
+    assert.deepEqual(registry.pageRuleFor(url), { path: '/vat-draft', href: '/vat-draft/', anyOf: ['accounting.vatDraft'] });
+  }
+  // Quan ly van vao /reports/ dau tien nhu cu.
+  assert.equal(registry.landingPathFor(registry.defaultsForRole(ROLES.QUAN_LY)), '/reports/');
+});
