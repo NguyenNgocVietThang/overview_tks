@@ -64,8 +64,8 @@ function createVatDraftRouter({
   }));
 
   router.get('/documents', ...guard, resolveBranch, handle(async (req, res) => {
-    const { kind, from, to, q, page, pageSize } = req.query;
-    res.json(await repository.listDocuments({ branchCodes: branchCodes(req), kind, from, to, q, page, pageSize }));
+    const { kind, from, to, q, page, pageSize, sort, dir } = req.query;
+    res.json(await repository.listDocuments({ branchCodes: branchCodes(req), kind, from, to, q, page, pageSize, sort, dir }));
   }));
 
   router.post('/documents/resolve', ...guard, resolveBranch, handle(async (req, res) => {

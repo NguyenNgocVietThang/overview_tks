@@ -19,6 +19,21 @@ const VN_FROM = 'àáạảãâầấậẩẫăằắặẳẵèéẹẻẽê�
 const VN_TO = 'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd';
 const foldSql = expression => `translate(lower(${expression}), '${VN_FROM}', '${VN_TO}')`;
 
+// Cot sap xep cua bang chon chung tu (khoa tu trang -> bieu thuc SQL tren CTE docs "d"). Chi nhan khoa
+// trong danh sach nay (khong ghep chuoi nguoi dung vao SQL).
+const SORT_COLUMNS = Object.freeze({
+  code: 'd.code',
+  kind: 'd.kind',
+  branch: 'd.branch',
+  date: 'd.doc_ts',
+  customer: 'lower(d.customer_name)',
+  note: 'lower(d.note)',
+  status: 'd.status',
+  total: 'd.total',
+  lines: `CASE d.kind WHEN 'invoice' THEN (SELECT count(*) FROM invoice_details x WHERE x.branch = d.branch AND x.invoice_id = d.id)
+           ELSE (SELECT count(*) FROM order_details x WHERE x.branch = d.branch AND x.order_id = d.id) END`
+});
+
 const statusSql = alias => INVOICE_STATUS_SQL.replace(/\bi\./g, `${alias}.`);
 const orderStatusSql = alias => `COALESCE(NULLIF(${alias}.raw->>'statusValue', ''), ${alias}.status::text, '')`;
 
@@ -76,7 +91,13 @@ function createDocumentsRepository({ query = (sql, params) => getPool().query(sq
    * Danh sach chung tu de tick chon: hoa don (tru Da huy) + don dat hang chua len hoa don
    * (khong Hoan thanh / Da huy, chua co hoa don khong huy tro toi). Moi nhat truoc.
    */
-  async function listDocuments({ branchCodes, kind = 'all', from, to, q = '', page = 1, pageSize = 50 } = {}) {
+  async function listDocuments({ branchCodes, kind = 'all', from, to, q = '', page = 1, pageSize = 50, sort = '', dir = 'desc' } = {}) {
+    // Sap xep tren TOAN BO ket qua (khong chi trang hien tai). Cot ngoai danh sach -> moi nhat truoc.
+    const sortExpr = SORT_COLUMNS[sort];
+    const direction = dir === 'asc' ? 'ASC' : 'DESC';
+    const orderBy = sortExpr
+      ? `${sortExpr} ${direction} NULLS LAST, d.doc_ts DESC NULLS LAST, d.code DESC`
+      : 'd.doc_ts DESC NULLS LAST, d.code DESC';
     if (!Array.isArray(branchCodes) || !branchCodes.length) throw badRequest('Chưa chọn cơ sở.');
     if (!['all', 'invoice', 'order'].includes(kind)) throw badRequest('Loại chứng từ không hợp lệ.');
     const fromDate = parseDate(from);
@@ -118,13 +139,13 @@ function createDocumentsRepository({ query = (sql, params) => getPool().query(sq
          UNION ALL
          SELECT * FROM ord
        ), page AS (
-         SELECT d.*, count(*) OVER () AS total_count
+         SELECT d.*, count(*) OVER () AS total_count, row_number() OVER (ORDER BY ${orderBy}) AS rn
          FROM docs d
          WHERE $5 = ''
             OR ${foldSql('d.customer_name')} LIKE '%' || $5 || '%'
             OR lower(d.customer_code) LIKE '%' || $5 || '%'
             OR lower(d.code) LIKE '%' || $5 || '%'
-         ORDER BY d.doc_ts DESC NULLS LAST, d.code DESC
+         ORDER BY ${orderBy}
          LIMIT $6 OFFSET $7
        )
        SELECT p.*, COALESCE(to_char(p.doc_ts AT TIME ZONE 'UTC', '${DATE_FORMAT}'), '') AS doc_date,
@@ -133,7 +154,7 @@ function createDocumentsRepository({ query = (sql, params) => getPool().query(sq
                 ELSE (SELECT count(*) FROM order_details d WHERE d.branch = p.branch AND d.order_id = p.id)
               END AS line_count
        FROM page p
-       ORDER BY p.doc_ts DESC NULLS LAST, p.code DESC`,
+       ORDER BY p.rn`,
       [branchCodes, fromDate, toDate, kind, search, size, (pageNo - 1) * size]
     );
     return {

@@ -19,7 +19,7 @@
     tab: 'xu-ly',
     mode: 'docs',
     selection: new Map(),
-    list: { page: 1, total: 0, rows: [], loading: false, version: 0 },
+    list: { page: 1, total: 0, rows: [], loading: false, version: 0, sort: '', dir: 'asc' },
     meta: null,
     alloc: null,
     lookup: null,
@@ -39,8 +39,9 @@
     return String(text).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[đĐ]/g, 'd').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'cot';
   }
 
-  const intFormat = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 });
-  const decFormat = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 });
+  // Tien / gia / so luong: dau PHAY ngan hang nghin (115,200,000), dau cham thap phan — nhu app cu.
+  const intFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
+  const decFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
 
   function formatNumber(column, value) {
     if (value === null || value === undefined || value === '') return '';
@@ -298,7 +299,8 @@
     renderDocs();
     const params = new URLSearchParams({
       kind: $('vdKind').value, branch: $('vdBranch').value, from: $('vdFrom').value, to: $('vdTo').value,
-      q: $('vdSearch').value.trim(), page: String(state.list.page), pageSize: String(PAGE_SIZE)
+      q: $('vdSearch').value.trim(), page: String(state.list.page), pageSize: String(PAGE_SIZE),
+      sort: state.list.sort, dir: state.list.dir
     });
     try {
       const data = await api('/documents?' + params);
@@ -403,6 +405,30 @@
     return '<tr>' + columns.map(c => `<th scope="col" data-column-key="${keyPrefix}${slug(c)}" data-default-width="${COLUMN_WIDTHS[c] || 120}" title="${escapeHtml(headerLabel(c))}"${NUMERIC.has(c) ? ' class="num"' : ''}>${escapeHtml(headerLabel(c))}</th>`).join('') + '</tr>';
   }
 
+  // Nut sap xep o tieu de theo quy uoc chung (shared.css): chua sap ▲▼ · tang dan ▼ · giam dan ▲.
+  const SORT_GLYPH = { none: '▲▼', asc: '▼', desc: '▲' };
+  function sortButtonHtml(field, label, dir) {
+    const state = dir === 'asc' || dir === 'desc' ? dir : 'none';
+    const action = state === 'asc' ? 'Sắp xếp giảm dần' : state === 'desc' ? 'Bỏ sắp xếp' : 'Sắp xếp tăng dần';
+    return `<button type="button" class="sort-button" data-sort-field="${escapeHtml(field)}" title="${action} theo ${escapeHtml(label)}" aria-label="${action} theo cột ${escapeHtml(label)}"><span class="sort-label">${escapeHtml(label)}</span><span class="sort-indicator" aria-hidden="true">${SORT_GLYPH[state]}</span></button>`;
+  }
+  const nextDir = (active, dir) => (!active ? 'asc' : dir === 'asc' ? 'desc' : '');
+
+  /** Gan nut sap xep vao tieu de bang chon chung tu (sap xep o may chu, tren toan bo ket qua). */
+  function renderDocsHeader() {
+    document.querySelectorAll('#vdDocsTable thead th[data-column-key]').forEach(th => {
+      const field = th.dataset.columnKey;
+      if (field === 'select') return;
+      const label = th.dataset.label || th.textContent.trim();
+      th.dataset.label = label;
+      const dir = state.list.sort === field ? state.list.dir : '';
+      const resizer = th.querySelector(':scope > .tks-column-resizer');
+      th.innerHTML = sortButtonHtml(field, label, dir);
+      if (resizer) th.appendChild(resizer);
+      th.setAttribute('aria-sort', dir === 'asc' ? 'ascending' : dir === 'desc' ? 'descending' : 'none');
+    });
+  }
+
   // ---- Sap xep 2 cap nhu app cu (pandas sort_values kind="stable", o trong luon cuoi) ----
   const NO_SORT = '';
 
@@ -465,6 +491,17 @@
     $('vdSortNote').textContent = keys.length
       ? 'ℹ️ Đang sắp xếp theo cột đã chọn — các dòng cùng Mã hóa đơn có thể không còn liền kề.'
       : $('vdSortSecondary').value !== NO_SORT ? '⚠️ Chọn cột sắp xếp chính trước khi chọn cột sắp xếp phụ.' : '';
+    // Tieu de bang the hien cot sap xep CHINH (dong bo voi o chon).
+    const primary = $('vdSortPrimary').value;
+    document.querySelectorAll('#vdAllocTable thead th[data-column-key]').forEach((th, i) => {
+      const column = data.columns[i];
+      if (!column) return;
+      const dir = primary === column ? $('vdSortPrimaryDir').value : '';
+      const resizer = th.querySelector(':scope > .tks-column-resizer');
+      th.innerHTML = sortButtonHtml(column, headerLabel(column), dir);
+      if (resizer) th.appendChild(resizer);
+      th.setAttribute('aria-sort', dir === 'asc' ? 'ascending' : dir === 'desc' ? 'descending' : 'none');
+    });
     $('vdAllocRows').innerHTML = sortedAllocIndexes().map(index => {
       const row = data.rows[index];
       return '<tr data-index="' + index + '">' + row.values.map((value, i) => {
@@ -717,6 +754,27 @@
     ['vdSortPrimary', 'vdSortPrimaryDir', 'vdSortSecondary', 'vdSortSecondaryDir'].forEach(id => $(id).addEventListener('change', () => { if (state.alloc) renderAllocRows(); }));
     ['vdKind', 'vdBranch', 'vdFrom', 'vdTo'].forEach(id => $(id).addEventListener('change', () => { state.list.page = 1; loadDocs(); }));
     $('vdSearch').addEventListener('input', scheduleLoadDocs);
+    $('vdDocsTable').tHead.addEventListener('click', event => {
+      const button = event.target.closest('[data-sort-field]');
+      if (!button) return;
+      const field = button.dataset.sortField;
+      const dir = nextDir(state.list.sort === field, state.list.dir);
+      state.list.sort = dir ? field : '';
+      state.list.dir = dir || 'asc';
+      state.list.page = 1;
+      renderDocsHeader();
+      loadDocs();
+    });
+    $('vdAllocTable').tHead.addEventListener('click', event => {
+      const button = event.target.closest('[data-sort-field]');
+      if (!button || !state.alloc) return;
+      const column = button.dataset.sortField;
+      const active = $('vdSortPrimary').value === column;
+      const dir = nextDir(active, $('vdSortPrimaryDir').value);
+      $('vdSortPrimary').value = dir ? column : NO_SORT;
+      if (dir) $('vdSortPrimaryDir').value = dir;
+      renderAllocRows();
+    });
     $('vdDocsPrev').addEventListener('click', () => { state.list.page = Math.max(1, state.list.page - 1); loadDocs(); });
     $('vdDocsNext').addEventListener('click', () => { state.list.page += 1; loadDocs(); });
     $('vdAddCodes').addEventListener('click', addCodes);
@@ -838,6 +896,7 @@
     $('vdFrom').value = vnDate(-6);
     $('vdTo').value = vnDate(0);
     loadSelection();
+    renderDocsHeader();
     bindEvents();
     selectMode('docs');
     selectTab(window.location.hash.slice(1));

@@ -77,7 +77,7 @@ async function setup(t, { hash = '#xu-ly', responses = api(), vaiTro = 'Quản l
 
 test('tai trang: trang thai Sheets/KiotViet, mac dinh 7 ngay, danh sach chung tu co ghi chu tong', async t => {
   const { doc, calls } = await setup(t);
-  assert.match(doc.getElementById('vdSheetsStatus').textContent, /Gộp VAT 8\.432 dòng · Khớp mã 2\.998 dòng/);
+  assert.match(doc.getElementById('vdSheetsStatus').textContent, /Gộp VAT 8,432 dòng · Khớp mã 2,998 dòng/);
   const list = calls.find(c => c.key === 'GET /documents');
   assert.equal(list.query.kind, 'all');
   assert.equal(list.query.branch, 'all', 'user Ca hai -> loc ca hai co so');
@@ -127,12 +127,12 @@ test('xu ly chung tu: bang co Ghi chu tong canh Ghi chu hang hoa, ly do khi re c
   assert.equal(doc.getElementById('vdTransfer').value, 'HD028345 DH050000');
   const cards = doc.querySelectorAll('[data-qr-card]');
   assert.equal(cards.length, 2);
-  assert.equal(cards[0].querySelector('[data-qr-amount]').value, '1.500.000 đ');
+  assert.equal(cards[0].querySelector('[data-qr-amount]').value, '1,500,000 đ');
   assert.equal(cards[1].querySelector('[data-qr-account]').value, 'shc');
   assert.match(cards[1].textContent, /thiếu Giá bán/);
   doc.querySelector('[data-qr-mode="khong_vat"]').click();
   assert.equal(doc.querySelectorAll('[data-qr-card]').length, 1);
-  assert.equal(doc.querySelector('[data-qr-amount]').value, '2.160.000 đ');
+  assert.equal(doc.querySelector('[data-qr-amount]').value, '2,160,000 đ');
   doc.querySelector('[data-qr-generate]').click();
   await tick(); await tick();
   assert.deepEqual(calls.find(c => c.key === 'POST /qr/url').body, { accountKey: 'tks_group', amount: '2160000', addInfo: 'HD028345 DH050000' });
@@ -143,7 +143,7 @@ test('xu ly chung tu: bang co Ghi chu tong canh Ghi chu hang hoa, ly do khi re c
   const viewer = doc.getElementById('vdQrViewer');
   assert.equal(viewer.hidden, false);
   assert.equal(doc.getElementById('vdQrViewerImg').src, 'https://img.vietqr.io/image/MB-606266688888-compact2.png?amount=1500000');
-  assert.match(doc.getElementById('vdQrViewerCaption').textContent, /Tất cả nguồn — 1\.500\.000đ/);
+  assert.match(doc.getElementById('vdQrViewerCaption').textContent, /Tất cả nguồn — 1,500,000đ/);
   doc.dispatchEvent(new doc.defaultView.KeyboardEvent('keydown', { key: 'Escape' }));
   assert.equal(viewer.hidden, true);
   doc.querySelector('[data-qr-download]').click();
@@ -234,4 +234,49 @@ test('bo loc Co so: doi sang Sai Gon thi tai lai danh sach va dan ma theo dung c
   doc.getElementById('vdAddCodes').click();
   await tick(); await tick();
   assert.equal(calls.find(c => c.key === 'POST /documents/resolve').query.branch, 'saigon');
+});
+
+test('bam tieu de: bang chung tu sap xep o may chu; bang ket qua dong bo o "Sắp xếp chính"; so dung dau phay', async t => {
+  const { doc, calls } = await setup(t);
+  assert.match(doc.querySelector('#vdDocsRows tr td:last-child').textContent, /^82,582,000$/);
+  const totalButton = () => doc.querySelector('#vdDocsTable th[data-column-key="total"] [data-sort-field]');
+  totalButton().click();
+  await tick(); await tick();
+  let list = calls.filter(c => c.key === 'GET /documents').pop().query;
+  assert.deepEqual([list.sort, list.dir, list.page], ['total', 'asc', '1']);
+  assert.equal(totalButton().querySelector('.sort-indicator').textContent, '▼');
+  totalButton().click();
+  await tick(); await tick();
+  assert.equal(calls.filter(c => c.key === 'GET /documents').pop().query.dir, 'desc');
+  totalButton().click();
+  await tick(); await tick();
+  list = calls.filter(c => c.key === 'GET /documents').pop().query;
+  assert.equal(list.sort, '', 'bam lan 3 bo sap xep');
+
+  doc.querySelector('#vdDocsRows tr[data-key] input').click();
+  doc.getElementById('vdRunDocs').click();
+  await tick(); await tick();
+  const slButton = () => doc.querySelector('#vdAllocTable [data-sort-field="SL"]');
+  slButton().click();
+  assert.equal(doc.getElementById('vdSortPrimary').value, 'SL');
+  assert.equal(doc.getElementById('vdSortPrimaryDir').value, 'asc');
+  assert.deepEqual([...doc.querySelectorAll('#vdAllocRows tr')].map(tr => tr.children[13].textContent), ['10', '50', '150']);
+  slButton().click();
+  assert.equal(doc.getElementById('vdSortPrimaryDir').value, 'desc');
+  assert.equal(slButton().querySelector('.sort-indicator').textContent, '▲');
+  slButton().click();
+  assert.equal(doc.getElementById('vdSortPrimary').value, '');
+  assert.equal(doc.querySelector('#vdAllocRows tr td:nth-child(11)').textContent, '10,800');
+});
+
+test('bang luon vua khung: do rong cot theo ti le %, bang 100%', async t => {
+  const { doc, window } = await setup(t);
+  const table = doc.getElementById('vdDocsTable');
+  window.TKSTables.refresh(table);
+  assert.equal(table.dataset.tableFit, 'contain');
+  assert.equal(table.style.width, '100%');
+  const widths = [...table.querySelectorAll(':scope > colgroup > col')].map(col => col.style.width);
+  assert.ok(widths.length && widths.every(w => w.endsWith('%')), widths.join());
+  const sum = widths.reduce((s, w) => s + parseFloat(w), 0);
+  assert.ok(Math.abs(sum - 100) < 0.01, String(sum));
 });

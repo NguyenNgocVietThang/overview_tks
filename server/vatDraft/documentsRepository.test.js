@@ -132,3 +132,13 @@ test('syncStatus chi lay invoices/orders', async () => {
 test('foldSearch bo dau va chu hoa', () => {
   assert.equal(foldSearch('  Đống ĐA '), 'dong da');
 });
+
+test('listDocuments: sap xep theo cot tren toan bo ket qua; khoa la bi bo qua', async () => {
+  const base = { branchCodes: ['hanoi'], from: '2026-10-15', to: '2026-10-16' };
+  const byTotal = await repo.listDocuments({ ...base, sort: 'lines', dir: 'desc' });
+  assert.deepEqual(byTotal.rows.map(r => r.code), ['HD028345', 'HD028346', 'DH050000', 'HD000002']);
+  const byCode = await repo.listDocuments({ ...base, sort: 'code', dir: 'asc', pageSize: 2, page: 2 });
+  assert.deepEqual(byCode.rows.map(r => r.code), ['HD028345', 'HD028346']);
+  const injected = await repo.listDocuments({ ...base, sort: 'code; DROP TABLE invoices', dir: 'asc' });
+  assert.equal(injected.rows[0].code, 'HD028346', 'khoa la -> mac dinh moi nhat truoc');
+});

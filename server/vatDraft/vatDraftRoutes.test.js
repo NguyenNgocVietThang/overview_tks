@@ -106,7 +106,7 @@ test('GET /meta: trang thai master data, dong bo, danh sach tai khoan', async ()
 test('GET /documents va POST /documents/resolve dung co so tu cookie (Ca hai -> hanoi + saigon)', async () => {
   const repository = fakeRepository();
   await request('/documents?kind=order&from=2026-10-10&to=2026-10-17&q=lan', { repository });
-  assert.deepEqual(repository.calls.list, { branchCodes: ['hanoi', 'saigon'], kind: 'order', from: '2026-10-10', to: '2026-10-17', q: 'lan', page: undefined, pageSize: undefined });
+  assert.deepEqual(repository.calls.list, { branchCodes: ['hanoi', 'saigon'], kind: 'order', from: '2026-10-10', to: '2026-10-17', q: 'lan', page: undefined, pageSize: undefined, sort: undefined, dir: undefined });
   await request('/documents?branch=saigon&from=2026-10-10&to=2026-10-17', { repository });
   assert.deepEqual(repository.calls.list.branchCodes, ['saigon'], 'bo loc Co so tren trang uu tien hon cookie');
   await request('/documents?branch=xyz&from=2026-10-10&to=2026-10-17', { repository });

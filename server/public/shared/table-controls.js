@@ -245,9 +245,15 @@
       shown.forEach(function (column) { var col = document.createElement('col'); col.dataset.columnKey = column.key; group.appendChild(col); });
       group.dataset.tksColumns = signature;
     }
-    shown.forEach(function (column, index) { changeStyle(group.children[index], 'width', column.width + 'px'); });
     var total = shown.reduce(function (sum, column) { return sum + column.width; }, 0);
-    ['width', 'min-width', 'max-width'].forEach(function (property) { changeStyle(table, property, Math.max(MIN_WIDTH, total) + 'px'); });
+    if (table.dataset.tableFit === 'contain') {
+      // Luôn vừa khung (không cuộn ngang): độ rộng cột là TỈ LỆ; kéo rộng 1 cột thì các cột còn lại co lại.
+      shown.forEach(function (column, index) { changeStyle(group.children[index], 'width', (total ? column.width / total * 100 : 0) + '%'); });
+      changeStyle(table, 'width', '100%'); changeStyle(table, 'min-width', '0px'); changeStyle(table, 'max-width', '100%');
+    } else {
+      shown.forEach(function (column, index) { changeStyle(group.children[index], 'width', column.width + 'px'); });
+      ['width', 'min-width', 'max-width'].forEach(function (property) { changeStyle(table, property, Math.max(MIN_WIDTH, total) + 'px'); });
+    }
     ctrl.columns.forEach(function (column, index) {
       if (ctrl.head.leaves[index].span === 1) attachHandle(ctrl, ctrl.head.leaves[index].cell, column);
     });
