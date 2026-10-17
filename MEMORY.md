@@ -54,6 +54,8 @@
 - **Báo cáo Marketing (`/reports/#marketing`):** Đọc 3 workbook Google Sheets, đối chiếu doanh số KiotViet theo tên khách hàng; hỗ trợ sửa trực tiếp Khách mới / Ghi chú ngược lại Sheets và xuất file XLSX/HTML.
 - **Hàng hóa & Tồn kho:** "Tồn có thể bán" = Tồn thực tế − Đặt hàng Phiếu tạm (không cộng hàng đang vận chuyển). Ẩn đơn giá và giá trị tồn đối với nhân viên không có quyền `reports.products.cost`.
 
+- **Kế toán – Nháp VAT (`/vat-draft/`, 17/10/2026):** port 1:1 vat-draft-app (Python) — **không sửa thuật toán** trong `server/vatDraft/allocation.js`/`sourceLookup.js`/`nameMatching.js`; mọi phép số/chuỗi kiểu Python đi qua `pyCompat.js` (round banker's, sum Neumaier, casefold, float()). Master data = 2 Google Sheet **công khai** "Gộp VAT"/"Khớp mã" đọc qua CSV export (không service account), parse theo chữ cái cột trong `vatDraftConfig.js` (kèm 17 tài khoản VietQR). Chứng từ HD/DH đọc Postgres, "Ghi chú tổng" = `raw->>'description'` chỉ gắn lúc hiển thị. Quyền `accounting.vatDraft` mặc định chỉ Quản lý (Kế toán phải được bật riêng, Khách bị cấm).
+
 ### 2.5. Vòng đời đơn hàng & Khung chi tiết dùng chung
 - **Khung chi tiết dùng chung (`public/shared/detail-panel.css` — `.dp-*`):** Áp dụng đồng bộ cho các hộp Chi tiết giao dịch, Báo cáo hàng hóa theo khách, Báo cáo kinh doanh (Sale/Khách/Mã hàng), Chi tiết đơn Vòng đời, Chi tiết nghỉ phép và Chi tiết Marketing. Thiết kế gồm hàng **chỉ số tổng quan** (`.dp-stats`), 1 khung cuộn thống nhất, tiêu đề dính, **tắt hoàn toàn nút Cột hiển thị** trong hộp (`data-table-controls="off"`), hỗ trợ Light/Dark mode.
 - **Vòng đời đơn hàng (`/shipment/lifecycle/`):**
@@ -83,6 +85,7 @@
 | `0043` | `special_day_notice_log` — chống gửi trùng thông báo ngày lễ/sinh nhật. |
 | `0044` | `purchases.raw_hash` — băm raw phiếu nhập đối soát không cần tải lại cột `raw`, giảm egress Supabase. |
 | `0057` | `product_report` thêm `available_hanoi`/`available_saigon`/`description_hanoi`/`description_saigon` (Có bán + Mô tả theo từng cơ sở; NULL = chưa tính lại). |
+| `0058` | Index `orders(branch, order_date)` cho danh sách đơn đặt hàng chưa xuất HĐ của Kế toán – Nháp VAT (chưa áp; trang chạy được khi chưa áp). |
 
 ---
 

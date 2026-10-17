@@ -307,7 +307,7 @@ Quy tắc cố định 1-3-7-Hàng tuần được thay bằng lịch thanh toá
 
 Bổ sung 14/10/2026: bổ sung điểm/thưởng trực tiếp vào bảng phạt trong Chỉ số then chốt của tab Công nợ. Điểm theo từng khách (cơ sở + mã): số hóa đơn Hoàn thành và doanh số sau trừ trả hàng trong tháng; >=30 điểm mới xếp hạng chung HN + SG theo phạt gốc/điểm tăng dần, điểm giảm dần; bằng tỷ lệ và điểm thì đồng hạng kiểu 1–2–2–4, tên chỉ dùng sắp dòng hiển thị. Top 1–20 miễn phạt; Top 10 nhận quỹ max(80% phạt phải nộp, 3 triệu), 50% theo trọng số hạng 19–17–15–13–11–9–7–5–3–1 và 50% theo tỷ trọng điểm; thiếu 10 người chuẩn hóa trọng số, chia hết quỹ đến đồng. Sửa phạt chỉ thay phạt gốc từng khách; miễn phạt áp ở mức sale. GET /api/debt-management/penalty-board?month=YYYY-MM trả bảng từ backend (mặc định tháng chu kỳ đang mở), lọc cơ sở sau khi tính hạng/quỹ toàn công ty. Giao diện, hộp chi tiết và xuất Excel/HTML dùng cùng kết quả; context.debtRewardMonth chọn tháng xuất. Kết quả tháng cũ lưu bất biến trong debt_reward_months sau bản chốt 15:00 đầu tháng mới, khi đã chốt hết sổ phạt và doanh số tháng. Lỗi chốt thử lại mỗi phút; thiếu lịch sử phạt có cảnh báo rõ, không bù thành 0.
 
-Cập nhật gần nhất: 16/10/2026.
+Cập nhật gần nhất: 17/10/2026.
 
 Điều chỉnh 15/10/2026: trong tháng hiển thị điểm/hạng, thưởng tạm tính và tổng phạt từ các ngày ĐÃ CHỐT, không cộng chu kỳ đang mở. Lúc 14:59 giờ Việt Nam lưu bản cuối của chu kỳ 15:00 hôm trước–14:59 hôm sau, mỗi chu kỳ đúng một lần và không ghi đè; 15:00 mới reset. Nhiều lần Tính lại trong chu kỳ chỉ cập nhật bản đang mở, không cộng thành nhiều ngày. Tiền thưởng hiện mỗi ngày với nhãn Thưởng tạm tính, thay đổi theo điểm và tổng phạt đã chốt ngày; chỉ chốt/lưu thưởng chính thức một lần khi kết thúc tháng. Web, hộp chi tiết và file xuất đều phân biệt tạm tính/đã chốt.
 
@@ -329,3 +329,11 @@ Khách hoạt động (15/10/2026): toàn bộ tính năng Công nợ chỉ dùn
 
 ## Marketing 16/10/2026
 Phương án B đã duyệt: tập SĐT/KPI Pancake riêng trong PostgreSQL, ngày tạo tin UTC+7, assignment chỉ từ nhật ký quan sát; không phụ thuộc đối soát hay baseline Sheets. BC chốt nhập web/DB có nguồn riêng, chưa đủ thì —. Doanh số KiotViet; chi phí ADS/VAT/phí thuê Sheets. Xem docs/marketing-report-setup.md về nguồn, coverage và trạng thái kích hoạt.
+
+## Bổ sung 17/10/2026 — Kế toán – Nháp VAT
+
+- **Vấn đề**: kế toán phải xuất file "Danh sách chi tiết hóa đơn" từ KiotViet cho từng lô hóa đơn khách cần VAT rồi upload vào app riêng (vat-draft-app) để phân bổ nguồn nháp và tạo QR; dữ liệu này tks_web đã có sẵn trong Postgres.
+- **Giải pháp**: trang "Kế toán – Nháp VAT" trong tks_web có đủ 3 chức năng của app cũ (Xử lý hóa đơn, Tra cứu nguồn, Tạo QR), chọn thẳng hóa đơn và đơn đặt hàng chưa xuất hóa đơn theo mã sale báo (không cần xuất/nhập file), thêm cột **Ghi chú tổng** cạnh Ghi chú hàng hóa để biết ngữ cảnh cả đơn khi nháp.
+- **Người dùng**: mặc định Quản lý; kế toán nào được dùng thì Quản lý bật quyền riêng.
+- **Thành công**: dán mã HD/DH → ra đúng bảng phân bổ và QR như app cũ (đã đối chiếu khớp 100%), có ghi chú tổng, không mở KiotViet xuất file.
+- **Ngoài phạm vi**: chuyển Gộp VAT/Khớp mã vào DB, 2 trang quản trị của app cũ, xuất template hóa đơn điện tử, tra MST, đổi thuật toán; tắt vat-draft-app làm sau khi nghiệm thu.

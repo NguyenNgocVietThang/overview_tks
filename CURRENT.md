@@ -2,11 +2,13 @@
 
 > **Cập nhật migration 16/10/2026:** Đã áp thành công `0054_customer_invoice_lines_incremental.sql`, `0055_product_report_state.sql` và `0057_product_report_branch_columns.sql` lên DB dùng chung (Supabase), ghi nhận đầy đủ trong `schema_migrations`. Toàn bộ migration (0001 → 0057) hiện đã áp xong. Cờ `REPORTS_INCREMENTAL_ENABLED` hiện chưa bật trên môi trường chạy.
 
-> **Cập nhật gần nhất:** 16/10/2026 (Asia/Ho_Chi_Minh), hoàn tất tính năng tra cứu CONT và tính cước vận chuyển tạm tính cho Vòng đời đơn hàng, đã áp toàn bộ migration 0001 → 0057 lên Supabase.
+> **Cập nhật gần nhất:** 17/10/2026 (Asia/Ho_Chi_Minh), thêm trang Kế toán – Nháp VAT (port vat-draft-app) trên nhánh `feat/vat-draft`.
 > **Trạng thái Git:** làm việc trên nhánh `codex/invoice-freight-containers`; kiểm thử tự động toàn bộ đạt 2.527/2.530 xanh; sẵn sàng đẩy github.
 > **Quy tắc:** Cập nhật liên tục vào đầu và cuối mỗi phiên làm việc để không bị đứt đoạn ngữ cảnh dự án.
 
 ---
+
+0. **Kế toán – Nháp VAT `/vat-draft/` (17/10/2026, nhánh `feat/vat-draft`, migration `0058` CHƯA áp, chưa push/deploy):** port 1:1 vat-draft-app (Python Streamlit) vào `server/vatDraft/` + `public/vat-draft/` — 3 tab Xử lý hóa đơn / Tra cứu nguồn / Tạo QR. Kế toán chọn thẳng HD và DH chưa xuất HĐ từ Postgres (dán mã, lọc ngày/loại/khách, tick) thay cho xuất file KiotViet; giữ ô Dán dữ liệu; thêm cột **Ghi chú tổng** cạnh Ghi chú hàng hóa; lý do "Không có mã" khi rê chuột; tải Excel + CSV; QR điền sẵn mã chứng từ; Tạo QR đọc PDF bằng pdf.js (vendor). Quyền `accounting.vatDraft` mặc định chỉ Quản lý (+ admin cứng), Kế toán phải được bật riêng ở /account/. Master data vẫn đọc 2 Google Sheet công khai. Đối chiếu Python ↔ Node: snapshot Sheets thật (8.432/2.998 dòng) + file mẫu + 3.000 dòng ngẫu nhiên khớp 100%; HD028344–46 đọc từ DB thật khớp file KiotViet (18 dòng). Danh sách 7 ngày ~0,2 s trên DB thật; `0058` thêm index `orders(branch, order_date)` cho khoảng ngày dài. Kiểm thử toàn bộ: 2.631 test, 2.627 đạt, 3 skipped, 1 lỗi có sẵn từ main (`sort-icons.test.js` so chuỗi LF với `shared.css` checkout CRLF trên Windows, không liên quan). **Còn lại:** nghiệm thu trên trình duyệt với tài khoản thật (cần đăng nhập), thử PDF hóa đơn thật ở tab Tạo QR, áp `0058`, mở PR; tắt vat-draft-app sau nghiệm thu. `graphify` không có trên máy này nên chưa chạy `graphify update .`.
 
 0. **Vòng đời đơn hàng: Cước vận chuyển tạm tính & tra cứu CONT trong hộp chi tiết (16/10/2026, đã áp Supabase):** Cập nhật bộ tính cước `freightCalculator.js` cho Đức Mạnh, Việt Linh, J&T (hỗ trợ cước tạm tính khi thiếu thể tích/cân nặng của một số mã hàng). Thêm endpoint `GET /api/shipment/lifecycle/containers` tra cứu CONT cấp 2 với bộ nhớ cache LRU 500 mã / TTL 5 phút, gộp request và tự động invalidate khi sync CONT. Hộp chi tiết đơn hàng tích hợp bảng cân đo, 3 phương án cước và xem chi tiết CONT cấp 2 không phụ thuộc đóng/mở đơn hàng. Test: 2.527 đạt, 3 skipped, 0 lỗi.
 
