@@ -176,6 +176,7 @@ async function diffFixture() {
   await db.exec(fs.readFileSync(path.join(migrations, '0018_product_report.sql'), 'utf8'));
   await db.exec(fs.readFileSync(path.join(migrations, '0023_product_report_customers.sql'), 'utf8'));
   await db.exec(fs.readFileSync(path.join(migrations, '0057_product_report_branch_columns.sql'), 'utf8'));
+  await db.exec(fs.readFileSync(path.join(migrations, '0063_product_report_price_columns.sql'), 'utf8'));
   // Chi cau CREATE TABLE cua 0055 (cac index cua no can bang hoa don/khach cua DB that).
   const m55 = fs.readFileSync(path.join(migrations, '0055_product_report_state.sql'), 'utf8');
   await db.exec(m55.slice(m55.indexOf('CREATE TABLE'), m55.indexOf(');', m55.indexOf('CREATE TABLE')) + 2));
@@ -186,6 +187,7 @@ const ROW = (code, over = {}) => ({
   product_code: code, product_name: 'SP ' + code, stock_hanoi: 10, stock_saigon: 5, available_to_sell: 15, qty_sold_30d: 3,
   revenue_90d: 900000, customer_count_90d: 2, top_customer_revenue_90d: 500000, top_customer_name: 'KH A', top_customer_share: 0.5555555555,
   available_hanoi: 10, available_saigon: 5, description_hanoi: 'T50 # 30/9 | HN', description_saigon: 'T50 # 16/10 | SG',
+  price_hanoi: 12000, price_saigon: 12500,
   ...over
 });
 async function stage(db, rows) {
@@ -193,11 +195,11 @@ async function stage(db, rows) {
   for (const r of rows) {
     await db.query(`INSERT INTO pr_new (product_code, product_name, stock_hanoi, stock_saigon, available_to_sell, qty_sold_30d, revenue_90d,
       customer_count_90d, top_customer_revenue_90d, top_customer_name, top_customer_share,
-      available_hanoi, available_saigon, description_hanoi, description_saigon, computed_at)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15, now())`,
+      available_hanoi, available_saigon, description_hanoi, description_saigon, price_hanoi, price_saigon, computed_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17, now())`,
     [r.product_code, r.product_name, r.stock_hanoi, r.stock_saigon, r.available_to_sell, r.qty_sold_30d, r.revenue_90d,
       r.customer_count_90d, r.top_customer_revenue_90d, r.top_customer_name, r.top_customer_share,
-      r.available_hanoi, r.available_saigon, r.description_hanoi, r.description_saigon]);
+      r.available_hanoi, r.available_saigon, r.description_hanoi, r.description_saigon, r.price_hanoi, r.price_saigon]);
   }
 }
 async function applyProducts(db) {
@@ -239,7 +241,7 @@ test('ghi khac biet product_report (SQL that): chi dong doi bi cham, dong y het 
 test('ghi khac biet: 4 cot theo co so (co ban HN/SG, mo ta HN/SG) - NULL sau migration 0057 duoc ghi bu, doi mo ta/co ban thi cap nhat dung dong do', async () => {
   const db = await diffFixture();
   try {
-    const NOT_RECOMPUTED = { available_hanoi: null, available_saigon: null, description_hanoi: null, description_saigon: null };
+    const NOT_RECOMPUTED = { available_hanoi: null, available_saigon: null, description_hanoi: null, description_saigon: null, price_hanoi: null, price_saigon: null };
     await stage(db, [ROW('A', NOT_RECOMPUTED), ROW('B', NOT_RECOMPUTED)]);
     assert.deepEqual(await applyProducts(db), { deleted: 0, updated: 0, inserted: 2 });
 
@@ -255,9 +257,14 @@ test('ghi khac biet: 4 cot theo co so (co ban HN/SG, mo ta HN/SG) - NULL sau mig
     // Mo ta bi xoa (NULL) cung la mot thay doi that.
     await stage(db, [ROW('A', { description_hanoi: null }), ROW('B', { available_saigon: 2 })]);
     assert.equal((await applyProducts(db)).updated, 1);
-    const row = (await db.query(`SELECT available_hanoi::float8 AS ah, available_saigon::float8 AS asg, description_hanoi AS dh, description_saigon AS ds
-      FROM product_report WHERE product_code = 'A'`)).rows[0];
-    assert.deepEqual(row, { ah: 10, asg: 5, dh: null, ds: 'T50 # 16/10 | SG' });
+    // Doi don gia tren KiotViet (mot co so) cung chi cham dung dong do; gia SG bo trong (NULL) la mot thay doi that.
+    await stage(db, [ROW('A', { description_hanoi: null, price_hanoi: 13000 }), ROW('B', { available_saigon: 2, price_saigon: null })]);
+    assert.deepEqual(await applyProducts(db), { deleted: 0, updated: 2, inserted: 0 });
+    await stage(db, [ROW('A', { description_hanoi: null, price_hanoi: 13000 }), ROW('B', { available_saigon: 2, price_saigon: null })]);
+    assert.deepEqual(await applyProducts(db), { deleted: 0, updated: 0, inserted: 0 });
+    const row = (await db.query(`SELECT available_hanoi::float8 AS ah, available_saigon::float8 AS asg, description_hanoi AS dh, description_saigon AS ds,
+      price_hanoi::float8 AS ph, price_saigon::float8 AS ps FROM product_report WHERE product_code = 'A'`)).rows[0];
+    assert.deepEqual(row, { ah: 10, asg: 5, dh: null, ds: 'T50 # 16/10 | SG', ph: 13000, ps: 12500 });
   } finally { await db.close(); }
 });
 
@@ -265,24 +272,25 @@ test('SQL that (PGlite): luot nhe ghi DUNG VI TRI 4 cot theo co so; co ban HN + 
   const db = await diffFixture();
   try {
     await db.exec(`
-      CREATE TABLE products (branch text, id bigint, code text, name text, is_active boolean, raw jsonb);
+      CREATE TABLE products (branch text, id bigint, code text, name text, is_active boolean, raw jsonb, base_price numeric);
       CREATE TABLE orders (branch text, id bigint, raw jsonb);
       CREATE TABLE order_details (branch text, order_id bigint, product_id bigint, quantity numeric, raw jsonb);
       CREATE TABLE daily_product_sales (branch text, product_id bigint, sale_date date, qty numeric, revenue numeric);
       INSERT INTO products VALUES
-        ('hanoi', 1, 'A', 'Sp A', true, '{"description":"T50 # HN","inventories":[{"onHand":7}]}'),
-        ('saigon', 1, 'A', 'Sp A', true, '{"description":"T50 # SG","inventories":[{"onHand":3.25}]}'),
-        ('hanoi', 2, 'B', 'Sp B', true, '{"inventories":[{"onHand":4}]}'),
-        ('hanoi', 3, 'C', 'Sp C', false, '{"inventories":[{"onHand":9}]}');
+        ('hanoi', 1, 'A', 'Sp A', true, '{"description":"T50 # HN","inventories":[{"onHand":7}]}', 12000),
+        ('saigon', 1, 'A', 'Sp A', true, '{"description":"T50 # SG","inventories":[{"onHand":3.25}]}', 12500),
+        ('hanoi', 2, 'B', 'Sp B', true, '{"inventories":[{"onHand":4}]}', NULL),
+        ('hanoi', 3, 'C', 'Sp C', false, '{"inventories":[{"onHand":9}]}', 100);
       INSERT INTO orders VALUES ('hanoi', 10, '{"statusValue":"Phiếu tạm"}'), ('saigon', 20, '{"statusValue":"Phiếu tạm"}');
       INSERT INTO order_details VALUES ('hanoi', 10, 1, 2, '{}'), ('saigon', 20, 1, 1, '{}');`);
     await db.query(__sql__.fillProductsLight, [['hanoi', 'saigon']]);
     const read = async () => (await db.query(`SELECT product_code, stock_hanoi::float8 AS sh, stock_saigon::float8 AS ss, available_to_sell::float8 AS av,
-      available_hanoi::float8 AS ah, available_saigon::float8 AS asg, description_hanoi AS dh, description_saigon AS ds FROM pr_new ORDER BY product_code`)).rows;
+      available_hanoi::float8 AS ah, available_saigon::float8 AS asg, description_hanoi AS dh, description_saigon AS ds,
+      price_hanoi::float8 AS ph, price_saigon::float8 AS ps FROM pr_new ORDER BY product_code`)).rows;
     const rows = await read();
     assert.deepEqual(rows, [
-      { product_code: 'A', sh: 7, ss: 3.25, av: 7.25, ah: 5, asg: 2.25, dh: 'T50 # HN', ds: 'T50 # SG' },
-      { product_code: 'B', sh: 4, ss: 0, av: 4, ah: 4, asg: 0, dh: null, ds: null } // ma C ngung kinh doanh bi loai
+      { product_code: 'A', sh: 7, ss: 3.25, av: 7.25, ah: 5, asg: 2.25, dh: 'T50 # HN', ds: 'T50 # SG', ph: 12000, ps: 12500 },
+      { product_code: 'B', sh: 4, ss: 0, av: 4, ah: 4, asg: 0, dh: null, ds: null, ph: 0, ps: null } // ma C ngung kinh doanh bi loai
     ]);
     rows.forEach(row => assert.equal(row.ah + row.asg, row.av, 'co ban HN + co ban SG = available_to_sell (' + row.product_code + ')'));
     // Chay lai y het => khong dong nao bi ghi lai.

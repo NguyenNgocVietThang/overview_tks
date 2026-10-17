@@ -65,7 +65,9 @@ const REFRESH_SQL = `
          FROM jsonb_array_elements(COALESCE(p.raw->'inventories', '[]'::jsonb)) inv) AS on_hand,
       -- "Mo ta" san pham tren KiotViet (nhan vien ghi bang gia cho sale tra cuu), tung co so mot. btrim phai cat ca
       -- tab/xuong dong (mac dinh chi cat dau cach): mo ta chi con xuong dong coi nhu trong.
-      NULLIF(btrim(p.raw->>'description', ${DESCRIPTION_TRIM_CHARS}), '') AS description
+      NULLIF(btrim(p.raw->>'description', ${DESCRIPTION_TRIM_CHARS}), '') AS description,
+      -- "Don gia" = gia ban chung tren KiotViet cua co so; Ha Noi quyet dinh danh sach ma hang nen thieu gia coi nhu 0.
+      COALESCE(p.base_price, 0) AS price
     FROM products p
     WHERE p.branch = 'hanoi' AND COALESCE(p.code, '') <> ''
   ),
@@ -74,7 +76,8 @@ const REFRESH_SQL = `
       p.code,
       (SELECT COALESCE(SUM(COALESCE((inv->>'onHand')::float8, 0)), 0)
          FROM jsonb_array_elements(COALESCE(p.raw->'inventories', '[]'::jsonb)) inv) AS on_hand,
-      NULLIF(btrim(p.raw->>'description', ${DESCRIPTION_TRIM_CHARS}), '') AS description
+      NULLIF(btrim(p.raw->>'description', ${DESCRIPTION_TRIM_CHARS}), '') AS description,
+      p.base_price AS price
     FROM products p
     WHERE p.branch = 'saigon' AND COALESCE(p.code, '') <> ''
   ),
@@ -195,7 +198,7 @@ const REFRESH_SQL = `
     product_code, product_name, stock_hanoi, stock_saigon, available_to_sell,
     qty_sold_30d, revenue_90d, customer_count_90d, top_customer_revenue_90d,
     top_customer_name, top_customer_share,
-    available_hanoi, available_saigon, description_hanoi, description_saigon, computed_at
+    available_hanoi, available_saigon, description_hanoi, description_saigon, price_hanoi, price_saigon, computed_at
   )
   SELECT
     hn.code,
@@ -213,6 +216,8 @@ const REFRESH_SQL = `
     COALESCE(sg.on_hand, 0) - COALESCE(po.qty_saigon, 0),
     hn.description,
     sg.description,
+    hn.price,
+    sg.price,
     now()
   FROM hn_products hn
   LEFT JOIN sg_products sg ON sg.code = hn.code
@@ -285,10 +290,10 @@ async function refreshProductReportIfDue(pool, {
   return { skipped: false, rowCount };
 }
 
-// Chua ap migration 0057 (thieu cot available_hanoi, 42703) thi chi doc moc thoi gian nhu truoc do.
+// Chua ap migration 0057/0063 (thieu cot available_hanoi/price_hanoi, 42703) thi chi doc moc thoi gian nhu truoc do.
 const LAST_COMPUTED_SQL = 'SELECT MAX(computed_at) AS last_computed_at FROM product_report';
 const LAST_COMPUTED_WITH_BRANCH_COLUMNS_SQL = `SELECT MAX(computed_at) AS last_computed_at,
-  COALESCE(bool_or(available_hanoi IS NULL), false) AS needs_branch_columns FROM product_report`;
+  COALESCE(bool_or(available_hanoi IS NULL OR price_hanoi IS NULL), false) AS needs_branch_columns FROM product_report`;
 async function readLastComputed(pool) {
   try {
     return await pool.query(LAST_COMPUTED_WITH_BRANCH_COLUMNS_SQL);

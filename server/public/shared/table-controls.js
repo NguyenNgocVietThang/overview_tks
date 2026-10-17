@@ -327,10 +327,12 @@
   }
   function renderPicker() {
     var list = picker.querySelector('.tks-columns-list');
-    var signature = active.columns.map(function (column) { return column.key + ':' + column.label; }).join('\u001f');
+    // Cột có data-column-unlisted="true" (ví dụ cột giá chỉ vai trò được phép mới thấy) không xuất hiện trong danh sách chọn.
+    var listed = active.columns.filter(function (column) { return !column.unlisted; });
+    var signature = listed.map(function (column) { return column.key + ':' + column.label; }).join('\u001f');
     if (list.dataset.columns !== signature) {
       list.replaceChildren();
-      active.columns.forEach(function (column) {
+      listed.forEach(function (column) {
         var label = document.createElement('label'), input = document.createElement('input'), text = document.createElement('span');
         input.type = 'checkbox'; input.dataset.columnKey = column.key; text.textContent = column.label;
         label.append(input, text); list.appendChild(label);
@@ -339,7 +341,7 @@
     }
     var count = active.columns.filter(function (column) { return !column.hidden && !column.suppressed; }).length;
     list.querySelectorAll('input').forEach(function (input, index) {
-      var col = active.columns[index]; input.checked = !col.hidden;
+      var col = listed[index]; input.checked = !col.hidden;
       input.disabled = col.locked || col.suppressed || (count === 1 && !col.hidden);
       input.closest('label').title = col.locked ? 'Cột bắt buộc hiển thị' : '';
     });
@@ -568,6 +570,7 @@
         session.columns.set(colKey, column);
       }
       column.label = label; column.locked = !!metadata.locked || cell.dataset.columnLocked === 'true';
+      column.unlisted = cell.dataset.columnUnlisted === 'true';
       if (column.locked) column.hidden = false;
       return column;
     });

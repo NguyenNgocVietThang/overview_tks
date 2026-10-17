@@ -146,8 +146,8 @@ test('vnDateKey tra ve ngay lich VN (UTC+7), khong phai ngay UTC', () => {
 // ---- Co ban / Mo ta THEO TUNG CO SO (migration 0057) ----
 test('REFRESH_SQL ghi them Co ban HN/SG va Mo ta HN/SG; tong hai cot co ban = available_to_sell (cung nguon phieu tam)', () => {
   const sql = __sql__.REFRESH_SQL;
-  assert.match(sql, /available_hanoi, available_saigon, description_hanoi, description_saigon, computed_at/);
-  assert.match(sql, /hn\.on_hand - COALESCE\(po\.qty_hanoi, 0\),\s+COALESCE\(sg\.on_hand, 0\) - COALESCE\(po\.qty_saigon, 0\),\s+hn\.description,\s+sg\.description,\s+now\(\)/);
+  assert.match(sql, /available_hanoi, available_saigon, description_hanoi, description_saigon, price_hanoi, price_saigon, computed_at/);
+  assert.match(sql, /hn\.on_hand - COALESCE\(po\.qty_hanoi, 0\),\s+COALESCE\(sg\.on_hand, 0\) - COALESCE\(po\.qty_saigon, 0\),\s+hn\.description,\s+sg\.description,\s+hn\.price,\s+sg\.price,\s+now\(\)/);
   // Van chi 1 lan quet phieu tam: tach theo co so bang FILTER, khong them truy van thu hai.
   assert.equal((sql.match(/FROM orders/g) || []).length, 1);
   assert.match(sql, /FILTER \(WHERE d\.branch = 'hanoi'\)/);
@@ -165,7 +165,7 @@ test('SQL that (PGlite): phieu tam tach dung theo co so, tong = HN + SG, chi tin
   const db = new PGlite();
   try {
     await db.exec(`
-      CREATE TABLE products (branch text, id bigint, code text, name text, raw jsonb);
+      CREATE TABLE products (branch text, id bigint, code text, name text, raw jsonb, base_price numeric);
       CREATE TABLE orders (branch text, id bigint, raw jsonb);
       CREATE TABLE order_details (branch text, order_id bigint, product_id bigint, quantity numeric, raw jsonb);
       INSERT INTO products VALUES
@@ -183,8 +183,9 @@ test('SQL that (PGlite): phieu tam tach dung theo co so, tong = HN + SG, chi tin
       { product_key: 'a', qty: 8, qty_hanoi: 5, qty_saigon: 3 },
       { product_key: 'b', qty: 2, qty_hanoi: 2, qty_saigon: 0 } // don Hoan thanh (9) khong bi tru
     ]);
-    const products = (await db.query(`WITH ${hnProducts} SELECT code, description FROM hn_products ORDER BY code`)).rows;
-    assert.deepEqual(products, [{ code: 'A', description: 'T50 # 30/9 | VAT+3200đ' }, { code: 'B', description: null }]);
+    const products = (await db.query(`WITH ${hnProducts} SELECT code, description, price::float8 AS price FROM hn_products ORDER BY code`)).rows;
+    // Don gia = products.base_price cua co so; thieu gia coi nhu 0 (ma hang do Ha Noi quyet dinh).
+    assert.deepEqual(products, [{ code: 'A', description: 'T50 # 30/9 | VAT+3200đ', price: 0 }, { code: 'B', description: null, price: 0 }]);
     const blank = (await db.query(`SELECT NULLIF(btrim(raw->>'description', ${__sql__.DESCRIPTION_TRIM_CHARS}), '') AS d FROM products WHERE branch = 'saigon'`)).rows;
     assert.deepEqual(blank, [{ d: null }], 'mo ta chi gom tab/xuong dong/dau cach coi nhu khong co');
   } finally { await db.close(); }
@@ -195,7 +196,7 @@ test('refreshProductReportIfDue: da tinh hom nay nhung con dong chua co cot theo
   const client = fakeClient(9);
   const pool = {
     query: async (sql) => {
-      assert.match(sql, /bool_or\(available_hanoi IS NULL\)/);
+      assert.match(sql, /bool_or\(available_hanoi IS NULL OR price_hanoi IS NULL\)/);
       return { rows: [{ last_computed_at: new Date('2026-09-23T00:05:00Z'), needs_branch_columns: true }] };
     },
     connect: async () => client

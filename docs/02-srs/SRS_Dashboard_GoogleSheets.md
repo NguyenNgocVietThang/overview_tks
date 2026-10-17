@@ -720,3 +720,4 @@ Phương án B đã duyệt: tập SĐT/KPI Pancake riêng trong PostgreSQL, ng�
 - **NFR**: danh sách 7 ngày ~0,2 s trên DB thật; migration `0058` (index `orders(branch, order_date)`) cho khoảng ngày dài.
 
 - **FR-VAT-SEL (17/10/2026):** các bảng kết quả (Danh sách sản phẩm, Tra cứu nguồn, Mã có vấn đề) cho chọn vùng ô bằng chuột như Google Sheet (bấm, kéo, Shift+click); Ctrl+C chép giá trị đang hiển thị dạng TSV, không kèm tiêu đề, bỏ cột đang ẩn; Esc hoặc bấm ra ngoài để bỏ chọn.
+17/10/2026 — Báo cáo hàng hóa thêm hai cột **Đơn giá HN / Đơn giá SG** sau Tên sản phẩm (giá bán chung KiotViet từng cơ sở, migration `0061`), mặc định ẩn, chỉ Quản lý và Trợ lý (quyền `reports.products.price`) được thấy; API không trả giá cho tài khoản khác.

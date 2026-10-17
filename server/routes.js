@@ -302,6 +302,11 @@ router.get('/api/customer-product-revenue', async (req, res) => {
 router.get('/api/product-report', async (req, res) => {
   try {
     const data = await getProductReport();
+    // Don gia HN/SG chi Quan ly + Tro ly (reports.products.price): tai khoan khac khong nhan truong gia trong payload.
+    // Dong cua bo doc la cache dung chung nen tao ban sao, khong xoa truong tren dong goc.
+    if (!hasFeature(req.user, 'reports.products.price')) {
+      data.rows = data.rows.map(({ priceHanoi, priceSaigon, ...row }) => row);
+    }
     res.status(200).json(data);
   } catch (err) {
     console.error('=== LOI /api/product-report ===');

@@ -317,3 +317,12 @@ test('Nháp VAT (accounting.vatDraft): mặc định chỉ Quản lý, Kế toá
   // Quan ly van vao /reports/ dau tien nhu cu.
   assert.equal(registry.landingPathFor(registry.defaultsForRole(ROLES.QUAN_LY)), '/reports/');
 });
+
+test('reports.products.price (Don gia HN/SG cua Bao cao hang hoa): mac dinh chi Quan ly + Tro ly, can reports.products', () => {
+  assert.ok(registry.defaultsForRole(ROLES.QUAN_LY).includes('reports.products.price'));
+  assert.ok(registry.defaultsForRole(ROLES.TRO_LY).includes('reports.products.price'));
+  for (const role of Object.values(ROLES).filter(r => r !== ROLES.QUAN_LY && r !== ROLES.TRO_LY)) {
+    assert.equal(registry.defaultsForRole(role).includes('reports.products.price'), false, role);
+  }
+  assert.equal(registry.FEATURES.find(f => f.key === 'reports.products.price').requires, 'reports.products');
+});
