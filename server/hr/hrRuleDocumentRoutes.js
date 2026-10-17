@@ -101,15 +101,25 @@ function sanitizeFileName(originalName) {
   return `${name}.pdf`;
 }
 
-// Van ban go tay: bo ky tu dieu khien nhung GIU xuong dong (\n) va tab (\t) —
-// khac normalizeTitle (tieu de 1 dong). Khong rut gon khoang trang giua dong
-// de nguoi dung tu trinh bay doan/gach dau dong.
+// Noi dung go tay (rich text, migration 0061) la HTML tho tu trinh soan thao (co the
+// chua anh dang data:base64 truoc khi repository tach ra bang rieng) — KHONG duoc cat
+// (.slice) nhu truoc, vi cat giua mot anh base64/the HTML se lam hong du lieu ma khong
+// bao loi ro rang. Chi bo ky tu dieu khien nguy hiem, giu nguyen do dai; gioi han do
+// dai tho kiem o isRawBodyTooLarge() rieng, tra loi 413 thay vi am tham cat bot.
 function normalizeBody(rawBody) {
   return String(rawBody == null ? '' : rawBody)
     .replace(/\r\n/g, '\n')
     .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '')
-    .trim()
-    .slice(0, repo.BODY_MAX_LENGTH);
+    .trim();
+}
+
+// Anh base64 inline co the lam noi dung tho lon hon nhieu so gioi han luu cuoi cung
+// (repo.BODY_MAX_LENGTH, tinh SAU khi anh da duoc tach ra). 8MB du cho vai anh 5MB
+// (gioi han hrRuleDocumentImages.MAX_IMAGE_BYTES) cong van ban, van nam duoi gioi han
+// body JSON 10MB da cau hinh o index.js.
+const RAW_BODY_MAX_CHARS = 8 * 1024 * 1024;
+function isRawBodyTooLarge(normalizedBody) {
+  return normalizedBody.length > RAW_BODY_MAX_CHARS;
 }
 
 function normalizeTitle(rawTitle, fileName) {
@@ -195,6 +205,37 @@ router.get('/api/hr/rules/documents/:id/file', ...authView, async (req, res) => 
 });
 
 // ---------------------------------------------------------------------------
+// GET /api/hr/rules/documents/:id/images/:imageId — anh chen trong tai lieu go tay
+// (migration 0061). Cung quyen hr.rules voi noi dung tai lieu — khong co ranh gioi
+// bi mat rieng cho tung tai lieu (ai xem duoc danh sach cung xem duoc moi tai lieu).
+// ---------------------------------------------------------------------------
+router.get('/api/hr/rules/documents/:id/images/:imageId', ...authView, async (req, res) => {
+  try {
+    const id = parseId(req.params.id);
+    const imageId = parseId(req.params.imageId);
+    if (!id || !imageId) return res.status(400).json({ error: 'Mã ảnh không hợp lệ.', code: 'RULE_DOC_IMAGE_INVALID_ID' });
+
+    const meta = await repo.getImageMeta(imageId);
+    if (!meta || meta.documentId !== id) {
+      return res.status(404).json({ error: 'Không tìm thấy ảnh.', code: 'RULE_DOC_IMAGE_NOT_FOUND' });
+    }
+
+    res.setHeader('Content-Type', meta.contentType);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cache-Control', 'private, max-age=31536000, immutable'); // anh da luu la bat bien (sua = tao dong moi)
+    res.setHeader('ETag', `"${meta.sha256}"`);
+    if (req.fresh) return res.status(304).end();
+
+    const content = await repo.getImageContent(imageId);
+    if (!content) return res.status(404).json({ error: 'Không tìm thấy ảnh.', code: 'RULE_DOC_IMAGE_NOT_FOUND' });
+    res.setHeader('Content-Length', String(content.length));
+    res.status(200).end(content);
+  } catch (err) {
+    handleError(res, err, 'GET /api/hr/rules/documents/:id/images/:imageId');
+  }
+});
+
+// ---------------------------------------------------------------------------
 // POST /api/hr/rules/documents — tai PDF len (multipart: file + title tuy chon)
 // ---------------------------------------------------------------------------
 router.post('/api/hr/rules/documents', ...authManage, uploadPdf, async (req, res) => {
@@ -232,6 +273,12 @@ router.post('/api/hr/rules/documents', ...authManage, uploadPdf, async (req, res
 // ---------------------------------------------------------------------------
 router.post('/api/hr/rules/documents/text', ...authManage, async (req, res) => {
   try {
+    if (!(await repo.isRichTextReady())) {
+      return res.status(503).json({
+        error: 'Chức năng soạn văn bản đang chờ cập nhật cơ sở dữ liệu (migration 0061).',
+        code: 'RULE_DOC_RICH_TEXT_NOT_READY'
+      });
+    }
     const title = normalizeTitle(req.body && req.body.title, '');
     if (!title) {
       return res.status(400).json({ error: 'Tên tài liệu không được để trống.', code: 'RULE_DOC_NO_TITLE' });
@@ -239,6 +286,9 @@ router.post('/api/hr/rules/documents/text', ...authManage, async (req, res) => {
     const body = normalizeBody(req.body && req.body.body);
     if (!body) {
       return res.status(400).json({ error: 'Nội dung không được để trống.', code: 'RULE_DOC_NO_BODY' });
+    }
+    if (isRawBodyTooLarge(body)) {
+      return res.status(413).json({ error: 'Nội dung (kể cả ảnh chèn vào) quá lớn.', code: 'RULE_DOC_BODY_TOO_LARGE' });
     }
 
     const document = await repo.createTextDocument({
@@ -261,6 +311,12 @@ router.post('/api/hr/rules/documents/text', ...authManage, async (req, res) => {
 // ---------------------------------------------------------------------------
 router.put('/api/hr/rules/documents/:id/text', ...authManage, async (req, res) => {
   try {
+    if (!(await repo.isRichTextReady())) {
+      return res.status(503).json({
+        error: 'Chức năng soạn văn bản đang chờ cập nhật cơ sở dữ liệu (migration 0061).',
+        code: 'RULE_DOC_RICH_TEXT_NOT_READY'
+      });
+    }
     const id = parseId(req.params.id);
     if (!id) return res.status(400).json({ error: 'Mã tài liệu không hợp lệ.', code: 'RULE_DOC_INVALID_ID' });
 
@@ -271,6 +327,9 @@ router.put('/api/hr/rules/documents/:id/text', ...authManage, async (req, res) =
     const body = normalizeBody(req.body && req.body.body);
     if (!body) {
       return res.status(400).json({ error: 'Nội dung không được để trống.', code: 'RULE_DOC_NO_BODY' });
+    }
+    if (isRawBodyTooLarge(body)) {
+      return res.status(413).json({ error: 'Nội dung (kể cả ảnh chèn vào) quá lớn.', code: 'RULE_DOC_BODY_TOO_LARGE' });
     }
 
     const document = await repo.updateTextDocument(id, {

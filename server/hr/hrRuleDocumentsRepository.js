@@ -10,6 +10,8 @@
 
 const crypto = require('crypto');
 const { getPool } = require('../db/pool');
+const { sanitizeRuleDocumentHtml, hasMeaningfulRuleDocumentContent } = require('./hrRuleDocumentSanitizer');
+const { extractAndPersistImages, pruneUnreferencedImages } = require('./hrRuleDocumentImages');
 
 // Phai khop cac dong seed cua migration 0027 + 0039 (dung cho "Khoi phuc tai lieu mac dinh"
 // va cho danh sach du phong khi bang chua duoc migrate).
@@ -72,12 +74,22 @@ function mapRow(row) {
   return doc;
 }
 
-// Gioi han do dai noi dung go tay — khop CHECK char_length(body) BETWEEN 1 AND 20000 (migration 0060).
-const BODY_MAX_LENGTH = 20000;
+// Gioi han do dai HTML SAU KHI da loc + tach anh ra bang rieng — khop CHECK
+// char_length(body) BETWEEN 1 AND 200000 (migration 0061). Noi dung tho nguoi dung
+// gui len (truoc khi tach anh base64) co the lon hon nhieu, xem RAW_BODY_MAX_BYTES
+// o hrRuleDocumentRoutes.js.
+const BODY_MAX_LENGTH = 200000;
 
 const LIST_COLUMNS = 'id, kind, builtin_key, title, file_name, size_bytes, uploaded_by_name, created_at, body, updated_at, updated_by_name';
 
 function createHrRuleDocumentsRepository({ pool = getPool() } = {}) {
+  async function isRichTextReady() {
+    const { rows } = await pool.query(
+      "SELECT to_regclass('public.hr_rule_document_images') IS NOT NULL AS ready"
+    );
+    return Boolean(rows[0] && rows[0].ready);
+  }
+
   async function listDocuments() {
     const { rows } = await pool.query(
       `SELECT ${LIST_COLUMNS} FROM hr_rule_documents ORDER BY sort_order, created_at, id`
@@ -128,31 +140,84 @@ function createHrRuleDocumentsRepository({ pool = getPool() } = {}) {
     return mapRow(rows[0]);
   }
 
+/**
+   * Xu ly noi dung rich text truoc khi luu: tach anh data: ra bang rieng (can co id
+   * tai lieu truoc, xem hrRuleDocumentImages.js) roi loc HTML qua whitelist XSS
+   * (hrRuleDocumentSanitizer.js). Nem RuleDocError/RuleDocImageError (statusCode<500)
+   * neu noi dung rong hoac qua dai SAU khi xu ly.
+   */
+  async function processBodyForStorage(client, documentId, rawBody) {
+    const withImages = await extractAndPersistImages(client, documentId, rawBody);
+    const finalHtml = sanitizeRuleDocumentHtml(withImages);
+    if (!hasMeaningfulRuleDocumentContent(finalHtml)) throw new RuleDocError('Nội dung rỗng sau khi lọc (có thể toàn bộ nội dung không hợp lệ).', 400, 'RULE_DOC_BODY_EMPTY');
+    if (finalHtml.length > BODY_MAX_LENGTH) throw new RuleDocError(`Nội dung quá dài sau khi xử lý (tối đa ${BODY_MAX_LENGTH} ký tự).`, 400, 'RULE_DOC_BODY_TOO_LONG');
+    return finalHtml;
+  }
+
   /**
    * @param {{title:string, body:string, createdByUserId?:string, createdByName?:string}} data
    */
   async function createTextDocument(data) {
-    const { rows } = await pool.query(
-      `INSERT INTO hr_rule_documents
-         (kind, title, body, uploaded_by_user_id, uploaded_by_name)
-       VALUES ('text', $1, $2, $3, $4)
-       RETURNING ${LIST_COLUMNS}`,
-      [data.title, data.body, uuidOrNull(data.createdByUserId), data.createdByName || '']
-    );
-    return mapRow(rows[0]);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      // body dat tam '<p></p>' (hop le voi CHECK rang buoc hinh dang kind='text') de
+      // lay duoc id truoc — can id de tach anh gan dung document_id ngay tu dau.
+      const inserted = await client.query(
+        `INSERT INTO hr_rule_documents (kind, title, body, uploaded_by_user_id, uploaded_by_name)
+         VALUES ('text', $1, '<p></p>', $2, $3) RETURNING id`,
+        [data.title, uuidOrNull(data.createdByUserId), data.createdByName || '']
+      );
+      const id = inserted.rows[0].id;
+      const finalHtml = await processBodyForStorage(client, id, data.body);
+      const { rows } = await client.query(
+        `UPDATE hr_rule_documents SET body = $2 WHERE id = $1 RETURNING ${LIST_COLUMNS}`,
+        [id, finalHtml]
+      );
+      await client.query('COMMIT');
+      return mapRow(rows[0]);
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   /**
    * @param {{title:string, body:string, updatedByName?:string}} data
    */
   async function updateTextDocument(id, data) {
-    const { rows } = await pool.query(
-      `UPDATE hr_rule_documents SET title = $2, body = $3, updated_at = now(), updated_by_name = $4
-       WHERE id = $1 AND kind = 'text'
-       RETURNING ${LIST_COLUMNS}`,
-      [id, data.title, data.body, data.updatedByName || '']
-    );
-    return rows[0] ? mapRow(rows[0]) : null;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      // Khoa va xac nhan tai lieu ton tai TRUOC khi tach anh. Neu id khong co/khong
+      // phai kind=text ma van chen anh truoc, FK document_id se nem 500 thay vi 404.
+      const existing = await client.query(
+        "SELECT id FROM hr_rule_documents WHERE id = $1 AND kind = 'text' FOR UPDATE",
+        [id]
+      );
+      if (!existing.rows[0]) {
+        await client.query('ROLLBACK');
+        return null;
+      }
+      const finalHtml = await processBodyForStorage(client, id, data.body);
+      // Anh nguoi dung da xoa khoi noi dung (khong con duoc nhac toi) bi don luon o day.
+      await pruneUnreferencedImages(client, id, finalHtml);
+      const { rows } = await client.query(
+        `UPDATE hr_rule_documents SET title = $2, body = $3, updated_at = now(), updated_by_name = $4
+         WHERE id = $1 AND kind = 'text'
+         RETURNING ${LIST_COLUMNS}`,
+        [id, data.title, finalHtml, data.updatedByName || '']
+      );
+      await client.query(rows[0] ? 'COMMIT' : 'ROLLBACK');
+      return rows[0] ? mapRow(rows[0]) : null;
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   // Tra ve tai lieu vua xoa (de bao thong bao) hoac null neu khong ton tai.
@@ -183,9 +248,33 @@ function createHrRuleDocumentsRepository({ pool = getPool() } = {}) {
     return rows.map(mapRow);
   }
 
+  // Anh chen trong tai lieu go tay (hr_rule_document_images, migration 0061) — cung
+  // mau voi getFileMeta/getFileContent cua PDF: meta khong keo content, co sha256 lam ETag.
+  async function getImageMeta(imageId) {
+    const { rows } = await pool.query(
+      'SELECT id, document_id, content_type, size_bytes, sha256 FROM hr_rule_document_images WHERE id = $1',
+      [imageId]
+    );
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      id: Number(row.id),
+      documentId: Number(row.document_id),
+      contentType: row.content_type,
+      sizeBytes: Number(row.size_bytes) || 0,
+      sha256: row.sha256 ? String(row.sha256).trim() : ''
+    };
+  }
+
+  async function getImageContent(imageId) {
+    const { rows } = await pool.query('SELECT content FROM hr_rule_document_images WHERE id = $1', [imageId]);
+    return rows[0] ? rows[0].content : null;
+  }
+
   return {
-    listDocuments, getFileMeta, getFileContent, createPdfDocument,
-    createTextDocument, updateTextDocument, deleteDocument, restoreDefaultDocuments
+    isRichTextReady, listDocuments, getFileMeta, getFileContent, createPdfDocument,
+    createTextDocument, updateTextDocument, deleteDocument, restoreDefaultDocuments,
+    getImageMeta, getImageContent
   };
 }
 
@@ -195,6 +284,7 @@ module.exports = {
   DEFAULT_BUILTIN_DOCUMENTS,
   RuleDocError,
   createHrRuleDocumentsRepository,
+  isRichTextReady: (...args) => repository.isRichTextReady(...args),
   listDocuments: (...args) => repository.listDocuments(...args),
   getFileMeta: (...args) => repository.getFileMeta(...args),
   getFileContent: (...args) => repository.getFileContent(...args),
@@ -203,5 +293,7 @@ module.exports = {
   updateTextDocument: (...args) => repository.updateTextDocument(...args),
   deleteDocument: (...args) => repository.deleteDocument(...args),
   restoreDefaultDocuments: (...args) => repository.restoreDefaultDocuments(...args),
+  getImageMeta: (...args) => repository.getImageMeta(...args),
+  getImageContent: (...args) => repository.getImageContent(...args),
   BODY_MAX_LENGTH
 };

@@ -25,6 +25,7 @@ const BUILTINS = [
   { id: 4, kind: 'builtin', slug: 'treo-hang', builtinKey: 'treo-hang', title: 'Quy định treo hàng' }
 ];
 const PDF = { id: 7, kind: 'pdf', slug: 'pdf-7', title: 'Nội quy kho', fileName: 'noi-quy-kho.pdf', sizeBytes: 2048, uploadedBy: 'Quản lý A', createdAt: '2026-09-30T03:00:00.000Z' };
+const TEXT = { id: 8, kind: 'text', slug: 'text-8', title: 'Hướng dẫn Bot', body: '<h2>Quy tắc</h2><p><strong>Không</strong> gửi mật khẩu.</p><table><tbody><tr><td>Lỗi</td><td>Cách xử lý</td></tr></tbody></table>', uploadedBy: 'Quản lý A', createdAt: '2026-10-17T03:00:00.000Z' };
 
 function jsonResponse(payload, status = 200) {
   return {
@@ -60,6 +61,19 @@ async function openPage({ vaiTro = 'Quản lý', hash = '#quydinh', docs = [...B
       const created = { ...PDF, id: 9, slug: 'pdf-9', title: 'Bảng lương' };
       server.docs.push(created);
       return jsonResponse({ document: created }, 201);
+    }
+    if (u === '/api/hr/rules/documents/text' && method === 'POST') {
+      const payload = JSON.parse(opts.body);
+      const created = { ...TEXT, id: 10, slug: 'text-10', title: payload.title, body: payload.body };
+      server.docs.push(created);
+      return jsonResponse({ document: created }, 201);
+    }
+    const updateText = /^\/api\/hr\/rules\/documents\/(\d+)\/text$/.exec(u);
+    if (updateText && method === 'PUT') {
+      const payload = JSON.parse(opts.body);
+      const index = server.docs.findIndex(d => String(d.id) === updateText[1]);
+      server.docs[index] = { ...server.docs[index], title: payload.title, body: payload.body, updatedBy: 'Quản lý A' };
+      return jsonResponse({ document: server.docs[index] });
     }
     const file = /^\/api\/hr\/rules\/documents\/(\d+)\/file$/.exec(u);
     if (file) {
@@ -229,6 +243,45 @@ test('tải lên: gửi FormData (file + title) rồi chọn tài liệu mới; 
   assert.equal(document.getElementById('ruleUploadModal').hidden, true);
   assert.deepEqual(tabSlugs(document), ['gio-giac', 'nghi-phep', 'phuc-loi', 'treo-hang', 'pdf-7', 'pdf-9']);
   assert.equal(activeTab(document).ruleDocTab, 'pdf-9');
+  window.close();
+});
+
+test('tài liệu rich-text hiển thị heading/đậm/bảng bằng HTML đã lọc từ server, vẫn giữ logo TOKOSI', async () => {
+  const { window, document } = await openPage({ docs: [...BUILTINS, TEXT], hash: '#quydinh/text-8' });
+  assert.equal(activeTab(document).ruleDocTab, 'text-8');
+  const body = document.getElementById('ruleDocTextBody');
+  assert.equal(body.querySelector('h2').textContent, 'Quy tắc');
+  assert.equal(body.querySelector('strong').textContent, 'Không');
+  assert.equal(body.querySelectorAll('table td').length, 2);
+  assert.equal(document.querySelector('#ruleDocTextView .doc-page-header img').getAttribute('src'), '/Logo.jpg');
+  window.close();
+});
+
+test('trình soạn thảo rich-text có đủ nhóm Word: định dạng, heading, căn lề, màu, bảng, ảnh', async () => {
+  const { window, document } = await openPage({ docs: [...BUILTINS, TEXT] });
+  window.openRuleTextModal(TEXT);
+  assert.equal(document.getElementById('ruleTextEditor').innerHTML, TEXT.body);
+  for (const cmd of ['bold','italic','underline','strikeThrough','insertUnorderedList','insertOrderedList','justifyLeft','justifyCenter','justifyRight']) {
+    assert.ok(document.querySelector(`#rteToolbar [data-cmd="${cmd}"]`), `thiếu nút ${cmd}`);
+  }
+  assert.ok(document.getElementById('rteHeadingSelect'));
+  assert.ok(document.getElementById('rteForeColor'));
+  assert.ok(document.getElementById('rteBackColor'));
+  assert.ok(document.getElementById('rteInsertTableBtn'));
+  assert.ok(document.getElementById('rteInsertImageBtn'));
+  window.close();
+});
+
+test('tạo rich-text gửi innerHTML (không phải textContent) và chọn tab mới', async () => {
+  const { window, document, server } = await openPage();
+  window.openRuleTextModal(null);
+  document.getElementById('ruleTextName').value = 'Quy định mới';
+  document.getElementById('ruleTextEditor').innerHTML = '<h1>Tiêu đề</h1><p><strong>Nội dung</strong></p>';
+  await window.submitRuleText();
+  await settle();
+  const post = server.requests.find(r => r.url === '/api/hr/rules/documents/text' && r.method === 'POST');
+  assert.deepEqual(JSON.parse(post.body), { title: 'Quy định mới', body: '<h1>Tiêu đề</h1><p><strong>Nội dung</strong></p>' });
+  assert.equal(activeTab(document).ruleDocTab, 'text-10');
   window.close();
 });
 
