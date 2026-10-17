@@ -11,7 +11,7 @@ test('bang khach: quy doi 30 ngay, tang truong, TB 4 thang, khach hoat dong, Kha
   assert.equal(a.priceLevel, 'Level 2');
   assert.equal(a.normalized, 500);            // 100*30/6
   assert.equal(a.growth, 100);                // 500/500
-  assert.equal(a.avg4, (500 + 0 + 0 + 500) / 4);
+  assert.equal(a.avg4, (500 + 0 + 0 + 100) / (31 + 31 + 30 + 6) * 30); // T7+T8+T9 = 92 ngay + 6 ngay T10
   assert.equal(a.active, true);
   assert.deepEqual(a.refs, [{ branch: 'hanoi', code: 'KH1' }]);
   assert.equal('branch' in a, false, 'khach da gop khong con co so');

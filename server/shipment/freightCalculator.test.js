@@ -17,12 +17,19 @@ test('VL is max(volume, kg x 1.550) plus 200k below 2 m3', () => {
   assert.equal(calculateFreight({ m3: 2, kg: 5 }).VL.total, 930000);
   assert.equal(calculateFreight({ m3: 2, kg: 1000 }).VL.total, 1550000);
 });
-test('VL withChanh adds 490k delivery to chanh + 70k ticket without changing the base variant', () => {
+test('VL withChanh uses 490k per m3 plus 70k ticket and keeps the other rules', () => {
   const { VL } = calculateFreight({ m3: 1, kg: 5 });
   assert.equal(VL.total, 665000);
-  assert.equal(VL.withChanh.total, 665000 + 490000 + 70000);
-  assert.deepEqual(VL.withChanh.steps.slice(-2).map(item => item.amount), [490000, 70000]);
-  assert.equal(VL.steps.length, VL.withChanh.steps.length - 2);
+  assert.equal(VL.withChanh.total, 490000 + 200000 + 70000);
+  assert.match(VL.withChanh.steps[0].label, /490.000/);
+  assert.equal(VL.withChanh.steps.at(-1).amount, 70000);
+  assert.equal(VL.steps.length, VL.withChanh.steps.length - 1);
+  const example = calculateFreight({ m3: 1.144, kg: 171.7 }).VL;
+  assert.equal(example.total, 731960);
+  assert.equal(example.withChanh.total, 830560);
+  assert.equal(calculateFreight({ m3: 0.5, kg: 5 }).VL.withChanh.total, 500000 + 200000 + 70000);
+  assert.equal(calculateFreight({ m3: 0.5, kg: 600 }).VL.withChanh.total, 930000 + 200000 + 70000);
+  assert.equal(calculateFreight({ m3: 2, kg: 5 }).VL.withChanh.total, 980000 + 70000);
   assert.equal(calculateFreight({ m3: 1, kg: 5 }).DM.withChanh, undefined);
 });
 test('no usable measurements has no carrier estimates', () => {
@@ -67,7 +74,7 @@ test('weight-only orders can still estimate carriers', () => {
   const { freight } = buildOrderFreight([{ productCode: 'A', quantity: 400 }], new Map([['a', { kgPerUnit: 1, m3PerUnit: null }]]));
   assert.equal(freight.carriers.DM.total, 733200);
   assert.equal(freight.carriers.VL.total, 820000);
-  assert.equal(freight.carriers.VL.withChanh.total, 1380000);
+  assert.equal(freight.carriers.VL.withChanh.total, 820000 + 70000);
   assert.equal(freight.carriers.JT.total, 1600000);
 });
 

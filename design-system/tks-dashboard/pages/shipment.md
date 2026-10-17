@@ -38,7 +38,7 @@ Cảnh báo tự mất khi bước tương ứng đã làm; đơn hủy/sự c�
 ## Component đặc thù của trang
 - **Dải thẻ KPI tổng quan & lọc nhanh** (`.lc-kpi-grid`, `.lc-kpi-card`, `.is-active`) — xem MASTER §5.19.
 - **Hộp xem chi tiết đơn** dùng khung `.dp-*` (`public/shared/detail-panel.css`), dải chỉ số `.dp-stats`, bảng hàng hóa `.dp-table-wrap` (`data-table-controls="off"`), 1 khung cuộn.
-- **Cột Thể tích (m³)** và tổng m³/kg/thùng hiển thị trong hộp chi tiết khi đơn có dữ liệu đo (`measureSheet.js`, `freightCalculator.js`); dropdown nhà xe Đức Mạnh / Việt Linh / J&T và bảng tính cước; khi chọn Việt Linh có ô tick "Giao ra chành" (+490k + vé chành 70k).
+- **Cột Thể tích (m³)** và tổng m³/kg/thùng hiển thị trong hộp chi tiết khi đơn có dữ liệu đo (`measureSheet.js`, `freightCalculator.js`); dropdown nhà xe Đức Mạnh / Việt Linh / J&T và bảng tính cước; khi chọn Việt Linh có ô tick "Giao ra chành" (490k/m³ + vé chành 70k).
 - **Nút "Bỏ sắp xếp"** xuất hiện trên cả hai bảng (Toàn bộ đơn hàng, Lịch sử cập nhật) khi đang sắp theo cột; lần bấm tiêu đề thứ ba của bảng Lịch sử cũng về mặc định (mới nhất trước).
 - `.lookup-hero` — khối tiêu đề, dùng đúng hệ thống `--canvas-text` (không phải pattern mới, chỉ là cách dùng đúng của mục "Chữ trực tiếp trên nền" trong `shared.css`).
 - `.lookup-panel textarea` — cần thay bằng `.form-textarea` chuẩn ở MASTER §5.12 thay vì tự định nghĩa `border-radius:12px` (lệch thang bo góc).

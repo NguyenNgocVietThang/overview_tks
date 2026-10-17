@@ -3,15 +3,15 @@
 const RATES = Object.freeze({
   DM: Object.freeze({ perM3: 550000, minimum: 350000, perKg: 1833 }),
   VL: Object.freeze({
-    perM3: 465000, perKg: 1550, smallOrderM3: 0.6, smallOrderFee: 500000, surchargeBelowM3: 2, surcharge: 200000,
-    chanhDelivery: 490000, chanhTicket: 70000
+    perM3: 465000, perM3Chanh: 490000, perKg: 1550, smallOrderM3: 0.6, smallOrderFee: 500000, surchargeBelowM3: 2, surcharge: 200000,
+    chanhTicket: 70000
   }),
   JT: Object.freeze({ perUnit: 4000, volumetricDivisor: 6000 })
 });
 const CARRIER_LABELS = Object.freeze({ DM: 'Đức Mạnh', VL: 'Việt Linh', JT: 'J&T' });
 const CARRIER_NOTES = Object.freeze({
   DM: 'Cước nhà xe Đức Mạnh: lấy lớn hơn giữa 550k/m³ và 1.833đ/kg, tối thiểu 350k.',
-  VL: 'Cước nhà xe Việt Linh: lấy lớn hơn giữa 465k/m³ (đơn từ 0,6 m³ trở xuống tính 500k) và 1.550đ/kg, phụ thu 200k khi dưới 2 m³. Giao ra chành cộng 490k + vé chành 70k.',
+  VL: 'Cước nhà xe Việt Linh: lấy lớn hơn giữa 465k/m³ (đơn từ 0,6 m³ trở xuống tính 500k) và 1.550đ/kg, phụ thu 200k khi dưới 2 m³. Giao ra chành: đơn giá thể tích 490k/m³ và cộng vé chành 70k.',
   JT: 'Cước J&T tính theo từng mã hàng: lấy lớn hơn giữa thể tích (m³) × 1.000.000 / 6.000 × 4.000đ và cân nặng (kg) × 4.000đ, rồi cộng các mã.'
 });
 const M3_TEXT = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 3 });
@@ -31,31 +31,28 @@ function calculateDM(volume, weight) {
   return wrap('DM', { freight: Math.round(freight), surcharge: 0, steps });
 }
 
-/** Việt Linh: max(thể tích, cân nặng) + phụ thu dưới 2 m³; `withChanh` là biến thể có giao ra chành + vé chành. */
-function calculateVL(volume, weight) {
+/** Việt Linh: max(thể tích, cân nặng) + phụ thu dưới 2 m³; giao ra chành đổi đơn giá thể tích lên 490k/m³ và cộng vé chành. */
+function calculateVL(volume, weight, withChanh) {
+  const perM3 = withChanh ? RATES.VL.perM3Chanh : RATES.VL.perM3;
   const small = volume <= RATES.VL.smallOrderM3;
-  const byVolume = small ? RATES.VL.smallOrderFee : volume * RATES.VL.perM3;
+  const byVolume = small ? RATES.VL.smallOrderFee : volume * perM3;
   const byWeight = weight * RATES.VL.perKg;
   const freight = Math.max(byVolume, byWeight);
   const surcharge = volume < RATES.VL.surchargeBelowM3 ? RATES.VL.surcharge : 0;
-  const steps = [step(small ? 'Theo thể tích: đơn từ 0,6 m³ trở xuống' : `Theo thể tích: ${M3_TEXT.format(volume)} m³ × 465.000`, byVolume)];
+  const rateText = perM3.toLocaleString('vi-VN');
+  const steps = [step(small ? 'Theo thể tích: đơn từ 0,6 m³ trở xuống' : `Theo thể tích: ${M3_TEXT.format(volume)} m³ × ${rateText}`, byVolume)];
   if (weight) steps.push(step(`Theo cân nặng: ${KG_TEXT.format(weight)} kg × 1.550`, byWeight));
   if (weight) steps.push(step('Cước tính (lớn hơn giữa thể tích và cân nặng)', freight));
   if (surcharge) steps.push(step('Phụ thu đơn dưới 2 m³', surcharge));
-  const base = wrap('VL', { freight: Math.round(freight), surcharge, steps });
-  const chanh = RATES.VL.chanhDelivery + RATES.VL.chanhTicket;
-  base.withChanh = wrap('VL', {
-    freight: base.freight, surcharge: surcharge + chanh,
-    steps: [...steps, step('Giao ra chành', RATES.VL.chanhDelivery), step('Vé chành', RATES.VL.chanhTicket)]
-  });
-  return base;
+  if (withChanh) steps.push(step('Vé chành', RATES.VL.chanhTicket));
+  return wrap('VL', { freight: Math.round(freight), surcharge: surcharge + (withChanh ? RATES.VL.chanhTicket : 0), steps });
 }
 
 function calculateFreight({ m3, kg }) {
   const volume = positive(m3) ? m3 : 0;
   const weight = positive(kg) ? kg : 0;
   if (!volume && !weight) return { DM: null, VL: null };
-  return { DM: calculateDM(volume, weight), VL: calculateVL(volume, weight) };
+  return { DM: calculateDM(volume, weight), VL: { ...calculateVL(volume, weight, false), withChanh: calculateVL(volume, weight, true) } };
 }
 
 /** Items contain total ordered m3/kg per product, never rounded carton counts. */

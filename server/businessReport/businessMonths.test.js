@@ -46,13 +46,13 @@ test('thang truoc <= 0 thi tang truong null (UI hien —)', () => {
   assert.equal(m.growthPct(1000, -5), null);
 });
 
-test('TB 4 thang = (3 thang chot + quy doi thang nay) / 4, thang thieu = 0', () => {
-  assert.equal(m.avg4Months([100, 200, 300], 400), 250);
-  assert.equal(m.avg4Months([100], 300), 100);
+test('TB 4 thang = tong (3 thang chot + thang nay den hom nay) / tong so ngay x 30, thang thieu = 0', () => {
+  assert.equal(m.avg4Months([100, 200, 300], 400, 92, 8), 1000 / 100 * 30);
+  assert.equal(m.avg4Months([100], 300, 92, 8), 400 / 100 * 30);
 });
 
 test('buildMetrics lay dung thang truoc va 3 thang gan nhat', () => {
   const series = { '2026-07-01': 300, '2026-08-01': 600, '2026-09-01': 900, '2026-10-01': 100 };
   const r = m.buildMetrics(series, '2026-10-01', 10);
-  assert.deepEqual(r, { current: 100, normalized: 300, prev: 900, growth: 300 / 900 * 100, avg4: (900 + 600 + 300 + 300) / 4 });
+  assert.deepEqual(r, { current: 100, normalized: 300, prev: 900, growth: 300 / 900 * 100, avg4: (900 + 600 + 300 + 100) / (92 + 10) * 30 });
 });

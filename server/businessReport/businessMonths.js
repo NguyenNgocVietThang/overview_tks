@@ -77,16 +77,26 @@ function growthPct(normalized, prev) {
   return (Number(normalized) || 0) / p * 100;
 }
 
-function avg4Months(prev3, normalized) {
-  const values = [0, 1, 2].map(i => Number(prev3[i]) || 0);
-  return (values[0] + values[1] + values[2] + (Number(normalized) || 0)) / 4;
+function daysInMonth(month) {
+  const [y, mo] = month.split('-').map(Number);
+  return new Date(Date.UTC(y, mo, 0)).getUTCDate();
+}
+
+// TB 4 thang = (3 thang truoc + thang nay den hom nay) / tong so ngay cua 4 thang do (den hom nay),
+// nhan 30 de ra so tuong duong 1 thang.
+function avg4Months(prev3, current, prevDays, day) {
+  const total = [0, 1, 2].reduce((s, i) => s + (Number(prev3[i]) || 0), 0) + (Number(current) || 0);
+  const days = (Number(prevDays) || 0) + Math.max(1, day);
+  return total / days * 30;
 }
 
 function buildMetrics(series, currentMonth, day) {
   const current = Number(series[currentMonth]) || 0;
   const normalized = normalizeTo30Days(current, day);
-  const prev3 = [1, 2, 3].map(i => Number(series[addMonths(currentMonth, -i)]) || 0);
-  return { current, normalized, prev: prev3[0], growth: growthPct(normalized, prev3[0]), avg4: avg4Months(prev3, normalized) };
+  const prevMonths = [1, 2, 3].map(i => addMonths(currentMonth, -i));
+  const prev3 = prevMonths.map(m => Number(series[m]) || 0);
+  const prevDays = prevMonths.reduce((s, m) => s + daysInMonth(m), 0);
+  return { current, normalized, prev: prev3[0], growth: growthPct(normalized, prev3[0]), avg4: avg4Months(prev3, current, prevDays, day) };
 }
 
 module.exports = {
