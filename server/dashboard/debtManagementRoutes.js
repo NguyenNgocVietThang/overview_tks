@@ -178,6 +178,17 @@ router.get('/api/debt-management/aging', requireAuth, requireFeature('reports.de
     }
   });
 
+// Hop chi tiet 1 dong Kiem tra cong no: hoa don trong khoang ngay no tuong duong cua khach.
+router.get('/api/debt-management/aging/invoices', requireAuth, requireFeature('reports.debt'),
+  branchMiddleware.resolveBranch, async (req, res) => {
+    try {
+      return res.json(await require('../debtSchedule/debtScheduleService')
+        .buildDebtAgingInvoices(branchCodesFor(req), { branch: req.query?.branch, customerId: req.query?.customerId }));
+    } catch (error) {
+      return sendError(res, error, 'Không thể tải hóa đơn của khách lúc này.', 'DEBT_AGING_INVOICES_UNAVAILABLE');
+    }
+  });
+
 // Nhat ky sua lich TT (giu vinh vien). Co branch + customerId thi loc theo 1 khach.
 router.get('/api/debt-management/schedule-log', requireAuth, requireFeature('reports.debt'), async (req, res) => {
   try {

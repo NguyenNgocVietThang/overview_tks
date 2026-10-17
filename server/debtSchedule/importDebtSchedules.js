@@ -3,7 +3,7 @@
 // Import lich TT lan dau tu file Excel mau KiotViet (sheet co cot "Mã khách hàng" + "Lịch TT").
 //   node debtSchedule/importDebtSchedules.js --branch=saigon "MauFileKhachHang sg.xlsx"          (chay thu)
 //   node debtSchedule/importDebtSchedules.js --branch=hanoi  "MauFileKhachHang hn.xlsx" --apply  (ghi DB)
-// Gia tri trong / khong phai so 1..90 thi bo qua (khach giu mac dinh 1 ngay). Moi dong doi
+// Gia tri trong / khong phai so 1..30 thi bo qua (khach giu mac dinh 1 ngay). Moi dong doi
 // gia tri ghi 1 dong debt_payment_schedule_log (source = 'import').
 
 if (process.env.NODE_ENV !== 'production') {

@@ -11,24 +11,24 @@ function amounts(map) {
   return Object.entries(map).map(([day, invoiceAmount]) => ({ day, invoiceAmount }));
 }
 
-test('vi du nguoi dung: het no 10/10, lich 5 -> ngay no tuong duong 7, con han -2', () => {
+test('vi du nguoi dung: het no 10/10, lich 5 -> ngay no tuong duong 8 (dem ca ngay het no), con han -3', () => {
   const row = aging.buildAgingRow({ ...base, scheduleDays: 5, currentDebt: 600 }, {
     today: TODAY, dailyAmounts: amounts({ '2026-10-17': 100, '2026-10-15': 200, '2026-10-10': 300, '2026-10-01': 900 })
   });
   assert.equal(row.payoffDay, '2026-10-10');
-  assert.equal(row.equivalentDays, 7);
-  assert.equal(row.remainingDays, -2);
+  assert.equal(row.equivalentDays, 8);
+  assert.equal(row.remainingDays, -3);
   assert.equal(row.beyondHistory, false);
   assert.equal(row.branch, 'HN');
 });
 
-test('het no ngay trong hom nay -> ngay no tuong duong 0, con han = lich TT', () => {
+test('het no ngay trong hom nay -> ngay no tuong duong 1, con han = lich TT - 1', () => {
   const row = aging.buildAgingRow({ ...base, scheduleDays: 3, currentDebt: 100 }, {
     today: TODAY, dailyAmounts: amounts({ '2026-10-17': 150 })
   });
   assert.equal(row.payoffDay, TODAY);
-  assert.equal(row.equivalentDays, 0);
-  assert.equal(row.remainingDays, 3);
+  assert.equal(row.equivalentDays, 1);
+  assert.equal(row.remainingDays, 2);
 });
 
 test('tru vua du ve 0 la het no; ngay khong co hoa don bi bo qua', () => {
@@ -54,8 +54,8 @@ test('tru het lich su van con no -> moc dau khoang tra cuu + co beyondHistory', 
   });
   assert.equal(row.beyondHistory, true);
   assert.equal(row.payoffDay, aging.agingHistoryStart(TODAY));
-  assert.equal(row.equivalentDays, aging.AGING_LOOKBACK_DAYS - 1);
-  assert.equal(row.remainingDays, 1 - (aging.AGING_LOOKBACK_DAYS - 1));
+  assert.equal(row.equivalentDays, aging.AGING_LOOKBACK_DAYS);
+  assert.equal(row.remainingDays, 1 - aging.AGING_LOOKBACK_DAYS);
 });
 
 test('khong co hoa don nao ma con no -> beyondHistory', () => {
@@ -77,8 +77,8 @@ test('khach chua co lich TT tinh 1 ngay, sale trong -> Chua phan nhom', () => {
   assert.equal(row.scheduleDays, 1);
   assert.equal(row.hasStoredSchedule, false);
   assert.equal(row.sale, 'Chưa phân nhóm');
-  assert.equal(row.equivalentDays, 2);
-  assert.equal(row.remainingDays, -1);
+  assert.equal(row.equivalentDays, 3);
+  assert.equal(row.remainingDays, -2);
 });
 
 test('daysBetween qua ranh gioi thang/nam', () => {

@@ -2678,11 +2678,17 @@
       flex: 1 1 240px;
     }
 
-    /* Tuoi no theo hoa don: Con han <= 0 (da cham / qua lich TT) bo do. */
-    .debt-aging-expired {
-      color: var(--red);
+    /* Tuoi no theo hoa don: cot Con han — am (qua lich TT) do, 0 (cham lich) vang, duong (con han) xanh la. */
+    .debt-aging-neg,
+    .debt-aging-zero,
+    .debt-aging-pos {
       font-weight: 700;
     }
+
+    .debt-aging-neg { color: var(--red); }
+    .debt-aging-zero { color: #FACC15; }
+    .debt-aging-pos { color: var(--green); }
+    :root[data-theme="light"] .debt-aging-zero { color: #CA8A04; }
 
     .debt-filter-field label {
       color: var(--muted);
@@ -3870,15 +3876,15 @@
                   <table class="fixed-table" data-debt-aging-table data-table-key="dashboard-table-24">
                     <thead>
                       <tr>
-                        <th style="width:60px" data-column-key="co-so">Cơ sở</th>
-                        <th style="width:160px" data-column-key="khach-hang">Khách hàng</th>
-                        <th style="width:150px" data-column-key="sale">Sale</th>
-                        <th style="width:90px" data-column-key="lich-tt">Lịch TT</th>
-                        <th style="width:135px" data-column-key="no-hien-tai">Nợ hiện tại</th>
-                        <th style="width:130px" data-column-key="no-qua-han">Nợ quá hạn</th>
+                        <th style="width:107px" data-column-key="co-so">Cơ sở</th>
+                        <th style="width:318px" data-column-key="khach-hang">Khách hàng</th>
+                        <th style="width:145px" data-column-key="sale">Sale</th>
+                        <th style="width:110px" data-column-key="lich-tt">Lịch TT</th>
+                        <th style="width:150px" data-column-key="no-hien-tai">Nợ hiện tại</th>
+                        <th style="width:217px" data-column-key="no-qua-han">Nợ quá hạn</th>
                         <th style="width:120px" data-column-key="ngay-het-no" data-column-default-hidden="true">Ngày hết nợ</th>
-                        <th style="width:120px" data-column-key="ngay-no-tuong-duong">Ngày nợ tương đương</th>
-                        <th style="width:100px" data-column-key="con-han">Còn hạn</th>
+                        <th style="width:128px" data-column-key="ngay-no-tuong-duong">Ngày nợ tương đương</th>
+                        <th style="width:135px" data-column-key="con-han">Còn hạn</th>
                       </tr>
                     </thead>
                     <tbody id="debtAgingRows">
@@ -4358,7 +4364,7 @@
   </script>
   <script src="/shared/search-clear.js?v=20261009-1"></script>
   <script src="/shared/shared-nav.js?v=20261016-freight"></script>
-  <script src="/shared/table-align.js?v=20260928"></script>
+  <script src="/shared/table-align.js?v=20261017"></script>
   <script src="/shared/dateInput.js?v=20260912"></script>
   <script src="/marketing-report.js?v=20261016-sort"></script>
 
@@ -4579,17 +4585,17 @@
     // sẽ khởi tạo (hoặc tìm kiếm) một Intl.NumberFormat trong mỗi lần gọi; một trang bảng
     // ở đây có 100 dòng với nhiều cột số, do đó hàm này chạy hàng nghìn lần mỗi lần kết xuất.
     // Việc đưa instance định dạng ra ngoài giúp mỗi lệnh gọi trở thành format() trực tiếp mà không cần đàm phán locale.
-    const VN_NUMBER = new Intl.NumberFormat('vi-VN');
-    const VN_NUMBER_1DP = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 });
+    const VN_NUMBER = new Intl.NumberFormat('en-US');
+    const VN_NUMBER_1DP = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
 
     function fmtNumber(n) { return VN_NUMBER.format(Number(n) || 0); }
     // Tiền luôn làm tròn thành số nguyên, không hiện phần thập phân.
-    const VN_MONEY = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 });
+    const VN_MONEY = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
     function fmtTableMoney(n) { return VN_MONEY.format(Number(n) || 0); }
     function fmtMoney(n) { return fmtTableMoney(n) + '₫'; }
     function fmtMoneyShort(n) {
       n = Number(n) || 0;
-      if (n >= 1000000000) return (n / 1000000000).toFixed(1).replace('.0', '').replace('.', ',') + ' tỷ₫';
+      if (n >= 1000000000) return (n / 1000000000).toFixed(1).replace('.0', '') + ' tỷ₫';
       if (n >= 1000000) return (n / 1000000).toFixed(1).replace('.0', '') + 'tr₫';
       if (n >= 1000) return (n / 1000).toFixed(0) + 'k₫';
       return n + '₫';
@@ -4998,7 +5004,7 @@
     function formatSupplierReturnStatus(status) {
       if (!status.rowCount) return status.branch + ': chưa nhập dữ liệu';
       const imported = status.importedAt ? new Date(status.importedAt).toLocaleString('vi-VN') : '—';
-      return status.branch + ': ' + status.rowCount.toLocaleString('vi-VN') + ' dòng, từ ' +
+      return status.branch + ': ' + status.rowCount.toLocaleString('en-US') + ' dòng, từ ' +
         formatDdMmYyyy(status.earliestDate) + ' đến ' + formatDdMmYyyy(status.latestDate) +
         ' (nhập lúc ' + imported + (status.importedBy ? ' bởi ' + status.importedBy : '') + ')';
     }
@@ -5061,7 +5067,7 @@
         if (!response.ok) throw new Error(payload.error || 'Nhập dữ liệu Trả NCC thất bại.');
 
         resultBox.hidden = false;
-        resultText.textContent = 'Đã nhập ' + payload.imported.toLocaleString('vi-VN') + ' dòng' +
+        resultText.textContent = 'Đã nhập ' + payload.imported.toLocaleString('en-US') + ' dòng' +
           (payload.skipped ? ', bỏ qua ' + payload.skipped + ' dòng lỗi' : '') +
           ' cho ' + branch + ' (từ ' + formatDdMmYyyy(payload.earliestDate) + ' đến ' + formatDdMmYyyy(payload.latestDate) + ').';
         fileInput.value = '';
@@ -7770,6 +7776,12 @@
         api: '/api/business-report/detail', title: 'Mã hàng', size: 'wide',
         query: item => '?kind=product&key=' + encodeURIComponent(item.key), failure: 'Không tải được chi tiết mã hàng.'
       },
+      // Công nợ, mục Kiểm tra công nợ: hóa đơn của khách trong khoảng ngày nợ tương đương (từ ngày hết nợ đến nay).
+      debtAgingInvoices: {
+        api: '/api/debt-management/aging/invoices', title: 'Hóa đơn', size: 'medium',
+        query: item => '?branch=' + encodeURIComponent(item.branchCode) + '&customerId=' + encodeURIComponent(item.customerId),
+        failure: 'Không tải được hóa đơn của khách này.'
+      },
       // Công nợ (khung Chỉ số then chốt): bảng thưởng/phạt sale — dữ liệu tính tại chỗ, không gọi API.
       debtPenaltySale: {
         title: 'Thưởng/phạt sale', size: 'wide', local: item => debtPenaltySaleDetail(item), failure: 'Không dựng được chi tiết sale.'
@@ -7992,10 +8004,49 @@
         '<span class="dp-title-kind">' + escapeHtml(kindText + separator) + '</span>' + escapeHtml(name);
     }
 
+    // Hộp hóa đơn của 1 dòng Kiểm tra công nợ: chỉ số tổng quan → bảng hóa đơn (sort/Cột hiển thị do table-controls bật sẵn).
+    function renderDebtAgingInvoicesModal(body, subtitle, data) {
+      const invoices = data.invoices || [];
+      const prefix = data.beyondHistory ? '≥ ' : '';
+      const remaining = data.remainingDays;
+      subtitle.textContent = data.payoffDay
+        ? 'Cơ sở ' + (data.branch || '') + ' · từ ' + formatDebtAgingDay(data.payoffDay) + ' đến nay'
+        : 'Cơ sở ' + (data.branch || '');
+      if (!data.payoffDay) {
+        body.innerHTML = detailStatsHtml([{ label: 'Nợ hiện tại', value: fmtMoney(data.currentDebt) }]) +
+          '<div class="doc-modal-note">Khách hiện không có nợ nên không có hóa đơn tương đương.</div>';
+        return;
+      }
+      const tiles = [
+        { label: 'Nợ hiện tại', value: fmtMoney(data.currentDebt), tone: 'red' },
+        { label: 'Ngày nợ tương đương', value: prefix + fmtNumber(data.equivalentDays) + ' ngày', sub: 'Lịch TT ' + fmtNumber(data.scheduleDays) + ' ngày', text: true },
+        { label: 'Còn hạn', value: (data.beyondHistory ? '≤ ' : '') + fmtNumber(remaining) + ' ngày', tone: remaining === null ? '' : (remaining < 0 ? 'red' : (remaining === 0 ? 'amber' : 'green')), text: true },
+        { label: 'Số hóa đơn', value: fmtNumber(invoices.length) },
+        { label: 'Tổng tiền hóa đơn', value: fmtMoney(data.total), tone: 'green' }
+      ];
+      const rows = invoices.length ? invoices.map(function (invoice) {
+        return '<tr><td class="dp-code">' + escapeHtml(invoice.code || '—') + '</td>' +
+          '<td class="dp-cell-main">' + escapeHtml(invoice.customerName || 'Khách lẻ') + '</td>' +
+          '<td>' + escapeHtml(invoice.seller || '—') + '</td>' +
+          '<td class="mono">' + escapeHtml(invoice.date || '—') + '</td>' +
+          '<td class="num">' + fmtTableMoney(invoice.amount) + '</td></tr>';
+      }).join('') : '<tr><td colspan="5" class="table-note">Không có hóa đơn hoàn thành trong khoảng này.</td></tr>';
+      const foot = invoices.length > 1
+        ? '<tfoot><tr><td colspan="4">Cộng</td><td class="num">' + fmtTableMoney(data.total) + '</td></tr></tfoot>' : '';
+      const notes = (data.beyondHistory ? '<div class="doc-modal-note">Khoảng tra cứu 30 ngày chưa đủ bù hết nợ.</div>' : '') +
+        (data.truncated ? '<div class="doc-modal-note">Chỉ hiện ' + fmtNumber(invoices.length) + ' hóa đơn gần nhất.</div>' : '');
+      body.innerHTML = detailStatsHtml(tiles) + notes +
+        '<div class="dp-section">' + detailSectionHeadHtml('Hóa đơn gần đây', fmtNumber(invoices.length) + ' hóa đơn') +
+        '<div class="dp-table-wrap is-flow"><table class="dp-table is-min-wide" data-table-key="dashboard-table-25"><thead><tr>' +
+        '<th>Mã hóa đơn</th><th>Khách hàng</th><th>Nhân viên bán hàng</th><th>Ngày</th><th class="num">Số tiền</th></tr></thead><tbody>' +
+        rows + '</tbody>' + foot + '</table></div></div>';
+    }
+
     function renderDocumentDetail(status, data, message) {
       const body = document.getElementById('docModalBody');
       const subtitle = document.getElementById('docModalSubtitle');
       const kind = DOC_DETAIL_KINDS[docDetail.tableKey];
+      const isDebtAgingInvoices = docDetail.tableKey === 'debtAgingInvoices';
       const isProduct = docDetail.tableKey === 'productReport';
       const isBusiness = docDetail.tableKey.indexOf('business') === 0;
       const isDebtPenalty = docDetail.tableKey === 'debtPenaltySale';
@@ -8010,6 +8061,7 @@
       }[docDetail.tableKey];
       if (isBusiness) setDocumentDetailTitle(kind.title, ' · ', businessTitle());
       else if (isDebtPenalty) setDocumentDetailTitle(kind.title, ' · ', item.sale);
+      else if (isDebtAgingInvoices) setDocumentDetailTitle(kind.title, ' · ', item.customerName);
       else if (isProduct) setDocumentDetailTitle(kind.title, ' · ', item.code + (item.name ? ' – ' + item.name : ''));
       else setDocumentDetailTitle(kind.title, ' ', item.code);
       subtitle.textContent = isBusiness || isDebtPenalty ? '' : isProduct ? '90 ngày gần nhất' : (item.branch ? 'Cơ sở ' + item.branch : '');
@@ -8021,6 +8073,9 @@
           detailSectionHeadHtml('Doanh số theo khách') + '<div id="productCustomerContent"><div class="doc-modal-note">Đang tải doanh số theo khách...</div></div></section>';
       } else if (status === 'ready' && isBusiness) {
         renderBusinessDetailModal(body, subtitle, data);
+      } else if (status === 'ready' && isDebtAgingInvoices) {
+        renderDebtAgingInvoicesModal(body, subtitle, data);
+        if (window.TKSTables && typeof window.TKSTables.refreshAll === 'function') window.TKSTables.refreshAll();
       } else if (status === 'ready' && isDebtPenalty) {
         renderDebtPenaltyDetailModal(body, subtitle, data);
       } else if (status === 'ready' && isProduct) {
@@ -8147,6 +8202,27 @@
           event.preventDefault();
           openFromRow(row);
         });
+      });
+      // Kiểm tra công nợ: dòng khách lấy từ state.debtAging (bảng tự dựng, không qua tableDatasets).
+      const agingBody = document.getElementById('debtAgingRows');
+      function openAgingRow(row) {
+        const key = row.dataset.customerKey;
+        const customer = state.debtAging.customers.find(function (candidate) { return candidate.customerKey === key; });
+        if (customer) openDocumentDetail('debtAgingInvoices', customer, row);
+      }
+      agingBody.addEventListener('click', function (event) {
+        const row = event.target.closest && event.target.closest('tr.doc-row');
+        if (!row) return;
+        const selection = window.getSelection && window.getSelection();
+        if (selection && !selection.isCollapsed && row.contains(selection.anchorNode)) return;
+        openAgingRow(row);
+      });
+      agingBody.addEventListener('keydown', function (event) {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        const row = event.target.closest && event.target.closest('tr.doc-row');
+        if (!row || event.target !== row) return;
+        event.preventDefault();
+        openAgingRow(row);
       });
       document.addEventListener('keydown', function (event) {
         if (event.key === 'Escape' && !document.getElementById('docModalBackdrop').hidden) {
@@ -8607,7 +8683,7 @@
 
     function debtScheduleHtml(customer) {
       if (customer.canEditSchedule) {
-        return '<input class="debt-schedule-input" type="number" min="1" max="90" step="1" inputmode="numeric" ' + debtCustomerAttrs(customer) + ' ' +
+        return '<input class="debt-schedule-input" type="number" min="1" max="30" step="1" inputmode="numeric" ' + debtCustomerAttrs(customer) + ' ' +
           'value="' + escapeHtml(customer.paymentSchedule) + '" data-previous-value="' + escapeHtml(customer.paymentSchedule) + '" ' +
           'aria-label="Lịch thanh toán (ngày) của ' + escapeHtml(customer.customerName) + '" onchange="handleDebtScheduleChange(this)">';
       }
@@ -8645,7 +8721,7 @@
 
     function formatDebtRatio(value) {
       if (value === null || value === undefined || !Number.isFinite(Number(value))) return '—';
-      return new Intl.NumberFormat('vi-VN', { style: 'percent', maximumFractionDigits: 1 }).format(Number(value));
+      return new Intl.NumberFormat('en-US', { style: 'percent', maximumFractionDigits: 1 }).format(Number(value));
     }
 
     // Canh bao duy nhat: "Quá hạn" khi no qua han > 0 (da bo nguong 400k va canh bao chua thu).
@@ -8845,13 +8921,15 @@
       return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text.slice(8, 10) + '/' + text.slice(5, 7) + '/' + text.slice(0, 4) : '—';
     }
 
-    // Vuot 365 ngay hoa don van con no: so ngay la can duoi (≥), con han la can tren (≤).
+    // Vuot 30 ngay hoa don van con no: so ngay la can duoi (≥), con han la can tren (≤).
     function debtAgingDaysHtml(customer, field) {
       const value = customer[field];
       if (value === null || value === undefined) return '—';
       const prefix = customer.beyondHistory ? (field === 'equivalentDays' ? '≥ ' : '≤ ') : '';
       const text = prefix + fmtNumber(value);
-      return field === 'remainingDays' && value <= 0 ? '<span class="debt-aging-expired">' + escapeHtml(text) + '</span>' : escapeHtml(text);
+      if (field !== 'remainingDays') return escapeHtml(text);
+      const tone = value < 0 ? 'neg' : (value === 0 ? 'zero' : 'pos');
+      return '<span class="debt-aging-' + tone + '">' + escapeHtml(text) + '</span>';
     }
 
     function populateDebtAgingFilters(customers) {
@@ -8939,7 +9017,7 @@
         { tbody: 'debtAgingRows', pagination: 'debtAgingPagination', firstBtn: 'debtAgingFirstPage', prevBtn: 'debtAgingPrevPage', nextBtn: 'debtAgingNextPage', lastBtn: 'debtAgingLastPage', label: 'debtAgingPageLabel' },
         sorted,
         function (customer) {
-          return '<tr data-customer-key="' + escapeHtml(customer.customerKey) + '">' +
+          return '<tr class="doc-row" tabindex="0" title="Bấm để xem hóa đơn của khách" data-customer-key="' + escapeHtml(customer.customerKey) + '">' +
             '<td>' + escapeHtml(customer.branch || '—') + '</td>' +
             '<td class="name-cell">' + escapeHtml(customer.customerName) + '</td>' +
             '<td>' + escapeHtml(customer.sale) + '</td>' +
@@ -9320,7 +9398,7 @@
       if (value === previousValue) return;
       if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 90) {
         inputEl.value = previousValue;
-        showToast('Lịch TT phải là số ngày từ 1 đến 90.', 'error');
+        showToast('Lịch TT phải là số ngày từ 1 đến 30.', 'error');
         return;
       }
       inputEl.setAttribute('aria-busy', 'true');

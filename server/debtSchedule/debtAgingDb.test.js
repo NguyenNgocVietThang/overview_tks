@@ -9,7 +9,7 @@ const path = require('node:path');
 const { PGlite } = require('@electric-sql/pglite');
 const { refreshDebtAging } = require('./debtAgingRefresh');
 const { createDebtAgingRepository } = require('./debtAgingRepository');
-const { buildDebtAging } = require('./debtScheduleService');
+const { buildDebtAging, buildDebtAgingInvoices } = require('./debtScheduleService');
 
 const MIGRATION = ['0047_debt_schedule_report.sql', '0059_debt_aging.sql']
   .map(file => fs.readFileSync(path.join(__dirname, '..', 'db', 'migrations', file), 'utf8')).join('\n');
@@ -17,7 +17,9 @@ const MIGRATION = ['0047_debt_schedule_report.sql', '0059_debt_aging.sql']
 const BASE_SCHEMA = `
   CREATE TABLE customers (branch TEXT, id BIGINT, code TEXT, name TEXT, debt NUMERIC, raw JSONB,
     synced_at TIMESTAMPTZ NOT NULL DEFAULT now(), PRIMARY KEY (branch, id));
-  CREATE TABLE invoices (branch TEXT, id BIGINT, customer_id BIGINT, purchase_date TIMESTAMPTZ, total NUMERIC, raw JSONB);
+  CREATE TABLE invoices (branch TEXT, id BIGINT, customer_id BIGINT, purchase_date TIMESTAMPTZ, total NUMERIC, raw JSONB,
+    code TEXT, sold_by_id BIGINT);
+  CREATE TABLE staff (branch TEXT, id BIGINT, name TEXT);
   CREATE TABLE returns (branch TEXT, id BIGINT, customer_id BIGINT, return_date TIMESTAMPTZ, total NUMERIC, raw JSONB);
 `;
 
@@ -70,8 +72,8 @@ test('tinh san tu bang chung: bo hoa don huy, khong tru tra hang, bo khach ngung
     const binh = report.customers[0];
     assert.equal(binh.branch, 'HN');
     assert.equal(binh.payoffDay, '2026-10-10');
-    assert.equal(binh.equivalentDays, 7);
-    assert.equal(binh.remainingDays, -2);
+    assert.equal(binh.equivalentDays, 8);
+    assert.equal(binh.remainingDays, -3);
     assert.equal(binh.sale, 'Duy Thái');
     assert.equal(binh.paymentSchedule, '5');
     assert.equal(binh.hasStoredSchedule, true);
@@ -81,7 +83,8 @@ test('tinh san tu bang chung: bo hoa don huy, khong tru tra hang, bo khach ngung
     const sai = report.customers[2];
     assert.equal(sai.sale, 'Chưa phân nhóm');
     assert.equal(sai.payoffDay, '2026-10-16');
-    assert.equal(sai.remainingDays, 0);
+    assert.equal(sai.equivalentDays, 2);
+    assert.equal(sai.remainingDays, -1);
   } finally { await db.close(); }
 });
 
@@ -110,7 +113,7 @@ test('sang ngay moi: ngay no tuong duong tang, con han giam', async () => {
     await refreshDebtAging(pool, { now: () => NOW, log: quiet });
     await refreshDebtAging(pool, { now: () => NOW + 86400000, log: quiet });
     const row = (await db.query(`SELECT equivalent_days, remaining_days FROM debt_aging_customers WHERE branch = 'hanoi' AND customer_id = 1`)).rows[0];
-    assert.deepEqual(row, { equivalent_days: 8, remaining_days: -3 });
+    assert.deepEqual(row, { equivalent_days: 9, remaining_days: -4 });
   } finally { await db.close(); }
 });
 
@@ -137,4 +140,32 @@ test('chua ap migration 0059 -> bang rong, khong loi', async () => {
   });
   assert.equal(report.available, false);
   assert.deepEqual(report.customers, []);
+});
+
+test('hop chi tiet: hoa don Hoan thanh tu ngay het no toi nay, moi nhat truoc; chan co so ngoai quyen', async () => {
+  const { db, pool, repo } = await setup();
+  try {
+    await seed(db);
+    await db.exec(`INSERT INTO staff VALUES ('hanoi', 7, 'Nguyễn Hiền - 123456');
+      UPDATE invoices SET code = 'HD' || id, sold_by_id = 7 WHERE branch = 'hanoi' AND id IN (10, 11);
+      UPDATE invoices SET code = 'HD' || id, raw = raw || '{"soldByName":"Lê Nam"}' WHERE branch = 'hanoi' AND id IN (12, 13, 14);`);
+    await refreshDebtAging(pool, { now: () => NOW, log: quiet });
+    const detail = await buildDebtAgingInvoices(['hanoi', 'saigon'], { branch: 'hanoi', customerId: '1' }, { repository: repo });
+    // payoffDay 10/10: lay HD10 (17/10), HD11 (15/10 VN), HD13 (10/10); bo HD12 (da huy), bo khach khac.
+    assert.deepEqual(detail.invoices.map(row => row.code), ['HD10', 'HD11', 'HD13']);
+    assert.deepEqual(detail.invoices.map(row => row.amount), [100, 200, 300]);
+    assert.equal(detail.invoices[0].seller, 'Nguyễn Hiền');
+    assert.equal(detail.invoices[2].seller, 'Lê Nam');
+    assert.equal(detail.invoices[0].date, '17/10/2026 08:00');
+    assert.equal(detail.invoices[0].customerName, 'Anh Bình');
+    assert.equal(detail.total, 600);
+    assert.deepEqual([detail.currentDebt, detail.equivalentDays, detail.remainingDays, detail.scheduleDays, detail.branch], [600, 8, -3, 5, 'HN']);
+    // Khach het no: khong co khoang -> danh sach rong.
+    const clear = await buildDebtAgingInvoices(['hanoi'], { branch: 'hanoi', customerId: '2' }, { repository: repo });
+    assert.equal(clear.payoffDay, null);
+    assert.deepEqual(clear.invoices, []);
+    await assert.rejects(buildDebtAgingInvoices(['saigon'], { branch: 'hanoi', customerId: '1' }, { repository: repo }), { statusCode: 403 });
+    await assert.rejects(buildDebtAgingInvoices(['hanoi'], { branch: 'hanoi', customerId: 'x' }, { repository: repo }), { statusCode: 400 });
+    await assert.rejects(buildDebtAgingInvoices(['hanoi'], { branch: 'hanoi', customerId: '999' }, { repository: repo }), { statusCode: 404 });
+  } finally { await db.close(); }
 });

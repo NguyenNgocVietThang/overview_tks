@@ -37,8 +37,8 @@ function getChartJsSource() {
  * tham chieu bien ngoai) vi duoc nhung bang Function.prototype.toString().
  */
 function createReportKit() {
-  var numberFormat = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 });
-  var shortFormat = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 });
+  var numberFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
+  var shortFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
 
   function isEmpty(value) {
     return value === undefined || value === null || value === '' || value === '—';
@@ -377,6 +377,7 @@ function embedWorksheet(worksheet) {
   const columns = worksheet.columns.map(column => {
     const embedded = { key: column.key, label: column.label, type: column.type || 'general' };
     if (Number.isFinite(column.width) && column.width > 0) embedded.width = column.width;
+    if (column.signTone) embedded.signTone = true;
     return embedded;
   });
   const rows = worksheet.rows.map(row => columns.map(column => embedValue(row[column.key], column)));
@@ -429,10 +430,10 @@ function formatGeneratedAt(date) {
 
 const REPORT_CSS = `
 :root{--bg:#f3f5f8;--surface:#fff;--surface-2:#f8fafc;--ink:#0f1c2e;--ink-2:#334155;--muted:#64748b;--line:#e2e8f0;--line-2:#cbd5e1;
---accent:#1e3a8a;--accent-2:#2563eb;--accent-soft:#e8eefc;--pos:#047857;--neg:#b91c1c;--shadow:0 1px 2px rgba(15,28,46,.05),0 4px 16px rgba(15,28,46,.05);
+--accent:#1e3a8a;--accent-2:#2563eb;--accent-soft:#e8eefc;--pos:#047857;--neg:#b91c1c;--warn:#b8860b;--shadow:0 1px 2px rgba(15,28,46,.05),0 4px 16px rgba(15,28,46,.05);
 --chart-1:#1e40af;--chart-2:#0f766e;--chart-3:#b45309;--chart-4:#7c3aed;--chart-5:#be123c;--chart-6:#0369a1;--chart-7:#4d7c0f;--chart-8:#64748b;--grid:#e9eef5}
 @media (prefers-color-scheme:dark){:root{--bg:#0b1220;--surface:#111a2b;--surface-2:#0f1727;--ink:#e6edf7;--ink-2:#c3cedd;--muted:#8c9bb1;--line:#1f2b40;--line-2:#2c3a52;
---accent:#93b4ff;--accent-2:#6d9bff;--accent-soft:#17264a;--shadow:0 1px 2px rgba(0,0,0,.3);--chart-1:#6d9bff;--chart-2:#2dd4bf;--chart-3:#fbbf24;--chart-4:#a78bfa;--chart-5:#fb7185;--chart-6:#38bdf8;--chart-7:#a3e635;--chart-8:#94a3b8;--grid:#1c2740}}
+--accent:#93b4ff;--accent-2:#6d9bff;--accent-soft:#17264a;--pos:#34d399;--neg:#f87171;--warn:#facc15;--shadow:0 1px 2px rgba(0,0,0,.3);--chart-1:#6d9bff;--chart-2:#2dd4bf;--chart-3:#fbbf24;--chart-4:#a78bfa;--chart-5:#fb7185;--chart-6:#38bdf8;--chart-7:#a3e635;--chart-8:#94a3b8;--grid:#1c2740}}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 "Segoe UI",system-ui,-apple-system,Roboto,"Helvetica Neue",Arial,sans-serif;font-variant-numeric:tabular-nums}
@@ -491,6 +492,9 @@ tbody tr:nth-child(even) td{background:color-mix(in srgb,var(--surface-2) 70%,tr
 tbody tr:hover td{background:var(--accent-soft)}
 td.num{text-align:right}
 td.neg{color:var(--neg)}
+td.tone{font-weight:700}
+td.zero{color:var(--warn)}
+td.pos{color:var(--pos)}
 td.empty{color:var(--muted)}
 .no-rows{padding:40px 18px;text-align:center;color:var(--muted)}
 .pager{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted)}
@@ -679,13 +683,14 @@ const REPORT_SCRIPT = `
           if (numeric) cls.push('num');
           if (column.type === 'date') cls.push('date');
           if (numeric && typeof value === 'number' && value < 0) cls.push('neg');
+          if (column.signTone && typeof value === 'number') cls.push(value < 0 ? 'tone' : value === 0 ? 'tone zero' : 'tone pos');
           if (value === null) cls.push('empty');
           var text = value === null ? '—' : kit.formatCell(value, column);
           return '<td' + (cls.length ? ' class="' + cls.join(' ') + '"' : '') + '>' + (value === null ? text : highlight(text)) + '</td>';
         }).join('') + '</tr>';
       }).join('');
     }
-    var fmt = new Intl.NumberFormat('vi-VN');
+    var fmt = new Intl.NumberFormat('en-US');
     $('pageInfo').textContent = rows.length ? 'Dòng ' + fmt.format(start + 1) + '–' + fmt.format(start + slice.length) + ' / ' + fmt.format(rows.length) : '0 dòng';
     $('pageLabel').textContent = 'Trang ' + (state.page + 1) + ' / ' + pages;
     $('prevPage').disabled = state.page === 0;
@@ -713,7 +718,7 @@ const REPORT_SCRIPT = `
     var colors = palette();
     var ink = cssVar('--muted');
     var grid = cssVar('--grid');
-    var fmt = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 });
+    var fmt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
     Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
     Chart.defaults.color = ink;
     summary.charts.forEach(function (spec, index) {
@@ -877,7 +882,7 @@ async function renderHtmlReport(dataset) {
     <ul class="meta">
       <li>Cơ sở <b>${escape(meta.branch || 'Tất cả')}</b></li>
       <li>Xuất lúc <b>${escape(generatedAt)}</b></li>
-      <li><b>${escape(totalRows.toLocaleString('vi-VN'))}</b> dòng</li>
+      <li><b>${escape(totalRows.toLocaleString('en-US'))}</b> dòng</li>
       ${(meta.debtRewardNotes || []).map(([label, value]) => `<li>${escape(label)} <b>${escape(value)}</b></li>`).join('\n      ')}
       ${(meta.reportNotes || []).map(([label, value]) => `<li>${escape(label)} <b>${escape(value)}</b></li>`).join('\n      ')}
     </ul>

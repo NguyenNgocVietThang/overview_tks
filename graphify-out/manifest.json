@@ -222,9 +222,9 @@
     "semantic_hash": ""
   },
   "server/dashboard/exportService.js": {
-    "mtime": 1792210106.739382,
-    "seen": 1792210696.2807012,
-    "ast_hash": "7b4ab52cb00601e1c0948afe2122088b",
+    "mtime": 1792221812.9295208,
+    "seen": 1792222153.3239188,
+    "ast_hash": "2dbc98f5e8992bc8c5722c9c127deecc",
     "semantic_hash": ""
   },
   "server/dashboard/exportService.test.js": {
@@ -654,9 +654,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1792210559.4722612,
-    "seen": 1792210696.2827098,
-    "ast_hash": "e34c7ff0203ca0b114283cb973492333",
+    "mtime": 1792221955.5231552,
+    "seen": 1792222153.3239188,
+    "ast_hash": "ab6a6c5aac9449f24d46c300d2de027a",
     "semantic_hash": ""
   },
   "design-system/tks-dashboard/MASTER.md": {
@@ -666,15 +666,15 @@
     "semantic_hash": ""
   },
   "docs/01-brd/BRD_Dashboard_GoogleSheets.md": {
-    "mtime": 1792210559.4909773,
-    "seen": 1792210696.2827098,
-    "ast_hash": "87d2c294f723b8d832c8759a8956f9d1",
+    "mtime": 1792221955.5231552,
+    "seen": 1792222153.3239188,
+    "ast_hash": "952393c5bf6a50ffcb15f2891c2cefa2",
     "semantic_hash": ""
   },
   "docs/02-srs/SRS_Dashboard_GoogleSheets.md": {
-    "mtime": 1792210559.4909773,
-    "seen": 1792210696.2827098,
-    "ast_hash": "f063a78dd14124956df671d4bfeadace",
+    "mtime": 1792221955.539279,
+    "seen": 1792222153.3239188,
+    "ast_hash": "d77cf4282f5bd70f8e6999abaeaefc94",
     "semantic_hash": ""
   },
   "docs/03-process/BPMN_Dashboard_GoogleSheets.md": {
@@ -684,9 +684,9 @@
     "semantic_hash": ""
   },
   "docs/04-planning/implementation_plan.md": {
-    "mtime": 1792210559.4909773,
-    "seen": 1792210696.2827098,
-    "ast_hash": "fdc1c4641bdaa105592ccdd0e0e639d6",
+    "mtime": 1792221955.5379407,
+    "seen": 1792222153.3239188,
+    "ast_hash": "95600d259052a0cf069019f1e0c78ac2",
     "semantic_hash": ""
   },
   "docs/superpowers/plans/2026-08-13-dashboard-result-cache.md": {
@@ -786,9 +786,9 @@
     "semantic_hash": "58e700daf0c14819a97499bd94f6f2e1"
   },
   "server/README.md": {
-    "mtime": 1792210559.4909773,
-    "seen": 1792210696.2827098,
-    "ast_hash": "efef9a9cd4f8f6123d85facdae9d6ca3",
+    "mtime": 1792221955.5231552,
+    "seen": 1792222153.3239188,
+    "ast_hash": "9154c6ed6867332ab99238db81bfa33a",
     "semantic_hash": ""
   },
   "server/kiotviet/API_ENDPOINTS.md": {
@@ -804,21 +804,21 @@
     "semantic_hash": ""
   },
   "server/public/account/index.html": {
-    "mtime": 1792143894.4069898,
-    "seen": 1792147157.8066955,
-    "ast_hash": "20ebd409b0405b6b22ca7cbe992e3e9e",
+    "mtime": 1792221908.3814757,
+    "seen": 1792222153.3239188,
+    "ast_hash": "c21a647817e3632c8046779426f90447",
     "semantic_hash": ""
   },
   "server/public/humanresources/index.html": {
-    "mtime": 1792114288.7652717,
-    "seen": 1792137926.7121809,
-    "ast_hash": "d42ad6647d0f89a4a1ba8414c7649244",
+    "mtime": 1792221908.3835542,
+    "seen": 1792222153.3239188,
+    "ast_hash": "c064b6854c8f915070b608929764af51",
     "semantic_hash": ""
   },
   "server/public/index.html": {
-    "mtime": 1792210280.4750912,
-    "seen": 1792210696.2827098,
-    "ast_hash": "d7f8c6a7ff22212f936e0214bc9d07d9",
+    "mtime": 1792221908.3835542,
+    "seen": 1792222153.3239188,
+    "ast_hash": "2022859e48f39b0d7950d8f54bc82ba8",
     "semantic_hash": ""
   },
   "server/public/login/index.html": {
@@ -834,9 +834,9 @@
     "semantic_hash": ""
   },
   "server/public/shipment/lifecycle/index.html": {
-    "mtime": 1792202236.6919456,
-    "seen": 1792202417.7732825,
-    "ast_hash": "b7e0b52c98a8ef587a7a16c64cd43033",
+    "mtime": 1792221908.3835542,
+    "seen": 1792222153.3239188,
+    "ast_hash": "1bcf43e634d5f4bab98db3b8a85f47b1",
     "semantic_hash": ""
   },
   "Logo.jpg": {
@@ -1386,9 +1386,9 @@
     "semantic_hash": ""
   },
   "server/db/SCHEMA.md": {
-    "mtime": 1792210559.4909773,
-    "seen": 1792210696.2827098,
-    "ast_hash": "dfe1b6f781ca804357ba68ef46245b23",
+    "mtime": 1792220503.4617496,
+    "seen": 1792221158.8545914,
+    "ast_hash": "fc351f08ea8fefdd6f65cf57454e56f0",
     "semantic_hash": ""
   },
   "server/auth/appUsersRepository.js": {
@@ -1476,15 +1476,15 @@
     "semantic_hash": "37e3f3784c4ec0f9740f3331b17b7eb3"
   },
   "server/dashboard/debtManagementRoutes.js": {
-    "mtime": 1792210053.8998246,
-    "seen": 1792210696.2807012,
-    "ast_hash": "5fa613039a0410d0f9e8a6d0f4099b36",
+    "mtime": 1792216487.38875,
+    "seen": 1792216806.5191712,
+    "ast_hash": "94dc54cdd96a359c63f51c360117315c",
     "semantic_hash": ""
   },
   "server/dashboard/debtManagementRoutes.test.js": {
-    "mtime": 1792210070.5088794,
-    "seen": 1792210696.2807012,
-    "ast_hash": "3ada65f6eb80dd972596d1e815a9987a",
+    "mtime": 1792216561.266586,
+    "seen": 1792216806.5191712,
+    "ast_hash": "9745bbdeadbdcf45bac956bf06500608",
     "semantic_hash": ""
   },
   "server/db/debtMigration.test.js": {
@@ -1860,9 +1860,9 @@
     "semantic_hash": ""
   },
   "server/dashboard/exportHtmlReport.js": {
-    "mtime": 1792141444.0550458,
-    "seen": 1792142339.156589,
-    "ast_hash": "bc9a821782a1f7a7b8d0b537d454ec28",
+    "mtime": 1792221831.9915645,
+    "seen": 1792222153.3239188,
+    "ast_hash": "a4851509e1dda749ca4ceb94196934b5",
     "semantic_hash": ""
   },
   "server/dashboard/productReportRepository.js": {
@@ -1926,9 +1926,9 @@
     "semantic_hash": ""
   },
   "server/public/shared/table-align.js": {
-    "mtime": 1790576411.783957,
-    "seen": 1792137926.7121809,
-    "ast_hash": "eba10fa4bcfd2fc18ffd12558d0b1ff0",
+    "mtime": 1792221902.9459684,
+    "seen": 1792222153.3239188,
+    "ast_hash": "6cdfd5b9d14629148275c4c76561d252",
     "semantic_hash": ""
   },
   "server/test/dashboard-route.test.js": {
@@ -2328,9 +2328,9 @@
     "semantic_hash": ""
   },
   "server/db/hrRuleDocumentsMigration.test.js": {
-    "mtime": 1791883441.4692733,
-    "seen": 1792137926.7121809,
-    "ast_hash": "af6a227d6d327719aa50b75e035bc706",
+    "mtime": 1792217214.612283,
+    "seen": 1792221158.8545914,
+    "ast_hash": "a3ec698f830d4bd075ada02e2cdfdf21",
     "semantic_hash": ""
   },
   "server/db/inventoryValueSnapshotsMigration.test.js": {
@@ -2598,27 +2598,27 @@
     "semantic_hash": ""
   },
   "server/hr/hrRuleDocumentRoutes.js": {
-    "mtime": 1790756361.7453582,
-    "seen": 1792137926.7121809,
-    "ast_hash": "7bf974a995ac17723c761285a48e48a9",
+    "mtime": 1792217214.6958406,
+    "seen": 1792221158.8545914,
+    "ast_hash": "8cd06e288a8391162177480f719bf0bd",
     "semantic_hash": ""
   },
   "server/hr/hrRuleDocumentRoutes.test.js": {
-    "mtime": 1791883441.5164382,
-    "seen": 1792137926.7121809,
-    "ast_hash": "34980a1b3a86156f975271a3e237bbde",
+    "mtime": 1792217214.7482245,
+    "seen": 1792221158.8545914,
+    "ast_hash": "ee548c496da6e0b626bcc8d7ab8c707b",
     "semantic_hash": ""
   },
   "server/hr/hrRuleDocumentsRepository.js": {
-    "mtime": 1791883441.5832298,
-    "seen": 1792137926.7121809,
-    "ast_hash": "aad4c17f4c80603e9aba8639b864b423",
+    "mtime": 1792217214.795329,
+    "seen": 1792221158.8545914,
+    "ast_hash": "a84434753d23d18b98ec280fd808df2d",
     "semantic_hash": ""
   },
   "server/hr/hrRuleDocumentsRepository.test.js": {
-    "mtime": 1790756385.9576206,
-    "seen": 1792137926.7121809,
-    "ast_hash": "00672ba90f00e2398ae748b1410979a5",
+    "mtime": 1792217214.828934,
+    "seen": 1792221158.8545914,
+    "ast_hash": "b8549010e9b1d759bb7a83ba6b990711",
     "semantic_hash": ""
   },
   "server/kiotvietSync/businessMonthlyHash.test.js": {
@@ -2988,9 +2988,9 @@
     "semantic_hash": ""
   },
   "server/test/frontend/fixed-table-widths.test.js": {
-    "mtime": 1792210350.5081635,
-    "seen": 1792210696.2827098,
-    "ast_hash": "22a799a4b33c650326bc742918fd2983",
+    "mtime": 1792213939.7194011,
+    "seen": 1792216806.5207646,
+    "ast_hash": "907a961473acb3d5cf28f2438f1fa900",
     "semantic_hash": ""
   },
   "server/test/frontend/hr-employee-status.test.js": {
@@ -3372,9 +3372,9 @@
     "semantic_hash": ""
   },
   "CURRENT.md": {
-    "mtime": 1792210559.4992082,
-    "seen": 1792210696.2827098,
-    "ast_hash": "ac1e05d7cf6e6d7ed601567682ef1010",
+    "mtime": 1792221955.539279,
+    "seen": 1792222153.3239188,
+    "ast_hash": "a5a623ecbd644ebbf793e458b10a19f2",
     "semantic_hash": ""
   },
   "MEMORY.md": {
@@ -3600,9 +3600,9 @@
     "semantic_hash": ""
   },
   "server/debtSchedule/debtCycleSnapshot.js": {
-    "mtime": 1792053073.0939412,
-    "seen": 1792137926.7121809,
-    "ast_hash": "c3f4814f195cc902577b87c37b1d03d7",
+    "mtime": 1792220467.6935823,
+    "seen": 1792221158.8545914,
+    "ast_hash": "bf7b42f0f1c66d243c00076d9f485da7",
     "semantic_hash": ""
   },
   "server/debtSchedule/debtScheduleDb.test.js": {
@@ -3612,33 +3612,33 @@
     "semantic_hash": ""
   },
   "server/debtSchedule/debtScheduleRepository.js": {
-    "mtime": 1792027753.3128483,
-    "seen": 1792137926.7121809,
-    "ast_hash": "ddda3d4ccb75f57acd970381f2a19bcf",
+    "mtime": 1792220467.6935823,
+    "seen": 1792221158.8545914,
+    "ast_hash": "dc2af25e4762d252376c3080bf80cc56",
     "semantic_hash": ""
   },
   "server/debtSchedule/debtScheduleRules.js": {
-    "mtime": 1791966289.4398234,
-    "seen": 1792137926.7121809,
-    "ast_hash": "a47ffffed7bfce3bb4c877f9ed6a38ce",
+    "mtime": 1792220467.6929593,
+    "seen": 1792221158.8545914,
+    "ast_hash": "c178cc55badc94ed537cb7613ae64db5",
     "semantic_hash": ""
   },
   "server/debtSchedule/debtScheduleRules.test.js": {
-    "mtime": 1791966652.1104417,
-    "seen": 1792137926.7121809,
-    "ast_hash": "e2f35d43ba2affe22cf6514f4441ce87",
+    "mtime": 1792220467.6935823,
+    "seen": 1792221158.8545914,
+    "ast_hash": "b9757e4112af62309df8f0228df13ea3",
     "semantic_hash": ""
   },
   "server/debtSchedule/debtScheduleService.js": {
-    "mtime": 1792209966.895071,
-    "seen": 1792210696.2807012,
-    "ast_hash": "3bf4691900549297880cdd88c5724354",
+    "mtime": 1792216481.2297847,
+    "seen": 1792216806.5207646,
+    "ast_hash": "b2578adab0307fd14c3fd28c5cd963ff",
     "semantic_hash": ""
   },
   "server/debtSchedule/importDebtSchedules.js": {
-    "mtime": 1792027727.3356478,
-    "seen": 1792137926.7121809,
-    "ast_hash": "c6a68fe95cb8d7919f23ea7c62f9744f",
+    "mtime": 1792220467.6935823,
+    "seen": 1792221158.8545914,
+    "ast_hash": "9d2b6a554a780cc430e27452cf4b1ec4",
     "semantic_hash": ""
   },
   "tasks/2026-10-09-pancake-marketing/sync-2026-10-13.json": {
@@ -3924,45 +3924,45 @@
     "semantic_hash": ""
   },
   "server/db/migrations/0059_debt_aging.sql": {
-    "mtime": 1792209927.297021,
-    "seen": 1792210696.2807012,
-    "ast_hash": "c8bf2a58603b3bc81263bb904f9cfa50",
+    "mtime": 1792220337.9778612,
+    "seen": 1792221158.8545914,
+    "ast_hash": "24035662318f402a73e60ab69ebc13f9",
     "semantic_hash": ""
   },
   "server/debtSchedule/debtAgingDb.test.js": {
-    "mtime": 1792210053.9378917,
-    "seen": 1792210696.2807012,
-    "ast_hash": "7dd7af334724ce0be1c6a41998e7f112",
+    "mtime": 1792221754.1883209,
+    "seen": 1792222153.3239188,
+    "ast_hash": "2f53cc78e1f8645a60b116846dc17132",
     "semantic_hash": ""
   },
   "server/debtSchedule/debtAgingRefresh.js": {
-    "mtime": 1792209996.8145335,
-    "seen": 1792210696.2807012,
+    "mtime": 1792213938.0137112,
+    "seen": 1792216806.5207646,
     "ast_hash": "2b3ff62176acda670b558f3b3b536fe9",
     "semantic_hash": ""
   },
   "server/debtSchedule/debtAgingRepository.js": {
-    "mtime": 1792209952.6257298,
-    "seen": 1792210696.2807012,
-    "ast_hash": "bf98e0e8ff2516e89f48b042cbad0300",
+    "mtime": 1792216467.251251,
+    "seen": 1792216806.5207646,
+    "ast_hash": "2804226aa550c9910e40dcbe45723886",
     "semantic_hash": ""
   },
   "server/debtSchedule/debtAgingRules.js": {
-    "mtime": 1792209600.4264963,
-    "seen": 1792210696.2807012,
-    "ast_hash": "5ba370d9ba83b8c43536a5949cedcef0",
+    "mtime": 1792221731.177018,
+    "seen": 1792222153.3239188,
+    "ast_hash": "0701a41d67b08394ee0fdd0ce29b4cdf",
     "semantic_hash": ""
   },
   "server/debtSchedule/debtAgingRules.test.js": {
-    "mtime": 1792209620.599175,
-    "seen": 1792210696.2807012,
-    "ast_hash": "e69f58cc27f478cdb863d3b64e9a012d",
+    "mtime": 1792221739.82661,
+    "seen": 1792222153.3239188,
+    "ast_hash": "d512827a0d60aa1b72e5b60760487fbc",
     "semantic_hash": ""
   },
   "server/public/vat-draft/vat-draft.js": {
-    "mtime": 1792207157.5695002,
-    "seen": 1792210696.2827098,
-    "ast_hash": "6c489a859255d347935963b0fd115b19",
+    "mtime": 1792213939.3791397,
+    "seen": 1792216806.5207646,
+    "ast_hash": "4a145d0c9ba943b73c0c6017581051a2",
     "semantic_hash": ""
   },
   "server/public/vendor/pdfjs/pdf.min.mjs": {
@@ -3978,15 +3978,15 @@
     "semantic_hash": ""
   },
   "server/test/frontend/debt-aging-ui.test.js": {
-    "mtime": 1792210336.562899,
-    "seen": 1792210696.2827098,
-    "ast_hash": "1422a595f0f2a8f5ff5c289de22866d2",
+    "mtime": 1792221929.0908892,
+    "seen": 1792222153.3239188,
+    "ast_hash": "0dbe4e062cdd98f50ae3c0956ae0fbb4",
     "semantic_hash": ""
   },
   "server/test/frontend/vat-draft.test.js": {
-    "mtime": 1792207157.7022414,
-    "seen": 1792210696.2827098,
-    "ast_hash": "0931ec90de11b2beeb0e197aebb12d37",
+    "mtime": 1792213939.8849037,
+    "seen": 1792216806.5207646,
+    "ast_hash": "78d12c88047a7ae84e89f10b0f259da7",
     "semantic_hash": ""
   },
   "server/vatDraft/allocation.js": {
@@ -4146,15 +4146,33 @@
     "semantic_hash": ""
   },
   "server/public/vat-draft/index.html": {
-    "mtime": 1792207157.5678961,
-    "seen": 1792210696.2827098,
-    "ast_hash": "4325f0c1bb7fe27ccfaed7bab12a32b0",
+    "mtime": 1792213939.0351868,
+    "seen": 1792216806.5207646,
+    "ast_hash": "2e0065247c239419167ec2c67e985140",
     "semantic_hash": ""
   },
   "server/public/vendor/pdfjs/README.txt": {
     "mtime": 1792207157.570018,
     "seen": 1792210696.2827098,
     "ast_hash": "56e99ff6412081b1fd8eba121b0b7f07",
+    "semantic_hash": ""
+  },
+  "server/public/vat-draft/cell-select.js": {
+    "mtime": 1792213938.880166,
+    "seen": 1792216806.5207646,
+    "ast_hash": "36a2bceca14dea75145d2a9d5c50cf26",
+    "semantic_hash": ""
+  },
+  "server/db/migrations/0060_hr_rule_document_text.sql": {
+    "mtime": 1792217214.6457658,
+    "seen": 1792221158.8545914,
+    "ast_hash": "6fdfad72976ef26ffb3b9d58c6db71c3",
+    "semantic_hash": ""
+  },
+  "server/dashboard/exportSignTone.test.js": {
+    "mtime": 1792221857.5068147,
+    "seen": 1792222153.3239188,
+    "ast_hash": "f1aed63190faa3258bd1ee61dbdef217",
     "semantic_hash": ""
   }
 }

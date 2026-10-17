@@ -314,8 +314,8 @@ test('nguon ten dang so ("123") van giu dung thu tu chen (Map, khong phai object
 });
 
 test('formatQty giong _format_qty', () => {
-  assert.equal(formatQty(1234), '1.234');
+  assert.equal(formatQty(1234), '1,234');
   assert.equal(formatQty(-5), '-5');
-  assert.equal(formatQty(1234.5), '1.234,50');
-  assert.equal(formatQty(0.125), '0,12');
+  assert.equal(formatQty(1234.5), '1,234.50');
+  assert.equal(formatQty(0.125), '0.12');
 });

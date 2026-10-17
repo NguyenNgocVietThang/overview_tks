@@ -5,17 +5,20 @@
 // So SONG (customers.debt theo lan dong bo KiotViet moi nhat), khong phu thuoc ban chot 15:00.
 // Ngay het no: lay no hien tai tru dan tong hoa don Hoan thanh theo ngay, tu hom nay lui ve;
 // ngay dau tien lam phan con lai <= 0 la ngay het no. KHONG tru tra hang (da nam trong no).
-// Ngay no tuong duong = hom nay - ngay het no; Con han = lich TT - ngay no tuong duong.
+// Ngay no tuong duong = hom nay - ngay het no + 1 (dem ca ngay het no; het no hom nay = 1 ngay);
+// Con han = lich TT - ngay no tuong duong.
 // Tru het AGING_LOOKBACK_DAYS ngay ma van con no -> ngay het no = ngay dau cua khoang tra cuu,
 // gan co beyondHistory (giao dien hien "≥" / "≤"). No <= 0 -> 3 cot ngay de trong (null).
 // No qua han dung dung quy tac cua bang thao tac (inScheduleDebt/overdueDebt) voi moc = hom nay.
 
 const { addDaysToKey } = require('../kiotvietSync/vnTime');
 const {
-  BRANCH_SHORT, UNGROUPED_SALE, effectiveScheduleDays, parseScheduleDays, inScheduleDebt, overdueDebt, customerKeyOf
+  MAX_SCHEDULE_DAYS, BRANCH_SHORT, UNGROUPED_SALE, effectiveScheduleDays, parseScheduleDays, inScheduleDebt, overdueDebt, customerKeyOf
 } = require('./debtScheduleRules');
 
-const AGING_LOOKBACK_DAYS = 365;
+// 30 ngay (truoc la 365): job chay moi luot dong bo hoa don (7 phut) nen khoang quet dai lam tang CPU/RAM
+// tren Render (17/10/2026); khach no vuot 30 ngay hien "≥"/"≤" (beyondHistory).
+const AGING_LOOKBACK_DAYS = MAX_SCHEDULE_DAYS;
 
 /** Ngay dau tien (YYYY-MM-DD) con trong khoang tra cuu hoa don tinh tu `today`. */
 function agingHistoryStart(today) {
@@ -58,7 +61,7 @@ function buildAgingRow(row, { dailyAmounts, today }) {
   const currentDebt = Number(row.currentDebt) || 0;
   const overdue = overdueDebt(currentDebt, inScheduleDebt(dailyAmounts, today, scheduleDays));
   const { payoffDay, beyondHistory } = findPayoffDay(currentDebt, dailyAmounts, today);
-  const equivalentDays = payoffDay ? daysBetween(payoffDay, today) : null;
+  const equivalentDays = payoffDay ? daysBetween(payoffDay, today) + 1 : null;
   return {
     customerKey: customerKeyOf(row.branch, row.customerId),
     customerId: String(row.customerId),

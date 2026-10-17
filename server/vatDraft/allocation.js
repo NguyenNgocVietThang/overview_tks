@@ -43,15 +43,15 @@ function computeGiaNhap(giaBan, phanTramVat, config) {
   return null;
 }
 
-/** Hien thi so luong gon (_format_qty): 1.234 / 1.234,50. */
+/** Hien thi so luong gon (_format_qty): 1,234 / 1,234.50. */
 function formatQty(value) {
   if (Number.isInteger(value)) {
-    return Math.trunc(value).toLocaleString('en-US').replace(/,/g, '.');
+    return Math.trunc(value).toLocaleString('en-US');
   }
   if (!Number.isFinite(value)) return Number.isNaN(value) ? 'nan' : (value > 0 ? 'inf' : '-inf');
   const [intPart, frac] = Math.abs(pyRound(value, 2)).toFixed(2).split('.');
-  const grouped = Number(intPart).toLocaleString('en-US').replace(/,/g, '.');
-  return `${value < 0 ? '-' : ''}${grouped},${frac}`;
+  const grouped = Number(intPart).toLocaleString('en-US');
+  return `${value < 0 ? '-' : ''}${grouped}.${frac}`;
 }
 
 // ---------------------------------------------------------------------------

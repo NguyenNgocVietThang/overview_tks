@@ -107,9 +107,9 @@ test('cột "Giá trị đơn" hiện với MỌI đơn Kiot; "Giá trị có b�
   ] });
   const rows = rowsOf(page.document); // mac dinh: don moi dat nhat truoc, dong khong co ngay dat cuoi cung
   assert.deepEqual(codesOf(page.document), ['A', 'B', 'C', 'D']);
-  assert.deepEqual(rows.map(row => cellOf(row, 'sellableValue').textContent), ['21.750.000', '—', '0', '—'],
+  assert.deepEqual(rows.map(row => cellOf(row, 'sellableValue').textContent), ['21,750,000', '—', '0', '—'],
     'chi Phieu tam co gia tri co ban; Phieu tam co gia tri 0 van hien 0 (khac "khong co gia tri")');
-  assert.deepEqual(rows.map(row => cellOf(row, 'orderTotal').textContent), ['32.000.000', '5.000.000', '2.000.000', '—'],
+  assert.deepEqual(rows.map(row => cellOf(row, 'orderTotal').textContent), ['32,000,000', '5,000,000', '2,000,000', '—'],
     'don Hoan thanh van co Gia tri don; dong chi co o Sheet thi khong');
   page.dom.window.close();
 });
@@ -476,7 +476,7 @@ test('dưới 100 đơn: không hiện thanh phân trang', async () => {
 
 test('số đơn lớn hiển thị có dấu chấm ngăn cách nghìn', async () => {
   const page = await renderPage({ orders: manyOrders(1250) });
-  assert.equal(page.document.getElementById('bulkCount').textContent, '1.250 đơn');
+  assert.equal(page.document.getElementById('bulkCount').textContent, '1,250 đơn');
   assert.equal(page.document.getElementById('bulkPageLabel').textContent, 'Trang 1/13');
   page.dom.window.close();
 });
@@ -703,13 +703,13 @@ test('bấm dòng: mở hộp chi tiết, gọi order-detail đúng mã/cơ sở
   assert.deepEqual(headers, ['Mã hàng', 'Tên hàng', 'SL đặt', 'Đơn giá', 'Thành tiền', 'Tồn HN', 'Điều chuyển SG', 'Có bán', 'Thành tiền có bán']);
   assert.ok(!headers.includes('Đang vận chuyển'), 'cot da doi ten');
   const rows = [...document.querySelectorAll('.lc-lines tbody tr')].map(tr => [...tr.cells].map(td => td.textContent));
-  assert.deepEqual(rows[0], ['A', 'Hàng A', '500', '1.000', '500.000', '40', '160', '40', '40.000']);
-  assert.deepEqual(rows[1], ['B', 'Hàng B', '70', '5.000', '350.000', '800', '0', '70', '350.000']);
+  assert.deepEqual(rows[0], ['A', 'Hàng A', '500', '1,000', '500,000', '40', '160', '40', '40,000']);
+  assert.deepEqual(rows[1], ['B', 'Hàng B', '70', '5,000', '350,000', '800', '0', '70', '350,000']);
   assert.deepEqual(rows[2].slice(5), ['—', '—', '—', '—'], 'dong thue VAT khong co ton/co ban');
   assert.ok(document.querySelectorAll('.lc-lines tbody tr')[2].classList.contains('is-service'));
   const text = document.getElementById('lcDetailBody').textContent;
-  assert.match(text, /Giá trị đơn \(Kiot\)855\.000₫/);
-  assert.match(text, /Giá trị có bán550\.000₫/);
+  assert.match(text, /Giá trị đơn \(Kiot\)855,000₫/);
+  assert.match(text, /Giá trị có bán550,000₫/);
   assert.match(text, /min\(số lượng đặt, tồn kho\) × đơn giá/, 'cong thuc moi khong con "+ dang van chuyen"');
   assert.doesNotMatch(text, /tồn kho \+ đang vận chuyển/);
   assert.match(text, /không tính dòng VAT/);
@@ -994,13 +994,13 @@ test('hộp chi tiết: hàng chỉ số tổng quan (trạng thái, tiến trì
   assert.equal(stats['Trạng thái đơn'].sub, 'Cập nhật 01/10/2026 15:00');
   assert.equal(stats['Tiến trình'].value, '2/5 mốc');
   assert.equal(stats['Tiến trình'].sub, 'Kế toán duyệt đơn');
-  assert.equal(stats['Giá trị đơn (Kiot)'].value, '2.000.000₫');
+  assert.equal(stats['Giá trị đơn (Kiot)'].value, '2,000,000₫');
   assert.equal(stats['Mặt hàng'], undefined);
 
   await settle();
   stats = detailStats(document);
-  assert.equal(stats['Giá trị đơn (Kiot)'].value, '855.000₫', 'ket qua order-detail ghi de gia tri dong bang');
-  assert.equal(stats['Giá trị có bán'].value, '550.000₫');
+  assert.equal(stats['Giá trị đơn (Kiot)'].value, '855,000₫', 'ket qua order-detail ghi de gia tri dong bang');
+  assert.equal(stats['Giá trị có bán'].value, '550,000₫');
   assert.equal(stats['Giá trị có bán'].sub, '64% giá trị đơn');
   assert.equal(stats['Giá trị có bán'].tone, 'is-amber');
   assert.equal(stats['Mặt hàng'].value, '2', 'dong VAT (dich vu) khong tinh la mat hang');
@@ -1045,7 +1045,7 @@ test('hộp chi tiết: đơn đủ hàng → "Dòng thiếu hàng" 0/N màu xan
   rowsOf(done.document)[0].click();
   await settle();
   const stats = detailStats(done.document);
-  assert.equal(stats['Giá trị đơn (Kiot)'].value, '855.000₫');
+  assert.equal(stats['Giá trị đơn (Kiot)'].value, '855,000₫');
   assert.equal(stats['Giá trị có bán'], undefined);
   assert.equal(stats['Dòng thiếu hàng'], undefined);
   assert.equal(stats['Mặt hàng'].value, '2');
@@ -1161,10 +1161,10 @@ test('khối Thể tích & cước: mặc định Đức Mạnh, đổi dropdown
   let select = document.getElementById('lcCarrierSelect');
   assert.equal(select.value, 'DM');
   let text = document.getElementById('lcFreightBody').textContent;
-  assert.match(text, /Tổng thể tích1,750 m³/);
+  assert.match(text, /Tổng thể tích1.750 m³/);
   assert.doesNotMatch(text, /Số thùng/);
   const totals = document.getElementById('lcCarrierTotals').textContent;
-  assert.match(totals, /Đức Mạnh962.500 đViệt Linh1.013.750 đJ&T1.200.000 đ/);
+  assert.match(totals, /Đức Mạnh962,500 đViệt Linh1,013,750 đJ&T1,200,000 đ/);
   assert.equal(document.querySelector('.lc-measures tbody tr').cells[2].textContent, '20 kg');
   assert.match(text, /Ghi chú ĐM/);
   assert.match(text, /962.500/);
@@ -1173,7 +1173,7 @@ test('khối Thể tích & cước: mặc định Đức Mạnh, đổi dropdown
   text = document.getElementById('lcFreightBody').textContent;
   assert.match(text, /Ghi chú VL/);
   assert.match(text, /Phụ thu/);
-  assert.match(text, /1.013.750/);
+  assert.match(text, /1,013,750/);
   assert.equal(document.getElementById('lcDeliverChanh').checked, false);
   assert.doesNotMatch(text, /Giao ra chànhd/);
   const tick = document.getElementById('lcDeliverChanh');
@@ -1182,8 +1182,8 @@ test('khối Thể tích & cước: mặc định Đức Mạnh, đổi dropdown
   text = document.getElementById('lcFreightBody').textContent;
   assert.match(text, /m³ × 490.000857.500/);
   assert.match(text, /Vé chành70.000/);
-  assert.match(text, /1.127.500/);
-  assert.match(document.getElementById('lcCarrierTotals').textContent, /Việt Linh1.127.500 đ/);
+  assert.match(text, /1,127,500/);
+  assert.match(document.getElementById('lcCarrierTotals').textContent, /Việt Linh1,127,500 đ/);
   assert.equal(document.getElementById('lcDeliverChanh').checked, true);
   select = document.getElementById('lcCarrierSelect');
   select.value = 'JT';
@@ -1191,7 +1191,7 @@ test('khối Thể tích & cước: mặc định Đức Mạnh, đổi dropdown
   text = document.getElementById('lcFreightBody').textContent;
   assert.match(text, /Ghi chú JT/);
   assert.match(text, /A: 5 thùng × 240.000/);
-  assert.match(text, /1.200.000/);
+  assert.match(text, /1,200,000/);
   assert.equal(document.getElementById('lcDeliverChanh'), null);
   assert.equal(page.calls.filter(call => call.url.includes('/order-detail')).length, 1);
   page.dom.window.close();

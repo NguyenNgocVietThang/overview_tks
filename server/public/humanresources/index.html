@@ -1299,7 +1299,7 @@
   <script src="/shared/table-controls.js?v=20261016-1"></script>
   <script src="/shared/search-clear.js?v=20261009-1"></script>
   <script src="/shared/shared-nav.js?v=20261008"></script>
-  <script src="/shared/table-align.js?v=20260928"></script>
+  <script src="/shared/table-align.js?v=20261017"></script>
   <script src="/shared/dateInput.js?v=20260912"></script>
   <script src="/vendor/html2pdf.bundle.min.js"></script>
 
@@ -1379,7 +1379,7 @@
 
     function formatFileSize(bytes){
       const n = Number(bytes) || 0;
-      if(n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1).replace('.', ',') + ' MB';
+      if(n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
       return Math.max(1, Math.round(n / 1024)) + ' KB';
     }
 
@@ -2272,7 +2272,7 @@
 
     function fmtSoNgay(n){
       const v = Math.round((Number(n) || 0) * 100) / 100;
-      return v.toLocaleString('vi-VN');
+      return v.toLocaleString('en-US');
     }
 
     function renderTable(allRequests){

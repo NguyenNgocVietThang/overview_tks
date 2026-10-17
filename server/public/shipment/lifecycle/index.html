@@ -673,7 +673,7 @@
   <script src="/shared/table-controls.js?v=20261016-1"></script>
   <script src="/shared/search-clear.js?v=20261009-1"></script>
   <script src="/shared/shared-nav.js?v=20261016-freight"></script>
-  <script src="/shared/table-align.js?v=20260928"></script>
+  <script src="/shared/table-align.js?v=20261017"></script>
   <script src="/shared/dateInput.js?v=20260912"></script>
 
   <script>
@@ -981,7 +981,7 @@
     }
 
     // ---------- Chi tiet dong hang theo Kiot (bang "Hang hoa trong don") ----------
-    const QTY_FORMAT = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 3 });
+    const QTY_FORMAT = new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 });
     function formatQty(value){ return (value === null || value === undefined) ? '—' : QTY_FORMAT.format(Number(value) || 0); }
     function formatMoneyOrDash(value){ return (value === null || value === undefined) ? '—' : formatTableVnd(value); }
 
@@ -1027,7 +1027,7 @@
     }
 
     // ---------- The tich & cuoc van chuyen (sheet CAN DO, tinh o may chu; client chi chon nha xe) ----------
-    const M3_FORMAT = new Intl.NumberFormat('vi-VN', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+    const M3_FORMAT = new Intl.NumberFormat('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
     const CARRIER_KEYS = ['DM', 'VL', 'JT'];
     const CARRIER_STORE = 'tks.lifecycle.carrier';
     let selectedCarrier = 'DM';
@@ -1540,7 +1540,7 @@
       return 0;
     }
 
-    const VND_FORMAT = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 });
+    const VND_FORMAT = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
     function formatTableVnd(value){ return VND_FORMAT.format(Number(value) || 0); }
     function formatVnd(value){ return formatTableVnd(value) + '₫'; }
 
@@ -1951,7 +1951,7 @@
       return '<button type="button" class="lc-kpi accent-' + accent + (count ? '' : ' is-zero') + (kpiCardSelected(kind, code) ? ' is-selected' : '') +
         '" data-kpi-kind="' + kind + '" data-kpi-code="' + code + '" aria-pressed="' + (kpiCardSelected(kind, code) ? 'true' : 'false') + '">' +
         '<span class="lc-kpi-label">' + escapeHtml(label) + '</span>' +
-        '<span class="lc-kpi-value">' + Number(count || 0).toLocaleString('vi-VN') + '</span>' +
+        '<span class="lc-kpi-value">' + Number(count || 0).toLocaleString('en-US') + '</span>' +
         (sub ? '<span class="lc-kpi-sub">' + escapeHtml(sub) + '</span>' : '') + '</button>';
     }
     function renderKpis(kpis){

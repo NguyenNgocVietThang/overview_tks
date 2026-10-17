@@ -8,9 +8,12 @@
 
 const { getPool } = require('../db/pool');
 const { onDebtAgingChanged } = require('./debtAgingRefresh');
+// Ten nhan vien ban tren Kiot co hau to "- <ID Telegram>": chi hien phan ten (saleName.js).
+const { saleNameSql } = require('../dashboard/saleName');
 
 const BRANCH_CODES = Object.freeze(['hanoi', 'saigon']);
 const CACHE_TTL_MS = 60 * 1000;
+const INVOICE_LIST_LIMIT = 500;
 
 const STATE_SQL = `SELECT as_of_day::text AS as_of_day, refreshed_at, customers_synced_at, version
   FROM debt_aging_state WHERE id = 1`;
@@ -22,6 +25,28 @@ const ROWS_SQL = `
          payoff_day::text AS payoff_day, beyond_history, equivalent_days, remaining_days
   FROM debt_aging_customers
   WHERE branch = ANY($1::text[])`;
+
+// 1 dong khach da tinh san (de dung khoang ngay + the chi so cua hop chi tiet hoa don).
+const CUSTOMER_SQL = `
+  SELECT branch, customer_id::text AS customer_id, customer_code, customer_name, sale, schedule_days,
+         has_stored_schedule, current_debt::text AS current_debt, overdue_debt::text AS overdue_debt,
+         payoff_day::text AS payoff_day, beyond_history, equivalent_days, remaining_days
+  FROM debt_aging_customers
+  WHERE branch = $1 AND customer_id = $2::bigint`;
+
+// Hoa don Hoan thanh cua khach tu ngay het no ($3, gio VN) toi nay. purchase_date luu gio VN gan nhan UTC
+// (giong AMOUNTS_SQL o debtAgingRefresh.js) -> moc = ngay::timestamp AT TIME ZONE 'UTC'.
+const INVOICES_SQL = `
+  SELECT i.code, to_char(i.purchase_date AT TIME ZONE 'UTC', 'DD/MM/YYYY HH24:MI') AS purchase_date,
+         ${saleNameSql(`COALESCE(NULLIF(i.raw->>'soldByName', ''), s.name, '')`)} AS seller,
+         COALESCE(i.total, 0)::text AS total
+  FROM invoices i
+  LEFT JOIN staff s ON s.branch = i.branch AND s.id = i.sold_by_id
+  WHERE i.branch = $1 AND i.customer_id = $2::bigint
+    AND i.purchase_date >= ($3::date::timestamp AT TIME ZONE 'UTC')
+    AND i.raw->>'statusValue' = 'Hoàn thành'
+  ORDER BY i.purchase_date DESC, i.id DESC
+  LIMIT ${INVOICE_LIST_LIMIT}`;
 
 function mapRow(row) {
   return {
@@ -64,7 +89,26 @@ function createDebtAgingRepository({ pool = getPool(), now = Date.now } = {}) {
     return data;
   }
 
-  return { readAging, clearCache: () => cache.clear() };
+  /** { customer: dong tuoi no | null, invoices: [{ code, date, seller, total }] } — khong cache (chi mo khi bam dong). */
+  async function readCustomerInvoices(branch, customerId) {
+    const customer = (await pool.query(CUSTOMER_SQL, [branch, customerId])).rows[0];
+    if (!customer) return { customer: null, invoices: [] };
+    const mapped = mapRow(customer);
+    // No <= 0: khong co ngay het no -> khong co khoang hoa don de liet ke.
+    if (!mapped.payoffDay) return { customer: mapped, invoices: [] };
+    const result = await pool.query(INVOICES_SQL, [branch, customerId, mapped.payoffDay]);
+    return {
+      customer: mapped,
+      invoices: result.rows.map(row => ({
+        code: row.code || '',
+        date: row.purchase_date || '',
+        seller: row.seller || '',
+        total: Number(row.total) || 0
+      }))
+    };
+  }
+
+  return { readAging, readCustomerInvoices, clearCache: () => cache.clear() };
 }
 
 let defaultRepository = null;
@@ -77,4 +121,4 @@ function getDebtAgingRepository() {
   return defaultRepository;
 }
 
-module.exports = { createDebtAgingRepository, getDebtAgingRepository };
+module.exports = { createDebtAgingRepository, getDebtAgingRepository, INVOICE_LIST_LIMIT };

@@ -258,7 +258,7 @@ test('POST /api/shipment/lifecycle/export — quá giới hạn số dòng -> 40
   await callRoute('post', '/export', reqAs('Quản lý', {}, {}, {}), res);
   assert.equal(res.statusCode, 400);
   assert.equal(res.body.code, 'TOO_MANY_ROWS');
-  assert.match(res.body.error, /vượt giới hạn 20\.000 đơn/);
+  assert.match(res.body.error, /vượt giới hạn 20,000 đơn/);
   assert.equal(res.sentBuffer, null);
 });
 
