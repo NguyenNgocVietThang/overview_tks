@@ -2,11 +2,13 @@
 
 > **Cập nhật migration 16/10/2026:** Đã áp thành công `0054_customer_invoice_lines_incremental.sql`, `0055_product_report_state.sql` và `0057_product_report_branch_columns.sql` lên DB dùng chung (Supabase), ghi nhận đầy đủ trong `schema_migrations`. Toàn bộ migration (0001 → 0057) hiện đã áp xong. Cờ `REPORTS_INCREMENTAL_ENABLED` hiện chưa bật trên môi trường chạy.
 
-> **Cập nhật gần nhất:** 16/10/2026 (Asia/Ho_Chi_Minh), hoàn tất tính năng tra cứu CONT và tính cước vận chuyển tạm tính cho Vòng đời đơn hàng, đã áp toàn bộ migration 0001 → 0057 lên Supabase.
+> **Cập nhật gần nhất:** 17/10/2026 (Asia/Ho_Chi_Minh), đổi công thức cước Đức Mạnh/Việt Linh và thêm nút tick "Giao ra chành" cho Việt Linh trong Vòng đời đơn hàng (chưa commit/deploy).
 > **Trạng thái Git:** làm việc trên nhánh `codex/invoice-freight-containers`; kiểm thử tự động toàn bộ đạt 2.527/2.530 xanh; sẵn sàng đẩy github.
 > **Quy tắc:** Cập nhật liên tục vào đầu và cuối mỗi phiên làm việc để không bị đứt đoạn ngữ cảnh dự án.
 
 ---
+
+0. **Vòng đời đơn hàng: đổi công thức cước Đức Mạnh/Việt Linh + tick "Giao ra chành" (17/10/2026, chưa commit/deploy):** Đức Mạnh = max(350k tối thiểu, m³×550k, kg×1.833) (bỏ quy tắc cũ "thể tích ≤350k thì chốt 350k bỏ qua cân"); Việt Linh = max(m³×465k hoặc 500k khi ≤0,6 m³, kg×1.550) + phụ thu 200k khi <2 m³. Việt Linh có ô tick "Giao ra chành" (+490k giao ra chành + 70k vé chành), máy chủ trả sẵn biến thể `carriers.VL.withChanh`, client chỉ chọn biến thể, không nhớ giữa các đơn. Không migration.
 
 0. **Vòng đời đơn hàng: Cước vận chuyển tạm tính & tra cứu CONT trong hộp chi tiết (16/10/2026, đã áp Supabase):** Cập nhật bộ tính cước `freightCalculator.js` cho Đức Mạnh, Việt Linh, J&T (hỗ trợ cước tạm tính khi thiếu thể tích/cân nặng của một số mã hàng). Thêm endpoint `GET /api/shipment/lifecycle/containers` tra cứu CONT cấp 2 với bộ nhớ cache LRU 500 mã / TTL 5 phút, gộp request và tự động invalidate khi sync CONT. Hộp chi tiết đơn hàng tích hợp bảng cân đo, 3 phương án cước và xem chi tiết CONT cấp 2 không phụ thuộc đóng/mở đơn hàng. Test: 2.527 đạt, 3 skipped, 0 lỗi.
 

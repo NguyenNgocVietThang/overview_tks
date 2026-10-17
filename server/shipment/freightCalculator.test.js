@@ -3,12 +3,27 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { calculateFreight, buildOrderFreight } = require('./freightCalculator');
 
-test('existing DM and VL tariffs remain unchanged with volume', () => {
-  assert.equal(calculateFreight({ m3: 0.5, kg: 900 }).DM.total, 350000);
-  assert.equal(calculateFreight({ m3: 1, kg: 600 }).DM.total, 798000);
+test('DM is max(350k minimum, volume x 550k, kg x 1.833)', () => {
+  assert.equal(calculateFreight({ m3: 0.5, kg: 100 }).DM.total, 350000);
+  assert.equal(calculateFreight({ m3: 0.5, kg: 300 }).DM.total, 549900);
+  assert.equal(calculateFreight({ m3: 1, kg: 600 }).DM.total, 1099800);
+  assert.equal(calculateFreight({ m3: 2, kg: 600 }).DM.total, 1100000);
+});
+test('VL is max(volume, kg x 1.550) plus 200k below 2 m3', () => {
   assert.equal(calculateFreight({ m3: 0.6, kg: 5 }).VL.total, 700000);
+  assert.equal(calculateFreight({ m3: 0.3, kg: 400 }).VL.total, 820000);
   assert.equal(calculateFreight({ m3: 1, kg: 5 }).VL.total, 665000);
+  assert.equal(calculateFreight({ m3: 1, kg: 600 }).VL.total, 1130000);
   assert.equal(calculateFreight({ m3: 2, kg: 5 }).VL.total, 930000);
+  assert.equal(calculateFreight({ m3: 2, kg: 1000 }).VL.total, 1550000);
+});
+test('VL withChanh adds 490k delivery to chanh + 70k ticket without changing the base variant', () => {
+  const { VL } = calculateFreight({ m3: 1, kg: 5 });
+  assert.equal(VL.total, 665000);
+  assert.equal(VL.withChanh.total, 665000 + 490000 + 70000);
+  assert.deepEqual(VL.withChanh.steps.slice(-2).map(item => item.amount), [490000, 70000]);
+  assert.equal(VL.steps.length, VL.withChanh.steps.length - 2);
+  assert.equal(calculateFreight({ m3: 1, kg: 5 }).DM.withChanh, undefined);
 });
 test('no usable measurements has no carrier estimates', () => {
   const { freight, lineMeasures } = buildOrderFreight([{ productCode: 'X', quantity: 2 }], new Map());
@@ -34,6 +49,7 @@ test('partial measurements remain independent and still produce provisional frei
   assert.equal(freight.provisional, true);
   assert.equal(freight.carriers.JT.total, 36000);
   assert.equal(freight.carriers.DM.provisional, true);
+  assert.equal(freight.carriers.VL.withChanh.provisional, true);
   assert.equal(lineMeasures[3].status, 'service');
 });
 test('JT uses ordered units, no carton rounding or minimum, and sums per-code maxima', () => {
@@ -49,8 +65,9 @@ test('JT uses ordered units, no carton rounding or minimum, and sums per-code ma
 });
 test('weight-only orders can still estimate carriers', () => {
   const { freight } = buildOrderFreight([{ productCode: 'A', quantity: 400 }], new Map([['a', { kgPerUnit: 1, m3PerUnit: null }]]));
-  assert.equal(freight.carriers.DM.total, 532000);
-  assert.equal(freight.carriers.VL.total, 700000);
+  assert.equal(freight.carriers.DM.total, 733200);
+  assert.equal(freight.carriers.VL.total, 820000);
+  assert.equal(freight.carriers.VL.withChanh.total, 1380000);
   assert.equal(freight.carriers.JT.total, 1600000);
 });
 

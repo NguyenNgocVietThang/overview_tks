@@ -674,7 +674,8 @@ function kiotDetail(overrides = {}) {
       unavailable: false, totals: { m3: 1.75, kg: 23, cartons: 6 }, missingCodes: [],
       carriers: {
         DM: { carrier: 'DM', label: 'Đức Mạnh', note: 'Ghi chú ĐM', freight: 962500, surcharge: 0, total: 962500, steps: [{ label: 'Theo thể tích', amount: 962500 }] },
-        VL: { carrier: 'VL', label: 'Việt Linh', note: 'Ghi chú VL', freight: 813750, surcharge: 200000, total: 1013750, steps: [{ label: 'm³ × 465.000', amount: 813750 }, { label: 'Phụ thu', amount: 200000 }] },
+        VL: { carrier: 'VL', label: 'Việt Linh', note: 'Ghi chú VL', freight: 813750, surcharge: 200000, total: 1013750, steps: [{ label: 'm³ × 465.000', amount: 813750 }, { label: 'Phụ thu', amount: 200000 }],
+          withChanh: { carrier: 'VL', label: 'Việt Linh', note: 'Ghi chú VL', freight: 813750, surcharge: 760000, total: 1573750, steps: [{ label: 'm³ × 465.000', amount: 813750 }, { label: 'Phụ thu', amount: 200000 }, { label: 'Giao ra chành', amount: 490000 }, { label: 'Vé chành', amount: 70000 }] } },
         JT: { carrier: 'JT', label: 'J&T', note: 'Ghi chú JT', freight: 1200000, surcharge: 0, total: 1200000, steps: [{ label: 'A: 5 thùng × 240.000', amount: 1200000 }] }
       }
     },
@@ -1173,6 +1174,17 @@ test('khối Thể tích & cước: mặc định Đức Mạnh, đổi dropdown
   assert.match(text, /Ghi chú VL/);
   assert.match(text, /Phụ thu/);
   assert.match(text, /1.013.750/);
+  assert.equal(document.getElementById('lcDeliverChanh').checked, false);
+  assert.doesNotMatch(text, /Giao ra chànhd/);
+  const tick = document.getElementById('lcDeliverChanh');
+  tick.checked = true;
+  tick.dispatchEvent(new page.dom.window.Event('change', { bubbles: true }));
+  text = document.getElementById('lcFreightBody').textContent;
+  assert.match(text, /Giao ra chành490.000/);
+  assert.match(text, /Vé chành70.000/);
+  assert.match(text, /1.573.750/);
+  assert.match(document.getElementById('lcCarrierTotals').textContent, /Việt Linh1.573.750 đ/);
+  assert.equal(document.getElementById('lcDeliverChanh').checked, true);
   select = document.getElementById('lcCarrierSelect');
   select.value = 'JT';
   select.dispatchEvent(new page.dom.window.Event('change', { bubbles: true }));
@@ -1180,7 +1192,7 @@ test('khối Thể tích & cước: mặc định Đức Mạnh, đổi dropdown
   assert.match(text, /Ghi chú JT/);
   assert.match(text, /A: 5 thùng × 240.000/);
   assert.match(text, /1.200.000/);
-  assert.equal(document.getElementById('lcCarrierTotals').textContent, totals);
+  assert.equal(document.getElementById('lcDeliverChanh'), null);
   assert.equal(page.calls.filter(call => call.url.includes('/order-detail')).length, 1);
   page.dom.window.close();
 });

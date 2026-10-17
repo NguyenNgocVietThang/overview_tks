@@ -18,8 +18,8 @@ A = Mã SP, D = SL/thùng, E = cân nặng (kg/thùng), F/G/H = Dài/Rộng/Cao 
 - Tổng M³ = Σ SL × M³ mỗi cái. Tổng KG = Σ SL × kg mỗi cái.
 
 **Giá cước** (người dùng chốt bản dùng):
-- **Đức Mạnh** (550.000đ/m³, tối thiểu 350.000đ, không phụ thu): nếu m³×550.000 ≤ 350.000 thì cước = 350.000. Ngược lại cước = max(kg×1.330, m³×550.000).
-- **Việt Linh** (465.000đ/m³): nếu m³ > 0,6 thì cước = m³×465.000. Ngược lại cước = 500.000. Phụ thu 200.000 khi m³ < 2. Tổng = cước + phụ thu.
+- **Đức Mạnh** (550.000đ/m³, 1.833đ/kg, tối thiểu 350.000đ, không phụ thu): cước = max(350.000, m³×550.000, kg×1.833). *(Cập nhật 17/10/2026; trước đây kg×1.330 và ngưỡng 350k bỏ qua cân.)*
+- **Việt Linh** (465.000đ/m³, 1.550đ/kg): cước = max(thể tích, kg×1.550), thể tích tính m³×465.000 (m³ ≤ 0,6 thì 500.000). Phụ thu 200.000 khi m³ < 2. Tick "Giao ra chành": +490.000 giao ra chành +70.000 vé chành. *(Cập nhật 17/10/2026.)*
 - Không áp dụng "giao ra chành 490k + vé chành 70k" và nhà xe Liên Việt (chỉ là ghi chú trong sheet, người dùng không yêu cầu).
 
 **Lưu ý:** công thức giá cước trong sheet "Hoa" đang trỏ vào ô trống (T3, T4, M9, M19), tức sheet đã lệch hàng. Plan dùng đúng ý nghĩa nghiệp vụ ở trên, không phụ thuộc vị trí ô của "Hoa".
