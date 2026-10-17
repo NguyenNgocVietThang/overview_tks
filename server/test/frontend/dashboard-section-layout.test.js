@@ -154,7 +154,7 @@ test('render: giao dịch hiện ở Hóa đơn; mở tab Hàng hóa không ném
 
   dom.window.eval("switchView('invoices')");
   assert.match(text('endOfDayRows'), /HD-777/);
-  assert.match(text('end-day-total-revenue'), /1\.200\.000/);
+  assert.match(text('end-day-total-revenue'), /1,200,000/);
   assert.match(text('end-day-table-count'), /1 giao dịch/);
 
   assert.doesNotThrow(() => dom.window.eval("switchView('products')"));

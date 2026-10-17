@@ -84,7 +84,7 @@ test('refreshSupplierReturnImportStatus: hien thi dung dinh dang tu API', async 
   await dom.window.refreshSupplierReturnImportStatus();
 
   const text = dom.window.document.getElementById('supplierReturnImportStatusBox').textContent;
-  assert.match(text, /Hà Nội: 8\.718 dòng, từ 01\/06\/2026 đến 22\/09\/2026/);
+  assert.match(text, /Hà Nội: 8,718 dòng, từ 01\/06\/2026 đến 22\/09\/2026/);
   assert.match(text, /bởi thangnnv/);
   assert.match(text, /Sài Gòn: chưa nhập dữ liệu/);
   dom.window.close();
@@ -129,7 +129,7 @@ test('submitSupplierReturnImport: gui dung branch + file qua FormData, hien ket 
   assert.equal(capturedBody.get('file').name, 'TraNCC.xlsx');
   const resultBox = dom.window.document.getElementById('supplierReturnImportResultBox');
   assert.equal(resultBox.hidden, false);
-  assert.match(resultBox.textContent, /Đã nhập 8\.718 dòng/);
+  assert.match(resultBox.textContent, /Đã nhập 8,718 dòng/);
   assert.match(resultBox.textContent, /cho Sài Gòn/);
   dom.window.close();
 });

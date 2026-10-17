@@ -105,7 +105,7 @@ test('"Cả hai": cột chồng Hà Nội + Sài Gòn, tooltip có dòng Tổng'
   assert.equal(config.options.scales.y.stacked, true);
   const callbacks = config.options.plugins.tooltip.callbacks;
   assert.equal(callbacks.title([{ dataIndex: 1 }]), '01/10/2026');
-  assert.match(callbacks.footer([{ dataIndex: 0 }]), /^Tổng: 1\.500\.000/);
+  assert.match(callbacks.footer([{ dataIndex: 0 }]), /^Tổng: 1,500,000/);
   assert.equal(dom.window.document.getElementById('chartInventoryHistory').hidden, false);
   assert.equal(dom.window.document.getElementById('chartInventoryHistoryEmpty').hidden, true);
 });

@@ -125,9 +125,9 @@ test('Source ratios display as percentages and fractional conversion counts stay
   });
   await p.window.TKSMarketing.load();
   const rows=p.doc.getElementById('marketing-receipt-check-rows').textContent;
-  assert.match(rows,/4,07%/); assert.match(rows,/147,4/);
+  assert.match(rows,/4.07%/); assert.match(rows,/147.4/);
   const cards=p.doc.getElementById('marketing-receipt-check-kpis').textContent;
-  assert.match(cards,/4,07%/); assert.match(cards,/147,4/);
+  assert.match(cards,/4.07%/); assert.match(cards,/147.4/);
   p.dom.window.close();
 });
 test('Filter/status IDs are unique and KPI cards occupy real report-grid columns',async()=>{

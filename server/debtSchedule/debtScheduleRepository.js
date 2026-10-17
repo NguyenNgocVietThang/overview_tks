@@ -403,7 +403,7 @@ function createDebtScheduleRepository({ pool = getPool(), now = Date.now } = {})
     const code = assertBranch(branch);
     const id = assertCustomerId(customerId);
     const scheduleDays = parseScheduleDays(days);
-    if (!scheduleDays) throw httpError(400, 'Lịch TT phải là số ngày từ 1 đến 90.', 'INVALID_SCHEDULE');
+    if (!scheduleDays) throw httpError(400, 'Lịch TT phải là số ngày từ 1 đến 30.', 'INVALID_SCHEDULE');
     const actor = actorOf(user);
     const customer = await client.query(
       `SELECT btrim(COALESCE(c.code, '')) AS code, COALESCE(c.name, '') AS name

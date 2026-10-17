@@ -117,7 +117,7 @@ test('penalty ratio rounds displayed dong per point without changing the source 
  await dom.window.loadDebtPenaltyBoard();
  const cell=dom.window.document.querySelector('#debtPenaltyRows tr.doc-row').cells[3];
  assert.equal(cell.textContent.trim(),'130');
- assert.match(cell.title,/25\.000.*192.*130,208.*đồng\/điểm/);
+ assert.match(cell.title,/25,000.*192.*130.208.*đồng\/điểm/);
  assert.match(cell.title,/làm tròn/);
  assert.match(dom.window.document.querySelector('#debtPenaltyTable th[data-column-key="phat-moi-diem"]').textContent,/đồng/);
  dom.window.close();
@@ -130,12 +130,12 @@ test('server reward rows retain global rank, eligibility, ratio and filtered tot
   const doc = dom.window.document;
   const rows = [...doc.querySelectorAll('#debtPenaltyRows tr.doc-row')].map(tr => [...tr.cells].map(td => td.textContent.trim()));
   assert.equal(rows.length, 3);
-  assert.deepEqual(rows[0].slice(0, 4), ['7', 'Lan', '40', '2.500']);
+  assert.deepEqual(rows[0].slice(0, 4), ['7', 'Lan', '40', '2,500']);
   assert.match(rows[1][0], /Chưa đủ 30 điểm/);
   assert.equal(rows[2][0], '—');
   assert.equal(rows[2][3], '—');
-  assert.match(rows[0][6], /100\.000/);
-  assert.match(rows[0][8], /1\.500\.000/);
+  assert.match(rows[0][6], /100,000/);
+  assert.match(rows[0][8], /1,500,000/);
   for (const id of ['debtPenaltyNote', 'debtRewardSummary', 'debtRewardCoverage']) assert.equal(doc.getElementById(id), null, id);
   assert.ok(doc.querySelector('.debt-penalty-wrap.tks-table-scroll #debtPenaltyTable'), 'bảng phải nằm trực tiếp trong khung cuộn để tiêu đề sticky hoạt động');
   assert.equal(doc.querySelectorAll('.debt-penalty-wrap .tks-table-scroll').length, 0);
@@ -144,8 +144,8 @@ test('server reward rows retain global rank, eligibility, ratio and filtered tot
   dom.window.renderDebtPenaltyBoard();
   assert.equal(doc.querySelectorAll('#debtPenaltyRows tr.doc-row').length, 1);
   const foot = doc.querySelector('#debtPenaltyFoot tr').cells;
-  assert.equal(foot[6].textContent.trim(), '25.000');
-  assert.equal(foot[7].textContent.trim(), '25.000');
+  assert.equal(foot[6].textContent.trim(), '25,000');
+  assert.equal(foot[7].textContent.trim(), '25,000');
   assert.equal(foot[8].textContent.trim(), '0');
   dom.window.close();
 });
@@ -201,11 +201,11 @@ test('sale detail uses frozen metrics and shows daily penalties, reward split an
   doc.querySelector('#debtPenaltyRows tr[data-sale="Lan"]').click();
   const stats = Object.fromEntries([...doc.querySelectorAll('#docModalBody .dp-stat')]
     .map(el => [el.querySelector('.dp-stat-label').textContent, el.querySelector('.dp-stat-value').textContent]));
-  assert.match(stats['Tổng nợ hiện tại'], /800\.000/);
-  assert.match(stats['Thưởng theo hạng'], /800\.000/);
-  assert.match(stats['Thưởng theo điểm'], /700\.000/);
+  assert.match(stats['Tổng nợ hiện tại'], /800,000/);
+  assert.match(stats['Thưởng theo hạng'], /800,000/);
+  assert.match(stats['Thưởng theo điểm'], /700,000/);
   assert.equal(stats['Quá hạn / Doanh số'], '5%');
-  assert.match(doc.getElementById('docModalBody').textContent, /Khách lịch sử.*40.*-500\.000.*6.*-1.*5/);
+  assert.match(doc.getElementById('docModalBody').textContent, /Khách lịch sử.*40.*-500,000.*6.*-1.*5/);
   assert.match(doc.getElementById('docModalBody').textContent, /14\/10/);
   assert.doesNotMatch(doc.getElementById('docModalBody').textContent, /đang tạm tính/);
   dom.window.close();
@@ -281,7 +281,7 @@ test('finalized detail marks unavailable debt snapshot without presenting zero d
   assert.equal(stats['Quá hạn / Doanh số'], '—');
   assert.equal(stats['Khách cần xử lý'], '—');
   assert.match(doc.getElementById('docModalBody').textContent, /Không còn bản chốt công nợ để đối chiếu/);
-  assert.match(stats['Tiền thưởng'], /1\.500\.000/);
+  assert.match(stats['Tiền thưởng'], /1,500,000/);
   assert.match(doc.getElementById('docModalBody').textContent, /Khách lịch sử/);
   assert.match(doc.getElementById('docModalSubtitle').textContent, /1 khách/);
   dom.window.close();
@@ -294,22 +294,22 @@ test('open month shows daily provisional reward amounts and distinguishes offici
   const doc = dom.window.document;
   assert.equal(doc.getElementById('debtRewardStatus').textContent, 'Thưởng tạm tính');
   assert.equal(doc.querySelector('#debtPenaltyTable th[data-column-key="tien-thuong"] .sort-button > span').textContent, 'Thưởng tạm tính');
-  assert.equal(doc.querySelector('#debtPenaltyRows tr[data-sale="Lan"]').cells[8].textContent.trim(), '1.500.000');
-  assert.equal(doc.querySelector('#debtPenaltyFoot tr').cells[8].textContent.trim(), '1.500.000');
+  assert.equal(doc.querySelector('#debtPenaltyRows tr[data-sale="Lan"]').cells[8].textContent.trim(), '1,500,000');
+  assert.equal(doc.querySelector('#debtPenaltyFoot tr').cells[8].textContent.trim(), '1,500,000');
   doc.querySelector('#debtPenaltyRows tr[data-sale="Lan"]').click();
   const stats = Object.fromEntries([...doc.querySelectorAll('#docModalBody .dp-stat')]
     .map(el => [el.querySelector('.dp-stat-label').textContent, el.querySelector('.dp-stat-value').textContent]));
-  assert.match(stats['Thưởng theo hạng'], /800\.000/);
-  assert.match(stats['Thưởng theo điểm'], /700\.000/);
-  assert.match(stats['Thưởng tạm tính'], /1\.500\.000/);
+  assert.match(stats['Thưởng theo hạng'], /800,000/);
+  assert.match(stats['Thưởng theo điểm'], /700,000/);
+  assert.match(stats['Thưởng tạm tính'], /1,500,000/);
   assert.match(doc.getElementById('docModalBody').textContent, /Thưởng tạm tính, sẽ chốt chính thức vào cuối tháng/);
-  assert.match(stats['Phạt gốc'], /100\.000/);
+  assert.match(stats['Phạt gốc'], /100,000/);
   assert.equal(stats['Điểm'], '40');
   serve(dom, boardPayload({ status: 'finalized' }));
   await dom.window.loadDebtPenaltyBoard();
   assert.equal(doc.getElementById('debtRewardStatus').textContent, 'Đã chốt');
   assert.equal(doc.querySelector('#debtPenaltyTable th[data-column-key="tien-thuong"] .sort-button > span').textContent, 'Tiền thưởng');
-  assert.equal(doc.querySelector('#debtPenaltyRows tr[data-sale="Lan"]').cells[8].textContent.trim(), '1.500.000');
+  assert.equal(doc.querySelector('#debtPenaltyRows tr[data-sale="Lan"]').cells[8].textContent.trim(), '1,500,000');
   dom.window.close();
 });
 

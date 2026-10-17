@@ -428,15 +428,19 @@
       check.getUTCHours() !== hour || check.getUTCMinutes() !== minute || check.getUTCSeconds() !== second) return null;
     return time;
   }
-  // Số kiểu Việt Nam: 1.234.567 · -12,5 · 45% · 1.200đ · 3,25 m³ → number; không phải số → null.
+  // Số kiểu en-US: 1,234,567 · -12.5 · 45% · 1,200đ · 3.25 m³ → number; không phải số → null.
+  // Vẫn đọc được dạng cũ 1.234.567 / 12,5 (không mơ hồ) để dữ liệu chữ cũ không sort sai.
   function parseNumberText(text) {
     var match = text.match(/^([+\-−–]?)\s*(\d[\d.,\s]*?)\s*(?:%|đ|₫|vnđ|vnd|m³|kg|ngày|lần)?$/i);
     if (!match) return null;
     var digits = match[2].replace(/\s/g, '');
     if (/^0\d{8,}$|^\d{11,}$/.test(digits)) return null; // số điện thoại / mã vạch: so sánh như chữ
-    if (digits.indexOf('.') >= 0 && digits.indexOf(',') >= 0) digits = digits.replace(/\./g, '').replace(',', '.');
-    else if (digits.indexOf(',') >= 0) digits = digits.replace(',', '.');
-    else if (/^\d{1,3}(\.\d{3})+$/.test(digits)) digits = digits.replace(/\./g, '');
+    if (digits.indexOf('.') >= 0 && digits.indexOf(',') >= 0) {
+      // Dấu đứng sau cùng là dấu thập phân; dấu còn lại là phân cách nghìn.
+      digits = digits.lastIndexOf('.') > digits.lastIndexOf(',') ? digits.replace(/,/g, '') : digits.replace(/\./g, '').replace(',', '.');
+    }
+    else if (digits.indexOf(',') >= 0) digits = /^\d{1,3}(,\d{3})+$/.test(digits) ? digits.replace(/,/g, '') : digits.replace(',', '.');
+    else if (/^\d{1,3}(\.\d{3}){2,}$/.test(digits)) digits = digits.replace(/\./g, '');
     var value = Number(digits);
     if (!Number.isFinite(value)) return null;
     return match[1] === '-' || match[1] === '−' || match[1] === '–' ? -value : value;

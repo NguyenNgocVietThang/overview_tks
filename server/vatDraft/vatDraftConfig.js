@@ -71,21 +71,20 @@ module.exports = deepFreeze({
       { key: 'mb_vc_ex', label: 'MB VC EX', bankId: 'MB', accountNo: '686345345', accountName: 'CONG TY CO PHAN THUONG MAI VC EXPRESS' },
       { key: 'lucky_house', label: 'MB LUCKY HOUSE', bankId: 'MB', accountNo: '898896886', accountName: 'CONG TY CO PHAN XUAT NHAP KHAU THUONG MAI LUCKY HOUSE' },
       { key: 'shc', label: 'MB SHC', bankId: 'MB', accountNo: '525345345', accountName: 'CONG TY SHC' },
-      // --- Ca nhan — nhom Anh Duy ---
-      { key: 'tp_a_duy', label: 'TP A DUY', bankId: 'TPB', accountNo: '00001066788', accountName: 'NGUYEN NGOC DUY' },
-      { key: 'vib_a_duy', label: 'VIB A DUY', bankId: 'VIB', accountNo: '087564570', accountName: 'NGUYEN NGOC DUY' },
-      { key: 'shb_a_duy', label: 'SHB A DUY', bankId: 'SHB', accountNo: '1026044272', accountName: 'NGUYEN NGOC DUY' },
-      { key: 'vp_a_duy', label: 'VP A DUY (M)', bankId: 'VPB', accountNo: '8040890', accountName: 'NGUYEN NGOC DUY' },
-      { key: 'msb_a_duy', label: 'MSB A DUY', bankId: 'MSB', accountNo: '80002808041', accountName: 'NGUYEN NGOC DUY' },
-      // --- Ca nhan — nhom Anh Quan ---
-      { key: 'tp_a_quan', label: 'TP A QUÂN', bankId: 'TPB', accountNo: '10003099363', accountName: 'NGUYEN VAN QUAN' },
-      { key: 'acb_a_quan', label: 'ACB A QUÂN', bankId: 'ACB', accountNo: '48206877', accountName: 'NGUYEN VAN QUAN' },
-      { key: 'msb_a_quan', label: 'MSB A QUÂN', bankId: 'MSB', accountNo: '80002809285', accountName: 'NGUYEN VAN QUAN' },
-      // --- Ca nhan — nhom Chi Nguyet ---
-      { key: 'acb_c_nguyet', label: 'ACB C NGUYỆT (M)', bankId: 'ACB', accountNo: '52256368', accountName: 'DANG THI ANH NGUYET' },
-      { key: 'vp_c_nguyet', label: 'VP C NGUYỆT (M)', bankId: 'VPB', accountNo: '3090345688', accountName: 'DANG THI ANH NGUYET' },
-      { key: 'ocb_c_nguyet', label: 'OCB C NGUYỆT', bankId: 'OCB', accountNo: '0034100123456688', accountName: 'DANG THI ANH NGUYET' },
-      { key: 'shb_c_nguyet', label: 'SHB C NGUYỆT (M)', bankId: 'SHB', accountNo: '181833666', accountName: 'DANG THI ANH NGUYET' }
+      // --- Ca nhan — thu tu theo file Ngan hang (17/10/2026) ---
+      { key: 'ocb_c_nguyet', label: 'OCB NGUYỆT', bankId: 'OCB', accountNo: '0034100123456688', accountName: 'DANG THI ANH NGUYET' },
+      { key: 'acb_a_quan', label: 'ACB QUÂN (BILL)', bankId: 'ACB', accountNo: '48206877', accountName: 'NGUYEN VAN QUAN' },
+      { key: 'acb_c_nguyet', label: 'ACB NGUYỆT (BILL)', bankId: 'ACB', accountNo: '52256368', accountName: 'DANG THI ANH NGUYET' },
+      { key: 'msb_a_duy', label: 'MSB DUY', bankId: 'MSB', accountNo: '80002808041', accountName: 'NGUYEN NGOC DUY' },
+      { key: 'msb_a_quan', label: 'MSB QUÂN', bankId: 'MSB', accountNo: '80002809285', accountName: 'NGUYEN VAN QUAN' },
+      { key: 'shb_a_duy', label: 'SHB DUY', bankId: 'SHB', accountNo: '1026044272', accountName: 'NGUYEN NGOC DUY' },
+      { key: 'shb_c_nguyet', label: 'SHB NGUYỆT', bankId: 'SHB', accountNo: '181833666', accountName: 'DANG THI ANH NGUYET' },
+      { key: 'tp_a_duy', label: 'TPB DUY (BILL)', bankId: 'TPB', accountNo: '72104081990', accountName: 'NGUYEN NGOC DUY' },
+      { key: 'tp_a_quan', label: 'TPB QUÂN', bankId: 'TPB', accountNo: '10003099363', accountName: 'NGUYEN VAN QUAN' },
+      { key: 'vib_a_quan', label: 'VIB QUÂN', bankId: 'VIB', accountNo: '044345', accountName: 'NGUYEN VAN QUAN' },
+      { key: 'vib_a_duy', label: 'VIB DUY', bankId: 'VIB', accountNo: '087564570', accountName: 'NGUYEN NGOC DUY' },
+      { key: 'vp_a_duy', label: 'VPB DUY MỚI', bankId: 'VPB', accountNo: '706126554', accountName: 'NGUYEN NGOC DUY' },
+      { key: 'vp_c_nguyet', label: 'VPB NGUYỆT', bankId: 'VPB', accountNo: '3090345688', accountName: 'DANG THI ANH NGUYET' }
     ],
     // Nguon (cot NGUỒN cua Gop VAT) -> tai khoan mac dinh o che do "Hoa don co VAT".
     sourceAccountMap: {

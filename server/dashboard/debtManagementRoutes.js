@@ -85,6 +85,10 @@ router.patch('/api/debt-management/schedule', requireAuth, requireFeature('repor
     const { branch, customerId } = readTarget(req.body);
     const result = await repository().setSchedule({ branch, customerId, days: req.body?.scheduleDays, user: req.user });
     notifyDebtChange();
+    // Lich TT doi -> Con han / No qua han cua bang Tuoi no doi: tinh lai nen, xong thi bao client.
+    require('../debtSchedule/debtAgingRefresh').requestDebtAgingRefresh().then(aging => {
+      if (aging && aging.changed) notifyDebtChange();
+    });
     return res.status(200).json(result);
   } catch (error) {
     return sendError(res, error, 'Không thể lưu lịch thanh toán lúc này.', 'DEBT_SCHEDULE_UNAVAILABLE');
@@ -161,6 +165,27 @@ router.get('/api/debt-management/penalty-board', requireAuth, requireFeature('re
       return res.json(board);
     } catch (error) {
       return sendError(res, error, 'Không thể tải bảng phạt sale lúc này.', 'DEBT_PENALTY_BOARD_UNAVAILABLE');
+    }
+  });
+
+// Bang tuoi no theo hoa don (muc 3): so song theo lan dong bo KiotViet moi nhat, khong theo ban chot 15:00.
+router.get('/api/debt-management/aging', requireAuth, requireFeature('reports.debt'),
+  branchMiddleware.resolveBranch, async (req, res) => {
+    try {
+      return res.json(await require('../debtSchedule/debtScheduleService').buildDebtAging(branchCodesFor(req)));
+    } catch (error) {
+      return sendError(res, error, 'Không thể tải bảng tuổi nợ lúc này.', 'DEBT_AGING_UNAVAILABLE');
+    }
+  });
+
+// Hop chi tiet 1 dong Kiem tra cong no: hoa don trong khoang ngay no tuong duong cua khach.
+router.get('/api/debt-management/aging/invoices', requireAuth, requireFeature('reports.debt'),
+  branchMiddleware.resolveBranch, async (req, res) => {
+    try {
+      return res.json(await require('../debtSchedule/debtScheduleService')
+        .buildDebtAgingInvoices(branchCodesFor(req), { branch: req.query?.branch, customerId: req.query?.customerId }));
+    } catch (error) {
+      return sendError(res, error, 'Không thể tải hóa đơn của khách lúc này.', 'DEBT_AGING_INVOICES_UNAVAILABLE');
     }
   });
 

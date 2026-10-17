@@ -909,7 +909,7 @@
       row('Ngày đang xem', calVn(state.selected) + ' · ' + leaveCoverageLabel(entry.cov));
       var days = Number(req.tong_ngay_nghi);
       row('Tổng nghỉ', req.tong_buoi_nghi + ' buổi' + (Number.isFinite(days)
-        ? ' (' + days.toLocaleString('vi-VN', { maximumFractionDigits: 1 }) + ' ngày)' : ''));
+        ? ' (' + days.toLocaleString('en-US', { maximumFractionDigits: 1 }) + ' ngày)' : ''));
       row('Loại', req.loai_yeu_cau);
       row('Lý do', req.ly_do);
       row('Người bàn giao', req.nguoi_ban_giao);

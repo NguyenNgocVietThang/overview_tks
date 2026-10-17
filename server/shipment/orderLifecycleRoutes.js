@@ -182,7 +182,7 @@ router.post('/export', ...authExport, async (req, res) => {
     const orders = await service.exportOrders(req.body, { kiot: kiotRepository.kiotOrders });
     if (orders.length > MAX_EXPORT_ROWS) {
       return res.status(400).json({
-        error: `Có ${orders.length.toLocaleString('vi-VN')} đơn khớp bộ lọc, vượt giới hạn ${MAX_EXPORT_ROWS.toLocaleString('vi-VN')} đơn mỗi lần xuất. Hãy lọc thêm theo cơ sở, trạng thái hoặc khoảng thời gian rồi xuất lại.`,
+        error: `Có ${orders.length.toLocaleString('en-US')} đơn khớp bộ lọc, vượt giới hạn ${MAX_EXPORT_ROWS.toLocaleString('en-US')} đơn mỗi lần xuất. Hãy lọc thêm theo cơ sở, trạng thái hoặc khoảng thời gian rồi xuất lại.`,
         code: 'TOO_MANY_ROWS'
       });
     }
