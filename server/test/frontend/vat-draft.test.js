@@ -136,6 +136,18 @@ test('xu ly chung tu: bang co Ghi chu tong canh Ghi chu hang hoa, ly do khi re c
   await tick(); await tick();
   assert.deepEqual(calls.find(c => c.key === 'POST /qr/url').body, { accountKey: 'tks_group', amount: '2160000', addInfo: 'HD028345 DH050000' });
   assert.ok(doc.querySelector('[data-qr-result] img').src.startsWith('https://img.vietqr.io/'));
+
+  // Bam anh QR -> phong to; Esc dong; nut Tai ma QR tai anh ve.
+  doc.querySelector('[data-qr-zoom]').click();
+  const viewer = doc.getElementById('vdQrViewer');
+  assert.equal(viewer.hidden, false);
+  assert.equal(doc.getElementById('vdQrViewerImg').src, 'https://img.vietqr.io/image/MB-606266688888-compact2.png?amount=1500000');
+  assert.match(doc.getElementById('vdQrViewerCaption').textContent, /Tất cả nguồn — 1\.500\.000đ/);
+  doc.dispatchEvent(new doc.defaultView.KeyboardEvent('keydown', { key: 'Escape' }));
+  assert.equal(viewer.hidden, true);
+  doc.querySelector('[data-qr-download]').click();
+  await tick(); await tick();
+  assert.ok(calls.some(c => c.key.startsWith('GET /image/MB-606266688888-compact2.png')), 'tai anh QR ve');
 });
 
 test('xuat Excel theo thu tu dang hien thi sau khi sap xep', async t => {

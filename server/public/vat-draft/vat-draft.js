@@ -483,11 +483,56 @@
     try {
       const data = await api('/qr/url', { method: 'POST', body: { accountKey, manual, amount: String(amount), addInfo } });
       const label = caption || data.accountLabel;
-      resultEl.innerHTML = `<figure class="vd-qr-result"><img src="${escapeHtml(data.url)}" alt="Mã QR chuyển khoản ${escapeHtml(intFormat.format(data.amount))}đ">
-        <figcaption>${escapeHtml(label)} — ${escapeHtml(intFormat.format(data.amount))}đ${data.addInfo && !caption ? ' — ' + escapeHtml(data.addInfo) : ''}</figcaption></figure>`;
+      const text = `${label} — ${intFormat.format(data.amount)}đ${data.addInfo && !caption ? ' — ' + data.addInfo : ''}`;
+      resultEl.innerHTML = `<figure class="vd-qr-result">
+        <button type="button" class="vd-qr-zoom" data-qr-zoom title="Bấm để phóng to"><img src="${escapeHtml(data.url)}" alt="Mã QR chuyển khoản ${escapeHtml(intFormat.format(data.amount))}đ"></button>
+        <figcaption>${escapeHtml(text)}</figcaption>
+        <button type="button" class="btn-secondary vd-small-btn" data-qr-download>⬇️ Tải mã QR</button></figure>`;
+      const figure = resultEl.querySelector('figure');
+      figure.dataset.url = data.url;
+      figure.dataset.caption = text;
+      figure.dataset.fileName = `QR_${slug(label)}_${data.amount}.png`;
     } catch (error) {
       resultEl.innerHTML = `<p class="vd-message vd-error">${escapeHtml(error.message)}</p>`;
     }
+  }
+
+  function openQrViewer(figure) {
+    const viewer = $('vdQrViewer');
+    $('vdQrViewerImg').src = figure.dataset.url;
+    $('vdQrViewerCaption').textContent = figure.dataset.caption || '';
+    viewer.dataset.url = figure.dataset.url;
+    viewer.dataset.fileName = figure.dataset.fileName;
+    viewer.hidden = false;
+    $('vdQrViewerClose').focus();
+  }
+
+  function closeQrViewer() {
+    $('vdQrViewer').hidden = true;
+  }
+
+  async function downloadQr(url, fileName, button) {
+    if (button) button.disabled = true;
+    try {
+      // Ảnh nằm ở img.vietqr.io: tải về dạng blob để lưu đúng tên file PNG.
+      const res = await fetch(url, { mode: 'cors' });
+      if (!res.ok) throw new Error('fetch');
+      downloadBlob(await res.blob(), fileName || 'ma_qr.png');
+    } catch (error) {
+      // Máy chủ ảnh chặn tải trực tiếp thì mở ảnh ở tab mới để người dùng lưu.
+      window.open(url, '_blank', 'noopener');
+    } finally {
+      if (button) button.disabled = false;
+    }
+  }
+
+  function bindQrResultActions(container) {
+    container.addEventListener('click', event => {
+      const figure = event.target.closest('figure.vd-qr-result');
+      if (!figure || !figure.dataset.url) return;
+      if (event.target.closest('[data-qr-zoom]')) openQrViewer(figure);
+      else if (event.target.closest('[data-qr-download]')) downloadQr(figure.dataset.url, figure.dataset.fileName, event.target.closest('button'));
+    });
   }
 
   // ---------- Kết quả Tra cứu nguồn ----------
@@ -655,6 +700,13 @@
         caption: captions[index]
       });
     });
+
+    bindQrResultActions($('vdQrCards'));
+    bindQrResultActions($('vdManualResult'));
+    $('vdQrViewerClose').addEventListener('click', closeQrViewer);
+    $('vdQrViewer').addEventListener('click', event => { if (event.target === $('vdQrViewer')) closeQrViewer(); });
+    $('vdQrViewerDownload').addEventListener('click', event => downloadQr($('vdQrViewer').dataset.url, $('vdQrViewer').dataset.fileName, event.currentTarget));
+    document.addEventListener('keydown', event => { if (event.key === 'Escape' && !$('vdQrViewer').hidden) closeQrViewer(); });
 
     $('vdPdfInput').addEventListener('change', onPdfSelected);
     $('vdManualAccount').addEventListener('change', updateManualFields);

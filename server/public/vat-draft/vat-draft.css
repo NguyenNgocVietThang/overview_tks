@@ -90,3 +90,10 @@
   .vd-subtabs{width:100%}
   .vd-subtabs button{flex:1;padding:7px 8px}
 }
+.vd-qr-zoom{padding:0;border:0;background:transparent;cursor:zoom-in;border-radius:var(--radius-md)}
+.vd-qr-zoom:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
+.vd-qr-viewer{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.72)}
+.vd-qr-viewer[hidden]{display:none}
+.vd-qr-viewer-box{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-xl);padding:16px;display:flex;flex-direction:column;align-items:center;gap:12px;max-width:min(560px,100%);max-height:100%;overflow:auto}
+.vd-qr-viewer-box img{width:min(500px,calc(100vw - 64px));height:auto;background:#fff;border-radius:var(--radius-md)}
+.vd-qr-viewer-box p{margin:0;font-size:13px;color:var(--text);text-align:center}
