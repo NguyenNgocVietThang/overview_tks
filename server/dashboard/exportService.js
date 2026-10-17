@@ -204,7 +204,9 @@ function aggregateColumn(key, label, type, description, options = {}) {
     type: type || inferColumnType(label),
     description,
     wrapText: options.wrapText === true,
-    selected: options.selected !== false
+    selected: options.selected !== false,
+    // Cot so tu to mau theo dau (am do, 0 vang, duong xanh la) o ca Excel va HTML.
+    ...(options.signTone === true ? { signTone: true } : {})
   };
 }
 
@@ -261,8 +263,8 @@ const DEBT_AGING_COLUMNS = [
   aggregateColumn('currentDebt', 'Nợ hiện tại', 'number', 'Nợ của khách theo lần đồng bộ KiotViet mới nhất (VNĐ).'),
   aggregateColumn('overdueDebt', 'Nợ quá hạn', 'number', 'Nợ hiện tại trừ tổng hóa đơn hoàn thành trong số ngày của lịch thanh toán tính tới hôm nay (không trừ trả hàng), không âm (VNĐ).'),
   aggregateColumn('payoffDay', 'Ngày hết nợ', 'text', 'Trừ dần nợ hiện tại bằng hóa đơn hoàn thành từ hôm nay lùi về; ngày làm nợ còn lại ≤ 0. "Trước …" = trừ hết 365 ngày hóa đơn vẫn còn nợ.'),
-  aggregateColumn('equivalentDays', 'Ngày nợ tương đương', 'number', 'Hôm nay trừ ngày hết nợ (ngày); để trống khi không còn nợ.'),
-  aggregateColumn('remainingDays', 'Còn hạn', 'number', 'Lịch thanh toán trừ ngày nợ tương đương (ngày); ≤ 0 là đã chạm hoặc quá lịch thanh toán.')
+  aggregateColumn('equivalentDays', 'Ngày nợ tương đương', 'number', 'Hôm nay trừ ngày hết nợ cộng 1 (ngày, tính cả ngày hết nợ); để trống khi không còn nợ.'),
+  aggregateColumn('remainingDays', 'Còn hạn', 'number', 'Lịch thanh toán trừ ngày nợ tương đương (ngày); dương (xanh lá) là còn hạn, 0 (vàng) là chạm lịch, âm (đỏ) là quá lịch thanh toán.', { signTone: true })
 ];
 
 const DEBT_BRANCH_COLUMN = aggregateColumn('branch', 'Cơ sở', 'text', 'Cơ sở của khoản công nợ (Hà Nội hoặc Sài Gòn).');
@@ -1194,6 +1196,19 @@ function styleWorksheet(worksheet, columns, rows) {
     if (column.type === 'percent') excelColumn.numFmt = '0.00%';
     if (column.type === 'date') excelColumn.numFmt = 'dd/mm/yyyy hh:mm:ss';
     excelColumn.alignment = { vertical: 'top', wrapText: column.wrapText === true };
+    if (column.signTone) applySignToneFont(worksheet, index + 1, rows, column);
+  });
+}
+
+// Chu am do / 0 vang dam / duong xanh la (khop mau cot Con han tren man hinh va file HTML).
+const SIGN_TONE_ARGB = { neg: 'FFB91C1C', zero: 'FFB8860B', pos: 'FF047857' };
+
+function applySignToneFont(worksheet, columnNumber, rows, column) {
+  rows.forEach((row, index) => {
+    const value = toExcelValue(row[column.key], column.type);
+    if (typeof value !== 'number') return;
+    const tone = value < 0 ? 'neg' : value === 0 ? 'zero' : 'pos';
+    worksheet.getRow(index + 2).getCell(columnNumber).font = { bold: true, color: { argb: SIGN_TONE_ARGB[tone] } };
   });
 }
 

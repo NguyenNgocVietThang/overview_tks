@@ -69,7 +69,7 @@ test('muc 3 co du 9 cot, Ngay het no mac dinh an, nut Xuat file debt.aging', () 
   assert.match(source, /openExportDialog\('debt\.aging'\)/);
 });
 
-test('tai bang tinh san, hien so, bo do Con han <= 0 va dau ≥/≤ khi vuot lich su', async () => {
+test('tai bang tinh san, hien so, to mau Con han va dau ≥/≤ khi vuot lich su', async () => {
   const { dom, requests } = createDashboard(AGING);
   const { window } = dom;
   await window.loadDebtAging();
@@ -81,8 +81,9 @@ test('tai bang tinh san, hien so, bo do Con han <= 0 va dau ≥/≤ khi vuot lic
   assert.deepEqual(rows[0].slice(6), ['10/10/2026', '7', '-2']);
   assert.deepEqual(rows[1].slice(6), ['—', '—', '—']);
   assert.deepEqual(rows[3].slice(6), ['trước 18/10/2025', '≥ 364', '≤ -361']);
-  const expired = [...document.querySelectorAll('#debtAgingRows .debt-aging-expired')].map(el => el.textContent);
-  assert.deepEqual(expired, ['-2', '≤ -361']);
+  const tones = [...document.querySelectorAll('#debtAgingRows [class^="debt-aging-"]')].map(el => [el.className, el.textContent]);
+  assert.deepEqual(tones, [['debt-aging-neg', '-2'], ['debt-aging-pos', '5'], ['debt-aging-neg', '≤ -361']]);
+  assert.match(window.debtAgingDaysHtml({ remainingDays: 0 }, 'remainingDays'), /debt-aging-zero/);
   assert.match(document.getElementById('debtAgingSourceLabel').textContent, /^tính lúc /);
 });
 
@@ -153,4 +154,19 @@ test('bam dong khach mo hop hoa don: chi so tong quan, 5 cot, bang co key de sor
   rows[1].click();
   await new Promise(resolve => setTimeout(resolve, 0));
   assert.match(body.textContent, /không có nợ/);
+});
+
+test('cot Con han (ke ca dong ≤ -x) duoc table-align.js can phai nhu cac cot so', async () => {
+  const { dom } = createDashboard(AGING);
+  const { window } = dom;
+  const document = window.document;
+  await window.loadDebtAging();
+  window.requestAnimationFrame = callback => callback();
+  window.MutationObserver = function () { this.observe = () => {}; };
+  window.eval(fs.readFileSync(path.join(publicDir, 'shared', 'table-align.js'), 'utf8'));
+  const table = document.querySelector('[data-debt-aging-table]');
+  const aligned = [...table.tHead.rows[0].cells].map(cell => cell.classList.contains('col-num'));
+  // Co so, Khach hang, Sale: chu; Lich TT, No hien tai, No qua han, Ngay no tuong duong, Con han: so (Ngay het no la ngay).
+  assert.deepEqual(aligned, [false, false, false, true, true, true, false, true, true]);
+  assert.ok(table.tBodies[0].rows[3].cells[8].classList.contains('col-num'), 'o ≤ -361 cung can phai');
 });

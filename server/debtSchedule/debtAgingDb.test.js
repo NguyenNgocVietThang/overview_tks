@@ -72,8 +72,8 @@ test('tinh san tu bang chung: bo hoa don huy, khong tru tra hang, bo khach ngung
     const binh = report.customers[0];
     assert.equal(binh.branch, 'HN');
     assert.equal(binh.payoffDay, '2026-10-10');
-    assert.equal(binh.equivalentDays, 7);
-    assert.equal(binh.remainingDays, -2);
+    assert.equal(binh.equivalentDays, 8);
+    assert.equal(binh.remainingDays, -3);
     assert.equal(binh.sale, 'Duy Thái');
     assert.equal(binh.paymentSchedule, '5');
     assert.equal(binh.hasStoredSchedule, true);
@@ -83,7 +83,8 @@ test('tinh san tu bang chung: bo hoa don huy, khong tru tra hang, bo khach ngung
     const sai = report.customers[2];
     assert.equal(sai.sale, 'Chưa phân nhóm');
     assert.equal(sai.payoffDay, '2026-10-16');
-    assert.equal(sai.remainingDays, 0);
+    assert.equal(sai.equivalentDays, 2);
+    assert.equal(sai.remainingDays, -1);
   } finally { await db.close(); }
 });
 
@@ -112,7 +113,7 @@ test('sang ngay moi: ngay no tuong duong tang, con han giam', async () => {
     await refreshDebtAging(pool, { now: () => NOW, log: quiet });
     await refreshDebtAging(pool, { now: () => NOW + 86400000, log: quiet });
     const row = (await db.query(`SELECT equivalent_days, remaining_days FROM debt_aging_customers WHERE branch = 'hanoi' AND customer_id = 1`)).rows[0];
-    assert.deepEqual(row, { equivalent_days: 8, remaining_days: -3 });
+    assert.deepEqual(row, { equivalent_days: 9, remaining_days: -4 });
   } finally { await db.close(); }
 });
 
@@ -158,7 +159,7 @@ test('hop chi tiet: hoa don Hoan thanh tu ngay het no toi nay, moi nhat truoc; c
     assert.equal(detail.invoices[0].date, '17/10/2026 08:00');
     assert.equal(detail.invoices[0].customerName, 'Anh Bình');
     assert.equal(detail.total, 600);
-    assert.deepEqual([detail.currentDebt, detail.equivalentDays, detail.remainingDays, detail.scheduleDays, detail.branch], [600, 7, -2, 5, 'HN']);
+    assert.deepEqual([detail.currentDebt, detail.equivalentDays, detail.remainingDays, detail.scheduleDays, detail.branch], [600, 8, -3, 5, 'HN']);
     // Khach het no: khong co khoang -> danh sach rong.
     const clear = await buildDebtAgingInvoices(['hanoi'], { branch: 'hanoi', customerId: '2' }, { repository: repo });
     assert.equal(clear.payoffDay, null);

@@ -2678,11 +2678,17 @@
       flex: 1 1 240px;
     }
 
-    /* Tuoi no theo hoa don: Con han <= 0 (da cham / qua lich TT) bo do. */
-    .debt-aging-expired {
-      color: var(--red);
+    /* Tuoi no theo hoa don: cot Con han — am (qua lich TT) do, 0 (cham lich) vang, duong (con han) xanh la. */
+    .debt-aging-neg,
+    .debt-aging-zero,
+    .debt-aging-pos {
       font-weight: 700;
     }
+
+    .debt-aging-neg { color: var(--red); }
+    .debt-aging-zero { color: #FACC15; }
+    .debt-aging-pos { color: var(--green); }
+    :root[data-theme="light"] .debt-aging-zero { color: #CA8A04; }
 
     .debt-filter-field label {
       color: var(--muted);
@@ -3870,15 +3876,15 @@
                   <table class="fixed-table" data-debt-aging-table data-table-key="dashboard-table-24">
                     <thead>
                       <tr>
-                        <th style="width:60px" data-column-key="co-so">Cơ sở</th>
-                        <th style="width:160px" data-column-key="khach-hang">Khách hàng</th>
-                        <th style="width:150px" data-column-key="sale">Sale</th>
-                        <th style="width:90px" data-column-key="lich-tt">Lịch TT</th>
-                        <th style="width:135px" data-column-key="no-hien-tai">Nợ hiện tại</th>
-                        <th style="width:130px" data-column-key="no-qua-han">Nợ quá hạn</th>
+                        <th style="width:107px" data-column-key="co-so">Cơ sở</th>
+                        <th style="width:318px" data-column-key="khach-hang">Khách hàng</th>
+                        <th style="width:145px" data-column-key="sale">Sale</th>
+                        <th style="width:110px" data-column-key="lich-tt">Lịch TT</th>
+                        <th style="width:150px" data-column-key="no-hien-tai">Nợ hiện tại</th>
+                        <th style="width:217px" data-column-key="no-qua-han">Nợ quá hạn</th>
                         <th style="width:120px" data-column-key="ngay-het-no" data-column-default-hidden="true">Ngày hết nợ</th>
-                        <th style="width:120px" data-column-key="ngay-no-tuong-duong">Ngày nợ tương đương</th>
-                        <th style="width:100px" data-column-key="con-han">Còn hạn</th>
+                        <th style="width:128px" data-column-key="ngay-no-tuong-duong">Ngày nợ tương đương</th>
+                        <th style="width:135px" data-column-key="con-han">Còn hạn</th>
                       </tr>
                     </thead>
                     <tbody id="debtAgingRows">
@@ -4358,7 +4364,7 @@
   </script>
   <script src="/shared/search-clear.js?v=20261009-1"></script>
   <script src="/shared/shared-nav.js?v=20261016-freight"></script>
-  <script src="/shared/table-align.js?v=20260928"></script>
+  <script src="/shared/table-align.js?v=20261017"></script>
   <script src="/shared/dateInput.js?v=20260912"></script>
   <script src="/marketing-report.js?v=20261016-sort"></script>
 
@@ -8014,7 +8020,7 @@
       const tiles = [
         { label: 'Nợ hiện tại', value: fmtMoney(data.currentDebt), tone: 'red' },
         { label: 'Ngày nợ tương đương', value: prefix + fmtNumber(data.equivalentDays) + ' ngày', sub: 'Lịch TT ' + fmtNumber(data.scheduleDays) + ' ngày', text: true },
-        { label: 'Còn hạn', value: (data.beyondHistory ? '≤ ' : '') + fmtNumber(remaining) + ' ngày', tone: remaining !== null && remaining <= 0 ? 'amber' : '', text: true },
+        { label: 'Còn hạn', value: (data.beyondHistory ? '≤ ' : '') + fmtNumber(remaining) + ' ngày', tone: remaining === null ? '' : (remaining < 0 ? 'red' : (remaining === 0 ? 'amber' : 'green')), text: true },
         { label: 'Số hóa đơn', value: fmtNumber(invoices.length) },
         { label: 'Tổng tiền hóa đơn', value: fmtMoney(data.total), tone: 'green' }
       ];
@@ -8921,7 +8927,9 @@
       if (value === null || value === undefined) return '—';
       const prefix = customer.beyondHistory ? (field === 'equivalentDays' ? '≥ ' : '≤ ') : '';
       const text = prefix + fmtNumber(value);
-      return field === 'remainingDays' && value <= 0 ? '<span class="debt-aging-expired">' + escapeHtml(text) + '</span>' : escapeHtml(text);
+      if (field !== 'remainingDays') return escapeHtml(text);
+      const tone = value < 0 ? 'neg' : (value === 0 ? 'zero' : 'pos');
+      return '<span class="debt-aging-' + tone + '">' + escapeHtml(text) + '</span>';
     }
 
     function populateDebtAgingFilters(customers) {
