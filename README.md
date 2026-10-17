@@ -82,7 +82,7 @@ server/
 │   ├── documentDetailRepository.js  # Chi tiết hóa đơn (popup bảng Chi tiết giao dịch) và chi tiết đơn đặt hàng (trang Vòng đời đơn hàng)
 │   └── stockoutCheck/    # Engine kiểm tra đứt hàng + upload Trả NCC Excel
 ├── data/                 # Dữ liệu lưu trữ local (users.json, notifications.json, ...)
-├── db/                   # Migration Supabase (0001–0058; 0058 index orders(order_date) cho Nháp VAT, chưa áp; 0053 đã áp DB dùng chung 15/10, 0054 chưa áp) + SCHEMA.md
+├── db/                   # Migration Supabase (0001–0059; 0059 bảng tuổi nợ tính sẵn cho tab Công nợ, chưa áp; 0058 index orders(order_date) cho Nháp VAT, chưa áp; 0053 đã áp DB dùng chung 15/10, 0054 chưa áp) + SCHEMA.md
 ├── hr/                   # Nhân sự, nghỉ phép tự gửi, phạm vi duyệt chung, tài liệu quy định và cầu Postgres → SSE
 ├── kiotviet/             # KiotViet API client và webhook receiver
 ├── kiotvietSync/         # Webhook, polling, backfill và rollup
@@ -113,6 +113,8 @@ Migration `0014_customer_debt_activity_periods.sql` tạo bảng tổng hợp ba
 Migration `0015_app_users_telegram_id.sql` thêm `app_users.telegram_id` để bot có thể liên kết trực tiếp qua Supabase Postgres. Giao diện/API tạo mã liên kết cũ không còn đọc hoặc ghi tab `_HR_TELEGRAM_LINKS`.
 
 ## Cập nhật gần nhất
+
+2026-10-17 — Tab Công nợ — mục 3 **Tuổi nợ theo hóa đơn** (migration `0059`, chưa áp DB): bảng tra cứu mọi khách (kể cả nợ 0) với Cơ sở · Khách hàng · Sale · Lịch TT · Nợ hiện tại · Nợ quá hạn · Ngày hết nợ (ẩn mặc định) · Ngày nợ tương đương · Còn hạn. **Ngày hết nợ** = trừ dần nợ hiện tại bằng tổng hóa đơn Hoàn thành theo ngày từ hôm nay lùi về (không trừ trả hàng), ngày đầu tiên phần còn lại ≤ 0; **Ngày nợ tương đương** = hôm nay − Ngày hết nợ; **Còn hạn** = Lịch TT − Ngày nợ tương đương, ≤ 0 bôi đỏ; nợ ≤ 0 để trống 3 cột ngày; tra cứu tối đa 365 ngày hóa đơn (vượt → "≥"/"≤", ngày hết nợ ghi "trước …"). Nợ quá hạn tính như bảng thao tác nhưng mốc là hôm nay. Số liệu sống theo lần đồng bộ KiotViet, không chờ chốt 15:00: job `debtSchedule/debtAgingRefresh.js` tính sẵn từ các bảng chung `customers` + `invoices` + `debt_payment_schedules` vào `debt_aging_customers` / `debt_aging_state` sau mỗi lượt đồng bộ hóa đơn (7 phút), khi đồng bộ khách (20 phút) và khi sửa Lịch TT; chỉ ghi dòng thay đổi (LEFT JOIN + IS DISTINCT FROM, lượt nhàn rỗi ghi 0 dòng). Web chỉ ĐỌC bảng kết quả qua `GET /api/debt-management/aging` (quyền `reports.debt`, lọc theo cơ sở đang xem, cache 60 giây); xuất Excel/HTML `debt.aging` theo bộ lọc/sắp xếp đang xem. Đo trên DB thật (giao dịch chỉ đọc, 17/10/2026): 8.132 khách, 12.935 dòng hóa đơn-ngày, ~1 s/lượt tính; đối chiếu tay 2 khách khớp. Thứ tự deploy: `npm run db:migrate` (0059) → deploy code → job tự tính ở lượt đồng bộ hóa đơn kế tiếp (hoặc chạy tay `node debtSchedule/debtAgingRefresh.js`). Chưa áp 0059 thì mục 3 hiện "Chưa có số liệu tuổi nợ", các phần khác không ảnh hưởng. Chi tiết: [server/README.md](server/README.md).
 
 2026-10-17 — **Nháp VAT: chọn ô kiểu Google Sheet**: ở 3 bảng kết quả (Danh sách sản phẩm, Tra cứu nguồn, Mã có vấn đề) bấm/kéo chuột chọn vùng ô thay vì bôi đen chữ, Shift+click nới vùng, Ctrl+C chép TSV không kèm tiêu đề để dán sang Excel/Google Sheet (ô nhiều dòng giữ trong 1 ô), Esc bỏ chọn (`public/vat-draft/cell-select.js`).
 
