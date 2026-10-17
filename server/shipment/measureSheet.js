@@ -1,19 +1,19 @@
 'use strict';
 
 // ==========================================
-// MEASURE SHEET — doc sheet "CAN DO" (kich thuoc + can nang thung) tu Google Sheets, CHI DOC.
+// MEASURE SHEET — du lieu sheet "CAN DO" (kich thuoc + can nang thung), doc tu bang shipping_measures.
+// server/sheetSnapshots/sync.js doc Google Sheets (5 phut/lan, dung parseMeasureRows ben duoi) roi ghi vao DB;
+// web KHONG goi Google moi request.
 // Dung de tinh the tich (m3) / can nang (kg) cua dong hang trong hop chi tiet Vong doi don.
 //   m3 moi cai = (Dai x Rong x Cao / 1.000.000) / SL-moi-thung ; kg moi cai = kg-thung / SL-moi-thung.
 // Chi doc cac cot goc (SL/T, Can nang, D, R, C), tu tinh bang JS, khong doc cot cong thuc.
 // Ma trung: lay hang DAU (giong XLOOKUP cua sheet "Hoa"), khong phan biet hoa/thuong.
-// "Thoi gian thuc" = doc lai khi mo hop; cache ngan + gop request dang chay de khong cham quota Sheets.
 // ==========================================
 
-const CONFIG = require('../config');
-const { createReadOnlyClient } = require('../sheets/sheetsClient');
+const { getPool } = require('../db/pool');
 
 const HEADERS = Object.freeze({ code: 'MÃ SP', perCarton: 'SL/T', cartonKg: 'Cân nặng', length: 'D', width: 'R', height: 'C' });
-const DEFAULT_TTL_MS = 30 * 1000;
+const STALE_AFTER_MS = 20 * 60 * 1000;
 
 function sourceError(code, message) {
   const error = new Error(message);
@@ -66,49 +66,38 @@ function parseMeasureRows(values) {
   return table;
 }
 
-function createMeasureSheet({
-  getSpreadsheetId = () => CONFIG.SHIPPING_MEASURE_SPREADSHEET_ID,
-  sheetName = CONFIG.SHIPPING_MEASURE_SHEET,
-  client = createReadOnlyClient(getSpreadsheetId, 'Cân đo'),
-  now = () => Date.now(),
-  ttlMs = DEFAULT_TTL_MS
-} = {}) {
-  let cache = null; // { table, at }
-  let inflight = null;
-
-  async function load() {
-    if (!getSpreadsheetId()) throw sourceError('MEASURE_NOT_CONFIGURED', 'Chưa cấu hình nguồn dữ liệu CÂN ĐO.');
-    try {
-      const titles = await client.listSheetTitles();
-      const actual = titles.find(title => title === sheetName) ||
-        titles.find(title => normalizeHeader(title) === normalizeHeader(sheetName));
-      if (!actual) throw sourceError('MEASURE_SHEET_MISSING', `Không tìm thấy sheet ${sheetName}.`);
-      const values = await client.getValues(actual, { valueRenderOption: 'UNFORMATTED_VALUE' });
-      return parseMeasureRows(values);
-    } catch (error) {
-      if (error.statusCode === 503) throw error;
-      // Khong chuyen loi Google tho (metadata request/auth) ve trinh duyet.
-      console.error('[MeasureSheet] Sheets read failed:', error.response?.status || error.code || 'UNKNOWN');
-      throw sourceError('MEASURE_SOURCE_UNAVAILABLE', 'Không đọc được sheet CÂN ĐO. Vui lòng kiểm tra nguồn Google Sheets và quyền truy cập.');
-    }
-  }
-
-  async function getTable() {
-    if (cache && now() - cache.at < ttlMs) return cache.table;
-    if (!inflight) {
-      inflight = load().then(table => { cache = { table, at: now() }; return table; })
-        .finally(() => { inflight = null; });
-    }
-    return inflight;
-  }
-
+function createMeasureSheet({ getDb = getPool, now = () => Date.now() } = {}) {
   /** Tra cuu nhieu ma -> Map<codeKey, entry>. Ma khong co trong sheet khong xuat hien trong Map. */
   async function lookup(codes) {
-    const table = await getTable();
+    const keys = [...new Set(codes.map(codeKey).filter(Boolean))];
+    let state;
+    let measures;
+    try {
+      const db = getDb();
+      [state, measures] = await Promise.all([
+        db.query('SELECT last_success_at, last_error FROM sheet_snapshot_sync WHERE source = $1', ['shipping_measures']),
+        keys.length
+          ? db.query('SELECT code_key, per_carton, m3_per_unit, kg_per_unit FROM shipping_measures WHERE code_key = ANY($1)', [keys])
+          : { rows: [] }
+      ]);
+    } catch (error) {
+      console.error('[MeasureSheet] DB read failed:', error.code || 'UNKNOWN');
+      throw sourceError('MEASURE_SOURCE_UNAVAILABLE', 'Không đọc được dữ liệu CÂN ĐO.');
+    }
+    const sync = state.rows[0];
+    if (!sync?.last_success_at) throw sourceError('MEASURE_NOT_SYNCED', 'Dữ liệu CÂN ĐO chưa được đồng bộ từ Google Sheets.');
+    if (sync.last_error || now() - new Date(sync.last_success_at).getTime() > STALE_AFTER_MS) {
+      console.warn('[MeasureSheet] Dang dung ban dong bo cu (stale).');
+    }
+    const num = value => (value === null || value === undefined ? null : Number(value));
     const result = new Map();
-    for (const code of codes) {
-      const key = codeKey(code);
-      if (table.has(key)) result.set(key, table.get(key));
+    for (const row of measures.rows) {
+      const m3PerUnit = num(row.m3_per_unit);
+      const kgPerUnit = num(row.kg_per_unit);
+      result.set(row.code_key, {
+        perCarton: num(row.per_carton), m3PerUnit, kgPerUnit,
+        missingVolume: m3PerUnit === null, missingWeight: kgPerUnit === null
+      });
     }
     return result;
   }

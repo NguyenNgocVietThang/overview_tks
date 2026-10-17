@@ -1,6 +1,6 @@
 # Supabase schema cho đồng bộ KiotViet
 
-Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0059`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
+Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0064`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
 
 ## Quy ước chung
 
@@ -500,3 +500,13 @@ marketing_pancake_independent_page_state lưu trạng thái/coverage sáu page; 
 ## Tuổi nợ theo hóa đơn — migration 0059 (17/10/2026, chưa áp DB)
 
 `0059_debt_aging.sql`: bảng KẾT QUẢ tính sẵn, web chỉ đọc. `debt_aging_customers (branch, customer_id)` — 1 dòng/khách đang hoạt động/cơ sở: `customer_code`, `customer_name`, `sale` (nhãn hiển thị, "Chưa phân nhóm" khi trống), `schedule_days`, `has_stored_schedule`, `current_debt NUMERIC` (= `customers.debt`), `overdue_debt NUMERIC` (nợ hiện tại − hóa đơn Hoàn thành trong N ngày tới hôm nay, không âm), `payoff_day DATE` (ngày hết nợ), `beyond_history` (trừ hết 30 ngày hóa đơn vẫn còn nợ → `payoff_day` = ngày đầu khoảng tra cứu), `equivalent_days`, `remaining_days` (NULL khi nợ ≤ 0). `debt_aging_state (id = 1)`: `as_of_day` (ngày VN đã tính), `refreshed_at`, `customers_synced_at` (`max(customers.synced_at)`), `version` (tăng khi nội dung đổi). Ghi bởi `server/debtSchedule/debtAgingRefresh.js` theo mẫu ghi khác biệt (LEFT JOIN bảng đích + `IS DISTINCT FROM` ở SELECT, xóa khách không còn; đọc ra 0 khách thì không xóa). Nguồn: `customers` (lọc `isActive`), `debt_payment_schedules`, `invoices` (`raw->>'statusValue' = 'Hoàn thành'`, `purchase_date >= ngày::timestamp AT TIME ZONE 'UTC'` để dùng index `(branch, purchase_date)`), chỉ khách `debt > 0`. Chưa áp thì API trả `available: false`, job bỏ qua lỗi `42P01`.
+
+## Bản chụp Google Sheets: Vị trí hàng + CÂN ĐO — migration 0064 (17/10/2026, chưa áp DB)
+
+`0064_sheet_snapshots.sql` chỉ thêm 3 bảng; web chỉ đọc, `server/sheetSnapshots/sync.js` là nơi duy nhất ghi (ghi khác biệt, dòng không đổi không bị ghi lại).
+
+- `sheet_snapshot_sync (source PK)`: `last_success_at`, `last_attempt_at`, `last_error`. `source` ∈ `stock_locations_hn`, `stock_locations_sg`, `shipping_measures`. `last_attempt_at` là cổng "chưa đến hạn" dùng chung giữa các instance.
+- `stock_location_lines (branch 'HN'|'SG', source_row)`: `code`, `name`, `total_quantity`, `notes`, `location`, `arrival_date` (đều TEXT, giữ nguyên giá trị hiển thị của sheet, kể cả mã có số 0 đầu). `source_row` là thứ tự dòng đã lọc của sheet, dùng để đọc đúng thứ tự nguồn; gồm cả dòng trùng mã và SL = 0.
+- `shipping_measures (code_key PK)`: `per_carton`, `m3_per_unit`, `kg_per_unit` (NUMERIC, NULL khi sheet thiếu dữ liệu). `code_key` = `lower(trim(mã))`; mã trùng lấy dòng đầu.
+
+Cập nhật: 17/10/2026.

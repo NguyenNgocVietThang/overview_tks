@@ -89,7 +89,7 @@ Supabase PostgreSQL
 Google Sheets (service account)
     ├── Bảng Công nợ (DEBT_MANAGEMENT_SPREADSHEET_ID)         : chỉ đọc
     ├── Vòng đời đơn hàng (ORDER_LIFECYCLE_SPREADSHEET_ID)    : đọc DonHang_HN/SG/MienNam, GHI tab `Lịch sử cập nhật`
-    ├── Vị trí hàng (STOCK_LOCATIONS_SPREADSHEET_ID)          : chỉ đọc `Vị trí HN`, `Vị trí SG`
+    ├── Vị trí hàng (STOCK_LOCATIONS_SPREADSHEET_ID)          : chỉ đọc `Vị trí HN`, `Vị trí SG` bằng job nền `sheetSnapshots` (3 phút) vào Postgres; web không gọi Google mỗi request (sheet `CÂN ĐO` tương tự, 5 phút)
     └── Marketing (TRỰC PAGE, SĐT, ADS; MARKETING_*_SPREADSHEET_ID): chỉ đọc
     (Workbook HR và tab `Trả NCC` không còn được đọc)
 
@@ -720,4 +720,5 @@ Phương án B đã duyệt: tập SĐT/KPI Pancake riêng trong PostgreSQL, ng�
 - **NFR**: danh sách 7 ngày ~0,2 s trên DB thật; migration `0058` (index `orders(branch, order_date)`) cho khoảng ngày dài.
 
 - **FR-VAT-SEL (17/10/2026):** các bảng kết quả (Danh sách sản phẩm, Tra cứu nguồn, Mã có vấn đề) cho chọn vùng ô bằng chuột như Google Sheet (bấm, kéo, Shift+click); Ctrl+C chép giá trị đang hiển thị dạng TSV, không kèm tiêu đề, bỏ cột đang ẩn; Esc hoặc bấm ra ngoài để bỏ chọn.
+
 17/10/2026 — Báo cáo hàng hóa thêm hai cột **Đơn giá HN / Đơn giá SG** sau Tên sản phẩm (giá bán chung KiotViet từng cơ sở, migration `0061`), mặc định ẩn, chỉ Quản lý và Trợ lý (quyền `reports.products.price`) được thấy; API không trả giá cho tài khoản khác.

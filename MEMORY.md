@@ -18,7 +18,7 @@
   - **Frontend:** Vanilla HTML5, CSS3 (Design token, CSS variables, Dark/Light theme, responsive), Vanilla JavaScript (không dùng Tailwind, React, Vue).
   - **Dữ liệu nguồn:**
     - KiotViet API (bán hàng, kho, khách hàng, hóa đơn, thu chi) đồng bộ qua Node.js engine (`server/kiotvietSync/`).
-    - Google Sheets API (chỉ đọc cho Bảng Công nợ, Vị trí hàng, Báo cáo Marketing; đọc/ghi tab `Lịch sử cập nhật` Vòng đời đơn hàng và sửa trực tiếp Khách mới/Ghi chú của Báo cáo Marketing).
+    - Google Sheets API (chỉ đọc cho Vị trí hàng + CÂN ĐO qua job `sheetSnapshots` vào Postgres, Báo cáo Marketing; đọc/ghi tab `Lịch sử cập nhật` Vòng đời đơn hàng và sửa trực tiếp Khách mới/Ghi chú của Báo cáo Marketing).
   - **Bot & Thông báo:** Telegram Bot quản lý duyệt nghỉ phép (`server/telegram/`), Server-Sent Events (SSE) phát sóng thời gian thực cho trình duyệt.
 
 ---

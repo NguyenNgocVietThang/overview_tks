@@ -1047,6 +1047,21 @@
       return value && key === 'VL' && deliverToChanh && value.withChanh ? value.withChanh : value;
     }
 
+    // Ba o tong cuoc nam tren dau khoi "The tich & cuoc"; doi theo tick "Giao ra chanh" nen ve lai rieng voi phan than.
+    function carrierTotalsHtml(freight){
+      return detailStatsHtml(CARRIER_KEYS.map(function(key){
+        const value = carrierView(freight, key);
+        return { label: { DM:'Đức Mạnh', VL:'Việt Linh', JT:'J&T' }[key],
+          value: value ? formatTableVnd(value.total) + ' đ' : 'Chưa tính được', tone: value ? 'blue' : '',
+          sub: value && freight.provisional ? 'Tạm tính' : '' };
+      }));
+    }
+
+    function renderFreightBody(freight){
+      document.getElementById('lcCarrierTotals').innerHTML = carrierTotalsHtml(freight);
+      document.getElementById('lcFreightBody').innerHTML = freightBodyHtml(freight);
+    }
+
     function freightBodyHtml(freight){
       const carrier = carrierView(freight, selectedCarrier);
       const totals = freight.totals;
@@ -1065,12 +1080,6 @@
           return '<tr' + (line.isService ? ' class="is-service"' : '') + '><td>' + escapeHtml(line.productCode || '—') + '</td><td>' +
             escapeHtml(line.productName || '—') + '</td>' + measureCell(line, 'kg') + measureCell(line, 'm3') + '</tr>';
         }).join('') + '</tbody></table></div>';
-      html += '<div id="lcCarrierTotals">' + detailStatsHtml(CARRIER_KEYS.map(function(key){
-        const value = carrierView(freight, key);
-        return { label: { DM:'Đức Mạnh', VL:'Việt Linh', JT:'J&T' }[key],
-          value: value ? formatTableVnd(value.total) + ' đ' : 'Chưa tính được', tone: value ? 'blue' : '',
-          sub: value && freight.provisional ? 'Tạm tính' : '' };
-      })) + '</div>';
       html += '<div class="lc-freight-bar"><label for="lcCarrierSelect">Nhà xe</label>' +
         '<select class="lc-freight-select" id="lcCarrierSelect">' + CARRIER_KEYS.map(function(key){
           return '<option value="' + key + '"' + (selectedCarrier === key ? ' selected' : '') + '>' +
@@ -1096,7 +1105,7 @@
       const head = detailSectionHead('Thể tích & cước vận chuyển', 'Theo sheet CÂN ĐO · SL đặt');
       if(!freight) return '';
       if(freight.unavailable) return head + '<p class="lc-lines-status">' + escapeHtml(freight.message || 'Không tính được thể tích và cước lúc này.') + '</p>';
-      return head + '<div id="lcFreightBody">' + freightBodyHtml(freight) + '</div>';
+      return '<div id="lcCarrierTotals">' + carrierTotalsHtml(freight) + '</div>' + head + '<div id="lcFreightBody">' + freightBodyHtml(freight) + '</div>';
     }
 
     // Uy quyen su kien: hop chi tiet duoc ve lai nhieu lan, khong gan listener lai moi lan.
@@ -1104,14 +1113,14 @@
       if(!e.target || !detailKiot || !detailKiot.freight) return;
       if(e.target.id === 'lcDeliverChanh'){
         deliverToChanh = e.target.checked;
-        document.getElementById('lcFreightBody').innerHTML = freightBodyHtml(detailKiot.freight);
+        renderFreightBody(detailKiot.freight);
         document.getElementById('lcDeliverChanh').focus();
         return;
       }
       if(e.target.id !== 'lcCarrierSelect') return;
       selectedCarrier = CARRIER_KEYS.indexOf(e.target.value) >= 0 ? e.target.value : 'DM';
       try { localStorage.setItem(CARRIER_STORE, selectedCarrier); } catch(_e){ /* bo qua */ }
-      document.getElementById('lcFreightBody').innerHTML = freightBodyHtml(detailKiot.freight);
+      renderFreightBody(detailKiot.freight);
       document.getElementById('lcCarrierSelect').focus();
     });
 

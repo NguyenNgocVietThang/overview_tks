@@ -38,54 +38,71 @@ test('SG thực tế: TỔNG SL đã đi is total quantity and Vị Trí is colu
   assert.deepEqual(parseLocationRows(values, 'SG'), [{ code: 'ADN3LYU', name: 'Ấm đun nước YUSSAIN 3L', totalQuantity: '15', notes: '1tx15', location: '36', arrivalDate: '03/10/2026' }]);
 });
 
-test('actual HN tab title is case-insensitive and reads the title returned by Google', async () => {
-  const service = createStockLocationsService({ getSpreadsheetId: () => 'id', client: {
-    listSheetTitles: async () => ['VỊ TRÍ HN'],
-    getValues: async title => { assert.equal(title, 'VỊ TRÍ HN'); return [hnHeader]; }
-  } });
-  assert.deepEqual(await service.getLocations('HN'), { branch: 'HN', rows: [] });
-});
-
 test('missing header columns or empty sheet produces a source error instead of empty data', () => {
   for (const values of [[], [hnHeader.slice(0, 4)], [['Mã hàng', 'Tên hàng']]]) {
     assert.throws(() => parseLocationRows(values, 'HN'), { code: 'STOCK_LOCATIONS_HEADERS_MISSING', statusCode: 503 });
   }
 });
 
-test('only reads selected sheet in formatted mode, coalesces concurrent reads but rereads after completion', async () => {
+function fakeDb({ sync = null, lines = [], fail = false } = {}) {
   const calls = [];
-  let release;
-  const gate = new Promise(resolve => { release = resolve; });
-  const client = {
-    listSheetTitles: async () => ['Vị trí HN', 'Vị trí SG'],
-    getValues: async (name, options) => { calls.push({ name, options }); await gate; return [name === 'Vị trí HN' ? hnHeader : sgHeader]; }
+  const db = {
+    calls, sync,
+    query: async (sql, params) => {
+      calls.push({ sql, params });
+      if (fail) throw Object.assign(new Error('secret connection string'), { code: 'ECONNREFUSED' });
+      if (sql.includes('FROM sheet_snapshot_sync')) return { rows: db.sync ? [db.sync] : [] };
+      return { rows: lines };
+    }
   };
-  const service = createStockLocationsService({ client, getSpreadsheetId: () => 'workbook' });
-  const first = service.getLocations('HN');
-  assert.equal(first, service.getLocations('HN'));
-  const sg = service.getLocations('SG');
-  release();
-  assert.deepEqual(await first, { branch: 'HN', rows: [] });
-  await sg;
-  assert.deepEqual(calls, [
-    { name: 'Vị trí HN', options: { valueRenderOption: 'FORMATTED_VALUE' } },
-    { name: 'Vị trí SG', options: { valueRenderOption: 'FORMATTED_VALUE' } }
-  ]);
-  await service.getLocations('HN');
-  assert.equal(calls.length, 3);
+  return db;
+}
+
+const line = { code: '0012', name: 'Đèn', total_quantity: '1.000', notes: 'Dòng 1', location: 'A01', arrival_date: 'KK 25.7' };
+
+test('getLocations đọc từ DB đúng cơ sở, giữ nguyên chuỗi và thứ tự, trả syncedAt/stale', async () => {
+  const db = fakeDb({ sync: { last_success_at: '2026-10-17T03:00:00Z', last_error: null }, lines: [line] });
+  const service = createStockLocationsService({ getDb: () => db, now: () => Date.parse('2026-10-17T03:05:00Z') });
+  assert.deepEqual(await service.getLocations('SG'), {
+    branch: 'SG',
+    rows: [{ code: '0012', name: 'Đèn', totalQuantity: '1.000', notes: 'Dòng 1', location: 'A01', arrivalDate: 'KK 25.7' }],
+    syncedAt: '2026-10-17T03:00:00.000Z',
+    stale: false
+  });
+  assert.deepEqual(db.calls.map(c => c.params), [['stock_locations_sg'], ['SG']]);
+  assert.match(db.calls[1].sql, /ORDER BY source_row/);
 });
 
-test('missing configuration/sheet and failed reads are explicit, and a failure does not poison retries', async () => {
-  const client = { listSheetTitles: async () => [], getValues: async () => assert.fail('must not read absent sheet') };
-  const missingConfig = createStockLocationsService({ client, getSpreadsheetId: () => null });
-  assert.throws(() => missingConfig.getLocations('HN'), { code: 'STOCK_LOCATIONS_NOT_CONFIGURED' });
-  const missingSheet = createStockLocationsService({ client, getSpreadsheetId: () => 'id' });
-  await assert.rejects(missingSheet.getLocations('SG'), { code: 'STOCK_LOCATIONS_SHEET_MISSING' });
-  let attempts = 0;
-  const retry = createStockLocationsService({ getSpreadsheetId: () => 'id', client: {
-    listSheetTitles: async () => ['Vị trí HN'],
-    getValues: async () => { if (++attempts === 1) throw Object.assign(new Error('private Google error'), { code: 403 }); return [hnHeader]; }
-  } });
-  await assert.rejects(retry.getLocations('HN'), { code: 'STOCK_LOCATIONS_SOURCE_UNAVAILABLE', statusCode: 503 });
-  assert.deepEqual(await retry.getLocations('HN'), { branch: 'HN', rows: [] });
+test('cache theo last_success_at: lần sau chỉ đọc dòng trạng thái, đồng bộ mới thì đọc lại dòng dữ liệu', async () => {
+  const db = fakeDb({ sync: { last_success_at: '2026-10-17T03:00:00Z', last_error: null }, lines: [line] });
+  const service = createStockLocationsService({ getDb: () => db, now: () => Date.parse('2026-10-17T03:01:00Z') });
+  const first = await service.getLocations('HN');
+  const second = await service.getLocations('HN');
+  assert.deepEqual(second.rows, first.rows);
+  assert.equal(db.calls.filter(c => c.sql.includes('stock_location_lines')).length, 1);
+  assert.equal(db.calls.filter(c => c.sql.includes('FROM sheet_snapshot_sync')).length, 2);
+  await service.getLocations('SG'); // cơ sở khác có cache riêng
+  assert.equal(db.calls.filter(c => c.sql.includes('stock_location_lines')).length, 2);
+  db.sync = { last_success_at: '2026-10-17T03:02:00Z', last_error: null };
+  await service.getLocations('HN');
+  assert.equal(db.calls.filter(c => c.sql.includes('stock_location_lines')).length, 3);
+});
+
+test('stale khi lần đồng bộ cuối quá cũ hoặc có lỗi gần nhất, nhưng vẫn trả dữ liệu cũ', async () => {
+  const old = createStockLocationsService({ now: () => Date.parse('2026-10-17T04:00:00Z'), getDb: () =>
+    fakeDb({ sync: { last_success_at: '2026-10-17T03:00:00Z', last_error: null }, lines: [line] }) });
+  assert.equal((await old.getLocations('HN')).stale, true);
+  const failed = createStockLocationsService({ now: () => Date.parse('2026-10-17T03:01:00Z'), getDb: () =>
+    fakeDb({ sync: { last_success_at: '2026-10-17T03:00:00Z', last_error: 'x' }, lines: [line] }) });
+  const result = await failed.getLocations('HN');
+  assert.equal(result.stale, true);
+  assert.equal(result.rows.length, 1);
+});
+
+test('chưa đồng bộ lần nào, cơ sở sai hoặc DB lỗi trả lỗi 503 gọn, không lộ chi tiết', async () => {
+  const unsynced = createStockLocationsService({ getDb: () => fakeDb() });
+  await assert.rejects(unsynced.getLocations('HN'), { code: 'STOCK_LOCATIONS_NOT_SYNCED', statusCode: 503 });
+  await assert.rejects(unsynced.getLocations('XX'), { code: 'INVALID_BRANCH', statusCode: 503 });
+  const broken = createStockLocationsService({ getDb: () => fakeDb({ fail: true }) });
+  await assert.rejects(broken.getLocations('HN'), err => err.code === 'STOCK_LOCATIONS_SOURCE_UNAVAILABLE' && !/secret/.test(err.message));
 });

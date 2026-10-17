@@ -145,6 +145,11 @@ async function startServer() {
     process.once('SIGTERM', () => containerSchedule.stop());
     process.once('SIGINT', () => containerSchedule.stop());
 
+    // Vị trí hàng (HN/SG) + CÂN ĐO: đọc Google Sheets theo chu kỳ vào Postgres, web chỉ đọc DB.
+    const sheetSnapshots = require('./sheetSnapshots/sync').startSheetSnapshotSchedule();
+    process.once('SIGTERM', () => sheetSnapshots.stop());
+    process.once('SIGINT', () => sheetSnapshots.stop());
+
     if (CONFIG.PANCAKE_MARKETING_SYNC_ENABLED) {
       const pancakeScheduler = require('./marketingReport/pancakeScheduler').createPancakeScheduler({ enabled: true });
       pancakeScheduler.start();

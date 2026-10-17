@@ -1208,7 +1208,10 @@ test('khối Thể tích & cước: thiếu mã -> cảnh báo, không có tổn
   let text = page.document.getElementById('lcFreightBody').textContent;
   assert.match(text, /thiếu dữ liệu trong sheet CÂN ĐO cho mã ZZZ/);
   assert.equal(page.document.querySelectorAll('#lcCarrierTotals .dp-stat').length, 3);
-  assert.match(text, /Chưa tính được/);
+  assert.match(page.document.getElementById('lcCarrierTotals').textContent, /Chưa tính được/);
+  // Ba ô cước nằm trên đầu khối "Thể tích & cước vận chuyển".
+  const freightText = page.document.getElementById('lcFreight').textContent;
+  assert.ok(freightText.indexOf('Chưa tính được') < freightText.indexOf('Thể tích & cước vận chuyển'));
   page.dom.window.close();
 
   const broken = kiotDetail({ freight: { unavailable: true, message: 'Không đọc được sheet CÂN ĐO.' } });
