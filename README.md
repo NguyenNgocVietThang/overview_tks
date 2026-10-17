@@ -92,7 +92,7 @@ server/
 ├── productContainers/    # Parser CONT, snapshot repository, đồng bộ Sheets chỉ đọc mỗi 10 phút (ghi khác biệt) và kiểm thử
 ├── public/               # Frontend HTML/CSS/JS
 │   ├── cashbook/         # Trang Sổ quỹ: bộ lọc/hash, số dư, chốt và xuất chọn cột
-│   ├── vat-draft/        # Trang Kế toán – Nháp VAT: chọn HD/DH hoặc dán dữ liệu, kết quả phân bổ + Ghi chú tổng, QR, Tạo QR từ PDF; cell-select.js chọn ô kiểu Google Sheet + Ctrl+C
+│   ├── vat-draft/        # Trang Kế toán – Nháp VAT: chọn HD/DH hoặc dán dữ liệu, kết quả phân bổ + Ghi chú tổng, QR; Tạo QR từ PDF (2 cột, QR to bên phải; sale dùng được qua accounting.qr); cell-select.js chọn ô kiểu Google Sheet + Ctrl+C
 │   ├── vendor/pdfjs/     # pdf.js 4.10.38 (legacy build) đọc text hóa đơn PDF ngay trong trình duyệt
 │   └── shared/
 │       └── detail-panel.css # Khung xem chi tiết dùng chung (.dp-): chỉ số tổng quan, bảng 1 khung cuộn, tắt nút chọn cột
@@ -114,6 +114,8 @@ Migration `0014_customer_debt_activity_periods.sql` tạo bảng tổng hợp ba
 Migration `0015_app_users_telegram_id.sql` thêm `app_users.telegram_id` để bot có thể liên kết trực tiếp qua Supabase Postgres. Giao diện/API tạo mã liên kết cũ không còn đọc hoặc ghi tab `_HR_TELEGRAM_LINKS`.
 
 ## Cập nhật gần nhất
+
+2026-10-17 (chiều) — **Nháp VAT: gỡ Tra cứu nguồn, QR to bên phải, mở Tạo QR cho Nhân viên sale** (không migration): gỡ hẳn chức năng 🔎 Tra cứu nguồn (tab, mục menu, `POST /api/vat-draft/lookup`, `vatDraft/sourceLookup.js`, bộ đọc dán tay riêng, view xuất Excel `lookup`/`lookupIssues`). Tab 💳 Tạo QR chia 2 cột: form bên trái, mã QR to (tối đa ~480px) ở cột phải dính khi cuộn, chưa tạo thì hiện "Mã QR sẽ hiện ở đây"; dưới 900px QR xuống dưới form. Quyền mới **`accounting.qr`** (nhóm Kế toán, "Tạo QR chuyển khoản"): mặc định Quản lý + Nhân viên sale, Khách bị cấm, không tính leo thang (Trợ lý được ủy quyền vẫn tạo được TK Sale). Tài khoản chỉ có `accounting.qr` vào `/vat-draft/` chỉ thấy Tạo QR (ẩn tab Xử lý hóa đơn, trạng thái Sheets/KiotViet, không tải danh sách chứng từ; menu chỉ có mục Tạo QR); API chỉ mở `/meta` (chỉ trả danh sách tài khoản), `/qr/url`, `/qr/parse-text` — các route Xử lý hóa đơn vẫn cần `accounting.vatDraft`.
 
 2026-10-17 — **Vị trí hàng + CÂN ĐO đọc qua Postgres, không còn gọi Google Sheets mỗi request (migration `0064`, chưa áp DB)**: module mới `server/sheetSnapshots/sync.js` đọc sheet `Vị trí HN`/`Vị trí SG` (3 phút/lần) và `CÂN ĐO` (5 phút/lần) rồi ghi vào `stock_location_lines`, `shipping_measures`, trạng thái ở `sheet_snapshot_sync`; ghi khác biệt (sheet không đổi = 0 dòng ghi), khóa advisory dùng chung giữa các instance, mốc "chưa đến hạn" lưu DB, chốt an toàn khi số dòng tụt >30% (cần 2 lần đọc liên tiếp giống nhau), lỗi thì giữ bản cũ và ghi thông báo an toàn. `stockLocationsService`/`measureSheet` chỉ đọc DB (Vị trí hàng cache bộ nhớ theo `last_success_at` để không kéo lại ~10K dòng mỗi lượt mở tab); API `/api/stock-locations` giữ nguyên hình dạng, thêm `syncedAt` và `stale`; mã lỗi mới `STOCK_LOCATIONS_NOT_SYNCED`, `MEASURE_NOT_SYNCED` (chưa đồng bộ lần nào, 503). Độ trễ dữ liệu: tối đa ~3 phút (Vị trí) / ~5 phút (Cân đo). Phải áp migration `0064` trước khi deploy; chưa áp thì job ghi lỗi an toàn và tab Vị trí hàng trả 503.
 

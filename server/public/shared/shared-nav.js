@@ -1599,15 +1599,16 @@
       };
     });
 
-    // Kế toán – Nháp VAT: 3 tab của cùng một trang (hash #xu-ly / #tra-cuu / #tao-qr).
-    var vatDraftTab = ['xu-ly', 'tra-cuu', 'tao-qr'].indexOf(currentHash) !== -1 ? currentHash : 'xu-ly';
+    // Kế toán – Nháp VAT: 2 tab của cùng một trang (hash #xu-ly / #tao-qr). Tài khoản chỉ có
+    // quyền Tạo QR (accounting.qr — mặc định Nhân viên sale) chỉ thấy mục Tạo QR.
+    var canProcessVat = TKSNav.can('accounting.vatDraft');
+    var vatDraftTab = canProcessVat && currentHash === 'xu-ly' ? 'xu-ly' : currentHash === 'tao-qr' || !canProcessVat ? 'tao-qr' : 'xu-ly';
     var accountingItems = [
-      { tab: 'xu-ly', label: 'Xử lý hóa đơn', icon: '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"></path><path d="M14 8H8"></path><path d="M16 12H8"></path><path d="M13 16H8"></path>' },
-      { tab: 'tra-cuu', label: 'Tra cứu nguồn', icon: '<circle cx="11" cy="11" r="7"></circle><path d="m16 16 4 4"></path>' },
-      { tab: 'tao-qr', label: 'Tạo QR', icon: '<rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"></path>' }
+      { tab: 'xu-ly', anyOf: ['accounting.vatDraft'], label: 'Xử lý hóa đơn', icon: '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"></path><path d="M14 8H8"></path><path d="M16 12H8"></path><path d="M13 16H8"></path>' },
+      { tab: 'tao-qr', anyOf: ['accounting.vatDraft', 'accounting.qr'], label: 'Tạo QR', icon: '<rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"></path>' }
     ].map(function(item){
       return {
-        feature: 'accounting.vatDraft', href: '/vat-draft/#' + item.tab, label: item.label,
+        feature: item.anyOf[0], anyOf: item.anyOf, href: '/vat-draft/#' + item.tab, label: item.label,
         active: currentPath === '/vat-draft' && vatDraftTab === item.tab,
         dataAttr: 'data-vat-draft-tab="' + item.tab + '"', icon: item.icon
       };

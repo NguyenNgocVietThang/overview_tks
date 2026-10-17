@@ -170,10 +170,10 @@ test('Nhan vien sale xem du 5 tab bao cao mac dinh + dien Sale phan hoi cong no,
 
 const SHIPMENT_LIFECYCLE_GROUP = ['shipment.lifecycle', 'shipment.lookup', 'shipment.history'];
 
-test('Nhan vien marketing has own report, other permissions match sale excluding general reports and lifecycle', () => {
+test('Nhan vien marketing has own report, other permissions match sale excluding general reports, lifecycle and Tao QR', () => {
   assert.deepEqual(
     registry.defaultsForRole(ROLES.NHAN_VIEN_MARKETING).filter(key=>key!=='reports.marketing'),
-    registry.defaultsForRole(ROLES.NHAN_VIEN_SALE).filter(key => !SALE_REPORT_VIEW_KEYS.includes(key) && key !== 'reports.debt.saleFeedback' && !SHIPMENT_LIFECYCLE_GROUP.includes(key))
+    registry.defaultsForRole(ROLES.NHAN_VIEN_SALE).filter(key => !SALE_REPORT_VIEW_KEYS.includes(key) && key !== 'reports.debt.saleFeedback' && key !== 'accounting.qr' && !SHIPMENT_LIFECYCLE_GROUP.includes(key))
   );
 });
 
@@ -312,10 +312,22 @@ test('Nháp VAT (accounting.vatDraft): mặc định chỉ Quản lý, Kế toá
   assert.ok(registry.resolvePermissions({ username: 'admin', vaiTro: ROLES.KE_TOAN }).includes('accounting.vatDraft'));
   assert.ok(registry.FEATURE_GROUPS.some(g => g.key === 'accounting' && g.label === 'Kế toán'));
   for (const url of ['/vat-draft', '/vat-draft/', '/vat-draft/index.html']) {
-    assert.deepEqual(registry.pageRuleFor(url), { path: '/vat-draft', href: '/vat-draft/', anyOf: ['accounting.vatDraft'] });
+    assert.deepEqual(registry.pageRuleFor(url), { path: '/vat-draft', href: '/vat-draft/', anyOf: ['accounting.vatDraft', 'accounting.qr'] });
   }
   // Quan ly van vao /reports/ dau tien nhu cu.
   assert.equal(registry.landingPathFor(registry.defaultsForRole(ROLES.QUAN_LY)), '/reports/');
+});
+
+test('Tạo QR (accounting.qr): mặc định Quản lý + Nhân viên sale, Khách không bao giờ có', () => {
+  for (const role of Object.values(ROLES)) {
+    assert.equal(registry.defaultsForRole(role).includes('accounting.qr'), role === ROLES.QUAN_LY || role === ROLES.NHAN_VIEN_SALE, role);
+  }
+  const sale = registry.resolvePermissions({ vaiTro: ROLES.NHAN_VIEN_SALE });
+  assert.ok(sale.includes('accounting.qr') && !sale.includes('accounting.vatDraft'));
+  assert.ok(registry.hasFeature({ permissions: sale, vaiTro: ROLES.NHAN_VIEN_SALE }, 'accounting.vatDraft', 'accounting.qr'));
+  assert.ok(!registry.resolvePermissions({ vaiTro: ROLES.KHACH, featurePermissions: { 'accounting.qr': true } }).includes('accounting.qr'));
+  // Sale van vao /reports/ dau tien.
+  assert.equal(registry.landingPathFor(sale), '/reports/');
 });
 
 test('reports.products.price (Don gia HN/SG cua Bao cao hang hoa): mac dinh chi Quan ly + Tro ly, can reports.products', () => {

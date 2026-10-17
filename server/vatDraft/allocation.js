@@ -515,11 +515,5 @@ module.exports = {
   buildUnifiedColumns,
   buildUnifiedDisplayRows,
   formatQty,
-  // dung lai o sourceLookup.js
-  buildMappingIndexes,
-  addGopVatMappingFallbacks,
-  computeGiaNhap,
-  sortedBy,
-  pushTo,
   __test__: { selectShortageSources, allocateWithinSource }
 };

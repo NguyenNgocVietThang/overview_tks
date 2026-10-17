@@ -106,7 +106,11 @@ const FEATURES = Object.freeze([
 
   // --- Ke toan: Nhap VAT (port vat-draft-app, 2026-10-17). Mac dinh chi Quan ly (+ admin cung);
   // Quan ly bat rieng cho tung tai khoan Ke toan o /account/ — KHONG cap theo vai tro Ke toan.
-  { key: 'accounting.vatDraft', groupKey: 'accounting', label: 'Nháp VAT (Xử lý hóa đơn, Tra cứu nguồn, Tạo QR)', roles: MANAGER_ONLY, forbiddenRoles: [ROLES.KHACH] },
+  // 2026-10-17: tab Tra cuu nguon da go; Tao QR tach thanh quyen rieng mo cho Nhan vien sale
+  // (sale chi thay tab Tao QR, khong vao duoc Xu ly hoa don). Ai co accounting.vatDraft van dung Tao QR.
+  // escalationExempt: Tro ly duoc uy quyen van tao / dat lai mat khau TK Sale duoc (chi tao anh QR).
+  { key: 'accounting.vatDraft', groupKey: 'accounting', label: 'Nháp VAT (Xử lý hóa đơn, Tạo QR)', roles: MANAGER_ONLY, forbiddenRoles: [ROLES.KHACH] },
+  { key: 'accounting.qr', groupKey: 'accounting', label: 'Tạo QR chuyển khoản', roles: [ROLES.QUAN_LY, ROLES.NHAN_VIEN_SALE], forbiddenRoles: [ROLES.KHACH], escalationExempt: true },
 
   // --- Quan ly tai khoan ---
   { key: 'account.profile', groupKey: 'account', label: 'Quản lý hồ sơ', roles: ALL_ROLES, alwaysOn: true },
@@ -142,7 +146,7 @@ const PAGE_FEATURES = Object.freeze([
   { path: '/humanresources', href: '/humanresources/', anyOf: ['hr.rules', 'hr.employees', 'hr.leave', 'hr.leave.submit'] },
   { path: '/stock-locations', href: '/stock-locations/', anyOf: ['stockLocations.view'] },
   { path: '/cashbook', href: '/cashbook/', anyOf: ['cashbook.view'] },
-  { path: '/vat-draft', href: '/vat-draft/', anyOf: ['accounting.vatDraft'] },
+  { path: '/vat-draft', href: '/vat-draft/', anyOf: ['accounting.vatDraft', 'accounting.qr'] },
   { path: '/account', href: '/account/', anyOf: ['account.profile'] }
 ]);
 
