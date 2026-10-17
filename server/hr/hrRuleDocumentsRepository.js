@@ -44,7 +44,8 @@ function toIso(value) {
 }
 
 function slugFor(row) {
-  return row.kind === 'builtin' ? row.builtin_key : `pdf-${row.id}`;
+  if (row.kind === 'builtin') return row.builtin_key;
+  return `${row.kind}-${row.id}`;
 }
 
 function mapRow(row) {
@@ -56,6 +57,12 @@ function mapRow(row) {
   };
   if (row.kind === 'builtin') {
     doc.builtinKey = row.builtin_key;
+  } else if (row.kind === 'text') {
+    doc.body = row.body || '';
+    doc.uploadedBy = row.uploaded_by_name || '';
+    doc.createdAt = toIso(row.created_at);
+    doc.updatedBy = row.updated_by_name || '';
+    doc.updatedAt = row.updated_at ? toIso(row.updated_at) : '';
   } else {
     doc.fileName = row.file_name || '';
     doc.sizeBytes = Number(row.size_bytes) || 0;
@@ -65,7 +72,10 @@ function mapRow(row) {
   return doc;
 }
 
-const LIST_COLUMNS = 'id, kind, builtin_key, title, file_name, size_bytes, uploaded_by_name, created_at';
+// Gioi han do dai noi dung go tay — khop CHECK char_length(body) BETWEEN 1 AND 20000 (migration 0060).
+const BODY_MAX_LENGTH = 20000;
+
+const LIST_COLUMNS = 'id, kind, builtin_key, title, file_name, size_bytes, uploaded_by_name, created_at, body, updated_at, updated_by_name';
 
 function createHrRuleDocumentsRepository({ pool = getPool() } = {}) {
   async function listDocuments() {
@@ -118,6 +128,33 @@ function createHrRuleDocumentsRepository({ pool = getPool() } = {}) {
     return mapRow(rows[0]);
   }
 
+  /**
+   * @param {{title:string, body:string, createdByUserId?:string, createdByName?:string}} data
+   */
+  async function createTextDocument(data) {
+    const { rows } = await pool.query(
+      `INSERT INTO hr_rule_documents
+         (kind, title, body, uploaded_by_user_id, uploaded_by_name)
+       VALUES ('text', $1, $2, $3, $4)
+       RETURNING ${LIST_COLUMNS}`,
+      [data.title, data.body, uuidOrNull(data.createdByUserId), data.createdByName || '']
+    );
+    return mapRow(rows[0]);
+  }
+
+  /**
+   * @param {{title:string, body:string, updatedByName?:string}} data
+   */
+  async function updateTextDocument(id, data) {
+    const { rows } = await pool.query(
+      `UPDATE hr_rule_documents SET title = $2, body = $3, updated_at = now(), updated_by_name = $4
+       WHERE id = $1 AND kind = 'text'
+       RETURNING ${LIST_COLUMNS}`,
+      [id, data.title, data.body, data.updatedByName || '']
+    );
+    return rows[0] ? mapRow(rows[0]) : null;
+  }
+
   // Tra ve tai lieu vua xoa (de bao thong bao) hoac null neu khong ton tai.
   async function deleteDocument(id) {
     const { rows } = await pool.query(
@@ -146,7 +183,10 @@ function createHrRuleDocumentsRepository({ pool = getPool() } = {}) {
     return rows.map(mapRow);
   }
 
-  return { listDocuments, getFileMeta, getFileContent, createPdfDocument, deleteDocument, restoreDefaultDocuments };
+  return {
+    listDocuments, getFileMeta, getFileContent, createPdfDocument,
+    createTextDocument, updateTextDocument, deleteDocument, restoreDefaultDocuments
+  };
 }
 
 const repository = createHrRuleDocumentsRepository();
@@ -159,6 +199,9 @@ module.exports = {
   getFileMeta: (...args) => repository.getFileMeta(...args),
   getFileContent: (...args) => repository.getFileContent(...args),
   createPdfDocument: (...args) => repository.createPdfDocument(...args),
+  createTextDocument: (...args) => repository.createTextDocument(...args),
+  updateTextDocument: (...args) => repository.updateTextDocument(...args),
   deleteDocument: (...args) => repository.deleteDocument(...args),
-  restoreDefaultDocuments: (...args) => repository.restoreDefaultDocuments(...args)
+  restoreDefaultDocuments: (...args) => repository.restoreDefaultDocuments(...args),
+  BODY_MAX_LENGTH
 };

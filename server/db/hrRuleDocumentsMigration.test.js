@@ -43,3 +43,20 @@ test('migration 0049 thêm tài liệu dựng sẵn Quy định treo hàng, ch�
   assert.match(hold, /'builtin',\s+'treo-hang',\s+'Quy định treo hàng',\s+40\)/);
   assert.match(hold, /ON CONFLICT \(builtin_key\) DO NOTHING/);
 });
+
+test('migration 0060 thêm kind text (Quản lý gõ trực tiếp) và cột body/updated_at/updated_by_name', () => {
+  const text = fs.readFileSync(path.join(__dirname, 'migrations', '0060_hr_rule_document_text.sql'), 'utf8');
+  assert.match(text, /ADD COLUMN body TEXT CHECK/);
+  assert.match(text, /ADD COLUMN updated_at TIMESTAMPTZ/);
+  assert.match(text, /ADD COLUMN updated_by_name TEXT NOT NULL DEFAULT ''/);
+  assert.match(text, /DROP CONSTRAINT IF EXISTS hr_rule_documents_kind_shape/);
+  assert.match(text, /DROP CONSTRAINT IF EXISTS hr_rule_documents_kind_check/);
+});
+
+test('migration 0060 cho phép kind text và giữ nguyên ràng buộc builtin/pdf cũ', () => {
+  const text = fs.readFileSync(path.join(__dirname, 'migrations', '0060_hr_rule_document_text.sql'), 'utf8');
+  assert.match(text, /CHECK \(kind IN \('builtin', 'pdf', 'text'\)\)/);
+  assert.match(text, /kind = 'builtin' AND builtin_key IS NOT NULL AND content IS NULL[\s\S]*?AND body IS NULL/);
+  assert.match(text, /kind = 'pdf' AND builtin_key IS NULL AND content IS NOT NULL[\s\S]*?AND body IS NULL/);
+  assert.match(text, /kind = 'text' AND builtin_key IS NULL AND content IS NULL[\s\S]*?AND body IS NOT NULL/);
+});

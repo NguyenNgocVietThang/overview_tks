@@ -63,6 +63,41 @@ test('createPdfDocument tính sha256 + kích thước và bỏ id không phải 
   assert.equal(pool2.calls[0].params[5], uuid);
 });
 
+const TEXT_ROW = {
+  id: '9', kind: 'text', builtin_key: null, title: 'Hướng dẫn dùng bot', body: 'Bước 1: ...',
+  uploaded_by_name: 'Quản lý A', created_at: new Date('2026-10-17T03:00:00.000Z'),
+  updated_at: null, updated_by_name: ''
+};
+
+test('createTextDocument lưu kind text với slug text-<id>', async () => {
+  const pool = fakePool([[TEXT_ROW]]);
+  const doc = await createHrRuleDocumentsRepository({ pool }).createTextDocument({
+    title: 'Hướng dẫn dùng bot', body: 'Bước 1: ...', createdByUserId: 'admin-default', createdByName: 'Quản lý A'
+  });
+
+  const { sql, params } = pool.calls[0];
+  assert.match(sql, /INSERT INTO hr_rule_documents/);
+  assert.match(sql, /VALUES \('text', \$1, \$2, \$3, \$4\)/);
+  assert.deepEqual(params, ['Hướng dẫn dùng bot', 'Bước 1: ...', null, 'Quản lý A']);
+  assert.equal(doc.slug, 'text-9');
+  assert.equal(doc.kind, 'text');
+  assert.equal(doc.body, 'Bước 1: ...');
+});
+
+test('updateTextDocument sửa tại chỗ (chỉ khi kind = text) và trả null nếu không có', async () => {
+  const updatedRow = { ...TEXT_ROW, title: 'Hướng dẫn mới', body: 'Nội dung mới', updated_by_name: 'Quản lý B' };
+  const pool = fakePool([[updatedRow], []]);
+  const repo = createHrRuleDocumentsRepository({ pool });
+
+  const doc = await repo.updateTextDocument(9, { title: 'Hướng dẫn mới', body: 'Nội dung mới', updatedByName: 'Quản lý B' });
+  assert.match(pool.calls[0].sql, /UPDATE hr_rule_documents SET title = \$2, body = \$3, updated_at = now\(\), updated_by_name = \$4/);
+  assert.match(pool.calls[0].sql, /WHERE id = \$1 AND kind = 'text'/);
+  assert.equal(doc.title, 'Hướng dẫn mới');
+  assert.equal(doc.updatedBy, 'Quản lý B');
+
+  assert.equal(await repo.updateTextDocument(99, { title: 'x', body: 'y' }), null);
+});
+
 test('deleteDocument trả tài liệu đã xóa hoặc null khi không có', async () => {
   const repo = createHrRuleDocumentsRepository({ pool: fakePool([[PDF_ROW], []]) });
   assert.equal((await repo.deleteDocument(7)).slug, 'pdf-7');
