@@ -53,8 +53,10 @@ test('real DB complete workflow: scoped backlog, Telegram rejection, duplicate u
     await db.query(`INSERT INTO hr_leave_requests(request_id,bo_phan,branch,start_date,start_session,end_date,end_session,tong_buoi_nghi,trang_thai)
       VALUES ('NP-NEW-FINAL','Kho','hanoi','2026-10-02','Sáng','2026-10-02','Chiều',2,'Đã duyệt')`);
     await db.query("UPDATE hr_leave_requests SET trang_thai='Đã duyệt' WHERE request_id='NP-NEW-FINAL'");
+    const callsBeforeFresh = calls.length;
     await runtime.drain();
-    const freshCards = calls.filter(c => c.method === 'sendMessage' && c.params.text.includes('NP-NEW-FINAL'));
+    // Tin nhắn không còn in mã yêu cầu, nên nhận diện thẻ mới theo lượt gửi sau lần quét trước.
+    const freshCards = calls.slice(callsBeforeFresh).filter(c => c.method === 'sendMessage');
     assert.equal(freshCards.length, 2, 'new finalized request is sent even before first scan');
     assert.ok(freshCards.every(c => !c.params.reply_markup.inline_keyboard.flat().some(b => b.callback_data)));
     let updateId = 1;
@@ -141,9 +143,10 @@ test('real DB complete workflow: scoped backlog, Telegram rejection, duplicate u
     await db.query(`INSERT INTO hr_leave_requests(request_id,hr_employee_id,bo_phan,branch,start_date,start_session,end_date,end_session,tong_buoi_nghi,trang_thai)
       VALUES ('NP-VIOLATION',2,'Kế toán','saigon','2026-10-02','Sáng','2026-10-02','Chiều',2,'Vi phạm')`);
     await runtime.drain();assert.equal((await db.query("SELECT id FROM hr_leave_manager_messages WHERE request_id='NP-VIOLATION'")).rows.length,0);
+    const callsBeforeViolation=calls.length;
     managers[1].leaveApprovalDepartments.push('Kế toán');await runtime.drain();
     assert.equal((await db.query("SELECT id FROM hr_leave_manager_messages WHERE request_id='NP-VIOLATION'")).rows.length,1);
-    assert.ok(calls.some(call=>call.method==='sendMessage' && call.params.text.includes('NP-VIOLATION')));
+    assert.ok(calls.slice(callsBeforeViolation).some(call=>call.method==='sendMessage'));
 
     assert.equal((await db.query('SELECT COUNT(*)::int n FROM hr_manager_telegram_updates WHERE completed_at IS NULL')).rows[0].n,0);
 

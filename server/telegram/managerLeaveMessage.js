@@ -41,18 +41,45 @@ function vietnamTimestamp(value) {
   return `${values.day}/${values.month}/${values.year} ${values.hour}:${values.minute}`;
 }
 
+const WEEKDAYS = ['chủ nhật', 'thứ hai', 'thứ ba', 'thứ tư', 'thứ năm', 'thứ sáu', 'thứ bảy'];
+const MAX_FALLBACK_DAYS = 62;
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+function isoDay(value) {
+  const text = String(value || '').slice(0, 10);
+  return ISO_DATE.test(text) && Number.isFinite(Date.parse(`${text}T00:00:00Z`)) ? text : '';
+}
+
+// Các thứ trong tuần của những ngày thực sự nghỉ: ưu tiên danh sách buổi đã chọn,
+// đơn cũ chưa có danh sách thì lấy mọi ngày từ ngày bắt đầu đến ngày kết thúc.
+function leaveWeekdays(row) {
+  let days = Array.isArray(row.leave_sessions) ? row.leave_sessions.map(item => isoDay(item && item.date)).filter(Boolean) : [];
+  if (!days.length) {
+    const start = isoDay(row.start_date);
+    const end = isoDay(row.end_date);
+    if (start && end && start <= end) {
+      const last = Date.parse(`${end}T00:00:00Z`);
+      for (let time = Date.parse(`${start}T00:00:00Z`), count = 0; time <= last && count < MAX_FALLBACK_DAYS; time += 86400000, count++) {
+        days.push(new Date(time).toISOString().slice(0, 10));
+      }
+    }
+  }
+  const names = [...new Set(days)].sort().map(day => WEEKDAYS[new Date(`${day}T00:00:00Z`).getUTCDay()]);
+  if (!names.length) return '';
+  const text = names.join(', ');
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 function buildManagerLeaveMessage(request, { webUrl, canManage = true } = {}) {
   const row = request || {};
   const fields = [
-    ['Mã yêu cầu', row.request_id], ['Họ tên', row.ho_ten, 2], ['Tài khoản web', row.web_username],
-    ['Phòng ban', row.bo_phan], ['Chức vụ', row.chuc_vu], ['Cơ sở', row.co_so],
-    ['Loại yêu cầu', row.loai_yeu_cau], ['Lý do nghỉ', row.ly_do, 4],
+    ['Họ tên', row.ho_ten, 2], ['Chức vụ', row.chuc_vu], ['Lý do nghỉ', row.ly_do, 4],
     ['Thời gian gửi', vietnamTimestamp(row.thoi_gian_gui)], ['Bắt đầu', row.thoi_gian_bat_dau], ['Kết thúc', row.thoi_gian_ket_thuc],
+    ['Thời gian nghỉ', leaveWeekdays(row)],
     ['Tổng buổi nghỉ', row.tong_buoi_nghi], ['Tổng ngày nghỉ', row.tong_ngay_nghi], ['Người bàn giao', row.nguoi_ban_giao, 2],
-    ['Trạng thái', row.trang_thai], ['Thời hạn đăng ký', row.timing_status || 'Chưa phân loại'], ['Hạn đăng ký', row.registration_deadline_date],
-    ['Người duyệt', row.nguoi_duyet], ['Thời điểm duyệt', vietnamTimestamp(row.thoi_diem_duyet)],
-    ['Ghi chú duyệt', row.ghi_chu_duyet, 4], ['Nghỉ gấp', row.co_nghi_gap ? 'Có' : 'Không'],
-    ['Tự ý nghỉ', row.co_tu_y_nghi ? 'Có' : 'Không']
+    ['Trạng thái', row.trang_thai], ['Thời hạn đăng ký', row.timing_status || 'Chưa phân loại'],
+    ['Thời điểm duyệt', vietnamTimestamp(row.thoi_diem_duyet)],
+    ['Ghi chú duyệt', row.ghi_chu_duyet, 4]
   ];
   const heading = '<b>Yêu cầu nghỉ phép</b>\n';
   const overhead = heading.length + fields.reduce((total, [label]) => total + label.length + '<b></b>: \n'.length, 0);

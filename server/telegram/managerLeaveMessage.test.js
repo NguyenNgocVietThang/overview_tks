@@ -23,7 +23,7 @@ function request(patch = {}) {
 test('renderer escapes employee text and offers only approval and rejection actions', () => {
   const message = buildManagerLeaveMessage(request(), { webUrl: 'https://dashboard.example/humanresources/' });
   assert.equal(message.parse_mode, 'HTML');
-  for (const text of ['NP-20261002-001', 'Nguyễn &lt;A&gt;', 'Khám &amp; chữa bệnh', 'Hà Nội', 'Kho',
+  for (const text of ['Nguyễn &lt;A&gt;', 'Khám &amp; chữa bệnh',
     'Sáng 02/10/2026', 'Chiều 02/10/2026', 'Trần B', 'Chưa duyệt']) {
     assert.ok(message.text.includes(text), text);
   }
@@ -44,7 +44,7 @@ test('renderer preserves a valid HTML message below the Telegram limit with extr
   assert.equal((message.text.match(/<b>/g) || []).length, (message.text.match(/<\/b>/g) || []).length);
   assert.doesNotMatch(message.text.replace(/<\/?b>/g, ''), /[<>]/);
   assert.doesNotMatch(message.text.replace(/&(?:amp|lt|gt|quot);/g, ''), /&/);
-  for (const label of ['Mã yêu cầu', 'Phòng ban', 'Cơ sở', 'Bắt đầu', 'Kết thúc', 'Người bàn giao', 'Ghi chú duyệt', 'Nghỉ gấp', 'Tự ý nghỉ']) {
+  for (const label of ['Bắt đầu', 'Kết thúc', 'Người bàn giao', 'Ghi chú duyệt']) {
     assert.ok(message.text.includes(label), label);
   }
   assert.equal(message.reply_markup.inline_keyboard.flat().filter(button => button.callback_data).length, 0);
@@ -71,12 +71,35 @@ test('renderer keeps bigint versions lossless and every callback within 64 bytes
 
 test('renderer supplies essential context including zero durations and escaped rejection notes', () => {
   const message = buildManagerLeaveMessage(request({ tong_buoi_nghi: 0, tong_ngay_nghi: 0,
-    nguoi_duyet: 'Manager & B', ghi_chu_duyet: '<Không bàn giao>', thoi_diem_duyet: '2026-10-02T00:00:00Z' }),
+    nguoi_duyet: 'Manager & B', ghi_chu_duyet: 'Người duyệt: Manager & B - Quản lý\nLý do từ chối: <Không bàn giao>', thoi_diem_duyet: '2026-10-02T00:00:00Z' }),
   { webUrl: 'https://dashboard.example/hr' });
-  for (const text of ['Tổng buổi nghỉ</b>: 0', 'Tổng ngày nghỉ</b>: 0', 'Manager &amp; B', '&lt;Không bàn giao&gt;',
-    '02/10/2026 07:00', 'Tài khoản web</b>: nhanvien']) {
+  for (const text of ['Tổng buổi nghỉ</b>: 0', 'Tổng ngày nghỉ</b>: 0', 'Người duyệt: Manager &amp; B - Quản lý',
+    'Lý do từ chối: &lt;Không bàn giao&gt;', '02/10/2026 07:00']) {
     assert.ok(message.text.includes(text), text);
   }
+});
+
+test('manager messages omit identity, branch, request type, deadline date and flag lines', () => {
+  const message = buildManagerLeaveMessage(request({ nguoi_duyet: 'Manager B', timing_status: 'Xin muộn', registration_deadline_date: '2026-09-30' }),
+    { webUrl: 'https://dashboard.example' });
+  for (const label of ['Mã yêu cầu', 'Tài khoản web', 'Phòng ban', 'Cơ sở', 'Loại yêu cầu', 'Nghỉ gấp', 'Tự ý nghỉ']) {
+    assert.ok(!message.text.includes(`${label}</b>`), label);
+  }
+  assert.ok(!/<b>Hạn đăng ký<\/b>/.test(message.text));
+  assert.ok(!/<b>Người duyệt<\/b>/.test(message.text));
+  assert.ok(!message.text.includes('2026-09-30'));
+  assert.match(message.text, /Thời hạn đăng ký<\/b>: Xin muộn/);
+});
+
+test('manager messages list the weekdays of the leave days', () => {
+  const weekdays = patch => buildManagerLeaveMessage(request(patch)).text.match(/Thời gian nghỉ<\/b>: (.*)/)[1];
+  const sessions = (...dates) => dates.flatMap(date => [{ date, session: 'Sáng' }, { date, session: 'Chiều' }]);
+  assert.equal(weekdays({ leave_sessions: sessions('2026-10-19', '2026-10-20') }), 'Thứ hai, thứ ba');
+  assert.equal(weekdays({ leave_sessions: sessions('2026-10-18') }), 'Chủ nhật');
+  assert.equal(weekdays({ leave_sessions: sessions('2026-10-19', '2026-10-21') }), 'Thứ hai, thứ tư');
+  assert.equal(weekdays({ leave_sessions: null, start_date: '2026-10-19', end_date: '2026-10-20' }), 'Thứ hai, thứ ba');
+  assert.equal(weekdays({ leave_sessions: null, start_date: '2026-10-17', end_date: '2026-10-19' }), 'Thứ bảy, chủ nhật, thứ hai');
+  assert.equal(weekdays({ leave_sessions: null, start_date: undefined, end_date: undefined }), '—');
 });
 
 test('manager messages show Vietnam timestamps and omit technical Telegram fields and raw messages', () => {
@@ -101,5 +124,5 @@ test('renderer rejects unsafe web URLs and does not issue unversioned actions', 
 });
 test('manager cards preserve registration timing alongside final approval and deadline',()=>{
  const message=buildManagerLeaveMessage(request({trang_thai:'Đã duyệt',timing_status:'Xin muộn',registration_deadline_date:'2026-09-30'}));
- assert.match(message.text,/Thời hạn đăng ký<\/b>: Xin muộn/);assert.match(message.text,/Hạn đăng ký<\/b>: 2026-09-30/);assert.match(message.text,/Trạng thái<\/b>: Đã duyệt/);
+ assert.match(message.text,/Thời hạn đăng ký<\/b>: Xin muộn/);assert.doesNotMatch(message.text,/Hạn đăng ký<\/b>/);assert.match(message.text,/Trạng thái<\/b>: Đã duyệt/);
 });

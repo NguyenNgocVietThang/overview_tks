@@ -2,11 +2,13 @@
 
 > **Cập nhật migration 16/10/2026:** Đã áp thành công `0054_customer_invoice_lines_incremental.sql`, `0055_product_report_state.sql` và `0057_product_report_branch_columns.sql` lên DB dùng chung (Supabase), ghi nhận đầy đủ trong `schema_migrations`. Toàn bộ migration (0001 → 0057) hiện đã áp xong. Cờ `REPORTS_INCREMENTAL_ENABLED` hiện chưa bật trên môi trường chạy.
 
-> **Cập nhật gần nhất:** 17/10/2026 (Asia/Ho_Chi_Minh), đổi công thức cước Đức Mạnh/Việt Linh và thêm nút tick "Giao ra chành" cho Việt Linh trong Vòng đời đơn hàng (chưa commit/deploy).
+> **Cập nhật gần nhất:** 17/10/2026 (Asia/Ho_Chi_Minh), gọn tin Telegram của bot duyệt nghỉ phép và thêm dòng "Thời gian nghỉ" (các thứ trong tuần); trước đó đổi công thức cước Đức Mạnh/Việt Linh và thêm nút tick "Giao ra chành" cho Việt Linh (chưa commit/deploy).
 > **Trạng thái Git:** làm việc trên nhánh `codex/invoice-freight-containers`; kiểm thử tự động toàn bộ đạt 2.527/2.530 xanh; sẵn sàng đẩy github.
 > **Quy tắc:** Cập nhật liên tục vào đầu và cuối mỗi phiên làm việc để không bị đứt đoạn ngữ cảnh dự án.
 
 ---
+
+0. **Bot duyệt nghỉ phép: gọn tin nhắn + dòng "Thời gian nghỉ" (17/10/2026, không migration, chưa commit/deploy):** `buildManagerLeaveMessage` (`server/telegram/managerLeaveMessage.js`) bỏ các dòng Mã yêu cầu, Tài khoản web, Phòng ban, Cơ sở, Loại yêu cầu, Hạn đăng ký (ngày), Người duyệt (dòng riêng), Nghỉ gấp, Tự ý nghỉ; giữ "Thời hạn đăng ký" (Xin muộn/Đúng hạn) và Ghi chú duyệt (vẫn chứa "Người duyệt: … - Quản lý" và "Lý do từ chối: …"). Thêm dòng **Thời gian nghỉ** sau Kết thúc, ví dụ `Thứ hai, thứ ba` / `Chủ nhật`: lấy từ các ngày trong `leave_sessions` (nghỉ cách quãng chỉ liệt kê ngày thực nghỉ), đơn cũ không có danh sách thì liệt kê mọi ngày từ bắt đầu đến kết thúc (tối đa 62 ngày). Tin không còn in mã yêu cầu nên 2 chỗ trong `managerLeaveIntegration.test.js` nhận diện thẻ theo lượt gửi thay vì theo mã. Chỉ đổi hiển thị Telegram, không đổi DB/web HR/Excel. `npm test`: 2.534 test, 2.531 đạt, 3 skipped, 0 lỗi.
 
 0. **Vòng đời đơn hàng: đổi công thức cước Đức Mạnh/Việt Linh + tick "Giao ra chành" (17/10/2026, chưa commit/deploy):** Đức Mạnh = max(350k tối thiểu, m³×550k, kg×1.833) (bỏ quy tắc cũ "thể tích ≤350k thì chốt 350k bỏ qua cân"); Việt Linh = max(m³×465k hoặc 500k khi ≤0,6 m³, kg×1.550) + phụ thu 200k khi <2 m³. Việt Linh có ô tick "Giao ra chành" (+490k giao ra chành + 70k vé chành), máy chủ trả sẵn biến thể `carriers.VL.withChanh`, client chỉ chọn biến thể, không nhớ giữa các đơn. Không migration.
 

@@ -672,9 +672,9 @@
     "semantic_hash": ""
   },
   "docs/02-srs/SRS_Dashboard_GoogleSheets.md": {
-    "mtime": 1792148135.263121,
-    "seen": 1792148208.662964,
-    "ast_hash": "dab47b7f6ca4c68ef9e4a8a823903db6",
+    "mtime": 1792202043.4711912,
+    "seen": 1792202417.7732825,
+    "ast_hash": "6cae987249093033fe85b3bcce94dde6",
     "semantic_hash": ""
   },
   "docs/03-process/BPMN_Dashboard_GoogleSheets.md": {
@@ -834,9 +834,9 @@
     "semantic_hash": ""
   },
   "server/public/shipment/lifecycle/index.html": {
-    "mtime": 1792146522.01372,
-    "seen": 1792147157.8066955,
-    "ast_hash": "2b77a47f7dd954793510ce5c4148387d",
+    "mtime": 1792202236.6919456,
+    "seen": 1792202417.7732825,
+    "ast_hash": "b7e0b52c98a8ef587a7a16c64cd43033",
     "semantic_hash": ""
   },
   "Logo.jpg": {
@@ -1620,9 +1620,9 @@
     "semantic_hash": ""
   },
   "design-system/tks-dashboard/pages/shipment.md": {
-    "mtime": 1792044536.8846545,
-    "seen": 1792137926.7121809,
-    "ast_hash": "85897e59992468db328487ecb4412614",
+    "mtime": 1792202043.4722,
+    "seen": 1792202417.7732825,
+    "ast_hash": "31c6303dac28e6e1143bc017106dc9ca",
     "semantic_hash": ""
   },
   "docs/superpowers/plans/2026-09-15-debt-management-dashboard.md": {
@@ -3060,9 +3060,9 @@
     "semantic_hash": ""
   },
   "server/test/frontend/order-lifecycle-kiot.test.js": {
-    "mtime": 1792147614.2842906,
-    "seen": 1792148208.662964,
-    "ast_hash": "4c8434b5aed40611114301474b345be0",
+    "mtime": 1792201990.872801,
+    "seen": 1792202417.7732825,
+    "ast_hash": "d6190ae996c26cd55260ae20998afd57",
     "semantic_hash": ""
   },
   "server/test/frontend/overview-section-permissions.test.js": {
@@ -3372,9 +3372,9 @@
     "semantic_hash": ""
   },
   "CURRENT.md": {
-    "mtime": 1792147612.1799424,
-    "seen": 1792148208.662964,
-    "ast_hash": "5141fb0cf23a25e7857fe0e8bebafcb8",
+    "mtime": 1792202043.4654708,
+    "seen": 1792202417.7732825,
+    "ast_hash": "74e4c45f4bd2e83ef674008e2a5ac742",
     "semantic_hash": ""
   },
   "MEMORY.md": {
@@ -3744,15 +3744,15 @@
     "semantic_hash": ""
   },
   "server/shipment/freightCalculator.js": {
-    "mtime": 1792147613.9304178,
-    "seen": 1792148208.662964,
-    "ast_hash": "a8f0f39413c6b94ec51ddc8af2c413db",
+    "mtime": 1792201990.872801,
+    "seen": 1792202417.7732825,
+    "ast_hash": "0de8c2fef13f1f3484a422cf7031a5c5",
     "semantic_hash": ""
   },
   "server/shipment/freightCalculator.test.js": {
-    "mtime": 1792147613.9319682,
-    "seen": 1792148208.662964,
-    "ast_hash": "27aba32c4f2f5f08f36f1a4bc94d8462",
+    "mtime": 1792201990.872801,
+    "seen": 1792202417.7732825,
+    "ast_hash": "9bb7450e7a629212b1adcafd4d68dd64",
     "semantic_hash": ""
   },
   "server/shipment/measureSheet.js": {
@@ -3768,9 +3768,9 @@
     "semantic_hash": ""
   },
   "tasks/plan-shipping-volume.md": {
-    "mtime": 1792038445.435588,
-    "seen": 1792137926.7121809,
-    "ast_hash": "2f8ee1fff2d4880cc3248c7917d321a8",
+    "mtime": 1792202043.4681005,
+    "seen": 1792202417.7732825,
+    "ast_hash": "6f25d4f920c3c637d31deedc418b8786",
     "semantic_hash": ""
   },
   "tasks/todo-shipping-volume.md": {
