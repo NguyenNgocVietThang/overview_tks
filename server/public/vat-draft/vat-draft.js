@@ -1,28 +1,29 @@
 (function () {
   'use strict';
 
-  // Kế toán – Nháp VAT: 3 tab (#xu-ly, #tra-cuu, #tao-qr). Thuật toán chạy ở máy chủ
+  // Kế toán – Nháp VAT: 2 tab (#xu-ly, #tao-qr). Thuật toán chạy ở máy chủ
   // (/api/vat-draft); trang chỉ chọn chứng từ / dán dữ liệu, hiển thị và tải file.
+  // Tài khoản chỉ có quyền Tạo QR (accounting.qr, mặc định Nhân viên sale) chỉ thấy tab Tạo QR.
 
-  const TABS = ['xu-ly', 'tra-cuu', 'tao-qr'];
+  const TABS = ['xu-ly', 'tao-qr'];
   const PAGE_SIZE = 50;
   const SELECTION_KEY = 'tks-vat-draft-selection';
   const MANUAL = '__manual__';
   const GIA_NHAP = 'GIÁ NHÁP\n(Giá bán/(1+%VAT))';
-  const NUMERIC = new Set(['SL', 'Giá bán', 'TỒN CÒN NHÁP', GIA_NHAP, '%VAT', 'Thành tiền', 'Tồn nháp được', 'Dòng nhập']);
-  const CODE_COLUMNS = new Set(['MÃ SP', 'Mã VAT', 'Mã hóa đơn', 'Mã kiot']);
+  const NUMERIC = new Set(['SL', 'Giá bán', 'TỒN CÒN NHÁP', GIA_NHAP, '%VAT', 'Thành tiền']);
+  const CODE_COLUMNS = new Set(['MÃ SP', 'Mã VAT', 'Mã hóa đơn']);
   const KIND_LABEL = { invoice: 'Hóa đơn', order: 'Đặt hàng' };
   const BRANCH_LABEL = { hanoi: 'Hà Nội', saigon: 'Sài Gòn' };
 
   const state = {
     user: null,
+    canProcess: true,
     tab: 'xu-ly',
     mode: 'docs',
     selection: new Map(),
     list: { page: 1, total: 0, rows: [], loading: false, version: 0, sort: '', dir: 'asc' },
     meta: null,
     alloc: null,
-    lookup: null,
     qrMode: 'co_vat',
     matchedAccounts: []
   };
@@ -81,7 +82,7 @@
 
   function csvCell(column, value) {
     if (value === null || value === undefined || value === '') return '';
-    let text = typeof value === 'number' ? (column === 'Dòng nhập' ? String(value) : pyFloatRepr(value)) : String(value);
+    let text = typeof value === 'number' ? pyFloatRepr(value) : String(value);
     if (/[",\r\n]/.test(text)) text = '"' + text.replace(/"/g, '""') + '"';
     return text;
   }
@@ -140,7 +141,7 @@
 
   function renderMeta() {
     const meta = state.meta;
-    if (!meta) return;
+    if (!meta || !meta.masterData) return;
     const sheets = $('vdSheetsStatus');
     const md = meta.masterData;
     if (md.error) {
@@ -190,7 +191,7 @@
   // ---------- Tab / chế độ nhập ----------
 
   function selectTab(tab) {
-    state.tab = TABS.includes(tab) ? tab : 'xu-ly';
+    state.tab = !state.canProcess ? 'tao-qr' : TABS.includes(tab) ? tab : 'xu-ly';
     document.querySelectorAll('.vd-tabs [data-vat-draft-tab]').forEach(link => {
       if (link.dataset.vatDraftTab === state.tab) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
@@ -198,11 +199,9 @@
     $('vdInputPanel').hidden = state.tab === 'tao-qr';
     document.querySelectorAll('[data-tab-section]').forEach(section => {
       const own = section.dataset.tabSection === state.tab;
-      const hasResult = section.id === 'vdAllocResult' ? !!state.alloc : section.id === 'vdLookupResult' ? !!state.lookup : true;
+      const hasResult = section.id === 'vdAllocResult' ? !!state.alloc : true;
       section.hidden = !(own && hasResult);
     });
-    document.querySelectorAll('[data-paste-for]').forEach(pane => { pane.hidden = pane.dataset.pasteFor !== state.tab; });
-    $('vdRunDocs').textContent = state.tab === 'tra-cuu' ? '🔎 Tra cứu nguồn các chứng từ đã chọn' : '🧾 Xử lý chứng từ đã chọn';
     setMessage('vdRunError', '');
     const sidebar = $('sidebar');
     if (window.TKSNav && sidebar && state.user) window.TKSNav.renderTopSidebar(sidebar, 'accounting', state.user);
@@ -352,21 +351,20 @@
   // ---------- Chạy xử lý ----------
 
   async function run(source) {
-    const isLookup = state.tab === 'tra-cuu';
     const body = { source };
     if (source === 'documents') body.documents = [...state.selection.values()].map(d => ({ kind: d.kind, branch: d.branch, code: d.code }));
-    else body.text = $(isLookup ? 'vdPasteLookup' : 'vdPasteInvoice').value;
-    const buttons = ['vdRunDocs', 'vdRunPasteInvoice', 'vdRunPasteLookup'].map($);
+    else body.text = $('vdPasteInvoice').value;
+    const buttons = ['vdRunDocs', 'vdRunPasteInvoice'].map($);
     buttons.forEach(b => { b.dataset.wasDisabled = b.disabled; b.disabled = true; });
     setMessage('vdRunError', '⏳ Đang xử lý…');
     try {
-      const data = await api(isLookup ? '/lookup' : '/allocate', { method: 'POST', body });
+      const data = await api('/allocate', { method: 'POST', body });
       setMessage('vdRunError', '');
       if (data.masterData && state.meta) { state.meta.masterData = { ...state.meta.masterData, ...data.masterData, error: null }; renderMeta(); }
-      if (isLookup) { state.lookup = data; renderLookup(); }
-      else { state.alloc = data; renderAlloc(); }
+      state.alloc = data;
+      renderAlloc();
       selectTab(state.tab);
-      $(isLookup ? 'vdLookupResult' : 'vdAllocResult').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      $('vdAllocResult').scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (error) {
       setMessage('vdRunError', error.message, 'error');
     } finally {
@@ -396,8 +394,7 @@
   const COLUMN_WIDTHS = {
     'Trạng thái': 96, 'MÃ SP': 88, 'TÊN SP': 170, 'Mã VAT': 84, 'TÊN VAT': 170, 'Mã hóa đơn': 96,
     'Ghi chú hàng hóa': 150, 'Ghi chú tổng': 150, 'NGUỒN': 84, 'TỒN CÒN NHÁP': 96, 'Giá bán': 84,
-    'TÊN KẾ TOÁN': 180, 'ĐVT': 64, 'SL': 72, [GIA_NHAP]: 96, '%VAT': 64, 'Thành tiền': 108,
-    'Mã kiot': 88, 'Tên kiot': 180, 'Tên VAT': 180, 'Mã kế toán': 180, 'Nguồn': 84, 'Tồn nháp được': 96
+    'TÊN KẾ TOÁN': 180, 'ĐVT': 64, 'SL': 72, [GIA_NHAP]: 96, '%VAT': 64, 'Thành tiền': 108
   };
   const headerLabel = column => column === GIA_NHAP ? 'GIÁ NHÁP (Giá bán/(1+%VAT))' : column;
 
@@ -547,7 +544,7 @@
     button.disabled = true;
     try {
       const blob = await api('/export', { method: 'POST', body: { view, columns, rows } });
-      downloadBlob(blob, view === 'allocation' ? 'ket_qua_xu_ly_hoa_don.xlsx' : view === 'lookup' ? 'tra_cuu_nguon.xlsx' : 'tra_cuu_nguon_can_kiem_tra.xlsx');
+      downloadBlob(blob, 'ket_qua_xu_ly_hoa_don.xlsx');
     } catch (error) {
       window.alert(error.message);
     } finally {
@@ -652,22 +649,7 @@
     });
   }
 
-  // ---------- Kết quả Tra cứu nguồn ----------
-
-  function renderLookup() {
-    const data = state.lookup;
-    const issuesBox = $('vdLookupIssuesBox');
-    issuesBox.hidden = !data.issues.length;
-    $('vdLookupIssuesBanner').textContent = data.issues.length ? `Có ${data.issues.length} dòng chưa tra cứu được.` : '';
-    $('vdLookupIssuesRows').innerHTML = data.issues.map((row, index) => '<tr data-index="' + index + '">' + row.map((v, i) => cellHtml(data.issueColumns[i], v)).join('') + '</tr>').join('');
-    $('vdLookupBox').hidden = !data.rows.length && !!data.issues.length;
-    $('vdLookupEmpty').hidden = !!data.rows.length || !!data.issues.length;
-    $('vdLookupTable').tHead.innerHTML = headerHtml(data.columns);
-    $('vdLookupRows').innerHTML = data.rows.map((row, index) => '<tr data-index="' + index + '">' + row.map((v, i) => cellHtml(data.columns[i], v)).join('') + '</tr>').join('');
-    if (window.TKSTables) { window.TKSTables.refresh($('vdLookupTable')); window.TKSTables.refresh($('vdLookupIssuesTable')); }
-  }
-
-  // ---------- Tạo QR (tab 3) ----------
+  // ---------- Tạo QR (tab 2) ----------
 
   function renderAccountSelect() {
     const select = $('vdManualAccount');
@@ -749,7 +731,7 @@
   }
 
   function bindEvents() {
-    if (window.TKSCellSelect) window.TKSCellSelect.init(['vdAllocTable', 'vdLookupIssuesTable', 'vdLookupTable'].map($));
+    if (window.TKSCellSelect) window.TKSCellSelect.init([$('vdAllocTable')]);
     $('vdRefreshSheets').addEventListener('click', refreshSheets);
     document.querySelectorAll('[data-input-mode]').forEach(b => b.addEventListener('click', () => selectMode(b.dataset.inputMode)));
     ['vdSortPrimary', 'vdSortPrimaryDir', 'vdSortSecondary', 'vdSortSecondaryDir'].forEach(id => $(id).addEventListener('change', () => { if (state.alloc) renderAllocRows(); }));
@@ -803,18 +785,14 @@
     $('vdClearSelection').addEventListener('click', () => { state.selection.clear(); saveSelection(); renderSelection(); });
     $('vdRunDocs').addEventListener('click', () => run('documents'));
     $('vdRunPasteInvoice').addEventListener('click', () => run('paste'));
-    $('vdRunPasteLookup').addEventListener('click', () => run('paste'));
     document.querySelectorAll('[data-clear-paste]').forEach(b => b.addEventListener('click', () => {
       $(b.dataset.clearPaste).value = '';
-      if (b.dataset.clearPaste === 'vdPasteInvoice') { state.alloc = null; } else { state.lookup = null; }
+      state.alloc = null;
       selectTab(state.tab);
     }));
 
     $('vdAllocExcel').addEventListener('click', event => exportExcel('allocation', state.alloc.columns, orderedRows('vdAllocRows', state.alloc.rows).map(r => r.values), event.currentTarget));
     $('vdAllocCsv').addEventListener('click', () => downloadCsv(state.alloc.columns, orderedRows('vdAllocRows', state.alloc.rows).map(r => r.values), 'ket_qua_xu_ly_hoa_don.csv'));
-    $('vdLookupExcel').addEventListener('click', event => exportExcel('lookup', state.lookup.columns, orderedRows('vdLookupRows', state.lookup.rows), event.currentTarget));
-    $('vdLookupCsv').addEventListener('click', () => downloadCsv(state.lookup.columns, orderedRows('vdLookupRows', state.lookup.rows), 'tra_cuu_nguon.csv'));
-    $('vdLookupIssuesExcel').addEventListener('click', event => exportExcel('lookupIssues', state.lookup.issueColumns, state.lookup.issues, event.currentTarget));
 
     document.querySelectorAll('[data-qr-mode]').forEach(b => b.addEventListener('click', () => { state.qrMode = b.dataset.qrMode; renderQr(); }));
     $('vdTransfer').addEventListener('input', () => { $('vdTransferHint').hidden = !!$('vdTransfer').value.trim(); });
@@ -855,6 +833,7 @@
     $('vdManualAmount').addEventListener('change', () => { $('vdManualAmount').value = formatAmount(parseAmount($('vdManualAmount').value)); });
     $('vdManualGenerate').addEventListener('click', () => {
       const key = $('vdManualAccount').value;
+      $('vdQrPlaceholder').hidden = true;
       generateQr({
         accountKey: key === MANUAL ? undefined : key,
         manual: key === MANUAL ? { bankId: $('vdManualBank').value.trim(), accountNo: $('vdManualNo').value.trim(), accountName: $('vdManualName').value.trim() } : undefined,
@@ -892,6 +871,12 @@
     $('backdrop').addEventListener('click', toggleSidebar);
 
     state.user = await window.TKSNav.authGuard();
+    state.canProcess = window.TKSNav.can('accounting.vatDraft');
+    if (!state.canProcess) {
+      // Chi co quyen Tao QR: an trang thai Sheets/KiotViet + thanh tab, khong tai danh sach chung tu.
+      document.querySelectorAll('[data-requires-processing]').forEach(el => { el.hidden = true; });
+      $('vdTitle').textContent = 'Tạo QR chuyển khoản';
+    }
     // Bo loc Co so mac dinh theo co so dang chon o header.
     $('vdBranch').value = state.user && state.user.branch === 'Hà Nội' ? 'hanoi' : state.user && state.user.branch === 'Sài Gòn' ? 'saigon' : 'all';
     $('vdFrom').value = vnDate(-6);
@@ -902,7 +887,7 @@
     selectMode('docs');
     selectTab(window.location.hash.slice(1));
     updateManualFields();
-    await Promise.all([loadMeta(), loadDocs()]);
+    await Promise.all([loadMeta(), state.canProcess ? loadDocs() : null]);
   }
 
   window.TKSVatDraft = { init, pyFloatRepr, csvCell, formatAmount, parseAmount, slug, state };

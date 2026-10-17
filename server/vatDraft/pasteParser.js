@@ -3,7 +3,7 @@
 // Doc du lieu DAN TAY (giu nguyen quy tac tung trang cua vat-draft-app) va danh sach
 // ma chung tu (HD.../DH...) ke toan dan vao o "Dán mã chứng từ".
 
-const { pyStrip, pyCasefold } = require('./pyCompat');
+const { pyStrip } = require('./pyCompat');
 
 const EMPTY_COLS = ['', '', '', '', ''];
 
@@ -18,24 +18,6 @@ function parseInvoicePasteRows(text) {
   for (const line of lines) {
     const cols = [...line.split('\t'), ...EMPTY_COLS].slice(0, 5);
     if (['mã sp', 'ma sp'].includes(pyStrip(cols[0]).toLowerCase()) && pyStrip(cols[2]).toLowerCase() === 'sl') continue;
-    rows.push(cols);
-  }
-  return rows;
-}
-
-// str.splitlines(): \n \r \r\n \v \f \x1c \x1d \x1e \x85 \u2028 \u2029.
-const SPLITLINES_RE = /\r\n|[\n\r\v\f\x1c\x1d\x1e\x85\u2028\u2029]/;
-
-/** Trang Tra cuu nguon (02_tra_cuu_nguon.py): splitlines, bo dong tieu de "mã sp"/"mã kiot". */
-function parseLookupPasteRows(text) {
-  const source = String(text || '');
-  const parts = source.split(SPLITLINES_RE);
-  if (parts.length && parts[parts.length - 1] === '' && SPLITLINES_RE.test(source)) parts.pop();
-  const rows = [];
-  for (const line of parts) {
-    if (!pyStrip(line)) continue;
-    const cols = [...line.split('\t'), ...EMPTY_COLS].slice(0, 5);
-    if (['mã sp', 'ma sp', 'mã kiot', 'ma kiot'].includes(pyCasefold(pyStrip(cols[0])))) continue;
     rows.push(cols);
   }
   return rows;
@@ -76,7 +58,6 @@ function parseDocumentCodes(text) {
 module.exports = {
   MAX_DOCUMENT_CODES,
   parseInvoicePasteRows,
-  parseLookupPasteRows,
   rowsToQueries,
   parseDocumentCodes
 };

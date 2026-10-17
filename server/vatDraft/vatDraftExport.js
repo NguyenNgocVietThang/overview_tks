@@ -6,14 +6,11 @@
 const ExcelJS = require('exceljs');
 const { HEADER_FONT, frozenNoGridlinesView, applyFullTableBorder } = require('../excelTableStyle');
 const { buildUnifiedColumns, GIA_NHAP_COLUMN } = require('./allocation');
-const { ALL_SOURCES_COLUMNS, LOOKUP_ISSUE_COLUMNS } = require('./sourceLookup');
 
 const MAX_EXPORT_ROWS = 10000;
-const NUMERIC_COLUMNS = new Set(['SL', 'Giá bán', 'TỒN CÒN NHÁP', GIA_NHAP_COLUMN, '%VAT', 'Thành tiền', 'Tồn nháp được', 'Dòng nhập']);
+const NUMERIC_COLUMNS = new Set(['SL', 'Giá bán', 'TỒN CÒN NHÁP', GIA_NHAP_COLUMN, '%VAT', 'Thành tiền']);
 const VIEWS = Object.freeze({
-  allocation: { sheet: 'Xử lý hóa đơn', fileName: 'ket_qua_xu_ly_hoa_don.xlsx', columns: buildUnifiedColumns(true) },
-  lookup: { sheet: 'Tra cứu nguồn', fileName: 'tra_cuu_nguon.xlsx', columns: [...ALL_SOURCES_COLUMNS] },
-  lookupIssues: { sheet: 'Dòng cần kiểm tra', fileName: 'tra_cuu_nguon_can_kiem_tra.xlsx', columns: [...LOOKUP_ISSUE_COLUMNS] }
+  allocation: { sheet: 'Xử lý hóa đơn', fileName: 'ket_qua_xu_ly_hoa_don.xlsx', columns: buildUnifiedColumns(true) }
 });
 
 function invalid(message) {
@@ -53,7 +50,7 @@ async function createVatDraftWorkbook({ view, columns, rows }) {
   sheet.columns = columns.map(column => ({
     key: column,
     header: column,
-    width: NUMERIC_COLUMNS.has(column) ? 16 : /TÊN|Tên|Ghi chú|Nội dung|Mã kế toán/.test(column) ? 36 : 16,
+    width: NUMERIC_COLUMNS.has(column) ? 16 : /TÊN|Ghi chú/.test(column) ? 36 : 16,
     style: NUMERIC_COLUMNS.has(column)
       ? { numFmt: column === GIA_NHAP_COLUMN ? '#,##0.00' : '#,##0.##' }
       : { alignment: { wrapText: true, vertical: 'top' } }

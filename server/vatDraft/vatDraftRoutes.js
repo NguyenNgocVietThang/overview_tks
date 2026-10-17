@@ -1,10 +1,12 @@
 'use strict';
 
-// /api/vat-draft/* — trang "Kế toán – Nháp VAT". Moi route can quyen accounting.vatDraft
+// /api/vat-draft/* — trang "Kế toán – Nháp VAT". Route Xu ly hoa don can quyen accounting.vatDraft
 // (mac dinh chi Quan ly + admin cung; Quan ly bat rieng cho tung Ke toan o /account/).
+// Route Tao QR (/qr/*, /meta) nhan them accounting.qr (mac dinh Nhan vien sale).
 
 const express = require('express');
 const { requireAuth, requireFeature } = require('../auth/authMiddleware');
+const { hasFeature } = require('../auth/featureRegistry');
 const { resolveBranch } = require('../branch/branchMiddleware');
 const { branchLabelToCode, resolveBranchScope } = require('../branch/branches');
 const { createDocumentsRepository } = require('./documentsRepository');
@@ -24,6 +26,7 @@ function createVatDraftRouter({
     next();
   });
   const guard = [requireAuth, requireFeature('accounting.vatDraft')];
+  const qrGuard = [requireAuth, requireFeature('accounting.vatDraft', 'accounting.qr')];
   // Bo loc "Cơ sở" tren trang (?branch=hanoi|saigon|all) uu tien hon cookie co so o header.
   const branchCodes = req => {
     const picked = String((req.query && req.query.branch) || '').trim();
@@ -54,7 +57,9 @@ function createVatDraftRouter({
     }
   }
 
-  router.get('/meta', ...guard, handle(async (req, res) => {
+  router.get('/meta', ...qrGuard, handle(async (req, res) => {
+    // Chi co quyen Tao QR (sale): chi tra danh sach tai khoan, khong lo trang thai Sheets/KiotViet.
+    if (!hasFeature(req.user, 'accounting.vatDraft')) return res.json({ vietqr: service.accountsMeta() });
     const [master, sync] = await Promise.all([masterDataStatus(false), repository.syncStatus().catch(() => [])]);
     res.json({ masterData: master, sync, vietqr: service.accountsMeta() });
   }));
@@ -78,10 +83,6 @@ function createVatDraftRouter({
     res.json(await service.allocate(req.body || {}));
   }));
 
-  router.post('/lookup', ...guard, handle(async (req, res) => {
-    res.json(await service.lookup(req.body || {}));
-  }));
-
   router.post('/export', ...guard, handle(async (req, res) => {
     const file = await createVatDraftWorkbook(req.body || {});
     res.set('Content-Type', file.mimeType);
@@ -89,11 +90,11 @@ function createVatDraftRouter({
     res.send(file.buffer);
   }));
 
-  router.post('/qr/url', ...guard, handle(async (req, res) => {
+  router.post('/qr/url', ...qrGuard, handle(async (req, res) => {
     res.json(service.qrUrl(req.body || {}));
   }));
 
-  router.post('/qr/parse-text', ...guard, handle(async (req, res) => {
+  router.post('/qr/parse-text', ...qrGuard, handle(async (req, res) => {
     res.json(service.parsePdfText(req.body && req.body.text));
   }));
 

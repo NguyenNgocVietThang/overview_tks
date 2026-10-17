@@ -343,3 +343,4 @@ Phương án B đã duyệt: tập SĐT/KPI Pancake riêng trong PostgreSQL, ng�
 - **Người dùng**: mặc định Quản lý; kế toán nào được dùng thì Quản lý bật quyền riêng.
 - **Thành công**: dán mã HD/DH → ra đúng bảng phân bổ và QR như app cũ (đã đối chiếu khớp 100%), có ghi chú tổng, không mở KiotViet xuất file.
 - **Ngoài phạm vi**: chuyển Gộp VAT/Khớp mã vào DB, 2 trang quản trị của app cũ, xuất template hóa đơn điện tử, tra MST, đổi thuật toán; tắt vat-draft-app làm sau khi nghiệm thu.
+- **Điều chỉnh 17/10/2026 (chiều)**: bỏ chức năng Tra cứu nguồn (không còn dùng). Tạo QR hiện mã QR to ở cột phải cho dễ quét. Nhân viên sale được dùng riêng Tạo QR (tạo QR thu tiền cho khách) mà không thấy Xử lý hóa đơn.

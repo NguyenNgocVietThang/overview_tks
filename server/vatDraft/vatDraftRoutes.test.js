@@ -93,6 +93,22 @@ test('phan quyen: chua dang nhap 401; Ke toan 403; Ke toan duoc cap rieng / Quan
   assert.equal((await request('/meta', { user: userFor(ROLES.KHACH, { 'accounting.vatDraft': true }) })).status, 403);
 });
 
+test('Nhan vien sale (accounting.qr): chi dung duoc Tao QR, /meta chi tra danh sach tai khoan', async () => {
+  const sale = userFor(ROLES.NHAN_VIEN_SALE);
+  const meta = await request('/meta', { user: sale });
+  assert.equal(meta.status, 200);
+  assert.deepEqual(Object.keys(meta.body), ['vietqr']);
+  assert.equal(meta.body.vietqr.accounts.length, 18);
+  assert.equal((await request('/qr/url', { method: 'POST', user: sale, body: { accountKey: 'shc', amount: '1000' } })).status, 200);
+  assert.equal((await request('/qr/parse-text', { method: 'POST', user: sale, body: { text: '' } })).status, 200);
+  assert.equal((await request('/documents', { user: sale })).status, 403);
+  assert.equal((await request('/allocate', { method: 'POST', user: sale, body: { source: 'paste', text: 'SP01' } })).status, 403);
+  assert.equal((await request('/export', { method: 'POST', user: sale, body: { view: 'allocation', columns: ['SL'], rows: [] } })).status, 403);
+  assert.equal((await request('/master-data/refresh', { method: 'POST', user: sale })).status, 403);
+  // Quan ly tat Tao QR cua mot sale -> 403.
+  assert.equal((await request('/qr/url', { method: 'POST', user: userFor(ROLES.NHAN_VIEN_SALE, { 'accounting.qr': false }), body: { accountKey: 'shc' } })).status, 403);
+});
+
 test('GET /meta: trang thai master data, dong bo, danh sach tai khoan', async () => {
   const res = await request('/meta');
   assert.deepEqual([res.body.masterData.stockRows, res.body.masterData.mappingRows, res.body.masterData.error], [3, 2, null]);
@@ -151,21 +167,18 @@ test('POST /allocate dan tay: bo cot cu, khong noi dung CK; loi dau vao 400; she
   assert.equal(down.body.code, 'SHEET_NOT_PUBLIC');
 });
 
-test('POST /lookup: tra moi nguon, dong loi rieng', async () => {
-  const res = await request('/lookup', { method: 'POST', body: { source: 'paste', text: 'Mã SP\tTên\nSP01\t\t3\t1000\nKHONGCO' } });
-  assert.equal(res.status, 200);
-  assert.equal(res.body.rows.length, 2);
-  assert.deepEqual(res.body.rows[1].slice(0, 4), ['', '', '', '']);
-  assert.deepEqual(res.body.issues, [[2, 'KHONGCO', '', "Không tìm thấy Mã SP 'KHONGCO'."]]);
+test('Tra cuu nguon da go: POST /lookup khong con', async () => {
+  assert.equal((await request('/lookup', { method: 'POST', body: { source: 'paste', text: 'SP01' } })).status, 404);
 });
 
 test('POST /export tra file xlsx; cot la bi tu choi', async () => {
-  const ok = await request('/export', { method: 'POST', body: { view: 'lookupIssues', columns: ['Dòng nhập', 'Mã SP', 'Tên SP', 'Nội dung'], rows: [[1, '=HYPERLINK("x")', 'A', 'B']] } });
+  const ok = await request('/export', { method: 'POST', body: { view: 'allocation', columns: ['SL', 'MÃ SP', 'TÊN SP'], rows: [[1, '=HYPERLINK("x")', 'A']] } });
   assert.equal(ok.status, 200);
   assert.match(ok.type, /spreadsheetml/);
   assert.equal(ok.body.subarray(0, 2).toString(), 'PK');
-  const bad = await request('/export', { method: 'POST', body: { view: 'lookup', columns: ['password'], rows: [] } });
+  const bad = await request('/export', { method: 'POST', body: { view: 'allocation', columns: ['password'], rows: [] } });
   assert.equal(bad.status, 400);
+  assert.equal((await request('/export', { method: 'POST', body: { view: 'lookup', columns: ['SL'], rows: [] } })).status, 400);
 });
 
 test('POST /qr/url va /qr/parse-text', async () => {

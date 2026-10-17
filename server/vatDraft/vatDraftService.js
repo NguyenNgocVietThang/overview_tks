@@ -7,8 +7,7 @@
 
 const { pyStrip, pyRound } = require('./pyCompat');
 const { allocateInvoiceSources, buildUnifiedColumns, buildUnifiedDisplayRows } = require('./allocation');
-const { lookupAllSources, buildAllSourcesDisplayRows, buildLookupIssueRows, ALL_SOURCES_COLUMNS, LOOKUP_ISSUE_COLUMNS } = require('./sourceLookup');
-const { parseInvoicePasteRows, parseLookupPasteRows, rowsToQueries, parseDocumentCodes } = require('./pasteParser');
+const { parseInvoicePasteRows, rowsToQueries, parseDocumentCodes } = require('./pasteParser');
 const vietqr = require('./vietqr');
 const { parseInvoiceText } = require('./invoicePdfText');
 const vatDraftConfig = require('./vatDraftConfig');
@@ -155,34 +154,7 @@ function createVatDraftService({ repository, masterData, config = vatDraftConfig
     };
   }
 
-  /** Chuc nang 2 — Tra cuu nguon (chi dung 5 truong dau nhu app cu). */
-  async function lookup({ source, documents, text } = {}) {
-    let queries;
-    if (source === 'documents') {
-      ({ queries } = await documentsInput(documents));
-      queries = queries.map(q => ({ ...q, maHoaDon: '', thanhTien: '' }));
-    } else if (source === 'paste') {
-      const rows = parseLookupPasteRows(pasteText(text));
-      if (!rows.length) throw badRequest('Không đọc được dòng dữ liệu nào từ vùng dán.');
-      queries = rowsToQueries(rows);
-      if (queries.length > MAX_LINES) throw badRequest(`Quá ${MAX_LINES} dòng mỗi lần tra cứu.`);
-    } else {
-      throw badRequest('Nguồn dữ liệu không hợp lệ.');
-    }
-    if (!queries.length) throw badRequest('Hãy nhập ít nhất một Mã SP hoặc Tên SP.');
-
-    const master = await loadMaster();
-    const result = lookupAllSources(queries, master.mappingRows, master.stockRows, config);
-    return {
-      columns: [...ALL_SOURCES_COLUMNS],
-      rows: buildAllSourcesDisplayRows(result.lines).map(row => ALL_SOURCES_COLUMNS.map(column => row[column] ?? '')),
-      issueColumns: [...LOOKUP_ISSUE_COLUMNS],
-      issues: buildLookupIssueRows(result.issues).map(row => LOOKUP_ISSUE_COLUMNS.map(column => row[column] ?? '')),
-      masterData: masterDataMeta(master)
-    };
-  }
-
-  /** Chuc nang 3 — URL anh QR (tai khoan cau hinh hoac nhap tay). */
+  /** Chuc nang 2 — URL anh QR (tai khoan cau hinh hoac nhap tay). */
   function qrUrl({ accountKey, manual, amount, addInfo } = {}) {
     let account;
     let accountLabel;
@@ -226,7 +198,7 @@ function createVatDraftService({ repository, masterData, config = vatDraftConfig
     };
   }
 
-  return { allocate, lookup, qrUrl, parsePdfText, accountsMeta, masterDataMeta, parseDocumentCodes };
+  return { allocate, qrUrl, parsePdfText, accountsMeta, masterDataMeta, parseDocumentCodes };
 }
 
 module.exports = { createVatDraftService, documentsToQueries, MAX_DOCUMENTS, MAX_LINES };
