@@ -27,8 +27,8 @@ const RGB_COLOR = /^rgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\)$/;
 
 const SANITIZE_OPTIONS = {
   allowedTags: [
-    'p', 'div', 'br', 'b', 'strong', 'i', 'em', 'u', 's', 'strike',
-    'h1', 'h2',
+    'p', 'div', 'br', 'hr', 'b', 'strong', 'i', 'em', 'u', 's', 'strike',
+    'h1', 'h2', 'h3', 'h4',
     'ul', 'ol', 'li',
     'span', 'a',
     'table', 'thead', 'tbody', 'tr', 'th', 'td',
@@ -43,6 +43,8 @@ const SANITIZE_OPTIONS = {
     div: ['style'],
     h1: ['style'],
     h2: ['style'],
+    h3: ['style'],
+    h4: ['style'],
     span: ['style'],
     a: ['href', 'target', 'rel'],
     img: ['src', 'alt', 'width', 'height'],
@@ -54,6 +56,8 @@ const SANITIZE_OPTIONS = {
     'div': { 'text-align': [/^(left|center|right|justify)$/] },
     'h1': { 'text-align': [/^(left|center|right|justify)$/] },
     'h2': { 'text-align': [/^(left|center|right|justify)$/] },
+    'h3': { 'text-align': [/^(left|center|right|justify)$/] },
+    'h4': { 'text-align': [/^(left|center|right|justify)$/] },
     'span': {
       color: [HEX_COLOR, RGB_COLOR],
       'background-color': [HEX_COLOR, RGB_COLOR],
