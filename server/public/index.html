@@ -7770,6 +7770,12 @@
         api: '/api/business-report/detail', title: 'Mã hàng', size: 'wide',
         query: item => '?kind=product&key=' + encodeURIComponent(item.key), failure: 'Không tải được chi tiết mã hàng.'
       },
+      // Công nợ, mục Kiểm tra công nợ: hóa đơn của khách trong khoảng ngày nợ tương đương (từ ngày hết nợ đến nay).
+      debtAgingInvoices: {
+        api: '/api/debt-management/aging/invoices', title: 'Hóa đơn', size: 'medium',
+        query: item => '?branch=' + encodeURIComponent(item.branchCode) + '&customerId=' + encodeURIComponent(item.customerId),
+        failure: 'Không tải được hóa đơn của khách này.'
+      },
       // Công nợ (khung Chỉ số then chốt): bảng thưởng/phạt sale — dữ liệu tính tại chỗ, không gọi API.
       debtPenaltySale: {
         title: 'Thưởng/phạt sale', size: 'wide', local: item => debtPenaltySaleDetail(item), failure: 'Không dựng được chi tiết sale.'
@@ -7992,10 +7998,49 @@
         '<span class="dp-title-kind">' + escapeHtml(kindText + separator) + '</span>' + escapeHtml(name);
     }
 
+    // Hộp hóa đơn của 1 dòng Kiểm tra công nợ: chỉ số tổng quan → bảng hóa đơn (sort/Cột hiển thị do table-controls bật sẵn).
+    function renderDebtAgingInvoicesModal(body, subtitle, data) {
+      const invoices = data.invoices || [];
+      const prefix = data.beyondHistory ? '≥ ' : '';
+      const remaining = data.remainingDays;
+      subtitle.textContent = data.payoffDay
+        ? 'Cơ sở ' + (data.branch || '') + ' · từ ' + formatDebtAgingDay(data.payoffDay) + ' đến nay'
+        : 'Cơ sở ' + (data.branch || '');
+      if (!data.payoffDay) {
+        body.innerHTML = detailStatsHtml([{ label: 'Nợ hiện tại', value: fmtMoney(data.currentDebt) }]) +
+          '<div class="doc-modal-note">Khách hiện không có nợ nên không có hóa đơn tương đương.</div>';
+        return;
+      }
+      const tiles = [
+        { label: 'Nợ hiện tại', value: fmtMoney(data.currentDebt), tone: 'red' },
+        { label: 'Ngày nợ tương đương', value: prefix + fmtNumber(data.equivalentDays) + ' ngày', sub: 'Lịch TT ' + fmtNumber(data.scheduleDays) + ' ngày', text: true },
+        { label: 'Còn hạn', value: (data.beyondHistory ? '≤ ' : '') + fmtNumber(remaining) + ' ngày', tone: remaining !== null && remaining <= 0 ? 'amber' : '', text: true },
+        { label: 'Số hóa đơn', value: fmtNumber(invoices.length) },
+        { label: 'Tổng tiền hóa đơn', value: fmtMoney(data.total), tone: 'green' }
+      ];
+      const rows = invoices.length ? invoices.map(function (invoice) {
+        return '<tr><td class="dp-code">' + escapeHtml(invoice.code || '—') + '</td>' +
+          '<td class="dp-cell-main">' + escapeHtml(invoice.customerName || 'Khách lẻ') + '</td>' +
+          '<td>' + escapeHtml(invoice.seller || '—') + '</td>' +
+          '<td class="mono">' + escapeHtml(invoice.date || '—') + '</td>' +
+          '<td class="num">' + fmtTableMoney(invoice.amount) + '</td></tr>';
+      }).join('') : '<tr><td colspan="5" class="table-note">Không có hóa đơn hoàn thành trong khoảng này.</td></tr>';
+      const foot = invoices.length > 1
+        ? '<tfoot><tr><td colspan="4">Cộng</td><td class="num">' + fmtTableMoney(data.total) + '</td></tr></tfoot>' : '';
+      const notes = (data.beyondHistory ? '<div class="doc-modal-note">Khoảng tra cứu 365 ngày chưa đủ bù hết nợ.</div>' : '') +
+        (data.truncated ? '<div class="doc-modal-note">Chỉ hiện ' + fmtNumber(invoices.length) + ' hóa đơn gần nhất.</div>' : '');
+      body.innerHTML = detailStatsHtml(tiles) + notes +
+        '<div class="dp-section">' + detailSectionHeadHtml('Hóa đơn gần đây', fmtNumber(invoices.length) + ' hóa đơn') +
+        '<div class="dp-table-wrap is-flow"><table class="dp-table is-min-wide" data-table-key="dashboard-table-25"><thead><tr>' +
+        '<th>Mã hóa đơn</th><th>Khách hàng</th><th>Nhân viên bán hàng</th><th>Ngày</th><th class="num">Số tiền</th></tr></thead><tbody>' +
+        rows + '</tbody>' + foot + '</table></div></div>';
+    }
+
     function renderDocumentDetail(status, data, message) {
       const body = document.getElementById('docModalBody');
       const subtitle = document.getElementById('docModalSubtitle');
       const kind = DOC_DETAIL_KINDS[docDetail.tableKey];
+      const isDebtAgingInvoices = docDetail.tableKey === 'debtAgingInvoices';
       const isProduct = docDetail.tableKey === 'productReport';
       const isBusiness = docDetail.tableKey.indexOf('business') === 0;
       const isDebtPenalty = docDetail.tableKey === 'debtPenaltySale';
@@ -8010,6 +8055,7 @@
       }[docDetail.tableKey];
       if (isBusiness) setDocumentDetailTitle(kind.title, ' · ', businessTitle());
       else if (isDebtPenalty) setDocumentDetailTitle(kind.title, ' · ', item.sale);
+      else if (isDebtAgingInvoices) setDocumentDetailTitle(kind.title, ' · ', item.customerName);
       else if (isProduct) setDocumentDetailTitle(kind.title, ' · ', item.code + (item.name ? ' – ' + item.name : ''));
       else setDocumentDetailTitle(kind.title, ' ', item.code);
       subtitle.textContent = isBusiness || isDebtPenalty ? '' : isProduct ? '90 ngày gần nhất' : (item.branch ? 'Cơ sở ' + item.branch : '');
@@ -8021,6 +8067,9 @@
           detailSectionHeadHtml('Doanh số theo khách') + '<div id="productCustomerContent"><div class="doc-modal-note">Đang tải doanh số theo khách...</div></div></section>';
       } else if (status === 'ready' && isBusiness) {
         renderBusinessDetailModal(body, subtitle, data);
+      } else if (status === 'ready' && isDebtAgingInvoices) {
+        renderDebtAgingInvoicesModal(body, subtitle, data);
+        if (window.TKSTables && typeof window.TKSTables.refreshAll === 'function') window.TKSTables.refreshAll();
       } else if (status === 'ready' && isDebtPenalty) {
         renderDebtPenaltyDetailModal(body, subtitle, data);
       } else if (status === 'ready' && isProduct) {
@@ -8147,6 +8196,27 @@
           event.preventDefault();
           openFromRow(row);
         });
+      });
+      // Kiểm tra công nợ: dòng khách lấy từ state.debtAging (bảng tự dựng, không qua tableDatasets).
+      const agingBody = document.getElementById('debtAgingRows');
+      function openAgingRow(row) {
+        const key = row.dataset.customerKey;
+        const customer = state.debtAging.customers.find(function (candidate) { return candidate.customerKey === key; });
+        if (customer) openDocumentDetail('debtAgingInvoices', customer, row);
+      }
+      agingBody.addEventListener('click', function (event) {
+        const row = event.target.closest && event.target.closest('tr.doc-row');
+        if (!row) return;
+        const selection = window.getSelection && window.getSelection();
+        if (selection && !selection.isCollapsed && row.contains(selection.anchorNode)) return;
+        openAgingRow(row);
+      });
+      agingBody.addEventListener('keydown', function (event) {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        const row = event.target.closest && event.target.closest('tr.doc-row');
+        if (!row || event.target !== row) return;
+        event.preventDefault();
+        openAgingRow(row);
       });
       document.addEventListener('keydown', function (event) {
         if (event.key === 'Escape' && !document.getElementById('docModalBackdrop').hidden) {
@@ -8939,7 +9009,7 @@
         { tbody: 'debtAgingRows', pagination: 'debtAgingPagination', firstBtn: 'debtAgingFirstPage', prevBtn: 'debtAgingPrevPage', nextBtn: 'debtAgingNextPage', lastBtn: 'debtAgingLastPage', label: 'debtAgingPageLabel' },
         sorted,
         function (customer) {
-          return '<tr data-customer-key="' + escapeHtml(customer.customerKey) + '">' +
+          return '<tr class="doc-row" tabindex="0" title="Bấm để xem hóa đơn của khách" data-customer-key="' + escapeHtml(customer.customerKey) + '">' +
             '<td>' + escapeHtml(customer.branch || '—') + '</td>' +
             '<td class="name-cell">' + escapeHtml(customer.customerName) + '</td>' +
             '<td>' + escapeHtml(customer.sale) + '</td>' +

@@ -86,4 +86,44 @@ async function buildDebtAging(branches, { repository = debtAgingRepository.getDe
   };
 }
 
-module.exports = { DEBT_ACCESS_FEATURES, debtAccessFor, debtAccessTag, buildDebtManagement, buildDebtAging };
+function httpError(statusCode, message) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+}
+
+/**
+ * Hop chi tiet 1 dong "Kiem tra cong no": hoa don Hoan thanh cua khach trong khoang ngay no tuong duong
+ * (tu ngay het no toi nay) + cac so tinh san cua dong do. `branches` = ma co so nguoi xem duoc phep.
+ */
+async function buildDebtAgingInvoices(branches, { branch, customerId }, { repository = debtAgingRepository.getDebtAgingRepository() } = {}) {
+  const branchCode = String(branch || '').trim();
+  const id = String(customerId || '').trim();
+  if (!branchCode || !/^\d+$/.test(id)) throw httpError(400, 'Thiếu cơ sở hoặc mã khách.');
+  if (!branches.includes(branchCode)) throw httpError(403, 'Bạn không có quyền xem cơ sở này.');
+  let data;
+  try {
+    data = await repository.readCustomerInvoices(branchCode, id);
+  } catch (error) {
+    // Chua ap migration 0059: khong co dong tuoi no nao -> 404 nhu khach khong ton tai.
+    if (error && error.code === '42P01') throw httpError(404, 'Chưa có số liệu tuổi nợ của khách này.');
+    throw error;
+  }
+  const { customer, invoices } = data;
+  if (!customer) throw httpError(404, 'Không tìm thấy khách trong bảng tuổi nợ.');
+  return {
+    customerName: customer.customerName,
+    branch: BRANCH_SHORT[customer.branchCode] || customer.branchCode,
+    currentDebt: customer.currentDebt,
+    payoffDay: customer.payoffDay,
+    beyondHistory: customer.beyondHistory,
+    equivalentDays: customer.equivalentDays,
+    remainingDays: customer.remainingDays,
+    scheduleDays: customer.scheduleDays,
+    invoices: invoices.map(invoice => ({ ...invoice, customerName: customer.customerName, amount: invoice.total })),
+    total: invoices.reduce((sum, invoice) => sum + invoice.total, 0),
+    truncated: invoices.length >= debtAgingRepository.INVOICE_LIST_LIMIT
+  };
+}
+
+module.exports = { DEBT_ACCESS_FEATURES, debtAccessFor, debtAccessTag, buildDebtManagement, buildDebtAging, buildDebtAgingInvoices };

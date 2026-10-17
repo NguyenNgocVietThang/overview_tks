@@ -14,13 +14,13 @@ const publicDir = path.join(__dirname, '..', '..', 'public');
 const AGING = {
   available: true, asOfDay: '2026-10-17', refreshedAt: '2026-10-17T03:05:00.000Z',
   customers: [
-    { customerKey: 'hanoi:1', branch: 'HN', customerName: 'Anh Bình', sale: 'Duy Thái', paymentSchedule: '5', scheduleDays: 5,
+    { customerKey: 'hanoi:1', branchCode: 'hanoi', customerId: '1', branch: 'HN', customerName: 'Anh Bình', sale: 'Duy Thái', paymentSchedule: '5', scheduleDays: 5,
       currentDebt: 600000, overdueDebt: 300000, payoffDay: '2026-10-10', beyondHistory: false, equivalentDays: 7, remainingDays: -2 },
-    { customerKey: 'hanoi:2', branch: 'HN', customerName: 'Chị An', sale: 'Duy Thái', paymentSchedule: '1', scheduleDays: 1,
+    { customerKey: 'hanoi:2', branchCode: 'hanoi', customerId: '2', branch: 'HN', customerName: 'Chị An', sale: 'Duy Thái', paymentSchedule: '1', scheduleDays: 1,
       currentDebt: 0, overdueDebt: 0, payoffDay: null, beyondHistory: false, equivalentDays: null, remainingDays: null },
-    { customerKey: 'saigon:1', branch: 'SG', customerName: 'Anh Sài', sale: 'Tú Uyên', paymentSchedule: '7', scheduleDays: 7,
+    { customerKey: 'saigon:1', branchCode: 'saigon', customerId: '1', branch: 'SG', customerName: 'Anh Sài', sale: 'Tú Uyên', paymentSchedule: '7', scheduleDays: 7,
       currentDebt: 50000, overdueDebt: 0, payoffDay: '2026-10-15', beyondHistory: false, equivalentDays: 2, remainingDays: 5 },
-    { customerKey: 'saigon:2', branch: 'SG', customerName: 'Chị Xa', sale: 'Tú Uyên', paymentSchedule: '3', scheduleDays: 3,
+    { customerKey: 'saigon:2', branchCode: 'saigon', customerId: '2', branch: 'SG', customerName: 'Chị Xa', sale: 'Tú Uyên', paymentSchedule: '3', scheduleDays: 3,
       currentDebt: 9000000, overdueDebt: 9000000, payoffDay: '2025-10-18', beyondHistory: true, equivalentDays: 364, remainingDays: -361 }
   ]
 };
@@ -113,4 +113,44 @@ test('chua tinh lan nao -> canh bao, bang trong', async () => {
   const document = dom.window.document;
   assert.equal(document.getElementById('debtAgingWarning').hidden, false);
   assert.match(document.getElementById('debtAgingRows').textContent, /Chưa có số liệu tuổi nợ/);
+});
+
+test('bam dong khach mo hop hoa don: chi so tong quan, 5 cot, bang co key de sort + Cot hien thi, khach het no bao khong co no', async () => {
+  const { dom, requests } = createDashboard(AGING);
+  const { window } = dom;
+  const document = window.document;
+  await window.loadDebtAging();
+  const detail = {
+    customerName: 'Anh Bình', branch: 'HN', currentDebt: 600000, payoffDay: '2026-10-10', beyondHistory: false,
+    equivalentDays: 7, remainingDays: -2, scheduleDays: 5, total: 600000, truncated: false,
+    invoices: [
+      { code: 'HD10', customerName: 'Anh Bình', seller: 'Nguyễn Hiền', date: '17/10/2026 08:00', amount: 100000 },
+      { code: 'HD11', customerName: 'Anh Bình', seller: 'Lê Nam', date: '15/10/2026 09:00', amount: 500000 }
+    ]
+  };
+  const baseFetch = window.fetch;
+  window.fetch = url => String(url).startsWith('/api/debt-management/aging/invoices')
+    ? (requests.push(String(url)), Promise.resolve({ ok: true, json: async () => detail }))
+    : baseFetch(url);
+  const rows = [...document.querySelectorAll('#debtAgingRows tr.doc-row')];
+  assert.equal(rows.length, 4, 'moi dong khach phai bam duoc');
+  rows[0].click();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.ok(requests.includes('/api/debt-management/aging/invoices?branch=hanoi&customerId=1'), requests.join('\n'));
+  const body = document.getElementById('docModalBody');
+  assert.match(document.getElementById('docModalTitle').textContent, /Hóa đơn · Anh Bình/);
+  assert.ok(body.querySelector('.dp-stats'), 'co hang chi so tong quan');
+  const table = body.querySelector('table.dp-table');
+  assert.ok(table.dataset.tableKey, 'bang trong hop can data-table-key de sort/Cot hien thi');
+  assert.deepEqual([...table.tHead.rows[0].cells].map(cell => cell.textContent.trim()),
+    ['Mã hóa đơn', 'Khách hàng', 'Nhân viên bán hàng', 'Ngày', 'Số tiền']);
+  assert.equal(table.tBodies[0].rows.length, 2);
+  assert.ok(table.tFoot, 'dong Cong nam trong tfoot de khong bi sort');
+  window.closeDocumentDetail();
+  window.fetch = url => String(url).startsWith('/api/debt-management/aging/invoices')
+    ? Promise.resolve({ ok: true, json: async () => ({ ...detail, currentDebt: 0, payoffDay: null, invoices: [] }) })
+    : baseFetch(url);
+  rows[1].click();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.match(body.textContent, /không có nợ/);
 });

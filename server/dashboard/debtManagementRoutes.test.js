@@ -218,3 +218,39 @@ test('GET /aging: can quyen Cong no, loc theo co so dang xem, chi doc bang tinh 
     agingRepo.getDebtAgingRepository = original;
   }
 });
+
+test('GET /aging/invoices: can quyen Cong no, chi cho xem co so dang duoc phep, loi 4xx tra nguyen ma', async () => {
+  const [authGuard, featureGuard, branchGuard, handler] = routeStack('/api/debt-management/aging/invoices', 'get');
+  const res0 = fakeRes();
+  await authGuard({ cookies: {} }, res0, () => assert.fail('khong duoc next'));
+  assert.equal(res0.statusCode, 401);
+  assert.equal(allowed(featureGuard, 'Quản lý'), true);
+  assert.equal(allowed(featureGuard, 'Khách hàng'), false);
+  assert.equal(typeof branchGuard, 'function');
+  const agingRepo = require('../debtSchedule/debtAgingRepository');
+  const original = agingRepo.getDebtAgingRepository;
+  const calls = [];
+  agingRepo.getDebtAgingRepository = () => ({
+    readCustomerInvoices: async (branch, customerId) => {
+      calls.push([branch, customerId]);
+      return { customer: { customerName: 'Anh Sài', branchCode: 'saigon', currentDebt: 50, payoffDay: '2026-10-16', beyondHistory: false,
+        equivalentDays: 1, remainingDays: 1, scheduleDays: 2 }, invoices: [{ code: 'HD1', date: '16/10/2026 09:00', seller: 'Tú', total: 80 }] };
+    }
+  });
+  try {
+    const res = fakeRes();
+    await handler({ user: { vaiTro: 'Quản lý' }, branch: 'Sài Gòn', query: { branch: 'saigon', customerId: '1' } }, res);
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(calls, [['saigon', '1']]);
+    assert.equal(res.body.invoices[0].amount, 80);
+    assert.equal(res.body.total, 80);
+    const denied = fakeRes();
+    await handler({ user: { vaiTro: 'Quản lý' }, branch: 'Sài Gòn', query: { branch: 'hanoi', customerId: '1' } }, denied);
+    assert.equal(denied.statusCode, 403);
+    const bad = fakeRes();
+    await handler({ user: { vaiTro: 'Quản lý' }, branch: 'Sài Gòn', query: {} }, bad);
+    assert.equal(bad.statusCode, 400);
+  } finally {
+    agingRepo.getDebtAgingRepository = original;
+  }
+});
