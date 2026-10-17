@@ -85,6 +85,16 @@ test('GET danh sách: bảng chưa migrate (42P01) ⇒ trả 4 tài liệu mặc
   });
 });
 
+test('GET danh sách: deploy code trước migration cột mới (42703, vd thiếu cột body) ⇒ cũng degraded như 42P01', async () => {
+  await withStubs([[repo, 'listDocuments', async () => { const e = new Error('column "body" does not exist'); e.code = '42703'; throw e; }]], async () => {
+    const res = fakeRes();
+    await getRouteHandler('get', '/api/hr/rules/documents')({ user: MANAGER }, res);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.degraded, true);
+    assert.deepEqual(res.body.documents.map(d => d.slug), ['gio-giac', 'nghi-phep', 'phuc-loi', 'treo-hang']);
+  });
+});
+
 test('GET file: 200 kèm header, tên tiếng Việt qua filename*, download=1 ⇒ attachment', async () => {
   const meta = { id: 7, kind: 'pdf', title: 'T', fileName: 'Nội quy kho.pdf', sizeBytes: 20, sha256: 'ab'.repeat(32) };
   await withStubs([[repo, 'getFileMeta', async () => meta], [repo, 'getFileContent', async () => PDF_BYTES]], async () => {

@@ -22,6 +22,12 @@ const MAX_PDF_BYTES = 20 * 1024 * 1024;
 const MAX_TITLE_LENGTH = 120;
 const MAX_FILE_NAME_LENGTH = 150;
 const PG_UNDEFINED_TABLE = '42P01';
+// Deploy code truoc, chay migration sau (quy uoc cua du an — xem productReportRefresh.js,
+// customerInvoiceLinesRefresh.js): "thieu cot" cung phai coi nhu "chua migrate" thay vi vo trang.
+const PG_UNDEFINED_COLUMN = '42703';
+function isMigrationPending(err) {
+  return !!err && (err.code === PG_UNDEFINED_TABLE || err.code === PG_UNDEFINED_COLUMN);
+}
 
 const authView = [requireAuth, requireFeature('hr.rules')];
 const authManage = [requireAuth, requireFeature('hr.rules.manage')];
@@ -48,7 +54,7 @@ function uploadPdf(req, res, next) {
 }
 
 function handleError(res, err, context) {
-  if (err && err.code === PG_UNDEFINED_TABLE) {
+  if (isMigrationPending(err)) {
     return res.status(503).json({
       error: 'Chức năng tài liệu quy định chưa sẵn sàng (chưa cập nhật cơ sở dữ liệu).',
       code: 'RULE_DOCS_NOT_READY'
@@ -140,8 +146,9 @@ router.get('/api/hr/rules/documents', ...authView, async (req, res) => {
     try {
       documents = await repo.listDocuments();
     } catch (err) {
-      // Bang chua migrate: van cho doc 2 tai lieu mac dinh thay vi vo ca tab.
-      if (!err || err.code !== PG_UNDEFINED_TABLE) throw err;
+      // Bang chua migrate (thieu bang) hoac moi deploy code truoc migration (thieu cot,
+      // vd 0060 them cot `body`): van cho doc 4 tai lieu mac dinh thay vi vo ca tab.
+      if (!isMigrationPending(err)) throw err;
       documents = defaultsAsDocuments();
       degraded = true;
     }
