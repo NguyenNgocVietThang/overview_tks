@@ -96,7 +96,7 @@ test('tồn quỹ = tổng phiếu chưa hủy, gộp HN+SG theo số TK, tách 
 
 test('nhóm theo số tài khoản trong ảnh, mọi tài khoản ngoài danh sách thuộc Khác', () => {
   const examples = [
-    ['80002809285', 'Anh Quân'], ['10003099363', 'Anh Quân'], ['48206877', 'Khác'], ['044345', 'Anh Quân'],
+    ['80002809285', 'Anh Quân'], ['10003099363', 'Anh Quân'], ['48206877', 'Anh Quân'], ['044345', 'Khác'],
     ['181833666', 'Chị Nguyệt'], ['3090345688', 'Chị Nguyệt'], ['52256368', 'Chị Nguyệt'], ['0034100123456688', 'Chị Nguyệt'],
     ['8040890', 'Anh Duy'], ['80002808041', 'Anh Duy'], ['087564570', 'Anh Duy'], ['1026044272', 'Anh Duy'],
     ['72104081990', 'Anh Duy'], ['00001066788', 'Anh Duy'],
@@ -113,7 +113,7 @@ test('nhóm theo số tài khoản trong ảnh, mọi tài khoản ngoài danh s
 });
 
 test('tổng số dư 5 nhóm bằng tổng tồn quỹ, cộng HN + SG và không phụ thuộc tài khoản đang lọc', async () => {
-  await db.query("UPDATE cash_book_accounts SET account_no='044345' WHERE id IN (7,8)");
+  await db.query("UPDATE cash_book_accounts SET account_no='48206877' WHERE id IN (7,8)");
   try {
     for (const fund of ['all', 'cash', '7']) {
       const s = await repo.summary(f({fund}));
