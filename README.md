@@ -82,7 +82,7 @@ server/
 │   ├── documentDetailRepository.js  # Chi tiết hóa đơn (popup bảng Chi tiết giao dịch) và chi tiết đơn đặt hàng (trang Vòng đời đơn hàng)
 │   └── stockoutCheck/    # Engine kiểm tra đứt hàng + upload Trả NCC Excel
 ├── data/                 # Dữ liệu lưu trữ local (users.json, notifications.json, ...)
-├── db/                   # Migration Supabase (0001–0054; 0053 đã áp DB dùng chung 15/10, 0054 chưa áp) + SCHEMA.md
+├── db/                   # Migration Supabase (0001–0058; 0058 index orders(order_date) cho Nháp VAT, chưa áp; 0053 đã áp DB dùng chung 15/10, 0054 chưa áp) + SCHEMA.md
 ├── hr/                   # Nhân sự, nghỉ phép tự gửi, phạm vi duyệt chung, tài liệu quy định và cầu Postgres → SSE
 ├── kiotviet/             # KiotViet API client và webhook receiver
 ├── kiotvietSync/         # Webhook, polling, backfill và rollup
@@ -92,6 +92,8 @@ server/
 ├── productContainers/    # Parser CONT, snapshot repository, đồng bộ Sheets chỉ đọc mỗi 10 phút (ghi khác biệt) và kiểm thử
 ├── public/               # Frontend HTML/CSS/JS
 │   ├── cashbook/         # Trang Sổ quỹ: bộ lọc/hash, số dư, chốt và xuất chọn cột
+│   ├── vat-draft/        # Trang Kế toán – Nháp VAT: chọn HD/DH hoặc dán dữ liệu, kết quả phân bổ + Ghi chú tổng, QR, Tạo QR từ PDF
+│   ├── vendor/pdfjs/     # pdf.js 4.10.38 (legacy build) đọc text hóa đơn PDF ngay trong trình duyệt
 │   └── shared/
 │       └── detail-panel.css # Khung xem chi tiết dùng chung (.dp-): chỉ số tổng quan, bảng 1 khung cuộn, tắt nút chọn cột
 ├── scripts/              # Script thủ công (migrate dữ liệu, cài đặt ban đầu)
@@ -99,6 +101,7 @@ server/
 ├── stockLocations/       # Đọc vị trí hàng HN/SG, ánh xạ cột và API chỉ đọc
 ├── shipment/             # Vòng đời đơn hàng: đơn KiotViet (Postgres) ghép Google Sheet, lọc/phân trang ở máy chủ
 ├── telegram/             # Bot quản lý nghỉ phép, webhook, giao tin bền vững + đăng ký webhook
+├── vatDraft/             # Kế toán – Nháp VAT (port vat-draft-app): phân bổ nguồn nháp, tra cứu nguồn, VietQR, đọc 2 Google Sheet công khai, chứng từ HD/DH từ Postgres
 ├── index.js
 └── routes.js
 ```
@@ -110,6 +113,8 @@ Migration `0014_customer_debt_activity_periods.sql` tạo bảng tổng hợp ba
 Migration `0015_app_users_telegram_id.sql` thêm `app_users.telegram_id` để bot có thể liên kết trực tiếp qua Supabase Postgres. Giao diện/API tạo mã liên kết cũ không còn đọc hoặc ghi tab `_HR_TELEGRAM_LINKS`.
 
 ## Cập nhật gần nhất
+
+2026-10-17 — **Kế toán – Nháp VAT (`/vat-draft/`, port vat-draft-app; migration `0058`)**: gộp đủ 3 chức năng của app Streamlit cũ vào tks_web — 🧾 Xử lý hóa đơn (phân bổ SL ra các nguồn theo TỒN CÓ THỂ NHÁP, GIÁ NHÁP = Giá bán/(1+%VAT)), 🔎 Tra cứu nguồn, 💳 Tạo QR (VietQR, đọc số tiền từ PDF hóa đơn GTGT bằng pdf.js trong trình duyệt). Thay cho bước xuất file "Danh sách chi tiết hóa đơn" từ KiotViet: kế toán **chọn thẳng hóa đơn (HD) và đơn đặt hàng chưa xuất HĐ (DH)** trên web (dán nhiều mã, lọc ngày/loại/khách, tick chọn); vẫn giữ ô "Dán dữ liệu" tay; bỏ upload .xlsx. Bảng kết quả thêm cột **Ghi chú tổng** (ghi chú cả đơn, `raw->>'description'`) ngay cạnh Ghi chú hàng hóa; lý do dòng "Không có mã" hiện khi rê chuột; tải Excel và CSV (định dạng như app cũ); nội dung chuyển khoản QR tự điền mã chứng từ đã chọn. Thuật toán port 1:1 (helper `vatDraft/pyCompat.js` mô phỏng round()/sum()/casefold()/float() của Python) — đối chiếu với app Python trên snapshot Sheets thật + file mẫu + 3.000 dòng ngẫu nhiên: khớp 100%; dòng đọc từ DB của HD028344–46 khớp file KiotViet. Master data vẫn đọc 2 Google Sheet công khai "Gộp VAT"/"Khớp mã" (cache 10 phút, nút 🔄). **Quyền** `accounting.vatDraft` (nhóm "Kế toán"): mặc định chỉ Quản lý + admin cứng; tài khoản Kế toán cần Quản lý bật riêng ở /account/; Khách không được cấp. Migration `0058` chỉ thêm index `orders(branch, order_date)` (danh sách 90 ngày nhanh hơn; trang vẫn chạy khi chưa áp). Chi tiết: [server/README.md](server/README.md#kế-toán--nháp-vat-apivat-draft).
 
 2026-10-16 — **Báo cáo hàng hóa cơ cấu lại theo file HÀNG HÓA.xlsx (migration `0057`)**: bảng (tab Hàng hóa, `/reports/#products`) còn 19 cột — Mã sản phẩm, Tên sản phẩm, Chưa bốc, Đã bốc, Tồn thực HN, Có bán HN, Điều chuyển SG, Tồn thực SG, Có bán SG, Mô tả HN, Mô tả SG, Tổng tồn thực + ĐC, Tổng có bán + ĐC, SL bán 30 ngày, Ngày cần đặt, DS 90 ngày, SL khách bán, Khách lớn nhất, Tỉ trọng khách lớn nhất. **Có bán HN/SG** = tồn thực từng cơ sở trừ phiếu tạm của chính cơ sở đó (cộng hai cột = cột Tổng có bán đã lưu trừ phần Điều chuyển SG); **Mô tả HN/SG** = trường Mô tả sản phẩm trên KiotViet từng cơ sở (nhân viên ghi bảng giá cho sale tra cứu); **Ngày cần đặt** = (Tổng có bán + Chưa bốc + Đã bốc) × 30 ÷ SL bán 30 ngày, 1 số thập phân, để trống khi không bán được trong 30 ngày hoặc chưa có snapshot hàng dự kiến. **Khung nhìn mặc định**: Nhân viên sale hiện cột 1–11 + DS 90 ngày; Quản lý (và mọi vai trò khác) ẩn Tồn thực HN → Mô tả SG; chỉ là mặc định hiển thị, ai cũng đổi lại được bằng "Cột hiển thị". **Hộp chi tiết** đảo thứ tự: Hàng dự kiến lên đầu, sau đó Doanh số theo khách (kèm bảng Khách hàng); bấm số Chưa bốc/Đã bốc mở hộp ở mục Hàng dự kiến, bấm Tỉ trọng khách lớn nhất mở hộp và cuộn tới Doanh số theo khách. Migration `0057` thêm 4 cột nullable vào `product_report` (`available_hanoi`, `available_saigon`, `description_hanoi`, `description_saigon`; NULL = chưa tính lại, hiện "—"); job đêm và job tăng dần cùng ghi các cột này nên cận thời gian thực khi bật `REPORTS_INCREMENTAL_ENABLED`. Xuất Excel/HTML theo cùng thứ tự cột (nhãn viết đủ chữ). **Triển khai: migration `0057` đã áp Supabase 16/10/2026**; sau khi áp, job đêm tự tính lại ở lượt kiểm tra 5 phút kế tiếp (hoặc chạy tay `node kiotvietSync/productReportRefresh.js` trong `server/`).
 
@@ -258,7 +263,7 @@ Triển khai trong `server/marketingReport/`; CLI tại `server/scripts/capture-
 - Module mới `server/debtSchedule/`, migration `0047_debt_schedule_report.sql`; 0048 thêm cột Số phiên liên tiếp + Tiền phạt phiên này (bỏ trạng thái Đang xử lý).
 - 14/10/2026: nâng bảng phạt trong "Chỉ số then chốt" thành bảng điểm/thưởng/phạt sale (migration 0051 + 0052). Điểm theo từng khách (cơ sở + mã): số hóa đơn Hoàn thành và doanh số sau trừ trả hàng trong tháng; >=30 điểm mới xếp hạng chung HN + SG theo phạt gốc/điểm tăng dần, điểm giảm dần; bằng tỷ lệ và điểm thì đồng hạng kiểu 1–2–2–4, tên chỉ dùng sắp dòng hiển thị. Top 1–20 miễn phạt; Top 10 nhận quỹ max(80% phạt phải nộp, 3 triệu), 50% theo trọng số hạng 19–17–15–13–11–9–7–5–3–1 và 50% theo tỷ trọng điểm; thiếu 10 người chuẩn hóa trọng số, chia hết quỹ đến đồng. Sửa phạt chỉ thay phạt gốc từng khách; miễn phạt áp ở mức sale. GET /api/debt-management/penalty-board?month=YYYY-MM trả bảng từ backend (mặc định tháng chu kỳ đang mở), lọc cơ sở sau khi tính hạng/quỹ toàn công ty. Giao diện, hộp chi tiết và xuất Excel/HTML dùng cùng kết quả; context.debtRewardMonth chọn tháng xuất. Kết quả tháng cũ lưu bất biến trong debt_reward_months sau bản chốt 15:00 đầu tháng mới, khi đã chốt hết sổ phạt và doanh số tháng. Lỗi chốt thử lại mỗi phút; thiếu lịch sử phạt có cảnh báo rõ, không bù thành 0.
 
-Cập nhật gần nhất: 16/10/2026.
+Cập nhật gần nhất: 17/10/2026.
 
 Điều chỉnh 15/10/2026: trong tháng hiển thị điểm/hạng, thưởng tạm tính và tổng phạt từ các ngày ĐÃ CHỐT, không cộng chu kỳ đang mở. Lúc 14:59 giờ Việt Nam lưu bản cuối của chu kỳ 15:00 hôm trước–14:59 hôm sau, mỗi chu kỳ đúng một lần và không ghi đè; 15:00 mới reset. Nhiều lần Tính lại trong chu kỳ chỉ cập nhật bản đang mở, không cộng thành nhiều ngày. Tiền thưởng hiện mỗi ngày với nhãn Thưởng tạm tính, thay đổi theo điểm và tổng phạt đã chốt ngày; chỉ chốt/lưu thưởng chính thức một lần khi kết thúc tháng. Web, hộp chi tiết và file xuất đều phân biệt tạm tính/đã chốt.
 

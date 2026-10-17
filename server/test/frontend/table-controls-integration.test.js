@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { JSDOM } = require('jsdom');
 const publicDir = path.join(__dirname, '../../public');
-const pages = ['index.html', 'account/index.html', 'cashbook/index.html', 'humanresources/index.html', 'shipment/lifecycle/index.html', 'stock-locations/index.html'];
+const pages = ['index.html', 'account/index.html', 'cashbook/index.html', 'humanresources/index.html', 'shipment/lifecycle/index.html', 'stock-locations/index.html', 'vat-draft/index.html'];
 test('every table page loads shared controls after page styles and before application scripts', () => {
   for (const page of pages) {
     const html = fs.readFileSync(path.join(publicDir, page), 'utf8');

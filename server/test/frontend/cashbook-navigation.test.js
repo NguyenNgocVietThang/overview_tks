@@ -24,14 +24,14 @@ function sidebar(t, user, url = '/cashbook/') {
   return mount;
 }
 
-test('Sổ quỹ là mục cấp 1 ngay dưới Quản lý nhân sự và đang active trên trang quỹ', t => {
+test('Sổ quỹ là mục cấp 1 ngay dưới Quản lý nhân sự, trên nhóm Kế toán và đang active trên trang quỹ', t => {
   const mount = sidebar(t, { vaiTro: 'Quản lý', branch: 'Cả hai' });
   const link = mount.querySelector('a[href="/cashbook/"]');
   assert.ok(link, 'phải có liên kết Sổ quỹ');
   assert.equal(link.textContent, 'Sổ quỹ');
   assert.equal(link.parentElement, mount, 'mục cấp 1 không nằm trong nhóm con');
   assert.equal(link.previousElementSibling.querySelector('[data-tks-nav-group]').dataset.tksNavGroup, 'hr');
-  assert.equal(link.nextElementSibling.querySelector('[data-tks-nav-group]').dataset.tksNavGroup, 'account');
+  assert.equal(link.nextElementSibling.querySelector('[data-tks-nav-group]').dataset.tksNavGroup, 'accounting');
   assert.ok(link.classList.contains('has-active'));
   assert.equal(link.getAttribute('aria-current'), 'page');
   assert.ok(link.querySelector('svg.ic'));
