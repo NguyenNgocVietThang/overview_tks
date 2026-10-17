@@ -46,6 +46,8 @@ test('guard: xem = hr.rules, ghi = hr.rules.manage', () => {
     ['get', '/api/hr/rules/documents', 'hr.rules'],
     ['get', '/api/hr/rules/documents/:id/file', 'hr.rules'],
     ['post', '/api/hr/rules/documents', 'hr.rules.manage'],
+    ['post', '/api/hr/rules/documents/text', 'hr.rules.manage'],
+    ['put', '/api/hr/rules/documents/:id/text', 'hr.rules.manage'],
     ['post', '/api/hr/rules/documents/restore-defaults', 'hr.rules.manage'],
     ['delete', '/api/hr/rules/documents/:id', 'hr.rules.manage']
   ];
@@ -80,6 +82,16 @@ test('GET danh sách: bảng chưa migrate (42P01) ⇒ trả 4 tài liệu mặc
     assert.equal(res.body.degraded, true);
     assert.deepEqual(res.body.documents.map(d => d.slug), ['gio-giac', 'nghi-phep', 'phuc-loi', 'treo-hang']);
     assert.deepEqual(res.body.missingDefaults, []);
+  });
+});
+
+test('GET danh sách: deploy code trước migration cột mới (42703, vd thiếu cột body) ⇒ cũng degraded như 42P01', async () => {
+  await withStubs([[repo, 'listDocuments', async () => { const e = new Error('column "body" does not exist'); e.code = '42703'; throw e; }]], async () => {
+    const res = fakeRes();
+    await getRouteHandler('get', '/api/hr/rules/documents')({ user: MANAGER }, res);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.degraded, true);
+    assert.deepEqual(res.body.documents.map(d => d.slug), ['gio-giac', 'nghi-phep', 'phuc-loi', 'treo-hang']);
   });
 });
 
@@ -179,6 +191,69 @@ test('POST tải lên: tiêu đề mặc định lấy từ tên file; notifier 
       assert.equal(res.statusCode, 201);
       assert.equal(created.title, 'Bảng lương');
     } finally { console.error = originalError; }
+  });
+});
+
+const TEXT_DOC = { id: 9, kind: 'text', slug: 'text-9', title: 'Hướng dẫn dùng bot', body: 'Bước 1: ...' };
+
+test('POST tạo tài liệu gõ tay: thiếu tiêu đề 400, thiếu nội dung 400, thành công 201 + gọi notifier', async () => {
+  const handler = getRouteHandler('post', '/api/hr/rules/documents/text');
+
+  const noTitle = fakeRes();
+  await handler({ user: MANAGER, body: { title: '  ', body: 'Nội dung' } }, noTitle);
+  assert.equal(noTitle.statusCode, 400);
+  assert.equal(noTitle.body.code, 'RULE_DOC_NO_TITLE');
+
+  const noBody = fakeRes();
+  await handler({ user: MANAGER, body: { title: 'Hướng dẫn', body: '   ' } }, noBody);
+  assert.equal(noBody.statusCode, 400);
+  assert.equal(noBody.body.code, 'RULE_DOC_NO_BODY');
+
+  let created; let notified;
+  await withStubs([
+    [repo, 'createTextDocument', async data => { created = data; return TEXT_DOC; }],
+    [notifier, 'documentAdded', async (actor, doc) => { notified = doc; }]
+  ], async () => {
+    const res = fakeRes();
+    await handler({ user: MANAGER, body: { title: '  Hướng dẫn   dùng bot  ', body: 'Bước 1: ...' } }, res);
+    assert.equal(res.statusCode, 201);
+    assert.equal(res.body.document.slug, 'text-9');
+    assert.equal(created.title, 'Hướng dẫn dùng bot');
+    assert.equal(created.body, 'Bước 1: ...');
+    assert.equal(created.createdByName, 'Quản lý A');
+    assert.equal(notified, TEXT_DOC);
+  });
+});
+
+test('PUT sửa tài liệu gõ tay: id sai 400, thiếu tiêu đề/nội dung 400, không tồn tại 404, thành công 200', async () => {
+  const handler = getRouteHandler('put', '/api/hr/rules/documents/:id/text');
+
+  const badId = fakeRes();
+  await handler({ params: { id: 'abc' }, user: MANAGER, body: { title: 'x', body: 'y' } }, badId);
+  assert.equal(badId.statusCode, 400);
+  assert.equal(badId.body.code, 'RULE_DOC_INVALID_ID');
+
+  const noTitle = fakeRes();
+  await handler({ params: { id: '9' }, user: MANAGER, body: { title: '', body: 'y' } }, noTitle);
+  assert.equal(noTitle.body.code, 'RULE_DOC_NO_TITLE');
+
+  await withStubs([[repo, 'updateTextDocument', async () => null]], async () => {
+    const res = fakeRes();
+    await handler({ params: { id: '9' }, user: MANAGER, body: { title: 'x', body: 'y' } }, res);
+    assert.equal(res.statusCode, 404);
+    assert.equal(res.body.code, 'RULE_DOC_NOT_FOUND');
+  });
+
+  let updated;
+  await withStubs([[repo, 'updateTextDocument', async (id, data) => { updated = { id, data }; return TEXT_DOC; }]], async () => {
+    const res = fakeRes();
+    await handler({ params: { id: '9' }, user: MANAGER, body: { title: 'Hướng dẫn mới', body: 'Nội dung mới' } }, res);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.document.slug, 'text-9');
+    assert.equal(updated.id, 9);
+    assert.equal(updated.data.title, 'Hướng dẫn mới');
+    assert.equal(updated.data.body, 'Nội dung mới');
+    assert.equal(updated.data.updatedByName, 'Quản lý A');
   });
 });
 

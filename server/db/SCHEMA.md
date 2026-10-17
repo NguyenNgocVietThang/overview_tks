@@ -297,10 +297,11 @@ Gỡ bỏ tab "Nhà cung cấp" khỏi dashboard:
 
 ### Quản lý tài liệu quy định công ty (migration `0027`)
 
-Bảng `hr_rule_documents` lưu trữ tài liệu quy định công ty (cả tài liệu dựng sẵn và file PDF upload):
-- `kind`: `builtin` (dựng sẵn, `builtin_key` NOT NULL, `content` NULL) hoặc `pdf` (tài liệu tải lên, lưu trong `content` BYTEA).
-- Gồm `title`, `sort_order`, `file_name`, `size_bytes`, `sha256`, `uploaded_by_user_id`, `uploaded_by_name`.
+Bảng `hr_rule_documents` lưu trữ tài liệu quy định công ty (tài liệu dựng sẵn, file PDF upload, và từ migration `0060` là tài liệu Quản lý gõ trực tiếp):
+- `kind`: `builtin` (dựng sẵn, `builtin_key` NOT NULL, `content`/`body` NULL), `pdf` (tài liệu tải lên, lưu trong `content` BYTEA) hoặc `text` (Quản lý gõ tay, lưu văn bản thuần trong `body`, `content`/`file_name`/`size_bytes`/`sha256` NULL). Hình dạng mỗi `kind` ép bằng CHECK `hr_rule_documents_kind_shape`.
+- Gồm `title`, `sort_order`, `file_name`, `size_bytes`, `sha256`, `body`, `uploaded_by_user_id`, `uploaded_by_name`, `updated_at`, `updated_by_name` (2 cột cuối chỉ dùng cho `kind='text'` — tài liệu gõ tay sửa tại chỗ qua `PUT .../:id/text`, khác PDF chỉ thay-mới-xóa-cũ).
 - Seed 4 tài liệu mặc định: `gio-giac` (Giờ giấc làm việc, sort 10), `nghi-phep` (Quy định nghỉ phép, sort 20) và `phuc-loi` (Chi tiêu & Phúc lợi, sort 30 — thêm ở migration 0039) và `treo-hang` (Quy định treo hàng, sort 40 — thêm ở migration 0049).
+- `body` hiển thị bằng `textContent` (không render HTML) ở frontend — tránh XSS vì nội dung do người dùng có quyền `hr.rules.manage` tự nhập.
 - Thu hồi quyền `SELECT` của `reporting_readonly` do chứa tài liệu nội bộ.
 
 ### Lịch sử chỉnh sửa tài khoản (migration `0040`)

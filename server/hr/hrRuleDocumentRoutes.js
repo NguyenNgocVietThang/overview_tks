@@ -22,6 +22,12 @@ const MAX_PDF_BYTES = 20 * 1024 * 1024;
 const MAX_TITLE_LENGTH = 120;
 const MAX_FILE_NAME_LENGTH = 150;
 const PG_UNDEFINED_TABLE = '42P01';
+// Deploy code truoc, chay migration sau (quy uoc cua du an — xem productReportRefresh.js,
+// customerInvoiceLinesRefresh.js): "thieu cot" cung phai coi nhu "chua migrate" thay vi vo trang.
+const PG_UNDEFINED_COLUMN = '42703';
+function isMigrationPending(err) {
+  return !!err && (err.code === PG_UNDEFINED_TABLE || err.code === PG_UNDEFINED_COLUMN);
+}
 
 const authView = [requireAuth, requireFeature('hr.rules')];
 const authManage = [requireAuth, requireFeature('hr.rules.manage')];
@@ -48,7 +54,7 @@ function uploadPdf(req, res, next) {
 }
 
 function handleError(res, err, context) {
-  if (err && err.code === PG_UNDEFINED_TABLE) {
+  if (isMigrationPending(err)) {
     return res.status(503).json({
       error: 'Chức năng tài liệu quy định chưa sẵn sàng (chưa cập nhật cơ sở dữ liệu).',
       code: 'RULE_DOCS_NOT_READY'
@@ -95,6 +101,17 @@ function sanitizeFileName(originalName) {
   return `${name}.pdf`;
 }
 
+// Van ban go tay: bo ky tu dieu khien nhung GIU xuong dong (\n) va tab (\t) —
+// khac normalizeTitle (tieu de 1 dong). Khong rut gon khoang trang giua dong
+// de nguoi dung tu trinh bay doan/gach dau dong.
+function normalizeBody(rawBody) {
+  return String(rawBody == null ? '' : rawBody)
+    .replace(/\r\n/g, '\n')
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '')
+    .trim()
+    .slice(0, repo.BODY_MAX_LENGTH);
+}
+
 function normalizeTitle(rawTitle, fileName) {
   const source = String(rawTitle == null ? '' : rawTitle).trim() || fileName.replace(/\.pdf$/i, '');
   return source.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, MAX_TITLE_LENGTH);
@@ -129,8 +146,9 @@ router.get('/api/hr/rules/documents', ...authView, async (req, res) => {
     try {
       documents = await repo.listDocuments();
     } catch (err) {
-      // Bang chua migrate: van cho doc 2 tai lieu mac dinh thay vi vo ca tab.
-      if (!err || err.code !== PG_UNDEFINED_TABLE) throw err;
+      // Bang chua migrate (thieu bang) hoac moi deploy code truoc migration (thieu cot,
+      // vd 0060 them cot `body`): van cho doc 4 tai lieu mac dinh thay vi vo ca tab.
+      if (!isMigrationPending(err)) throw err;
       documents = defaultsAsDocuments();
       degraded = true;
     }
@@ -206,6 +224,65 @@ router.post('/api/hr/rules/documents', ...authManage, uploadPdf, async (req, res
     fireAndForget(() => notifier.documentAdded(req.user, document));
   } catch (err) {
     handleError(res, err, 'POST /api/hr/rules/documents');
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/hr/rules/documents/text — tao tai lieu go tay moi (JSON: title, body)
+// ---------------------------------------------------------------------------
+router.post('/api/hr/rules/documents/text', ...authManage, async (req, res) => {
+  try {
+    const title = normalizeTitle(req.body && req.body.title, '');
+    if (!title) {
+      return res.status(400).json({ error: 'Tên tài liệu không được để trống.', code: 'RULE_DOC_NO_TITLE' });
+    }
+    const body = normalizeBody(req.body && req.body.body);
+    if (!body) {
+      return res.status(400).json({ error: 'Nội dung không được để trống.', code: 'RULE_DOC_NO_BODY' });
+    }
+
+    const document = await repo.createTextDocument({
+      title,
+      body,
+      createdByUserId: req.user && req.user.id,
+      createdByName: (req.user && (req.user.hoTen || req.user.username)) || ''
+    });
+    console.info(`[HR Rules] ${actorLabel(req.user)} đã tạo tài liệu "${document.title}" (${document.slug}).`);
+    res.status(201).json({ document });
+
+    fireAndForget(() => notifier.documentAdded(req.user, document));
+  } catch (err) {
+    handleError(res, err, 'POST /api/hr/rules/documents/text');
+  }
+});
+
+// ---------------------------------------------------------------------------
+// PUT /api/hr/rules/documents/:id/text — sua noi dung tai lieu go tay (JSON: title, body)
+// ---------------------------------------------------------------------------
+router.put('/api/hr/rules/documents/:id/text', ...authManage, async (req, res) => {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'Mã tài liệu không hợp lệ.', code: 'RULE_DOC_INVALID_ID' });
+
+    const title = normalizeTitle(req.body && req.body.title, '');
+    if (!title) {
+      return res.status(400).json({ error: 'Tên tài liệu không được để trống.', code: 'RULE_DOC_NO_TITLE' });
+    }
+    const body = normalizeBody(req.body && req.body.body);
+    if (!body) {
+      return res.status(400).json({ error: 'Nội dung không được để trống.', code: 'RULE_DOC_NO_BODY' });
+    }
+
+    const document = await repo.updateTextDocument(id, {
+      title,
+      body,
+      updatedByName: (req.user && (req.user.hoTen || req.user.username)) || ''
+    });
+    if (!document) return res.status(404).json({ error: 'Không tìm thấy tài liệu.', code: 'RULE_DOC_NOT_FOUND' });
+    console.info(`[HR Rules] ${actorLabel(req.user)} đã sửa tài liệu "${document.title}" (${document.slug}).`);
+    res.status(200).json({ document });
+  } catch (err) {
+    handleError(res, err, 'PUT /api/hr/rules/documents/:id/text');
   }
 });
 

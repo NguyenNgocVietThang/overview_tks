@@ -340,6 +340,9 @@
   .doc-page .doc-section h4{ font-family:'Be Vietnam Pro', var(--font-display); font-size:13.5px; font-weight:700; color:#14161c; }
   .doc-page .doc-section p,
   .doc-page .doc-section li{ font-family:'Noto Serif', Georgia, serif; font-size:13px; color:#31353f; line-height:1.7; }
+  /* Tai lieu go tay (kind=text): giu nguyen xuong dong nguoi dung da go, van dung dung
+     font/co chu/mau cua .doc-page .doc-section p o tren (khong tach rule rieng). */
+  .doc-page .doc-section p.rule-doc-text-body{ white-space:pre-wrap; }
   .doc-page .doc-section li strong{ color:#14161c; }
   .doc-page .doc-table{ table-layout:fixed; }
   .doc-page .doc-table th, .doc-page .doc-table td{ white-space:normal; overflow-wrap:anywhere; border-color:#d8d5cb; font-family:'Inter', var(--font-body); font-size:12.5px; }
@@ -596,6 +599,7 @@
             <div class="rule-doc-tabs" id="ruleDocTabs" role="tablist" aria-label="Tài liệu quy định công ty"></div>
             <div class="rule-doc-manage" id="ruleDocManage" hidden>
               <button type="button" class="btn-secondary" id="ruleDocRestoreBtn" onclick="restoreRuleDefaults()" hidden>Khôi phục tài liệu mặc định</button>
+              <button type="button" class="btn-secondary" id="ruleDocComposeBtn" onclick="openRuleTextModal(null)">+ Soạn trực tiếp</button>
               <button type="button" class="btn-primary" id="ruleDocUploadBtn" onclick="openRuleUploadModal()">+ Tải tài liệu lên</button>
             </div>
           </div>
@@ -610,6 +614,7 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12"></path><polyline points="7 10 12 15 17 10"></polyline><path d="M5 21h14"></path></svg>
                 Tải về PDF
               </button>
+              <button type="button" class="btn-secondary" id="ruleDocEditBtn" onclick="openRuleTextModal(activeRuleDoc())" hidden>Sửa</button>
               <button type="button" class="btn-danger" id="ruleDocDeleteBtn" onclick="deleteActiveRuleDoc()" hidden>Gỡ tài liệu</button>
             </div>
           </div>
@@ -939,6 +944,25 @@
             <iframe class="rule-doc-frame" id="ruleDocFrame" title="Tài liệu PDF"></iframe>
             <p class="rule-doc-hint">Không xem được PDF trên thiết bị này? Bấm "Tải về PDF" để mở bằng ứng dụng khác.</p>
           </div>
+
+          <!-- Tai lieu go tay (kind=text): dung DUNG khung .doc-page nhu tai lieu dung san
+               (logo + tieu de + gach ngang) de giu nguyen font/dinh dang/logo cong ty; chi
+               phan noi dung la van ban thuan, ghi bang textContent (khong render HTML). -->
+          <div class="rule-doc-view doc-page-wrap" id="ruleDocTextView" hidden>
+            <div class="doc-page">
+              <div class="doc-page-header">
+                <img src="/Logo.jpg" alt="TOKOSI">
+                <div class="doc-page-title">
+                  <h1 id="ruleDocTextH1"></h1>
+                  <p id="ruleDocTextBanner"></p>
+                </div>
+              </div>
+              <hr class="doc-divider">
+              <div class="doc-section">
+                <p class="rule-doc-text-body" id="ruleDocTextBody"></p>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Danh sach nhan su: doc-only, lay tu tab "Danh sach nhan su" trong Google Sheet HR -->
@@ -1168,6 +1192,33 @@
     </div>
   </div>
 
+  <!-- Modal: soan / sua tai lieu quy dinh go tay (kind=text) -->
+  <div class="modal-overlay" id="ruleTextModal" hidden>
+    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="ruleTextHeading">
+      <div class="modal-header">
+        <h3 id="ruleTextHeading">Soạn tài liệu quy định</h3>
+        <button type="button" class="modal-close" onclick="closeModal('ruleTextModal')" aria-label="Đóng">✕</button>
+      </div>
+      <form id="ruleTextForm" onsubmit="submitRuleText(event)">
+        <div class="modal-body">
+          <div class="alert-box alert-error" id="ruleTextError" hidden></div>
+          <div class="form-group">
+            <label for="ruleTextName">Tên tài liệu * (hiện làm tên tab)</label>
+            <input type="text" id="ruleTextName" class="form-control" maxlength="120" required>
+          </div>
+          <div class="form-group">
+            <label for="ruleTextBody">Nội dung * (văn bản thuần, tối đa 20.000 ký tự)</label>
+            <textarea id="ruleTextBody" class="form-control" rows="14" maxlength="20000" required></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" onclick="closeModal('ruleTextModal')">Hủy</button>
+          <button type="submit" class="btn-primary" id="ruleTextSubmit">Lưu</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div class="toast-container" id="toastContainer"></div>
 
   <script src="/shared/table-controls.js?v=20261016-1"></script>
@@ -1328,6 +1379,8 @@
 
       ruleDocEl('ruleDocTitle').textContent = doc.title;
       ruleDocEl('ruleDocDeleteBtn').hidden = !(manage && doc.id != null);
+      ruleDocEl('ruleDocEditBtn').hidden = !(manage && doc.kind === 'text');
+      ruleDocEl('ruleDocDownloadBtn').hidden = doc.kind === 'text';
 
       if(doc.kind === 'builtin'){
         const meta = RULE_DOC_BUILTINS[doc.builtinKey];
@@ -1341,6 +1394,20 @@
         ruleDocEl('ruleDocMeta').textContent = `Áp dụng cho toàn thể nhân viên · Cập nhật lần cuối: ${meta.updated}`;
         setRuleDocStatus('');
         view.hidden = false;
+      }else if(doc.kind === 'text'){
+        const parts = [];
+        if(doc.updatedBy) parts.push(`Sửa lần cuối bởi ${doc.updatedBy}`);
+        else if(doc.uploadedBy) parts.push(`Soạn bởi ${doc.uploadedBy}`);
+        const dateText = formatRuleDate(doc.updatedAt || doc.createdAt);
+        if(dateText) parts.push(dateText);
+        ruleDocEl('ruleDocMeta').textContent = parts.join(' · ');
+        setRuleDocStatus('');
+        // Khung .doc-page (logo + tieu de + gach ngang) giong het tai lieu dung san —
+        // textContent cho ca tieu de lan noi dung, khong innerHTML, tranh XSS.
+        ruleDocEl('ruleDocTextH1').textContent = doc.title;
+        ruleDocEl('ruleDocTextBanner').textContent = `TOKOSI · Nội bộ${dateText ? ` · Cập nhật: ${dateText}` : ''}`;
+        ruleDocEl('ruleDocTextBody').textContent = doc.body || '';
+        ruleDocEl('ruleDocTextView').hidden = false;
       }else{
         const parts = [];
         if(doc.uploadedBy) parts.push(`Tải lên bởi ${doc.uploadedBy}`);
@@ -1510,12 +1577,71 @@
       }
     }
 
+    // ----- Quan ly: soan / sua tai lieu go tay (kind=text) -----
+    let ruleTextEditingId = null; // null = tao moi, co gia tri = dang sua tai lieu do
+
+    function openRuleTextModal(doc){
+      if(!hrCan('hr.rules.manage')) return;
+      ruleDocEl('ruleTextForm').reset();
+      const err = ruleDocEl('ruleTextError');
+      err.hidden = true; err.textContent = '';
+      const isEdit = !!(doc && doc.kind === 'text');
+      ruleTextEditingId = isEdit ? doc.id : null;
+      ruleDocEl('ruleTextHeading').textContent = isEdit ? 'Sửa tài liệu quy định' : 'Soạn tài liệu quy định';
+      ruleDocEl('ruleTextSubmit').textContent = isEdit ? 'Lưu' : 'Tạo tài liệu';
+      if(isEdit){
+        ruleDocEl('ruleTextName').value = doc.title || '';
+        ruleDocEl('ruleTextBody').value = doc.body || '';
+      }
+      openModal('ruleTextModal');
+    }
+
+    async function submitRuleText(event){
+      if(event) event.preventDefault();
+      const errBox = ruleDocEl('ruleTextError');
+      const submitBtn = ruleDocEl('ruleTextSubmit');
+      const showError = msg => { errBox.textContent = msg; errBox.hidden = false; };
+      errBox.hidden = true;
+
+      const title = ruleDocEl('ruleTextName').value.trim();
+      const body = ruleDocEl('ruleTextBody').value.trim();
+      if(!title){ showError('Vui lòng nhập tên tài liệu.'); return; }
+      if(!body){ showError('Vui lòng nhập nội dung.'); return; }
+
+      const editingId = ruleTextEditingId;
+      const url = editingId ? `/api/hr/rules/documents/${editingId}/text` : '/api/hr/rules/documents/text';
+      const method = editingId ? 'PUT' : 'POST';
+      submitBtn.disabled = true;
+      const originalLabel = submitBtn.textContent;
+      submitBtn.textContent = 'Đang lưu…';
+      try{
+        const res = await fetch(url, {
+          method, credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, body })
+        });
+        const { ok, data } = await parseApiResponse(res);
+        if(!ok){ showError((data && data.error) || 'Không lưu được tài liệu.'); return; }
+        closeModal('ruleTextModal');
+        showToast(editingId ? 'Đã lưu tài liệu.' : 'Đã tạo tài liệu.', 'success');
+        ruleDocState.wantedSlug = data && data.document ? data.document.slug : '';
+        await loadRuleDocuments(true);
+      }catch(err){
+        showError('Lỗi kết nối máy chủ khi lưu tài liệu.');
+      }finally{
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalLabel;
+      }
+    }
+
     async function deleteActiveRuleDoc(){
       const doc = activeRuleDoc();
       if(!doc || doc.id == null || !hrCan('hr.rules.manage')) return;
       const note = doc.kind === 'builtin'
         ? 'Tài liệu dựng sẵn có thể khôi phục bằng nút "Khôi phục tài liệu mặc định".'
-        : 'File PDF sẽ bị xóa vĩnh viễn, không thể hoàn tác.';
+        : doc.kind === 'text'
+          ? 'Nội dung sẽ bị xóa vĩnh viễn, không thể hoàn tác.'
+          : 'File PDF sẽ bị xóa vĩnh viễn, không thể hoàn tác.';
       if(!window.confirm(`Gỡ tài liệu "${doc.title}"?\nTab và nhánh menu tương ứng cũng sẽ biến mất.\n${note}`)) return;
       try{
         const res = await fetch(`/api/hr/rules/documents/${doc.id}`, { method: 'DELETE', credentials: 'same-origin' });
