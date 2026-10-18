@@ -89,24 +89,3 @@ test('migration 0061 tạo bảng hr_rule_document_images (BYTEA, giới hạn 5
   assert.match(sql, /sha256\s+CHAR\(64\) NOT NULL CHECK \(sha256 ~ '\^\[0-9a-f\]\{64\}\$'\)/);
   assert.match(sql, /REVOKE SELECT ON hr_rule_document_images FROM reporting_readonly/);
 });
-
-test('migration 0065 chuyển 4 tài liệu dựng sẵn sang kind=text, gán icon tương ứng, xóa builtin_key', () => {
-  const sql = fs.readFileSync(path.join(__dirname, 'migrations', '0065_hr_rule_document_builtin_to_text.sql'), 'utf8');
-  const expected = [
-    ['gio-giac', 'clock'],
-    ['nghi-phep', 'calendar'],
-    ['phuc-loi', 'gift'],
-    ['treo-hang', 'box']
-  ];
-  for (const [key, icon] of expected) {
-    const re = new RegExp(
-      `SET kind = 'text', builtin_key = NULL, icon_key = '${icon}'[\\s\\S]*?WHERE builtin_key = '${key}' AND kind = 'builtin';`
-    );
-    assert.match(sql, re, `phải có UPDATE cho ${key} với icon_key='${icon}'`);
-  }
-  // Moi dong body phai la mot dollar-quote khac nhau (vd $body1$...$body1$), khong
-  // dung chung 1 the cho ca 4 (tranh dong sai gan vao body khac khi noi dung trung chuoi).
-  const tags = [...sql.matchAll(/\$(\w+)\$/g)].map(m => m[1]);
-  const uniqueTags = new Set(tags);
-  assert.equal(uniqueTags.size * 2, tags.length, 'moi dollar-quote tag phai xuat hien dung 2 lan (mo + dong)');
-});

@@ -68,25 +68,25 @@ test('guard: xem = hr.rules, ghi = hr.rules.manage', () => {
   }
 });
 
-test('GET danh sách: trả tài liệu; missingDefaults luôn rỗng (từ migration 0065 không còn tài liệu dựng sẵn mặc định)', async () => {
-  const docs = [TEXT_DOC, PDF_DOC];
+test('GET danh sách: trả tài liệu + missingDefaults', async () => {
+  const docs = [{ id: 1, kind: 'builtin', slug: 'gio-giac', builtinKey: 'gio-giac', title: 'Giờ giấc làm việc' }, PDF_DOC];
   await withStubs([[repo, 'listDocuments', async () => docs]], async () => {
     const res = fakeRes();
     await getRouteHandler('get', '/api/hr/rules/documents')({ user: MANAGER }, res);
     assert.equal(res.statusCode, 200);
     assert.equal(res.body.degraded, false);
-    assert.deepEqual(res.body.missingDefaults, []);
+    assert.deepEqual(res.body.missingDefaults, ['nghi-phep', 'phuc-loi', 'treo-hang']);
     assert.equal(res.body.documents.length, 2);
   });
 });
 
-test('GET danh sách: bảng chưa migrate (42P01) ⇒ degraded, danh sách mặc định rỗng (từ migration 0065 không còn builtin)', async () => {
+test('GET danh sách: bảng chưa migrate (42P01) ⇒ trả 4 tài liệu mặc định, degraded', async () => {
   await withStubs([[repo, 'listDocuments', async () => { const e = new Error('no table'); e.code = '42P01'; throw e; }]], async () => {
     const res = fakeRes();
     await getRouteHandler('get', '/api/hr/rules/documents')({ user: MANAGER }, res);
     assert.equal(res.statusCode, 200);
     assert.equal(res.body.degraded, true);
-    assert.deepEqual(res.body.documents, []);
+    assert.deepEqual(res.body.documents.map(d => d.slug), ['gio-giac', 'nghi-phep', 'phuc-loi', 'treo-hang']);
     assert.deepEqual(res.body.missingDefaults, []);
   });
 });
@@ -97,7 +97,7 @@ test('GET danh sách: deploy code trước migration cột mới (42703, vd thi�
     await getRouteHandler('get', '/api/hr/rules/documents')({ user: MANAGER }, res);
     assert.equal(res.statusCode, 200);
     assert.equal(res.body.degraded, true);
-    assert.deepEqual(res.body.documents, []);
+    assert.deepEqual(res.body.documents.map(d => d.slug), ['gio-giac', 'nghi-phep', 'phuc-loi', 'treo-hang']);
   });
 });
 

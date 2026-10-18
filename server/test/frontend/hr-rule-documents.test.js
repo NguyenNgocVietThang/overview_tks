@@ -24,17 +24,6 @@ const BUILTINS = [
   { id: 3, kind: 'builtin', slug: 'phuc-loi', builtinKey: 'phuc-loi', title: 'Chi tiêu & Phúc lợi' },
   { id: 4, kind: 'builtin', slug: 'treo-hang', builtinKey: 'treo-hang', title: 'Quy định treo hàng' }
 ];
-// Tu migration 0065: 4 tai lieu dung san tren chuyen sang kind='text' (Quan ly tu sua qua
-// web) — day la trang thai THAT trong production sau khi migration da chay. Noi dung cua
-// 'Gio giac' va 'Nghi phep' la ban sao chinh xac tu HTML da sanitize that (kiem bang
-// script rieng doi chieu so luong the truoc/sau loc, khong mat the nao). 'Phuc loi'/'Treo
-// hang' dung noi dung rut gon vi khong co test nao kiem sau noi dung 2 tai lieu nay.
-const CONVERTED_DOCS = [
-  { id: 1, kind: 'text', slug: 'text-1', title: 'Giờ giấc làm việc', iconKey: 'clock', body: "<p>Để đảm bảo kỷ luật và công bằng trong công việc, công ty yêu cầu toàn thể nhân viên tuân thủ nghiêm túc các quy định sau.</p>\n\n                <div>\n                  <h4>Giờ làm việc chính thức</h4>\n                  <table>\n                    <thead><tr><th>Khối</th><th>Buổi sáng</th><th>Buổi chiều</th></tr></thead>\n                    <tbody>\n                      <tr><td>Kho vận</td><td>Ca 1: 08h00 – 11h30<br />Ca 2: 08h00 – 12h30</td><td>Ca 1: 12h30 – 17h00<br />Ca 2: 13h30 – 17h00</td></tr>\n                      <tr><td>Văn phòng HN</td><td>07h45 – 11h30</td><td>12h30 – 16h45</td></tr>\n                      <tr><td>Văn phòng SG</td><td>08h00 – 12h00</td><td>13h00 – 17h00</td></tr>\n                    </tbody>\n                  </table>\n                  <p>☞ Nhân viên phải có mặt đúng giờ, không được tự ý nghỉ sớm.</p>\n                </div>\n\n                <div>\n                  <h4>Quy định đi muộn, về sớm, quên chấm công</h4>\n                  <ul>\n                    <li>Mỗi tháng, nhân viên được phép đi muộn, về sớm hoặc quên chấm công tối đa <strong>03 lần</strong>.\n                      <ul>\n                        <li>Từ lần 1 – lần 3: Không bị phạt.</li>\n                        <li>Từ lần 4 – lần 8 sẽ bị phạt <strong>50.000đ/lần</strong>.</li>\n                        <li>Từ lần 9 trở đi sẽ bị phạt <strong>100.000đ/lần</strong>.</li>\n                      </ul>\n                    </li>\n                    <li>Quên chấm vào hoặc chấm ra: chỉ được kiểm tra camera trong khoảng <strong>±5 phút</strong> so với giờ vào/ra để xác nhận (sáng: 7h45 – 7h50; chiều: 16h45 – 16h50). Không thấy sẽ mặc định nghỉ buổi sáng hoặc chiều tương ứng.</li>\n                    <li>Quên chấm cả 2 lần (vào và ra): không được tính công ngày đó.</li>\n                  </ul>\n                </div>\n\n                <div>\n                  <h4>Cách tính ngày công khi đi muộn/về sớm</h4>\n                  <ul>\n                    <li>Đi muộn hoặc về sớm sẽ bị tính vào <strong>03 lần</strong> được trừ trong tháng.</li>\n                    <li>Đi muộn hoặc về sớm <strong>≤ 30 phút</strong>: không bị trừ công.</li>\n                    <li>Đi muộn hoặc về sớm <strong>&gt; 30 phút</strong>: tính đi muộn và ngày công được tính theo công thức <strong>Ngày công = Số giờ làm việc thực tế trong ngày ÷ 8</strong>.</li>\n                    <li>Ví dụ: nhân viên đi muộn 45 phút → thời gian làm việc còn lại 7h15 → số công = 7h15 ÷ 8 ≈ 0.90625 công và bị tính 1 lỗi đi muộn.</li>\n                  </ul>\n                  <p>Lưu ý: Việc đi muộn, về sớm nhiều lần sẽ ảnh hưởng trực tiếp đến lương, thưởng và xét tăng lương. Ban quản trị sẽ giám sát và xử lý nghiêm minh, không có ngoại lệ.</p>\n                </div>", uploadedBy: 'Hệ thống (chuyển từ tài liệu dựng sẵn)', createdAt: '2026-10-17T03:00:00.000Z' },
-  { id: 2, kind: 'text', slug: 'text-2', title: 'Quy định nghỉ phép', iconKey: 'calendar', body: "<p>Nhân viên cần xin phép và được quản lý đồng ý trước khi nghỉ. Thời hạn gửi yêu cầu phụ thuộc vào số ngày nghỉ.</p>\n\n                <div>\n                  <h4>Cách xin nghỉ phép</h4>\n                  <ul>\n                    <li>Nhắn tin xin nghỉ cho bot Telegram: <strong>@nghipheptks_bot</strong> hoặc tạo đơn trên web.</li>\n                    <li>Chỉ được tính là đã xin phép khi yêu cầu được gửi qua bot đúng thời hạn quy định bên dưới.</li>\n                    <li>Đơn xin nghỉ phải ghi đủ: ngày nghỉ, lý do nghỉ và <strong>bàn giao công việc</strong> (người nhận bàn giao, nội dung bàn giao).</li>\n                  </ul>\n                </div>\n\n                <div>\n                  <h4>Thời hạn đăng ký nghỉ phép</h4>\n                  <ul>\n                    <li><strong>Tổng buổi nghỉ thực tế ≤ 2:</strong> hạn đăng ký là <strong>hết 23:59:59 của 02 ngày trước ngày nghỉ đầu tiên</strong>.\n                      <ul>\n                        <li>Ví dụ: nghỉ từ thứ Ba → hạn là hết 23:59:59 Chủ nhật. Hai buổi trên hai ngày khác nhau vẫn áp dụng hạn 02 ngày.</li>\n                      </ul>\n                    </li>\n                    <li><strong>Tổng buổi nghỉ thực tế &gt; 2:</strong> hạn đăng ký là <strong>hết 23:59:59 của 03 ngày trước ngày nghỉ đầu tiên</strong>.\n                      <ul>\n                        <li>Ví dụ: nghỉ đủ bốn buổi thứ Năm và thứ Sáu → hạn là hết 23:59:59 thứ Hai.</li>\n                      </ul>\n                    </li>\n                    <li>Tính theo ngày lịch và giờ Việt Nam, gồm cuối tuần và ngày lễ. Toàn bộ phút 23:59 nằm trong hạn; từ 00:00 ngày kế tiếp là quá hạn.</li>\n                    <li>Gửi trước hạn: <strong>Đúng hạn</strong>. Gửi sau hạn nhưng trước giờ bắt đầu buổi nghỉ đầu tiên theo lịch nhân sự: <strong>Xin muộn</strong>. Gửi từ đúng giờ bắt đầu buổi đầu tiên trở đi: <strong>Vi phạm</strong>. Nếu chưa có lịch làm việc, cần nhờ quản lý cấu hình trước khi gửi.</li>\n                    <li>Nhãn thời hạn được lưu khi gửi và tách khỏi trạng thái duyệt. Quản lý có thể duyệt mọi nhãn; chờ duyệt không tự đổi nhãn. Sửa lịch và gửi lại sẽ tính lại nhãn theo thời gian gửi mới, cần duyệt lại và giữ lịch sử cũ.</li>\n                  </ul>\n                </div>\n\n                <div>\n                  <h4>Bàn giao công việc</h4>\n                  <ul>\n                    <li>Đơn không có thông tin bàn giao chưa được tính là đã xin phép, quản lý có thể từ chối.</li>\n                    <li>Nghỉ gấp: bàn giao cho quản lý và người thay thế qua tin nhắn riêng ngay khi có thể.</li>\n                    <li>Người nhận bàn giao chịu trách nhiệm xử lý các việc được giao trong thời gian đồng nghiệp nghỉ.</li>\n                  </ul>\n                </div>\n\n                <div>\n                  <h4>Xử lý vi phạm</h4>\n                  <ul>\n                    <li>Gửi yêu cầu xin nghỉ trễ hạn: phạt <strong>50.000đ/lần</strong>.</li>\n                    <li>Tự ý nghỉ không xin phép, hoặc quản lý đã từ chối nhưng vẫn nghỉ: phạt <strong>500.000đ/lần</strong>.</li>\n                    <li>Tất cả các khoản phạt này sẽ trừ vào lương cuối tháng đó.</li>\n                  </ul>\n                  <p>Lưu ý: Ban quản lý sẽ giám sát và xử lý nghiêm minh, không có ngoại lệ.</p>\n                </div>", uploadedBy: 'Hệ thống (chuyển từ tài liệu dựng sẵn)', createdAt: '2026-10-17T03:00:00.000Z' },
-  { id: 3, kind: 'text', slug: 'text-3', title: 'Chi tiêu & Phúc lợi', iconKey: 'gift', body: '<p>Đơn vị tính: đồng.</p>', uploadedBy: 'Hệ thống (chuyển từ tài liệu dựng sẵn)', createdAt: '2026-10-17T03:00:00.000Z' },
-  { id: 4, kind: 'text', slug: 'text-4', title: 'Quy định treo hàng', iconKey: 'box', body: '<p>Quy định về đơn treo chờ hàng.</p>', uploadedBy: 'Hệ thống (chuyển từ tài liệu dựng sẵn)', createdAt: '2026-10-17T03:00:00.000Z' }
-];
 const PDF = { id: 7, kind: 'pdf', slug: 'pdf-7', title: 'Nội quy kho', fileName: 'noi-quy-kho.pdf', sizeBytes: 2048, uploadedBy: 'Quản lý A', createdAt: '2026-09-30T03:00:00.000Z' };
 const TEXT = { id: 8, kind: 'text', slug: 'text-8', title: 'Hướng dẫn Bot', body: '<h2>Quy tắc</h2><p><strong>Không</strong> gửi mật khẩu.</p><table><tbody><tr><td>Lỗi</td><td>Cách xử lý</td></tr></tbody></table>', uploadedBy: 'Quản lý A', createdAt: '2026-10-17T03:00:00.000Z' };
 
@@ -48,7 +37,7 @@ function jsonResponse(payload, status = 200) {
 }
 
 /** Dung trang HR that trong JSDOM voi fetch gia; server gia giu danh sach tai lieu trong `server.docs`. */
-async function openPage({ vaiTro = 'Quản lý', hash = '#quydinh', docs = [...CONVERTED_DOCS, PDF], listPayload } = {}) {
+async function openPage({ vaiTro = 'Quản lý', hash = '#quydinh', docs = [...BUILTINS, PDF], listPayload } = {}) {
   const dom = new JSDOM(html, { runScripts: 'outside-only', url: `https://tokosi.example/humanresources/${hash}` });
   const { window } = dom;
   const server = { docs: [...docs], missingDefaults: [], requests: [], confirmed: true };
@@ -119,21 +108,19 @@ const tabSlugs = document => [...document.querySelectorAll('.rule-doc-tab')].map
 const activeTab = document => (document.querySelector('.rule-doc-tab.active') || {}).dataset;
 const visibleViews = document => [...document.querySelectorAll('.rule-doc-view')].filter(v => !v.hidden).map(v => v.dataset.ruleDoc || v.id);
 
-test('dựng tab từ API: 4 tài liệu rich text (chuyển từ dựng sẵn, migration 0065) + PDF, mặc định tài liệu đầu', async () => {
+test('dựng tab từ API: 2 tài liệu dựng sẵn + PDF, mặc định tài liệu đầu', async () => {
   const { window, document, server } = await openPage();
 
-  assert.deepEqual(tabSlugs(document), ['text-1', 'text-2', 'text-3', 'text-4', 'pdf-7']);
-  assert.equal(activeTab(document).ruleDocTab, 'text-1');
-  assert.deepEqual(visibleViews(document), ['ruleDocTextView']);
+  assert.deepEqual(tabSlugs(document), ['gio-giac', 'nghi-phep', 'phuc-loi', 'treo-hang', 'pdf-7']);
+  assert.equal(activeTab(document).ruleDocTab, 'gio-giac');
+  assert.deepEqual(visibleViews(document), ['gio-giac']);
   assert.equal(document.getElementById('ruleDocTitle').textContent, 'Giờ giấc làm việc');
   window.close();
 });
 
-test('nội dung "Quy định nghỉ phép" (kind=text, chuyển từ dựng sẵn): đủ thời hạn xin nghỉ, bàn giao công việc, mức phạt và bot Telegram — render bằng innerHTML đã lọc', async () => {
+test('nội dung tài liệu dựng sẵn: "Quy định nghỉ phép" đủ thời hạn xin nghỉ, bàn giao công việc, mức phạt và bot Telegram', async () => {
   const { window, document } = await openPage();
-  document.querySelector('[data-rule-doc-tab="text-2"]').click();
-  await settle();
-  const leaveDoc = document.getElementById('ruleDocTextBody').textContent;
+  const leaveDoc = document.getElementById('ruleDoc-nghi-phep').textContent;
   assert.match(leaveDoc, /@nghipheptks_bot/);
   assert.match(leaveDoc, /Tổng buổi nghỉ thực tế ≤ 2/);
   assert.match(leaveDoc, /hết 23:59:59 của 02 ngày trước/);
@@ -145,12 +132,7 @@ test('nội dung "Quy định nghỉ phép" (kind=text, chuyển từ dựng s�
   assert.match(leaveDoc, /50\.000đ\/lần/);
   assert.match(leaveDoc, /500\.000đ\/lần/);
   assert.doesNotMatch(leaveDoc, /lienket|Tạm duyệt/);
-  // Dam bao bo loc giu h4 (tieu de phu) va strong (nhan manh), khong bi go ve van ban tho.
-  assert.match(document.getElementById('ruleDocTextBody').innerHTML, /<h4>Cách xin nghỉ phép<\/h4>/);
-  assert.match(document.getElementById('ruleDocTextBody').innerHTML, /<strong>@nghipheptks_bot<\/strong>/);
-  document.querySelector('[data-rule-doc-tab="text-1"]').click();
-  await settle();
-  const hoursDoc = document.getElementById('ruleDocTextBody').textContent;
+  const hoursDoc = document.getElementById('ruleDoc-gio-giac').textContent;
   assert.match(hoursDoc, /Giờ làm việc chính thức/);
   assert.doesNotMatch(hoursDoc, /Quy tắc xin nghỉ phép/);
   window.close();
@@ -177,7 +159,7 @@ test('mở thẳng #quydinh/pdf-7: đúng tài liệu; slug lạ rơi về tài 
   direct.window.close();
 
   const unknown = await openPage({ hash: '#quydinh/pdf-999' });
-  assert.equal(activeTab(unknown.document).ruleDocTab, 'text-1');
+  assert.equal(activeTab(unknown.document).ruleDocTab, 'gio-giac');
   const listCalls = unknown.server.requests.filter(r => r.url === '/api/hr/rules/documents' && r.method === 'GET').length;
   assert.ok(listCalls <= 3, 'không được lặp vô hạn khi slug không tồn tại');
   unknown.window.close();
@@ -192,9 +174,7 @@ test('Quản lý thấy nút tải lên / gỡ; tài khoản thường thì khô
   const staff = await openPage({ vaiTro: 'Nhân viên kho' });
   assert.equal(staff.document.getElementById('ruleDocManage').hidden, true);
   assert.equal(staff.document.getElementById('ruleDocDeleteBtn').hidden, true);
-  staff.document.querySelector('[data-rule-doc-tab="pdf-7"]').click();
-  await settle();
-  assert.equal(staff.document.getElementById('ruleDocDownloadBtn').hidden, false, 'ai cũng có nút Tải về PDF ở tab PDF');
+  assert.equal(staff.document.getElementById('ruleDocDownloadBtn').hidden, false, 'ai cũng có nút Tải về PDF');
   staff.window.close();
 });
 
@@ -221,8 +201,8 @@ test('gỡ tài liệu: xác nhận → DELETE → tab biến mất, rơi về t
   await settle();
 
   assert.ok(server.requests.some(r => r.method === 'DELETE' && r.url === '/api/hr/rules/documents/7'));
-  assert.deepEqual(tabSlugs(document), ['text-1', 'text-2', 'text-3', 'text-4']);
-  assert.equal(activeTab(document).ruleDocTab, 'text-1');
+  assert.deepEqual(tabSlugs(document), ['gio-giac', 'nghi-phep', 'phuc-loi', 'treo-hang']);
+  assert.equal(activeTab(document).ruleDocTab, 'gio-giac');
   window.close();
 });
 
@@ -261,7 +241,7 @@ test('tải lên: gửi FormData (file + title) rồi chọn tài liệu mới; 
   assert.equal(post.body.get('title'), 'Bảng lương');
   assert.equal(post.body.get('file').name, 'Bảng lương.pdf');
   assert.equal(document.getElementById('ruleUploadModal').hidden, true);
-  assert.deepEqual(tabSlugs(document), ['text-1', 'text-2', 'text-3', 'text-4', 'pdf-7', 'pdf-9']);
+  assert.deepEqual(tabSlugs(document), ['gio-giac', 'nghi-phep', 'phuc-loi', 'treo-hang', 'pdf-7', 'pdf-9']);
   assert.equal(activeTab(document).ruleDocTab, 'pdf-9');
   window.close();
 });
@@ -361,16 +341,16 @@ test('payload lạ / lỗi API: hiện trạng thái lỗi trong panel, không t
   window.close();
 });
 
-// 2 test cu kiem tra khoi HTML tinh "#ruleDoc-phuc-loi"/"#ruleDoc-treo-hang" va
-// RULE_DOC_BUILTINS da bi xoa (migration 0065 chuyen ca 4 tai lieu dung san sang
-// kind='text') — thay bang test duoi, khoa hanh vi an toan khi gap dong kind='builtin'
-// sot lai (vd server chua chay 0063 nhung code moi da deploy).
+test('tài liệu dựng sẵn Chi tiêu & Phúc lợi có khối nội dung và khai báo trong RULE_DOC_BUILTINS', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', '..', 'public', 'humanresources', 'index.html'), 'utf8');
+  assert.match(html, /data-rule-doc="phuc-loi"/);
+  assert.match(html, /id="ruleDoc-phuc-loi"/);
+  assert.match(html, /'phuc-loi': \{ elementId: 'ruleDoc-phuc-loi'/);
+});
 
-test('kind="builtin" sót lại (code deploy trước khi chạy migration 0065) ⇒ hiện "chưa có trên trang", KHÔNG crash/trống trắng', async () => {
-  const { window, document } = await openPage({ docs: [...BUILTINS, PDF] });
-  assert.deepEqual(tabSlugs(document), ['gio-giac', 'nghi-phep', 'phuc-loi', 'treo-hang', 'pdf-7']);
-  assert.equal(activeTab(document).ruleDocTab, 'gio-giac'); // tab van chon duoc binh thuong
-  assert.deepEqual(visibleViews(document), []); // khong co khoi noi dung nao de hien — khong crash
-  assert.match(document.getElementById('ruleDocStatus').textContent, /chưa có trên trang/);
-  window.close();
+test('tài liệu dựng sẵn Quy định treo hàng có khối nội dung và khai báo trong RULE_DOC_BUILTINS', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', '..', 'public', 'humanresources', 'index.html'), 'utf8');
+  assert.match(html, /data-rule-doc="treo-hang"/);
+  assert.match(html, /id="ruleDoc-treo-hang"/);
+  assert.match(html, /'treo-hang': { elementId: 'ruleDoc-treo-hang'/);
 });

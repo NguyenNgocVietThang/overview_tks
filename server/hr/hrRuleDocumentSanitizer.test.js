@@ -27,11 +27,6 @@ test('giu CSS do contenteditable styleWithCSS tao ra cho dam/nghieng/gach chan/g
   assert.match(output, /color:rgb\(1, 2, 3\)/);
 });
 
-test('giu h3/h4 (tieu de phu, dung nhieu trong tai lieu dung san chuyen doi) va hr (gach ngang)', () => {
-  const html = '<h3>Muc 1</h3><h4>Muc con</h4><p>Noi dung</p><hr>';
-  assert.equal(sanitizeRuleDocumentHtml(html), '<h3>Muc 1</h3><h4>Muc con</h4><p>Noi dung</p><hr />'); // sanitize-html tu dong khep <hr/>
-});
-
 test('giu bang (table/tr/td) va colspan/rowspan', () => {
   const html = '<table><tbody><tr><td colspan="2">o</td></tr></tbody></table>';
   assert.equal(sanitizeRuleDocumentHtml(html), html);
