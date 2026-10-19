@@ -360,6 +360,8 @@
   .doc-page .rule-doc-rich-body ul, .doc-page .rule-doc-rich-body ol{ padding-left:26px; }
   .doc-page .doc-section table{ border:1px solid #d8d5cb; border-collapse:collapse; border-spacing:0; width:100%; margin:0 0 16px; font-family:'Noto Serif', Georgia, serif; font-size:12.5px; }
   .doc-page .doc-section table td, .doc-page .doc-section table th{ border:1px solid #d8d5cb; padding:6px 10px; color:#31353f; }
+  /* Khóa viền từng ô trước CSS dùng chung hoặc nội dung cũ; bảng tài liệu luôn có lưới đầy đủ. */
+  .doc-page .doc-section table > :is(thead,tbody,tfoot) > tr > :is(th,td){ border:1px solid #d8d5cb !important; }
   .doc-page .doc-section table :is(tbody, thead, tfoot) tr{ transition:none; }
   .doc-page .doc-section table :is(tbody, thead, tfoot) tr:hover{ background:transparent; }
   /* Tài liệu rich-text không có class .doc-table, nên phải chặn cả hover trực tiếp trên ô từ CSS bảng dùng chung. */
@@ -478,6 +480,7 @@
   .rte-editor ul, .rte-editor ol{ margin:0 0 10px; padding-left:22px; }
   .rte-editor table{ border-collapse:collapse; margin:0 0 10px; width:100%; }
   .rte-editor table td, .rte-editor table th{ border:1px solid #d8d5cb; padding:6px 8px; min-width:40px; }
+  .rte-editor table > :is(thead,tbody,tfoot) > tr > :is(th,td){ border:1px solid #d8d5cb !important; }
   /* Bảng lúc soạn là nội dung tài liệu, không dùng phản hồi hover của bảng dữ liệu. */
   .rte-editor table > tbody > tr:hover{ background:transparent !important; }
   .rte-editor table > tbody > tr:hover > :is(th,td),
