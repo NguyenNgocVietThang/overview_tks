@@ -106,3 +106,30 @@ test('ngày custom inclusive VN', () => {
     (e) => e.statusCode === 400,
   );
 });
+test('điều kiện lọc dùng cột của view, không đọc raw', () => {
+  const f = parseFilters(
+    {
+      groups: `1,name:${encodeURIComponent('Nhóm')}`,
+      creators: '9',
+      staff: '8',
+      accounting: 'yes',
+      partnerQ: 'a',
+      partnerPhone: '1',
+      fund: '7',
+    },
+    now,
+  );
+  const sql = buildWhere(f, { alias: 'x' }).sql;
+  assert.ok(!/\braw\b/.test(sql));
+  for (const col of [
+    'x.cash_group_id',
+    'x.cash_group_name',
+    'x.created_by',
+    'x.raw_user_id',
+    'x.used_for_financial_reporting',
+    'x.partner_name',
+    'x.partner_id',
+    'x.partner_phone',
+  ])
+    assert.ok(sql.includes(col), col);
+});
