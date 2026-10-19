@@ -410,3 +410,10 @@
   .vd-filters .vd-reset{flex:1 1 100%}
 }
 .vd-table-tools .export-button{border-radius:var(--radius-sm)}
+
+/* Dem + tim kiem + Cot hien thi + Xuat file tren 1 hang */
+.vd-table-tools.tks-table-tools{flex-wrap:nowrap;justify-content:flex-start;gap:10px;padding:0}
+.vd-table-tools .vd-count{margin-right:auto;white-space:nowrap}
+.vd-table-tools .table-search-input-wrap{flex:0 1 300px;min-width:160px}
+.vd-table-tools .tks-columns-button,.vd-table-tools .export-button{flex:none;white-space:nowrap;min-height:32px}
+@media(max-width:700px){.vd-table-tools.tks-table-tools{flex-wrap:wrap}.vd-table-tools .table-search-input-wrap{flex:1 1 100%;max-width:none}}
