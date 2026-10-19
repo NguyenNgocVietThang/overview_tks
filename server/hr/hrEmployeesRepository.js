@@ -18,6 +18,18 @@ function rowToEmployee(row) {
     email: row.email || '',
     telegramId: row.telegram_id || '',
     employmentStatus: row.employment_status === 'resigned' ? 'resigned' : 'active',
+    chucVu: row.chuc_vu || '',
+    ngayVaoLam: row.ngay_vao_lam || null,
+    ngaySinh: row.ngay_sinh || null,
+    soCccd: row.so_cccd || '',
+    diaChiHienTai: row.dia_chi_hien_tai || '',
+    nguoiThanQuanHe: row.nguoi_than_quan_he || '',
+    nguoiThanHoTen: row.nguoi_than_ho_ten || '',
+    nguoiThanSoDienThoai: row.nguoi_than_so_dien_thoai || '',
+    gioiTinh: row.gioi_tinh || '',
+    hoSoDayDu: !!row.ho_so_day_du,
+    vanTayDaDangKy: !!row.van_tay_da_dang_ky,
+    ngayNghiViec: row.ngay_nghi_viec || null,
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : ''
   };
 }
@@ -83,6 +95,19 @@ async function deactivateById(id) {
   return rows[0] ? rowToEmployee(rows[0]) : null;
 }
 
+async function updateExtendedById(id, row) {
+  const sql = `UPDATE hr_employees SET
+    chuc_vu=$1, ngay_vao_lam=$2, ngay_sinh=$3, so_cccd=$4, dia_chi_hien_tai=$5,
+    nguoi_than_quan_he=$6, nguoi_than_ho_ten=$7, nguoi_than_so_dien_thoai=$8,
+    gioi_tinh=$9, ho_so_day_du=$10, van_tay_da_dang_ky=$11, ngay_nghi_viec=$12,
+    updated_at=now() WHERE id=$13 AND is_active RETURNING *`;
+  const { rows } = await getPool().query(sql, [row.chucVu || '', row.ngayVaoLam, row.ngaySinh,
+    row.soCccd || '', row.diaChiHienTai || '', row.nguoiThanQuanHe || '', row.nguoiThanHoTen || '',
+    row.nguoiThanSoDienThoai || '', row.gioiTinh || '', !!row.hoSoDayDu, !!row.vanTayDaDangKy,
+    row.ngayNghiViec, id]);
+  return rows[0] ? rowToEmployee(rows[0]) : null;
+}
+
 module.exports = {
   rowToEmployee,
   selectAllActive,
@@ -90,5 +115,6 @@ module.exports = {
   updateContactById,
   updateDepartmentById,
   updateEmployeeById,
-  deactivateById
+  deactivateById,
+  updateExtendedById
 };
