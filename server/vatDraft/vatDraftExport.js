@@ -8,10 +8,21 @@ const { HEADER_FONT, frozenNoGridlinesView, applyFullTableBorder } = require('..
 const { buildUnifiedColumns, GIA_NHAP_COLUMN } = require('./allocation');
 
 const MAX_EXPORT_ROWS = 10000;
-const NUMERIC_COLUMNS = new Set(['SL', 'Giá bán', 'TỒN CÒN NHÁP', GIA_NHAP_COLUMN, '%VAT', 'Thành tiền']);
+const NUMERIC_COLUMNS = new Set(['SL', 'Giá bán', 'TỒN CÒN NHÁP', GIA_NHAP_COLUMN, '%VAT', 'Thành tiền', 'Số dòng', 'Tổng tiền']);
+const INTEGER_COLUMNS = new Set(['Số dòng', 'Tổng tiền']);
 const VIEWS = Object.freeze({
-  allocation: { sheet: 'Xử lý hóa đơn', fileName: 'ket_qua_xu_ly_hoa_don.xlsx', columns: buildUnifiedColumns(true) }
+  allocation: { sheet: 'Xử lý hóa đơn', fileName: 'ket_qua_xu_ly_hoa_don.xlsx', columns: buildUnifiedColumns(true) },
+  documents: {
+    sheet: 'Danh sách chứng từ',
+    fileName: 'danh_sach_chung_tu.xlsx',
+    columns: ['Mã chứng từ', 'Loại', 'Cơ sở', 'Thời gian', 'Khách hàng', 'Ghi chú tổng', 'Trạng thái', 'Số dòng', 'Tổng tiền']
+  }
 });
+
+function numberFormat(column) {
+  if (INTEGER_COLUMNS.has(column)) return '#,##0';
+  return column === GIA_NHAP_COLUMN ? '#,##0.00' : '#,##0.##';
+}
 
 function invalid(message) {
   const error = new Error(message);
@@ -50,9 +61,9 @@ async function createVatDraftWorkbook({ view, columns, rows }) {
   sheet.columns = columns.map(column => ({
     key: column,
     header: column,
-    width: NUMERIC_COLUMNS.has(column) ? 16 : /TÊN|Ghi chú/.test(column) ? 36 : 16,
+    width: NUMERIC_COLUMNS.has(column) ? 16 : /TÊN|Ghi chú|Khách hàng/.test(column) ? 36 : 16,
     style: NUMERIC_COLUMNS.has(column)
-      ? { numFmt: column === GIA_NHAP_COLUMN ? '#,##0.00' : '#,##0.##' }
+      ? { numFmt: numberFormat(column) }
       : { alignment: { wrapText: true, vertical: 'top' } }
   }));
   rows.forEach(row => sheet.addRow(row.map((value, i) => cellValue(columns[i], value))));

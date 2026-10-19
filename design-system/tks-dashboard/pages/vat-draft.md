@@ -27,3 +27,10 @@
 - **Chống sai sót**: QR gắn với "khóa" (tài khoản + số tiền + nội dung). Sửa bất kỳ trường nào sau khi tạo → `stale`: QR xám mờ + lớp phủ "Thông tin đã thay đổi", ẩn nút Tải/Sao chép, nút chính thành "Tạo lại mã QR". Mặc định **chưa chọn tài khoản** (không còn mặc định "nhập tay"); lỗi nhập tay chỉ hiện sau khi rời ô / bấm tạo. Số tiền luôn kèm dòng **bằng chữ** (`vnd-words.js`) để đối chiếu với dòng "Số tiền viết bằng chữ" trên hóa đơn.
 - **Bàn phím**: Ctrl+V ở bất kỳ đâu trên tab = đọc hóa đơn; Enter trong ô nhập = tạo QR; Enter ở lựa chọn Xác nhận số tiền = xác nhận; Esc đóng hộp xem ảnh / QR / ô trạng thái. Tạo xong focus vào "Tải mã QR". Dán lại chính ảnh QR vừa sao chép bị bỏ qua (so kích thước ảnh).
 - Trường do AI điền có chip "Từ hóa đơn" / "Gợi ý từ hóa đơn"; sửa tay thì chip biến mất.
+
+## Cập nhật 19/10/2026 (tối) — đồng bộ với design system
+- Tab cấp 2 = `.subnav-tabs`/`.subnav-tab` gạch chân (không dùng viên thuốc); tab cấp 3 trong hộp dùng `.vd-modetab` (màu `--text`, vì nền hộp là `--panel`, không dùng màu canvas).
+- Tiêu đề mục: `.section-head` đánh số nằm NGOÀI hộp; tiêu đề trang `.view-title` 21px + `.view-sub`.
+- Thanh tìm kiếm: `.table-search-input-wrap` + kính lúp + `.table-search-clear` (đúng 1 nút ×); phân trang: `.pagination-controls` căn giữa `<< < Trang n/m > >>`.
+- Xuất Excel: "Xuất file" ở danh sách chứng từ (toàn bộ kết quả lọc) và "Tải kết quả Excel" ở kết quả xử lý.
+- Không dùng emoji làm icon; màu cảnh báo dùng `--alert-warning-*`.

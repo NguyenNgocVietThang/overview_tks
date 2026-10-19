@@ -14,6 +14,15 @@
   const CODE_COLUMNS = new Set(['MÃ SP', 'Mã VAT', 'Mã hóa đơn']);
   const KIND_LABEL = { invoice: 'Hóa đơn', order: 'Đặt hàng' };
   const BRANCH_LABEL = { hanoi: 'Hà Nội', saigon: 'Sài Gòn' };
+  // Icon SVG inline (stroke, kiểu lucide) thay emoji; chỉ dùng trong chuỗi innerHTML.
+  const SVG_OPEN = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
+  const ICON = {
+    warn: `${SVG_OPEN}><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18h.01"/></svg>`,
+    info: `${SVG_OPEN}><circle cx="12" cy="12" r="10"/><path d="M12 16v-5M12 8h.01"/></svg>`,
+    qr: `${SVG_OPEN} style="vertical-align:-3px;margin-right:6px"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM21 14v.01M21 21v.01M17 21h.01"/></svg>`,
+    download: `${SVG_OPEN} style="vertical-align:-3px;margin-right:6px"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>`,
+    spinner: `${SVG_OPEN} style="vertical-align:-3px;margin-right:6px"><path d="M21 12a9 9 0 1 1-6.219-8.56"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.9s" repeatCount="indefinite"/></path></svg>`
+  };
 
   const state = {
     user: null,
@@ -154,7 +163,7 @@
       sheets.textContent = 'Không tải được Google Sheets: ' + md.error;
       sheets.dataset.tone = 'error';
     } else {
-      sheets.textContent = `Dữ liệu Google Sheets (Gộp VAT ${intFormat.format(md.stockRows)} dòng · Khớp mã ${intFormat.format(md.mappingRows)} dòng) cập nhật lúc ${vnTime(md.loadedAt)}${md.stale ? ' — ⚠️ đang dùng bản cũ vì tải lại thất bại' : ''}`;
+      sheets.textContent = `Dữ liệu Google Sheets (Gộp VAT ${intFormat.format(md.stockRows)} dòng · Khớp mã ${intFormat.format(md.mappingRows)} dòng) cập nhật lúc ${vnTime(md.loadedAt)}${md.stale ? ' — đang dùng bản cũ vì tải lại thất bại' : ''}`;
       sheets.dataset.tone = md.stale ? 'warning' : '';
     }
     const times = (meta.sync || []).map(s => s.syncedAt && Date.parse(s.syncedAt)).filter(Boolean);
@@ -162,7 +171,7 @@
     if (times.length) {
       const oldest = Math.min(...times);
       const late = Date.now() - oldest > 20 * 60000;
-      sync.textContent = `· KiotViet đồng bộ lúc ${vnTime(new Date(oldest).toISOString())}${late ? ' — ⚠️ đã hơn 20 phút, chứng từ mới có thể chưa có' : ''}`;
+      sync.textContent = `· KiotViet đồng bộ lúc ${vnTime(new Date(oldest).toISOString())}${late ? ' — đã hơn 20 phút, chứng từ mới có thể chưa có' : ''}`;
       sync.dataset.tone = late ? 'warning' : '';
     } else {
       sync.textContent = '';
@@ -276,6 +285,7 @@
     document.querySelectorAll('#vdDocsRows tr[data-key]').forEach(row => {
       const selected = state.selection.has(row.dataset.key);
       row.dataset.selected = String(selected);
+      row.classList.toggle('is-selected', selected);
       const box = row.querySelector('input[type="checkbox"]');
       if (box) box.checked = selected;
     });
@@ -306,8 +316,11 @@
     const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
     $('vdDocsCount').textContent = total ? `${intFormat.format(total)} chứng từ` : '';
     $('vdDocsPage').textContent = `Trang ${page}/${pages}`;
+    $('vdDocsFirst').disabled = page <= 1;
     $('vdDocsPrev').disabled = page <= 1;
     $('vdDocsNext').disabled = page >= pages;
+    $('vdDocsLast').disabled = page >= pages;
+    $('vdDocsExport').disabled = !total;
     renderSelection();
   }
 
@@ -375,7 +388,7 @@
     else body.text = $('vdPasteInvoice').value;
     const buttons = ['vdRunDocs', 'vdRunPasteInvoice'].map($);
     buttons.forEach(b => { b.dataset.wasDisabled = b.disabled; b.disabled = true; });
-    setMessage('vdRunError', '⏳ Đang xử lý…');
+    setMessage('vdRunError', 'Đang xử lý…');
     try {
       const data = await api('/allocate', { method: 'POST', body });
       setMessage('vdRunError', '');
@@ -505,8 +518,8 @@
     const statusIdx = data.columns.indexOf('Trạng thái');
     const keys = sortKeys();
     $('vdSortNote').textContent = keys.length
-      ? 'ℹ️ Đang sắp xếp theo cột đã chọn — các dòng cùng Mã hóa đơn có thể không còn liền kề.'
-      : $('vdSortSecondary').value !== NO_SORT ? '⚠️ Chọn cột sắp xếp chính trước khi chọn cột sắp xếp phụ.' : '';
+      ? 'Đang sắp xếp theo cột đã chọn — các dòng cùng Mã hóa đơn có thể không còn liền kề.'
+      : $('vdSortSecondary').value !== NO_SORT ? 'Chọn cột sắp xếp chính trước khi chọn cột sắp xếp phụ.' : '';
     // Tieu de bang the hien cot sap xep CHINH (dong bo voi o chon).
     const primary = $('vdSortPrimary').value;
     document.querySelectorAll('#vdAllocTable thead th[data-column-key]').forEach((th, i) => {
@@ -559,15 +572,48 @@
     return [...$(tbodyId).querySelectorAll('tr[data-index]')].map(tr => rows[Number(tr.dataset.index)]);
   }
 
-  async function exportExcel(view, columns, rows, button) {
+  async function exportExcel(view, columns, rows, button, fileName = 'ket_qua_xu_ly_hoa_don.xlsx') {
     button.disabled = true;
     try {
       const blob = await api('/export', { method: 'POST', body: { view, columns, rows } });
-      downloadBlob(blob, 'ket_qua_xu_ly_hoa_don.xlsx');
+      downloadBlob(blob, fileName);
     } catch (error) {
       window.alert(error.message);
     } finally {
       button.disabled = false;
+    }
+  }
+
+  const DOC_EXPORT_COLUMNS = ['Mã chứng từ', 'Loại', 'Cơ sở', 'Thời gian', 'Khách hàng', 'Ghi chú tổng', 'Trạng thái', 'Số dòng', 'Tổng tiền'];
+  const DOC_EXPORT_PAGE = 100; // bang may chu cho phep toi da 100 dong / trang
+  const DOC_EXPORT_MAX = 10000;
+
+  // Xuat TOAN BO chung tu khop bo loc hien tai (khong chi trang dang xem), dung thu tu sap xep dang chon.
+  async function exportDocs(button) {
+    button.disabled = true;
+    try {
+      const rows = [];
+      for (let page = 1; rows.length < DOC_EXPORT_MAX; page += 1) {
+        const params = new URLSearchParams({
+          kind: $('vdKind').value, branch: $('vdBranch').value, from: $('vdFrom').value, to: $('vdTo').value,
+          q: $('vdSearch').value.trim(), page: String(page), pageSize: String(DOC_EXPORT_PAGE),
+          sort: state.list.sort, dir: state.list.dir
+        });
+        const data = await api('/documents?' + params);
+        data.rows.forEach(doc => rows.push([
+          doc.code, KIND_LABEL[doc.kind] || '', BRANCH_LABEL[doc.branch] || doc.branch, doc.date,
+          doc.customerName + (doc.customerCode ? ' · ' + doc.customerCode : ''), doc.note,
+          doc.status + (doc.orderCode ? ' · ' + doc.orderCode : ''), doc.lineCount || 0, doc.total || 0
+        ]));
+        if (!data.rows.length || page * DOC_EXPORT_PAGE >= data.total) break;
+      }
+      if (rows.length > DOC_EXPORT_MAX) rows.length = DOC_EXPORT_MAX;
+      const blob = await api('/export', { method: 'POST', body: { view: 'documents', columns: DOC_EXPORT_COLUMNS, rows } });
+      downloadBlob(blob, `danh_sach_chung_tu_${vnDate(0)}.xlsx`);
+    } catch (error) {
+      window.alert(error.message);
+    } finally {
+      button.disabled = !state.list.total;
     }
   }
 
@@ -589,10 +635,10 @@
   function qrCardHtml(id, title, amount, accountKey, warning) {
     return `<div class="vd-qr-card" data-qr-card="${id}">
       <h5>${escapeHtml(title)}</h5>
-      ${warning ? '<p class="vd-message vd-warning">⚠️ Một số dòng thiếu Giá bán/Giá nhập, số tiền QR có thể chưa đầy đủ.</p>' : ''}
+      ${warning ? `<p class="vd-message vd-warning">${ICON.warn} Một số dòng thiếu Giá bán/Giá nhập, số tiền QR có thể chưa đầy đủ.</p>` : ''}
       <label>Tài khoản nhận tiền <select data-qr-account>${accountOptions(accountKey)}</select></label>
       <label>Số tiền <input type="text" class="vd-input" data-qr-amount inputmode="numeric" value="${escapeHtml(formatAmount(amount))}"></label>
-      <button class="btn-primary" type="button" data-qr-generate>🔲 Tạo mã QR — ${escapeHtml(intFormat.format(amount))}đ</button>
+      <button class="btn-primary" type="button" data-qr-generate>${ICON.qr}Tạo mã QR — ${escapeHtml(intFormat.format(amount))}đ</button>
       <div class="vd-qr-result" data-qr-result hidden></div>
     </div>`;
   }
@@ -618,7 +664,7 @@
 
   async function generateQr({ accountKey, manual, amount, addInfo, resultEl, caption }) {
     resultEl.hidden = false;
-    resultEl.textContent = '⏳ Đang tạo mã QR…';
+    resultEl.innerHTML = `${ICON.spinner}Đang tạo mã QR…`;
     try {
       const data = await api('/qr/url', { method: 'POST', body: { accountKey, manual, amount: String(amount), addInfo } });
       const label = caption || data.accountLabel;
@@ -626,7 +672,7 @@
       resultEl.innerHTML = `<figure class="vd-qr-result">
         <button type="button" class="vd-qr-zoom" data-qr-zoom title="Bấm để phóng to"><img src="${escapeHtml(data.url)}" alt="Mã QR chuyển khoản ${escapeHtml(intFormat.format(data.amount))}đ"></button>
         <figcaption>${escapeHtml(text)}</figcaption>
-        <button type="button" class="btn-secondary vd-small-btn" data-qr-download>⬇️ Tải mã QR</button></figure>`;
+        <button type="button" class="btn-secondary vd-small-btn" data-qr-download>${ICON.download}Tải mã QR</button></figure>`;
       const figure = resultEl.querySelector('figure');
       figure.dataset.url = data.url;
       figure.dataset.caption = text;
@@ -1028,8 +1074,8 @@
     return item ? item.getAsFile() : null;
   }
 
-  const ICON_WARN = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18h.01"/></svg>';
-  const ICON_INFO = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-5M12 8h.01"/></svg>';
+  const ICON_WARN = ICON.warn;
+  const ICON_INFO = ICON.info;
 
   function calloutHtml(tone, text, note = '') {
     return `<li class="vd-callout vd-callout--${tone}"${note ? ` data-note="${note}"` : ''}>${tone === 'info' ? ICON_INFO : ICON_WARN}<span>${escapeHtml(text)}</span></li>`;
@@ -1040,7 +1086,7 @@
     const info = $('vdInvoiceInfo');
     info.hidden = false;
     info.dataset.tone = tone;
-    info.innerHTML = `<ul class="vd-callouts">${calloutHtml(tone === 'success' ? 'info' : tone, String(text).replace(/^⚠️\s*/, ''))}</ul>`;
+    info.innerHTML = `<ul class="vd-callouts">${calloutHtml(tone === 'success' ? 'info' : tone, String(text))}</ul>`;
   }
 
   /** Ket qua AI: Cong ty ban / Tong thanh toan (+ trang thai doi chieu) / Tai khoan goi y + cac canh bao rieng. */
@@ -1179,7 +1225,7 @@
         parsed = await api('/qr/parse-image', { method: 'POST', body: form });
       }
       if (parsed.error) {
-        showInvoiceInfo('warning', '⚠️ ' + parsed.error);
+        showInvoiceInfo('warning', parsed.error);
       } else {
         if (parsed.totalPayment !== null) $('vdManualAmount').value = formatAmountPlain(parsed.totalPayment);
         $('vdAmountAi').hidden = parsed.totalPayment === null;
@@ -1192,7 +1238,7 @@
     } catch (error) {
       // Khong mo duoc file -> quay ve vung dan; loi AI -> giu anh de thu lai / xoa.
       if (!state.invoiceThumbUrl) setInvoicePreview(null, null);
-      showInvoiceInfo('error', '⚠️ ' + error.message);
+      showInvoiceInfo('error', error.message);
     } finally {
       setInvoiceStatus('');
       card.removeAttribute('aria-busy');
@@ -1251,7 +1297,7 @@
         }
         onInvoiceFile(file, 'Ảnh dán từ clipboard');
       } else if (document.activeElement === drop) {
-        showInvoiceInfo('warning', '⚠️ Clipboard chưa có ảnh — chụp màn hình hoặc Sao chép ảnh hóa đơn rồi bấm Ctrl+V lại.');
+        showInvoiceInfo('warning', 'Clipboard chưa có ảnh — chụp màn hình hoặc Sao chép ảnh hóa đơn rồi bấm Ctrl+V lại.');
       }
     });
 
@@ -1287,13 +1333,36 @@
     button.setAttribute('aria-pressed', String(light));
   }
 
+  function defaultBranchFilter() {
+    return state.user && state.user.branch === 'Hà Nội' ? 'hanoi' : state.user && state.user.branch === 'Sài Gòn' ? 'saigon' : 'all';
+  }
+
   function bindEvents() {
     if (window.TKSCellSelect) window.TKSCellSelect.init([$('vdAllocTable')]);
     $('vdRefreshSheets').addEventListener('click', refreshSheets);
     document.querySelectorAll('[data-input-mode]').forEach(b => b.addEventListener('click', () => selectMode(b.dataset.inputMode)));
     ['vdSortPrimary', 'vdSortPrimaryDir', 'vdSortSecondary', 'vdSortSecondaryDir'].forEach(id => $(id).addEventListener('change', () => { if (state.alloc) renderAllocRows(); }));
     ['vdKind', 'vdBranch', 'vdFrom', 'vdTo'].forEach(id => $(id).addEventListener('change', () => { state.list.page = 1; loadDocs(); }));
-    $('vdSearch').addEventListener('input', scheduleLoadDocs);
+    $('vdSearch').addEventListener('input', () => {
+      $('vdSearch').parentElement.querySelector('.table-search-clear').hidden = !$('vdSearch').value;
+      scheduleLoadDocs();
+    });
+    $('vdSearch').parentElement.querySelector('.table-search-clear').addEventListener('click', () => {
+      $('vdSearch').value = '';
+      $('vdSearch').dispatchEvent(new Event('input', { bubbles: true }));
+      $('vdSearch').focus();
+    });
+    $('vdResetFilters').addEventListener('click', () => {
+      $('vdKind').value = 'all';
+      $('vdBranch').value = defaultBranchFilter();
+      $('vdFrom').value = vnDate(-6);
+      $('vdTo').value = vnDate(0);
+      $('vdSearch').value = '';
+      $('vdSearch').parentElement.querySelector('.table-search-clear').hidden = true;
+      state.list.page = 1;
+      loadDocs();
+    });
+    $('vdDocsExport').addEventListener('click', event => exportDocs(event.currentTarget));
     $('vdDocsTable').tHead.addEventListener('click', event => {
       const button = event.target.closest('[data-sort-field]');
       if (!button) return;
@@ -1315,8 +1384,10 @@
       if (dir) $('vdSortPrimaryDir').value = dir;
       renderAllocRows();
     });
+    $('vdDocsFirst').addEventListener('click', () => { state.list.page = 1; loadDocs(); });
     $('vdDocsPrev').addEventListener('click', () => { state.list.page = Math.max(1, state.list.page - 1); loadDocs(); });
     $('vdDocsNext').addEventListener('click', () => { state.list.page += 1; loadDocs(); });
+    $('vdDocsLast').addEventListener('click', () => { state.list.page = Math.max(1, Math.ceil(state.list.total / PAGE_SIZE)); loadDocs(); });
     $('vdAddCodes').addEventListener('click', addCodes);
     $('vdDocsRows').addEventListener('click', event => {
       const row = event.target.closest('tr[data-key]');
@@ -1360,7 +1431,7 @@
     $('vdQrCards').addEventListener('input', event => {
       if (!event.target.matches('[data-qr-amount]')) return;
       const card = event.target.closest('[data-qr-card]');
-      card.querySelector('[data-qr-generate]').textContent = `🔲 Tạo mã QR — ${intFormat.format(parseAmount(event.target.value))}đ`;
+      card.querySelector('[data-qr-generate]').innerHTML = `${ICON.qr}Tạo mã QR — ${intFormat.format(parseAmount(event.target.value))}đ`;
     });
     $('vdQrCards').addEventListener('click', event => {
       const button = event.target.closest('[data-qr-generate]');
@@ -1450,9 +1521,10 @@
       // Chi co quyen Tao QR: an trang thai Sheets/KiotViet + thanh tab, khong tai danh sach chung tu.
       document.querySelectorAll('[data-requires-processing]').forEach(el => { el.hidden = true; });
       $('vdTitle').textContent = 'Tạo QR chuyển khoản';
+      $('vdSub').textContent = 'Đọc hóa đơn hoặc nhập thông tin để tạo mã QR thanh toán';
     }
     // Bo loc Co so mac dinh theo co so dang chon o header.
-    $('vdBranch').value = state.user && state.user.branch === 'Hà Nội' ? 'hanoi' : state.user && state.user.branch === 'Sài Gòn' ? 'saigon' : 'all';
+    $('vdBranch').value = defaultBranchFilter();
     $('vdFrom').value = vnDate(-6);
     $('vdTo').value = vnDate(0);
     loadSelection();
