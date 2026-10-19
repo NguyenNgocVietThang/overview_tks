@@ -64,28 +64,28 @@ function invalidateContainerDetails(pool = getPool()) {
 async function loadContainerDetails({ code, pool }) {
   if (typeof code !== 'string' || !code.trim()) throw detailError(400,'Thiếu mã hàng.','CONTAINER_CODE_REQUIRED');
   const key = normalizeCode(code);
-  const { rows: eligible } = await timedQuery(pool, 'containerEligible', `SELECT 1 FROM product_report pr
+  // Hai truy van doc lap -> chay song song de chi ton 1 vong toi DB (Render Oregon -> Supabase Singapore ~200ms/vong).
+  const eligibleQuery = timedQuery(pool, 'containerEligible', `SELECT 1 FROM product_report pr
     WHERE lower(btrim(pr.product_code)) = $1 AND EXISTS (
       SELECT 1 FROM products p WHERE p.code = pr.product_code
       AND p.branch IN ('hanoi','saigon') AND p.is_active IS NOT FALSE) LIMIT 1`,[key]);
-  if (!eligible.length) throw detailError(404,'Mã hàng không có trong báo cáo hiện hành.','CONTAINER_PRODUCT_NOT_FOUND');
+  const extra = `, 'orderedBy', ordered_by, 'listedAt', listed_at,
+    'unitsPerPackage',units_per_package,'packageCount',package_count,'vietnamPrice',vietnam_price,
+    'sheetName',sheet_name,'containerRow',container_row`;
+  const snapshotQuery = timedQuery(pool, 'containerLines', `SELECT to_jsonb(s) AS sync,
+    COALESCE((SELECT jsonb_agg(item ORDER BY sheet_order,source_row) FROM (
+      SELECT sheet_order,source_row,jsonb_build_object('containerName',container_name,
+        'status',status,'statusLabel',status_label,'eta',eta,'color',color,
+        'saleNote',sale_note,'quantity',quantity ${extra}) AS item
+      FROM product_container_lines WHERE product_key = $1
+    ) lines), '[]'::jsonb) AS items
+    FROM product_container_sync s WHERE singleton = true`,[key]);
+  const [eligibleResult, snapshotResult] = await Promise.allSettled([eligibleQuery, snapshotQuery]);
+  if (eligibleResult.status === 'rejected') throw eligibleResult.reason;
+  if (!eligibleResult.value.rows.length) throw detailError(404,'Mã hàng không có trong báo cáo hiện hành.','CONTAINER_PRODUCT_NOT_FOUND');
   let snapshot;
-  try {
-    const extra = `, 'orderedBy', ordered_by, 'listedAt', listed_at,
-      'unitsPerPackage',units_per_package,'packageCount',package_count,'vietnamPrice',vietnam_price,
-      'sheetName',sheet_name,'containerRow',container_row`;
-    const { rows } = await pool.query(`SELECT to_jsonb(s) AS sync,
-      COALESCE((SELECT jsonb_agg(item ORDER BY sheet_order,source_row) FROM (
-        SELECT sheet_order,source_row,jsonb_build_object('containerName',container_name,
-          'status',status,'statusLabel',status_label,'eta',eta,'color',color,
-          'saleNote',sale_note,'quantity',quantity ${extra}) AS item
-        FROM product_container_lines WHERE product_key = $1
-      ) lines), '[]'::jsonb) AS items
-      FROM product_container_sync s WHERE singleton = true`,[key]);
-    snapshot = rows[0];
-  } catch (error) {
-    if (error.code !== '42P01') throw error;
-  }
+  if (snapshotResult.status === 'fulfilled') snapshot = snapshotResult.value.rows[0];
+  else if (snapshotResult.reason?.code !== '42P01') throw snapshotResult.reason;
   const containerSync = syncMetadata(snapshot?.sync);
   if (!containerSync.available) {
     throw Object.assign(detailError(503,'Dữ liệu Hàng dự kiến chưa sẵn sàng.','CONTAINER_SNAPSHOT_UNAVAILABLE'),{containerSync});

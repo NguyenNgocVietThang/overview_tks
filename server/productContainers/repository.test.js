@@ -258,7 +258,7 @@ test('cache expires at five minutes, invalidates explicitly, and never caches fa
   await assert.rejects(read(), /transient/);
   a.setFail(false);
   await read();
-  assert.equal(a.count(), 7);
+  assert.equal(a.count(), 8);
 });
 test('LRU retains hot keys and bounds cache at 500 products', async () => {
   const a = cachePool();
