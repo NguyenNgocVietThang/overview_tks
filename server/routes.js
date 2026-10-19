@@ -18,6 +18,7 @@ const { getInvoiceDetail } = require('./dashboard/documentDetailRepository');
 const authRoutes = require('./auth/authRoutes');
 const adminUserRoutes = require('./auth/adminUserRoutes');
 const { requireAuth, requireFeature } = require('./auth/authMiddleware');
+const { startTiming, markTiming } = require('./lib/requestTiming');
 const { REPORT_VIEW_FEATURES, permissionsHave, hasFeature } = require('./auth/featureRegistry');
 const { parseViewsParam, VIEW_FEATURE } = require('./dashboard/dashboardViews');
 const { filterDashboardForUser } = require('./dashboard/dashboardPermissionFilter');
@@ -132,9 +133,9 @@ router.use('/api/dashboard', ...reportsUser(...REPORT_VIEW_FEATURES));
 // nhap Tra NCC) duoi '/api/products' cung chi reports.products.
 router.use('/api/customer-suggest', ...reportsUser('reports.business'));
 router.use('/api/customer-product-revenue', ...reportsUser('reports.business'));
-router.use('/api/product-report', ...reportsUser('reports.products'));
+router.use('/api/product-report', startTiming, ...reportsUser('reports.products'), markTiming('auth'));
 router.use('/api/inventory-value-history', ...reportsUser('reports.overview'));
-router.use('/api/invoice-detail', ...reportsUser('reports.invoices'));
+router.use('/api/invoice-detail', startTiming, ...reportsUser('reports.invoices'), markTiming('auth'));
 router.use('/api/export', ...reportsUser('reports.export'));
 router.use('/api/products', ...reportsUser('reports.products'));
 

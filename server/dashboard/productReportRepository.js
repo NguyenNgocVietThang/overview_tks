@@ -6,6 +6,7 @@
 // dung cho ca route GET va luong xuat Excel (exportService.js) de khong viet
 // trung logic map cot o 2 noi.
 const { getPool } = require('../db/pool');
+const { timedQuery } = require('../lib/requestTiming');
 const { readContainerSummary, getContainerMeta } = require('../productContainers/repository');
 const { normalizeCode } = require('../productContainers/parser');
 const { readInTransitByCode } = require('./inTransitSource');
@@ -247,7 +248,7 @@ async function getProductReportCustomers({ code, pool = getPool() } = {}) {
     error.statusCode = 400;
     throw error;
   }
-  const { rows } = await pool.query(
+  const { rows } = await timedQuery(pool, 'customers',
     `SELECT customer_name, revenue
      FROM product_report_customers
      WHERE product_key = lower(btrim($1))
