@@ -1,7 +1,7 @@
 <!-- Chính sách hiện hành: mục 16/10/2026 — Tập Pancake độc lập ở cuối tài liệu. Các mốc cũ giữ làm lịch sử. -->
 # Báo cáo Marketing — cấu hình và nghiệm thu
 
-19/10/2026 — Chi phí ADS, doanh số theo tên khách và tổng hợp SĐT Pancake được tính sẵn trong PostgreSQL (migration `0069`; đã commit, chưa áp DB thật, chưa deploy): xem mục "19/10/2026 — Tính sẵn trong DB" ở cuối tài liệu. Các câu nói "ADS luôn đọc Sheets" ở các mục cũ bên dưới được hiểu theo mục mới này.
+19/10/2026 — Chi phí ADS, doanh số theo tên khách và tổng hợp SĐT Pancake được tính sẵn trong PostgreSQL (migration `0069`; đã commit và push lên `main` (tks_web), đã áp DB thật 19/10/2026 (xác minh schema_migrations), chưa deploy Render): xem mục "19/10/2026 — Tính sẵn trong DB" ở cuối tài liệu. Các câu nói "ADS luôn đọc Sheets" ở các mục cũ bên dưới được hiểu theo mục mới này.
 
 16/10/2026 — Đã đọc trực tiếp công thức sáu page và trạng thái DB để đánh giá tính độc lập từ Pancake. [Kết quả kiểm tra và phương án chuyển nguồn](superpowers/specs/2026-10-16-marketing-pancake-independent-design.md). Chưa bật nguồn mới; cần chốt ngày ghi nhận lịch sử hay ngày tạo tin nhắn trước khi triển khai.
 
@@ -88,12 +88,12 @@ Lần nạp đầu run 28 còn running và sáu page pending tại lúc xác min
 
 ## 19/10/2026 — Tính sẵn trong DB (migration 0069)
 
-Trạng thái: đã commit trên `main` (`4c79124`), CHƯA áp lên DB thật và chưa deploy. Phải áp SAU `0068` vì view doanh số đọc bảng `business_current_month_*`. Cả ba đường đọc đều fail-soft: thiếu bảng/view hoặc dữ liệu cũ thì báo cáo tự lùi về đường cũ, không báo lỗi.
+Trạng thái: đã commit trên `main` (`4c79124`) và push (tks_web, `a6bc293`), đã áp lên DB thật 19/10/2026 (xác minh schema_migrations; `0068` → `0069` → `0070`), chưa deploy Render. Phải áp SAU `0068` vì view doanh số đọc bảng `business_current_month_*`. Cả ba đường đọc đều fail-soft: thiếu bảng/view hoặc dữ liệu cũ thì báo cáo tự lùi về đường cũ, không báo lỗi.
 
 - **Chi phí ADS:** job `marketingAdsSync.js` đồng bộ workbook `MARKETING_ADS_SPREADSHEET_ID` vào bảng `marketing_ads_costs` (+ `marketing_ads_sync_state`) mỗi `MARKETING_ADS_SYNC_INTERVAL_MS` (mặc định 30 phút, tối thiểu 5 phút). Job chạy cùng vòng đời job Pancake nên CHỈ chạy khi `PANCAKE_MARKETING_SYNC_ENABLED=true`. Phần "Báo cáo chi phí" (`/costs`) đọc bảng này khi đã đồng bộ và còn mới trong `MARKETING_ADS_READ_MAX_AGE_MS` (mặc định 3 giờ); bảng thiếu, rỗng hoặc cũ hơn ngưỡng thì đọc trực tiếp Google Sheets như trước. Khi đọc từ bảng, nút làm mới không gọi Sheets lúc request; độ tươi do job đồng bộ quyết định.
 - **Doanh số KiotViet:** cột Doanh số lấy từ view `v_marketing_customer_revenue` (cùng hàm `tks_name_key()` chuẩn hóa tên: NFKC, bỏ ký tự độ rộng bằng không, gộp khoảng trắng, chữ thường). View ghép theo tên khách, gộp HN+SG, bán trừ trả hàng; tháng đã chốt lấy từ `business_monthly_customer_sales`, tháng hiện tại lấy từ `business_current_month_customer_sales` (0068). Thiếu view thì lùi về đường RAM cũ (`marketingRevenue.js`). Ngữ nghĩa không đổi: tên không khớp thì hiện —; khách ngừng hoạt động bị loại.
 - **Sao lưu SĐT / Check tỷ lệ nhận số (chế độ Pancake độc lập):** cuối MỖI lượt đồng bộ Pancake, `marketingSummaryRefresh.js` dựng lại bảng `marketing_phone_summary` (+ `marketing_phone_summary_state`, ghi khác biệt, lỗi bị nuốt nên không làm hỏng lượt đồng bộ). Báo cáo đọc bảng này nếu `max_source_order` khớp với bảng quan sát; thiếu hoặc lệch (bản gộp cũ) thì lùi về gộp bằng JS từ toàn bộ quan sát. Bảng chứa số điện thoại nên bị REVOKE SELECT khỏi `reporting_readonly`.
-- **Sau khi áp `0069`:** chờ lượt Pancake kế tiếp hoặc chạy tay `node scripts/sync-pancake-marketing.js` (hoặc `npm run marketing:pancake:sync`) trong `server/`. Cho tới lần dựng đầu tiên, báo cáo SĐT dùng gộp JS; cho tới lần đồng bộ ADS đầu tiên, chi phí đọc Sheets.
+- **Sau khi deploy (`0069` đã áp):** chờ lượt Pancake kế tiếp hoặc chạy tay `node scripts/sync-pancake-marketing.js` (hoặc `npm run marketing:pancake:sync`) trong `server/`. Cho tới lần dựng đầu tiên, báo cáo SĐT dùng gộp JS; cho tới lần đồng bộ ADS đầu tiên, chi phí đọc Sheets.
 - **Việc mở:** JSON `/api/marketing-report/phones` còn mang trường `trace` (~11,5 MB trong ~13 MB khi `scope=all`, frontend không đọc) — ứng viên bỏ khỏi dòng API; chế độ `sheets`/`postgres` cũ và `marketingSheetsWriter` giữ nguyên; `normalizedNameSql` chưa thay bằng `tks_name_key`.
 
 Cập nhật lần cuối: 19/10/2026.
