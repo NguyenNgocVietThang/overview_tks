@@ -348,6 +348,7 @@ Phương án B đã duyệt: tập SĐT/KPI Pancake riêng trong PostgreSQL, ng�
 - **Thành công**: dán mã HD/DH → ra đúng bảng phân bổ và QR như app cũ (đã đối chiếu khớp 100%), có ghi chú tổng, không mở KiotViet xuất file.
 - **Ngoài phạm vi**: chuyển Gộp VAT/Khớp mã vào DB, 2 trang quản trị của app cũ, xuất template hóa đơn điện tử, tra MST, đổi thuật toán; tắt vat-draft-app làm sau khi nghiệm thu.
 - **Điều chỉnh 17/10/2026 (chiều)**: bỏ chức năng Tra cứu nguồn (không còn dùng). Tạo QR hiện mã QR to ở cột phải cho dễ quét. Nhân viên sale được dùng riêng Tạo QR (tạo QR thu tiền cho khách) mà không thấy Xử lý hóa đơn.
+- **Điều chỉnh 19/10/2026**: hóa đơn kế toán nhận thường là ảnh chụp/screenshot hoặc PDF scan nên đọc lớp text PDF không dùng được. Tạo QR chuyển sang cho AI (xKiro, model Qwen vision miễn phí) đọc ảnh/PDF: lấy tên công ty bán hàng và Tổng cộng tiền thanh toán, tự chọn tài khoản công ty và tạo QR; người dùng chỉ kiểm tra lại số tiền. Ảnh hóa đơn (gồm thông tin người mua) đi qua dịch vụ bên thứ ba xKiro — đã được chấp thuận.
 
 19/10/2026 — Tính sẵn báo cáo (migration `0068`–`0070`): doanh số tháng hiện tại Báo cáo kinh doanh, chi phí ADS/doanh số theo tên/tổng hợp SĐT của Báo cáo Marketing, view đọc Sổ quỹ. Chỉ đổi độ tươi dữ liệu và hiệu năng, không đổi quy tắc nghiệp vụ.
 
