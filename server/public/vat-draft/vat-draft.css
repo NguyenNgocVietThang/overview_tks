@@ -392,3 +392,21 @@
   .vd-selected-actions .btn-primary{flex:1 1 100%}
   .vd-codes-row .btn-primary{min-width:0}
 }
+
+/* Gon bo loc + o tim kiem: khong dan trai het chieu ngang */
+.vd-filters{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px 12px;padding:10px 14px}
+.vd-filters>label{flex:0 0 auto;width:172px}
+.vd-filters>label:nth-of-type(3),.vd-filters>label:nth-of-type(4){width:156px}
+.vd-filters select,.vd-filters input[type="date"],.vd-page .vd-filters .dmy-date-input{min-height:34px;padding-top:5px;padding-bottom:5px}
+.vd-reset{min-height:34px;padding:0 14px}
+.vd-codes-row textarea{min-height:48px;height:48px}
+.vd-codes-row .btn-primary{min-width:150px}
+.vd-page .table-search-input-wrap{flex:0 1 300px;max-width:300px}
+.vd-page .table-search-input{min-height:30px;padding:3px 10px}
+.vd-table-tools .export-button{min-height:32px;padding-top:0;padding-bottom:0}
+.vd-table-tools .table-search-tools{flex:0 1 auto}
+@media(max-width:900px){
+  .vd-filters>label,.vd-filters>label:nth-of-type(3),.vd-filters>label:nth-of-type(4){flex:1 1 calc(50% - 12px);width:auto}
+  .vd-filters .vd-reset{flex:1 1 100%}
+}
+.vd-table-tools .export-button{border-radius:var(--radius-sm)}
