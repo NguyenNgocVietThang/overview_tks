@@ -138,6 +138,7 @@ Marketing 16/10/2026: đã kiểm tra readonly công thức thật sáu CHUẨN/
    - `public/shared/special-days.js` (UMD): ngày lễ dương/âm lịch + sinh nhật 27/10; `notifications/specialDayNotifier.js` báo lên chuông cho mọi tài khoản đang hoạt động có `hr.leave`, chống trùng bằng `special_day_notice_log`; cờ `SPECIAL_DAYS_NOTIFY_ENABLED`.
    - `createNotificationForUsers` ghi file đúng 1 lần cho cả lô.
    - `fireworks.js` thay sao băng vào ngày đặc biệt (`shooting-star.js` chọn hiệu ứng; `?fireworks=1` để xem thử); `?v=` của `shooting-star.js` nâng lên `20261009`.
+   - 19/10/2026: nâng cấp pháo hoa — 15 kiểu nổ (peony, đổi màu, vòng, liễu, tim, 2 lớp, sao 5 cánh, xoáy ốc, hành tinh, cọ dừa…), 12 bảng màu nhiều sắc, 4 kiểu nổ 2 cấp (crossette, bloom, crackle, twin), tâm nổ trắng-nóng nguội dần, loạt chào mừng 3 quả; `?v=` nâng lên `20261019`.
    - Test mới: `test/frontend/special-days.test.js`, `test/frontend/fireworks.test.js`, `notifications/specialDayNotifier.test.js`, `db/specialDayNoticeLogMigration.test.js`, bổ sung `notificationRepository.test.js`.
 
 8. **Nghỉ phép cho tài khoản nội bộ chưa gắn nhân sự (Migration `0042`):**

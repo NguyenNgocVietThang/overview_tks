@@ -111,13 +111,13 @@ test('chưa nạp special-days.js: chèn script cùng ?v= và quay về sao băn
   const { dom, window, rafQueue } = await makeWindow({
     preload: false,
     now: BIRTHDAY,
-    currentScriptSrc: 'https://tokosi.example/shared/shooting-star.js?v=20261009'
+    currentScriptSrc: 'https://tokosi.example/shared/shooting-star.js?v=20261019'
   });
   try {
     window.eval(STAR_SRC);
     const injected = window.document.head.querySelector('script[src*="special-days.js"]');
     assert.ok(injected, 'phải chèn special-days.js');
-    assert.equal(injected.getAttribute('src'), '/shared/special-days.js?v=20261009');
+    assert.equal(injected.getAttribute('src'), '/shared/special-days.js?v=20261019');
     assert.equal(rafQueue.length, 0, 'chưa chọn hiệu ứng khi script chưa nạp xong');
     injected.onerror();
     assert.equal(rafQueue.length, 1, 'lỗi nạp -> sao băng');
@@ -217,7 +217,7 @@ test('giới hạn số rocket và số hạt đồng thời', async () => {
     assert.ok(fw._state().rockets <= 6);
     for (let i = 0; i < 30; i++) { frames(3); fw.fire(200 + i * 15, 250); }
     frames(10);
-    assert.ok(fw._state().particles <= 900, `hạt ${fw._state().particles}`);
+    assert.ok(fw._state().particles <= 1400, `hạt ${fw._state().particles}`);
     fw.stop();
   } finally { dom.window.close(); }
 });
@@ -251,4 +251,58 @@ test('theme sáng dùng source-over, theme tối dùng lighter', async () => {
     assert.equal(ctx.globalCompositeOperation, 'source-over');
     fw.stop();
   } finally { dom.window.close(); }
+});
+
+test('mọi kiểu nổ trong PATTERNS đều tạo hạt, tự tàn hết và không ném lỗi', async () => {
+  const { dom, window, ctx } = await makeWindow({ now: BIRTHDAY });
+  try {
+    const { fw, frames } = mountDirect(window, ctx);
+    const names = [...new Set(window.TKSFireworks.PATTERNS)];
+    assert.ok(names.length >= 12, `cần nhiều kiểu nổ, có ${names.length}`);
+    for (const name of names) {
+      fw.fire(500, 300, name);
+      let seen = 0;
+      for (let i = 0; i < 90; i++) { frames(1); seen = Math.max(seen, fw._state().particles); }
+      assert.ok(seen > 20, `${name}: chỉ thấy ${seen} hạt`);
+      frames(600);
+      assert.deepEqual({ ...fw._state() }, { rockets: 0, particles: 0, flashes: 0, running: false }, name);
+    }
+    fw.stop();
+  } finally { dom.window.close(); }
+});
+
+test('nổ 2 cấp: crossette/bloom/crackle sinh thêm hạt sau lần nổ đầu, twin nổ thêm quả thứ hai', async () => {
+  const { dom, window, ctx } = await makeWindow({ now: BIRTHDAY });
+  try {
+    const { fw, frames } = mountDirect(window, ctx);
+    for (const name of ['crossette', 'bloom', 'crackle', 'twin']) {
+      fw.fire(500, 300, name);
+      let first = 0;
+      let peak = 0;
+      let exploded = false;
+      for (let i = 0; i < 200; i++) {
+        frames(1);
+        const s = fw._state();
+        if (!exploded && s.rockets === 0 && s.particles > 0) { exploded = true; first = s.particles; }
+        if (exploded) peak = Math.max(peak, s.particles);
+      }
+      assert.ok(exploded, `${name}: không nổ`);
+      assert.ok(peak > first * 1.25, `${name}: cấp 2 không bổ sung hạt (đầu ${first}, đỉnh ${peak})`);
+      frames(600);
+    }
+    fw.stop();
+  } finally { dom.window.close(); }
+});
+
+test('bảng màu: nhiều bảng, hue hợp lệ', () => {
+  const { JSDOM: J } = require('jsdom');
+  const win = new J('<!doctype html><html></html>', { runScripts: 'outside-only' }).window;
+  win.eval(FIREWORKS_SRC);
+  const { PALETTES } = win.TKSFireworks;
+  assert.ok(PALETTES.length >= 10);
+  for (const p of PALETTES) {
+    assert.ok(p.hues.length >= 3 && p.sat >= 80, p.name);
+    p.hues.forEach(h => assert.ok(h >= 0 && h <= 360, p.name));
+  }
+  win.close();
 });
