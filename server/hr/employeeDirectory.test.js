@@ -104,9 +104,14 @@ test('directory cache is fresh for 10 seconds and stale-on-error for 15 minutes'
 
   repo.setShouldFail(true);
   now += 2_000;
-  const stale = await directory.getSnapshot();
-  assert.equal(stale.stale, true);
+  // Het han: tra ngay ban cu, nap lai ngam (loi duoc nuot, lan sau moi bao stale).
+  assert.equal((await directory.getSnapshot()).employees.length, 1);
+  await new Promise(resolve => setImmediate(resolve));
   assert.equal(repo.calls, 2);
+  // Nap ngam that bai thi van tra ban cu (con trong 15 phut) va thu nap lai o lan sau.
+  assert.equal((await directory.getSnapshot()).employees.length, 1);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(repo.calls, 3);
 
   now += 15 * 60 * 1000;
   await assert.rejects(

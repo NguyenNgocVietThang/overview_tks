@@ -185,6 +185,7 @@ function createEmployeeDirectory(options = {}) {
   const cache = createTtlSnapshotCache({
     fetch: fetchSnapshot,
     freshTtlMs: FRESH_TTL_MS,
+    backgroundRefresh: true,
     staleTtlMs: STALE_TTL_MS,
     now,
     onUnavailable: () => {

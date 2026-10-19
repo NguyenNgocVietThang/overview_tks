@@ -16,6 +16,9 @@ function createTtlSnapshotCache(options = {}) {
     freshTtlMs = 10 * 1000,
     staleTtlMs = 15 * 60 * 1000,
     now = () => Date.now(),
+    // true: het freshTtl van tra ngay ban cu (con trong staleTtl) va nap lai NGAM, request khong phai cho
+    // 1 vong toi DB. Doi lai du lieu moi chi hien o request ke tiep sau khi nap xong.
+    backgroundRefresh = false,
     onUnavailable = err => { throw err; }
   } = options;
 
@@ -31,7 +34,8 @@ function createTtlSnapshotCache(options = {}) {
     if (!forceRefresh && lastSuccess && now() - lastSuccess.loadedAt < freshTtlMs) {
       return lastSuccess;
     }
-    if (loading) return loading;
+    const canServeStale = backgroundRefresh && !forceRefresh && lastSuccess && now() - lastSuccess.loadedAt <= staleTtlMs;
+    if (loading) return canServeStale ? lastSuccess : loading;
 
     loading = fetch()
       .then(data => {
@@ -47,6 +51,10 @@ function createTtlSnapshotCache(options = {}) {
       })
       .finally(() => { loading = null; });
 
+    if (canServeStale) {
+      loading.catch(() => {});
+      return lastSuccess;
+    }
     return loading;
   }
 

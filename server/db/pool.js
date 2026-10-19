@@ -35,6 +35,11 @@ function getPool() {
     // EMAXCONNSESSION (2026-09-28). Nay mac dinh 7 (2 x 7 = 14), chinh bang
     // PG_POOL_MAX, xem config.js.
     max: CONFIG.PG_POOL_MAX,
+    // Render (Oregon) -> Supabase (Singapore) ~200ms/vong: mo ket noi moi (TCP+TLS+auth) ton ~1s. Mac dinh pg dong ket
+    // noi ranh sau 10s nen request dau sau luc yen luon phai mo lai; giu 5 phut + keepAlive de ket noi khong bi dong.
+    idleTimeoutMillis: 5 * 60 * 1000,
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 30 * 1000,
     ssl: CONFIG.PGSSL ? { rejectUnauthorized: false } : false
   });
 

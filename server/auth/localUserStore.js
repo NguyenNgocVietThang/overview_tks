@@ -155,6 +155,7 @@ function createCache() {
   return createTtlSnapshotCache({
     fetch: fetchUsers,
     freshTtlMs: FRESH_TTL_MS,
+    backgroundRefresh: true,
     staleTtlMs: STALE_TTL_MS,
     onUnavailable: err => {
       console.error('[Users] CẢNH BÁO: Postgres (app_users) không kết nối được — dùng tạm 2 tài khoản dự phòng "admin"/"Admin@123" và "thangnnv2003@gmail.com" (Google hoặc mật khẩu "Thang@2026") — chỉ trong bộ nhớ, không lưu vĩnh viễn. Lỗi gốc:', err.message);

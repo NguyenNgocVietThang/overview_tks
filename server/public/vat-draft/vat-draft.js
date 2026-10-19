@@ -791,7 +791,7 @@
 
     $('vdQrPlaceholder').hidden = !['empty', 'ready', 'confirm'].includes(panelState);
     $('vdQrLoading').hidden = !['reading', 'busy'].includes(panelState);
-    $('vdQrLoadingText').textContent = panelState === 'reading' ? 'AI đang đọc hóa đơn…' : 'Đang tạo mã QR…';
+    $('vdQrLoadingText').textContent = panelState === 'reading' ? 'Đang đọc hóa đơn…' : 'Đang tạo mã QR…';
     $('vdManualResult').hidden = !['success', 'stale'].includes(panelState);
     const stale = $('vdManualResult').querySelector('.vd-qr-stale');
     if (stale) stale.hidden = panelState !== 'stale';
@@ -915,12 +915,40 @@
     return { canvas, ctx };
   }
 
-  /** PDF: trang dau (ten don vi ban) + trang cuoi (tong thanh toan) dat canh nhau thanh 1 anh. */
-  async function pdfToCanvas(file) {
+  async function loadPdf(file) {
     const pdfjs = await import('/vendor/pdfjs/pdf.min.mjs');
     pdfjs.GlobalWorkerOptions.workerSrc = '/vendor/pdfjs/pdf.worker.min.mjs';
-    const doc = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false }).promise;
-    const pageNumbers = doc.numPages > 1 ? [1, doc.numPages] : [1];
+    return pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false }).promise;
+  }
+
+  /**
+   * Chu cua MOI trang PDF (xuong dong theo toa do y nhu app cu) + so trang chua dong Tong cong tien
+   * thanh toan (hoa don nhieu trang: tong nam o trang gan cuoi, trang cuoi co the chi la chan trang).
+   */
+  async function extractPdfText(doc) {
+    const pages = [];
+    let totalPage = 0;
+    for (let p = 1; p <= doc.numPages; p += 1) {
+      const content = await (await doc.getPage(p)).getTextContent();
+      let text = '';
+      let lastY = null;
+      for (const item of content.items) {
+        const y = item.transform ? item.transform[5] : null;
+        if (lastY !== null && y !== null && Math.abs(y - lastY) > 2 && !text.endsWith('\n')) text += '\n';
+        text += item.str;
+        if (item.hasEOL) text += '\n';
+        lastY = y;
+      }
+      if (/Tổng cộng tiền thanh toán|Total payment/i.test(text)) totalPage = p;
+      pages.push(text);
+    }
+    return { text: pages.join('\n'), totalPage };
+  }
+
+  /** PDF -> 1 anh cho AI: trang dau (ten don vi ban) + trang co Tong thanh toan (khong ro thi trang cuoi). */
+  async function pdfToCanvas(doc, totalPage) {
+    const last = totalPage > 1 ? totalPage : doc.numPages;
+    const pageNumbers = last > 1 ? [1, last] : [1];
     const rendered = [];
     for (const number of pageNumbers) {
       const page = await doc.getPage(number);
@@ -938,9 +966,13 @@
   }
 
   /** Anh/PDF hoa don -> JPEG canh dai <= 2000px (giam dung luong gui len may chu va AI). */
-  async function invoiceFileToJpeg(file) {
+  function isPdfFile(file) {
+    return file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
+  }
+
+  async function invoiceFileToJpeg(file, pdfDoc = null, totalPage = 0) {
     try {
-      if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) return await canvasToJpeg(await pdfToCanvas(file));
+      if (isPdfFile(file)) return await canvasToJpeg(await pdfToCanvas(pdfDoc || await loadPdf(file), totalPage));
       const bitmap = await createImageBitmap(file);
       try {
         const scale = Math.min(1, MAX_INVOICE_SIDE / Math.max(bitmap.width, bitmap.height));
@@ -1023,6 +1055,7 @@
     if (!matched.length) notes.push(calloutHtml('warning', 'Không có tài khoản khớp với công ty bán — chọn tài khoản nhận tiền ở bên dưới.'));
     if (needConfirm) notes.push(calloutHtml('warning', 'Chưa tạo QR: xác nhận số tiền ở mục bên dưới.', 'confirm'));
     else if (autoGenerate) notes.push(calloutHtml('info', 'Đã chọn tài khoản và tạo mã QR — kiểm tra lại trước khi gửi khách.'));
+    if (parsed.source === 'pdf-text') notes.push(calloutHtml('info', 'Đọc trực tiếp chữ trong file PDF (không qua AI).'));
     info.dataset.tone = notes.length && !autoGenerate ? 'warning' : 'success';
     info.innerHTML = `<dl class="vd-ai-grid">
       <div><dt>Công ty bán</dt><dd>${escapeHtml(parsed.sellerName || 'Không nhận diện được')}</dd></div>
@@ -1075,7 +1108,7 @@
       group.words = group.words || words;
       groups.set(value, group);
     };
-    add(sources.aiTotal, 'Tổng cộng tiền thanh toán (AI đọc chữ số)', false);
+    add(sources.aiTotal, parsed.source === 'pdf-text' ? 'Tổng cộng tiền thanh toán (trong file PDF)' : 'Tổng cộng tiền thanh toán (AI đọc chữ số)', false);
     add(sources.subtotalPlusVat, 'Cộng tiền hàng + Tiền thuế GTGT', false);
     add(sources.words, 'Số tiền viết bằng chữ', true);
     if (!groups.size) return false;
@@ -1112,10 +1145,11 @@
     const info = $('vdInvoiceInfo');
     const label = name || file.name || 'Ảnh hóa đơn';
     const isImage = /^image\//.test(file.type);
+    const isPdf = isPdfFile(file);
     resetInvoiceResult();
     info.hidden = true;
     setInvoicePreview(isImage ? file : null, label);
-    setInvoiceStatus('AI đang đọc hóa đơn… (thường mất 5–20 giây)');
+    setInvoiceStatus(isPdf ? 'Đang đọc chữ trong file PDF…' : 'AI đang đọc hóa đơn… (thường mất 5–20 giây)');
     card.setAttribute('aria-busy', 'true');
     input.disabled = true;
     $('vdInvoiceRemove').disabled = true;
@@ -1123,11 +1157,27 @@
     let needConfirm = false;
     let parsed = null;
     try {
-      const jpeg = await invoiceFileToJpeg(file);
+      // PDF co lop chu (hoa don dien tu luu tu trinh duyet): doc chu moi trang, chinh xac va khong ton AI.
+      // PDF scan / khong dung mau -> doc anh bang AI nhu anh chup.
+      let pdfDoc = null;
+      let totalPage = 0;
+      if (isPdf) {
+        try { pdfDoc = await loadPdf(file); } catch (error) { throw new Error('Không mở được file PDF.'); }
+        const pdfText = await extractPdfText(pdfDoc).catch(() => ({ text: '', totalPage: 0 }));
+        totalPage = pdfText.totalPage;
+        if (pdfText.text.trim()) {
+          const fromText = await api('/qr/parse-text', { method: 'POST', body: { text: pdfText.text } });
+          if (!fromText.error && fromText.totalPayment !== null) parsed = fromText;
+        }
+        if (!parsed) setInvoiceStatus('PDF không có chữ đọc được — AI đang đọc ảnh… (5–20 giây)');
+      }
+      const jpeg = await invoiceFileToJpeg(file, pdfDoc, totalPage);
       if (!isImage) setInvoicePreview(jpeg, label);
-      const form = new FormData();
-      form.append('file', jpeg, 'hoa-don.jpg');
-      parsed = await api('/qr/parse-image', { method: 'POST', body: form });
+      if (!parsed) {
+        const form = new FormData();
+        form.append('file', jpeg, 'hoa-don.jpg');
+        parsed = await api('/qr/parse-image', { method: 'POST', body: form });
+      }
       if (parsed.error) {
         showInvoiceInfo('warning', '⚠️ ' + parsed.error);
       } else {
