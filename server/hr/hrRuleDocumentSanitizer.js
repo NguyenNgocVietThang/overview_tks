@@ -93,7 +93,11 @@ const SANITIZE_OPTIONS = {
  * @returns {string} HTML da loc, an toan de luu va render bang innerHTML.
  */
 function sanitizeRuleDocumentHtml(html) {
-  return sanitizeHtml(String(html == null ? '' : html), SANITIZE_OPTIONS);
+  const sanitized = sanitizeHtml(String(html == null ? '' : html), SANITIZE_OPTIONS);
+  // table-controls tung chen <div><button>...Cot hien thi</button></div> vao editor.
+  // Sanitizer bo button/svg nhung giu chu, tao thanh <div>Cot hien thi</div>. Loai dung
+  // artifact doc lap nay; khong thay chu nam trong cau/noi dung hop le.
+  return sanitized.replace(/<(div|p|span)>\s*Cột hiển thị\s*<\/\1>/giu, '');
 }
 
 /** Co chu that hoac cau truc noi dung hop le (anh/bang), khong chi <p><br></p>. */

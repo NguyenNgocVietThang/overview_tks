@@ -29,6 +29,12 @@ function isMigrationPending(err) {
   return !!err && (err.code === PG_UNDEFINED_TABLE || err.code === PG_UNDEFINED_COLUMN);
 }
 
+function canUseReadOnlyFallback(err) {
+  return isMigrationPending(err)
+    || (err && err.code === 'DB_UNAVAILABLE')
+    || /SUPABASE_DB_URL/i.test(String(err && err.message));
+}
+
 const authView = [requireAuth, requireFeature('hr.rules')];
 const authManage = [requireAuth, requireFeature('hr.rules.manage')];
 
@@ -141,7 +147,7 @@ function contentDisposition(disposition, fileName) {
 }
 
 function defaultsAsDocuments() {
-  return repo.DEFAULT_BUILTIN_DOCUMENTS.map(item => ({
+  return repo.LEGACY_BUILTIN_DOCUMENTS.map(item => ({
     id: null, kind: 'builtin', slug: item.key, builtinKey: item.key, title: item.title
   }));
 }
@@ -158,7 +164,7 @@ router.get('/api/hr/rules/documents', ...authView, async (req, res) => {
     } catch (err) {
       // Bang chua migrate (thieu bang) hoac moi deploy code truoc migration (thieu cot,
       // vd 0060 them cot `body`): van cho doc 4 tai lieu mac dinh thay vi vo ca tab.
-      if (!isMigrationPending(err)) throw err;
+      if (!canUseReadOnlyFallback(err)) throw err;
       documents = defaultsAsDocuments();
       degraded = true;
     }

@@ -13,6 +13,35 @@ const { defaultsForRole } = require('../../auth/featureRegistry');
 const htmlPath = path.join(__dirname, '..', '..', 'public', 'humanresources', 'index.html');
 const html = fs.readFileSync(htmlPath, 'utf8');
 
+test('giu noi dung builtin lam fallback khi code deploy truoc migration 0065', () => {
+  assert.match(html, /data-rule-doc="gio-giac"/);
+  assert.match(html, /data-rule-doc="nghi-phep"/);
+  assert.match(html, /data-rule-doc="phuc-loi"/);
+  assert.match(html, /data-rule-doc="treo-hang"/);
+  assert.match(html, /Giờ làm việc chính thức/);
+});
+
+test('bang trong noi dung quy dinh khong bi gan nut Cot hien thi hoac sap xep', async () => {
+  const { window, document } = await openPage();
+  const tables = [...document.querySelectorAll('#ruleDocTextBody table')];
+  assert.ok(tables.length > 0, 'tai lieu mau phai co bang');
+  for (const table of tables) {
+    assert.equal(table.dataset.tableControls, 'off');
+    assert.equal(table.dataset.tableSort, 'off');
+  }
+  window.eval(fs.readFileSync(path.join(__dirname, '..', '..', 'public', 'shared', 'table-controls.js'), 'utf8'));
+  await settle();
+  assert.equal(document.querySelectorAll('#ruleDocTextView .tks-columns-button').length, 0);
+  assert.doesNotMatch(document.getElementById('ruleDocTextView').textContent, /Cột hiển thị/);
+  const editor = document.getElementById('ruleTextEditor');
+  editor.innerHTML = '<table><thead><tr><th>Cột A</th></tr></thead><tbody><tr><td>Nội dung</td></tr></tbody></table>';
+  await settle();
+  assert.ok(document.querySelectorAll('#ruleTextEditor table').length > 0);
+  assert.equal(document.querySelectorAll('#ruleTextEditor .tks-columns-button').length, 0);
+  assert.doesNotMatch(document.getElementById('ruleTextEditor').textContent, /Cột hiển thị/);
+  window.close();
+});
+
 function fakeCan(vaiTro) {
   const permissions = defaultsForRole(vaiTro);
   return (...keys) => keys.some(key => (Array.isArray(key) ? key : [key]).some(k => permissions.includes(k)));
@@ -366,11 +395,11 @@ test('payload lạ / lỗi API: hiện trạng thái lỗi trong panel, không t
 // kind='text') — thay bang test duoi, khoa hanh vi an toan khi gap dong kind='builtin'
 // sot lai (vd server chua chay 0063 nhung code moi da deploy).
 
-test('kind="builtin" sót lại (code deploy trước khi chạy migration 0065) ⇒ hiện "chưa có trên trang", KHÔNG crash/trống trắng', async () => {
+test('kind="builtin" con lai truoc migration 0065 van hien noi dung cu', async () => {
   const { window, document } = await openPage({ docs: [...BUILTINS, PDF] });
   assert.deepEqual(tabSlugs(document), ['gio-giac', 'nghi-phep', 'phuc-loi', 'treo-hang', 'pdf-7']);
-  assert.equal(activeTab(document).ruleDocTab, 'gio-giac'); // tab van chon duoc binh thuong
-  assert.deepEqual(visibleViews(document), []); // khong co khoi noi dung nao de hien — khong crash
-  assert.match(document.getElementById('ruleDocStatus').textContent, /chưa có trên trang/);
+  assert.equal(activeTab(document).ruleDocTab, 'gio-giac');
+  assert.deepEqual(visibleViews(document), ['gio-giac']);
+  assert.match(document.querySelector('[data-rule-doc="gio-giac"]').textContent, /Giờ làm việc chính thức/);
   window.close();
 });

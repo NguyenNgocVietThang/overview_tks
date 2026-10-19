@@ -34,6 +34,22 @@ const MANAGER = { id: 'm1', vaiTro: 'Quản lý', username: 'manager', hoTen: 'Q
 const PDF_DOC = { id: 7, kind: 'pdf', slug: 'pdf-7', title: 'Nội quy kho', fileName: 'noi-quy-kho.pdf', sizeBytes: 20 };
 const PDF_BYTES = Buffer.from('%PDF-1.4\n%fake body');
 
+test('GET danh sach: DB local khong cau hinh van tra 4 tai lieu builtin o che do chi doc', async () => {
+  await withStubs([[repo, 'listDocuments', async () => {
+    const error = new Error('SUPABASE_DB_URL chua duoc cau hinh');
+    throw error;
+  }]], async () => {
+    const res = fakeRes();
+    await getRouteHandler('get', '/api/hr/rules/documents')({ user: MANAGER }, res);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.degraded, true);
+    assert.deepEqual(
+      res.body.documents.map(doc => doc.builtinKey),
+      ['gio-giac', 'nghi-phep', 'phuc-loi', 'treo-hang']
+    );
+  });
+});
+
 // Thay ham cua module bang stub roi khoi phuc — route goi qua module object.
 async function withStubs(stubs, fn) {
   const saved = [];
@@ -86,7 +102,7 @@ test('GET danh sách: bảng chưa migrate (42P01) ⇒ degraded, danh sách mặ
     await getRouteHandler('get', '/api/hr/rules/documents')({ user: MANAGER }, res);
     assert.equal(res.statusCode, 200);
     assert.equal(res.body.degraded, true);
-    assert.deepEqual(res.body.documents, []);
+    assert.deepEqual(res.body.documents.map(doc => doc.builtinKey), ['gio-giac', 'nghi-phep', 'phuc-loi', 'treo-hang']);
     assert.deepEqual(res.body.missingDefaults, []);
   });
 });
@@ -97,7 +113,7 @@ test('GET danh sách: deploy code trước migration cột mới (42703, vd thi�
     await getRouteHandler('get', '/api/hr/rules/documents')({ user: MANAGER }, res);
     assert.equal(res.statusCode, 200);
     assert.equal(res.body.degraded, true);
-    assert.deepEqual(res.body.documents, []);
+    assert.deepEqual(res.body.documents.map(doc => doc.builtinKey), ['gio-giac', 'nghi-phep', 'phuc-loi', 'treo-hang']);
   });
 });
 

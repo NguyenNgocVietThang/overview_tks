@@ -548,7 +548,11 @@
   }
 
   function enhance(table, options) {
-    if (!table || !table.tHead || table.dataset.tableControls === 'off') return;
+    // Bang trong van ban quy dinh va trinh soan thao rich-text la noi dung tai lieu,
+    // khong phai bang du lieu cua dashboard. Khong chen UI "Cot hien thi" vao DOM
+    // rich-text vi editor se serialize no va co the luu nhan dieu khien thanh van ban.
+    if (!table || !table.tHead || table.dataset.tableControls === 'off'
+      || table.closest('#ruleDocTextBody, .rte-editor')) return;
     var head = headers(table); if (!head.leaves.length || head.leaves.some(function (entry) { return !entry; })) return;
     var ctrl = controllers.get(table);
     if (!ctrl) { ctrl = { table: table, options: {} }; controllers.set(table, ctrl); }
