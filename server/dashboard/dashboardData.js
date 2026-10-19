@@ -29,6 +29,7 @@ let rollupVersion = 0;
 // moi -> KHONG doc lai bang Hoa don (~29 MB/lan ca 2 co so).
 let invoicesChangedSinceExpiry = false;
 dashboardRollupEvents.on('invoicesChanged', () => { invoicesChangedSinceExpiry = true; });
+dashboardRollupEvents.on('customersChanged', () => { expireCustomerDirectoryCaches(); });
 dashboardRollupEvents.on('updated', () => {
   rollupVersion += 1;
   if (invoicesChangedSinceExpiry) {
@@ -330,8 +331,15 @@ function compactSearchValue(value) {
 // thay vi phai cho ca 9 bang dashboard (~14s luc cache nguoi) chi de goi y
 // ten/ma khach hang. Du lieu day du (doanh thu 90 ngay) van chi tai SAU khi
 // nguoi dung chon 1 khach cu the, qua /api/customer-product-revenue.
-const CUSTOMER_DIRECTORY_CACHE_TTL_MS = 90 * 1000;
+// Danh ba chi doi khi sync ghi khach moi/sua khach ('customersChanged' phat sau
+// COMMIT, xem handler o dau file) nen TTL dai (10 phut) chi la luoi an toan.
+const CUSTOMER_DIRECTORY_CACHE_TTL_MS = 10 * 60 * 1000;
 let customerDirectoryCacheByBranch = new Map();
+// Het han moi danh ba da cache: lan getCustomerDirectory ke tiep doc lai DB.
+// (Doc qua tham chieu bien module nen van dung sau resetCaches.)
+function expireCustomerDirectoryCaches() {
+  customerDirectoryCacheByBranch.forEach(entry => { entry.expiresAt = 0; });
+}
 const CUSTOMER_DIRECTORY_BRANCH_RANK = { hanoi: 0, saigon: 1 };
 
 // Gop danh sach cua "Ca hai" ve 1 dong moi khach (uu tien Ha Noi truoc, giong

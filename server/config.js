@@ -162,7 +162,14 @@ const CONFIG = {
   // Read-only incoming goods snapshot, independent from KiotViet sync.
   PRODUCT_CONTAINER_SPREADSHEET_ID: process.env.PRODUCT_CONTAINER_SPREADSHEET_ID || null,
   // Bao cao doanh thu theo khach / hang hoa lam moi TANG DAN sau moi luot sync (mac dinh TAT => chot dem).
-  REPORTS_INCREMENTAL_ENABLED: String(process.env.REPORTS_INCREMENTAL_ENABLED || '').toLowerCase() === 'true'
+  REPORTS_INCREMENTAL_ENABLED: String(process.env.REPORTS_INCREMENTAL_ENABLED || '').toLowerCase() === 'true',
+
+  // Log bo nho (rss/heap/external/arrayBuffers) moi chu ky + canh bao khi RSS > 75% tran.
+  // Mac dinh BAT — tat bang MEMORY_MONITOR=false.
+  MEMORY_MONITOR: process.env.MEMORY_MONITOR !== 'false',
+  MEMORY_LOG_INTERVAL_MS: Number(process.env.MEMORY_LOG_INTERVAL_MS) || 60000,
+  // Tran RAM cua instance (MB) de tinh nguong canh bao; mac dinh 2048 (goi Render 2GB).
+  MEMORY_LIMIT_MB: Number(process.env.MEMORY_LIMIT_MB) || 2048
 };
 
 module.exports = CONFIG;
