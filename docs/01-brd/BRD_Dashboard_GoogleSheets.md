@@ -311,7 +311,7 @@ Bổ sung 17/10/2026: tab Công nợ có thêm bảng **Tuổi nợ theo hóa đ
 
 2026-10-17 (bổ sung) — Tab Công nợ, mục 3 Tuổi nợ: **Ngày nợ tương đương = hôm nay − ngày hết nợ + 1** (tính cả ngày hết nợ; hết nợ hôm nay = 1 ngày, khách vượt khoảng tra cứu 30 ngày hiện ≥ 30), **Còn hạn** vẫn = Lịch TT − Ngày nợ tương đương. Cột Còn hạn tô màu theo dấu: âm đỏ, 0 vàng, dương xanh lá — áp dụng cả trên bảng web, hộp chi tiết hóa đơn, file Excel (màu chữ) và file HTML (cột đánh dấu `signTone`); cột số căn phải (table-align.js nhận diện cả ≥/≤). Độ rộng cột mặc định của bảng được đặt lại. Không migration; bảng tính sẵn `0059` tự cập nhật ở lượt `debtAgingRefresh` kế tiếp.
 
-17/10/2026 — Báo cáo hàng hóa thêm hai cột **Đơn giá HN / Đơn giá SG** sau Tên sản phẩm (giá bán chung KiotViet từng cơ sở, migration `0061`), mặc định ẩn, chỉ Quản lý và Trợ lý (quyền `reports.products.price`) được thấy; API không trả giá cho tài khoản khác.
+17/10/2026 — Báo cáo hàng hóa thêm hai cột **Đơn giá HN / Đơn giá SG** sau Tên sản phẩm (giá bán chung KiotViet từng cơ sở, migration `0063`), mặc định hiện cho Quản lý/Trợ lý (19/10/2026) và có trong file Excel/HTML xuất, chỉ Quản lý và Trợ lý (quyền `reports.products.price`) được thấy; API không trả giá cho tài khoản khác.
 
 Cập nhật gần nhất: 17/10/2026.
 

@@ -723,4 +723,4 @@ Phương án B đã duyệt: tập SĐT/KPI Pancake riêng trong PostgreSQL, ng�
 
 - **FR-VAT-SEL (17/10/2026):** bảng kết quả Danh sách sản phẩm cho chọn vùng ô bằng chuột như Google Sheet (bấm, kéo, Shift+click); Ctrl+C chép giá trị đang hiển thị dạng TSV, không kèm tiêu đề, bỏ cột đang ẩn; Esc hoặc bấm ra ngoài để bỏ chọn.
 
-17/10/2026 — Báo cáo hàng hóa thêm hai cột **Đơn giá HN / Đơn giá SG** sau Tên sản phẩm (giá bán chung KiotViet từng cơ sở, migration `0061`), mặc định ẩn, chỉ Quản lý và Trợ lý (quyền `reports.products.price`) được thấy; API không trả giá cho tài khoản khác.
+17/10/2026 — Báo cáo hàng hóa thêm hai cột **Đơn giá HN / Đơn giá SG** sau Tên sản phẩm (giá bán chung KiotViet từng cơ sở, migration `0063`), mặc định hiện cho Quản lý/Trợ lý (19/10/2026) và có trong file Excel/HTML xuất, chỉ Quản lý và Trợ lý (quyền `reports.products.price`) được thấy; API không trả giá cho tài khoản khác.

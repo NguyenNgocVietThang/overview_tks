@@ -65,6 +65,48 @@ test('product report exports include numeric container quantities before stock a
   } finally { productReportRepository.getProductReport = original; }
 });
 
+test('product report export includes Don gia HN/SG only for accounts allowed to see prices', async () => {
+  const original = productReportRepository.getProductReport;
+  productReportRepository.getProductReport = async () => ({
+    containerSync: { available: false },
+    rows: [
+      { code: '001', name: 'Một', priceHanoi: 125000, priceSaigon: 130000 },
+      { code: '002', name: 'Hai', priceHanoi: 0, priceSaigon: null }
+    ]
+  });
+  try {
+    const keysOf = metadata => metadata.worksheets[0].fields.map(field => field.key);
+    // Không cờ quyền = không thấy cột giá, và tự gõ khóa cột giá bị từ chối.
+    const withoutPrice = await exportService.getExportFields({ tableKey: 'overview.productReport' });
+    assert.ok(!keysOf(withoutPrice).some(key => key.startsWith('price')));
+    await assert.rejects(
+      () => exportService.createExportWorkbook({ tableKey: 'overview.productReport', columns: { product_report: ['code', 'priceHanoi'] } }),
+      error => error.code === 'EXPORT_FIELD_NOT_ALLOWED'
+    );
+
+    const allowed = { canViewPrice: true };
+    const fields = (await exportService.getExportFields({ tableKey: 'overview.productReport' }, undefined, allowed)).worksheets[0].fields;
+    assert.deepEqual(fields.slice(0, 4).map(field => field.key), ['code', 'name', 'priceHanoi', 'priceSaigon']);
+    assert.ok(fields.slice(2, 4).every(field => field.type === 'number'));
+
+    const request = { tableKey: 'overview.productReport', columns: { product_report: ['code', 'priceHanoi', 'priceSaigon'] } };
+    const file = await exportService.createExportWorkbook(request, undefined, allowed);
+    const sheet = (await new ExcelJS.Workbook().xlsx.load(file.buffer)).getWorksheet('Báo cáo hàng hóa');
+    assert.deepEqual(sheet.getRow(1).values.slice(1), ['Mã sản phẩm', 'Đơn giá Hà Nội', 'Đơn giá Sài Gòn']);
+    assert.equal(sheet.getCell('B2').value, 125000);
+    assert.equal(sheet.getCell('C2').value, 130000);
+    assert.equal(sheet.getCell('B3').value, 0);
+    assert.equal(sheet.getCell('C3').value, null);
+
+    const htmlFile = await exportService.createExportHtml(request, undefined, allowed);
+    assert.ok(htmlFile.buffer.length > 0);
+    // Báo cáo HTML dựng từ cùng dataset (dữ liệu bảng được nén trong file) nên kiểm cột/dòng ở tầng dataset.
+    const dataset = await exportService.getExportDataset(request, undefined, allowed);
+    assert.deepEqual(dataset.worksheets[0].columns.map(column => column.label), ['Mã sản phẩm', 'Đơn giá Hà Nội', 'Đơn giá Sài Gòn']);
+    assert.deepEqual(dataset.worksheets[0].rows.map(row => [row.priceHanoi, row.priceSaigon]), [[125000, 130000], [0, null]]);
+  } finally { productReportRepository.getProductReport = original; }
+});
+
 test('product report export notes distinguish missing container snapshots from zero quantities', async () => {
   const original = productReportRepository.getProductReport;
   productReportRepository.getProductReport = async () => ({ rows: [{ code: '001', unloadedQty: null, loadedQty: null }], containerSync: { available: false } });

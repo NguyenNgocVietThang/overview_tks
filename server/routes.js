@@ -443,7 +443,7 @@ function sendExportError(res, err, fallbackMessage) {
 
 router.post('/api/export/fields', async (req, res) => {
   try {
-    const metadata = await getExportFields(req.body || {}, req.branch);
+    const metadata = await getExportFields(req.body || {}, req.branch, { canViewPrice: hasFeature(req.user, 'reports.products.price') });
     res.status(200).json(metadata);
   } catch (err) {
     sendExportError(res, err, 'Không lấy được danh sách trường xuất Excel.');
@@ -460,7 +460,11 @@ router.post('/api/export', async (req, res) => {
     if (!res.writableFinished) abortController.abort();
   });
   try {
-    const file = await createExport(req.body || {}, req.branch, { signal: abortController.signal });
+    const file = await createExport(req.body || {}, req.branch, {
+      signal: abortController.signal,
+      // Cột Đơn giá HN/SG của Báo cáo hàng hóa chỉ xuất cho tài khoản có quyền xem giá (cùng quyền với GET /api/product-report).
+      canViewPrice: hasFeature(req.user, 'reports.products.price')
+    });
     if (abortController.signal.aborted) return;
     res.setHeader('Content-Type', file.mimeType);
     res.setHeader('Content-Disposition', `attachment; filename="${file.fileName}"`);

@@ -3690,7 +3690,7 @@
                 </div>
                 <div class="scroll-list" style="max-height:600px;">
                   <table class="fixed-table" data-table-key="dashboard-table-2">
-                    <!-- 19 cột theo file HÀNG HÓA.xlsx (A→R) + cột Khách lớn nhất + 2 cột Đơn giá HN/SG sau Tên sản phẩm (mặc định ẩn, chỉ Quản lý/Trợ lý). data-hint = chú giải khi rê chuột
+                    <!-- 19 cột theo file HÀNG HÓA.xlsx (A→R) + cột Khách lớn nhất + 2 cột Đơn giá HN/SG sau Tên sản phẩm (hiện mặc định, chỉ Quản lý/Trợ lý). data-hint = chú giải khi rê chuột
                          (không dùng title: nút sắp xếp thay nội dung th và che mất title của th). Không dùng ký tự dấu lớn hơn trong data-hint. -->
                     <thead>
                       <tr>
@@ -7276,7 +7276,7 @@
     const PRODUCT_REPORT_SALE_ROLE = 'Nhân viên sale';
     const PRODUCT_REPORT_HIDDEN_BY_PROFILE = {
       sale: ['don-gia-hn', 'don-gia-sg', 'tong-ton-thuc', 'tong-co-ban', 'sl-ban-30-ngay', 'ngay-can-dat', 'sl-khach-ban', 'khach-lon-nhat', 'ti-trong-khach-lon-nhat'],
-      manager: ['don-gia-hn', 'don-gia-sg', 'ton-thuc-hn', 'co-ban-hn', 'dieu-chuyen-sg', 'ton-thuc-sg', 'co-ban-sg', 'mo-ta-hn', 'mo-ta-sg', 'khach-lon-nhat']
+      manager: ['ton-thuc-hn', 'co-ban-hn', 'dieu-chuyen-sg', 'ton-thuc-sg', 'co-ban-sg', 'mo-ta-hn', 'mo-ta-sg', 'khach-lon-nhat']
     };
     // Độ rộng theo ảnh mẫu, cùng thứ tự với thead; khai báo rõ để không lấy độ rộng đã giãn từ phiên chưa biết vai trò.
     const PRODUCT_REPORT_WIDTHS_BY_PROFILE = {
@@ -7296,7 +7296,7 @@
       const table = document.getElementById('productReportRows').closest('table');
       const hidden = PRODUCT_REPORT_HIDDEN_BY_PROFILE[profile];
       // Cột Đơn giá chỉ dành cho tài khoản có quyền reports.products.price: cột bị gỡ khỏi bảng và khỏi hộp "Cột hiển thị"
-      // (API cũng không trả giá cho tài khoản khác). Có quyền thì cột vẫn ẩn mặc định, bật lại bằng "Cột hiển thị".
+      // (API cũng không trả giá cho tài khoản khác). Có quyền thì cột HIỆN mặc định cho Quản lý/Trợ lý (hồ sơ Sale vẫn ẩn, bật bằng "Cột hiển thị").
       const priceAllowed = typeof TKSNav !== 'undefined' && typeof TKSNav.can === 'function' && TKSNav.can('reports.products.price');
       table.querySelectorAll('thead th[data-price-column]').forEach(function (cell) {
         cell.hidden = !priceAllowed;

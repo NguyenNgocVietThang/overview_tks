@@ -283,6 +283,8 @@ const CUSTOMER_PRODUCT_DETAIL_COLUMNS = [
 const PRODUCT_REPORT_COLUMNS = [
   aggregateColumn('code', 'Mã sản phẩm', 'text', 'Mã sản phẩm.'),
   aggregateColumn('name', 'Tên sản phẩm', undefined, 'Tên sản phẩm.'),
+  aggregateColumn('priceHanoi', 'Đơn giá Hà Nội', 'number', 'Đơn giá bán chung của mã hàng trên KiotViet Hà Nội (VNĐ); trống khi chưa có giá. Chỉ Quản lý và Trợ lý được xuất.'),
+  aggregateColumn('priceSaigon', 'Đơn giá Sài Gòn', 'number', 'Đơn giá bán chung của mã hàng trên KiotViet Sài Gòn (VNĐ); trống khi Sài Gòn không có mã này hoặc chưa có giá. Chỉ Quản lý và Trợ lý được xuất.'),
   aggregateColumn('unloadedQty', 'Chưa bốc', 'number', 'Tổng số lượng toàn công ty trong CONT trạng thái 1 hoặc 2; trống khi chưa có dữ liệu.'),
   aggregateColumn('loadedQty', 'Đã bốc', 'number', 'Tổng số lượng toàn công ty trong CONT trạng thái 3; trống khi chưa có dữ liệu.'),
   aggregateColumn('stockHanoi', 'Tồn thực Hà Nội', 'number', 'Tồn kho hiện tại tại cơ sở Hà Nội.'),
@@ -305,6 +307,8 @@ const PRODUCT_REPORT_COLUMNS = [
   aggregateColumn('topCustomerName', 'Khách lớn nhất', 'text', 'Tên khách hàng mua nhiều nhất trong 90 ngày.'),
   aggregateColumn('topCustomerShare', 'Tỉ trọng khách lớn nhất', 'percent', 'Doanh số khách lớn nhất chia cho doanh số 90 ngày.')
 ];
+
+const PRODUCT_REPORT_PRICE_KEYS = ['priceHanoi', 'priceSaigon'];
 
 const STOCKOUT_RECENT_COLUMNS = [
   aggregateColumn('code', 'Mã hàng', 'text', 'Mã hàng bị đứt hàng.'),
@@ -959,7 +963,7 @@ function buildStockout30dResultDataset(description, payload) {
  * getDashboardData/readRowsByCodes/Google/DB). Bang stockout co dataset tu payload
  * (khong I/O) nen duoc dung luon de giu dung loi EXPORT_NO_DATA cu.
  */
-function describeExport(payload, branch) {
+function describeExport(payload, branch, options = {}) {
   const request = plainObject(payload);
   const tableKey = normalizeText(request.tableKey);
   if (!Object.prototype.hasOwnProperty.call(TABLE_TITLES, tableKey)) throw exportError('Bảng yêu cầu xuất không hợp lệ.', 400, 'EXPORT_TABLE_NOT_ALLOWED');
@@ -973,6 +977,13 @@ function describeExport(payload, branch) {
   }
 
   const spec = getTableSpec(tableKey, context, branch);
+  // Đơn giá HN/SG chỉ cho tài khoản có quyền reports.products.price (route truyền options.canViewPrice); thiếu cờ = không có giá,
+  // nên cột không xuất hiện trong danh sách trường và yêu cầu tự gõ khóa cột giá bị từ chối EXPORT_FIELD_NOT_ALLOWED.
+  if (tableKey === 'overview.productReport' && !options.canViewPrice) {
+    spec.worksheets = spec.worksheets.map(worksheet => ({
+      ...worksheet, columns: worksheet.columns.filter(column => !PRODUCT_REPORT_PRICE_KEYS.includes(column.key))
+    }));
+  }
   const description = {
     tableKey, title: TABLE_TITLES[tableKey], selectionMode: 'custom',
     filters, context, worksheets: spec.worksheets, spec
@@ -1064,9 +1075,9 @@ function toFieldMeta(column) {
  * Danh sach truong cho modal Xuat Excel. Bang co dinh tra ve TUC THI tu dinh nghia
  * tinh (rowCount = null, khong query).
  */
-async function getExportFields(payload, branch) {
+async function getExportFields(payload, branch, options = {}) {
   const request = plainObject(payload);
-  const source = describeExport(request, branch);
+  const source = describeExport(request, branch, options);
   return {
     tableKey: source.tableKey,
     title: source.title,
@@ -1259,7 +1270,7 @@ function normalizeExportFormat(value) {
 async function getExportDataset(payload, branch, options = {}) {
   const request = plainObject(payload);
   const signal = options.signal;
-  const description = options.description || describeExport(request, branch);
+  const description = options.description || describeExport(request, branch, options);
   const selection = options.selection !== undefined
     ? options.selection
     : resolveSelection(description.selectionMode, description.worksheets, request.columns);
@@ -1308,7 +1319,7 @@ async function runExport(payload, branch, options, render) {
 
   // Kiem tra re (khong I/O) TRUOC khi xin slot: yeu cau sai khong chiem hang doi va
   // khong cham DB.
-  const description = describeExport(request, branch);
+  const description = describeExport(request, branch, options);
   const selection = resolveSelection(description.selectionMode, description.worksheets, request.columns);
 
   const release = await acquireExportSlot(signal);
