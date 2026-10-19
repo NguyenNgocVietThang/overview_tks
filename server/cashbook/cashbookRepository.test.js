@@ -1,6 +1,8 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const { PGlite } = require('@electric-sql/pglite');
 const { createRepository, groupFunds } = require('./cashbookRepository');
 const { parseFilters } = require('./cashbookFilters');
@@ -8,6 +10,7 @@ const now = new Date('2026-10-06T12:00:00Z');
 const f = (q) =>
   parseFilters({ from: '2026-10-01', to: '2026-10-06', ...q }, now);
 let db, repo;
+const queries = [];
 // TK số 123 có ID 7 ở HN và ID 8 ở SG (2 retailer KiotViet); -1 chỉ còn trong phiếu.
 test.before(async () => {
   db = new PGlite();
@@ -52,7 +55,9 @@ test.before(async () => {
       ],
     );
   await db.query("UPDATE cash_flows SET method=CASE WHEN account_id IS NULL THEN 'Cash' ELSE 'Transfer' END");
-  repo = createRepository({ query: (s, p) => db.query(s, p) });
+  // Cùng migration 0070 chạy thật: repository đọc qua view v_cash_book_transactions.
+  await db.exec(fs.readFileSync(path.join(__dirname, '../db/migrations/0070_cash_book_transactions_view.sql'), 'utf8'));
+  repo = createRepository({ query: (s, p) => { queries.push(s); return db.query(s, p); } });
 });
 test.after(async () => {
   await db.close();
@@ -295,4 +300,18 @@ test('missing source vouchers are retained in storage but excluded from KPIs, ba
     assert.equal(summary.kpis.totalReceipts,8);
     assert.equal((await repo.entries(f({code:'Retired'}))).total,0);
   } finally {await db.query('DELETE FROM cash_flows WHERE id=300');}
+});
+
+test('truy vấn Sổ quỹ đọc qua view và trang dữ liệu không kéo cột raw', async () => {
+  queries.length = 0;
+  await repo.entries(f({ fund: '7,8', staff: '9', creators: '9', accounting: 'no', partnerQ: 'ali' }));
+  await repo.summary(f({}));
+  await repo.filterOptions();
+  assert.ok(queries.length > 0);
+  for (const sql of queries.filter((x) => x.includes('cash_flows') || x.includes('v_cash_book_transactions'))) {
+    if (sql.includes('FROM sync_checkpoints') && !sql.includes('v_cash_book')) continue;
+    assert.ok(sql.includes('v_cash_book_transactions'), sql);
+    assert.ok(!/raw/.test(sql), sql);
+    assert.ok(!/cash_flows/.test(sql), sql);
+  }
 });

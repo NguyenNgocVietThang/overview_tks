@@ -11,9 +11,10 @@ const stockout90dScanService = require('./stockout90dScanService');
 const stockout30dScanService = require('./stockout30dScanService');
 const { createStockoutPgSource } = require('./stockoutPgSource');
 const { runBothBranchesScan } = require('./bothBranchesScan');
-const { resolveBranchScope, branchLabelToCode, isBranchAllowed } = require('../../branch/branches');
+const { BRANCHES, resolveBranchScope, branchLabelToCode, isBranchAllowed } = require('../../branch/branches');
 const { getPool } = require('../../db/pool');
 const supplierReturnImportService = require('./supplierReturnImportService');
+const { persistStockoutDays } = require('./stockoutDaysStore');
 
 const jobStore = createJobStore();
 
@@ -22,13 +23,21 @@ const jobStore = createJobStore();
  * tham so; cac client/test khong di qua resolveBranch (req.branch rong) giu
  * nguyen hanh vi cu (mac dinh Ha Noi trong createStockoutPgSource).
  */
-function buildScanDeps(req) {
+function buildScanDeps(req, extraDeps = {}) {
   const scope = resolveBranchScope(req.branch);
   return (scope.length ? scope : [req.branch]).map(branch => ({
     source: createStockoutPgSource({ branch }),
-    branch
+    branch,
+    ...extraDeps
   }));
 }
+
+/**
+ * Hook luu so ngay dut vao DB (cot Dut HN/SG cua Bao cao hang hoa) — CHI quet 30 ngay inject. Pool lay luc
+ * goi (khong luc nap module) de test khong can DB; co so rong giu mac dinh Ha Noi nhu createStockoutPgSource.
+ */
+const persistStockoutDaysHook = ({ branch, rows }) =>
+  persistStockoutDays({ pool: getPool(), branch: branch || BRANCHES.HANOI, rows });
 
 /** Mot co so -> chay thang service cu; nhieu co so -> job con + gop ket qua. */
 function startScan(jobId, deps, runScanJob) {
@@ -147,7 +156,7 @@ router.get('/api/products/stockout-90d/:jobId/result', (req, res) => {
 
 router.post('/api/products/stockout-30d/scan', async (req, res) => {
   try {
-    const deps = buildScanDeps(req);
+    const deps = buildScanDeps(req, { persistStockoutDays: persistStockoutDaysHook });
     const jobId = jobStore.createJob();
     res.status(202).json({ jobId });
 

@@ -1,14 +1,37 @@
 'use strict';
 const { getPool } = require('../db/pool');
 const { stripTelegramId } = require('../dashboard/saleName');
-const { buildWhere, raw } = require('./cashbookFilters');
+const { buildWhere } = require('./cashbookFilters');
 const CONFIG = require('../config');
+// Mọi truy vấn đọc phiếu thu/chi qua view v_cash_book_transactions (migration 0070):
+// fund_key, số TK/chủ TK và các trường rút sẵn từ raw nằm một chỗ, không kéo cột raw.
+// Thiếu view (42P01, chưa migrate) thì tự lùi về đúng nội dung view dưới dạng subquery
+// (CASH_BOOK_TRANSACTIONS_SELECT) nên cùng một câu SQL chạy được cả hai đường.
+// Test db/cashBookViewMigration.test.js bắt buộc hai bản này giống hệt nhau.
+const VIEW_NAME = 'v_cash_book_transactions';
+const CASH_BOOK_TRANSACTIONS_SELECT = `SELECT c.branch,c.id,c.code,c.trans_date,c.is_receipt,c.amount,
+  c.method,c.status,c.account_id,c.user_id,c.description,c.source_missing_at,
+  CASE WHEN c.method='Cash' THEN 'cash'
+    WHEN c.account_id IS NULL THEN 'unassigned' ELSE c.account_id::text END AS fund_key,
+  a.account_no,a.bank_name AS account_name,a.description AS account_desc,
+  COALESCE(c.raw->>'CashFlowGroupId',c.raw->>'cashFlowGroupId') AS cash_group_id,
+  COALESCE(c.raw->>'CashGroup',c.raw->>'cashGroup') AS cash_group_name,
+  COALESCE(c.raw->>'PartnerId',c.raw->>'partnerId') AS partner_id,
+  COALESCE(c.raw->>'PartnerName',c.raw->>'partnerName') AS partner_name,
+  COALESCE(c.raw->>'ContactNumber',c.raw->>'contactNumber') AS partner_phone,
+  COALESCE(c.raw->>'CreatedBy',c.raw->>'createdBy') AS created_by,
+  COALESCE(c.raw->>'User',c.raw->>'user') AS user_name,
+  COALESCE(c.raw->>'UserId',c.raw->>'userId') AS raw_user_id,
+  COALESCE(c.raw->>'UsedForFinancialReporting',c.raw->>'usedForFinancialReporting') AS used_for_financial_reporting
+FROM cash_flows c LEFT JOIN cash_book_accounts a ON a.id=c.account_id`;
+// Sau khi lùi về subquery, thử lại view sau chừng này ms (để nhận view khi vừa migrate xong).
+const VIEW_RETRY_MS = 5 * 60 * 1000;
+const inlineView = (sql) =>
+  sql.split(VIEW_NAME).join(`(${CASH_BOOK_TRANSACTIONS_SELECT})`);
 // Mọi quỹ đã từng xuất hiện: tiền mặt, danh mục KiotViet và ID lịch sử chỉ còn trong phiếu.
-const fundKeySql = (alias) => `CASE WHEN ${alias}.method='Cash' THEN 'cash'
-  WHEN ${alias}.account_id IS NULL THEN 'unassigned' ELSE ${alias}.account_id::text END`;
 const fundsSql = `SELECT 'cash' fund_key,NULL::bigint account_id
   UNION SELECT id::text,id FROM cash_book_accounts
-  UNION SELECT DISTINCT ${fundKeySql('c')},CASE WHEN c.method='Cash' THEN NULL ELSE c.account_id END FROM cash_flows c WHERE c.source_missing_at IS NULL`;
+  UNION SELECT DISTINCT c.fund_key,CASE WHEN c.method='Cash' THEN NULL ELSE c.account_id END FROM ${VIEW_NAME} c WHERE c.source_missing_at IS NULL`;
 const numeric = (v) => (v == null ? null : Number(v));
 const BRANCH_KEYS = { hanoi: 'balanceHanoi', saigon: 'balanceSaigon' };
 const FUND_GROUPS = ['Anh Quân', 'Chị Nguyệt', 'Anh Duy', 'Công ty', 'Khác'];
@@ -71,6 +94,21 @@ function selectedFunds(funds, fund) {
   return funds.filter((x) => x.accountIds.some((id) => fund.includes(id)));
 }
 function createRepository(pool = getPool()) {
+  let viewRetryAt = 0;
+  // Chạy SQL viết cho view; lùi về subquery khi view chưa tồn tại.
+  async function q(sql, params) {
+    if (Date.now() < viewRetryAt) return pool.query(inlineView(sql), params);
+    try {
+      return await pool.query(sql, params);
+    } catch (e) {
+      if (!e || e.code !== '42P01' || !String(e.message).includes(VIEW_NAME)) throw e;
+      // Các truy vấn chạy song song cùng lỗi: chỉ cảnh báo ở lần đầu.
+      if (Date.now() >= viewRetryAt)
+        console.warn(`[cashbook] thiếu view ${VIEW_NAME} (chưa chạy migration 0070): đọc trực tiếp cash_flows.`);
+      viewRetryAt = Date.now() + VIEW_RETRY_MS;
+      return pool.query(inlineView(sql), params);
+    }
+  }
   async function syncStatus() {
     // A tiny checkpoint query; never scan the voucher ledger for polling.
     const { rows } = await pool.query(`SELECT branch,entity,last_synced_at
@@ -88,7 +126,7 @@ function createRepository(pool = getPool()) {
   }
   async function funds() {
     const rows = (
-      await pool.query(
+      await q(
         `SELECT a.fund_key,a.account_id,b.bank_name,b.account_no,b.description FROM (${fundsSql}) a
         LEFT JOIN cash_book_accounts b ON b.id=a.account_id`,
       )
@@ -105,18 +143,18 @@ function createRepository(pool = getPool()) {
     const w = buildWhere(f);
     const [catalog, sums, totals] = await Promise.all([
       funds(),
-      pool.query(
-        `SELECT ${fundKeySql('c')} fund_key,c.branch,
+      q(
+        `SELECT c.fund_key,c.branch,
           COALESCE(SUM(c.amount),0) closing_balance
-        FROM cash_flows c WHERE c.source_missing_at IS NULL AND c.status IS DISTINCT FROM 1 AND c.trans_date<=$1::timestamptz
-        GROUP BY ${fundKeySql('c')},c.branch`,
+        FROM ${VIEW_NAME} c WHERE c.source_missing_at IS NULL AND c.status IS DISTINCT FROM 1 AND c.trans_date<=$1::timestamptz
+        GROUP BY c.fund_key,c.branch`,
         [f.to],
       ),
-      pool.query(
+      q(
         `SELECT COALESCE(SUM(CASE WHEN c.is_receipt THEN c.amount ELSE 0 END),0) receipts,
           COALESCE(-SUM(CASE WHEN NOT c.is_receipt THEN c.amount ELSE 0 END),0) payments,
           (SELECT MAX(last_synced_at) FROM sync_checkpoints WHERE entity='cash_flows') synced_at
-        FROM cash_flows c WHERE ${w.sql} AND c.status IS DISTINCT FROM 1`,
+        FROM ${VIEW_NAME} c WHERE ${w.sql} AND c.status IS DISTINCT FROM 1`,
         w.params,
       ),
     ]);
@@ -175,7 +213,7 @@ function createRepository(pool = getPool()) {
       SELECT t.branch,t.id,
         SUM(CASE WHEN t.status IS DISTINCT FROM 1 THEN COALESCE(t.amount,0) ELSE 0 END)
           OVER(ORDER BY t.trans_date,t.id,t.branch ROWS UNBOUNDED PRECEDING) running_balance
-      FROM cash_flows t WHERE ${tw.sql} AND t.trans_date<=$${params.length}::timestamptz
+      FROM ${VIEW_NAME} t WHERE ${tw.sql} AND t.trans_date<=$${params.length}::timestamptz
     )`;
     params.push(
       exportLimit || f.pageSize,
@@ -183,13 +221,16 @@ function createRepository(pool = getPool()) {
     );
     const [catalog, count, result] = await Promise.all([
       funds(),
-      pool.query(
-        `SELECT COUNT(*) total FROM cash_flows c WHERE ${w.sql}`,
+      q(
+        `SELECT COUNT(*) total FROM ${VIEW_NAME} c WHERE ${w.sql}`,
         w.params,
       ),
-      pool.query(
+      q(
         `WITH ${timeline}, page AS (
-          SELECT c.* FROM cash_flows c WHERE ${w.sql}
+          SELECT c.branch,c.id,c.code,c.trans_date,c.is_receipt,c.amount,c.status,
+            c.account_id,c.user_id,c.description,c.fund_key,c.cash_group_name,
+            c.partner_name,c.partner_phone,c.created_by,c.user_name
+          FROM ${VIEW_NAME} c WHERE ${w.sql}
           ORDER BY c.trans_date DESC,c.id DESC,c.branch DESC
           LIMIT $${params.length - 1} OFFSET $${params.length}
         )
@@ -197,7 +238,7 @@ function createRepository(pool = getPool()) {
         FROM page c
         LEFT JOIN timeline t ON t.branch=c.branch AND t.id=c.id
         LEFT JOIN staff creator ON creator.branch=c.branch
-          AND creator.id::text=${raw('c', 'CreatedBy', 'createdBy')}
+          AND creator.id::text=c.created_by
         LEFT JOIN staff staff ON staff.branch=c.branch AND staff.id=c.user_id
         ORDER BY c.trans_date DESC,c.id DESC,c.branch DESC`,
         params,
@@ -208,7 +249,7 @@ function createRepository(pool = getPool()) {
     for (const fund of catalog)
       for (const id of fund.accountIds.length ? fund.accountIds : [fund.fund])
         fundById.set(id, fund);
-    const entryFund = (r) => r.method === 'Cash' ? 'cash' : r.account_id == null ? 'unassigned' : String(r.account_id);
+    const entryFund = (r) => r.fund_key;
     const fundLabel = (r) => {
       const accountId = r.account_id;
       const fund = fundById.get(entryFund(r));
@@ -222,16 +263,16 @@ function createRepository(pool = getPool()) {
         code: r.code || '',
         transDate: r.trans_date,
         docType: r.is_receipt ? 'receipt' : 'payment',
-        group: r.raw.CashGroup ?? r.raw.cashGroup ?? '',
-        partnerName: r.raw.PartnerName ?? r.raw.partnerName ?? '',
-        partnerPhone: r.raw.ContactNumber ?? r.raw.contactNumber ?? '',
+        group: r.cash_group_name ?? '',
+        partnerName: r.partner_name ?? '',
+        partnerPhone: r.partner_phone ?? '',
         fund: entryFund(r),
         fundName: fundLabel(r),
         creatorName:
           stripTelegramId(r.creator_name) ||
-          String(r.raw.CreatedBy ?? r.raw.createdBy ?? ''),
+          String(r.created_by ?? ''),
         staffName:
-          stripTelegramId(r.raw.User ?? r.raw.user) ||
+          stripTelegramId(r.user_name) ||
           stripTelegramId(r.staff_name) ||
           String(r.user_id ?? ''),
         amount: numeric(r.amount),
@@ -247,15 +288,15 @@ function createRepository(pool = getPool()) {
   }
   async function filterOptions() {
     const rows = (
-      await pool.query(
-        `SELECT DISTINCT ${raw('c', 'CashFlowGroupId', 'cashFlowGroupId')} group_id,
-          ${raw('c', 'CashGroup', 'cashGroup')} group_name,
-          ${raw('c', 'CreatedBy', 'createdBy')} creator_id,
+      await q(
+        `SELECT DISTINCT c.cash_group_id group_id,
+          c.cash_group_name group_name,
+          c.created_by creator_id,
           creator.name creator_name,c.user_id,
-          COALESCE(NULLIF(btrim(${raw('c', 'User', 'user')}),''),s.name) staff_name
-        FROM cash_flows c
+          COALESCE(NULLIF(btrim(c.user_name),''),s.name) staff_name
+        FROM ${VIEW_NAME} c
         LEFT JOIN staff creator ON creator.branch=c.branch
-          AND creator.id::text=${raw('c', 'CreatedBy', 'createdBy')}
+          AND creator.id::text=c.created_by
         LEFT JOIN staff s ON s.branch=c.branch AND s.id=c.user_id
         WHERE c.source_missing_at IS NULL`,
       )
@@ -300,4 +341,4 @@ function createRepository(pool = getPool()) {
   }
   return { summary, entries, filterOptions, syncStatus };
 }
-module.exports = { createRepository, groupFunds };
+module.exports = { createRepository, groupFunds, CASH_BOOK_TRANSACTIONS_SELECT };

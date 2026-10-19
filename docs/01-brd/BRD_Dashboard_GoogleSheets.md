@@ -9,7 +9,7 @@
 | Tên dự án         | Hệ thống Dashboard nội bộ TOKOSI (KiotViet → Supabase PostgreSQL → Web; Google Sheets bổ trợ) |
 | Phiên bản         | 2.3                                                                 |
 | Ngày tạo          | 27/07/2026                                                          |
-| Ngày cập nhật     | 16/10/2026                                                          |
+| Ngày cập nhật     | 19/10/2026                                                          |
 | Đối tượng sử dụng | Ban lãnh đạo, nhân viên nội bộ công ty                              |
 | Trạng thái        | Nội dung nền rà soát tại HEAD `11751c4` (05/10); bổ sung Sổ quỹ đã kiểm chứng cục bộ 06/10, migration `0033` và deploy production còn chờ. |
 
@@ -57,7 +57,7 @@ Giai đoạn 1 đến hiện tại: Báo cáo tổng hợp (6 tab, gồm Khách 
 - **Phân hệ nghỉ phép:** tự gửi trên web từ hồ sơ HR hoạt động hoặc bot nhân viên ngoài repo; người được cấp quyền duyệt theo phòng ban/cơ sở. Web có lịch nghỉ phép.
 - **Vòng đời đơn hàng:** xem mọi đơn đặt hàng KiotViet cùng trạng thái vòng đời từ Google Sheet (HN, SG và luồng đơn Bắc-Nam của Kiot Hà Nội, tính như đơn Hà Nội); lọc, sắp xếp, phân trang ở máy chủ.
 - **Vị trí hàng:** tra cứu vị trí hàng HN/SG từ workbook Google Sheets dùng chung.
-- **Sổ quỹ:** Quản lý xem số dư tài khoản ngân hàng và Tiền mặt, sổ phiếu thu chi gộp HN/SG, chốt số dư theo sao kê và xuất Excel/HTML. Code đã kiểm chứng cục bộ; cần migration `0033`, đồng bộ danh mục và chốt ban đầu trước khi dùng production.
+- **Sổ quỹ:** Quản lý xem số dư tài khoản ngân hàng và Tiền mặt, sổ phiếu thu chi gộp HN/SG, chốt số dư theo sao kê và xuất Excel/HTML. Code đã kiểm chứng cục bộ; cần migration `0033`, đồng bộ danh mục và chốt ban đầu trước khi dùng production. Từ 19/10/2026 trang đọc sổ phiếu qua view cơ sở dữ liệu để tải nhẹ hơn (không đổi nghiệp vụ).
 - **Tài khoản và phân quyền theo tính năng** theo vai trò, Quản lý ghi đè từng tài khoản; ID Telegram do Quản lý quản lý.
 - Kiến trúc mô-đun, dễ mở rộng theo lộ trình dài hạn.
 
@@ -69,7 +69,7 @@ Giai đoạn 1 đến hiện tại: Báo cáo tổng hợp (6 tab, gồm Khách 
   - **Supabase PostgreSQL:** toàn bộ dữ liệu KiotViet (nhóm hàng, hàng hóa, hóa đơn + chi tiết + thanh toán, đặt hàng, trả hàng, khách hàng, nhập hàng, phiếu đặt hàng nhập, thu chi), bảng tổng hợp (rollup theo ngày, báo cáo hàng hóa, chi tiết hóa đơn 90 ngày, giá trị tồn kho theo ngày, CN1/CN3/CN7, doanh số tháng đã chốt của Báo cáo kinh doanh), Trả NCC upload, tài khoản `app_users`, nhân sự `hr_employees`, nghỉ phép và liên kết Telegram, trạng thái xử lý công nợ, tài liệu quy định công ty.
   - **Google Sheets:** Bảng Công nợ (`DEBT_MANAGEMENT_SPREADSHEET_ID`, chỉ đọc); Vòng đời đơn hàng (`ORDER_LIFECYCLE_SPREADSHEET_ID`, đọc `DonHang_HN`/`DonHang_SG`, ghi tab `Lịch sử cập nhật`); Vị trí hàng (`STOCK_LOCATIONS_SPREADSHEET_ID`, chỉ đọc); Báo cáo Marketing (ba workbook `MARKETING_*_SPREADSHEET_ID`, chỉ đọc).
 - **Báo cáo tổng hợp (6 tab):** Tổng quan (Xu hướng, Kiểm tra đứt hàng), Hàng hóa (Báo cáo hàng hóa, Tăng trưởng mã hàng), Hóa đơn (Chi tiết giao dịch), Khách hàng (Báo cáo doanh thu theo khách, Chỉ số tổng quát, Tăng trưởng Sale, Tăng trưởng Khách hàng; trước đây là tab Báo cáo kinh doanh), Quản lý công nợ, Báo cáo Marketing (BC tháng, Check tỷ lệ nhận số, Sao lưu SĐT, Chi phí).
-- **Báo cáo kinh doanh:** thay báo cáo tăng trưởng làm tay trên Google Sheets. Doanh số tháng = hóa đơn hoàn thành trừ hàng khách trả, gộp HN + SG, từ T3/2026; sale = nhóm khách hàng trên KiotViet (khách chưa có nhóm gộp vào "Chưa phân nhóm"); tháng đang chạy quy đổi về 30 ngày để so tăng trưởng với tháng trước, kèm trung bình 4 tháng; các tháng đã qua được chốt cứng mỗi ngày mùng 1, Quản lý có thể tính lại và đổi team của từng sale bằng dropdown ngay trên bảng Tăng trưởng Sale.
+- **Báo cáo kinh doanh:** thay báo cáo tăng trưởng làm tay trên Google Sheets. Doanh số tháng = hóa đơn hoàn thành trừ hàng khách trả, gộp HN + SG, từ T3/2026; sale = nhóm khách hàng trên KiotViet (khách chưa có nhóm gộp vào "Chưa phân nhóm"); tháng đang chạy quy đổi về 30 ngày để so tăng trưởng với tháng trước, kèm trung bình 4 tháng; các tháng đã qua được chốt cứng mỗi ngày mùng 1, Quản lý có thể tính lại và đổi team của từng sale bằng dropdown ngay trên bảng Tăng trưởng Sale. Từ 19/10/2026 doanh số tháng đang chạy được tính sẵn bằng job nền sau mỗi lượt đồng bộ KiotViet (tối đa 10 phút/lần), nên số liệu trễ khoảng 7–14 phút so với KiotViet; dữ liệu quá 30 phút thì báo cáo tính trực tiếp như trước. Không đổi quy tắc tính.
 - **Màn hình Quản lý công nợ:** kết hợp Bảng Công nợ, đối chiếu CN1/CN3/CN7 và trạng thái xử lý lưu trong PostgreSQL.
 - **Vòng đời đơn hàng, Vị trí hàng, Sổ quỹ (5 nhóm số dư), Quản lý nhân sự (Quy định công ty kèm Phúc lợi, Danh sách nhân sự theo trạng thái làm việc, Nghỉ phép theo lịch làm việc/hạn nộp và đơn cho tài khoản nội bộ), Quản lý tài khoản (Lịch sử chỉnh sửa tài khoản).**
 - **Cập nhật dữ liệu dashboard** bằng nút "Làm mới", SSE `dashboard-updated` và tải bù khi quay lại tab trình duyệt.
@@ -129,7 +129,7 @@ Chỉ hàng **Đang kinh doanh** được tính; không còn KPI nhà cung cấp
 ## 5.3. Biểu đồ & bảng dữ liệu chi tiết
 
 - **Tổng quan:** biểu đồ doanh thu thực tế theo ngày; biểu đồ cột chồng **Giá trị tồn kho theo ngày** (HN + SG, bản chụp 23:59 mỗi ngày); **Kiểm tra đứt hàng** (nhập Trả NCC, hàng đứt gần đây, kiểm tra 30/90 ngày).
-- **Hàng hóa:** Báo cáo hàng hóa gộp hai cơ sở (19 cột theo file HÀNG HÓA.xlsx: tồn thực, có bán và mô tả giá từng cơ sở, tổng, số ngày cần đặt; bấm dòng xem Hàng dự kiến rồi doanh số 90 ngày từng khách) và Tăng trưởng mã hàng theo tháng. Các mục cũ (Cơ cấu tồn kho, Sản phẩm bán chạy, Tất cả mã hàng, Hàng mới nhập, Mã mới tạo) đã gỡ ngày 16/10/2026.
+- **Hàng hóa:** Báo cáo hàng hóa gộp hai cơ sở (34 cột theo thứ tự sheet BC CHUNG từ 19/10/2026: tồn thực, có bán, SL bán 30 ngày, số ngày đứt hàng, số ngày bán hết, số đơn 30/90 ngày và tăng trưởng, giá trị có bán và đơn giá từng cơ sở, tổng, số ngày cần đặt, mô tả; cột mới ẩn mặc định, bật bằng "Cột hiển thị"; giá trị có bán và đơn giá chỉ Quản lý/Trợ lý thấy và xuất được; bấm dòng xem Hàng dự kiến rồi doanh số 90 ngày từng khách) và Tăng trưởng mã hàng theo tháng. Các mục cũ (Cơ cấu tồn kho, Sản phẩm bán chạy, Tất cả mã hàng, Hàng mới nhập, Mã mới tạo) đã gỡ ngày 16/10/2026.
 - **Hóa đơn:** bảng Chi tiết giao dịch; bấm một dòng để xem chi tiết hóa đơn (dòng hàng, tổng tiền, thanh toán).
 - **Khách hàng:** báo cáo tăng trưởng Sale / Khách hàng / Mã hàng theo tháng (tab Báo cáo kinh doanh cũ). Bảng Top khách theo doanh thu và Chi tiết khách nợ của tab Khách hàng cũ đã gỡ (16/10/2026); công nợ theo khách xem ở tab Công nợ.
 - **Công thức Tồn có thể bán** = Tồn thực tế − Đặt hàng Phiếu tạm của khách (không kẹp về 0; không cộng hàng đang vận chuyển).
@@ -199,6 +199,8 @@ Chỉ hàng **Đang kinh doanh** được tính; không còn KPI nhà cung cấp
 Tab cấp 2 `/reports/#marketing` giúp Quản lý, Trợ lý và Nhân viên Marketing đọc BC tháng, Check tỷ lệ nhận số, Sao lưu SĐT và Báo cáo chi phí từ ba workbook Google Sheets. Bộ lọc mỗi phần độc lập; ba báo cáo tháng mặc định tháng hiện tại theo giờ Việt Nam, SĐT mặc định toàn bộ các tab CHUẨN. Bấm dòng tổng quan mở khung chi tiết giữa màn hình để tra cứu theo cùng phạm vi và đối chiếu số tổng nguồn với các dòng tìm thấy.
 
 Dữ liệu chỉ đọc, giữ kết quả công thức, không gộp trùng SĐT giữa page, không cộng dòng tổng tháng chi phí với dòng ngày. Tự làm mới mỗi 5 phút khi đang xem; lỗi nguồn giữ dữ liệu cũ và thời điểm cũ. Tuân thủ Design System và giao diện các tab báo cáo hiện có. Không sửa Sheets, xuất file, dựng lịch sử từ THÔ hoặc truy vấn KiotViet. Nghiệm thu đủ nguồn cần Viewer cho service account trên cả ba workbook, gồm workbook SĐT. Xem [cấu hình và nghiệm thu](../marketing-report-setup.md); chưa xác nhận triển khai production.
+
+Từ 19/10/2026 (không đổi nghiệp vụ, chỉ đổi độ tươi/hiệu năng): chi phí ADS được chép từ Google Sheets vào Postgres mỗi 30 phút nên khi bảng đã có dữ liệu, báo cáo Chi phí không còn gọi Google Sheets lúc mở trang (số có thể chậm tới ~30 phút so với sheet; bảng chưa có hoặc quá 3 giờ thì đọc Sheets như cũ); doanh số KiotViet theo tên khách và tổng hợp SĐT Pancake được tính sẵn trong cơ sở dữ liệu, thiếu thì tự dùng cách tính cũ.
 
 ## 5.12. Quản lý nhân sự
 
@@ -311,9 +313,11 @@ Bổ sung 17/10/2026: tab Công nợ có thêm bảng **Tuổi nợ theo hóa đ
 
 2026-10-17 (bổ sung) — Tab Công nợ, mục 3 Tuổi nợ: **Ngày nợ tương đương = hôm nay − ngày hết nợ + 1** (tính cả ngày hết nợ; hết nợ hôm nay = 1 ngày, khách vượt khoảng tra cứu 30 ngày hiện ≥ 30), **Còn hạn** vẫn = Lịch TT − Ngày nợ tương đương. Cột Còn hạn tô màu theo dấu: âm đỏ, 0 vàng, dương xanh lá — áp dụng cả trên bảng web, hộp chi tiết hóa đơn, file Excel (màu chữ) và file HTML (cột đánh dấu `signTone`); cột số căn phải (table-align.js nhận diện cả ≥/≤). Độ rộng cột mặc định của bảng được đặt lại. Không migration; bảng tính sẵn `0059` tự cập nhật ở lượt `debtAgingRefresh` kế tiếp.
 
-17/10/2026 — Báo cáo hàng hóa thêm hai cột **Đơn giá HN / Đơn giá SG** sau Tên sản phẩm (giá bán chung KiotViet từng cơ sở, migration `0061`), mặc định ẩn, chỉ Quản lý và Trợ lý (quyền `reports.products.price`) được thấy; API không trả giá cho tài khoản khác.
+17/10/2026 — Báo cáo hàng hóa thêm hai cột **Đơn giá HN / Đơn giá SG** sau Tên sản phẩm (giá bán chung KiotViet từng cơ sở, migration `0063`), mặc định hiện cho Quản lý/Trợ lý (19/10/2026) và có trong file Excel/HTML xuất, chỉ Quản lý và Trợ lý (quyền `reports.products.price`) được thấy; API không trả giá cho tài khoản khác.
 
-Cập nhật gần nhất: 17/10/2026.
+19/10/2026 — Báo cáo hàng hóa thay phần ghép tay của sheet **BC CHUNG** (VLOOKUP từ ONRENDER + gõ tay SL 30 ngày HN/SG, Đứt HN/SG, SL đơn 90/30 ngày, giá vốn): bảng web và file Excel/HTML nay có đủ 34 cột cùng thứ tự BC CHUNG, dữ liệu tính sẵn trong DB và cập nhật cận thời gian thực. Cột mới: Giá trị có bán HN/SG (Có bán × Đơn giá cùng cơ sở), SL bán 30 ngày HN/SG, Đứt HN/SG (tổng số ngày đứt hàng 30 ngày gần nhất, cập nhật sau mỗi lần chạy "Quét đứt hàng 30 ngày"; chưa quét = 0, không có lịch tự chạy), Ngày SG + ĐC / Ngày HN / Ngày 2 miền (số ngày bán hết), SL đơn 90/30 ngày và Tăng trưởng (= SL đơn 30 ngày × 3 ÷ SL đơn 90 ngày − 1), cùng DS khách lớn nhất. Đơn giá (chính là "giá vốn" của BC CHUNG) dời xuống cuối bảng; Giá trị có bán và Đơn giá chỉ Quản lý/Trợ lý (`reports.products.price`). Migration `0067` phải áp trước khi deploy; nhắc người dùng chạy "Quét đứt hàng 30 ngày" cơ sở "Cả hai" lần đầu.
+
+Cập nhật gần nhất: 19/10/2026.
 
 Điều chỉnh 15/10/2026: trong tháng hiển thị điểm/hạng, thưởng tạm tính và tổng phạt từ các ngày ĐÃ CHỐT, không cộng chu kỳ đang mở. Lúc 14:59 giờ Việt Nam lưu bản cuối của chu kỳ 15:00 hôm trước–14:59 hôm sau, mỗi chu kỳ đúng một lần và không ghi đè; 15:00 mới reset. Nhiều lần Tính lại trong chu kỳ chỉ cập nhật bản đang mở, không cộng thành nhiều ngày. Tiền thưởng hiện mỗi ngày với nhãn Thưởng tạm tính, thay đổi theo điểm và tổng phạt đã chốt ngày; chỉ chốt/lưu thưởng chính thức một lần khi kết thúc tháng. Web, hộp chi tiết và file xuất đều phân biệt tạm tính/đã chốt.
 
@@ -344,3 +348,8 @@ Phương án B đã duyệt: tập SĐT/KPI Pancake riêng trong PostgreSQL, ng�
 - **Thành công**: dán mã HD/DH → ra đúng bảng phân bổ và QR như app cũ (đã đối chiếu khớp 100%), có ghi chú tổng, không mở KiotViet xuất file.
 - **Ngoài phạm vi**: chuyển Gộp VAT/Khớp mã vào DB, 2 trang quản trị của app cũ, xuất template hóa đơn điện tử, tra MST, đổi thuật toán; tắt vat-draft-app làm sau khi nghiệm thu.
 - **Điều chỉnh 17/10/2026 (chiều)**: bỏ chức năng Tra cứu nguồn (không còn dùng). Tạo QR hiện mã QR to ở cột phải cho dễ quét. Nhân viên sale được dùng riêng Tạo QR (tạo QR thu tiền cho khách) mà không thấy Xử lý hóa đơn.
+- **Điều chỉnh 19/10/2026**: hóa đơn kế toán nhận thường là ảnh chụp/screenshot hoặc PDF scan nên đọc lớp text PDF không dùng được. Tạo QR chuyển sang cho AI (xKiro, model Qwen vision miễn phí) đọc ảnh/PDF: lấy tên công ty bán hàng và Tổng cộng tiền thanh toán, tự chọn tài khoản công ty và tạo QR; người dùng chỉ kiểm tra lại số tiền. Ảnh hóa đơn (gồm thông tin người mua) đi qua dịch vụ bên thứ ba xKiro — đã được chấp thuận.
+
+19/10/2026 — Tính sẵn báo cáo (migration `0068`–`0070`): doanh số tháng hiện tại Báo cáo kinh doanh, chi phí ADS/doanh số theo tên/tổng hợp SĐT của Báo cáo Marketing, view đọc Sổ quỹ. Chỉ đổi độ tươi dữ liệu và hiệu năng, không đổi quy tắc nghiệp vụ.
+
+Cập nhật gần nhất: 19/10/2026.

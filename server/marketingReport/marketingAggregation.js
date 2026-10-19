@@ -122,4 +122,27 @@ function aggregateIndependentPhones(rawRows, aliases = []) {
   });
 }
 
-module.exports = { aggregatePhones, aggregateIndependentPhones, vietnamDate, countPhoneKpis, countMonthlyClosures, isPhoneReportObservation };
+// Dựng lại đúng dạng kết quả của aggregateIndependentPhones() từ dòng bảng marketing_phone_summary (trường THÔ đã gộp
+// sẵn bởi marketingSummaryRefresh.js) + bảng ánh xạ nhân viên đọc lúc xem. Cùng khóa nhóm, cùng cờ unresolved/ánh xạ
+// để báo cáo từ bảng == báo cáo gộp JS (test đối chiếu ở pancakeSummary.test.js).
+function phonesFromSummary(rows, aliases = []) {
+  const mapping = new Map(aliases.map(a => [a.rawName, a.reportEmployee]));
+  const mapped = employee => mapping.get(employee) ?? null;
+  return rows.map(row => ({
+    key: JSON.stringify([row.pageId, row.phoneKey]), pageId: row.pageId, phone: row.phone, phoneKey: row.phoneKey,
+    firstEmployee: row.firstEmployee, currentEmployee: row.currentEmployee, repeatEmployee: row.repeatEmployee,
+    firstAt: row.firstAt, currentAt: row.currentAt, repeatAt: row.repeatAt,
+    mappedFirstEmployee: mapped(row.firstEmployee), mappedCurrentEmployee: mapped(row.currentEmployee),
+    mappedRepeatEmployee: row.repeatEmployee ? mapped(row.repeatEmployee) : null,
+    trace: row.trace,
+    unresolved: {
+      firstEmployee: !row.firstEmployee, currentEmployee: !row.currentEmployee,
+      firstAlias: Boolean(row.firstEmployee) && !mapping.has(row.firstEmployee),
+      currentAlias: Boolean(row.currentEmployee) && !mapping.has(row.currentEmployee),
+      firstDate: !row.firstAt, currentDate: !row.currentAt
+    },
+    assignmentSource: 'Pancake current_assign_users + nhật ký quan sát; không tái dựng nhân viên lịch sử'
+  }));
+}
+
+module.exports = { aggregatePhones, aggregateIndependentPhones, phonesFromSummary, vietnamDate, countPhoneKpis, countMonthlyClosures, isPhoneReportObservation };

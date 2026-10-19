@@ -147,6 +147,55 @@ test('GET /api/products/stockout-90d/:jobId/result: job xong tra 200 + result', 
 
 const stockout30dScanService = require('./stockout30dScanService');
 
+/** Chay handler POST quet va tra ve deps ma service nhan duoc (jobStore, jobId, deps). */
+async function captureScanDeps(service, fnName, routePath, req) {
+  const original = service[fnName];
+  let captured = null;
+  service[fnName] = async (_store, _jobId, deps) => { captured = deps; };
+  try {
+    const res = fakeRes();
+    await getRouteHandler('post', routePath)(req, res);
+    assert.equal(res.statusCode, 202);
+    await new Promise((resolve) => setImmediate(resolve));
+    return captured;
+  } finally {
+    service[fnName] = original;
+  }
+}
+
+test('quet 30 ngay inject hook persistStockoutDays (mot co so), quet 90 ngay / gan day thi khong', async () => {
+  const deps30 = await captureScanDeps(stockout30dScanService, 'runStockout30dScanJob', '/api/products/stockout-30d/scan', { branch: 'Sài Gòn' });
+  assert.equal(typeof deps30.persistStockoutDays, 'function');
+  assert.equal(deps30.branch, 'Sài Gòn');
+
+  const deps90 = await captureScanDeps(stockout90dScanService, 'runStockout90dScanJob', '/api/products/stockout-90d/scan', { branch: 'Sài Gòn' });
+  assert.equal(deps90.persistStockoutDays, undefined);
+
+  const depsRecent = await captureScanDeps(recentStockoutScanService, 'runRecentStockoutScanJob', '/api/products/stockout-recent/scan', { branch: 'Sài Gòn' });
+  assert.equal(depsRecent.persistStockoutDays, undefined);
+});
+
+test('quet 30 ngay o "Cả hai": moi co so vat ly deu co hook (chay qua job con)', async () => {
+  const seen = [];
+  const original = stockout30dScanService.runStockout30dScanJob;
+  stockout30dScanService.runStockout30dScanJob = async (store, jobId, deps) => {
+    seen.push({ branch: deps.branch, hook: typeof deps.persistStockoutDays });
+    store.setResult(jobId, { asOfDate: '2026-01-10', totalProductsScanned: 0, totalCandidates: 0, sources: {}, warnings: [], rows: [] });
+  };
+  try {
+    const res = fakeRes();
+    await getRouteHandler('post', '/api/products/stockout-30d/scan')({ branch: 'Cả hai' }, res);
+    assert.equal(res.statusCode, 202);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.deepEqual(seen, [
+      { branch: 'Hà Nội', hook: 'function' },
+      { branch: 'Sài Gòn', hook: 'function' }
+    ]);
+  } finally {
+    stockout30dScanService.runStockout30dScanJob = original;
+  }
+});
+
 test('POST /api/products/stockout-30d/scan: tao job va tra 202 + jobId', async () => {
   const original = stockout30dScanService.runStockout30dScanJob;
   let called = false;

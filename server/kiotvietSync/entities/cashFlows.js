@@ -1,6 +1,5 @@
 'use strict';
-const { value, createSimpleEntity } = require('./entityUtils');
-const { isDeepStrictEqual } = require('node:util');
+const { value, createSimpleEntity, rawHash } = require('./entityUtils');
 // Public API returns Vietnamese wall time without a zone. PostgreSQL must not
 // interpret it using the server/session timezone. Preserve explicit offsets.
 function localDate(value) {
@@ -9,6 +8,8 @@ function localDate(value) {
 }
 const { upsertStaffFromEntity } = require('../staffSync');
 const columns = ['branch','id','code','is_receipt','amount','method','customer_id','supplier_id','user_id','description','trans_date','created_date','account_id','status','raw'];
+// raw_hash (migration 0066) ghi kem raw de reconcilePage doi soat khong phai tai lai raw.
+const insertColumns = [...columns,'raw_hash'];
 const updateColumns = columns.filter(key=>!['branch','id','raw'].includes(key));
 const mapItem = x=>[value(x,'Id','id'),value(x,'Code','code'),value(x,'IsReceipt','isReceipt'),value(x,'Amount','amount'),value(x,'Method','method'),value(x,'CustomerId','customerId'),value(x,'SupplierId','supplierId'),value(x,'UserId','userId'),value(x,'Description','description'),localDate(value(x,'TransDate','transDate')),localDate(value(x,'CreatedDate','createdDate')),value(x,'AccountId','accountId'),value(x,'Status','status')];
 const base=createSimpleEntity({entity:'cash_flows',endpoint:'cashflow',listQuery:{includeAccount:'true',includeBranch:'true',includeUser:'true',orderBy:'Id',orderDirection:'ASC'},columns,updateColumns,map:mapItem});
@@ -17,10 +18,10 @@ module.exports={...base,minIntervalMs:60000,reconcileIntervalMs:24*60*60*1000,re
   // Batch writes to avoid one database round trip for each historical voucher.
   for (let offset=0;offset<items.length;offset+=100) {
     const batch=items.slice(offset,offset+100);
-    const params=batch.flatMap(item=>[branch,...mapItem(item),item]);
-    const values=batch.map((_,row)=>'('+columns.map((_,col)=>'$'+(row*columns.length+col+1)).join(',')+')').join(',');
-    await pgClient.query(`INSERT INTO cash_flows (${columns.join(',')}) VALUES ${values}
-      ON CONFLICT (branch,id) DO UPDATE SET ${updateColumns.map(key=>`${key}=EXCLUDED.${key}`).join(',')},raw=EXCLUDED.raw,source_missing_at=NULL,synced_at=now()`,params);
+    const params=batch.flatMap(item=>[branch,...mapItem(item),item,rawHash(item)]);
+    const values=batch.map((_,row)=>'('+insertColumns.map((_,col)=>'$'+(row*insertColumns.length+col+1)).join(',')+')').join(',');
+    await pgClient.query(`INSERT INTO cash_flows (${insertColumns.join(',')}) VALUES ${values}
+      ON CONFLICT (branch,id) DO UPDATE SET ${updateColumns.map(key=>`${key}=EXCLUDED.${key}`).join(',')},raw=EXCLUDED.raw,raw_hash=EXCLUDED.raw_hash,source_missing_at=NULL,synced_at=now()`,params);
   }
   // Thu tu id tang dan - tranh deadlock voi cac entity khac (invoices/orders/
   // returns/purchases) cung ghi dong thoi vao bang "staff" dung chung. Xem
@@ -38,16 +39,17 @@ module.exports={...base,minIntervalMs:60000,reconcileIntervalMs:24*60*60*1000,re
 
 // Repair old projections as well as changed API payloads. Older server builds
 // continued writing rows without account/status and with UTC-interpreted dates.
+// 2026-10-19: so khop bang raw_hash thay vi tai lai raw (~700 B/dong x moi nhip 60s).
 module.exports.reconcilePage = async function reconcilePage(client, branch, items) {
   if (!items.length) return;
   const result = await client.query(
-    'SELECT id,raw,account_id,status,trans_date,source_missing_at FROM cash_flows WHERE branch=$1 AND id=ANY($2::bigint[])',
+    'SELECT id,raw_hash,account_id,status,trans_date,source_missing_at FROM cash_flows WHERE branch=$1 AND id=ANY($2::bigint[])',
     [branch, items.map(x=>value(x,'Id','id'))]
   );
   const existing = new Map(result.rows.map(r=>[String(r.id),r]));
   const changed = items.filter(item=>{
     const row=existing.get(String(value(item,'Id','id')));
-    return !row || row.source_missing_at != null || !isDeepStrictEqual(row.raw,item)
+    return !row || row.source_missing_at != null || row.raw_hash !== rawHash(item)
       || String(row.account_id ?? '') !== String(value(item,'AccountId','accountId') ?? '')
       || row.status !== value(item,'Status','status')
       || +new Date(row.trans_date) !== +new Date(localDate(value(item,'TransDate','transDate')));

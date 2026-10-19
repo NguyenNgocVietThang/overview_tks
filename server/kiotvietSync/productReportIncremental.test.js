@@ -56,6 +56,19 @@ test('decideHeavy: chua co moc / sang ngay moi / co chung tu moi => nang; con la
     assert.deepEqual(decideHeavy({ last_full_at: FULL_TODAY }, { ...quiet, [key]: true }, NOW), { heavy: true, reason: 'co-chung-tu-moi' });
   }
   assert.deepEqual(decideHeavy({ last_full_at: FULL_TODAY }, quiet, NOW), { heavy: false, reason: 'khong-doi' });
+  // Con dong orders_90d NULL (vua ap migration 0067 / ma moi do luot nhe them) => nang du khong co chung tu moi.
+  assert.deepEqual(decideHeavy({ last_full_at: FULL_TODAY }, { ...quiet, orders_missing: true }, NOW), { heavy: true, reason: 'thieu-so-don' });
+  assert.deepEqual(decideHeavy({ last_full_at: FULL_TODAY }, { ...quiet, orders_missing: false }, NOW), { heavy: false, reason: 'khong-doi' });
+  assert.match(__sql__.GATE_SQL, /EXISTS \(SELECT 1 FROM product_report WHERE orders_90d IS NULL\) AS orders_missing/);
+});
+
+test('luot NHE (khong co chung tu moi) tu chuyen thanh NANG khi con dong chua co SL don', async () => {
+  const client = fakeClient();
+  const gate = { invoices_changed: false, returns_changed: false, customers_changed: false, orders_missing: true };
+  const result = await refreshProductReportIncremental(fakePool(client, { state: STATE_TODAY, gate }), { enabled: true, now: () => NOW, log: () => {} });
+  assert.equal(result.mode, 'heavy');
+  assert.equal(result.reason, 'thieu-so-don');
+  assert.ok(client.calls.some(c => c.sql === __sql__.fillCustomers));
 });
 
 test('luot NANG: nap khach vao bang tam, ghi khac biet ca 2 bang, danh dau last_full_at, 1 giao dich', async () => {
@@ -177,6 +190,7 @@ async function diffFixture() {
   await db.exec(fs.readFileSync(path.join(migrations, '0023_product_report_customers.sql'), 'utf8'));
   await db.exec(fs.readFileSync(path.join(migrations, '0057_product_report_branch_columns.sql'), 'utf8'));
   await db.exec(fs.readFileSync(path.join(migrations, '0063_product_report_price_columns.sql'), 'utf8'));
+  await db.exec(fs.readFileSync(path.join(migrations, '0067_product_report_bc_chung.sql'), 'utf8'));
   // Chi cau CREATE TABLE cua 0055 (cac index cua no can bang hoa don/khach cua DB that).
   const m55 = fs.readFileSync(path.join(migrations, '0055_product_report_state.sql'), 'utf8');
   await db.exec(m55.slice(m55.indexOf('CREATE TABLE'), m55.indexOf(');', m55.indexOf('CREATE TABLE')) + 2));
@@ -188,6 +202,7 @@ const ROW = (code, over = {}) => ({
   revenue_90d: 900000, customer_count_90d: 2, top_customer_revenue_90d: 500000, top_customer_name: 'KH A', top_customer_share: 0.5555555555,
   available_hanoi: 10, available_saigon: 5, description_hanoi: 'T50 # 30/9 | HN', description_saigon: 'T50 # 16/10 | SG',
   price_hanoi: 12000, price_saigon: 12500,
+  qty_sold_30d_hanoi: 2, qty_sold_30d_saigon: 1, orders_30d: 4, orders_90d: 9,
   ...over
 });
 async function stage(db, rows) {
@@ -195,11 +210,13 @@ async function stage(db, rows) {
   for (const r of rows) {
     await db.query(`INSERT INTO pr_new (product_code, product_name, stock_hanoi, stock_saigon, available_to_sell, qty_sold_30d, revenue_90d,
       customer_count_90d, top_customer_revenue_90d, top_customer_name, top_customer_share,
-      available_hanoi, available_saigon, description_hanoi, description_saigon, price_hanoi, price_saigon, computed_at)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17, now())`,
+      available_hanoi, available_saigon, description_hanoi, description_saigon, price_hanoi, price_saigon,
+      qty_sold_30d_hanoi, qty_sold_30d_saigon, orders_30d, orders_90d, computed_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21, now())`,
     [r.product_code, r.product_name, r.stock_hanoi, r.stock_saigon, r.available_to_sell, r.qty_sold_30d, r.revenue_90d,
       r.customer_count_90d, r.top_customer_revenue_90d, r.top_customer_name, r.top_customer_share,
-      r.available_hanoi, r.available_saigon, r.description_hanoi, r.description_saigon, r.price_hanoi, r.price_saigon]);
+      r.available_hanoi, r.available_saigon, r.description_hanoi, r.description_saigon, r.price_hanoi, r.price_saigon,
+      r.qty_sold_30d_hanoi, r.qty_sold_30d_saigon, r.orders_30d, r.orders_90d]);
   }
 }
 async function applyProducts(db) {
@@ -277,8 +294,8 @@ test('SQL that (PGlite): luot nhe ghi DUNG VI TRI 4 cot theo co so; co ban HN + 
       CREATE TABLE order_details (branch text, order_id bigint, product_id bigint, quantity numeric, raw jsonb);
       CREATE TABLE daily_product_sales (branch text, product_id bigint, sale_date date, qty numeric, revenue numeric);
       INSERT INTO products VALUES
-        ('hanoi', 1, 'A', 'Sp A', true, '{"description":"T50 # HN","inventories":[{"onHand":7}]}', 12000),
-        ('saigon', 1, 'A', 'Sp A', true, '{"description":"T50 # SG","inventories":[{"onHand":3.25}]}', 12500),
+        ('hanoi', 1, 'A', 'Sp A', true, '{"description":"T50 # HN","inventories":[{"onHand":7,"cost":12000}]}', 99999),
+        ('saigon', 1, 'A', 'Sp A', true, '{"description":"T50 # SG","inventories":[{"onHand":3.25,"cost":12500}]}', 99999),
         ('hanoi', 2, 'B', 'Sp B', true, '{"inventories":[{"onHand":4}]}', NULL),
         ('hanoi', 3, 'C', 'Sp C', false, '{"inventories":[{"onHand":9}]}', 100);
       INSERT INTO orders VALUES ('hanoi', 10, '{"statusValue":"Phiếu tạm"}'), ('saigon', 20, '{"statusValue":"Phiếu tạm"}');
@@ -298,6 +315,123 @@ test('SQL that (PGlite): luot nhe ghi DUNG VI TRI 4 cot theo co so; co ban HN + 
     await db.exec('DELETE FROM pr_new');
     await db.query(__sql__.fillProductsLight, [['hanoi', 'saigon']]);
     assert.deepEqual(await applyProducts(db), { deleted: 0, updated: 0, inserted: 0 });
+  } finally { await db.close(); }
+});
+
+test('ghi khac biet: 4 cot BC CHUNG (SL 30 theo co so, SL don) - NULL sau migration 0067 duoc ghi bu, doi thi cap nhat dung dong do', async () => {
+  const db = await diffFixture();
+  try {
+    const NOT_RECOMPUTED = { qty_sold_30d_hanoi: null, qty_sold_30d_saigon: null, orders_30d: null, orders_90d: null };
+    await stage(db, [ROW('A', NOT_RECOMPUTED), ROW('B', NOT_RECOMPUTED)]);
+    assert.deepEqual(await applyProducts(db), { deleted: 0, updated: 0, inserted: 2 });
+    await stage(db, [ROW('A'), ROW('B')]);
+    assert.deepEqual(await applyProducts(db), { deleted: 0, updated: 2, inserted: 0 });
+    await stage(db, [ROW('A'), ROW('B')]);
+    assert.deepEqual(await applyProducts(db), { deleted: 0, updated: 0, inserted: 0 });
+    await stage(db, [ROW('A', { qty_sold_30d_saigon: 5 }), ROW('B', { orders_90d: 10 })]);
+    assert.deepEqual(await applyProducts(db), { deleted: 0, updated: 2, inserted: 0 });
+    const a = (await db.query(`SELECT qty_sold_30d_hanoi::float8 AS qh, qty_sold_30d_saigon::float8 AS qs, orders_30d::float8 AS o30, orders_90d::float8 AS o90
+      FROM product_report WHERE product_code = 'A'`)).rows[0];
+    assert.deepEqual(a, { qh: 2, qs: 5, o30: 4, o90: 9 });
+  } finally { await db.close(); }
+});
+
+// Schema + du lieu toi thieu (xem bcChungFixture trong productReportRefresh.test.js): ma A co id khac nhau o hai co so.
+async function seedBcChung(db) {
+  const day = (n) => `(((now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date - ${n})::timestamp AT TIME ZONE 'UTC' + interval '2 hours')`;
+  const dayDate = (n) => `((now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date - ${n})`;
+  await db.exec(`
+    CREATE TABLE products (branch text, id bigint, code text, name text, is_active boolean, raw jsonb, base_price numeric);
+    CREATE TABLE orders (branch text, id bigint, raw jsonb);
+    CREATE TABLE order_details (branch text, order_id bigint, product_id bigint, quantity numeric, raw jsonb);
+    CREATE TABLE daily_product_sales (branch text, product_id bigint, sale_date date, qty numeric, revenue numeric);
+    CREATE TABLE customers (branch text, id bigint, code text, name text, raw jsonb);
+    CREATE TABLE invoices (branch text, id bigint, customer_id bigint, purchase_date timestamptz, raw jsonb);
+    CREATE TABLE invoice_details (branch text, invoice_id bigint, product_id bigint, quantity numeric, price numeric, discount numeric, raw jsonb);
+    CREATE TABLE returns (branch text, id bigint, customer_id bigint, return_date timestamptz, raw jsonb);
+    CREATE TABLE return_details (branch text, return_id bigint, product_id bigint, quantity numeric, price numeric, raw jsonb);
+    INSERT INTO products VALUES
+      ('hanoi', 1, 'A', 'Sp A', true, '{}', 1000), ('saigon', 11, 'A', 'Sp A', true, '{}', 1100),
+      ('hanoi', 2, 'B', 'Sp B', true, '{}', 500);
+    INSERT INTO customers VALUES
+      ('hanoi', 1, 'C1', 'KH 1', '{}'), ('hanoi', 2, 'C2', 'KH ngung', '{"isActive":false}'), ('saigon', 1, 'C1', 'KH 1', '{}');
+    INSERT INTO daily_product_sales VALUES
+      ('hanoi', 1, ${dayDate(3)}, 5, 50), ('hanoi', 1, ${dayDate(45)}, 9, 90), ('saigon', 11, ${dayDate(10)}, 2, 20),
+      ('hanoi', 1, ${dayDate(0)}, 4, 40);
+    INSERT INTO invoices VALUES
+      ('hanoi', 100, 1, ${day(5)}, '{"statusValue":"Hoàn thành"}'),
+      ('saigon', 100, 1, ${day(15)}, '{"statusValue":"Hoàn thành"}'),
+      ('hanoi', 101, 1, ${day(10)}, '{"statusValue":"Đã hủy"}'),
+      ('hanoi', 102, 2, ${day(20)}, '{"statusValue":"Hoàn thành"}'),
+      ('saigon', 200, 1, ${day(40)}, '{"statusValue":"Hoàn thành"}'),
+      ('hanoi', 103, 1, ${day(100)}, '{"statusValue":"Hoàn thành"}'),
+      ('hanoi', 104, 1, ${day(0)}, '{"statusValue":"Hoàn thành"}');
+    INSERT INTO invoice_details VALUES
+      ('hanoi', 100, 1, 2, 1000, 0, '{}'), ('hanoi', 100, 1, 1, 1000, 0, '{}'),
+      ('saigon', 100, 11, 1, 1100, 0, '{}'),
+      ('hanoi', 101, 1, 4, 1000, 0, '{}'),
+      ('hanoi', 102, 1, 1, 1000, 0, '{}'),
+      ('saigon', 200, 11, 3, 1100, 0, '{}'),
+      ('hanoi', 103, 1, 1, 1000, 0, '{}'),
+      ('hanoi', 104, 1, 1, 1000, 0, '{}');
+    INSERT INTO returns VALUES ('hanoi', 300, 1, ${day(3)}, '{"statusValue":"Đã trả"}');
+    INSERT INTO return_details VALUES ('hanoi', 300, 1, 1, 1000, '{}');`);
+}
+
+test('SQL that (PGlite): luot NANG ghi SL ban 30 ngay theo co so (gom hom nay) + SL don theo ma hang, nap qua bang tam pr_orders_new', async () => {
+  const db = await diffFixture();
+  try {
+    await seedBcChung(db);
+    await db.query(__sql__.fillCustomers, [['hanoi', 'saigon']]);
+    const orders = (await db.query('SELECT product_key, orders_30d::float8 AS o30, orders_90d::float8 AS o90 FROM pr_orders_new ORDER BY 1')).rows;
+    // 30 ngay (today-29..today): HN#100, SG#100, HN#102, HN#104 (hom nay) = 4; 90 ngay: them SG#200 = 5.
+    // HN#101 da huy, HN#103 qua 90 ngay, dong tra hang khong tinh; khach ngung (HN#102) van tinh.
+    assert.deepEqual(orders, [{ product_key: 'a', o30: 4, o90: 5 }]);
+    const customers = (await db.query('SELECT customer_key FROM pr_customers_new ORDER BY 1')).rows;
+    assert.deepEqual(customers.map(row => row.customer_key), ['code:c1'], 'khach ngung hoat dong van bi loai khoi bang khach');
+
+    await db.query(__sql__.fillProductsHeavy, [['hanoi', 'saigon']]);
+    const rows = (await db.query(`SELECT product_code, qty_sold_30d::float8 AS q, qty_sold_30d_hanoi::float8 AS qh, qty_sold_30d_saigon::float8 AS qs,
+      orders_30d::float8 AS o30, orders_90d::float8 AS o90 FROM pr_new ORDER BY product_code`)).rows;
+    assert.deepEqual(rows, [
+      { product_code: 'A', q: 11, qh: 9, qs: 2, o30: 4, o90: 5 }, // HN: 5 (3 ngay truoc) + 4 (hom nay); SG: 2
+      { product_code: 'B', q: 0, qh: 0, qs: 0, o30: 0, o90: 0 } // luot nang luon COALESCE ve 0, khong bao gio ket o NULL
+    ]);
+    assert.match(__sql__.fillProductsHeavy, /FROM pr_customers_new\b/);
+  } finally { await db.close(); }
+});
+
+test('SQL that (PGlite): luot NHE tinh lai SL 30 theo co so nhung GIU gia tri cu cua SL don; ma moi do luot nhe them co SL don NULL', async () => {
+  const db = await diffFixture();
+  try {
+    await seedBcChung(db);
+    await db.query(__sql__.fillCustomers, [['hanoi', 'saigon']]);
+    await db.query(__sql__.fillProductsHeavy, [['hanoi', 'saigon']]);
+    assert.deepEqual(await applyProducts(db), { deleted: 0, updated: 0, inserted: 2 });
+    // Luot nang truoc do ghi SL don; sau do co ban them 1 san pham moi (chi luot nhe thay) va A ban them o SG.
+    await db.exec(`UPDATE product_report SET orders_30d = 40, orders_90d = 90 WHERE product_code = 'A';
+      INSERT INTO products VALUES ('hanoi', 3, 'C', 'Sp C', true, '{}', 700);
+      INSERT INTO daily_product_sales VALUES ('saigon', 11, (now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date - 1, 6, 60);`);
+    await db.exec('DELETE FROM pr_new');
+    await db.query(__sql__.fillProductsLight, [['hanoi', 'saigon']]);
+    const rows = (await db.query(`SELECT product_code, qty_sold_30d_hanoi::float8 AS qh, qty_sold_30d_saigon::float8 AS qs,
+      orders_30d::float8 AS o30, orders_90d::float8 AS o90 FROM pr_new ORDER BY product_code`)).rows;
+    assert.deepEqual(rows, [
+      { product_code: 'A', qh: 9, qs: 8, o30: 40, o90: 90 }, // SL 30 SG cap nhat (2 + 6), SL don giu nguyen
+      { product_code: 'B', qh: 0, qs: 0, o30: 0, o90: 0 },
+      { product_code: 'C', qh: 0, qs: 0, o30: null, o90: null } // chua tung qua luot nang
+    ]);
+    assert.deepEqual(await applyProducts(db), { deleted: 0, updated: 1, inserted: 1 });
+    // Dong C (orders_90d NULL) la thu dieu kien "thieu-so-don" cua cong quet dung de keo luot nang ke tiep.
+    assert.equal((await db.query('SELECT EXISTS (SELECT 1 FROM product_report WHERE orders_90d IS NULL) AS missing')).rows[0].missing, true);
+    // Luot nang ke tiep dien orders cho C => het NULL.
+    await db.exec('DELETE FROM pr_new; DELETE FROM pr_orders_new; DELETE FROM pr_customers_new');
+    await db.query(__sql__.fillCustomers, [['hanoi', 'saigon']]);
+    await db.query(__sql__.fillProductsHeavy, [['hanoi', 'saigon']]);
+    await applyProducts(db);
+    assert.equal((await db.query('SELECT EXISTS (SELECT 1 FROM product_report WHERE orders_90d IS NULL) AS missing')).rows[0].missing, false);
+    const a = (await db.query("SELECT orders_30d::float8 AS o30, orders_90d::float8 AS o90 FROM product_report WHERE product_code = 'A'")).rows[0];
+    assert.deepEqual(a, { o30: 4, o90: 5 }, 'luot nang tinh lai dung, khong giu so cu');
   } finally { await db.close(); }
 });
 

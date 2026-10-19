@@ -139,8 +139,21 @@ function buildFallbackThangUser() {
 }
 
 function createCache() {
+  // Moi FRESH_TTL_MS chi hoi dau van tay (1 dong); chi tai lai ~170 tai khoan khi no doi.
+  // Lay dau van tay TRUOC danh sach: neu co ghi chen giua thi lan sau lech -> tai lai (an toan).
+  let lastFingerprint = null;
+  let lastUsers = null;
+  async function fetchUsers() {
+    if (typeof repository.selectFingerprint !== 'function') return { users: await repository.selectAllRows() };
+    const fingerprint = await repository.selectFingerprint();
+    if (lastUsers && fingerprint && fingerprint === lastFingerprint) return { users: lastUsers.map(u => ({ ...u })) };
+    const users = await repository.selectAllRows();
+    lastFingerprint = fingerprint;
+    lastUsers = users.map(u => ({ ...u }));
+    return { users };
+  }
   return createTtlSnapshotCache({
-    fetch: async () => ({ users: await repository.selectAllRows() }),
+    fetch: fetchUsers,
     freshTtlMs: FRESH_TTL_MS,
     staleTtlMs: STALE_TTL_MS,
     onUnavailable: err => {

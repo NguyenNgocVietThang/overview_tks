@@ -6,6 +6,7 @@
 // dung cho ca route GET va luong xuat Excel (exportService.js) de khong viet
 // trung logic map cot o 2 noi.
 const { getPool } = require('../db/pool');
+const { timedQuery } = require('../lib/requestTiming');
 const { readContainerSummary, getContainerMeta } = require('../productContainers/repository');
 const { normalizeCode } = require('../productContainers/parser');
 const { readInTransitByCode } = require('./inTransitSource');
@@ -16,6 +17,10 @@ function nullableNumber(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 }
+
+// Cac truong lien quan GIA: route /api/product-report va xuat Excel/HTML boc bo khi tai khoan khong co quyen
+// reports.products.price (don gia + gia tri co ban = co ban x don gia).
+const PRODUCT_REPORT_PRICE_KEYS = Object.freeze(['priceHanoi', 'priceSaigon', 'availableValueHanoi', 'availableValueSaigon']);
 
 function mapRow(row) {
   return {
@@ -34,6 +39,14 @@ function mapRow(row) {
     priceSaigon: nullableNumber(row.price_saigon),
     availableToSell: Number(row.available_to_sell) || 0,
     qtySold30d: Number(row.qty_sold_30d) || 0,
+    // SL ban 30 ngay theo co so + SL don 30/90 ngay (migration 0067); NULL = chua tinh lai => null ("—" tren giao dien).
+    qtySold30dHanoi: nullableNumber(row.qty_sold_30d_hanoi),
+    qtySold30dSaigon: nullableNumber(row.qty_sold_30d_saigon),
+    orders30d: nullableNumber(row.orders_30d),
+    orders90d: nullableNumber(row.orders_90d),
+    // "Dut HN / Dut SG" = tong so ngay dut hang 30 ngay gan nhat (bang product_stockout_days); luon la so, mac dinh 0.
+    stockoutDaysHanoi: Number(row.stockout_days_hanoi) || 0,
+    stockoutDaysSaigon: Number(row.stockout_days_saigon) || 0,
     revenue90d: Number(row.revenue_90d) || 0,
     customerCount90d: Number(row.customer_count_90d) || 0,
     topCustomerRevenue90d: Number(row.top_customer_revenue_90d) || 0,
@@ -47,6 +60,33 @@ function mapRow(row) {
 // Hang dang van chuyen (order_suppliers) nho (vai tram dong) nhung doi sau moi luot sync; doc lai toi da
 // moi chu ky nay thay vi moi request.
 const IN_TRANSIT_TTL_MS = 60 * 1000;
+// Doc bao cao kem so ngay dut hang (product_stockout_days, migration 0067). Bang nay chua ton tai (42P01) =>
+// tra ve truy van cu khong join, so ngay dut = 0: code chay duoc truoc khi ap migration.
+const REPORT_COLUMNS_SQL = `pr.*, COALESCE(sd.days_hanoi, 0) AS stockout_days_hanoi, COALESCE(sd.days_saigon, 0) AS stockout_days_saigon`;
+const STOCKOUT_JOIN_SQL = 'LEFT JOIN product_stockout_days sd ON sd.product_key = lower(btrim(pr.product_code))';
+// Bang da chi giu ma dang kinh doanh (job tang dan loc is_active khi ghi) nen khong con EXISTS luc doc.
+const VERSIONED_ROWS_SQL = (withStockout) => `SELECT ${withStockout ? REPORT_COLUMNS_SQL : 'pr.*'}
+  FROM product_report pr ${withStockout ? STOCKOUT_JOIN_SQL : ''} ORDER BY pr.product_code`;
+// Luong cu: loc trang thai hien tai khi doc de snapshot ban dem, KPI va file xuat cung chi gom ma con kinh doanh
+// o it nhat mot co so. NULL giu quy uoc mac dinh dang kinh doanh nhu bao cao dut hang; khong loc theo ton/doanh so.
+const LEGACY_ROWS_SQL = (withStockout) => `SELECT ${withStockout ? REPORT_COLUMNS_SQL : 'pr.*'}
+  FROM product_report pr ${withStockout ? STOCKOUT_JOIN_SQL : ''}
+  WHERE EXISTS (
+    SELECT 1 FROM products p
+    WHERE p.code = pr.product_code
+      AND p.branch IN ('hanoi', 'saigon')
+      AND p.is_active IS NOT FALSE
+  )
+  ORDER BY pr.product_code`;
+async function queryReportRows(pool, buildSql) {
+  try {
+    return await pool.query(buildSql(true));
+  } catch (error) {
+    if (error.code !== '42P01') throw error;
+    return pool.query(buildSql(false));
+  }
+}
+
 const STATE_PROBE_SQL = 'SELECT version::text AS version, computed_at FROM product_report_state WHERE id = 1';
 
 /**
@@ -80,8 +120,7 @@ function createProductReportReader({ pool, now = Date.now } = {}) {
 
   async function readVersioned(state) {
     if (!rowsCache || rowsCache.version !== state.version) {
-      // Bang da chi giu ma dang kinh doanh (job tang dan loc is_active khi ghi) nen khong con EXISTS luc doc.
-      const { rows } = await pool.query('SELECT * FROM product_report ORDER BY product_code');
+      const { rows } = await queryReportRows(pool, VERSIONED_ROWS_SQL);
       rowsCache = { version: state.version, rows: rows.map(mapRow) };
     }
     const { containerSync } = await getContainerMeta({ pool });
@@ -119,6 +158,14 @@ function daysToOrder(availableToSell, unloadedQty, loadedQty, qtySold30d) {
   return Number.isFinite(days) ? Math.round(days * 10) / 10 : null;
 }
 
+// So ngay ban het = so luong / SL ban 30 ngay * 30, lam tron 1 chu so thap phan. null khi thieu so luong hoac khong
+// ban duoc ngay nao (mau so <= 0 / null). Co the am khi hang da bi giu qua ton - khong kep ve 0.
+function daysOfCover(quantity, qtySold30d) {
+  if (quantity === null || quantity === undefined || !(qtySold30d > 0)) return null;
+  const days = quantity * 30 / qtySold30d;
+  return Number.isFinite(days) ? Math.round(days * 10) / 10 : null;
+}
+
 // Cong ton co phan le (vd 16.4) hay ra 16.400000000000002; lam tron 3 chu so de web/Excel khong hien duoi thap phan thua.
 function roundQuantity(value) {
   return Math.round(value * 1000) / 1000;
@@ -134,6 +181,11 @@ function compose({ base, computedAt, containerSync, totals, inTransitByCode }) {
     const availableToSell = row.availableToSell + inTransit;
     const unloadedQty = containerSync.available ? Number(quantities?.unloadedQty || 0) : null;
     const loadedQty = containerSync.available ? Number(quantities?.loadedQty || 0) : null;
+    // Gia tri co ban = co ban x don gia CUNG co so (null neu thieu mot ve, giu so am); tang truong don =
+    // SL don 30 ngay x 3 / SL don 90 ngay - 1 (30 ngay x 3 = tuong duong 90 ngay), null khi chua co SL don 90 ngay.
+    const availableValue = (available, price) => (available === null || price === null ? null : roundQuantity(available * price));
+    const ordersGrowth = row.orders30d === null || row.orders90d === null || !(row.orders90d > 0)
+      ? null : Math.round((row.orders30d * 3 / row.orders90d - 1) * 1e6) / 1e6;
     return {
       ...row,
       inTransit,
@@ -142,7 +194,14 @@ function compose({ base, computedAt, containerSync, totals, inTransitByCode }) {
       totalStock: roundQuantity(row.stockHanoi + row.stockSaigon + inTransit),
       unloadedQty,
       loadedQty,
-      daysToOrder: daysToOrder(availableToSell, unloadedQty, loadedQty, row.qtySold30d)
+      daysToOrder: daysToOrder(availableToSell, unloadedQty, loadedQty, row.qtySold30d),
+      availableValueHanoi: availableValue(row.availableHanoi, row.priceHanoi),
+      availableValueSaigon: availableValue(row.availableSaigon, row.priceSaigon),
+      // Ngay HN / Ngay SG + DC (hang dang van chuyen ve SG) / Ngay 2 mien, moi cai chia cho SL ban 30 ngay tuong ung.
+      daysHanoi: daysOfCover(row.availableHanoi, row.qtySold30dHanoi),
+      daysSaigonTransit: row.availableSaigon === null ? null : daysOfCover(inTransit + row.availableSaigon, row.qtySold30dSaigon),
+      daysBothBranches: daysOfCover(availableToSell, row.qtySold30d),
+      ordersGrowth
     };
   });
   return { rows, computedAt, containerSync };
@@ -167,19 +226,7 @@ async function getProductReportVersion({ pool } = {}) {
 }
 
 async function readLegacy(pool) {
-  // Loc trang thai hien tai khi doc de snapshot ban dem, KPI va file xuat
-  // cung chi gom ma con kinh doanh o it nhat mot co so. NULL giu quy uoc
-  // mac dinh dang kinh doanh nhu bao cao dut hang; khong loc theo ton/doanh so.
-  const { rows } = await pool.query(
-    `SELECT * FROM product_report
-     WHERE EXISTS (
-       SELECT 1 FROM products p
-       WHERE p.code = product_report.product_code
-         AND p.branch IN ('hanoi', 'saigon')
-         AND p.is_active IS NOT FALSE
-     )
-     ORDER BY product_code`
-  );
+  const { rows } = await queryReportRows(pool, LEGACY_ROWS_SQL);
   const items = rows.map(mapRow);
   const computedAt = items.length ? items.reduce((latest, item) => (
     !latest || (item.computedAt && item.computedAt > latest) ? item.computedAt : latest
@@ -201,7 +248,7 @@ async function getProductReportCustomers({ code, pool = getPool() } = {}) {
     error.statusCode = 400;
     throw error;
   }
-  const { rows } = await pool.query(
+  const { rows } = await timedQuery(pool, 'customers',
     `SELECT customer_name, revenue
      FROM product_report_customers
      WHERE product_key = lower(btrim($1))
@@ -226,5 +273,6 @@ async function getProductReportCustomers({ code, pool = getPool() } = {}) {
 
 module.exports = {
   getProductReport, getProductReportCustomers, getProductReportVersion, createProductReportReader,
-  __test__: { mapRow, daysToOrder }
+  PRODUCT_REPORT_PRICE_KEYS,
+  __test__: { mapRow, daysToOrder, daysOfCover }
 };

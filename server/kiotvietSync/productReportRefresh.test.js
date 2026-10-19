@@ -146,8 +146,8 @@ test('vnDateKey tra ve ngay lich VN (UTC+7), khong phai ngay UTC', () => {
 // ---- Co ban / Mo ta THEO TUNG CO SO (migration 0057) ----
 test('REFRESH_SQL ghi them Co ban HN/SG va Mo ta HN/SG; tong hai cot co ban = available_to_sell (cung nguon phieu tam)', () => {
   const sql = __sql__.REFRESH_SQL;
-  assert.match(sql, /available_hanoi, available_saigon, description_hanoi, description_saigon, price_hanoi, price_saigon, computed_at/);
-  assert.match(sql, /hn\.on_hand - COALESCE\(po\.qty_hanoi, 0\),\s+COALESCE\(sg\.on_hand, 0\) - COALESCE\(po\.qty_saigon, 0\),\s+hn\.description,\s+sg\.description,\s+hn\.price,\s+sg\.price,\s+now\(\)/);
+  assert.match(sql, /available_hanoi, available_saigon, description_hanoi, description_saigon, price_hanoi, price_saigon,\s+qty_sold_30d_hanoi, qty_sold_30d_saigon, orders_30d, orders_90d, computed_at/);
+  assert.match(sql, /hn\.on_hand - COALESCE\(po\.qty_hanoi, 0\),\s+COALESCE\(sg\.on_hand, 0\) - COALESCE\(po\.qty_saigon, 0\),\s+hn\.description,\s+sg\.description,\s+hn\.price,\s+sg\.price,\s+COALESCE\(s30\.qty_hanoi, 0\),\s+COALESCE\(s30\.qty_saigon, 0\),\s+COALESCE\(oc\.orders_30d, 0\),\s+COALESCE\(oc\.orders_90d, 0\),\s+now\(\)/);
   // Van chi 1 lan quet phieu tam: tach theo co so bang FILTER, khong them truy van thu hai.
   assert.equal((sql.match(/FROM orders/g) || []).length, 1);
   assert.match(sql, /FILTER \(WHERE d\.branch = 'hanoi'\)/);
@@ -196,7 +196,7 @@ test('refreshProductReportIfDue: da tinh hom nay nhung con dong chua co cot theo
   const client = fakeClient(9);
   const pool = {
     query: async (sql) => {
-      assert.match(sql, /bool_or\(available_hanoi IS NULL OR price_hanoi IS NULL\)/);
+      assert.match(sql, /bool_or\(available_hanoi IS NULL OR price_hanoi IS NULL\s+OR qty_sold_30d_hanoi IS NULL OR orders_90d IS NULL\)/);
       return { rows: [{ last_computed_at: new Date('2026-09-23T00:05:00Z'), needs_branch_columns: true }] };
     },
     connect: async () => client
@@ -205,6 +205,75 @@ test('refreshProductReportIfDue: da tinh hom nay nhung con dong chua co cot theo
   // Da du cot (khong con NULL) => van bo qua nhu cu.
   const settled = { query: async () => ({ rows: [{ last_computed_at: new Date('2026-09-23T00:05:00Z'), needs_branch_columns: false }] }) };
   assert.deepEqual(await refreshProductReportIfDue(settled, { now: () => now, log: () => {} }), { skipped: true });
+});
+
+// Schema + du lieu toi thieu de chay NGUYEN REFRESH_SQL tren Postgres that (PGlite). Moc ngay tinh bang SQL theo
+// lich VN cua may chay test nen khong phu thuoc ngay hien tai. Dung chung cho productReportIncremental.test.js (copy).
+async function bcChungFixture() {
+  const { PGlite } = require('@electric-sql/pglite');
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const migrations = path.join(__dirname, '../db/migrations');
+  const db = new PGlite();
+  for (const file of ['0018_product_report.sql', '0023_product_report_customers.sql', '0057_product_report_branch_columns.sql',
+    '0063_product_report_price_columns.sql', '0067_product_report_bc_chung.sql']) {
+    await db.exec(fs.readFileSync(path.join(migrations, file), 'utf8'));
+  }
+  const day = (n) => `(((now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date - ${n})::timestamp AT TIME ZONE 'UTC' + interval '2 hours')`;
+  const dayDate = (n) => `((now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date - ${n})`;
+  await db.exec(`
+    CREATE TABLE products (branch text, id bigint, code text, name text, is_active boolean, raw jsonb, base_price numeric);
+    CREATE TABLE orders (branch text, id bigint, raw jsonb);
+    CREATE TABLE order_details (branch text, order_id bigint, product_id bigint, quantity numeric, raw jsonb);
+    CREATE TABLE daily_product_sales (branch text, product_id bigint, sale_date date, qty numeric, revenue numeric);
+    CREATE TABLE customers (branch text, id bigint, code text, name text, raw jsonb);
+    CREATE TABLE invoices (branch text, id bigint, customer_id bigint, purchase_date timestamptz, raw jsonb);
+    CREATE TABLE invoice_details (branch text, invoice_id bigint, product_id bigint, quantity numeric, price numeric, discount numeric, raw jsonb);
+    CREATE TABLE returns (branch text, id bigint, customer_id bigint, return_date timestamptz, raw jsonb);
+    CREATE TABLE return_details (branch text, return_id bigint, product_id bigint, quantity numeric, price numeric, raw jsonb);
+    -- Ma A: id khac nhau o hai co so (HN 1, SG 11); ma B chi co o HN va khong ban gi.
+    INSERT INTO products VALUES
+      ('hanoi', 1, 'A', 'Sp A', true, '{}', 1000), ('saigon', 11, 'A', 'Sp A', true, '{}', 1100),
+      ('hanoi', 2, 'B', 'Sp B', true, '{}', 500);
+    INSERT INTO customers VALUES
+      ('hanoi', 1, 'C1', 'KH 1', '{}'), ('hanoi', 2, 'C2', 'KH ngung', '{"isActive":false}'), ('saigon', 1, 'C1', 'KH 1', '{}');
+    -- SL ban theo ngay: HN 5 (3 ngay truoc) + 9 (45 ngay truoc, ngoai cua so 30), SG 2 (10 ngay truoc).
+    INSERT INTO daily_product_sales VALUES
+      ('hanoi', 1, ${dayDate(3)}, 5, 50), ('hanoi', 1, ${dayDate(45)}, 9, 90), ('saigon', 11, ${dayDate(10)}, 2, 20);
+    INSERT INTO invoices VALUES
+      ('hanoi', 100, 1, ${day(5)}, '{"statusValue":"Hoàn thành"}'),    -- 30d + 90d (2 dong cung hoa don => 1 don)
+      ('saigon', 100, 1, ${day(15)}, '{"statusValue":"Hoàn thành"}'),  -- trung id voi HN nhung khac co so => don khac
+      ('hanoi', 101, 1, ${day(10)}, '{"statusValue":"Đã hủy"}'),       -- huy => khong tinh
+      ('hanoi', 102, 2, ${day(20)}, '{"statusValue":"Hoàn thành"}'),   -- khach ngung hoat dong: van tinh SL don
+      ('saigon', 200, 1, ${day(40)}, '{"statusValue":"Hoàn thành"}'),  -- chi trong 90 ngay
+      ('hanoi', 103, 1, ${day(100)}, '{"statusValue":"Hoàn thành"}');  -- ngoai cua so 90 ngay
+    INSERT INTO invoice_details VALUES
+      ('hanoi', 100, 1, 2, 1000, 0, '{}'), ('hanoi', 100, 1, 1, 1000, 0, '{}'),
+      ('saigon', 100, 11, 1, 1100, 0, '{}'),
+      ('hanoi', 101, 1, 4, 1000, 0, '{}'),
+      ('hanoi', 102, 1, 1, 1000, 0, '{}'),
+      ('saigon', 200, 11, 3, 1100, 0, '{}'),
+      ('hanoi', 103, 1, 1, 1000, 0, '{}');
+    INSERT INTO returns VALUES ('hanoi', 300, 1, ${day(3)}, '{"statusValue":"Đã trả"}');
+    INSERT INTO return_details VALUES ('hanoi', 300, 1, 1, 1000, '{}');`);
+  return db;
+}
+
+test('SQL that (PGlite): REFRESH_SQL ghi SL ban 30 ngay theo co so + SL don 30/90 ngay theo MA HANG (khong huy, khong tinh tra hang, tinh ca khach ngung)', async () => {
+  const db = await bcChungFixture();
+  try {
+    await db.query(__sql__.REFRESH_SQL, [['hanoi', 'saigon']]);
+    const rows = (await db.query(`SELECT product_code, qty_sold_30d::float8 AS q, qty_sold_30d_hanoi::float8 AS qh, qty_sold_30d_saigon::float8 AS qs,
+      orders_30d::float8 AS o30, orders_90d::float8 AS o90 FROM product_report ORDER BY product_code`)).rows;
+    assert.deepEqual(rows, [
+      // 30 ngay: HN#100 (5 ngay), SG#100 (15 ngay), HN#102 (20 ngay) = 3; 90 ngay: them SG#200 (40 ngay) = 4.
+      { product_code: 'A', q: 7, qh: 5, qs: 2, o30: 3, o90: 4 },
+      { product_code: 'B', q: 0, qh: 0, qs: 0, o30: 0, o90: 0 } // khong ban => 0 (khong NULL)
+    ]);
+    // Khach ngung hoat dong (C2) van bi loai khoi bang khach nhu truoc, hoa don cua ho khong lam rot dong dem don.
+    const customers = (await db.query('SELECT customer_key FROM product_report_customers WHERE product_key = $1 ORDER BY 1', ['a'])).rows;
+    assert.deepEqual(customers.map(row => row.customer_key), ['code:c1']);
+  } finally { await db.close(); }
 });
 
 test('refreshProductReportIfDue: chua ap migration 0057 (42703) => doc moc thoi gian bang cau cu, hanh vi khong doi', async () => {

@@ -120,7 +120,8 @@ test('reader pins publication generation and paired live scans to one source sna
  assert.equal(snap.sales[0].netRevenue,100);
  assert.equal(snap.customers.find(r=>r.month==='2026-10-01').netRevenue,20);
  assert.equal(snap.products.find(r=>r.month==='2026-10-01').netRevenue,20);
- assert.equal(released,2);
+ // snapshot + thu doc bang thang hien tai tinh san (migration 0068, mock tra rong => lui ve live) + cap live thang 10.
+ assert.equal(released,3);
 });
 
 test('transaction reader propagates unrelated errors and releases after rollback',async()=>{

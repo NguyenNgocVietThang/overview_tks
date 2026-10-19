@@ -15,7 +15,137 @@ const productReportRepository = require('./productReportRepository');
 const catalog = require('./exportFieldCatalog');
 const exportService = require('./exportService');
 
-test('product report exports include numeric container quantities before stock and preserve unavailable blanks', async () => {
+// 34 cột Báo cáo hàng hóa theo ĐÚNG thứ tự sheet BC CHUNG (= thứ tự cột bảng trên màn hình): [khóa, nhãn, kiểu].
+const PRODUCT_REPORT_SPEC = [
+  ['code', 'Mã sản phẩm', 'text'], ['name', 'Tên sản phẩm', 'general'],
+  ['availableValueHanoi', 'Giá trị có bán Hà Nội', 'number'], ['qtySold30dHanoi', 'Số lượng bán 30 ngày Hà Nội', 'number'],
+  ['stockHanoi', 'Tồn thực Hà Nội', 'number'], ['availableHanoi', 'Có bán Hà Nội', 'number'],
+  ['inTransit', 'Điều chuyển SG', 'number'], ['stockSaigon', 'Tồn thực Sài Gòn', 'number'], ['availableSaigon', 'Có bán Sài Gòn', 'number'],
+  ['qtySold30dSaigon', 'Số lượng bán 30 ngày Sài Gòn', 'number'], ['availableValueSaigon', 'Giá trị có bán Sài Gòn', 'number'],
+  ['totalStock', 'Tổng tồn thực và điều chuyển', 'number'], ['availableToSell', 'Tổng có bán và điều chuyển', 'number'],
+  ['qtySold30d', 'Số lượng bán 30 ngày', 'number'],
+  ['stockoutDaysHanoi', 'Số ngày đứt hàng Hà Nội', 'number'], ['stockoutDaysSaigon', 'Số ngày đứt hàng Sài Gòn', 'number'],
+  ['loadedQty', 'Đã bốc', 'number'], ['unloadedQty', 'Chưa bốc', 'number'],
+  ['daysToOrder', 'Ngày cần đặt', 'number'], ['daysSaigonTransit', 'Ngày bán hết Sài Gòn và điều chuyển', 'number'],
+  ['daysHanoi', 'Ngày bán hết Hà Nội', 'number'], ['daysBothBranches', 'Ngày bán hết hai miền', 'number'],
+  ['revenue90d', 'Doanh số 90 ngày', 'number'], ['customerCount90d', 'Số lượng khách mua', 'number'],
+  ['orders90d', 'Số lượng đơn 90 ngày', 'number'], ['orders30d', 'Số lượng đơn 30 ngày', 'number'], ['ordersGrowth', 'Tăng trưởng', 'percent'],
+  ['topCustomerRevenue90d', 'Doanh số khách lớn nhất', 'number'], ['topCustomerName', 'Khách lớn nhất', 'text'],
+  ['topCustomerShare', 'Tỉ trọng khách lớn nhất', 'percent'],
+  ['priceHanoi', 'Đơn giá Hà Nội', 'number'], ['priceSaigon', 'Đơn giá Sài Gòn', 'number'],
+  ['descriptionHanoi', 'Mô tả Hà Nội', 'text'], ['descriptionSaigon', 'Mô tả Sài Gòn', 'text']
+];
+const PRODUCT_REPORT_KEYS = PRODUCT_REPORT_SPEC.map(item => item[0]);
+const PRODUCT_REPORT_SENSITIVE_KEYS = ['availableValueHanoi', 'availableValueSaigon', 'priceHanoi', 'priceSaigon'];
+
+test('product report export has exactly 34 columns in BC CHUNG order with full labels, explicit types and one shared sensitive-key list', async () => {
+  assert.equal(PRODUCT_REPORT_SPEC.length, 34);
+  assert.deepEqual(Array.from(productReportRepository.PRODUCT_REPORT_PRICE_KEYS).sort(), PRODUCT_REPORT_SENSITIVE_KEYS.slice().sort());
+  const fields = (await exportService.getExportFields({ tableKey: 'overview.productReport' }, undefined, { canViewPrice: true })).worksheets[0].fields;
+  assert.deepEqual(fields.map(field => field.key), PRODUCT_REPORT_KEYS);
+  assert.deepEqual(fields.map(field => field.label), PRODUCT_REPORT_SPEC.map(item => item[1]));
+  assert.deepEqual(fields.map(field => field.type), PRODUCT_REPORT_SPEC.map(item => item[2]));
+  assert.ok(fields.every(field => field.description && field.description.length > 10), 'moi cot co mo ta');
+  // Cột có chữ "ngày" không bị suy ra thành kiểu ngày tháng; Tăng trưởng/Tỉ trọng là phân số.
+  fields.filter(field => /ngày/i.test(field.label)).forEach(field => assert.equal(field.type, 'number', field.label));
+  // Cột nhạy cảm ghi rõ ai được xuất; ba cột Ngày mới nêu công thức theo từng cơ sở.
+  PRODUCT_REPORT_SENSITIVE_KEYS.forEach(key => assert.match(fields.find(field => field.key === key).description, /Chỉ Quản lý và Trợ lý được xuất/, key));
+  assert.match(fields.find(field => field.key === 'ordersGrowth').description, /nhân 3/);
+  assertStandardLabels([{ key: 'product_report', fields }], 'overview.productReport');
+});
+
+test('product report export drops all four sensitive columns without the price flag, in field list, workbook and typed-in keys', async () => {
+  const original = productReportRepository.getProductReport;
+  productReportRepository.getProductReport = async () => ({
+    containerSync: { available: false },
+    rows: [{ code: '001', name: 'Một', priceHanoi: 10, priceSaigon: 20, availableValueHanoi: 100, availableValueSaigon: 200, availableHanoi: 10, qtySold30dHanoi: 3 }]
+  });
+  try {
+    const keysOf = metadata => metadata.worksheets[0].fields.map(field => field.key);
+    assert.deepEqual(keysOf(await exportService.getExportFields({ tableKey: 'overview.productReport' })), PRODUCT_REPORT_KEYS.filter(key => !PRODUCT_REPORT_SENSITIVE_KEYS.includes(key)));
+    assert.deepEqual(keysOf(await exportService.getExportFields({ tableKey: 'overview.productReport' }, undefined, { canViewPrice: false })), PRODUCT_REPORT_KEYS.filter(key => !PRODUCT_REPORT_SENSITIVE_KEYS.includes(key)));
+    assert.deepEqual(keysOf(await exportService.getExportFields({ tableKey: 'overview.productReport' }, undefined, { canViewPrice: true })), PRODUCT_REPORT_KEYS);
+    for (const key of PRODUCT_REPORT_SENSITIVE_KEYS) {
+      await assert.rejects(
+        () => exportService.createExportWorkbook({ tableKey: 'overview.productReport', columns: { product_report: ['code', key] } }),
+        error => error.code === 'EXPORT_FIELD_NOT_ALLOWED', key
+      );
+      await assert.rejects(
+        () => exportService.createExportHtml({ tableKey: 'overview.productReport', columns: { product_report: ['code', key] } }),
+        error => error.code === 'EXPORT_FIELD_NOT_ALLOWED', key
+      );
+    }
+    // Có quyền: cả 4 cột xuất ra đúng giá trị, cột không nhạy cảm xuất bình thường khi không có quyền.
+    const allowed = { canViewPrice: true };
+    const request = { tableKey: 'overview.productReport', columns: { product_report: ['code', 'availableValueHanoi', 'availableValueSaigon', 'priceHanoi', 'priceSaigon'] } };
+    const sheet = (await new ExcelJS.Workbook().xlsx.load((await exportService.createExportWorkbook(request, undefined, allowed)).buffer)).getWorksheet('Báo cáo hàng hóa');
+    assert.deepEqual(sheet.getRow(2).values.slice(1), ['001', 100, 200, 10, 20]);
+    const plain = (await new ExcelJS.Workbook().xlsx.load((await exportService.createExportWorkbook({ tableKey: 'overview.productReport', columns: { product_report: ['code', 'qtySold30dHanoi'] } })).buffer)).getWorksheet('Báo cáo hàng hóa');
+    assert.deepEqual(plain.getRow(2).values.slice(1), ['001', 3]);
+  } finally { productReportRepository.getProductReport = original; }
+});
+
+test('product report export: Ngay/Dut/Tang truong values keep numeric types, growth is a percent-formatted fraction, blanks stay blank', async () => {
+  const original = productReportRepository.getProductReport;
+  productReportRepository.getProductReport = async () => ({
+    containerSync: { available: false },
+    rows: [
+      { code: '001', name: 'Một', stockoutDaysHanoi: 4, stockoutDaysSaigon: 0, daysHanoi: 12.5, daysSaigonTransit: 3.2, daysBothBranches: 8, orders90d: 30, orders30d: 18, ordersGrowth: 0.8 },
+      { code: '002', name: 'Hai', stockoutDaysHanoi: 0, stockoutDaysSaigon: 0, daysHanoi: null, daysSaigonTransit: null, daysBothBranches: null, orders90d: null, orders30d: null, ordersGrowth: null },
+      { code: '003', name: 'Ba', ordersGrowth: -1 }
+    ]
+  });
+  try {
+    const keys = ['code', 'stockoutDaysHanoi', 'stockoutDaysSaigon', 'daysHanoi', 'daysSaigonTransit', 'daysBothBranches', 'orders90d', 'orders30d', 'ordersGrowth'];
+    const request = { tableKey: 'overview.productReport', columns: { product_report: keys } };
+    const sheet = (await new ExcelJS.Workbook().xlsx.load((await exportService.createExportWorkbook(request)).buffer)).getWorksheet('Báo cáo hàng hóa');
+    assert.deepEqual(sheet.getRow(1).values.slice(1), [
+      'Mã sản phẩm', 'Số ngày đứt hàng Hà Nội', 'Số ngày đứt hàng Sài Gòn', 'Ngày bán hết Hà Nội', 'Ngày bán hết Sài Gòn và điều chuyển',
+      'Ngày bán hết hai miền', 'Số lượng đơn 90 ngày', 'Số lượng đơn 30 ngày', 'Tăng trưởng'
+    ]);
+    assert.deepEqual(sheet.getRow(2).values.slice(1), ['001', 4, 0, 12.5, 3.2, 8, 30, 18, 0.8]);
+    assert.equal(typeof sheet.getCell('D2').value, 'number', 'Ngày bán hết là số, không phải ngày tháng');
+    assert.deepEqual(sheet.getRow(3).values.slice(1, 3), ['002', 0], 'Đứt = 0 vẫn xuất số 0');
+    assert.equal(sheet.getCell('D3').value, null);
+    assert.equal(sheet.getCell('I3').value, null);
+    assert.equal(sheet.getCell('I4').value, -1);
+    assert.equal(sheet.getColumn(9).numFmt, '0.00%', 'Tăng trưởng định dạng phần trăm');
+  } finally { productReportRepository.getProductReport = original; }
+});
+
+test('product report HTML report keeps the same three KPI metrics and does not add Ngay/Tang truong/Gia tri as additive KPIs', async () => {
+  const original = productReportRepository.getProductReport;
+  productReportRepository.getProductReport = async () => ({
+    containerSync: { available: false },
+    rows: [
+      { code: '001', name: 'Một', revenue90d: 1000, topCustomerRevenue90d: 400, qtySold30d: 20, qtySold30dHanoi: 12, qtySold30dSaigon: 8, availableValueHanoi: 500, daysHanoi: 9, daysBothBranches: 7, ordersGrowth: 0.5, stockoutDaysHanoi: 2 },
+      { code: '002', name: 'Hai', revenue90d: 500, topCustomerRevenue90d: 100, qtySold30d: 5, qtySold30dHanoi: 5, qtySold30dSaigon: 0, availableValueHanoi: 300, daysHanoi: 4, daysBothBranches: 3, ordersGrowth: -0.2, stockoutDaysHanoi: 0 }
+    ]
+  });
+  try {
+    const dataset = await exportService.getExportDataset({ tableKey: 'overview.productReport', columns: { product_report: PRODUCT_REPORT_KEYS } }, undefined, { canViewPrice: true });
+    const worksheet = dataset.worksheets[0];
+    const { createReportKit } = require('./exportHtmlReport').__test__;
+    const kit = createReportKit();
+    const columns = worksheet.columns.map(column => ({ key: column.key, label: column.label, type: column.type }));
+    const rows = worksheet.rows.map(row => columns.map(column => row[column.key]));
+    const plan = kit.planFor(columns, rows, worksheet.summaryKeys, worksheet.hints);
+    assert.deepEqual(plan.metrics.map(index => columns[index].key), ['revenue90d', 'topCustomerRevenue90d', 'qtySold30d']);
+    assert.equal(columns[plan.label].key, 'name');
+    // Cột Ngày / Tăng trưởng / Giá trị / Đơn giá không bao giờ là ứng viên chỉ số cộng dồn (cộng lại vô nghĩa hoặc nhạy cảm):
+    // chỉ còn Doanh số 90 ngày khi bảng chỉ có các cột này.
+    const suspicious = ['daysToOrder', 'daysHanoi', 'daysSaigonTransit', 'daysBothBranches', 'availableValueHanoi', 'availableValueSaigon', 'priceHanoi', 'priceSaigon', 'ordersGrowth', 'topCustomerShare'];
+    const subset = columns.filter(column => suspicious.includes(column.key) || column.key === 'revenue90d' || column.key === 'name');
+    const subsetRows = rows.map(row => subset.map(column => row[columns.indexOf(columns.find(item => item.key === column.key))]));
+    const subsetPlan = kit.planFor(subset, subsetRows);
+    assert.deepEqual(subsetPlan.metrics.map(index => subset[index].key), ['revenue90d']);
+    // Nhãn mới không bị chọn nhầm làm cột phân loại hay cột nhãn của biểu đồ Top.
+    assert.equal(subset[subsetPlan.label].key, 'name');
+    assert.ok(plan.category < 0 || !suspicious.includes(columns[plan.category].key));
+  } finally { productReportRepository.getProductReport = original; }
+});
+
+test('product report export includes numeric container quantities before stock and preserve unavailable blanks', async () => {
   const original = productReportRepository.getProductReport;
   productReportRepository.getProductReport = async () => ({
     computedAt: '2026-10-14T17:05:00.000Z',
@@ -29,13 +159,9 @@ test('product report exports include numeric container quantities before stock a
   try {
     const request = { tableKey: 'overview.productReport' };
     const fields = (await exportService.getExportFields(request)).worksheets[0].fields;
-    // Thứ tự theo file mẫu HÀNG HÓA.xlsx (A→R) + cột Khách lớn nhất được giữ lại.
-    assert.deepEqual(fields.map(field => field.key), [
-      'code', 'name', 'unloadedQty', 'loadedQty', 'stockHanoi', 'availableHanoi', 'inTransit', 'stockSaigon', 'availableSaigon',
-      'descriptionHanoi', 'descriptionSaigon', 'totalStock', 'availableToSell', 'qtySold30d', 'daysToOrder', 'revenue90d',
-      'customerCount90d', 'topCustomerRevenue90d', 'topCustomerName', 'topCustomerShare'
-    ]);
-    assert.ok(fields.slice(2, 4).every(field => field.selected && field.type === 'number'));
+    // Không có cờ quyền giá: 30 trong 34 cột (bỏ 4 cột nhạy cảm), vẫn đúng thứ tự sheet BC CHUNG.
+    assert.deepEqual(fields.map(field => field.key), PRODUCT_REPORT_KEYS.filter(key => !PRODUCT_REPORT_SENSITIVE_KEYS.includes(key)));
+    assert.ok(['unloadedQty', 'loadedQty'].every(key => fields.find(field => field.key === key).selected && fields.find(field => field.key === key).type === 'number'));
     const byKey = key => fields.find(field => field.key === key);
     // Nhãn có chữ "ngày" sẽ bị suy ra thành kiểu ngày tháng nếu không khai báo tường minh.
     assert.equal(byKey('daysToOrder').type, 'number');
@@ -62,6 +188,50 @@ test('product report exports include numeric container quantities before stock a
     assert.match(document.querySelector('header .meta').textContent, /cũ/);
     const dataset = await exportService.getExportDataset(request);
     assert.equal(dataset.worksheets[0].rows[1].unloadedQty, null);
+  } finally { productReportRepository.getProductReport = original; }
+});
+
+test('product report export includes Don gia HN/SG only for accounts allowed to see prices', async () => {
+  const original = productReportRepository.getProductReport;
+  productReportRepository.getProductReport = async () => ({
+    containerSync: { available: false },
+    rows: [
+      { code: '001', name: 'Một', priceHanoi: 125000, priceSaigon: 130000 },
+      { code: '002', name: 'Hai', priceHanoi: 0, priceSaigon: null }
+    ]
+  });
+  try {
+    const keysOf = metadata => metadata.worksheets[0].fields.map(field => field.key);
+    // Không cờ quyền = không thấy cột giá, và tự gõ khóa cột giá bị từ chối.
+    const withoutPrice = await exportService.getExportFields({ tableKey: 'overview.productReport' });
+    assert.ok(!keysOf(withoutPrice).some(key => key.startsWith('price')));
+    await assert.rejects(
+      () => exportService.createExportWorkbook({ tableKey: 'overview.productReport', columns: { product_report: ['code', 'priceHanoi'] } }),
+      error => error.code === 'EXPORT_FIELD_NOT_ALLOWED'
+    );
+
+    const allowed = { canViewPrice: true };
+    const fields = (await exportService.getExportFields({ tableKey: 'overview.productReport' }, undefined, allowed)).worksheets[0].fields;
+    assert.deepEqual(fields.map(field => field.key), PRODUCT_REPORT_KEYS);
+    // Đơn giá nằm SAU Tỉ trọng khách lớn nhất (cột 31-32), không còn đứng ngay sau Tên sản phẩm.
+    assert.deepEqual(fields.slice(30, 32).map(field => field.key), ['priceHanoi', 'priceSaigon']);
+    assert.ok(PRODUCT_REPORT_SENSITIVE_KEYS.every(key => fields.find(field => field.key === key).type === 'number'));
+
+    const request = { tableKey: 'overview.productReport', columns: { product_report: ['code', 'priceHanoi', 'priceSaigon'] } };
+    const file = await exportService.createExportWorkbook(request, undefined, allowed);
+    const sheet = (await new ExcelJS.Workbook().xlsx.load(file.buffer)).getWorksheet('Báo cáo hàng hóa');
+    assert.deepEqual(sheet.getRow(1).values.slice(1), ['Mã sản phẩm', 'Đơn giá Hà Nội', 'Đơn giá Sài Gòn']);
+    assert.equal(sheet.getCell('B2').value, 125000);
+    assert.equal(sheet.getCell('C2').value, 130000);
+    assert.equal(sheet.getCell('B3').value, 0);
+    assert.equal(sheet.getCell('C3').value, null);
+
+    const htmlFile = await exportService.createExportHtml(request, undefined, allowed);
+    assert.ok(htmlFile.buffer.length > 0);
+    // Báo cáo HTML dựng từ cùng dataset (dữ liệu bảng được nén trong file) nên kiểm cột/dòng ở tầng dataset.
+    const dataset = await exportService.getExportDataset(request, undefined, allowed);
+    assert.deepEqual(dataset.worksheets[0].columns.map(column => column.label), ['Mã sản phẩm', 'Đơn giá Hà Nội', 'Đơn giá Sài Gòn']);
+    assert.deepEqual(dataset.worksheets[0].rows.map(row => [row.priceHanoi, row.priceSaigon]), [[125000, 130000], [0, null]]);
   } finally { productReportRepository.getProductReport = original; }
 });
 

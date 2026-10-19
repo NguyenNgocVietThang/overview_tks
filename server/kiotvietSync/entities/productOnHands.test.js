@@ -12,6 +12,12 @@ function clientWithCurrent(currentById) {
     calls,
     async query(sql, params) {
       calls.push([sql, params]);
+      // Gia lap bo loc CHANGED_SQL trong DB (ngu nghia giong mergeInventories + so sanh sau)
+      if (/WITH incoming AS/.test(sql)) {
+        const { isDeepStrictEqual } = require('node:util');
+        return { rows: JSON.parse(params[1]).filter((r) => r.id in currentById
+          && !isDeepStrictEqual(productOnHands.mergeInventories(currentById[r.id], r.inv), currentById[r.id] || [])).map((r) => ({ id: r.id })) };
+      }
       if (/^\s*SELECT id, raw->'inventories'/.test(sql)) {
         return { rows: params[1].filter((id) => id in currentById).map((id) => ({ id, inventories: currentById[id] })) };
       }
@@ -84,4 +90,40 @@ test('mergeInventories: kho moi chua co thi them nguyen ban, kho khong con trong
     { branchId: 2, onHand: 1, cost: 20, reserved: 0 },
     { branchId: 3, onHand: 7, reserved: 1 }
   ]);
+});
+
+test('SQL loc CHANGED_SQL khop JS (mergeInventories + isDeepStrictEqual) tren Postgres that (PGlite)', async () => {
+  const { PGlite } = require('@electric-sql/pglite');
+  const { isDeepStrictEqual } = require('node:util');
+  const db = new PGlite();
+  try {
+    await db.exec('CREATE TABLE products(branch text, id bigint, raw jsonb, synced_at timestamptz DEFAULT now(), PRIMARY KEY(branch,id))');
+    const cases = {
+      1: [{ branchId: 7, onHand: 60, reserved: 0, cost: 60000 }],        // doi onHand
+      2: [{ branchId: 1, onHand: 15, reserved: 2, cost: 100 }],          // khong doi (giu cost)
+      3: [{ branchId: 1, onHand: 4 }],                                   // incoming rong -> doi
+      4: [{ branchId: 1, onHand: 5, cost: 10 }, { branchId: 2, onHand: 8 }], // incoming bo 1 kho -> doi
+      5: [{ BranchId: 3, OnHand: 2 }],                                   // khop kho theo BranchId hoa
+      6: null,                                                           // raw khong co inventories
+      7: [{ branchId: 1, onHand: 1.0, reserved: 0 }]                     // 1 vs 1.0
+    };
+    const incoming = {
+      1: [{ branchId: 7, onHand: 0, reserved: 3 }],
+      2: [{ branchId: 1, onHand: 15, reserved: 2 }],
+      3: [],
+      4: [{ branchId: 1, onHand: 5, cost: 10 }],
+      5: [{ BranchId: 3, OnHand: 2 }],
+      6: [],
+      7: [{ branchId: 1, onHand: 1, reserved: 0 }]
+    };
+    for (const [id, inv] of Object.entries(cases)) {
+      await db.query('INSERT INTO products(branch,id,raw) VALUES($1,$2,$3)', ['hanoi', id, inv === null ? {} : { inventories: inv }]);
+    }
+    const sql = require('node:fs').readFileSync(require.resolve('./productOnHands'), 'utf8').match(/const CHANGED_SQL = `([\s\S]*?)`;/)[1];
+    const payload = Object.entries(incoming).map(([id, inv]) => ({ id: Number(id), inv }));
+    const got = (await db.query(sql, ['hanoi', JSON.stringify(payload)])).rows.map((r) => Number(r.id)).sort();
+    const want = payload.filter((r) => !isDeepStrictEqual(productOnHands.mergeInventories(cases[r.id], r.inv), cases[r.id] || [])).map((r) => r.id).sort();
+    assert.deepEqual(got, want);
+    assert.ok(got.includes(1) && !got.includes(2));
+  } finally { await db.close(); }
 });

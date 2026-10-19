@@ -13,7 +13,10 @@ const calls = [];
 require.cache[repositoryPath].exports = {
   ...realRepository,
   getProductReport: async () => ({
-    rows: [{ code: 'SP1', name: 'SP 1', priceHanoi: 15000, priceSaigon: 16500, stockHanoi: 1 }],
+    rows: [{
+      code: 'SP1', name: 'SP 1', priceHanoi: 15000, priceSaigon: 16500, availableValueHanoi: 150000, availableValueSaigon: 33000,
+      stockHanoi: 1, qtySold30dHanoi: 4, daysHanoi: 7.5
+    }],
     computedAt: '2026-10-17T00:00:00.000Z'
   }),
   getProductReportCustomers: async (args) => {
@@ -81,22 +84,29 @@ test('GET /api/product-report: don gia HN/SG chi tra cho tai khoan co quyen repo
     assert.equal(res.statusCode, 200);
     assert.equal(res.body.rows[0].priceHanoi, 15000, vaiTro);
     assert.equal(res.body.rows[0].priceSaigon, 16500, vaiTro);
+    assert.equal(res.body.rows[0].availableValueHanoi, 150000, vaiTro);
+    assert.equal(res.body.rows[0].availableValueSaigon, 33000, vaiTro);
   }
   for (const vaiTro of ['Nhân viên sale', 'Kế toán']) {
     const res = fakeRes();
     await handle({ user: { vaiTro } }, res);
     assert.equal(res.statusCode, 200);
-    assert.deepEqual(Object.keys(res.body.rows[0]).filter(key => /^price/.test(key)), [], vaiTro + ' khong nhan truong gia');
+    assert.deepEqual(Object.keys(res.body.rows[0]).filter(key => realRepository.PRODUCT_REPORT_PRICE_KEYS.includes(key)), [],
+      vaiTro + ' khong nhan 4 truong gia (don gia + gia tri co ban)');
     assert.equal(res.body.rows[0].stockHanoi, 1, 'cac truong khac giu nguyen');
+    assert.equal(res.body.rows[0].qtySold30dHanoi, 4, 'SL ban 30 ngay khong phai truong nhay cam');
+    assert.equal(res.body.rows[0].daysHanoi, 7.5);
   }
   // Quan ly cap rieng cho 1 sale: co quyen thi nhan gia (khi sale da co reports.products).
   const granted = fakeRes();
   await handle({ user: { vaiTro: 'Nhân viên sale', featurePermissions: { 'reports.products.price': true } } }, granted);
   assert.equal(granted.body.rows[0].priceHanoi, 15000);
+  assert.equal(granted.body.rows[0].availableValueSaigon, 33000);
   // Gỡ quyền của một Quản lý cụ thể.
   const revoked = fakeRes();
   await handle({ user: { vaiTro: 'Quản lý', featurePermissions: { 'reports.products.price': false } } }, revoked);
   assert.equal('priceHanoi' in revoked.body.rows[0], false);
+  assert.equal('availableValueHanoi' in revoked.body.rows[0], false);
 });
 
 test('GET /api/product-report: bo doc dung chung khong bi xoa truong gia sau khi loc cho tai khoan khac', async () => {
@@ -106,4 +116,10 @@ test('GET /api/product-report: bo doc dung chung khong bi xoa truong gia sau khi
   const manager = fakeRes();
   await handle({ user: { vaiTro: 'Quản lý' } }, manager);
   assert.equal(manager.body.rows[0].priceHanoi, 15000);
+  assert.equal(manager.body.rows[0].availableValueHanoi, 150000);
+});
+
+test('PRODUCT_REPORT_PRICE_KEYS gom dung 4 truong gia (route + xuat file dung chung)', () => {
+  assert.deepEqual([...realRepository.PRODUCT_REPORT_PRICE_KEYS],
+    ['priceHanoi', 'priceSaigon', 'availableValueHanoi', 'availableValueSaigon']);
 });

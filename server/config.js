@@ -164,12 +164,25 @@ const CONFIG = {
   // Bao cao doanh thu theo khach / hang hoa lam moi TANG DAN sau moi luot sync (mac dinh TAT => chot dem).
   REPORTS_INCREMENTAL_ENABLED: String(process.env.REPORTS_INCREMENTAL_ENABLED || '').toLowerCase() === 'true',
 
+  // Bao cao kinh doanh: tinh san doanh so THANG HIEN TAI vao business_current_month_* (migration 0068) sau moi luot
+  // sync fast (kiotvietSync/businessCurrentMonthRefresh.js). Mac dinh BAT (thieu migration thi tu bo qua);
+  // tat bang BUSINESS_CURRENT_MONTH_ENABLED=false => bao cao lai tinh live. San toi thieu giua 2 luot nhanh: 10 phut.
+  BUSINESS_CURRENT_MONTH_ENABLED: String(process.env.BUSINESS_CURRENT_MONTH_ENABLED || '').toLowerCase() !== 'false',
+  BUSINESS_CURRENT_MONTH_MIN_INTERVAL_MS: Number(process.env.BUSINESS_CURRENT_MONTH_MIN_INTERVAL_MS) || 10 * 60 * 1000,
+
   // Log bo nho (rss/heap/external/arrayBuffers) moi chu ky + canh bao khi RSS > 75% tran.
   // Mac dinh BAT — tat bang MEMORY_MONITOR=false.
   MEMORY_MONITOR: process.env.MEMORY_MONITOR !== 'false',
   MEMORY_LOG_INTERVAL_MS: Number(process.env.MEMORY_LOG_INTERVAL_MS) || 60000,
   // Tran RAM cua instance (MB) de tinh nguong canh bao; mac dinh 2048 (goi Render 2GB).
-  MEMORY_LIMIT_MB: Number(process.env.MEMORY_LIMIT_MB) || 2048
+  MEMORY_LIMIT_MB: Number(process.env.MEMORY_LIMIT_MB) || 2048,
+
+  // Doc anh hoa don (tab Tao QR) bang AI vision qua xKiro (chuan OpenAI). Thieu key = tat,
+  // trang van tao QR nhap tay. Model du phong chi goi khi model chinh loi 429/5xx/timeout.
+  XKIRO_API_KEY: process.env.XKIRO_API_KEY || '',
+  XKIRO_BASE_URL: process.env.XKIRO_BASE_URL || 'https://api.xkiro.com/v1',
+  INVOICE_VISION_MODEL: process.env.INVOICE_VISION_MODEL || 'qwen/qwen3.8-max:free',
+  INVOICE_VISION_FALLBACK_MODEL: process.env.INVOICE_VISION_FALLBACK_MODEL ?? 'qwen/qwen3-vl-plus:free'
 };
 
 module.exports = CONFIG;
