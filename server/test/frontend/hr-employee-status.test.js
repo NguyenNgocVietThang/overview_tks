@@ -16,7 +16,7 @@ const EMPLOYEES = [
 
 const tick = () => new Promise(resolve => setTimeout(resolve, 0));
 
-async function openPage({ canManage }) {
+async function openPage({ canManage, employees = EMPLOYEES }) {
   const html = fs.readFileSync(htmlPath, 'utf8');
   const dom = new JSDOM(html, { runScripts: 'outside-only', url: 'https://tokosi.example/humanresources/' });
   const { window } = dom;
@@ -34,7 +34,7 @@ async function openPage({ canManage }) {
       const payload = { employee: EMPLOYEES[0], accounts: { locked: ['bs'], unlocked: [], skipped: [] } };
       return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => payload };
     }
-    const payload = text.startsWith('/api/hr/employees') ? { employees: EMPLOYEES, canManage }
+    const payload = text.startsWith('/api/hr/employees') ? { employees, canManage }
       : text.includes('/summary/') ? { summary: [] } : { requests: [] };
     return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => payload, text: async () => JSON.stringify(payload) };
   };
@@ -164,17 +164,24 @@ test('cot trang thai hien LV va NV theo trang thai lam viec', async () => {
 });
 
 
-test('do rong cot danh sach nhan su gon theo noi dung, tranh khoang trang du', async () => {
+test('do rong cot nhan su dua theo gia tri dai nhat va co gioi han hop ly', async () => {
   const basic = await openPage({ canManage: false });
   const basicHeaders = basic.window.document.querySelectorAll('#employeeDirectoryTableHead th');
-  assert.equal(basicHeaders[5].style.width, '70px');
-  assert.equal(basicHeaders[4].style.width, '200px');
+  assert.equal(basicHeaders[0].style.width, '140px');
+  assert.equal(basicHeaders[5].style.width, '75px');
+
   basic.dom.window.close();
+
+  const longData = [{ id:'long', hoTen:'Nguyen Van A co ho ten rat dai de kiem tra do rong cot', boPhan:'Kinh doanh', coSo:'Ha Noi', soDienThoai:'0900000000', email:'dia-chi-email-rat-dai@example-company.vn', trangThai:'Dang lam viec' }];
+  const long = await openPage({ canManage: false, employees: longData });
+  const longHeaders = long.window.document.querySelectorAll('#employeeDirectoryTableHead th');
+  assert.ok(parseInt(longHeaders[0].style.width, 10) > 260);
+  assert.ok(parseInt(longHeaders[4].style.width, 10) > 250);
+  long.dom.window.close();
 
   const manager = await openPage({ canManage: true });
   const managerHeaders = manager.window.document.querySelectorAll('#employeeDirectoryTableHead th');
   assert.equal(managerHeaders[0].style.width, '48px');
-  assert.equal(managerHeaders[1].style.width, '70px');
-  assert.equal(managerHeaders[15].style.width, '65px');
+  assert.equal(managerHeaders[1].style.width, '75px');
   manager.dom.window.close();
 });

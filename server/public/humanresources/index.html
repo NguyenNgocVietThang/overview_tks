@@ -2884,26 +2884,67 @@
 
     const EMPLOYEE_STATUS_RESIGNED = 'Đã nghỉ việc';
 
-    // Độ rộng theo dữ liệu thực tế: cột mã/ngày ngắn được thu gọn; cột văn bản dài đủ chỗ đọc.
+    // Mỗi cột có độ rộng tối thiểu/tối đa; độ rộng thực tế được đo theo dữ liệu đang tải.
     const EMPLOYEE_BASIC_HEAD = [
-      ['Họ và tên','ho-va-ten',180], ['Chức vụ','chuc-vu',140], ['Cơ sở','co-so',90],
-      ['Số điện thoại','so-dien-thoai',125], ['Email','email',200], ['Trạng thái','trang-thai',70]
+      ['Họ và tên','ho-va-ten',140,320], ['Chức vụ','chuc-vu',110,260], ['Cơ sở','co-so',80,150],
+      ['Số điện thoại','so-dien-thoai',115,140], ['Email','email',150,340], ['Trạng thái','trang-thai',75,90]
     ];
     const EMPLOYEE_MANAGER_HEAD = [
-      ['STT','stt',48], ['Trạng thái','trang-thai',70], ['Họ và tên','ho-va-ten',160],
-      ['Bộ phận','bo-phan',120], ['Chức vụ','chuc-vu',130], ['Ngày vào làm','ngay-vao-lam',105],
-      ['Số ngày LV','so-ngay-lv',90], ['Ngày sinh','ngay-sinh',105], ['Số CCCD','so-cccd',130],
-      ['SĐT','so-dien-thoai',115], ['Địa chỉ hiện tại','dia-chi',180], ['QH người thân','qh-nguoi-than',110],
-      ['Họ tên người thân','ten-nguoi-than',160], ['SĐT người thân','sdt-nguoi-than',130],
-      ['Giới tính','gioi-tinh',70], ['Hồ sơ','ho-so',65], ['Vân tay','van-tay',65],
-      ['Ngày nghỉ việc','ngay-nghi-viec',105], ['Cơ sở','co-so',90]
+      ['STT','stt',48,70], ['Trạng thái','trang-thai',75,90], ['Họ và tên','ho-va-ten',140,320],
+      ['Bộ phận','bo-phan',100,220], ['Chức vụ','chuc-vu',110,260], ['Ngày vào làm','ngay-vao-lam',105,120],
+      ['Số ngày LV','so-ngay-lv',90,105], ['Ngày sinh','ngay-sinh',105,120], ['Số CCCD','so-cccd',120,145],
+      ['SĐT','so-dien-thoai',115,140], ['Địa chỉ hiện tại','dia-chi',150,300], ['QH người thân','qh-nguoi-than',100,180],
+      ['Họ tên người thân','ten-nguoi-than',140,300], ['SĐT người thân','sdt-nguoi-than',120,145],
+      ['Giới tính','gioi-tinh',70,100], ['Hồ sơ','ho-so',65,80], ['Vân tay','van-tay',65,80],
+      ['Ngày nghỉ việc','ngay-nghi-viec',105,120], ['Cơ sở','co-so',80,150]
     ];
+
+    function employeeColumnText(columnKey, employee, index){
+      switch(columnKey){
+        case 'stt': return index + 1;
+        case 'trang-thai': return employeeStatusText(employee);
+        case 'ngay-vao-lam': return formatEmployeeDate(employee.ngayVaoLam);
+        case 'so-ngay-lv': return employeeWorkingDays(employee);
+        case 'ngay-sinh': return formatEmployeeDate(employee.ngaySinh);
+        case 'dia-chi': return employee.diaChiHienTai;
+        case 'qh-nguoi-than': return employee.nguoiThanQuanHe;
+        case 'ten-nguoi-than': return employee.nguoiThanHoTen;
+        case 'sdt-nguoi-than': return employee.nguoiThanSoDienThoai;
+        case 'gioi-tinh': return employee.gioiTinh;
+        case 'ho-so': return employee.hoSoDayDu ? 'Đủ' : 'Thiếu';
+        case 'van-tay': return employee.vanTayDaDangKy ? 'Có' : 'Chưa';
+        case 'ngay-nghi-viec': return formatEmployeeDate(employee.ngayNghiViec);
+        default: {
+          const fields = {
+            'ho-va-ten':'hoTen', 'bo-phan':'boPhan', 'chuc-vu':'chucVu',
+            'co-so':'coSo', 'so-dien-thoai':'soDienThoai', 'email':'email', 'so-cccd':'soCccd'
+          };
+          return employee[fields[columnKey]] || '';
+        }
+      }
+    }
+
+    function employeeTextWidth(value){
+      const units = Array.from(String(value || '')).reduce((total, char) => total + (char.charCodeAt(0) > 255 ? 1.6 : 1), 0);
+      return Math.ceil(28 + units * 7.2);
+    }
+
+    function employeeColumnWidth(column, employees){
+      const [, key, minWidth, maxWidth] = column;
+      const contentWidth = employees.reduce((widest, employee, index) =>
+        Math.max(widest, employeeTextWidth(employeeColumnText(key, employee, index))), 0);
+      return Math.min(maxWidth, Math.max(minWidth, contentWidth));
+    }
 
     function renderEmployeeDirectoryHead(){
       const head=document.getElementById('employeeDirectoryTableHead');
+      const table=document.getElementById('employeeDirectoryTable');
       const columns=employeeCanManage ? EMPLOYEE_MANAGER_HEAD : EMPLOYEE_BASIC_HEAD;
-      head.innerHTML='<tr>'+columns.map(c=>`<th style="width:${c[2]}px" data-column-key="${c[1]}">${c[0]}</th>`).join('')+'</tr>';
-      delete document.getElementById('employeeDirectoryTable').dataset.sortInited;
+      const widths=columns.map(column => employeeColumnWidth(column, rawEmployeeDirectory));
+      head.innerHTML='<tr>'+columns.map(function(c,index){ return '<th style="width:'+widths[index]+'px" data-column-key="'+c[1]+'">'+c[0]+'</th>'; }).join('')+'</tr>';
+      // Không để CSS width:100% tự chia phần trống khiến cột ngắn bị giãn quá mức.
+      table.style.width=widths.reduce((total,width) => total + width, 0)+'px';
+      delete table.dataset.sortInited;
       initSortableTables();
     }
 
