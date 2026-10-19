@@ -353,8 +353,10 @@
   .doc-page .rule-doc-rich-body p{ margin:0 0 10px; }
   .doc-page .rule-doc-rich-body img{ display:block; max-width:100%; height:auto; margin:10px auto; }
   .doc-page .rule-doc-rich-body ul, .doc-page .rule-doc-rich-body ol{ padding-left:26px; }
-  .doc-page .doc-section table{ border-collapse:collapse; width:100%; margin:0 0 16px; font-family:'Noto Serif', Georgia, serif; font-size:12.5px; }
+  .doc-page .doc-section table{ border:1px solid #d8d5cb; border-collapse:collapse; border-spacing:0; width:100%; margin:0 0 16px; font-family:'Noto Serif', Georgia, serif; font-size:12.5px; }
   .doc-page .doc-section table td, .doc-page .doc-section table th{ border:1px solid #d8d5cb; padding:6px 10px; color:#31353f; }
+  .doc-page .doc-section table :is(tbody, thead, tfoot) tr{ transition:none; }
+  .doc-page .doc-section table :is(tbody, thead, tfoot) tr:hover{ background:transparent; }
   .doc-page .doc-table{ table-layout:fixed; }
   .doc-page .doc-table th, .doc-page .doc-table td{ white-space:normal; overflow-wrap:anywhere; border-color:#d8d5cb; font-family:'Inter', var(--font-body); font-size:12.5px; }
   .doc-page .doc-table th{ background:#f1efe8; color:#14161c; text-align:center; }
@@ -1055,6 +1057,8 @@
               </select>
             </div>
             <div class="row-actions">
+              <input type="file" id="employeeWorkbookFile" accept=".xlsx,.xls" hidden onchange="importEmployeeWorkbook(this)">
+              <button type="button" class="btn-secondary" id="btnImportEmployeeDirectory" hidden onclick="document.getElementById('employeeWorkbookFile').click()">Nhập DS nhân sự</button>
               <button type="button" class="btn-primary" id="btnAddEmployee" hidden onclick="openEmployeeModal()">+ Thêm nhân sự</button>
             </div>
           </div>
@@ -1068,7 +1072,7 @@
             </div>
             <div class="users-table-scroll has-pager">
               <table class="users-table fixed-table" id="employeeDirectoryTable" data-table-key="employeeDirectoryTable">
-                <thead>
+                <thead id="employeeDirectoryTableHead">
                   <tr>
                     <th style="width:220px" data-column-key="ho-va-ten">Họ và tên</th>
                     <th style="width:180px" data-column-key="chuc-vu">Chức vụ</th>
@@ -2847,7 +2851,8 @@
         rawEmployeeDirectory = data.employees || [];
         employeeCanManage = !!data.canManage;
         document.getElementById('btnAddEmployee').hidden = !employeeCanManage;
-        document.getElementById('employeeCreatedAtTh').hidden = !employeeCanManage;
+        document.getElementById('btnImportEmployeeDirectory').hidden = !employeeCanManage;
+        renderEmployeeDirectoryHead();
         populateDepartmentFilter('departmentFilter', document.getElementById('branchFilter').value);
         populateDepartmentFilter('employeeDepartmentFilter', document.getElementById('employeeBranchFilter').value);
         renderEmployeeDirectoryTable();
@@ -2857,6 +2862,35 @@
     }
 
     const EMPLOYEE_STATUS_RESIGNED = 'Đã nghỉ việc';
+
+    const EMPLOYEE_BASIC_HEAD = [
+      ['Họ và tên','ho-va-ten',220], ['Chức vụ','chuc-vu',180], ['Cơ sở','co-so',120],
+      ['Số điện thoại','so-dien-thoai',150], ['Email','email',280], ['Trạng thái','trang-thai',140]
+    ];
+    const EMPLOYEE_MANAGER_HEAD = [
+      ['STT','stt',70], ['Trạng thái','trang-thai',120], ['Họ và tên','ho-va-ten',210],
+      ['Bộ phận','bo-phan',150], ['Chức vụ','chuc-vu',150], ['Ngày vào làm','ngay-vao-lam',125],
+      ['Số ngày LV','so-ngay-lv',110], ['Ngày sinh','ngay-sinh',115], ['Số CCCD','so-cccd',150],
+      ['SĐT','so-dien-thoai',140], ['Địa chỉ hiện tại','dia-chi',240], ['QH người thân','qh-nguoi-than',130],
+      ['Họ tên người thân','ten-nguoi-than',180], ['SĐT người thân','sdt-nguoi-than',150],
+      ['Giới tính','gioi-tinh',90], ['Hồ sơ','ho-so',85], ['Vân tay','van-tay',85],
+      ['Ngày nghỉ việc','ngay-nghi-viec',130], ['Cơ sở','co-so',110]
+    ];
+
+    function renderEmployeeDirectoryHead(){
+      const head=document.getElementById('employeeDirectoryTableHead');
+      const columns=employeeCanManage ? EMPLOYEE_MANAGER_HEAD : EMPLOYEE_BASIC_HEAD;
+      head.innerHTML='<tr>'+columns.map(c=>`<th style="width:${c[2]}px" data-column-key="${c[1]}">${c[0]}</th>`).join('')+'</tr>';
+      delete document.getElementById('employeeDirectoryTable').dataset.sortInited;
+      initSortableTables();
+    }
+
+    function employeeWorkingDays(e){
+      if(!e.ngayVaoLam) return '—';
+      const start=new Date(e.ngayVaoLam+'T00:00:00');
+      const end=e.ngayNghiViec ? new Date(e.ngayNghiViec+'T00:00:00') : new Date();
+      return Math.max(0,Math.floor((end-start)/86400000)+1).toLocaleString('vi-VN');
+    }
 
     function employeeStatusKey(e){
       return e.trangThai === EMPLOYEE_STATUS_RESIGNED ? 'resigned' : 'active';
@@ -2934,17 +2968,39 @@
         return;
       }
       employeePaging.page = 1;
-      tbody.innerHTML = filtered.map(e => `<tr${employeeCanManage ? ` class="employee-row-clickable" data-employee-id="${escapeHtml(e.id)}"` : ''}>
+      if(employeeCanManage){
+        tbody.innerHTML = filtered.map((e,index) => `<tr class="employee-row-clickable" data-employee-id="${escapeHtml(e.id)}">
+          <td>${index+1}</td><td class="emp-status-${employeeStatusKey(e)}">${escapeHtml(e.trangThai)||'Đang làm việc'}</td>
+          <td>${escapeHtml(e.hoTen)||'—'}</td><td>${escapeHtml(e.boPhan)||'—'}</td><td>${escapeHtml(e.chucVu)||'—'}</td>
+          <td>${formatEmployeeDate(e.ngayVaoLam)}</td><td>${employeeWorkingDays(e)}</td><td>${formatEmployeeDate(e.ngaySinh)}</td>
+          <td>${escapeHtml(e.soCccd)||'—'}</td><td>${escapeHtml(e.soDienThoai)||'—'}</td><td>${escapeHtml(e.diaChiHienTai)||'—'}</td>
+          <td>${escapeHtml(e.nguoiThanQuanHe)||'—'}</td><td>${escapeHtml(e.nguoiThanHoTen)||'—'}</td><td>${escapeHtml(e.nguoiThanSoDienThoai)||'—'}</td>
+          <td>${escapeHtml(e.gioiTinh)||'—'}</td><td>${e.hoSoDayDu?'X':'—'}</td><td>${e.vanTayDaDangKy?'X':'—'}</td>
+          <td>${formatEmployeeDate(e.ngayNghiViec)}</td><td>${escapeHtml(e.coSo)||'—'}</td></tr>`).join('');
+      }else tbody.innerHTML = filtered.map(e => `<tr>
         <td>${escapeHtml(e.hoTen) || '—'}</td>
         <td>${escapeHtml(e.boPhan) || '—'}</td>
         <td>${escapeHtml(e.coSo) || '—'}</td>
         <td>${escapeHtml(e.soDienThoai) || '—'}</td>
         <td>${escapeHtml(e.email) || '—'}</td>
         <td class="emp-status-${employeeStatusKey(e)}">${escapeHtml(e.trangThai) || 'Đang làm việc'}</td>
-        <td${employeeCanManage ? ` data-sort-value="${new Date(e.ngayThem).getTime() || ''}"` : ' hidden'}>${employeeCanManage ? formatEmployeeDate(e.ngayThem) : ''}</td>
       </tr>`).join('');
       applyActiveTableSorts();
       paginateEmployeeDirectoryTable();
+    }
+
+    async function importEmployeeWorkbook(input){
+      const file=input.files && input.files[0];
+      if(!file) return;
+      const form=new FormData(); form.append('file',file);
+      try{
+        const res=await fetch('/api/hr/employees/import',{method:'POST',credentials:'same-origin',body:form});
+        const {ok,data}=await parseApiResponse(res);
+        if(!ok) throw new Error(data.error||'Không nhập được file.');
+        showToast(`Đã cập nhật ${data.updated}/${data.total} nhân sự. Không khớp: ${(data.unmatched||[]).length}; trùng: ${(data.ambiguous||[]).length}.`, data.unmatched?.length||data.ambiguous?.length?'warning':'success');
+        await loadEmployeeDirectory();
+      }catch(err){ showToast(err.message||'Không nhập được file.','error'); }
+      finally{ input.value=''; }
     }
 
     // Bam vao dong nhan su -> mo hop chi tiet (chi khi co quyen hr.employees.manage).

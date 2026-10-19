@@ -10,6 +10,7 @@
 'use strict';
 
 const express = require('express');
+const multer = require('multer');
 
 
 const { requireAuth, requireFeature } = require('../auth/authMiddleware');
@@ -34,6 +35,24 @@ const { BRANCHES, BRANCH_BOTH, allowedBranches, normalizeCoSo } = require('../br
 const { leaveEvents, LEAVE_EVENT_TYPES, broadcastLeaveEvent } = require('./hrLeaveEvents');
 const { createHrLeaveDecisionService } = require('./hrLeaveDecisionService');
 const { createHrEmployeeAdminService, STATUS_LABELS } = require('./hrEmployeeAdminService');
+const { parseEmployeeWorkbook } = require('./hrEmployeeWorkbookImport');
+const { importRows: importEmployeeRows } = require('./hrEmployeeWorkbookImportService');
+
+const employeeWorkbookUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 8 * 1024 * 1024, files: 1 }
+});
+
+function receiveEmployeeWorkbook(req, res, next) {
+  employeeWorkbookUpload.single('file')(req, res, err => {
+    if (!err) return next();
+    const tooLarge = err.code === 'LIMIT_FILE_SIZE';
+    return res.status(tooLarge ? 413 : 400).json({
+      error: tooLarge ? 'File vượt quá 8 MB.' : 'Không đọc được file Excel.',
+      code: tooLarge ? 'HR_EMPLOYEE_FILE_TOO_LARGE' : 'HR_EMPLOYEE_FILE_INVALID'
+    });
+  });
+}
 function createHrLeaveRoutes(options = {}) {
 const router = express.Router();
 const repo = options.repo || defaultRepo;
@@ -407,6 +426,14 @@ function publicEmployee(employee, canManage) {
     trangThai: STATUS_LABELS[employee.employmentStatus] || STATUS_LABELS.active
   };
   if (canManage) out.ngayThem = employee.createdAt || '';
+  if (canManage) Object.assign(out, {
+    chucVu: employee.chucVu || '', ngayVaoLam: employee.ngayVaoLam || null,
+    ngaySinh: employee.ngaySinh || null, soCccd: employee.soCccd || '',
+    diaChiHienTai: employee.diaChiHienTai || '', nguoiThanQuanHe: employee.nguoiThanQuanHe || '',
+    nguoiThanHoTen: employee.nguoiThanHoTen || '', nguoiThanSoDienThoai: employee.nguoiThanSoDienThoai || '',
+    gioiTinh: employee.gioiTinh || '', hoSoDayDu: !!employee.hoSoDayDu,
+    vanTayDaDangKy: !!employee.vanTayDaDangKy, ngayNghiViec: employee.ngayNghiViec || null
+  });
   return out;
 }
 
@@ -442,6 +469,23 @@ router.put('/api/hr/employees/:id', ...authEmployeesManage, async (req, res) => 
     res.status(200).json({ employee: publicEmployee(employee, true), accounts });
   } catch (err) {
     handleError(res, err, 'PUT /api/hr/employees/:id');
+  }
+});
+
+router.post('/api/hr/employees/import', ...authEmployeesManage, receiveEmployeeWorkbook, async (req, res) => {
+  try {
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ error: 'Vui lòng chọn file Excel.', code: 'HR_EMPLOYEE_FILE_REQUIRED' });
+    }
+    const rows = parseEmployeeWorkbook(req.file.buffer);
+    const permitted = allowedBranches(req.user).map(label => label === BRANCHES.HANOI ? 'hanoi' : 'saigon');
+    const forbidden = rows.find(row => !permitted.includes(row.branch));
+    if (forbidden) return res.status(403).json({ error: 'File có cơ sở ngoài phạm vi quản lý.', code: 'BRANCH_FORBIDDEN' });
+    const result = await importEmployeeRows(rows);
+    employeeDirectory.clearCache();
+    return res.status(200).json(result);
+  } catch (err) {
+    handleError(res, err, 'POST /api/hr/employees/import');
   }
 });
 

@@ -156,6 +156,18 @@ function mapEmployeeRow(row) {
     telegramId: row.telegramId,
     employmentStatus: row.employmentStatus === 'resigned' ? 'resigned' : 'active',
     createdAt: row.createdAt || '',
+    chucVu: row.chucVu || '',
+    ngayVaoLam: row.ngayVaoLam || null,
+    ngaySinh: row.ngaySinh || null,
+    soCccd: row.soCccd || '',
+    diaChiHienTai: row.diaChiHienTai || '',
+    nguoiThanQuanHe: row.nguoiThanQuanHe || '',
+    nguoiThanHoTen: row.nguoiThanHoTen || '',
+    nguoiThanSoDienThoai: row.nguoiThanSoDienThoai || '',
+    gioiTinh: row.gioiTinh || '',
+    hoSoDayDu: !!row.hoSoDayDu,
+    vanTayDaDangKy: !!row.vanTayDaDangKy,
+    ngayNghiViec: row.ngayNghiViec || null,
     sheetVaiTro: roleForDepartment(row.boPhan),
     sheetCoSo: BRANCH_BOTH
   };
