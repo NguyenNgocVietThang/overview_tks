@@ -1084,12 +1084,12 @@
               <table class="users-table fixed-table" id="employeeDirectoryTable" data-table-key="employeeDirectoryTable">
                 <thead id="employeeDirectoryTableHead">
                   <tr>
-                    <th style="width:220px" data-column-key="ho-va-ten">Họ và tên</th>
-                    <th style="width:180px" data-column-key="chuc-vu">Chức vụ</th>
-                    <th style="width:120px" data-column-key="co-so">Cơ sở</th>
-                    <th style="width:150px" data-column-key="so-dien-thoai">Số điện thoại</th>
-                    <th style="width:280px" data-column-key="email">Email</th>
-                    <th style="width:140px" data-column-key="trang-thai">Trạng thái</th>
+                    <th style="width:180px" data-column-key="ho-va-ten">Họ và tên</th>
+                    <th style="width:140px" data-column-key="chuc-vu">Chức vụ</th>
+                    <th style="width:90px" data-column-key="co-so">Cơ sở</th>
+                    <th style="width:125px" data-column-key="so-dien-thoai">Số điện thoại</th>
+                    <th style="width:200px" data-column-key="email">Email</th>
+                    <th style="width:70px" data-column-key="trang-thai">Trạng thái</th>
                     <th style="width:130px" id="employeeCreatedAtTh" hidden data-column-key="ngay-them">Ngày thêm</th>
                   </tr>
                 </thead>
@@ -2884,18 +2884,19 @@
 
     const EMPLOYEE_STATUS_RESIGNED = 'Đã nghỉ việc';
 
+    // Độ rộng theo dữ liệu thực tế: cột mã/ngày ngắn được thu gọn; cột văn bản dài đủ chỗ đọc.
     const EMPLOYEE_BASIC_HEAD = [
-      ['Họ và tên','ho-va-ten',220], ['Chức vụ','chuc-vu',180], ['Cơ sở','co-so',120],
-      ['Số điện thoại','so-dien-thoai',150], ['Email','email',280], ['Trạng thái','trang-thai',140]
+      ['Họ và tên','ho-va-ten',180], ['Chức vụ','chuc-vu',140], ['Cơ sở','co-so',90],
+      ['Số điện thoại','so-dien-thoai',125], ['Email','email',200], ['Trạng thái','trang-thai',70]
     ];
     const EMPLOYEE_MANAGER_HEAD = [
-      ['STT','stt',70], ['Trạng thái','trang-thai',120], ['Họ và tên','ho-va-ten',210],
-      ['Bộ phận','bo-phan',150], ['Chức vụ','chuc-vu',150], ['Ngày vào làm','ngay-vao-lam',125],
-      ['Số ngày LV','so-ngay-lv',110], ['Ngày sinh','ngay-sinh',115], ['Số CCCD','so-cccd',150],
-      ['SĐT','so-dien-thoai',140], ['Địa chỉ hiện tại','dia-chi',240], ['QH người thân','qh-nguoi-than',130],
-      ['Họ tên người thân','ten-nguoi-than',180], ['SĐT người thân','sdt-nguoi-than',150],
-      ['Giới tính','gioi-tinh',90], ['Hồ sơ','ho-so',85], ['Vân tay','van-tay',85],
-      ['Ngày nghỉ việc','ngay-nghi-viec',130], ['Cơ sở','co-so',110]
+      ['STT','stt',48], ['Trạng thái','trang-thai',70], ['Họ và tên','ho-va-ten',160],
+      ['Bộ phận','bo-phan',120], ['Chức vụ','chuc-vu',130], ['Ngày vào làm','ngay-vao-lam',105],
+      ['Số ngày LV','so-ngay-lv',90], ['Ngày sinh','ngay-sinh',105], ['Số CCCD','so-cccd',130],
+      ['SĐT','so-dien-thoai',115], ['Địa chỉ hiện tại','dia-chi',180], ['QH người thân','qh-nguoi-than',110],
+      ['Họ tên người thân','ten-nguoi-than',160], ['SĐT người thân','sdt-nguoi-than',130],
+      ['Giới tính','gioi-tinh',70], ['Hồ sơ','ho-so',65], ['Vân tay','van-tay',65],
+      ['Ngày nghỉ việc','ngay-nghi-viec',105], ['Cơ sở','co-so',90]
     ];
 
     function renderEmployeeDirectoryHead(){

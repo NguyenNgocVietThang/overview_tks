@@ -162,3 +162,19 @@ test('cot trang thai hien LV va NV theo trang thai lam viec', async () => {
   assert.equal(doc.querySelector('#employeeDirectoryTableBody tr').cells[5].textContent.trim(), 'NV');
   dom.window.close();
 });
+
+
+test('do rong cot danh sach nhan su gon theo noi dung, tranh khoang trang du', async () => {
+  const basic = await openPage({ canManage: false });
+  const basicHeaders = basic.window.document.querySelectorAll('#employeeDirectoryTableHead th');
+  assert.equal(basicHeaders[5].style.width, '70px');
+  assert.equal(basicHeaders[4].style.width, '200px');
+  basic.dom.window.close();
+
+  const manager = await openPage({ canManage: true });
+  const managerHeaders = manager.window.document.querySelectorAll('#employeeDirectoryTableHead th');
+  assert.equal(managerHeaders[0].style.width, '48px');
+  assert.equal(managerHeaders[1].style.width, '70px');
+  assert.equal(managerHeaders[15].style.width, '65px');
+  manager.dom.window.close();
+});
