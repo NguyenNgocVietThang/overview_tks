@@ -21,9 +21,12 @@
 .section-head h2{margin:0;font-family:var(--font-display);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--canvas-text)}
 .section-head .section-note{color:var(--canvas-text);font-size:11.5px;font-weight:500;text-transform:none;letter-spacing:0}
 .section-head::after{content:"";flex:1;height:1px;background:var(--canvas-border)}
-.vd-panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-xl);box-shadow:var(--card-shadow);padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.vd-panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-xl);box-shadow:var(--card-shadow);padding:18px 20px;display:flex;flex-direction:column;gap:16px;min-width:0}
 .vd-panel[hidden],[hidden].vd-panel{display:none}
 .vd-hint{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
+#vdDocsPane,#vdPastePane{display:flex;flex-direction:column;gap:14px;min-width:0}
+#vdDocsPane[hidden],#vdPastePane[hidden]{display:none}
+.vd-codes{display:flex;flex-direction:column;gap:8px}
 /* Tab cap 3 trong hop (nen --panel nen dung --text, khong dung mau canvas) */
 .vd-modetabs{display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--border)}
 .vd-modetab{display:inline-flex;align-items:center;gap:6px;padding:9px 14px;margin-bottom:-1px;background:transparent;border:1px solid transparent;border-bottom:2px solid transparent;border-radius:var(--radius-xs) var(--radius-xs) 0 0;color:var(--muted);font:600 13px var(--font-body);cursor:pointer;transition:color .15s ease,border-color .15s ease}
@@ -38,26 +41,26 @@
 .vd-codes-row{display:flex;gap:10px;align-items:flex-start}
 .vd-codes-row textarea{flex:1}
 .vd-codes-row .btn-primary{white-space:nowrap}
-.vd-filters{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr)) auto;gap:10px;align-items:end;padding:12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--panel-2)}
-.vd-page .vd-filters label{gap:4px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.vd-filters{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr)) auto;gap:12px 14px;align-items:end;padding:14px 16px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--panel-2)}
+.vd-page .vd-filters label{gap:6px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
 .vd-filters select,.vd-filters input[type="date"]{min-height:38px;font-size:13px;background:var(--panel)}
 .vd-filters .dmy-date-wrap{width:100%}
 .vd-page .vd-filters .dmy-date-input{flex:1 1 auto;width:auto;min-width:0;min-height:38px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel);color:var(--text);font-size:13px;box-sizing:border-box}
 .vd-reset{min-height:38px;white-space:nowrap}
-.vd-table-tools{display:flex;align-items:center;justify-content:space-between;gap:8px 12px;flex-wrap:wrap}
+.vd-table-tools{display:flex;align-items:center;justify-content:space-between;gap:10px 16px;flex-wrap:wrap}
 .vd-count{font:600 12px var(--font-data);color:var(--muted);font-variant-numeric:tabular-nums}
-.table-search-tools{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex:1 1 320px;flex-wrap:wrap}
+.table-search-tools{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex:1 1 320px;flex-wrap:wrap}
 .vd-page .table-search-input-wrap{display:flex;flex-direction:row;align-items:center;gap:0;flex:1 1 220px;min-width:180px;max-width:420px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel-2);font-weight:500}
 .table-search-input-wrap:focus-within{border-color:var(--blue)}
 .vd-search-icon{flex:none;width:14px;height:14px;margin-left:9px;color:var(--muted)}
-.vd-page .table-search-input{width:100%;min-width:0;min-height:32px;padding:6px 8px;border:0;border-radius:0;outline:0;background:transparent;color:var(--text);font:500 11.5px var(--font-body);appearance:none;-webkit-appearance:none}
+.vd-page .table-search-input{width:100%;min-width:0;min-height:36px;padding:6px 10px;border:0;border-radius:0;outline:0;background:transparent;color:var(--text);font:500 12.5px var(--font-body);appearance:none;-webkit-appearance:none}
 .vd-page .table-search-input:focus-visible{outline:0}
 .table-search-input::-webkit-search-cancel-button,.table-search-input::-webkit-search-decoration{display:none;-webkit-appearance:none}
 .table-search-clear{width:28px;height:28px;border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:17px;line-height:1}
 .table-search-clear:hover{color:var(--text)}
 .table-search-clear:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 .table-search-clear[hidden]{display:none}
-.export-button{min-height:34px;padding:0 12px;gap:6px;font-size:11.5px;font-weight:700}
+.export-button{display:inline-flex;align-items:center;justify-content:center;min-height:36px;padding:0 16px;gap:8px;font-size:12.5px;font-weight:700;line-height:1;white-space:nowrap}
 .export-button:not(.btn-secondary){border:0;background:var(--primary-gradient);color:var(--primary-text);box-shadow:var(--primary-shadow)}
 .export-button svg{width:14px;height:14px;flex:none}
 .vd-message{margin:0;font-size:12.5px;color:var(--muted);white-space:pre-line}
@@ -78,11 +81,11 @@
 .vd-status-shortage{color:var(--amber);font-weight:700}
 .vd-status-missing{color:var(--red);font-weight:700;cursor:help;text-decoration:underline dotted}
 /* Phan trang chuan (<< < Trang n/m > >>), can giua — khuon .pagination-controls cua Cong no / So quy */
-.pagination-controls{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:2px;font-family:var(--font-data);font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.pagination-controls{display:flex;align-items:center;justify-content:center;gap:12px;margin:2px 0 4px;font-family:var(--font-data);font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
 .pagination-controls button{display:inline-flex;align-items:center;justify-content:center;min-width:30px;min-height:30px;padding:0 8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel-2);color:var(--text);font:600 12.5px var(--font-data);line-height:1;cursor:pointer;transition:border-color .15s ease,opacity .15s ease}
 .pagination-controls button:hover:not(:disabled){border-color:var(--muted)}
 .pagination-controls button:disabled{opacity:.4;cursor:default}
-.vd-selected{border:1px dashed var(--border);border-radius:var(--radius-md);padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.vd-selected{border:1px dashed var(--border);border-radius:var(--radius-md);padding:12px 16px;display:flex;flex-direction:column;gap:8px}
 .vd-selected-head{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;color:var(--text)}
 .vd-chips{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
 .vd-chips li{display:inline-flex;align-items:center;gap:6px;padding:4px 4px 4px 10px;border-radius:var(--radius-pill);background:var(--panel-2);border:1px solid var(--border);font:600 12px var(--font-data);color:var(--text)}
