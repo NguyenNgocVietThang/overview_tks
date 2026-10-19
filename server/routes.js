@@ -9,13 +9,16 @@ const {
 const router = express.Router();
 
 const { getExportFields, createExport, buildExportErrorBody } = require('./dashboard/exportService');
-const { getProductReport, getProductReportCustomers, getProductReportVersion } = require('./dashboard/productReportRepository');
+const {
+  getProductReport, getProductReportCustomers, getProductReportVersion, PRODUCT_REPORT_PRICE_KEYS
+} = require('./dashboard/productReportRepository');
 const containerRepository = require('./productContainers/repository');
 const { getInventoryValueHistory } = require('./dashboard/inventoryValueHistory');
 const { getInvoiceDetail } = require('./dashboard/documentDetailRepository');
 const authRoutes = require('./auth/authRoutes');
 const adminUserRoutes = require('./auth/adminUserRoutes');
 const { requireAuth, requireFeature } = require('./auth/authMiddleware');
+const { startTiming, markTiming } = require('./lib/requestTiming');
 const { REPORT_VIEW_FEATURES, permissionsHave, hasFeature } = require('./auth/featureRegistry');
 const { parseViewsParam, VIEW_FEATURE } = require('./dashboard/dashboardViews');
 const { filterDashboardForUser } = require('./dashboard/dashboardPermissionFilter');
@@ -130,9 +133,9 @@ router.use('/api/dashboard', ...reportsUser(...REPORT_VIEW_FEATURES));
 // nhap Tra NCC) duoi '/api/products' cung chi reports.products.
 router.use('/api/customer-suggest', ...reportsUser('reports.business'));
 router.use('/api/customer-product-revenue', ...reportsUser('reports.business'));
-router.use('/api/product-report', ...reportsUser('reports.products'));
+router.use('/api/product-report', startTiming, ...reportsUser('reports.products'), markTiming('auth'));
 router.use('/api/inventory-value-history', ...reportsUser('reports.overview'));
-router.use('/api/invoice-detail', ...reportsUser('reports.invoices'));
+router.use('/api/invoice-detail', startTiming, ...reportsUser('reports.invoices'), markTiming('auth'));
 router.use('/api/export', ...reportsUser('reports.export'));
 router.use('/api/products', ...reportsUser('reports.products'));
 
@@ -302,10 +305,15 @@ router.get('/api/customer-product-revenue', async (req, res) => {
 router.get('/api/product-report', async (req, res) => {
   try {
     const data = await getProductReport();
-    // Don gia HN/SG chi Quan ly + Tro ly (reports.products.price): tai khoan khac khong nhan truong gia trong payload.
-    // Dong cua bo doc la cache dung chung nen tao ban sao, khong xoa truong tren dong goc.
+    // Don gia HN/SG + Gia tri co ban HN/SG chi Quan ly + Tro ly (reports.products.price): tai khoan khac khong nhan
+    // cac truong nay (PRODUCT_REPORT_PRICE_KEYS) trong payload. Dong cua bo doc la cache dung chung nen tao ban sao,
+    // khong xoa truong tren dong goc.
     if (!hasFeature(req.user, 'reports.products.price')) {
-      data.rows = data.rows.map(({ priceHanoi, priceSaigon, ...row }) => row);
+      data.rows = data.rows.map((row) => {
+        const copy = { ...row };
+        PRODUCT_REPORT_PRICE_KEYS.forEach((key) => { delete copy[key]; });
+        return copy;
+      });
     }
     res.status(200).json(data);
   } catch (err) {
@@ -443,7 +451,7 @@ function sendExportError(res, err, fallbackMessage) {
 
 router.post('/api/export/fields', async (req, res) => {
   try {
-    const metadata = await getExportFields(req.body || {}, req.branch);
+    const metadata = await getExportFields(req.body || {}, req.branch, { canViewPrice: hasFeature(req.user, 'reports.products.price') });
     res.status(200).json(metadata);
   } catch (err) {
     sendExportError(res, err, 'Không lấy được danh sách trường xuất Excel.');
@@ -460,7 +468,11 @@ router.post('/api/export', async (req, res) => {
     if (!res.writableFinished) abortController.abort();
   });
   try {
-    const file = await createExport(req.body || {}, req.branch, { signal: abortController.signal });
+    const file = await createExport(req.body || {}, req.branch, {
+      signal: abortController.signal,
+      // Cột Đơn giá HN/SG của Báo cáo hàng hóa chỉ xuất cho tài khoản có quyền xem giá (cùng quyền với GET /api/product-report).
+      canViewPrice: hasFeature(req.user, 'reports.products.price')
+    });
     if (abortController.signal.aborted) return;
     res.setHeader('Content-Type', file.mimeType);
     res.setHeader('Content-Disposition', `attachment; filename="${file.fileName}"`);

@@ -85,7 +85,7 @@ function apiInput(row) {
 // Ignore volatile raw API metadata for retry identity; retain the full payload on each actual observation.
 function factHash(row) { const { raw, historicalRowId, ...facts } = row; return hash(facts); }
 
-function createMarketingRepository({ pool = require('../db/pool').getPool() } = {}) {
+function createMarketingRepository({ pool = require('../db/pool').getPool(), logger = console } = {}) {
   async function transaction(work, readOnly = false) {
     const client = await pool.connect();
     try {
@@ -389,16 +389,74 @@ function createMarketingRepository({ pool = require('../db/pool').getPool() } = 
       return camel(saved);
     });
   }
+  // Quan sat Pancake doc lap, dang "rawRows" (khong kem raw khi includeRaw=false). sourceOrders: chi lay cac source_order nay.
+  async function independentObservations(client,{includeRaw=true,sourceOrders}={}) {
+    const rows=(await client.query(`SELECT o.id::text AS id,o.fact_id::text AS fact_id,o.run_id::text AS run_id,o.source_order::text AS source_order,o.observed_at,o.credited_date::text AS credited_date,${includeRaw?'o.input':"o.input - 'raw'"} AS input,f.page_id,f.source_key FROM marketing_pancake_independent_observations o JOIN marketing_pancake_independent_facts f ON f.id=o.fact_id${sourceOrders?' WHERE o.source_order = ANY($1::bigint[])':''} ORDER BY o.source_order`,sourceOrders?[sourceOrders]:[])).rows;
+    return rows.map(row=>{const {input,...meta}=row;const out={...input,...camel(meta),origin:'pancake',independent:true};if(!includeRaw)delete out.raw;return out;});
+  }
+  async function independentCommon(client,includeRaw) {
+    const pages=(await client.query('SELECT p.page_id,p.name,p.platform,s.status,s.last_success_at,s.last_attempt_at,s.error_code,s.coverage FROM marketing_pages p JOIN marketing_pancake_independent_page_state s ON s.page_id=p.page_id ORDER BY p.page_id')).rows.map(camel);
+    const aliases=(await client.query('SELECT raw_name,report_employee,updated_at,actor FROM marketing_employee_aliases ORDER BY raw_name')).rows.map(camel);
+    const monthlyRows=(await client.query(`SELECT ${includeRaw?monthlyColumns:monthlyColumns.replace(',source_raw','')} FROM marketing_monthly_rows WHERE origin='manual' ORDER BY report_year,report_month,id`)).rows.map(monthlyShape);
+    const latest=(await client.query("SELECT id::text AS id FROM marketing_sync_runs WHERE starts_with(run_key,'pancake-independent:') ORDER BY id DESC LIMIT 1")).rows[0];
+    return {pages,aliases,monthlyRows,latestRun:latest?await syncRun(client,latest.id):null};
+  }
   async function readIndependentSnapshot({includeRaw=true}={}) {
     return transaction(async client=>{
-      const pages=(await client.query('SELECT p.page_id,p.name,p.platform,s.status,s.last_success_at,s.last_attempt_at,s.error_code,s.coverage FROM marketing_pages p JOIN marketing_pancake_independent_page_state s ON s.page_id=p.page_id ORDER BY p.page_id')).rows.map(camel);
-      const aliases=(await client.query('SELECT raw_name,report_employee,updated_at,actor FROM marketing_employee_aliases ORDER BY raw_name')).rows.map(camel);
-      const observations=(await client.query(`SELECT o.id::text AS id,o.fact_id::text AS fact_id,o.run_id::text AS run_id,o.source_order::text AS source_order,o.observed_at,o.credited_date::text AS credited_date,${includeRaw?'o.input':"o.input - 'raw'"} AS input,f.page_id,f.source_key FROM marketing_pancake_independent_observations o JOIN marketing_pancake_independent_facts f ON f.id=o.fact_id ORDER BY o.source_order`)).rows;
-      const rawRows=observations.map(row=>{const {input,...meta}=row;const out={...input,...camel(meta),origin:'pancake',independent:true};if(!includeRaw)delete out.raw;return out;});
-      const monthlyRows=(await client.query(`SELECT ${includeRaw?monthlyColumns:monthlyColumns.replace(',source_raw','')} FROM marketing_monthly_rows WHERE origin='manual' ORDER BY report_year,report_month,id`)).rows.map(monthlyShape);
-      const latest=(await client.query("SELECT id::text AS id FROM marketing_sync_runs WHERE starts_with(run_key,'pancake-independent:') ORDER BY id DESC LIMIT 1")).rows[0];
-      return {pages,aliases,rawRows,monthlyRows,facts:[],latestRun:latest?await syncRun(client,latest.id):null};
+      const common=await independentCommon(client,includeRaw);
+      const rawRows=await independentObservations(client,{includeRaw});
+      return {pages:common.pages,aliases:common.aliases,rawRows,monthlyRows:common.monthlyRows,facts:[],latestRun:common.latestRun};
     },true);
+  }
+  // Chi trang thai page / anh xa / BC thang nhap tay / lan chay cuoi — KHONG keo quan sat (cho syncStatus, kiem tra khi luu BC thang...).
+  async function readIndependentLite() {
+    return transaction(async client=>({...await independentCommon(client,false),rawRows:[],facts:[],lite:true}),true);
+  }
+  const SUMMARY_COLUMNS="page_id,phone_key,phone,first_employee,current_employee,repeat_employee,first_at::text AS first_at,current_at::text AS current_at,repeat_at::text AS repeat_at,trace";
+  // Co ANY SDT thieu nhan vien/ngay/anh xa (cung dieu kien voi phones.some(unresolved) cua duong gop JS).
+  const UNRESOLVED_SQL=`SELECT EXISTS(SELECT 1 FROM marketing_phone_summary s WHERE s.first_employee='' OR s.current_employee='' OR s.first_at IS NULL OR s.current_at IS NULL
+    OR (s.first_employee<>'' AND NOT EXISTS(SELECT 1 FROM marketing_employee_aliases a WHERE a.raw_name=s.first_employee))
+    OR (s.current_employee<>'' AND NOT EXISTS(SELECT 1 FROM marketing_employee_aliases a WHERE a.raw_name=s.current_employee))) AS any`;
+  function summaryRow(row) {
+    return {pageId:row.page_id,phoneKey:row.phone_key,phone:row.phone,firstEmployee:row.first_employee,currentEmployee:row.current_employee,repeatEmployee:row.repeat_employee,
+      firstAt:row.first_at,currentAt:row.current_at,repeatAt:row.repeat_at,
+      trace:require('./marketingSummaryRefresh').expandTrace(row.trace)};
+  }
+  // Doc bang gop SDT (marketing_phone_summary). scope: 'none' (khong tai dong SDT), 'month' (chi SDT lan dau / chao lai roi vao
+  // thang year-month — du cho Check ty le nhan so), 'all'. Tra ve null khi thieu bang / chua dung / ban gop cu so voi quan sat
+  // => noi goi lui ve readIndependentSnapshot + gop JS.
+  async function readIndependentSummary({scope='none',year,month}={}) {
+    try {
+      return await transaction(async client=>{
+        const state=(await client.query('SELECT max_source_order::text AS max_source_order,periods,employee_raws FROM marketing_phone_summary_state WHERE id=1')).rows[0];
+        if(!state)return null;
+        const live=(await client.query('SELECT max(source_order)::text AS max_source_order FROM marketing_pancake_independent_observations')).rows[0]?.max_source_order??null;
+        if(live!==(state.max_source_order??null))return null;
+        const common=await independentCommon(client,false);
+        let rows=[];
+        if(scope==='all')rows=(await client.query(`SELECT ${SUMMARY_COLUMNS} FROM marketing_phone_summary ORDER BY first_order`)).rows;
+        else if(scope==='month'){
+          if(!Number.isInteger(year)||!Number.isInteger(month)||month<1||month>12)invalid();
+          const from=`${String(year).padStart(4,'0')}-${String(month).padStart(2,'0')}-01`,to=month===12?`${String(year+1).padStart(4,'0')}-01-01`:`${String(year).padStart(4,'0')}-${String(month+1).padStart(2,'0')}-01`;
+          rows=(await client.query(`SELECT ${SUMMARY_COLUMNS} FROM marketing_phone_summary WHERE (first_at>=$1::date AND first_at<$2::date) OR (repeat_at>=$1::date AND repeat_at<$2::date) ORDER BY first_order`,[from,to])).rows;
+        }
+        const unresolvedAny=(await client.query(UNRESOLVED_SQL)).rows[0].any===true;
+        return {pages:common.pages,aliases:common.aliases,rawRows:null,monthlyRows:common.monthlyRows,facts:[],latestRun:common.latestRun,
+          summary:{rows:rows.map(summaryRow),periods:state.periods||[],employeeRaws:state.employee_raws||[],unresolvedAny}};
+      },true);
+    } catch(cause) {
+      if(cause?.code==='42P01'||cause?.code==='42703')return null;
+      throw cause;
+    }
+  }
+  // Quan sat theo source_order (cho hop chi tiet "Lich su nhan vien va ngay nguon"), khong kem raw.
+  async function readIndependentObservations({sourceOrders}={}) {
+    if(!Array.isArray(sourceOrders)||sourceOrders.some(v=>!/^[1-9]\d*$/.test(String(v))))invalid();
+    if(!sourceOrders.length)return [];
+    return transaction(client=>independentObservations(client,{includeRaw:false,sourceOrders:sourceOrders.map(String)}),true);
+  }
+  async function refreshIndependentSummary() {
+    return require('./marketingSummaryRefresh').refreshPhoneSummary({pool,readObservations:independentObservations,logger});
   }
   async function readSnapshot({ includeRaw = true, includeIdentities = false } = {}) {
     return transaction(async client => {
@@ -416,7 +474,7 @@ function createMarketingRepository({ pool = require('../db/pool').getPool() } = 
       return {pages,aliases,facts,rawRows,monthlyRows,identities,baselineMessages,latestRun:latestRunId ? await syncRun(client,latestRunId) : null};
     },true);
   }
-  return Object.fromEntries(Object.entries({importHistory,importIdentities,readIndependentSnapshot,commitIndependentPageSync,failIndependentPageSync,upsertAlias,startSyncRun,commitPageSync,failPageSync,finishSyncRun,getSyncRun,getLatestSlotRun,readSnapshot,createMonthlyRow,updateMonthlyRow,listMonthlyRows,listMonthlyAudit}).map(([name,fn])=>[name,safe(fn)]));
+  return Object.fromEntries(Object.entries({importHistory,importIdentities,readIndependentSnapshot,readIndependentLite,readIndependentSummary,readIndependentObservations,refreshIndependentSummary,commitIndependentPageSync,failIndependentPageSync,upsertAlias,startSyncRun,commitPageSync,failPageSync,finishSyncRun,getSyncRun,getLatestSlotRun,readSnapshot,createMonthlyRow,updateMonthlyRow,listMonthlyRows,listMonthlyAudit}).map(([name,fn])=>[name,safe(fn)]));
 }
 
 module.exports={createMarketingRepository,PAGE_IDS,PAGE_NAMES};

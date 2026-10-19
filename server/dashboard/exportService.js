@@ -280,31 +280,59 @@ const CUSTOMER_PRODUCT_DETAIL_COLUMNS = [
 
 // Bao cao hang hoa (tab Tong quan) - doc thang tu bang product_report da tinh
 // san 1 lan/dem (xem productReportRepository.js/productReportRefresh.js).
+// 34 cot, THU TU = thu tu sheet BC CHUNG va = thu tu cot bang "Bao cao hang hoa" tren man hinh (thead trong public/index.html);
+// doi thu tu o day phai doi thead + productReportRowHtml + PRODUCT_REPORT_WIDTHS_BY_PROFILE. Cot "ngay" khai bao type tuong minh
+// (nhan co chu "ngay" se bi inferColumnType suy ra thanh cot ngay thang). Tang truong la phan so (0,25 = 25%), kieu 'percent'.
 const PRODUCT_REPORT_COLUMNS = [
   aggregateColumn('code', 'Mã sản phẩm', 'text', 'Mã sản phẩm.'),
   aggregateColumn('name', 'Tên sản phẩm', undefined, 'Tên sản phẩm.'),
-  aggregateColumn('unloadedQty', 'Chưa bốc', 'number', 'Tổng số lượng toàn công ty trong CONT trạng thái 1 hoặc 2; trống khi chưa có dữ liệu.'),
-  aggregateColumn('loadedQty', 'Đã bốc', 'number', 'Tổng số lượng toàn công ty trong CONT trạng thái 3; trống khi chưa có dữ liệu.'),
+  aggregateColumn('availableValueHanoi', 'Giá trị có bán Hà Nội', 'number',
+    'Có bán Hà Nội nhân đơn giá Hà Nội (VNĐ); trống khi thiếu một trong hai số. Chỉ Quản lý và Trợ lý được xuất.'),
+  aggregateColumn('qtySold30dHanoi', 'Số lượng bán 30 ngày Hà Nội', 'number', 'Tổng số lượng bán ra tại Hà Nội trong 30 ngày gần nhất (tính đến hết hôm qua); trống khi báo cáo chưa được tính lại.'),
   aggregateColumn('stockHanoi', 'Tồn thực Hà Nội', 'number', 'Tồn kho hiện tại tại cơ sở Hà Nội.'),
   aggregateColumn('availableHanoi', 'Có bán Hà Nội', 'number', 'Tồn thực Hà Nội trừ số lượng khách đặt phiếu tạm tại Hà Nội; trống khi báo cáo chưa được tính lại.'),
   aggregateColumn('inTransit', 'Điều chuyển SG', 'number', 'Số lượng đặt hàng nhập Đã xác nhận nhà cung cấp tại Kiot Sài Gòn, cộng vào tồn có thể bán của báo cáo này.'),
   aggregateColumn('stockSaigon', 'Tồn thực Sài Gòn', 'number', 'Tồn kho hiện tại tại cơ sở Sài Gòn.'),
   aggregateColumn('availableSaigon', 'Có bán Sài Gòn', 'number', 'Tồn thực Sài Gòn trừ số lượng khách đặt phiếu tạm tại Sài Gòn; trống khi báo cáo chưa được tính lại.'),
-  aggregateColumn('descriptionHanoi', 'Mô tả Hà Nội', 'text', 'Mô tả sản phẩm trên KiotViet của cơ sở Hà Nội (thường ghi bảng giá cho nhân viên bán hàng tra cứu).', { wrapText: true }),
-  aggregateColumn('descriptionSaigon', 'Mô tả Sài Gòn', 'text', 'Mô tả sản phẩm trên KiotViet của cơ sở Sài Gòn (thường ghi bảng giá cho nhân viên bán hàng tra cứu).', { wrapText: true }),
+  aggregateColumn('qtySold30dSaigon', 'Số lượng bán 30 ngày Sài Gòn', 'number', 'Tổng số lượng bán ra tại Sài Gòn trong 30 ngày gần nhất (tính đến hết hôm qua); trống khi báo cáo chưa được tính lại.'),
+  aggregateColumn('availableValueSaigon', 'Giá trị có bán Sài Gòn', 'number',
+    'Có bán Sài Gòn nhân đơn giá Sài Gòn (VNĐ); trống khi thiếu một trong hai số. Chỉ Quản lý và Trợ lý được xuất.'),
   aggregateColumn('totalStock', 'Tổng tồn thực và điều chuyển', 'number', 'Tồn thực Hà Nội cộng tồn thực Sài Gòn cộng điều chuyển Sài Gòn.'),
   aggregateColumn('availableToSell', 'Tổng có bán và điều chuyển', 'number',
     'Có bán Hà Nội cộng có bán Sài Gòn cộng điều chuyển Sài Gòn; có bán từng cơ sở đã trừ khách đặt phiếu tạm.'),
   aggregateColumn('qtySold30d', 'Số lượng bán 30 ngày', 'number', 'Tổng số lượng bán ra trong 30 ngày gần nhất (tính đến hết hôm qua).'),
-  // Kiểu 'number' khai báo tường minh: nhãn có chữ "ngày" sẽ bị inferColumnType suy ra thành cột ngày tháng.
+  aggregateColumn('stockoutDaysHanoi', 'Số ngày đứt hàng Hà Nội', 'number',
+    'Tổng số ngày đứt hàng tại Hà Nội trong 30 ngày gần nhất theo lần quét đứt hàng 30 ngày gần nhất; bằng 0 khi không đứt hoặc chưa quét.'),
+  aggregateColumn('stockoutDaysSaigon', 'Số ngày đứt hàng Sài Gòn', 'number',
+    'Tổng số ngày đứt hàng tại Sài Gòn trong 30 ngày gần nhất theo lần quét đứt hàng 30 ngày gần nhất; bằng 0 khi không đứt hoặc chưa quét.'),
+  aggregateColumn('loadedQty', 'Đã bốc', 'number', 'Tổng số lượng toàn công ty trong CONT trạng thái 3; trống khi chưa có dữ liệu.'),
+  aggregateColumn('unloadedQty', 'Chưa bốc', 'number', 'Tổng số lượng toàn công ty trong CONT trạng thái 1 hoặc 2; trống khi chưa có dữ liệu.'),
   aggregateColumn('daysToOrder', 'Ngày cần đặt', 'number',
     '(Tổng có bán và điều chuyển + Chưa bốc + Đã bốc) chia số lượng bán 30 ngày, nhân 30; trống khi không có số lượng bán hoặc chưa có dữ liệu CONT.'),
+  aggregateColumn('daysSaigonTransit', 'Ngày bán hết Sài Gòn và điều chuyển', 'number',
+    '(Điều chuyển Sài Gòn + Có bán Sài Gòn) chia số lượng bán 30 ngày Sài Gòn, nhân 30; trống khi Sài Gòn không bán được trong 30 ngày.'),
+  aggregateColumn('daysHanoi', 'Ngày bán hết Hà Nội', 'number',
+    'Có bán Hà Nội chia số lượng bán 30 ngày Hà Nội, nhân 30; trống khi Hà Nội không bán được trong 30 ngày.'),
+  aggregateColumn('daysBothBranches', 'Ngày bán hết hai miền', 'number',
+    'Tổng có bán và điều chuyển chia số lượng bán 30 ngày của cả hai cơ sở, nhân 30; trống khi không bán được trong 30 ngày.'),
   aggregateColumn('revenue90d', 'Doanh số 90 ngày', 'number', 'Doanh số trong 90 ngày gần nhất (tính đến hết hôm qua, đơn vị tiền Việt Nam).'),
   aggregateColumn('customerCount90d', 'Số lượng khách mua', 'number', 'Số khách hàng khác nhau đã mua mã này trong 90 ngày.'),
+  aggregateColumn('orders90d', 'Số lượng đơn 90 ngày', 'number', 'Số đơn hàng có chứa mã này trong 90 ngày gần nhất; trống khi báo cáo chưa được tính lại.'),
+  aggregateColumn('orders30d', 'Số lượng đơn 30 ngày', 'number', 'Số đơn hàng có chứa mã này trong 30 ngày gần nhất; trống khi báo cáo chưa được tính lại.'),
+  aggregateColumn('ordersGrowth', 'Tăng trưởng', 'percent',
+    'Số đơn 30 ngày nhân 3 chia số đơn 90 ngày rồi trừ 1 (so tốc độ đơn 30 ngày với mức trung bình của 90 ngày); trống khi chưa có đơn nào trong 90 ngày.'),
   aggregateColumn('topCustomerRevenue90d', 'Doanh số khách lớn nhất', 'number', 'Doanh số của khách mua nhiều nhất trong 90 ngày.'),
   aggregateColumn('topCustomerName', 'Khách lớn nhất', 'text', 'Tên khách hàng mua nhiều nhất trong 90 ngày.'),
-  aggregateColumn('topCustomerShare', 'Tỉ trọng khách lớn nhất', 'percent', 'Doanh số khách lớn nhất chia cho doanh số 90 ngày.')
+  aggregateColumn('topCustomerShare', 'Tỉ trọng khách lớn nhất', 'percent', 'Doanh số khách lớn nhất chia cho doanh số 90 ngày.'),
+  aggregateColumn('priceHanoi', 'Đơn giá Hà Nội', 'number', 'Giá vốn của mã hàng trên KiotViet Hà Nội (VNĐ); trống khi chưa có giá. Chỉ Quản lý và Trợ lý được xuất.'),
+  aggregateColumn('priceSaigon', 'Đơn giá Sài Gòn', 'number', 'Giá vốn của mã hàng trên KiotViet Sài Gòn (VNĐ); trống khi Sài Gòn không có mã này hoặc chưa có giá. Chỉ Quản lý và Trợ lý được xuất.'),
+  aggregateColumn('descriptionHanoi', 'Mô tả Hà Nội', 'text', 'Mô tả sản phẩm trên KiotViet của cơ sở Hà Nội (thường ghi bảng giá cho nhân viên bán hàng tra cứu).', { wrapText: true }),
+  aggregateColumn('descriptionSaigon', 'Mô tả Sài Gòn', 'text', 'Mô tả sản phẩm trên KiotViet của cơ sở Sài Gòn (thường ghi bảng giá cho nhân viên bán hàng tra cứu).', { wrapText: true })
 ];
+
+// Cot nhay cam (Don gia + Gia tri co ban HN/SG) chi Quan ly/Tro ly (reports.products.price) duoc xuat. Hang so DUNG CHUNG voi routes.js
+// (GET /api/product-report), dinh nghia o productReportRepository.js.
+const PRODUCT_REPORT_PRICE_KEYS = productReportRepository.PRODUCT_REPORT_PRICE_KEYS;
 
 const STOCKOUT_RECENT_COLUMNS = [
   aggregateColumn('code', 'Mã hàng', 'text', 'Mã hàng bị đứt hàng.'),
@@ -716,7 +744,9 @@ const TABLE_SPECS = {
     worksheets: [reportWorksheet('customer_product_detail', 'Bảng chi tiết sản phẩm', CUSTOMER_PRODUCT_DETAIL_COLUMNS)]
   }),
   'overview.productReport': () => ({
-    worksheets: [reportWorksheet('product_report', 'Báo cáo hàng hóa', PRODUCT_REPORT_COLUMNS)]
+    // summaryKeys cố định 3 chỉ số KPI/biểu đồ của báo cáo HTML như trước khi thêm cột theo cơ sở (nếu không, "Số lượng bán 30 ngày Hà Nội"
+    // đứng trước "Số lượng bán 30 ngày" và chiếm KPI thứ ba).
+    worksheets: [{ ...reportWorksheet('product_report', 'Báo cáo hàng hóa', PRODUCT_REPORT_COLUMNS), summaryKeys: ['revenue90d', 'topCustomerRevenue90d', 'qtySold30d'] }]
   }),
   'stockout.recentScan': () => ({
     worksheets: [reportWorksheet('recent_stockout_result', 'Hàng đứt gần đây', STOCKOUT_RECENT_COLUMNS)]
@@ -959,7 +989,7 @@ function buildStockout30dResultDataset(description, payload) {
  * getDashboardData/readRowsByCodes/Google/DB). Bang stockout co dataset tu payload
  * (khong I/O) nen duoc dung luon de giu dung loi EXPORT_NO_DATA cu.
  */
-function describeExport(payload, branch) {
+function describeExport(payload, branch, options = {}) {
   const request = plainObject(payload);
   const tableKey = normalizeText(request.tableKey);
   if (!Object.prototype.hasOwnProperty.call(TABLE_TITLES, tableKey)) throw exportError('Bảng yêu cầu xuất không hợp lệ.', 400, 'EXPORT_TABLE_NOT_ALLOWED');
@@ -973,6 +1003,13 @@ function describeExport(payload, branch) {
   }
 
   const spec = getTableSpec(tableKey, context, branch);
+  // Đơn giá và Giá trị có bán HN/SG (PRODUCT_REPORT_PRICE_KEYS) chỉ cho tài khoản có quyền reports.products.price (route truyền options.canViewPrice); thiếu cờ = không có giá,
+  // nên cột không xuất hiện trong danh sách trường và yêu cầu tự gõ khóa cột giá bị từ chối EXPORT_FIELD_NOT_ALLOWED.
+  if (tableKey === 'overview.productReport' && !options.canViewPrice) {
+    spec.worksheets = spec.worksheets.map(worksheet => ({
+      ...worksheet, columns: worksheet.columns.filter(column => !PRODUCT_REPORT_PRICE_KEYS.includes(column.key))
+    }));
+  }
   const description = {
     tableKey, title: TABLE_TITLES[tableKey], selectionMode: 'custom',
     filters, context, worksheets: spec.worksheets, spec
@@ -1064,9 +1101,9 @@ function toFieldMeta(column) {
  * Danh sach truong cho modal Xuat Excel. Bang co dinh tra ve TUC THI tu dinh nghia
  * tinh (rowCount = null, khong query).
  */
-async function getExportFields(payload, branch) {
+async function getExportFields(payload, branch, options = {}) {
   const request = plainObject(payload);
-  const source = describeExport(request, branch);
+  const source = describeExport(request, branch, options);
   return {
     tableKey: source.tableKey,
     title: source.title,
@@ -1259,7 +1296,7 @@ function normalizeExportFormat(value) {
 async function getExportDataset(payload, branch, options = {}) {
   const request = plainObject(payload);
   const signal = options.signal;
-  const description = options.description || describeExport(request, branch);
+  const description = options.description || describeExport(request, branch, options);
   const selection = options.selection !== undefined
     ? options.selection
     : resolveSelection(description.selectionMode, description.worksheets, request.columns);
@@ -1308,7 +1345,7 @@ async function runExport(payload, branch, options, render) {
 
   // Kiem tra re (khong I/O) TRUOC khi xin slot: yeu cau sai khong chiem hang doi va
   // khong cham DB.
-  const description = describeExport(request, branch);
+  const description = describeExport(request, branch, options);
   const selection = resolveSelection(description.selectionMode, description.worksheets, request.columns);
 
   const release = await acquireExportSlot(signal);

@@ -114,8 +114,23 @@ test('report cache expires so customer activity changes cannot leave stale repor
     const repo = createDebtScheduleRepository({ pool, now: () => now });
     assert.equal((await repo.readReport(['hanoi'])).rows.length, 2);
     await db.exec(`UPDATE customers SET raw = '{"isActive":false}' WHERE branch='hanoi' AND id=1`);
-    now += 61000;
+    now += 301000;
     assert.deepEqual((await repo.readReport(['hanoi'])).rows.map(row => row.customerId), ['2']);
+  } finally { await db.close(); }
+});
+
+test('amountsByCustomer gom theo khach: dung hinh dang Map<branch:id, [{day,invoiceAmount,returnAmount}]> tang dan theo ngay, so la Number', async () => {
+  const { db, pool } = await setup();
+  try {
+    await seedKiot(db);
+    await takeDebtCycleSnapshot(pool, '2026-08-08', { takenAt: at15('2026-08-08'), log: () => {}, loadAverages: noAverages });
+    const report = await createDebtScheduleRepository({ pool }).readReport(['hanoi', 'saigon']);
+    assert.deepEqual([...report.amountsByCustomer.keys()], ['hanoi:1']);
+    assert.deepEqual(report.amountsByCustomer.get('hanoi:1'), [
+      { day: '2026-08-05', invoiceAmount: 100, returnAmount: 0 },
+      { day: '2026-08-07', invoiceAmount: 300, returnAmount: 50 },
+      { day: '2026-08-08', invoiceAmount: 200, returnAmount: 0 }
+    ]);
   } finally { await db.close(); }
 });
 

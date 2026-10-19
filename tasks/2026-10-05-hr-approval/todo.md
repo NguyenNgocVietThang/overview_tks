@@ -22,8 +22,12 @@ Branch: codex/hr-leave-approval; base ceeffd4. Kế hoạch tasks có trước �
 ## Nghiệm thu môi trường triển khai còn lại
 
 - [ ] Áp migration0031 trên database staging và thử bot nhân viên bên ngoài/Telegram thật.
+  - Đối chiếu 19/10/2026 (truy vấn chỉ đọc `public.schema_migrations`): `0031_hr_leave_approval_scope.sql` ĐÃ ÁP lên DB production lúc 2026-10-05T06:54:25Z (trực tiếp, không qua staging — xem `production-migration-0031.md`); 0030 và 0032 áp 08:28Z cùng ngày. Phần "áp trên staging" vì vậy không còn cần.
+  - (chờ người dùng/ngoài phạm vi) Phần còn lại: thử bot nhân viên/Telegram thật (cần chỉ định tài khoản/chat thử); agent không được gửi tin Telegram thật.
 - [ ] Đo trên service đang chạy:p95 tiếp nhận<1giây, kết quả thường<2giây; thử Telegram chậm/429.
+  - (chờ người dùng/ngoài phạm vi) Cần đo trên service production đang chạy + Telegram thật; không thể làm từ repo/DB.
 - [x] Gộp fast-forward vào main theo yêu cầu; npm test sau gộp: 1.793 đạt, 3 bỏ qua, 0 lỗi.
 - [ ] Migration và deploy theo quy trình môi trường sau nghiệm thu staging.
+  - Migration: ĐÃ ÁP production (0031 lúc 2026-10-05T06:54Z; kiểm lại 19/10: DB có 70 migration, chỉ thiếu 0068 và 0070 là việc khác). (chờ người dùng/ngoài phạm vi) Deploy bản web có luồng duyệt nghỉ phép: không xác nhận được từ repo.
 
 Không dùng database/bot production, không đăng ký lại webhook và không deploy trong phiên thực hiện này.

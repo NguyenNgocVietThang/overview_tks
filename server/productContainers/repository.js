@@ -1,5 +1,6 @@
 'use strict';
 const { getPool } = require('../db/pool');
+const { timedQuery } = require('../lib/requestTiming');
 const { STALE_AFTER_MS, normalizeCode } = require('./parser');
 
 function syncMetadata(row = {}, now = Date.now()) {
@@ -17,7 +18,7 @@ async function readContainerSummary(pool = getPool()) {
   try {
     // Totals and version are read in ONE statement, so a concurrent snapshot
     // replacement cannot mix quantities from one version with another's date.
-    const { rows } = await pool.query(`SELECT to_jsonb(s) AS sync,
+    const { rows } = await timedQuery(pool, 'containerLines', `SELECT to_jsonb(s) AS sync,
       COALESCE((SELECT jsonb_object_agg(product_key, jsonb_build_object('unloadedQty',unloaded,'loadedQty',loaded))
         FROM (SELECT product_key,
           COALESCE(sum(quantity) FILTER (WHERE status IN (1,2)),0) AS unloaded,
@@ -63,7 +64,7 @@ function invalidateContainerDetails(pool = getPool()) {
 async function loadContainerDetails({ code, pool }) {
   if (typeof code !== 'string' || !code.trim()) throw detailError(400,'Thiếu mã hàng.','CONTAINER_CODE_REQUIRED');
   const key = normalizeCode(code);
-  const { rows: eligible } = await pool.query(`SELECT 1 FROM product_report pr
+  const { rows: eligible } = await timedQuery(pool, 'containerEligible', `SELECT 1 FROM product_report pr
     WHERE lower(btrim(pr.product_code)) = $1 AND EXISTS (
       SELECT 1 FROM products p WHERE p.code = pr.product_code
       AND p.branch IN ('hanoi','saigon') AND p.is_active IS NOT FALSE) LIMIT 1`,[key]);

@@ -19,11 +19,12 @@ const { startDebtCycleSnapshotSchedule } = require('../debtSchedule/debtCycleSna
 const { dashboardRollupEvents } = require('./dashboardRollupEvents');
 const debtScheduleRepository = require('../debtSchedule/debtScheduleRepository');
 const { requestDebtAgingRefresh } = require('../debtSchedule/debtAgingRefresh');
+const { requestBusinessCurrentMonthRefresh } = require('./businessCurrentMonthRefresh');
 
 // Activity changes affect existing snapshots and monthly scoring immediately.
 // Subscribe once per module, rather than once per scheduler/timer instance.
 dashboardRollupEvents.on('customersChanged', () => {
-  debtScheduleRepository.getDebtScheduleRepository().bumpVersion();
+  // Khong bumpVersion bao cao cong no o day: cache tu het han (5 phut), tranh doc lai DB moi dot dong bo khach.
   require('../debtSchedule/debtRewardService').getDebtRewardService().clearScores();
   dashboardRollupEvents.emit('updated', { at: Date.now() });
   // No hien tai vua doi -> tinh lai bang Tuoi no (migration 0059); doi thi bao client tai lai.
@@ -77,6 +78,7 @@ function createPollingScheduler({
   refreshCustomerInvoiceLinesIncremental: refreshInvoiceLinesIncremental = refreshCustomerInvoiceLinesIncremental,
   refreshProductReportIncremental: refreshProductReportIncrementally = refreshProductReportIncremental,
   refreshDebtAging = requestDebtAgingRefresh,
+  refreshBusinessCurrentMonth = requestBusinessCurrentMonthRefresh,
   startInventoryValueSnapshotSchedule: startInventoryValueSnapshot = startInventoryValueSnapshotSchedule,
   startBusinessMonthlySchedule: startBusinessMonthly = startBusinessMonthlySchedule,
   startDebtCycleSnapshotSchedule: startDebtCycleSnapshot = startDebtCycleSnapshotSchedule,
@@ -140,6 +142,14 @@ function createPollingScheduler({
     // Bang Tuoi no theo hoa don (migration 0059) tinh lai TRUOC rollup + SSE de client tai lai
     // thay ngay hoa don vua ve; ghi khac biet, nuot loi (khong lam hong luot rollup).
     await refreshDebtAging(getPoolFn(), { log: logger.log ? logger.log.bind(logger) : logger });
+    // Doanh so thang hien tai cua Bao cao kinh doanh (migration 0068) tinh san vao business_current_month_*:
+    // toi da 1 luot / 10 phut, chi tinh lai khi co chung tu/khach moi (synced_at), day du moi dem + khi sang thang.
+    // Chay TRUOC rollup + SSE de client tai lai thay so moi; ghi khac biet, nuot loi (khong lam hong rollup).
+    try {
+      await refreshBusinessCurrentMonth(getPoolFn(), { log: logger.log ? logger.log.bind(logger) : logger });
+    } catch (error) {
+      logger.error('[KiotViet Sync] Lỗi tính sẵn doanh số tháng hiện tại (báo cáo kinh doanh):', error.message);
+    }
     await refreshHotRollup(getPoolFn(), {
       windowDays: HOT_WINDOW_DAYS,
       includeFirstPurchase: false,

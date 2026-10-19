@@ -7,7 +7,8 @@ test('cash flows have a dedicated date-window shape and preserve receipt directi
   const calls=[];
   await entity.upsertPage({query:async(...args)=>calls.push(args)},'hanoi',[item]);
   const cash=calls.find((call)=>call[0].includes('INSERT INTO cash_flows'));
-  assert.deepEqual(cash[1], ['hanoi',14,'PT14',false,20,'Bank',1,2,3,'x','t','c',null,null,item]);
+  assert.deepEqual(cash[1], ['hanoi',14,'PT14',false,20,'Bank',1,2,3,'x','t','c',null,null,item,require('./entityUtils').rawHash(item)]);
+  assert.match(cash[0],/raw_hash=EXCLUDED.raw_hash/);
 });
 test('cash flows infer staff from UserId in the same transaction client', async () => {
   const calls=[];
@@ -23,7 +24,7 @@ test('cash flows preserve signed payments, historical account IDs and zero paid 
     const [sql,params]=calls[0];
     assert.match(sql,/account_id=EXCLUDED.account_id/);
     assert.match(sql,/status=EXCLUDED.status/);
-    assert.deepEqual(params.slice(-3,-1),item.id?[-1,0]:[123,1]);
+    assert.deepEqual(params.slice(-4,-2),item.id?[-1,0]:[123,1]);
     assert.equal(params[4],item.amount??item.Amount);
   }
 });
@@ -41,6 +42,7 @@ test('reconciliation repairs stale account/status/time projections and skips ide
   try {
     await db.exec(`CREATE TABLE cash_flows(branch text,id bigint,code text,is_receipt boolean,amount numeric,method text,customer_id bigint,supplier_id bigint,user_id bigint,description text,trans_date timestamptz,created_date timestamptz,account_id bigint,status int,raw jsonb,synced_at timestamptz DEFAULT now(),PRIMARY KEY(branch,id));`);
     await db.exec(require('node:fs').readFileSync(require('node:path').join(__dirname,'../../db/migrations/0035_cash_flows_source_presence.sql'),'utf8'));
+    await db.exec(require('node:fs').readFileSync(require('node:path').join(__dirname,'../../db/migrations/0066_cash_flows_raw_hash.sql'),'utf8'));
     const item={id:1,code:'TT1',IsReceipt:true,amount:20,method:'Transfer',accountId:7,status:1,transDate:'2026-10-06T23:50:00.0000000'};
     await db.query("INSERT INTO cash_flows(branch,id,raw,trans_date) VALUES('hanoi',1,$1,'2026-10-06T23:50:00Z')",[item]);
     const client={query:(sql,params)=>db.query(sql,params)};
@@ -52,6 +54,10 @@ test('reconciliation repairs stale account/status/time projections and skips ide
     await entity.reconcilePage(client,'hanoi',[item]);
     assert.equal(new Date((await db.query('SELECT synced_at FROM cash_flows')).rows[0].synced_at).toISOString(),'2000-01-01T00:00:00.000Z');
     await entity.reconcilePage(client,'hanoi',[{...item,amount:30,status:0,accountId:8}]);
+    // Chi doi soat bang raw_hash: khong bao gio SELECT cot raw (egress).
+    const sqls=[];const spy={query:(sql,params)=>{sqls.push(sql);return db.query(sql,params);}};
+    await entity.reconcilePage(spy,'hanoi',[{...item,amount:30,status:0,accountId:8}]);
+    assert.ok(sqls.every(sql=>!/SELECT[^;]*raw[^;]*FROM cash_flows/i.test(sql)));
     const changed=(await db.query('SELECT account_id,status,amount FROM cash_flows')).rows[0];
     assert.deepEqual(changed,{account_id:8,status:0,amount:'30'});
     const batch=Array.from({length:101},(_,i)=>({...item,id:100+i,code:'TT'+(100+i),amount:i+1}));

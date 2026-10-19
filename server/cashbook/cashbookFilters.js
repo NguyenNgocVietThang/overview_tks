@@ -164,10 +164,8 @@ function parseFilters(query = {}, now = new Date()) {
     pageSize: integer(query.pageSize, 'pageSize', 100, 200),
   };
 }
-// Tất cả giá trị dữ liệu qua tham số; alias chỉ do module nội bộ chọn.
-function raw(alias, pascal, camel) {
-  return `COALESCE(${alias}.raw->>'${pascal}',${alias}.raw->>'${camel}')`;
-}
+// Tất cả giá trị dữ liệu qua tham số; alias chỉ do module nội bộ chọn và trỏ tới
+// view v_cash_book_transactions (migration 0070): các trường trích từ raw đã là cột của view.
 function buildWhere(
   f,
   { alias = 'c', dates = true, fundOnly = false, start = 0 } = {},
@@ -209,35 +207,35 @@ function buildWhere(
       for (const g of f.groups)
         opts.push(
           g.startsWith('name:')
-            ? `(${raw(alias, 'CashFlowGroupId', 'cashFlowGroupId')} IS NULL AND ${raw(alias, 'CashGroup', 'cashGroup')}=${add(decodeURIComponent(g.slice(5)))})`
-            : `${raw(alias, 'CashFlowGroupId', 'cashFlowGroupId')}=${add(g)}`,
+            ? `(${alias}.cash_group_id IS NULL AND ${alias}.cash_group_name=${add(decodeURIComponent(g.slice(5)))})`
+            : `${alias}.cash_group_id=${add(g)}`,
         );
       parts.push(opts.length ? `(${opts.join(' OR ')})` : 'FALSE');
     }
-    for (const [key, pascal, camel] of [
-      ['creators', 'CreatedBy', 'createdBy'],
-      ['staff', 'UserId', 'userId'],
+    for (const [key, column] of [
+      ['creators', 'created_by'],
+      ['staff', 'raw_user_id'],
     ])
       if (f[key] !== null)
         parts.push(
           f[key].length
-            ? `${raw(alias, pascal, camel)}=ANY(${add(f[key])}::text[])`
+            ? `${alias}.${column}=ANY(${add(f[key])}::text[])`
             : 'FALSE',
         );
     if (f.accounting !== 'all')
       parts.push(
-        `${raw(alias, 'UsedForFinancialReporting', 'usedForFinancialReporting')}=${add(f.accounting === 'yes' ? '1' : '0')}`,
+        `${alias}.used_for_financial_reporting=${add(f.accounting === 'yes' ? '1' : '0')}`,
       );
     const like = (v) => `%${v.replace(/[\\%_]/g, '\\$&')}%`;
     if (f.partnerQ) {
       const p = add(like(f.partnerQ));
       parts.push(
-        `(${raw(alias, 'PartnerName', 'partnerName')} ILIKE ${p} OR ${raw(alias, 'PartnerId', 'partnerId')} ILIKE ${p})`,
+        `(${alias}.partner_name ILIKE ${p} OR ${alias}.partner_id ILIKE ${p})`,
       );
     }
     if (f.partnerPhone)
       parts.push(
-        `${raw(alias, 'ContactNumber', 'contactNumber')} ILIKE ${add(like(f.partnerPhone))}`,
+        `${alias}.partner_phone ILIKE ${add(like(f.partnerPhone))}`,
       );
     // O tim kiem cua bang So chi tiet (ma phieu / ghi chu).
     if (f.code) parts.push(`${alias}.code ILIKE ${add(like(f.code))}`);
@@ -250,5 +248,4 @@ module.exports = {
   parseFund,
   buildWhere,
   invalid,
-  raw,
 };

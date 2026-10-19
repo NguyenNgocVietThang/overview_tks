@@ -246,3 +246,113 @@ test('ket qua luu lai co so luc quet (branch) de xuat Excel dung ten du sau do d
   const job = store.getJob(jobId);
   assert.equal(job.result.branch, 'Hà Nội');
 });
+
+// ---- Hook luu so ngay dut vao DB (persistStockoutDays) ----
+
+function stockoutFixtureSource() {
+  return fakeStockoutSource({
+    products: [[product('SP001', { name: 'Con hang nhung tung dut 5 ngay', onHand: 5 })]],
+    invoices: [[invoice('2026-01-06', [{ productCode: 'SP001', quantity: 5 }])]],
+    purchaseorders: [[purchaseOrder('2026-01-11', [{ productCode: 'SP001', quantity: 5 }])]],
+    returns: [[]]
+  });
+}
+
+const SCAN_OPTS = { todayKey: '2026-01-20', daysBack: 19, minConsecutiveDays: 5, dataFromDateFloor: null };
+
+test('hook persistStockoutDays duoc goi voi branch va rows ket qua o duong thanh cong', async () => {
+  const store = createJobStore();
+  const jobId = store.createJob();
+  const calls = [];
+
+  await runStockout30dScanJob(store, jobId, {
+    source: stockoutFixtureSource(), ...SCAN_OPTS, branch: 'Sài Gòn',
+    persistStockoutDays: async (args) => { calls.push(args); }
+  });
+
+  const job = store.getJob(jobId);
+  assert.equal(job.status, 'done');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].branch, 'Sài Gòn');
+  assert.equal(calls[0].rows, job.result.rows, 'luu dung danh sach dong tra ve cho nguoi dung');
+  assert.equal(calls[0].rows[0].code, 'SP001');
+  assert.equal(calls[0].rows[0].totalStockoutDays, 5);
+});
+
+test('hook persistStockoutDays duoc goi voi rows rong khi khong co ung vien (de reset ve 0)', async () => {
+  const store = createJobStore();
+  const jobId = store.createJob();
+  const calls = [];
+
+  await runStockout30dScanJob(store, jobId, {
+    source: {}, ...SCAN_OPTS, branch: 'Hà Nội',
+    loadActiveCandidates: async () => ({ candidates: [], totalProductsScanned: 0 }),
+    persistStockoutDays: async (args) => { calls.push(args); }
+  });
+
+  const job = store.getJob(jobId);
+  assert.equal(job.status, 'done');
+  assert.deepEqual(job.result.rows, []);
+  assert.deepEqual(calls, [{ branch: 'Hà Nội', rows: [] }]);
+});
+
+test('loi luu DB khong lam job loi, ket qua quet con nguyen va co them canh bao (ca 2 duong thoat)', async () => {
+  const boom = async () => { throw new Error('relation "product_stockout_days" does not exist'); };
+
+  const store = createJobStore();
+  const jobId = store.createJob();
+  await runStockout30dScanJob(store, jobId, {
+    source: stockoutFixtureSource(), ...SCAN_OPTS, branch: 'Hà Nội', persistStockoutDays: boom
+  });
+  const job = store.getJob(jobId);
+  assert.equal(job.status, 'done');
+  assert.equal(job.result.rows.length, 1);
+  assert.ok(job.result.warnings.some((w) => /Không lưu được số ngày đứt hàng/.test(w) && /does not exist/.test(w)));
+
+  const store2 = createJobStore();
+  const jobId2 = store2.createJob();
+  await runStockout30dScanJob(store2, jobId2, {
+    source: {}, ...SCAN_OPTS, branch: 'Hà Nội',
+    loadActiveCandidates: async () => ({ candidates: [], totalProductsScanned: 0 }),
+    persistStockoutDays: boom
+  });
+  const job2 = store2.getJob(jobId2);
+  assert.equal(job2.status, 'done');
+  assert.equal(job2.result.warnings.length, 1);
+  assert.match(job2.result.warnings[0], /Không lưu được số ngày đứt hàng/);
+});
+
+test('khong truyen hook thi chay binh thuong, khong canh bao them', async () => {
+  const store = createJobStore();
+  const jobId = store.createJob();
+  await runStockout30dScanJob(store, jobId, {
+    source: {}, ...SCAN_OPTS,
+    loadActiveCandidates: async () => ({ candidates: [], totalProductsScanned: 0 })
+  });
+  assert.deepEqual(store.getJob(jobId).result.warnings, []);
+});
+
+test('che do "Cả hai": hook chay tung co so voi rows cua co so do', async () => {
+  const { runBothBranchesScan } = require('./bothBranchesScan');
+  const store = createJobStore();
+  const jobId = store.createJob();
+  const calls = [];
+  const persistStockoutDays = async ({ branch, rows }) => { calls.push({ branch, codes: rows.map((r) => r.code) }); };
+
+  await runBothBranchesScan(store, jobId, {
+    runScanJob: runStockout30dScanJob,
+    deps: [
+      { source: stockoutFixtureSource(), ...SCAN_OPTS, branch: 'Hà Nội', persistStockoutDays },
+      {
+        source: {}, ...SCAN_OPTS, branch: 'Sài Gòn', persistStockoutDays,
+        loadActiveCandidates: async () => ({ candidates: [], totalProductsScanned: 0 })
+      }
+    ]
+  });
+
+  assert.equal(store.getJob(jobId).status, 'done');
+  assert.deepEqual(calls, [
+    { branch: 'Hà Nội', codes: ['SP001'] },
+    { branch: 'Sài Gòn', codes: [] }
+  ]);
+});

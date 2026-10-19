@@ -105,7 +105,10 @@ function createPancakeSync({repository=createMarketingRepository(),client=create
     const failure=results.find(r=>r.status==='rejected');if(failure)throw failure.reason;
    }else for(const pageId of PAGE_IDS)await processPage(pageId);
    const unlinkedHistoricalRows=PAGE_IDS.map(pageId=>({pageId,rowReferences:snapshot.rawRows.filter(r=>r.origin==='sheet'&&r.pageId===pageId&&isPhoneReportObservation(r)&&!adoptedIds.has(r.id)).map(rowRef)})).filter(r=>r.rowReferences.length);
-   return {...await repository.finishSyncRun(run.id),unresolved,unlinkedHistoricalRows,baselineSkipped};
+   const finished=await repository.finishSyncRun(run.id);
+   // Gộp SĐT sẵn vào marketing_phone_summary (migration 0069); lỗi/thiếu bảng chỉ bỏ qua, báo cáo lùi về gộp JS.
+   if(independent&&typeof repository.refreshIndependentSummary==='function')await repository.refreshIndependentSummary().catch(()=>{});
+   return {...finished,unresolved,unlinkedHistoricalRows,baselineSkipped};
   }finally{await lease.release();}
  }
  return {run};

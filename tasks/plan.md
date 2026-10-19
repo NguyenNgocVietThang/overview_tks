@@ -52,31 +52,33 @@ T15 tài liệu + memory (cuối cùng)
 ## Danh sách việc
 
 ### Giai đoạn 1: Vá bảo mật (deploy riêng)
-- [ ] T0: Truy vấn chỉ đọc xem đã có TK nào bị gắn sai nhân sự chưa
-- [ ] T1: Resolver không gắn lại TK sang nhân sự khác
-- [ ] T2: `POST /api/auth/profile` không đổi email
-- [ ] T3: `contact-change` dành cho TK không gắn nhân sự
-- [ ] T4: Form hồ sơ: email chỉ đọc (HR) / đổi qua OTP (TK thường)
-- [ ] T5: `POST /api/auth/recovery` bỏ trường SĐT
-- [ ] T6: Sửa lỗi Quản lý đổi SĐT TK nhân sự
+- [x] T0: Truy vấn chỉ đọc xem đã có TK nào bị gắn sai nhân sự chưa — đã chạy `tasks/audit-hr-binding.sql` chỉ đọc trên DB thật 19/10/2026 (BEGIN READ ONLY + ROLLBACK): khối 1 (2 TK cùng 1 nhân sự) = 0 dòng, khối 2 (trùng email) = 0 dòng, 0 TK `hr_managed` thiếu `hr_employee_id`; 30 TK quyền cao (11 Kế toán, 13 Trợ lý, 2 Trưởng kho, 4 Quản lý) — 27 TK gắn nhân sự đều khớp email + SĐT dòng nhân sự và vai trò khớp bộ phận. KHÔNG thấy dấu hiệu bị khai thác. Danh sách cần Quản lý nhìn bằng mắt: xem `tasks/todo.md` mục T0.
+  - [ ] (chờ người dùng/ngoài phạm vi) Quản lý xác nhận 3 TK nghi vấn nhẹ ở `tasks/todo.md` T0 (không tự sửa dữ liệu).
+- [x] T1: Resolver không gắn lại TK sang nhân sự khác — `auth/effectiveUserResolver.js` + test `effectiveUserResolver.test.js` dòng 172/195/209/233/288 (commit 0a10477)
+- [x] T2: `POST /api/auth/profile` không đổi email — `authRoutes.js:853-855` (403 `EMAIL_CHANGE_LOCKED` / 409 `EMAIL_CHANGE_REQUIRES_OTP`), test `authRoutes.test.js:221,239,252`
+- [x] T3: `contact-change` dành cho TK không gắn nhân sự — `contactChangeService.js:172`, test `contactChangeService.test.js:68-165`
+- [x] T4: Form hồ sơ: email chỉ đọc (HR) / đổi qua OTP (TK thường) — `public/account/index.html` (`#profEmail` readonly, `openEmailChangeModal`, `/api/auth/profile/contact-change[/verify]`), test `test/frontend/profile-email-change.test.js`
+- [x] T5: `POST /api/auth/recovery` bỏ trường SĐT — `authRoutes.js:880-884` (400 `PHONE_CHANGE_NOT_ALLOWED`), test `authRoutes.test.js:270,286`
+- [x] T6: Sửa lỗi Quản lý đổi SĐT TK nhân sự — test `contactChangeService.test.js:187,221,230`, `adminUserRoutes.test.js:199`
 
 ### Checkpoint 1: Bảo mật
-- [ ] Test auth + frontend xanh; các kịch bản khai thác thành test và đều bị chặn
-- [ ] Người dùng duyệt, commit, deploy riêng
+- [x] Test auth + frontend xanh; các kịch bản khai thác thành test và đều bị chặn — `node --test "auth/**/*.test.js"` 19/10/2026: 344/344 đạt; `profile-email-change.test.js` + `hr-leave-loading.test.js` xanh
+- [x] Người dùng duyệt, commit — commit `0a10477` trên main (đã nằm trong `main`)
+  - [ ] (chờ người dùng/ngoài phạm vi) Deploy riêng bản vá: không xác nhận được từ repo (production chạy host khác); người dùng tự xác nhận/deploy. Trước khi deploy: Quản lý xem 3 TK nghi vấn nhẹ (T0).
 
 ### Giai đoạn 2: Gỡ API không còn giao diện
-- [ ] T7: Gỡ `/api/search` + export `search.results`
-- [ ] T8: Gỡ `/api/customer-product-top`
-- [ ] T9: Gỡ `register/{channels,send-otp,verify}`, `hr/telegram/link-status`, `shipment/lifecycle/lookup`
+- [x] T7: Gỡ `/api/search` + export `search.results` — grep `api/search|search.results` chỉ còn test khẳng định đã gỡ (`exportService.test.js:1004`, `overview-endpoints-access.test.js:114`); commit `643b85f`
+- [x] T8: Gỡ `/api/customer-product-top` — route không còn (`overview-endpoints-access.test.js:114`); giữ `customerProductTopRepository.js` vì rollup/khách-theo-hàng vẫn dùng
+- [x] T9: Gỡ `register/{channels,send-otp,verify}`, `hr/telegram/link-status`, `shipment/lifecycle/lookup` — test `authRoutes.test.js:303`, `hrLeaveRoutes.test.js:289`, `orderLifecycleRoutes.test.js:197`, `hr-leave-loading.test.js:185`
 
 ### Giai đoạn 3: Gỡ trường BE thừa + nhánh FE cũ
-- [ ] T10: Tổng quan: bỏ KPI "hôm nay", `activeProducts`, `inventoryValueCategoryCount`, bộ lọc `ov*`
-- [ ] T11: Hóa đơn: bỏ `returnsCount`, `totalReturns`, `periodGrossRevenue` (chỉ ở đầu ra)
-- [ ] T12: Hàng hóa/tồn kho: bỏ `stockByCategory`, `stockValueByCategory`, `newlyImported.{topByRevenue,salesByCategory,countByCategory}`
-- [ ] T13: FE: bỏ nhánh `d.topSellingProducts`, `d.days`
+- [x] T10: Tổng quan: bỏ KPI "hôm nay", `activeProducts`, `inventoryValueCategoryCount`, bộ lọc `ov*` — `dashboardData.test.js:1267`; harness 19/10: tab Tổng quan chỉ còn 6 thẻ (không có KPI hôm nay)
+- [x] T11: Hóa đơn: bỏ `returnsCount`, `totalReturns`, `periodGrossRevenue` (chỉ ở đầu ra) — `dashboardData.test.js:398,510,964`; harness 19/10: tab Hóa đơn đúng 4 thẻ (Số giao dịch/Doanh thu/Giảm giá/Thực thu)
+- [x] T12: Hàng hóa/tồn kho: bỏ `stockByCategory`, `stockValueByCategory`, `newlyImported.{topByRevenue,salesByCategory,countByCategory}` — grep toàn `server/` không còn tham chiếu
+- [x] T13: FE: bỏ nhánh `d.topSellingProducts`, `d.days` — grep `d\.days|d\.topSellingProducts|topSellingProducts` trong `public/index.html` = 0
 
 ### Checkpoint 2: Dọn dẹp
-- [ ] Toàn bộ test xanh; mọi tab hiển thị đúng trên preview; mọi export chạy
+- [x] Toàn bộ test xanh; mọi tab hiển thị đúng trên preview; mọi export chạy — 19/10/2026: test tập trung xanh (dashboardData, exportService, overview-endpoints-access, hrLeaveRoutes, export-ui, hr-leave-loading, featureRegistry: 273/273); harness không đăng nhập: tab Tổng quan/Hóa đơn/Hàng hóa/Kinh doanh nạp không lỗi JS, `/api/export` xlsx+html trả 200 cho `overview.transactions`, `overview.productReport`, `debt.management`, `debt.penalty`, `debt.aging`. `customers.productDetail` + 3 bảng `stockout.*` cần payload kết quả quét/khách nên chỉ có test (xanh), chưa bấm tay.
 
 ### Giai đoạn 4: Hoàn thiện
 - [x] T14: Dropdown "Toàn bộ đơn hàng" thêm "Sự cố", "Đã hủy"

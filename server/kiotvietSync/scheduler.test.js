@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createPollingScheduler } = require('./scheduler');
 
-test('completed customer sync invalidates debt snapshots and reward scores before notifying browsers', () => {
+test('completed customer sync clears reward scores before notifying browsers and does NOT clear the debt report cache', () => {
   const { dashboardRollupEvents: events } = require('./dashboardRollupEvents');
   const repository = require('../debtSchedule/debtScheduleRepository').getDebtScheduleRepository();
   const rewards = require('../debtSchedule/debtRewardService').getDebtRewardService();
@@ -16,7 +16,7 @@ test('completed customer sync invalidates debt snapshots and reward scores befor
   events.on('updated', updated);
   try {
     events.emit('customersChanged', { branch: 'hanoi' });
-    assert.deepEqual(calls, ['debt', 'scores', 'notify']);
+    assert.deepEqual(calls, ['scores', 'notify']);
   } finally {
     repository.bumpVersion = bump;
     rewards.clearScores = clear;
@@ -277,4 +277,47 @@ test('one KiotViet client per branch per run so the cached OAuth token is reused
  logger:{log(){},warn(){},error(){}}});
  await scheduler.runGroup([{entity:'a'},{entity:'b'},{entity:'c'}]);
  assert.deepEqual(created.sort(),['hanoi','saigon']);
+});
+
+function fastScheduler(overrides = {}) {
+  const timers = [], order = [], errors = [];
+  const scheduler = createPollingScheduler({
+    enabled: true,
+    getConfiguredBranches: () => [{ branch: 'hanoi', clientId: '1', clientSecret: '2', retailer: 'hn' }],
+    createKiotVietClient: () => ({}),
+    pollEntityOnce: async (_api, _branch, entity) => order.push(`sync:${entity.entity}`),
+    setIntervalFn: (fn, ms) => (timers.push({ fn, ms }), ms), scheduleImmediate: () => {},
+    getPool: () => 'fake-pool',
+    refreshCustomerInvoiceLinesIncremental: async () => {}, refreshProductReportIncremental: async () => {},
+    refreshDebtAging: async () => { order.push('debt-aging'); },
+    refreshDashboardRollupsAndNotify: async () => { order.push('rollup'); },
+    startDashboardRollupSchedule: () => 'rollup-handle', startCustomerDebtReportRefreshSchedule: () => 'debt-handle',
+    startProductReportSchedule: () => 'product-handle', startCustomerInvoiceLinesSchedule: () => 'lines-handle',
+    startInventoryValueSnapshotSchedule: () => 'inventory-handle', startBusinessMonthlySchedule: () => 'business-handle',
+    startDebtCycleSnapshotSchedule: () => 'cycle-handle',
+    logger: { log() {}, warn() {}, error: (...args) => errors.push(args.join(' ')) },
+    ...overrides
+  });
+  scheduler.startPollingScheduler();
+  return { timers, order, errors };
+}
+
+test('moi luot sync fast tinh san doanh so thang hien tai (bao cao kinh doanh) sau tuoi no va TRUOC rollup', async () => {
+  const calls = [];
+  const x = fastScheduler({
+    refreshBusinessCurrentMonth: async (pool, opts) => { x.order.push('business-current-month'); calls.push({ pool, log: typeof opts.log }); }
+  });
+  await x.timers[0].fn();
+  const at = name => x.order.indexOf(name);
+  assert.ok(at('sync:invoices') < at('debt-aging'));
+  assert.ok(at('debt-aging') < at('business-current-month'));
+  assert.ok(at('business-current-month') < at('rollup'));
+  assert.deepEqual(calls, [{ pool: 'fake-pool', log: 'function' }]);
+});
+
+test('loi khi tinh san doanh so thang hien tai khong lam hong luot rollup, chi ghi log', async () => {
+  const x = fastScheduler({ refreshBusinessCurrentMonth: async () => { throw new Error('mat ket noi'); } });
+  await x.timers[0].fn();
+  assert.ok(x.order.includes('rollup'), 'rollup van chay');
+  assert.ok(x.errors.some(line => /mat ket noi/.test(line) && /kinh doanh/.test(line)));
 });

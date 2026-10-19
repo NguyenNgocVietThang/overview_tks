@@ -1131,6 +1131,25 @@ test('searchCustomerDirectory: cache danh ba trong TTL, khong query lai Postgres
   assert.equal(callCount, 1);
 });
 
+test('searchCustomerDirectory: su kien customersChanged het han cache, lan sau doc lai danh ba', async () => {
+  const { dashboardRollupEvents } = require('../kiotvietSync/dashboardRollupEvents');
+  const { dashboardData, customerDirectoryRepository } = freshDashboardData();
+  let callCount = 0;
+  customerDirectoryRepository.readCustomerDirectory = async () => {
+    callCount += 1;
+    return [{ branch: 'hanoi', code: 'KH01', name: 'Trần Thị Bình' }];
+  };
+  dashboardData.__test__.resetCaches();
+
+  await dashboardData.searchCustomerDirectory('Hà Nội', 'binh', 8);
+  await dashboardData.searchCustomerDirectory('Hà Nội', 'binh', 8);
+  assert.equal(callCount, 1, 'trong TTL, chua co su kien -> doc 1 lan');
+
+  dashboardRollupEvents.emit('customersChanged', { branch: 'hanoi' });
+  await dashboardData.searchCustomerDirectory('Hà Nội', 'binh', 8);
+  assert.equal(callCount, 2, 'sau customersChanged -> doc lai danh ba');
+});
+
 test('searchCustomerDirectory: chuoi rong tra ket qua rong, khong goi repository', async () => {
   const { dashboardData, customerDirectoryRepository } = freshDashboardData();
   customerDirectoryRepository.readCustomerDirectory = async () => assert.fail('không được query khi chưa gõ gì');

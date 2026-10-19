@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "node -e \"console.log('Express app: no build step required')\"",
-    "start": "node --max-old-space-size=1536 index.js",
+    "start": "node --max-old-space-size=1024 index.js",
     "dev": "node --max-old-space-size=4096 index.js",
     "test": "node --max-old-space-size=4096 --test",
     "db:migrate": "node db/migrate.js",
@@ -21,6 +21,7 @@
     "marketing:history:capture": "node scripts/capture-marketing-history.js",
     "marketing:history:import": "node scripts/import-marketing-history.js",
     "marketing:pancake:sync": "node scripts/sync-pancake-marketing.js",
+    "marketing:summary:refresh": "node scripts/refresh-marketing-summary.js",
     "marketing:identity:import": "node scripts/import-pancake-identities.js"
   },
   "dependencies": {

@@ -66,8 +66,10 @@ const REFRESH_SQL = `
       -- "Mo ta" san pham tren KiotViet (nhan vien ghi bang gia cho sale tra cuu), tung co so mot. btrim phai cat ca
       -- tab/xuong dong (mac dinh chi cat dau cach): mo ta chi con xuong dong coi nhu trong.
       NULLIF(btrim(p.raw->>'description', ${DESCRIPTION_TRIM_CHARS}), '') AS description,
-      -- "Don gia" = gia ban chung tren KiotViet cua co so; Ha Noi quyet dinh danh sach ma hang nen thieu gia coi nhu 0.
-      COALESCE(p.base_price, 0) AS price
+      -- "Don gia" = GIA VON cua co so (trung binh inventories[].cost trong raw, cung dinh nghia INVENTORY_COST_SQL
+      -- cua tab Hang hoa); Ha Noi quyet dinh danh sach ma hang nen thieu gia von coi nhu 0.
+      COALESCE((SELECT ROUND(AVG((inv->>'cost')::numeric))
+                  FROM jsonb_array_elements(COALESCE(p.raw->'inventories', '[]'::jsonb)) inv), 0) AS price
     FROM products p
     WHERE p.branch = 'hanoi' AND COALESCE(p.code, '') <> ''
   ),
@@ -77,7 +79,8 @@ const REFRESH_SQL = `
       (SELECT COALESCE(SUM(COALESCE((inv->>'onHand')::float8, 0)), 0)
          FROM jsonb_array_elements(COALESCE(p.raw->'inventories', '[]'::jsonb)) inv) AS on_hand,
       NULLIF(btrim(p.raw->>'description', ${DESCRIPTION_TRIM_CHARS}), '') AS description,
-      p.base_price AS price
+      (SELECT ROUND(AVG((inv->>'cost')::numeric))
+         FROM jsonb_array_elements(COALESCE(p.raw->'inventories', '[]'::jsonb)) inv) AS price
     FROM products p
     WHERE p.branch = 'saigon' AND COALESCE(p.code, '') <> ''
   ),
@@ -106,7 +109,10 @@ const REFRESH_SQL = `
     GROUP BY 1
   ),
   sales_30d AS (
-    SELECT p.code AS product_code, SUM(dps.qty)::float8 AS qty
+    -- qty = tong hai co so (cot qty_sold_30d); qty_hanoi/qty_saigon = SL ban 30 ngay cua tung co so (cot "SL ban 30 ngay HN/SG").
+    SELECT p.code AS product_code, SUM(dps.qty)::float8 AS qty,
+      COALESCE(SUM(dps.qty) FILTER (WHERE dps.branch = 'hanoi'), 0)::float8 AS qty_hanoi,
+      COALESCE(SUM(dps.qty) FILTER (WHERE dps.branch = 'saigon'), 0)::float8 AS qty_saigon
     FROM daily_product_sales dps
     JOIN products p ON p.branch = dps.branch AND p.id = dps.product_id
     CROSS JOIN vn_today
@@ -123,6 +129,9 @@ const REFRESH_SQL = `
   ),
   -- Doanh so rong cua khach: dong ban (duong) + dong hang khach tra (am, theo ngay
   -- tra) de khop revenue_90d (daily_product_sales da tru tra hang).
+  -- invoice_key (branch:id hoa don, NULL o dong tra hang) + line_at (ngay ban/tra) de dem SL don theo ma hang;
+  -- customer_active tach rieng (khong loc o day) vi don cua khach da ngung van tinh vao SL don, con rollup
+  -- daily_product_sales cung khong loc khach ngung hoat dong.
   sales90_lines AS (
     (SELECT
       lower(btrim(COALESCE(NULLIF(d.raw->>'productCode', ''), p.code, ''))) AS product_key,
@@ -132,7 +141,10 @@ const REFRESH_SQL = `
         ELSE 'name:' || lower(COALESCE(NULLIF(i.raw->>'customerName', ''), NULLIF(c.name, ''), 'Khách lẻ'))
       END AS customer_key,
       COALESCE(NULLIF(i.raw->>'customerName', ''), NULLIF(c.name, ''), 'Khách lẻ') AS customer_name,
-      ${DETAIL_AMOUNT_SQL} AS amount
+      ${DETAIL_AMOUNT_SQL} AS amount,
+      d.branch || ':' || d.invoice_id AS invoice_key,
+      i.purchase_date AS line_at,
+      COALESCE(c.raw->>'isActive', c.raw->>'IsActive', 'true') <> 'false' AS customer_active
     FROM invoice_details d
     JOIN invoices i ON i.branch = d.branch AND i.id = d.invoice_id
     LEFT JOIN products p ON p.branch = d.branch AND p.id = d.product_id
@@ -140,7 +152,6 @@ const REFRESH_SQL = `
     CROSS JOIN vn_today
     WHERE d.branch = ANY($1::text[])
       AND COALESCE(i.raw->>'statusValue', '') != 'Đã hủy'
-      AND COALESCE(c.raw->>'isActive', c.raw->>'IsActive', 'true') <> 'false'
       AND i.purchase_date >= ((vn_today.today - 90)::timestamp AT TIME ZONE 'UTC')
       AND i.purchase_date <  (vn_today.today::timestamp AT TIME ZONE 'UTC'))
     UNION ALL
@@ -152,7 +163,10 @@ const REFRESH_SQL = `
         ELSE 'name:' || lower(COALESCE(NULLIF(r.raw->>'customerName', ''), NULLIF(c.name, ''), 'Khách lẻ'))
       END AS customer_key,
       COALESCE(NULLIF(r.raw->>'customerName', ''), NULLIF(c.name, ''), 'Khách lẻ') AS customer_name,
-      -(${RETURN_AMOUNT_SQL}) AS amount
+      -(${RETURN_AMOUNT_SQL}) AS amount,
+      NULL::text AS invoice_key,
+      r.return_date AS line_at,
+      COALESCE(c.raw->>'isActive', c.raw->>'IsActive', 'true') <> 'false' AS customer_active
     FROM return_details rd
     JOIN returns r ON r.branch = rd.branch AND r.id = rd.return_id
     LEFT JOIN products p ON p.branch = rd.branch AND p.id = rd.product_id
@@ -160,9 +174,20 @@ const REFRESH_SQL = `
     CROSS JOIN vn_today
     WHERE rd.branch = ANY($1::text[])
       AND r.raw->>'statusValue' = 'Đã trả'
-      AND COALESCE(c.raw->>'isActive', c.raw->>'IsActive', 'true') <> 'false'
       AND r.return_date >= ((vn_today.today - 90)::timestamp AT TIME ZONE 'UTC')
       AND r.return_date <  (vn_today.today::timestamp AT TIME ZONE 'UTC'))
+  ),
+  -- SL don theo MA HANG (khong theo product_id vi id khac nhau moi co so): so hoa don khac nhau (khong huy,
+  -- ca hai co so) co chua ma hang; 30 ngay = phan cuoi cua cua so 90 ngay. Dong tra hang (invoice_key NULL) khong tinh.
+  order_counts AS (
+    SELECT
+      product_key,
+      COUNT(DISTINCT invoice_key)::float8 AS orders_90d,
+      COUNT(DISTINCT invoice_key) FILTER (WHERE line_at >= ((vn_today.today - 30)::timestamp AT TIME ZONE 'UTC'))::float8 AS orders_30d
+    FROM sales90_lines
+    CROSS JOIN vn_today
+    WHERE invoice_key IS NOT NULL AND product_key <> ''
+    GROUP BY product_key
   ),
   -- MATERIALIZED: customer_agg duoc doc 2 lan (xep hang khach lon nhat + luu vao
   -- product_report_customers cho khung "Chi tiet" cua bang) nen phai tinh dung 1
@@ -171,7 +196,7 @@ const REFRESH_SQL = `
   customer_agg AS MATERIALIZED (
     SELECT product_key, customer_key, MIN(customer_name) AS customer_name, SUM(amount) AS revenue
     FROM sales90_lines
-    WHERE product_key <> ''
+    WHERE product_key <> '' AND customer_active
     GROUP BY product_key, customer_key
     HAVING SUM(amount) > 0
   ),
@@ -198,7 +223,8 @@ const REFRESH_SQL = `
     product_code, product_name, stock_hanoi, stock_saigon, available_to_sell,
     qty_sold_30d, revenue_90d, customer_count_90d, top_customer_revenue_90d,
     top_customer_name, top_customer_share,
-    available_hanoi, available_saigon, description_hanoi, description_saigon, price_hanoi, price_saigon, computed_at
+    available_hanoi, available_saigon, description_hanoi, description_saigon, price_hanoi, price_saigon,
+    qty_sold_30d_hanoi, qty_sold_30d_saigon, orders_30d, orders_90d, computed_at
   )
   SELECT
     hn.code,
@@ -218,12 +244,17 @@ const REFRESH_SQL = `
     sg.description,
     hn.price,
     sg.price,
+    COALESCE(s30.qty_hanoi, 0),
+    COALESCE(s30.qty_saigon, 0),
+    COALESCE(oc.orders_30d, 0),
+    COALESCE(oc.orders_90d, 0),
     now()
   FROM hn_products hn
   LEFT JOIN sg_products sg ON sg.code = hn.code
   LEFT JOIN pending_orders po ON po.product_key = lower(btrim(hn.code))
   LEFT JOIN sales_30d s30 ON s30.product_code = hn.code
   LEFT JOIN sales_90d s90 ON s90.product_code = hn.code
+  LEFT JOIN order_counts oc ON oc.product_key = lower(btrim(hn.code))
   LEFT JOIN customer_top ct ON ct.product_key = lower(btrim(hn.code))`;
 
 /**
@@ -281,7 +312,7 @@ async function refreshProductReportIfDue(pool, {
   }
   const { rows } = await readLastComputed(pool);
   const lastComputedAt = rows[0] && rows[0].last_computed_at;
-  // Dong con NULL o cot theo co so (vua ap migration 0057, chua tinh lai) => tinh lai ngay thay vi doi sang ngay moi.
+  // Dong con NULL o cot theo co so / SL don (vua ap migration 0057/0067, chua tinh lai) => tinh lai ngay thay vi doi sang ngay moi.
   const needsBranchColumns = Boolean(rows[0] && rows[0].needs_branch_columns);
   if (lastComputedAt && vnDateKey(new Date(lastComputedAt)) === today && !needsBranchColumns) {
     return { skipped: true };
@@ -290,10 +321,11 @@ async function refreshProductReportIfDue(pool, {
   return { skipped: false, rowCount };
 }
 
-// Chua ap migration 0057/0063 (thieu cot available_hanoi/price_hanoi, 42703) thi chi doc moc thoi gian nhu truoc do.
+// Chua ap migration 0057/0063/0067 (thieu cot available_hanoi/price_hanoi/orders_90d, 42703) thi chi doc moc thoi gian nhu truoc do.
 const LAST_COMPUTED_SQL = 'SELECT MAX(computed_at) AS last_computed_at FROM product_report';
 const LAST_COMPUTED_WITH_BRANCH_COLUMNS_SQL = `SELECT MAX(computed_at) AS last_computed_at,
-  COALESCE(bool_or(available_hanoi IS NULL OR price_hanoi IS NULL), false) AS needs_branch_columns FROM product_report`;
+  COALESCE(bool_or(available_hanoi IS NULL OR price_hanoi IS NULL
+    OR qty_sold_30d_hanoi IS NULL OR orders_90d IS NULL), false) AS needs_branch_columns FROM product_report`;
 async function readLastComputed(pool) {
   try {
     return await pool.query(LAST_COMPUTED_WITH_BRANCH_COLUMNS_SQL);

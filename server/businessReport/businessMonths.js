@@ -10,9 +10,11 @@ const UNGROUPED_SALE = 'Chưa phân nhóm';
 const NO_TEAM = 'Chưa có team';
 const RETAIL_NAME = 'Khách lẻ';
 
-// Khoa so khop ten (khach, sale): NFKC, gop khoang trang, chu thuong.
+// Khoa so khop ten (khach, sale): NFKC, bo ky tu rong (zero-width), gop khoang trang, chu thuong.
+// CUNG cong thuc voi ham SQL tks_name_key() (migration 0069) / normalizedNameSql(): JS truoc day khong bo
+// zero-width nen ten co U+200B lech giua duong JS va duong SQL.
 function nameKey(value) {
-  return String(value == null ? '' : value).normalize('NFKC').replace(/\s+/g, ' ').trim().toLowerCase();
+  return String(value == null ? '' : value).normalize('NFKC').replace(/[​-‍﻿]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
 function monthKey(dateKey) {

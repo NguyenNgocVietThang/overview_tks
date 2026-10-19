@@ -200,7 +200,16 @@ test('tab Tao QR: tai khoan nhap tay can du ma ngan hang + so TK, hash doi tab',
   assert.deepEqual([...doc.querySelectorAll('#sidebar a[href^="/vat-draft/"]')].map(a => a.getAttribute('href')), ['/vat-draft/#xu-ly', '/vat-draft/#tao-qr']);
   assert.equal(doc.getElementById('vdLookupResult'), null);
   const select = doc.getElementById('vdManualAccount');
-  assert.equal(select.value, '__manual__');
+  // Mac dinh chua chon tai khoan: nut khoa, chi nhac ly do, KHONG bao loi khi chua thao tac.
+  assert.equal(select.value, '');
+  assert.equal(doc.getElementById('vdManualGenerate').disabled, true);
+  assert.equal(doc.getElementById('vdManualInvalid').hidden, true);
+  assert.match(doc.getElementById('vdQrBlocker').textContent, /Chọn tài khoản nhận tiền/);
+  // Tab Tao QR: an trang thai Sheets/KiotViet (chi phuc vu Xu ly hoa don).
+  assert.equal(doc.getElementById('vdSourceBar').hidden, true);
+  select.value = '__manual__';
+  select.dispatchEvent(new window.Event('change'));
+  assert.equal(doc.getElementById('vdManualFields').hidden, false);
   assert.equal(doc.getElementById('vdManualGenerate').disabled, true);
   doc.getElementById('vdManualBank').value = 'ACB';
   doc.getElementById('vdManualBank').dispatchEvent(new window.Event('input'));
@@ -215,6 +224,52 @@ test('tab Tao QR: tai khoan nhap tay can du ma ngan hang + so TK, hash doi tab',
   await changed;
   assert.equal(doc.getElementById('vdInputPanel').hidden, false);
   assert.equal(doc.getElementById('vdQrPage').hidden, true);
+  assert.equal(doc.getElementById('vdSourceBar').hidden, false);
+  assert.equal(doc.getElementById('vdSourceBar').dataset.tone, 'ok');
+  assert.match(doc.getElementById('vdStatusSummary').textContent, /Dữ liệu cập nhật/);
+});
+
+test('tab Tao QR: nhom tai khoan, tom tat truoc khi tao, Enter tao QR, doi so tien thi QR cu bi vo hieu', async t => {
+  const meta = api()['GET /meta'];
+  const responses = api({ 'GET /meta': { ...meta, vietqr: { ...meta.vietqr, accounts: [
+    { key: 'shc', label: 'MB SHC — MB 525345345 (CONG TY SHC)', bankId: 'MB', accountNo: '525345345', accountName: 'CONG TY SHC', group: 'company' },
+    { key: 'acb_a_quan', label: 'ACB QUÂN — ACB 48206877 (NGUYEN VAN QUAN)', bankId: 'ACB', accountNo: '48206877', accountName: 'NGUYEN VAN QUAN', group: 'personal' }
+  ] } } });
+  const { doc, window, calls } = await setup(t, { hash: '#tao-qr', responses });
+  const groups = [...doc.querySelectorAll('#vdManualAccount optgroup')].map(g => g.label);
+  assert.deepEqual(groups, ['Tài khoản công ty', 'Tài khoản cá nhân', 'Khác']);
+  const select = doc.getElementById('vdManualAccount');
+  select.value = 'shc';
+  select.dispatchEvent(new window.Event('change'));
+  assert.match(doc.getElementById('vdAccountDetail').textContent, /CONG TY SHC.*MB · 525345345/s);
+  assert.equal(doc.getElementById('vdQrPanel').dataset.state, 'ready');
+  const amount = doc.getElementById('vdManualAmount');
+  amount.value = '1320002';
+  amount.dispatchEvent(new window.Event('input'));
+  assert.equal(doc.getElementById('vdSumAmount').textContent, '1,320,002 đ');
+  assert.equal(doc.getElementById('vdSumBank').textContent, 'MB · 525345345');
+  // Enter trong o Số tiền = tao QR
+  amount.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  await tick(); await tick();
+  assert.equal(amount.value, '1,320,002');
+  assert.deepEqual(calls.filter(c => c.key === 'POST /qr/url').map(c => [c.body.accountKey, c.body.amount]), [['shc', '1320002']]);
+  assert.equal(doc.getElementById('vdQrPanel').dataset.state, 'success');
+  assert.equal(doc.getElementById('vdQrActions').hidden, false);
+  assert.equal(doc.getElementById('vdQrCta').hidden, true);
+  // Sua so tien sau khi tao: QR cu bi danh dau het hieu luc, an nut tai, nut chinh doi thanh Tạo lại
+  amount.value = '1320000';
+  amount.dispatchEvent(new window.Event('input'));
+  assert.equal(doc.getElementById('vdQrPanel').dataset.state, 'stale');
+  assert.equal(doc.getElementById('vdQrActions').hidden, true);
+  assert.equal(doc.querySelector('#vdManualResult .vd-qr-stale').hidden, false);
+  assert.equal(doc.getElementById('vdGenerateLabel').textContent, 'Tạo lại mã QR');
+  // Doi lai dung so cu: QR hop le tro lai
+  amount.value = '1,320,002';
+  amount.dispatchEvent(new window.Event('input'));
+  assert.equal(doc.getElementById('vdQrPanel').dataset.state, 'success');
+  // Tao QR moi: xoa het, ve trang thai ban dau
+  doc.getElementById('vdQrNew').click();
+  assert.deepEqual([select.value, amount.value, doc.getElementById('vdQrPanel').dataset.state], ['', '', 'empty']);
 });
 
 test('tab Tao QR: QR hien o cot phai, thay cho dong "Mã QR sẽ hiện ở đây"', async t => {
@@ -222,6 +277,7 @@ test('tab Tao QR: QR hien o cot phai, thay cho dong "Mã QR sẽ hiện ở đâ
   const preview = doc.querySelector('#vdQrPage .vd-qr-preview');
   assert.ok(preview && preview.contains(doc.getElementById('vdManualResult')));
   assert.equal(doc.getElementById('vdQrPlaceholder').hidden, false);
+  assert.equal(doc.getElementById('vdQrPanel').dataset.state, 'empty');
   assert.equal(doc.getElementById('vdManualResult').hidden, true);
   const select = doc.getElementById('vdManualAccount');
   select.value = 'tks_group';

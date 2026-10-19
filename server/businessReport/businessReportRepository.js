@@ -8,15 +8,24 @@
 // co ban nao) moi phai cho vi tinh live 1 thang mat ~1-2s. Cac thang live duoc tai TUAN TU
 // (tranh don IO len Supabase). refreeze() xoa cache; tai nen bat dau truoc do khong duoc ghi de.
 // Luon gop HN + SG.
+//
+// THANG HIEN TAI (migration 0068): job nen businessCurrentMonthRefresh.js tinh san cung cau SQL vao
+// business_current_month_*; khi state.month = thang hien tai va computed_at chua qua currentMonthMaxAgeMs
+// (mac dinh 30 phut) thi live() / linesFor doc bang do thay vi chay SQL nang. Thieu bang / qua han / loi
+// => lui ve live() nhu cu (fail-soft). Job bao thay doi qua onBusinessCurrentMonthChanged => xoa cache.
 
 const { getPool } = require('../db/pool');
 const sql = require('./businessMonthlySql');
 const { FIRST_MONTH, UNGROUPED_SALE, NO_TEAM, nameKey, monthKey, addMonths, monthsBetween, vnToday, dayOfMonth, parseClosedMonth } = require('./businessMonths');
 const { freezeMonth, rebuildSaleTable } = require('../kiotvietSync/businessMonthlyRefresh');
+const { onBusinessCurrentMonthChanged } = require('../kiotvietSync/businessCurrentMonthRefresh');
 
 const num = v => Number(v) || 0;
 const MONTHLY_TABLES = new Set(['business_monthly_state', 'business_monthly_customer_sales',
-  'business_monthly_product_sales', 'business_monthly_sale_sales', 'business_monthly_customer_product_sales', 'sale_teams']);
+  'business_monthly_product_sales', 'business_monthly_sale_sales', 'business_monthly_customer_product_sales', 'sale_teams',
+  'business_current_month_state', 'business_current_month_customer_sales', 'business_current_month_customer_product_sales']);
+// Qua nguong nay ke tu lan tinh gan nhat thi bang thang hien tai bi coi la cu => tinh live.
+const CURRENT_MONTH_MAX_AGE_MS = 30 * 60 * 1000;
 function missingMonthlyRelation(error) {
   if (error.code !== '42P01') return false;
   const relation = /relation "(?:[^".]+\.)?([^".]+)" does not exist/.exec(error.message || '');
@@ -95,17 +104,69 @@ function createSwrCache({ load, now, ttlMs, label }) {
 
 function createRepository({
   pool = getPool(), now = () => new Date(), ttlMs = 60 * 1000,
-  freeze = freezeMonth, rebuildSale = rebuildSaleTable
+  freeze = freezeMonth, rebuildSale = rebuildSaleTable,
+  currentMonthMaxAgeMs = CURRENT_MONTH_MAX_AGE_MS, onCurrentMonthChanged = onBusinessCurrentMonthChanged
 } = {}) {
   const liveCaches = new Map(); // month -> cache SWR cua {customers, customerProducts}
+
+  // Bang thang hien tai con dung duoc khong: state.month = month va computed_at chua qua han.
+  // Thieu bang (42P01) / bat ky loi doc nao => false (lui ve live), khong lam hong bao cao.
+  function isCurrentMonthFresh(state, month) {
+    if (!state || state.month !== month || !state.computed_at) return false;
+    const age = now().getTime() - new Date(state.computed_at).getTime();
+    return Number.isFinite(age) && age <= currentMonthMaxAgeMs;
+  }
+
+  const CURRENT_STATE_SQL = `SELECT to_char(month, 'YYYY-MM-DD') AS month, computed_at FROM business_current_month_state WHERE id = 1`;
+  async function readCurrentMonthState(month) {
+    try {
+      const { rows } = await pool.query(CURRENT_STATE_SQL);
+      return isCurrentMonthFresh(rows[0], month);
+    } catch (error) {
+      if (!missingMonthlyRelation(error)) console.error('[business-report] doc state thang hien tai that bai, tinh live:', error.message);
+      return false;
+    }
+  }
+
+  // Doc {customers, customerProducts} cua thang hien tai tu bang tinh san, cung dang voi live().
+  // null = khong dung duoc (thieu bang / qua han / lech thang / loi) => goi live().
+  async function readCurrentMonthTables(month) {
+    // Hai truy van du lieu chi tra dong khi state con tuoi, tranh keo du lieu cu qua mang.
+    const fresh = `EXISTS (SELECT 1 FROM business_current_month_state s WHERE s.id = 1 AND s.month = $1::date
+      AND s.computed_at >= $2::timestamptz)`;
+    const threshold = new Date(now().getTime() - currentMonthMaxAgeMs).toISOString();
+    let results;
+    try {
+      results = await readSnapshotQueries(pool, [
+        [CURRENT_STATE_SQL],
+        [`SELECT branch, customer_code, customer_name, invoice_amount, return_amount, net_revenue, invoice_count, return_count
+            FROM business_current_month_customer_sales WHERE month = $1::date AND ${fresh}
+            ORDER BY branch, customer_code`, [month, threshold]],
+        [`SELECT branch, customer_code, product_code, product_name, net_revenue, net_qty
+            FROM business_current_month_customer_product_sales WHERE month = $1::date AND ${fresh}
+            ORDER BY branch, customer_code, product_code`, [month, threshold]]
+      ]);
+    } catch (error) {
+      console.error('[business-report] doc bang thang hien tai that bai, tinh live:', error.message);
+      return null;
+    }
+    if (results.some(r => r.status === 'rejected')) return null;
+    const [state, customers, customerProducts] = results.map(r => r.value);
+    if (!isCurrentMonthFresh(state.rows[0], month)) return null;
+    return { customers: customers.rows, customerProducts: customerProducts.rows };
+  }
 
   function live(month, options) {
     let cache = liveCaches.get(month);
     if (!cache) {
       cache = createSwrCache({
         now, ttlMs, label: `thang ${month}`,
-        load: () => {
+        load: async () => {
           const instant = now();
+          if (month === monthKey(vnToday(instant))) {
+            const precomputed = await readCurrentMonthTables(month);
+            if (precomputed) return precomputed;
+          }
           // Cot thoi gian luu gio VN nhung gan nhan UTC.
           const cutoff = month === monthKey(vnToday(instant))
             ? new Date(instant.getTime() + 7 * 60 * 60 * 1000).toISOString().replace('Z', '')
@@ -224,6 +285,16 @@ function createRepository({
   const snapshotCache = createSwrCache({ load, now, ttlMs, label: 'snapshot' });
   const snapshot = () => snapshotCache.get();
 
+  // Job vua doi bang thang hien tai: bo cache snapshot + live cua thang hien tai (cac thang cu giu nguyen
+  // de khong phai tinh lai SQL nang).
+  onCurrentMonthChanged(() => {
+    snapshotCache.clear();
+    const month = monthKey(vnToday(now()));
+    const cache = liveCaches.get(month);
+    if (cache) cache.clear();
+    liveCaches.delete(month);
+  });
+
   async function linesFor(months, where, params, mapKey) {
     const snap = await snapshot();
     const frozen = new Set(snap.frozenMonths);
@@ -242,6 +313,18 @@ function createRepository({
       rows.forEach(add);
     }
     for (const m of months.filter(x => !frozen.has(x) && x >= FIRST_MONTH && x <= snap.currentMonth)) {
+      // Thang hien tai: truy van thang vao bang khach x ma da tinh san (co index), khong tai ca thang len RAM.
+      if (m === snap.currentMonth && await readCurrentMonthState(m)) {
+        try {
+          const { rows } = await pool.query(`SELECT branch, customer_code, product_code, product_name, net_revenue, net_qty
+            FROM business_current_month_customer_product_sales
+            WHERE month = $1::date AND ${where}`, [m, ...params]);
+          rows.forEach(add);
+          continue;
+        } catch (error) {
+          if (!missingMonthlyRelation(error)) console.error('[business-report] doc chi tiet thang hien tai that bai, tinh live:', error.message);
+        }
+      }
       const data = await live(m);
       data.customerProducts.filter(r => matches(r, where, params)).forEach(add);
     }

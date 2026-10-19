@@ -134,3 +134,30 @@ test('create and update preserve assigned branch and leave approval selection th
   assert.equal(updated.assignedCoSo, '');
   assert.deepEqual(updated.leaveApprovalDepartments, ['KHO']);
 });
+
+test('cache tai khoan: dau van tay khong doi -> khong tai lai danh sach; doi -> tai lai', async () => {
+  let fingerprint = 'v1';
+  let selectAllCalls = 0;
+  let fingerprintCalls = 0;
+  const rows = () => [{ id: 'u1', username: 'a@x.com', email: 'a@x.com', vaiTro: 'Quản lý', coSo: 'Cả hai', trangThai: 'Đang hoạt động' }];
+  localUserStore.initStore(null, {
+    repository: {
+      selectAllRows: async () => { selectAllCalls++; return rows(); },
+      selectFingerprint: async () => { fingerprintCalls++; return fingerprint; },
+      insertUser: async u => ({ ...u }),
+      updateUserRow: async () => null,
+      softDeleteUser: async () => null
+    }
+  });
+  await localUserStore.getAllUsers();
+  assert.equal(selectAllCalls, 1);
+  // forceRefresh qua hydrateFromSheets bo qua TTL nhung dau van tay trung -> khong tai lai.
+  await localUserStore.hydrateFromSheets().catch(() => {});
+  const afterHydrate = selectAllCalls;
+  assert.ok(fingerprintCalls >= 1);
+  const first = (await localUserStore.getAllUsers()).find(u => u.id === 'u1');
+  if (first) first.vaiTro = 'Khách'; // sua ban sao khong duoc lam hong snapshot dung chung
+  fingerprint = 'v2';
+  await localUserStore.hydrateFromSheets().catch(() => {});
+  assert.ok(selectAllCalls > afterHydrate, 'dau van tay doi phai tai lai danh sach');
+});

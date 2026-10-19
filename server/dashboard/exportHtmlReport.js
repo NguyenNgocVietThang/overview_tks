@@ -125,7 +125,7 @@ function createReportKit() {
   }
 
   // Cot so co the cong don (loai don gia/ty le/trung binh — cong lai vo nghia).
-  var NON_ADDITIVE = /(^|\s)(giá bán|giá vốn|đơn giá|giá nhập|giá)(\s|$)|tỷ|tỉ trọng|trung bình|điểm|trọng lượng|mã|ngày cần đặt/i;
+  var NON_ADDITIVE = /(^|\s)(giá bán|giá vốn|đơn giá|giá nhập|giá)(\s|$)|tỷ|tỉ trọng|trung bình|điểm|trọng lượng|mã|ngày cần đặt|ngày bán hết|tăng trưởng/i;
   var METRIC_PRIORITY = [/doanh thu|doanh số/i, /tiền|giá trị|nợ|phải trả|cần trả|thanh toán/i, /số lượng|\bsl\b/i, /tồn/i, /số ngày|số lần/i];
   var LABEL_PRIORITY = [/^tên|tên hàng|tên sản phẩm/i, /khách hàng|nhà cung cấp|ncc/i, /nhóm/i];
   var CATEGORY_PRIORITY = /cơ sở|chi nhánh|trạng thái|nhóm|loại|sale|nhân viên|kênh|thương hiệu|lịch/i;

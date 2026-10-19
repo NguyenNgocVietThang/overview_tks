@@ -31,10 +31,11 @@ function sourceWarning(rows) {
 const EDIT_FIELDS = ['newCustomer', 'note'];
 const MAX_EDIT_LENGTH = 500;
 const digits = v => String(v ?? '').replace(/\D/g, '').replace(/^0+/, '');
-function createMarketingReportService({clients, now=Date.now, revenue, writer, repository, businessRepository, source=CONFIG.MARKETING_REPORT_SOURCE}={}) {
+function createMarketingReportService({clients, now=Date.now, revenue, writer, repository, businessRepository, adsStore, source=CONFIG.MARKETING_REPORT_SOURCE}={}) {
   // Chạy thật (không inject clients): doanh số lấy từ KiotViet và được ghi ngược Sheets.
   // Test inject clients mà không truyền revenue/writer thì giữ doanh số của sheet và không ghi.
-  if(!clients){ revenue ||= createRevenueProvider({now}); writer ||= createMarketingSheetsWriter(); }
+  // Chi phí ADS: bảng marketing_ads_costs (migration 0069) do job marketingAdsSync.js đồng bộ; thiếu bảng/chưa đồng bộ thì đọc Sheets.
+  if(!clients){ revenue ||= createRevenueProvider({now}); writer ||= createMarketingSheetsWriter(); adsStore ||= require('./marketingAdsSync').createAdsStore({now}); }
   clients ||= {
     report:createReadOnlyClient(()=>CONFIG.MARKETING_REPORT_SPREADSHEET_ID,'Báo cáo trực page'),
     phones:createReadOnlyClient(()=>CONFIG.MARKETING_PHONES_SPREADSHEET_ID,'Sao lưu SĐT'),
@@ -82,7 +83,7 @@ function createMarketingReportService({clients, now=Date.now, revenue, writer, r
   // Doanh số lấy từ KiotViet theo tên khách (ghi đè giá trị công thức của sheet).
   async function applyKiotRevenue(parsed, m, warnings, year) {
     let lookup;
-    try { lookup=await revenue(m,year); }
+    try { lookup=await revenue(m,year,{names:parsed.rows.map(r=>r.customer)}); }
     catch(e) { console.error('[MarketingReport] Kiot revenue failed:',e.code||e.message); lookup=null; warnings.push('Không đọc được doanh số KiotViet; cột Doanh số hiển thị —.'); }
     if(lookup && !lookup.available) warnings.push('Chưa có dữ liệu doanh số KiotViet cho tháng này; cột Doanh số hiển thị —.');
     let unmatched=0;
@@ -144,12 +145,20 @@ function createMarketingReportService({clients, now=Date.now, revenue, writer, r
       summaryRows.push(...employees.map(employee=>({key:JSON.stringify(['phones-employee',employee]),label:employee,employee,count:selected.filter(r=>matches(r,{employee})).length,kind:'employee'})));
       kpis=[kpi('Dòng SĐT CHUẨN',selected.length),kpi('Page',unique(selected.map(r=>r.page)).length)];
     } else {
-      const titles=await read('ads');const names=titles.filter(t=>p.COST_PAGES[p.norm(t)]);
-      if(!names.length)throw fail(503,'MARKETING_HEADERS_MISSING','Không tìm thấy các tab chi phí ADS.');
-      const blocks=await Promise.all(names.map(async title=>{try{return p.parseCosts(await read('ads',title),title);}catch(e){if(e.statusCode)throw e;throw fail(503,'MARKETING_HEADERS_MISSING',`Tab ${title} thiếu tiêu đề chi phí.`);}}));
-      readAt=Math.min(...names.map(title=>sourceTime('ads',title)));
-      rows=blocks.flatMap(b=>b.rows).filter(r=>r.month===m);
-      const totals=blocks.flatMap(b=>b.totals).filter(r=>r.month===m);dependencies.costs={rows,totals};
+      const stored=adsStore?await adsStore.read(m).catch(()=>null):null;
+      let totals;
+      if(stored){
+        // Bảng DB đã đồng bộ: không gọi Sheets lúc request (Làm mới không bỏ qua bảng; độ tươi do job đồng bộ quyết định).
+        rows=stored.rows;totals=stored.totals;readAt=+stored.readAt;
+      }else{
+        const titles=await read('ads');const names=titles.filter(t=>p.COST_PAGES[p.norm(t)]);
+        if(!names.length)throw fail(503,'MARKETING_HEADERS_MISSING','Không tìm thấy các tab chi phí ADS.');
+        const blocks=await Promise.all(names.map(async title=>{try{return p.parseCosts(await read('ads',title),title);}catch(e){if(e.statusCode)throw e;throw fail(503,'MARKETING_HEADERS_MISSING',`Tab ${title} thiếu tiêu đề chi phí.`);}}));
+        readAt=Math.min(...names.map(title=>sourceTime('ads',title)));
+        rows=blocks.flatMap(b=>b.rows).filter(r=>r.month===m);
+        totals=blocks.flatMap(b=>b.totals).filter(r=>r.month===m);
+      }
+      dependencies.costs={rows,totals};
       const pages=unique([...rows,...totals].map(r=>r.page));
       summaryRows=pages.map(page=>{
         const source=totals.filter(t=>t.page===page);const daily=rows.filter(r=>r.page===page);const sourceRows=source.length?source:daily;

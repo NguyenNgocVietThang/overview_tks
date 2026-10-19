@@ -18,6 +18,15 @@ const { normalizeIconKey } = require('./hrRuleDocumentIcons');
 // da chuyen sang kind='text' (Quan ly tu sua qua web) — khong con builtin nao de
 // "Khoi phuc tai lieu mac dinh" tao lai. Giu mang rong (thay vi xoa han co che) de
 // con dung lai neu sau nay co tai lieu dung san moi.
+// Ban sao metadata chi-doc cua 4 tai lieu cu. Giu rieng voi DEFAULT_BUILTIN_DOCUMENTS:
+// migration 0065 da chuyen cac dong that sang kind='text' nen khong duoc "khoi phuc"
+// lai vao DB, nhung khi DB local mat ket noi frontend van can metadata de hien HTML fallback.
+const LEGACY_BUILTIN_DOCUMENTS = Object.freeze([
+  Object.freeze({ key: 'gio-giac', title: 'Giờ giấc làm việc', sortOrder: 10 }),
+  Object.freeze({ key: 'nghi-phep', title: 'Quy định nghỉ phép', sortOrder: 20 }),
+  Object.freeze({ key: 'phuc-loi', title: 'Chi tiêu & Phúc lợi', sortOrder: 30 }),
+  Object.freeze({ key: 'treo-hang', title: 'Quy định treo hàng', sortOrder: 40 })
+]);
 const DEFAULT_BUILTIN_DOCUMENTS = Object.freeze([]);
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -290,6 +299,7 @@ function createHrRuleDocumentsRepository({ pool = getPool() } = {}) {
 const repository = createHrRuleDocumentsRepository();
 
 module.exports = {
+  LEGACY_BUILTIN_DOCUMENTS,
   DEFAULT_BUILTIN_DOCUMENTS,
   RuleDocError,
   createHrRuleDocumentsRepository,

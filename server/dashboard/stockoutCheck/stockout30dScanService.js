@@ -16,6 +16,22 @@ const { loadStockoutEvents: defaultLoadStockoutEvents } = require('./stockoutEve
 const DEFAULT_MIN_CONSECUTIVE_DAYS = 5;
 const DEFAULT_DAYS_BACK = 29; // 29 ngay truoc + hom nay = dung 30 ngay
 
+// Mac dinh khong luu gi: test/duong goi cu khong cham DB. Route quet 30 ngay inject ham that
+// (stockoutDaysStore.persistStockoutDays) de cot Dut HN/SG cua Bao cao hang hoa co so lieu.
+async function noopPersistStockoutDays() {}
+
+/**
+ * Luu so ngay dut vao DB, loi chi them canh bao vao `warnings` (khong lam hong job, khong mat ket qua quet).
+ * Goi TRUOC setResult de canh bao di cung ket qua.
+ */
+async function persistSafely(persistStockoutDays, branch, rows, warnings) {
+  try {
+    await persistStockoutDays({ branch, rows });
+  } catch (err) {
+    warnings.push(`Không lưu được số ngày đứt hàng vào Báo cáo hàng hóa: ${err.message}`);
+  }
+}
+
 async function runStockout30dScanJob(jobStore, jobId, deps = {}) {
   const {
     source,
@@ -25,7 +41,8 @@ async function runStockout30dScanJob(jobStore, jobId, deps = {}) {
     todayKey = todayVnDateKey(),
     minConsecutiveDays = DEFAULT_MIN_CONSECUTIVE_DAYS,
     dataFromDateFloor = STOCKOUT_DATA_FLOOR_DATE_KEY,
-    branch = null
+    branch = null,
+    persistStockoutDays = noopPersistStockoutDays
   } = deps;
 
   try {
@@ -36,7 +53,10 @@ async function runStockout30dScanJob(jobStore, jobId, deps = {}) {
     });
 
     if (candidates.length === 0) {
-      jobStore.setResult(jobId, { asOfDate: todayKey, fromDate, branch, totalProductsScanned, totalCandidates: 0, sources: {}, warnings: [], rows: [] });
+      // Khong co ung vien van phai luu: reset cot Dut cua co so nay ve 0.
+      const emptyWarnings = [];
+      await persistSafely(persistStockoutDays, branch, [], emptyWarnings);
+      jobStore.setResult(jobId, { asOfDate: todayKey, fromDate, branch, totalProductsScanned, totalCandidates: 0, sources: {}, warnings: emptyWarnings, rows: [] });
       return;
     }
 
@@ -101,6 +121,8 @@ async function runStockout30dScanJob(jobStore, jobId, deps = {}) {
 
     const qualityWarning = buildUnreliableDataWarning({ analyzed, unreliable });
     if (qualityWarning) warnings.push(qualityWarning);
+
+    await persistSafely(persistStockoutDays, branch, rows, warnings);
 
     jobStore.setResult(jobId, {
       asOfDate: todayKey,

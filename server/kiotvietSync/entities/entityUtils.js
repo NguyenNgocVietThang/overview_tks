@@ -1,4 +1,5 @@
 'use strict';
+const crypto = require('node:crypto');
 
 function value(source, ...keys) {
   for (const key of keys) {
@@ -29,4 +30,13 @@ function createSimpleEntity({ entity, endpoint = entity, listQuery, columns, upd
   };
 }
 
-module.exports = { value, array, upsertRows, createSimpleEntity };
+// Dau van tay on dinh (khoa sap xep) cua 1 ban ghi API — de doi soat voi cot raw_hash
+// ma khong phai tai lai ca JSON raw tu Supabase (nguon Egress lon, xem purchases.js).
+function stableStringify(v) {
+  if (Array.isArray(v)) return '[' + v.map(stableStringify).join(',') + ']';
+  if (v && typeof v === 'object') return '{' + Object.keys(v).sort().filter(k => v[k] !== undefined).map(k => JSON.stringify(k) + ':' + stableStringify(v[k])).join(',') + '}';
+  return JSON.stringify(v === undefined ? null : v);
+}
+const rawHash = item => crypto.createHash('sha1').update(stableStringify(item)).digest('hex');
+
+module.exports = { value, array, upsertRows, createSimpleEntity, stableStringify, rawHash };
