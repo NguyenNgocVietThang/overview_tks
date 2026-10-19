@@ -1516,7 +1516,15 @@
         // textContent; chi body rich-text duoc render HTML da loc.
         ruleDocEl('ruleDocTextH1').textContent = doc.title;
         ruleDocEl('ruleDocTextBanner').textContent = `TOKOSI · Nội bộ${dateText ? ` · Cập nhật: ${dateText}` : ''}`;
-        ruleDocEl('ruleDocTextBody').innerHTML = doc.body || '';
+        const bodyEl = ruleDocEl('ruleDocTextBody');
+        bodyEl.innerHTML = doc.body || '';
+        // Day la bang trong van ban, khong phai bang du lieu tuong tac. Danh dau ngay
+        // trong cung task sau innerHTML de MutationObserver cua table-controls khong
+        // chen nut "Cot hien thi", sort header hay thanh keo cot vao noi dung quy dinh.
+        bodyEl.querySelectorAll('table').forEach(table => {
+          table.dataset.tableControls = 'off';
+          table.dataset.tableSort = 'off';
+        });
         const iconEl = ruleDocEl('ruleDocTextIcon');
         const iconDef = doc.iconKey && ICON_DEFS[doc.iconKey];
         if(iconDef){ iconEl.innerHTML = iconDef.svg; iconEl.hidden = false; } // ICON_DEFS: hang so trong code

@@ -21,6 +21,21 @@ test('giu noi dung builtin lam fallback khi code deploy truoc migration 0065', (
   assert.match(html, /Giờ làm việc chính thức/);
 });
 
+test('bang trong noi dung quy dinh khong bi gan nut Cot hien thi hoac sap xep', async () => {
+  const { window, document } = await openPage();
+  const tables = [...document.querySelectorAll('#ruleDocTextBody table')];
+  assert.ok(tables.length > 0, 'tai lieu mau phai co bang');
+  for (const table of tables) {
+    assert.equal(table.dataset.tableControls, 'off');
+    assert.equal(table.dataset.tableSort, 'off');
+  }
+  window.eval(fs.readFileSync(path.join(__dirname, '..', '..', 'public', 'shared', 'table-controls.js'), 'utf8'));
+  await settle();
+  assert.equal(document.querySelectorAll('#ruleDocTextView .tks-columns-button').length, 0);
+  assert.doesNotMatch(document.getElementById('ruleDocTextView').textContent, /Cột hiển thị/);
+  window.close();
+});
+
 function fakeCan(vaiTro) {
   const permissions = defaultsForRole(vaiTro);
   return (...keys) => keys.some(key => (Array.isArray(key) ? key : [key]).some(k => permissions.includes(k)));
