@@ -162,12 +162,10 @@ test('getFileMeta / getFileContent chỉ đọc PDF, meta không kéo content', 
   assert.equal(await repo.getFileContent(9), null);
 });
 
-test('restoreDefaultDocuments chèn các tài liệu mặc định với ON CONFLICT DO NOTHING', async () => {
+test('restoreDefaultDocuments: không còn tài liệu mặc định nào (từ migration 0065) ⇒ trả mảng rỗng, không query DB', async () => {
+  assert.deepEqual(DEFAULT_BUILTIN_DOCUMENTS, []);
   const pool = fakePool([[BUILTIN_ROW]]);
   const restored = await createHrRuleDocumentsRepository({ pool }).restoreDefaultDocuments();
-
-  const { sql, params } = pool.calls[0];
-  assert.match(sql, /ON CONFLICT \(builtin_key\) DO NOTHING/);
-  assert.deepEqual(params, DEFAULT_BUILTIN_DOCUMENTS.flatMap(d => [d.key, d.title, d.sortOrder]));
-  assert.equal(restored.length, 1);
+  assert.deepEqual(restored, []);
+  assert.equal(pool.calls.length, 0); // khong con gi de chen -> khong duoc chay INSERT ... VALUES rong (loi cu phap)
 });

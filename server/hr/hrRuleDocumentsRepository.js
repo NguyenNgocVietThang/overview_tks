@@ -14,14 +14,11 @@ const { sanitizeRuleDocumentHtml, hasMeaningfulRuleDocumentContent } = require('
 const { extractAndPersistImages, pruneUnreferencedImages } = require('./hrRuleDocumentImages');
 const { normalizeIconKey } = require('./hrRuleDocumentIcons');
 
-// Phai khop cac dong seed cua migration 0027 + 0039 (dung cho "Khoi phuc tai lieu mac dinh"
-// va cho danh sach du phong khi bang chua duoc migrate).
-const DEFAULT_BUILTIN_DOCUMENTS = Object.freeze([
-  Object.freeze({ key: 'gio-giac', title: 'Giờ giấc làm việc', sortOrder: 10 }),
-  Object.freeze({ key: 'nghi-phep', title: 'Quy định nghỉ phép', sortOrder: 20 }),
-  Object.freeze({ key: 'phuc-loi', title: 'Chi tiêu & Phúc lợi', sortOrder: 30 }),
-  Object.freeze({ key: 'treo-hang', title: 'Quy định treo hàng', sortOrder: 40 })
-]);
+// Rong tu migration 0065: 4 tai lieu dung san (gio-giac/nghi-phep/phuc-loi/treo-hang)
+// da chuyen sang kind='text' (Quan ly tu sua qua web) — khong con builtin nao de
+// "Khoi phuc tai lieu mac dinh" tao lai. Giu mang rong (thay vi xoa han co che) de
+// con dung lai neu sau nay co tai lieu dung san moi.
+const DEFAULT_BUILTIN_DOCUMENTS = Object.freeze([]);
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -240,6 +237,9 @@ function createHrRuleDocumentsRepository({ pool = getPool() } = {}) {
 
   // Chen lai cac tai lieu dung san con thieu; tra ve danh sach vua duoc chen.
   async function restoreDefaultDocuments() {
+    // DEFAULT_BUILTIN_DOCUMENTS rong (tu migration 0065) -> khong co gi de chen; tranh
+    // chay INSERT ... VALUES  (rong, loi cu phap) khi khong con tai lieu dung san nao.
+    if (!DEFAULT_BUILTIN_DOCUMENTS.length) return [];
     const values = [];
     const params = [];
     DEFAULT_BUILTIN_DOCUMENTS.forEach((doc, index) => {
