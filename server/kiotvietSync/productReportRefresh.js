@@ -66,8 +66,10 @@ const REFRESH_SQL = `
       -- "Mo ta" san pham tren KiotViet (nhan vien ghi bang gia cho sale tra cuu), tung co so mot. btrim phai cat ca
       -- tab/xuong dong (mac dinh chi cat dau cach): mo ta chi con xuong dong coi nhu trong.
       NULLIF(btrim(p.raw->>'description', ${DESCRIPTION_TRIM_CHARS}), '') AS description,
-      -- "Don gia" = gia ban chung tren KiotViet cua co so; Ha Noi quyet dinh danh sach ma hang nen thieu gia coi nhu 0.
-      COALESCE(p.base_price, 0) AS price
+      -- "Don gia" = GIA VON cua co so (trung binh inventories[].cost trong raw, cung dinh nghia INVENTORY_COST_SQL
+      -- cua tab Hang hoa); Ha Noi quyet dinh danh sach ma hang nen thieu gia von coi nhu 0.
+      COALESCE((SELECT AVG((inv->>'cost')::float8)
+                  FROM jsonb_array_elements(COALESCE(p.raw->'inventories', '[]'::jsonb)) inv), 0) AS price
     FROM products p
     WHERE p.branch = 'hanoi' AND COALESCE(p.code, '') <> ''
   ),
@@ -77,7 +79,8 @@ const REFRESH_SQL = `
       (SELECT COALESCE(SUM(COALESCE((inv->>'onHand')::float8, 0)), 0)
          FROM jsonb_array_elements(COALESCE(p.raw->'inventories', '[]'::jsonb)) inv) AS on_hand,
       NULLIF(btrim(p.raw->>'description', ${DESCRIPTION_TRIM_CHARS}), '') AS description,
-      p.base_price AS price
+      (SELECT AVG((inv->>'cost')::float8)
+         FROM jsonb_array_elements(COALESCE(p.raw->'inventories', '[]'::jsonb)) inv) AS price
     FROM products p
     WHERE p.branch = 'saigon' AND COALESCE(p.code, '') <> ''
   ),

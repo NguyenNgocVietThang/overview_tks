@@ -294,8 +294,8 @@ test('SQL that (PGlite): luot nhe ghi DUNG VI TRI 4 cot theo co so; co ban HN + 
       CREATE TABLE order_details (branch text, order_id bigint, product_id bigint, quantity numeric, raw jsonb);
       CREATE TABLE daily_product_sales (branch text, product_id bigint, sale_date date, qty numeric, revenue numeric);
       INSERT INTO products VALUES
-        ('hanoi', 1, 'A', 'Sp A', true, '{"description":"T50 # HN","inventories":[{"onHand":7}]}', 12000),
-        ('saigon', 1, 'A', 'Sp A', true, '{"description":"T50 # SG","inventories":[{"onHand":3.25}]}', 12500),
+        ('hanoi', 1, 'A', 'Sp A', true, '{"description":"T50 # HN","inventories":[{"onHand":7,"cost":12000}]}', 99999),
+        ('saigon', 1, 'A', 'Sp A', true, '{"description":"T50 # SG","inventories":[{"onHand":3.25,"cost":12500}]}', 99999),
         ('hanoi', 2, 'B', 'Sp B', true, '{"inventories":[{"onHand":4}]}', NULL),
         ('hanoi', 3, 'C', 'Sp C', false, '{"inventories":[{"onHand":9}]}', 100);
       INSERT INTO orders VALUES ('hanoi', 10, '{"statusValue":"Phiếu tạm"}'), ('saigon', 20, '{"statusValue":"Phiếu tạm"}');

@@ -324,8 +324,8 @@ const PRODUCT_REPORT_COLUMNS = [
   aggregateColumn('topCustomerRevenue90d', 'Doanh số khách lớn nhất', 'number', 'Doanh số của khách mua nhiều nhất trong 90 ngày.'),
   aggregateColumn('topCustomerName', 'Khách lớn nhất', 'text', 'Tên khách hàng mua nhiều nhất trong 90 ngày.'),
   aggregateColumn('topCustomerShare', 'Tỉ trọng khách lớn nhất', 'percent', 'Doanh số khách lớn nhất chia cho doanh số 90 ngày.'),
-  aggregateColumn('priceHanoi', 'Đơn giá Hà Nội', 'number', 'Đơn giá bán chung của mã hàng trên KiotViet Hà Nội (VNĐ); trống khi chưa có giá. Chỉ Quản lý và Trợ lý được xuất.'),
-  aggregateColumn('priceSaigon', 'Đơn giá Sài Gòn', 'number', 'Đơn giá bán chung của mã hàng trên KiotViet Sài Gòn (VNĐ); trống khi Sài Gòn không có mã này hoặc chưa có giá. Chỉ Quản lý và Trợ lý được xuất.'),
+  aggregateColumn('priceHanoi', 'Đơn giá Hà Nội', 'number', 'Giá vốn của mã hàng trên KiotViet Hà Nội (VNĐ); trống khi chưa có giá. Chỉ Quản lý và Trợ lý được xuất.'),
+  aggregateColumn('priceSaigon', 'Đơn giá Sài Gòn', 'number', 'Giá vốn của mã hàng trên KiotViet Sài Gòn (VNĐ); trống khi Sài Gòn không có mã này hoặc chưa có giá. Chỉ Quản lý và Trợ lý được xuất.'),
   aggregateColumn('descriptionHanoi', 'Mô tả Hà Nội', 'text', 'Mô tả sản phẩm trên KiotViet của cơ sở Hà Nội (thường ghi bảng giá cho nhân viên bán hàng tra cứu).', { wrapText: true }),
   aggregateColumn('descriptionSaigon', 'Mô tả Sài Gòn', 'text', 'Mô tả sản phẩm trên KiotViet của cơ sở Sài Gòn (thường ghi bảng giá cho nhân viên bán hàng tra cứu).', { wrapText: true })
 ];
