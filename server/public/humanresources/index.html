@@ -1144,6 +1144,17 @@
         <div class="form-group"><label for="empCoSo">Cơ sở *</label><select id="empCoSo" class="form-control" required></select></div>
         <div class="form-group"><label for="empSdt">Số điện thoại</label><input type="tel" id="empSdt" class="form-control" maxlength="20"></div>
         <div class="form-group"><label for="empEmail">Email</label><input type="email" id="empEmail" class="form-control" maxlength="160"></div>
+        <div class="form-group"><label for="empChucVu">Chức vụ</label><input type="text" id="empChucVu" class="form-control" maxlength="120"></div>
+        <div class="form-group"><label for="empNgayVaoLam">Ngày vào làm</label><input type="date" id="empNgayVaoLam" class="form-control"></div>
+        <div class="form-group"><label for="empNgaySinh">Ngày sinh</label><input type="date" id="empNgaySinh" class="form-control"></div>
+        <div class="form-group"><label for="empGioiTinh">Giới tính</label><select id="empGioiTinh" class="form-control"><option value="">— Chưa chọn —</option><option>Nam</option><option>Nữ</option><option>Khác</option></select></div>
+        <div class="form-group"><label for="empSoCccd">CCCD</label><input type="text" id="empSoCccd" class="form-control" maxlength="20"></div>
+        <div class="form-group"><label for="empDiaChi">Địa chỉ hiện tại</label><textarea id="empDiaChi" class="form-control" rows="2" maxlength="500"></textarea></div>
+        <div class="form-group"><label for="empNguoiThanQuanHe">Quan hệ người thân</label><input type="text" id="empNguoiThanQuanHe" class="form-control" maxlength="80"></div>
+        <div class="form-group"><label for="empNguoiThanHoTen">Họ tên người thân</label><input type="text" id="empNguoiThanHoTen" class="form-control" maxlength="120"></div>
+        <div class="form-group"><label for="empNguoiThanSdt">SĐT người thân</label><input type="tel" id="empNguoiThanSdt" class="form-control" maxlength="20"></div>
+        <div class="form-group"><label for="empNgayNghiViec">Ngày nghỉ việc</label><input type="date" id="empNgayNghiViec" class="form-control"></div>
+        <div class="form-group"><label><input type="checkbox" id="empHoSoDayDu"> Hồ sơ đầy đủ</label><br><label><input type="checkbox" id="empVanTay"> Đã đăng ký vân tay</label></div>
         <div class="form-group"><label for="empTrangThai">Trạng thái</label><select id="empTrangThai" class="form-control" onchange="updateEmployeeStatusHint()"><option value="active">Đang làm việc</option><option value="resigned">Đã nghỉ việc</option></select>
           <small id="empStatusHint" class="alert-box alert-error" style="display:none;margin-top:6px;">Tài khoản đăng nhập liên kết với nhân sự này sẽ bị khóa.</small></div>
         <div class="form-group" id="empCreatedAtGroup" hidden><label for="empCreatedAt">Ngày thêm</label><input type="text" id="empCreatedAt" class="form-control" readonly></div>
@@ -3078,6 +3089,18 @@
       document.getElementById('empBoPhan').value = employee ? employee.boPhan : '';
       document.getElementById('empSdt').value = employee ? employee.soDienThoai : '';
       document.getElementById('empEmail').value = employee ? employee.email : '';
+      document.getElementById('empChucVu').value = employee ? (employee.chucVu || '') : '';
+      document.getElementById('empNgayVaoLam').value = employee ? (employee.ngayVaoLam || '') : '';
+      document.getElementById('empNgaySinh').value = employee ? (employee.ngaySinh || '') : '';
+      document.getElementById('empGioiTinh').value = employee ? (employee.gioiTinh || '') : '';
+      document.getElementById('empSoCccd').value = employee ? (employee.soCccd || '') : '';
+      document.getElementById('empDiaChi').value = employee ? (employee.diaChiHienTai || '') : '';
+      document.getElementById('empNguoiThanQuanHe').value = employee ? (employee.nguoiThanQuanHe || '') : '';
+      document.getElementById('empNguoiThanHoTen').value = employee ? (employee.nguoiThanHoTen || '') : '';
+      document.getElementById('empNguoiThanSdt').value = employee ? (employee.nguoiThanSoDienThoai || '') : '';
+      document.getElementById('empHoSoDayDu').checked = !!(employee && employee.hoSoDayDu);
+      document.getElementById('empVanTay').checked = !!(employee && employee.vanTayDaDangKy);
+      document.getElementById('empNgayNghiViec').value = employee ? (employee.ngayNghiViec || '') : '';
       document.getElementById('empTrangThai').value = employee ? employeeStatusKey(employee) : 'active';
       const branches = ((currentUser && currentUser.branches) || []).filter(b => b !== BRANCH_BOTH_LABEL);
       const coSo = document.getElementById('empCoSo');
@@ -3105,6 +3128,18 @@
         coSo: document.getElementById('empCoSo').value,
         soDienThoai: document.getElementById('empSdt').value,
         email: document.getElementById('empEmail').value,
+        chucVu: document.getElementById('empChucVu').value,
+        ngayVaoLam: document.getElementById('empNgayVaoLam').value,
+        ngaySinh: document.getElementById('empNgaySinh').value,
+        gioiTinh: document.getElementById('empGioiTinh').value,
+        soCccd: document.getElementById('empSoCccd').value,
+        diaChiHienTai: document.getElementById('empDiaChi').value,
+        nguoiThanQuanHe: document.getElementById('empNguoiThanQuanHe').value,
+        nguoiThanHoTen: document.getElementById('empNguoiThanHoTen').value,
+        nguoiThanSoDienThoai: document.getElementById('empNguoiThanSdt').value,
+        hoSoDayDu: document.getElementById('empHoSoDayDu').checked,
+        vanTayDaDangKy: document.getElementById('empVanTay').checked,
+        ngayNghiViec: document.getElementById('empNgayNghiViec').value,
         trangThai: document.getElementById('empTrangThai').value
       };
       btn.disabled = true;

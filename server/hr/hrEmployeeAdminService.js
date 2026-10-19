@@ -69,7 +69,16 @@ function createHrEmployeeAdminService(options = {}) {
     if (soDienThoai && !/^\+?\d{8,15}$/.test(soDienThoai)) {
       throw new HrEmployeeAdminError('Số điện thoại không hợp lệ.', 400, 'INVALID_PHONE');
     }
-    return { hoTen, boPhan, branch, email, soDienThoai, employmentStatus: toStatus(input.trangThai) };
+    const date = value => { const text = clean(value); return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null; };
+    return {
+      hoTen, boPhan, branch, email, soDienThoai, employmentStatus: toStatus(input.trangThai),
+      chucVu: clean(input.chucVu), ngayVaoLam: date(input.ngayVaoLam), ngaySinh: date(input.ngaySinh),
+      soCccd: clean(input.soCccd), diaChiHienTai: clean(input.diaChiHienTai),
+      nguoiThanQuanHe: clean(input.nguoiThanQuanHe), nguoiThanHoTen: clean(input.nguoiThanHoTen),
+      nguoiThanSoDienThoai: clean(input.nguoiThanSoDienThoai), gioiTinh: clean(input.gioiTinh),
+      hoSoDayDu: Boolean(input.hoSoDayDu), vanTayDaDangKy: Boolean(input.vanTayDaDangKy),
+      ngayNghiViec: date(input.ngayNghiViec)
+    };
   }
 
   function assertBranchAllowed(actor, branchCode) {
@@ -146,6 +155,7 @@ function createHrEmployeeAdminService(options = {}) {
     assertPolicy(actor, input, null);
     await assertNoDuplicate(null, input);
     const row = await repo.insertEmployee(input);
+    if (typeof repo.updateExtendedById === 'function') await repo.updateExtendedById(row.id, input);
     directory.clearCache();
     const snapshot = await directory.getSnapshot({ forceRefresh: true });
     const employee = snapshot.employees.find(e => String(e.rowIndex) === String(row.id));
@@ -166,6 +176,7 @@ function createHrEmployeeAdminService(options = {}) {
     await assertNoDuplicate(id, input);
     const row = await repo.updateEmployeeById(Number(id), input);
     if (!row) throw new HrEmployeeAdminError('Không tìm thấy nhân sự.', 404, 'HR_EMPLOYEE_NOT_FOUND');
+    if (typeof repo.updateExtendedById === 'function') await repo.updateExtendedById(Number(id), input);
     directory.clearCache();
     const refreshed = await directory.getSnapshot({ forceRefresh: true });
     const employee = refreshed.employees.find(e => String(e.rowIndex) === String(id));

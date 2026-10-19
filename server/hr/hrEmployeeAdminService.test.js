@@ -36,6 +36,11 @@ function setup({ rows, users = [] } = {}) {
       if (!row) return null;
       Object.assign(row, input);
       return row;
+    },
+    async updateExtendedById(id, input) {
+      const row = db.find(r => r.id === id);
+      if (row) Object.assign(row, input);
+      return row || null;
     }
   };
   const directory = {
@@ -143,4 +148,18 @@ test('không đổi trạng thái thì không đụng tài khoản', async () =>
   });
   await service.updateEmployee(MANAGER, 1, { hoTen: 'An Mới', boPhan: 'KHO', coSo: 'Hà Nội', email: 'an@x.com', soDienThoai: '0900000001', trangThai: 'active' });
   assert.equal(calls.userUpdates.length, 0);
+});
+
+
+test('sua nhan su luu day du ho so mo rong', async () => {
+  const { service, db } = setup();
+  await service.updateEmployee(MANAGER, 1, {
+    ...valid, hoTen: 'An', email: 'an@x.com', soDienThoai: '0900000001',
+    chucVu: 'Thủ kho', ngayVaoLam: '2024-01-02', ngaySinh: '1995-02-03', soCccd: '012345678901',
+    diaChiHienTai: 'Hà Nội', nguoiThanQuanHe: 'Mẹ', nguoiThanHoTen: 'Bà A', nguoiThanSoDienThoai: '0900000009',
+    gioiTinh: 'Nam', hoSoDayDu: true, vanTayDaDangKy: true, ngayNghiViec: ''
+  });
+  assert.equal(db[0].chucVu, 'Thủ kho');
+  assert.equal(db[0].soCccd, '012345678901');
+  assert.equal(db[0].hoSoDayDu, true);
 });

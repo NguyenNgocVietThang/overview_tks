@@ -137,3 +137,9 @@ test('nhap danh sach nhan su co thanh tien do phan tram trong luc tai file len',
   assert.match(html, /XMLHttpRequest/);
   assert.match(html, /event\.loaded\s*\/\s*event\.total/);
 });
+
+
+test('form nhan su cho phep sua day du cac truong ho so mo rong', () => {
+  const html = fs.readFileSync(htmlPath, 'utf8');
+  for (const id of ['empChucVu','empNgayVaoLam','empNgaySinh','empSoCccd','empDiaChi','empNguoiThanQuanHe','empNguoiThanHoTen','empNguoiThanSdt','empGioiTinh','empHoSoDayDu','empVanTay','empNgayNghiViec']) assert.match(html, new RegExp(`id="${id}"`));
+});
