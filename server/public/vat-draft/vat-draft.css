@@ -435,3 +435,17 @@
 .vd-page .vd-filters>label.table-search-input-wrap{flex:0 1 340px;min-height:34px}
 .vd-page .table-search-input{min-height:32px}
 .vd-filters .tks-columns-button,.vd-filters .export-button,.vd-filters .vd-reset{min-height:34px}
+
+/* Can xung: 1 hang [4 bo loc | Dat lai | tim kiem gian deu | Cot hien thi | Xuat file], dem chung tu o hang duoi */
+.vd-filters-break{display:none}
+.vd-filters.tks-table-tools{align-items:flex-end;gap:10px 12px}
+.vd-filters .vd-count{order:10;flex:0 0 100%;margin:2px 0 0;padding:0;border:0;background:transparent;border-radius:0;font-size:12px;color:var(--muted);align-self:flex-start}
+.vd-page .vd-filters>label.table-search-input-wrap{order:5;flex:1 1 240px;max-width:none;align-self:flex-end;height:34px;min-height:34px}
+.vd-filters .tks-columns-button{order:6;align-self:flex-end}
+.vd-filters .export-button{order:7;align-self:flex-end}
+.vd-filters .vd-reset{align-self:flex-end}
+.vd-filters>label:not(.table-search-input-wrap){flex:1 1 150px;width:auto;max-width:210px}
+@media(max-width:900px){
+  .vd-filters>label:not(.table-search-input-wrap){flex:1 1 calc(50% - 12px);max-width:none}
+  .vd-page .vd-filters>label.table-search-input-wrap{flex:1 1 100%}
+}
