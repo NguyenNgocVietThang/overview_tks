@@ -680,9 +680,27 @@
       }
     });
 
+    // Vừa đăng nhập: có thông báo chúc mừng ngày lễ/sinh nhật chưa đọc thì tự mở chuông (1 lần mỗi phiên tab).
+    function autoShowSpecialDay(){
+      var flag = "tksSpecialDayShown";
+      try{ if(sessionStorage.getItem(flag)) return; }catch(e){}
+      fetch("/api/notifications", { credentials: "same-origin" })
+        .then(function(res){ return res.ok ? res.json() : { notifications: [] }; })
+        .then(function(data){
+          var hit = (data.notifications || []).some(function(n){
+            return !n.isRead && String(n.type || "").indexOf("special_day") === 0;
+          });
+          if(!hit) return;
+          try{ sessionStorage.setItem(flag, "1"); }catch(e){}
+          if(!isOpen) openDropdown();
+        })
+        .catch(function(){});
+    }
+
     refreshCount();
     if(notifPollTimer) window.clearInterval(notifPollTimer);
     notifPollTimer = window.setInterval(refreshCount, 30000);
+    autoShowSpecialDay();
   };
 
   // ---------- Lich nghi phep o header (dung chung moi trang, canh chuong) ----------
