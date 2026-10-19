@@ -75,6 +75,11 @@
   .kpi-stat.kpi-red .val{ color:var(--red); }
   .kpi-stat.kpi-amber .val{ color:var(--amber); }
 
+  .employee-import-progress{ display:flex; align-items:center; gap:8px; width:min(260px,100%); font-size:12px; color:var(--muted); }
+  .employee-import-progress[hidden]{ display:none; }
+  .employee-import-progress-track{ flex:1; height:7px; overflow:hidden; border-radius:999px; background:var(--border); }
+  .employee-import-progress-track span{ display:block; width:0; height:100%; border-radius:inherit; background:var(--blue); transition:width .15s ease; }
+  .employee-import-progress-label{ min-width:34px; font-family:var(--font-data); font-variant-numeric:tabular-nums; text-align:right; }
   .admin-toolbar{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
   .admin-filters{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; flex:1; min-width:260px; }
   .search-box{ position:relative; flex:1; min-width:200px; }
@@ -1061,6 +1066,10 @@
               <button type="button" class="btn-secondary" id="btnImportEmployeeDirectory" hidden onclick="document.getElementById('employeeWorkbookFile').click()">Nhập DS nhân sự</button>
               <button type="button" class="btn-primary" id="btnAddEmployee" hidden onclick="openEmployeeModal()">+ Thêm nhân sự</button>
               <span id="employeeImportStatus" class="form-hint" hidden aria-live="polite"></span>
+              <div id="employeeImportProgress" class="employee-import-progress" hidden role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <div class="employee-import-progress-track"><span id="employeeImportProgressBar"></span></div>
+                <span id="employeeImportProgressLabel">0%</span>
+              </div>
             </div>
           </div>
 
@@ -2990,27 +2999,58 @@
       paginateEmployeeDirectoryTable();
     }
 
+    function setEmployeeImportProgress(percent, label){
+      const progress=document.getElementById('employeeImportProgress');
+      const bar=document.getElementById('employeeImportProgressBar');
+      const text=document.getElementById('employeeImportProgressLabel');
+      const value=Math.max(0,Math.min(100,Math.round(Number(percent)||0)));
+      if(progress){ progress.hidden=false; progress.setAttribute('aria-valuenow',String(value)); }
+      if(bar) bar.style.width=value+'%';
+      if(text) text.textContent=label||value+'%';
+    }
+
+    function uploadEmployeeWorkbook(form, onProgress){
+      return new Promise((resolve,reject)=>{
+        const xhr=new XMLHttpRequest();
+        xhr.open('POST','/api/hr/employees/import',true);
+        xhr.withCredentials=true;
+        xhr.upload.addEventListener('progress',event=>{
+          if(event.lengthComputable) onProgress(Math.min(90,(event.loaded/event.total)*90));
+        });
+        xhr.upload.addEventListener('load',()=>onProgress(95,'Đang xử lý dữ liệu…'));
+        xhr.onerror=()=>reject(new Error('Lỗi kết nối máy chủ.'));
+        xhr.onload=()=>{
+          let data={}; try{ data=JSON.parse(xhr.responseText||'{}'); }catch(_err){}
+          if(xhr.status>=200 && xhr.status<300) return resolve(data);
+          reject(new Error(data.error||'Không nhập được file.'));
+        };
+        xhr.send(form);
+      });
+    }
+
     async function importEmployeeWorkbook(input){
       const file=input.files && input.files[0];
       if(!file) return;
       const button=document.getElementById('btnImportEmployeeDirectory');
       const status=document.getElementById('employeeImportStatus');
+      const progress=document.getElementById('employeeImportProgress');
       const originalLabel=button ? button.textContent : '';
       if(button){ button.disabled=true; button.textContent='Đang nhập…'; }
-      if(status){ status.hidden=false; status.className='form-hint'; status.textContent='Đang đọc '+file.name+'…'; }
+      if(status){ status.hidden=false; status.className='form-hint'; status.textContent='Đang chuẩn bị '+file.name+'…'; }
+      setEmployeeImportProgress(0,'0%');
       const form=new FormData(); form.append('file',file);
       try{
-        const res=await fetch('/api/hr/employees/import',{method:'POST',credentials:'same-origin',body:form});
-        const {ok,data}=await parseApiResponse(res);
-        if(!ok) throw new Error(data.error||'Không nhập được file.');
+        const data=await uploadEmployeeWorkbook(form,(percent,label)=>setEmployeeImportProgress(percent,label));
         const unmatched=(data.unmatched||[]).length, ambiguous=(data.ambiguous||[]).length;
         const message='Đã cập nhật '+data.updated+'/'+data.total+' dòng. Không khớp: '+unmatched+'; trùng: '+ambiguous+'.';
+        setEmployeeImportProgress(100,'100%');
         if(status){ status.className='form-hint '+(unmatched||ambiguous?'warning':'success'); status.textContent=message; }
         showToast(message, unmatched||ambiguous?'warning':'success');
         await loadEmployeeDirectory();
       }catch(err){
         const message=err.message||'Không nhập được file.';
         if(status){ status.className='form-hint error'; status.textContent=message; }
+        if(progress) progress.hidden=true;
         showToast(message,'error');
       }finally{
         input.value='';

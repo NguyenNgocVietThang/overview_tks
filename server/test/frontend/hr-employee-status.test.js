@@ -129,3 +129,11 @@ test('nút Thêm nhân sự mở form trống, mặc định Đang làm việc, 
   assert.equal(sent[0].body.hoTen, 'Chi Mới');
   dom.window.close();
 });
+
+
+test('nhap danh sach nhan su co thanh tien do phan tram trong luc tai file len', () => {
+  const html = fs.readFileSync(htmlPath, 'utf8');
+  assert.match(html, /employeeImportProgress/);
+  assert.match(html, /XMLHttpRequest/);
+  assert.match(html, /event\.loaded\s*\/\s*event\.total/);
+});
