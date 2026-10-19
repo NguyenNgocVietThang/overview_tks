@@ -368,3 +368,27 @@
 /* Laptop man thap: QR nho lai de nut Tai / Sao chep van trong tam nhin */
 @media(min-width:901px) and (max-height:820px){.vd-qr-figure .vd-qr-zoom{width:min(220px,100%)}.vd-qr-stage{min-height:160px}}
 @media(prefers-reduced-motion:reduce){.vd-qr-skeleton{animation:none}}
+
+/* ===== Chon chung tu: lam ro phan cap, thanh chon dinh duoi, loc de doc ===== */
+#vdDocsPane>.vd-hint{padding:10px 14px;border-left:3px solid var(--blue);border-radius:var(--radius-xs);background:var(--panel-2)}
+.vd-codes>label{font-size:13px}
+.vd-codes-row{align-items:stretch}
+.vd-codes-row textarea{min-height:64px}
+.vd-codes-row .btn-primary{align-self:stretch;min-width:170px}
+.vd-page .vd-filters label{font-size:11px}
+.vd-reset{background:transparent;border-style:dashed}
+.vd-reset:hover{border-style:solid}
+.vd-count{padding:4px 12px;border:1px solid var(--border);border-radius:var(--radius-pill);background:var(--panel-2);font-size:12.5px;color:var(--text)}
+.vd-table-tools .export-button{min-height:38px}
+.vd-selected{position:sticky;bottom:12px;z-index:5;border-style:solid;background:var(--panel);box-shadow:0 -6px 20px rgba(0,0,0,.18)}
+.vd-selected-head strong{font-size:14px}
+.vd-selected-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.vd-selected-actions .btn-primary{min-height:38px}
+.vd-selected-actions .btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.vd-chips{max-height:84px;overflow:auto}
+@media(max-width:600px){
+  .vd-selected-head{flex-direction:column;align-items:stretch}
+  .vd-selected-actions{justify-content:stretch}
+  .vd-selected-actions .btn-primary{flex:1 1 100%}
+  .vd-codes-row .btn-primary{min-width:0}
+}
