@@ -24,6 +24,7 @@ test('giu noi dung builtin lam fallback khi code deploy truoc migration 0065', (
 test('bang trong quy dinh khong to mau khi hover hang hoac o', () => {
   assert.match(html, /\.doc-page \.doc-section table > tbody > tr:hover > :is\(th,td\),[\s\S]*?background-color:transparent !important;/);
   assert.match(html, /\.doc-page \.doc-section table > tbody > tr > :is\(th,td\):hover[\s\S]*?outline:none !important;/);
+  assert.match(html, /\.rte-editor table > tbody > tr:hover\{ background:transparent !important; \}/);
   assert.match(html, /\.rte-editor table > tbody > tr:hover > :is\(th,td\),[\s\S]*?background-color:transparent !important;/);
   assert.match(html, /\.rte-editor table > tbody > tr > :is\(th,td\):hover[\s\S]*?outline:none !important;/);
 });
