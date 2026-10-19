@@ -14,7 +14,8 @@ Lệnh test (chạy trong `server/`; `node --test` cần glob):
 **Mô tả:** Soạn câu SQL chỉ đọc, tìm TK có dấu hiệu bị gắn sai nhân sự: `app_users.email` khác `hr_employees.email` của dòng `hr_employee_id`; `role_source='sheet'` mà vai trò khác `sheetVaiTro` của dòng đang gắn; TK `hrManaged` có SĐT rỗng; nhiều TK cùng khớp một nhân sự.
 **Tiêu chí:**
 - [x] Có file SQL trong scratchpad/`tasks/`, chỉ `SELECT`
-- [ ] Người dùng chạy và báo kết quả. Nếu có TK nghi vấn, Quản lý xử lý tay trước khi deploy T1
+- [x] Chạy và báo kết quả — agent chạy thay 19/10/2026 trên DB thật, CHỈ ĐỌC (`BEGIN READ ONLY` … `ROLLBACK`, không ghi gì). Kết quả: khối 1 (nhiều TK cùng 1 nhân sự) 0 dòng; khối 2 (trùng email) 0 dòng; không có TK `hr_managed` thiếu `hr_employee_id`; mọi TK Kế toán/Trợ lý/Trưởng kho/`DuyNN` (27 TK gắn nhân sự) khớp email + SĐT dòng nhân sự; mọi TK `role_source='sheet'` thuộc bộ phận KẾ TOÁN/TRỢ LÝ/KHO/BAN QUẢN TRỊ, các TK `override` (DuyNN, Lê Ngọc Anh, Lê Quang Khánh Duy…) là Quản lý đặt tay. Khối 3 trả 13 dòng: phần lớn chỉ là username (kiểu `nhansu-excel-N`, SĐT, email viết khác) không trùng email/SĐT hiện tại của dòng nhân sự trong khi email + SĐT của TK vẫn khớp (kể cả DuyNN, Lê Ngọc Anh); chỉ 2 TK mua hàng lệch email (xem dưới). KHÔNG có dấu hiệu bị khai thác.
+  - [ ] (chờ người dùng/ngoài phạm vi) Quản lý xem 3 TK nghi vấn NHẸ, tự xử lý tay (không đổi dữ liệu ở đây): (a) `tongkhotokosi@gmail.com` (Nguyễn Văn Quân) vai trò **Quản lý**, cơ sở "both", không gắn nhân sự (`hr_managed=false`, không có dòng `hr_employees` trùng email/SĐT), không phải admin cứng, tạo 28/09/2026, đăng nhập 19/10 — xác nhận người này đúng là Quản lý; (b) `phuongluuxuan10@gmail.com` (Nhân viên mua hàng) gắn nhân sự bộ phận ĐẶT HÀNG nhưng cả email lẫn SĐT khác dòng nhân sự; (c) `tkscongty303@gmail.com` (Nhân viên mua hàng) email khác dòng nhân sự (SĐT khớp). (b)(c) quyền thấp, rủi ro thấp. Ghi chú khác: `admin` (admin cứng, Quản lý, SĐT rỗng) và `thangnnv2003@gmail.com` (admin cứng/chủ sở hữu, không gắn nhân sự) là bình thường; `Test Sale`, `tks0101.ai@gmail.com` là TK sale thử.
 **Xác minh:** người dùng xác nhận kết quả
 **Phụ thuộc:** không · **File:** `tasks/audit-hr-binding.sql` · **Cỡ:** XS
 
@@ -72,7 +73,8 @@ Lệnh test (chạy trong `server/`; `node --test` cần glob):
 ## Checkpoint 1: Bảo mật
 - [x] `npm test` xanh
 - [x] Bốn kịch bản khai thác trong plan.md (chiếm vai trò qua HR, qua Khách có `verifiedEmail`, xóa SĐT qua recovery, DoS Quản lý) đều có test và đều bị chặn
-- [ ] Người dùng duyệt diff → commit riêng → deploy (không cần migration)
+- [x] Người dùng duyệt diff → commit riêng — commit `0a10477` (vá auth) đã nằm trong `main`, 4 kịch bản khai thác có test
+  - [ ] (chờ người dùng/ngoài phạm vi) Deploy bản vá lên production: repo không xác nhận được. Không cần migration.
 
 ---
 
@@ -138,8 +140,8 @@ Quy tắc chung: trước khi xóa mỗi trường, grep toàn `server/` (kể c
 
 ## Checkpoint 2: Dọn dẹp
 - [x] `npm test` xanh
-- [ ] Preview: Tổng quan, Hóa đơn, Hàng hóa, Khách hàng không lỗi console, số khớp trước khi sửa
-- [ ] Thử từng export Excel/HTML còn lại
+- [x] Preview: Tổng quan, Hóa đơn, Hàng hóa, Khách hàng không lỗi console, số khớp trước khi sửa — 19/10/2026 bằng harness không đăng nhập (user tổng hợp + routes thật, DB đọc thật): tab Tổng quan (6 thẻ, không KPI hôm nay), Hóa đơn (4 thẻ), Hàng hóa (7 thẻ), Kinh doanh (6 thẻ) nạp đủ, `window.onerror`/`unhandledrejection`/`console.error` = 0. Tab "Khách hàng" cũ đã gỡ (nay là tab Kinh doanh, id `business`). Không so được "số trước khi sửa" (không còn bản cũ), nhưng doanh thu/thực thu được test so sánh trước/sau (`dashboardData.test.js:398`).
+- [x] Thử từng export Excel/HTML còn lại — `POST /api/export` (xlsx + html) trả 200 cho `overview.transactions`, `overview.productReport`, `debt.management`, `debt.penalty`, `debt.aging`. `customers.productDetail` (cần mã khách) và 3 bảng `stockout.*` (cần kết quả quét gửi kèm) chỉ được test tự động phủ (`exportService.test.js` xanh), chưa bấm tay.
 - [x] Người dùng duyệt → commit
 
 ---
@@ -163,4 +165,4 @@ Quy tắc chung: trước khi xóa mỗi trường, grep toàn `server/` (kể c
 
 ## Checkpoint 3: Hoàn tất
 - [x] Mọi tiêu chí đạt, `npm test` xanh
-- [ ] Sẵn sàng review / deploy đợt 2
+- [ ] Sẵn sàng review / deploy đợt 2 (chờ người dùng/ngoài phạm vi: code đã trên `main` — `0a10477`, `643b85f`, `ceeffd4` — nhưng deploy production do người dùng xác nhận/làm)
