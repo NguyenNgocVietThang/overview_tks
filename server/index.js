@@ -141,6 +141,15 @@ async function startServer() {
     // scheduler do tat khi khong bat KiotViet.
     if (CONFIG.SPECIAL_DAYS_NOTIFY_ENABLED) startSpecialDayNotifySchedule();
 
+    if (CONFIG.MEMORY_MONITOR) {
+      const memoryMonitor = require('./lib/memoryMonitor').startMemoryMonitor({
+        intervalMs: CONFIG.MEMORY_LOG_INTERVAL_MS,
+        limitMb: CONFIG.MEMORY_LIMIT_MB
+      });
+      process.once('SIGTERM', () => memoryMonitor.stop());
+      process.once('SIGINT', () => memoryMonitor.stop());
+    }
+
     const containerSchedule = require('./productContainers/sync').startContainerSchedule();
     process.once('SIGTERM', () => containerSchedule.stop());
     process.once('SIGINT', () => containerSchedule.stop());

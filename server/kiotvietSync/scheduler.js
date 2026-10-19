@@ -23,7 +23,7 @@ const { requestDebtAgingRefresh } = require('../debtSchedule/debtAgingRefresh');
 // Activity changes affect existing snapshots and monthly scoring immediately.
 // Subscribe once per module, rather than once per scheduler/timer instance.
 dashboardRollupEvents.on('customersChanged', () => {
-  debtScheduleRepository.getDebtScheduleRepository().bumpVersion();
+  // Khong bumpVersion bao cao cong no o day: cache tu het han (5 phut), tranh doc lai DB moi dot dong bo khach.
   require('../debtSchedule/debtRewardService').getDebtRewardService().clearScores();
   dashboardRollupEvents.emit('updated', { at: Date.now() });
   // No hien tai vua doi -> tinh lai bang Tuoi no (migration 0059); doi thi bao client tai lai.

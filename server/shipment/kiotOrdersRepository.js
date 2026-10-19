@@ -45,6 +45,11 @@ const DEFAULT_TTL_MS = 2 * 60 * 1000;
 const DEFAULT_STALE_MS = 15 * 60 * 1000;
 // Sau 1 lan lam moi nen that bai, doi it nhat chung nay moi thu lai (tranh moi request deu goi DB dang loi).
 const RETRY_BACKOFF_MS = 15 * 1000;
+// Lam moi TANG DAN (2026-10-19): chi doc don co modified_date >= watermark - DELTA_OVERLAP_MS (chong lech dong
+// ho / commit muon); moi FULL_RECONCILE_MS lai doc DAY DU 1 lan de bat don bi xoa, doi ten nhan vien, don roi
+// khoi pham vi (vd Phieu tam cu chuyen sang Da huy).
+const FULL_RECONCILE_MS = 30 * 60 * 1000;
+const DELTA_OVERLAP_MS = 2 * 60 * 1000;
 
 function makeError(message, statusCode, code) {
   const error = new Error(message);
@@ -115,12 +120,18 @@ const ALL_ORDERS_SQL = `
     COALESCE(NULLIF(o.raw->>'customerName', ''), 'Khách lẻ') AS customer_name,
     ${saleNameSql(`COALESCE(NULLIF(o.raw->>'soldByName', ''), s.name, '')`)} AS sale_name,
     COALESCE(o.raw->>'statusValue', '') AS kiot_status,
-    COALESCE(o.raw->>'description', '') AS note
+    COALESCE(o.raw->>'description', '') AS note,
+    o.modified_date
   FROM orders o
   LEFT JOIN staff s ON s.branch = o.branch AND s.id = o.sold_by_id
-  WHERE o.raw->>'statusValue' = '${PHIEU_TAM}'
+  WHERE (o.raw->>'statusValue' = '${PHIEU_TAM}'
      OR o.order_date IS NULL
-     OR (o.order_date AT TIME ZONE 'UTC') >= TIMESTAMP '${LIFECYCLE_ORDER_FROM} 00:00:00'`;
+     OR (o.order_date AT TIME ZONE 'UTC') >= TIMESTAMP '${LIFECYCLE_ORDER_FROM} 00:00:00')`;
+
+// Ban tang dan: them dieu kien modified_date ($1 = watermark - chong lan). Dong modified_date NULL luon lay lai
+// (khong co dau hieu doi). Dung index idx_orders_modified (branch, modified_date).
+const DELTA_ORDERS_SQL = `${ALL_ORDERS_SQL}
+    AND (o.modified_date >= $1::timestamptz OR o.modified_date IS NULL)`;
 
 // Dong hang cua CAC DON PHIEU TAM (de tinh gia tri co ban). Bieu thuc loc statusValue GIU NGUYEN (khong
 // COALESCE) de trung dieu kien index mot phan 0028. Thanh tien dong = (price - discount) x quantity vi
@@ -178,35 +189,58 @@ function createKiotOrdersRepository({
   let inflight = null;
   let nextTryAt = 0;
 
+  // Trang thai tang dan. ordersByKey: `${db branch}|${order_id}` -> { order (chua co sellableValue), dateKey, pending }.
+  let ordersByKey = null;
+  let watermark = null; // ms: max modified_date da thay
+  let lastFullAt = 0;
+  let forceFull = true;
+
+  function toMs(value) {
+    if (value == null || value === '') return null;
+    const ms = value instanceof Date ? value.getTime() : new Date(value).getTime();
+    return Number.isFinite(ms) ? ms : null;
+  }
+
+  function inScope(entry) {
+    return entry.pending || entry.dateKey === '' || entry.dateKey >= `${LIFECYCLE_ORDER_FROM}T00:00:00`;
+  }
+
   async function queryOrders() {
     const db = getDb();
-    const [headersResult, linesResult] = await Promise.all([
-      db.query(ALL_ORDERS_SQL),
-      db.query(PENDING_LINES_SQL)
-    ]);
+    const full = forceFull || !ordersByKey || watermark === null || now() - lastFullAt >= FULL_RECONCILE_MS;
+    const headersPromise = full
+      ? db.query(ALL_ORDERS_SQL)
+      : db.query(DELTA_ORDERS_SQL, [new Date(watermark - DELTA_OVERLAP_MS).toISOString()]);
+    const [headersResult, linesResult] = await Promise.all([headersPromise, db.query(PENDING_LINES_SQL)]);
 
-    // Moi don 1 doi tuong; sap moi nhat truoc theo ngay dat THAT (khong theo chuoi hien thi), cung ngay thi theo ma.
+    // Gop vao ban sao cua map (chi gan lai khi moi truy van thanh cong, de loi giua chung khong lam hong trang thai).
+    const nextMap = full ? new Map() : new Map(ordersByKey);
+    let nextWatermark = full ? null : watermark;
     const headerRows = (headersResult && headersResult.rows) || [];
-    const byKey = new Map(); // `${branch}|${order_id}` -> don
-    const pairs = headerRows.map(row => {
-      const isPending = row.kiot_status === PHIEU_TAM;
-      const order = {
-        branch: DB_TO_LIFECYCLE_BRANCH[row.branch] || '',
-        code: String(row.code || ''),
-        customerName: row.customer_name || '',
-        saleName: row.sale_name || '',
-        orderDate: row.order_date_text || '',
-        total: toNumber(row.total),
-        kiotStatus: row.kiot_status || '',
-        note: row.note || '',
-        // Chi don Phieu tam moi co gia tri co ban (0 neu don chua co dong hang); don khac = null.
-        sellableValue: isPending ? 0 : null
+    for (const row of headerRows) {
+      const key = `${row.branch}|${row.order_id}`;
+      const entry = {
+        dateKey: row.order_date_key || '',
+        pending: row.kiot_status === PHIEU_TAM,
+        order: {
+          branch: DB_TO_LIFECYCLE_BRANCH[row.branch] || '',
+          code: String(row.code || ''),
+          customerName: row.customer_name || '',
+          saleName: row.sale_name || '',
+          orderDate: row.order_date_text || '',
+          total: toNumber(row.total),
+          kiotStatus: row.kiot_status || '',
+          note: row.note || ''
+        }
       };
-      byKey.set(`${row.branch}|${row.order_id}`, order);
-      return { key: row.order_date_key || '', order };
-    });
+      // Ban day du da loc pham vi bang SQL; ban tang dan loai them don nao khong con trong pham vi.
+      if (full || inScope(entry)) nextMap.set(key, entry); else nextMap.delete(key);
+      const ms = toMs(row.modified_date);
+      if (ms !== null && (nextWatermark === null || ms > nextWatermark)) nextWatermark = ms;
+    }
 
-    // Gia tri co ban cua don Phieu tam: ton thuc theo (co so, ma) — chi cho cac san pham co trong dong don.
+    // Gia tri co ban cua don Phieu tam: ton thuc theo (co so, ma). Phu thuoc TON KHO (khong theo modified_date)
+    // nen moi lan lam moi (ca tang dan) doc lai dong hang + ton va tinh lai cho MOI don Phieu tam trong map.
     const lineRows = (linesResult && linesResult.rows) || [];
     const codesByBranch = new Map();
     for (const row of lineRows) {
@@ -235,13 +269,21 @@ function createKiotOrdersRepository({
       if (!part || part.sellableAmount === null) return;
       sellableByOrder.set(line.orderKey, (sellableByOrder.get(line.orderKey) || 0) + part.sellableAmount);
     });
-    sellableByOrder.forEach((amount, orderKey) => {
-      const order = byKey.get(orderKey);
-      if (order && order.sellableValue !== null) order.sellableValue = Math.round(amount);
-    });
 
-    pairs.sort((a, b) => (a.key < b.key ? 1 : a.key > b.key ? -1 : a.order.code.localeCompare(b.order.code)));
-    return { ok: true, stale: false, fetchedAt: new Date(now()).toISOString(), orders: pairs.map(pair => pair.order) };
+    // Moi lan 1 doi tuong don MOI (ban cu da giao cho nguoi goi, khong sua tai cho). Chi don Phieu tam co gia tri
+    // co ban (0 neu chua co dong hang); don khac = null. Sap moi nhat truoc theo ngay dat THAT (khong theo chuoi
+    // hien thi), cung ngay thi theo ma.
+    const items = [...nextMap.entries()].map(([key, entry]) => ({
+      key: entry.dateKey,
+      order: { ...entry.order, sellableValue: entry.pending ? Math.round(sellableByOrder.get(key) || 0) : null }
+    }));
+    items.sort((a, b) => (a.key < b.key ? 1 : a.key > b.key ? -1 : a.order.code.localeCompare(b.order.code)));
+
+    ordersByKey = nextMap;
+    watermark = nextWatermark;
+    if (full) lastFullAt = now();
+    forceFull = false;
+    return { ok: true, stale: false, fetchedAt: new Date(now()).toISOString(), orders: items.map(item => item.order) };
   }
 
   function view(entry) {
@@ -259,6 +301,7 @@ function createKiotOrdersRepository({
         return result;
       } catch (error) {
         console.warn('[Lifecycle] Không đọc được đơn từ Kiot (hiển thị dữ liệu Sheet):', error.message);
+        forceFull = true; // lan sau doc day du, khong tin trang thai tang dan
         nextTryAt = now() + RETRY_BACKOFF_MS;
         if (cache && now() - cache.at < staleMs) {
           cache.failed = true;
@@ -288,7 +331,7 @@ function createKiotOrdersRepository({
     return refresh();
   }
 
-  function invalidate() { cache = null; nextTryAt = 0; }
+  function invalidate() { cache = null; nextTryAt = 0; forceFull = true; }
 
   /**
    * Chi tiet 1 don cho hop thoai: dau chung + dong hang (documentDetailRepository.getOrderDetail), voi
@@ -377,5 +420,5 @@ module.exports = {
   kiotOrders,
   LIFECYCLE_TO_DB_BRANCH,
   DB_TO_LIFECYCLE_BRANCH,
-  __test__: { LIFECYCLE_ORDER_FROM, allocateSellable, productKeyOf, isServiceProductKey, ALL_ORDERS_SQL, PENDING_LINES_SQL, ON_HAND_BY_CODE_SQL }
+  __test__: { LIFECYCLE_ORDER_FROM, allocateSellable, productKeyOf, isServiceProductKey, ALL_ORDERS_SQL, DELTA_ORDERS_SQL, FULL_RECONCILE_MS, PENDING_LINES_SQL, ON_HAND_BY_CODE_SQL }
 };

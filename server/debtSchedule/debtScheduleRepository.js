@@ -9,14 +9,14 @@
 //
 // Cache: ket qua doc giu trong bo nho theo `version`; moi lan ghi (phan hoi, trang thai,
 // lich TT) hoac co ban chot moi thi tang version -> lan doc sau doc lai DB. Gia dinh 1
-// instance (nhu toan codebase). Cache cung het han sau 60 giay de trang thai active moi khong bi giu cu.
+// instance (nhu toan codebase). Cache cung het han sau 5 phut de trang thai active moi khong bi giu cu.
 
 const { getPool } = require('../db/pool');
 const { parseScheduleDays, WORKFLOW_STATUSES } = require('./debtScheduleRules');
 
 const BRANCH_CODES = Object.freeze(['hanoi', 'saigon']);
 const FEEDBACK_MAX_LENGTH = 1000;
-const REPORT_CACHE_TTL_MS = 60 * 1000;
+const REPORT_CACHE_TTL_MS = 5 * 60 * 1000;
 const ACTIVE_CUSTOMER_SQL = "COALESCE(c.raw->>'isActive', c.raw->>'IsActive', 'true') <> 'false'";
 const FEEDBACK_FIELDS = Object.freeze({
   sale: { column: 'sale_feedback', by: 'sale_feedback_by', at: 'sale_feedback_at' },
@@ -62,10 +62,14 @@ const CUSTOMERS_SQL = `
     ON ppen.cycle_date = pdc.cycle_date AND ppen.branch = pdc.branch AND ppen.customer_id = pdc.customer_id
   WHERE dc.cycle_date = $1::date AND dc.branch = ANY($2::text[]) AND ${ACTIVE_CUSTOMER_SQL}`;
 
-const AMOUNTS_SQL = `SELECT a.branch, a.customer_id::text AS customer_id, a.day::text AS day, a.invoice_amount, a.return_amount
+// Gop theo (co so, khach) NGAY TRONG SQL: 1 dong/khach thay vi 1 dong/ngay -> it dong, it lap lai branch/customer_id
+// qua mang (giam egress Supabase). days = [[ngay, hoa don, tra hang], ...] tang dan theo ngay.
+const AMOUNTS_SQL = `SELECT a.branch, a.customer_id::text AS customer_id,
+         jsonb_agg(jsonb_build_array(a.day::text, a.invoice_amount, a.return_amount) ORDER BY a.day) AS days
   FROM debt_cycle_amounts a
   JOIN customers c ON c.branch = a.branch AND c.id = a.customer_id
-  WHERE a.cycle_date = $1::date AND a.branch = ANY($2::text[]) AND ${ACTIVE_CUSTOMER_SQL}`;
+  WHERE a.cycle_date = $1::date AND a.branch = ANY($2::text[]) AND ${ACTIVE_CUSTOMER_SQL}
+  GROUP BY a.branch, a.customer_id`;
 
 const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 const PENALTY_DAYS_SQL = `SELECT d.cycle_date::text AS cycle_date, d.sale, COUNT(*)::int AS penalized_customers, SUM(d.amount) AS amount
@@ -192,11 +196,11 @@ function createDebtScheduleRepository({ pool = getPool(), now = Date.now } = {})
       ]);
       const amountsByCustomer = new Map();
       for (const row of amounts.rows) {
-        const key = `${row.branch}:${row.customer_id}`;
-        if (!amountsByCustomer.has(key)) amountsByCustomer.set(key, []);
-        amountsByCustomer.get(key).push({
-          day: row.day, invoiceAmount: Number(row.invoice_amount) || 0, returnAmount: Number(row.return_amount) || 0
-        });
+        // pg tra jsonb thanh mang JS; phong ho tra chuoi JSON thi parse.
+        const days = typeof row.days === 'string' ? JSON.parse(row.days) : (row.days || []);
+        amountsByCustomer.set(`${row.branch}:${row.customer_id}`, days.map(([day, invoiceAmount, returnAmount]) => ({
+          day, invoiceAmount: Number(invoiceAmount) || 0, returnAmount: Number(returnAmount) || 0
+        })));
       }
       data = { cycle, rows: customers.rows.map(mapCustomerRow), amountsByCustomer };
     }

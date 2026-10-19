@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createPollingScheduler } = require('./scheduler');
 
-test('completed customer sync invalidates debt snapshots and reward scores before notifying browsers', () => {
+test('completed customer sync clears reward scores before notifying browsers and does NOT clear the debt report cache', () => {
   const { dashboardRollupEvents: events } = require('./dashboardRollupEvents');
   const repository = require('../debtSchedule/debtScheduleRepository').getDebtScheduleRepository();
   const rewards = require('../debtSchedule/debtRewardService').getDebtRewardService();
@@ -16,7 +16,7 @@ test('completed customer sync invalidates debt snapshots and reward scores befor
   events.on('updated', updated);
   try {
     events.emit('customersChanged', { branch: 'hanoi' });
-    assert.deepEqual(calls, ['debt', 'scores', 'notify']);
+    assert.deepEqual(calls, ['scores', 'notify']);
   } finally {
     repository.bumpVersion = bump;
     rewards.clearScores = clear;

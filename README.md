@@ -66,6 +66,7 @@ Mở `http://localhost:3000`.
 | `HR_LEAVE_DB_REALTIME_ENABLED` | Cầu thay đổi Postgres → SSE của HR, mặc định `true`, độc lập với công tắc bot |
 | `SPECIAL_DAYS_NOTIFY_ENABLED` | Báo ngày lễ/sinh nhật lên chuông thông báo; mặc định `true`, `false` để tắt |
 | `DASHBOARD_PREWARM` | Nạp sẵn cache nguồn lúc khởi động; mặc định bật, `false` để tắt |
+| `MEMORY_MONITOR` / `MEMORY_LOG_INTERVAL_MS` / `MEMORY_LIMIT_MB` | Log bộ nhớ định kỳ; mặc định bật, 60000 ms, trần cảnh báo 2048 MB (`MEMORY_MONITOR=false` để tắt) |
 | `PG_POOL_MAX` | Trần kết nối pool `pg` mỗi instance (mặc định 7; 2 × giá trị ≤ 15 của Supabase session pooler) |
 
 Xem [server/.env.example](server/.env.example) để biết đầy đủ cấu hình.
@@ -114,6 +115,8 @@ Migration `0014_customer_debt_activity_periods.sql` tạo bảng tổng hợp ba
 Migration `0015_app_users_telegram_id.sql` thêm `app_users.telegram_id` để bot có thể liên kết trực tiếp qua Supabase Postgres. Giao diện/API tạo mã liên kết cũ không còn đọc hoặc ghi tab `_HR_TELEGRAM_LINKS`.
 
 ## Cập nhật gần nhất
+
+19/10/2026 — **Giảm RAM Render + giảm egress Supabase (không migration, chưa deploy)**: `npm start` hạ `--max-old-space-size` 1536 → 1024 (gói Render 2 GB) và thêm `lib/memoryMonitor.js` ghi log `[Memory] rss/heap/external/arrayBuffers` mỗi 60 giây, cảnh báo khi RSS > 75% `MEMORY_LIMIT_MB` (biến `MEMORY_MONITOR`, `MEMORY_LOG_INTERVAL_MS`, `MEMORY_LIMIT_MB`); nên đặt thêm biến `MALLOC_ARENA_MAX=2` trên Render. Giảm egress (số liệu `pg_stat_statements`): tab Công nợ — cache bản chốt 60 giây → 5 phút, sự kiện `customersChanged` không còn `bumpVersion` (ghi phản hồi/trạng thái/lịch TT/bản chốt mới vẫn xóa cache ngay) và `debt_cycle_amounts` gộp thành mảng theo khách ngay trong SQL (5.661 dòng → 1.702 dòng, kết quả đối chiếu giống hệt trên DB thật); danh bạ khách TTL 90 giây → 10 phút và hết hạn ngay khi `customersChanged`; Vòng đời đơn (`kiotOrdersRepository`) đọc tăng dần theo `modified_date` (watermark − 2 phút, luôn lấy lại dòng `modified_date` NULL), đọc đầy đủ lần đầu/sau lỗi/mỗi 30 phút, giá trị cơ bản Phiếu tạm vẫn tính lại mỗi lượt.
 
 2026-10-17 (chiều) — **Nháp VAT: gỡ Tra cứu nguồn, QR to bên phải, mở Tạo QR cho Nhân viên sale** (không migration): gỡ hẳn chức năng 🔎 Tra cứu nguồn (tab, mục menu, `POST /api/vat-draft/lookup`, `vatDraft/sourceLookup.js`, bộ đọc dán tay riêng, view xuất Excel `lookup`/`lookupIssues`). Tab 💳 Tạo QR chia 2 cột: form bên trái, mã QR to (tối đa ~480px) ở cột phải dính khi cuộn, chưa tạo thì hiện "Mã QR sẽ hiện ở đây"; dưới 900px QR xuống dưới form. Quyền mới **`accounting.qr`** (nhóm Kế toán, "Tạo QR chuyển khoản"): mặc định Quản lý + Nhân viên sale, Khách bị cấm, không tính leo thang (Trợ lý được ủy quyền vẫn tạo được TK Sale). Tài khoản chỉ có `accounting.qr` vào `/vat-draft/` chỉ thấy Tạo QR (ẩn tab Xử lý hóa đơn, trạng thái Sheets/KiotViet, không tải danh sách chứng từ; menu chỉ có mục Tạo QR); API chỉ mở `/meta` (chỉ trả danh sách tài khoản), `/qr/url`, `/qr/parse-text` — các route Xử lý hóa đơn vẫn cần `accounting.vatDraft`.
 
@@ -280,7 +283,7 @@ Triển khai trong `server/marketingReport/`; CLI tại `server/scripts/capture-
 - Module mới `server/debtSchedule/`, migration `0047_debt_schedule_report.sql`; 0048 thêm cột Số phiên liên tiếp + Tiền phạt phiên này (bỏ trạng thái Đang xử lý).
 - 14/10/2026: nâng bảng phạt trong "Chỉ số then chốt" thành bảng điểm/thưởng/phạt sale (migration 0051 + 0052). Điểm theo từng khách (cơ sở + mã): số hóa đơn Hoàn thành và doanh số sau trừ trả hàng trong tháng; >=30 điểm mới xếp hạng chung HN + SG theo phạt gốc/điểm tăng dần, điểm giảm dần; bằng tỷ lệ và điểm thì đồng hạng kiểu 1–2–2–4, tên chỉ dùng sắp dòng hiển thị. Top 1–20 miễn phạt; Top 10 nhận quỹ max(80% phạt phải nộp, 3 triệu), 50% theo trọng số hạng 19–17–15–13–11–9–7–5–3–1 và 50% theo tỷ trọng điểm; thiếu 10 người chuẩn hóa trọng số, chia hết quỹ đến đồng. Sửa phạt chỉ thay phạt gốc từng khách; miễn phạt áp ở mức sale. GET /api/debt-management/penalty-board?month=YYYY-MM trả bảng từ backend (mặc định tháng chu kỳ đang mở), lọc cơ sở sau khi tính hạng/quỹ toàn công ty. Giao diện, hộp chi tiết và xuất Excel/HTML dùng cùng kết quả; context.debtRewardMonth chọn tháng xuất. Kết quả tháng cũ lưu bất biến trong debt_reward_months sau bản chốt 15:00 đầu tháng mới, khi đã chốt hết sổ phạt và doanh số tháng. Lỗi chốt thử lại mỗi phút; thiếu lịch sử phạt có cảnh báo rõ, không bù thành 0.
 
-Cập nhật gần nhất: 17/10/2026.
+Cập nhật gần nhất: 19/10/2026.
 
 Điều chỉnh 15/10/2026: trong tháng hiển thị điểm/hạng, thưởng tạm tính và tổng phạt từ các ngày ĐÃ CHỐT, không cộng chu kỳ đang mở. Lúc 14:59 giờ Việt Nam lưu bản cuối của chu kỳ 15:00 hôm trước–14:59 hôm sau, mỗi chu kỳ đúng một lần và không ghi đè; 15:00 mới reset. Nhiều lần Tính lại trong chu kỳ chỉ cập nhật bản đang mở, không cộng thành nhiều ngày. Tiền thưởng hiện mỗi ngày với nhãn Thưởng tạm tính, thay đổi theo điểm và tổng phạt đã chốt ngày; chỉ chốt/lưu thưởng chính thức một lần khi kết thúc tháng. Web, hộp chi tiết và file xuất đều phân biệt tạm tính/đã chốt.
 
