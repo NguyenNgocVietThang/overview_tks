@@ -449,3 +449,4 @@
   .vd-filters>label:not(.table-search-input-wrap){flex:1 1 calc(50% - 12px);max-width:none}
   .vd-page .vd-filters>label.table-search-input-wrap{flex:1 1 100%}
 }
+.vd-filters .export-button,.vd-filters .tks-columns-button{border-radius:var(--radius-sm)}
