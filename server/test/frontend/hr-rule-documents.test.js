@@ -21,6 +21,11 @@ test('giu noi dung builtin lam fallback khi code deploy truoc migration 0065', (
   assert.match(html, /Giờ làm việc chính thức/);
 });
 
+test('bang trong quy dinh khong to mau khi hover hang hoac o', () => {
+  assert.match(html, /\.doc-page \.doc-section table > tbody > tr:hover > :is\(th,td\),[\s\S]*?background-color:transparent !important;/);
+  assert.match(html, /\.doc-page \.doc-section table > tbody > tr > :is\(th,td\):hover[\s\S]*?outline:none !important;/);
+});
+
 test('bang trong noi dung quy dinh khong bi gan nut Cot hien thi hoac sap xep', async () => {
   const { window, document } = await openPage();
   const tables = [...document.querySelectorAll('#ruleDocTextBody table')];

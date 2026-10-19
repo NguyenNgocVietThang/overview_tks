@@ -362,6 +362,10 @@
   .doc-page .doc-section table td, .doc-page .doc-section table th{ border:1px solid #d8d5cb; padding:6px 10px; color:#31353f; }
   .doc-page .doc-section table :is(tbody, thead, tfoot) tr{ transition:none; }
   .doc-page .doc-section table :is(tbody, thead, tfoot) tr:hover{ background:transparent; }
+  /* Tài liệu rich-text không có class .doc-table, nên phải chặn cả hover trực tiếp trên ô từ CSS bảng dùng chung. */
+  .doc-page .doc-section table > tbody > tr:hover > :is(th,td),
+  .doc-page .doc-section table > tbody > tr > :is(th,td):hover{ background-color:transparent !important; }
+  .doc-page .doc-section table > tbody > tr > :is(th,td):hover{ outline:none !important; }
   .doc-page .doc-table{ table-layout:fixed; }
   .doc-page .doc-table th, .doc-page .doc-table td{ white-space:normal; overflow-wrap:anywhere; border-color:#d8d5cb; font-family:'Inter', var(--font-body); font-size:12.5px; }
   .doc-page .doc-table th{ background:#f1efe8; color:#14161c; text-align:center; }
