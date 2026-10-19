@@ -61,7 +61,7 @@ test('danh sách nhân sự mặc định chỉ "Đang làm việc"; chữ xanh/
   window.renderEmployeeDirectoryTable();
   assert.deepEqual(names(doc), ['Bình Sale']);
   const resigned = doc.querySelector('#employeeDirectoryTableBody tr').cells[5];
-  assert.equal(resigned.textContent, 'Đã nghỉ việc');
+  assert.equal(resigned.textContent, 'NV : Nghỉ việc');
   assert.ok(resigned.classList.contains('emp-status-resigned'));
 
   filter.value = '';
@@ -149,5 +149,16 @@ test('so ngay lam viec tinh bang hom nay tru ngay vao lam, khong cong them 1', a
   const { dom, window } = await openPage({ canManage: true });
   const today = new Date().toISOString().slice(0, 10);
   assert.equal(window.employeeWorkingDays({ ngayVaoLam: today }), '0');
+  dom.window.close();
+});
+
+
+test('cot trang thai hien LV va NV theo trang thai lam viec', async () => {
+  const { dom, window } = await openPage({ canManage: false });
+  const doc = window.document;
+  assert.match(doc.querySelector('#employeeDirectoryTableBody tr').textContent, /LV\s*:\s*Đang làm việc/);
+  doc.getElementById('employeeStatusFilter').value = 'resigned';
+  window.renderEmployeeDirectoryTable();
+  assert.match(doc.querySelector('#employeeDirectoryTableBody tr').textContent, /NV\s*:\s*Nghỉ việc/);
   dom.window.close();
 });

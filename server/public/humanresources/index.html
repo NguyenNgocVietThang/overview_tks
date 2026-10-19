@@ -2913,6 +2913,10 @@
       return Math.max(0,Math.floor((today-start)/86400000)).toLocaleString('vi-VN');
     }
 
+    function employeeStatusText(e){
+      return employeeStatusKey(e) === 'resigned' ? 'NV : Nghỉ việc' : 'LV : Đang làm việc';
+    }
+
     function employeeStatusKey(e){
       return e.trangThai === EMPLOYEE_STATUS_RESIGNED ? 'resigned' : 'active';
     }
@@ -2991,7 +2995,7 @@
       employeePaging.page = 1;
       if(employeeCanManage){
         tbody.innerHTML = filtered.map((e,index) => `<tr class="employee-row-clickable" data-employee-id="${escapeHtml(e.id)}">
-          <td>${index+1}</td><td class="emp-status-${employeeStatusKey(e)}">${escapeHtml(e.trangThai)||'Đang làm việc'}</td>
+          <td>${index+1}</td><td class="emp-status-${employeeStatusKey(e)}">${escapeHtml(employeeStatusText(e))}</td>
           <td>${escapeHtml(e.hoTen)||'—'}</td><td>${escapeHtml(e.boPhan)||'—'}</td><td>${escapeHtml(e.chucVu)||'—'}</td>
           <td>${formatEmployeeDate(e.ngayVaoLam)}</td><td>${employeeWorkingDays(e)}</td><td>${formatEmployeeDate(e.ngaySinh)}</td>
           <td>${escapeHtml(e.soCccd)||'—'}</td><td>${escapeHtml(e.soDienThoai)||'—'}</td><td>${escapeHtml(e.diaChiHienTai)||'—'}</td>
@@ -3004,7 +3008,7 @@
         <td>${escapeHtml(e.coSo) || '—'}</td>
         <td>${escapeHtml(e.soDienThoai) || '—'}</td>
         <td>${escapeHtml(e.email) || '—'}</td>
-        <td class="emp-status-${employeeStatusKey(e)}">${escapeHtml(e.trangThai) || 'Đang làm việc'}</td>
+        <td class="emp-status-${employeeStatusKey(e)}">${escapeHtml(employeeStatusText(e))}</td>
       </tr>`).join('');
       applyActiveTableSorts();
       paginateEmployeeDirectoryTable();
