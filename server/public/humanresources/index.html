@@ -2909,8 +2909,8 @@
     function employeeWorkingDays(e){
       if(!e.ngayVaoLam) return '—';
       const start=new Date(e.ngayVaoLam+'T00:00:00');
-      const end=e.ngayNghiViec ? new Date(e.ngayNghiViec+'T00:00:00') : new Date();
-      return Math.max(0,Math.floor((end-start)/86400000)+1).toLocaleString('vi-VN');
+      const today=new Date(); today.setHours(0,0,0,0);
+      return Math.max(0,Math.floor((today-start)/86400000)).toLocaleString('vi-VN');
     }
 
     function employeeStatusKey(e){

@@ -143,3 +143,11 @@ test('form nhan su cho phep sua day du cac truong ho so mo rong', () => {
   const html = fs.readFileSync(htmlPath, 'utf8');
   for (const id of ['empChucVu','empNgayVaoLam','empNgaySinh','empSoCccd','empDiaChi','empNguoiThanQuanHe','empNguoiThanHoTen','empNguoiThanSdt','empGioiTinh','empHoSoDayDu','empVanTay','empNgayNghiViec']) assert.match(html, new RegExp(`id="${id}"`));
 });
+
+
+test('so ngay lam viec tinh bang hom nay tru ngay vao lam, khong cong them 1', async () => {
+  const { dom, window } = await openPage({ canManage: true });
+  const today = new Date().toISOString().slice(0, 10);
+  assert.equal(window.employeeWorkingDays({ ngayVaoLam: today }), '0');
+  dom.window.close();
+});
