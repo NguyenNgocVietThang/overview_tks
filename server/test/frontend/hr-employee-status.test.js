@@ -149,6 +149,9 @@ test('so ngay lam viec tinh bang hom nay tru ngay vao lam, khong cong them 1', a
   const { dom, window } = await openPage({ canManage: true });
   const today = new Date().toISOString().slice(0, 10);
   assert.equal(window.employeeWorkingDays({ ngayVaoLam: today }), '0');
+  assert.doesNotMatch(window.employeeWorkingDays({ ngayVaoLam: '2026-01-01T00:00:00.000Z' }), /NaN/);
+  assert.doesNotMatch(window.employeeWorkingDays({ ngayVaoLam: '01/01/2026' }), /NaN/);
+  assert.equal(window.employeeWorkingDays({ ngayVaoLam: 'not-a-date' }), '—');
   dom.window.close();
 });
 
