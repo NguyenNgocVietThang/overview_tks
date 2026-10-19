@@ -175,7 +175,14 @@ const CONFIG = {
   MEMORY_MONITOR: process.env.MEMORY_MONITOR !== 'false',
   MEMORY_LOG_INTERVAL_MS: Number(process.env.MEMORY_LOG_INTERVAL_MS) || 60000,
   // Tran RAM cua instance (MB) de tinh nguong canh bao; mac dinh 2048 (goi Render 2GB).
-  MEMORY_LIMIT_MB: Number(process.env.MEMORY_LIMIT_MB) || 2048
+  MEMORY_LIMIT_MB: Number(process.env.MEMORY_LIMIT_MB) || 2048,
+
+  // Doc anh hoa don (tab Tao QR) bang AI vision qua xKiro (chuan OpenAI). Thieu key = tat,
+  // trang van tao QR nhap tay. Model du phong chi goi khi model chinh loi 429/5xx/timeout.
+  XKIRO_API_KEY: process.env.XKIRO_API_KEY || '',
+  XKIRO_BASE_URL: process.env.XKIRO_BASE_URL || 'https://api.xkiro.com/v1',
+  INVOICE_VISION_MODEL: process.env.INVOICE_VISION_MODEL || 'qwen/qwen3.8-max:free',
+  INVOICE_VISION_FALLBACK_MODEL: process.env.INVOICE_VISION_FALLBACK_MODEL ?? 'qwen/qwen3-vl-plus:free'
 };
 
 module.exports = CONFIG;

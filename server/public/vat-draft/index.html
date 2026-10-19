@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="/shared/shared.css?v=20261016">
   <link rel="stylesheet" href="/shared/search-clear.css?v=20261009-1">
-  <link rel="stylesheet" href="/vat-draft/vat-draft.css?v=20261017-3">
+  <link rel="stylesheet" href="/vat-draft/vat-draft.css?v=20261019-5">
   <link rel="stylesheet" href="/shared/table-controls.css?v=20261016-1">
 </head>
 <body>
@@ -40,18 +40,35 @@
     <div class="backdrop" id="backdrop"></div>
     <div class="sidebar" id="sidebar" data-tks-active-top="accounting"></div>
     <main class="content vd-page">
-      <h2 class="vd-title" id="vdTitle">Kế toán – Nháp VAT</h2>
-
-      <div class="vd-sourcebar" id="vdSourceBar" role="status" aria-live="polite" data-requires-processing>
-        <span id="vdSheetsStatus">Đang tải dữ liệu Google Sheets…</span>
-        <button class="btn-secondary vd-small-btn" id="vdRefreshSheets" type="button" title="Tải lại 2 sheet Gộp VAT và Khớp mã">🔄 Cập nhật</button>
-        <span id="vdSyncStatus" class="vd-muted"></span>
+      <!-- Hang tieu de: ten trang + tab + trang thai du lieu (chi tab Xu ly hoa don can Sheets/KiotViet) -->
+      <div class="vd-titlebar">
+        <h2 class="vd-title" id="vdTitle">Kế toán – Nháp VAT</h2>
+        <nav class="vd-tabs" aria-label="Chức năng Nháp VAT" data-requires-processing>
+          <a href="#xu-ly" data-vat-draft-tab="xu-ly">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6M9 13h8M9 17h6"/></svg>
+            Xử lý hóa đơn
+          </a>
+          <a href="#tao-qr" data-vat-draft-tab="tao-qr">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/></svg>
+            Tạo QR
+          </a>
+        </nav>
+        <details class="vd-status" id="vdSourceBar" data-requires-processing>
+          <summary>
+            <span class="vd-status-dot" id="vdStatusDot" aria-hidden="true"></span>
+            <span id="vdStatusSummary">Đang tải dữ liệu…</span>
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+          </summary>
+          <div class="vd-status-pop" role="status" aria-live="polite">
+            <p id="vdSheetsStatus">Đang tải dữ liệu Google Sheets…</p>
+            <p id="vdSyncStatus" class="vd-muted"></p>
+            <button class="btn-secondary vd-small-btn" id="vdRefreshSheets" type="button" title="Tải lại 2 sheet Gộp VAT và Khớp mã">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+              Cập nhật dữ liệu Sheets
+            </button>
+          </div>
+        </details>
       </div>
-
-      <nav class="vd-tabs" aria-label="Chức năng Nháp VAT" data-requires-processing>
-        <a href="#xu-ly" data-vat-draft-tab="xu-ly">🧾 Xử lý hóa đơn</a>
-        <a href="#tao-qr" data-vat-draft-tab="tao-qr">💳 Tạo QR</a>
-      </nav>
 
       <!-- 1. Nhap du lieu cho Xu ly hoa don -->
       <section class="vd-panel" id="vdInputPanel" aria-labelledby="vdInputTitle">
@@ -197,36 +214,160 @@
         </div>
       </section>
 
-      <!-- Tao QR: form ben trai, ma QR to ben phai (dien thoai: QR nam duoi form) -->
-      <section class="vd-panel" id="vdQrPage" data-tab-section="tao-qr" hidden aria-labelledby="vdQrPageTitle">
+      <!-- Tao QR: trai = nguon du lieu (hoa don) + thong tin chuyen khoan; phai = bang QR (trang thai, tom tat, nut chinh) -->
+      <section class="vd-qr-page" id="vdQrPage" data-tab-section="tao-qr" hidden aria-label="Tạo QR chuyển khoản">
         <div class="vd-qr-layout">
           <div class="vd-qr-form-col">
-            <div class="vd-panel-head"><h3 id="vdQrPageTitle">1. Tải hóa đơn lên (tùy chọn)</h3></div>
-            <p class="vd-hint">Chọn file PDF hóa đơn GTGT điện tử — trang tự đọc số tiền và gợi ý tài khoản, bạn chỉ cần kiểm tra và bấm Tạo mã QR. File chỉ được đọc trong trình duyệt, không tải lên máy chủ.</p>
-            <input type="file" id="vdPdfInput" accept="application/pdf,.pdf" aria-label="File PDF hóa đơn">
-            <p class="vd-banner" id="vdPdfInfo" hidden></p>
-
-            <div class="vd-panel-head vd-panel-head--inner"><h3>2. Thông tin QR</h3></div>
-            <p class="vd-hint">Chọn tài khoản nhận tiền, nhập số tiền và nội dung chuyển khoản.</p>
-            <div class="vd-form">
-              <label>Tài khoản nhận tiền
-                <select id="vdManualAccount"></select>
-              </label>
-              <div class="vd-manual" id="vdManualFields" hidden>
-                <p class="vd-hint" id="vdBankCodes"></p>
-                <label>Mã ngân hàng (VD: VCB, MB, ACB...) <input type="text" id="vdManualBank" class="vd-input" autocomplete="off"></label>
-                <label>Số tài khoản <input type="text" id="vdManualNo" class="vd-input" inputmode="numeric" autocomplete="off"></label>
-                <label>Tên chủ tài khoản (tùy chọn) <input type="text" id="vdManualName" class="vd-input" autocomplete="off"></label>
+            <section class="vd-card" aria-labelledby="vdInvoiceTitle">
+              <header class="vd-card-head">
+                <h3 id="vdInvoiceTitle">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6M9 13h8M9 17h6"/></svg>
+                  Đọc từ hóa đơn <span class="vd-tag">Tùy chọn</span>
+                </h3>
+                <span class="vd-card-aside vd-drop-desktop">Dán ở bất kỳ đâu: <kbd>Ctrl</kbd> + <kbd>V</kbd></span>
+              </header>
+              <div class="vd-drop" id="vdInvoiceDrop" role="button" tabindex="0" aria-describedby="vdInvoiceDropHint"
+                   aria-label="Dán ảnh hóa đơn bằng Ctrl+V, kéo thả, hoặc bấm để chọn ảnh hoặc PDF">
+                <svg class="vd-drop-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 14l2 2 4-4"/>
+                </svg>
+                <div class="vd-drop-text">
+                  <p class="vd-drop-title">
+                    <span class="vd-drop-desktop">Dán ảnh hóa đơn <kbd>Ctrl</kbd> + <kbd>V</kbd></span>
+                    <span class="vd-drop-touch">Chạm để chọn ảnh hoặc PDF hóa đơn</span>
+                  </p>
+                  <p class="vd-drop-sub" id="vdInvoiceDropHint">
+                    <span class="vd-drop-desktop">hoặc kéo thả / bấm để chọn ảnh JPG, PNG, WebP, PDF — AI đọc tên công ty bán và Tổng thanh toán</span>
+                    <span class="vd-drop-touch">AI đọc tên công ty bán và Tổng thanh toán</span>
+                  </p>
+                </div>
               </div>
-              <label>Số tiền <input type="text" id="vdManualAmount" class="vd-input" inputmode="numeric" value="0 đ" autocomplete="off"></label>
-              <label>Nội dung chuyển khoản (để trống cũng được) <input type="text" id="vdManualContent" class="vd-input" autocomplete="off"></label>
-              <p class="vd-message vd-warning" id="vdManualInvalid" hidden>⚠️ Nhập đủ Mã ngân hàng và Số tài khoản để tạo QR.</p>
-              <div class="vd-actions"><button class="btn-primary" id="vdManualGenerate" type="button">🔲 Tạo mã QR</button></div>
-            </div>
+              <!-- Da co anh: the xem truoc (bam anh de phong to), xoa de dan anh khac -->
+              <div class="vd-invoice-card" id="vdInvoiceCard" hidden>
+                <button type="button" class="vd-invoice-thumb" id="vdInvoiceThumbBtn" aria-label="Xem ảnh hóa đơn cỡ lớn">
+                  <img id="vdInvoiceThumb" alt="">
+                  <span class="vd-invoice-zoom" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M11 8v6M8 11h6"/></svg>
+                  </span>
+                </button>
+                <div class="vd-invoice-meta">
+                  <p class="vd-invoice-name" id="vdInvoiceName"></p>
+                  <p class="vd-invoice-status" id="vdInvoiceStatus" aria-live="polite" hidden><span class="vd-drop-spinner" aria-hidden="true"></span><span id="vdInvoiceStatusText"></span></p>
+                  <p class="vd-drop-sub"><span class="vd-drop-desktop">Bấm ảnh để xem lớn · <kbd>Ctrl</kbd> + <kbd>V</kbd> để thay ảnh khác</span><span class="vd-drop-touch">Chạm ảnh để xem lớn</span></p>
+                  <div class="vd-invoice-actions">
+                    <button type="button" class="btn-secondary vd-small-btn" id="vdInvoiceView">
+                      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+                      Xem ảnh
+                    </button>
+                    <button type="button" class="btn-secondary vd-small-btn vd-btn-remove" id="vdInvoiceRemove">
+                      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>
+                      Xóa ảnh
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <input type="file" id="vdInvoiceInput" class="vd-sr-only" tabindex="-1" accept="image/jpeg,image/png,image/webp,application/pdf,.pdf" aria-label="Ảnh hoặc file PDF hóa đơn">
+              <div class="vd-ai-result" id="vdInvoiceInfo" role="status" aria-live="polite" hidden></div>
+            </section>
+
+            <section class="vd-card" aria-labelledby="vdTransferTitle">
+              <header class="vd-card-head">
+                <h3 id="vdTransferTitle">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4"/></svg>
+                  Thông tin chuyển khoản
+                </h3>
+                <span class="vd-card-aside">Không có hóa đơn? Nhập trực tiếp tại đây.</span>
+              </header>
+              <div class="vd-form" id="vdQrForm">
+                <div class="vd-field">
+                  <label for="vdManualAccount">Tài khoản nhận tiền <span class="vd-ai-chip" id="vdAccountAi" hidden>Gợi ý từ hóa đơn</span></label>
+                  <select id="vdManualAccount"></select>
+                  <p class="vd-account-detail" id="vdAccountDetail" hidden></p>
+                </div>
+                <div class="vd-manual" id="vdManualFields" hidden>
+                  <label>Mã ngân hàng <input type="text" id="vdManualBank" class="vd-input" autocomplete="off" placeholder="VD: VCB, MB, ACB"></label>
+                  <label>Số tài khoản <input type="text" id="vdManualNo" class="vd-input" inputmode="numeric" autocomplete="off"></label>
+                  <label class="vd-manual-wide">Tên chủ tài khoản <span class="vd-optional">không bắt buộc</span> <input type="text" id="vdManualName" class="vd-input" autocomplete="off"></label>
+                  <p class="vd-hint vd-manual-wide" id="vdBankCodes"></p>
+                </div>
+                <p class="vd-message vd-error" id="vdManualInvalid" role="alert" hidden>Nhập đủ Mã ngân hàng và Số tài khoản (chỉ chữ và số) để tạo QR.</p>
+                <div class="vd-field">
+                  <label for="vdManualAmount">Số tiền <span class="vd-ai-chip" id="vdAmountAi" hidden>Từ hóa đơn</span></label>
+                  <div class="vd-amount-wrap">
+                    <input type="text" id="vdManualAmount" class="vd-input vd-input--amount" inputmode="numeric" autocomplete="off" placeholder="0" aria-describedby="vdAmountWords">
+                    <span class="vd-amount-unit" aria-hidden="true">đ</span>
+                  </div>
+                  <p class="vd-amount-words-live" id="vdAmountWords"></p>
+                </div>
+                <!-- So tien AI doc can xac nhan: chon 1 trong cac so doc duoc tren hoa don (hoac sua o Số tiền) -->
+                <fieldset class="vd-amount-confirm" id="vdAmountConfirm" hidden>
+                  <legend id="vdAmountConfirmTitle">Xác nhận số tiền</legend>
+                  <p class="vd-hint" id="vdAmountConfirmHint"></p>
+                  <div class="vd-amount-options" id="vdAmountOptions"></div>
+                  <div class="vd-actions">
+                    <button type="button" class="btn-primary" id="vdAmountConfirmOk">Xác nhận số tiền &amp; tạo mã QR</button>
+                    <button type="button" class="btn-secondary" id="vdAmountConfirmView">Đối chiếu ảnh hóa đơn</button>
+                  </div>
+                </fieldset>
+                <div class="vd-field">
+                  <label for="vdManualContent">Nội dung chuyển khoản <span class="vd-optional">không bắt buộc</span></label>
+                  <input type="text" id="vdManualContent" class="vd-input" autocomplete="off" maxlength="200" placeholder="VD: mã hóa đơn, tên khách">
+                </div>
+              </div>
+            </section>
           </div>
-          <aside class="vd-qr-preview" aria-label="Mã QR đã tạo" aria-live="polite">
-            <p class="vd-qr-placeholder" id="vdQrPlaceholder">Mã QR sẽ hiện ở đây</p>
-            <div class="vd-qr-result" id="vdManualResult" hidden></div>
+
+          <aside class="vd-qr-preview vd-qr-panel" id="vdQrPanel" data-state="empty" aria-labelledby="vdQrPanelTitle">
+            <header class="vd-qr-panel-head">
+              <h3 id="vdQrPanelTitle">Mã QR</h3>
+              <span class="vd-badge" id="vdQrBadge" aria-live="polite">Chưa có thông tin</span>
+            </header>
+            <div class="vd-qr-stage" id="vdQrStage">
+              <div class="vd-qr-guide" id="vdQrPlaceholder">
+                <ol class="vd-steps" id="vdQrSteps">
+                  <li data-step="source"><span class="vd-step-num">1</span><span><strong>Dán ảnh hóa đơn</strong> (<kbd>Ctrl</kbd> + <kbd>V</kbd>) hoặc chọn tài khoản nhận tiền</span></li>
+                  <li data-step="amount"><span class="vd-step-num">2</span><span><strong>Kiểm tra số tiền</strong> — đối chiếu dòng chữ bên dưới ô Số tiền với hóa đơn</span></li>
+                  <li data-step="create"><span class="vd-step-num">3</span><span><strong>Tạo mã QR</strong> (<kbd>Enter</kbd>) rồi tải hoặc sao chép gửi khách</span></li>
+                </ol>
+              </div>
+              <div class="vd-qr-loading" id="vdQrLoading" hidden>
+                <div class="vd-qr-skeleton" aria-hidden="true"></div>
+                <p id="vdQrLoadingText"></p>
+              </div>
+              <div class="vd-qr-result" id="vdManualResult" hidden></div>
+              <p class="vd-qr-error" id="vdQrError" role="alert" hidden></p>
+            </div>
+            <dl class="vd-qr-summary" id="vdQrSummary">
+              <div><dt>Người nhận</dt><dd id="vdSumName">—</dd></div>
+              <div><dt>Tài khoản</dt><dd id="vdSumBank">—</dd></div>
+              <div class="vd-sum-amount"><dt>Số tiền</dt><dd><span id="vdSumAmount">—</span><small id="vdSumWords"></small></dd></div>
+              <div><dt>Nội dung</dt><dd id="vdSumContent">—</dd></div>
+            </dl>
+            <div class="vd-qr-cta" id="vdQrCta">
+              <p class="vd-qr-blocker" id="vdQrBlocker" aria-live="polite"></p>
+              <button class="btn-primary vd-cta" id="vdManualGenerate" type="button" aria-keyshortcuts="Enter">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/></svg>
+                <span id="vdGenerateLabel">Tạo mã QR</span>
+                <kbd class="vd-cta-kbd">Enter</kbd>
+              </button>
+            </div>
+            <div class="vd-qr-done" id="vdQrActions" hidden>
+              <div class="vd-qr-done-row">
+                <button class="btn-primary" id="vdQrDownload" type="button" data-qr-download>
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>
+                  Tải mã QR
+                </button>
+                <button class="btn-secondary" id="vdQrCopy" type="button">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>
+                  Sao chép ảnh
+                </button>
+              </div>
+              <div class="vd-qr-done-row">
+                <button class="btn-secondary vd-small-btn" id="vdQrZoom" type="button">Phóng to</button>
+                <button class="btn-secondary vd-small-btn" id="vdQrNew" type="button">Tạo QR mới</button>
+              </div>
+              <p class="vd-qr-action-msg" id="vdQrActionMsg" role="status" aria-live="polite"></p>
+            </div>
           </aside>
         </div>
       </section>
@@ -242,11 +383,23 @@
       </div>
     </div>
   </div>
+  <div class="vd-qr-viewer" id="vdInvoiceViewer" role="dialog" aria-modal="true" aria-label="Ảnh hóa đơn" hidden>
+    <div class="vd-qr-viewer-box vd-invoice-viewer-box">
+      <div class="vd-invoice-viewer-scroll" id="vdInvoiceViewerScroll">
+        <img id="vdInvoiceViewerImg" alt="Ảnh hóa đơn cỡ lớn" title="Bấm để phóng to / thu nhỏ">
+      </div>
+      <p>Bấm vào ảnh để phóng to / thu nhỏ · Esc để đóng</p>
+      <div class="vd-actions">
+        <button class="btn-secondary" id="vdInvoiceViewerClose" type="button">Đóng</button>
+      </div>
+    </div>
+  </div>
   <script src="/shared/table-controls.js?v=20261016-1"></script>
   <script src="/shared/search-clear.js?v=20261009-1"></script>
   <script src="/shared/shared-nav.js?v=20261017-1"></script>
   <script src="/vat-draft/cell-select.js?v=20261017-1"></script>
-  <script src="/vat-draft/vat-draft.js?v=20261017-3"></script>
+  <script src="/vat-draft/vnd-words.js?v=20261019-1"></script>
+  <script src="/vat-draft/vat-draft.js?v=20261019-5"></script>
   <script>window.addEventListener('DOMContentLoaded', function () { TKSVatDraft.init(); });</script>
   <script src="/shared/shooting-star.js?v=20261009"></script>
 </body>
