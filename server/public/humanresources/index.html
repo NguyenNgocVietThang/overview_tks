@@ -353,8 +353,10 @@
   .doc-page .rule-doc-rich-body p{ margin:0 0 10px; }
   .doc-page .rule-doc-rich-body img{ display:block; max-width:100%; height:auto; margin:10px auto; }
   .doc-page .rule-doc-rich-body ul, .doc-page .rule-doc-rich-body ol{ padding-left:26px; }
-  .doc-page .doc-section table{ border-collapse:collapse; width:100%; margin:0 0 16px; font-family:'Noto Serif', Georgia, serif; font-size:12.5px; }
+  .doc-page .doc-section table{ border:1px solid #d8d5cb; border-collapse:collapse; border-spacing:0; width:100%; margin:0 0 16px; font-family:'Noto Serif', Georgia, serif; font-size:12.5px; }
   .doc-page .doc-section table td, .doc-page .doc-section table th{ border:1px solid #d8d5cb; padding:6px 10px; color:#31353f; }
+  .doc-page .doc-section table :is(tbody, thead, tfoot) tr{ transition:none; }
+  .doc-page .doc-section table :is(tbody, thead, tfoot) tr:hover{ background:transparent; }
   .doc-page .doc-table{ table-layout:fixed; }
   .doc-page .doc-table th, .doc-page .doc-table td{ white-space:normal; overflow-wrap:anywhere; border-color:#d8d5cb; font-family:'Inter', var(--font-body); font-size:12.5px; }
   .doc-page .doc-table th{ background:#f1efe8; color:#14161c; text-align:center; }
