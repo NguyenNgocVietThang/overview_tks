@@ -83,7 +83,7 @@ server/
 │   ├── documentDetailRepository.js  # Chi tiết hóa đơn (popup bảng Chi tiết giao dịch) và chi tiết đơn đặt hàng (trang Vòng đời đơn hàng)
 │   └── stockoutCheck/    # Engine kiểm tra đứt hàng + upload Trả NCC Excel
 ├── data/                 # Dữ liệu lưu trữ local (users.json, notifications.json, ...)
-├── db/                   # Migration Supabase (0001–0065; 0065 chuyển 4 tài liệu dựng sẵn HR sang kind=text để sửa qua web, chưa áp; 0064 bản chụp Vị trí hàng/Cân đo, chưa áp; 0063 cột Đơn giá HN/SG của Báo cáo hàng hóa, chưa áp; 0059 bảng tuổi nợ tính sẵn cho tab Công nợ, chưa áp; 0058 index orders(order_date) cho Nháp VAT, chưa áp; 0053 đã áp DB dùng chung 15/10, 0054 chưa áp) + SCHEMA.md
+├── db/                   # Migration Supabase (0001–0066; 0066 dọn nhãn “Cột hiển thị” bị lưu nhầm trong rich-text HR; 0065 chuyển 4 tài liệu HR sang kind=text để sửa qua web) + SCHEMA.md
 ├── hr/                   # Nhân sự, nghỉ phép tự gửi, phạm vi duyệt chung, tài liệu quy định và cầu Postgres → SSE
 ├── kiotviet/             # KiotViet API client và webhook receiver
 ├── kiotvietSync/         # Webhook, polling, backfill và rollup

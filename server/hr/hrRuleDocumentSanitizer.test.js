@@ -110,3 +110,11 @@ test('chuoi rong / null / undefined tra ve chuoi rong, khong nem loi', () => {
   assert.equal(sanitizeRuleDocumentHtml(null), '');
   assert.equal(sanitizeRuleDocumentHtml(undefined), '');
 });
+
+test('loai bo nhan Cot hien thi do table-controls chen nham vao trinh soan thao', () => {
+  const contaminated = '<div class="tks-table-tools"><button><svg><path></path></svg>Cột hiển thị</button></div><table><tr><td>Nội dung thật</td></tr></table>';
+  assert.equal(
+    sanitizeRuleDocumentHtml(contaminated),
+    '<table><tr><td>Nội dung thật</td></tr></table>'
+  );
+});

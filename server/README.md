@@ -254,6 +254,7 @@ Hai file Kiot HN/SG **không còn** được server truy cập.
 | `0063` | `product_report` thêm `price_hanoi`, `price_saigon` (NUMERIC nullable, Đơn giá HN/SG = `products.base_price` từng cơ sở; chỉ API trả cho quyền `reports.products.price`); chưa áp DB |
 | `0064` | `sheet_snapshot_sync` (mốc/lỗi đồng bộ theo nguồn), `stock_location_lines` (Vị trí hàng HN/SG, giữ thứ tự dòng sheet), `shipping_measures` (m³/kg mỗi cái từ sheet CÂN ĐO); chỉ thêm bảng mới; chưa áp DB |
 | `0065` | 4 tài liệu dựng sẵn (`gio-giac`/`nghi-phep`/`phuc-loi`/`treo-hang`) chuyển từ `kind='builtin'` (HTML tĩnh hard-code) sang `kind='text'` để Quản lý sửa được qua web — gán `icon_key` tương ứng, nội dung HTML gốc đã lọc qua `sanitizeRuleDocumentHtml()`; chưa áp DB |
+| `0066` | Xóa các phần tử độc lập `<div>/<p>/<span>Cột hiển thị</...>` bị table-controls chèn nhầm vào rich-text editor rồi lưu vào body; giữ nguyên câu văn hợp lệ có cùng cụm từ |
 
 Bot **xin nghỉ của nhân viên** chạy ngoài repo và đọc/ghi 3 bảng nền nghỉ phép trực tiếp; bot **quản lý** trong `telegram/` dùng chung đơn và sở hữu các bảng bổ sung ở migration `0029`. Hợp đồng dữ liệu ở `db/SCHEMA.md`.
 

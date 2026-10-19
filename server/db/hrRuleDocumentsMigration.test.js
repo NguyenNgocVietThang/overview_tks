@@ -4,8 +4,28 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { PGlite } = require('@electric-sql/pglite');
 
 const sql = fs.readFileSync(path.join(__dirname, 'migrations', '0027_hr_rule_documents.sql'), 'utf8');
+
+test('migration 0066 xoa artifact Cot hien thi da luu trong body rich-text', async () => {
+  const cleanupSql = fs.readFileSync(path.join(__dirname, 'migrations', '0066_hr_rule_document_remove_table_controls.sql'), 'utf8');
+  assert.match(cleanupSql, /UPDATE hr_rule_documents/);
+  assert.match(cleanupSql, /regexp_replace\(\s*body/);
+  assert.match(cleanupSql, /Cột hiển thị/);
+  assert.match(cleanupSql, /WHERE kind = 'text'/);
+  const db = new PGlite();
+  try {
+    await db.exec('CREATE TABLE hr_rule_documents(id BIGINT, kind TEXT, body TEXT)');
+    const original = '<h2>Mục</h2><div>Cột hiển thị</div><table><tr><td>Giữ lại</td></tr></table><p>Câu có chữ Cột hiển thị hợp lệ.</p>';
+    await db.query('INSERT INTO hr_rule_documents(id, kind, body) VALUES (1, $1, $2)', ['text', original]);
+    await db.exec(cleanupSql);
+    const { rows } = await db.query('SELECT body FROM hr_rule_documents WHERE id = 1');
+    assert.equal(rows[0].body, '<h2>Mục</h2><table><tr><td>Giữ lại</td></tr></table><p>Câu có chữ Cột hiển thị hợp lệ.</p>');
+  } finally {
+    await db.close();
+  }
+});
 
 test('migration 0027 tạo hr_rule_documents chứa cả tài liệu dựng sẵn lẫn PDF (BYTEA)', () => {
   assert.match(sql, /CREATE TABLE hr_rule_documents/);

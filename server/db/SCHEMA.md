@@ -313,6 +313,8 @@ Bảng `hr_rule_documents` lưu trữ tài liệu quy định công ty (tài li�
 
 **Chuyển 4 tài liệu dựng sẵn sang `kind='text'` (migration `0065`, 17/10/2026):** để Quản lý sửa được qua web (trước đây 4 tài liệu `gio-giac/nghi-phep/phuc-loi/treo-hang` là HTML tĩnh hard-code trong `public/humanresources/index.html`, chỉ sửa được bằng deploy code). Mỗi `UPDATE` set `kind='text'`, `builtin_key=NULL`, `icon_key` tương ứng (`clock/calendar/gift/box` — giữ nguyên icon cũ), `body` là HTML gốc đã chạy qua `sanitizeRuleDocumentHtml()` thật. `DEFAULT_BUILTIN_DOCUMENTS` rút về rỗng để không tạo lại dòng trùng sau chuyển đổi; `LEGACY_BUILTIN_DOCUMENTS`, bốn khối HTML tĩnh và `RULE_DOC_BUILTINS` được giữ riêng làm fallback chỉ đọc. Vì vậy code có thể deploy trước migration hoặc chạy local không có DB mà vẫn hiển thị đủ nội dung cũ; chỉ thao tác sửa/lưu bị khóa cho tới khi DB sẵn sàng.
 
+**Dọn artifact table-controls trong rich text (migration `0066`, 19/10/2026):** một số bảng trong editor từng bị tiện ích chung chèn nút “Cột hiển thị”. Sanitizer cũ bỏ button/svg nhưng giữ chữ thành `<div>Cột hiển thị</div>`, khiến nhãn giao diện bị lưu vào `body`. Migration chỉ xóa phần tử `div/p/span` độc lập có đúng nhãn này; câu văn hợp lệ có cùng cụm từ không bị thay đổi. Frontend và sanitizer cũng chặn tái phát.
+
 ### Lịch sử chỉnh sửa tài khoản (migration `0040`)
 
 Bảng `account_audit_log` ghi thao tác **quản trị** tài khoản ở `auth/adminUserRoutes.js` (module `auth/accountAuditLog.js`), đọc ở tab "Lịch sử chỉnh sửa" (`/account/#history`, `GET /api/admin/audit-log`, quyền `account.users`):

@@ -33,6 +33,12 @@ test('bang trong noi dung quy dinh khong bi gan nut Cot hien thi hoac sap xep', 
   await settle();
   assert.equal(document.querySelectorAll('#ruleDocTextView .tks-columns-button').length, 0);
   assert.doesNotMatch(document.getElementById('ruleDocTextView').textContent, /Cột hiển thị/);
+  const editor = document.getElementById('ruleTextEditor');
+  editor.innerHTML = '<table><thead><tr><th>Cột A</th></tr></thead><tbody><tr><td>Nội dung</td></tr></tbody></table>';
+  await settle();
+  assert.ok(document.querySelectorAll('#ruleTextEditor table').length > 0);
+  assert.equal(document.querySelectorAll('#ruleTextEditor .tks-columns-button').length, 0);
+  assert.doesNotMatch(document.getElementById('ruleTextEditor').textContent, /Cột hiển thị/);
   window.close();
 });
 
