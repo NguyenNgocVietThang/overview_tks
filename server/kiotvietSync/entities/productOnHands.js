@@ -30,6 +30,33 @@ function mergeInventories(current, incoming) {
   });
 }
 
+// Loc ngay trong Postgres: chi tra ve id cua dong ma GOP (mergeInventories) se doi
+// inventories — de khong phai tai raw->'inventories' (~300 B/dong) cua ca ~15.000 ma moi
+// lan quet toan bo (nguon Egress lon, xem project-tokosi-egress-audit-2026-10-19).
+// Phai khop mergeInventories + isDeepStrictEqual: khop kho theo branchId (hoa/thuong),
+// {...old,...next} = old || next (jsonb), thu tu theo response, mang khac do dai = doi.
+// $2 = JSON [{id, inv:[...]}].
+const CHANGED_SQL = `
+  WITH incoming AS (
+    SELECT (r->>'id')::bigint AS id, COALESCE(r->'inv', '[]'::jsonb) AS inv
+    FROM jsonb_array_elements($2::jsonb) r
+  )
+  SELECT p.id
+  FROM incoming i
+  JOIN products p ON p.branch = $1 AND p.id = i.id
+  WHERE COALESCE((
+    SELECT jsonb_agg(
+      CASE WHEN jsonb_typeof(n.elem) = 'object' AND jsonb_typeof(o.elem) = 'object' THEN o.elem || n.elem ELSE n.elem END
+      ORDER BY n.ord)
+    FROM jsonb_array_elements(i.inv) WITH ORDINALITY AS n(elem, ord)
+    LEFT JOIN LATERAL (
+      SELECT oe AS elem
+      FROM jsonb_array_elements(CASE WHEN jsonb_typeof(p.raw->'inventories') = 'array' THEN p.raw->'inventories' ELSE '[]'::jsonb END) oe
+      WHERE COALESCE(oe->>'branchId', oe->>'BranchId') = COALESCE(n.elem->>'branchId', n.elem->>'BranchId')
+      LIMIT 1
+    ) o ON true
+  ), '[]'::jsonb) IS DISTINCT FROM COALESCE(p.raw->'inventories', '[]'::jsonb)`;
+
 const CURRENT_SQL = `
   SELECT id, raw->'inventories' AS inventories
   FROM products
@@ -54,7 +81,11 @@ module.exports = {
       .filter((row) => row.id !== null);
     if (!rows.length) return { received: items.length, updated: 0 };
 
-    const current = await pgClient.query(CURRENT_SQL, [branch, rows.map((row) => row.id)]);
+    const candidates = await pgClient.query(CHANGED_SQL, [branch, JSON.stringify(rows.map((row) => ({ id: row.id, inv: row.inventories })))]);
+    const candidateIds = ((candidates && candidates.rows) || []).map((row) => row.id);
+    if (!candidateIds.length) return { received: items.length, updated: 0 };
+
+    const current = await pgClient.query(CURRENT_SQL, [branch, candidateIds]);
     const currentById = new Map(((current && current.rows) || []).map((row) => [String(row.id), row.inventories]));
 
     const changedIds = [];

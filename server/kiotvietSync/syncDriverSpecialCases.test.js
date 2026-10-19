@@ -57,7 +57,7 @@ function createFakeSyncPool() {
           if (sql === 'BEGIN') { pending = []; return; }
           if (sql === 'COMMIT') { const staged = pending; pending = []; for (const [s, p] of staged) await apply(s, p); return; }
           if (sql === 'ROLLBACK') { pending = []; return; }
-          if (sql.startsWith('SELECT id,raw,account_id')) return {rows:[]};
+          if (sql.startsWith('SELECT id,raw_hash,account_id')) return {rows:[]};
           pending.push([sql, params]);
         },
         release() {}

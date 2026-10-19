@@ -1,6 +1,6 @@
 # Supabase schema cho đồng bộ KiotViet
 
-Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0064`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
+Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0066`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
 
 ## Quy ước chung
 
@@ -434,6 +434,10 @@ Migration `0044_pancake_marketing.sql` bổ sung nguồn PostgreSQL cho Marketin
 
 Migration `0044_purchases_raw_hash.sql` thêm `purchases.raw_hash TEXT` (nullable). Đối soát phiếu nhập so băm thay vì tải lại cột `raw` (giảm egress Supabase). `NULL` = chưa có hash; lượt quét đầu sau migration ghi lại toàn bộ phiếu một lần rồi ổn định.
 
+## Băm raw phiếu thu/chi — migration 0066 (19/10/2026, chưa áp DB)
+
+`0066_cash_flows_raw_hash.sql` thêm `cash_flows.raw_hash TEXT` (nullable). Đối soát phiếu thu/chi (`kiotvietSync/entities/cashFlows.js`, `reconcilePage`) so băm (`rawHash`/`stableStringify` trong `entities/entityUtils.js`) thay vì tải lại cột `raw` (~700 B/dòng mỗi nhịp 60 giây; `cash_flows.raw` ~25 GB egress/35 ngày). `NULL` = chưa có hash; lượt quét đầu sau migration ghi lại toàn bộ phiếu một lần rồi ổn định (giống `0044`). Phải áp migration trước khi deploy code vì code SELECT/ghi `raw_hash`. Không đổi hợp đồng các cột khác của `cash_flows`.
+
 ## Marketing canonical input — migration 0045
 
 `0045_pancake_current_input.sql` thêm JSONB nullable `marketing_pancake_facts.current_input` với CHECK object, giữ canonical API state khi adoption không tạo observation. Không chứa dữ liệu đếm riêng; lịch sử/observation vẫn bất biến. Snapshot báo cáo `includeRaw:false` bỏ field này và JSON nguồn. Khóa advisory riêng giữ một job xuyên instance; thời điểm ghi nhận được lấy cuối transaction, qua nửa đêm rollback/thử lại để không cập nhật observation bất biến.
@@ -518,4 +522,4 @@ marketing_pancake_independent_page_state lưu trạng thái/coverage sáu page; 
 - `stock_location_lines (branch 'HN'|'SG', source_row)`: `code`, `name`, `total_quantity`, `notes`, `location`, `arrival_date` (đều TEXT, giữ nguyên giá trị hiển thị của sheet, kể cả mã có số 0 đầu). `source_row` là thứ tự dòng đã lọc của sheet, dùng để đọc đúng thứ tự nguồn; gồm cả dòng trùng mã và SL = 0.
 - `shipping_measures (code_key PK)`: `per_carton`, `m3_per_unit`, `kg_per_unit` (NUMERIC, NULL khi sheet thiếu dữ liệu). `code_key` = `lower(trim(mã))`; mã trùng lấy dòng đầu.
 
-Cập nhật: 17/10/2026.
+Cập nhật: 19/10/2026.

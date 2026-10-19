@@ -150,6 +150,25 @@ async function selectAllRows() {
   return rows.map(rowToUser);
 }
 
+/**
+ * Dau van tay (md5) cua toan bo snapshot selectAllRows(), tinh ngay trong Postgres:
+ * tra ve 1 dong ~32 ky tu thay vi ~170 dong x ~400 B. localUserStore dung de chi tai
+ * lai danh sach khi du lieu that su doi — khong phu thuoc updated_at (nhieu duong ghi
+ * truc tiep khong cap nhat cot do). Gom ca cot hr_employees duoc JOIN.
+ */
+async function selectFingerprint() {
+  const { rows } = await getPool().query(`
+    SELECT md5(COALESCE(string_agg(
+      u::text || '|' || COALESCE(e.branch, '') || '|' || COALESCE(e.bo_phan, '') || '|' || COALESCE(e.is_active::text, ''),
+      E'
+' ORDER BY u.id::text), '')) AS fingerprint
+    FROM app_users u
+    LEFT JOIN hr_employees e ON e.id = u.hr_employee_id
+    WHERE NOT u.is_deleted
+  `);
+  return rows[0] ? rows[0].fingerprint : null;
+}
+
 async function insertUser(user) {
   const columns = ['id'];
   const placeholders = ['$1'];
@@ -302,6 +321,7 @@ module.exports = {
   coSoFromDb,
   rowToUser,
   selectAllRows,
+  selectFingerprint,
   insertUser,
   updateUserRow,
   updateProfileRow,

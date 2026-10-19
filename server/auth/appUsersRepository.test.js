@@ -42,3 +42,28 @@ test('department catalogue includes inactive HR, saved grants and historical req
 test('rowToUser reports linked HR activity separately from account status', () => {
   assert.equal(rowToUser({ id: 'inactive-hr', hr_employee_id: 123, hr_employee_active: false, trang_thai: 'Đang hoạt động' }).hrEmployeeActive, false);
 });
+
+test('selectFingerprint: băm toàn bộ snapshot trong SQL, chỉ trả 1 dòng (không kéo danh sách tài khoản về)', async () => {
+  const repository = require('./appUsersRepository');
+  const { getPool } = require('../db/pool');
+  const pool = getPool();
+  const original = pool.query;
+  const calls = [];
+  // Pool khong ket noi duoc trong test -> thay tam query de kiem tra SQL.
+  const realGetPool = require.cache[require.resolve('../db/pool')].exports.getPool;
+  require.cache[require.resolve('../db/pool')].exports.getPool = () => ({ query: async sql => { calls.push(sql); return { rows: [{ fingerprint: 'abc' }] }; } });
+  try {
+    delete require.cache[require.resolve('./appUsersRepository')];
+    const fresh = require('./appUsersRepository');
+    assert.equal(await fresh.selectFingerprint(), 'abc');
+  } finally {
+    require.cache[require.resolve('../db/pool')].exports.getPool = realGetPool;
+    delete require.cache[require.resolve('./appUsersRepository')];
+    void original; void repository;
+  }
+  assert.equal(calls.length, 1);
+  assert.match(calls[0], /md5\(/);
+  assert.match(calls[0], /string_agg/);
+  assert.match(calls[0], /hr_employees/);
+  assert.match(calls[0], /NOT u\.is_deleted/);
+});
