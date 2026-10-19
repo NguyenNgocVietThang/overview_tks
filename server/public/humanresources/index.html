@@ -1060,6 +1060,7 @@
               <input type="file" id="employeeWorkbookFile" accept=".xlsx,.xls" hidden onchange="importEmployeeWorkbook(this)">
               <button type="button" class="btn-secondary" id="btnImportEmployeeDirectory" hidden onclick="document.getElementById('employeeWorkbookFile').click()">Nhập DS nhân sự</button>
               <button type="button" class="btn-primary" id="btnAddEmployee" hidden onclick="openEmployeeModal()">+ Thêm nhân sự</button>
+              <span id="employeeImportStatus" class="form-hint" hidden aria-live="polite"></span>
             </div>
           </div>
 
@@ -2992,15 +2993,29 @@
     async function importEmployeeWorkbook(input){
       const file=input.files && input.files[0];
       if(!file) return;
+      const button=document.getElementById('btnImportEmployeeDirectory');
+      const status=document.getElementById('employeeImportStatus');
+      const originalLabel=button ? button.textContent : '';
+      if(button){ button.disabled=true; button.textContent='Đang nhập…'; }
+      if(status){ status.hidden=false; status.className='form-hint'; status.textContent='Đang đọc '+file.name+'…'; }
       const form=new FormData(); form.append('file',file);
       try{
         const res=await fetch('/api/hr/employees/import',{method:'POST',credentials:'same-origin',body:form});
         const {ok,data}=await parseApiResponse(res);
         if(!ok) throw new Error(data.error||'Không nhập được file.');
-        showToast(`Đã cập nhật ${data.updated}/${data.total} nhân sự. Không khớp: ${(data.unmatched||[]).length}; trùng: ${(data.ambiguous||[]).length}.`, data.unmatched?.length||data.ambiguous?.length?'warning':'success');
+        const unmatched=(data.unmatched||[]).length, ambiguous=(data.ambiguous||[]).length;
+        const message='Đã cập nhật '+data.updated+'/'+data.total+' dòng. Không khớp: '+unmatched+'; trùng: '+ambiguous+'.';
+        if(status){ status.className='form-hint '+(unmatched||ambiguous?'warning':'success'); status.textContent=message; }
+        showToast(message, unmatched||ambiguous?'warning':'success');
         await loadEmployeeDirectory();
-      }catch(err){ showToast(err.message||'Không nhập được file.','error'); }
-      finally{ input.value=''; }
+      }catch(err){
+        const message=err.message||'Không nhập được file.';
+        if(status){ status.className='form-hint error'; status.textContent=message; }
+        showToast(message,'error');
+      }finally{
+        input.value='';
+        if(button){ button.disabled=false; button.textContent=originalLabel||'Nhập DS nhân sự'; }
+      }
     }
 
     // Bam vao dong nhan su -> mo hop chi tiet (chi khi co quyen hr.employees.manage).
