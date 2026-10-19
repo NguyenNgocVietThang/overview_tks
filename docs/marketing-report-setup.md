@@ -70,6 +70,7 @@ Chạy từ thư mục server: `npm run marketing:history:capture -- --output PR
 
 Lệnh kiểm tra: cd server; node --test marketingReport/*.test.js test/frontend/marketing-report.test.js
 Lệnh nạp thật: npm run marketing:pancake:sync -- --apply --date YYYY-MM-DD --report-file PATH (cấu hình source=pancake).
+Dựng lại RIÊNG bảng gộp SĐT `marketing_phone_summary` (migration 0069) từ quan sát đã lưu, không gọi Pancake/Sheets: `npm run marketing:summary:refresh -- --apply` (mặc định dry-run; chạy lại an toàn).
 Không đưa token hoặc dữ liệu cá nhân vào log/tài liệu công khai. Xem phần trạng thái triển khai mới nhất bên dưới; mã trên main không có nghĩa production đã được deploy.
 
 ### Trạng thái thực hiện 16/10/2026
@@ -93,7 +94,7 @@ Trạng thái: đã commit trên `main` (`4c79124`) và push (tks_web, `a6bc293`
 - **Chi phí ADS:** job `marketingAdsSync.js` đồng bộ workbook `MARKETING_ADS_SPREADSHEET_ID` vào bảng `marketing_ads_costs` (+ `marketing_ads_sync_state`) mỗi `MARKETING_ADS_SYNC_INTERVAL_MS` (mặc định 30 phút, tối thiểu 5 phút). Job chạy cùng vòng đời job Pancake nên CHỈ chạy khi `PANCAKE_MARKETING_SYNC_ENABLED=true`. Phần "Báo cáo chi phí" (`/costs`) đọc bảng này khi đã đồng bộ và còn mới trong `MARKETING_ADS_READ_MAX_AGE_MS` (mặc định 3 giờ); bảng thiếu, rỗng hoặc cũ hơn ngưỡng thì đọc trực tiếp Google Sheets như trước. Khi đọc từ bảng, nút làm mới không gọi Sheets lúc request; độ tươi do job đồng bộ quyết định.
 - **Doanh số KiotViet:** cột Doanh số lấy từ view `v_marketing_customer_revenue` (cùng hàm `tks_name_key()` chuẩn hóa tên: NFKC, bỏ ký tự độ rộng bằng không, gộp khoảng trắng, chữ thường). View ghép theo tên khách, gộp HN+SG, bán trừ trả hàng; tháng đã chốt lấy từ `business_monthly_customer_sales`, tháng hiện tại lấy từ `business_current_month_customer_sales` (0068). Thiếu view thì lùi về đường RAM cũ (`marketingRevenue.js`). Ngữ nghĩa không đổi: tên không khớp thì hiện —; khách ngừng hoạt động bị loại.
 - **Sao lưu SĐT / Check tỷ lệ nhận số (chế độ Pancake độc lập):** cuối MỖI lượt đồng bộ Pancake, `marketingSummaryRefresh.js` dựng lại bảng `marketing_phone_summary` (+ `marketing_phone_summary_state`, ghi khác biệt, lỗi bị nuốt nên không làm hỏng lượt đồng bộ). Báo cáo đọc bảng này nếu `max_source_order` khớp với bảng quan sát; thiếu hoặc lệch (bản gộp cũ) thì lùi về gộp bằng JS từ toàn bộ quan sát. Bảng chứa số điện thoại nên bị REVOKE SELECT khỏi `reporting_readonly`.
-- **Sau khi deploy (`0069` đã áp):** chờ lượt Pancake kế tiếp hoặc chạy tay `node scripts/sync-pancake-marketing.js` (hoặc `npm run marketing:pancake:sync`) trong `server/`. Cho tới lần dựng đầu tiên, báo cáo SĐT dùng gộp JS; cho tới lần đồng bộ ADS đầu tiên, chi phí đọc Sheets.
+- **Sau khi deploy (`0069` đã áp):** chạy `npm run marketing:summary:refresh -- --apply` trong `server/` để dựng ngay bảng gộp SĐT (không cần chờ lượt Pancake ~75 phút; lượt đồng bộ ADS tự chạy sau khi deploy), hoặc chờ lượt Pancake kế tiếp. Cho tới lần dựng đầu tiên, báo cáo SĐT dùng gộp JS; cho tới lần đồng bộ ADS đầu tiên, chi phí đọc Sheets.
 - **Việc mở:** JSON `/api/marketing-report/phones` còn mang trường `trace` (~11,5 MB trong ~13 MB khi `scope=all`, frontend không đọc) — ứng viên bỏ khỏi dòng API; chế độ `sheets`/`postgres` cũ và `marketingSheetsWriter` giữ nguyên; `normalizedNameSql` chưa thay bằng `tks_name_key`.
 
 Cập nhật lần cuối: 19/10/2026.

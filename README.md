@@ -320,4 +320,5 @@ Cùng khách ở 2 cơ sở (15/10/2026): ở bảng tổng thưởng/phạt sal
 
 Lệnh kiểm tra: cd server; node --test marketingReport/*.test.js test/frontend/marketing-report.test.js
 Lệnh nạp thật: npm run marketing:pancake:sync -- --apply --date YYYY-MM-DD --report-file PATH (cấu hình source=pancake).
+Dựng lại RIÊNG bảng gộp SĐT `marketing_phone_summary` (migration 0069) từ quan sát đã lưu, không gọi Pancake/Sheets: `npm run marketing:summary:refresh -- --apply` (trong `server/`; mặc định dry-run).
 Không đưa token hoặc dữ liệu cá nhân vào log/tài liệu công khai. Xem phần trạng thái triển khai mới nhất bên dưới; mã trên main không có nghĩa production đã được deploy.

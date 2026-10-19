@@ -456,4 +456,5 @@ Cột Phạt/điểm làm tròn hiển thị đến số nguyên đồng trên b
 
 Lệnh kiểm tra: cd server; node --test marketingReport/*.test.js test/frontend/marketing-report.test.js
 Lệnh nạp thật: npm run marketing:pancake:sync -- --apply --date YYYY-MM-DD --report-file PATH (cấu hình source=pancake).
+Dựng lại RIÊNG bảng gộp SĐT `marketing_phone_summary` (migration 0069) từ quan sát đã lưu, không gọi Pancake/Sheets: `npm run marketing:summary:refresh -- --apply` (mặc định dry-run; ghi khác biệt nên chạy lại an toàn; mã thoát 0 = updated/unchanged, 2 = busy/held/failed/unavailable).
 Không đưa token hoặc dữ liệu cá nhân vào log/tài liệu công khai. Xem phần trạng thái triển khai mới nhất bên dưới; mã trên main không có nghĩa production đã được deploy.
