@@ -164,6 +164,12 @@ const CONFIG = {
   // Bao cao doanh thu theo khach / hang hoa lam moi TANG DAN sau moi luot sync (mac dinh TAT => chot dem).
   REPORTS_INCREMENTAL_ENABLED: String(process.env.REPORTS_INCREMENTAL_ENABLED || '').toLowerCase() === 'true',
 
+  // Bao cao kinh doanh: tinh san doanh so THANG HIEN TAI vao business_current_month_* (migration 0068) sau moi luot
+  // sync fast (kiotvietSync/businessCurrentMonthRefresh.js). Mac dinh BAT (thieu migration thi tu bo qua);
+  // tat bang BUSINESS_CURRENT_MONTH_ENABLED=false => bao cao lai tinh live. San toi thieu giua 2 luot nhanh: 10 phut.
+  BUSINESS_CURRENT_MONTH_ENABLED: String(process.env.BUSINESS_CURRENT_MONTH_ENABLED || '').toLowerCase() !== 'false',
+  BUSINESS_CURRENT_MONTH_MIN_INTERVAL_MS: Number(process.env.BUSINESS_CURRENT_MONTH_MIN_INTERVAL_MS) || 10 * 60 * 1000,
+
   // Log bo nho (rss/heap/external/arrayBuffers) moi chu ky + canh bao khi RSS > 75% tran.
   // Mac dinh BAT — tat bang MEMORY_MONITOR=false.
   MEMORY_MONITOR: process.env.MEMORY_MONITOR !== 'false',
