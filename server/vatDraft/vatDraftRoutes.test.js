@@ -245,6 +245,26 @@ test('POST /qr/parse-image: AI doc nham tong (10.953.056) -> sua theo Cong tien 
   assert.match(res.body.warnings[0], /10\.953\.056đ.*10\.933\.056đ/);
 });
 
+test('POST /qr/parse-text: PDF co lop chu doc thang (khong goi AI), doi chieu so bang chu, sale duoc dung', async () => {
+  // Chu trich tu PDF 8 trang (VC EXPRESS): Tong thanh toan nam o trang 7, trang cuoi chi co chan trang.
+  const text = 'Ký hiệu   (Serial No) :   1C26TVC\nĐơn vị bán hàng   (Seller) :   CÔNG TY CỔ PHẦN THƯƠNG MẠI VC EXPRESS\n'
+    + 'Mã số thuế/Mã đơn vị quan hệ ngân sách (Tax code): 0111302750\n'
+    + '...trang 2-6...\nCộng tiền hàng   (Total amount) :   317.008.640\nTiền thuế GTGT   (VAT amount) :   25.360.691\n'
+    + 'Tổng cộng tiền thanh toán   (Total payment) :   342.369.331\n'
+    + 'Số tiền viết bằng chữ   (In words) :   Ba trăm bốn mươi hai triệu ba trăm sáu mươi chín nghìn ba trăm ba mươi mốt đồng\n'
+    + '(Cần kiểm tra đối chiếu khi lập, giao, nhận hóa đơn)';
+  const vision = fakeVision({});
+  const res = await request('/qr/parse-text', { method: 'POST', user: userFor(ROLES.NHAN_VIEN_SALE), body: { text }, vision });
+  assert.equal(res.status, 200);
+  assert.equal(vision.calls.length, 0);
+  assert.deepEqual([res.body.source, res.body.totalPayment, res.body.amountStatus, res.body.matchedAccountKeys, res.body.error],
+    ['pdf-text', 342369331, 'ok', ['mb_vc_ex'], null]);
+  assert.equal(res.body.amountSources.words, 342369331);
+
+  const scan = await request('/qr/parse-text', { method: 'POST', body: { text: '' } });
+  assert.deepEqual([scan.status, !!scan.body.error, scan.body.matchedAccountKeys], [200, true, []]);
+});
+
 test('resolveInvoiceTotal: khop / sua / khong doi chieu duoc', () => {
   const r = (totalPayment, totalBeforeVat, vatAmount, wordsAmount) => resolveInvoiceTotal({ totalPayment, totalBeforeVat, vatAmount, wordsAmount });
   assert.deepEqual(r(1320002, 1222224, 97778, null), { amount: 1320002, status: 'ok', warning: null });

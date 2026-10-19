@@ -14,6 +14,8 @@ const TOTAL_PAYMENT_RE = new RegExp(`Tổng cộng tiền thanh toán${WS}*\\(To
 const TOTAL_BEFORE_VAT_RE = new RegExp(`Cộng tiền hàng${WS}*\\(Total amount\\)${WS}*:${WS}*([\\d.,]+)`);
 const VAT_AMOUNT_RE = new RegExp(`Tiền thuế GTGT${WS}*\\(VAT amount\\)${WS}*:${WS}*([\\d.,]+)`);
 const SERIAL_RE = new RegExp(`Ký hiệu${WS}*\\(Serial No\\)${WS}*:${WS}*(${NON_WS}+)`);
+// Dong chu de doi chieu Tong thanh toan (vatDraft/amountWords.js doi sang so).
+const AMOUNT_WORDS_RE = new RegExp(`Số tiền viết bằng chữ${WS}*\\(In words\\)${WS}*:${WS}*([^\\n]+)`);
 
 const NO_TEXT_ERROR = 'Không tìm thấy lớp text trong PDF (có thể là ảnh scan/chụp) — '
   + 'vui lòng nhập số tiền và chọn tài khoản thủ công.';
@@ -45,13 +47,14 @@ function parseInvoiceAmount(text) {
 function parseInvoiceText(text) {
   const source = String(text || '');
   if (!pyStrip(source)) {
-    return { sellerName: '', totalPayment: null, totalBeforeVat: null, vatAmount: null, serialNo: '', error: NO_TEXT_ERROR };
+    return { sellerName: '', totalPayment: null, totalBeforeVat: null, vatAmount: null, serialNo: '', amountInWords: '', error: NO_TEXT_ERROR };
   }
   const seller = source.match(SELLER_RE);
   const total = source.match(TOTAL_PAYMENT_RE);
   const beforeVat = source.match(TOTAL_BEFORE_VAT_RE);
   const vat = source.match(VAT_AMOUNT_RE);
   const serial = source.match(SERIAL_RE);
+  const words = source.match(AMOUNT_WORDS_RE);
 
   let sellerName = seller ? pyStrip(seller[1]) : '';
   // PDF khong xuong dong dung cho, dinh vao nhan tiep theo.
@@ -63,6 +66,7 @@ function parseInvoiceText(text) {
     totalBeforeVat: beforeVat ? parseInvoiceAmount(beforeVat[1]) : null,
     vatAmount: vat ? parseInvoiceAmount(vat[1]) : null,
     serialNo: serial ? pyStrip(serial[1]) : '',
+    amountInWords: words ? pyStrip(words[1]) : '',
     error: null
   };
   if (!parsed.sellerName && parsed.totalPayment === null) parsed.error = UNRECOGNIZED_ERROR;

@@ -124,6 +124,11 @@ function createVatDraftRouter({
   }));
 
   // Anh hoa don (trinh duyet da thu nho / render trang 1 PDF thanh JPEG) -> AI doc -> goi y tai khoan.
+  // PDF co lop chu: trinh duyet gui chu MOI trang (pdf.js) -> doc bang regex, khong qua AI.
+  router.post('/qr/parse-text', ...qrGuard, handle(async (req, res) => {
+    res.json(service.parsePdfText(req.body && req.body.text));
+  }));
+
   router.post('/qr/parse-image', ...qrGuard, uploadInvoiceImage, handle(async (req, res) => {
     const file = req.file;
     if (!file || !INVOICE_IMAGE_TYPES.has(file.mimetype)) {

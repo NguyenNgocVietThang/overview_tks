@@ -9,7 +9,7 @@ const { pyStrip, pyRound } = require('./pyCompat');
 const { allocateInvoiceSources, buildUnifiedColumns, buildUnifiedDisplayRows } = require('./allocation');
 const { parseInvoicePasteRows, rowsToQueries, parseDocumentCodes } = require('./pasteParser');
 const vietqr = require('./vietqr');
-const { parseInvoiceAmount } = require('./invoicePdfText');
+const { parseInvoiceAmount, parseInvoiceText } = require('./invoicePdfText');
 const { parseVietnameseAmountWords } = require('./amountWords');
 const vatDraftConfig = require('./vatDraftConfig');
 
@@ -84,7 +84,7 @@ const vnd = new Intl.NumberFormat('vi-VN');
  * status: 'ok' (tong khop it nhat 1 nguon), 'corrected' (2 nguon kia khop nhau, dung so bang chu),
  * 'unverified' (khong doi chieu duoc) -> trang bat nguoi dung xac nhan so tien truoc khi tao QR.
  */
-function resolveInvoiceTotal({ totalPayment, totalBeforeVat, vatAmount, wordsAmount }) {
+function resolveInvoiceTotal({ totalPayment, totalBeforeVat, vatAmount, wordsAmount, reader = 'AI' }) {
   const sum = totalBeforeVat !== null && vatAmount !== null ? totalBeforeVat + vatAmount : null;
   const same = (a, b) => a !== null && b !== null && Math.abs(a - b) <= 2;
   if (same(totalPayment, wordsAmount) || same(totalPayment, sum)) return { amount: totalPayment, status: 'ok', warning: null };
@@ -93,7 +93,7 @@ function resolveInvoiceTotal({ totalPayment, totalBeforeVat, vatAmount, wordsAmo
     return {
       amount: wordsAmount,
       status: 'corrected',
-      warning: `AI ${read}, nhưng Cộng tiền hàng + Tiền thuế và Số tiền bằng chữ đều là ${vnd.format(wordsAmount)}đ — đã dùng ${vnd.format(wordsAmount)}đ.`
+      warning: `${reader} ${read}, nhưng Cộng tiền hàng + Tiền thuế và Số tiền bằng chữ đều là ${vnd.format(wordsAmount)}đ — đã dùng ${vnd.format(wordsAmount)}đ.`
     };
   }
   const amount = totalPayment ?? sum ?? wordsAmount;
@@ -223,31 +223,59 @@ function createVatDraftService({ repository, masterData, vision = null, config =
     const raw = await vision.extractInvoice(buffer, mimeType);
     const text = value => (value === null || value === undefined ? '' : pyStrip(String(value).normalize('NFC')));
     const amount = value => parseInvoiceAmount(text(value));
-    const totalBeforeVat = amount(raw.totalBeforeVat);
-    const vatAmount = amount(raw.vatAmount);
-    const aiTotal = amount(raw.totalPayment);
-    const wordsText = text(raw.amountInWords).slice(0, 300);
-    const wordsAmount = parseVietnameseAmountWords(wordsText);
-    const total = resolveInvoiceTotal({ totalPayment: aiTotal, totalBeforeVat, vatAmount, wordsAmount });
+    return invoiceResult({
+      source: 'ai',
+      sellerName: text(raw.sellerName),
+      totalPayment: amount(raw.totalPayment),
+      totalBeforeVat: amount(raw.totalBeforeVat),
+      vatAmount: amount(raw.vatAmount),
+      wordsText: text(raw.amountInWords),
+      unrecognized: 'AI không nhận diện được hóa đơn trong ảnh — vui lòng nhập số tiền và chọn tài khoản thủ công.'
+    });
+  }
+
+  /**
+   * PDF co lop chu (hoa don dien tu luu tu trinh duyet): trinh duyet trich chu MOI trang bang pdf.js,
+   * may chu doc bang regex nhu app cu — chinh xac, khong ton luot AI. Loi (PDF scan / khong dung mau)
+   * thi trang chuyen sang doc anh bang AI.
+   */
+  function parsePdfText(text) {
+    const parsed = parseInvoiceText(String(text || '').normalize('NFC').slice(0, 500000));
+    if (parsed.error) return { source: 'pdf-text', error: parsed.error, matchedAccountKeys: [], warnings: [] };
+    return invoiceResult({
+      source: 'pdf-text',
+      sellerName: parsed.sellerName,
+      totalPayment: parsed.totalPayment,
+      totalBeforeVat: parsed.totalBeforeVat,
+      vatAmount: parsed.vatAmount,
+      wordsText: parsed.amountInWords,
+      unrecognized: 'Không nhận diện được hóa đơn trong PDF.'
+    });
+  }
+
+  /** Ket qua chung cho anh (AI) va PDF (chu): doi chieu tong tien + tai khoan cong ty goi y. */
+  function invoiceResult({ source, sellerName, totalPayment, totalBeforeVat, vatAmount, wordsText, unrecognized }) {
+    const words = String(wordsText || '').slice(0, 300);
+    const wordsAmount = parseVietnameseAmountWords(words);
+    const total = resolveInvoiceTotal({ totalPayment, totalBeforeVat, vatAmount, wordsAmount, reader: source === 'ai' ? 'AI' : 'File PDF' });
     const parsed = {
-      sellerName: text(raw.sellerName).slice(0, 300),
+      source,
+      sellerName: String(sellerName || '').slice(0, 300),
       totalPayment: total.amount,
       amountStatus: total.status,
       // Cac nguon so tien de nguoi dung chon khi phai xac nhan (status khac 'ok').
       amountSources: {
-        aiTotal,
+        aiTotal: totalPayment,
         subtotalPlusVat: totalBeforeVat !== null && vatAmount !== null ? totalBeforeVat + vatAmount : null,
         words: wordsAmount,
-        wordsText
+        wordsText: words
       },
       totalBeforeVat,
       vatAmount,
       warnings: total.warning ? [total.warning] : [],
       error: null
     };
-    if (!parsed.sellerName && parsed.totalPayment === null) {
-      parsed.error = 'AI không nhận diện được hóa đơn trong ảnh — vui lòng nhập số tiền và chọn tài khoản thủ công.';
-    }
+    if (!parsed.sellerName && parsed.totalPayment === null) parsed.error = unrecognized;
     return {
       ...parsed,
       matchedAccountKeys: parsed.error ? [] : vietqr.getAccountsForSeller(parsed.sellerName, config).map(a => a.key)
@@ -271,7 +299,7 @@ function createVatDraftService({ repository, masterData, vision = null, config =
     };
   }
 
-  return { allocate, qrUrl, parseInvoiceImage, accountsMeta, masterDataMeta, parseDocumentCodes };
+  return { allocate, qrUrl, parseInvoiceImage, parsePdfText, accountsMeta, masterDataMeta, parseDocumentCodes };
 }
 
 module.exports = { createVatDraftService, resolveInvoiceTotal, documentsToQueries, MAX_DOCUMENTS, MAX_LINES };
