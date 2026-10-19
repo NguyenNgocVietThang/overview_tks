@@ -417,3 +417,12 @@
 .vd-table-tools .table-search-input-wrap{flex:0 1 300px;min-width:160px}
 .vd-table-tools .tks-columns-button,.vd-table-tools .export-button{flex:none;white-space:nowrap;min-height:32px}
 @media(max-width:700px){.vd-table-tools.tks-table-tools{flex-wrap:wrap}.vd-table-tools .table-search-input-wrap{flex:1 1 100%;max-width:none}}
+
+/* Dem + tim kiem + Cot hien thi + Xuat file nam trong khung bo loc (hang 2) */
+.vd-filters.tks-table-tools{padding:12px 14px;justify-content:flex-start;align-items:flex-end}
+.vd-filters-break{flex:0 0 100%;height:0}
+.vd-filters .vd-count{align-self:center;margin-right:auto}
+.vd-filters .table-search-input-wrap{align-self:center;background:var(--panel)}
+.vd-filters .tks-columns-button,.vd-filters .export-button{align-self:center}
+.vd-page .vd-filters>label.table-search-input-wrap{width:auto;flex:0 1 300px;min-width:160px;flex-direction:row;gap:0;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:500;color:var(--text)}
+@media(max-width:900px){.vd-page .vd-filters>label.table-search-input-wrap{flex:1 1 100%}}
