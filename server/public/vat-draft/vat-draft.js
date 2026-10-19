@@ -25,7 +25,13 @@
     meta: null,
     alloc: null,
     qrMode: 'co_vat',
-    matchedAccounts: []
+    matchedAccounts: [],
+    invoiceBusy: false,
+    invoiceThumbUrl: null,
+    invoiceViewerReturn: null,
+    qr: { status: 'idle' },
+    manualTouched: false,
+    copiedQrDims: null
   };
 
   const $ = id => document.getElementById(id);
@@ -108,8 +114,8 @@
     const res = await fetch('/api/vat-draft' + path, {
       method,
       credentials: 'same-origin',
-      headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
-      body: body === undefined ? undefined : JSON.stringify(body)
+      headers: body === undefined || body instanceof FormData ? {} : { 'Content-Type': 'application/json' },
+      body: body === undefined || body instanceof FormData ? body : JSON.stringify(body)
     });
     if (res.status === 401) { window.location.href = '/login/'; throw new Error('Phiên đăng nhập đã hết hạn.'); }
     const type = res.headers.get('content-type') || '';
@@ -145,7 +151,7 @@
     const sheets = $('vdSheetsStatus');
     const md = meta.masterData;
     if (md.error) {
-      sheets.textContent = '❌ Không tải được Google Sheets: ' + md.error;
+      sheets.textContent = 'Không tải được Google Sheets: ' + md.error;
       sheets.dataset.tone = 'error';
     } else {
       sheets.textContent = `Dữ liệu Google Sheets (Gộp VAT ${intFormat.format(md.stockRows)} dòng · Khớp mã ${intFormat.format(md.mappingRows)} dòng) cập nhật lúc ${vnTime(md.loadedAt)}${md.stale ? ' — ⚠️ đang dùng bản cũ vì tải lại thất bại' : ''}`;
@@ -161,6 +167,14 @@
     } else {
       sync.textContent = '';
     }
+    const late = sync.dataset.tone === 'warning';
+    setStatusPill(md.error ? 'error' : md.stale || late ? 'warning' : 'ok',
+      md.error ? 'Lỗi tải Google Sheets' : `Dữ liệu cập nhật ${vnTime(md.loadedAt)}${md.stale || late ? ' · cần kiểm tra' : ''}`);
+  }
+
+  function setStatusPill(tone, text) {
+    $('vdSourceBar').dataset.tone = tone;
+    $('vdStatusSummary').textContent = text;
   }
 
   async function loadMeta() {
@@ -169,20 +183,23 @@
       renderMeta();
       renderAccountSelect();
     } catch (error) {
-      $('vdSheetsStatus').textContent = '❌ ' + error.message;
+      $('vdSheetsStatus').textContent = error.message;
+      setStatusPill('error', 'Không tải được dữ liệu');
     }
   }
 
   async function refreshSheets() {
     const button = $('vdRefreshSheets');
     button.disabled = true;
-    $('vdSheetsStatus').textContent = '⏳ Đang tải dữ liệu từ Google Sheets…';
+    $('vdSheetsStatus').textContent = 'Đang tải dữ liệu từ Google Sheets…';
+    setStatusPill('', 'Đang cập nhật…');
     try {
       const { masterData } = await api('/master-data/refresh', { method: 'POST' });
       state.meta = { ...(state.meta || { sync: [] }), masterData };
       renderMeta();
     } catch (error) {
-      $('vdSheetsStatus').textContent = '❌ Lỗi cập nhật: ' + error.message;
+      $('vdSheetsStatus').textContent = 'Lỗi cập nhật: ' + error.message;
+      setStatusPill('error', 'Lỗi cập nhật dữ liệu');
     } finally {
       button.disabled = false;
     }
@@ -197,6 +214,8 @@
       else link.removeAttribute('aria-current');
     });
     $('vdInputPanel').hidden = state.tab === 'tao-qr';
+    // Sheets/KiotViet chi phuc vu Xu ly hoa don; sale (khong co quyen) da an tu luc khoi tao.
+    if (state.canProcess) $('vdSourceBar').hidden = state.tab === 'tao-qr';
     document.querySelectorAll('[data-tab-section]').forEach(section => {
       const own = section.dataset.tabSection === state.tab;
       const hasResult = section.id === 'vdAllocResult' ? !!state.alloc : true;
@@ -554,11 +573,17 @@
 
   // ---------- QR trong kết quả xử lý ----------
 
-  function accountOptions(selectedKey, { manual = false, starred = [] } = {}) {
+  function accountOptions(selectedKey, { manual = false, starred = [], placeholder = false } = {}) {
     const accounts = (state.meta && state.meta.vietqr.accounts) || [];
-    const ordered = starred.map(key => accounts.find(a => a.key === key)).filter(Boolean).concat(accounts.filter(a => !starred.includes(a.key)));
-    return (manual ? `<option value="${MANUAL}"${selectedKey === MANUAL ? ' selected' : ''}>✏️ Nhập tài khoản khác...</option>` : '')
-      + ordered.map(a => `<option value="${escapeHtml(a.key)}"${a.key === selectedKey ? ' selected' : ''}>${starred.includes(a.key) ? '⭐ ' : ''}${escapeHtml(a.label)}</option>`).join('');
+    const option = (a, star) => `<option value="${escapeHtml(a.key)}"${a.key === selectedKey ? ' selected' : ''}>${star ? '★ ' : ''}${escapeHtml(a.label)}</option>`;
+    const group = (label, list, star) => (list.length ? `<optgroup label="${label}">${list.map(a => option(a, star)).join('')}</optgroup>` : '');
+    const suggested = starred.map(key => accounts.find(a => a.key === key)).filter(Boolean);
+    const rest = accounts.filter(a => !starred.includes(a.key));
+    return (placeholder ? `<option value=""${selectedKey ? '' : ' selected'}>— Chọn tài khoản nhận tiền —</option>` : '')
+      + group('Gợi ý từ hóa đơn', suggested, true)
+      + group('Tài khoản công ty', rest.filter(a => (a.group || 'company') === 'company'), false)
+      + group('Tài khoản cá nhân', rest.filter(a => a.group === 'personal'), false)
+      + (manual ? `<optgroup label="Khác"><option value="${MANUAL}"${selectedKey === MANUAL ? ' selected' : ''}>Tài khoản khác (nhập tay)…</option></optgroup>` : '');
   }
 
   function qrCardHtml(id, title, amount, accountKey, warning) {
@@ -651,73 +676,555 @@
 
   // ---------- Tạo QR (tab 2) ----------
 
+  function accountByKey(key) {
+    return ((state.meta && state.meta.vietqr.accounts) || []).find(a => a.key === key) || null;
+  }
+
+  /** O Số tiền tab Tao QR: chi so (don vi "đ" o ben phai o), 0 = de trong. */
+  function formatAmountPlain(value) {
+    const amount = Math.max(Math.trunc(Number(value) || 0), 0);
+    return amount > 0 ? intFormat.format(amount) : '';
+  }
+
+  function amountWords(value) {
+    return window.TKSVndWords ? window.TKSVndWords.toVietnameseWords(value) : '';
+  }
+
   function renderAccountSelect() {
     const select = $('vdManualAccount');
-    const current = select.value || (state.meta && state.meta.vietqr.accounts[0] ? MANUAL : MANUAL);
-    select.innerHTML = accountOptions(state.matchedAccounts[0] || current, { manual: true, starred: state.matchedAccounts });
+    select.innerHTML = accountOptions(state.matchedAccounts[0] || select.value || '', { manual: true, placeholder: true, starred: state.matchedAccounts });
     if (state.meta) $('vdBankCodes').textContent = 'Mã ngân hàng VietQR thường gặp: ' + state.meta.vietqr.commonBankCodes + '.';
     updateManualFields();
+  }
+
+  /** Cung quy tac voi may chu (vietqr.isValidManualField): 2-25 chu/so. */
+  function manualFieldsValid() {
+    const ok = value => /^[A-Za-z0-9]{2,25}$/.test(String(value || '').trim());
+    return ok($('vdManualBank').value) && ok($('vdManualNo').value);
   }
 
   function updateManualFields() {
     const manual = $('vdManualAccount').value === MANUAL;
     $('vdManualFields').hidden = !manual;
-    const invalid = manual && !($('vdManualBank').value.trim() && $('vdManualNo').value.trim());
-    $('vdManualInvalid').hidden = !invalid;
-    $('vdManualGenerate').disabled = invalid;
+    // Chi bao loi sau khi nguoi dung da roi o / bam tao — khong bao loi truoc khi thao tac.
+    $('vdManualInvalid').hidden = !(manual && state.manualTouched && !manualFieldsValid());
+    const account = manual ? null : accountByKey($('vdManualAccount').value);
+    const detail = $('vdAccountDetail');
+    detail.hidden = !account;
+    if (account) {
+      detail.innerHTML = account.accountNo
+        ? `<strong>${escapeHtml(account.accountName || account.label)}</strong><br>${escapeHtml(account.bankId)} · ${escapeHtml(account.accountNo)}`
+        : escapeHtml(account.label);
+    }
+    refreshQrPanel();
   }
 
-  async function extractPdfText(file) {
+  /** Gia tri form Tao QR + ly do chua tao duoc; key dung de biet QR da tao con dung voi form khong. */
+  function qrFormValues() {
+    const key = $('vdManualAccount').value;
+    const manual = key === MANUAL;
+    const values = {
+      accountKey: manual || !key ? undefined : key,
+      manual: manual ? { bankId: $('vdManualBank').value.trim(), accountNo: $('vdManualNo').value.trim(), accountName: $('vdManualName').value.trim() } : undefined,
+      amount: parseAmount($('vdManualAmount').value),
+      addInfo: $('vdManualContent').value.trim(),
+      reason: ''
+    };
+    if (!key) values.reason = 'Chọn tài khoản nhận tiền để tạo QR.';
+    else if (manual && !manualFieldsValid()) values.reason = 'Nhập đủ Mã ngân hàng và Số tài khoản.';
+    values.key = JSON.stringify([key, values.manual || null, values.amount, values.addInfo]);
+    return values;
+  }
+
+  function qrPanelState(values) {
+    if (state.invoiceBusy) return 'reading';
+    const qr = state.qr;
+    if (qr.status === 'busy') return 'busy';
+    if (qr.status === 'done') return qr.key === values.key ? 'success' : 'stale';
+    if (qr.status === 'error' && qr.key === values.key) return 'error';
+    if (!$('vdAmountConfirm').hidden) return 'confirm';
+    return values.reason ? 'empty' : 'ready';
+  }
+
+  const QR_BADGES = {
+    empty: 'Chưa đủ thông tin', reading: 'Đang đọc hóa đơn', busy: 'Đang tạo…', ready: 'Sẵn sàng tạo',
+    confirm: 'Chờ xác nhận số tiền', success: 'Đã tạo', stale: 'Thông tin đã đổi', error: 'Lỗi tạo QR'
+  };
+
+  function setSummary(id, text, emptyText = '—') {
+    const el = $(id);
+    el.textContent = text || emptyText;
+    el.classList.toggle('is-empty', !text);
+  }
+
+  function updateSteps(values, panelState) {
+    const done = {
+      source: !!$('vdManualAccount').value && !values.reason,
+      amount: values.amount > 0 && panelState !== 'confirm',
+      create: panelState === 'success'
+    };
+    let currentSet = false;
+    document.querySelectorAll('#vdQrSteps li').forEach(li => {
+      if (done[li.dataset.step]) li.dataset.status = 'done';
+      else if (!currentSet) { li.dataset.status = 'current'; currentSet = true; }
+      else delete li.dataset.status;
+    });
+  }
+
+  /** Dong bo bang QR ben phai voi form: trang thai, tom tat noi dung QR, nut chinh. */
+  function refreshQrPanel() {
+    const values = qrFormValues();
+    const panelState = qrPanelState(values);
+    $('vdQrPanel').dataset.state = panelState;
+    $('vdQrBadge').textContent = QR_BADGES[panelState];
+
+    const account = values.accountKey ? accountByKey(values.accountKey) : null;
+    const name = values.manual ? values.manual.accountName : account ? (account.accountName || account.label) : '';
+    const bank = values.manual ? [values.manual.bankId, values.manual.accountNo].filter(Boolean).join(' · ')
+      : account ? (account.accountNo ? `${account.bankId} · ${account.accountNo}` : account.label) : '';
+    setSummary('vdSumName', name);
+    setSummary('vdSumBank', bank);
+    setSummary('vdSumAmount', values.amount > 0 ? intFormat.format(values.amount) + ' đ' : '', 'Người chuyển tự nhập');
+    $('vdSumWords').textContent = amountWords(values.amount);
+    setSummary('vdSumContent', values.addInfo, 'Trống');
+    $('vdAmountWords').textContent = values.amount > 0 ? amountWords(values.amount) : 'Để trống: người chuyển tự nhập số tiền.';
+
+    $('vdQrPlaceholder').hidden = !['empty', 'ready', 'confirm'].includes(panelState);
+    $('vdQrLoading').hidden = !['reading', 'busy'].includes(panelState);
+    $('vdQrLoadingText').textContent = panelState === 'reading' ? 'AI đang đọc hóa đơn…' : 'Đang tạo mã QR…';
+    $('vdManualResult').hidden = !['success', 'stale'].includes(panelState);
+    const stale = $('vdManualResult').querySelector('.vd-qr-stale');
+    if (stale) stale.hidden = panelState !== 'stale';
+    $('vdQrError').hidden = panelState !== 'error';
+    $('vdQrError').textContent = panelState === 'error' ? state.qr.error : '';
+    updateSteps(values, panelState);
+
+    $('vdQrCta').hidden = panelState === 'success';
+    $('vdQrActions').hidden = panelState !== 'success';
+    $('vdGenerateLabel').textContent = panelState === 'stale' ? 'Tạo lại mã QR'
+      : panelState === 'confirm' ? 'Xác nhận số tiền & tạo QR' : 'Tạo mã QR';
+    $('vdManualGenerate').disabled = !!values.reason || panelState === 'reading' || panelState === 'busy';
+    $('vdQrBlocker').textContent = values.reason
+      || (panelState === 'stale' ? 'Tài khoản / số tiền / nội dung đã thay đổi — mã QR cũ không còn đúng.' : '')
+      || (panelState === 'confirm' ? 'Chọn số tiền đúng ở mục Xác nhận số tiền.' : '')
+      || (panelState === 'ready' && values.amount <= 0 ? 'Chưa có số tiền — mã QR để người chuyển tự nhập.' : '');
+  }
+
+  async function generateManualQr() {
+    const values = qrFormValues();
+    if (values.reason) {
+      state.manualTouched = true;
+      updateManualFields();
+      ($('vdManualAccount').value === MANUAL ? $('vdManualBank') : $('vdManualAccount')).focus();
+      return;
+    }
+    if (state.invoiceBusy || state.qr.status === 'busy') return;
+    hideAmountConfirm();
+    $('vdManualAmount').classList.remove('vd-input--check');
+    $('vdQrActionMsg').textContent = '';
+    state.qr = { status: 'busy', key: values.key };
+    refreshQrPanel();
+    try {
+      const data = await api('/qr/url', { method: 'POST', body: { accountKey: values.accountKey, manual: values.manual, amount: String(values.amount), addInfo: values.addInfo } });
+      const label = data.accountLabel;
+      state.qr = {
+        status: 'done', key: values.key, url: data.url,
+        caption: `${label} — ${intFormat.format(data.amount)}đ${data.addInfo ? ' — ' + data.addInfo : ''}`,
+        fileName: `QR_${slug(label)}_${data.amount}.png`
+      };
+      $('vdManualResult').innerHTML = `<figure class="vd-qr-figure">
+        <button type="button" class="vd-qr-zoom" data-qr-zoom title="Bấm để phóng to"><img src="${escapeHtml(data.url)}" alt="Mã QR chuyển khoản ${escapeHtml(intFormat.format(data.amount))}đ cho ${escapeHtml(label)}"></button>
+        <div class="vd-qr-stale" hidden>Thông tin đã thay đổi —<br>bấm “Tạo lại mã QR”</div>
+      </figure>`;
+    } catch (error) {
+      state.qr = { status: 'error', key: values.key, error: error.message };
+    }
+    refreshQrPanel();
+    if (state.qr.status === 'done') {
+      if (window.matchMedia && window.matchMedia('(max-width: 900px)').matches) $('vdQrPanel').scrollIntoView({ block: 'start' });
+      $('vdQrDownload').focus({ preventScroll: true });
+    }
+  }
+
+  function openManualQrViewer() {
+    if (state.qr.url) openQrViewer({ dataset: { url: state.qr.url, caption: state.qr.caption, fileName: state.qr.fileName } });
+  }
+
+  function showQrActionMessage(tone, text) {
+    const msg = $('vdQrActionMsg');
+    msg.dataset.tone = tone;
+    msg.textContent = text;
+  }
+
+  /** Sao chep anh QR vao clipboard (img.vietqr.io cho phep CORS) de dan thang vao Zalo / email. */
+  async function copyQrImage() {
+    if (!state.qr.url) return;
+    try {
+      if (!navigator.clipboard || !window.ClipboardItem) throw new Error('unsupported');
+      const blob = fetch(state.qr.url, { mode: 'cors' })
+        .then(res => { if (!res.ok) throw new Error('fetch'); return res.blob(); })
+        .then(data => (data.type === 'image/png' ? data : new Blob([data], { type: 'image/png' })));
+      await navigator.clipboard.write([new window.ClipboardItem({ 'image/png': blob })]);
+      // Nho kich thuoc anh vua chep: lo tay Ctrl+V lai tren trang thi khong gui QR cho AI doc nhu hoa don.
+      const img = $('vdManualResult').querySelector('img');
+      state.copiedQrDims = img && img.naturalWidth ? [img.naturalWidth, img.naturalHeight] : null;
+      showQrActionMessage('', 'Đã sao chép ảnh QR — dán (Ctrl+V) vào Zalo / email để gửi khách.');
+    } catch (error) {
+      showQrActionMessage('error', 'Trình duyệt không cho sao chép ảnh — dùng “Tải mã QR”.');
+    }
+  }
+
+  async function isCopiedQrImage(file) {
+    const dims = state.copiedQrDims;
+    if (!dims || !window.createImageBitmap) return false;
+    try {
+      const bitmap = await createImageBitmap(file);
+      const same = bitmap.width === dims[0] && bitmap.height === dims[1];
+      bitmap.close();
+      return same;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /** Bat dau hoa don / QR tiep theo: xoa anh, so tien, tai khoan, noi dung, QR. */
+  function startNewQr() {
+    if (state.invoiceBusy) return;
+    $('vdManualContent').value = '';
+    if (!$('vdInvoiceCard').hidden) removeInvoice();
+    else {
+      $('vdInvoiceInfo').hidden = true;
+      resetInvoiceResult();
+      $('vdInvoiceDrop').focus();
+    }
+  }
+
+  const MAX_INVOICE_SIDE = 2000;
+
+  function canvasToJpeg(canvas) {
+    return new Promise((resolve, reject) => canvas.toBlob(blob => (blob ? resolve(blob) : reject(new Error('toBlob'))), 'image/jpeg', 0.85));
+  }
+
+  function whiteCanvas(width, height) {
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(width));
+    canvas.height = Math.max(1, Math.round(height));
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    return { canvas, ctx };
+  }
+
+  /** PDF: trang dau (ten don vi ban) + trang cuoi (tong thanh toan) dat canh nhau thanh 1 anh. */
+  async function pdfToCanvas(file) {
     const pdfjs = await import('/vendor/pdfjs/pdf.min.mjs');
     pdfjs.GlobalWorkerOptions.workerSrc = '/vendor/pdfjs/pdf.worker.min.mjs';
     const doc = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false }).promise;
-    const pages = [];
-    for (let p = 1; p <= doc.numPages; p += 1) {
-      const content = await (await doc.getPage(p)).getTextContent();
-      let text = '';
-      let lastY = null;
-      for (const item of content.items) {
-        const y = item.transform ? item.transform[5] : null;
-        if (lastY !== null && y !== null && Math.abs(y - lastY) > 2 && !text.endsWith('\n')) text += '\n';
-        text += item.str;
-        if (item.hasEOL) text += '\n';
-        lastY = y;
-      }
-      pages.push(text);
+    const pageNumbers = doc.numPages > 1 ? [1, doc.numPages] : [1];
+    const rendered = [];
+    for (const number of pageNumbers) {
+      const page = await doc.getPage(number);
+      const base = page.getViewport({ scale: 1 });
+      const viewport = page.getViewport({ scale: Math.min(3, 1600 / base.height) });
+      const { canvas, ctx } = whiteCanvas(viewport.width, viewport.height);
+      // intent 'print': pdf.js khong cho requestAnimationFrame -> van render khi tab dang an.
+      await page.render({ canvasContext: ctx, viewport, intent: 'print' }).promise;
+      rendered.push(canvas);
     }
-    return pages.join('\n');
+    const sheet = whiteCanvas(rendered.reduce((sum, c) => sum + c.width, 0), Math.max(...rendered.map(c => c.height)));
+    let x = 0;
+    for (const c of rendered) { sheet.ctx.drawImage(c, x, 0); x += c.width; }
+    return sheet.canvas;
   }
 
-  async function onPdfSelected() {
-    const file = $('vdPdfInput').files[0];
-    const info = $('vdPdfInfo');
-    state.matchedAccounts = [];
-    if (!file) { info.hidden = true; renderAccountSelect(); return; }
-    info.hidden = false;
-    info.dataset.tone = '';
-    info.textContent = '⏳ Đang đọc hóa đơn…';
+  /** Anh/PDF hoa don -> JPEG canh dai <= 2000px (giam dung luong gui len may chu va AI). */
+  async function invoiceFileToJpeg(file) {
     try {
-      const text = await extractPdfText(file);
-      const parsed = await api('/qr/parse-text', { method: 'POST', body: { text } });
-      if (parsed.error) {
-        info.dataset.tone = 'warning';
-        info.textContent = '⚠️ ' + parsed.error;
-      } else {
-        if (parsed.totalPayment !== null) $('vdManualAmount').value = formatAmount(parsed.totalPayment);
-        state.matchedAccounts = parsed.matchedAccountKeys || [];
-        const lines = ['Đơn vị bán hàng: ' + (parsed.sellerName || '(không nhận diện được)')];
-        if (parsed.totalPayment !== null) lines.push(`Tổng thanh toán: ${intFormat.format(parsed.totalPayment)}đ (đã điền vào ô Số tiền bên dưới)`);
-        lines.push(state.matchedAccounts.length
-          ? `Tài khoản gợi ý (⭐): ${state.matchedAccounts.length} tài khoản, đã chọn sẵn tài khoản đầu tiên bên dưới.`
-          : 'Tài khoản gợi ý: không tìm thấy tài khoản khớp với đơn vị bán hàng — vui lòng chọn thủ công bên dưới.');
-        info.dataset.tone = 'success';
-        info.textContent = lines.join('\n');
+      if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) return await canvasToJpeg(await pdfToCanvas(file));
+      const bitmap = await createImageBitmap(file);
+      try {
+        const scale = Math.min(1, MAX_INVOICE_SIDE / Math.max(bitmap.width, bitmap.height));
+        const { canvas, ctx } = whiteCanvas(bitmap.width * scale, bitmap.height * scale);
+        ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+        return await canvasToJpeg(canvas);
+      } finally {
+        bitmap.close();
       }
     } catch (error) {
-      info.dataset.tone = 'error';
-      info.textContent = '⚠️ Không đọc được file PDF: ' + error.message;
+      throw new Error('Không mở được file — chỉ nhận ảnh JPG, PNG, WebP hoặc file PDF.');
     }
+  }
+
+  /** Xoa so tien / tai khoan / QR / o xac nhan cua hoa don truoc: tranh tao QR nham. */
+  function resetInvoiceResult() {
+    state.matchedAccounts = [];
+    state.qr = { status: 'idle' };
+    state.manualTouched = false;
+    $('vdManualAmount').value = '';
+    $('vdManualAmount').classList.remove('vd-input--check');
+    $('vdManualAccount').value = '';
+    $('vdManualResult').innerHTML = '';
+    $('vdAmountAi').hidden = true;
+    $('vdAccountAi').hidden = true;
+    hideAmountConfirm();
     renderAccountSelect();
+  }
+
+  /** name = null -> quay ve vung dan; blob = null -> the chua co anh (PDF dang render). */
+  function setInvoicePreview(blob, name) {
+    if (state.invoiceThumbUrl) URL.revokeObjectURL(state.invoiceThumbUrl);
+    state.invoiceThumbUrl = blob ? URL.createObjectURL(blob) : null;
+    const thumb = $('vdInvoiceThumb');
+    if (blob) thumb.src = state.invoiceThumbUrl;
+    else thumb.removeAttribute('src');
+    $('vdInvoiceThumbBtn').hidden = !blob;
+    $('vdInvoiceView').hidden = !blob;
+    $('vdInvoiceName').textContent = name || '';
+    $('vdInvoiceCard').hidden = !name;
+    $('vdInvoiceDrop').hidden = !!name;
+  }
+
+  function setInvoiceStatus(text) {
+    $('vdInvoiceStatusText').textContent = text;
+    $('vdInvoiceStatus').hidden = !text;
+  }
+
+  /** Anh trong clipboard (chup man hinh / Copy image) -> File, khong co thi null. */
+  function clipboardImage(event) {
+    const items = event.clipboardData ? Array.from(event.clipboardData.items || []) : [];
+    const item = items.find(i => i.kind === 'file' && /^image\//.test(i.type));
+    return item ? item.getAsFile() : null;
+  }
+
+  const ICON_WARN = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18h.01"/></svg>';
+  const ICON_INFO = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-5M12 8h.01"/></svg>';
+
+  function calloutHtml(tone, text, note = '') {
+    return `<li class="vd-callout vd-callout--${tone}"${note ? ` data-note="${note}"` : ''}>${tone === 'info' ? ICON_INFO : ICON_WARN}<span>${escapeHtml(text)}</span></li>`;
+  }
+
+  /** Thong bao 1 dong (loi / nhac) o vung ket qua hoa don. */
+  function showInvoiceInfo(tone, text) {
+    const info = $('vdInvoiceInfo');
+    info.hidden = false;
+    info.dataset.tone = tone;
+    info.innerHTML = `<ul class="vd-callouts">${calloutHtml(tone === 'success' ? 'info' : tone, String(text).replace(/^⚠️\s*/, ''))}</ul>`;
+  }
+
+  /** Ket qua AI: Cong ty ban / Tong thanh toan (+ trang thai doi chieu) / Tai khoan goi y + cac canh bao rieng. */
+  function renderAiResult(parsed, { autoGenerate, needConfirm }) {
+    const info = $('vdInvoiceInfo');
+    const matched = state.matchedAccounts.map(accountByKey).filter(Boolean);
+    const pill = parsed.totalPayment === null ? ''
+      : parsed.amountStatus === 'ok' ? '<span class="vd-pill vd-pill--ok">Đã đối chiếu</span>'
+        : parsed.amountStatus === 'corrected' ? '<span class="vd-pill vd-pill--warn">Đã sửa theo số bằng chữ</span>'
+          : '<span class="vd-pill vd-pill--warn">Cần xác nhận</span>';
+    const notes = (parsed.warnings || []).map(warning => calloutHtml('warning', warning));
+    if (!matched.length) notes.push(calloutHtml('warning', 'Không có tài khoản khớp với công ty bán — chọn tài khoản nhận tiền ở bên dưới.'));
+    if (needConfirm) notes.push(calloutHtml('warning', 'Chưa tạo QR: xác nhận số tiền ở mục bên dưới.', 'confirm'));
+    else if (autoGenerate) notes.push(calloutHtml('info', 'Đã chọn tài khoản và tạo mã QR — kiểm tra lại trước khi gửi khách.'));
+    info.dataset.tone = notes.length && !autoGenerate ? 'warning' : 'success';
+    info.innerHTML = `<dl class="vd-ai-grid">
+      <div><dt>Công ty bán</dt><dd>${escapeHtml(parsed.sellerName || 'Không nhận diện được')}</dd></div>
+      <div><dt>Tổng thanh toán</dt><dd class="num">${parsed.totalPayment !== null ? escapeHtml(intFormat.format(parsed.totalPayment)) + ' đ' : 'Không đọc được'}</dd>${pill ? `<dd>${pill}</dd>` : ''}</div>
+      <div><dt>Tài khoản gợi ý</dt><dd>${matched.length ? matched.map(a => escapeHtml(String(a.label).split(' — ')[0])).join(', ') : 'Không khớp'}</dd></div>
+    </dl>${notes.length ? `<ul class="vd-callouts">${notes.join('')}</ul>` : ''}`;
+    info.hidden = false;
+  }
+
+  function removeInvoice() {
+    if (state.invoiceBusy) return;
+    setInvoicePreview(null, null);
+    setInvoiceStatus('');
+    $('vdInvoiceInfo').hidden = true;
+    resetInvoiceResult();
+    $('vdInvoiceDrop').focus();
+  }
+
+  function openInvoiceViewer() {
+    if (!state.invoiceThumbUrl) return;
+    state.invoiceViewerReturn = document.activeElement;
+    $('vdInvoiceViewerImg').src = state.invoiceThumbUrl;
+    $('vdInvoiceViewerScroll').classList.remove('is-zoomed');
+    $('vdInvoiceViewer').hidden = false;
+    $('vdInvoiceViewerClose').focus();
+  }
+
+  function closeInvoiceViewer() {
+    $('vdInvoiceViewer').hidden = true;
+    const back = state.invoiceViewerReturn;
+    state.invoiceViewerReturn = null;
+    if (back && document.contains(back)) back.focus();
+  }
+
+  function hideAmountConfirm() {
+    $('vdAmountConfirm').hidden = true;
+    $('vdAmountOptions').innerHTML = '';
+    const note = $('vdInvoiceInfo').querySelector('[data-note="confirm"]');
+    if (note) note.remove();
+  }
+
+  /** So tien chua chac (AI doc lech / khong doi chieu duoc): cho chon 1 trong cac so doc tren hoa don. */
+  function showAmountConfirm(parsed) {
+    const sources = parsed.amountSources || {};
+    const groups = new Map();
+    const add = (value, label, words) => {
+      if (!(value > 0)) return;
+      const group = groups.get(value) || { labels: [], words: false };
+      group.labels.push(label);
+      group.words = group.words || words;
+      groups.set(value, group);
+    };
+    add(sources.aiTotal, 'Tổng cộng tiền thanh toán (AI đọc chữ số)', false);
+    add(sources.subtotalPlusVat, 'Cộng tiền hàng + Tiền thuế GTGT', false);
+    add(sources.words, 'Số tiền viết bằng chữ', true);
+    if (!groups.size) return false;
+    $('vdAmountConfirmHint').textContent = parsed.amountStatus === 'corrected'
+      ? 'Số AI đọc ở dòng Tổng thanh toán khác với Cộng tiền hàng + Thuế và Số tiền bằng chữ. Đã chọn sẵn số khớp nhiều nguồn hơn — đối chiếu với ảnh hóa đơn rồi xác nhận.'
+      : 'Không đối chiếu được số tiền AI đọc. Đối chiếu với ảnh hóa đơn, chọn số đúng (hoặc sửa ở ô Số tiền) rồi xác nhận.';
+    $('vdAmountOptions').innerHTML = Array.from(groups.entries())
+      .sort((a, b) => b[1].labels.length - a[1].labels.length)
+      .map(([value, group]) => `<label class="vd-amount-option">
+        <input type="radio" name="vdAmountPick" value="${value}"${value === parsed.totalPayment ? ' checked' : ''}>
+        <span class="vd-amount-option-body">
+          <span class="vd-amount-value">${escapeHtml(intFormat.format(value))} đ</span>
+          <span class="vd-amount-source">${group.labels.map(escapeHtml).join(' · ')}</span>
+          ${group.words && sources.wordsText ? `<span class="vd-amount-words">“${escapeHtml(sources.wordsText)}”</span>` : ''}
+        </span>
+      </label>`).join('');
+    $('vdAmountConfirm').hidden = false;
+    return true;
+  }
+
+  function confirmAmount() {
+    if (parseAmount($('vdManualAmount').value) <= 0) { $('vdManualAmount').focus(); return; }
+    hideAmountConfirm();
+    $('vdManualAmount').classList.remove('vd-input--check');
+    generateManualQr(); // thieu tai khoan thi generateManualQr dua focus ve o tai khoan
+  }
+
+  /** Mot duong xu ly chung cho dan (Ctrl+V), keo tha va chon file. */
+  async function onInvoiceFile(file, name) {
+    if (!file || state.invoiceBusy) return;
+    state.invoiceBusy = true;
+    const input = $('vdInvoiceInput');
+    const card = $('vdInvoiceCard');
+    const info = $('vdInvoiceInfo');
+    const label = name || file.name || 'Ảnh hóa đơn';
+    const isImage = /^image\//.test(file.type);
+    resetInvoiceResult();
+    info.hidden = true;
+    setInvoicePreview(isImage ? file : null, label);
+    setInvoiceStatus('AI đang đọc hóa đơn… (thường mất 5–20 giây)');
+    card.setAttribute('aria-busy', 'true');
+    input.disabled = true;
+    $('vdInvoiceRemove').disabled = true;
+    let autoGenerate = false;
+    let needConfirm = false;
+    let parsed = null;
+    try {
+      const jpeg = await invoiceFileToJpeg(file);
+      if (!isImage) setInvoicePreview(jpeg, label);
+      const form = new FormData();
+      form.append('file', jpeg, 'hoa-don.jpg');
+      parsed = await api('/qr/parse-image', { method: 'POST', body: form });
+      if (parsed.error) {
+        showInvoiceInfo('warning', '⚠️ ' + parsed.error);
+      } else {
+        if (parsed.totalPayment !== null) $('vdManualAmount').value = formatAmountPlain(parsed.totalPayment);
+        $('vdAmountAi').hidden = parsed.totalPayment === null;
+        state.matchedAccounts = parsed.matchedAccountKeys || [];
+        // Chi tu tao QR khi so tien da doi chieu duoc; con lai bat nguoi dung xac nhan.
+        needConfirm = parsed.totalPayment !== null && parsed.amountStatus !== 'ok';
+        autoGenerate = state.matchedAccounts.length > 0 && parsed.totalPayment > 0 && !needConfirm;
+        renderAiResult(parsed, { autoGenerate, needConfirm });
+      }
+    } catch (error) {
+      // Khong mo duoc file -> quay ve vung dan; loi AI -> giu anh de thu lai / xoa.
+      if (!state.invoiceThumbUrl) setInvoicePreview(null, null);
+      showInvoiceInfo('error', '⚠️ ' + error.message);
+    } finally {
+      setInvoiceStatus('');
+      card.removeAttribute('aria-busy');
+      input.disabled = false;
+      input.value = ''; // chon lai cung file van chay
+      $('vdInvoiceRemove').disabled = false;
+      state.invoiceBusy = false;
+    }
+    $('vdAccountAi').hidden = !state.matchedAccounts.length;
+    renderAccountSelect();
+    if (needConfirm && showAmountConfirm(parsed)) {
+      $('vdManualAmount').classList.add('vd-input--check');
+      refreshQrPanel();
+      const picked = document.querySelector('input[name="vdAmountPick"]:checked') || document.querySelector('input[name="vdAmountPick"]');
+      $('vdAmountConfirm').scrollIntoView({ block: 'nearest' });
+      if (picked) picked.focus({ preventScroll: true });
+    }
+    if (autoGenerate) generateManualQr();
+  }
+
+  function bindInvoiceDrop() {
+    const drop = $('vdInvoiceDrop');
+    const card = $('vdInvoiceCard');
+    const input = $('vdInvoiceInput');
+    const qrPageOpen = () => !$('vdQrPage').hidden;
+    const hasFiles = event => !!event.dataTransfer && Array.from(event.dataTransfer.types || []).includes('Files');
+    const openPicker = () => { if (!state.invoiceBusy) input.click(); };
+
+    input.addEventListener('change', () => onInvoiceFile(input.files[0]));
+    drop.addEventListener('click', openPicker);
+    drop.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openPicker(); }
+    });
+    [drop, card].forEach(zone => {
+      zone.addEventListener('dragenter', event => { if (hasFiles(event)) zone.classList.add('is-dragover'); });
+      zone.addEventListener('dragleave', event => { if (!zone.contains(event.relatedTarget)) zone.classList.remove('is-dragover'); });
+    });
+    // Tha file o bat ky dau tren tab Tao QR cung nhan (tranh trinh duyet mo anh, roi khoi trang).
+    document.addEventListener('dragover', event => { if (qrPageOpen() && hasFiles(event)) event.preventDefault(); });
+    document.addEventListener('drop', event => {
+      if (!qrPageOpen() || !hasFiles(event)) return;
+      event.preventDefault();
+      drop.classList.remove('is-dragover');
+      card.classList.remove('is-dragover');
+      onInvoiceFile(event.dataTransfer.files[0]);
+    });
+    // Ctrl+V o bat ky dau tren tab Tao QR (thay anh dang co); dan chu vao o nhap van binh thuong.
+    document.addEventListener('paste', async event => {
+      if (!qrPageOpen() || !$('vdInvoiceViewer').hidden) return;
+      const file = clipboardImage(event);
+      if (file) {
+        event.preventDefault();
+        if (await isCopiedQrImage(file)) {
+          showQrActionMessage('', 'Ảnh vừa dán là mã QR đã sao chép (không phải hóa đơn) nên không đọc lại.');
+          return;
+        }
+        onInvoiceFile(file, 'Ảnh dán từ clipboard');
+      } else if (document.activeElement === drop) {
+        showInvoiceInfo('warning', '⚠️ Clipboard chưa có ảnh — chụp màn hình hoặc Sao chép ảnh hóa đơn rồi bấm Ctrl+V lại.');
+      }
+    });
+
+    $('vdInvoiceThumbBtn').addEventListener('click', openInvoiceViewer);
+    $('vdInvoiceView').addEventListener('click', openInvoiceViewer);
+    $('vdInvoiceRemove').addEventListener('click', removeInvoice);
+    $('vdInvoiceViewerClose').addEventListener('click', closeInvoiceViewer);
+    $('vdInvoiceViewer').addEventListener('click', event => { if (event.target === $('vdInvoiceViewer')) closeInvoiceViewer(); });
+    $('vdInvoiceViewerImg').addEventListener('click', () => $('vdInvoiceViewerScroll').classList.toggle('is-zoomed'));
+    document.addEventListener('keydown', event => { if (event.key === 'Escape' && !$('vdInvoiceViewer').hidden) closeInvoiceViewer(); });
+
+    $('vdAmountOptions').addEventListener('change', event => {
+      if (event.target.name === 'vdAmountPick') {
+        $('vdManualAmount').value = formatAmountPlain(Number(event.target.value));
+        refreshQrPanel();
+      }
+    });
+    // Sua tay o Số tiền = so khac: bo chon cac phuong an.
+    $('vdManualAmount').addEventListener('input', () => {
+      document.querySelectorAll('input[name="vdAmountPick"]').forEach(radio => { radio.checked = false; });
+    });
+    $('vdAmountConfirmOk').addEventListener('click', confirmAmount);
+    $('vdAmountConfirmView').addEventListener('click', openInvoiceViewer);
   }
 
   // ---------- Khởi tạo ----------
@@ -821,27 +1328,44 @@
     });
 
     bindQrResultActions($('vdQrCards'));
-    bindQrResultActions($('vdManualResult'));
+    $('vdManualResult').addEventListener('click', event => { if (event.target.closest('[data-qr-zoom]')) openManualQrViewer(); });
     $('vdQrViewerClose').addEventListener('click', closeQrViewer);
     $('vdQrViewer').addEventListener('click', event => { if (event.target === $('vdQrViewer')) closeQrViewer(); });
     $('vdQrViewerDownload').addEventListener('click', event => downloadQr($('vdQrViewer').dataset.url, $('vdQrViewer').dataset.fileName, event.currentTarget));
     document.addEventListener('keydown', event => { if (event.key === 'Escape' && !$('vdQrViewer').hidden) closeQrViewer(); });
 
-    $('vdPdfInput').addEventListener('change', onPdfSelected);
-    $('vdManualAccount').addEventListener('change', updateManualFields);
-    ['vdManualBank', 'vdManualNo'].forEach(id => $(id).addEventListener('input', updateManualFields));
-    $('vdManualAmount').addEventListener('change', () => { $('vdManualAmount').value = formatAmount(parseAmount($('vdManualAmount').value)); });
-    $('vdManualGenerate').addEventListener('click', () => {
-      const key = $('vdManualAccount').value;
-      $('vdQrPlaceholder').hidden = true;
-      generateQr({
-        accountKey: key === MANUAL ? undefined : key,
-        manual: key === MANUAL ? { bankId: $('vdManualBank').value.trim(), accountNo: $('vdManualNo').value.trim(), accountName: $('vdManualName').value.trim() } : undefined,
-        amount: parseAmount($('vdManualAmount').value),
-        addInfo: $('vdManualContent').value.trim(),
-        resultEl: $('vdManualResult')
-      });
+    bindInvoiceDrop();
+    // O trang thai du lieu (details): dong khi bam ra ngoai hoac Esc.
+    document.addEventListener('click', event => { if ($('vdSourceBar').open && !$('vdSourceBar').contains(event.target)) $('vdSourceBar').open = false; });
+    document.addEventListener('keydown', event => { if (event.key === 'Escape' && $('vdSourceBar').open) $('vdSourceBar').open = false; });
+    $('vdManualAccount').addEventListener('change', () => { $('vdAccountAi').hidden = true; updateManualFields(); });
+    ['vdManualBank', 'vdManualNo', 'vdManualName'].forEach(id => $(id).addEventListener('input', updateManualFields));
+    ['vdManualBank', 'vdManualNo'].forEach(id => $(id).addEventListener('blur', () => { state.manualTouched = true; updateManualFields(); }));
+    $('vdManualAmount').addEventListener('input', () => {
+      $('vdManualAmount').classList.remove('vd-input--check');
+      $('vdAmountAi').hidden = true;
+      refreshQrPanel();
     });
+    $('vdManualAmount').addEventListener('change', () => {
+      $('vdManualAmount').value = formatAmountPlain(parseAmount($('vdManualAmount').value));
+      refreshQrPanel();
+    });
+    $('vdManualContent').addEventListener('input', refreshQrPanel);
+    $('vdManualGenerate').addEventListener('click', generateManualQr);
+    // Enter trong o nhap = tao QR ngay (nhap lien tuc khong can chuot); o radio xac nhan so tien: Enter = xac nhan.
+    $('vdQrForm').addEventListener('keydown', event => {
+      if (event.key !== 'Enter' || event.isComposing || event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return;
+      const target = event.target;
+      if (target.name === 'vdAmountPick') { event.preventDefault(); confirmAmount(); return; }
+      if (target.tagName !== 'INPUT') return;
+      event.preventDefault();
+      if (target.id === 'vdManualAmount') target.value = formatAmountPlain(parseAmount(target.value));
+      generateManualQr();
+    });
+    $('vdQrDownload').addEventListener('click', event => downloadQr(state.qr.url, state.qr.fileName, event.currentTarget));
+    $('vdQrCopy').addEventListener('click', copyQrImage);
+    $('vdQrZoom').addEventListener('click', openManualQrViewer);
+    $('vdQrNew').addEventListener('click', startNewQr);
 
     document.addEventListener('click', event => {
       const link = event.target.closest('a[data-vat-draft-tab]');

@@ -7,6 +7,7 @@ const registry = require('../auth/featureRegistry');
 const { ROLES } = require('../auth/userRepository');
 const { BRANCH_COOKIE_NAME } = require('../branch/branchMiddleware');
 const { createVatDraftRouter } = require('./vatDraftRoutes');
+const { resolveInvoiceTotal } = require('./vatDraftService');
 
 const stock = (rowIndex, nguon, maVat, tenKt, ton, thueVat = 0.08) => ({
   rowIndex, nguon, maKiotDaiDien: '', tenKiotDaiDien: '', maVatKiot: maVat, tenVatKiot: 'Tên VAT', tenKeToan: tenKt, donViTinh: 'Cái',
@@ -59,7 +60,26 @@ function userFor(vaiTro, featurePermissions) {
   return { ...user, permissions: registry.resolvePermissions(user) };
 }
 
-async function request(path, { user = userFor(ROLES.QUAN_LY), method = 'GET', body, repository = fakeRepository(), masterData = fakeMaster() } = {}) {
+function fakeVision(result, { configured = true } = {}) {
+  const calls = [];
+  return {
+    calls,
+    configured,
+    extractInvoice: async (buffer, mimeType) => {
+      calls.push({ size: buffer.length, mimeType });
+      if (result instanceof Error) throw result;
+      return result;
+    }
+  };
+}
+
+function imageForm(type = 'image/jpeg', bytes = 'fake-image') {
+  const form = new FormData();
+  form.append('file', new Blob([bytes], { type }), 'hoa-don.jpg');
+  return form;
+}
+
+async function request(path, { user = userFor(ROLES.QUAN_LY), method = 'GET', body, form, repository = fakeRepository(), masterData = fakeMaster(), vision = fakeVision({}) } = {}) {
   const app = express();
   app.use(express.json({ limit: '10mb' }));
   app.use((req, res, next) => {
@@ -68,11 +88,13 @@ async function request(path, { user = userFor(ROLES.QUAN_LY), method = 'GET', bo
     req.cookies = { [BRANCH_COOKIE_NAME]: 'Cả hai' };
     next();
   });
-  app.use('/api/vat-draft', createVatDraftRouter({ repository, masterData }));
+  app.use('/api/vat-draft', createVatDraftRouter({ repository, masterData, vision }));
   const server = app.listen(0);
   try {
     const res = await fetch(`http://127.0.0.1:${server.address().port}/api/vat-draft${path}`, {
-      method, headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body)
+      method,
+      headers: form ? {} : { 'Content-Type': 'application/json' },
+      body: form || (body === undefined ? undefined : JSON.stringify(body))
     });
     const type = res.headers.get('content-type') || '';
     return { status: res.status, type, body: type.includes('json') ? await res.json() : Buffer.from(await res.arrayBuffer()) };
@@ -99,8 +121,12 @@ test('Nhan vien sale (accounting.qr): chi dung duoc Tao QR, /meta chi tra danh s
   assert.equal(meta.status, 200);
   assert.deepEqual(Object.keys(meta.body), ['vietqr']);
   assert.equal(meta.body.vietqr.accounts.length, 18);
+  const shc = meta.body.vietqr.accounts.find(a => a.key === 'shc');
+  assert.deepEqual([shc.bankId, shc.accountNo, shc.accountName, shc.group], ['MB', '525345345', 'CONG TY SHC', 'company']);
+  const groups = meta.body.vietqr.accounts.map(a => a.group);
+  assert.deepEqual([groups.filter(g => g === 'company').length, groups.filter(g => g === 'personal').length], [5, 13]);
   assert.equal((await request('/qr/url', { method: 'POST', user: sale, body: { accountKey: 'shc', amount: '1000' } })).status, 200);
-  assert.equal((await request('/qr/parse-text', { method: 'POST', user: sale, body: { text: '' } })).status, 200);
+  assert.equal((await request('/qr/parse-image', { method: 'POST', user: sale, form: imageForm() })).status, 200);
   assert.equal((await request('/documents', { user: sale })).status, 403);
   assert.equal((await request('/allocate', { method: 'POST', user: sale, body: { source: 'paste', text: 'SP01' } })).status, 403);
   assert.equal((await request('/export', { method: 'POST', user: sale, body: { view: 'allocation', columns: ['SL'], rows: [] } })).status, 403);
@@ -181,12 +207,65 @@ test('POST /export tra file xlsx; cot la bi tu choi', async () => {
   assert.equal((await request('/export', { method: 'POST', body: { view: 'lookup', columns: ['SL'], rows: [] } })).status, 400);
 });
 
-test('POST /qr/url va /qr/parse-text', async () => {
+test('POST /qr/url', async () => {
   const res = await request('/qr/url', { method: 'POST', body: { accountKey: 'shc', amount: '1.134.000 đ', addInfo: 'HD1 HD2' } });
   assert.equal(res.body.url, 'https://img.vietqr.io/image/MB-525345345-compact2.png?amount=1134000&addInfo=HD1%20HD2&accountName=CONG%20TY%20SHC');
   assert.equal((await request('/qr/url', { method: 'POST', body: { manual: { bankId: 'VCB/x', accountNo: '1' } } })).status, 400);
   const manual = await request('/qr/url', { method: 'POST', body: { manual: { bankId: 'ACB', accountNo: '123456' }, amount: '0' } });
   assert.equal(manual.body.url, 'https://img.vietqr.io/image/ACB-123456-compact2.png?amount=&addInfo=');
-  const parsed = await request('/qr/parse-text', { method: 'POST', body: { text: 'Đơn vị bán hàng (Seller): CÔNG TY CỔ PHẦN THƯƠNG MẠI VC EXPRESS\nTổng cộng tiền thanh toán (Total payment): 4.850.064' } });
-  assert.deepEqual([parsed.body.totalPayment, parsed.body.matchedAccountKeys], [4850064, ['mb_vc_ex']]);
+});
+
+test('POST /qr/parse-image: AI doc anh -> so tien + tai khoan cong ty goi y', async () => {
+  const vision = fakeVision({ sellerName: 'CÔNG TY CỔ PHẦN THƯƠNG MẠI TỔNG HỢP SHC GROUP', totalPayment: '1.320.002', totalBeforeVat: '1.222.224', vatAmount: '97.778' });
+  const res = await request('/qr/parse-image', { method: 'POST', form: imageForm('image/jpeg', 'abc'), vision });
+  assert.equal(res.status, 200);
+  assert.deepEqual(vision.calls, [{ size: 3, mimeType: 'image/jpeg' }]);
+  assert.deepEqual([res.body.totalPayment, res.body.matchedAccountKeys, res.body.warnings, 'serialNo' in res.body], [1320002, ['shc'], [], false]);
+
+  const tks = await request('/qr/parse-image', { method: 'POST', form: imageForm(), vision: fakeVision({ sellerName: 'Công ty CP TM XNK TKS Group', totalPayment: 9732220 }) });
+  assert.deepEqual([tks.body.totalPayment, tks.body.matchedAccountKeys], [9732220, ['vcb_tks_group', 'tks_group']]);
+
+  const mismatch = await request('/qr/parse-image', { method: 'POST', form: imageForm(), vision: fakeVision({ sellerName: 'LUCKY HOUSE', totalPayment: '9.732.220', totalBeforeVat: '9.011.315', vatAmount: '700.000' }) });
+  assert.equal(mismatch.body.warnings.length, 1);
+  assert.deepEqual(mismatch.body.matchedAccountKeys, ['lucky_house']);
+
+  const unreadable = await request('/qr/parse-image', { method: 'POST', form: imageForm(), vision: fakeVision({ sellerName: null, totalPayment: null }) });
+  assert.ok(unreadable.body.error);
+  assert.deepEqual(unreadable.body.matchedAccountKeys, []);
+});
+
+test('POST /qr/parse-image: AI doc nham tong (10.953.056) -> sua theo Cong tien hang + Thue va so bang chu', async () => {
+  const vision = fakeVision({
+    sellerName: 'CÔNG TY CỔ PHẦN THƯƠNG MẠI XUẤT NHẬP KHẨU TKS GROUP', totalPayment: '10.953.056', totalBeforeVat: '10.123.200', vatAmount: '809.856',
+    amountInWords: 'Mười triệu chín trăm ba mươi ba nghìn không trăm năm mươi sáu đồng'
+  });
+  const res = await request('/qr/parse-image', { method: 'POST', form: imageForm(), vision });
+  assert.deepEqual([res.body.totalPayment, res.body.amountStatus, res.body.warnings.length], [10933056, 'corrected', 1]);
+  assert.deepEqual(res.body.amountSources, { aiTotal: 10953056, subtotalPlusVat: 10933056, words: 10933056, wordsText: 'Mười triệu chín trăm ba mươi ba nghìn không trăm năm mươi sáu đồng' });
+  assert.match(res.body.warnings[0], /10\.953\.056đ.*10\.933\.056đ/);
+});
+
+test('resolveInvoiceTotal: khop / sua / khong doi chieu duoc', () => {
+  const r = (totalPayment, totalBeforeVat, vatAmount, wordsAmount) => resolveInvoiceTotal({ totalPayment, totalBeforeVat, vatAmount, wordsAmount });
+  assert.deepEqual(r(1320002, 1222224, 97778, null), { amount: 1320002, status: 'ok', warning: null });
+  assert.deepEqual(r(1320002, null, null, 1320002), { amount: 1320002, status: 'ok', warning: null });
+  assert.equal(r(11094063, 10272280, 821782, null).status, 'ok'); // le dong lam tron, lech <= 2d
+  assert.deepEqual([r(null, 10123200, 809856, 10933056).amount, r(null, 10123200, 809856, 10933056).status], [10933056, 'corrected']);
+  const unsure = r(10953056, 10123200, 809856, null); // chi co tong + tong thanh phan, lech nhau
+  assert.deepEqual([unsure.amount, unsure.status, !!unsure.warning], [10953056, 'unverified', true]);
+  const only = r(532499, null, null, null);
+  assert.deepEqual([only.amount, only.status], [532499, 'unverified']);
+  assert.deepEqual(r(null, null, null, null), { amount: null, status: 'unverified', warning: null });
+});
+
+test('POST /qr/parse-image: sai loai file 400, thieu file 400, chua cau hinh / AI loi 503', async () => {
+  const vision = fakeVision({});
+  assert.equal((await request('/qr/parse-image', { method: 'POST', form: imageForm('application/pdf'), vision })).status, 400);
+  assert.equal((await request('/qr/parse-image', { method: 'POST', form: new FormData(), vision })).status, 400);
+  assert.equal(vision.calls.length, 0);
+  const off = await request('/qr/parse-image', { method: 'POST', form: imageForm(), vision: fakeVision({}, { configured: false }) });
+  assert.deepEqual([off.status, off.body.code], [503, 'INVOICE_AI_NOT_CONFIGURED']);
+  const down = Object.assign(new Error('AI lỗi'), { statusCode: 503, code: 'INVOICE_AI_UNAVAILABLE' });
+  const failed = await request('/qr/parse-image', { method: 'POST', form: imageForm(), vision: fakeVision(down) });
+  assert.deepEqual([failed.status, failed.body.code], [503, 'INVOICE_AI_UNAVAILABLE']);
 });

@@ -9,7 +9,8 @@ const { pyStrip, pyRound } = require('./pyCompat');
 const { allocateInvoiceSources, buildUnifiedColumns, buildUnifiedDisplayRows } = require('./allocation');
 const { parseInvoicePasteRows, rowsToQueries, parseDocumentCodes } = require('./pasteParser');
 const vietqr = require('./vietqr');
-const { parseInvoiceText } = require('./invoicePdfText');
+const { parseInvoiceAmount } = require('./invoicePdfText');
+const { parseVietnameseAmountWords } = require('./amountWords');
 const vatDraftConfig = require('./vatDraftConfig');
 
 const MAX_DOCUMENTS = 200;
@@ -75,7 +76,36 @@ function pasteText(text) {
   return value;
 }
 
-function createVatDraftService({ repository, masterData, config = vatDraftConfig }) {
+const vnd = new Intl.NumberFormat('vi-VN');
+
+/**
+ * Tong thanh toan AI doc tu chu so co the nham 1 chu so (3 -> 5). Doi chieu voi 2 nguon doc lap
+ * tren cung hoa don: Cong tien hang + Thue, va So tien bang chu (tu doi sang so, khong qua AI).
+ * status: 'ok' (tong khop it nhat 1 nguon), 'corrected' (2 nguon kia khop nhau, dung so bang chu),
+ * 'unverified' (khong doi chieu duoc) -> trang bat nguoi dung xac nhan so tien truoc khi tao QR.
+ */
+function resolveInvoiceTotal({ totalPayment, totalBeforeVat, vatAmount, wordsAmount }) {
+  const sum = totalBeforeVat !== null && vatAmount !== null ? totalBeforeVat + vatAmount : null;
+  const same = (a, b) => a !== null && b !== null && Math.abs(a - b) <= 2;
+  if (same(totalPayment, wordsAmount) || same(totalPayment, sum)) return { amount: totalPayment, status: 'ok', warning: null };
+  if (same(sum, wordsAmount)) {
+    const read = totalPayment === null ? 'không đọc được Tổng thanh toán' : `đọc Tổng thanh toán là ${vnd.format(totalPayment)}đ`;
+    return {
+      amount: wordsAmount,
+      status: 'corrected',
+      warning: `AI ${read}, nhưng Cộng tiền hàng + Tiền thuế và Số tiền bằng chữ đều là ${vnd.format(wordsAmount)}đ — đã dùng ${vnd.format(wordsAmount)}đ.`
+    };
+  }
+  const amount = totalPayment ?? sum ?? wordsAmount;
+  return {
+    amount,
+    status: 'unverified',
+    warning: amount === null ? null
+      : 'Không đối chiếu được Tổng thanh toán với Cộng tiền hàng + Tiền thuế / Số tiền bằng chữ — kiểm tra kỹ số tiền trên hóa đơn rồi mới bấm Tạo mã QR.'
+  };
+}
+
+function createVatDraftService({ repository, masterData, vision = null, config = vatDraftConfig }) {
   async function loadMaster() {
     return masterData.get();
   }
@@ -182,8 +212,42 @@ function createVatDraftService({ repository, masterData, config = vatDraftConfig
     };
   }
 
-  function parsePdfText(text) {
-    const parsed = parseInvoiceText(String(text || '').normalize('NFC').slice(0, 500000));
+  /** Anh hoa don -> AI doc ten don vi ban + tong thanh toan -> tai khoan cong ty goi y. */
+  async function parseInvoiceImage({ buffer, mimeType }) {
+    if (!vision || !vision.configured) {
+      const error = new Error('Chưa cấu hình AI đọc hóa đơn — vui lòng nhập số tiền và chọn tài khoản thủ công.');
+      error.statusCode = 503;
+      error.code = 'INVOICE_AI_NOT_CONFIGURED';
+      throw error;
+    }
+    const raw = await vision.extractInvoice(buffer, mimeType);
+    const text = value => (value === null || value === undefined ? '' : pyStrip(String(value).normalize('NFC')));
+    const amount = value => parseInvoiceAmount(text(value));
+    const totalBeforeVat = amount(raw.totalBeforeVat);
+    const vatAmount = amount(raw.vatAmount);
+    const aiTotal = amount(raw.totalPayment);
+    const wordsText = text(raw.amountInWords).slice(0, 300);
+    const wordsAmount = parseVietnameseAmountWords(wordsText);
+    const total = resolveInvoiceTotal({ totalPayment: aiTotal, totalBeforeVat, vatAmount, wordsAmount });
+    const parsed = {
+      sellerName: text(raw.sellerName).slice(0, 300),
+      totalPayment: total.amount,
+      amountStatus: total.status,
+      // Cac nguon so tien de nguoi dung chon khi phai xac nhan (status khac 'ok').
+      amountSources: {
+        aiTotal,
+        subtotalPlusVat: totalBeforeVat !== null && vatAmount !== null ? totalBeforeVat + vatAmount : null,
+        words: wordsAmount,
+        wordsText
+      },
+      totalBeforeVat,
+      vatAmount,
+      warnings: total.warning ? [total.warning] : [],
+      error: null
+    };
+    if (!parsed.sellerName && parsed.totalPayment === null) {
+      parsed.error = 'AI không nhận diện được hóa đơn trong ảnh — vui lòng nhập số tiền và chọn tài khoản thủ công.';
+    }
     return {
       ...parsed,
       matchedAccountKeys: parsed.error ? [] : vietqr.getAccountsForSeller(parsed.sellerName, config).map(a => a.key)
@@ -194,11 +258,20 @@ function createVatDraftService({ repository, masterData, config = vatDraftConfig
     return {
       template: config.vietqr.template,
       commonBankCodes: vietqr.COMMON_BANK_CODES,
-      accounts: config.vietqr.accounts.map(a => ({ key: a.key, label: vietqr.formatAccountLabel(a) }))
+      // So TK in tren QR gui khach nen khong bi mat; tra rieng tung truong de trang hien ro
+      // nguoi nhan / ngan hang / so TK va nhom Cong ty / Ca nhan trong o chon tai khoan.
+      accounts: config.vietqr.accounts.map(a => ({
+        key: a.key,
+        label: vietqr.formatAccountLabel(a),
+        bankId: a.bankId,
+        accountNo: a.accountNo,
+        accountName: a.accountName || '',
+        group: /^CONG TY\b/i.test(a.accountName || '') ? 'company' : 'personal'
+      }))
     };
   }
 
-  return { allocate, qrUrl, parsePdfText, accountsMeta, masterDataMeta, parseDocumentCodes };
+  return { allocate, qrUrl, parseInvoiceImage, accountsMeta, masterDataMeta, parseDocumentCodes };
 }
 
-module.exports = { createVatDraftService, documentsToQueries, MAX_DOCUMENTS, MAX_LINES };
+module.exports = { createVatDraftService, resolveInvoiceTotal, documentsToQueries, MAX_DOCUMENTS, MAX_LINES };
