@@ -1,6 +1,6 @@
 # Supabase schema cho đồng bộ KiotViet
 
-Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0066`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
+Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0067`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
 
 ## Quy ước chung
 
@@ -59,6 +59,7 @@ Ba hệ định danh này khác nhau. Code sync phải nhận `branch` rõ ràng
 | `hr_leave_submissions` | Lịch sử gửi đơn nghỉ phép bất biến kèm hạn nộp và snapshot (0038, 0042) | `(request_id, submission_revision)` | `hr_employee_id`, `leave_sessions`, `timing_status`, `thoi_gian_gui` |
 | `account_audit_log` | Nhật ký thao tác quản trị tài khoản bất biến (0040) | `id` | `action`, `actor_username`, `target_username`, `changes`, `created_at` |
 | `special_day_notice_log` | Đánh dấu ngày lễ/sinh nhật đã báo lên chuông thông báo (0043) | `(day_key, event_key)` | `sent_at` |
+| `product_stockout_days` | Số ngày đứt hàng 30 ngày gần nhất theo mã và cơ sở, cho cột Đứt HN/SG của Báo cáo hàng hóa (0067) | `product_key` | `product_code`, `days_hanoi`, `days_saigon`, `hanoi_scanned_at`, `saigon_scanned_at` |
 
 Ngoài 19 bảng nghiệp vụ trên còn có bảng raw webhook, bảng tiến độ backfill, và runner quản lý bảng kỹ thuật `schema_migrations(filename, applied_at)` để mỗi file SQL chỉ được áp dụng một lần.
 
@@ -488,7 +489,18 @@ Job chốt xóa run/feedback/history cũ hơn 7 ngày. SELECT của `reporting_r
 
 ## Đơn giá theo cơ sở của Báo cáo hàng hóa — migration 0063 (17/10/2026, chưa áp DB)
 
-`0063_product_report_price_columns.sql` thêm 2 cột **nullable, không DEFAULT** vào `product_report`: `price_hanoi NUMERIC`, `price_saigon NUMERIC` (giá bán chung `products.base_price` của mã hàng ở từng cơ sở). `price_hanoi` luôn có số sau khi tính lại (danh sách mã lấy theo Hà Nội, thiếu giá coi như 0); `price_saigon` NULL khi Sài Gòn không có mã. NULL ở cả hai cột = chưa tính lại sau migration (giao diện hiện "—"). Job đêm (`productReportRefresh`) và lượt tăng dần (`productReportIncremental`) cùng ghi; job đêm tự tính lại khi còn dòng `price_hanoi IS NULL`. Chỉ `GET /api/product-report` trả `priceHanoi`/`priceSaigon` và chỉ khi tài khoản có quyền `reports.products.price`; không có trong file xuất.
+`0063_product_report_price_columns.sql` thêm 2 cột **nullable, không DEFAULT** vào `product_report`: `price_hanoi NUMERIC`, `price_saigon NUMERIC` (giá bán chung `products.base_price` của mã hàng ở từng cơ sở). `price_hanoi` luôn có số sau khi tính lại (danh sách mã lấy theo Hà Nội, thiếu giá coi như 0); `price_saigon` NULL khi Sài Gòn không có mã. NULL ở cả hai cột = chưa tính lại sau migration (giao diện hiện "—"). Job đêm (`productReportRefresh`) và lượt tăng dần (`productReportIncremental`) cùng ghi; job đêm tự tính lại khi còn dòng `price_hanoi IS NULL`. Chỉ `GET /api/product-report` trả `priceHanoi`/`priceSaigon` và chỉ khi tài khoản có quyền `reports.products.price`; từ 19/10/2026 hai trường này cũng có trong file Excel/HTML xuất (cùng điều kiện quyền). Từ migration `0067` Đơn giá HN/SG là hai cột cuối nhóm số của bảng 34 cột (xem mục 0067 bên dưới).
+
+## Báo cáo hàng hóa theo sheet BC CHUNG — migration 0067 (19/10/2026, đã tạo, chờ áp DB)
+
+`0067_product_report_bc_chung.sql` làm hai việc, đều additive:
+
+1. Thêm 4 cột **NUMERIC nullable, không DEFAULT** vào `product_report` (đúng mẫu `0057`/`0063`): `qty_sold_30d_hanoi`, `qty_sold_30d_saigon` (SL bán 30 ngày từng cơ sở từ rollup `daily_product_sales`, cộng hai cột = `qty_sold_30d`; cùng CTE `sales_30d` nên cũng được tính ở lượt nhẹ của job tăng dần), `orders_30d`, `orders_90d` (số hóa đơn khác nhau, không phải "Đã hủy", cả hai cơ sở, có chứa mã hàng; đếm theo mã hàng `lower(btrim(mã))` chứ không theo `product_id`; dòng hàng trả lại không tính; đơn của khách ngừng hoạt động vẫn tính). NULL = chưa tính lại sau migration: API trả `null`, giao diện hiện "—". `orders_*` chỉ được tính ở **lượt nặng** (job đêm hoặc lượt nặng của `productReportIncremental`, qua bảng tạm `pr_orders_new`); lượt nhẹ giữ giá trị cũ của dòng. Cổng `GATE_SQL` thêm điều kiện còn dòng `orders_90d IS NULL` (lý do `thieu-so-don`) nên lần chạy đầu sau khi áp migration job tăng dần tự chạy lượt nặng; job đêm (`refreshProductReportIfDue`) tự tính lại khi còn dòng `qty_sold_30d_hanoi IS NULL OR orders_90d IS NULL`.
+2. Tạo bảng `product_stockout_days`: `product_key TEXT PRIMARY KEY` (= `lower(btrim(mã hàng))`), `product_code TEXT NOT NULL`, `days_hanoi INTEGER NOT NULL DEFAULT 0`, `days_saigon INTEGER NOT NULL DEFAULT 0`, `hanoi_scanned_at TIMESTAMPTZ`, `saigon_scanned_at TIMESTAMPTZ`. Lưu **tổng số ngày đứt hàng trong 30 ngày gần nhất** (`totalStockoutDays` của lượt "Quét đứt hàng 30 ngày") cho cột Đứt HN/SG. Bảng riêng, không phải cột `product_report`, vì job đêm cũ `TRUNCATE product_report` sẽ xóa cột còn kết quả quét thì không được mất. Người ghi duy nhất: `dashboard/stockoutCheck/stockoutDaysStore.js` (`persistStockoutDays`), gọi sau MỖI lần quét 30 ngày của một cơ sở (route `POST /api/products/stockout-30d/scan`, "Cả hai" gọi lần lượt từng cơ sở): trong một transaction, khóa advisory `pg_advisory_xact_lock(20531056)`, đặt `days_<cơ sở> = 0` + `<cơ sở>_scanned_at = now()` cho cả bảng (mã vắng trong kết quả = hết đứt), rồi ghi đè mã có đứt bằng `UNNEST` + `ON CONFLICT (product_key) DO UPDATE`, rồi `UPDATE product_report_state SET version = version + 1` (nếu bảng state tồn tại) để cache đọc thấy ngay. Chỉ đụng cột của cơ sở vừa quét. Không có lịch tự chạy; chưa quét lần nào thì không có dòng nào (đọc ra 0). Lỗi lưu chỉ thành cảnh báo trong kết quả quét, không làm hỏng job.
+
+**Cột suy ra khi đọc, không lưu** (`productReportRepository.js`, hàm `compose`; kết quả cache theo `product_report_state.version`; mẫu số ≤ 0 hoặc thiếu → null, giữ số âm): `availableValueHanoi/Saigon` = Có bán × Đơn giá cùng cơ sở; `daysHanoi` = Có bán HN ÷ `qty_sold_30d_hanoi` × 30; `daysSaigonTransit` = (Điều chuyển SG + Có bán SG) ÷ `qty_sold_30d_saigon` × 30; `daysBothBranches` = Tổng có bán + ĐC ÷ `qty_sold_30d` × 30 (làm tròn 1 chữ số thập phân); `ordersGrowth` = `orders_30d` × 3 ÷ `orders_90d` − 1. Bộ đọc `LEFT JOIN product_stockout_days` theo `lower(btrim(product_code))` với `COALESCE(..., 0)`, **fail-soft** khi bảng chưa tồn tại (`42P01` → truy vấn cũ, Đứt = 0).
+
+API `GET /api/product-report` và xuất Excel/HTML dùng chung hằng `PRODUCT_REPORT_PRICE_KEYS` = `priceHanoi`, `priceSaigon`, `availableValueHanoi`, `availableValueSaigon`; thiếu quyền `reports.products.price` thì cả 4 khóa bị bóc. **Thứ tự triển khai: áp 0067 trước khi chạy mã mới** (job tăng dần/job đêm INSERT các cột mới; chưa áp thì lượt tính lại lỗi `42703` và rollback, bảng cũ vẫn đọc bình thường). Sau khi áp, chạy "Quét đứt hàng 30 ngày" cơ sở "Cả hai" một lần để có dữ liệu Đứt HN/SG.
 
 ## Hàng dự kiến — migration 0053 (15/10/2026)
 

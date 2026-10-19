@@ -2,7 +2,9 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { getProductReport, getProductReportCustomers, __test__ } = require('./productReportRepository');
+const {
+  getProductReport, getProductReportCustomers, PRODUCT_REPORT_PRICE_KEYS, __test__
+} = require('./productReportRepository');
 
 test('getProductReport chi giu ma dang kinh doanh o it nhat mot co so, ke ca het ton/chua ban', async () => {
   const { PGlite } = require('@electric-sql/pglite');
@@ -13,6 +15,7 @@ test('getProductReport chi giu ma dang kinh doanh o it nhat mot co so, ke ca het
     await db.exec(fs.readFileSync(path.join(__dirname, '../db/migrations/0018_product_report.sql'), 'utf8'));
     await db.exec(fs.readFileSync(path.join(__dirname, '../db/migrations/0057_product_report_branch_columns.sql'), 'utf8'));
     await db.exec(fs.readFileSync(path.join(__dirname, '../db/migrations/0063_product_report_price_columns.sql'), 'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname, '../db/migrations/0067_product_report_bc_chung.sql'), 'utf8'));
     await db.exec(fs.readFileSync(path.join(__dirname, '../db/migrations/0053_product_containers.sql'), 'utf8'));
     await db.exec(`
       CREATE TABLE products (branch text, code text, is_active boolean);
@@ -36,6 +39,11 @@ test('getProductReport chi giu ma dang kinh doanh o it nhat mot co so, ke ca het
     assert.equal(result.rows[0].descriptionSaigon, '');
     assert.equal(result.rows[0].priceHanoi, null);
     assert.equal(result.rows[0].priceSaigon, null);
+    // Migration 0067: cot chua tinh lai la null, so ngay dut khong co dong trong product_stockout_days la 0.
+    assert.equal(result.rows[0].qtySold30dHanoi, null);
+    assert.equal(result.rows[0].orders90d, null);
+    assert.equal(result.rows[0].stockoutDaysHanoi, 0);
+    assert.equal(result.rows[0].stockoutDaysSaigon, 0);
 
     // Trang thai moi phai co hieu luc ca khi snapshot ban dem chua duoc tinh lai.
     await db.exec("UPDATE products SET is_active = false WHERE code = 'ACTIVE'");
@@ -65,12 +73,19 @@ test('mapRow chuyen doi cot Postgres (snake_case, string so) sang camelCase (num
     description_saigon: null,
     price_hanoi: '12000',
     price_saigon: null,
+    qty_sold_30d_hanoi: '2',
+    qty_sold_30d_saigon: '1',
+    orders_30d: '4',
+    orders_90d: '9',
+    stockout_days_hanoi: '3',
+    stockout_days_saigon: null,
     computed_at: '2026-09-23T00:05:00.000Z'
   });
   assert.deepEqual(row, {
     code: 'SP001', name: 'San pham 1', stockHanoi: 10, stockSaigon: 5, availableToSell: 12,
     availableHanoi: 7, availableSaigon: -2, descriptionHanoi: 'T50 # 30/9 # 1T -37200', descriptionSaigon: '',
     priceHanoi: 12000, priceSaigon: null,
+    qtySold30dHanoi: 2, qtySold30dSaigon: 1, orders30d: 4, orders90d: 9, stockoutDaysHanoi: 3, stockoutDaysSaigon: 0,
     qtySold30d: 3, revenue90d: 900000, customerCount90d: 2, topCustomerRevenue90d: 500000,
     topCustomerName: 'Nguyen Van A', topCustomerShare: 0.5555, computedAt: '2026-09-23T00:05:00.000Z'
   });
@@ -247,6 +262,7 @@ async function versionedFixture() {
   const db = new PGlite();
   await db.exec(fs.readFileSync(path.join(migrations, '0018_product_report.sql'), 'utf8'));
   await db.exec(fs.readFileSync(path.join(migrations, '0057_product_report_branch_columns.sql'), 'utf8'));
+  await db.exec(fs.readFileSync(path.join(migrations, '0067_product_report_bc_chung.sql'), 'utf8'));
   await db.exec(fs.readFileSync(path.join(migrations, '0053_product_containers.sql'), 'utf8'));
   const m55 = fs.readFileSync(path.join(migrations, '0055_product_report_state.sql'), 'utf8');
   await db.exec(m55.slice(m55.indexOf('CREATE TABLE'), m55.indexOf(');', m55.indexOf('CREATE TABLE')) + 2));
@@ -277,14 +293,14 @@ test('bo doc theo phien ban: chi keo 10,9K dong ve khi version doi; tong CONT ch
     assert.equal(first.rows[0].daysToOrder, 50, '(10 + 40 + 0) * 30 / 30');
     assert.equal(first.rows[1].availableHanoi, null);
     assert.equal(first.rows[1].daysToOrder, null);
-    assert.equal(reads(calls, /SELECT \* FROM product_report ORDER BY/), 1);
+    assert.equal(reads(calls, /FROM product_report pr\b/), 1);
     assert.equal(reads(calls, /jsonb_object_agg/), 1);
     // Tuy y sua ket qua tra ve khong lam ban cache.
     first.rows[0].name = 'DA SUA';
     first.rows[0].availableToSell += 1000;
 
     const second = await reader.read();
-    assert.equal(reads(calls, /SELECT \* FROM product_report ORDER BY/), 1, 'cung version => khong doc lai bang bao cao');
+    assert.equal(reads(calls, /FROM product_report pr\b/), 1, 'cung version => khong doc lai bang bao cao');
     assert.equal(reads(calls, /jsonb_object_agg/), 1, 'cung version CONT => khong doc lai tong CONT');
     assert.equal(second.rows[0].name, 'Sp A');
     assert.equal(second.rows[0].availableToSell, 10);
@@ -294,7 +310,7 @@ test('bo doc theo phien ban: chi keo 10,9K dong ve khi version doi; tong CONT ch
     const third = await reader.read();
     assert.equal(third.reportVersion, '4');
     assert.equal(third.rows[0].stockHanoi, 77);
-    assert.equal(reads(calls, /SELECT \* FROM product_report ORDER BY/), 2);
+    assert.equal(reads(calls, /FROM product_report pr\b/), 2);
     assert.equal(reads(calls, /jsonb_object_agg/), 1);
 
     // Version CONT doi => doc lai tong CONT.
@@ -349,4 +365,117 @@ test('bang state rong (chua tung chay tang dan) => luong cu loc is_active luc do
     assert.equal(result.reportVersion, null);
     assert.deepEqual(result.rows.map(r => r.code), ['A']);
   } finally { await db.close(); }
+});
+
+// ---- Migration 0067: cot BC CHUNG (SL 30 theo co so, SL don, ngay dut) + cot suy ra ----
+test('PRODUCT_REPORT_PRICE_KEYS: don gia + gia tri co ban cua hai co so', () => {
+  assert.deepEqual([...PRODUCT_REPORT_PRICE_KEYS], ['priceHanoi', 'priceSaigon', 'availableValueHanoi', 'availableValueSaigon']);
+});
+
+test('daysOfCover = so luong * 30 / SL ban 30 ngay, lam tron 1 so le; mau so <= 0 hoac null => null', () => {
+  const { daysOfCover } = __test__;
+  assert.equal(daysOfCover(100, 2000), 1.5);
+  assert.equal(daysOfCover(7, 3), 70, 'nhan truoc roi chia');
+  assert.equal(daysOfCover(-30, 10), -90, 'am van tinh dung');
+  assert.equal(daysOfCover(0, 10), 0);
+  assert.equal(daysOfCover(10, 0), null);
+  assert.equal(daysOfCover(10, -1), null);
+  assert.equal(daysOfCover(10, null), null);
+  assert.equal(daysOfCover(null, 10), null);
+});
+
+function mockPool(rows, transit = []) {
+  return { query: async (sql) => {
+    if (sql.includes('FROM product_report_state')) return { rows: [] };
+    if (sql.includes('-- in-transit:')) return { rows: transit };
+    if (sql.includes('FROM product_report')) return { rows };
+    return { rows: [] };
+  } };
+}
+
+test('compose: gia tri co ban, ngay HN / SG + DC / 2 mien, tang truong don (null khi thieu ve hoac mau so <= 0, giu so am)', async () => {
+  const full = {
+    product_code: 'SKU-01', stock_hanoi: 799, stock_saigon: 200, available_to_sell: 150, qty_sold_30d: 3500,
+    qty_sold_30d_hanoi: 2000, qty_sold_30d_saigon: 1500, orders_30d: 30, orders_90d: 60,
+    available_hanoi: 100, available_saigon: 50, price_hanoi: 12000, price_saigon: 12500,
+    stockout_days_hanoi: 4, stockout_days_saigon: 9
+  };
+  const negative = {
+    product_code: 'SKU-02', available_to_sell: -2, qty_sold_30d: 0, qty_sold_30d_hanoi: 0, qty_sold_30d_saigon: 10,
+    orders_30d: 5, orders_90d: 0, available_hanoi: -4, available_saigon: 2, price_hanoi: 1000, price_saigon: null
+  };
+  const pending = { product_code: 'SKU-03', available_to_sell: 5, qty_sold_30d: 10 }; // moi ap migration: moi cot moi deu NULL
+  const result = await getProductReport({ pool: mockPool([full, negative, pending], [{ product_key: 'sku-01', qty: '500' }]) });
+  const [a, b, c] = result.rows;
+  assert.equal(a.availableValueHanoi, 1200000);
+  assert.equal(a.availableValueSaigon, 625000);
+  assert.equal(a.daysHanoi, 1.5, '100 * 30 / 2000');
+  assert.equal(a.daysSaigonTransit, 11, '(500 + 50) * 30 / 1500');
+  assert.equal(a.availableToSell, 650);
+  assert.equal(a.daysBothBranches, 5.6, '650 * 30 / 3500 = 5,57');
+  assert.equal(a.ordersGrowth, 0.5, '30 * 3 / 60 - 1');
+  assert.equal(a.stockoutDaysHanoi, 4);
+  assert.equal(a.stockoutDaysSaigon, 9);
+
+  assert.equal(b.availableValueHanoi, -4000, 'co ban am van ra gia tri am, khong loc');
+  assert.equal(b.availableValueSaigon, null, 'thieu don gia SG');
+  assert.equal(b.daysHanoi, null, 'khong ban duoc ngay nao');
+  assert.equal(b.daysSaigonTransit, 6, '(0 + 2) * 30 / 10');
+  assert.equal(b.daysBothBranches, null);
+  assert.equal(b.ordersGrowth, null, 'SL don 90 ngay = 0');
+
+  for (const key of ['qtySold30dHanoi', 'qtySold30dSaigon', 'orders30d', 'orders90d', 'availableValueHanoi', 'availableValueSaigon',
+    'daysHanoi', 'daysSaigonTransit', 'ordersGrowth']) {
+    assert.equal(c[key], null, key + ' null khi dong chua tinh lai');
+  }
+  assert.equal(c.daysBothBranches, 15, 'cot nay chi can SL 30 ngay tong da co: 5 * 30 / 10');
+  assert.equal(c.stockoutDaysHanoi, 0);
+  assert.equal(c.stockoutDaysSaigon, 0);
+});
+
+test('bo doc join product_stockout_days theo lower(btrim(ma)), thieu dong => 0', async () => {
+  const { createProductReportReader } = require('./productReportRepository');
+  const { db, pool } = await versionedFixture();
+  try {
+    await db.exec("INSERT INTO product_stockout_days (product_key, product_code, days_hanoi, days_saigon) VALUES ('a', 'a ', 3, 7);");
+    const versioned = await createProductReportReader({ pool }).read();
+    const [a, b] = versioned.rows;
+    assert.deepEqual([a.stockoutDaysHanoi, a.stockoutDaysSaigon], [3, 7]);
+    assert.deepEqual([b.stockoutDaysHanoi, b.stockoutDaysSaigon], [0, 0]);
+
+    // Luong cu (chua co state) cung join.
+    await db.exec(`DELETE FROM product_report_state;
+      CREATE TABLE products (branch text, code text, is_active boolean);
+      INSERT INTO products VALUES ('hanoi','A',true),('hanoi','B',true);`);
+    const legacy = await createProductReportReader({ pool }).read();
+    assert.equal(legacy.reportVersion, null);
+    assert.deepEqual(legacy.rows.map(r => [r.code, r.stockoutDaysHanoi, r.stockoutDaysSaigon]), [['A', 3, 7], ['B', 0, 0]]);
+  } finally { await db.close(); }
+});
+
+test('FAIL-SOFT: chua ap migration 0067 (khong co bang product_stockout_days, 42P01) => van doc duoc, ngay dut = 0', async () => {
+  const { createProductReportReader } = require('./productReportRepository');
+  const { db, pool } = await versionedFixture();
+  try {
+    await db.exec('DROP TABLE product_stockout_days');
+    // Nhanh co state (doc theo phien ban).
+    const versioned = await createProductReportReader({ pool }).read();
+    assert.deepEqual(versioned.rows.map(r => r.code), ['A', 'B']);
+    assert.deepEqual(versioned.rows.map(r => [r.stockoutDaysHanoi, r.stockoutDaysSaigon]), [[0, 0], [0, 0]]);
+    // Nhanh legacy (khong co state).
+    await db.exec(`DELETE FROM product_report_state;
+      CREATE TABLE products (branch text, code text, is_active boolean);
+      INSERT INTO products VALUES ('hanoi','A',true);`);
+    const legacy = await createProductReportReader({ pool }).read();
+    assert.deepEqual(legacy.rows.map(r => [r.code, r.stockoutDaysHanoi, r.stockoutDaysSaigon]), [['A', 0, 0]]);
+  } finally { await db.close(); }
+});
+
+test('FAIL-SOFT chi nuot 42P01: loi khac van duoc nem ra', async () => {
+  const pool = { query: async (sql) => {
+    if (sql.includes('FROM product_report_state')) return { rows: [] };
+    if (sql.includes('product_stockout_days')) throw Object.assign(new Error('permission denied'), { code: '42501' });
+    return { rows: [] };
+  } };
+  await assert.rejects(() => getProductReport({ pool }), /permission denied/);
 });

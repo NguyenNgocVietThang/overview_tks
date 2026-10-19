@@ -9,7 +9,7 @@
 | Tên dự án         | Hệ thống Dashboard nội bộ TOKOSI (KiotViet → Supabase PostgreSQL → Web; Google Sheets bổ trợ) |
 | Phiên bản         | 2.3                                                                 |
 | Ngày tạo          | 27/07/2026                                                          |
-| Ngày cập nhật     | 16/10/2026                                                          |
+| Ngày cập nhật     | 19/10/2026                                                          |
 | Đối tượng sử dụng | Ban lãnh đạo, nhân viên nội bộ công ty                              |
 | Trạng thái        | Nội dung nền rà soát tại HEAD `11751c4` (05/10); bổ sung Sổ quỹ đã kiểm chứng cục bộ 06/10, migration `0033` và deploy production còn chờ. |
 
@@ -129,7 +129,7 @@ Chỉ hàng **Đang kinh doanh** được tính; không còn KPI nhà cung cấp
 ## 5.3. Biểu đồ & bảng dữ liệu chi tiết
 
 - **Tổng quan:** biểu đồ doanh thu thực tế theo ngày; biểu đồ cột chồng **Giá trị tồn kho theo ngày** (HN + SG, bản chụp 23:59 mỗi ngày); **Kiểm tra đứt hàng** (nhập Trả NCC, hàng đứt gần đây, kiểm tra 30/90 ngày).
-- **Hàng hóa:** Báo cáo hàng hóa gộp hai cơ sở (19 cột theo file HÀNG HÓA.xlsx: tồn thực, có bán và mô tả giá từng cơ sở, tổng, số ngày cần đặt; bấm dòng xem Hàng dự kiến rồi doanh số 90 ngày từng khách) và Tăng trưởng mã hàng theo tháng. Các mục cũ (Cơ cấu tồn kho, Sản phẩm bán chạy, Tất cả mã hàng, Hàng mới nhập, Mã mới tạo) đã gỡ ngày 16/10/2026.
+- **Hàng hóa:** Báo cáo hàng hóa gộp hai cơ sở (34 cột theo thứ tự sheet BC CHUNG từ 19/10/2026: tồn thực, có bán, SL bán 30 ngày, số ngày đứt hàng, số ngày bán hết, số đơn 30/90 ngày và tăng trưởng, giá trị có bán và đơn giá từng cơ sở, tổng, số ngày cần đặt, mô tả; cột mới ẩn mặc định, bật bằng "Cột hiển thị"; giá trị có bán và đơn giá chỉ Quản lý/Trợ lý thấy và xuất được; bấm dòng xem Hàng dự kiến rồi doanh số 90 ngày từng khách) và Tăng trưởng mã hàng theo tháng. Các mục cũ (Cơ cấu tồn kho, Sản phẩm bán chạy, Tất cả mã hàng, Hàng mới nhập, Mã mới tạo) đã gỡ ngày 16/10/2026.
 - **Hóa đơn:** bảng Chi tiết giao dịch; bấm một dòng để xem chi tiết hóa đơn (dòng hàng, tổng tiền, thanh toán).
 - **Khách hàng:** báo cáo tăng trưởng Sale / Khách hàng / Mã hàng theo tháng (tab Báo cáo kinh doanh cũ). Bảng Top khách theo doanh thu và Chi tiết khách nợ của tab Khách hàng cũ đã gỡ (16/10/2026); công nợ theo khách xem ở tab Công nợ.
 - **Công thức Tồn có thể bán** = Tồn thực tế − Đặt hàng Phiếu tạm của khách (không kẹp về 0; không cộng hàng đang vận chuyển).
@@ -313,7 +313,9 @@ Bổ sung 17/10/2026: tab Công nợ có thêm bảng **Tuổi nợ theo hóa đ
 
 17/10/2026 — Báo cáo hàng hóa thêm hai cột **Đơn giá HN / Đơn giá SG** sau Tên sản phẩm (giá bán chung KiotViet từng cơ sở, migration `0063`), mặc định hiện cho Quản lý/Trợ lý (19/10/2026) và có trong file Excel/HTML xuất, chỉ Quản lý và Trợ lý (quyền `reports.products.price`) được thấy; API không trả giá cho tài khoản khác.
 
-Cập nhật gần nhất: 17/10/2026.
+19/10/2026 — Báo cáo hàng hóa thay phần ghép tay của sheet **BC CHUNG** (VLOOKUP từ ONRENDER + gõ tay SL 30 ngày HN/SG, Đứt HN/SG, SL đơn 90/30 ngày, giá vốn): bảng web và file Excel/HTML nay có đủ 34 cột cùng thứ tự BC CHUNG, dữ liệu tính sẵn trong DB và cập nhật cận thời gian thực. Cột mới: Giá trị có bán HN/SG (Có bán × Đơn giá cùng cơ sở), SL bán 30 ngày HN/SG, Đứt HN/SG (tổng số ngày đứt hàng 30 ngày gần nhất, cập nhật sau mỗi lần chạy "Quét đứt hàng 30 ngày"; chưa quét = 0, không có lịch tự chạy), Ngày SG + ĐC / Ngày HN / Ngày 2 miền (số ngày bán hết), SL đơn 90/30 ngày và Tăng trưởng (= SL đơn 30 ngày × 3 ÷ SL đơn 90 ngày − 1), cùng DS khách lớn nhất. Đơn giá (chính là "giá vốn" của BC CHUNG) dời xuống cuối bảng; Giá trị có bán và Đơn giá chỉ Quản lý/Trợ lý (`reports.products.price`). Migration `0067` phải áp trước khi deploy; nhắc người dùng chạy "Quét đứt hàng 30 ngày" cơ sở "Cả hai" lần đầu.
+
+Cập nhật gần nhất: 19/10/2026.
 
 Điều chỉnh 15/10/2026: trong tháng hiển thị điểm/hạng, thưởng tạm tính và tổng phạt từ các ngày ĐÃ CHỐT, không cộng chu kỳ đang mở. Lúc 14:59 giờ Việt Nam lưu bản cuối của chu kỳ 15:00 hôm trước–14:59 hôm sau, mỗi chu kỳ đúng một lần và không ghi đè; 15:00 mới reset. Nhiều lần Tính lại trong chu kỳ chỉ cập nhật bản đang mở, không cộng thành nhiều ngày. Tiền thưởng hiện mỗi ngày với nhãn Thưởng tạm tính, thay đổi theo điểm và tổng phạt đã chốt ngày; chỉ chốt/lưu thưởng chính thức một lần khi kết thúc tháng. Web, hộp chi tiết và file xuất đều phân biệt tạm tính/đã chốt.
 

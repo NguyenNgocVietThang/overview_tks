@@ -18,6 +18,9 @@
 // bang doanh so, (d) chi giu ma dang kinh doanh o it nhat 1 co so (bo loc truoc day nam o luc doc).
 // 4 cot theo co so (co ban HN/SG, mo ta HN/SG - migration 0057) do chinh REFRESH_SQL cung cap nen mo ta sua tren
 // KiotViet cung cap nhat sau moi luot nay.
+// Migration 0067: SL ban 30 ngay HN/SG di theo sales_30d (re, moi luot); SL don 30/90 ngay (orders_30d/orders_90d)
+// chi tinh o luot NANG tu cung sales90_lines voi khach lon nhat (nap vao bang tam pr_orders_new), luot nhe giu
+// nguyen gia tri cu cua dong; con dong orders_90d NULL (ma moi do luot nhe them) thi luot ke tiep chay luot nang.
 
 const CONFIG = require('../config');
 const { __sql__: legacy } = require('./productReportRefresh');
@@ -53,15 +56,18 @@ const PENDING_ORDERS = cut('pending_orders AS (', '  sales_30d AS (');
 function windowed({ includeToday }) {
   const sales30 = cut('sales_30d AS (', '  sales_90d AS (');
   const sales90 = cut('sales_90d AS (', '  -- Doanh so rong cua khach');
-  const lines = cut('sales90_lines AS (', '  -- MATERIALIZED:');
-  if (!includeToday) return { sales30, sales90, lines };
+  const lines = cut('sales90_lines AS (', '  -- SL don theo MA HANG');
+  const orders = cut('order_counts AS (', '  -- MATERIALIZED:');
+  if (!includeToday) return { sales30, sales90, lines, orders };
   return {
     sales30: swap(sales30, 'dps.sale_date >= vn_today.today - 30 AND dps.sale_date <= vn_today.today - 1',
       'dps.sale_date >= vn_today.today - 29 AND dps.sale_date <= vn_today.today', 1),
     sales90: swap(sales90, 'dps.sale_date >= vn_today.today - 90 AND dps.sale_date <= vn_today.today - 1',
       'dps.sale_date >= vn_today.today - 89 AND dps.sale_date <= vn_today.today', 1),
     lines: swap(swap(lines, '(vn_today.today - 90)::timestamp', '(vn_today.today - 89)::timestamp', 2),
-      "(vn_today.today::timestamp AT TIME ZONE 'UTC')", "((vn_today.today + 1)::timestamp AT TIME ZONE 'UTC')", 2)
+      "(vn_today.today::timestamp AT TIME ZONE 'UTC')", "((vn_today.today + 1)::timestamp AT TIME ZONE 'UTC')", 2),
+    // 30 ngay cua SL don = today-29..today (cung do dai voi sales30 o tren).
+    orders: swap(orders, '(vn_today.today - 30)::timestamp', '(vn_today.today - 29)::timestamp', 1)
   };
 }
 
@@ -70,30 +76,40 @@ const PRODUCT_COLUMNS = [
   'product_code', 'product_name', 'stock_hanoi', 'stock_saigon', 'available_to_sell', 'qty_sold_30d',
   'revenue_90d', 'customer_count_90d', 'top_customer_revenue_90d', 'top_customer_name', 'top_customer_share',
   'available_hanoi', 'available_saigon', 'description_hanoi', 'description_saigon',
-  'price_hanoi', 'price_saigon'
+  'price_hanoi', 'price_saigon',
+  'qty_sold_30d_hanoi', 'qty_sold_30d_saigon', 'orders_30d', 'orders_90d'
 ];
 
 const CREATE_STAGE_SQL = [
   'CREATE TEMP TABLE pr_new (LIKE product_report) ON COMMIT DROP',
-  'CREATE TEMP TABLE pr_customers_new (LIKE product_report_customers) ON COMMIT DROP'
+  'CREATE TEMP TABLE pr_customers_new (LIKE product_report_customers) ON COMMIT DROP',
+  'CREATE TEMP TABLE pr_orders_new (product_key text PRIMARY KEY, orders_30d numeric NOT NULL, orders_90d numeric NOT NULL) ON COMMIT DROP'
 ];
 
 function buildSql({ includeToday = true } = {}) {
   const w = windowed({ includeToday });
 
-  // Phan NANG: doanh so tung khach theo ma hang (customer_agg cu), nap san vao bang tam NUMERIC.
-  const fillCustomers = `INSERT INTO pr_customers_new (product_key, customer_key, customer_name, revenue)
-  WITH ${VN_TODAY},
-  ${w.lines}
+  // Phan NANG: doanh so tung khach theo ma hang (customer_agg cu), nap san vao bang tam NUMERIC; cung mot lan
+  // quet sales90_lines con nap SL don 30/90 ngay vao pr_orders_new (CTE ghi luon chay du 1 lan).
+  const fillCustomers = `WITH ${VN_TODAY},
+  ${w.lines},
+  ${w.orders},
+  saved_orders AS (
+    INSERT INTO pr_orders_new (product_key, orders_30d, orders_90d)
+    SELECT product_key, orders_30d, orders_90d FROM order_counts
+    RETURNING 1
+  )
+  INSERT INTO pr_customers_new (product_key, customer_key, customer_name, revenue)
   SELECT product_key, customer_key, MIN(customer_name), SUM(amount)
   FROM sales90_lines
-  WHERE product_key <> ''
+  WHERE product_key <> '' AND customer_active
   GROUP BY product_key, customer_key
   HAVING SUM(amount) > 0`;
 
   // Phan RE: moi luot. customersRel = bang tam (luot nang) hoac bang that (luot nhe, khong co thay doi nao
   // cua hoa don/phieu tra nen khach lon nhat khong doi).
-  const fillProducts = (customersRel) => `INSERT INTO pr_new (${PRODUCT_COLUMNS.join(', ')}, computed_at)
+  // heavy: SL don tu bang tam pr_orders_new (COALESCE 0 => khong bao gio NULL); nhe: giu gia tri cu cua dong.
+  const fillProducts = (customersRel, heavy) => `INSERT INTO pr_new (${PRODUCT_COLUMNS.join(', ')}, computed_at)
   WITH ${VN_TODAY},
   ${HN_PRODUCTS},
   ${SG_PRODUCTS},
@@ -130,19 +146,26 @@ function buildSql({ includeToday = true } = {}) {
     sg.description,
     hn.price,
     sg.price,
+    COALESCE(s30.qty_hanoi, 0),
+    COALESCE(s30.qty_saigon, 0),
+    ${heavy ? 'COALESCE(oc.orders_30d, 0)' : 'prev.orders_30d'},
+    ${heavy ? 'COALESCE(oc.orders_90d, 0)' : 'prev.orders_90d'},
     now()
   FROM hn_products hn
   LEFT JOIN sg_products sg ON sg.code = hn.code
   LEFT JOIN pending_orders po ON po.product_key = lower(btrim(hn.code))
   LEFT JOIN sales_30d s30 ON s30.product_code = hn.code
   LEFT JOIN sales_90d s90 ON s90.product_code = hn.code
+  ${heavy
+    ? 'LEFT JOIN pr_orders_new oc ON oc.product_key = lower(btrim(hn.code))'
+    : 'LEFT JOIN product_report prev ON prev.product_code = hn.code'}
   LEFT JOIN customer_top ct ON ct.product_key = lower(btrim(hn.code))
   WHERE EXISTS (
     SELECT 1 FROM products p
     WHERE p.code = hn.code AND p.branch IN ('hanoi', 'saigon') AND p.is_active IS NOT FALSE
   )`;
 
-  return { fillCustomers, fillProductsHeavy: fillProducts('pr_customers_new'), fillProductsLight: fillProducts('product_report_customers') };
+  return { fillCustomers, fillProductsHeavy: fillProducts('pr_customers_new', true), fillProductsLight: fillProducts('product_report_customers', false) };
 }
 
 const SQL = buildSql({ includeToday: true });
@@ -175,7 +198,9 @@ const READ_STATE_SQL = 'SELECT computed_at, last_full_at, version FROM product_r
 const GATE_SQL = `SELECT
     EXISTS (SELECT 1 FROM invoices  WHERE branch = ANY($1::text[]) AND synced_at >= $2::timestamptz) AS invoices_changed,
     EXISTS (SELECT 1 FROM returns   WHERE branch = ANY($1::text[]) AND synced_at >= $2::timestamptz) AS returns_changed,
-    EXISTS (SELECT 1 FROM customers WHERE branch = ANY($1::text[]) AND synced_at >= $2::timestamptz) AS customers_changed`;
+    EXISTS (SELECT 1 FROM customers WHERE branch = ANY($1::text[]) AND synced_at >= $2::timestamptz) AS customers_changed,
+    -- Con dong chua co SL don (vua ap migration 0067 hoac ma moi do luot nhe them) => chay luot nang de dien.
+    EXISTS (SELECT 1 FROM product_report WHERE orders_90d IS NULL) AS orders_missing`;
 // $1 co thay doi that su (version +1), $2 vua chay phan nang (danh dau last_full_at).
 const UPSERT_STATE_SQL = `INSERT INTO product_report_state (id, computed_at, version, last_full_at)
   VALUES (1, now(), 1, CASE WHEN $2::boolean THEN now() END)
@@ -189,6 +214,7 @@ function decideHeavy(state, gate, now) {
   if (!state || !state.last_full_at) return { heavy: true, reason: 'chua-co-moc' };
   if (vnDateKey(new Date(state.last_full_at)) !== vnDateKey(now)) return { heavy: true, reason: 'sang-ngay-moi' };
   if (gate && (gate.invoices_changed || gate.returns_changed || gate.customers_changed)) return { heavy: true, reason: 'co-chung-tu-moi' };
+  if (gate && gate.orders_missing) return { heavy: true, reason: 'thieu-so-don' };
   return { heavy: false, reason: 'khong-doi' };
 }
 

@@ -9,7 +9,9 @@ const {
 const router = express.Router();
 
 const { getExportFields, createExport, buildExportErrorBody } = require('./dashboard/exportService');
-const { getProductReport, getProductReportCustomers, getProductReportVersion } = require('./dashboard/productReportRepository');
+const {
+  getProductReport, getProductReportCustomers, getProductReportVersion, PRODUCT_REPORT_PRICE_KEYS
+} = require('./dashboard/productReportRepository');
 const containerRepository = require('./productContainers/repository');
 const { getInventoryValueHistory } = require('./dashboard/inventoryValueHistory');
 const { getInvoiceDetail } = require('./dashboard/documentDetailRepository');
@@ -302,10 +304,15 @@ router.get('/api/customer-product-revenue', async (req, res) => {
 router.get('/api/product-report', async (req, res) => {
   try {
     const data = await getProductReport();
-    // Don gia HN/SG chi Quan ly + Tro ly (reports.products.price): tai khoan khac khong nhan truong gia trong payload.
-    // Dong cua bo doc la cache dung chung nen tao ban sao, khong xoa truong tren dong goc.
+    // Don gia HN/SG + Gia tri co ban HN/SG chi Quan ly + Tro ly (reports.products.price): tai khoan khac khong nhan
+    // cac truong nay (PRODUCT_REPORT_PRICE_KEYS) trong payload. Dong cua bo doc la cache dung chung nen tao ban sao,
+    // khong xoa truong tren dong goc.
     if (!hasFeature(req.user, 'reports.products.price')) {
-      data.rows = data.rows.map(({ priceHanoi, priceSaigon, ...row }) => row);
+      data.rows = data.rows.map((row) => {
+        const copy = { ...row };
+        PRODUCT_REPORT_PRICE_KEYS.forEach((key) => { delete copy[key]; });
+        return copy;
+      });
     }
     res.status(200).json(data);
   } catch (err) {

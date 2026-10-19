@@ -3690,36 +3690,50 @@
                 </div>
                 <div class="scroll-list" style="max-height:600px;">
                   <table class="fixed-table" data-table-key="dashboard-table-2">
-                    <!-- 19 cột theo file HÀNG HÓA.xlsx (A→R) + cột Khách lớn nhất + 2 cột Đơn giá HN/SG sau Tên sản phẩm (hiện mặc định, chỉ Quản lý/Trợ lý). data-hint = chú giải khi rê chuột
+                    <!-- 34 cột theo thứ tự sheet BC CHUNG (UI = Excel xuất ra): 19 cột file HÀNG HÓA.xlsx + Khách lớn nhất + các cột bổ sung (Giá trị có bán, SL bán 30 ngày theo cơ sở, Đứt, Ngày, SL đơn, Tăng trưởng, DS khách lớn nhất, Đơn giá).
+                         data-price-column = cột nhạy cảm chỉ Quản lý/Trợ lý (reports.products.price) thấy. data-hint = chú giải khi rê chuột
                          (không dùng title: nút sắp xếp thay nội dung th và che mất title của th). Không dùng ký tự dấu lớn hơn trong data-hint. -->
                     <thead>
                       <tr>
                         <th style="width:120px" data-column-key="ma-sp">Mã sản phẩm</th>
                         <th style="width:260px" data-column-key="ten-sp">Tên sản phẩm</th>
-                        <th style="width:110px" data-column-key="don-gia-hn" data-price-column data-hint="Đơn giá bán chung của mã hàng trên KiotViet Hà Nội (chỉ Quản lý và Trợ lý thấy).">Đơn giá HN</th>
-                        <th style="width:110px" data-column-key="don-gia-sg" data-price-column data-hint="Đơn giá bán chung của mã hàng trên KiotViet Sài Gòn (chỉ Quản lý và Trợ lý thấy).">Đơn giá SG</th>
-                        <th style="width:100px" data-column-key="chua-boc" data-hint="Hàng dự kiến chưa bốc (CONT trạng thái 1 và 2), toàn công ty. Bấm số để xem chi tiết hàng dự kiến.">Chưa bốc</th>
-                        <th style="width:100px" data-column-key="da-boc" data-hint="Hàng dự kiến đã bốc (CONT trạng thái 3), toàn công ty. Bấm số để xem chi tiết hàng dự kiến.">Đã bốc</th>
+                        <th style="width:135px" data-column-key="gia-tri-co-ban-hn" data-price-column data-hint="Giá trị có bán HN = Có bán HN × Đơn giá HN (chỉ Quản lý và Trợ lý thấy).">Giá trị có bán HN</th>
+                        <th style="width:125px" data-column-key="sl-ban-30-ngay-hn" data-hint="Số lượng bán 30 ngày gần nhất (tính đến hết hôm qua) tại Hà Nội.">SL bán 30 ngày HN</th>
                         <th style="width:105px" data-column-key="ton-thuc-hn">Tồn thực HN</th>
                         <th style="width:100px" data-column-key="co-ban-hn" data-hint="Có bán HN = Tồn thực HN trừ số lượng khách đặt (phiếu tạm) tại Hà Nội.">Có bán HN</th>
                         <th style="width:125px" data-column-key="dieu-chuyen-sg" data-hint="Số lượng đặt hàng nhập Đã xác nhận NCC tại Kiot Sài Gòn; cộng vào tổng tồn thực và tổng có bán.">Điều chuyển SG</th>
                         <th style="width:105px" data-column-key="ton-thuc-sg">Tồn thực SG</th>
                         <th style="width:100px" data-column-key="co-ban-sg" data-hint="Có bán SG = Tồn thực SG trừ số lượng khách đặt (phiếu tạm) tại Sài Gòn.">Có bán SG</th>
-                        <th style="width:280px" data-column-key="mo-ta-hn" data-hint="Mô tả sản phẩm trên KiotViet Hà Nội (thường ghi bảng giá cho sale tra cứu).">Mô tả HN</th>
-                        <th style="width:280px" data-column-key="mo-ta-sg" data-hint="Mô tả sản phẩm trên KiotViet Sài Gòn (thường ghi bảng giá cho sale tra cứu).">Mô tả SG</th>
+                        <th style="width:125px" data-column-key="sl-ban-30-ngay-sg" data-hint="Số lượng bán 30 ngày gần nhất (tính đến hết hôm qua) tại Sài Gòn.">SL bán 30 ngày SG</th>
+                        <th style="width:135px" data-column-key="gia-tri-co-ban-sg" data-price-column data-hint="Giá trị có bán SG = Có bán SG × Đơn giá SG (chỉ Quản lý và Trợ lý thấy).">Giá trị có bán SG</th>
                         <th style="width:130px" data-column-key="tong-ton-thuc" data-hint="Tổng tồn thực + ĐC = Tồn thực HN + Tồn thực SG + Điều chuyển SG.">Tổng tồn thực + ĐC</th>
                         <th style="width:130px" data-column-key="tong-co-ban" data-hint="Tổng có bán + ĐC = Có bán HN + Có bán SG + Điều chuyển SG. Có bán từng cơ sở đã trừ khách đặt (phiếu tạm).">Tổng có bán + ĐC</th>
                         <th style="width:120px" data-column-key="sl-ban-30-ngay" data-hint="Tổng số lượng bán 30 ngày gần nhất (tính đến hết hôm qua).">SL bán 30 ngày</th>
+                        <th style="width:90px" data-column-key="dut-hn" data-hint="Số ngày đứt hàng trong 30 ngày gần nhất tại Hà Nội, cập nhật sau mỗi lần chạy quét đứt hàng 30 ngày. Bằng 0 khi không đứt hoặc chưa quét.">Đứt HN</th>
+                        <th style="width:90px" data-column-key="dut-sg" data-hint="Số ngày đứt hàng trong 30 ngày gần nhất tại Sài Gòn, cập nhật sau mỗi lần chạy quét đứt hàng 30 ngày. Bằng 0 khi không đứt hoặc chưa quét.">Đứt SG</th>
+                        <th style="width:100px" data-column-key="da-boc" data-hint="Hàng dự kiến đã bốc (CONT trạng thái 3), toàn công ty. Bấm số để xem chi tiết hàng dự kiến.">Đã bốc</th>
+                        <th style="width:100px" data-column-key="chua-boc" data-hint="Hàng dự kiến chưa bốc (CONT trạng thái 1 và 2), toàn công ty. Bấm số để xem chi tiết hàng dự kiến.">Chưa bốc</th>
                         <th style="width:110px" data-column-key="ngay-can-dat" data-hint="Ngày cần đặt = (Tổng có bán + Chưa bốc + Đã bốc) × 30 ÷ SL bán 30 ngày, tức số ngày hàng còn đủ bán. Để trống khi không bán được trong 30 ngày hoặc chưa có dữ liệu hàng dự kiến.">Ngày cần đặt</th>
+                        <th style="width:115px" data-column-key="ngay-sg-dc" data-hint="Ngày SG + ĐC = (Điều chuyển SG + Có bán SG) × 30 ÷ SL bán 30 ngày SG. Để trống khi SL bán 30 ngày SG bằng 0.">Ngày SG + ĐC</th>
+                        <th style="width:100px" data-column-key="ngay-hn" data-hint="Ngày HN = Có bán HN × 30 ÷ SL bán 30 ngày HN. Để trống khi SL bán 30 ngày HN bằng 0.">Ngày HN</th>
+                        <th style="width:110px" data-column-key="ngay-2-mien" data-hint="Ngày 2 miền = (Tổng có bán + ĐC) × 30 ÷ SL bán 30 ngày (tổng). Để trống khi không bán được trong 30 ngày.">Ngày 2 miền</th>
                         <th style="width:135px" data-column-key="ds-90-ngay">DS 90 ngày</th>
                         <th style="width:115px" data-column-key="sl-khach-ban" data-hint="Số khách khác nhau đã mua mã này trong 90 ngày.">SL khách bán</th>
+                        <th style="width:115px" data-column-key="sl-don-90-ngay" data-hint="Số đơn hàng có chứa mã này trong 90 ngày gần nhất.">SL đơn 90 ngày</th>
+                        <th style="width:115px" data-column-key="sl-don-30-ngay" data-hint="Số đơn hàng có chứa mã này trong 30 ngày gần nhất.">SL đơn 30 ngày</th>
+                        <th style="width:110px" data-column-key="tang-truong" data-hint="Tăng trưởng = SL đơn 30 ngày × 3 ÷ SL đơn 90 ngày − 1: so tốc độ đơn 30 ngày với mức trung bình của 90 ngày. Để trống khi chưa có đơn nào trong 90 ngày.">Tăng trưởng</th>
+                        <th style="width:135px" data-column-key="ds-khach-lon-nhat" data-hint="Doanh số 90 ngày của khách mua nhiều nhất mã này.">DS khách lớn nhất</th>
                         <th style="width:200px" data-column-key="khach-lon-nhat">Khách lớn nhất</th>
                         <th style="width:135px" data-column-key="ti-trong-khach-lon-nhat" data-hint="Doanh số của khách mua nhiều nhất chia cho doanh số 90 ngày. Bấm tỉ trọng để xem danh sách khách.">Tỉ trọng khách lớn nhất</th>
+                        <th style="width:110px" data-column-key="don-gia-hn" data-price-column data-hint="Đơn giá bán chung của mã hàng trên KiotViet Hà Nội (chỉ Quản lý và Trợ lý thấy).">Đơn giá HN</th>
+                        <th style="width:110px" data-column-key="don-gia-sg" data-price-column data-hint="Đơn giá bán chung của mã hàng trên KiotViet Sài Gòn (chỉ Quản lý và Trợ lý thấy).">Đơn giá SG</th>
+                        <th style="width:280px" data-column-key="mo-ta-hn" data-hint="Mô tả sản phẩm trên KiotViet Hà Nội (thường ghi bảng giá cho sale tra cứu).">Mô tả HN</th>
+                        <th style="width:280px" data-column-key="mo-ta-sg" data-hint="Mô tả sản phẩm trên KiotViet Sài Gòn (thường ghi bảng giá cho sale tra cứu).">Mô tả SG</th>
                       </tr>
                     </thead>
                     <tbody id="productReportRows">
                       <tr>
-                        <td colspan="21" class="table-note">Đang tải...</td>
+                        <td colspan="34" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -7139,7 +7153,7 @@
       };
     }
 
-    // ===== Tab Hàng hóa — "Báo cáo hàng hóa" (19 cột theo file HÀNG HÓA.xlsx) =====
+    // ===== Tab Hàng hóa — "Báo cáo hàng hóa" (34 cột theo sheet BC CHUNG, nền là file HÀNG HÓA.xlsx) =====
     // Doanh số/tồn chốt mỗi đêm; hàng dự kiến có snapshot riêng 10 phút.
     // Metadata CONT được kiểm tra khi bảng đang hiển thị, độc lập loadData()/SSE. =====
     TABLE_EXPLORER_CONFIGS.productReport = {
@@ -7191,32 +7205,59 @@
       return '<td>' + (text ? escapeHtml(text) : '<span class="muted">—</span>') + '</td>';
     }
 
-    // 21 ô theo đúng thứ tự thead (file HÀNG HÓA.xlsx A→R + Khách lớn nhất + Đơn giá HN/SG sau Tên sản phẩm); hàm thuần vì sắp xếp toàn bộ dữ liệu chạy lại
-    // hàm này cho mọi dòng rồi đọc ô theo chỉ số cột (sortItemsByRenderedColumn).
+    // Số ngày (Ngày cần đặt / Ngày HN / Ngày SG + ĐC / Ngày 2 miền): 1 chữ số thập phân, null (chưa tính được) hiện "—".
+    function productReportDaysCell(value) {
+      return productReportNullableCell(value, function (v) { return VN_NUMBER_1DP.format(Number(v)); });
+    }
+
+    // Đứt HN / Đứt SG: luôn là số (API mặc định 0), hiện cả số 0 chứ không đổi thành "—".
+    function productReportStockoutCell(value) {
+      const n = Number(value) || 0;
+      return '<td class="mono" data-sort-value="' + n + '">' + fmtNumber(n) + '</td>';
+    }
+
+    // Tăng trưởng là PHÂN SỐ (−1 = −100%, 0.25 = +25%); null khi chưa tính được. data-sort-value giữ phân số.
+    const PRODUCT_REPORT_GROWTH_FORMAT = new Intl.NumberFormat('en-US', { style: 'percent', maximumFractionDigits: 1, signDisplay: 'exceptZero' });
+    function productReportGrowthCell(value) {
+      return productReportNullableCell(value, function (v) { return PRODUCT_REPORT_GROWTH_FORMAT.format(Number(v)); });
+    }
+
+    // 34 ô theo đúng thứ tự thead (= thứ tự cột Excel, theo sheet BC CHUNG); hàm thuần vì sắp xếp toàn bộ dữ liệu chạy lại
+    // hàm này cho mọi dòng rồi đọc ô theo chỉ số cột (sortItemsByRenderedColumn). Đổi thứ tự ở đây phải đổi thead,
+    // PRODUCT_REPORT_WIDTHS_BY_PROFILE và PRODUCT_REPORT_COLUMNS ở exportService.js.
     function productReportRowHtml(p) {
       const code = escapeHtml(p.code);
       const hasShare = p.topCustomerShare !== null && p.topCustomerShare !== undefined;
       return '<tr class="doc-row" tabindex="0" title="Bấm để xem hàng dự kiến và doanh số theo khách" data-table-item-id="' + code + '">' +
         '<td class="mono muted">' + code + '</td>' +
         '<td class="name-cell">' + escapeHtml(p.name) + '</td>' +
-        productReportNullableCell(p.priceHanoi, fmtNumber) + productReportNullableCell(p.priceSaigon, fmtNumber) +
-        productReportContainerCell(p.unloadedQty, p, 'Xem hàng dự kiến của') + productReportContainerCell(p.loadedQty, p, 'Xem hàng dự kiến của') +
+        productReportNullableCell(p.availableValueHanoi, fmtTableMoney) +
+        productReportNullableCell(p.qtySold30dHanoi, fmtNumber) +
         '<td class="mono" data-sort-value="' + p.stockHanoi + '">' + fmtNumber(p.stockHanoi) + '</td>' +
         productReportNullableCell(p.availableHanoi, fmtNumber) +
         '<td class="mono" data-sort-value="' + (p.inTransit || 0) + '">' + fmtNumber(p.inTransit) + '</td>' +
         '<td class="mono" data-sort-value="' + p.stockSaigon + '">' + fmtNumber(p.stockSaigon) + '</td>' +
         productReportNullableCell(p.availableSaigon, fmtNumber) +
-        productReportDescriptionCell(p.descriptionHanoi) + productReportDescriptionCell(p.descriptionSaigon) +
+        productReportNullableCell(p.qtySold30dSaigon, fmtNumber) +
+        productReportNullableCell(p.availableValueSaigon, fmtTableMoney) +
         productReportNullableCell(p.totalStock, fmtNumber) +
         '<td class="mono" data-sort-value="' + p.availableToSell + '">' + fmtNumber(p.availableToSell) + '</td>' +
         '<td class="mono" data-sort-value="' + p.qtySold30d + '">' + fmtNumber(p.qtySold30d) + '</td>' +
-        productReportNullableCell(p.daysToOrder, function (value) { return VN_NUMBER_1DP.format(Number(value)); }) +
+        productReportStockoutCell(p.stockoutDaysHanoi) + productReportStockoutCell(p.stockoutDaysSaigon) +
+        productReportContainerCell(p.loadedQty, p, 'Xem hàng dự kiến của') + productReportContainerCell(p.unloadedQty, p, 'Xem hàng dự kiến của') +
+        productReportDaysCell(p.daysToOrder) +
+        productReportDaysCell(p.daysSaigonTransit) + productReportDaysCell(p.daysHanoi) + productReportDaysCell(p.daysBothBranches) +
         '<td class="mono" data-sort-value="' + p.revenue90d + '">' + fmtTableMoney(p.revenue90d) + '</td>' +
         '<td class="mono" data-sort-value="' + p.customerCount90d + '">' + fmtNumber(p.customerCount90d) + '</td>' +
+        productReportNullableCell(p.orders90d, fmtNumber) + productReportNullableCell(p.orders30d, fmtNumber) +
+        productReportGrowthCell(p.ordersGrowth) +
+        productReportNullableCell(p.topCustomerRevenue90d, fmtTableMoney) +
         '<td>' + (p.topCustomerName ? escapeHtml(p.topCustomerName) : '<span class="muted">—</span>') + '</td>' +
         (hasShare
           ? productReportLinkCell(p.topCustomerShare, 'customers', formatDebtRatio(p.topCustomerShare), 'Xem danh sách khách của ' + p.code, p.topCustomerShare)
           : '<td class="mono" data-sort-value="-1">—</td>') +
+        productReportNullableCell(p.priceHanoi, fmtNumber) + productReportNullableCell(p.priceSaigon, fmtNumber) +
+        productReportDescriptionCell(p.descriptionHanoi) + productReportDescriptionCell(p.descriptionSaigon) +
         '</tr>';
     }
 
@@ -7239,7 +7280,7 @@
         },
         rows,
         productReportRowHtml,
-        21,
+        34,
         state.productReport.loaded ? 'Chưa có dữ liệu báo cáo hàng hóa.' : 'Đang tải...'
       );
     }
@@ -7265,23 +7306,30 @@
           if (!state.productReport.loaded) {
             state.productReport.loaded = true;
             document.getElementById('productReportRows').innerHTML =
-              '<tr><td colspan="21" class="table-note">Không tải được báo cáo hàng hóa.</td></tr>';
+              '<tr><td colspan="34" class="table-note">Không tải được báo cáo hàng hóa.</td></tr>';
           }
         }).finally(function () { state.productReport.loading = false; });
     }
 
     // Khung nhìn MẶC ĐỊNH của bảng Báo cáo hàng hóa theo ghi chú trong file HÀNG HÓA.xlsx: Nhân viên sale hiện cột A→K + DS 90 ngày
-    // (ẩn các cột tổng hợp/khách), Quản lý và mọi vai trò khác ẩn cột E→K (tồn/có bán/mô tả từng cơ sở) và Khách lớn nhất. Chỉ là mặc định hiển thị:
+    // (ẩn các cột tổng hợp/khách), Quản lý và mọi vai trò khác ẩn cột E→K (tồn/có bán/mô tả từng cơ sở) và Khách lớn nhất. Các cột bổ sung theo
+    // sheet BC CHUNG (Giá trị có bán, SL bán 30 ngày theo cơ sở, Đứt, Ngày SG + ĐC / HN / 2 miền, SL đơn 90/30 ngày, Tăng trưởng, DS khách lớn nhất)
+    // đều ẩn mặc định ở CẢ HAI khung nên bộ cột đang hiện không đổi. Chỉ là mặc định hiển thị:
     // dữ liệu vẫn có đủ trong API và ai cũng bật/tắt lại được bằng nút "Cột hiển thị" (lựa chọn chỉ giữ trong lần xem).
     const PRODUCT_REPORT_SALE_ROLE = 'Nhân viên sale';
+    const PRODUCT_REPORT_BC_CHUNG_HIDDEN = ['gia-tri-co-ban-hn', 'sl-ban-30-ngay-hn', 'sl-ban-30-ngay-sg', 'gia-tri-co-ban-sg', 'dut-hn', 'dut-sg',
+      'ngay-sg-dc', 'ngay-hn', 'ngay-2-mien', 'sl-don-90-ngay', 'sl-don-30-ngay', 'tang-truong', 'ds-khach-lon-nhat'];
     const PRODUCT_REPORT_HIDDEN_BY_PROFILE = {
-      sale: ['don-gia-hn', 'don-gia-sg', 'tong-ton-thuc', 'tong-co-ban', 'sl-ban-30-ngay', 'ngay-can-dat', 'sl-khach-ban', 'khach-lon-nhat', 'ti-trong-khach-lon-nhat'],
+      sale: ['don-gia-hn', 'don-gia-sg', 'tong-ton-thuc', 'tong-co-ban', 'sl-ban-30-ngay', 'ngay-can-dat', 'sl-khach-ban', 'khach-lon-nhat', 'ti-trong-khach-lon-nhat']
+        .concat(PRODUCT_REPORT_BC_CHUNG_HIDDEN),
       manager: ['ton-thuc-hn', 'co-ban-hn', 'dieu-chuyen-sg', 'ton-thuc-sg', 'co-ban-sg', 'mo-ta-hn', 'mo-ta-sg', 'khach-lon-nhat']
+        .concat(PRODUCT_REPORT_BC_CHUNG_HIDDEN)
     };
-    // Độ rộng theo ảnh mẫu, cùng thứ tự với thead; khai báo rõ để không lấy độ rộng đã giãn từ phiên chưa biết vai trò.
+    // Độ rộng theo ảnh mẫu, cùng thứ tự 34 cột với thead; khai báo rõ để không lấy độ rộng đã giãn từ phiên chưa biết vai trò.
+    // Hai hồ sơ chỉ khác Tên sản phẩm (260/225) và DS 90 ngày (135/112).
     const PRODUCT_REPORT_WIDTHS_BY_PROFILE = {
-      sale: [120, 260, 110, 110, 100, 100, 105, 100, 125, 105, 100, 110, 110, 130, 105, 100, 95, 135, 115, 200, 135],
-      manager: [120, 225, 110, 110, 100, 100, 105, 100, 125, 105, 100, 110, 110, 130, 105, 100, 95, 112, 115, 200, 135]
+      sale: [120, 260, 135, 125, 105, 100, 125, 105, 100, 125, 135, 130, 105, 100, 90, 90, 100, 100, 95, 115, 100, 110, 135, 115, 115, 115, 110, 135, 200, 135, 110, 110, 110, 110],
+      manager: [120, 225, 135, 125, 105, 100, 125, 105, 100, 125, 135, 130, 105, 100, 90, 90, 100, 100, 95, 115, 100, 110, 112, 115, 115, 115, 110, 135, 200, 135, 110, 110, 110, 110]
     };
     let productReportColumnProfile = '';
 
@@ -7295,8 +7343,9 @@
       if (profile === productReportColumnProfile) return;
       const table = document.getElementById('productReportRows').closest('table');
       const hidden = PRODUCT_REPORT_HIDDEN_BY_PROFILE[profile];
-      // Cột Đơn giá chỉ dành cho tài khoản có quyền reports.products.price: cột bị gỡ khỏi bảng và khỏi hộp "Cột hiển thị"
-      // (API cũng không trả giá cho tài khoản khác). Có quyền thì cột HIỆN mặc định cho Quản lý/Trợ lý (hồ sơ Sale vẫn ẩn, bật bằng "Cột hiển thị").
+      // 4 cột nhạy cảm (Đơn giá HN/SG, Giá trị có bán HN/SG) chỉ dành cho tài khoản có quyền reports.products.price: cột bị gỡ khỏi bảng và
+      // khỏi hộp "Cột hiển thị" (API cũng không trả các trường này cho tài khoản khác). Có quyền thì Đơn giá HIỆN mặc định cho Quản lý/Trợ lý
+      // (hồ sơ Sale vẫn ẩn), Giá trị có bán ẩn mặc định ở cả hai hồ sơ; bật bằng "Cột hiển thị".
       const priceAllowed = typeof TKSNav !== 'undefined' && typeof TKSNav.can === 'function' && TKSNav.can('reports.products.price');
       table.querySelectorAll('thead th[data-price-column]').forEach(function (cell) {
         cell.hidden = !priceAllowed;
