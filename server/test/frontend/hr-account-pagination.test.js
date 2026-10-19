@@ -87,14 +87,14 @@ test('Bảng nhân sự: có thanh trượt has-pager, cụm phân trang <<, <, 
   assert.equal(allRows.length, 120, 'toàn bộ 120 dòng đều ở trong DOM');
   const visiblePage1 = allRows.filter(r => !r.hidden);
   assert.equal(visiblePage1.length, 50, 'trang 1 hiển thị đúng 50 dòng');
-  assert.equal(visiblePage1[0].cells[0].textContent, 'Nhân viên 120');
+  assert.equal(visiblePage1[0].cells[2].textContent, 'Nhân viên 120');
 
   // 3. Bấm Next sang trang 2
   nextBtn.click();
   assert.equal(pageLabel.textContent, 'Trang 2/3');
   const visiblePage2 = allRows.filter(r => !r.hidden);
   assert.equal(visiblePage2.length, 50, 'trang 2 hiển thị 50 dòng tiếp theo');
-  assert.equal(visiblePage2[0].cells[0].textContent, 'Nhân viên 070');
+  assert.equal(visiblePage2[0].cells[2].textContent, 'Nhân viên 070');
   assert.equal(firstBtn.disabled, false);
   assert.equal(prevBtn.disabled, false);
 
@@ -108,7 +108,7 @@ test('Bảng nhân sự: có thanh trượt has-pager, cụm phân trang <<, <, 
 
   // 5. Kiểm tra sắp xếp: Bấm sort cột "Họ và tên" (cột 0)
   // Ban đầu tên là Nhân viên 120 -> Nhân viên 001 (giảm dần). Sort tăng dần sẽ đưa Nhân viên 001 lên đầu.
-  const sortBtn = doc.querySelector('#employeeDirectoryTable thead th button.sort-button');
+  const sortBtn = doc.querySelector('#employeeDirectoryTable thead th[data-column-key="ho-va-ten"] button.sort-button');
   assert.ok(sortBtn, 'tiêu đề cột có nút sắp xếp');
   sortBtn.click(); // Sắp xếp tăng dần theo họ tên
 
@@ -116,14 +116,14 @@ test('Bảng nhân sự: có thanh trượt has-pager, cụm phân trang <<, <, 
   assert.equal(pageLabel.textContent, 'Trang 1/3');
   const sortedVisiblePage1 = [...doc.querySelectorAll('#employeeDirectoryTableBody tr')].filter(r => !r.hidden);
   assert.equal(sortedVisiblePage1.length, 50);
-  assert.equal(sortedVisiblePage1[0].cells[0].textContent, 'Nhân viên 001', 'sort tăng dần đưa Nhân viên 001 lên đầu trang 1');
-  assert.equal(sortedVisiblePage1[49].cells[0].textContent, 'Nhân viên 050', 'dòng thứ 50 là Nhân viên 050');
+  assert.equal(sortedVisiblePage1[0].cells[2].textContent, 'Nhân viên 001', 'sort tăng dần đưa Nhân viên 001 lên đầu trang 1');
+  assert.equal(sortedVisiblePage1[49].cells[2].textContent, 'Nhân viên 050', 'dòng thứ 50 là Nhân viên 050');
 
   // Bấm Next ở danh sách đã sort: trang 2 phải có Nhân viên 051
   nextBtn.click();
   assert.equal(pageLabel.textContent, 'Trang 2/3');
   const sortedVisiblePage2 = [...doc.querySelectorAll('#employeeDirectoryTableBody tr')].filter(r => !r.hidden);
-  assert.equal(sortedVisiblePage2[0].cells[0].textContent, 'Nhân viên 051', 'trang 2 tiếp nối chính xác thứ tự đã sắp xếp');
+  assert.equal(sortedVisiblePage2[0].cells[2].textContent, 'Nhân viên 051', 'trang 2 tiếp nối chính xác thứ tự đã sắp xếp');
 
   window.close();
 });

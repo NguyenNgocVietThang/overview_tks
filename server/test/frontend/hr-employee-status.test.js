@@ -70,27 +70,25 @@ test('danh sách nhân sự mặc định chỉ "Đang làm việc"; chữ xanh/
   dom.window.close();
 });
 
-test('người không có quyền quản lý: không có nút Thêm, cột Ngày thêm ẩn, bấm dòng không mở hộp', async () => {
+test('người không có quyền quản lý: giữ nguyên 6 cột cũ và bấm dòng không mở hộp', async () => {
   const { dom, window } = await openPage({ canManage: false });
   const doc = window.document;
   assert.equal(doc.getElementById('btnAddEmployee').hidden, true);
-  assert.equal(doc.getElementById('employeeCreatedAtTh').hidden, true);
+  assert.equal(doc.querySelectorAll('#employeeDirectoryTableHead th').length, 6);
   const row = doc.querySelector('#employeeDirectoryTableBody tr');
   assert.equal(row.hasAttribute('data-employee-id'), false);
-  assert.equal(row.cells[6].hidden, true);
   row.cells[0].dispatchEvent(new window.Event('click', { bubbles: true }));
   assert.equal(doc.getElementById('employeeModal').hidden, true);
   dom.window.close();
 });
 
-test('người có quyền quản lý: hiện Ngày thêm, bấm dòng mở hộp chi tiết và lưu bằng PUT kèm trạng thái', async () => {
+test('người có quyền quản lý: hiện bảng hồ sơ mở rộng, bấm dòng mở hộp chi tiết và lưu bằng PUT kèm trạng thái', async () => {
   const { dom, window, sent } = await openPage({ canManage: true });
   const doc = window.document;
   assert.equal(doc.getElementById('btnAddEmployee').hidden, false);
-  assert.equal(doc.getElementById('employeeCreatedAtTh').hidden, false);
+  assert.equal(doc.querySelectorAll('#employeeDirectoryTableHead th').length, 19);
+  assert.equal(doc.getElementById('btnImportEmployeeDirectory').hidden, false);
   const row = doc.querySelector('#employeeDirectoryTableBody tr');
-  assert.equal(row.cells[6].hidden, false);
-  assert.match(row.cells[6].textContent, /2026/);
 
   row.cells[0].dispatchEvent(new window.Event('click', { bubbles: true }));
   const modal = doc.getElementById('employeeModal');

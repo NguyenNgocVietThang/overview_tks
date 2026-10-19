@@ -175,7 +175,7 @@ test('GET /api/hr/employees trả về nhân sự mọi cơ sở được phép 
   const originalGetSnapshot = employeeDirectory.getSnapshot;
   employeeDirectory.getSnapshot = async () => ({
     employees: [
-      { sourceBranch: 'Hà Nội', hoTen: 'Nguyễn Văn B', boPhan: 'SALE', soDienThoai: '0900000001', email: 'b@x.com', telegramId: '123' },
+      { sourceBranch: 'Hà Nội', hoTen: 'Nguyễn Văn B', boPhan: 'SALE', soDienThoai: '0900000001', email: 'b@x.com', telegramId: '123', chucVu: 'Nhân viên', soCccd: '001234567890', ngaySinh: '1990-01-01' },
       { sourceBranch: 'Hà Nội', hoTen: 'Nguyễn Văn A', boPhan: 'KHO', soDienThoai: '0900000002', email: 'a@x.com', telegramId: '456' },
       { sourceBranch: 'Sài Gòn', hoTen: 'Trần Thị C', boPhan: 'TRỢ LÝ', soDienThoai: '0900000003', email: 'c@x.com', telegramId: '789' }
     ],
@@ -189,10 +189,11 @@ test('GET /api/hr/employees trả về nhân sự mọi cơ sở được phép 
     assert.equal(resAll.statusCode, 200);
     assert.deepEqual(resAll.body.employees.map(e => e.hoTen), ['Nguyễn Văn A', 'Nguyễn Văn B', 'Trần Thị C']);
     assert.deepEqual(resAll.body.employees.map(e => e.coSo), ['Hà Nội', 'Hà Nội', 'Sài Gòn']);
-    assert.deepEqual(Object.keys(resAll.body.employees[0]).sort(), ['boPhan', 'coSo', 'email', 'hoTen', 'id', 'ngayThem', 'soDienThoai', 'trangThai'], 'Quản lý có quyền hr.employees.manage nên thấy cả ngayThem');
+    assert.equal(resAll.body.employees.find(e => e.hoTen === 'Nguyễn Văn B').soCccd, '001234567890', 'quản lý nhận trường hồ sơ mở rộng');
     const resStaff = fakeRes();
     await handler({ user: STAFF_HANOI, query: {} }, resStaff);
     assert.deepEqual(Object.keys(resStaff.body.employees[0]).sort(), ['boPhan', 'coSo', 'email', 'hoTen', 'id', 'soDienThoai', 'trangThai'], 'người thường không nhận ngayThem');
+    assert.equal(resStaff.body.employees.find(e => e.hoTen === 'Nguyễn Văn B').soCccd, undefined, 'người thường không nhận CCCD');
     assert.equal(resStaff.body.canManage, false);
 
     const resOne = fakeRes();

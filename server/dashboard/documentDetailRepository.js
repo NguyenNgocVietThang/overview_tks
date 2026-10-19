@@ -7,6 +7,7 @@
 // Gio trong DB la "gio treo tuong" VN mang nhan UTC nen format voi AT TIME ZONE 'UTC'
 // (xem ghi chu o dau dashboardPgReader.js).
 const { getPool } = require('../db/pool');
+const { timedQuery } = require('../lib/requestTiming');
 // Ten nhan vien ban tren Kiot co hau to "- <ID Telegram>": chi hien phan ten (saleName.js).
 const { saleNameSql } = require('./saleName');
 
@@ -86,7 +87,7 @@ async function getOrderDetail({ code, branchCode, pool = getPool() } = {}) {
   if (!heads.length) throw notFound('Không tìm thấy đơn đặt hàng này.');
   const head = heads[0];
 
-  const { rows } = await pool.query(
+  const { rows } = await timedQuery(pool, 'invoiceLines',
     `SELECT COALESCE(NULLIF(d.raw->>'productCode', ''), p.code, '') AS product_code,
             COALESCE(NULLIF(d.raw->>'productName', ''), p.name, '') AS product_name,
             d.quantity, d.price, d.discount,
@@ -119,7 +120,7 @@ async function getOrderDetail({ code, branchCode, pool = getPool() } = {}) {
 
 async function getInvoiceDetail({ code, branchCode, pool = getPool() } = {}) {
   const invoiceCode = cleanCode(code);
-  const { rows: heads } = await pool.query(
+  const { rows: heads } = await timedQuery(pool, 'invoiceHead',
     `SELECT i.id,
             i.code,
             COALESCE(to_char(i.purchase_date AT TIME ZONE 'UTC', '${DATE_FORMAT}'), '') AS purchase_date,
