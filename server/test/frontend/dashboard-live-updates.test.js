@@ -36,7 +36,7 @@ class FakeEventSource {
   emit(name) { if (this.listeners[name]) this.listeners[name](); }
 }
 
-function run({ lastFetchAt = Date.now() } = {}) {
+function run({ lastFetchAt = Date.now(), permissionsDeferred = false, features = null } = {}) {
   FakeEventSource.instances = [];
   const loadCalls = [];
   const quietCalls = [];
@@ -54,6 +54,11 @@ function run({ lastFetchAt = Date.now() } = {}) {
     loadData: (days, manual) => loadCalls.push({ days, manual }),
     refreshCustomerProductReportQuietly: () => quietCalls.push(true),
     document: fakeDocument,
+    // Trang that cho authGuard() nap quyen roi moi ket noi SSE (afterPermissions) va chi mo khi co quyen /api/dashboard (hasFeature).
+    // Khoi nay chay trong vm nen gia lap: quyen da biet (permissionsDeferred = false) -> ket noi ngay.
+    permissionsDeferred,
+    hasFeature: key => (features ? features.includes(key) : true),
+    afterPermissions: callback => callback(),
     setTimeout: (fn, ms) => { timeouts.push({ fn, ms }); return timeouts.length; },
     clearTimeout: () => {},
     Date,
@@ -164,4 +169,18 @@ test('quay lai tab/noi lai stream sau khi di lau: danh dau cac tab khac la cu; d
   fresh.latestStream().open();
   assert.equal(fresh.state.dataEpoch, undefined);
   assert.equal(fresh.loadCalls.length, 0);
+});
+
+test('tai khoan chi co Hang hoa / Du kien hang ve (khong co quyen /api/dashboard) khong mo ket noi SSE', () => {
+  const app = run({ permissionsDeferred: true, features: ['reports.products.expected'] });
+  assert.equal(app.streams.length, 0);
+  // Quay lai tab cung khong tu mo stream.
+  app.document.visibilityState = 'visible';
+  app.documentHandlers.visibilitychange();
+  assert.equal(app.streams.length, 0);
+});
+
+test('tai khoan co mot trong cac quyen /api/dashboard thi van ket noi SSE khi trang da nap quyen', () => {
+  const app = run({ permissionsDeferred: true, features: ['reports.debt'] });
+  assert.equal(app.streams.length, 1);
 });

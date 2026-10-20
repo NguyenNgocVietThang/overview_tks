@@ -154,7 +154,8 @@ test('trang bao cao duoc phuc vu o ca "/" lan "/reports/" nen ca hai cung mot qu
     const rule = window.TKSNav._pageRuleFor(pathname);
     assert.ok(rule, `${pathname} phai co quy tac quyen`);
     assert.equal(rule.path, '/reports', pathname);
-    assert.equal(window.TKSNav.can(rule.anyOf), false, `Kế toán khong duoc xem ${pathname}`);
+    // Tu 2026-10-20 Ke toan co reports.products.expected (bang Du kien hang ve) nen vao duoc trang bao cao (chi tab Hang hoa).
+    assert.equal(window.TKSNav.can(rule.anyOf), true, `Kế toán xem được ${pathname} nhờ reports.products.expected`);
   }
 
   for (const pathname of ['/account', '/humanresources', '/shipment/lifecycle']) {

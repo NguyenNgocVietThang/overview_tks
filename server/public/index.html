@@ -1569,6 +1569,30 @@
       outline-offset: 2px;
     }
 
+    /* Dự kiến hàng về: 2 ô lọc (Cont / Trạng thái) nằm cạnh nhau, tên cont/trạng thái dài thì cắt bớt. */
+    .expected-arrivals-filters {
+      flex-wrap: wrap;
+    }
+
+    .expected-arrivals-filters .stockout-branch-select {
+      max-width: 220px;
+      text-overflow: ellipsis;
+    }
+
+    @media (max-width: 640px) {
+      /* Trên điện thoại .panel-head là lưới 2 cột (shared.css): khối 2 ô lọc chiếm cả hàng dưới tiêu đề, mỗi ô một nửa hàng. */
+      .expected-arrivals-filters {
+        grid-column: 1 / -1;
+        justify-content: stretch;
+        margin-left: 0;
+      }
+
+      .expected-arrivals-filters .stockout-branch-select {
+        flex: 1 1 140px;
+        max-width: none;
+      }
+    }
+
     .stockout-file-field {
       position: relative;
       display: inline-flex;
@@ -3670,9 +3694,9 @@
         <!-- ============ HÀNG HÓA ============ -->
         <div class="view" id="view-products">
           <div class="view-title">Hàng hóa</div>
-          <div class="view-sub">Báo cáo hàng hóa → tăng trưởng doanh số theo mã hàng · mỗi mục có chỉ số then chốt ở đầu</div>
+          <div class="view-sub">Báo cáo hàng hóa → dự kiến hàng về → tăng trưởng doanh số theo mã hàng · mỗi mục có chỉ số then chốt ở đầu</div>
 
-          <section class="section">
+          <section class="section" id="productReportSection">
             <div class="section-head"><span class="section-step">1</span>
               <h2>Báo cáo hàng hóa <span class="section-note" id="productReportUpdatedAt">—</span></h2>
             </div>
@@ -3749,8 +3773,64 @@
             </div>
           </section>
 
+          <!-- Dự kiến hàng về: toàn bộ dòng hàng của mọi cont (tính sẵn từ sheet CONT, API riêng /api/expected-arrivals, quyền reports.products.expected).
+               Lọc Cont / Trạng thái phía trình duyệt. Cột Lịch/Trạng thái = ô B + C của dòng nhãn CONT; bộ lọc Trạng thái theo ô B. -->
+          <section class="section" id="expectedArrivalsSection" hidden>
+            <div class="section-head"><span class="section-step">2</span>
+              <h2>Dự kiến hàng về <span class="section-note" id="expectedArrivalsUpdatedAt">—</span></h2>
+            </div>
+            <div class="kpi-grid section-kpis" id="expectedArrivalsKpis"></div>
+            <div class="grid">
+              <div class="panel col-12">
+                <div class="panel-head">
+                  <h2>Dòng hàng dự kiến về <span class="tag" id="tagExpectedArrivals">—</span></h2>
+                  <div class="panel-head-actions expected-arrivals-filters">
+                    <select class="stockout-branch-select" id="expectedArrivalsContainer" aria-label="Lọc theo cont"><option value="">Tất cả cont</option></select>
+                    <select class="stockout-branch-select" id="expectedArrivalsStatus" aria-label="Lọc theo trạng thái"><option value="">Tất cả trạng thái</option></select>
+                  </div>
+                  <div class="panel-head-actions" id="expectedArrivalsExport">
+                    <!-- data-not-export: người xem được bảng này xuất được dù không có reports.export (máy chủ chặn bằng reports.products.expected) -->
+                    <button class="export-button" type="button" data-not-export onclick="openExpectedArrivalsExportDialog()">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file
+                    </button>
+                  </div>
+                </div>
+                <div class="scroll-list" style="max-height:600px;">
+                  <table class="fixed-table" data-table-key="dashboard-table-expected-arrivals">
+                    <thead>
+                      <tr>
+                        <th style="width:190px" data-column-key="lich-trang-thai" data-hint="Trạng thái + ngày dự kiến về của cont (ô B + C dòng nhãn CONT trên sheet).">Lịch/Trạng thái</th>
+                        <th style="width:130px" data-column-key="ten-cont">Tên Cont</th>
+                        <th style="width:120px" data-column-key="ma-sp">Mã SP</th>
+                        <th style="width:260px" data-column-key="ten-sp">Tên SP</th>
+                        <th style="width:130px" data-column-key="mau-sac">Màu sắc</th>
+                        <th style="width:220px" data-column-key="ghi-chu-sale">Ghi chú sale</th>
+                        <th style="width:130px" data-column-key="nguoi-dat">Người đặt</th>
+                        <th style="width:105px" data-column-key="so-cai-kien">Số cái/kiện</th>
+                        <th style="width:95px" data-column-key="so-kien">Số kiện</th>
+                        <th style="width:125px" data-column-key="tong-so-luong">Tổng số lượng</th>
+                      </tr>
+                    </thead>
+                    <tbody id="expectedArrivalsRows">
+                      <tr>
+                        <td colspan="10" class="table-note">Đang tải...</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="pagination-controls" id="expectedArrivalsPagination" hidden>
+                  <button type="button" id="expectedArrivalsFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                  <button type="button" id="expectedArrivalsPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
+                  <span id="expectedArrivalsPageLabel">Trang 1/1</span>
+                  <button type="button" id="expectedArrivalsNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                  <button type="button" id="expectedArrivalsLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
           <section class="section" id="productGrowthSection" hidden>
-            <div class="section-head"><span class="section-step">2</span><h2>Tăng trưởng mã hàng <span id="businessProductsReadiness" class="table-note" role="status" hidden>Đang dựng dữ liệu tháng cũ…</span></h2></div>
+            <div class="section-head"><span class="section-step">3</span><h2>Tăng trưởng mã hàng <span id="businessProductsReadiness" class="table-note" role="status" hidden>Đang dựng dữ liệu tháng cũ…</span></h2></div>
             <div class="kpi-grid section-kpis" id="businessProductsKpis"></div>
             <div class="grid">
               <div class="panel col-12">
@@ -6331,7 +6411,26 @@
 
     /** Quyen xem mot tab bao cao — khop requireFeature/loc payload phia server. */
     function canViewReport(view) {
-      return !!(typeof TKSNav !== 'undefined' && typeof TKSNav.can === 'function' && TKSNav.can('reports.' + view));
+      // Hang hoa: vao duoc voi Bao cao hang hoa HOAC chi bang Du kien hang ve (Ke toan / Mua hang / Kho khong co reports.products).
+      if (view === 'products') return hasFeature('reports.products') || hasFeature('reports.products.expected');
+      return hasFeature('reports.' + view);
+    }
+
+    function hasFeature(key) {
+      return !!(typeof TKSNav !== 'undefined' && typeof TKSNav.can === 'function' && TKSNav.can(key));
+    }
+
+    // Trang that cho authGuard() nap quyen roi moi goi cac API co quyen rieng (Bao cao hang hoa, Gia tri ton kho, /api/dashboard, SSE):
+    // tai khoan chi co "Du kien hang ve" khong duoc goi nhung API do (se bi 403). TKSNav that luon co getPermissions; ban gia lap
+    // (trang kiem thu) khong co thi giu cach cu — goi ngay, khong kiem quyen luc khoi dong.
+    const permissionsDeferred = typeof TKSNav !== 'undefined' && typeof TKSNav.getPermissions === 'function';
+    let permissionsReadyResolve = function () {};
+    const permissionsReady = permissionsDeferred ? new Promise(function (resolve) { permissionsReadyResolve = resolve; }) : null;
+    function afterPermissions(callback) {
+      if (permissionsReady) permissionsReady.then(callback); else callback();
+    }
+    function allowedAtBoot(key) {
+      return !permissionsDeferred || hasFeature(key);
     }
 
     let marketingProductDeferred = (window.location.hash || '') === '#marketing';
@@ -6359,11 +6458,15 @@
       if (view === 'business') { loadBusinessReport(false); return; }
       if (view === 'marketing') { TKSMarketing.load(false); return; }
       // Marketing opens independently; only load the other report sources when their view is opened.
-      if (view === 'products' && marketingProductDeferred) { marketingProductDeferred = false; loadProductReport(); }
+      if (view === 'products' && marketingProductDeferred) {
+        marketingProductDeferred = false;
+        if (hasFeature('reports.products')) loadProductReport();
+      }
       refreshProductContainerMeta();
-      // Tab Hang hoa khong co payload /api/dashboard: Bao cao hang hoa tu tai (loadProductReport), muc Tang truong
-      // ma hang dung API /api/business-report/products va chi hien cho tai khoan co quyen reports.business.
-      if (view === 'products') { loadProductGrowth(); return; }
+      // Tab Hang hoa khong co payload /api/dashboard: Bao cao hang hoa tu tai (loadProductReport; chi voi reports.products), muc Tang
+      // truong ma hang dung API /api/business-report/products (chi voi reports.business), muc Du kien hang ve dung /api/expected-arrivals
+      // (chi voi reports.products.expected). Muc nao khong co quyen thi an va KHONG goi API cua muc do.
+      if (view === 'products') { applyProductsViewPermissions(); loadProductGrowth(); loadExpectedArrivals(); return; }
       if (view === 'overview' && marketingHistoryDeferred) { marketingHistoryDeferred = false; loadInventoryHistory(); }
       // Moi tab tai rieng khi duoc mo (xem ensureViewData): tab da co du lieu van ve ngay
       // tu du lieu cu roi cap nhat khi ban moi ve; tab chua co du lieu hien man che "Dang tai".
@@ -7374,7 +7477,8 @@
     let productContainerMetaLoading = false;
     function productContainerReportVisible() {
       const view = document.getElementById('productReportRows').closest('.view');
-      return document.visibilityState !== 'hidden' && view && view.classList.contains('active') && canViewReport(state.view);
+      return document.visibilityState !== 'hidden' && view && view.classList.contains('active') && canViewReport(state.view) &&
+        (!permissionsDeferred || hasFeature('reports.products'));
     }
 
     function refreshProductContainerMeta() {
@@ -7415,6 +7519,159 @@
       return rows.map(function (row) {
         return { name: row.customerName || 'Khách lẻ', revenue: row.revenue };
       });
+    }
+
+    // ===== Tab Hàng hóa — "Dự kiến hàng về" (mục 2): toàn bộ dòng hàng của mọi cont, bảng DB tính sẵn từ sheet CONT =====
+    // API riêng /api/expected-arrivals (quyền reports.products.expected — cả Kế toán / Mua hàng / Kho không có Báo cáo hàng hóa vẫn xem được).
+    // Máy chủ trả TOÀN BỘ dòng + danh sách Cont / Trạng thái; lọc Cont, Trạng thái, tìm kiếm và chỉ số làm ở trình duyệt.
+    // Bộ lọc Trạng thái theo ô B (statusLabel) còn cột hiển thị là B + C (scheduleLabel).
+    const expectedArrivals = { rows: [], containers: [], statuses: [], computedAt: null, loaded: false, loading: false, loadedAt: 0 };
+    const EXPECTED_ARRIVALS_IDS = {
+      tbody: 'expectedArrivalsRows', pagination: 'expectedArrivalsPagination', firstBtn: 'expectedArrivalsFirstPage',
+      prevBtn: 'expectedArrivalsPrevPage', nextBtn: 'expectedArrivalsNextPage', lastBtn: 'expectedArrivalsLastPage', label: 'expectedArrivalsPageLabel'
+    };
+    TABLE_EXPLORER_CONFIGS.expectedArrivals = {
+      title: 'Dự kiến hàng về',
+      searchText: r => [r.scheduleLabel, r.containerName, r.productCode, r.productName, r.color, r.saleNote, r.orderedBy].filter(Boolean).join(' '),
+      code: r => r.productCode || '', identity: r => r.sheetName + ':' + r.sourceRow, supportsCodes: true
+    };
+
+    // Ẩn các mục của tab Hàng hóa mà tài khoản không có quyền: Báo cáo hàng hóa (reports.products), Dự kiến hàng về (reports.products.expected).
+    // Tăng trưởng mã hàng tự ẩn trong loadProductGrowth.
+    function applyProductsViewPermissions() {
+      document.getElementById('productReportSection').hidden = !hasFeature('reports.products');
+      document.getElementById('expectedArrivalsSection').hidden = !hasFeature('reports.products.expected');
+    }
+
+    function expectedArrivalsTextCell(value, className) {
+      return '<td' + (className ? ' class="' + className + '"' : '') + '>' + (value ? escapeHtml(value) : '<span class="muted">—</span>') + '</td>';
+    }
+
+    function expectedArrivalsRowHtml(r) {
+      return '<tr data-table-item-id="' + escapeHtml(r.sheetName + ':' + r.sourceRow) + '">' +
+        expectedArrivalsTextCell(r.scheduleLabel) +
+        expectedArrivalsTextCell(r.containerName) +
+        expectedArrivalsTextCell(r.productCode, 'mono') +
+        expectedArrivalsTextCell(r.productName, 'name-cell') +
+        expectedArrivalsTextCell(r.color) +
+        expectedArrivalsTextCell(r.saleNote) +
+        expectedArrivalsTextCell(r.orderedBy) +
+        productReportNullableCell(r.unitsPerPackage, fmtNumber) +
+        productReportNullableCell(r.packageCount, fmtNumber) +
+        productReportNullableCell(r.quantity, fmtNumber) +
+        '</tr>';
+    }
+
+    function expectedArrivalsFilteredRows() {
+      const container = document.getElementById('expectedArrivalsContainer').value;
+      const status = document.getElementById('expectedArrivalsStatus').value;
+      return expectedArrivals.rows.filter(function (r) {
+        return (!container || r.containerName === container) && (!status || r.statusLabel === status);
+      });
+    }
+
+    // Danh sách Cont / Trạng thái lấy từ filters của máy chủ; thiếu thì suy từ các dòng.
+    function expectedArrivalsOptions(listed, pick) {
+      const values = Array.isArray(listed) && listed.length ? listed : expectedArrivals.rows.map(pick);
+      return Array.from(new Set(values.filter(Boolean)));
+    }
+
+    function renderExpectedArrivals() {
+      fillBusinessSelect('expectedArrivalsContainer', 'Tất cả cont', expectedArrivalsOptions(expectedArrivals.containers, r => r.containerName));
+      fillBusinessSelect('expectedArrivalsStatus', 'Tất cả trạng thái', expectedArrivalsOptions(expectedArrivals.statuses, r => r.statusLabel));
+      const rows = expectedArrivalsFilteredRows();
+      renderPaginatedRows('expectedArrivals', EXPECTED_ARRIVALS_IDS, rows, expectedArrivalsRowHtml, 10,
+        expectedArrivals.loaded ? 'Chưa có hàng dự kiến về.' : 'Đang tải...');
+      // Chỉ số + nhãn đếm theo ĐÚNG các dòng đang hiện (đã lọc Cont / Trạng thái và ô tìm kiếm).
+      const shown = filterTableItems(rows, TABLE_EXPLORER_CONFIGS.expectedArrivals, getTableSearchState('expectedArrivals')).items;
+      document.getElementById('tagExpectedArrivals').textContent = expectedArrivals.loaded ? fmtNumber(shown.length) : '—';
+      document.getElementById('expectedArrivalsUpdatedAt').textContent = formatProductReportUpdatedAt(expectedArrivals.computedAt);
+      renderSectionKpis('expectedArrivalsKpis', [
+        { label: 'Số cont', value: fmtNumber(new Set(shown.map(r => r.containerName)).size), accent: 'amber' },
+        { label: 'Số dòng hàng', value: fmtNumber(shown.length), accent: 'blue' },
+        { label: 'Tổng số lượng', value: fmtNumber(sumBy(shown, r => r.quantity)), accent: 'green' }
+      ]);
+      // Ô tìm kiếm chỉ vẽ lại bảng qua state.tableRenderers: đăng ký lại để chỉ số cũng đổi theo.
+      state.tableRenderers.expectedArrivals = renderExpectedArrivals;
+    }
+
+    function loadExpectedArrivals() {
+      const allowed = hasFeature('reports.products.expected');
+      document.getElementById('expectedArrivalsSection').hidden = !allowed;
+      if (!allowed || expectedArrivals.loading) return Promise.resolve();
+      expectedArrivals.loading = true;
+      return fetch('/api/expected-arrivals')
+        .then(function (res) {
+          if (res.status === 401) {
+            window.location.href = '/login/?next=' + encodeURIComponent(window.location.pathname + window.location.search + window.location.hash);
+          }
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          return res.json();
+        })
+        .then(function (data) {
+          expectedArrivals.rows = (data && data.rows) || [];
+          expectedArrivals.containers = (data && data.filters && data.filters.containers) || [];
+          expectedArrivals.statuses = (data && data.filters && data.filters.statuses) || [];
+          expectedArrivals.computedAt = data && data.meta ? data.meta.computedAt : null;
+          expectedArrivals.loaded = true;
+          expectedArrivals.loadedAt = Date.now();
+          renderExpectedArrivals();
+        })
+        .catch(function (err) {
+          console.error('Không tải được bảng dự kiến hàng về:', err);
+          if (!expectedArrivals.loaded) {
+            document.getElementById('expectedArrivalsRows').innerHTML =
+              '<tr><td colspan="10" class="table-note">Không tải được bảng dự kiến hàng về.</td></tr>';
+          }
+        }).finally(function () { expectedArrivals.loading = false; });
+    }
+
+    // Quay lại tab / cửa sổ sau một lúc: tải lại nếu đang xem mục này và dữ liệu đã quá 60 giây.
+    function refreshExpectedArrivalsIfStale() {
+      const section = document.getElementById('expectedArrivalsSection');
+      const view = document.getElementById('view-products');
+      if (document.visibilityState === 'hidden' || section.hidden || !view.classList.contains('active')) return;
+      if (Date.now() - expectedArrivals.loadedAt < 60000) return;
+      loadExpectedArrivals();
+    }
+    window.addEventListener('focus', refreshExpectedArrivalsIfStale);
+    document.addEventListener('visibilitychange', refreshExpectedArrivalsIfStale);
+
+    ['expectedArrivalsContainer', 'expectedArrivalsStatus'].forEach(function (id) {
+      document.getElementById(id).addEventListener('change', function () {
+        state.tablePages.expectedArrivals = 1;
+        renderExpectedArrivals();
+      });
+    });
+
+    // Bộ lọc đang áp trên bảng -> tham số URL cho API xuất riêng (danh sách trường + file dùng chung hộp thoại Xuất file).
+    function expectedArrivalsExportQuery() {
+      const params = new URLSearchParams();
+      const container = document.getElementById('expectedArrivalsContainer').value;
+      const status = document.getElementById('expectedArrivalsStatus').value;
+      const search = getTableSearchState('expectedArrivals');
+      if (container) params.set('container', container);
+      if (status) params.set('status', status);
+      if (search && search.query && search.query.trim()) params.set('q', search.query.trim());
+      return params.toString();
+    }
+
+    // GET /api/expected-arrivals/export/fields và /export?format=&columns=... (máy chủ kiểm whitelist cột). Bộ lọc chốt lúc mở hộp thoại.
+    const EXPECTED_ARRIVALS_EXPORT_SOURCE = {
+      fields: (payload, request) => exportFetch('/api/expected-arrivals/export/fields' + (payload.query ? '?' + payload.query : ''), null, request),
+      file: (payload, request) => {
+        const params = new URLSearchParams(payload.query);
+        params.set('format', payload.format === 'html' ? 'html' : 'xlsx');
+        const picked = payload.columns && (payload.columns[payload.kind] || Object.values(payload.columns)[0]);
+        if (picked) params.set('columns', picked.join(','));
+        return exportFetch('/api/expected-arrivals/export?' + params.toString(), null, request);
+      }
+    };
+
+    // Quyền xuất = quyền xem bảng (reports.products.expected), không đòi reports.export.
+    function openExpectedArrivalsExportDialog() {
+      if (!hasFeature('reports.products.expected')) return;
+      return startExportDialog({ kind: 'expected', query: expectedArrivalsExportQuery() }, EXPECTED_ARRIVALS_EXPORT_SOURCE);
     }
 
     // ===== Tab Khách hàng (id #business; trước là Báo cáo kinh doanh) — API riêng /api/business-report (xem
@@ -10030,8 +10287,10 @@
         syncSidebarActiveView();
         // Panel nhap Tra NCC nam trong muc 4 — chi khoi tao (goi /import-status) khi nguoi dung thay muc do.
         if (applyOverviewSectionPermissions()) initSupplierReturnImportPanel(user);
+        permissionsReadyResolve(); // quyen da nap: bootReportLoads + ket noi SSE chi goi API duoc phep
       }).catch(function(err){
         document.documentElement.style.visibility = '';
+        permissionsReadyResolve();
       });
     } else {
       document.documentElement.style.visibility = '';
@@ -10054,25 +10313,31 @@
     // gian/cache dashboard nen goi rieng 1 lan khi vao trang (khong qua
     // loadData()/SSE o duoi).
     initDocumentDetail();
-    if (initialReportView() !== 'marketing') loadProductReport();
     setInterval(refreshProductContainerMeta, 60000);
     window.addEventListener('focus', refreshProductContainerMeta);
     document.addEventListener('visibilitychange', refreshProductContainerMeta);
-    // Bieu do gia tri ton kho theo ngay (muc 1 Xu huong): cung ly do nhu bao cao hang hoa o tren.
-    if (initialReportView() !== 'marketing') loadInventoryHistory();
 
-    // Chi tai tab can xem ngay: tab theo hash (/reports/#products) - quyen chua nap xong
-    // luc nay nen state.view co the con la Tong quan - hoac tab dang mo. Cac tab khac tai
-    // khi nguoi dung bam vao (switchView -> ensureViewData).
-    const bootView = initialReportView();
-    if (viewIsLoaded(state.view)) {
-      // Ve ngay tu cache de khong nhap nhay, nhung VAN goi lai server o nen:
-      // cache chi de tranh man hinh trang, khong duoc phep quyet dinh du lieu
-      // nguoi dung nhin thay cu den bao gio. Tai khong bat man che khi da co du lieu
-      // va so sanh fingerprint nen neu du lieu khong doi thi khong render lai.
-      renderView(state.view);
+    // Cac lan tai luc khoi dong. Trang that chay SAU khi authGuard() nap quyen (afterPermissions) va chi goi API tai khoan duoc
+    // phep: tai khoan chi co "Du kien hang ve" (Ke toan / Mua hang / Kho) khong goi Bao cao hang hoa, Gia tri ton kho, /api/dashboard.
+    function bootReportLoads() {
+      if (initialReportView() !== 'marketing' && allowedAtBoot('reports.products')) loadProductReport();
+      // Bieu do gia tri ton kho theo ngay (muc 1 Xu huong): cung ly do nhu bao cao hang hoa o tren.
+      if (initialReportView() !== 'marketing' && allowedAtBoot('reports.overview')) loadInventoryHistory();
+
+      // Chi tai tab can xem ngay: tab theo hash (/reports/#products) hoac tab dang mo. Cac tab khac tai
+      // khi nguoi dung bam vao (switchView -> ensureViewData).
+      const bootView = initialReportView();
+      if (permissionsDeferred && !canViewReport(bootView)) return; // applyReportViewPermissions da chuyen sang tab duoc phep
+      if (viewIsLoaded(state.view)) {
+        // Ve ngay tu cache de khong nhap nhay, nhung VAN goi lai server o nen:
+        // cache chi de tranh man hinh trang, khong duoc phep quyet dinh du lieu
+        // nguoi dung nhin thay cu den bao gio. Tai khong bat man che khi da co du lieu
+        // va so sanh fingerprint nen neu du lieu khong doi thi khong render lai.
+        renderView(state.view);
+      }
+      if (!isViewRequestPending(bootView)) loadData(state.days, !viewIsLoaded(bootView), bootView);
     }
-    if (!isViewRequestPending(bootView)) loadData(state.days, !viewIsLoaded(bootView), bootView);
+    afterPermissions(bootReportLoads);
 
     // Cap nhat gan thoi gian thuc: server phat SSE moi lan rollup Dashboard
     // vua refresh xong (5 phut/lan, xem dashboardRollupRefresh.js), khong keo
@@ -10107,8 +10372,14 @@
         retryTimer = setTimeout(function () { retryTimer = null; connect(); }, delay);
       }
 
+      // /api/dashboard/events cung quyen voi /api/dashboard (Tong quan / Hoa don / Cong no / Khach hang): tai khoan chi co Hang hoa
+      // hoac Marketing khong mo luong nay (se bi 403 roi retry mai).
+      function liveUpdatesAllowed() {
+        return !permissionsDeferred || ['reports.overview', 'reports.invoices', 'reports.debt', 'reports.business'].some(hasFeature);
+      }
+
       function connect() {
-        if (typeof EventSource === 'undefined') return;
+        if (typeof EventSource === 'undefined' || !liveUpdatesAllowed()) return;
         if (stream) stream.close();
         consecutiveErrors = 0;
         stream = new EventSource('/api/dashboard/events');
@@ -10152,7 +10423,7 @@
         }
       });
 
-      connect();
+      afterPermissions(connect);
     })();
   </script>
 

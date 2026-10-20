@@ -127,15 +127,16 @@ test('sidebar dung chung co muc Khách hàng (reports.business), khong con repor
   assert.doesNotMatch(nav, /reports\.customers/);
 });
 
-test('tab Hang hoa: Bao cao hang hoa (muc 1) + Tang truong ma hang (muc 2) nam trong #view-products', () => {
+test('tab Hang hoa: Bao cao hang hoa (muc 1) + Du kien hang ve (muc 2) + Tang truong ma hang (muc 3) nam trong #view-products', () => {
   const page = createPage();
   const view = page.$('view-products');
   assert.ok(view, 'thieu #view-products');
   assert.equal(view.querySelector('.view-title').textContent.trim(), 'Hàng hóa');
   const titles = [...view.querySelectorAll('.section-head h2')].map(h => h.textContent.replace(/s+/g, ' ').trim());
   assert.match(titles[0], /^Báo cáo hàng hóa/);
-  assert.match(titles[1], /^Tăng trưởng mã hàng/);
-  assert.deepEqual([...view.querySelectorAll('.section-step')].map(s => s.textContent.trim()), ['1', '2']);
+  assert.match(titles[1], /^Dự kiến hàng về/);
+  assert.match(titles[2], /^Tăng trưởng mã hàng/);
+  assert.deepEqual([...view.querySelectorAll('.section-step')].map(s => s.textContent.trim()), ['1', '2', '3']);
   assert.ok(view.querySelector('#productReportRows'), 'Bao cao hang hoa da chuyen tu Tong quan sang Hang hoa');
   assert.equal(page.$('view-overview').querySelector('#productReportRows'), null, 'Tong quan khong con Bao cao hang hoa');
   assert.ok(view.querySelector('#businessProductsRows'), 'Tang truong ma hang da chuyen tu Khach hang sang Hang hoa');

@@ -74,7 +74,8 @@ test('mac dinh theo vai tro: reports.* khop dung REPORTS_ROLES cu', () => {
   }
   for (const role of LEGACY_NO_REPORTS_ROLES) {
     const defaults = registry.defaultsForRole(role);
-    const reportKeys = defaults.filter(key => key.startsWith('reports.'));
+    // 2026-10-20: bang Du kien hang ve mo cho Ke toan / Mua hang / Kho; ngoai ra khong co reports.* nao.
+    const reportKeys = defaults.filter(key => key.startsWith('reports.') && key !== 'reports.products.expected');
     assert.deepEqual(reportKeys, [], `${role} khong duoc co quyen reports.* nao`);
   }
 });
@@ -152,7 +153,7 @@ test('Tra cuu / Lich su / Xuat / Ghi de GAN vao Vong doi don hang: thieu lifecyc
   assert.ok(!grantedOnlyLifecycle.includes('shipment.history'));
 });
 
-const SALE_REPORT_VIEW_KEYS = ['reports.overview', 'reports.products', 'reports.products.sales', 'reports.invoices', 'reports.business', 'reports.debt'];
+const SALE_REPORT_VIEW_KEYS = ['reports.overview', 'reports.products', 'reports.products.sales', 'reports.products.expected', 'reports.invoices', 'reports.business', 'reports.debt'];
 
 test('Nhan vien sale xem du 5 tab bao cao mac dinh + dien Sale phan hoi cong no, KHONG co xuat Excel / sua trang thai cong no', () => {
   const reportKeys = registry.defaultsForRole(ROLES.NHAN_VIEN_SALE).filter(key => key.startsWith('reports.'));
@@ -172,7 +173,7 @@ const SHIPMENT_LIFECYCLE_GROUP = ['shipment.lifecycle', 'shipment.lookup', 'ship
 
 test('Nhan vien marketing has own report, other permissions match sale excluding general reports, lifecycle and Tao QR', () => {
   assert.deepEqual(
-    registry.defaultsForRole(ROLES.NHAN_VIEN_MARKETING).filter(key=>key!=='reports.marketing' && key!=='reports.products'),
+    registry.defaultsForRole(ROLES.NHAN_VIEN_MARKETING).filter(key=>key!=='reports.marketing' && key!=='reports.products' && key!=='reports.products.expected'),
     registry.defaultsForRole(ROLES.NHAN_VIEN_SALE).filter(key => !SALE_REPORT_VIEW_KEYS.includes(key) && key !== 'reports.debt.saleFeedback' && key !== 'accounting.qr' && !SHIPMENT_LIFECYCLE_GROUP.includes(key))
   );
 });
@@ -337,4 +338,19 @@ test('reports.products.price (Don gia HN/SG cua Bao cao hang hoa): mac dinh chi 
     assert.equal(registry.defaultsForRole(role).includes('reports.products.price'), false, role);
   }
   assert.equal(registry.FEATURES.find(f => f.key === 'reports.products.price').requires, 'reports.products');
+});
+
+test('reports.products.expected (Du kien hang ve): 7 vai tro, doc lap voi reports.products, khong doi trang dang nhap mac dinh', () => {
+  const feature = registry.FEATURES.find(f => f.key === 'reports.products.expected');
+  assert.ok(feature && !feature.requires);
+  assert.deepEqual([...feature.roles].sort(), ['Kế toán', 'Nhân viên kho', 'Nhân viên marketing', 'Nhân viên mua hàng', 'Nhân viên sale', 'Quản lý', 'Trợ lý'].sort());
+  assert.ok(!registry.defaultsForRole(ROLES.KHACH).includes('reports.products.expected'));
+  for (const role of [ROLES.KE_TOAN, ROLES.NHAN_VIEN_MUA_HANG, ROLES.NHAN_VIEN_KHO]) {
+    const permissions = registry.defaultsForRole(role);
+    assert.ok(!permissions.includes('reports.products'), role);
+    // Mo duoc /reports (de xem bang) nhung landing van la trang cu.
+    assert.ok(registry.permissionsHave(permissions, ...registry.pageRuleFor('/reports').anyOf), role);
+    assert.notEqual(registry.landingPathFor(permissions), '/reports/', role);
+  }
+  assert.equal(registry.landingPathFor(['reports.products.expected', 'account.profile']), '/account/');
 });

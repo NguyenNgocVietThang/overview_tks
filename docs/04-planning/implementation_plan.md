@@ -1,5 +1,16 @@
 # Implementation plan hiện tại
 
+## Bổ sung 20/10/2026 — Dự kiến hàng về (tab Hàng hóa, mục 2)
+
+- Mục mới liệt kê toàn bộ dòng hàng của mọi cont (6 sheet CONT) theo mẫu Google Sheet; thứ tự tab Hàng hóa: 1. Báo cáo hàng hóa, 2. Dự kiến hàng về, 3. Tăng trưởng mã hàng. Tuân quy ước "báo cáo mới = bảng DB tính sẵn do job nền dựng, web chỉ đọc".
+- Migration `0073_product_container_expected.sql` (CHƯA áp DB): `product_container_expected` (mỗi dòng sheet một dòng, khóa `(sheet_name, source_row)`; cột `container_name`, `status`, `status_label` = cột B, `eta` = cột C, `schedule_label` = B + 1 dấu cách + C, `product_code/key/name`, `color`, `sale_note`, `ordered_by`, `units_per_package`, `package_count`, `quantity` NUMERIC) và `product_container_expected_state` (1 dòng: `version`, `source_version`, `computed_at`, `row_count`). `REVOKE` khỏi `reporting_readonly` vì có cột Người đặt.
+- Job `productContainers/expectedRefresh.js` (`refreshExpected`, `requestExpectedRefresh`): nguồn là `product_container_lines` + tên SP từ `product_report`, không gọi Sheets; ghi diff-only, `version` chỉ tăng khi có dòng thêm/đổi/xóa; được `startContainerSchedule` (`productContainers/sync.js`) gọi sau mỗi lượt đồng bộ CONT 10 phút; thiếu bảng (`42P01`) thì bỏ qua.
+- `productContainers/expectedRepository.js` (đọc, cache theo `state.version`), `expectedRoutes.js` (đăng ký trong `routes.js` tại `/api/expected-arrivals`, đặt ngoài `/api/product-report`), `expectedExport.js` (xlsx/html theo bộ lọc Cont, Trạng thái, `q`, `columns`).
+- Quyền `reports.products.expected` trong `auth/featureRegistry.js` cho Quản lý, Trợ lý, Nhân viên sale, Kế toán, NV marketing, NV mua hàng, NV kho; không `requires: 'reports.products'`. Frontend (`public/index.html`, `shared/shared-nav.js`): mục `#expectedArrivalsSection` với KPI theo mục, hai bộ lọc Cont/Trạng thái (Trạng thái lọc theo cột B, cột hiển thị là B+C), 10 cột, phân trang + `table-controls.js`, nút Xuất file; tab Hàng hóa mở được khi có một trong hai quyền và các mục khác tự ẩn theo quyền.
+- Còn lại: áp `0073` → deploy → chạy tay `node productContainers/expectedRefresh.js` một lần → xác nhận 7 vai trò vào được tab Hàng hóa và thấy mục Dự kiến hàng về.
+
+## Bổ sung 15/10/2026 — Hàng dự kiến trong Báo cáo hàng hóa
+
 ## Bổ sung 15/10/2026 — Hàng dự kiến trong Báo cáo hàng hóa
 
 - Kế hoạch chi tiết và prompt triển khai: [plan-product-report-containers.md](../../tasks/plan-product-report-containers.md).
@@ -103,7 +114,7 @@ Kiến trúc: `server/debtSchedule/` (quy tắc thuần, job chốt 15:00, repos
 
 19/10/2026 (đợt 3) — **Báo cáo hàng hóa theo sheet BC CHUNG (migration `0067`, đã áp DB 19/10/2026)**: 34 cột UI = Excel, 12 cột mới + DS khách lớn nhất đưa vào giao diện, cột mới ẩn mặc định ở cả khung Sale và Quản lý, Đơn giá dời xuống cuối, Giá trị có bán + Đơn giá chỉ Quản lý/Trợ lý. Đứt HN/SG cập nhật sau mỗi lần chạy quét đứt hàng 30 ngày (không có lịch tự chạy; chưa quét = 0). **Việc vận hành**: áp `0067` trước khi deploy; sau deploy chạy "Quét đứt hàng 30 ngày" cơ sở "Cả hai" lần đầu; job tăng dần tự chạy lượt nặng để điền SL đơn (không cần chạy tay).
 
-Cập nhật gần nhất: 19/10/2026.
+Cập nhật gần nhất: 20/10/2026.
 
 Điều chỉnh 15/10/2026: trong tháng hiển thị điểm/hạng, thưởng tạm tính và tổng phạt từ các ngày ĐÃ CHỐT, không cộng chu kỳ đang mở. Lúc 14:59 giờ Việt Nam lưu bản cuối của chu kỳ 15:00 hôm trước–14:59 hôm sau, mỗi chu kỳ đúng một lần và không ghi đè; 15:00 mới reset. Nhiều lần Tính lại trong chu kỳ chỉ cập nhật bản đang mở, không cộng thành nhiều ngày. Tiền thưởng hiện mỗi ngày với nhãn Thưởng tạm tính, thay đổi theo điểm và tổng phạt đã chốt ngày; chỉ chốt/lưu thưởng chính thức một lần khi kết thúc tháng. Web, hộp chi tiết và file xuất đều phân biệt tạm tính/đã chốt.
 
@@ -141,4 +152,4 @@ Phương án B đã duyệt: tập SĐT/KPI Pancake riêng trong PostgreSQL, ng�
 
 19/10/2026 — Tính sẵn báo cáo (migration `0068`–`0070`): doanh số tháng hiện tại Báo cáo kinh doanh, chi phí ADS + doanh số theo tên + gộp SĐT Báo cáo Marketing, view đọc Sổ quỹ; chi tiết ở mục 27 "Kiến trúc đã triển khai". Việc áp migration lên DB dùng chung và deploy chưa được xác nhận trong tài liệu này.
 
-Cập nhật gần nhất: 19/10/2026.
+Cập nhật gần nhất: 20/10/2026.

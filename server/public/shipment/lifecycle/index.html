@@ -374,6 +374,10 @@
   .lc-lines tr.is-service td{ color:var(--muted); }
   .lc-lines td.is-short{ color:var(--amber); font-weight:700; }
   .lc-lines-note{ margin:8px 0 0; color:var(--muted); font-size:12px; line-height:1.5; }
+  .lc-lines-note-strong{ margin:8px 0 0; color:var(--text); font-size:14px; font-weight:800; line-height:1.5; }
+  .lc-lines-note-warn{ margin:8px 0 0; color:var(--red); font-size:14px; font-weight:800; line-height:1.5; }
+  .lc-freight-steps .lc-freight-total td{ font-size:16px; }
+  .lc-freight-steps .lc-freight-total td strong{ font-size:17px; }
   .lc-lines td.is-missing{ color:var(--amber); font-weight:600; }
   /* Khoi The tich & cuoc van chuyen trong hop chi tiet */
   .lc-freight{ margin-top:16px; }
@@ -1094,9 +1098,10 @@
           carrier.steps.map(function(step){
             return '<tr><td>' + escapeHtml(step.label) + '</td><td class="num">' + escapeHtml(formatTableVnd(step.amount)) + '</td></tr>';
           }).join('') +
-          '<tr><td><strong>Tổng cước' + (carrier.surcharge ? ' (đã gồm phụ thu)' : '') + '</strong></td><td class="num"><strong>' +
+          '<tr class="lc-freight-total"><td><strong>Tổng cước' + (carrier.surcharge ? ' (đã gồm phụ thu)' : '') + '</strong></td><td class="num"><strong>' +
           escapeHtml(formatTableVnd(carrier.total)) + '</strong></td></tr></tbody></table></div>' +
-          '<p class="lc-lines-note">' + escapeHtml(carrier.note) + '</p>';
+          '<p class="lc-lines-note-strong">' + escapeHtml(carrier.note) + '</p>' +
+          (selectedCarrier === 'VL' ? '<p class="lc-lines-note-warn">Cước chưa bao gồm Chành từ SG đi tỉnh.</p>' : '');
       }
       return html;
     }

@@ -555,4 +555,15 @@ marketing_pancake_independent_page_state lưu trạng thái/coverage sáu page; 
 
 `0070_cash_book_transactions_view.sql`: view thường `v_cash_book_transactions` = `cash_flows c LEFT JOIN cash_book_accounts a ON a.id = c.account_id`, gồm `branch`, `id`, `code`, `trans_date`, `is_receipt`, `amount`, `method`, `status`, `account_id`, `user_id`, `description`, `source_missing_at`, `fund_key` (`'cash'` nếu `method = 'Cash'`, `'unassigned'` nếu thiếu `account_id`, còn lại `account_id::text`), `account_no`, `account_name` (= `bank_name`), `account_desc`, và các trường rút sẵn từ `raw` (PascalCase trước, camelCase sau): `cash_group_id`, `cash_group_name`, `partner_id`, `partner_name`, `partner_phone`, `created_by`, `user_name`, `raw_user_id`, `used_for_financial_reporting`. Cột `raw` KHÔNG được lộ ra view. Không bảng/index/generated column mới; `GRANT SELECT` cho `reporting_readonly` chỉ khi role tồn tại. `cashbookRepository.js` đọc qua view và lùi về subquery cùng nội dung (`CASH_BOOK_TRANSACTIONS_SELECT`) khi gặp `42P01`, thử lại view sau 5 phút; test `db/cashBookViewMigration.test.js` bắt buộc hai bản giống hệt. `cash_book_account_banks` (0034) không còn được dùng, chờ dọn (chưa `DROP`). Việc mở: cân nhắc index `cash_flows(trans_date) WHERE source_missing_at IS NULL` sau khi đo (seq scan ~80k dòng ~120–230 ms).
 
-Cập nhật: 19/10/2026.
+## Dự kiến hàng về — migration 0073 (20/10/2026, CHƯA áp DB)
+
+`0073_product_container_expected.sql` thêm 2 bảng mới (IF NOT EXISTS, không CONCURRENTLY), thu hồi quyền `reporting_readonly` (có Người đặt):
+
+| Bảng | Hợp đồng |
+|---|---|
+| `product_container_expected` | PK `(sheet_name, source_row)` (1 dòng = 1 dòng hàng sheet CONT, không gộp). `sheet_order`, `container_row` INTEGER; `container_name`, `status SMALLINT`, `status_label` (cột B), `eta` (cột C), `schedule_label` = `btrim(B || ' ' || C)` một dấu cách, `product_code`, `product_key`, `product_name` (từ `product_report` theo `lower(btrim(product_code))`, `min()`; không có thì ''), `color`, `sale_note`, `ordered_by` TEXT; `units_per_package`, `package_count` NUMERIC nullable; `quantity` NUMERIC. |
+| `product_container_expected_state` | 1 dòng `id = 1`: `version BIGINT` (chỉ tăng khi có dòng thêm/đổi/xóa), `source_version UUID` (= `product_container_sync.version` lúc tính), `computed_at`, `row_count`. |
+
+Dựng bởi `productContainers/expectedRefresh.js`, web chỉ SELECT (`expectedRepository.js`, cache theo `version`). Chưa áp migration thì API trả bảng rỗng, job bỏ qua. Sau khi áp, chạy tay `node productContainers/expectedRefresh.js` một lần.
+
+Cập nhật: 20/10/2026.

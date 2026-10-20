@@ -121,7 +121,11 @@ test('renderTopSidebar: menu dung theo QUYEN, khong theo vai tro cung', () => {
   assert.doesNotMatch(sbKho.innerHTML, /Vòng đời đơn hàng/);
   assert.doesNotMatch(sbKho.innerHTML, />Tổng quan<\/a>/);
   assert.match(sbKho.innerHTML, /Quản lý nhân sự/);
-  assert.doesNotMatch(sbKho.innerHTML, /Báo cáo tổng hợp/);
+  // Tu 2026-10-20 NV kho co reports.products.expected: nhom Bao cao tong hop chi con muc Hang hoa (bang Du kien hang ve).
+  assert.match(sbKho.innerHTML, /Báo cáo tổng hợp/);
+  assert.match(sbKho.innerHTML, />Hàng hóa<\/a>/);
+  assert.match(sbKho.innerHTML, /href="\/reports\/#products"/);
+  assert.doesNotMatch(sbKho.innerHTML, /href="\/reports\/#(overview|invoices|business|debt|marketing)"/);
 
   // Nhan vien sale: xem du 5 tab bao cao (tab Khach hang cu da go 2026-10-16; Bao cao kinh doanh doi ten thanh Khach hang).
   const sbSale = renderForRole('Nhân viên sale').sidebar;
@@ -145,7 +149,10 @@ test('renderTopSidebar: menu dung theo QUYEN, khong theo vai tro cung', () => {
   const sbMuaHang = renderForRole('Nhân viên mua hàng').sidebar;
   assert.doesNotMatch(sbMuaHang.innerHTML, /Quản lý đơn hàng/);
   assert.match(sbMuaHang.innerHTML, /Quản lý nhân sự/);
-  assert.doesNotMatch(sbMuaHang.innerHTML, /Báo cáo tổng hợp/);
+  // NV mua hang cung co reports.products.expected: chi con muc Hang hoa trong nhom Bao cao tong hop.
+  assert.match(sbMuaHang.innerHTML, /Báo cáo tổng hợp/);
+  assert.match(sbMuaHang.innerHTML, /href="\/reports\/#products"/);
+  assert.doesNotMatch(sbMuaHang.innerHTML, /href="\/reports\/#(overview|invoices|business|debt|marketing)"/);
 
   const sbQuanLy = renderForRole('Quản lý').sidebar;
   assert.match(sbQuanLy.innerHTML, /Báo cáo tổng hợp/);
