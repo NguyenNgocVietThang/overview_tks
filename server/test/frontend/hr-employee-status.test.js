@@ -16,7 +16,7 @@ const EMPLOYEES = [
 
 const tick = () => new Promise(resolve => setTimeout(resolve, 0));
 
-async function openPage({ canManage, employees = EMPLOYEES }) {
+async function openPage({ canManage, employees = EMPLOYEES, departments = {} }) {
   const html = fs.readFileSync(htmlPath, 'utf8');
   const dom = new JSDOM(html, { runScripts: 'outside-only', url: 'https://tokosi.example/humanresources/' });
   const { window } = dom;
@@ -34,7 +34,7 @@ async function openPage({ canManage, employees = EMPLOYEES }) {
       const payload = { employee: EMPLOYEES[0], accounts: { locked: ['bs'], unlocked: [], skipped: [] } };
       return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => payload };
     }
-    const payload = text.startsWith('/api/hr/employees') ? { employees, canManage }
+    const payload = text.startsWith('/api/hr/employees') ? { employees, departments, canManage }
       : text.includes('/summary/') ? { summary: [] } : { requests: [] };
     return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => payload, text: async () => JSON.stringify(payload) };
   };
@@ -65,6 +65,18 @@ test('dashboard nhân sự đếm tổng và từng Bộ phận theo bộ lọc 
   assert.equal(doc.getElementById('employeeSummaryTotal').textContent, '2');
   assert.match(doc.getElementById('employeeSummaryScope').textContent, /Hà Nội/);
   assert.match(doc.getElementById('employeeDepartmentSummary').textContent, /KHO\s*1/);
+  dom.window.close();
+});
+
+test('dashboard gộp dữ liệu Bộ phận khác hoa thường vào danh mục cố định', async () => {
+  const employees = [
+    { id: '1', hoTen: 'An', boPhan: 'kho', coSo: 'Hà Nội', trangThai: 'Đang làm việc' },
+    { id: '2', hoTen: 'Bình', boPhan: 'KHO', coSo: 'Hà Nội', trangThai: 'Đang làm việc' }
+  ];
+  const { dom, window } = await openPage({ canManage: true, employees, departments: { 'Hà Nội': ['Kho'] } });
+  const doc = window.document;
+  assert.equal(doc.querySelectorAll('#employeeDepartmentSummary button').length, 1);
+  assert.match(doc.getElementById('employeeDepartmentSummary').textContent, /Kho\s*2/);
   dom.window.close();
 });
 

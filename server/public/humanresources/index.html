@@ -3170,7 +3170,11 @@
       const counts=new Map();
       Object.keys(employeeDepartmentCatalog).forEach(branchLabel => {
         if(branch && branchLabel !== branch) return;
-        (employeeDepartmentCatalog[branchLabel] || []).forEach(name => { if(!counts.has(name)) counts.set(name,0); });
+        (employeeDepartmentCatalog[branchLabel] || []).forEach(name => {
+          const label=String(name || '').trim();
+          const key=departmentKey(label);
+          if(key && !counts.has(key)) counts.set(key,{ label, count:0 });
+        });
       });
       inScope.forEach(e => {
         const label=String(e.boPhan || '').trim() || 'Chưa cập nhật';
