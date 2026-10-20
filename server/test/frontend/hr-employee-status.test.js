@@ -170,6 +170,7 @@ test('người không quản lý: bảng 5 cột công khai dùng hết chiều 
   const { dom, window } = await openPage({ canManage: false });
   const table = window.document.getElementById('employeeDirectoryTable');
   assert.equal(table.style.width, '100%');
+  assert.equal(table.dataset.tableFit, 'contain');
   dom.window.close();
 });
 
