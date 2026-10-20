@@ -118,6 +118,10 @@ function createEffectiveUserResolver(options = {}) {
       });
     }
 
+    // Quyền, cơ sở và Bộ phận của mọi tài khoản thông thường là dữ liệu quản trị
+    // tài khoản. Không tự đọc hay đồng bộ từ hồ sơ nhân sự khi đăng nhập.
+    return user;
+
     let snapshot;
     try {
       snapshot = await directory.getSnapshot();

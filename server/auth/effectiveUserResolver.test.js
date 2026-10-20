@@ -29,6 +29,24 @@ const employee = {
   sheetVaiTro: 'Kế toán', sheetCoSo: 'Cả hai'
 };
 
+test('tài khoản thường giữ nguyên quyền và phạm vi đã cấp, không đọc hồ sơ nhân sự khi đăng nhập', async () => {
+  let reads = 0;
+  const store = memoryStore([{
+    id: 'u-account', username: 'account@tokosi.vn', email: 'account@tokosi.vn',
+    vaiTro: 'Kế toán', coSo: 'Hà Nội', boPhan: 'Kế toán', trangThai: 'Đang hoạt động'
+  }]);
+  const resolver = createEffectiveUserResolver({
+    store,
+    directory: { getSnapshot: async () => { reads += 1; throw new Error('không được đọc HR'); } }
+  });
+  const resolved = await resolver.resolveUser(store.state[0]);
+  assert.equal(resolved.vaiTro, 'Kế toán');
+  assert.equal(resolved.coSo, 'Hà Nội');
+  assert.equal(resolved.boPhan, 'Kế toán');
+  assert.equal(reads, 0);
+  assert.equal(store.updates.length, 0);
+});
+
 test('verified guest becomes one HR-managed multi-identifier account', async () => {
   const store = memoryStore([{
     id: 'u1', username: '0912345678', email: '', soDienThoai: '0912345678',

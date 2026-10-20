@@ -65,7 +65,9 @@ function rowToUser(row) {
     vaiTro: row.vai_tro || '',
     coSo: coSoFromDb(row.co_so),
     assignedCoSo: coSoFromDb(row.co_so),
-    boPhan: row.hr_bo_phan || '',
+    // Bộ phận/Cơ sở công tác thuộc tài khoản. Không suy ra từ hồ sơ nhân sự.
+    boPhan: row.bo_phan || '',
+    workCoSo: coSoFromDb(row.work_branch),
     hrEmployeeActive: row.hr_employee_id == null || row.hr_employee_active === undefined ? undefined : !!row.hr_employee_active,
     leaveApprovalDepartments: normalizeDepartments(row.leave_approval_departments || []),
     trangThai: row.trang_thai || '',
@@ -104,6 +106,8 @@ const WRITABLE_COLUMNS = Object.freeze([
   ['passwordHash', 'password_hash', v => String(v || '')],
   ['vaiTro', 'vai_tro', v => String(v || '')],
   ['coSo', 'co_so', v => coSoToDb(v)],
+  ['workCoSo', 'work_branch', v => coSoToDb(v)],
+  ['boPhan', 'bo_phan', v => String(v || '').trim()],
   ['trangThai', 'trang_thai', v => String(v || '')],
   ['ngayTao', 'ngay_tao', v => String(v || '')],
   ['dangNhapGanNhat', 'dang_nhap_gan_nhat', v => String(v || '')],
@@ -134,11 +138,7 @@ const WRITABLE_COLUMNS = Object.freeze([
   ['hrVerificationRequired', 'hr_verification_required', v => !!v]
 ]);
 
-const SELECT_SQL = `
-  SELECT u.*, e.branch AS hr_branch, e.bo_phan AS hr_bo_phan, e.is_active AS hr_employee_active
-  FROM app_users u
-  LEFT JOIN hr_employees e ON e.id = u.hr_employee_id
-`;
+const SELECT_SQL = `SELECT u.* FROM app_users u`;
 
 /**
  * Lấy toàn bộ tài khoản chưa bị xóa mềm — dùng làm snapshot cho cache TTL
@@ -159,11 +159,10 @@ async function selectAllRows() {
 async function selectFingerprint() {
   const { rows } = await getPool().query(`
     SELECT md5(COALESCE(string_agg(
-      u::text || '|' || COALESCE(e.branch, '') || '|' || COALESCE(e.bo_phan, '') || '|' || COALESCE(e.is_active::text, ''),
+      u::text,
       E'
 ' ORDER BY u.id::text), '')) AS fingerprint
     FROM app_users u
-    LEFT JOIN hr_employees e ON e.id = u.hr_employee_id
     WHERE NOT u.is_deleted
   `);
   return rows[0] ? rows[0].fingerprint : null;
@@ -185,11 +184,7 @@ async function insertUser(user) {
   return attachBranch(rows[0]);
 }
 
-async function attachBranch(row) {
-  if (!row.hr_employee_id) return rowToUser({ ...row, hr_branch: null });
-  const { rows } = await getPool().query('SELECT branch, bo_phan, is_active FROM hr_employees WHERE id = $1', [row.hr_employee_id]);
-  return rowToUser({ ...row, hr_branch: rows[0] ? rows[0].branch : null, hr_bo_phan: rows[0] ? rows[0].bo_phan : null, hr_employee_active: !!(rows[0] && rows[0].is_active) });
-}
+async function attachBranch(row) { return rowToUser(row); }
 
 /**
  * Cập nhật một phần (patch) theo id. Chỉ các field nằm trong WRITABLE_COLUMNS

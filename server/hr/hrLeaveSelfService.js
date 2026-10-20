@@ -11,13 +11,12 @@ const defaultSchedules=require('./hrLeaveWorkSchedulesRepository');
 // (cơ sở "Cả hai"/trống quy về Hà Nội vì đơn nghỉ bắt buộc thuộc một cơ sở).
 async function loadActiveProfile(userId, pool = getPool()) {
   const { rows } = await pool.query(`
-    SELECT u.id AS user_id, u.username, u.vai_tro, u.telegram_id, e.id AS hr_employee_id,
-           COALESCE(e.ho_ten, NULLIF(u.ho_ten, ''), u.username) AS ho_ten,
-           COALESCE(e.bo_phan, u.vai_tro) AS bo_phan,
-           COALESCE(e.branch, CASE WHEN u.co_so IN ('hanoi', 'saigon') THEN u.co_so ELSE 'hanoi' END) AS branch
-    FROM app_users u LEFT JOIN hr_employees e ON e.id = u.hr_employee_id
+    SELECT u.id AS user_id, u.username, u.vai_tro, u.telegram_id, NULL::bigint AS hr_employee_id,
+           COALESCE(NULLIF(u.ho_ten, ''), u.username) AS ho_ten,
+           u.bo_phan, u.work_branch AS branch
+    FROM app_users u
     WHERE u.id = $1 AND u.trang_thai = 'Đang hoạt động' AND NOT u.is_deleted AND u.vai_tro <> 'Khách'
-      AND (e.is_active OR u.hr_employee_id IS NULL)
+      AND u.work_branch IN ('hanoi', 'saigon') AND btrim(u.bo_phan) <> ''
   `, [userId]);
   return rows[0] || null;
 }
@@ -39,7 +38,7 @@ function createHrLeaveSelfService({ loadProfile = loadActiveProfile, repo = leav
     const calendar=normalizeCalendar(body);
     const submittedAt = now();
     // Chưa gắn hồ sơ nhân sự: dùng giờ mặc định (không có lịch riêng để tra).
-    const schedule=ctx.profile.hrEmployeeId==null ? schedules.defaultSchedule(calendar.start_date) : await schedules.getSchedule(ctx.profile.hrEmployeeId,calendar.start_date);
+    const schedule=await schedules.getScheduleForUser(ctx.profile.userId,calendar.start_date);
     const timing=calculateTiming(calendar,schedule,submittedAt);
     return {ctx,calendar,timing,submittedAt};
   }
@@ -63,7 +62,7 @@ function createHrLeaveSelfService({ loadProfile = loadActiveProfile, repo = leav
   async function canEdit(user,request,loadedContext) {
     if(!request || request.source!=='web' || request.loai_yeu_cau!==leaveRepo.LEAVE_TYPE.REQUEST || String(request.user_id)!==String(user && user.id)) return false;
     const ctx=loadedContext || await context(user);
-    return ctx.eligible && ctx.profile.hrEmployeeId!=null && String(ctx.profile.hrEmployeeId)===String(request.hr_employee_id) && ctx.profile.coSo===request.co_so;
+    return ctx.eligible && ctx.profile.coSo===request.co_so;
   }
   async function resubmit(user,id,body={}) {
     const {ctx,calendar}=await prepare(user,body);

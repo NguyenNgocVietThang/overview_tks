@@ -21,9 +21,10 @@ test('rowToUser dùng chuỗi rỗng khi tài khoản chưa có Telegram ID', ()
   assert.equal(user.telegramId, '');
 });
 
-test('rowToUser preserves stored approval departments, linked department and raw assigned branch', () => {
-  const user = rowToUser({ id: 'scope', co_so: '', hr_branch: 'hanoi', hr_bo_phan: 'KẾ TOÁN', leave_approval_departments: ['  Kho  ', 'Kho', 'KẾ TOÁN'] });
+test('rowToUser lấy Bộ phận và Cơ sở công tác từ tài khoản, không từ hồ sơ nhân sự', () => {
+  const user = rowToUser({ id: 'scope', co_so: '', work_branch: 'hanoi', bo_phan: 'KẾ TOÁN', hr_branch: 'saigon', hr_bo_phan: 'SALE', leave_approval_departments: ['  Kho  ', 'Kho', 'KẾ TOÁN'] });
   assert.equal(user.assignedCoSo, '');
+  assert.equal(user.workCoSo, 'Hà Nội');
   assert.equal(user.boPhan, 'KẾ TOÁN');
   assert.deepEqual(user.leaveApprovalDepartments, ['Kho', 'KẾ TOÁN']);
 });
@@ -64,6 +65,6 @@ test('selectFingerprint: băm toàn bộ snapshot trong SQL, chỉ trả 1 dòng
   assert.equal(calls.length, 1);
   assert.match(calls[0], /md5\(/);
   assert.match(calls[0], /string_agg/);
-  assert.match(calls[0], /hr_employees/);
+  assert.doesNotMatch(calls[0], /hr_employees/, 'fingerprint tài khoản không đọc hồ sơ nhân sự');
   assert.match(calls[0], /NOT u\.is_deleted/);
 });

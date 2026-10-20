@@ -9,7 +9,7 @@ const account = { user_id: 'u-1', username: 'real-user', hr_employee_id: 42, ho_
 const body = { start_date: '2026-10-06', start_session: 'Sáng', end_date: '2026-10-07', end_session: 'Chiều', ly_do: '  Việc nhà  ', nguoi_ban_giao: '  An  ', user_id: 'victim', hr_employee_id: 99, ho_ten: 'Giả', bo_phan: 'SALE', co_so: 'Hà Nội', trang_thai: 'Đã duyệt', tong_buoi_nghi: 99, co_nghi_gap: false };
 function service(profile = account, instant = '2026-10-05T15:00:00.000Z') {
   let persisted;
-  const instance = create({ loadProfile: async () => profile, now: () => new Date(instant), schedules:{getSchedule:async()=>({morningStart:'07:45',afternoonStart:'12:30',version:'1'})}, repo: { createLeaveRequest: async (record, branch) => { persisted = { ...record, co_so: branch }; return persisted; } } });
+  const instance = create({ loadProfile: async () => profile, now: () => new Date(instant), schedules:{getScheduleForUser:async()=>({morningStart:'07:45',afternoonStart:'12:30',version:'1'}),getSchedule:async()=>({morningStart:'07:45',afternoonStart:'12:30',version:'1'}),defaultSchedule:()=>({morningStart:'07:45',afternoonStart:'12:30',version:'0'})}, repo: { createLeaveRequest: async (record, branch) => { persisted = { ...record, co_so: branch }; return persisted; } } });
   return { instance, record: () => persisted };
 }
 test('self submission snapshots trusted DB identity and calculates Vietnam overnight urgency', async () => {
@@ -44,26 +44,30 @@ test('self submission validates reason, real calendar dates and session range be
   }
 });
 
-test('stable DB FK lookup rejects inactive accounts and employees even when names match', async () => {
+test('hồ sơ gửi đơn chỉ kiểm tra tài khoản còn hoạt động và phạm vi công tác tài khoản', async () => {
   const { PGlite } = require('@electric-sql/pglite');
   const { loadActiveProfile } = require('./hrLeaveSelfService');
   const db = new PGlite();
   try {
-    await db.exec(`CREATE TABLE app_users (id text PRIMARY KEY, username text, vai_tro text, hr_employee_id bigint, trang_thai text, is_deleted boolean, ho_ten text NOT NULL DEFAULT '', co_so text NOT NULL DEFAULT '');
+    await db.exec(`CREATE TABLE app_users (id text PRIMARY KEY, username text, vai_tro text, hr_employee_id bigint, trang_thai text, is_deleted boolean, ho_ten text NOT NULL DEFAULT '', co_so text NOT NULL DEFAULT '', bo_phan text NOT NULL DEFAULT '', work_branch text NOT NULL DEFAULT '');
       CREATE TABLE hr_employees (id bigint PRIMARY KEY, ho_ten text, bo_phan text, branch text, is_active boolean);
       INSERT INTO hr_employees VALUES (42,'Same name','KHO','saigon',true),(43,'Same name','SALE','hanoi',true),(44,'Inactive','KHO','saigon',false);
       INSERT INTO app_users VALUES ('active','staff','Nhân viên sale',42,'Đang hoạt động',false),('inactive','old','Nhân viên sale',42,'Không hoạt động',false),('locked','locked','Nhân viên sale',42,'Khóa',false),('deleted','gone','Nhân viên sale',42,'Đang hoạt động',true),('guest','guest','Khách',42,'Đang hoạt động',false),('ex-employee','ex','Khách',44,'Đang hoạt động',false),('unlinked','none','Nhân viên sale',NULL,'Đang hoạt động',false),('guest-unlinked','g2','Khách',NULL,'Đang hoạt động',false),('mgr-both','mgr1','Quản lý',NULL,'Đang hoạt động',false),('mgr-sg','mgr2','Quản lý',NULL,'Đang hoạt động',false),('mgr-gone','mgr3','Quản lý',NULL,'Đang hoạt động',true);
       UPDATE app_users SET ho_ten='Quản Lý Một', co_so='both' WHERE id='mgr-both'; UPDATE app_users SET ho_ten='Quản Lý Hai', co_so='saigon' WHERE id='mgr-sg';
+      UPDATE app_users SET bo_phan = 'KHO', work_branch = 'saigon' WHERE id IN ('active','inactive','locked','deleted','guest','ex-employee');
+      UPDATE app_users SET bo_phan = 'SALE', work_branch = 'hanoi' WHERE id = 'unlinked';
+      UPDATE app_users SET bo_phan = 'Quản lý', work_branch = 'hanoi' WHERE id IN ('mgr-both','mgr-sg','mgr-gone');
+      UPDATE app_users SET work_branch = 'saigon' WHERE id = 'mgr-sg';
       ALTER TABLE app_users ADD COLUMN telegram_id text NOT NULL DEFAULT '';
       UPDATE app_users SET telegram_id = '123456' WHERE id = 'active';`);
     const active = await loadActiveProfile('active', db);
-    assert.equal(active.hr_employee_id, 42); assert.equal(active.bo_phan, 'KHO'); assert.equal(active.branch, 'saigon'); assert.equal(active.telegram_id, '123456');
+    assert.equal(active.hr_employee_id, null); assert.equal(active.bo_phan, 'KHO'); assert.equal(active.branch, 'saigon'); assert.equal(active.telegram_id, '123456');
     const both = await loadActiveProfile('mgr-both', db);
     assert.equal(both.hr_employee_id, null); assert.equal(both.ho_ten, 'Quản Lý Một'); assert.equal(both.bo_phan, 'Quản lý'); assert.equal(both.branch, 'hanoi');
     assert.equal((await loadActiveProfile('mgr-sg', db)).branch, 'saigon');
     for (const id of ['mgr-gone','inactive','locked','deleted','guest','ex-employee','guest-unlinked','missing']) assert.equal(await loadActiveProfile(id,db), null);
     const unlinked = await loadActiveProfile('unlinked', db);
-    assert.equal(unlinked.hr_employee_id, null); assert.equal(unlinked.bo_phan, 'Nhân viên sale'); assert.equal(unlinked.branch, 'hanoi');
+    assert.equal(unlinked.hr_employee_id, null); assert.equal(unlinked.bo_phan, 'SALE'); assert.equal(unlinked.branch, 'hanoi');
   } finally { await db.close(); }
 });
 
@@ -81,7 +85,7 @@ test('preview uses actual selections without writing, and missing employee sched
  assert.equal(preview.totalSessions,2);assert.equal(preview.deadlineDate,'2026-10-04');assert.equal(record(),undefined);
  let writes=0;
  for(const profile of [account,{...account,hr_employee_id:null}]) {
-  const missing=create({loadProfile:async()=>profile,schedules:{getSchedule:async()=>null,defaultSchedule:()=>null},repo:{createLeaveRequest:async()=>{writes++;}}});
+  const missing=create({loadProfile:async()=>profile,schedules:{getScheduleForUser:async()=>null},repo:{createLeaveRequest:async()=>{writes++;}}});
   await assert.rejects(missing.submit({id:'u-1'},body),{code:'LEAVE_SCHEDULE_REQUIRED',statusCode:409});
  }
  assert.equal(writes,0);
@@ -90,5 +94,39 @@ test('editable capability requires owner, web source, same active employee and s
  const {instance}=service();
  const request={source:'web',loai_yeu_cau:'Xin nghỉ phép',user_id:'u-1',hr_employee_id:'42',co_so:'Sài Gòn'};
  assert.equal(await instance.canEdit({id:'u-1'},request),true);
- for(const patch of [{source:'telegram'},{user_id:'other'},{hr_employee_id:'43'},{co_so:'Hà Nội'},{loai_yeu_cau:'Tự ý nghỉ (HR ghi nhận)'}]) assert.equal(await instance.canEdit({id:'u-1'},{...request,...patch}),false);
+ for(const patch of [{source:'telegram'},{user_id:'other'},{co_so:'Hà Nội'},{loai_yeu_cau:'Tự ý nghỉ (HR ghi nhận)'}]) assert.equal(await instance.canEdit({id:'u-1'},{...request,...patch}),false);
+});
+
+test('loadActiveProfile đọc thông tin công tác từ app_users mà không cần bảng HR', async () => {
+  const { PGlite } = require('@electric-sql/pglite');
+  const { loadActiveProfile } = require('./hrLeaveSelfService');
+  const db = new PGlite();
+  try {
+    await db.exec(`CREATE TABLE app_users (id text PRIMARY KEY, username text, vai_tro text, telegram_id text, ho_ten text, bo_phan text, work_branch text, trang_thai text, is_deleted boolean);
+      INSERT INTO app_users VALUES ('only-account','user','Nhân viên kho','123','Tên tài khoản','Kho HN','hanoi','Đang hoạt động',false);`);
+    const profile = await loadActiveProfile('only-account', db);
+    assert.equal(profile.ho_ten, 'Tên tài khoản');
+    assert.equal(profile.bo_phan, 'Kho HN');
+    assert.equal(profile.branch, 'hanoi');
+    assert.equal(profile.hr_employee_id, null);
+  } finally { await db.close(); }
+});
+
+test('tài khoản có Bộ phận công tác tự xin và sửa đơn mà không cần hr_employee_id', async () => {
+ const profile={ user_id:'u-2',username:'account-only',hr_employee_id:null,ho_ten:'Tài khoản độc lập',bo_phan:'Kho HN',branch:'hanoi',vai_tro:'Nhân viên kho' };
+ const {instance}=service(profile);
+ const row=await instance.submit({id:'u-2'},body);
+ assert.equal(row.hr_employee_id,null);
+ assert.equal(await instance.canEdit({id:'u-2'},{source:'web',loai_yeu_cau:'Xin nghỉ phép',user_id:'u-2',hr_employee_id:null,co_so:'Hà Nội'}),true);
+});
+
+test('đơn tự gửi luôn đọc lịch theo user_id, không đọc lịch theo hr_employee_id', async()=>{
+ const calls=[];
+ const instance=create({
+  loadProfile:async()=>account,
+  schedules:{getScheduleForUser:async(id,date)=>{calls.push({id,date});return {morningStart:'07:45',afternoonStart:'12:30',version:'2'};}},
+  repo:{createLeaveRequest:async row=>row}
+ });
+ await instance.submit({id:'u-1'},body);
+ assert.deepEqual(calls,[{id:'u-1',date:'2026-10-06'}]);
 });
