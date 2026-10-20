@@ -55,12 +55,12 @@ test('danh sách nhân sự mặc định chỉ "Đang làm việc"; chữ xanh/
   assert.equal(filter.value, 'active');
   assert.deepEqual([...filter.options].map(o => o.value), ['active', 'resigned', '']);
   assert.deepEqual(names(doc), ['An Kho']);
-  assert.ok(doc.querySelector('#employeeDirectoryTableBody tr').cells[5].classList.contains('emp-status-active'));
+  assert.ok(doc.querySelector('#employeeDirectoryTableBody tr').cells[4].classList.contains('emp-status-active'));
 
   filter.value = 'resigned';
   window.renderEmployeeDirectoryTable();
   assert.deepEqual(names(doc), ['Bình Sale']);
-  const resigned = doc.querySelector('#employeeDirectoryTableBody tr').cells[5];
+  const resigned = doc.querySelector('#employeeDirectoryTableBody tr').cells[4];
   assert.equal(resigned.textContent, 'NV');
   assert.ok(resigned.classList.contains('emp-status-resigned'));
 
@@ -70,11 +70,11 @@ test('danh sách nhân sự mặc định chỉ "Đang làm việc"; chữ xanh/
   dom.window.close();
 });
 
-test('người không có quyền quản lý: giữ nguyên 6 cột cũ và bấm dòng không mở hộp', async () => {
+test('người không có quyền quản lý: giữ 5 cột công khai, không lộ email và bấm dòng không mở hộp', async () => {
   const { dom, window } = await openPage({ canManage: false });
   const doc = window.document;
   assert.equal(doc.getElementById('btnAddEmployee').hidden, true);
-  assert.equal(doc.querySelectorAll('#employeeDirectoryTableHead th').length, 6);
+  assert.equal(doc.querySelectorAll('#employeeDirectoryTableHead th').length, 5);
   const row = doc.querySelector('#employeeDirectoryTableBody tr');
   assert.equal(row.hasAttribute('data-employee-id'), false);
   row.cells[0].dispatchEvent(new window.Event('click', { bubbles: true }));
@@ -87,7 +87,7 @@ test('người có quyền quản lý: hiện bảng hồ sơ mở rộng, bấm
   const doc = window.document;
   assert.equal(doc.getElementById('btnAddEmployee').hidden, false);
   assert.equal(doc.querySelectorAll('#employeeDirectoryTableHead th').length, 19);
-  assert.equal(doc.getElementById('btnImportEmployeeDirectory').hidden, false);
+  assert.equal(doc.getElementById('btnImportEmployeeDirectory').hidden, true, 'đã có danh sách thì không cho nhập đè');
   const row = doc.querySelector('#employeeDirectoryTableBody tr');
 
   row.cells[0].dispatchEvent(new window.Event('click', { bubbles: true }));
@@ -159,10 +159,10 @@ test('so ngay lam viec tinh bang hom nay tru ngay vao lam, khong cong them 1', a
 test('cot trang thai hien LV va NV theo trang thai lam viec', async () => {
   const { dom, window } = await openPage({ canManage: false });
   const doc = window.document;
-  assert.equal(doc.querySelector('#employeeDirectoryTableBody tr').cells[5].textContent.trim(), 'LV');
+  assert.equal(doc.querySelector('#employeeDirectoryTableBody tr').cells[4].textContent.trim(), 'LV');
   doc.getElementById('employeeStatusFilter').value = 'resigned';
   window.renderEmployeeDirectoryTable();
-  assert.equal(doc.querySelector('#employeeDirectoryTableBody tr').cells[5].textContent.trim(), 'NV');
+  assert.equal(doc.querySelector('#employeeDirectoryTableBody tr').cells[4].textContent.trim(), 'NV');
   dom.window.close();
 });
 
@@ -170,8 +170,8 @@ test('cot trang thai hien LV va NV theo trang thai lam viec', async () => {
 test('do rong cot nhan su dua theo gia tri dai nhat va co gioi han hop ly', async () => {
   const basic = await openPage({ canManage: false });
   const basicHeaders = basic.window.document.querySelectorAll('#employeeDirectoryTableHead th');
-  assert.equal(basicHeaders[0].style.width, '140px');
-  assert.equal(basicHeaders[5].style.width, '75px');
+  assert.ok(parseInt(basicHeaders[0].style.width, 10) < 140, 'tên ngắn không bị ép rộng theo tên cột');
+  assert.ok(parseInt(basicHeaders[4].style.width, 10) < 75, 'trạng thái ngắn không bị ép rộng theo tên cột');
 
   basic.dom.window.close();
 
@@ -179,12 +179,59 @@ test('do rong cot nhan su dua theo gia tri dai nhat va co gioi han hop ly', asyn
   const long = await openPage({ canManage: false, employees: longData });
   const longHeaders = long.window.document.querySelectorAll('#employeeDirectoryTableHead th');
   assert.ok(parseInt(longHeaders[0].style.width, 10) > 260);
-  assert.ok(parseInt(longHeaders[4].style.width, 10) > 250);
+  assert.equal(longHeaders.length, 5, 'email không còn là cột hiển thị');
   long.dom.window.close();
 
   const manager = await openPage({ canManage: true });
   const managerHeaders = manager.window.document.querySelectorAll('#employeeDirectoryTableHead th');
   assert.equal(managerHeaders[0].style.width, '48px');
-  assert.equal(managerHeaders[1].style.width, '75px');
+  assert.ok(parseInt(managerHeaders[17].style.width, 10) < 75);
   manager.dom.window.close();
+});
+
+test('quan ly xem danh sach theo thu tu file nhan su, an nut nhap khi da co du lieu, va hien ngay DD/MM/YYYY', async () => {
+  const { dom, window } = await openPage({ canManage: true });
+  const doc = window.document;
+  const headers = [...doc.querySelectorAll('#employeeDirectoryTableHead th')]
+    .map(th => th.textContent.replace(/[▲▼]/g, '').trim());
+  assert.deepEqual(headers, [
+    'STT', 'Họ và tên', 'Bộ phận', 'Chức vụ', 'Ngày vào làm', 'Số ngày LV', 'Ngày sinh', 'Số CCCD', 'SĐT',
+    'Địa chỉ hiện tại', 'Giới tính', 'Hồ sơ', 'Vân tay', 'Cơ sở', 'QH người thân', 'Họ tên người thân',
+    'SĐT người thân', 'Trạng thái', 'Ngày nghỉ việc'
+  ]);
+  assert.equal(doc.getElementById('btnImportEmployeeDirectory').hidden, true, 'đã có dữ liệu thì không hiện nhập lại');
+  assert.equal(window.formatEmployeeDate('2026-01-02'), '02/01/2026');
+  dom.window.close();
+});
+
+test('nut sap xep danh sach nhan su sap xep ngay va so theo gia tri thuc, khong theo chuoi hien thi', async () => {
+  const employees = [
+    { id:'1', hoTen:'A', boPhan:'KHO', coSo:'Ha Noi', ngayVaoLam:'2026-10-02', trangThai:'Dang lam viec' },
+    { id:'2', hoTen:'B', boPhan:'KHO', coSo:'Ha Noi', ngayVaoLam:'2025-12-15', trangThai:'Dang lam viec' },
+    { id:'3', hoTen:'C', boPhan:'KHO', coSo:'Ha Noi', ngayVaoLam:'2026-01-10', trangThai:'Dang lam viec' }
+  ];
+  const { dom, window } = await openPage({ canManage: true, employees });
+  const doc = window.document;
+  const dateSort = doc.querySelector('#employeeDirectoryTable th[data-column-key="ngay-vao-lam"] .sort-button');
+  dateSort.click();
+  assert.deepEqual(
+    [...doc.querySelectorAll('#employeeDirectoryTableBody tr')].map(row => row.cells[1].textContent),
+    ['B', 'C', 'A']
+  );
+  const firstDate = doc.querySelector('#employeeDirectoryTableBody tr').cells[4];
+  assert.match(firstDate.getAttribute('data-sort-value'), /^\d+$/);
+  assert.ok(firstDate.classList.contains('employee-date'));
+  assert.ok(doc.querySelector('#employeeDirectoryTableBody tr').cells[5].classList.contains('employee-number'));
+  dom.window.close();
+});
+
+test('form nhân sự ghi đúng Bộ phận và không cho sửa email liên kết đang có', async () => {
+  const { dom, window, sent } = await openPage({ canManage: true });
+  const doc = window.document;
+  assert.equal(doc.querySelector('label[for="empBoPhan"]').textContent, 'Bộ phận *');
+  assert.equal(doc.getElementById('empEmail'), null, 'email không nằm trong form hồ sơ');
+  doc.querySelector('#employeeDirectoryTableBody tr').click();
+  await window.saveEmployee({ preventDefault() {} });
+  assert.equal(sent[0].body.email, 'a@x.com', 'sửa hồ sơ không làm trống email liên kết cũ');
+  dom.window.close();
 });

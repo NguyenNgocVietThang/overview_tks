@@ -236,6 +236,9 @@
 
   .employee-row-clickable{ cursor:pointer; }
   .employee-row-clickable:hover td{ background:var(--surface-hover); }
+  #employeeDirectoryTable .employee-text{ text-align:left; }
+  #employeeDirectoryTable .employee-number,
+  #employeeDirectoryTable .employee-date{ text-align:right; font-variant-numeric:tabular-nums; }
   .emp-status-active{ color:var(--green); font-weight:600; }
   .emp-status-resigned{ color:var(--red); font-weight:600; }
   .leave-row-clickable{ cursor:pointer; }
@@ -1059,7 +1062,7 @@
             <div class="admin-filters">
               <div class="search-box">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                <input type="text" id="employeeDirectorySearchInput" placeholder="Tìm theo tên, chức vụ, SĐT hoặc email..." oninput="renderEmployeeDirectoryTable()">
+                <input type="text" id="employeeDirectorySearchInput" placeholder="Tìm theo tên, bộ phận, chức vụ hoặc SĐT..." oninput="renderEmployeeDirectoryTable()">
               </div>
               <select id="employeeBranchFilter" class="filter-select" aria-label="Lọc theo cơ sở" onchange="handleEmployeeBranchChange()">
                 <option value="">Tất cả cơ sở</option>
@@ -1100,13 +1103,12 @@
                     <th style="width:140px" data-column-key="chuc-vu">Chức vụ</th>
                     <th style="width:90px" data-column-key="co-so">Cơ sở</th>
                     <th style="width:125px" data-column-key="so-dien-thoai">Số điện thoại</th>
-                    <th style="width:200px" data-column-key="email">Email</th>
                     <th style="width:70px" data-column-key="trang-thai">Trạng thái</th>
                     <th style="width:130px" id="employeeCreatedAtTh" hidden data-column-key="ngay-them">Ngày thêm</th>
                   </tr>
                 </thead>
                 <tbody id="employeeDirectoryTableBody">
-                  <tr class="empty-row"><td colspan="7">Đang tải dữ liệu...</td></tr>
+                  <tr class="empty-row"><td colspan="5">Đang tải dữ liệu...</td></tr>
                 </tbody>
               </table>
             </div>
@@ -1152,10 +1154,9 @@
       <div class="modal-header"><h3 id="employeeModalHeading">Thêm nhân sự</h3><button type="button" class="modal-close" aria-label="Đóng" onclick="closeModal('employeeModal')">✕</button></div>
       <form id="employeeForm" onsubmit="saveEmployee(event)"><div class="modal-body">
         <div class="form-group"><label for="empHoTen">Họ và tên *</label><input type="text" id="empHoTen" class="form-control" required maxlength="120"></div>
-        <div class="form-group"><label for="empBoPhan">Chức vụ *</label><input type="text" id="empBoPhan" class="form-control" required maxlength="80" list="empBoPhanList"><datalist id="empBoPhanList"></datalist></div>
+        <div class="form-group"><label for="empBoPhan">Bộ phận *</label><input type="text" id="empBoPhan" class="form-control" required maxlength="80" list="empBoPhanList"><datalist id="empBoPhanList"></datalist></div>
         <div class="form-group"><label for="empCoSo">Cơ sở *</label><select id="empCoSo" class="form-control" required></select></div>
         <div class="form-group"><label for="empSdt">Số điện thoại</label><input type="tel" id="empSdt" class="form-control" maxlength="20"></div>
-        <div class="form-group"><label for="empEmail">Email</label><input type="email" id="empEmail" class="form-control" maxlength="160"></div>
         <div class="form-group"><label for="empChucVu">Chức vụ</label><input type="text" id="empChucVu" class="form-control" maxlength="120"></div>
         <div class="form-group"><label for="empNgayVaoLam">Ngày vào làm</label><input type="date" id="empNgayVaoLam" class="form-control"></div>
         <div class="form-group"><label for="empNgaySinh">Ngày sinh</label><input type="date" id="empNgaySinh" class="form-control"></div>
@@ -2878,37 +2879,38 @@
         const res = await fetch('/api/hr/employees', { credentials: 'same-origin' });
         const { ok, data } = await parseApiResponse(res);
         if(!ok){
-          tbody.innerHTML = `<tr class="empty-row"><td colspan="7">${escapeHtml(data.error || 'Không tải được danh sách nhân sự.')}</td></tr>`;
+          tbody.innerHTML = `<tr class="empty-row"><td colspan="5">${escapeHtml(data.error || 'Không tải được danh sách nhân sự.')}</td></tr>`;
           return;
         }
         rawEmployeeDirectory = data.employees || [];
         employeeCanManage = !!data.canManage;
         document.getElementById('btnAddEmployee').hidden = !employeeCanManage;
-        document.getElementById('btnImportEmployeeDirectory').hidden = !employeeCanManage;
+        // File Excel chỉ dùng để khởi tạo danh sách lần đầu. Khi đã có hồ sơ,
+        // việc cập nhật thực hiện trực tiếp trên từng nhân sự để tránh nhập đè.
+        document.getElementById('btnImportEmployeeDirectory').hidden = !employeeCanManage || rawEmployeeDirectory.length > 0;
         renderEmployeeDirectoryHead();
         populateDepartmentFilter('departmentFilter', document.getElementById('branchFilter').value);
         populateDepartmentFilter('employeeDepartmentFilter', document.getElementById('employeeBranchFilter').value);
         renderEmployeeDirectoryTable();
       }catch(err){
-        tbody.innerHTML = '<tr class="empty-row"><td colspan="7">Lỗi kết nối máy chủ.</td></tr>';
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="5">Lỗi kết nối máy chủ.</td></tr>';
       }
     }
 
     const EMPLOYEE_STATUS_RESIGNED = 'Đã nghỉ việc';
 
-    // Mỗi cột có độ rộng tối thiểu/tối đa; độ rộng thực tế được đo theo dữ liệu đang tải.
+    // Độ rộng được đo theo giá trị của dòng dữ liệu, không lấy theo tiêu đề.
     const EMPLOYEE_BASIC_HEAD = [
-      ['Họ và tên','ho-va-ten',140,320], ['Chức vụ','chuc-vu',110,260], ['Cơ sở','co-so',80,150],
-      ['Số điện thoại','so-dien-thoai',115,140], ['Email','email',150,340], ['Trạng thái','trang-thai',75,90]
+      ['Họ và tên','ho-va-ten',320], ['Chức vụ','chuc-vu',260], ['Cơ sở','co-so',150],
+      ['Số điện thoại','so-dien-thoai',140], ['Trạng thái','trang-thai',90]
     ];
     const EMPLOYEE_MANAGER_HEAD = [
-      ['STT','stt',48,70], ['Trạng thái','trang-thai',75,90], ['Họ và tên','ho-va-ten',140,320],
-      ['Bộ phận','bo-phan',100,220], ['Chức vụ','chuc-vu',110,260], ['Ngày vào làm','ngay-vao-lam',105,120],
-      ['Số ngày LV','so-ngay-lv',90,105], ['Ngày sinh','ngay-sinh',105,120], ['Số CCCD','so-cccd',120,145],
-      ['SĐT','so-dien-thoai',115,140], ['Địa chỉ hiện tại','dia-chi',150,300], ['QH người thân','qh-nguoi-than',100,180],
-      ['Họ tên người thân','ten-nguoi-than',140,300], ['SĐT người thân','sdt-nguoi-than',120,145],
-      ['Giới tính','gioi-tinh',70,100], ['Hồ sơ','ho-so',65,80], ['Vân tay','van-tay',65,80],
-      ['Ngày nghỉ việc','ngay-nghi-viec',105,120], ['Cơ sở','co-so',80,150]
+      ['STT','stt',70], ['Họ và tên','ho-va-ten',320], ['Bộ phận','bo-phan',220], ['Chức vụ','chuc-vu',260],
+      ['Ngày vào làm','ngay-vao-lam',120], ['Số ngày LV','so-ngay-lv',105], ['Ngày sinh','ngay-sinh',120],
+      ['Số CCCD','so-cccd',145], ['SĐT','so-dien-thoai',140], ['Địa chỉ hiện tại','dia-chi',300],
+      ['Giới tính','gioi-tinh',100], ['Hồ sơ','ho-so',80], ['Vân tay','van-tay',80], ['Cơ sở','co-so',150],
+      ['QH người thân','qh-nguoi-than',180], ['Họ tên người thân','ten-nguoi-than',300],
+      ['SĐT người thân','sdt-nguoi-than',145], ['Trạng thái','trang-thai',90], ['Ngày nghỉ việc','ngay-nghi-viec',120]
     ];
 
     function employeeColumnText(columnKey, employee, index){
@@ -2942,10 +2944,10 @@
     }
 
     function employeeColumnWidth(column, employees){
-      const [, key, minWidth, maxWidth] = column;
+      const [, key, maxWidth] = column;
       const contentWidth = employees.reduce((widest, employee, index) =>
         Math.max(widest, employeeTextWidth(employeeColumnText(key, employee, index))), 0);
-      return Math.min(maxWidth, Math.max(minWidth, contentWidth));
+      return Math.min(maxWidth, Math.max(48, contentWidth));
     }
 
     function renderEmployeeDirectoryHead(){
@@ -2953,7 +2955,7 @@
       const table=document.getElementById('employeeDirectoryTable');
       const columns=employeeCanManage ? EMPLOYEE_MANAGER_HEAD : EMPLOYEE_BASIC_HEAD;
       const widths=columns.map(column => employeeColumnWidth(column, rawEmployeeDirectory));
-      head.innerHTML='<tr>'+columns.map(function(c,index){ return '<th style="width:'+widths[index]+'px" data-column-key="'+c[1]+'">'+c[0]+'</th>'; }).join('')+'</tr>';
+      head.innerHTML='<tr>'+columns.map(function(c,index){ return '<th class="'+employeeCellClass(c[1])+'" style="width:'+widths[index]+'px" data-column-key="'+c[1]+'">'+c[0]+'</th>'; }).join('')+'</tr>';
       // Không để CSS width:100% tự chia phần trống khiến cột ngắn bị giãn quá mức.
       table.style.width=widths.reduce((total,width) => total + width, 0)+'px';
       delete table.dataset.sortInited;
@@ -2986,9 +2988,33 @@
     }
 
     function formatEmployeeDate(iso){
-      const d = iso ? new Date(iso) : null;
-      if(!d || Number.isNaN(d.getTime())) return '—';
-      return d.toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+      const d = employeeStartDate(iso);
+      if(!d) return '—';
+      return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
+    }
+
+    function employeeCellClass(columnKey){
+      if(['stt','so-ngay-lv','so-cccd','so-dien-thoai','sdt-nguoi-than'].includes(columnKey)) return 'employee-number';
+      if(['ngay-vao-lam','ngay-sinh','ngay-nghi-viec'].includes(columnKey)) return 'employee-date';
+      return 'employee-text';
+    }
+
+    function employeeSortValue(columnKey, employee, index){
+      if(columnKey === 'stt') return index + 1;
+      if(columnKey === 'so-ngay-lv') return employeeWorkingDays(employee).replace(/[^0-9-]/g,'');
+      if(['ngay-vao-lam','ngay-sinh','ngay-nghi-viec'].includes(columnKey)){
+        const d=employeeStartDate(columnKey === 'ngay-vao-lam' ? employee.ngayVaoLam : columnKey === 'ngay-sinh' ? employee.ngaySinh : employee.ngayNghiViec);
+        return d ? d.getTime() : '';
+      }
+      return '';
+    }
+
+    function employeeCellHtml(columnKey, employee, index){
+      const value=employeeColumnText(columnKey,employee,index);
+      const sortValue=employeeSortValue(columnKey,employee,index);
+      const sortable=sortValue === '' ? '' : ' data-sort-value="'+escapeHtml(sortValue)+'"';
+      const status=columnKey === 'trang-thai' ? ' emp-status-'+employeeStatusKey(employee) : '';
+      return '<td class="'+employeeCellClass(columnKey)+status+'"'+sortable+'>'+ (escapeHtml(value) || '—') +'</td>';
     }
 
     const employeePaging = { page: 1, size: 50 };
@@ -3049,29 +3075,21 @@
         if(status && employeeStatusKey(e) !== status) return false;
         if(branch && e.coSo !== branch) return false;
         if(department && departmentKey(e.boPhan) !== department) return false;
-        return !keyword || [e.hoTen, e.boPhan, e.soDienThoai, e.email].some(v => String(v || '').toLowerCase().includes(keyword));
+        return !keyword || [e.hoTen, e.boPhan, e.chucVu, e.soDienThoai].some(v => String(v || '').toLowerCase().includes(keyword));
       });
       if(!filtered.length){
-        tbody.innerHTML = `<tr class="empty-row"><td colspan="7">${rawEmployeeDirectory.length ? 'Không tìm thấy nhân sự phù hợp.' : 'Chưa có dữ liệu nhân sự.'}</td></tr>`;
+        tbody.innerHTML = `<tr class="empty-row"><td colspan="${employeeCanManage ? EMPLOYEE_MANAGER_HEAD.length : EMPLOYEE_BASIC_HEAD.length}">${rawEmployeeDirectory.length ? 'Không tìm thấy nhân sự phù hợp.' : 'Chưa có dữ liệu nhân sự.'}</td></tr>`;
         paginateEmployeeDirectoryTable();
         return;
       }
       employeePaging.page = 1;
       if(employeeCanManage){
-        tbody.innerHTML = filtered.map((e,index) => `<tr class="employee-row-clickable" data-employee-id="${escapeHtml(e.id)}">
-          <td>${index+1}</td><td class="emp-status-${employeeStatusKey(e)}">${escapeHtml(employeeStatusText(e))}</td>
-          <td>${escapeHtml(e.hoTen)||'—'}</td><td>${escapeHtml(e.boPhan)||'—'}</td><td>${escapeHtml(e.chucVu)||'—'}</td>
-          <td>${formatEmployeeDate(e.ngayVaoLam)}</td><td>${employeeWorkingDays(e)}</td><td>${formatEmployeeDate(e.ngaySinh)}</td>
-          <td>${escapeHtml(e.soCccd)||'—'}</td><td>${escapeHtml(e.soDienThoai)||'—'}</td><td>${escapeHtml(e.diaChiHienTai)||'—'}</td>
-          <td>${escapeHtml(e.nguoiThanQuanHe)||'—'}</td><td>${escapeHtml(e.nguoiThanHoTen)||'—'}</td><td>${escapeHtml(e.nguoiThanSoDienThoai)||'—'}</td>
-          <td>${escapeHtml(e.gioiTinh)||'—'}</td><td>${e.hoSoDayDu?'X':'—'}</td><td>${e.vanTayDaDangKy?'X':'—'}</td>
-          <td>${formatEmployeeDate(e.ngayNghiViec)}</td><td>${escapeHtml(e.coSo)||'—'}</td></tr>`).join('');
+        tbody.innerHTML = filtered.map((e,index) => `<tr class="employee-row-clickable" data-employee-id="${escapeHtml(e.id)}">${EMPLOYEE_MANAGER_HEAD.map(c=>employeeCellHtml(c[1],e,index)).join('')}</tr>`).join('');
       }else tbody.innerHTML = filtered.map(e => `<tr>
         <td>${escapeHtml(e.hoTen) || '—'}</td>
         <td>${escapeHtml(e.boPhan) || '—'}</td>
         <td>${escapeHtml(e.coSo) || '—'}</td>
         <td>${escapeHtml(e.soDienThoai) || '—'}</td>
-        <td>${escapeHtml(e.email) || '—'}</td>
         <td class="emp-status-${employeeStatusKey(e)}">${escapeHtml(employeeStatusText(e))}</td>
       </tr>`).join('');
       applyActiveTableSorts();
@@ -3156,7 +3174,6 @@
       document.getElementById('empHoTen').value = employee ? employee.hoTen : '';
       document.getElementById('empBoPhan').value = employee ? employee.boPhan : '';
       document.getElementById('empSdt').value = employee ? employee.soDienThoai : '';
-      document.getElementById('empEmail').value = employee ? employee.email : '';
       document.getElementById('empChucVu').value = employee ? (employee.chucVu || '') : '';
       document.getElementById('empNgayVaoLam').value = employee ? (employee.ngayVaoLam || '') : '';
       document.getElementById('empNgaySinh').value = employee ? (employee.ngaySinh || '') : '';
@@ -3190,12 +3207,17 @@
       const errEl = document.getElementById('empError');
       const btn = document.getElementById('empSave');
       errEl.style.display = 'none';
+      const existingEmployee = editingEmployeeId
+        ? rawEmployeeDirectory.find(e => String(e.id) === String(editingEmployeeId))
+        : null;
       const payload = {
         hoTen: document.getElementById('empHoTen').value,
         boPhan: document.getElementById('empBoPhan').value,
         coSo: document.getElementById('empCoSo').value,
         soDienThoai: document.getElementById('empSdt').value,
-        email: document.getElementById('empEmail').value,
+        // Email được giữ ở DB để liên kết tài khoản; giao diện hồ sơ không cho
+        // sửa nhằm tránh làm mất liên kết hoặc tạo trùng định danh.
+        email: existingEmployee ? (existingEmployee.email || '') : '',
         chucVu: document.getElementById('empChucVu').value,
         ngayVaoLam: document.getElementById('empNgayVaoLam').value,
         ngaySinh: document.getElementById('empNgaySinh').value,
