@@ -23,7 +23,8 @@
     "marketing:history:import": "node scripts/import-marketing-history.js",
     "marketing:pancake:sync": "node scripts/sync-pancake-marketing.js",
     "marketing:summary:refresh": "node scripts/refresh-marketing-summary.js",
-    "marketing:identity:import": "node scripts/import-pancake-identities.js"
+    "marketing:identity:import": "node scripts/import-pancake-identities.js",
+    "invoices:price-audit": "node scripts/refresh-invoice-price-audit.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

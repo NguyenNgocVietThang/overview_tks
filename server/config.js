@@ -18,6 +18,8 @@ const CONFIG = {
   STOCK_LOCATIONS_SPREADSHEET_ID: process.env.STOCK_LOCATIONS_SPREADSHEET_ID || null,
   // Pancake daily sync is independent of KiotViet and the report source switch.
   PANCAKE_MARKETING_SYNC_ENABLED: process.env.PANCAKE_MARKETING_SYNC_ENABLED === 'true',
+  // Job 23:00 VN "Kiểm tra giá bán" (tab Hóa đơn): tắt mặc định để rollout có kiểm soát, bật sau nghiệm thu.
+  INVOICE_PRICE_AUDIT_ENABLED: process.env.INVOICE_PRICE_AUDIT_ENABLED === 'true',
   MARKETING_REPORT_SOURCE: ['postgres','pancake'].includes(process.env.MARKETING_REPORT_SOURCE) ? process.env.MARKETING_REPORT_SOURCE : 'sheets',
   MARKETING_REPORT_SPREADSHEET_ID: process.env.MARKETING_REPORT_SPREADSHEET_ID || null,
   MARKETING_PHONES_SPREADSHEET_ID: process.env.MARKETING_PHONES_SPREADSHEET_ID || null,

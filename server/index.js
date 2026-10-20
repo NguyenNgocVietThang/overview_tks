@@ -166,6 +166,16 @@ async function startServer() {
       process.once('SIGINT', () => pancakeScheduler.stop());
     }
 
+    // Kiem tra gia ban: job 23:00 VN cong bo cua so 7 ngay (khoa advisory chong 2 instance, xem invoicePriceAudit/).
+    if (CONFIG.INVOICE_PRICE_AUDIT_ENABLED) {
+      const priceAuditScheduler = require('./invoicePriceAudit/priceAuditScheduler').createPriceAuditScheduler({ enabled: true });
+      priceAuditScheduler.start().catch((err) => {
+        console.error('[PriceAudit] Loi khoi dong lich:', err && err.code ? err.code : 'UNKNOWN');
+      });
+      process.once('SIGTERM', () => priceAuditScheduler.stop());
+      process.once('SIGINT', () => priceAuditScheduler.stop());
+    }
+
     if (CONFIG.KIOTVIET_SYNC_ENABLED || CONFIG.KIOTVIET_CASHBOOK_SYNC_ENABLED) {
       startPollingScheduler();
     }
