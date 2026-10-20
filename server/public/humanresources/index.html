@@ -252,7 +252,10 @@
   .employee-summary-total{ display:block; margin-top:3px; color:var(--text); font-size:28px; line-height:1.1; }
   .employee-summary-scope{ display:block; margin-top:5px; color:var(--muted); font-size:11px; }
   .employee-department-list{ display:flex; flex-wrap:wrap; gap:8px; margin-top:9px; }
-  .employee-department-chip{ display:inline-flex; align-items:center; gap:6px; padding:5px 9px; border:1px solid var(--border); border-radius:var(--radius-pill); background:var(--panel-2); color:var(--text); font-size:12px; }
+  .employee-department-chip{ display:inline-flex; align-items:center; gap:6px; padding:5px 9px; border:1px solid var(--border); border-radius:var(--radius-pill); background:var(--panel-2); color:var(--text); font:inherit; font-size:12px; cursor:pointer; }
+  .employee-department-chip:hover{ border-color:var(--blue); color:var(--blue); }
+  .employee-department-chip:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+  .employee-department-chip.is-active{ border-color:var(--blue); background:color-mix(in srgb,var(--blue) 13%,var(--panel)); color:var(--blue); }
   .employee-department-chip strong{ color:var(--blue); font-variant-numeric:tabular-nums; }
   .employee-summary-empty{ color:var(--muted); font-size:12px; }
   @media (max-width:640px){ .employee-summary{ grid-template-columns:1fr; } }
@@ -3158,10 +3161,24 @@
       });
       total.textContent=String(inScope.length);
       scope.textContent=branch ? `Cơ sở: ${branch}` : 'Tất cả cơ sở';
+      const selectedDepartment=departmentKey(document.getElementById('employeeDepartmentFilter')?.value);
       const items=[...counts.entries()].sort((a,b) => b[1] - a[1] || a[0].localeCompare(b[0],'vi'));
       departments.innerHTML=items.length
-        ? items.map(([label,count]) => `<span class="employee-department-chip"><span>${escapeHtml(label)}</span><strong>${count}</strong></span>`).join('')
+        ? items.map(([label,count]) => {
+          const active=departmentKey(label) === selectedDepartment;
+          return `<button type="button" class="employee-department-chip${active ? ' is-active' : ''}" data-employee-department="${escapeHtml(label)}" aria-pressed="${active}"><span>${escapeHtml(label)}</span><strong>${count}</strong></button>`;
+        }).join('')
         : '<span class="employee-summary-empty">Chưa có dữ liệu nhân sự.</span>';
+      departments.querySelectorAll('button[data-employee-department]').forEach(button => {
+        button.addEventListener('click', () => toggleEmployeeDepartmentSummary(button.dataset.employeeDepartment));
+      });
+    }
+
+    function toggleEmployeeDepartmentSummary(department){
+      const select=document.getElementById('employeeDepartmentFilter');
+      if(!select) return;
+      select.value=departmentKey(select.value) === departmentKey(department) ? '' : department;
+      renderEmployeeDirectoryTable();
     }
 
     function setEmployeeImportProgress(percent, label){

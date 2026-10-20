@@ -67,6 +67,26 @@ test('dashboard nhân sự đếm tổng và từng Bộ phận theo bộ lọc 
   dom.window.close();
 });
 
+test('bấm thẻ Bộ phận trong dashboard lọc danh sách và giữ trạng thái đang chọn', async () => {
+  const employees = [
+    { id: '1', hoTen: 'An kho', boPhan: 'KHO', coSo: 'Hà Nội', trangThai: 'Đang làm việc' },
+    { id: '2', hoTen: 'Bình sale', boPhan: 'SALE', coSo: 'Hà Nội', trangThai: 'Đang làm việc' },
+    { id: '3', hoTen: 'Chi kho', boPhan: 'KHO', coSo: 'Sài Gòn', trangThai: 'Đang làm việc' }
+  ];
+  const { dom, window } = await openPage({ canManage: true, employees });
+  const doc = window.document;
+  const khoCard = [...doc.querySelectorAll('#employeeDepartmentSummary button')].find(button => button.textContent.includes('KHO'));
+  assert.ok(khoCard, 'thẻ bộ phận là nút lọc');
+  khoCard.click();
+  assert.equal(doc.getElementById('employeeDepartmentFilter').value, 'KHO');
+  assert.equal([...doc.querySelectorAll('#employeeDepartmentSummary button')].find(button => button.textContent.includes('KHO')).getAttribute('aria-pressed'), 'true');
+  assert.deepEqual([...doc.querySelectorAll('#employeeDirectoryTableBody tr')].map(row => row.cells[0].textContent), ['An kho', 'Chi kho']);
+  khoCard.click();
+  assert.equal(doc.getElementById('employeeDepartmentFilter').value, '');
+  assert.equal(doc.querySelector('#employeeDepartmentSummary button[aria-pressed="true"]'), null);
+  dom.window.close();
+});
+
 test('Bộ phận và Chức vụ được phép xuống dòng khi người dùng thu cột', async () => {
   const { dom, window } = await openPage({ canManage: true });
   const row = window.document.querySelector('#employeeDirectoryTableBody tr');
