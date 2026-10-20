@@ -579,7 +579,7 @@ Dựng bởi `productContainers/expectedRefresh.js`, web chỉ SELECT (`expected
 
 ## Kiểm tra giá bán — migration 0077 (20/10/2026, CHƯA áp DB dùng chung)
 
-`0077_invoice_price_audit.sql` thêm 4 bảng mới và 1 cột (idempotent, không CONCURRENTLY, không FK sang `invoices` / `invoice_details`: đồng bộ nguồn không xóa/sửa bản ghi nhận). Luật tính nằm ở `server/invoicePriceAudit/`; bảng chỉ giữ dữ liệu đã chụp.
+`0077_invoice_price_audit.sql` thêm 4 bảng mới và 2 cột (idempotent, không CONCURRENTLY, không FK sang `invoices` / `invoice_details`: đồng bộ nguồn không xóa/sửa bản ghi nhận). Luật tính nằm ở `server/invoicePriceAudit/`; bảng chỉ giữ dữ liệu đã chụp.
 
 | Bảng | Hợp đồng dữ liệu |
 |---|---|
@@ -588,6 +588,9 @@ Dựng bởi `productContainers/expectedRefresh.js`, web chỉ SELECT (`expected
 | `invoice_price_audit_state` | 1 dòng `id = TRUE`: `published_day`, `window_from`, `window_to`, `last_success_at`, `last_attempt_at`, `last_error`, `added_invoice_count`, `version`. Web chỉ hiện dữ liệu khi có `published_day` |
 | `invoice_price_audit_changes` | Nhật ký sửa giải thích / Chốt: `id` identity, `(branch, invoice_id, source_line_no)` FK → dòng chụp (CASCADE), `actor`, `action` (`explanation`/`decision`), `changed_at`, `before_value` / `after_value JSONB`, `version_before` / `version_after`. Chỉ giữ trong cửa sổ 7 ngày |
 | `shipping_measures.freight_per_unit` | **Cột mới `NUMERIC NULL`**: cột O "Cước 1 Sp" của sheet CÂN ĐO, đọc trực tiếp (không tính lại từ kg/m3); NULL = ô trống (luật đối chiếu áp 0). Không ảnh hưởng m3/kg của Vòng đời đơn |
+| `sheet_snapshot_sync.freight_error` | **Cột mới `TEXT NULL`**, chỉ dùng cho nguồn `shipping_measures`: tiêu đề cột O sai/thiếu → đồng bộ Cân đo vẫn ghi m3/kg, mọi `freight_per_unit` = NULL và cột này lưu thông báo lỗi; lượt đồng bộ thành công với tiêu đề đúng đặt lại NULL. Khác NULL → job kiểm tra giá báo `PRICE_AUDIT_SOURCE_NOT_READY`, giữ bản công bố cũ |
+
+Nguồn chưa sẵn sàng khác (không ghi gì, giữ bản cũ): dòng SL > 0 có `invoice_details.price` NULL (giảm giá NULL vẫn = 0). Hóa đơn chưa có dòng chi tiết nào không được ghi vào `invoice_price_audit_invoices` (lượt sau chụp lại); hóa đơn mọi dòng SL ≤ 0 vẫn ghi sổ, không có dòng chụp.
 
 Migration **thu hồi ALL** 4 bảng mới khỏi `reporting_readonly` (có giải thích của sale, quyết định phạt và nhật ký; guard `pg_roles`); chỉ đọc qua API. Thứ tự: áp `0077` TRƯỚC khi deploy bản sync Cân đo mới (INSERT `freight_per_unit` cần cột này).
 

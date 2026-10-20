@@ -304,12 +304,12 @@ Ví dụ nghiệm thu: job ngày 20/10 công bố 14–20/10; job ngày 21/10 c�
 
 **Interfaces:** catalog ở `priceAuditColumns.js` là nguồn cho export fields và metadata cột frontend; `createPriceAuditExport({ rows, columns, format, meta })` trả `{ buffer, mimeType, fileName }`. Chọn cột không được làm mất quyền/đổi tập lọc.
 
-- [ ] Viết test DOM: đúng 18 cột nghiệp vụ đúng thứ tự, 16 cột mặc định, chỉ một bảng kiểm tra giá, dòng OD/PK/thiếu giá hiện đúng, nút theo quyền từng dòng.
-- [ ] Viết test query/bộ lọc, đổi Chốt làm dòng di chuyển đúng tập lọc, giữ số gốc trong cột đối chiếu; giải thích thất bại không giả vờ đã lưu.
-- [ ] Chạy `node --test test/frontend/invoice-price-audit.test.js invoicePriceAudit/priceAuditExport.test.js`, xác nhận đỏ.
-- [ ] Implement mục bảng, nạp khi mở tab/có quyền; không kéo toàn bộ hóa đơn vào trình duyệt để tính giá. Dùng table-controls cho cột/độ rộng/phân trang; catalog định nghĩa tên tiếng Việt đúng mục 2.
-- [ ] Implement XLSX/HTML từ cùng repository/filter/catalog; metadata cửa sổ, lần chạy và tiền chênh/phạt nhất quán trên màn hình và file.
-- [ ] Test export đúng toàn bộ kết quả lọc, không chỉ trang 1; chạy lại xanh. Kiểm tra browser Light/Dark, cuộn ngang, form sửa, lỗi 409 và popup hóa đơn; commit.
+- [x] Viết test DOM: đúng 18 cột nghiệp vụ đúng thứ tự, 16 cột mặc định, chỉ một bảng kiểm tra giá, dòng OD/PK/thiếu giá hiện đúng, nút theo quyền từng dòng.
+- [x] Viết test query/bộ lọc, đổi Chốt làm dòng di chuyển đúng tập lọc, giữ số gốc trong cột đối chiếu; giải thích thất bại không giả vờ đã lưu.
+- [x] Chạy `node --test test/frontend/invoice-price-audit.test.js invoicePriceAudit/priceAuditExport.test.js`, xác nhận đỏ.
+- [x] Implement mục bảng, nạp khi mở tab/có quyền; không kéo toàn bộ hóa đơn vào trình duyệt để tính giá. Dùng table-controls cho cột/độ rộng/phân trang; catalog định nghĩa tên tiếng Việt đúng mục 2.
+- [x] Implement XLSX/HTML từ cùng repository/filter/catalog; metadata cửa sổ, lần chạy và tiền chênh/phạt nhất quán trên màn hình và file.
+- [x] Test export đúng toàn bộ kết quả lọc, không chỉ trang 1; chạy lại xanh. Kiểm tra browser Light/Dark, cuộn ngang, form sửa, lỗi 409 và popup hóa đơn; commit.
 
 ### Task 7 — Nghiệm thu, tài liệu và triển khai
 

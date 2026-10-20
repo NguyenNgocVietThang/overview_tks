@@ -370,6 +370,6 @@ Phương án B đã duyệt: tập SĐT/KPI Pancake riêng trong PostgreSQL, ng�
 - **Người dùng**: Quản lý, Trợ lý, Nhân viên sale xem; sale giải thích; Quản lý (hoặc người được cấp) chốt.
 - **Thành công**: không còn đối chiếu thủ công, kết quả không đổi theo giá hiện tại, có dấu vết ai giải thích/chốt gì khi nào.
 - **Ngoài phạm vi**: bảng giá cắt lô riêng theo khách–mã, ghi ngược KiotViet/Google Sheets, lưu lịch sử quá 7 ngày.
-- **Trạng thái**: code + test xong trên nhánh `feature/invoice-price-audit`; chưa deploy, chưa chạy job thật; giao diện và xuất file đang làm song song.
+- **Trạng thái**: code + test xong trên nhánh `feature/invoice-price-audit`; gồm cả giao diện và xuất Excel/HTML (đã kiểm trên trình duyệt với dữ liệu thử); chưa merge/push/deploy, chưa áp migration 0077, chưa chạy job thật.
 
 Cập nhật gần nhất: 20/10/2026.

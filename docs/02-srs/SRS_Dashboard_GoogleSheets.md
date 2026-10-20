@@ -754,14 +754,15 @@ Phương án B đã duyệt: tập SĐT/KPI Pancake riêng trong PostgreSQL, ng�
 
 ## Bổ sung 20/10/2026 — Kiểm tra giá bán (FR-PA)
 
-*Trạng thái: code + test xong trên nhánh `feature/invoice-price-audit`, chưa deploy; giao diện và xuất file (FR-PA-6) đang làm song song.*
+*Trạng thái: code + test xong trên nhánh `feature/invoice-price-audit`, gồm cả giao diện và xuất file (FR-PA-6, đã kiểm trên trình duyệt với dữ liệu thử); chưa merge/push/deploy, chưa áp 0077, chưa chạy job.*
 
 - **FR-PA-1 (phạm vi)**: một bảng trong tab Hóa đơn (`/reports/#invoices`) cho HN/SG; mỗi dòng hóa đơn Hoàn thành là một dòng kết quả. Dữ liệu `invoice_price_audit_*` (migration 0077), API `/api/invoice-price-audit`.
 - **FR-PA-2 (luật giá)**: giá min = nhỏ nhất của giá theo bậc số lượng (tổng SL cùng mã trong cùng hóa đơn) và giá theo cấp khách Vừa/Lớn/VIP (email KiotViet; rỗng/lạ = Vừa) đọc từ mô tả hàng hóa từng cơ sở; cộng VAT khi có `Full Vat`; bậc trống không thành 0đ; giá thực bán = đơn giá − giảm giá dòng. Khách giao HN: `min(HN + cước, SG)`, cước từ cột O CÂN ĐO. `(OD)`/`(PK)` hoặc không có giá quy định → Đúng giá. Tiền tính NUMERIC.
 - **FR-PA-3 (chụp 23:00)**: job 23:00 Asia/Ho_Chi_Minh (`INVOICE_PRICE_AUDIT_ENABLED`) chụp hóa đơn chưa quét của ngày chạy và 6 ngày trước; bản đã chụp bất biến trước thay đổi giá/mô tả/VAT/cước; hóa đơn đến muộn được bổ sung nếu còn trong cửa sổ; hết cửa sổ xóa cùng giải thích/Chốt. Chạy trong transaction, khóa chống chạy trùng, lỗi giữ bản cũ.
 - **FR-PA-4 (giải thích)**: Nhân viên sale (quyền `reports.invoices.priceAudit.explain`) điền giải thích cho dòng Sai giá của khách thuộc nhóm mình phụ trách hiện tại; kiểm tra ở máy chủ, khóa lạc quan `expectedVersion`.
 - **FR-PA-5 (Chốt)**: quyền `reports.invoices.priceAudit.decide` (mặc định Quản lý) Chốt Ok (thành Đúng giá, giữ số gốc) hoặc Phạt (SL × chênh/đơn vị gốc); sửa/xóa Chốt được trong cửa sổ; có nhật ký.
-- **FR-PA-6 (hiển thị/xuất — đang làm)**: bộ lọc Tất cả/Đúng/Sai × Chưa chốt/Ok/Phạt, chỉ số theo hóa đơn không trùng, `GET /api/invoice-price-audit/export` (xlsx/html) theo đúng bộ lọc và cột.
+- **FR-PA-6 (hiển thị/xuất)**: bộ lọc Tất cả/Đúng/Sai × Chưa chốt/Ok/Phạt, chỉ số theo hóa đơn không trùng, 16 cột mặc định; `GET /api/invoice-price-audit/export/fields` và `/export?format=xlsx|html` (cần thêm `reports.export`, tối đa 50.000 dòng) xuất toàn bộ tập lọc theo đúng cột đã chọn.
+- **FR-PA-8 (nguồn chưa sẵn sàng)**: dòng SL > 0 có đơn giá NULL, tiêu đề cột O CÂN ĐO sai (đồng bộ m3/kg vẫn chạy, cước = NULL, ghi `freight_error`), Cân đo chưa đồng bộ, thiếu sản phẩm/khách → job báo lỗi rõ ràng và giữ bản công bố cũ. Hóa đơn chưa có dòng chi tiết không ghi sổ để lượt sau chụp lại. Bậc ghi giá 0 bị bỏ qua.
 - **FR-PA-7 (quyền xem)**: `reports.invoices.priceAudit` (Quản lý, Trợ lý, Nhân viên sale; Khách bị chặn); lỗi job không ảnh hưởng tab Giao dịch hiện có.
 
 Cập nhật gần nhất: 20/10/2026.
