@@ -29,6 +29,12 @@ const employee = {
   sheetVaiTro: 'Kế toán', sheetCoSo: 'Cả hai'
 };
 
+// Hồ sơ nhân sự không còn được đọc khi đăng nhập: mọi lần đọc đều là lỗi của test.
+function forbiddenDirectory() {
+  const calls = { reads: 0 };
+  return { calls, directory: { getSnapshot: async () => { calls.reads += 1; throw new Error('không được đọc hồ sơ nhân sự'); } } };
+}
+
 test('tài khoản thường giữ nguyên quyền và phạm vi đã cấp, không đọc hồ sơ nhân sự khi đăng nhập', async () => {
   let reads = 0;
   const store = memoryStore([{
@@ -47,59 +53,62 @@ test('tài khoản thường giữ nguyên quyền và phạm vi đã cấp, kh�
   assert.equal(store.updates.length, 0);
 });
 
-test('verified guest becomes one HR-managed multi-identifier account', async () => {
+test('khách đã xác minh không được tự nâng quyền từ hồ sơ nhân sự; quyền do Quản lý cấp trên tài khoản', async () => {
   const store = memoryStore([{
     id: 'u1', username: '0912345678', email: '', soDienThoai: '0912345678',
     verifiedPhone: true, vaiTro: 'Khách', coSo: '', trangThai: 'Đang hoạt động'
   }]);
-  const resolver = createEffectiveUserResolver({
-    store,
-    directory: { getSnapshot: async () => ({ employees: [employee], stale: false }) }
-  });
-
+  const { calls, directory } = forbiddenDirectory();
+  const resolver = createEffectiveUserResolver({ store, directory });
   const resolved = await resolver.resolveUser(store.state[0]);
-  assert.equal(resolved.hrManaged, true);
-  assert.equal(resolved.email, 'a@example.com');
-  assert.equal(resolved.soDienThoai, '0912345678');
-  assert.equal(resolved.vaiTro, 'Kế toán');
-  assert.equal(resolved.coSo, 'Cả hai');
-  assert.equal(resolved.hrSourceBranch, 'Hà Nội');
-});
+  assert.equal(resolved.vaiTro, 'Khách');
+  assert.equal(resolved.hrManaged, undefined);
+  assert.equal(calls.reads, 0);
+  assert.equal(store.updates.length, 0);
+})
+
 
 test('unverified guest is not promoted merely because an identifier appears in HR', async () => {
   const store = memoryStore([{
     id: 'u1', username: 'a@example.com', email: 'a@example.com', soDienThoai: '',
     vaiTro: 'Khách', coSo: '', trangThai: 'Đang hoạt động'
   }]);
-  const resolver = createEffectiveUserResolver({ store, directory: { getSnapshot: async () => ({ employees: [employee] }) } });
+  const { calls, directory } = forbiddenDirectory();
+  const resolver = createEffectiveUserResolver({ store, directory });
 
   const resolved = await resolver.resolveUser(store.state[0]);
   assert.equal(resolved.vaiTro, 'Khách');
   assert.equal(resolved.hrManaged, undefined);
-  assert.equal(resolved.hrVerificationRequired, true);
-});
+  assert.equal(calls.reads, 0);
+  assert.equal(store.updates.length, 0);
+})
 
-test('manual role and branch overrides win over the sheet', async () => {
+
+test('vai trò và cơ sở đã lưu trên tài khoản (đã chốt ghi đè ở migration 0076) được dùng nguyên vẹn', async () => {
   const store = memoryStore([{
-    id: 'u1', username: 'a@example.com', email: 'a@example.com', verifiedEmail: true,
-    vaiTro: 'Khách', coSo: '', trangThai: 'Đang hoạt động',
-    vaiTroOverride: 'Trợ lý', coSoOverride: 'Hà Nội'
+    id: 'u1', username: 'a@example.com', email: 'a@example.com', verifiedEmail: true, hrManaged: true,
+    vaiTro: 'Trợ lý', coSo: 'Hà Nội', trangThai: 'Đang hoạt động',
+    vaiTroOverride: 'Trợ lý', coSoOverride: 'Hà Nội', sheetVaiTro: 'Kế toán', sheetCoSo: 'Cả hai'
   }]);
-  const resolver = createEffectiveUserResolver({ store, directory: { getSnapshot: async () => ({ employees: [employee] }) } });
+  const { calls, directory } = forbiddenDirectory();
+  const resolver = createEffectiveUserResolver({ store, directory });
 
   const resolved = await resolver.resolveUser(store.state[0]);
   assert.equal(resolved.vaiTro, 'Trợ lý');
   assert.equal(resolved.coSo, 'Hà Nội');
-  assert.equal(resolved.roleSource, 'override');
-});
+  assert.equal(calls.reads, 0);
+  assert.equal(store.updates.length, 0);
+})
+
 
 test('khong khop dong nhan su KHONG tu khoa tai khoan; chi go khoa hr_removed cu, khoa thu cong giu nguyen', async () => {
   let employees = [];
+  let reads = 0;
   const store = memoryStore([{
     id: 'u1', username: 'a@example.com', email: 'a@example.com', verifiedEmail: true,
     hrManaged: true, vaiTro: 'Kế toán', coSo: 'Cả hai', trangThai: 'Đang hoạt động'
   }]);
-  const resolver = createEffectiveUserResolver({ store, directory: { getSnapshot: async () => ({ employees }) } });
+  const resolver = createEffectiveUserResolver({ store, directory: { getSnapshot: async () => { reads += 1; return { employees }; } } });
 
   const stillActive = await resolver.resolveUser(store.state[0]);
   assert.equal(stillActive.trangThai, 'Đang hoạt động');
@@ -122,6 +131,13 @@ test('khong khop dong nhan su KHONG tu khoa tai khoan; chi go khoa hr_removed cu
   const manualLock = await resolver.resolveUser(store.state[0]);
   assert.equal(manualLock.trangThai, 'Khóa');
   assert.equal(manualLock.lockReason, 'manual');
+
+  // Khóa do nghỉ việc chỉ được mở khi nhân sự chuyển lại Đang làm việc (hrEmployeeAdminService), không mở khi đăng nhập.
+  store.state[0].lockReason = 'hr_resigned';
+  const resignedLock = await resolver.resolveUser(store.state[0]);
+  assert.equal(resignedLock.trangThai, 'Khóa');
+  assert.equal(resignedLock.lockReason, 'hr_resigned');
+  assert.equal(reads, 0, 'không đọc hồ sơ nhân sự');
 });
 
 test('hardcoded admin bypasses the directory and always remains manager of both branches', async () => {
@@ -139,14 +155,22 @@ test('hardcoded admin bypasses the directory and always remains manager of both 
   assert.equal(resolved.trangThai, 'Đang hoạt động');
 });
 
-test('two local accounts matching one HR row fail closed', async () => {
+test('hai tài khoản cùng định danh với một dòng nhân sự: đăng nhập không còn gắn HR nên không tài khoản nào được nâng quyền', async () => {
   const store = memoryStore([
     { id: 'u1', username: 'a@example.com', email: 'a@example.com', verifiedEmail: true, vaiTro: 'Khách', trangThai: 'Đang hoạt động' },
     { id: 'u2', username: '0912345678', soDienThoai: '0912345678', verifiedPhone: true, vaiTro: 'Khách', trangThai: 'Đang hoạt động' }
   ]);
-  const resolver = createEffectiveUserResolver({ store, directory: { getSnapshot: async () => ({ employees: [employee] }) } });
-  await assert.rejects(resolver.resolveUser(store.state[0]), err => err.code === 'HR_IDENTITY_CONFLICT');
-});
+  const { calls, directory } = forbiddenDirectory();
+  const resolver = createEffectiveUserResolver({ store, directory });
+  for (const user of store.state) {
+    const resolved = await resolver.resolveUser(user);
+    assert.equal(resolved.vaiTro, 'Khách');
+    assert.equal(resolved.hrManaged, undefined);
+  }
+  assert.equal(calls.reads, 0);
+  assert.equal(store.updates.length, 0);
+})
+
 
 // --- Rang buoc hrRowIndex: TK da gan mot dong nhan su khong duoc "nhay" sang dong khac ---
 
@@ -193,10 +217,7 @@ test('TK Sale da gan dong A doi email sang email Quan ly (dong B) KHONG duoc gan
   const store = memoryStore([
     boundSaleAccount({ username: 'boss@example.com', email: 'boss@example.com', soDienThoai: '' })
   ]);
-  const resolver = createEffectiveUserResolver({
-    store,
-    directory: { getSnapshot: async () => ({ employees: [saleEmployee, managerEmployee] }) }
-  });
+  const resolver = createEffectiveUserResolver({ store, directory: forbiddenDirectory().directory });
 
   const resolved = await resolver.resolveUser(store.state[0]);
   assert.equal(resolved.vaiTro, 'Sale');
@@ -207,7 +228,8 @@ test('TK Sale da gan dong A doi email sang email Quan ly (dong B) KHONG duoc gan
   assert.equal(store.state[0].vaiTro, 'Sale');
   assert.equal(String(store.state[0].hrRowIndex), '10');
   assert.equal(store.state[0].sheetVaiTro, 'Sale');
-  assert.ok(warns.some(args => args.join(' ').includes('sale')));
+  assert.equal(store.updates.length, 0);
+  assert.equal(warns.length, 0, 'không còn đối chiếu HR nên không có cảnh báo nhảy dòng');
 });
 
 test('TK da gan dong A ma email tro B, SĐT tro A: giu rang buoc A thay vi loi HR_IDENTITY_CONFLICT', async t => {
@@ -248,60 +270,55 @@ test('TK Quan ly that (dong B) van resolve binh thuong khi co TK khac trung emai
   assert.equal(sale.vaiTro, 'Sale');
 });
 
-test('TK moi chua gan (hrRowIndex rong) khop lan dau van duoc gan nhu cu', async () => {
+test('TK mới chưa gắn hồ sơ không tự gắn dòng nhân sự khi đăng nhập (gắn liên kết do Quản lý làm)', async () => {
   const store = memoryStore([{
     id: 'new', username: 'boss@example.com', email: 'boss@example.com', soDienThoai: '',
     verifiedEmail: true, hrRowIndex: '', vaiTro: 'Khách', coSo: '', trangThai: 'Đang hoạt động'
   }]);
-  const resolver = createEffectiveUserResolver({
-    store,
-    directory: { getSnapshot: async () => ({ employees: [saleEmployee, managerEmployee] }) }
-  });
+  const { calls, directory } = forbiddenDirectory();
+  const resolver = createEffectiveUserResolver({ store, directory });
 
   const resolved = await resolver.resolveUser(store.state[0]);
-  assert.equal(resolved.hrManaged, true);
-  assert.equal(String(resolved.hrRowIndex), '20');
-  assert.equal(resolved.vaiTro, 'Quản lý');
-  assert.equal(String(store.state[0].hrRowIndex), '20');
-});
+  assert.equal(resolved.hrManaged, undefined);
+  assert.equal(resolved.hrRowIndex, '');
+  assert.equal(resolved.vaiTro, 'Khách');
+  assert.equal(calls.reads, 0);
+  assert.equal(store.updates.length, 0);
+})
 
-test('TK da gan dong A ma email/SĐT van khop A: cap nhat binh thuong theo sheet', async () => {
-  const store = memoryStore([boundSaleAccount()]);
-  const promoted = { ...saleEmployee, sheetVaiTro: 'Kế toán', sheetCoSo: 'Cả hai', hoTen: 'Sale A moi' };
-  const resolver = createEffectiveUserResolver({
-    store,
-    directory: { getSnapshot: async () => ({ employees: [promoted, managerEmployee] }) }
-  });
+
+test('TK đã gắn dòng A: đổi vai trò/họ tên trên hồ sơ nhân sự không đổi tài khoản', async () => {
+  const store = memoryStore([boundSaleAccount({ hoTen: 'Sale A' })]);
+  const { calls, directory } = forbiddenDirectory();
+  const resolver = createEffectiveUserResolver({ store, directory });
 
   const resolved = await resolver.resolveUser(store.state[0]);
-  assert.equal(resolved.vaiTro, 'Kế toán');
-  assert.equal(resolved.coSo, 'Cả hai');
-  assert.equal(resolved.hoTen, 'Sale A moi');
+  assert.equal(resolved.vaiTro, 'Sale');
+  assert.equal(resolved.coSo, 'Hà Nội');
+  assert.equal(resolved.hoTen, 'Sale A');
   assert.equal(String(resolved.hrRowIndex), '10');
-  assert.equal(store.state[0].vaiTro, 'Kế toán');
-});
+  assert.equal(calls.reads, 0);
+  assert.equal(store.updates.length, 0);
+})
 
-test('TK hrManaged cu nhung hrRowIndex rong/null duoc xu ly nhu chua gan va gan duoc dong khop', async () => {
+
+test('TK hrManaged cũ nhưng hrRowIndex rỗng/null: đăng nhập giữ nguyên, findAccountForEmployee vẫn coi là chưa gắn', async () => {
   for (const hrRowIndex of ['', null, undefined]) {
     const store = memoryStore([{
       id: 'legacy', username: 'boss@example.com', email: 'boss@example.com', soDienThoai: '',
       hrManaged: true, hrRowIndex, vaiTro: 'Khách', coSo: '', trangThai: 'Đang hoạt động'
     }]);
-    const resolver = createEffectiveUserResolver({
-      store,
-      directory: { getSnapshot: async () => ({ employees: [saleEmployee, managerEmployee] }) }
-    });
+    const resolver = createEffectiveUserResolver({ store, directory: forbiddenDirectory().directory });
 
     const account = await resolver.findAccountForEmployee(managerEmployee);
     assert.equal(account.id, 'legacy');
     const resolved = await resolver.resolveUser(store.state[0]);
-    assert.equal(String(resolved.hrRowIndex), '20', `hrRowIndex=${hrRowIndex}`);
-    assert.equal(resolved.vaiTro, 'Quản lý');
-    assert.equal(String(store.state[0].hrRowIndex), '20');
+    assert.equal(resolved.hrRowIndex, hrRowIndex, `hrRowIndex=${hrRowIndex}`);
+    assert.equal(resolved.vaiTro, 'Khách');
+    assert.equal(store.updates.length, 0);
   }
-});
+})
 
-// --- F4: nhanh chi 1 TK khop cung phai loai TK da gan dong KHAC ---
 
 test('findAccountForEmployee: TK duy nhat khop nhung da gan dong khac -> HR_IDENTITY_CONFLICT, khong tra TK do', async t => {
   // TK Sale (gan dong 10) con giu email cu trung email nhan su Quan ly (dong 20).
@@ -336,78 +353,58 @@ test('findAccountForEmployee: TK duy nhat khop va da gan dung dong (hoac chua ga
 
 // --- F8: TK da dong bo khong duoc ghi DB moi request chi vi hrMatchedAt ---
 
-test('resolve 2 lan lien tiep voi du lieu khong doi -> lan 2 KHONG goi store.updateUser', async () => {
+test('resolve nhiều lần liên tiếp không ghi DB (không còn hrMatchedAt theo request)', async () => {
   const store = memoryStore([{
     id: 'u1', username: '0912345678', email: '', soDienThoai: '0912345678',
-    verifiedPhone: true, vaiTro: 'Khách', coSo: '', trangThai: 'Đang hoạt động'
+    verifiedPhone: true, vaiTro: 'Kế toán', coSo: 'Hà Nội', trangThai: 'Đang hoạt động'
   }]);
-  const resolver = createEffectiveUserResolver({
-    store,
-    directory: { getSnapshot: async () => ({ employees: [employee] }) }
-  });
-
+  const resolver = createEffectiveUserResolver({ store, directory: forbiddenDirectory().directory });
   const first = await resolver.resolveUser(store.state[0]);
-  assert.equal(first.hrManaged, true);
-  assert.equal(store.updates.length, 1);
-  assert.ok(store.updates[0].changes.hrMatchedAt, 'gan lan dau phai ghi hrMatchedAt');
-  // Gia lap lan gan truoc da xay ra tu luc khac (tranh trung mili-giay).
-  store.state[0].hrMatchedAt = '2026-01-01T00:00:00.000Z';
-  const matchedAt = store.state[0].hrMatchedAt;
-
   const second = await resolver.resolveUser(store.state[0]);
-  assert.equal(store.updates.length, 1, 'lan 2 khong duoc ghi DB');
+  assert.equal(first.vaiTro, 'Kế toán');
   assert.equal(second.vaiTro, 'Kế toán');
-  assert.equal(second.hrMatchedAt, matchedAt);
-});
+  assert.equal(store.updates.length, 0);
+})
 
-test('TK da dong bo: chi khi co truong khac doi moi ghi va cap nhat hrMatchedAt', async () => {
+
+test('TK đã đồng bộ cũ: hồ sơ nhân sự đổi vai trò không còn tự đổi tài khoản, hrMatchedAt giữ nguyên', async () => {
   const synced = boundSaleAccount({ hoTen: 'Sale A', boPhan: saleEmployee.boPhan, hrMatchedAt: '2026-01-01T00:00:00.000Z' });
-  let employees = [saleEmployee];
   const store = memoryStore([synced]);
-  const resolver = createEffectiveUserResolver({ store, directory: { getSnapshot: async () => ({ employees }) } });
-
-  await resolver.resolveUser(store.state[0]);
+  const resolver = createEffectiveUserResolver({ store, directory: forbiddenDirectory().directory });
+  const resolved = await resolver.resolveUser(store.state[0]);
+  assert.equal(resolved.vaiTro, 'Sale');
   assert.equal(store.updates.length, 0);
   assert.equal(store.state[0].hrMatchedAt, '2026-01-01T00:00:00.000Z');
+})
 
-  employees = [{ ...saleEmployee, sheetVaiTro: 'Kế toán' }];
-  const resolved = await resolver.resolveUser(store.state[0]);
-  assert.equal(store.updates.length, 1);
-  assert.equal(resolved.vaiTro, 'Kế toán');
-  assert.notEqual(store.state[0].hrMatchedAt, '2026-01-01T00:00:00.000Z');
-});
 
-test('dong bo HR KHONG xoa ghi de quyen rieng cua tai khoan (feature_permissions)', async () => {
+test('đăng nhập KHÔNG đổi ghi đè quyền riêng của tài khoản (feature_permissions)', async () => {
   const overrides = { 'reports.overview': true, 'hr.leave': false };
   const store = memoryStore([{
     id: 'u1', username: '0912345678', email: '', soDienThoai: '0912345678',
-    verifiedPhone: true, vaiTro: 'Khách', coSo: '', trangThai: 'Đang hoạt động',
-    featurePermissions: overrides
+    verifiedPhone: true, vaiTro: 'Kế toán', coSo: 'Hà Nội', trangThai: 'Đang hoạt động',
+    featurePermissions: overrides, lockReason: 'hr_removed'
   }]);
-  const resolver = createEffectiveUserResolver({
-    store,
-    directory: { getSnapshot: async () => ({ employees: [employee], stale: false }) }
-  });
+  const resolver = createEffectiveUserResolver({ store, directory: forbiddenDirectory().directory });
 
   const resolved = await resolver.resolveUser(store.state[0]);
-
-  // Vai tro duoc dong bo lai tu Danh sach nhan su...
   assert.equal(resolved.vaiTro, 'Kế toán');
-  assert.equal(resolved.hrManaged, true);
-  // ...nhung ghi de quyen do Quan ly dat phai con nguyen, ca trong ket qua tra
-  // ve lan trong ban ghi da luu.
+  // Ngay cả khi có ghi (gỡ khóa hr_removed), ghi đè quyền do Quản lý đặt phải còn nguyên.
+  assert.equal(store.updates.length, 1);
+  assert.equal(Object.hasOwn(store.updates[0].changes, 'featurePermissions'), false);
   assert.deepEqual(resolved.featurePermissions, overrides);
   assert.deepEqual(store.state[0].featurePermissions, overrides);
-});
+})
 
 
-test('HR resolver refreshes department without widening persisted leave scope or assigned branch', async () => {
-  const store = memoryStore([{ id: 'u1', username: 'a@example.com', email: 'a@example.com', hrManaged: true, hrRowIndex: 2, vaiTro: 'Kế toán', coSo: '', assignedCoSo: '', trangThai: 'Đang hoạt động', leaveApprovalDepartments: ['KHO'] }]);
-  const resolver = createEffectiveUserResolver({ store, directory: { getSnapshot: async () => ({ employees: [employee] }) } });
+test('đăng nhập dùng Bộ phận của tài khoản, không mở rộng phạm vi duyệt hay cơ sở được gán', async () => {
+  const store = memoryStore([{ id: 'u1', username: 'a@example.com', email: 'a@example.com', hrManaged: true, hrRowIndex: 2, vaiTro: 'Kế toán', coSo: '', assignedCoSo: '', boPhan: 'Kế toán', trangThai: 'Đang hoạt động', leaveApprovalDepartments: ['KHO'] }]);
+  const resolver = createEffectiveUserResolver({ store, directory: forbiddenDirectory().directory });
   const resolved = await resolver.resolveUser(store.state[0]);
-  assert.equal(resolved.boPhan, 'KẾ TOÁN');
-  assert.equal(resolved.coSo, 'Cả hai');
+  assert.equal(resolved.boPhan, 'Kế toán');
+  assert.equal(resolved.coSo, '');
   assert.equal(resolved.assignedCoSo, '');
   assert.deepEqual(resolved.leaveApprovalDepartments, ['KHO']);
-  assert.equal(store.state[0].coSo, '');
-});
+  assert.equal(store.updates.length, 0);
+})
+

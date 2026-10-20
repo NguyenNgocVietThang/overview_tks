@@ -308,11 +308,13 @@ function createHrLeaveRepository({ pool = getPool() } = {}) {
     const version=String(data.expectedVersion ?? '');
     if(!/^(0|[1-9]\d*)$/.test(version) || version.length>19 || BigInt(version)>9223372036854775807n) throw new HrError('Phiên bản quyết định không hợp lệ.',400,'INVALID_DECISION_VERSION');
     if(!uuidOrNull(data.userId)) throw new HrError('Định danh tài khoản không hợp lệ.',400,'INVALID_USER_ID');
-    const {rows}=await pool.query(`UPDATE hr_leave_requests r SET start_date=$5::date,start_session=$6,end_date=$7::date,end_session=$8,leave_sessions=$9::jsonb,ly_do=$10,nguoi_ban_giao=$11,submission_nonce=$12::uuid
-      WHERE r.request_id=$1 AND r.branch=ANY($2::text[]) AND r.user_id=$3::uuid AND r.hr_employee_id=$4::bigint AND r.source='web' AND r.loai_yeu_cau='Xin nghỉ phép' AND r.decision_version=$13::bigint
-      AND EXISTS(SELECT 1 FROM app_users u JOIN hr_employees e ON e.id=u.hr_employee_id WHERE u.id=r.user_id AND u.hr_employee_id=r.hr_employee_id AND u.trang_thai='Đang hoạt động' AND NOT u.is_deleted AND e.is_active AND e.branch=r.branch)
-      RETURNING ${SELECT_COLUMNS}`,[id,toBranchCodes(branch),data.userId,data.employeeId,data.start_date,data.start_session,data.end_date,data.end_session,JSON.stringify(data.leave_sessions),data.ly_do,data.nguoi_ban_giao,randomUUID(),version]);
-    if(!rows[0]) throw new HrError('Đơn hoặc liên kết nhân sự đã thay đổi. Vui lòng tải lại thông tin mới nhất.',409,'LEAVE_DECISION_CONFLICT');
+    // Định danh sửa đơn là tài khoản: phải đúng chủ đơn, tài khoản đang hoạt động và cơ sở công tác trùng cơ sở của đơn.
+    // hr_employee_id của đơn chỉ còn là dữ liệu lịch sử, không dùng để quyết định.
+    const {rows}=await pool.query(`UPDATE hr_leave_requests r SET start_date=$4::date,start_session=$5,end_date=$6::date,end_session=$7,leave_sessions=$8::jsonb,ly_do=$9,nguoi_ban_giao=$10,submission_nonce=$11::uuid
+      WHERE r.request_id=$1 AND r.branch=ANY($2::text[]) AND r.user_id=$3::uuid AND r.source='web' AND r.loai_yeu_cau='Xin nghỉ phép' AND r.decision_version=$12::bigint
+      AND EXISTS(SELECT 1 FROM app_users u WHERE u.id=r.user_id AND u.trang_thai='Đang hoạt động' AND NOT u.is_deleted AND u.work_branch=r.branch)
+      RETURNING ${SELECT_COLUMNS}`,[id,toBranchCodes(branch),data.userId,data.start_date,data.start_session,data.end_date,data.end_session,JSON.stringify(data.leave_sessions),data.ly_do,data.nguoi_ban_giao,randomUUID(),version]);
+    if(!rows[0]) throw new HrError('Đơn hoặc tài khoản/cơ sở công tác đã thay đổi. Vui lòng tải lại thông tin mới nhất.',409,'LEAVE_DECISION_CONFLICT');
     return rowToRequest(rows[0]);
   }
   async function getSubmissionHistory(id) {

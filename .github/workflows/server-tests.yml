@@ -10,6 +10,11 @@ on:
 permissions:
   contents: read
 
+# config.js bắt buộc có hai biến này khi nạp module; test không gọi Google/JWT thật.
+env:
+  GOOGLE_SERVICE_ACCOUNT_JSON: '{}'
+  JWT_SECRET: ci-test-secret
+
 jobs:
   hr-account-decoupling:
     name: HR account decoupling
@@ -38,6 +43,14 @@ jobs:
           auth/effectiveUserResolver.test.js
           db/accountHrDecouplingMigration.test.js
           db/accountLeaveSchedulesMigration.test.js
+          db/accountLeaveTriggerMigration.test.js
+          auth/employeeRegistrationService.test.js
+          auth/adminTelegram.test.js
+          auth/profileTelegram.test.js
+          hr/hrLeaveRoutes.test.js
+          hr/hrLeaveDeadlineRoutes.test.js
+          hr/hrLeaveDeadlineMigration.test.js
+          test/frontend/hr-leave-deadlines.test.js
           hr/hrEmployeeAdminService.test.js
           hr/hrLeaveSelfService.test.js
           hr/hrLeaveWorkSchedulesRepository.test.js

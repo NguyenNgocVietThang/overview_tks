@@ -6,7 +6,7 @@ function validate(employeeId,date) {
  if (!/^[1-9]\d*$/.test(String(employeeId)) || !validDate(date)) throw invalid('Nhân sự hoặc ngày làm việc không hợp lệ.');
 }
 function validateUserId(userId,date) {
- if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(userId)) || !validDate(date)) throw invalid('Tài khoản hoặc ngày làm việc không hợp lệ.');
+ if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(userId)) || !validDate(date)) throw invalid('Tài khoản hoặc ngày làm việc không hợp lệ.');
 }
 const DEFAULT_MORNING_START='07:45';
 const DEFAULT_AFTERNOON_START='12:30';
@@ -20,7 +20,7 @@ function createHrLeaveWorkSchedulesRepository({pool=getPool()}={}) {
  async function setSchedule(employeeId,{date,morningStart,afternoonStart}={}) {
   validate(employeeId,date);
   for(const value of [morningStart,afternoonStart]) if(value!==null && (typeof value!=='string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(value))) throw invalid('Giờ bắt đầu phải có dạng HH:mm hoặc null.');
-  return shape((await pool.query(`INSERT INTO hr_leave_work_schedules(employee_id,work_date,morning_start,afternoon_start) VALUES($1,$2::date,$3::time,$4::time) ON CONFLICT(employee_id,work_date) DO UPDATE SET morning_start=excluded.morning_start,afternoon_start=excluded.afternoon_start RETURNING ${columns}`,[employeeId,date,morningStart,afternoonStart])).rows[0]);
+  return shape((await pool.query(`INSERT INTO hr_leave_work_schedules(employee_id,work_date,morning_start,afternoon_start) VALUES($1,$2::date,$3::time,$4::time) ON CONFLICT(employee_id,work_date) WHERE employee_id IS NOT NULL DO UPDATE SET morning_start=excluded.morning_start,afternoon_start=excluded.afternoon_start RETURNING ${columns}`,[employeeId,date,morningStart,afternoonStart])).rows[0]);
  }
  async function getScheduleForUser(userId,date) {
   validateUserId(userId,date);
@@ -42,8 +42,30 @@ function createHrLeaveWorkSchedulesRepository({pool=getPool()}={}) {
   if(typeof username!=='string' || !username.trim()) throw invalid('Vui lòng chọn nhân sự đã liên kết để cấu hình lịch nghỉ.');
   return (await pool.query(`SELECT e.id::text AS id,e.branch,e.bo_phan,e.ho_ten,u.id AS user_id,u.username FROM app_users u JOIN hr_employees e ON e.id=u.hr_employee_id WHERE lower(u.username)=lower($1) AND NOT u.is_deleted AND u.trang_thai='Đang hoạt động' AND e.is_active`,[username.trim()])).rows[0] || null;
  }
+ // Tài khoản đang hoạt động có cơ sở công tác: định danh cho đơn nghỉ và lịch làm việc mới.
+ const ACCOUNT_COLUMNS="u.id::text AS user_id,u.username,COALESCE(NULLIF(u.ho_ten,''),u.username) AS ho_ten,u.work_branch AS branch,u.bo_phan";
+ const ACCOUNT_ACTIVE="NOT u.is_deleted AND u.trang_thai='Đang hoạt động' AND u.work_branch IN ('hanoi','saigon')";
+ const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+ async function getAccount(userId) {
+  if(!UUID.test(String(userId))) throw invalid('Tài khoản không hợp lệ.');
+  return (await pool.query(`SELECT ${ACCOUNT_COLUMNS} FROM app_users u WHERE u.id=$1 AND ${ACCOUNT_ACTIVE}`,[userId])).rows[0] || null;
+ }
+ // userId ưu tiên; username; hr_employee_id cũ chỉ được dùng khi trỏ tới đúng MỘT tài khoản liên kết.
+ async function resolveAccount({userId,username,employeeId}={}) {
+  if(userId!=null && String(userId)!=='') return getAccount(userId);
+  if(typeof username==='string' && username.trim()) return (await pool.query(`SELECT ${ACCOUNT_COLUMNS} FROM app_users u WHERE lower(u.username)=lower($1) AND ${ACCOUNT_ACTIVE}`,[username.trim()])).rows[0] || null;
+  if(employeeId!=null && String(employeeId)!=='') {
+   if(!/^[1-9]\d*$/.test(String(employeeId))) throw invalid('Nhân sự không hợp lệ.');
+   const rows=(await pool.query(`SELECT ${ACCOUNT_COLUMNS} FROM app_users u WHERE u.hr_employee_id=$1 AND ${ACCOUNT_ACTIVE}`,[employeeId])).rows;
+   return rows.length===1 ? rows[0] : null;
+  }
+  throw invalid('Vui lòng chọn tài khoản nhân viên để ghi nhận nghỉ.');
+ }
+ async function listAccounts() {
+  return (await pool.query(`SELECT ${ACCOUNT_COLUMNS} FROM app_users u WHERE ${ACCOUNT_ACTIVE} AND btrim(u.bo_phan)<>'' ORDER BY ho_ten`)).rows;
+ }
  function defaultSchedule(date) {return withDefault('',date,null);}
- return {getSchedule,getScheduleForUser,defaultSchedule,setSchedule,setScheduleForUser,getEmployee,resolveEmployee};
+ return {getSchedule,getScheduleForUser,defaultSchedule,setSchedule,setScheduleForUser,getEmployee,resolveEmployee,getAccount,resolveAccount,listAccounts};
 }
 const repository=createHrLeaveWorkSchedulesRepository();
 module.exports={createHrLeaveWorkSchedulesRepository,...repository};

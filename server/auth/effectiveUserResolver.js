@@ -118,103 +118,15 @@ function createEffectiveUserResolver(options = {}) {
       });
     }
 
-    // Quyền, cơ sở và Bộ phận của mọi tài khoản thông thường là dữ liệu quản trị
-    // tài khoản. Không tự đọc hay đồng bộ từ hồ sơ nhân sự khi đăng nhập.
-    return user;
-
-    let snapshot;
-    try {
-      snapshot = await directory.getSnapshot();
-    } catch (err) {
-      if (user.hrManaged) throw err;
-      return user;
-    }
-
-    const boundRow = boundRowIndex(user);
-    let employee;
-    try {
-      employee = employeeDirectory.findEmployeeByIdentifier(snapshot.employees, employeeIdentityFor(user));
-    } catch (err) {
-      // Email va SĐT tro hai nhan su khac nhau. TK da gan mot dong thi giu
-      // nguyen rang buoc cu (khong lam TK loi 409 moi request); TK chua gan
-      // thi van fail closed nhu truoc.
-      if (boundRow && err && err.code === 'HR_IDENTITY_CONFLICT') {
-        console.warn(`[effectiveUser] TK ${user.id} (gan dong ${boundRow}): email/SĐT trỏ hai nhân sự khác nhau, giữ ràng buộc cũ.`);
-        return user;
-      }
-      throw err;
-    }
-    if (employee && boundRow && String(employee.rowIndex) !== boundRow) {
-      // TK da gan dong A nhung email/SĐT hien tai khop dong B (vd tu doi email
-      // sang email nhan su khac). KHONG nhay sang B: giu nguyen vai tro/co so/
-      // email/hrRowIndex, khong persist gi tu dong B. Muon gan TK sang dong khac
-      // phai go/sua rang buoc (app_users.hr_employee_id) chu dong.
-      console.warn(`[effectiveUser] TK ${user.id} đã gắn dòng nhân sự ${boundRow} nhưng khớp dòng ${employee.rowIndex}; giữ ràng buộc cũ.`);
-      return user;
-    }
-    if (!employee) {
-      // Khong con khop dong nhan su nao (vd sua/nhap lai SĐT-email) KHONG con
-      // tu khoa tai khoan nua; giu nguyen vai tro/quyen da co. Chi go khoa
-      // 'hr_removed' cu de cac tai khoan tung bi khoa theo co che nay dang nhap lai duoc.
-      if (user.hrManaged) {
-        if (user.lockReason === 'hr_removed') {
-          user = await persistIfChanged(user, { trangThai: ACTIVE_STATUS, lockReason: '' });
-        }
-        return user;
-      }
-      if (user.vaiTro && user.vaiTro !== ROLES.KHACH && !user.legacyOverride) {
-        user = await persistIfChanged(user, {
-          legacyOverride: true,
-          vaiTroOverride: user.vaiTro,
-          coSoOverride: user.coSo || ''
-        });
-      }
-      return user;
-    }
-
-    const account = await findAccountForEmployee(employee);
-    if (account && String(account.id) !== String(user.id)) {
-      throw new EffectiveUserError(
-        'Nhân sự này đang khớp với một tài khoản web khác.',
-        'HR_IDENTITY_CONFLICT',
-        409
-      );
-    }
-
-    const trustedLegacyInternal = !user.hrManaged && user.vaiTro && user.vaiTro !== ROLES.KHACH;
-    if (!user.hrManaged && !trustedLegacyInternal && !hasVerifiedEmployeeIdentity(user, employee)) {
-      return { ...user, hrVerificationRequired: true };
-    }
-
-    const roleOverride = user.vaiTroOverride || (user.legacyOverride ? user.vaiTro : '');
-    const branchOverride = user.coSoOverride || (user.legacyOverride ? user.coSo : '');
-    const desired = {
-      hrManaged: true,
-      hrSourceBranch: employee.sourceBranch,
-      hrRowIndex: employee.rowIndex,
-      boPhan: employee.boPhan || '',
-      sheetVaiTro: employee.sheetVaiTro,
-      sheetCoSo: employee.sheetCoSo,
-      hoTen: employee.hoTen || user.hoTen,
-      email: employee.email || user.email || '',
-      soDienThoai: employee.soDienThoai || user.soDienThoai || '',
-      vaiTro: roleOverride || employee.sheetVaiTro,
-      roleSource: roleOverride ? 'override' : 'sheet'
-    };
+    // Quyền, vai trò, cơ sở và Bộ phận của mọi tài khoản thông thường là dữ liệu quản trị
+    // tài khoản (app_users). Không đọc hay đồng bộ từ hồ sơ nhân sự khi đăng nhập.
+    // Giữ cơ chế cũ duy nhất: tài khoản từng bị khóa 'hr_removed' (khóa tự động thời đồng bộ HR)
+    // được gỡ khóa; khóa thủ công và khóa do nghỉ việc ('hr_resigned') giữ nguyên.
     if (user.lockReason === 'hr_removed') {
-      desired.trangThai = ACTIVE_STATUS;
-      desired.lockReason = '';
+      const saved = await persistIfChanged(user, { trangThai: ACTIVE_STATUS, lockReason: '' });
+      return { ...saved, assignedCoSo: user.assignedCoSo };
     }
-    // resolveUser chay MOI request: neu dat hrMatchedAt = now vao desired thi
-    // luc nao cung "khac" -> ghi DB + xoa cache moi request (tung gop phan can
-    // Disk IO Supabase). Chi danh dau thoi diem khop khi co truong khac thay doi
-    // (gom lan gan dau) hoac TK chua tung co hrMatchedAt.
-    const changes = changedFields(user, desired);
-    const effectiveCoSo = branchOverride || employee.sheetCoSo;
-    if (!Object.keys(changes).length && user.hrMatchedAt) return { ...user, coSo: effectiveCoSo };
-    changes.hrMatchedAt = new Date().toISOString();
-    const saved = await store.updateUser(user.id, changes);
-    return { ...saved, assignedCoSo: user.assignedCoSo, coSo: effectiveCoSo };
+    return user;
   }
 
   return { resolveUser, findAccountForEmployee };

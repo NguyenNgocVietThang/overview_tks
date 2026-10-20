@@ -69,21 +69,8 @@ test('every registration timing can be approved without changing snapshot, and f
  }finally{if(db)await db.close();}
 });
 
-test('real repository resubmission guards version, ownership and active employee linkage; same calendar resend journals',async()=>{
- let db;try {db=await fixture();
- const {createHrLeaveRepository}=require('./hrLeaveRepository');
- const repo=createHrLeaveRepository({pool:db});assert.equal(typeof repo.resubmitLeaveRequest,'function');
- await db.exec(`INSERT INTO hr_leave_work_schedules(employee_id,work_date,morning_start,afternoon_start) VALUES(1,'2030-01-01','08:15','13:00')`);
- const created=await repo.createLeaveRequest({user_id:UID,hr_employee_id:1,start_date:'2030-01-01',start_session:'Sáng',end_date:'2030-01-01',end_session:'Chiều',tong_buoi_nghi:2},'Hà Nội');
- const payload={userId:UID,employeeId:1,expectedVersion:'0',start_date:'2030-01-01',start_session:'Sáng',end_date:'2030-01-01',end_session:'Chiều',leave_sessions:created.leave_sessions,ly_do:'New reason',nguoi_ban_giao:''};
- const resent=await repo.resubmitLeaveRequest(created.request_id,payload,'Hà Nội');assert.equal(resent.submission_revision,2);assert.equal(resent.decision_version,'1');
- assert.equal((await repo.getSubmissionHistory(created.request_id)).length,2);
- await assert.rejects(repo.resubmitLeaveRequest(created.request_id,payload,'Hà Nội'),{statusCode:409});
- await db.exec(`UPDATE app_users SET hr_employee_id=2 WHERE id='${UID}'`);
- await assert.rejects(repo.resubmitLeaveRequest(created.request_id,{...payload,expectedVersion:'1'},'Hà Nội'),{statusCode:409});
- assert.equal((await repo.getSubmissionHistory(created.request_id)).length,2);
- }finally{if(db)await db.close();}
-});
+// Kiểm thử sửa đơn (resubmitLeaveRequest) đã chuyển sang db/accountLeaveTriggerMigration.test.js:
+// sau migration 0077 điều kiện là tài khoản + cơ sở công tác, cần schema đầy đủ 0042→0077.
 test('schedule repository round-trips nullable starts and database owns monotonically increasing version',async()=>{
  let db;try {db=await fixture();
  const repo=require('./hrLeaveWorkSchedulesRepository').createHrLeaveWorkSchedulesRepository({pool:db});
