@@ -52,13 +52,14 @@ test('dashboard nhân sự đếm tổng và từng Bộ phận theo bộ lọc 
   const employees = [
     { id: '1', hoTen: 'An', boPhan: 'KHO', coSo: 'Hà Nội', trangThai: 'Đang làm việc' },
     { id: '2', hoTen: 'Bình', boPhan: 'SALE', coSo: 'Hà Nội', trangThai: 'Đang làm việc' },
-    { id: '3', hoTen: 'Chi', boPhan: 'KHO', coSo: 'Sài Gòn', trangThai: 'Đang làm việc' }
+    { id: '3', hoTen: 'Chi', boPhan: 'Kho', coSo: 'Sài Gòn', trangThai: 'Đang làm việc' }
   ];
   const { dom, window } = await openPage({ canManage: true, employees });
   const doc = window.document;
   assert.equal(doc.getElementById('employeeSummaryTotal').textContent, '3');
   assert.match(doc.getElementById('employeeDepartmentSummary').textContent, /KHO\s*2/);
   assert.match(doc.getElementById('employeeDepartmentSummary').textContent, /SALE\s*1/);
+  assert.equal(doc.querySelectorAll('#employeeDepartmentSummary button').length, 2, 'KHO và Kho được gộp thành một Bộ phận');
   doc.getElementById('employeeBranchFilter').value = 'Hà Nội';
   window.handleEmployeeBranchChange();
   assert.equal(doc.getElementById('employeeSummaryTotal').textContent, '2');
@@ -145,6 +146,7 @@ test('người không có quyền quản lý: giữ 5 cột công khai, không l
   const doc = window.document;
   assert.equal(doc.getElementById('btnAddEmployee').hidden, true);
   assert.equal(doc.querySelectorAll('#employeeDirectoryTableHead th').length, 5);
+  assert.match(doc.querySelector('#employeeDirectoryTableHead th:nth-child(2)').textContent, /^Bộ phận/);
   const row = doc.querySelector('#employeeDirectoryTableBody tr');
   assert.equal(row.hasAttribute('data-employee-id'), false);
   row.cells[0].dispatchEvent(new window.Event('click', { bubbles: true }));

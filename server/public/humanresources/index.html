@@ -2948,7 +2948,7 @@
 
     // Độ rộng được đo theo giá trị của dòng dữ liệu, không lấy theo tiêu đề.
     const EMPLOYEE_BASIC_HEAD = [
-      ['Họ và tên','ho-va-ten',240], ['Chức vụ','chuc-vu',180], ['Cơ sở','co-so',100],
+      ['Họ và tên','ho-va-ten',240], ['Bộ phận','bo-phan',180], ['Cơ sở','co-so',100],
       ['Số điện thoại','so-dien-thoai',115], ['Trạng thái','trang-thai',50]
     ];
     const EMPLOYEE_MANAGER_HEAD = [
@@ -3174,7 +3174,9 @@
       });
       inScope.forEach(e => {
         const label=String(e.boPhan || '').trim() || 'Chưa cập nhật';
-        counts.set(label,(counts.get(label) || 0) + 1);
+        const key=departmentKey(label) || '__missing__';
+        const current=counts.get(key);
+        counts.set(key, current ? { label:current.label, count:current.count + 1 } : { label, count:1 });
       });
       total.textContent=String(inScope.length);
       const statusText=status === 'active' ? 'Đang làm việc' : status === 'resigned' ? 'Đã nghỉ việc' : 'Tất cả trạng thái';
@@ -3182,9 +3184,9 @@
       const split=document.getElementById('employeeSummaryStatus');
       if(split) split.innerHTML=`<span class="emp-status-active">LV <strong>${working}</strong></span> · <span class="emp-status-resigned">NV <strong>${resigned}</strong></span>`;
       const selectedDepartment=departmentKey(document.getElementById('employeeDepartmentFilter')?.value);
-      const items=[...counts.entries()].sort((a,b) => b[1] - a[1] || a[0].localeCompare(b[0],'vi'));
+      const items=[...counts.values()].sort((a,b) => b.count - a.count || a.label.localeCompare(b.label,'vi'));
       departments.innerHTML=items.length
-        ? items.map(([label,count]) => {
+        ? items.map(({ label, count }) => {
           const active=departmentKey(label) === selectedDepartment;
           return `<button type="button" class="employee-department-chip${active ? ' is-active' : ''}" data-employee-department="${escapeHtml(label)}" aria-pressed="${active}"><span>${escapeHtml(label)}</span><strong>${count}</strong></button>`;
         }).join('')
