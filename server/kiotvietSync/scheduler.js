@@ -23,14 +23,21 @@ const { requestBusinessCurrentMonthRefresh } = require('./businessCurrentMonthRe
 
 // Activity changes affect existing snapshots and monthly scoring immediately.
 // Subscribe once per module, rather than once per scheduler/timer instance.
-dashboardRollupEvents.on('customersChanged', () => {
+dashboardRollupEvents.on('customersChanged', (info) => {
   // Khong bumpVersion bao cao cong no o day: cache tu het han (5 phut), tranh doc lai DB moi dot dong bo khach.
   require('../debtSchedule/debtRewardService').getDebtRewardService().clearScores();
+  // Su kien tu worker (remote): web chi xoa cache cua minh; 'updated' + tinh Tuoi no do worker lo.
+  if (info && info.remote) return;
   dashboardRollupEvents.emit('updated', { at: Date.now() });
   // No hien tai vua doi -> tinh lai bang Tuoi no (migration 0059); doi thi bao client tai lai.
   requestDebtAgingRefresh().then(result => {
     if (result && result.changed) dashboardRollupEvents.emit('updated', { at: Date.now() });
   });
+});
+
+// Ban chot cong no moi o worker -> web tang phien ban de doc lai (tien trinh phat da tu tang).
+dashboardRollupEvents.on('debtScheduleChanged', (info) => {
+  if (info && info.remote) debtScheduleRepository.getDebtScheduleRepository().bumpVersion();
 });
 
 // orderSuppliers ("Dat hang nhap") o nhom fast: doi soat toan bo ~350 phieu chi vai
@@ -266,6 +273,7 @@ function createPollingScheduler({
         beforeSnapshot: () => runGroup([customersEntity], { throwOnError: true }),
         onSnapshot: () => {
           debtScheduleRepository.getDebtScheduleRepository().bumpVersion();
+          dashboardRollupEvents.emit('debtScheduleChanged', { at: Date.now() });
           // Ban chot 15:00 moi: bao client dang mo SSE tai lai, khong cho rollup 5 phut.
           dashboardRollupEvents.emit('updated', { at: Date.now() });
         }
