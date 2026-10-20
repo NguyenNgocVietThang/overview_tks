@@ -25,6 +25,8 @@
 
 ## 2. Nguyên tắc kiến trúc & Quy tắc bất biến (Do's & Don'ts)
 
+- **Quy tắc Git do người dùng yêu cầu (20/10/2026):** Mọi thay đổi được thực hiện trực tiếp trên nhánh `main`. Không tự tạo nhánh hoặc worktree dùng nhánh khác; chỉ tạo nhánh khi người dùng yêu cầu rõ ràng.
+
 ### 2.1. Quy ước cơ sở & dữ liệu
 - **`branch` chỉ có 2 giá trị:** `hanoi` và `saigon` trong Postgres. Khóa chính của mọi bảng nghiệp vụ KiotViet luôn bắt đầu bằng `(branch, id)`.
 - **`Cả hai` (`both` / rỗng) chỉ là phạm vi xem trên UI:** Không có cơ sở `both` trong database. Khi chọn `Cả hai`, server ghép kết quả hoặc hiển thị từng dòng riêng theo từng cơ sở.
