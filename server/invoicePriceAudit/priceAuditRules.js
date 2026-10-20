@@ -49,7 +49,7 @@ function customerLevelFromEmail(email) {
 }
 
 // fullvat / full vat (ranh gioi tu) trong ghi chu dong HOAC ghi chu chung hoa don.
-const FULL_VAT_RE = /\bfull ?vat\b/;
+const FULL_VAT_RE = /(?<![\p{L}\p{N}_])full ?vat(?![\p{L}\p{N}_])/u;
 function hasFullVat(lineNote, invoiceNote) {
   return FULL_VAT_RE.test(normalizeText(lineNote)) || FULL_VAT_RE.test(normalizeText(invoiceNote));
 }

@@ -59,14 +59,14 @@ function parsePriceNote(text) {
       if (result.vatPerUnit === null) result.vatPerUnit = parseMoney(vat[1]);
       continue;
     }
+    // Moi doan con lai la 1 o bac, ke ca khi khong doc duoc: giu vi tri (vi tri = cap khach).
+    position += 1;
     const tier = TIER_RE.exec(seg);
-    if (tier) {
-      position += 1; // vi tri giu nguyen ke ca khi o trong bi bo
-      const unitPrice = parseMoney(tier[2]);
-      // O trong/khong hop le bi bo; gia 0 khong phai gia quy dinh (se keo min xuong 0).
-      if (tier[1] === '' || unitPrice === null || unitPrice === '0') continue;
-      result.tiers.push({ position, cartons: stripLeadingZeros(tier[1]), unitPrice });
-    }
+    if (!tier) continue;
+    const unitPrice = parseMoney(tier[2]);
+    // O trong/khong hop le bi bo; gia 0 khong phai gia quy dinh (se keo min xuong 0).
+    if (tier[1] === '' || unitPrice === null || unitPrice === '0') continue;
+    result.tiers.push({ position, cartons: stripLeadingZeros(tier[1]), unitPrice });
   }
   return result;
 }

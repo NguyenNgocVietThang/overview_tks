@@ -37,6 +37,16 @@ test('o trong o giua khong day bac sau len vi tri truoc', () => {
   ]);
 });
 
+test('o bac khong doc duoc van chiem vi tri, bac sau khong bi doi cap', () => {
+  const r = parsePriceNote('T30 # 1T -100 | 2T 90 | 3T- 80');
+  assert.deepEqual(r.tiers, [
+    { position: 1, cartons: '1', unitPrice: '100' },
+    { position: 3, cartons: '3', unitPrice: '80' },
+  ]);
+  const r2 = parsePriceNote('T30 # 1T -100 | 2T: 90 | 3T- 80');
+  assert.deepEqual(r2.tiers.map((t) => t.position), [1, 3]);
+});
+
 test('khong co bac nao hoac khong co gia -> tiers rong, khong sinh gia 0', () => {
   const r = parsePriceNote('T30 # 4/10 # -T -- | -T -- | -T -- | VAT+0');
   assert.deepEqual(r.tiers, []);

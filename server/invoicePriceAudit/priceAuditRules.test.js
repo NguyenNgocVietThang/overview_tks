@@ -41,6 +41,8 @@ test('Full VAT: khong co / khong co ranh gioi tu thi sai', () => {
   assert.equal(hasFullVat('vat 8%', 'full'), false);
   assert.equal(hasFullVat('unfullvat', ''), false);
   assert.equal(hasFullVat('fullvatx', ''), false);
+  assert.equal(hasFullVat('fullvatà', ''), false);
+  assert.equal(hasFullVat('àfull vat', ''), false);
 });
 
 test('bo qua OD/PK chi khi nam trong ngoac', () => {
