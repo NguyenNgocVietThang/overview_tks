@@ -84,7 +84,7 @@ async function refreshContainers({
       product_code:row.productCode,product_key:row.productKey,container_name:row.containerName,
       status:row.status,status_label:row.statusLabel,eta:row.eta,color:row.color,sale_note:row.saleNote,
       ordered_by:row.orderedBy,listed_at:row.listedAt,units_per_package:row.unitsPerPackage,
-      package_count:row.packageCount,quantity:row.quantity,vietnam_price:row.vietnamPrice
+      package_count:row.packageCount,quantity:row.quantity,vietnam_price:row.vietnamPrice,unit_price_cny:row.unitPriceCny
     })));
     await connection.query('BEGIN'); transaction = true;
     await connection.query(CREATE_STAGE_SQL);

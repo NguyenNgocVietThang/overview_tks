@@ -8003,6 +8003,7 @@
       if (full) columns.push(['orderedBy', 'Người đặt'], ['listedAt', 'Ngày lên list'],
         ['unitsPerPackage', 'Số cái/kiện', true], ['packageCount', 'Số kiện', true]);
       columns.push(['quantity', 'Tổng số lượng', true]);
+      if (full) columns.push(['unitPriceCny', 'Giá SP (tệ) 单价', true]);
       if (full) columns.push(['vietnamPrice', 'Giá hàng về VN', true]);
       const rows = data.rows || [];
       if (!rows.length) content += '<div class="doc-modal-note">Không có hàng dự kiến phù hợp cho sản phẩm này.</div>';
@@ -8013,6 +8014,7 @@
             const value = row[col[0]];
             const text = value == null || String(value).trim() === '' ? '—'
               : col[0] === 'vietnamPrice' ? fmtNumber(Math.round(Number(value)))
+              : col[0] === 'unitPriceCny' ? Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
               : col[2] ? fmtNumber(value) : String(value);
             return '<td' + (col[2] ? ' class="num"' : ' class="dp-note-text"') + '>' + escapeHtml(text) + '</td>';
           }).join('') + '</tr>';

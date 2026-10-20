@@ -28,6 +28,7 @@ test('invalid status skips entire block and invalid O never falls back to M*N', 
   assert.deepEqual(parsed.rows.map(x=>x.quantity),[5]);
   assert.equal(parsed.rows[0].unitsPerPackage,null);
   assert.equal(parsed.rows[0].vietnamPrice,null);
+  assert.equal(parsed.rows[0].unitPriceCny,null);
   assert.equal(parsed.warnings.length,4);
 });
 test('header row under CONT (STT or any text in O) is skipped without warning, bad data rows still warn', () => {

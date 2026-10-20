@@ -93,11 +93,11 @@ const modalText = page => page.$('docModalBody').textContent.replace(/\s+/g, ' '
 
 // 34 cột theo thứ tự sheet BC CHUNG: [data-column-key, nhãn trên tiêu đề]. Thứ tự này = thứ tự file Excel (PRODUCT_REPORT_COLUMNS ở exportService.js).
 const COLUMNS = [
-  ['ma-sp', 'Mã sản phẩm'], ['ten-sp', 'Tên sản phẩm'], ['gia-tri-co-ban-hn', 'Giá trị có bán HN'], ['sl-ban-30-ngay-hn', 'SL bán 30 ngày HN'],
+  ['ma-sp', 'Mã sản phẩm'], ['ten-sp', 'Tên sản phẩm'], ['da-boc', 'Đã bốc'], ['chua-boc', 'Chưa bốc'], ['gia-tri-co-ban-hn', 'Giá trị có bán HN'], ['sl-ban-30-ngay-hn', 'SL bán 30 ngày HN'],
   ['ton-thuc-hn', 'Tồn thực HN'], ['co-ban-hn', 'Có bán HN'], ['dieu-chuyen-sg', 'Điều chuyển SG'], ['ton-thuc-sg', 'Tồn thực SG'],
   ['co-ban-sg', 'Có bán SG'], ['sl-ban-30-ngay-sg', 'SL bán 30 ngày SG'], ['gia-tri-co-ban-sg', 'Giá trị có bán SG'],
   ['tong-ton-thuc', 'Tổng tồn thực + ĐC'], ['tong-co-ban', 'Tổng có bán + ĐC'], ['sl-ban-30-ngay', 'SL bán 30 ngày'],
-  ['dut-hn', 'Đứt HN'], ['dut-sg', 'Đứt SG'], ['da-boc', 'Đã bốc'], ['chua-boc', 'Chưa bốc'], ['ngay-can-dat', 'Ngày cần đặt'],
+  ['dut-hn', 'Đứt HN'], ['dut-sg', 'Đứt SG'], ['ngay-can-dat', 'Ngày cần đặt'],
   ['ngay-sg-dc', 'Ngày SG + ĐC'], ['ngay-hn', 'Ngày HN'], ['ngay-2-mien', 'Ngày 2 miền'], ['ds-90-ngay', 'DS 90 ngày'], ['sl-khach-ban', 'SL khách bán'],
   ['sl-don-90-ngay', 'SL đơn 90 ngày'], ['sl-don-30-ngay', 'SL đơn 30 ngày'], ['tang-truong', 'Tăng trưởng'], ['ds-khach-lon-nhat', 'DS khách lớn nhất'],
   ['khach-lon-nhat', 'Khách lớn nhất'], ['ti-trong-khach-lon-nhat', 'Tỉ trọng khách lớn nhất'], ['don-gia-hn', 'Đơn giá HN'], ['don-gia-sg', 'Đơn giá SG'],
@@ -637,10 +637,10 @@ function revenueOf(table, name) {
   return Number(row.cells[1].getAttribute('data-sort-value'));
 }
 
-const CONTAINER_ROW = { containerName: 'CONT 10-7G', status: 2, statusLabel: '2. Chưa bốc', eta: 'DK 14-16/10', color: 'Đỏ/Vàng', saleNote: '<b>Trinh</b>', quantity: 50, orderedBy: 'Ánh', listedAt: '15/10', unitsPerPackage: 10, packageCount: 5, vietnamPrice: 26420 };
+const CONTAINER_ROW = { containerName: 'CONT 10-7G', status: 2, statusLabel: '2. Chưa bốc', eta: 'DK 14-16/10', color: 'Đỏ/Vàng', saleNote: '<b>Trinh</b>', quantity: 50, orderedBy: 'Ánh', listedAt: '15/10', unitsPerPackage: 10, packageCount: 5, unitPriceCny: 1.44, vietnamPrice: 26420 };
 const READY_SYNC = { available: true, version: 'v1', lastSuccessAt: '2026-10-15T02:00:00Z' };
 
-test('hang du kien hien dong thoi voi doanh so, 6 cot cho sale va 11 cot cho quyen day du', async () => {
+test('hang du kien hien dong thoi voi doanh so, 6 cot cho sale va 12 cot cho quyen day du', async () => {
   for (const fullAccess of [false, true]) {
     const page = createPage({ containers: code => ({ code, fullAccess, rows: [CONTAINER_ROW], containerSync: READY_SYNC }) });
     await settle();
@@ -649,11 +649,13 @@ test('hang du kien hien dong thoi voi doanh so, 6 cot cho sale va 11 cot cho quy
     const section = page.$('productContainerSection');
     assert.ok(section, 'hang du kien luon hien ben duoi doanh so');
     assert.ok(page.$('productDetailChart'));
-    assert.equal(section.querySelectorAll('thead th').length, fullAccess ? 11 : 6);
-    assert.equal(section.querySelector('tbody tr').cells.length, fullAccess ? 11 : 6);
+    assert.equal(section.querySelectorAll('thead th').length, fullAccess ? 12 : 6);
+    assert.equal(section.querySelector('tbody tr').cells.length, fullAccess ? 12 : 6);
     assert.match(section.textContent, /CONT 10-7G.*2. Chưa bốc.*DK 14-16\/10.*Đỏ\/Vàng.*<b>Trinh<\/b>/s);
     assert.equal(section.querySelector('b'), null, 'ghi chu khong duoc chen HTML');
     assert.equal(section.textContent.includes('Ánh'), fullAccess);
+    assert.equal(section.textContent.includes('Giá SP (tệ)'), fullAccess);
+    assert.equal(section.textContent.includes('1.44'), fullAccess);
     assert.equal(pieCharts(page).length, 1);
   }
 });

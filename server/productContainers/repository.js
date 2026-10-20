@@ -70,7 +70,7 @@ async function loadContainerDetails({ code, pool }) {
       SELECT 1 FROM products p WHERE p.code = pr.product_code
       AND p.branch IN ('hanoi','saigon') AND p.is_active IS NOT FALSE) LIMIT 1`,[key]);
   const extra = `, 'orderedBy', ordered_by, 'listedAt', listed_at,
-    'unitsPerPackage',units_per_package,'packageCount',package_count,'vietnamPrice',vietnam_price,
+    'unitsPerPackage',units_per_package,'packageCount',package_count,'vietnamPrice',vietnam_price,'unitPriceCny',unit_price_cny,
     'sheetName',sheet_name,'containerRow',container_row`;
   const snapshotQuery = timedQuery(pool, 'containerLines', `SELECT to_jsonb(s) AS sync,
     COALESCE((SELECT jsonb_agg(item ORDER BY sheet_order,source_row) FROM (
@@ -134,8 +134,8 @@ async function getContainerDetails({ code, fullAccess = false, pool = getPool(),
   }
   // Never cache a permission-filtered response or return mutable cache objects.
   const rows = snapshot.items.map(item => {
-    const { sheetName, containerRow, orderedBy, listedAt, unitsPerPackage, packageCount, vietnamPrice, ...publicItem } = item;
-    return fullAccess ? { ...publicItem, orderedBy, listedAt, unitsPerPackage, packageCount, vietnamPrice } : publicItem;
+    const { sheetName, containerRow, orderedBy, listedAt, unitsPerPackage, packageCount, vietnamPrice, unitPriceCny, ...publicItem } = item;
+    return fullAccess ? { ...publicItem, orderedBy, listedAt, unitsPerPackage, packageCount, unitPriceCny, vietnamPrice } : publicItem;
   });
   return {
     code: code.trim(), fullAccess, rows, containerSync: syncMetadata(snapshot.sync, time),

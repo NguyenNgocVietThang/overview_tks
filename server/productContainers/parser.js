@@ -61,7 +61,7 @@ function parseContainerSheet(sheetName, values, formattedValues = values) {
       color: text(display[4]), saleNote: text(display[5]),
       orderedBy: text(display[7]), listedAt: text(display[11]),
       unitsPerPackage: numeric(row[12]), packageCount: numeric(row[13]),
-      quantity, vietnamPrice: numeric(row[23])
+      quantity, unitPriceCny: numeric(row[15]), vietnamPrice: numeric(row[23])
     });
   }
   return { rows, warnings };

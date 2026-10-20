@@ -60,11 +60,20 @@ const OVERVIEW_READ_ENDPOINTS = [
   // quyen reports.business; Sale + Tro ly deu co quyen nay mac dinh, marketing thi khong.
   '/api/customer-suggest',
   '/api/customer-product-revenue',
+];
+
+// Nhan vien marketing xem duoc tab Hang hoa (2026-10-20): bang bao cao + hang du kien. Doanh so theo khach bi chan
+// o route (reports.products.sales); /api/dashboard khong mo cho tai khoan chi co Hang hoa.
+const MARKETING_ALLOWED_PRODUCT_ENDPOINTS = [
   '/api/product-report',
   '/api/product-report/containers',
-  '/api/product-report/containers/meta',
-  '/api/product-report/customers'
+  '/api/product-report/containers/meta'
 ];
+for (const urlPath of MARKETING_ALLOWED_PRODUCT_ENDPOINTS) {
+  test(`Nhân viên marketing gọi được ${urlPath} (tab Hàng hóa)`, async () => {
+    assert.equal((await passesGuards(urlPath, 'Nhân viên marketing')).allowed, true);
+  });
+}
 
 const SALE_ALLOWED_TAB_ENDPOINTS = [
   '/api/products/supplier-returns/import-status',
