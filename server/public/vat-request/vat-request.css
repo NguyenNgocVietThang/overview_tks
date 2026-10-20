@@ -153,6 +153,10 @@ table.tks-controlled-table.vr-table td.vr-nowrap{white-space:nowrap !important;t
 .vr-product-info b{color:var(--text);font-family:var(--font-data)}
 .vr-product-info[data-valid="false"]{border-color:color-mix(in srgb,var(--red) 35%,var(--border));background:color-mix(in srgb,var(--red) 6%,var(--panel))}
 .vr-total output{display:flex;align-items:center;justify-content:flex-end;min-height:40px;padding:0 12px;border-radius:var(--radius-sm);background:color-mix(in srgb,var(--blue) 9%,var(--panel));color:var(--text);font:700 16px var(--font-data);font-variant-numeric:tabular-nums;white-space:nowrap}
+.vr-price-suggestion{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:-8px;color:var(--text-secondary);font-size:12px}
+.vr-price-suggestion:empty{display:none}
+.vr-price-suggestion button{min-height:30px;padding:5px 10px;border:1px solid color-mix(in srgb,var(--blue) 48%,var(--border));border-radius:var(--radius-sm);background:color-mix(in srgb,var(--blue) 9%,var(--panel));color:var(--blue);font:700 12px var(--font-body);cursor:pointer}
+.vr-price-suggestion button:hover,.vr-price-suggestion button:focus-visible{background:color-mix(in srgb,var(--blue) 17%,var(--panel));outline:2px solid var(--blue);outline-offset:1px}
 .vr-form-error{margin:0;color:var(--red);font-size:13px}
 .vr-form-error:empty{display:none}
 .vr-modal-foot{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:14px 22px;border-top:1px solid var(--border);background:var(--panel)}

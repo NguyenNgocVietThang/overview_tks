@@ -6,8 +6,8 @@
 const express = require('express');
 const { requireAuth, requireFeature } = require('../auth/authMiddleware');
 const { resolveBranch } = require('../branch/branchMiddleware');
-const { searchCustomerDirectory } = require('../dashboard/dashboardData');
 const { STATUSES, createVatRequestService } = require('./service');
+const { createVatRequestSuggestions } = require('./suggestions');
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -24,8 +24,10 @@ function readFilters(query = {}) {
   };
 }
 
-function createVatRequestRouter({ service = createVatRequestService(), customerSearch = searchCustomerDirectory } = {}) {
+function createVatRequestRouter({ service = createVatRequestService(), customerSearch, priceSearch } = {}) {
   const router = express.Router();
+  let suggestions;
+  const suggestionService = () => (suggestions ||= createVatRequestSuggestions());
   router.use((req, res, next) => {
     res.set('Cache-Control', 'no-store');
     next();
@@ -63,7 +65,12 @@ function createVatRequestRouter({ service = createVatRequestService(), customerS
     res.json({ results: await service.suggestProducts(req.query.q, req.query.limit) });
   }));
   router.get('/customer-suggest', resolveBranch, handle(async (req, res) => {
-    res.json(await customerSearch(req.branch, req.query.q, req.query.limit));
+    res.json(await (customerSearch || suggestionService().customers)(req.branch, req.query.q, req.query.limit));
+  }));
+  router.get('/price-suggest', handle(async (req, res) => {
+    const code = String(req.query.code || '').trim().slice(0, 60);
+    if (!code) return res.status(400).json({ error: 'Chưa chọn mã SP.', code: 'VALIDATION' });
+    res.json(await (priceSearch || suggestionService().prices)(code));
   }));
   router.get('/metrics', handle(async (req, res) => {
     res.json(await service.productMetrics(String(req.query.code || '')));

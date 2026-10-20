@@ -360,5 +360,6 @@ Phương án B đã duyệt: tập SĐT/KPI Pancake riêng trong PostgreSQL, ng�
 - **Thành công**: không còn sửa đè sau khi khai; kế toán lọc ra việc cần làm (chờ xử lý, 3, 4) và xử lý theo lô; số tồn / hàng về không còn là số dán tay.
 - **Ngoài phạm vi**: thông báo (chuông, email, Zalo), ghi ngược ra Google Sheets, nối với Nháp VAT, chia Q/R theo công ty, tách cơ sở HN/SG. 3 sheet phụ XỬ LÝ VAT LÂU, HẢI - VAT, Chạy tồn VAT bỏ hẳn.
 - **Dữ liệu cũ**: nhập toàn bộ sheet ORDER VAT 1 (~1.349 dòng) bằng script, map sale theo email.
+- **Gợi ý nhập liệu**: khách tìm theo tên không dấu, mã khách hoặc các từ đảo thứ tự; gợi ý từ KiotViet và yêu cầu VAT trước đây. Giá chưa VAT lấy từ yêu cầu gần nhất cùng mã SP và chỉ áp dụng khi sale chọn. Tồn VAT đọc tab GỘP MỚI của sheet công khai được chỉ định (`gid=39032`).
 
 Cập nhật gần nhất: 20/10/2026.

@@ -1810,6 +1810,7 @@ async function prewarmDashboardCaches({ log } = {}) {
 
 module.exports = {
   getDashboardData,
+  getCustomerDirectory,
   searchCustomerDirectory,
   getCustomerProductRevenueReport,
   mergeEntityRows,

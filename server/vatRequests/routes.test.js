@@ -12,11 +12,12 @@ function userFor(vaiTro) {
   return { ...base, permissions: registry.resolvePermissions(base) };
 }
 
-async function withApp(user, service, run) {
+async function withApp(user, service, run, options = {}) {
   const app = express();
   app.use(express.json());
   app.use((req, res, next) => { req.user = user; req.effectiveUserResolved = true; next(); });
-  app.use('/api/vat-requests', createVatRequestRouter({ service, customerSearch: async (branch, q) => ({ query: q, results: [] }) }));
+  app.use('/api/vat-requests', createVatRequestRouter({ service,
+    customerSearch: async (branch, q) => ({ query: q, results: [] }), ...options }));
   const server = app.listen(0);
   try {
     const call = async (path, options = {}) => {
@@ -38,7 +39,19 @@ test('tai khoan khong co quyen Yeu cau xuat VAT -> 403 o moi route', async () =>
   await withApp(userFor(ROLES.NHAN_VIEN_KHO), service, async call => {
     assert.equal((await call('/')).status, 403);
     assert.equal((await call('/', { method: 'POST', body: {} })).status, 403);
+    assert.equal((await call('/price-suggest?code=014XOAN')).status, 403);
   });
+});
+
+test('API goi y gia tra ve gia order VAT gan nhat va can ma SP', async () => {
+  await withApp(userFor(ROLES.NHAN_VIEN_SALE), {}, async call => {
+    assert.equal((await call('/price-suggest')).status, 400);
+    assert.deepEqual((await call('/price-suggest?code=014XOAN')).body,
+      { latestOrder: { price: 12500, customerName: 'Khách mới', createdAt: null } });
+  }, { priceSearch: async code => {
+    assert.equal(code, '014XOAN');
+    return { latestOrder: { price: 12500, customerName: 'Khách mới', createdAt: null } };
+  } });
 });
 
 test('loi nghiep vu tra dung ma; 409 kem ban moi nhat; loi la -> 500 khong lo chi tiet', async () => {

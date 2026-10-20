@@ -126,13 +126,14 @@ Port 1:1 app Streamlit `vat-draft-app` vào module `vatDraft/`, trang `public/va
 
 ## Kế toán – Yêu cầu xuất VAT (`/api/vat-requests`, 20/10/2026)
 
-Thay Google Form + sheet ORDER VAT 1. Module `vatRequests/` (`service.js` giữ mọi luật, `repository.js` truy vấn, `stockSource.js` đọc tồn VAT, `etaParser.js` đọc ngày về CONT), trang `public/vat-request/`, migration `0073`. Mọi route cần `accounting.vatRequest` (mặc định Sale + Kế toán + Quản lý); trường KT cần `accounting.vatRequestProcess` (mặc định Kế toán + Quản lý).
+Thay Google Form + sheet ORDER VAT 1. Module `vatRequests/` (`service.js` giữ mọi luật, `repository.js` truy vấn, `stockSource.js` đọc tồn VAT, `suggestions.js` gợi ý khách/giá, `etaParser.js` đọc ngày về CONT), trang `public/vat-request/`, migration `0073`. Mọi route cần `accounting.vatRequest` (mặc định Sale + Kế toán + Quản lý); trường KT cần `accounting.vatRequestProcess` (mặc định Kế toán + Quản lý).
 
 - **Whitelist trường**: sale `customerName, customerCode, productCode, quantity, unitPrice, fullVat, saleNote`; KT `status, accountantNote, arrivalDate`. Trường khác (vd `createdBy`, `status` khi tạo) → 403 `FIELD_FORBIDDEN`.
 - **Khóa**: sale chỉ sửa/xóa yêu cầu của mình khi `status` ∉ {0,1,2} (`NOT_OWNER` / `LOCKED`); sale đổi trường khi đang 3/4 → tự về `pending`; KT đổi trạng thái tự do (lùi = mở khóa); Quản lý sửa được cả hai nhóm.
 - **Version**: PATCH/DELETE phải kèm `version`; lệch → 409 `VERSION_CONFLICT` kèm `latest`. Bulk: một dòng lệch → hủy cả lô, trả `conflictIds`.
 - **Cột live**: Tồn VAT (O) = `TỒN ĐẦU NGÀY` tab tồn (cột I) cộng mọi công ty có cùng mã VAT, tra mã SP qua Khớp mã (không có thì qua cột Mã kiot đại diện); cache 10 phút, lỗi sheet trả bản cũ ≤ 6 giờ, hỏng hẳn thì cột để trống và `stockStatus.available=false`. SLG cần khai (P) = Σ SL yêu cầu cùng mã ở 3/4. Dự kiến hàng về (Q) = Σ `product_container_lines` trạng thái 1–3. Ngày về gần nhất (R) = ETA sớm nhất đọc được ("DK 14-16/10" → ngày đầu, suy năm gần nhất), không đọc được thì trả chữ gốc.
-- **Nguồn tồn**: biến `VAT_REQUEST_STOCK_SHEET_ID` / `VAT_REQUEST_STOCK_GID` / `VAT_REQUEST_STOCK_COLUMN` (mặc định `I`) / `VAT_REQUEST_MAPPING_SHEET_ID` / `VAT_REQUEST_MAPPING_GID`; sheet phải chia sẻ công khai. Bỏ trống = sheet công khai của Nháp VAT (tab Gộp VAT + Khớp mã, cùng bố cục cột).
+- **Nguồn tồn**: biến `VAT_REQUEST_STOCK_SHEET_ID` / `VAT_REQUEST_STOCK_GID` / `VAT_REQUEST_STOCK_COLUMN` (mặc định `I`) / `VAT_REQUEST_MAPPING_SHEET_ID` / `VAT_REQUEST_MAPPING_GID`; sheet phải chia sẻ công khai. Bỏ trống = tab GỘP MỚI (`gid=39032`) + Khớp mã của sheet công khai `1dNabQaiob7CMozrqjA746uV-atHWJi8gbG6L-I0yrmU`. Nếu Render đang đặt `VAT_REQUEST_STOCK_GID`, đổi giá trị thành `39032` để dùng nguồn này.
+- **Gợi ý form**: tên khách tìm không dấu, theo mã hoặc các từ đảo thứ tự; kết hợp danh bạ KiotViet với tên từng dùng trong ORDER VAT, ưu tiên mã KiotViet khi tên trùng. Giá chưa VAT chỉ gợi ý từ yêu cầu VAT gần nhất của cùng mã SP (bỏ dòng xóa/thiếu giá); người dùng bấm áp dụng, form sửa không tự đổi giá đang có. Chưa import sheet cũ thì chỉ có giá từ yêu cầu mới đã lưu.
 
 | Method | Endpoint | Mô tả |
 |---|---|---|
@@ -143,9 +144,12 @@ Thay Google Form + sheet ORDER VAT 1. Module `vatRequests/` (`service.js` giữ 
 | DELETE | `/api/vat-requests/:id?version=` | Xóa mềm (chủ yêu cầu khi chưa khóa, hoặc Quản lý) |
 | GET | `/api/vat-requests/:id/history` | Lịch sử từng trường (ai, lúc nào, cũ → mới) |
 | GET | `/api/vat-requests/metrics?code=` | O/P/Q/R + tên SP của 1 mã (form của sale) |
-| GET | `/api/vat-requests/product-suggest?q=` / `customer-suggest?q=` | Gợi ý mã SP (`product_report`) / khách KiotViet (theo cookie cơ sở) |
+| GET | `/api/vat-requests/product-suggest?q=` / `customer-suggest?q=` | Gợi ý mã SP (`product_report`) / khách KiotViet theo cơ sở + tên từ yêu cầu VAT cũ (không dấu, mã khách, đảo từ) |
+| GET | `/api/vat-requests/price-suggest?code=` | Giá chưa VAT của yêu cầu gần nhất cùng mã SP; không tự ghi vào form |
 
 **Import sheet cũ**: `npm run vat-requests:import-order-vat -- --file order-vat.csv` (hoặc `--sheet <id> --gid <gid>`) in báo cáo chạy thử; thêm `--apply` để ghi trong 1 transaction. Map sale theo email cột B (tài khoản web), không khớp thì giữ tên cột C; ô "X"/"...."/trống → NULL; Full VAT = ghi chú có "FULL VAT"; chạy lại không nhân đôi (`legacy_row`). Chạy thử trên bản copy 20/10/2026: 1.349 dòng (0: 69, 1: 1.256, 2: 15, 3: 9), 13 dòng thời gian "X", 24 dòng thiếu giá — nạp đủ vào PGlite.
+
+**Cập nhật 20/10/2026**: nguồn tồn mặc định đã đổi sang `gid=39032`; thêm `vatRequests/suggestions.js` và test PGlite/JSDOM cho gợi ý khách/giá. Luật lưu trong `service.js` và migration `0073` giữ nguyên.
 
 ## Tài khoản, đăng ký và ID Telegram
 
@@ -305,7 +309,7 @@ Bot **xin nghỉ của nhân viên** chạy ngoài repo và đọc/ghi 3 bảng 
 
 ## Cập nhật gần nhất
 
-20/10/2026 — **Kế toán – Yêu cầu xuất VAT (migration `0073`, nhánh `feature/vat-requests`, chưa merge/deploy, chưa áp DB)**: xem mục "Kế toán – Yêu cầu xuất VAT" phía trên. File mới: `vatRequests/{service,repository,routes,stockSource,etaParser}.js` (+ test PGlite), `public/vat-request/`, `scripts/importOrderVat.js` (+ test), `test/frontend/vat-request.test.js`. Quyền mới `accounting.vatRequest` / `accounting.vatRequestProcess` (cả hai `escalationExempt` để Trợ lý được ủy quyền vẫn tạo được tài khoản Sale / Kế toán). Thứ tự triển khai: `npm run db:migrate` (0073) → deploy code → đặt `VAT_REQUEST_STOCK_*` nếu dùng tab GỘP MỚI → chạy import (thử trước, rồi `--apply`).
+20/10/2026 — **Kế toán – Yêu cầu xuất VAT (migration `0073`, nhánh `feature/vat-requests`, chưa merge/deploy, chưa áp DB)**: xem mục "Kế toán – Yêu cầu xuất VAT" phía trên. File mới: `vatRequests/{service,repository,routes,stockSource,suggestions,etaParser}.js` (+ test PGlite), `public/vat-request/`, `scripts/importOrderVat.js` (+ test), `test/frontend/vat-request.test.js`. Quyền mới `accounting.vatRequest` / `accounting.vatRequestProcess` (cả hai `escalationExempt` để Trợ lý được ủy quyền vẫn tạo được tài khoản Sale / Kế toán). Thứ tự triển khai: `npm run db:migrate` (0073) → deploy code → kiểm tra `VAT_REQUEST_STOCK_GID=39032` nếu Render đã đặt GID cũ → chạy import (thử trước, rồi `--apply`).
 
 19/10/2026 (tối) — **Kế toán – Nháp VAT: đồng bộ giao diện với design system + xuất Excel danh sách chứng từ (không migration, chưa commit/deploy)**: tab cấp 2 "Xử lý hóa đơn / Tạo QR" chuyển từ viên thuốc sang thanh chọn ngang gạch chân (`.subnav-tabs`, như Nhân sự/Vận đơn); tiêu đề trang dùng `.view-title` + `.view-sub`; tiêu đề mục đánh số `.section-head` nằm NGOÀI hộp ở cả 2 tab (Nhập dữ liệu, Kết quả xử lý, Đọc từ hóa đơn, Thông tin chuyển khoản, Mã QR); tab cấp 3 (Chọn chứng từ/Dán dữ liệu, VAT/không VAT) cũng gạch chân; thanh tìm kiếm theo khuôn `.table-search-input-wrap` (biểu tượng kính lúp + nút ×) đặt trên bảng; phân trang căn giữa `<< < Trang n/m > >>` (`.pagination-controls`, thêm `vdDocsFirst/vdDocsLast`); bộ lọc gom thành thẻ + nút "Đặt lại bộ lọc"; KPI kiểu thẻ chỉ số; thêm Roboto + `dateInput.js` (ngày dd/mm/yyyy); bỏ toàn bộ emoji (SVG), thay màu cứng bằng token. Xuất Excel: nút "Xuất file" ở Danh sách chứng từ (toàn bộ chứng từ khớp bộ lọc, ≤ 10.000 dòng, đúng thứ tự sắp xếp) qua `POST /api/vat-draft/export` view `documents` (`vatDraftExport.js`, test mới `vatDraftExport.test.js`).
 

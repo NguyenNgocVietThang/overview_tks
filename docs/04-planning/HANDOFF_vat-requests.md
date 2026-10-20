@@ -13,7 +13,7 @@ Trang `/vat-request/` thay Google Form + sheet "ORDER VAT 1". Sale gửi yêu c�
 - **Quản lý**: sửa mọi trường.
 - Trạng thái: `pending` (mặc định) / `0` Không khai được / `1` Đã xong / `2` Đã khai chờ về / `3` Chờ khai chèn / `4` Chờ cont về, tăng slg.
 - Sale bị khóa khi status ∈ {0,1,2}. Sale sửa yêu cầu đang 3/4 → **tự về pending**. KT đổi trạng thái mọi chiều (lùi = mở khóa).
-- Trường sale: khách (gõ tự do + gợi ý KiotViet), mã SP (chọn từ `product_report`), SL nguyên > 0, giá chưa VAT > 0, **Full VAT / Không full VAT**, ghi chú. Không có ô "giá đã gồm VAT".
+- Trường sale: khách (gõ tự do + gợi ý KiotViet/lịch sử VAT, tìm không dấu, mã khách, đảo từ), mã SP (chọn từ `product_report`), SL nguyên > 0, giá chưa VAT > 0, **Full VAT / Không full VAT**, ghi chú. Giá được gợi ý từ yêu cầu VAT gần nhất cùng mã và chỉ áp dụng khi bấm; không dùng giá cột J của sheet. Không có ô "giá đã gồm VAT".
 - Cột live (không lưu DB): **O Tồn VAT** = `TỒN ĐẦU NGÀY` (cột I) tab GỘP MỚI tra qua Khớp mã, cộng mọi công ty; **P** = Σ SL yêu cầu cùng mã ở 3/4; **Q** = Σ `product_container_lines` status 1–3; **R** = ETA sớm nhất (đọc chữ "DK 14-16/10").
 - Ngoài phạm vi: thông báo, ghi ngược Google Sheets, nối tool Nháp VAT, tách theo công ty/cơ sở. 3 sheet XỬ LÝ VAT LÂU / HẢI - VAT / Chạy tồn VAT bỏ hẳn.
 - Import toàn bộ sheet cũ (~1.349 dòng).
@@ -22,8 +22,9 @@ Trang `/vat-request/` thay Google Form + sheet "ORDER VAT 1". Sale gửi yêu c�
 
 - Toàn bộ code đã commit trên nhánh `feature/vat-requests` (cắt từ `main` 68091dd). **Chưa push, chưa PR, chưa merge.**
 - **Migration `0073_vat_requests.sql` CHƯA áp lên DB thật** (Supabase production). Server local đọc DB thật → trang `/vat-request/` sẽ lỗi 500 cho tới khi áp. Không tự áp nếu chưa được chủ dự án đồng ý.
-- Test: toàn bộ `npm test` xanh, trừ 1 test có sẵn trên main `test/frontend/sort-icons.test.js` (lỗi CRLF trên Windows) — đã sửa ở nhánh riêng `claude/cranky-pike-6ec25e` (commit `0e6bd34`, chưa merge). Không liên quan nhánh này.
+- Test 20/10/2026 sau cập nhật gợi ý: `npm test` 2.924 test, 2.920 đạt, 3 bỏ qua, chỉ 1 test có sẵn trên main `test/frontend/sort-icons.test.js` lỗi CRLF trên Windows — đã sửa ở nhánh riêng `claude/cranky-pike-6ec25e` (commit `0e6bd34`, chưa merge). Kiểm tra PGlite/JSDOM riêng đều đạt; bản giả lập PGlite đã xem mobile/desktop, sáng/tối.
 - `graphify update .` chưa chạy được (máy không cài graphify).
+- Cập nhật 20/10/2026: mặc định Tồn VAT đã chuyển sang tab GỘP MỚI `gid=39032` của cùng sheet công khai; mã gợi ý khách/giá đã bổ sung trong `suggestions.js`. Chưa áp migration hoặc deploy.
 
 ## 3. Bản đồ file
 
@@ -32,8 +33,9 @@ Trang `/vat-request/` thay Google Form + sheet "ORDER VAT 1". Sale gửi yêu c�
 | `server/db/migrations/0073_vat_requests.sql` | Bảng `vat_requests` + `vat_request_history` (append-only, trigger chặn sửa/xóa). Dòng `is_legacy` được phép thiếu dữ liệu. |
 | `server/vatRequests/service.js` | **Mọi luật nghiệp vụ**: whitelist `SALE_FIELDS`/`ACCOUNTANT_FIELDS` (trường lạ → 403 `FIELD_FORBIDDEN`), khóa (`NOT_OWNER`/`LOCKED`), auto-pending, version (409 `VERSION_CONFLICT` kèm `latest`), lịch sử, bulk (1 dòng lệch → hủy cả lô), metrics O/P/Q/R. |
 | `server/vatRequests/repository.js` | Chỉ SQL. `withTransaction` dùng `pool.connect()`. |
-| `server/vatRequests/routes.js` | `/api/vat-requests` (GET list, POST, PATCH /:id, PATCH /bulk, DELETE /:id?version=, GET /:id/history, /metrics, /product-suggest, /customer-suggest). |
+| `server/vatRequests/routes.js` | `/api/vat-requests` (GET list, POST, PATCH /:id, PATCH /bulk, DELETE /:id?version=, GET /:id/history, /metrics, /product-suggest, /customer-suggest, /price-suggest). |
 | `server/vatRequests/stockSource.js` | Đọc CSV công khai Google Sheets cho cột O, cache 10 phút / stale 6 giờ. Cấu hình qua env `VAT_REQUEST_STOCK_*`. |
+| `server/vatRequests/suggestions.js` | Xếp hạng khách KiotViet + lịch sử VAT; đọc giá của yêu cầu gần nhất cùng mã SP. |
 | `server/vatRequests/etaParser.js` | Đọc ETA chữ → ngày. |
 | `server/auth/featureRegistry.js` | 2 key mới + `PAGE_FEATURES` `/vat-request`. |
 | `server/public/vat-request/{index.html,vat-request.js,vat-request.css}` | Trang (vanilla JS, `table-controls.js`, token màu `shared.css`). |
@@ -53,7 +55,7 @@ Trang `/vat-request/` thay Google Form + sheet "ORDER VAT 1". Sale gửi yêu c�
 ## 5. Việc còn lại (theo thứ tự ưu tiên)
 
 1. **Chủ dự án xem lại giao diện** và góp ý tiếp (đang ở bước này). Xem bằng bản giả lập (mục 6), không cần DB.
-2. **Nguồn cột Tồn VAT thật**: file "VAT TKS" thật để riêng tư, chưa có sheet công khai chứa tab GỘP MỚI. Cần chủ dự án chia sẻ công khai rồi đặt `VAT_REQUEST_STOCK_SHEET_ID`, `VAT_REQUEST_STOCK_GID` (+ `VAT_REQUEST_MAPPING_*` nếu Khớp mã ở file khác) trên Render. Hiện mặc định đọc tab Gộp VAT của sheet công khai Nháp VAT (`1dNab…`, cùng bố cục cột).
+2. **Nguồn cột Tồn VAT**: tab GỘP MỚI `gid=39032` của sheet công khai `1dNabQaiob7CMozrqjA746uV-atHWJi8gbG6L-I0yrmU` đã kiểm tra CSV HTTP 200 và đặt làm mặc định. Nếu Render đang đặt `VAT_REQUEST_STOCK_GID` khác, đổi thành `39032`; giữ tab Khớp mã hiện hành (`gid=1192158065`).
 3. Push nhánh + mở PR vào `main` (có đồng nghiệp code trên `main` — **không commit/push thẳng `main`**).
 4. Áp migration: `cd server && npm run db:migrate` (0073) → deploy Render (chỉ 1 instance).
 5. Import dữ liệu cũ: tải CSV ORDER VAT 1 bản thật → `npm run vat-requests:import-order-vat -- --file <csv>` xem báo cáo (bản copy 20/10: 1.349 dòng, 61 email cần khớp tài khoản web, 13 dòng thời gian "X", 24 dòng thiếu giá) → thêm `--apply`.

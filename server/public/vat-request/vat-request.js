@@ -461,6 +461,9 @@
     $('vrNote').value = row ? row.saleNote : '';
     $('vrFormError').textContent = '';
     $('vrProductInfo').innerHTML = '';
+    ++infoSeq;
+    ++priceSeq;
+    $('vrPriceSuggestion').innerHTML = '';
     customerOptions.clear();
     if (row && row.customerCode) customerOptions.set(row.customerName, row.customerCode);
     updateTotal();
@@ -534,9 +537,10 @@
   }
 
   const suggestProducts = debounce(async query => {
-    if (!query.trim()) return;
+    if (!query.trim()) { $('vrProductList').innerHTML = ''; productOptions.clear(); return; }
     try {
       const data = await api('/product-suggest?q=' + encodeURIComponent(query.trim()));
+      if (query !== $('vrProduct').value) return;
       productOptions.clear();
       $('vrProductList').innerHTML = (data.results || []).map(p => {
         productOptions.set(p.code.toLowerCase(), p);
@@ -546,22 +550,49 @@
   }, 250);
 
   const suggestCustomers = debounce(async query => {
-    if (query.trim().length < 2) return;
+    if (query.trim().length < 2) { $('vrCustomerList').innerHTML = ''; customerOptions.clear(); return; }
     try {
       const data = await api('/customer-suggest?q=' + encodeURIComponent(query.trim()) + '&limit=10');
+      if (query !== $('vrCustomer').value) return;
+      customerOptions.clear();
       $('vrCustomerList').innerHTML = (data.results || []).map(c => {
-        customerOptions.set(c.name, c.code);
-        return `<option value="${escapeHtml(c.name)}">${escapeHtml(c.code)}</option>`;
+        if (c.code) customerOptions.set(c.name, c.code);
+        const source = c.source === 'order-vat' ? 'Đã dùng trong VAT' : 'KiotViet';
+        return `<option value="${escapeHtml(c.name)}" label="${escapeHtml([c.code, source].filter(Boolean).join(' · '))}"></option>`;
       }).join('');
     } catch (error) { /* gợi ý không bắt buộc */ }
   }, 300);
 
   let infoSeq = 0;
+  let priceSeq = 0;
+  async function loadPriceSuggestion(code) {
+    const target = $('vrPriceSuggestion');
+    const seq = ++priceSeq;
+    target.innerHTML = code ? '<span class="vr-muted">Đang tìm giá từ yêu cầu VAT gần nhất…</span>' : '';
+    if (!code) return;
+    try {
+      const data = await api('/price-suggest?code=' + encodeURIComponent(code));
+      if (seq !== priceSeq) return;
+      const recent = data.latestOrder;
+      if (!recent || !Number.isFinite(Number(recent.price)) || Number(recent.price) <= 0) {
+        target.innerHTML = '<span class="vr-muted">Chưa có giá VAT trước đó cho mã này.</span>';
+        return;
+      }
+      const when = recent.createdAt ? fmtDateTime(recent.createdAt) : 'không rõ ngày';
+      target.innerHTML = `<span>Giá từ yêu cầu VAT gần nhất · ${escapeHtml(when)}${recent.customerName ? ' · ' + escapeHtml(recent.customerName) : ''}</span>` +
+        `<button type="button" data-price="${Number(recent.price)}">Dùng ${fmtNumber(recent.price)} ₫</button>`;
+    } catch (error) {
+      if (seq === priceSeq) target.innerHTML = '<span class="vr-muted">Chưa tải được giá tham khảo.</span>';
+    }
+  }
+
   async function loadProductInfo(code) {
     const target = $('vrProductInfo');
     const trimmed = String(code || '').trim();
-    if (!trimmed) { target.innerHTML = ''; return; }
     const seq = ++infoSeq;
+    ++priceSeq;
+    $('vrPriceSuggestion').innerHTML = '';
+    if (!trimmed) { target.innerHTML = ''; return; }
     target.innerHTML = '<span class="vr-muted">Đang tra mã…</span>';
     try {
       const m = await api('/metrics?code=' + encodeURIComponent(trimmed));
@@ -573,6 +604,7 @@
         `<span>Dự kiến hàng về: <b>${fmtNumber(m.incomingQty)}</b></span>` +
         `<span>Ngày về gần nhất: <b>${escapeHtml(arrival)}</b></span>`;
       target.dataset.valid = 'true';
+      loadPriceSuggestion(trimmed);
     } catch (error) {
       if (seq !== infoSeq) return;
       target.dataset.valid = 'false';
@@ -883,6 +915,10 @@
 
     $('vrProduct').addEventListener('input', event => {
       const value = event.target.value;
+      ++infoSeq;
+      ++priceSeq;
+      $('vrProductInfo').innerHTML = '';
+      $('vrPriceSuggestion').innerHTML = '';
       suggestProducts(value);
       if (productOptions.has(value.trim().toLowerCase())) loadProductInfo(value);
     });
@@ -890,6 +926,13 @@
     $('vrCustomer').addEventListener('input', event => suggestCustomers(event.target.value));
     $('vrQuantity').addEventListener('input', updateTotal);
     $('vrPrice').addEventListener('input', updateTotal);
+    $('vrPriceSuggestion').addEventListener('click', event => {
+      const button = event.target.closest('button[data-price]');
+      if (!button) return;
+      $('vrPrice').value = fmtNumber(button.dataset.price);
+      updateTotal();
+      $('vrPrice').focus();
+    });
     $('vrForm').addEventListener('submit', submitForm);
     $('vrFormCancel').addEventListener('click', () => closeDialog($('vrFormDialog')));
     $('vrInfoClose').addEventListener('click', () => closeDialog($('vrInfoDialog')));

@@ -121,6 +121,34 @@ test('sale nhap sai so luong -> bao loi, khong goi API', async t => {
   assert.equal(calls.some(c => c.key === 'POST /'), false);
 });
 
+test('gia order VAT gan nhat chi dien khi bam goi y; khi sua giu gia hien tai', async t => {
+  const responses = {
+    'GET /': listResponse([row(1, { unitPrice: 13000 })]),
+    'GET /1/history': { rows: [] },
+    'GET /metrics': { productName: 'Bát inox', vatStock: null, pendingInsertQty: 0, incomingQty: 0 },
+    'GET /price-suggest': { latestOrder: { price: 12500, customerName: 'Khách cũ', createdAt: '2026-10-20T02:00:00Z' } }
+  };
+  const { window, doc } = await setup(t, { vaiTro: 'Nhân viên sale', responses });
+  doc.getElementById('vrCreate').click();
+  const product = doc.getElementById('vrProduct');
+  product.value = '014XOAN';
+  product.dispatchEvent(new window.Event('change', { bubbles: true }));
+  await tick();
+  assert.equal(doc.getElementById('vrPrice').value, '');
+  assert.match(doc.getElementById('vrPriceSuggestion').textContent, /12,500/);
+  doc.getElementById('vrPriceSuggestion').querySelector('button').click();
+  assert.equal(doc.getElementById('vrPrice').value, '12,500');
+  product.value = '26DAQUAN';
+  product.dispatchEvent(new window.Event('input', { bubbles: true }));
+  assert.equal(doc.getElementById('vrPriceSuggestion').textContent, '', 'doi ma phai xoa goi y cua ma truoc');
+  doc.getElementById('vrFormCancel').click();
+
+  doc.querySelector('tr[data-id="1"] [data-field="customer"]').dispatchEvent(new window.MouseEvent('dblclick', { bubbles: true }));
+  await tick();
+  assert.equal(doc.getElementById('vrPrice').value, '13,000');
+  assert.match(doc.getElementById('vrPriceSuggestion').textContent, /12,500/);
+});
+
 test('KT: mac dinh loc Can xu ly, doi trang thai tren dong gui version; 409 hien canh bao va thay dong moi nhat', async t => {
   let conflict = false;
   const responses = {

@@ -138,13 +138,14 @@
         </label>
         <div class="vr-product-info" id="vrProductInfo" aria-live="polite"></div>
         <label class="vr-field"><span>Khách hàng <em aria-hidden="true">*</em></span>
-          <input id="vrCustomer" name="customerName" list="vrCustomerList" autocomplete="off" required maxlength="200" placeholder="Tên khách (gõ để gợi ý từ KiotViet)">
+          <input id="vrCustomer" name="customerName" list="vrCustomerList" autocomplete="off" required maxlength="200" placeholder="Gõ tên hoặc mã khách, có thể không dấu">
           <datalist id="vrCustomerList"></datalist>
         </label>
         <div class="vr-form-row">
           <label class="vr-field"><span>Số lượng <em aria-hidden="true">*</em></span><input id="vrQuantity" name="quantity" type="text" inputmode="numeric" required></label>
           <label class="vr-field"><span>Giá chưa VAT <em aria-hidden="true">*</em></span><input id="vrPrice" name="unitPrice" type="text" inputmode="decimal" required></label>
         </div>
+        <div class="vr-price-suggestion" id="vrPriceSuggestion" aria-live="polite"></div>
         <div class="vr-form-row">
           <label class="vr-field"><span>Full VAT</span>
             <select id="vrFullVat" name="fullVat"><option value="false">Không full VAT</option><option value="true">Full VAT</option></select>
@@ -202,7 +203,7 @@
   <script src="/shared/table-controls.js?v=20261016-1"></script>
   <script src="/shared/search-clear.js?v=20261009-1"></script>
   <script src="/shared/shared-nav.js?v=20261020-1"></script>
-  <script src="/vat-request/vat-request.js?v=20261020-3"></script>
+  <script src="/vat-request/vat-request.js?v=20261020-4"></script>
   <script>window.addEventListener('DOMContentLoaded', function () { TKSVatRequest.init(); });</script>
   <script src="/shared/shooting-star.js?v=20261019"></script>
 </body>

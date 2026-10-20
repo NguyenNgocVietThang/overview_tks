@@ -118,6 +118,29 @@ async function suggestProducts(db, query, limit) {
   return rows;
 }
 
+/** Ten khach tung dung trong ORDER VAT, ke ca dong import khong co ma KiotViet. */
+async function recentCustomers(db) {
+  const { rows } = await db.query(
+    `SELECT customer_name, customer_code, max(created_at) AS last_order_at, count(*)::int AS order_count
+     FROM vat_requests WHERE NOT is_deleted AND btrim(customer_name) <> ''
+     GROUP BY customer_name, customer_code
+     ORDER BY max(created_at) DESC NULLS LAST LIMIT 5000`
+  );
+  return rows;
+}
+
+/** Gia cua yeu cau VAT gan nhat cho cung ma SP; bo gia trong cua dong import cu. */
+async function latestProductPrice(db, productCode) {
+  const { rows } = await db.query(
+    `SELECT unit_price_excl_vat AS price, created_at, customer_name
+     FROM vat_requests
+     WHERE NOT is_deleted AND product_key = lower(btrim($1)) AND unit_price_excl_vat > 0
+     ORDER BY created_at DESC NULLS LAST, id DESC LIMIT 1`,
+    [productCode]
+  );
+  return rows[0] || null;
+}
+
 /** P: tong SL cac yeu cau cung ma dang 3 (cho khai chen) / 4 (cho cont ve). */
 async function pendingInsertQuantities(db, productKeys) {
   if (!productKeys.length) return new Map();
@@ -171,6 +194,8 @@ module.exports = {
   listHistory,
   findProduct,
   suggestProducts,
+  recentCustomers,
+  latestProductPrice,
   pendingInsertQuantities,
   incomingContainers,
   listCreators

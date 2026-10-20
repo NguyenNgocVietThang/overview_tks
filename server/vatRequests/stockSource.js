@@ -6,9 +6,9 @@
 // 10 phut, loi tam thoi tra ban cu toi da 6 gio. Chi DOC sheet; khong dung thuat toan
 // phan bo cua Nhap VAT.
 //
-// Nguon cau hinh qua bien moi truong (config.js) vi file VAT TKS that de rieng tu: chua
-// cau hinh thi doc tab Gộp VAT cua sheet cong khai Nhap VAT (cung bo cuc cot: A=CTY,
-// B=Mã kiot đại diện, D=MÃ VAT KIOT, I=TỒN ĐẦU NGÀY).
+// Mac dinh doc tab GỘP MỚI (gid 39032) cua sheet cong khai Nhap VAT; van co the
+// doi nguon qua bien moi truong (config.js). Bo cuc: A=CTY, B=Mã kiot đại diện,
+// D=MÃ VAT KIOT, I=TỒN ĐẦU NGÀY.
 
 const { parseCsv } = require('../vatDraft/csv');
 const { fetchSheetCsv, columnLetterToIndex } = require('../vatDraft/sheetsSource');
@@ -20,7 +20,7 @@ const appConfig = require('../config');
 function defaultStockConfig() {
   return {
     stockSheetId: appConfig.VAT_REQUEST_STOCK_SHEET_ID || vatDraftConfig.sheetId,
-    stockGid: appConfig.VAT_REQUEST_STOCK_GID || String(vatDraftConfig.gidGopVat),
+    stockGid: appConfig.VAT_REQUEST_STOCK_GID || '39032',
     stockSkipRows: 1,
     stockColumns: { company: 'A', representativeCode: 'B', vatCode: 'D', stock: appConfig.VAT_REQUEST_STOCK_COLUMN || 'I' },
     mappingSheetId: appConfig.VAT_REQUEST_MAPPING_SHEET_ID || vatDraftConfig.sheetId,
