@@ -235,3 +235,13 @@ test('form nhân sự ghi đúng Bộ phận và không cho sửa email liên k�
   assert.equal(sent[0].body.email, 'a@x.com', 'sửa hồ sơ không làm trống email liên kết cũ');
   dom.window.close();
 });
+
+test('cột ngày và số đủ chỗ cho giá trị, không bị vỡ từng dòng bởi padding của bảng', async () => {
+  const { dom, window } = await openPage({ canManage: true, employees: [{ ...EMPLOYEES[0], ngayVaoLam: '2024-04-22' }] });
+  assert.ok(window.employeeTextWidth('22/04/2024') >= 108, 'độ rộng gồm cả khoảng đệm ô');
+  const doc = window.document;
+  const dateHead = doc.querySelector('#employeeDirectoryTableHead th[data-column-key="ngay-vao-lam"]');
+  assert.ok(parseInt(dateHead.style.width, 10) >= 108);
+  assert.equal(dateHead.classList.contains('employee-date'), true);
+  dom.window.close();
+});

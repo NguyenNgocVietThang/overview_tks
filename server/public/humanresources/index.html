@@ -238,7 +238,8 @@
   .employee-row-clickable:hover td{ background:var(--surface-hover); }
   #employeeDirectoryTable .employee-text{ text-align:left; }
   #employeeDirectoryTable .employee-number,
-  #employeeDirectoryTable .employee-date{ text-align:right; font-variant-numeric:tabular-nums; }
+  #employeeDirectoryTable .employee-date{ text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  #employeeDirectoryTable th .sort-label{ overflow-wrap:normal; word-break:normal; }
   .emp-status-active{ color:var(--green); font-weight:600; }
   .emp-status-resigned{ color:var(--red); font-weight:600; }
   .leave-row-clickable{ cursor:pointer; }
@@ -2940,7 +2941,8 @@
 
     function employeeTextWidth(value){
       const units = Array.from(String(value || '')).reduce((total, char) => total + (char.charCodeAt(0) > 255 ? 1.6 : 1), 0);
-      return Math.ceil(28 + units * 7.2);
+      // 16px padding moi ben + vien + phan dem nho de gia tri khong bi xuong dong.
+      return Math.ceil(40 + units * 7.2);
     }
 
     function employeeColumnWidth(column, employees){
