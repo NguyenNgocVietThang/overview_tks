@@ -22,6 +22,10 @@ function nullableNumber(value) {
 // reports.products.price (don gia + gia tri co ban = co ban x don gia).
 const PRODUCT_REPORT_PRICE_KEYS = Object.freeze(['priceHanoi', 'priceSaigon', 'availableValueHanoi', 'availableValueSaigon']);
 
+// Truong DOANH SO / MO TA (chia doanh so cho so luong ra duoc don gia; Mo ta thuong ghi bang gia): boc bo khi thieu quyen
+// reports.products.sales (Nhan vien marketing mac dinh khong co).
+const PRODUCT_REPORT_SALES_KEYS = Object.freeze(['revenue90d', 'topCustomerRevenue90d', 'topCustomerShare', 'descriptionHanoi', 'descriptionSaigon']);
+
 function mapRow(row) {
   return {
     code: row.product_code,
@@ -273,6 +277,6 @@ async function getProductReportCustomers({ code, pool = getPool() } = {}) {
 
 module.exports = {
   getProductReport, getProductReportCustomers, getProductReportVersion, createProductReportReader,
-  PRODUCT_REPORT_PRICE_KEYS,
+  PRODUCT_REPORT_PRICE_KEYS, PRODUCT_REPORT_SALES_KEYS,
   __test__: { mapRow, daysToOrder, daysOfCover }
 };

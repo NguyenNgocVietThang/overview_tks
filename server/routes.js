@@ -10,7 +10,7 @@ const router = express.Router();
 
 const { getExportFields, createExport, buildExportErrorBody } = require('./dashboard/exportService');
 const {
-  getProductReport, getProductReportCustomers, getProductReportVersion, PRODUCT_REPORT_PRICE_KEYS
+  getProductReport, getProductReportCustomers, getProductReportVersion, PRODUCT_REPORT_PRICE_KEYS, PRODUCT_REPORT_SALES_KEYS
 } = require('./dashboard/productReportRepository');
 const containerRepository = require('./productContainers/repository');
 const { getInventoryValueHistory } = require('./dashboard/inventoryValueHistory');
@@ -308,10 +308,14 @@ router.get('/api/product-report', async (req, res) => {
     // Don gia HN/SG + Gia tri co ban HN/SG chi Quan ly + Tro ly (reports.products.price): tai khoan khac khong nhan
     // cac truong nay (PRODUCT_REPORT_PRICE_KEYS) trong payload. Dong cua bo doc la cache dung chung nen tao ban sao,
     // khong xoa truong tren dong goc.
-    if (!hasFeature(req.user, 'reports.products.price')) {
+    const hiddenKeys = [
+      ...(hasFeature(req.user, 'reports.products.price') ? [] : PRODUCT_REPORT_PRICE_KEYS),
+      ...(hasFeature(req.user, 'reports.products.sales') ? [] : PRODUCT_REPORT_SALES_KEYS)
+    ];
+    if (hiddenKeys.length) {
       data.rows = data.rows.map((row) => {
         const copy = { ...row };
-        PRODUCT_REPORT_PRICE_KEYS.forEach((key) => { delete copy[key]; });
+        hiddenKeys.forEach((key) => { delete copy[key]; });
         return copy;
       });
     }
@@ -359,7 +363,7 @@ router.get('/api/product-report/containers', async (req, res) => {
 
 // Khung "Chi tiet" cua bang "Bao cao hang hoa": doanh so 90 ngay tung khach theo 1 ma hang.
 // Nam duoi /api/product-report nen ke thua guard `reports.products` o tren.
-router.get('/api/product-report/customers', async (req, res) => {
+router.get('/api/product-report/customers', requireFeature('reports.products.sales'), async (req, res) => {
   try {
     const data = await getProductReportCustomers({ code: req.query.code });
     res.status(200).json(data);
@@ -451,7 +455,7 @@ function sendExportError(res, err, fallbackMessage) {
 
 router.post('/api/export/fields', async (req, res) => {
   try {
-    const metadata = await getExportFields(req.body || {}, req.branch, { canViewPrice: hasFeature(req.user, 'reports.products.price') });
+    const metadata = await getExportFields(req.body || {}, req.branch, { canViewPrice: hasFeature(req.user, 'reports.products.price'), canViewSales: hasFeature(req.user, 'reports.products.sales') });
     res.status(200).json(metadata);
   } catch (err) {
     sendExportError(res, err, 'Không lấy được danh sách trường xuất Excel.');
@@ -471,7 +475,8 @@ router.post('/api/export', async (req, res) => {
     const file = await createExport(req.body || {}, req.branch, {
       signal: abortController.signal,
       // Cột Đơn giá HN/SG của Báo cáo hàng hóa chỉ xuất cho tài khoản có quyền xem giá (cùng quyền với GET /api/product-report).
-      canViewPrice: hasFeature(req.user, 'reports.products.price')
+      canViewPrice: hasFeature(req.user, 'reports.products.price'),
+      canViewSales: hasFeature(req.user, 'reports.products.sales')
     });
     if (abortController.signal.aborted) return;
     res.setHeader('Content-Type', file.mimeType);

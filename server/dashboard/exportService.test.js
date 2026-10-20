@@ -18,6 +18,7 @@ const exportService = require('./exportService');
 // 34 cột Báo cáo hàng hóa theo ĐÚNG thứ tự sheet BC CHUNG (= thứ tự cột bảng trên màn hình): [khóa, nhãn, kiểu].
 const PRODUCT_REPORT_SPEC = [
   ['code', 'Mã sản phẩm', 'text'], ['name', 'Tên sản phẩm', 'general'],
+  ['loadedQty', 'Đã bốc', 'number'], ['unloadedQty', 'Chưa bốc', 'number'],
   ['availableValueHanoi', 'Giá trị có bán Hà Nội', 'number'], ['qtySold30dHanoi', 'Số lượng bán 30 ngày Hà Nội', 'number'],
   ['stockHanoi', 'Tồn thực Hà Nội', 'number'], ['availableHanoi', 'Có bán Hà Nội', 'number'],
   ['inTransit', 'Điều chuyển SG', 'number'], ['stockSaigon', 'Tồn thực Sài Gòn', 'number'], ['availableSaigon', 'Có bán Sài Gòn', 'number'],
@@ -25,7 +26,6 @@ const PRODUCT_REPORT_SPEC = [
   ['totalStock', 'Tổng tồn thực và điều chuyển', 'number'], ['availableToSell', 'Tổng có bán và điều chuyển', 'number'],
   ['qtySold30d', 'Số lượng bán 30 ngày', 'number'],
   ['stockoutDaysHanoi', 'Số ngày đứt hàng Hà Nội', 'number'], ['stockoutDaysSaigon', 'Số ngày đứt hàng Sài Gòn', 'number'],
-  ['loadedQty', 'Đã bốc', 'number'], ['unloadedQty', 'Chưa bốc', 'number'],
   ['daysToOrder', 'Ngày cần đặt', 'number'], ['daysSaigonTransit', 'Ngày bán hết Sài Gòn và điều chuyển', 'number'],
   ['daysHanoi', 'Ngày bán hết Hà Nội', 'number'], ['daysBothBranches', 'Ngày bán hết hai miền', 'number'],
   ['revenue90d', 'Doanh số 90 ngày', 'number'], ['customerCount90d', 'Số lượng khách mua', 'number'],

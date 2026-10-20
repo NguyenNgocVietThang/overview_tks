@@ -286,6 +286,8 @@ const CUSTOMER_PRODUCT_DETAIL_COLUMNS = [
 const PRODUCT_REPORT_COLUMNS = [
   aggregateColumn('code', 'Mã sản phẩm', 'text', 'Mã sản phẩm.'),
   aggregateColumn('name', 'Tên sản phẩm', undefined, 'Tên sản phẩm.'),
+  aggregateColumn('loadedQty', 'Đã bốc', 'number', 'Tổng số lượng toàn công ty trong CONT trạng thái 3; trống khi chưa có dữ liệu.'),
+  aggregateColumn('unloadedQty', 'Chưa bốc', 'number', 'Tổng số lượng toàn công ty trong CONT trạng thái 1 hoặc 2; trống khi chưa có dữ liệu.'),
   aggregateColumn('availableValueHanoi', 'Giá trị có bán Hà Nội', 'number',
     'Có bán Hà Nội nhân đơn giá Hà Nội (VNĐ); trống khi thiếu một trong hai số. Chỉ Quản lý và Trợ lý được xuất.'),
   aggregateColumn('qtySold30dHanoi', 'Số lượng bán 30 ngày Hà Nội', 'number', 'Tổng số lượng bán ra tại Hà Nội trong 30 ngày gần nhất (tính đến hết hôm qua); trống khi báo cáo chưa được tính lại.'),
@@ -305,8 +307,6 @@ const PRODUCT_REPORT_COLUMNS = [
     'Tổng số ngày đứt hàng tại Hà Nội trong 30 ngày gần nhất theo lần quét đứt hàng 30 ngày gần nhất; bằng 0 khi không đứt hoặc chưa quét.'),
   aggregateColumn('stockoutDaysSaigon', 'Số ngày đứt hàng Sài Gòn', 'number',
     'Tổng số ngày đứt hàng tại Sài Gòn trong 30 ngày gần nhất theo lần quét đứt hàng 30 ngày gần nhất; bằng 0 khi không đứt hoặc chưa quét.'),
-  aggregateColumn('loadedQty', 'Đã bốc', 'number', 'Tổng số lượng toàn công ty trong CONT trạng thái 3; trống khi chưa có dữ liệu.'),
-  aggregateColumn('unloadedQty', 'Chưa bốc', 'number', 'Tổng số lượng toàn công ty trong CONT trạng thái 1 hoặc 2; trống khi chưa có dữ liệu.'),
   aggregateColumn('daysToOrder', 'Ngày cần đặt', 'number',
     '(Tổng có bán và điều chuyển + Chưa bốc + Đã bốc) chia số lượng bán 30 ngày, nhân 30; trống khi không có số lượng bán hoặc chưa có dữ liệu CONT.'),
   aggregateColumn('daysSaigonTransit', 'Ngày bán hết Sài Gòn và điều chuyển', 'number',
@@ -333,6 +333,7 @@ const PRODUCT_REPORT_COLUMNS = [
 // Cot nhay cam (Don gia + Gia tri co ban HN/SG) chi Quan ly/Tro ly (reports.products.price) duoc xuat. Hang so DUNG CHUNG voi routes.js
 // (GET /api/product-report), dinh nghia o productReportRepository.js.
 const PRODUCT_REPORT_PRICE_KEYS = productReportRepository.PRODUCT_REPORT_PRICE_KEYS;
+const PRODUCT_REPORT_SALES_KEYS = productReportRepository.PRODUCT_REPORT_SALES_KEYS;
 
 const STOCKOUT_RECENT_COLUMNS = [
   aggregateColumn('code', 'Mã hàng', 'text', 'Mã hàng bị đứt hàng.'),
@@ -1005,9 +1006,10 @@ function describeExport(payload, branch, options = {}) {
   const spec = getTableSpec(tableKey, context, branch);
   // Đơn giá và Giá trị có bán HN/SG (PRODUCT_REPORT_PRICE_KEYS) chỉ cho tài khoản có quyền reports.products.price (route truyền options.canViewPrice); thiếu cờ = không có giá,
   // nên cột không xuất hiện trong danh sách trường và yêu cầu tự gõ khóa cột giá bị từ chối EXPORT_FIELD_NOT_ALLOWED.
-  if (tableKey === 'overview.productReport' && !options.canViewPrice) {
+  if (tableKey === 'overview.productReport' && (!options.canViewPrice || options.canViewSales === false)) {
+    const blocked = [...(options.canViewPrice ? [] : PRODUCT_REPORT_PRICE_KEYS), ...(options.canViewSales === false ? PRODUCT_REPORT_SALES_KEYS : [])];
     spec.worksheets = spec.worksheets.map(worksheet => ({
-      ...worksheet, columns: worksheet.columns.filter(column => !PRODUCT_REPORT_PRICE_KEYS.includes(column.key))
+      ...worksheet, columns: worksheet.columns.filter(column => !blocked.includes(column.key))
     }));
   }
   const description = {

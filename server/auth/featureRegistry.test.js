@@ -152,7 +152,7 @@ test('Tra cuu / Lich su / Xuat / Ghi de GAN vao Vong doi don hang: thieu lifecyc
   assert.ok(!grantedOnlyLifecycle.includes('shipment.history'));
 });
 
-const SALE_REPORT_VIEW_KEYS = ['reports.overview', 'reports.products', 'reports.invoices', 'reports.business', 'reports.debt'];
+const SALE_REPORT_VIEW_KEYS = ['reports.overview', 'reports.products', 'reports.products.sales', 'reports.invoices', 'reports.business', 'reports.debt'];
 
 test('Nhan vien sale xem du 5 tab bao cao mac dinh + dien Sale phan hoi cong no, KHONG co xuat Excel / sua trang thai cong no', () => {
   const reportKeys = registry.defaultsForRole(ROLES.NHAN_VIEN_SALE).filter(key => key.startsWith('reports.'));
@@ -172,7 +172,7 @@ const SHIPMENT_LIFECYCLE_GROUP = ['shipment.lifecycle', 'shipment.lookup', 'ship
 
 test('Nhan vien marketing has own report, other permissions match sale excluding general reports, lifecycle and Tao QR', () => {
   assert.deepEqual(
-    registry.defaultsForRole(ROLES.NHAN_VIEN_MARKETING).filter(key=>key!=='reports.marketing'),
+    registry.defaultsForRole(ROLES.NHAN_VIEN_MARKETING).filter(key=>key!=='reports.marketing' && key!=='reports.products'),
     registry.defaultsForRole(ROLES.NHAN_VIEN_SALE).filter(key => !SALE_REPORT_VIEW_KEYS.includes(key) && key !== 'reports.debt.saleFeedback' && key !== 'accounting.qr' && !SHIPMENT_LIFECYCLE_GROUP.includes(key))
   );
 });

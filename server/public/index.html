@@ -3697,6 +3697,8 @@
                       <tr>
                         <th style="width:120px" data-column-key="ma-sp">Mã sản phẩm</th>
                         <th style="width:260px" data-column-key="ten-sp">Tên sản phẩm</th>
+                        <th style="width:100px" data-column-key="da-boc" data-hint="Hàng dự kiến đã bốc (CONT trạng thái 3), toàn công ty. Bấm số để xem chi tiết hàng dự kiến.">Đã bốc</th>
+                        <th style="width:100px" data-column-key="chua-boc" data-hint="Hàng dự kiến chưa bốc (CONT trạng thái 1 và 2), toàn công ty. Bấm số để xem chi tiết hàng dự kiến.">Chưa bốc</th>
                         <th style="width:135px" data-column-key="gia-tri-co-ban-hn" data-price-column data-hint="Giá trị có bán HN = Có bán HN × Đơn giá HN (chỉ Quản lý và Trợ lý thấy).">Giá trị có bán HN</th>
                         <th style="width:125px" data-column-key="sl-ban-30-ngay-hn" data-hint="Số lượng bán 30 ngày gần nhất (tính đến hết hôm qua) tại Hà Nội.">SL bán 30 ngày HN</th>
                         <th style="width:105px" data-column-key="ton-thuc-hn">Tồn thực HN</th>
@@ -3711,24 +3713,22 @@
                         <th style="width:120px" data-column-key="sl-ban-30-ngay" data-hint="Tổng số lượng bán 30 ngày gần nhất (tính đến hết hôm qua).">SL bán 30 ngày</th>
                         <th style="width:90px" data-column-key="dut-hn" data-hint="Số ngày đứt hàng trong 30 ngày gần nhất tại Hà Nội, cập nhật sau mỗi lần chạy quét đứt hàng 30 ngày. Bằng 0 khi không đứt hoặc chưa quét.">Đứt HN</th>
                         <th style="width:90px" data-column-key="dut-sg" data-hint="Số ngày đứt hàng trong 30 ngày gần nhất tại Sài Gòn, cập nhật sau mỗi lần chạy quét đứt hàng 30 ngày. Bằng 0 khi không đứt hoặc chưa quét.">Đứt SG</th>
-                        <th style="width:100px" data-column-key="da-boc" data-hint="Hàng dự kiến đã bốc (CONT trạng thái 3), toàn công ty. Bấm số để xem chi tiết hàng dự kiến.">Đã bốc</th>
-                        <th style="width:100px" data-column-key="chua-boc" data-hint="Hàng dự kiến chưa bốc (CONT trạng thái 1 và 2), toàn công ty. Bấm số để xem chi tiết hàng dự kiến.">Chưa bốc</th>
                         <th style="width:110px" data-column-key="ngay-can-dat" data-hint="Ngày cần đặt = (Tổng có bán + Chưa bốc + Đã bốc) × 30 ÷ SL bán 30 ngày, tức số ngày hàng còn đủ bán. Để trống khi không bán được trong 30 ngày hoặc chưa có dữ liệu hàng dự kiến.">Ngày cần đặt</th>
                         <th style="width:115px" data-column-key="ngay-sg-dc" data-hint="Ngày SG + ĐC = (Điều chuyển SG + Có bán SG) × 30 ÷ SL bán 30 ngày SG. Để trống khi SL bán 30 ngày SG bằng 0.">Ngày SG + ĐC</th>
                         <th style="width:100px" data-column-key="ngay-hn" data-hint="Ngày HN = Có bán HN × 30 ÷ SL bán 30 ngày HN. Để trống khi SL bán 30 ngày HN bằng 0.">Ngày HN</th>
                         <th style="width:110px" data-column-key="ngay-2-mien" data-hint="Ngày 2 miền = (Tổng có bán + ĐC) × 30 ÷ SL bán 30 ngày (tổng). Để trống khi không bán được trong 30 ngày.">Ngày 2 miền</th>
-                        <th style="width:135px" data-column-key="ds-90-ngay">DS 90 ngày</th>
+                        <th style="width:135px" data-column-key="ds-90-ngay" data-sales-column>DS 90 ngày</th>
                         <th style="width:115px" data-column-key="sl-khach-ban" data-hint="Số khách khác nhau đã mua mã này trong 90 ngày.">SL khách bán</th>
                         <th style="width:115px" data-column-key="sl-don-90-ngay" data-hint="Số đơn hàng có chứa mã này trong 90 ngày gần nhất.">SL đơn 90 ngày</th>
                         <th style="width:115px" data-column-key="sl-don-30-ngay" data-hint="Số đơn hàng có chứa mã này trong 30 ngày gần nhất.">SL đơn 30 ngày</th>
                         <th style="width:110px" data-column-key="tang-truong" data-hint="Tăng trưởng = SL đơn 30 ngày × 3 ÷ SL đơn 90 ngày − 1: so tốc độ đơn 30 ngày với mức trung bình của 90 ngày. Để trống khi chưa có đơn nào trong 90 ngày.">Tăng trưởng</th>
-                        <th style="width:135px" data-column-key="ds-khach-lon-nhat" data-hint="Doanh số 90 ngày của khách mua nhiều nhất mã này.">DS khách lớn nhất</th>
-                        <th style="width:200px" data-column-key="khach-lon-nhat">Khách lớn nhất</th>
-                        <th style="width:135px" data-column-key="ti-trong-khach-lon-nhat" data-hint="Doanh số của khách mua nhiều nhất chia cho doanh số 90 ngày. Bấm tỉ trọng để xem danh sách khách.">Tỉ trọng khách lớn nhất</th>
+                        <th style="width:135px" data-column-key="ds-khach-lon-nhat" data-sales-column data-hint="Doanh số 90 ngày của khách mua nhiều nhất mã này.">DS khách lớn nhất</th>
+                        <th style="width:200px" data-column-key="khach-lon-nhat" data-sales-column>Khách lớn nhất</th>
+                        <th style="width:135px" data-column-key="ti-trong-khach-lon-nhat" data-sales-column data-hint="Doanh số của khách mua nhiều nhất chia cho doanh số 90 ngày. Bấm tỉ trọng để xem danh sách khách.">Tỉ trọng khách lớn nhất</th>
                         <th style="width:110px" data-column-key="don-gia-hn" data-price-column data-hint="Giá vốn của mã hàng trên KiotViet Hà Nội (chỉ Quản lý và Trợ lý thấy).">Đơn giá HN</th>
                         <th style="width:110px" data-column-key="don-gia-sg" data-price-column data-hint="Giá vốn của mã hàng trên KiotViet Sài Gòn (chỉ Quản lý và Trợ lý thấy).">Đơn giá SG</th>
-                        <th style="width:280px" data-column-key="mo-ta-hn" data-hint="Mô tả sản phẩm trên KiotViet Hà Nội (thường ghi bảng giá cho sale tra cứu).">Mô tả HN</th>
-                        <th style="width:280px" data-column-key="mo-ta-sg" data-hint="Mô tả sản phẩm trên KiotViet Sài Gòn (thường ghi bảng giá cho sale tra cứu).">Mô tả SG</th>
+                        <th style="width:280px" data-column-key="mo-ta-hn" data-sales-column data-hint="Mô tả sản phẩm trên KiotViet Hà Nội (thường ghi bảng giá cho sale tra cứu).">Mô tả HN</th>
+                        <th style="width:280px" data-column-key="mo-ta-sg" data-sales-column data-hint="Mô tả sản phẩm trên KiotViet Sài Gòn (thường ghi bảng giá cho sale tra cứu).">Mô tả SG</th>
                       </tr>
                     </thead>
                     <tbody id="productReportRows">
@@ -7231,6 +7231,7 @@
       return '<tr class="doc-row" tabindex="0" title="Bấm để xem hàng dự kiến và doanh số theo khách" data-table-item-id="' + code + '">' +
         '<td class="mono muted">' + code + '</td>' +
         '<td class="name-cell">' + escapeHtml(p.name) + '</td>' +
+        productReportContainerCell(p.loadedQty, p, 'Xem hàng dự kiến của') + productReportContainerCell(p.unloadedQty, p, 'Xem hàng dự kiến của') +
         productReportNullableCell(p.availableValueHanoi, fmtTableMoney) +
         productReportNullableCell(p.qtySold30dHanoi, fmtNumber) +
         '<td class="mono" data-sort-value="' + p.stockHanoi + '">' + fmtNumber(p.stockHanoi) + '</td>' +
@@ -7244,10 +7245,9 @@
         '<td class="mono" data-sort-value="' + p.availableToSell + '">' + fmtNumber(p.availableToSell) + '</td>' +
         '<td class="mono" data-sort-value="' + p.qtySold30d + '">' + fmtNumber(p.qtySold30d) + '</td>' +
         productReportStockoutCell(p.stockoutDaysHanoi) + productReportStockoutCell(p.stockoutDaysSaigon) +
-        productReportContainerCell(p.loadedQty, p, 'Xem hàng dự kiến của') + productReportContainerCell(p.unloadedQty, p, 'Xem hàng dự kiến của') +
         productReportDaysCell(p.daysToOrder) +
         productReportDaysCell(p.daysSaigonTransit) + productReportDaysCell(p.daysHanoi) + productReportDaysCell(p.daysBothBranches) +
-        '<td class="mono" data-sort-value="' + p.revenue90d + '">' + fmtTableMoney(p.revenue90d) + '</td>' +
+        productReportNullableCell(p.revenue90d, fmtTableMoney) +
         '<td class="mono" data-sort-value="' + p.customerCount90d + '">' + fmtNumber(p.customerCount90d) + '</td>' +
         productReportNullableCell(p.orders90d, fmtNumber) + productReportNullableCell(p.orders30d, fmtNumber) +
         productReportGrowthCell(p.ordersGrowth) +
@@ -7261,6 +7261,12 @@
         '</tr>';
     }
 
+    // Doanh số 90 ngày, doanh số / tỉ trọng khách lớn nhất, Mô tả HN/SG và hộp doanh số theo khách: suy ra được đơn giá nên cần quyền
+    // reports.products.sales (Nhân viên marketing mặc định không có; API cũng bỏ các trường này).
+    function productReportSalesAllowed() {
+      return typeof TKSNav !== 'undefined' && typeof TKSNav.can === 'function' && TKSNav.can('reports.products.sales');
+    }
+
     function renderProductReport() {
       const rows = state.productReport.rows;
       document.getElementById('tagProductReportRows').textContent = rows.length ? String(rows.length) : '—';
@@ -7268,7 +7274,7 @@
       document.getElementById('productContainerUpdatedAt').textContent = productContainerSyncText(state.productReport.containerSync);
       renderSectionKpis('productReportKpis', [
         { label: 'Số mã hàng', value: rows.length ? fmtNumber(rows.length) : '—', accent: 'amber' },
-        { label: 'Doanh số 90 ngày', value: fmtMoney(sumBy(rows, p => p.revenue90d)), accent: 'green' },
+        ...(productReportSalesAllowed() ? [{ label: 'Doanh số 90 ngày', value: fmtMoney(sumBy(rows, p => p.revenue90d)), accent: 'green' }] : []),
         { label: 'Số lượng bán 30 ngày', value: fmtNumber(sumBy(rows, p => p.qtySold30d)), accent: 'blue' },
         { label: 'Mã hết tồn có thể bán', value: fmtNumber(rows.filter(p => (Number(p.availableToSell) || 0) <= 0).length), accent: 'red' }
       ]);
@@ -7328,8 +7334,8 @@
     // Độ rộng theo ảnh mẫu, cùng thứ tự 34 cột với thead; khai báo rõ để không lấy độ rộng đã giãn từ phiên chưa biết vai trò.
     // Hai hồ sơ chỉ khác Tên sản phẩm (260/225) và DS 90 ngày (135/112).
     const PRODUCT_REPORT_WIDTHS_BY_PROFILE = {
-      sale: [120, 260, 135, 125, 105, 100, 125, 105, 100, 125, 135, 130, 105, 100, 90, 90, 100, 100, 95, 115, 100, 110, 135, 115, 115, 115, 110, 135, 200, 135, 110, 110, 110, 110],
-      manager: [120, 225, 135, 125, 105, 100, 125, 105, 100, 125, 135, 130, 105, 100, 90, 90, 100, 100, 95, 115, 100, 110, 112, 115, 115, 115, 110, 135, 200, 135, 110, 110, 110, 110]
+      sale: [120, 260, 100, 100, 135, 125, 105, 100, 125, 105, 100, 125, 135, 130, 105, 100, 90, 90, 95, 115, 100, 110, 135, 115, 115, 115, 110, 135, 200, 135, 110, 110, 110, 110],
+      manager: [120, 225, 100, 100, 135, 125, 105, 100, 125, 105, 100, 125, 135, 130, 105, 100, 90, 90, 95, 115, 100, 110, 112, 115, 115, 115, 110, 135, 200, 135, 110, 110, 110, 110]
     };
     let productReportColumnProfile = '';
 
@@ -7350,6 +7356,11 @@
       table.querySelectorAll('thead th[data-price-column]').forEach(function (cell) {
         cell.hidden = !priceAllowed;
         if (priceAllowed) delete cell.dataset.columnUnlisted; else cell.dataset.columnUnlisted = 'true';
+      });
+      const salesAllowed = productReportSalesAllowed();
+      table.querySelectorAll('thead th[data-sales-column]').forEach(function (cell) {
+        cell.hidden = !salesAllowed;
+        if (salesAllowed) delete cell.dataset.columnUnlisted; else cell.dataset.columnUnlisted = 'true';
       });
       productReportColumnProfile = profile;
       window.TKSTables.enhance(table, {
@@ -8035,9 +8046,16 @@
         });
       }
       const query = '?code=' + encodeURIComponent(item.code);
-      const customersLoaded = load('/api/product-report/customers' + query, customerBody, function (body, data) {
-        renderProductReportModal(body, document.getElementById('docModalSubtitle'), data);
-      }, DOC_DETAIL_KINDS.productReport.failure);
+      let customersLoaded;
+      if (productReportSalesAllowed()) {
+        customersLoaded = load('/api/product-report/customers' + query, customerBody, function (body, data) {
+          renderProductReportModal(body, document.getElementById('docModalSubtitle'), data);
+        }, DOC_DETAIL_KINDS.productReport.failure);
+      } else {
+        const section = document.getElementById('productCustomerSection');
+        if (section) section.hidden = true;
+        customersLoaded = Promise.resolve();
+      }
       const containersLoaded = load('/api/product-report/containers' + query, containerBody, renderProductContainers, 'Không tải được hàng dự kiến của sản phẩm này.');
       // load() đã tự nuốt lỗi từng phần; chỉ cuộn khi CẢ HAI phần đã vẽ xong vì chiều cao Hàng dự kiến quyết định vị trí Khách hàng.
       Promise.all([customersLoaded, containersLoaded]).then(function () { scrollProductDetailToFocus(requestId); });

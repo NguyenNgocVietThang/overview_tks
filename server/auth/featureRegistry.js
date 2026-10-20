@@ -50,7 +50,10 @@ const FEATURES = Object.freeze([
   // --- Bao cao tong hop ---
   { key: 'reports.overview', groupKey: 'reports', label: 'Tổng quan', roles: REPORT_VIEW_ROLES },
   { key: 'reports.overview.containers.full', groupKey: 'reports', label: 'Xem đầy đủ chi tiết CONT (cần Hàng hóa)', roles: MANAGER_ONLY, requires: 'reports.products' },
-  { key: 'reports.products', groupKey: 'reports', label: 'Hàng hóa (Báo cáo hàng hóa, Tăng trưởng mã hàng, Kiểm tra đứt hàng)', roles: REPORT_VIEW_ROLES },
+  { key: 'reports.products', groupKey: 'reports', label: 'Hàng hóa (Báo cáo hàng hóa, Tăng trưởng mã hàng, Kiểm tra đứt hàng)', roles: [...REPORT_VIEW_ROLES, ROLES.NHAN_VIEN_MARKETING] },
+  // 2026-10-20: Nhan vien marketing xem tab Hang hoa nhung KHONG duoc thay thong tin suy ra duoc don gia: doanh so 90 ngay, doanh so khach lon nhat,
+  // Mo ta (thuong ghi bang gia) va hop doanh so theo khach. Mac dinh moi vai tro xem bao cao tru Marketing.
+  { key: 'reports.products.sales', groupKey: 'reports', label: 'Hàng hóa: xem doanh số, mô tả bảng giá và doanh số theo khách (cần Hàng hóa)', roles: REPORT_VIEW_ROLES, requires: 'reports.products' },
   // 2026-10-17: cot Don gia HN/SG cua Bao cao hang hoa (gia ban chung KiotViet); mac dinh chi Quan ly + Tro ly.
   { key: 'reports.products.price', groupKey: 'reports', label: 'Hàng hóa: xem đơn giá HN / SG (cần Hàng hóa)', roles: REPORTS_ROLES, requires: 'reports.products' },
   { key: 'reports.invoices', groupKey: 'reports', label: 'Hóa đơn', roles: REPORT_VIEW_ROLES },
@@ -128,9 +131,11 @@ const ALWAYS_ON_KEYS = Object.freeze(FEATURES.filter(f => f.alwaysOn).map(f => f
 
 /** Moi key `reports.*` — dung cho cac endpoint dung chung (/api/dashboard, /api/debug). */
 const REPORT_VIEW_FEATURES = Object.freeze([
-  'reports.overview', 'reports.products', 'reports.invoices',
+  'reports.overview', 'reports.invoices',
   'reports.debt', 'reports.business'
 ]);
+// (2026-10-20: bo 'reports.products' — tab Hang hoa co API rieng /api/product-report, khong dung /api/dashboard;
+// neu giu, tai khoan chi co Hang hoa (Nhan vien marketing) se nhan duoc `kpi` tong hop cua tab Tong quan.)
 const ANY_REPORTS_FEATURES = Object.freeze(FEATURE_KEYS.filter(k => k.startsWith('reports.')));
 
 /**
