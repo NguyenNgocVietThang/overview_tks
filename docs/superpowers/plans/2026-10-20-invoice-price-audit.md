@@ -8,7 +8,7 @@
 
 **Tech Stack:** Node.js 22, Express/CommonJS, PostgreSQL NUMERIC, node:test/PGlite, Vanilla JS/CSS, bộ điều khiển bảng và Excel/HTML đang có.
 
-**Trạng thái 20/10/2026:** Đã phỏng vấn và được người dùng xác nhận nghiệp vụ. Tài liệu này chốt kế hoạch và cấu trúc cột; chưa lập trình, áp migration hay triển khai tính năng.
+**Trạng thái 20/10/2026:** Đã phỏng vấn và được người dùng xác nhận nghiệp vụ. Đã lập trình và kiểm thử trên nhánh `feature/invoice-price-audit` (Task 1–5 xong; Task 6 giao diện + xuất file đang làm; Task 7 tài liệu cập nhật). **Chưa merge, chưa áp migration `0077` lên DB dùng chung, chưa deploy, job chưa chạy; production chưa triển khai.**
 
 ## 1. Global Constraints và nghiệp vụ đã xác nhận
 
@@ -225,10 +225,10 @@ Router `/api/invoice-price-audit`, `Cache-Control: no-store`; định danh dòng
 
 **Interfaces:** `parsePriceNote(text)` trả `{ cartonSize, tiers: [{ position, cartons, unitPrice }], vatPerUnit, updatedLabel }`, các số là decimal string hoặc null; `customerLevelFromEmail(email)` trả `medium/large/vip`; `hasFullVat(lineNote, invoiceNote)` trả boolean; `isExcludedProduct(name)` trả `od/pk/null`; `isFreightCustomer(name)` trả boolean. Các hàm này thuần, không đọc DB.
 
-- [ ] Viết test bảng bậc giá, ví dụ T100/T30, ô `-T --`, email và các ghi chú VAT trước khi tạo implementation.
-- [ ] Chạy `node --test invoicePriceAudit/priceNoteParser.test.js invoicePriceAudit/priceAuditRules.test.js` trong `server`; xác nhận test đỏ do thiếu module/hành vi.
-- [ ] Implement parser/chuẩn hóa tối thiểu theo mục 1; không dùng eval hoặc suy giá từ chữ số bất kỳ trong mô tả.
-- [ ] Chạy lại lệnh trên và xác nhận xanh; commit riêng parser/quy tắc.
+- [x] Viết test bảng bậc giá, ví dụ T100/T30, ô `-T --`, email và các ghi chú VAT trước khi tạo implementation.
+- [x] Chạy `node --test invoicePriceAudit/priceNoteParser.test.js invoicePriceAudit/priceAuditRules.test.js` trong `server`; xác nhận test đỏ do thiếu module/hành vi.
+- [x] Implement parser/chuẩn hóa tối thiểu theo mục 1; không dùng eval hoặc suy giá từ chữ số bất kỳ trong mô tả.
+- [x] Chạy lại lệnh trên và xác nhận xanh; commit riêng parser/quy tắc.
 
 Test mẫu tối thiểu:
 
@@ -250,11 +250,11 @@ assert.equal(isExcludedProduct('Hàng phụ (pk)'), 'pk');
 
 **Interfaces:** `parseMeasureRows()` bổ sung `freightPerUnit` nullable nhưng không đổi các trường cũ; `shipping_measures.freight_per_unit` lưu giá trị nguồn; API tra cứu cũ không phải thay đổi hình dạng nếu bên dùng không cần cước.
 
-- [ ] Test migration trên DB mới và DB có shipping_measures cũ; test ràng buộc decision/PK, không cascade từ invoices nguồn.
-- [ ] Test parser lấy đúng cột O có tiêu đề xuống dòng, 0 hợp lệ, trống là null; không tính lại cước từ m3/kg. Tiêu đề O sai cấu trúc phải báo lỗi nguồn, không lấy nhầm cột khác.
-- [ ] Chạy test đỏ: `node --test invoicePriceAudit/priceAuditMigration.test.js shipment/measureSheet.test.js sheetSnapshots/sync.test.js`.
-- [ ] Viết migration và bổ sung đọc/ghi `freight_per_unit`; giữ hành vi mã trùng lấy dòng đầu như measureSheet hiện có.
-- [ ] Chạy lại xanh, đối chiếu test Vòng đời đơn không thay đổi kết quả; commit migration và tích hợp Cân đo.
+- [x] Test migration trên DB mới và DB có shipping_measures cũ; test ràng buộc decision/PK, không cascade từ invoices nguồn.
+- [x] Test parser lấy đúng cột O có tiêu đề xuống dòng, 0 hợp lệ, trống là null; không tính lại cước từ m3/kg. Tiêu đề O sai cấu trúc phải báo lỗi nguồn, không lấy nhầm cột khác.
+- [x] Chạy test đỏ: `node --test invoicePriceAudit/priceAuditMigration.test.js shipment/measureSheet.test.js sheetSnapshots/sync.test.js`.
+- [x] Viết migration và bổ sung đọc/ghi `freight_per_unit`; giữ hành vi mã trùng lấy dòng đầu như measureSheet hiện có.
+- [x] Chạy lại xanh, đối chiếu test Vòng đời đơn không thay đổi kết quả; commit migration và tích hợp Cân đo.
 
 Fixture cước: hàng T100 có O=384 phải lưu `'384'`; hàng có O trống lưu null; khi quy tắc đối chiếu dùng cước thiếu phải ra 0.
 
@@ -264,11 +264,11 @@ Fixture cước: hàng T100 có O=384 phải lưu `'384'`; hàng có O trống l
 
 **Interfaces:** `captureUnseenInvoices({ day, client, now })` trả `{ addedInvoices, addedLines }`; `readReport(query, viewer)` trả shape GET đã định nghĩa. SQL nhận kết quả parser dưới dạng decimal string, CAST NUMERIC để so ngưỡng/tính min/chênh, không đưa phép tiền tệ qua số thực JS. `priceAuditSql.js` chứa biểu thức NUMERIC dùng chung với truy vấn đọc kết quả.
 
-- [ ] Dựng fixture PGlite gồm invoice/customer/product HN/SG, mô tả đã parse và cước. Viết các test giá trong mục 5, test giữ bản chụp cả hóa đơn.
-- [ ] Chạy `node --test invoicePriceAudit/priceAuditSql.test.js invoicePriceAudit/priceAuditRepository.test.js`, xác nhận đỏ.
-- [ ] Implement loader đầy đủ dòng, tổng theo mã, ứng viên từng miền và insert snapshot; khóa/xác nhận toàn bộ hóa đơn trong một giao dịch. Không chọn lại sản phẩm theo tên khi có product_id đúng cơ sở.
-- [ ] Dùng `MIN` trên các ứng viên hợp lệ; thiếu giá là null, không COALESCE thành 0. Trường hợp bỏ qua có cờ riêng, không chỉ dựa vào chênh dương.
-- [ ] Test giá lẻ và SL thập phân bằng NUMERIC, tổng chính xác; lưu source_hash và ghi chú để kiểm chứng snapshot. Chạy lại xanh và commit.
+- [x] Dựng fixture PGlite gồm invoice/customer/product HN/SG, mô tả đã parse và cước. Viết các test giá trong mục 5, test giữ bản chụp cả hóa đơn.
+- [x] Chạy `node --test invoicePriceAudit/priceAuditSql.test.js invoicePriceAudit/priceAuditRepository.test.js`, xác nhận đỏ.
+- [x] Implement loader đầy đủ dòng, tổng theo mã, ứng viên từng miền và insert snapshot; khóa/xác nhận toàn bộ hóa đơn trong một giao dịch. Không chọn lại sản phẩm theo tên khi có product_id đúng cơ sở.
+- [x] Dùng `MIN` trên các ứng viên hợp lệ; thiếu giá là null, không COALESCE thành 0. Trường hợp bỏ qua có cờ riêng, không chỉ dựa vào chênh dương.
+- [x] Test giá lẻ và SL thập phân bằng NUMERIC, tổng chính xác; lưu source_hash và ghi chú để kiểm chứng snapshot. Chạy lại xanh và commit.
 
 Fixture đối chiếu bắt buộc: HN cơ bản 24.000 + VAT 2.000, cước 500; SG cơ bản 23.800 + VAT 1.000; khách bao cước HN full VAT phải ra `min(26.500; 24.800) = 24.800`, không phải 25.800 hoặc 26.500.
 
@@ -278,11 +278,11 @@ Fixture đối chiếu bắt buộc: HN cơ bản 24.000 + VAT 2.000, cước 50
 
 **Interfaces:** `runDailyAudit({ day, pool, now })` trả `{ status: completed/already-completed/failed, addedInvoices, addedLines }`; `createPriceAuditScheduler({ enabled, pool, now })` trả `{ start, stop }`. Biến `INVOICE_PRICE_AUDIT_ENABLED` mặc định false cho rollout có kiểm soát; sau nghiệm thu bật true. Script `npm run invoices:price-audit -- --date YYYY-MM-DD` mặc định dry-run, `--apply` mới ghi DB, không có cờ ghi đè snapshot cũ.
 
-- [ ] Viết test fake clock 22:59/23:00, UTC/VN, tháng/năm, hai instance, retry và bắt kịp sau restart.
-- [ ] Chạy `node --test invoicePriceAudit/priceAuditRefresh.test.js invoicePriceAudit/priceAuditScheduler.test.js`, xác nhận đỏ.
-- [ ] Implement slot DB/advisory lock, giao dịch công bố và prune mục 3.3; stop timer theo SIGTERM/SIGINT như các job có sẵn.
-- [ ] Test lỗi giữa chừng không xóa bản cũ; thành công ngày D+1 giữ nguyên 6 ngày, thêm invoice muộn và loại D−6 cũ. Dry-run không ghi cả state/lịch sử.
-- [ ] Chạy lại xanh, thêm npm script, cấu hình và commit.
+- [x] Viết test fake clock 22:59/23:00, UTC/VN, tháng/năm, hai instance, retry và bắt kịp sau restart.
+- [x] Chạy `node --test invoicePriceAudit/priceAuditRefresh.test.js invoicePriceAudit/priceAuditScheduler.test.js`, xác nhận đỏ.
+- [x] Implement slot DB/advisory lock, giao dịch công bố và prune mục 3.3; stop timer theo SIGTERM/SIGINT như các job có sẵn.
+- [x] Test lỗi giữa chừng không xóa bản cũ; thành công ngày D+1 giữ nguyên 6 ngày, thêm invoice muộn và loại D−6 cũ. Dry-run không ghi cả state/lịch sử.
+- [x] Chạy lại xanh, thêm npm script, cấu hình và commit.
 
 Ví dụ nghiệm thu: job ngày 20/10 công bố 14–20/10; job ngày 21/10 công bố 15–21/10. Hóa đơn ngày 20/10 xuất hiện lúc 23:10 được thêm ngày 21/10; dòng đã ghi nhận ngày 20/10 không đổi khi giá ngày 21/10 giảm.
 
@@ -292,11 +292,11 @@ Ví dụ nghiệm thu: job ngày 20/10 công bố 14–20/10; job ngày 21/10 c�
 
 **Interfaces:** `canExplain(viewer, currentCustomerGroup)` và `canDecide(viewer)` theo mục 3.4; `setExplanation(key, text, expectedVersion, actor)` / `setDecision(key, decision, expectedVersion, actor)` ghi atomically và trả row mới. Khóa `key = { branch, invoiceId, sourceLineNo }`.
 
-- [ ] Test người chưa đăng nhập, thiếu quyền, Sale đúng/sai nhóm, tên giống gần đúng, nhóm rỗng, Quản lý, người được cấp riêng, thu hồi quyền và quyền xem cơ sở hiện có.
-- [ ] Test không sửa được snapshot qua PATCH, 409 khi version cũ, 400 khi Phạt dòng vốn đúng, quyết định ngoài enum, 404 khi dòng hết cửa sổ.
-- [ ] Chạy `node --test invoicePriceAudit/priceAuditAccess.test.js invoicePriceAudit/priceAuditService.test.js invoicePriceAudit/priceAuditRoutes.test.js auth/featureRegistry.test.js`, xác nhận đỏ.
-- [ ] Implement endpoints, row capabilities, kiểm tra quyền mới trên mọi request, nhật ký trước/sau. Dùng query parameterized; không ghép SQL trực tiếp từ sort/filter/columns.
-- [ ] Test Ok → Đúng/0, Phạt → Sai/chênh gốc, đổi Ok sang Phạt phục hồi đúng số gốc, tổng chưa chốt và tổng phạt không lẫn; chạy lại xanh và commit.
+- [x] Test người chưa đăng nhập, thiếu quyền, Sale đúng/sai nhóm, tên giống gần đúng, nhóm rỗng, Quản lý, người được cấp riêng, thu hồi quyền và quyền xem cơ sở hiện có.
+- [x] Test không sửa được snapshot qua PATCH, 409 khi version cũ, 400 khi Phạt dòng vốn đúng, quyết định ngoài enum, 404 khi dòng hết cửa sổ.
+- [x] Chạy `node --test invoicePriceAudit/priceAuditAccess.test.js invoicePriceAudit/priceAuditService.test.js invoicePriceAudit/priceAuditRoutes.test.js auth/featureRegistry.test.js`, xác nhận đỏ.
+- [x] Implement endpoints, row capabilities, kiểm tra quyền mới trên mọi request, nhật ký trước/sau. Dùng query parameterized; không ghép SQL trực tiếp từ sort/filter/columns.
+- [x] Test Ok → Đúng/0, Phạt → Sai/chênh gốc, đổi Ok sang Phạt phục hồi đúng số gốc, tổng chưa chốt và tổng phạt không lẫn; chạy lại xanh và commit.
 
 ### Task 6 — Một bảng, bộ lọc và xuất file
 

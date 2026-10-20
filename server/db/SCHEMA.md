@@ -1,6 +1,6 @@
 # Supabase schema cho đồng bộ KiotViet
 
-Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0070`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
+Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0077`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
 
 ## Quy ước chung
 
@@ -576,5 +576,19 @@ Migration thu hồi ALL cả hai bảng khỏi `reporting_readonly` (có giá b�
 | `product_container_expected_state` | 1 dòng `id = 1`: `version BIGINT` (chỉ tăng khi có dòng thêm/đổi/xóa), `source_version UUID` (= `product_container_sync.version` lúc tính), `computed_at`, `row_count`. |
 
 Dựng bởi `productContainers/expectedRefresh.js`, web chỉ SELECT (`expectedRepository.js`, cache theo `version`). Chưa áp migration thì API trả bảng rỗng, job bỏ qua. Sau khi áp, chạy tay `node productContainers/expectedRefresh.js` một lần.
+
+## Kiểm tra giá bán — migration 0077 (20/10/2026, CHƯA áp DB dùng chung)
+
+`0077_invoice_price_audit.sql` thêm 4 bảng mới và 1 cột (idempotent, không CONCURRENTLY, không FK sang `invoices` / `invoice_details`: đồng bộ nguồn không xóa/sửa bản ghi nhận). Luật tính nằm ở `server/invoicePriceAudit/`; bảng chỉ giữ dữ liệu đã chụp.
+
+| Bảng | Hợp đồng dữ liệu |
+|---|---|
+| `invoice_price_audit_invoices` | Sổ hóa đơn ĐÃ QUÉT (kể cả hóa đơn không có dòng sai), PK `(branch, invoice_id)`; `invoice_code`, `sold_day DATE`, `captured_at`, `run_day`, `source_hash`, `source_modified_at`. Index `sold_day`. Xóa dòng này (hết cửa sổ 7 ngày) kéo theo xóa dòng chụp và nhật ký (ON DELETE CASCADE) |
+| `invoice_price_audit_lines` | 1 dòng = 1 dòng hàng của hóa đơn, PK `(branch, invoice_id, source_line_no)`, FK → bảng sổ. Nhận diện: `invoice_code`, `sold_at` (giờ Kiot gắn nhãn UTC, như `invoices.purchase_date`), `sold_day`, **`customer_id BIGINT`** (đọc nhóm khách HIỆN TẠI cho quyền giải thích), `customer_code/name/email`, `customer_level` (Vừa/Lớn/VIP), `sale_name` (nhóm khách lúc ghi nhận), `product_code/name`. Số: `quantity`, `total_code_quantity`, `original_unit_price`, `unit_discount`, `net_unit_price`, `full_vat BOOLEAN` — tất cả `NUMERIC`. Đối chiếu từng miền: `carton_size_*`, `quantity_price_*`, `level_price_*`, `vat_*`, `minimum_*` (`_hn` / `_sg`, NULL = không có), `freight_eligible`, `freight_per_unit`. Kết quả: `winning_source`, `reason`, `minimum_unit_price` (NULL = thiếu giá), `unit_shortfall`, `original_amount`, `original_status` (`correct`/`wrong`), `calculation JSONB`. Ghi chú nguồn: `product_note_hn/sg`, `line_note`, `invoice_note`. Sau chụp: `sale_explanation`, `explanation_by/at`, `decision` (`ok`/`penalty`/NULL), `decided_by/at`, `version INTEGER` (khóa lạc quan), `captured_at`. Index theo `(sold_day DESC, branch)`, `(decision, sale_name)`, `(original_status, sold_day DESC)` |
+| `invoice_price_audit_state` | 1 dòng `id = TRUE`: `published_day`, `window_from`, `window_to`, `last_success_at`, `last_attempt_at`, `last_error`, `added_invoice_count`, `version`. Web chỉ hiện dữ liệu khi có `published_day` |
+| `invoice_price_audit_changes` | Nhật ký sửa giải thích / Chốt: `id` identity, `(branch, invoice_id, source_line_no)` FK → dòng chụp (CASCADE), `actor`, `action` (`explanation`/`decision`), `changed_at`, `before_value` / `after_value JSONB`, `version_before` / `version_after`. Chỉ giữ trong cửa sổ 7 ngày |
+| `shipping_measures.freight_per_unit` | **Cột mới `NUMERIC NULL`**: cột O "Cước 1 Sp" của sheet CÂN ĐO, đọc trực tiếp (không tính lại từ kg/m3); NULL = ô trống (luật đối chiếu áp 0). Không ảnh hưởng m3/kg của Vòng đời đơn |
+
+Migration **thu hồi ALL** 4 bảng mới khỏi `reporting_readonly` (có giải thích của sale, quyết định phạt và nhật ký; guard `pg_roles`); chỉ đọc qua API. Thứ tự: áp `0077` TRƯỚC khi deploy bản sync Cân đo mới (INSERT `freight_per_unit` cần cột này).
 
 Cập nhật: 20/10/2026.

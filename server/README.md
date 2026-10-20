@@ -99,6 +99,7 @@ Bot riêng cho quản lý chạy cùng tiến trình Express; `telegram/managerL
 | `HR_MANAGER_TELEGRAM_SCAN_INTERVAL_MS` | `5000` ms |
 | `HR_LEAVE_DB_REALTIME_ENABLED` | `true`; cầu Postgres → SSE HR |
 | `SPECIAL_DAYS_NOTIFY_ENABLED` | `true`; báo ngày lễ/sinh nhật lên chuông thông báo (`notifications/specialDayNotifier.js`) |
+| `INVOICE_PRICE_AUDIT_ENABLED` | `false`; bật job 23:00 VN của Kiểm tra giá bán (`invoicePriceAudit/priceAuditScheduler.js`) — chỉ bật sau khi áp `0077` và chạy tay lần đầu |
 
 **Migration trước khi chạy bản web mới:** `npm run db:migrate` áp `0029_hr_manager_telegram.sql`; bản web mới đọc `decision_version` cả khi `HR_MANAGER_TELEGRAM_ENABLED=false`. Sau khi cấu hình và khởi động server, đăng ký webhook bằng `npm run telegram-manager:set-webhook`. Chi tiết ở [hướng dẫn thiết lập](../docs/telegram-manager-leave-setup.md) và [kế hoạch đã duyệt](../docs/superpowers/plans/2026-10-02-telegram-manager-leave.md).
 
@@ -186,6 +187,25 @@ Quyền `reports.products.expected` (không `requires`): Quản lý, Trợ lý, 
 Job `productContainers/expectedRefresh.js`: chạy sau mỗi lượt đồng bộ CONT `updated`/`unchanged` (10 phút, hook `afterRefresh` của `startContainerSchedule`), ghi khác biệt (bảng tạm → DELETE dòng thừa → upsert `IS DISTINCT FROM`, `version` chỉ tăng khi có ghi/xóa), khóa advisory riêng `20531073`, nguồn rỗng thì giữ bảng cũ, thiếu migration (42P01) thì bỏ qua. Lịch = `btrim(B || ' ' || C)` (một dấu cách, C rỗng không thừa). Chạy tay lần đầu sau khi áp 0075: `node productContainers/expectedRefresh.js` (trong thư mục `server`).
 
 
+## Kiểm tra giá bán (`/api/invoice-price-audit`, 20/10/2026)
+
+Mục mới của tab Hóa đơn (`/reports/#invoices`), mã trong `invoicePriceAudit/`. Trạng thái: code + test xong trên nhánh `feature/invoice-price-audit`, **chưa merge/push/deploy, migration `0077` chưa áp DB dùng chung, job chưa chạy**.
+
+- **Luật** (`priceNoteParser.js`, `priceAuditRules.js`, `priceAuditSql.js`): mỗi dòng hóa đơn Hoàn thành (SL > 0) là một dòng kết quả; xét bậc theo tổng SL cùng mã trong cùng hóa đơn. Giá min = nhỏ nhất của giá theo bậc số lượng và giá theo cấp khách (Vừa/Lớn/VIP từ email KiotViet, rỗng/lạ = Vừa) đọc từ `products.raw.description` từng cơ sở, cộng VAT khi có `Full Vat` (ghi chú dòng/đơn); bậc trống `-T --` bị bỏ chứ không thành 0đ. Giá thực bán/đơn vị = `price − discount` của dòng. 10 khách giao HN dùng `min(HN + cước, SG)` với cước lấy từ `shipping_measures.freight_per_unit` (thiếu = 0). Tên hàng chứa `(OD)`/`(PK)` hoặc không có giá quy định → Đúng giá. Toàn bộ tiền tính NUMERIC trong SQL, không làm tròn trước so sánh.
+- **Job** (`priceAuditRefresh.js`, `priceAuditScheduler.js`): 23:00 Asia/Ho_Chi_Minh (= 16:00 UTC, không phụ thuộc timezone máy chủ) chụp hóa đơn chưa có trong sổ `invoice_price_audit_invoices` của ngày chạy D và D−6…D−1 (hóa đơn đến muộn được bổ sung nếu còn trong cửa sổ), rồi xóa ngày quá hạn cùng giải thích/Chốt/nhật ký. Một transaction, advisory lock chống chạy trùng hai instance, lỗi giữa chừng giữ nguyên bản cũ, chạy lại cùng ngày không nhân bản. Chỉ chạy khi `INVOICE_PRICE_AUDIT_ENABLED=true`.
+- **CLI**: `npm run invoices:price-audit -- [--date YYYY-MM-DD] [--apply]`. Không có `--apply` là chạy thử (REPEATABLE READ rồi ROLLBACK, in số hóa đơn/dòng/dòng sai sẽ thêm). `--apply` ghi thật; ngày hôm nay được phép chạy trước 23:00 (hóa đơn phát sinh sau đó được bắt ở đêm kế tiếp), ngày tương lai bị chặn, ngày cũ hơn `published_day` bị bỏ qua (`stale`).
+- **Cột O của CÂN ĐO**: `shipment/measureSheet.js` đọc "Cước 1 Sp" (sau khi kiểm tra tiêu đề) vào `shipping_measures.freight_per_unit` qua `sheetSnapshots/sync.js`. Tiêu đề cột O sai/thiếu cột → lỗi `MEASURE_FREIGHT_HEADER_INVALID`, đồng bộ Cân đo (và m3/kg của Vòng đời đơn) dừng cho tới khi sửa sheet. **Phải áp `0077` trước khi deploy bản sync mới**, nếu không INSERT vào `freight_per_unit` lỗi.
+- **API** (`priceAuditRoutes.js`, `Cache-Control: no-store`, cơ sở theo cookie `tks_branch` hoặc `?branch=`):
+
+| Endpoint | Quyền | Nội dung |
+|---|---|---|
+| `GET /api/invoice-price-audit` | `reports.invoices.priceAudit` (Quản lý, Trợ lý, Nhân viên sale; cần `reports.invoices`) | Query `branch, from, to, sale, status, decision, vat, freight, q, page, pageSize` (pageSize 25/50/100/200). Trả `{meta, filters, kpis, totals, rows, totalRows, page, pageSize}`; chưa có bản công bố → `meta.available=false` ("Chưa chạy kiểm tra giá"); bảng chưa migrate → `reason:"not_migrated"`. Từ/Đến bị kẹp trong cửa sổ đã công bố |
+| `PATCH /:branch/:invoiceId/:lineNo/explanation` | `…priceAudit.explain` (Nhân viên sale, không `escalationExempt`) và đúng nhóm khách HIỆN TẠI | Body `{text ≤ 4000, expectedVersion}`; 403 `NOT_CUSTOMER_OWNER`, 404 ngoài cửa sổ, 409 `VERSION_CONFLICT` kèm `row` hiện tại. Chỉ dòng Sai giá |
+| `PATCH /:branch/:invoiceId/:lineNo/decision` | `…priceAudit.decide` (chỉ Quản lý mặc định) | Body `{decision: null\|"ok"\|"penalty", expectedVersion}`; chỉ dòng Sai giá gốc (400 `NOT_WRONG_PRICE`). Trả `{row, kpis, totals, totalRows}` theo bộ lọc trong query string. Ok → Đúng giá/0đ nhưng giữ số gốc; Phạt = SL × chênh/đơn vị gốc |
+| `GET /export/fields`, `GET /export?format=xlsx\|html` | `…priceAudit` | **Đang làm song song (Task 6)**, xuất theo đúng bộ lọc/cột; controller sẽ đối chiếu lại sau khi merge |
+
+Dữ liệu: 4 bảng `invoice_price_audit_{invoices,lines,state,changes}` (xem `db/SCHEMA.md`), web chỉ đọc bản đã chụp và ghi giải thích/Chốt kèm nhật ký `invoice_price_audit_changes`; không ghi ngược KiotViet hay Google Sheets. Rollback: tắt `INVOICE_PRICE_AUDIT_ENABLED` (và ẩn quyền nếu cần), giữ bảng; lỗi job không chặn tab Giao dịch cũ.
+
 ## Lệnh
 
 ```bash
@@ -201,6 +221,8 @@ Các job đồng bộ:
 npm run kiotviet-sync:preflight
 npm run kiotviet-sync:backfill
 npm run kiotviet-sync:reconcile
+npm run invoices:price-audit              # Kiểm tra giá bán: chạy thử (không ghi)
+npm run invoices:price-audit -- --date 2026-10-20 --apply   # ghi thật
 ```
 
 Khi `KIOTVIET_SYNC_ENABLED=true`, service chạy một lượt catch-up nền ngay lúc
@@ -320,10 +342,13 @@ Hai file Kiot HN/SG **không còn** được server truy cập.
 | `0070` | View thường `v_cash_book_transactions` cho Sổ quỹ (`cash_flows` LEFT JOIN `cash_book_accounts`, `fund_key`, trường rút sẵn từ `raw`, không lộ `raw`); GRANT SELECT cho `reporting_readonly` chỉ khi role tồn tại; không bảng/index mới; đã áp DB 19/10/2026 (xác minh schema_migrations) |
 | `0075` | `product_container_expected` (1 dòng/dòng hàng sheet CONT, khóa `(sheet_name, source_row)`, có `schedule_label` = B+C đã ghép, `product_name` từ `product_report`) + `product_container_expected_state` (1 dòng: `version`, `source_version`, `computed_at`, `row_count`) cho bảng "Dự kiến hàng về" tab Hàng hóa; thu hồi quyền `reporting_readonly` (có Người đặt); đã áp DB 20/10/2026 và đã chạy tay job lần đầu |
 | `0076` (đã áp DB 20/10/2026) | Yêu cầu xuất VAT: `vat_requests` (trường sale / KT, `status` pending|0–4, `version` chống ghi đè, `product_key` + `total_amount` sinh tự động, xóa mềm `is_deleted`, dòng import sheet cũ `is_legacy` + `legacy_row` duy nhất) và `vat_request_history` (chỉ ghi thêm, trigger chặn sửa/xóa); thu hồi quyền `reporting_readonly` |
+| `0077` (**chưa áp DB dùng chung**, 20/10/2026) | Kiểm tra giá bán: `invoice_price_audit_invoices` (sổ hóa đơn đã quét, khóa `(branch, invoice_id)`), `invoice_price_audit_lines` (chụp từng dòng, có `customer_id`, `version` chống ghi đè, giải thích/Chốt), `invoice_price_audit_state` (1 dòng, ngày đã công bố + cửa sổ), `invoice_price_audit_changes` (nhật ký); thêm `shipping_measures.freight_per_unit NUMERIC` (cột O CÂN ĐO); thu hồi quyền `reporting_readonly`; không FK sang bảng Kiot, idempotent |
 
 Bot **xin nghỉ của nhân viên** chạy ngoài repo và đọc/ghi 3 bảng nền nghỉ phép trực tiếp; bot **quản lý** trong `telegram/` dùng chung đơn và sở hữu các bảng bổ sung ở migration `0029`. Hợp đồng dữ liệu ở `db/SCHEMA.md`.
 
 ## Cập nhật gần nhất
+
+20/10/2026 — **Kiểm tra giá bán (tab Hóa đơn, `/reports/#invoices`; migration `0077`, nhánh `feature/invoice-price-audit`)**: code + test xong, chưa merge/push/deploy, `0077` chưa áp DB dùng chung, job chưa chạy. Xem mục "Kiểm tra giá bán" phía trên. File mới: `invoicePriceAudit/*` (+ test PGlite), `scripts/refresh-invoice-price-audit.js`, `db/migrations/0077_invoice_price_audit.sql`; sửa `shipment/measureSheet.js` + `sheetSnapshots/sync.js` (cột O CÂN ĐO), `auth/featureRegistry.js` (3 quyền), `config.js`/`.env.example` (`INVOICE_PRICE_AUDIT_ENABLED`), `routes.js`, `index.js`, `package.json` (script `invoices:price-audit`). Giao diện + xuất Excel/HTML: Task 6 đang làm song song.
 
 20/10/2026 — **Kế toán – Yêu cầu xuất VAT (migration `0076`, nhánh `feature/vat-requests`, đã merge PR #4 vào `main`, áp DB và nhập 1.357 yêu cầu cũ; chưa xác nhận deploy Render)**: xem mục "Kế toán – Yêu cầu xuất VAT" phía trên. File mới: `vatRequests/{service,repository,routes,stockSource,suggestions,etaParser}.js` (+ test PGlite), `public/vat-request/`, `scripts/importOrderVat.js` (+ test), `test/frontend/vat-request.test.js`. Quyền `accounting.vatRequest` miễn so sánh nâng quyền để Trợ lý được ủy quyền vẫn tạo được tài khoản Sale / Kế toán; quyền xử lý `accounting.vatRequestProcess` mặc định chỉ Quản lý và phải cấp riêng cho từng Kế toán (không miễn so sánh nâng quyền). Đã áp migration `0076` và nhập CSV `VAT TKS - ORDER VAT 1.csv`: 1.357 yêu cầu + 1.357 lịch sử nhập; 147 dòng Sale không khớp tài khoản được giữ tên từ CSV. Còn lại: deploy Render và kiểm tra `VAT_REQUEST_STOCK_GID=39032` nếu Render đã đặt GID cũ.
 

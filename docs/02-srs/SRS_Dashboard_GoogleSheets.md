@@ -752,4 +752,16 @@ Phương án B đã duyệt: tập SĐT/KPI Pancake riêng trong PostgreSQL, ng�
 - **FR-VR-11 (nguồn tồn và gợi ý, 20/10/2026)**: mặc định Tồn VAT đọc tab GỘP MỚI `gid=39032` của sheet công khai `1dNabQaiob7CMozrqjA746uV-atHWJi8gbG6L-I0yrmU`, đối chiếu tab Khớp mã; cho phép cấu hình nguồn khác bằng `VAT_REQUEST_STOCK_*`. Gợi ý khách từ danh bạ KiotViet và lịch sử yêu cầu VAT, gợi ý giá từ yêu cầu gần nhất cùng mã (chỉ dùng khi bấm).
 20/10/2026 — Tab Hàng hóa thêm mục 2 **Dự kiến hàng về** (migration `0075`, quyền `reports.products.expected`): xem FR-03.5A và bảng API.
 
+## Bổ sung 20/10/2026 — Kiểm tra giá bán (FR-PA)
+
+*Trạng thái: code + test xong trên nhánh `feature/invoice-price-audit`, chưa deploy; giao diện và xuất file (FR-PA-6) đang làm song song.*
+
+- **FR-PA-1 (phạm vi)**: một bảng trong tab Hóa đơn (`/reports/#invoices`) cho HN/SG; mỗi dòng hóa đơn Hoàn thành là một dòng kết quả. Dữ liệu `invoice_price_audit_*` (migration 0077), API `/api/invoice-price-audit`.
+- **FR-PA-2 (luật giá)**: giá min = nhỏ nhất của giá theo bậc số lượng (tổng SL cùng mã trong cùng hóa đơn) và giá theo cấp khách Vừa/Lớn/VIP (email KiotViet; rỗng/lạ = Vừa) đọc từ mô tả hàng hóa từng cơ sở; cộng VAT khi có `Full Vat`; bậc trống không thành 0đ; giá thực bán = đơn giá − giảm giá dòng. Khách giao HN: `min(HN + cước, SG)`, cước từ cột O CÂN ĐO. `(OD)`/`(PK)` hoặc không có giá quy định → Đúng giá. Tiền tính NUMERIC.
+- **FR-PA-3 (chụp 23:00)**: job 23:00 Asia/Ho_Chi_Minh (`INVOICE_PRICE_AUDIT_ENABLED`) chụp hóa đơn chưa quét của ngày chạy và 6 ngày trước; bản đã chụp bất biến trước thay đổi giá/mô tả/VAT/cước; hóa đơn đến muộn được bổ sung nếu còn trong cửa sổ; hết cửa sổ xóa cùng giải thích/Chốt. Chạy trong transaction, khóa chống chạy trùng, lỗi giữ bản cũ.
+- **FR-PA-4 (giải thích)**: Nhân viên sale (quyền `reports.invoices.priceAudit.explain`) điền giải thích cho dòng Sai giá của khách thuộc nhóm mình phụ trách hiện tại; kiểm tra ở máy chủ, khóa lạc quan `expectedVersion`.
+- **FR-PA-5 (Chốt)**: quyền `reports.invoices.priceAudit.decide` (mặc định Quản lý) Chốt Ok (thành Đúng giá, giữ số gốc) hoặc Phạt (SL × chênh/đơn vị gốc); sửa/xóa Chốt được trong cửa sổ; có nhật ký.
+- **FR-PA-6 (hiển thị/xuất — đang làm)**: bộ lọc Tất cả/Đúng/Sai × Chưa chốt/Ok/Phạt, chỉ số theo hóa đơn không trùng, `GET /api/invoice-price-audit/export` (xlsx/html) theo đúng bộ lọc và cột.
+- **FR-PA-7 (quyền xem)**: `reports.invoices.priceAudit` (Quản lý, Trợ lý, Nhân viên sale; Khách bị chặn); lỗi job không ảnh hưởng tab Giao dịch hiện có.
+
 Cập nhật gần nhất: 20/10/2026.

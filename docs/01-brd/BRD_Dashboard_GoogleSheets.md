@@ -363,4 +363,13 @@ Phương án B đã duyệt: tập SĐT/KPI Pancake riêng trong PostgreSQL, ng�
 - **Dữ liệu cũ**: nhập toàn bộ sheet ORDER VAT 1 (1.357 dòng, nhập 20/10/2026) bằng script, map sale theo email.
 - **Gợi ý nhập liệu**: khách tìm theo tên không dấu, mã khách hoặc các từ đảo thứ tự; gợi ý từ KiotViet và yêu cầu VAT trước đây. Giá chưa VAT lấy từ yêu cầu gần nhất cùng mã SP và chỉ áp dụng khi sale chọn. Tồn VAT đọc tab GỘP MỚI của sheet công khai được chỉ định (`gid=39032`).
 
+## Bổ sung 20/10/2026 — Kiểm tra giá bán
+
+- **Vấn đề**: việc soát hóa đơn bán dưới giá quy định (theo mô tả giá từng mã trên KiotViet, bậc số lượng, cấp khách, VAT, cước) làm tay trên Excel với nhiều bảng riêng, dễ sót và không có chốt trách nhiệm.
+- **Giải pháp**: mục "Kiểm tra giá bán" trong tab Hóa đơn. Mỗi đêm 23:00 hệ thống chụp hóa đơn của 7 ngày gần nhất và đối chiếu giá min; sale giải thích dòng sai của khách mình phụ trách; Quản lý chốt Ok hoặc Phạt (tiền phạt = SL × chênh/đơn vị).
+- **Người dùng**: Quản lý, Trợ lý, Nhân viên sale xem; sale giải thích; Quản lý (hoặc người được cấp) chốt.
+- **Thành công**: không còn đối chiếu thủ công, kết quả không đổi theo giá hiện tại, có dấu vết ai giải thích/chốt gì khi nào.
+- **Ngoài phạm vi**: bảng giá cắt lô riêng theo khách–mã, ghi ngược KiotViet/Google Sheets, lưu lịch sử quá 7 ngày.
+- **Trạng thái**: code + test xong trên nhánh `feature/invoice-price-audit`; chưa deploy, chưa chạy job thật; giao diện và xuất file đang làm song song.
+
 Cập nhật gần nhất: 20/10/2026.
