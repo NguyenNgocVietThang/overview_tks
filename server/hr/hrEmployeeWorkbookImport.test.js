@@ -36,3 +36,18 @@ test('từ chối workbook không có đủ hai sheet chuẩn', () => {
   const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
   assert.throws(() => parseEmployeeWorkbook(buffer), /Sheet1.*Sheet2/);
 });
+
+test('đọc file DS nhân sự: giới tính viết hoa trong file (NAM/NỮ) quy về Nam/Nữ; trạng thái và ngày nghỉ việc vẫn đọc đủ', () => {
+  const wb = XLSX.utils.book_new();
+  const headers = ['STT', 'TRẠNG THÁI', 'HỌ VÀ TÊN', 'BỘ PHẬN', 'CHỨC VỤ', 'NGÀY VÀO LÀM', 'SỐ NGÀY LV', 'NGÀY SINH', 'SỐ CCCD', 'SĐT', 'ĐỊA CHỈ HIỆN TẠI', 'THÔNG TIN NGƯỜI THÂN', '', '', 'GIỚI TÍNH', 'HỒ SƠ', 'VÂN TAY', 'NGÀY NGHỈ VIỆC'];
+  const sub = ['', '', '', '', '', '', '', '', '', '', '', 'QH', 'Họ Tên', 'SĐT'];
+  const hn = [1, 'NV', 'Nguyễn Văn A', 'SALE', '', new Date(2024, 0, 2), 1, new Date(1990, 4, 6), '', 901234567, '', '', '', '', 'NAM', 'X', '', new Date(2026, 5, 30)];
+  const sg = [1, 'LV', 'Trần Thị B', 'KHO', '', new Date(2024, 0, 2), 1, new Date(1990, 4, 6), '', 901234568, '', '', '', '', 'NỮ', 'X', ''];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([headers, sub, hn], { cellDates: true }), 'Sheet1');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([headers.slice(0, 17), sub, sg], { cellDates: true }), 'Sheet2');
+  const rows = parseEmployeeWorkbook(XLSX.write(wb, { type: 'buffer', bookType: 'xlsx', cellDates: true }));
+  assert.equal(rows[0].gioiTinh, 'Nam');
+  assert.equal(rows[1].gioiTinh, 'Nữ');
+  assert.equal(rows[0].trangThaiNguon, 'NV');
+  assert.equal(rows[0].ngayNghiViec, '2026-06-30');
+});

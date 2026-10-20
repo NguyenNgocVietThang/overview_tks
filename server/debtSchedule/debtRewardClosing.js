@@ -5,7 +5,11 @@ async function settleDebtRewards(pool, {
   log = console.log,
   finalizePenalties = require('./debtPenaltyLedger').finalizePendingPenaltyCycles,
   rewardService = require('./debtRewardService').createDebtRewardService({ pool }),
-  notify = () => require('../kiotvietSync/dashboardRollupEvents').dashboardRollupEvents.emit('updated', { at: Date.now() })
+  notify = () => {
+    const { dashboardRollupEvents } = require('../kiotvietSync/dashboardRollupEvents');
+    dashboardRollupEvents.emit('debtScheduleChanged', { at: Date.now() });
+    dashboardRollupEvents.emit('updated', { at: Date.now() });
+  }
 } = {}) {
   await finalizePenalties(pool, { log });
   let notified = false;

@@ -737,7 +737,7 @@ Phương án B đã duyệt: tập SĐT/KPI Pancake riêng trong PostgreSQL, ng�
 
 19/10/2026 — Tính sẵn báo cáo (migration `0068`–`0070`): xem FR-16.10 (tháng hiện tại Báo cáo kinh doanh), FR-17.9 (chi phí ADS, doanh số theo tên, gộp SĐT của Marketing), FR-15.4 (view đọc Sổ quỹ). Không đổi quy tắc nghiệp vụ.
 
-## Bổ sung 20/10/2026 — Kế toán – Yêu cầu xuất VAT (FR-VR)
+## Bổ sung 20/10/2026 — Kế toán – ORDER VAT (FR-VR)
 
 - **FR-VR-1 (phạm vi)**: trang `/vat-request/` trong nhóm Kế toán thay Google Form + sheet ORDER VAT 1; API `/api/vat-requests`; dữ liệu `vat_requests` / `vat_request_history` (migration 0076).
 - **FR-VR-2 (quyền)**: `accounting.vatRequest` (mặc định Nhân viên sale, Kế toán, Quản lý; Khách bị cấm) xem toàn bộ bảng, tạo yêu cầu, sửa/xóa yêu cầu của mình; `accounting.vatRequestProcess` (mặc định chỉ Quản lý, cấp riêng theo từng tài khoản Kế toán tại `/account/`; cần quyền gốc) mới sửa trường KT và cập nhật hàng loạt. Kế toán chưa được cấp không xử lý được dù gọi API trực tiếp; Quản lý sửa được mọi trường. Kiểm tra ở server, giao diện chỉ ẩn nút.

@@ -1,4 +1,4 @@
-// Kế toán – Yêu cầu xuất VAT (thay Google Form + sheet ORDER VAT 1).
+// Kế toán – ORDER VAT (thay Google Form + sheet ORDER VAT 1).
 // Mọi luật quyền / khóa / version nằm ở server (/api/vat-requests); trang chỉ ẩn nút cho tiện.
 (function () {
   'use strict';
@@ -447,8 +447,8 @@
     $('vrFormCancel').textContent = editable ? 'Hủy' : 'Đóng';
     $('vrFormDelete').hidden = !(mode === 'edit' && row && row.canDelete);
     setHistoryOpen(false);
-    $('vrFormTitle').textContent = !row ? 'Tạo yêu cầu xuất VAT' : mode === 'history' ? `Lịch sử yêu cầu #${row.id}` : `Sửa yêu cầu #${row.id}`;
-    $('vrFormSub').textContent = row ? requestSummary(row) : 'Gửi yêu cầu xuất VAT cho kế toán.';
+    $('vrFormTitle').textContent = !row ? 'Tạo ORDER VAT' : mode === 'history' ? `Lịch sử yêu cầu #${row.id}` : `Sửa yêu cầu #${row.id}`;
+    $('vrFormSub').textContent = row ? requestSummary(row) : 'Gửi ORDER VAT cho kế toán.';
     $('vrHistoryTitle').textContent = row ? `Lịch sử yêu cầu #${row.id}` : 'Lịch sử yêu cầu';
     if (row) loadHistory(row.id);
     else { $('vrHistoryCount').textContent = ''; $('vrChatCount').textContent = ''; }
@@ -956,7 +956,7 @@
     $('vrGroupToggleWrap').hidden = !state.canProcess;
     $('vrSub').textContent = state.canProcess
       ? 'Lọc “Cần xử lý” để xem yêu cầu chờ khai; chọn nhiều dòng để đổi trạng thái hàng loạt.'
-      : 'Gửi yêu cầu xuất VAT cho kế toán. Yêu cầu ở trạng thái 0, 1, 2 đã khóa, không sửa được.';
+      : 'Gửi ORDER VAT cho kế toán. Yêu cầu ở trạng thái 0, 1, 2 đã khóa, không sửa được.';
     renderHead();
     await load();
   }

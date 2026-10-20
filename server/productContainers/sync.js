@@ -5,6 +5,7 @@ const { getPool } = require('../db/pool');
 const { createReadOnlyClient } = require('../sheets/sheetsClient');
 const { SHEET_NAMES, INTERVAL_MS, parseContainerSheet } = require('./parser');
 const { invalidateContainerDetails } = require('./repository');
+const { dashboardRollupEvents } = require('../kiotvietSync/dashboardRollupEvents');
 const { requestExpectedRefresh } = require('./expectedRefresh');
 const LOCK_KEY = 20531015;
 const SAFE_ERROR = 'Không đọc hoặc lưu được đủ 6 sheet CONT. Giữ nguyên bản thành công gần nhất.';
@@ -110,6 +111,7 @@ async function refreshContainers({
     await connection.query(UPDATE_SYNC_SQL,[changed,version,now(),attemptAt,JSON.stringify(warnings)]);
     await connection.query('COMMIT'); transaction = false;
     invalidateContainerDetails(pool);
+    dashboardRollupEvents.emit('containersChanged', { at: Date.now() });
     logger.info(changed ? '[ProductContainers] Updated' : '[ProductContainers] Unchanged', {
       durationMs:Date.now()-started, inserted, deleted, rows:lines.length,
       sheets:SHEET_NAMES.map((sheetName,index)=>({sheetName,rows:parsed[index].rows.length,skipped:parsed[index].warnings.length})), ...(changed ? { version } : {})

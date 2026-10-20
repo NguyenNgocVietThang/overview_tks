@@ -84,7 +84,7 @@ router.use(stockLocationsRoutes);
 router.use('/api/cashbook', cashbookRoutes);
 // Kế toán – Nháp VAT (port vat-draft-app): chứng từ theo cookie cơ sở, gắn resolveBranch trong router.
 router.use('/api/vat-draft', createVatDraftRouter());
-// Kế toán – Yêu cầu xuất VAT (thay sheet ORDER VAT 1): toàn công ty, không áp cookie cơ sở (gợi ý khách tự gắn resolveBranch).
+// Kế toán – ORDER VAT (thay sheet ORDER VAT 1): toàn công ty, không áp cookie cơ sở (gợi ý khách tự gắn resolveBranch).
 router.use('/api/vat-requests', createVatRequestRouter());
 // Báo cáo kinh doanh (tăng trưởng Sale/Khách/Mã hàng): gộp HN + SG, cũng không áp cookie cơ sở.
 router.use('/api/business-report', createBusinessReportRouter());

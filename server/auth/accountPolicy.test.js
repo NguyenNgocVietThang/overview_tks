@@ -92,9 +92,9 @@ test('checkGrant: chi duoc THEM quyen ma chinh actor co', () => {
 test('chi nguoi co quyen xu ly VAT moi duoc cap quyen nay cho Ke toan khac', () => {
   const target = user('Kế toán');
   const granted = user('Kế toán', { 'accounting.vatRequestProcess': true });
-  assert.match(policy.checkGrant(troLy(), target, granted), /Yêu cầu xuất VAT: xử lý trạng thái/);
+  assert.match(policy.checkGrant(troLy(), target, granted), /ORDER VAT: xử lý trạng thái/);
   assert.equal(policy.checkGrant(troLy({ 'accounting.vatRequest': true, 'accounting.vatRequestProcess': true }), target, granted), null);
-  assert.match(policy.checkTakeover(troLy(), granted, 'đặt lại mật khẩu'), /Yêu cầu xuất VAT: xử lý trạng thái/);
+  assert.match(policy.checkTakeover(troLy(), granted, 'đặt lại mật khẩu'), /ORDER VAT: xử lý trạng thái/);
   assert.equal(policy.checkGrant(manager, target, granted), null);
 });
 

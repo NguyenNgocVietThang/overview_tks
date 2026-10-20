@@ -13,6 +13,7 @@
 'use strict';
 
 const hrEmployeesRepository = require('./hrEmployeesRepository');
+const { normalizeGender } = require('./hrGender');
 const { canonicalDepartment } = require('./hrDepartmentCatalog');
 const { departmentKey } = require('./hrDepartment');
 const employeeDirectory = require('./employeeDirectory');
@@ -87,7 +88,7 @@ function createHrEmployeeAdminService(options = {}) {
       chucVu: clean(input.chucVu), ngayVaoLam: date(input.ngayVaoLam), ngaySinh: date(input.ngaySinh),
       soCccd: clean(input.soCccd), diaChiHienTai: clean(input.diaChiHienTai),
       nguoiThanQuanHe: clean(input.nguoiThanQuanHe), nguoiThanHoTen: clean(input.nguoiThanHoTen),
-      nguoiThanSoDienThoai: clean(input.nguoiThanSoDienThoai), gioiTinh: clean(input.gioiTinh),
+      nguoiThanSoDienThoai: clean(input.nguoiThanSoDienThoai), gioiTinh: normalizeGender(clean(input.gioiTinh)),
       hoSoDayDu: Boolean(input.hoSoDayDu), vanTayDaDangKy: Boolean(input.vanTayDaDangKy),
       ngayNghiViec: date(input.ngayNghiViec)
     };
