@@ -8,7 +8,7 @@
 
 **Tech Stack:** Node.js 22, Express/CommonJS, PostgreSQL NUMERIC, node:test/PGlite, Vanilla JS/CSS, bộ điều khiển bảng và Excel/HTML đang có.
 
-**Trạng thái 20/10/2026:** Đã phỏng vấn và được người dùng xác nhận nghiệp vụ. Đã lập trình và kiểm thử trên nhánh `feature/invoice-price-audit` (Task 1–5 xong; Task 6 giao diện + xuất file đang làm; Task 7 tài liệu cập nhật). **Chưa merge, chưa áp migration `0077` lên DB dùng chung, chưa deploy, job chưa chạy; production chưa triển khai.**
+**Trạng thái 20/10/2026:** Đã phỏng vấn và được người dùng xác nhận nghiệp vụ. Đã lập trình và kiểm thử trên nhánh `feature/invoice-price-audit` (Task 1–6 xong, giao diện đã kiểm trên trình duyệt với dữ liệu thử; Task 7: tài liệu và kiểm thử xong, các bước production còn lại). **Chưa merge, chưa áp migration `0077` lên DB dùng chung, chưa deploy, job chưa chạy; production chưa triển khai.**
 
 ## 1. Global Constraints và nghiệp vụ đã xác nhận
 
