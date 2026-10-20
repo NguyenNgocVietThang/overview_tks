@@ -20,11 +20,11 @@ Trang `/vat-request/` thay Google Form + sheet "ORDER VAT 1". Sale gửi yêu c�
 
 ## 2. Trạng thái hiện tại
 
-- Code nằm trên nhánh `feature/vat-requests`, đã gộp `origin/main` mới nhất để chuẩn bị PR; chưa deploy.
+- Code đã merge từ nhánh `feature/vat-requests` vào `main` qua PR #4 (`ac96b88`) ngày 20/10/2026; chưa xác nhận deploy Render.
 - **Migration `0076_vat_requests.sql` đã áp lên DB thật** ngày 20/10/2026 theo yêu cầu nhập CSV của chủ dự án. Đã nhập 1.357 yêu cầu cũ và 1.357 dòng lịch sử; mỗi `legacy_row` duy nhất.
 - Test 20/10/2026 sau gộp `origin/main`: `npm test` 2.980 test, 2.976 đạt, 3 bỏ qua, chỉ 1 test có sẵn trên main `test/frontend/sort-icons.test.js` lỗi CRLF trên Windows — đã sửa ở nhánh riêng `claude/cranky-pike-6ec25e` (commit `0e6bd34`, chưa merge). Kiểm tra PGlite/JSDOM riêng đều đạt; bản giả lập PGlite đã xem Kế toán được cấp/chưa cấp quyền, trước đó đã xem form tạo/sửa, mobile/desktop, sáng/tối.
 - `graphify update .` chưa chạy được (máy không cài graphify).
-- Cập nhật 20/10/2026: mặc định Tồn VAT đã chuyển sang tab GỘP MỚI `gid=39032` của cùng sheet công khai; mã gợi ý khách/giá đã bổ sung trong `suggestions.js`. Quyền xử lý VAT không còn cấp mặc định cho Kế toán; Quản lý vẫn có mặc định và có thể cấp riêng cho từng người. Chưa áp migration hoặc deploy.
+- Cập nhật 20/10/2026: mặc định Tồn VAT đã chuyển sang tab GỘP MỚI `gid=39032` của cùng sheet công khai; mã gợi ý khách/giá đã bổ sung trong `suggestions.js`. Quyền xử lý VAT không còn cấp mặc định cho Kế toán; Quản lý vẫn có mặc định và có thể cấp riêng cho từng người. Migration `0076` đã áp; chưa xác nhận deploy Render.
 
 ## 3. Bản đồ file
 
@@ -56,8 +56,8 @@ Trang `/vat-request/` thay Google Form + sheet "ORDER VAT 1". Sale gửi yêu c�
 
 1. **Chủ dự án xem lại giao diện** và góp ý tiếp (đang ở bước này). Xem bằng bản giả lập (mục 6), không cần DB.
 2. **Nguồn cột Tồn VAT**: tab GỘP MỚI `gid=39032` của sheet công khai `1dNabQaiob7CMozrqjA746uV-atHWJi8gbG6L-I0yrmU` đã kiểm tra CSV HTTP 200 và đặt làm mặc định. Nếu Render đang đặt `VAT_REQUEST_STOCK_GID` khác, đổi thành `39032`; giữ tab Khớp mã hiện hành (`gid=1192158065`).
-3. Push nhánh + mở PR vào `main` (có đồng nghiệp code trên `main` — **không commit/push thẳng `main`**).
-4. Migration `0076` đã áp; sau PR/merge thì deploy Render (chỉ 1 instance).
+3. Đã push nhánh và merge PR #4 vào `main` (`ac96b88`); không commit/push thẳng `main`.
+4. Migration `0076` đã áp; còn deploy Render (chỉ 1 instance).
 5. Đã import CSV `VAT TKS - ORDER VAT 1.csv`: 1.357 dòng, 1.210 dòng khớp Sale, 147 dòng giữ tên Sale do chưa khớp tài khoản; 13 thời gian lỗi, 2 thiếu SL, 24 thiếu giá, 1 thiếu mã SP. Import theo `legacy_row`, chạy lại không nhân đôi. SHA-256 của file đã nhập: `6A33E5B1965C7AEEF5AF67F971CABAC4C9F75CEF841125B2B422CA94C25A79B4` (không lưu CSV trong repo).
 6. `graphify update .` nếu máy có graphify.
 
