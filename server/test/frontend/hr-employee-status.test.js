@@ -48,6 +48,19 @@ async function openPage({ canManage, employees = EMPLOYEES }) {
 
 const names = doc => [...doc.querySelectorAll('#employeeDirectoryTableBody tr')].map(tr => tr.cells[0].textContent);
 
+test('quản lý không thấy STT và danh sách mặc định xếp ngày vào làm mới nhất lên đầu', async () => {
+  const employees = [
+    { id: 'old', hoTen: 'Nhân sự cũ', boPhan: 'KHO', coSo: 'Hà Nội', ngayVaoLam: '2023-01-01', createdAt: '2026-01-01T00:00:00.000Z', trangThai: 'Đang làm việc' },
+    { id: 'new', hoTen: 'Nhân sự mới', boPhan: 'SALE', coSo: 'Hà Nội', ngayVaoLam: '2026-10-19', createdAt: '2026-10-19T00:00:00.000Z', trangThai: 'Đang làm việc' },
+    { id: 'unknown-date', hoTen: 'Hồ sơ vừa thêm', boPhan: 'KHO', coSo: 'Hà Nội', ngayVaoLam: '', createdAt: '2026-10-20T00:00:00.000Z', trangThai: 'Đang làm việc' }
+  ];
+  const { dom, window } = await openPage({ canManage: true, employees });
+  const doc = window.document;
+  assert.match(doc.querySelector('#employeeDirectoryTableHead th').textContent, /^Họ và tên/);
+  assert.deepEqual([...doc.querySelectorAll('#employeeDirectoryTableBody tr')].map(row => row.cells[0].textContent), ['Nhân sự mới', 'Nhân sự cũ', 'Hồ sơ vừa thêm']);
+  dom.window.close();
+});
+
 test('danh sách nhân sự mặc định chỉ "Đang làm việc"; chữ xanh/đỏ theo trạng thái; có lựa chọn Đã nghỉ việc và Tất cả', async () => {
   const { dom, window } = await openPage({ canManage: false });
   const doc = window.document;
@@ -66,7 +79,7 @@ test('danh sách nhân sự mặc định chỉ "Đang làm việc"; chữ xanh/
 
   filter.value = '';
   window.renderEmployeeDirectoryTable();
-  assert.deepEqual(names(doc), ['An Kho', 'Bình Sale']);
+  assert.deepEqual(names(doc), ['Bình Sale', 'An Kho']);
   dom.window.close();
 });
 
@@ -86,7 +99,7 @@ test('người có quyền quản lý: hiện bảng hồ sơ mở rộng, bấm
   const { dom, window, sent } = await openPage({ canManage: true });
   const doc = window.document;
   assert.equal(doc.getElementById('btnAddEmployee').hidden, false);
-  assert.equal(doc.querySelectorAll('#employeeDirectoryTableHead th').length, 19);
+  assert.equal(doc.querySelectorAll('#employeeDirectoryTableHead th').length, 18);
   assert.equal(doc.getElementById('btnImportEmployeeDirectory').hidden, true, 'đã có danh sách thì không cho nhập đè');
   const row = doc.querySelector('#employeeDirectoryTableBody tr');
 
@@ -121,6 +134,9 @@ test('nút Thêm nhân sự mở form trống, mặc định Đang làm việc, 
   assert.equal(doc.getElementById('empHoTen').value, '');
   assert.equal(doc.getElementById('empTrangThai').value, 'active');
   assert.equal(doc.getElementById('empCreatedAtGroup').hidden, true, 'chưa có ngày thêm khi tạo mới');
+  const today = new Date();
+  const todayInput = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  assert.equal(doc.getElementById('empNgayVaoLam').value, todayInput, 'thêm mới mặc định ngày vào làm hôm nay để lên đầu danh sách');
   doc.getElementById('empHoTen').value = 'Chi Mới';
   doc.getElementById('empBoPhan').value = 'KHO';
   await window.saveEmployee({ preventDefault() {} });
@@ -184,8 +200,8 @@ test('do rong cot nhan su dua theo gia tri dai nhat va co gioi han hop ly', asyn
 
   const manager = await openPage({ canManage: true });
   const managerHeaders = manager.window.document.querySelectorAll('#employeeDirectoryTableHead th');
-  assert.equal(managerHeaders[0].style.width, '40px');
-  assert.ok(parseInt(managerHeaders[17].style.width, 10) < 75);
+  assert.ok(parseInt(managerHeaders[0].style.width, 10) < 140);
+  assert.ok(parseInt(managerHeaders[16].style.width, 10) < 75);
   manager.dom.window.close();
 });
 
@@ -195,7 +211,7 @@ test('quan ly xem danh sach theo thu tu file nhan su, an nut nhap khi da co du l
   const headers = [...doc.querySelectorAll('#employeeDirectoryTableHead th')]
     .map(th => th.textContent.replace(/[▲▼]/g, '').trim());
   assert.deepEqual(headers, [
-    'STT', 'Họ và tên', 'Bộ phận', 'Chức vụ', 'Ngày vào làm', 'Số ngày LV', 'Ngày sinh', 'Số CCCD', 'SĐT',
+    'Họ và tên', 'Bộ phận', 'Chức vụ', 'Ngày vào làm', 'Số ngày LV', 'Ngày sinh', 'Số CCCD', 'SĐT',
     'Địa chỉ hiện tại', 'Giới tính', 'Hồ sơ', 'Vân tay', 'Cơ sở', 'QH người thân', 'Họ tên người thân',
     'SĐT người thân', 'Trạng thái', 'Ngày nghỉ việc'
   ]);
@@ -215,13 +231,13 @@ test('nut sap xep danh sach nhan su sap xep ngay va so theo gia tri thuc, khong 
   const dateSort = doc.querySelector('#employeeDirectoryTable th[data-column-key="ngay-vao-lam"] .sort-button');
   dateSort.click();
   assert.deepEqual(
-    [...doc.querySelectorAll('#employeeDirectoryTableBody tr')].map(row => row.cells[1].textContent),
+    [...doc.querySelectorAll('#employeeDirectoryTableBody tr')].map(row => row.cells[0].textContent),
     ['B', 'C', 'A']
   );
-  const firstDate = doc.querySelector('#employeeDirectoryTableBody tr').cells[4];
+  const firstDate = doc.querySelector('#employeeDirectoryTableBody tr').cells[3];
   assert.match(firstDate.getAttribute('data-sort-value'), /^\d+$/);
   assert.ok(firstDate.classList.contains('employee-date'));
-  assert.ok(doc.querySelector('#employeeDirectoryTableBody tr').cells[5].classList.contains('employee-number'));
+  assert.ok(doc.querySelector('#employeeDirectoryTableBody tr').cells[4].classList.contains('employee-number'));
   dom.window.close();
 });
 

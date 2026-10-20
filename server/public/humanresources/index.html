@@ -2913,7 +2913,7 @@
       ['Số điện thoại','so-dien-thoai',115], ['Trạng thái','trang-thai',50]
     ];
     const EMPLOYEE_MANAGER_HEAD = [
-      ['STT','stt',42], ['Họ và tên','ho-va-ten',240], ['Bộ phận','bo-phan',150], ['Chức vụ','chuc-vu',180],
+      ['Họ và tên','ho-va-ten',240], ['Bộ phận','bo-phan',150], ['Chức vụ','chuc-vu',180],
       ['Ngày vào làm','ngay-vao-lam',110], ['Số ngày LV','so-ngay-lv',90], ['Ngày sinh','ngay-sinh',110],
       ['Số CCCD','so-cccd',125], ['SĐT','so-dien-thoai',115], ['Địa chỉ hiện tại','dia-chi',210],
       ['Giới tính','gioi-tinh',72], ['Hồ sơ','ho-so',52], ['Vân tay','van-tay',52], ['Cơ sở','co-so',100],
@@ -2923,7 +2923,6 @@
 
     function employeeColumnText(columnKey, employee, index){
       switch(columnKey){
-        case 'stt': return index + 1;
         case 'trang-thai': return employeeStatusText(employee);
         case 'ngay-vao-lam': return formatEmployeeDate(employee.ngayVaoLam);
         case 'so-ngay-lv': return employeeWorkingDays(employee);
@@ -3004,13 +3003,12 @@
 
     function employeeCellClass(columnKey){
       if(columnKey === 'dia-chi') return 'employee-address';
-      if(['stt','so-ngay-lv','so-cccd','so-dien-thoai','sdt-nguoi-than'].includes(columnKey)) return 'employee-number';
+      if(['so-ngay-lv','so-cccd','so-dien-thoai','sdt-nguoi-than'].includes(columnKey)) return 'employee-number';
       if(['ngay-vao-lam','ngay-sinh','ngay-nghi-viec'].includes(columnKey)) return 'employee-date';
       return 'employee-text';
     }
 
     function employeeSortValue(columnKey, employee, index){
-      if(columnKey === 'stt') return index + 1;
       if(columnKey === 'so-ngay-lv') return employeeWorkingDays(employee).replace(/[^0-9-]/g,'');
       if(['ngay-vao-lam','ngay-sinh','ngay-nghi-viec'].includes(columnKey)){
         const d=employeeStartDate(columnKey === 'ngay-vao-lam' ? employee.ngayVaoLam : columnKey === 'ngay-sinh' ? employee.ngaySinh : employee.ngayNghiViec);
@@ -3028,6 +3026,18 @@
     }
 
     const employeePaging = { page: 1, size: 50 };
+
+    function employeeNewestFirst(a,b){
+      const aStart=employeeStartDate(a.ngayVaoLam);
+      const bStart=employeeStartDate(b.ngayVaoLam);
+      if(aStart && bStart && aStart.getTime() !== bStart.getTime()) return bStart - aStart;
+      if(aStart) return -1;
+      if(bStart) return 1;
+      const aCreated=Date.parse(a.createdAt || a.ngayThem || '') || 0;
+      const bCreated=Date.parse(b.createdAt || b.ngayThem || '') || 0;
+      if(aCreated !== bCreated) return bCreated - aCreated;
+      return 0;
+    }
 
     function paginateEmployeeDirectoryTable(){
       const tbody = document.getElementById('employeeDirectoryTableBody');
@@ -3086,7 +3096,7 @@
         if(branch && e.coSo !== branch) return false;
         if(department && departmentKey(e.boPhan) !== department) return false;
         return !keyword || [e.hoTen, e.boPhan, e.chucVu, e.soDienThoai].some(v => String(v || '').toLowerCase().includes(keyword));
-      });
+      }).sort(employeeNewestFirst);
       if(!filtered.length){
         tbody.innerHTML = `<tr class="empty-row"><td colspan="${employeeCanManage ? EMPLOYEE_MANAGER_HEAD.length : EMPLOYEE_BASIC_HEAD.length}">${rawEmployeeDirectory.length ? 'Không tìm thấy nhân sự phù hợp.' : 'Chưa có dữ liệu nhân sự.'}</td></tr>`;
         paginateEmployeeDirectoryTable();
@@ -3185,7 +3195,9 @@
       document.getElementById('empBoPhan').value = employee ? employee.boPhan : '';
       document.getElementById('empSdt').value = employee ? employee.soDienThoai : '';
       document.getElementById('empChucVu').value = employee ? (employee.chucVu || '') : '';
-      document.getElementById('empNgayVaoLam').value = employee ? (employee.ngayVaoLam || '') : '';
+      const today=new Date();
+      const todayInput=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+      document.getElementById('empNgayVaoLam').value = employee ? (employee.ngayVaoLam || '') : todayInput;
       document.getElementById('empNgaySinh').value = employee ? (employee.ngaySinh || '') : '';
       document.getElementById('empGioiTinh').value = employee ? (employee.gioiTinh || '') : '';
       document.getElementById('empSoCccd').value = employee ? (employee.soCccd || '') : '';
