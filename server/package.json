@@ -11,6 +11,7 @@
     "build": "node -e \"console.log('Express app: no build step required')\"",
     "start": "node --max-old-space-size=1024 index.js",
     "dev": "node --max-old-space-size=4096 index.js",
+    "worker": "node --max-old-space-size=1024 worker.js",
     "test": "node --max-old-space-size=4096 --test",
     "db:migrate": "node db/migrate.js",
     "telegram-manager:set-webhook": "node telegram/setManagerLeaveWebhook.js",

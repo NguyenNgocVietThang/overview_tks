@@ -48,6 +48,10 @@ function detailError(statusCode, message, code) {
 }
 
 const detailCaches = new WeakMap();
+// Sync chay o worker.js -> web xoa cache chi tiet cua minh khi nhan su kien.
+require('../kiotvietSync/dashboardRollupEvents').dashboardRollupEvents.on('containersChanged', info => {
+  if (info && info.remote) invalidateContainerDetails();
+});
 const DETAIL_TTL_MS = 5 * 60 * 1000;
 const DETAIL_CACHE_LIMIT = 500;
 function detailCache(pool) {

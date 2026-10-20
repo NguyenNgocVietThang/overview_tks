@@ -121,7 +121,8 @@ function toColumnArrays(rows) {
 
 let running = null;
 let rerunRequested = false;
-const listeners = new Set();
+// Bao thay doi qua bus chung -> den duoc ca tien trinh web khi job chay o worker.js.
+const { dashboardRollupEvents } = require('../kiotvietSync/dashboardRollupEvents');
 
 /** Tinh lai + ghi khac biet. Goi trung luc dang chay -> chay them 1 luot sau (khong chong luot). */
 async function refreshDebtAging(pool = getPool(), { now = Date.now, log = console.log, branches = BRANCH_CODES } = {}) {
@@ -171,15 +172,15 @@ async function refreshOnce(pool, { now, log, branches }) {
     if (client !== pool && client.release) client.release();
   }
   const changed = written + deleted > 0;
-  if (changed) for (const listener of listeners) listener({ version });
+  if (changed) dashboardRollupEvents.emit('debtAgingChanged', { version });
   log(`[DebtAging] ${rows.length} khach, ghi ${written}, xoa ${deleted} (${Date.now() - startedAt} ms)`);
   return { customers: rows.length, written, deleted, changed, version, today };
 }
 
 /** Goi khi bang ket qua doi (vd xoa cache doc). */
 function onDebtAgingChanged(listener) {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
+  dashboardRollupEvents.on('debtAgingChanged', listener);
+  return () => dashboardRollupEvents.off('debtAgingChanged', listener);
 }
 
 /** Lam moi nen, nuot loi (dung cho hook sau dong bo / sua lich TT). */

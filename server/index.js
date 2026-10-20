@@ -5,7 +5,10 @@ const cookieParser = require('cookie-parser');
 const CONFIG = require('./config');
 const routes = require('./routes');
 const localUserStore = require('./auth/localUserStore');
-const { startPollingScheduler } = require('./kiotvietSync/scheduler');
+// Nap scheduler ngay ca khi job chay o worker: module dang ky listener xoa cache web
+// (customersChanged, debtScheduleChanged) va nut "Tinh lai cong no" dung syncCustomers.
+require('./kiotvietSync/scheduler');
+const { startBackgroundJobs } = require('./jobs');
 const { prewarmDashboardCaches } = require('./dashboard/dashboardData');
 const { captureWebhookRawBody, webhookJsonErrorHandler } = require('./kiotviet/kiotvietWebhookRoutes');
 const { pageGuard } = require('./auth/pageGuard');
@@ -156,24 +159,19 @@ async function startServer() {
       process.once('SIGINT', () => memoryMonitor.stop());
     }
 
-    const containerSchedule = require('./productContainers/sync').startContainerSchedule();
-    process.once('SIGTERM', () => containerSchedule.stop());
-    process.once('SIGINT', () => containerSchedule.stop());
-
-    // Vị trí hàng (HN/SG) + CÂN ĐO: đọc Google Sheets theo chu kỳ vào Postgres, web chỉ đọc DB.
-    const sheetSnapshots = require('./sheetSnapshots/sync').startSheetSnapshotSchedule();
-    process.once('SIGTERM', () => sheetSnapshots.stop());
-    process.once('SIGINT', () => sheetSnapshots.stop());
-
-    if (CONFIG.PANCAKE_MARKETING_SYNC_ENABLED) {
-      const pancakeScheduler = require('./marketingReport/pancakeScheduler').createPancakeScheduler({ enabled: true });
-      pancakeScheduler.start();
-      process.once('SIGTERM', () => pancakeScheduler.stop());
-      process.once('SIGINT', () => pancakeScheduler.stop());
-    }
-
-    if (CONFIG.KIOTVIET_SYNC_ENABLED || CONFIG.KIOTVIET_CASHBOOK_SYNC_ENABLED) {
-      startPollingScheduler();
+    if (CONFIG.BACKGROUND_JOBS === 'worker') {
+      // Job chay o worker.js: chi nghe su kien doi du lieu de xoa cache / day SSE.
+      const { Client } = require('pg');
+      const { listenToPostgres } = require('./kiotvietSync/dashboardRollupEvents');
+      const listener = listenToPostgres(() => new Client({
+        connectionString: CONFIG.SUPABASE_DB_URL,
+        keepAlive: true,
+        ssl: CONFIG.PGSSL ? { rejectUnauthorized: false } : false
+      }));
+      process.once('SIGTERM', () => listener.stop());
+      process.once('SIGINT', () => listener.stop());
+    } else {
+      startBackgroundJobs();
     }
 
     // Nap san cache dashboard ngay sau khi server san sang nhan request, KHONG
