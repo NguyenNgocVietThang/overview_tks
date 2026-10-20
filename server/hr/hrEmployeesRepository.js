@@ -7,6 +7,7 @@
 'use strict';
 
 const { getPool } = require('../db/pool');
+const { normalizeGender } = require('./hrGender');
 
 // Cot DATE cua Postgres duoc `pg` tra ve dang Date (nua dem gio may chu). Chuan hoa ve 'YYYY-MM-DD'
 // de web, file Excel va phep tinh so ngay lam viec doc cung mot gia tri.
@@ -38,7 +39,7 @@ function rowToEmployee(row) {
     nguoiThanQuanHe: row.nguoi_than_quan_he || '',
     nguoiThanHoTen: row.nguoi_than_ho_ten || '',
     nguoiThanSoDienThoai: row.nguoi_than_so_dien_thoai || '',
-    gioiTinh: row.gioi_tinh || '',
+    gioiTinh: normalizeGender(row.gioi_tinh),
     hoSoDayDu: !!row.ho_so_day_du,
     vanTayDaDangKy: !!row.van_tay_da_dang_ky,
     ngayNghiViec: dateOnly(row.ngay_nghi_viec),

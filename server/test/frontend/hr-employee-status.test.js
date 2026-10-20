@@ -389,3 +389,50 @@ test('form nhân sự: Bộ phận là danh sách chọn cố định theo cơ s
   assert.equal(doc.getElementById('empBoPhan').tagName, 'SELECT');
   dom.window.close();
 });
+
+test('bảng nhân sự ẩn mặc định cột Trạng thái và Ngày nghỉ việc nhưng bộ lọc trạng thái vẫn chạy', async () => {
+  const { dom, window } = await openPage({ canManage: true });
+  const doc = window.document;
+  const head = key => doc.querySelector(`#employeeDirectoryTableHead th[data-column-key="${key}"]`);
+  for (const key of ['trang-thai', 'ngay-nghi-viec']) {
+    assert.ok(head(key), `${key} vẫn có trong bảng (bật lại được ở Cột hiển thị)`);
+    assert.equal(head(key).dataset.columnDefaultHidden, 'true', `${key} ẩn mặc định`);
+  }
+  assert.equal(head('ho-va-ten').dataset.columnDefaultHidden, undefined);
+  doc.getElementById('employeeStatusFilter').value = 'resigned';
+  window.renderEmployeeDirectoryTable();
+  assert.deepEqual(names(doc), ['Bình Sale']);
+  dom.window.close();
+
+  const basic = await openPage({ canManage: false });
+  const basicStatus = basic.window.document.querySelector('#employeeDirectoryTableHead th[data-column-key="trang-thai"]');
+  assert.equal(basicStatus.dataset.columnDefaultHidden, 'true', 'bảng nhân viên thường cũng ẩn mặc định Trạng thái');
+  basic.dom.window.close();
+});
+
+test('hộp chi tiết nhân sự hiện đúng giới tính của nhân sự cũ ghi viết hoa (NAM/NỮ) và không làm mất khi lưu', async () => {
+  const employees = [
+    { id: '1', hoTen: 'Cũ Nam', boPhan: 'KHO', coSo: 'Hà Nội', trangThai: 'Đang làm việc', gioiTinh: 'NAM' },
+    { id: '2', hoTen: 'Cũ Nữ', boPhan: 'KHO', coSo: 'Hà Nội', trangThai: 'Đang làm việc', gioiTinh: 'NỮ' },
+    { id: '3', hoTen: 'Lạ', boPhan: 'KHO', coSo: 'Hà Nội', trangThai: 'Đang làm việc', gioiTinh: 'Không rõ' }
+  ];
+  const { dom, window, sent } = await openPage({ canManage: true, employees });
+  const doc = window.document;
+  window.openEmployeeModal('1');
+  assert.equal(doc.getElementById('empGioiTinh').value, 'Nam');
+  window.openEmployeeModal('2');
+  assert.equal(doc.getElementById('empGioiTinh').value, 'Nữ');
+  window.openEmployeeModal('3');
+  assert.equal(doc.getElementById('empGioiTinh').value, 'Không rõ', 'giá trị lạ vẫn hiện, không bị xóa khi lưu');
+  window.openEmployeeModal('2');
+  await window.saveEmployee({ preventDefault() {} });
+  const put = sent.find(item => item.method === 'PUT');
+  assert.equal(put.body.gioiTinh, 'Nữ');
+  dom.window.close();
+});
+
+test('khung bảng tĩnh ban đầu cũng đánh dấu Trạng thái ẩn mặc định (table-controls nhớ cột theo lần dựng đầu)', () => {
+  const html = fs.readFileSync(htmlPath, 'utf8');
+  const head = html.slice(html.indexOf('id="employeeDirectoryTableHead"'), html.indexOf('id="employeeDirectoryTableBody"'));
+  assert.match(head, /data-column-key="trang-thai" data-column-default-hidden="true"/);
+});

@@ -1142,7 +1142,7 @@
                     <th style="width:140px" data-column-key="chuc-vu">Chức vụ</th>
                     <th style="width:90px" data-column-key="co-so">Cơ sở</th>
                     <th style="width:125px" data-column-key="so-dien-thoai">Số điện thoại</th>
-                    <th style="width:70px" data-column-key="trang-thai">Trạng thái</th>
+                    <th style="width:70px" data-column-key="trang-thai" data-column-default-hidden="true">Trạng thái</th>
                     <th style="width:130px" id="employeeCreatedAtTh" hidden data-column-key="ngay-them">Ngày thêm</th>
                   </tr>
                 </thead>
@@ -2949,7 +2949,7 @@
     // Độ rộng được đo theo giá trị của dòng dữ liệu, không lấy theo tiêu đề.
     const EMPLOYEE_BASIC_HEAD = [
       ['Họ và tên','ho-va-ten',240], ['Bộ phận','bo-phan',180], ['Cơ sở','co-so',100],
-      ['Số điện thoại','so-dien-thoai',115], ['Trạng thái','trang-thai',50]
+      ['Số điện thoại','so-dien-thoai',115], ['Trạng thái','trang-thai',50,true]
     ];
     const EMPLOYEE_MANAGER_HEAD = [
       ['Họ và tên','ho-va-ten',240], ['Bộ phận','bo-phan',150], ['Chức vụ','chuc-vu',180],
@@ -2957,7 +2957,7 @@
       ['Số CCCD','so-cccd',125], ['SĐT','so-dien-thoai',115], ['Địa chỉ hiện tại','dia-chi',210],
       ['Giới tính','gioi-tinh',72], ['Hồ sơ','ho-so',52], ['Vân tay','van-tay',52], ['Cơ sở','co-so',100],
       ['QH người thân','qh-nguoi-than',120], ['Họ tên người thân','ten-nguoi-than',180],
-      ['SĐT người thân','sdt-nguoi-than',115], ['Trạng thái','trang-thai',50], ['Ngày nghỉ việc','ngay-nghi-viec',110]
+      ['SĐT người thân','sdt-nguoi-than',115], ['Trạng thái','trang-thai',50,true], ['Ngày nghỉ việc','ngay-nghi-viec',110,true]
     ];
 
     function employeeColumnText(columnKey, employee, index){
@@ -2970,7 +2970,7 @@
         case 'qh-nguoi-than': return employee.nguoiThanQuanHe;
         case 'ten-nguoi-than': return employee.nguoiThanHoTen;
         case 'sdt-nguoi-than': return employee.nguoiThanSoDienThoai;
-        case 'gioi-tinh': return employee.gioiTinh;
+        case 'gioi-tinh': return normalizeEmployeeGender(employee.gioiTinh);
         case 'ho-so': return employee.hoSoDayDu ? 'Đủ' : 'Thiếu';
         case 'van-tay': return employee.vanTayDaDangKy ? 'Có' : 'Chưa';
         case 'ngay-nghi-viec': return formatEmployeeDate(employee.ngayNghiViec);
@@ -2997,15 +2997,35 @@
       return Math.min(maxWidth, Math.max(32, contentWidth));
     }
 
+    // Dữ liệu cũ từ file ghi "NAM"/"NỮ": quy về đúng lựa chọn của ô chọn để không hiện trống và không mất khi lưu.
+    function normalizeEmployeeGender(value){
+      const text=String(value == null ? '' : value).trim();
+      if(!text) return '';
+      const key=text.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/gi,'d').toUpperCase();
+      return ({NAM:'Nam',NU:'Nữ',KHAC:'Khác'})[key] || text;
+    }
+    function setEmployeeGenderSelect(value){
+      const select=document.getElementById('empGioiTinh');
+      const gender=normalizeEmployeeGender(value);
+      select.querySelectorAll('option[data-legacy-gender]').forEach(option => option.remove());
+      if(gender && ![...select.options].some(option => option.value === gender)){
+        const option=document.createElement('option');
+        option.value=gender; option.textContent=gender; option.dataset.legacyGender='true';
+        select.appendChild(option);
+      }
+      select.value=gender;
+    }
+
     function renderEmployeeDirectoryHead(){
       const head=document.getElementById('employeeDirectoryTableHead');
       const table=document.getElementById('employeeDirectoryTable');
       const columns=employeeCanManage ? EMPLOYEE_MANAGER_HEAD : EMPLOYEE_BASIC_HEAD;
       const widths=columns.map(column => employeeColumnWidth(column, rawEmployeeDirectory));
-      head.innerHTML='<tr>'+columns.map(function(c,index){ return '<th class="'+employeeCellClass(c[1])+'" style="width:'+widths[index]+'px" data-column-key="'+c[1]+'">'+c[0]+'</th>'; }).join('')+'</tr>';
+      // Cột thứ 4 = true: ẩn mặc định (Trạng thái, Ngày nghỉ việc) — dữ liệu vẫn có để lọc/xuất, bật lại ở "Cột hiển thị".
+      head.innerHTML='<tr>'+columns.map(function(c,index){ return '<th class="'+employeeCellClass(c[1])+'" style="width:'+widths[index]+'px" data-column-key="'+c[1]+'"'+(c[3] ? ' data-column-default-hidden="true"' : '')+'>'+c[0]+'</th>'; }).join('')+'</tr>';
       // Không để CSS width:100% tự chia phần trống khiến cột ngắn bị giãn quá mức.
       table.dataset.tableFit=employeeCanManage ? 'off' : 'contain';
-      table.style.width=employeeCanManage ? widths.reduce((total,width) => total + width, 0)+'px' : '100%';
+      table.style.width=employeeCanManage ? widths.reduce((total,width,index) => total + (columns[index][3] ? 0 : width), 0)+'px' : '100%';
       delete table.dataset.sortInited;
       initSortableTables();
     }
@@ -3291,7 +3311,7 @@
       const todayInput=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
       document.getElementById('empNgayVaoLam').value = employee ? (employee.ngayVaoLam || '') : todayInput;
       document.getElementById('empNgaySinh').value = employee ? (employee.ngaySinh || '') : '';
-      document.getElementById('empGioiTinh').value = employee ? (employee.gioiTinh || '') : '';
+      setEmployeeGenderSelect(employee ? employee.gioiTinh : '');
       document.getElementById('empSoCccd').value = employee ? (employee.soCccd || '') : '';
       document.getElementById('empDiaChi').value = employee ? (employee.diaChiHienTai || '') : '';
       document.getElementById('empNguoiThanQuanHe').value = employee ? (employee.nguoiThanQuanHe || '') : '';
