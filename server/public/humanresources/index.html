@@ -1097,7 +1097,7 @@
               </button>
             </div>
             <div class="users-table-scroll has-pager">
-              <table class="users-table fixed-table" id="employeeDirectoryTable" data-table-key="employeeDirectoryTable">
+              <table class="users-table fixed-table" id="employeeDirectoryTable" data-table-key="employeeDirectoryTable" data-table-fit="off">
                 <thead id="employeeDirectoryTableHead">
                   <tr>
                     <th style="width:180px" data-column-key="ho-va-ten">Họ và tên</th>
@@ -2942,14 +2942,14 @@
     function employeeTextWidth(value){
       const units = Array.from(String(value || '')).reduce((total, char) => total + (char.charCodeAt(0) > 255 ? 1.6 : 1), 0);
       // 16px padding moi ben + vien + phan dem nho de gia tri khong bi xuong dong.
-      return Math.ceil(40 + units * 7.2);
+      return Math.ceil(34 + units * 7.2);
     }
 
     function employeeColumnWidth(column, employees){
       const [, key, maxWidth] = column;
       const contentWidth = employees.reduce((widest, employee, index) =>
         Math.max(widest, employeeTextWidth(employeeColumnText(key, employee, index))), 0);
-      return Math.min(maxWidth, Math.max(48, contentWidth));
+      return Math.min(maxWidth, Math.max(36, contentWidth));
     }
 
     function renderEmployeeDirectoryHead(){
