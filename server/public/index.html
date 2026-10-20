@@ -8008,7 +8008,11 @@
       const rows = data.rows || [];
       if (!rows.length) content += '<div class="doc-modal-note">Không có hàng dự kiến phù hợp cho sản phẩm này.</div>';
       else content += '<div class="dp-table-wrap is-flow"><table class="dp-table is-min-wide" data-table-key="dashboard-table-product-containers"><thead><tr>' +
-        columns.map(function (col) { return '<th' + (col[2] ? ' class="num"' : '') + '>' + col[1] + '</th>'; }).join('') +
+        columns.map(function (col) {
+          // Quản lý / Trợ lý (full): Màu sắc và Ghi chú sale ẩn mặc định, bật lại bằng "Cột hiển thị".
+          const hide = full && (col[0] === 'color' || col[0] === 'saleNote');
+          return '<th' + (col[2] ? ' class="num"' : '') + (hide ? ' data-column-default-hidden="true"' : '') + '>' + col[1] + '</th>';
+        }).join('') +
         '</tr></thead><tbody>' + rows.map(function (row) {
           return '<tr>' + columns.map(function (col) {
             const value = row[col[0]];
