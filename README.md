@@ -70,6 +70,7 @@ Mở `http://localhost:3000`.
 | `DASHBOARD_PREWARM` | Nạp sẵn cache nguồn lúc khởi động; mặc định bật, `false` để tắt |
 | `MEMORY_MONITOR` / `MEMORY_LOG_INTERVAL_MS` / `MEMORY_LIMIT_MB` | Log bộ nhớ định kỳ; mặc định bật, 60000 ms, trần cảnh báo 2048 MB (`MEMORY_MONITOR=false` để tắt) |
 | `XKIRO_API_KEY`, `XKIRO_BASE_URL`, `INVOICE_VISION_MODEL`, `INVOICE_VISION_FALLBACK_MODEL` | AI đọc ảnh hóa đơn ở tab Tạo QR (xKiro, chuẩn OpenAI). Thiếu key = tắt, trang báo nhập tay; mặc định model `qwen/qwen3.8-max:free`, dự phòng `qwen/qwen3-vl-plus:free` |
+| `VAT_REQUEST_STOCK_SHEET_ID`, `VAT_REQUEST_STOCK_GID`, `VAT_REQUEST_STOCK_COLUMN`, `VAT_REQUEST_MAPPING_SHEET_ID`, `VAT_REQUEST_MAPPING_GID` | Nguồn cột **Tồn VAT** của Yêu cầu xuất VAT: tab GỘP MỚI (cột I `TỒN ĐẦU NGÀY`) + Khớp mã, sheet phải chia sẻ công khai. Bỏ trống = đọc tab Gộp VAT + Khớp mã của sheet Nháp VAT |
 | `PG_POOL_MAX` | Trần kết nối pool `pg` mỗi instance (mặc định 7; 2 × giá trị ≤ 15 của Supabase session pooler) |
 
 Xem [server/.env.example](server/.env.example) để biết đầy đủ cấu hình.
@@ -97,6 +98,7 @@ server/
 ├── public/               # Frontend HTML/CSS/JS
 │   ├── cashbook/         # Trang Sổ quỹ: bộ lọc/hash, số dư, chốt và xuất chọn cột
 │   ├── vat-draft/        # Trang Kế toán – Nháp VAT: chọn HD/DH hoặc dán dữ liệu, kết quả phân bổ + Ghi chú tổng, QR; Tạo QR từ PDF (2 cột, QR to bên phải; sale dùng được qua accounting.qr); cell-select.js chọn ô kiểu Google Sheet + Ctrl+C
+│   ├── vat-request/      # Trang Kế toán – Yêu cầu xuất VAT (thay sheet ORDER VAT 1): sale tạo/sửa yêu cầu của mình, KT sửa nhanh trạng thái/ghi chú/ngày về, chọn nhiều dòng, gom theo mã SP
 │   ├── vendor/pdfjs/     # pdf.js 4.10.38 (legacy build) đọc text hóa đơn PDF ngay trong trình duyệt
 │   └── shared/
 │       └── detail-panel.css # Khung xem chi tiết dùng chung (.dp-): chỉ số tổng quan, bảng 1 khung cuộn, tắt nút chọn cột
@@ -107,6 +109,7 @@ server/
 ├── shipment/             # Vòng đời đơn hàng: đơn KiotViet (Postgres) ghép Google Sheet, lọc/phân trang ở máy chủ
 ├── telegram/             # Bot quản lý nghỉ phép, webhook, giao tin bền vững + đăng ký webhook
 ├── vatDraft/             # Kế toán – Nháp VAT (port vat-draft-app): phân bổ nguồn nháp, VietQR, đọc ảnh hóa đơn bằng AI (invoiceVision.js, xKiro), đọc 2 Google Sheet công khai, chứng từ HD/DH từ Postgres
+├── vatRequests/          # Yêu cầu xuất VAT: whitelist trường sale/KT, khóa theo trạng thái, version chống ghi đè (409), lịch sử từng trường; Tồn VAT/Dự kiến về tính live
 ├── index.js
 └── routes.js
 ```
@@ -118,6 +121,8 @@ Migration `0014_customer_debt_activity_periods.sql` tạo bảng tổng hợp ba
 Migration `0015_app_users_telegram_id.sql` thêm `app_users.telegram_id` để bot có thể liên kết trực tiếp qua Supabase Postgres. Giao diện/API tạo mã liên kết cũ không còn đọc hoặc ghi tab `_HR_TELEGRAM_LINKS`.
 
 ## Cập nhật gần nhất
+
+20/10/2026 — **Kế toán – Yêu cầu xuất VAT `/vat-request/` (thay Google Form + sheet ORDER VAT 1; migration `0073`, nhánh `feature/vat-requests`, chưa merge/deploy, chưa áp migration)**: bảng `vat_requests` + `vat_request_history` (chỉ ghi thêm). Sale (quyền `accounting.vatRequest`, mặc định Sale + Kế toán + Quản lý) tạo yêu cầu: chọn mã SP (gợi ý từ `product_report`), khách gõ tự do + gợi ý KiotViet, SL nguyên > 0, giá chưa VAT, Full VAT / Không full VAT, ghi chú; xem được cả bảng (chỉ đọc dòng của người khác). Kế toán (`accounting.vatRequestProcess`) chỉ sửa KT phản hồi / KT note / Ngày về, sửa nhanh trên dòng hoặc chọn nhiều dòng; lọc "Cần xử lý" (pending, 3, 4); chế độ gom theo mã SP. Khóa: trạng thái 0/1/2 sale không sửa/xóa được; sale sửa yêu cầu đang 3/4 → tự về pending; KT đổi trạng thái mọi chiều (lùi là mở khóa). Mọi lần lưu kèm `version` (lệch → 409 kèm bản mới nhất). Cột live: Tồn VAT = TỒN ĐẦU NGÀY tab GỘP MỚI qua Khớp mã (biến `VAT_REQUEST_STOCK_*`; chưa cấu hình thì đọc tab Gộp VAT của sheet Nháp VAT), SLG cần khai = Σ SL yêu cầu cùng mã ở 3/4, Dự kiến hàng về = Σ CONT trạng thái 1–3, Ngày về gần nhất = ETA sớm nhất (đọc chữ "DK 14-16/10"). Import sheet cũ: `npm run vat-requests:import-order-vat -- --file <csv>` (chạy thử, thêm `--apply` để ghi).
 
 19/10/2026 (tối) — **Kế toán – Nháp VAT: đồng bộ giao diện với design system + xuất Excel danh sách chứng từ (không migration, chưa commit/deploy)**: tab cấp 2 "Xử lý hóa đơn / Tạo QR" chuyển từ viên thuốc sang thanh chọn ngang gạch chân (`.subnav-tabs`, như Nhân sự/Vận đơn); tiêu đề trang dùng `.view-title` + `.view-sub`; tiêu đề mục đánh số `.section-head` nằm NGOÀI hộp ở cả 2 tab (Nhập dữ liệu, Kết quả xử lý, Đọc từ hóa đơn, Thông tin chuyển khoản, Mã QR); tab cấp 3 (Chọn chứng từ/Dán dữ liệu, VAT/không VAT) cũng gạch chân; thanh tìm kiếm theo khuôn `.table-search-input-wrap` (biểu tượng kính lúp + nút ×) đặt trên bảng; phân trang căn giữa `<< < Trang n/m > >>` (`.pagination-controls`, thêm `vdDocsFirst/vdDocsLast`); bộ lọc gom thành thẻ + nút "Đặt lại bộ lọc"; KPI kiểu thẻ chỉ số; thêm Roboto + `dateInput.js` (ngày dd/mm/yyyy); bỏ toàn bộ emoji (SVG), thay màu cứng bằng token. Xuất Excel: nút "Xuất file" ở Danh sách chứng từ (toàn bộ chứng từ khớp bộ lọc, ≤ 10.000 dòng, đúng thứ tự sắp xếp) qua `POST /api/vat-draft/export` view `documents` (`vatDraftExport.js`, test mới `vatDraftExport.test.js`).
 
@@ -300,7 +305,7 @@ Triển khai trong `server/marketingReport/`; CLI tại `server/scripts/capture-
 - Module mới `server/debtSchedule/`, migration `0047_debt_schedule_report.sql`; 0048 thêm cột Số phiên liên tiếp + Tiền phạt phiên này (bỏ trạng thái Đang xử lý).
 - 14/10/2026: nâng bảng phạt trong "Chỉ số then chốt" thành bảng điểm/thưởng/phạt sale (migration 0051 + 0052). Điểm theo từng khách (cơ sở + mã): số hóa đơn Hoàn thành và doanh số sau trừ trả hàng trong tháng; >=30 điểm mới xếp hạng chung HN + SG theo phạt gốc/điểm tăng dần, điểm giảm dần; bằng tỷ lệ và điểm thì đồng hạng kiểu 1–2–2–4, tên chỉ dùng sắp dòng hiển thị. Top 1–20 miễn phạt; Top 10 nhận quỹ max(80% phạt phải nộp, 3 triệu), 50% theo trọng số hạng 19–17–15–13–11–9–7–5–3–1 và 50% theo tỷ trọng điểm; thiếu 10 người chuẩn hóa trọng số, chia hết quỹ đến đồng. Sửa phạt chỉ thay phạt gốc từng khách; miễn phạt áp ở mức sale. GET /api/debt-management/penalty-board?month=YYYY-MM trả bảng từ backend (mặc định tháng chu kỳ đang mở), lọc cơ sở sau khi tính hạng/quỹ toàn công ty. Giao diện, hộp chi tiết và xuất Excel/HTML dùng cùng kết quả; context.debtRewardMonth chọn tháng xuất. Kết quả tháng cũ lưu bất biến trong debt_reward_months sau bản chốt 15:00 đầu tháng mới, khi đã chốt hết sổ phạt và doanh số tháng. Lỗi chốt thử lại mỗi phút; thiếu lịch sử phạt có cảnh báo rõ, không bù thành 0.
 
-Cập nhật gần nhất: 19/10/2026.
+Cập nhật gần nhất: 20/10/2026.
 
 Điều chỉnh 15/10/2026: trong tháng hiển thị điểm/hạng, thưởng tạm tính và tổng phạt từ các ngày ĐÃ CHỐT, không cộng chu kỳ đang mở. Lúc 14:59 giờ Việt Nam lưu bản cuối của chu kỳ 15:00 hôm trước–14:59 hôm sau, mỗi chu kỳ đúng một lần và không ghi đè; 15:00 mới reset. Nhiều lần Tính lại trong chu kỳ chỉ cập nhật bản đang mở, không cộng thành nhiều ngày. Tiền thưởng hiện mỗi ngày với nhãn Thưởng tạm tính, thay đổi theo điểm và tổng phạt đã chốt ngày; chỉ chốt/lưu thưởng chính thức một lần khi kết thúc tháng. Web, hộp chi tiết và file xuất đều phân biệt tạm tính/đã chốt.
 

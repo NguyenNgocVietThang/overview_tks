@@ -103,7 +103,7 @@ Kiến trúc: `server/debtSchedule/` (quy tắc thuần, job chốt 15:00, repos
 
 19/10/2026 (đợt 3) — **Báo cáo hàng hóa theo sheet BC CHUNG (migration `0067`, đã áp DB 19/10/2026)**: 34 cột UI = Excel, 12 cột mới + DS khách lớn nhất đưa vào giao diện, cột mới ẩn mặc định ở cả khung Sale và Quản lý, Đơn giá dời xuống cuối, Giá trị có bán + Đơn giá chỉ Quản lý/Trợ lý. Đứt HN/SG cập nhật sau mỗi lần chạy quét đứt hàng 30 ngày (không có lịch tự chạy; chưa quét = 0). **Việc vận hành**: áp `0067` trước khi deploy; sau deploy chạy "Quét đứt hàng 30 ngày" cơ sở "Cả hai" lần đầu; job tăng dần tự chạy lượt nặng để điền SL đơn (không cần chạy tay).
 
-Cập nhật gần nhất: 19/10/2026.
+Cập nhật gần nhất: 20/10/2026.
 
 Điều chỉnh 15/10/2026: trong tháng hiển thị điểm/hạng, thưởng tạm tính và tổng phạt từ các ngày ĐÃ CHỐT, không cộng chu kỳ đang mở. Lúc 14:59 giờ Việt Nam lưu bản cuối của chu kỳ 15:00 hôm trước–14:59 hôm sau, mỗi chu kỳ đúng một lần và không ghi đè; 15:00 mới reset. Nhiều lần Tính lại trong chu kỳ chỉ cập nhật bản đang mở, không cộng thành nhiều ngày. Tiền thưởng hiện mỗi ngày với nhãn Thưởng tạm tính, thay đổi theo điểm và tổng phạt đã chốt ngày; chỉ chốt/lưu thưởng chính thức một lần khi kết thúc tháng. Web, hộp chi tiết và file xuất đều phân biệt tạm tính/đã chốt.
 
@@ -141,4 +141,6 @@ Phương án B đã duyệt: tập SĐT/KPI Pancake riêng trong PostgreSQL, ng�
 
 19/10/2026 — Tính sẵn báo cáo (migration `0068`–`0070`): doanh số tháng hiện tại Báo cáo kinh doanh, chi phí ADS + doanh số theo tên + gộp SĐT Báo cáo Marketing, view đọc Sổ quỹ; chi tiết ở mục 27 "Kiến trúc đã triển khai". Việc áp migration lên DB dùng chung và deploy chưa được xác nhận trong tài liệu này.
 
-Cập nhật gần nhất: 19/10/2026.
+20/10/2026 — **Kế toán – Yêu cầu xuất VAT** (`server/vatRequests/`, `server/public/vat-request/`, migration `0073`, nhánh `feature/vat-requests`): thay Google Form + sheet ORDER VAT 1. Kiến trúc: `service.js` giữ toàn bộ luật (whitelist trường sale/KT → 403, khóa sale ở 0/1/2, sale sửa ở 3/4 → pending, KT đổi trạng thái tự do, optimistic locking `version` → 409 kèm `latest`, lịch sử từng trường trong cùng transaction); `repository.js` chỉ truy vấn; số liệu O/P/Q/R tính theo lô mã của trang đang xem (không N+1): O từ Google Sheets (`stockSource.js`, CSV công khai, cache 10 phút/stale 6 giờ, dùng lại `fetchSheetCsv` + chuẩn hóa mã của Nháp VAT nhưng không đụng thuật toán phân bổ), Q/R từ `product_container_lines` trạng thái 1–3 + `etaParser.js`. Phân quyền qua `featureRegistry` (`accounting.vatRequest`, `accounting.vatRequestProcess`), trang chặn bởi `pageGuard`. Frontend vanilla: bảng phẳng + `table-controls.js`, 100 dòng/trang, sửa nhanh trên dòng cho KT, chọn nhiều + đổi hàng loạt (`PATCH /bulk`, 1 transaction), gom theo mã SP. Import sheet cũ: `scripts/importOrderVat.js` (chạy thử mặc định, `--apply` ghi, idempotent theo `legacy_row`). Kiểm thử: PGlite (service, import), JSDOM (trang), route.
+
+Cập nhật gần nhất: 20/10/2026.

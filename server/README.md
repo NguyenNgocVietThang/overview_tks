@@ -124,6 +124,29 @@ Port 1:1 app Streamlit `vat-draft-app` vào module `vatDraft/`, trang `public/va
 | POST | `/api/vat-draft/qr/parse-text` `{ text }` | (`accounting.vatDraft` hoặc `accounting.qr`) Chữ **mọi trang** PDF (trình duyệt trích bằng pdf.js) → regex `invoicePdfText.js` (đơn vị bán, tổng thanh toán, cộng tiền hàng, thuế, số tiền bằng chữ) → cùng dạng kết quả với `/qr/parse-image` (`source: 'pdf-text'`, `amountStatus`, `amountSources`, `matchedAccountKeys`); `error` khi không có chữ / không đúng mẫu → trang chuyển sang `/qr/parse-image` |
 | POST | `/api/vat-draft/qr/parse-image` (multipart `file`, JPEG/PNG/WebP ≤ 6 MB) | (`accounting.vatDraft` hoặc `accounting.qr`) Ảnh hóa đơn (trình duyệt thu nhỏ; PDF render trang đầu + cuối) → AI vision qua xKiro (`vatDraft/invoiceVision.js`) → `{ sellerName, totalPayment, amountStatus, amountSources: { aiTotal, subtotalPlusVat, words, wordsText }, totalBeforeVat, vatAmount, matchedAccountKeys, warnings, error }`; `totalPayment` đã đối chiếu với Cộng tiền hàng + Thuế và Số tiền bằng chữ (`amountWords.js`); `amountStatus` = `ok` | `corrected` | `unverified`, khác `ok` thì frontend không tự tạo QR mà hiện ô Xác nhận số tiền từ `amountSources`. 400 sai loại/thiếu file, 413 quá cỡ, 503 `INVOICE_AI_NOT_CONFIGURED` (thiếu `XKIRO_API_KEY`) / `INVOICE_AI_UNAVAILABLE` (model chính + dự phòng đều lỗi) |
 
+## Kế toán – Yêu cầu xuất VAT (`/api/vat-requests`, 20/10/2026)
+
+Thay Google Form + sheet ORDER VAT 1. Module `vatRequests/` (`service.js` giữ mọi luật, `repository.js` truy vấn, `stockSource.js` đọc tồn VAT, `etaParser.js` đọc ngày về CONT), trang `public/vat-request/`, migration `0073`. Mọi route cần `accounting.vatRequest` (mặc định Sale + Kế toán + Quản lý); trường KT cần `accounting.vatRequestProcess` (mặc định Kế toán + Quản lý).
+
+- **Whitelist trường**: sale `customerName, customerCode, productCode, quantity, unitPrice, fullVat, saleNote`; KT `status, accountantNote, arrivalDate`. Trường khác (vd `createdBy`, `status` khi tạo) → 403 `FIELD_FORBIDDEN`.
+- **Khóa**: sale chỉ sửa/xóa yêu cầu của mình khi `status` ∉ {0,1,2} (`NOT_OWNER` / `LOCKED`); sale đổi trường khi đang 3/4 → tự về `pending`; KT đổi trạng thái tự do (lùi = mở khóa); Quản lý sửa được cả hai nhóm.
+- **Version**: PATCH/DELETE phải kèm `version`; lệch → 409 `VERSION_CONFLICT` kèm `latest`. Bulk: một dòng lệch → hủy cả lô, trả `conflictIds`.
+- **Cột live**: Tồn VAT (O) = `TỒN ĐẦU NGÀY` tab tồn (cột I) cộng mọi công ty có cùng mã VAT, tra mã SP qua Khớp mã (không có thì qua cột Mã kiot đại diện); cache 10 phút, lỗi sheet trả bản cũ ≤ 6 giờ, hỏng hẳn thì cột để trống và `stockStatus.available=false`. SLG cần khai (P) = Σ SL yêu cầu cùng mã ở 3/4. Dự kiến hàng về (Q) = Σ `product_container_lines` trạng thái 1–3. Ngày về gần nhất (R) = ETA sớm nhất đọc được ("DK 14-16/10" → ngày đầu, suy năm gần nhất), không đọc được thì trả chữ gốc.
+- **Nguồn tồn**: biến `VAT_REQUEST_STOCK_SHEET_ID` / `VAT_REQUEST_STOCK_GID` / `VAT_REQUEST_STOCK_COLUMN` (mặc định `I`) / `VAT_REQUEST_MAPPING_SHEET_ID` / `VAT_REQUEST_MAPPING_GID`; sheet phải chia sẻ công khai. Bỏ trống = sheet công khai của Nháp VAT (tab Gộp VAT + Khớp mã, cùng bố cục cột).
+
+| Method | Endpoint | Mô tả |
+|---|---|---|
+| GET | `/api/vat-requests?status=pending,3,4&createdBy&product&q&from&to` | Danh sách (≤ 5.000 dòng, mới trước) + `metrics` O/P/Q/R theo `product_key`, `sales`, `statuses`, `stockStatus`, `viewer`; mỗi dòng kèm `isLockedForSale`, `canEditSale`, `canDelete` |
+| POST | `/api/vat-requests` | Tạo (status `pending`, người tạo lấy từ phiên đăng nhập, mã SP phải có trong `product_report`) |
+| PATCH | `/api/vat-requests/:id` | Sửa theo whitelist + khóa, body có `version` |
+| PATCH | `/api/vat-requests/bulk` | KT: `{ items:[{id,version}], changes:{status?,accountantNote?,arrivalDate?} }`, ≤ 500 dòng, 1 transaction |
+| DELETE | `/api/vat-requests/:id?version=` | Xóa mềm (chủ yêu cầu khi chưa khóa, hoặc Quản lý) |
+| GET | `/api/vat-requests/:id/history` | Lịch sử từng trường (ai, lúc nào, cũ → mới) |
+| GET | `/api/vat-requests/metrics?code=` | O/P/Q/R + tên SP của 1 mã (form của sale) |
+| GET | `/api/vat-requests/product-suggest?q=` / `customer-suggest?q=` | Gợi ý mã SP (`product_report`) / khách KiotViet (theo cookie cơ sở) |
+
+**Import sheet cũ**: `npm run vat-requests:import-order-vat -- --file order-vat.csv` (hoặc `--sheet <id> --gid <gid>`) in báo cáo chạy thử; thêm `--apply` để ghi trong 1 transaction. Map sale theo email cột B (tài khoản web), không khớp thì giữ tên cột C; ô "X"/"...."/trống → NULL; Full VAT = ghi chú có "FULL VAT"; chạy lại không nhân đôi (`legacy_row`). Chạy thử trên bản copy 20/10/2026: 1.349 dòng (0: 69, 1: 1.256, 2: 15, 3: 9), 13 dòng thời gian "X", 24 dòng thiếu giá — nạp đủ vào PGlite.
+
 ## Tài khoản, đăng ký và ID Telegram
 
 - **Tự đăng ký bị khóa từ 2026-10-03** (`ALLOW_SELF_REGISTRATION`, mặc định tắt): `POST /api/auth/register` trả 403 `REGISTRATION_DISABLED` (luồng đăng ký nhân sự bằng OTP `/register/channels`, `/register/send-otp`, `/register/verify` đã gỡ 2026-10-05); đăng nhập Google chỉ liên kết/đăng nhập tài khoản **đã có** (`linkVerifiedGoogleIdentity` với `allowCreate=false`) và không tạo Khách mới. Admin cứng (`HARDCODED_ADMINS`) luôn đăng ký/đăng nhập được. `GET /api/auth/google-config` trả `{ clientId, registrationOpen }` để trang login/register ẩn link và khóa form. Tài khoản mới do Quản lý tạo ở `/account/#users` (`POST /api/admin/users`).
@@ -276,10 +299,13 @@ Hai file Kiot HN/SG **không còn** được server truy cập.
 | `0068` | Doanh số THÁNG HIỆN TẠI của Báo cáo kinh doanh tính sẵn: `business_current_month_customer_sales`, `business_current_month_customer_product_sales` (phản chiếu `business_monthly_*`, thêm index `business_current_month_cps_product_idx (product_code, month)`), `business_current_month_state` (id=1: `month`, `computed_at`, `cutoff`, `last_full_at`, `customers_synced_at`, `version`); job `businessCurrentMonthRefresh.js`; không GRANT riêng (ALTER DEFAULT PRIVILEGES ở 0010); đã áp DB 19/10/2026 (xác minh schema_migrations) |
 | `0069` | Tính sẵn Báo cáo Marketing: `marketing_ads_costs` + `marketing_ads_sync_state` (chi phí ADS), hàm `tks_name_key(text)` + view `v_marketing_customer_revenue` (doanh số theo tên khách), `marketing_phone_summary` + `marketing_phone_summary_state` (gộp SĐT Pancake; REVOKE SELECT khỏi `reporting_readonly`); chỉ THÊM đối tượng mới; **phải áp sau 0068** (view đọc `business_current_month_*`); đã áp DB 19/10/2026 (xác minh schema_migrations) |
 | `0070` | View thường `v_cash_book_transactions` cho Sổ quỹ (`cash_flows` LEFT JOIN `cash_book_accounts`, `fund_key`, trường rút sẵn từ `raw`, không lộ `raw`); GRANT SELECT cho `reporting_readonly` chỉ khi role tồn tại; không bảng/index mới; đã áp DB 19/10/2026 (xác minh schema_migrations) |
+| `0073` | Yêu cầu xuất VAT: `vat_requests` (trường sale / KT, `status` pending|0–4, `version` chống ghi đè, `product_key` + `total_amount` sinh tự động, xóa mềm `is_deleted`, dòng import sheet cũ `is_legacy` + `legacy_row` duy nhất) và `vat_request_history` (chỉ ghi thêm, trigger chặn sửa/xóa); thu hồi quyền `reporting_readonly` |
 
 Bot **xin nghỉ của nhân viên** chạy ngoài repo và đọc/ghi 3 bảng nền nghỉ phép trực tiếp; bot **quản lý** trong `telegram/` dùng chung đơn và sở hữu các bảng bổ sung ở migration `0029`. Hợp đồng dữ liệu ở `db/SCHEMA.md`.
 
 ## Cập nhật gần nhất
+
+20/10/2026 — **Kế toán – Yêu cầu xuất VAT (migration `0073`, nhánh `feature/vat-requests`, chưa merge/deploy, chưa áp DB)**: xem mục "Kế toán – Yêu cầu xuất VAT" phía trên. File mới: `vatRequests/{service,repository,routes,stockSource,etaParser}.js` (+ test PGlite), `public/vat-request/`, `scripts/importOrderVat.js` (+ test), `test/frontend/vat-request.test.js`. Quyền mới `accounting.vatRequest` / `accounting.vatRequestProcess` (cả hai `escalationExempt` để Trợ lý được ủy quyền vẫn tạo được tài khoản Sale / Kế toán). Thứ tự triển khai: `npm run db:migrate` (0073) → deploy code → đặt `VAT_REQUEST_STOCK_*` nếu dùng tab GỘP MỚI → chạy import (thử trước, rồi `--apply`).
 
 19/10/2026 (tối) — **Kế toán – Nháp VAT: đồng bộ giao diện với design system + xuất Excel danh sách chứng từ (không migration, chưa commit/deploy)**: tab cấp 2 "Xử lý hóa đơn / Tạo QR" chuyển từ viên thuốc sang thanh chọn ngang gạch chân (`.subnav-tabs`, như Nhân sự/Vận đơn); tiêu đề trang dùng `.view-title` + `.view-sub`; tiêu đề mục đánh số `.section-head` nằm NGOÀI hộp ở cả 2 tab (Nhập dữ liệu, Kết quả xử lý, Đọc từ hóa đơn, Thông tin chuyển khoản, Mã QR); tab cấp 3 (Chọn chứng từ/Dán dữ liệu, VAT/không VAT) cũng gạch chân; thanh tìm kiếm theo khuôn `.table-search-input-wrap` (biểu tượng kính lúp + nút ×) đặt trên bảng; phân trang căn giữa `<< < Trang n/m > >>` (`.pagination-controls`, thêm `vdDocsFirst/vdDocsLast`); bộ lọc gom thành thẻ + nút "Đặt lại bộ lọc"; KPI kiểu thẻ chỉ số; thêm Roboto + `dateInput.js` (ngày dd/mm/yyyy); bỏ toàn bộ emoji (SVG), thay màu cứng bằng token. Xuất Excel: nút "Xuất file" ở Danh sách chứng từ (toàn bộ chứng từ khớp bộ lọc, ≤ 10.000 dòng, đúng thứ tự sắp xếp) qua `POST /api/vat-draft/export` view `documents` (`vatDraftExport.js`, test mới `vatDraftExport.test.js`).
 
@@ -422,7 +448,7 @@ API: `PATCH /api/debt-management/{sale-feedback,manager-feedback,status,schedule
 
 Thứ tự deploy: `npm run db:migrate` (0047; 0051 cho bảng phạt sale — sau deploy chạy tay `node debtSchedule/debtPenaltyLedger.js` để backfill các chu kỳ cũ) → import lịch TT HN + SG → deploy code → chạy tay `debtCycleSnapshot.js` sau 15:00 (hoặc chờ 15:00).
 
-Cập nhật gần nhất: 19/10/2026.
+Cập nhật gần nhất: 20/10/2026.
 
 ## Hàng dự kiến — vận hành và API (15/10/2026)
 

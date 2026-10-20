@@ -1,0 +1,216 @@
+/* Kế toán – Yêu cầu xuất VAT. Màu lấy từ token shared.css nên tự theo Sáng / Tối. */
+.vr-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:20px;flex-wrap:wrap}
+.vr-title{margin:0;font-family:var(--font-display);font-size:24px;color:var(--canvas-text);letter-spacing:-.02em}
+.vr-sub{margin:6px 0 0;color:var(--canvas-text-muted);font-size:13px;max-width:720px}
+.vr-create{display:inline-flex;align-items:center;gap:6px}
+.vr-panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-xl);box-shadow:var(--card-shadow);overflow:hidden}
+.vr-toolbar{display:flex;flex-direction:column;gap:12px;padding:16px}
+.vr-chips{display:flex;gap:6px;flex-wrap:wrap}
+.vr-chip{min-height:32px;padding:5px 12px;border:1px solid var(--border);border-radius:var(--radius-pill);background:var(--panel-2);color:var(--text-secondary);font:600 12.5px var(--font-body);cursor:pointer}
+.vr-chip[aria-pressed="true"]{background:var(--primary);border-color:var(--primary);color:var(--primary-text)}
+.vr-filters{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.vr-search{position:relative;display:block;flex:1;min-width:220px}
+.vr-search input{box-sizing:border-box;width:100%;min-height:40px;padding:9px 12px 9px 36px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel-2);color:var(--text);font:13px var(--font-body)}
+.vr-search svg{position:absolute;left:12px;top:12px;width:16px;height:16px;color:var(--muted);pointer-events:none}
+.vr-field{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);min-width:0}
+.vr-field>span{font-weight:600}
+.vr-field input,.vr-field select,.vr-field textarea{box-sizing:border-box;min-height:40px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel-2);color:var(--text);font:13px var(--font-body);width:100%}
+.vr-field textarea{resize:vertical;min-height:60px}
+.vr-field-wide{flex:1;min-width:220px}
+.vr-toggle{display:inline-flex;align-items:center;gap:6px;min-height:40px;color:var(--text);font-size:13px;cursor:pointer}
+.vr-toggle[hidden]{display:none}
+.vr-tool-btn{display:inline-flex;align-items:center;gap:7px;min-height:40px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel-2);color:var(--text);font:13px var(--font-body);white-space:nowrap;cursor:pointer}
+.vr-tool-btn svg{width:16px;height:16px}
+.vr-bulk{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;padding:12px 16px;background:var(--panel-2);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.vr-bulk[hidden]{display:none}
+.vr-bulk strong{align-self:center;color:var(--text);font-size:13px}
+.vr-status{margin:0;padding:8px 16px;color:var(--muted);font-size:13px}
+.vr-status:empty{display:none}
+.vr-status[data-kind="error"]{color:var(--red)}
+.vr-status[data-kind="warn"]{color:var(--amber)}
+.vr-status[data-kind="ok"]{color:var(--green)}
+.vr-scroll-wrap{position:relative}
+.vr-scroll{overflow:auto;max-height:68vh}
+.vr-table{width:100%;table-layout:fixed;border-collapse:collapse;text-align:left}
+.vr-table th{position:sticky;top:0;z-index:2}
+.vr-table td{color:var(--text);vertical-align:middle}
+/* Thu hẹp cột: xuống dòng theo CẢ TỪ, không cắt giữa từ (table-controls.css mặc định overflow-wrap:anywhere).
+   Từ dài hơn cột thì bị che (kéo rộng cột để xem) thay vì vỡ thành từng chữ. */
+table.tks-controlled-table.vr-table th,
+table.tks-controlled-table.vr-table td{overflow-wrap:normal !important;word-break:normal !important;hyphens:none;overflow:hidden;padding:12px 10px}
+table.tks-controlled-table.vr-table td.vr-nowrap{white-space:nowrap !important;text-overflow:ellipsis !important}
+.vr-table tbody tr[data-id]{cursor:default}
+.vr-table tbody tr[data-id]:hover td{background:var(--surface-hover)}
+.vr-table tbody tr[data-id]:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
+.vr-hscroll{position:absolute;top:50%;z-index:4;display:flex;align-items:center;justify-content:center;width:30px;height:30px;margin-top:-15px;padding:0;border:1px solid var(--border);border-radius:var(--radius-pill);background:color-mix(in srgb,var(--panel) 88%,transparent);color:var(--text);box-shadow:var(--shadow-toast);cursor:pointer;opacity:.82;transition:opacity .15s ease,transform .15s ease}
+.vr-hscroll:hover{opacity:1}
+.vr-hscroll:active{transform:scale(.94)}
+.vr-hscroll[hidden]{display:none}
+.vr-hscroll svg{width:16px;height:16px}
+.vr-hscroll-left{left:8px}
+.vr-hscroll-right{right:14px}
+.vr-hscroll:focus-visible{outline:2px solid var(--blue);outline-offset:2px;opacity:1}
+.vr-table .num{text-align:right;font-variant-numeric:tabular-nums;font-family:var(--font-data)}
+.vr-table tr.is-locked td{background:color-mix(in srgb,var(--panel-2) 55%,transparent)}
+.vr-table tr.vr-group-row td{background:var(--panel-2);color:var(--text);font-size:13px;border-top:2px solid var(--border)}
+.vr-group-meta{margin-left:12px;color:var(--muted);font-size:12px}
+.vr-code{font-family:var(--font-data);font-weight:600}
+.vr-muted{color:var(--muted)}
+.vr-error-text{color:var(--red)}
+.vr-tag{display:inline-block;white-space:nowrap;padding:1px 7px;border:1px solid var(--border);border-radius:var(--radius-pill);font-size:11px;color:var(--muted)}
+.vr-tag-strong{color:var(--amber);border-color:color-mix(in srgb,var(--amber) 45%,transparent)}
+.vr-badge{display:inline-block;padding:3px 9px;border-radius:var(--radius-pill);font-size:12px;font-weight:600;background:var(--panel-2);color:var(--text-secondary);border:1px solid var(--border)}
+.vr-badge[data-status="pending"]{color:var(--blue);border-color:color-mix(in srgb,var(--blue) 45%,transparent)}
+.vr-badge[data-status="0"]{color:var(--red);border-color:color-mix(in srgb,var(--red) 45%,transparent)}
+.vr-badge[data-status="1"]{color:var(--green);border-color:color-mix(in srgb,var(--green) 45%,transparent)}
+.vr-badge[data-status="2"]{color:var(--purple);border-color:color-mix(in srgb,var(--purple) 45%,transparent)}
+.vr-badge[data-status="3"],.vr-badge[data-status="4"]{color:var(--amber);border-color:color-mix(in srgb,var(--amber) 45%,transparent)}
+.vr-inline{box-sizing:border-box;width:100%;min-height:34px;padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel-2);color:var(--text);font:12.5px var(--font-body)}
+.vr-row-actions{display:flex;align-items:center;gap:6px}
+.vr-lock{flex:none;color:var(--amber)}
+.vr-icon-btn{min-height:30px;padding:4px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel-2);color:var(--text);font:12px var(--font-body);cursor:pointer}
+.vr-icon-btn.vr-danger{color:var(--red)}
+.vr-link{padding:0;border:0;background:none;color:var(--blue);font:inherit;text-decoration:underline;cursor:pointer}
+.vr-pager{display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px 16px;background:var(--panel-2);color:var(--muted);font-size:12.5px}
+.vr-pager[hidden]{display:none}
+.vr-pager-controls{display:flex;align-items:center;gap:10px}
+.vr-pager button{min-width:40px;min-height:40px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel);color:var(--text);font:14px var(--font-data);cursor:pointer}
+.vr-pager button:disabled{opacity:.45;cursor:not-allowed}
+.vr-source{margin:0;padding:10px 16px 14px;color:var(--muted);font-size:12px}
+.vr-source:empty{display:none}
+.vr-source[data-kind="error"]{color:var(--red)}
+.vr-source[data-kind="warn"]{color:var(--amber)}
+.vr-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.vr-search input:focus-visible,.vr-chip:focus-visible,.vr-tool-btn:focus-visible,.vr-icon-btn:focus-visible,.vr-inline:focus-visible,.vr-field :focus-visible,.vr-pager button:focus-visible,.vr-scroll:focus-visible,.vr-link:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+
+/* Hộp thoại */
+.vr-dialog{width:min(640px,calc(100vw - 32px));max-height:calc(100vh - 48px);padding:20px;border:1px solid var(--border);border-radius:var(--radius-xl);background:var(--panel);color:var(--text);box-shadow:var(--shadow-modal);overflow:auto}
+.vr-dialog::backdrop{background:var(--overlay-bg)}
+.vr-dialog h3{margin:0 0 16px;font-family:var(--font-display);font-size:18px}
+.vr-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:16px}
+.vr-info-body{max-height:60vh;overflow:auto}
+
+
+/* Menu chuột phải trên dòng */
+.vr-menu{position:fixed;z-index:1000;min-width:180px;padding:6px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--panel);box-shadow:var(--shadow-modal)}
+.vr-menu[hidden]{display:none}
+.vr-menu button{display:flex;align-items:center;gap:8px;width:100%;min-height:36px;padding:6px 10px;border:0;border-radius:var(--radius-sm);background:none;color:var(--text);font:13px var(--font-body);text-align:left;cursor:pointer}
+.vr-menu button[hidden]{display:none}
+.vr-menu button:hover,.vr-menu button:focus-visible{background:var(--surface-hover);outline:none;color:var(--blue)}
+.vr-mini-table{width:100%;border-collapse:collapse;font-size:12.5px}
+.vr-mini-table th,.vr-mini-table td{padding:8px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top}
+.vr-mini-table .num{text-align:right;font-variant-numeric:tabular-nums}
+
+@media(max-width:600px){
+  .vr-title{font-size:20px}
+  .vr-head{align-items:stretch}
+  .vr-create{justify-content:center}
+  .vr-toolbar{padding:12px}
+  .vr-filters{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .vr-search{grid-column:1 / -1;min-width:0}
+  .vr-field-wide{min-width:0}
+  .vr-bulk{display:grid;grid-template-columns:1fr 1fr;padding:12px}
+  .vr-bulk strong,.vr-field-wide{grid-column:1 / -1}
+  .vr-table{min-width:var(--vr-mobile-min,640px)}
+  .vr-table th,.vr-table td{padding:10px 8px;font-size:12px}
+  .vr-table [data-field="productCode"]{position:sticky;left:0;background:var(--panel);z-index:1;box-shadow:1px 0 0 var(--border)}
+  .vr-table th[data-column-key="productCode"]{position:sticky;left:0;background:var(--panel-2);z-index:3}
+  .vr-dialog{padding:16px}
+  .vr-hscroll-right{right:8px}
+}
+
+/* ===== Hộp sửa yêu cầu: modal gọn giữa màn hình + khung chat lịch sử nổi bên phải =====
+   Dialog chỉ là khung trong suốt rộng bằng modal; khung chat đặt tuyệt đối bên ngoài nên
+   bật/tắt lịch sử không đổi kích thước hay vị trí form. */
+.vr-editor{position:fixed;inset:0;width:min(640px,calc(100vw - 32px));max-width:none;height:fit-content;max-height:85vh;margin:auto;padding:0;border:0;background:transparent;color:var(--text);overflow:visible}
+.vr-editor::backdrop{background:var(--overlay-bg)}
+.vr-modal{display:flex;flex-direction:column;max-height:85vh;border:1px solid var(--border);border-radius:16px;background:var(--panel);box-shadow:var(--shadow-modal);overflow:hidden;animation:vr-pop .18s var(--ease-out)}
+.vr-modal-head{display:flex;align-items:flex-start;gap:8px;padding:18px 16px 14px 22px;border-bottom:1px solid var(--border)}
+.vr-modal-heading{flex:1;min-width:0}
+.vr-modal-head h3{margin:0;font:700 17px/1.3 var(--font-display);color:var(--text);letter-spacing:-.01em}
+.vr-modal-sub{margin:4px 0 0;color:var(--muted);font-size:12.5px;line-height:1.45;overflow-wrap:anywhere}
+.vr-modal-sub:empty{display:none}
+.vr-history-btn{display:inline-flex;align-items:center;gap:6px;flex:none;min-height:34px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel-2);color:var(--text-secondary);font:600 12.5px var(--font-body);cursor:pointer;transition:background .15s ease,color .15s ease,border-color .15s ease}
+.vr-history-btn:hover{color:var(--text);border-color:color-mix(in srgb,var(--blue) 45%,var(--border))}
+.vr-history-btn[aria-expanded="true"]{color:var(--blue);border-color:var(--blue);background:color-mix(in srgb,var(--blue) 10%,var(--panel))}
+.vr-history-btn[hidden]{display:none}
+.vr-count{min-width:18px;padding:0 5px;border-radius:var(--radius-pill);background:var(--primary);color:var(--primary-text);font:600 10.5px/18px var(--font-body);text-align:center}
+.vr-count:empty{display:none}
+.vr-icon-close{display:inline-flex;align-items:center;justify-content:center;flex:none;width:34px;height:34px;padding:0;border:0;border-radius:var(--radius-sm);background:none;color:var(--muted);cursor:pointer;transition:background .15s ease,color .15s ease}
+.vr-icon-close:hover{background:var(--surface-hover);color:var(--text)}
+.vr-modal-body{display:flex;flex-direction:column;gap:14px;min-height:0;padding:18px 22px;overflow:auto}
+.vr-modal-body[hidden]{display:none}
+.vr-form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.vr-modal .vr-field>span{color:var(--text-secondary)}
+.vr-field em{font-style:normal;color:var(--red)}
+.vr-modal .vr-field input,.vr-modal .vr-field select,.vr-modal .vr-field textarea{background:var(--panel-2);transition:border-color .15s ease,box-shadow .15s ease}
+.vr-modal .vr-field input:focus,.vr-modal .vr-field select:focus,.vr-modal .vr-field textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px color-mix(in srgb,var(--blue) 18%,transparent)}
+.vr-modal .vr-field textarea{min-height:44px;resize:none;line-height:1.45}
+/* Dải thông tin sản phẩm ngay dưới Mã SP */
+.vr-product-info{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:-6px;padding:8px 12px;border:1px solid color-mix(in srgb,var(--blue) 22%,var(--border));border-radius:var(--radius-sm);background:color-mix(in srgb,var(--blue) 6%,var(--panel));font-size:12px;color:var(--text-secondary)}
+.vr-product-info:empty{display:none}
+.vr-product-info strong{flex-basis:100%;color:var(--text);font-size:12.5px}
+.vr-product-info b{color:var(--text);font-family:var(--font-data)}
+.vr-product-info[data-valid="false"]{border-color:color-mix(in srgb,var(--red) 35%,var(--border));background:color-mix(in srgb,var(--red) 6%,var(--panel))}
+.vr-total output{display:flex;align-items:center;justify-content:flex-end;min-height:40px;padding:0 12px;border-radius:var(--radius-sm);background:color-mix(in srgb,var(--blue) 9%,var(--panel));color:var(--text);font:700 16px var(--font-data);font-variant-numeric:tabular-nums;white-space:nowrap}
+.vr-form-error{margin:0;color:var(--red);font-size:13px}
+.vr-form-error:empty{display:none}
+.vr-modal-foot{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:14px 22px;border-top:1px solid var(--border);background:var(--panel)}
+.vr-modal-foot .vr-delete-btn{display:inline-flex;align-items:center;gap:6px;margin-right:auto;background:transparent;color:var(--red);border-color:color-mix(in srgb,var(--red) 45%,transparent)}
+.vr-modal-foot .vr-delete-btn:hover{background:color-mix(in srgb,var(--red) 10%,transparent)}
+.vr-modal-foot [hidden]{display:none}
+.vr-modal-foot button:disabled{opacity:.6;cursor:not-allowed}
+.vr-submit{display:inline-flex;align-items:center;gap:8px}
+.vr-submit.is-loading{cursor:progress}
+.vr-spinner{display:none;width:13px;height:13px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:vr-spin .7s linear infinite}
+.vr-submit.is-loading .vr-spinner{display:inline-block}
+.vr-history-btn:focus-visible,.vr-icon-close:focus-visible,.vr-modal-foot button:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+
+/* Khung chat lịch sử */
+.vr-chat{position:absolute;top:0;left:calc(100% + 16px);display:flex;flex-direction:column;width:320px;max-height:min(480px,85vh);border:1px solid var(--border);border-radius:16px;background:var(--panel);box-shadow:var(--shadow-modal);overflow:hidden;animation:vr-chat-in .18s var(--ease-out)}
+.vr-chat[hidden]{display:none}
+.vr-chat-head{display:flex;align-items:center;gap:8px;padding:10px 8px 10px 14px;border-bottom:1px solid var(--border);color:var(--blue)}
+.vr-chat-head h4{flex:1;min-width:0;margin:0;font:700 14px var(--font-display);color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vr-chat-list{display:flex;flex-direction:column;gap:10px;min-height:0;margin:0;padding:12px;list-style:none;overflow:auto;background:var(--panel-2)}
+.vr-chat-item{--kind:var(--blue);display:flex;align-items:flex-start;gap:8px}
+.vr-chat-item[data-kind="create"]{--kind:var(--green)}
+.vr-chat-item[data-kind="import"]{--kind:var(--muted)}
+.vr-chat-item[data-kind="status"]{--kind:var(--purple)}
+.vr-chat-item[data-kind="delete"]{--kind:var(--red)}
+.vr-chat-icon{display:flex;align-items:center;justify-content:center;flex:none;width:24px;height:24px;margin-top:2px;border-radius:50%;background:color-mix(in srgb,var(--kind) 15%,var(--panel));color:var(--kind)}
+.vr-chat-bubble{flex:1;min-width:0;padding:8px 10px;border:1px solid var(--border);border-radius:4px 12px 12px 12px;background:var(--panel)}
+.vr-chat-meta{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:3px;font-size:11.5px;color:var(--muted)}
+.vr-chat-meta b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);font-weight:600}
+.vr-chat-meta time{flex:none;white-space:nowrap;font-variant-numeric:tabular-nums}
+.vr-chat-text{font-size:12.5px;line-height:1.45;color:var(--text);overflow-wrap:anywhere}
+.vr-chat-old{color:var(--muted)}
+.vr-chat-empty{padding:16px 0;color:var(--muted);font-size:12.5px;text-align:center}
+.vr-history-inline .vr-chat-list{padding:0;background:none;overflow:visible}
+
+@keyframes vr-pop{from{opacity:0;transform:translateY(6px) scale(.985)}}
+@keyframes vr-chat-in{from{opacity:0;transform:translateX(-8px)}}
+@keyframes vr-sheet-in{from{opacity:0;transform:translateY(16px)}}
+@keyframes vr-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.vr-modal,.vr-chat{animation:none}.vr-spinner{animation-duration:1.6s}}
+
+/* Không đủ chỗ cho khung chat bên phải modal đang canh giữa (cần 640 + 2 × (16 + 320)): khi mở lịch sử,
+   trượt cả cụm modal + chat về giữa (kích thước form giữ nguyên). Dưới 1028px không đủ cho cả hai: drawer. */
+@media (min-width:1028px) and (max-width:1359px){
+  .vr-editor{transition:transform .18s var(--ease-out)}
+  .vr-editor[data-history-open="true"]{transform:translateX(-168px)}
+}
+@media (max-width:1027px){
+  .vr-chat{position:fixed;top:0;right:0;bottom:0;left:auto;width:min(340px,92vw);max-height:none;border-radius:16px 0 0 16px;animation-name:vr-drawer-in}
+}
+@keyframes vr-drawer-in{from{opacity:0;transform:translateX(16px)}}
+@media (prefers-reduced-motion:reduce){.vr-editor{transition:none}}
+/* Điện thoại: modal gần full màn, lịch sử thành bottom sheet. */
+@media (max-width:640px){
+  .vr-editor{width:calc(100vw - 16px);max-height:92vh}
+  .vr-modal{max-height:92vh}
+  .vr-modal-head{padding:14px 10px 12px 16px}
+  .vr-modal-body{padding:14px 16px}
+  .vr-modal-foot{padding:12px 16px;flex-wrap:wrap}
+  .vr-history-btn span:first-of-type{display:none}
+  .vr-chat{top:auto;right:0;bottom:0;left:0;width:auto;max-height:70vh;border-radius:16px 16px 0 0;animation-name:vr-sheet-in}
+}

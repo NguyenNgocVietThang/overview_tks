@@ -317,7 +317,7 @@ Bổ sung 17/10/2026: tab Công nợ có thêm bảng **Tuổi nợ theo hóa đ
 
 19/10/2026 — Báo cáo hàng hóa thay phần ghép tay của sheet **BC CHUNG** (VLOOKUP từ ONRENDER + gõ tay SL 30 ngày HN/SG, Đứt HN/SG, SL đơn 90/30 ngày, giá vốn): bảng web và file Excel/HTML nay có đủ 34 cột cùng thứ tự BC CHUNG, dữ liệu tính sẵn trong DB và cập nhật cận thời gian thực. Cột mới: Giá trị có bán HN/SG (Có bán × Đơn giá cùng cơ sở), SL bán 30 ngày HN/SG, Đứt HN/SG (tổng số ngày đứt hàng 30 ngày gần nhất, cập nhật sau mỗi lần chạy "Quét đứt hàng 30 ngày"; chưa quét = 0, không có lịch tự chạy), Ngày SG + ĐC / Ngày HN / Ngày 2 miền (số ngày bán hết), SL đơn 90/30 ngày và Tăng trưởng (= SL đơn 30 ngày × 3 ÷ SL đơn 90 ngày − 1), cùng DS khách lớn nhất. Đơn giá (chính là "giá vốn" của BC CHUNG) dời xuống cuối bảng; Giá trị có bán và Đơn giá chỉ Quản lý/Trợ lý (`reports.products.price`). Migration `0067` phải áp trước khi deploy; nhắc người dùng chạy "Quét đứt hàng 30 ngày" cơ sở "Cả hai" lần đầu.
 
-Cập nhật gần nhất: 19/10/2026.
+Cập nhật gần nhất: 20/10/2026.
 
 Điều chỉnh 15/10/2026: trong tháng hiển thị điểm/hạng, thưởng tạm tính và tổng phạt từ các ngày ĐÃ CHỐT, không cộng chu kỳ đang mở. Lúc 14:59 giờ Việt Nam lưu bản cuối của chu kỳ 15:00 hôm trước–14:59 hôm sau, mỗi chu kỳ đúng một lần và không ghi đè; 15:00 mới reset. Nhiều lần Tính lại trong chu kỳ chỉ cập nhật bản đang mở, không cộng thành nhiều ngày. Tiền thưởng hiện mỗi ngày với nhãn Thưởng tạm tính, thay đổi theo điểm và tổng phạt đã chốt ngày; chỉ chốt/lưu thưởng chính thức một lần khi kết thúc tháng. Web, hộp chi tiết và file xuất đều phân biệt tạm tính/đã chốt.
 
@@ -352,4 +352,13 @@ Phương án B đã duyệt: tập SĐT/KPI Pancake riêng trong PostgreSQL, ng�
 
 19/10/2026 — Tính sẵn báo cáo (migration `0068`–`0070`): doanh số tháng hiện tại Báo cáo kinh doanh, chi phí ADS/doanh số theo tên/tổng hợp SĐT của Báo cáo Marketing, view đọc Sổ quỹ. Chỉ đổi độ tươi dữ liệu và hiệu năng, không đổi quy tắc nghiệp vụ.
 
-Cập nhật gần nhất: 19/10/2026.
+## Bổ sung 20/10/2026 — Kế toán – Yêu cầu xuất VAT
+
+- **Vấn đề**: sale gửi yêu cầu xuất VAT qua Google Form vào sheet ORDER VAT 1; ai cũng sửa được mọi cột, không có lịch sử, tên sale gõ tay không thống nhất, cột Tên mã KT lỗi `#REF!`, Tồn VAT là số dán tĩnh, sale vẫn sửa được sau khi kế toán đã khai.
+- **Giải pháp**: trang "Kế toán – Yêu cầu xuất VAT" (`/vat-request/`). Sale tạo yêu cầu (chọn mã SP, khách, SL, giá chưa VAT, Full VAT / Không full VAT, ghi chú), xem được toàn bộ bảng; kế toán xử lý trạng thái 0–4 giữ nguyên quy ước sheet cũ, ghi chú (tên lô/cont), ngày về, làm hàng loạt. Yêu cầu đã xử lý (0, 1, 2) tự khóa với sale; lịch sử ghi ai đổi gì lúc nào. Tồn VAT, SLG cần khai, Dự kiến hàng về, Ngày về gần nhất tính live.
+- **Người dùng**: Nhân viên sale, Kế toán, Quản lý (mặc định theo vai trò; Quản lý bật/tắt từng tài khoản ở /account/).
+- **Thành công**: không còn sửa đè sau khi khai; kế toán lọc ra việc cần làm (chờ xử lý, 3, 4) và xử lý theo lô; số tồn / hàng về không còn là số dán tay.
+- **Ngoài phạm vi**: thông báo (chuông, email, Zalo), ghi ngược ra Google Sheets, nối với Nháp VAT, chia Q/R theo công ty, tách cơ sở HN/SG. 3 sheet phụ XỬ LÝ VAT LÂU, HẢI - VAT, Chạy tồn VAT bỏ hẳn.
+- **Dữ liệu cũ**: nhập toàn bộ sheet ORDER VAT 1 (~1.349 dòng) bằng script, map sale theo email.
+
+Cập nhật gần nhất: 20/10/2026.

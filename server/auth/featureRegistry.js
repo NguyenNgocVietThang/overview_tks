@@ -114,6 +114,11 @@ const FEATURES = Object.freeze([
   // escalationExempt: Tro ly duoc uy quyen van tao / dat lai mat khau TK Sale duoc (chi tao anh QR).
   { key: 'accounting.vatDraft', groupKey: 'accounting', label: 'Nháp VAT (Xử lý hóa đơn, Tạo QR)', roles: MANAGER_ONLY, forbiddenRoles: [ROLES.KHACH] },
   { key: 'accounting.qr', groupKey: 'accounting', label: 'Tạo QR chuyển khoản', roles: [ROLES.QUAN_LY, ROLES.NHAN_VIEN_SALE], forbiddenRoles: [ROLES.KHACH], escalationExempt: true },
+  // 2026-10-20: Yeu cau xuat VAT (thay sheet ORDER VAT 1, server/vatRequests). Moi nguoi co quyen xem ca bang
+  // (chi doc), tao va sua yeu cau CUA MINH khi chua khoa; quyen Xu ly sua trang thai / ghi chu KT / ngay ve.
+  // escalationExempt: chi ghi du lieu nghiep vu, Tro ly duoc uy quyen van tao / dat lai mat khau TK Sale, Ke toan.
+  { key: 'accounting.vatRequest', groupKey: 'accounting', label: 'Yêu cầu xuất VAT (xem, tạo yêu cầu)', roles: [ROLES.QUAN_LY, ROLES.KE_TOAN, ROLES.NHAN_VIEN_SALE], forbiddenRoles: [ROLES.KHACH], escalationExempt: true },
+  { key: 'accounting.vatRequestProcess', groupKey: 'accounting', label: 'Yêu cầu xuất VAT: xử lý trạng thái, ghi chú KT, ngày về (cần Yêu cầu xuất VAT)', roles: [ROLES.QUAN_LY, ROLES.KE_TOAN], forbiddenRoles: [ROLES.KHACH], requires: 'accounting.vatRequest', escalationExempt: true },
 
   // --- Quan ly tai khoan ---
   { key: 'account.profile', groupKey: 'account', label: 'Quản lý hồ sơ', roles: ALL_ROLES, alwaysOn: true },
@@ -152,6 +157,7 @@ const PAGE_FEATURES = Object.freeze([
   { path: '/stock-locations', href: '/stock-locations/', anyOf: ['stockLocations.view'] },
   { path: '/cashbook', href: '/cashbook/', anyOf: ['cashbook.view'] },
   { path: '/vat-draft', href: '/vat-draft/', anyOf: ['accounting.vatDraft', 'accounting.qr'] },
+  { path: '/vat-request', href: '/vat-request/', anyOf: ['accounting.vatRequest'] },
   { path: '/account', href: '/account/', anyOf: ['account.profile'] }
 ]);
 
