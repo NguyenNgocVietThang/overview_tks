@@ -16,7 +16,7 @@ const EMPLOYEES = [
 
 const tick = () => new Promise(resolve => setTimeout(resolve, 0));
 
-async function openPage({ canManage, employees = EMPLOYEES }) {
+async function openPage({ canManage, employees = EMPLOYEES, departments = {} }) {
   const html = fs.readFileSync(htmlPath, 'utf8');
   const dom = new JSDOM(html, { runScripts: 'outside-only', url: 'https://tokosi.example/humanresources/' });
   const { window } = dom;
@@ -34,7 +34,7 @@ async function openPage({ canManage, employees = EMPLOYEES }) {
       const payload = { employee: EMPLOYEES[0], accounts: { locked: ['bs'], unlocked: [], skipped: [] } };
       return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => payload };
     }
-    const payload = text.startsWith('/api/hr/employees') ? { employees, canManage }
+    const payload = text.startsWith('/api/hr/employees') ? { employees, departments, canManage }
       : text.includes('/summary/') ? { summary: [] } : { requests: [] };
     return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => payload, text: async () => JSON.stringify(payload) };
   };
@@ -47,6 +47,58 @@ async function openPage({ canManage, employees = EMPLOYEES }) {
 }
 
 const names = doc => [...doc.querySelectorAll('#employeeDirectoryTableBody tr')].map(tr => tr.cells[0].textContent);
+
+test('dashboard nhân sự đếm tổng và từng Bộ phận theo bộ lọc Cơ sở', async () => {
+  const employees = [
+    { id: '1', hoTen: 'An', boPhan: 'KHO', coSo: 'Hà Nội', trangThai: 'Đang làm việc' },
+    { id: '2', hoTen: 'Bình', boPhan: 'SALE', coSo: 'Hà Nội', trangThai: 'Đang làm việc' },
+    { id: '3', hoTen: 'Chi', boPhan: 'Kho', coSo: 'Sài Gòn', trangThai: 'Đang làm việc' }
+  ];
+  const { dom, window } = await openPage({ canManage: true, employees });
+  const doc = window.document;
+  assert.equal(doc.getElementById('employeeSummaryTotal').textContent, '3');
+  assert.match(doc.getElementById('employeeDepartmentSummary').textContent, /KHO\s*2/);
+  assert.match(doc.getElementById('employeeDepartmentSummary').textContent, /SALE\s*1/);
+  assert.equal(doc.querySelectorAll('#employeeDepartmentSummary button').length, 2, 'KHO và Kho được gộp thành một Bộ phận');
+  doc.getElementById('employeeBranchFilter').value = 'Hà Nội';
+  window.handleEmployeeBranchChange();
+  assert.equal(doc.getElementById('employeeSummaryTotal').textContent, '2');
+  assert.match(doc.getElementById('employeeSummaryScope').textContent, /Hà Nội/);
+  assert.match(doc.getElementById('employeeDepartmentSummary').textContent, /KHO\s*1/);
+  dom.window.close();
+});
+
+test('dashboard gộp dữ liệu Bộ phận khác hoa thường vào danh mục cố định', async () => {
+  const employees = [
+    { id: '1', hoTen: 'An', boPhan: 'kho', coSo: 'Hà Nội', trangThai: 'Đang làm việc' },
+    { id: '2', hoTen: 'Bình', boPhan: 'KHO', coSo: 'Hà Nội', trangThai: 'Đang làm việc' }
+  ];
+  const { dom, window } = await openPage({ canManage: true, employees, departments: { 'Hà Nội': ['Kho'] } });
+  const doc = window.document;
+  assert.equal(doc.querySelectorAll('#employeeDepartmentSummary button').length, 1);
+  assert.match(doc.getElementById('employeeDepartmentSummary').textContent, /Kho\s*2/);
+  dom.window.close();
+});
+
+test('bấm thẻ Bộ phận trong dashboard lọc danh sách và giữ trạng thái đang chọn', async () => {
+  const employees = [
+    { id: '1', hoTen: 'An kho', boPhan: 'KHO', coSo: 'Hà Nội', trangThai: 'Đang làm việc' },
+    { id: '2', hoTen: 'Bình sale', boPhan: 'SALE', coSo: 'Hà Nội', trangThai: 'Đang làm việc' },
+    { id: '3', hoTen: 'Chi kho', boPhan: 'KHO', coSo: 'Sài Gòn', trangThai: 'Đang làm việc' }
+  ];
+  const { dom, window } = await openPage({ canManage: true, employees });
+  const doc = window.document;
+  const khoCard = [...doc.querySelectorAll('#employeeDepartmentSummary button')].find(button => button.textContent.includes('KHO'));
+  assert.ok(khoCard, 'thẻ bộ phận là nút lọc');
+  khoCard.click();
+  assert.equal(doc.getElementById('employeeDepartmentFilter').value, 'KHO');
+  assert.equal([...doc.querySelectorAll('#employeeDepartmentSummary button')].find(button => button.textContent.includes('KHO')).getAttribute('aria-pressed'), 'true');
+  assert.deepEqual([...doc.querySelectorAll('#employeeDirectoryTableBody tr')].map(row => row.cells[0].textContent), ['An kho', 'Chi kho']);
+  khoCard.click();
+  assert.equal(doc.getElementById('employeeDepartmentFilter').value, '');
+  assert.equal(doc.querySelector('#employeeDepartmentSummary button[aria-pressed="true"]'), null);
+  dom.window.close();
+});
 
 test('Bộ phận và Chức vụ được phép xuống dòng khi người dùng thu cột', async () => {
   const { dom, window } = await openPage({ canManage: true });
@@ -106,6 +158,7 @@ test('người không có quyền quản lý: giữ 5 cột công khai, không l
   const doc = window.document;
   assert.equal(doc.getElementById('btnAddEmployee').hidden, true);
   assert.equal(doc.querySelectorAll('#employeeDirectoryTableHead th').length, 5);
+  assert.match(doc.querySelector('#employeeDirectoryTableHead th:nth-child(2)').textContent, /^Bộ phận/);
   const row = doc.querySelector('#employeeDirectoryTableBody tr');
   assert.equal(row.hasAttribute('data-employee-id'), false);
   row.cells[0].dispatchEvent(new window.Event('click', { bubbles: true }));
@@ -118,7 +171,7 @@ test('người có quyền quản lý: hiện bảng hồ sơ mở rộng, bấm
   const doc = window.document;
   assert.equal(doc.getElementById('btnAddEmployee').hidden, false);
   assert.equal(doc.querySelectorAll('#employeeDirectoryTableHead th').length, 18);
-  assert.equal(doc.getElementById('btnImportEmployeeDirectory').hidden, true, 'đã có danh sách thì không cho nhập đè');
+  assert.equal(doc.getElementById('btnImportEmployeeDirectory').hidden, false, 'còn nhân sự thiếu ngày vào làm/ngày sinh/giới tính thì vẫn cho nhập bổ sung');
   const row = doc.querySelector('#employeeDirectoryTableBody tr');
 
   row.cells[0].dispatchEvent(new window.Event('click', { bubbles: true }));
@@ -233,7 +286,10 @@ test('quan ly xem danh sach theo thu tu file nhan su, an nut nhap khi da co du l
     'Địa chỉ hiện tại', 'Giới tính', 'Hồ sơ', 'Vân tay', 'Cơ sở', 'QH người thân', 'Họ tên người thân',
     'SĐT người thân', 'Trạng thái', 'Ngày nghỉ việc'
   ]);
-  assert.equal(doc.getElementById('btnImportEmployeeDirectory').hidden, true, 'đã có dữ liệu thì không hiện nhập lại');
+  assert.equal(doc.getElementById('btnImportEmployeeDirectory').hidden, false, 'còn hồ sơ thiếu thì hiện nút nhập bổ sung');
+  const full = await openPage({ canManage: true, employees: [{ id: '9', hoTen: 'Đủ', boPhan: 'KHO', coSo: 'Hà Nội', trangThai: 'Đang làm việc', ngayVaoLam: '2020-01-01', ngaySinh: '1990-01-01', gioiTinh: 'NAM' }] });
+  assert.equal(full.window.document.getElementById('btnImportEmployeeDirectory').hidden, true, 'hồ sơ đã đủ thì ẩn nút nhập');
+  full.dom.window.close();
   assert.equal(window.formatEmployeeDate('2026-01-02'), '02/01/2026');
   dom.window.close();
 });
@@ -295,5 +351,33 @@ test('bảng nhân sự không kéo giãn cột trống để lấp đầy khung
   const doc = window.document;
   assert.equal(doc.getElementById('employeeDirectoryTable').dataset.tableFit, 'off');
   assert.equal(window.employeeColumnWidth(['Vân tay', 'van-tay', 80], []), 32);
+  dom.window.close();
+});
+
+test('dashboard bám bộ lọc Trạng thái và luôn hiện riêng số LV / NV', async () => {
+  const employees = [
+    { id: '1', hoTen: 'An', boPhan: 'Kho HN', coSo: 'Hà Nội', trangThai: 'Đang làm việc' },
+    { id: '2', hoTen: 'Bình', boPhan: 'Kho HN', coSo: 'Hà Nội', trangThai: 'Đã nghỉ việc' },
+    { id: '3', hoTen: 'Chi', boPhan: 'Sale HN', coSo: 'Hà Nội', trangThai: 'Đang làm việc' }
+  ];
+  const { dom, window } = await openPage({ canManage: true, employees });
+  const doc = window.document;
+  const total = () => doc.getElementById('employeeSummaryTotal').textContent;
+  assert.equal(total(), '2', 'mặc định chỉ đếm Đang làm việc');
+  assert.match(doc.getElementById('employeeSummaryStatus').textContent, /LV\s*2\s*·\s*NV\s*1/);
+  doc.getElementById('employeeStatusFilter').value = 'resigned';
+  window.renderEmployeeDirectoryTable();
+  assert.equal(total(), '1');
+  assert.deepEqual(names(doc), ['Bình']);
+  doc.getElementById('employeeStatusFilter').value = '';
+  window.renderEmployeeDirectoryTable();
+  assert.equal(total(), '3');
+  dom.window.close();
+});
+
+test('form nhân sự: Bộ phận là danh sách chọn cố định theo cơ sở', async () => {
+  const { dom, window } = await openPage({ canManage: true });
+  const doc = window.document;
+  assert.equal(doc.getElementById('empBoPhan').tagName, 'SELECT');
   dom.window.close();
 });

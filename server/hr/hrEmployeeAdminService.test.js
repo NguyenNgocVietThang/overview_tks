@@ -163,3 +163,23 @@ test('sua nhan su luu day du ho so mo rong', async () => {
   assert.equal(db[0].soCccd, '012345678901');
   assert.equal(db[0].hoSoDayDu, true);
 });
+
+test('bộ phận cố định theo cơ sở: không nhập tay, nhận tên cũ và quy về tên chuẩn', async () => {
+  const { service, db } = setup();
+  const base = { hoTen: 'Chi', coSo: 'Hà Nội', email: 'chi@x.com', soDienThoai: '0900000003', trangThai: 'active' };
+  await assert.rejects(service.createEmployee(MANAGER, { ...base, boPhan: 'Bộ phận tự nghĩ' }), err => err.code === 'INVALID_DEPARTMENT');
+  await assert.rejects(service.createEmployee(MANAGER, { ...base, boPhan: 'Sale SG' }), err => err.code === 'INVALID_DEPARTMENT', 'bộ phận của Sài Gòn không dùng cho Hà Nội');
+  await service.createEmployee(MANAGER, { ...base, boPhan: 'sale' });
+  assert.equal(db.find(r => r.id === 99).boPhan, 'Sale HN');
+});
+
+test('sửa nhân sự có bộ phận cũ ngoài danh sách: giữ nguyên nếu không đổi, chặn nếu đổi sang tên tự nhập', async () => {
+  const rows = [{ id: 5, branch: 'hanoi', hoTen: 'Dũng', boPhan: 'TRỰC PAGE', email: 'dung@x.com', soDienThoai: '0900000005', employmentStatus: 'active', createdAt: '2026-01-01T00:00:00Z' }];
+  const { service, db } = setup({ rows });
+  const body = { hoTen: 'Dũng', coSo: 'Hà Nội', email: 'dung@x.com', soDienThoai: '0900000005', trangThai: 'active' };
+  await service.updateEmployee(MANAGER, '5', { ...body, boPhan: 'TRỰC PAGE' });
+  assert.equal(db[0].boPhan, 'TRỰC PAGE');
+  await assert.rejects(service.updateEmployee(MANAGER, '5', { ...body, boPhan: 'Page mới' }), err => err.code === 'INVALID_DEPARTMENT');
+  await service.updateEmployee(MANAGER, '5', { ...body, boPhan: 'Marketing' });
+  assert.equal(db[0].boPhan, 'Marketing');
+});
