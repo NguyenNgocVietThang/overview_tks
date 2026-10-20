@@ -1,4 +1,4 @@
-/* Kế toán – Yêu cầu xuất VAT. Màu lấy từ token shared.css nên tự theo Sáng / Tối. */
+/* Kế toán – ORDER VAT. Màu lấy từ token shared.css nên tự theo Sáng / Tối. */
 .vr-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:20px;flex-wrap:wrap}
 .vr-title{margin:0;font-family:var(--font-display);font-size:24px;color:var(--canvas-text);letter-spacing:-.02em}
 .vr-sub{margin:6px 0 0;color:var(--canvas-text-muted);font-size:13px;max-width:720px}

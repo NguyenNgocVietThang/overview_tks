@@ -1633,7 +1633,7 @@
         dataAttr: 'data-vat-draft-tab="' + item.tab + '"', icon: item.icon
       };
     });
-    // Yêu cầu xuất VAT (thay sheet ORDER VAT 1): Sale tạo, Kế toán xử lý.
+    // ORDER VAT (thay sheet ORDER VAT 1): Sale tạo, Kế toán xử lý.
     accountingItems.push({
       feature: 'accounting.vatRequest', href: '/vat-request/', label: 'ORDER VAT',
       active: currentPath === '/vat-request', dataAttr: 'data-tks-nav-key="vat-request"',

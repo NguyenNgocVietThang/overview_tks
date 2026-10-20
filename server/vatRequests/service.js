@@ -297,7 +297,7 @@ function createVatRequestService({ pool = getPool(), stockSource = createStockSo
       throw httpError(403, 'Yêu cầu đã bị khóa vì kế toán đã xử lý.', 'LOCKED');
     }
     if (Object.keys(accountant).length && !canProcess(user)) {
-      throw httpError(403, 'Bạn không có quyền xử lý yêu cầu xuất VAT.', 'FEATURE_FORBIDDEN');
+      throw httpError(403, 'Bạn không có quyền xử lý ORDER VAT.', 'FEATURE_FORBIDDEN');
     }
     const changes = {};
     for (const [key, value] of Object.entries(sale)) {
@@ -345,7 +345,7 @@ function createVatRequestService({ pool = getPool(), stockSource = createStockSo
 
   /** KT doi trang thai / ghi chu / ngay ve cho nhieu dong; 1 dong lech version -> huy ca lo (409). */
   async function bulkUpdate(user, payload) {
-    if (!canProcess(user)) throw httpError(403, 'Bạn không có quyền xử lý yêu cầu xuất VAT.', 'FEATURE_FORBIDDEN');
+    if (!canProcess(user)) throw httpError(403, 'Bạn không có quyền xử lý ORDER VAT.', 'FEATURE_FORBIDDEN');
     const items = Array.isArray(payload && payload.items) ? payload.items : [];
     if (!items.length || items.length > 500) throw httpError(400, 'Chọn từ 1 đến 500 yêu cầu.', 'VALIDATION');
     const { accountant } = splitPayload(payload.changes || {}, { accountant: true });

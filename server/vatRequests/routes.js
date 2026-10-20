@@ -1,6 +1,6 @@
 'use strict';
 
-// /api/vat-requests/* — trang "Kế toán – Yêu cầu xuất VAT" (thay sheet ORDER VAT 1).
+// /api/vat-requests/* — trang "Kế toán – ORDER VAT" (thay sheet ORDER VAT 1).
 // Moi route can accounting.vatRequest; luat sua theo truong / khoa / version nam trong service.
 
 const express = require('express');
@@ -47,7 +47,7 @@ function createVatRequestRouter({ service = createVatRequestService(), customerS
           return res.status(error.statusCode).json(body);
         }
         console.error('[vat-requests]', error);
-        return res.status(500).json({ error: 'Lỗi máy chủ khi xử lý yêu cầu xuất VAT.', code: 'VAT_REQUEST_FAILED' });
+        return res.status(500).json({ error: 'Lỗi máy chủ khi xử lý ORDER VAT.', code: 'VAT_REQUEST_FAILED' });
       }
     };
   }
