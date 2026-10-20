@@ -171,11 +171,31 @@ test('Nhan vien sale xem du 5 tab bao cao mac dinh + dien Sale phan hoi cong no,
 
 const SHIPMENT_LIFECYCLE_GROUP = ['shipment.lifecycle', 'shipment.lookup', 'shipment.history'];
 
-test('Nhan vien marketing has own report, other permissions match sale excluding general reports, lifecycle and Tao QR', () => {
+test('Nhan vien marketing has own report, other permissions match sale excluding general reports, lifecycle, Tao QR and Yeu cau xuat VAT', () => {
   assert.deepEqual(
     registry.defaultsForRole(ROLES.NHAN_VIEN_MARKETING).filter(key=>key!=='reports.marketing' && key!=='reports.products' && key!=='reports.products.expected'),
-    registry.defaultsForRole(ROLES.NHAN_VIEN_SALE).filter(key => !SALE_REPORT_VIEW_KEYS.includes(key) && key !== 'reports.debt.saleFeedback' && key !== 'accounting.qr' && !SHIPMENT_LIFECYCLE_GROUP.includes(key))
+    registry.defaultsForRole(ROLES.NHAN_VIEN_SALE).filter(key => !SALE_REPORT_VIEW_KEYS.includes(key) && key !== 'reports.debt.saleFeedback' && key !== 'accounting.qr' && key !== 'accounting.vatRequest' && !SHIPMENT_LIFECYCLE_GROUP.includes(key))
   );
+});
+
+test('Yeu cau xuat VAT: Sale + Ke toan + Quan ly xem/tao; Ke toan chi xu ly khi duoc cap rieng', () => {
+  for (const role of [ROLES.NHAN_VIEN_SALE, ROLES.KE_TOAN, ROLES.QUAN_LY]) {
+    assert.ok(registry.defaultsForRole(role).includes('accounting.vatRequest'), role);
+  }
+  assert.ok(!registry.defaultsForRole(ROLES.NHAN_VIEN_SALE).includes('accounting.vatRequestProcess'));
+  assert.ok(!registry.defaultsForRole(ROLES.KE_TOAN).includes('accounting.vatRequestProcess'));
+  assert.ok(registry.defaultsForRole(ROLES.QUAN_LY).includes('accounting.vatRequestProcess'));
+  for (const role of [ROLES.NHAN_VIEN_KHO, ROLES.NHAN_VIEN_MARKETING, ROLES.KHACH]) {
+    assert.ok(!registry.defaultsForRole(role).includes('accounting.vatRequest'), role);
+  }
+  const keToanGranted = { username: 'kt', vaiTro: ROLES.KE_TOAN, trangThai: 'Đang hoạt động', featurePermissions: { 'accounting.vatRequestProcess': true } };
+  assert.ok(registry.resolvePermissions(keToanGranted).includes('accounting.vatRequestProcess'));
+  const keToanNoBase = { ...keToanGranted, featurePermissions: { 'accounting.vatRequest': false, 'accounting.vatRequestProcess': true } };
+  assert.ok(!registry.resolvePermissions(keToanNoBase).includes('accounting.vatRequestProcess'));
+  assert.ok(!registry.resolvePermissions({ ...keToanGranted, featurePermissions: { 'accounting.vatRequestProcess': false } }).includes('accounting.vatRequestProcess'));
+  assert.ok(registry.isEscalationExempt('accounting.vatRequest'));
+  assert.ok(!registry.isEscalationExempt('accounting.vatRequestProcess'));
+  assert.ok(registry.PAGE_FEATURES.some(page => page.path === '/vat-request' && page.anyOf.includes('accounting.vatRequest')));
 });
 
 test('Nhan vien kho + mua hang + marketing + Khach KHONG co Vong doi don hang va cac quyen gan kem', () => {

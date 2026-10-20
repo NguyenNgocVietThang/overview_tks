@@ -18,6 +18,7 @@
     "kiotviet-sync:backfill": "node kiotvietSync/backfill.js",
     "kiotviet-sync:reconcile": "node kiotvietSync/reconcileCounts.js",
     "migrate:user-branches": "node scripts/migrateUserBranches.js",
+    "vat-requests:import-order-vat": "node scripts/importOrderVat.js",
     "marketing:history:capture": "node scripts/capture-marketing-history.js",
     "marketing:history:import": "node scripts/import-marketing-history.js",
     "marketing:pancake:sync": "node scripts/sync-pancake-marketing.js",

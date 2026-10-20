@@ -353,4 +353,14 @@ Phương án B đã duyệt: tập SĐT/KPI Pancake riêng trong PostgreSQL, ng�
 
 19/10/2026 — Tính sẵn báo cáo (migration `0068`–`0070`): doanh số tháng hiện tại Báo cáo kinh doanh, chi phí ADS/doanh số theo tên/tổng hợp SĐT của Báo cáo Marketing, view đọc Sổ quỹ. Chỉ đổi độ tươi dữ liệu và hiệu năng, không đổi quy tắc nghiệp vụ.
 
+## Bổ sung 20/10/2026 — Kế toán – Yêu cầu xuất VAT
+
+- **Vấn đề**: sale gửi yêu cầu xuất VAT qua Google Form vào sheet ORDER VAT 1; ai cũng sửa được mọi cột, không có lịch sử, tên sale gõ tay không thống nhất, cột Tên mã KT lỗi `#REF!`, Tồn VAT là số dán tĩnh, sale vẫn sửa được sau khi kế toán đã khai.
+- **Giải pháp**: trang "Kế toán – Yêu cầu xuất VAT" (`/vat-request/`). Sale tạo yêu cầu (chọn mã SP, khách, SL, giá chưa VAT, Full VAT / Không full VAT, ghi chú), xem được toàn bộ bảng; chỉ Kế toán được cấp quyền xử lý riêng và Quản lý mới đổi trạng thái 0–4 theo quy ước sheet cũ, ghi chú (tên lô/cont), ngày về, làm hàng loạt. Yêu cầu đã xử lý (0, 1, 2) tự khóa với sale; lịch sử ghi ai đổi gì lúc nào. Tồn VAT, SLG cần khai, Dự kiến hàng về, Ngày về gần nhất tính live.
+- **Người dùng**: Nhân viên sale, Kế toán, Quản lý có quyền xem/tạo mặc định; quyền xử lý mặc định chỉ Quản lý và được cấp riêng cho từng Kế toán ở `/account/`.
+- **Thành công**: không còn sửa đè sau khi khai; kế toán lọc ra việc cần làm (chờ xử lý, 3, 4) và xử lý theo lô; số tồn / hàng về không còn là số dán tay.
+- **Ngoài phạm vi**: thông báo (chuông, email, Zalo), ghi ngược ra Google Sheets, nối với Nháp VAT, chia Q/R theo công ty, tách cơ sở HN/SG. 3 sheet phụ XỬ LÝ VAT LÂU, HẢI - VAT, Chạy tồn VAT bỏ hẳn.
+- **Dữ liệu cũ**: nhập toàn bộ sheet ORDER VAT 1 (1.357 dòng, nhập 20/10/2026) bằng script, map sale theo email.
+- **Gợi ý nhập liệu**: khách tìm theo tên không dấu, mã khách hoặc các từ đảo thứ tự; gợi ý từ KiotViet và yêu cầu VAT trước đây. Giá chưa VAT lấy từ yêu cầu gần nhất cùng mã SP và chỉ áp dụng khi sale chọn. Tồn VAT đọc tab GỘP MỚI của sheet công khai được chỉ định (`gid=39032`).
+
 Cập nhật gần nhất: 20/10/2026.
