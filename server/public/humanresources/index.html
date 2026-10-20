@@ -240,7 +240,12 @@
     text-align:left; white-space:nowrap !important; overflow-wrap:normal !important; word-break:normal !important;
   }
   /* Dia chi la ngoai le: uu tien thu gon bang va cho phep xuong dong khi can. */
-  #employeeDirectoryTable .employee-address{ white-space:normal !important; overflow-wrap:anywhere !important; word-break:normal !important; }
+  #employeeDirectoryTable .employee-address,
+  #employeeDirectoryTable .employee-wrappable{ white-space:normal !important; overflow-wrap:anywhere !important; word-break:normal !important; }
+  .employee-form-grid{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px 16px; }
+  .employee-form-grid .form-group{ margin:0; }
+  .employee-form-grid .employee-form-wide{ grid-column:1 / -1; }
+  @media (max-width:640px){ .employee-form-grid{ grid-template-columns:1fr; } .employee-form-grid .employee-form-wide{ grid-column:auto; } }
   #employeeDirectoryTable .employee-number,
   #employeeDirectoryTable .employee-date{
     text-align:right; font-variant-numeric:tabular-nums;
@@ -1160,26 +1165,26 @@
   <div class="modal-overlay" id="employeeModal" hidden>
     <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="employeeModalHeading">
       <div class="modal-header"><h3 id="employeeModalHeading">Thêm nhân sự</h3><button type="button" class="modal-close" aria-label="Đóng" onclick="closeModal('employeeModal')">✕</button></div>
-      <form id="employeeForm" onsubmit="saveEmployee(event)"><div class="modal-body">
-        <div class="form-group"><label for="empHoTen">Họ và tên *</label><input type="text" id="empHoTen" class="form-control" required maxlength="120"></div>
+      <form id="employeeForm" onsubmit="saveEmployee(event)"><div class="modal-body employee-form-grid">
+        <div class="form-group employee-form-wide"><label for="empHoTen">Họ và tên *</label><input type="text" id="empHoTen" class="form-control" required maxlength="120"></div>
         <div class="form-group"><label for="empBoPhan">Bộ phận *</label><input type="text" id="empBoPhan" class="form-control" required maxlength="80" list="empBoPhanList"><datalist id="empBoPhanList"></datalist></div>
+        <div class="form-group"><label for="empChucVu">Chức vụ</label><input type="text" id="empChucVu" class="form-control" maxlength="120"></div>
         <div class="form-group"><label for="empCoSo">Cơ sở *</label><select id="empCoSo" class="form-control" required></select></div>
         <div class="form-group"><label for="empSdt">Số điện thoại</label><input type="tel" id="empSdt" class="form-control" maxlength="20"></div>
-        <div class="form-group"><label for="empChucVu">Chức vụ</label><input type="text" id="empChucVu" class="form-control" maxlength="120"></div>
         <div class="form-group"><label for="empNgayVaoLam">Ngày vào làm</label><input type="date" id="empNgayVaoLam" class="form-control"></div>
+        <div class="form-group"><label for="empTrangThai">Trạng thái</label><select id="empTrangThai" class="form-control" onchange="updateEmployeeStatusHint()"><option value="active">Đang làm việc</option><option value="resigned">Đã nghỉ việc</option></select>
+          <small id="empStatusHint" class="alert-box alert-error" style="display:none;margin-top:6px;">Tài khoản đăng nhập liên kết với nhân sự này sẽ bị khóa.</small></div>
         <div class="form-group"><label for="empNgaySinh">Ngày sinh</label><input type="date" id="empNgaySinh" class="form-control"></div>
         <div class="form-group"><label for="empGioiTinh">Giới tính</label><select id="empGioiTinh" class="form-control"><option value="">— Chưa chọn —</option><option>Nam</option><option>Nữ</option><option>Khác</option></select></div>
         <div class="form-group"><label for="empSoCccd">CCCD</label><input type="text" id="empSoCccd" class="form-control" maxlength="20"></div>
-        <div class="form-group"><label for="empDiaChi">Địa chỉ hiện tại</label><textarea id="empDiaChi" class="form-control" rows="2" maxlength="500"></textarea></div>
+        <div class="form-group"><label><input type="checkbox" id="empHoSoDayDu"> Hồ sơ đầy đủ</label><br><label><input type="checkbox" id="empVanTay"> Đã đăng ký vân tay</label></div>
+        <div class="form-group employee-form-wide"><label for="empDiaChi">Địa chỉ hiện tại</label><textarea id="empDiaChi" class="form-control" rows="2" maxlength="500"></textarea></div>
         <div class="form-group"><label for="empNguoiThanQuanHe">Quan hệ người thân</label><input type="text" id="empNguoiThanQuanHe" class="form-control" maxlength="80"></div>
         <div class="form-group"><label for="empNguoiThanHoTen">Họ tên người thân</label><input type="text" id="empNguoiThanHoTen" class="form-control" maxlength="120"></div>
         <div class="form-group"><label for="empNguoiThanSdt">SĐT người thân</label><input type="tel" id="empNguoiThanSdt" class="form-control" maxlength="20"></div>
         <div class="form-group"><label for="empNgayNghiViec">Ngày nghỉ việc</label><input type="date" id="empNgayNghiViec" class="form-control"></div>
-        <div class="form-group"><label><input type="checkbox" id="empHoSoDayDu"> Hồ sơ đầy đủ</label><br><label><input type="checkbox" id="empVanTay"> Đã đăng ký vân tay</label></div>
-        <div class="form-group"><label for="empTrangThai">Trạng thái</label><select id="empTrangThai" class="form-control" onchange="updateEmployeeStatusHint()"><option value="active">Đang làm việc</option><option value="resigned">Đã nghỉ việc</option></select>
-          <small id="empStatusHint" class="alert-box alert-error" style="display:none;margin-top:6px;">Tài khoản đăng nhập liên kết với nhân sự này sẽ bị khóa.</small></div>
         <div class="form-group" id="empCreatedAtGroup" hidden><label for="empCreatedAt">Ngày thêm</label><input type="text" id="empCreatedAt" class="form-control" readonly></div>
-        <div id="empError" class="alert-box alert-error" style="display:none;" role="alert"></div>
+        <div id="empError" class="alert-box alert-error employee-form-wide" style="display:none;" role="alert"></div>
       </div><div class="modal-footer"><button id="empSave" class="btn-primary" type="submit">Lưu</button></div></form>
     </div>
   </div>
@@ -3003,6 +3008,7 @@
 
     function employeeCellClass(columnKey){
       if(columnKey === 'dia-chi') return 'employee-address';
+      if(['bo-phan','chuc-vu'].includes(columnKey)) return 'employee-text employee-wrappable';
       if(['so-ngay-lv','so-cccd','so-dien-thoai','sdt-nguoi-than'].includes(columnKey)) return 'employee-number';
       if(['ngay-vao-lam','ngay-sinh','ngay-nghi-viec'].includes(columnKey)) return 'employee-date';
       return 'employee-text';

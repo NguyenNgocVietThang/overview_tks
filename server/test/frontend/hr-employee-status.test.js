@@ -48,6 +48,24 @@ async function openPage({ canManage, employees = EMPLOYEES }) {
 
 const names = doc => [...doc.querySelectorAll('#employeeDirectoryTableBody tr')].map(tr => tr.cells[0].textContent);
 
+test('Bộ phận và Chức vụ được phép xuống dòng khi người dùng thu cột', async () => {
+  const { dom, window } = await openPage({ canManage: true });
+  const row = window.document.querySelector('#employeeDirectoryTableBody tr');
+  assert.ok(row.cells[1].classList.contains('employee-wrappable'));
+  assert.ok(row.cells[2].classList.contains('employee-wrappable'));
+  dom.window.close();
+});
+
+test('form nhân sự đặt Bộ phận sát Chức vụ trong lưới thông tin', () => {
+  const html = fs.readFileSync(htmlPath, 'utf8');
+  const dom = new JSDOM(html);
+  const grid = dom.window.document.querySelector('#employeeForm .employee-form-grid');
+  assert.ok(grid, 'form dùng lưới hai cột để nhóm thông tin liên quan');
+  assert.equal(grid.children[1].querySelector('#empBoPhan') !== null, true);
+  assert.equal(grid.children[2].querySelector('#empChucVu') !== null, true);
+  dom.window.close();
+});
+
 test('quản lý không thấy STT và danh sách mặc định xếp ngày vào làm mới nhất lên đầu', async () => {
   const employees = [
     { id: 'old', hoTen: 'Nhân sự cũ', boPhan: 'KHO', coSo: 'Hà Nội', ngayVaoLam: '2023-01-01', createdAt: '2026-01-01T00:00:00.000Z', trangThai: 'Đang làm việc' },
