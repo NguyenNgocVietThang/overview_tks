@@ -67,7 +67,8 @@ test('mac dinh theo vai tro: reports.* khop dung REPORTS_ROLES cu', () => {
       // Tinh lai thang chot (2026-10-07) va sua Khach moi/Ghi chu Marketing (2026-10-08) chi danh cho Quan ly.
       if (['reports.business.refreeze', 'reports.business.editTeam', 'reports.marketing.edit', 'reports.overview.containers.full'].includes(key) && role !== ROLES.QUAN_LY) continue;
       // Cong no theo lich TT (2026-10-13): Sale phan hoi mac dinh chi Nhan vien sale; QL phan hoi, trang thai, lich TT chi Quan ly.
-      if (key === 'reports.debt.saleFeedback') continue;
+      if (key === 'reports.debt.saleFeedback' || key === 'reports.invoices.priceAudit.explain') continue;
+      if (key === 'reports.invoices.priceAudit.decide' && role !== ROLES.QUAN_LY) continue;
       if (['reports.debt.managerFeedback', 'reports.debt.edit', 'reports.debt.schedule', 'reports.debt.penalty', 'reports.debt.refresh'].includes(key) && role !== ROLES.QUAN_LY) continue;
       assert.ok(defaults.includes(key), `${role} phai co ${key}`);
     }
@@ -153,11 +154,14 @@ test('Tra cuu / Lich su / Xuat / Ghi de GAN vao Vong doi don hang: thieu lifecyc
   assert.ok(!grantedOnlyLifecycle.includes('shipment.history'));
 });
 
-const SALE_REPORT_VIEW_KEYS = ['reports.overview', 'reports.products', 'reports.products.sales', 'reports.products.expected', 'reports.invoices', 'reports.business', 'reports.debt'];
+const SALE_REPORT_VIEW_KEYS = ['reports.overview', 'reports.products', 'reports.products.sales', 'reports.products.expected', 'reports.invoices', 'reports.invoices.priceAudit', 'reports.business', 'reports.debt'];
+const SALE_REPORT_WRITE_KEYS = ['reports.debt.saleFeedback', 'reports.invoices.priceAudit.explain'];
 
 test('Nhan vien sale xem du 5 tab bao cao mac dinh + dien Sale phan hoi cong no, KHONG co xuat Excel / sua trang thai cong no', () => {
   const reportKeys = registry.defaultsForRole(ROLES.NHAN_VIEN_SALE).filter(key => key.startsWith('reports.'));
-  assert.deepEqual(reportKeys.filter(key => key !== 'reports.debt.saleFeedback'), SALE_REPORT_VIEW_KEYS);
+  assert.deepEqual(reportKeys.filter(key => !SALE_REPORT_WRITE_KEYS.includes(key)), SALE_REPORT_VIEW_KEYS);
+  assert.ok(reportKeys.includes('reports.invoices.priceAudit.explain'));
+  assert.ok(!reportKeys.includes('reports.invoices.priceAudit.decide'));
   assert.ok(reportKeys.includes('reports.debt.saleFeedback'));
   assert.ok(!reportKeys.includes('reports.debt.managerFeedback'));
   assert.ok(!reportKeys.includes('reports.debt.schedule'));
@@ -174,7 +178,7 @@ const SHIPMENT_LIFECYCLE_GROUP = ['shipment.lifecycle', 'shipment.lookup', 'ship
 test('Nhan vien marketing has own report, other permissions match sale excluding general reports, lifecycle, Tao QR and Yeu cau xuat VAT', () => {
   assert.deepEqual(
     registry.defaultsForRole(ROLES.NHAN_VIEN_MARKETING).filter(key=>key!=='reports.marketing' && key!=='reports.products' && key!=='reports.products.expected'),
-    registry.defaultsForRole(ROLES.NHAN_VIEN_SALE).filter(key => !SALE_REPORT_VIEW_KEYS.includes(key) && key !== 'reports.debt.saleFeedback' && key !== 'accounting.qr' && key !== 'accounting.vatRequest' && !SHIPMENT_LIFECYCLE_GROUP.includes(key))
+    registry.defaultsForRole(ROLES.NHAN_VIEN_SALE).filter(key => !SALE_REPORT_VIEW_KEYS.includes(key) && !SALE_REPORT_WRITE_KEYS.includes(key) && key !== 'accounting.qr' && key !== 'accounting.vatRequest' && !SHIPMENT_LIFECYCLE_GROUP.includes(key))
   );
 });
 
@@ -373,4 +377,19 @@ test('reports.products.expected (Du kien hang ve): 7 vai tro, doc lap voi report
     assert.notEqual(registry.landingPathFor(permissions), '/reports/', role);
   }
   assert.equal(registry.landingPathFor(['reports.products.expected', 'account.profile']), '/account/');
+});
+
+test('Kiem tra gia ban: xem (QL/TL/Sale, can Hoa don), giai thich mac dinh chi Sale, Chot mac dinh chi Quan ly', () => {
+  const VIEW = 'reports.invoices.priceAudit';
+  const EXPLAIN = 'reports.invoices.priceAudit.explain';
+  const DECIDE = 'reports.invoices.priceAudit.decide';
+  for (const role of ['Quản lý', 'Trợ lý', 'Nhân viên sale']) assert.ok(registry.defaultsForRole(role).includes(VIEW), role);
+  assert.ok(!registry.defaultsForRole('Kế toán').includes(VIEW));
+  assert.deepEqual(['Quản lý', 'Trợ lý', 'Nhân viên sale'].filter(r => registry.defaultsForRole(r).includes(EXPLAIN)), ['Nhân viên sale']);
+  assert.deepEqual(['Quản lý', 'Trợ lý', 'Nhân viên sale'].filter(r => registry.defaultsForRole(r).includes(DECIDE)), ['Quản lý']);
+  // requires: mat quyen xem (hoac mat Hoa don) thi mat ca giai thich / Chot.
+  assert.ok(!registry.resolvePermissions({ vaiTro: 'Nhân viên sale', featurePermissions: { 'reports.invoices': false } }).some(k => k.startsWith(VIEW)));
+  assert.ok(!registry.resolvePermissions({ vaiTro: 'Quản lý', featurePermissions: { [VIEW]: false } }).includes(DECIDE));
+  // Cap rieng cho Tro ly duoc.
+  assert.ok(registry.resolvePermissions({ vaiTro: 'Trợ lý', featurePermissions: { [DECIDE]: true } }).includes(DECIDE));
 });

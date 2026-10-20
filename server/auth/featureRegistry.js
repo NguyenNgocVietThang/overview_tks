@@ -60,6 +60,12 @@ const FEATURES = Object.freeze([
   // Ke toan / Mua hang / Kho khong co Bao cao hang hoa nhung van can biet lich cont ve. API rieng /api/expected-arrivals.
   { key: 'reports.products.expected', groupKey: 'reports', label: 'Hàng hóa: xem bảng Dự kiến hàng về', roles: [...REPORT_VIEW_ROLES, ROLES.KE_TOAN, ROLES.NHAN_VIEN_MARKETING, ROLES.NHAN_VIEN_MUA_HANG, ROLES.NHAN_VIEN_KHO] },
   { key: 'reports.invoices', groupKey: 'reports', label: 'Hóa đơn', roles: REPORT_VIEW_ROLES },
+  // 2026-10-20: Kiem tra gia ban (tab Hoa don, server/invoicePriceAudit). Giai thich chi Sale dung nhom khach HIEN TAI
+  // (kiem tra o server moi lan ghi); Chot mac dinh chi Quan ly, KHONG tu cap Tro ly; quyen Chot khong kem quyen giai thich.
+  // escalationExempt cho giai thich: giong Sale phan hoi cong no (Tro ly van tao / dat lai mat khau TK Sale duoc).
+  { key: 'reports.invoices.priceAudit', groupKey: 'reports', label: 'Hóa đơn: xem Kiểm tra giá bán (cần Hóa đơn)', roles: REPORT_VIEW_ROLES, requires: 'reports.invoices' },
+  { key: 'reports.invoices.priceAudit.explain', groupKey: 'reports', label: 'Kiểm tra giá bán: điền Sale giải thích cho khách mình phụ trách (cần Kiểm tra giá bán)', roles: [ROLES.NHAN_VIEN_SALE], requires: 'reports.invoices.priceAudit', escalationExempt: true },
+  { key: 'reports.invoices.priceAudit.decide', groupKey: 'reports', label: 'Kiểm tra giá bán: Chốt Ok / Phạt (cần Kiểm tra giá bán)', roles: MANAGER_ONLY, requires: 'reports.invoices.priceAudit' },
   // 2026-10-07: Bao cao kinh doanh (tang truong Sale/Khach/Ma hang theo thang). Spec:
   // docs/superpowers/specs/2026-10-07-business-report-design.md.
   // 2026-10-16: tab nay thay tab Khach hang cu (da go, quyen reports.customers bo) nen hien ten "Khách hàng";

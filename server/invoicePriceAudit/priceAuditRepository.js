@@ -264,6 +264,34 @@ const SALES_SQL = `SELECT DISTINCT l.sale_name FROM invoice_price_audit_lines l
 const ROW_BY_KEY_SQL = `SELECT ${ROW_COLUMNS_SQL} FROM invoice_price_audit_lines l
   WHERE l.branch = $1 AND l.invoice_id = $2::bigint AND l.source_line_no = $3::int`;
 
+// Ghi giai thich / Chot (Task 5): khoa dong + kiem tra cua so cong bo trong CUNG giao dich.
+const LOCK_ROW_SQL = `SELECT ${ROW_COLUMNS_SQL},
+    (st.window_from IS NOT NULL AND l.sold_day BETWEEN st.window_from AND st.window_to) AS in_window
+  FROM invoice_price_audit_lines l
+  LEFT JOIN invoice_price_audit_state st ON st.id
+  WHERE l.branch = $1 AND l.invoice_id = $2::bigint AND l.source_line_no = $3::int
+  FOR UPDATE OF l`;
+const UPDATE_EXPLANATION_SQL = `UPDATE invoice_price_audit_lines
+  SET sale_explanation = $5, explanation_by = $6, explanation_at = now(), version = version + 1
+  WHERE branch = $1 AND invoice_id = $2::bigint AND source_line_no = $3::int AND version = $4
+  RETURNING version`;
+// Chot chi tren dong sai GOC; null xoa ca nguoi/thoi diem chot.
+const UPDATE_DECISION_SQL = `UPDATE invoice_price_audit_lines
+  SET decision = $5::text,
+      decided_by = CASE WHEN $5::text IS NULL THEN NULL ELSE $6 END,
+      decided_at = CASE WHEN $5::text IS NULL THEN NULL ELSE now() END,
+      version = version + 1
+  WHERE branch = $1 AND invoice_id = $2::bigint AND source_line_no = $3::int AND version = $4
+    AND original_status = 'wrong'
+  RETURNING version`;
+const INSERT_CHANGE_SQL = `INSERT INTO invoice_price_audit_changes
+  (branch, invoice_id, source_line_no, actor, action, before_value, after_value, version_before, version_after)
+  VALUES ($1, $2::bigint, $3::int, $4, $5, $6::jsonb, $7::jsonb, $8, $9)`;
+
+function httpError(statusCode, message, code, extra = {}) {
+  return Object.assign(new Error(message), { statusCode, code }, extra);
+}
+
 const iso = value => (value == null ? null : new Date(value).toISOString());
 
 // canEditExplanation / canDecide: Task 5 (priceAuditAccess) dien theo viewer; o day luon false.
@@ -361,7 +389,62 @@ function createPriceAuditRepository({ pool = getPool() } = {}) {
     return rows[0] ? mapRow(rows[0]) : null;
   }
 
-  return { readReport, readRow, readState };
+  /**
+   * Ghi 1 truong co version + nhat ky trong 1 giao dich. Thu tu loi: 404 (khong co / het cua so cong bo)
+   * -> authorize(row) (nem 403) -> check(row) (nem 400) -> 409 khi version lech (kem dong hien tai).
+   */
+  async function writeLine(key, expectedVersion, actor, spec) {
+    const params = [key.branch, String(key.invoiceId), key.sourceLineNo];
+    const client = await pool.connect();
+    let done = false;
+    try {
+      await client.query('BEGIN');
+      const locked = (await client.query(LOCK_ROW_SQL, params)).rows[0];
+      if (!locked || !locked.in_window) {
+        throw httpError(404, 'Dòng kiểm tra giá không tồn tại hoặc đã hết cửa sổ 7 ngày.', 'NOT_FOUND');
+      }
+      const before = mapRow(locked);
+      if (spec.authorize) spec.authorize(before);
+      if (spec.check) spec.check(before);
+      if (before.version !== expectedVersion) {
+        throw httpError(409, 'Dòng vừa được người khác cập nhật. Hãy tải lại rồi thử lại.', 'VERSION_CONFLICT', { row: before });
+      }
+      const updated = (await client.query(spec.sql, [...params, expectedVersion, spec.value, actor])).rows[0];
+      if (!updated) throw httpError(409, 'Dòng vừa được người khác cập nhật. Hãy tải lại rồi thử lại.', 'VERSION_CONFLICT', { row: before });
+      await client.query(INSERT_CHANGE_SQL, [...params, actor, spec.action, JSON.stringify(spec.snapshot(before)),
+        JSON.stringify(spec.snapshot(null)), expectedVersion, updated.version]);
+      const row = await readRow(key, client);
+      await client.query('COMMIT');
+      done = true;
+      return row;
+    } finally {
+      if (!done) await client.query('ROLLBACK').catch(() => {});
+      client.release();
+    }
+  }
+
+  /** Sale giai thich (text da kiem tra o service). options.authorize(rowTruocGhi) nem 403 neu khong dung nhom HIEN TAI. */
+  function setExplanation(key, text, expectedVersion, actor, options = {}) {
+    return writeLine(key, expectedVersion, actor, {
+      action: 'explanation', sql: UPDATE_EXPLANATION_SQL, value: text, authorize: options.authorize,
+      snapshot: row => ({ text: row ? row.saleExplanation : text })
+    });
+  }
+
+  /** Chot: decision 'ok' | 'penalty' | null; chi dong sai gia goc (khac -> 400 NOT_WRONG_PRICE). */
+  function setDecision(key, decision, expectedVersion, actor, options = {}) {
+    return writeLine(key, expectedVersion, actor, {
+      action: 'decision', sql: UPDATE_DECISION_SQL, value: decision, authorize: options.authorize,
+      check: row => {
+        if (row.originalStatus !== 'wrong') {
+          throw httpError(400, 'Chỉ dòng sai giá gốc mới được chốt Ok / Phạt.', 'NOT_WRONG_PRICE');
+        }
+      },
+      snapshot: row => ({ decision: row ? row.decision : decision })
+    });
+  }
+
+  return { readReport, readRow, readState, setExplanation, setDecision };
 }
 
 let defaultRepository;
@@ -375,5 +458,6 @@ module.exports = {
   captureUnseenInvoices,
   createPriceAuditRepository,
   getPriceAuditRepository,
+  httpError,
   mapRow
 };
