@@ -12,6 +12,7 @@ const html = fs.readFileSync(path.join(publicDir, 'vat-request/index.html'), 'ut
 const code = fs.readFileSync(path.join(publicDir, 'vat-request/vat-request.js'), 'utf8');
 const nav = fs.readFileSync(path.join(publicDir, 'shared/shared-nav.js'), 'utf8');
 const tick = () => new Promise(resolve => setTimeout(resolve, 0));
+const PROCESS_GRANTED = { 'accounting.vatRequestProcess': true };
 
 const STATUSES = [
   { value: 'pending', label: 'Chờ KT xử lý', locksSale: false },
@@ -40,13 +41,13 @@ function listResponse(rows) {
   };
 }
 
-async function setup(t, { vaiTro, id = 'sale-1', responses }) {
+async function setup(t, { vaiTro, id = 'sale-1', responses, featurePermissions = {} }) {
   const dom = new JSDOM(html, { url: 'https://tokosi.test/vat-request/', runScripts: 'outside-only', pretendToBeVisual: true });
   t.after(() => dom.window.close());
   const window = dom.window;
   window.eval(fs.readFileSync(path.join(publicDir, 'shared/table-controls.js'), 'utf8'));
   window.eval(nav);
-  const user = { id, vaiTro, branch: 'Cả hai', permissions: resolvePermissions({ vaiTro }), pageFeatures: PAGE_FEATURES };
+  const user = { id, vaiTro, branch: 'Cả hai', permissions: resolvePermissions({ vaiTro, featurePermissions }), pageFeatures: PAGE_FEATURES };
   window.TKSNav.authGuard = async () => { window.TKSNav.setPermissions(user); return user; };
   const calls = [];
   window.fetch = async (url, options = {}) => {
@@ -149,6 +150,16 @@ test('gia order VAT gan nhat chi dien khi bam goi y; khi sua giu gia hien tai', 
   assert.match(doc.getElementById('vrPriceSuggestion').textContent, /12,500/);
 });
 
+test('Ke toan chua duoc cap quyen: chi xem, khong co sua nhanh / chon lo / gom theo ma', async t => {
+  const { doc, calls } = await setup(t, { vaiTro: 'Kế toán', id: 'kt-2', responses: { 'GET /': listResponse([row(1, { isMine: false, canEditSale: false })]) } });
+  assert.equal(calls[0].query.status, undefined);
+  assert.equal(doc.querySelector('[data-column-key="select"]'), null);
+  assert.equal(doc.querySelector('[data-inline]'), null);
+  assert.equal(doc.getElementById('vrGroupToggleWrap').hidden, true);
+  assert.equal(doc.getElementById('vrBulk').hidden, true);
+  assert.ok(doc.getElementById('vrCreate'));
+});
+
 test('KT: mac dinh loc Can xu ly, doi trang thai tren dong gui version; 409 hien canh bao va thay dong moi nhat', async t => {
   let conflict = false;
   const responses = {
@@ -157,7 +168,7 @@ test('KT: mac dinh loc Can xu ly, doi trang thai tren dong gui version; 409 hien
       ? { status: 409, data: { error: 'Yêu cầu vừa được người khác cập nhật.', code: 'VERSION_CONFLICT', latest: row(1, { status: '3', statusLabel: '3. Chờ khai chèn', version: 5, canProcess: true }) } }
       : { status: 200, data: row(1, { ...body, version: 2, canProcess: true }) }
   };
-  const { window, doc, calls } = await setup(t, { vaiTro: 'Kế toán', id: 'kt-1', responses });
+  const { window, doc, calls } = await setup(t, { vaiTro: 'Kế toán', id: 'kt-1', responses, featurePermissions: PROCESS_GRANTED });
   assert.equal(calls[0].query.status, 'pending,3,4');
   assert.equal(calls[0].query.createdBy, undefined);
   assert.ok(doc.querySelector('[data-column-key="select"]'));
@@ -185,7 +196,7 @@ test('KT chon nhieu dong roi doi trang thai + ghi ten cont hang loat', async t =
     'GET /': listResponse([row(1, { canProcess: true }), row(2, { canProcess: true, version: 4 })]),
     'PATCH /bulk': () => ({ status: 200, data: { updated: 2 } })
   };
-  const { window, doc, calls } = await setup(t, { vaiTro: 'Kế toán', id: 'kt-1', responses });
+  const { window, doc, calls } = await setup(t, { vaiTro: 'Kế toán', id: 'kt-1', responses, featurePermissions: PROCESS_GRANTED });
   assert.equal(doc.getElementById('vrBulk').hidden, true);
   for (const id of [1, 2]) {
     const box = doc.querySelector(`[data-select="${id}"]`);
@@ -204,7 +215,7 @@ test('KT chon nhieu dong roi doi trang thai + ghi ten cont hang loat', async t =
 
 test('gom theo ma SP: dong tieu de nhom hien ton VAT / can khai / dang ve', async t => {
   const responses = { 'GET /': listResponse([row(1, { canProcess: true }), row(2, { canProcess: true, productCode: '26DAQUAN', productKey: '26daquan', productName: 'Đồng hồ' }), row(3, { canProcess: true })]) };
-  const { window, doc } = await setup(t, { vaiTro: 'Kế toán', id: 'kt-1', responses });
+  const { window, doc } = await setup(t, { vaiTro: 'Kế toán', id: 'kt-1', responses, featurePermissions: PROCESS_GRANTED });
   const toggle = doc.getElementById('vrGroupToggle');
   toggle.checked = true;
   toggle.dispatchEvent(new window.Event('change', { bubbles: true }));
@@ -294,7 +305,7 @@ test('luu: nut co trang thai dang luu va khong gui trung khi bam 2 lan', async t
 
 test('nhay dup vao o sua nhanh cua KT khong mo hop; chuot phai hien menu, dong khoa khong co muc Sua', async t => {
   const responses = { 'GET /': listResponse([row(1, { canProcess: true, canEditSale: false, isMine: false }), lockedRow(2)]), 'GET /1/history': HISTORY, 'GET /2/history': HISTORY };
-  const { window, doc } = await setup(t, { vaiTro: 'Kế toán', id: 'kt-1', responses });
+  const { window, doc } = await setup(t, { vaiTro: 'Kế toán', id: 'kt-1', responses, featurePermissions: PROCESS_GRANTED });
   doc.querySelector('[data-inline="accountantNote"][data-id="1"]').dispatchEvent(new window.MouseEvent('dblclick', { bubbles: true }));
   assert.equal(doc.getElementById('vrFormDialog').hasAttribute('open'), false);
 

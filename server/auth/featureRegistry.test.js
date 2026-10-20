@@ -177,19 +177,23 @@ test('Nhan vien marketing has own report, other permissions match sale excluding
   );
 });
 
-test('Yeu cau xuat VAT: Sale + Ke toan + Quan ly xem/tao; chi Ke toan + Quan ly xu ly; xu ly can quyen goc', () => {
+test('Yeu cau xuat VAT: Sale + Ke toan + Quan ly xem/tao; Ke toan chi xu ly khi duoc cap rieng', () => {
   for (const role of [ROLES.NHAN_VIEN_SALE, ROLES.KE_TOAN, ROLES.QUAN_LY]) {
     assert.ok(registry.defaultsForRole(role).includes('accounting.vatRequest'), role);
   }
   assert.ok(!registry.defaultsForRole(ROLES.NHAN_VIEN_SALE).includes('accounting.vatRequestProcess'));
-  assert.ok(registry.defaultsForRole(ROLES.KE_TOAN).includes('accounting.vatRequestProcess'));
+  assert.ok(!registry.defaultsForRole(ROLES.KE_TOAN).includes('accounting.vatRequestProcess'));
+  assert.ok(registry.defaultsForRole(ROLES.QUAN_LY).includes('accounting.vatRequestProcess'));
   for (const role of [ROLES.NHAN_VIEN_KHO, ROLES.NHAN_VIEN_MARKETING, ROLES.KHACH]) {
     assert.ok(!registry.defaultsForRole(role).includes('accounting.vatRequest'), role);
   }
-  const keToanNoBase = { username: 'kt', vaiTro: ROLES.KE_TOAN, trangThai: 'Đang hoạt động', featurePermissions: { 'accounting.vatRequest': false } };
+  const keToanGranted = { username: 'kt', vaiTro: ROLES.KE_TOAN, trangThai: 'Đang hoạt động', featurePermissions: { 'accounting.vatRequestProcess': true } };
+  assert.ok(registry.resolvePermissions(keToanGranted).includes('accounting.vatRequestProcess'));
+  const keToanNoBase = { ...keToanGranted, featurePermissions: { 'accounting.vatRequest': false, 'accounting.vatRequestProcess': true } };
   assert.ok(!registry.resolvePermissions(keToanNoBase).includes('accounting.vatRequestProcess'));
+  assert.ok(!registry.resolvePermissions({ ...keToanGranted, featurePermissions: { 'accounting.vatRequestProcess': false } }).includes('accounting.vatRequestProcess'));
   assert.ok(registry.isEscalationExempt('accounting.vatRequest'));
-  assert.ok(registry.isEscalationExempt('accounting.vatRequestProcess'));
+  assert.ok(!registry.isEscalationExempt('accounting.vatRequestProcess'));
   assert.ok(registry.PAGE_FEATURES.some(page => page.path === '/vat-request' && page.anyOf.includes('accounting.vatRequest')));
 });
 

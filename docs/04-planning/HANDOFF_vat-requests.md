@@ -9,7 +9,7 @@ Trang `/vat-request/` thay Google Form + sheet "ORDER VAT 1". Sale gửi yêu c�
 
 Ý định đã chốt với chủ dự án (đừng tự đổi):
 - **Sale** (`accounting.vatRequest`, mặc định Nhân viên sale + Kế toán + Quản lý): tạo yêu cầu, **xem toàn bộ bảng** (chỉ đọc dòng người khác), sửa/xóa yêu cầu của mình khi chưa khóa.
-- **KT** (`accounting.vatRequestProcess`, mặc định Kế toán + Quản lý): chỉ sửa `status`, `accountantNote`, `arrivalDate`; sửa nhanh trên dòng, chọn nhiều dòng đổi hàng loạt, chế độ "Gom theo mã SP".
+- **KT được cấp quyền riêng** (`accounting.vatRequestProcess`, mặc định chỉ Quản lý): sửa `status`, `accountantNote`, `arrivalDate`; sửa nhanh trên dòng, chọn nhiều dòng đổi hàng loạt, chế độ "Gom theo mã SP". Quản lý cấp cho từng tài khoản Kế toán tại `/account/#users` → Sửa phân quyền; quyền này cần `accounting.vatRequest`. Kế toán chưa được cấp chỉ xem/tạo yêu cầu.
 - **Quản lý**: sửa mọi trường.
 - Trạng thái: `pending` (mặc định) / `0` Không khai được / `1` Đã xong / `2` Đã khai chờ về / `3` Chờ khai chèn / `4` Chờ cont về, tăng slg.
 - Sale bị khóa khi status ∈ {0,1,2}. Sale sửa yêu cầu đang 3/4 → **tự về pending**. KT đổi trạng thái mọi chiều (lùi = mở khóa).
@@ -22,9 +22,9 @@ Trang `/vat-request/` thay Google Form + sheet "ORDER VAT 1". Sale gửi yêu c�
 
 - Toàn bộ code đã commit trên nhánh `feature/vat-requests` (cắt từ `main` 68091dd). **Chưa push, chưa PR, chưa merge.**
 - **Migration `0073_vat_requests.sql` CHƯA áp lên DB thật** (Supabase production). Server local đọc DB thật → trang `/vat-request/` sẽ lỗi 500 cho tới khi áp. Không tự áp nếu chưa được chủ dự án đồng ý.
-- Test 20/10/2026 sau cập nhật gợi ý: `npm test` 2.924 test, 2.920 đạt, 3 bỏ qua, chỉ 1 test có sẵn trên main `test/frontend/sort-icons.test.js` lỗi CRLF trên Windows — đã sửa ở nhánh riêng `claude/cranky-pike-6ec25e` (commit `0e6bd34`, chưa merge). Kiểm tra PGlite/JSDOM riêng đều đạt; bản giả lập PGlite đã xem mobile/desktop, sáng/tối.
+- Test 20/10/2026 sau đổi quyền xử lý: `npm test` 2.927 test, 2.923 đạt, 3 bỏ qua, chỉ 1 test có sẵn trên main `test/frontend/sort-icons.test.js` lỗi CRLF trên Windows — đã sửa ở nhánh riêng `claude/cranky-pike-6ec25e` (commit `0e6bd34`, chưa merge). Kiểm tra PGlite/JSDOM riêng đều đạt; bản giả lập PGlite đã xem Kế toán được cấp/chưa cấp quyền, trước đó đã xem form tạo/sửa, mobile/desktop, sáng/tối.
 - `graphify update .` chưa chạy được (máy không cài graphify).
-- Cập nhật 20/10/2026: mặc định Tồn VAT đã chuyển sang tab GỘP MỚI `gid=39032` của cùng sheet công khai; mã gợi ý khách/giá đã bổ sung trong `suggestions.js`. Chưa áp migration hoặc deploy.
+- Cập nhật 20/10/2026: mặc định Tồn VAT đã chuyển sang tab GỘP MỚI `gid=39032` của cùng sheet công khai; mã gợi ý khách/giá đã bổ sung trong `suggestions.js`. Quyền xử lý VAT không còn cấp mặc định cho Kế toán; Quản lý vẫn có mặc định và có thể cấp riêng cho từng người. Chưa áp migration hoặc deploy.
 
 ## 3. Bản đồ file
 

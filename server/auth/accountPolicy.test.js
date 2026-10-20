@@ -89,6 +89,15 @@ test('checkGrant: chi duoc THEM quyen ma chinh actor co', () => {
   assert.ok(policy.checkGrant(actor, actor, { ...actor, featurePermissions: { ...ADMIN_GRANTS, 'system.syncStatus': true } }));
 });
 
+test('chi nguoi co quyen xu ly VAT moi duoc cap quyen nay cho Ke toan khac', () => {
+  const target = user('Kế toán');
+  const granted = user('Kế toán', { 'accounting.vatRequestProcess': true });
+  assert.match(policy.checkGrant(troLy(), target, granted), /Yêu cầu xuất VAT: xử lý trạng thái/);
+  assert.equal(policy.checkGrant(troLy({ 'accounting.vatRequest': true, 'accounting.vatRequestProcess': true }), target, granted), null);
+  assert.match(policy.checkTakeover(troLy(), granted, 'đặt lại mật khẩu'), /Yêu cầu xuất VAT: xử lý trạng thái/);
+  assert.equal(policy.checkGrant(manager, target, granted), null);
+});
+
 test('checkGrant: doi sang vai tro co quyen mac dinh vuot actor bi chan, vai tro thap hon thi duoc', () => {
   const actor = troLy();
   // Quan ly co shipment.override va nhieu quyen khac (Tro ly khong co); Ke toan nay <= Tro ly.

@@ -32,7 +32,8 @@ function user(id, vaiTro, extra = {}) {
 }
 const SALE = user('sale-1', ROLES.NHAN_VIEN_SALE);
 const SALE2 = user('sale-2', ROLES.NHAN_VIEN_SALE);
-const KT = user('kt-1', ROLES.KE_TOAN);
+const KT = user('kt-1', ROLES.KE_TOAN, { featurePermissions: { 'accounting.vatRequestProcess': true } });
+const KT_UNGRANTED = user('kt-2', ROLES.KE_TOAN);
 const QL = user('ql-1', ROLES.QUAN_LY);
 
 const NEW_REQUEST = { customerName: 'KH A Thắng Thanh Trì', productCode: '014xoan', quantity: 400, unitPrice: 11400, fullVat: true, saleNote: '' };
@@ -147,6 +148,23 @@ test('KT khong sua truong cua sale; sua ghi chu KT khi da khoa; lui 1 -> 3 mo kh
     assert.equal((await service.get(SALE, row.id)).canEditSale, true);
     const saleEdit = await service.update(SALE, row.id, { version: reopened.version, quantity: 300 });
     assert.equal(saleEdit.status, 'pending');
+  } finally { await db.close(); }
+});
+
+test('Ke toan chua duoc cap quyen chi xem, khong xu ly tung dong hay hang loat', async () => {
+  const { db, service } = await fixture();
+  try {
+    const row = await service.create(SALE, NEW_REQUEST);
+    const listed = await service.list(KT_UNGRANTED);
+    assert.equal(listed.rows.length, 1);
+    assert.equal(listed.viewer.canProcess, false);
+    assert.equal(listed.rows[0].canProcess, false);
+    for (const changes of [{ status: '1' }, { accountantNote: 'Đã duyệt' }, { arrivalDate: '2026-10-25' }]) {
+      await assert.rejects(service.update(KT_UNGRANTED, row.id, { version: 1, ...changes }), { statusCode: 403, code: 'FEATURE_FORBIDDEN' });
+    }
+    await assert.rejects(service.bulkUpdate(KT_UNGRANTED, { items: [{ id: row.id, version: 1 }], changes: { status: '1' } }), { statusCode: 403, code: 'FEATURE_FORBIDDEN' });
+    assert.equal((await service.get(SALE, row.id)).status, 'pending');
+    assert.equal((await service.get(KT, row.id)).canProcess, true);
   } finally { await db.close(); }
 });
 
