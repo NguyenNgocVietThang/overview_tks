@@ -207,6 +207,8 @@ Khi `KIOTVIET_SYNC_ENABLED=true`, service chạy một lượt catch-up nền ng
 khởi động từ checkpoint gần nhất, sau đó tiếp tục polling theo
 `KIOTVIET_SYNC_FAST_INTERVAL_MS` và `KIOTVIET_SYNC_SLOW_INTERVAL_MS`.
 
+Đối soát đầy đủ khách hàng (lần đầu/mỗi 24 giờ) dùng `orderBy=id&orderDirection=ASC` để các khách trùng `modifiedDate` không trôi giữa các trang offset. Vẫn bắt buộc đủ tổng số và ID duy nhất trước khi đánh dấu khách vắng mặt hoặc hoàn tất checkpoint; lượt tăng dần giữ `lastModifiedFrom`. Kiểm tra thật 20/10/2026: 5.741 khách HN + 2.428 khách SG đọc đủ, không trùng ID; đã đồng bộ và tính lại công nợ đang mở. Bản sửa thứ tự phân trang trong mã cần deploy để các lượt đối soát đầy đủ sau tiếp tục dùng thứ tự ổn định.
+
 Sổ quỹ tách lịch riêng 60 giây. `KIOTVIET_CASHBOOK_SYNC_ENABLED=true` cho phép chỉ chạy `cash_flows` và danh mục tài khoản khi engine tổng tắt; `KIOTVIET_CASHBOOK_SYNC_INTERVAL_MS` không được nhỏ hơn 60 giây. Giao diện tự làm mới qua endpoint revision mỗi 15 giây khi tab hiển thị; hướng dẫn triển khai và giới hạn độ trễ ở [cashbook-setup.md](../docs/cashbook-setup.md).
 
 Webhook KiotViet đi vào `POST /api/kiotviet/webhook/<KIOTVIET_WEBHOOK_SECRET>` (secret sai → 404; đường dẫn cũ không secret còn mở trong giai đoạn chuyển tiếp cho tới khi đặt `KIOTVIET_WEBHOOK_LEGACY_PATH_ENABLED=false`). Server trả 200 ngay rồi đưa payload vào hàng đợi nền (`kiotviet/webhookEventQueue.js`); webhook chỉ lưu thô vào `webhook_events_raw`, dữ liệu nghiệp vụ do polling cập nhật. Trạng thái đồng bộ xem ở `GET /api/internal/kiotviet-sync/status` (quyền `system.syncStatus`).

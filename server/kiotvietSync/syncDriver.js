@@ -95,7 +95,10 @@ function createSyncDriver({ pool = getPool(), checkpointRepository: checkpoints 
     const lastFullMs = Date.parse(reconciledAt);
     const full = !Number.isFinite(lastFullMs) || Date.parse(runEndIso) - lastFullMs >= entity.reconcileIntervalMs;
     const query = { ...entity.listQuery };
-    if (!full) query[entity.incrementalParam] = new Date(checkpoint.last_synced_at).toISOString();
+    // Many customers share modifiedDate; sorting by a unique, immutable ID
+    // prevents tied rows moving across offset pages during a full scan.
+    if (full) Object.assign(query, { orderBy: 'id', orderDirection: 'ASC' });
+    else query[entity.incrementalParam] = new Date(checkpoint.last_synced_at).toISOString();
     const seenIds = new Set();
     let expectedTotal;
     await api.fetchAllPages(entity.endpoint, query, async (items, info) => {

@@ -261,6 +261,35 @@ test('customers force initial reconciliation, preserve daily marker, then use in
   assert.ok(pool.transactions.filter(tx => tx.includes('METADATA')).every(tx => tx.join(',') === 'BEGIN,METADATA,COMMIT,RELEASE'));
 });
 
+test('customer full scans use stable ID ordering so tied modification dates do not skip later debts', async () => {
+  const { createKiotVietClient } = require('../kiotviet/kiotVietApiClient');
+  const balances = new Map([[3, 94005900]]);
+  let advanced = false;
+  const requests = [];
+  const source = [1, 2, 3].map(id => ({ id, debt: id === 3 ? -4251600 : 0, modifiedDate: '2026-10-20T12:40:20' }));
+  const api = createKiotVietClient({ clientId: 'test', clientSecret: 'test', retailer: 'test', fetchImpl: async url => {
+    if (url.includes('/connect/token')) return { ok: true, text: async () => JSON.stringify({ access_token: 'test', expires_in: 3600 }) };
+    const query = new URL(url).searchParams;
+    requests.push(query);
+    const offset = Number(query.get('currentItem'));
+    const stable = query.get('orderBy') === 'id' && query.get('orderDirection') === 'ASC';
+    const data = offset === 0 ? source.slice(0, 2) : [source[stable ? 2 : 1]];
+    return { ok: true, text: async () => JSON.stringify({ total: 3, data }) };
+  } });
+  const driver = createSyncDriver({ pool: fakePool(), checkpointRepository: {
+    getCheckpoint: async () => null, advanceCheckpoint: async () => { advanced = true; }
+  } });
+  const entity = { ...require('./entities/customers'), listQuery: { ...require('./entities/customers').listQuery, pageSize: '2' },
+    upsertPage: async (_client, _branch, items) => { for (const item of items) balances.set(item.id, item.debt); },
+    applyPageMetadata: async () => {}, markMissing: async () => {}
+  };
+  await driver.pollEntityOnce(api, 'hanoi', entity);
+  assert.equal(advanced, true);
+  assert.equal(balances.get(3), -4251600);
+  assert.equal(requests.length, 2);
+  assert.ok(requests.every(query => query.get('orderBy') === 'id' && query.get('orderDirection') === 'ASC'));
+});
+
 test('invalid or interrupted customer scans never mark missing or publish completion/event', async () => {
   const cases = [
     async cb => { await cb([{ id: 1 }], { total: 2 }); },
