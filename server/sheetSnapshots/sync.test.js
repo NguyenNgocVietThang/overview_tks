@@ -13,14 +13,16 @@ const { SOURCES, refreshSource, startSheetSnapshotSchedule, __test__ } = require
 const { createStockLocationsService } = require('../stockLocations/stockLocationsService');
 const { createMeasureSheet } = require('../shipment/measureSheet');
 
-const MIGRATION = fs.readFileSync(path.join(__dirname, '..', 'db', 'migrations', '0064_sheet_snapshots.sql'), 'utf8');
+const MIGRATION = ['0064_sheet_snapshots.sql', '0077_invoice_price_audit.sql']
+  .map(name => fs.readFileSync(path.join(__dirname, '..', 'db', 'migrations', name), 'utf8')).join('\n');
 const HN = SOURCES.find(source => source.id === 'stock_locations_hn');
 const SG = SOURCES.find(source => source.id === 'stock_locations_sg');
 const MEASURES = SOURCES.find(source => source.id === 'shipping_measures');
 const quiet = { info() {}, error() {} };
 const hnHeader = ['MÃ SẢN PHẨM', 'TÊN SẢN PHẨM', 'TỔNG SL', 'MÔ TẢ', 'KHU', 'NGÀY VỀ'];
 const sgHeader = ['Mã hàng', 'Tên hàng', 'TỔNG SL đã đi', 'Ghi chú hàng hóa', 'Vị trí', 'NGÀY VỀ'];
-const measureHeader = ['MÃ SP', 'TÊN SP', 'Mô tả', 'SL/T', 'Cân nặng', 'D', 'R', 'C'];
+const measureHeader = ['MÃ SP', 'TÊN SP', 'Mô tả', 'SL/T', 'Cân nặng', 'D', 'R', 'C', '', '', '', '', '', '', 'Cước 1 Sp\n(465/m³, 1367đ/kg)'];
+const measureRow = (cells, freight) => [...cells, '', '', '', '', '', '', freight];
 
 // Nguon co cau hinh gia de khong phu thuoc .env.
 const withId = source => ({ ...source, spreadsheetId: () => 'fixture' });
@@ -139,12 +141,14 @@ test('so dong tut >30%: giu ban cu o lan dau, chi chap nhan khi lan doc ke tiep 
 test('CAN DO: luu m3/kg moi cai, lay hang dau khi trung ma, doc lai qua createMeasureSheet', async () => {
   __test__.pendingShrink.clear();
   const { pool } = await setup();
-  const values = [measureHeader, ['10GFED', 'Đèn', '', 280, 30.5, 81, 60, 70], ['10gfed', 'Trùng', '', 1, 1, 1, 1, 1], ['THIEU', '', '', 10, 5, 40, 30, '']];
+  const values = [measureHeader, measureRow(['10GFED', 'Đèn', '', 280, 30.5, 81, 60, 70], 384), measureRow(['10gfed', 'Trùng', '', 1, 1, 1, 1, 1], 5), measureRow(['THIEU', '', '', 10, 5, 40, 30, ''], '')];
   const client = sheet({ 'CÂN ĐO': values });
   const first = await refreshSource(measures, { pool, client, now: at(0), logger: quiet });
   assert.deepEqual([first.status, first.inserted], ['updated', 2]);
   assert.deepEqual(client.reads, [{ title: 'CÂN ĐO', options: { valueRenderOption: 'UNFORMATTED_VALUE' } }]);
   assert.equal((await refreshSource(measures, { pool, client, now: at(10), logger: quiet })).status, 'unchanged');
+  const stored = await pool.query('SELECT code_key, freight_per_unit FROM shipping_measures ORDER BY code_key');
+  assert.deepEqual(stored.rows, [{ code_key: '10gfed', freight_per_unit: '384' }, { code_key: 'thieu', freight_per_unit: null }]);
   const lookup = await createMeasureSheet({ getDb: () => pool, now: () => clock }).lookup(['10GFED', 'thieu', 'khong']);
   assert.deepEqual([...lookup.keys()].sort(), ['10gfed', 'thieu']);
   const lamp = lookup.get('10gfed');

@@ -65,7 +65,8 @@ const measureSource = {
     if (!title) throw missingSheet(CONFIG.SHIPPING_MEASURE_SHEET);
     const values = await client.getValues(title, { valueRenderOption: 'UNFORMATTED_VALUE' });
     return [...parseMeasureRows(values)].map(([codeKey, entry]) => ({
-      code_key: codeKey, per_carton: entry.perCarton, m3_per_unit: entry.m3PerUnit, kg_per_unit: entry.kgPerUnit
+      code_key: codeKey, per_carton: entry.perCarton, m3_per_unit: entry.m3PerUnit, kg_per_unit: entry.kgPerUnit,
+      freight_per_unit: entry.freightPerUnit
     }));
   }
 };
