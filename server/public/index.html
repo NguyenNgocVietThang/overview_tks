@@ -2986,6 +2986,178 @@
       font-size: 10.5px;
     }
 
+    /* ---------- Hóa đơn · Kiểm tra giá bán (invoice-price-audit.js) ---------- */
+    .price-audit-status {
+      display: grid;
+      gap: var(--space-md);
+      margin: var(--space-lg) 0 0;
+    }
+
+    .price-audit-status:empty {
+      display: none;
+    }
+
+    .price-audit-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-sm) var(--space-xl);
+      color: var(--text-secondary);
+      font-size: 12.5px;
+    }
+
+    .price-audit-meta strong {
+      color: var(--text);
+    }
+
+    .price-audit-meta.is-stale {
+      color: var(--muted);
+    }
+
+    .price-audit-stale {
+      border-color: color-mix(in srgb, var(--red) 42%, var(--border));
+      background: color-mix(in srgb, var(--red) 8%, var(--panel));
+    }
+
+    .price-audit-meta-error {
+      color: var(--red);
+    }
+
+    .price-audit-filters .debt-filter-field {
+      min-width: 130px;
+      flex: 1 1 130px;
+    }
+
+    .price-audit-filters .debt-filter-field.search-field {
+      flex: 2 1 240px;
+    }
+
+    .price-audit-scroll {
+      max-height: 640px;
+    }
+
+    .price-audit-table td.price-audit-wrap {
+      white-space: pre-wrap;
+      word-break: break-word;
+      vertical-align: top;
+    }
+
+    .price-audit-row-wrong > td:first-child {
+      box-shadow: inset 3px 0 0 var(--red);
+    }
+
+    .price-audit-link {
+      padding: 0;
+      border: 0;
+      background: none;
+      color: var(--blue);
+      font: inherit;
+      cursor: pointer;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    .price-audit-icon-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      min-height: 28px;
+      margin-top: 4px;
+      padding: 3px 8px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-8);
+      background: var(--panel-2);
+      color: var(--text-secondary);
+      font: 600 11px var(--font-body);
+      cursor: pointer;
+      transition: border-color .15s var(--ease-out), color .15s var(--ease-out);
+    }
+
+    .price-audit-icon-btn:hover {
+      border-color: var(--blue);
+      color: var(--text);
+    }
+
+    .price-audit-icon-btn svg,
+    .price-audit-lock svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .price-audit-link:focus-visible,
+    .price-audit-icon-btn:focus-visible,
+    .price-audit-page-size:focus-visible {
+      outline: 2px solid var(--blue);
+      outline-offset: 2px;
+    }
+
+    .price-audit-textarea {
+      min-height: 64px;
+      overflow: auto;
+      resize: vertical;
+    }
+
+    .price-audit-edit-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-sm);
+      margin-top: var(--space-sm);
+    }
+
+    .price-audit-btn {
+      min-height: 30px;
+      padding: 4px 12px;
+      font-size: 12px;
+    }
+
+    .price-audit-count {
+      margin-left: auto;
+      color: var(--muted);
+      font-size: 10.5px;
+    }
+
+    .price-audit-edit-error {
+      margin-top: 4px;
+      color: var(--red);
+      font-size: 11.5px;
+      white-space: normal;
+    }
+
+    .price-audit-current {
+      margin-bottom: 6px;
+      padding: 6px 8px;
+      border-radius: var(--radius-8);
+      background: var(--panel-2);
+    }
+
+    .price-audit-current-label {
+      display: block;
+      color: var(--muted);
+      font-size: 10.5px;
+    }
+
+    .price-audit-lock {
+      display: inline-flex;
+      margin-left: 4px;
+      color: var(--muted);
+      vertical-align: middle;
+    }
+
+    .price-audit-page-size {
+      min-height: 32px;
+      margin-left: var(--space-sm);
+      padding: 4px 8px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-8);
+      background: var(--panel-2);
+      color: var(--text);
+      font: 500 12px var(--font-body);
+    }
+
+    .price-audit-popup-note {
+      margin-bottom: var(--space-md);
+    }
+
     .debt-alerts {
       display: flex;
       gap: var(--space-sm);
@@ -3933,6 +4105,149 @@
               </div>
             </div>
           </section>
+
+          <!-- Kiểm tra giá bán: MỘT bảng (invoice-price-audit.js), thead sinh từ catalog cột priceAuditColumns.js; ẩn khi thiếu reports.invoices.priceAudit -->
+          <section class="section" id="priceAuditSection" hidden>
+            <div class="section-head"><span class="section-step">2</span>
+              <h2>Kiểm tra giá bán <span class="section-note">mỗi dòng hóa đơn so với giá min quy định, chụp lúc 23:00 trong 7 ngày</span></h2>
+            </div>
+            <div class="kpi-grid section-kpis" id="priceAuditKpis"></div>
+            <div class="grid">
+              <div class="panel col-12">
+                <div class="panel-head">
+                  <h2>Dòng hóa đơn đã kiểm tra <span class="tag" id="tagPriceAudit">—</span></h2>
+                  <div class="panel-head-actions">
+                    <button class="export-button" type="button" id="priceAuditExportButton"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>
+                  </div>
+                </div>
+                <div class="price-audit-status" id="priceAuditStatus" role="status" aria-live="polite"></div>
+                <div class="debt-filter-controls price-audit-filters" aria-label="Bộ lọc kiểm tra giá bán">
+                  <div class="debt-filter-field">
+                    <label for="priceAuditFrom">Từ ngày</label>
+                    <input id="priceAuditFrom" type="date">
+                  </div>
+                  <div class="debt-filter-field">
+                    <label for="priceAuditTo">Đến ngày</label>
+                    <input id="priceAuditTo" type="date">
+                  </div>
+                  <div class="debt-filter-field">
+                    <label for="priceAuditSaleFilter">Sale</label>
+                    <select id="priceAuditSaleFilter"><option value="">Tất cả sale</option></select>
+                  </div>
+                  <div class="debt-filter-field">
+                    <label for="priceAuditStatusFilter">Kết quả</label>
+                    <select id="priceAuditStatusFilter">
+                      <option value="">Tất cả</option>
+                      <option value="correct">Đúng giá</option>
+                      <option value="wrong">Sai giá</option>
+                    </select>
+                  </div>
+                  <div class="debt-filter-field">
+                    <label for="priceAuditDecisionFilter">Chốt</label>
+                    <select id="priceAuditDecisionFilter">
+                      <option value="">Tất cả</option>
+                      <option value="pending">Chưa chốt</option>
+                      <option value="ok">Ok</option>
+                      <option value="penalty">Phạt</option>
+                    </select>
+                  </div>
+                  <div class="debt-filter-field">
+                    <label for="priceAuditVatFilter">Full VAT</label>
+                    <select id="priceAuditVatFilter">
+                      <option value="">Tất cả</option>
+                      <option value="true">Có</option>
+                      <option value="false">Không</option>
+                    </select>
+                  </div>
+                  <div class="debt-filter-field">
+                    <label for="priceAuditFreightFilter">Bao cước</label>
+                    <select id="priceAuditFreightFilter">
+                      <option value="">Tất cả</option>
+                      <option value="true">Có</option>
+                      <option value="false">Không</option>
+                    </select>
+                  </div>
+                  <div class="debt-filter-field search-field">
+                    <label for="priceAuditSearch">Tìm hóa đơn / khách / mã hàng</label>
+                    <input id="priceAuditSearch" type="search" autocomplete="off" maxlength="200" placeholder="Mã hóa đơn, tên khách, mã hoặc tên hàng">
+                  </div>
+                </div>
+                <div class="table-wrap scroll-list price-audit-scroll">
+                  <table class="fixed-table price-audit-table" id="priceAuditTable" data-table-key="dashboard-table-price-audit" data-table-sort="off">
+                    <!-- Sinh từ server/invoicePriceAudit/priceAuditColumns.js; test/frontend/invoice-price-audit.test.js khóa khớp catalog -->
+                    <thead id="priceAuditHead">
+                      <tr>
+                        <th data-no-sort style="width:140px" data-column-key="soldAt" data-col-type="datetime" title="Nghiệp vụ">Ngày giờ bán</th>
+                        <th data-no-sort style="width:70px" data-column-key="branch" data-col-type="branch" title="Nghiệp vụ">Cơ sở</th>
+                        <th data-no-sort style="width:130px" data-column-key="invoiceCode" data-col-type="text" title="Nghiệp vụ">Mã hóa đơn</th>
+                        <th data-no-sort style="width:150px" data-column-key="saleName" data-col-type="text" title="Nghiệp vụ">Sale phụ trách</th>
+                        <th data-no-sort style="width:200px" data-column-key="customerName" data-col-type="text" title="Nghiệp vụ">Khách hàng</th>
+                        <th data-no-sort style="width:110px" data-column-key="productCode" data-col-type="text" title="Nghiệp vụ">Mã hàng</th>
+                        <th data-no-sort style="width:220px" data-column-key="productName" data-col-type="text" title="Nghiệp vụ">Tên hàng</th>
+                        <th data-no-sort style="width:85px" data-column-key="customerLevel" data-col-type="text" title="Nghiệp vụ">Cấp khách</th>
+                        <th data-no-sort style="width:85px" data-column-key="quantity" data-col-type="number" class="col-num" title="Nghiệp vụ">SL dòng</th>
+                        <th data-no-sort style="width:110px" data-column-key="totalCodeQuantity" data-col-type="number" data-column-default-hidden="true" class="col-num" title="Nghiệp vụ">Tổng SL cùng mã</th>
+                        <th data-no-sort style="width:80px" data-column-key="fullVat" data-col-type="bool" title="Nghiệp vụ">Full VAT</th>
+                        <th data-no-sort style="width:120px" data-column-key="netUnitPrice" data-col-type="money" class="col-num" title="Nghiệp vụ">Đơn giá sau giảm</th>
+                        <th data-no-sort style="width:120px" data-column-key="minimumUnitPrice" data-col-type="money" class="col-num" title="Nghiệp vụ">Giá min áp dụng</th>
+                        <th data-no-sort style="width:110px" data-column-key="unitShortfall" data-col-type="money" data-column-default-hidden="true" class="col-num" title="Nghiệp vụ">Chênh/đơn vị</th>
+                        <th data-no-sort style="width:130px" data-column-key="effectiveAmount" data-col-type="money" class="col-num" title="Nghiệp vụ">Tiền chênh / phạt</th>
+                        <th data-no-sort style="width:95px" data-column-key="effectiveStatus" data-col-type="status" title="Nghiệp vụ">Kết quả</th>
+                        <th data-no-sort style="width:260px" data-column-key="saleExplanation" data-col-type="text" data-col-wrap="true" title="Nghiệp vụ">Sale giải thích</th>
+                        <th data-no-sort style="width:120px" data-column-key="decision" data-col-type="decision" title="Nghiệp vụ">Chốt</th>
+                        <th data-no-sort style="width:160px" data-column-key="customerCode" data-col-type="text" data-column-default-hidden="true" title="Nhận diện">Mã khách</th>
+                        <th data-no-sort style="width:160px" data-column-key="customerEmail" data-col-type="text" data-column-default-hidden="true" title="Nhận diện">Email cấp giá lúc quét</th>
+                        <th data-no-sort style="width:130px" data-column-key="sourceLineNo" data-col-type="number" data-column-default-hidden="true" class="col-num" title="Nhận diện">Dòng hóa đơn</th>
+                        <th data-no-sort style="width:130px" data-column-key="originalUnitPrice" data-col-type="money" data-column-default-hidden="true" class="col-num" title="Giá bán">Đơn giá trước giảm</th>
+                        <th data-no-sort style="width:130px" data-column-key="unitDiscount" data-col-type="money" data-column-default-hidden="true" class="col-num" title="Giá bán">Giảm/đơn vị</th>
+                        <th data-no-sort style="width:130px" data-column-key="cartonSizeHn" data-col-type="number" data-column-default-hidden="true" class="col-num" title="HN">Chiếc/thùng HN</th>
+                        <th data-no-sort style="width:130px" data-column-key="quantityPriceHn" data-col-type="money" data-column-default-hidden="true" class="col-num" title="HN">Giá SL HN</th>
+                        <th data-no-sort style="width:130px" data-column-key="levelPriceHn" data-col-type="money" data-column-default-hidden="true" class="col-num" title="HN">Giá cấp HN</th>
+                        <th data-no-sort style="width:130px" data-column-key="vatHn" data-col-type="money" data-column-default-hidden="true" class="col-num" title="HN">VAT HN đã cộng</th>
+                        <th data-no-sort style="width:130px" data-column-key="minimumHn" data-col-type="money" data-column-default-hidden="true" class="col-num" title="HN">Min HN gồm VAT</th>
+                        <th data-no-sort style="width:160px" data-column-key="freightEligible" data-col-type="bool" data-column-default-hidden="true" title="Cước và SG">Khách bao cước</th>
+                        <th data-no-sort style="width:130px" data-column-key="freightPerUnit" data-col-type="money" data-column-default-hidden="true" class="col-num" title="Cước và SG">Cước/đơn vị đã cộng</th>
+                        <th data-no-sort style="width:130px" data-column-key="cartonSizeSg" data-col-type="number" data-column-default-hidden="true" class="col-num" title="Cước và SG">Chiếc/thùng SG</th>
+                        <th data-no-sort style="width:130px" data-column-key="quantityPriceSg" data-col-type="money" data-column-default-hidden="true" class="col-num" title="Cước và SG">Giá SL SG</th>
+                        <th data-no-sort style="width:130px" data-column-key="levelPriceSg" data-col-type="money" data-column-default-hidden="true" class="col-num" title="Cước và SG">Giá cấp SG</th>
+                        <th data-no-sort style="width:130px" data-column-key="vatSg" data-col-type="money" data-column-default-hidden="true" class="col-num" title="Cước và SG">VAT SG đã cộng</th>
+                        <th data-no-sort style="width:130px" data-column-key="minimumSg" data-col-type="money" data-column-default-hidden="true" class="col-num" title="Cước và SG">Min SG gồm VAT</th>
+                        <th data-no-sort style="width:160px" data-column-key="winningSource" data-col-type="text" data-column-default-hidden="true" title="Căn cứ">Nguồn giá thắng</th>
+                        <th data-no-sort style="width:240px" data-column-key="reason" data-col-type="text" data-col-wrap="true" data-column-default-hidden="true" title="Căn cứ">Lý do</th>
+                        <th data-no-sort style="width:260px" data-column-key="productNoteHn" data-col-type="text" data-col-wrap="true" data-column-default-hidden="true" title="Căn cứ">Ghi chú hàng HN</th>
+                        <th data-no-sort style="width:260px" data-column-key="productNoteSg" data-col-type="text" data-col-wrap="true" data-column-default-hidden="true" title="Căn cứ">Ghi chú hàng SG</th>
+                        <th data-no-sort style="width:220px" data-column-key="lineNote" data-col-type="text" data-col-wrap="true" data-column-default-hidden="true" title="Căn cứ">Ghi chú dòng</th>
+                        <th data-no-sort style="width:220px" data-column-key="invoiceNote" data-col-type="text" data-col-wrap="true" data-column-default-hidden="true" title="Căn cứ">Ghi chú hóa đơn</th>
+                        <th data-no-sort style="width:160px" data-column-key="originalStatus" data-col-type="status" data-column-default-hidden="true" title="Duyệt">Kết quả gốc</th>
+                        <th data-no-sort style="width:130px" data-column-key="originalAmount" data-col-type="money" data-column-default-hidden="true" class="col-num" title="Duyệt">Tiền chênh gốc</th>
+                        <th data-no-sort style="width:160px" data-column-key="decidedBy" data-col-type="text" data-column-default-hidden="true" title="Duyệt">Người chốt</th>
+                        <th data-no-sort style="width:160px" data-column-key="decidedAt" data-col-type="timestamp" data-column-default-hidden="true" title="Duyệt">Thời gian chốt</th>
+                        <th data-no-sort style="width:160px" data-column-key="capturedAt" data-col-type="timestamp" data-column-default-hidden="true" title="Duyệt">Ghi nhận lúc</th>
+                      </tr>
+                    </thead>
+                    <tbody id="priceAuditRows">
+                      <tr>
+                        <td colspan="46" class="table-note">Đang tải...</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="pagination-controls" id="priceAuditPagination" hidden>
+                  <button type="button" id="priceAuditFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                  <button type="button" id="priceAuditPrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
+                  <span id="priceAuditPageLabel">Trang 1/1</span>
+                  <button type="button" id="priceAuditNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                  <button type="button" id="priceAuditLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
+                  <select id="priceAuditPageSize" class="price-audit-page-size" aria-label="Số dòng mỗi trang">
+                    <option value="25">25 dòng</option>
+                    <option value="50" selected>50 dòng</option>
+                    <option value="100">100 dòng</option>
+                    <option value="200">200 dòng</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </section>
         </div>
 
         <!-- ============ QUẢN LÝ CÔNG NỢ ============ -->
@@ -4463,6 +4778,7 @@
   <script src="/shared/table-align.js?v=20261017"></script>
   <script src="/shared/dateInput.js?v=20260912"></script>
   <script src="/marketing-report.js?v=20261016-sort"></script>
+  <script src="/invoice-price-audit.js?v=20261020-1"></script>
 
   <script>
     // Toast thong bao inline — thay the window.alert() cho loi/canh bao (khong chan luong,
@@ -10021,6 +10337,8 @@
      */
     function ensureViewData(view) {
       if (view === 'marketing') { TKSMarketing.load(false); return; }
+      // Hoa don, muc 2 "Kiem tra gia ban": API rieng /api/invoice-price-audit, tu kiem quyen + tu bo qua neu du lieu con moi.
+      if (view === 'invoices' && window.TKSPriceAudit) window.TKSPriceAudit.load(false);
       if (isViewFresh(view) || isViewRequestPending(view)) return;
       loadData(state.days, !viewIsLoaded(view), view);
     }
