@@ -50,11 +50,12 @@ test('ngày lễ dương lịch cố định', () => {
   assert.equal(key('2026-12-25'), 'christmas');
 });
 
-test('27/10 là sinh nhật với đúng nguyên văn thông báo, mọi năm', () => {
+test('27/10 là sinh nhật (notify: false, không gửi thông báo chuông, chỉ giữ hiệu ứng)', () => {
   for (const y of [2026, 2027, 2030]) {
     const day = sd.getSpecialDay(`${y}-10-27`);
     assert.equal(day.type, 'birthday');
-    assert.equal(day.message, 'Chúc mừng sinh nhật Nguyễn Ngọc Việt Thắng BA! Chúc bạn tuổi mới luôn tràn đầy năng lượng, đam mê sáng tạo, luôn là điểm tựa vững vàng và chạm tới những mục tiêu tuyệt vời nhất!');
+    assert.equal(day.notify, false);
+    assert.equal(day.message, undefined);
     assert.match(day.title, /Sinh nhật/);
   }
 });
@@ -67,7 +68,7 @@ test('ngày thường, ngày sai định dạng và tháng nhuận không phải
   assert.equal(sd.getSpecialDay(null), null);
 });
 
-test('mọi mục đều có title, message, type hợp lệ', () => {
+test('mọi mục đều có title, type hợp lệ và message (ngoại trừ birthday không thông báo)', () => {
   const seen = new Set();
   for (let y = 2026; y <= 2027; y++) {
     for (let m = 1; m <= 12; m++) {
@@ -77,7 +78,10 @@ test('mọi mục đều có title, message, type hợp lệ', () => {
         const day = sd.getSpecialDay(k);
         if (!day) continue;
         seen.add(day.key);
-        assert.ok(day.title && day.message, k);
+        assert.ok(day.title, k);
+        if (day.type !== 'birthday') {
+          assert.ok(day.message, k);
+        }
         assert.ok(['holiday', 'birthday'].includes(day.type), k);
         assert.equal(day.dateKey, k);
       }

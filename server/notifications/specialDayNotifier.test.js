@@ -57,35 +57,36 @@ test('ngày thường: không gửi và không chạm DB', async () => {
   } finally { await db.close(); }
 });
 
-test('sinh nhật 27/10: đúng nguyên văn, chỉ gửi tài khoản đang hoạt động có hr.leave', async () => {
+test('sinh nhật 27/10: không gửi thông báo chuông (chỉ giữ pháo hoa)', async () => {
   const { db, sent, notifier } = await setup();
   try {
     const result = await notifier.notifyIfDue(BIRTHDAY_NOW);
+    assert.equal(result.skipped, true);
+    assert.equal(result.reason, 'not-special');
+    assert.equal(sent.length, 0);
+  } finally { await db.close(); }
+});
+
+test('ngày lễ 1/5: gửi thông báo chuông cho tài khoản hoạt động có hr.leave', async () => {
+  const { db, sent, notifier } = await setup();
+  try {
+    const result = await notifier.notifyIfDue(LABOUR_NOW);
     assert.equal(result.skipped, false);
     assert.equal(result.recipients, 2);
     assert.equal(sent.length, 1);
     assert.deepEqual(sent[0].ids, ['a', 'b']);
-    assert.equal(sent[0].payload.type, TYPE_BIRTHDAY);
-    assert.equal(sent[0].payload.message, 'Chúc mừng sinh nhật Nguyễn Ngọc Việt Thắng BA! Chúc bạn tuổi mới luôn tràn đầy năng lượng, đam mê sáng tạo, luôn là điểm tựa vững vàng và chạm tới những mục tiêu tuyệt vời nhất!');
-    assert.equal(sent[0].payload.relatedType, null);
-    assert.equal(sent[0].payload.relatedId, '2026-10-27:birthday_thang');
-  } finally { await db.close(); }
-});
-
-test('ngày lễ dùng type special_day', async () => {
-  const { db, sent, notifier } = await setup();
-  try {
-    await notifier.notifyIfDue(LABOUR_NOW);
     assert.equal(sent[0].payload.type, TYPE_HOLIDAY);
     assert.match(sent[0].payload.title, /1\/5/);
+    assert.equal(sent[0].payload.relatedType, null);
+    assert.equal(sent[0].payload.relatedId, '2026-05-01:labour_day');
   } finally { await db.close(); }
 });
 
 test('quét lặp / restart trong cùng ngày không gửi trùng', async () => {
   const { db, sent, notifier } = await setup();
   try {
-    await notifier.notifyIfDue(BIRTHDAY_NOW);
-    const again = await notifier.notifyIfDue(MID_BIRTHDAY);
+    await notifier.notifyIfDue(LABOUR_NOW);
+    const again = await notifier.notifyIfDue(LABOUR_NOW);
     assert.deepEqual(again, { skipped: true, reason: 'already-sent' });
     assert.equal(sent.length, 1);
     // một notifier mới (mô phỏng restart) dùng cùng DB cũng không gửi lại
@@ -96,7 +97,7 @@ test('quét lặp / restart trong cùng ngày không gửi trùng', async () => 
       hasFeature: () => true,
       log: () => {}
     });
-    assert.equal((await restarted.notifyIfDue(MID_BIRTHDAY)).reason, 'already-sent');
+    assert.equal((await restarted.notifyIfDue(LABOUR_NOW)).reason, 'already-sent');
   } finally { await db.close(); }
 });
 
@@ -115,12 +116,12 @@ test('gửi lỗi: bỏ đánh dấu để lần quét sau thử lại, không t
   const originalError = console.error;
   console.error = () => {};
   try {
-    const first = await notifier.notifyIfDue(BIRTHDAY_NOW);
+    const first = await notifier.notifyIfDue(LABOUR_NOW);
     assert.equal(first.reason, 'error');
     const { rows } = await db.query('SELECT count(*)::int AS n FROM special_day_notice_log');
     assert.equal(rows[0].n, 0);
     fail = false;
-    const retry = await notifier.notifyIfDue(MID_BIRTHDAY);
+    const retry = await notifier.notifyIfDue(LABOUR_NOW);
     assert.equal(retry.skipped, false);
     assert.equal(sent.length, 1);
   } finally { console.error = originalError; await db.close(); }
@@ -130,10 +131,10 @@ test('chưa có người nhận: bỏ đánh dấu, lần sau gửi được khi
   const users = [];
   const { db, sent, notifier } = await setup({ users });
   try {
-    const first = await notifier.notifyIfDue(BIRTHDAY_NOW);
+    const first = await notifier.notifyIfDue(LABOUR_NOW);
     assert.equal(first.reason, 'no-recipients');
     users.push({ id: 'z', trangThai: 'Đang hoạt động', feats: ['hr.leave'] });
-    const second = await notifier.notifyIfDue(MID_BIRTHDAY);
+    const second = await notifier.notifyIfDue(LABOUR_NOW);
     assert.equal(second.skipped, false);
     assert.deepEqual(sent[0].ids, ['z']);
   } finally { await db.close(); }
@@ -149,7 +150,7 @@ test('DB không sẵn sàng: nuốt lỗi, không throw', async () => {
   const originalError = console.error;
   console.error = () => {};
   try {
-    const result = await notifier.notifyIfDue(BIRTHDAY_NOW);
+    const result = await notifier.notifyIfDue(LABOUR_NOW);
     assert.equal(result.reason, 'error');
   } finally { console.error = originalError; }
 });
