@@ -236,7 +236,11 @@
 
   .employee-row-clickable{ cursor:pointer; }
   .employee-row-clickable:hover td{ background:var(--surface-hover); }
-  #employeeDirectoryTable .employee-text{ text-align:left; }
+  #employeeDirectoryTable .employee-text{
+    text-align:left; white-space:nowrap !important; overflow-wrap:normal !important; word-break:normal !important;
+  }
+  /* Dia chi la ngoai le: uu tien thu gon bang va cho phep xuong dong khi can. */
+  #employeeDirectoryTable .employee-address{ white-space:normal !important; overflow-wrap:anywhere !important; word-break:normal !important; }
   #employeeDirectoryTable .employee-number,
   #employeeDirectoryTable .employee-date{
     text-align:right; font-variant-numeric:tabular-nums;
@@ -2905,16 +2909,16 @@
 
     // Độ rộng được đo theo giá trị của dòng dữ liệu, không lấy theo tiêu đề.
     const EMPLOYEE_BASIC_HEAD = [
-      ['Họ và tên','ho-va-ten',320], ['Chức vụ','chuc-vu',260], ['Cơ sở','co-so',150],
-      ['Số điện thoại','so-dien-thoai',140], ['Trạng thái','trang-thai',90]
+      ['Họ và tên','ho-va-ten',240], ['Chức vụ','chuc-vu',180], ['Cơ sở','co-so',100],
+      ['Số điện thoại','so-dien-thoai',115], ['Trạng thái','trang-thai',50]
     ];
     const EMPLOYEE_MANAGER_HEAD = [
-      ['STT','stt',70], ['Họ và tên','ho-va-ten',320], ['Bộ phận','bo-phan',220], ['Chức vụ','chuc-vu',260],
-      ['Ngày vào làm','ngay-vao-lam',120], ['Số ngày LV','so-ngay-lv',105], ['Ngày sinh','ngay-sinh',120],
-      ['Số CCCD','so-cccd',145], ['SĐT','so-dien-thoai',140], ['Địa chỉ hiện tại','dia-chi',300],
-      ['Giới tính','gioi-tinh',100], ['Hồ sơ','ho-so',80], ['Vân tay','van-tay',80], ['Cơ sở','co-so',150],
-      ['QH người thân','qh-nguoi-than',180], ['Họ tên người thân','ten-nguoi-than',300],
-      ['SĐT người thân','sdt-nguoi-than',145], ['Trạng thái','trang-thai',90], ['Ngày nghỉ việc','ngay-nghi-viec',120]
+      ['STT','stt',42], ['Họ và tên','ho-va-ten',240], ['Bộ phận','bo-phan',150], ['Chức vụ','chuc-vu',180],
+      ['Ngày vào làm','ngay-vao-lam',110], ['Số ngày LV','so-ngay-lv',90], ['Ngày sinh','ngay-sinh',110],
+      ['Số CCCD','so-cccd',125], ['SĐT','so-dien-thoai',115], ['Địa chỉ hiện tại','dia-chi',210],
+      ['Giới tính','gioi-tinh',72], ['Hồ sơ','ho-so',52], ['Vân tay','van-tay',52], ['Cơ sở','co-so',100],
+      ['QH người thân','qh-nguoi-than',120], ['Họ tên người thân','ten-nguoi-than',180],
+      ['SĐT người thân','sdt-nguoi-than',115], ['Trạng thái','trang-thai',50], ['Ngày nghỉ việc','ngay-nghi-viec',110]
     ];
 
     function employeeColumnText(columnKey, employee, index){
@@ -2944,15 +2948,15 @@
 
     function employeeTextWidth(value){
       const units = Array.from(String(value || '')).reduce((total, char) => total + (char.charCodeAt(0) > 255 ? 1.6 : 1), 0);
-      // 16px padding moi ben + vien + dem font thuc te (tabular numbers) de gia tri khong bi xuong dong.
-      return Math.ceil(42 + units * 8.5);
+      // Padding gon nhung van du cho ngay/so hien thi tren mot dong.
+      return Math.ceil(32 + units * 7.5);
     }
 
     function employeeColumnWidth(column, employees){
       const [, key, maxWidth] = column;
       const contentWidth = employees.reduce((widest, employee, index) =>
         Math.max(widest, employeeTextWidth(employeeColumnText(key, employee, index))), 0);
-      return Math.min(maxWidth, Math.max(42, contentWidth));
+      return Math.min(maxWidth, Math.max(32, contentWidth));
     }
 
     function renderEmployeeDirectoryHead(){
@@ -2999,6 +3003,7 @@
     }
 
     function employeeCellClass(columnKey){
+      if(columnKey === 'dia-chi') return 'employee-address';
       if(['stt','so-ngay-lv','so-cccd','so-dien-thoai','sdt-nguoi-than'].includes(columnKey)) return 'employee-number';
       if(['ngay-vao-lam','ngay-sinh','ngay-nghi-viec'].includes(columnKey)) return 'employee-date';
       return 'employee-text';

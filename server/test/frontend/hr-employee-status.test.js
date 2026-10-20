@@ -178,13 +178,13 @@ test('do rong cot nhan su dua theo gia tri dai nhat va co gioi han hop ly', asyn
   const longData = [{ id:'long', hoTen:'Nguyen Van A co ho ten rat dai de kiem tra do rong cot', boPhan:'Kinh doanh', coSo:'Ha Noi', soDienThoai:'0900000000', email:'dia-chi-email-rat-dai@example-company.vn', trangThai:'Dang lam viec' }];
   const long = await openPage({ canManage: false, employees: longData });
   const longHeaders = long.window.document.querySelectorAll('#employeeDirectoryTableHead th');
-  assert.ok(parseInt(longHeaders[0].style.width, 10) > 260);
+  assert.ok(parseInt(longHeaders[0].style.width, 10) <= 240, 'tên dài được giới hạn để không chiếm màn hình');
   assert.equal(longHeaders.length, 5, 'email không còn là cột hiển thị');
   long.dom.window.close();
 
   const manager = await openPage({ canManage: true });
   const managerHeaders = manager.window.document.querySelectorAll('#employeeDirectoryTableHead th');
-  assert.equal(managerHeaders[0].style.width, '51px');
+  assert.equal(managerHeaders[0].style.width, '40px');
   assert.ok(parseInt(managerHeaders[17].style.width, 10) < 75);
   manager.dom.window.close();
 });
@@ -236,13 +236,23 @@ test('form nhân sự ghi đúng Bộ phận và không cho sửa email liên k�
   dom.window.close();
 });
 
-test('cột ngày và số đủ chỗ cho giá trị, không bị vỡ từng dòng bởi padding của bảng', async () => {
+test('cột ngày và số đủ chỗ cho giá trị, nhưng vẫn gọn để xem được nhiều cột', async () => {
   const { dom, window } = await openPage({ canManage: true, employees: [{ ...EMPLOYEES[0], ngayVaoLam: '2024-04-22' }] });
-  assert.ok(window.employeeTextWidth('22/04/2024') >= 120, 'độ rộng gồm cả khoảng đệm ô và font thực tế');
+  assert.ok(window.employeeTextWidth('22/04/2024') >= 104, 'độ rộng gồm cả khoảng đệm ô và font thực tế');
+  assert.ok(window.employeeTextWidth('22/04/2024') < 120, 'không giữ dư khoảng trống như trước');
   const doc = window.document;
   const dateHead = doc.querySelector('#employeeDirectoryTableHead th[data-column-key="ngay-vao-lam"]');
-  assert.ok(parseInt(dateHead.style.width, 10) >= 120);
+  assert.ok(parseInt(dateHead.style.width, 10) >= 104);
+  assert.ok(parseInt(dateHead.style.width, 10) < 120);
   assert.equal(dateHead.classList.contains('employee-date'), true);
+  dom.window.close();
+});
+
+test('địa chỉ được giới hạn hẹp hơn các bản ghi dài để ưu tiên chỗ cho cột khác', async () => {
+  const employee = { ...EMPLOYEES[0], diaChiHienTai: 'Số 123 đường Nguyễn Văn Cừ, phường Ngọc Lâm, quận Long Biên, Hà Nội' };
+  const { dom } = await openPage({ canManage: true, employees: [employee] });
+  const addressHead = dom.window.document.querySelector('#employeeDirectoryTableHead th[data-column-key="dia-chi"]');
+  assert.ok(parseInt(addressHead.style.width, 10) <= 210);
   dom.window.close();
 });
 
@@ -250,6 +260,6 @@ test('bảng nhân sự không kéo giãn cột trống để lấp đầy khung
   const { dom, window } = await openPage({ canManage: true });
   const doc = window.document;
   assert.equal(doc.getElementById('employeeDirectoryTable').dataset.tableFit, 'off');
-  assert.equal(window.employeeColumnWidth(['Vân tay', 'van-tay', 80], []), 42);
+  assert.equal(window.employeeColumnWidth(['Vân tay', 'van-tay', 80], []), 32);
   dom.window.close();
 });
