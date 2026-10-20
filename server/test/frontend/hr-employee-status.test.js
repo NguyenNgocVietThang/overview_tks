@@ -339,3 +339,31 @@ test('bảng nhân sự không kéo giãn cột trống để lấp đầy khung
   assert.equal(window.employeeColumnWidth(['Vân tay', 'van-tay', 80], []), 32);
   dom.window.close();
 });
+
+test('dashboard bám bộ lọc Trạng thái và luôn hiện riêng số LV / NV', async () => {
+  const employees = [
+    { id: '1', hoTen: 'An', boPhan: 'Kho HN', coSo: 'Hà Nội', trangThai: 'Đang làm việc' },
+    { id: '2', hoTen: 'Bình', boPhan: 'Kho HN', coSo: 'Hà Nội', trangThai: 'Đã nghỉ việc' },
+    { id: '3', hoTen: 'Chi', boPhan: 'Sale HN', coSo: 'Hà Nội', trangThai: 'Đang làm việc' }
+  ];
+  const { dom, window } = await openPage({ canManage: true, employees });
+  const doc = window.document;
+  const total = () => doc.getElementById('employeeSummaryTotal').textContent;
+  assert.equal(total(), '2', 'mặc định chỉ đếm Đang làm việc');
+  assert.match(doc.getElementById('employeeSummaryStatus').textContent, /LV\s*2\s*·\s*NV\s*1/);
+  doc.getElementById('employeeStatusFilter').value = 'resigned';
+  window.renderEmployeeDirectoryTable();
+  assert.equal(total(), '1');
+  assert.deepEqual(names(doc), ['Bình']);
+  doc.getElementById('employeeStatusFilter').value = '';
+  window.renderEmployeeDirectoryTable();
+  assert.equal(total(), '3');
+  dom.window.close();
+});
+
+test('form nhân sự: Bộ phận là danh sách chọn cố định theo cơ sở', async () => {
+  const { dom, window } = await openPage({ canManage: true });
+  const doc = window.document;
+  assert.equal(doc.getElementById('empBoPhan').tagName, 'SELECT');
+  dom.window.close();
+});

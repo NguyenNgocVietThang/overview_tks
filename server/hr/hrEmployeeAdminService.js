@@ -13,6 +13,8 @@
 'use strict';
 
 const hrEmployeesRepository = require('./hrEmployeesRepository');
+const { canonicalDepartment } = require('./hrDepartmentCatalog');
+const { departmentKey } = require('./hrDepartment');
 const employeeDirectory = require('./employeeDirectory');
 const localUserStore = require('../auth/localUserStore');
 const accountPolicy = require('../auth/accountPolicy');
@@ -51,15 +53,25 @@ function createHrEmployeeAdminService(options = {}) {
   const policy = options.policy || accountPolicy;
   const auditLog = options.auditLog || accountAuditLog;
 
-  function parseInput(body) {
+  function parseInput(body, existing) {
     const input = body || {};
     const hoTen = clean(input.hoTen);
-    const boPhan = clean(input.boPhan);
+    const rawBoPhan = clean(input.boPhan);
     if (!hoTen) throw new HrEmployeeAdminError('Vui lòng nhập họ và tên.', 400, 'INVALID_NAME');
-    if (!boPhan) throw new HrEmployeeAdminError('Vui lòng nhập chức vụ.', 400, 'INVALID_DEPARTMENT');
+    if (!rawBoPhan) throw new HrEmployeeAdminError('Vui lòng chọn bộ phận.', 400, 'INVALID_DEPARTMENT');
     const branch = branchLabelToCode(clean(input.coSo));
     if (branch !== 'hanoi' && branch !== 'saigon') {
       throw new HrEmployeeAdminError('Cơ sở phải là Hà Nội hoặc Sài Gòn.', 400, 'INVALID_BRANCH');
+    }
+    // Bộ phận cố định theo cơ sở; chỉ giữ nguyên giá trị cũ ngoài danh sách khi không đổi bộ phận và cơ sở.
+    let boPhan = canonicalDepartment(branch, rawBoPhan);
+    if (!boPhan) {
+      const unchanged = existing && branchLabelToCode(existing.sourceBranch) === branch &&
+        departmentKey(existing.boPhan) === departmentKey(rawBoPhan);
+      if (!unchanged) {
+        throw new HrEmployeeAdminError('Bộ phận phải chọn trong danh sách của cơ sở.', 400, 'INVALID_DEPARTMENT');
+      }
+      boPhan = existing.boPhan;
     }
     const email = directory.normalizeEmail(input.email);
     if (email && !/^[^\s@]+@[^\s@]+$/.test(email)) {
@@ -166,10 +178,10 @@ function createHrEmployeeAdminService(options = {}) {
   }
 
   async function updateEmployee(actor, id, body) {
-    const input = parseInput(body);
     const snapshot = await directory.getSnapshot({ forceRefresh: true });
     const existing = snapshot.employees.find(e => String(e.rowIndex) === String(id));
     if (!existing) throw new HrEmployeeAdminError('Không tìm thấy nhân sự.', 404, 'HR_EMPLOYEE_NOT_FOUND');
+    const input = parseInput(body, existing);
     assertBranchAllowed(actor, branchLabelToCode(existing.sourceBranch));
     assertBranchAllowed(actor, input.branch);
     assertPolicy(actor, input, existing);

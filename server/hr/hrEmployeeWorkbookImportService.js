@@ -1,6 +1,7 @@
 'use strict';
 const defaultRepo = require('./hrEmployeesRepository');
 const { normalizePhone } = require('../auth/localUserStore');
+const { canonicalDepartment } = require('./hrDepartmentCatalog');
 
 function key(value) {
   return String(value || '').trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').replace(/\s+/g, ' ').toUpperCase();
@@ -36,7 +37,7 @@ async function importRows(rows, options = {}) {
       try {
         const resigned = Boolean(row.ngayNghiViec) || /^nv$/i.test(String(row.trangThaiNguon || '').trim());
         const created = await repo.insertEmployee({
-          branch: row.branch, hoTen: row.hoTen, boPhan: row.boPhan, soDienThoai: row.soDienThoai,
+          branch: row.branch, hoTen: row.hoTen, boPhan: canonicalDepartment(row.branch, row.boPhan) || row.boPhan, soDienThoai: row.soDienThoai,
           email: '', telegramId: '', employmentStatus: resigned ? 'resigned' : 'active'
         });
         await repo.updateExtendedById(created.id, row);

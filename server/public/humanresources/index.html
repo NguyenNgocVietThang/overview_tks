@@ -1119,6 +1119,7 @@
               <span class="employee-summary-label">Tổng nhân sự</span>
               <strong class="employee-summary-total" id="employeeSummaryTotal">—</strong>
               <small class="employee-summary-scope" id="employeeSummaryScope">Đang tải dữ liệu...</small>
+              <small class="employee-summary-scope" id="employeeSummaryStatus"></small>
             </div>
             <div class="employee-summary-card">
               <span class="employee-summary-label">Nhân sự theo Bộ phận</span>
@@ -1192,9 +1193,9 @@
       <div class="modal-header"><h3 id="employeeModalHeading">Thêm nhân sự</h3><button type="button" class="modal-close" aria-label="Đóng" onclick="closeModal('employeeModal')">✕</button></div>
       <form id="employeeForm" onsubmit="saveEmployee(event)"><div class="modal-body employee-form-grid">
         <div class="form-group employee-form-wide"><label for="empHoTen">Họ và tên *</label><input type="text" id="empHoTen" class="form-control" required maxlength="120"></div>
-        <div class="form-group"><label for="empBoPhan">Bộ phận *</label><input type="text" id="empBoPhan" class="form-control" required maxlength="80" list="empBoPhanList"><datalist id="empBoPhanList"></datalist></div>
+        <div class="form-group"><label for="empBoPhan">Bộ phận *</label><select id="empBoPhan" class="form-control" required></select></div>
         <div class="form-group"><label for="empChucVu">Chức vụ</label><input type="text" id="empChucVu" class="form-control" maxlength="120"></div>
-        <div class="form-group"><label for="empCoSo">Cơ sở *</label><select id="empCoSo" class="form-control" required></select></div>
+        <div class="form-group"><label for="empCoSo">Cơ sở *</label><select id="empCoSo" class="form-control" required onchange="populateEmployeeDepartmentSelect()"></select></div>
         <div class="form-group"><label for="empSdt">Số điện thoại</label><input type="tel" id="empSdt" class="form-control" maxlength="20"></div>
         <div class="form-group"><label for="empNgayVaoLam">Ngày vào làm</label><input type="date" id="empNgayVaoLam" class="form-control"></div>
         <div class="form-group"><label for="empTrangThai">Trạng thái</label><select id="empTrangThai" class="form-control" onchange="updateEmployeeStatusHint()"><option value="active">Đang làm việc</option><option value="resigned">Đã nghỉ việc</option></select>
@@ -1414,6 +1415,7 @@
     let currentUser = null;
     let rawLeaveRequests = [];
     let rawEmployeeDirectory = [];
+    let employeeDepartmentCatalog = {};
     let employeeCanManage = false;
     let editingEmployeeId = null;
     let urgentSummaryByUsername = {};
@@ -2305,12 +2307,17 @@
       const branch = branchFilterValue(rawBranch);
       const previousKey = departmentKey(select.value);
       const byKey = new Map();
+      // Danh sách cố định theo cơ sở (file PHÒNG BAN) luôn có mặt; bộ phận cũ còn nhân sự thì thêm phía sau.
+      Object.keys(employeeDepartmentCatalog).forEach(label => {
+        if(branch && label !== branch) return;
+        (employeeDepartmentCatalog[label] || []).forEach(name => { const k = departmentKey(name); if(k && !byKey.has(k)) byKey.set(k, name); });
+      });
       rawEmployeeDirectory.forEach(e => {
         if(branch && e.coSo !== branch) return;
         const key = departmentKey(e.boPhan);
         if(key && !byKey.has(key)) byKey.set(key, String(e.boPhan).trim());
       });
-      const labels = [...byKey.values()].sort((a, b) => a.localeCompare(b, 'vi'));
+      const labels = [...byKey.values()];
       select.innerHTML = '<option value="">Tất cả phòng ban</option>'
         + labels.map(l => `<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`).join('');
       select.value = byKey.has(previousKey) ? byKey.get(previousKey) : '';
@@ -2921,6 +2928,7 @@
           return;
         }
         rawEmployeeDirectory = data.employees || [];
+        employeeDepartmentCatalog = data.departments || {};
         employeeCanManage = !!data.canManage;
         document.getElementById('btnAddEmployee').hidden = !employeeCanManage;
         // File Excel dùng để khởi tạo danh sách, hoặc bổ sung khi còn nhân sự thiếu ngày vào làm / ngày sinh / giới tính.
@@ -3123,7 +3131,7 @@
       const branch = selectedBranch('employeeBranchFilter');
       const department = departmentKey(document.getElementById('employeeDepartmentFilter').value);
       const status = document.getElementById('employeeStatusFilter').value;
-      renderEmployeeDirectorySummary(branch);
+      renderEmployeeDirectorySummary(branch, status);
       const filtered = rawEmployeeDirectory.filter(e => {
         if(status && employeeStatusKey(e) !== status) return false;
         if(branch && e.coSo !== branch) return false;
@@ -3149,19 +3157,30 @@
       paginateEmployeeDirectoryTable();
     }
 
-    function renderEmployeeDirectorySummary(branch){
+    function renderEmployeeDirectorySummary(branch, status){
       const total=document.getElementById('employeeSummaryTotal');
       const scope=document.getElementById('employeeSummaryScope');
       const departments=document.getElementById('employeeDepartmentSummary');
       if(!total || !scope || !departments) return;
-      const inScope=rawEmployeeDirectory.filter(e => !branch || e.coSo === branch);
+      const inBranch=rawEmployeeDirectory.filter(e => !branch || e.coSo === branch);
+      // Tổng và số theo Bộ phận bám theo bộ lọc Trạng thái; LV/NV luôn hiện riêng để không phải lọc mới thấy NV.
+      const inScope=inBranch.filter(e => !status || employeeStatusKey(e) === status);
+      const working=inBranch.filter(e => employeeStatusKey(e) === 'active').length;
+      const resigned=inBranch.length - working;
       const counts=new Map();
+      Object.keys(employeeDepartmentCatalog).forEach(branchLabel => {
+        if(branch && branchLabel !== branch) return;
+        (employeeDepartmentCatalog[branchLabel] || []).forEach(name => { if(!counts.has(name)) counts.set(name,0); });
+      });
       inScope.forEach(e => {
         const label=String(e.boPhan || '').trim() || 'Chưa cập nhật';
         counts.set(label,(counts.get(label) || 0) + 1);
       });
       total.textContent=String(inScope.length);
-      scope.textContent=branch ? `Cơ sở: ${branch}` : 'Tất cả cơ sở';
+      const statusText=status === 'active' ? 'Đang làm việc' : status === 'resigned' ? 'Đã nghỉ việc' : 'Tất cả trạng thái';
+      scope.textContent=`${branch ? 'Cơ sở: ' + branch : 'Tất cả cơ sở'} · ${statusText}`;
+      const split=document.getElementById('employeeSummaryStatus');
+      if(split) split.innerHTML=`<span class="emp-status-active">LV <strong>${working}</strong></span> · <span class="emp-status-resigned">NV <strong>${resigned}</strong></span>`;
       const selectedDepartment=departmentKey(document.getElementById('employeeDepartmentFilter')?.value);
       const items=[...counts.entries()].sort((a,b) => b[1] - a[1] || a[0].localeCompare(b[0],'vi'));
       departments.innerHTML=items.length
@@ -3259,7 +3278,6 @@
       editingEmployeeId = employee ? employee.id : null;
       document.getElementById('employeeModalHeading').textContent = employee ? 'Thông tin nhân sự' : 'Thêm nhân sự';
       document.getElementById('empHoTen').value = employee ? employee.hoTen : '';
-      document.getElementById('empBoPhan').value = employee ? employee.boPhan : '';
       document.getElementById('empSdt').value = employee ? employee.soDienThoai : '';
       document.getElementById('empChucVu').value = employee ? (employee.chucVu || '') : '';
       const today=new Date();
@@ -3280,15 +3298,27 @@
       const coSo = document.getElementById('empCoSo');
       coSo.innerHTML = branches.map(b => `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join('');
       if(employee) coSo.value = employee.coSo;
-      const list = new Map();
-      rawEmployeeDirectory.forEach(e => { const k = departmentKey(e.boPhan); if(k && !list.has(k)) list.set(k, String(e.boPhan).trim()); });
-      document.getElementById('empBoPhanList').innerHTML = [...list.values()].sort((a, b) => a.localeCompare(b, 'vi'))
-        .map(l => `<option value="${escapeHtml(l)}"></option>`).join('');
+      populateEmployeeDepartmentSelect(employee ? employee.boPhan : '');
       document.getElementById('empCreatedAtGroup').hidden = !employee;
       document.getElementById('empCreatedAt').value = employee ? formatEmployeeDate(employee.ngayThem) : '';
       document.getElementById('empError').style.display = 'none';
       updateEmployeeStatusHint();
       openModal('employeeModal');
+    }
+
+    // Bộ phận chọn trong danh sách cố định của cơ sở đang chọn; giá trị cũ ngoài danh sách vẫn giữ để không mất dữ liệu.
+    function populateEmployeeDepartmentSelect(keepValue){
+      const select = document.getElementById('empBoPhan');
+      const branch = document.getElementById('empCoSo').value;
+      const current = typeof keepValue === 'string' ? keepValue : select.value;
+      const names = [...(employeeDepartmentCatalog[branch] || [])];
+      const legacy = current && !names.some(n => departmentKey(n) === departmentKey(current)) && editingEmployeeId
+        && (rawEmployeeDirectory.find(e => String(e.id) === String(editingEmployeeId)) || {}).coSo === branch;
+      select.innerHTML = '<option value="">— Chọn bộ phận —</option>'
+        + names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('')
+        + (legacy ? `<option value="${escapeHtml(current)}">${escapeHtml(current)} (cũ)</option>` : '');
+      const match = names.find(n => departmentKey(n) === departmentKey(current));
+      select.value = match || (legacy ? current : '');
     }
 
     async function saveEmployee(event){

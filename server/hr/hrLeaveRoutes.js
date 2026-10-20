@@ -31,11 +31,12 @@ const {
 } = hrLeaveService;
 const { buildLeaveRequestsWorkbook } = require('./hrLeaveExportService');
 const { buildEmployeeDirectoryWorkbook } = require('./hrEmployeeExportService');
-const { BRANCHES, BRANCH_BOTH, allowedBranches, normalizeCoSo } = require('../branch/branches');
+const { BRANCHES, BRANCH_BOTH, allowedBranches, normalizeCoSo, branchLabelToCode } = require('../branch/branches');
 const { leaveEvents, LEAVE_EVENT_TYPES, broadcastLeaveEvent } = require('./hrLeaveEvents');
 const { createHrLeaveDecisionService } = require('./hrLeaveDecisionService');
 const { createHrEmployeeAdminService, STATUS_LABELS } = require('./hrEmployeeAdminService');
 const { parseEmployeeWorkbook } = require('./hrEmployeeWorkbookImport');
+const { departmentsFor } = require('./hrDepartmentCatalog');
 const { importRows: importEmployeeRows } = require('./hrEmployeeWorkbookImportService');
 
 const employeeWorkbookUpload = multer({
@@ -446,7 +447,9 @@ router.get('/api/hr/employees', ...authEmployees, async (req, res) => {
       .filter(employee => branches.includes(employee.sourceBranch))
       .map(employee => publicEmployee(employee, canManage))
       .sort((a, b) => a.hoTen.localeCompare(b.hoTen, 'vi'));
-    res.status(200).json({ employees, stale: !!snapshot.stale, canManage });
+    const departments = {};
+    branches.forEach(label => { departments[label] = departmentsFor(branchLabelToCode(label)); });
+    res.status(200).json({ employees, stale: !!snapshot.stale, canManage, departments });
   } catch (err) {
     handleError(res, err, 'GET /api/hr/employees');
   }

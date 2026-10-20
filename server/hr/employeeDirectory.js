@@ -74,6 +74,14 @@ function roleForDepartment(value) {
     'MUA HANG': ROLES.NHAN_VIEN_MUA_HANG,
     'DAT HANG': ROLES.NHAN_VIEN_MUA_HANG,
     'MARKETING': ROLES.NHAN_VIEN_MARKETING,
+    // Ten bo phan chuan theo co so (hrDepartmentCatalog.js).
+    'SALE HN': ROLES.NHAN_VIEN_SALE,
+    'SALE SG': ROLES.NHAN_VIEN_SALE,
+    'KHO HN': ROLES.NHAN_VIEN_KHO,
+    'KHO SG': ROLES.NHAN_VIEN_KHO,
+    'LAI XE HN': ROLES.LAI_XE,
+    'LAI XE SG': ROLES.LAI_XE,
+    'QUAN LY-KT SG': ROLES.QUAN_LY,
     'HAU CAN - BAO VE': ROLES.KHACH,
     'HAU CAN': ROLES.KHACH,
     'BAO VE': ROLES.KHACH
