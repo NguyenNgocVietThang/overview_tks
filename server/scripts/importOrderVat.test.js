@@ -62,7 +62,7 @@ test('map dong sheet: email -> tai khoan, X/trong -> null, Full VAT tu ghi chu, 
 test('ghi vao DB: dong cu duoc phep thieu du lieu, chay lai khong nhan doi, co lich su import', async () => {
   const db = new PGlite();
   try {
-    await db.exec(fs.readFileSync(path.join(__dirname, '../db/migrations/0073_vat_requests.sql'), 'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname, '../db/migrations/0076_vat_requests.sql'), 'utf8'));
     const query = (sql, params) => db.query(sql, params);
     const pool = { connect: async () => ({ query, release() {} }) };
     const { rows } = mapOrderVatRows(RECORDS, { usersByEmail: USERS });

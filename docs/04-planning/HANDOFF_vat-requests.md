@@ -16,13 +16,13 @@ Trang `/vat-request/` thay Google Form + sheet "ORDER VAT 1". Sale gửi yêu c�
 - Trường sale: khách (gõ tự do + gợi ý KiotViet/lịch sử VAT, tìm không dấu, mã khách, đảo từ), mã SP (chọn từ `product_report`), SL nguyên > 0, giá chưa VAT > 0, **Full VAT / Không full VAT**, ghi chú. Giá được gợi ý từ yêu cầu VAT gần nhất cùng mã và chỉ áp dụng khi bấm; không dùng giá cột J của sheet. Không có ô "giá đã gồm VAT".
 - Cột live (không lưu DB): **O Tồn VAT** = `TỒN ĐẦU NGÀY` (cột I) tab GỘP MỚI tra qua Khớp mã, cộng mọi công ty; **P** = Σ SL yêu cầu cùng mã ở 3/4; **Q** = Σ `product_container_lines` status 1–3; **R** = ETA sớm nhất (đọc chữ "DK 14-16/10").
 - Ngoài phạm vi: thông báo, ghi ngược Google Sheets, nối tool Nháp VAT, tách theo công ty/cơ sở. 3 sheet XỬ LÝ VAT LÂU / HẢI - VAT / Chạy tồn VAT bỏ hẳn.
-- Import toàn bộ sheet cũ (~1.349 dòng).
+- Import toàn bộ sheet cũ (1.357 dòng).
 
 ## 2. Trạng thái hiện tại
 
-- Toàn bộ code đã commit trên nhánh `feature/vat-requests` (cắt từ `main` 68091dd). **Chưa push, chưa PR, chưa merge.**
-- **Migration `0073_vat_requests.sql` CHƯA áp lên DB thật** (Supabase production). Server local đọc DB thật → trang `/vat-request/` sẽ lỗi 500 cho tới khi áp. Không tự áp nếu chưa được chủ dự án đồng ý.
-- Test 20/10/2026 sau đổi quyền xử lý: `npm test` 2.927 test, 2.923 đạt, 3 bỏ qua, chỉ 1 test có sẵn trên main `test/frontend/sort-icons.test.js` lỗi CRLF trên Windows — đã sửa ở nhánh riêng `claude/cranky-pike-6ec25e` (commit `0e6bd34`, chưa merge). Kiểm tra PGlite/JSDOM riêng đều đạt; bản giả lập PGlite đã xem Kế toán được cấp/chưa cấp quyền, trước đó đã xem form tạo/sửa, mobile/desktop, sáng/tối.
+- Code nằm trên nhánh `feature/vat-requests`, đã gộp `origin/main` mới nhất để chuẩn bị PR; chưa deploy.
+- **Migration `0076_vat_requests.sql` đã áp lên DB thật** ngày 20/10/2026 theo yêu cầu nhập CSV của chủ dự án. Đã nhập 1.357 yêu cầu cũ và 1.357 dòng lịch sử; mỗi `legacy_row` duy nhất.
+- Test 20/10/2026 sau gộp `origin/main`: `npm test` 2.980 test, 2.976 đạt, 3 bỏ qua, chỉ 1 test có sẵn trên main `test/frontend/sort-icons.test.js` lỗi CRLF trên Windows — đã sửa ở nhánh riêng `claude/cranky-pike-6ec25e` (commit `0e6bd34`, chưa merge). Kiểm tra PGlite/JSDOM riêng đều đạt; bản giả lập PGlite đã xem Kế toán được cấp/chưa cấp quyền, trước đó đã xem form tạo/sửa, mobile/desktop, sáng/tối.
 - `graphify update .` chưa chạy được (máy không cài graphify).
 - Cập nhật 20/10/2026: mặc định Tồn VAT đã chuyển sang tab GỘP MỚI `gid=39032` của cùng sheet công khai; mã gợi ý khách/giá đã bổ sung trong `suggestions.js`. Quyền xử lý VAT không còn cấp mặc định cho Kế toán; Quản lý vẫn có mặc định và có thể cấp riêng cho từng người. Chưa áp migration hoặc deploy.
 
@@ -30,7 +30,7 @@ Trang `/vat-request/` thay Google Form + sheet "ORDER VAT 1". Sale gửi yêu c�
 
 | File | Vai trò |
 |---|---|
-| `server/db/migrations/0073_vat_requests.sql` | Bảng `vat_requests` + `vat_request_history` (append-only, trigger chặn sửa/xóa). Dòng `is_legacy` được phép thiếu dữ liệu. |
+| `server/db/migrations/0076_vat_requests.sql` | Bảng `vat_requests` + `vat_request_history` (append-only, trigger chặn sửa/xóa). Dòng `is_legacy` được phép thiếu dữ liệu. |
 | `server/vatRequests/service.js` | **Mọi luật nghiệp vụ**: whitelist `SALE_FIELDS`/`ACCOUNTANT_FIELDS` (trường lạ → 403 `FIELD_FORBIDDEN`), khóa (`NOT_OWNER`/`LOCKED`), auto-pending, version (409 `VERSION_CONFLICT` kèm `latest`), lịch sử, bulk (1 dòng lệch → hủy cả lô), metrics O/P/Q/R. |
 | `server/vatRequests/repository.js` | Chỉ SQL. `withTransaction` dùng `pool.connect()`. |
 | `server/vatRequests/routes.js` | `/api/vat-requests` (GET list, POST, PATCH /:id, PATCH /bulk, DELETE /:id?version=, GET /:id/history, /metrics, /product-suggest, /customer-suggest, /price-suggest). |
@@ -42,7 +42,7 @@ Trang `/vat-request/` thay Google Form + sheet "ORDER VAT 1". Sale gửi yêu c�
 | `server/public/shared/shared-nav.js` | Mục menu Kế toán → "Yêu cầu xuất VAT". |
 | `server/scripts/importOrderVat.js` | Import sheet cũ: mặc định chạy thử, `--apply` mới ghi; idempotent theo `legacy_row`. |
 | Test | `server/vatRequests/*.test.js` (PGlite), `server/scripts/importOrderVat.test.js`, `server/test/frontend/vat-request.test.js` (JSDOM), `server/auth/featureRegistry.test.js`. |
-| Tài liệu đã cập nhật | README.md, server/README.md (mục "Kế toán – Yêu cầu xuất VAT"), server/db/SCHEMA.md (0073), SRS (FR-VR-1…10), BRD, implementation_plan.md, CURRENT.md. |
+| Tài liệu đã cập nhật | README.md, server/README.md (mục "Kế toán – Yêu cầu xuất VAT"), server/db/SCHEMA.md (0076), SRS (FR-VR-1…10), BRD, implementation_plan.md, CURRENT.md. |
 
 ## 4. Giao diện hiện tại (để không làm hỏng khi sửa tiếp)
 
@@ -57,8 +57,8 @@ Trang `/vat-request/` thay Google Form + sheet "ORDER VAT 1". Sale gửi yêu c�
 1. **Chủ dự án xem lại giao diện** và góp ý tiếp (đang ở bước này). Xem bằng bản giả lập (mục 6), không cần DB.
 2. **Nguồn cột Tồn VAT**: tab GỘP MỚI `gid=39032` của sheet công khai `1dNabQaiob7CMozrqjA746uV-atHWJi8gbG6L-I0yrmU` đã kiểm tra CSV HTTP 200 và đặt làm mặc định. Nếu Render đang đặt `VAT_REQUEST_STOCK_GID` khác, đổi thành `39032`; giữ tab Khớp mã hiện hành (`gid=1192158065`).
 3. Push nhánh + mở PR vào `main` (có đồng nghiệp code trên `main` — **không commit/push thẳng `main`**).
-4. Áp migration: `cd server && npm run db:migrate` (0073) → deploy Render (chỉ 1 instance).
-5. Import dữ liệu cũ: tải CSV ORDER VAT 1 bản thật → `npm run vat-requests:import-order-vat -- --file <csv>` xem báo cáo (bản copy 20/10: 1.349 dòng, 61 email cần khớp tài khoản web, 13 dòng thời gian "X", 24 dòng thiếu giá) → thêm `--apply`.
+4. Migration `0076` đã áp; sau PR/merge thì deploy Render (chỉ 1 instance).
+5. Đã import CSV `VAT TKS - ORDER VAT 1.csv`: 1.357 dòng, 1.210 dòng khớp Sale, 147 dòng giữ tên Sale do chưa khớp tài khoản; 13 thời gian lỗi, 2 thiếu SL, 24 thiếu giá, 1 thiếu mã SP. Import theo `legacy_row`, chạy lại không nhân đôi. SHA-256 của file đã nhập: `6A33E5B1965C7AEEF5AF67F971CABAC4C9F75CEF841125B2B422CA94C25A79B4` (không lưu CSV trong repo).
 6. `graphify update .` nếu máy có graphify.
 
 ## 6. Cách chạy / kiểm tra
@@ -66,7 +66,7 @@ Trang `/vat-request/` thay Google Form + sheet "ORDER VAT 1". Sale gửi yêu c�
 - Test: `cd server && npm test` (Node v24: `node --test <thư mục>` không chạy, phải truyền file/glob, vd `node --test test/frontend/vat-request.test.js`).
 - Xem giao diện KHÔNG cần DB: bản giả lập dùng service thật trên PGlite + đăng nhập giả. Script mẫu đã dùng nằm ngoài repo (scratchpad Claude) — tự tạo lại theo mẫu:
   - `process.chdir('server')`, `createRequire` từ `server/index.js`;
-  - PGlite chạy migration `0018_product_report.sql`, `0053_product_containers.sql`, `0073_vat_requests.sql`; nạp dòng bằng `mapOrderVatRows` + `insertRows` từ CSV sheet cũ;
+  - PGlite chạy migration `0018_product_report.sql`, `0053_product_containers.sql`, `0076_vat_requests.sql`; nạp dòng bằng `mapOrderVatRows` + `insertRows` từ CSV sheet cũ;
   - `createVatRequestService({ pool, stockSource: { get: async () => snapshot } })`, mount `createVatRequestRouter({ service, customerSearch })`;
   - middleware gán `req.user = {...user, permissions: resolvePermissions(user)}` + `req.effectiveUserResolved = true`; route `/api/auth/me` trả user + `pageFeatures`; `/__as?role=kt|sale` đặt cookie đổi vai;
   - `express.static('server/public')`.

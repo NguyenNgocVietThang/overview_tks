@@ -17,6 +17,12 @@ const EXCEL_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.
 
 const BASE_HEADERS = ['Họ và tên', 'Chức vụ', 'Cơ sở', 'Số điện thoại', 'Email', 'Trạng thái'];
 const BASE_WIDTHS = [24, 28, 12, 18, 26, 16];
+const EXTENDED_HEADERS = [
+  'Họ và tên', 'Bộ phận', 'Chức vụ', 'Ngày vào làm', 'Số ngày LV', 'Ngày sinh', 'Số CCCD', 'SĐT',
+  'Địa chỉ hiện tại', 'Giới tính', 'Hồ sơ', 'Vân tay', 'Cơ sở', 'QH người thân', 'Họ tên người thân',
+  'SĐT người thân', 'Trạng thái', 'Ngày nghỉ việc', 'Email', 'Ngày thêm'
+];
+const EXTENDED_WIDTHS = [26, 18, 24, 14, 12, 14, 16, 16, 36, 12, 11, 11, 12, 18, 24, 16, 14, 14, 26, 14];
 const STATUS_LABELS = { active: 'Đang làm việc', resigned: 'Đã nghỉ việc' };
 
 function formatDateVN(iso) {
@@ -25,6 +31,31 @@ function formatDateVN(iso) {
   const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric' }).formatToParts(d);
   const get = type => parts.find(p => p.type === type).value;
   return `${get('day')}/${get('month')}/${get('year')}`;
+}
+
+function toDateParts(value) {
+  if (!value) return null;
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return null;
+    const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(value).split('-').map(Number);
+    return parts;
+  }
+  const match = String(value).trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
+}
+
+function formatDateOnly(value) {
+  const p = toDateParts(value);
+  return p ? `${String(p[2]).padStart(2, '0')}/${String(p[1]).padStart(2, '0')}/${p[0]}` : '';
+}
+
+// So ngay lam viec = tu ngay vao lam den ngay nghi viec (neu da nghi) hoac den hom nay (gio Viet Nam).
+function workingDays(startValue, endValue, now = new Date()) {
+  const start = toDateParts(startValue);
+  if (!start) return '';
+  const end = toDateParts(endValue) || toDateParts(now);
+  const days = Math.floor((Date.UTC(end[0], end[1] - 1, end[2]) - Date.UTC(start[0], start[1] - 1, start[2])) / 86400000);
+  return Math.max(0, days);
 }
 
 // `branch` la 1 co so hoac danh sach co so dang xuat; chi 1 co so moi gan HN/SG.
@@ -43,9 +74,10 @@ function branchFilePrefix(branch) {
  */
 async function buildEmployeeDirectoryWorkbook(filters, branch) {
   filters = filters || {};
-  // Cot "Ngay them" chi xuat cho nguoi co quyen quan ly nhan su.
-  const HEADERS = filters.includeCreatedAt ? [...BASE_HEADERS, 'Ngày thêm'] : BASE_HEADERS;
-  const COLUMN_WIDTHS = filters.includeCreatedAt ? [...BASE_WIDTHS, 14] : BASE_WIDTHS;
+  const includeExtended = Boolean(filters.includeExtended);
+  // Nhân sự không có quyền quản lý vẫn dùng bản xuất giới hạn như trước.
+  const HEADERS = includeExtended ? EXTENDED_HEADERS : (filters.includeCreatedAt ? [...BASE_HEADERS, 'Ngày thêm'] : BASE_HEADERS);
+  const COLUMN_WIDTHS = includeExtended ? EXTENDED_WIDTHS : (filters.includeCreatedAt ? [...BASE_WIDTHS, 14] : BASE_WIDTHS);
   const statusFilter = filters.status === 'active' || filters.status === 'resigned' ? filters.status : '';
   const keyword = String(filters.keyword || '').trim().toLowerCase();
 
@@ -61,7 +93,20 @@ async function buildEmployeeDirectoryWorkbook(filters, branch) {
       coSo: employee.sourceBranch,
       soDienThoai: employee.soDienThoai,
       email: employee.email,
+      chucVu: employee.chucVu,
+      ngayVaoLam: formatDateOnly(employee.ngayVaoLam),
+      soNgayLamViec: workingDays(employee.ngayVaoLam, employee.ngayNghiViec),
+      ngaySinh: formatDateOnly(employee.ngaySinh),
+      soCccd: employee.soCccd,
+      diaChiHienTai: employee.diaChiHienTai,
+      gioiTinh: employee.gioiTinh,
+      hoSo: employee.hoSoDayDu ? 'Đủ' : 'Thiếu',
+      vanTay: employee.vanTayDaDangKy ? 'Đã đăng ký' : 'Chưa đăng ký',
+      nguoiThanQuanHe: employee.nguoiThanQuanHe,
+      nguoiThanHoTen: employee.nguoiThanHoTen,
+      nguoiThanSoDienThoai: employee.nguoiThanSoDienThoai,
       trangThai: STATUS_LABELS[employee.employmentStatus] || STATUS_LABELS.active,
+      ngayNghiViec: formatDateOnly(employee.ngayNghiViec),
       ngayThem: formatDateVN(employee.createdAt)
     }));
 
@@ -78,7 +123,14 @@ async function buildEmployeeDirectoryWorkbook(filters, branch) {
   sheet.columns = HEADERS.map((header, i) => ({ header, key: `c${i}`, width: COLUMN_WIDTHS[i] || 18 }));
 
   items.forEach(item => {
-    sheet.addRow({ c0: item.hoTen, c1: item.boPhan, c2: item.coSo, c3: item.soDienThoai, c4: item.email, c5: item.trangThai, c6: item.ngayThem });
+    if (includeExtended) {
+      sheet.addRow([
+        item.hoTen, item.boPhan, item.chucVu, item.ngayVaoLam, item.soNgayLamViec, item.ngaySinh, item.soCccd,
+        item.soDienThoai, item.diaChiHienTai, item.gioiTinh, item.hoSo, item.vanTay, item.coSo,
+        item.nguoiThanQuanHe, item.nguoiThanHoTen, item.nguoiThanSoDienThoai, item.trangThai,
+        item.ngayNghiViec, item.email, item.ngayThem
+      ]);
+    } else sheet.addRow({ c0: item.hoTen, c1: item.boPhan, c2: item.coSo, c3: item.soDienThoai, c4: item.email, c5: item.trangThai, c6: item.ngayThem });
   });
 
   sheet.views = frozenNoGridlinesView(1);
@@ -94,4 +146,4 @@ async function buildEmployeeDirectoryWorkbook(filters, branch) {
   return { buffer, fileName, mime: EXCEL_MIME };
 }
 
-module.exports = { buildEmployeeDirectoryWorkbook };
+module.exports = { workingDays, buildEmployeeDirectoryWorkbook };

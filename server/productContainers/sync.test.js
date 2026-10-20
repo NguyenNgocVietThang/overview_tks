@@ -82,3 +82,11 @@ test('chu ky mac dinh 10 phut va stale sau 3 chu ky',()=>{
   assert.equal(INTERVAL_MS,10*60*1000);
   assert.equal(STALE_AFTER_MS,30*60*1000);
 });
+test('sau luot dong bo CONT updated/unchanged goi afterRefresh (tinh bang Du kien hang ve); loi cua no khong lam hong lich',async()=>{
+  for(const [status,expected] of [['updated',1],['unchanged',1],['not-due',0],['failed',0],['held',0]]){
+    let calls=0;let delay;
+    const runtime=startContainerSchedule({spreadsheetId:'fixture',now:()=>1000,refresh:async()=>({status,nextAttemptAt:1600}),
+      afterRefresh:async()=>{calls++;throw Error('boom');},setTimeoutFn:(cb,ms)=>{delay=ms;return {};},clearTimeoutFn(){},logger:{info(){},error(){}}});
+    await runtime.ready;assert.equal(calls,expected,status);assert.equal(delay,600,'lich ke tiep khong bi anh huong');runtime.stop();
+  }
+});

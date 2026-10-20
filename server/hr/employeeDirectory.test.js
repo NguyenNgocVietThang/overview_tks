@@ -56,6 +56,13 @@ test('roleForDepartment implements the approved department matrix', () => {
     ['HẬU CẦN - BẢO VỆ', 'Khách'],
     ['HẬU CẦN', 'Khách'],
     ['BẢO VỆ', 'Khách'],
+    ['Sale HN', 'Nhân viên sale'],
+    ['Sale SG', 'Nhân viên sale'],
+    ['Kho HN', 'Nhân viên kho'],
+    ['Kho SG', 'Nhân viên kho'],
+    ['Lái xe HN', 'Lái xe'],
+    ['Lái xe SG', 'Lái xe'],
+    ['Quản lý-KT SG', 'Quản lý'],
     ['BỘ PHẬN MỚI', 'Khách']
   ]);
   for (const [department, role] of expected) {

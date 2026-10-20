@@ -120,7 +120,7 @@ test('thieu quyen: chuyen toi trang dau tien tai khoan vao duoc', async () => {
 
   const accountant = guardFor({ vaiTro: ROLES.KE_TOAN, trangThai: 'Đang hoạt động' });
   const { res: res2 } = await run(accountant, fakeReq('/', { token: 'ok' }));
-  assert.equal(res2.redirectedTo, '/shipment/lifecycle/', '"/" cung phuc vu trang bao cao');
+  assert.equal(res2.redirectedTo, null, 'Ke toan co bang Du kien hang ve nen "/" (trang bao cao) mo duoc');
 
   const { nextCalled } = await run(accountant, fakeReq('/humanresources/', { token: 'ok' }));
   assert.equal(nextCalled, true, 'Ke toan van vao duoc trang nhan su');

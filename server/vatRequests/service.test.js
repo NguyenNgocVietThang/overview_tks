@@ -10,7 +10,7 @@ const { ROLES } = require('../auth/userRepository');
 const { createVatRequestService } = require('./service');
 const { parseStockCsv, parseMappingCsv, defaultStockConfig } = require('./stockSource');
 
-const MIGRATIONS = ['0018_product_report.sql', '0053_product_containers.sql', '0073_vat_requests.sql'];
+const MIGRATIONS = ['0018_product_report.sql', '0053_product_containers.sql', '0076_vat_requests.sql'];
 
 function poolFor(db) {
   const query = (sql, params) => db.query(sql, params);

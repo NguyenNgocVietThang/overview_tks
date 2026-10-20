@@ -8,6 +8,18 @@
 
 const { getPool } = require('../db/pool');
 
+// Cot DATE cua Postgres duoc `pg` tra ve dang Date (nua dem gio may chu). Chuan hoa ve 'YYYY-MM-DD'
+// de web, file Excel va phep tinh so ngay lam viec doc cung mot gia tri.
+function dateOnly(value) {
+  if (!value) return null;
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return null;
+    return `${String(value.getFullYear()).padStart(4, '0')}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
+  }
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return match ? `${match[1]}-${match[2]}-${match[3]}` : null;
+}
+
 function rowToEmployee(row) {
   return {
     id: Number(row.id),
@@ -19,8 +31,8 @@ function rowToEmployee(row) {
     telegramId: row.telegram_id || '',
     employmentStatus: row.employment_status === 'resigned' ? 'resigned' : 'active',
     chucVu: row.chuc_vu || '',
-    ngayVaoLam: row.ngay_vao_lam || null,
-    ngaySinh: row.ngay_sinh || null,
+    ngayVaoLam: dateOnly(row.ngay_vao_lam),
+    ngaySinh: dateOnly(row.ngay_sinh),
     soCccd: row.so_cccd || '',
     diaChiHienTai: row.dia_chi_hien_tai || '',
     nguoiThanQuanHe: row.nguoi_than_quan_he || '',
@@ -29,7 +41,7 @@ function rowToEmployee(row) {
     gioiTinh: row.gioi_tinh || '',
     hoSoDayDu: !!row.ho_so_day_du,
     vanTayDaDangKy: !!row.van_tay_da_dang_ky,
-    ngayNghiViec: row.ngay_nghi_viec || null,
+    ngayNghiViec: dateOnly(row.ngay_nghi_viec),
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : ''
   };
 }
@@ -109,6 +121,7 @@ async function updateExtendedById(id, row) {
 }
 
 module.exports = {
+  dateOnly,
   rowToEmployee,
   selectAllActive,
   insertEmployee,

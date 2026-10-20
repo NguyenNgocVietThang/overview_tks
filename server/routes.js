@@ -44,6 +44,7 @@ const cashbookRoutes = require('./cashbook/cashbookRoutes');
 const { createVatDraftRouter } = require('./vatDraft/vatDraftRoutes');
 const { createVatRequestRouter } = require('./vatRequests/routes');
 const { createBusinessReportRouter } = require('./businessReport/businessReportRoutes');
+const { createExpectedArrivalsRouter } = require('./productContainers/expectedRoutes');
 const { createMarketingReportRouter } = require('./marketingReport/marketingReportRoutes');
 const { dashboardRollupEvents } = require('./kiotvietSync/dashboardRollupEvents');
 
@@ -86,6 +87,8 @@ router.use('/api/vat-draft', createVatDraftRouter());
 router.use('/api/vat-requests', createVatRequestRouter());
 // Báo cáo kinh doanh (tăng trưởng Sale/Khách/Mã hàng): gộp HN + SG, cũng không áp cookie cơ sở.
 router.use('/api/business-report', createBusinessReportRouter());
+// Bang "Du kien hang ve" (tab Hang hoa): quyen rieng reports.products.expected, KHONG di qua guard /api/product-report.
+router.use('/api/expected-arrivals', createExpectedArrivalsRouter());
 router.use('/api/marketing-report', createMarketingReportRouter());
 
 // Toan bo /api/hr/* la du lieu THEO CO SO — gan resolveBranch truoc router con.

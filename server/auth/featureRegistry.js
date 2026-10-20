@@ -56,6 +56,9 @@ const FEATURES = Object.freeze([
   { key: 'reports.products.sales', groupKey: 'reports', label: 'Hàng hóa: xem doanh số, mô tả bảng giá và doanh số theo khách (cần Hàng hóa)', roles: REPORT_VIEW_ROLES, requires: 'reports.products' },
   // 2026-10-17: cot Don gia HN/SG cua Bao cao hang hoa (gia ban chung KiotViet); mac dinh chi Quan ly + Tro ly.
   { key: 'reports.products.price', groupKey: 'reports', label: 'Hàng hóa: xem đơn giá HN / SG (cần Hàng hóa)', roles: REPORTS_ROLES, requires: 'reports.products' },
+  // 2026-10-20: bang "Du kien hang ve" (tab Hang hoa) mo cho 7 vai tro, DOC LAP voi 'reports.products' (khong requires):
+  // Ke toan / Mua hang / Kho khong co Bao cao hang hoa nhung van can biet lich cont ve. API rieng /api/expected-arrivals.
+  { key: 'reports.products.expected', groupKey: 'reports', label: 'Hàng hóa: xem bảng Dự kiến hàng về', roles: [...REPORT_VIEW_ROLES, ROLES.KE_TOAN, ROLES.NHAN_VIEN_MARKETING, ROLES.NHAN_VIEN_MUA_HANG, ROLES.NHAN_VIEN_KHO] },
   { key: 'reports.invoices', groupKey: 'reports', label: 'Hóa đơn', roles: REPORT_VIEW_ROLES },
   // 2026-10-07: Bao cao kinh doanh (tang truong Sale/Khach/Ma hang theo thang). Spec:
   // docs/superpowers/specs/2026-10-07-business-report-design.md.
@@ -152,7 +155,9 @@ const ANY_REPORTS_FEATURES = Object.freeze(FEATURE_KEYS.filter(k => k.startsWith
  * Thu tu = thu tu uu tien khi phai chon "trang dau tien user vao duoc".
  */
 const PAGE_FEATURES = Object.freeze([
-  { path: '/reports', href: '/reports/', anyOf: ANY_REPORTS_FEATURES },
+  // landingAnyOf: quyen tinh cho 'trang dau tien vao duoc' — KHONG tinh reports.products.expected de Ke toan / Mua hang / Kho
+  // (chi co bang Du kien hang ve) van dang nhap vao trang cu (Vong doi don / Nhan su), nhung van MO duoc /reports.
+  { path: '/reports', href: '/reports/', anyOf: ANY_REPORTS_FEATURES, landingAnyOf: ANY_REPORTS_FEATURES.filter(k => k !== 'reports.products.expected') },
   { path: '/shipment/lifecycle', href: '/shipment/lifecycle/', anyOf: ['shipment.lifecycle'] },
   { path: '/humanresources', href: '/humanresources/', anyOf: ['hr.rules', 'hr.employees', 'hr.leave', 'hr.leave.submit'] },
   { path: '/stock-locations', href: '/stock-locations/', anyOf: ['stockLocations.view'] },
@@ -281,7 +286,7 @@ function pageRuleFor(pathname) {
 
 /** Trang dau tien user co the vao — dung khi phai dieu huong ho di noi khac. */
 function landingPathFor(permissions) {
-  const rule = PAGE_FEATURES.find(r => permissionsHave(permissions, ...r.anyOf));
+  const rule = PAGE_FEATURES.find(r => permissionsHave(permissions, ...(r.landingAnyOf || r.anyOf)));
   return rule ? rule.href : '/account/';
 }
 

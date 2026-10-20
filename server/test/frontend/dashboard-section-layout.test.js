@@ -59,11 +59,11 @@ test('Hóa đơn: chỉ còn Giao dịch (đã bỏ phần Phân tích/Trả hà
   });
 });
 
-test('Hàng hóa chỉ còn 2 phần: Báo cáo hàng hóa (từ Tổng quan) và Tăng trưởng mã hàng (từ Khách hàng)', () => {
+test('Hàng hóa có 3 phần: Báo cáo hàng hóa, Dự kiến hàng về (mới, ở giữa) và Tăng trưởng mã hàng', () => {
   const titles = sectionTitles('products');
-  assert.deepEqual(titles.map(s => s.step), ['1', '2']);
-  assert.deepEqual(titles.map(s => s.title), ['Báo cáo hàng hóa', 'Tăng trưởng mã hàng']);
-  ['productReportRows', 'businessProductsRows'].forEach(id => assert.ok(view('products').querySelector('#' + id), id));
+  assert.deepEqual(titles.map(s => s.step), ['1', '2', '3']);
+  assert.deepEqual(titles.map(s => s.title), ['Báo cáo hàng hóa', 'Dự kiến hàng về', 'Tăng trưởng mã hàng']);
+  ['productReportRows', 'expectedArrivalsRows', 'businessProductsRows'].forEach(id => assert.ok(view('products').querySelector('#' + id), id));
   ['todayNewProductRows', 'newlyImportedRows', 'allProductRows', 'topSellingRows', 'inventoryValueRows'].forEach(id => {
     assert.equal(document.getElementById(id), null, id + ' da bi go cung cac muc cu cua tab Hang hoa');
   });

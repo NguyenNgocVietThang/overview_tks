@@ -5,6 +5,7 @@ const { getPool } = require('../db/pool');
 const { createReadOnlyClient } = require('../sheets/sheetsClient');
 const { SHEET_NAMES, INTERVAL_MS, parseContainerSheet } = require('./parser');
 const { invalidateContainerDetails } = require('./repository');
+const { requestExpectedRefresh } = require('./expectedRefresh');
 const LOCK_KEY = 20531015;
 const SAFE_ERROR = 'Không đọc hoặc lưu được đủ 6 sheet CONT. Giữ nguyên bản thành công gần nhất.';
 
@@ -142,7 +143,9 @@ async function refreshContainers({
 
 function startContainerSchedule({
   spreadsheetId = CONFIG.PRODUCT_CONTAINER_SPREADSHEET_ID, refresh = refreshContainers,
-  setTimeoutFn = setTimeout, clearTimeoutFn = clearTimeout, now = Date.now, logger = console
+  setTimeoutFn = setTimeout, clearTimeoutFn = clearTimeout, now = Date.now, logger = console,
+  // Tinh lai bang "Du kien hang ve" (0075) sau moi luot dong bo CONT co ket qua; test truyen ham gia.
+  afterRefresh = () => requestExpectedRefresh()
 } = {}) {
   if (!spreadsheetId) return { ready:Promise.resolve(),stop(){} };
   let running = false;
@@ -152,7 +155,14 @@ function startContainerSchedule({
     if (running || stopped) return;
     running = true;
     let result;
-    try { result = await refresh({spreadsheetId}); }
+    try {
+      result = await refresh({spreadsheetId});
+      // Loi cua job tinh san khong duoc lam hong lich dong bo CONT (result van giu de dat lich ke tiep).
+      if (result && (result.status === 'updated' || result.status === 'unchanged')) {
+        try { await afterRefresh(result); }
+        catch { logger.error('[ProductContainers] Expected-arrivals refresh failed; will retry next cycle.'); }
+      }
+    }
     catch { logger.error('[ProductContainers] Scheduler failed; will retry next cycle.'); }
     finally {
       running = false;

@@ -1,6 +1,6 @@
 'use strict';
 
-// Truy van Postgres cho Yeu cau xuat VAT (bang vat_requests / vat_request_history, migration 0073).
+// Truy van Postgres cho Yeu cau xuat VAT (bang vat_requests / vat_request_history, migration 0076).
 // Luat phan quyen / khoa / version nam o service.js; file nay chi doc ghi.
 
 const SELECT_COLUMNS = `r.id, r.created_at, r.updated_at, r.created_by, r.created_by_name, r.created_by_email, r.is_legacy,

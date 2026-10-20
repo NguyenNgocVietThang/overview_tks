@@ -246,6 +246,19 @@
   .employee-form-grid .form-group{ margin:0; }
   .employee-form-grid .employee-form-wide{ grid-column:1 / -1; }
   @media (max-width:640px){ .employee-form-grid{ grid-template-columns:1fr; } .employee-form-grid .employee-form-wide{ grid-column:auto; } }
+  .employee-summary{ display:grid; grid-template-columns:minmax(150px,190px) minmax(0,1fr); gap:12px; margin:0 0 14px; }
+  .employee-summary-card{ border:1px solid var(--border); border-radius:var(--radius); background:var(--panel); padding:14px 16px; }
+  .employee-summary-label{ display:block; color:var(--muted); font-size:12px; font-weight:600; }
+  .employee-summary-total{ display:block; margin-top:3px; color:var(--text); font-size:28px; line-height:1.1; }
+  .employee-summary-scope{ display:block; margin-top:5px; color:var(--muted); font-size:11px; }
+  .employee-department-list{ display:flex; flex-wrap:wrap; gap:8px; margin-top:9px; }
+  .employee-department-chip{ display:inline-flex; align-items:center; gap:6px; padding:5px 9px; border:1px solid var(--border); border-radius:var(--radius-pill); background:var(--panel-2); color:var(--text); font:inherit; font-size:12px; cursor:pointer; }
+  .employee-department-chip:hover{ border-color:var(--blue); color:var(--blue); }
+  .employee-department-chip:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+  .employee-department-chip.is-active{ border-color:var(--blue); background:color-mix(in srgb,var(--blue) 13%,var(--panel)); color:var(--blue); }
+  .employee-department-chip strong{ color:var(--blue); font-variant-numeric:tabular-nums; }
+  .employee-summary-empty{ color:var(--muted); font-size:12px; }
+  @media (max-width:640px){ .employee-summary{ grid-template-columns:1fr; } }
   #employeeDirectoryTable .employee-number,
   #employeeDirectoryTable .employee-date{
     text-align:right; font-variant-numeric:tabular-nums;
@@ -1101,6 +1114,19 @@
             </div>
           </div>
 
+          <section class="employee-summary" aria-label="Tổng quan nhân sự">
+            <div class="employee-summary-card">
+              <span class="employee-summary-label">Tổng nhân sự</span>
+              <strong class="employee-summary-total" id="employeeSummaryTotal">—</strong>
+              <small class="employee-summary-scope" id="employeeSummaryScope">Đang tải dữ liệu...</small>
+              <small class="employee-summary-scope" id="employeeSummaryStatus"></small>
+            </div>
+            <div class="employee-summary-card">
+              <span class="employee-summary-label">Nhân sự theo Bộ phận</span>
+              <div class="employee-department-list" id="employeeDepartmentSummary" aria-live="polite"></div>
+            </div>
+          </section>
+
           <div class="users-table-panel">
             <div class="tks-table-tools">
 <button type="button" class="export-button" id="btnExportEmployeeDirectory" onclick="exportEmployeeDirectoryExcel()">
@@ -1167,9 +1193,9 @@
       <div class="modal-header"><h3 id="employeeModalHeading">Thêm nhân sự</h3><button type="button" class="modal-close" aria-label="Đóng" onclick="closeModal('employeeModal')">✕</button></div>
       <form id="employeeForm" onsubmit="saveEmployee(event)"><div class="modal-body employee-form-grid">
         <div class="form-group employee-form-wide"><label for="empHoTen">Họ và tên *</label><input type="text" id="empHoTen" class="form-control" required maxlength="120"></div>
-        <div class="form-group"><label for="empBoPhan">Bộ phận *</label><input type="text" id="empBoPhan" class="form-control" required maxlength="80" list="empBoPhanList"><datalist id="empBoPhanList"></datalist></div>
+        <div class="form-group"><label for="empBoPhan">Bộ phận *</label><select id="empBoPhan" class="form-control" required></select></div>
         <div class="form-group"><label for="empChucVu">Chức vụ</label><input type="text" id="empChucVu" class="form-control" maxlength="120"></div>
-        <div class="form-group"><label for="empCoSo">Cơ sở *</label><select id="empCoSo" class="form-control" required></select></div>
+        <div class="form-group"><label for="empCoSo">Cơ sở *</label><select id="empCoSo" class="form-control" required onchange="populateEmployeeDepartmentSelect()"></select></div>
         <div class="form-group"><label for="empSdt">Số điện thoại</label><input type="tel" id="empSdt" class="form-control" maxlength="20"></div>
         <div class="form-group"><label for="empNgayVaoLam">Ngày vào làm</label><input type="date" id="empNgayVaoLam" class="form-control"></div>
         <div class="form-group"><label for="empTrangThai">Trạng thái</label><select id="empTrangThai" class="form-control" onchange="updateEmployeeStatusHint()"><option value="active">Đang làm việc</option><option value="resigned">Đã nghỉ việc</option></select>
@@ -1389,6 +1415,7 @@
     let currentUser = null;
     let rawLeaveRequests = [];
     let rawEmployeeDirectory = [];
+    let employeeDepartmentCatalog = {};
     let employeeCanManage = false;
     let editingEmployeeId = null;
     let urgentSummaryByUsername = {};
@@ -2280,12 +2307,17 @@
       const branch = branchFilterValue(rawBranch);
       const previousKey = departmentKey(select.value);
       const byKey = new Map();
+      // Danh sách cố định theo cơ sở (file PHÒNG BAN) luôn có mặt; bộ phận cũ còn nhân sự thì thêm phía sau.
+      Object.keys(employeeDepartmentCatalog).forEach(label => {
+        if(branch && label !== branch) return;
+        (employeeDepartmentCatalog[label] || []).forEach(name => { const k = departmentKey(name); if(k && !byKey.has(k)) byKey.set(k, name); });
+      });
       rawEmployeeDirectory.forEach(e => {
         if(branch && e.coSo !== branch) return;
         const key = departmentKey(e.boPhan);
         if(key && !byKey.has(key)) byKey.set(key, String(e.boPhan).trim());
       });
-      const labels = [...byKey.values()].sort((a, b) => a.localeCompare(b, 'vi'));
+      const labels = [...byKey.values()];
       select.innerHTML = '<option value="">Tất cả phòng ban</option>'
         + labels.map(l => `<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`).join('');
       select.value = byKey.has(previousKey) ? byKey.get(previousKey) : '';
@@ -2896,11 +2928,13 @@
           return;
         }
         rawEmployeeDirectory = data.employees || [];
+        employeeDepartmentCatalog = data.departments || {};
         employeeCanManage = !!data.canManage;
         document.getElementById('btnAddEmployee').hidden = !employeeCanManage;
-        // File Excel chỉ dùng để khởi tạo danh sách lần đầu. Khi đã có hồ sơ,
-        // việc cập nhật thực hiện trực tiếp trên từng nhân sự để tránh nhập đè.
-        document.getElementById('btnImportEmployeeDirectory').hidden = !employeeCanManage || rawEmployeeDirectory.length > 0;
+        // File Excel dùng để khởi tạo danh sách, hoặc bổ sung khi còn nhân sự thiếu ngày vào làm / ngày sinh / giới tính.
+        // Nhập lại chỉ điền ô trống, không ghi đè dữ liệu đã có.
+        const missingProfile = rawEmployeeDirectory.some(e => !e.ngayVaoLam || !e.ngaySinh || !String(e.gioiTinh || '').trim());
+        document.getElementById('btnImportEmployeeDirectory').hidden = !employeeCanManage || (rawEmployeeDirectory.length > 0 && !missingProfile);
         renderEmployeeDirectoryHead();
         populateDepartmentFilter('departmentFilter', document.getElementById('branchFilter').value);
         populateDepartmentFilter('employeeDepartmentFilter', document.getElementById('employeeBranchFilter').value);
@@ -2914,7 +2948,7 @@
 
     // Độ rộng được đo theo giá trị của dòng dữ liệu, không lấy theo tiêu đề.
     const EMPLOYEE_BASIC_HEAD = [
-      ['Họ và tên','ho-va-ten',240], ['Chức vụ','chuc-vu',180], ['Cơ sở','co-so',100],
+      ['Họ và tên','ho-va-ten',240], ['Bộ phận','bo-phan',180], ['Cơ sở','co-so',100],
       ['Số điện thoại','so-dien-thoai',115], ['Trạng thái','trang-thai',50]
     ];
     const EMPLOYEE_MANAGER_HEAD = [
@@ -2970,7 +3004,8 @@
       const widths=columns.map(column => employeeColumnWidth(column, rawEmployeeDirectory));
       head.innerHTML='<tr>'+columns.map(function(c,index){ return '<th class="'+employeeCellClass(c[1])+'" style="width:'+widths[index]+'px" data-column-key="'+c[1]+'">'+c[0]+'</th>'; }).join('')+'</tr>';
       // Không để CSS width:100% tự chia phần trống khiến cột ngắn bị giãn quá mức.
-      table.style.width=widths.reduce((total,width) => total + width, 0)+'px';
+      table.dataset.tableFit=employeeCanManage ? 'off' : 'contain';
+      table.style.width=employeeCanManage ? widths.reduce((total,width) => total + width, 0)+'px' : '100%';
       delete table.dataset.sortInited;
       initSortableTables();
     }
@@ -2988,8 +3023,8 @@
     function employeeWorkingDays(e){
       const start=employeeStartDate(e.ngayVaoLam);
       if(!start) return '—';
-      const today=new Date(); today.setHours(0,0,0,0);
-      return Math.max(0,Math.floor((today-start)/86400000)).toLocaleString('vi-VN');
+      const end=employeeStartDate(e.ngayNghiViec) || (()=>{ const t=new Date(); t.setHours(0,0,0,0); return t; })();
+      return Math.max(0,Math.round((end-start)/86400000)).toLocaleString('vi-VN');
     }
 
     function employeeStatusText(e){
@@ -3097,6 +3132,7 @@
       const branch = selectedBranch('employeeBranchFilter');
       const department = departmentKey(document.getElementById('employeeDepartmentFilter').value);
       const status = document.getElementById('employeeStatusFilter').value;
+      renderEmployeeDirectorySummary(branch, status);
       const filtered = rawEmployeeDirectory.filter(e => {
         if(status && employeeStatusKey(e) !== status) return false;
         if(branch && e.coSo !== branch) return false;
@@ -3120,6 +3156,56 @@
       </tr>`).join('');
       applyActiveTableSorts();
       paginateEmployeeDirectoryTable();
+    }
+
+    function renderEmployeeDirectorySummary(branch, status){
+      const total=document.getElementById('employeeSummaryTotal');
+      const scope=document.getElementById('employeeSummaryScope');
+      const departments=document.getElementById('employeeDepartmentSummary');
+      if(!total || !scope || !departments) return;
+      const inBranch=rawEmployeeDirectory.filter(e => !branch || e.coSo === branch);
+      // Tổng và số theo Bộ phận bám theo bộ lọc Trạng thái; LV/NV luôn hiện riêng để không phải lọc mới thấy NV.
+      const inScope=inBranch.filter(e => !status || employeeStatusKey(e) === status);
+      const working=inBranch.filter(e => employeeStatusKey(e) === 'active').length;
+      const resigned=inBranch.length - working;
+      const counts=new Map();
+      Object.keys(employeeDepartmentCatalog).forEach(branchLabel => {
+        if(branch && branchLabel !== branch) return;
+        (employeeDepartmentCatalog[branchLabel] || []).forEach(name => {
+          const label=String(name || '').trim();
+          const key=departmentKey(label);
+          if(key && !counts.has(key)) counts.set(key,{ label, count:0 });
+        });
+      });
+      inScope.forEach(e => {
+        const label=String(e.boPhan || '').trim() || 'Chưa cập nhật';
+        const key=departmentKey(label) || '__missing__';
+        const current=counts.get(key);
+        counts.set(key, current ? { label:current.label, count:current.count + 1 } : { label, count:1 });
+      });
+      total.textContent=String(inScope.length);
+      const statusText=status === 'active' ? 'Đang làm việc' : status === 'resigned' ? 'Đã nghỉ việc' : 'Tất cả trạng thái';
+      scope.textContent=`${branch ? 'Cơ sở: ' + branch : 'Tất cả cơ sở'} · ${statusText}`;
+      const split=document.getElementById('employeeSummaryStatus');
+      if(split) split.innerHTML=`<span class="emp-status-active">LV <strong>${working}</strong></span> · <span class="emp-status-resigned">NV <strong>${resigned}</strong></span>`;
+      const selectedDepartment=departmentKey(document.getElementById('employeeDepartmentFilter')?.value);
+      const items=[...counts.values()].sort((a,b) => b.count - a.count || a.label.localeCompare(b.label,'vi'));
+      departments.innerHTML=items.length
+        ? items.map(({ label, count }) => {
+          const active=departmentKey(label) === selectedDepartment;
+          return `<button type="button" class="employee-department-chip${active ? ' is-active' : ''}" data-employee-department="${escapeHtml(label)}" aria-pressed="${active}"><span>${escapeHtml(label)}</span><strong>${count}</strong></button>`;
+        }).join('')
+        : '<span class="employee-summary-empty">Chưa có dữ liệu nhân sự.</span>';
+      departments.querySelectorAll('button[data-employee-department]').forEach(button => {
+        button.addEventListener('click', () => toggleEmployeeDepartmentSummary(button.dataset.employeeDepartment));
+      });
+    }
+
+    function toggleEmployeeDepartmentSummary(department){
+      const select=document.getElementById('employeeDepartmentFilter');
+      if(!select) return;
+      select.value=departmentKey(select.value) === departmentKey(department) ? '' : department;
+      renderEmployeeDirectoryTable();
     }
 
     function setEmployeeImportProgress(percent, label){
@@ -3165,10 +3251,11 @@
       try{
         const data=await uploadEmployeeWorkbook(form,(percent,label)=>setEmployeeImportProgress(percent,label));
         const unmatched=(data.unmatched||[]).length, ambiguous=(data.ambiguous||[]).length;
-        const message='Đã cập nhật '+data.updated+'/'+data.total+' dòng. Không khớp: '+unmatched+'; trùng: '+ambiguous+'.';
+        const failed=(data.failed||[]).length;
+        const message='Đã cập nhật '+data.updated+', thêm mới '+(data.created||0)+'/'+data.total+' dòng. Không khớp: '+unmatched+'; trùng: '+ambiguous+'; lỗi: '+failed+'.';
         setEmployeeImportProgress(100,'100%');
-        if(status){ status.className='form-hint '+(unmatched||ambiguous?'warning':'success'); status.textContent=message; }
-        showToast(message, unmatched||ambiguous?'warning':'success');
+        if(status){ status.className='form-hint '+(unmatched||ambiguous||failed?'warning':'success'); status.textContent=message; }
+        showToast(message, unmatched||ambiguous||failed?'warning':'success');
         await loadEmployeeDirectory();
       }catch(err){
         const message=err.message||'Không nhập được file.';
@@ -3198,7 +3285,6 @@
       editingEmployeeId = employee ? employee.id : null;
       document.getElementById('employeeModalHeading').textContent = employee ? 'Thông tin nhân sự' : 'Thêm nhân sự';
       document.getElementById('empHoTen').value = employee ? employee.hoTen : '';
-      document.getElementById('empBoPhan').value = employee ? employee.boPhan : '';
       document.getElementById('empSdt').value = employee ? employee.soDienThoai : '';
       document.getElementById('empChucVu').value = employee ? (employee.chucVu || '') : '';
       const today=new Date();
@@ -3219,15 +3305,27 @@
       const coSo = document.getElementById('empCoSo');
       coSo.innerHTML = branches.map(b => `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join('');
       if(employee) coSo.value = employee.coSo;
-      const list = new Map();
-      rawEmployeeDirectory.forEach(e => { const k = departmentKey(e.boPhan); if(k && !list.has(k)) list.set(k, String(e.boPhan).trim()); });
-      document.getElementById('empBoPhanList').innerHTML = [...list.values()].sort((a, b) => a.localeCompare(b, 'vi'))
-        .map(l => `<option value="${escapeHtml(l)}"></option>`).join('');
+      populateEmployeeDepartmentSelect(employee ? employee.boPhan : '');
       document.getElementById('empCreatedAtGroup').hidden = !employee;
       document.getElementById('empCreatedAt').value = employee ? formatEmployeeDate(employee.ngayThem) : '';
       document.getElementById('empError').style.display = 'none';
       updateEmployeeStatusHint();
       openModal('employeeModal');
+    }
+
+    // Bộ phận chọn trong danh sách cố định của cơ sở đang chọn; giá trị cũ ngoài danh sách vẫn giữ để không mất dữ liệu.
+    function populateEmployeeDepartmentSelect(keepValue){
+      const select = document.getElementById('empBoPhan');
+      const branch = document.getElementById('empCoSo').value;
+      const current = typeof keepValue === 'string' ? keepValue : select.value;
+      const names = [...(employeeDepartmentCatalog[branch] || [])];
+      const legacy = current && !names.some(n => departmentKey(n) === departmentKey(current)) && editingEmployeeId
+        && (rawEmployeeDirectory.find(e => String(e.id) === String(editingEmployeeId)) || {}).coSo === branch;
+      select.innerHTML = '<option value="">— Chọn bộ phận —</option>'
+        + names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('')
+        + (legacy ? `<option value="${escapeHtml(current)}">${escapeHtml(current)} (cũ)</option>` : '');
+      const match = names.find(n => departmentKey(n) === departmentKey(current));
+      select.value = match || (legacy ? current : '');
     }
 
     async function saveEmployee(event){
