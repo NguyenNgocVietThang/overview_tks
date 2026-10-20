@@ -70,6 +70,12 @@ app.use(express.static(path.join(__dirname, 'public'), {
     if (filePath.includes(`${path.sep}vendor${path.sep}`)) {
       // Vendor lib (chart.umd.min.js, three.min.js) hiem khi doi thu cong
       res.setHeader('Cache-Control', 'public, max-age=86400'); // 1 ngay
+    } else if (/\.(js|css)$/.test(filePath) && res.req.query.v) {
+      // URL co ?v= -> cho trinh duyet + Cloudflare edge giu 1 gio, khoi hoi lai
+      // origin moi lan chuyen trang.
+      // ponytail: 1 gio vi ?v= tang tay va tung bi quen (cdddb2f); doi sang
+      // immutable 1 nam khi ?v= duoc sinh tu dong theo hash noi dung file.
+      res.setHeader('Cache-Control', 'public, max-age=3600');
     } else if (/\.(js|css)$/.test(filePath)) {
       // /shared/*, /js/* — luon revalidate de cap nhat UI tuc thi khi sua code
       res.setHeader('Cache-Control', 'no-cache, must-revalidate');
