@@ -184,7 +184,7 @@ test('do rong cot nhan su dua theo gia tri dai nhat va co gioi han hop ly', asyn
 
   const manager = await openPage({ canManage: true });
   const managerHeaders = manager.window.document.querySelectorAll('#employeeDirectoryTableHead th');
-  assert.equal(managerHeaders[0].style.width, '42px');
+  assert.equal(managerHeaders[0].style.width, '51px');
   assert.ok(parseInt(managerHeaders[17].style.width, 10) < 75);
   manager.dom.window.close();
 });
@@ -238,10 +238,10 @@ test('form nhân sự ghi đúng Bộ phận và không cho sửa email liên k�
 
 test('cột ngày và số đủ chỗ cho giá trị, không bị vỡ từng dòng bởi padding của bảng', async () => {
   const { dom, window } = await openPage({ canManage: true, employees: [{ ...EMPLOYEES[0], ngayVaoLam: '2024-04-22' }] });
-  assert.ok(window.employeeTextWidth('22/04/2024') >= 106, 'độ rộng gồm cả khoảng đệm ô');
+  assert.ok(window.employeeTextWidth('22/04/2024') >= 120, 'độ rộng gồm cả khoảng đệm ô và font thực tế');
   const doc = window.document;
   const dateHead = doc.querySelector('#employeeDirectoryTableHead th[data-column-key="ngay-vao-lam"]');
-  assert.ok(parseInt(dateHead.style.width, 10) >= 106);
+  assert.ok(parseInt(dateHead.style.width, 10) >= 120);
   assert.equal(dateHead.classList.contains('employee-date'), true);
   dom.window.close();
 });
@@ -250,6 +250,6 @@ test('bảng nhân sự không kéo giãn cột trống để lấp đầy khung
   const { dom, window } = await openPage({ canManage: true });
   const doc = window.document;
   assert.equal(doc.getElementById('employeeDirectoryTable').dataset.tableFit, 'off');
-  assert.equal(window.employeeColumnWidth(['Vân tay', 'van-tay', 80], []), 36);
+  assert.equal(window.employeeColumnWidth(['Vân tay', 'van-tay', 80], []), 42);
   dom.window.close();
 });
