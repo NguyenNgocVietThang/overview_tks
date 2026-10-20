@@ -1,6 +1,6 @@
 'use strict';
 
-// Doc bang "Du kien hang ve" (migration 0073) cho /api/expected-arrivals. Chi SELECT bang tinh san;
+// Doc bang "Du kien hang ve" (migration 0074) cho /api/expected-arrivals. Chi SELECT bang tinh san;
 // cache dong da map theo `version` cua product_container_expected_state (chi tang khi noi dung doi),
 // moi request chi ton 1 truy van nho doc state. Chua migrate / chua co state => bang rong.
 

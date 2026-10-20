@@ -113,7 +113,8 @@
   TKSNav._landingPath = function _landingPath(){
     for(var i = 0; i < currentPageFeatures.length; i++){
       var rule = currentPageFeatures[i];
-      if(rule && rule.anyOf && TKSNav.can(rule.anyOf)) return rule.href;
+      var landing = rule && (rule.landingAnyOf || rule.anyOf);
+      if(landing && TKSNav.can(landing)) return rule.href;
     }
     return '/account/';
   };

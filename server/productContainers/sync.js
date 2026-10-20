@@ -144,7 +144,7 @@ async function refreshContainers({
 function startContainerSchedule({
   spreadsheetId = CONFIG.PRODUCT_CONTAINER_SPREADSHEET_ID, refresh = refreshContainers,
   setTimeoutFn = setTimeout, clearTimeoutFn = clearTimeout, now = Date.now, logger = console,
-  // Tinh lai bang "Du kien hang ve" (0073) sau moi luot dong bo CONT co ket qua; test truyen ham gia.
+  // Tinh lai bang "Du kien hang ve" (0074) sau moi luot dong bo CONT co ket qua; test truyen ham gia.
   afterRefresh = () => requestExpectedRefresh()
 } = {}) {
   if (!spreadsheetId) return { ready:Promise.resolve(),stop(){} };

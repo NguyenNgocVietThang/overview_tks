@@ -1,6 +1,6 @@
 'use strict';
 
-// Chay SQL THAT cua migration 0073 + job expectedRefresh + expectedRepository tren PGlite.
+// Chay SQL THAT cua migration 0074 + job expectedRefresh + expectedRepository tren PGlite.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -11,7 +11,7 @@ const { refreshExpected, requestExpectedRefresh } = require('./expectedRefresh')
 const { createExpectedRepository } = require('./expectedRepository');
 
 const migration = file => fs.readFileSync(path.join(__dirname, '..', 'db', 'migrations', file), 'utf8');
-const MIGRATIONS = ['0018_product_report.sql', '0053_product_containers.sql', '0072_product_container_unit_price_cny.sql', '0073_product_container_expected.sql'];
+const MIGRATIONS = ['0018_product_report.sql', '0053_product_containers.sql', '0072_product_container_unit_price_cny.sql', '0074_product_container_expected.sql'];
 const quiet = () => {};
 
 async function setup() {
@@ -97,7 +97,7 @@ test('chot an toan: nguon rong thi giu nguyen bang dang co; bang rong + nguon ro
   } finally { await db.close(); }
 });
 
-test('thieu migration 0073: requestExpectedRefresh nuot loi 42P01, loi khac cung khong nem ra', async () => {
+test('thieu migration 0074: requestExpectedRefresh nuot loi 42P01, loi khac cung khong nem ra', async () => {
   const CONFIG = require('../config');
   const previous = CONFIG.SUPABASE_DB_URL;
   CONFIG.SUPABASE_DB_URL = 'postgres://fixture';
