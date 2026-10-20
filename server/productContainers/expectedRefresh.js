@@ -1,6 +1,6 @@
 'use strict';
 
-// Tinh san bang "Du kien hang ve" (migration 0074, tab Hang hoa) tu product_container_lines
+// Tinh san bang "Du kien hang ve" (migration 0075, tab Hang hoa) tu product_container_lines
 // (snapshot sheet CONT do sync.js dong bo) + ten SP tu product_report. KHONG goi Google Sheets.
 // Web (/api/expected-arrivals) chi DOC bang ket qua.
 //
@@ -132,7 +132,7 @@ function requestExpectedRefresh(pool = getPool(), { log = console.log } = {}) {
   // Chua cau hinh DB (test/dev) hoac pool gia: khong lam gi.
   if (!pool || typeof pool.query !== 'function' || !require('../config').SUPABASE_DB_URL) return Promise.resolve(null);
   return refreshExpected(pool, { log }).catch(error => {
-    // Chua ap migration 0074 -> bo qua yen lang (giong cac job tinh san khac).
+    // Chua ap migration 0075 -> bo qua yen lang (giong cac job tinh san khac).
     if (error && error.code === '42P01') return null;
     console.error('[ProductContainerExpected] Loi tinh bang du kien hang ve:', error && error.message);
     return null;

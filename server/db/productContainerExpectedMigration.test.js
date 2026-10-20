@@ -4,9 +4,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const SQL = fs.readFileSync(path.join(__dirname, 'migrations', '0074_product_container_expected.sql'), 'utf8');
+const SQL = fs.readFileSync(path.join(__dirname, 'migrations', '0075_product_container_expected.sql'), 'utf8');
 
-test('migration 0074 tao 2 bang voi khoa chinh dung, chay lai duoc, state chi 1 dong', async () => {
+test('migration 0075 tao 2 bang voi khoa chinh dung, chay lai duoc, state chi 1 dong', async () => {
   const { PGlite } = require('@electric-sql/pglite');
   const db = new PGlite();
   try {
@@ -29,7 +29,7 @@ test('migration 0074 tao 2 bang voi khoa chinh dung, chay lai duoc, state chi 1 
   } finally { await db.close(); }
 });
 
-test('migration 0074 khong dung CONCURRENTLY, chi tao bang moi (IF NOT EXISTS) va thu hoi quyen reporting_readonly', () => {
+test('migration 0075 khong dung CONCURRENTLY, chi tao bang moi (IF NOT EXISTS) va thu hoi quyen reporting_readonly', () => {
   assert.doesNotMatch(SQL, /CONCURRENTLY/i);
   assert.deepEqual([...SQL.matchAll(/CREATE TABLE IF NOT EXISTS (\S+)/g)].map(m => m[1]), ['product_container_expected', 'product_container_expected_state']);
   assert.equal([...SQL.matchAll(/CREATE (?:TABLE|INDEX) (?!IF NOT EXISTS)/g)].length, 0);
