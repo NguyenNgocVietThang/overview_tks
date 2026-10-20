@@ -3004,7 +3004,8 @@
       const widths=columns.map(column => employeeColumnWidth(column, rawEmployeeDirectory));
       head.innerHTML='<tr>'+columns.map(function(c,index){ return '<th class="'+employeeCellClass(c[1])+'" style="width:'+widths[index]+'px" data-column-key="'+c[1]+'">'+c[0]+'</th>'; }).join('')+'</tr>';
       // Không để CSS width:100% tự chia phần trống khiến cột ngắn bị giãn quá mức.
-      table.style.width=widths.reduce((total,width) => total + width, 0)+'px';
+      table.dataset.tableFit=employeeCanManage ? 'off' : 'contain';
+      table.style.width=employeeCanManage ? widths.reduce((total,width) => total + width, 0)+'px' : '100%';
       delete table.dataset.sortInited;
       initSortableTables();
     }
