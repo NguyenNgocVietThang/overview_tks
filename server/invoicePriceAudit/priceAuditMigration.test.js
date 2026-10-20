@@ -84,6 +84,8 @@ test('rang buoc: branch, decision, original_status, version mac dinh, tien la NU
     }
     const inv = await db.query(`SELECT data_type FROM information_schema.columns WHERE table_name='invoice_price_audit_invoices' AND column_name='invoice_id'`);
     assert.equal(inv.rows[0].data_type, 'bigint');
+    const cust = await db.query(`SELECT data_type, is_nullable FROM information_schema.columns WHERE table_name='invoice_price_audit_lines' AND column_name='customer_id'`);
+    assert.deepEqual(cust.rows, [{ data_type: 'bigint', is_nullable: 'YES' }]);
   } finally { await db.close(); }
 });
 

@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS invoice_price_audit_lines (
   sold_at             TIMESTAMPTZ NOT NULL,   -- nhu invoices.purchase_date (gio dia phuong gan nhan UTC)
   sold_day            DATE        NOT NULL,
   -- nhan dien
+  customer_id         BIGINT,                            -- id khach Kiot cung co so (doc nhom khach HIEN TAI cho quyen giai thich)
   customer_code       TEXT        NOT NULL DEFAULT '',
   customer_name       TEXT        NOT NULL DEFAULT '',
   customer_email      TEXT        NOT NULL DEFAULT '',
