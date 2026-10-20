@@ -10,6 +10,7 @@ async function fixture() {
   const db = new PGlite();
   await db.exec(fs.readFileSync(path.join(__dirname,'../db/migrations/0018_product_report.sql'),'utf8'));
   await db.exec(fs.readFileSync(path.join(__dirname,'../db/migrations/0053_product_containers.sql'),'utf8'));
+  await db.exec(fs.readFileSync(path.join(__dirname,'../db/migrations/0072_product_container_unit_price_cny.sql'),'utf8'));
   await db.exec(`CREATE TABLE products(code text,branch text,is_active boolean);
     INSERT INTO products VALUES ('001A','hanoi',true),('STOP','hanoi',false);
     INSERT INTO product_report(product_code,product_name) VALUES ('001A','A'),('STOP','S');`);
