@@ -121,8 +121,8 @@ const FEATURES = Object.freeze([
   // (chi doc), tao va sua yeu cau CUA MINH khi chua khoa; quyen Xu ly sua trang thai / ghi chu KT / ngay ve.
   // Quyen xem/tao duoc mien kiem tra leo thang de Tro ly van tao duoc TK Sale / Ke toan.
   // Quyen xu ly chi mac dinh cho Quan ly; tung Ke toan duoc cap rieng tai /account/.
-  { key: 'accounting.vatRequest', groupKey: 'accounting', label: 'Yêu cầu xuất VAT (xem, tạo yêu cầu)', roles: [ROLES.QUAN_LY, ROLES.KE_TOAN, ROLES.NHAN_VIEN_SALE], forbiddenRoles: [ROLES.KHACH], escalationExempt: true },
-  { key: 'accounting.vatRequestProcess', groupKey: 'accounting', label: 'Yêu cầu xuất VAT: xử lý trạng thái, ghi chú KT, ngày về (cần Yêu cầu xuất VAT)', roles: MANAGER_ONLY, forbiddenRoles: [ROLES.KHACH], requires: 'accounting.vatRequest' },
+  { key: 'accounting.vatRequest', groupKey: 'accounting', label: 'ORDER VAT (xem, tạo yêu cầu)', roles: [ROLES.QUAN_LY, ROLES.KE_TOAN, ROLES.NHAN_VIEN_SALE], forbiddenRoles: [ROLES.KHACH], escalationExempt: true },
+  { key: 'accounting.vatRequestProcess', groupKey: 'accounting', label: 'ORDER VAT: xử lý trạng thái, ghi chú KT, ngày về (cần ORDER VAT)', roles: MANAGER_ONLY, forbiddenRoles: [ROLES.KHACH], requires: 'accounting.vatRequest' },
 
   // --- Quan ly tai khoan ---
   { key: 'account.profile', groupKey: 'account', label: 'Quản lý hồ sơ', roles: ALL_ROLES, alwaysOn: true },
