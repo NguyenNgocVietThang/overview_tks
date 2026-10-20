@@ -2923,9 +2923,10 @@
         rawEmployeeDirectory = data.employees || [];
         employeeCanManage = !!data.canManage;
         document.getElementById('btnAddEmployee').hidden = !employeeCanManage;
-        // File Excel chỉ dùng để khởi tạo danh sách lần đầu. Khi đã có hồ sơ,
-        // việc cập nhật thực hiện trực tiếp trên từng nhân sự để tránh nhập đè.
-        document.getElementById('btnImportEmployeeDirectory').hidden = !employeeCanManage || rawEmployeeDirectory.length > 0;
+        // File Excel dùng để khởi tạo danh sách, hoặc bổ sung khi còn nhân sự thiếu ngày vào làm / ngày sinh / giới tính.
+        // Nhập lại chỉ điền ô trống, không ghi đè dữ liệu đã có.
+        const missingProfile = rawEmployeeDirectory.some(e => !e.ngayVaoLam || !e.ngaySinh || !String(e.gioiTinh || '').trim());
+        document.getElementById('btnImportEmployeeDirectory').hidden = !employeeCanManage || (rawEmployeeDirectory.length > 0 && !missingProfile);
         renderEmployeeDirectoryHead();
         populateDepartmentFilter('departmentFilter', document.getElementById('branchFilter').value);
         populateDepartmentFilter('employeeDepartmentFilter', document.getElementById('employeeBranchFilter').value);
@@ -3013,8 +3014,8 @@
     function employeeWorkingDays(e){
       const start=employeeStartDate(e.ngayVaoLam);
       if(!start) return '—';
-      const today=new Date(); today.setHours(0,0,0,0);
-      return Math.max(0,Math.floor((today-start)/86400000)).toLocaleString('vi-VN');
+      const end=employeeStartDate(e.ngayNghiViec) || (()=>{ const t=new Date(); t.setHours(0,0,0,0); return t; })();
+      return Math.max(0,Math.round((end-start)/86400000)).toLocaleString('vi-VN');
     }
 
     function employeeStatusText(e){
@@ -3224,10 +3225,11 @@
       try{
         const data=await uploadEmployeeWorkbook(form,(percent,label)=>setEmployeeImportProgress(percent,label));
         const unmatched=(data.unmatched||[]).length, ambiguous=(data.ambiguous||[]).length;
-        const message='Đã cập nhật '+data.updated+'/'+data.total+' dòng. Không khớp: '+unmatched+'; trùng: '+ambiguous+'.';
+        const failed=(data.failed||[]).length;
+        const message='Đã cập nhật '+data.updated+', thêm mới '+(data.created||0)+'/'+data.total+' dòng. Không khớp: '+unmatched+'; trùng: '+ambiguous+'; lỗi: '+failed+'.';
         setEmployeeImportProgress(100,'100%');
-        if(status){ status.className='form-hint '+(unmatched||ambiguous?'warning':'success'); status.textContent=message; }
-        showToast(message, unmatched||ambiguous?'warning':'success');
+        if(status){ status.className='form-hint '+(unmatched||ambiguous||failed?'warning':'success'); status.textContent=message; }
+        showToast(message, unmatched||ambiguous||failed?'warning':'success');
         await loadEmployeeDirectory();
       }catch(err){
         const message=err.message||'Không nhập được file.';

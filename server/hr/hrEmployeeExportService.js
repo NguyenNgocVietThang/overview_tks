@@ -33,14 +33,29 @@ function formatDateVN(iso) {
   return `${get('day')}/${get('month')}/${get('year')}`;
 }
 
-function workingDays(iso) {
-  const text = String(iso || '').trim();
-  const match = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (!match) return '';
-  const start = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  if (Number.isNaN(start.getTime())) return '';
-  return Math.max(0, Math.floor((today - start) / 86400000));
+function toDateParts(value) {
+  if (!value) return null;
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return null;
+    const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(value).split('-').map(Number);
+    return parts;
+  }
+  const match = String(value).trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
+}
+
+function formatDateOnly(value) {
+  const p = toDateParts(value);
+  return p ? `${String(p[2]).padStart(2, '0')}/${String(p[1]).padStart(2, '0')}/${p[0]}` : '';
+}
+
+// So ngay lam viec = tu ngay vao lam den ngay nghi viec (neu da nghi) hoac den hom nay (gio Viet Nam).
+function workingDays(startValue, endValue, now = new Date()) {
+  const start = toDateParts(startValue);
+  if (!start) return '';
+  const end = toDateParts(endValue) || toDateParts(now);
+  const days = Math.floor((Date.UTC(end[0], end[1] - 1, end[2]) - Date.UTC(start[0], start[1] - 1, start[2])) / 86400000);
+  return Math.max(0, days);
 }
 
 // `branch` la 1 co so hoac danh sach co so dang xuat; chi 1 co so moi gan HN/SG.
@@ -79,9 +94,9 @@ async function buildEmployeeDirectoryWorkbook(filters, branch) {
       soDienThoai: employee.soDienThoai,
       email: employee.email,
       chucVu: employee.chucVu,
-      ngayVaoLam: formatDateVN(employee.ngayVaoLam),
-      soNgayLamViec: workingDays(employee.ngayVaoLam),
-      ngaySinh: formatDateVN(employee.ngaySinh),
+      ngayVaoLam: formatDateOnly(employee.ngayVaoLam),
+      soNgayLamViec: workingDays(employee.ngayVaoLam, employee.ngayNghiViec),
+      ngaySinh: formatDateOnly(employee.ngaySinh),
       soCccd: employee.soCccd,
       diaChiHienTai: employee.diaChiHienTai,
       gioiTinh: employee.gioiTinh,
@@ -91,7 +106,7 @@ async function buildEmployeeDirectoryWorkbook(filters, branch) {
       nguoiThanHoTen: employee.nguoiThanHoTen,
       nguoiThanSoDienThoai: employee.nguoiThanSoDienThoai,
       trangThai: STATUS_LABELS[employee.employmentStatus] || STATUS_LABELS.active,
-      ngayNghiViec: formatDateVN(employee.ngayNghiViec),
+      ngayNghiViec: formatDateOnly(employee.ngayNghiViec),
       ngayThem: formatDateVN(employee.createdAt)
     }));
 
@@ -131,4 +146,4 @@ async function buildEmployeeDirectoryWorkbook(filters, branch) {
   return { buffer, fileName, mime: EXCEL_MIME };
 }
 
-module.exports = { buildEmployeeDirectoryWorkbook };
+module.exports = { workingDays, buildEmployeeDirectoryWorkbook };

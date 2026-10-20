@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const ExcelJS = require('exceljs');
 const employeeDirectory = require('./employeeDirectory');
-const { buildEmployeeDirectoryWorkbook } = require('./hrEmployeeExportService');
+const { buildEmployeeDirectoryWorkbook, workingDays } = require('./hrEmployeeExportService');
 const { BRANCHES } = require('../branch/branches');
 
 const EMPLOYEES = [
@@ -63,6 +63,34 @@ test('Quản lý xuất đầy đủ hồ sơ nhân sự mở rộng', async () 
   } finally {
     Object.keys(original).forEach(key => delete original[key]);
     Object.assign(original, { sourceBranch: BRANCHES.HANOI, hoTen: 'Nguyễn Văn A', boPhan: 'KHO', soDienThoai: '0900000001', email: 'a@x.com' });
+  }
+});
+
+test('số ngày làm việc: nhận chuỗi ISO lẫn Date, dừng ở ngày nghỉ việc, theo giờ Việt Nam', () => {
+  const now = new Date('2026-10-20T10:00:00Z');
+  assert.equal(workingDays('2026-10-10', null, now), 10);
+  assert.equal(workingDays(new Date(2026, 9, 10), null, now), 10);
+  assert.equal(workingDays('2026-10-10', '2026-10-15', now), 5);
+  assert.equal(workingDays('2026-10-25', null, now), 0);
+  assert.equal(workingDays('', null, now), '');
+  // 20:00 UTC ngày 19 = 03:00 ngày 20 giờ Việt Nam
+  assert.equal(workingDays('2026-10-19', null, new Date('2026-10-19T20:00:00Z')), 1);
+});
+
+test('xuất mở rộng: đủ ngày vào làm, số ngày LV, ngày sinh, giới tính, ngày nghỉ việc', async () => {
+  const original = EMPLOYEES[1];
+  Object.assign(original, { ngayVaoLam: '2024-01-02', ngaySinh: '1995-02-03', gioiTinh: 'Nam', ngayNghiViec: '2024-01-12', employmentStatus: 'resigned' });
+  try {
+    const { rows } = await exportRows({ includeExtended: true }, [BRANCHES.HANOI]);
+    const row = rows.find(item => item[0] === 'Lê Văn D');
+    assert.equal(row[3], '02/01/2024');
+    assert.equal(row[4], 10);
+    assert.equal(row[5], '03/02/1995');
+    assert.equal(row[9], 'Nam');
+    assert.equal(row[17], '12/01/2024');
+  } finally {
+    Object.keys(original).forEach(key => delete original[key]);
+    Object.assign(original, { sourceBranch: BRANCHES.HANOI, hoTen: 'Lê Văn D', boPhan: 'SALE', soDienThoai: '0900000004', email: 'd@x.com' });
   }
 });
 
