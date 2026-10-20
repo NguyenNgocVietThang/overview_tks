@@ -48,6 +48,25 @@ async function openPage({ canManage, employees = EMPLOYEES }) {
 
 const names = doc => [...doc.querySelectorAll('#employeeDirectoryTableBody tr')].map(tr => tr.cells[0].textContent);
 
+test('dashboard nhân sự đếm tổng và từng Bộ phận theo bộ lọc Cơ sở', async () => {
+  const employees = [
+    { id: '1', hoTen: 'An', boPhan: 'KHO', coSo: 'Hà Nội', trangThai: 'Đang làm việc' },
+    { id: '2', hoTen: 'Bình', boPhan: 'SALE', coSo: 'Hà Nội', trangThai: 'Đang làm việc' },
+    { id: '3', hoTen: 'Chi', boPhan: 'KHO', coSo: 'Sài Gòn', trangThai: 'Đang làm việc' }
+  ];
+  const { dom, window } = await openPage({ canManage: true, employees });
+  const doc = window.document;
+  assert.equal(doc.getElementById('employeeSummaryTotal').textContent, '3');
+  assert.match(doc.getElementById('employeeDepartmentSummary').textContent, /KHO\s*2/);
+  assert.match(doc.getElementById('employeeDepartmentSummary').textContent, /SALE\s*1/);
+  doc.getElementById('employeeBranchFilter').value = 'Hà Nội';
+  window.handleEmployeeBranchChange();
+  assert.equal(doc.getElementById('employeeSummaryTotal').textContent, '2');
+  assert.match(doc.getElementById('employeeSummaryScope').textContent, /Hà Nội/);
+  assert.match(doc.getElementById('employeeDepartmentSummary').textContent, /KHO\s*1/);
+  dom.window.close();
+});
+
 test('Bộ phận và Chức vụ được phép xuống dòng khi người dùng thu cột', async () => {
   const { dom, window } = await openPage({ canManage: true });
   const row = window.document.querySelector('#employeeDirectoryTableBody tr');
