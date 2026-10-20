@@ -134,6 +134,8 @@ CREATE INDEX IF NOT EXISTS idx_invoice_price_audit_changes_line
 -- Cot O "Cuoc 1 Sp (465/m3, 1367d/kg)" cua sheet CAN DO, doc truc tiep (khong tinh lai tu kg/m3).
 -- NULL = o trong (quy tac doi chieu ap 0). Chi them cot, khong anh huong m3/kg cua Vong doi don.
 ALTER TABLE shipping_measures ADD COLUMN IF NOT EXISTS freight_per_unit NUMERIC;
+-- Loi rieng cot O (tieu de sai): dong bo m3/kg van chay, cuoc = NULL; khac NULL => job kiem tra gia bao nguon chua san sang.
+ALTER TABLE sheet_snapshot_sync ADD COLUMN IF NOT EXISTS freight_error TEXT;
 
 -- Co giai thich cua sale / quyet dinh chot / nhat ky: chi API duoc doc, khong cap cho reporting_readonly.
 DO $$ BEGIN

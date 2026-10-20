@@ -39,14 +39,22 @@ test('parseMeasureRows: freightPerUnit doc thang cot O (tieu de xuong dong), 0 h
   assert.equal(table.get('t100').freightPerUnit, '1234');
 });
 
-test('parseMeasureRows: tieu de cot O sai cau truc hoac thieu cot O -> loi nguon, khong lay nham cot khac', () => {
+test('parseMeasureRows: tieu de cot O sai/thieu -> van giu m3/kg, cuoc NULL het va freightError (khong lay nham cot khac)', () => {
+  const check = values => {
+    const table = parseMeasureRows(values);
+    assert.match(table.freightError, /cột O/);
+    assert.ok(table.size > 0);
+    for (const entry of table.values()) assert.equal(entry.freightPerUnit, null);
+    assert.equal(table.get('10gfed').perCarton, 280);
+  };
   const bad = VALUES.map(r => [...r]);
   bad[0][14] = 'Ghi chú';
-  assert.throws(() => parseMeasureRows(bad), { statusCode: 503, code: 'MEASURE_FREIGHT_HEADER_INVALID' });
+  check(bad);
   const shifted = VALUES.map(r => [...r]);
   shifted[0][14] = ''; shifted[0][13] = FREIGHT_HEADER;
-  assert.throws(() => parseMeasureRows(shifted), { statusCode: 503, code: 'MEASURE_FREIGHT_HEADER_INVALID' });
-  assert.throws(() => parseMeasureRows(VALUES.map(r => r.slice(0, 8))), { code: 'MEASURE_FREIGHT_HEADER_INVALID' });
+  check(shifted);
+  check(VALUES.map(r => r.slice(0, 8)));
+  assert.equal(parseMeasureRows(VALUES).freightError, null);
 });
 
 test('parseMeasureRows: khong co hang tieu de -> loi 503', () => {

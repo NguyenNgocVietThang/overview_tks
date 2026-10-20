@@ -158,6 +158,25 @@ test('CAN DO: luu m3/kg moi cai, lay hang dau khi trung ma, doc lai qua createMe
   assert.deepEqual([lookup.get('thieu').m3PerUnit, lookup.get('thieu').missingVolume, lookup.get('thieu').kgPerUnit], [null, true, 0.5]);
 });
 
+test('CAN DO: cot O sai tieu de -> van dong bo m3/kg, cuoc NULL, ghi freight_error; sua lai thi xoa loi', async () => {
+  __test__.pendingShrink.clear();
+  const { pool } = await setup();
+  const badHeader = [...measureHeader]; badHeader[14] = 'Ghi chú';
+  const rows = [measureRow(['10GFED', 'Đèn', '', 280, 30.5, 81, 60, 70], 384)];
+  const first = await refreshSource(measures, { pool, client: sheet({ 'CÂN ĐO': [badHeader, ...rows] }), now: at(0), logger: quiet });
+  assert.equal(first.status, 'updated');
+  const stored = await pool.query('SELECT code_key, per_carton, freight_per_unit FROM shipping_measures');
+  assert.deepEqual(stored.rows, [{ code_key: '10gfed', per_carton: '280', freight_per_unit: null }]);
+  const state = (await pool.query("SELECT last_success_at, last_error, freight_error FROM sheet_snapshot_sync WHERE source = 'shipping_measures'")).rows[0];
+  assert.ok(state.last_success_at);
+  assert.equal(state.last_error, null);
+  assert.match(state.freight_error, /cột O/);
+  await refreshSource(measures, { pool, client: sheet({ 'CÂN ĐO': [measureHeader, ...rows] }), now: at(10), logger: quiet });
+  const fixed = (await pool.query("SELECT freight_error FROM sheet_snapshot_sync WHERE source = 'shipping_measures'")).rows[0];
+  assert.equal(fixed.freight_error, null);
+  assert.equal((await pool.query('SELECT freight_per_unit FROM shipping_measures')).rows[0].freight_per_unit, '384');
+});
+
 test('khong cau hinh spreadsheet thi bo qua, khong ket noi DB', async () => {
   let connected = 0;
   const result = await refreshSource({ ...hn, spreadsheetId: () => null }, { pool: { connect: async () => { connected++; } }, logger: quiet });

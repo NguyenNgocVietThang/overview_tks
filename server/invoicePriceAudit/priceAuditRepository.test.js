@@ -300,6 +300,51 @@ test('Nguon chua san sang: Can do chua dong bo, thieu san pham/khach -> loi ro r
   } finally { await db.close(); }
 });
 
+test('Gia NULL tren dong SL > 0 = nguon chua san sang (khong thanh Sai gia); chiet khau NULL = 0', async () => {
+  const db = await newDb();
+  try {
+    await baseHn(db);
+    await invoice(db, { id: 1, customerId: 1, lines: [{ productId: 1, code: 'T100', name: 'Ly', qty: 1, price: 24000 }] });
+    await db.query('UPDATE invoice_details SET discount = NULL');
+    await invoice(db, { id: 2, customerId: 1, lines: [
+      { productId: 1, code: 'T100', name: 'Ly', qty: 0, price: 1 },
+      { productId: 1, code: 'T100', name: 'Ly', qty: 1, price: 24000 }] });
+    await db.query("UPDATE invoice_details SET price = NULL WHERE invoice_id = 2 AND line_no = 1");
+    await assert.rejects(capture(db), err => err.code === SOURCE_NOT_READY && /HD2/.test(err.message) && /dòng 2/.test(err.message));
+    assert.equal((await db.query('SELECT count(*)::int AS n FROM invoice_price_audit_invoices')).rows[0].n, 0);
+    // Dong SL <= 0 gia NULL khong chan.
+    await db.query("UPDATE invoice_details SET price = 24000 WHERE invoice_id = 2 AND line_no = 1");
+    await db.query("UPDATE invoice_details SET price = NULL WHERE invoice_id = 2 AND line_no = 0");
+    assert.deepEqual(await capture(db), { addedInvoices: 2, addedLines: 2 });
+    assert.deepEqual((await lines(db)).map(r => r.status), ['correct', 'correct']);
+  } finally { await db.close(); }
+});
+
+test('Hoa don chua co dong chi tiet: khong ghi so danh dau, lan sau co chi tiet thi chup; moi dong SL <= 0 van danh dau', async () => {
+  const db = await newDb();
+  try {
+    await baseHn(db);
+    await invoice(db, { id: 1, customerId: 1, lines: [] });
+    await invoice(db, { id: 2, customerId: 1, lines: [{ productId: 1, code: 'T100', name: 'Ly', qty: 0, price: 1 }] });
+    assert.deepEqual(await capture(db), { addedInvoices: 1, addedLines: 0 });
+    assert.deepEqual((await db.query('SELECT invoice_id::text AS id FROM invoice_price_audit_invoices')).rows, [{ id: '2' }]);
+    await db.query(`INSERT INTO invoice_details (branch, invoice_id, line_no, product_id, quantity, price, discount, raw)
+      VALUES ('hanoi', 1, 0, 1, 1, 24000, 0, $1)`, [JSON.stringify({ productCode: 'T100', productName: 'Ly' })]);
+    assert.deepEqual(await capture(db), { addedInvoices: 1, addedLines: 1 });
+  } finally { await db.close(); }
+});
+
+test('Cot O Can do sai tieu de (freight_error) -> nguon chua san sang, khong ghi gi', async () => {
+  const db = await newDb();
+  try {
+    await baseHn(db);
+    await invoice(db, { id: 1, customerId: 1, lines: [{ productId: 1, code: 'T100', name: 'Ly', qty: 1, price: 24000 }] });
+    await db.query("UPDATE sheet_snapshot_sync SET freight_error = 'Sheet CÂN ĐO: cột O sai' WHERE source = 'shipping_measures'");
+    await assert.rejects(capture(db), err => err.code === SOURCE_NOT_READY && /cột O/.test(err.message));
+    assert.equal((await db.query('SELECT count(*)::int AS n FROM invoice_price_audit_invoices')).rows[0].n, 0);
+  } finally { await db.close(); }
+});
+
 async function publish(db, from, to) {
   await db.query(`INSERT INTO invoice_price_audit_state (id, published_day, window_from, window_to, last_success_at, last_attempt_at, added_invoice_count)
     VALUES (TRUE, $2, $1, $2, $3, $3, 4)

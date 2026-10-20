@@ -99,7 +99,7 @@ src AS (
   SELECT x.*,
          x.quantity::numeric AS qty,
          SUM(x.quantity::numeric) OVER (PARTITION BY x.branch, x.invoice_id, x.code_key) AS total_qty,
-         COALESCE(x.original_unit_price::numeric, 0) AS price_n,
+         x.original_unit_price::numeric AS price_n,
          COALESCE(x.unit_discount::numeric, 0) AS discount_n
   FROM src0 x
 ),

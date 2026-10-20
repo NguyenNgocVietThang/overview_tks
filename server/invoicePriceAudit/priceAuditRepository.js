@@ -30,7 +30,7 @@ const codeKey = code => String(code ?? '').trim().toLowerCase();
 
 // ---------------------------------------------------------------- doc nguon
 
-const MEASURES_READY_SQL = "SELECT last_success_at FROM sheet_snapshot_sync WHERE source = 'shipping_measures'";
+const MEASURES_READY_SQL = "SELECT last_success_at, freight_error FROM sheet_snapshot_sync WHERE source = 'shipping_measures'";
 
 // $1 ngay chay (YYYY-MM-DD). purchase_date = gio dia phuong Kiot gan nhan UTC -> moc ngay AT TIME ZONE 'UTC'.
 const INVOICES_SQL = `
@@ -108,6 +108,7 @@ async function assertMeasuresReady(client) {
   if (!rows[0] || !rows[0].last_success_at) {
     throw sourceNotReady('Cân đo (shipping_measures) chưa từng đồng bộ thành công; chưa thể chạy kiểm tra giá.');
   }
+  if (rows[0].freight_error) throw sourceNotReady(`Cân đo: ${rows[0].freight_error}`);
 }
 
 /**
@@ -136,7 +137,20 @@ async function captureUnseenInvoices({ day, client, now }) {
     const m = missingProducts[0];
     throw sourceNotReady(`Chưa đồng bộ sản phẩm cho ${missingProducts.length} dòng hóa đơn (vd ${m.branch}/${m.invoice_id} sản phẩm ${m.product_id}).`);
   }
+  // Gia NULL tren dong SL > 0 la loi nguon, khong duoc thanh "Sai gia" (chiet khau NULL van = 0).
+  const nullPrices = [];
+  const lineNo = new Map();
   const linesByInvoice = new Map();
+  for (const l of detailRows) {
+    const k = `${l.branch}:${l.invoice_id}`;
+    lineNo.set(k, (lineNo.get(k) || 0) + 1);
+    if (Number(l.quantity) > 0 && l.price == null) nullPrices.push({ l, no: lineNo.get(k) });
+  }
+  if (nullPrices.length) {
+    const { l, no } = nullPrices[0];
+    const inv = invoices.find(i => i.branch === l.branch && String(i.invoice_id) === String(l.invoice_id));
+    throw sourceNotReady(`Chưa có đơn giá cho ${nullPrices.length} dòng hóa đơn (vd ${inv ? inv.code : l.invoice_id} dòng ${no}).`);
+  }
   for (const l of detailRows) {
     const key = `${l.branch}:${l.invoice_id}`;
     if (!linesByInvoice.has(key)) linesByInvoice.set(key, []);
@@ -164,6 +178,8 @@ async function captureUnseenInvoices({ day, client, now }) {
   for (const inv of invoices) {
     const key = `${inv.branch}:${inv.invoice_id}`;
     const all = linesByInvoice.get(key) || [];
+    // Chua co dong chi tiet nao: khong danh dau, luot sau chup lai khi chi tiet ve.
+    if (all.length === 0) continue;
     markers.push({ branch: inv.branch, invoice_id: inv.invoice_id, invoice_code: inv.code, sold_day: inv.sold_day,
       captured_at: capturedAt, run_day: day, source_hash: sourceHash(inv, all), source_modified_at: inv.modified_at });
     const level = customerLevelFromEmail(inv.customer_email);

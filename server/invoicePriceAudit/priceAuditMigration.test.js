@@ -126,6 +126,7 @@ test('migration 0077 idempotent, khong CONCURRENTLY, thu hoi quyen reporting_rea
   assert.doesNotMatch(SQL, /CONCURRENTLY/i);
   assert.equal([...SQL.matchAll(/CREATE (?:TABLE|INDEX) (?!IF NOT EXISTS)/g)].length, 0);
   assert.match(SQL, /ADD COLUMN IF NOT EXISTS freight_per_unit NUMERIC/);
+  assert.match(SQL, /ALTER TABLE sheet_snapshot_sync ADD COLUMN IF NOT EXISTS freight_error TEXT/);
   assert.match(SQL, /REVOKE ALL ON[\s\S]*invoice_price_audit_invoices[\s\S]*invoice_price_audit_lines[\s\S]*invoice_price_audit_state[\s\S]*invoice_price_audit_changes[\s\S]*FROM reporting_readonly/);
   assert.match(SQL, /pg_roles WHERE rolname = 'reporting_readonly'/);
 });

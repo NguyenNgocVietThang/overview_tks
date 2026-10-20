@@ -64,11 +64,16 @@ const measureSource = {
     const title = findSheetTitle(await client.listSheetTitles(), CONFIG.SHIPPING_MEASURE_SHEET);
     if (!title) throw missingSheet(CONFIG.SHIPPING_MEASURE_SHEET);
     const values = await client.getValues(title, { valueRenderOption: 'UNFORMATTED_VALUE' });
-    return [...parseMeasureRows(values)].map(([codeKey, entry]) => ({
+    const table = parseMeasureRows(values);
+    const rows = [...table].map(([codeKey, entry]) => ({
       code_key: codeKey, per_carton: entry.perCarton, m3_per_unit: entry.m3PerUnit, kg_per_unit: entry.kgPerUnit,
       freight_per_unit: entry.freightPerUnit
     }));
-  }
+    rows.freightError = table.freightError;
+    return rows;
+  },
+  // Loi rieng cot O (cuoc) luu cung luot thanh cong; chi job Kiem tra gia ban doc cot nay (migration 0077).
+  successState: rows => ({ sql: 'UPDATE sheet_snapshot_sync SET freight_error = $2 WHERE source = $1', value: rows.freightError || null })
 };
 
 const SOURCES = [locationSource('HN'), locationSource('SG'), measureSource];
@@ -147,6 +152,10 @@ async function refreshSource(source, {
     const inserted = (await connection.query(sql.insert)).rowCount || 0;
     await connection.query(
       'UPDATE sheet_snapshot_sync SET last_success_at = $2, last_error = NULL WHERE source = $1', [source.id, now()]);
+    if (source.successState) {
+      const extra = source.successState(rows);
+      await connection.query(extra.sql, [source.id, extra.value]);
+    }
     await connection.query('COMMIT'); transaction = false;
     const changed = removed + inserted > 0;
     logger.info(changed ? '[SheetSnapshots] Updated' : '[SheetSnapshots] Unchanged',
