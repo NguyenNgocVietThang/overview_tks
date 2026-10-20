@@ -166,6 +166,13 @@ test('người không có quyền quản lý: giữ 5 cột công khai, không l
   dom.window.close();
 });
 
+test('người không quản lý: bảng 5 cột công khai dùng hết chiều rộng khung', async () => {
+  const { dom, window } = await openPage({ canManage: false });
+  const table = window.document.getElementById('employeeDirectoryTable');
+  assert.equal(table.style.width, '100%');
+  dom.window.close();
+});
+
 test('người có quyền quản lý: hiện bảng hồ sơ mở rộng, bấm dòng mở hộp chi tiết và lưu bằng PUT kèm trạng thái', async () => {
   const { dom, window, sent } = await openPage({ canManage: true });
   const doc = window.document;
