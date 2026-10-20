@@ -17,6 +17,12 @@ const EXCEL_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.
 
 const BASE_HEADERS = ['Họ và tên', 'Chức vụ', 'Cơ sở', 'Số điện thoại', 'Email', 'Trạng thái'];
 const BASE_WIDTHS = [24, 28, 12, 18, 26, 16];
+const EXTENDED_HEADERS = [
+  'Họ và tên', 'Bộ phận', 'Chức vụ', 'Ngày vào làm', 'Số ngày LV', 'Ngày sinh', 'Số CCCD', 'SĐT',
+  'Địa chỉ hiện tại', 'Giới tính', 'Hồ sơ', 'Vân tay', 'Cơ sở', 'QH người thân', 'Họ tên người thân',
+  'SĐT người thân', 'Trạng thái', 'Ngày nghỉ việc', 'Email', 'Ngày thêm'
+];
+const EXTENDED_WIDTHS = [26, 18, 24, 14, 12, 14, 16, 16, 36, 12, 11, 11, 12, 18, 24, 16, 14, 14, 26, 14];
 const STATUS_LABELS = { active: 'Đang làm việc', resigned: 'Đã nghỉ việc' };
 
 function formatDateVN(iso) {
@@ -25,6 +31,16 @@ function formatDateVN(iso) {
   const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric' }).formatToParts(d);
   const get = type => parts.find(p => p.type === type).value;
   return `${get('day')}/${get('month')}/${get('year')}`;
+}
+
+function workingDays(iso) {
+  const text = String(iso || '').trim();
+  const match = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (!match) return '';
+  const start = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  if (Number.isNaN(start.getTime())) return '';
+  return Math.max(0, Math.floor((today - start) / 86400000));
 }
 
 // `branch` la 1 co so hoac danh sach co so dang xuat; chi 1 co so moi gan HN/SG.
@@ -43,9 +59,10 @@ function branchFilePrefix(branch) {
  */
 async function buildEmployeeDirectoryWorkbook(filters, branch) {
   filters = filters || {};
-  // Cot "Ngay them" chi xuat cho nguoi co quyen quan ly nhan su.
-  const HEADERS = filters.includeCreatedAt ? [...BASE_HEADERS, 'Ngày thêm'] : BASE_HEADERS;
-  const COLUMN_WIDTHS = filters.includeCreatedAt ? [...BASE_WIDTHS, 14] : BASE_WIDTHS;
+  const includeExtended = Boolean(filters.includeExtended);
+  // Nhân sự không có quyền quản lý vẫn dùng bản xuất giới hạn như trước.
+  const HEADERS = includeExtended ? EXTENDED_HEADERS : (filters.includeCreatedAt ? [...BASE_HEADERS, 'Ngày thêm'] : BASE_HEADERS);
+  const COLUMN_WIDTHS = includeExtended ? EXTENDED_WIDTHS : (filters.includeCreatedAt ? [...BASE_WIDTHS, 14] : BASE_WIDTHS);
   const statusFilter = filters.status === 'active' || filters.status === 'resigned' ? filters.status : '';
   const keyword = String(filters.keyword || '').trim().toLowerCase();
 
@@ -61,7 +78,20 @@ async function buildEmployeeDirectoryWorkbook(filters, branch) {
       coSo: employee.sourceBranch,
       soDienThoai: employee.soDienThoai,
       email: employee.email,
+      chucVu: employee.chucVu,
+      ngayVaoLam: formatDateVN(employee.ngayVaoLam),
+      soNgayLamViec: workingDays(employee.ngayVaoLam),
+      ngaySinh: formatDateVN(employee.ngaySinh),
+      soCccd: employee.soCccd,
+      diaChiHienTai: employee.diaChiHienTai,
+      gioiTinh: employee.gioiTinh,
+      hoSo: employee.hoSoDayDu ? 'Đủ' : 'Thiếu',
+      vanTay: employee.vanTayDaDangKy ? 'Đã đăng ký' : 'Chưa đăng ký',
+      nguoiThanQuanHe: employee.nguoiThanQuanHe,
+      nguoiThanHoTen: employee.nguoiThanHoTen,
+      nguoiThanSoDienThoai: employee.nguoiThanSoDienThoai,
       trangThai: STATUS_LABELS[employee.employmentStatus] || STATUS_LABELS.active,
+      ngayNghiViec: formatDateVN(employee.ngayNghiViec),
       ngayThem: formatDateVN(employee.createdAt)
     }));
 
@@ -78,7 +108,14 @@ async function buildEmployeeDirectoryWorkbook(filters, branch) {
   sheet.columns = HEADERS.map((header, i) => ({ header, key: `c${i}`, width: COLUMN_WIDTHS[i] || 18 }));
 
   items.forEach(item => {
-    sheet.addRow({ c0: item.hoTen, c1: item.boPhan, c2: item.coSo, c3: item.soDienThoai, c4: item.email, c5: item.trangThai, c6: item.ngayThem });
+    if (includeExtended) {
+      sheet.addRow([
+        item.hoTen, item.boPhan, item.chucVu, item.ngayVaoLam, item.soNgayLamViec, item.ngaySinh, item.soCccd,
+        item.soDienThoai, item.diaChiHienTai, item.gioiTinh, item.hoSo, item.vanTay, item.coSo,
+        item.nguoiThanQuanHe, item.nguoiThanHoTen, item.nguoiThanSoDienThoai, item.trangThai,
+        item.ngayNghiViec, item.email, item.ngayThem
+      ]);
+    } else sheet.addRow({ c0: item.hoTen, c1: item.boPhan, c2: item.coSo, c3: item.soDienThoai, c4: item.email, c5: item.trangThai, c6: item.ngayThem });
   });
 
   sheet.views = frozenNoGridlinesView(1);

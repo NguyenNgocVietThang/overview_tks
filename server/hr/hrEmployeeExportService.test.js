@@ -37,6 +37,35 @@ test('xuất danh sách nhân sự: nhiều cơ sở gộp chung, có cột Cơ 
   assert.equal(rows.length, 3);
 });
 
+test('Quản lý xuất đầy đủ hồ sơ nhân sự mở rộng', async () => {
+  const original = EMPLOYEES[0];
+  Object.assign(original, {
+    chucVu: 'Thủ kho', ngayVaoLam: '2024-01-02', ngaySinh: '1995-02-03', soCccd: '012345678901',
+    diaChiHienTai: 'Hà Nội', gioiTinh: 'Nam', hoSoDayDu: true, vanTayDaDangKy: true,
+    nguoiThanQuanHe: 'Vợ', nguoiThanHoTen: 'Nguyễn B', nguoiThanSoDienThoai: '0900000002',
+    ngayNghiViec: '', createdAt: '2026-10-01T00:00:00.000Z'
+  });
+  try {
+    const { headers, rows } = await exportRows({ includeExtended: true }, [BRANCHES.HANOI]);
+    assert.deepEqual(headers, [
+      'Họ và tên', 'Bộ phận', 'Chức vụ', 'Ngày vào làm', 'Số ngày LV', 'Ngày sinh', 'Số CCCD', 'SĐT',
+      'Địa chỉ hiện tại', 'Giới tính', 'Hồ sơ', 'Vân tay', 'Cơ sở', 'QH người thân', 'Họ tên người thân',
+      'SĐT người thân', 'Trạng thái', 'Ngày nghỉ việc', 'Email', 'Ngày thêm'
+    ]);
+    const row = rows.find(item => item[0] === 'Nguyễn Văn A');
+    assert.ok(row);
+    assert.equal(row[1], 'KHO');
+    assert.equal(row[2], 'Thủ kho');
+    assert.equal(row[6], '012345678901');
+    assert.equal(row[8], 'Hà Nội');
+    assert.equal(row[13], 'Vợ');
+    assert.equal(row[18], 'a@x.com');
+  } finally {
+    Object.keys(original).forEach(key => delete original[key]);
+    Object.assign(original, { sourceBranch: BRANCHES.HANOI, hoTen: 'Nguyễn Văn A', boPhan: 'KHO', soDienThoai: '0900000001', email: 'a@x.com' });
+  }
+});
+
 test('xuất danh sách nhân sự: lọc theo phòng ban (không phân biệt hoa thường) và theo cơ sở', async () => {
   const kho = await exportRows({ department: 'kho' }, [BRANCHES.HANOI, BRANCHES.SAIGON]);
   assert.deepEqual(kho.rows.map(r => r[0]).sort(), ['Nguyễn Văn A', 'Trần Thị C']);

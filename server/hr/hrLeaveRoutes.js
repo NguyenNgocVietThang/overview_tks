@@ -509,7 +509,7 @@ router.get('/api/hr/employees/export', ...authEmployees, async (req, res) => {
   try {
     const { keyword, department, branch, status } = req.query || {};
     const { buffer, fileName, mime } = await buildEmployeeDirectoryWorkbook(
-      { keyword, department, status, includeCreatedAt: hasFeature(req.user, 'hr.employees.manage') },
+      { keyword, department, status, includeExtended: hasFeature(req.user, 'hr.employees.manage') },
       resolveBranchScope(req, branch)
     );
     res.setHeader('Content-Type', mime);
