@@ -9,7 +9,7 @@ const HELP = 'Kiểm tra giá bán (job 23:00 VN) cho một ngày: '
   + 'node server/scripts/refresh-invoice-price-audit.js [--date YYYY-MM-DD] [--apply]\n'
   + 'Mặc định dry-run (không ghi DB). --date mặc định là hôm nay theo giờ VN. --apply mới công bố thật.';
 
-// 0 = dry-run xong / da cong bo; 2 = chua cong bo (busy, not-due, stale, failed); 1 = tham so sai/loi dry-run.
+// 0 = dry-run xong / da cong bo; 2 = chua cong bo (busy, future-day, stale, failed); 1 = tham so sai/loi dry-run.
 const OK_STATUSES = new Set(['completed', 'already-completed']);
 
 function parseArgs(args, isValidDay) {

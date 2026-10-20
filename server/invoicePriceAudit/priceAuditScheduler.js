@@ -59,7 +59,7 @@ function createPriceAuditScheduler({
         failedDay = day;
         failedAt = +current;
       }
-      // 'busy' / 'not-due': thu lai o nhip ke tiep.
+      // 'busy' (hoac trang thai khac): thu lai o nhip ke tiep.
     } finally {
       running = false;
     }

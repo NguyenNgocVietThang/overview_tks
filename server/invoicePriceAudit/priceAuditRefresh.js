@@ -18,7 +18,7 @@
 // 23:00 VN = 16:00 UTC, khong dung gio dia phuong cua server.
 
 const { captureUnseenInvoices, SOURCE_NOT_READY } = require('./priceAuditRepository');
-const { addDaysToKey } = require('../kiotvietSync/vnTime');
+const { addDaysToKey, vnDateKey } = require('../kiotvietSync/vnTime');
 
 // Khoa advisory rieng cua tinh nang (20531077 ~ migration 0077), khac cac khoa 205310xx/205311xx da dung.
 const LOCK_KEY = 20531077;
@@ -101,14 +101,16 @@ function result(status, day, extra = {}) {
 
 /**
  * Cong bo ban kiem tra gia cua ngay `day` ('YYYY-MM-DD', ngay VN cua slot 23:00).
- * @returns {Promise<{ status: 'completed'|'already-completed'|'busy'|'not-due'|'stale'|'failed',
+ * @returns {Promise<{ status: 'completed'|'already-completed'|'busy'|'future-day'|'stale'|'failed',
  *   day, windowFrom, windowTo, addedInvoices, addedLines, prunedInvoices, code?, message? }>}
  *   Chi nem khi tham so sai (lap trinh); loi chay tra status 'failed'.
  */
 async function runDailyAudit({ day, pool, now = new Date(), capture = captureUnseenInvoices, logger = console } = {}) {
   assertDay(day);
   const nowDate = new Date(now);
-  if (+nowDate < +slotStartUtc(day)) return result('not-due', day);
+  // Cho phep chay tay ngay hom nay truoc 23:00 (lan cong bo dau sau deploy); chi chan ngay TUONG LAI theo gio VN,
+  // vi published_day o tuong lai se lam moi slot sau thanh 'stale'.
+  if (day > vnDateKey(nowDate)) return result('future-day', day);
   const windowFrom = windowFromOf(day);
 
   let client = null;

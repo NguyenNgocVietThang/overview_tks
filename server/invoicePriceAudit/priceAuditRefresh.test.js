@@ -255,17 +255,20 @@ test('Nguon chua san sang (Can do chua dong bo): failed SOURCE_NOT_READY, khong 
   } finally { await db.close(); }
 });
 
-test('22:59 VN chua den han: not-due, khong ghi gi; ngay cu hon ban da cong bo: stale, khong xoa gi', async () => {
+test('Chay tay hom nay truoc 23:00 VN duoc cong bo; ngay tuong lai bi tu choi, khong ghi gi; ngay cu hon ban da cong bo: stale', async () => {
   const db = await setup(['2026-10-19', '2026-10-20']);
   const pool = pgliteAsPool(db);
   try {
-    const early = await runDailyAudit({ day: '2026-10-20', pool, now: new Date('2026-10-20T15:59:00Z'), logger: quiet });
-    assert.equal(early.status, 'not-due');
+    const future = await runDailyAudit({ day: '2026-10-21', pool, now: new Date('2026-10-20T16:59:00Z'), logger: quiet }); // 23:59 VN 20/10
+    assert.equal(future.status, 'future-day');
     assert.equal(await state(db), null);
     assert.equal(await count(db, 'invoice_price_audit_invoices'), 0);
 
-    assert.equal((await run(pool, '2026-10-20')).status, 'completed');
+    const early = await runDailyAudit({ day: '2026-10-20', pool, now: new Date('2026-10-20T03:00:00Z'), logger: quiet }); // 10:00 VN
+    assert.equal(early.status, 'completed');
+    assert.equal((await state(db)).published_day, '2026-10-20');
     const lines = await snapshot(db);
+    assert.equal((await run(pool, '2026-10-20')).status, 'already-completed');
     const old = await runDailyAudit({ day: '2026-10-15', pool, now: at23('2026-10-20'), logger: quiet });
     assert.equal(old.status, 'stale');
     assert.deepEqual(await snapshot(db), lines);
