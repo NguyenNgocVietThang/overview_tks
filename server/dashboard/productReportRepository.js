@@ -10,6 +10,7 @@ const { timedQuery } = require('../lib/requestTiming');
 const { readContainerSummary, getContainerMeta } = require('../productContainers/repository');
 const { normalizeCode } = require('../productContainers/parser');
 const { readInTransitByCode } = require('./inTransitSource');
+const { readTransferRequestByCode } = require('./transferRequestSource');
 
 // NULL = dong chua duoc tinh lai sau migration 0057 -> null (giao dien hien "—"), khong gia thanh 0.
 function nullableNumber(value) {
@@ -104,6 +105,7 @@ function createProductReportReader({ pool, now = Date.now } = {}) {
   let rowsCache = null; // { version, rows }  - dong da map, KHONG bi sua
   let containerCache = null; // { version, totals }
   let transitCache = null; // { at, byCode }
+  let transferRequestCache = null; // { at, byCode }
 
   async function probeState() {
     try {
@@ -122,6 +124,14 @@ function createProductReportReader({ pool, now = Date.now } = {}) {
     return transitCache.byCode;
   }
 
+  // YC dieu chuyen (don Phieu tam khach "Dieu chuyen SG" tai Kiot HN): cache cung chu ky voi hang van chuyen.
+  async function readTransferRequest() {
+    if (!transferRequestCache || now() - transferRequestCache.at > IN_TRANSIT_TTL_MS) {
+      transferRequestCache = { at: now(), byCode: await readTransferRequestByCode(pool) };
+    }
+    return transferRequestCache.byCode;
+  }
+
   async function readVersioned(state) {
     if (!rowsCache || rowsCache.version !== state.version) {
       const { rows } = await queryReportRows(pool, VERSIONED_ROWS_SQL);
@@ -137,7 +147,8 @@ function createProductReportReader({ pool, now = Date.now } = {}) {
       totals = containerCache.totals;
     }
     const inTransitByCode = await readInTransit();
-    return { base: rowsCache.rows, computedAt: state.computed_at, containerSync, totals, inTransitByCode };
+    const transferRequestByCode = await readTransferRequest();
+    return { base: rowsCache.rows, computedAt: state.computed_at, containerSync, totals, inTransitByCode, transferRequestByCode };
   }
 
   async function read() {
@@ -176,13 +187,15 @@ function roundQuantity(value) {
 }
 
 // Ghep dong goc (da cache) voi CONT + hang van chuyen thanh phan hoi; tao dong moi de khong sua cache.
-function compose({ base, computedAt, containerSync, totals, inTransitByCode }) {
+function compose({ base, computedAt, containerSync, totals, inTransitByCode, transferRequestByCode = new Map() }) {
   const rows = base.map((row) => {
     const inTransit = inTransitByCode.get(normalizeCode(row.code)) || 0;
+    // "YC dieu chuyen" = don Phieu tam khach Dieu chuyen SG tai Kiot HN; cong vao hai cot tong cung voi Dieu chuyen SG.
+    const transferRequest = transferRequestByCode.get(normalizeCode(row.code)) || 0;
     const quantities = totals[normalizeCode(row.code)];
     // The stored base already equals sellable HN + sellable SG (on-hand less pending customer orders).
     // Add SG transit once at read time, never fold it back into the stored base.
-    const availableToSell = row.availableToSell + inTransit;
+    const availableToSell = row.availableToSell + inTransit + transferRequest;
     const unloadedQty = containerSync.available ? Number(quantities?.unloadedQty || 0) : null;
     const loadedQty = containerSync.available ? Number(quantities?.loadedQty || 0) : null;
     // Gia tri co ban = co ban x don gia CUNG co so (null neu thieu mot ve, giu so am); tang truong don =
@@ -193,9 +206,10 @@ function compose({ base, computedAt, containerSync, totals, inTransitByCode }) {
     return {
       ...row,
       inTransit,
-      availableToSell,
-      // "Tong ton thuc + DC" = ton thuc HN + ton thuc SG + dieu chuyen SG.
-      totalStock: roundQuantity(row.stockHanoi + row.stockSaigon + inTransit),
+      transferRequest,
+      availableToSell: roundQuantity(availableToSell),
+      // "Tong ton thuc + DC" = ton thuc HN + ton thuc SG + dieu chuyen SG + YC dieu chuyen.
+      totalStock: roundQuantity(row.stockHanoi + row.stockSaigon + inTransit + transferRequest),
       unloadedQty,
       loadedQty,
       daysToOrder: daysToOrder(availableToSell, unloadedQty, loadedQty, row.qtySold30d),
@@ -237,7 +251,8 @@ async function readLegacy(pool) {
   ), null) : null;
   const { containerSync, totals } = await readContainerSummary(pool);
   const inTransitByCode = await readInTransitByCode(pool);
-  return compose({ base: items, computedAt, containerSync, totals, inTransitByCode });
+  const transferRequestByCode = await readTransferRequestByCode(pool);
+  return compose({ base: items, computedAt, containerSync, totals, inTransitByCode, transferRequestByCode });
 }
 
 // Khung "Chi tiet" duoi bang: doanh so 90 ngay cua tung khach da mua ma hang nay

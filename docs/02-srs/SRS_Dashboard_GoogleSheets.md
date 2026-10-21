@@ -703,6 +703,7 @@ Khách và mã hàng hoạt động (15/10/2026): các tab ngoài Công nợ cũ
 Khách hoạt động (15/10/2026): toàn bộ tính năng Công nợ chỉ dùng khách đang hoạt động, kể cả khách đã hết nợ khi tính điểm. Lọc danh sách/KPI/bản chốt đang xem, phạt theo ngày và tháng, điểm thưởng, hộp chi tiết, xuất file và nhập lịch TT; khách không còn hồ sơ không được chuyển thành điểm Chưa phân nhóm. Lọc trước bước chọn khách mới nhất theo cơ sở+mã. Đồng bộ chuẩn hóa raw.isActive, xử lý removedIds và đối soát toàn bộ lần đầu/mỗi ngày; chỉ đánh dấu khách vắng mặt sau một lượt đầy đủ đã kiểm tra tổng/trang/ID. Không xóa dữ liệu nguồn hoặc sổ phạt; kết quả thưởng tháng đã chốt vẫn bất biến. Quy tắc mới debt-reward-2026-10-v3-active-customers; không migration.
 
 
+21/10/2026 — FR-03.3 (Báo cáo hàng hóa): thêm cột **YC điều chuyển** (`transferRequest`; nhãn xuất "Yêu cầu điều chuyển") đứng giữa Có bán HN và Điều chuyển SG. Giá trị = tổng số lượng theo mã hàng của đơn đặt hàng Kiot Hà Nội trạng thái `Phiếu tạm` của khách `KH010020` "Điều chuyển SG", mọi thời gian. Được cộng vào Tổng có bán + ĐC và Tổng tồn thực + ĐC (Ngày cần đặt, Ngày 2 miền đổi theo). Bảng và Excel/HTML 35 cột; hồ sơ Quản lý ẩn mặc định, Sale hiện. Lỗi đọc nguồn → cột = 0, báo cáo vẫn hiển thị.
 16/10/2026 — Theo yêu cầu, Báo cáo hàng hóa (Tổng quan) thêm cột **Điều chuyển SG** giữa **Tồn HN** và **Tồn SG**, giữ Chưa bốc/Đã bốc. API và Excel/HTML dùng chung inTransitSource: tổng số lượng Đặt hàng nhập Đã xác nhận NCC của Kiot Sài Gòn trong DB, ghép mã trim/không phân biệt hoa thường. Theo yêu cầu tiếp theo, Tồn có bán = Có bán HN + Có bán SG + Điều chuyển SG, áp dụng riêng Báo cáo hàng hóa; hai cột Chưa bốc/Đã bốc không cộng vào công thức. Snapshot DB giữ số nền HN+SG đã trừ phiếu tạm, repository cộng điều chuyển đúng một lần khi đọc cho web/xuất file. Không migration, không sửa nguồn Sheets.
 
 16/10/2026 — Gỡ tab Khách hàng cũ (Top khách theo doanh thu, Chi tiết khách nợ, quyền `reports.customers`, `view=customers`); tab Báo cáo kinh doanh đổi tên thành **Khách hàng** (giữ khóa quyền `reports.business`), Báo cáo tổng hợp còn 6 tab.
@@ -765,4 +766,4 @@ Phương án B đã duyệt: tập SĐT/KPI Pancake riêng trong PostgreSQL, ng�
 - **FR-PA-8 (nguồn chưa sẵn sàng)**: dòng SL > 0 có đơn giá NULL, tiêu đề cột O CÂN ĐO sai (đồng bộ m3/kg vẫn chạy, cước = NULL, ghi `freight_error`), Cân đo chưa đồng bộ, thiếu sản phẩm/khách → job báo lỗi rõ ràng và giữ bản công bố cũ. Hóa đơn chưa có dòng chi tiết không ghi sổ để lượt sau chụp lại. Bậc ghi giá 0 bị bỏ qua.
 - **FR-PA-7 (quyền xem)**: `reports.invoices.priceAudit` (Quản lý, Trợ lý, Nhân viên sale; Khách bị chặn); lỗi job không ảnh hưởng tab Giao dịch hiện có.
 
-Cập nhật gần nhất: 20/10/2026.
+Cập nhật gần nhất: 21/10/2026.

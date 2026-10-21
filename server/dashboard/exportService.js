@@ -280,7 +280,7 @@ const CUSTOMER_PRODUCT_DETAIL_COLUMNS = [
 
 // Bao cao hang hoa (tab Tong quan) - doc thang tu bang product_report da tinh
 // san 1 lan/dem (xem productReportRepository.js/productReportRefresh.js).
-// 34 cot, THU TU = thu tu sheet BC CHUNG va = thu tu cot bang "Bao cao hang hoa" tren man hinh (thead trong public/index.html);
+// 35 cot, THU TU = thu tu sheet BC CHUNG va = thu tu cot bang "Bao cao hang hoa" tren man hinh (thead trong public/index.html);
 // doi thu tu o day phai doi thead + productReportRowHtml + PRODUCT_REPORT_WIDTHS_BY_PROFILE. Cot "ngay" khai bao type tuong minh
 // (nhan co chu "ngay" se bi inferColumnType suy ra thanh cot ngay thang). Tang truong la phan so (0,25 = 25%), kieu 'percent'.
 const PRODUCT_REPORT_COLUMNS = [
@@ -293,15 +293,17 @@ const PRODUCT_REPORT_COLUMNS = [
   aggregateColumn('qtySold30dHanoi', 'Số lượng bán 30 ngày Hà Nội', 'number', 'Tổng số lượng bán ra tại Hà Nội trong 30 ngày gần nhất (tính đến hết hôm qua); trống khi báo cáo chưa được tính lại.'),
   aggregateColumn('stockHanoi', 'Tồn thực Hà Nội', 'number', 'Tồn kho hiện tại tại cơ sở Hà Nội.'),
   aggregateColumn('availableHanoi', 'Có bán Hà Nội', 'number', 'Tồn thực Hà Nội trừ số lượng khách đặt phiếu tạm tại Hà Nội; trống khi báo cáo chưa được tính lại.'),
+  aggregateColumn('transferRequest', 'Yêu cầu điều chuyển', 'number',
+    'Tổng số lượng trong các đơn đặt hàng Phiếu tạm của khách Điều chuyển Sài Gòn tại Kiot Hà Nội (mọi thời gian), cộng vào tổng tồn thực và tổng có bán của báo cáo này.'),
   aggregateColumn('inTransit', 'Điều chuyển SG', 'number', 'Số lượng đặt hàng nhập Đã xác nhận nhà cung cấp tại Kiot Sài Gòn, cộng vào tồn có thể bán của báo cáo này.'),
   aggregateColumn('stockSaigon', 'Tồn thực Sài Gòn', 'number', 'Tồn kho hiện tại tại cơ sở Sài Gòn.'),
   aggregateColumn('availableSaigon', 'Có bán Sài Gòn', 'number', 'Tồn thực Sài Gòn trừ số lượng khách đặt phiếu tạm tại Sài Gòn; trống khi báo cáo chưa được tính lại.'),
   aggregateColumn('qtySold30dSaigon', 'Số lượng bán 30 ngày Sài Gòn', 'number', 'Tổng số lượng bán ra tại Sài Gòn trong 30 ngày gần nhất (tính đến hết hôm qua); trống khi báo cáo chưa được tính lại.'),
   aggregateColumn('availableValueSaigon', 'Giá trị có bán Sài Gòn', 'number',
     'Có bán Sài Gòn nhân đơn giá Sài Gòn (VNĐ); trống khi thiếu một trong hai số. Chỉ Quản lý và Trợ lý được xuất.'),
-  aggregateColumn('totalStock', 'Tổng tồn thực và điều chuyển', 'number', 'Tồn thực Hà Nội cộng tồn thực Sài Gòn cộng điều chuyển Sài Gòn.'),
+  aggregateColumn('totalStock', 'Tổng tồn thực và điều chuyển', 'number', 'Tồn thực Hà Nội cộng tồn thực Sài Gòn cộng yêu cầu điều chuyển cộng điều chuyển Sài Gòn.'),
   aggregateColumn('availableToSell', 'Tổng có bán và điều chuyển', 'number',
-    'Có bán Hà Nội cộng có bán Sài Gòn cộng điều chuyển Sài Gòn; có bán từng cơ sở đã trừ khách đặt phiếu tạm.'),
+    'Có bán Hà Nội cộng có bán Sài Gòn cộng yêu cầu điều chuyển cộng điều chuyển Sài Gòn; có bán từng cơ sở đã trừ khách đặt phiếu tạm.'),
   aggregateColumn('qtySold30d', 'Số lượng bán 30 ngày', 'number', 'Tổng số lượng bán ra trong 30 ngày gần nhất (tính đến hết hôm qua).'),
   aggregateColumn('stockoutDaysHanoi', 'Số ngày đứt hàng Hà Nội', 'number',
     'Tổng số ngày đứt hàng tại Hà Nội trong 30 ngày gần nhất theo lần quét đứt hàng 30 ngày gần nhất; bằng 0 khi không đứt hoặc chưa quét.'),

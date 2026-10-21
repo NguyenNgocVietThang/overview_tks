@@ -497,7 +497,7 @@ API: `PATCH /api/debt-management/{sale-feedback,manager-feedback,status,schedule
 
 Thứ tự deploy: `npm run db:migrate` (0047; 0051 cho bảng phạt sale — sau deploy chạy tay `node debtSchedule/debtPenaltyLedger.js` để backfill các chu kỳ cũ) → import lịch TT HN + SG → deploy code → chạy tay `debtCycleSnapshot.js` sau 15:00 (hoặc chờ 15:00).
 
-Cập nhật gần nhất: 20/10/2026.
+Cập nhật gần nhất: 21/10/2026.
 
 ## Hàng dự kiến — vận hành và API (15/10/2026)
 
@@ -520,6 +520,7 @@ Cột Phạt/điểm làm tròn hiển thị đến số nguyên đồng trên b
 15/10/2026 16:51 VN — Đã cấu hình nguồn trong .env cục bộ, công bố snapshot thật 11.592 dòng/6 sheet vào DB dùng chung và restart dashboard localhost:3000. Lịch nền đã nhận mốc 2 tiếng; thiếu biến PRODUCT_CONTAINER_SPREADSHEET_ID làm scheduler tắt nên chỉ áp migration/restart mà chưa cấu hình sẽ vẫn hiện —. Không push/deploy từ xa.
 
 
+21/10/2026 — Báo cáo hàng hóa thêm cột **YC điều chuyển** (`transferRequest`; Excel/HTML: "Yêu cầu điều chuyển") giữa Có bán HN và Điều chuyển SG: SUM(quantity) theo mã hàng của đơn đặt hàng `orders`/`order_details` có `branch='hanoi'`, `raw->>'statusValue'='Phiếu tạm'`, `raw->>'customerCode'='KH010020'` (khách "Điều chuyển SG"), mọi thời gian. Reader mới `dashboard/transferRequestSource.js` (marker SQL `-- transfer-request:`, dùng `idx_orders_phieu_tam`), cache 60 giây trong `productReportRepository.js`, lỗi DB trả Map rỗng. `compose()` cộng vào `availableToSell` và `totalStock`; `daysToOrder`, `daysBothBranches` đổi theo. Không migration. Báo cáo 35 cột.
 16/10/2026 — Theo yêu cầu, Báo cáo hàng hóa (Tổng quan) thêm cột **Điều chuyển SG** giữa **Tồn HN** và **Tồn SG**, giữ Chưa bốc/Đã bốc. API và Excel/HTML dùng chung inTransitSource: tổng số lượng Đặt hàng nhập Đã xác nhận NCC của Kiot Sài Gòn trong DB, ghép mã trim/không phân biệt hoa thường. Theo yêu cầu tiếp theo, Tồn có bán = Có bán HN + Có bán SG + Điều chuyển SG, áp dụng riêng Báo cáo hàng hóa; hai cột Chưa bốc/Đã bốc không cộng vào công thức. Snapshot DB giữ số nền HN+SG đã trừ phiếu tạm, repository cộng điều chuyển đúng một lần khi đọc cho web/xuất file. Không migration, không sửa nguồn Sheets.
 
 16/10/2026 — Gỡ tab Khách hàng cũ và đổi tên tab Báo cáo kinh doanh thành Khách hàng (xem mục Cập nhật gần nhất).

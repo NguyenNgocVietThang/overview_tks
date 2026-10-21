@@ -3886,7 +3886,7 @@
                 </div>
                 <div class="scroll-list" style="max-height:600px;">
                   <table class="fixed-table" data-table-key="dashboard-table-2">
-                    <!-- 34 cột theo thứ tự sheet BC CHUNG (UI = Excel xuất ra): 19 cột file HÀNG HÓA.xlsx + Khách lớn nhất + các cột bổ sung (Giá trị có bán, SL bán 30 ngày theo cơ sở, Đứt, Ngày, SL đơn, Tăng trưởng, DS khách lớn nhất, Đơn giá).
+                    <!-- 35 cột theo thứ tự sheet BC CHUNG (UI = Excel xuất ra): 19 cột file HÀNG HÓA.xlsx + Khách lớn nhất + các cột bổ sung (Giá trị có bán, SL bán 30 ngày theo cơ sở, Đứt, Ngày, SL đơn, Tăng trưởng, DS khách lớn nhất, Đơn giá).
                          data-price-column = cột nhạy cảm chỉ Quản lý/Trợ lý (reports.products.price) thấy. data-hint = chú giải khi rê chuột
                          (không dùng title: nút sắp xếp thay nội dung th và che mất title của th). Không dùng ký tự dấu lớn hơn trong data-hint. -->
                     <thead>
@@ -3899,13 +3899,14 @@
                         <th style="width:125px" data-column-key="sl-ban-30-ngay-hn" data-hint="Số lượng bán 30 ngày gần nhất (tính đến hết hôm qua) tại Hà Nội.">SL bán 30 ngày HN</th>
                         <th style="width:105px" data-column-key="ton-thuc-hn">Tồn thực HN</th>
                         <th style="width:100px" data-column-key="co-ban-hn" data-hint="Có bán HN = Tồn thực HN trừ số lượng khách đặt (phiếu tạm) tại Hà Nội.">Có bán HN</th>
+                        <th style="width:120px" data-column-key="yc-dieu-chuyen" data-hint="Tổng số lượng trong các đơn đặt hàng Phiếu tạm của khách Điều chuyển SG tại Kiot Hà Nội (mọi thời gian); cộng vào tổng tồn thực và tổng có bán.">YC điều chuyển</th>
                         <th style="width:125px" data-column-key="dieu-chuyen-sg" data-hint="Số lượng đặt hàng nhập Đã xác nhận NCC tại Kiot Sài Gòn; cộng vào tổng tồn thực và tổng có bán.">Điều chuyển SG</th>
                         <th style="width:105px" data-column-key="ton-thuc-sg">Tồn thực SG</th>
                         <th style="width:100px" data-column-key="co-ban-sg" data-hint="Có bán SG = Tồn thực SG trừ số lượng khách đặt (phiếu tạm) tại Sài Gòn.">Có bán SG</th>
                         <th style="width:125px" data-column-key="sl-ban-30-ngay-sg" data-hint="Số lượng bán 30 ngày gần nhất (tính đến hết hôm qua) tại Sài Gòn.">SL bán 30 ngày SG</th>
                         <th style="width:135px" data-column-key="gia-tri-co-ban-sg" data-price-column data-hint="Giá trị có bán SG = Có bán SG × Đơn giá SG (chỉ Quản lý và Trợ lý thấy).">Giá trị có bán SG</th>
-                        <th style="width:130px" data-column-key="tong-ton-thuc" data-hint="Tổng tồn thực + ĐC = Tồn thực HN + Tồn thực SG + Điều chuyển SG.">Tổng tồn thực + ĐC</th>
-                        <th style="width:130px" data-column-key="tong-co-ban" data-hint="Tổng có bán + ĐC = Có bán HN + Có bán SG + Điều chuyển SG. Có bán từng cơ sở đã trừ khách đặt (phiếu tạm).">Tổng có bán + ĐC</th>
+                        <th style="width:130px" data-column-key="tong-ton-thuc" data-hint="Tổng tồn thực + ĐC = Tồn thực HN + Tồn thực SG + YC điều chuyển + Điều chuyển SG.">Tổng tồn thực + ĐC</th>
+                        <th style="width:130px" data-column-key="tong-co-ban" data-hint="Tổng có bán + ĐC = Có bán HN + Có bán SG + YC điều chuyển + Điều chuyển SG. Có bán từng cơ sở đã trừ khách đặt (phiếu tạm).">Tổng có bán + ĐC</th>
                         <th style="width:120px" data-column-key="sl-ban-30-ngay" data-hint="Tổng số lượng bán 30 ngày gần nhất (tính đến hết hôm qua).">SL bán 30 ngày</th>
                         <th style="width:90px" data-column-key="dut-hn" data-hint="Số ngày đứt hàng trong 30 ngày gần nhất tại Hà Nội, cập nhật sau mỗi lần chạy quét đứt hàng 30 ngày. Bằng 0 khi không đứt hoặc chưa quét.">Đứt HN</th>
                         <th style="width:90px" data-column-key="dut-sg" data-hint="Số ngày đứt hàng trong 30 ngày gần nhất tại Sài Gòn, cập nhật sau mỗi lần chạy quét đứt hàng 30 ngày. Bằng 0 khi không đứt hoặc chưa quét.">Đứt SG</th>
@@ -3929,7 +3930,7 @@
                     </thead>
                     <tbody id="productReportRows">
                       <tr>
-                        <td colspan="34" class="table-note">Đang tải...</td>
+                        <td colspan="35" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -7572,7 +7573,7 @@
       };
     }
 
-    // ===== Tab Hàng hóa — "Báo cáo hàng hóa" (34 cột theo sheet BC CHUNG, nền là file HÀNG HÓA.xlsx) =====
+    // ===== Tab Hàng hóa — "Báo cáo hàng hóa" (35 cột theo sheet BC CHUNG, nền là file HÀNG HÓA.xlsx) =====
     // Doanh số/tồn chốt mỗi đêm; hàng dự kiến có snapshot riêng 10 phút.
     // Metadata CONT được kiểm tra khi bảng đang hiển thị, độc lập loadData()/SSE. =====
     TABLE_EXPLORER_CONFIGS.productReport = {
@@ -7641,7 +7642,7 @@
       return productReportNullableCell(value, function (v) { return PRODUCT_REPORT_GROWTH_FORMAT.format(Number(v)); });
     }
 
-    // 34 ô theo đúng thứ tự thead (= thứ tự cột Excel, theo sheet BC CHUNG); hàm thuần vì sắp xếp toàn bộ dữ liệu chạy lại
+    // 35 ô theo đúng thứ tự thead (= thứ tự cột Excel, theo sheet BC CHUNG); hàm thuần vì sắp xếp toàn bộ dữ liệu chạy lại
     // hàm này cho mọi dòng rồi đọc ô theo chỉ số cột (sortItemsByRenderedColumn). Đổi thứ tự ở đây phải đổi thead,
     // PRODUCT_REPORT_WIDTHS_BY_PROFILE và PRODUCT_REPORT_COLUMNS ở exportService.js.
     function productReportRowHtml(p) {
@@ -7655,6 +7656,7 @@
         productReportNullableCell(p.qtySold30dHanoi, fmtNumber) +
         '<td class="mono" data-sort-value="' + p.stockHanoi + '">' + fmtNumber(p.stockHanoi) + '</td>' +
         productReportNullableCell(p.availableHanoi, fmtNumber) +
+        '<td class="mono" data-sort-value="' + (p.transferRequest || 0) + '">' + fmtNumber(p.transferRequest || 0) + '</td>' +
         '<td class="mono" data-sort-value="' + (p.inTransit || 0) + '">' + fmtNumber(p.inTransit) + '</td>' +
         '<td class="mono" data-sort-value="' + p.stockSaigon + '">' + fmtNumber(p.stockSaigon) + '</td>' +
         productReportNullableCell(p.availableSaigon, fmtNumber) +
@@ -7705,7 +7707,7 @@
         },
         rows,
         productReportRowHtml,
-        34,
+        35,
         state.productReport.loaded ? 'Chưa có dữ liệu báo cáo hàng hóa.' : 'Đang tải...'
       );
     }
@@ -7731,7 +7733,7 @@
           if (!state.productReport.loaded) {
             state.productReport.loaded = true;
             document.getElementById('productReportRows').innerHTML =
-              '<tr><td colspan="34" class="table-note">Không tải được báo cáo hàng hóa.</td></tr>';
+              '<tr><td colspan="35" class="table-note">Không tải được báo cáo hàng hóa.</td></tr>';
           }
         }).finally(function () { state.productReport.loading = false; });
     }
@@ -7747,14 +7749,14 @@
     const PRODUCT_REPORT_HIDDEN_BY_PROFILE = {
       sale: ['don-gia-hn', 'don-gia-sg', 'tong-ton-thuc', 'tong-co-ban', 'sl-ban-30-ngay', 'ngay-can-dat', 'sl-khach-ban', 'khach-lon-nhat', 'ti-trong-khach-lon-nhat']
         .concat(PRODUCT_REPORT_BC_CHUNG_HIDDEN),
-      manager: ['ton-thuc-hn', 'co-ban-hn', 'dieu-chuyen-sg', 'ton-thuc-sg', 'co-ban-sg', 'mo-ta-hn', 'mo-ta-sg', 'khach-lon-nhat']
+      manager: ['ton-thuc-hn', 'co-ban-hn', 'yc-dieu-chuyen', 'dieu-chuyen-sg', 'ton-thuc-sg', 'co-ban-sg', 'mo-ta-hn', 'mo-ta-sg', 'khach-lon-nhat']
         .concat(PRODUCT_REPORT_BC_CHUNG_HIDDEN)
     };
-    // Độ rộng theo ảnh mẫu, cùng thứ tự 34 cột với thead; khai báo rõ để không lấy độ rộng đã giãn từ phiên chưa biết vai trò.
+    // Độ rộng theo ảnh mẫu, cùng thứ tự 35 cột với thead; khai báo rõ để không lấy độ rộng đã giãn từ phiên chưa biết vai trò.
     // Hai hồ sơ chỉ khác Tên sản phẩm (260/225) và DS 90 ngày (135/112).
     const PRODUCT_REPORT_WIDTHS_BY_PROFILE = {
-      sale: [120, 260, 100, 100, 135, 125, 105, 100, 125, 105, 100, 125, 135, 130, 105, 100, 90, 90, 95, 115, 100, 110, 135, 115, 115, 115, 110, 135, 200, 135, 110, 110, 110, 110],
-      manager: [120, 225, 100, 100, 135, 125, 105, 100, 125, 105, 100, 125, 135, 130, 105, 100, 90, 90, 95, 115, 100, 110, 112, 115, 115, 115, 110, 135, 200, 135, 110, 110, 110, 110]
+      sale: [120, 260, 100, 100, 135, 125, 105, 100, 120, 125, 105, 100, 125, 135, 130, 105, 100, 90, 90, 95, 115, 100, 110, 135, 115, 115, 115, 110, 135, 200, 135, 110, 110, 110, 110],
+      manager: [120, 225, 100, 100, 135, 125, 105, 100, 120, 125, 105, 100, 125, 135, 130, 105, 100, 90, 90, 95, 115, 100, 110, 112, 115, 115, 115, 110, 135, 200, 135, 110, 110, 110, 110]
     };
     let productReportColumnProfile = '';
 

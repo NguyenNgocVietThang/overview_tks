@@ -1,6 +1,6 @@
 'use strict';
 
-// Bang "Bao cao hang hoa" (tab Hang hoa): 34 cot theo thu tu sheet BC CHUNG (= thu tu cot file Excel), KHONG co
+// Bang "Bao cao hang hoa" (tab Hang hoa): 35 cot theo thu tu sheet BC CHUNG (= thu tu cot file Excel), KHONG co
 // nut "Chi tiet" rieng; so Chua boc / Da boc / Ti trong khach lon nhat la nut mo hop chi tiet o dung muc. Bam vao 1 dong mo hop chi tiet giua man hinh (dung chung voi bang giao dich/dat hang/tra hang)
 // gom bang doanh so tung khach 90 ngay (so tien + %) va bieu do tron dat canh ben.
 
@@ -17,7 +17,7 @@ const settle = async () => { for (let i = 0; i < 8; i++) await new Promise(resol
 
 const PRODUCTS = [
   {
-    code: 'SP-1', name: 'Khay giấy bạc', inTransit: 75, stockHanoi: 5, stockSaigon: 3, availableToSell: 8, qtySold30d: 4, revenue90d: 1000, customerCount90d: 3, topCustomerRevenue90d: 600, topCustomerName: 'KH A', topCustomerShare: 0.6,
+    code: 'SP-1', name: 'Khay giấy bạc', transferRequest: 40, inTransit: 75, stockHanoi: 5, stockSaigon: 3, availableToSell: 8, qtySold30d: 4, revenue90d: 1000, customerCount90d: 3, topCustomerRevenue90d: 600, topCustomerName: 'KH A', topCustomerShare: 0.6,
     availableHanoi: -2, availableSaigon: 5, descriptionHanoi: 'T50 # 30/9 | <b>VAT</b>+3200đ', descriptionSaigon: '', totalStock: 83, daysToOrder: 12.5, priceHanoi: 15000, priceSaigon: 16500,
     // Cột theo sheet BC CHUNG: Có bán HN âm nên Giá trị có bán HN và Ngày HN cũng âm (giữ nguyên dấu).
     qtySold30dHanoi: 3, qtySold30dSaigon: 1, orders30d: 18, orders90d: 60, stockoutDaysHanoi: 5, stockoutDaysSaigon: 0,
@@ -91,10 +91,10 @@ const pieCharts = page => page.charts.filter(chart => chart.config.type === 'dou
 const rowOf = (page, code) => [...page.$('productReportRows').querySelectorAll('tr.doc-row')].find(tr => tr.dataset.tableItemId === code);
 const modalText = page => page.$('docModalBody').textContent.replace(/\s+/g, ' ');
 
-// 34 cột theo thứ tự sheet BC CHUNG: [data-column-key, nhãn trên tiêu đề]. Thứ tự này = thứ tự file Excel (PRODUCT_REPORT_COLUMNS ở exportService.js).
+// 35 cột theo thứ tự sheet BC CHUNG: [data-column-key, nhãn trên tiêu đề]. Thứ tự này = thứ tự file Excel (PRODUCT_REPORT_COLUMNS ở exportService.js).
 const COLUMNS = [
   ['ma-sp', 'Mã sản phẩm'], ['ten-sp', 'Tên sản phẩm'], ['da-boc', 'Đã bốc'], ['chua-boc', 'Chưa bốc'], ['gia-tri-co-ban-hn', 'Giá trị có bán HN'], ['sl-ban-30-ngay-hn', 'SL bán 30 ngày HN'],
-  ['ton-thuc-hn', 'Tồn thực HN'], ['co-ban-hn', 'Có bán HN'], ['dieu-chuyen-sg', 'Điều chuyển SG'], ['ton-thuc-sg', 'Tồn thực SG'],
+  ['ton-thuc-hn', 'Tồn thực HN'], ['co-ban-hn', 'Có bán HN'], ['yc-dieu-chuyen', 'YC điều chuyển'], ['dieu-chuyen-sg', 'Điều chuyển SG'], ['ton-thuc-sg', 'Tồn thực SG'],
   ['co-ban-sg', 'Có bán SG'], ['sl-ban-30-ngay-sg', 'SL bán 30 ngày SG'], ['gia-tri-co-ban-sg', 'Giá trị có bán SG'],
   ['tong-ton-thuc', 'Tổng tồn thực + ĐC'], ['tong-co-ban', 'Tổng có bán + ĐC'], ['sl-ban-30-ngay', 'SL bán 30 ngày'],
   ['dut-hn', 'Đứt HN'], ['dut-sg', 'Đứt SG'], ['ngay-can-dat', 'Ngày cần đặt'],
@@ -114,7 +114,7 @@ const NEW_KEYS = ['gia-tri-co-ban-hn', 'sl-ban-30-ngay-hn', 'sl-ban-30-ngay-sg',
   'sl-don-90-ngay', 'sl-don-30-ngay', 'tang-truong', 'ds-khach-lon-nhat'];
 // Bộ cột ĐANG HIỆN mặc định (không đổi so với bảng 21 cột trước đó).
 const inColumnOrder = list => KEYS.filter(key => list.includes(key));
-const SALE_VISIBLE = inColumnOrder(['ma-sp', 'ten-sp', 'da-boc', 'chua-boc', 'ton-thuc-hn', 'co-ban-hn', 'dieu-chuyen-sg', 'ton-thuc-sg', 'co-ban-sg', 'mo-ta-hn', 'mo-ta-sg', 'ds-90-ngay']);
+const SALE_VISIBLE = inColumnOrder(['ma-sp', 'ten-sp', 'da-boc', 'chua-boc', 'ton-thuc-hn', 'co-ban-hn', 'yc-dieu-chuyen', 'dieu-chuyen-sg', 'ton-thuc-sg', 'co-ban-sg', 'mo-ta-hn', 'mo-ta-sg', 'ds-90-ngay']);
 const MANAGER_VISIBLE = inColumnOrder(['ma-sp', 'ten-sp', 'don-gia-hn', 'don-gia-sg', 'da-boc', 'chua-boc', 'tong-ton-thuc', 'tong-co-ban', 'sl-ban-30-ngay', 'ngay-can-dat',
   'ds-90-ngay', 'sl-khach-ban', 'ti-trong-khach-lon-nhat']);
 const hiddenOf = visible => KEYS.filter(key => !visible.includes(key));
@@ -123,24 +123,25 @@ const columnKeys = page => [...reportTable(page).querySelectorAll('thead th')].m
 const scrolledSections = page => (page.dom.window.__scrolledTo || []).filter(id => id === 'productContainerSection' || id === 'productCustomerSection');
 const READY = { available: true, version: 'v1', lastSuccessAt: '2026-10-15T02:00:00Z' };
 
-test('bang Bao cao hang hoa co 34 cot theo thu tu sheet BC CHUNG, moi dong du 34 o dung vi tri, dong bam duoc', async () => {
+test('bang Bao cao hang hoa co 35 cot theo thu tu sheet BC CHUNG, moi dong du 35 o dung vi tri, dong bam duoc', async () => {
   const page = createPage();
   await settle();
 
   const headers = [...reportTable(page).querySelectorAll('thead th')].map(th => th.textContent.replace(/[↕▲▼]/g, '').trim());
   assert.deepEqual(headers, HEADERS);
-  assert.equal(HEADERS.length, 34);
+  assert.equal(HEADERS.length, 35);
   assert.deepEqual(columnKeys(page), KEYS);
-  assert.equal(new Set(columnKeys(page)).size, 34, 'data-column-key duy nhat cho tung cot');
+  assert.equal(new Set(columnKeys(page)).size, 35, 'data-column-key duy nhat cho tung cot');
 
   const firstRow = page.$('productReportRows').querySelector('tr');
-  assert.equal(firstRow.cells.length, 34);
+  assert.equal(firstRow.cells.length, 35);
   const text = key => cellOf(firstRow, key).textContent;
   assert.equal(text('ma-sp'), 'SP-1');
   assert.equal(text('gia-tri-co-ban-hn'), '-30,000');  // Giá trị có bán HN (tiền, giữ dấu âm)
   assert.equal(text('sl-ban-30-ngay-hn'), '3');
   assert.equal(text('ton-thuc-hn'), '5');
   assert.equal(text('co-ban-hn'), '-2');     // Có bán HN (âm giữ nguyên dấu)
+  assert.equal(text('yc-dieu-chuyen'), '40');
   assert.equal(text('dieu-chuyen-sg'), '75');
   assert.equal(text('ton-thuc-sg'), '3');
   assert.equal(text('co-ban-sg'), '5');
@@ -170,7 +171,7 @@ test('bang Bao cao hang hoa co 34 cot theo thu tu sheet BC CHUNG, moi dong du 34
   assert.match(text('mo-ta-hn'), /T50/);
   assert.equal(firstRow.getAttribute('tabindex'), '0');
   assert.match(firstRow.title, /hàng dự kiến.*doanh số theo khách/);
-  [...page.$('productReportRows').querySelectorAll('tr.doc-row')].forEach(row => assert.equal(row.cells.length, 34));
+  [...page.$('productReportRows').querySelectorAll('tr.doc-row')].forEach(row => assert.equal(row.cells.length, 35));
   assert.match(page.$('productReportRows').innerHTML, /^\s*<tr/);
 });
 
@@ -440,7 +441,7 @@ test('khung nhin theo vai tro: chua biet vai tro hoac chua nap table-controls th
   assert.deepEqual(sessionHidden(withControls), { key: 'dashboard-table-2', hidden: [] });
 });
 
-test('cot an mac dinh khop: khoa an cua tung ho so deu co trong thead, cot moi + DS khach lon nhat nam trong danh sach an cua CA HAI ho so, do rong du 34 cot', async () => {
+test('cot an mac dinh khop: khoa an cua tung ho so deu co trong thead, cot moi + DS khach lon nhat nam trong danh sach an cua CA HAI ho so, do rong du 35 cot', async () => {
   const page = createPage();
   await settle();
   const keys = columnKeys(page);
@@ -452,11 +453,11 @@ test('cot an mac dinh khop: khoa an cua tung ho so deu co trong thead, cot moi +
   assert.deepEqual(keys.filter(key => !lists.manager.includes(key)), MANAGER_VISIBLE);
   assert.deepEqual(keys.filter(key => !lists.sale.includes(key)), SALE_VISIBLE);
   NEW_KEYS.forEach(key => { assert.ok(lists.sale.includes(key), 'sale an ' + key); assert.ok(lists.manager.includes(key), 'manager an ' + key); });
-  // Do rong khai bao ro cho tung ho so: 34 so duong, cung thu tu thead.
+  // Do rong khai bao ro cho tung ho so: 35 so duong, cung thu tu thead.
   const widths = page.dom.window.__reportTestInternals.widthsByProfile;
   ['sale', 'manager'].forEach(profile => {
     const list = Array.from(widths[profile]);
-    assert.equal(list.length, 34, profile);
+    assert.equal(list.length, 35, profile);
     assert.ok(list.every(width => Number.isFinite(width) && width >= 60), profile);
   });
 });
