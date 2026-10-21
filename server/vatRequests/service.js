@@ -45,6 +45,9 @@ const ACCOUNTANT_FIELDS = Object.freeze({
   arrivalDate: 'arrival_date'
 });
 const MAX_TEXT = 1000;
+// Form nhieu dong: toi da 200 dong / lan gui (giong form Apps Script cu); chong gui trung 6 gio.
+const MAX_BATCH_ROWS = 200;
+const SUBMISSION_TTL_MS = 6 * 60 * 60 * 1000;
 
 function httpError(statusCode, message, code, extra = {}) {
   return Object.assign(new Error(message), { statusCode, code }, extra);
@@ -199,6 +202,7 @@ function serializeRow(row, user) {
 }
 
 function createVatRequestService({ pool = getPool(), stockSource = createStockSource(), now = () => new Date() } = {}) {
+  const submissions = new Map(); // `${userId}:${submissionId}` -> { promise, at } (chong gui trung form nhieu dong)
   async function loadOrThrow(db, id, options) {
     const row = await repository.getRequest(db, id, options);
     if (!row) throw httpError(404, 'Không tìm thấy yêu cầu.', 'NOT_FOUND');
@@ -279,6 +283,108 @@ function createVatRequestService({ pool = getPool(), stockSource = createStockSo
       return newId;
     });
     return get(user, id);
+  }
+
+  /**
+   * Gui nhieu dong hang trong 1 lan (thay form Apps Script cu "ORDER VAT"): moi dong la 1 yeu cau.
+   * Kiem tra TAT CA dong truoc; co dong loi -> 400 BATCH_INVALID kem { errors: [{ row, field, message }] }
+   * va khong ghi dong nao. Hop le -> ghi het trong 1 transaction.
+   * `submissionId` chong gui trung (mat mang roi bam lai): cung tai khoan + cung ma trong 6 gio -> tra
+   * lai ket qua lan dau, khong tao them. Luu trong bo nho tien trinh vi web chi chay 1 instance.
+   */
+  async function createMany(user, payload) {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw httpError(400, 'Dữ liệu gửi lên không hợp lệ.', 'VALIDATION');
+    const submissionId = text(payload.submissionId, 'Mã lần gửi', { required: true, max: 100 });
+    const items = Array.isArray(payload.items) ? payload.items : [];
+    if (!items.length) throw httpError(400, 'Chưa có dòng hàng nào.', 'VALIDATION');
+    if (items.length > MAX_BATCH_ROWS) throw httpError(400, `Mỗi lần gửi tối đa ${MAX_BATCH_ROWS} dòng.`, 'VALIDATION');
+    const key = `${user.id}:${submissionId}`;
+    pruneSubmissions();
+    if (submissions.has(key)) return { ...(await submissions.get(key).promise), duplicate: true };
+    const promise = insertBatch(user, items);
+    submissions.set(key, { promise, at: now().getTime() });
+    try {
+      return await promise;
+    } catch (error) {
+      submissions.delete(key); // loi -> cho phep gui lai cung ma
+      throw error;
+    }
+  }
+
+  function pruneSubmissions() {
+    const cutoff = now().getTime() - SUBMISSION_TTL_MS;
+    for (const [key, entry] of submissions) if (entry.at < cutoff) submissions.delete(key);
+  }
+
+  async function insertBatch(user, items) {
+    const errors = [];
+    const parsed = items.map((raw, index) => {
+      const row = index + 1;
+      const sale = {};
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        errors.push({ row, field: null, message: `Dòng ${row}: dữ liệu không hợp lệ.` });
+        return null;
+      }
+      for (const [field, value] of Object.entries(raw)) {
+        if (!Object.hasOwn(SALE_FIELDS, field)) { errors.push({ row, field, message: `Dòng ${row}: không được gửi trường "${field}".` }); continue; }
+        try { sale[field] = VALIDATORS[field](value); } catch (error) { errors.push({ row, field, message: `Dòng ${row}: ${error.message}` }); }
+      }
+      for (const field of ['customerName', 'productCode', 'quantity', 'unitPrice']) {
+        if (Object.hasOwn(sale, field) || errors.some(e => e.row === row && e.field === field)) continue;
+        try { VALIDATORS[field](undefined); } catch (error) { errors.push({ row, field, message: `Dòng ${row}: ${error.message}` }); }
+      }
+      // Form nhieu dong: sale phai tu chon Full VAT / Khong full VAT cho TUNG dong (khong mac dinh).
+      if (!Object.hasOwn(sale, 'fullVat') && !errors.some(e => e.row === row && e.field === 'fullVat')) {
+        errors.push({ row, field: 'fullVat', message: `Dòng ${row}: chưa chọn Full VAT / Không full VAT.` });
+      }
+      return sale;
+    });
+    const products = await repository.findProducts(pool, parsed.filter(Boolean).map(sale => sale.productCode));
+    parsed.forEach((sale, index) => {
+      if (!sale || !sale.productCode) return;
+      if (!products.has(sale.productCode.trim().toLowerCase())) {
+        errors.push({ row: index + 1, field: 'productCode', message: `Dòng ${index + 1}: không tìm thấy mã SP "${sale.productCode}".` });
+      }
+    });
+    if (errors.length) {
+      const rows = new Set(errors.map(e => e.row)).size;
+      throw httpError(400, `${rows} dòng chưa hợp lệ, chưa gửi dòng nào.`, 'BATCH_INVALID', { errors: errors.sort((a, b) => a.row - b.row) });
+    }
+    const createdByName = user.hoTen || user.username || '';
+    const ids = await repository.withTransaction(pool, async client => {
+      const created = [];
+      for (const sale of parsed) {
+        const product = products.get(sale.productCode.trim().toLowerCase());
+        const values = { created_by: String(user.id), created_by_name: createdByName, created_by_email: user.email || '', product_name: product.product_name || '' };
+        for (const [field, value] of Object.entries(sale)) values[SALE_FIELDS[field]] = value;
+        values.product_code = product.product_code;
+        const id = await repository.insertRequest(client, values);
+        await repository.insertHistory(client, [{ requestId: id, changedBy: user.id, changedByName: createdByName, action: 'create' }]);
+        created.push(Number(id));
+      }
+      return created;
+    });
+    return { created: ids.length, ids, duplicate: false };
+  }
+
+  /** Thong tin cho tung dong cua form nhieu dong: ten SP, O/P/Q/R, gia VAT gan nhat — 1 lan goi cho ca bang. */
+  async function lookupProducts(codes) {
+    const list = (Array.isArray(codes) ? codes : []).map(code => String(code || '').trim()).filter(Boolean).slice(0, MAX_BATCH_ROWS);
+    const products = await repository.findProducts(pool, list);
+    const keys = [...products.keys()];
+    const [{ metrics, stockStatus }, prices] = await Promise.all([metricsFor(keys), repository.latestProductPrices(pool, keys)]);
+    const results = {};
+    for (const code of list) {
+      const key = code.toLowerCase();
+      const product = products.get(key);
+      if (!product) { results[key] = { found: false }; continue; }
+      const price = prices.get(key);
+      results[key] = {
+        found: true, productCode: product.product_code, productName: product.product_name, ...metrics[key],
+        latestOrder: price ? { price: Number(price.price), customerName: price.customer_name, createdAt: toIso(price.created_at) } : null
+      };
+    }
+    return { results, stockStatus };
   }
 
   async function conflict(user, id) {
@@ -417,7 +523,7 @@ function createVatRequestService({ pool = getPool(), stockSource = createStockSo
     return rows.map(row => ({ code: row.product_code, name: row.product_name }));
   }
 
-  return { list, get, create, update, bulkUpdate, remove, history, productMetrics, suggestProducts };
+  return { list, get, create, createMany, update, bulkUpdate, remove, history, productMetrics, lookupProducts, suggestProducts };
 }
 
 module.exports = {
@@ -426,5 +532,6 @@ module.exports = {
   LOCKED_STATUSES,
   SALE_FIELDS,
   ACCOUNTANT_FIELDS,
+  MAX_BATCH_ROWS,
   createVatRequestService
 };

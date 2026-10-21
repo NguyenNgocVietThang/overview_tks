@@ -10,6 +10,7 @@ const { resolvePermissions, PAGE_FEATURES } = require('../../auth/featureRegistr
 const publicDir = path.join(__dirname, '../../public');
 const html = fs.readFileSync(path.join(publicDir, 'vat-request/index.html'), 'utf8');
 const code = fs.readFileSync(path.join(publicDir, 'vat-request/vat-request.js'), 'utf8');
+const batchCode = fs.readFileSync(path.join(publicDir, 'vat-request/vat-request-batch.js'), 'utf8');
 const nav = fs.readFileSync(path.join(publicDir, 'shared/shared-nav.js'), 'utf8');
 const tick = () => new Promise(resolve => setTimeout(resolve, 0));
 const PROCESS_GRANTED = { 'accounting.vatRequestProcess': true };
@@ -59,17 +60,19 @@ async function setup(t, { vaiTro, id = 'sale-1', responses, featurePermissions =
     const result = typeof handler === 'function' ? handler(body) : { status: 200, data: handler };
     return { ok: result.status < 400, status: result.status, json: async () => result.data };
   };
+  window.eval(batchCode);
   window.eval(code);
   await window.TKSVatRequest.init();
   await tick();
   return { window, doc: window.document, calls };
 }
 
-test('sale: mac dinh loc yeu cau cua minh, khong co cot chon / sua nhanh, dong khoa khong co nut Sua', async t => {
+test('sale: mac dinh xem tat ca sale, khong co cot chon / sua nhanh, dong khoa khong co nut Sua', async t => {
   const rows = [row(1), row(2, { status: '1', statusLabel: '1. Đã xong', isLockedForSale: true, canEditSale: false, canDelete: false }),
     row(3, { createdBy: 'sale-2', createdByName: 'Tuyên', isMine: false, canEditSale: false, canDelete: false })];
   const { doc, calls } = await setup(t, { vaiTro: 'Nhân viên sale', responses: { 'GET /': listResponse(rows) } });
-  assert.equal(calls[0].query.createdBy, 'sale-1');
+  assert.equal(calls[0].query.createdBy, undefined, 'mac dinh tat ca sale');
+  assert.equal(doc.getElementById('vrSaleFilter').value, '');
   assert.equal(calls[0].query.status, undefined);
   assert.equal(doc.querySelector('[data-column-key="select"]'), null);
   assert.equal(doc.querySelector('[data-inline]'), null);
@@ -82,47 +85,187 @@ test('sale: mac dinh loc yeu cau cua minh, khong co cot chon / sua nhanh, dong k
   assert.ok(doc.querySelector('#sidebar a[href="/vat-request/"]'), 'menu Ke toan co Yeu cau xuat VAT');
 });
 
-test('sale tao yeu cau: gui dung payload (so co dau phay, Full VAT, ma khach tu goi y)', async t => {
+function batchApi() {
+  const context = { window: {} };
+  require('node:vm').runInNewContext(batchCode, context);
+  return context.window.TKSVatRequestBatch;
+}
+const LOOKUP = {
+  '014xoan': { found: true, productCode: '014XOAN', productName: 'Bát inox 2 lớp XOẮN 14cm', vatStock: { total: 1500, byCompany: [] }, pendingInsertQty: 0, incomingQty: 1100, nearestArrivalDate: '2026-10-28', nearestArrivalText: 'DK 28/10', latestOrder: { price: 12500, customerName: 'Khách cũ', createdAt: null } },
+  '26daquan': { found: true, productCode: '26DAQUAN', productName: 'Đồng hồ treo tường DẠ QUANG', vatStock: null, pendingInsertQty: 0, incomingQty: 0, latestOrder: null }
+};
+const lookupResponse = body => ({ status: 200, data: { results: Object.fromEntries(body.codes.map(code => [code.toLowerCase(), LOOKUP[code.toLowerCase()] || { found: false }])), stockStatus: { available: true } } });
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+function typeInto(window, input, value) {
+  input.value = value;
+  input.dispatchEvent(new window.Event('input', { bubbles: true }));
+}
+function pasteInto(window, target, text) {
+  const event = new window.Event('paste', { bubbles: true, cancelable: true });
+  event.clipboardData = { getData: () => text };
+  target.dispatchEvent(event);
+  return event;
+}
+function chooseFullVat(window, tr, value) {
+  const select = tr.querySelector('[data-field="fullVat"]');
+  select.value = value ? 'true' : 'false';
+  select.dispatchEvent(new window.Event('input', { bubbles: true }));
+  select.dispatchEvent(new window.Event('change', { bubbles: true }));
+}
+const batchRows = doc => [...doc.querySelectorAll('#vrBatchRows tr[data-row]')];
+const cell = (tr, name) => tr.querySelector(`[data-field="${name}"]`);
+const submitBatch = (window, doc) => doc.getElementById('vrBatchForm').dispatchEvent(new window.Event('submit', { cancelable: true }));
+
+test('tao nhieu dong: form trong mo san o Dan tu Excel; dan 6 cot -> du cot, Full VAT de trong bat buoc chon tung dong', async t => {
   const responses = {
     'GET /': listResponse([]),
-    'GET /customer-suggest': { results: [{ code: 'KH001', name: 'KH A Thắng' }] },
-    'GET /product-suggest': { results: [{ code: '014XOAN', name: 'Bát inox' }] },
-    'GET /metrics': { productCode: '014XOAN', productName: 'Bát inox', vatStock: { total: 1500, byCompany: [] }, pendingInsertQty: 0, incomingQty: 150, nearestArrivalDate: null, nearestArrivalText: '' },
-    'POST /': body => ({ status: 201, data: row(9, body) })
+    'POST /lookup': lookupResponse,
+    'POST /batch': body => ({ status: 201, data: { created: body.items.length, ids: [11, 12], duplicate: false } })
   };
   const { window, doc, calls } = await setup(t, { vaiTro: 'Nhân viên sale', responses });
   doc.getElementById('vrCreate').click();
-  const set = (id, value) => { const el = doc.getElementById(id); el.value = value; el.dispatchEvent(new window.Event('input', { bubbles: true })); };
-  set('vrProduct', '014XOAN');
-  doc.getElementById('vrProduct').dispatchEvent(new window.Event('change', { bubbles: true }));
-  set('vrCustomer', 'KH A Thắng');
-  await new Promise(resolve => setTimeout(resolve, 350));
-  set('vrQuantity', '1,200');
-  set('vrPrice', '11400');
-  doc.getElementById('vrFullVat').value = 'true';
+  assert.equal(doc.getElementById('vrBatchDialog').hasAttribute('open'), true);
+  assert.equal(doc.getElementById('vrBatchPastePanel').hidden, false, 'form trong -> mo san o dan');
+  assert.equal(doc.activeElement, doc.getElementById('vrBatchPasteArea'));
+  const event = pasteInto(window, doc.getElementById('vrBatchPasteArea'),
+    'KH A Thắng\t014XOAN\tBát inox\t1.200\t11,400\tFULL VAT\r\nKH A Thắng\t26DAQUAN\tĐồng hồ\t280\t37870\tgấp\r\n');
+  assert.equal(event.defaultPrevented, true);
+  assert.equal(doc.getElementById('vrBatchPastePanel').hidden, true, 'dan xong thu gon o dan');
+  const rows = batchRows(doc);
+  assert.equal(rows.length, 2);
+  assert.deepEqual(rows.map(tr => [cell(tr, 'customerName').value, cell(tr, 'productCode').value, cell(tr, 'quantity').value, cell(tr, 'unitPrice').value, cell(tr, 'saleNote').value, cell(tr, 'fullVat').value]),
+    [['KH A Thắng', '014XOAN', '1200', '11400', 'FULL VAT', ''], ['KH A Thắng', '26DAQUAN', '280', '37870', 'gấp', '']]);
+  assert.match(doc.getElementById('vrBatchNotice').textContent, /Đã dán 2 dòng\. Chọn Full VAT \/ Không full VAT cho 2 dòng/);
+  assert.equal(doc.activeElement, cell(rows[0], 'fullVat'), 'dua con tro toi o Full VAT dau tien chua chon');
+  assert.match(doc.getElementById('vrBatchSummary').textContent, /2 dòng chưa chọn Full VAT/);
+  await wait(400);
+  const lookup = calls.filter(c => c.key === 'POST /lookup');
+  assert.equal(lookup.length, 1, 'tra ca bang trong 1 lan goi');
+  assert.deepEqual(lookup[0].body.codes, ['014XOAN', '26DAQUAN']);
+  assert.match(rows[0].querySelector('[data-cell="product"]').textContent, /Bát inox 2 lớp XOẮN 14cm.*Tồn VAT 1,500.*Đang về 1,100 · 28\/10\/2026/);
+  assert.match(rows[0].querySelector('[data-cell="price"]').textContent, /Gần nhất 12,500/);
+  assert.match(doc.getElementById('vrBatchSummary').textContent, /2 dòng hàng · Tổng 24,283,600 ₫/);
+
+  submitBatch(window, doc);
   await tick();
-  assert.match(doc.getElementById('vrProductInfo').textContent, /Tồn VAT: 1,500/);
-  assert.equal(doc.getElementById('vrTotal').textContent, '13,680,000 ₫');
-  doc.getElementById('vrForm').dispatchEvent(new window.Event('submit', { cancelable: true }));
-  await tick();
-  const post = calls.find(c => c.key === 'POST /');
-  assert.deepEqual(post.body, { productCode: '014XOAN', customerName: 'KH A Thắng', customerCode: 'KH001', quantity: 1200, unitPrice: 11400, fullVat: true, saleNote: '' });
+  assert.equal(calls.some(c => c.key === 'POST /batch'), false, 'chua chon Full VAT thi khong gui');
+  assert.match(doc.getElementById('vrBatchError').textContent, /2 dòng chưa hợp lệ.*Dòng 1: chưa chọn Full VAT/);
+  assert.equal(cell(rows[1], 'fullVat').getAttribute('aria-invalid'), 'true');
+
+  chooseFullVat(window, rows[0], true);
+  chooseFullVat(window, rows[1], false);
+  assert.equal(cell(rows[1], 'fullVat').hasAttribute('aria-invalid'), false);
+  assert.doesNotMatch(doc.getElementById('vrBatchSummary').textContent, /chưa chọn/);
+  submitBatch(window, doc);
+  await tick(); await tick();
+  const post = calls.find(c => c.key === 'POST /batch');
+  assert.ok(post.body.submissionId);
+  assert.deepEqual(post.body.items, [
+    { customerName: 'KH A Thắng', customerCode: null, productCode: '014XOAN', quantity: 1200, unitPrice: 11400, fullVat: true, saleNote: 'FULL VAT' },
+    { customerName: 'KH A Thắng', customerCode: null, productCode: '26DAQUAN', quantity: 280, unitPrice: 37870, fullVat: false, saleNote: 'gấp' }
+  ]);
+  assert.equal(doc.getElementById('vrBatchDialog').hasAttribute('open'), false);
+  assert.match(doc.getElementById('vrStatus').textContent, /Đã gửi 2 yêu cầu/);
+  assert.equal(window.localStorage.getItem('vr-batch-draft:sale-1'), null);
 });
 
-test('sale nhap sai so luong -> bao loi, khong goi API', async t => {
-  const { window, doc, calls } = await setup(t, { vaiTro: 'Nhân viên sale', responses: { 'GET /': listResponse([]) } });
+test('dan kem dong tieu de (vd copy tu sheet ORDER VAT 1 cu): khop cot theo ten, bo cot la, khong lay Full VAT', () => {
+  const api = batchApi();
+  const plain = value => JSON.parse(JSON.stringify(value));
+  const parseClipboard = text => api.parseClipboard(text);
+  const mapPastedMatrix = (matrix, start) => plain(api.mapPastedMatrix(matrix, start));
+  const matrix = parseClipboard('Thời gian\tEmail\tTên Sale\tKhách hàng\tMã SP Trim\tTên SP\tSố lượng\tGiá chưa VAT (Full VAT thì ghi chú)\tGhi chú (Mã VAT nếu có)\tKT PHẢN HỒI\n' +
+    '19/10/2026\ta@x.vn\tThịnh\tKH A\t014XOAN\tBát\t400\t11.400\tFULL VAT\t3. Chờ khai chèn\n');
+  const { rows, header } = mapPastedMatrix(matrix);
+  assert.equal(header, true);
+  assert.deepEqual(rows, [{ customerName: 'KH A', productCode: '014XOAN', quantity: '400', unitPrice: '11400', saleNote: 'FULL VAT' }]);
+  const reordered = mapPastedMatrix(parseClipboard('Mã SP\tSL\tKhách hàng\n26DAQUAN\t5\tKH B'));
+  assert.deepEqual(reordered.rows, [{ productCode: '26DAQUAN', quantity: '5', customerName: 'KH B' }]);
+  const fromQty = mapPastedMatrix(parseClipboard('10\t2.000\tghi\n20\t3000\t'), 'quantity');
+  assert.equal(fromQty.header, false);
+  assert.deepEqual(fromQty.rows, [{ quantity: '10', unitPrice: '2000', saleNote: 'ghi' }, { quantity: '20', unitPrice: '3000', saleNote: '' }]);
+});
+
+test('tao nhieu dong: Ctrl+V khi con tro o vung trong cua form cung nhan; dan vao o giua bang bat dau tu cot do', async t => {
+  const { window, doc } = await setup(t, { vaiTro: 'Nhân viên sale', responses: { 'GET /': listResponse([]), 'POST /lookup': lookupResponse } });
   doc.getElementById('vrCreate').click();
-  doc.getElementById('vrProduct').value = '014XOAN';
-  doc.getElementById('vrCustomer').value = 'KH';
-  doc.getElementById('vrQuantity').value = '1.5';
-  doc.getElementById('vrPrice').value = '100';
-  doc.getElementById('vrForm').dispatchEvent(new window.Event('submit', { cancelable: true }));
-  await tick();
-  assert.match(doc.getElementById('vrFormError').textContent, /số nguyên/);
-  assert.equal(calls.some(c => c.key === 'POST /'), false);
+  const event = pasteInto(window, doc.getElementById('vrBatchAdd'), 'KH C\t014XOAN\t\t3\t1000\t\nKH C\t26DAQUAN\t\t4\t2000\t');
+  assert.equal(event.defaultPrevented, true);
+  assert.equal(batchRows(doc).length, 2);
+  const target = cell(batchRows(doc)[1], 'quantity');
+  pasteInto(window, target, '9\t9000\n8\t8000');
+  const rows = batchRows(doc);
+  assert.equal(rows.length, 3);
+  assert.deepEqual(rows.map(tr => [cell(tr, 'productCode').value, cell(tr, 'quantity').value, cell(tr, 'unitPrice').value]),
+    [['014XOAN', '3', '1000'], ['26DAQUAN', '9', '9000'], ['', '8', '8000']]);
+  assert.equal(cell(rows[2], 'customerName').value, 'KH C', 'dong them khi dan van chep khach dong tren');
 });
 
-test('gia order VAT gan nhat chi dien khi bam goi y; khi sua giu gia hien tai', async t => {
+test('tao nhieu dong: dong moi chep khach dong tren, Enter o dong cuoi them dong, loi chi dung dong va khong goi API', async t => {
+  const { window, doc, calls } = await setup(t, { vaiTro: 'Nhân viên sale', responses: { 'GET /': listResponse([]), 'POST /lookup': lookupResponse } });
+  doc.getElementById('vrCreate').click();
+  const first = batchRows(doc)[0];
+  typeInto(window, cell(first, 'customerName'), 'KH B');
+  typeInto(window, cell(first, 'productCode'), '014XOAN');
+  typeInto(window, cell(first, 'quantity'), '1.5');
+  typeInto(window, cell(first, 'unitPrice'), '100');
+  chooseFullVat(window, first, false);
+  cell(first, 'saleNote').dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+  const rows = batchRows(doc);
+  assert.equal(rows.length, 2);
+  assert.equal(cell(rows[1], 'customerName').value, 'KH B', 'dong moi dung lai khach dong tren');
+  assert.equal(cell(rows[1], 'fullVat').value, '', 'Full VAT dong moi van de trong');
+  assert.equal(doc.activeElement, cell(rows[1], 'productCode'));
+  assert.match(doc.getElementById('vrBatchSummary').textContent, /1 dòng hàng/, 'dong chi co khach chua tinh');
+  submitBatch(window, doc);
+  await tick();
+  assert.match(doc.getElementById('vrBatchError').textContent, /1 dòng chưa hợp lệ.*Dòng 1: số lượng phải là số nguyên/);
+  assert.equal(cell(rows[0], 'quantity').getAttribute('aria-invalid'), 'true');
+  assert.ok(rows[0].classList.contains('has-error'));
+  assert.equal(calls.some(c => c.key === 'POST /batch'), false);
+  typeInto(window, cell(rows[0], 'quantity'), '2');
+  assert.equal(cell(rows[0], 'quantity').hasAttribute('aria-invalid'), false, 'sua o thi bo danh dau loi');
+});
+
+test('tao nhieu dong: server bao loi theo dong -> danh dau dung o; gui lai cung du lieu dung lai ma lan gui', async t => {
+  const responses = {
+    'GET /': listResponse([]),
+    'POST /lookup': lookupResponse,
+    'POST /batch': () => ({ status: 400, data: { error: '1 dòng chưa hợp lệ, chưa gửi dòng nào.', code: 'BATCH_INVALID', errors: [{ row: 2, field: 'customerName', message: 'Dòng 2: Khách hàng quá dài.' }] } })
+  };
+  const { window, doc, calls } = await setup(t, { vaiTro: 'Nhân viên sale', responses });
+  doc.getElementById('vrCreate').click();
+  pasteInto(window, doc.getElementById('vrBatchPasteArea'), 'KH A\t014XOAN\t\t10\t100\t\nKH C\t26DAQUAN\t\t5\t200\t');
+  batchRows(doc).forEach(tr => chooseFullVat(window, tr, false));
+  await wait(400);
+  submitBatch(window, doc);
+  await tick(); await tick();
+  const rows = batchRows(doc);
+  assert.equal(cell(rows[1], 'customerName').getAttribute('aria-invalid'), 'true');
+  assert.match(doc.getElementById('vrBatchError').textContent, /Dòng 2: Khách hàng quá dài/);
+  assert.equal(doc.getElementById('vrBatchDialog').hasAttribute('open'), true, 'loi thi giu nguyen form');
+  submitBatch(window, doc);
+  await tick(); await tick();
+  const posts = calls.filter(c => c.key === 'POST /batch');
+  assert.equal(posts.length, 2);
+  assert.equal(posts[0].body.submissionId, posts[1].body.submissionId);
+});
+
+test('tao nhieu dong: khoi phuc nhap chua gui tu lan truoc, giu lua chon Full VAT', async t => {
+  const { window, doc } = await setup(t, { vaiTro: 'Nhân viên sale', responses: { 'GET /': listResponse([]), 'POST /lookup': lookupResponse } });
+  window.localStorage.setItem('vr-batch-draft:sale-1', JSON.stringify({ savedAt: Date.now(), rows: [
+    { customerName: 'KH D', productCode: '014XOAN', quantity: '3', unitPrice: '1000', fullVat: null, saleNote: '' },
+    { customerName: 'KH D', productCode: '26DAQUAN', quantity: '4', unitPrice: '2000', fullVat: true, saleNote: 'x' }
+  ] }));
+  doc.getElementById('vrCreate').click();
+  const rows = batchRows(doc);
+  assert.equal(rows.length, 2);
+  assert.deepEqual(rows.map(tr => cell(tr, 'fullVat').value), ['', 'true']);
+  assert.equal(doc.getElementById('vrBatchPastePanel').hidden, true, 'co nhap thi khong mo o dan');
+  assert.match(doc.getElementById('vrBatchNotice').textContent, /khôi phục 2 dòng/);
+});
+
+test('gia order VAT gan nhat trong hop sua chi dien khi bam goi y; khi sua giu gia hien tai', async t => {
   const responses = {
     'GET /': listResponse([row(1, { unitPrice: 13000 })]),
     'GET /1/history': { rows: [] },
@@ -130,24 +273,16 @@ test('gia order VAT gan nhat chi dien khi bam goi y; khi sua giu gia hien tai', 
     'GET /price-suggest': { latestOrder: { price: 12500, customerName: 'Khách cũ', createdAt: '2026-10-20T02:00:00Z' } }
   };
   const { window, doc } = await setup(t, { vaiTro: 'Nhân viên sale', responses });
-  doc.getElementById('vrCreate').click();
-  const product = doc.getElementById('vrProduct');
-  product.value = '014XOAN';
-  product.dispatchEvent(new window.Event('change', { bubbles: true }));
-  await tick();
-  assert.equal(doc.getElementById('vrPrice').value, '');
-  assert.match(doc.getElementById('vrPriceSuggestion').textContent, /12,500/);
-  doc.getElementById('vrPriceSuggestion').querySelector('button').click();
-  assert.equal(doc.getElementById('vrPrice').value, '12,500');
-  product.value = '26DAQUAN';
-  product.dispatchEvent(new window.Event('input', { bubbles: true }));
-  assert.equal(doc.getElementById('vrPriceSuggestion').textContent, '', 'doi ma phai xoa goi y cua ma truoc');
-  doc.getElementById('vrFormCancel').click();
-
   doc.querySelector('tr[data-id="1"] [data-field="customer"]').dispatchEvent(new window.MouseEvent('dblclick', { bubbles: true }));
   await tick();
   assert.equal(doc.getElementById('vrPrice').value, '13,000');
   assert.match(doc.getElementById('vrPriceSuggestion').textContent, /12,500/);
+  doc.getElementById('vrPriceSuggestion').querySelector('button').click();
+  assert.equal(doc.getElementById('vrPrice').value, '12,500');
+  const product = doc.getElementById('vrProduct');
+  product.value = '26DAQUAN';
+  product.dispatchEvent(new window.Event('input', { bubbles: true }));
+  assert.equal(doc.getElementById('vrPriceSuggestion').textContent, '', 'doi ma phai xoa goi y cua ma truoc');
 });
 
 test('Ke toan chua duoc cap quyen: chi xem, khong co sua nhanh / chon lo / gom theo ma', async t => {
@@ -330,7 +465,7 @@ test('chuot phai -> Sua yeu cau; xoa ngay trong hop sua gui DELETE kem version',
     'DELETE /7': () => { deleted = true; return { status: 200, data: { ok: true } }; }
   };
   const { window, doc, calls } = await setup(t, { vaiTro: 'Nhân viên sale', responses });
-  window.confirm = () => true;
+  window.confirm = () => { throw new Error('xoa yeu cau khong duoc hoi xac nhan'); };
   doc.querySelector('tr[data-id="7"] [data-field="customer"]').dispatchEvent(new window.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 50, clientY: 50 }));
   const edit = doc.querySelector('#vrRowMenu [data-menu="edit"]');
   assert.equal(edit.hidden, false);
@@ -353,4 +488,50 @@ test('o so / ma / ngay khong xuong dong giua chung; cot Thao tac chi con 1 nut',
   assert.deepEqual([...tr.querySelectorAll('[data-field="actions"] button')].map(b => b.textContent), ['Sửa']);
   assert.deepEqual([...doc.querySelectorAll('tr[data-id="2"] [data-field="actions"] button')].map(b => b.textContent), ['Lịch sử']);
   assert.equal(doc.querySelector('[data-action="delete"]'), null);
+});
+
+test('sap xep theo cot tren toan bo danh sach: tang dan -> giam dan -> ve thu tu goc; o trong luon cuoi', async t => {
+  const rows = [
+    row(1, { customerName: 'Bình', quantity: 50, totalAmount: 500 }),
+    row(2, { customerName: 'An', quantity: 300, totalAmount: null }),
+    row(3, { customerName: 'Cường', quantity: 7, totalAmount: 70 })
+  ];
+  const { doc } = await setup(t, { vaiTro: 'Nhân viên sale', responses: { 'GET /': listResponse(rows) } });
+  const ids = () => [...doc.querySelectorAll('#vrRows tr[data-id]')].map(tr => Number(tr.dataset.id));
+  const header = key => doc.querySelector(`#vrHeadRow [data-sort="${key}"]`);
+  assert.equal(doc.querySelector('#vrHeadRow [data-column-key="actions"] .sort-button'), null, 'cot Thao tac khong sap xep');
+  header('quantity').click();
+  assert.deepEqual(ids(), [3, 1, 2]);
+  assert.equal(header('quantity').closest('th').getAttribute('aria-sort'), 'ascending');
+  assert.equal(header('quantity').querySelector('.sort-indicator').textContent, '▼');
+  header('quantity').click();
+  assert.deepEqual(ids(), [2, 1, 3]);
+  assert.equal(header('quantity').querySelector('.sort-indicator').textContent, '▲');
+  header('quantity').click();
+  assert.deepEqual(ids(), [1, 2, 3], 've thu tu goc');
+  assert.equal(header('quantity').closest('th').getAttribute('aria-sort'), 'none');
+  header('customer').click();
+  assert.deepEqual(ids(), [2, 1, 3], 'sap chu theo tieng Viet');
+  header('total').click();
+  assert.deepEqual(ids(), [3, 1, 2], 'o trong nam cuoi');
+  header('total').click();
+  assert.deepEqual(ids(), [1, 3, 2], 'giam dan o trong van cuoi');
+});
+
+test('mau theo trang thai: o chon KT phan hoi mang data-status va doi mau ngay khi chon; nut loc dang chon co aria-pressed', async t => {
+  const responses = {
+    'GET /': listResponse([row(1, { canProcess: true, status: '3', statusLabel: '3. Chờ khai chèn' })]),
+    'PATCH /1': body => ({ status: 200, data: row(1, { ...body, version: 2, canProcess: true, statusLabel: '1. Đã xong' }) })
+  };
+  const { window, doc } = await setup(t, { vaiTro: 'Kế toán', id: 'kt-1', responses, featurePermissions: PROCESS_GRANTED });
+  const select = doc.querySelector('[data-inline="status"][data-id="1"]');
+  assert.ok(select.classList.contains('vr-status-select'));
+  assert.equal(select.dataset.status, '3');
+  select.value = '1';
+  select.dispatchEvent(new window.Event('change', { bubbles: true }));
+  assert.equal(select.dataset.status, '1', 'doi mau truoc khi luu xong');
+  await tick(); await tick(); await tick();
+  const chips = [...doc.querySelectorAll('#vrStatusChips .vr-chip')];
+  assert.deepEqual(chips.map(c => c.dataset.preset), ['todo', 'all', 'pending', '0', '1', '2', '3', '4']);
+  assert.deepEqual(chips.filter(c => c.getAttribute('aria-pressed') === 'true').map(c => c.dataset.preset), ['todo']);
 });

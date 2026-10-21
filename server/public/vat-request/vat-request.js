@@ -19,7 +19,7 @@
     user: null, canProcess: false, viewerId: null,
     rows: [], metrics: {}, sales: [], statuses: [], stockStatus: null, truncated: false,
     preset: 'all', saleFilter: '', query: '', from: '', to: '',
-    groupByProduct: false, page: 1, selected: new Set(), loading: false, error: '',
+    groupByProduct: false, sortKey: '', sortDir: 'asc', page: 1, selected: new Set(), loading: false, error: '',
     editing: null, requestSeq: 0
   };
 
@@ -109,8 +109,12 @@
       if (col.key === 'select') {
         return '<th scope="col" data-column-key="select" data-default-width="48"><input type="checkbox" id="vrSelectPage" aria-label="Chọn tất cả dòng trên trang"></th>';
       }
-      return `<th scope="col" data-column-key="${col.key}" data-default-width="${col.width}"${col.num ? ' class="num"' : ''}>${escapeHtml(col.label)}</th>`;
+      if (col.key === 'actions') return `<th scope="col" data-column-key="actions" data-default-width="${col.width}">${escapeHtml(col.label)}</th>`;
+      // Nút sắp xếp riêng (sắp TOÀN BỘ danh sách, không chỉ trang đang xem) — table-controls thấy .sort-button sẵn thì không gắn thêm.
+      return `<th scope="col" data-column-key="${col.key}" data-default-width="${col.width}" aria-sort="none"${col.num ? ' class="num"' : ''}>` +
+        `<button type="button" class="sort-button" data-sort="${col.key}"><span class="sort-label">${escapeHtml(col.label)}</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>`;
     }).join('');
+    updateSortHeaders();
     if (window.TKSTables) {
       const mobile = screenMode() === 'mobile';
       window.TKSTables.enhance($('vrTable'), {
@@ -142,7 +146,7 @@
       case 'saleNote': return escapeHtml(row.saleNote);
       case 'status':
         if (state.canProcess) {
-          return `<select class="vr-inline" data-inline="status" data-id="${row.id}" aria-label="Trạng thái yêu cầu ${row.id}">` +
+          return `<select class="vr-inline vr-status-select" data-inline="status" data-status="${escapeHtml(row.status)}" data-id="${row.id}" aria-label="Trạng thái yêu cầu ${row.id}">` +
             state.statuses.map(s => `<option value="${s.value}"${s.value === row.status ? ' selected' : ''}>${escapeHtml(s.label)}</option>`).join('') + '</select>';
         }
         return `<span class="vr-badge" data-status="${escapeHtml(row.status)}">${escapeHtml(row.statusLabel)}</span>`;
@@ -191,9 +195,66 @@
       `<span class="vr-group-meta">${rows.length} yêu cầu · Tồn VAT ${stock} · Cần khai ${fmtNumber(m.pendingInsertQty || 0)} · Đang về ${fmtNumber(m.incomingQty || 0)} · Gần nhất ${escapeHtml(arrival)}</span></td></tr>`;
   }
 
+  // ---------- Sắp xếp theo cột (toàn bộ danh sách) ----------
+  const collator = new Intl.Collator('vi', { numeric: true, sensitivity: 'base' });
+  function sortValueOf(row, key) {
+    const m = metricFor(row) || {};
+    switch (key) {
+      case 'createdAt': return row.createdAt || null;
+      case 'sale': return row.createdByName || null;
+      case 'customer': return row.customerName || null;
+      case 'productCode': return row.productCode || null;
+      case 'productName': return row.productName || null;
+      case 'quantity': return row.quantity;
+      case 'unitPrice': return row.unitPrice;
+      case 'total': return row.totalAmount;
+      case 'fullVat': return row.fullVat ? 1 : 0;
+      case 'saleNote': return row.saleNote || null;
+      case 'status': { const index = state.statuses.findIndex(s => s.value === row.status); return index < 0 ? null : index; }
+      case 'accountantNote': return row.accountantNote || null;
+      case 'arrivalDate': return row.arrivalDate || null;
+      case 'vatStock': return m.vatStock ? m.vatStock.total : null;
+      case 'pendingQty': return m.pendingInsertQty ?? null;
+      case 'incomingQty': return m.incomingQty ?? null;
+      case 'nearestArrival': return m.nearestArrivalDate || null;
+      default: return null;
+    }
+  }
+  function compareBySort(a, b) {
+    if (!state.sortKey) return 0;
+    const x = sortValueOf(a, state.sortKey);
+    const y = sortValueOf(b, state.sortKey);
+    const emptyX = x === null || x === undefined || x === '';
+    const emptyY = y === null || y === undefined || y === '';
+    if (emptyX || emptyY) return emptyX === emptyY ? 0 : emptyX ? 1 : -1; // ô trống luôn nằm cuối
+    const result = typeof x === 'number' && typeof y === 'number' ? x - y : collator.compare(String(x), String(y));
+    return state.sortDir === 'desc' ? -result : result;
+  }
+  // Bấm lần lượt: tăng dần → giảm dần → về thứ tự gốc (mới nhất trước).
+  function cycleSort(key) {
+    if (state.sortKey !== key) { state.sortKey = key; state.sortDir = 'asc'; }
+    else if (state.sortDir === 'asc') state.sortDir = 'desc';
+    else state.sortKey = '';
+    state.page = 1;
+    render();
+    $('vrScroll').scrollTop = 0;
+  }
+  // Chưa sắp ▲▼ · tăng dần ▼ · giảm dần ▲ (quy ước chung của hệ thống).
+  function updateSortHeaders() {
+    document.querySelectorAll('#vrHeadRow [data-sort]').forEach(button => {
+      const active = state.sortKey === button.dataset.sort;
+      button.closest('th').setAttribute('aria-sort', active ? (state.sortDir === 'asc' ? 'ascending' : 'descending') : 'none');
+      button.querySelector('.sort-indicator').textContent = active ? (state.sortDir === 'asc' ? '▼' : '▲') : '▲▼';
+      button.title = active ? (state.sortDir === 'asc' ? 'Sắp xếp giảm dần' : 'Về thứ tự gốc') : 'Sắp xếp tăng dần';
+    });
+  }
+
   function visibleRows() {
-    if (!state.groupByProduct) return state.rows;
-    return state.rows.slice().sort((a, b) => a.productKey.localeCompare(b.productKey, 'vi', { numeric: true }) || (b.createdAt || '').localeCompare(a.createdAt || ''));
+    if (state.groupByProduct) {
+      return state.rows.slice().sort((a, b) => a.productKey.localeCompare(b.productKey, 'vi', { numeric: true }) || compareBySort(a, b) || (b.createdAt || '').localeCompare(a.createdAt || ''));
+    }
+    if (!state.sortKey) return state.rows;
+    return state.rows.slice().sort((a, b) => compareBySort(a, b) || b.id - a.id);
   }
 
   function render() {
@@ -234,6 +295,7 @@
     const pageSelect = $('vrSelectPage');
     if (pageSelect) pageSelect.checked = pageRows.length > 0 && pageRows.every(r => state.selected.has(r.id));
     renderBulk();
+    updateSortHeaders();
     renderSource();
     if (window.TKSTables) window.TKSTables.refresh($('vrTable'));
     updateScrollButtons();
@@ -747,7 +809,7 @@
   // Xóa ngay trong hộp sửa (chỉ hiện khi server cho phép: chủ yêu cầu chưa khóa, hoặc Quản lý).
   async function deleteEditing() {
     const row = state.editing;
-    if (!row || !window.confirm(`Xóa yêu cầu #${row.id} (${row.productCode} – ${row.customerName})? Không hoàn tác được.`)) return;
+    if (!row) return; // xóa ngay, không hỏi lại (xóa mềm, vẫn còn trong lịch sử)
     $('vrFormDelete').disabled = true;
     try {
       await api(`/${row.id}?version=${row.version}`, { method: 'DELETE' });
@@ -805,7 +867,8 @@
     $('vrSearch').addEventListener('input', event => { state.query = event.target.value.trim(); searchLater(); });
     $('vrGroupToggle').addEventListener('change', event => { state.groupByProduct = event.target.checked; state.page = 1; render(); });
     $('vrReload').addEventListener('click', () => load());
-    $('vrCreate').addEventListener('click', () => openForm(null));
+    // Tạo mới = form nhiều dòng (vat-request-batch.js); hộp sửa 1 yêu cầu chỉ còn dùng để sửa / xem lịch sử.
+    $('vrCreate').addEventListener('click', () => { if (state.batch) state.batch.open(); });
 
     ['First', 'Previous', 'Next', 'Last'].forEach(direction => {
       $('vr' + direction).addEventListener('click', () => {
@@ -821,7 +884,11 @@
     const table = $('vrTable');
     table.addEventListener('change', event => {
       const target = event.target;
-      if (target.matches('[data-inline]')) { saveInline(target); return; }
+      if (target.matches('[data-inline]')) {
+        if (target.dataset.inline === 'status') target.dataset.status = target.value; // đổi màu ngay, không chờ lưu
+        saveInline(target);
+        return;
+      }
       if (target.matches('[data-select]')) {
         const id = Number(target.dataset.select);
         if (target.checked) state.selected.add(id); else state.selected.delete(id);
@@ -840,6 +907,8 @@
       }
     });
     table.addEventListener('click', event => {
+      const sort = event.target.closest('[data-sort]');
+      if (sort) { cycleSort(sort.dataset.sort); return; }
       const stock = event.target.closest('[data-stock]');
       if (stock) { openStock(stock.dataset.stock); return; }
       const button = event.target.closest('[data-action]');
@@ -950,13 +1019,24 @@
     state.viewerId = state.user && state.user.id;
     state.canProcess = window.TKSNav.can('accounting.vatRequestProcess');
     window.TKSNav.renderTopSidebar($('sidebar'), 'accounting', state.user);
-    // KT mở trang thấy ngay việc cần làm; sale mặc định xem yêu cầu của mình.
+    // KT mở trang thấy ngay việc cần làm (Cần xử lý); mọi người mặc định xem tất cả sale.
     state.preset = state.canProcess ? 'todo' : 'all';
-    state.saleFilter = state.canProcess ? '' : 'me';
+    state.saleFilter = ''; // mặc định xem tất cả sale; chọn 'Của tôi' ở bộ lọc Sale khi cần
     $('vrGroupToggleWrap').hidden = !state.canProcess;
     $('vrSub').textContent = state.canProcess
       ? 'Lọc “Cần xử lý” để xem yêu cầu chờ khai; chọn nhiều dòng để đổi trạng thái hàng loạt.'
       : 'Gửi ORDER VAT cho kế toán. Yêu cầu ở trạng thái 0, 1, 2 đã khóa, không sửa được.';
+    if (window.TKSVatRequestBatch) {
+      state.batch = window.TKSVatRequestBatch.createBatchForm({
+        api, escapeHtml, fmtNumber, fmtDate, debounce, showDialog, closeDialog, userId: state.viewerId,
+        onSubmitted: async result => {
+          await load();
+          setStatus(result.duplicate
+            ? `${result.created} yêu cầu này đã được gửi trước đó, không tạo trùng.`
+            : `Đã gửi ${result.created} yêu cầu.`, 'ok');
+        }
+      });
+    }
     renderHead();
     await load();
   }

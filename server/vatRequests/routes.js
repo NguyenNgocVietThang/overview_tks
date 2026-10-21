@@ -44,6 +44,7 @@ function createVatRequestRouter({ service = createVatRequestService(), customerS
           if (error.latest) body.latest = error.latest;
           if (error.conflictIds) body.conflictIds = error.conflictIds;
           if (error.field) body.field = error.field;
+          if (error.errors) body.errors = error.errors;
           return res.status(error.statusCode).json(body);
         }
         console.error('[vat-requests]', error);
@@ -77,6 +78,14 @@ function createVatRequestRouter({ service = createVatRequestService(), customerS
   }));
   router.post('/', handle(async (req, res) => {
     res.status(201).json(await service.create(req.user, req.body));
+  }));
+  // Form nhieu dong: { submissionId, items: [...] } -> tao nhieu yeu cau trong 1 transaction.
+  router.post('/batch', handle(async (req, res) => {
+    const result = await service.createMany(req.user, req.body);
+    res.status(result.duplicate ? 200 : 201).json(result);
+  }));
+  router.post('/lookup', handle(async (req, res) => {
+    res.json(await service.lookupProducts(req.body && req.body.codes));
   }));
   router.patch('/bulk', handle(async (req, res) => {
     res.json(await service.bulkUpdate(req.user, req.body));

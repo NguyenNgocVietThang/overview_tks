@@ -145,6 +145,8 @@ Thay Google Form + sheet ORDER VAT 1. Module `vatRequests/` (`service.js` giữ 
 | DELETE | `/api/vat-requests/:id?version=` | Xóa mềm (chủ yêu cầu khi chưa khóa, hoặc Quản lý) |
 | GET | `/api/vat-requests/:id/history` | Lịch sử từng trường (ai, lúc nào, cũ → mới) |
 | GET | `/api/vat-requests/metrics?code=` | O/P/Q/R + tên SP của 1 mã (form của sale) |
+| POST | `/api/vat-requests/batch` `{ submissionId, items: [...] }` | Form nhiều dòng: tạo tối đa 200 yêu cầu trong 1 transaction; dòng sai → 400 `BATCH_INVALID` + `errors: [{ row, field, message }]`, không ghi dòng nào; cùng `submissionId` + tài khoản trong 6 giờ → trả lại kết quả cũ (`duplicate: true`) |
+| POST | `/api/vat-requests/lookup` `{ codes: [...] }` | Tra nhiều mã 1 lần cho form nhiều dòng: tên SP, O/P/Q/R, giá VAT gần nhất; mã không có → `found: false` |
 | GET | `/api/vat-requests/product-suggest?q=` / `customer-suggest?q=` | Gợi ý mã SP (`product_report`) / khách KiotViet theo cơ sở + tên từ yêu cầu VAT cũ (không dấu, mã khách, đảo từ) |
 | GET | `/api/vat-requests/price-suggest?code=` | Giá chưa VAT của yêu cầu gần nhất cùng mã SP; không tự ghi vào form |
 
