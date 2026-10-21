@@ -7,6 +7,8 @@ Mọi bảng trên web và trong file HTML xuất ra có nút **Cột hiển th�
 
 ## Kiến trúc hiện tại
 
+**Kế hoạch 21/10/2026 — CONT TKS1 và cột Nguồn (chưa triển khai):** bổ sung nguồn thứ bảy vào luồng CONT chung, thêm Nguồn đầu bảng Dự kiến hàng về và file xuất. Xem [thiết kế](docs/superpowers/specs/2026-10-21-container-tks1-source-design.md) và [kế hoạch triển khai](docs/superpowers/plans/2026-10-21-container-tks1-source.md).
+
 - **Hàng dự kiến — Báo cáo hàng hóa**: module `server/productContainers/` đọc 6 sheet YIWU, VK-DUNG, HÀ BẮC, SD, GDONG, KHÁC của workbook TKS2 ĐẶT CONT bằng service account chỉ đọc mỗi 10 phút (ghi khác biệt, version chỉ đổi khi nội dung đổi); lưu snapshot PostgreSQL độc lập KiotViet và doanh số chốt đêm. Hai cột Đã bốc/Chưa bốc nằm sau nhóm Đứt HN/SG và trước Ngày cần đặt (thứ tự sheet BC CHUNG, 34 cột từ 19/10/2026), dùng chung cho web và xuất Excel/HTML. Hộp chi tiết hiện đồng thời Doanh số theo khách và Hàng dự kiến; quyền `reports.overview.containers.full` kiểm soát các cột hạn chế tại máy chủ; mọi tài khoản có quyền báo cáo đều tra cứu được CONT trạng thái 1–5. Xem [kế hoạch và prompt](tasks/plan-product-report-containers.md).
 
 - **Báo cáo Marketing** tại `/reports/#marketing` hỗ trợ tập Pancake độc lập (PostgreSQL), KiotViet cho doanh số, Sheets cho ADS; gồm BC tháng, Check tỷ lệ nhận số, Sao lưu SĐT và Chi phí. Bấm dòng tổng quan mở hộp chi tiết; quyền `reports.marketing` mặc định Quản lý, Trợ lý, Nhân viên Marketing. Chỉ đọc, giữ kết quả công thức Sheets, làm mới khi đang xem mỗi 5 phút. Xem [cấu hình nguồn và nghiệm thu](docs/marketing-report-setup.md).
