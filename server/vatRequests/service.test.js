@@ -241,23 +241,35 @@ test('P chi cong yeu cau cung ma o 3/4; Q/R tu CONT chua ve; O tu sheet ton theo
       if (status !== 'pending') await setStatus(db, row.id, status);
     }
     await db.exec(`INSERT INTO product_container_lines(sheet_name,sheet_order,container_row,source_row,product_code,product_key,container_name,status,status_label,quantity,eta)
-      VALUES ('YIWU',0,1,2,'014XOAN','014xoan','CONT A',1,'1',100,'DK 14-16/11'),
-             ('YIWU',0,3,4,'014XOAN','014xoan','CONT B',3,'3',50,'DK 28/10'),
-             ('SD',1,1,2,'014XOAN','014xoan','CONT C',4,'4',999,'DK 1/10')`);
+      VALUES ('YIWU',0,1,2,'014XOAN','014xoan','CONT A',1,'1. Chưa lịch',100,'DK 14-16/11'),
+             ('YIWU',0,3,4,'014XOAN','014xoan','CONT B',3,'3. Đã bốc',50,'DK 28/10'),
+             ('SD',1,1,2,'014XOAN','014xoan','CONT C',4,'4. Đã về',999,'DK 1/10')`);
     const data = await service.list(KT);
     const m = data.metrics['014xoan'];
     assert.equal(m.pendingInsertQty, 200);
-    assert.equal(m.incomingQty, 150);
+    assert.equal(m.incomingContainer, 'CONT B', 'cont chua ve som nhat, bo qua cont da ve (4)');
+    assert.equal(m.nearestSchedule, '3. Đã bốc DK 28/10');
     assert.equal(m.nearestArrivalDate, '2026-10-28');
     assert.equal(m.vatStock.total, 1500);
     assert.deepEqual(m.vatStock.byCompany.map(c => c.company), ['TKS THẤP', 'VC']);
     assert.equal(data.stockStatus.available, true);
 
-    const metrics = await service.productMetrics('26daquan');
+    const metrics = await service.productMetrics(KT, '26daquan');
     assert.equal(metrics.productCode, '26DAQUAN');
     assert.equal(metrics.vatStock.total, 50, 'khong co trong Khop ma -> tra theo Mã kiot đại diện');
-    assert.equal(metrics.incomingQty, 0);
+    assert.equal(metrics.incomingContainer, '');
+    assert.equal(metrics.nearestSchedule, '');
     assert.equal(metrics.nearestArrivalDate, null);
+
+    // Sale (khong co quyen xu ly): khong nhan 4 so O/P/Q/R o bat ky API nao.
+    const saleData = await service.list(SALE);
+    assert.equal(saleData.rows.length, 6);
+    assert.deepEqual(saleData.metrics, {});
+    assert.equal(saleData.stockStatus, null);
+    assert.deepEqual(await service.productMetrics(SALE, '014xoan'), { productCode: '014XOAN', productName: 'Bát inox 2 lớp XOẮN 14cm', stockStatus: null });
+    const { results, stockStatus } = await service.lookupProducts(SALE, ['014xoan']);
+    assert.equal(stockStatus, null);
+    assert.deepEqual(Object.keys(results['014xoan']).sort(), ['found', 'latestOrder', 'productCode', 'productName']);
   } finally { await db.close(); }
 });
 
@@ -265,7 +277,7 @@ test('sheet ton loi: van tra danh sach, O = null, bao trang thai nguon', async (
   const { db, service } = await fixture();
   try {
     await service.create(SALE, NEW_REQUEST);
-    const data = await service.list(SALE);
+    const data = await service.list(KT);
     assert.equal(data.rows.length, 1);
     assert.equal(data.metrics['014xoan'].vatStock, null);
     assert.equal(data.stockStatus.available, false);
@@ -321,6 +333,34 @@ test('KT doi trang thai hang loat; 1 dong lech version -> huy ca lo', async () =
       return true;
     });
     assert.equal((await service.get(KT, a.id)).status, '2', 'ca lo bi huy');
+  } finally { await db.close(); }
+});
+
+test('KT keo / dan kieu Sheet: bulk nhan changes rieng tung dong, tron voi changes chung, tra rows ban moi', async () => {
+  const { db, service } = await fixture();
+  try {
+    const a = await service.create(SALE, NEW_REQUEST);
+    const b = await service.create(SALE2, NEW_REQUEST);
+    const c = await service.create(SALE, NEW_REQUEST);
+    const result = await service.bulkUpdate(KT, { changes: { arrivalDate: '2026-10-28' }, items: [
+      { id: a.id, version: 1, changes: { accountantNote: 'CONT A', status: '3' } },
+      { id: b.id, version: 1, changes: { accountantNote: 'CONT B', arrivalDate: null } },
+      { id: c.id, version: 1 }
+    ] });
+    assert.equal(result.updated, 3);
+    assert.deepEqual(result.rows.map(r => [r.id, r.status, r.accountantNote, r.arrivalDate, r.version]),
+      [[a.id, '3', 'CONT A', '2026-10-28', 2], [b.id, 'pending', 'CONT B', null, 2], [c.id, 'pending', '', '2026-10-28', 2]]);
+    const history = await service.history(KT, a.id);
+    assert.deepEqual(history.filter(h => h.action === 'update').map(h => h.field).sort(), ['accountant_note', 'arrival_date', 'status']);
+
+    const unchanged = await service.bulkUpdate(KT, { items: [{ id: a.id, version: 2, changes: { accountantNote: 'CONT A' } }, { id: b.id, version: 2, changes: { accountantNote: 'CONT B2' } }] });
+    assert.deepEqual([unchanged.updated, unchanged.rows.map(r => r.id)], [1, [b.id]], 'dong khong doi gia tri thi bo qua');
+
+    await assert.rejects(service.bulkUpdate(KT, { items: [{ id: a.id, version: 2, changes: { quantity: 1 } }] }), { statusCode: 403, code: 'FIELD_FORBIDDEN' });
+    await assert.rejects(service.bulkUpdate(KT, { items: [{ id: a.id, version: 2 }] }), { statusCode: 400 });
+    await assert.rejects(service.bulkUpdate(KT, { items: [{ id: a.id, version: 2, changes: { accountantNote: 'x' } }, { id: b.id, version: 2, changes: { accountantNote: 'y' } }] }),
+      error => { assert.equal(error.statusCode, 409); assert.deepEqual(error.conflictIds, [b.id]); return true; });
+    assert.equal((await service.get(KT, a.id)).accountantNote, 'CONT A', 'lech version -> huy ca lo');
   } finally { await db.close(); }
 });
 
@@ -398,7 +438,7 @@ test('tra nhieu ma cung luc: ten SP, so lieu va gia VAT gan nhat; ma khong co ->
   const { db, service } = await fixture();
   try {
     await service.createMany(SALE, { submissionId: 's', items: [{ ...NEW_REQUEST, unitPrice: 12000 }] });
-    const { results } = await service.lookupProducts(['014XOAN', ' 26daquan ', 'KHONGCO']);
+    const { results } = await service.lookupProducts(KT, ['014XOAN', ' 26daquan ', 'KHONGCO']);
     assert.equal(results['014xoan'].productName, 'Bát inox 2 lớp XOẮN 14cm');
     assert.equal(results['014xoan'].latestOrder.price, 12000);
     assert.equal(results['014xoan'].pendingInsertQty, 0);

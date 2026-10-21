@@ -20,7 +20,7 @@
     rows: [], metrics: {}, sales: [], statuses: [], stockStatus: null, truncated: false,
     preset: 'all', saleFilter: '', query: '', from: '', to: '',
     groupByProduct: false, sortKey: '', sortDir: 'asc', page: 1, selected: new Set(), loading: false, error: '',
-    editing: null, requestSeq: 0
+    editing: null, requestSeq: 0, grid: null, undo: null
   };
 
   // ---------- Tiện ích ----------
@@ -91,13 +91,18 @@
       { key: 'saleNote', label: 'Ghi chú', width: 115, mobileHidden: true },
       { key: 'status', label: 'KT phản hồi', width: state.canProcess ? 150 : 128 },
       { key: 'accountantNote', label: 'KT note cho sale', width: 118, mobileHidden: true },
-      { key: 'arrivalDate', label: 'Ngày về', width: state.canProcess ? 132 : 100, mobileHidden: true, nowrap: true },
-      { key: 'vatStock', label: 'Tồn VAT', width: 74, num: true, mobileHidden: true },
-      { key: 'pendingQty', label: 'SLG tổng cần khai', width: 74, num: true, mobileHidden: true },
-      { key: 'incomingQty', label: 'Dự kiến hàng về', width: 74, num: true, mobileHidden: true },
-      { key: 'nearestArrival', label: 'Dự kiến ngày về gần nhất', width: 106, mobileHidden: true },
-      { key: 'actions', label: 'Thao tác', width: 96, locked: true }
+      { key: 'arrivalDate', label: 'Ngày về', width: state.canProcess ? 132 : 100, mobileHidden: true, nowrap: true }
     );
+    // 4 cột số liệu chỉ dành cho KT (server cũng không gửi cho sale). Hàng về = cont chưa về sớm nhất (Tên Cont + Lịch/Trạng thái).
+    if (state.canProcess) {
+      list.push(
+        { key: 'vatStock', label: 'Tồn VAT', width: 74, num: true, mobileHidden: true },
+        { key: 'pendingQty', label: 'SLG tổng cần khai', width: 74, num: true, mobileHidden: true },
+        { key: 'incomingContainer', label: 'Dự kiến hàng về', width: 110, mobileHidden: true },
+        { key: 'nearestSchedule', label: 'Dự kiến ngày về gần nhất', width: 130, mobileHidden: true }
+      );
+    }
+    list.push({ key: 'actions', label: 'Thao tác', width: 96, locked: true });
     return list;
   }
 
@@ -144,26 +149,20 @@
       case 'total': return fmtNumber(row.totalAmount);
       case 'fullVat': return row.fullVat ? '<span class="vr-tag vr-tag-strong">Full VAT</span>' : '<span class="vr-muted">Không full VAT</span>';
       case 'saleNote': return escapeHtml(row.saleNote);
-      case 'status':
-        if (state.canProcess) {
-          return `<select class="vr-inline vr-status-select" data-inline="status" data-status="${escapeHtml(row.status)}" data-id="${row.id}" aria-label="Trạng thái yêu cầu ${row.id}">` +
-            state.statuses.map(s => `<option value="${s.value}"${s.value === row.status ? ' selected' : ''}>${escapeHtml(s.label)}</option>`).join('') + '</select>';
-        }
-        return `<span class="vr-badge" data-status="${escapeHtml(row.status)}">${escapeHtml(row.statusLabel)}</span>`;
-      case 'accountantNote':
-        if (state.canProcess) return `<input class="vr-inline" type="text" maxlength="1000" data-inline="accountantNote" data-id="${row.id}" value="${escapeHtml(row.accountantNote)}" aria-label="KT note yêu cầu ${row.id}">`;
-        return escapeHtml(row.accountantNote);
-      case 'arrivalDate':
-        if (state.canProcess) return `<input class="vr-inline" type="date" data-inline="arrivalDate" data-id="${row.id}" value="${escapeHtml(row.arrivalDate || '')}" aria-label="Ngày về yêu cầu ${row.id}">`;
-        return escapeHtml(fmtDate(row.arrivalDate));
+      // 3 cột KT hiện chữ như sale; KT nháy đúp / Enter / gõ phím mới mở ô sửa (editorHtml) — kiểu Google Sheet.
+      case 'status': return `<span class="vr-badge" data-status="${escapeHtml(row.status)}">${escapeHtml(row.statusLabel)}</span>`;
+      case 'accountantNote': return escapeHtml(row.accountantNote);
+      case 'arrivalDate': return escapeHtml(fmtDate(row.arrivalDate));
       case 'vatStock':
         if (!m || !m.vatStock) return '<span class="vr-muted" title="Chưa khớp mã VAT hoặc chưa đọc được sheet tồn">—</span>';
         return `<button type="button" class="vr-link" data-stock="${escapeHtml(row.productKey)}" title="Xem tồn theo công ty">${fmtNumber(m.vatStock.total)}</button>`;
       case 'pendingQty': return m ? fmtNumber(m.pendingInsertQty) : '';
-      case 'incomingQty': return m ? fmtNumber(m.incomingQty) : '';
-      case 'nearestArrival':
+      case 'incomingContainer':
         if (!m) return '';
-        return m.nearestArrivalDate ? escapeHtml(fmtDate(m.nearestArrivalDate)) : `<span class="vr-muted">${escapeHtml(m.nearestArrivalText)}</span>`;
+        return m.incomingContainer ? escapeHtml(m.incomingContainer) : '<span class="vr-muted" title="Không có cont chưa về">—</span>';
+      case 'nearestSchedule':
+        if (!m) return '';
+        return m.nearestSchedule ? escapeHtml(m.nearestSchedule) : '<span class="vr-muted">—</span>';
       case 'actions': {
         // Xóa nằm trong hộp sửa; nháy đúp / chuột phải vào dòng cũng mở hộp này.
         const lock = row.isLockedForSale
@@ -181,18 +180,154 @@
   function rowHtml(row, cols) {
     const classes = [row.isLockedForSale ? 'is-locked' : '', row.isMine ? 'is-mine' : ''].filter(Boolean).join(' ');
     const cellClass = col => [col.num ? 'num' : '', col.num || col.nowrap ? 'vr-nowrap' : ''].filter(Boolean).join(' ');
+    const editable = col => (isGridEditable(col.key) ? ' data-editable="true" title="Nháy đúp hoặc Enter để sửa; kéo chấm góc để nhân bản"' : '');
     return `<tr data-id="${row.id}" tabindex="0"${classes ? ` class="${classes}"` : ''} title="Nháy đúp để ${row.canEditSale ? 'sửa' : 'xem lịch sử'}">` +
-      cols.map(col => `<td data-field="${col.key}"${cellClass(col) ? ` class="${cellClass(col)}"` : ''}>${cellHtml(col, row)}</td>`).join('') + '</tr>';
+      cols.map(col => `<td data-field="${col.key}"${cellClass(col) ? ` class="${cellClass(col)}"` : ''}${editable(col)}>${cellHtml(col, row)}</td>`).join('') + '</tr>';
+  }
+
+  // ---------- Ô KT kiểu Google Sheet (vat-request-grid.js) ----------
+  const GRID_EDITABLE = ['status', 'accountantNote', 'arrivalDate'];
+  function isGridEditable(field) { return state.canProcess && GRID_EDITABLE.includes(field); }
+
+  function editorHtml(field, row) {
+    if (field === 'status') {
+      return `<select class="vr-inline vr-status-select" data-inline="status" data-status="${escapeHtml(row.status)}" data-id="${row.id}" aria-label="Trạng thái yêu cầu ${row.id}">` +
+        state.statuses.map(s => `<option value="${s.value}"${s.value === row.status ? ' selected' : ''}>${escapeHtml(s.label)}</option>`).join('') + '</select>';
+    }
+    if (field === 'accountantNote') return `<input class="vr-inline" type="text" maxlength="1000" data-inline="accountantNote" data-id="${row.id}" value="${escapeHtml(row.accountantNote)}" aria-label="KT note yêu cầu ${row.id}">`;
+    return `<input class="vr-inline" type="date" data-inline="arrivalDate" data-id="${row.id}" value="${escapeHtml(row.arrivalDate || '')}" aria-label="Ngày về yêu cầu ${row.id}">`;
+  }
+
+  /** Mở ô sửa trong ô KT; `text` = phím vừa gõ (ô chữ thay bằng phím đó, ô trạng thái chọn mục bắt đầu bằng phím đó). */
+  function startEdit(td, { text } = {}) {
+    const row = state.rows.find(r => r.id === Number(td.closest('tr').dataset.id));
+    const field = td.dataset.field;
+    if (!row || !isGridEditable(field) || td.querySelector('[data-inline]')) return;
+    td.innerHTML = editorHtml(field, row);
+    const control = td.querySelector('[data-inline]');
+    if (text && field === 'accountantNote') control.value = text;
+    if (text && field === 'status') {
+      const match = state.statuses.find(s => s.label.toLowerCase().startsWith(text.toLowerCase()));
+      if (match) { control.value = match.value; control.dataset.status = match.value; }
+    }
+    control.focus();
+    if (control.type === 'text') control.setSelectionRange(control.value.length, control.value.length);
+  }
+
+  /** Chữ dán / gõ -> giá trị lưu; undefined = không hợp lệ (bỏ ô). */
+  function parseCellText(field, text) {
+    const value = String(text ?? '').trim();
+    if (field === 'accountantNote') return value.slice(0, 1000);
+    if (field === 'arrivalDate') {
+      if (!value) return null;
+      const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(value);
+      const vn = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2}|\d{4})$/.exec(value);
+      if (!iso && !vn) return undefined;
+      const [y, m, d] = (iso ? [iso[1], iso[2], iso[3]] : [vn[3].length === 2 ? '20' + vn[3] : vn[3], vn[2], vn[1]]).map(Number);
+      const date = new Date(Date.UTC(y, m - 1, d));
+      if (date.getUTCFullYear() !== y || date.getUTCMonth() !== m - 1 || date.getUTCDate() !== d) return undefined;
+      return date.toISOString().slice(0, 10);
+    }
+    if (!value) return undefined; // trạng thái không để trống được
+    const lower = value.toLowerCase();
+    const exact = state.statuses.find(s => s.value.toLowerCase() === lower || s.label.toLowerCase() === lower);
+    if (exact) return exact.value;
+    const digit = /^([0-9])(?:\D|$)/.exec(value);
+    const byDigit = digit && state.statuses.find(s => s.value === digit[1]);
+    return byDigit ? byDigit.value : undefined;
+  }
+
+  /** Chữ chép ra khi Ctrl+C: số trơn (không dấu phẩy), ngày dd/mm/yyyy, trạng thái theo nhãn. */
+  function copyText(id, field) {
+    const row = state.rows.find(r => r.id === id);
+    if (!row) return '';
+    const m = metricFor(row) || {};
+    const plain = value => (value === null || value === undefined ? '' : String(value));
+    switch (field) {
+      case 'createdAt': return fmtDateTime(row.createdAt);
+      case 'sale': return row.createdByName || '';
+      case 'customer': return row.customerName || '';
+      case 'productCode': return row.productCode || '';
+      case 'productName': return row.productName || '';
+      case 'quantity': return plain(row.quantity);
+      case 'unitPrice': return plain(row.unitPrice);
+      case 'total': return plain(row.totalAmount);
+      case 'fullVat': return row.fullVat ? 'Full VAT' : 'Không full VAT';
+      case 'saleNote': return row.saleNote || '';
+      case 'status': return statusLabel(row.status);
+      case 'accountantNote': return row.accountantNote || '';
+      case 'arrivalDate': return fmtDate(row.arrivalDate);
+      case 'vatStock': return m.vatStock ? plain(m.vatStock.total) : '';
+      case 'pendingQty': return plain(m.pendingInsertQty);
+      case 'incomingContainer': return m.incomingContainer || '';
+      case 'nearestSchedule': return m.nearestSchedule || '';
+      default: return '';
+    }
+  }
+
+  function gridCellValue(id, field) {
+    const row = state.rows.find(r => r.id === id);
+    return row ? row[field] ?? (field === 'arrivalDate' ? null : '') : undefined;
+  }
+
+  /** Kéo / dán / xóa nhiều ô: gom theo dòng, bỏ ô không đổi / không hợp lệ, lưu 1 lần qua PATCH /bulk. */
+  async function applyGridEdits(edits, { skipped = 0 } = {}) {
+    if (!state.canProcess) return;
+    const byId = new Map();
+    let invalid = skipped;
+    for (const edit of edits) {
+      const row = state.rows.find(r => r.id === edit.id);
+      const value = 'value' in edit ? edit.value : parseCellText(edit.field, edit.text);
+      if (!row || value === undefined) { invalid++; continue; }
+      if ((row[edit.field] ?? '') === (value ?? '')) continue;
+      if (!byId.has(row.id)) byId.set(row.id, { row, changes: {} });
+      byId.get(row.id).changes[edit.field] = value;
+    }
+    const skippedNote = invalid ? ` Bỏ qua ${invalid} ô không hợp lệ hoặc nằm ngoài cột KT / trang này.` : '';
+    if (!byId.size) { setStatus(`Không có ô nào thay đổi.${skippedNote}`, invalid ? 'warn' : ''); return; }
+    const entries = [...byId.values()];
+    const undo = entries.map(({ row, changes }) => ({ id: row.id, changes: Object.fromEntries(Object.keys(changes).map(field => [field, gridCellValue(row.id, field)])) }));
+    await saveGridChanges(entries.map(({ row, changes }) => ({ id: row.id, version: row.version, changes })), { undo, note: skippedNote });
+  }
+
+  async function saveGridChanges(items, { undo = null, note = '' } = {}) {
+    state.undo = null;
+    setStatus(`Đang lưu ${items.length} yêu cầu…`);
+    try {
+      const result = await api('/bulk', { method: 'PATCH', body: { items } });
+      (result.rows || []).forEach(replaceRow);
+      // Đổi trạng thái làm đổi SLG cần khai -> nạp lại cả danh sách cho số liệu đồng nhất.
+      if (items.some(item => Object.hasOwn(item.changes, 'status'))) await load(); else render();
+      if (undo) {
+        state.undo = undo;
+        setStatus(`Đã cập nhật ${result.updated} yêu cầu.${note}`, note ? 'warn' : 'ok');
+        $('vrStatus').insertAdjacentHTML('beforeend', ' <button type="button" class="vr-undo" id="vrUndo" data-grid-keep>Hoàn tác</button>');
+      } else {
+        setStatus(`Đã hoàn tác ${result.updated} yêu cầu.`, 'ok');
+      }
+    } catch (error) {
+      setStatus(error.message, error.status === 409 ? 'warn' : 'error');
+      if (error.status === 409) await load(); else render();
+    }
+  }
+
+  async function undoGrid() {
+    const undo = state.undo;
+    if (!undo) return;
+    const items = undo.map(entry => ({ id: entry.id, version: (state.rows.find(r => r.id === entry.id) || {}).version, changes: entry.changes }));
+    await saveGridChanges(items);
   }
 
   function groupHeaderHtml(key, rows, cols) {
     const first = rows[0];
-    const m = state.metrics[key] || {};
-    const stock = m.vatStock ? fmtNumber(m.vatStock.total) : '—';
-    const arrival = m.nearestArrivalDate ? fmtDate(m.nearestArrivalDate) : (m.nearestArrivalText || '—');
+    const m = state.metrics[key];
     const pick = state.canProcess ? `<input type="checkbox" data-select-group="${escapeHtml(key)}" aria-label="Chọn cả mã ${escapeHtml(first.productCode)}"> ` : '';
+    // Số liệu tồn / hàng về chỉ KT thấy (sale không nhận metrics).
+    const meta = state.canProcess && m
+      ? ` · Tồn VAT ${m.vatStock ? fmtNumber(m.vatStock.total) : '—'} · Cần khai ${fmtNumber(m.pendingInsertQty || 0)} · Cont ${escapeHtml(m.incomingContainer || '—')} · Lịch ${escapeHtml(m.nearestSchedule || '—')}`
+      : '';
     return `<tr class="vr-group-row"><td colspan="${cols.length}">${pick}<strong>${escapeHtml(first.productCode)}</strong> — ${escapeHtml(first.productName)}` +
-      `<span class="vr-group-meta">${rows.length} yêu cầu · Tồn VAT ${stock} · Cần khai ${fmtNumber(m.pendingInsertQty || 0)} · Đang về ${fmtNumber(m.incomingQty || 0)} · Gần nhất ${escapeHtml(arrival)}</span></td></tr>`;
+      `<span class="vr-group-meta">${rows.length} yêu cầu${meta}</span></td></tr>`;
   }
 
   // ---------- Sắp xếp theo cột (toàn bộ danh sách) ----------
@@ -215,8 +350,9 @@
       case 'arrivalDate': return row.arrivalDate || null;
       case 'vatStock': return m.vatStock ? m.vatStock.total : null;
       case 'pendingQty': return m.pendingInsertQty ?? null;
-      case 'incomingQty': return m.incomingQty ?? null;
-      case 'nearestArrival': return m.nearestArrivalDate || null;
+      case 'incomingContainer': return m.incomingContainer || null;
+      // Ngày đọc được đứng trước theo ngày; lịch chưa có ngày xếp sau theo chữ.
+      case 'nearestSchedule': return m.nearestSchedule ? (m.nearestArrivalDate ? 'a' + m.nearestArrivalDate : 'b' + m.nearestSchedule) : null;
       default: return null;
     }
   }
@@ -306,20 +442,21 @@
     updateSortHeaders();
     renderSource();
     if (window.TKSTables) window.TKSTables.refresh($('vrTable'));
+    if (state.grid) state.grid.refresh();
     updateScrollButtons();
   }
 
   function renderSource() {
     const status = state.stockStatus;
     const el = $('vrSource');
-    if (!status) { el.textContent = ''; return; }
+    if (!status) { el.textContent = ''; el.dataset.kind = ''; return; }
     if (!status.available) {
       el.textContent = `Không đọc được sheet tồn VAT: ${status.error || 'lỗi không rõ'}. Cột Tồn VAT tạm để trống.`;
       el.dataset.kind = 'error';
       return;
     }
     el.dataset.kind = status.stale ? 'warn' : '';
-    el.textContent = `Tồn VAT lấy từ Google Sheets${status.loadedAt ? ', cập nhật lúc ' + fmtDateTime(status.loadedAt) : ''}${status.stale ? ' (bản cũ do sheet đang lỗi)' : ''}. Dự kiến hàng về lấy từ Hàng dự kiến (CONT chưa về).`;
+    el.textContent = `Tồn VAT lấy từ Google Sheets${status.loadedAt ? ', cập nhật lúc ' + fmtDateTime(status.loadedAt) : ''}${status.stale ? ' (bản cũ do sheet đang lỗi)' : ''}. Dự kiến hàng về = cont chưa về sớm nhất (Tên Cont + Lịch/Trạng thái ở Hàng dự kiến).`;
   }
 
   function renderBulk() {
@@ -459,6 +596,7 @@
     const field = input.dataset.inline;
     const value = input.value;
     if ((row[field] ?? '') === value) return;
+    state.undo = null; // Hoàn tác chỉ dành cho lần kéo / dán gần nhất
     input.disabled = true;
     try {
       const updated = await api('/' + id, { method: 'PATCH', body: { version: row.version, [field]: field === 'arrivalDate' ? (value || null) : value } });
@@ -709,12 +847,14 @@
     try {
       const m = await api('/metrics?code=' + encodeURIComponent(trimmed));
       if (seq !== infoSeq) return;
-      const arrival = m.nearestArrivalDate ? fmtDate(m.nearestArrivalDate) : (m.nearestArrivalText || '—');
-      target.innerHTML = `<strong>${escapeHtml(m.productName)}</strong>` +
-        `<span>Tồn VAT: <b>${m.vatStock ? fmtNumber(m.vatStock.total) : '—'}</b></span>` +
-        `<span>Đang chờ khai: <b>${fmtNumber(m.pendingInsertQty)}</b></span>` +
-        `<span>Dự kiến hàng về: <b>${fmtNumber(m.incomingQty)}</b></span>` +
-        `<span>Ngày về gần nhất: <b>${escapeHtml(arrival)}</b></span>`;
+      // Tồn / chờ khai / hàng về chỉ có khi là KT (server không gửi cho sale).
+      const hasMetrics = m.pendingInsertQty !== undefined;
+      target.innerHTML = `<strong>${escapeHtml(m.productName)}</strong>` + (hasMetrics
+        ? `<span>Tồn VAT: <b>${m.vatStock ? fmtNumber(m.vatStock.total) : '—'}</b></span>` +
+          `<span>Đang chờ khai: <b>${fmtNumber(m.pendingInsertQty)}</b></span>` +
+          `<span>Dự kiến hàng về: <b>${escapeHtml(m.incomingContainer || '—')}</b></span>` +
+          `<span>Ngày về gần nhất: <b>${escapeHtml(m.nearestSchedule || '—')}</b></span>`
+        : '');
       target.dataset.valid = 'true';
       loadPriceSuggestion(trimmed);
     } catch (error) {
@@ -979,8 +1119,16 @@
       const tr = target.closest('tr[data-id]');
       return tr ? state.rows.find(r => r.id === Number(tr.dataset.id)) : null;
     };
+    // Ô KT trên thiết bị cảm ứng: chạm là sửa (không có nháy đúp / kéo chọn vùng).
+    const coarse = window.matchMedia ? window.matchMedia('(pointer: coarse)') : null;
+    table.addEventListener('click', event => {
+      const td = event.target.closest('td[data-editable]');
+      if (td && coarse && coarse.matches && !event.target.closest(INTERACTIVE)) startEdit(td);
+    });
     table.addEventListener('dblclick', event => {
       if (event.target.closest(INTERACTIVE)) return;
+      const editableCell = event.target.closest('td[data-editable]');
+      if (editableCell) { startEdit(editableCell); return; }
       const row = rowOf(event.target);
       if (!row) return;
       if (window.getSelection) window.getSelection().removeAllRanges();
@@ -996,7 +1144,19 @@
       openMenu(row, x, y);
     });
     table.addEventListener('keydown', event => {
-      if (event.target.matches('tr[data-id]') && event.key === 'Enter') { event.preventDefault(); openRequest(rowOf(event.target)); }
+      if (event.target.matches('tr[data-id]') && event.key === 'Enter') { event.preventDefault(); openRequest(rowOf(event.target)); return; }
+      const control = event.target.closest('td [data-inline]');
+      if (!control) return;
+      // Ô sửa: Enter lưu (blur -> change), Esc bỏ sửa. Vùng chọn giữ nguyên (grid.refresh sau render).
+      if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); control.dataset.cancel = 'true'; render(); }
+      else if (event.key === 'Enter') { event.preventDefault(); control.blur(); }
+    });
+    table.addEventListener('focusout', event => {
+      const control = event.target.closest && event.target.closest('td [data-inline]');
+      if (!control || control.disabled || control.dataset.cancel || !control.isConnected) return;
+      const row = state.rows.find(r => r.id === Number(control.dataset.id));
+      // Không đổi giá trị thì đóng ô sửa; có đổi thì sự kiện change đã gọi saveInline (tự vẽ lại).
+      if (!row || (row[control.dataset.inline] ?? '') === control.value) render();
     });
 
     const menu = $('vrRowMenu');
@@ -1036,6 +1196,7 @@
     $('vrFormDelete').addEventListener('click', deleteEditing);
 
     $('vrBulkApply').addEventListener('click', applyBulk);
+    $('vrStatus').addEventListener('click', event => { if (event.target.closest('#vrUndo')) undoGrid(); });
     $('vrBulkClear').addEventListener('click', () => { state.selected.clear(); render(); });
 
     $('vrProduct').addEventListener('input', event => {
@@ -1084,7 +1245,7 @@
       : 'Gửi ORDER VAT cho kế toán. Yêu cầu ở trạng thái 0, 1, 2 đã khóa, không sửa được.';
     if (window.TKSVatRequestBatch) {
       state.batch = window.TKSVatRequestBatch.createBatchForm({
-        api, escapeHtml, fmtNumber, fmtDate, debounce, showDialog, closeDialog, userId: state.viewerId,
+        api, escapeHtml, fmtNumber, debounce, showDialog, closeDialog, userId: state.viewerId,
         onSubmitted: async result => {
           await load();
           setStatus(result.duplicate
@@ -1094,6 +1255,11 @@
       });
     }
     renderHead();
+    if (window.TKSVatGrid) {
+      state.grid = window.TKSVatGrid.attach($('vrTable'), {
+        canEdit: () => state.canProcess, editable: isGridEditable, copyText, cellValue: gridCellValue, startEdit, apply: applyGridEdits
+      });
+    }
     await load();
   }
 

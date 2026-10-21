@@ -44,20 +44,27 @@ function parseEta(rawValue, { now = new Date() } = {}) {
   return { date: iso(year, month, day), raw };
 }
 
-/**
- * Ngay ve gan nhat trong cac dong CONT chua ve: ngay doc duoc som nhat; neu khong dong
- * nao doc duoc thi tra chu cua dong dau tien co ghi.
- */
-function nearestArrival(etaValues, options) {
-  let best = null;
-  let firstText = '';
-  for (const value of etaValues) {
-    const parsed = parseEta(value, options);
-    if (!firstText && parsed.raw) firstText = parsed.raw;
-    if (parsed.date && (!best || parsed.date < best.date)) best = parsed;
-  }
-  if (best) return { date: best.date, text: best.raw };
-  return { date: null, text: firstText };
+// "Lich / Trang thai" = cot B + cot C cua dong nhan CONT, ghep y nhu expectedRefresh.js.
+function scheduleLabel(statusLabel, eta) {
+  return [statusLabel, eta].map(value => String(value == null ? '' : value).trim()).filter(Boolean).join(' ');
 }
 
-module.exports = { parseEta, nearestArrival, vietnamToday };
+/**
+ * Cont ve som nhat trong cac dong CONT chua ve (lines theo thu tu sheet): dong co ngay doc
+ * duoc som nhat; khong dong nao doc duoc thi dong dau tien co ghi ngay ve, roi dong dau tien.
+ * -> { containerName, scheduleLabel, date } (date chi de sap xep; null khi khong doc duoc).
+ */
+function nearestContainer(lines, options) {
+  let best = null;
+  let firstWithEta = null;
+  for (const line of lines) {
+    const parsed = parseEta(line.eta, options);
+    if (!firstWithEta && parsed.raw) firstWithEta = line;
+    if (parsed.date && (!best || parsed.date < best.date)) best = { line, date: parsed.date };
+  }
+  const line = best ? best.line : (firstWithEta || lines[0]);
+  if (!line) return { containerName: '', scheduleLabel: '', date: null };
+  return { containerName: String(line.containerName || '').trim(), scheduleLabel: scheduleLabel(line.statusLabel, line.eta), date: best ? best.date : null };
+}
+
+module.exports = { parseEta, nearestContainer, scheduleLabel, vietnamToday };

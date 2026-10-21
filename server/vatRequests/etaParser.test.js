@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseEta, nearestArrival } = require('./etaParser');
+const { parseEta, nearestContainer } = require('./etaParser');
 
 const NOW = { now: new Date('2026-10-20T03:00:00Z') };
 
@@ -23,8 +23,12 @@ test('khong doc duoc thi date=null, giu nguyen van', () => {
   assert.deepEqual(parseEta(null, NOW), { date: null, raw: '' });
 });
 
-test('ngay ve gan nhat: som nhat trong cac ngay doc duoc, khong co thi lay chu dau tien', () => {
-  assert.deepEqual(nearestArrival(['DK 14-16/11', '', 'DK 28/10', 'chưa có lịch'], NOW), { date: '2026-10-28', text: 'DK 28/10' });
-  assert.deepEqual(nearestArrival(['', 'chưa có lịch'], NOW), { date: null, text: 'chưa có lịch' });
-  assert.deepEqual(nearestArrival([], NOW), { date: null, text: '' });
+test('cont ve som nhat: dong co ngay doc duoc som nhat; khong co thi dong dau co ghi ngay, roi dong dau', () => {
+  const line = (containerName, statusLabel, eta) => ({ containerName, statusLabel, eta });
+  assert.deepEqual(nearestContainer([line('CONT A', '1. Chưa lịch', 'DK 14-16/11'), line('CONT B', '2', ''), line(' CONT C ', '3. Đã bốc', 'DK 28/10')], NOW),
+    { containerName: 'CONT C', scheduleLabel: '3. Đã bốc DK 28/10', date: '2026-10-28' });
+  assert.deepEqual(nearestContainer([line('CONT A', '1. Chưa lịch', ''), line('CONT B', '1', 'chưa có lịch')], NOW),
+    { containerName: 'CONT B', scheduleLabel: '1 chưa có lịch', date: null });
+  assert.deepEqual(nearestContainer([line('CONT A', '1. Chưa lịch', null)], NOW), { containerName: 'CONT A', scheduleLabel: '1. Chưa lịch', date: null });
+  assert.deepEqual(nearestContainer([], NOW), { containerName: '', scheduleLabel: '', date: null });
 });

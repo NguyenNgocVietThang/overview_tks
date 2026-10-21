@@ -14,7 +14,7 @@ const { getPool } = require('../db/pool');
 const { ROLES } = require('../auth/userRepository');
 const { hasFeature } = require('../auth/featureRegistry');
 const repository = require('./repository');
-const { nearestArrival } = require('./etaParser');
+const { nearestContainer } = require('./etaParser');
 const { createStockSource, lookupStock } = require('./stockSource');
 
 const STATUS_LABELS = Object.freeze({
@@ -218,8 +218,12 @@ function createVatRequestService({ pool = getPool(), stockSource = createStockSo
     }
   }
 
-  /** O / P / Q / R theo product_key. */
-  async function metricsFor(productKeys) {
+  /**
+   * O / P / Q / R theo product_key. Q/R = Ten Cont + Lich/Trang thai cua cont chua ve som nhat.
+   * Chi KT (quyen xu ly) thay 4 so nay: user khac -> metrics rong, stockStatus null, khong doc nguon.
+   */
+  async function metricsFor(user, productKeys) {
+    if (!canProcess(user)) return { metrics: {}, stockStatus: null };
     const keys = [...new Set(productKeys.filter(Boolean))];
     const [pending, incoming, stock] = await Promise.all([
       repository.pendingInsertQuantities(pool, keys),
@@ -228,14 +232,13 @@ function createVatRequestService({ pool = getPool(), stockSource = createStockSo
     ]);
     const metrics = {};
     for (const key of keys) {
-      const containers = incoming.get(key);
-      const arrival = containers ? nearestArrival(containers.etas, { now: now() }) : { date: null, text: '' };
+      const arrival = nearestContainer(incoming.get(key) || [], { now: now() });
       metrics[key] = {
         vatStock: stock.snapshot ? lookupStock(stock.snapshot, key) : null,
         pendingInsertQty: pending.get(key) || 0,
-        incomingQty: containers ? containers.quantity : 0,
-        nearestArrivalDate: arrival.date,
-        nearestArrivalText: arrival.text
+        incomingContainer: arrival.containerName,
+        nearestSchedule: arrival.scheduleLabel,
+        nearestArrivalDate: arrival.date
       };
     }
     return { metrics, stockStatus: stock.status };
@@ -244,7 +247,7 @@ function createVatRequestService({ pool = getPool(), stockSource = createStockSo
   async function list(user, filters = {}) {
     const { rows, truncated } = await repository.listRequests(pool, filters);
     const [{ metrics, stockStatus }, sales] = await Promise.all([
-      metricsFor(rows.map(row => row.product_key)),
+      metricsFor(user, rows.map(row => row.product_key)),
       repository.listCreators(pool)
     ]);
     return {
@@ -374,11 +377,11 @@ function createVatRequestService({ pool = getPool(), stockSource = createStockSo
   }
 
   /** Thong tin cho tung dong cua form nhieu dong: ten SP, O/P/Q/R, gia VAT gan nhat — 1 lan goi cho ca bang. */
-  async function lookupProducts(codes) {
+  async function lookupProducts(user, codes) {
     const list = (Array.isArray(codes) ? codes : []).map(code => String(code || '').trim()).filter(Boolean).slice(0, MAX_BATCH_ROWS);
     const products = await repository.findProducts(pool, list);
     const keys = [...products.keys()];
-    const [{ metrics, stockStatus }, prices] = await Promise.all([metricsFor(keys), repository.latestProductPrices(pool, keys)]);
+    const [{ metrics, stockStatus }, prices] = await Promise.all([metricsFor(user, keys), repository.latestProductPrices(pool, keys)]);
     const results = {};
     for (const code of list) {
       const key = code.toLowerCase();
@@ -455,31 +458,40 @@ function createVatRequestService({ pool = getPool(), stockSource = createStockSo
     return get(user, id);
   }
 
-  /** KT doi trang thai / ghi chu / ngay ve cho nhieu dong; 1 dong lech version -> huy ca lo (409). */
+  /**
+   * KT doi trang thai / ghi chu / ngay ve cho nhieu dong; 1 dong lech version -> huy ca lo (409).
+   * Moi item { id, version, changes? }: thay doi cua dong = changes chung + changes rieng (keo / dan
+   * kieu Sheet gui gia tri khac nhau tung dong). Tra them `rows` (ban moi) de giao dien hoan tac.
+   */
   async function bulkUpdate(user, payload) {
     if (!canProcess(user)) throw httpError(403, 'Bạn không có quyền xử lý ORDER VAT.', 'FEATURE_FORBIDDEN');
     const items = Array.isArray(payload && payload.items) ? payload.items : [];
     if (!items.length || items.length > 500) throw httpError(400, 'Chọn từ 1 đến 500 yêu cầu.', 'VALIDATION');
-    const { accountant } = splitPayload(payload.changes || {}, { accountant: true });
-    if (!Object.keys(accountant).length) throw httpError(400, 'Chưa chọn thay đổi nào.', 'VALIDATION');
-    const targets = items.map(item => ({ id: Number(item && item.id), version: parseVersion(item && item.version) }));
+    const shared = splitPayload(payload.changes || {}, { accountant: true }).accountant;
+    const targets = items.map(item => ({
+      id: Number(item && item.id),
+      version: parseVersion(item && item.version),
+      accountant: { ...shared, ...splitPayload((item && item.changes) || {}, { accountant: true }).accountant }
+    }));
     if (targets.some(item => !Number.isInteger(item.id) || item.id < 1)) throw httpError(400, 'Mã yêu cầu không hợp lệ.', 'VALIDATION');
+    if (targets.every(item => !Object.keys(item.accountant).length)) throw httpError(400, 'Chưa chọn thay đổi nào.', 'VALIDATION');
     const result = await repository.withTransaction(pool, async client => {
       const conflicts = [];
-      let updated = 0;
+      const updatedIds = [];
       for (const target of targets) {
         const row = await repository.getRequest(client, target.id, { forUpdate: true });
         if (!row || Number(row.version) !== target.version) { conflicts.push(target.id); continue; }
-        const { changes, history } = await planChanges(client, user, row, { sale: {}, accountant });
+        const { changes, history } = await planChanges(client, user, row, { sale: {}, accountant: target.accountant });
         if (!Object.keys(changes).length) continue;
         await repository.updateRequest(client, target.id, changes, target.version);
         await repository.insertHistory(client, history);
-        updated += 1;
+        updatedIds.push(target.id);
       }
       if (conflicts.length) throw httpError(409, `${conflicts.length} yêu cầu vừa được người khác cập nhật. Hãy tải lại rồi thử lại.`, 'VERSION_CONFLICT', { conflictIds: conflicts });
-      return { updated };
+      return { updatedIds };
     });
-    return result;
+    const rows = await Promise.all(result.updatedIds.map(id => repository.getRequest(pool, id)));
+    return { updated: result.updatedIds.length, rows: rows.filter(Boolean).map(row => serializeRow(row, user)) };
   }
 
   async function remove(user, id, versionValue) {
@@ -514,11 +526,11 @@ function createVatRequestService({ pool = getPool(), stockSource = createStockSo
     }));
   }
 
-  async function productMetrics(productCode) {
+  async function productMetrics(user, productCode) {
     const product = await repository.findProduct(pool, productCode);
     if (!product) throw httpError(404, 'Không tìm thấy mã SP.', 'PRODUCT_NOT_FOUND');
     const key = product.product_code.trim().toLowerCase();
-    const { metrics, stockStatus } = await metricsFor([key]);
+    const { metrics, stockStatus } = await metricsFor(user, [key]);
     return { productCode: product.product_code, productName: product.product_name, ...metrics[key], stockStatus };
   }
 
