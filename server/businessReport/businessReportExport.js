@@ -33,11 +33,13 @@ function filterRows(kind, rows, query = {}) {
   const q = fold(String(query.q || '').trim());
   const sale = String(query.sale || '');
   const team = String(query.team || '');
+  const level = String(query.level || '');
   const all = kind !== 'customers' || String(query.inactive || '') === '1';
   return rows.filter(r => {
     if (!all && !r.active) return false;
     if (sale && r.saleName !== sale) return false;
     if (team && r.team !== team) return false;
+    if (level && kind === 'customers' && String(r.priceLevel || '') !== level) return false;
     if (q && !fold([r.code, r.name, r.saleName, r.team].filter(Boolean).join(' ')).includes(q)) return false;
     return true;
   });

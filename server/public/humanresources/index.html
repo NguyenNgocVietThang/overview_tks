@@ -628,7 +628,7 @@
           <div class="admin-filters">
             <div class="search-box">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-              <input type="text" id="employeeSearchInput" placeholder="Tìm theo tên hoặc tài khoản..." oninput="handleFilterChange()">
+              <input type="text" id="employeeSearchInput" placeholder="Tìm theo tên hoặc tài khoản..." oninput="handleLeaveSearchInput()">
             </div>
             <select id="statusFilter" class="filter-select" onchange="handleStatusFilterChange()">
               <option value="">Tất cả trạng thái</option>
@@ -1404,6 +1404,7 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <script src="/shared/table-controls.js?v=20261016-1"></script>
+  <script src="/shared/fuzzy-search.js?v=20261021"></script>
   <script src="/shared/search-clear.js?v=20261009-1"></script>
   <script src="/shared/shared-nav.js?v=20261008"></script>
   <script src="/shared/table-align.js?v=20261017"></script>
@@ -2329,8 +2330,9 @@
       const department = document.getElementById('departmentFilter').value;
       if(branch && request.co_so !== branch) return false;
       if(department && departmentKey(request.bo_phan) !== departmentKey(department)) return false;
-      const employee = departmentKey(document.getElementById('employeeSearchInput').value);
-      if(employee && !departmentKey(request.ho_ten).includes(employee) && !departmentKey(request.web_username).includes(employee)) return false;
+      const employee = document.getElementById('employeeSearchInput').value;
+      const employeeText = [request.ho_ten, request.web_username].filter(Boolean).join(' ');
+      if(employee.trim() && !(window.TKSFuzzySearch ? window.TKSFuzzySearch.matches(employeeText, employee) : departmentKey(employeeText).includes(departmentKey(employee)))) return false;
       const from = document.getElementById('fromDateFilter').value;
       const to = document.getElementById('toDateFilter').value;
       if(from && request.end_date && request.end_date < from) return false;
@@ -2354,6 +2356,14 @@
     // ---------- Load danh sach ----------
     function handleFilterChange(){ syncLeaveCalendarSelection(); leavePaging.page = 1; loadLeaveRequests(); }
 
+    // O tim nhan vien loc gan dung ngay tren client (khong goi may chu); xoa het tu khoa cung chay lai ngay.
+    function handleLeaveSearchInput(){
+      syncLeaveCalendarSelection();
+      leavePaging.page = 1;
+      renderStats(rawLeaveRequests);
+      renderTable(rawLeaveRequests);
+    }
+
     // Trang thai loc phia client (khong gui len API) de o KPI van dem du moi trang thai
     // ke ca khi bang dang chi hien "Chua duyet".
     function handleStatusFilterChange(){ leavePaging.page = 1; renderTable(rawLeaveRequests); }
@@ -2368,14 +2378,13 @@
     async function loadLeaveRequests(silent){
       const version = ++leaveLoadVersion;
       const tbody = document.getElementById('leaveTableBody');
-      const employee = document.getElementById('employeeSearchInput').value.trim();
       const fromDate = document.getElementById('fromDateFilter').value;
       const toDate = document.getElementById('toDateFilter').value;
       const branch = selectedBranch('branchFilter');
       const department = document.getElementById('departmentFilter').value;
 
+      // Tu khoa nhan vien KHONG gui len may chu: matchesLeaveScope loc gan dung tren client.
       const params = new URLSearchParams();
-      if(employee) params.set('employee', employee);
       if(branch) params.set('branch', branch);
       if(department) params.set('department', department);
       if(fromDate) params.set('from', fromDate);
@@ -3148,17 +3157,24 @@
 
     function renderEmployeeDirectoryTable(){
       const tbody = document.getElementById('employeeDirectoryTableBody');
-      const keyword = (document.getElementById('employeeDirectorySearchInput').value || '').trim().toLowerCase();
+      const keyword = (document.getElementById('employeeDirectorySearchInput').value || '').trim();
       const branch = selectedBranch('employeeBranchFilter');
       const department = departmentKey(document.getElementById('employeeDepartmentFilter').value);
       const status = document.getElementById('employeeStatusFilter').value;
-      renderEmployeeDirectorySummary(branch, status);
+      renderEmployeeDirectorySummary(branch, status, keyword);
+      const fuzzy = window.TKSFuzzySearch;
+      const employeeText = e => [e.hoTen, e.boPhan, e.chucVu, e.soDienThoai].filter(Boolean).join(' ');
       const filtered = rawEmployeeDirectory.filter(e => {
         if(status && employeeStatusKey(e) !== status) return false;
         if(branch && e.coSo !== branch) return false;
         if(department && departmentKey(e.boPhan) !== department) return false;
-        return !keyword || [e.hoTen, e.boPhan, e.chucVu, e.soDienThoai].some(v => String(v || '').toLowerCase().includes(keyword));
+        return !keyword || fuzzy.matches(employeeText(e), keyword);
       }).sort(employeeNewestFirst);
+      // Co tu khoa: khop nhieu tu / nguyen cum xep truoc, dong diem giu thu tu moi nhat.
+      if(keyword){
+        const scores = new Map(filtered.map(e => [e, fuzzy.score(employeeText(e), keyword)]));
+        filtered.sort((a, b) => scores.get(b) - scores.get(a));
+      }
       if(!filtered.length){
         tbody.innerHTML = `<tr class="empty-row"><td colspan="${employeeCanManage ? EMPLOYEE_MANAGER_HEAD.length : EMPLOYEE_BASIC_HEAD.length}">${rawEmployeeDirectory.length ? 'Không tìm thấy nhân sự phù hợp.' : 'Chưa có dữ liệu nhân sự.'}</td></tr>`;
         paginateEmployeeDirectoryTable();
@@ -3178,12 +3194,13 @@
       paginateEmployeeDirectoryTable();
     }
 
-    function renderEmployeeDirectorySummary(branch, status){
+    function renderEmployeeDirectorySummary(branch, status, keyword){
       const total=document.getElementById('employeeSummaryTotal');
       const scope=document.getElementById('employeeSummaryScope');
       const departments=document.getElementById('employeeDepartmentSummary');
       if(!total || !scope || !departments) return;
-      const inBranch=rawEmployeeDirectory.filter(e => !branch || e.coSo === branch);
+      const employeeText=e => [e.hoTen, e.boPhan, e.chucVu, e.soDienThoai].filter(Boolean).join(' ');
+      const inBranch=rawEmployeeDirectory.filter(e => (!branch || e.coSo === branch) && (!keyword || window.TKSFuzzySearch.matches(employeeText(e), keyword)));
       // Tổng và số theo Bộ phận bám theo bộ lọc Trạng thái; LV/NV luôn hiện riêng để không phải lọc mới thấy NV.
       const inScope=inBranch.filter(e => !status || employeeStatusKey(e) === status);
       const working=inBranch.filter(e => employeeStatusKey(e) === 'active').length;

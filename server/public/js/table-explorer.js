@@ -11,6 +11,16 @@ function normalizeTableSearchText(value) {
     .trim();
 }
 
+// Tìm gần đúng dùng chung (shared/fuzzy-search.js): Node require, trình duyệt lấy window.TKSFuzzySearch.
+// Thiếu helper thì quay về khớp nguyên cụm như trước.
+function getTableFuzzy() {
+  if (typeof window !== 'undefined' && window.TKSFuzzySearch) return window.TKSFuzzySearch;
+  if (typeof module !== 'undefined' && module.exports && typeof require === 'function') {
+    try { return require('../shared/fuzzy-search.js'); } catch (error) { return null; }
+  }
+  return null;
+}
+
 function normalizeTableCode(value) {
   return String(value === undefined || value === null ? '' : value)
     .trim()
@@ -64,10 +74,13 @@ function filterTableItems(items, config, searchState) {
     return { items: list, requestedCodes: [], missingCodes: [] };
   }
 
+  const fuzzy = getTableFuzzy();
   return {
-    items: list.filter(function (item) {
-      return normalizeTableSearchText(options.searchText(item)).includes(normalizedQuery);
-    }),
+    items: fuzzy
+      ? fuzzy.filter(list, query, options.searchText)
+      : list.filter(function (item) {
+        return normalizeTableSearchText(options.searchText(item)).includes(normalizedQuery);
+      }),
     requestedCodes: [],
     missingCodes: []
   };
