@@ -38,7 +38,7 @@ function createExpectedArrivalsRouter({ repository = expectedRepository } = {}) 
   const loadFiltered = async req => {
     const data = await repository.getExpected();
     const fullAccess = canSeePrices(req);
-    return { data, fullAccess, rows: stripPriceFields(filterRows(data.rows, req.query), fullAccess) };
+    return { data, fullAccess, rows: stripPriceFields(filterRows(data.rows, fullAccess ? req.query : { ...req.query, source: '' }), fullAccess) };
   };
 
   // Danh sach truong cho hop thoai "Xuat file" dung chung (cung dang /api/business-report/export/fields).

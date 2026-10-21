@@ -12,7 +12,8 @@ const MAX_EXPORT_ROWS = 20000;
 const TITLE = 'Hàng hóa · Dự kiến hàng về';
 const FILE_BASE = 'TKS_Du_kien_hang_ve';
 const COLUMNS = Object.freeze([
-  { key: 'sheetName', label: 'Nguồn', type: 'text' },
+  // Nguon (ten sheet): chi nguoi co quyen reports.overview.containers.full thay / xuat / loc duoc.
+  { key: 'sheetName', label: 'Nguồn', type: 'text', fullOnly: true },
   { key: 'scheduleLabel', label: 'Lịch / Trạng thái', type: 'text' },
   { key: 'containerName', label: 'Tên Cont', type: 'text' },
   { key: 'productCode', label: 'Mã SP', type: 'text' },
@@ -28,15 +29,20 @@ const COLUMNS = Object.freeze([
   { key: 'vietnamPrice', label: 'Giá hàng về VN', type: 'number', decimals: 0, priceOnly: true }
 ]);
 const PRICE_ROW_KEYS = Object.freeze(COLUMNS.filter(c => c.priceOnly).map(c => c.key));
-const columnsFor = fullAccess => (fullAccess ? COLUMNS : COLUMNS.filter(c => !c.priceOnly));
+const columnsFor = fullAccess => (fullAccess ? COLUMNS : COLUMNS.filter(c => !c.priceOnly && !c.fullOnly));
 
 // Ban sao dong da bo cac truong gia khi khong co quyen (khong sua doi dong trong cache dung chung).
 function stripPriceFields(rows, fullAccess) {
   if (fullAccess) return rows;
+  // Ten nguon khong lo ra cho nguoi khong co quyen: thay bang ma an danh theo thu tu xuat hien trong lan tra nay
+  // (van phan biet duoc sheet khac nhau de nhan dien dong / gom cont).
+  const anonymous = new Map();
   return rows.map(row => {
     const copy = { ...row };
     for (const key of PRICE_ROW_KEYS) delete copy[key];
     delete copy.listedAt;
+    if (!anonymous.has(row.sheetName)) anonymous.set(row.sheetName, '#' + (anonymous.size + 1));
+    copy.sheetName = anonymous.get(row.sheetName);
     return copy;
   });
 }
@@ -114,9 +120,9 @@ function cellValue(row, column) {
   return value == null ? '' : String(value);
 }
 
-function noteLines(query, meta) {
+function noteLines(query, meta, fullAccess) {
   const notes = [];
-  if (query.source) notes.push(['Nguồn', String(query.source)]);
+  if (query.source && fullAccess) notes.push(['Nguồn', String(query.source)]);
   if (query.container) notes.push(['Cont', String(query.container)]);
   if (query.status) notes.push(['Trạng thái', String(query.status)]);
   if (query.q) notes.push(['Tìm kiếm', String(query.q)]);
@@ -138,7 +144,7 @@ async function createExportFile(format, rows, columnKeys, { query = {}, meta = n
         branch: 'Hà Nội + Sài Gòn',
         generatedAt: meta && meta.computedAt ? new Date(meta.computedAt) : new Date(),
         fileBase: FILE_BASE,
-        reportNotes: noteLines(query, meta)
+        reportNotes: noteLines(query, meta, fullAccess)
       },
       worksheets: [{
         key: 'expected',

@@ -3961,7 +3961,7 @@
                 <div class="panel-head">
                   <h2>Dòng hàng dự kiến về <span class="tag" id="tagExpectedArrivals">—</span></h2>
                   <div class="panel-head-actions expected-arrivals-filters">
-                    <select class="stockout-branch-select" id="expectedArrivalsSource" aria-label="Lọc theo nguồn">
+                    <select class="stockout-branch-select" id="expectedArrivalsSource" aria-label="Lọc theo nguồn" hidden>
                       <option value="">Tất cả nguồn</option>
                       <option value="YIWU">YIWU</option>
                       <option value="VK-DUNG">VK-DUNG</option>
@@ -3985,7 +3985,8 @@
                   <table class="fixed-table" data-table-key="dashboard-table-expected-arrivals">
                     <thead>
                       <tr>
-                        <th style="width:120px" data-column-key="nguon">Nguồn</th>
+                        <!-- Nguồn (cột + ô lọc #expectedArrivalsSource) chỉ dành cho fullAccess như 2 cột giá: máy chủ trả sheetName ẩn danh '#n' cho người còn lại. -->
+                        <th style="width:120px" data-column-key="nguon" data-full-column hidden data-column-unlisted="true">Nguồn</th>
                         <th style="width:190px" data-column-key="lich-trang-thai" data-hint="Trạng thái + ngày dự kiến về của cont (ô B + C dòng nhãn CONT trên sheet).">Lịch/Trạng thái</th>
                         <th style="width:130px" data-column-key="ten-cont">Tên Cont</th>
                         <th style="width:120px" data-column-key="ma-sp">Mã SP</th>
@@ -4289,6 +4290,7 @@
                 </div>
                 <div class="debt-warning-list" id="debtAgingWarning" role="status" aria-live="polite" hidden></div>
                 <div class="debt-filter-controls" aria-label="Bộ lọc tuổi nợ">
+                  <div class="debt-filter-field"><label for="debtAgingTeamFilter">Nhóm sale</label><select id="debtAgingTeamFilter" onchange="handleDebtAgingFilterChange()"><option value="">Tất cả nhóm sale</option></select></div>
                   <div class="debt-filter-field">
                     <label for="debtAgingSaleFilter">Sale</label>
                     <select id="debtAgingSaleFilter" onchange="handleDebtAgingFilterChange()"><option value="">Tất cả sale</option></select>
@@ -4309,6 +4311,7 @@
                         <th style="width:107px" data-column-key="co-so">Cơ sở</th>
                         <th style="width:318px" data-column-key="khach-hang">Khách hàng</th>
                         <th style="width:145px" data-column-key="sale">Sale</th>
+                        <th style="width:150px" data-column-key="sale-team">Nhóm sale</th>
                         <th style="width:110px" data-column-key="lich-tt">Lịch TT</th>
                         <th style="width:150px" data-column-key="no-hien-tai">Nợ hiện tại</th>
                         <th style="width:217px" data-column-key="no-qua-han">Nợ quá hạn</th>
@@ -4319,7 +4322,7 @@
                     </thead>
                     <tbody id="debtAgingRows">
                       <tr>
-                        <td colspan="9" class="table-note">Đang tải...</td>
+                        <td colspan="10" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -4366,6 +4369,8 @@
                 <div class="debt-reward-toolbar">
                   <label for="debtRewardMonth">Tháng thưởng/phạt</label>
                   <select id="debtRewardMonth" onchange="loadDebtPenaltyBoard(this.value)"><option value="">Tháng đang mở</option></select>
+                  <label for="debtPenaltyTeamFilter">Nhóm sale</label>
+                  <select id="debtPenaltyTeamFilter" onchange="handleDebtPenaltyTeamChange()"><option value="">Tất cả nhóm sale</option></select>
                   <span class="tag" id="debtRewardStatus" role="status">Đang tải</span>
                 </div>
                 <details class="debt-reward-rules">
@@ -4383,6 +4388,7 @@
                       <tr>
                         <th style="width:72px" data-column-key="hang">Hạng</th>
                         <th style="width:170px" data-column-key="sale">Sale</th>
+                        <th style="width:150px" data-column-key="sale-team">Nhóm sale</th>
                         <th style="width:80px" data-column-key="diem">Điểm</th>
                         <th style="width:120px" data-column-key="phat-moi-diem" title="Đơn vị đồng/điểm, hiển thị làm tròn đến đồng. Xếp hạng dùng tỷ lệ gốc chưa làm tròn.">Phạt/điểm (đồng)</th>
                         <th style="width:100px" data-column-key="so-ngay-bi-phat">Ngày bị phạt</th>
@@ -4394,7 +4400,7 @@
                     </thead>
                     <tbody id="debtPenaltyRows">
                       <tr>
-                        <td colspan="9" class="table-note">Đang tải...</td>
+                        <td colspan="10" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                     <tfoot id="debtPenaltyFoot"></tfoot>
@@ -4427,6 +4433,7 @@
                       <option value="all" selected>Tất cả</option>
                     </select>
                   </div>
+                  <div class="debt-filter-field"><label for="debtTeamFilter">Nhóm sale</label><select id="debtTeamFilter" onchange="handleDebtFilterChange()"><option value="">Tất cả nhóm sale</option></select></div>
                   <div class="debt-filter-field">
                     <label for="debtSaleFilter">Sale</label>
                     <select id="debtSaleFilter" onchange="handleDebtFilterChange()"><option value="">Tất cả sale</option></select>
@@ -4449,6 +4456,7 @@
                         <th style="width:60px" data-column-key="co-so">Cơ sở</th>
                         <th style="width:140px" data-column-key="khach-hang">Khách hàng</th>
                         <th style="width:150px" data-column-key="sale">Sale</th>
+                        <th style="width:150px" data-column-key="sale-team">Nhóm sale</th>
                         <th style="width:100px" data-column-key="lich-tt">Lịch TT</th>
                         <th style="width:135px" data-column-key="no-hien-tai">Nợ hiện tại</th>
                         <th style="width:130px" data-column-key="no-qua-han">Nợ quá hạn</th>
@@ -4466,7 +4474,7 @@
                     </thead>
                     <tbody id="debtManagementRows">
                       <tr>
-                        <td colspan="16" class="table-note">Đang tải...</td>
+                        <td colspan="17" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -4836,6 +4844,7 @@
       inventoryHistory: { filter: { mode: 'days', days: 30 }, rows: [], loaded: false, failed: false, requestId: 0 },
       debtFilters: {
         queue: 'all',
+        team: '',
         sale: '',
         schedule: '',
         search: ''
@@ -4844,8 +4853,9 @@
       debtFlashCustomerKey: '',
       // Bang Tuoi no theo hoa don (muc 3): doc /api/debt-management/aging (bang tinh san, migration 0059).
       debtAging: { available: false, customers: [], refreshedAt: null, loaded: false, loading: false, failed: false, requestId: 0 },
-      debtAgingFilters: { sale: '', schedule: '', search: '' },
+      debtAgingFilters: { team: '', sale: '', schedule: '', search: '' },
       // Bảng thưởng/phạt sale: điểm và hạng HN + SG, bản chốt tháng từ /api/debt-management/penalty-board.
+      debtPenaltyTeam: '',
       debtPenaltyBoard: { month: null, selectedMonth: null, months: [], rows: [], days: [], summary: {}, coverage: {}, loaded: false, loading: false, failed: false, requestId: 0 },
       tableSorts: {},
       tablePages: {}, // { [tableKey]: currentPage } — xem renderPaginatedRows()
@@ -6275,6 +6285,9 @@
           debtSchedule: state.debtFilters.schedule,
           debtSearch: state.debtFilters.search,
           debtSort: state.tableSorts.debtManagementRows || null,
+          debtTeam: state.debtFilters.team,
+          debtAgingTeam: state.debtAgingFilters.team,
+          debtPenaltyTeam: state.debtPenaltyTeam,
           debtAgingSale: state.debtAgingFilters.sale,
           debtAgingSchedule: state.debtAgingFilters.schedule,
           debtAgingSearch: state.debtAgingFilters.search,
@@ -7890,7 +7903,7 @@
     // Bấm dòng mở hộp "Chi tiết hàng dự kiến" của mã SP (không gọi API): dòng là tr.doc-row, Tab tới được, Enter/Space mở.
     function expectedArrivalsRowHtml(r) {
       return '<tr class="doc-row" tabindex="0" title="Bấm để xem tất cả CONT của mã này" data-table-item-id="' + escapeHtml(r.sheetName + ':' + r.sourceRow) + '">' +
-        expectedArrivalsTextCell(r.sheetName) +
+        (expectedArrivals.fullAccess === true ? expectedArrivalsTextCell(r.sheetName) : '<td></td>') +
         expectedArrivalsTextCell(r.scheduleLabel) +
         expectedArrivalsTextCell(r.containerName) +
         expectedArrivalsTextCell(r.productCode, 'mono') +
@@ -7913,6 +7926,10 @@
     const EXPECTED_ARRIVALS_DEFAULT_HIDDEN = ['mau-sac', 'ghi-chu-sale'];
     function applyExpectedArrivalsColumnView(full) {
       const profile = full ? 'full' : 'standard';
+      // Ô lọc Nguồn đi cùng cột Nguồn: chỉ hiện khi có quyền; mất quyền thì xóa lựa chọn cũ (máy chủ cũng bỏ qua ?source= với người này).
+      const sourceSelect = document.getElementById('expectedArrivalsSource');
+      sourceSelect.hidden = !full;
+      if (!full) sourceSelect.value = '';
       if (profile === expectedArrivalsColumnProfile) return;
       const table = document.getElementById('expectedArrivalsRows').closest('table');
       table.querySelectorAll('thead th[data-full-column]').forEach(function (cell) {
@@ -7935,7 +7952,7 @@
     }
 
     function expectedArrivalsFilteredRows() {
-      const source = document.getElementById('expectedArrivalsSource').value;
+      const source = expectedArrivals.fullAccess === true ? document.getElementById('expectedArrivalsSource').value : '';
       const container = document.getElementById('expectedArrivalsContainer').value;
       const status = document.getElementById('expectedArrivalsStatus').value;
       return expectedArrivals.rows.filter(function (r) {
@@ -8022,7 +8039,7 @@
     // Bộ lọc đang áp trên bảng -> tham số URL cho API xuất riêng (danh sách trường + file dùng chung hộp thoại Xuất file).
     function expectedArrivalsExportQuery() {
       const params = new URLSearchParams();
-      const source = document.getElementById('expectedArrivalsSource').value;
+      const source = expectedArrivals.fullAccess === true ? document.getElementById('expectedArrivalsSource').value : '';
       const container = document.getElementById('expectedArrivalsContainer').value;
       const status = document.getElementById('expectedArrivalsStatus').value;
       const search = getTableSearchState('expectedArrivals');
@@ -8134,6 +8151,7 @@
         .then(res => res.json().catch(() => ({})).then(body => { if (!res.ok) throw new Error(body.error || 'HTTP ' + res.status); return body; }))
         .then(body => {
           showToast('Đã chuyển ' + saleName + ' sang ' + body.team + '.', 'success');
+          if (state.viewMeta.debt) state.viewMeta.debt.at = 0;
           loadBusinessReport(true);
         })
         .catch(err => {
@@ -8678,8 +8696,9 @@
       const rows = key
         ? expectedArrivals.rows.filter(function (r) { return expectedArrivalCodeKey(r.productCode) === key; })
         : expectedArrivals.rows.filter(function (r) { return r.sheetName === item.sheetName && r.sourceRow === item.sourceRow; });
-      const statuses = [1, 2, 3, 4, 5].map(function (status) {
-        const matching = rows.filter(function (r) { return Number(r.status) === status; });
+      // Trạng thái 4 và 5 cũ đã gộp thành "4.Đã về": dòng còn mang số 5 (chưa sửa ở sheet) dồn vào thẻ 4.
+      const statuses = [1, 2, 3, 4].map(function (status) {
+        const matching = rows.filter(function (r) { return status === 4 ? Number(r.status) >= 4 : Number(r.status) === status; });
         return { status: status, label: expectedArrivalStatusText(status), lines: matching.length, quantity: sumBy(matching, function (r) { return r.quantity; }) };
       });
       const containers = new Set(rows.map(function (r) { return r.sheetName + '\u0000' + r.containerName; })).size;
@@ -9411,7 +9430,7 @@
 
     const DEBT_WORKFLOW_STATUSES = ['Chưa xử lý', 'Đã xử lý', 'Bỏ qua'];
     const DEBT_SORT_FIELDS = [
-      'branchLabel', 'customerName', 'sale', 'scheduleDays', 'currentDebt', 'overdueDebt',
+      'branchLabel', 'customerName', 'sale', 'saleTeam', 'scheduleDays', 'currentDebt', 'overdueDebt',
       'inScheduleDebt', 'currentDebtToSalesRatio', 'overdueToSalesRatio', 'alertCodes', 'overdueStreak', 'previousPenaltyAmount', 'penaltyAmount',
       'saleFeedback', 'managerFeedback', 'workflowStatus'
     ];
@@ -9514,6 +9533,7 @@
         if (filters.queue === 'needsAction' && !customer.needsAction) return false;
         if (filters.queue === 'currentDebt' && !(Number(customer.currentDebt) > 0)) return false;
         if (filters.queue === 'overdue' && !(Number(customer.overdueDebt) > 0)) return false;
+        if (filters.team && (customer.saleTeam || 'Chưa có team') !== filters.team) return false;
         if (filters.sale && customer.sale !== filters.sale) return false;
         if (filters.schedule && customer.paymentSchedule !== filters.schedule) return false;
         if (query && !normalizeDebtSearch(tableSearchText(customer)).includes(query)) return false;
@@ -9563,6 +9583,20 @@
       if (select.value !== selected) state.debtFilters.schedule = '';
     }
 
+    function populateDebtTeamFilter(id, rows, filters) {
+      const select = document.getElementById(id);
+      const teams = Array.from(new Set(rows.map(row => row.saleTeam || 'Chưa có team'))).sort((a, b) => a.localeCompare(b, 'vi'));
+      select.innerHTML = '<option value="">Tất cả nhóm sale</option>' + teams.map(team => '<option value="' + escapeHtml(team) + '">' + escapeHtml(team) + '</option>').join('');
+      if (filters.team && !teams.includes(filters.team)) filters.team = '';
+      select.value = filters.team || '';
+    }
+
+    function handleDebtPenaltyTeamChange() {
+      state.debtPenaltyTeam = document.getElementById('debtPenaltyTeamFilter').value;
+      state.tablePages.debtPenalty = 1;
+      renderDebtPenaltyBoard();
+    }
+
     function populateDebtSaleFilter(customers) {
       const select = document.getElementById('debtSaleFilter');
       const selected = state.debtFilters.sale;
@@ -9576,6 +9610,7 @@
     }
 
     function handleDebtFilterChange() {
+      state.debtFilters.team = document.getElementById('debtTeamFilter').value;
       state.debtFilters.queue = document.getElementById('debtQueueFilter').value;
       state.debtFilters.sale = document.getElementById('debtSaleFilter').value;
       state.debtFilters.schedule = document.getElementById('debtScheduleFilter').value;
@@ -9600,6 +9635,7 @@
             '<td>' + escapeHtml(debtBranchLabel(customer)) + '</td>' +
             '<td class="name-cell">' + escapeHtml(customer.customerName) + '</td>' +
             '<td>' + escapeHtml(customer.sale) + '</td>' +
+            '<td>' + escapeHtml(customer.saleTeam || 'Chưa có team') + '</td>' +
             '<td class="mono">' + debtScheduleHtml(customer) + '</td>' +
             '<td class="mono">' + formatNullableMoney(customer.currentDebt) + '</td>' +
             '<td class="mono">' + formatNullableMoney(customer.overdueDebt) + '</td>' +
@@ -9614,7 +9650,7 @@
             '<td>' + debtFeedbackHtml(customer, 'manager') + '</td>' +
             '<td>' + debtWorkflowHtml(customer) + '</td></tr>';
         },
-        16,
+        17,
         debt && debt.available === false ? 'Chưa có bản chốt công nợ 15:00' : 'Không có khách phù hợp bộ lọc',
         true // sortDebtCustomers() da sap xep toan bo `sorted` o tren, khong can sort lai
       );
@@ -9646,7 +9682,7 @@
     // Máy chủ đã tính sẵn vào bảng debt_aging_customers (migration 0059) sau mỗi lượt đồng bộ
     // KiotViet; ở đây chỉ đọc, lọc, sắp xếp và phân trang.
     const DEBT_AGING_SORT_FIELDS = [
-      'branch', 'customerName', 'sale', 'scheduleDays', 'currentDebt', 'overdueDebt',
+      'branch', 'customerName', 'sale', 'saleTeam', 'scheduleDays', 'currentDebt', 'overdueDebt',
       'payoffDay', 'equivalentDays', 'remainingDays'
     ];
 
@@ -9720,6 +9756,7 @@
 
     function handleDebtAgingFilterChange() {
       const filters = state.debtAgingFilters;
+      filters.team = document.getElementById('debtAgingTeamFilter').value;
       filters.sale = document.getElementById('debtAgingSaleFilter').value;
       filters.schedule = document.getElementById('debtAgingScheduleFilter').value;
       filters.search = document.getElementById('debtAgingSearch').value;
@@ -9732,6 +9769,7 @@
       const filters = state.debtAgingFilters;
       const query = normalizeDebtSearch(filters.search);
       return state.debtAging.customers.filter(function (customer) {
+        if (filters.team && (customer.saleTeam || 'Chưa có team') !== filters.team) return false;
         if (filters.sale && customer.sale !== filters.sale) return false;
         if (filters.schedule && customer.paymentSchedule !== filters.schedule) return false;
         if (query && !normalizeDebtSearch(tableSearchText(customer)).includes(query)) return false;
@@ -9769,6 +9807,7 @@
       document.getElementById('debtAgingSourceLabel').textContent = aging.refreshedAt
         ? 'tính lúc ' + formatDebtRefreshTime(aging.refreshedAt) + ' theo lần đồng bộ KiotViet mới nhất · không chờ chốt 15:00'
         : 'số tính sẵn theo lần đồng bộ KiotViet mới nhất · không chờ chốt 15:00';
+      populateDebtTeamFilter('debtAgingTeamFilter', aging.customers, state.debtAgingFilters);
       populateDebtAgingFilters(aging.customers);
       renderDebtAgingTable();
     }
@@ -9786,6 +9825,7 @@
             '<td>' + escapeHtml(customer.branch || '—') + '</td>' +
             '<td class="name-cell">' + escapeHtml(customer.customerName) + '</td>' +
             '<td>' + escapeHtml(customer.sale) + '</td>' +
+            '<td>' + escapeHtml(customer.saleTeam || 'Chưa có team') + '</td>' +
             '<td class="mono">' + escapeHtml(customer.paymentSchedule) + '</td>' +
             '<td class="mono">' + formatNullableMoney(customer.currentDebt) + '</td>' +
             '<td class="mono">' + formatNullableMoney(customer.overdueDebt) + '</td>' +
@@ -9793,7 +9833,7 @@
             '<td class="mono">' + debtAgingDaysHtml(customer, 'equivalentDays') + '</td>' +
             '<td class="mono">' + debtAgingDaysHtml(customer, 'remainingDays') + '</td></tr>';
         },
-        9,
+        10,
         aging.loading && !aging.loaded ? 'Đang tải...' : (aging.loaded && !aging.available ? 'Chưa có số liệu tuổi nợ' : 'Không có khách phù hợp bộ lọc'),
         true // sortDebtAgingCustomers() da sap xep toan bo
       );
@@ -9896,21 +9936,25 @@
       const config = TABLE_EXPLORER_CONFIGS.debtPenalty;
       state.tableRenderers.debtPenalty = renderDebtPenaltyBoard;
       ensureTableSearchControls('debtPenalty', body);
-      const filtered = filterTableItems(built.rows, config, searchState);
+      const teamFilter = { team: state.debtPenaltyTeam };
+      populateDebtTeamFilter('debtPenaltyTeamFilter', built.rows, teamFilter);
+      state.debtPenaltyTeam = teamFilter.team;
+      const teamRows = built.rows.filter(row => !teamFilter.team || (row.saleTeam || 'Chưa có team') === teamFilter.team);
+      const filtered = filterTableItems(teamRows, config, searchState);
       syncTableSearchControls('debtPenalty', filtered, built.rows.length);
       const query = searchState.query.trim();
-      document.getElementById('tagDebtPenalty').textContent = board.loading || board.failed ? '—' : query ? filtered.items.length + '/' + built.rows.length : built.rows.length;
+      document.getElementById('tagDebtPenalty').textContent = board.loading || board.failed ? '—' : (query || state.debtPenaltyTeam) ? filtered.items.length + '/' + built.rows.length : built.rows.length;
       body.setAttribute('aria-busy', board.loading ? 'true' : 'false');
       if (board.loading || !board.loaded && !board.failed) {
-        body.innerHTML = '<tr><td colspan="9" class="table-note">Đang tải bảng thưởng/phạt…</td></tr>';
+        body.innerHTML = '<tr><td colspan="10" class="table-note">Đang tải bảng thưởng/phạt…</td></tr>';
         return;
       }
       if (board.failed) {
-        body.innerHTML = '<tr><td colspan="9" class="table-note">Không tải được bảng thưởng/phạt. <button type="button" class="debt-history-button" onclick="loadDebtPenaltyBoard()">Thử lại</button></td></tr>';
+        body.innerHTML = '<tr><td colspan="10" class="table-note">Không tải được bảng thưởng/phạt. <button type="button" class="debt-history-button" onclick="loadDebtPenaltyBoard()">Thử lại</button></td></tr>';
         return;
       }
       if (!filtered.items.length) {
-        body.innerHTML = '<tr><td colspan="9" class="table-note">' + (query ? 'Không có sale nào chứa “' + escapeHtml(query) + '”' : 'Chưa có sale nào trong tháng') + '</td></tr>';
+        body.innerHTML = '<tr><td colspan="10" class="table-note">' + (query ? 'Không có sale nào chứa “' + escapeHtml(query) + '”' : 'Chưa có sale nào trong tháng') + '</td></tr>';
         return;
       }
       let gross = 0, payable = 0, reward = 0, points = 0;
@@ -9922,6 +9966,7 @@
         return '<tr class="doc-row" tabindex="0" title="Bấm để xem chi tiết sale" data-sale="' + escapeHtml(row.sale) + '">' +
           '<td class="mono">' + escapeHtml(debtRewardRankText(row)) + '</td>' +
           '<td class="name-cell">' + escapeHtml(row.sale) + '</td>' +
+          '<td>' + escapeHtml(row.saleTeam || 'Chưa có team') + '</td>' +
           '<td class="mono">' + fmtNumber(row.points) + '</td>' +
           '<td class="mono" data-sort-value="' + (row.ratio === null || row.ratio === undefined ? '' : Number(row.ratio)) + '" title="' + (row.ratio === null || row.ratio === undefined ? 'Không có điểm để chia' : escapeHtml(fmtNumber(row.grossPenalty) + ' đồng ÷ ' + fmtNumber(row.points) + ' điểm = ' + fmtNumber(row.ratio) + ' đồng/điểm. Hiển thị làm tròn đến đồng; xếp hạng dùng số chưa làm tròn.')) + '">' + (row.ratio === null || row.ratio === undefined ? '—' : fmtNumber(Math.round(row.ratio))) + '</td>' +
           '<td class="mono">' + fmtNumber(row.penaltyDays) + '</td>' +
@@ -9930,7 +9975,7 @@
           '<td class="mono">' + fmtTableMoney(row.payablePenalty) + '</td>' +
           '<td class="mono debt-reward-positive">' + fmtTableMoney(row.reward) + '</td></tr>';
       }).join('');
-      foot.innerHTML = '<tr class="debt-penalty-total"><td></td><td>Tổng đang hiển thị</td><td class="mono">' + fmtNumber(points) + '</td><td></td><td></td><td></td>' +
+      foot.innerHTML = '<tr class="debt-penalty-total"><td></td><td>Tổng đang hiển thị</td><td></td><td class="mono">' + fmtNumber(points) + '</td><td></td><td></td><td></td>' +
         '<td class="mono">' + fmtTableMoney(gross) + '</td><td class="mono">' + fmtTableMoney(payable) + '</td><td class="mono">' + fmtTableMoney(reward) + '</td></tr>';
     }
 
@@ -10024,6 +10069,7 @@
       document.getElementById('dm-overdue-ratio').textContent = debt && debt.available ? formatDebtRatio(kpi.overdueToSalesRatio) : '—';
 
       const customers = (debt && debt.customers) || [];
+      populateDebtTeamFilter('debtTeamFilter', customers, state.debtFilters);
       populateDebtSaleFilter(customers);
       populateDebtScheduleFilter(customers);
       document.getElementById('debtQueueFilter').value = state.debtFilters.queue;
@@ -10575,7 +10621,10 @@
             }
           }
           // Điểm/hạng có thể đổi khi doanh thu tháng đổi, dù payload công nợ giống nhau.
-          if (isActiveView && targetView === 'debt' && !changed && !isManualRefresh) loadDebtPenaltyBoard();
+          if (isActiveView && targetView === 'debt' && !changed && !isManualRefresh) {
+            loadDebtPenaltyBoard();
+            loadDebtAging();
+          }
           saveDashboardCache();
           settleManual();
         })

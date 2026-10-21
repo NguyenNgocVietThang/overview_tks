@@ -165,8 +165,9 @@ test('vao tab Hang hoa: goi /api/expected-arrivals, ve du 4 dong, cot A = B+C, s
   assert.equal(page.$('expectedArrivalsSection').hidden, false);
   const rows = bodyRows(page);
   assert.equal(rows.length, 4);
-  assert.deepEqual(cellTexts(rows[0]), ['YIWU', '2. Đã bốc 18-20/10', 'CONT 10-5H', 'MCRY301', 'Máy cạo râu 301', 'Đen', 'Giữ cho khách A', 'Lan', '24', '10', '240', '—', '—']);
+  assert.deepEqual(cellTexts(rows[0]), ['', '2. Đã bốc 18-20/10', 'CONT 10-5H', 'MCRY301', 'Máy cạo râu 301', 'Đen', 'Giữ cho khách A', 'Lan', '24', '10', '240', '—', '—']);
   // Gia tri rong -> "—"; so lon dinh dang 1,000.
+  // Khong co fullAccess: o Nguon (cot dau) rong, khong lo ten sheet / token an danh.
   assert.deepEqual(cellTexts(rows[2]).slice(5), ['Trắng', 'Giữ cho khách A', '—', '—', '—', '1,000', '—', '—']);
   assert.match(page.$('expectedArrivalsUpdatedAt').textContent, /^Dữ liệu cập nhật lúc /);
   assert.equal(page.$('tagExpectedArrivals').textContent, '4');
@@ -353,7 +354,7 @@ test('shared-nav: muc Hang hoa cua sidebar chap nhan 1 trong 3 quyen', () => {
 
 test('Nguồn displays exact sheet names, escapes markup, and sorts both directions', async () => {
   const source = 'CONT TKS1 <img src=x onerror="alert(1)"> & "Nguồn"';
-  const page = createPage({ respond: { ...SAMPLE, rows: [SAMPLE.rows[0], SAMPLE.rows[1], row({ sheetName: source })] } });
+  const page = createPage({ respond: { ...FULL_SAMPLE, rows: [FULL_SAMPLE.rows[0], FULL_SAMPLE.rows[1], row({ sheetName: source })] } });
   page.run("switchView('products')");
   await settle();
   const table = page.$('expectedArrivalsRows').closest('table');
@@ -405,7 +406,7 @@ test('search keeps normal text and code modes without adding sheet-name matches'
 
 test('pagination retains source cells across 100-row pages', async () => {
   const rows = Array.from({ length: 101 }, (_, i) => row({ sheetName: i < 100 ? 'YIWU' : 'CONT TKS1', sourceRow: i + 1 }));
-  const page = createPage({ respond: { ...SAMPLE, rows } });
+  const page = createPage({ respond: { ...FULL_SAMPLE, rows } });
   page.run("switchView('products')");
   await settle();
   assert.equal(bodyRows(page).length, 100);
@@ -416,7 +417,7 @@ test('pagination retains source cells across 100-row pages', async () => {
 });
 
 test('real table controls preserve old keyed column choices and show Nguồn by default', async () => {
-  const page = createPage();
+  const page = createPage({ respond: FULL_SAMPLE });
   page.run("switchView('products')");
   await settle();
   const table = page.$('expectedArrivalsRows').closest('table');
@@ -475,7 +476,7 @@ test('real table controls preserve old keyed column choices and show Nguồn by 
 
 
 test('source dropdown precedes Cont and always offers all seven sources, including empty snapshots', async () => {
-  const page = createPage({ respond: { ...SAMPLE, rows: [] } });
+  const page = createPage({ respond: { ...FULL_SAMPLE, rows: [] } });
   const source = page.$('expectedArrivalsSource');
   assert.ok(source, 'source dropdown required');
   assert.equal(source.getAttribute('aria-label'), 'Lọc theo nguồn');
@@ -496,8 +497,8 @@ test('source dropdown precedes Cont and always offers all seven sources, includi
 });
 
 test('source uses exact sheetName and intersects Cont, status, and both search modes', async () => {
-  const rows = [...SAMPLE.rows, row({ sheetName: 'CONT TKS1 extra', quantity: 9999 })];
-  const page = createPage({ respond: { ...SAMPLE, rows } });
+  const rows = [...FULL_SAMPLE.rows, row({ sheetName: 'CONT TKS1 extra', quantity: 9999 })];
+  const page = createPage({ respond: { ...FULL_SAMPLE, rows } });
   page.run("switchView('products')");
   await settle();
   assert.ok(page.$('expectedArrivalsSource'));
@@ -532,7 +533,7 @@ test('source uses exact sheetName and intersects Cont, status, and both search m
 
 test('source change resets pagination to page one and remains selected on rerender', async () => {
   const rows = Array.from({ length: 202 }, (_, i) => row({ sheetName: i < 101 ? 'YIWU' : 'CONT TKS1', sourceRow: i + 1 }));
-  const page = createPage({ respond: { ...SAMPLE, rows } });
+  const page = createPage({ respond: { ...FULL_SAMPLE, rows } });
   page.run("switchView('products')");
   await settle();
   assert.ok(page.$('expectedArrivalsSource'));
@@ -554,7 +555,7 @@ test('source change resets pagination to page one and remains selected on rerend
 });
 
 test('export fields and both file formats keep source alongside other active filters and search', async () => {
-  const page = createPage();
+  const page = createPage({ respond: FULL_SAMPLE });
   page.run("switchView('products')");
   await settle();
   assert.equal(paramsOf('/?' + page.run('expectedArrivalsExportQuery()')).has('source'), false);
@@ -609,6 +610,72 @@ test('khong co fullAccess: hai cot gia bi an + khong liet ke, Mau sac / Ghi chu 
   });
   ['mau-sac', 'ghi-chu-sale'].forEach(key => assert.equal(headOf(page, key).hasAttribute('data-column-default-hidden'), false, key));
   bodyRows(page).forEach(tr => assert.deepEqual(cellTexts(tr).slice(11), ['—', '—']));
+});
+
+test('khong co fullAccess: cot Nguon + o loc Nguon bi an, khong liet ke, khong vao bo loc / xuat file; o Nguon rong', async () => {
+  const anonymous = { ...SAMPLE, rows: SAMPLE.rows.map((r, i) => ({ ...r, sheetName: '#' + (i + 1) })) };
+  const page = withTableControls({ respond: anonymous });
+  // Truoc khi tai da an san.
+  assert.equal(headOf(page, 'nguon').hidden, true);
+  assert.equal(headOf(page, 'nguon').dataset.columnUnlisted, 'true');
+  assert.equal(page.$('expectedArrivalsSource').hidden, true);
+  page.run("switchView('products')");
+  await settle();
+  assert.equal(headOf(page, 'nguon').hidden, true);
+  assert.equal(headOf(page, 'nguon').dataset.columnUnlisted, 'true');
+  assert.equal(page.$('expectedArrivalsSource').hidden, true);
+  assert.equal(bodyRows(page).length, 4);
+  bodyRows(page).forEach(tr => {
+    assert.equal(tr.cells.length, 13);
+    assert.equal(tr.cells[0].textContent, '');
+    assert.equal(tr.cells[0].classList.contains('tks-column-hidden'), true);
+    assert.equal(tr.textContent.includes('#'), false, 'khong lo token an danh');
+  });
+  // Khong co trong hop "Cot hien thi".
+  page.$('expectedArrivalsRows').closest('.panel').querySelector('.tks-columns-button').click();
+  assert.equal(page.doc.querySelector('.tks-columns-picker input[data-column-key="nguon"]'), null);
+  assert.ok(page.doc.querySelector('.tks-columns-picker input[data-column-key="ma-sp"]'));
+  // Ep gia tri vao o loc: van khong loc theo nguon, khong gui ?source=.
+  const select = page.$('expectedArrivalsSource');
+  select.insertAdjacentHTML('beforeend', '<option value="#1">#1</option>');
+  setSelect(page, 'expectedArrivalsSource', '#1');
+  assert.equal(bodyRows(page).length, 4, 'khong loc theo nguon');
+  assert.equal(paramsOf('/?' + page.run('expectedArrivalsExportQuery()')).has('source'), false);
+  page.run('openExpectedArrivalsExportDialog()');
+  await settle();
+  page.run(page.$('exportConfirmButton').getAttribute('onclick'));
+  await settle();
+  const exportUrls = page.urls.filter(u => u.startsWith('/api/expected-arrivals/export'));
+  assert.ok(exportUrls.length >= 2);
+  exportUrls.forEach(url => assert.equal(paramsOf(url).has('source'), false, url));
+  // Tim kiem khong khop ten sheet.
+  page.run("Object.assign(getTableSearchState('expectedArrivals'), {mode: 'normal', query: '#1'}); renderExpectedArrivals()");
+  assert.equal(bodyRows(page).length, 0);
+});
+
+test('co fullAccess: cot Nguon hien + liet ke, khong an mac dinh, o loc Nguon hien va loc dung; mat quyen thi o loc bi an va xoa lua chon', async () => {
+  const page = withTableControls({ respond: FULL_SAMPLE });
+  page.run("switchView('products')");
+  await settle();
+  assert.equal(headOf(page, 'nguon').hidden, false);
+  assert.equal(headOf(page, 'nguon').hasAttribute('data-column-unlisted'), false);
+  assert.equal(headOf(page, 'nguon').hasAttribute('data-column-default-hidden'), false);
+  assert.equal(page.$('expectedArrivalsSource').hidden, false);
+  assert.equal(stateOf(page).hidden.includes('nguon'), false);
+  assert.deepEqual(bodyRows(page).map(tr => cellTexts(tr)[0]), ['YIWU', 'CONT TKS1', 'YIWU', 'YIWU']);
+  page.$('expectedArrivalsRows').closest('.panel').querySelector('.tks-columns-button').click();
+  assert.ok(page.doc.querySelector('.tks-columns-picker input[data-column-key="nguon"]'));
+  setSelect(page, 'expectedArrivalsSource', 'CONT TKS1');
+  assert.deepEqual(bodyRows(page).map(tr => cellTexts(tr)[3]), ['MCRY302']);
+  assert.equal(paramsOf('/?' + page.run('expectedArrivalsExportQuery()')).get('source'), 'CONT TKS1');
+  // Mat quyen (tai lai voi fullAccess=false): o loc bi an va xoa lua chon.
+  page.dom.window.fetch = () => Promise.resolve({ ok: true, status: 200, json: async () => SAMPLE });
+  page.run('loadExpectedArrivals()');
+  await settle();
+  assert.equal(page.$('expectedArrivalsSource').hidden, true);
+  assert.equal(page.$('expectedArrivalsSource').value, '');
+  assert.equal(bodyRows(page).length, 4);
+  assert.equal(paramsOf('/?' + page.run('expectedArrivalsExportQuery()')).has('source'), false);
 });
 
 test('co fullAccess: hien 2 cot gia (te 2 so le, VN lam tron, trong = "—"), Mau sac / Ghi chu sale an mac dinh', async () => {
@@ -712,7 +779,7 @@ test('hop chi tiet: gom MOI CONT cung ma SP (khong phan biet hoa thuong / khoang
   await settle();
   rowFor(page, 'YIWU', 5).click();
   assert.deepEqual(statTiles(page), [
-    ['1. Chưa bốc', '100'], ['2. Đã bốc', '300'], ['3. Đã về kho', '0'], ['Trạng thái 4', '0'], ['Trạng thái 5', '0']
+    ['1. Chưa bốc', '100'], ['2. Đã bốc', '300'], ['3. Đã về kho', '0'], ['Trạng thái 4', '0']
   ]);
   const table = page.$('docModalBody').querySelector('table.dp-table');
   assert.equal(table.dataset.tableKey, 'dashboard-table-expected-arrival-detail');
@@ -733,7 +800,7 @@ test('hop chi tiet: gom MOI CONT cung ma SP (khong phan biet hoa thuong / khoang
   // Ma khac (DEN200 - trang thai 3) chi co the trang thai 3.
   page.run('closeDocumentDetail()');
   rowFor(page, 'YIWU', 20).click();
-  assert.deepEqual(statTiles(page).map(t => t[1]), ['0', '0', '500', '0', '0']);
+  assert.deepEqual(statTiles(page).map(t => t[1]), ['0', '0', '500', '0']);
   assert.equal(page.$('docModalBody').querySelectorAll('tbody tr').length, 1);
 });
 
@@ -760,4 +827,18 @@ test('hop Chi tiet hang hoa (Bao cao hang hoa) khong con muc Hang du kien: marku
   assert.equal(html.includes('productContainerSection'), false);
   assert.equal(html.includes('renderProductContainers'), false);
   assert.equal(html.includes('/api/product-report/containers?'), false, 'chi con /containers/meta');
+});
+
+test('hop chi tiet: trang thai 4 va 5 cu da gop thanh "4.Da ve": dong con mang so 5 don vao the 4, khong co the thu 5', async () => {
+  const merged = { ...SAMPLE, rows: [
+    row({ statusLabel: '4.Đã về', status: 4, quantity: 200, sourceRow: 31 }),
+    row({ statusLabel: '5.Đã về, Đã khớp tiền', status: 5, quantity: 50, containerName: 'CONT 9-11Y', sourceRow: 32 })
+  ] };
+  const page = createPage({ respond: merged });
+  page.run("switchView('products')");
+  await settle();
+  rowFor(page, 'YIWU', 31).click();
+  const tiles = statTiles(page);
+  assert.equal(tiles.length, 4);
+  assert.equal(tiles[3][1], '250');
 });

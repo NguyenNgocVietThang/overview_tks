@@ -14,6 +14,9 @@ const ROWS = [
 ];
 const DATA = { rows: ROWS, filters: { containers: ['CONT A', 'CONT B'], statuses: ['1.Chưa có lịch', '3.Đã bốc'] }, meta: { computedAt: '2026-10-20T03:00:00.000Z', version: '1', rowCount: 2 } };
 
+const FULL_USER = { vaiTro: 'Nhân viên sale', featurePermissions: { 'reports.overview.containers.full': true } };
+const NO_USER = { vaiTro: 'Nhân viên sale' };
+
 // Chay router that qua requireAuth/requireFeature bang JWT that khong tien nghi -> goi thang handler cuoi cung.
 function handler(router, path) {
   const layer = router.stack.find(l => l.route && l.route.path === path);
@@ -118,7 +121,7 @@ test('/export/fields rowCount uses source together with the other filters', asyn
     [{}, 2]
   ]) {
     const res = response();
-    await handler(router, '/export/fields')({ query }, res);
+    await handler(router, '/export/fields')({ user: FULL_USER, query }, res);
     assert.equal(res.body.worksheets[0].rowCount, count, JSON.stringify(query));
   }
 });
@@ -128,12 +131,12 @@ test('/export source filters actual XLSX and executed HTML with default and lega
   for (const columns of [undefined, 'productCode,quantity']) {
     const query = { source: 'CONT TKS1', columns };
     const xlsx = response();
-    await handler(router, '/export')({ query: { ...query, format: 'xlsx' } }, xlsx);
+    await handler(router, '/export')({ user: FULL_USER, query: { ...query, format: 'xlsx' } }, xlsx);
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(xlsx.sent);
     const sheet = workbook.worksheets[0];
     assert.equal(sheet.rowCount, 2, 'header and exactly one selected-source row');
-    assert.equal(sheet.columnCount, columns ? 2 : 11);
+    assert.equal(sheet.columnCount, columns ? 2 : 13);
     if (columns) {
       assert.deepEqual(sheet.getRow(1).values.slice(1), ['Mã SP', 'Tổng số lượng']);
       assert.deepEqual(sheet.getRow(2).values.slice(1), ['SKU2', 7]);
@@ -143,10 +146,10 @@ test('/export source filters actual XLSX and executed HTML with default and lega
     }
 
     const html = response();
-    await handler(router, '/export')({ query: { ...query, format: 'html' } }, html);
+    await handler(router, '/export')({ user: FULL_USER, query: { ...query, format: 'html' } }, html);
     const doc = await openExportHtml(html.sent, t);
     assert.equal(doc.querySelectorAll('#tbody tr').length, 1);
-    assert.equal(doc.querySelectorAll('#thead th').length, columns ? 2 : 11);
+    assert.equal(doc.querySelectorAll('#thead th').length, columns ? 2 : 13);
     assert.match(doc.querySelector('#tbody').textContent, /SKU2/);
     assert.doesNotMatch(doc.querySelector('#tbody').textContent, /SKU1|YIWU/);
     if (columns) {
@@ -162,7 +165,7 @@ test('/export HTML describes source filter and escapes its text even with no mat
   const source = '<img src=x onerror="window.sourceInjected=true">';
   for (const value of ['CONT TKS1', source]) {
     const res = response();
-    await handler(router, '/export')({ query: { format: 'html', source: value } }, res);
+    await handler(router, '/export')({ user: FULL_USER, query: { format: 'html', source: value } }, res);
     const doc = await openExportHtml(res.sent, t);
     assert.ok([...doc.querySelectorAll('.meta li')].some(node => node.textContent === `Nguồn ${value}`), 'source appears in report notes');
     assert.equal(doc.querySelector('.meta img'), null);
@@ -173,11 +176,11 @@ test('/export HTML describes source filter and escapes its text even with no mat
 test('/export/fields cung dang business-report: title, selectionMode, worksheets[].fields, rowCount theo bo loc', async () => {
   const router = createExpectedArrivalsRouter({ repository: { getExpected: async () => DATA } });
   const res = response();
-  await handler(router, '/export/fields')({ query: { container: 'CONT A' } }, res);
+  await handler(router, '/export/fields')({ user: FULL_USER, query: { container: 'CONT A' } }, res);
   assert.equal(res.body.selectionMode, 'custom');
   assert.equal(res.body.worksheets[0].rowCount, 1);
   assert.deepEqual(res.body.worksheets[0].fields.map(f => f.label),
-    ['Nguồn', 'Lịch / Trạng thái', 'Tên Cont', 'Mã SP', 'Tên SP', 'Màu sắc', 'Ghi chú sale', 'Người đặt', 'Số cái/kiện', 'Số kiện', 'Tổng số lượng']);
+    ['Nguồn', 'Lịch / Trạng thái', 'Tên Cont', 'Mã SP', 'Tên SP', 'Màu sắc', 'Ghi chú sale', 'Người đặt', 'Số cái/kiện', 'Số kiện', 'Tổng số lượng', 'Giá SP (tệ)', 'Giá hàng về VN']);
   assert.deepEqual(res.body.worksheets[0].fields[0], { key: 'sheetName', label: 'Nguồn', type: 'text', selected: true });
   assert.ok(res.body.worksheets[0].fields.every(f => f.selected === true && f.key && f.type));
   assert.equal(exportFieldsFor([]).worksheets[0].rowCount, 0);
@@ -186,11 +189,11 @@ test('/export/fields cung dang business-report: title, selectionMode, worksheets
 test('/export default xlsx places source first with original source names and numeric quantities', async () => {
   const router = createExpectedArrivalsRouter({ repository: { getExpected: async () => DATA } });
   const res = response();
-  await handler(router, '/export')({ query: {} }, res);
+  await handler(router, '/export')({ user: FULL_USER, query: {} }, res);
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(res.sent);
   const sheet = workbook.worksheets[0];
-  assert.equal(sheet.columnCount, 11);
+  assert.equal(sheet.columnCount, 13);
   assert.equal(sheet.getCell('A1').value, 'Nguồn');
   assert.equal(sheet.getCell('A2').value, 'YIWU');
   assert.equal(sheet.getCell('A3').value, 'CONT TKS1');
@@ -201,9 +204,9 @@ test('/export default xlsx places source first with original source names and nu
 test('/export default HTML renders source first with both original source names', async t => {
   const router = createExpectedArrivalsRouter({ repository: { getExpected: async () => DATA } });
   const res = response();
-  await handler(router, '/export')({ query: { format: 'html' } }, res);
+  await handler(router, '/export')({ user: FULL_USER, query: { format: 'html' } }, res);
   const doc = await openExportHtml(res.sent, t);
-  assert.equal(doc.querySelectorAll('#thead th').length, 11);
+  assert.equal(doc.querySelectorAll('#thead th').length, 13);
   assert.equal(doc.querySelector('#thead th').dataset.columnKey, 'sheetName');
   assert.equal(doc.querySelector('#thead th button').firstChild.textContent, 'Nguồn');
   assert.deepEqual([...doc.querySelectorAll('#tbody tr')].map(tr => tr.cells[0].textContent), ['YIWU', 'CONT TKS1']);
@@ -212,7 +215,7 @@ test('/export default HTML renders source first with both original source names'
 test('/export sheetName,quantity selects exactly two columns in Excel and HTML', async t => {
   const router = createExpectedArrivalsRouter({ repository: { getExpected: async () => DATA } });
   const xlsx = response();
-  await handler(router, '/export')({ query: { format: 'xlsx', columns: 'sheetName,quantity' } }, xlsx);
+  await handler(router, '/export')({ user: FULL_USER, query: { format: 'xlsx', columns: 'sheetName,quantity' } }, xlsx);
   assert.equal(xlsx.statusCode, 200);
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(xlsx.sent);
@@ -223,7 +226,7 @@ test('/export sheetName,quantity selects exactly two columns in Excel and HTML',
   assert.deepEqual(sheet.getRow(3).values.slice(1), ['CONT TKS1', 7]);
 
   const html = response();
-  await handler(router, '/export')({ query: { format: 'html', columns: 'sheetName,quantity' } }, html);
+  await handler(router, '/export')({ user: FULL_USER, query: { format: 'html', columns: 'sheetName,quantity' } }, html);
   assert.equal(html.statusCode, 200);
   const doc = await openExportHtml(html.sent, t);
   assert.deepEqual([...doc.querySelectorAll('#thead th')].map(th => th.dataset.columnKey), ['sheetName', 'quantity']);
@@ -235,7 +238,7 @@ test('/export escapes source HTML and protects source text from Excel formulas',
   const data = { ...DATA, rows: [{ ...ROWS[0], sheetName: source }, { ...ROWS[1], sheetName: '=1+1' }] };
   const router = createExpectedArrivalsRouter({ repository: { getExpected: async () => data } });
   const html = response();
-  await handler(router, '/export')({ query: { format: 'html' } }, html);
+  await handler(router, '/export')({ user: FULL_USER, query: { format: 'html' } }, html);
   const doc = await openExportHtml(html.sent, t);
   const cell = doc.querySelector('#tbody tr').cells[0];
   assert.equal(cell.textContent, source);
@@ -243,7 +246,7 @@ test('/export escapes source HTML and protects source text from Excel formulas',
   assert.equal(doc.defaultView.sourceInjected, undefined);
 
   const xlsx = response();
-  await handler(router, '/export')({ query: {} }, xlsx);
+  await handler(router, '/export')({ user: FULL_USER, query: {} }, xlsx);
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(xlsx.sent);
   assert.equal(workbook.worksheets[0].getCell('A2').value, source);
@@ -288,8 +291,6 @@ const PRICED = {
     { ...ROWS[1], status: 3, listedAt: null, unitPriceCny: null, vietnamPrice: null }
   ]
 };
-const FULL_USER = { vaiTro: 'Nhân viên sale', featurePermissions: { 'reports.overview.containers.full': true } };
-const NO_USER = { vaiTro: 'Nhân viên sale' };
 const pricedRouter = () => createExpectedArrivalsRouter({ repository: { getExpected: async () => PRICED } });
 
 test('GET / bo listedAt/unitPriceCny/vietnamPrice khi khong co quyen, giu orderedBy, khong sua cache', async () => {
@@ -317,7 +318,8 @@ test('GET / tra du truong gia + fullAccess:true khi co quyen', async () => {
 test('/export/fields chi liet ke cot gia khi co quyen', async () => {
   const none = response();
   await handler(pricedRouter(), '/export/fields')({ user: NO_USER, query: {} }, none);
-  assert.equal(none.body.worksheets[0].fields.length, 11);
+  assert.equal(none.body.worksheets[0].fields.length, 10);
+  assert.ok(!none.body.worksheets[0].fields.some(f => f.key === 'sheetName'));
   assert.ok(!none.body.worksheets[0].fields.some(f => f.key === 'unitPriceCny' || f.key === 'vietnamPrice'));
   const full = response();
   await handler(pricedRouter(), '/export/fields')({ user: FULL_USER, query: {} }, full);
@@ -351,7 +353,7 @@ test('/export XLSX: cot gia dinh dang dung khi co quyen, vang mat khi khong', as
   await handler(pricedRouter(), '/export')({ user: NO_USER, query: { format: 'xlsx' } }, none);
   const wb2 = new ExcelJS.Workbook();
   await wb2.xlsx.load(none.sent);
-  assert.equal(wb2.worksheets[0].columnCount, 11);
+  assert.equal(wb2.worksheets[0].columnCount, 10);
 
   const only = response();
   await handler(pricedRouter(), '/export')({ user: NO_USER, query: { format: 'xlsx', columns: 'productCode,unitPriceCny,vietnamPrice' } }, only);
@@ -376,8 +378,83 @@ test('/export HTML: cot gia chi xuat hien khi co quyen', async t => {
   const none = response();
   await handler(pricedRouter(), '/export')({ user: NO_USER, query: { format: 'html' } }, none);
   const doc2 = await openExportHtml(none.sent, t);
-  assert.equal(doc2.querySelectorAll('#thead th').length, 11);
+  assert.equal(doc2.querySelectorAll('#thead th').length, 10);
   const payload = String(none.sent).match(/id="report-data" data-encoding="gzip-base64">([^<]+)</)[1];
   const decoded = require('node:zlib').gunzipSync(Buffer.from(payload, 'base64')).toString('utf8');
   assert.doesNotMatch(decoded, /unitPriceCny|vietnamPrice|12.345|45678/);
+});
+
+// ---- Cot Nguon: cung quyen reports.overview.containers.full nhu cot gia ----
+const SOURCE_NAMES = /YIWU|CONT TKS1/;
+
+test('GET / khong co quyen: sheetName thanh token an danh #n nhat quan theo sheet, khong lo ten that, khong sua cache', async () => {
+  const data = { ...DATA, rows: [ROWS[0], ROWS[1], { ...ROWS[0], productCode: 'SKU3', sourceRow: 4 }] };
+  const before = JSON.stringify(data);
+  const router = createExpectedArrivalsRouter({ repository: { getExpected: async () => data } });
+  const res = response();
+  await handler(router, '/')({ user: NO_USER, query: {} }, res);
+  assert.deepEqual(res.body.rows.map(r => r.sheetName), ['#1', '#2', '#1']);
+  assert.doesNotMatch(JSON.stringify(res.body), SOURCE_NAMES);
+  assert.equal(JSON.stringify(data), before, 'cache objects are not mutated');
+  assert.equal(data.rows[0].sheetName, 'YIWU');
+
+  const full = response();
+  await handler(router, '/')({ user: FULL_USER, query: {} }, full);
+  assert.deepEqual(full.body.rows.map(r => r.sheetName), ['YIWU', 'CONT TKS1', 'YIWU']);
+});
+
+test('khong co quyen: ?source bi bo qua (khong loc), export khong co cot Nguon va khong co ghi chu Nguon', async t => {
+  const router = createExpectedArrivalsRouter({ repository: { getExpected: async () => DATA } });
+  const list = response();
+  await handler(router, '/')({ user: NO_USER, query: { source: 'YIWU' } }, list);
+  assert.equal(list.body.rows.length, 2);
+
+  const fields = response();
+  await handler(router, '/export/fields')({ user: NO_USER, query: { source: 'YIWU' } }, fields);
+  assert.equal(fields.body.worksheets[0].rowCount, 2);
+
+  const xlsx = response();
+  await handler(router, '/export')({ user: NO_USER, query: { format: 'xlsx', source: 'YIWU' } }, xlsx);
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(xlsx.sent);
+  const sheet = workbook.worksheets[0];
+  assert.equal(sheet.rowCount, 3, 'header and both rows: source ignored');
+  assert.equal(sheet.columnCount, 10);
+  assert.ok(!sheet.getRow(1).values.includes('Nguồn'));
+  assert.doesNotMatch(JSON.stringify(sheet.getSheetValues()), SOURCE_NAMES);
+
+  const html = response();
+  await handler(router, '/export')({ user: NO_USER, query: { format: 'html', source: 'YIWU' } }, html);
+  const doc = await openExportHtml(html.sent, t);
+  assert.equal(doc.querySelectorAll('#tbody tr').length, 2);
+  assert.equal(doc.querySelectorAll('#thead th').length, 10);
+  assert.ok(![...doc.querySelectorAll('#thead th')].some(th => th.dataset.columnKey === 'sheetName'));
+  assert.ok(![...doc.querySelectorAll('.meta li')].some(node => /^Nguồn/.test(node.textContent)));
+  const payload = String(html.sent).match(/id="report-data" data-encoding="gzip-base64">([^<]+)</)[1];
+  assert.doesNotMatch(require('node:zlib').gunzipSync(Buffer.from(payload, 'base64')).toString('utf8'), SOURCE_NAMES);
+
+  const only = response();
+  await handler(router, '/export')({ user: NO_USER, query: { format: 'xlsx', columns: 'sheetName' } }, only);
+  assert.equal(only.statusCode, 400);
+  assert.deepEqual(resolveColumnKeys('sheetName,quantity'), ['quantity']);
+  assert.deepEqual(resolveColumnKeys('sheetName,quantity', { fullAccess: true }), ['sheetName', 'quantity']);
+});
+
+test('co quyen: ?source loc /export/fields va export, GET / giu ten Nguon that', async () => {
+  const router = createExpectedArrivalsRouter({ repository: { getExpected: async () => DATA } });
+  const list = response();
+  await handler(router, '/')({ user: FULL_USER, query: { source: 'CONT TKS1' } }, list);
+  assert.deepEqual(list.body.rows.map(r => r.sheetName), ['YIWU', 'CONT TKS1'], 'GET / returns all rows (source filtering is client-side) with real names');
+
+  const fields = response();
+  await handler(router, '/export/fields')({ user: FULL_USER, query: { source: 'CONT TKS1' } }, fields);
+  assert.equal(fields.body.worksheets[0].rowCount, 1);
+  assert.equal(fields.body.worksheets[0].fields.length, 13);
+
+  const xlsx = response();
+  await handler(router, '/export')({ user: FULL_USER, query: { format: 'xlsx', source: 'CONT TKS1' } }, xlsx);
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(xlsx.sent);
+  assert.equal(workbook.worksheets[0].rowCount, 2);
+  assert.equal(workbook.worksheets[0].getCell('A2').value, 'CONT TKS1');
 });
