@@ -479,6 +479,7 @@ function createDebtScheduleRepository({ pool = getPool(), now = Date.now } = {})
   }
 
   return {
+    attachSaleTeams: rows => require('./saleTeams').attachSaleTeams(rows, pool),
     readReport,
     readCurrentCycle,
     listCycles,

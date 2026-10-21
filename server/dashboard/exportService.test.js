@@ -514,13 +514,13 @@ test('Quản lý công nợ xuất đúng một worksheet, lọc và sort trên 
       debtSale: '',
       debtSchedule: '',
       debtSearch: '',
-      debtSort: { columnIndex: 4, direction: 'desc' }
+      debtSort: { columnIndex: 5, direction: 'desc' }
     });
     assert.equal(dataset.worksheets.length, 1);
     assert.equal(dataset.worksheets[0].name, 'Công nợ HN');
     assert.deepEqual(dataset.worksheets[0].rows.map(row => row.customerName), ['Khách B', 'Khách A']);
-    assert.equal(dataset.worksheets[0].columns.length, 18, '16 cot man hinh (gom Cơ sở, So phien, 2 cot Tien phat, 2 cot phan hoi) + 2 cot cap nhat tuy chon');
-    assert.equal(dataset.worksheets[0].columns.filter(column => column.selected !== false).length, 16);
+    assert.equal(dataset.worksheets[0].columns.length, 19, '17 cot man hinh (gom Cơ sở, So phien, 2 cot Tien phat, 2 cot phan hoi) + 2 cot cap nhat tuy chon');
+    assert.equal(dataset.worksheets[0].columns.filter(column => column.selected !== false).length, 17);
 
     const matched = await exportService.__test__.buildFixedDataset('debt.management', fixedEnv(stubs), {
       debtQueue: 'overdue', debtSale: 'Lan', debtSchedule: '1', debtSearch: 'khách a'
@@ -545,12 +545,12 @@ test('Quản lý công nợ phản ánh đủ bốn bộ lọc hàng chờ', asy
   });
 });
 
-test('Quản lý công nợ mặc định chọn 16 cột hiển thị (kèm Cơ sở, Số phiên, 2 cột Tiền phạt, 2 cột phản hồi) và để 2 cột cập nhật là tùy chọn', async () => {
+test('Quản lý công nợ mặc định chọn 17 cột hiển thị (kèm Cơ sở, Số phiên, 2 cột Tiền phạt, 2 cột phản hồi) và để 2 cột cập nhật là tùy chọn', async () => {
   const metadata = await exportService.getExportFields({ tableKey: 'debt.management', context: { debtQueue: 'all' } }, 'Hà Nội');
   const fields = metadata.worksheets[0].fields;
-  assert.equal(fields.length, 18);
+  assert.equal(fields.length, 19);
   assert.equal(fields[1].label, 'Cơ sở');
-  assert.equal(fields.filter(field => field.selected).length, 16);
+  assert.equal(fields.filter(field => field.selected).length, 17);
   assert.equal(fields.find(field => field.key === 'overdueStreak').selected, true);
   assert.equal(fields.find(field => field.key === 'updatedBy').selected, false);
   assert.equal(fields.find(field => field.key === 'updatedAt').selected, false);
@@ -735,7 +735,7 @@ test('moi bang co dinh tao duoc file xlsx tu danh sach truong API tra ve', async
         worksheet.fields.map(field => field.key)
       ]));
       if (tableKey === 'debt.management') {
-        assert.equal(metadata.worksheets[0].fields.filter(field => field.selected).length, 16);
+        assert.equal(metadata.worksheets[0].fields.filter(field => field.selected).length, 17);
       } else {
         assert.ok(metadata.worksheets.every(worksheet => worksheet.fields.every(field => field.selected)));
       }
@@ -991,7 +991,7 @@ test('xuat file khong sua ket qua dashboard dung chung (du lieu stub bi deep-fre
   await withStubs({}, async stubs => {
     assert.ok(Object.isFrozen(stubs.dashboard));
     for (const tableKey of FIXED_TABLES) {
-      const payload = { tableKey, context: { ...FIXED_CONTEXT, debtSort: { columnIndex: 4, direction: 'desc' } }, tableSearch: { mode: 'normal', query: 'a' } };
+      const payload = { tableKey, context: { ...FIXED_CONTEXT, debtSort: { columnIndex: 5, direction: 'desc' } }, tableSearch: { mode: 'normal', query: 'a' } };
       const metadata = await exportService.getExportFields(payload);
       payload.columns = Object.fromEntries(metadata.worksheets.map(worksheet => [worksheet.key, worksheet.fields.map(field => field.key)]));
       await exportService.createExportWorkbook(payload, 'Hà Nội');
@@ -1572,7 +1572,7 @@ test('Ca hai: loc Quan ly cong no tren hang GOP nhu man hinh, roi moi tach tung 
     assert.deepEqual(overdue.worksheets[0].rows.map(row => row.customerName), ['Khách A', 'Khách A', 'Khách C']);
 
     // Sap xep theo gia tri GOP (cot "Nợ hiện tại"): C (900) truoc A (300), cac dong co so di cung khach.
-    const sorted = await build({ debtQueue: 'currentDebt', debtSort: { columnIndex: 5, direction: 'desc' } });
+    const sorted = await build({ debtQueue: 'currentDebt', debtSort: { columnIndex: 6, direction: 'desc' } });
     assert.deepEqual(sorted.worksheets[0].rows.map(row => [row.customerName, row.branch]), [
       ['Khách C', ''], ['Khách A', HN], ['Khách A', SG]
     ]);
@@ -2083,9 +2083,9 @@ test('debt.aging: ap bo loc Sale/Lich/Tim + sap xep man hinh, ngay het no dd/mm/
     const filtered = await exportService.__test__.buildFixedDataset('debt.aging', env, { debtAgingSale: 'Duy Thái', debtAgingSearch: 'bình' });
     assert.deepEqual(filtered.worksheets[0].rows.map(row => row.customerName), ['Anh Bình']);
     // Cot 6 = Ngay het no: sap theo ngay that, khong theo chuoi dd/mm.
-    const sorted = await exportService.__test__.buildFixedDataset('debt.aging', env, { debtAgingSort: { columnIndex: 6, direction: 'asc' } });
+    const sorted = await exportService.__test__.buildFixedDataset('debt.aging', env, { debtAgingSort: { columnIndex: 7, direction: 'asc' } });
     assert.deepEqual(sorted.worksheets[0].rows.map(row => row.customerName), ['Anh Sài', 'Anh Bình', 'Chị An']);
-    const remaining = await exportService.__test__.buildFixedDataset('debt.aging', env, { debtAgingSort: { columnIndex: 8, direction: 'asc' } });
+    const remaining = await exportService.__test__.buildFixedDataset('debt.aging', env, { debtAgingSort: { columnIndex: 9, direction: 'asc' } });
     assert.deepEqual(remaining.worksheets[0].rows.map(row => row.customerName), ['Anh Sài', 'Anh Bình', 'Chị An']);
   });
 });
@@ -2106,4 +2106,56 @@ test('debt.aging: tao file doc bang tinh san theo co so dang xem', async () => {
   } finally {
     debtScheduleService.buildDebtAging = original;
   }
+});
+
+
+test('debt exports include live team and apply team filters before projecting columns', async () => {
+  await withStubs({}, async stubs => {
+    const env = fixedEnv(stubs);
+    const rows = [{sale: 'An', saleTeam: 'Team A', customerName: 'A', currentDebt: 10, overdueDebt: 5},
+      {sale: 'Bình', saleTeam: 'Team B', customerName: 'B', currentDebt: 20, overdueDebt: 2}];
+    env.dashboard = {debtManagement: {customers: rows}, debtAging: {customers: rows}, debtReward: {rows, month:'2026-10'}};
+    for (const [key, context] of [['debt.management', {debtQueue:'all', debtTeam:'Team A'}],
+      ['debt.aging', {debtAgingTeam:'Team A'}], ['debt.penalty', {debtPenaltyTeam:'Team A'}]]) {
+      const dataset = await exportService.__test__.buildFixedDataset(key, env, context);
+      assert.ok(dataset.worksheets[0].columns.some(c => c.key === 'saleTeam'));
+      assert.deepEqual(dataset.worksheets[0].rows.map(r => r.saleTeam), ['Team A']);
+    }
+  });
+});
+
+
+test('HTML summarizes debt by sale team, including a single team and zero amounts', () => {
+  const kit = require('./exportHtmlReport').__test__.createReportKit();
+  const columns = [{key:'saleTeam',label:'Nhóm sale',type:'text'},
+    {key:'currentDebt',label:'Nợ hiện tại',type:'number'}, {key:'overdueDebt',label:'Nợ quá hạn',type:'number'}];
+  const summary = kit.buildSummary(columns, [['Team A',10,2],['Team A',20,3],['Team B',5,0]]);
+  const chart = summary.charts.find(c => c.id === 'saleTeam-currentDebt');
+  assert.ok(chart);
+  assert.deepEqual(chart.labels, ['Team A','Team B']);
+  assert.deepEqual(chart.values, [30,5]);
+  assert.ok(kit.buildSummary(columns, [['Team A',0,0]]).charts.some(c => c.id === 'saleTeam-overdueDebt'));
+});
+
+
+test('Excel and HTML export the filtered team and HTML displays team charts', async () => {
+  await withStubs({}, async () => withRewardService(async () => {
+    const board = historicalRewardBoard();
+    return {...board, rows: board.rows.map((r, i) => ({...r, saleTeam: i === 0 ? 'Team A' : 'Team B'}))};
+  }, async () => {
+    const request = {tableKey:'debt.penalty', context:{debtRewardMonth:'2026-09', debtPenaltyTeam:'Team A'},
+      columns:{debt_penalty:['sale','saleTeam','payablePenalty','reward']}};
+    const excel = await exportService.createExportWorkbook(request, 'Cả hai');
+    const workbook = new ExcelJS.Workbook(); await workbook.xlsx.load(excel.buffer);
+    const sheet = workbook.getWorksheet('Thưởng phạt sale');
+    assert.equal(sheet.getCell('B1').value, 'Nhóm sale');
+    assert.equal(sheet.getCell('B2').value, 'Team A');
+    assert.equal(sheet.rowCount, 2);
+    const html = await exportService.createExportHtml(request, 'Cả hai');
+    const embedded = embeddedData(html.buffer.toString('utf8')).worksheets[0];
+    assert.deepEqual(embedded.rows.map(r => r[1]), ['Team A']);
+    const opened = await openHtmlReport(html);
+    try { assert.match(opened.doc.getElementById('charts').textContent, /theo nhóm sale/); }
+    finally { opened.dom.window.close(); }
+  }));
 });

@@ -609,3 +609,8 @@ Migration **thu hồi ALL** 4 bảng mới khỏi `reporting_readonly` (có gi�
 Thứ tự triển khai: áp `0078` TRƯỚC khi deploy, sau đó chạy tay `node productContainers/expectedRefresh.js` đúng một lần để đổ giá vào các dòng đã có (chưa chạy thì Giá SP (tệ) / Giá hàng về VN để trống).
 
 Cập nhật: 21/10/2026.
+
+
+### Cập nhật 21/10/2026 — Nhóm sale trong Công nợ
+
+`sale_teams` tiếp tục là nguồn nhóm sale duy nhất cho Khách hàng và Công nợ. Không thêm migration/cột bản sao vào bảng công nợ; nhóm được ghép tại thời điểm đọc, kể cả tháng thưởng/phạt đã chốt.

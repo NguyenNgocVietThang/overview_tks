@@ -108,7 +108,7 @@ function createDebtAgingRepository({ pool = getPool(), now = Date.now } = {}) {
     };
   }
 
-  return { readAging, readCustomerInvoices, clearCache: () => cache.clear() };
+  return { attachSaleTeams: rows => require('./saleTeams').attachSaleTeams(rows, pool), readAging, readCustomerInvoices, clearCache: () => cache.clear() };
 }
 
 let defaultRepository = null;

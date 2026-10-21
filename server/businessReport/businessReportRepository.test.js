@@ -228,7 +228,10 @@ test('setSaleTeam: doi team, team moi, bo khoi team, khop khong phan biet hoa/th
     const count = async () => (await db.query('SELECT count(*)::int AS n FROM sale_teams')).rows[0].n;
     const before = await count();
     // Doi sang team co san, go khac hoa/thuong => dung cach viet da co, khong tao dong trung.
+    const debtRepo = require('../debtSchedule/debtScheduleRepository').getDebtScheduleRepository();
+    const debtVersion = debtRepo.getVersion();
     assert.deepEqual(await repo.setSaleTeam('khang', 'team   TRINH'), { saleName: 'Khang', team: 'Team Trinh' });
+    assert.ok(debtRepo.getVersion() > debtVersion, 'changing team invalidates the debt dashboard cache');
     assert.equal(await teamOf('Khang'), 'Team Trinh');
     assert.equal(await count(), before);
     // Team moi

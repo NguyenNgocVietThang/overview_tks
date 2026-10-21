@@ -115,7 +115,7 @@ test('penalty ratio rounds displayed dong per point without changing the source 
  const dom=createDashboard();
  serve(dom,boardPayload({rows:[{...baseRow,points:192,grossPenalty:25000,ratio:25000/192}]}));
  await dom.window.loadDebtPenaltyBoard();
- const cell=dom.window.document.querySelector('#debtPenaltyRows tr.doc-row').cells[3];
+ const cell=dom.window.document.querySelector('#debtPenaltyRows tr.doc-row').cells[4];
  assert.equal(cell.textContent.trim(),'130');
  assert.match(cell.title,/25,000.*192.*130.208.*đồng\/điểm/);
  assert.match(cell.title,/làm tròn/);
@@ -130,12 +130,12 @@ test('server reward rows retain global rank, eligibility, ratio and filtered tot
   const doc = dom.window.document;
   const rows = [...doc.querySelectorAll('#debtPenaltyRows tr.doc-row')].map(tr => [...tr.cells].map(td => td.textContent.trim()));
   assert.equal(rows.length, 3);
-  assert.deepEqual(rows[0].slice(0, 4), ['7', 'Lan', '40', '2,500']);
+  assert.deepEqual(rows[0].slice(0, 5), ['7', 'Lan', 'Chưa có team', '40', '2,500']);
   assert.match(rows[1][0], /Chưa đủ 30 điểm/);
   assert.equal(rows[2][0], '—');
-  assert.equal(rows[2][3], '—');
-  assert.match(rows[0][6], /100,000/);
-  assert.match(rows[0][8], /1,500,000/);
+  assert.equal(rows[2][4], '—');
+  assert.match(rows[0][7], /100,000/);
+  assert.match(rows[0][9], /1,500,000/);
   for (const id of ['debtPenaltyNote', 'debtRewardSummary', 'debtRewardCoverage']) assert.equal(doc.getElementById(id), null, id);
   assert.ok(doc.querySelector('.debt-penalty-wrap.tks-table-scroll #debtPenaltyTable'), 'bảng phải nằm trực tiếp trong khung cuộn để tiêu đề sticky hoạt động');
   assert.equal(doc.querySelectorAll('.debt-penalty-wrap .tks-table-scroll').length, 0);
@@ -144,9 +144,9 @@ test('server reward rows retain global rank, eligibility, ratio and filtered tot
   dom.window.renderDebtPenaltyBoard();
   assert.equal(doc.querySelectorAll('#debtPenaltyRows tr.doc-row').length, 1);
   const foot = doc.querySelector('#debtPenaltyFoot tr').cells;
-  assert.equal(foot[6].textContent.trim(), '25,000');
   assert.equal(foot[7].textContent.trim(), '25,000');
-  assert.equal(foot[8].textContent.trim(), '0');
+  assert.equal(foot[8].textContent.trim(), '25,000');
+  assert.equal(foot[9].textContent.trim(), '0');
   dom.window.close();
 });
 
@@ -238,7 +238,7 @@ for (const kind of ['status', 'schedule', 'penalty']) {
     await dom.window[kind === 'status' ? 'handleDebtStatusChange' : kind === 'schedule' ? 'handleDebtScheduleChange' : 'handleDebtPenaltyChange'](input);
     await new Promise(resolve => setImmediate(resolve));
     assert.ok(calls.some(url => url.startsWith('/api/debt-management/penalty-board')));
-    assert.equal(doc.querySelector('#debtPenaltyRows tr.doc-row').cells[2].textContent, '55');
+    assert.equal(doc.querySelector('#debtPenaltyRows tr.doc-row').cells[3].textContent, '55');
     assert.equal(calls.filter(url => url.includes('/penalty-board')).length, 1, 'rendering alone must not fetch again');
     dom.window.close();
   });
@@ -258,11 +258,11 @@ test('dashboard refresh reloads selected reward month even when dashboard finger
   };
   dom.window.loadData(undefined, false, 'debt');
   await new Promise(resolve => setImmediate(resolve));
-  assert.equal(dom.window.document.querySelector('#debtPenaltyRows tr.doc-row').cells[2].textContent, '50');
+  assert.equal(dom.window.document.querySelector('#debtPenaltyRows tr.doc-row').cells[3].textContent, '50');
   score = 60;
   dom.window.loadData(undefined, false, 'debt');
   await new Promise(resolve => setImmediate(resolve));
-  assert.equal(dom.window.document.querySelector('#debtPenaltyRows tr.doc-row').cells[2].textContent, '60');
+  assert.equal(dom.window.document.querySelector('#debtPenaltyRows tr.doc-row').cells[3].textContent, '60');
   assert.equal(boardRequests, 2);
   dom.window.close();
 });
@@ -294,8 +294,8 @@ test('open month shows daily provisional reward amounts and distinguishes offici
   const doc = dom.window.document;
   assert.equal(doc.getElementById('debtRewardStatus').textContent, 'Thưởng tạm tính');
   assert.equal(doc.querySelector('#debtPenaltyTable th[data-column-key="tien-thuong"] .sort-button > span').textContent, 'Thưởng tạm tính');
-  assert.equal(doc.querySelector('#debtPenaltyRows tr[data-sale="Lan"]').cells[8].textContent.trim(), '1,500,000');
-  assert.equal(doc.querySelector('#debtPenaltyFoot tr').cells[8].textContent.trim(), '1,500,000');
+  assert.equal(doc.querySelector('#debtPenaltyRows tr[data-sale="Lan"]').cells[9].textContent.trim(), '1,500,000');
+  assert.equal(doc.querySelector('#debtPenaltyFoot tr').cells[9].textContent.trim(), '1,500,000');
   doc.querySelector('#debtPenaltyRows tr[data-sale="Lan"]').click();
   const stats = Object.fromEntries([...doc.querySelectorAll('#docModalBody .dp-stat')]
     .map(el => [el.querySelector('.dp-stat-label').textContent, el.querySelector('.dp-stat-value').textContent]));
@@ -309,7 +309,7 @@ test('open month shows daily provisional reward amounts and distinguishes offici
   await dom.window.loadDebtPenaltyBoard();
   assert.equal(doc.getElementById('debtRewardStatus').textContent, 'Đã chốt');
   assert.equal(doc.querySelector('#debtPenaltyTable th[data-column-key="tien-thuong"] .sort-button > span').textContent, 'Tiền thưởng');
-  assert.equal(doc.querySelector('#debtPenaltyRows tr[data-sale="Lan"]').cells[8].textContent.trim(), '1,500,000');
+  assert.equal(doc.querySelector('#debtPenaltyRows tr[data-sale="Lan"]').cells[9].textContent.trim(), '1,500,000');
   dom.window.close();
 });
 
@@ -319,4 +319,18 @@ test('board keeps last finalized penalty date distinct from currently open cycle
   await dom.window.loadDebtPenaltyBoard();
   assert.equal(dom.window.buildDebtPenaltyRows().lastDate, '2026-10-13');
   dom.window.close();
+});
+
+
+test('reward team dropdown filters totals and passes the team to exports', async () => {
+  const dom = createDashboard();
+  try {
+    serve(dom, boardPayload({ rows: [{...baseRow, saleTeam:'Team A'}, {...baseRow, sale:'Mai', saleTeam:'Team B', reward:0}] }));
+    await dom.window.loadDebtPenaltyBoard();
+    dom.window.document.getElementById('debtPenaltyTeamFilter').value = 'Team A';
+    dom.window.handleDebtPenaltyTeamChange();
+    assert.equal(dom.window.document.querySelectorAll('#debtPenaltyRows tr.doc-row').length, 1);
+    assert.equal(dom.window.document.querySelector('#debtPenaltyFoot tr').cells[9].textContent, '1,500,000');
+    assert.equal(dom.window.buildExportPayload('debt.penalty').context.debtPenaltyTeam, 'Team A');
+  } finally { dom.window.close(); }
 });

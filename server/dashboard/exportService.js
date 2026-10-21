@@ -33,14 +33,14 @@ const EXCEL_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.
 const DEBT_QUEUE_FILTERS = new Set(['needsAction', 'currentDebt', 'overdue', 'all']);
 // Khop thu tu cot bang Cong no tren man hinh (DEBT_SORT_FIELDS o public/index.html).
 const DEBT_SORT_FIELDS = [
-  'branch', 'customerName', 'sale', 'paymentSchedule', 'currentDebt', 'overdueDebt',
+  'branch', 'customerName', 'sale', 'saleTeam', 'paymentSchedule', 'currentDebt', 'overdueDebt',
   'inScheduleDebt', 'currentDebtToSalesRatio', 'overdueToSalesRatio', 'automaticAlert', 'overdueStreak',
   'previousPenaltyAmount', 'penaltyAmount', 'saleFeedback', 'managerFeedback', 'workflowStatus'
 ];
 
 // Khop thu tu cot bang Tuoi no theo hoa don (DEBT_AGING_SORT_FIELDS o public/index.html).
 const DEBT_AGING_SORT_FIELDS = [
-  'branch', 'customerName', 'sale', 'paymentSchedule', 'currentDebt', 'overdueDebt',
+  'branch', 'customerName', 'sale', 'saleTeam', 'paymentSchedule', 'currentDebt', 'overdueDebt',
   'payoffDay', 'equivalentDays', 'remainingDays'
 ];
 
@@ -214,6 +214,7 @@ function aggregateColumn(key, label, type, description, options = {}) {
 const DEBT_COLUMNS = [
   aggregateColumn('customerName', 'Khách hàng', 'text', 'Tên khách hàng trên KiotViet.'),
   aggregateColumn('sale', 'Nhân viên phụ trách (Sale)', 'text', 'Nhóm khách hàng của khách trên KiotViet.'),
+  aggregateColumn('saleTeam', 'Nhóm sale', 'text', 'Nhóm hiện tại dùng chung với tab Khách hàng.'),
   aggregateColumn('paymentSchedule', 'Lịch thanh toán', 'number', 'Số ngày nợ tối đa của khách tại cơ sở này; chưa đặt thì tính 1 ngày.'),
   aggregateColumn('currentDebt', 'Nợ hiện tại', 'number', 'Nợ của khách tại bản chốt 15:00 gần nhất (VNĐ).'),
   aggregateColumn('inScheduleDebt', 'Doanh số trong kỳ', 'number', 'Doanh số trong lịch thanh toán = tổng hóa đơn hoàn thành trong số ngày của lịch (không trừ trả hàng) (VNĐ).'),
@@ -241,6 +242,7 @@ const DEBT_COLUMNS = [
 const DEBT_PENALTY_COLUMNS = [
   aggregateColumn('rank', 'Hạng', 'number', 'Thứ hạng thưởng toàn hệ thống Hà Nội + Sài Gòn theo phạt/điểm; Sale không có điểm không xếp hạng.'),
   aggregateColumn('sale', 'Sale', 'text', 'Nhân viên phụ trách (nhóm khách hàng trên KiotViet).'),
+  aggregateColumn('saleTeam', 'Nhóm sale', 'text', 'Nhóm hiện tại dùng chung với tab Khách hàng.'),
   aggregateColumn('points', 'Điểm', 'number', 'Điểm công nợ của Sale trong tháng theo quy chế thưởng.'),
   aggregateColumn('ratio', 'Phạt/điểm', 'number', 'Phạt gốc chia cho điểm; để trống khi không có điểm.'),
   aggregateColumn('penaltyDays', 'Ngày bị phạt', 'number', 'Số ngày trong tháng (từ ngày 01) Sale có tiền phạt công nợ.'),
@@ -259,6 +261,7 @@ const DEBT_AGING_COLUMNS = [
   aggregateColumn('branch', 'Cơ sở', 'text', 'Cơ sở của khoản công nợ (Hà Nội hoặc Sài Gòn).'),
   aggregateColumn('customerName', 'Khách hàng', 'text', 'Tên khách hàng trên KiotViet.'),
   aggregateColumn('sale', 'Sale', 'text', 'Nhóm khách hàng của khách trên KiotViet.'),
+  aggregateColumn('saleTeam', 'Nhóm sale', 'text', 'Nhóm hiện tại dùng chung với tab Khách hàng.'),
   aggregateColumn('paymentSchedule', 'Lịch thanh toán', 'number', 'Số ngày nợ tối đa của khách tại cơ sở này; chưa đặt thì tính 1 ngày.'),
   aggregateColumn('currentDebt', 'Nợ hiện tại', 'number', 'Nợ của khách theo lần đồng bộ KiotViet mới nhất (VNĐ).'),
   aggregateColumn('overdueDebt', 'Nợ quá hạn', 'number', 'Nợ hiện tại trừ tổng hóa đơn hoàn thành trong số ngày của lịch thanh toán tính tới hôm nay (không trừ trả hàng), không âm (VNĐ).'),
@@ -589,8 +592,9 @@ function debtRewardStatusLabel(status) {
   return status === 'finalized' ? 'Đã chốt' : 'Thưởng tạm tính';
 }
 
-function debtPenaltyRows(board) {
-  return board.rows.map(row => ({
+function debtPenaltyRows(board, context = {}) {
+  return board.rows.filter(row => !context.debtPenaltyTeam || (row.saleTeam || 'Chưa có team') === context.debtPenaltyTeam).map(row => ({
+    saleTeam: row.saleTeam || 'Chưa có team',
     ...row, ratio: row.ratio === null || row.ratio === undefined ? null : Math.round(row.ratio),
     month: board.month, status: debtRewardStatusLabel(board.status)
   }));
@@ -637,6 +641,7 @@ function debtManagementRows(debtManagement, context, aggregate = false) {
     if (queue === 'needsAction' && !customer.needsAction) return false;
     if (queue === 'currentDebt' && !(Number(customer.currentDebt) > 0)) return false;
     if (queue === 'overdue' && !(Number(customer.overdueDebt) > 0)) return false;
+    if (context.debtTeam && (customer.saleTeam || 'Chưa có team') !== context.debtTeam) return false;
     if (sale && customer.sale !== sale) return false;
     if (schedule && customer.paymentSchedule !== schedule) return false;
     if (query && !normalizeDebtSearch(customer.customerName).includes(query) && !normalizeDebtSearch(customer.sale).includes(query)) return false;
@@ -646,6 +651,7 @@ function debtManagementRows(debtManagement, context, aggregate = false) {
     customerName: customer.customerName,
     branch: normalizeText(customer.branch) || debtBranchLabel(customer),
     sale: customer.sale,
+    saleTeam: customer.saleTeam || 'Chưa có team',
     paymentSchedule: Number(customer.paymentSchedule) || null,
     currentDebt: customer.currentDebt,
     inScheduleDebt: customer.inScheduleDebt,
@@ -691,6 +697,7 @@ function debtAgingRows(debtAging, context) {
   const schedule = normalizeText(context.debtAgingSchedule);
   const query = normalizeDebtSearch(context.debtAgingSearch);
   const rows = customers.filter(customer => {
+    if (context.debtAgingTeam && (customer.saleTeam || 'Chưa có team') !== context.debtAgingTeam) return false;
     if (sale && customer.sale !== sale) return false;
     if (schedule && customer.paymentSchedule !== schedule) return false;
     if (query && !normalizeDebtSearch(customer.customerName).includes(query) && !normalizeDebtSearch(customer.sale).includes(query)) return false;
@@ -699,6 +706,7 @@ function debtAgingRows(debtAging, context) {
     branch: customer.branch,
     customerName: customer.customerName,
     sale: customer.sale,
+    saleTeam: customer.saleTeam || 'Chưa có team',
     paymentSchedule: Number(customer.paymentSchedule) || null,
     currentDebt: customer.currentDebt,
     overdueDebt: customer.overdueDebt,
@@ -733,9 +741,9 @@ const TABLE_SPECS = {
     columns: [DEBT_COLUMNS[0], DEBT_BRANCH_COLUMN, ...DEBT_COLUMNS.slice(1)],
     rows: dashboard => debtManagementRows(dashboard.debtManagement, context, scope.aggregate)
   }),
-  'debt.penalty': () => aggregateTable({
+  'debt.penalty': context => aggregateTable({
     key: 'debt_penalty', name: 'Thưởng phạt sale', columns: DEBT_PENALTY_COLUMNS,
-    rows: dashboard => debtPenaltyRows(dashboard.debtReward),
+    rows: dashboard => debtPenaltyRows(dashboard.debtReward, context),
     summaryKeys: ['total', 'payablePenalty', 'reward']
   }),
   'debt.aging': context => aggregateTable({

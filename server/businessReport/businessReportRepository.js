@@ -384,6 +384,8 @@ function createRepository({
       client.release();
     }
     snapshotCache.clear();
+    require('../debtSchedule/debtScheduleRepository').getDebtScheduleRepository().bumpVersion();
+    require('../kiotvietSync/dashboardRollupEvents').dashboardRollupEvents.emit('updated', { at: Date.now() });
     return { saleName: sale, team };
   }
 

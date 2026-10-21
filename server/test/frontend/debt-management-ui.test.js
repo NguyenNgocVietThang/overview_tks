@@ -86,7 +86,7 @@ test('sidebar và tiêu đề thay Công nợ kỳ cũ bằng Công nợ', () =>
   assert.doesNotMatch(dashboard, /id="debtPeriodToggle"|setDebtPeriod\(|toggleDebtDetail\(|debt\.period/);
 });
 
-test('dashboard công nợ có đủ 4 KPI, không còn biểu đồ và bảng 16 cột (Cơ sở đứng đầu, có DS trong kỳ, không còn Nợ đầu kỳ)', () => {
+test('dashboard công nợ có đủ 4 KPI, không còn biểu đồ và bảng 17 cột (Cơ sở đứng đầu, có DS trong kỳ, không còn Nợ đầu kỳ)', () => {
   const dashboard = html();
   ['dm-current', 'dm-overdue', 'dm-action-count', 'dm-overdue-ratio'].forEach(id => {
     assert.match(dashboard, new RegExp(`id="${id}"`));
@@ -94,7 +94,7 @@ test('dashboard công nợ có đủ 4 KPI, không còn biểu đồ và bảng 
   assert.doesNotMatch(dashboard, /chartDebtBySale|chartDebtBySchedule|chartTopCurrentDebt|chartTopOverdueDebt|renderDebtComparisonChart|renderDebtTopChart/);
   const table = dashboard.match(/<table[^>]*data-debt-management-table[\s\S]*?<\/table>/);
   assert.ok(table);
-  assert.equal((table[0].match(/<th(?:\s[^>]*)?>/g) || []).length, 16);
+  assert.equal((table[0].match(/<th(?:\s[^>]*)?>/g) || []).length, 17);
   assert.match(table[0], /Cảnh báo<\/th>\s*<th[^>]*>Số phiên liên tiếp<\/th>\s*<th[^>]*>Tiền phạt phiên trước<\/th>\s*<th[^>]*>Tiền phạt phiên này<\/th>\s*<th[^>]*>Sale phản hồi<\/th>\s*<th[^>]*>QL phản hồi<\/th>\s*<th[^>]*>Xử lý/);
   assert.doesNotMatch(dashboard, /Chưa thu/, 'đã bỏ cảnh báo Chưa thu');
   assert.match(table[0], /<tr>\s*<th[^>]*>Cơ sở<\/th>\s*<th[^>]*>Khách hàng<\/th>/, 'Cơ sở là cột đầu');
@@ -137,7 +137,7 @@ test('lọc mặc định Tất cả, sort toàn tập và PATCH thành công c�
   assert.equal(document.getElementById('debtQueueFilter').value, 'all');
   assert.equal(document.querySelectorAll('#debtManagementRows tr[data-customer-key]').length, 2, 'mặc định chỉ hiện khách còn nợ');
 
-  const currentDebtHeader = document.querySelectorAll('[data-debt-management-table] thead th')[4].querySelector('button');
+  const currentDebtHeader = document.querySelectorAll('[data-debt-management-table] thead th')[5].querySelector('button');
   currentDebtHeader.click();
   currentDebtHeader.click();
   assert.equal(document.querySelector('#debtManagementRows tr[data-customer-key] .name-cell').textContent, 'Khách B');
@@ -168,10 +168,10 @@ test('Sale phản hồi sửa được theo quyền, QL phản hồi chỉ đọ
   const row = document.querySelector('#debtManagementRows tr[data-customer-key="hanoi:1"]');
   const cells = row.querySelectorAll('td');
   assert.equal(cells[0].textContent, 'HN', 'cột Cơ sở ghi tắt');
-  const saleInput = cells[13].querySelector('textarea.debt-feedback-input');
+  const saleInput = cells[14].querySelector('textarea.debt-feedback-input');
   assert.ok(saleInput, 'có quyền Sale phản hồi -> ô nhập');
   assert.equal(saleInput.value, 'Hẹn thứ 6');
-  assert.equal(cells[14].querySelector('textarea'), null, 'không có quyền QL phản hồi -> chỉ đọc');
+  assert.equal(cells[15].querySelector('textarea'), null, 'không có quyền QL phản hồi -> chỉ đọc');
 
   let sent;
   dom.window.fetch = async (url, options) => { sent = { url, body: JSON.parse(options.body) }; return { ok: true, json: async () => ({ value: 'Hẹn thứ 7', by: 'Lan' }) }; };
@@ -213,4 +213,19 @@ test('khung Chỉ số then chốt: 4 chỉ số xếp dọc bên trái, bảng 
   assert.ok(board.querySelector('#debtPenaltyTable'));
   assert.equal(document.querySelectorAll('[data-table-key="dashboard-table-22"]').length, 1);
   dom.window.close();
+});
+
+
+test('management team dropdown combines with sale filter and exports selected group', () => {
+  const payload = debtPayload();
+  payload.customers[0].saleTeam = 'Team A'; payload.customers[1].saleTeam = 'Team B';
+  const dom = createDashboard(payload);
+  try {
+    const document = dom.window.document;
+    document.getElementById('debtTeamFilter').value = 'Team B';
+    dom.window.handleDebtFilterChange();
+    assert.equal(document.querySelectorAll('#debtManagementRows tr[data-customer-key]').length, 1);
+    assert.match(document.getElementById('debtManagementRows').textContent, /Khách B/);
+    assert.equal(dom.window.buildExportPayload('debt.management').context.debtTeam, 'Team B');
+  } finally { dom.window.close(); }
 });
