@@ -712,10 +712,14 @@ test('hop chi tiet: gom MOI CONT cung ma SP (khong phan biet hoa thuong / khoang
   await settle();
   rowFor(page, 'YIWU', 5).click();
   assert.deepEqual(statTiles(page), [
-    ['1. Chưa bốc', '100'], ['2. Đã bốc', '300'], ['3. Đã về kho', '0'], ['Trạng thái 4', '0'], ['Trạng thái 5', '0'], ['Tổng số lượng', '400']
+    ['1. Chưa bốc', '100'], ['2. Đã bốc', '300'], ['3. Đã về kho', '0'], ['Trạng thái 4', '0'], ['Trạng thái 5', '0']
   ]);
   const table = page.$('docModalBody').querySelector('table.dp-table');
   assert.equal(table.dataset.tableKey, 'dashboard-table-expected-arrival-detail');
+  // Riêng bảng này: ô Trạng thái không xuống dòng (cắt "..."), tooltip giữ chữ đầy đủ; các cột có độ rộng mặc định.
+  const statusCell = table.querySelector('tbody td.expected-status-cell');
+  assert.ok(statusCell && statusCell.title === statusCell.textContent);
+  assert.ok([...table.querySelectorAll('thead th')].every(th => /^\d+px$/.test(th.style.width)));
   assert.deepEqual([...table.tBodies[0].rows].map(tr => tr.cells[0].textContent), ['CONT 10-5H', 'CONT 11-2A', 'CONT 12-1A']);
   assert.deepEqual([...table.tHead.rows[0].cells].map(th => th.textContent.replace(/[▲▼]/g, '').trim()),
     ['Tên CONT', 'Trạng thái', 'Ngày về', 'Màu sắc', 'Ghi chú sale', 'Tổng số lượng']);
@@ -729,7 +733,7 @@ test('hop chi tiet: gom MOI CONT cung ma SP (khong phan biet hoa thuong / khoang
   // Ma khac (DEN200 - trang thai 3) chi co the trang thai 3.
   page.run('closeDocumentDetail()');
   rowFor(page, 'YIWU', 20).click();
-  assert.deepEqual(statTiles(page).map(t => t[1]), ['0', '0', '500', '0', '0', '500']);
+  assert.deepEqual(statTiles(page).map(t => t[1]), ['0', '0', '500', '0', '0']);
   assert.equal(page.$('docModalBody').querySelectorAll('tbody tr').length, 1);
 });
 

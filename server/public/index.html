@@ -3325,11 +3325,12 @@
     #productCustomerContent { display:grid; gap:18px; min-width:0; }
     /* Hộp "Chi tiết hàng dự kiến": bảng CONT cùng mã SP (cột Màu sắc / Ghi chú sale có thể dài nên cho xuống dòng). */
     .expected-detail { display:grid; gap:18px; min-width:0; }
-    .expected-detail .dp-table { min-width:920px; }
     .expected-detail td { vertical-align:top; }
-    .expected-detail td:nth-child(-n+3) { min-width:115px; }
-    .expected-detail td:nth-child(4) { min-width:170px; }
-    .expected-detail td:nth-child(5) { min-width:210px; }
+    /* Riêng bảng này: ô Trạng thái không xuống dòng, dữ liệu dài cắt bằng "..." (đầy đủ ở tooltip). */
+    /* Thắng quy tắc !important của table-controls.css (white-space normal / clip) chỉ cho ô này. */
+    .expected-detail table.tks-controlled-table td.expected-status-cell { max-width:0 !important; overflow:hidden !important; text-overflow:ellipsis !important; white-space:nowrap !important; overflow-wrap:normal !important; }
+    /* Đệm ngang gọn hơn để tổng độ rộng tối thiểu các cột không vượt khung hộp (bảng không bị thanh cuộn ngang). */
+    .expected-detail .dp-table th, .expected-detail .dp-table td { padding-left:8px; padding-right:8px; }
 
     .doc-modal-body .dp-table-wrap {
       --dp-table-max: 340px;
@@ -8630,18 +8631,19 @@
     // Bảng CONT của 1 mã SP. rows: các dòng của expectedArrivals.rows; full: có quyền xem giá + cột nhạy cảm (fullAccess của máy chủ).
     // Có quyền: Màu sắc / Ghi chú sale ẩn mặc định, bật lại bằng "Cột hiển thị". Số "ngày về" để nguyên văn như sheet.
     function expectedContainerTableHtml(rows, full) {
+      // Cột thứ 4 = độ rộng mặc định (px) của <th>; Trạng thái cố định để "..." cắt chữ dài.
       const columns = [
-        ['containerName', 'Tên CONT'], ['statusLabel', 'Trạng thái'], ['eta', 'Ngày về'],
-        ['color', 'Màu sắc'], ['saleNote', 'Ghi chú sale']
+        ['containerName', 'Tên CONT', false, 125], ['statusLabel', 'Trạng thái', false, 120], ['eta', 'Ngày về', false, 90],
+        ['color', 'Màu sắc', false, 130], ['saleNote', 'Ghi chú sale', false, 180]
       ];
-      if (full) columns.push(['orderedBy', 'Người đặt'], ['listedAt', 'Ngày lên list'],
-        ['unitsPerPackage', 'Số cái/kiện', true], ['packageCount', 'Số kiện', true]);
-      columns.push(['quantity', 'Tổng số lượng', true]);
-      if (full) columns.push(['unitPriceCny', 'Giá SP (tệ)', true], ['vietnamPrice', 'Giá hàng về VN', true]);
-      return '<div class="dp-table-wrap is-flow"><table class="dp-table is-min-wide" data-table-key="dashboard-table-expected-arrival-detail"><thead><tr>' +
+      if (full) columns.push(['orderedBy', 'Người đặt', false, 105], ['listedAt', 'Ngày lên list', false, 100],
+        ['unitsPerPackage', 'Số cái/kiện', true, 105], ['packageCount', 'Số kiện', true, 85]);
+      columns.push(['quantity', 'Tổng số lượng', true, 100]);
+      if (full) columns.push(['unitPriceCny', 'Giá SP (tệ)', true, 85], ['vietnamPrice', 'Giá hàng về VN', true, 105]);
+      return '<div class="dp-table-wrap is-flow"><table class="dp-table" data-table-key="dashboard-table-expected-arrival-detail"><thead><tr>' +
         columns.map(function (col) {
           const hide = full && (col[0] === 'color' || col[0] === 'saleNote');
-          return '<th' + (col[2] ? ' class="num"' : '') + (hide ? ' data-column-default-hidden="true"' : '') + '>' + col[1] + '</th>';
+          return '<th' + (col[2] ? ' class="num"' : '') + ' style="width:' + col[3] + 'px"' + (hide ? ' data-column-default-hidden="true"' : '') + '>' + col[1] + '</th>';
         }).join('') +
         '</tr></thead><tbody>' + rows.map(function (row) {
           return '<tr>' + columns.map(function (col) {
@@ -8652,6 +8654,7 @@
               : col[0] === 'unitPriceCny' ? expectedArrivalsCnyText(value)
               : col[2] ? fmtNumber(value) : String(value);
             const sortValue = col[2] && !empty && Number.isFinite(Number(value)) ? ' data-sort-value="' + Number(value) + '"' : '';
+            if (col[0] === 'statusLabel') return '<td class="dp-note-text expected-status-cell" title="' + escapeHtml(text) + '">' + escapeHtml(text) + '</td>';
             return '<td' + (col[2] ? ' class="num"' : ' class="dp-note-text"') + sortValue + '>' + escapeHtml(text) + '</td>';
           }).join('') + '</tr>';
         }).join('') + '</tbody></table></div>';
@@ -8680,7 +8683,7 @@
         return { status: status, label: expectedArrivalStatusText(status), lines: matching.length, quantity: sumBy(matching, function (r) { return r.quantity; }) };
       });
       const containers = new Set(rows.map(function (r) { return r.sheetName + '\u0000' + r.containerName; })).size;
-      return { code: item.productCode, rows: rows, statuses: statuses, containers: containers, totalQuantity: sumBy(rows, function (r) { return r.quantity; }), full: expectedArrivals.fullAccess === true };
+      return { code: item.productCode, rows: rows, statuses: statuses, containers: containers, full: expectedArrivals.fullAccess === true };
     }
 
     function renderExpectedArrivalDetailModal(body, subtitle, data) {
@@ -8689,7 +8692,6 @@
       const tiles = data.statuses.map(function (entry) {
         return { label: entry.label, value: fmtNumber(entry.quantity), tone: tones[entry.status] || '', sub: entry.lines ? fmtNumber(entry.lines) + ' dòng' : 'Không có' };
       });
-      tiles.push({ label: 'Tổng số lượng', value: fmtNumber(data.totalQuantity), tone: 'green', sub: fmtNumber(data.rows.length) + ' dòng · ' + fmtNumber(data.containers) + ' cont' });
       body.innerHTML = '<div class="expected-detail">' + detailStatsHtml(tiles) +
         '<div class="dp-section">' + detailSectionHeadHtml('Các CONT của mã này', fmtNumber(data.rows.length) + ' dòng') +
         '<p class="dp-chart-caption">' + escapeHtml(formatProductReportUpdatedAt(expectedArrivals.computedAt)) + '</p>' +
@@ -8800,7 +8802,7 @@
       else if (isDebtPenalty) setDocumentDetailTitle(kind.title, ' · ', item.sale);
       else if (isDebtAgingInvoices) setDocumentDetailTitle(kind.title, ' · ', item.customerName);
       else if (isProduct) setDocumentDetailTitle(kind.title, ' · ', item.code + (item.name ? ' – ' + item.name : ''));
-      else if (isExpectedArrival) setDocumentDetailTitle(kind.title, ' · ', item.productCode + (item.productName ? ' – ' + item.productName : ''));
+      else if (isExpectedArrival) setDocumentDetailTitle(kind.title, ' · ', [item.productCode, item.productName].filter(Boolean).join(' – ') || 'Dòng không mã');
       else setDocumentDetailTitle(kind.title, ' ', item.code);
       subtitle.textContent = isBusiness || isDebtPenalty || isExpectedArrival ? '' : isProduct ? '90 ngày gần nhất' : (item.branch ? 'Cơ sở ' + item.branch : '');
       if (status === 'loading' && isProduct) {
