@@ -154,7 +154,7 @@ test('Tra cuu / Lich su / Xuat / Ghi de GAN vao Vong doi don hang: thieu lifecyc
   assert.ok(!grantedOnlyLifecycle.includes('shipment.history'));
 });
 
-const SALE_REPORT_VIEW_KEYS = ['reports.overview', 'reports.products', 'reports.products.sales', 'reports.products.expected', 'reports.invoices', 'reports.invoices.priceAudit', 'reports.business', 'reports.debt'];
+const SALE_REPORT_VIEW_KEYS = ['reports.overview', 'reports.products', 'reports.products.growth', 'reports.products.sales', 'reports.products.expected', 'reports.invoices', 'reports.invoices.priceAudit', 'reports.business', 'reports.debt'];
 const SALE_REPORT_WRITE_KEYS = ['reports.debt.saleFeedback', 'reports.invoices.priceAudit.explain'];
 
 test('Nhan vien sale xem du 5 tab bao cao mac dinh + dien Sale phan hoi cong no, KHONG co xuat Excel / sua trang thai cong no', () => {
@@ -177,7 +177,7 @@ const SHIPMENT_LIFECYCLE_GROUP = ['shipment.lifecycle', 'shipment.lookup', 'ship
 
 test('Nhan vien marketing has own report, other permissions match sale excluding general reports, lifecycle, Tao QR and Yeu cau xuat VAT', () => {
   assert.deepEqual(
-    registry.defaultsForRole(ROLES.NHAN_VIEN_MARKETING).filter(key=>key!=='reports.marketing' && key!=='reports.products' && key!=='reports.products.expected'),
+    registry.defaultsForRole(ROLES.NHAN_VIEN_MARKETING).filter(key=>key!=='reports.marketing' && key!=='reports.products.expected'),
     registry.defaultsForRole(ROLES.NHAN_VIEN_SALE).filter(key => !SALE_REPORT_VIEW_KEYS.includes(key) && !SALE_REPORT_WRITE_KEYS.includes(key) && key !== 'accounting.qr' && key !== 'accounting.vatRequest' && !SHIPMENT_LIFECYCLE_GROUP.includes(key))
   );
 });
@@ -364,10 +364,10 @@ test('reports.products.price (Don gia HN/SG cua Bao cao hang hoa): mac dinh chi 
   assert.equal(registry.FEATURES.find(f => f.key === 'reports.products.price').requires, 'reports.products');
 });
 
-test('reports.products.expected (Du kien hang ve): 7 vai tro, doc lap voi reports.products, khong doi trang dang nhap mac dinh', () => {
+test('reports.products.expected: moi vai tro noi bo, doc lap voi reports.products', () => {
   const feature = registry.FEATURES.find(f => f.key === 'reports.products.expected');
   assert.ok(feature && !feature.requires);
-  assert.deepEqual([...feature.roles].sort(), ['Kế toán', 'Nhân viên kho', 'Nhân viên marketing', 'Nhân viên mua hàng', 'Nhân viên sale', 'Quản lý', 'Trợ lý'].sort());
+  assert.deepEqual([...feature.roles].sort(), [...INTERNAL_ROLES].sort());
   assert.ok(!registry.defaultsForRole(ROLES.KHACH).includes('reports.products.expected'));
   for (const role of [ROLES.KE_TOAN, ROLES.NHAN_VIEN_MUA_HANG, ROLES.NHAN_VIEN_KHO]) {
     const permissions = registry.defaultsForRole(role);
@@ -377,6 +377,19 @@ test('reports.products.expected (Du kien hang ve): 7 vai tro, doc lap voi report
     assert.notEqual(registry.landingPathFor(permissions), '/reports/', role);
   }
   assert.equal(registry.landingPathFor(['reports.products.expected', 'account.profile']), '/account/');
+});
+
+test('Hang hoa: mac dinh QL/TL/Sale xem ca ba muc, cac vai tro noi bo khac chi xem Du kien', () => {
+  for (const role of INTERNAL_ROLES) {
+    const permissions = registry.defaultsForRole(role);
+    const full = [ROLES.QUAN_LY, ROLES.TRO_LY, ROLES.NHAN_VIEN_SALE].includes(role);
+    assert.equal(permissions.includes('reports.products'), full, role);
+    assert.equal(permissions.includes('reports.products.growth'), full, role);
+    assert.ok(permissions.includes('reports.products.expected'), role);
+  }
+  const custom = registry.resolvePermissions({ vaiTro: ROLES.NHAN_VIEN_KHO, featurePermissions: { 'reports.products.growth': true } });
+  assert.ok(custom.includes('reports.products.growth'));
+  assert.ok(!custom.includes('reports.products'));
 });
 
 test('Kiem tra gia ban: xem (QL/TL/Sale, can Hoa don), giai thich mac dinh chi Sale, Chot mac dinh chi Quan ly', () => {

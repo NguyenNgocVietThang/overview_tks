@@ -345,9 +345,9 @@ test('canViewReport(products): chap nhan reports.products HOAC reports.products.
   assert.equal(none.run("canViewReport('products')"), false);
 });
 
-test('shared-nav: muc Hang hoa cua sidebar chap nhan 1 trong 2 quyen', () => {
+test('shared-nav: muc Hang hoa cua sidebar chap nhan 1 trong 3 quyen', () => {
   const nav = fs.readFileSync(path.join(publicDir, 'shared', 'shared-nav.js'), 'utf8');
-  assert.match(nav, /feature: 'reports\.products', anyOf: \['reports\.products', 'reports\.products\.expected'\], view: 'products'/);
+  assert.match(nav, /feature: 'reports\.products', anyOf: \['reports\.products', 'reports\.products\.expected', 'reports\.products\.growth'\], view: 'products'/);
 });
 
 

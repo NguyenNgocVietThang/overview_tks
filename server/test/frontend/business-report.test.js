@@ -142,7 +142,7 @@ test('tab Hang hoa: Bao cao hang hoa (muc 1) + Du kien hang ve (muc 2) + Tang tr
   assert.ok(view.querySelector('#businessProductsRows'), 'Tang truong ma hang da chuyen tu Khach hang sang Hang hoa');
 });
 
-test('tab Hang hoa: chi goi API /api/business-report/products (khong goi /api/dashboard), muc Tang truong ma hang hien khi co reports.business', async () => {
+test('tab Hang hoa: chi goi API /api/business-report/products (khong goi /api/dashboard), muc Tang truong ma hang hien khi co reports.products.growth', async () => {
   const page = createPage({ hash: '#products' });
   page.run("switchView('products')");
   await settle();
@@ -153,12 +153,20 @@ test('tab Hang hoa: chi goi API /api/business-report/products (khong goi /api/da
   assert.ok(rowsOf(page, 'businessProductsRows').length > 0);
 });
 
-test('tab Hang hoa: thieu reports.business thi an muc Tang truong ma hang va khong goi API', async () => {
-  const page = createPage({ can: k => k !== 'reports.business', hash: '#products' });
+test('tab Hang hoa: thieu reports.products.growth thi an muc Tang truong ma hang va khong goi API', async () => {
+  const page = createPage({ can: k => k !== 'reports.products.growth', hash: '#products' });
   page.run("switchView('products')");
   await settle();
   assert.deepEqual(businessUrls(page), []);
   assert.equal(page.$('productGrowthSection').hidden, true);
+});
+
+test('quyen Tang truong doc lap: thieu quyen Khach hang van tai duoc muc ma hang', async () => {
+  const page = createPage({ can: k => k === 'reports.products.growth', hash: '#products' });
+  page.run("switchView('products')");
+  await settle();
+  assert.deepEqual(businessUrls(page), ['/api/business-report/products']);
+  assert.equal(page.$('productGrowthSection').hidden, false);
 });
 
 test('mo tab: goi dung 3 API /api/business-report (sales, customers, overview), KHONG goi /api/dashboard?view=business', async () => {

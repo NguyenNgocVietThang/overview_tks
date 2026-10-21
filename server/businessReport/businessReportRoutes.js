@@ -16,6 +16,9 @@ function createBusinessReportRouter({ repository = createRepository() } = {}) {
   const router = express.Router();
   router.use((req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
   const view = [requireAuth, requireFeature('reports.business')];
+  const kindPermission = (req, res, next) => requireFeature(
+    req.query.kind === 'products' || req.query.kind === 'product' ? 'reports.products.growth' : 'reports.business'
+  )(req, res, next);
   const handle = fn => async (req, res) => {
     try { await fn(req, res); } catch (e) {
       if (e.statusCode && e.statusCode < 500) return res.status(e.statusCode).json({ error: e.message, code: e.code });
@@ -25,12 +28,12 @@ function createBusinessReportRouter({ repository = createRepository() } = {}) {
   };
 
   for (const kind of Object.keys(BUILDERS)) {
-    router.get(`/${kind}`, ...view, handle(async (req, res) => res.json(BUILDERS[kind](await repository.snapshot()))));
+    router.get(`/${kind}`, requireAuth, requireFeature(kind === 'products' ? 'reports.products.growth' : 'reports.business'), handle(async (req, res) => res.json(BUILDERS[kind](await repository.snapshot()))));
   }
 
   router.get('/overview', ...view, handle(async (req, res) => res.json(svc.buildOverview(await repository.snapshot()))));
 
-  router.get('/detail', ...view, handle(async (req, res) => {
+  router.get('/detail', requireAuth, kindPermission, handle(async (req, res) => {
     const kind = String(req.query.kind || '');
     const key = String(req.query.key || '');
     const snap = await repository.snapshot();
@@ -84,8 +87,8 @@ function createBusinessReportRouter({ repository = createRepository() } = {}) {
     res.json(await repository.setSaleTeam(saleName, teamName));
   }));
 
-  // Can DONG THOI reports.business va reports.export (hai requireFeature rieng = AND).
-  const exportGuard = [...view, requireFeature('reports.export')];
+  // Xuat can quyen xem tung muc (products.growth hoac business) va reports.export.
+  const exportGuard = [requireAuth, kindPermission, requireFeature('reports.export')];
   const exportReport = async req => {
     const kind = String(req.query.kind || '');
     if (!BUILDERS[kind]) { const e = new Error('Bảng xuất không hợp lệ.'); e.statusCode = 400; throw e; }
