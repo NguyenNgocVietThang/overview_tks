@@ -6747,7 +6747,7 @@
     /** Quyen xem mot tab bao cao — khop requireFeature/loc payload phia server. */
     function canViewReport(view) {
       // Hang hoa: vao duoc voi Bao cao hang hoa HOAC chi bang Du kien hang ve (Ke toan / Mua hang / Kho khong co reports.products).
-      if (view === 'products') return hasFeature('reports.products') || hasFeature('reports.products.expected');
+      if (view === 'products') return hasFeature('reports.products') || hasFeature('reports.products.expected') || hasFeature('reports.products.growth');
       return hasFeature('reports.' + view);
     }
 
@@ -6799,7 +6799,7 @@
       }
       refreshProductContainerMeta();
       // Tab Hang hoa khong co payload /api/dashboard: Bao cao hang hoa tu tai (loadProductReport; chi voi reports.products), muc Tang
-      // truong ma hang dung API /api/business-report/products (chi voi reports.business), muc Du kien hang ve dung /api/expected-arrivals
+      // truong ma hang dung API /api/business-report/products (chi voi reports.products.growth), muc Du kien hang ve dung /api/expected-arrivals
       // (chi voi reports.products.expected). Muc nao khong co quyen thi an va KHONG goi API cua muc do.
       if (view === 'products') { applyProductsViewPermissions(); loadProductGrowth(); loadExpectedArrivals(); return; }
       if (view === 'overview' && marketingHistoryDeferred) { marketingHistoryDeferred = false; loadInventoryHistory(); }
@@ -10456,7 +10456,7 @@
     // yeu cau thu cong dang cho, tat khi tat ca xong (thanh cong/loi/bi huy).
     function loadProductGrowth() {
       const section = document.getElementById('productGrowthSection');
-      const allowed = typeof TKSNav !== 'undefined' && typeof TKSNav.can === 'function' && !!TKSNav.can('reports.business');
+      const allowed = hasFeature('reports.products.growth');
       section.hidden = !allowed;
       if (allowed) loadBusinessReport(false, 'products');
     }

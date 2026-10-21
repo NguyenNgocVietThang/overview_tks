@@ -7,7 +7,7 @@ const { createBusinessReportRouter } = require('./businessReportRoutes');
 const { serviceSnapshot } = require('./testFixtures');
 
 // Truyen permissions da giai; requireAuth va requireFeature van chay that.
-async function request(path, { permissions = ['reports.business'], method = 'GET', body, repo = {} } = {}) {
+async function request(path, { permissions = ['reports.business', 'reports.products.growth'], method = 'GET', body, repo = {} } = {}) {
   const calls = [];
   const app = express();
   app.use((req, res, next) => {
@@ -38,7 +38,7 @@ async function request(path, { permissions = ['reports.business'], method = 'GET
   }
 }
 
-test('GET /sales, /customers, /products: can reports.business', async () => {
+test('GET /sales, /customers, /products: quyen theo tung muc', async () => {
   const ok = await request('/sales');
   assert.equal(ok.status, 200);
   assert.ok(ok.data.rows.find(r => r.saleName === 'Khang'));
@@ -47,6 +47,20 @@ test('GET /sales, /customers, /products: can reports.business', async () => {
   assert.equal((await request('/products')).status, 200);
   const denied = await request('/sales', { permissions: ['reports.overview'] });
   assert.equal(denied.status, 403);
+});
+
+test('quyen Tang truong ma hang doc lap Khach hang va Du kien, gom chi tiet va xuat', async () => {
+  const growth = { permissions: ['reports.products.growth'] };
+  assert.equal((await request('/products', growth)).status, 200);
+  assert.equal((await request('/sales', growth)).status, 403);
+  assert.equal((await request('/detail?kind=customer&key=x', growth)).status, 403);
+  for (const permissions of [['reports.business', 'reports.export'], ['reports.products.expected']]) {
+    for (const path of ['/products', '/detail?kind=product&key=SP1', '/export?kind=products', '/export/fields?kind=products']) {
+      assert.equal((await request(path, { permissions })).status, 403, path);
+    }
+  }
+  const exported = await request('/export/fields?kind=products', { permissions: ['reports.products.growth', 'reports.export'] });
+  assert.equal(exported.status, 200);
 });
 
 test('GET /detail?kind=customer nap top ma hang 4 thang gan nhat qua repository', async () => {
@@ -104,16 +118,16 @@ test('GET /export: can ca reports.business va reports.export', async () => {
   assert.equal(noExport.status, 403);
   const noView = await request('/export?kind=customers&format=xlsx', { permissions: ['reports.export'] });
   assert.equal(noView.status, 403);
-  const ok = await request('/export?kind=customers&format=xlsx', { permissions: ['reports.business', 'reports.export'] });
+  const ok = await request('/export?kind=customers&format=xlsx', { permissions: ['reports.business', 'reports.products.growth', 'reports.export'] });
   assert.equal(ok.status, 200);
   assert.match(ok.headers.get('content-type'), /spreadsheetml/);
   assert.match(ok.headers.get('content-disposition'), /TKS_Bao_cao_kinh_doanh_customers\.xlsx/);
-  const bad = await request('/export?kind=zzz&format=xlsx', { permissions: ['reports.business', 'reports.export'] });
+  const bad = await request('/export?kind=zzz&format=xlsx', { permissions: ['reports.business', 'reports.products.growth', 'reports.export'] });
   assert.equal(bad.status, 400);
 });
 
 test('GET /export?columns=: file chi chua cot da chon; khoa la / rong => 400', async () => {
-  const both = { permissions: ['reports.business', 'reports.export'] };
+  const both = { permissions: ['reports.business', 'reports.products.growth', 'reports.export'] };
   const ok = await request('/export?kind=sales&format=xlsx&columns=' + encodeURIComponent('saleName,avg4'), both);
   assert.equal(ok.status, 200);
   const wb = new ExcelJS.Workbook();
@@ -128,7 +142,7 @@ test('GET /export?columns=: file chi chua cot da chon; khoa la / rong => 400', a
 test('GET /export/fields: can ca reports.business va reports.export; tra truong + so dong theo bo loc', async () => {
   assert.equal((await request('/export/fields?kind=customers')).status, 403);
   assert.equal((await request('/export/fields?kind=customers', { permissions: ['reports.export'] })).status, 403);
-  const both = { permissions: ['reports.business', 'reports.export'] };
+  const both = { permissions: ['reports.business', 'reports.products.growth', 'reports.export'] };
   const active = await request('/export/fields?kind=customers', both);
   assert.equal(active.status, 200);
   const ws = active.data.worksheets[0];

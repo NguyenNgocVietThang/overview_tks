@@ -50,15 +50,15 @@ const FEATURES = Object.freeze([
   // --- Bao cao tong hop ---
   { key: 'reports.overview', groupKey: 'reports', label: 'Tổng quan', roles: REPORT_VIEW_ROLES },
   { key: 'reports.overview.containers.full', groupKey: 'reports', label: 'Xem đầy đủ chi tiết CONT (cần Hàng hóa)', roles: MANAGER_ONLY, requires: 'reports.products' },
-  { key: 'reports.products', groupKey: 'reports', label: 'Hàng hóa (Báo cáo hàng hóa, Tăng trưởng mã hàng, Kiểm tra đứt hàng)', roles: [...REPORT_VIEW_ROLES, ROLES.NHAN_VIEN_MARKETING] },
+  { key: 'reports.products', groupKey: 'reports', label: 'Hàng hóa: xem Báo cáo hàng hóa và Kiểm tra đứt hàng', roles: REPORT_VIEW_ROLES },
+  { key: 'reports.products.growth', groupKey: 'reports', label: 'Hàng hóa: xem Tăng trưởng mã hàng', roles: REPORT_VIEW_ROLES },
   // 2026-10-20: Nhan vien marketing xem tab Hang hoa nhung KHONG duoc thay thong tin suy ra duoc don gia: doanh so 90 ngay, doanh so khach lon nhat,
   // Mo ta (thuong ghi bang gia) va hop doanh so theo khach. Mac dinh moi vai tro xem bao cao tru Marketing.
   { key: 'reports.products.sales', groupKey: 'reports', label: 'Hàng hóa: xem doanh số, mô tả bảng giá và doanh số theo khách (cần Hàng hóa)', roles: REPORT_VIEW_ROLES, requires: 'reports.products' },
   // 2026-10-17: cot Don gia HN/SG cua Bao cao hang hoa (gia ban chung KiotViet); mac dinh chi Quan ly + Tro ly.
   { key: 'reports.products.price', groupKey: 'reports', label: 'Hàng hóa: xem đơn giá HN / SG (cần Hàng hóa)', roles: REPORTS_ROLES, requires: 'reports.products' },
-  // 2026-10-20: bang "Du kien hang ve" (tab Hang hoa) mo cho 7 vai tro, DOC LAP voi 'reports.products' (khong requires):
-  // Ke toan / Mua hang / Kho khong co Bao cao hang hoa nhung van can biet lich cont ve. API rieng /api/expected-arrivals.
-  { key: 'reports.products.expected', groupKey: 'reports', label: 'Hàng hóa: xem bảng Dự kiến hàng về', roles: [...REPORT_VIEW_ROLES, ROLES.KE_TOAN, ROLES.NHAN_VIEN_MARKETING, ROLES.NHAN_VIEN_MUA_HANG, ROLES.NHAN_VIEN_KHO] },
+  // Du kien hang ve: moi vai tro noi bo; doc lap voi Bao cao hang hoa va Tang truong ma hang.
+  { key: 'reports.products.expected', groupKey: 'reports', label: 'Hàng hóa: xem bảng Dự kiến hàng về', roles: INTERNAL_ROLES },
   { key: 'reports.invoices', groupKey: 'reports', label: 'Hóa đơn', roles: REPORT_VIEW_ROLES },
   // 2026-10-20: Kiem tra gia ban (tab Hoa don, server/invoicePriceAudit). Giai thich chi Sale dung nhom khach HIEN TAI
   // (kiem tra o server moi lan ghi); Chot mac dinh chi Quan ly, KHONG tu cap Tro ly; quyen Chot khong kem quyen giai thich.

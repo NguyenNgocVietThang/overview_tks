@@ -290,3 +290,6 @@ Cùng khách ở 2 cơ sở (15/10/2026): ở bảng tổng thưởng/phạt sal
 
 
 **Cập nhật lần cuối:** 21/10/2026 (Asia/Ho_Chi_Minh).
+
+
+21/10/2026 — Tab Hàng hóa trong Báo cáo tổng hợp: ba quyền xem độc lập `reports.products` (Báo cáo hàng hóa/kiểm tra đứt hàng), `reports.products.expected` (Dự kiến hàng về), `reports.products.growth` (Tăng trưởng mã hàng). Quản lý/Trợ lý/Sale mặc định xem cả ba mục; các vai trò nội bộ còn lại chỉ Dự kiến hàng về (gồm Trưởng kho, Lái xe). Khách giữ nguyên không có quyền báo cáo. Quyền giá và doanh số giữ nguyên. Tăng trưởng mã hàng không còn phụ thuộc quyền Khách hàng (`reports.business`); API products/detail product/export products dùng quyền mới, xuất vẫn cần `reports.export`. Có thể cấp/gỡ riêng từng quyền ở quản lý tài khoản. Không migration; chưa deploy.
