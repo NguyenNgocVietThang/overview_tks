@@ -789,3 +789,10 @@ Ba bảng chính Công nợ hiển thị Nhóm sale, lọc độc lập theo nh�
 ### Cập nhật 21/10/2026 — ORDER VAT: cột hàng về theo cont, ẩn 4 cột số liệu với sale
 
 - **FR-VR-15 (21/10/2026)**: Tồn VAT, SLG tổng cần khai, Dự kiến hàng về, Dự kiến ngày về gần nhất chỉ dành cho tài khoản có `accounting.vatRequestProcess` (Kế toán được cấp quyền, Quản lý). Người khác (sale, Kế toán chưa cấp quyền) không nhận các số này từ API (`metrics: {}`, `stockStatus: null`; `/metrics` và `/lookup` chỉ trả tên SP và giá gần nhất), nên không thấy cột trong bảng hay trong nút Cột hiển thị, không có số liệu ở dòng đầu nhóm và trong form, và file Excel bỏ 4 cột này.
+
+### Cập nhật 21/10/2026 — ORDER VAT thao tác kiểu Google Sheet
+
+- **FR-VR-16 (21/10/2026)**: bảng ORDER VAT thao tác như Google Sheet (`public/vat-request/vat-request-grid.js`).
+  - Mọi người: chọn vùng ô chữ nhật bằng kéo chuột, Shift+click, phím mũi tên / Shift+mũi tên; Ctrl+C chép TSV không kèm tiêu đề, bỏ cột ẩn (số trơn, ngày dd/mm/yyyy, trạng thái theo nhãn); Esc bỏ chọn.
+  - Người có `accounting.vatRequestProcess`, ở 3 cột KT phản hồi / KT note cho sale / Ngày về: ô hiện chữ / nhãn màu; nháy đúp, Enter, F2 hoặc gõ ký tự mở ô sửa, Esc bỏ; thiết bị cảm ứng chạm là sửa. Kéo chấm vuông góc vùng chọn để nhân bản lên / xuống (nhiều dòng nguồn lặp theo chu kỳ, ngày chép nguyên không tăng). Ctrl+V dán bảng từ ô đầu vùng chọn đi xuống theo các dòng đang hiện (1 giá trị + vùng nhiều ô → điền mọi ô). Trạng thái nhận mã (`3`), nhãn hoặc số đầu; ngày nhận dd/mm/yyyy, d/m/yy, yyyy-mm-dd; ô sai hoặc tràn ngoài cột KT / trang hiện tại bị bỏ và báo số ô. Delete xóa note / ngày.
+  - Lưu ngay 1 lần qua `PATCH /api/vat-requests/bulk` (thay đổi riêng từng dòng, 1 transaction, lệch version → 409 hủy cả lô), mỗi trường đổi ghi lịch sử; thanh trạng thái báo số yêu cầu đã cập nhật kèm nút **Hoàn tác** (gửi lại giá trị cũ, chỉ cho lần kéo / dán gần nhất).

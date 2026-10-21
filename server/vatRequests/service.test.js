@@ -336,6 +336,34 @@ test('KT doi trang thai hang loat; 1 dong lech version -> huy ca lo', async () =
   } finally { await db.close(); }
 });
 
+test('KT keo / dan kieu Sheet: bulk nhan changes rieng tung dong, tron voi changes chung, tra rows ban moi', async () => {
+  const { db, service } = await fixture();
+  try {
+    const a = await service.create(SALE, NEW_REQUEST);
+    const b = await service.create(SALE2, NEW_REQUEST);
+    const c = await service.create(SALE, NEW_REQUEST);
+    const result = await service.bulkUpdate(KT, { changes: { arrivalDate: '2026-10-28' }, items: [
+      { id: a.id, version: 1, changes: { accountantNote: 'CONT A', status: '3' } },
+      { id: b.id, version: 1, changes: { accountantNote: 'CONT B', arrivalDate: null } },
+      { id: c.id, version: 1 }
+    ] });
+    assert.equal(result.updated, 3);
+    assert.deepEqual(result.rows.map(r => [r.id, r.status, r.accountantNote, r.arrivalDate, r.version]),
+      [[a.id, '3', 'CONT A', '2026-10-28', 2], [b.id, 'pending', 'CONT B', null, 2], [c.id, 'pending', '', '2026-10-28', 2]]);
+    const history = await service.history(KT, a.id);
+    assert.deepEqual(history.filter(h => h.action === 'update').map(h => h.field).sort(), ['accountant_note', 'arrival_date', 'status']);
+
+    const unchanged = await service.bulkUpdate(KT, { items: [{ id: a.id, version: 2, changes: { accountantNote: 'CONT A' } }, { id: b.id, version: 2, changes: { accountantNote: 'CONT B2' } }] });
+    assert.deepEqual([unchanged.updated, unchanged.rows.map(r => r.id)], [1, [b.id]], 'dong khong doi gia tri thi bo qua');
+
+    await assert.rejects(service.bulkUpdate(KT, { items: [{ id: a.id, version: 2, changes: { quantity: 1 } }] }), { statusCode: 403, code: 'FIELD_FORBIDDEN' });
+    await assert.rejects(service.bulkUpdate(KT, { items: [{ id: a.id, version: 2 }] }), { statusCode: 400 });
+    await assert.rejects(service.bulkUpdate(KT, { items: [{ id: a.id, version: 2, changes: { accountantNote: 'x' } }, { id: b.id, version: 2, changes: { accountantNote: 'y' } }] }),
+      error => { assert.equal(error.statusCode, 409); assert.deepEqual(error.conflictIds, [b.id]); return true; });
+    assert.equal((await service.get(KT, a.id)).accountantNote, 'CONT A', 'lech version -> huy ca lo');
+  } finally { await db.close(); }
+});
+
 test('goi y san pham theo ma / ten, uu tien khop dau ma', async () => {
   const { db, service } = await fixture();
   try {

@@ -7,6 +7,8 @@ Mọi bảng trên web và trong file HTML xuất ra có nút **Cột hiển th�
 
 ## Kiến trúc hiện tại
 
+**Cập nhật 21/10/2026 — ORDER VAT thao tác kiểu Google Sheet (nhánh `feat/vat-request-sheet-grid`, chưa merge/deploy, không migration):** bôi đen vùng ô rồi Ctrl+C (mọi người); KT kéo chấm góc để nhân bản, Ctrl+V dán cả cột, Delete xóa ở 3 cột KT phản hồi / KT note / Ngày về, lưu ngay qua `PATCH /bulk` kèm nút Hoàn tác.
+
 **Cập nhật 21/10/2026 — ORDER VAT: cột hàng về theo cont, ẩn 4 cột số liệu với sale (nhánh `feat/vat-request-cont-columns`, chưa merge/deploy, không migration):** cột Dự kiến hàng về hiện Tên Cont, Dự kiến ngày về gần nhất hiện Lịch/Trạng thái của cont chưa về sớm nhất; Tồn VAT, SLG tổng cần khai và 2 cột này chỉ người có quyền xử lý VAT thấy (API, bảng, form, Excel).
 
 **Cập nhật 21/10/2026 — Hàng dự kiến chuyển sang bảng Dự kiến hàng về, thêm cột giá (mã cục bộ trên main; migration `0078` chưa áp DB; chưa deploy):** hộp "Chi tiết hàng hóa" chỉ còn Doanh số theo khách; bấm dòng bảng Dự kiến hàng về mở hộp chi tiết mọi CONT cùng mã SP kèm tổng số lượng theo trạng thái 1–5; hai cột Giá SP (tệ) và Giá hàng về VN chỉ hiện với quyền `reports.overview.containers.full`. Xem mục cuối "Cập nhật gần nhất" 21/10/2026.
@@ -107,7 +109,7 @@ server/
 ├── public/               # Frontend HTML/CSS/JS
 │   ├── cashbook/         # Trang Sổ quỹ: bộ lọc/hash, số dư, chốt và xuất chọn cột
 │   ├── vat-draft/        # Trang Kế toán – Nháp VAT: chọn HD/DH hoặc dán dữ liệu, kết quả phân bổ + Ghi chú tổng, QR; Tạo QR từ PDF (2 cột, QR to bên phải; sale dùng được qua accounting.qr); cell-select.js chọn ô kiểu Google Sheet + Ctrl+C
-│   ├── vat-request/      # Trang Kế toán – ORDER VAT: sale tạo/sửa yêu cầu của mình, KT được cấp quyền riêng mới xử lý trạng thái/ghi chú/ngày về
+│   ├── vat-request/      # Trang Kế toán – ORDER VAT: sale tạo/sửa yêu cầu của mình, KT được cấp quyền riêng mới xử lý trạng thái/ghi chú/ngày về; vat-request-grid.js = chọn ô / copy / kéo nhân bản / dán kiểu Google Sheet
 │   ├── vendor/pdfjs/     # pdf.js 4.10.38 (legacy build) đọc text hóa đơn PDF ngay trong trình duyệt
 │   └── shared/
 │       └── detail-panel.css # Khung xem chi tiết dùng chung (.dp-): chỉ số tổng quan, bảng 1 khung cuộn, tắt nút chọn cột
@@ -373,3 +375,7 @@ Công nợ: ba bảng chính có cột Nhóm sale và dropdown lọc; Excel/HTML
 ### Cập nhật 21/10/2026 — ORDER VAT: cột hàng về theo cont, ẩn 4 cột số liệu với sale
 
 ORDER VAT: Dự kiến hàng về = Tên Cont, Dự kiến ngày về gần nhất = Lịch/Trạng thái của cont trạng thái 1–3 về sớm nhất (lấy như trang Dự kiến hàng về). 4 cột số liệu (Tồn VAT, SLG tổng cần khai, 2 cột trên) chỉ dành cho tài khoản có `accounting.vatRequestProcess`; server không gửi cho sale nên mất ở bảng, đầu nhóm, form và Excel.
+
+### Cập nhật 21/10/2026 — ORDER VAT thao tác kiểu Google Sheet
+
+ORDER VAT: bảng chọn ô như Google Sheet. Mọi người kéo chuột / Shift+click / Shift+mũi tên chọn vùng, Ctrl+C chép TSV (số trơn, ngày dd/mm/yyyy). Người có quyền xử lý: 3 cột KT phản hồi / KT note cho sale / Ngày về hiện chữ, nháy đúp / Enter / gõ phím để sửa, Esc bỏ; kéo chấm góc vùng chọn để nhân bản lên/xuống (ngày chép nguyên), Ctrl+V dán cả cột từ Sheet (1 giá trị + vùng nhiều ô → điền mọi ô), Delete xóa note/ngày; lưu ngay 1 lần qua `PATCH /bulk`, thanh trạng thái có nút Hoàn tác.

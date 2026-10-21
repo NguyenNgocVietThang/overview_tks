@@ -141,7 +141,7 @@ Thay Google Form + sheet ORDER VAT 1. Module `vatRequests/` (`service.js` giữ 
 | GET | `/api/vat-requests?status=pending,3,4&createdBy&product&q&from&to` | Danh sách (≤ 5.000 dòng, mới trước) + `metrics` O/P/Q/R theo `product_key`, `sales`, `statuses`, `stockStatus`, `viewer`; mỗi dòng kèm `isLockedForSale`, `canEditSale`, `canDelete` |
 | POST | `/api/vat-requests` | Tạo (status `pending`, người tạo lấy từ phiên đăng nhập, mã SP phải có trong `product_report`) |
 | PATCH | `/api/vat-requests/:id` | Sửa theo whitelist + khóa, body có `version` |
-| PATCH | `/api/vat-requests/bulk` | KT: `{ items:[{id,version}], changes:{status?,accountantNote?,arrivalDate?} }`, ≤ 500 dòng, 1 transaction |
+| PATCH | `/api/vat-requests/bulk` | KT: `{ items:[{id,version,changes?}], changes?:{status?,accountantNote?,arrivalDate?} }` — thay đổi mỗi dòng = `changes` chung + `changes` riêng của item (kéo / dán kiểu Sheet), ≤ 500 dòng, 1 transaction, lệch version → 409 hủy cả lô; trả `{ updated, rows }` (bản mới để hoàn tác) |
 | DELETE | `/api/vat-requests/:id?version=` | Xóa mềm (chủ yêu cầu khi chưa khóa, hoặc Quản lý) |
 | GET | `/api/vat-requests/:id/history` | Lịch sử từng trường (ai, lúc nào, cũ → mới) |
 | GET | `/api/vat-requests/metrics?code=` | Tên SP của 1 mã (form); kèm O/P/Q/R khi có quyền xử lý |
@@ -573,3 +573,7 @@ Không đưa token hoặc dữ liệu cá nhân vào log/tài liệu công khai.
 ### Cập nhật 21/10/2026 — ORDER VAT: cột hàng về theo cont, ẩn 4 cột số liệu với sale
 
 `vatRequests/service.js` `metricsFor(user, keys)` trả rỗng khi không có `accounting.vatRequestProcess`; `productMetrics` / `lookupProducts` nhận thêm `user`. `repository.incomingContainers` trả từng dòng CONT 1–3 theo thứ tự sheet, `etaParser.nearestContainer` chọn cont sớm nhất (thay `nearestArrival`). `export.js` đánh dấu `kt: true` cho 4 cột O/P/Q/R và lọc theo `viewer.canProcess`; Q/R xuất dạng chữ. Không migration.
+
+### Cập nhật 21/10/2026 — ORDER VAT thao tác kiểu Google Sheet
+
+`vatRequests/service.js` `bulkUpdate` nhận `changes` riêng từng item (gộp với `changes` chung, vẫn chỉ trường KT), trả thêm `rows`. Frontend mới `public/vat-request/vat-request-grid.js` (chọn vùng ô, Ctrl+C TSV, kéo chấm nhân bản, Ctrl+V dán, Delete xóa) gọi API này 1 lần cho mỗi thao tác. Không migration.

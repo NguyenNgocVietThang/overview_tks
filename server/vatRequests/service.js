@@ -458,31 +458,40 @@ function createVatRequestService({ pool = getPool(), stockSource = createStockSo
     return get(user, id);
   }
 
-  /** KT doi trang thai / ghi chu / ngay ve cho nhieu dong; 1 dong lech version -> huy ca lo (409). */
+  /**
+   * KT doi trang thai / ghi chu / ngay ve cho nhieu dong; 1 dong lech version -> huy ca lo (409).
+   * Moi item { id, version, changes? }: thay doi cua dong = changes chung + changes rieng (keo / dan
+   * kieu Sheet gui gia tri khac nhau tung dong). Tra them `rows` (ban moi) de giao dien hoan tac.
+   */
   async function bulkUpdate(user, payload) {
     if (!canProcess(user)) throw httpError(403, 'Bạn không có quyền xử lý ORDER VAT.', 'FEATURE_FORBIDDEN');
     const items = Array.isArray(payload && payload.items) ? payload.items : [];
     if (!items.length || items.length > 500) throw httpError(400, 'Chọn từ 1 đến 500 yêu cầu.', 'VALIDATION');
-    const { accountant } = splitPayload(payload.changes || {}, { accountant: true });
-    if (!Object.keys(accountant).length) throw httpError(400, 'Chưa chọn thay đổi nào.', 'VALIDATION');
-    const targets = items.map(item => ({ id: Number(item && item.id), version: parseVersion(item && item.version) }));
+    const shared = splitPayload(payload.changes || {}, { accountant: true }).accountant;
+    const targets = items.map(item => ({
+      id: Number(item && item.id),
+      version: parseVersion(item && item.version),
+      accountant: { ...shared, ...splitPayload((item && item.changes) || {}, { accountant: true }).accountant }
+    }));
     if (targets.some(item => !Number.isInteger(item.id) || item.id < 1)) throw httpError(400, 'Mã yêu cầu không hợp lệ.', 'VALIDATION');
+    if (targets.every(item => !Object.keys(item.accountant).length)) throw httpError(400, 'Chưa chọn thay đổi nào.', 'VALIDATION');
     const result = await repository.withTransaction(pool, async client => {
       const conflicts = [];
-      let updated = 0;
+      const updatedIds = [];
       for (const target of targets) {
         const row = await repository.getRequest(client, target.id, { forUpdate: true });
         if (!row || Number(row.version) !== target.version) { conflicts.push(target.id); continue; }
-        const { changes, history } = await planChanges(client, user, row, { sale: {}, accountant });
+        const { changes, history } = await planChanges(client, user, row, { sale: {}, accountant: target.accountant });
         if (!Object.keys(changes).length) continue;
         await repository.updateRequest(client, target.id, changes, target.version);
         await repository.insertHistory(client, history);
-        updated += 1;
+        updatedIds.push(target.id);
       }
       if (conflicts.length) throw httpError(409, `${conflicts.length} yêu cầu vừa được người khác cập nhật. Hãy tải lại rồi thử lại.`, 'VERSION_CONFLICT', { conflictIds: conflicts });
-      return { updated };
+      return { updatedIds };
     });
-    return result;
+    const rows = await Promise.all(result.updatedIds.map(id => repository.getRequest(pool, id)));
+    return { updated: result.updatedIds.length, rows: rows.filter(Boolean).map(row => serializeRow(row, user)) };
   }
 
   async function remove(user, id, versionValue) {
