@@ -3236,7 +3236,7 @@
       outline-offset: -2px;
     }
 
-    /* Số trong ô bảng dẫn thẳng tới 1 mục của hộp chi tiết: Chưa bốc / Đã bốc → Hàng dự kiến, Tỉ trọng khách lớn nhất → Khách hàng. */
+    /* Số trong ô bảng dẫn thẳng tới 1 mục của hộp chi tiết: Tỉ trọng khách lớn nhất → Khách hàng. */
     .cell-link {
       appearance: none;
       background: transparent;
@@ -3323,11 +3323,13 @@
     }
 
     #productCustomerContent { display:grid; gap:18px; min-width:0; }
-    #productContainerContent .dp-table { min-width:920px; }
-    #productContainerContent td { vertical-align:top; }
-    #productContainerContent td:nth-child(-n+3) { min-width:115px; }
-    #productContainerContent td:nth-child(4) { min-width:170px; }
-    #productContainerContent td:nth-child(5) { min-width:210px; }
+    /* Hộp "Chi tiết hàng dự kiến": bảng CONT cùng mã SP (cột Màu sắc / Ghi chú sale có thể dài nên cho xuống dòng). */
+    .expected-detail { display:grid; gap:18px; min-width:0; }
+    .expected-detail .dp-table { min-width:920px; }
+    .expected-detail td { vertical-align:top; }
+    .expected-detail td:nth-child(-n+3) { min-width:115px; }
+    .expected-detail td:nth-child(4) { min-width:170px; }
+    .expected-detail td:nth-child(5) { min-width:210px; }
 
     .doc-modal-body .dp-table-wrap {
       --dp-table-max: 340px;
@@ -3893,8 +3895,8 @@
                       <tr>
                         <th style="width:120px" data-column-key="ma-sp">Mã sản phẩm</th>
                         <th style="width:260px" data-column-key="ten-sp">Tên sản phẩm</th>
-                        <th style="width:100px" data-column-key="da-boc" data-hint="Hàng dự kiến đã bốc (CONT trạng thái 3), toàn công ty. Bấm số để xem chi tiết hàng dự kiến.">Đã bốc</th>
-                        <th style="width:100px" data-column-key="chua-boc" data-hint="Hàng dự kiến chưa bốc (CONT trạng thái 1 và 2), toàn công ty. Bấm số để xem chi tiết hàng dự kiến.">Chưa bốc</th>
+                        <th style="width:100px" data-column-key="da-boc" data-hint="Hàng dự kiến đã bốc (CONT trạng thái 3), toàn công ty.">Đã bốc</th>
+                        <th style="width:100px" data-column-key="chua-boc" data-hint="Hàng dự kiến chưa bốc (CONT trạng thái 1 và 2), toàn công ty.">Chưa bốc</th>
                         <th style="width:135px" data-column-key="gia-tri-co-ban-hn" data-price-column data-hint="Giá trị có bán HN = Có bán HN × Đơn giá HN (chỉ Quản lý và Trợ lý thấy).">Giá trị có bán HN</th>
                         <th style="width:125px" data-column-key="sl-ban-30-ngay-hn" data-hint="Số lượng bán 30 ngày gần nhất (tính đến hết hôm qua) tại Hà Nội.">SL bán 30 ngày HN</th>
                         <th style="width:105px" data-column-key="ton-thuc-hn">Tồn thực HN</th>
@@ -3958,6 +3960,16 @@
                 <div class="panel-head">
                   <h2>Dòng hàng dự kiến về <span class="tag" id="tagExpectedArrivals">—</span></h2>
                   <div class="panel-head-actions expected-arrivals-filters">
+                    <select class="stockout-branch-select" id="expectedArrivalsSource" aria-label="Lọc theo nguồn">
+                      <option value="">Tất cả nguồn</option>
+                      <option value="YIWU">YIWU</option>
+                      <option value="VK-DUNG">VK-DUNG</option>
+                      <option value="HÀ BẮC">HÀ BẮC</option>
+                      <option value="SD">SD</option>
+                      <option value="GDONG">GDONG</option>
+                      <option value="KHÁC">KHÁC</option>
+                      <option value="CONT TKS1">CONT TKS1</option>
+                    </select>
                     <select class="stockout-branch-select" id="expectedArrivalsContainer" aria-label="Lọc theo cont"><option value="">Tất cả cont</option></select>
                     <select class="stockout-branch-select" id="expectedArrivalsStatus" aria-label="Lọc theo trạng thái"><option value="">Tất cả trạng thái</option></select>
                   </div>
@@ -3983,11 +3995,15 @@
                         <th style="width:105px" data-column-key="so-cai-kien">Số cái/kiện</th>
                         <th style="width:95px" data-column-key="so-kien">Số kiện</th>
                         <th style="width:125px" data-column-key="tong-so-luong">Tổng số lượng</th>
+                        <!-- Hai cột giá chỉ có với quyền reports.overview.containers.full (fullAccess từ máy chủ): mặc định ẩn + không liệt kê
+                             trong "Cột hiển thị", loadExpectedArrivals mở ra khi có quyền (applyExpectedArrivalsColumnView). -->
+                        <th style="width:120px" data-column-key="gia-te" data-full-column hidden data-column-unlisted="true">Giá SP (tệ)</th>
+                        <th style="width:135px" data-column-key="gia-vn" data-full-column hidden data-column-unlisted="true">Giá hàng về VN</th>
                       </tr>
                     </thead>
                     <tbody id="expectedArrivalsRows">
                       <tr>
-                        <td colspan="11" class="table-note">Đang tải...</td>
+                        <td colspan="13" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -7608,18 +7624,13 @@
       return '<td class="mono" data-sort-value="' + Number(value) + '">' + format(value) + '</td>';
     }
 
-    // Chưa bốc / Đã bốc / Tỉ trọng khách lớn nhất: số > 0 là nút dẫn tới mục tương ứng của hộp chi tiết
-    // (containers = Hàng dự kiến ở đầu hộp, customers = Doanh số theo khách → Khách hàng ở dưới); 0 hoặc chưa có thì chỉ là chữ.
+    // Tỉ trọng khách lớn nhất: số > 0 là nút dẫn tới mục Doanh số theo khách của hộp chi tiết; 0 hoặc chưa có thì chỉ là chữ.
+    // (Chưa bốc / Đã bốc không còn là nút: hàng dự kiến nay xem ở hộp của bảng Dự kiến hàng về.)
     function productReportLinkCell(value, focus, text, hint, sortValue) {
       const link = Number(value) > 0
         ? '<button type="button" class="cell-link" data-detail-focus="' + focus + '" title="' + escapeHtml(hint) + '">' + text + '</button>'
         : text;
       return '<td class="mono" data-sort-value="' + sortValue + '">' + link + '</td>';
-    }
-
-    function productReportContainerCell(value, p, hint) {
-      if (value === null || value === undefined) return productContainerQuantityCell(value);
-      return productReportLinkCell(value, 'containers', fmtNumber(value), hint + ' ' + p.code, escapeHtml(String(value)));
     }
 
     function productReportDescriptionCell(text) {
@@ -7649,10 +7660,10 @@
     function productReportRowHtml(p) {
       const code = escapeHtml(p.code);
       const hasShare = p.topCustomerShare !== null && p.topCustomerShare !== undefined;
-      return '<tr class="doc-row" tabindex="0" title="Bấm để xem hàng dự kiến và doanh số theo khách" data-table-item-id="' + code + '">' +
+      return '<tr class="doc-row" tabindex="0" title="Bấm để xem doanh số theo khách" data-table-item-id="' + code + '">' +
         '<td class="mono muted">' + code + '</td>' +
         '<td class="name-cell">' + escapeHtml(p.name) + '</td>' +
-        productReportContainerCell(p.loadedQty, p, 'Xem hàng dự kiến của') + productReportContainerCell(p.unloadedQty, p, 'Xem hàng dự kiến của') +
+        productContainerQuantityCell(p.loadedQty) + productContainerQuantityCell(p.unloadedQty) +
         productReportNullableCell(p.availableValueHanoi, fmtTableMoney) +
         productReportNullableCell(p.qtySold30dHanoi, fmtNumber) +
         '<td class="mono" data-sort-value="' + p.stockHanoi + '">' + fmtNumber(p.stockHanoi) + '</td>' +
@@ -7842,9 +7853,9 @@
 
     // ===== Tab Hàng hóa — "Dự kiến hàng về" (mục 2): toàn bộ dòng hàng của mọi cont, bảng DB tính sẵn từ sheet CONT =====
     // API riêng /api/expected-arrivals (quyền reports.products.expected — cả Kế toán / Mua hàng / Kho không có Báo cáo hàng hóa vẫn xem được).
-    // Máy chủ trả TOÀN BỘ dòng + danh sách Cont / Trạng thái; lọc Cont, Trạng thái, tìm kiếm và chỉ số làm ở trình duyệt.
+    // Máy chủ trả TOÀN BỘ dòng + danh sách Cont / Trạng thái; lọc Nguồn, Cont, Trạng thái, tìm kiếm và chỉ số làm ở trình duyệt.
     // Bộ lọc Trạng thái theo ô B (statusLabel) còn cột hiển thị là B + C (scheduleLabel).
-    const expectedArrivals = { rows: [], containers: [], statuses: [], computedAt: null, loaded: false, loading: false, loadedAt: 0 };
+    const expectedArrivals = { rows: [], containers: [], statuses: [], computedAt: null, fullAccess: false, loaded: false, loading: false, loadedAt: 0 };
     const EXPECTED_ARRIVALS_IDS = {
       tbody: 'expectedArrivalsRows', pagination: 'expectedArrivalsPagination', firstBtn: 'expectedArrivalsFirstPage',
       prevBtn: 'expectedArrivalsPrevPage', nextBtn: 'expectedArrivalsNextPage', lastBtn: 'expectedArrivalsLastPage', label: 'expectedArrivalsPageLabel'
@@ -7866,8 +7877,18 @@
       return '<td' + (className ? ' class="' + className + '"' : '') + '>' + (value ? escapeHtml(value) : '<span class="muted">—</span>') + '</td>';
     }
 
+    // Giá SP (tệ): 2 số lẻ en-US; Giá hàng về VN: làm tròn đồng. Ô trống hiện "—" và không có data-sort-value (xếp cuối cả hai chiều).
+    function expectedArrivalsCnyText(value) {
+      return Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function expectedArrivalsVnText(value) {
+      return fmtNumber(Math.round(Number(value)));
+    }
+
+    // Bấm dòng mở hộp "Chi tiết hàng dự kiến" của mã SP (không gọi API): dòng là tr.doc-row, Tab tới được, Enter/Space mở.
     function expectedArrivalsRowHtml(r) {
-      return '<tr data-table-item-id="' + escapeHtml(r.sheetName + ':' + r.sourceRow) + '">' +
+      return '<tr class="doc-row" tabindex="0" title="Bấm để xem tất cả CONT của mã này" data-table-item-id="' + escapeHtml(r.sheetName + ':' + r.sourceRow) + '">' +
         expectedArrivalsTextCell(r.sheetName) +
         expectedArrivalsTextCell(r.scheduleLabel) +
         expectedArrivalsTextCell(r.containerName) +
@@ -7879,14 +7900,45 @@
         productReportNullableCell(r.unitsPerPackage, fmtNumber) +
         productReportNullableCell(r.packageCount, fmtNumber) +
         productReportNullableCell(r.quantity, fmtNumber) +
+        productReportNullableCell(r.unitPriceCny, expectedArrivalsCnyText) +
+        productReportNullableCell(r.vietnamPrice, expectedArrivalsVnText) +
         '</tr>';
     }
 
+    // Khung cột theo quyền xem giá (fullAccess của máy chủ): có quyền → hiện 2 cột giá (mở khỏi "Cột hiển thị"), Màu sắc + Ghi chú sale
+    // ẩn mặc định (bật lại bằng "Cột hiển thị"); không có quyền → giữ nguyên bảng cũ, 2 cột giá bị gỡ hẳn. Cột ẩn mặc định chỉ áp
+    // lúc phiên cột được tạo nên đổi KHÓA PHIÊN theo hồ sơ (cùng cách applyProductReportColumnView); hồ sơ thường giữ khóa gốc.
+    let expectedArrivalsColumnProfile = 'standard';
+    const EXPECTED_ARRIVALS_DEFAULT_HIDDEN = ['mau-sac', 'ghi-chu-sale'];
+    function applyExpectedArrivalsColumnView(full) {
+      const profile = full ? 'full' : 'standard';
+      if (profile === expectedArrivalsColumnProfile) return;
+      const table = document.getElementById('expectedArrivalsRows').closest('table');
+      table.querySelectorAll('thead th[data-full-column]').forEach(function (cell) {
+        cell.hidden = !full;
+        if (full) delete cell.dataset.columnUnlisted; else cell.dataset.columnUnlisted = 'true';
+      });
+      EXPECTED_ARRIVALS_DEFAULT_HIDDEN.forEach(function (key) {
+        const cell = table.querySelector('thead th[data-column-key="' + key + '"]');
+        if (!cell) return;
+        if (full) cell.dataset.columnDefaultHidden = 'true'; else delete cell.dataset.columnDefaultHidden;
+      });
+      expectedArrivalsColumnProfile = profile;
+      if (!window.TKSTables || typeof window.TKSTables.enhance !== 'function') return;
+      window.TKSTables.enhance(table, {
+        key: table.dataset.tableKey + (full ? ':full' : ''),
+        columns: Array.from(table.tHead.rows[0].cells).map(function (cell) {
+          return { key: cell.dataset.columnKey, hidden: full && EXPECTED_ARRIVALS_DEFAULT_HIDDEN.indexOf(cell.dataset.columnKey) !== -1 };
+        })
+      });
+    }
+
     function expectedArrivalsFilteredRows() {
+      const source = document.getElementById('expectedArrivalsSource').value;
       const container = document.getElementById('expectedArrivalsContainer').value;
       const status = document.getElementById('expectedArrivalsStatus').value;
       return expectedArrivals.rows.filter(function (r) {
-        return (!container || r.containerName === container) && (!status || r.statusLabel === status);
+        return (!source || r.sheetName === source) && (!container || r.containerName === container) && (!status || r.statusLabel === status);
       });
     }
 
@@ -7900,9 +7952,9 @@
       fillBusinessSelect('expectedArrivalsContainer', 'Tất cả cont', expectedArrivalsOptions(expectedArrivals.containers, r => r.containerName));
       fillBusinessSelect('expectedArrivalsStatus', 'Tất cả trạng thái', expectedArrivalsOptions(expectedArrivals.statuses, r => r.statusLabel));
       const rows = expectedArrivalsFilteredRows();
-      renderPaginatedRows('expectedArrivals', EXPECTED_ARRIVALS_IDS, rows, expectedArrivalsRowHtml, 11,
+      renderPaginatedRows('expectedArrivals', EXPECTED_ARRIVALS_IDS, rows, expectedArrivalsRowHtml, 13,
         expectedArrivals.loaded ? 'Chưa có hàng dự kiến về.' : 'Đang tải...');
-      // Chỉ số + nhãn đếm theo ĐÚNG các dòng đang hiện (đã lọc Cont / Trạng thái và ô tìm kiếm).
+      // Chỉ số + nhãn đếm theo ĐÚNG các dòng đang hiện (đã lọc Nguồn / Cont / Trạng thái và ô tìm kiếm).
       const shown = filterTableItems(rows, TABLE_EXPLORER_CONFIGS.expectedArrivals, getTableSearchState('expectedArrivals')).items;
       document.getElementById('tagExpectedArrivals').textContent = expectedArrivals.loaded ? fmtNumber(shown.length) : '—';
       document.getElementById('expectedArrivalsUpdatedAt').textContent = formatProductReportUpdatedAt(expectedArrivals.computedAt);
@@ -7933,6 +7985,8 @@
           expectedArrivals.containers = (data && data.filters && data.filters.containers) || [];
           expectedArrivals.statuses = (data && data.filters && data.filters.statuses) || [];
           expectedArrivals.computedAt = data && data.meta ? data.meta.computedAt : null;
+          expectedArrivals.fullAccess = !!(data && data.fullAccess === true);
+          applyExpectedArrivalsColumnView(expectedArrivals.fullAccess);
           expectedArrivals.loaded = true;
           expectedArrivals.loadedAt = Date.now();
           renderExpectedArrivals();
@@ -7941,7 +7995,7 @@
           console.error('Không tải được bảng dự kiến hàng về:', err);
           if (!expectedArrivals.loaded) {
             document.getElementById('expectedArrivalsRows').innerHTML =
-              '<tr><td colspan="11" class="table-note">Không tải được bảng dự kiến hàng về.</td></tr>';
+              '<tr><td colspan="13" class="table-note">Không tải được bảng dự kiến hàng về.</td></tr>';
           }
         }).finally(function () { expectedArrivals.loading = false; });
     }
@@ -7957,7 +8011,7 @@
     window.addEventListener('focus', refreshExpectedArrivalsIfStale);
     document.addEventListener('visibilitychange', refreshExpectedArrivalsIfStale);
 
-    ['expectedArrivalsContainer', 'expectedArrivalsStatus'].forEach(function (id) {
+    ['expectedArrivalsSource', 'expectedArrivalsContainer', 'expectedArrivalsStatus'].forEach(function (id) {
       document.getElementById(id).addEventListener('change', function () {
         state.tablePages.expectedArrivals = 1;
         renderExpectedArrivals();
@@ -7967,9 +8021,11 @@
     // Bộ lọc đang áp trên bảng -> tham số URL cho API xuất riêng (danh sách trường + file dùng chung hộp thoại Xuất file).
     function expectedArrivalsExportQuery() {
       const params = new URLSearchParams();
+      const source = document.getElementById('expectedArrivalsSource').value;
       const container = document.getElementById('expectedArrivalsContainer').value;
       const status = document.getElementById('expectedArrivalsStatus').value;
       const search = getTableSearchState('expectedArrivals');
+      if (source) params.set('source', source);
       if (container) params.set('container', container);
       if (status) params.set('status', status);
       if (search && search.query && search.query.trim()) params.set('q', search.query.trim());
@@ -8403,11 +8459,16 @@
     // nay mở ở trang Vòng đời đơn hàng — /api/shipment/lifecycle/order-detail.)
     // size: 'medium' (bảng nhiều cột) | 'wide' (bảng + biểu đồ cạnh nhau); bỏ trống = hộp hẹp.
     const DOC_DETAIL_KINDS = {
-      // Báo cáo hàng hóa (tab Hàng hóa): hàng dự kiến + doanh số 90 ngày từng khách của 1 mã hàng — bảng + biểu đồ tròn.
+      // Báo cáo hàng hóa (tab Hàng hóa): doanh số 90 ngày từng khách của 1 mã hàng — bảng + biểu đồ tròn.
       productReport: {
         api: '/api/product-report/customers', title: 'Chi tiết hàng hóa', size: 'wide',
         query: function (item) { return '?code=' + encodeURIComponent(item.code); },
         failure: 'Không tải được doanh số khách của sản phẩm này.'
+      },
+      // Dự kiến hàng về (tab Hàng hóa, mục 2): tất cả CONT của 1 mã SP + tổng số lượng theo trạng thái 1–5 — dựng tại chỗ từ
+      // expectedArrivals.rows (đã tải sẵn), không gọi API.
+      expectedArrival: {
+        title: 'Chi tiết hàng dự kiến', size: 'wide', local: item => expectedArrivalDetailData(item), failure: 'Không dựng được chi tiết hàng dự kiến.'
       },
       endOfDay: { api: '/api/invoice-detail', title: 'Chi tiết giao dịch', size: 'medium', dateLabel: 'Thời gian bán', sellerLabel: 'Nhân viên bán hàng', failure: 'Không tải được chi tiết giao dịch.' },
       // Tab Khách hàng (#business): thẻ tổng quan + biểu đồ cột theo tháng + bảng phụ.
@@ -8434,7 +8495,7 @@
         title: 'Thưởng/phạt sale', size: 'wide', local: item => debtPenaltySaleDetail(item), failure: 'Không dựng được chi tiết sale.'
       }
     };
-    // focus: mục của hộp Báo cáo hàng hóa cần cuộn tới khi mở từ 1 nút trong ô bảng ('containers' | 'customers'); dùng 1 lần.
+    // focus: mục của hộp Báo cáo hàng hóa cần cuộn tới khi mở từ 1 nút trong ô bảng ('customers'); dùng 1 lần.
     const docDetail = { requestId: 0, tableKey: '', item: null, returnFocus: null, focus: null };
 
     // Hóa đơn: hàng chỉ số (tổng tiền hàng, đã trả, còn phải thu, giảm giá) → thông tin chung → bảng hàng hóa có dòng Cộng.
@@ -8565,14 +8626,10 @@
       });
     }
 
-    function renderProductContainers(body, data) {
-      const sync = data.containerSync;
-      let content = '<p class="dp-chart-caption">' + escapeHtml(productContainerSyncText(sync)) + '</p>';
-      if (!sync || !sync.available) {
-        body.innerHTML = content;
-        return;
-      }
-      const full = data.fullAccess === true;
+    // ----- Hộp "Chi tiết hàng dự kiến" (bấm 1 dòng bảng Dự kiến hàng về) -----
+    // Bảng CONT của 1 mã SP. rows: các dòng của expectedArrivals.rows; full: có quyền xem giá + cột nhạy cảm (fullAccess của máy chủ).
+    // Có quyền: Màu sắc / Ghi chú sale ẩn mặc định, bật lại bằng "Cột hiển thị". Số "ngày về" để nguyên văn như sheet.
+    function expectedContainerTableHtml(rows, full) {
       const columns = [
         ['containerName', 'Tên CONT'], ['statusLabel', 'Trạng thái'], ['eta', 'Ngày về'],
         ['color', 'Màu sắc'], ['saleNote', 'Ghi chú sale']
@@ -8580,78 +8637,97 @@
       if (full) columns.push(['orderedBy', 'Người đặt'], ['listedAt', 'Ngày lên list'],
         ['unitsPerPackage', 'Số cái/kiện', true], ['packageCount', 'Số kiện', true]);
       columns.push(['quantity', 'Tổng số lượng', true]);
-      if (full) columns.push(['unitPriceCny', 'Giá SP (tệ) 单价', true]);
-      if (full) columns.push(['vietnamPrice', 'Giá hàng về VN', true]);
-      const rows = data.rows || [];
-      if (!rows.length) content += '<div class="doc-modal-note">Không có hàng dự kiến phù hợp cho sản phẩm này.</div>';
-      else content += '<div class="dp-table-wrap is-flow"><table class="dp-table is-min-wide" data-table-key="dashboard-table-product-containers"><thead><tr>' +
+      if (full) columns.push(['unitPriceCny', 'Giá SP (tệ)', true], ['vietnamPrice', 'Giá hàng về VN', true]);
+      return '<div class="dp-table-wrap is-flow"><table class="dp-table is-min-wide" data-table-key="dashboard-table-expected-arrival-detail"><thead><tr>' +
         columns.map(function (col) {
-          // Quản lý / Trợ lý (full): Màu sắc và Ghi chú sale ẩn mặc định, bật lại bằng "Cột hiển thị".
           const hide = full && (col[0] === 'color' || col[0] === 'saleNote');
           return '<th' + (col[2] ? ' class="num"' : '') + (hide ? ' data-column-default-hidden="true"' : '') + '>' + col[1] + '</th>';
         }).join('') +
         '</tr></thead><tbody>' + rows.map(function (row) {
           return '<tr>' + columns.map(function (col) {
             const value = row[col[0]];
-            const text = value == null || String(value).trim() === '' ? '—'
-              : col[0] === 'vietnamPrice' ? fmtNumber(Math.round(Number(value)))
-              : col[0] === 'unitPriceCny' ? Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+            const empty = value == null || String(value).trim() === '';
+            const text = empty ? '—'
+              : col[0] === 'vietnamPrice' ? expectedArrivalsVnText(value)
+              : col[0] === 'unitPriceCny' ? expectedArrivalsCnyText(value)
               : col[2] ? fmtNumber(value) : String(value);
-            return '<td' + (col[2] ? ' class="num"' : ' class="dp-note-text"') + '>' + escapeHtml(text) + '</td>';
+            const sortValue = col[2] && !empty && Number.isFinite(Number(value)) ? ' data-sort-value="' + Number(value) + '"' : '';
+            return '<td' + (col[2] ? ' class="num"' : ' class="dp-note-text"') + sortValue + '>' + escapeHtml(text) + '</td>';
           }).join('') + '</tr>';
         }).join('') + '</tbody></table></div>';
-      if (full && data.warnings && data.warnings.length) content += '<details class="dp-chart-caption"><summary>' +
-        fmtNumber(data.warnings.length) + ' cảnh báo dữ liệu nguồn</summary><ul>' + data.warnings.map(function (warning) {
-          return '<li>' + escapeHtml(warning.sheetName || '—') + ' · Dòng ' + escapeHtml(String(warning.row || '—')) +
-            ': ' + escapeHtml(warning.reason || 'Dữ liệu không hợp lệ') + '</li>';
-        }).join('') + '</ul></details>';
-      body.innerHTML = content;
+    }
+
+    function expectedArrivalCodeKey(value) {
+      return String(value == null ? '' : value).trim().toLowerCase();
+    }
+
+    // Nhãn thẻ trạng thái n: lấy từ statusLabel của 1 dòng bất kỳ có status n (bỏ ngày dự kiến nếu máy chủ để lẫn vào), không có thì "Trạng thái n".
+    function expectedArrivalStatusText(status) {
+      const found = expectedArrivals.rows.find(function (r) { return Number(r.status) === status && r.statusLabel; });
+      if (!found) return 'Trạng thái ' + status;
+      const label = String(found.statusLabel).replace(/\s+\d{1,2}[\/-]\d{1,2}(?:[\/-]\d{2,4})?(?:\s*[-–]\s*\d{1,2}[\/-]\d{1,2}(?:[\/-]\d{2,4})?)?\s*$/, '').trim();
+      return label || 'Trạng thái ' + status;
+    }
+
+    // Gom dữ liệu hộp từ các dòng đã tải: mọi CONT cùng mã SP (so khớp lower/trim) + tổng số lượng theo trạng thái 1–5 (0 nếu trống).
+    function expectedArrivalDetailData(item) {
+      const key = expectedArrivalCodeKey(item.productCode);
+      const rows = key
+        ? expectedArrivals.rows.filter(function (r) { return expectedArrivalCodeKey(r.productCode) === key; })
+        : expectedArrivals.rows.filter(function (r) { return r.sheetName === item.sheetName && r.sourceRow === item.sourceRow; });
+      const statuses = [1, 2, 3, 4, 5].map(function (status) {
+        const matching = rows.filter(function (r) { return Number(r.status) === status; });
+        return { status: status, label: expectedArrivalStatusText(status), lines: matching.length, quantity: sumBy(matching, function (r) { return r.quantity; }) };
+      });
+      const containers = new Set(rows.map(function (r) { return r.sheetName + '\u0000' + r.containerName; })).size;
+      return { code: item.productCode, rows: rows, statuses: statuses, containers: containers, totalQuantity: sumBy(rows, function (r) { return r.quantity; }), full: expectedArrivals.fullAccess === true };
+    }
+
+    function renderExpectedArrivalDetailModal(body, subtitle, data) {
+      subtitle.textContent = fmtNumber(data.rows.length) + ' dòng hàng · ' + fmtNumber(data.containers) + ' cont';
+      const tones = { 1: 'amber', 2: 'blue', 3: 'green' };
+      const tiles = data.statuses.map(function (entry) {
+        return { label: entry.label, value: fmtNumber(entry.quantity), tone: tones[entry.status] || '', sub: entry.lines ? fmtNumber(entry.lines) + ' dòng' : 'Không có' };
+      });
+      tiles.push({ label: 'Tổng số lượng', value: fmtNumber(data.totalQuantity), tone: 'green', sub: fmtNumber(data.rows.length) + ' dòng · ' + fmtNumber(data.containers) + ' cont' });
+      body.innerHTML = '<div class="expected-detail">' + detailStatsHtml(tiles) +
+        '<div class="dp-section">' + detailSectionHeadHtml('Các CONT của mã này', fmtNumber(data.rows.length) + ' dòng') +
+        '<p class="dp-chart-caption">' + escapeHtml(formatProductReportUpdatedAt(expectedArrivals.computedAt)) + '</p>' +
+        (data.rows.length ? expectedContainerTableHtml(data.rows, data.full)
+          : '<div class="doc-modal-note">Không có hàng dự kiến phù hợp cho mã này.</div>') +
+        '</div></div>';
     }
 
     function loadProductDocumentSections(requestId, item) {
       const customerBody = document.getElementById('productCustomerContent');
-      const containerBody = document.getElementById('productContainerContent');
-      function load(url, target, render, failure) {
-        const read = target === containerBody && typeof TKSNav.readCachedJSON === 'function'
-          ? TKSNav.readCachedJSON(url, { cacheKey: 'containers:' + String(item.code || '').trim().toUpperCase() })
-          : fetch(url).then(function (res) { return res.json().then(function (body) { return { ok: res.ok, status: res.status, body: body }; }); });
-        return read.then(function (res) {
-          const data = res.body;
-            if (!res.ok && !(target === containerBody && data.code === 'CONTAINER_SNAPSHOT_UNAVAILABLE')) throw new Error('HTTP ' + res.status);
-            return data;
+      if (!productReportSalesAllowed()) {
+        // Hộp chỉ còn "Doanh số theo khách": không có quyền xem thì báo rõ thay vì để hộp trống.
+        customerBody.innerHTML = '<div class="doc-modal-note">Tài khoản của bạn không có quyền xem doanh số theo khách.</div>';
+        scrollProductDetailToFocus(requestId);
+        return;
+      }
+      fetch('/api/product-report/customers?code=' + encodeURIComponent(item.code))
+        .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, status: res.status, body: body }; }); })
+        .then(function (res) {
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          return res.body;
         }).then(function (data) {
           if (requestId !== docDetail.requestId) return;
-          render(target, data);
+          renderProductReportModal(customerBody, document.getElementById('docModalSubtitle'), data);
         }).catch(function () {
           if (requestId !== docDetail.requestId) return;
-          target.innerHTML = '<div class="doc-modal-note">' + escapeHtml(failure) +
+          customerBody.innerHTML = '<div class="doc-modal-note">' + escapeHtml(DOC_DETAIL_KINDS.productReport.failure) +
             '<br><button class="dp-btn" type="button" onclick="retryDocumentDetail()">Thử lại</button></div>';
-        });
-      }
-      const query = '?code=' + encodeURIComponent(item.code);
-      let customersLoaded;
-      if (productReportSalesAllowed()) {
-        customersLoaded = load('/api/product-report/customers' + query, customerBody, function (body, data) {
-          renderProductReportModal(body, document.getElementById('docModalSubtitle'), data);
-        }, DOC_DETAIL_KINDS.productReport.failure);
-      } else {
-        const section = document.getElementById('productCustomerSection');
-        if (section) section.hidden = true;
-        customersLoaded = Promise.resolve();
-      }
-      const containersLoaded = load('/api/product-report/containers' + query, containerBody, renderProductContainers, 'Không tải được hàng dự kiến của sản phẩm này.');
-      // load() đã tự nuốt lỗi từng phần; chỉ cuộn khi CẢ HAI phần đã vẽ xong vì chiều cao Hàng dự kiến quyết định vị trí Khách hàng.
-      Promise.all([customersLoaded, containersLoaded]).then(function () { scrollProductDetailToFocus(requestId); });
+        }).then(function () { scrollProductDetailToFocus(requestId); });
     }
 
-    // Mở hộp từ nút trong ô bảng (Chưa bốc / Đã bốc → Hàng dự kiến, Tỉ trọng khách lớn nhất → Doanh số theo khách): đưa mục
-    // tương ứng lên đầu khung cuộn của hộp. Dùng 1 lần — tải lại hộp (metadata đổi, bấm Thử lại) không cuộn lại; nếu lượt tải này
-    // đã bị thay bằng lượt mới thì giữ nguyên mục tiêu cho lượt mới.
+    // Mở hộp từ nút Tỉ trọng khách lớn nhất trong ô bảng: đưa mục Doanh số theo khách lên đầu khung cuộn của hộp. Dùng 1 lần —
+    // tải lại hộp (Thử lại) không cuộn lại; nếu lượt tải này đã bị thay bằng lượt mới thì giữ nguyên mục tiêu cho lượt mới.
     function scrollProductDetailToFocus(requestId) {
       if (requestId !== docDetail.requestId) return;
       const focus = docDetail.focus;
       docDetail.focus = null;
-      const target = focus && document.getElementById(focus === 'customers' ? 'productCustomerSection' : 'productContainerSection');
+      const target = focus && document.getElementById('productCustomerSection');
       if (!target || typeof target.scrollIntoView !== 'function') return;
       // Nút "Cột hiển thị" do table-controls gắn vào đầu từng khối làm đổi chiều cao: dựng xong rồi mới đo.
       if (window.TKSTables && typeof window.TKSTables.refreshAll === 'function') window.TKSTables.refreshAll();
@@ -8708,6 +8784,7 @@
       const kind = DOC_DETAIL_KINDS[docDetail.tableKey];
       const isDebtAgingInvoices = docDetail.tableKey === 'debtAgingInvoices';
       const isProduct = docDetail.tableKey === 'productReport';
+      const isExpectedArrival = docDetail.tableKey === 'expectedArrival';
       const isBusiness = docDetail.tableKey.indexOf('business') === 0;
       const isDebtPenalty = docDetail.tableKey === 'debtPenaltySale';
       destroyChart('productDetailCustomers'); // canvas cũ sắp bị thay
@@ -8723,14 +8800,16 @@
       else if (isDebtPenalty) setDocumentDetailTitle(kind.title, ' · ', item.sale);
       else if (isDebtAgingInvoices) setDocumentDetailTitle(kind.title, ' · ', item.customerName);
       else if (isProduct) setDocumentDetailTitle(kind.title, ' · ', item.code + (item.name ? ' – ' + item.name : ''));
+      else if (isExpectedArrival) setDocumentDetailTitle(kind.title, ' · ', item.productCode + (item.productName ? ' – ' + item.productName : ''));
       else setDocumentDetailTitle(kind.title, ' ', item.code);
-      subtitle.textContent = isBusiness || isDebtPenalty ? '' : isProduct ? '90 ngày gần nhất' : (item.branch ? 'Cơ sở ' + item.branch : '');
+      subtitle.textContent = isBusiness || isDebtPenalty || isExpectedArrival ? '' : isProduct ? '90 ngày gần nhất' : (item.branch ? 'Cơ sở ' + item.branch : '');
       if (status === 'loading' && isProduct) {
-        // Thứ tự: Hàng dự kiến (đầu hộp) → Doanh số theo khách (chỉ số, bảng Khách hàng, biểu đồ tỷ trọng).
-        body.innerHTML = '<section class="dp-section" id="productContainerSection" aria-label="Hàng dự kiến">' + detailSectionHeadHtml('Hàng dự kiến') +
-          '<div id="productContainerContent"><div class="doc-modal-note">Đang tải hàng dự kiến...</div></div></section>' +
-          '<section class="dp-section" id="productCustomerSection" aria-label="Doanh số theo khách">' +
+        // Hộp chỉ còn "Doanh số theo khách" (chỉ số, bảng Khách hàng, biểu đồ tỷ trọng); hàng dự kiến nằm ở hộp của bảng Dự kiến hàng về.
+        body.innerHTML = '<section class="dp-section" id="productCustomerSection" aria-label="Doanh số theo khách">' +
           detailSectionHeadHtml('Doanh số theo khách') + '<div id="productCustomerContent"><div class="doc-modal-note">Đang tải doanh số theo khách...</div></div></section>';
+      } else if (status === 'ready' && isExpectedArrival) {
+        renderExpectedArrivalDetailModal(body, subtitle, data);
+        if (window.TKSTables && typeof window.TKSTables.refreshAll === 'function') window.TKSTables.refreshAll();
       } else if (status === 'ready' && isBusiness) {
         renderBusinessDetailModal(body, subtitle, data);
       } else if (status === 'ready' && isDebtAgingInvoices) {
@@ -8862,6 +8941,30 @@
           event.preventDefault();
           openFromRow(row);
         });
+      });
+      // Dự kiến hàng về: dòng lấy từ expectedArrivals.rows theo "sheetName:sourceRow" (data-table-item-id); hộp dựng tại chỗ, không gọi API.
+      const expectedBody = document.getElementById('expectedArrivalsRows');
+      function openExpectedRow(row) {
+        const id = row.dataset.tableItemId;
+        const item = expectedArrivals.rows.find(function (candidate) { return candidate.sheetName + ':' + candidate.sourceRow === id; });
+        if (item) openDocumentDetail('expectedArrival', item, row);
+      }
+      expectedBody.addEventListener('click', function (event) {
+        const row = event.target.closest && event.target.closest('tr.doc-row');
+        if (!row) return;
+        // Bấm vào nút / liên kết / ô nhập trong dòng thì để chúng tự xử lý, không mở hộp.
+        if (event.target.closest('a, button, input, select, textarea, label')) return;
+        const selection = window.getSelection && window.getSelection();
+        // Đang bôi đen chữ trong dòng (để sao chép mã) thì không mở hộp.
+        if (selection && !selection.isCollapsed && row.contains(selection.anchorNode)) return;
+        openExpectedRow(row);
+      });
+      expectedBody.addEventListener('keydown', function (event) {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        const row = event.target.closest && event.target.closest('tr.doc-row');
+        if (!row || event.target !== row) return;
+        event.preventDefault();
+        openExpectedRow(row);
       });
       // Kiểm tra công nợ: dòng khách lấy từ state.debtAging (bảng tự dựng, không qua tableDatasets).
       const agingBody = document.getElementById('debtAgingRows');

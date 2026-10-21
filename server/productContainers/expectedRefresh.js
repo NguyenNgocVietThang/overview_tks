@@ -18,7 +18,7 @@ const { getPool } = require('../db/pool');
 const LOCK_KEY = 20531073;
 
 const VALUE_COLUMNS = ['sheet_order', 'container_row', 'container_name', 'status', 'status_label', 'eta', 'schedule_label',
-  'product_code', 'product_key', 'product_name', 'color', 'sale_note', 'ordered_by', 'units_per_package', 'package_count', 'quantity'];
+  'product_code', 'product_key', 'product_name', 'color', 'sale_note', 'ordered_by', 'listed_at', 'units_per_package', 'package_count', 'unit_price_cny', 'vietnam_price', 'quantity'];
 const COLUMNS = ['sheet_name', 'source_row', ...VALUE_COLUMNS];
 
 // Ten SP: product_report 1 dong / ma hang (gom ca 2 co so) nen ten da on dinh; min() chi phong khi
@@ -28,7 +28,8 @@ const STAGE_SQL = `
   SELECT l.sheet_name, l.source_row, l.sheet_order, l.container_row, l.container_name, l.status, l.status_label, l.eta,
          btrim(concat_ws(' ', NULLIF(btrim(l.status_label), ''), NULLIF(btrim(l.eta), ''))) AS schedule_label,
          l.product_code, l.product_key, COALESCE(n.product_name, '') AS product_name,
-         l.color, l.sale_note, l.ordered_by, l.units_per_package, l.package_count, l.quantity
+         l.color, l.sale_note, l.ordered_by, l.listed_at, l.units_per_package, l.package_count,
+         l.unit_price_cny, l.vietnam_price, l.quantity
   FROM product_container_lines l
   LEFT JOIN (SELECT lower(btrim(product_code)) AS product_key, min(product_name) AS product_name
              FROM product_report GROUP BY 1) n ON n.product_key = l.product_key`;
@@ -132,14 +133,14 @@ function requestExpectedRefresh(pool = getPool(), { log = console.log } = {}) {
   // Chua cau hinh DB (test/dev) hoac pool gia: khong lam gi.
   if (!pool || typeof pool.query !== 'function' || !require('../config').SUPABASE_DB_URL) return Promise.resolve(null);
   return refreshExpected(pool, { log }).catch(error => {
-    // Chua ap migration 0075 -> bo qua yen lang (giong cac job tinh san khac).
-    if (error && error.code === '42P01') return null;
+    // Chua ap migration 0075 (42P01) hoac 0078 (42703, thieu cot gia) -> bo qua yen lang (giong cac job tinh san khac).
+    if (error && (error.code === '42P01' || error.code === '42703')) return null;
     console.error('[ProductContainerExpected] Loi tinh bang du kien hang ve:', error && error.message);
     return null;
   });
 }
 
-module.exports = { refreshExpected, requestExpectedRefresh, __test__: { UPSERT_SQL, STATE_SQL } };
+module.exports = { refreshExpected, requestExpectedRefresh, __test__: { UPSERT_SQL, STATE_SQL, STAGE_SQL, VALUE_COLUMNS } };
 
 if (require.main === module) {
   refreshExpected()
