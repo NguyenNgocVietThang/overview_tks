@@ -73,7 +73,7 @@
   }
 
   function createBatchForm(deps) {
-    const { api, escapeHtml, fmtNumber, fmtDate, debounce, showDialog, closeDialog, onSubmitted } = deps;
+    const { api, escapeHtml, fmtNumber, debounce, showDialog, closeDialog, onSubmitted } = deps;
     const $ = id => document.getElementById(id);
     const dialog = $('vrBatchDialog');
     const body = $('vrBatchRows');
@@ -158,10 +158,10 @@
         hint.innerHTML = '';
         return;
       }
-      const arrival = found.nearestArrivalDate ? fmtDate(found.nearestArrivalDate) : (found.nearestArrivalText || '');
-      const meta = [
+      // Tồn / hàng về / chờ khai chỉ có khi là KT (server không gửi cho sale).
+      const meta = found.pendingInsertQty === undefined ? '' : [
         `Tồn VAT <b>${found.vatStock ? fmtNumber(found.vatStock.total) : '—'}</b>`,
-        found.incomingQty ? `Đang về <b>${fmtNumber(found.incomingQty)}</b>${arrival ? ' · ' + escapeHtml(arrival) : ''}` : '',
+        found.incomingContainer ? `Cont <b>${escapeHtml(found.incomingContainer)}</b>${found.nearestSchedule ? ' · ' + escapeHtml(found.nearestSchedule) : ''}` : '',
         found.pendingInsertQty ? `Chờ khai <b>${fmtNumber(found.pendingInsertQty)}</b>` : ''
       ].filter(Boolean).join(' · ');
       product.innerHTML = `<span class="vr-b-name" title="${escapeHtml(found.productName)}">${escapeHtml(found.productName)}</span><span class="vr-b-meta">${meta}</span>`;
