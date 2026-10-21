@@ -654,9 +654,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1792545023.7649267,
-    "seen": 1792545502.8907437,
-    "ast_hash": "4de110e95f1f018869af5916e22c4b36",
+    "mtime": 1792548659.0174475,
+    "seen": 1792549066.605596,
+    "ast_hash": "ca62b24f85415059312c6d71fc7399bc",
     "semantic_hash": ""
   },
   "design-system/tks-dashboard/MASTER.md": {
@@ -666,15 +666,15 @@
     "semantic_hash": ""
   },
   "docs/01-brd/BRD_Dashboard_GoogleSheets.md": {
-    "mtime": 1792545024.7362103,
-    "seen": 1792545502.8907437,
-    "ast_hash": "91ec39dc0336960f00de58ce5a8e9e21",
+    "mtime": 1792548659.0404103,
+    "seen": 1792549066.605596,
+    "ast_hash": "d281f93b29bd55badf5aa30b140d0903",
     "semantic_hash": ""
   },
   "docs/02-srs/SRS_Dashboard_GoogleSheets.md": {
-    "mtime": 1792545024.5390468,
-    "seen": 1792545502.8907437,
-    "ast_hash": "08fa1aa9eff0fecde6993171a8703706",
+    "mtime": 1792548990.2208283,
+    "seen": 1792549066.605596,
+    "ast_hash": "bac82219dc0c84804b209b489b89056f",
     "semantic_hash": ""
   },
   "docs/03-process/BPMN_Dashboard_GoogleSheets.md": {
@@ -684,9 +684,9 @@
     "semantic_hash": ""
   },
   "docs/04-planning/implementation_plan.md": {
-    "mtime": 1792545024.348169,
-    "seen": 1792545502.8907437,
-    "ast_hash": "df662c49815764137c6b0b4088742818",
+    "mtime": 1792548659.0536346,
+    "seen": 1792549066.605596,
+    "ast_hash": "48ca843e6d2edc1dfdfafd48893b214b",
     "semantic_hash": ""
   },
   "docs/superpowers/plans/2026-08-13-dashboard-result-cache.md": {
@@ -786,9 +786,9 @@
     "semantic_hash": "58e700daf0c14819a97499bd94f6f2e1"
   },
   "server/README.md": {
-    "mtime": 1792545023.961799,
-    "seen": 1792545502.8907437,
-    "ast_hash": "cf4256364dc0d48bdbb554d1a0c786af",
+    "mtime": 1792548659.0363882,
+    "seen": 1792549066.605596,
+    "ast_hash": "e17ed7f3f914b3a88f85e3efd9a04852",
     "semantic_hash": ""
   },
   "server/kiotviet/API_ENDPOINTS.md": {
@@ -816,9 +816,9 @@
     "semantic_hash": ""
   },
   "server/public/index.html": {
-    "mtime": 1792544677.9534235,
-    "seen": 1792545502.8907437,
-    "ast_hash": "d544dfb4f6cd750cd23ec4d35c38ef78",
+    "mtime": 1792548592.243197,
+    "seen": 1792549066.605596,
+    "ast_hash": "460398e42dbd787ecb2224e9d67d82a4",
     "semantic_hash": ""
   },
   "server/public/login/index.html": {
@@ -3792,15 +3792,15 @@
     "semantic_hash": ""
   },
   "server/productContainers/parser.js": {
-    "mtime": 1792464617.775077,
-    "seen": 1792478439.1723654,
-    "ast_hash": "2e421db0d46a25f8d0bb0d9e94c59567",
+    "mtime": 1792548570.3126657,
+    "seen": 1792549066.6035976,
+    "ast_hash": "be54654eb85a24dce65c195df3c4d097",
     "semantic_hash": ""
   },
   "server/productContainers/parser.test.js": {
-    "mtime": 1792464617.7756948,
-    "seen": 1792478439.1723654,
-    "ast_hash": "0ba620594aba4e6868e4417c989965d4",
+    "mtime": 1792548518.0825677,
+    "seen": 1792549066.6035976,
+    "ast_hash": "2ee3ea283064b1ebd4821a2e189c01a9",
     "semantic_hash": ""
   },
   "server/productContainers/repository.js": {
@@ -3810,9 +3810,9 @@
     "semantic_hash": ""
   },
   "server/productContainers/repository.test.js": {
-    "mtime": 1792464617.776793,
-    "seen": 1792478439.1723654,
-    "ast_hash": "62d1ac23e95c5c2ba304f63ee6542a76",
+    "mtime": 1792548518.227806,
+    "seen": 1792549066.6035976,
+    "ast_hash": "c3c00afb2a5f77364a6e34b77b2a51eb",
     "semantic_hash": ""
   },
   "server/productContainers/routes.test.js": {
@@ -3822,15 +3822,15 @@
     "semantic_hash": ""
   },
   "server/productContainers/sync.js": {
-    "mtime": 1792492867.997284,
-    "seen": 1792545502.8907437,
-    "ast_hash": "ebea480ebf09eaf9477703c1333f70c4",
+    "mtime": 1792548570.4782338,
+    "seen": 1792549066.6035976,
+    "ast_hash": "615ca283864671099e91e26f31d0c90d",
     "semantic_hash": ""
   },
   "server/productContainers/sync.test.js": {
-    "mtime": 1792476581.5263078,
-    "seen": 1792478439.1723654,
-    "ast_hash": "b729ad95f17629217d67d322adb3ab5d",
+    "mtime": 1792548612.8628376,
+    "seen": 1792549066.6035976,
+    "ast_hash": "eaa9f77de0b4babe2ecdd8b9ad4168cc",
     "semantic_hash": ""
   },
   "tasks/plan-product-report-containers.md": {
@@ -4536,9 +4536,9 @@
     "semantic_hash": ""
   },
   "server/productContainers/expectedExport.js": {
-    "mtime": 1792475493.6823559,
-    "seen": 1792478439.1723654,
-    "ast_hash": "0590b34d7a897f3354269e07294f8a97",
+    "mtime": 1792548565.3600612,
+    "seen": 1792549066.6035976,
+    "ast_hash": "f2b5fdec5539cee3dd8e90d83be5763a",
     "semantic_hash": ""
   },
   "server/productContainers/expectedRefresh.js": {
@@ -4548,9 +4548,9 @@
     "semantic_hash": ""
   },
   "server/productContainers/expectedRefresh.test.js": {
-    "mtime": 1792478069.3786387,
-    "seen": 1792478439.1723654,
-    "ast_hash": "c61ae52714a3b65ae5ec619fb2308e60",
+    "mtime": 1792548532.4287434,
+    "seen": 1792549066.6035976,
+    "ast_hash": "96ea7b0b04ad61ef621e1b280c972119",
     "semantic_hash": ""
   },
   "server/productContainers/expectedRepository.js": {
@@ -4566,15 +4566,15 @@
     "semantic_hash": ""
   },
   "server/productContainers/expectedRoutes.test.js": {
-    "mtime": 1792476573.5951014,
-    "seen": 1792478439.1723654,
-    "ast_hash": "d67d5b6ac0d61f5ef7277a35f6312963",
+    "mtime": 1792548553.823146,
+    "seen": 1792549066.6035976,
+    "ast_hash": "cc71ee5f6f286ba467ffd3f2de99b192",
     "semantic_hash": ""
   },
   "server/test/frontend/expected-arrivals.test.js": {
-    "mtime": 1792475976.395367,
-    "seen": 1792478439.1723654,
-    "ast_hash": "9711635f82e2fa85aa80ed55ca6071af",
+    "mtime": 1792548652.5413146,
+    "seen": 1792549066.6035976,
+    "ast_hash": "4dc3d3c324da277d2ad947a4acb2aa5d",
     "semantic_hash": ""
   },
   "server/vatDraft/vatDraftExport.test.js": {
@@ -4887,6 +4887,18 @@
     "mtime": 1792492869.1642804,
     "seen": 1792545502.8907437,
     "ast_hash": "a89148718b3727ebd55aae7d70a33c48",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-10-21-container-tks1-source.md": {
+    "mtime": 1792549064.841914,
+    "seen": 1792549066.605596,
+    "ast_hash": "b9997f923caf09a8c40dacdfa09427d1",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-10-21-container-tks1-source-design.md": {
+    "mtime": 1792548227.4206564,
+    "seen": 1792549066.605596,
+    "ast_hash": "e8cb490a0437b56686954e6755178bd3",
     "semantic_hash": ""
   }
 }

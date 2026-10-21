@@ -17,13 +17,13 @@ const settle = async () => { for (let i = 0; i < 10; i++) await new Promise(r =>
 const row = (over) => Object.assign({
   scheduleLabel: '2. Đã bốc 18-20/10', statusLabel: '2. Đã bốc', eta: '18-20/10', containerName: 'CONT 10-5H',
   productCode: 'MCRY301', productName: 'Máy cạo râu 301', color: 'Đen', saleNote: 'Giữ cho khách A', orderedBy: 'Lan',
-  unitsPerPackage: 24, packageCount: 10, quantity: 240, sheetName: 'CONT 2026', sourceRow: 5
+  unitsPerPackage: 24, packageCount: 10, quantity: 240, sheetName: 'YIWU', sourceRow: 5
 }, over);
 
 const SAMPLE = {
   rows: [
     row({}),
-    row({ productCode: 'MCRY302', productName: 'Máy cạo râu 302', color: null, saleNote: null, orderedBy: 'Hoa', unitsPerPackage: 12, packageCount: 5, quantity: 60, sourceRow: 6 }),
+    row({ sheetName: 'CONT TKS1', productCode: 'MCRY302', productName: 'Máy cạo râu 302', color: null, saleNote: null, orderedBy: 'Hoa', unitsPerPackage: 12, packageCount: 5, quantity: 60, sourceRow: 6 }),
     row({ scheduleLabel: '1. Chưa bốc 05/11', statusLabel: '1. Chưa bốc', eta: '05/11', containerName: 'CONT 11-2A', productCode: 'QAT001', productName: 'Quạt mini', color: 'Trắng', orderedBy: null, unitsPerPackage: null, packageCount: null, quantity: 1000, sourceRow: 12 }),
     row({ scheduleLabel: '3. Đã về kho', statusLabel: '3. Đã về kho', eta: '', containerName: 'CONT 09-1C', productCode: 'DEN200', productName: 'Đèn bàn 200', quantity: 500, sourceRow: 20 })
   ],
@@ -34,6 +34,7 @@ const SAMPLE = {
 const FIELDS = {
   title: 'Dự kiến hàng về', selectionMode: 'custom',
   worksheets: [{ key: 'expected', name: 'Dự kiến hàng về', rowCount: 4, fields: [
+    { key: 'sheetName', label: 'Nguồn', type: 'text', selected: true },
     { key: 'scheduleLabel', label: 'Lịch/Trạng thái', type: 'text', selected: true },
     { key: 'containerName', label: 'Tên Cont', type: 'text', selected: true },
     { key: 'quantity', label: 'Tổng số lượng', type: 'number', selected: true }
@@ -120,18 +121,18 @@ test('muc 2 nam giua Bao cao hang hoa va Tang truong ma hang, co hang chi so nga
   assert.ok(section.querySelector(':scope > .section-head').nextElementSibling.classList.contains('section-kpis'));
 });
 
-test('bang 10 cot dung thu tu, moi th co width px + data-column-key, key bang rieng', () => {
+test('bang 11 cot dung thu tu, moi th co width px + data-column-key, key bang rieng', () => {
   const page = createPage();
   const table = page.$('expectedArrivalsRows').closest('table');
   assert.equal(table.dataset.tableKey, 'dashboard-table-expected-arrivals');
   const ths = [...table.querySelectorAll('thead th')];
   assert.deepEqual(ths.map(th => th.textContent.replace(/[▲▼]/g, '').trim()),
-    ['Lịch/Trạng thái', 'Tên Cont', 'Mã SP', 'Tên SP', 'Màu sắc', 'Ghi chú sale', 'Người đặt', 'Số cái/kiện', 'Số kiện', 'Tổng số lượng']);
+    ['Nguồn', 'Lịch/Trạng thái', 'Tên Cont', 'Mã SP', 'Tên SP', 'Màu sắc', 'Ghi chú sale', 'Người đặt', 'Số cái/kiện', 'Số kiện', 'Tổng số lượng']);
   ths.forEach(th => {
     assert.match(th.getAttribute('style') || '', /width:\s*\d+px/);
     assert.ok(th.dataset.columnKey, 'thieu data-column-key');
   });
-  assert.equal(new Set(ths.map(th => th.dataset.columnKey)).size, 10);
+  assert.equal(new Set(ths.map(th => th.dataset.columnKey)).size, 11);
   // Quy uoc tieu de sap xep: moi th co nut sap xep, glyph chua sap la ▲▼.
   ths.forEach(th => assert.equal(th.querySelector('.sort-indicator').textContent, '▲▼'));
   assert.equal(table.querySelector('tbody').id, 'expectedArrivalsRows');
@@ -154,9 +155,9 @@ test('vao tab Hang hoa: goi /api/expected-arrivals, ve du 4 dong, cot A = B+C, s
   assert.equal(page.$('expectedArrivalsSection').hidden, false);
   const rows = bodyRows(page);
   assert.equal(rows.length, 4);
-  assert.deepEqual(cellTexts(rows[0]), ['2. Đã bốc 18-20/10', 'CONT 10-5H', 'MCRY301', 'Máy cạo râu 301', 'Đen', 'Giữ cho khách A', 'Lan', '24', '10', '240']);
+  assert.deepEqual(cellTexts(rows[0]), ['YIWU', '2. Đã bốc 18-20/10', 'CONT 10-5H', 'MCRY301', 'Máy cạo râu 301', 'Đen', 'Giữ cho khách A', 'Lan', '24', '10', '240']);
   // Gia tri rong -> "—"; so lon dinh dang 1,000.
-  assert.deepEqual(cellTexts(rows[2]).slice(4), ['Trắng', 'Giữ cho khách A', '—', '—', '—', '1,000']);
+  assert.deepEqual(cellTexts(rows[2]).slice(5), ['Trắng', 'Giữ cho khách A', '—', '—', '—', '1,000']);
   assert.match(page.$('expectedArrivalsUpdatedAt').textContent, /^Dữ liệu cập nhật lúc /);
   assert.equal(page.$('tagExpectedArrivals').textContent, '4');
 });
@@ -179,7 +180,7 @@ test('hai o loc lay danh sach tu filters cua may chu; loc theo Cont va Trang tha
   setSelect(page, 'expectedArrivalsContainer', '');
   setSelect(page, 'expectedArrivalsStatus', '2. Đã bốc');
   assert.equal(bodyRows(page).length, 2);
-  assert.ok(bodyRows(page).every(tr => cellTexts(tr)[0] === '2. Đã bốc 18-20/10'));
+  assert.ok(bodyRows(page).every(tr => cellTexts(tr)[1] === '2. Đã bốc 18-20/10'));
 
   setSelect(page, 'expectedArrivalsContainer', 'CONT 11-2A');
   assert.equal(bodyRows(page).length, 0, 'Cont + Trang thai la giao cua hai bo loc');
@@ -197,14 +198,14 @@ test('tim kiem trong bang cap nhat ca bang lan chi so; sap xep theo Tong so luon
   input.dispatchEvent(new page.dom.window.Event('input', { bubbles: true }));
   await settle();
   assert.equal(bodyRows(page).length, 1);
-  assert.equal(cellTexts(bodyRows(page)[0])[2], 'QAT001');
+  assert.equal(cellTexts(bodyRows(page)[0])[3], 'QAT001');
   assert.deepEqual(cardsOf(page, 'expectedArrivalsKpis'), [['Số cont', '1'], ['Số dòng hàng', '1'], ['Tổng số lượng', '1,000']]);
   input.value = '';
   input.dispatchEvent(new page.dom.window.Event('input', { bubbles: true }));
   await settle();
 
-  page.$('expectedArrivalsRows').closest('table').querySelectorAll('thead th')[9].querySelector('.sort-button').click();
-  assert.deepEqual(bodyRows(page).map(tr => cellTexts(tr)[9]), ['60', '240', '500', '1,000']);
+  page.$('expectedArrivalsRows').closest('table').querySelectorAll('thead th')[10].querySelector('.sort-button').click();
+  assert.deepEqual(bodyRows(page).map(tr => cellTexts(tr)[10]), ['60', '240', '500', '1,000']);
 });
 
 test('loi tai /api/expected-arrivals: hien thong bao trong bang, khong ne loi', async () => {
@@ -234,7 +235,7 @@ test('nut Xuat file: mo hop thoai chung, gui container/status/q dang ap, xuat du
   assert.equal(fp.get('status'), '2. Đã bốc');
   assert.equal(fp.has('q'), false);
   const inputs = [...page.$('exportFields').querySelectorAll('input[type="checkbox"]')];
-  assert.equal(inputs.length, 3);
+  assert.equal(inputs.length, 4);
   inputs.find(i => i.value === 'containerName').checked = false;
   page.run(page.$('exportConfirmButton').getAttribute('onclick'));
   await settle();
@@ -243,7 +244,7 @@ test('nut Xuat file: mo hop thoai chung, gui container/status/q dang ap, xuat du
   assert.equal(p.get('format'), 'xlsx');
   assert.equal(p.get('container'), 'CONT 10-5H');
   assert.equal(p.get('status'), '2. Đã bốc');
-  assert.equal(p.get('columns'), 'scheduleLabel,quantity');
+  assert.equal(p.get('columns'), 'sheetName,scheduleLabel,quantity');
   assert.deepEqual(page.downloads, ['TKS_Du_kien_hang_ve.xlsx']);
 
   clickInline(page, btn);
@@ -337,4 +338,127 @@ test('canViewReport(products): chap nhan reports.products HOAC reports.products.
 test('shared-nav: muc Hang hoa cua sidebar chap nhan 1 trong 2 quyen', () => {
   const nav = fs.readFileSync(path.join(publicDir, 'shared', 'shared-nav.js'), 'utf8');
   assert.match(nav, /feature: 'reports\.products', anyOf: \['reports\.products', 'reports\.products\.expected'\], view: 'products'/);
+});
+
+
+test('Nguồn displays exact sheet names, escapes markup, and sorts both directions', async () => {
+  const source = 'CONT TKS1 <img src=x onerror="alert(1)"> & "Nguồn"';
+  const page = createPage({ respond: { ...SAMPLE, rows: [SAMPLE.rows[0], SAMPLE.rows[1], row({ sheetName: source })] } });
+  page.run("switchView('products')");
+  await settle();
+  const table = page.$('expectedArrivalsRows').closest('table');
+  assert.equal(table.dataset.tableKey, 'dashboard-table-expected-arrivals');
+  assert.equal(table.querySelector('th').dataset.columnKey, 'nguon');
+  assert.equal(table.querySelector('th').style.width, '120px');
+  assert.deepEqual(bodyRows(page).map(tr => cellTexts(tr)[0]), ['YIWU', 'CONT TKS1', source]);
+  assert.equal(bodyRows(page)[2].cells[0].querySelector('img'), null);
+  assert.equal(bodyRows(page)[2].getAttribute('data-table-item-id'), source + ':5');
+  const sort = table.querySelector('th .sort-button');
+  sort.click();
+  assert.deepEqual(bodyRows(page).map(tr => cellTexts(tr)[0]), ['CONT TKS1', source, 'YIWU']);
+  sort.click();
+  assert.deepEqual(bodyRows(page).map(tr => cellTexts(tr)[0]), ['YIWU', source, 'CONT TKS1']);
+});
+
+test('loading, empty, filtered empty, and error rows span all 11 columns', async () => {
+  const loading = createPage();
+  assert.equal(loading.$('expectedArrivalsRows').querySelector('td').colSpan, 11);
+  loading.run('renderExpectedArrivals()');
+  assert.equal(loading.$('expectedArrivalsRows').querySelector('td').colSpan, 11);
+  const empty = createPage({ respond: { ...SAMPLE, rows: [] } });
+  empty.run("switchView('products')");
+  const error = createPage({ respond: new Error('fixture error') });
+  error.run("switchView('products')");
+  await settle();
+  assert.equal(empty.$('expectedArrivalsRows').querySelector('td').colSpan, 11);
+  assert.equal(error.$('expectedArrivalsRows').querySelector('td').colSpan, 11);
+  loading.run("switchView('products')");
+  await settle();
+  setSelect(loading, 'expectedArrivalsContainer', 'CONT 11-2A');
+  setSelect(loading, 'expectedArrivalsStatus', '2. Đã bốc');
+  assert.equal(loading.$('expectedArrivalsRows').querySelector('td').colSpan, 11);
+});
+
+test('search keeps normal text and code modes without adding sheet-name matches', async () => {
+  const page = createPage();
+  page.run("switchView('products')");
+  await settle();
+  for (const mode of ['normal', 'codes']) {
+    page.run(`Object.assign(getTableSearchState('expectedArrivals'), {mode: '${mode}', query: 'YIWU'}); renderExpectedArrivals()`);
+    assert.equal(bodyRows(page).length, 0);
+    assert.equal(page.$('expectedArrivalsRows').querySelector('td').colSpan, 11);
+    const query = mode === 'normal' ? 'quạt' : 'MCRY301 QAT001';
+    page.run(`Object.assign(getTableSearchState('expectedArrivals'), {mode: '${mode}', query: '${query}'}); renderExpectedArrivals()`);
+    assert.deepEqual(bodyRows(page).map(tr => cellTexts(tr)[3]), mode === 'normal' ? ['QAT001'] : ['MCRY301', 'QAT001']);
+  }
+});
+
+test('pagination retains source cells across 100-row pages', async () => {
+  const rows = Array.from({ length: 101 }, (_, i) => row({ sheetName: i < 100 ? 'YIWU' : 'CONT TKS1', sourceRow: i + 1 }));
+  const page = createPage({ respond: { ...SAMPLE, rows } });
+  page.run("switchView('products')");
+  await settle();
+  assert.equal(bodyRows(page).length, 100);
+  page.$('expectedArrivalsNextPage').click();
+  assert.equal(bodyRows(page).length, 1);
+  assert.equal(bodyRows(page)[0].cells.length, 11);
+  assert.equal(cellTexts(bodyRows(page)[0])[0], 'CONT TKS1');
+});
+
+test('real table controls preserve old keyed column choices and show Nguồn by default', async () => {
+  const page = createPage();
+  page.run("switchView('products')");
+  await settle();
+  const table = page.$('expectedArrivalsRows').closest('table');
+  // Seed a previous ten-column view in this document's real session Map.
+  const old = page.doc.createElement('table');
+  old.dataset.tableKey = table.dataset.tableKey;
+  old.innerHTML = table.innerHTML;
+  old.querySelector('[data-column-key="nguon"]')?.remove();
+  [...old.tBodies[0].rows].forEach(tr => { if (tr.cells.length === 11) tr.cells[0].remove(); });
+  const wrap = page.doc.createElement('div');
+  wrap.className = 'table-wrap';
+  wrap.append(old);
+  page.doc.body.append(wrap);
+  const tableHost = table.parentElement;
+  table.remove();
+  page.dom.window.eval(fs.readFileSync(path.join(publicDir, 'shared', 'table-controls.js'), 'utf8'));
+  const api = page.dom.window.TKSTables;
+  const buttons = new Map([old].map(target => {
+    const button = page.doc.createElement('button');
+    page.doc.body.append(button);
+    api.enhance(target, { button });
+    return [target, button];
+  }));
+  const hide = (target, key) => {
+    buttons.get(target).click();
+    const picker = page.doc.querySelector('.tks-columns-picker');
+    const input = picker.querySelector(`[data-column-key="${key}"]`);
+    input.checked = !input.checked;
+    input.dispatchEvent(new page.dom.window.Event('change', { bubbles: true }));
+    picker.querySelector('[data-action="close"]').click();
+  };
+  hide(old, 'ten-sp');
+  old.querySelector('[data-column-key="ma-sp"] .tks-column-resizer')
+    .dispatchEvent(new page.dom.window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+  tableHost.append(table);
+  const button = page.doc.createElement('button');
+  page.doc.body.append(button);
+  buttons.set(table, button);
+  api.enhance(table, { button });
+  const columns = api.getState(table).columns;
+  assert.equal(columns.length, 11);
+  assert.equal(columns[0].key, 'nguon');
+  assert.equal(columns[0].hidden, false);
+  assert.equal(columns[0].width, 120);
+  assert.equal(columns.find(c => c.key === 'ma-sp').width, 130);
+  assert.equal(columns.find(c => c.key === 'ten-sp').hidden, true);
+  assert.equal(bodyRows(page)[0].cells[4].classList.contains('tks-column-hidden'), true);
+  hide(table, 'nguon');
+  assert.equal(bodyRows(page)[0].cells[0].classList.contains('tks-column-hidden'), true);
+  hide(table, 'nguon');
+  setSelect(page, 'expectedArrivalsContainer', 'CONT 10-5H');
+  api.refresh(table);
+  assert.equal(api.getState(table).columns.find(c => c.key === 'ten-sp').hidden, true);
+  assert.equal(api.getState(table).columns[0].hidden, false);
 });

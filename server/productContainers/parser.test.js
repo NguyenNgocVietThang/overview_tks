@@ -3,6 +3,30 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { parseContainerSheet, normalizeCode } = require('./parser');
 const row = (code, quantity, extra = {}) => Object.assign(Array(24).fill(''), { 0: code, 14: quantity }, extra);
+
+test('CONT TKS1 keeps immediate products, repeated codes and blocks, O quantities and END boundary', () => {
+  const values = [
+    ['Mã SP', 'Tên SP'],
+    ['CONT TKS1', '1.Chưa có lịch', 'DK tháng 11'],
+    row('QT', 184, { 4: 'Đỏ', 5: 'Gấp', 7: 'An', 12: 12, 13: 15.3, 15: 1.44, 23: 12000 }),
+    row('QT', 2.5),
+    ['CONT TKS1', '2.Chưa bốc'], row('QT', 7.5),
+    ['CONT TKS1', '3.Đã bốc'], row('QT', 23),
+    ['CONT TKS1', '4.Đã về'], row('QT', 10),
+    ['END'], row('AFTER', 999)
+  ];
+  const parsed = parseContainerSheet('CONT TKS1', values);
+  assert.deepEqual(parsed.rows.map(r => [r.sheetName, r.sourceRow, r.containerRow, r.status, r.quantity]), [
+    ['CONT TKS1', 3, 2, 1, 184], ['CONT TKS1', 4, 2, 1, 2.5],
+    ['CONT TKS1', 6, 5, 2, 7.5], ['CONT TKS1', 8, 7, 3, 23], ['CONT TKS1', 10, 9, 4, 10]
+  ]);
+  assert.deepEqual(parsed.rows.map(r => r.productCode), ['QT', 'QT', 'QT', 'QT', 'QT']);
+  assert.ok(parsed.rows.every(r => r.containerName === 'CONT TKS1'));
+  const first = parsed.rows[0];
+  assert.deepEqual([first.color, first.saleNote, first.orderedBy, first.unitsPerPackage, first.packageCount, first.unitPriceCny, first.vietnamPrice],
+    ['Đỏ', 'Gấp', 'An', 12, 15.3, 1.44, 12000]);
+  assert.deepEqual(parsed.warnings, []);
+});
 test('only O contributes; repeated rows, zero, decimals and all five statuses survive', () => {
   const values = [row('ignored', 90)];
   for (let s = 1; s <= 5; s++) values.push([' CONT SAME ', `${s}. Trạng thái`, 'DK 14-16/10'], row(' 001a ', s === 1 ? 100 : s === 2 ? 50 : s === 3 ? 30 : 20, {12:999,13:999}));

@@ -12,6 +12,7 @@ const MAX_EXPORT_ROWS = 20000;
 const TITLE = 'Hàng hóa · Dự kiến hàng về';
 const FILE_BASE = 'TKS_Du_kien_hang_ve';
 const COLUMNS = Object.freeze([
+  { key: 'sheetName', label: 'Nguồn', type: 'text' },
   { key: 'scheduleLabel', label: 'Lịch / Trạng thái', type: 'text' },
   { key: 'containerName', label: 'Tên Cont', type: 'text' },
   { key: 'productCode', label: 'Mã SP', type: 'text' },

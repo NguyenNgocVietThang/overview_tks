@@ -37,6 +37,29 @@ async function seed(db) {
       ('SD', 1, 1, 2, 'NONAME', 'noname', 'CONT B', 3, '3.Đã bốc', '', '', '', '', 2, 4, 8.5);`);
 }
 
+test('CONT TKS1 keeps source and repeated rows through refresh/read; names use report and unchanged rows are not rewritten', async () => {
+  const { db, pool } = await setup();
+  try {
+    await seed(db);
+    await db.exec(`${LINE}
+      ('CONT TKS1', 6, 2, 3, 'sku1', 'sku1', 'CONT TKS1', 1, '1.Chưa có lịch', '', '', '', '', 12, 15.3, 184),
+      ('CONT TKS1', 6, 2, 4, 'sku1', 'sku1', 'CONT TKS1', 1, '1.Chưa có lịch', '', '', '', '', NULL, NULL, 2.5),
+      ('CONT TKS1', 6, 5, 6, 'NONAME', 'noname', 'CONT TKS1', 4, '4.Đã về', '', '', '', '', NULL, NULL, 10);`);
+    assert.equal((await refreshExpected(pool, { log: quiet })).written, 6);
+    const repo = createExpectedRepository({ pool });
+    const result = await repo.getExpected();
+    assert.deepEqual(result.rows.map(r => r.sheetName), ['YIWU', 'YIWU', 'SD', 'CONT TKS1', 'CONT TKS1', 'CONT TKS1']);
+    assert.deepEqual(result.rows.slice(3).map(r => [r.productName, r.quantity, r.scheduleLabel]), [
+      ['Ao thun', 184, '1.Chưa có lịch'], ['Ao thun', 2.5, '1.Chưa có lịch'], ['', 10, '4.Đã về']
+    ]);
+    assert.equal(result.rows[3].packageCount, 15.3);
+    const before = (await db.query('SELECT sheet_name, source_row, ctid::text AS tuple FROM product_container_expected ORDER BY sheet_order, source_row')).rows;
+    const unchanged = await refreshExpected(pool, { log: quiet });
+    assert.deepEqual([unchanged.status, unchanged.written, unchanged.deleted, unchanged.version], ['unchanged', 0, 0, 1]);
+    assert.deepEqual((await db.query('SELECT sheet_name, source_row, ctid::text AS tuple FROM product_container_expected ORDER BY sheet_order, source_row')).rows, before);
+  } finally { await db.close(); }
+});
+
 test('lan dau ghi du dong, ghep Lich = B + 1 dau cach + C (C rong khong thua dau cach), ten SP tu product_report', async () => {
   const { db, pool } = await setup();
   try {

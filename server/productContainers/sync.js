@@ -8,7 +8,7 @@ const { invalidateContainerDetails } = require('./repository');
 const { dashboardRollupEvents } = require('../kiotvietSync/dashboardRollupEvents');
 const { requestExpectedRefresh } = require('./expectedRefresh');
 const LOCK_KEY = 20531015;
-const SAFE_ERROR = 'Không đọc hoặc lưu được đủ 6 sheet CONT. Giữ nguyên bản thành công gần nhất.';
+const SAFE_ERROR = `Không đọc hoặc lưu được đủ ${SHEET_NAMES.length} sheet CONT. Giữ nguyên bản thành công gần nhất.`;
 
 // GHI KHAC BIET (mau LEFT JOIN/NOT EXISTS rut ra tu su co IO 2026-09-28): nap sheet vao bang tam roi chi
 // XOA dong da mat/doi va CHEN dong moi. Sheet khong doi => 0 dong ghi, `version` giu nguyen. Client so

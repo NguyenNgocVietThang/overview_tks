@@ -134,6 +134,75 @@ async function runSync(db, rowsBySheet, at) {
 const T0 = '2026-10-16T01:00:00Z', T1 = '2026-10-16T01:11:00Z', T2 = '2026-10-16T01:22:00Z', T3 = '2026-10-16T01:33:00Z';
 const many = (n, qty = 1) => Array.from({ length: n }, (_, i) => ['SKU' + i, qty]);
 
+const SEVEN_SHEETS = ['YIWU', 'VK-DUNG', 'HÀ BẮC', 'SD', 'GDONG', 'KHÁC', 'CONT TKS1'];
+function tks1SheetClient({ missing = false, rejectedRender } = {}) {
+  const calls = [];
+  const product = quantity => Object.assign(Array(24).fill(''), { 0: '001A', 12: 12, 13: 15.3, 14: quantity });
+  return {
+    calls,
+    listSheetTitles: async () => missing ? SEVEN_SHEETS.slice(0, 6) : SEVEN_SHEETS,
+    getValues: async (name, options) => {
+      calls.push({ name, ...options });
+      if (name === 'CONT TKS1' && options.valueRenderOption === rejectedRender) throw new Error('fixture source rejected');
+      if (name !== 'CONT TKS1') return [['CONT ' + name, '2.Chưa bốc'], product(1)];
+      const values = [['Mã SP', 'Tên SP'], ['CONT TKS1', '1.Chưa có lịch'], product(184), product(2.5),
+        ['CONT TKS1', '2.Chưa bốc'], product(7.5), ['CONT TKS1', '3.Đã bốc'], product(23),
+        ['CONT TKS1', '4.Đã về'], product(10), ['END'], product(999)];
+      // Displayed quantities are deliberately localized; the job must read O from the raw response.
+      return options.valueRenderOption === 'FORMATTED_VALUE'
+        ? values.map(row => row.map((value, col) => col === 14 ? String(value).replace('.', ',') : value)) : values;
+    }
+  };
+}
+
+test('seven-source sync preserves source order, raw O quantities and separate same-name CONT blocks', async () => {
+  const { refreshContainers } = require('./sync');
+  const db = await fixture();
+  const client = tks1SheetClient();
+  try {
+    const result = await refreshContainers({ pool: { connect: async () => connectionOver(db) }, spreadsheetId: 'fixture',
+      client, now: () => new Date(T0), logger: { info() {}, error() {} } });
+    assert.equal(result.status, 'updated');
+    assert.equal(result.rowCount, 11);
+    assert.deepEqual(require('./parser').SHEET_NAMES, SEVEN_SHEETS);
+    assert.deepEqual(client.calls, SEVEN_SHEETS.flatMap(name => [
+      { name, valueRenderOption: 'UNFORMATTED_VALUE', cellRange: 'A:X' },
+      { name, valueRenderOption: 'FORMATTED_VALUE', cellRange: 'A:X' }
+    ]));
+    const snapshot = (await db.query('SELECT sheet_name, sheet_order, source_row, container_row, quantity::float AS quantity FROM product_container_lines ORDER BY sheet_order, source_row')).rows;
+    assert.deepEqual(snapshot.slice(0, 6).map(r => [r.sheet_name, r.sheet_order]), SEVEN_SHEETS.slice(0, 6).map((name, index) => [name, index]));
+    assert.deepEqual(snapshot.slice(6).map(r => [r.sheet_name, r.sheet_order, r.source_row, r.container_row, r.quantity]), [
+      ['CONT TKS1', 6, 3, 2, 184], ['CONT TKS1', 6, 4, 2, 2.5], ['CONT TKS1', 6, 6, 5, 7.5],
+      ['CONT TKS1', 6, 8, 7, 23], ['CONT TKS1', 6, 10, 9, 10]
+    ]);
+    assert.deepEqual((await readContainerSummary(db)).totals['001a'], { unloadedQty: 200, loadedQty: 23 });
+    const detail = await getContainerDetails({ pool: db, code: '001A', fullAccess: true });
+    assert.deepEqual(detail.rows.slice(6).map(r => [r.containerName, r.status, r.quantity]), [
+      ['CONT TKS1', 1, 186.5], ['CONT TKS1', 2, 7.5], ['CONT TKS1', 3, 23], ['CONT TKS1', 4, 10]
+    ]);
+  } finally { await db.close(); }
+});
+
+for (const failure of [{ missing: true }, { rejectedRender: 'UNFORMATTED_VALUE' }, { rejectedRender: 'FORMATTED_VALUE' }]) {
+  test(`new source failure keeps the successful snapshot: ${JSON.stringify(failure)}`, async () => {
+    const { refreshContainers } = require('./sync');
+    const db = await fixture();
+    try {
+      await runSync(db, { YIWU: [['001A', 123]] }, T0);
+      const before = (await db.query('SELECT *, ctid::text AS tuple FROM product_container_lines')).rows;
+      const metaBefore = (await db.query('SELECT version, last_success_at FROM product_container_sync')).rows[0];
+      const result = await refreshContainers({ pool: { connect: async () => connectionOver(db) }, spreadsheetId: 'fixture',
+        client: tks1SheetClient(failure), now: () => new Date(T1), logger: { info() {}, error() {} } });
+      assert.equal(result.status, 'failed');
+      assert.deepEqual((await db.query('SELECT *, ctid::text AS tuple FROM product_container_lines')).rows, before);
+      const after = (await db.query('SELECT version, last_success_at, last_error FROM product_container_sync')).rows[0];
+      assert.deepEqual({ version: after.version, last_success_at: after.last_success_at }, metaBefore);
+      assert.match(after.last_error, /đủ 7 sheet CONT/);
+      assert.deepEqual((await readContainerSummary(db)).totals['001a'], { unloadedQty: 123, loadedQty: 0 });
+    } finally { await db.close(); }
+  });
+}
+
 test('diff-write: lan dau tao version; sheet y het => version, dong va ctid khong doi; doi 1 dong => doi dung 1 dong', async () => {
   const { __test__ } = require('./sync'); __test__.resetPendingShrink();
   const db = await fixture();

@@ -16,7 +16,7 @@
 - Giữ lịch 10 phút mặc định, đồng bộ nguyên khối, bảo vệ snapshot, ghi khác biệt và quyền hiện có.
 - Tổng lượng lấy O; tên sản phẩm tra `product_report`; không viết Google Sheets hoặc DB production để kiểm thử.
 - Không thêm endpoint, migration, dependency, bộ lọc nguồn hoặc thay đổi tìm kiếm.
-- Chạy tuần tự trong phiên hiện tại; không cần chia subagent cho thay đổi nhỏ này.
+- Theo chỉ dẫn bổ sung đã duyệt trong chat 21/10/2026: triển khai trực tiếp trên `main`, ba subagent song song trong phiên hiện tại với phạm vi backend/giao diện/xuất file không trùng file; agent chính tích hợp, review và tài liệu. Không tạo chat mới, commit, push hoặc deploy trong lượt này.
 
 ## Task 1: Đọc nguồn thứ bảy và giữ tính nhất quán
 
@@ -56,7 +56,7 @@ const SAFE_ERROR = `Không đọc hoặc lưu được đủ ${SHEET_NAMES.lengt
 ```
 
 - [ ] Mở rộng fixture `expectedRefresh.test.js` bằng dòng TKS1 và xác nhận `sheetName` tồn tại qua DB/API, tên SP vẫn từ báo cáo, chạy lần hai không có thay đổi thì không ghi lại. Không đổi SQL nếu test đã đạt.
-- [ ] Chạy cả ba file test và kiểm tra diff trước lưu mốc commit Task 1; chỉ commit file thuộc thay đổi.
+- [ ] Chạy cả ba file test và kiểm tra diff Task 1; báo kết quả cho agent chính, không tự commit.
 
 ## Task 2: Cột Nguồn trên bảng và file xuất
 
@@ -81,7 +81,7 @@ expectedArrivalsTextCell(r.sheetName) +
 ```
 
 - [ ] Sửa toàn bộ colspan/count 10 của riêng bảng expected thành 11, gồm callback render/pagination/error. Giữ `data-table-key` và tất cả `data-column-key` cũ; không thay các bảng khác. `table-controls.js` giữ cấu hình cột trong Map của phiên theo khóa cột, không lưu localStorage; sau tải lại trang dùng mặc định, nên không cần migration cấu hình hoặc sửa shared control. Kiểm tra cột mới hiện và thao tác độ rộng/ẩn các cột cũ không bị lệch.
-- [ ] Chạy lại test frontend/export và kiểm tra diff trước lưu mốc commit Task 2.
+- [ ] Chạy lại test frontend/export và kiểm tra diff Task 2; báo kết quả cho agent chính, không tự commit.
 
 ## Task 3: Kiểm chứng, tài liệu và bàn giao
 
@@ -100,3 +100,12 @@ npm test
 ## Chấp nhận và vận hành
 
 Đạt khi test xác nhận nguồn thứ bảy được lưu, tổng/chi tiết sử dụng cùng snapshot, bảng/file xuất có Nguồn đầu tiên, không mất dòng mã trùng và lỗi nguồn mới giữ nguyên bản cũ. Sau triển khai được ủy quyền riêng, quan sát lượt job đến hạn và log số dòng CONT TKS1; không ép chạy hoặc đổi metadata DB để vượt lịch.
+
+## Kết quả thực thi 21/10/2026 — main cục bộ, chưa deploy
+
+- Backend, giao diện và xuất file đã tích hợp từ ba subagent có phạm vi file riêng; thêm sửa kiểm thử `sync.test.js` vì còn kỳ vọng cố định sáu nguồn. Không thay thuật toán parser/repository/refresh.
+- Review độc lập chấp thuận mã và tài liệu, không còn phát hiện cần sửa. Nhóm test liên quan 98/98 đạt; toàn bộ `npm test -- --test-concurrency=4`: 3.114 test, 3.111 đạt, 3 bỏ qua, 0 lỗi, exit 0 trên Node 24.19.0. Preload chỉ chặn dotenv, shell dùng cấu hình giả và để trống DB thật. Log: `.codex_tmp/tks1-full-verified.log`.
+- Trình duyệt desktop/mobile 375px, sáng/tối, nguồn/sắp xếp/ẩn hiện/lọc/hộp xuất/trạng thái rỗng-lỗi đã kiểm với 57 dòng giả lập. Phân trang 101 dòng, tìm kiếm, quyền và cấu hình/độ rộng cột kiểm bằng JSDOM/shared controls; chưa thao tác kéo độ rộng hoặc duyệt phân trang thủ công trên trình duyệt.
+- Đọc lại XLSX bằng ExcelJS và thực thi HTML xuất bằng JSDOM: nguồn đứng đầu, tên nguồn đúng, chọn cột mới/cũ và escape đạt; chưa mở Excel desktop.
+- README, server README, BRD/SRS, implementation_plan và CURRENT đã cập nhật. `graphify update .` exit 0 (13.942 nút, 29.900 cạnh, 511 cộng đồng), giữ bản sao đồ thị lịch sử; chưa chạy lại nhãn ngữ nghĩa LLM. `git diff --check` đạt.
+- Không commit, push, deploy, ghi Google Sheets hoặc chạy job ghi DB production. Chưa xác nhận snapshot bảy nguồn trên production; chỉ quan sát lượt job đến hạn sau khi được phép deploy riêng.
