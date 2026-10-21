@@ -18,7 +18,7 @@ async function seed(db) {
   await db.exec(BASE + MIGRATION + TEAMS_MIGRATION);
   await db.exec(`
     INSERT INTO customers VALUES
-      ('hanoi', 1, 'KH1', 'Chị A', '{"groups":"Khang","comments":"Level 2"}'),
+      ('hanoi', 1, 'KH1', 'Chị A', '{"groups":"Khang","comments":"Level 2","email":"VIP@gmail.com"}'),
       ('saigon', 2, 'KH1', 'Anh B', '{"groups":"Trinh"}'),
       ('hanoi', 3, 'KH2', 'Cô C', '{}');
     INSERT INTO products VALUES ('hanoi', 10, 'SP1', 'Khay'), ('hanoi', 11, 'SP2', 'Bình');

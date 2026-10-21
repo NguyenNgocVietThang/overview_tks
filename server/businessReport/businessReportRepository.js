@@ -16,7 +16,8 @@
 
 const { getPool } = require('../db/pool');
 const sql = require('./businessMonthlySql');
-const { FIRST_MONTH, UNGROUPED_SALE, NO_TEAM, nameKey, monthKey, addMonths, monthsBetween, vnToday, dayOfMonth, parseClosedMonth } = require('./businessMonths');
+const { customerLevelFromEmail } = require('../invoicePriceAudit/priceAuditRules');
+const { FIRST_MONTH, UNGROUPED_SALE, NO_TEAM, PRICE_LEVEL_LABELS, nameKey, monthKey, addMonths, monthsBetween, vnToday, dayOfMonth, parseClosedMonth } = require('./businessMonths');
 const { freezeMonth, rebuildSaleTable } = require('../kiotvietSync/businessMonthlyRefresh');
 const { onBusinessCurrentMonthChanged } = require('../kiotvietSync/businessCurrentMonthRefresh');
 
@@ -204,7 +205,7 @@ function createRepository({
       ['SELECT 1 FROM business_monthly_customer_product_sales LIMIT 0'],
       [`SELECT DISTINCT ON (branch, btrim(code)) branch, btrim(code) AS code, name,
                          COALESCE(NULLIF(btrim(raw->>'groups'), ''), $1) AS sale_name,
-                         COALESCE(btrim(raw->>'comments'), '') AS price_level,
+                         COALESCE(btrim(COALESCE(raw->>'email', raw->>'Email')), '') AS email,
                          COALESCE(raw->>'isActive', raw->>'IsActive', 'true') <> 'false' AS is_active
                   FROM customers WHERE btrim(COALESCE(code, '')) <> ''
                   ORDER BY branch, btrim(code), id DESC`, [UNGROUPED_SALE]],
@@ -277,7 +278,7 @@ function createRepository({
       customers, products,
       sales,
       teams: teams.rows.map(r => ({ saleName: r.sale_name, teamName: r.team_name })),
-      directory: directory.rows.map(r => ({ branch: r.branch, code: r.code, name: r.name || '', saleName: r.sale_name, priceLevel: r.price_level })),
+      directory: directory.rows.map(r => ({ branch: r.branch, code: r.code, name: r.name || '', saleName: r.sale_name, priceLevel: PRICE_LEVEL_LABELS[customerLevelFromEmail(r.email)] })),
       computedAt: now().toISOString()
     };
   }

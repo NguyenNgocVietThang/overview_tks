@@ -26,6 +26,15 @@ test('bang khach: quy doi 30 ngay, tang truong, TB 4 thang, khach hoat dong, Kha
   assert.equal('kpis' in r, false, 'the tong quan cu da bo');
 });
 
+test('level gia gop khach: lay ho so lon nhat da co level, khong co thi mac dinh vua', () => {
+  const snap = snapshot();
+  snap.directory.push({ branch: 'saigon', code: 'KH7', name: 'Chị A', saleName: 'Khang', priceLevel: 'vừa' });
+  snap.customers.push({ month: '2026-06-01', branch: 'saigon', customerCode: 'KH7', customerName: 'Chị A', netRevenue: 9999 });
+  const rows = svc.buildCustomerReport(snap).rows;
+  assert.equal(rows.find(x => x.key === 'chị a').priceLevel, 'Level 2', 'ho so SG lon nhat nhung mac dinh vua => lay level cua ho so HN');
+  assert.equal(rows.find(x => x.key === 'cũ').priceLevel, 'vừa', 'email trong => vua');
+});
+
 test('gop khach theo ten (HN + SG, khac hoa/thuong/khoang trang): cong chuoi thang, sale = sale co doanh so 4 thang lon hon', () => {
   const snap = snapshot();
   snap.directory.push({ branch: 'saigon', code: 'KH7', name: 'chị   A', saleName: 'Trinh', priceLevel: 'Level 9' });

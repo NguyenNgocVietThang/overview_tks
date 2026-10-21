@@ -304,3 +304,7 @@ Cùng khách ở 2 cơ sở (15/10/2026): ở bảng tổng thưởng/phạt sal
 - Excel/HTML thêm nhóm, áp bộ lọc đang chọn; HTML có biểu đồ tổng hợp theo nhóm. Không migration DB, không tính lại số thưởng/phạt đã chốt.
 - Kiểm chứng: 137 test liên quan đạt; helper/service đọc nhóm hiện tại đạt 2/2; diff phần nguồn thay đổi sạch. Đã chạy toàn bộ 3.158 test (3 skip): lượt tổng có 21 lỗi; 18 lỗi do nạp cấu hình local Pancake vào fixture hoặc native libuv khi ép thoát Node đã qua khi chạy lại đúng cấu hình/không ép thoát (26/26 Marketing, 10/10 Identity + Telegram, 8/8 Price Audit). Còn 3 test quyền Marketing gọi API Hàng hóa trong `server/test/overview-endpoints-access.test.js` vẫn lỗi khi chạy riêng; không sửa auth/routes/featureRegistry ngoài phạm vi. Không có test Công nợ bị lỗi. Đã chạy `graphify update .`; báo cáo sinh tự động có whitespace có sẵn của generator, diff mã nguồn sạch.
 - Không commit/ghi đè thay đổi Dự kiến hàng về của phiên khác. Các thay đổi trên file `public/index.html` chỉ sửa các đoạn Công nợ và cập nhật nhóm.
+
+## Level giá khách theo email (21/10/2026)
+- Bảng "Doanh số theo khách" (tab Khách hàng/Báo cáo kinh doanh): cột Level giá đổi nguồn từ ghi chú KiotViet (`raw->>'comments'`) sang email khách (`raw->>'email'`), dùng chung `customerLevelFromEmail` của Kiểm tra giá bán: `VIP@...` => vip, `lon@...` => lớn, còn lại/trống => vừa. Khách gộp theo tên lấy level của hồ sơ lớn nhất đã có level (không thì vừa).
+- Không migration. Kiểm chứng: 101 test businessReport + frontend đạt. Chưa chạy toàn bộ suite, chưa commit/deploy.
