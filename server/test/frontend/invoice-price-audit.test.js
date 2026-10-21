@@ -113,7 +113,7 @@ async function opened(options) {
   return page;
 }
 
-const headLabels = page => [...page.$('priceAuditHead').querySelectorAll('th')].map(th => th.textContent.trim());
+const headLabels = page => [...page.$('priceAuditHead').querySelectorAll('th')].map(th => (th.querySelector('.sort-label') || th).textContent.trim());
 const bodyRows = page => [...page.$('priceAuditRows').querySelectorAll('tr[data-row-key]')];
 const cell = (page, tr, key) => tr.cells[COLUMNS.findIndex(c => c.key === key)];
 const change = (page, id, value) => { const el = page.$(id); el.value = value; el.dispatchEvent(new page.w.Event('change', { bubbles: true })); };
@@ -140,7 +140,7 @@ test('thead tu catalog: 18 cot nghiep vu dung thu tu, 16 hien mac dinh, cot doi 
   assert.equal(visible.length, 16);
   assert.ok(ths.slice(18).every(th => th.dataset.columnDefaultHidden === 'true'));
   // thead tinh phai khop DUNG catalog may chu (nguon duy nhat cho bang + xuat file)
-  assert.deepEqual(ths.map(th => [th.dataset.columnKey, th.textContent.trim(), th.dataset.colType, th.dataset.columnDefaultHidden !== 'true']),
+  assert.deepEqual(ths.map(th => [th.dataset.columnKey, (th.querySelector('.sort-label') || th).textContent.trim(), th.dataset.colType, th.dataset.columnDefaultHidden !== 'true']),
     COLUMNS.map(c => [c.key, c.label, c.type, c.defaultVisible]));
   assert.ok(ths.every(th => /^\d+px$/.test(th.style.width)), 'moi cot co do rong px');
 });
@@ -335,4 +335,34 @@ test('ma hoa don mo popup chi tiet hoa don hien co kem nhan du lieu Kiot hien ta
   const note = page.$('docModalBody').querySelector('.price-audit-popup-note');
   assert.ok(note, 'co nhan phan biet');
   assert.match(note.textContent, /hiện tại/);
+});
+
+test('bam tieu de cot: tang dan, giam dan, bo sap xep; gui sort/dir len may chu va ve trang 1', async () => {
+  const page = await opened();
+  const th = page.$('priceAuditHead').querySelector('th[data-sort="invoiceCode"]');
+  const last = () => new URLSearchParams(gets(page).pop().href.split('?')[1]);
+  th.querySelector('.sort-button').click();
+  await settle();
+  assert.equal(last().get('sort'), 'invoiceCode');
+  assert.equal(last().get('dir'), 'asc');
+  assert.equal(th.getAttribute('aria-sort'), 'ascending');
+  assert.equal(th.querySelector('.sort-indicator').textContent, '▼');
+  th.querySelector('.sort-button').click();
+  await settle();
+  assert.equal(last().get('dir'), 'desc');
+  assert.equal(th.querySelector('.sort-indicator').textContent, '▲');
+  th.querySelector('.sort-button').click();
+  await settle();
+  assert.equal(last().get('sort'), null);
+  assert.equal(th.getAttribute('aria-sort'), 'none');
+});
+
+test('ma hoa don la chu thuong, khong xanh/gach chan', () => {
+  const rule = html.match(/.price-audit-link {[^}]*}/)[0];
+  assert.ok(!rule.includes('var(--blue)') && !rule.includes('underline'));
+});
+
+test('Ngay gio ban sap theo cot thoi gian sold_at, khong theo chu', () => {
+  const repo = fs.readFileSync(path.join(__dirname, '..', '..', 'invoicePriceAudit', 'priceAuditRepository.js'), 'utf8');
+  assert.match(repo, /soldAt: 'l.sold_at'/);
 });

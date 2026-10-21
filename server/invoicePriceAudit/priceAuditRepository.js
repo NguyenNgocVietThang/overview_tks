@@ -260,7 +260,32 @@ const FILTER_SQL = `
     AND ($11::text IS NULL OR strpos(lower(normalize(concat_ws(' ', l.invoice_code, l.customer_code, l.customer_name,
           l.product_code, l.product_name), NFC)), lower(normalize($11, NFC))) > 0)`;
 
-const ORDER_SQL = `ORDER BY (${S.effectiveStatusSql('l')} = 'wrong') DESC, l.sold_at DESC, l.branch, l.invoice_code, l.source_line_no`;
+const DEFAULT_ORDER_SQL = `ORDER BY (${S.effectiveStatusSql('l')} = 'wrong') DESC, l.sold_at DESC, l.branch, l.invoice_code, l.source_line_no`;
+
+// Khoa cot (priceAuditColumns) -> bieu thuc SQL de sap xep; khoa la hang so, khong bao gio la chuoi nguoi dung.
+const SORT_SQL = Object.freeze({
+  soldAt: 'l.sold_at', branch: 'l.branch', invoiceCode: 'l.invoice_code', saleName: 'l.sale_name',
+  customerName: 'l.customer_name', productCode: 'l.product_code', productName: 'l.product_name',
+  customerLevel: 'l.customer_level', quantity: 'l.quantity', totalCodeQuantity: 'l.total_code_quantity',
+  fullVat: 'l.full_vat', netUnitPrice: 'l.net_unit_price', minimumUnitPrice: 'l.minimum_unit_price',
+  unitShortfall: 'l.unit_shortfall', effectiveAmount: S.effectiveAmountSql('l'), effectiveStatus: S.effectiveStatusSql('l'),
+  saleExplanation: 'l.sale_explanation', decision: 'l.decision', customerCode: 'l.customer_code',
+  customerEmail: 'l.customer_email', sourceLineNo: 'l.source_line_no', originalUnitPrice: 'l.original_unit_price',
+  unitDiscount: 'l.unit_discount', cartonSizeHn: 'l.carton_size_hn', quantityPriceHn: 'l.quantity_price_hn',
+  levelPriceHn: 'l.level_price_hn', vatHn: 'l.vat_hn', minimumHn: 'l.minimum_hn', freightEligible: 'l.freight_eligible',
+  freightPerUnit: 'l.freight_per_unit', cartonSizeSg: 'l.carton_size_sg', quantityPriceSg: 'l.quantity_price_sg',
+  levelPriceSg: 'l.level_price_sg', vatSg: 'l.vat_sg', minimumSg: 'l.minimum_sg', winningSource: 'l.winning_source',
+  reason: S.effectiveReasonSql('l'), productNoteHn: 'l.product_note_hn', productNoteSg: 'l.product_note_sg',
+  lineNote: 'l.line_note', invoiceNote: 'l.invoice_note', originalStatus: 'l.original_status',
+  originalAmount: 'l.original_amount', decidedBy: 'l.decided_by', decidedAt: 'l.decided_at', capturedAt: 'l.captured_at'
+});
+
+// Sort theo cot: o trong (NULL) luon cuoi; hoa tiet cung gia tri giu thu tu mac dinh de phan trang on dinh.
+function orderSql(sort, dir) {
+  const expr = Object.prototype.hasOwnProperty.call(SORT_SQL, sort) ? SORT_SQL[sort] : null;
+  if (!expr) return DEFAULT_ORDER_SQL;
+  return `ORDER BY ${expr} ${dir === 'desc' ? 'DESC' : 'ASC'} NULLS LAST, l.sold_at DESC, l.branch, l.invoice_code, l.source_line_no`;
+}
 
 const KPI_SQL = `
   SELECT count(DISTINCT (l.branch, l.invoice_id))::int AS invoice_count,
@@ -274,7 +299,7 @@ const KPI_SQL = `
          count(*)::int AS total_rows
   ${FILTER_SQL}`;
 
-const ROWS_SQL = `SELECT ${ROW_COLUMNS_SQL} ${FILTER_SQL} ${ORDER_SQL} LIMIT $12 OFFSET $13`;
+const ROWS_SQL = `SELECT ${ROW_COLUMNS_SQL} ${FILTER_SQL} ORDER_PLACEHOLDER LIMIT $12 OFFSET $13`;
 const SALES_SQL = `SELECT DISTINCT l.sale_name FROM invoice_price_audit_lines l
   WHERE l.sold_day BETWEEN $1::date AND $2::date AND l.sale_name <> '' ORDER BY 1`;
 const ROW_BY_KEY_SQL = `SELECT ${ROW_COLUMNS_SQL} FROM invoice_price_audit_lines l
@@ -356,7 +381,8 @@ function normalizeQuery(query = {}) {
   const bool = v => (v === true || v === false ? v : null);
   return { branch: nil(query.branch), from: nil(query.from), to: nil(query.to), sale: nil(query.sale),
     status: nil(query.status), decision: nil(query.decision), vat: bool(query.vat), freight: bool(query.freight),
-    q: nil(typeof query.q === 'string' ? query.q.trim() : query.q), page, pageSize };
+    q: nil(typeof query.q === 'string' ? query.q.trim() : query.q), sort: nil(query.sort),
+    dir: query.dir === 'desc' ? 'desc' : 'asc', page, pageSize };
 }
 
 function createPriceAuditRepository({ pool = getPool() } = {}) {
@@ -382,7 +408,7 @@ function createPriceAuditRepository({ pool = getPool() } = {}) {
       q.vat, q.freight, q.q];
     const [kpi, rows, sales] = await Promise.all([
       pool.query(KPI_SQL, params),
-      pool.query(ROWS_SQL, [...params, q.pageSize, (q.page - 1) * q.pageSize]),
+      pool.query(ROWS_SQL.replace('ORDER_PLACEHOLDER', orderSql(q.sort, q.dir)), [...params, q.pageSize, (q.page - 1) * q.pageSize]),
       pool.query(SALES_SQL, [state.window_from, state.window_to])
     ]);
     const k = kpi.rows[0];
