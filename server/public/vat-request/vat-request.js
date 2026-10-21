@@ -347,7 +347,7 @@
   }
 
   // ---------- Tải dữ liệu ----------
-  function filterQuery() {
+  function filterQuery(options = {}) {
     const params = new URLSearchParams();
     const statuses = state.preset === 'todo' ? TODO_STATUSES : state.preset === 'all' ? [] : [state.preset];
     if (statuses.length) params.set('status', statuses.join(','));
@@ -355,6 +355,7 @@
     if (createdBy) params.set('createdBy', createdBy);
     if (state.from) params.set('from', state.from);
     if (state.to) params.set('to', state.to);
+    if (options.withSearch && state.query) params.set('q', state.query);
     const text = params.toString();
     return text ? '?' + text : '';
   }
@@ -416,7 +417,7 @@
     button.classList.add('is-loading');
     setStatus('Đang tạo file Excel…');
     try {
-      const response = await fetch(API + '/export' + filterQuery(), { credentials: 'same-origin', cache: 'no-store' });
+      const response = await fetch(API + '/export' + filterQuery({ withSearch: true }), { credentials: 'same-origin', cache: 'no-store' });
       if (!response.ok) {
         let data = null;
         try { data = await response.json(); } catch (error) { data = null; }

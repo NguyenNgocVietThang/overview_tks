@@ -3,6 +3,8 @@
 // Truy van Postgres cho Yeu cau xuat VAT (bang vat_requests / vat_request_history, migration 0076).
 // Luat phan quyen / khoa / version nam o service.js; file nay chi doc ghi.
 
+const { createMatcher, fold } = require('../shared/fuzzySearch');
+
 const SELECT_COLUMNS = `r.id, r.created_at, r.updated_at, r.created_by, r.created_by_name, r.created_by_email, r.is_legacy,
   r.customer_name, r.customer_code, r.product_code, r.product_key,
   COALESCE(NULLIF(pr.product_name, ''), r.product_name) AS product_name,
@@ -36,17 +38,25 @@ async function listRequests(db, filters = {}) {
   if (filters.productKey) where.push(`r.product_key = ${add(filters.productKey)}`);
   if (filters.from) where.push(`r.created_at >= (${add(filters.from)}::date::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh')`);
   if (filters.to) where.push(`r.created_at < ((${add(filters.to)}::date + 1)::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh')`);
-  if (filters.q) {
-    const pattern = add(`%${filters.q}%`);
-    where.push(`(r.product_code ILIKE ${pattern} OR r.customer_name ILIKE ${pattern} OR COALESCE(pr.product_name, r.product_name) ILIKE ${pattern}
-      OR r.sale_note ILIKE ${pattern} OR r.accountant_note ILIKE ${pattern} OR r.created_by_name ILIKE ${pattern})`);
-  }
   const { rows } = await db.query(
     `SELECT ${SELECT_COLUMNS} ${FROM_REQUESTS} WHERE ${where.join(' AND ')}
      ORDER BY r.created_at DESC NULLS LAST, r.id DESC LIMIT ${LIST_LIMIT + 1}`,
     params
   );
-  return { rows: rows.slice(0, LIST_LIMIT), truncated: rows.length > LIST_LIMIT };
+  const truncated = rows.length > LIST_LIMIT;
+  const limited = rows.slice(0, LIST_LIMIT);
+  if (!filters.q) return { rows: limited, truncated };
+  // Tim gan dung (cung luat voi o tim tren man hinh): loc + xep theo diem sau khi lay du lieu theo bo loc.
+  const matcher = createMatcher(filters.q);
+  if (matcher.empty) return { rows: limited, truncated };
+  const scored = [];
+  limited.forEach((row, index) => {
+    const text = fold([row.product_code, row.product_name, row.customer_code, row.customer_name, row.sale_note, row.accountant_note, row.created_by_name].join(' '));
+    const score = matcher.score(text);
+    if (score > 0) scored.push({ row, index, score });
+  });
+  scored.sort((a, b) => b.score - a.score || a.index - b.index);
+  return { rows: scored.map(entry => entry.row), truncated };
 }
 
 async function getRequest(db, id, { forUpdate = false } = {}) {
