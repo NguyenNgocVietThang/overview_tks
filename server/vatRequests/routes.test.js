@@ -77,6 +77,35 @@ test('loi nghiep vu tra dung ma; 409 kem ban moi nhat; loi la -> 500 khong lo ch
   });
 });
 
+test('GET /export tra file xlsx theo bo loc; 403 tu service giu nguyen ma', async () => {
+  let filters;
+  const service = {
+    exportList: async (user, f) => {
+      if (user.vaiTro === ROLES.NHAN_VIEN_SALE) throw Object.assign(new Error('cấm'), { statusCode: 403, code: 'FEATURE_FORBIDDEN' });
+      filters = f;
+      return { rows: [], metrics: {}, truncated: true };
+    }
+  };
+  for (const [vaiTro, expected] of [[ROLES.QUAN_LY, 200], [ROLES.NHAN_VIEN_SALE, 403]]) {
+    const app = express();
+    app.use((req, res, next) => { req.user = userFor(vaiTro); req.effectiveUserResolved = true; next(); });
+    app.use('/api/vat-requests', createVatRequestRouter({ service }));
+    const server = app.listen(0);
+    try {
+      const res = await fetch(`http://127.0.0.1:${server.address().port}/api/vat-requests/export?status=3&q=abc`);
+      assert.equal(res.status, expected);
+      if (expected === 200) {
+        assert.match(res.headers.get('content-type'), /spreadsheetml/);
+        assert.match(res.headers.get('content-disposition'), /attachment; filename="order_vat_\d{8}_\d{4}\.xlsx"/);
+        assert.equal(res.headers.get('x-export-truncated'), '1');
+        assert.deepEqual(filters, { statuses: ['3'], createdBy: null, productKey: null, q: 'abc', from: null, to: null });
+      } else {
+        assert.equal((await res.json()).code, 'FEATURE_FORBIDDEN');
+      }
+    } finally { server.close(); }
+  }
+});
+
 test('readFilters bo gia tri la', () => {
   assert.deepEqual(readFilters({ product: ' 014XOAN ', createdBy: 'u2' }), { statuses: [], createdBy: 'u2', productKey: '014xoan', q: null, from: null, to: null });
 });

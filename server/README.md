@@ -148,9 +148,12 @@ Thay Google Form + sheet ORDER VAT 1. Module `vatRequests/` (`service.js` giữ 
 | POST | `/api/vat-requests/batch` `{ submissionId, items: [...] }` | Form nhiều dòng: tạo tối đa 200 yêu cầu trong 1 transaction; dòng sai → 400 `BATCH_INVALID` + `errors: [{ row, field, message }]`, không ghi dòng nào; cùng `submissionId` + tài khoản trong 6 giờ → trả lại kết quả cũ (`duplicate: true`) |
 | POST | `/api/vat-requests/lookup` `{ codes: [...] }` | Tra nhiều mã 1 lần cho form nhiều dòng: tên SP, O/P/Q/R, giá VAT gần nhất; mã không có → `found: false` |
 | GET | `/api/vat-requests/product-suggest?q=` / `customer-suggest?q=` | Gợi ý mã SP (`product_report`) / khách KiotViet theo cơ sở + tên từ yêu cầu VAT cũ (không dấu, mã khách, đảo từ) |
+| GET | `/api/vat-requests/export?status&createdBy&q&from&to` | Xuất `.xlsx` (sheet `ORDER VAT`, file `order_vat_YYYYMMDD_HHmm.xlsx`): mọi dòng khớp bộ lọc như danh sách, đủ 17 cột của bảng, mỗi yêu cầu một dòng; chỉ KT có quyền xử lý hoặc Quản lý (khác → 403 `FEATURE_FORBIDDEN`); header `X-Export-Truncated: 1` khi vượt 5.000 dòng |
 | GET | `/api/vat-requests/price-suggest?code=` | Giá chưa VAT của yêu cầu gần nhất cùng mã SP; không tự ghi vào form |
 
 **Import sheet cũ**: `npm run vat-requests:import-order-vat -- --file order-vat.csv` (hoặc `--sheet <id> --gid <gid>`) in báo cáo chạy thử; thêm `--apply` để ghi trong 1 transaction. Map sale theo email cột B (tài khoản web), không khớp thì giữ tên cột C; ô "X"/"...."/trống → NULL; Full VAT = ghi chú có "FULL VAT"; chạy lại không nhân đôi (`legacy_row`). Đã nhập CSV mới ngày 20/10/2026: 1.357 dòng (0: 69, 1: 1.268, 2: 4, 3: 13, pending: 3), 13 dòng thời gian lỗi, 24 dòng thiếu giá; 1.357 dòng lịch sử import trên DB thật.
+
+**Cập nhật 21/10/2026**: thêm `vatRequests/export.js` + `GET /export` (xem bảng trên); trang dời nút Cột hiển thị lên cạnh Xuất Excel, nút Gom theo mã SP dạng bật/tắt, nút Tải lại chỉ icon.
 
 **Cập nhật 20/10/2026**: nguồn tồn mặc định đã đổi sang `gid=39032`; thêm `vatRequests/suggestions.js` và test PGlite/JSDOM cho gợi ý khách/giá. Luật lưu trong `service.js` và migration `0076` giữ nguyên.
 

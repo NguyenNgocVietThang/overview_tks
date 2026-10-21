@@ -8,6 +8,7 @@ const { requireAuth, requireFeature } = require('../auth/authMiddleware');
 const { resolveBranch } = require('../branch/branchMiddleware');
 const { STATUSES, createVatRequestService } = require('./service');
 const { createVatRequestSuggestions } = require('./suggestions');
+const { createVatRequestWorkbook } = require('./export');
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -61,6 +62,15 @@ function createVatRequestRouter({ service = createVatRequestService(), customerS
 
   router.get('/', handle(async (req, res) => {
     res.json(await service.list(req.user, readFilters(req.query)));
+  }));
+  // Phai dat truoc '/:id'. Header X-Export-Truncated bao trang khi vuot gioi han dong cua list.
+  router.get('/export', handle(async (req, res) => {
+    const list = await service.exportList(req.user, readFilters(req.query));
+    const file = await createVatRequestWorkbook(list);
+    res.set('Content-Type', file.mimeType);
+    res.set('Content-Disposition', `attachment; filename="${file.fileName}"`);
+    res.set('X-Export-Truncated', list.truncated ? '1' : '0');
+    res.send(file.buffer);
   }));
   router.get('/product-suggest', handle(async (req, res) => {
     res.json({ results: await service.suggestProducts(req.query.q, req.query.limit) });

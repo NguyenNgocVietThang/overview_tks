@@ -58,7 +58,9 @@ async function setup(t, { vaiTro, id = 'sale-1', responses, featurePermissions =
     calls.push({ key, query: Object.fromEntries(parsed.searchParams), body });
     const handler = responses[key];
     const result = typeof handler === 'function' ? handler(body) : { status: 200, data: handler };
-    return { ok: result.status < 400, status: result.status, json: async () => result.data };
+    const headers = result.headers || {};
+    return { ok: result.status < 400, status: result.status, json: async () => result.data,
+      blob: async () => new window.Blob([result.data || '']), headers: { get: name => headers[name.toLowerCase()] ?? null } };
   };
   window.eval(batchCode);
   window.eval(code);
@@ -76,7 +78,8 @@ test('sale: mac dinh xem tat ca sale, khong co cot chon / sua nhanh, dong khoa k
   assert.equal(calls[0].query.status, undefined);
   assert.equal(doc.querySelector('[data-column-key="select"]'), null);
   assert.equal(doc.querySelector('[data-inline]'), null);
-  assert.equal(doc.getElementById('vrGroupToggleWrap').hidden, true);
+  assert.equal(doc.getElementById('vrGroupToggle').hidden, true);
+  assert.equal(doc.getElementById('vrExport').hidden, true, 'sale khong xuat Excel');
   const editable = [...doc.querySelectorAll('[data-action="edit"]')].map(b => Number(b.dataset.id));
   assert.deepEqual(editable, [1]);
   assert.ok(doc.querySelector('tr[data-id="2"] .vr-lock'));
@@ -290,7 +293,8 @@ test('Ke toan chua duoc cap quyen: chi xem, khong co sua nhanh / chon lo / gom t
   assert.equal(calls[0].query.status, undefined);
   assert.equal(doc.querySelector('[data-column-key="select"]'), null);
   assert.equal(doc.querySelector('[data-inline]'), null);
-  assert.equal(doc.getElementById('vrGroupToggleWrap').hidden, true);
+  assert.equal(doc.getElementById('vrGroupToggle').hidden, true);
+  assert.equal(doc.getElementById('vrExport').hidden, true, 'chua co quyen xu ly -> khong xuat Excel');
   assert.equal(doc.getElementById('vrBulk').hidden, true);
   assert.ok(doc.getElementById('vrCreate'));
 });
@@ -307,7 +311,8 @@ test('KT: mac dinh loc Can xu ly, doi trang thai tren dong gui version; 409 hien
   assert.equal(calls[0].query.status, 'pending,3,4');
   assert.equal(calls[0].query.createdBy, undefined);
   assert.ok(doc.querySelector('[data-column-key="select"]'));
-  assert.equal(doc.getElementById('vrGroupToggleWrap').hidden, false);
+  assert.equal(doc.getElementById('vrGroupToggle').hidden, false);
+  assert.equal(doc.getElementById('vrExport').hidden, false);
 
   const note = doc.querySelector('[data-inline="accountantNote"][data-id="1"]');
   note.value = 'CONT 10-6V';
@@ -352,12 +357,46 @@ test('gom theo ma SP: dong tieu de nhom hien ton VAT / can khai / dang ve', asyn
   const responses = { 'GET /': listResponse([row(1, { canProcess: true }), row(2, { canProcess: true, productCode: '26DAQUAN', productKey: '26daquan', productName: 'Đồng hồ' }), row(3, { canProcess: true })]) };
   const { window, doc } = await setup(t, { vaiTro: 'Kế toán', id: 'kt-1', responses, featurePermissions: PROCESS_GRANTED });
   const toggle = doc.getElementById('vrGroupToggle');
-  toggle.checked = true;
-  toggle.dispatchEvent(new window.Event('change', { bubbles: true }));
+  assert.equal(toggle.getAttribute('aria-pressed'), 'false');
+  toggle.click();
+  assert.equal(toggle.getAttribute('aria-pressed'), 'true');
   const groups = [...doc.querySelectorAll('.vr-group-row')].map(r => r.textContent);
   assert.equal(groups.length, 2);
   assert.match(groups[0], /014XOAN.*2 yêu cầu · Tồn VAT 1,500 · Cần khai 200 · Đang về 150 · Gần nhất 28\/10\/2026/);
   assert.deepEqual([...doc.querySelectorAll('#vrRows tr[data-id]')].map(r => Number(r.dataset.id)), [1, 3, 2]);
+});
+
+test('xuat Excel: quan ly thay nut; tai file theo dung bo loc dang xem, bao khi bi cat 5,000 dong; loi hien thong bao', async t => {
+  const responses = {
+    'GET /': { ...listResponse([row(1)]), viewer: { id: 'ql-1', canProcess: false, isManager: true } },
+    'GET /export': () => ({ status: 200, data: 'xlsx', headers: { 'content-disposition': 'attachment; filename="order_vat_20261021_0930.xlsx"', 'x-export-truncated': '1' } })
+  };
+  const { window, doc, calls } = await setup(t, { vaiTro: 'Nhân viên sale', id: 'ql-1', responses });
+  const button = doc.getElementById('vrExport');
+  assert.equal(button.hidden, false, 'quan ly thay nut Xuat Excel');
+  assert.equal(doc.getElementById('vrReload').disabled, false);
+  assert.equal(button.closest('.vr-table-actions').querySelector('#vrColumnsButton') !== null, true, 'Cot hien thi nam canh Xuat Excel');
+
+  const downloads = [];
+  window.URL.createObjectURL = () => 'blob:x';
+  window.URL.revokeObjectURL = () => {};
+  window.HTMLAnchorElement.prototype.click = function () { downloads.push(this.download); };
+  doc.querySelector('[data-preset="3"]').click();
+  await tick();
+  button.click();
+  await tick(); await tick();
+  const exported = calls.find(c => c.key === 'GET /export');
+  assert.equal(exported.query.status, '3', 'cung bo loc trang thai dang chon');
+  assert.deepEqual(downloads, ['order_vat_20261021_0930.xlsx']);
+  assert.equal(doc.getElementById('vrStatus').dataset.kind, 'warn');
+  assert.equal(button.disabled, false);
+
+  responses['GET /export'] = () => ({ status: 403, data: { error: 'Chỉ kế toán hoặc quản lý được xuất Excel ORDER VAT.' } });
+  button.click();
+  await tick(); await tick();
+  assert.equal(doc.getElementById('vrStatus').dataset.kind, 'error');
+  assert.match(doc.getElementById('vrStatus').textContent, /Chỉ kế toán/);
+  assert.equal(downloads.length, 1);
 });
 
 const HISTORY = { rows: [
