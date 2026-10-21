@@ -60,6 +60,7 @@ async function setup(t, { branch = 'Cả hai', hash = '', data = { HN: [row('001
   if (savedColumns !== undefined) window.localStorage.setItem('tks-stock-locations-columns-v2', JSON.stringify(savedColumns));
   window.HTMLDialogElement.prototype.showModal = function() { this.setAttribute('open', ''); };
   window.HTMLDialogElement.prototype.close = function() { this.removeAttribute('open'); this.dispatchEvent(new window.Event('close')); };
+  window.eval(fs.readFileSync(path.join(publicDir, 'shared/fuzzy-search.js'), 'utf8'));
   window.eval(fs.readFileSync(path.join(publicDir, 'shared/table-controls.js'), 'utf8'));
   window.eval(nav);
   const user = { vaiTro: 'Nhân viên kho', branch, permissions: resolvePermissions({ vaiTro: 'Nhân viên kho' }), pageFeatures: PAGE_FEATURES };

@@ -78,9 +78,15 @@ test('listEntries lọc ở SQL, escape ký tự LIKE, phân trang', async () =>
   assert.equal(result.entries[0].actor.name, 'QL');
   const listCall = pool.calls[1];
   assert.match(listCall.sql, /Asia\/Ho_Chi_Minh/);
-  assert.equal(listCall.params[0], '%50\\%\\_x%');
+  assert.equal(listCall.params[0], '50%_x'); // tim gan dung: tu khoa la tham so, khong can escape LIKE
   assert.deepEqual(listCall.params.slice(-2), [100, 100]);
   const none = await accountAuditLog.listEntries({ action: 'drop table', from: '01/10/2026' });
   assert.equal(pool.calls[2].params.length, 0);
   assert.equal(none.page, 1);
+  // Nhieu tu: moi tu + cum la tham so; SQL bo dau, yeu cau khop du so tu va xep khop nhieu tu truoc.
+  await accountAuditLog.listEntries({ q: 'Nguyễn Văn' });
+  const fz = pool.calls[pool.calls.length - 1];
+  assert.deepEqual(fz.params.slice(0, 3), ['nguyen', 'van', 'nguyen van']);
+  assert.match(fz.sql, />=2/);
+  assert.match(fz.sql, /ORDER BY .*DESC, created_at DESC/s);
 });

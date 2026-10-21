@@ -73,7 +73,7 @@ test('embedded day click keeps filters, resets pagination and excludes actual se
   assert.equal(document.getElementById('toDateFilter').value, '2026-10-03');
   assert.equal(window.__testLeavePaging.page, 1);
   const query = new URL(urls.filter(url => url.startsWith('/api/hr/leave-requests?')).at(-1), window.location.origin).searchParams;
-  assert.equal(query.get('employee'), 'Nguyễn');
+  assert.equal(query.get('employee'), null);
   assert.equal(query.get('branch'), 'Hà Nội');
   assert.equal(query.get('department'), 'SALE');
   assert.equal(document.getElementById('statusFilter').value, 'Chưa duyệt');

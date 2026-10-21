@@ -89,6 +89,7 @@ test('loc: container / status khop chinh xac, q khong dau khong phan biet hoa th
   assert.deepEqual(filterRows(ROWS, { q: 'quan JEAN' }).map(r => r.productCode), ['SKU2']);
   assert.deepEqual(filterRows(ROWS, { q: 'do' }).map(r => r.productCode), ['SKU1']);
   assert.deepEqual(filterRows(ROWS, { q: 'gap' }).map(r => r.productCode), ['SKU1']);
+  assert.deepEqual(filterRows(ROWS, { q: 'quan zzzz' }), []); // 2 tu phai khop ca 2
   assert.deepEqual(filterRows(ROWS, { q: 'YIWU' }), []);
   assert.deepEqual(filterRows(ROWS, { q: 'TKS1' }), []);
   assert.equal(filterRows(ROWS, { sheetName: 'YIWU' }).length, 2);

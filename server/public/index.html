@@ -4667,6 +4667,7 @@
                   <h2>Doanh số theo khách <span class="tag" id="tagBusinessCustomers">—</span></h2>
                   <div class="panel-head-actions business-customer-filters">
                     <select class="stockout-branch-select" id="businessCustomersSale" aria-label="Lọc theo sale"><option value="">Tất cả sale</option></select>
+                    <select class="stockout-branch-select" id="businessCustomersLevel" aria-label="Lọc theo level giá"><option value="">Tất cả level</option></select>
                     <label class="business-inactive-toggle"><input type="checkbox" id="businessCustomersInactive"> Hiện cả khách không hoạt động</label>
                   </div>
                   <div class="panel-head-actions business-export" data-kind="customers">
@@ -4785,7 +4786,25 @@
        và inline script luôn chạy trước script defer — cách đặt này giữ đúng thứ tự mà không chặn parser. -->
   <script src="/vendor/chart.umd.min.js"></script>
   <script src="/js/pagination.js"></script>
-  <script src="/js/table-explorer.js"></script>
+  <script src="/shared/fuzzy-search.js?v=20261021-1"></script>
+  <script src="/js/table-explorer.js?v=20261021-1"></script>
+  <script>
+    // Tìm gần đúng cho mọi bảng dùng filterTableItems (1 từ: phải khớp; 2 từ: khớp cả 2; ≥3 từ: khớp quá nửa; khớp nhiều từ
+    // xếp trước). Chế độ "Nhiều mã" và ô trống giữ nguyên hàm gốc. Máy chủ (xuất Excel) vẫn dùng khớp cụm của table-explorer.js.
+    (function () {
+      var baseFilter = window.filterTableItems;
+      if (typeof baseFilter !== 'function' || !window.TKSFuzzySearch) return;
+      window.filterTableItems = function (items, config, searchState) {
+        var query = searchState && searchState.query != null ? String(searchState.query) : '';
+        var fuzzy = window.TKSFuzzySearch;
+        if ((searchState && searchState.mode === 'codes') || !fuzzy.tokens(query).length ||
+            !config || typeof config.searchText !== 'function') {
+          return baseFilter(items, config, searchState);
+        }
+        return { items: fuzzy.filter(Array.isArray(items) ? items : [], query, config.searchText), requestedCodes: [], missingCodes: [] };
+      };
+    })();
+  </script>
   <script src="/shared/table-controls.js?v=20261016-1"></script>
   <script>
     // Bảng công nợ: mặc định ẩn cột Cảnh báo (người dùng vẫn bật lại được ở bộ chọn cột).
@@ -4803,7 +4822,7 @@
   <script src="/shared/shared-nav.js?v=20261016-freight"></script>
   <script src="/shared/table-align.js?v=20261017"></script>
   <script src="/shared/dateInput.js?v=20260912"></script>
-  <script src="/marketing-report.js?v=20261016-sort"></script>
+  <script src="/marketing-report.js?v=20261021-1"></script>
   <script src="/invoice-price-audit.js?v=20261020-1"></script>
 
   <script>
@@ -5675,19 +5694,23 @@
 
     // Chi so dau muc Kiem tra dut hang: so ma trong tung ket qua quet gan nhat.
     function renderStockoutKpis() {
-      const card = function (label, result, accent) {
+      // Đếm theo ĐÚNG các dòng đang hiện của từng bảng (đã lọc theo ô tìm kiếm của bảng đó).
+      const card = function (label, result, accent, tableKey) {
         const rows = result && result.rows;
+        const searchState = getTableSearchState(tableKey);
+        const shown = rows ? filterTableItems(rows, TABLE_EXPLORER_CONFIGS[tableKey], searchState).items.length : 0;
+        const filtering = !!(rows && searchState.query.trim());
         return {
           label: label,
-          value: rows ? fmtNumber(rows.length) : '—',
-          sub: rows ? 'mã · đã quét ' + fmtNumber(Number(result.totalProductsScanned || 0)) + ' mã' : 'Chưa quét',
+          value: rows ? fmtNumber(shown) : '—',
+          sub: rows ? 'mã · đã quét ' + fmtNumber(Number(result.totalProductsScanned || 0)) + ' mã' + (filtering ? ' · đang lọc từ ' + fmtNumber(rows.length) : '') : 'Chưa quét',
           accent: accent
         };
       };
       renderSectionKpis('stockoutKpis', [
-        card('Hàng đứt gần đây (≥ 5 ngày)', state.recentStockout.result, 'red'),
-        card('Có đứt hàng trong 90 ngày', state.stockout90d.result, 'amber'),
-        card('Có đứt hàng trong 30 ngày', state.stockout30d.result, 'blue')
+        card('Hàng đứt gần đây (≥ 5 ngày)', state.recentStockout.result, 'red', 'recentStockout'),
+        card('Có đứt hàng trong 90 ngày', state.stockout90d.result, 'amber', 'stockout90d'),
+        card('Có đứt hàng trong 30 ngày', state.stockout30d.result, 'blue', 'stockout30d')
       ]);
     }
 
@@ -6619,9 +6642,9 @@
     }
 
     function filterExportFields() {
-      const query = normalizeSearchQuery(document.getElementById('exportFieldSearch').value).toLocaleLowerCase('vi-VN');
+      const query = normalizeSearchQuery(document.getElementById('exportFieldSearch').value);
       document.querySelectorAll('.export-field-item').forEach(item => {
-        item.hidden = !!query && !(item.dataset.exportLabel || '').includes(query);
+        item.hidden = !!query && !fuzzyMatches(item.dataset.exportLabel || '', query);
       });
     }
 
@@ -7302,6 +7325,16 @@
       return '<span class="pill warn">' + escapeHtml(status) + '</span>';
     }
 
+    // Tìm gần đúng (TKSFuzzySearch); thiếu helper thì quay về khớp cụm không dấu.
+    function fuzzyMatches(haystack, query) {
+      if (window.TKSFuzzySearch) return window.TKSFuzzySearch.matches(haystack, query);
+      return normalizeTableSearchText(haystack).includes(normalizeTableSearchText(query));
+    }
+    function fuzzyFilter(items, query, getText) {
+      if (window.TKSFuzzySearch) return window.TKSFuzzySearch.filter(items, query, getText);
+      return items.filter(function (item) { return fuzzyMatches(getText(item), query); });
+    }
+
     function tableSearchText(item) {
       const values = [];
       (function collect(value) {
@@ -7318,7 +7351,7 @@
       recentStockout: { title: 'Kết quả hàng đứt gần đây', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
       stockout90d: { title: 'Kết quả kiểm tra đứt hàng 90 ngày', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
       stockout30d: { title: 'Kết quả kiểm tra đứt hàng 30 ngày', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true },
-      endOfDay: { title: 'Chi tiết giao dịch', searchText: tableSearchText, code: p => p.code, identity: productIdentity, supportsCodes: true },
+      endOfDay: { title: 'Chi tiết giao dịch', searchText: tableSearchText, code: p => p.code, identity: productIdentity, supportsCodes: true, afterRender: renderTransactionsKpis },
       debtManagement: { title: 'Khách hàng công nợ', searchText: tableSearchText, identity: p => p.customerKey, customControl: true },
       debtPenalty: { title: 'Thưởng/phạt sale theo công nợ', searchText: row => row.sale, identity: row => row.sale },
       debtAging: { title: 'Tuổi nợ theo hóa đơn', searchText: tableSearchText, identity: p => p.customerKey, customControl: true }
@@ -7543,6 +7576,8 @@
       };
       ensureTableSearchControls(tableKey, tbody);
       syncTableSearchControls(tableKey, filtered, sourceItems.length);
+      // Chỉ số đầu mục tính lại theo TOÀN BỘ dòng đã lọc (từ khóa + bộ lọc của bảng), không chỉ trang đang xem.
+      if (config && typeof config.afterRender === 'function') config.afterRender(filtered.items, sourceItems, searchState);
 
       // Sap xep TOAN BO du lieu da loc TRUOC khi phan trang — sort chi ap dung cho
       // cac dong da render cua trang hien tai (nhu truoc day) se cho ket qua sai vi
@@ -7607,7 +7642,8 @@
     // Doanh số/tồn chốt mỗi đêm; hàng dự kiến có snapshot riêng 10 phút.
     // Metadata CONT được kiểm tra khi bảng đang hiển thị, độc lập loadData()/SSE. =====
     TABLE_EXPLORER_CONFIGS.productReport = {
-      title: 'Báo cáo hàng hóa', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true
+      title: 'Báo cáo hàng hóa', searchText: tableSearchText, code: p => p.code, identity: p => p.code, supportsCodes: true,
+      afterRender: renderProductReportKpis
     };
 
     function formatProductReportUpdatedAt(computedAt) {
@@ -7713,17 +7749,45 @@
       return typeof TKSNav !== 'undefined' && typeof TKSNav.can === 'function' && TKSNav.can('reports.products.sales');
     }
 
-    function renderProductReport() {
-      const rows = state.productReport.rows;
-      document.getElementById('tagProductReportRows').textContent = rows.length ? String(rows.length) : '—';
-      document.getElementById('productReportUpdatedAt').textContent = formatProductReportUpdatedAt(state.productReport.computedAt);
-      document.getElementById('productContainerUpdatedAt').textContent = productContainerSyncText(state.productReport.containerSync);
+    function renderProductReportKpis(rows, sourceRows) {
+      const loaded = Array.isArray(sourceRows) && sourceRows.length > 0;
+      document.getElementById('tagProductReportRows').textContent = loaded ? String(rows.length) : '—';
       renderSectionKpis('productReportKpis', [
-        { label: 'Số mã hàng', value: rows.length ? fmtNumber(rows.length) : '—', accent: 'amber' },
+        { label: 'Số mã hàng', value: loaded ? fmtNumber(rows.length) : '—', accent: 'amber' },
         ...(productReportSalesAllowed() ? [{ label: 'Doanh số 90 ngày', value: fmtMoney(sumBy(rows, p => p.revenue90d)), accent: 'green' }] : []),
         { label: 'Số lượng bán 30 ngày', value: fmtNumber(sumBy(rows, p => p.qtySold30d)), accent: 'blue' },
         { label: 'Mã hết tồn có thể bán', value: fmtNumber(rows.filter(p => (Number(p.availableToSell) || 0) <= 0).length), accent: 'red' }
       ]);
+    }
+
+    let transactionsSummaryContext = null;
+    function renderTransactionsKpis(items) {
+      const context = transactionsSummaryContext;
+      if (!context) return;
+      const filtering = items.length !== context.total;
+      const summary = context.summary || {};
+      const sum = key => items.reduce((total, item) => total + (Number(item[key]) || 0), 0);
+      const totals = filtering
+        ? { quantity: sum('quantity'), revenue: sum('revenue'), discount: sum('discount'), paid: sum('paid') }
+        : { quantity: summary.quantity, revenue: summary.revenue, discount: summary.discount, paid: summary.paid };
+      document.getElementById('end-day-table-count').textContent = items.length + ' giao dịch theo bộ lọc';
+      document.getElementById('end-day-total-qty').textContent = summary.quantityKnown ? fmtNumber(Number(totals.quantity || 0)) : '—';
+      document.getElementById('end-day-total-revenue').textContent = fmtMoney(totals.revenue);
+      document.getElementById('end-day-total-discount').textContent = fmtMoney(totals.discount);
+      document.getElementById('end-day-total-paid').textContent = fmtMoney(totals.paid);
+      renderSectionKpis('transactionsKpis', [
+        { label: 'Số giao dịch', value: fmtNumber(items.length), sub: context.rangeLabel, accent: 'blue' },
+        { label: 'Doanh thu', value: fmtMoney(totals.revenue), sub: context.rangeLabel, accent: 'green' },
+        { label: 'Giảm giá', value: fmtMoney(totals.discount), sub: context.rangeLabel, accent: 'red' },
+        { label: 'Thực thu', value: fmtMoney(totals.paid), sub: context.rangeLabel, accent: 'amber' }
+      ]);
+    }
+
+    function renderProductReport() {
+      const rows = state.productReport.rows;
+      document.getElementById('productReportUpdatedAt').textContent = formatProductReportUpdatedAt(state.productReport.computedAt);
+      document.getElementById('productContainerUpdatedAt').textContent = productContainerSyncText(state.productReport.containerSync);
+      // Nhãn đếm + hàng chỉ số do renderProductReportKpis vẽ (afterRender của bảng) theo các dòng đã lọc từ khóa.
       renderPaginatedRows(
         'productReport',
         {
@@ -8185,8 +8249,9 @@
       const data = state.business.data.customers;
       if (!data) return [];
       const sale = document.getElementById('businessCustomersSale').value;
+      const level = document.getElementById('businessCustomersLevel').value;
       const inactive = document.getElementById('businessCustomersInactive').checked;
-      return data.rows.filter(r => (inactive || r.active) && (!sale || r.saleName === sale));
+      return data.rows.filter(r => (inactive || r.active) && (!sale || r.saleName === sale) && (!level || (r.priceLevel || '') === level));
     }
 
     function businessFilteredSales() {
@@ -8269,6 +8334,11 @@
       notice.hidden = !['sales', 'customers'].some(kind => state.business.data[kind] && state.business.data[kind].notReady);
       const productsNotReady = !!(state.business.data.products && state.business.data.products.notReady);
       document.getElementById('businessProductsReadiness').hidden = !productsNotReady;
+      const customerData = state.business.data.customers;
+      if (customerData) {
+        const levels = Array.from(new Set(customerData.rows.map(r => r.priceLevel).filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b), 'vi', { numeric: true }));
+        fillBusinessSelect('businessCustomersLevel', 'Tất cả level', levels);
+      }
       const sales = state.business.data.sales;
       if (sales) {
         fillBusinessSelect('businessCustomersSale', 'Tất cả sale', sales.rows.map(r => r.saleName));
@@ -8340,6 +8410,8 @@
       if (kind === 'customers') {
         const sale = document.getElementById('businessCustomersSale').value;
         if (sale) params.set('sale', sale);
+        const level = document.getElementById('businessCustomersLevel').value;
+        if (level) params.set('level', level);
         // Máy chủ mặc định ẩn khách không hoạt động ở bảng Khách — gửi inactive=1 khi công tắc đang bật.
         if (document.getElementById('businessCustomersInactive').checked) params.set('inactive', '1');
       }
@@ -8380,7 +8452,7 @@
         .catch(err => showToast('Không tính lại được: ' + err.message, 'error'));
     }
 
-    [['businessCustomersSale', 'customers'], ['businessCustomersInactive', 'customers'], ['businessSalesTeam', 'sales']].forEach(function (entry) {
+    [['businessCustomersSale', 'customers'], ['businessCustomersLevel', 'customers'], ['businessCustomersInactive', 'customers'], ['businessSalesTeam', 'sales']].forEach(function (entry) {
       document.getElementById(entry[0]).addEventListener('change', function () {
         state.tablePages[BUSINESS_TABLE_KEYS[entry[1]]] = 1;
         renderBusinessTable(entry[1]);
@@ -9067,7 +9139,7 @@
         } catch (err) {
           if (err.name !== 'AbortError') hideCustomerProductSuggestions();
         }
-      }, 180);
+      }, 300);
     }
 
     function handleCustomerProductSearchKeydown(event) {
@@ -9280,10 +9352,7 @@
         data.products.map(function (p) { return { code: p.code, name: p.name }; })
       );
       if (!normalizedQuery) return all;
-      return all.filter(function (p) {
-        return p.name.toLocaleLowerCase('vi-VN').includes(normalizedQuery) ||
-          String(p.code).toLocaleLowerCase('vi-VN').includes(normalizedQuery);
-      });
+      return fuzzyFilter(all, normalizedQuery, function (p) { return p.code + ' ' + p.name; });
     }
 
     function renderCustomerProductFilterSuggestions(options) {
@@ -9388,17 +9457,8 @@
         const report = invoiceData.transactionsReport || { date: '—', transactions: [], topTransactions: [], summary: {} };
         const summary = report.summary || {};
         const transactions = report.transactions || [];
-        document.getElementById('end-day-table-count').textContent = transactions.length + ' giao dịch theo bộ lọc';
-        document.getElementById('end-day-total-qty').textContent = summary.quantityKnown ? fmtNumber(Number(summary.quantity || 0)) : '—';
-        document.getElementById('end-day-total-revenue').textContent = fmtMoney(summary.revenue);
-        document.getElementById('end-day-total-discount').textContent = fmtMoney(summary.discount);
-        document.getElementById('end-day-total-paid').textContent = fmtMoney(summary.paid);
-        renderSectionKpis('transactionsKpis', [
-          { label: 'Số giao dịch', value: fmtNumber(transactions.length), sub: invoiceRangeLabel, accent: 'blue' },
-          { label: 'Doanh thu', value: fmtMoney(summary.revenue), sub: invoiceRangeLabel, accent: 'green' },
-          { label: 'Giảm giá', value: fmtMoney(summary.discount), sub: invoiceRangeLabel, accent: 'red' },
-          { label: 'Thực thu', value: fmtMoney(summary.paid), sub: invoiceRangeLabel, accent: 'amber' }
-        ]);
+        // Tổng/chỉ số do renderTransactionsKpis vẽ (afterRender của bảng): khi có từ khóa thì cộng lại theo các giao dịch đã lọc.
+        transactionsSummaryContext = { summary: summary, rangeLabel: invoiceRangeLabel, total: transactions.length };
         renderPaginatedRows(
           'endOfDay',
           { tbody: 'endOfDayRows', pagination: 'endOfDayPagination', firstBtn: 'endOfDayFirstPage', prevBtn: 'endOfDayPrevPage', nextBtn: 'endOfDayNextPage', lastBtn: 'endOfDayLastPage', label: 'endOfDayPageLabel' },
@@ -9535,7 +9595,7 @@
         if (filters.team && (customer.saleTeam || 'Chưa có team') !== filters.team) return false;
         if (filters.sale && customer.sale !== filters.sale) return false;
         if (filters.schedule && customer.paymentSchedule !== filters.schedule) return false;
-        if (query && !normalizeDebtSearch(tableSearchText(customer)).includes(query)) return false;
+        if (query && !fuzzyMatches(tableSearchText(customer), query)) return false;
         return true;
       });
     }
@@ -9771,7 +9831,7 @@
         if (filters.team && (customer.saleTeam || 'Chưa có team') !== filters.team) return false;
         if (filters.sale && customer.sale !== filters.sale) return false;
         if (filters.schedule && customer.paymentSchedule !== filters.schedule) return false;
-        if (query && !normalizeDebtSearch(tableSearchText(customer)).includes(query)) return false;
+        if (query && !fuzzyMatches(tableSearchText(customer), query)) return false;
         return true;
       });
     }
@@ -10331,12 +10391,12 @@
             DEBT_HISTORY_FIELDS[entry.field] || entry.field, entry.oldValue, entry.newValue].join(' '));
         });
         const renderRows = function () {
-          const needle = normalize(searchEl.value.trim());
+          const needle = searchEl.value.trim();
           const field = fieldEl.value;
           let shown = 0;
           const html = entries.map(function (entry, index) {
             if (field && entry.field !== field) return '';
-            if (needle && haystacks[index].indexOf(needle) === -1) return '';
+            if (needle && !fuzzyMatches(haystacks[index], needle)) return '';
             shown++;
             return '<tr><td class="mono">' + escapeHtml(new Date(entry.createdAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })) + '</td>' +
               '<td>' + escapeHtml(entry.actorName || '—') + '</td>' +

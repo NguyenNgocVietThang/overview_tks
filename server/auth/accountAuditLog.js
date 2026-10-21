@@ -10,6 +10,7 @@
 'use strict';
 
 const featureRegistry = require('./featureRegistry');
+const { fuzzySqlParts } = require('../shared/fuzzySql');
 const { normalizeDepartments } = require('../hr/hrApprovalDepartments');
 
 const ACTIONS = Object.freeze({
@@ -167,11 +168,13 @@ async function listEntries(options = {}) {
   const where = [];
   const params = [];
   const q = String(options.q || '').trim();
-  if (q) {
-    params.push(`%${q.replace(/[\\%_]/g, ch => '\\' + ch)}%`);
-    const p = `$${params.length}`;
-    where.push(`(actor_name ILIKE ${p} OR actor_username ILIKE ${p} OR target_name ILIKE ${p} OR target_username ILIKE ${p})`);
-  }
+  // Tim gan dung (bo dau, 2 tu khop ca 2, >=3 tu khop qua nua) tren ten + username nguoi sua va tai khoan bi sua.
+  const fz = fuzzySqlParts(
+    "COALESCE(actor_name,'') || ' ' || COALESCE(actor_username,'') || ' ' || COALESCE(target_name,'') || ' ' || COALESCE(target_username,'')",
+    q,
+    value => { params.push(value); return '$' + params.length; }
+  );
+  if (fz) where.push(fz.where);
   if (VALID_ACTIONS.includes(options.action)) {
     params.push(options.action);
     where.push(`action = $${params.length}`);
@@ -199,7 +202,7 @@ async function listEntries(options = {}) {
     `SELECT id, created_at, action, actor_user_id, actor_username, actor_name,
             target_user_id, target_username, target_name, changes
        FROM account_audit_log ${whereSql}
-      ORDER BY created_at DESC, id DESC
+      ORDER BY ${fz ? `${fz.score} DESC, ` : ''}created_at DESC, id DESC
       LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,
     listParams
   );

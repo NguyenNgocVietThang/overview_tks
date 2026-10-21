@@ -8,6 +8,7 @@
 'use strict';
 
 const ExcelJS = require('exceljs');
+const fuzzy = require('../shared/fuzzySearch');
 const employeeDirectory = require('./employeeDirectory');
 const { BRANCHES } = require('../branch/branches');
 const { matchesDepartment } = require('./hrDepartment');
@@ -79,7 +80,7 @@ async function buildEmployeeDirectoryWorkbook(filters, branch) {
   const HEADERS = includeExtended ? EXTENDED_HEADERS : (filters.includeCreatedAt ? [...BASE_HEADERS, 'Ngày thêm'] : BASE_HEADERS);
   const COLUMN_WIDTHS = includeExtended ? EXTENDED_WIDTHS : (filters.includeCreatedAt ? [...BASE_WIDTHS, 14] : BASE_WIDTHS);
   const statusFilter = filters.status === 'active' || filters.status === 'resigned' ? filters.status : '';
-  const keyword = String(filters.keyword || '').trim().toLowerCase();
+  const keyword = String(filters.keyword || '').trim();
 
   const snapshot = await employeeDirectory.getSnapshot();
   const branches = Array.isArray(branch) ? branch : [branch];
@@ -110,10 +111,11 @@ async function buildEmployeeDirectoryWorkbook(filters, branch) {
       ngayThem: formatDateVN(employee.createdAt)
     }));
 
-  if (keyword) {
-    items = items.filter(e => [e.hoTen, e.boPhan, e.soDienThoai, e.email].some(v => String(v || '').toLowerCase().includes(keyword)));
-  }
   items.sort((a, b) => a.hoTen.localeCompare(b.hoTen, 'vi'));
+  if (keyword) {
+    // Tim gan dung nhu bang Nhan su tren man hinh (Ho ten, Bo phan, Chuc vu, SDT); khop nhieu tu xep truoc.
+    items = fuzzy.filter(items, keyword, e => [e.hoTen, e.boPhan, e.chucVu, e.soDienThoai].filter(Boolean).join(' '));
+  }
 
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'TOKOSI Dashboard';

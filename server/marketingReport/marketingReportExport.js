@@ -6,6 +6,7 @@
 
 const ExcelJS = require('exceljs');
 const { HEADER_FONT, frozenNoGridlinesView, applyFullTableBorder } = require('../excelTableStyle');
+const fuzzy = require('../shared/fuzzySearch');
 const { renderHtmlReport } = require('../dashboard/exportHtmlReport');
 
 const MAX_EXPORT_ROWS = 20000;
@@ -27,8 +28,6 @@ function invalid(message, code) {
   return e;
 }
 
-const fold = s => String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
-
 function check(kind, table) {
   if (!KIND_TITLES[kind]) throw invalid('Mục báo cáo không hợp lệ.');
   if (!TABLE_TITLES[table]) throw invalid('Bảng xuất không hợp lệ.');
@@ -36,8 +35,8 @@ function check(kind, table) {
 
 function tableRows(table, result, q) {
   const rows = table === 'summary' ? result.summaryRows || [] : result.rows || [];
-  const needle = fold(String(q || '').trim());
-  return needle ? rows.filter(row => fold(Object.values(row).join(' ')).includes(needle)) : rows;
+  // Tim gan dung cung luat voi bang tren man hinh (marketing-report.js): bo dau, nhieu tu, khop nhieu tu xep truoc.
+  return String(q || '').trim() ? fuzzy.filter(rows, q, row => Object.values(row).join(' ')) : rows;
 }
 
 function columnsFor(kind, table, result) {

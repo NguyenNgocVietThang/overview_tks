@@ -1378,6 +1378,7 @@
       </div>
     </dialog>
   <script src="/shared/table-controls.js?v=20261016-1"></script>
+  <script src="/shared/fuzzy-search.js?v=20261021-1"></script>
   <script src="/shared/search-clear.js?v=20261009-1"></script>
     <script src="/shared/shared-nav.js?v=20261008"></script>
     <script src="/shared/dateInput.js?v=20260912"></script>
@@ -1841,19 +1842,45 @@
           if (selected && !groups.includes(selected)) select.appendChild(new Option(selected, selected));
           select.value = selected;
         }
+        // Thẻ nhóm + tổng của mục 1 tính lại theo từ khóa/nhóm của bảng Số dư tài khoản.
+        function renderBalanceTotals(rows, filtered) {
+          if (!filtered) {
+            for (const node of document.querySelectorAll("[data-group-balance]")) {
+              const g = loaded.groupBalances?.find((r) => r.name === node.dataset.groupBalance);
+              paintMoney(node, g?.balance ?? null);
+            }
+            if (loaded.totalBalance != null)
+              $("balanceTotal").textContent = "Tổng tồn quỹ HN + SG: " + money(loaded.totalBalance);
+            $("balanceTotal").classList.toggle("negative", Number(loaded.totalBalance) < 0);
+            return;
+          }
+          const byGroup = new Map();
+          let total = 0;
+          for (const row of rows) {
+            const name = row.accountGroup || "Khác", v = Number(row.balance) || 0;
+            byGroup.set(name, (byGroup.get(name) || 0) + v);
+            total += v;
+          }
+          for (const node of document.querySelectorAll("[data-group-balance]"))
+            paintMoney(node, byGroup.get(node.dataset.groupBalance) ?? 0);
+          $("balanceTotal").textContent = "Tổng tồn quỹ HN + SG (theo bộ lọc bảng): " + money(total);
+          $("balanceTotal").classList.toggle("negative", total < 0);
+        }
         function renderBalances() {
-          const needle = fold($("balancesSearch").value);
+          const query = $("balancesSearch").value;
           const group = $("balancesGroupFilter").value;
+          // Tìm gần đúng (bỏ dấu, khớp nhiều từ) trên dữ liệu đã tải; nhóm lọc trước.
+          const inGroup = loaded.balances.filter((row) => !group || (row.accountGroup || "Khác") === group);
+          const found = TKSFuzzySearch.tokens(query).length
+            ? TKSFuzzySearch.filter(inGroup, query, (row) =>
+                [row.name, row.accountNo, row.description, row.accountGroup].join(" "))
+            : inGroup;
           tableRows(
             "balances",
-            sortedBalances(
-              loaded.balances.filter((row) =>
-                (!group || (row.accountGroup || "Khác") === group) &&
-                matches(row, ["name", "accountNo", "description", "accountGroup"], needle),
-              ),
-            ),
-            needle || group ? "Không có tài khoản khớp bộ lọc." : undefined,
+            sortedBalances(found),
+            query.trim() || group ? "Không có tài khoản khớp bộ lọc." : undefined,
           );
+          renderBalanceTotals(found, !!(query.trim() || group));
         }
         function syncSearch() {
           const found = Object.keys(SEARCH_PARAMS).find(
@@ -1971,7 +1998,7 @@
               needle = fold(search.value);
             for (const input of inputs)
               input.closest("label").hidden =
-                !!needle && !fold(input.closest("label").textContent).includes(needle);
+                !!needle && !TKSFuzzySearch.matches(input.closest("label").textContent, search.value);
             const visible = inputs.filter((input) => !input.closest("label").hidden),
               checked = inputs.filter((input) => input.checked).length;
             dd.querySelector(".dd-search-wrap").hidden =
@@ -2033,19 +2060,11 @@
               ? "Dữ liệu KiotViet đồng bộ lúc " + dateText(s.syncedAt)
               : "Dữ liệu KiotViet chưa có mốc đồng bộ.";
             loaded.balances = s.balances;
+            loaded.groupBalances = s.groupBalances;
+            loaded.totalBalance = s.totalBalance;
             syncBalanceGroups();
-            for (const node of document.querySelectorAll("[data-group-balance]")) {
-              const group = s.groupBalances?.find(row => row.name === node.dataset.groupBalance);
-              paintMoney(node, group?.balance ?? null);
-            }
             renderBalances();
             tableRows("entries", e.entries);
-            $("balanceTotal").textContent =
-              "Tổng tồn quỹ HN + SG: " + money(s.totalBalance);
-            $("balanceTotal").classList.toggle(
-              "negative",
-              Number(s.totalBalance) < 0,
-            );
             pager("entries", e);
             lastRevision = s.revision ?? null;
             status("");
@@ -2258,7 +2277,7 @@
           $("exportColumns")
             .querySelectorAll(".export-field-item")
             .forEach((item) => {
-              item.hidden = !!needle && !fold(item.textContent).includes(needle);
+              item.hidden = !!needle && !TKSFuzzySearch.matches(item.textContent, $("exportFieldSearch").value);
             });
         }
         function setVisibleExportFields(checked) {

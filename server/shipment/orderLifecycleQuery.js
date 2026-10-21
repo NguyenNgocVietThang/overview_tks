@@ -9,6 +9,8 @@
 // ==========================================
 'use strict';
 
+const fuzzy = require('../shared/fuzzySearch');
+
 const DEFAULT_PAGE_SIZE = 100;
 const MAX_PAGE_SIZE = 200;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -142,6 +144,7 @@ function parseParams(input) {
     q: typeof raw.q === 'string' ? raw.q.slice(0, 500) : '',
     // Khong chon cot -> mac dinh (don moi dat nhat truoc); chon cot ma khong co chieu -> tang dan.
     sort: sort || DEFAULT_SORT.key,
+    sortExplicit: !!sort,
     dir: dir === 'desc' ? -1 : (dir === 'asc' ? 1 : (sort ? 1 : DEFAULT_SORT.dir)),
     page: Number.isFinite(page) && page > 0 ? page : 1,
     pageSize: Number.isFinite(pageSize) && pageSize > 0 ? Math.min(pageSize, MAX_PAGE_SIZE) : DEFAULT_PAGE_SIZE
@@ -181,6 +184,12 @@ const SORT_VALUE = {
   at: row => memoKey(row, 'at', r => parseDateTimeValue(r.summary && r.summary.at)),
   // Nhieu canh bao xep truoc it canh bao.
   warning: row => (Array.isArray(row.warnings) ? row.warnings.length : (row.warning ? 1 : 0))
+};
+
+// Van ban da bo dau/hoa thuong, gop khoang trang — dau vao cua tim gan dung.
+const FOLDED = {
+  saleName: row => memoKey(row, 'foldSale', r => fuzzy.fold(r.saleName)),
+  customerName: row => memoKey(row, 'foldCustomer', r => fuzzy.fold(r.customerName))
 };
 
 function compareValues(a, b, dir) {
@@ -224,8 +233,10 @@ function countWarnings(rows) {
 function filterRows(rows, params) {
   const { status, kiotStatus, warning, from, to, dateField, mode, q } = params;
   const codes = mode === 'code' ? parseSearchCodes(q) : [];
-  const text = mode === 'code' ? '' : normalizeSearchText(q);
-  const textKey = mode === 'sale' ? SORT_VALUE.saleName : SORT_VALUE.customerName;
+  // Ten sale / khach: tim gan dung (luat chung voi giao dien), van ban dong chuan hoa 1 lan roi nho theo dong.
+  const matcher = mode === 'code' ? null : fuzzy.createMatcher(q);
+  const text = matcher && !matcher.empty ? matcher : null;
+  const textKey = mode === 'sale' ? FOLDED.saleName : FOLDED.customerName;
   const fromMs = from ? parseDateTimeValue(from) : null;
   // Ngay "den" tinh het ngay (23:59:59) de bao gom don trong ngay do.
   const toMs = to ? parseDateTimeValue(to) + DAY_MS - 1 : null;
@@ -237,7 +248,7 @@ function filterRows(rows, params) {
       const code = SORT_VALUE.orderCode(row);
       if (!codes.some(item => code.includes(item))) return false;
     }
-    if (text && !String(textKey(row)).includes(text)) return false;
+    if (text && !text.score(textKey(row))) return false;
     if (status && !(row.summary && row.summary.code === status)) return false;
     if (kiotStatus && row.kiotStatus !== kiotStatus) return false;
     if (warning && !rowHasWarning(row, warning)) return false;
@@ -284,7 +295,16 @@ function distinctKiotStatuses(rows) {
 
 /** Loc roi sap xep TOAN BO danh sach (chua cat trang) — dung chung cho trang xem va xuat Excel. */
 function selectRows(rows, params) {
-  return sortRows(filterRows(rowsInBranch(rows, params.branch), params), params.sort, params.dir);
+  const sorted = sortRows(filterRows(rowsInBranch(rows, params.branch), params), params.sort, params.dir);
+  // Tim ten (gan dung) ma chua chon cot sap xep: khop nhieu tu / nguyen cum xep truoc, giu thu tu mac dinh khi bang diem.
+  if (params.mode === 'code' || params.sortExplicit || !pickString(params.q)) return sorted;
+  const matcher = fuzzy.createMatcher(params.q);
+  if (matcher.empty) return sorted;
+  const keyOf = params.mode === 'sale' ? FOLDED.saleName : FOLDED.customerName;
+  return sorted
+    .map((row, index) => ({ row, index, score: matcher.score(keyOf(row)) }))
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .map(item => item.row);
 }
 
 function paginate(rows, page, pageSize) {
@@ -306,7 +326,7 @@ function createSelectionCache(limit = 6) {
       if (rows !== source) { source = rows; entries.clear(); }
       const key = JSON.stringify([
         params.branch, params.status, params.kiotStatus, params.warning, params.dateField, params.from, params.to,
-        params.mode, params.q, params.sort, params.dir
+        params.mode, params.q, params.sort, params.dir, params.sortExplicit
       ]);
       if (entries.has(key)) {
         const hit = entries.get(key);

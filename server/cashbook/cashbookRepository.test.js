@@ -315,3 +315,23 @@ test('truy vấn Sổ quỹ đọc qua view và trang dữ liệu không kéo c�
     assert.ok(!/cash_flows/.test(sql), sql);
   }
 });
+
+test('ghi chú / người nộp-nhận tìm gần đúng: bỏ dấu, 2 từ phải đủ, nhiều từ khớp xếp trước, tổng theo kết quả lọc', async () => {
+  await db.query("UPDATE cash_flows SET description='Thu tiền hàng Hà Nội' WHERE branch='hanoi' AND id=1");
+  await db.query("UPDATE cash_flows SET description='Chi tiền xe' WHERE branch='hanoi' AND id=2");
+  await db.query("UPDATE cash_flows SET description='Hàng Hà Nội tiền' WHERE branch='hanoi' AND id=3");
+  await db.query("UPDATE cash_flows SET raw=jsonb_set(raw,'{partnerName}','\"Nguyễn Văn Đạt\"') WHERE branch='hanoi' AND id=1");
+  const codes = async (q) => (await repo.entries(f({ fund: '7,8', ...q }))).entries.map((e) => e.code);
+  // Bỏ dấu + hoa thường
+  assert.deepEqual((await codes({ note: 'HA NOI' })).sort(), ['P1', 'P3']);
+  // 2 từ phải khớp cả 2 (P2 chỉ có "tien")
+  assert.deepEqual((await codes({ note: 'tien xe' })), ['P2']);
+  // Khớp nguyên cụm xếp trước dù P3 mới hơn P1
+  assert.deepEqual((await codes({ note: 'tien hang ha noi' }))[0], 'P1');
+  // Người nộp/nhận không dấu
+  assert.deepEqual(await codes({ partnerQ: 'nguyen van dat' }), ['P1']);
+  // Tổng thu/chi theo kết quả lọc
+  const s = await repo.summary(f({ fund: '7,8', partnerQ: 'nguyen van dat' }));
+  assert.equal(s.kpis.totalReceipts, 10);
+  assert.equal(s.kpis.totalPayments, 0);
+});

@@ -249,12 +249,18 @@
     });
   }
 
+  // Tìm gần đúng ngay trên dòng đã tải (mã SP, tên SP, khách, ghi chú, sale); không gọi lại máy chủ.
+  function searchedRows() {
+    if (!window.TKSFuzzySearch || !TKSFuzzySearch.tokens(state.query).length) return state.rows;
+    return TKSFuzzySearch.filter(state.rows, state.query, r => [r.productCode, r.productName, r.customerName, r.customerCode, r.saleNote, r.accountantNote, r.createdByName].join(' '));
+  }
   function visibleRows() {
+    const source = searchedRows();
     if (state.groupByProduct) {
-      return state.rows.slice().sort((a, b) => a.productKey.localeCompare(b.productKey, 'vi', { numeric: true }) || compareBySort(a, b) || (b.createdAt || '').localeCompare(a.createdAt || ''));
+      return source.slice().sort((a, b) => a.productKey.localeCompare(b.productKey, 'vi', { numeric: true }) || compareBySort(a, b) || (b.createdAt || '').localeCompare(a.createdAt || ''));
     }
-    if (!state.sortKey) return state.rows;
-    return state.rows.slice().sort((a, b) => compareBySort(a, b) || b.id - a.id);
+    if (!state.sortKey) return source;
+    return source.slice().sort((a, b) => compareBySort(a, b) || b.id - a.id);
   }
 
   function render() {
@@ -347,7 +353,6 @@
     if (statuses.length) params.set('status', statuses.join(','));
     const createdBy = state.saleFilter === 'me' ? state.viewerId : state.saleFilter;
     if (createdBy) params.set('createdBy', createdBy);
-    if (state.query) params.set('q', state.query);
     if (state.from) params.set('from', state.from);
     if (state.to) params.set('to', state.to);
     const text = params.toString();
@@ -907,8 +912,8 @@
     $('vrSaleFilter').addEventListener('change', event => { state.saleFilter = event.target.value; state.page = 1; load(); });
     $('vrFrom').addEventListener('change', event => { state.from = event.target.value; state.page = 1; load(); });
     $('vrTo').addEventListener('change', event => { state.to = event.target.value; state.page = 1; load(); });
-    const searchLater = debounce(() => { state.page = 1; load(); }, 350);
-    $('vrSearch').addEventListener('input', event => { state.query = event.target.value.trim(); searchLater(); });
+    // Lọc tức thì trên dữ liệu đã tải; value rỗng (Backspace/cắt/nút X) cũng chạy và trả đủ dòng.
+    $('vrSearch').addEventListener('input', event => { state.query = event.target.value.trim(); state.page = 1; render(); });
     $('vrGroupToggle').addEventListener('click', event => {
       state.groupByProduct = !state.groupByProduct;
       event.currentTarget.setAttribute('aria-pressed', String(state.groupByProduct));

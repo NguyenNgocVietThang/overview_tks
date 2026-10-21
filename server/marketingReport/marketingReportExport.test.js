@@ -11,6 +11,8 @@ const result = {
 test('fields follow on-screen columns and q filters without accents', () => {
   const rows = tableRows('rows', result, 'dang an');
   assert.equal(rows.length, 1);
+  assert.equal(tableRows('rows', result, 'an zzz').length, 0); // 2 từ phải khớp cả 2
+  assert.equal(tableRows('rows', result, '').length, 2);
   const meta = exportFieldsFor('monthly', 'rows', result, rows);
   assert.equal(meta.worksheets[0].rowCount, 1);
   assert.ok(meta.worksheets[0].fields.some(f => f.key === 'note'));

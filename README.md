@@ -108,8 +108,11 @@ server/
 │   ├── vat-request/      # Trang Kế toán – ORDER VAT: sale tạo/sửa yêu cầu của mình, KT được cấp quyền riêng mới xử lý trạng thái/ghi chú/ngày về
 │   ├── vendor/pdfjs/     # pdf.js 4.10.38 (legacy build) đọc text hóa đơn PDF ngay trong trình duyệt
 │   └── shared/
+│       ├── fuzzy-search.js # Tìm gần đúng theo từ dùng chung (UMD, window.TKSFuzzySearch: fold/tokens/score/matches/filter)
+│       ├── fuzzy-search.test.js # Kiểm thử luật tìm gần đúng
 │       └── detail-panel.css # Khung xem chi tiết dùng chung (.dp-): chỉ số tổng quan, bảng 1 khung cuộn, tắt nút chọn cột
 ├── scripts/              # Script thủ công (migrate dữ liệu, cài đặt ban đầu)
+├── shared/               # Tiện ích dùng chung phía máy chủ: fuzzySearch.js (CommonJS, createMatcher — tìm gần đúng theo từ, cùng luật với public/shared/fuzzy-search.js) và fuzzySql.js (cùng luật trong SQL)
 ├── sheets/               # Google Sheets client (Công nợ, Vòng đời, Vị trí hàng, lưu ý `hrSheetsClient.js` là mã chết chờ xóa tay)
 ├── sheetSnapshots/       # Job đọc Google Sheets (Vị trí HN/SG, CÂN ĐO) theo chu kỳ vào Postgres, ghi khác biệt; kiểm thử PGlite
 ├── stockLocations/       # Đọc vị trí hàng HN/SG từ DB (cache theo lần đồng bộ), ánh xạ cột và API chỉ đọc
@@ -367,3 +370,6 @@ Không đưa token hoặc dữ liệu cá nhân vào log/tài liệu công khai.
 ### Cập nhật 21/10/2026 — Nhóm sale trong Công nợ
 
 Công nợ: ba bảng chính có cột Nhóm sale và dropdown lọc; Excel/HTML xuất cùng nhóm và bộ lọc. HTML có biểu đồ tổng nợ/thưởng/phạt theo nhóm.
+
+
+21/10/2026 — **Tìm kiếm gần đúng theo từ + tìm ngay khi gõ + chỉ số theo bộ lọc (không migration; mã đã commit trên `codex/debt-sale-teams`, chưa deploy):** mọi thanh tìm kiếm văn bản thường dùng một luật chung — bỏ dấu và phân biệt hoa/thường không còn ảnh hưởng, tách câu tìm thành từng từ: 1 từ thì từ đó phải khớp; 2 từ thì khớp cả 2; từ 3 từ trở lên khớp quá nửa; kết quả xếp theo số từ khớp, khớp nguyên cụm đứng đầu. Ví dụ "combo 100 set" ra cả dòng "combo set". Ô tìm theo mã chính xác (mã hàng, mã đơn…) giữ nguyên. Frontend dùng `public/shared/fuzzy-search.js` (UMD, `window.TKSFuzzySearch`: `fold/tokens/score/matches/filter`, kiểm thử `fuzzy-search.test.js`); server dùng `shared/fuzzySearch.js` (CommonJS, `createMatcher`) và `shared/fuzzySql.js` (cùng luật ngay trong SQL, tham số hóa, dùng cho bảng lớn cần lọc + phân trang + tổng ở Postgres). Áp ở Vòng đời đơn hàng (`orderLifecycleQuery` — `filterRows`, `sortExplicit`, xếp hạng), Sổ quỹ, Nhân sự/Nghỉ phép, lịch sử tài khoản và xuất người dùng, Kiểm tra giá bán, Dự kiến hàng về (xuất), Nháp VAT (chứng từ), Báo cáo tổng hợp, Marketing, Vị trí hàng. **Sửa lỗi:** xóa hết từ khóa (Backspace) không làm mới kết quả — nay lọc lại ngay qua sự kiện `input`. **Tìm ngay khi gõ, gỡ nút "Tìm kiếm" thừa:** Vòng đời đơn hàng (`bulkSearchInput` debounce 300ms phía máy chủ, `historySearchInput` lọc phía client); ORDER VAT (`vat-request`) lọc client trên dữ liệu đã tải (tối đa `LIST_LIMIT` 5000) thay vì gửi `q` lên máy chủ. **Chỉ số/thẻ KPI nhảy theo từ khóa + bộ lọc** của bảng trên toàn bộ dòng đã lọc (không chỉ trang hiện tại): hook `afterRender` trong `renderPaginatedRows` (`index.html`, Sổ quỹ, Tài khoản, Nhân sự, Marketing); Vòng đời đơn hàng tính qua `countSummary` phía máy chủ. **Vòng đời đơn hàng:** chế độ tìm mặc định đổi sang "Theo tên khách" (`parseParams` phía máy chủ vẫn mặc định `mode='code'`). **Kiểm thử:** có 3 test đỏ nền từ trước, không do thay đổi này — quyền marketing `/api/product-report*` trong `test/overview-endpoints-access.test.js`. Không migration nên `SCHEMA.md` không đổi.

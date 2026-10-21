@@ -51,5 +51,7 @@ test('lọc giống trang Tài khoản: cơ sở HN gồm cả "Cả hai", trạ
   assert.deepEqual((await load(['hoTen'], { coSo: 'Cả hai' })).rows.map(r => r[0]), ['An']);
   assert.deepEqual((await load(['hoTen'], { trangThai: 'Chờ duyệt' })).rows.map(r => r[0]), ['Cường']);
   assert.deepEqual((await load(['hoTen'], { q: ' BÌNH ' })).rows.map(r => r[0]), ['Bình']);
+  assert.deepEqual((await load(['hoTen'], { q: 'binh' })).rows.map(r => r[0]), ['Bình']);
+  assert.deepEqual((await load(['hoTen'], { q: 'binh zzz' })).rows.map(r => r[0]), []);
   assert.deepEqual((await load(['hoTen'], { role: 'Khách' })).rows.map(r => r[0]), ['Cường']);
 });
