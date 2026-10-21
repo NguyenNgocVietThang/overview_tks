@@ -102,3 +102,12 @@ test('xuất danh sách nhân sự: lọc theo phòng ban (không phân biệt h
   assert.match(khoHanoi.fileName, /^HN_/);
   assert.deepEqual(khoHanoi.rows.map(r => r[0]), ['Nguyễn Văn A']);
 });
+
+test('xuất danh sách nhân sự: ô tìm gần đúng như bảng trên màn hình (bỏ dấu, 2 từ phải khớp cả 2)', async () => {
+  const both = [BRANCHES.HANOI, BRANCHES.SAIGON];
+  assert.deepEqual((await exportRows({ keyword: 'nguyen van' }, both)).rows.map(r => r[0]), ['Nguyễn Văn A']);
+  assert.deepEqual((await exportRows({ keyword: 'VAN' }, both)).rows.map(r => r[0]), ['Lê Văn D', 'Nguyễn Văn A']);
+  assert.deepEqual((await exportRows({ keyword: 'van sale' }, both)).rows.map(r => r[0]), ['Lê Văn D']);
+  assert.deepEqual((await exportRows({ keyword: 'van zzz' }, both)).rows, []);
+  assert.deepEqual((await exportRows({ keyword: '0900000003' }, both)).rows.map(r => r[0]), ['Trần Thị C']);
+});
