@@ -319,3 +319,78 @@ test('goi y san pham theo ma / ten, uu tien khop dau ma', async () => {
     assert.deepEqual(await service.suggestProducts('  '), []);
   } finally { await db.close(); }
 });
+
+test('form nhieu dong: gui 1 lan tao nhieu yeu cau, moi dong 1 khach / 1 ma, ghi lich su tung yeu cau', async () => {
+  const { db, service } = await fixture();
+  try {
+    const result = await service.createMany(SALE, { submissionId: 'sub-1', items: [
+      { ...NEW_REQUEST },
+      { customerName: 'Tưởng hà đông', productCode: '26daquan', quantity: 280, unitPrice: 37870, fullVat: false, saleNote: 'gấp' }
+    ] });
+    assert.equal(result.created, 2);
+    assert.equal(result.duplicate, false);
+    const rows = (await service.list(SALE)).rows;
+    assert.deepEqual(rows.map(r => [r.productCode, r.customerName, r.status, r.createdBy]).sort(),
+      [['014XOAN', 'KH A Thắng Thanh Trì', 'pending', 'sale-1'], ['26DAQUAN', 'Tưởng hà đông', 'pending', 'sale-1']]);
+    const { rows: history } = await db.query("SELECT count(*)::int AS n FROM vat_request_history WHERE action = 'create'");
+    assert.equal(history[0].n, 2);
+  } finally { await db.close(); }
+});
+
+test('form nhieu dong: 1 dong loi -> 400 kem loi theo tung dong, khong ghi dong nao', async () => {
+  const { db, service } = await fixture();
+  try {
+    await assert.rejects(service.createMany(SALE, { submissionId: 'sub-2', items: [
+      { ...NEW_REQUEST },
+      { ...NEW_REQUEST, productCode: 'KHONGCO' },
+      { ...NEW_REQUEST, quantity: 0, customerName: '' },
+      { ...NEW_REQUEST, status: '1' },
+      { customerName: 'KH E', productCode: '014XOAN', quantity: 1, unitPrice: 1000 }
+    ] }), error => {
+      assert.equal(error.statusCode, 400);
+      assert.equal(error.code, 'BATCH_INVALID');
+      assert.deepEqual(error.errors.map(e => [e.row, e.field]), [[2, 'productCode'], [3, 'customerName'], [3, 'quantity'], [4, 'status'], [5, 'fullVat']]);
+      assert.match(error.errors[4].message, /chưa chọn Full VAT/);
+      assert.match(error.message, /4 dòng chưa hợp lệ/);
+      return true;
+    });
+    const { rows } = await db.query('SELECT count(*)::int AS n FROM vat_requests');
+    assert.equal(rows[0].n, 0);
+    await assert.rejects(service.createMany(SALE, { submissionId: 'x', items: [] }), { statusCode: 400 });
+    await assert.rejects(service.createMany(SALE, { submissionId: 'x', items: Array.from({ length: 201 }, () => NEW_REQUEST) }), { statusCode: 400 });
+    await assert.rejects(service.createMany(SALE, { items: [NEW_REQUEST] }), { statusCode: 400 });
+  } finally { await db.close(); }
+});
+
+test('form nhieu dong: gui lai cung submissionId khong tao trung; loi thi cho gui lai', async () => {
+  const { db, service } = await fixture();
+  try {
+    await assert.rejects(service.createMany(SALE, { submissionId: 'retry', items: [{ ...NEW_REQUEST, productCode: 'KHONGCO' }] }), { statusCode: 400 });
+    const first = await service.createMany(SALE, { submissionId: 'retry', items: [NEW_REQUEST, NEW_REQUEST] });
+    const [again, parallel] = await Promise.all([
+      service.createMany(SALE, { submissionId: 'retry', items: [NEW_REQUEST, NEW_REQUEST] }),
+      service.createMany(SALE, { submissionId: 'retry', items: [NEW_REQUEST, NEW_REQUEST] })
+    ]);
+    assert.equal(again.duplicate, true);
+    assert.deepEqual(again.ids, first.ids);
+    assert.deepEqual(parallel.ids, first.ids);
+    const other = await service.createMany(SALE2, { submissionId: 'retry', items: [NEW_REQUEST] });
+    assert.equal(other.duplicate, false, 'ma lan gui tach theo tai khoan');
+    const { rows } = await db.query('SELECT count(*)::int AS n FROM vat_requests');
+    assert.equal(rows[0].n, 3);
+  } finally { await db.close(); }
+});
+
+test('tra nhieu ma cung luc: ten SP, so lieu va gia VAT gan nhat; ma khong co -> found=false', async () => {
+  const { db, service } = await fixture();
+  try {
+    await service.createMany(SALE, { submissionId: 's', items: [{ ...NEW_REQUEST, unitPrice: 12000 }] });
+    const { results } = await service.lookupProducts(['014XOAN', ' 26daquan ', 'KHONGCO']);
+    assert.equal(results['014xoan'].productName, 'Bát inox 2 lớp XOẮN 14cm');
+    assert.equal(results['014xoan'].latestOrder.price, 12000);
+    assert.equal(results['014xoan'].pendingInsertQty, 0);
+    assert.equal(results['26daquan'].found, true);
+    assert.equal(results['26daquan'].latestOrder, null);
+    assert.deepEqual(results.khongco, { found: false });
+  } finally { await db.close(); }
+});

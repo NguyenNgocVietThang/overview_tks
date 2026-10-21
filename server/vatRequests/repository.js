@@ -107,6 +107,31 @@ async function findProduct(db, productCode) {
   return rows[0] || null;
 }
 
+/** Tra nhieu ma SP cung luc (form nhieu dong) -> Map(lower(btrim(code)) -> { product_code, product_name }). */
+async function findProducts(db, productCodes) {
+  const keys = [...new Set(productCodes.map(code => String(code || '').trim().toLowerCase()).filter(Boolean))];
+  if (!keys.length) return new Map();
+  const { rows } = await db.query(
+    `SELECT product_code, product_name, lower(btrim(product_code)) AS product_key FROM product_report
+     WHERE lower(btrim(product_code)) = ANY($1::text[])`,
+    [keys]
+  );
+  return new Map(rows.map(row => [row.product_key, row]));
+}
+
+/** Gia VAT gan nhat cua nhieu ma (goi y gia cho tung dong) -> Map(product_key -> { price, created_at, customer_name }). */
+async function latestProductPrices(db, productKeys) {
+  if (!productKeys.length) return new Map();
+  const { rows } = await db.query(
+    `SELECT DISTINCT ON (product_key) product_key, unit_price_excl_vat AS price, created_at, customer_name
+     FROM vat_requests
+     WHERE NOT is_deleted AND product_key = ANY($1::text[]) AND unit_price_excl_vat > 0
+     ORDER BY product_key, created_at DESC NULLS LAST, id DESC`,
+    [productKeys]
+  );
+  return new Map(rows.map(row => [row.product_key, row]));
+}
+
 async function suggestProducts(db, query, limit) {
   const { rows } = await db.query(
     `SELECT product_code, product_name FROM product_report
@@ -193,6 +218,8 @@ module.exports = {
   insertHistory,
   listHistory,
   findProduct,
+  findProducts,
+  latestProductPrices,
   suggestProducts,
   recentCustomers,
   latestProductPrice,

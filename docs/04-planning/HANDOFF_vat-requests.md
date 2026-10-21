@@ -1,6 +1,6 @@
-# Bàn giao: Kế toán – Yêu cầu xuất VAT (nhánh `feature/vat-requests`)
+# Bàn giao: Kế toán – ORDER VAT (đã gộp và push `main`)
 
-> Viết 20/10/2026 để AI khác (Codex) làm tiếp. Đọc hết file này trước khi sửa code.
+> Viết 20/10/2026, cập nhật đối soát 21/10/2026 để AI khác (Codex) làm tiếp. Đọc hết file này trước khi sửa code. Các số liệu nhập ngày 20/10 bên dưới là lịch sử; bộ dữ liệu hiện hành có 1.360 dòng.
 > Quy tắc dự án: [CLAUDE.md](../../CLAUDE.md), [MEMORY.md](../../MEMORY.md), [CURRENT.md](../../CURRENT.md).
 
 ## 1. Tính năng là gì
@@ -16,9 +16,16 @@ Trang `/vat-request/` thay Google Form + sheet "ORDER VAT 1". Sale gửi yêu c�
 - Trường sale: khách (gõ tự do + gợi ý KiotViet/lịch sử VAT, tìm không dấu, mã khách, đảo từ), mã SP (chọn từ `product_report`), SL nguyên > 0, giá chưa VAT > 0, **Full VAT / Không full VAT**, ghi chú. Giá được gợi ý từ yêu cầu VAT gần nhất cùng mã và chỉ áp dụng khi bấm; không dùng giá cột J của sheet. Không có ô "giá đã gồm VAT".
 - Cột live (không lưu DB): **O Tồn VAT** = `TỒN ĐẦU NGÀY` (cột I) tab GỘP MỚI tra qua Khớp mã, cộng mọi công ty; **P** = Σ SL yêu cầu cùng mã ở 3/4; **Q** = Σ `product_container_lines` status 1–3; **R** = ETA sớm nhất (đọc chữ "DK 14-16/10").
 - Ngoài phạm vi: thông báo, ghi ngược Google Sheets, nối tool Nháp VAT, tách theo công ty/cơ sở. 3 sheet XỬ LÝ VAT LÂU / HẢI - VAT / Chạy tồn VAT bỏ hẳn.
-- Import toàn bộ sheet cũ (1.357 dòng).
+- Import toàn bộ sheet cũ; ngày 21/10/2026 đã thay bộ 1.357 dòng bằng CSV mới 1.360 dòng theo yêu cầu chủ dự án, giữ lịch sử và xóa mềm bộ cũ.
 
 ## 2. Trạng thái hiện tại
+
+- **21/10/2026, đã hoàn tất code và nhập CSV mới:** form nhiều mã SP, dán Excel, lưu bản nháp, sắp xếp cột và màu trạng thái (`1b52247`) đã gộp vào `main`. GitHub `main` được đối chiếu trực tiếp tại `4be5e1554d3bea87eef9eadbc7a98b649cfcbed5`. Lệnh nền Claude `bv2dn8p4u` đã COMMIT thành công và exit 0; không chạy lại script thay toàn bộ dữ liệu.
+- **Đối soát DB chỉ đọc 21/10/2026 lúc 11:19 VN:** 1.360 dòng đang hiển thị, 1.357 dòng cũ xóa mềm, 0 dòng tạo trên web; đủ 1.360 lịch sử nhập mới và 1.357 lịch sử xóa. Khớp CSV cả 21.760 giá trị (16 trường/dòng), không thiếu/thừa/sai lệch, `legacy_row` duy nhất, thành tiền đúng. 1.213 dòng khớp tài khoản Sale, 147 giữ tên chữ; trạng thái `0`: 70, `1`: 1.268, `2`: 18, `3`: 4. Giữ nguyên ô nguồn lỗi/thiếu: 13 thời gian, 2 SL, 24 giá, 1 mã SP. SHA-256 CSV mới `B0FAFEB03DD2FAC687D637CE7AF695E6B46698CDBBB5EC24A994B624500413C1`; báo cáo cục bộ `.codex_tmp/order-vat-verification-20261021.json` (không commit CSV hoặc dữ liệu cá nhân). Chưa xác nhận deploy Render.
+
+- **Kiểm thử phiên tiếp nối 21/10/2026:** ORDER VAT (`vatRequests/*.test.js`), import CSV, giao diện VAT và `auth/featureRegistry.test.js`: **87/87 đạt**, exit 0. Toàn bộ: **3.150 test, 3.143 đạt, 3 bỏ qua, 4 lỗi có sẵn trên main**, exit 1: một test `test/frontend/sort-icons.test.js:135` không chuẩn hóa CRLF khi khớp CSS và ba test `test/overview-endpoints-access.test.js:73` còn kỳ vọng Marketing được xem Báo cáo hàng hóa sau thay đổi quyền `c106d78`. Không sửa mã/quyền ngoài phạm vi ORDER VAT. Chạy bằng Node 24.19.0, preload chặn dotenv, bỏ kết nối DB thật và dùng cấu hình giả; log `.codex_tmp/order-vat-focused-tests-20261021.log` và `.codex_tmp/order-vat-full-tests-20261021-verified.log`. Lượt full-test đầu bị dừng vì thiếu cấu hình giả, không dùng làm kết quả nghiệm thu. `graphify` không có trên PATH trong phiên này; chỉ cập nhật tài liệu, không đổi mã/schema.
+
+Các mốc ngày 20/10 dưới đây giữ làm lịch sử:
 
 - Code đã merge từ nhánh `feature/vat-requests` vào `main` qua PR #4 (`ac96b88`) ngày 20/10/2026; chưa xác nhận deploy Render.
 - **Migration `0076_vat_requests.sql` đã áp lên DB thật** ngày 20/10/2026 theo yêu cầu nhập CSV của chủ dự án. Đã nhập 1.357 yêu cầu cũ và 1.357 dòng lịch sử; mỗi `legacy_row` duy nhất.
@@ -39,6 +46,7 @@ Trang `/vat-request/` thay Google Form + sheet "ORDER VAT 1". Sale gửi yêu c�
 | `server/vatRequests/etaParser.js` | Đọc ETA chữ → ngày. |
 | `server/auth/featureRegistry.js` | 2 key mới + `PAGE_FEATURES` `/vat-request`. |
 | `server/public/vat-request/{index.html,vat-request.js,vat-request.css}` | Trang (vanilla JS, `table-controls.js`, token màu `shared.css`). |
+| `server/public/vat-request/vat-request-batch.js` | Form nhiều mã SP, dán từ Excel, gợi ý dữ liệu và lưu bản nháp cục bộ. |
 | `server/public/shared/shared-nav.js` | Mục menu Kế toán → "Yêu cầu xuất VAT". |
 | `server/scripts/importOrderVat.js` | Import sheet cũ: mặc định chạy thử, `--apply` mới ghi; idempotent theo `legacy_row`. |
 | Test | `server/vatRequests/*.test.js` (PGlite), `server/scripts/importOrderVat.test.js`, `server/test/frontend/vat-request.test.js` (JSDOM), `server/auth/featureRegistry.test.js`. |
@@ -56,9 +64,9 @@ Trang `/vat-request/` thay Google Form + sheet "ORDER VAT 1". Sale gửi yêu c�
 
 1. **Chủ dự án xem lại giao diện** và góp ý tiếp (đang ở bước này). Xem bằng bản giả lập (mục 6), không cần DB.
 2. **Nguồn cột Tồn VAT**: tab GỘP MỚI `gid=39032` của sheet công khai `1dNabQaiob7CMozrqjA746uV-atHWJi8gbG6L-I0yrmU` đã kiểm tra CSV HTTP 200 và đặt làm mặc định. Nếu Render đang đặt `VAT_REQUEST_STOCK_GID` khác, đổi thành `39032`; giữ tab Khớp mã hiện hành (`gid=1192158065`).
-3. Đã push nhánh và merge PR #4 vào `main` (`ac96b88`); không commit/push thẳng `main`.
+3. Code mới đã gộp và push `main` ngày 21/10/2026 (`4be5e15`). Theo yêu cầu hiện hành của chủ dự án, tiếp tục trên `main` (xem MEMORY.md); không tự tạo nhánh/worktree khác.
 4. Migration `0076` đã áp; còn deploy Render (chỉ 1 instance).
-5. Đã import CSV `VAT TKS - ORDER VAT 1.csv`: 1.357 dòng, 1.210 dòng khớp Sale, 147 dòng giữ tên Sale do chưa khớp tài khoản; 13 thời gian lỗi, 2 thiếu SL, 24 thiếu giá, 1 thiếu mã SP. Import theo `legacy_row`, chạy lại không nhân đôi. SHA-256 của file đã nhập: `6A33E5B1965C7AEEF5AF67F971CABAC4C9F75CEF841125B2B422CA94C25A79B4` (không lưu CSV trong repo).
+5. **Đã nhập và đối soát xong CSV mới 1.360 dòng ngày 21/10/2026** (mục 2). Không còn bước nhập dữ liệu. Script import thường bỏ qua `legacy_row` đã có; không dùng nó để thay bộ CSV có đổi thứ tự dòng. Không chạy lại script thay toàn bộ khi dữ liệu hiện hành đã khớp CSV, vì sẽ tạo thêm bộ xóa mềm/lịch sử không cần thiết.
 6. `graphify update .` nếu máy có graphify.
 
 ## 6. Cách chạy / kiểm tra
@@ -85,9 +93,9 @@ Trang `/vat-request/` thay Google Form + sheet "ORDER VAT 1". Sale gửi yêu c�
 
 ```
 Đọc docs/04-planning/HANDOFF_vat-requests.md, CLAUDE.md, MEMORY.md, CURRENT.md.
-Làm việc trên nhánh feature/vat-requests (không đụng main). Tính năng Kế toán – Yêu cầu xuất VAT
-đã code xong và test xanh; nhiệm vụ của bạn: <mô tả việc cần sửa tiếp>.
+Làm việc trực tiếp trên main theo yêu cầu hiện hành của chủ dự án. Tính năng Kế toán – ORDER VAT
+đã push code và nhập/đối soát CSV mới 1.360 dòng; không nhập lại dữ liệu. Nhiệm vụ tiếp: <mô tả việc cần sửa tiếp>.
 Giữ nguyên business logic trong server/vatRequests/service.js trừ khi được yêu cầu. Sau khi sửa:
-chạy `cd server && npm test` (chỉ được fail sẵn test sort-icons CRLF), kiểm tra giao diện bằng bản
-giả lập PGlite (mục 6), cập nhật tài liệu liên quan + CURRENT.md, rồi commit lên nhánh.
+chạy toàn bộ test cách ly DB thật, kiểm tra giao diện thay đổi bằng bản giả lập PGlite (mục 6),
+cập nhật tài liệu liên quan + CURRENT.md, rồi commit/push main nếu nằm trong phạm vi yêu cầu.
 ```

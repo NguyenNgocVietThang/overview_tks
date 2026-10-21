@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="/shared/shared.css?v=20261016">
   <link rel="stylesheet" href="/shared/search-clear.css?v=20261009-1">
-  <link rel="stylesheet" href="/vat-request/vat-request.css?v=20261020-3">
+  <link rel="stylesheet" href="/vat-request/vat-request.css?v=20261021-5">
   <link rel="stylesheet" href="/shared/table-controls.css?v=20261016-1">
 </head>
 <body>
@@ -194,6 +194,67 @@
     </button>
   </div>
 
+  <dialog class="vr-editor vr-batch" id="vrBatchDialog" aria-labelledby="vrBatchTitle" aria-describedby="vrBatchSub">
+    <form class="vr-modal" id="vrBatchForm" novalidate>
+      <header class="vr-modal-head">
+        <div class="vr-modal-heading">
+          <h3 id="vrBatchTitle">Tạo yêu cầu xuất VAT</h3>
+          <p id="vrBatchSub" class="vr-modal-sub">Thêm nhiều mã hàng rồi gửi một lần — mỗi dòng là một yêu cầu.</p>
+        </div>
+        <button class="vr-icon-close" id="vrBatchClose" type="button" aria-label="Đóng">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+        </button>
+      </header>
+      <div class="vr-modal-body vr-batch-body">
+        <div class="vr-paste-bar">
+          <button class="vr-tool-btn vr-paste-toggle" id="vrBatchPasteToggle" type="button" aria-expanded="false" aria-controls="vrBatchPastePanel">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><path d="M9 12h6M9 16h4"></path></svg>
+            Dán từ Excel
+          </button>
+          <span class="vr-muted">Copy nhiều dòng từ Excel / Google Sheets rồi dán — chỉ cần tự chọn <b>Full VAT</b> cho từng dòng.</span>
+        </div>
+        <div class="vr-paste-panel" id="vrBatchPastePanel" hidden>
+          <label for="vrBatchPasteArea">Bấm vào ô dưới rồi <kbd>Ctrl</kbd> + <kbd>V</kbd>. Copy kèm dòng tiêu đề thì tự khớp cột theo tên (Khách hàng, Mã SP, Số lượng, Giá chưa VAT, Ghi chú — cột khác bỏ qua). Không có tiêu đề thì hiểu theo thứ tự: Khách hàng · Mã SP · Tên SP · Số lượng · Giá chưa VAT · Ghi chú.</label>
+          <textarea id="vrBatchPasteArea" rows="3" spellcheck="false" placeholder="Dán dữ liệu vào đây…"></textarea>
+        </div>
+        <p class="vr-batch-notice" id="vrBatchNotice" role="status" hidden></p>
+        <div class="vr-batch-scroll">
+          <table class="vr-batch-table" data-table-controls="off">
+            <thead><tr>
+              <th class="vr-b-index" scope="col">#</th>
+              <th scope="col">Khách hàng <em aria-hidden="true">*</em></th>
+              <th scope="col">Mã SP <em aria-hidden="true">*</em></th>
+              <th scope="col">Sản phẩm</th>
+              <th class="num" scope="col">Số lượng <em aria-hidden="true">*</em></th>
+              <th class="num" scope="col">Giá chưa VAT <em aria-hidden="true">*</em></th>
+              <th class="vr-b-center" scope="col">Full VAT</th>
+              <th scope="col">Ghi chú</th>
+              <th class="num" scope="col">Thành tiền</th>
+              <th scope="col"><span class="vr-sr-only">Xóa</span></th>
+            </tr></thead>
+            <tbody id="vrBatchRows"></tbody>
+          </table>
+        </div>
+        <div class="vr-batch-tools">
+          <button class="vr-tool-btn" id="vrBatchAdd" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+            Thêm dòng
+          </button>
+          <span class="vr-muted"><kbd>Enter</kbd> ở dòng cuối để thêm dòng · <kbd>Ctrl</kbd> + <kbd>Enter</kbd> để gửi · tối đa 200 dòng</span>
+        </div>
+        <p class="vr-form-error" id="vrBatchError" role="alert"></p>
+        <datalist id="vrBatchProductList"></datalist>
+        <datalist id="vrBatchCustomerList"></datalist>
+      </div>
+      <footer class="vr-modal-foot">
+        <div class="vr-batch-summary" id="vrBatchSummary" aria-live="polite"></div>
+        <button class="btn-secondary" type="button" id="vrBatchReset">Làm mới</button>
+        <button class="btn-secondary" type="button" id="vrBatchCancel">Đóng</button>
+        <button class="btn-primary vr-submit" type="submit" id="vrBatchSubmit"><span class="vr-spinner" aria-hidden="true"></span><span id="vrBatchSubmitLabel">Gửi yêu cầu</span></button>
+      </footer>
+    </form>
+  </dialog>
+
   <dialog class="vr-dialog" id="vrInfoDialog" aria-labelledby="vrInfoTitle">
     <h3 id="vrInfoTitle"></h3>
     <div id="vrInfoBody" class="vr-info-body"></div>
@@ -203,7 +264,8 @@
   <script src="/shared/table-controls.js?v=20261016-1"></script>
   <script src="/shared/search-clear.js?v=20261009-1"></script>
   <script src="/shared/shared-nav.js?v=20261020-1"></script>
-  <script src="/vat-request/vat-request.js?v=20261020-4"></script>
+  <script src="/vat-request/vat-request-batch.js?v=20261021-2"></script>
+  <script src="/vat-request/vat-request.js?v=20261021-3"></script>
   <script>window.addEventListener('DOMContentLoaded', function () { TKSVatRequest.init(); });</script>
   <script src="/shared/shooting-star.js?v=20261019"></script>
 </body>
