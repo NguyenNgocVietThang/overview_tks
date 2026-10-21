@@ -7,7 +7,11 @@
 const express = require('express');
 const { requireAuth, requireFeature } = require('../auth/authMiddleware');
 const expectedRepository = require('./expectedRepository');
-const { createExportFile, filterRows, exportFieldsFor, resolveColumnKeys } = require('./expectedExport');
+const { hasFeature } = require('../auth/featureRegistry');
+const { createExportFile, filterRows, exportFieldsFor, resolveColumnKeys, stripPriceFields } = require('./expectedExport');
+
+// Gia (Gia SP tep, Gia hang ve VN, ngay len gia) chi Quan ly co quyen xem day du CONT moi thay.
+const canSeePrices = req => hasFeature(req.user, 'reports.overview.containers.full') === true;
 
 function createExpectedArrivalsRouter({ repository = expectedRepository } = {}) {
   const router = express.Router();
@@ -26,24 +30,27 @@ function createExpectedArrivalsRouter({ repository = expectedRepository } = {}) 
   };
 
   router.get('/', ...guard, handle('Không lấy được bảng Dự kiến hàng về.', async (req, res) => {
-    res.status(200).json(await repository.getExpected());
+    const data = await repository.getExpected();
+    const fullAccess = canSeePrices(req);
+    res.status(200).json({ ...data, rows: stripPriceFields(data.rows, fullAccess), fullAccess });
   }));
 
   const loadFiltered = async req => {
     const data = await repository.getExpected();
-    return { data, rows: filterRows(data.rows, req.query) };
+    const fullAccess = canSeePrices(req);
+    return { data, fullAccess, rows: stripPriceFields(filterRows(data.rows, req.query), fullAccess) };
   };
 
   // Danh sach truong cho hop thoai "Xuat file" dung chung (cung dang /api/business-report/export/fields).
   router.get('/export/fields', ...guard, handle('Không lấy được danh sách trường xuất.', async (req, res) => {
-    const { rows } = await loadFiltered(req);
-    res.json(exportFieldsFor(rows));
+    const { rows, fullAccess } = await loadFiltered(req);
+    res.json(exportFieldsFor(rows, { fullAccess }));
   }));
 
   router.get('/export', ...guard, handle('Không xuất được bảng Dự kiến hàng về.', async (req, res) => {
-    const { data, rows } = await loadFiltered(req);
-    const columnKeys = resolveColumnKeys(req.query.columns);
-    const file = await createExportFile(String(req.query.format || 'xlsx'), rows, columnKeys, { query: req.query, meta: data.meta });
+    const { data, rows, fullAccess } = await loadFiltered(req);
+    const columnKeys = resolveColumnKeys(req.query.columns, { fullAccess });
+    const file = await createExportFile(String(req.query.format || 'xlsx'), rows, columnKeys, { query: req.query, meta: data.meta, fullAccess });
     res.set('Content-Type', file.mimeType);
     res.set('Content-Disposition', `attachment; filename="${file.fileName}"`);
     res.send(file.buffer);

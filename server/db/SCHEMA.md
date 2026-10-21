@@ -1,6 +1,6 @@
 # Supabase schema cho đồng bộ KiotViet
 
-Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0077`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
+Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0078`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
 
 ## Quy ước chung
 
@@ -593,5 +593,19 @@ Dựng bởi `productContainers/expectedRefresh.js`, web chỉ SELECT (`expected
 Nguồn chưa sẵn sàng khác (không ghi gì, giữ bản cũ): dòng SL > 0 có `invoice_details.price` NULL (giảm giá NULL vẫn = 0). Hóa đơn chưa có dòng chi tiết nào không được ghi vào `invoice_price_audit_invoices` (lượt sau chụp lại); hóa đơn mọi dòng SL ≤ 0 vẫn ghi sổ, không có dòng chụp.
 
 Migration **thu hồi ALL** 4 bảng mới khỏi `reporting_readonly` (có giải thích của sale, quyết định phạt và nhật ký; guard `pg_roles`); chỉ đọc qua API. Thứ tự: áp `0077` TRƯỚC khi deploy bản sync Cân đo mới (INSERT `freight_per_unit` cần cột này).
+
+## Dự kiến hàng về: thêm giá — migration 0078 (21/10/2026, CHƯA áp DB dùng chung)
+
+`0078_product_container_expected_prices.sql` chỉ thêm cột vào `product_container_expected` (idempotent `ADD COLUMN IF NOT EXISTS`, không đổi dữ liệu cũ, không bảng mới, không đổi quyền `reporting_readonly`):
+
+| Cột mới | Kiểu | Hợp đồng |
+|---|---|---|
+| `listed_at` | `TEXT NOT NULL DEFAULT ''` | Ngày lên list nguyên văn của dòng hàng (sao từ `product_container_lines.listed_at`). |
+| `unit_price_cny` | `NUMERIC` nullable | Giá SP (tệ), sao từ `product_container_lines.unit_price_cny`. |
+| `vietnam_price` | `NUMERIC` nullable | Giá hàng về VN, sao từ `product_container_lines.vietnam_price`. |
+
+`status SMALLINT` (1–5) đã có từ `0075` và là khóa gom KPI tổng số lượng theo từng trạng thái ở hộp chi tiết mới. `productContainers/expectedRefresh.js` thêm 3 cột vào `STAGE_SQL`/`VALUE_COLUMNS` (so khác biệt `IS DISTINCT FROM`, nên dòng cũ tự được cập nhật). `expectedRepository.js` đọc thêm `status`, `listedAt`, `unitPriceCny`, `vietnamPrice` và chịu được DB chưa migrate (bắt lỗi `42703`, trả giá rỗng). Cache giữ bản đầy đủ; việc bỏ trường giá theo quyền `reports.overview.containers.full` làm ở lớp route, trên bản sao từng dòng.
+
+Thứ tự triển khai: áp `0078` TRƯỚC khi deploy, sau đó chạy tay `node productContainers/expectedRefresh.js` đúng một lần để đổ giá vào các dòng đã có (chưa chạy thì Giá SP (tệ) / Giá hàng về VN để trống).
 
 Cập nhật: 21/10/2026.

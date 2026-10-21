@@ -22,8 +22,24 @@ const COLUMNS = Object.freeze([
   { key: 'orderedBy', label: 'Người đặt', type: 'text' },
   { key: 'unitsPerPackage', label: 'Số cái/kiện', type: 'number' },
   { key: 'packageCount', label: 'Số kiện', type: 'number' },
-  { key: 'quantity', label: 'Tổng số lượng', type: 'number' }
+  { key: 'quantity', label: 'Tổng số lượng', type: 'number' },
+  // Cot gia: chi nguoi co quyen reports.overview.containers.full (fullAccess) moi thay / xuat duoc.
+  { key: 'unitPriceCny', label: 'Giá SP (tệ)', type: 'number', decimals: 2, priceOnly: true },
+  { key: 'vietnamPrice', label: 'Giá hàng về VN', type: 'number', decimals: 0, priceOnly: true }
 ]);
+const PRICE_ROW_KEYS = Object.freeze(COLUMNS.filter(c => c.priceOnly).map(c => c.key));
+const columnsFor = fullAccess => (fullAccess ? COLUMNS : COLUMNS.filter(c => !c.priceOnly));
+
+// Ban sao dong da bo cac truong gia khi khong co quyen (khong sua doi dong trong cache dung chung).
+function stripPriceFields(rows, fullAccess) {
+  if (fullAccess) return rows;
+  return rows.map(row => {
+    const copy = { ...row };
+    for (const key of PRICE_ROW_KEYS) delete copy[key];
+    delete copy.listedAt;
+    return copy;
+  });
+}
 
 function invalid(message, code) {
   const e = new Error(message);
@@ -34,12 +50,14 @@ function invalid(message, code) {
 
 const fold = s => String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
 
-// container / status: khop CHINH XAC (status = cot B, status_label); q: khong dau, khong phan biet hoa thuong.
+// source / container / status: khop CHINH XAC (status = cot B, status_label); q: khong dau, khong phan biet hoa thuong.
 function filterRows(rows, query = {}) {
+  const source = String(query.source || '');
   const container = String(query.container || '');
   const status = String(query.status || '');
   const q = fold(String(query.q || '').trim());
   return rows.filter(r => {
+    if (source && r.sheetName !== source) return false;
     if (container && r.containerName !== container) return false;
     if (status && r.statusLabel !== status) return false;
     if (q && !fold([r.productCode, r.productName, r.containerName, r.color, r.saleNote].join(' ')).includes(q)) return false;
@@ -48,7 +66,7 @@ function filterRows(rows, query = {}) {
 }
 
 // Cung dang /api/business-report/export/fields.
-function exportFieldsFor(rows) {
+function exportFieldsFor(rows, { fullAccess = false } = {}) {
   return {
     title: TITLE,
     selectionMode: 'custom',
@@ -56,13 +74,13 @@ function exportFieldsFor(rows) {
       key: 'expected',
       name: 'Dự kiến hàng về',
       rowCount: rows.length,
-      fields: COLUMNS.map(({ key, label, type }) => ({ key, label, type, selected: true }))
+      fields: columnsFor(fullAccess).map(({ key, label, type }) => ({ key, label, type, selected: true }))
     }]
   };
 }
 
 // columns=a,b (chuoi hoac mang khi lap lai tham so) -> khoa theo thu tu chuan; khong truyen => null (tat ca).
-function resolveColumnKeys(param) {
+function resolveColumnKeys(param, { fullAccess = false } = {}) {
   if (param === undefined || param === null) return null;
   const bad = () => invalid('Danh sách trường xuất không hợp lệ.', 'INVALID_COLUMNS');
   const parts = Array.isArray(param) ? param : typeof param === 'string' ? [param] : null;
@@ -71,7 +89,10 @@ function resolveColumnKeys(param) {
   if (!requested.size) throw bad();
   const allowed = COLUMNS.map(c => c.key);
   for (const key of requested) if (!allowed.includes(key)) throw bad();
-  return allowed.filter(key => requested.has(key));
+  // Khong co quyen: cot gia bi loai ngay ca khi duoc yeu cau; neu khong con cot nao => 400.
+  const usable = columnsFor(fullAccess).map(c => c.key).filter(key => requested.has(key));
+  if (!usable.length) throw bad();
+  return usable;
 }
 
 function safeText(value) {
@@ -82,12 +103,20 @@ function safeText(value) {
 // So khong co du lieu (Số cái/kiện, Số kiện) de trong, khong ep ve 0.
 function cellValue(row, column) {
   const value = row[column.key];
-  if (column.type === 'number') return value == null || value === '' ? '' : Number(value);
+  if (column.type === 'number') {
+    if (value == null || value === '') return '';
+    const number = Number(value);
+    if (!Number.isFinite(number)) return '';
+    if (column.decimals == null) return number;
+    const factor = 10 ** column.decimals;
+    return Math.round(number * factor) / factor;
+  }
   return value == null ? '' : String(value);
 }
 
 function noteLines(query, meta) {
   const notes = [];
+  if (query.source) notes.push(['Nguồn', String(query.source)]);
   if (query.container) notes.push(['Cont', String(query.container)]);
   if (query.status) notes.push(['Trạng thái', String(query.status)]);
   if (query.q) notes.push(['Tìm kiếm', String(query.q)]);
@@ -95,12 +124,13 @@ function noteLines(query, meta) {
   return notes;
 }
 
-async function createExportFile(format, rows, columnKeys, { query = {}, meta = null } = {}) {
+async function createExportFile(format, rows, columnKeys, { query = {}, meta = null, fullAccess = false } = {}) {
   if (!['xlsx', 'html'].includes(format)) throw invalid('Định dạng xuất không hợp lệ.');
   if (rows.length > MAX_EXPORT_ROWS) {
     throw invalid('Dữ liệu vượt giới hạn 20.000 dòng mỗi lần xuất. Hãy thu hẹp bộ lọc rồi xuất lại.', 'TOO_MANY_ROWS');
   }
-  const columns = columnKeys ? COLUMNS.filter(c => columnKeys.includes(c.key)) : COLUMNS;
+  const available = columnsFor(fullAccess);
+  const columns = columnKeys ? available.filter(c => columnKeys.includes(c.key)) : available;
   if (format === 'html') {
     return renderHtmlReport({
       meta: {
@@ -127,7 +157,7 @@ async function createExportFile(format, rows, columnKeys, { query = {}, meta = n
     key: c.key,
     header: c.label,
     width: c.type === 'number' ? 16 : c.key === 'productName' || c.key === 'saleNote' ? 36 : 22,
-    style: c.type === 'number' ? { numFmt: '#,##0.##' } : {}
+    style: c.type === 'number' ? { numFmt: c.decimals === 2 ? '#,##0.00' : c.decimals === 0 ? '#,##0' : '#,##0.##' } : {}
   }));
   for (const row of rows) {
     sheet.addRow(columns.map(c => {
@@ -148,4 +178,4 @@ async function createExportFile(format, rows, columnKeys, { query = {}, meta = n
   };
 }
 
-module.exports = { createExportFile, filterRows, exportFieldsFor, resolveColumnKeys, MAX_EXPORT_ROWS, COLUMNS };
+module.exports = { createExportFile, filterRows, exportFieldsFor, resolveColumnKeys, stripPriceFields, MAX_EXPORT_ROWS, COLUMNS };

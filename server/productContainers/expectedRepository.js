@@ -7,15 +7,19 @@
 const { getPool } = require('../db/pool');
 
 const STATE_SQL = 'SELECT version::text AS version, computed_at, row_count FROM product_container_expected_state WHERE id = 1';
-const ROWS_SQL = `SELECT schedule_label, status_label, eta, container_name, product_code, product_name, color, sale_note,
-    ordered_by, units_per_package, package_count, quantity, sheet_name, source_row
-  FROM product_container_expected ORDER BY sheet_order, container_row, source_row`;
+const ROWS_TAIL = ` FROM product_container_expected ORDER BY sheet_order, container_row, source_row`;
+const ROWS_SQL = `SELECT schedule_label, status, status_label, eta, container_name, product_code, product_name, color, sale_note,
+    ordered_by, listed_at, units_per_package, package_count, unit_price_cny, vietnam_price, quantity, sheet_name, source_row${ROWS_TAIL}`;
+// Du phong khi chua ap migration 0078 (thieu listed_at / unit_price_cny / vietnam_price): bang van tai, gia = null.
+const ROWS_LEGACY_SQL = `SELECT schedule_label, status, status_label, eta, container_name, product_code, product_name, color, sale_note,
+    ordered_by, units_per_package, package_count, quantity, sheet_name, source_row${ROWS_TAIL}`;
 
 const num = value => (value == null ? null : Number(value));
 
 function mapRow(row) {
   return {
     scheduleLabel: row.schedule_label || '',
+    status: Number(row.status) || 0,
     statusLabel: row.status_label || '',
     eta: row.eta || '',
     containerName: row.container_name || '',
@@ -24,8 +28,11 @@ function mapRow(row) {
     color: row.color || '',
     saleNote: row.sale_note || '',
     orderedBy: row.ordered_by || '',
+    listedAt: row.listed_at || '',
     unitsPerPackage: num(row.units_per_package),
     packageCount: num(row.package_count),
+    unitPriceCny: num(row.unit_price_cny),
+    vietnamPrice: num(row.vietnam_price),
     quantity: num(row.quantity) || 0,
     sheetName: row.sheet_name,
     sourceRow: Number(row.source_row)
@@ -49,6 +56,10 @@ function isMissingTable(error) {
   return error && error.code === '42P01';
 }
 
+function isMissingColumn(error) {
+  return error && error.code === '42703';
+}
+
 /** Bo doc co cache rieng; moi lan truyen pool (test) la bo doc moi. */
 function createExpectedRepository({ pool = getPool() } = {}) {
   let cache = null; // { version, rows, filters, computedAt }
@@ -65,7 +76,13 @@ function createExpectedRepository({ pool = getPool() } = {}) {
       state = await readState();
       if (!state) return empty();
       if (!cache || cache.version !== state.version) {
-        const { rows } = await pool.query(ROWS_SQL);
+        let rows;
+        try {
+          ({ rows } = await pool.query(ROWS_SQL));
+        } catch (error) {
+          if (!isMissingColumn(error)) throw error;
+          ({ rows } = await pool.query(ROWS_LEGACY_SQL)); // chua ap 0078
+        }
         const mapped = rows.map(mapRow);
         cache = { version: state.version, rows: mapped, filters: buildFilters(mapped), computedAt: state.computed_at };
       }
