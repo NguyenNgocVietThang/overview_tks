@@ -49,6 +49,10 @@ const slowEntities = [require('./entities/categories'), require('./entities/prod
   require('./entities/returns'), require('./entities/purchases')];
 
 const customersEntity = slowEntities.find(entity => entity.entity === 'customers');
+// Poll tang dan khong thay khach bi chuyen sang "ngung hoat dong" (KiotViet khong bump modifiedDate),
+// nen chi doi soat day du moi 24 gio. Cong no can quet day du (reconcile) ngay truoc khi chot / tinh lai
+// de khach ngung hoat dong bi loai khoi tab Cong no ngay, khong cho toi 24 gio.
+const customersFullScanEntity = { ...customersEntity, reconcileIntervalMs: 1 };
 const bankAccounts = require('./entities/bankAccounts');
 const cashFlows = require('./entities/cashFlows');
 
@@ -270,7 +274,7 @@ function createPollingScheduler({
         setIntervalFn,
         scheduleImmediate,
         log: logger.log ? logger.log.bind(logger) : logger,
-        beforeSnapshot: () => runGroup([customersEntity], { throwOnError: true }),
+        beforeSnapshot: () => runGroup([customersFullScanEntity], { throwOnError: true }),
         onSnapshot: () => {
           debtScheduleRepository.getDebtScheduleRepository().bumpVersion();
           dashboardRollupEvents.emit('debtScheduleChanged', { at: Date.now() });
@@ -281,7 +285,7 @@ function createPollingScheduler({
     ];
   }
   // Nut Tinh lai cong no: dong bo khach (no hien tai) ngay truoc khi tinh.
-  const syncCustomers = () => runGroup([customersEntity], { throwOnError: true });
+  const syncCustomers = () => runGroup([customersFullScanEntity], { throwOnError: true });
 
   return { startPollingScheduler, runGroup, syncCustomers };
 }

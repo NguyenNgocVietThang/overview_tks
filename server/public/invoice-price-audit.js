@@ -26,7 +26,7 @@
   const state = {
     columns: [], data: null, error: '', loading: false, seq: 0, loadedAt: 0, initialized: false,
     filters: { from: '', to: '', sale: '', status: '', decision: '', vat: '', freight: '', q: '' },
-    page: 1, pageSize: 50,
+    page: 1, pageSize: 50, sort: '', dir: 'asc',
     editors: new Map() // rowKey -> { draft, saving, error }
   };
 
@@ -234,6 +234,7 @@
   function queryString(extra) {
     const params = new URLSearchParams();
     Object.keys(state.filters).forEach(k => { if (state.filters[k]) params.set(k, state.filters[k]); });
+    if (state.sort) { params.set('sort', state.sort); params.set('dir', state.dir); }
     Object.keys(extra || {}).forEach(k => params.set(k, extra[k]));
     return params.toString();
   }
@@ -281,10 +282,39 @@
     }
   }
 
+  // ---------- sắp xếp theo cột (ở máy chủ, trên toàn bộ tập đã lọc) ----------
+  const SORT_GLYPH = { none: '▲▼', ascending: '▼', descending: '▲' };
+  function paintSortHeaders() {
+    document.querySelectorAll('#priceAuditHead th.sortable').forEach(th => {
+      const active = state.sort === th.dataset.sort;
+      const mode = active ? (state.dir === 'desc' ? 'descending' : 'ascending') : 'none';
+      th.setAttribute('aria-sort', mode);
+      th.classList.toggle('sort-active', active);
+      const ind = th.querySelector('.sort-indicator');
+      if (ind && ind.textContent !== SORT_GLYPH[mode]) ind.textContent = SORT_GLYPH[mode];
+    });
+  }
+
+  function onSortClick(event) {
+    const th = event.target.closest('th.sortable');
+    if (!th) return;
+    const key = th.dataset.sort;
+    if (!guardUnsaved()) return;
+    // Lần 1 tăng dần, lần 2 giảm dần, lần 3 bỏ sắp xếp (thứ tự mặc định: dòng sai trước, mới nhất trước).
+    if (state.sort !== key) { state.sort = key; state.dir = 'asc'; }
+    else if (state.dir === 'asc') state.dir = 'desc';
+    else { state.sort = ''; state.dir = 'asc'; }
+    state.page = 1;
+    paintSortHeaders();
+    fetchPage();
+  }
+
   function init() {
     if (state.initialized) return;
     state.initialized = true;
     readColumns();
+    $('priceAuditHead').addEventListener('click', onSortClick);
+    paintSortHeaders();
     Object.keys(FILTER_IDS).forEach(name => {
       $(FILTER_IDS[name]).addEventListener('change', event => applyFilter(name, event.target.value, event.target));
     });

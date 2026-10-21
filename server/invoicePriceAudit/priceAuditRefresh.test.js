@@ -41,6 +41,41 @@ async function snapshot(db) {
 }
 const run = (pool, day, extra = {}) => runDailyAudit({ day, pool, now: at23(day), logger: quiet, ...extra });
 
+test('Chay som van bo sung luc 23h, giu dong cu va khong chay lai sau restart', async () => {
+  const db = await setup(['2026-10-20']);
+  const pool = pgliteAsPool(db);
+  try {
+    await run(pool, '2026-10-20', { now: new Date('2026-10-20T10:56:55Z') });
+    await db.query("UPDATE invoice_price_audit_lines SET sale_explanation = 'Da giai thich', decision = 'ok', version = 2");
+    const before = await snapshot(db);
+    await addInvoice(db, 2, '2026-10-20 20:00:00+00');
+    assert.equal((await run(pool, '2026-10-20', { now: new Date('2026-10-20T15:59:59Z') })).status, 'already-completed');
+    const night = await run(pool, '2026-10-20');
+    assert.equal(night.status, 'completed');
+    assert.equal(night.addedInvoices, 1);
+    assert.equal(await count(db, 'invoice_price_audit_invoices'), 2);
+    assert.deepEqual((await snapshot(db))[0], before[0]);
+    assert.equal((await run(pool, '2026-10-20', { now: new Date('2026-10-21T01:00:00Z') })).status, 'already-completed');
+    assert.equal((await state(db)).version, 2);
+  } finally { await db.close(); }
+});
+
+test('Restart sau 23h bat kip luot dem du da chay som, loi van thu lai duoc', async () => {
+  const db = await setup(['2026-10-20']);
+  const pool = pgliteAsPool(db);
+  try {
+    await run(pool, '2026-10-20', { now: new Date('2026-10-20T10:00:00Z') });
+    await addInvoice(db, 2, '2026-10-20 21:00:00+00');
+    const failed = await run(pool, '2026-10-20', { capture: async () => { throw new Error('temporary'); } });
+    assert.equal(failed.status, 'failed');
+    assert.equal((await state(db)).version, 1);
+    const recovered = await run(pool, '2026-10-20', { now: new Date('2026-10-21T01:00:00Z') });
+    assert.equal(recovered.status, 'completed');
+    assert.equal(recovered.addedInvoices, 1);
+    assert.equal((await state(db)).last_error, null);
+  } finally { await db.close(); }
+});
+
 test('slot 23:00 VN = 16:00 UTC; ngay den han khong phu thuoc TZ cua server', () => {
   assert.equal(slotStartUtc('2026-10-20').toISOString(), '2026-10-20T16:00:00.000Z');
   assert.equal(slotStartUtc('2027-01-01').toISOString(), '2027-01-01T16:00:00.000Z');
@@ -268,7 +303,7 @@ test('Chay tay hom nay truoc 23:00 VN duoc cong bo; ngay tuong lai bi tu choi, k
     assert.equal(early.status, 'completed');
     assert.equal((await state(db)).published_day, '2026-10-20');
     const lines = await snapshot(db);
-    assert.equal((await run(pool, '2026-10-20')).status, 'already-completed');
+    assert.equal((await run(pool, '2026-10-20')).status, 'completed');
     const old = await runDailyAudit({ day: '2026-10-15', pool, now: at23('2026-10-20'), logger: quiet });
     assert.equal(old.status, 'stale');
     assert.deepEqual(await snapshot(db), lines);

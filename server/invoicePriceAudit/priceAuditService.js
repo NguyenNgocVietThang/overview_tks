@@ -6,6 +6,7 @@
 
 const { getPriceAuditRepository, httpError } = require('./priceAuditRepository');
 const access = require('./priceAuditAccess');
+const { COLUMNS } = require('./priceAuditColumns');
 const { hasFeature } = require('../auth/featureRegistry');
 
 const BRANCHES = Object.freeze(['hanoi', 'saigon']);
@@ -89,6 +90,8 @@ function validateQuery(query = {}, { branchScope = BRANCHES, windowFrom = null, 
     vat: parseBool(query.vat, 'Full VAT'),
     freight: parseBool(query.freight, 'Bao cước'),
     q: blank(q) ? null : q.trim() || null,
+    sort: parseEnum(query.sort, COLUMNS.map(c => c.key), 'Cột sắp xếp'),
+    dir: parseEnum(query.dir, ['asc', 'desc'], 'Chiều sắp xếp') || 'asc',
     page: parsePositiveInt(query.page, 'Trang', 1),
     pageSize
   };

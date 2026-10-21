@@ -5,7 +5,8 @@
 // runDailyAudit({ day, pool, now }):
 //   1. Khoa advisory PHIEN (pg_try_advisory_lock, khoa rieng LOCK_KEY) tren 1 ket noi rieng: instance khac dang
 //      giu -> 'busy'. Lay khoa TRUOC khi BEGIN de anh chup REPEATABLE READ thay ban cong bo cua instance vua xong.
-//   2. Doc state: published_day = day -> 'already-completed' (hoan thanh dua tren DB, khong dua tren bo nho);
+//   2. Doc state: cung ngay chi hoan thanh luot dem neu last_success_at >= slot 23:00.
+//      Lan chay som khong chan luot dem; goi lap truoc 23:00 van bo qua.
 //      published_day > day -> 'stale' (khong bao gio dung lai/xoa theo ngay cu hon ban da cong bo).
 //   3. BEGIN REPEATABLE READ: captureUnseenInvoices (chi them hoa don chua quet, khong upsert dong cu) ->
 //      xoa so danh dau ngoai [day-6, day] (CASCADE xoa dong chup + giai thich/chot + nhat ky) -> upsert state
@@ -58,7 +59,7 @@ function latestDueDay(now) {
 
 const windowFromOf = day => addDaysToKey(day, -(WINDOW_DAYS - 1));
 
-const STATE_SQL = `SELECT published_day::text AS published_day FROM invoice_price_audit_state WHERE id`;
+const STATE_SQL = `SELECT published_day::text AS published_day, last_success_at FROM invoice_price_audit_state WHERE id`;
 
 // Xoa ca ngay > day (khong the co khi chi chay theo slot tang dan, giu cho dung dinh nghia cua so).
 const PRUNE_SQL = `WITH gone AS (
@@ -123,8 +124,13 @@ async function runDailyAudit({ day, pool, now = new Date(), capture = captureUns
     locked = lock.rows[0]?.locked === true;
     if (!locked) return result('busy', day);
 
-    const published = (await client.query(STATE_SQL)).rows[0]?.published_day || null;
-    if (published === day) return result('already-completed', day);
+    const state = (await client.query(STATE_SQL)).rows[0];
+    const published = state?.published_day || null;
+    const slot = slotStartUtc(day);
+    if (published === day && (nowDate < slot ||
+        (state.last_success_at && +new Date(state.last_success_at) >= +slot))) {
+      return result('already-completed', day);
+    }
     if (published && published > day) return result('stale', day, { publishedDay: published });
 
     await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
