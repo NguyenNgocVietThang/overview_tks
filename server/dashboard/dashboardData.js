@@ -9,6 +9,7 @@
 // customerDebtActivityRepository, khong con phu thuoc cac tab HN1/HN3/HN7.
 // ==========================================
 const CONFIG = require('../config');
+const fuzzy = require('../shared/fuzzySearch');
 const dashboardPgReader = require('./dashboardPgReader');
 const customerDebtActivityRepository = require('./customerDebtActivityRepository');
 const customerDirectoryRepository = require('./customerDirectoryRepository');
@@ -401,6 +402,8 @@ async function getCustomerDirectory(branch) {
  * khach" — dung rieng danh ba khach hang (getCustomerDirectory), de khong
  * bi cho theo cache nang cua cac tab khac (Hoa don/Nhap hang...).
  */
+const FUZZY_MATCH_RANK = 14;
+
 async function searchCustomerDirectory(branch, rawQuery, rawLimit) {
   const queryText = normalizeWhitespace(rawQuery).slice(0, 120);
   if (!queryText) return { query: queryText, results: [] };
@@ -414,6 +417,7 @@ async function searchCustomerDirectory(branch, rawQuery, rawLimit) {
   };
 
   const directory = await getCustomerDirectory(branch);
+  const fuzzyMatcher = fuzzy.createMatcher(queryText);
   const matches = [];
   directory.forEach(customer => {
     const normalizedCode = normalizeSearchValue(customer.code);
@@ -424,12 +428,14 @@ async function searchCustomerDirectory(branch, rawQuery, rawLimit) {
       compactCode: compactSearchValue(normalizedCode),
       compactName: compactSearchValue(normalizedName)
     }, query);
-    if (rank < 0) return;
-    matches.push({ customer, rank });
+    if (rank >= 0) { matches.push({ customer, rank, score: 0 }); return; }
+    // Khong khop theo cum tu: tim gan dung (1 tu phai khop; 2 tu ca 2; >=3 tu qua nua; bo dau), xep sau cac hang tren.
+    const score = fuzzyMatcher.empty ? 0 : fuzzyMatcher.score(fuzzy.fold(`${customer.code} ${customer.name}`));
+    if (score > 0) matches.push({ customer, rank: FUZZY_MATCH_RANK, score });
   });
 
   matches.sort((a, b) =>
-    a.rank - b.rank ||
+    a.rank - b.rank || b.score - a.score ||
     a.customer.code.localeCompare(b.customer.code, 'vi', { numeric: true, sensitivity: 'base' }) ||
     a.customer.name.localeCompare(b.customer.name, 'vi', { sensitivity: 'base' }));
 

@@ -7,6 +7,7 @@
 const ExcelJS = require('exceljs');
 const { HEADER_FONT, frozenNoGridlinesView, applyFullTableBorder } = require('../excelTableStyle');
 const { renderHtmlReport } = require('../dashboard/exportHtmlReport');
+const fuzzy = require('../shared/fuzzySearch');
 
 const MAX_EXPORT_ROWS = 20000;
 const TITLE = 'Hàng hóa · Dự kiến hàng về';
@@ -56,19 +57,27 @@ function invalid(message, code) {
 
 const fold = s => String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
 
-// source / container / status: khop CHINH XAC (status = cot B, status_label); q: khong dau, khong phan biet hoa thuong.
+// source / container / status: khop CHINH XAC (status = cot B, status_label); q: tim gan dung (luat chung voi giao dien:
+// 1 tu phai khop, 2 tu khop ca 2, >=3 tu khop qua nua; bo dau / hoa thuong), khop nhieu tu / nguyen cum xep truoc.
 function filterRows(rows, query = {}) {
   const source = String(query.source || '');
   const container = String(query.container || '');
   const status = String(query.status || '');
-  const q = fold(String(query.q || '').trim());
-  return rows.filter(r => {
-    if (source && r.sheetName !== source) return false;
-    if (container && r.containerName !== container) return false;
-    if (status && r.statusLabel !== status) return false;
-    if (q && !fold([r.productCode, r.productName, r.containerName, r.color, r.saleNote].join(' ')).includes(q)) return false;
-    return true;
+  const matcher = fuzzy.createMatcher(String(query.q || ''));
+  const scored = [];
+  rows.forEach((r, index) => {
+    if (source && r.sheetName !== source) return;
+    if (container && r.containerName !== container) return;
+    if (status && r.statusLabel !== status) return;
+    let score = 1;
+    if (!matcher.empty) {
+      score = matcher.score(fuzzy.fold([r.productCode, r.productName, r.containerName, r.color, r.saleNote].join(' ')));
+      if (!score) return;
+    }
+    scored.push({ r, index, score });
   });
+  if (!matcher.empty) scored.sort((a, b) => b.score - a.score || a.index - b.index);
+  return scored.map(item => item.r);
 }
 
 // Cung dang /api/business-report/export/fields.

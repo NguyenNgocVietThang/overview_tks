@@ -86,15 +86,17 @@ test('tên nhóm và tìm đối tác là tham số, không thành SQL', () => {
   assert.ok(w.params.includes(needle));
   assert.ok(w.params.includes('%123\\%%'));
 });
-test('tìm mã phiếu và ghi chú là tham số ILIKE đã escape', () => {
+test('mã phiếu ILIKE đã escape; ghi chú tìm gần đúng bằng tham số', () => {
   const f = parseFilters({ code: ' PT_1 ', note: "a' OR TRUE --" }, now);
   assert.equal(f.code, 'PT_1');
   const w = buildWhere(f);
   assert.match(w.sql, /c\.code ILIKE \$\d+/);
-  assert.match(w.sql, /c\.description ILIKE \$\d+/);
+  assert.ok(w.sql.includes("translate(lower(COALESCE(c.description,'')"));
+  assert.ok(!w.sql.includes('c.description ILIKE'));
+  assert.ok(w.score && w.score.includes('c.description'));
   assert.ok(!w.sql.includes('OR TRUE'));
   assert.ok(w.params.includes('%PT\\_1%'));
-  assert.ok(w.params.includes("%a' OR TRUE --%"));
+  assert.ok(w.params.includes("a'") && w.params.includes("a' or true --"));
   assert.deepEqual(buildWhere(parseFilters({}, now)).params.length, 4);
   assert.throws(() => parseFilters({ code: 'x'.repeat(201) }, now), /quá dài/);
 });

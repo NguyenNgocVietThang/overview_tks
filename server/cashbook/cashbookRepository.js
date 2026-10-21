@@ -229,9 +229,9 @@ function createRepository(pool = getPool()) {
         `WITH ${timeline}, page AS (
           SELECT c.branch,c.id,c.code,c.trans_date,c.is_receipt,c.amount,c.status,
             c.account_id,c.user_id,c.description,c.fund_key,c.cash_group_name,
-            c.partner_name,c.partner_phone,c.created_by,c.user_name
+            c.partner_name,c.partner_phone,c.created_by,c.user_name${w.score ? `,${w.score} search_score` : ''}
           FROM ${VIEW_NAME} c WHERE ${w.sql}
-          ORDER BY c.trans_date DESC,c.id DESC,c.branch DESC
+          ORDER BY ${w.score ? `${w.score} DESC,` : ''}c.trans_date DESC,c.id DESC,c.branch DESC
           LIMIT $${params.length - 1} OFFSET $${params.length}
         )
         SELECT c.*,creator.name creator_name,staff.name staff_name,t.running_balance
@@ -240,7 +240,7 @@ function createRepository(pool = getPool()) {
         LEFT JOIN staff creator ON creator.branch=c.branch
           AND creator.id::text=c.created_by
         LEFT JOIN staff staff ON staff.branch=c.branch AND staff.id=c.user_id
-        ORDER BY c.trans_date DESC,c.id DESC,c.branch DESC`,
+        ORDER BY ${w.score ? 'c.search_score DESC,' : ''}c.trans_date DESC,c.id DESC,c.branch DESC`,
         params,
       ),
     ]);

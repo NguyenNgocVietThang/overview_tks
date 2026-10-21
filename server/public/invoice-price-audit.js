@@ -322,7 +322,10 @@
     const search = $('priceAuditSearch');
     search.addEventListener('input', () => {
       clearTimeout(timer);
-      timer = setTimeout(() => applyFilter('q', search.value.trim(), search), 350);
+      // Gõ: chờ ~300ms rồi tìm; xóa trống (kể cả Backspace) gọi lại ngay.
+      const run = () => applyFilter('q', search.value.trim(), search);
+      if (!search.value.trim()) run();
+      else timer = setTimeout(run, 300);
     });
     $('priceAuditPageSize').addEventListener('change', event => {
       const previous = state.pageSize;

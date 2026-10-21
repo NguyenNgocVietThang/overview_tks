@@ -1113,7 +1113,21 @@ test('searchCustomerDirectory: tim theo ma hoac ten, uu tien trung/tien to truoc
 
   assert.deepEqual(calls, ['Hà Nội']);
   // "AN9" trung tien to ma -> xep truoc "Nguyễn Văn An" (chua cum tu trong ten).
-  assert.deepEqual(result.results.map(r => r.code), ['AN9', 'KH02']);
+  // "Trần" chứa "an" khi bỏ dấu -> khớp gần đúng, xếp sau cùng.
+  assert.deepEqual(result.results.map(r => r.code), ['AN9', 'KH02', 'KH01']);
+});
+
+test('searchCustomerDirectory: tim gan dung khi khong khop cum tu (>=3 tu khop qua nua), xep sau khop cum tu', async () => {
+  const { dashboardData, customerDirectoryRepository } = freshDashboardData();
+  customerDirectoryRepository.readCustomerDirectory = async () => [
+    { branch: 'hanoi', code: 'KH01', name: 'Nguyễn Văn An' },
+    { branch: 'hanoi', code: 'KH02', name: 'Nguyễn Thị Lan' },
+    { branch: 'hanoi', code: 'KH03', name: 'Trần Văn Bình' }
+  ];
+  dashboardData.__test__.resetCaches();
+  // 3 tu, can khop >= 2: "nguyen" + "van" khop KH01 (rank 12 khong du vi thieu "zzz"); KH03 chi khop "van" -> loai.
+  const result = await dashboardData.searchCustomerDirectory('Hà Nội', 'van nguyen zzz', 8);
+  assert.deepEqual(result.results.map(r => r.code), ['KH01']);
 });
 
 test('searchCustomerDirectory: cache danh ba trong TTL, khong query lai Postgres moi lan go phim', async () => {

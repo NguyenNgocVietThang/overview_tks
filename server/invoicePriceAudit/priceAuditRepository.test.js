@@ -427,6 +427,11 @@ test('readReport: chua cong bo -> available=false; loc/KPI/sap xep/phan trang; D
     assert.equal((await repo.readReport({ q: 'hd3' }, null)).totalRows, 1);
     assert.equal((await repo.readReport({ q: 'tín phong' }, null)).totalRows, 1);
     assert.equal((await repo.readReport({ q: 'GIU NHIET' }, null)).totalRows, 4);
+    // Tim gan dung: khong dau, khong can nguyen cum; tu khong ton tai thi khong khop; KPI tinh tren tap da loc.
+    assert.equal((await repo.readReport({ q: 'tin phong' }, null)).totalRows, 1);
+    assert.equal((await repo.readReport({ q: 'giu zzzzqq' }, null)).totalRows, 0);
+    const fz = await repo.readReport({ q: 'tin phong' }, null);
+    assert.equal(fz.kpis.invoiceCount, 1);
     assert.equal((await repo.readReport({ from: '2026-10-19', to: '2026-10-19' }, null)).kpis.invoiceCount, 1);
     const page2 = await repo.readReport({ page: 2, pageSize: 2 }, null);
     assert.deepEqual(page2.rows.map(r => `${r.invoiceId}/${r.sourceLineNo}`), ['2/1', '1/1']);

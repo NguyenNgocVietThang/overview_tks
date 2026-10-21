@@ -78,6 +78,14 @@ test('listDocuments: loc loai, ngay theo gio VN, tim khach khong dau, phan trang
   assert.deepEqual(day15.rows.map(r => r.code), []);
   const search = await repo.listDocuments({ branchCodes: ['hanoi'], from: '2026-10-01', to: '2026-10-31', q: 'dong da' });
   assert.deepEqual(search.rows.map(r => r.code), ['DH050000']);
+  // Tim gan dung ten khach: 2 tu phai khop ca 2; thieu 1 tu thi khong hien; ma chung tu van khop nguyen van.
+  const range = { branchCodes: ['hanoi'], from: '2026-10-01', to: '2026-10-31' };
+  const fuzzyHit = await repo.listDocuments({ ...range, q: 'thanh phuong' });
+  assert.deepEqual(fuzzyHit.rows.map(r => r.code), ['HD028345']);
+  const fuzzyMiss = await repo.listDocuments({ ...range, q: 'phuong zzz' });
+  assert.equal(fuzzyMiss.total, 0);
+  const byCode = await repo.listDocuments({ ...range, q: 'hd028345' });
+  assert.deepEqual(byCode.rows.map(r => r.code), ['HD028345']);
   const page2 = await repo.listDocuments({ branchCodes: ['hanoi'], from: '2026-10-01', to: '2026-10-31', page: 2, pageSize: 3 });
   assert.deepEqual([page2.total, page2.rows.length, page2.page], [4, 1, 2]);
   await assert.rejects(repo.listDocuments({ branchCodes: ['hanoi'], from: '2026-10-20', to: '2026-10-01' }), /Từ ngày/);

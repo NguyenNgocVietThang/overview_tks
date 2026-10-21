@@ -15,6 +15,7 @@ const { INVOICE_STATUS_SQL } = require('../kiotvietSync/salesSqlFragments');
 const { parsePriceNote } = require('./priceNoteParser');
 const { customerLevelFromEmail, hasFullVat, isExcludedProduct, isFreightCustomer } = require('./priceAuditRules');
 const S = require('./priceAuditSql');
+const fuzzy = require('../shared/fuzzySearch');
 
 const SOURCE_NOT_READY = 'PRICE_AUDIT_SOURCE_NOT_READY';
 const WINDOW_DAYS = 7;
@@ -248,17 +249,28 @@ const ROW_COLUMNS_SQL = `
     WHERE c.branch = l.branch AND c.id = l.customer_id) AS current_sale_group`;
 
 // Bo loc co dinh, moi gia tri qua tham so (NULL = khong loc). $1/$2 cua so cong bo.
-const FILTER_SQL = `
-  FROM invoice_price_audit_lines l
+const BASE_WHERE = `
   WHERE l.sold_day BETWEEN GREATEST($1::date, COALESCE($3::date, $1::date)) AND LEAST($2::date, COALESCE($4::date, $2::date))
     AND ($5::text IS NULL OR l.branch = $5)
     AND ($6::text IS NULL OR l.sale_name = $6)
     AND ($7::text IS NULL OR ${S.effectiveStatusSql('l')} = $7)
     AND ($8::text IS NULL OR ($8 = 'pending' AND l.decision IS NULL) OR l.decision = $8)
     AND ($9::boolean IS NULL OR l.full_vat = $9)
-    AND ($10::boolean IS NULL OR l.freight_eligible = $10)
-    AND ($11::text IS NULL OR strpos(lower(normalize(concat_ws(' ', l.invoice_code, l.customer_code, l.customer_name,
-          l.product_code, l.product_name), NFC)), lower(normalize($11, NFC))) > 0)`;
+    AND ($10::boolean IS NULL OR l.freight_eligible = $10)`;
+
+// Tim gan dung: JS cham diem cac dong ung vien (CANDIDATES_SQL) roi truyen cac dong khop xuong day dang
+// 4 mang song song $11..$14 (cơ sở, ID hóa đơn, số dòng, điểm). Không tìm kiếm -> $11 NULL (không lọc).
+const FILTER_SQL = `
+  FROM invoice_price_audit_lines l
+  LEFT JOIN unnest($11::text[], $12::text[], $13::int[], $14::int[]) AS m(branch, invoice_id, line_no, score)
+    ON m.branch = l.branch AND m.invoice_id = l.invoice_id::text AND m.line_no = l.source_line_no
+  ${BASE_WHERE}
+    AND ($11::text[] IS NULL OR m.branch IS NOT NULL)`;
+
+// Ung vien de cham diem: cung bo loc co dinh, chi lay khoa + van ban tim kiem.
+const CANDIDATES_SQL = `SELECT l.branch, l.invoice_id::text AS invoice_id, l.source_line_no,
+  concat_ws(' ', l.invoice_code, l.customer_code, l.customer_name, l.product_code, l.product_name) AS search_text
+  FROM invoice_price_audit_lines l ${BASE_WHERE}`;
 
 const DEFAULT_ORDER_SQL = `ORDER BY (${S.effectiveStatusSql('l')} = 'wrong') DESC, l.sold_at DESC, l.branch, l.invoice_code, l.source_line_no`;
 
@@ -281,9 +293,10 @@ const SORT_SQL = Object.freeze({
 });
 
 // Sort theo cot: o trong (NULL) luon cuoi; hoa tiet cung gia tri giu thu tu mac dinh de phan trang on dinh.
-function orderSql(sort, dir) {
+function orderSql(sort, dir, ranked = false) {
   const expr = Object.prototype.hasOwnProperty.call(SORT_SQL, sort) ? SORT_SQL[sort] : null;
-  if (!expr) return DEFAULT_ORDER_SQL;
+  // Co tu khoa va chua chon cot sap xep: khop nhieu tu / nguyen cum len truoc, bang diem giu thu tu mac dinh.
+  if (!expr) return ranked ? DEFAULT_ORDER_SQL.replace('ORDER BY ', 'ORDER BY m.score DESC, ') : DEFAULT_ORDER_SQL;
   return `ORDER BY ${expr} ${dir === 'desc' ? 'DESC' : 'ASC'} NULLS LAST, l.sold_at DESC, l.branch, l.invoice_code, l.source_line_no`;
 }
 
@@ -299,7 +312,7 @@ const KPI_SQL = `
          count(*)::int AS total_rows
   ${FILTER_SQL}`;
 
-const ROWS_SQL = `SELECT ${ROW_COLUMNS_SQL} ${FILTER_SQL} ORDER_PLACEHOLDER LIMIT $12 OFFSET $13`;
+const ROWS_SQL = `SELECT ${ROW_COLUMNS_SQL} ${FILTER_SQL} ORDER_PLACEHOLDER LIMIT $15 OFFSET $16`;
 const SALES_SQL = `SELECT DISTINCT l.sale_name FROM invoice_price_audit_lines l
   WHERE l.sold_day BETWEEN $1::date AND $2::date AND l.sale_name <> '' ORDER BY 1`;
 const ROW_BY_KEY_SQL = `SELECT ${ROW_COLUMNS_SQL} FROM invoice_price_audit_lines l
@@ -404,11 +417,25 @@ function createPriceAuditRepository({ pool = getPool() } = {}) {
       return { meta, filters: { applied, options: { sales: [] } }, kpis: null, totals: null,
         rows: [], totalRows: 0, page: q.page, pageSize: q.pageSize };
     }
-    const params = [state.window_from, state.window_to, q.from, q.to, q.branch, q.sale, q.status, q.decision,
-      q.vat, q.freight, q.q];
+    const baseParams = [state.window_from, state.window_to, q.from, q.to, q.branch, q.sale, q.status, q.decision,
+      q.vat, q.freight];
+    // Tim gan dung (luat chung voi giao dien): cham diem ung vien o JS, chi giu dong khop, nhieu tu khop xep truoc.
+    let match = [null, null, null, null];
+    const matcher = q.q ? fuzzy.createMatcher(q.q) : null;
+    if (matcher && !matcher.empty) {
+      const cands = (await pool.query(CANDIDATES_SQL, baseParams)).rows;
+      const hits = [];
+      for (const c of cands) {
+        const score = matcher.score(fuzzy.fold(c.search_text));
+        if (score > 0) hits.push([c.branch, c.invoice_id, c.source_line_no, score]);
+      }
+      match = [0, 1, 2, 3].map(i => hits.map(h => h[i]));
+    }
+    const ranked = match[0] !== null;
+    const params = [...baseParams, ...match];
     const [kpi, rows, sales] = await Promise.all([
       pool.query(KPI_SQL, params),
-      pool.query(ROWS_SQL.replace('ORDER_PLACEHOLDER', orderSql(q.sort, q.dir)), [...params, q.pageSize, (q.page - 1) * q.pageSize]),
+      pool.query(ROWS_SQL.replace('ORDER_PLACEHOLDER', orderSql(q.sort, q.dir, ranked)), [...params, q.pageSize, (q.page - 1) * q.pageSize]),
       pool.query(SALES_SQL, [state.window_from, state.window_to])
     ]);
     const k = kpi.rows[0];

@@ -6,6 +6,7 @@
 
 const ExcelJS = require('exceljs');
 const featureRegistry = require('./featureRegistry');
+const fuzzy = require('../shared/fuzzySearch');
 const { HEADER_FONT, frozenNoGridlinesView, applyFullTableBorder } = require('../excelTableStyle');
 
 const EXCEL_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -55,16 +56,14 @@ const EXPORT_FIELDS = [
 const FIELD_KEYS = EXPORT_FIELDS.map(f => f.key);
 const DEFAULT_FIELD_KEYS = ['hoTen', 'username', 'email', 'soDienThoai', 'vaiTro', 'coSo', 'trangThai', 'ngayTao'];
 
-function normalizeText(value) {
-  return String(value || '').normalize('NFC').replace(/\s+/gu, ' ').trim().toLocaleLowerCase('vi-VN');
-}
+const userSearchText = u => [u.hoTen, u.username, u.email].filter(Boolean).join(' ');
 
-/** Cung quy tac loc voi handleFilterUsers() o trang Tai khoan. */
+/** Cung quy tac loc voi handleFilterUsers() o trang Tai khoan (o tim: gan dung, bo dau, nhieu tu). */
 function filterUsers(users, filters) {
-  const q = normalizeText(filters.q);
+  const q = String(filters.q || '').trim();
   const { role, coSo, trangThai } = filters;
   return users.filter(u => {
-    const matchQ = !q || [u.hoTen, u.username, u.email].some(v => v && normalizeText(v).includes(q));
+    const matchQ = !q || fuzzy.matches(userSearchText(u), q);
     const matchRole = !role || u.vaiTro === role;
     const matchFac = !coSo || u.coSo === coSo || (coSo !== 'Cả hai' && u.coSo === 'Cả hai');
     const matchStatus = !trangThai || u.trangThai === trangThai;
@@ -86,9 +85,11 @@ function parseFieldKeys(raw) {
  */
 async function buildUserWorkbook(users, filters, fieldKeys) {
   const fields = EXPORT_FIELDS.filter(f => fieldKeys.includes(f.key));
-  const items = filterUsers(users, filters || {})
+  const byName = filterUsers(users, filters || {})
     .slice()
     .sort((a, b) => String(a.hoTen || '').localeCompare(String(b.hoTen || ''), 'vi'));
+  // Dang tim: khop nhieu tu / nguyen cum xep truoc (giong bang tren man hinh), con lai theo ten.
+  const items = String((filters && filters.q) || '').trim() ? fuzzy.filter(byName, filters.q, userSearchText) : byName;
 
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'TOKOSI Dashboard';

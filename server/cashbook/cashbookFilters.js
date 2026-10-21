@@ -1,4 +1,5 @@
 'use strict';
+const { fuzzySqlParts } = require('../shared/fuzzySql');
 
 function invalid(message) {
   const e = new Error(message);
@@ -171,6 +172,7 @@ function buildWhere(
   { alias = 'c', dates = true, fundOnly = false, start = 0 } = {},
 ) {
   const params = [],
+    scores = [],
     parts = [`${alias}.source_missing_at IS NULL`];
   const add = (v) => {
     params.push(v);
@@ -227,11 +229,13 @@ function buildWhere(
         `${alias}.used_for_financial_reporting=${add(f.accounting === 'yes' ? '1' : '0')}`,
       );
     const like = (v) => `%${v.replace(/[\\%_]/g, '\\$&')}%`;
+    // Nguoi nop/nhan: tim gan dung tren ten + ma doi tac (cung luat voi giao dien).
     if (f.partnerQ) {
-      const p = add(like(f.partnerQ));
-      parts.push(
-        `(${alias}.partner_name ILIKE ${p} OR ${alias}.partner_id ILIKE ${p})`,
-      );
+      const fz = fuzzySqlParts(`COALESCE(${alias}.partner_name,'') || ' ' || COALESCE(${alias}.partner_id,'')`, f.partnerQ, add);
+      if (fz) {
+        parts.push(fz.where);
+        scores.push(fz.score);
+      }
     }
     if (f.partnerPhone)
       parts.push(
@@ -239,9 +243,20 @@ function buildWhere(
       );
     // O tim kiem cua bang So chi tiet (ma phieu / ghi chu).
     if (f.code) parts.push(`${alias}.code ILIKE ${add(like(f.code))}`);
-    if (f.note) parts.push(`${alias}.description ILIKE ${add(like(f.note))}`);
+    if (f.note) {
+      const fz = fuzzySqlParts(`${alias}.description`, f.note, add);
+      if (fz) {
+        parts.push(fz.where);
+        scores.push(fz.score);
+      }
+    }
   }
-  return { sql: parts.length ? parts.join(' AND ') : 'TRUE', params };
+  // score: bieu thuc diem tim gan dung (null neu khong tim ten/ghi chu) de xep khop nhieu tu truoc.
+  return {
+    sql: parts.length ? parts.join(' AND ') : 'TRUE',
+    params,
+    score: scores.length ? scores.join('+') : null,
+  };
 }
 module.exports = {
   parseFilters,
