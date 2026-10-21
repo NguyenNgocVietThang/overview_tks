@@ -6,8 +6,25 @@
 .vr-panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-xl);box-shadow:var(--card-shadow);overflow:hidden}
 .vr-toolbar{display:flex;flex-direction:column;gap:12px;padding:16px}
 .vr-chips{display:flex;gap:6px;flex-wrap:wrap}
-.vr-chip{min-height:32px;padding:5px 12px;border:1px solid var(--border);border-radius:var(--radius-pill);background:var(--panel-2);color:var(--text-secondary);font:600 12.5px var(--font-body);cursor:pointer}
-.vr-chip[aria-pressed="true"]{background:var(--primary);border-color:var(--primary);color:var(--primary-text)}
+/* Màu theo trạng thái — dùng chung cho nút lọc, badge (sale) và ô chọn KT phản hồi (kế toán).
+   --st: màu chính · --st-on: chữ trên nền đặc (vàng/cam dùng chữ tối cho đủ tương phản). */
+.vr-chip,.vr-badge,.vr-status-select{--st:var(--text-secondary);--st-on:#fff}
+.vr-chip[data-preset="all"],.vr-chip[data-preset="todo"]{--st:var(--primary)}
+[data-preset="pending"],[data-status="pending"]{--st:var(--blue)}
+[data-preset="0"],[data-status="0"]{--st:var(--red)}
+[data-preset="1"],[data-status="1"]{--st:var(--green)}
+[data-preset="2"],[data-status="2"]{--st:var(--purple)}
+[data-preset="3"],[data-status="3"]{--st:var(--amber);--st-on:#2b1d00}
+[data-preset="4"],[data-status="4"]{--st:color-mix(in srgb,var(--amber) 55%,var(--red));--st-on:#2b1200}
+.vr-chip{min-height:32px;padding:5px 12px;border:1px solid color-mix(in srgb,var(--st) 40%,var(--border));border-radius:var(--radius-pill);background:color-mix(in srgb,var(--st) 10%,var(--panel));color:color-mix(in srgb,var(--st) 85%,var(--text));font:600 12.5px var(--font-body);cursor:pointer;transition:transform .15s var(--ease-out),background .15s ease,box-shadow .15s ease,border-color .15s ease}
+.vr-chip[data-preset="all"]:not([aria-pressed="true"]),.vr-chip[data-preset="todo"]:not([aria-pressed="true"]){border-color:var(--border);background:var(--panel-2);color:var(--text-secondary)}
+.vr-chip:hover{background:color-mix(in srgb,var(--st) 18%,var(--panel));border-color:color-mix(in srgb,var(--st) 60%,var(--border))}
+.vr-chip:active{transform:scale(.97)}
+/* Đang chọn: phóng to nhẹ, nền đặc đậm hơn, viền sáng + đổ bóng cùng màu */
+.vr-chip[aria-pressed="true"]{transform:scale(1.07);background:color-mix(in srgb,var(--st) 88%,#000);border-color:var(--st);color:var(--st-on);box-shadow:0 0 0 3px color-mix(in srgb,var(--st) 28%,transparent),0 6px 14px -4px color-mix(in srgb,var(--st) 55%,transparent)}
+.vr-chip[data-preset="3"][aria-pressed="true"],.vr-chip[data-preset="4"][aria-pressed="true"]{background:var(--st)}
+/* Giảm chuyển động: bỏ hiệu ứng chuyển tiếp, vẫn giữ nút đang chọn to hơn (trạng thái tĩnh) */
+@media (prefers-reduced-motion:reduce){.vr-chip{transition:none}.vr-chip:active{transform:none}}
 .vr-filters{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
 .vr-search{position:relative;display:block;flex:1;min-width:220px}
 .vr-search input{box-sizing:border-box;width:100%;min-height:40px;padding:9px 12px 9px 36px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel-2);color:var(--text);font:13px var(--font-body)}
@@ -38,6 +55,7 @@
    Từ dài hơn cột thì bị che (kéo rộng cột để xem) thay vì vỡ thành từng chữ. */
 table.tks-controlled-table.vr-table th,
 table.tks-controlled-table.vr-table td{overflow-wrap:normal !important;word-break:normal !important;hyphens:none;overflow:hidden;padding:12px 10px}
+table.tks-controlled-table.vr-table th .sort-button > .sort-label{overflow-wrap:normal !important;word-break:normal !important}
 table.tks-controlled-table.vr-table td.vr-nowrap{white-space:nowrap !important;text-overflow:ellipsis !important}
 .vr-table tbody tr[data-id]{cursor:default}
 .vr-table tbody tr[data-id]:hover td{background:var(--surface-hover)}
@@ -59,12 +77,17 @@ table.tks-controlled-table.vr-table td.vr-nowrap{white-space:nowrap !important;t
 .vr-error-text{color:var(--red)}
 .vr-tag{display:inline-block;white-space:nowrap;padding:1px 7px;border:1px solid var(--border);border-radius:var(--radius-pill);font-size:11px;color:var(--muted)}
 .vr-tag-strong{color:var(--amber);border-color:color-mix(in srgb,var(--amber) 45%,transparent)}
-.vr-badge{display:inline-block;padding:3px 9px;border-radius:var(--radius-pill);font-size:12px;font-weight:600;background:var(--panel-2);color:var(--text-secondary);border:1px solid var(--border)}
-.vr-badge[data-status="pending"]{color:var(--blue);border-color:color-mix(in srgb,var(--blue) 45%,transparent)}
-.vr-badge[data-status="0"]{color:var(--red);border-color:color-mix(in srgb,var(--red) 45%,transparent)}
-.vr-badge[data-status="1"]{color:var(--green);border-color:color-mix(in srgb,var(--green) 45%,transparent)}
-.vr-badge[data-status="2"]{color:var(--purple);border-color:color-mix(in srgb,var(--purple) 45%,transparent)}
-.vr-badge[data-status="3"],.vr-badge[data-status="4"]{color:var(--amber);border-color:color-mix(in srgb,var(--amber) 45%,transparent)}
+.vr-badge{display:inline-block;padding:3px 9px;border-radius:var(--radius-pill);font-size:12px;font-weight:600;background:color-mix(in srgb,var(--st) 10%,var(--panel));color:color-mix(in srgb,var(--st) 85%,var(--text));border:1px solid color-mix(in srgb,var(--st) 45%,transparent)}
+/* Kế toán: ô chọn KT phản hồi tô màu giống badge của sale; danh sách thả xuống cũng có màu từng lựa chọn */
+.vr-inline.vr-status-select{border-color:color-mix(in srgb,var(--st) 55%,var(--border));background:color-mix(in srgb,var(--st) 12%,var(--panel));color:color-mix(in srgb,var(--st) 85%,var(--text));font-weight:600;cursor:pointer;transition:border-color .15s ease,background .15s ease}
+.vr-inline.vr-status-select:hover{background:color-mix(in srgb,var(--st) 20%,var(--panel))}
+.vr-status-select option{background:var(--panel);font-weight:600}
+.vr-status-select option[value="pending"]{color:var(--blue)}
+.vr-status-select option[value="0"]{color:var(--red)}
+.vr-status-select option[value="1"]{color:var(--green)}
+.vr-status-select option[value="2"]{color:var(--purple)}
+.vr-status-select option[value="3"]{color:var(--amber)}
+.vr-status-select option[value="4"]{color:color-mix(in srgb,var(--amber) 55%,var(--red))}
 .vr-inline{box-sizing:border-box;width:100%;min-height:34px;padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel-2);color:var(--text);font:12.5px var(--font-body)}
 .vr-row-actions{display:flex;align-items:center;gap:6px}
 .vr-lock{flex:none;color:var(--amber)}
@@ -217,4 +240,86 @@ table.tks-controlled-table.vr-table td.vr-nowrap{white-space:nowrap !important;t
   .vr-modal-foot{padding:12px 16px;flex-wrap:wrap}
   .vr-history-btn span:first-of-type{display:none}
   .vr-chat{top:auto;right:0;bottom:0;left:0;width:auto;max-height:70vh;border-radius:16px 16px 0 0;animation-name:vr-sheet-in}
+}
+
+/* ===== Form tạo nhiều dòng (thay form Apps Script "Nhập ORDER VAT") ===== */
+.vr-editor.vr-batch{width:min(1240px,calc(100vw - 32px))}
+.vr-batch .vr-modal-sub{max-width:820px}
+.vr-batch-body{gap:10px;padding:14px 22px 16px}
+.vr-batch-notice{margin:0;padding:8px 12px;border:1px solid color-mix(in srgb,var(--blue) 25%,var(--border));border-radius:var(--radius-sm);background:color-mix(in srgb,var(--blue) 7%,var(--panel));color:var(--text-secondary);font-size:12.5px}
+.vr-batch-notice[hidden]{display:none}
+.vr-batch-scroll{overflow:auto;border:1px solid var(--border);border-radius:var(--radius-md)}
+.vr-batch-table{width:100%;min-width:1080px;border-collapse:collapse;table-layout:fixed;font-size:13px}
+.vr-batch-table th{position:sticky;top:0;z-index:1;padding:9px 8px;border-bottom:1px solid var(--border);background:var(--panel-2);color:var(--muted);font:600 11.5px var(--font-body);text-align:left;white-space:nowrap}
+.vr-batch-table th em{font-style:normal;color:var(--red)}
+.vr-batch-table td{padding:4px 6px;border-bottom:1px solid var(--row-divider);vertical-align:top}
+.vr-batch-table th,.vr-batch-table td{outline:none !important;border-right:0 !important}
+.vr-batch-table tbody tr:last-child td{border-bottom:0}
+.vr-batch-table .num{text-align:right}
+.vr-b-center{text-align:center}
+/* Độ rộng cột: # · Khách · Mã · Sản phẩm · SL · Giá · Full VAT · Ghi chú · Thành tiền · xóa */
+.vr-batch-table th:nth-child(1){width:36px}.vr-batch-table th:nth-child(2){width:180px}.vr-batch-table th:nth-child(3){width:130px}
+.vr-batch-table th:nth-child(4){width:230px}.vr-batch-table th:nth-child(5){width:90px}.vr-batch-table th:nth-child(6){width:120px}
+.vr-batch-table th:nth-child(7){width:86px}.vr-batch-table th:nth-child(8){width:150px}.vr-batch-table th:nth-child(9){width:110px}.vr-batch-table th:nth-child(10){width:40px}
+.vr-b-index{padding-top:13px !important;color:var(--muted);font-variant-numeric:tabular-nums;text-align:center}
+/* Ô nhập liền mạch như bảng tính: chỉ hiện viền khi rê / gõ */
+.vr-batch-table td input:not([type="checkbox"]){box-sizing:border-box;width:100%;min-height:36px;padding:7px 8px;border:1px solid transparent;border-radius:var(--radius-sm);background:transparent;color:var(--text);font:13px var(--font-body);transition:border-color .15s ease,background .15s ease,box-shadow .15s ease}
+.vr-batch-table td input.num{text-align:right;font-family:var(--font-data);font-variant-numeric:tabular-nums}
+.vr-batch-table td input:not([type="checkbox"]):hover{border-color:var(--border);background:var(--panel-2)}
+.vr-batch-table td input:not([type="checkbox"]):focus{outline:none;border-color:var(--blue);background:var(--panel);box-shadow:0 0 0 3px color-mix(in srgb,var(--blue) 16%,transparent)}
+.vr-batch-table td input[aria-invalid="true"],.vr-batch-table td input[data-unknown="true"]{border-color:var(--red);background:color-mix(in srgb,var(--red) 7%,var(--panel))}
+.vr-batch-table tr.has-error td:first-child{color:var(--red);font-weight:700}
+.vr-b-product{padding:8px 8px 6px !important;line-height:1.35;min-width:0}
+.vr-b-name{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);font-weight:500}
+.vr-b-meta{display:block;margin-top:2px;color:var(--muted);font-size:11.5px}
+.vr-b-meta b{color:var(--text-secondary);font-family:var(--font-data);font-weight:600}
+.vr-b-hint:empty{display:none}
+.vr-b-hint button{margin:2px 0 0;padding:2px 6px;border:0;border-radius:var(--radius-xs);background:color-mix(in srgb,var(--blue) 10%,transparent);color:var(--blue);font:600 11px var(--font-body);cursor:pointer;float:right}
+.vr-b-hint button:hover{background:color-mix(in srgb,var(--blue) 18%,transparent)}
+/* Full VAT: sale bắt buộc tự chọn từng dòng — chưa chọn thì viền vàng nhắc */
+.vr-batch-table select.vr-b-select{box-sizing:border-box;width:100%;min-height:36px;padding:6px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel-2);color:var(--text);font:12.5px var(--font-body);cursor:pointer;transition:border-color .15s ease,box-shadow .15s ease}
+.vr-batch-table select.vr-b-select:has(option[value=""]:checked){border-color:color-mix(in srgb,var(--amber) 70%,var(--border));color:var(--muted)}
+.vr-batch-table select.vr-b-select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px color-mix(in srgb,var(--blue) 16%,transparent)}
+.vr-batch-table select.vr-b-select[aria-invalid="true"]{border-color:var(--red);background:color-mix(in srgb,var(--red) 7%,var(--panel))}
+.vr-b-warn{color:var(--amber);font-weight:600}
+.vr-b-total{padding-top:13px !important;color:var(--text);font-family:var(--font-data);font-variant-numeric:tabular-nums;white-space:nowrap}
+.vr-b-remove{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;margin-top:3px;padding:0;border:0;border-radius:var(--radius-sm);background:none;color:var(--muted);cursor:pointer;transition:background .15s ease,color .15s ease}
+.vr-b-remove:hover{background:color-mix(in srgb,var(--red) 10%,transparent);color:var(--red)}
+.vr-batch-tools{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:12px}
+.vr-batch-tools kbd{padding:1px 5px;border:1px solid var(--border);border-bottom-width:2px;border-radius:4px;background:var(--panel-2);color:var(--text);font:11px var(--font-body)}
+.vr-batch-summary{margin-right:auto;color:var(--muted);font-size:13px}
+.vr-batch-summary b{color:var(--text);font-family:var(--font-data)}
+.vr-b-remove:focus-visible,.vr-b-hint button:focus-visible,.vr-paste-toggle:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+/* Dán từ Excel */
+.vr-paste-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:12.5px}
+.vr-paste-bar .vr-muted b{color:var(--text)}
+.vr-paste-toggle{border-color:color-mix(in srgb,var(--blue) 45%,var(--border));color:var(--blue);font-weight:600}
+.vr-paste-toggle[aria-expanded="true"]{background:color-mix(in srgb,var(--blue) 10%,var(--panel))}
+.vr-paste-panel{display:flex;flex-direction:column;gap:8px;padding:12px;border:1px dashed color-mix(in srgb,var(--blue) 45%,var(--border));border-radius:var(--radius-md);background:color-mix(in srgb,var(--blue) 5%,var(--panel))}
+.vr-paste-panel[hidden]{display:none}
+.vr-paste-panel label{color:var(--text-secondary);font-size:12.5px;line-height:1.5}
+.vr-paste-panel kbd{padding:1px 5px;border:1px solid var(--border);border-bottom-width:2px;border-radius:4px;background:var(--panel-2);color:var(--text);font:11px var(--font-body)}
+.vr-paste-panel textarea{box-sizing:border-box;width:100%;min-height:72px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel);color:var(--text);font:12.5px/1.45 var(--font-data);resize:vertical}
+.vr-paste-panel textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px color-mix(in srgb,var(--blue) 16%,transparent)}
+
+/* Điện thoại: mỗi dòng thành một thẻ 2 cột có nhãn */
+@media (max-width:760px){
+  .vr-batch-body{padding:12px}
+  .vr-batch-scroll{overflow:visible;border:0}
+  .vr-batch-table{min-width:0;table-layout:auto}
+  .vr-batch-table thead{display:none}
+  .vr-batch-table,.vr-batch-table tbody{display:block}
+  .vr-batch-table tbody{display:flex;flex-direction:column;gap:10px}
+  .vr-batch-table tr{position:relative;display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;padding:12px 40px 12px 12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--panel)}
+  .vr-batch-table tr.has-error{border-color:var(--red)}
+  .vr-batch-table td{display:block;padding:0 !important;border:0 !important}
+  .vr-batch-table td[data-label]::before{content:attr(data-label);display:block;margin-bottom:3px;color:var(--muted);font-size:11px;font-weight:600}
+  .vr-batch-table td.vr-b-index{position:absolute;top:10px;right:12px;width:auto;font-weight:700}
+  .vr-batch-table td.vr-b-index::before{display:none}
+  .vr-batch-table td[data-label="Khách hàng"],.vr-batch-table td[data-label="Sản phẩm"],.vr-batch-table td[data-label="Ghi chú"]{grid-column:1 / -1}
+  .vr-batch-table td input:not([type="checkbox"]){border-color:var(--border);background:var(--panel-2)}
+  .vr-batch-table td.vr-b-center{text-align:left}
+  .vr-batch-table td:last-child{position:absolute;right:6px;bottom:8px}
+  .vr-b-total{padding-top:6px !important}
+  .vr-batch .vr-modal-foot .vr-batch-summary{flex-basis:100%}
 }
