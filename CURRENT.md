@@ -301,3 +301,9 @@ Cùng khách ở 2 cơ sở (15/10/2026): ở bảng tổng thưởng/phạt sal
 - Excel/HTML thêm nhóm, áp bộ lọc đang chọn; HTML có biểu đồ tổng hợp theo nhóm. Không migration DB, không tính lại số thưởng/phạt đã chốt.
 - Kiểm chứng: 137 test liên quan đạt; helper/service đọc nhóm hiện tại đạt 2/2; diff phần nguồn thay đổi sạch. Đã chạy toàn bộ 3.158 test (3 skip): lượt tổng có 21 lỗi; 18 lỗi do nạp cấu hình local Pancake vào fixture hoặc native libuv khi ép thoát Node đã qua khi chạy lại đúng cấu hình/không ép thoát (26/26 Marketing, 10/10 Identity + Telegram, 8/8 Price Audit). Còn 3 test quyền Marketing gọi API Hàng hóa trong `server/test/overview-endpoints-access.test.js` vẫn lỗi khi chạy riêng; không sửa auth/routes/featureRegistry ngoài phạm vi. Không có test Công nợ bị lỗi. Đã chạy `graphify update .`; báo cáo sinh tự động có whitespace có sẵn của generator, diff mã nguồn sạch.
 - Không commit/ghi đè thay đổi Dự kiến hàng về của phiên khác. Các thay đổi trên file `public/index.html` chỉ sửa các đoạn Công nợ và cập nhật nhóm.
+
+
+### 21/10/2026 13:22 — Nạp backend mới để hiển thị Nhóm sale
+
+- Ảnh giao diện chỉ có Chưa có team: xác định backend local cổng 3000 vẫn là PID 21064 khởi động 10:25, trước thay đổi mã. Không phải thiếu migration.
+- Kiểm tra chỉ đọc DB: 62 phân nhóm; service mới trả 8.179 khách, 6.533 khách có nhóm sale. Đã khởi động lại đúng backend local (PID mới 24660), cổng 3000 hoạt động và trang login HTTP 200. Không sửa DB hoặc mã của phiên khác; trình duyệt cần tải lại để nhận payload mới.
