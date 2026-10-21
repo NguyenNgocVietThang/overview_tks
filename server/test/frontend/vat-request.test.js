@@ -37,10 +37,16 @@ function row(id, extra = {}) {
 function listResponse(rows) {
   return {
     rows, truncated: false, statuses: STATUSES, sales: [{ id: 'sale-1', name: 'Khánh Thịnh' }],
-    metrics: { '014xoan': { vatStock: { total: 1500, byCompany: [{ company: 'TKS THẤP', vatCode: 'VAT1', stock: 1200 }, { company: 'VC', vatCode: 'VAT1', stock: 300 }] }, pendingInsertQty: 200, incomingQty: 150, nearestArrivalDate: '2026-10-28', nearestArrivalText: 'DK 28/10' } },
+    metrics: { '014xoan': { vatStock: { total: 1500, byCompany: [{ company: 'TKS THẤP', vatCode: 'VAT1', stock: 1200 }, { company: 'VC', vatCode: 'VAT1', stock: 300 }] }, pendingInsertQty: 200, incomingContainer: 'CONT 10-7G', nearestSchedule: '3. Đã bốc DK 28/10', nearestArrivalDate: '2026-10-28' } },
     stockStatus: { available: true, stale: false, loadedAt: '2026-10-20T02:00:00Z' }
   };
 }
+
+// Server khong gui 4 so O/P/Q/R cho nguoi khong co quyen xu ly.
+function saleListResponse(rows) {
+  return { ...listResponse(rows), metrics: {}, stockStatus: null };
+}
+const KT_ONLY_COLUMNS = ['vatStock', 'pendingQty', 'incomingContainer', 'nearestSchedule'];
 
 async function setup(t, { vaiTro, id = 'sale-1', responses, featurePermissions = {} }) {
   const dom = new JSDOM(html, { url: 'https://tokosi.test/vat-request/', runScripts: 'outside-only', pretendToBeVisual: true });
@@ -72,7 +78,7 @@ async function setup(t, { vaiTro, id = 'sale-1', responses, featurePermissions =
 test('sale: mac dinh xem tat ca sale, khong co cot chon / sua nhanh, dong khoa khong co nut Sua', async t => {
   const rows = [row(1), row(2, { status: '1', statusLabel: '1. Đã xong', isLockedForSale: true, canEditSale: false, canDelete: false }),
     row(3, { createdBy: 'sale-2', createdByName: 'Tuyên', isMine: false, canEditSale: false, canDelete: false })];
-  const { doc, calls } = await setup(t, { vaiTro: 'Nhân viên sale', responses: { 'GET /': listResponse(rows) } });
+  const { doc, calls } = await setup(t, { vaiTro: 'Nhân viên sale', responses: { 'GET /': saleListResponse(rows) } });
   assert.equal(calls[0].query.createdBy, undefined, 'mac dinh tat ca sale');
   assert.equal(doc.getElementById('vrSaleFilter').value, '');
   assert.equal(calls[0].query.status, undefined);
@@ -84,7 +90,8 @@ test('sale: mac dinh xem tat ca sale, khong co cot chon / sua nhanh, dong khoa k
   assert.deepEqual(editable, [1]);
   assert.ok(doc.querySelector('tr[data-id="2"] .vr-lock'));
   assert.match(doc.querySelector('tr[data-id="1"] [data-field="total"]').textContent, /4,560,000/);
-  assert.match(doc.querySelector('tr[data-id="1"] [data-field="nearestArrival"]').textContent, /28\/10\/2026/);
+  for (const key of KT_ONLY_COLUMNS) assert.equal(doc.querySelector(`[data-column-key="${key}"], [data-field="${key}"]`), null, `sale khong thay cot ${key}`);
+  assert.equal(doc.getElementById('vrSource').textContent, '', 'sale khong thay dong nguon Ton VAT');
   assert.ok(doc.querySelector('#sidebar a[href="/vat-request/"]'), 'menu Ke toan co Yeu cau xuat VAT');
 });
 
@@ -94,8 +101,9 @@ function batchApi() {
   return context.window.TKSVatRequestBatch;
 }
 const LOOKUP = {
-  '014xoan': { found: true, productCode: '014XOAN', productName: 'Bát inox 2 lớp XOẮN 14cm', vatStock: { total: 1500, byCompany: [] }, pendingInsertQty: 0, incomingQty: 1100, nearestArrivalDate: '2026-10-28', nearestArrivalText: 'DK 28/10', latestOrder: { price: 12500, customerName: 'Khách cũ', createdAt: null } },
-  '26daquan': { found: true, productCode: '26DAQUAN', productName: 'Đồng hồ treo tường DẠ QUANG', vatStock: null, pendingInsertQty: 0, incomingQty: 0, latestOrder: null }
+  '014xoan': { found: true, productCode: '014XOAN', productName: 'Bát inox 2 lớp XOẮN 14cm', vatStock: { total: 1500, byCompany: [] }, pendingInsertQty: 0, incomingContainer: 'CONT 10-7G', nearestSchedule: '3. Đã bốc DK 28/10', nearestArrivalDate: '2026-10-28', latestOrder: { price: 12500, customerName: 'Khách cũ', createdAt: null } },
+  // Dang tra ve cho sale: khong co Ton VAT / Cho khai / Cont.
+  '26daquan': { found: true, productCode: '26DAQUAN', productName: 'Đồng hồ treo tường DẠ QUANG', latestOrder: null }
 };
 const lookupResponse = body => ({ status: 200, data: { results: Object.fromEntries(body.codes.map(code => [code.toLowerCase(), LOOKUP[code.toLowerCase()] || { found: false }])), stockStatus: { available: true } } });
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -145,7 +153,8 @@ test('tao nhieu dong: form trong mo san o Dan tu Excel; dan 6 cot -> du cot, Ful
   const lookup = calls.filter(c => c.key === 'POST /lookup');
   assert.equal(lookup.length, 1, 'tra ca bang trong 1 lan goi');
   assert.deepEqual(lookup[0].body.codes, ['014XOAN', '26DAQUAN']);
-  assert.match(rows[0].querySelector('[data-cell="product"]').textContent, /Bát inox 2 lớp XOẮN 14cm.*Tồn VAT 1,500.*Đang về 1,100 · 28\/10\/2026/);
+  assert.match(rows[0].querySelector('[data-cell="product"]').textContent, /Bát inox 2 lớp XOẮN 14cm.*Tồn VAT 1,500.*Cont CONT 10-7G · 3\. Đã bốc DK 28\/10/);
+  assert.equal(rows[1].querySelector('[data-cell="product"]').textContent, 'Đồng hồ treo tường DẠ QUANG', 'khong co so lieu -> chi ten SP');
   assert.match(rows[0].querySelector('[data-cell="price"]').textContent, /Gần nhất 12,500/);
   assert.match(doc.getElementById('vrBatchSummary').textContent, /2 dòng hàng · Tổng 24,283,600 ₫/);
 
@@ -272,7 +281,7 @@ test('gia order VAT gan nhat trong hop sua chi dien khi bam goi y; khi sua giu g
   const responses = {
     'GET /': listResponse([row(1, { unitPrice: 13000 })]),
     'GET /1/history': { rows: [] },
-    'GET /metrics': { productName: 'Bát inox', vatStock: null, pendingInsertQty: 0, incomingQty: 0 },
+    'GET /metrics': { productName: 'Bát inox', vatStock: null, pendingInsertQty: 0, incomingContainer: '', nearestSchedule: '' },
     'GET /price-suggest': { latestOrder: { price: 12500, customerName: 'Khách cũ', createdAt: '2026-10-20T02:00:00Z' } }
   };
   const { window, doc } = await setup(t, { vaiTro: 'Nhân viên sale', responses });
@@ -313,6 +322,9 @@ test('KT: mac dinh loc Can xu ly, doi trang thai tren dong gui version; 409 hien
   assert.ok(doc.querySelector('[data-column-key="select"]'));
   assert.equal(doc.getElementById('vrGroupToggle').hidden, false);
   assert.equal(doc.getElementById('vrExport').hidden, false);
+  for (const key of KT_ONLY_COLUMNS) assert.ok(doc.querySelector(`th[data-column-key="${key}"]`), `KT thay cot ${key}`);
+  assert.equal(doc.querySelector('tr[data-id="1"] [data-field="incomingContainer"]').textContent, 'CONT 10-7G');
+  assert.equal(doc.querySelector('tr[data-id="1"] [data-field="nearestSchedule"]').textContent, '3. Đã bốc DK 28/10');
 
   const note = doc.querySelector('[data-inline="accountantNote"][data-id="1"]');
   note.value = 'CONT 10-6V';
@@ -362,7 +374,8 @@ test('gom theo ma SP: dong tieu de nhom hien ton VAT / can khai / dang ve', asyn
   assert.equal(toggle.getAttribute('aria-pressed'), 'true');
   const groups = [...doc.querySelectorAll('.vr-group-row')].map(r => r.textContent);
   assert.equal(groups.length, 2);
-  assert.match(groups[0], /014XOAN.*2 yêu cầu · Tồn VAT 1,500 · Cần khai 200 · Đang về 150 · Gần nhất 28\/10\/2026/);
+  assert.match(groups[0], /014XOAN.*2 yêu cầu · Tồn VAT 1,500 · Cần khai 200 · Cont CONT 10-7G · Lịch 3\. Đã bốc DK 28\/10/);
+  assert.match(groups[1], /26DAQUAN.*1 yêu cầu$/, 'ma khong co so lieu -> chi so yeu cau');
   assert.deepEqual([...doc.querySelectorAll('#vrRows tr[data-id]')].map(r => Number(r.dataset.id)), [1, 3, 2]);
 });
 
@@ -409,7 +422,7 @@ function lockedRow(id) {
 }
 
 test('nhay dup dong sua duoc: modal sua gon, nut Lich su (co so dem) mo khung chat noi, form khong doi; dong da khoa: chi lich su', async t => {
-  const responses = { 'GET /': listResponse([row(1), lockedRow(2)]), 'GET /1/history': HISTORY, 'GET /2/history': HISTORY, 'GET /metrics': { productName: 'Bát inox', vatStock: null, pendingInsertQty: 0, incomingQty: 0 } };
+  const responses = { 'GET /': listResponse([row(1), lockedRow(2)]), 'GET /1/history': HISTORY, 'GET /2/history': HISTORY, 'GET /metrics': { productName: 'Bát inox', vatStock: null, pendingInsertQty: 0, incomingContainer: '', nearestSchedule: '' } };
   const { window, doc } = await setup(t, { vaiTro: 'Nhân viên sale', responses });
   const dialog = doc.getElementById('vrFormDialog');
   const chat = doc.getElementById('vrChat');
@@ -455,7 +468,7 @@ test('luu: nut co trang thai dang luu va khong gui trung khi bam 2 lan', async t
   let release;
   const responses = {
     'GET /': listResponse([row(1)]), 'GET /1/history': HISTORY,
-    'GET /metrics': { productName: 'Bát inox', vatStock: null, pendingInsertQty: 0, incomingQty: 0 },
+    'GET /metrics': { productName: 'Bát inox', vatStock: null, pendingInsertQty: 0, incomingContainer: '', nearestSchedule: '' },
     'PATCH /1': body => ({ status: 200, data: row(1, { ...body, version: 2 }) })
   };
   const { window, doc, calls } = await setup(t, { vaiTro: 'Nhân viên sale', responses });
@@ -500,7 +513,7 @@ test('chuot phai -> Sua yeu cau; xoa ngay trong hop sua gui DELETE kem version',
   const responses = {
     'GET /': () => ({ status: 200, data: listResponse(deleted ? [] : [row(7, { version: 3 })]) }),
     'GET /7/history': HISTORY,
-    'GET /metrics': { productName: 'Bát inox', vatStock: null, pendingInsertQty: 0, incomingQty: 0 },
+    'GET /metrics': { productName: 'Bát inox', vatStock: null, pendingInsertQty: 0, incomingContainer: '', nearestSchedule: '' },
     'DELETE /7': () => { deleted = true; return { status: 200, data: { ok: true } }; }
   };
   const { window, doc, calls } = await setup(t, { vaiTro: 'Nhân viên sale', responses });

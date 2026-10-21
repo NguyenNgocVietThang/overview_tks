@@ -7,6 +7,8 @@ Mọi bảng trên web và trong file HTML xuất ra có nút **Cột hiển th�
 
 ## Kiến trúc hiện tại
 
+**Cập nhật 21/10/2026 — ORDER VAT: cột hàng về theo cont, ẩn 4 cột số liệu với sale (nhánh `feat/vat-request-cont-columns`, chưa merge/deploy, không migration):** cột Dự kiến hàng về hiện Tên Cont, Dự kiến ngày về gần nhất hiện Lịch/Trạng thái của cont chưa về sớm nhất; Tồn VAT, SLG tổng cần khai và 2 cột này chỉ người có quyền xử lý VAT thấy (API, bảng, form, Excel).
+
 **Cập nhật 21/10/2026 — Hàng dự kiến chuyển sang bảng Dự kiến hàng về, thêm cột giá (mã cục bộ trên main; migration `0078` chưa áp DB; chưa deploy):** hộp "Chi tiết hàng hóa" chỉ còn Doanh số theo khách; bấm dòng bảng Dự kiến hàng về mở hộp chi tiết mọi CONT cùng mã SP kèm tổng số lượng theo trạng thái 1–5; hai cột Giá SP (tệ) và Giá hàng về VN chỉ hiện với quyền `reports.overview.containers.full`. Xem mục cuối "Cập nhật gần nhất" 21/10/2026.
 
 **Cập nhật 21/10/2026 — CONT TKS1 và cột Nguồn (đã sửa mã cục bộ trên main, chưa deploy):** bổ sung nguồn thứ bảy vào luồng CONT chung, thêm Nguồn đầu bảng Dự kiến hàng về và file xuất. Xem [thiết kế](docs/superpowers/specs/2026-10-21-container-tks1-source-design.md) và [kế hoạch triển khai](docs/superpowers/plans/2026-10-21-container-tks1-source.md).
@@ -367,3 +369,7 @@ Không đưa token hoặc dữ liệu cá nhân vào log/tài liệu công khai.
 ### Cập nhật 21/10/2026 — Nhóm sale trong Công nợ
 
 Công nợ: ba bảng chính có cột Nhóm sale và dropdown lọc; Excel/HTML xuất cùng nhóm và bộ lọc. HTML có biểu đồ tổng nợ/thưởng/phạt theo nhóm.
+
+### Cập nhật 21/10/2026 — ORDER VAT: cột hàng về theo cont, ẩn 4 cột số liệu với sale
+
+ORDER VAT: Dự kiến hàng về = Tên Cont, Dự kiến ngày về gần nhất = Lịch/Trạng thái của cont trạng thái 1–3 về sớm nhất (lấy như trang Dự kiến hàng về). 4 cột số liệu (Tồn VAT, SLG tổng cần khai, 2 cột trên) chỉ dành cho tài khoản có `accounting.vatRequestProcess`; server không gửi cho sale nên mất ở bảng, đầu nhóm, form và Excel.

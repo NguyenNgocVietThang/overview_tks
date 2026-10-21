@@ -91,13 +91,18 @@
       { key: 'saleNote', label: 'Ghi chú', width: 115, mobileHidden: true },
       { key: 'status', label: 'KT phản hồi', width: state.canProcess ? 150 : 128 },
       { key: 'accountantNote', label: 'KT note cho sale', width: 118, mobileHidden: true },
-      { key: 'arrivalDate', label: 'Ngày về', width: state.canProcess ? 132 : 100, mobileHidden: true, nowrap: true },
-      { key: 'vatStock', label: 'Tồn VAT', width: 74, num: true, mobileHidden: true },
-      { key: 'pendingQty', label: 'SLG tổng cần khai', width: 74, num: true, mobileHidden: true },
-      { key: 'incomingQty', label: 'Dự kiến hàng về', width: 74, num: true, mobileHidden: true },
-      { key: 'nearestArrival', label: 'Dự kiến ngày về gần nhất', width: 106, mobileHidden: true },
-      { key: 'actions', label: 'Thao tác', width: 96, locked: true }
+      { key: 'arrivalDate', label: 'Ngày về', width: state.canProcess ? 132 : 100, mobileHidden: true, nowrap: true }
     );
+    // 4 cột số liệu chỉ dành cho KT (server cũng không gửi cho sale). Hàng về = cont chưa về sớm nhất (Tên Cont + Lịch/Trạng thái).
+    if (state.canProcess) {
+      list.push(
+        { key: 'vatStock', label: 'Tồn VAT', width: 74, num: true, mobileHidden: true },
+        { key: 'pendingQty', label: 'SLG tổng cần khai', width: 74, num: true, mobileHidden: true },
+        { key: 'incomingContainer', label: 'Dự kiến hàng về', width: 110, mobileHidden: true },
+        { key: 'nearestSchedule', label: 'Dự kiến ngày về gần nhất', width: 130, mobileHidden: true }
+      );
+    }
+    list.push({ key: 'actions', label: 'Thao tác', width: 96, locked: true });
     return list;
   }
 
@@ -160,10 +165,12 @@
         if (!m || !m.vatStock) return '<span class="vr-muted" title="Chưa khớp mã VAT hoặc chưa đọc được sheet tồn">—</span>';
         return `<button type="button" class="vr-link" data-stock="${escapeHtml(row.productKey)}" title="Xem tồn theo công ty">${fmtNumber(m.vatStock.total)}</button>`;
       case 'pendingQty': return m ? fmtNumber(m.pendingInsertQty) : '';
-      case 'incomingQty': return m ? fmtNumber(m.incomingQty) : '';
-      case 'nearestArrival':
+      case 'incomingContainer':
         if (!m) return '';
-        return m.nearestArrivalDate ? escapeHtml(fmtDate(m.nearestArrivalDate)) : `<span class="vr-muted">${escapeHtml(m.nearestArrivalText)}</span>`;
+        return m.incomingContainer ? escapeHtml(m.incomingContainer) : '<span class="vr-muted" title="Không có cont chưa về">—</span>';
+      case 'nearestSchedule':
+        if (!m) return '';
+        return m.nearestSchedule ? escapeHtml(m.nearestSchedule) : '<span class="vr-muted">—</span>';
       case 'actions': {
         // Xóa nằm trong hộp sửa; nháy đúp / chuột phải vào dòng cũng mở hộp này.
         const lock = row.isLockedForSale
@@ -187,12 +194,14 @@
 
   function groupHeaderHtml(key, rows, cols) {
     const first = rows[0];
-    const m = state.metrics[key] || {};
-    const stock = m.vatStock ? fmtNumber(m.vatStock.total) : '—';
-    const arrival = m.nearestArrivalDate ? fmtDate(m.nearestArrivalDate) : (m.nearestArrivalText || '—');
+    const m = state.metrics[key];
     const pick = state.canProcess ? `<input type="checkbox" data-select-group="${escapeHtml(key)}" aria-label="Chọn cả mã ${escapeHtml(first.productCode)}"> ` : '';
+    // Số liệu tồn / hàng về chỉ KT thấy (sale không nhận metrics).
+    const meta = state.canProcess && m
+      ? ` · Tồn VAT ${m.vatStock ? fmtNumber(m.vatStock.total) : '—'} · Cần khai ${fmtNumber(m.pendingInsertQty || 0)} · Cont ${escapeHtml(m.incomingContainer || '—')} · Lịch ${escapeHtml(m.nearestSchedule || '—')}`
+      : '';
     return `<tr class="vr-group-row"><td colspan="${cols.length}">${pick}<strong>${escapeHtml(first.productCode)}</strong> — ${escapeHtml(first.productName)}` +
-      `<span class="vr-group-meta">${rows.length} yêu cầu · Tồn VAT ${stock} · Cần khai ${fmtNumber(m.pendingInsertQty || 0)} · Đang về ${fmtNumber(m.incomingQty || 0)} · Gần nhất ${escapeHtml(arrival)}</span></td></tr>`;
+      `<span class="vr-group-meta">${rows.length} yêu cầu${meta}</span></td></tr>`;
   }
 
   // ---------- Sắp xếp theo cột (toàn bộ danh sách) ----------
@@ -215,8 +224,9 @@
       case 'arrivalDate': return row.arrivalDate || null;
       case 'vatStock': return m.vatStock ? m.vatStock.total : null;
       case 'pendingQty': return m.pendingInsertQty ?? null;
-      case 'incomingQty': return m.incomingQty ?? null;
-      case 'nearestArrival': return m.nearestArrivalDate || null;
+      case 'incomingContainer': return m.incomingContainer || null;
+      // Ngày đọc được đứng trước theo ngày; lịch chưa có ngày xếp sau theo chữ.
+      case 'nearestSchedule': return m.nearestSchedule ? (m.nearestArrivalDate ? 'a' + m.nearestArrivalDate : 'b' + m.nearestSchedule) : null;
       default: return null;
     }
   }
@@ -306,14 +316,14 @@
   function renderSource() {
     const status = state.stockStatus;
     const el = $('vrSource');
-    if (!status) { el.textContent = ''; return; }
+    if (!status) { el.textContent = ''; el.dataset.kind = ''; return; }
     if (!status.available) {
       el.textContent = `Không đọc được sheet tồn VAT: ${status.error || 'lỗi không rõ'}. Cột Tồn VAT tạm để trống.`;
       el.dataset.kind = 'error';
       return;
     }
     el.dataset.kind = status.stale ? 'warn' : '';
-    el.textContent = `Tồn VAT lấy từ Google Sheets${status.loadedAt ? ', cập nhật lúc ' + fmtDateTime(status.loadedAt) : ''}${status.stale ? ' (bản cũ do sheet đang lỗi)' : ''}. Dự kiến hàng về lấy từ Hàng dự kiến (CONT chưa về).`;
+    el.textContent = `Tồn VAT lấy từ Google Sheets${status.loadedAt ? ', cập nhật lúc ' + fmtDateTime(status.loadedAt) : ''}${status.stale ? ' (bản cũ do sheet đang lỗi)' : ''}. Dự kiến hàng về = cont chưa về sớm nhất (Tên Cont + Lịch/Trạng thái ở Hàng dự kiến).`;
   }
 
   function renderBulk() {
@@ -703,12 +713,14 @@
     try {
       const m = await api('/metrics?code=' + encodeURIComponent(trimmed));
       if (seq !== infoSeq) return;
-      const arrival = m.nearestArrivalDate ? fmtDate(m.nearestArrivalDate) : (m.nearestArrivalText || '—');
-      target.innerHTML = `<strong>${escapeHtml(m.productName)}</strong>` +
-        `<span>Tồn VAT: <b>${m.vatStock ? fmtNumber(m.vatStock.total) : '—'}</b></span>` +
-        `<span>Đang chờ khai: <b>${fmtNumber(m.pendingInsertQty)}</b></span>` +
-        `<span>Dự kiến hàng về: <b>${fmtNumber(m.incomingQty)}</b></span>` +
-        `<span>Ngày về gần nhất: <b>${escapeHtml(arrival)}</b></span>`;
+      // Tồn / chờ khai / hàng về chỉ có khi là KT (server không gửi cho sale).
+      const hasMetrics = m.pendingInsertQty !== undefined;
+      target.innerHTML = `<strong>${escapeHtml(m.productName)}</strong>` + (hasMetrics
+        ? `<span>Tồn VAT: <b>${m.vatStock ? fmtNumber(m.vatStock.total) : '—'}</b></span>` +
+          `<span>Đang chờ khai: <b>${fmtNumber(m.pendingInsertQty)}</b></span>` +
+          `<span>Dự kiến hàng về: <b>${escapeHtml(m.incomingContainer || '—')}</b></span>` +
+          `<span>Ngày về gần nhất: <b>${escapeHtml(m.nearestSchedule || '—')}</b></span>`
+        : '');
       target.dataset.valid = 'true';
       loadPriceSuggestion(trimmed);
     } catch (error) {
@@ -1078,7 +1090,7 @@
       : 'Gửi ORDER VAT cho kế toán. Yêu cầu ở trạng thái 0, 1, 2 đã khóa, không sửa được.';
     if (window.TKSVatRequestBatch) {
       state.batch = window.TKSVatRequestBatch.createBatchForm({
-        api, escapeHtml, fmtNumber, fmtDate, debounce, showDialog, closeDialog, userId: state.viewerId,
+        api, escapeHtml, fmtNumber, debounce, showDialog, closeDialog, userId: state.viewerId,
         onSubmitted: async result => {
           await load();
           setStatus(result.duplicate

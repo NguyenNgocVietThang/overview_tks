@@ -84,7 +84,7 @@ function createVatRequestRouter({ service = createVatRequestService(), customerS
     res.json(await (priceSearch || suggestionService().prices)(code));
   }));
   router.get('/metrics', handle(async (req, res) => {
-    res.json(await service.productMetrics(String(req.query.code || '')));
+    res.json(await service.productMetrics(req.user, String(req.query.code || '')));
   }));
   router.post('/', handle(async (req, res) => {
     res.status(201).json(await service.create(req.user, req.body));
@@ -95,7 +95,7 @@ function createVatRequestRouter({ service = createVatRequestService(), customerS
     res.status(result.duplicate ? 200 : 201).json(result);
   }));
   router.post('/lookup', handle(async (req, res) => {
-    res.json(await service.lookupProducts(req.body && req.body.codes));
+    res.json(await service.lookupProducts(req.user, req.body && req.body.codes));
   }));
   router.patch('/bulk', handle(async (req, res) => {
     res.json(await service.bulkUpdate(req.user, req.body));

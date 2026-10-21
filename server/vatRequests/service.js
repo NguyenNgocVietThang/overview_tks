@@ -14,7 +14,7 @@ const { getPool } = require('../db/pool');
 const { ROLES } = require('../auth/userRepository');
 const { hasFeature } = require('../auth/featureRegistry');
 const repository = require('./repository');
-const { nearestArrival } = require('./etaParser');
+const { nearestContainer } = require('./etaParser');
 const { createStockSource, lookupStock } = require('./stockSource');
 
 const STATUS_LABELS = Object.freeze({
@@ -218,8 +218,12 @@ function createVatRequestService({ pool = getPool(), stockSource = createStockSo
     }
   }
 
-  /** O / P / Q / R theo product_key. */
-  async function metricsFor(productKeys) {
+  /**
+   * O / P / Q / R theo product_key. Q/R = Ten Cont + Lich/Trang thai cua cont chua ve som nhat.
+   * Chi KT (quyen xu ly) thay 4 so nay: user khac -> metrics rong, stockStatus null, khong doc nguon.
+   */
+  async function metricsFor(user, productKeys) {
+    if (!canProcess(user)) return { metrics: {}, stockStatus: null };
     const keys = [...new Set(productKeys.filter(Boolean))];
     const [pending, incoming, stock] = await Promise.all([
       repository.pendingInsertQuantities(pool, keys),
@@ -228,14 +232,13 @@ function createVatRequestService({ pool = getPool(), stockSource = createStockSo
     ]);
     const metrics = {};
     for (const key of keys) {
-      const containers = incoming.get(key);
-      const arrival = containers ? nearestArrival(containers.etas, { now: now() }) : { date: null, text: '' };
+      const arrival = nearestContainer(incoming.get(key) || [], { now: now() });
       metrics[key] = {
         vatStock: stock.snapshot ? lookupStock(stock.snapshot, key) : null,
         pendingInsertQty: pending.get(key) || 0,
-        incomingQty: containers ? containers.quantity : 0,
-        nearestArrivalDate: arrival.date,
-        nearestArrivalText: arrival.text
+        incomingContainer: arrival.containerName,
+        nearestSchedule: arrival.scheduleLabel,
+        nearestArrivalDate: arrival.date
       };
     }
     return { metrics, stockStatus: stock.status };
@@ -244,7 +247,7 @@ function createVatRequestService({ pool = getPool(), stockSource = createStockSo
   async function list(user, filters = {}) {
     const { rows, truncated } = await repository.listRequests(pool, filters);
     const [{ metrics, stockStatus }, sales] = await Promise.all([
-      metricsFor(rows.map(row => row.product_key)),
+      metricsFor(user, rows.map(row => row.product_key)),
       repository.listCreators(pool)
     ]);
     return {
@@ -374,11 +377,11 @@ function createVatRequestService({ pool = getPool(), stockSource = createStockSo
   }
 
   /** Thong tin cho tung dong cua form nhieu dong: ten SP, O/P/Q/R, gia VAT gan nhat — 1 lan goi cho ca bang. */
-  async function lookupProducts(codes) {
+  async function lookupProducts(user, codes) {
     const list = (Array.isArray(codes) ? codes : []).map(code => String(code || '').trim()).filter(Boolean).slice(0, MAX_BATCH_ROWS);
     const products = await repository.findProducts(pool, list);
     const keys = [...products.keys()];
-    const [{ metrics, stockStatus }, prices] = await Promise.all([metricsFor(keys), repository.latestProductPrices(pool, keys)]);
+    const [{ metrics, stockStatus }, prices] = await Promise.all([metricsFor(user, keys), repository.latestProductPrices(pool, keys)]);
     const results = {};
     for (const code of list) {
       const key = code.toLowerCase();
@@ -514,11 +517,11 @@ function createVatRequestService({ pool = getPool(), stockSource = createStockSo
     }));
   }
 
-  async function productMetrics(productCode) {
+  async function productMetrics(user, productCode) {
     const product = await repository.findProduct(pool, productCode);
     if (!product) throw httpError(404, 'Không tìm thấy mã SP.', 'PRODUCT_NOT_FOUND');
     const key = product.product_code.trim().toLowerCase();
-    const { metrics, stockStatus } = await metricsFor([key]);
+    const { metrics, stockStatus } = await metricsFor(user, [key]);
     return { productCode: product.product_code, productName: product.product_name, ...metrics[key], stockStatus };
   }
 

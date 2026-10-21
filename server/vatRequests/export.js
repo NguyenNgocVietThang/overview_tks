@@ -30,7 +30,8 @@ const DATE_TIME = 'dd/mm/yyyy hh:mm';
 const DATE = 'dd/mm/yyyy';
 const NUMBER = '#,##0.##';
 
-// Cung thu tu / ten cot voi bang tren trang (bo cot Chon, Thao tac).
+// Cung thu tu / ten cot voi bang tren trang (bo cot Chon, Thao tac). `kt`: chi nguoi co quyen xu ly
+// (viewer.canProcess) moi co cot nay — service cung khong gui so lieu cho nguoi khac.
 const COLUMNS = Object.freeze([
   { header: 'Thời gian', width: 17, numFmt: DATE_TIME, value: row => vnDateTime(row.createdAt) },
   { header: 'Tên Sale', width: 20, value: row => row.createdByName },
@@ -45,10 +46,10 @@ const COLUMNS = Object.freeze([
   { header: 'KT phản hồi', width: 24, value: row => row.statusLabel },
   { header: 'KT note cho sale', width: 24, value: row => row.accountantNote },
   { header: 'Ngày về', width: 12, numFmt: DATE, value: row => plainDate(row.arrivalDate) },
-  { header: 'Tồn VAT', width: 12, numFmt: NUMBER, value: (row, m) => (m && m.vatStock ? m.vatStock.total : null) },
-  { header: 'SLG tổng cần khai', width: 14, numFmt: NUMBER, value: (row, m) => (m ? m.pendingInsertQty : null) },
-  { header: 'Dự kiến hàng về', width: 14, numFmt: NUMBER, value: (row, m) => (m ? m.incomingQty : null) },
-  { header: 'Dự kiến ngày về gần nhất', width: 18, value: (row, m) => (m ? plainDate(m.nearestArrivalDate) || m.nearestArrivalText : null), numFmt: DATE }
+  { header: 'Tồn VAT', width: 12, numFmt: NUMBER, kt: true, value: (row, m) => (m && m.vatStock ? m.vatStock.total : null) },
+  { header: 'SLG tổng cần khai', width: 14, numFmt: NUMBER, kt: true, value: (row, m) => (m ? m.pendingInsertQty : null) },
+  { header: 'Dự kiến hàng về', width: 18, kt: true, value: (row, m) => (m ? m.incomingContainer : null) },
+  { header: 'Dự kiến ngày về gần nhất', width: 24, kt: true, value: (row, m) => (m ? m.nearestSchedule : null) }
 ]);
 
 function cellValue(value) {
@@ -62,27 +63,28 @@ function fileStamp(now) {
   return `${vn.slice(0, 10).replace(/-/g, '')}_${vn.slice(11, 16).replace(':', '')}`;
 }
 
-/** @param {{ rows: object[], metrics: object }} list  ket qua service.list() */
-async function createVatRequestWorkbook({ rows = [], metrics = {} } = {}, { now = new Date() } = {}) {
+/** @param {{ rows: object[], metrics: object, viewer: { canProcess: boolean } }} list  ket qua service.list() */
+async function createVatRequestWorkbook({ rows = [], metrics = {}, viewer = null } = {}, { now = new Date() } = {}) {
+  const columns = viewer && viewer.canProcess ? COLUMNS : COLUMNS.filter(col => !col.kt);
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'TOKOSI Dashboard';
   const sheet = workbook.addWorksheet('ORDER VAT');
-  sheet.columns = COLUMNS.map(col => ({
+  sheet.columns = columns.map(col => ({
     header: col.header,
     width: col.width,
     style: col.numFmt ? { numFmt: col.numFmt } : { alignment: { wrapText: true, vertical: 'top' } }
   }));
   rows.forEach(row => {
     const m = metrics[row.productKey] || null;
-    sheet.addRow(COLUMNS.map(col => cellValue(col.value(row, m))));
+    sheet.addRow(columns.map(col => cellValue(col.value(row, m))));
   });
   sheet.views = frozenNoGridlinesView(1);
   const header = sheet.getRow(1);
   header.font = HEADER_FONT;
   header.height = 32;
   header.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
-  sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: Math.max(1, rows.length + 1), column: COLUMNS.length } };
-  applyFullTableBorder(sheet, COLUMNS.length, rows.length + 1);
+  sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: Math.max(1, rows.length + 1), column: columns.length } };
+  applyFullTableBorder(sheet, columns.length, rows.length + 1);
   return {
     buffer: Buffer.from(await workbook.xlsx.writeBuffer()),
     mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
