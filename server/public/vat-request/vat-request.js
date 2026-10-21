@@ -16,7 +16,7 @@
   const ACTION_LABELS = { create: 'Tạo yêu cầu', delete: 'Xóa yêu cầu', import: 'Nhập từ sheet cũ', update: 'Sửa' };
 
   const state = {
-    user: null, canProcess: false, viewerId: null,
+    user: null, canProcess: false, isManager: false, viewerId: null, exporting: false,
     rows: [], metrics: {}, sales: [], statuses: [], stockStatus: null, truncated: false,
     preset: 'all', saleFilter: '', query: '', from: '', to: '',
     groupByProduct: false, sortKey: '', sortDir: 'asc', page: 1, selected: new Set(), loading: false, error: '',
@@ -279,6 +279,8 @@
     }
     $('vrRows').innerHTML = html;
     $('vrTable').setAttribute('aria-busy', String(state.loading));
+    $('vrReload').disabled = state.loading;
+    $('vrReload').classList.toggle('is-loading', state.loading);
     // Chỉ ghi khi có điều cần báo — không xóa thông báo lưu / xung đột vừa hiện.
     if (!state.loading && !state.error) {
       if (!state.rows.length) setStatus('Không có yêu cầu phù hợp.');
@@ -367,6 +369,8 @@
       state.statuses = data.statuses || state.statuses;
       state.stockStatus = data.stockStatus || null;
       state.truncated = !!data.truncated;
+      state.isManager = !!(data.viewer && data.viewer.isManager);
+      $('vrExport').hidden = !(state.canProcess || state.isManager);
       setStatus('');
       const ids = new Set(state.rows.map(r => r.id));
       state.selected = new Set([...state.selected].filter(id => ids.has(id)));
@@ -383,6 +387,46 @@
         state.loading = false;
         render();
       }
+    }
+  }
+
+  // ---------- Xuất Excel (KT / quản lý) ----------
+  // Server dựng file từ cùng bộ lọc với danh sách: mọi dòng khớp (không gom), đủ mọi cột kể cả cột đang ẩn.
+  function downloadBlob(blob, fileName) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  async function exportExcel() {
+    const button = $('vrExport');
+    if (state.exporting) return;
+    state.exporting = true;
+    button.disabled = true;
+    button.classList.add('is-loading');
+    setStatus('Đang tạo file Excel…');
+    try {
+      const response = await fetch(API + '/export' + filterQuery(), { credentials: 'same-origin', cache: 'no-store' });
+      if (!response.ok) {
+        let data = null;
+        try { data = await response.json(); } catch (error) { data = null; }
+        throw new Error((data && data.error) || `Lỗi ${response.status}`);
+      }
+      const match = /filename="([^"]+)"/.exec(response.headers.get('Content-Disposition') || '');
+      downloadBlob(await response.blob(), match ? match[1] : 'order_vat.xlsx');
+      if (response.headers.get('X-Export-Truncated') === '1') setStatus('Đã xuất Excel, nhưng chỉ gồm 5,000 dòng mới nhất — hãy lọc thêm nếu cần đủ.', 'warn');
+      else setStatus('Đã xuất Excel.', 'ok');
+    } catch (error) {
+      setStatus('Không xuất được Excel: ' + error.message, 'error');
+    } finally {
+      state.exporting = false;
+      button.disabled = false;
+      button.classList.remove('is-loading');
     }
   }
 
@@ -865,8 +909,14 @@
     $('vrTo').addEventListener('change', event => { state.to = event.target.value; state.page = 1; load(); });
     const searchLater = debounce(() => { state.page = 1; load(); }, 350);
     $('vrSearch').addEventListener('input', event => { state.query = event.target.value.trim(); searchLater(); });
-    $('vrGroupToggle').addEventListener('change', event => { state.groupByProduct = event.target.checked; state.page = 1; render(); });
+    $('vrGroupToggle').addEventListener('click', event => {
+      state.groupByProduct = !state.groupByProduct;
+      event.currentTarget.setAttribute('aria-pressed', String(state.groupByProduct));
+      state.page = 1;
+      render();
+    });
     $('vrReload').addEventListener('click', () => load());
+    $('vrExport').addEventListener('click', exportExcel);
     // Tạo mới = form nhiều dòng (vat-request-batch.js); hộp sửa 1 yêu cầu chỉ còn dùng để sửa / xem lịch sử.
     $('vrCreate').addEventListener('click', () => { if (state.batch) state.batch.open(); });
 
@@ -1022,7 +1072,7 @@
     // KT mở trang thấy ngay việc cần làm (Cần xử lý); mọi người mặc định xem tất cả sale.
     state.preset = state.canProcess ? 'todo' : 'all';
     state.saleFilter = ''; // mặc định xem tất cả sale; chọn 'Của tôi' ở bộ lọc Sale khi cần
-    $('vrGroupToggleWrap').hidden = !state.canProcess;
+    $('vrGroupToggle').hidden = !state.canProcess;
     $('vrSub').textContent = state.canProcess
       ? 'Lọc “Cần xử lý” để xem yêu cầu chờ khai; chọn nhiều dòng để đổi trạng thái hàng loạt.'
       : 'Gửi ORDER VAT cho kế toán. Yêu cầu ở trạng thái 0, 1, 2 đã khóa, không sửa được.';

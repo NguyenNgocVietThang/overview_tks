@@ -126,6 +126,8 @@ Kiến trúc: `server/debtSchedule/` (quy tắc thuần, job chốt 15:00, repos
 
 19/10/2026 (đợt 3) — **Báo cáo hàng hóa theo sheet BC CHUNG (migration `0067`, đã áp DB 19/10/2026)**: 34 cột UI = Excel, 12 cột mới + DS khách lớn nhất đưa vào giao diện, cột mới ẩn mặc định ở cả khung Sale và Quản lý, Đơn giá dời xuống cuối, Giá trị có bán + Đơn giá chỉ Quản lý/Trợ lý. Đứt HN/SG cập nhật sau mỗi lần chạy quét đứt hàng 30 ngày (không có lịch tự chạy; chưa quét = 0). **Việc vận hành**: áp `0067` trước khi deploy; sau deploy chạy "Quét đứt hàng 30 ngày" cơ sở "Cả hai" lần đầu; job tăng dần tự chạy lượt nặng để điền SL đơn (không cần chạy tay).
 
+21/10/2026 — **ORDER VAT xuất Excel** (`server/vatRequests/export.js`, nhánh `feat/vat-request-export`): `GET /api/vat-requests/export` tái dùng `service.exportList()` (= `list()` + chặn quyền KT xử lý / Quản lý) nên file khớp đúng bộ lọc trên trang; ExcelJS + `excelTableStyle.js`, giờ VN ghi thẳng vào ô ngày, chặn công thức. Giao diện: `vr-toolbar-top` (chip trái, Xuất Excel + Cột hiển thị phải), `vr-pill-toggle`, `vr-icon-tool`.
+
 Cập nhật gần nhất: 21/10/2026.
 
 Điều chỉnh 15/10/2026: trong tháng hiển thị điểm/hạng, thưởng tạm tính và tổng phạt từ các ngày ĐÃ CHỐT, không cộng chu kỳ đang mở. Lúc 14:59 giờ Việt Nam lưu bản cuối của chu kỳ 15:00 hôm trước–14:59 hôm sau, mỗi chu kỳ đúng một lần và không ghi đè; 15:00 mới reset. Nhiều lần Tính lại trong chu kỳ chỉ cập nhật bản đang mở, không cộng thành nhiều ngày. Tiền thưởng hiện mỗi ngày với nhãn Thưởng tạm tính, thay đổi theo điểm và tổng phạt đã chốt ngày; chỉ chốt/lưu thưởng chính thức một lần khi kết thúc tháng. Web, hộp chi tiết và file xuất đều phân biệt tạm tính/đã chốt.

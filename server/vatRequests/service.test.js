@@ -292,6 +292,19 @@ test('sale xem duoc toan bo bang (chi doc dong cua nguoi khac); loc theo trang t
   } finally { await db.close(); }
 });
 
+test('xuat Excel: chi KT co quyen xu ly va quan ly; dung bo loc nhu list', async () => {
+  const { db, service } = await fixture();
+  try {
+    const mine = await service.create(SALE, NEW_REQUEST);
+    const other = await service.create(SALE2, { ...NEW_REQUEST, productCode: '26DAQUAN' });
+    await setStatus(db, other.id, '3');
+    await assert.rejects(service.exportList(SALE), { statusCode: 403, code: 'FEATURE_FORBIDDEN' });
+    await assert.rejects(service.exportList(KT_UNGRANTED), { statusCode: 403 });
+    assert.deepEqual((await service.exportList(KT, { statuses: ['3'] })).rows.map(r => r.id), [other.id]);
+    assert.deepEqual((await service.exportList(QL)).rows.map(r => r.id).sort(), [mine.id, other.id].sort());
+  } finally { await db.close(); }
+});
+
 test('KT doi trang thai hang loat; 1 dong lech version -> huy ca lo', async () => {
   const { db, service } = await fixture();
   try {

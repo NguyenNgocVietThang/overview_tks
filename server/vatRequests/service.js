@@ -258,6 +258,12 @@ function createVatRequestService({ pool = getPool(), stockSource = createStockSo
     };
   }
 
+  // Xuat Excel: chi KT (quyen xu ly) va quan ly; cung bo loc voi list() nen khop dung man hinh.
+  async function exportList(user, filters = {}) {
+    if (!canProcess(user) && !isManager(user)) throw httpError(403, 'Chỉ kế toán hoặc quản lý được xuất Excel ORDER VAT.', 'FEATURE_FORBIDDEN');
+    return list(user, filters);
+  }
+
   async function get(user, id) {
     return serializeRow(await loadOrThrow(pool, id), user);
   }
@@ -523,7 +529,7 @@ function createVatRequestService({ pool = getPool(), stockSource = createStockSo
     return rows.map(row => ({ code: row.product_code, name: row.product_name }));
   }
 
-  return { list, get, create, createMany, update, bulkUpdate, remove, history, productMetrics, lookupProducts, suggestProducts };
+  return { list, exportList, get, create, createMany, update, bulkUpdate, remove, history, productMetrics, lookupProducts, suggestProducts };
 }
 
 module.exports = {
