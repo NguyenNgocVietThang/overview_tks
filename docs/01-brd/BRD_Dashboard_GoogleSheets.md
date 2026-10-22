@@ -409,3 +409,9 @@ Quản lý có thể theo dõi và xuất công nợ/thưởng phạt theo Nhóm
 - **Thành công**: sale/quản lý mở một hộp là thấy đủ hồ sơ và lịch sử trao đổi của khách; biết ngay lần tiếp khách gần nhất mà không cần hỏi miệng.
 - **Ngoài phạm vi**: xuất note/ảnh ra file (file xuất chỉ thêm cột Tiếp khách lần cuối), xóa note, lịch sử chỉnh sửa note, tự chuyển ghi chú khi khách đổi tên (liên kết theo tên chuẩn hóa nên khách đổi tên sẽ mất liên kết).
 - **Trạng thái**: code + test xong, đã commit trên `main`; migration `0080` đã áp DB dùng chung (22/10/2026); chưa push/deploy. Spec: `docs/superpowers/specs/2026-10-22-customer-notes-design.md`.
+### Cập nhật 22/10/2026 — Nháp VAT: dán mã hóa đơn là xử lý luôn
+
+- **Vấn đề**: kế toán luôn biết sẵn hóa đơn cần sửa nên không dùng bảng tick chọn từng chứng từ; dán mã xong vẫn phải bấm "Thêm vào danh sách" rồi "Xử lý chứng từ đã chọn", và không xem được nội dung hóa đơn ngay trên trang.
+- **Giải pháp**: chỉ còn ô dán mã + Cơ sở + nút Xử lý (một bước); danh sách hóa đơn đã dán bấm được để xem chi tiết như hộp "Chi tiết giao dịch" ở dashboard.
+- **Thành công**: dán mã, bấm một nút là có kết quả phân bổ; mã lỗi được chỉ rõ mà không chặn các mã đúng.
+- **Ngoài phạm vi**: chế độ "Dán dữ liệu" (cột Excel), tab Tạo QR, thuật toán phân bổ và bảng kết quả không đổi.

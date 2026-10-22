@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { PGlite } = require('@electric-sql/pglite');
-const { createDocumentsRepository, foldSearch } = require('./documentsRepository');
+const { createDocumentsRepository } = require('./documentsRepository');
 
 let db;
 let repo;
@@ -61,37 +61,6 @@ test.before(async () => {
 
 test.after(async () => { await db.close(); });
 
-test('listDocuments: hoa don tru Da huy + don dat hang chua len hoa don, moi nhat truoc', async () => {
-  const result = await repo.listDocuments({ branchCodes: ['hanoi'], from: '2026-10-15', to: '2026-10-16' });
-  assert.deepEqual(result.rows.map(r => [r.kind, r.code]), [
-    ['invoice', 'HD028346'], ['invoice', 'HD028345'], ['order', 'DH050000'], ['invoice', 'HD000002']
-  ]);
-  assert.equal(result.total, 4);
-  const hd = result.rows[1];
-  assert.deepEqual([hd.date, hd.note, hd.customerCode, hd.orderCode, hd.lineCount, hd.status], ['16/10/2026 14:54', 'thắng thức 16/10', 'KH005518', 'DH044391', 2, 'Hoàn thành']);
-});
-
-test('listDocuments: loc loai, ngay theo gio VN, tim khach khong dau, phan trang', async () => {
-  const orders = await repo.listDocuments({ branchCodes: ['hanoi'], kind: 'order', from: '2026-10-16', to: '2026-10-16' });
-  assert.deepEqual(orders.rows.map(r => r.code), ['DH050000']);
-  const day15 = await repo.listDocuments({ branchCodes: ['hanoi'], from: '2026-10-15', to: '2026-10-15' });
-  assert.deepEqual(day15.rows.map(r => r.code), []);
-  const search = await repo.listDocuments({ branchCodes: ['hanoi'], from: '2026-10-01', to: '2026-10-31', q: 'dong da' });
-  assert.deepEqual(search.rows.map(r => r.code), ['DH050000']);
-  // Tim gan dung ten khach: 2 tu phai khop ca 2; thieu 1 tu thi khong hien; ma chung tu van khop nguyen van.
-  const range = { branchCodes: ['hanoi'], from: '2026-10-01', to: '2026-10-31' };
-  const fuzzyHit = await repo.listDocuments({ ...range, q: 'thanh phuong' });
-  assert.deepEqual(fuzzyHit.rows.map(r => r.code), ['HD028345']);
-  const fuzzyMiss = await repo.listDocuments({ ...range, q: 'phuong zzz' });
-  assert.equal(fuzzyMiss.total, 0);
-  const byCode = await repo.listDocuments({ ...range, q: 'hd028345' });
-  assert.deepEqual(byCode.rows.map(r => r.code), ['HD028345']);
-  const page2 = await repo.listDocuments({ branchCodes: ['hanoi'], from: '2026-10-01', to: '2026-10-31', page: 2, pageSize: 3 });
-  assert.deepEqual([page2.total, page2.rows.length, page2.page], [4, 1, 2]);
-  await assert.rejects(repo.listDocuments({ branchCodes: ['hanoi'], from: '2026-10-20', to: '2026-10-01' }), /Từ ngày/);
-  await assert.rejects(repo.listDocuments({ branchCodes: [], from: '2026-10-01', to: '2026-10-02' }), /cơ sở/);
-});
-
 test('resolveCodes: tim/thieu/trung 2 co so, canh bao don da xuat hoa don va chung tu huy', async () => {
   const result = await repo.resolveCodes({ branchCodes: ['hanoi', 'saigon'], codes: ['DH044391', 'HD028346', 'HD999999', 'HD028345', 'HD000001', 'DH050001'] });
   assert.deepEqual(result.found.map(f => [f.code, f.selectable, f.warning]), [
@@ -135,18 +104,4 @@ test('readDocumentLines: tu choi chung tu huy, rong, khong ton tai, trung ma 2 c
 test('syncStatus chi lay invoices/orders', async () => {
   const rows = await repo.syncStatus();
   assert.deepEqual(rows.map(r => r.entity), ['invoices', 'orders']);
-});
-
-test('foldSearch bo dau va chu hoa', () => {
-  assert.equal(foldSearch('  Đống ĐA '), 'dong da');
-});
-
-test('listDocuments: sap xep theo cot tren toan bo ket qua; khoa la bi bo qua', async () => {
-  const base = { branchCodes: ['hanoi'], from: '2026-10-15', to: '2026-10-16' };
-  const byTotal = await repo.listDocuments({ ...base, sort: 'lines', dir: 'desc' });
-  assert.deepEqual(byTotal.rows.map(r => r.code), ['HD028345', 'HD028346', 'DH050000', 'HD000002']);
-  const byCode = await repo.listDocuments({ ...base, sort: 'code', dir: 'asc', pageSize: 2, page: 2 });
-  assert.deepEqual(byCode.rows.map(r => r.code), ['HD028345', 'HD028346']);
-  const injected = await repo.listDocuments({ ...base, sort: 'code; DROP TABLE invoices', dir: 'asc' });
-  assert.equal(injected.rows[0].code, 'HD028346', 'khoa la -> mac dinh moi nhat truoc');
 });

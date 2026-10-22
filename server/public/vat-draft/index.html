@@ -14,8 +14,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="/shared/shared.css?v=20261022-1">
-  <link rel="stylesheet" href="/shared/search-clear.css?v=20261009-1">
-  <link rel="stylesheet" href="/vat-draft/vat-draft.css?v=20261019-12">
+  <link rel="stylesheet" href="/shared/detail-panel.css?v=20261016">
+  <link rel="stylesheet" href="/vat-draft/vat-draft.css?v=20261022-1">
   <link rel="stylesheet" href="/shared/table-controls.css?v=20261016-1">
 </head>
 <body>
@@ -83,83 +83,46 @@
         </div>
 
         <div id="vdDocsPane" role="tabpanel" aria-labelledby="vdModeDocs">
-          <p class="vd-hint">Chọn hóa đơn (HD) hoặc đơn đặt hàng chưa xuất hóa đơn (DH) ngay trên web — không cần xuất file từ KiotViet. Dữ liệu đồng bộ khoảng 7 phút/lần, có từ 05/02/2026.</p>
+          <p class="vd-hint">Dán mã hóa đơn (HD…) hoặc đơn đặt hàng chưa xuất hóa đơn (DH…) rồi bấm <strong>Xử lý</strong> — không cần xuất file từ KiotViet. Dữ liệu đồng bộ khoảng 7 phút/lần, có từ 05/02/2026.</p>
           <div class="vd-codes">
-            <label for="vdCodesInput">Dán mã chứng từ (HD…/DH…)</label>
+            <label for="vdCodesInput">Mã chứng từ (HD…/DH…)</label>
             <div class="vd-codes-row">
-              <textarea id="vdCodesInput" rows="2" placeholder="VD: HD028345 HD028344, DH044391"></textarea>
-              <button class="btn-primary" id="vdAddCodes" type="button">Thêm vào danh sách</button>
+              <textarea id="vdCodesInput" rows="3" placeholder="VD: HD028345 HD028344, DH044391" aria-describedby="vdCodesMessage"></textarea>
+              <div class="vd-codes-side">
+                <label>Cơ sở
+                  <select id="vdBranch">
+                    <option value="all">Cả hai cơ sở</option>
+                    <option value="hanoi">Hà Nội</option>
+                    <option value="saigon">Sài Gòn</option>
+                  </select>
+                </label>
+                <button class="btn-primary" id="vdRunCodes" type="button" aria-keyshortcuts="Control+Enter" title="Xử lý (Ctrl + Enter)">Xử lý</button>
+              </div>
             </div>
             <p class="vd-message" id="vdCodesMessage" role="status" aria-live="polite"></p>
           </div>
 
-          <div class="vd-filters tks-table-tools">
-            <label>Loại chứng từ
-              <select id="vdKind">
-                <option value="all">Tất cả</option>
-                <option value="invoice">Hóa đơn (HD)</option>
-                <option value="order">Đặt hàng chưa xuất HĐ (DH)</option>
-              </select>
-            </label>
-            <label>Cơ sở
-              <select id="vdBranch">
-                <option value="all">Cả hai cơ sở</option>
-                <option value="hanoi">Hà Nội</option>
-                <option value="saigon">Sài Gòn</option>
-              </select>
-            </label>
-            <label>Từ ngày <input type="date" id="vdFrom"></label>
-            <label>Đến ngày <input type="date" id="vdTo"></label>
-            <button class="btn-secondary vd-small-btn vd-reset" id="vdResetFilters" type="button">Đặt lại bộ lọc</button>
-            <span class="vd-filters-break" aria-hidden="true"></span>
-            <span class="vd-count" id="vdDocsCount" role="status" aria-live="polite"></span>
-              <label class="table-search-input-wrap">
-                <svg class="vd-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m16 16 4 4"></path></svg>
-                <input class="table-search-input" id="vdSearch" type="search" autocomplete="off" placeholder="Tìm khách hàng, mã khách hoặc mã chứng từ…" aria-label="Tìm khách hàng hoặc mã chứng từ">
-                <button class="table-search-clear" type="button" data-search-clear="vdSearch" aria-label="Xóa tìm kiếm" hidden>×</button>
-              </label>
-              <button class="export-button" id="vdDocsExport" type="button" data-not-export>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file
-              </button>
-
-          </div>
-
-          <div class="vd-scroll" tabindex="0" aria-label="Danh sách chứng từ">
-            <table class="users-table vd-table" data-table-fit="contain" id="vdDocsTable" data-table-key="vatDraftDocuments" data-table-sort="off">
-              <thead>
-                <tr>
-                  <th scope="col" data-column-key="select" data-column-locked="true" data-no-sort data-default-width="44"><input type="checkbox" id="vdSelectPage" aria-label="Chọn tất cả chứng từ trong trang"><span class="vd-sr-only">Chọn</span></th>
-                  <th scope="col" data-column-key="code" data-default-width="100">Mã chứng từ</th>
-                  <th scope="col" data-column-key="kind" data-default-width="80">Loại</th>
-                  <th scope="col" data-column-key="branch" data-default-width="76">Cơ sở</th>
-                  <th scope="col" data-column-key="date" data-default-width="124">Thời gian</th>
-                  <th scope="col" data-column-key="customer" data-default-width="190">Khách hàng</th>
-                  <th scope="col" data-column-key="note" data-default-width="220">Ghi chú tổng</th>
-                  <th scope="col" data-column-key="status" data-default-width="100">Trạng thái</th>
-                  <th scope="col" data-column-key="lines" data-default-width="68">Số dòng</th>
-                  <th scope="col" data-column-key="total" data-default-width="112">Tổng tiền</th>
-                </tr>
-              </thead>
-              <tbody id="vdDocsRows"></tbody>
-            </table>
-          </div>
-          <div class="pagination-controls" id="vdDocsPager">
-            <button id="vdDocsFirst" type="button" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
-            <button id="vdDocsPrev" type="button" aria-label="Trang trước" title="Trang trước">&lt;</button>
-            <span id="vdDocsPage">Trang 1/1</span>
-            <button id="vdDocsNext" type="button" aria-label="Trang sau" title="Trang sau">&gt;</button>
-            <button id="vdDocsLast" type="button" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
-          </div>
-
-          <div class="vd-selected" id="vdSelected">
-            <div class="vd-selected-head">
-              <strong id="vdSelectedCount">Chưa chọn chứng từ nào</strong>
-              <div class="vd-selected-actions">
-                <button class="btn-secondary vd-small-btn" id="vdClearSelection" type="button">Bỏ chọn tất cả</button>
-                <button class="btn-primary" id="vdRunDocs" type="button" disabled>Xử lý chứng từ đã chọn</button>
-              </div>
+          <!-- Hoa don da dan: dung thu tu dan, bam 1 dong mo hop chi tiet (#vdDocModal) -->
+          <div class="vd-doclist" id="vdDocList" hidden>
+            <div class="vd-toolbar tks-table-tools">
+              <h4>Hóa đơn đã dán</h4>
+              <span class="vd-doclist-count" id="vdDocListCount"></span>
             </div>
-            <ul class="vd-chips" id="vdChips" aria-label="Chứng từ đã chọn"></ul>
+            <div class="vd-scroll" tabindex="0" aria-label="Danh sách hóa đơn đã dán">
+              <table class="users-table vd-table" data-table-fit="contain" id="vdDocListTable" data-table-key="vatDraftPasted" data-table-sort="off">
+                <thead>
+                  <tr>
+                    <th scope="col" data-column-key="code" data-default-width="112">Mã chứng từ</th>
+                    <th scope="col" data-column-key="branch" data-default-width="76">Cơ sở</th>
+                    <th scope="col" data-column-key="customer" data-default-width="220">Khách hàng</th>
+                    <th scope="col" data-column-key="date" data-default-width="124">Thời gian</th>
+                    <th scope="col" data-column-key="status" data-default-width="180">Trạng thái</th>
+                    <th scope="col" data-column-key="total" data-default-width="112" class="num">Tổng tiền</th>
+                  </tr>
+                </thead>
+                <tbody id="vdDocListRows"></tbody>
+              </table>
+            </div>
           </div>
         </div>
 
@@ -402,13 +365,25 @@
       </div>
     </div>
   </div>
+  <!-- Hop chi tiet chung tu (giong "Chi tiet giao dich" o dashboard), khung .dp-* o shared/detail-panel.css -->
+  <div class="doc-modal-backdrop" id="vdDocModal" hidden>
+    <section class="doc-modal" role="dialog" aria-modal="true" aria-labelledby="vdDocModalTitle" aria-describedby="vdDocModalSubtitle">
+      <div class="dp-head">
+        <div class="dp-head-text">
+          <h2 class="dp-title" id="vdDocModalTitle">Chi tiết</h2>
+          <p class="dp-subtitle" id="vdDocModalSubtitle"></p>
+        </div>
+        <button class="dp-close" id="vdDocModalClose" type="button" aria-label="Đóng">×</button>
+      </div>
+      <div class="doc-modal-body dp-body" id="vdDocModalBody" aria-live="polite"></div>
+    </section>
+  </div>
   <script src="/shared/table-controls.js?v=20261016-1"></script>
-  <script src="/shared/search-clear.js?v=20261009-1"></script>
   <script src="/shared/dateInput.js?v=20260912"></script>
   <script src="/shared/shared-nav.js?v=20261022-1"></script>
   <script src="/vat-draft/cell-select.js?v=20261017-1"></script>
   <script src="/vat-draft/vnd-words.js?v=20261019-1"></script>
-  <script src="/vat-draft/vat-draft.js?v=20261019-8"></script>
+  <script src="/vat-draft/vat-draft.js?v=20261022-1"></script>
   <script>window.addEventListener('DOMContentLoaded', function () { TKSVatDraft.init(); });</script>
   <script src="/shared/shooting-star.js?v=20261019"></script>
 </body>
