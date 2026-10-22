@@ -2,7 +2,7 @@
 
 22/10/2026 — `hr_employees.insurance_number TEXT NOT NULL DEFAULT ''` (migration `0078_hr_employee_insurance_number.sql`), unique index trên số không rỗng của hồ sơ chưa xóa mềm; chỉ quyền `hr.employees.manage` nhận từ API/Excel. Server áp riêng migration này trước khi nhận request, có advisory lock cho nhiều instance và không chạy migration khác đang chờ.
 
-Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0079`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
+Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0080`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
 
 ## Quy ước chung
 
@@ -622,3 +622,7 @@ Cập nhật: 21/10/2026.
 `0079_vat_request_sort_rank.sql` thêm `vat_requests.sort_rank NUMERIC NOT NULL` (mặc định = mili-giây hiện tại `extract(epoch FROM clock_timestamp()) * 1000`, nên yêu cầu mới tự lên đầu) và index `(sort_rank DESC, id DESC) WHERE NOT is_deleted`. Backfill giữ nguyên thứ tự cũ: `COALESCE(epoch(created_at) * 1000, 0) + id * 1e-9` (dòng import thiếu thời gian nằm cuối). Chỉ thêm cột, idempotent, không đổi quyền `reporting_readonly`. Danh sách ORDER VAT xếp `sort_rank DESC, id DESC`; KT kéo dòng chỉ đổi `sort_rank` của 1 dòng thành trung điểm với dòng kề (`* 0.5`, NUMERIC không làm tròn) — không tăng `version`, không ghi `vat_request_history`. Code chịu được DB chưa áp (bắt `42703`: xếp theo `created_at`, ẩn tay nắm kéo).
 
 Thứ tự triển khai: deploy được trước khi áp (thứ tự như cũ, không có tay nắm kéo); áp `0079` bằng `npm run db:migrate` khi được duyệt, sau đó tải lại trang.
+
+## ORDER VAT: con trỏ thông báo sale — migration 0080 (22/10/2026, CHƯA áp DB dùng chung)
+
+`0080_vat_request_notice_state.sql`: bảng `vat_request_notice_state(sale_id TEXT PK, last_history_id BIGINT NOT NULL, updated_at)` — con trỏ id lịch sử đã xét của từng sale; dòng mốc `sale_id='*'` = `max(vat_request_history.id)` lúc áp để không báo lại các lần sửa cũ. Chỉ thêm bảng, idempotent, thu hồi quyền `reporting_readonly`. Dùng bởi `server/vatRequests/saleNotifier.js`. Chưa áp thì job gặp `42P01`, ghi log một lần và bỏ qua; web chạy bình thường.

@@ -9,6 +9,8 @@ Mọi bảng trên web và trong file HTML xuất ra có nút **Cột hiển th�
 
 ## Kiến trúc hiện tại
 
+**Cập nhật 22/10/2026 — ORDER VAT: thông báo chuông cho sale sau khi kế toán sửa (nhánh `feat/vat-request-sale-notify`, chưa merge/deploy; migration `0080` chưa áp DB):** sale nhận 1 thông báo chuông tóm tắt ~10 phút sau khi kế toán ngừng sửa yêu cầu của họ. Xem [kế hoạch](docs/superpowers/plans/2026-10-22-order-vat-sale-notify.md).
+
 **Cập nhật 22/10/2026 — ORDER VAT giữ dòng vừa sửa, lọc nhiều trạng thái, Ctrl+Z / Ctrl+Y, bỏ thanh hàng loạt (nhánh `feat/vat-request-filters-undo`, chưa merge/deploy, không migration):** dòng vừa đổi trạng thái không còn biến mất khỏi bảng đang lọc; chip trạng thái chọn nhiều; Ctrl+Z / Ctrl+Y hoàn tác / làm lại nhiều bước kèm thông báo nổi; bỏ thanh "N dòng đã chọn".
 
 **Cập nhật 22/10/2026 — ORDER VAT kéo dòng đổi thứ tự ưu tiên chung (nhánh `feat/vat-request-row-order`, chưa merge/deploy; migration `0079` chưa áp DB):** KT kéo tay nắm ⋮⋮ ở đầu dòng để xếp thứ tự ưu tiên, lưu chung cho mọi người, yêu cầu mới tự lên đầu; Excel xuất theo thứ tự này. Xem [kế hoạch](docs/superpowers/plans/2026-10-22-order-vat-row-order.md).
@@ -81,6 +83,7 @@ Mở `http://localhost:3000`.
 | `HR_MANAGER_TELEGRAM_SCAN_INTERVAL_MS` | Chu kỳ quét đơn/sự kiện trong Postgres; mặc định `5000` ms (giới hạn 1.000–60.000) |
 | `HR_LEAVE_DB_REALTIME_ENABLED` | Cầu thay đổi Postgres → SSE của HR, mặc định `true`, độc lập với công tắc bot |
 | `SPECIAL_DAYS_NOTIFY_ENABLED` | Báo ngày lễ/sinh nhật lên chuông thông báo; mặc định `true`, `false` để tắt |
+| `VAT_REQUEST_NOTIFY_ENABLED` | Báo chuông cho sale ~10 phút sau khi kế toán ngừng sửa yêu cầu ORDER VAT của họ; mặc định `true`, `false` để tắt (cần migration `0080`) |
 | `BACKGROUND_JOBS` | `inline` (mặc định): job nền chạy chung web; `worker`: web chỉ nghe sự kiện, job chạy ở `npm run worker` (`worker.js`) |
 | `INVOICE_PRICE_AUDIT_ENABLED` | Bật job 23:00 (giờ Việt Nam) của **Kiểm tra giá bán**: chụp hóa đơn chưa quét trong cửa sổ 7 ngày và đối chiếu giá min; mặc định `false`. Rollout: áp migration `0077` → deploy khi còn `false` → chạy tay lần đầu `npm run invoices:price-audit -- --date <hôm nay> --apply` → mới bật `true` |
 | `DASHBOARD_PREWARM` | Nạp sẵn cache nguồn lúc khởi động; mặc định bật, `false` để tắt |
@@ -402,3 +405,7 @@ Chọn dòng kiểu đầu dòng Google Sheet: bấm tay nắm ⋮⋮ chọn c�
 ### Cập nhật 22/10/2026 — ORDER VAT giữ dòng vừa sửa, lọc nhiều trạng thái, Ctrl+Z / Ctrl+Y, bỏ thanh hàng loạt
 
 (1) Bỏ thanh "N dòng đã chọn / Áp dụng" (ô tick vẫn giữ để chọn dòng khi kéo đổi thứ tự; sửa nhiều dòng bằng kéo chấm / dán). (2) Dòng KT vừa sửa (sửa ô, kéo chấm, dán, Delete, hoàn tác) ở lại bảng đúng chỗ dù không còn khớp bộ lọc: giao diện gửi `keep=id,…` khi tải danh sách, máy chủ trả các dòng đó kèm theo; bỏ khi bấm chip, đổi Sale, đổi ngày, bấm tải lại ⟳ hoặc F5 (tìm kiếm / sắp xếp / chuyển trang vẫn giữ; file Excel không áp `keep`). (3) Chip trạng thái chọn nhiều cái cùng lúc; "Cần xử lý" và "Tất cả" chỉ chọn một mình; tắt hết → "Tất cả". (4) Hoàn tác / làm lại nhiều bước (tối đa 20, mất khi tải lại trang): Ctrl+Z, Ctrl+Y / Ctrl+Shift+Z cho mọi thay đổi của KT — sửa 1 ô, kéo chấm, dán, Delete, kéo dòng; thông báo nổi góc dưới màn hình kèm nút Hoàn tác / Làm lại (tự ẩn sau 8 giây). Đang gõ trong ô sửa thì Ctrl+Z là của ô nhập.
+
+### Cập nhật 22/10/2026 — ORDER VAT: thông báo chuông cho sale sau khi kế toán sửa
+
+Kế toán sửa KT phản hồi / KT note / Ngày về trên yêu cầu của một sale; khi kế toán ngừng sửa yêu cầu của sale đó đủ 10 phút (mỗi lần sửa thêm đếm lại), sale nhận 1 thông báo chuông tóm tắt cả đợt với giá trị cuối cùng, bấm vào mở ORDER VAT. Sửa rồi hoàn tác về như cũ thì không báo. Cần migration `0080`; bật / tắt bằng `VAT_REQUEST_NOTIFY_ENABLED`.
