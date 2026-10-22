@@ -3895,8 +3895,8 @@
                       <tr>
                         <th style="width:120px" data-column-key="ma-sp">Mã sản phẩm</th>
                         <th style="width:260px" data-column-key="ten-sp">Tên sản phẩm</th>
-                        <th style="width:100px" data-column-key="da-boc" data-hint="Hàng dự kiến đã bốc (CONT trạng thái 3), toàn công ty.">Đã bốc</th>
                         <th style="width:100px" data-column-key="chua-boc" data-hint="Hàng dự kiến chưa bốc (CONT trạng thái 1 và 2), toàn công ty.">Chưa bốc</th>
+                        <th style="width:100px" data-column-key="da-boc" data-hint="Hàng dự kiến đã bốc (CONT trạng thái 3), toàn công ty.">Đã bốc</th>
                         <th style="width:135px" data-column-key="gia-tri-co-ban-hn" data-price-column data-hint="Giá trị có bán HN = Có bán HN × Đơn giá HN (chỉ Quản lý và Trợ lý thấy).">Giá trị có bán HN</th>
                         <th style="width:125px" data-column-key="sl-ban-30-ngay-hn" data-hint="Số lượng bán 30 ngày gần nhất (tính đến hết hôm qua) tại Hà Nội.">SL bán 30 ngày HN</th>
                         <th style="width:105px" data-column-key="ton-thuc-hn">Tồn thực HN</th>
@@ -7712,7 +7712,7 @@
       return '<tr class="doc-row" tabindex="0" title="Bấm để xem doanh số theo khách" data-table-item-id="' + code + '">' +
         '<td class="mono muted">' + code + '</td>' +
         '<td class="name-cell">' + escapeHtml(p.name) + '</td>' +
-        productContainerQuantityCell(p.loadedQty) + productContainerQuantityCell(p.unloadedQty) +
+        productContainerQuantityCell(p.unloadedQty) + productContainerQuantityCell(p.loadedQty) +
         productReportNullableCell(p.availableValueHanoi, fmtTableMoney) +
         productReportNullableCell(p.qtySold30dHanoi, fmtNumber) +
         '<td class="mono" data-sort-value="' + p.stockHanoi + '">' + fmtNumber(p.stockHanoi) + '</td>' +

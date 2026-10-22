@@ -89,7 +89,7 @@ const modalText = page => page.$('docModalBody').textContent.replace(/\s+/g, ' '
 
 // 35 cột theo thứ tự sheet BC CHUNG: [data-column-key, nhãn trên tiêu đề]. Thứ tự này = thứ tự file Excel (PRODUCT_REPORT_COLUMNS ở exportService.js).
 const COLUMNS = [
-  ['ma-sp', 'Mã sản phẩm'], ['ten-sp', 'Tên sản phẩm'], ['da-boc', 'Đã bốc'], ['chua-boc', 'Chưa bốc'], ['gia-tri-co-ban-hn', 'Giá trị có bán HN'], ['sl-ban-30-ngay-hn', 'SL bán 30 ngày HN'],
+  ['ma-sp', 'Mã sản phẩm'], ['ten-sp', 'Tên sản phẩm'], ['chua-boc', 'Chưa bốc'], ['da-boc', 'Đã bốc'], ['gia-tri-co-ban-hn', 'Giá trị có bán HN'], ['sl-ban-30-ngay-hn', 'SL bán 30 ngày HN'],
   ['ton-thuc-hn', 'Tồn thực HN'], ['co-ban-hn', 'Có bán HN'], ['yc-dieu-chuyen', 'YC điều chuyển'], ['dieu-chuyen-sg', 'Điều chuyển SG'], ['ton-thuc-sg', 'Tồn thực SG'],
   ['co-ban-sg', 'Có bán SG'], ['sl-ban-30-ngay-sg', 'SL bán 30 ngày SG'], ['gia-tri-co-ban-sg', 'Giá trị có bán SG'],
   ['tong-ton-thuc', 'Tổng tồn thực + ĐC'], ['tong-co-ban', 'Tổng có bán + ĐC'], ['sl-ban-30-ngay', 'SL bán 30 ngày'],
