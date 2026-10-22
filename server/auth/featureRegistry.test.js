@@ -298,8 +298,9 @@ test('absence permission defaults to managers and self submission follows active
 
 
 
-test('active account with inactive linked HR profile cannot get self submission capability', () => {
-  assert.ok(!registry.resolvePermissions({ vaiTro: ROLES.NHAN_VIEN_SALE, hrManaged: true, hrRowIndex: 123, trangThai: 'Đang hoạt động', hrEmployeeActive: false }).includes('hr.leave.submit'));
+test('tự xin nghỉ chỉ theo trạng thái tài khoản: tài khoản đang hoạt động được gửi, tài khoản khóa thì không', () => {
+  assert.ok(registry.resolvePermissions({ vaiTro: ROLES.NHAN_VIEN_SALE, hrManaged: true, hrRowIndex: 123, trangThai: 'Đang hoạt động' }).includes('hr.leave.submit'));
+  assert.ok(!registry.resolvePermissions({ vaiTro: ROLES.NHAN_VIEN_SALE, hrManaged: true, hrRowIndex: 123, trangThai: 'Khóa' }).includes('hr.leave.submit'));
 });
 
 test('reports.products.cost da go cung tab Hang hoa cu: khong con trong registry, quyen ghi de cu bi bo qua', () => {

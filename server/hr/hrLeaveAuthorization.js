@@ -11,7 +11,7 @@ const { normalizeCoSo, BRANCHES, BRANCH_BOTH, branchCodeToLabel } = require('../
 const BRANCHES_ALL = [BRANCHES.HANOI, BRANCHES.SAIGON];
 
 function isActiveApprover(user) {
-  return !!(user && user.id && !user.isDeleted && user.trangThai === ACTIVE_STATUS && user.hrEmployeeActive !== false && hasFeature(user,'hr.leave.manage'));
+  return !!(user && user.id && !user.isDeleted && user.trangThai === ACTIVE_STATUS && hasFeature(user,'hr.leave.manage'));
 }
 function matchesApprovalScope(user, request) {
   if (!isActiveApprover(user) || !request) return false;

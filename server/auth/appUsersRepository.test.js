@@ -40,8 +40,8 @@ test('department catalogue includes inactive HR, saved grants and historical req
   assert.match(query, /unnest\(leave_approval_departments\)/);
 });
 
-test('rowToUser reports linked HR activity separately from account status', () => {
-  assert.equal(rowToUser({ id: 'inactive-hr', hr_employee_id: 123, hr_employee_active: false, trang_thai: 'Đang hoạt động' }).hrEmployeeActive, false);
+test('rowToUser không còn mang trạng thái hồ sơ HR: quyền chỉ theo trạng thái tài khoản', () => {
+  assert.equal('hrEmployeeActive' in rowToUser({ id: 'inactive-hr', hr_employee_id: 123, hr_employee_active: false, trang_thai: 'Đang hoạt động' }), false);
 });
 
 test('selectFingerprint: băm toàn bộ snapshot trong SQL, chỉ trả 1 dòng (không kéo danh sách tài khoản về)', async () => {

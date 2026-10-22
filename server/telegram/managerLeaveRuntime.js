@@ -26,12 +26,11 @@ function validateManagerTelegramConfig(config) {
 }
 
 async function resolveManagerFromDb(telegramId) {
-  const { rows } = await getPool().query(`SELECT u.*, e.branch AS hr_branch, e.bo_phan AS hr_bo_phan, e.is_active AS hr_employee_active FROM app_users u
-    LEFT JOIN hr_employees e ON e.id = u.hr_employee_id
+  const { rows } = await getPool().query(`SELECT u.* FROM app_users u
     WHERE u.telegram_id = $1 AND NOT u.is_deleted`, [String(telegramId)]);
   if (!rows[0]) return null;
-  // Bot scope is the manager's assigned DB branch, independent of the web's
-  // HR-derived "Cả hai" default. Never mutate accounts while authorizing a bot.
+  // Quyền duyệt chỉ đọc app_users như web; HR nghỉ việc thì khóa tài khoản.
+  // Never mutate accounts while authorizing a bot.
   const user = appUsers.rowToUser(rows[0]);
   return isEligibleManager(user, telegramId) ? user : null;
 }

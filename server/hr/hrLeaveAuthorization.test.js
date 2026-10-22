@@ -29,3 +29,7 @@ test('authorization reloads current account before every action and refuses revo
  current={...STAFF,username:'renamed',trangThai:'Khóa'};
  await assert.rejects(authorization.authorize(STAFF,REQUEST),e=>e.statusCode===403);
 });
+test('quyền duyệt chỉ theo trạng thái tài khoản, không đọc hồ sơ HR',()=>{
+ assert.equal(isActiveApprover({...STAFF,hrEmployeeActive:false}),true);
+ assert.equal(isActiveApprover({...STAFF,trangThai:'Khóa'}),false);
+});

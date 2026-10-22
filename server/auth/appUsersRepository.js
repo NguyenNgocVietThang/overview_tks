@@ -68,7 +68,6 @@ function rowToUser(row) {
     // Bộ phận/Cơ sở công tác thuộc tài khoản. Không suy ra từ hồ sơ nhân sự.
     boPhan: row.bo_phan || '',
     workCoSo: coSoFromDb(row.work_branch),
-    hrEmployeeActive: row.hr_employee_id == null || row.hr_employee_active === undefined ? undefined : !!row.hr_employee_active,
     leaveApprovalDepartments: normalizeDepartments(row.leave_approval_departments || []),
     trangThai: row.trang_thai || '',
     ngayTao: row.ngay_tao || '',

@@ -635,4 +635,5 @@ Thứ tự triển khai: deploy được trước khi áp (thứ tự như cũ, 
   - giờ bắt đầu: `hr_leave_work_schedules` theo `user_id` + `start_date`, mặc định 07:45/12:30; chuẩn hóa buổi, hạn nộp, `timing_status`, `submission_revision`, lịch sử như 0038/0042.
   - Sửa đơn: định danh và `hr_employee_id` giữ nguyên (lịch sử), tính lại theo lịch của tài khoản.
 - `hr_leave_department_snapshot()` dự phòng đọc `app_users.bo_phan`.
+- Quyền duyệt (web và bot Telegram) và quyền tự xin nghỉ chỉ xét trạng thái tài khoản `app_users`, không còn đọc `hr_employees.is_active` (22/10/2026). HR chuyển nghỉ việc thì khóa tài khoản liên kết; admin cấp cao, quản lý được bảo vệ và chính người thao tác không bị tự khóa nên phải khóa tay.
 - Thứ tự triển khai: deploy code nhánh → áp 0080 → 0081 (code mới vẫn đọc được trước khi áp vì các cột mới có mặc định; trigger cũ vẫn chạy cho tới khi áp 0081).

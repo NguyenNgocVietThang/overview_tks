@@ -241,7 +241,7 @@ function resolvePermissions(user) {
 // Moi tai khoan noi bo (tru Khach) deu duoc tu gui don nghi (chua gan ho so thi dung gio mac dinh, xem migration 0042);
 // khong doi hrManaged (co dong bo vai tro tu danh sach nhan su) vi viec do khong lien quan quyen xin nghi.
 function canSubmitOwnLeave(user) {
-  return !!(user && user.vaiTro !== ROLES.KHACH && user.trangThai === 'Đang hoạt động' && !user.isDeleted && !user.hrVerificationRequired && user.hrEmployeeActive !== false);
+  return !!(user && user.vaiTro !== ROLES.KHACH && user.trangThai === 'Đang hoạt động' && !user.isDeleted && !user.hrVerificationRequired);
 }
 
 /** Quyen tu dong theo tai khoan (dynamic): khong phai thu de cap cho nguoi khac, nen khong tinh vao luat chong nang quyen. */
