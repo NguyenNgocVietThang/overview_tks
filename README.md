@@ -1,7 +1,7 @@
 <!-- Chính sách hiện hành: mục 16/10/2026 — Tập Pancake độc lập ở cuối tài liệu. Các mốc cũ giữ làm lịch sử. -->
 # TOKOSI Dashboard
 
-22/10/2026 — Quản lý có thể xuất Danh sách nhân sự kèm ID, điền Số bảo hiểm và nhập lại theo ID. Cần áp migration bảo hiểm trước khi triển khai code.
+22/10/2026 — Quản lý có thể xuất Danh sách nhân sự kèm ID, điền Số bảo hiểm và nhập lại theo ID. Khi server khởi động với DB đã cấu hình, nó tự áp riêng migration bảo hiểm trước khi nhận request; nếu migration lỗi, bản mới không khởi động. Chưa xác nhận migration trên DB production.
 
 Dashboard nội bộ cho hai cơ sở Hà Nội và Sài Gòn.
 
