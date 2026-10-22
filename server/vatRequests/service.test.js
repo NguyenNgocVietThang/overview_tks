@@ -458,11 +458,11 @@ test('KT keo dong: dong moi len dau; keo len giua / len dau / xuong cuoi; sale b
     assert.deepEqual(await order(), [d, c, b, a], 'mac dinh moi nhat truoc');
     assert.equal((await service.list(KT)).rowOrder, true);
 
-    await service.move(KT, a, { belowId: c }); // a len ngay tren c
+    await service.move(KT, { ids: [a], belowId: c }); // a len ngay tren c
     assert.deepEqual(await order(), [d, a, c, b]);
-    await service.move(KT, b, { belowId: d }); // b len dau
+    await service.move(KT, { ids: [b], belowId: d }); // b len dau
     assert.deepEqual(await order(), [b, d, a, c]);
-    await service.move(KT, d, { aboveId: c }); // d xuong cuoi
+    await service.move(KT, { ids: [d], aboveId: c }); // d xuong cuoi
     assert.deepEqual(await order(), [b, a, c, d]);
     assert.deepEqual(await order(SALE), [b, a, c, d], 'thu tu chung cho moi nguoi');
 
@@ -472,14 +472,14 @@ test('KT keo dong: dong moi len dau; keo len giua / len dau / xuong cuoi; sale b
     assert.equal((await service.get(KT, a)).version, 1, 'keo dong khong doi version');
     assert.deepEqual((await service.history(KT, a)).map(h => h.action), ['create']);
 
-    await assert.rejects(service.move(SALE, a, { belowId: b }), { statusCode: 403 });
-    await assert.rejects(service.move(KT_UNGRANTED, a, { belowId: b }), { statusCode: 403 });
-    await assert.rejects(service.move(KT, a, {}), { statusCode: 400 });
-    await assert.rejects(service.move(KT, a, { belowId: b, aboveId: c }), { statusCode: 400 });
-    await assert.rejects(service.move(KT, a, { belowId: a }), { statusCode: 400 });
-    await assert.rejects(service.move(KT, a, { belowId: 999 }), { statusCode: 404 });
+    await assert.rejects(service.move(SALE, { ids: [a], belowId: b }), { statusCode: 403 });
+    await assert.rejects(service.move(KT_UNGRANTED, { ids: [a], belowId: b }), { statusCode: 403 });
+    await assert.rejects(service.move(KT, { ids: [a] }), { statusCode: 400 });
+    await assert.rejects(service.move(KT, { ids: [a], belowId: b, aboveId: c }), { statusCode: 400 });
+    await assert.rejects(service.move(KT, { ids: [a], belowId: a }), { statusCode: 400 });
+    await assert.rejects(service.move(KT, { ids: [a], belowId: 999 }), { statusCode: 404 });
     await service.remove(SALE, c, 1);
-    await assert.rejects(service.move(KT, a, { aboveId: c }), { statusCode: 404, code: 'NOT_FOUND' });
+    await assert.rejects(service.move(KT, { ids: [a], aboveId: c }), { statusCode: 404, code: 'NOT_FOUND' });
   } finally { await db.close(); }
 });
 
@@ -489,7 +489,7 @@ test('keo 30 lan vao cung 1 khe van dung thu tu (trung diem khong trung); Excel 
     const ids = [];
     for (let i = 0; i < 32; i++) ids.push((await service.create(SALE, NEW_REQUEST)).id);
     // Dang hien moi nhat truoc: ids[31] ... ids[0]. Lan luot dua ids[0..29] vao ngay tren ids[30] (sat duoi ids[31]).
-    for (let i = 0; i < 30; i++) await service.move(KT, ids[i], { belowId: ids[30] });
+    for (let i = 0; i < 30; i++) await service.move(KT, { ids: [ids[i]], belowId: ids[30] });
     const rows = (await service.list(KT)).rows.map(r => r.id);
     assert.deepEqual(rows, [ids[31], ...ids.slice(0, 30), ids[30]]);
     assert.deepEqual((await service.exportList(KT)).rows.map(r => r.id), rows);
@@ -504,6 +504,39 @@ test('chua ap migration 0079: danh sach xep theo thoi gian tao, rowOrder=false, 
     const data = await service.list(KT);
     assert.equal(data.rowOrder, false);
     assert.deepEqual(data.rows.map(r => r.id), [b.id, a.id]);
-    await assert.rejects(service.move(KT, a.id, { belowId: b.id }), { statusCode: 409, code: 'ROW_ORDER_UNAVAILABLE' });
+    await assert.rejects(service.move(KT, { ids: [a.id], belowId: b.id }), { statusCode: 409, code: 'ROW_ORDER_UNAVAILABLE' });
+  } finally { await db.close(); }
+});
+
+test('KT keo nhieu dong 1 lan: dong roi nhau gom thanh 1 khoi tai cho tha, giu thu tu ids; keo lap lai cung khe van dung', async () => {
+  const { db, service } = await fixture();
+  try {
+    const ids = [];
+    for (let i = 0; i < 8; i++) ids.push((await service.create(SALE, NEW_REQUEST)).id);
+    const order = async () => (await service.list(KT)).rows.map(r => r.id);
+    const shown = await order(); // moi nhat truoc
+    assert.deepEqual(shown, ids.slice().reverse());
+    const [r0, r1, r2, r3, r4, r5, r6, r7] = shown;
+    // Chon 3 dong roi nhau (r1, r4, r6) keo len ngay tren r0 (dau bang)
+    await service.move(KT, { ids: [r1, r4, r6], belowId: r0 });
+    assert.deepEqual(await order(), [r1, r4, r6, r0, r2, r3, r5, r7]);
+    // Keo khoi (r0, r2) xuong cuoi
+    await service.move(KT, { ids: [r0, r2], aboveId: r7 });
+    assert.deepEqual(await order(), [r1, r4, r6, r3, r5, r7, r0, r2]);
+    // 25 lan dua khoi 3 dong vao cung 1 khe giua r1 va r4 -> chia khe chinh xac, khong trung hang
+    for (let i = 0; i < 25; i++) {
+      const group = i % 2 ? [r6, r3, r5] : [r3, r5, r6];
+      await service.move(KT, { ids: group, belowId: r4 });
+    }
+    assert.deepEqual(await order(), [r1, r3, r5, r6, r4, r7, r0, r2]);
+    const { rows } = await db.query('SELECT count(DISTINCT sort_rank)::int AS n, count(*)::int AS total FROM vat_requests');
+    assert.equal(rows[0].n, rows[0].total, 'khong co 2 dong trung hang');
+
+    await assert.rejects(service.move(KT, { ids: [], belowId: r0 }), { statusCode: 400 });
+    await assert.rejects(service.move(KT, { ids: [r1, r1], belowId: r0 }), { statusCode: 400 });
+    await assert.rejects(service.move(KT, { ids: [r1, r0], belowId: r0 }), { statusCode: 400, code: 'VALIDATION' });
+    await assert.rejects(service.move(KT, { ids: Array.from({ length: 501 }, (_, i) => i + 1000), belowId: r0 }), { statusCode: 400 });
+    await assert.rejects(service.move(KT, { ids: [r1, 99999], belowId: r0 }), { statusCode: 404 });
+    assert.deepEqual((await order()).slice(0, 2), [r1, r3], '404 khong doi gi (huy ca lo)');
   } finally { await db.close(); }
 });

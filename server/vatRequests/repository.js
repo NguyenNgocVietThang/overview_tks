@@ -77,31 +77,43 @@ async function getRequest(db, id, { forUpdate = false } = {}) {
   return rows[0] || null;
 }
 
+/** k / 2^m dang chuoi thap phan CHINH XAC (= k * 5^m / 10^m) — numeric nhan giu du chu so, chia thi lam tron. */
+function exactFraction(k, m) {
+  return `0.${(BigInt(k) * 5n ** BigInt(m)).toString().padStart(m, '0')}`;
+}
+
 /**
- * Doi thu tu 1 dong (danh sach xep sort_rank DESC): `belowId` -> dat ngay TREN dong do, khong co thi
- * `aboveId` -> dat ngay DUOI dong do. Hang moi = trung diem voi dong ke that su trong DB (bo qua chinh
- * dong dang keo), het dong ke thi +/- 1. Tra 'moved' | 'missing' (dong / dong ke khong con).
+ * Doi thu tu nhom dong (danh sach xep sort_rank DESC). `ids` theo thu tu tren xuong muon co; `belowId` ->
+ * ca nhom nam ngay TREN dong do, khong co thi `aboveId` -> ngay DUOI dong do. Nhom chia deu khe (low, high)
+ * giua dong ke va dong ke tiep that su trong DB (bo qua cac dong trong nhom): hang = low + (high - low) * k / 2^m
+ * voi 2^m > so dong, k giam dan tu tren xuong. Het dong ke thi khe la +/- 1.
+ * Tra 'moved' | 'missing' (1 dong trong nhom / dong ke khong con).
  */
-async function moveRequest(client, id, { aboveId = null, belowId = null }) {
+async function moveRequests(client, ids, { aboveId = null, belowId = null }) {
   const neighborId = belowId || aboveId;
   const { rows } = await client.query(
     `SELECT id, sort_rank FROM vat_requests WHERE id = ANY($1::bigint[]) AND NOT is_deleted ORDER BY id FOR UPDATE`,
-    [[id, neighborId]]
+    [[...ids, neighborId]]
   );
-  const self = rows.find(row => Number(row.id) === id);
+  if (rows.length !== ids.length + 1) return 'missing';
   const neighbor = rows.find(row => Number(row.id) === neighborId);
-  if (!self || !neighbor) return 'missing';
   const next = await client.query(
     belowId
-      ? `SELECT min(sort_rank) AS rank FROM vat_requests WHERE NOT is_deleted AND id <> $1 AND sort_rank > $2`
-      : `SELECT max(sort_rank) AS rank FROM vat_requests WHERE NOT is_deleted AND id <> $1 AND sort_rank < $2`,
-    [id, neighbor.sort_rank]
+      ? `SELECT min(sort_rank) AS rank FROM vat_requests WHERE NOT is_deleted AND id <> ALL($1::bigint[]) AND sort_rank > $2`
+      : `SELECT max(sort_rank) AS rank FROM vat_requests WHERE NOT is_deleted AND id <> ALL($1::bigint[]) AND sort_rank < $2`,
+    [ids, neighbor.sort_rank]
   );
   const edge = next.rows[0].rank;
-  await client.query(
-    `UPDATE vat_requests SET sort_rank = ${edge === null ? `$2::numeric ${belowId ? '+' : '-'} 1` : '($2::numeric + $3::numeric) * 0.5'} WHERE id = $1`, // * 0.5 (khong / 2): numeric nhan giu du chu so, chia thi lam tron
-    edge === null ? [id, neighbor.sort_rank] : [id, neighbor.sort_rank, edge]
-  );
+  const [low, high] = belowId ? [neighbor.sort_rank, edge] : [edge, neighbor.sort_rank];
+  const bits = ids.length.toString(2).length; // 2^bits > so dong
+  for (let i = 0; i < ids.length; i++) {
+    await client.query(
+      `UPDATE vat_requests SET sort_rank = COALESCE($2::numeric, $3::numeric - 1)
+         + (COALESCE($3::numeric, $2::numeric + 1) - COALESCE($2::numeric, $3::numeric - 1)) * $4::numeric
+       WHERE id = $1`,
+      [ids[i], low, high, exactFraction(ids.length - i, bits)]
+    );
+  }
   return 'moved';
 }
 
@@ -260,7 +272,7 @@ module.exports = {
   withTransaction,
   listRequests,
   getRequest,
-  moveRequest,
+  moveRequests,
   insertRequest,
   updateRequest,
   insertHistory,

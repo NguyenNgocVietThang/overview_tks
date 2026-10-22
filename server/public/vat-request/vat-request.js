@@ -139,7 +139,7 @@
       case 'select': {
         const box = `<input type="checkbox" data-select="${row.id}" aria-label="Chọn yêu cầu ${row.id}"${state.selected.has(row.id) ? ' checked' : ''}>`;
         if (!canDragRows()) return box;
-        const grip = `<button type="button" class="vr-row-grip" data-row-drag="${row.id}" aria-label="Kéo để đổi thứ tự yêu cầu #${row.id}" title="Kéo để đổi thứ tự (Alt+↑ / Alt+↓)"><svg viewBox="0 0 10 16" width="8" height="14" fill="currentColor" aria-hidden="true"><circle cx="2" cy="3" r="1.4"/><circle cx="8" cy="3" r="1.4"/><circle cx="2" cy="8" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="2" cy="13" r="1.4"/><circle cx="8" cy="13" r="1.4"/></svg></button>`;
+        const grip = `<button type="button" class="vr-row-grip" data-row-drag="${row.id}" aria-label="Kéo để đổi thứ tự yêu cầu #${row.id}" title="Bấm để chọn dòng (Shift / Ctrl để chọn nhiều), kéo để đổi thứ tự; Alt+↑ / Alt+↓ dời 1 dòng"><svg viewBox="0 0 10 16" width="8" height="14" fill="currentColor" aria-hidden="true"><circle cx="2" cy="3" r="1.4"/><circle cx="8" cy="3" r="1.4"/><circle cx="2" cy="8" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="2" cy="13" r="1.4"/><circle cx="8" cy="13" r="1.4"/></svg></button>`;
         return `<span class="vr-select-cell">${grip}${box}</span>`;
       }
       case 'createdAt': return escapeHtml(fmtDateTime(row.createdAt));
@@ -182,7 +182,7 @@
   }
 
   function rowHtml(row, cols) {
-    const classes = [row.isLockedForSale ? 'is-locked' : '', row.isMine ? 'is-mine' : ''].filter(Boolean).join(' ');
+    const classes = [row.isLockedForSale ? 'is-locked' : '', row.isMine ? 'is-mine' : '', state.canProcess && state.selected.has(row.id) ? 'is-picked' : ''].filter(Boolean).join(' ');
     const cellClass = col => [col.num ? 'num' : '', col.num || col.nowrap ? 'vr-nowrap' : ''].filter(Boolean).join(' ');
     const editable = col => (isGridEditable(col.key) ? ' data-editable="true" title="Nháy đúp hoặc Enter để sửa; kéo chấm góc để nhân bản"' : '');
     return `<tr data-id="${row.id}" tabindex="0"${classes ? ` class="${classes}"` : ''} title="Nháy đúp để ${row.canEditSale ? 'sửa' : 'xem lịch sử'}">` +
@@ -197,33 +197,39 @@
     return state.canProcess && state.rowOrder && !state.sortKey && !state.groupByProduct && !searching && !(coarsePointer && coarsePointer.matches);
   }
 
-  /** Dời dòng `id` vào vị trí mới: `below` = id dòng nằm ngay dưới, không có thì `above` = dòng ngay trên. */
-  async function moveRow(id, { below = null, above = null }) {
-    const moving = state.rows.find(r => r.id === id);
-    if (!moving || (!below && !above)) return;
+  function pageRowIds() { return [...$('vrRows').querySelectorAll('tr[data-id]')].map(tr => Number(tr.dataset.id)); }
+
+  /**
+   * Dời nhóm dòng `ids` (thứ tự trên -> dưới) thành 1 khối: `below` = id dòng nằm ngay dưới khối,
+   * không có thì `above` = dòng ngay trên. Dòng rời nhau được gom lại, giữ thứ tự giữa chúng.
+   */
+  async function moveRows(ids, { below = null, above = null }) {
+    const group = new Set(ids);
+    const moving = ids.map(id => state.rows.find(r => r.id === id)).filter(Boolean);
+    if (!moving.length || (!below && !above)) return;
     // Dời ngay trên màn hình (lạc quan), lỗi thì nạp lại.
-    const rest = state.rows.filter(r => r.id !== id);
+    const rest = state.rows.filter(r => !group.has(r.id));
     const anchor = rest.findIndex(r => r.id === (below || above));
     if (anchor < 0) return;
-    rest.splice(below ? anchor : anchor + 1, 0, moving);
+    rest.splice(below ? anchor : anchor + 1, 0, ...moving);
     state.rows = rest;
     render();
     try {
-      await api(`/${id}/position`, { method: 'PATCH', body: below ? { belowId: below } : { aboveId: above } });
-      setStatus(`Đã chuyển yêu cầu #${id}.`, 'ok');
+      await api('/position', { method: 'PATCH', body: below ? { ids, belowId: below } : { ids, aboveId: above } });
+      setStatus(ids.length === 1 ? `Đã chuyển yêu cầu #${ids[0]}.` : `Đã chuyển ${ids.length} yêu cầu.`, 'ok');
     } catch (error) {
       await load(); // load() xóa thanh trạng thái -> báo lỗi sau khi nạp lại
       setStatus(error.message, 'error');
     }
   }
 
-  /** Vị trí thả -> hàng xóm sau khi thả, trong các dòng đang hiện trên trang (thứ tự DOM). */
-  function dropNeighbors(id, targetId, after) {
-    const ids = [...$('vrRows').querySelectorAll('tr[data-id]')].map(tr => Number(tr.dataset.id)).filter(rowId => rowId !== id);
-    const index = ids.indexOf(targetId);
+  /** Vị trí thả -> hàng xóm của khối sau khi thả, trong các dòng đang hiện trên trang (thứ tự DOM). */
+  function dropNeighbors(ids, targetId, after) {
+    const rest = pageRowIds().filter(rowId => !ids.includes(rowId));
+    const index = rest.indexOf(targetId);
     if (index < 0) return null;
     const position = after ? index + 1 : index;
-    return { below: ids[position] ?? null, above: position > 0 ? ids[position - 1] : null };
+    return { below: rest[position] ?? null, above: position > 0 ? rest[position - 1] : null };
   }
 
   // ---------- Ô KT kiểu Google Sheet (vat-request-grid.js) ----------
@@ -1130,6 +1136,7 @@
       if (target.matches('[data-select]')) {
         const id = Number(target.dataset.select);
         if (target.checked) state.selected.add(id); else state.selected.delete(id);
+        rowAnchor = id; // tick tay cũng làm mốc cho Shift+bấm tay nắm
         render();
         return;
       }
@@ -1161,16 +1168,38 @@
       const tr = target.closest('tr[data-id]');
       return tr ? state.rows.find(r => r.id === Number(tr.dataset.id)) : null;
     };
-    // Kéo dòng bằng tay nắm ⋮⋮ ở cột Chọn: vạch xanh trên / dưới dòng chỉ chỗ thả, sát mép thì tự cuộn, Esc hủy.
-    let rowDrag = null; // { id, targetId, after }
+    // Tay nắm ⋮⋮ ở cột Chọn, kiểu đầu dòng Google Sheet: bấm chọn cả dòng, Shift+bấm chọn đoạn liền, Ctrl/⌘+bấm
+    // thêm / bỏ từng dòng (chung vùng chọn với ô tick -> thanh hàng loạt dùng được ngay). Kéo tay nắm của 1 dòng
+    // đang chọn: cả nhóm (trên trang này) đi theo, dòng rời nhau gom thành 1 khối. Vạch xanh chỉ chỗ thả,
+    // sát mép tự cuộn, Esc hủy.
+    let rowDrag = null; // { ids, pressed, targetId, after }
+    let rowAnchor = null; // dòng mốc cho Shift+bấm
     const clearDropMarks = () => table.querySelectorAll('.vr-drop-before, .vr-drop-after, .vr-row-dragging').forEach(tr => tr.classList.remove('vr-drop-before', 'vr-drop-after', 'vr-row-dragging'));
     const endRowDrag = () => { rowDrag = null; clearDropMarks(); table.classList.remove('vr-rows-dragging'); };
     table.addEventListener('mousedown', event => {
       const grip = event.button === 0 && event.target.closest('[data-row-drag]');
       if (!grip) return;
       event.preventDefault();
-      rowDrag = { id: Number(grip.dataset.rowDrag), targetId: null, after: false };
-      grip.closest('tr').classList.add('vr-row-dragging');
+      const id = Number(grip.dataset.rowDrag);
+      const pageIds = pageRowIds();
+      if (event.shiftKey && rowAnchor !== null && pageIds.includes(rowAnchor)) {
+        const [from, to] = [pageIds.indexOf(rowAnchor), pageIds.indexOf(id)].sort((a, b) => a - b);
+        if (!(event.ctrlKey || event.metaKey)) state.selected.clear();
+        pageIds.slice(from, to + 1).forEach(rowId => state.selected.add(rowId));
+        render();
+        return;
+      }
+      if (event.ctrlKey || event.metaKey) {
+        if (state.selected.has(id)) state.selected.delete(id); else state.selected.add(id);
+        rowAnchor = id;
+        render();
+        return;
+      }
+      if (!state.selected.has(id)) { state.selected = new Set([id]); render(); }
+      rowAnchor = id;
+      const ids = pageRowIds().filter(rowId => state.selected.has(rowId));
+      rowDrag = { ids, pressed: id, targetId: null, after: false };
+      ids.forEach(rowId => { const tr = $('vrRows').querySelector(`tr[data-id="${rowId}"]`); if (tr) tr.classList.add('vr-row-dragging'); });
       table.classList.add('vr-rows-dragging');
     });
     table.addEventListener('mousemove', event => {
@@ -1187,17 +1216,26 @@
       if (rowDrag.targetId === targetId && rowDrag.after === after) return;
       Object.assign(rowDrag, { targetId, after });
       table.querySelectorAll('.vr-drop-before, .vr-drop-after').forEach(el => el.classList.remove('vr-drop-before', 'vr-drop-after'));
-      if (targetId !== rowDrag.id) tr.classList.add(after ? 'vr-drop-after' : 'vr-drop-before');
+      if (!rowDrag.ids.includes(targetId)) tr.classList.add(after ? 'vr-drop-after' : 'vr-drop-before');
     });
     document.addEventListener('mouseup', () => {
       if (!rowDrag) return;
-      const { id, targetId, after } = rowDrag;
+      const { ids, pressed, targetId, after } = rowDrag;
       endRowDrag();
-      if (!targetId || targetId === id) return;
-      const neighbors = dropNeighbors(id, targetId, after);
-      const current = dropNeighbors(id, id, false);
-      if (!neighbors || (current && neighbors.below === current.below && neighbors.above === current.above)) return; // thả lại chỗ cũ
-      moveRow(id, neighbors);
+      if (!targetId || ids.includes(targetId)) {
+        // Bấm (không kéo đi đâu) vào 1 dòng trong vùng nhiều dòng -> chỉ chọn dòng đó, như Sheet.
+        if (ids.length > 1 && (!targetId || targetId === pressed)) { state.selected = new Set([pressed]); render(); }
+        return;
+      }
+      const neighbors = dropNeighbors(ids, targetId, after);
+      if (!neighbors) return;
+      // Thả lại đúng chỗ cũ (khối đã liền và không đổi vị trí) thì thôi.
+      const current = pageRowIds();
+      const rest = current.filter(rowId => !ids.includes(rowId));
+      const at = neighbors.below ? rest.indexOf(neighbors.below) : rest.indexOf(neighbors.above) + 1;
+      const next = [...rest.slice(0, at), ...ids, ...rest.slice(at)];
+      if (next.every((rowId, i) => rowId === current[i])) return;
+      moveRows(ids, neighbors);
     });
     document.addEventListener('keydown', event => { if (rowDrag && event.key === 'Escape') endRowDrag(); });
     // Bàn phím: Alt+↑ / Alt+↓ trên tay nắm dời 1 dòng.
@@ -1210,7 +1248,7 @@
       const index = ids.indexOf(id);
       const target = ids[index + (event.key === 'ArrowUp' ? -1 : 1)];
       if (target === undefined) return;
-      moveRow(id, dropNeighbors(id, target, event.key === 'ArrowDown')).then(() => {
+      moveRows([id], dropNeighbors([id], target, event.key === 'ArrowDown')).then(() => {
         const again = $('vrRows').querySelector(`[data-row-drag="${id}"]`);
         if (again) again.focus();
       });

@@ -390,3 +390,7 @@ ORDER VAT: bảng chọn ô như Google Sheet. Mọi người kéo chuột / Shi
 ### Cập nhật 22/10/2026 — ORDER VAT kéo dòng đổi thứ tự ưu tiên chung
 
 ORDER VAT: người có quyền xử lý VAT kéo tay nắm ⋮⋮ (cột Chọn) lên / xuống để xếp thứ tự ưu tiên; vạch xanh chỉ chỗ thả, sát mép tự cuộn, Esc hủy, Alt+↑/↓ dời 1 dòng. Thứ tự lưu chung (`vat_requests.sort_rank`, migration `0079`), sale thấy nhưng không kéo được; yêu cầu mới tự lên đầu; file Excel theo cùng thứ tự. Tay nắm ẩn khi đang sắp xếp theo cột, gộp theo mã SP, tìm kiếm, trên thiết bị cảm ứng, hoặc khi DB chưa áp `0079`.
+
+### Cập nhật 22/10/2026 — ORDER VAT kéo nhiều dòng một lúc
+
+Chọn dòng kiểu đầu dòng Google Sheet: bấm tay nắm ⋮⋮ chọn cả dòng (tô xanh, đồng thời tick ô Chọn nên thanh hàng loạt dùng được ngay), Shift+bấm chọn đoạn liền, Ctrl/⌘+bấm thêm / bỏ từng dòng; bấm không kéo vào 1 dòng trong vùng nhiều dòng thì chỉ còn dòng đó. Kéo tay nắm của 1 dòng đang chọn: cả nhóm (các dòng đang chọn trên trang này) đi theo, dòng rời nhau gom thành 1 khối liền tại chỗ thả, giữ thứ tự giữa chúng, lưu 1 lần. API `PATCH /api/vat-requests/position` `{ ids, belowId | aboveId }`.

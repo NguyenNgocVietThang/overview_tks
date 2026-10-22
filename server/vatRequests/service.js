@@ -263,21 +263,27 @@ function createVatRequestService({ pool = getPool(), stockSource = createStockSo
   }
 
   /**
-   * KT keo dong: { belowId } dat ngay tren dong do, hoac { aboveId } dat ngay duoi (tha xuong cuoi).
+   * KT keo 1 hoac nhieu dong: { ids: [tren -> duoi], belowId } dat ca nhom ngay tren dong do, hoac
+   * { ids, aboveId } ngay duoi (tha xuong cuoi). Dong roi nhau gom thanh 1 khoi theo thu tu `ids`.
    * Thu tu dung chung cho moi nguoi; khong doi version / khong ghi lich su (khong phai du lieu yeu cau).
    */
-  async function move(user, id, payload = {}) {
+  async function move(user, payload = {}) {
     if (!canProcess(user)) throw httpError(403, 'Bạn không có quyền xếp thứ tự ORDER VAT.', 'FEATURE_FORBIDDEN');
+    const isId = value => Number.isInteger(value) && value > 0;
+    const ids = Array.isArray(payload && payload.ids) ? payload.ids.map(Number) : [];
+    if (!ids.length || ids.length > 500 || !ids.every(isId) || new Set(ids).size !== ids.length) {
+      throw httpError(400, 'Chọn từ 1 đến 500 yêu cầu để kéo.', 'VALIDATION');
+    }
     const neighborOf = value => (value === null || value === undefined ? null : Number(value));
-    const belowId = neighborOf(payload && payload.belowId);
-    const aboveId = neighborOf(payload && payload.aboveId);
+    const belowId = neighborOf(payload.belowId);
+    const aboveId = neighborOf(payload.aboveId);
     const given = [belowId, aboveId].filter(value => value !== null);
-    if (given.length !== 1 || !Number.isInteger(given[0]) || given[0] < 1 || given[0] === id) {
+    if (given.length !== 1 || !isId(given[0]) || ids.includes(given[0])) {
       throw httpError(400, 'Vị trí thả không hợp lệ.', 'VALIDATION');
     }
     let result;
     try {
-      result = await repository.withTransaction(pool, client => repository.moveRequest(client, id, { belowId, aboveId }));
+      result = await repository.withTransaction(pool, client => repository.moveRequests(client, ids, { belowId, aboveId }));
     } catch (error) {
       if (error.code === '42703') throw httpError(409, 'Chưa bật được kéo dòng (cần áp migration 0079).', 'ROW_ORDER_UNAVAILABLE');
       throw error;

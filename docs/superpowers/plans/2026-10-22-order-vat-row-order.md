@@ -95,3 +95,8 @@ Bản chốt yêu cầu duyệt trong chat ngày 22/10/2026. Nhánh `feat/vat-re
 1. Merge rồi deploy. Code chạy được cả khi chưa có cột: thứ tự như cũ, tay nắm ẩn.
 2. Áp `0079` lên DB dùng chung (`npm run db:migrate`) **khi người dùng duyệt**. Backfill khoảng 1.400 dòng, chạy nhanh.
 3. Tải lại trang: tay nắm hiện với KT, thứ tự ban đầu y như trước.
+
+## Bổ sung 22/10/2026 — kéo nhiều dòng một lúc (đã làm)
+
+Bản chốt sau khi thử: chọn dòng như đầu dòng Google Sheet (bấm tay nắm, Shift đoạn liền, Ctrl thêm/bỏ), chung vùng chọn với ô tick; kéo nhóm thì dòng rời nhau gom thành 1 khối tại chỗ thả, giữ thứ tự. API đổi `PATCH /:id/position` → `PATCH /position { ids, belowId | aboveId }`; `moveRequest` → `moveRequests` chia đều khe bằng `k / 2^m` chính xác.
+
