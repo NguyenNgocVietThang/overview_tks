@@ -33,7 +33,7 @@ function isFreightCustomer(name) {
 }
 
 // Khach KHONG co email (null/rong/chi khoang trang) = Lon. Co email: phan truoc "@" bo dau, thuong, bo khoang trang;
-// chi lon/vip nhan dien, email co gia tri khac la Vua.
+// lon/moi (khach moi) = Lon, vip = VIP, email co gia tri khac la Vua.
 function customerLevelFromEmail(email) {
   if (typeof email !== 'string' || email.trim() === '') return 'large';
   const at = email.indexOf('@');
@@ -44,7 +44,7 @@ function customerLevelFromEmail(email) {
     .replace(/đ/gi, 'd')
     .toLowerCase()
     .replace(/\s+/g, '');
-  if (key === 'lon') return 'large';
+  if (key === 'lon' || key === 'moi') return 'large';
   if (key === 'vip') return 'vip';
   return 'medium';
 }

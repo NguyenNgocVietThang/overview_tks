@@ -16,6 +16,8 @@ test('cap khach tu email: vua/lon/vip, bo dau, hoa thuong, khoang trang', () => 
   assert.equal(customerLevelFromEmail('abc@gmail.com'), 'medium');
   assert.equal(customerLevelFromEmail('Lớn@gmail.com'), 'large');
   assert.equal(customerLevelFromEmail('lon@x.vn'), 'large');
+  assert.equal(customerLevelFromEmail('mới@gmail.com'), 'large');
+  assert.equal(customerLevelFromEmail('Moi@gmail.com'), 'large');
   assert.equal(customerLevelFromEmail(' VIP @gmail.com'), 'vip');
   assert.equal(customerLevelFromEmail('V I P@gmail.com'), 'vip');
 });
