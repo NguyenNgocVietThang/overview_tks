@@ -33,7 +33,6 @@
 .vr-field>span{font-weight:600}
 .vr-field input,.vr-field select,.vr-field textarea{box-sizing:border-box;min-height:40px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel-2);color:var(--text);font:13px var(--font-body);width:100%}
 .vr-field textarea{resize:vertical;min-height:60px}
-.vr-field-wide{flex:1;min-width:220px}
 .vr-tool-btn{display:inline-flex;align-items:center;gap:7px;min-height:40px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel-2);color:var(--text);font:13px var(--font-body);white-space:nowrap;cursor:pointer;transition:background .15s ease,border-color .15s ease,color .15s ease}
 .vr-tool-btn svg{width:16px;height:16px}
 .vr-tool-btn:hover:not(:disabled){border-color:color-mix(in srgb,var(--primary) 45%,var(--border));background:color-mix(in srgb,var(--primary) 8%,var(--panel-2))}
@@ -60,9 +59,6 @@
 .vr-icon-tool:disabled{cursor:progress}
 .vr-icon-tool.is-loading svg{animation:vr-spin .8s linear infinite;color:var(--primary)}
 @media (prefers-reduced-motion:reduce){.vr-pill-toggle,.vr-tool-btn,.vr-icon-tool{transition:none}.vr-pill-toggle:active{transform:none}.vr-icon-tool.is-loading svg{animation-duration:2s}}
-.vr-bulk{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;padding:12px 16px;background:var(--panel-2);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
-.vr-bulk[hidden]{display:none}
-.vr-bulk strong{align-self:center;color:var(--text);font-size:13px}
 .vr-status{margin:0;padding:8px 16px;color:var(--muted);font-size:13px}
 .vr-status:empty{display:none}
 .vr-status[data-kind="error"]{color:var(--red)}
@@ -103,8 +99,17 @@ table.tks-controlled-table.vr-table td.vr-nowrap{white-space:nowrap !important;t
 .vr-table tbody tr.vr-row-dragging td{opacity:.45}
 .vr-table tbody tr.vr-drop-before td{box-shadow:inset 0 3px 0 var(--blue)}
 .vr-table tbody tr.vr-drop-after td{box-shadow:inset 0 -3px 0 var(--blue)}
-.vr-undo{margin-left:6px;padding:2px 10px;border:1px solid currentColor;border-radius:var(--radius-pill);background:transparent;color:inherit;font:600 12px var(--font-body);cursor:pointer}
-.vr-undo:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+/* Thông báo nổi góc dưới sau mỗi lần KT sửa, kèm Hoàn tác / Làm lại (Ctrl+Z / Ctrl+Y). */
+.vr-toast{position:fixed;left:50%;bottom:24px;z-index:60;display:flex;align-items:center;gap:10px;max-width:min(560px,calc(100vw - 32px));padding:10px 12px 10px 16px;border:1px solid var(--toast-success-border);border-radius:var(--radius-md,10px);background:var(--toast-success-bg);color:var(--toast-success-fg);box-shadow:var(--shadow-toast);font:500 13px var(--font-body);transform:translateX(-50%)}
+.vr-toast[hidden]{display:none}
+.vr-toast[data-kind="warn"]{border-color:var(--amber);background:var(--panel);color:var(--text)}
+.vr-toast[data-kind="error"]{border-color:var(--toast-error-border);background:var(--toast-error-bg);color:var(--toast-error-fg)}
+.vr-toast-text{flex:1;min-width:0}
+.vr-toast button{flex:none;padding:4px 12px;border:1px solid currentColor;border-radius:var(--radius-pill);background:transparent;color:inherit;font:600 12px var(--font-body);cursor:pointer}
+.vr-toast button:hover{background:color-mix(in srgb,currentColor 12%,transparent)}
+.vr-toast button:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.vr-toast .vr-toast-close{padding:2px 8px;border-color:transparent;font-size:16px;line-height:1}
+@media (max-width:600px){.vr-toast{bottom:12px;flex-wrap:wrap}}
 .vr-hscroll{position:absolute;top:50%;z-index:4;display:flex;align-items:center;justify-content:center;width:30px;height:30px;margin-top:-15px;padding:0;border:1px solid var(--border);border-radius:var(--radius-pill);background:color-mix(in srgb,var(--panel) 88%,transparent);color:var(--text);box-shadow:var(--shadow-toast);cursor:pointer;opacity:.82;transition:opacity .15s ease,transform .15s ease}
 .vr-hscroll:hover{opacity:1}
 .vr-hscroll:active{transform:scale(.94)}
@@ -182,9 +187,6 @@ table.tks-controlled-table.vr-table td.vr-nowrap{white-space:nowrap !important;t
   .vr-filters .vr-search{grid-row:1;margin-right:50px}
   .vr-icon-tool{grid-column:2;grid-row:1;justify-self:end}
   .vr-search{grid-column:1 / -1;min-width:0}
-  .vr-field-wide{min-width:0}
-  .vr-bulk{display:grid;grid-template-columns:1fr 1fr;padding:12px}
-  .vr-bulk strong,.vr-field-wide{grid-column:1 / -1}
   .vr-table{min-width:var(--vr-mobile-min,640px)}
   .vr-table th,.vr-table td{padding:10px 8px;font-size:12px}
   .vr-table [data-field="productCode"]{position:sticky;left:0;background:var(--panel);z-index:1;box-shadow:1px 0 0 var(--border)}
