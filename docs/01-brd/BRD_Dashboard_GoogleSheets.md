@@ -406,4 +406,4 @@ Quản lý có thể theo dõi và xuất công nợ/thưởng phạt theo Nhóm
 - **Người dùng**: Quản lý (toàn quyền, gán người sửa), Trợ lý và Nhân viên sale (xem; sửa nếu được gán).
 - **Thành công**: sale/quản lý mở một hộp là thấy đủ hồ sơ và lịch sử trao đổi của khách; biết ngay lần tiếp khách gần nhất mà không cần hỏi miệng.
 - **Ngoài phạm vi**: xuất note/ảnh ra file (file xuất chỉ thêm cột Tiếp khách lần cuối), xóa note, lịch sử chỉnh sửa note, tự chuyển ghi chú khi khách đổi tên (liên kết theo tên chuẩn hóa nên khách đổi tên sẽ mất liên kết).
-- **Trạng thái**: code + test xong, mã cục bộ trên `main`; chưa commit/push/deploy, chưa áp migration `0080`. Spec: `docs/superpowers/specs/2026-10-22-customer-notes-design.md`.
+- **Trạng thái**: code + test xong, đã commit trên `main`; migration `0080` đã áp DB dùng chung (22/10/2026); chưa push/deploy. Spec: `docs/superpowers/specs/2026-10-22-customer-notes-design.md`.

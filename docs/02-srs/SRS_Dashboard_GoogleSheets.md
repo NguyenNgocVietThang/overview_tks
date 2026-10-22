@@ -817,4 +817,4 @@ Ba bảng chính Công nợ hiển thị Nhóm sale, lọc độc lập theo nh�
 
 ### Cập nhật 22/10/2026 — Ghi chú và Tiếp khách lần cuối theo khách
 
-FR-16.11: bảng Doanh số theo khách thêm cột Ghi chú và Tiếp khách lần cuối, hộp Chi tiết khách (Thông tin chung + Note), quyền `reports.business.customerNotes` / `reports.business.customerManage`, migration `0080` (5 bảng, chưa áp DB dùng chung), 11 route mới dưới `/api/business-report` (mục 6.2). Code chạy được trước migration (đọc rỗng, ghi 503 `MIGRATION_PENDING`). Hạn chế đã biết: khóa khách là `nameKey(tên)` nên khách đổi tên mất liên kết ghi chú.
+FR-16.11: bảng Doanh số theo khách thêm cột Ghi chú và Tiếp khách lần cuối, hộp Chi tiết khách (Thông tin chung + Note), quyền `reports.business.customerNotes` / `reports.business.customerManage`, migration `0080` (5 bảng, đã áp DB dùng chung 22/10/2026), 11 route mới dưới `/api/business-report` (mục 6.2). Code chạy được trước migration (đọc rỗng, ghi 503 `MIGRATION_PENDING`). Hạn chế đã biết: khóa khách là `nameKey(tên)` nên khách đổi tên mất liên kết ghi chú.

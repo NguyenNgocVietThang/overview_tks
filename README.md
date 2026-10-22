@@ -7,7 +7,7 @@ Mọi bảng trên web và trong file HTML xuất ra có nút **Cột hiển th�
 
 ## Kiến trúc hiện tại
 
-**Cập nhật 22/10/2026 — Ghi chú và Tiếp khách lần cuối theo khách (tab Khách hàng, mã cục bộ trên main, chưa commit/deploy; migration `0080` chưa áp DB):** bảng Doanh số theo khách thêm cột **Ghi chú** (nút Chi tiết) và **Tiếp khách lần cuối**; hộp Chi tiết khách có Thông tin chung (định vị kho, số lượng kho, ảnh kho, quy mô kho, đối thủ, hình thức bán hàng) và Note kiểu tin nhắn. Xem [thiết kế](docs/superpowers/specs/2026-10-22-customer-notes-design.md).
+**Cập nhật 22/10/2026 — Ghi chú và Tiếp khách lần cuối theo khách (tab Khách hàng, đã commit trên main, chưa push/deploy; migration `0080` đã áp DB dùng chung 22/10/2026):** bảng Doanh số theo khách thêm cột **Ghi chú** (nút Chi tiết) và **Tiếp khách lần cuối**; hộp Chi tiết khách có Thông tin chung (định vị kho, số lượng kho, ảnh kho, quy mô kho, đối thủ, hình thức bán hàng) và Note kiểu tin nhắn. Xem [thiết kế](docs/superpowers/specs/2026-10-22-customer-notes-design.md).
 
 **Cập nhật 22/10/2026 — ORDER VAT kéo dòng đổi thứ tự ưu tiên chung (nhánh `feat/vat-request-row-order`, chưa merge/deploy; migration `0079` chưa áp DB):** KT kéo tay nắm ⋮⋮ ở đầu dòng để xếp thứ tự ưu tiên, lưu chung cho mọi người, yêu cầu mới tự lên đầu; Excel xuất theo thứ tự này. Xem [kế hoạch](docs/superpowers/plans/2026-10-22-order-vat-row-order.md).
 

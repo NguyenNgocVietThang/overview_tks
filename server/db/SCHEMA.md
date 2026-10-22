@@ -621,7 +621,7 @@ Cập nhật: 21/10/2026.
 
 Thứ tự triển khai: deploy được trước khi áp (thứ tự như cũ, không có tay nắm kéo); áp `0079` bằng `npm run db:migrate` khi được duyệt, sau đó tải lại trang.
 
-## Ghi chú / thông tin theo khách — migration 0080 (22/10/2026, CHƯA áp DB dùng chung)
+## Ghi chú / thông tin theo khách — migration 0080 (22/10/2026, đã áp DB dùng chung)
 
 `0080_customer_notes.sql` thêm 5 bảng (idempotent `CREATE TABLE IF NOT EXISTS`, chỉ thêm, không đổi bảng cũ) cho cột **Ghi chú** và **Tiếp khách lần cuối** của bảng "Doanh số theo khách" (tab Khách hàng). Luật quyền và ngày VN nằm ở `server/businessReport/customerProfileRepository.js` / `customerProfileRules.js`; bảng giữ các ràng buộc dữ liệu.
 

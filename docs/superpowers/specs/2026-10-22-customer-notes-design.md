@@ -1,6 +1,6 @@
 # Ghi chú và Tiếp khách lần cuối theo khách hàng
 
-Ngày: 22/10/2026. Phạm vi và các quyết định (quyền xem, 1 note/khách/ngày, người sửa do Quản lý gán) đã được người dùng chốt trong chat. Trạng thái: mã cục bộ trên `main`, chưa commit/deploy; migration `0080` chưa áp DB dùng chung.
+Ngày: 22/10/2026. Phạm vi và các quyết định (quyền xem, 1 note/khách/ngày, người sửa do Quản lý gán) đã được người dùng chốt trong chat. Trạng thái: đã commit trên `main`, chưa push/deploy; migration `0080` đã áp DB dùng chung (22/10/2026).
 
 ## Mục tiêu
 Bảng **Doanh số theo khách** (tab Khách hàng, `/reports/#business`) chỉ có số liệu doanh số. Thêm 2 nhóm thông tin nghiệp vụ theo từng khách: **Ghi chú** (Thông tin chung + Note) và **Tiếp khách lần cuối**.
