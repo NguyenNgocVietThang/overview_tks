@@ -2,12 +2,10 @@
   'use strict';
 
   // Kế toán – Nháp VAT: 2 tab (#xu-ly, #tao-qr). Thuật toán chạy ở máy chủ
-  // (/api/vat-draft); trang chỉ chọn chứng từ / dán dữ liệu, hiển thị và tải file.
+  // (/api/vat-draft); trang chỉ dán mã chứng từ / dán dữ liệu, hiển thị và tải file.
   // Tài khoản chỉ có quyền Tạo QR (accounting.qr, mặc định Nhân viên sale) chỉ thấy tab Tạo QR.
 
   const TABS = ['xu-ly', 'tao-qr'];
-  const PAGE_SIZE = 50;
-  const SELECTION_KEY = 'tks-vat-draft-selection';
   const MANUAL = '__manual__';
   const GIA_NHAP = 'GIÁ NHÁP\n(Giá bán/(1+%VAT))';
   const NUMERIC = new Set(['SL', 'Giá bán', 'TỒN CÒN NHÁP', GIA_NHAP, '%VAT', 'Thành tiền']);
@@ -29,8 +27,7 @@
     canProcess: true,
     tab: 'xu-ly',
     mode: 'docs',
-    selection: new Map(),
-    list: { page: 1, total: 0, rows: [], loading: false, version: 0, sort: '', dir: 'asc' },
+    pasted: [],
     meta: null,
     alloc: null,
     qrMode: 'co_vat',
@@ -133,11 +130,6 @@
       throw new Error(data.error || 'Không kết nối được máy chủ, vui lòng thử lại.');
     }
     return type.includes('json') ? res.json() : res.blob();
-  }
-
-  function vnDate(offsetDays = 0) {
-    const date = new Date(Date.now() + offsetDays * 86400000);
-    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
   }
 
   function vnTime(iso) {
@@ -243,150 +235,196 @@
     setMessage('vdRunError', '');
   }
 
-  // ---------- Chọn chứng từ ----------
+  // ---------- Dán mã chứng từ → xử lý luôn ----------
+  // Kế toán biết sẵn mã cần sửa: dán mã + chọn Cơ sở + bấm Xử lý là tra mã rồi chạy phân bổ ngay.
+  // Danh sách "Hóa đơn đã dán" giữ đúng thứ tự dán; bấm 1 dòng mở hộp chi tiết chứng từ.
 
-  const docKey = doc => `${doc.kind}:${doc.branch}:${doc.code}`;
+  const AMBIGUOUS_REASON = 'Có ở cả Hà Nội lẫn Sài Gòn — chọn Cơ sở rồi bấm Xử lý lại';
+  const NOT_FOUND_REASON = 'Không tìm thấy (có thể chưa đồng bộ ~7 phút, hoặc trước 05/02/2026)';
 
-  function saveSelection() {
-    try { sessionStorage.setItem(SELECTION_KEY, JSON.stringify([...state.selection.values()])); } catch (error) { /* tùy chọn */ }
+  /** Kết quả /documents/resolve -> các dòng danh sách, xếp theo vị trí mã trong ô dán. */
+  function pastedRows(result, text) {
+    const upper = String(text || '').toUpperCase();
+    const rows = [
+      ...result.found.map(doc => ({ code: doc.code, doc, tone: !doc.selectable ? 'error' : doc.warning ? 'warning' : '', reason: doc.warning || '' })),
+      ...result.ambiguous.map(item => ({ code: item.code, doc: null, tone: 'error', reason: AMBIGUOUS_REASON })),
+      ...result.notFound.map(code => ({ code, doc: null, tone: 'error', reason: NOT_FOUND_REASON })),
+      ...(result.invalid || []).map(code => ({ code, doc: null, tone: 'error', reason: 'Không phải mã HD/DH' }))
+    ];
+    const position = code => { const at = upper.indexOf(String(code).toUpperCase()); return at < 0 ? Infinity : at; };
+    return rows.map((row, i) => ({ row, i, at: position(row.code) })).sort((a, b) => a.at - b.at || a.i - b.i).map(x => x.row);
   }
 
-  function loadSelection() {
-    try {
-      const saved = JSON.parse(sessionStorage.getItem(SELECTION_KEY) || '[]');
-      if (Array.isArray(saved)) saved.forEach(doc => { if (doc && doc.code && doc.kind && doc.branch) state.selection.set(docKey(doc), doc); });
-    } catch (error) { /* tùy chọn */ }
-  }
-
-  function toggleDoc(doc, selected) {
-    const key = docKey(doc);
-    if (selected) {
-      const sameCode = [...state.selection.values()].find(d => d.code === doc.code && d.branch !== doc.branch);
-      if (sameCode) {
-        setMessage('vdCodesMessage', `Mã ${doc.code} đã được chọn ở cơ sở ${BRANCH_LABEL[sameCode.branch]} — mỗi lần xử lý chỉ chọn một trong hai.`, 'warning');
-        return false;
-      }
-      state.selection.set(key, { kind: doc.kind, branch: doc.branch, code: doc.code, customerName: doc.customerName || '', warning: doc.warning || '' });
-    } else {
-      state.selection.delete(key);
-    }
-    saveSelection();
-    return true;
-  }
-
-  function renderSelection() {
-    const docs = [...state.selection.values()];
-    $('vdSelectedCount').textContent = docs.length ? `Đã chọn ${docs.length} chứng từ` : 'Chưa chọn chứng từ nào';
-    $('vdClearSelection').hidden = !docs.length;
-    $('vdRunDocs').disabled = !docs.length;
-    $('vdChips').innerHTML = docs.map(doc => `<li${doc.warning ? ' data-warning title="' + escapeHtml(doc.warning) + '"' : ''}>
-      <span>${escapeHtml(doc.code)}${doc.branch === 'saigon' ? ' · SG' : ''}</span>
-      <button type="button" data-remove="${escapeHtml(docKey(doc))}" aria-label="Bỏ chọn ${escapeHtml(doc.code)}">×</button></li>`).join('');
-    document.querySelectorAll('#vdDocsRows tr[data-key]').forEach(row => {
-      const selected = state.selection.has(row.dataset.key);
-      row.dataset.selected = String(selected);
-      row.classList.toggle('is-selected', selected);
-      const box = row.querySelector('input[type="checkbox"]');
-      if (box) box.checked = selected;
-    });
-    const boxes = [...document.querySelectorAll('#vdDocsRows input[type="checkbox"]')];
-    $('vdSelectPage').checked = boxes.length > 0 && boxes.every(box => box.checked);
-  }
-
-  function renderDocs() {
-    const { rows, total, page, loading } = state.list;
-    const body = $('vdDocsRows');
+  function renderPasted() {
+    const rows = state.pasted;
+    $('vdDocList').hidden = !rows.length;
+    const errors = rows.filter(r => r.tone === 'error').length;
+    $('vdDocListCount').textContent = rows.length ? `${rows.length} mã${errors ? ` · ${errors} mã lỗi` : ''} · bấm 1 dòng để xem chi tiết` : '';
     // Moi o 1 dong (cat "…"), noi dung day du trong title khi re chuot.
     const cell = (text, cls = '') => `<td${cls ? ` class="${cls}"` : ''} title="${escapeHtml(text)}">${escapeHtml(text)}</td>`;
-    if (loading && !rows.length) body.innerHTML = '<tr class="vd-empty"><td colspan="10">Đang tải chứng từ…</td></tr>';
-    else if (!rows.length) body.innerHTML = '<tr class="vd-empty"><td colspan="10">Không có chứng từ nào trong khoảng đã chọn.</td></tr>';
-    else {
-      body.innerHTML = rows.map(doc => `<tr data-key="${escapeHtml(docKey(doc))}">
-        <td><input type="checkbox" aria-label="Chọn ${escapeHtml(doc.code)}"></td>
-        ${cell(doc.code, 'code')}
-        ${cell(KIND_LABEL[doc.kind] || '')}
-        ${cell(BRANCH_LABEL[doc.branch] || doc.branch)}
-        ${cell(doc.date)}
-        ${cell(doc.customerName + (doc.customerCode ? ' · ' + doc.customerCode : ''))}
-        ${cell(doc.note)}
-        ${cell(doc.status + (doc.orderCode ? ' · ' + doc.orderCode : ''))}
-        <td class="num">${intFormat.format(doc.lineCount || 0)}</td>
-        <td class="num">${intFormat.format(doc.total || 0)}</td></tr>`).join('');
-    }
-    const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-    $('vdDocsCount').textContent = total ? `${intFormat.format(total)} chứng từ` : '';
-    $('vdDocsPage').textContent = `Trang ${page}/${pages}`;
-    $('vdDocsFirst').disabled = page <= 1;
-    $('vdDocsPrev').disabled = page <= 1;
-    $('vdDocsNext').disabled = page >= pages;
-    $('vdDocsLast').disabled = page >= pages;
-    $('vdDocsExport').disabled = !total;
-    renderSelection();
+    $('vdDocListRows').innerHTML = rows.map((row, index) => {
+      const doc = row.doc;
+      const status = doc ? doc.status + (doc.orderCode ? ' · ' + doc.orderCode : '') : '';
+      const statusTitle = [status, row.reason].filter(Boolean).join(' — ');
+      return `<tr data-pasted="${index}"${row.tone ? ` data-tone="${row.tone}"` : ''}${doc ? ` data-open tabindex="0" aria-label="Xem chi tiết ${escapeHtml(row.code)}"` : ''}>
+        ${cell(row.code, 'code')}
+        ${cell(doc ? BRANCH_LABEL[doc.branch] || doc.branch : '—')}
+        ${cell(doc ? doc.customerName + (doc.customerCode ? ' · ' + doc.customerCode : '') : '')}
+        ${cell(doc ? doc.date : '')}
+        <td class="vd-doc-status" title="${escapeHtml(statusTitle)}">${escapeHtml(status)}${row.reason ? `<span class="vd-doc-reason">${escapeHtml(row.reason)}</span>` : ''}</td>
+        <td class="num">${doc ? intFormat.format(doc.total || 0) : ''}</td></tr>`;
+    }).join('');
+    if (window.TKSTables) window.TKSTables.refresh($('vdDocListTable'));
   }
 
-  async function loadDocs() {
-    const version = ++state.list.version;
-    state.list.loading = true;
-    renderDocs();
-    const params = new URLSearchParams({
-      kind: $('vdKind').value, branch: $('vdBranch').value, from: $('vdFrom').value, to: $('vdTo').value,
-      q: $('vdSearch').value.trim(), page: String(state.list.page), pageSize: String(PAGE_SIZE),
-      sort: state.list.sort, dir: state.list.dir
-    });
-    try {
-      const data = await api('/documents?' + params);
-      if (version !== state.list.version) return;
-      Object.assign(state.list, { rows: data.rows, total: data.total, page: data.page, loading: false });
-      setMessage('vdCodesMessage', '');
-    } catch (error) {
-      if (version !== state.list.version) return;
-      Object.assign(state.list, { rows: [], total: 0, loading: false });
-      setMessage('vdCodesMessage', error.message, 'error');
-    }
-    renderDocs();
-  }
-
-  let searchTimer;
-  function scheduleLoadDocs() {
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => { state.list.page = 1; loadDocs(); }, 300);
-  }
-
-  async function addCodes() {
+  async function runCodes() {
     const text = $('vdCodesInput').value;
-    if (!text.trim()) { setMessage('vdCodesMessage', 'Hãy dán ít nhất một mã chứng từ.', 'warning'); return; }
-    $('vdAddCodes').disabled = true;
+    if (!text.trim()) {
+      setMessage('vdCodesMessage', 'Hãy dán ít nhất một mã chứng từ.', 'warning');
+      $('vdCodesInput').focus();
+      return;
+    }
+    const button = $('vdRunCodes');
+    button.disabled = true;
+    setMessage('vdCodesMessage', 'Đang tìm chứng từ…');
+    let result;
     try {
-      const result = await api('/documents/resolve?branch=' + encodeURIComponent($('vdBranch').value), { method: 'POST', body: { text } });
-      const messages = [];
-      let added = 0;
-      for (const doc of result.found) {
-        if (!doc.selectable) { messages.push(`${doc.code}: ${doc.warning}`); continue; }
-        if (toggleDoc(doc, true)) added += 1;
-        if (doc.warning) messages.push(`${doc.code}: ${doc.warning}`);
-      }
-      if (added) messages.unshift(`Đã thêm ${added} chứng từ.`);
-      if (result.notFound.length) messages.push(`Không tìm thấy: ${result.notFound.join(', ')} (có thể chưa đồng bộ ~7 phút, hoặc trước 05/02/2026).`);
-      if (result.ambiguous.length) messages.push(`Có ở cả Hà Nội lẫn Sài Gòn, hãy chọn trong bảng: ${result.ambiguous.map(a => a.code).join(', ')}.`);
-      if (result.invalid && result.invalid.length) messages.push(`Không phải mã HD/DH: ${result.invalid.join(', ')}.`);
-      if (result.truncated) messages.push('Chỉ nhận tối đa 300 mã mỗi lần.');
-      setMessage('vdCodesMessage', messages.join('\n'), result.notFound.length || result.ambiguous.length ? 'warning' : '');
-      if (added) $('vdCodesInput').value = '';
-      renderSelection();
+      result = await api('/documents/resolve?branch=' + encodeURIComponent($('vdBranch').value), { method: 'POST', body: { text } });
     } catch (error) {
       setMessage('vdCodesMessage', error.message, 'error');
+      return;
     } finally {
-      $('vdAddCodes').disabled = false;
+      button.disabled = false;
     }
+    // Ket qua cu khong con khop danh sach vua dan.
+    state.alloc = null;
+    $('vdAllocResult').hidden = true;
+    state.pasted = pastedRows(result, text);
+    renderPasted();
+    const notes = result.truncated ? ['Chỉ nhận tối đa 300 mã mỗi lần.'] : [];
+    if (result.ambiguous.length) {
+      setMessage('vdCodesMessage', [`Mã ${result.ambiguous.map(a => a.code).join(', ')} có ở cả Hà Nội lẫn Sài Gòn — chọn Cơ sở rồi bấm Xử lý lại.`, ...notes].join('\n'), 'warning');
+      $('vdBranch').focus();
+      return;
+    }
+    const docs = result.found.filter(doc => doc.selectable);
+    if (!docs.length) {
+      setMessage('vdCodesMessage', ['Không có chứng từ hợp lệ để xử lý — xem lý do ở danh sách bên dưới.', ...notes].join('\n'), 'error');
+      return;
+    }
+    const errors = state.pasted.filter(r => r.tone === 'error').length;
+    setMessage('vdCodesMessage', [`Xử lý ${docs.length} chứng từ${errors ? ` · bỏ qua ${errors} mã lỗi (xem danh sách bên dưới)` : ''}.`, ...notes].join('\n'), errors ? 'warning' : '');
+    await run('documents', docs);
+  }
+
+  // ---------- Hộp chi tiết chứng từ (giống "Chi tiết giao dịch" ở dashboard) ----------
+  // Khung .dp-* ở shared/detail-panel.css; dữ liệu từ /documents/detail (theo quyền Nháp VAT).
+
+  const docDetail = { requestId: 0, doc: null, returnFocus: null };
+
+  function statusPill(status) {
+    if (!status) return '<span class="vd-muted">—</span>';
+    const tone = status === 'Đã hủy' ? 'bad' : status === 'Hoàn thành' ? 'ok' : 'warn';
+    return `<span class="vd-pill vd-pill--${tone}">${escapeHtml(status)}</span>`;
+  }
+
+  function docDetailHtml(doc, data) {
+    const money = value => intFormat.format(Number(value) || 0) + '₫';
+    const lines = data.lines || [];
+    const showDiscount = lines.some(line => line.discount > 0);
+    const total = Number(data.total) || 0;
+    const paid = Number(data.paid) || 0;
+    const owed = Math.max(0, total - paid);
+    const invoiceDiscount = Number(data.discount) || 0;
+    const tiles = [
+      { label: 'Tổng tiền hàng', value: money(total), tone: 'green' },
+      { label: 'Khách đã trả', value: money(paid) },
+      owed > 0
+        ? { label: 'Còn phải thu', value: money(owed), tone: 'red', sub: intFormat.format(Math.round(owed / total * 100)) + '% giá trị hóa đơn' }
+        : { label: 'Còn phải thu', value: money(0), sub: 'Đã thu đủ' },
+      invoiceDiscount > 0 && total + invoiceDiscount > 0
+        ? { label: 'Giảm giá hóa đơn', value: money(invoiceDiscount), tone: 'amber', sub: intFormat.format(Math.round(invoiceDiscount / (total + invoiceDiscount) * 100)) + '% trước giảm' }
+        : null
+    ].filter(Boolean);
+    const stats = '<div class="dp-stats">' + tiles.map(tile => `<div class="dp-stat${tile.tone ? ' is-' + tile.tone : ''}">`
+      + `<div class="dp-stat-label">${escapeHtml(tile.label)}</div><div class="dp-stat-value">${escapeHtml(tile.value)}</div>`
+      + (tile.sub ? `<div class="dp-stat-sub">${escapeHtml(tile.sub)}</div>` : '') + '</div>').join('') + '</div>';
+    const field = (label, html, wide) => `<div${wide ? ' class="is-wide"' : ''}><dt>${label}</dt><dd>${html}</dd></div>`;
+    const isInvoice = doc.kind === 'invoice';
+    const meta = [
+      field('Khách hàng', escapeHtml(data.customerName || 'Khách lẻ') + (data.customerCode ? ` <span class="vd-muted">(${escapeHtml(data.customerCode)})</span>` : ''), true),
+      field('Cơ sở', escapeHtml(BRANCH_LABEL[doc.branch] || doc.branch)),
+      field(isInvoice ? 'Thời gian bán' : 'Thời gian đặt', escapeHtml(data.date || '—')),
+      field('Nhân viên bán hàng', escapeHtml(data.seller || '—')),
+      field('Trạng thái', statusPill(data.status))
+    ];
+    if (data.orderCode) meta.push(field('Từ đơn đặt hàng', `<span class="vd-mono">${escapeHtml(data.orderCode)}</span>`));
+    if (data.note) meta.push(field('Ghi chú', `<span class="dp-note-text">${escapeHtml(data.note)}</span>`, true));
+
+    const head = '<th>Mã hàng</th><th>Tên hàng</th><th class="num">SL</th><th class="num">Đơn giá</th>'
+      + (showDiscount ? '<th class="num">Giảm giá</th>' : '') + '<th class="num">Thành tiền</th>';
+    const rows = lines.length ? lines.map(line => `<tr><td class="dp-code">${escapeHtml(line.productCode || '—')}</td>`
+      + `<td class="dp-cell-main">${escapeHtml(line.productName || '—')}${line.note ? `<span class="dp-line-note">${escapeHtml(line.note)}</span>` : ''}</td>`
+      + `<td class="num">${decFormat.format(Number(line.quantity) || 0)}</td><td class="num">${intFormat.format(Number(line.price) || 0)}</td>`
+      + (showDiscount ? `<td class="num">${intFormat.format(Number(line.discount) || 0)}</td>` : '')
+      + `<td class="num">${intFormat.format(Number(line.amount) || 0)}</td></tr>`).join('')
+      : `<tr><td colspan="${showDiscount ? 6 : 5}" class="table-note">Chứng từ này chưa có dòng hàng nào.</td></tr>`;
+    const linesAmount = lines.reduce((sum, line) => sum + (Number(line.amount) || 0), 0);
+    const foot = lines.length > 1
+      ? `<tfoot><tr><td colspan="2">Cộng hàng hóa</td><td class="num">${decFormat.format(Number(data.totalQuantity) || 0)}</td>`
+        + `<td colspan="${showDiscount ? 2 : 1}"></td><td class="num">${intFormat.format(linesAmount)}</td></tr></tfoot>`
+      : '';
+    return stats
+      + `<div class="dp-card"><dl class="dp-meta">${meta.join('')}</dl></div>`
+      + '<div class="dp-section"><div class="dp-section-head"><h3 class="dp-section-title">Hàng hóa</h3>'
+      + `<span class="dp-section-note">${intFormat.format(data.lineCount || lines.length)} dòng · ${decFormat.format(Number(data.totalQuantity) || 0)} sản phẩm</span></div>`
+      + `<div class="dp-table-wrap is-flow"><table class="dp-table is-min-wide" data-table-key="vatDraftDocDetail"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody>${foot}</table></div></div>`;
+  }
+
+  async function loadDocDetail() {
+    const doc = docDetail.doc;
+    const requestId = ++docDetail.requestId;
+    const body = $('vdDocModalBody');
+    body.innerHTML = '<div class="doc-modal-note"><span class="dp-spinner" aria-hidden="true"></span>Đang tải chi tiết…</div>';
+    try {
+      const { detail } = await api('/documents/detail?' + new URLSearchParams({ kind: doc.kind, branch: doc.branch, code: doc.code }));
+      if (requestId !== docDetail.requestId) return; // da dong hop / mo chung tu khac trong luc cho
+      body.innerHTML = docDetailHtml(doc, detail);
+    } catch (error) {
+      if (requestId !== docDetail.requestId) return;
+      body.innerHTML = `<div class="doc-modal-note">${escapeHtml(error.message)}<br><button class="btn-secondary vd-small-btn" type="button" data-doc-retry>Thử lại</button></div>`;
+    }
+  }
+
+  function openDocDetail(doc, trigger) {
+    docDetail.doc = doc;
+    docDetail.returnFocus = trigger || null;
+    $('vdDocModalTitle').innerHTML = `<span class="dp-title-kind">${doc.kind === 'invoice' ? 'Chi tiết giao dịch' : 'Chi tiết đơn đặt hàng'}</span> ${escapeHtml(doc.code)}`;
+    $('vdDocModalSubtitle').textContent = 'Cơ sở ' + (BRANCH_LABEL[doc.branch] || doc.branch);
+    $('vdDocModal').hidden = false;
+    document.body.style.overflow = 'hidden';
+    $('vdDocModalClose').focus();
+    loadDocDetail();
+  }
+
+  function closeDocDetail() {
+    docDetail.requestId += 1; // bo qua ket qua dang cho
+    $('vdDocModal').hidden = true;
+    $('vdDocModalBody').innerHTML = '';
+    document.body.style.overflow = '';
+    const back = docDetail.returnFocus;
+    docDetail.doc = null;
+    docDetail.returnFocus = null;
+    if (back && back.isConnected) back.focus();
   }
 
   // ---------- Chạy xử lý ----------
 
-  async function run(source) {
+  async function run(source, docs = []) {
     const body = { source };
-    if (source === 'documents') body.documents = [...state.selection.values()].map(d => ({ kind: d.kind, branch: d.branch, code: d.code }));
+    if (source === 'documents') body.documents = docs.map(d => ({ kind: d.kind, branch: d.branch, code: d.code }));
     else body.text = $('vdPasteInvoice').value;
-    const buttons = ['vdRunDocs', 'vdRunPasteInvoice'].map($);
+    const buttons = ['vdRunCodes', 'vdRunPasteInvoice'].map($);
     buttons.forEach(b => { b.dataset.wasDisabled = b.disabled; b.disabled = true; });
     setMessage('vdRunError', 'Đang xử lý…');
     try {
@@ -401,7 +439,6 @@
       setMessage('vdRunError', error.message, 'error');
     } finally {
       buttons.forEach(b => { b.disabled = b.dataset.wasDisabled === 'true'; });
-      renderSelection();
     }
   }
 
@@ -442,21 +479,6 @@
     return `<button type="button" class="sort-button" data-sort-field="${escapeHtml(field)}" title="${action} theo ${escapeHtml(label)}" aria-label="${action} theo cột ${escapeHtml(label)}"><span class="sort-label">${escapeHtml(label)}</span><span class="sort-indicator" aria-hidden="true">${SORT_GLYPH[state]}</span></button>`;
   }
   const nextDir = (active, dir) => (!active ? 'asc' : dir === 'asc' ? 'desc' : '');
-
-  /** Gan nut sap xep vao tieu de bang chon chung tu (sap xep o may chu, tren toan bo ket qua). */
-  function renderDocsHeader() {
-    document.querySelectorAll('#vdDocsTable thead th[data-column-key]').forEach(th => {
-      const field = th.dataset.columnKey;
-      if (field === 'select') return;
-      const label = th.dataset.label || th.textContent.trim();
-      th.dataset.label = label;
-      const dir = state.list.sort === field ? state.list.dir : '';
-      const resizer = th.querySelector(':scope > .tks-column-resizer');
-      th.innerHTML = sortButtonHtml(field, label, dir);
-      if (resizer) th.appendChild(resizer);
-      th.setAttribute('aria-sort', dir === 'asc' ? 'ascending' : dir === 'desc' ? 'descending' : 'none');
-    });
-  }
 
   // ---- Sap xep 2 cap nhu app cu (pandas sort_values kind="stable", o trong luon cuoi) ----
   const NO_SORT = '';
@@ -581,39 +603,6 @@
       window.alert(error.message);
     } finally {
       button.disabled = false;
-    }
-  }
-
-  const DOC_EXPORT_COLUMNS = ['Mã chứng từ', 'Loại', 'Cơ sở', 'Thời gian', 'Khách hàng', 'Ghi chú tổng', 'Trạng thái', 'Số dòng', 'Tổng tiền'];
-  const DOC_EXPORT_PAGE = 100; // bang may chu cho phep toi da 100 dong / trang
-  const DOC_EXPORT_MAX = 10000;
-
-  // Xuat TOAN BO chung tu khop bo loc hien tai (khong chi trang dang xem), dung thu tu sap xep dang chon.
-  async function exportDocs(button) {
-    button.disabled = true;
-    try {
-      const rows = [];
-      for (let page = 1; rows.length < DOC_EXPORT_MAX; page += 1) {
-        const params = new URLSearchParams({
-          kind: $('vdKind').value, branch: $('vdBranch').value, from: $('vdFrom').value, to: $('vdTo').value,
-          q: $('vdSearch').value.trim(), page: String(page), pageSize: String(DOC_EXPORT_PAGE),
-          sort: state.list.sort, dir: state.list.dir
-        });
-        const data = await api('/documents?' + params);
-        data.rows.forEach(doc => rows.push([
-          doc.code, KIND_LABEL[doc.kind] || '', BRANCH_LABEL[doc.branch] || doc.branch, doc.date,
-          doc.customerName + (doc.customerCode ? ' · ' + doc.customerCode : ''), doc.note,
-          doc.status + (doc.orderCode ? ' · ' + doc.orderCode : ''), doc.lineCount || 0, doc.total || 0
-        ]));
-        if (!data.rows.length || page * DOC_EXPORT_PAGE >= data.total) break;
-      }
-      if (rows.length > DOC_EXPORT_MAX) rows.length = DOC_EXPORT_MAX;
-      const blob = await api('/export', { method: 'POST', body: { view: 'documents', columns: DOC_EXPORT_COLUMNS, rows } });
-      downloadBlob(blob, `danh_sach_chung_tu_${vnDate(0)}.xlsx`);
-    } catch (error) {
-      window.alert(error.message);
-    } finally {
-      button.disabled = !state.list.total;
     }
   }
 
@@ -1342,38 +1331,6 @@
     $('vdRefreshSheets').addEventListener('click', refreshSheets);
     document.querySelectorAll('[data-input-mode]').forEach(b => b.addEventListener('click', () => selectMode(b.dataset.inputMode)));
     ['vdSortPrimary', 'vdSortPrimaryDir', 'vdSortSecondary', 'vdSortSecondaryDir'].forEach(id => $(id).addEventListener('change', () => { if (state.alloc) renderAllocRows(); }));
-    ['vdKind', 'vdBranch', 'vdFrom', 'vdTo'].forEach(id => $(id).addEventListener('change', () => { state.list.page = 1; loadDocs(); }));
-    $('vdSearch').addEventListener('input', () => {
-      $('vdSearch').parentElement.querySelector('.table-search-clear').hidden = !$('vdSearch').value;
-      scheduleLoadDocs();
-    });
-    $('vdSearch').parentElement.querySelector('.table-search-clear').addEventListener('click', () => {
-      $('vdSearch').value = '';
-      $('vdSearch').dispatchEvent(new Event('input', { bubbles: true }));
-      $('vdSearch').focus();
-    });
-    $('vdResetFilters').addEventListener('click', () => {
-      $('vdKind').value = 'all';
-      $('vdBranch').value = defaultBranchFilter();
-      $('vdFrom').value = vnDate(-6);
-      $('vdTo').value = vnDate(0);
-      $('vdSearch').value = '';
-      $('vdSearch').parentElement.querySelector('.table-search-clear').hidden = true;
-      state.list.page = 1;
-      loadDocs();
-    });
-    $('vdDocsExport').addEventListener('click', event => exportDocs(event.currentTarget));
-    $('vdDocsTable').tHead.addEventListener('click', event => {
-      const button = event.target.closest('[data-sort-field]');
-      if (!button) return;
-      const field = button.dataset.sortField;
-      const dir = nextDir(state.list.sort === field, state.list.dir);
-      state.list.sort = dir ? field : '';
-      state.list.dir = dir || 'asc';
-      state.list.page = 1;
-      renderDocsHeader();
-      loadDocs();
-    });
     $('vdAllocTable').tHead.addEventListener('click', event => {
       const button = event.target.closest('[data-sort-field]');
       if (!button || !state.alloc) return;
@@ -1384,34 +1341,22 @@
       if (dir) $('vdSortPrimaryDir').value = dir;
       renderAllocRows();
     });
-    $('vdDocsFirst').addEventListener('click', () => { state.list.page = 1; loadDocs(); });
-    $('vdDocsPrev').addEventListener('click', () => { state.list.page = Math.max(1, state.list.page - 1); loadDocs(); });
-    $('vdDocsNext').addEventListener('click', () => { state.list.page += 1; loadDocs(); });
-    $('vdDocsLast').addEventListener('click', () => { state.list.page = Math.max(1, Math.ceil(state.list.total / PAGE_SIZE)); loadDocs(); });
-    $('vdAddCodes').addEventListener('click', addCodes);
-    $('vdDocsRows').addEventListener('click', event => {
-      const row = event.target.closest('tr[data-key]');
-      if (!row) return;
-      const doc = state.list.rows.find(d => docKey(d) === row.dataset.key);
-      if (!doc) return;
-      const box = row.querySelector('input[type="checkbox"]');
-      const selected = event.target === box ? box.checked : !state.selection.has(row.dataset.key);
-      toggleDoc(doc, selected);
-      renderSelection();
+    $('vdRunCodes').addEventListener('click', runCodes);
+    // Ctrl+Enter trong o dan ma = bam Xu ly.
+    $('vdCodesInput').addEventListener('keydown', event => {
+      if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !event.isComposing) { event.preventDefault(); runCodes(); }
     });
-    $('vdSelectPage').addEventListener('change', event => {
-      state.list.rows.forEach(doc => toggleDoc(doc, event.target.checked));
-      renderSelection();
+    const openPasted = row => { const item = row && state.pasted[Number(row.dataset.pasted)]; if (item && item.doc) openDocDetail(item.doc, row); };
+    $('vdDocListRows').addEventListener('click', event => openPasted(event.target.closest('tr[data-open]')));
+    $('vdDocListRows').addEventListener('keydown', event => {
+      if ((event.key === 'Enter' || event.key === ' ') && event.target.matches('tr[data-open]')) { event.preventDefault(); openPasted(event.target); }
     });
-    $('vdChips').addEventListener('click', event => {
-      const button = event.target.closest('[data-remove]');
-      if (!button) return;
-      state.selection.delete(button.dataset.remove);
-      saveSelection();
-      renderSelection();
+    $('vdDocModalClose').addEventListener('click', closeDocDetail);
+    $('vdDocModal').addEventListener('click', event => {
+      if (event.target === $('vdDocModal')) closeDocDetail();
+      else if (event.target.closest('[data-doc-retry]')) loadDocDetail();
     });
-    $('vdClearSelection').addEventListener('click', () => { state.selection.clear(); saveSelection(); renderSelection(); });
-    $('vdRunDocs').addEventListener('click', () => run('documents'));
+    document.addEventListener('keydown', event => { if (event.key === 'Escape' && !$('vdDocModal').hidden) closeDocDetail(); });
     $('vdRunPasteInvoice').addEventListener('click', () => run('paste'));
     document.querySelectorAll('[data-clear-paste]').forEach(b => b.addEventListener('click', () => {
       $(b.dataset.clearPaste).value = '';
@@ -1518,22 +1463,18 @@
     state.user = await window.TKSNav.authGuard();
     state.canProcess = window.TKSNav.can('accounting.vatDraft');
     if (!state.canProcess) {
-      // Chi co quyen Tao QR: an trang thai Sheets/KiotViet + thanh tab, khong tai danh sach chung tu.
+      // Chi co quyen Tao QR: an trang thai Sheets/KiotViet + thanh tab.
       document.querySelectorAll('[data-requires-processing]').forEach(el => { el.hidden = true; });
       $('vdTitle').textContent = 'Tạo QR chuyển khoản';
       $('vdSub').textContent = 'Đọc hóa đơn hoặc nhập thông tin để tạo mã QR thanh toán';
     }
-    // Bo loc Co so mac dinh theo co so dang chon o header.
+    // O Co so canh o dan ma: mac dinh theo co so dang chon o header.
     $('vdBranch').value = defaultBranchFilter();
-    $('vdFrom').value = vnDate(-6);
-    $('vdTo').value = vnDate(0);
-    loadSelection();
-    renderDocsHeader();
     bindEvents();
     selectMode('docs');
     selectTab(window.location.hash.slice(1));
     updateManualFields();
-    await Promise.all([loadMeta(), state.canProcess ? loadDocs() : null]);
+    await loadMeta();
   }
 
   window.TKSVatDraft = { init, pyFloatRepr, csvCell, formatAmount, parseAmount, slug, state };

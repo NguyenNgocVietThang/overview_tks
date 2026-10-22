@@ -7,33 +7,10 @@
 
 const { getPool } = require('../db/pool');
 const { INVOICE_STATUS_SQL } = require('../kiotvietSync/salesSqlFragments');
-const { stripDiacritics } = require('./normalization');
 
 const DATE_FORMAT = 'DD/MM/YYYY HH24:MI';
-const MAX_PAGE_SIZE = 100;
 const CANCELLED = 'Đã hủy';
 const COMPLETED = 'Hoàn thành';
-
-// Bo dau tieng Viet trong SQL (khong phu thuoc extension unaccent).
-const VN_FROM = 'àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ';
-const VN_TO = 'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd';
-const { fuzzySqlParts } = require('../shared/fuzzySql');
-const foldSql = expression => `translate(lower(${expression}), '${VN_FROM}', '${VN_TO}')`;
-
-// Cot sap xep cua bang chon chung tu (khoa tu trang -> bieu thuc SQL tren CTE docs "d"). Chi nhan khoa
-// trong danh sach nay (khong ghep chuoi nguoi dung vao SQL).
-const SORT_COLUMNS = Object.freeze({
-  code: 'd.code',
-  kind: 'd.kind',
-  branch: 'd.branch',
-  date: 'd.doc_ts',
-  customer: 'lower(d.customer_name)',
-  note: 'lower(d.note)',
-  status: 'd.status',
-  total: 'd.total',
-  lines: `CASE d.kind WHEN 'invoice' THEN (SELECT count(*) FROM invoice_details x WHERE x.branch = d.branch AND x.invoice_id = d.id)
-           ELSE (SELECT count(*) FROM order_details x WHERE x.branch = d.branch AND x.order_id = d.id) END`
-});
 
 const statusSql = alias => INVOICE_STATUS_SQL.replace(/\bi\./g, `${alias}.`);
 const orderStatusSql = alias => `COALESCE(NULLIF(${alias}.raw->>'statusValue', ''), ${alias}.status::text, '')`;
@@ -43,19 +20,6 @@ function badRequest(message, code = 'VAT_DRAFT_INVALID') {
   error.statusCode = 400;
   error.code = code;
   return error;
-}
-
-/** Tu khoa tim khach: chu thuong + bo dau, giong foldSql. */
-function foldSearch(text) {
-  return stripDiacritics(String(text || '').trim()).toLowerCase();
-}
-
-/** 'YYYY-MM-DD' hop le hoac null. */
-function parseDate(value) {
-  const text = String(value || '').trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return null;
-  const date = new Date(`${text}T00:00:00Z`);
-  return Number.isFinite(+date) && date.toISOString().slice(0, 10) === text ? text : null;
 }
 
 function n(value) {
@@ -88,93 +52,6 @@ const HEAD_COLUMNS = alias => `
   COALESCE(${alias}.total, 0)::float8 AS total`;
 
 function createDocumentsRepository({ query = (sql, params) => getPool().query(sql, params) } = {}) {
-  /**
-   * Danh sach chung tu de tick chon: hoa don (tru Da huy) + don dat hang chua len hoa don
-   * (khong Hoan thanh / Da huy, chua co hoa don khong huy tro toi). Moi nhat truoc.
-   */
-  async function listDocuments({ branchCodes, kind = 'all', from, to, q = '', page = 1, pageSize = 50, sort = '', dir = 'desc' } = {}) {
-    // Sap xep tren TOAN BO ket qua (khong chi trang hien tai). Cot ngoai danh sach -> moi nhat truoc.
-    const sortExpr = SORT_COLUMNS[sort];
-    const direction = dir === 'asc' ? 'ASC' : 'DESC';
-    const baseOrder = sortExpr
-      ? `${sortExpr} ${direction} NULLS LAST, d.doc_ts DESC NULLS LAST, d.code DESC`
-      : 'd.doc_ts DESC NULLS LAST, d.code DESC';
-    if (!Array.isArray(branchCodes) || !branchCodes.length) throw badRequest('Chưa chọn cơ sở.');
-    if (!['all', 'invoice', 'order'].includes(kind)) throw badRequest('Loại chứng từ không hợp lệ.');
-    const fromDate = parseDate(from);
-    const toDate = parseDate(to);
-    if (!fromDate || !toDate) throw badRequest('Khoảng ngày không hợp lệ.');
-    if (fromDate > toDate) throw badRequest('Từ ngày phải trước hoặc bằng Đến ngày.');
-    const size = Math.min(Math.max(Number.parseInt(pageSize, 10) || 50, 1), MAX_PAGE_SIZE);
-    const pageNo = Math.max(Number.parseInt(page, 10) || 1, 1);
-    // Thoat ky tu dai dien cua LIKE (mac dinh ESCAPE la dau gach nguoc).
-    const search = foldSearch(q).replace(/[\\%_]/g, ch => `\\${ch}`);
-
-    // Ten khach: tim gan dung (bo dau, 2 tu khop ca 2, >=3 tu khop qua nua; khop nhieu tu xep truoc khi chua chon
-    // cot sap xep). Ma khach / ma chung tu: khop chuoi con nhu cu. Tham so tu $8 tro di.
-    const params = [branchCodes, fromDate, toDate, kind, search, size, (pageNo - 1) * size];
-    const fuzzyName = fuzzySqlParts('d.customer_name', q, value => { params.push(value); return '$' + params.length; });
-    const exactCode = "(lower(d.customer_code) LIKE '%' || $5 || '%' OR lower(d.code) LIKE '%' || $5 || '%')";
-    const searchWhere = fuzzyName
-      ? `(${fuzzyName.where} OR ${exactCode})`
-      : exactCode;
-    const orderBy = fuzzyName && !sortExpr
-      ? `CASE WHEN ${exactCode} THEN 1000 ELSE ${fuzzyName.score} END DESC, ${baseOrder}`
-      : baseOrder;
-
-    const { rows } = await query(
-      `WITH invoiced AS MATERIALIZED (
-         -- Ma don dat hang da co hoa don khong huy. Hoa don cua 1 don khong the lap truoc
-         -- ngay dat don (>= Tu ngay - 1) nen chi quet doan index purchase_date, 1 lan.
-         SELECT DISTINCT i2.branch, i2.raw->>'orderCode' AS order_code
-         FROM invoices i2
-         WHERE $4 IN ('all', 'order') AND i2.branch = ANY($1::text[])
-           AND i2.purchase_date >= ($2::date - 1)::timestamp AT TIME ZONE 'UTC'
-           AND COALESCE(i2.raw->>'orderCode', '') <> '' AND ${statusSql('i2')} <> '${CANCELLED}'
-       ), inv AS (
-         SELECT 'invoice'::text AS kind, ${HEAD_COLUMNS('i')}, i.purchase_date AS doc_ts,
-                ${statusSql('i')} AS status, COALESCE(i.raw->>'orderCode', '') AS order_code
-         FROM invoices i
-         WHERE $4 IN ('all', 'invoice') AND i.branch = ANY($1::text[])
-           AND i.purchase_date >= ($2::date)::timestamp AT TIME ZONE 'UTC'
-           AND i.purchase_date < ($3::date + 1)::timestamp AT TIME ZONE 'UTC'
-       ), ord AS (
-         SELECT 'order'::text AS kind, ${HEAD_COLUMNS('o')}, o.order_date AS doc_ts,
-                ${orderStatusSql('o')} AS status, ''::text AS order_code
-         FROM orders o
-         WHERE $4 IN ('all', 'order') AND o.branch = ANY($1::text[])
-           AND o.order_date >= ($2::date)::timestamp AT TIME ZONE 'UTC'
-           AND o.order_date < ($3::date + 1)::timestamp AT TIME ZONE 'UTC'
-           AND COALESCE(o.raw->>'statusValue', '') NOT IN ('${CANCELLED}', '${COMPLETED}')
-           AND NOT EXISTS (SELECT 1 FROM invoiced v WHERE v.branch = o.branch AND v.order_code = o.code)
-       ), docs AS (
-         SELECT * FROM inv WHERE status <> '${CANCELLED}'
-         UNION ALL
-         SELECT * FROM ord
-       ), page AS (
-         SELECT d.*, count(*) OVER () AS total_count, row_number() OVER (ORDER BY ${orderBy}) AS rn
-         FROM docs d
-         WHERE $5 = '' OR ${searchWhere}
-         ORDER BY ${orderBy}
-         LIMIT $6 OFFSET $7
-       )
-       SELECT p.*, COALESCE(to_char(p.doc_ts AT TIME ZONE 'UTC', '${DATE_FORMAT}'), '') AS doc_date,
-              CASE p.kind
-                WHEN 'invoice' THEN (SELECT count(*) FROM invoice_details d WHERE d.branch = p.branch AND d.invoice_id = p.id)
-                ELSE (SELECT count(*) FROM order_details d WHERE d.branch = p.branch AND d.order_id = p.id)
-              END AS line_count
-       FROM page p
-       ORDER BY p.rn`,
-      params
-    );
-    return {
-      rows: rows.map(mapHead),
-      total: rows.length ? n(rows[0].total_count) : 0,
-      page: pageNo,
-      pageSize: size
-    };
-  }
-
   /**
    * Tra danh sach ma da dan (HD.../DH...) trong cac co so dang xem, khong loc ngay.
    * -> { found[], notFound[], ambiguous[] } (ambiguous = ma co o ca HN lan SG).
@@ -312,7 +189,7 @@ function createDocumentsRepository({ query = (sql, params) => getPool().query(sq
     return rows.map(r => ({ branch: r.branch, entity: r.entity, syncedAt: r.last_synced_at || null }));
   }
 
-  return { listDocuments, resolveCodes, readDocumentLines, syncStatus };
+  return { resolveCodes, readDocumentLines, syncStatus };
 }
 
-module.exports = { createDocumentsRepository, foldSearch, parseDate, MAX_PAGE_SIZE };
+module.exports = { createDocumentsRepository };
