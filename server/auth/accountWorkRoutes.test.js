@@ -57,3 +57,33 @@ test('catalog exposes fixed workplace departments without reading HR', async () 
     assert.deepEqual(res.body.departmentsByBranch, { 'Hà Nội': require('../hr/hrDepartmentCatalog').departmentsFor('hanoi'), 'Sài Gòn': require('../hr/hrDepartmentCatalog').departmentsFor('saigon') });
   } finally { directory.getSnapshot = original; }
 });
+
+test('request-only legacy department can be offered and granted to a replacement approver', async () => {
+  const { PGlite } = require('@electric-sql/pglite');
+  const repository = require('./appUsersRepository');
+  const { matchesApprovalScope, selectApprovers } = require('../hr/hrLeaveAuthorization');
+  const original = repository.selectApprovalDepartmentCatalog;
+  const db = new PGlite();
+  try {
+    await db.exec(`CREATE TABLE app_users (bo_phan text, leave_approval_departments text[], is_deleted boolean);
+      CREATE TABLE hr_leave_requests (bo_phan text);
+      INSERT INTO app_users VALUES ('Kho HN', ARRAY[]::text[], false);
+      INSERT INTO hr_leave_requests VALUES ('KHO');`);
+    repository.selectApprovalDepartmentCatalog = () => original(db);
+    store.setInMemoryUsers([{ id: 'staff', username: 'replacement', vaiTro: 'Trợ lý', coSo: 'Hà Nội', workCoSo: 'Hà Nội', boPhan: 'Kho HN', trangThai: 'Đang hoạt động', leaveApprovalDepartments: [] }]);
+    const catalog = await request('get', '/api/admin/permissions/catalog');
+    assert.ok(catalog.body.departments.includes('KHO'), 'request-only legacy department remains selectable for approval');
+    assert.ok(!Object.values(catalog.body.departmentsByBranch).flat().includes('KHO'), 'legacy approval choices never enter the workplace catalog');
+    const granted = await request('put', '/api/admin/users/:id/permissions', { overrides: { 'hr.leave.manage': true }, leaveApprovalDepartments: ['KHO'] });
+    assert.equal(granted.statusCode, 200);
+    assert.deepEqual(granted.body.leaveApprovalDepartments, ['KHO']);
+    const approver = await store.getUserById('staff');
+    const historical = { co_so: 'Hà Nội', bo_phan: 'KHO' };
+    assert.equal(matchesApprovalScope(approver, historical), true);
+    assert.equal(selectApprovers([approver], historical).fallback, false);
+    assert.equal(approver.boPhan, 'Kho HN', 'membership stays canonical and independent of approval scope');
+  } finally {
+    repository.selectApprovalDepartmentCatalog = original;
+    await db.close();
+  }
+});

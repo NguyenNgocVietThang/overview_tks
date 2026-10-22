@@ -130,9 +130,13 @@ function approvalScopeChange(actor, current, next, body) {
 }
 
 async function departmentCatalog() {
-  const users = await localUserStore.getAllUsers();
+  const [users, historical] = await Promise.all([
+    localUserStore.getAllUsers(),
+    require('./appUsersRepository').selectApprovalDepartmentCatalog().catch(() => [])
+  ]);
   return normalizeDepartments([
     ...departmentsFor('hanoi'), ...departmentsFor('saigon'),
+    ...historical,
     ...users.flatMap(user => [user.boPhan || '', ...normalizeDepartments(user.leaveApprovalDepartments || [])])
   ]).sort((a, b) => a.localeCompare(b, 'vi'));
 }

@@ -303,7 +303,7 @@ async function softDeleteUser(id) {
 
 async function selectApprovalDepartmentCatalog(pool = getPool()) {
   const { rows } = await pool.query(`
-    SELECT bo_phan FROM hr_employees
+    SELECT bo_phan FROM app_users WHERE NOT is_deleted
     UNION SELECT unnest(leave_approval_departments) AS bo_phan FROM app_users WHERE NOT is_deleted
     UNION SELECT bo_phan FROM hr_leave_requests
   `);
