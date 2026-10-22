@@ -26,15 +26,17 @@ const WINNING_SOURCES = Object.freeze({ hn: 'HN', hnFreight: 'HN + cước', sg:
 // dau tien van dung gia bac co nguong thap nhat. Thieu chiec/thung (NULL hoac 0) -> NULL (khong doan).
 // tiers: jsonb [{position, cartons, unitPrice}] (chuoi decimal; bac trong da bi parser bo, khong bao gio = 0).
 function quantityPriceSql(tiers, cartonSize, totalQuantity) {
-  const cartons = "(t->>'cartons')::numeric";
-  const qualifies = `(${cartons} * NULLIF(${cartonSize}, 0) <= ${totalQuantity})`;
-  return `(CASE WHEN NULLIF(${cartonSize}, 0) IS NULL THEN NULL ELSE (
-    SELECT (t->>'unitPrice')::numeric
+  const count = "(t->>'cartons')::numeric";
+  // Bac "nCT" (unit = piece) tinh thang theo chiec; bac "nT" nhan chiec/thung (thieu -> NULL, khong doan).
+  const threshold = `(CASE WHEN t->>'unit' = 'piece' THEN ${count} ELSE ${count} * NULLIF(${cartonSize}, 0) END)`;
+  const qualifies = `(${threshold} <= ${totalQuantity})`;
+  return `(SELECT (t->>'unitPrice')::numeric
     FROM jsonb_array_elements(COALESCE(${tiers}, '[]'::jsonb)) t
+    WHERE ${threshold} IS NOT NULL
     ORDER BY ${qualifies} DESC,
-             CASE WHEN ${qualifies} THEN -${cartons} ELSE ${cartons} END,
+             CASE WHEN ${qualifies} THEN -${threshold} ELSE ${threshold} END,
              CASE WHEN ${qualifies} THEN -(t->>'position')::int ELSE (t->>'position')::int END
-    LIMIT 1) END)`;
+    LIMIT 1)`;
 }
 
 // Gia theo cap khach: bac dung vi tri cap (1 Vua, 2 Lon, 3 VIP); o trong -> NULL.

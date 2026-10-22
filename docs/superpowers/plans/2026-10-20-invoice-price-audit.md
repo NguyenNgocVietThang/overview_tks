@@ -22,7 +22,7 @@
 - Quy tắc hàng hóa lấy từ `products.raw.description` theo từng cơ sở, không lấy `products.base_price` làm giá thay thế.
 - Tên hàng chứa `(OD)` hoặc `(PK)`, không phân biệt hoa/thường, được coi không sai giá. Không có giá quy định dùng được cũng coi không sai giá.
 - Thiếu VAT hoặc cước của mã hàng = 0đ. Bậc trống như `-T --` là không có bậc, tuyệt đối không đổi thành giá 0đ rồi đưa vào `min`.
-- Chưa làm bảng nhập/duyệt giá cắt lô riêng theo khách–mã. Bậc thứ tư trong mô tả vẫn là bậc số lượng cho mọi khách, không phải quyền cắt lô riêng.
+- Chưa làm bảng nhập/duyệt giá cắt lô riêng theo khách–mã. Bốn bậc trong mô tả theo thứ tự Vừa → Lớn → VIP → Cắt lô: bậc 4 là giá cắt lô, áp dụng cho mọi khách khi tổng số lượng cùng mã đạt ngưỡng của bậc 4; chưa đạt thì theo cấp + số lượng và không thấp hơn giá VIP (bậc 3). Không có bậc 4 thì sàn là giá VIP.
 - Không tự gửi thông báo, không tự thu tiền hoặc khấu trừ lương. Phạt ở đây là số tiền được ghi nhận trong bảng.
 
 ### 1.1. Đọc các bậc giá

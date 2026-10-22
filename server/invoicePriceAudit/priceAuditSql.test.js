@@ -56,6 +56,46 @@ test('gia theo cap: vi tri 1/2/3, o trong -T -- giu vi tri va tra NULL (khong ph
   assert.equal(await quantityPrice(note, 150), '23000');
 });
 
+test('Bac 1-2-3 = Vua/Lon/VIP, bac 4 = cat lo: dat SL cat lo thi lay gia cat lo, chua dat thi san la gia VIP', async () => {
+  const note = parsePriceNote('T1 # 21/10 # 20T -86000 | 50T- 85600 | 100T- 85300 | 300T -85000 | VAT+12000đ');
+  const base = async (position, qty) => {
+    const { rows } = await db.query(
+      `SELECT ${sql.basePriceSql(sql.quantityPriceSql('$1::jsonb', '$2::numeric', '$3::numeric'),
+        sql.levelPriceSql('$1::jsonb', '$4::int'))}::text AS p`,
+      [JSON.stringify(note.tiers), note.cartonSize, String(qty), position]);
+    return rows[0].p;
+  };
+  for (const position of [1, 2, 3]) {
+    assert.equal(await base(position, 300), '85000', `cat lo, cap ${position}`);
+    assert.equal(await base(position, 1000), '85000', `qua cat lo, cap ${position}`);
+  }
+  // Chua dat cat lo: theo cap + SL, khong bao gio duoi gia VIP (bac 3)
+  assert.equal(await base(1, 10), '86000');
+  assert.equal(await base(2, 10), '85600');
+  assert.equal(await base(3, 10), '85300');
+  assert.equal(await base(1, 299), '85300');
+  // Khong co bac cat lo: SL lon van chi xuong gia VIP
+  const noLot = parsePriceNote('T1 # 21/10 # 20T -86000 | 50T- 85600 | 100T- 85300 | -T -- | VAT+12000đ');
+  const { rows } = await db.query(`SELECT ${sql.quantityPriceSql('$1::jsonb', '$2::numeric', '$3::numeric')}::text AS p`,
+    [JSON.stringify(noLot.tiers), noLot.cartonSize, '5000']);
+  assert.equal(rows[0].p, '85300');
+});
+
+test('Bac theo chiec (CT) va le (let): khong can chiec/thung, cat lo 2000CT van ap dung', async () => {
+  const note = parsePriceNote('T2000 # 14/9 # 100CT -2800 | 500CT- 2770 | 1000CT- 2740 | 2000CT -2700 | VAT+230đ');
+  assert.equal(note.tiers.length, 4);
+  for (const [qty, price] of Object.entries({ 1: '2800', 499: '2800', 500: '2770', 999: '2770', 1000: '2740', 1999: '2740', 2000: '2700' })) {
+    assert.equal(await quantityPrice(note, qty), price, `SL ${qty}`);
+  }
+  assert.equal(await levelPrice(note, 3), '2740');
+  const noCarton = parsePriceNote('100CT -2800 | 500CT- 2770');
+  assert.equal(await quantityPrice(noCarton, 600), '2770');
+  const retail = parsePriceNote('T500 # 31/8 # LẻT -10200 | 1T- 10000 | 2T- 9800 | -T --');
+  assert.equal(await quantityPrice(retail, 1), '10200');
+  assert.equal(await quantityPrice(retail, 500), '10000');
+  assert.equal(await quantityPrice(retail, 1000), '9800');
+});
+
 test('basePrice = MIN cac ung vien hop le; ca hai NULL -> NULL', async () => {
   const { rows } = await db.query(`SELECT ${sql.basePriceSql('NULL::numeric', '24000::numeric')}::text AS a,
     ${sql.basePriceSql('23800::numeric', '24000::numeric')}::text AS b,

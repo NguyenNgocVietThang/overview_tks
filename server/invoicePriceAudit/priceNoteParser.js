@@ -32,7 +32,8 @@ const CARTON_SIZE_RE = /^t ?(\d+)$/;
 const DATE_RE = /^\d{1,2}\/\d{1,2}(?:\/\d{2,4})?$/;
 const VAT_RE = /^vat ?\+ ?(.+)$/;
 // Mot o bac: "1t -24000", "2t- 168000", "-t --", "10t-23000"
-const TIER_RE = /^-? ?(\d*) ?t ?- ?(.*)$/;
+// "100ct -2800" = tu 100 CHIEC (khong nhan voi chiec/thung); "let- 14000" (le) = tu 1 chiec.
+const TIER_RE = /^-? ?(?:(\d*) ?(c)?|(lẻ)) ?t ?- ?(.*)$/;
 
 function parsePriceNote(text) {
   const result = { cartonSize: null, tiers: [], vatPerUnit: null, updatedLabel: null };
@@ -63,10 +64,13 @@ function parsePriceNote(text) {
     position += 1;
     const tier = TIER_RE.exec(seg);
     if (!tier) continue;
-    const unitPrice = parseMoney(tier[2]);
+    const unitPrice = parseMoney(tier[4]);
+    const count = tier[3] ? '1' : tier[1];
     // O trong/khong hop le bi bo; gia 0 khong phai gia quy dinh (se keo min xuong 0).
-    if (tier[1] === '' || unitPrice === null || unitPrice === '0') continue;
-    result.tiers.push({ position, cartons: stripLeadingZeros(tier[1]), unitPrice });
+    if (count === '' || unitPrice === null || unitPrice === '0') continue;
+    const entry = { position, cartons: stripLeadingZeros(count), unitPrice };
+    if (tier[2] || tier[3]) entry.unit = 'piece';
+    result.tiers.push(entry);
   }
   return result;
 }
