@@ -40,7 +40,7 @@ function createSpecialDayNotifier(options = {}) {
     try {
       const dateKey = todayKey(now);
       const day = getSpecialDay(dateKey);
-      if (!day) return { skipped: true, reason: 'not-special' };
+      if (!day || day.notify === false || !day.message) return { skipped: true, reason: 'not-special' };
 
       const pool = getPool();
       const claim = await pool.query(CLAIM_SQL, [dateKey, day.key]);

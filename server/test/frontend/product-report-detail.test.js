@@ -1,7 +1,7 @@
 'use strict';
 
-// Bang "Bao cao hang hoa" (tab Hang hoa): 34 cot theo thu tu sheet BC CHUNG (= thu tu cot file Excel), KHONG co
-// nut "Chi tiet" rieng; so Chua boc / Da boc / Ti trong khach lon nhat la nut mo hop chi tiet o dung muc. Bam vao 1 dong mo hop chi tiet giua man hinh (dung chung voi bang giao dich/dat hang/tra hang)
+// Bang "Bao cao hang hoa" (tab Hang hoa): 35 cot theo thu tu sheet BC CHUNG (= thu tu cot file Excel), KHONG co
+// nut "Chi tiet" rieng; so Ti trong khach lon nhat la nut mo hop chi tiet o muc Doanh so theo khach (hang du kien nay xem o hop cua bang Du kien hang ve). Bam vao 1 dong mo hop chi tiet giua man hinh (dung chung voi bang giao dich/dat hang/tra hang)
 // gom bang doanh so tung khach 90 ngay (so tien + %) va bieu do tron dat canh ben.
 
 const test = require('node:test');
@@ -17,7 +17,7 @@ const settle = async () => { for (let i = 0; i < 8; i++) await new Promise(resol
 
 const PRODUCTS = [
   {
-    code: 'SP-1', name: 'Khay giấy bạc', inTransit: 75, stockHanoi: 5, stockSaigon: 3, availableToSell: 8, qtySold30d: 4, revenue90d: 1000, customerCount90d: 3, topCustomerRevenue90d: 600, topCustomerName: 'KH A', topCustomerShare: 0.6,
+    code: 'SP-1', name: 'Khay giấy bạc', transferRequest: 40, inTransit: 75, stockHanoi: 5, stockSaigon: 3, availableToSell: 8, qtySold30d: 4, revenue90d: 1000, customerCount90d: 3, topCustomerRevenue90d: 600, topCustomerName: 'KH A', topCustomerShare: 0.6,
     availableHanoi: -2, availableSaigon: 5, descriptionHanoi: 'T50 # 30/9 | <b>VAT</b>+3200đ', descriptionSaigon: '', totalStock: 83, daysToOrder: 12.5, priceHanoi: 15000, priceSaigon: 16500,
     // Cột theo sheet BC CHUNG: Có bán HN âm nên Giá trị có bán HN và Ngày HN cũng âm (giữ nguyên dấu).
     qtySold30dHanoi: 3, qtySold30dSaigon: 1, orders30d: 18, orders90d: 60, stockoutDaysHanoi: 5, stockoutDaysSaigon: 0,
@@ -38,7 +38,7 @@ function customersPayload(code, count = 3) {
   return { code, totalRevenue: total, customerCount: count, rows };
 }
 
-function createPage({ customers = code => customersPayload(code), containers, meta, report, containerStatus = 200, reportVersion, can = () => true } = {}) {
+function createPage({ customers = code => customersPayload(code), meta, report, reportVersion, can = () => true } = {}) {
   const dom = new JSDOM(html, { runScripts: 'outside-only', url: 'https://tokosi.example/' });
   dom.window.HTMLCanvasElement.prototype.getContext = () => ({});
   const charts = [];
@@ -61,10 +61,6 @@ function createPage({ customers = code => customersPayload(code), containers, me
     urls.push(href);
     if (href === '/api/product-report') {
       return Promise.resolve({ ok: true, status: 200, json: async () => report ? report() : ({ rows: PRODUCTS, computedAt: '2026-09-29T00:15:00.000Z' }) });
-    }
-    if (href.startsWith('/api/product-report/containers?code=') && containers) {
-      const payload = containers(decodeURIComponent(href.split('code=')[1]));
-      return Promise.resolve(payload).then(data => ({ ok: !(data instanceof Error) && containerStatus < 400, status: data instanceof Error ? 500 : containerStatus, json: async () => data }));
     }
     if (href === '/api/product-report/containers/meta' && meta) return Promise.resolve({ ok: true, json: async () => ({ containerSync: meta(), reportVersion: reportVersion ? reportVersion() : null }) });
     if (href.startsWith('/api/product-report/customers?code=')) {
@@ -91,10 +87,10 @@ const pieCharts = page => page.charts.filter(chart => chart.config.type === 'dou
 const rowOf = (page, code) => [...page.$('productReportRows').querySelectorAll('tr.doc-row')].find(tr => tr.dataset.tableItemId === code);
 const modalText = page => page.$('docModalBody').textContent.replace(/\s+/g, ' ');
 
-// 34 cột theo thứ tự sheet BC CHUNG: [data-column-key, nhãn trên tiêu đề]. Thứ tự này = thứ tự file Excel (PRODUCT_REPORT_COLUMNS ở exportService.js).
+// 35 cột theo thứ tự sheet BC CHUNG: [data-column-key, nhãn trên tiêu đề]. Thứ tự này = thứ tự file Excel (PRODUCT_REPORT_COLUMNS ở exportService.js).
 const COLUMNS = [
-  ['ma-sp', 'Mã sản phẩm'], ['ten-sp', 'Tên sản phẩm'], ['da-boc', 'Đã bốc'], ['chua-boc', 'Chưa bốc'], ['gia-tri-co-ban-hn', 'Giá trị có bán HN'], ['sl-ban-30-ngay-hn', 'SL bán 30 ngày HN'],
-  ['ton-thuc-hn', 'Tồn thực HN'], ['co-ban-hn', 'Có bán HN'], ['dieu-chuyen-sg', 'Điều chuyển SG'], ['ton-thuc-sg', 'Tồn thực SG'],
+  ['ma-sp', 'Mã sản phẩm'], ['ten-sp', 'Tên sản phẩm'], ['chua-boc', 'Chưa bốc'], ['da-boc', 'Đã bốc'], ['gia-tri-co-ban-hn', 'Giá trị có bán HN'], ['sl-ban-30-ngay-hn', 'SL bán 30 ngày HN'],
+  ['ton-thuc-hn', 'Tồn thực HN'], ['co-ban-hn', 'Có bán HN'], ['yc-dieu-chuyen', 'YC điều chuyển'], ['dieu-chuyen-sg', 'Điều chuyển SG'], ['ton-thuc-sg', 'Tồn thực SG'],
   ['co-ban-sg', 'Có bán SG'], ['sl-ban-30-ngay-sg', 'SL bán 30 ngày SG'], ['gia-tri-co-ban-sg', 'Giá trị có bán SG'],
   ['tong-ton-thuc', 'Tổng tồn thực + ĐC'], ['tong-co-ban', 'Tổng có bán + ĐC'], ['sl-ban-30-ngay', 'SL bán 30 ngày'],
   ['dut-hn', 'Đứt HN'], ['dut-sg', 'Đứt SG'], ['ngay-can-dat', 'Ngày cần đặt'],
@@ -114,7 +110,7 @@ const NEW_KEYS = ['gia-tri-co-ban-hn', 'sl-ban-30-ngay-hn', 'sl-ban-30-ngay-sg',
   'sl-don-90-ngay', 'sl-don-30-ngay', 'tang-truong', 'ds-khach-lon-nhat'];
 // Bộ cột ĐANG HIỆN mặc định (không đổi so với bảng 21 cột trước đó).
 const inColumnOrder = list => KEYS.filter(key => list.includes(key));
-const SALE_VISIBLE = inColumnOrder(['ma-sp', 'ten-sp', 'da-boc', 'chua-boc', 'ton-thuc-hn', 'co-ban-hn', 'dieu-chuyen-sg', 'ton-thuc-sg', 'co-ban-sg', 'mo-ta-hn', 'mo-ta-sg', 'ds-90-ngay']);
+const SALE_VISIBLE = inColumnOrder(['ma-sp', 'ten-sp', 'da-boc', 'chua-boc', 'ton-thuc-hn', 'co-ban-hn', 'yc-dieu-chuyen', 'dieu-chuyen-sg', 'ton-thuc-sg', 'co-ban-sg', 'mo-ta-hn', 'mo-ta-sg', 'ds-90-ngay']);
 const MANAGER_VISIBLE = inColumnOrder(['ma-sp', 'ten-sp', 'don-gia-hn', 'don-gia-sg', 'da-boc', 'chua-boc', 'tong-ton-thuc', 'tong-co-ban', 'sl-ban-30-ngay', 'ngay-can-dat',
   'ds-90-ngay', 'sl-khach-ban', 'ti-trong-khach-lon-nhat']);
 const hiddenOf = visible => KEYS.filter(key => !visible.includes(key));
@@ -123,24 +119,25 @@ const columnKeys = page => [...reportTable(page).querySelectorAll('thead th')].m
 const scrolledSections = page => (page.dom.window.__scrolledTo || []).filter(id => id === 'productContainerSection' || id === 'productCustomerSection');
 const READY = { available: true, version: 'v1', lastSuccessAt: '2026-10-15T02:00:00Z' };
 
-test('bang Bao cao hang hoa co 34 cot theo thu tu sheet BC CHUNG, moi dong du 34 o dung vi tri, dong bam duoc', async () => {
+test('bang Bao cao hang hoa co 35 cot theo thu tu sheet BC CHUNG, moi dong du 35 o dung vi tri, dong bam duoc', async () => {
   const page = createPage();
   await settle();
 
   const headers = [...reportTable(page).querySelectorAll('thead th')].map(th => th.textContent.replace(/[↕▲▼]/g, '').trim());
   assert.deepEqual(headers, HEADERS);
-  assert.equal(HEADERS.length, 34);
+  assert.equal(HEADERS.length, 35);
   assert.deepEqual(columnKeys(page), KEYS);
-  assert.equal(new Set(columnKeys(page)).size, 34, 'data-column-key duy nhat cho tung cot');
+  assert.equal(new Set(columnKeys(page)).size, 35, 'data-column-key duy nhat cho tung cot');
 
   const firstRow = page.$('productReportRows').querySelector('tr');
-  assert.equal(firstRow.cells.length, 34);
+  assert.equal(firstRow.cells.length, 35);
   const text = key => cellOf(firstRow, key).textContent;
   assert.equal(text('ma-sp'), 'SP-1');
   assert.equal(text('gia-tri-co-ban-hn'), '-30,000');  // Giá trị có bán HN (tiền, giữ dấu âm)
   assert.equal(text('sl-ban-30-ngay-hn'), '3');
   assert.equal(text('ton-thuc-hn'), '5');
   assert.equal(text('co-ban-hn'), '-2');     // Có bán HN (âm giữ nguyên dấu)
+  assert.equal(text('yc-dieu-chuyen'), '40');
   assert.equal(text('dieu-chuyen-sg'), '75');
   assert.equal(text('ton-thuc-sg'), '3');
   assert.equal(text('co-ban-sg'), '5');
@@ -169,8 +166,9 @@ test('bang Bao cao hang hoa co 34 cot theo thu tu sheet BC CHUNG, moi dong du 34
   assert.equal(text('don-gia-sg'), '16,500');
   assert.match(text('mo-ta-hn'), /T50/);
   assert.equal(firstRow.getAttribute('tabindex'), '0');
-  assert.match(firstRow.title, /hàng dự kiến.*doanh số theo khách/);
-  [...page.$('productReportRows').querySelectorAll('tr.doc-row')].forEach(row => assert.equal(row.cells.length, 34));
+  assert.match(firstRow.title, /doanh số theo khách/);
+  assert.doesNotMatch(firstRow.title, /hàng dự kiến/, 'hang du kien nay xem o hop cua bang Du kien hang ve');
+  [...page.$('productReportRows').querySelectorAll('tr.doc-row')].forEach(row => assert.equal(row.cells.length, 35));
   assert.match(page.$('productReportRows').innerHTML, /^\s*<tr/);
 });
 
@@ -225,7 +223,7 @@ test('Mo ta HN/SG hien nguyen van, an toan HTML, rong thi "—"; tim kiem tim du
   assert.deepEqual([...page.$('productReportRows').querySelectorAll('tr.doc-row')].map(tr => tr.dataset.tableItemId), ['SP-1']);
 });
 
-test('Chua boc / Da boc / Ti trong khach lon nhat la nut chi khi co so > 0; 0 va null chi la chu', async () => {
+test('Ti trong khach lon nhat la nut chi khi co so > 0; Chua boc / Da boc la chu thuong (hang du kien xem o hop bang Du kien hang ve); 0 va null chi la chu', async () => {
   const page = createPage({ report: () => ({ rows: [
     { ...PRODUCTS[0], unloadedQty: 150, loadedQty: 0 },
     { ...PRODUCTS[1], unloadedQty: null, loadedQty: null }
@@ -233,38 +231,37 @@ test('Chua boc / Da boc / Ti trong khach lon nhat la nut chi khi co so > 0; 0 va
   await settle();
   const sp1 = rowOf(page, 'SP-1'); const sp2 = rowOf(page, 'SP-2');
   const link = (row, key) => cellOf(row, key).querySelector('button.cell-link');
-  assert.equal(link(sp1, 'chua-boc').dataset.detailFocus, 'containers');
-  assert.equal(link(sp1, 'chua-boc').textContent, '150');
-  assert.equal(link(sp1, 'da-boc'), null, 'Da boc = 0 => khong co muc de xem');
+  assert.equal(link(sp1, 'chua-boc'), null);
+  assert.equal(cellOf(sp1, 'chua-boc').textContent, '150');
+  assert.equal(cellOf(sp1, 'chua-boc').getAttribute('data-sort-value'), '150');
+  assert.equal(link(sp1, 'da-boc'), null);
   assert.equal(cellOf(sp1, 'da-boc').textContent, '0');
   assert.equal(link(sp1, 'ti-trong-khach-lon-nhat').dataset.detailFocus, 'customers');
   assert.match(link(sp1, 'ti-trong-khach-lon-nhat').textContent, /60/);
-  assert.equal(link(sp2, 'chua-boc'), null);
   assert.equal(cellOf(sp2, 'chua-boc').textContent.trim(), '—');
   assert.equal(link(sp2, 'ti-trong-khach-lon-nhat'), null, 'khong co ti trong => khong co nut');
-  // Nut chi nam o 3 cot nay (Da boc dung TRUOC Chua boc).
-  assert.deepEqual([...page.$('productReportRows').querySelectorAll('button')].map(button => button.closest('td').cellIndex), [idx('chua-boc'), idx('ti-trong-khach-lon-nhat')]);
+  // Nut chi con o cot Ti trong khach lon nhat.
+  assert.deepEqual([...page.$('productReportRows').querySelectorAll('button')].map(button => button.closest('td').cellIndex), [idx('ti-trong-khach-lon-nhat')]);
 });
 
-test('hop chi tiet: Hang du kien dung TRUOC Doanh so theo khach (kem bang Khach hang va bieu do)', async () => {
-  const page = createPage({ containers: code => ({ code, fullAccess: false, rows: [CONTAINER_ROW], containerSync: READY }) });
+test('hop chi tiet chi con muc Doanh so theo khach (kem bang Khach hang va bieu do), khong goi API CONT', async () => {
+  const page = createPage();
   await settle();
   rowOf(page, 'SP-1').click();
   await settle();
-  const containers = page.$('productContainerSection');
   const customers = page.$('productCustomerSection');
-  assert.ok(containers && customers);
-  assert.ok(containers.compareDocumentPosition(customers) & page.dom.window.Node.DOCUMENT_POSITION_FOLLOWING, 'Hang du kien o tren');
-  assert.equal([...page.$('docModalBody').querySelectorAll(':scope > section')].map(section => section.id).join(','), 'productContainerSection,productCustomerSection');
-  assert.match(containers.querySelector('.dp-section-title').textContent, /Hàng dự kiến/);
+  assert.ok(customers);
+  assert.equal(page.$('productContainerSection'), null);
+  assert.equal([...page.$('docModalBody').querySelectorAll(':scope > section')].map(section => section.id).join(','), 'productCustomerSection');
   assert.match(customers.querySelector('.dp-section-title').textContent, /Doanh số theo khách/);
+  assert.doesNotMatch(page.$('docModalBody').textContent, /Hàng dự kiến/);
   assert.ok(customers.querySelector('#productDetailChart'), 'bieu do ty trong nam trong Doanh so theo khach');
   assert.match(customers.textContent, /Khách hàng/);
+  assert.equal(page.urls.some(url => url.startsWith('/api/product-report/containers?')), false);
 });
 
-test('bam so Ti trong khach lon nhat: mo hop va cuon toi Doanh so theo khach (o duoi) SAU khi ca hai phan da tai xong', async () => {
-  const page = createPage({ report: () => ({ rows: [{ ...PRODUCTS[0], unloadedQty: 150, loadedQty: 0 }], containerSync: READY }),
-    containers: code => ({ code, fullAccess: false, rows: [CONTAINER_ROW], containerSync: READY }) });
+test('bam so Ti trong khach lon nhat: mo hop va cuon toi Doanh so theo khach SAU khi da tai xong', async () => {
+  const page = createPage({ report: () => ({ rows: [{ ...PRODUCTS[0], unloadedQty: 150, loadedQty: 0 }], containerSync: READY }) });
   await settle();
   cellOf(rowOf(page, 'SP-1'), 'ti-trong-khach-lon-nhat').querySelector('button').click();
   await settle();
@@ -276,21 +273,20 @@ test('bam so Ti trong khach lon nhat: mo hop va cuon toi Doanh so theo khach (o 
   assert.deepEqual(scrolledSections(page), ['productCustomerSection']);
 });
 
-test('bam so Chua bot / Da boc: mo hop va dua muc Hang du kien ve dau khung cuon', async () => {
-  const page = createPage({ report: () => ({ rows: [{ ...PRODUCTS[0], unloadedQty: 150, loadedQty: 20 }], containerSync: READY }),
-    containers: code => ({ code, fullAccess: false, rows: [CONTAINER_ROW], containerSync: READY }) });
+test('bam so Chua bot / Da boc khong con la nut: bam o do mo hop nhu bam o thuong, khong cuon', async () => {
+  const page = createPage({ report: () => ({ rows: [{ ...PRODUCTS[0], unloadedQty: 150, loadedQty: 20 }], containerSync: READY }) });
   await settle();
-  cellOf(rowOf(page, 'SP-1'), 'da-boc').querySelector('button').click();
+  cellOf(rowOf(page, 'SP-1'), 'da-boc').click();
   await settle();
   assert.equal(page.$('docModalBackdrop').hidden, false);
-  assert.equal(page.urls.filter(url => url === '/api/product-report/customers?code=SP-1').length, 1, 'nut khong mo hop hai lan');
-  assert.deepEqual(scrolledSections(page), ['productContainerSection']);
+  assert.equal(page.urls.filter(url => url === '/api/product-report/customers?code=SP-1').length, 1);
+  assert.deepEqual(scrolledSections(page), []);
 });
 
 test('bam o thuong (khong phai nut) mo hop khong cuon; dong dong hop huy muc tieu dang cho', async () => {
   let release;
   const page = createPage({ report: () => ({ rows: [{ ...PRODUCTS[0], unloadedQty: 150, loadedQty: 0 }], containerSync: READY }),
-    containers: code => new Promise(resolve => { release = () => resolve({ code, rows: [CONTAINER_ROW], containerSync: READY }); }) });
+    customers: code => new Promise(resolve => { release = () => resolve(customersPayload(code)); }) });
   await settle();
   rowOf(page, 'SP-1').cells[1].click();
   await settle();
@@ -299,7 +295,7 @@ test('bam o thuong (khong phai nut) mo hop khong cuon; dong dong hop huy muc tie
   assert.deepEqual(scrolledSections(page), []);
   page.run('closeDocumentDetail()');
 
-  // Bam nut roi dong hop truoc khi Hang du kien ve: khong cuon, khong de lai muc tieu cho lan mo sau.
+  // Bam nut roi dong hop truoc khi Doanh so theo khach ve: khong cuon, khong de lai muc tieu cho lan mo sau.
   cellOf(rowOf(page, 'SP-1'), 'ti-trong-khach-lon-nhat').querySelector('button').click();
   await settle();
   assert.equal(page.dom.window.__reportTestInternals.docDetail.focus, 'customers');
@@ -440,7 +436,7 @@ test('khung nhin theo vai tro: chua biet vai tro hoac chua nap table-controls th
   assert.deepEqual(sessionHidden(withControls), { key: 'dashboard-table-2', hidden: [] });
 });
 
-test('cot an mac dinh khop: khoa an cua tung ho so deu co trong thead, cot moi + DS khach lon nhat nam trong danh sach an cua CA HAI ho so, do rong du 34 cot', async () => {
+test('cot an mac dinh khop: khoa an cua tung ho so deu co trong thead, cot moi + DS khach lon nhat nam trong danh sach an cua CA HAI ho so, do rong du 35 cot', async () => {
   const page = createPage();
   await settle();
   const keys = columnKeys(page);
@@ -452,11 +448,11 @@ test('cot an mac dinh khop: khoa an cua tung ho so deu co trong thead, cot moi +
   assert.deepEqual(keys.filter(key => !lists.manager.includes(key)), MANAGER_VISIBLE);
   assert.deepEqual(keys.filter(key => !lists.sale.includes(key)), SALE_VISIBLE);
   NEW_KEYS.forEach(key => { assert.ok(lists.sale.includes(key), 'sale an ' + key); assert.ok(lists.manager.includes(key), 'manager an ' + key); });
-  // Do rong khai bao ro cho tung ho so: 34 so duong, cung thu tu thead.
+  // Do rong khai bao ro cho tung ho so: 35 so duong, cung thu tu thead.
   const widths = page.dom.window.__reportTestInternals.widthsByProfile;
   ['sale', 'manager'].forEach(profile => {
     const list = Array.from(widths[profile]);
-    assert.equal(list.length, 34, profile);
+    assert.equal(list.length, 35, profile);
     assert.ok(list.every(width => Number.isFinite(width) && width >= 60), profile);
   });
 });
@@ -637,65 +633,36 @@ function revenueOf(table, name) {
   return Number(row.cells[1].getAttribute('data-sort-value'));
 }
 
-const CONTAINER_ROW = { containerName: 'CONT 10-7G', status: 2, statusLabel: '2. Chưa bốc', eta: 'DK 14-16/10', color: 'Đỏ/Vàng', saleNote: '<b>Trinh</b>', quantity: 50, orderedBy: 'Ánh', listedAt: '15/10', unitsPerPackage: 10, packageCount: 5, unitPriceCny: 1.44, vietnamPrice: 26420 };
 const READY_SYNC = { available: true, version: 'v1', lastSuccessAt: '2026-10-15T02:00:00Z' };
 
-test('hang du kien hien dong thoi voi doanh so, 6 cot cho sale va 12 cot cho quyen day du', async () => {
-  for (const fullAccess of [false, true]) {
-    const page = createPage({ containers: code => ({ code, fullAccess, rows: [CONTAINER_ROW], containerSync: READY_SYNC }) });
-    await settle();
-    rowOf(page, 'SP-1').click();
-    await settle();
-    const section = page.$('productContainerSection');
-    assert.ok(section, 'hang du kien luon hien ben duoi doanh so');
-    assert.ok(page.$('productDetailChart'));
-    assert.equal(section.querySelectorAll('thead th').length, fullAccess ? 12 : 6);
-    assert.equal(section.querySelector('tbody tr').cells.length, fullAccess ? 12 : 6);
-    assert.match(section.textContent, /CONT 10-7G.*2. Chưa bốc.*DK 14-16\/10.*Đỏ\/Vàng.*<b>Trinh<\/b>/s);
-    assert.equal(section.querySelector('b'), null, 'ghi chu khong duoc chen HTML');
-    assert.equal(section.textContent.includes('Ánh'), fullAccess);
-    assert.equal(section.textContent.includes('Giá SP (tệ)'), fullAccess);
-    assert.equal(section.textContent.includes('1.44'), fullAccess);
-    assert.equal(pieCharts(page).length, 1);
-  }
-});
-
-test('loi rieng tung phan khong lam mat phan kia va snapshot chua san sang khong gia thanh 0', async () => {
-  const page = createPage({ customers: () => new Error('fail'), containers: code => ({ code, fullAccess: false, rows: [CONTAINER_ROW], containerSync: READY_SYNC }) });
+test('loi tai doanh so khach khong lam hop vo; o Chua boc chua co snapshot van la "—"', async () => {
+  const page = createPage({ customers: () => new Error('fail') });
   await settle(); rowOf(page, 'SP-1').click(); await settle();
   assert.match(page.$('productCustomerSection').textContent, /Không tải được/);
-  assert.match(page.$('productContainerSection').textContent, /CONT 10-7G/);
   assert.equal(cellOf(rowOf(page, 'SP-1'), 'chua-boc').textContent, '—');
-  const page2 = createPage({ containers: () => new Error('fail') });
-  await settle(); rowOf(page2, 'SP-1').click(); await settle();
-  assert.ok(page2.$('productDetailChart'));
-  assert.match(page2.$('productContainerSection').textContent, /Không tải được/);
 });
 
-test('phan hoi CONT cu khong duoc ghi de ma moi hoac mo lai hop da dong', async () => {
+test('phan hoi doanh so khach cu khong duoc ghi de ma moi hoac mo lai hop da dong', async () => {
   let resolveFirst;
-  const page = createPage({ containers: code => code === 'SP-1' ? new Promise(resolve => { resolveFirst = resolve; }) : ({ code, rows: [{ ...CONTAINER_ROW, containerName: 'CONT NEW' }], containerSync: READY_SYNC }) });
+  const page = createPage({ customers: code => code === 'SP-1' ? new Promise(resolve => { resolveFirst = resolve; }) : customersPayload(code, 1) });
   await settle(); rowOf(page, 'SP-1').click(); await settle();
   rowOf(page, 'SP-2').click(); await settle();
-  resolveFirst({ rows: [CONTAINER_ROW], containerSync: READY_SYNC }); await settle();
-  assert.match(page.$('productContainerSection').textContent, /CONT NEW/);
-  assert.doesNotMatch(page.$('productContainerSection').textContent, /CONT 10-7G/);
+  resolveFirst(customersPayload('SP-1', 3)); await settle();
+  assert.equal(page.$('docModalBody').querySelectorAll('tbody tr').length, 1, 'chi con khach cua SP-2');
   page.run('closeDocumentDetail()'); await settle();
   assert.equal(page.$('docModalBody').innerHTML, '');
 });
 
-test('snapshot chua dong bo503 hien tinh trang ro rang, khong loi chung; cot giu 0 va so thap phan', async () => {
+test('Chua boc / Da boc giu so 0 va so thap phan (khong con goi API CONT khi mo hop)', async () => {
   const page = createPage({
-    report: () => ({ rows: [{ ...PRODUCTS[0], unloadedQty: 0, loadedQty: 3.25 }], containerSync: READY_SYNC }),
-    containerStatus: 503,
-    containers: () => ({ code: 'CONTAINER_SNAPSHOT_UNAVAILABLE', containerSync: { available: false } })
+    report: () => ({ rows: [{ ...PRODUCTS[0], unloadedQty: 0, loadedQty: 3.25 }], containerSync: READY_SYNC })
   });
   await settle();
   assert.equal(cellOf(rowOf(page, 'SP-1'), 'chua-boc').textContent, '0');
   assert.equal(cellOf(rowOf(page, 'SP-1'), 'da-boc').textContent, '3.25');
   rowOf(page, 'SP-1').click(); await settle();
-  assert.match(page.$('productContainerSection').textContent, /chưa có dữ liệu đồng bộ/);
-  assert.doesNotMatch(page.$('productContainerSection').textContent, /Không tải được/);
+  assert.equal(page.urls.some(url => url.startsWith('/api/product-report/containers?')), false);
+  assert.equal(page.$('productContainerSection'), null);
 });
 
 test('metadata thay doi moi tai lai bang va giu tim kiem, sort, trang; an view khong goi API', async () => {
@@ -722,23 +689,11 @@ test('metadata thay doi moi tai lai bang va giu tim kiem, sort, trang; an view k
   assert.equal(page.urls.filter(url => url.includes('/containers/meta')).length, metaCalls);
 });
 
-test('quan ly xem canh bao nguon an toan va ngay du kien de nguyen van', async () => {
-  const page = createPage({ containers: () => ({ fullAccess: true, rows: [{ ...CONTAINER_ROW, eta: '', saleNote: null }], containerSync: { ...READY_SYNC, lastError: 'sync failed', stale: true }, warnings: [{ sheetName: 'YIWU', row: 35, reason: '<script>bad</script>' }] }) });
-  await settle(); rowOf(page, 'SP-1').click(); await settle();
-  const section = page.$('productContainerSection');
-  assert.equal(section.querySelector('tbody tr').cells[2].textContent, '—');
-  assert.equal(section.querySelector('tbody tr').cells[4].textContent, '—');
-  assert.match(section.textContent, /Lần cập nhật mới nhất thất bại/);
-  assert.match(section.querySelector('details').textContent, /YIWU.*Dòng 35.*<script>bad<\/script>/s);
-  assert.equal(section.querySelector('script'), null);
-});
-
 test('dong chi tiet sau metadata refresh tra focus ve dong ma moi thay vi dong da tach DOM', async () => {
   let version = 'v1';
   const page = createPage({
     meta: () => ({ ...READY_SYNC, version }),
-    report: () => ({ rows: PRODUCTS, containerSync: { ...READY_SYNC, version } }),
-    containers: () => ({ rows: [], containerSync: READY_SYNC })
+    report: () => ({ rows: PRODUCTS, containerSync: { ...READY_SYNC, version } })
   });
   await settle();
   const oldRow = rowOf(page, 'SP-1');
@@ -754,7 +709,7 @@ test('dong chi tiet sau metadata refresh tra focus ve dong ma moi thay vi dong d
 });
 
 test('dong chi tiet tra focus ve tim kiem bao cao khi ma khong con tren trang', async () => {
-  const page = createPage({ containers: () => ({ rows: [], containerSync: READY_SYNC }) });
+  const page = createPage();
   await settle();
   rowOf(page, 'SP-1').click(); await settle();
   page.run("getTableSearchState('productReport').query = 'SP-2'; renderProductReport();");

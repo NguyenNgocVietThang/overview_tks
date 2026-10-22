@@ -560,12 +560,11 @@
             </div>
             <form class="bulk-search" id="bulkSearchForm">
               <div class="bulk-search-modes" id="bulkSearchModes">
-                <button type="button" class="bulk-mode-btn active" data-mode="code">Theo mã</button>
+                <button type="button" class="bulk-mode-btn" data-mode="code">Theo mã</button>
                 <button type="button" class="bulk-mode-btn" data-mode="sale">Theo tên sale</button>
-                <button type="button" class="bulk-mode-btn" data-mode="customer">Theo tên khách</button>
+                <button type="button" class="bulk-mode-btn active" data-mode="customer">Theo tên khách</button>
               </div>
               <input type="text" id="bulkSearchInput" data-search-input data-search-submit-on-clear autocomplete="off">
-              <button type="submit" class="btn-secondary bulk-search-submit">Tìm kiếm</button>
             </form>
             <div class="bulk-scroll bulk-scroll-y">
               <table class="bulk-table fixed-table" id="bulkTable" data-table-key="bulkTable" data-columns-button="bulkColumnsBtn">
@@ -624,8 +623,7 @@
             </div>
             <p class="lc-history-hint">Chỉ ghi nhận các lần Kế toán/Quản lý <strong>ghi đè trạng thái thủ công</strong> — không bao gồm các mốc cập nhật tự động từ Bot Telegram (xem ở tab "Toàn bộ đơn hàng"). Bấm vào 1 dòng để xem chi tiết đơn hàng.</p>
             <form class="bulk-search" id="historySearchForm">
-              <input type="text" id="historySearchInput" data-search-input data-search-submit-on-clear placeholder="Nhập mã đơn hoặc tên người thực hiện, nhấn Enter để tìm..." autocomplete="off">
-              <button type="submit" class="btn-secondary bulk-search-submit">Tìm kiếm</button>
+              <input type="text" id="historySearchInput" data-search-input data-search-submit-on-clear placeholder="Nhập mã đơn, tên người thực hiện hoặc ghi chú để tìm..." autocomplete="off">
             </form>
             <div class="bulk-scroll">
               <table class="bulk-table fixed-table" data-table-key="shipment-lifecycle-table-2">
@@ -675,6 +673,7 @@
 
   <!-- Dat o cuoi than <body> thay vi <head>: script chan phan tich cu phap trong <head> se lam dung viec xu ly toan bo tai lieu. Khong dung `defer` vi script inline ben duoi dung TKSNav o cap cao nhat, va script inline luon chay truoc script defer. -->
   <script src="/shared/table-controls.js?v=20261016-1"></script>
+  <script src="/shared/fuzzy-search.js"></script>
   <script src="/shared/search-clear.js?v=20261009-1"></script>
   <script src="/shared/shared-nav.js?v=20261016-freight"></script>
   <script src="/shared/table-align.js?v=20261017"></script>
@@ -1521,7 +1520,7 @@
     let dateFilterField = 'saleSentAt'; // cot thoi gian ap dung bo loc "tu ... den ..."
     let dateFilterFrom = ''; // 'YYYY-MM-DD' hoac '' (rong = khong gioi han)
     let dateFilterTo = '';
-    let bulkSearchMode = 'code';
+    let bulkSearchMode = 'customer'; // mac dinh tim theo ten khach
     let sortKey = null;
     let sortDir = 1; // 1 = tang dan, -1 = giam dan
     // Chua chon cot nao -> may chu sap theo thoi gian dat hang, moi nhat truoc (khop orderLifecycleQuery.DEFAULT_SORT).
@@ -1701,9 +1700,9 @@
     });
 
     const BULK_SEARCH_PLACEHOLDER = {
-      code: 'Nhập mã đơn — cách nhau bằng khoảng trắng nếu tìm nhiều mã, nhấn Enter để tìm...',
-      sale: 'Nhập tên sale, nhấn Enter để tìm...',
-      customer: 'Nhập tên khách hàng, nhấn Enter để tìm...'
+      code: 'Nhập mã đơn — cách nhau bằng khoảng trắng nếu tìm nhiều mã...',
+      sale: 'Nhập tên sale để tìm...',
+      customer: 'Nhập tên khách hàng để tìm...'
     };
 
     // Reconciliation theo key (co so + ma don) thay vi xoa-dung lai toan bo <tbody> —
@@ -1881,10 +1880,10 @@
         btn.classList.toggle('active', btn.dataset.mode === mode);
       });
       bulkSearchInput.placeholder = BULK_SEARCH_PLACEHOLDER[mode];
-      if(bulkSearchInput.value.trim()) reloadBulk(); // o tim kiem rong thi doi kieu khong doi ket qua
+      if(bulkSearchInput.value.trim()){ clearTimeout(bulkSearchTimer); bulkAppliedQuery = bulkSearchInput.value.trim(); reloadBulk(); } // o tim kiem rong thi doi kieu khong doi ket qua
       bulkSearchInput.focus();
     }
-    bulkSearchInput.placeholder = BULK_SEARCH_PLACEHOLDER.code;
+    bulkSearchInput.placeholder = BULK_SEARCH_PLACEHOLDER.customer;
 
     // Bo loc hien tai (GET '/' va POST '/export' dung CHUNG bo tham so nay nen file Excel khop dung bang tren man hinh).
     function bulkFilterParams(){
@@ -2073,7 +2072,25 @@
       });
     }
 
-    bulkSearchForm.addEventListener('submit', function(e){ e.preventDefault(); reloadBulk(); });
+    // Tim ngay khi go (goi may chu nen tre ~300ms); xoa het tu khoa (Backspace/X) thi tai lai danh sach day du NGAY.
+    // Chi goi lai khi tu khoa thuc su doi so voi lan da ap dung gan nhat (Enter / X cung di qua day).
+    const BULK_SEARCH_DEBOUNCE_MS = 300;
+    let bulkSearchTimer = null;
+    let bulkAppliedQuery = '';
+    function applyBulkSearch(){
+      clearTimeout(bulkSearchTimer);
+      bulkSearchTimer = null;
+      const query = bulkSearchInput.value.trim();
+      if(query === bulkAppliedQuery) return;
+      bulkAppliedQuery = query;
+      reloadBulk();
+    }
+    bulkSearchInput.addEventListener('input', function(){
+      clearTimeout(bulkSearchTimer);
+      if(!bulkSearchInput.value.trim()){ applyBulkSearch(); return; }
+      bulkSearchTimer = setTimeout(applyBulkSearch, BULK_SEARCH_DEBOUNCE_MS);
+    });
+    bulkSearchForm.addEventListener('submit', function(e){ e.preventDefault(); applyBulkSearch(); });
     bulkSearchModes.addEventListener('click', function(e){
       const btn = e.target.closest('.bulk-mode-btn');
       if(!btn) return;
@@ -2284,13 +2301,14 @@
     }
 
     function applyHistoryFilters(){
-      const query = normalizeSearchText(historySearchInput.value);
+      const query = historySearchInput.value;
       let filtered = allHistoryRows;
-      if(query){
-        filtered = filtered.filter(function(entry){
-          return normalizeSearchText(entry.orderCode).indexOf(query) !== -1 ||
-            normalizeSearchText(entry.changedBy).indexOf(query) !== -1 ||
-            normalizeSearchText(entry.note).indexOf(query) !== -1;
+      if(normalizeSearchText(query)){
+        // Tim gan dung (shared/fuzzy-search.js): 1 tu phai khop, 2 tu khop ca 2, >=3 tu khop qua nua; khop nhieu tu xep truoc.
+        const fuzzy = window.TKSFuzzySearch;
+        const textOf = function(entry){ return [entry.orderCode, entry.changedBy, entry.note].join(' '); };
+        filtered = fuzzy ? fuzzy.filter(filtered, query, textOf) : filtered.filter(function(entry){
+          return normalizeSearchText(textOf(entry)).indexOf(normalizeSearchText(query)) !== -1;
         });
       }
       if(historyActiveBranchFilter){
@@ -2337,6 +2355,8 @@
       historyStatusFilter, historyBranchFilter].forEach(enhanceSelect);
 
     historySearchForm.addEventListener('submit', function(e){ e.preventDefault(); applyHistoryFilters(); });
+    // Loc cuc bo nen chay ngay moi lan go, ke ca khi xoa het tu khoa (hien lai day du).
+    historySearchInput.addEventListener('input', applyHistoryFilters);
     historyStatusFilter.addEventListener('change', function(){
       historyActiveStatusFilter = historyStatusFilter.value;
       applyHistoryFilters();

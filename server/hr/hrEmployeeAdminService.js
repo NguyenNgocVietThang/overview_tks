@@ -13,6 +13,7 @@
 'use strict';
 
 const hrEmployeesRepository = require('./hrEmployeesRepository');
+const { normalizeGender } = require('./hrGender');
 const { canonicalDepartment } = require('./hrDepartmentCatalog');
 const { departmentKey } = require('./hrDepartment');
 const employeeDirectory = require('./employeeDirectory');
@@ -81,14 +82,17 @@ function createHrEmployeeAdminService(options = {}) {
     if (soDienThoai && !/^\+?\d{8,15}$/.test(soDienThoai)) {
       throw new HrEmployeeAdminError('Số điện thoại không hợp lệ.', 400, 'INVALID_PHONE');
     }
+    const insuranceNumber = input.insuranceNumber === undefined && existing
+      ? clean(existing.insuranceNumber) : clean(input.insuranceNumber);
     const date = value => { const text = clean(value); return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null; };
     return {
       hoTen, boPhan, branch, email, soDienThoai, employmentStatus: toStatus(input.trangThai),
       chucVu: clean(input.chucVu), ngayVaoLam: date(input.ngayVaoLam), ngaySinh: date(input.ngaySinh),
       soCccd: clean(input.soCccd), diaChiHienTai: clean(input.diaChiHienTai),
       nguoiThanQuanHe: clean(input.nguoiThanQuanHe), nguoiThanHoTen: clean(input.nguoiThanHoTen),
-      nguoiThanSoDienThoai: clean(input.nguoiThanSoDienThoai), gioiTinh: clean(input.gioiTinh),
+      nguoiThanSoDienThoai: clean(input.nguoiThanSoDienThoai), gioiTinh: normalizeGender(clean(input.gioiTinh)),
       hoSoDayDu: Boolean(input.hoSoDayDu), vanTayDaDangKy: Boolean(input.vanTayDaDangKy),
+      insuranceNumber,
       ngayNghiViec: date(input.ngayNghiViec)
     };
   }

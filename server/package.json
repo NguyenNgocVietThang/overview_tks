@@ -11,6 +11,7 @@
     "build": "node -e \"console.log('Express app: no build step required')\"",
     "start": "node --max-old-space-size=1024 index.js",
     "dev": "node --max-old-space-size=4096 index.js",
+    "worker": "node --max-old-space-size=1024 worker.js",
     "test": "node --max-old-space-size=4096 --test",
     "db:migrate": "node db/migrate.js",
     "telegram-manager:set-webhook": "node telegram/setManagerLeaveWebhook.js",
@@ -18,11 +19,13 @@
     "kiotviet-sync:backfill": "node kiotvietSync/backfill.js",
     "kiotviet-sync:reconcile": "node kiotvietSync/reconcileCounts.js",
     "migrate:user-branches": "node scripts/migrateUserBranches.js",
+    "vat-requests:import-order-vat": "node scripts/importOrderVat.js",
     "marketing:history:capture": "node scripts/capture-marketing-history.js",
     "marketing:history:import": "node scripts/import-marketing-history.js",
     "marketing:pancake:sync": "node scripts/sync-pancake-marketing.js",
     "marketing:summary:refresh": "node scripts/refresh-marketing-summary.js",
-    "marketing:identity:import": "node scripts/import-pancake-identities.js"
+    "marketing:identity:import": "node scripts/import-pancake-identities.js",
+    "invoices:price-audit": "node scripts/refresh-invoice-price-audit.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

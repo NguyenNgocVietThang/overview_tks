@@ -34,6 +34,36 @@
     const cards = items || [], span = cards.length <= 2 ? 'col-6' : cards.length === 3 ? 'col-4' : 'col-3';
     return cards.map((k, i) => '<div class="kpi-card '+span+' accent-' + (i % 2 ? 'blue' : 'amber') + '"><div class="eyebrow">' + escape(k.label) + '</div><div class="value">' + escape(format(k.value,k.format || k.type)) + '</div></div>').join('');
   }
+  // Tính lại thẻ chỉ số từ các dòng đang hiện của bảng (khi có từ khóa). Thẻ không nhận ra thì giữ nguyên số máy chủ.
+  function localKpis(kind, items, found) {
+    const total = key => found.reduce((sum, row) => sum + (Number(row[key]) || 0), 0);
+    const distinct = key => new Set(found.map(row => row[key]).filter(value => value != null && value !== '')).size;
+    return (items || []).map(card => {
+      if (card.value == null) return card;
+      const label = String(card.label || '');
+      let value = card.value;
+      if (kind === 'monthly') {
+        if (/Doanh số/.test(label)) { if (found.some(row => typeof row.revenue === 'number')) value = total('revenue'); }
+        else if (/Khách chốt/.test(label)) value = found.length;
+        else if (/Số nhân viên/.test(label)) value = distinct('sale');
+      } else if (kind === 'receipt-check') {
+        const first = total('first'), repeat = total('repeat'), closed = total('closed'), equivalent = first + repeat / 5;
+        if (/lần đầu/.test(label)) value = first;
+        else if (/chào lại/.test(label)) value = repeat;
+        else if (/Quy đổi/.test(label)) value = equivalent;
+        else if (/Khách chốt/.test(label)) value = closed;
+        else if (/Tỷ lệ/.test(label)) value = equivalent ? closed / equivalent : null;
+      } else if (kind === 'phones') {
+        if (/Dòng SĐT/.test(label)) value = found.length;
+        else if (/^Page/.test(label)) value = distinct('page');
+      } else if (kind === 'costs') {
+        if (/Tổng chi phí/.test(label)) value = total('totalCost');
+        else if (/mess/i.test(label)) value = total('messages');
+        else if (/SĐT/.test(label)) value = total('phones');
+      }
+      return Object.assign({}, card, { value });
+    });
+  }
   // Hàng chỉ số tổng quan của hộp chi tiết (khung chung .dp-stats, xem shared/detail-panel.css).
   function detailStats(items) {
     const cards = items || [];
@@ -117,7 +147,10 @@
     document.getElementById('marketing-' + kind + '-warnings').textContent = [...(data.warnings || []), ...(database() && kind !== 'costs' && definitions[kind].monthKey && Array.isArray(metadata?.periods) && !metadata.periods.some(period => Number(period.year) === Number(sections[kind].filters.year) && Number(period.month) === Number(sections[kind].filters.month)) ? ['Chưa có dữ liệu cho tháng/năm đã chọn.'] : [])].join(' · ');
     document.getElementById('marketing-' + kind + '-kpis').innerHTML = kpis(data.kpis);
     renderCharts(kind);
-    mountTable(document.getElementById('marketing-' + kind + '-rows'), 'marketing-' + kind + '-data-table', definitions[kind].title, data.rows || [], definitions[kind].columns, kind === 'monthly' && canManage() && sections.monthly.filters.dataset!=='legacy' ? row => openMonthly(row) : kind === 'phones' || kind === 'receipt-check' ? row => openDetail(kind,row.key,document.activeElement) : null, { kind, table:'rows' });
+    mountTable(document.getElementById('marketing-' + kind + '-rows'), 'marketing-' + kind + '-data-table', definitions[kind].title, data.rows || [], definitions[kind].columns, kind === 'monthly' && canManage() && sections.monthly.filters.dataset!=='legacy' ? row => openMonthly(row) : kind === 'phones' || kind === 'receipt-check' ? row => openDetail(kind,row.key,document.activeElement) : null, { kind, table:'rows' }, (found, active) => {
+      // Thẻ chỉ số tính lại theo từ khóa tìm trong bảng, trên toàn bộ dòng đã lọc; xóa từ khóa thì về số của máy chủ.
+      document.getElementById('marketing-' + kind + '-kpis').innerHTML = kpis(active ? localKpis(kind, data.kpis, found) : data.kpis);
+    });
     if (kind === 'monthly' && canManage() && sections.monthly.filters.dataset!=='legacy') { const button = document.createElement('button'); button.type='button'; button.className='mini-filter-apply'; button.textContent='Thêm khách chốt'; button.addEventListener('click', () => openMonthly()); document.querySelector('#marketing-monthly-rows .panel-head-actions').prepend(button); }
     // Thanh lọc nằm cạnh tên bảng (mountTable dựng lại bảng nên phải gắn lại sau mỗi lần vẽ).
     document.querySelector('#marketing-' + kind + '-rows .panel-head')?.insertBefore(sections[kind].filtersEl, document.querySelector('#marketing-' + kind + '-rows .panel-head-actions'));
@@ -163,7 +196,7 @@
     chartInstances.set(kind,instances);
   }
   function redrawCharts() { if (initialized && active()) Object.keys(sections).forEach(kind => { if (sections[kind].data) renderCharts(kind); }); }
-  function mountTable(host, id, title, rows, columns, onOpen, exportInfo) {
+  function mountTable(host, id, title, rows, columns, onOpen, exportInfo, onFilter) {
     const saved = host._marketingState || { search:'', sort:null, direction:1, page:1 };
     host._marketingState = saved;
     host.innerHTML = '<div class="panel marketing-table"><div class="panel-head"><h2>'+escape(title)+'</h2><div class="panel-head-actions"><span class="drill-hint" data-count>—</span>'+(exportInfo?'<button class="export-button" type="button" id="'+id+'-export"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>':'')+'</div><div class="table-search-tools"><div class="table-search-input-wrap"><input class="table-search-input" id="'+id+'-search" type="search" autocomplete="off" aria-label="Tìm trong '+escape(title)+'" placeholder="Tìm kiếm không dấu…" value="'+escape(saved.search)+'"></div>'+'</div></div><div class="table-wrap marketing-table-scroll"><table data-table-key="'+id+'"'+(id === 'marketing-costs-data-table' ? ' data-table-fit="contain"' : '')+' aria-label="'+escape(title)+'"><thead></thead><tbody></tbody></table></div><div class="pagination-controls marketing-pages" hidden><button type="button" id="'+id+'-first" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button><button type="button" id="'+id+'-prev" aria-label="Trang trước" title="Trang trước">&lt;</button><span data-page-label></span><button type="button" id="'+id+'-next" aria-label="Trang sau" title="Trang sau">&gt;</button><button type="button" id="'+id+'-last" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button></div></div>';
@@ -176,13 +209,18 @@
     }
     function draw() {
       const visible = columns;
-      let found = rows.filter(row => normalize(Object.values(row).join(' ')).includes(normalize(saved.search)));
+      // Tìm gần đúng (bỏ dấu, nhiều từ); chuỗi rỗng = hiện đủ dòng. Khớp nhiều từ xếp trước khi chưa chọn cột sắp xếp.
+      const rowText = row => Object.values(row).join(' ');
+      let found = window.TKSFuzzySearch
+        ? window.TKSFuzzySearch.filter(rows, saved.search, rowText)
+        : rows.filter(row => normalize(rowText(row)).includes(normalize(saved.search)));
       if (saved.sort) found = found.slice().sort((a,b) => { const av=a[saved.sort], bv=b[saved.sort]; if(av==null) return 1; if(bv==null) return -1; return saved.direction * (typeof av === 'number' && typeof bv === 'number' ? av-bv : String(av).localeCompare(String(bv),'vi',{numeric:true})); });
       const pages = Math.max(1,Math.ceil(found.length/100)); saved.page = Math.min(saved.page,pages);
       host.querySelector('thead').innerHTML = '<tr>'+visible.map(([key,label,type]) => '<th data-column-key="'+key+'" data-column-type="'+(type || 'text')+'" class="sortable'+(type?' col-num':'')+'" aria-sort="'+(saved.sort===key?(saved.direction===1?'ascending':'descending'):'none')+'"><button type="button" class="sort-button" id="'+id+'-sort-'+key+'" data-sort="'+key+'"><span class="sort-label">'+escape(label)+'</span><span class="sort-indicator" aria-hidden="true">'+(saved.sort===key?(saved.direction===1?'▼':'▲'):'▲▼')+'</span></button></th>').join('')+'</tr>';
       const slice = found.slice((saved.page-1)*100,saved.page*100);
       host.querySelector('tbody').innerHTML = slice.length ? slice.map((row,i) => '<tr'+(onOpen&&row.key?' class="marketing-row-link" tabindex="0" data-detail-key="'+escape(row.key)+'" data-index="'+i+'" title="Bấm hoặc nhấn Enter để xem chi tiết"':'')+'>'+visible.map(([key,,type]) => cellHtml(row,key,type,editing,slice.indexOf(row))).join('')+'</tr>').join('') : '<tr><td colspan="'+Math.max(1,visible.length)+'" class="table-note">Chưa có dữ liệu phù hợp.</td></tr>';
       host.querySelector('[data-count]').textContent = found.length + ' dòng';
+      if (onFilter) onFilter(found, !!String(saved.search || '').trim());
       host.querySelector('.marketing-pages').hidden = pages<=1;
       host.querySelector('[data-page-label]').textContent = 'Trang '+saved.page+'/'+pages;
       ['first','prev'].forEach(name => { host.querySelector('#'+id+'-'+name).disabled=saved.page<=1; });

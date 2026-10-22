@@ -9,6 +9,9 @@ const FIRST_MONTH = '2026-03-01';
 const UNGROUPED_SALE = 'Chưa phân nhóm';
 const NO_TEAM = 'Chưa có team';
 const RETAIL_NAME = 'Khách lẻ';
+// Level giá khách lấy từ email KiotViet (phần trước @: vip/lớn/vừa); email trống hoặc lạ => mặc định Vừa.
+const DEFAULT_PRICE_LEVEL = 'vừa';
+const PRICE_LEVEL_LABELS = { vip: 'vip', large: 'lớn', medium: DEFAULT_PRICE_LEVEL };
 
 // Khoa so khop ten (khach, sale): NFKC, bo ky tu rong (zero-width), gop khoang trang, chu thuong.
 // CUNG cong thuc voi ham SQL tks_name_key() (migration 0069) / normalizedNameSql(): JS truoc day khong bo
@@ -102,6 +105,6 @@ function buildMetrics(series, currentMonth, day) {
 }
 
 module.exports = {
-  FIRST_MONTH, UNGROUPED_SALE, NO_TEAM, RETAIL_NAME, nameKey, monthKey, addMonths, monthsBetween, monthLabel,
+  FIRST_MONTH, UNGROUPED_SALE, NO_TEAM, RETAIL_NAME, DEFAULT_PRICE_LEVEL, PRICE_LEVEL_LABELS, nameKey, monthKey, addMonths, monthsBetween, monthLabel,
   vnToday, parseClosedMonth, dayOfMonth, normalizeTo30Days, growthPct, avg4Months, buildMetrics
 };

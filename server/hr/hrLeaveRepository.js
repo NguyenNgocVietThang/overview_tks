@@ -14,6 +14,7 @@
 'use strict';
 
 const CONFIG = require('../config');
+const fuzzy = require('../shared/fuzzySearch');
 const { getPool } = require('../db/pool');
 const { BRANCHES, branchLabelToCode, branchCodeToLabel } = require('../branch/branches');
 const { matchesDepartment } = require('./hrDepartment');
@@ -221,12 +222,9 @@ function createHrLeaveRepository({ pool = getPool() } = {}) {
     );
     let items = rows.map(rowToRequest);
 
-    if (filters.employee) {
-      const needle = normalizeNameQuery(filters.employee);
-      items = items.filter(item =>
-        normalizeNameQuery(item.ho_ten).includes(needle) ||
-        normalizeNameQuery(item.web_username).includes(needle)
-      );
+    if (filters.employee && String(filters.employee).trim()) {
+      // Tim gan dung (cung luat voi bang tren man hinh); khop nhieu tu / nguyen cum xep truoc, giu thu tu goc khi bang diem.
+      items = fuzzy.filter(items, filters.employee, item => [item.ho_ten, item.web_username].filter(Boolean).join(' '));
     }
     if (filters.department) {
       items = items.filter(item => matchesDepartment(item.bo_phan, filters.department));

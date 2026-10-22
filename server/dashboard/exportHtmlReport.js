@@ -325,6 +325,18 @@ function createReportKit() {
     }
     var primary = p.metrics.length ? p.metrics[0] : -1;
     var charts = [];
+    var teamIndex = columns.findIndex(function (column) { return column.key === 'saleTeam'; });
+    if (teamIndex >= 0) {
+      ['currentDebt', 'overdueDebt', 'payablePenalty', 'reward'].forEach(function (key) {
+        var metric = columns.findIndex(function (column) { return column.key === key && column.type === 'number'; });
+        if (metric < 0 || !rows.length) return;
+        var groups = groupBy(rows, function (row) { return String(row[teamIndex] || 'Chưa có team'); }, metric)
+          .sort(function (a, b) { return b.value - a.value || a.key.localeCompare(b.key, 'vi'); });
+        charts.push({ id: 'saleTeam-' + key, type: 'bar', title: columns[metric].label + ' theo nhóm sale',
+          subtitle: 'Tổng hợp các dòng đang hiển thị', labels: groups.map(function (g) { return g.key; }),
+          values: groups.map(function (g) { return g.value; }), valueLabel: columns[metric].label });
+      });
+    }
     if (p.date >= 0) charts.push(trendChart(columns, rows, p.date, primary));
     if (primary >= 0 && p.label >= 0) charts.push(topChart(columns, rows, p.label, primary, 'top'));
     if (p.category >= 0) charts.push(shareChart(columns, rows, p.category, primary));

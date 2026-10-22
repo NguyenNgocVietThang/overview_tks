@@ -1,6 +1,7 @@
 'use strict';
 
 const XLSX = require('xlsx');
+const { normalizeGender } = require('./hrGender');
 
 function text(cell) {
   if (!cell) return '';
@@ -54,7 +55,7 @@ function parseSheet(sheet, branch) {
       nguoiThanQuanHe: text(get(11)),
       nguoiThanHoTen: text(get(12)),
       nguoiThanSoDienThoai: numericIdentifier(get(13), 10),
-      gioiTinh: text(get(14)),
+      gioiTinh: normalizeGender(text(get(14))),
       hoSoDayDu: checked(get(15)),
       vanTayDaDangKy: branch === 'hanoi' ? checked(get(16)) : false,
       ngayNghiViec: isoDate(get(branch === 'hanoi' ? 17 : 16))

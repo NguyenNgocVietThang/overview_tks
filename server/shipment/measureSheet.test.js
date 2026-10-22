@@ -4,13 +4,17 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { parseMeasureRows, createMeasureSheet } = require('./measureSheet');
 
-const HEADER = ['MÃ SP', 'TÊN SP', 'Mô tả', 'SL/T', 'Cân nặng', 'D', 'R', 'C'];
+const FREIGHT_HEADER = 'Cước 1 Sp\n(465/m³, 1367đ/kg)';
+// Cot O (thu 15) = cuoc/chiec; cac cot I..N la cot cong thuc khong doc.
+const HEADER = ['MÃ SP', 'TÊN SP', 'Mô tả', 'SL/T', 'Cân nặng', 'D', 'R', 'C', 'm3', 'kg/T', 'x', 'y', 'z', 'w', FREIGHT_HEADER];
+const row = (cells, freight) => [...cells, '', '', '', '', '', '', freight];
 const VALUES = [
   HEADER,
-  ['10GFED', 'Đèn', '', 280, 30.5, 81, 60, 70],
-  ['10gfed', 'Trùng', '', 1, 1, 1, 1, 1],
-  ['THIEU', 'Thiếu cao', '', 10, 5, 40, 30, ''],
-  ['  ABC ', 'Có khoảng trắng', '', 100, 10, 50, 40, 30]
+  row(['10GFED', 'Đèn', '', 280, 30.5, 81, 60, 70], 384),
+  row(['10gfed', 'Trùng', '', 1, 1, 1, 1, 1], 999),
+  row(['THIEU', 'Thiếu cao', '', 10, 5, 40, 30, ''], ''),
+  row(['  ABC ', 'Có khoảng trắng', '', 100, 10, 50, 40, 30], 0),
+  row(['T100', 'Cước chuỗi', '', 10, 5, 40, 30, 20], '1,234đ')
 ];
 
 test('parseMeasureRows: m3 va kg moi cai, lay hang dau khi trung ma (khong phan biet hoa/thuong)', () => {
@@ -25,6 +29,32 @@ test('parseMeasureRows: m3 va kg moi cai, lay hang dau khi trung ma (khong phan 
 test('parseMeasureRows: thieu kich thuoc/SL-thung -> missing', () => {
   assert.equal(parseMeasureRows(VALUES).get('thieu').m3PerUnit, null);
   assert.equal(parseMeasureRows(VALUES).get('thieu').kgPerUnit, 0.5);
+});
+
+test('parseMeasureRows: freightPerUnit doc thang cot O (tieu de xuong dong), 0 hop le, trong la null, ma trung lay dong dau', () => {
+  const table = parseMeasureRows(VALUES);
+  assert.equal(table.get('10gfed').freightPerUnit, '384');
+  assert.equal(table.get('thieu').freightPerUnit, null);
+  assert.equal(table.get('abc').freightPerUnit, '0');
+  assert.equal(table.get('t100').freightPerUnit, '1234');
+});
+
+test('parseMeasureRows: tieu de cot O sai/thieu -> van giu m3/kg, cuoc NULL het va freightError (khong lay nham cot khac)', () => {
+  const check = values => {
+    const table = parseMeasureRows(values);
+    assert.match(table.freightError, /cột O/);
+    assert.ok(table.size > 0);
+    for (const entry of table.values()) assert.equal(entry.freightPerUnit, null);
+    assert.equal(table.get('10gfed').perCarton, 280);
+  };
+  const bad = VALUES.map(r => [...r]);
+  bad[0][14] = 'Ghi chú';
+  check(bad);
+  const shifted = VALUES.map(r => [...r]);
+  shifted[0][14] = ''; shifted[0][13] = FREIGHT_HEADER;
+  check(shifted);
+  check(VALUES.map(r => r.slice(0, 8)));
+  assert.equal(parseMeasureRows(VALUES).freightError, null);
 });
 
 test('parseMeasureRows: khong co hang tieu de -> loi 503', () => {

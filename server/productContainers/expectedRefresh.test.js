@@ -7,11 +7,11 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { PGlite } = require('@electric-sql/pglite');
-const { refreshExpected, requestExpectedRefresh } = require('./expectedRefresh');
+const { refreshExpected, requestExpectedRefresh, __test__ } = require('./expectedRefresh');
 const { createExpectedRepository } = require('./expectedRepository');
 
 const migration = file => fs.readFileSync(path.join(__dirname, '..', 'db', 'migrations', file), 'utf8');
-const MIGRATIONS = ['0018_product_report.sql', '0053_product_containers.sql', '0072_product_container_unit_price_cny.sql', '0075_product_container_expected.sql'];
+const MIGRATIONS = ['0018_product_report.sql', '0053_product_containers.sql', '0072_product_container_unit_price_cny.sql', '0075_product_container_expected.sql', '0078_product_container_expected_prices.sql'];
 const quiet = () => {};
 
 async function setup() {
@@ -36,6 +36,29 @@ async function seed(db) {
       ('YIWU', 0, 1, 3, 'SKU2', 'sku2', 'CONT A', 1, '1.Chưa có lịch', 'DK THÁNG 10 BỐC', '', '', 'Bình', NULL, NULL, 7),
       ('SD', 1, 1, 2, 'NONAME', 'noname', 'CONT B', 3, '3.Đã bốc', '', '', '', '', 2, 4, 8.5);`);
 }
+
+test('CONT TKS1 keeps source and repeated rows through refresh/read; names use report and unchanged rows are not rewritten', async () => {
+  const { db, pool } = await setup();
+  try {
+    await seed(db);
+    await db.exec(`${LINE}
+      ('CONT TKS1', 6, 2, 3, 'sku1', 'sku1', 'CONT TKS1', 1, '1.Chưa có lịch', '', '', '', '', 12, 15.3, 184),
+      ('CONT TKS1', 6, 2, 4, 'sku1', 'sku1', 'CONT TKS1', 1, '1.Chưa có lịch', '', '', '', '', NULL, NULL, 2.5),
+      ('CONT TKS1', 6, 5, 6, 'NONAME', 'noname', 'CONT TKS1', 4, '4.Đã về', '', '', '', '', NULL, NULL, 10);`);
+    assert.equal((await refreshExpected(pool, { log: quiet })).written, 6);
+    const repo = createExpectedRepository({ pool });
+    const result = await repo.getExpected();
+    assert.deepEqual(result.rows.map(r => r.sheetName), ['YIWU', 'YIWU', 'SD', 'CONT TKS1', 'CONT TKS1', 'CONT TKS1']);
+    assert.deepEqual(result.rows.slice(3).map(r => [r.productName, r.quantity, r.scheduleLabel]), [
+      ['Ao thun', 184, '1.Chưa có lịch'], ['Ao thun', 2.5, '1.Chưa có lịch'], ['', 10, '4.Đã về']
+    ]);
+    assert.equal(result.rows[3].packageCount, 15.3);
+    const before = (await db.query('SELECT sheet_name, source_row, ctid::text AS tuple FROM product_container_expected ORDER BY sheet_order, source_row')).rows;
+    const unchanged = await refreshExpected(pool, { log: quiet });
+    assert.deepEqual([unchanged.status, unchanged.written, unchanged.deleted, unchanged.version], ['unchanged', 0, 0, 1]);
+    assert.deepEqual((await db.query('SELECT sheet_name, source_row, ctid::text AS tuple FROM product_container_expected ORDER BY sheet_order, source_row')).rows, before);
+  } finally { await db.close(); }
+});
 
 test('lan dau ghi du dong, ghep Lich = B + 1 dau cach + C (C rong khong thua dau cach), ten SP tu product_report', async () => {
   const { db, pool } = await setup();
@@ -137,4 +160,51 @@ test('repository: doc theo thu tu sheet, so la number, filters theo thu tu xuat 
   try {
     assert.deepEqual((await createExpectedRepository({ pool: bare }).getExpected()).meta, { computedAt: null, version: null, rowCount: 0 });
   } finally { await bare.close(); }
+});
+
+test('0078: gia tri ngay len / don gia CNY / gia VN di tu nguon, doi gia thi ghi lai dung 1 dong, status duoc map', async () => {
+  const { db, pool } = await setup();
+  try {
+    await seed(db);
+    await db.exec(`UPDATE product_container_lines SET listed_at = '15/10', unit_price_cny = 12.5, vietnam_price = 99000 WHERE sheet_name = 'YIWU' AND source_row = 2`);
+    assert.equal((await refreshExpected(pool, { log: quiet })).written, 3);
+    const repo = createExpectedRepository({ pool });
+    const data = await repo.getExpected();
+    assert.deepEqual([data.rows[0].status, data.rows[0].listedAt, data.rows[0].unitPriceCny, data.rows[0].vietnamPrice], [1, '15/10', 12.5, 99000]);
+    assert.deepEqual([data.rows[1].listedAt, data.rows[1].unitPriceCny, data.rows[1].vietnamPrice], ['', null, null]);
+    assert.equal(data.rows[2].status, 3);
+    assert.equal((await refreshExpected(pool, { log: quiet })).written, 0);
+
+    await db.exec(`UPDATE product_container_lines SET vietnam_price = 100000 WHERE sheet_name = 'YIWU' AND source_row = 2`);
+    const changed = await refreshExpected(pool, { log: quiet });
+    assert.deepEqual([changed.written, changed.version], [1, 2]);
+    await db.exec(`UPDATE product_container_lines SET unit_price_cny = 13 WHERE sheet_name = 'YIWU' AND source_row = 3`);
+    assert.equal((await refreshExpected(pool, { log: quiet })).written, 1);
+  } finally { await db.close(); }
+});
+
+test('0078: VALUE_COLUMNS co 3 cot moi nen diff-write bat duoc doi', () => {
+  for (const column of ['listed_at', 'unit_price_cny', 'vietnam_price']) {
+    assert.ok(__test__.VALUE_COLUMNS.includes(column), column);
+    assert.ok(__test__.STAGE_SQL.includes(`l.${column}`), column);
+    assert.ok(__test__.UPSERT_SQL.includes(`t.${column}`), column);
+  }
+});
+
+test('repository fail-soft khi chua ap 0078 (42703): doc cot cu, gia = null; refresh nuot 42703', async () => {
+  const { db, pool } = await setup();
+  try {
+    await seed(db);
+    await refreshExpected(pool, { log: quiet });
+    await db.exec('ALTER TABLE product_container_expected DROP COLUMN listed_at, DROP COLUMN unit_price_cny, DROP COLUMN vietnam_price');
+    const data = await createExpectedRepository({ pool }).getExpected();
+    assert.equal(data.rows.length, 3);
+    assert.deepEqual([data.rows[0].status, data.rows[0].listedAt, data.rows[0].unitPriceCny, data.rows[0].vietnamPrice], [1, '', null, null]);
+    assert.equal(data.rows[0].quantity, 50);
+
+    const CONFIG = require('../config');
+    const previous = CONFIG.SUPABASE_DB_URL;
+    CONFIG.SUPABASE_DB_URL = 'postgres://fixture';
+    try { assert.equal(await requestExpectedRefresh(pool, { log: quiet }), null); } finally { CONFIG.SUPABASE_DB_URL = previous; }
+  } finally { await db.close(); }
 });

@@ -1,6 +1,6 @@
 'use strict';
 
-const SHEET_NAMES = Object.freeze(['YIWU', 'VK-DUNG', 'HÀ BẮC', 'SD', 'GDONG', 'KHÁC']);
+const SHEET_NAMES = Object.freeze(['YIWU', 'VK-DUNG', 'HÀ BẮC', 'SD', 'GDONG', 'KHÁC', 'CONT TKS1']);
 // Chu ky doc Sheets: 10 phut (truoc day 2 gio) de Hang du kien bam nhip dong bo KiotViet; chinh bang
 // PRODUCT_CONTAINER_SYNC_INTERVAL_MS (>= 60 giay). Qua 3 chu ky khong co ban thanh cong => bao "du lieu cu".
 const INTERVAL_MS = Math.max(60 * 1000, Number(process.env.PRODUCT_CONTAINER_SYNC_INTERVAL_MS) || 10 * 60 * 1000);

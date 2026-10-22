@@ -25,6 +25,8 @@
 
 ## 2. Nguyên tắc kiến trúc & Quy tắc bất biến (Do's & Don'ts)
 
+- **Quy tắc Git do người dùng yêu cầu (20/10/2026):** Mọi thay đổi được thực hiện trực tiếp trên nhánh `main`. Không tự tạo nhánh hoặc worktree dùng nhánh khác; chỉ tạo nhánh khi người dùng yêu cầu rõ ràng.
+
 ### 2.1. Quy ước cơ sở & dữ liệu
 - **`branch` chỉ có 2 giá trị:** `hanoi` và `saigon` trong Postgres. Khóa chính của mọi bảng nghiệp vụ KiotViet luôn bắt đầu bằng `(branch, id)`.
 - **`Cả hai` (`both` / rỗng) chỉ là phạm vi xem trên UI:** Không có cơ sở `both` trong database. Khi chọn `Cả hai`, server ghép kết quả hoặc hiển thị từng dòng riêng theo từng cơ sở.
@@ -55,6 +57,7 @@
 - **Hàng hóa & Tồn kho:** "Tồn có thể bán" = Tồn thực tế − Đặt hàng Phiếu tạm (không cộng hàng đang vận chuyển). Ẩn đơn giá và giá trị tồn đối với nhân viên không có quyền `reports.products.cost`.
 
 - **Kế toán – Nháp VAT (`/vat-draft/`, 17/10/2026):** port 1:1 vat-draft-app (Python) — **không sửa thuật toán** trong `server/vatDraft/allocation.js`/`nameMatching.js` (Tra cứu nguồn + `sourceLookup.js` đã gỡ 17/10/2026); mọi phép số/chuỗi kiểu Python đi qua `pyCompat.js` (round banker's, sum Neumaier, casefold, float()). Master data = 2 Google Sheet **công khai** "Gộp VAT"/"Khớp mã" đọc qua CSV export (không service account), parse theo chữ cái cột trong `vatDraftConfig.js` (kèm 17 tài khoản VietQR). Chứng từ HD/DH đọc Postgres, "Ghi chú tổng" = `raw->>'description'` chỉ gắn lúc hiển thị. Quyền `accounting.vatDraft` mặc định chỉ Quản lý (Kế toán phải được bật riêng, Khách bị cấm). Quyền `accounting.qr` (chỉ tab Tạo QR) mặc định Quản lý + Nhân viên sale, `escalationExempt`; route `/qr/*` + `/meta` nhận một trong hai quyền.
+- **Tìm kiếm gần đúng theo từ (21/10/2026):** mọi ô tìm văn bản thường dùng `public/shared/fuzzy-search.js` (frontend, `window.TKSFuzzySearch`) và `shared/fuzzySearch.js` / `shared/fuzzySql.js` (server) — bỏ dấu/hoa thường; 1 từ phải khớp, 2 từ khớp cả 2, ≥3 từ khớp quá nửa; xếp theo số từ khớp, nguyên cụm đầu. Ô tìm theo mã chính xác giữ nguyên. Ô tìm lọc ngay khi gõ qua sự kiện `input` (không nút Tìm); KPI của bảng tính trên toàn bộ dòng đã lọc (hook `afterRender` ở frontend, `countSummary` ở Vòng đời đơn hàng). Vòng đời đơn hàng mặc định tìm "Theo tên khách" (server `parseParams` vẫn `mode='code'`). Không tự viết luật khớp riêng cho ô tìm mới — dùng helper chung.
 
 ### 2.5. Vòng đời đơn hàng & Khung chi tiết dùng chung
 - **Khung chi tiết dùng chung (`public/shared/detail-panel.css` — `.dp-*`):** Áp dụng đồng bộ cho các hộp Chi tiết giao dịch, Báo cáo hàng hóa theo khách, Báo cáo kinh doanh (Sale/Khách/Mã hàng), Chi tiết đơn Vòng đời, Chi tiết nghỉ phép và Chi tiết Marketing. Thiết kế gồm hàng **chỉ số tổng quan** (`.dp-stats`), 1 khung cuộn thống nhất, tiêu đề dính, **tắt hoàn toàn nút Cột hiển thị** trong hộp (`data-table-controls="off"`), hỗ trợ Light/Dark mode.

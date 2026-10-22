@@ -126,8 +126,8 @@ test('getProductReport doc bang product_report va tinh computedAt = moc gan nhat
     }
   };
   const result = await getProductReport({ pool });
-  // 1 cau doc state (chua co migration 0055 => luong cu) + dong bao cao + tong CONT + hang van chuyen.
-  assert.equal(pool.calls.length, 4);
+  // 1 cau doc state (chua co migration 0055 => luong cu) + dong bao cao + tong CONT + hang van chuyen + YC dieu chuyen.
+  assert.equal(pool.calls.length, 5);
   assert.match(pool.calls[0], /FROM product_report_state/);
   assert.match(pool.calls[1], /FROM product_report\s/);
   assert.equal(result.rows.length, 2);
@@ -209,6 +209,61 @@ test('Điều chuyển SG uses the existing DB transit source per normalized cod
   const result = await getProductReport({pool});
   assert.equal(result.rows[0].inTransit,175.5);
   assert.equal(result.rows[0].availableToSell,200.5);
+});
+
+test('YC dieu chuyen: cong vao Tong co ban + Tong ton thuc, ngay can dat / ngay 2 mien doi theo; SQL loc Phieu tam + hanoi + KH010020', async () => {
+  const seen = [];
+  const pool = { query: async (sql, params) => {
+    if (sql.includes('-- transfer-request:')) {
+      seen.push({ sql, params });
+      return { rows: [{ product_key: 'sku-01', qty: '40' }] };
+    }
+    if (sql.includes('-- in-transit:')) return { rows: [{ product_key: 'sku-01', qty: '10' }] };
+    if (sql.includes('FROM product_report')) {
+      return { rows: [
+        { product_code: 'SKU-01', stock_hanoi: 100, stock_saigon: 50, available_to_sell: 120, qty_sold_30d: 300 },
+        { product_code: 'SKU-02', stock_hanoi: 1, stock_saigon: 1, available_to_sell: 2, qty_sold_30d: 0 }
+      ] };
+    }
+    return { rows: [] };
+  } };
+  const [a, b] = (await getProductReport({ pool })).rows;
+  assert.equal(a.transferRequest, 40);
+  assert.equal(a.availableToSell, 170, '120 + Dieu chuyen SG 10 + YC dieu chuyen 40');
+  assert.equal(a.totalStock, 200, '100 + 50 + 10 + 40');
+  assert.equal(a.daysBothBranches, 17, '170 * 30 / 300');
+  assert.equal(b.transferRequest, 0);
+  assert.equal(b.availableToSell, 2);
+  assert.equal(seen.length, 1);
+  assert.deepEqual(seen[0].params, ['hanoi', 'Phiếu tạm', 'KH010020']);
+  assert.match(seen[0].sql, /\(raw->>'statusValue'\) = \$2/);
+  assert.match(seen[0].sql, /customerCode' = \$3/);
+});
+
+test('YC dieu chuyen: cache 60 giay theo bo doc va FAIL-SOFT (loi DB => 0, bao cao van doc duoc)', async () => {
+  const { createProductReportReader } = require('./productReportRepository');
+  let transferCalls = 0;
+  let failing = false;
+  const pool = { query: async (sql) => {
+    if (sql.includes('-- transfer-request:')) {
+      transferCalls += 1;
+      if (failing) throw new Error('boom');
+      return { rows: [{ product_key: 'sku-01', qty: '5' }] };
+    }
+    if (sql.includes('FROM product_report_state')) return { rows: [{ version: '1', computed_at: '2026-10-21T00:00:00Z' }] };
+    if (sql.includes('FROM product_report pr')) return { rows: [{ product_code: 'SKU-01', available_to_sell: 1 }] };
+    return { rows: [] };
+  } };
+  let clock = 0;
+  const reader = createProductReportReader({ pool, now: () => clock });
+  assert.equal((await reader.read()).rows[0].transferRequest, 5);
+  clock = 30 * 1000; await reader.read();
+  assert.equal(transferCalls, 1, 'trong 60 giay khong doc lai');
+  clock = 61 * 1000; failing = true;
+  const after = await reader.read();
+  assert.equal(transferCalls, 2);
+  assert.equal(after.rows[0].transferRequest, 0, 'loi DB => Map rong => 0');
+  assert.equal(after.rows[0].availableToSell, 1);
 });
 
 test('daysToOrder = (Tong co ban + Chua boc + Da boc) * 30 / SL ban 30 ngay, lam tron 1 so le; null khi khong tinh duoc', () => {

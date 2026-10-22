@@ -18,6 +18,8 @@ const CONFIG = {
   STOCK_LOCATIONS_SPREADSHEET_ID: process.env.STOCK_LOCATIONS_SPREADSHEET_ID || null,
   // Pancake daily sync is independent of KiotViet and the report source switch.
   PANCAKE_MARKETING_SYNC_ENABLED: process.env.PANCAKE_MARKETING_SYNC_ENABLED === 'true',
+  // Job 23:00 VN "Kiểm tra giá bán" (tab Hóa đơn): tắt mặc định để rollout có kiểm soát, bật sau nghiệm thu.
+  INVOICE_PRICE_AUDIT_ENABLED: process.env.INVOICE_PRICE_AUDIT_ENABLED === 'true',
   MARKETING_REPORT_SOURCE: ['postgres','pancake'].includes(process.env.MARKETING_REPORT_SOURCE) ? process.env.MARKETING_REPORT_SOURCE : 'sheets',
   MARKETING_REPORT_SPREADSHEET_ID: process.env.MARKETING_REPORT_SPREADSHEET_ID || null,
   MARKETING_PHONES_SPREADSHEET_ID: process.env.MARKETING_PHONES_SPREADSHEET_ID || null,
@@ -159,6 +161,10 @@ const CONFIG = {
   // dung dau tien sau restart/redeploy phai cho doc 7 tab (~13.5s). Mac dinh
   // BAT — tat bang DASHBOARD_PREWARM=false (vd moi truong dev khong can).
   DASHBOARD_PREWARM: process.env.DASHBOARD_PREWARM !== 'false',
+  // Job nen (sync KiotViet, sheet snapshot, container, Pancake) chay o dau: 'inline' (mac dinh, chung
+  // tien trinh web nhu cu) hoac 'worker' (web KHONG chay job, chi nghe su kien qua Postgres LISTEN;
+  // job chay o tien trinh rieng `npm run worker` — Render Background Worker). Xem jobs.js.
+  BACKGROUND_JOBS: process.env.BACKGROUND_JOBS === 'worker' ? 'worker' : 'inline',
   // Read-only incoming goods snapshot, independent from KiotViet sync.
   PRODUCT_CONTAINER_SPREADSHEET_ID: process.env.PRODUCT_CONTAINER_SPREADSHEET_ID || null,
   // Bao cao doanh thu theo khach / hang hoa lam moi TANG DAN sau moi luot sync (mac dinh TAT => chot dem).
@@ -182,7 +188,15 @@ const CONFIG = {
   XKIRO_API_KEY: process.env.XKIRO_API_KEY || '',
   XKIRO_BASE_URL: process.env.XKIRO_BASE_URL || 'https://api.xkiro.com/v1',
   INVOICE_VISION_MODEL: process.env.INVOICE_VISION_MODEL || 'qwen/qwen3.8-max:free',
-  INVOICE_VISION_FALLBACK_MODEL: process.env.INVOICE_VISION_FALLBACK_MODEL ?? 'qwen/qwen3-vl-plus:free'
+  INVOICE_VISION_FALLBACK_MODEL: process.env.INVOICE_VISION_FALLBACK_MODEL ?? 'qwen/qwen3-vl-plus:free',
+
+  // Cot "Tồn VAT" cua Yeu cau xuat VAT = TỒN ĐẦU NGÀY tab GỘP MỚI (file VAT TKS, phai chia se
+  // cong khai). Bo trong = doc tab Gộp VAT + Khớp mã cua sheet cong khai Nhap VAT (vatDraftConfig).
+  VAT_REQUEST_STOCK_SHEET_ID: process.env.VAT_REQUEST_STOCK_SHEET_ID || '',
+  VAT_REQUEST_STOCK_GID: process.env.VAT_REQUEST_STOCK_GID || '',
+  VAT_REQUEST_STOCK_COLUMN: process.env.VAT_REQUEST_STOCK_COLUMN || '',
+  VAT_REQUEST_MAPPING_SHEET_ID: process.env.VAT_REQUEST_MAPPING_SHEET_ID || '',
+  VAT_REQUEST_MAPPING_GID: process.env.VAT_REQUEST_MAPPING_GID || ''
 };
 
 module.exports = CONFIG;

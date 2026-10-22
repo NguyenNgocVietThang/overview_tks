@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ORDER VAT · TOKOSI Dashboard</title>
+  <link rel="icon" type="image/jpeg" href="/Logo.jpg">
+  <script>
+    try { document.documentElement.dataset.theme = localStorage.getItem('tks-dashboard-theme') === 'light' ? 'light' : 'dark'; }
+    catch (error) { document.documentElement.dataset.theme = 'dark'; }
+    document.documentElement.style.visibility = 'hidden';
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/shared/shared.css?v=20261016">
+  <link rel="stylesheet" href="/shared/search-clear.css?v=20261009-1">
+  <link rel="stylesheet" href="/vat-request/vat-request.css?v=20261022-3">
+  <link rel="stylesheet" href="/shared/table-controls.css?v=20261016-1">
+</head>
+<body>
+  <div class="receipt-header">
+    <div class="brand">
+      <button class="menu-btn" id="menuBtn" type="button" aria-label="Mở menu điều hướng" aria-expanded="false" aria-controls="sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"></path></svg>
+      </button>
+      <div class="brand-mark"><img src="/Logo.jpg" alt="TOKOSI Logo" width="44" height="44"></div>
+      <div class="brand-text"><h1>Tổng kho gia dụng Tokosi</h1></div>
+    </div>
+    <div class="status-line">
+      <button class="theme-toggle" id="themeToggle" type="button" aria-label="Chuyển chế độ giao diện">
+        <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1 1M18 18l1 1M5 19l1-1M18 6l1-1"></path></svg>
+        <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg>
+        <span id="themeLabel">Light mode</span>
+      </button>
+      <div class="account-chip" id="accountChip"></div>
+    </div>
+  </div>
+  <div class="shell">
+    <div class="backdrop" id="backdrop"></div>
+    <div class="sidebar" id="sidebar" data-tks-active-top="accounting"></div>
+    <main class="content vr-page">
+      <div class="vr-head">
+        <div>
+          <h2 class="vr-title">Kế toán – ORDER VAT</h2>
+          <p class="vr-sub" id="vrSub">Sale gửi yêu cầu, kế toán xử lý. Yêu cầu ở trạng thái 0, 1, 2 bị khóa với sale.</p>
+        </div>
+        <button class="btn-primary vr-create" id="vrCreate" type="button">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+          Tạo yêu cầu
+        </button>
+      </div>
+
+      <section class="vr-panel" aria-labelledby="vrTableTitle">
+        <div class="vr-toolbar">
+          <h3 id="vrTableTitle" class="vr-sr-only">Danh sách ORDER VAT</h3>
+          <div class="vr-toolbar-top">
+            <div class="vr-chips" id="vrStatusChips" role="group" aria-label="Lọc theo trạng thái"></div>
+            <div class="vr-table-actions">
+              <button class="vr-tool-btn vr-export-btn" id="vrExport" type="button" title="Xuất các dòng đang lọc ra Excel (đủ mọi cột)" hidden>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5"></path><path d="m9.5 12.5 5 5M14.5 12.5l-5 5"></path></svg>
+                <span class="vr-spinner" aria-hidden="true"></span>
+                <span>Xuất Excel</span>
+              </button>
+              <button class="vr-tool-btn" id="vrColumnsButton" type="button" aria-haspopup="dialog" aria-expanded="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M9 4v16M15 4v16"></path></svg>
+                Cột hiển thị
+              </button>
+            </div>
+          </div>
+          <div class="vr-filters">
+            <label class="vr-search">
+              <span class="vr-sr-only">Tìm theo mã SP, tên SP, khách hàng, ghi chú, sale</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m16 16 4 4"></path></svg>
+              <input id="vrSearch" type="search" placeholder="Tìm mã SP, khách, ghi chú, sale…" autocomplete="off">
+            </label>
+            <label class="vr-field"><span>Sale</span><select id="vrSaleFilter"><option value="">Tất cả</option></select></label>
+            <label class="vr-field"><span>Từ ngày</span><input id="vrFrom" type="date"></label>
+            <label class="vr-field"><span>Đến ngày</span><input id="vrTo" type="date"></label>
+            <button class="vr-pill-toggle" id="vrGroupToggle" type="button" aria-pressed="false" title="Gom các yêu cầu cùng mã SP thành nhóm" hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5z"></path><path d="m3 13 9 5 9-5"></path></svg>
+              Gom theo mã SP
+            </button>
+            <button class="vr-icon-tool" id="vrReload" type="button" title="Tải lại" aria-label="Tải lại danh sách">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"></path><path d="M21 3v5h-5"></path></svg>
+            </button>
+          </div>
+        </div>
+
+
+        <p id="vrStatus" class="vr-status" role="status" aria-live="polite"></p>
+        <div class="vr-scroll-wrap">
+          <div class="vr-scroll" id="vrScroll" tabindex="0" aria-label="Bảng ORDER VAT (nháy đúp hoặc chuột phải vào dòng để sửa / xem lịch sử)">
+            <table class="users-table vr-table" id="vrTable" data-table-key="vrTable" data-columns-button="vrColumnsButton">
+              <thead><tr id="vrHeadRow"></tr></thead>
+              <tbody id="vrRows"></tbody>
+            </table>
+          </div>
+          <button class="vr-hscroll vr-hscroll-left" id="vrScrollStart" type="button" aria-label="Về các cột đầu" title="Về các cột đầu" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg>
+          </button>
+          <button class="vr-hscroll vr-hscroll-right" id="vrScrollEnd" type="button" aria-label="Tới các cột cuối" title="Tới các cột cuối" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"></path></svg>
+          </button>
+        </div>
+        <div class="vr-pager" id="vrPager" hidden>
+          <span id="vrCount"></span>
+          <div class="vr-pager-controls">
+            <button id="vrFirst" type="button" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+            <button id="vrPrevious" type="button" aria-label="Trang trước" title="Trang trước">&lt;</button>
+            <span id="vrPage"></span>
+            <button id="vrNext" type="button" aria-label="Trang sau" title="Trang sau">&gt;</button>
+            <button id="vrLast" type="button" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
+          </div>
+        </div>
+        <p class="vr-source" id="vrSource"></p>
+      </section>
+    </main>
+  </div>
+
+  <dialog class="vr-editor" id="vrFormDialog" aria-labelledby="vrFormTitle" aria-describedby="vrFormSub" data-mode="create" data-history-open="false">
+    <form class="vr-modal" id="vrForm" method="dialog" novalidate>
+      <header class="vr-modal-head">
+        <div class="vr-modal-heading">
+          <h3 id="vrFormTitle">Tạo ORDER VAT</h3>
+          <p id="vrFormSub" class="vr-modal-sub"></p>
+        </div>
+        <button class="vr-history-btn" id="vrHistoryToggle" type="button" aria-expanded="false" aria-controls="vrChat">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15 14"></polyline></svg>
+          <span>Lịch sử</span><span class="vr-count" id="vrHistoryCount"></span>
+        </button>
+        <button class="vr-icon-close" id="vrFormClose" type="button" aria-label="Đóng">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+        </button>
+      </header>
+
+      <div class="vr-modal-body" id="vrFormBody">
+        <label class="vr-field"><span>Mã SP <em aria-hidden="true">*</em></span>
+          <input id="vrProduct" name="productCode" list="vrProductList" autocomplete="off" required maxlength="60" placeholder="Gõ mã hoặc tên sản phẩm">
+          <datalist id="vrProductList"></datalist>
+        </label>
+        <div class="vr-product-info" id="vrProductInfo" aria-live="polite"></div>
+        <label class="vr-field"><span>Khách hàng <em aria-hidden="true">*</em></span>
+          <input id="vrCustomer" name="customerName" list="vrCustomerList" autocomplete="off" required maxlength="200" placeholder="Gõ tên hoặc mã khách, có thể không dấu">
+          <datalist id="vrCustomerList"></datalist>
+        </label>
+        <div class="vr-form-row">
+          <label class="vr-field"><span>Số lượng <em aria-hidden="true">*</em></span><input id="vrQuantity" name="quantity" type="text" inputmode="numeric" required></label>
+          <label class="vr-field"><span>Giá chưa VAT <em aria-hidden="true">*</em></span><input id="vrPrice" name="unitPrice" type="text" inputmode="decimal" required></label>
+        </div>
+        <div class="vr-price-suggestion" id="vrPriceSuggestion" aria-live="polite"></div>
+        <div class="vr-form-row">
+          <label class="vr-field"><span>Full VAT</span>
+            <select id="vrFullVat" name="fullVat"><option value="false">Không full VAT</option><option value="true">Full VAT</option></select>
+          </label>
+          <div class="vr-field vr-total"><span>Tổng tiền</span><output id="vrTotal" for="vrQuantity vrPrice">—</output></div>
+        </div>
+        <label class="vr-field"><span>Ghi chú (Mã VAT nếu có)</span><textarea id="vrNote" name="saleNote" rows="2" maxlength="1000"></textarea></label>
+        <p class="vr-form-error" id="vrFormError" role="alert"></p>
+      </div>
+
+      <div class="vr-modal-body vr-history-inline" id="vrHistoryInline" hidden>
+        <ol class="vr-chat-list" id="vrHistoryInlineList"></ol>
+      </div>
+
+      <footer class="vr-modal-foot">
+        <button class="btn-secondary vr-delete-btn" type="button" id="vrFormDelete" hidden>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"></path></svg>
+          Xóa yêu cầu
+        </button>
+        <button class="btn-secondary" type="button" id="vrFormCancel">Hủy</button>
+        <button class="btn-primary vr-submit" type="submit" id="vrFormSubmit"><span class="vr-spinner" aria-hidden="true"></span><span id="vrFormSubmitLabel">Gửi yêu cầu</span></button>
+      </footer>
+    </form>
+
+    <section class="vr-chat" id="vrChat" aria-label="Lịch sử yêu cầu" hidden>
+      <header class="vr-chat-head">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15 14"></polyline></svg>
+        <h4 id="vrHistoryTitle">Lịch sử yêu cầu</h4>
+        <span class="vr-count" id="vrChatCount"></span>
+        <button class="vr-icon-close" id="vrChatClose" type="button" aria-label="Đóng lịch sử">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+        </button>
+      </header>
+      <ol class="vr-chat-list" id="vrHistoryList"></ol>
+    </section>
+  </dialog>
+
+  <div class="vr-menu" id="vrRowMenu" role="menu" aria-label="Thao tác yêu cầu" hidden>
+    <button type="button" role="menuitem" data-menu="edit">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>
+      Sửa yêu cầu
+    </button>
+    <button type="button" role="menuitem" data-menu="history">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path><polyline points="3 3 3 8 8 8"></polyline><polyline points="12 7 12 12 15 15"></polyline></svg>
+      Xem lịch sử
+    </button>
+  </div>
+
+  <dialog class="vr-editor vr-batch" id="vrBatchDialog" aria-labelledby="vrBatchTitle" aria-describedby="vrBatchSub">
+    <form class="vr-modal" id="vrBatchForm" novalidate>
+      <header class="vr-modal-head">
+        <div class="vr-modal-heading">
+          <h3 id="vrBatchTitle">Tạo yêu cầu xuất VAT</h3>
+          <p id="vrBatchSub" class="vr-modal-sub">Thêm nhiều mã hàng rồi gửi một lần — mỗi dòng là một yêu cầu.</p>
+        </div>
+        <button class="vr-icon-close" id="vrBatchClose" type="button" aria-label="Đóng">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+        </button>
+      </header>
+      <div class="vr-modal-body vr-batch-body">
+        <div class="vr-paste-bar">
+          <button class="vr-tool-btn vr-paste-toggle" id="vrBatchPasteToggle" type="button" aria-expanded="false" aria-controls="vrBatchPastePanel">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><path d="M9 12h6M9 16h4"></path></svg>
+            Dán từ Excel
+          </button>
+          <span class="vr-muted">Copy nhiều dòng từ Excel / Google Sheets rồi dán — chỉ cần tự chọn <b>Full VAT</b> cho từng dòng.</span>
+        </div>
+        <div class="vr-paste-panel" id="vrBatchPastePanel" hidden>
+          <label for="vrBatchPasteArea">Bấm vào ô dưới rồi <kbd>Ctrl</kbd> + <kbd>V</kbd>. Copy kèm dòng tiêu đề thì tự khớp cột theo tên (Khách hàng, Mã SP, Số lượng, Giá chưa VAT, Ghi chú — cột khác bỏ qua). Không có tiêu đề thì hiểu theo thứ tự: Khách hàng · Mã SP · Tên SP · Số lượng · Giá chưa VAT · Ghi chú.</label>
+          <textarea id="vrBatchPasteArea" rows="3" spellcheck="false" placeholder="Dán dữ liệu vào đây…"></textarea>
+        </div>
+        <p class="vr-batch-notice" id="vrBatchNotice" role="status" hidden></p>
+        <div class="vr-batch-scroll">
+          <table class="vr-batch-table" data-table-controls="off">
+            <thead><tr>
+              <th class="vr-b-index" scope="col">#</th>
+              <th scope="col">Khách hàng <em aria-hidden="true">*</em></th>
+              <th scope="col">Mã SP <em aria-hidden="true">*</em></th>
+              <th scope="col">Sản phẩm</th>
+              <th class="num" scope="col">Số lượng <em aria-hidden="true">*</em></th>
+              <th class="num" scope="col">Giá chưa VAT <em aria-hidden="true">*</em></th>
+              <th class="vr-b-center" scope="col">Full VAT</th>
+              <th scope="col">Ghi chú</th>
+              <th class="num" scope="col">Thành tiền</th>
+              <th scope="col"><span class="vr-sr-only">Xóa</span></th>
+            </tr></thead>
+            <tbody id="vrBatchRows"></tbody>
+          </table>
+        </div>
+        <div class="vr-batch-tools">
+          <button class="vr-tool-btn" id="vrBatchAdd" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+            Thêm dòng
+          </button>
+          <span class="vr-muted"><kbd>Enter</kbd> ở dòng cuối để thêm dòng · <kbd>Ctrl</kbd> + <kbd>Enter</kbd> để gửi · tối đa 200 dòng</span>
+        </div>
+        <p class="vr-form-error" id="vrBatchError" role="alert"></p>
+        <datalist id="vrBatchProductList"></datalist>
+        <datalist id="vrBatchCustomerList"></datalist>
+      </div>
+      <footer class="vr-modal-foot">
+        <div class="vr-batch-summary" id="vrBatchSummary" aria-live="polite"></div>
+        <button class="btn-secondary" type="button" id="vrBatchReset">Làm mới</button>
+        <button class="btn-secondary" type="button" id="vrBatchCancel">Đóng</button>
+        <button class="btn-primary vr-submit" type="submit" id="vrBatchSubmit"><span class="vr-spinner" aria-hidden="true"></span><span id="vrBatchSubmitLabel">Gửi yêu cầu</span></button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog class="vr-dialog" id="vrInfoDialog" aria-labelledby="vrInfoTitle">
+    <h3 id="vrInfoTitle"></h3>
+    <div id="vrInfoBody" class="vr-info-body"></div>
+    <div class="vr-actions"><button class="btn-secondary" type="button" id="vrInfoClose">Đóng</button></div>
+  </dialog>
+
+  <script src="/shared/table-controls.js?v=20261016-1"></script>
+  <script src="/shared/fuzzy-search.js?v=20261021-1"></script>
+  <script src="/shared/search-clear.js?v=20261009-1"></script>
+  <script src="/shared/shared-nav.js?v=20261020-1"></script>
+  <script src="/vat-request/vat-request-batch.js?v=20261021-3"></script>
+  <script src="/vat-request/vat-request-grid.js?v=20261021-1"></script>
+  <script src="/vat-request/vat-request.js?v=20261022-3"></script>
+  <script>window.addEventListener('DOMContentLoaded', function () { TKSVatRequest.init(); });</script>
+  <script src="/shared/shooting-star.js?v=20261019"></script>
+</body>
+</html>

@@ -136,14 +136,16 @@ test('getLeaveRequests lọc theo phòng ban (không phân biệt hoa thường/
   assert.doesNotMatch(pool.calls[0].sql, /FROM hr_employees e/, 'phòng ban đọc từ snapshot của đơn, không đổi theo hồ sơ hiện tại');
 });
 
-test('getLeaveRequests lọc theo tên nhân viên không phân biệt hoa thường/khoảng trắng', async () => {
+test('getLeaveRequests lọc tên nhân viên gần đúng: bỏ dấu, hoa thường, khớp nguyên cụm xếp trước', async () => {
   const pool = fakePool([
     dbRow({ request_id: 'A', ho_ten: 'Nguyễn  Văn A', web_username: '' }),
     dbRow({ request_id: 'B', ho_ten: 'Trần Thị B', web_username: 'nguyenvana' })
   ]);
   const repo = createHrLeaveRepository({ pool });
 
-  assert.deepEqual((await repo.getLeaveRequests({ employee: ' nguyễn văn a ' }, 'Hà Nội')).map(r => r.request_id), ['A']);
+  // 3 từ khớp quá nửa: B (username nguyenvana) cũng hiện nhưng xếp sau A khớp nguyên cụm.
+  assert.deepEqual((await repo.getLeaveRequests({ employee: ' nguyễn văn a ' }, 'Hà Nội')).map(r => r.request_id), ['A', 'B']);
+  assert.deepEqual((await repo.getLeaveRequests({ employee: 'tran zzz' }, 'Hà Nội')).map(r => r.request_id), []);
   assert.deepEqual((await repo.getLeaveRequests({ employee: 'NGUYENVANA' }, 'Hà Nội')).map(r => r.request_id), ['B']);
 });
 

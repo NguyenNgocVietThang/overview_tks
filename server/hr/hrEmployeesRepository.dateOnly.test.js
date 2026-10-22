@@ -15,5 +15,5 @@ test('rowToEmployee: ngày vào làm, ngày sinh, ngày nghỉ việc là chuỗ
   assert.equal(e.ngayVaoLam, '2016-01-01');
   assert.equal(e.ngaySinh, '1990-08-04');
   assert.equal(e.ngayNghiViec, null);
-  assert.equal(e.gioiTinh, 'NAM');
+  assert.equal(e.gioiTinh, 'Nam', 'giới tính viết hoa trong DB được chuẩn hóa khi đọc');
 });

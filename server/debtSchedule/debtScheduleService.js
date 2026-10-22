@@ -47,7 +47,8 @@ async function buildDebtManagement(branchLabels, viewer, {
         access
       }))
       : [];
-    return buildDebtReport({ cycle, customers, access });
+    const enriched = repository.attachSaleTeams ? await repository.attachSaleTeams(customers) : customers;
+    return buildDebtReport({ cycle, customers: enriched, access });
   } catch (error) {
     // Xuat ban chot cu: ngay sai/het han phai bao loi ro rang, khong tra bang rong.
     if (cycleDate && error.statusCode) throw error;
@@ -82,7 +83,7 @@ async function buildDebtAging(branches, { repository = debtAgingRepository.getDe
     asOfDay: state ? state.asOfDay : null,
     refreshedAt: state ? state.refreshedAt : null,
     customersSyncedAt: state ? state.customersSyncedAt : null,
-    customers
+    customers: repository.attachSaleTeams ? await repository.attachSaleTeams(customers) : customers
   };
 }
 

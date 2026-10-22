@@ -190,3 +190,19 @@ test('sealed penalties count a same-name customer once per day using the higher 
     assert.equal(board.summary.grossPenalty,345000);
   } finally {await f.db.close();}
 });
+
+
+test('reward reads current sale teams even when monthly results are finalized', async () => {
+  const f = await setup();
+  try {
+    await f.db.exec("CREATE TABLE sale_teams (sale_name text, team_name text); INSERT INTO sale_teams VALUES ('An', 'Team A')");
+    const board = await f.service.readBoard();
+    assert.equal(board.rows.find(r => r.sale === 'An').saleTeam, 'Team A');
+    await f.db.query("INSERT INTO debt_reward_months(month, rule_version, finalized_at, result) VALUES ('2026-10-01', 'test', now(), $1::jsonb)", [JSON.stringify(board)]);
+    await f.db.exec("UPDATE sale_teams SET team_name = 'Team B'");
+    const changed = await f.service.readBoard();
+    assert.equal(changed.status, 'finalized');
+    assert.equal(changed.rows.find(r => r.sale === 'An').saleTeam, 'Team B');
+    assert.equal(changed.rows.find(r => r.sale === 'An').reward, board.rows.find(r => r.sale === 'An').reward);
+  } finally { await f.db.close(); }
+});

@@ -17,6 +17,7 @@ const COMPLETED = 'Hoàn thành';
 // Bo dau tieng Viet trong SQL (khong phu thuoc extension unaccent).
 const VN_FROM = 'àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ';
 const VN_TO = 'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd';
+const { fuzzySqlParts } = require('../shared/fuzzySql');
 const foldSql = expression => `translate(lower(${expression}), '${VN_FROM}', '${VN_TO}')`;
 
 // Cot sap xep cua bang chon chung tu (khoa tu trang -> bieu thuc SQL tren CTE docs "d"). Chi nhan khoa
@@ -95,7 +96,7 @@ function createDocumentsRepository({ query = (sql, params) => getPool().query(sq
     // Sap xep tren TOAN BO ket qua (khong chi trang hien tai). Cot ngoai danh sach -> moi nhat truoc.
     const sortExpr = SORT_COLUMNS[sort];
     const direction = dir === 'asc' ? 'ASC' : 'DESC';
-    const orderBy = sortExpr
+    const baseOrder = sortExpr
       ? `${sortExpr} ${direction} NULLS LAST, d.doc_ts DESC NULLS LAST, d.code DESC`
       : 'd.doc_ts DESC NULLS LAST, d.code DESC';
     if (!Array.isArray(branchCodes) || !branchCodes.length) throw badRequest('Chưa chọn cơ sở.');
@@ -108,6 +109,18 @@ function createDocumentsRepository({ query = (sql, params) => getPool().query(sq
     const pageNo = Math.max(Number.parseInt(page, 10) || 1, 1);
     // Thoat ky tu dai dien cua LIKE (mac dinh ESCAPE la dau gach nguoc).
     const search = foldSearch(q).replace(/[\\%_]/g, ch => `\\${ch}`);
+
+    // Ten khach: tim gan dung (bo dau, 2 tu khop ca 2, >=3 tu khop qua nua; khop nhieu tu xep truoc khi chua chon
+    // cot sap xep). Ma khach / ma chung tu: khop chuoi con nhu cu. Tham so tu $8 tro di.
+    const params = [branchCodes, fromDate, toDate, kind, search, size, (pageNo - 1) * size];
+    const fuzzyName = fuzzySqlParts('d.customer_name', q, value => { params.push(value); return '$' + params.length; });
+    const exactCode = "(lower(d.customer_code) LIKE '%' || $5 || '%' OR lower(d.code) LIKE '%' || $5 || '%')";
+    const searchWhere = fuzzyName
+      ? `(${fuzzyName.where} OR ${exactCode})`
+      : exactCode;
+    const orderBy = fuzzyName && !sortExpr
+      ? `CASE WHEN ${exactCode} THEN 1000 ELSE ${fuzzyName.score} END DESC, ${baseOrder}`
+      : baseOrder;
 
     const { rows } = await query(
       `WITH invoiced AS MATERIALIZED (
@@ -141,10 +154,7 @@ function createDocumentsRepository({ query = (sql, params) => getPool().query(sq
        ), page AS (
          SELECT d.*, count(*) OVER () AS total_count, row_number() OVER (ORDER BY ${orderBy}) AS rn
          FROM docs d
-         WHERE $5 = ''
-            OR ${foldSql('d.customer_name')} LIKE '%' || $5 || '%'
-            OR lower(d.customer_code) LIKE '%' || $5 || '%'
-            OR lower(d.code) LIKE '%' || $5 || '%'
+         WHERE $5 = '' OR ${searchWhere}
          ORDER BY ${orderBy}
          LIMIT $6 OFFSET $7
        )
@@ -155,7 +165,7 @@ function createDocumentsRepository({ query = (sql, params) => getPool().query(sq
               END AS line_count
        FROM page p
        ORDER BY p.rn`,
-      [branchCodes, fromDate, toDate, kind, search, size, (pageNo - 1) * size]
+      params
     );
     return {
       rows: rows.map(mapHead),

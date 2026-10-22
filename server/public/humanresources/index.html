@@ -628,7 +628,7 @@
           <div class="admin-filters">
             <div class="search-box">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-              <input type="text" id="employeeSearchInput" placeholder="Tìm theo tên hoặc tài khoản..." oninput="handleFilterChange()">
+              <input type="text" id="employeeSearchInput" placeholder="Tìm theo tên hoặc tài khoản..." oninput="handleLeaveSearchInput()">
             </div>
             <select id="statusFilter" class="filter-select" onchange="handleStatusFilterChange()">
               <option value="">Tất cả trạng thái</option>
@@ -1104,6 +1104,8 @@
             </div>
             <div class="row-actions">
               <input type="file" id="employeeWorkbookFile" accept=".xlsx,.xls" hidden onchange="importEmployeeWorkbook(this)">
+              <input type="file" id="employeeInsuranceFile" accept=".xlsx" hidden onchange="importEmployeeInsurance(this)">
+              <button type="button" class="btn-secondary" id="btnImportEmployeeInsurance" hidden onclick="document.getElementById('employeeInsuranceFile').click()">Nhập số bảo hiểm</button>
               <button type="button" class="btn-secondary" id="btnImportEmployeeDirectory" hidden onclick="document.getElementById('employeeWorkbookFile').click()">Nhập DS nhân sự</button>
               <button type="button" class="btn-primary" id="btnAddEmployee" hidden onclick="openEmployeeModal()">+ Thêm nhân sự</button>
               <span id="employeeImportStatus" class="form-hint" hidden aria-live="polite"></span>
@@ -1142,7 +1144,7 @@
                     <th style="width:140px" data-column-key="chuc-vu">Chức vụ</th>
                     <th style="width:90px" data-column-key="co-so">Cơ sở</th>
                     <th style="width:125px" data-column-key="so-dien-thoai">Số điện thoại</th>
-                    <th style="width:70px" data-column-key="trang-thai">Trạng thái</th>
+                    <th style="width:70px" data-column-key="trang-thai" data-column-default-hidden="true">Trạng thái</th>
                     <th style="width:130px" id="employeeCreatedAtTh" hidden data-column-key="ngay-them">Ngày thêm</th>
                   </tr>
                 </thead>
@@ -1204,6 +1206,7 @@
         <div class="form-group"><label for="empGioiTinh">Giới tính</label><select id="empGioiTinh" class="form-control"><option value="">— Chưa chọn —</option><option>Nam</option><option>Nữ</option><option>Khác</option></select></div>
         <div class="form-group"><label for="empSoCccd">CCCD</label><input type="text" id="empSoCccd" class="form-control" maxlength="20"></div>
         <div class="form-group"><label><input type="checkbox" id="empHoSoDayDu"> Hồ sơ đầy đủ</label><br><label><input type="checkbox" id="empVanTay"> Đã đăng ký vân tay</label></div>
+        <div class="form-group"><label for="empInsuranceNumber">Số bảo hiểm</label><input type="text" id="empInsuranceNumber" class="form-control" autocomplete="off"></div>
         <div class="form-group employee-form-wide"><label for="empDiaChi">Địa chỉ hiện tại</label><textarea id="empDiaChi" class="form-control" rows="2" maxlength="500"></textarea></div>
         <div class="form-group"><label for="empNguoiThanQuanHe">Quan hệ người thân</label><input type="text" id="empNguoiThanQuanHe" class="form-control" maxlength="80"></div>
         <div class="form-group"><label for="empNguoiThanHoTen">Họ tên người thân</label><input type="text" id="empNguoiThanHoTen" class="form-control" maxlength="120"></div>
@@ -1404,6 +1407,7 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <script src="/shared/table-controls.js?v=20261016-1"></script>
+  <script src="/shared/fuzzy-search.js?v=20261021"></script>
   <script src="/shared/search-clear.js?v=20261009-1"></script>
   <script src="/shared/shared-nav.js?v=20261008"></script>
   <script src="/shared/table-align.js?v=20261017"></script>
@@ -2329,8 +2333,9 @@
       const department = document.getElementById('departmentFilter').value;
       if(branch && request.co_so !== branch) return false;
       if(department && departmentKey(request.bo_phan) !== departmentKey(department)) return false;
-      const employee = departmentKey(document.getElementById('employeeSearchInput').value);
-      if(employee && !departmentKey(request.ho_ten).includes(employee) && !departmentKey(request.web_username).includes(employee)) return false;
+      const employee = document.getElementById('employeeSearchInput').value;
+      const employeeText = [request.ho_ten, request.web_username].filter(Boolean).join(' ');
+      if(employee.trim() && !(window.TKSFuzzySearch ? window.TKSFuzzySearch.matches(employeeText, employee) : departmentKey(employeeText).includes(departmentKey(employee)))) return false;
       const from = document.getElementById('fromDateFilter').value;
       const to = document.getElementById('toDateFilter').value;
       if(from && request.end_date && request.end_date < from) return false;
@@ -2354,6 +2359,14 @@
     // ---------- Load danh sach ----------
     function handleFilterChange(){ syncLeaveCalendarSelection(); leavePaging.page = 1; loadLeaveRequests(); }
 
+    // O tim nhan vien loc gan dung ngay tren client (khong goi may chu); xoa het tu khoa cung chay lai ngay.
+    function handleLeaveSearchInput(){
+      syncLeaveCalendarSelection();
+      leavePaging.page = 1;
+      renderStats(rawLeaveRequests);
+      renderTable(rawLeaveRequests);
+    }
+
     // Trang thai loc phia client (khong gui len API) de o KPI van dem du moi trang thai
     // ke ca khi bang dang chi hien "Chua duyet".
     function handleStatusFilterChange(){ leavePaging.page = 1; renderTable(rawLeaveRequests); }
@@ -2368,14 +2381,13 @@
     async function loadLeaveRequests(silent){
       const version = ++leaveLoadVersion;
       const tbody = document.getElementById('leaveTableBody');
-      const employee = document.getElementById('employeeSearchInput').value.trim();
       const fromDate = document.getElementById('fromDateFilter').value;
       const toDate = document.getElementById('toDateFilter').value;
       const branch = selectedBranch('branchFilter');
       const department = document.getElementById('departmentFilter').value;
 
+      // Tu khoa nhan vien KHONG gui len may chu: matchesLeaveScope loc gan dung tren client.
       const params = new URLSearchParams();
-      if(employee) params.set('employee', employee);
       if(branch) params.set('branch', branch);
       if(department) params.set('department', department);
       if(fromDate) params.set('from', fromDate);
@@ -2936,6 +2948,7 @@
         // Nhập lại chỉ điền ô trống, không ghi đè dữ liệu đã có.
         const missingProfile = rawEmployeeDirectory.some(e => !e.ngayVaoLam || !e.ngaySinh || !String(e.gioiTinh || '').trim());
         document.getElementById('btnImportEmployeeDirectory').hidden = !employeeCanManage || (rawEmployeeDirectory.length > 0 && !missingProfile);
+        document.getElementById('btnImportEmployeeInsurance').hidden = !employeeCanManage;
         renderEmployeeDirectoryHead();
         populateDepartmentFilter('departmentFilter', document.getElementById('branchFilter').value);
         populateDepartmentFilter('employeeDepartmentFilter', document.getElementById('employeeBranchFilter').value);
@@ -2950,15 +2963,15 @@
     // Độ rộng được đo theo giá trị của dòng dữ liệu, không lấy theo tiêu đề.
     const EMPLOYEE_BASIC_HEAD = [
       ['Họ và tên','ho-va-ten',240], ['Bộ phận','bo-phan',180], ['Cơ sở','co-so',100],
-      ['Số điện thoại','so-dien-thoai',115], ['Trạng thái','trang-thai',50]
+      ['Số điện thoại','so-dien-thoai',115], ['Trạng thái','trang-thai',50,true]
     ];
     const EMPLOYEE_MANAGER_HEAD = [
       ['Họ và tên','ho-va-ten',240], ['Bộ phận','bo-phan',150], ['Chức vụ','chuc-vu',180],
       ['Ngày vào làm','ngay-vao-lam',110], ['Số ngày LV','so-ngay-lv',90], ['Ngày sinh','ngay-sinh',110],
       ['Số CCCD','so-cccd',125], ['SĐT','so-dien-thoai',115], ['Địa chỉ hiện tại','dia-chi',210],
-      ['Giới tính','gioi-tinh',72], ['Hồ sơ','ho-so',52], ['Vân tay','van-tay',52], ['Cơ sở','co-so',100],
+      ['Giới tính','gioi-tinh',72], ['Hồ sơ','ho-so',52], ['Vân tay','van-tay',52], ['Số bảo hiểm','so-bao-hiem',140], ['Cơ sở','co-so',100],
       ['QH người thân','qh-nguoi-than',120], ['Họ tên người thân','ten-nguoi-than',180],
-      ['SĐT người thân','sdt-nguoi-than',115], ['Trạng thái','trang-thai',50], ['Ngày nghỉ việc','ngay-nghi-viec',110]
+      ['SĐT người thân','sdt-nguoi-than',115], ['Trạng thái','trang-thai',50,true], ['Ngày nghỉ việc','ngay-nghi-viec',110,true]
     ];
 
     function employeeColumnText(columnKey, employee, index){
@@ -2971,9 +2984,10 @@
         case 'qh-nguoi-than': return employee.nguoiThanQuanHe;
         case 'ten-nguoi-than': return employee.nguoiThanHoTen;
         case 'sdt-nguoi-than': return employee.nguoiThanSoDienThoai;
-        case 'gioi-tinh': return employee.gioiTinh;
+        case 'gioi-tinh': return normalizeEmployeeGender(employee.gioiTinh);
         case 'ho-so': return employee.hoSoDayDu ? 'Đủ' : 'Thiếu';
         case 'van-tay': return employee.vanTayDaDangKy ? 'Có' : 'Chưa';
+        case 'so-bao-hiem': return employee.insuranceNumber || '';
         case 'ngay-nghi-viec': return formatEmployeeDate(employee.ngayNghiViec);
         default: {
           const fields = {
@@ -2998,15 +3012,35 @@
       return Math.min(maxWidth, Math.max(32, contentWidth));
     }
 
+    // Dữ liệu cũ từ file ghi "NAM"/"NỮ": quy về đúng lựa chọn của ô chọn để không hiện trống và không mất khi lưu.
+    function normalizeEmployeeGender(value){
+      const text=String(value == null ? '' : value).trim();
+      if(!text) return '';
+      const key=text.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/gi,'d').toUpperCase();
+      return ({NAM:'Nam',NU:'Nữ',KHAC:'Khác'})[key] || text;
+    }
+    function setEmployeeGenderSelect(value){
+      const select=document.getElementById('empGioiTinh');
+      const gender=normalizeEmployeeGender(value);
+      select.querySelectorAll('option[data-legacy-gender]').forEach(option => option.remove());
+      if(gender && ![...select.options].some(option => option.value === gender)){
+        const option=document.createElement('option');
+        option.value=gender; option.textContent=gender; option.dataset.legacyGender='true';
+        select.appendChild(option);
+      }
+      select.value=gender;
+    }
+
     function renderEmployeeDirectoryHead(){
       const head=document.getElementById('employeeDirectoryTableHead');
       const table=document.getElementById('employeeDirectoryTable');
       const columns=employeeCanManage ? EMPLOYEE_MANAGER_HEAD : EMPLOYEE_BASIC_HEAD;
       const widths=columns.map(column => employeeColumnWidth(column, rawEmployeeDirectory));
-      head.innerHTML='<tr>'+columns.map(function(c,index){ return '<th class="'+employeeCellClass(c[1])+'" style="width:'+widths[index]+'px" data-column-key="'+c[1]+'">'+c[0]+'</th>'; }).join('')+'</tr>';
+      // Cột thứ 4 = true: ẩn mặc định (Trạng thái, Ngày nghỉ việc) — dữ liệu vẫn có để lọc/xuất, bật lại ở "Cột hiển thị".
+      head.innerHTML='<tr>'+columns.map(function(c,index){ return '<th class="'+employeeCellClass(c[1])+'" style="width:'+widths[index]+'px" data-column-key="'+c[1]+'"'+(c[3] ? ' data-column-default-hidden="true"' : '')+'>'+c[0]+'</th>'; }).join('')+'</tr>';
       // Không để CSS width:100% tự chia phần trống khiến cột ngắn bị giãn quá mức.
       table.dataset.tableFit=employeeCanManage ? 'off' : 'contain';
-      table.style.width=employeeCanManage ? widths.reduce((total,width) => total + width, 0)+'px' : '100%';
+      table.style.width=employeeCanManage ? widths.reduce((total,width,index) => total + (columns[index][3] ? 0 : width), 0)+'px' : '100%';
       delete table.dataset.sortInited;
       initSortableTables();
     }
@@ -3129,17 +3163,24 @@
 
     function renderEmployeeDirectoryTable(){
       const tbody = document.getElementById('employeeDirectoryTableBody');
-      const keyword = (document.getElementById('employeeDirectorySearchInput').value || '').trim().toLowerCase();
+      const keyword = (document.getElementById('employeeDirectorySearchInput').value || '').trim();
       const branch = selectedBranch('employeeBranchFilter');
       const department = departmentKey(document.getElementById('employeeDepartmentFilter').value);
       const status = document.getElementById('employeeStatusFilter').value;
-      renderEmployeeDirectorySummary(branch, status);
+      renderEmployeeDirectorySummary(branch, status, keyword);
+      const fuzzy = window.TKSFuzzySearch;
+      const employeeText = e => [e.hoTen, e.boPhan, e.chucVu, e.soDienThoai].filter(Boolean).join(' ');
       const filtered = rawEmployeeDirectory.filter(e => {
         if(status && employeeStatusKey(e) !== status) return false;
         if(branch && e.coSo !== branch) return false;
         if(department && departmentKey(e.boPhan) !== department) return false;
-        return !keyword || [e.hoTen, e.boPhan, e.chucVu, e.soDienThoai].some(v => String(v || '').toLowerCase().includes(keyword));
+        return !keyword || fuzzy.matches(employeeText(e), keyword);
       }).sort(employeeNewestFirst);
+      // Co tu khoa: khop nhieu tu / nguyen cum xep truoc, dong diem giu thu tu moi nhat.
+      if(keyword){
+        const scores = new Map(filtered.map(e => [e, fuzzy.score(employeeText(e), keyword)]));
+        filtered.sort((a, b) => scores.get(b) - scores.get(a));
+      }
       if(!filtered.length){
         tbody.innerHTML = `<tr class="empty-row"><td colspan="${employeeCanManage ? EMPLOYEE_MANAGER_HEAD.length : EMPLOYEE_BASIC_HEAD.length}">${rawEmployeeDirectory.length ? 'Không tìm thấy nhân sự phù hợp.' : 'Chưa có dữ liệu nhân sự.'}</td></tr>`;
         paginateEmployeeDirectoryTable();
@@ -3159,12 +3200,13 @@
       paginateEmployeeDirectoryTable();
     }
 
-    function renderEmployeeDirectorySummary(branch, status){
+    function renderEmployeeDirectorySummary(branch, status, keyword){
       const total=document.getElementById('employeeSummaryTotal');
       const scope=document.getElementById('employeeSummaryScope');
       const departments=document.getElementById('employeeDepartmentSummary');
       if(!total || !scope || !departments) return;
-      const inBranch=rawEmployeeDirectory.filter(e => !branch || e.coSo === branch);
+      const employeeText=e => [e.hoTen, e.boPhan, e.chucVu, e.soDienThoai].filter(Boolean).join(' ');
+      const inBranch=rawEmployeeDirectory.filter(e => (!branch || e.coSo === branch) && (!keyword || window.TKSFuzzySearch.matches(employeeText(e), keyword)));
       // Tổng và số theo Bộ phận bám theo bộ lọc Trạng thái; LV/NV luôn hiện riêng để không phải lọc mới thấy NV.
       const inScope=inBranch.filter(e => !status || employeeStatusKey(e) === status);
       const working=inBranch.filter(e => employeeStatusKey(e) === 'active').length;
@@ -3269,6 +3311,33 @@
       }
     }
 
+    async function importEmployeeInsurance(input){
+      const file=input.files && input.files[0];
+      if(!file) return;
+      const button=document.getElementById('btnImportEmployeeInsurance');
+      const status=document.getElementById('employeeImportStatus');
+      button.disabled=true;
+      const form=()=>{ const data=new FormData(); data.append('file',file); return data; };
+      try{
+        const previewResponse=await fetch('/api/hr/employees/insurance-import',{method:'POST',credentials:'same-origin',body:form()});
+        const preview=await previewResponse.json();
+        if(!previewResponse.ok) throw new Error(preview.error||'Không đọc được file.');
+        if(preview.errors.length){
+          const message=`Có ${preview.errors.length} dòng lỗi: `+preview.errors.slice(0,5).map(e=>`dòng ${e.row}: ${e.reason}`).join('; ');
+          status.hidden=false; status.className='form-hint error'; status.textContent=message;
+          return;
+        }
+        if(!confirm(`Sẽ cập nhật số bảo hiểm cho ${preview.valid} nhân sự theo ID. Tiếp tục?`)) return;
+        const response=await fetch('/api/hr/employees/insurance-import?commit=1',{method:'POST',credentials:'same-origin',body:form()});
+        const result=await response.json();
+        if(!response.ok) throw new Error(result.error||'Không nhập được số bảo hiểm.');
+        status.hidden=false; status.className='form-hint success'; status.textContent=`Đã cập nhật ${result.imported} số bảo hiểm.`;
+        await loadEmployeeDirectory();
+      }catch(err){
+        status.hidden=false; status.className='form-hint error'; status.textContent=err.message||'Không nhập được file.';
+      }finally{ input.value=''; button.disabled=false; }
+    }
+
     // Bam vao dong nhan su -> mo hop chi tiet (chi khi co quyen hr.employees.manage).
     document.addEventListener('click', event => {
       const row = event.target.closest && event.target.closest('#employeeDirectoryTableBody tr[data-employee-id]');
@@ -3292,7 +3361,7 @@
       const todayInput=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
       document.getElementById('empNgayVaoLam').value = employee ? (employee.ngayVaoLam || '') : todayInput;
       document.getElementById('empNgaySinh').value = employee ? (employee.ngaySinh || '') : '';
-      document.getElementById('empGioiTinh').value = employee ? (employee.gioiTinh || '') : '';
+      setEmployeeGenderSelect(employee ? employee.gioiTinh : '');
       document.getElementById('empSoCccd').value = employee ? (employee.soCccd || '') : '';
       document.getElementById('empDiaChi').value = employee ? (employee.diaChiHienTai || '') : '';
       document.getElementById('empNguoiThanQuanHe').value = employee ? (employee.nguoiThanQuanHe || '') : '';
@@ -3300,6 +3369,7 @@
       document.getElementById('empNguoiThanSdt').value = employee ? (employee.nguoiThanSoDienThoai || '') : '';
       document.getElementById('empHoSoDayDu').checked = !!(employee && employee.hoSoDayDu);
       document.getElementById('empVanTay').checked = !!(employee && employee.vanTayDaDangKy);
+      document.getElementById('empInsuranceNumber').value = employee ? (employee.insuranceNumber || '') : '';
       document.getElementById('empNgayNghiViec').value = employee ? (employee.ngayNghiViec || '') : '';
       document.getElementById('empTrangThai').value = employee ? employeeStatusKey(employee) : 'active';
       const branches = ((currentUser && currentUser.branches) || []).filter(b => b !== BRANCH_BOTH_LABEL);
@@ -3356,6 +3426,7 @@
         nguoiThanSoDienThoai: document.getElementById('empNguoiThanSdt').value,
         hoSoDayDu: document.getElementById('empHoSoDayDu').checked,
         vanTayDaDangKy: document.getElementById('empVanTay').checked,
+        insuranceNumber: document.getElementById('empInsuranceNumber').value,
         ngayNghiViec: document.getElementById('empNgayNghiViec').value,
         trangThai: document.getElementById('empTrangThai').value
       };

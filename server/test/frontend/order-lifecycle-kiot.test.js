@@ -525,6 +525,8 @@ test('đổi bộ lọc/tìm kiếm về trang 1; số đơn hiển thị là "�
   await settle();
   assert.equal(document.getElementById('bulkPageLabel').textContent, 'Trang 2/3');
 
+  assert.equal(lastListParams(page).get('mode'), null, 'chua go gi thi khong gui mode');
+  document.querySelector('#bulkSearchModes [data-mode="code"]').click(); // mac dinh la "Theo ten khach"
   const input = document.getElementById('bulkSearchInput');
   input.value = 'khac-tim';
   document.getElementById('bulkSearchForm').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
@@ -548,6 +550,7 @@ test('tìm theo tên sale / khách: đổi kiểu tìm gửi mode tương ứng 
   await settle();
   assert.equal(listCalls(page).length, before, 'o tim kiem rong: doi kieu khong goi lai may chu');
 
+  assert.equal(document.querySelector('#bulkSearchModes .active').dataset.mode, 'sale');
   document.getElementById('bulkSearchInput').value = 'nguyen van an'; // khong dau cung khop
   document.querySelector('#bulkSearchModes [data-mode="customer"]').click();
   await settle();

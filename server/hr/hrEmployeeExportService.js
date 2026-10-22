@@ -8,6 +8,7 @@
 'use strict';
 
 const ExcelJS = require('exceljs');
+const fuzzy = require('../shared/fuzzySearch');
 const employeeDirectory = require('./employeeDirectory');
 const { BRANCHES } = require('../branch/branches');
 const { matchesDepartment } = require('./hrDepartment');
@@ -19,10 +20,10 @@ const BASE_HEADERS = ['Họ và tên', 'Chức vụ', 'Cơ sở', 'Số điện 
 const BASE_WIDTHS = [24, 28, 12, 18, 26, 16];
 const EXTENDED_HEADERS = [
   'Họ và tên', 'Bộ phận', 'Chức vụ', 'Ngày vào làm', 'Số ngày LV', 'Ngày sinh', 'Số CCCD', 'SĐT',
-  'Địa chỉ hiện tại', 'Giới tính', 'Hồ sơ', 'Vân tay', 'Cơ sở', 'QH người thân', 'Họ tên người thân',
-  'SĐT người thân', 'Trạng thái', 'Ngày nghỉ việc', 'Email', 'Ngày thêm'
+  'Địa chỉ hiện tại', 'Giới tính', 'Hồ sơ', 'Vân tay', 'Số bảo hiểm', 'Cơ sở', 'QH người thân', 'Họ tên người thân',
+  'SĐT người thân', 'Trạng thái', 'Ngày nghỉ việc', 'Email', 'Ngày thêm', 'ID nhân sự'
 ];
-const EXTENDED_WIDTHS = [26, 18, 24, 14, 12, 14, 16, 16, 36, 12, 11, 11, 12, 18, 24, 16, 14, 14, 26, 14];
+const EXTENDED_WIDTHS = [26, 18, 24, 14, 12, 14, 16, 16, 36, 12, 11, 11, 20, 12, 18, 24, 16, 14, 14, 26, 14, 15];
 const STATUS_LABELS = { active: 'Đang làm việc', resigned: 'Đã nghỉ việc' };
 
 function formatDateVN(iso) {
@@ -79,7 +80,7 @@ async function buildEmployeeDirectoryWorkbook(filters, branch) {
   const HEADERS = includeExtended ? EXTENDED_HEADERS : (filters.includeCreatedAt ? [...BASE_HEADERS, 'Ngày thêm'] : BASE_HEADERS);
   const COLUMN_WIDTHS = includeExtended ? EXTENDED_WIDTHS : (filters.includeCreatedAt ? [...BASE_WIDTHS, 14] : BASE_WIDTHS);
   const statusFilter = filters.status === 'active' || filters.status === 'resigned' ? filters.status : '';
-  const keyword = String(filters.keyword || '').trim().toLowerCase();
+  const keyword = String(filters.keyword || '').trim();
 
   const snapshot = await employeeDirectory.getSnapshot();
   const branches = Array.isArray(branch) ? branch : [branch];
@@ -102,6 +103,8 @@ async function buildEmployeeDirectoryWorkbook(filters, branch) {
       gioiTinh: employee.gioiTinh,
       hoSo: employee.hoSoDayDu ? 'Đủ' : 'Thiếu',
       vanTay: employee.vanTayDaDangKy ? 'Đã đăng ký' : 'Chưa đăng ký',
+      insuranceNumber: employee.insuranceNumber || '',
+      id: String(employee.rowIndex),
       nguoiThanQuanHe: employee.nguoiThanQuanHe,
       nguoiThanHoTen: employee.nguoiThanHoTen,
       nguoiThanSoDienThoai: employee.nguoiThanSoDienThoai,
@@ -110,10 +113,11 @@ async function buildEmployeeDirectoryWorkbook(filters, branch) {
       ngayThem: formatDateVN(employee.createdAt)
     }));
 
-  if (keyword) {
-    items = items.filter(e => [e.hoTen, e.boPhan, e.soDienThoai, e.email].some(v => String(v || '').toLowerCase().includes(keyword)));
-  }
   items.sort((a, b) => a.hoTen.localeCompare(b.hoTen, 'vi'));
+  if (keyword) {
+    // Tim gan dung nhu bang Nhan su tren man hinh (Ho ten, Bo phan, Chuc vu, SDT); khop nhieu tu xep truoc.
+    items = fuzzy.filter(items, keyword, e => [e.hoTen, e.boPhan, e.chucVu, e.soDienThoai].filter(Boolean).join(' '));
+  }
 
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'TOKOSI Dashboard';
@@ -126,12 +130,19 @@ async function buildEmployeeDirectoryWorkbook(filters, branch) {
     if (includeExtended) {
       sheet.addRow([
         item.hoTen, item.boPhan, item.chucVu, item.ngayVaoLam, item.soNgayLamViec, item.ngaySinh, item.soCccd,
-        item.soDienThoai, item.diaChiHienTai, item.gioiTinh, item.hoSo, item.vanTay, item.coSo,
+        item.soDienThoai, item.diaChiHienTai, item.gioiTinh, item.hoSo, item.vanTay, item.insuranceNumber, item.coSo,
         item.nguoiThanQuanHe, item.nguoiThanHoTen, item.nguoiThanSoDienThoai, item.trangThai,
-        item.ngayNghiViec, item.email, item.ngayThem
+        item.ngayNghiViec, item.email, item.ngayThem, item.id
       ]);
     } else sheet.addRow({ c0: item.hoTen, c1: item.boPhan, c2: item.coSo, c3: item.soDienThoai, c4: item.email, c5: item.trangThai, c6: item.ngayThem });
   });
+
+  if (includeExtended) {
+    const insuranceColumn = HEADERS.indexOf('Số bảo hiểm') + 1;
+    const idColumn = HEADERS.indexOf('ID nhân sự') + 1;
+    sheet.getColumn(insuranceColumn).numFmt = '@';
+    sheet.getColumn(idColumn).numFmt = '@';
+  }
 
   sheet.views = frozenNoGridlinesView(1);
   sheet.getRow(1).font = HEADER_FONT;

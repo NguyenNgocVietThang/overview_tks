@@ -5,7 +5,7 @@
 // truong, TB 4 thang, co "hoat dong"; chi so tong quat; du lieu panel chi tiet.
 // Khach duoc GOP THEO TEN (HN + SG, nhieu ma); sale co them team (bang sale_teams).
 
-const { UNGROUPED_SALE, NO_TEAM, RETAIL_NAME, nameKey, buildMetrics, monthLabel, addMonths } = require('./businessMonths');
+const { UNGROUPED_SALE, NO_TEAM, RETAIL_NAME, DEFAULT_PRICE_LEVEL, nameKey, buildMetrics, monthLabel, addMonths } = require('./businessMonths');
 
 function notFound(message) {
   const e = new Error(message);
@@ -58,7 +58,7 @@ function customerRecords(snap) {
           branch: r.branch, code: r.customerCode,
           name: (d && d.name) || r.customerName || RETAIL_NAME,
           saleName: canonicalSale((r.customerCode && d && d.saleName) || UNGROUPED_SALE, teams),
-          priceLevel: (d && d.priceLevel) || ''
+          priceLevel: (d && d.priceLevel) || DEFAULT_PRICE_LEVEL
         },
         series: {}
       };
@@ -74,6 +74,12 @@ const byTotalDesc = (a, b) => seriesTotal(b.series) - seriesTotal(a.series);
 
 // Gop cac ho so cung ten (HN + SG, nhieu ma) thanh 1 khach. Sale = sale co TB 4 thang (cua so
 // 4 thang) lon nhat; khong ai co doanh so trong cua so thi lay sale cua ho so tong lon nhat.
+// Level giá của khách gộp: hồ sơ có tổng doanh số lớn nhất mà email đã gán level; không có thì mặc định Vừa.
+function levelOf(recs) {
+  const set = recs.slice().sort(byTotalDesc).find(rec => rec.priceLevel && rec.priceLevel !== DEFAULT_PRICE_LEVEL);
+  return set ? set.priceLevel : DEFAULT_PRICE_LEVEL;
+}
+
 function mergeByName(records, snap) {
   const groups = new Map();
   for (const rec of records) {
@@ -89,7 +95,7 @@ function mergeByName(records, snap) {
     for (const rec of recs) window.set(rec.saleName, (window.get(rec.saleName) || 0) + rec.avg4);
     const best = [...window.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
     return withMetrics({
-      key, name: main.name, saleName: best[1] > 0 ? best[0] : main.saleName, priceLevel: main.priceLevel,
+      key, name: main.name, saleName: best[1] > 0 ? best[0] : main.saleName, priceLevel: levelOf(recs),
       refs: recs.map(rec => ({ branch: rec.branch, code: rec.code }))
     }, series, snap);
   });

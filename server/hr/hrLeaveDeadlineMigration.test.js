@@ -70,7 +70,7 @@ test('every registration timing can be approved without changing snapshot, and f
 });
 
 // Kiểm thử sửa đơn (resubmitLeaveRequest) đã chuyển sang db/accountLeaveTriggerMigration.test.js:
-// sau migration 0077 điều kiện là tài khoản + cơ sở công tác, cần schema đầy đủ 0042→0077.
+// sau migration 0081 điều kiện là tài khoản + cơ sở công tác, cần schema đầy đủ 0042→0081.
 test('schedule repository round-trips nullable starts and database owns monotonically increasing version',async()=>{
  let db;try {db=await fixture();
  const repo=require('./hrLeaveWorkSchedulesRepository').createHrLeaveWorkSchedulesRepository({pool:db});

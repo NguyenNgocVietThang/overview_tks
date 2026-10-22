@@ -129,6 +129,7 @@ async function setup(t, { hash = "", fetcher, captureTimers = false } = {}) {
     return { ok: true, json: async () => data };
   };
   const script = w.document.getElementById("cashbook-script");
+  w.eval(require("node:fs").readFileSync(require("node:path").join(__dirname, "../../public/shared/fuzzy-search.js"), "utf8"));
   if (script) w.eval(script.textContent);
   assert.ok(
     w.TKSCashbook,

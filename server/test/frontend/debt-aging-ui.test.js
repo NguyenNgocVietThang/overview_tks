@@ -57,13 +57,13 @@ function rowTexts(document) {
   return [...document.querySelectorAll('#debtAgingRows tr')].map(row => [...row.cells].map(cell => cell.textContent.trim()));
 }
 
-test('muc 3 co du 9 cot, Ngay het no mac dinh an, nut Xuat file debt.aging', () => {
+test('muc 3 co du 10 cot, Ngay het no mac dinh an, nut Xuat file debt.aging', () => {
   const source = fs.readFileSync(path.join(publicDir, 'index.html'), 'utf8');
   const { dom } = createDashboard(AGING);
   const table = dom.window.document.querySelector('[data-debt-aging-table]');
   const headers = [...table.tHead.rows[0].cells];
   assert.deepEqual(headers.map(cell => cell.dataset.columnKey), [
-    'co-so', 'khach-hang', 'sale', 'lich-tt', 'no-hien-tai', 'no-qua-han', 'ngay-het-no', 'ngay-no-tuong-duong', 'con-han'
+    'co-so', 'khach-hang', 'sale', 'sale-team', 'lich-tt', 'no-hien-tai', 'no-qua-han', 'ngay-het-no', 'ngay-no-tuong-duong', 'con-han'
   ]);
   assert.deepEqual(headers.filter(cell => cell.dataset.columnDefaultHidden === 'true').map(cell => cell.dataset.columnKey), ['ngay-het-no']);
   assert.match(source, /openExportDialog\('debt\.aging'\)/);
@@ -78,9 +78,9 @@ test('tai bang tinh san, hien so, to mau Con han va dau ≥/≤ khi vuot lich su
   assert.equal(document.getElementById('tagDebtAging').textContent, '4');
   const rows = rowTexts(document);
   assert.deepEqual(rows[0].slice(0, 2), ['HN', 'Anh Bình']);
-  assert.deepEqual(rows[0].slice(6), ['10/10/2026', '7', '-2']);
-  assert.deepEqual(rows[1].slice(6), ['—', '—', '—']);
-  assert.deepEqual(rows[3].slice(6), ['trước 18/10/2025', '≥ 364', '≤ -361']);
+  assert.deepEqual(rows[0].slice(7), ['10/10/2026', '7', '-2']);
+  assert.deepEqual(rows[1].slice(7), ['—', '—', '—']);
+  assert.deepEqual(rows[3].slice(7), ['trước 18/10/2025', '≥ 364', '≤ -361']);
   const tones = [...document.querySelectorAll('#debtAgingRows [class^="debt-aging-"]')].map(el => [el.className, el.textContent]);
   assert.deepEqual(tones, [['debt-aging-neg', '-2'], ['debt-aging-pos', '5'], ['debt-aging-neg', '≤ -361']]);
   assert.match(window.debtAgingDaysHtml({ remainingDays: 0 }, 'remainingDays'), /debt-aging-zero/);
@@ -101,11 +101,11 @@ test('loc Sale / Lich / Tim va sap xep Con han tang dan', async () => {
   assert.deepEqual(rowTexts(document).map(row => row[1]), ['Anh Bình']);
   document.getElementById('debtAgingSearch').value = '';
   window.handleDebtAgingFilterChange();
-  window.setTableSort('debtAgingRows', 8);
+  window.setTableSort('debtAgingRows', 9);
   // Con han trong (khach het no) xep cuoi.
   assert.deepEqual(rowTexts(document).map(row => row[1]), ['Chị Xa', 'Anh Bình', 'Anh Sài', 'Chị An']);
   const payload = window.buildExportPayload('debt.aging');
-  assert.deepEqual(JSON.parse(JSON.stringify(payload.context.debtAgingSort)), { columnIndex: 8, direction: 'asc' });
+  assert.deepEqual(JSON.parse(JSON.stringify(payload.context.debtAgingSort)), { columnIndex: 9, direction: 'asc' });
 });
 
 test('chua tinh lan nao -> canh bao, bang trong', async () => {
@@ -167,6 +167,22 @@ test('cot Con han (ke ca dong ≤ -x) duoc table-align.js can phai nhu cac cot s
   const table = document.querySelector('[data-debt-aging-table]');
   const aligned = [...table.tHead.rows[0].cells].map(cell => cell.classList.contains('col-num'));
   // Co so, Khach hang, Sale: chu; Lich TT, No hien tai, No qua han, Ngay no tuong duong, Con han: so (Ngay het no la ngay).
-  assert.deepEqual(aligned, [false, false, false, true, true, true, false, true, true]);
-  assert.ok(table.tBodies[0].rows[3].cells[8].classList.contains('col-num'), 'o ≤ -361 cung can phai');
+  assert.deepEqual(aligned, [false, false, false, false, true, true, true, false, true, true]);
+  assert.ok(table.tBodies[0].rows[3].cells[9].classList.contains('col-num'), 'o ≤ -361 cung can phai');
+});
+
+
+test('Nhóm sale filters aging independently and resets pagination', async () => {
+  const payload = structuredClone(AGING);
+  payload.customers.forEach((r, i) => { r.saleTeam = i < 2 ? 'Team A' : 'Chưa có team'; });
+  const { dom } = createDashboard(payload);
+  try {
+    await dom.window.loadDebtAging();
+    const select = dom.window.document.getElementById('debtAgingTeamFilter');
+    assert.ok(select);
+    select.value = 'Team A';
+    dom.window.handleDebtAgingFilterChange();
+    assert.equal(dom.window.document.querySelectorAll('#debtAgingRows tr').length, 2);
+    assert.ok([...dom.window.document.querySelectorAll('#debtAgingRows tr')].every(r => r.cells[3].textContent === 'Team A'));
+  } finally { dom.window.close(); }
 });

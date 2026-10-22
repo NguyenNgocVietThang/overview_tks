@@ -13,6 +13,10 @@
 const { getPool } = require('../db/pool');
 
 const HEADERS = Object.freeze({ code: 'MÃ SP', perCarton: 'SL/T', cartonKg: 'Cân nặng', length: 'D', width: 'R', height: 'C' });
+// Cot O (thu 15, chi so 14) = "Cuoc 1 Sp (465/m3, 1367d/kg)" (tieu de co the xuong dong). Doc truc tiep, khong tinh lai.
+const FREIGHT_COLUMN_INDEX = 14;
+const FREIGHT_HEADER_PATTERN = /^cước 1 sp(?:\s|\(|$)/u;
+const FREIGHT_HEADER_ERROR = 'Sheet CÂN ĐO: cột O phải có tiêu đề "Cước 1 Sp (…)"; chưa đọc được cước/đơn vị.';
 const STALE_AFTER_MS = 20 * 60 * 1000;
 
 function sourceError(code, message) {
@@ -35,7 +39,16 @@ function toPositive(value) {
   return Number.isFinite(number) && number > 0 ? number : null;
 }
 
-/** Rows -> Map<codeKey, { perCarton, m3PerUnit, kgPerUnit, missingVolume, missingWeight }>; unavailable measurements are null. */
+/** O cuoc/chiec -> chuoi thap phan ('384', '0') de giu nguyen NUMERIC; trong/khong doc duoc/am -> null. */
+function toFreight(value) {
+  if (value === null || value === undefined) return null;
+  const text = typeof value === 'number' ? String(value) : String(value).normalize('NFC').replace(/[\s,]/gu, '').replace(/đ$/iu, '');
+  if (!/^\d+(?:\.\d+)?$/u.test(text)) return null;
+  return text.replace(/^0+(?=\d)/u, '').replace(/(\.\d*?)0+$/u, '$1').replace(/\.$/u, '');
+}
+
+/** Rows -> Map<codeKey, { perCarton, m3PerUnit, kgPerUnit, missingVolume, missingWeight, freightPerUnit }>; unavailable measurements are null.
+ *  Map co them thuoc tinh freightError (null | thong bao) khi tieu de cot O sai. */
 function parseMeasureRows(values) {
   const fields = Object.entries(HEADERS);
   let indexes;
@@ -50,7 +63,11 @@ function parseMeasureRows(values) {
     throw sourceError('MEASURE_HEADERS_MISSING', `Sheet CÂN ĐO không có hàng tiêu đề đủ các cột: ${fields.map(([, title]) => title).join(', ')}.`);
   }
   const [iCode, iPer, iKg, iL, iW, iH] = indexes;
+  // Cot O chi phuc vu Kiem tra gia ban: tieu de sai KHONG chan dong bo m3/kg (Vong doi don); moi o cuoc = NULL
+  // va table.freightError ghi loi nguon de job kiem tra gia bao chua san sang (khong lay nham cot khac).
+  const freightOk = FREIGHT_HEADER_PATTERN.test(normalizeHeader(values[headerRow][FREIGHT_COLUMN_INDEX]));
   const table = new Map();
+  table.freightError = freightOk ? null : FREIGHT_HEADER_ERROR;
   for (const row of values.slice(headerRow + 1)) {
     const key = codeKey(row[iCode]);
     if (!key || table.has(key)) continue;
@@ -61,7 +78,10 @@ function parseMeasureRows(values) {
     const h = toPositive(row[iH]);
     const m3PerUnit = perCarton && l && w && h ? (l * w * h / 1000000) / perCarton : null;
     const kgPerUnit = perCarton && kg ? kg / perCarton : null;
-    table.set(key, { perCarton, m3PerUnit, kgPerUnit, missingVolume: m3PerUnit === null, missingWeight: kgPerUnit === null });
+    table.set(key, {
+      perCarton, m3PerUnit, kgPerUnit, missingVolume: m3PerUnit === null, missingWeight: kgPerUnit === null,
+      freightPerUnit: freightOk ? toFreight(row[FREIGHT_COLUMN_INDEX]) : null
+    });
   }
   return table;
 }

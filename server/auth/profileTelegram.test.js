@@ -23,7 +23,7 @@ test('profile Telegram changes persist atomically with the bot link and employee
       await db.exec(fs.readFileSync(path.join(__dirname, '../db/migrations', name), 'utf8'));
     }
     await db.exec("ALTER TABLE app_users ADD COLUMN leave_approval_departments TEXT[] NOT NULL DEFAULT '{}';");
-    // Cột công tác của tài khoản (migration 0076).
+    // Cột công tác của tài khoản (migration 0080).
     await db.exec("ALTER TABLE app_users ADD COLUMN work_branch TEXT NOT NULL DEFAULT '', ADD COLUMN bo_phan TEXT NOT NULL DEFAULT '';");
     await db.exec(`INSERT INTO hr_employees(id, branch, ho_ten) VALUES (1, 'hanoi', 'A'), (2, 'hanoi', 'B');
       INSERT INTO app_users(id, username, ho_ten, email, hr_employee_id) VALUES

@@ -149,21 +149,23 @@ function liveCutoff(instant) {
   return new Date(instant.getTime() + 7 * 60 * 60 * 1000).toISOString().replace('Z', '');
 }
 
-const listeners = new Set();
+// Bao thay doi qua bus chung -> den duoc ca tien trinh web khi job chay o worker.js.
+const { dashboardRollupEvents } = require('./dashboardRollupEvents');
 let running = null;
 let rerunRequested = false;
 let lastStartedAtMs = 0;
 
 /** Goi khi bang ket qua doi (repository xoa cache). */
 function onBusinessCurrentMonthChanged(listener) {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
+  const safe = info => {
+    try { listener(info); } catch (error) { console.error('[businessCurrentMonthRefresh] listener loi:', error && error.message); }
+  };
+  dashboardRollupEvents.on('businessCurrentMonthChanged', safe);
+  return () => dashboardRollupEvents.off('businessCurrentMonthChanged', safe);
 }
 
 function notifyChanged(info) {
-  for (const listener of listeners) {
-    try { listener(info); } catch (error) { console.error('[businessCurrentMonthRefresh] listener loi:', error && error.message); }
-  }
+  dashboardRollupEvents.emit('businessCurrentMonthChanged', info);
 }
 
 /** Don dong thoi: dang chay thi chay them 1 luot sau, khong chong luot. */

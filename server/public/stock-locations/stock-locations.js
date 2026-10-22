@@ -18,7 +18,11 @@
 
   function filterRows(rows, query) {
     const needle = normalizeSearch(query);
-    return needle ? rows.filter(row => ['code', 'name', 'location'].some(field => normalizeSearch(row[field]).includes(needle))) : rows;
+    if (!needle) return rows;
+    const text = row => ['code', 'name', 'location'].map(field => row[field]).join(' ');
+    // Tìm gần đúng (bỏ dấu, nhiều từ), khớp nhiều từ xếp trước; dự phòng khi thiếu helper dùng chung.
+    if (window.TKSFuzzySearch) return window.TKSFuzzySearch.filter(rows, query, text);
+    return rows.filter(row => normalizeSearch(text(row)).includes(needle));
   }
 
   function quantityNumber(value) {

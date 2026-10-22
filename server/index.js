@@ -5,13 +5,17 @@ const cookieParser = require('cookie-parser');
 const CONFIG = require('./config');
 const routes = require('./routes');
 const localUserStore = require('./auth/localUserStore');
-const { startPollingScheduler } = require('./kiotvietSync/scheduler');
+// Nap scheduler ngay ca khi job chay o worker: module dang ky listener xoa cache web
+// (customersChanged, debtScheduleChanged) va nut "Tinh lai cong no" dung syncCustomers.
+require('./kiotvietSync/scheduler');
+const { startBackgroundJobs } = require('./jobs');
 const { prewarmDashboardCaches } = require('./dashboard/dashboardData');
 const { captureWebhookRawBody, webhookJsonErrorHandler } = require('./kiotviet/kiotvietWebhookRoutes');
 const { pageGuard } = require('./auth/pageGuard');
 const { createLeaveDbRealtime } = require('./hr/hrLeaveDbRealtime');
 const { getConfiguredManagerLeaveRuntime } = require('./telegram/managerLeaveRuntime');
 const { startSpecialDayNotifySchedule } = require('./notifications/specialDayNotifier');
+const { ensureHrInsuranceSchema } = require('./db/ensureHrInsuranceSchema');
 
 process.on('uncaughtException', (err) => {
   console.error('[Process] Uncaught exception:', err);
@@ -70,6 +74,12 @@ app.use(express.static(path.join(__dirname, 'public'), {
     if (filePath.includes(`${path.sep}vendor${path.sep}`)) {
       // Vendor lib (chart.umd.min.js, three.min.js) hiem khi doi thu cong
       res.setHeader('Cache-Control', 'public, max-age=86400'); // 1 ngay
+    } else if (/\.(js|css)$/.test(filePath) && res.req.query.v) {
+      // URL co ?v= -> cho trinh duyet + Cloudflare edge giu 1 gio, khoi hoi lai
+      // origin moi lan chuyen trang.
+      // ponytail: 1 gio vi ?v= tang tay va tung bi quen (cdddb2f); doi sang
+      // immutable 1 nam khi ?v= duoc sinh tu dong theo hash noi dung file.
+      res.setHeader('Cache-Control', 'public, max-age=3600');
     } else if (/\.(js|css)$/.test(filePath)) {
       // /shared/*, /js/* — luon revalidate de cap nhat UI tuc thi khi sua code
       res.setHeader('Cache-Control', 'no-cache, must-revalidate');
@@ -125,6 +135,9 @@ app.use((err, req, res, next) => {
 // admin mac dinh neu thieu. Bi loi (mat ket noi Postgres) van fail-soft,
 // khong chan server khoi dong.
 async function startServer() {
+  // The HR write path requires insurance_number. Apply only this additive
+  // migration before accepting requests; do not run other pending migrations.
+  if (CONFIG.SUPABASE_DB_URL) await ensureHrInsuranceSchema();
   localUserStore.initStore();
   await localUserStore.hydrateFromSheets().catch((err) => {
     console.error('[Users] Lỗi không mong đợi khi khởi tạo tài khoản Admin mặc định:', err.message);
@@ -150,24 +163,19 @@ async function startServer() {
       process.once('SIGINT', () => memoryMonitor.stop());
     }
 
-    const containerSchedule = require('./productContainers/sync').startContainerSchedule();
-    process.once('SIGTERM', () => containerSchedule.stop());
-    process.once('SIGINT', () => containerSchedule.stop());
-
-    // Vị trí hàng (HN/SG) + CÂN ĐO: đọc Google Sheets theo chu kỳ vào Postgres, web chỉ đọc DB.
-    const sheetSnapshots = require('./sheetSnapshots/sync').startSheetSnapshotSchedule();
-    process.once('SIGTERM', () => sheetSnapshots.stop());
-    process.once('SIGINT', () => sheetSnapshots.stop());
-
-    if (CONFIG.PANCAKE_MARKETING_SYNC_ENABLED) {
-      const pancakeScheduler = require('./marketingReport/pancakeScheduler').createPancakeScheduler({ enabled: true });
-      pancakeScheduler.start();
-      process.once('SIGTERM', () => pancakeScheduler.stop());
-      process.once('SIGINT', () => pancakeScheduler.stop());
-    }
-
-    if (CONFIG.KIOTVIET_SYNC_ENABLED || CONFIG.KIOTVIET_CASHBOOK_SYNC_ENABLED) {
-      startPollingScheduler();
+    if (CONFIG.BACKGROUND_JOBS === 'worker') {
+      // Job chay o worker.js: chi nghe su kien doi du lieu de xoa cache / day SSE.
+      const { Client } = require('pg');
+      const { listenToPostgres } = require('./kiotvietSync/dashboardRollupEvents');
+      const listener = listenToPostgres(() => new Client({
+        connectionString: CONFIG.SUPABASE_DB_URL,
+        keepAlive: true,
+        ssl: CONFIG.PGSSL ? { rejectUnauthorized: false } : false
+      }));
+      process.once('SIGTERM', () => listener.stop());
+      process.once('SIGINT', () => listener.stop());
+    } else {
+      startBackgroundJobs();
     }
 
     // Nap san cache dashboard ngay sau khi server san sang nhan request, KHONG
@@ -183,4 +191,8 @@ async function startServer() {
   });
 }
 
-startServer();
+startServer().catch(async (error) => {
+  console.error('[Startup] HR insurance migration failed; server will not accept requests:', error);
+  try { await require('./db/pool').getPool().end(); } catch (_) {}
+  process.exitCode = 1;
+});

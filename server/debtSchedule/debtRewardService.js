@@ -197,7 +197,7 @@ function createDebtRewardService({ pool = getPool(), repository = createDebtSche
       if (!cycle || cycle.cycleDate.slice(0, 7) !== selected) throw error(404, 'Chưa có kết quả thưởng đã chốt của tháng này.', 'REWARD_MONTH_NOT_FOUND');
       board = await buildMonth(selected, { cycle });
     }
-    return { ...board, months, rows: board.rows.filter(row => row.branches.some(branch => branches.includes(branch))),
+    return { ...board, months, rows: await require('./saleTeams').attachSaleTeams(board.rows.filter(row => row.branches.some(branch => branches.includes(branch))), pool),
       days: board.days.filter(day => !day.branch || branches.includes(day.branch)) };
   }
 

@@ -30,13 +30,13 @@ test('not-due and shared-lock busy do not read Google',async()=>{
     assert.ok(['not-due','busy'].includes(result.status));assert.equal(reads,0);
   }
 });
-test('six-sheet success commits rows and metadata together; rollback on insert error',async()=>{
+test('seven-sheet success commits rows and metadata together; rollback on insert error',async()=>{
   for(const fail of [false,true]){
     const conn=fakeConnection();const original=conn.query;
     conn.query=async function(sql,params){if(fail&&sql.startsWith('INSERT INTO product_container_lines'))throw Error('insert fail');return original.call(this,sql,params);};
     const reads=[];
     const result=await refreshContainers({pool:{connect:async()=>conn},spreadsheetId:'fixture',now:()=>fixed,client:{listSheetTitles:async()=>SHEET_NAMES,getValues:async(name)=>{reads.push(name);const row=Array(24).fill('');row[0]='SKU';row[14]=2;return [['CONT A','2.Chưa bốc'],row];}},logger:{info(){},error(){}}});
-    assert.equal(new Set(reads).size,6);
+    assert.equal(new Set(reads).size,7);
     const sql=conn.calls.filter(x=>x.sql).map(x=>x.sql);
     assert.ok(sql.indexOf('BEGIN')<sql.findIndex(x=>x.startsWith('DELETE')));
     assert.ok(sql.includes(fail?'ROLLBACK':'COMMIT'));

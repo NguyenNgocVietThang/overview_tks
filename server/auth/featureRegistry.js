@@ -50,16 +50,22 @@ const FEATURES = Object.freeze([
   // --- Bao cao tong hop ---
   { key: 'reports.overview', groupKey: 'reports', label: 'Tổng quan', roles: REPORT_VIEW_ROLES },
   { key: 'reports.overview.containers.full', groupKey: 'reports', label: 'Xem đầy đủ chi tiết CONT (cần Hàng hóa)', roles: MANAGER_ONLY, requires: 'reports.products' },
-  { key: 'reports.products', groupKey: 'reports', label: 'Hàng hóa (Báo cáo hàng hóa, Tăng trưởng mã hàng, Kiểm tra đứt hàng)', roles: [...REPORT_VIEW_ROLES, ROLES.NHAN_VIEN_MARKETING] },
+  { key: 'reports.products', groupKey: 'reports', label: 'Hàng hóa: xem Báo cáo hàng hóa và Kiểm tra đứt hàng', roles: REPORT_VIEW_ROLES },
+  { key: 'reports.products.growth', groupKey: 'reports', label: 'Hàng hóa: xem Tăng trưởng mã hàng', roles: REPORT_VIEW_ROLES },
   // 2026-10-20: Nhan vien marketing xem tab Hang hoa nhung KHONG duoc thay thong tin suy ra duoc don gia: doanh so 90 ngay, doanh so khach lon nhat,
   // Mo ta (thuong ghi bang gia) va hop doanh so theo khach. Mac dinh moi vai tro xem bao cao tru Marketing.
   { key: 'reports.products.sales', groupKey: 'reports', label: 'Hàng hóa: xem doanh số, mô tả bảng giá và doanh số theo khách (cần Hàng hóa)', roles: REPORT_VIEW_ROLES, requires: 'reports.products' },
   // 2026-10-17: cot Don gia HN/SG cua Bao cao hang hoa (gia ban chung KiotViet); mac dinh chi Quan ly + Tro ly.
   { key: 'reports.products.price', groupKey: 'reports', label: 'Hàng hóa: xem đơn giá HN / SG (cần Hàng hóa)', roles: REPORTS_ROLES, requires: 'reports.products' },
-  // 2026-10-20: bang "Du kien hang ve" (tab Hang hoa) mo cho 7 vai tro, DOC LAP voi 'reports.products' (khong requires):
-  // Ke toan / Mua hang / Kho khong co Bao cao hang hoa nhung van can biet lich cont ve. API rieng /api/expected-arrivals.
-  { key: 'reports.products.expected', groupKey: 'reports', label: 'Hàng hóa: xem bảng Dự kiến hàng về', roles: [...REPORT_VIEW_ROLES, ROLES.KE_TOAN, ROLES.NHAN_VIEN_MARKETING, ROLES.NHAN_VIEN_MUA_HANG, ROLES.NHAN_VIEN_KHO] },
+  // Du kien hang ve: moi vai tro noi bo; doc lap voi Bao cao hang hoa va Tang truong ma hang.
+  { key: 'reports.products.expected', groupKey: 'reports', label: 'Hàng hóa: xem bảng Dự kiến hàng về', roles: INTERNAL_ROLES },
   { key: 'reports.invoices', groupKey: 'reports', label: 'Hóa đơn', roles: REPORT_VIEW_ROLES },
+  // 2026-10-20: Kiem tra gia ban (tab Hoa don, server/invoicePriceAudit). Giai thich chi Sale dung nhom khach HIEN TAI
+  // (kiem tra o server moi lan ghi); Chot mac dinh chi Quan ly, KHONG tu cap Tro ly; quyen Chot khong kem quyen giai thich.
+  // escalationExempt cho giai thich: giong Sale phan hoi cong no (Tro ly van tao / dat lai mat khau TK Sale duoc).
+  { key: 'reports.invoices.priceAudit', groupKey: 'reports', label: 'Hóa đơn: xem Kiểm tra giá bán (cần Hóa đơn)', roles: REPORT_VIEW_ROLES, requires: 'reports.invoices' },
+  { key: 'reports.invoices.priceAudit.explain', groupKey: 'reports', label: 'Kiểm tra giá bán: điền Sale giải thích cho khách mình phụ trách (cần Kiểm tra giá bán)', roles: [ROLES.NHAN_VIEN_SALE], requires: 'reports.invoices.priceAudit', escalationExempt: true },
+  { key: 'reports.invoices.priceAudit.decide', groupKey: 'reports', label: 'Kiểm tra giá bán: Chốt Ok / Phạt (cần Kiểm tra giá bán)', roles: MANAGER_ONLY, requires: 'reports.invoices.priceAudit' },
   // 2026-10-07: Bao cao kinh doanh (tang truong Sale/Khach/Ma hang theo thang). Spec:
   // docs/superpowers/specs/2026-10-07-business-report-design.md.
   // 2026-10-16: tab nay thay tab Khach hang cu (da go, quyen reports.customers bo) nen hien ten "Khách hàng";
@@ -117,6 +123,12 @@ const FEATURES = Object.freeze([
   // escalationExempt: Tro ly duoc uy quyen van tao / dat lai mat khau TK Sale duoc (chi tao anh QR).
   { key: 'accounting.vatDraft', groupKey: 'accounting', label: 'Nháp VAT (Xử lý hóa đơn, Tạo QR)', roles: MANAGER_ONLY, forbiddenRoles: [ROLES.KHACH] },
   { key: 'accounting.qr', groupKey: 'accounting', label: 'Tạo QR chuyển khoản', roles: [ROLES.QUAN_LY, ROLES.NHAN_VIEN_SALE], forbiddenRoles: [ROLES.KHACH], escalationExempt: true },
+  // 2026-10-20: Yeu cau xuat VAT (thay sheet ORDER VAT 1, server/vatRequests). Moi nguoi co quyen xem ca bang
+  // (chi doc), tao va sua yeu cau CUA MINH khi chua khoa; quyen Xu ly sua trang thai / ghi chu KT / ngay ve.
+  // Quyen xem/tao duoc mien kiem tra leo thang de Tro ly van tao duoc TK Sale / Ke toan.
+  // Quyen xu ly chi mac dinh cho Quan ly; tung Ke toan duoc cap rieng tai /account/.
+  { key: 'accounting.vatRequest', groupKey: 'accounting', label: 'ORDER VAT (xem, tạo yêu cầu)', roles: [ROLES.QUAN_LY, ROLES.KE_TOAN, ROLES.NHAN_VIEN_SALE], forbiddenRoles: [ROLES.KHACH], escalationExempt: true },
+  { key: 'accounting.vatRequestProcess', groupKey: 'accounting', label: 'ORDER VAT: xử lý trạng thái, ghi chú KT, ngày về (cần ORDER VAT)', roles: MANAGER_ONLY, forbiddenRoles: [ROLES.KHACH], requires: 'accounting.vatRequest' },
 
   // --- Quan ly tai khoan ---
   { key: 'account.profile', groupKey: 'account', label: 'Quản lý hồ sơ', roles: ALL_ROLES, alwaysOn: true },
@@ -157,6 +169,7 @@ const PAGE_FEATURES = Object.freeze([
   { path: '/stock-locations', href: '/stock-locations/', anyOf: ['stockLocations.view'] },
   { path: '/cashbook', href: '/cashbook/', anyOf: ['cashbook.view'] },
   { path: '/vat-draft', href: '/vat-draft/', anyOf: ['accounting.vatDraft', 'accounting.qr'] },
+  { path: '/vat-request', href: '/vat-request/', anyOf: ['accounting.vatRequest'] },
   { path: '/account', href: '/account/', anyOf: ['account.profile'] }
 ]);
 
