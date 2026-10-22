@@ -9,7 +9,7 @@ const FIRST_MONTH = '2026-03-01';
 const UNGROUPED_SALE = 'Chưa phân nhóm';
 const NO_TEAM = 'Chưa có team';
 const RETAIL_NAME = 'Khách lẻ';
-// Level giá khách lấy từ email KiotViet (phần trước @: vip/lớn/vừa); email trống hoặc lạ => mặc định Vừa.
+// Level giá khách lấy từ email KiotViet (phần trước @: vip/lớn/vừa); email trống => Lớn, email lạ => Vừa (DEFAULT chỉ cho khách không có hồ sơ).
 const DEFAULT_PRICE_LEVEL = 'vừa';
 const PRICE_LEVEL_LABELS = { vip: 'vip', large: 'lớn', medium: DEFAULT_PRICE_LEVEL };
 

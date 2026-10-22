@@ -15,7 +15,7 @@ const quiet = { error() {}, info() {}, warn() {}, log() {} };
 async function setup(days, { firstId = 0 } = {}) {
   const db = await newDb();
   await product(db, 'hanoi', 1, 'T100', 'Ly giu nhiet', HN_NOTE);
-  await customer(db, 'hanoi', 1, 'Khach Vua', { email: '', groups: 'Duy Thái' });
+  await customer(db, 'hanoi', 1, 'Khach Vua', { groups: 'Duy Thái' });
   for (const [i, day] of days.entries()) await addInvoice(db, firstId + i + 1, `${day} 10:00:00+00`);
   return db;
 }

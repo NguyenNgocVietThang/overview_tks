@@ -3304,44 +3304,15 @@
       text-decoration: none;
     }
 
-    .price-audit-icon-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      min-height: 28px;
-      margin-top: 4px;
-      padding: 3px 8px;
-      border: 1px solid var(--border);
-      border-radius: var(--radius-8);
-      background: var(--panel-2);
-      color: var(--text-secondary);
-      font: 600 11px var(--font-body);
-      cursor: pointer;
-      transition: border-color .15s var(--ease-out), color .15s var(--ease-out);
-    }
-
-    .price-audit-icon-btn:hover {
-      border-color: var(--blue);
-      color: var(--text);
-    }
-
-    .price-audit-icon-btn svg,
     .price-audit-lock svg {
       width: 14px;
       height: 14px;
     }
 
     .price-audit-link:focus-visible,
-    .price-audit-icon-btn:focus-visible,
     .price-audit-page-size:focus-visible {
       outline: 2px solid var(--blue);
       outline-offset: 2px;
-    }
-
-    .price-audit-textarea {
-      min-height: 64px;
-      overflow: auto;
-      resize: vertical;
     }
 
     .price-audit-edit-actions {
@@ -3350,6 +3321,10 @@
       align-items: center;
       gap: var(--space-sm);
       margin-top: var(--space-sm);
+    }
+
+    .price-audit-edit-actions[hidden] {
+      display: none;
     }
 
     .price-audit-btn {
@@ -4407,7 +4382,7 @@
                     <select id="priceAuditStatusFilter">
                       <option value="">Tất cả</option>
                       <option value="correct">Đúng giá</option>
-                      <option value="wrong">Sai giá</option>
+                      <option value="wrong" selected>Sai giá</option>
                     </select>
                   </div>
                   <div class="debt-filter-field">
@@ -5067,7 +5042,7 @@
   <script src="/shared/dateInput.js?v=20260912"></script>
   <script src="/shared/image-compress.js?v=20261022"></script>
   <script src="/marketing-report.js?v=20261021-1"></script>
-  <script src="/invoice-price-audit.js?v=20261020-1"></script>
+  <script src="/invoice-price-audit.js?v=20261022-1"></script>
 
   <script>
     // Toast thong bao inline — thay the window.alert() cho loi/canh bao (khong chan luong,

@@ -28,7 +28,9 @@ async function product(db, branch, id, code, name, description) {
   await db.query('INSERT INTO products (branch, id, code, name, raw) VALUES ($1,$2,$3,$4,$5)',
     [branch, id, code, name, JSON.stringify(description == null ? {} : { description })]);
 }
+// Mac dinh khach co email cap Vua; muon "khong co email" (cap Lon) truyen ro { email: '' }.
 async function customer(db, branch, id, name, raw = {}) {
+  if (!('email' in raw) && !('Email' in raw)) raw = { email: 'vua@x.vn', ...raw };
   await db.query('INSERT INTO customers (branch, id, code, name, raw) VALUES ($1,$2,$3,$4,$5)',
     [branch, id, `KH${id}`, name, JSON.stringify(raw)]);
 }

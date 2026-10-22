@@ -25,8 +25,8 @@ test('snapshot: thang da chot doc bang, thang chua chot tinh truc tiep; danh ba 
     assert.equal(snap.customers.find(r => r.month === '2026-10-01' && r.customerCode === 'KH1').netRevenue, 500);
     assert.deepEqual(snap.directory.find(d => d.branch === 'hanoi' && d.code === 'KH1'),
       { branch: 'hanoi', code: 'KH1', name: 'Chị A', saleName: 'Khang', priceLevel: 'vip' });
-    // Level giá lấy từ email (không còn ghi chú); khách không có email => mặc định vừa.
-    assert.equal(snap.directory.find(d => d.branch === 'hanoi' && d.code === 'KH2').priceLevel, 'vừa');
+    // Level giá lấy từ email (không còn ghi chú); khách không có email => lớn (22/10/2026).
+    assert.equal(snap.directory.find(d => d.branch === 'hanoi' && d.code === 'KH2').priceLevel, 'lớn');
     // Chot thang 9 bang repo.refreeze => doc tu bang
     await repo.refreeze('2026-09');
     snap = await repo.snapshot();

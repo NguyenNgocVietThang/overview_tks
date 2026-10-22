@@ -10,6 +10,8 @@
   const API = '/api/invoice-price-audit';
   const FEATURE = 'reports.invoices.priceAudit';
   const MAX_EXPLANATION = 4000;
+  const DEFAULT_STATUS = 'wrong';
+  const FIELD_SIZING = !!(window.CSS && CSS.supports && CSS.supports('field-sizing', 'content'));
   const BRANCH_SHORT = { hanoi: 'HN', saigon: 'SG' };
   const BRANCH_LABEL = { hanoi: 'Hà Nội', saigon: 'Sài Gòn' };
   const STATUS = { correct: ['Đúng giá', 'ok'], wrong: ['Sai giá', 'bad'] };
@@ -20,12 +22,12 @@
   };
   const UNSAVED_MESSAGE = 'Có nội dung "Sale giải thích" chưa lưu.\nBấm OK để BỎ nội dung chưa lưu và tiếp tục, Cancel để ở lại sửa tiếp.';
   const POPUP_NOTE = 'Hộp này là dữ liệu hóa đơn KiotViet hiện tại (đã đồng bộ), có thể khác bản đã ghi nhận lúc kiểm tra giá trong bảng.';
-  const ICON_EDIT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>';
   const ICON_LOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>';
 
   const state = {
     columns: [], data: null, error: '', loading: false, seq: 0, loadedAt: 0, initialized: false,
-    filters: { from: '', to: '', sale: '', status: '', decision: '', vat: '', freight: '', q: '' },
+    // Mặc định vào bảng: chỉ dòng Sai giá (chọn "Tất cả" = bỏ tham số status). Khớp option selected trong index.html.
+    filters: { from: '', to: '', sale: '', status: DEFAULT_STATUS, decision: '', vat: '', freight: '', q: '' },
     page: 1, pageSize: 50, sort: '', dir: 'asc',
     editors: new Map() // rowKey -> { draft, saving, error }
   };
@@ -107,25 +109,29 @@
     return '<td' + (extraClass ? ' class="' + extraClass + '"' : '') + '>' + (isBlank(value) ? muted : escape(value)) + '</td>';
   }
 
+  // Ô "Sale giải thích" dùng chung kiểu ô Sale/QL phản hồi của tab Công nợ: textarea .debt-feedback-input luôn hiện
+  // (tự giãn theo nội dung), dòng người lưu .debt-feedback-by bên dưới; chỉ khi đang gõ khác bản đã lưu mới hiện Lưu/Hủy
+  // (giữ khóa lạc quan expectedVersion + xử lý 409 của Sai giá). Dòng không có quyền sửa chỉ đọc .debt-feedback-text.
   function explanationCell(r) {
     const key = rowKey(r);
     const editor = state.editors.get(key);
-    const saved = isBlank(r.saleExplanation) ? '' : '<span class="debt-feedback-text">' + escape(r.saleExplanation) + '</span>' +
-      (r.explanationBy ? '<span class="debt-feedback-by">' + escape(r.explanationBy) + (r.explanationAt ? ' · ' + escape(fmtStamp(r.explanationAt)) : '') + '</span>' : '');
-    if (editor && r.canEditExplanation) {
-      const busy = editor.saving ? ' aria-busy="true" disabled' : '';
-      return '<td class="price-audit-wrap price-audit-editing">' +
-        (editor.error && saved ? '<div class="price-audit-current"><span class="price-audit-current-label">Nội dung hiện tại trên máy chủ:</span>' + saved + '</div>' : '') +
-        '<textarea class="debt-feedback-input price-audit-textarea" rows="3" maxlength="' + MAX_EXPLANATION + '" data-action="draft" aria-label="Sale giải thích cho ' + escape(r.invoiceCode) + ' dòng ' + escape(r.sourceLineNo) + '"' + busy + '>' + escape(editor.draft) + '</textarea>' +
-        '<div class="price-audit-edit-actions">' +
-        '<button type="button" class="btn-primary price-audit-btn" data-action="save-explanation"' + busy + '>' + (editor.saving ? 'Đang lưu…' : 'Lưu') + '</button>' +
-        '<button type="button" class="btn-secondary price-audit-btn" data-action="cancel-explanation"' + (editor.saving ? ' disabled' : '') + '>Hủy</button>' +
-        '<span class="price-audit-count">' + editor.draft.length + '/' + MAX_EXPLANATION + '</span></div>' +
-        (editor.error ? '<div class="price-audit-edit-error" role="alert">' + escape(editor.error) + '</div>' : '') +
-        '</td>';
-    }
-    return '<td class="price-audit-wrap">' + (saved || muted) +
-      (r.canEditExplanation ? '<button type="button" class="price-audit-icon-btn" data-action="edit-explanation" aria-label="Sửa giải thích" title="Sửa giải thích">' + ICON_EDIT + '<span>Sửa</span></button>' : '') +
+    const savedText = isBlank(r.saleExplanation) ? '' : String(r.saleExplanation);
+    const by = r.explanationBy ? '<span class="debt-feedback-by">' + escape(r.explanationBy) + (r.explanationAt ? ' · ' + escape(fmtStamp(r.explanationAt)) : '') + '</span>' : '';
+    const saved = savedText ? '<span class="debt-feedback-text">' + escape(savedText) + '</span>' + by : '';
+    if (!r.canEditExplanation) return '<td class="price-audit-wrap">' + (saved || muted) + '</td>';
+    const draft = editor ? editor.draft : savedText;
+    const dirty = !!editor && (editor.draft !== savedText || !!editor.error || editor.saving);
+    const busy = editor && editor.saving ? ' aria-busy="true" disabled' : '';
+    const stale = !!(editor && editor.error && savedText);
+    return '<td class="price-audit-wrap price-audit-editing">' +
+      (stale ? '<div class="price-audit-current"><span class="price-audit-current-label">Nội dung hiện tại trên máy chủ:</span>' + saved + '</div>' : '') +
+      '<textarea class="debt-feedback-input" rows="1" maxlength="' + MAX_EXPLANATION + '" data-action="draft" aria-label="Sale giải thích cho ' + escape(r.invoiceCode) + ' dòng ' + escape(r.sourceLineNo) + '"' + busy + '>' + escape(draft) + '</textarea>' +
+      (stale ? '' : by) +
+      '<div class="price-audit-edit-actions"' + (dirty ? '' : ' hidden') + '>' +
+      '<button type="button" class="btn-primary price-audit-btn" data-action="save-explanation"' + busy + '>' + (editor && editor.saving ? 'Đang lưu…' : 'Lưu') + '</button>' +
+      '<button type="button" class="btn-secondary price-audit-btn" data-action="cancel-explanation"' + (editor && editor.saving ? ' disabled' : '') + '>Hủy</button>' +
+      '<span class="price-audit-count">' + draft.length + '/' + MAX_EXPLANATION + '</span></div>' +
+      (editor && editor.error ? '<div class="price-audit-edit-error" role="alert">' + escape(editor.error) + '</div>' : '') +
       '</td>';
   }
 
@@ -178,6 +184,16 @@
     if (!data) { body.innerHTML = noteRow('Đang tải...'); return; }
     if (!data.meta || !data.meta.available) { body.innerHTML = noteRow((data.meta && data.meta.message) || 'Chưa chạy kiểm tra giá'); return; }
     body.innerHTML = data.rows.length ? data.rows.map(rowHtml).join('') : noteRow('Không có dòng nào khớp bộ lọc.');
+    autosize(body);
+  }
+
+  // Dự phòng cho trình duyệt chưa có field-sizing (giống autosizeDebtFeedbackInput của tab Công nợ).
+  function autosize(scope) {
+    if (FIELD_SIZING || !scope) return;
+    scope.querySelectorAll('textarea.debt-feedback-input').forEach(el => {
+      el.style.height = 'auto';
+      if (el.scrollHeight > 0) el.style.height = el.scrollHeight + 2 + 'px';
+    });
   }
 
   function rerenderRow(key) {
@@ -186,6 +202,7 @@
     const tr = Array.from($('priceAuditRows').querySelectorAll('tr[data-row-key]')).find(el => el.dataset.rowKey === key);
     if (!row || !tr) return;
     tr.outerHTML = rowHtml(row);
+    autosize($('priceAuditRows'));
   }
 
   function totalPages() {
@@ -219,6 +236,7 @@
     if (state.filters.sale && sales.indexOf(state.filters.sale) < 0) options.push('<option value="' + escape(state.filters.sale) + '">' + escape(state.filters.sale) + '</option>');
     select.innerHTML = options.join('');
     select.value = state.filters.sale;
+    Object.keys(FILTER_IDS).forEach(name => { if (name !== 'sale' && $(FILTER_IDS[name]).value !== state.filters[name]) $(FILTER_IDS[name]).value = state.filters[name]; });
     $('priceAuditExportButton').hidden = !can('reports.export');
   }
 
@@ -400,11 +418,16 @@
   function onInput(event) {
     if (!event.target.matches('[data-action="draft"]')) return;
     const hit = rowFor(event.target);
-    const editor = hit && state.editors.get(hit.key);
-    if (!editor) return;
+    if (!hit) return;
+    // Trình soạn tạo lười ở lần gõ đầu (ô luôn hiện như tab Công nợ); Lưu/Hủy chỉ hiện khi khác bản đã lưu.
+    let editor = state.editors.get(hit.key);
+    if (!editor) { editor = { draft: '', saving: false, error: '' }; state.editors.set(hit.key, editor); }
     editor.draft = event.target.value;
-    const count = event.target.closest('td').querySelector('.price-audit-count');
+    const td = event.target.closest('td');
+    const count = td.querySelector('.price-audit-count');
     if (count) count.textContent = editor.draft.length + '/' + MAX_EXPLANATION;
+    const actions = td.querySelector('.price-audit-edit-actions');
+    if (actions) actions.hidden = editor.draft === (hit.row.saleExplanation || '') && !editor.error;
   }
 
   function onClick(event) {
@@ -414,14 +437,6 @@
     if (!hit) return;
     const action = button.dataset.action;
     if (action === 'open-invoice') { openInvoice(hit.row, button); return; }
-    if (action === 'edit-explanation') {
-      state.editors.set(hit.key, { draft: hit.row.saleExplanation || '', saving: false, error: '' });
-      rerenderRow(hit.key);
-      const area = Array.from(document.querySelectorAll('#priceAuditRows tr[data-row-key]')).find(tr => tr.dataset.rowKey === hit.key);
-      const textarea = area && area.querySelector('textarea');
-      if (textarea) textarea.focus();
-      return;
-    }
     if (action === 'cancel-explanation') {
       const editor = state.editors.get(hit.key);
       if (editor && editor.draft !== (hit.row.saleExplanation || '') && !window.confirm('Bỏ nội dung giải thích chưa lưu?')) return;

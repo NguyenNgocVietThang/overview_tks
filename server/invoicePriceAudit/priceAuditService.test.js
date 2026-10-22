@@ -32,7 +32,7 @@ async function publish(db, from, to) {
 async function setup() {
   const db = await newDb({ syncedAt: NOW });
   await product(db, 'hanoi', 1, 'T100', 'Ly giu nhiet', HN_NOTE);
-  await customer(db, 'hanoi', 1, 'Khach Vua', { email: '', groups: 'Duy Thái' });
+  await customer(db, 'hanoi', 1, 'Khach Vua', { groups: 'Duy Thái' });
   await product(db, 'saigon', 9, 'T100', 'Ly SG', 'T100 # 1T-30000');
   await customer(db, 'saigon', 9, 'Khach SG', { groups: 'Minh Anh' });
   const ln = (qty, price) => ({ productId: 1, code: 'T100', name: 'Ly giu nhiet', qty, price });
