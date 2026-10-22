@@ -84,7 +84,7 @@ test('unverified guest is not promoted merely because an identifier appears in H
 })
 
 
-test('vai trò và cơ sở đã lưu trên tài khoản (đã chốt ghi đè ở migration 0080) được dùng nguyên vẹn', async () => {
+test('vai trò và cơ sở đã lưu trên tài khoản (đã chốt ghi đè ở migration 0081) được dùng nguyên vẹn', async () => {
   const store = memoryStore([{
     id: 'u1', username: 'a@example.com', email: 'a@example.com', verifiedEmail: true, hrManaged: true,
     vaiTro: 'Trợ lý', coSo: 'Hà Nội', trangThai: 'Đang hoạt động',

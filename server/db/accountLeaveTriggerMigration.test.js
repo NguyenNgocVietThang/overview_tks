@@ -1,5 +1,5 @@
 'use strict';
-// Chạy SQL migration thật trên PGlite: 0016 → 0042 (trigger cũ dựa trên HR) rồi 0080, 0081 (tài khoản hóa).
+// Chạy SQL migration thật trên PGlite: 0016 → 0042 (trigger cũ dựa trên HR) rồi 0081, 0082 (tài khoản hóa).
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -41,13 +41,13 @@ async function fixture() {
     INSERT INTO hr_leave_requests(request_id,user_id,branch,start_date,start_session,end_date,end_session,tong_buoi_nghi)
       VALUES ('OLD','${U6}','hanoi','2030-01-07','Sáng','2030-01-07','Chiều',2);
     UPDATE hr_leave_requests SET trang_thai='Đã duyệt' WHERE request_id='OLD';`);
-  await run(db, '0080_account_hr_decoupling.sql');
-  // Sau 0080: cơ sở/bộ phận công tác do tài khoản quyết định (khác HR để chứng minh không đọc HR).
+  await run(db, '0081_account_hr_decoupling.sql');
+  // Sau 0081: cơ sở/bộ phận công tác do tài khoản quyết định (khác HR để chứng minh không đọc HR).
   await db.exec(`UPDATE app_users SET work_branch='hanoi', bo_phan='Sale HN' WHERE id='${U1}';
     UPDATE app_users SET work_branch='hanoi', bo_phan='Marketing' WHERE id IN ('${U2}','${U3}','${U4}');
     UPDATE app_users SET work_branch='', bo_phan='Marketing' WHERE id='${U5}';
     UPDATE hr_employees SET bo_phan='KHO SG ĐÃ ĐỔI', branch='saigon' WHERE id=1;`);
-  await run(db, '0081_hr_leave_account_schedules.sql');
+  await run(db, '0082_hr_leave_account_schedules.sql');
   return db;
 }
 
@@ -58,7 +58,7 @@ const insert = (id, user, { branch = 'hanoi', date = '2030-01-07', extra = {} } 
   return `INSERT INTO hr_leave_requests(${Object.keys(cols).join(',')}) VALUES (${Object.values(cols).join(',')})`;
 };
 
-test('0080+0081: đơn mới lấy cơ sở/bộ phận từ app_users, lịch theo user_id, lịch sử ghi user_id', async () => {
+test('0081+0082: đơn mới lấy cơ sở/bộ phận từ app_users, lịch theo user_id, lịch sử ghi user_id', async () => {
   const db = await fixture();
   try {
     await db.exec(`INSERT INTO hr_leave_work_schedules(user_id,work_date,morning_start,afternoon_start) VALUES ('${U1}','2030-01-08','08:30','13:30')`);
@@ -86,7 +86,7 @@ test('0080+0081: đơn mới lấy cơ sở/bộ phận từ app_users, lịch t
   } finally { await db.close(); }
 });
 
-test('0081: chặn tài khoản khóa/đã xóa/chưa có cơ sở công tác và đơn khác cơ sở công tác', async () => {
+test('0082: chặn tài khoản khóa/đã xóa/chưa có cơ sở công tác và đơn khác cơ sở công tác', async () => {
   const db = await fixture();
   try {
     for (const user of [U3, U4, U5]) {
@@ -98,7 +98,7 @@ test('0081: chặn tài khoản khóa/đã xóa/chưa có cơ sở công tác v�
   } finally { await db.close(); }
 });
 
-test('0081: bot Telegram (chat id hoặc hr_employee_id cũ) được quy về tài khoản đang hoạt động', async () => {
+test('0082: bot Telegram (chat id hoặc hr_employee_id cũ) được quy về tài khoản đang hoạt động', async () => {
   const db = await fixture();
   try {
     await db.exec(`INSERT INTO hr_telegram_links(user_id,status,link_method,telegram_chat_id,linked_at) VALUES ('${U2}','linked','manual','999',now())`);
@@ -115,7 +115,7 @@ test('0081: bot Telegram (chat id hoặc hr_employee_id cũ) được quy về t
   } finally { await db.close(); }
 });
 
-test('0081: sửa đơn tính lại theo lịch user_id, tăng revision, giữ định danh và hr_employee_id lịch sử', async () => {
+test('0082: sửa đơn tính lại theo lịch user_id, tăng revision, giữ định danh và hr_employee_id lịch sử', async () => {
   const db = await fixture();
   try {
     // Đơn cũ trước tách có hr_employee_id=2; lịch HR cũ đã được sao sang cả hai tài khoản liên kết.
@@ -146,7 +146,7 @@ test('0081: sửa đơn tính lại theo lịch user_id, tăng revision, giữ �
   } finally { await db.close(); }
 });
 
-test('0081: trigger snapshot bộ phận không còn đọc hr_employees', async () => {
+test('0082: trigger snapshot bộ phận không còn đọc hr_employees', async () => {
   const db = await fixture();
   try {
     const fn = await one(db, "SELECT prosrc FROM pg_proc WHERE proname='hr_leave_department_snapshot'");
@@ -185,7 +185,7 @@ test('resubmitLeaveRequest thật: kiểm tra phiên bản, chủ đơn, tài kh
   } finally { await db.close(); }
 });
 
-test('hrLeaveWorkSchedulesRepository thật trên schema 0081: tài khoản, lịch theo user_id và lịch cũ theo employee_id', async () => {
+test('hrLeaveWorkSchedulesRepository thật trên schema 0082: tài khoản, lịch theo user_id và lịch cũ theo employee_id', async () => {
   const db = await fixture();
   try {
     const repo = require('../hr/hrLeaveWorkSchedulesRepository').createHrLeaveWorkSchedulesRepository({ pool: db });

@@ -624,11 +624,11 @@ Cập nhật: 21/10/2026.
 Thứ tự triển khai: deploy được trước khi áp (thứ tự như cũ, không có tay nắm kéo); áp `0079` bằng `npm run db:migrate` khi được duyệt, sau đó tải lại trang.
 
 
-## Tách tài khoản khỏi hồ sơ nhân sự — migration 0080, 0081 (nhánh `feat/tach-tai-khoan-nhan-su`, CHƯA áp DB)
+## Tách tài khoản khỏi hồ sơ nhân sự — migration 0081, 0082 (nhánh `feat/tach-tai-khoan-nhan-su`, CHƯA áp DB)
 
 - **Nguồn chính:** `app_users` quyết định vai trò, quyền chi tiết (`feature_permissions`, giữ nguyên), cơ sở (`co_so`), cơ sở công tác (`work_branch`), bộ phận công tác (`bo_phan`) và phạm vi duyệt (`leave_approval_departments`). Đăng nhập không còn đọc/đồng bộ `hr_employees` (chỉ còn gỡ khóa `hr_removed` cũ).
-- **0080:** thêm `work_branch` (CHECK `hanoi`/`saigon`/'') và `bo_phan`; sao một lần từ hồ sơ HR đang liên kết; tài khoản không có HR lấy `work_branch` từ `co_so` nếu là cơ sở vật lý; chốt `vai_tro`/`co_so` hiệu lực cho `hr_managed`.
-- **0081:** lịch theo `user_id` (sao lịch cũ sang mọi tài khoản liên kết, giữ `version`/`updated_at`); `hr_leave_submissions.user_id` (không khóa ngoại vì bảng bất biến); trigger `hr_leave_submission_snapshot()` mới:
+- **0081:** thêm `work_branch` (CHECK `hanoi`/`saigon`/'') và `bo_phan`; sao một lần từ hồ sơ HR đang liên kết; tài khoản không có HR lấy `work_branch` từ `co_so` nếu là cơ sở vật lý; chốt `vai_tro`/`co_so` hiệu lực cho `hr_managed`.
+- **0082:** lịch theo `user_id` (sao lịch cũ sang mọi tài khoản liên kết, giữ `version`/`updated_at`); `hr_leave_submissions.user_id` (không khóa ngoại vì bảng bất biến); trigger `hr_leave_submission_snapshot()` mới:
   - định danh: `user_id`, hoặc `hr_telegram_links` theo `telegram_chat_id`, hoặc `hr_employee_id` cũ khi trỏ đúng MỘT tài khoản đang hoạt động; không có → `LEAVE_IDENTITY_MISMATCH`;
   - tài khoản phải đang hoạt động, chưa xóa, `work_branch` thuộc `hanoi`/`saigon` và bằng `branch` của đơn;
   - đơn mới: `bo_phan` = `app_users.bo_phan`; không tự điền `hr_employee_id` (giá trị bot gửi được giữ, phải khớp liên kết của tài khoản);
@@ -636,4 +636,4 @@ Thứ tự triển khai: deploy được trước khi áp (thứ tự như cũ, 
   - Sửa đơn: định danh và `hr_employee_id` giữ nguyên (lịch sử), tính lại theo lịch của tài khoản.
 - `hr_leave_department_snapshot()` dự phòng đọc `app_users.bo_phan`.
 - Quyền duyệt (web và bot Telegram) và quyền tự xin nghỉ chỉ xét trạng thái tài khoản `app_users`, không còn đọc `hr_employees.is_active` (22/10/2026). HR chuyển nghỉ việc thì khóa tài khoản liên kết; admin cấp cao, quản lý được bảo vệ và chính người thao tác không bị tự khóa nên phải khóa tay.
-- Thứ tự triển khai: deploy code nhánh → áp 0080 → 0081 (code mới vẫn đọc được trước khi áp vì các cột mới có mặc định; trigger cũ vẫn chạy cho tới khi áp 0081).
+- Thứ tự triển khai: deploy code nhánh → áp 0081 → 0082 (code mới vẫn đọc được trước khi áp vì các cột mới có mặc định; trigger cũ vẫn chạy cho tới khi áp 0082).
