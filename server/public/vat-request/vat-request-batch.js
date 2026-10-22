@@ -109,7 +109,7 @@
         <td class="vr-b-product" data-label="Sản phẩm" data-cell="product"><span class="vr-muted">—</span></td>
         <td data-label="Số lượng"><input data-field="quantity" class="num" inputmode="numeric" autocomplete="off"></td>
         <td data-label="Giá chưa VAT"><input data-field="unitPrice" class="num" inputmode="decimal" autocomplete="off"><div class="vr-b-hint" data-cell="price"></div></td>
-        <td data-label="Full VAT"><select data-field="fullVat" class="vr-b-select"><option value="">— Chọn —</option><option value="true">Full VAT</option><option value="false">Không full VAT</option></select></td>
+        <td data-label="Full VAT"><select data-field="fullVat" class="vr-b-select"><option value="">— Chọn —</option><option value="true">Full VAT</option><option value="false">Chưa VAT</option></select></td>
         <td data-label="Ghi chú"><input data-field="saleNote" maxlength="1000" autocomplete="off" placeholder="Mã VAT nếu có"></td>
         <td class="num vr-b-total" data-label="Thành tiền" data-cell="total">—</td>
         <td class="vr-b-center"><button type="button" class="vr-b-remove" data-remove aria-label="Xóa dòng" title="Xóa dòng">
@@ -161,7 +161,7 @@
       // Tồn / hàng về / chờ khai chỉ có khi là KT (server không gửi cho sale).
       const meta = found.pendingInsertQty === undefined ? '' : [
         `Tồn VAT <b>${found.vatStock ? fmtNumber(found.vatStock.total) : '—'}</b>`,
-        found.incomingContainer ? `Cont <b>${escapeHtml(found.incomingContainer)}</b>${found.nearestSchedule ? ' · ' + escapeHtml(found.nearestSchedule) : ''}` : '',
+        found.incomingContainer ? `Cont <b>${escapeHtml(found.incomingContainer)}</b>${found.containerStatus || found.containerEta ? ' · ' + escapeHtml([found.containerStatus, found.containerEta].filter(Boolean).join(' ')) : ''}` : '',
         found.pendingInsertQty ? `Chờ khai <b>${fmtNumber(found.pendingInsertQty)}</b>` : ''
       ].filter(Boolean).join(' · ');
       product.innerHTML = `<span class="vr-b-name" title="${escapeHtml(found.productName)}">${escapeHtml(found.productName)}</span><span class="vr-b-meta">${meta}</span>`;
@@ -260,7 +260,7 @@
       saveDraftLater();
       const pending = rowsEl().filter(row => isMeaningful(rowValues(row)) && rowValues(row).fullVat === null);
       showNotice(`Đã dán ${pasted} dòng${header ? ' (khớp cột theo dòng tiêu đề)' : ''}.` +
-        (pending.length ? ` Chọn Full VAT / Không full VAT cho ${pending.length} dòng trước khi gửi.` : ''));
+        (pending.length ? ` Chọn Full VAT / Chưa VAT cho ${pending.length} dòng trước khi gửi.` : ''));
       if (pending.length) field(pending[0], 'fullVat').focus();
       return pasted;
     }
@@ -331,7 +331,7 @@
         if (!Number.isInteger(qty) || qty <= 0) push('quantity', 'số lượng phải là số nguyên lớn hơn 0.');
         const price = parseAmount(values.unitPrice);
         if (!Number.isFinite(price) || price <= 0) push('unitPrice', 'giá chưa VAT phải lớn hơn 0.');
-        if (values.fullVat === null) push('fullVat', 'chưa chọn Full VAT / Không full VAT.');
+        if (values.fullVat === null) push('fullVat', 'chưa chọn Full VAT / Chưa VAT.');
       });
       return errors;
     }

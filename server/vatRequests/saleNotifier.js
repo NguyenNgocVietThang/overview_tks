@@ -25,7 +25,8 @@ const LOCK_KEY = 20531080;
 const FIELDS = ['status', 'accountant_note', 'arrival_date'];
 
 // Lich su moi hon con tro cua sale (chua co con tro rieng thi theo moc '*'); chi lan sua cua nguoi
-// KHAC nguoi tao yeu cau, tren yeu cau chua xoa, co gan tai khoan sale.
+// KHAC nguoi tao yeu cau, tren yeu cau chua xoa, co gan tai khoan sale. Dong he thong (changed_by NULL,
+// vd migration 0083 doi 0 -> 5 hang loat) khong bao.
 const PENDING_SQL = `
   SELECT h.id, h.request_id, h.changed_at, h.field, h.old_value, r.created_by AS sale_id
   FROM vat_request_history h
@@ -33,7 +34,7 @@ const PENDING_SQL = `
   LEFT JOIN vat_request_notice_state s ON s.sale_id = r.created_by
   WHERE h.action = 'update' AND h.field = ANY($1::text[])
     AND r.created_by IS NOT NULL AND NOT r.is_deleted
-    AND h.changed_by IS DISTINCT FROM r.created_by
+    AND h.changed_by IS NOT NULL AND h.changed_by IS DISTINCT FROM r.created_by
     AND h.id > COALESCE(s.last_history_id, (SELECT last_history_id FROM vat_request_notice_state WHERE sale_id = '*'), 0)
   ORDER BY h.id`;
 const CURRENT_SQL = `

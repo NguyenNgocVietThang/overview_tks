@@ -626,3 +626,7 @@ Thứ tự triển khai: deploy được trước khi áp (thứ tự như cũ, 
 ## ORDER VAT: con trỏ thông báo sale — migration 0080 (22/10/2026, CHƯA áp DB dùng chung)
 
 `0080_vat_request_notice_state.sql`: bảng `vat_request_notice_state(sale_id TEXT PK, last_history_id BIGINT NOT NULL, updated_at)` — con trỏ id lịch sử đã xét của từng sale; dòng mốc `sale_id='*'` = `max(vat_request_history.id)` lúc áp để không báo lại các lần sửa cũ. Chỉ thêm bảng, idempotent, thu hồi quyền `reporting_readonly`. Dùng bởi `server/vatRequests/saleNotifier.js`. Chưa áp thì job gặp `42P01`, ghi log một lần và bỏ qua; web chạy bình thường.
+
+## ORDER VAT: trạng thái "VAT sẵn nhiều" — migration 0083 (22/10/2026, CHƯA áp DB dùng chung)
+
+`0083_vat_request_status_vat_ready.sql`: thay CHECK `vat_requests_status_check` thành `status IN ('pending','0','1','2','3','4','5')`; `'5'` = "VAT sẵn nhiều" (khóa sale như `'0'`). Chuyển 1 lần dòng `'0'` chưa xóa có `accountant_note ~* '^\s*(sẵn|sẵn nhiều|tồn nhiều|còn|còn tồn nhiều)\s*$'` (khớp nguyên note, không tìm từ trong câu) sang `'5'`, `version + 1`, ghi `vat_request_history` (`action 'update'`, `field 'status'`, `'0'→'5'`, `changed_by NULL`, `changed_by_name 'Hệ thống'`). Idempotent (chạy lại không còn dòng khớp). Số 0081/0082 đã dùng trên `main` nên lấy 0083. Áp trước khi deploy mã mới.
