@@ -100,6 +100,10 @@ function createVatRequestRouter({ service = createVatRequestService(), customerS
   router.patch('/bulk', handle(async (req, res) => {
     res.json(await service.bulkUpdate(req.user, req.body));
   }));
+  // KT keo dong doi thu tu chung: { belowId } | { aboveId }.
+  router.patch('/:id/position', handle(async (req, res) => {
+    res.json(await service.move(req.user, idParam(req), req.body));
+  }));
   router.get('/:id', handle(async (req, res) => {
     res.json(await service.get(req.user, idParam(req)));
   }));

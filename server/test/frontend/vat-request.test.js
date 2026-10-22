@@ -712,3 +712,106 @@ test('kieu Sheet — KT: go phim mo o sua voi ky tu vua go; Esc o ngay ve bo sua
   await tick(); await tick();
   assert.deepEqual(calls.find(c => c.key === 'PATCH /bulk').body.items, [{ id: 1, version: 1, changes: { accountantNote: '' } }]);
 });
+
+// ---- Keo dong doi thu tu uu tien chung (KT) ----
+const rowIds = doc => [...doc.querySelectorAll('#vrRows tr[data-id]')].map(tr => Number(tr.dataset.id));
+const grip = (doc, id) => doc.querySelector(`[data-row-drag="${id}"]`);
+function dragRow(window, doc, id, targetId, clientY = 0) {
+  mouse(window, grip(doc, id), 'mousedown');
+  mouse(window, doc.querySelector(`tr[data-id="${targetId}"] td[data-field="customer"]`), 'mousemove', { clientY });
+  mouse(window, doc, 'mouseup');
+}
+
+test('keo dong — KT co tay nam, sale khong; an khi sap xep theo cot / gop ma / tim kiem / chua ap migration', async t => {
+  const kt = await setup(t, { vaiTro: 'Kế toán', id: 'kt-1', responses: { 'GET /': listResponse([1, 2, 3].map(id => row(id, { canProcess: true }))) }, featurePermissions: PROCESS_GRANTED });
+  assert.equal(kt.doc.querySelectorAll('[data-row-drag]').length, 3);
+  assert.match(grip(kt.doc, 1).getAttribute('aria-label'), /Kéo để đổi thứ tự yêu cầu #1/);
+  kt.doc.querySelector('#vrHeadRow [data-sort="quantity"]').click();
+  assert.equal(kt.doc.querySelector('[data-row-drag]'), null, 'dang sap xep theo cot');
+  kt.doc.querySelector('#vrHeadRow [data-sort="quantity"]').click();
+  kt.doc.querySelector('#vrHeadRow [data-sort="quantity"]').click();
+  assert.equal(kt.doc.querySelectorAll('[data-row-drag]').length, 3, 've thu tu goc thi hien lai');
+  kt.doc.getElementById('vrGroupToggle').click();
+  assert.equal(kt.doc.querySelector('[data-row-drag]'), null, 'dang gop theo ma');
+  kt.doc.getElementById('vrGroupToggle').click();
+  const search = kt.doc.getElementById('vrSearch');
+  search.value = 'bát';
+  search.dispatchEvent(new kt.window.Event('input', { bubbles: true }));
+  if (kt.window.TKSFuzzySearch) assert.equal(kt.doc.querySelector('[data-row-drag]'), null, 'dang tim kiem');
+
+  const sale = await setup(t, { vaiTro: 'Nhân viên sale', responses: { 'GET /': saleListResponse([row(1), row(2)]) } });
+  assert.equal(sale.doc.querySelector('[data-row-drag]'), null);
+
+  const legacy = await setup(t, { vaiTro: 'Kế toán', id: 'kt-1', responses: { 'GET /': { ...listResponse([row(1, { canProcess: true })]), rowOrder: false } }, featurePermissions: PROCESS_GRANTED });
+  assert.equal(legacy.doc.querySelector('[data-row-drag]'), null, 'chua ap migration 0079');
+});
+
+test('keo dong — tha len tren dong 1 gui belowId, tha xuong cuoi gui aboveId; Alt+mui ten doi 1 dong; khong bat vung chon o', async t => {
+  const responses = {
+    'GET /': listResponse([1, 2, 3].map(id => row(id, { canProcess: true }))),
+    'PATCH /3/position': () => ({ status: 200, data: { ok: true } }),
+    'PATCH /1/position': () => ({ status: 200, data: { ok: true } })
+  };
+  const { window, doc, calls } = await setup(t, { vaiTro: 'Kế toán', id: 'kt-1', responses, featurePermissions: PROCESS_GRANTED });
+  assert.deepEqual(rowIds(doc), [1, 2, 3]);
+  mouse(window, grip(doc, 3), 'mousedown');
+  mouse(window, doc.querySelector('tr[data-id="1"] td[data-field="customer"]'), 'mousemove', { clientY: 0 });
+  assert.ok(doc.querySelector('tr[data-id="1"]').classList.contains('vr-drop-before'), 'vach chi cho tha');
+  assert.ok(doc.querySelector('tr[data-id="3"]').classList.contains('vr-row-dragging'));
+  mouse(window, doc, 'mouseup');
+  assert.deepEqual(rowIds(doc), [3, 1, 2], 'doi thu tu ngay');
+  await tick();
+  assert.deepEqual(calls.find(c => c.key === 'PATCH /3/position').body, { belowId: 1 });
+  assert.match(doc.getElementById('vrStatus').textContent, /Đã chuyển yêu cầu #3/);
+  assert.equal(doc.querySelectorAll('td.vr-cell-sel').length, 0, 'keo dong khong chon o');
+  assert.equal(doc.querySelector('.vr-drop-before, .vr-drop-after, .vr-row-dragging'), null);
+
+  dragRow(window, doc, 1, 2, 10); // nua duoi dong cuoi -> xuong cuoi
+  await tick();
+  assert.deepEqual(rowIds(doc), [3, 2, 1]);
+  assert.deepEqual(calls.filter(c => c.key === 'PATCH /1/position').pop().body, { aboveId: 2 });
+
+  const before = calls.length;
+  dragRow(window, doc, 2, 2, 0); // tha lai cho cu
+  assert.equal(calls.length, before, 'tha lai cho cu khong goi API');
+
+  grip(doc, 3).dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowDown', altKey: true, bubbles: true, cancelable: true }));
+  await tick(); await tick();
+  assert.deepEqual(rowIds(doc), [2, 3, 1]);
+  assert.deepEqual(calls.filter(c => c.key === 'PATCH /3/position').pop().body, { belowId: 1 });
+  assert.equal(doc.activeElement, grip(doc, 3), 'giu focus o tay nam');
+});
+
+test('keo dong — API loi thi bao loi va nap lai thu tu tu may chu; Esc huy keo', async t => {
+  let lists = 0;
+  const responses = {
+    'GET /': () => { lists += 1; return { status: 200, data: listResponse([1, 2].map(id => row(id, { canProcess: true }))) }; },
+    'PATCH /2/position': () => ({ status: 403, data: { error: 'Bạn không có quyền xếp thứ tự ORDER VAT.', code: 'FEATURE_FORBIDDEN' } })
+  };
+  const { window, doc, calls } = await setup(t, { vaiTro: 'Kế toán', id: 'kt-1', responses, featurePermissions: PROCESS_GRANTED });
+  mouse(window, grip(doc, 2), 'mousedown');
+  mouse(window, doc.querySelector('tr[data-id="1"] td[data-field="customer"]'), 'mousemove', { clientY: 0 });
+  doc.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  mouse(window, doc, 'mouseup');
+  assert.equal(calls.some(c => c.key === 'PATCH /2/position'), false, 'Esc huy keo');
+
+  dragRow(window, doc, 2, 1, 0);
+  assert.deepEqual(rowIds(doc), [2, 1]);
+  await tick(); await tick(); await tick();
+  assert.match(doc.getElementById('vrStatus').textContent, /không có quyền xếp thứ tự/);
+  assert.equal(lists, 2, 'nap lai danh sach');
+  assert.deepEqual(rowIds(doc), [1, 2], 'tro ve thu tu tu may chu');
+});
+
+test('kieu Sheet — PATCH /bulk 409: nap lai roi van giu thong bao xung dot', async t => {
+  const responses = {
+    'GET /': listResponse([1, 2].map(id => row(id, { canProcess: true, accountantNote: 'A' }))),
+    'PATCH /bulk': () => ({ status: 409, data: { error: '1 yêu cầu vừa được người khác cập nhật. Hãy tải lại rồi thử lại.', code: 'VERSION_CONFLICT', conflictIds: [2] } })
+  };
+  const { window, doc } = await setup(t, { vaiTro: 'Kế toán', id: 'kt-1', responses, featurePermissions: PROCESS_GRANTED });
+  dragSelect(window, doc, [1, 'accountantNote'], [2, 'accountantNote']);
+  clipboard(window, doc, 'paste', 'B');
+  await tick(); await tick(); await tick();
+  assert.match(doc.getElementById('vrStatus').textContent, /vừa được người khác cập nhật/);
+  assert.equal(doc.getElementById('vrStatus').dataset.kind, 'warn');
+});

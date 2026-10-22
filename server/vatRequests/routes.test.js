@@ -109,3 +109,18 @@ test('GET /export tra file xlsx theo bo loc; 403 tu service giu nguyen ma', asyn
 test('readFilters bo gia tri la', () => {
   assert.deepEqual(readFilters({ product: ' 014XOAN ', createdBy: 'u2' }), { statuses: [], createdBy: 'u2', productKey: '014xoan', q: null, from: null, to: null });
 });
+
+test('PATCH /:id/position goi service.move (khong bi /:id nuot); id sai -> 400', async () => {
+  let moved = null;
+  const service = {
+    move: async (user, id, body) => { moved = [id, body]; return { ok: true }; },
+    update: async () => { throw new Error('khong duoc goi update'); }
+  };
+  await withApp(userFor(ROLES.KE_TOAN), service, async call => {
+    const res = await call('/12/position', { method: 'PATCH', body: { belowId: 5 } });
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, { ok: true });
+    assert.deepEqual(moved, [12, { belowId: 5 }]);
+    assert.equal((await call('/abc/position', { method: 'PATCH', body: { belowId: 5 } })).status, 400);
+  });
+});

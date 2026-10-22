@@ -20,7 +20,7 @@
     rows: [], metrics: {}, sales: [], statuses: [], stockStatus: null, truncated: false,
     preset: 'all', saleFilter: '', query: '', from: '', to: '',
     groupByProduct: false, sortKey: '', sortDir: 'asc', page: 1, selected: new Set(), loading: false, error: '',
-    editing: null, requestSeq: 0, grid: null, undo: null
+    editing: null, requestSeq: 0, grid: null, undo: null, rowOrder: false
   };
 
   // ---------- Tiện ích ----------
@@ -77,7 +77,7 @@
   // nowrap: số / mã / ngày không bao giờ xuống dòng giữa chừng — cột phải đủ rộng cho cả giá trị.
   function columns() {
     const list = [];
-    if (state.canProcess) list.push({ key: 'select', label: 'Chọn', locked: true, width: 44 });
+    if (state.canProcess) list.push({ key: 'select', label: 'Chọn', locked: true, width: 62 });
     list.push(
       { key: 'createdAt', label: 'Thời gian', width: 104, mobileHidden: true },
       { key: 'sale', label: 'Tên Sale', width: 100, mobileHidden: true },
@@ -136,8 +136,12 @@
   function cellHtml(col, row) {
     const m = metricFor(row);
     switch (col.key) {
-      case 'select':
-        return `<input type="checkbox" data-select="${row.id}" aria-label="Chọn yêu cầu ${row.id}"${state.selected.has(row.id) ? ' checked' : ''}>`;
+      case 'select': {
+        const box = `<input type="checkbox" data-select="${row.id}" aria-label="Chọn yêu cầu ${row.id}"${state.selected.has(row.id) ? ' checked' : ''}>`;
+        if (!canDragRows()) return box;
+        const grip = `<button type="button" class="vr-row-grip" data-row-drag="${row.id}" aria-label="Kéo để đổi thứ tự yêu cầu #${row.id}" title="Kéo để đổi thứ tự (Alt+↑ / Alt+↓)"><svg viewBox="0 0 10 16" width="8" height="14" fill="currentColor" aria-hidden="true"><circle cx="2" cy="3" r="1.4"/><circle cx="8" cy="3" r="1.4"/><circle cx="2" cy="8" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="2" cy="13" r="1.4"/><circle cx="8" cy="13" r="1.4"/></svg></button>`;
+        return `<span class="vr-select-cell">${grip}${box}</span>`;
+      }
       case 'createdAt': return escapeHtml(fmtDateTime(row.createdAt));
       case 'sale':
         return escapeHtml(row.createdByName || '—') + (row.isLegacy ? ' <span class="vr-tag" title="Nhập từ sheet ORDER VAT 1">cũ</span>' : '');
@@ -183,6 +187,43 @@
     const editable = col => (isGridEditable(col.key) ? ' data-editable="true" title="Nháy đúp hoặc Enter để sửa; kéo chấm góc để nhân bản"' : '');
     return `<tr data-id="${row.id}" tabindex="0"${classes ? ` class="${classes}"` : ''} title="Nháy đúp để ${row.canEditSale ? 'sửa' : 'xem lịch sử'}">` +
       cols.map(col => `<td data-field="${col.key}"${cellClass(col) ? ` class="${cellClass(col)}"` : ''}${editable(col)}>${cellHtml(col, row)}</td>`).join('') + '</tr>';
+  }
+
+  // ---------- Kéo dòng đổi thứ tự ưu tiên chung (KT, migration 0079) ----------
+  // Chỉ ở thứ tự gốc: đang sắp xếp theo cột, gộp theo mã hay gõ tìm kiếm thì chỉ là cách xem tạm -> ẩn tay nắm.
+  const coarsePointer = window.matchMedia ? window.matchMedia('(pointer: coarse)') : null;
+  function canDragRows() {
+    const searching = !!(window.TKSFuzzySearch && TKSFuzzySearch.tokens(state.query).length);
+    return state.canProcess && state.rowOrder && !state.sortKey && !state.groupByProduct && !searching && !(coarsePointer && coarsePointer.matches);
+  }
+
+  /** Dời dòng `id` vào vị trí mới: `below` = id dòng nằm ngay dưới, không có thì `above` = dòng ngay trên. */
+  async function moveRow(id, { below = null, above = null }) {
+    const moving = state.rows.find(r => r.id === id);
+    if (!moving || (!below && !above)) return;
+    // Dời ngay trên màn hình (lạc quan), lỗi thì nạp lại.
+    const rest = state.rows.filter(r => r.id !== id);
+    const anchor = rest.findIndex(r => r.id === (below || above));
+    if (anchor < 0) return;
+    rest.splice(below ? anchor : anchor + 1, 0, moving);
+    state.rows = rest;
+    render();
+    try {
+      await api(`/${id}/position`, { method: 'PATCH', body: below ? { belowId: below } : { aboveId: above } });
+      setStatus(`Đã chuyển yêu cầu #${id}.`, 'ok');
+    } catch (error) {
+      await load(); // load() xóa thanh trạng thái -> báo lỗi sau khi nạp lại
+      setStatus(error.message, 'error');
+    }
+  }
+
+  /** Vị trí thả -> hàng xóm sau khi thả, trong các dòng đang hiện trên trang (thứ tự DOM). */
+  function dropNeighbors(id, targetId, after) {
+    const ids = [...$('vrRows').querySelectorAll('tr[data-id]')].map(tr => Number(tr.dataset.id)).filter(rowId => rowId !== id);
+    const index = ids.indexOf(targetId);
+    if (index < 0) return null;
+    const position = after ? index + 1 : index;
+    return { below: ids[position] ?? null, above: position > 0 ? ids[position - 1] : null };
   }
 
   // ---------- Ô KT kiểu Google Sheet (vat-request-grid.js) ----------
@@ -306,8 +347,8 @@
         setStatus(`Đã hoàn tác ${result.updated} yêu cầu.`, 'ok');
       }
     } catch (error) {
+      if (error.status === 409) await load(); else render(); // load() xóa thanh trạng thái -> báo sau
       setStatus(error.message, error.status === 409 ? 'warn' : 'error');
-      if (error.status === 409) await load(); else render();
     }
   }
 
@@ -512,6 +553,7 @@
       state.statuses = data.statuses || state.statuses;
       state.stockStatus = data.stockStatus || null;
       state.truncated = !!data.truncated;
+      state.rowOrder = data.rowOrder !== false;
       state.isManager = !!(data.viewer && data.viewer.isManager);
       $('vrExport').hidden = !(state.canProcess || state.isManager);
       setStatus('');
@@ -643,8 +685,8 @@
       await load();
       setStatus(`Đã cập nhật ${result.updated} yêu cầu.`, 'ok');
     } catch (error) {
+      if (error.status === 409) await load(); // load() xóa thanh trạng thái -> báo sau
       setStatus(error.message, error.status === 409 ? 'warn' : 'error');
-      if (error.status === 409) await load();
     } finally {
       $('vrBulkApply').disabled = false;
     }
@@ -1119,6 +1161,61 @@
       const tr = target.closest('tr[data-id]');
       return tr ? state.rows.find(r => r.id === Number(tr.dataset.id)) : null;
     };
+    // Kéo dòng bằng tay nắm ⋮⋮ ở cột Chọn: vạch xanh trên / dưới dòng chỉ chỗ thả, sát mép thì tự cuộn, Esc hủy.
+    let rowDrag = null; // { id, targetId, after }
+    const clearDropMarks = () => table.querySelectorAll('.vr-drop-before, .vr-drop-after, .vr-row-dragging').forEach(tr => tr.classList.remove('vr-drop-before', 'vr-drop-after', 'vr-row-dragging'));
+    const endRowDrag = () => { rowDrag = null; clearDropMarks(); table.classList.remove('vr-rows-dragging'); };
+    table.addEventListener('mousedown', event => {
+      const grip = event.button === 0 && event.target.closest('[data-row-drag]');
+      if (!grip) return;
+      event.preventDefault();
+      rowDrag = { id: Number(grip.dataset.rowDrag), targetId: null, after: false };
+      grip.closest('tr').classList.add('vr-row-dragging');
+      table.classList.add('vr-rows-dragging');
+    });
+    table.addEventListener('mousemove', event => {
+      if (!rowDrag) return;
+      const tr = event.target.closest('tr[data-id]');
+      const scroller = $('vrScroll');
+      const box = scroller.getBoundingClientRect();
+      if (event.clientY < box.top + 40) scroller.scrollTop -= 24;
+      else if (box.bottom && event.clientY > box.bottom - 40) scroller.scrollTop += 24;
+      if (!tr) return;
+      const rect = tr.getBoundingClientRect();
+      const after = event.clientY > rect.top + rect.height / 2;
+      const targetId = Number(tr.dataset.id);
+      if (rowDrag.targetId === targetId && rowDrag.after === after) return;
+      Object.assign(rowDrag, { targetId, after });
+      table.querySelectorAll('.vr-drop-before, .vr-drop-after').forEach(el => el.classList.remove('vr-drop-before', 'vr-drop-after'));
+      if (targetId !== rowDrag.id) tr.classList.add(after ? 'vr-drop-after' : 'vr-drop-before');
+    });
+    document.addEventListener('mouseup', () => {
+      if (!rowDrag) return;
+      const { id, targetId, after } = rowDrag;
+      endRowDrag();
+      if (!targetId || targetId === id) return;
+      const neighbors = dropNeighbors(id, targetId, after);
+      const current = dropNeighbors(id, id, false);
+      if (!neighbors || (current && neighbors.below === current.below && neighbors.above === current.above)) return; // thả lại chỗ cũ
+      moveRow(id, neighbors);
+    });
+    document.addEventListener('keydown', event => { if (rowDrag && event.key === 'Escape') endRowDrag(); });
+    // Bàn phím: Alt+↑ / Alt+↓ trên tay nắm dời 1 dòng.
+    table.addEventListener('keydown', event => {
+      const grip = event.target.closest('[data-row-drag]');
+      if (!grip || !event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return;
+      event.preventDefault();
+      const id = Number(grip.dataset.rowDrag);
+      const ids = [...$('vrRows').querySelectorAll('tr[data-id]')].map(tr => Number(tr.dataset.id));
+      const index = ids.indexOf(id);
+      const target = ids[index + (event.key === 'ArrowUp' ? -1 : 1)];
+      if (target === undefined) return;
+      moveRow(id, dropNeighbors(id, target, event.key === 'ArrowDown')).then(() => {
+        const again = $('vrRows').querySelector(`[data-row-drag="${id}"]`);
+        if (again) again.focus();
+      });
+    });
+
     // Ô KT trên thiết bị cảm ứng: chạm là sửa (không có nháy đúp / kéo chọn vùng).
     const coarse = window.matchMedia ? window.matchMedia('(pointer: coarse)') : null;
     table.addEventListener('click', event => {
@@ -1241,7 +1338,7 @@
     state.saleFilter = ''; // mặc định xem tất cả sale; chọn 'Của tôi' ở bộ lọc Sale khi cần
     $('vrGroupToggle').hidden = !state.canProcess;
     $('vrSub').textContent = state.canProcess
-      ? 'Lọc “Cần xử lý” để xem yêu cầu chờ khai; chọn nhiều dòng để đổi trạng thái hàng loạt.'
+      ? 'Lọc “Cần xử lý” để xem yêu cầu chờ khai; chọn nhiều dòng để đổi trạng thái hàng loạt; kéo tay nắm ⋮⋮ để xếp thứ tự ưu tiên.'
       : 'Gửi ORDER VAT cho kế toán. Yêu cầu ở trạng thái 0, 1, 2 đã khóa, không sửa được.';
     if (window.TKSVatRequestBatch) {
       state.batch = window.TKSVatRequestBatch.createBatchForm({

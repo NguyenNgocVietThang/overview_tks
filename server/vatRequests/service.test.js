@@ -10,16 +10,16 @@ const { ROLES } = require('../auth/userRepository');
 const { createVatRequestService } = require('./service');
 const { parseStockCsv, parseMappingCsv, defaultStockConfig } = require('./stockSource');
 
-const MIGRATIONS = ['0018_product_report.sql', '0053_product_containers.sql', '0076_vat_requests.sql'];
+const MIGRATIONS = ['0018_product_report.sql', '0053_product_containers.sql', '0076_vat_requests.sql', '0079_vat_request_sort_rank.sql'];
 
 function poolFor(db) {
   const query = (sql, params) => db.query(sql, params);
   return { query, connect: async () => ({ query, release() {} }) };
 }
 
-async function fixture({ stock } = {}) {
+async function fixture({ stock, migrations = MIGRATIONS } = {}) {
   const db = new PGlite();
-  for (const file of MIGRATIONS) await db.exec(fs.readFileSync(path.join(__dirname, '../db/migrations', file), 'utf8'));
+  for (const file of migrations) await db.exec(fs.readFileSync(path.join(__dirname, '../db/migrations', file), 'utf8'));
   await db.exec(`INSERT INTO product_report(product_code, product_name) VALUES ('014XOAN', 'Bát inox 2 lớp XOẮN 14cm'), ('26DAQUAN', 'Đồng hồ treo tường DẠ QUANG')`);
   const stockSource = { get: async () => { if (!stock) throw new Error('Sheet không còn chia sẻ công khai'); return stock; } };
   const service = createVatRequestService({ pool: poolFor(db), stockSource, now: () => new Date('2026-10-20T03:00:00Z') });
@@ -445,5 +445,65 @@ test('tra nhieu ma cung luc: ten SP, so lieu va gia VAT gan nhat; ma khong co ->
     assert.equal(results['26daquan'].found, true);
     assert.equal(results['26daquan'].latestOrder, null);
     assert.deepEqual(results.khongco, { found: false });
+  } finally { await db.close(); }
+});
+
+test('KT keo dong: dong moi len dau; keo len giua / len dau / xuong cuoi; sale bi chan; khong doi version, khong ghi lich su', async () => {
+  const { db, service } = await fixture();
+  try {
+    const ids = [];
+    for (let i = 0; i < 4; i++) ids.push((await service.create(SALE, NEW_REQUEST)).id);
+    const [a, b, c, d] = ids;
+    const order = async (user = KT) => (await service.list(user)).rows.map(r => r.id);
+    assert.deepEqual(await order(), [d, c, b, a], 'mac dinh moi nhat truoc');
+    assert.equal((await service.list(KT)).rowOrder, true);
+
+    await service.move(KT, a, { belowId: c }); // a len ngay tren c
+    assert.deepEqual(await order(), [d, a, c, b]);
+    await service.move(KT, b, { belowId: d }); // b len dau
+    assert.deepEqual(await order(), [b, d, a, c]);
+    await service.move(KT, d, { aboveId: c }); // d xuong cuoi
+    assert.deepEqual(await order(), [b, a, c, d]);
+    assert.deepEqual(await order(SALE), [b, a, c, d], 'thu tu chung cho moi nguoi');
+
+    const e = (await service.create(SALE2, NEW_REQUEST)).id;
+    assert.deepEqual(await order(), [e, b, a, c, d], 'yeu cau moi len dau, dong da xep giu nguyen');
+
+    assert.equal((await service.get(KT, a)).version, 1, 'keo dong khong doi version');
+    assert.deepEqual((await service.history(KT, a)).map(h => h.action), ['create']);
+
+    await assert.rejects(service.move(SALE, a, { belowId: b }), { statusCode: 403 });
+    await assert.rejects(service.move(KT_UNGRANTED, a, { belowId: b }), { statusCode: 403 });
+    await assert.rejects(service.move(KT, a, {}), { statusCode: 400 });
+    await assert.rejects(service.move(KT, a, { belowId: b, aboveId: c }), { statusCode: 400 });
+    await assert.rejects(service.move(KT, a, { belowId: a }), { statusCode: 400 });
+    await assert.rejects(service.move(KT, a, { belowId: 999 }), { statusCode: 404 });
+    await service.remove(SALE, c, 1);
+    await assert.rejects(service.move(KT, a, { aboveId: c }), { statusCode: 404, code: 'NOT_FOUND' });
+  } finally { await db.close(); }
+});
+
+test('keo 30 lan vao cung 1 khe van dung thu tu (trung diem khong trung); Excel theo thu tu da keo', async () => {
+  const { db, service } = await fixture();
+  try {
+    const ids = [];
+    for (let i = 0; i < 32; i++) ids.push((await service.create(SALE, NEW_REQUEST)).id);
+    // Dang hien moi nhat truoc: ids[31] ... ids[0]. Lan luot dua ids[0..29] vao ngay tren ids[30] (sat duoi ids[31]).
+    for (let i = 0; i < 30; i++) await service.move(KT, ids[i], { belowId: ids[30] });
+    const rows = (await service.list(KT)).rows.map(r => r.id);
+    assert.deepEqual(rows, [ids[31], ...ids.slice(0, 30), ids[30]]);
+    assert.deepEqual((await service.exportList(KT)).rows.map(r => r.id), rows);
+  } finally { await db.close(); }
+});
+
+test('chua ap migration 0079: danh sach xep theo thoi gian tao, rowOrder=false, keo dong bao 409', async () => {
+  const { db, service } = await fixture({ migrations: MIGRATIONS.filter(file => !file.startsWith('0079')) });
+  try {
+    const a = await service.create(SALE, NEW_REQUEST);
+    const b = await service.create(SALE, NEW_REQUEST);
+    const data = await service.list(KT);
+    assert.equal(data.rowOrder, false);
+    assert.deepEqual(data.rows.map(r => r.id), [b.id, a.id]);
+    await assert.rejects(service.move(KT, a.id, { belowId: b.id }), { statusCode: 409, code: 'ROW_ORDER_UNAVAILABLE' });
   } finally { await db.close(); }
 });
