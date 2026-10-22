@@ -167,9 +167,12 @@ async function listForUser(userId, { unreadOnly } = {}) {
   const notifications = ensureLoaded();
   const target = String(userId);
   return notifications
-    .filter(n => n.recipientUserId === target && (!unreadOnly || !n.isRead))
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-    .map(n => ({ ...n }));
+    .map((notification, index) => ({ notification, index }))
+    .filter(({ notification }) => notification.recipientUserId === target && (!unreadOnly || !notification.isRead))
+    .sort((a, b) => (
+      new Date(b.notification.createdAt) - new Date(a.notification.createdAt) || b.index - a.index
+    ))
+    .map(({ notification }) => ({ ...notification }));
 }
 
 async function getUnreadCount(userId) {

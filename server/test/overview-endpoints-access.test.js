@@ -62,16 +62,17 @@ const OVERVIEW_READ_ENDPOINTS = [
   '/api/customer-product-revenue',
 ];
 
-// Nhan vien marketing xem duoc tab Hang hoa (2026-10-20): bang bao cao + hang du kien. Doanh so theo khach bi chan
-// o route (reports.products.sales); /api/dashboard khong mo cho tai khoan chi co Hang hoa.
-const MARKETING_ALLOWED_PRODUCT_ENDPOINTS = [
+// Nhan vien marketing giu quyen cu: chi xem Bao cao Marketing, khong xem tab Hang hoa.
+const MARKETING_BLOCKED_PRODUCT_ENDPOINTS = [
   '/api/product-report',
   '/api/product-report/containers',
   '/api/product-report/containers/meta'
 ];
-for (const urlPath of MARKETING_ALLOWED_PRODUCT_ENDPOINTS) {
-  test(`Nhân viên marketing gọi được ${urlPath} (tab Hàng hóa)`, async () => {
-    assert.equal((await passesGuards(urlPath, 'Nhân viên marketing')).allowed, true);
+for (const urlPath of MARKETING_BLOCKED_PRODUCT_ENDPOINTS) {
+  test(`Nhân viên marketing bị chặn ở ${urlPath} (tab Hàng hóa)`, async () => {
+    const result = await passesGuards(urlPath, 'Nhân viên marketing');
+    assert.equal(result.allowed, false);
+    assert.equal(result.status, 403);
   });
 }
 

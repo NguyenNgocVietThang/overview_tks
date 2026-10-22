@@ -82,6 +82,18 @@ test('listForUser chỉ trả bản ghi của đúng người nhận, mới nh�
   assert.equal(list[1].title, 'first');
 });
 
+test('listForUser ưu tiên bản ghi được thêm sau khi hai thông báo trùng mili-giây', async () => {
+  const createdAt = '2026-10-22T08:00:00.000Z';
+  repo.setInMemoryNotifications([
+    { id: 'first', recipientUserId: 'a', type: 't', title: 'first', isRead: false, createdAt },
+    { id: 'second', recipientUserId: 'a', type: 't', title: 'second', isRead: false, createdAt }
+  ]);
+
+  const list = await repo.listForUser('a');
+
+  assert.deepEqual(list.map(item => item.id), ['second', 'first']);
+});
+
 test('getUnreadCount + markRead + markAllRead hoạt động đúng', async () => {
   repo.setInMemoryNotifications([]);
   const n1 = await repo.createNotification({ recipientUserId: 'a', type: 't', title: '1', message: '' });
