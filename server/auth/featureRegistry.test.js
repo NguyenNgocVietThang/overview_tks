@@ -90,7 +90,7 @@ test('mac dinh theo vai tro: hr.* danh cho moi vai tro noi bo, account.users chi
     assert.equal(defaults.includes('account.users'), role === ROLES.QUAN_LY, role);
   }
   const guest = registry.defaultsForRole(ROLES.KHACH);
-  assert.deepEqual(guest, ['account.profile']);
+  assert.deepEqual(guest, ['hr.rules', 'hr.leave', 'account.profile']);
 });
 
 test('chi Quan ly moi co cac quyen quan tri mac dinh', () => {
@@ -251,9 +251,17 @@ test('Quan tri vien he thong (hardcoded admin) luon co du moi quyen', () => {
 test('hasFeature/permissionsHave dung ngu nghia HOAC', () => {
   const user = { vaiTro: ROLES.KHACH };
   assert.equal(registry.hasFeature(user, 'reports.debt', 'account.profile'), true);
-  assert.equal(registry.hasFeature(user, 'reports.debt', 'hr.leave'), false);
+  assert.equal(registry.hasFeature(user, 'reports.debt', 'hr.employees'), false);
   assert.equal(registry.permissionsHave(['a', 'b'], 'b'), true);
   assert.equal(registry.permissionsHave(undefined, 'b'), false);
+});
+
+test('guest permissions remain restricted even with stored or session overrides', () => {
+  const guest = { vaiTro: ROLES.KHACH, trangThai: 'Đang hoạt động', workCoSo: 'Hà Nội', boPhan: 'Marketing', featurePermissions: Object.fromEntries(registry.FEATURE_KEYS.map(key => [key, true])) };
+  assert.deepEqual(registry.resolvePermissions(guest), ['hr.rules', 'hr.leave', 'hr.leave.submit', 'account.profile']);
+  for (const key of registry.FEATURE_KEYS.filter(key => !['hr.rules', 'hr.leave', 'hr.leave.submit', 'account.profile'].includes(key))) {
+    assert.equal(registry.hasFeature({ ...guest, permissions: [key] }, key), false, key);
+  }
 });
 
 test('pageRuleFor chuan hoa duong dan, "/" tuong duong "/reports"', () => {
@@ -273,7 +281,7 @@ test('landingPathFor tra ve trang dau tien tai khoan vao duoc', () => {
   assert.equal(registry.landingPathFor(registry.defaultsForRole(ROLES.NHAN_VIEN_SALE)), '/reports/');
   // Marketing now has its own report; guest still only enters account.
   assert.equal(registry.landingPathFor(registry.defaultsForRole(ROLES.NHAN_VIEN_MARKETING)), '/reports/');
-  assert.equal(registry.landingPathFor(registry.defaultsForRole(ROLES.KHACH)), '/account/');
+  assert.equal(registry.landingPathFor(registry.defaultsForRole(ROLES.KHACH)), '/humanresources/');
   assert.equal(registry.landingPathFor([]), '/account/');
 });
 
@@ -291,7 +299,7 @@ test('absence permission defaults to managers and self submission follows accoun
   const linked = { vaiTro: ROLES.NHAN_VIEN_SALE, workCoSo: 'Hà Nội', boPhan: 'Kế toán', hrManaged: false, trangThai: 'Đang hoạt động' };
   assert.ok(registry.resolvePermissions(linked).includes('hr.leave.submit'), 'moi vai tro noi bo da gan nhan su deu xin nghi duoc');
   for (const role of registry.INTERNAL_ROLES || [ROLES.QUAN_LY, ROLES.KE_TOAN, ROLES.NHAN_VIEN_KHO, ROLES.NHAN_VIEN_MARKETING, ROLES.NHAN_VIEN_MUA_HANG, ROLES.TRO_LY, ROLES.TRUONG_KHO, ROLES.LAI_XE]) assert.ok(registry.resolvePermissions({ ...linked, vaiTro: role }).includes('hr.leave.submit'), role);
-  assert.ok(!registry.resolvePermissions({ ...linked, vaiTro: ROLES.KHACH }).includes('hr.leave.submit'), 'Khach khong duoc xin nghi');
+  assert.ok(registry.resolvePermissions({ ...linked, vaiTro: ROLES.KHACH }).includes('hr.leave.submit'), 'Khách có thông tin công tác được xin nghỉ');
   assert.ok(!registry.resolvePermissions({ ...linked, trangThai: 'Khóa' }).includes('hr.leave.submit'));
   assert.ok(!registry.resolvePermissions({ vaiTro: ROLES.KHACH, featurePermissions: { 'hr.leave.submit': true } }).includes('hr.leave.submit'));
 });

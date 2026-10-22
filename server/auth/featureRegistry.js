@@ -108,11 +108,11 @@ const FEATURES = Object.freeze([
   { key: 'stockLocations.view', groupKey: 'stockLocations', label: 'Xem vị trí hàng HN / SG', roles: INTERNAL_ROLES, forbiddenRoles: [ROLES.KHACH] },
 
   // --- Quan ly nhan su ---
-  { key: 'hr.rules', groupKey: 'hr', label: 'Quy định công ty', roles: INTERNAL_ROLES },
+  { key: 'hr.rules', groupKey: 'hr', label: 'Quy định công ty', roles: ALL_ROLES },
   { key: 'hr.rules.manage', groupKey: 'hr', label: 'Tải lên / gỡ tài liệu quy định', roles: MANAGER_ONLY },
   { key: 'hr.employees', groupKey: 'hr', label: 'Danh sách nhân sự', roles: INTERNAL_ROLES },
   { key: 'hr.employees.manage', groupKey: 'hr', label: 'Thêm / sửa nhân sự, đổi trạng thái làm việc (cần Danh sách nhân sự)', roles: MANAGER_ONLY, requires: 'hr.employees' },
-  { key: 'hr.leave', groupKey: 'hr', label: 'Nghỉ phép (xem)', roles: INTERNAL_ROLES },
+  { key: 'hr.leave', groupKey: 'hr', label: 'Nghỉ phép (xem)', roles: ALL_ROLES },
   { key: 'hr.leave.manage', groupKey: 'hr', label: 'Duyệt nghỉ phép', roles: MANAGER_ONLY },
 
   { key: 'hr.leave.absence.manage', groupKey: 'hr', label: 'Ghi nhận tự ý nghỉ', roles: MANAGER_ONLY },
@@ -246,7 +246,7 @@ function resolvePermissions(user) {
 
 // Self-service follows active internal accounts with valid account workplace data.
 function canSubmitOwnLeave(user) {
-  if (!user || !Object.values(ROLES).includes(user.vaiTro) || user.vaiTro === ROLES.KHACH || user.trangThai !== 'Đang hoạt động' || user.isDeleted) return false;
+  if (!user || !Object.values(ROLES).includes(user.vaiTro) || user.trangThai !== 'Đang hoạt động' || user.isDeleted || !user.workCoSo || !user.boPhan) return false;
   try {
     require('./accountWorkAssignment').normalizeWorkAssignment(user);
     return true;
@@ -267,6 +267,7 @@ function isEscalationExempt(key) {
 }
 
 function isFeatureForbiddenForRole(key, role) {
+  if (String(role || '').trim() === ROLES.KHACH && !['account.profile', 'hr.rules', 'hr.leave', 'hr.leave.submit'].includes(key)) return true;
   return !!FEATURE_BY_KEY.get(key)?.forbiddenRoles?.includes(String(role || '').trim());
 }
 

@@ -126,7 +126,7 @@ function approvalScopeChange(actor, current, next, body) {
     const protectedReason = accountPolicy.checkProtectedManager(actor, current, 'đổi phạm vi duyệt phòng ban');
     if (protectedReason) return { status: 403, code: accountPolicy.DENIED_CODE, error: protectedReason };
   }
-  return { departments: next.vaiTro === ROLES.KHACH ? [] : departments };
+  return { departments };
 }
 
 // ID Telegram dạng chuỗi số (giữ nguyên độ chính xác > 2^53). Rỗng = không liên kết.
@@ -830,7 +830,7 @@ router.put('/api/admin/users/:id/permissions', ...authPermissions, async (req, r
     const overrides = featureRegistry.sanitizeOverrides(raw);
     const forbiddenGrants = Object.keys(overrides).filter(key => overrides[key] && featureRegistry.isFeatureForbiddenForRole(key, targetUser.vaiTro));
     if (forbiddenGrants.length) {
-      return res.status(400).json({ error: 'Không thể cấp quyền Vị trí hàng cho tài khoản Khách.', code: 'FEATURE_ROLE_FORBIDDEN' });
+      return res.status(400).json({ error: 'Không thể cấp quyền ngoài Quy định công ty và Nghỉ phép cho tài khoản Khách.', code: 'FEATURE_ROLE_FORBIDDEN' });
     }
     const blockedReason = assertPermissionsEditable(req, targetUser, overrides);
     if (blockedReason) {

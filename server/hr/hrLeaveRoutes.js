@@ -70,7 +70,7 @@ const decisions = options.decisions || createHrLeaveDecisionService({ repo, auth
 //   hr.leave        — xem ho so nghi phep (mac dinh: moi vai tro noi bo)
 //   hr.employees    — xem Danh sach nhan su
 //   hr.leave.manage — tao / duyet nghi phep (mac dinh: chi Quan ly)
-const authInternal = [requireAuth, requireFeature('hr.leave')];
+const authInternal = [requireAuth, requireFeature('hr.leave'), (req, res, next) => req.user.vaiTro === 'Khách' ? res.status(403).json({ error: 'Khách chỉ được xem đơn nghỉ phép của mình.' }) : next()];
 const authEmployees = [requireAuth, requireFeature('hr.employees')];
 const authEmployeesManage = [requireAuth, requireFeature('hr.employees.manage')];
 const employeeAdmin = options.employeeAdmin || createHrEmployeeAdminService();
@@ -177,7 +177,7 @@ router.get('/api/hr/leave-requests/stream', ...authInternal, (req, res) => {
 router.get('/api/hr/leave-requests', ...authLeaveList, async (req, res) => {
   try {
     const { status, employee, department, branch, from, to } = req.query;
-    const viewAll = hasFeature(req.user, 'hr.leave');
+    const viewAll = req.user.vaiTro !== 'Khách' && hasFeature(req.user, 'hr.leave');
     let scope = viewAll ? resolveBranchScope(req, branch) : [];
     if (!viewAll) {
       const context = await selfService.context(req.user);
@@ -268,7 +268,7 @@ router.post('/api/hr/leave-requests/export', ...authInternal, async (req, res) =
 // ---------------------------------------------------------------------------
 
 async function visibleRequest(req) {
-  const viewAll=hasFeature(req.user,'hr.leave');
+  const viewAll=req.user.vaiTro !== 'Khách' && hasFeature(req.user,'hr.leave');
   let scope=allowedBranches(req.user);
   if(!viewAll) {
     const context=await selfService.context(req.user);

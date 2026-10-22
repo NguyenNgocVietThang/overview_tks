@@ -1378,11 +1378,11 @@ test('first staff approval grant defaults to own department and saved selection 
   assert.deepEqual(res.body.leaveApprovalDepartments, ['KẾ TOÁN']);
 });
 
-test('delegated account admin cannot grant departments outside their own persisted scope', async () => {
+test('guest cannot receive approval permission even from a delegated account admin', async () => {
   localUserStore.setInMemoryUsers([{ id: 'staff', username: 'staff', vaiTro: 'Khách', trangThai: 'Đang hoạt động', boPhan: 'KHO' }]);
   const res = fakeRes();
   await getRouteHandler(adminUserRoutes, 'put', '/api/admin/users/:id/permissions')({ user: { id: 'delegate', username: 'delegate', vaiTro: 'Khách', permissions: ['account.profile', 'account.permissions', 'hr.leave.manage'], leaveApprovalDepartments: ['KẾ TOÁN'] }, params: { id: 'staff' }, body: { overrides: { 'hr.leave.manage': true }, leaveApprovalDepartments: ['KHO'] } }, res);
-  assert.equal(res.statusCode, 403);
+  assert.equal(res.statusCode, 400);
   assert.equal((await localUserStore.getUserById('staff')).featurePermissions, undefined);
 });
 

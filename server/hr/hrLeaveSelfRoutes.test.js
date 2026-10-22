@@ -14,7 +14,7 @@ test('list enriches row capabilities using shared fresh authorization', async ()
 test('self-only viewers are restricted by server userId filter and retain no broad read route', async () => {
   let filters;
   const app=router({repo:{getLeaveRequests:async(f)=>{filters=f; return [{request_id:'OWN',user_id:'u-1'},{request_id:'OTHER',user_id:'u-2'}];}}, selfService:{context:async()=>({eligible:true,profile:{coSo:'Sài Gòn'}})}, authorization:{describeRequests:async(_,rows)=>rows.map(r=>({...r,canManage:false,routingWarning:''}))} });
-  const response=res(); await handler(app,'get','/api/hr/leave-requests')({user:{id:'u-1',vaiTro:'Khách',permissions:['hr.leave.submit']},query:{employee:'other',branch:'Hà Nội'}},response);
+  const response=res(); await handler(app,'get','/api/hr/leave-requests')({user:{id:'u-1',vaiTro:'Khách',permissions:['hr.leave','hr.leave.submit']},query:{employee:'other',branch:'Hà Nội'}},response);
   assert.equal(response.code,200); assert.equal(filters.userId,'u-1'); assert.deepEqual(response.body.requests.map(r=>r.request_id),['OWN']);
 });
 test('PATCH carries optimistic version to shared decisions even when reopening', async () => {
@@ -22,6 +22,21 @@ test('PATCH carries optimistic version to shared decisions even when reopening',
   const app=router({decisions:{decide:async args=>{input=args; return {request_id:'NP-1',trang_thai:'Chưa duyệt'};},notifyDecision:async()=>{}}});
   const response=res(); await handler(app,'patch','/api/hr/leave-requests/:id/status')({user:{id:'m'},params:{id:'NP-1'},body:{status:'Chưa duyệt',expectedVersion:7}},response);
   assert.equal(response.code,200); assert.equal(input.expectedVersion,7); assert.equal(input.channel,'web');
+});
+
+test('guest cannot read another request or history and cannot export or stream all leave', async () => {
+  const app=router({repo:{getLeaveRequestById:async()=>({request_id:'OTHER',user_id:'u-2'})},selfService:{context:async()=>({eligible:true,profile:{coSo:'Hà Nội'}})}});
+  const user={id:'u-1',vaiTro:'Khách',permissions:['hr.leave','hr.leave.submit']};
+  for (const path of ['/api/hr/leave-requests/:id','/api/hr/leave-requests/:id/history']) {
+    const response=res(); await handler(app,'get',path)({user,params:{id:'OTHER'}},response);
+    assert.equal(response.code,404,path);
+  }
+  for (const [method,path] of [['post','/api/hr/leave-requests/export'],['get','/api/hr/leave-requests/stream'],['get','/api/hr/leave-requests/summary/urgent-flags']]) {
+    const route=app.stack.find(layer=>layer.route?.path===path && layer.route.methods[method]).route;
+    const response=res(); let next=false;
+    route.stack[2].handle({user},response,()=>{next=true;});
+    assert.equal(response.code,403,path); assert.equal(next,false);
+  }
 });
 test('self POST sends trusted session user and broadcasts created record', async () => {
   let received;

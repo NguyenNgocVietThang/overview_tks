@@ -2154,7 +2154,7 @@
     // Chỉ điền gợi ý khi ô đang trống hoặc vẫn là giá trị đã gợi ý trước đó; không ghi đè lựa chọn của người dùng.
     function applySuggestedDepartment(prefix){
       const input = document.getElementById(prefix + 'BoPhan');
-      if(input.disabled){ setBoPhanHint(prefix, 'Khách không thuộc bộ phận nào.'); return; }
+      if(input.disabled){ setBoPhanHint(prefix, 'Thông tin công tác được bảo vệ.'); return; }
       if(!document.getElementById(prefix + 'WorkCoSo').value){ setBoPhanHint(prefix, 'Chọn cơ sở công tác trước để hiện danh sách bộ phận.'); return; }
       const suggestion = suggestedDepartmentFor(prefix);
       if(suggestion && (!input.value || input.value === suggestedBoPhan[prefix])){
@@ -2172,19 +2172,13 @@
       ['WorkCoSo', 'BoPhan'].forEach(suffix => {
         const input = document.getElementById(prefix + suffix);
         input.required = !guest;
-        input.disabled = guest || protectedRow;
-        if(guest) input.value = '';
+        input.disabled = protectedRow;
       });
       document.querySelectorAll(`.req-mark[data-req-for="${prefix}"]`).forEach(mark => { mark.hidden = guest; });
       if(guest) suggestedBoPhan[prefix] = '';
       applySuggestedDepartment(prefix);
       const approval = document.getElementById(prefix + 'LeaveDepartments');
-      // Phạm vi duyệt nghỉ tách khỏi vai trò/quyền: luôn hiện cho mọi tài khoản; Khách thì khóa và bỏ chọn.
-      approval.querySelectorAll('input').forEach(input => {
-        if(guest){ input.checked = false; input.disabled = true; }
-        else if(input.dataset.guestLocked) input.disabled = false;
-        if(guest) input.dataset.guestLocked = '1'; else delete input.dataset.guestLocked;
-      });
+      // Phạm vi lưu độc lập với vai trò; chọn bộ phận không tự cấp quyền duyệt.
     }
     function loadWorkAssignment(prefix, user = {}){
       suggestedBoPhan[prefix] = '';
@@ -2538,7 +2532,7 @@
       fetch('/api/admin/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, hoTen, email, soDienThoai, telegramId, vaiTro, coSo, workCoSo, boPhan, leaveApprovalDepartments: vaiTro === 'Khách' ? [] : selectedDepartments('createLeaveDepartments') })
+        body: JSON.stringify({ username, password, hoTen, email, soDienThoai, telegramId, vaiTro, coSo, workCoSo, boPhan, leaveApprovalDepartments: selectedDepartments('createLeaveDepartments') })
       })
         .then(parseApiResponse)
         .then(result => {

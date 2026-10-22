@@ -14,7 +14,7 @@ async function loadActiveProfile(userId, pool = getPool()) {
            COALESCE(NULLIF(u.ho_ten, ''), u.username) AS ho_ten,
            u.bo_phan, u.work_branch AS branch
     FROM app_users u
-    WHERE u.id = $1 AND u.trang_thai = 'Đang hoạt động' AND NOT u.is_deleted AND u.vai_tro <> 'Khách'
+    WHERE u.id = $1 AND u.trang_thai = 'Đang hoạt động' AND NOT u.is_deleted
       AND u.work_branch IN ('hanoi', 'saigon') AND btrim(u.bo_phan) <> ''
   `, [userId]);
   const row = rows[0];

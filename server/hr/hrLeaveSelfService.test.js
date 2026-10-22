@@ -67,7 +67,8 @@ test('hồ sơ gửi đơn chỉ kiểm tra tài khoản còn hoạt động và
     const both = await loadActiveProfile('mgr-both', db);
     assert.equal(both.hr_employee_id, null); assert.equal(both.ho_ten, 'Quản Lý Một'); assert.equal(both.bo_phan, 'Ban quản trị'); assert.equal(both.branch, 'hanoi');
     assert.equal((await loadActiveProfile('mgr-sg', db)).branch, 'saigon');
-    for (const id of ['mgr-gone','inactive','locked','deleted','guest','ex-employee','guest-unlinked','missing']) assert.equal(await loadActiveProfile(id,db), null);
+    for (const id of ['guest','ex-employee']) assert.equal((await loadActiveProfile(id,db)).branch, 'saigon');
+    for (const id of ['mgr-gone','inactive','locked','deleted','guest-unlinked','missing']) assert.equal(await loadActiveProfile(id,db), null);
     const unlinked = await loadActiveProfile('unlinked', db);
     assert.equal(unlinked.hr_employee_id, null); assert.equal(unlinked.bo_phan, 'SALE'); assert.equal(unlinked.branch, 'hanoi');
   } finally { await db.close(); }

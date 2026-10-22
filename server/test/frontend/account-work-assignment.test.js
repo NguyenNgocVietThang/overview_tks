@@ -47,7 +47,7 @@ test('create selects independent workplace and department, refreshes branch opti
     w.handleCreateUser({ preventDefault() {} }); await settle();
     assert.equal(posted[0].workCoSo, 'Hà Nội'); assert.equal(posted[0].boPhan, 'Kế toán'); assert.equal(posted[0].coSo, 'Cả hai');
     role.value = 'Khách'; role.dispatchEvent(new w.Event('change'));
-    assert.equal(branch.value, ''); assert.equal(department.value, ''); assert.equal(branch.required, false);
+    assert.equal(branch.value, 'Hà Nội'); assert.equal(department.value, 'Kế toán'); assert.equal(branch.required, false);
   } finally { dom.window.close(); }
 });
 test('edit preloads account workplace and keeps approval scope separate in payload', async () => {
@@ -69,7 +69,7 @@ test('edit can promote a guest while assigning the required workplace in the sam
     w.openEditUserModal('guest'); await settle();
     const role = doc.getElementById('editVaiTro');
     assert.ok(role, 'role selector available alongside workplace');
-    assert.equal(doc.getElementById('editWorkCoSo').disabled, true);
+    assert.equal(doc.getElementById('editWorkCoSo').disabled, false);
     role.value = 'Trợ lý'; role.dispatchEvent(new w.Event('change'));
     const branch = doc.getElementById('editWorkCoSo');
     assert.equal(branch.disabled, false);
@@ -109,7 +109,7 @@ test('create form orders fields by dependency, marks required work fields and su
     assert.equal(posted.at(-1).telegramId, '6205968899');
   } finally { dom.window.close(); }
 });
-test('approval scope is always shown for every role; guest locks and clears it', async () => {
+test('approval scope stays selectable for guests without clearing selection', async () => {
   const { dom, w, doc } = await page();
   try {
     w.openCreateUserModal(); await settle();
@@ -123,7 +123,7 @@ test('approval scope is always shown for every role; guest locks and clears it',
     group.querySelector('input').checked = true;
     role.value = 'Khách'; role.dispatchEvent(new w.Event('change'));
     assert.equal(group.hidden, false);
-    assert.ok([...group.querySelectorAll('input')].every(input => input.disabled && !input.checked));
+    assert.ok([...group.querySelectorAll('input')].some(input => !input.disabled && input.checked));
     role.value = 'Nhân viên kho'; role.dispatchEvent(new w.Event('change'));
     assert.ok([...group.querySelectorAll('input')].some(input => !input.disabled));
   } finally { dom.window.close(); }

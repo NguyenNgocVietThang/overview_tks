@@ -10,6 +10,7 @@ test('internal workplace requires a physical branch and catalog department', () 
   assert.throws(() => normalizeWorkAssignment({ vaiTro: 'Trợ lý', workCoSo: 'Hà Nội' }), { code: 'DEPARTMENT_REQUIRED' });
   assert.throws(() => normalizeWorkAssignment({ vaiTro: 'Trợ lý', workCoSo: 'Hà Nội', boPhan: 'Sale SG' }), { code: 'DEPARTMENT_BRANCH_MISMATCH' });
 });
-test('guest clears workplace and department', () => {
-  assert.deepEqual(normalizeWorkAssignment({ vaiTro: 'Khách', workCoSo: 'Hà Nội', boPhan: 'Kế toán' }), { workCoSo: '', boPhan: '' });
+test('guest keeps valid workplace and may leave both fields empty', () => {
+  assert.deepEqual(normalizeWorkAssignment({ vaiTro: 'Khách', workCoSo: 'Hà Nội', boPhan: 'Kế toán' }), { workCoSo: 'Hà Nội', boPhan: 'Kế toán' });
+  assert.deepEqual(normalizeWorkAssignment({ vaiTro: 'Khách' }), { workCoSo: '', boPhan: '' });
 });
