@@ -412,3 +412,7 @@ Chọn dòng kiểu đầu dòng Google Sheet: bấm tay nắm ⋮⋮ chọn c�
 ### Cập nhật 22/10/2026 — ORDER VAT: thông báo chuông cho sale sau khi kế toán sửa
 
 Kế toán sửa KT phản hồi / KT note / Ngày về trên yêu cầu của một sale; khi kế toán ngừng sửa yêu cầu của sale đó đủ 10 phút (mỗi lần sửa thêm đếm lại), sale nhận 1 thông báo chuông tóm tắt cả đợt với giá trị cuối cùng, bấm vào mở ORDER VAT. Sửa rồi hoàn tác về như cũ thì không báo. Cần migration `0080`; bật / tắt bằng `VAT_REQUEST_NOTIFY_ENABLED`.
+
+### Cập nhật 22/10/2026 — ORDER VAT: sửa ô / dán / kéo nhân bản / Ctrl+Z hiện ngay như Sheet
+
+Sửa trường KT (sửa ô, kéo chấm, dán, Delete, Ctrl+Z / Ctrl+Y) áp NGAY lên bảng rồi lưu nền qua `PATCH /bulk`; các lần lưu xếp hàng tuần tự, version lấy lúc gửi nên sửa liên tiếp không bị 409. Đổi trạng thái không còn nạp lại cả danh sách (tới 5.000 dòng + đọc tồn VAT từ Google Sheets) — chỉ hỏi lại số liệu các mã liên quan qua `POST /lookup`. Lưu lỗi thì nạp lại dữ liệu thật, báo lỗi và bỏ mục khỏi lịch sử hoàn tác. Sửa 1 ô dùng chung đường này (thay `PATCH /:id`). Đo trên mock với độ trễ giả 800 ms/lời gọi: bảng đổi sau ~20 ms (trước đây phải chờ ít nhất 1 lượt đi về, đổi trạng thái thêm 1 lần nạp lại cả bảng). Hoàn tác kéo dòng vẫn chờ máy chủ + nạp lại bảng.
