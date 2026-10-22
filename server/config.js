@@ -117,6 +117,8 @@ const CONFIG = {
   HR_LEAVE_DB_REALTIME_ENABLED: process.env.HR_LEAVE_DB_REALTIME_ENABLED !== 'false',
   // Bao ngay le / sinh nhat len chuong thong bao (notifications/specialDayNotifier.js).
   SPECIAL_DAYS_NOTIFY_ENABLED: process.env.SPECIAL_DAYS_NOTIFY_ENABLED !== 'false',
+  // Bao chuong cho sale ~10 phut sau khi KT ngung sua yeu cau ORDER VAT (vatRequests/saleNotifier.js, migration 0080).
+  VAT_REQUEST_NOTIFY_ENABLED: process.env.VAT_REQUEST_NOTIFY_ENABLED !== 'false',
 
   // ==========================================
   // SUPABASE POSTGRES — dong bo KiotViet, xem
