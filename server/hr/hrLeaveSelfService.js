@@ -5,10 +5,9 @@ const { branchCodeToLabel } = require('../branch/branches');
 const { computeIsUrgent } = require('./hrLeaveService');
 const {normalizeCalendar,calculateTiming}=require('./hrLeaveTiming');
 const defaultSchedules=require('./hrLeaveWorkSchedulesRepository');
+const { normalizeWorkAssignment } = require('../auth/accountWorkAssignment');
 
-// Never resolve by editable display name, email or username. The stable FK is the identity.
-// Tài khoản nội bộ (trừ Khách) chưa liên kết hồ sơ nhân sự vẫn được xin nghỉ: lấy họ tên/cơ sở từ chính tài khoản
-// (cơ sở "Cả hai"/trống quy về Hà Nội vì đơn nghỉ bắt buộc thuộc một cơ sở).
+// Account identity and workplace are authoritative, including accounts without an HR link.
 async function loadActiveProfile(userId, pool = getPool()) {
   const { rows } = await pool.query(`
     SELECT u.id AS user_id, u.username, u.vai_tro, u.telegram_id, NULL::bigint AS hr_employee_id,
@@ -18,7 +17,12 @@ async function loadActiveProfile(userId, pool = getPool()) {
     WHERE u.id = $1 AND u.trang_thai = 'Đang hoạt động' AND NOT u.is_deleted AND u.vai_tro <> 'Khách'
       AND u.work_branch IN ('hanoi', 'saigon') AND btrim(u.bo_phan) <> ''
   `, [userId]);
-  return rows[0] || null;
+  const row = rows[0];
+  if (!row) return null;
+  try {
+    normalizeWorkAssignment({ vaiTro: row.vai_tro, workCoSo: branchCodeToLabel(row.branch), boPhan: row.bo_phan });
+    return row;
+  } catch { return null; }
 }
 function createHrLeaveSelfService({ loadProfile = loadActiveProfile, repo = leaveRepo, schedules=defaultSchedules, now = () => new Date() } = {}) {
   async function context(user) {
@@ -31,13 +35,13 @@ function createHrLeaveSelfService({ loadProfile = loadActiveProfile, repo = leav
   }
   async function prepare(user,body={},reasonRequired=true) {
     const ctx = await context(user);
-    if (!ctx.eligible) throw new leaveRepo.HrError('Tài khoản cần đang hoạt động và liên kết nhân sự đang hoạt động.', 403, 'SELF_LEAVE_INELIGIBLE');
+    if (!ctx.eligible) throw new leaveRepo.HrError('Tài khoản chưa được cấu hình cơ sở công tác và bộ phận.', 403, 'SELF_LEAVE_WORK_ASSIGNMENT_REQUIRED');
     if (reasonRequired && (typeof body.ly_do !== 'string' || !body.ly_do.trim())) throw new leaveRepo.HrError('Vui lòng nhập lý do nghỉ.', 400, 'INVALID_REASON');
     if (body.nguoi_ban_giao != null && typeof body.nguoi_ban_giao !== 'string') throw new leaveRepo.HrError('Người bàn giao phải là chuỗi ký tự.', 400, 'INVALID_HANDOVER');
     if (body.end_date != null && typeof body.end_date !== 'string') throw new leaveRepo.HrError('Ngày kết thúc không hợp lệ.', 400, 'INVALID_LEAVE_RANGE');
     const calendar=normalizeCalendar(body);
     const submittedAt = now();
-    // Chưa gắn hồ sơ nhân sự: dùng giờ mặc định (không có lịch riêng để tra).
+    // Work schedules are keyed by account regardless of HR linkage.
     const schedule=await schedules.getScheduleForUser(ctx.profile.userId,calendar.start_date);
     const timing=calculateTiming(calendar,schedule,submittedAt);
     return {ctx,calendar,timing,submittedAt};

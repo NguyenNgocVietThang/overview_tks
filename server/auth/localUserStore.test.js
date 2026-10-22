@@ -14,6 +14,18 @@ function freshStore() {
   return { store: localUserStore, repository };
 }
 
+test('account workplace round-trips independently from role and access scope', async () => {
+  const { store } = freshStore();
+  const created = await store.createUser({ username: 'independent', vaiTro: 'Trợ lý', coSo: 'Cả hai', workCoSo: 'Hà Nội', boPhan: 'Kế toán' });
+  assert.equal(created.workCoSo, 'Hà Nội');
+  const changed = await store.updateUser(created.id, { boPhan: 'Kho SG', workCoSo: 'Sài Gòn' });
+  assert.equal(changed.workCoSo, 'Sài Gòn');
+  assert.equal(changed.boPhan, 'Kho SG');
+  assert.equal(changed.vaiTro, 'Trợ lý');
+  assert.equal(changed.coSo, 'Cả hai');
+  assert.equal((await store.getUserById(created.id)).workCoSo, 'Sài Gòn');
+});
+
 test('createUser: tao tai khoan moi, sinh UUID va tra ve dung du lieu', async () => {
   const { store } = freshStore();
   const created = await store.createUser({

@@ -32,8 +32,10 @@ const TRACKED_FIELDS = Object.freeze([
   { key: 'vaiTroOverride', label: 'Ghi đè vai trò' },
   { key: 'coSo', label: 'Cơ sở' },
   { key: 'coSoOverride', label: 'Ghi đè cơ sở' },
+  { key: 'workCoSo', label: 'Cơ sở công tác' },
+  { key: 'boPhan', label: 'Bộ phận trực thuộc' },
   { key: 'trangThai', label: 'Trạng thái' },
-  { key: 'leaveApprovalDepartments', label: 'Phạm vi duyệt phòng ban', list: true }
+  { key: 'leaveApprovalDepartments', label: 'Bộ phận được duyệt nghỉ', list: true }
 ]);
 
 const PAGE_SIZE_DEFAULT = 50;

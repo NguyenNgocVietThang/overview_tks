@@ -19,6 +19,8 @@ const accountPolicy = require('./accountPolicy');
 const { normalizeDepartments } = require('../hr/hrApprovalDepartments');
 const userExport = require('./adminUserExportService');
 const accountAuditLog = require('./accountAuditLog');
+const { normalizeWorkAssignment } = require('./accountWorkAssignment');
+const { departmentsFor } = require('../hr/hrDepartmentCatalog');
 
 const router = express.Router();
 
@@ -40,6 +42,7 @@ function publicAdminUser(u) {
     coSo: u.coSo || '',
     assignedCoSo: u.assignedCoSo ?? u.coSo ?? '',
     boPhan: u.boPhan || '',
+    workCoSo: u.workCoSo || '',
     leaveApprovalDepartments: normalizeDepartments(u.leaveApprovalDepartments || []),
     trangThai: u.trangThai,
     ngayTao: u.ngayTao || '',
@@ -123,18 +126,13 @@ function approvalScopeChange(actor, current, next, body) {
     const protectedReason = accountPolicy.checkProtectedManager(actor, current, 'đổi phạm vi duyệt phòng ban');
     if (protectedReason) return { status: 403, code: accountPolicy.DENIED_CODE, error: protectedReason };
   }
-  return { departments };
+  return { departments: next.vaiTro === ROLES.KHACH ? [] : departments };
 }
 
 async function departmentCatalog() {
-  const [snapshot, users, historic] = await Promise.all([
-    employeeDirectory.getSnapshot().catch(() => ({ employees: [] })),
-    localUserStore.getAllUsers(),
-    require('./appUsersRepository').selectApprovalDepartmentCatalog().catch(() => [])
-  ]);
+  const users = await localUserStore.getAllUsers();
   return normalizeDepartments([
-    ...historic,
-    ...((snapshot && snapshot.employees) || []).map(employee => employee.boPhan || ''),
+    ...departmentsFor('hanoi'), ...departmentsFor('saigon'),
     ...users.flatMap(user => [user.boPhan || '', ...normalizeDepartments(user.leaveApprovalDepartments || [])])
   ]).sort((a, b) => a.localeCompare(b, 'vi'));
 }
@@ -252,6 +250,7 @@ router.post('/api/admin/users', ...authManage, async (req, res) => {
 
     const scope = approvalScopeChange(req.user, null, { vaiTro }, req.body);
     if (scope.error) return res.status(scope.status).json({ error: scope.error, code: scope.code });
+    const assignment = normalizeWorkAssignment({ vaiTro, workCoSo: req.body.workCoSo, boPhan: req.body.boPhan });
     const passwordHash = await bcrypt.hash(password, 10);
     const newUser = await localUserStore.createUser({
       id: crypto.randomUUID(),
@@ -262,6 +261,7 @@ router.post('/api/admin/users', ...authManage, async (req, res) => {
       soDienThoai: normalizePhone(soDienThoai),
       vaiTro,
       coSo,
+      ...assignment,
       trangThai: ACTIVE_STATUS,
       leaveApprovalDepartments: scope.departments
     });
@@ -293,6 +293,7 @@ router.post('/api/admin/users', ...authManage, async (req, res) => {
     if (err && err.code === 'USER_EXISTS') {
       return res.status(409).json({ error: err.message });
     }
+    if (err && err.statusCode && err.statusCode < 500) return res.status(err.statusCode).json({ error: err.message, code: err.code });
     console.error('=== LOI POST /api/admin/users ===', err);
     res.status(500).json({ error: 'Không tạo được tài khoản, vui lòng thử lại.' });
   }
@@ -430,8 +431,6 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
       updates.coSo = coSo;
     }
 
-    let hrRoleToSync = null;
-
     if (req.body.vaiTro !== undefined) {
       const vaiTro = String(req.body.vaiTro).trim();
       if (!VALID_ROLES.includes(vaiTro)) {
@@ -465,13 +464,10 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
         if (hrDenied) return res.status(hrDenied.status).json({ error: hrDenied.error, code: hrDenied.code });
       }
       updates.vaiTro = vaiTro;
-      // Tài khoản đồng bộ HR: resolveUser() luôn tính lại vaiTro từ Danh sách nhân sự
-      // trừ khi có vaiTroOverride — nếu không set override ở đây, thay đổi này sẽ
-      // bị ghi đè lại ngay ở lần requireAuth kế tiếp của user đó.
+      // Preserve legacy override metadata without writing the role to HR.
       if (targetUser.hrManaged) {
         updates.vaiTroOverride = vaiTro;
         updates.roleSource = 'override';
-        hrRoleToSync = vaiTro;
       }
     }
 
@@ -496,7 +492,6 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
       updates.vaiTroOverride = vaiTroOverride;
       updates.vaiTro = resultingRole;
       updates.roleSource = vaiTroOverride ? 'override' : 'sheet';
-      hrRoleToSync = vaiTroOverride || null;
     }
 
     if (req.body.coSoOverride !== undefined) {
@@ -549,6 +544,19 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
     const scope = approvalScopeChange(req.user, targetUser, { ...targetUser, ...updates }, req.body);
     if (scope.error) return res.status(scope.status).json({ error: scope.error, code: scope.code });
     updates.leaveApprovalDepartments = scope.departments;
+    const assignment = normalizeWorkAssignment({
+      vaiTro: updates.vaiTro ?? targetUser.vaiTro,
+      workCoSo: Object.hasOwn(req.body, 'workCoSo') ? req.body.workCoSo : targetUser.workCoSo,
+      boPhan: Object.hasOwn(req.body, 'boPhan') ? req.body.boPhan : targetUser.boPhan
+    });
+    if (req.body.workCoSo !== undefined && req.body.workCoSo !== targetUser.workCoSo && req.body.boPhan === undefined && assignment.boPhan !== (targetUser.boPhan || '')) {
+      return res.status(400).json({ error: 'Vui lòng chọn lại bộ phận trực thuộc tại cơ sở công tác.', code: 'DEPARTMENT_BRANCH_MISMATCH' });
+    }
+    if (assignment.workCoSo !== (targetUser.workCoSo || '') || assignment.boPhan !== (targetUser.boPhan || '')) {
+      const denied = accountPolicy.checkProtectedManager(req.user, targetUser, 'đổi cơ sở công tác hoặc bộ phận');
+      if (denied) return accountPolicy.sendDenied(res, denied);
+    }
+    Object.assign(updates, assignment);
 
     // MOI kiem tra da qua: bay gio moi ghi email/SĐT cua TK nhan su (hr_employees + app_users).
     for (const change of pendingAdminChanges) {
@@ -557,14 +565,6 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
 
     const updated = await localUserStore.updateUser(targetId, updates);
     if (Object.hasOwn(updates, 'telegramId')) employeeDirectory.clearCache();
-
-    if (hrRoleToSync && targetUser.hrSourceBranch && targetUser.hrRowIndex) {
-      try {
-        await employeeDirectory.writeDepartmentForRole(targetUser.hrSourceBranch, targetUser.hrRowIndex, hrRoleToSync);
-      } catch (syncErr) {
-        console.error('=== LOI dong bo BO PHAN len Danh sach nhan su ===', syncErr);
-      }
-    }
 
     res.status(200).json({ user: publicAdminUser(updated) });
     await accountAuditLog.record({
@@ -705,6 +705,7 @@ router.get('/api/admin/permissions/catalog', ...authView, async (req, res) => {
       requires: f.requires || null
     })),
     roleDefaults,
+    departmentsByBranch: { 'Hà Nội': departmentsFor('hanoi'), 'Sài Gòn': departmentsFor('saigon') },
     departments: await departmentCatalog().catch(() => [])
   });
 });
