@@ -13,6 +13,7 @@ const { hasFeature } = require('../auth/featureRegistry');
 const { resolveBranch } = require('../branch/branchMiddleware');
 const { branchLabelToCode, resolveBranchScope } = require('../branch/branches');
 const { createDocumentsRepository } = require('./documentsRepository');
+const { getInvoiceDetail, getOrderDetail } = require('../dashboard/documentDetailRepository');
 const { createMasterDataSource } = require('./sheetsSource');
 const { createVatDraftService } = require('./vatDraftService');
 const { createVatDraftWorkbook } = require('./vatDraftExport');
@@ -47,7 +48,8 @@ function createVatDraftRouter({
   repository = createDocumentsRepository(),
   masterData = createMasterDataSource(),
   vision = defaultVisionClient(),
-  service = createVatDraftService({ repository, masterData, vision })
+  service = createVatDraftService({ repository, masterData, vision }),
+  documentDetail = { getInvoiceDetail, getOrderDetail }
 } = {}) {
   const router = express.Router();
   router.use((req, res, next) => {
@@ -70,6 +72,7 @@ function createVatDraftRouter({
         await fn(req, res);
       } catch (error) {
         if (error.statusCode === 400) return res.status(400).json({ error: error.message, code: error.code });
+        if (error.statusCode === 404) return res.status(404).json({ error: error.message, code: error.code || 'VAT_DRAFT_NOT_FOUND' });
         if (error.statusCode === 503) return res.status(503).json({ error: error.message, code: error.code || 'VAT_DRAFT_SOURCE_UNAVAILABLE' });
         console.error(`[vat-draft ${req.method} ${req.path}]`, error);
         return res.status(500).json({ error: 'Lỗi hệ thống, vui lòng thử lại sau.', code: 'VAT_DRAFT_ERROR' });
@@ -97,9 +100,15 @@ function createVatDraftRouter({
     res.json({ masterData: await masterDataStatus(true) });
   }));
 
-  router.get('/documents', ...guard, resolveBranch, handle(async (req, res) => {
-    const { kind, from, to, q, page, pageSize, sort, dir } = req.query;
-    res.json(await repository.listDocuments({ branchCodes: branchCodes(req), kind, from, to, q, page, pageSize, sort, dir }));
+  // Hop chi tiet khi bam 1 dong "Hoa don da dan": dung lai loader cua dashboard nhung theo quyen Ke toan
+  // (ke toan khong can quyen Bao cao hoa don).
+  router.get('/documents/detail', ...guard, handle(async (req, res) => {
+    const { kind, branch, code } = req.query;
+    if (!['invoice', 'order'].includes(kind) || !['hanoi', 'saigon'].includes(branch)) {
+      return res.status(400).json({ error: 'Chứng từ không hợp lệ.', code: 'VAT_DRAFT_INVALID' });
+    }
+    const load = kind === 'invoice' ? documentDetail.getInvoiceDetail : documentDetail.getOrderDetail;
+    res.json({ detail: await load({ code, branchCode: branch }) });
   }));
 
   router.post('/documents/resolve', ...guard, resolveBranch, handle(async (req, res) => {

@@ -8,19 +8,12 @@ const { HEADER_FONT, frozenNoGridlinesView, applyFullTableBorder } = require('..
 const { buildUnifiedColumns, GIA_NHAP_COLUMN } = require('./allocation');
 
 const MAX_EXPORT_ROWS = 10000;
-const NUMERIC_COLUMNS = new Set(['SL', 'Giá bán', 'TỒN CÒN NHÁP', GIA_NHAP_COLUMN, '%VAT', 'Thành tiền', 'Số dòng', 'Tổng tiền']);
-const INTEGER_COLUMNS = new Set(['Số dòng', 'Tổng tiền']);
+const NUMERIC_COLUMNS = new Set(['SL', 'Giá bán', 'TỒN CÒN NHÁP', GIA_NHAP_COLUMN, '%VAT', 'Thành tiền']);
 const VIEWS = Object.freeze({
-  allocation: { sheet: 'Xử lý hóa đơn', fileName: 'ket_qua_xu_ly_hoa_don.xlsx', columns: buildUnifiedColumns(true) },
-  documents: {
-    sheet: 'Danh sách chứng từ',
-    fileName: 'danh_sach_chung_tu.xlsx',
-    columns: ['Mã chứng từ', 'Loại', 'Cơ sở', 'Thời gian', 'Khách hàng', 'Ghi chú tổng', 'Trạng thái', 'Số dòng', 'Tổng tiền']
-  }
+  allocation: { sheet: 'Xử lý hóa đơn', fileName: 'ket_qua_xu_ly_hoa_don.xlsx', columns: buildUnifiedColumns(true) }
 });
 
 function numberFormat(column) {
-  if (INTEGER_COLUMNS.has(column)) return '#,##0';
   return column === GIA_NHAP_COLUMN ? '#,##0.00' : '#,##0.##';
 }
 

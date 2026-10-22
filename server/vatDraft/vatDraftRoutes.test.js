@@ -28,7 +28,6 @@ function fakeRepository(overrides = {}) {
   const calls = {};
   return {
     calls,
-    listDocuments: async args => { calls.list = args; return { rows: [], total: 0, page: 1, pageSize: 50 }; },
     resolveCodes: async args => { calls.resolve = args; return { found: [], notFound: args.codes, ambiguous: [] }; },
     readDocumentLines: async selections => {
       calls.read = selections;
@@ -127,7 +126,7 @@ test('Nhan vien sale (accounting.qr): chi dung duoc Tao QR, /meta chi tra danh s
   assert.deepEqual([groups.filter(g => g === 'company').length, groups.filter(g => g === 'personal').length], [5, 13]);
   assert.equal((await request('/qr/url', { method: 'POST', user: sale, body: { accountKey: 'shc', amount: '1000' } })).status, 200);
   assert.equal((await request('/qr/parse-image', { method: 'POST', user: sale, form: imageForm() })).status, 200);
-  assert.equal((await request('/documents', { user: sale })).status, 403);
+  assert.equal((await request('/documents/resolve', { method: 'POST', user: sale, body: { text: 'HD1' } })).status, 403);
   assert.equal((await request('/allocate', { method: 'POST', user: sale, body: { source: 'paste', text: 'SP01' } })).status, 403);
   assert.equal((await request('/export', { method: 'POST', user: sale, body: { view: 'allocation', columns: ['SL'], rows: [] } })).status, 403);
   assert.equal((await request('/master-data/refresh', { method: 'POST', user: sale })).status, 403);
@@ -145,18 +144,63 @@ test('GET /meta: trang thai master data, dong bo, danh sach tai khoan', async ()
   assert.match(broken.body.masterData.error, /chia sẻ công khai/);
 });
 
-test('GET /documents va POST /documents/resolve dung co so tu cookie (Ca hai -> hanoi + saigon)', async () => {
+test('POST /documents/resolve: o Co so tren trang uu tien hon cookie (Ca hai -> hanoi + saigon)', async () => {
   const repository = fakeRepository();
-  await request('/documents?kind=order&from=2026-10-10&to=2026-10-17&q=lan', { repository });
-  assert.deepEqual(repository.calls.list, { branchCodes: ['hanoi', 'saigon'], kind: 'order', from: '2026-10-10', to: '2026-10-17', q: 'lan', page: undefined, pageSize: undefined, sort: undefined, dir: undefined });
-  await request('/documents?branch=saigon&from=2026-10-10&to=2026-10-17', { repository });
-  assert.deepEqual(repository.calls.list.branchCodes, ['saigon'], 'bo loc Co so tren trang uu tien hon cookie');
-  await request('/documents?branch=xyz&from=2026-10-10&to=2026-10-17', { repository });
-  assert.deepEqual(repository.calls.list.branchCodes, ['hanoi', 'saigon'], 'gia tri la -> theo cookie');
   const res = await request('/documents/resolve?branch=hanoi', { method: 'POST', body: { text: 'hd1, HD2 abc' }, repository });
   assert.deepEqual(repository.calls.resolve.branchCodes, ['hanoi']);
   assert.deepEqual(repository.calls.resolve.codes, ['HD1', 'HD2']);
   assert.deepEqual(res.body.invalid, ['ABC']);
+  await request('/documents/resolve?branch=all', { method: 'POST', body: { text: 'HD1' }, repository });
+  assert.deepEqual(repository.calls.resolve.branchCodes, ['hanoi', 'saigon']);
+  await request('/documents/resolve?branch=xyz', { method: 'POST', body: { text: 'HD1' }, repository });
+  assert.deepEqual(repository.calls.resolve.branchCodes, ['hanoi', 'saigon'], 'gia tri la -> theo cookie');
+});
+
+test('GET /documents (bang tick chon chung tu) da bo', async () => {
+  assert.equal((await request('/documents?from=2026-10-10&to=2026-10-17')).status, 404);
+});
+
+function fakeDocumentDetail() {
+  const calls = [];
+  const load = kind => async args => {
+    calls.push({ kind, ...args });
+    if (args.code === 'HD404') throw Object.assign(new Error('Không tìm thấy hóa đơn này.'), { statusCode: 404 });
+    return { kind, code: args.code, total: 1000, lines: [] };
+  };
+  return { calls, getInvoiceDetail: load('invoice'), getOrderDetail: load('order') };
+}
+
+async function requestDetail(path, { user, documentDetail = fakeDocumentDetail() } = {}) {
+  const app = express();
+  app.use((req, res, next) => { req.user = user === undefined ? userFor(ROLES.QUAN_LY) : user; req.effectiveUserResolved = !!req.user; req.cookies = {}; next(); });
+  app.use('/api/vat-draft', createVatDraftRouter({ repository: fakeRepository(), masterData: fakeMaster(), vision: fakeVision({}), documentDetail }));
+  const server = app.listen(0);
+  try {
+    const res = await fetch(`http://127.0.0.1:${server.address().port}/api/vat-draft${path}`);
+    return { status: res.status, body: await res.json() };
+  } finally {
+    server.close();
+  }
+}
+
+test('GET /documents/detail: hoa don / don dat hang theo co so vat ly; sai tham so 400; khong co 404; chi quyen Nhap VAT', async () => {
+  const documentDetail = fakeDocumentDetail();
+  const invoice = await requestDetail('/documents/detail?kind=invoice&branch=saigon&code=HD016035', { documentDetail });
+  assert.deepEqual([invoice.status, invoice.body.detail.code], [200, 'HD016035']);
+  const order = await requestDetail('/documents/detail?kind=order&branch=hanoi&code=DH021036', { documentDetail });
+  assert.equal(order.body.detail.kind, 'order');
+  assert.deepEqual(documentDetail.calls, [
+    { kind: 'invoice', code: 'HD016035', branchCode: 'saigon' },
+    { kind: 'order', code: 'DH021036', branchCode: 'hanoi' }
+  ]);
+  assert.equal((await requestDetail('/documents/detail?kind=return&branch=hanoi&code=HD1')).status, 400);
+  assert.equal((await requestDetail('/documents/detail?kind=invoice&branch=Hà Nội&code=HD1')).status, 400);
+  const missing = await requestDetail('/documents/detail?kind=invoice&branch=hanoi&code=HD404');
+  assert.deepEqual([missing.status, missing.body.error], [404, 'Không tìm thấy hóa đơn này.']);
+  // Ke toan duoc cap Nhap VAT xem duoc (khong can quyen Bao cao hoa don); sale (chi Tao QR) bi chan.
+  assert.equal((await requestDetail('/documents/detail?kind=invoice&branch=hanoi&code=HD1', { user: userFor(ROLES.KE_TOAN, { 'accounting.vatDraft': true }) })).status, 200);
+  assert.equal((await requestDetail('/documents/detail?kind=invoice&branch=hanoi&code=HD1', { user: userFor(ROLES.NHAN_VIEN_SALE) })).status, 403);
+  assert.equal((await requestDetail('/documents/detail?kind=invoice&branch=hanoi&code=HD1', { user: null })).status, 401);
 });
 
 test('POST /allocate tu chung tu: cot co Ma hoa don + Ghi chu tong canh Ghi chu hang hoa, ly do loi, QR dien san ma', async () => {
