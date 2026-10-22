@@ -18,6 +18,13 @@ function fakePool(rows = []) {
 
 test.afterEach(() => accountAuditLog.setPool(null));
 
+test('audit distinguishes workplace, membership and approval scope', () => {
+  const changes = accountAuditLog.diffUser({}, { workCoSo: 'Hà Nội', boPhan: 'Kế toán', leaveApprovalDepartments: ['Kho HN'] });
+  assert.deepEqual(changes.map(change => [change.field, change.label]), [
+    ['workCoSo', 'Cơ sở công tác'], ['boPhan', 'Bộ phận trực thuộc'], ['leaveApprovalDepartments', 'Bộ phận được duyệt nghỉ']
+  ]);
+});
+
 test('diffUser chỉ trả về trường thực sự đổi, chuẩn hóa chuỗi và mảng phòng ban', () => {
   const before = { hoTen: 'An ', email: 'a@x.vn', vaiTro: 'Kế toán', coSo: 'Hà Nội', leaveApprovalDepartments: ['Kho', 'Sale'], passwordHash: 'h1' };
   const after = { hoTen: 'An', email: 'b@x.vn', vaiTro: 'Kế toán', coSo: 'Sài Gòn', leaveApprovalDepartments: ['Sale', 'Kho'], passwordHash: 'h2' };

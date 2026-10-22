@@ -235,6 +235,7 @@ function resolvePermissions(user) {
   }
   for (const key of ALWAYS_ON_KEYS) granted.add(key);
   if (canSubmitOwnLeave(user)) granted.add('hr.leave.submit');
+  else granted.delete('hr.leave.submit');
   // Quyen phu thuoc (`requires`): thieu quyen goc thi bo luon, bat ke vai tro/ghi de.
   for (const f of FEATURES) {
     if (f.requires && !granted.has(f.requires)) granted.delete(f.key);
@@ -243,10 +244,13 @@ function resolvePermissions(user) {
   return FEATURE_KEYS.filter(key => granted.has(key) && !isFeatureForbiddenForRole(key, user.vaiTro));
 }
 
-// Moi tai khoan noi bo (tru Khach) deu duoc tu gui don nghi (chua gan ho so thi dung gio mac dinh, xem migration 0042);
-// khong doi hrManaged (co dong bo vai tro tu danh sach nhan su) vi viec do khong lien quan quyen xin nghi.
+// Self-service follows active internal accounts with valid account workplace data.
 function canSubmitOwnLeave(user) {
-  return !!(user && user.vaiTro !== ROLES.KHACH && user.trangThai === 'Đang hoạt động' && !user.isDeleted && !user.hrVerificationRequired && user.hrEmployeeActive !== false);
+  if (!user || !Object.values(ROLES).includes(user.vaiTro) || user.vaiTro === ROLES.KHACH || user.trangThai !== 'Đang hoạt động' || user.isDeleted) return false;
+  try {
+    require('./accountWorkAssignment').normalizeWorkAssignment(user);
+    return true;
+  } catch { return false; }
 }
 
 /** Quyen tu dong theo tai khoan (dynamic): khong phai thu de cap cho nguoi khac, nen khong tinh vao luat chong nang quyen. */

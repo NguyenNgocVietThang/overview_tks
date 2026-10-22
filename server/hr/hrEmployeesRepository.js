@@ -42,6 +42,7 @@ function rowToEmployee(row) {
     gioiTinh: normalizeGender(row.gioi_tinh),
     hoSoDayDu: !!row.ho_so_day_du,
     vanTayDaDangKy: !!row.van_tay_da_dang_ky,
+    insuranceNumber: row.insurance_number || '',
     ngayNghiViec: dateOnly(row.ngay_nghi_viec),
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : ''
   };
@@ -113,12 +114,31 @@ async function updateExtendedById(id, row) {
     chuc_vu=$1, ngay_vao_lam=$2, ngay_sinh=$3, so_cccd=$4, dia_chi_hien_tai=$5,
     nguoi_than_quan_he=$6, nguoi_than_ho_ten=$7, nguoi_than_so_dien_thoai=$8,
     gioi_tinh=$9, ho_so_day_du=$10, van_tay_da_dang_ky=$11, ngay_nghi_viec=$12,
-    updated_at=now() WHERE id=$13 AND is_active RETURNING *`;
+    insurance_number=$13, updated_at=now() WHERE id=$14 AND is_active RETURNING *`;
   const { rows } = await getPool().query(sql, [row.chucVu || '', row.ngayVaoLam, row.ngaySinh,
     row.soCccd || '', row.diaChiHienTai || '', row.nguoiThanQuanHe || '', row.nguoiThanHoTen || '',
     row.nguoiThanSoDienThoai || '', row.gioiTinh || '', !!row.hoSoDayDu, !!row.vanTayDaDangKy,
-    row.ngayNghiViec, id]);
+    row.ngayNghiViec, row.insuranceNumber || '', id]);
   return rows[0] ? rowToEmployee(rows[0]) : null;
+}
+
+async function updateInsuranceNumbers(rows) {
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const row of rows) {
+      const result = await client.query(
+        'UPDATE hr_employees SET insurance_number=$1, updated_at=now() WHERE id=$2 AND is_active RETURNING id',
+        [row.insuranceNumber, row.id]
+      );
+      if (result.rowCount !== 1) throw new Error(`Nhân sự ID ${row.id} không còn tồn tại.`);
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally { client.release(); }
 }
 
 module.exports = {
@@ -130,5 +150,6 @@ module.exports = {
   updateDepartmentById,
   updateEmployeeById,
   deactivateById,
-  updateExtendedById
+  updateExtendedById,
+  updateInsuranceNumbers
 };

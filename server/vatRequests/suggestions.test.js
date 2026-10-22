@@ -29,8 +29,8 @@ test('gia goi y lay yeu cau VAT gan nhat cung ma, bo gia trong va dong da xoa', 
   try {
     await db.exec(fs.readFileSync(path.join(__dirname, '../db/migrations/0076_vat_requests.sql'), 'utf8'));
     await db.exec(`INSERT INTO vat_requests (customer_name, product_code, quantity, unit_price_excl_vat, is_legacy, created_at)
-      VALUES ('Khách cũ', '014XOAN', 1, 11000, true, '2026-10-18'),
-             ('Khách mới', '014XOAN', 1, 12500, true, '2026-10-20'),
+      VALUES ('Khách cũ', '014XOAN', 1, 11000, true, '2026-10-18 00:00+07'),
+             ('Khách mới', '014XOAN', 1, 12500, true, '2026-10-20 00:00+07'),
              ('Dòng thiếu giá', '014XOAN', 1, NULL, true, '2026-10-21'),
              ('Đã xóa', '014XOAN', 1, 99000, true, '2026-10-22'),
              ('Mã khác', '26DAQUAN', 1, 5000, true, '2026-10-23')`);

@@ -38,6 +38,8 @@ const { createHrEmployeeAdminService, STATUS_LABELS } = require('./hrEmployeeAdm
 const { parseEmployeeWorkbook } = require('./hrEmployeeWorkbookImport');
 const { departmentsFor } = require('./hrDepartmentCatalog');
 const { importRows: importEmployeeRows } = require('./hrEmployeeWorkbookImportService');
+const { parseInsuranceWorkbook, previewInsuranceImport } = require('./hrEmployeeInsuranceImport');
+const hrEmployeesRepository = require('./hrEmployeesRepository');
 
 const employeeWorkbookUpload = multer({
   storage: multer.memoryStorage(),
@@ -312,8 +314,9 @@ router.post('/api/hr/leave-requests', ...authAbsence, async (req, res) => {
     }
 
     const calendar=normalizeCalendar(req.body);
-    const employee=await schedules.resolveEmployee({employeeId:req.body.hr_employee_id,username:web_username});
-    if(!employee) throw new defaultRepo.HrError('Không tìm thấy nhân sự đang hoạt động đã liên kết.',400,'LEAVE_EMPLOYEE_REQUIRED');
+    // Định danh là tài khoản (app_users): user_id, hoặc web_username; hr_employee_id cũ chỉ dùng khi trỏ đúng một tài khoản.
+    const employee=await schedules.resolveAccount({userId:req.body.user_id,username:web_username,employeeId:req.body.hr_employee_id});
+    if(!employee) throw new defaultRepo.HrError('Không tìm thấy tài khoản nhân sự đang hoạt động có cơ sở công tác.',400,'LEAVE_EMPLOYEE_REQUIRED');
 
     // Dang xem "Cả hai" thi khong co co so nao "dang chon" de gan cho don —
     // lay co so tu ho so nhan su, khong suy ra duoc thi bao loi (4xx) thay vi
@@ -326,7 +329,7 @@ router.post('/api/hr/leave-requests', ...authAbsence, async (req, res) => {
     const record = await repo.createLeaveRequest({
       web_username:employee.username || '',
       user_id:employee.user_id,
-      hr_employee_id:employee.id,
+      hr_employee_id:null,
       bo_phan:employee.bo_phan,
       ho_ten:employee.ho_ten,
       chuc_vu,
@@ -433,7 +436,7 @@ function publicEmployee(employee, canManage) {
     diaChiHienTai: employee.diaChiHienTai || '', nguoiThanQuanHe: employee.nguoiThanQuanHe || '',
     nguoiThanHoTen: employee.nguoiThanHoTen || '', nguoiThanSoDienThoai: employee.nguoiThanSoDienThoai || '',
     gioiTinh: employee.gioiTinh || '', hoSoDayDu: !!employee.hoSoDayDu,
-    vanTayDaDangKy: !!employee.vanTayDaDangKy, ngayNghiViec: employee.ngayNghiViec || null
+    vanTayDaDangKy: !!employee.vanTayDaDangKy, insuranceNumber: employee.insuranceNumber || '', ngayNghiViec: employee.ngayNghiViec || null
   });
   return out;
 }
@@ -492,15 +495,45 @@ router.post('/api/hr/employees/import', ...authEmployeesManage, receiveEmployeeW
   }
 });
 
-async function scheduleEmployee(req) {
-  const employee=await schedules.getEmployee(req.params.employeeId);
-  if(!employee) throw new defaultRepo.HrError('Không tìm thấy nhân sự đang hoạt động.',404,'HR_EMPLOYEE_NOT_FOUND');
-  await authorization.authorizeEmployee(req.user,employee);
-  return employee;
+router.post('/api/hr/employees/insurance-import', ...authEmployeesManage, receiveEmployeeWorkbook, async (req, res) => {
+  try {
+    if (!req.file || !req.file.buffer) return res.status(400).json({ error: 'Vui lòng chọn file Excel.', code: 'HR_EMPLOYEE_FILE_REQUIRED' });
+    const rows = await parseInsuranceWorkbook(req.file.buffer);
+    const snapshot = await employeeDirectory.getSnapshot({ forceRefresh: true });
+    const preview = previewInsuranceImport(rows, snapshot.employees, allowedBranches(req.user));
+    if (!rows.length || !preview.valid) return res.status(400).json({ error: 'File không có số bảo hiểm hợp lệ.', ...preview, updates: undefined });
+    if (req.query.commit === '1') {
+      if (preview.errors.length) return res.status(400).json({ error: 'Hãy sửa các dòng lỗi trước khi nhập.', ...preview, updates: undefined });
+      await hrEmployeesRepository.updateInsuranceNumbers(preview.updates);
+      employeeDirectory.clearCache();
+    }
+    return res.status(200).json({ total: preview.total, valid: preview.valid, errors: preview.errors, imported: req.query.commit === '1' ? preview.valid : 0 });
+  } catch (err) { handleError(res, err, 'POST /api/hr/employees/insurance-import'); }
+});
+
+// Lịch làm việc theo tài khoản (app_users.id). Quyền: đúng cơ sở công tác + bộ phận của tài khoản trong phạm vi duyệt.
+async function scheduleAccount(req) {
+  const account=await schedules.getAccount(req.params.userId);
+  if(!account) throw new defaultRepo.HrError('Không tìm thấy tài khoản đang hoạt động có cơ sở công tác.',404,'HR_ACCOUNT_NOT_FOUND');
+  await authorization.authorizeEmployee(req.user,{branch:account.branch,bo_phan:account.bo_phan});
+  return account;
 }
-router.get('/api/hr/leave-work-schedules/:employeeId',...authManager,async(req,res)=>{
-  try {await scheduleEmployee(req);res.status(200).json({schedule:await schedules.getSchedule(req.params.employeeId,req.query.date)});}
+router.get('/api/hr/leave-work-schedules/:userId',...authManager,async(req,res)=>{
+  try {const account=await scheduleAccount(req);res.status(200).json({schedule:await schedules.getScheduleForUser(account.user_id,req.query.date)});}
   catch(err){handleError(res,err,'GET work schedule');}
+});
+router.put('/api/hr/leave-work-schedules/:userId',...authManager,async(req,res)=>{
+  try {const account=await scheduleAccount(req);const body=req.body||{};res.status(200).json({schedule:await schedules.setScheduleForUser(account.user_id,{date:body.date,morningStart:body.morningStart ?? null,afternoonStart:body.afternoonStart ?? null})});}
+  catch(err){handleError(res,err,'PUT work schedule');}
+});
+// Danh sách tài khoản để chọn khi ghi nhận nghỉ/cấu hình lịch, lọc theo cơ sở được phép.
+router.get('/api/hr/leave-accounts',...authAbsence,async(req,res)=>{
+  try {
+    const {branchCodeToLabel}=require('../branch/branches');
+    const allowed=allowedBranches(req.user);
+    const accounts=(await schedules.listAccounts()).filter(a=>allowed.includes(branchCodeToLabel(a.branch)));
+    res.status(200).json({accounts:accounts.map(a=>({id:a.user_id,username:a.username,hoTen:a.ho_ten,boPhan:a.bo_phan,coSo:branchCodeToLabel(a.branch)}))});
+  } catch(err){handleError(res,err,'GET leave accounts');}
 });
 
 // ---------------------------------------------------------------------------

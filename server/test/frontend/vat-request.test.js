@@ -64,9 +64,11 @@ async function setup(t, { vaiTro, id = 'sale-1', responses, featurePermissions =
     const body = options.body ? JSON.parse(options.body) : undefined;
     calls.push({ key, query: Object.fromEntries(parsed.searchParams), body });
     const handler = responses[key];
-    const result = typeof handler === 'function' ? handler(body) : { status: 200, data: handler };
+    const result = await (typeof handler === 'function' ? handler(body) : { status: 200, data: handler });
     const headers = result.headers || {};
-    return { ok: result.status < 400, status: result.status, json: async () => result.data,
+    // Ban sao moi lan nhu fetch that: trang sua lac quan tren dong khong duoc lam doi "du lieu may chu".
+    const data = result.data === undefined || typeof result.data === 'string' ? result.data : JSON.parse(JSON.stringify(result.data));
+    return { ok: result.status < 400, status: result.status, json: async () => data,
       blob: async () => new window.Blob([result.data || '']), headers: { get: name => headers[name.toLowerCase()] ?? null } };
   };
   window.eval(batchCode);
@@ -331,17 +333,17 @@ test('Ke toan chua duoc cap quyen: chi xem, khong co sua nhanh / chon lo / gom t
   assert.equal(doc.querySelector('[data-inline]'), null);
   assert.equal(doc.getElementById('vrGroupToggle').hidden, true);
   assert.equal(doc.getElementById('vrExport').hidden, true, 'chua co quyen xu ly -> khong xuat Excel');
-  assert.equal(doc.getElementById('vrBulk').hidden, true);
+  assert.equal(doc.getElementById('vrBulk'), null, 'khong con thanh hang loat');
   assert.ok(doc.getElementById('vrCreate'));
 });
 
-test('KT: mac dinh loc Can xu ly, doi trang thai tren dong gui version; 409 hien canh bao va thay dong moi nhat', async t => {
+test('KT: mac dinh loc Can xu ly; sua o hien ngay roi luu nen kem version; 409 nap lai ban that va canh bao', async t => {
   let conflict = false;
   const responses = {
     'GET /': listResponse([row(1, { canProcess: true, isMine: false }), row(2, { canProcess: true, isMine: false })]),
-    'PATCH /1': body => conflict
-      ? { status: 409, data: { error: 'Yêu cầu vừa được người khác cập nhật.', code: 'VERSION_CONFLICT', latest: row(1, { status: '3', statusLabel: '3. Chờ khai chèn', version: 5, canProcess: true }) } }
-      : { status: 200, data: row(1, { ...body, version: 2, canProcess: true }) }
+    'PATCH /bulk': body => conflict
+      ? { status: 409, data: { error: '1 yêu cầu vừa được người khác cập nhật. Hãy tải lại rồi thử lại.', code: 'VERSION_CONFLICT', conflictIds: [1] } }
+      : bulkEcho(body)
   };
   const { window, doc, calls } = await setup(t, { vaiTro: 'Kế toán', id: 'kt-1', responses, featurePermissions: PROCESS_GRANTED });
   assert.equal(calls[0].query.status, 'pending,3,4');
@@ -357,40 +359,51 @@ test('KT: mac dinh loc Can xu ly, doi trang thai tren dong gui version; 409 hien
   const note = editCell(window, doc, 1, 'accountantNote');
   note.value = 'CONT 10-6V';
   note.dispatchEvent(new window.Event('change', { bubbles: true }));
-  await tick();
-  const patch = calls.find(c => c.key === 'PATCH /1');
-  assert.deepEqual(patch.body, { version: 1, accountantNote: 'CONT 10-6V' });
-  assert.equal(gridCell(doc, 1, 'accountantNote').textContent, 'CONT 10-6V', 'luu xong dong o sua');
+  assert.equal(gridCell(doc, 1, 'accountantNote').textContent, 'CONT 10-6V', 'hien ngay, khong cho may chu');
+  await tick(); await tick();
+  assert.deepEqual(calls.find(c => c.key === 'PATCH /bulk').body, { items: [{ id: 1, version: 1, changes: { accountantNote: 'CONT 10-6V' } }] });
 
   conflict = true;
   const select = editCell(window, doc, 1, 'status');
   select.value = '1';
   select.dispatchEvent(new window.Event('change', { bubbles: true }));
-  await tick();
+  assert.equal(gridCell(doc, 1, 'status').querySelector('.vr-badge').dataset.status, '1', 'hien ngay');
+  await tick(); await tick(); await tick();
+  assert.deepEqual(calls.filter(c => c.key === 'PATCH /bulk').pop().body.items, [{ id: 1, version: 2, changes: { status: '1' } }], 'version moi tu lan luu truoc');
   assert.equal(doc.getElementById('vrStatus').dataset.kind, 'warn');
-  assert.equal(gridCell(doc, 1, 'status').querySelector('.vr-badge').dataset.status, '3', '409 -> hien ban moi nhat');
+  assert.equal(gridCell(doc, 1, 'status').querySelector('.vr-badge').dataset.status, 'pending', '409 -> nap lai ban that tu may chu');
 });
 
-test('KT chon nhieu dong roi doi trang thai + ghi ten cont hang loat', async t => {
+test('sua lien tiep truoc khi may chu tra loi: hien ngay ca hai, luu tuan tu dung version (khong 409)', async t => {
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  let first = true;
   const responses = {
-    'GET /': listResponse([row(1, { canProcess: true }), row(2, { canProcess: true, version: 4 })]),
-    'PATCH /bulk': () => ({ status: 200, data: { updated: 2 } })
+    'GET /': listResponse([row(1, { canProcess: true }), row(2, { canProcess: true })]),
+    'PATCH /bulk': async body => { if (first) { first = false; await gate; } return bulkEcho(body); }
   };
   const { window, doc, calls } = await setup(t, { vaiTro: 'Kế toán', id: 'kt-1', responses, featurePermissions: PROCESS_GRANTED });
-  assert.equal(doc.getElementById('vrBulk').hidden, true);
-  for (const id of [1, 2]) {
-    const box = doc.querySelector(`[data-select="${id}"]`);
-    box.checked = true;
-    box.dispatchEvent(new window.Event('change', { bubbles: true }));
-  }
-  assert.equal(doc.getElementById('vrBulk').hidden, false);
-  assert.match(doc.getElementById('vrBulkCount').textContent, /2 dòng/);
-  doc.getElementById('vrBulkStatus').value = '2';
-  doc.getElementById('vrBulkNote').value = 'CONT 10-7G';
-  doc.getElementById('vrBulkApply').click();
+  const edit = (value) => { const input = editCell(window, doc, 1, 'accountantNote'); input.value = value; input.dispatchEvent(new window.Event('change', { bubbles: true })); };
+  edit('A');
+  edit('B');
+  assert.equal(gridCell(doc, 1, 'accountantNote').textContent, 'B', 'hien ngay gia tri moi nhat');
   await tick();
-  const bulk = calls.find(c => c.key === 'PATCH /bulk');
-  assert.deepEqual(bulk.body, { items: [{ id: 1, version: 1 }, { id: 2, version: 4 }], changes: { status: '2', accountantNote: 'CONT 10-7G' } });
+  assert.equal(calls.filter(c => c.key === 'PATCH /bulk').length, 1, 'lan 2 cho lan 1 xong');
+  release();
+  await tick(); await tick(); await tick(); await tick();
+  const bulks = calls.filter(c => c.key === 'PATCH /bulk').map(c => c.body.items[0]);
+  assert.deepEqual(bulks, [{ id: 1, version: 1, changes: { accountantNote: 'A' } }, { id: 1, version: 2, changes: { accountantNote: 'B' } }]);
+  assert.equal(gridCell(doc, 1, 'accountantNote').textContent, 'B', 'tra loi lan 1 khong ghi de gia tri moi hon');
+});
+
+test('tick chon dong khong con hien thanh hang loat (da bo); o tick van dung de chon dong', async t => {
+  const { window, doc } = await setup(t, { vaiTro: 'Kế toán', id: 'kt-1', responses: { 'GET /': listResponse([row(1, { canProcess: true }), row(2, { canProcess: true })]) }, featurePermissions: PROCESS_GRANTED });
+  const box = doc.querySelector('[data-select="1"]');
+  box.checked = true;
+  box.dispatchEvent(new window.Event('change', { bubbles: true }));
+  assert.equal(doc.getElementById('vrBulk'), null);
+  assert.equal(doc.getElementById('vrBulkApply'), null);
+  assert.ok(doc.querySelector('tr[data-id="1"]').classList.contains('is-picked'));
 });
 
 test('gom theo ma SP: dong tieu de nhom hien ton VAT / can khai / dang ve', async t => {
@@ -657,13 +670,17 @@ test('kieu Sheet — KT keo cham o KT note xuong 2 dong: 1 lan PATCH /bulk dung 
   assert.deepEqual(bulk[0].body.items, [{ id: 2, version: 4, changes: { accountantNote: 'CONT 10-6V' } }, { id: 3, version: 2, changes: { accountantNote: 'CONT 10-6V' } }]);
   assert.equal(gridCell(doc, 3, 'accountantNote').textContent, 'CONT 10-6V');
   assert.ok(gridCell(doc, 3, 'accountantNote').classList.contains('vr-cell-sel'), 'vung chon noi ra ca phan vua dien');
-  assert.match(doc.getElementById('vrStatus').textContent, /Đã cập nhật 2 yêu cầu/);
-  doc.getElementById('vrUndo').click();
+  assert.match(doc.getElementById('vrStatus').textContent, /Đã sửa 2 yêu cầu/);
+  const toast = doc.getElementById('vrToast');
+  assert.equal(toast.hidden, false, 'thong bao noi goc duoi');
+  assert.match(toast.textContent, /Đã sửa 2 yêu cầu/);
+  toast.querySelector('[data-toast="undo"]').click();
   await tick(); await tick();
   const undo = calls.filter(c => c.key === 'PATCH /bulk')[1];
   assert.deepEqual(undo.body.items, [{ id: 2, version: 5, changes: { accountantNote: '' } }, { id: 3, version: 3, changes: { accountantNote: 'cũ' } }]);
-  assert.match(doc.getElementById('vrStatus').textContent, /Đã hoàn tác 2 yêu cầu/);
-  assert.equal(doc.getElementById('vrUndo'), null);
+  assert.match(doc.getElementById('vrStatus').textContent, /Đã hoàn tác: sửa 2 yêu cầu/);
+  assert.equal(toast.querySelector('[data-toast="undo"]').hidden, true, 'het buoc hoan tac');
+  assert.equal(toast.querySelector('[data-toast="redo"]').hidden, false, 'co lam lai');
 });
 
 test('kieu Sheet — KT dan cot trang thai tu Sheet (gia tri sai bo qua); dan 1 ngay vao vung 3 o dien ca 3', async t => {
@@ -679,8 +696,9 @@ test('kieu Sheet — KT dan cot trang thai tu Sheet (gia tri sai bo qua); dan 1 
   assert.equal(pasted.event.defaultPrevented, true);
   await tick(); await tick(); await tick();
   assert.deepEqual(calls.find(c => c.key === 'PATCH /bulk').body.items, [{ id: 1, version: 1, changes: { status: '2' } }, { id: 2, version: 1, changes: { status: '3' } }]);
-  assert.match(doc.getElementById('vrStatus').textContent, /Đã cập nhật 2 yêu cầu\. Bỏ qua 1 ô/);
-  assert.equal(lists, 2, 'doi trang thai -> nap lai so lieu can khai');
+  assert.match(doc.getElementById('vrStatus').textContent, /Đã sửa 2 yêu cầu\. Bỏ qua 1 ô/);
+  assert.equal(lists, 1, 'doi trang thai khong nap lai ca bang');
+  assert.deepEqual(calls.find(c => c.key === 'POST /lookup').body, { codes: ['014XOAN'] }, 'chi hoi lai so lieu ma lien quan');
 
   dragSelect(window, doc, [1, 'arrivalDate'], [3, 'arrivalDate']);
   clipboard(window, doc, 'paste', '28/10/2026');
@@ -834,8 +852,6 @@ test('keo nhieu dong — bam tay nam chon dong (tick o Chon), Shift chon doan, C
   assert.deepEqual(picked(), [2, 4], 'Ctrl bo 1 dong');
   click(6, { ctrlKey: true });
   assert.deepEqual(picked(), [2, 4, 6], 'Ctrl them dong roi');
-  assert.equal(doc.getElementById('vrBulk').hidden, false, 'thanh hang loat dung duoc ngay');
-  assert.match(doc.getElementById('vrBulkCount').textContent, /3 dòng/);
 
   // Keo tay nam dong 4 (dang chon) len tren dong 1 -> ca nhom 2, 4, 6 gom thanh khoi o dau
   mouse(window, grip(doc, 4), 'mousedown');
@@ -868,3 +884,108 @@ test('keo nhieu dong — bam tay nam chon dong (tick o Chon), Shift chon doan, C
   assert.deepEqual(picked(), [4]);
   assert.deepEqual(ticked(), [4]);
 });
+
+// ---- Giu dong vua sua, chip chon nhieu, Ctrl+Z / Ctrl+Y ----
+const keyDown = (window, doc, key, extra = {}) => doc.dispatchEvent(new window.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...extra }));
+
+test('chip trang thai chon nhieu; Can xu ly / Tat ca chi chon mot minh; tat het ve Tat ca', async t => {
+  const { doc, calls } = await setup(t, { vaiTro: 'Kế toán', id: 'kt-1', responses: { 'GET /': listResponse([]) }, featurePermissions: PROCESS_GRANTED });
+  const pressed = () => [...doc.querySelectorAll('#vrStatusChips .vr-chip')].filter(c => c.getAttribute('aria-pressed') === 'true').map(c => c.dataset.preset);
+  const chip = key => doc.querySelector(`#vrStatusChips [data-preset="${key}"]`);
+  const lastStatus = () => calls.filter(c => c.key === 'GET /').pop().query.status;
+  assert.deepEqual(pressed(), ['todo']);
+  chip('1').click();
+  assert.deepEqual(pressed(), ['1'], 'bam trang thai khi dang Can xu ly -> chi con trang thai do');
+  assert.equal(lastStatus(), '1');
+  chip('2').click();
+  assert.deepEqual(pressed(), ['1', '2']);
+  assert.equal(lastStatus(), '1,2');
+  chip('1').click();
+  assert.deepEqual(pressed(), ['2'], 'bam lai thi tat');
+  chip('2').click();
+  assert.deepEqual(pressed(), ['all'], 'tat het -> Tat ca');
+  assert.equal(lastStatus(), undefined);
+  chip('3').click(); chip('4').click();
+  chip('todo').click();
+  assert.deepEqual(pressed(), ['todo'], 'Can xu ly chi chon mot minh');
+  assert.equal(lastStatus(), 'pending,3,4');  await tick(); await tick();
+});
+
+test('doi trang thai: dong o lai bang (gui keep) cho toi khi doi bo loc / bam tai lai; Excel khong gui keep', async t => {
+  const responses = {
+    'GET /': () => ({ status: 200, data: listResponse([row(1, { canProcess: true }), row(2, { canProcess: true })]) }),
+    'PATCH /1': body => ({ status: 200, data: row(1, { ...body, version: 2, canProcess: true, statusLabel: '1. Đã xong' }) }),
+    'GET /export': () => ({ status: 200, data: 'xlsx', headers: { 'content-disposition': 'attachment; filename="x.xlsx"' } })
+  };
+  const { window, doc, calls } = await setup(t, { vaiTro: 'Kế toán', id: 'kt-1', responses, featurePermissions: PROCESS_GRANTED });
+  const select = editCell(window, doc, 1, 'status');
+  select.value = '1';
+  select.dispatchEvent(new window.Event('change', { bubbles: true }));
+  await tick(); await tick();
+  const lists = () => calls.filter(c => c.key === 'GET /');
+  assert.equal(lists().pop().query.keep, '1', 'nap lai so lieu van giu dong vua sua');
+  doc.getElementById('vrExport').click();
+  await tick();
+  assert.equal(calls.find(c => c.key === 'GET /export').query.keep, undefined);
+  doc.getElementById('vrReload').click();
+  await tick();
+  assert.equal(lists().pop().query.keep, undefined, 'bam tai lai bo dong giu lai');
+
+  const again = editCell(window, doc, 1, 'status');
+  again.value = '1'; // giong cu -> khong luu; doi sang gia tri khac
+  again.value = '2';
+  again.dispatchEvent(new window.Event('change', { bubbles: true }));
+  await tick(); await tick();
+  assert.equal(lists().pop().query.keep, '1');
+  doc.querySelector('#vrStatusChips [data-preset="all"]').click();
+  await tick();
+  assert.equal(lists().pop().query.keep, undefined, 'doi chip bo dong giu lai');
+});
+
+test('Ctrl+Z hoan tac sua 1 o va keo dong nhieu buoc, Ctrl+Y lam lai; dang go trong o thi khong bat', async t => {
+  let version = 1;
+  const responses = {
+    'GET /': () => ({ status: 200, data: listResponse([row(1, { canProcess: true, version, accountantNote: version > 1 ? 'MOI' : 'CU' }), row(2, { canProcess: true })]) }),
+    'PATCH /bulk': body => { if (body.items[0].id === 1) version = body.items[0].version + 1; return bulkEcho(body); },
+    'PATCH /position': () => ({ status: 200, data: { ok: true, before: { 2: '100' }, after: { 2: '300' } } }),
+    'PATCH /position/ranks': () => ({ status: 200, data: { ok: true, updated: 1 } })
+  };
+  const { window, doc, calls } = await setup(t, { vaiTro: 'Kế toán', id: 'kt-1', responses, featurePermissions: PROCESS_GRANTED });
+  const note = editCell(window, doc, 1, 'accountantNote');
+  note.value = 'MOI';
+  note.dispatchEvent(new window.Event('change', { bubbles: true }));
+  await tick(); await tick();
+  dragRow(window, doc, 2, 1, 0);
+  await tick(); await tick();
+
+  keyDown(window, doc, 'z', { ctrlKey: true });
+  await tick(); await tick(); await tick();
+  assert.deepEqual(calls.filter(c => c.key === 'PATCH /position/ranks').pop().body, { ranks: { 2: '100' } }, 'buoc 1: hoan tac keo dong');
+  keyDown(window, doc, 'z', { ctrlKey: true });
+  await tick(); await tick(); await tick();
+  assert.deepEqual(calls.filter(c => c.key === 'PATCH /bulk').pop().body, { items: [{ id: 1, version: 2, changes: { accountantNote: 'CU' } }] }, 'buoc 2: hoan tac sua o');
+  assert.match(doc.getElementById('vrToast').textContent, /Đã hoàn tác: sửa yêu cầu #1/);
+  keyDown(window, doc, 'z', { ctrlKey: true });
+  await tick();
+  assert.match(doc.getElementById('vrToast').textContent, /Không còn thao tác để hoàn tác/);
+
+  keyDown(window, doc, 'y', { ctrlKey: true });
+  await tick(); await tick(); await tick();
+  assert.deepEqual(calls.filter(c => c.key === 'PATCH /bulk').pop().body.items[0].changes, { accountantNote: 'MOI' }, 'Ctrl+Y lam lai');
+
+  const before = calls.length;
+  const input = editCell(window, doc, 2, 'accountantNote');
+  input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true, cancelable: true }));
+  await tick();
+  assert.equal(calls.length, before, 'dang go trong o thi Ctrl+Z la cua o nhap');
+});
+
+test('Ctrl+Z khong lam gi voi sale', async t => {
+  const { window, doc, calls } = await setup(t, { vaiTro: 'Nhân viên sale', responses: { 'GET /': saleListResponse([row(1)]) } });
+  const before = calls.length;
+  keyDown(window, doc, 'z', { ctrlKey: true });
+  await tick();
+  assert.equal(calls.length, before);
+  assert.equal(doc.getElementById('vrToast'), null);
+});
+

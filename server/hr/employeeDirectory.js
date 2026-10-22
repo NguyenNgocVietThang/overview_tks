@@ -175,6 +175,7 @@ function mapEmployeeRow(row) {
     gioiTinh: row.gioiTinh || '',
     hoSoDayDu: !!row.hoSoDayDu,
     vanTayDaDangKy: !!row.vanTayDaDangKy,
+    insuranceNumber: row.insuranceNumber || '',
     ngayNghiViec: row.ngayNghiViec || null,
     sheetVaiTro: roleForDepartment(row.boPhan),
     sheetCoSo: BRANCH_BOTH

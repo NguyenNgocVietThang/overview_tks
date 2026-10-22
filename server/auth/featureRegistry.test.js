@@ -286,9 +286,9 @@ test('moi tinh nang co nhan tieng Viet va thuoc mot nhom da khai bao', () => {
   assert.equal(new Set(registry.FEATURE_KEYS).size, registry.FEATURE_KEYS.length, 'khong duoc trung key');
 });
 
-test('absence permission defaults to managers and self submission follows active linked HR identity', () => {
+test('absence permission defaults to managers and self submission follows account workplace', () => {
   assert.ok(registry.defaultsForRole(ROLES.QUAN_LY).includes('hr.leave.absence.manage'));
-  const linked = { vaiTro: ROLES.NHAN_VIEN_SALE, hrManaged: false, trangThai: 'Đang hoạt động' };
+  const linked = { vaiTro: ROLES.NHAN_VIEN_SALE, workCoSo: 'Hà Nội', boPhan: 'Kế toán', hrManaged: false, trangThai: 'Đang hoạt động' };
   assert.ok(registry.resolvePermissions(linked).includes('hr.leave.submit'), 'moi vai tro noi bo da gan nhan su deu xin nghi duoc');
   for (const role of registry.INTERNAL_ROLES || [ROLES.QUAN_LY, ROLES.KE_TOAN, ROLES.NHAN_VIEN_KHO, ROLES.NHAN_VIEN_MARKETING, ROLES.NHAN_VIEN_MUA_HANG, ROLES.TRO_LY, ROLES.TRUONG_KHO, ROLES.LAI_XE]) assert.ok(registry.resolvePermissions({ ...linked, vaiTro: role }).includes('hr.leave.submit'), role);
   assert.ok(!registry.resolvePermissions({ ...linked, vaiTro: ROLES.KHACH }).includes('hr.leave.submit'), 'Khach khong duoc xin nghi');
@@ -298,8 +298,12 @@ test('absence permission defaults to managers and self submission follows active
 
 
 
-test('active account with inactive linked HR profile cannot get self submission capability', () => {
-  assert.ok(!registry.resolvePermissions({ vaiTro: ROLES.NHAN_VIEN_SALE, hrManaged: true, hrRowIndex: 123, trangThai: 'Đang hoạt động', hrEmployeeActive: false }).includes('hr.leave.submit'));
+test('self submission requires valid account workplace and ignores linked HR data', () => {
+  const user = { vaiTro: ROLES.TRO_LY, workCoSo: 'Hà Nội', boPhan: 'Kế toán', trangThai: 'Đang hoạt động', hrEmployeeActive: false, hrVerificationRequired: true };
+  assert.ok(registry.resolvePermissions(user).includes('hr.leave.submit'));
+  for (const patch of [{ workCoSo: '' }, { workCoSo: 'Cả hai' }, { boPhan: '' }, { boPhan: 'Sale SG' }, { isDeleted: true }, { trangThai: 'Khóa' }]) {
+    assert.ok(!registry.resolvePermissions({ ...user, ...patch, featurePermissions: { 'hr.leave.submit': true } }).includes('hr.leave.submit'));
+  }
 });
 
 test('reports.products.cost da go cung tab Hang hoa cu: khong con trong registry, quyen ghi de cu bi bo qua', () => {

@@ -64,7 +64,7 @@ test('loi nghiep vu tra dung ma; 409 kem ban moi nhat; loi la -> 500 khong lo ch
   };
   await withApp(userFor(ROLES.NHAN_VIEN_SALE), service, async call => {
     assert.equal((await call('/?status=3,4,bad&q=%20abc%20&from=2026-10-01&to=xx')).status, 200);
-    assert.deepEqual(calls.filters, { statuses: ['3', '4'], createdBy: null, productKey: null, q: 'abc', from: '2026-10-01', to: null });
+    assert.deepEqual(calls.filters, { statuses: ['3', '4'], createdBy: null, productKey: null, q: 'abc', from: '2026-10-01', to: null, keep: [] });
     const conflict = await call('/7', { method: 'PATCH', body: { version: 1 } });
     assert.equal(conflict.status, 409);
     assert.deepEqual(conflict.body.latest, { id: 7, version: 3 });
@@ -98,7 +98,7 @@ test('GET /export tra file xlsx theo bo loc; 403 tu service giu nguyen ma', asyn
         assert.match(res.headers.get('content-type'), /spreadsheetml/);
         assert.match(res.headers.get('content-disposition'), /attachment; filename="order_vat_\d{8}_\d{4}\.xlsx"/);
         assert.equal(res.headers.get('x-export-truncated'), '1');
-        assert.deepEqual(filters, { statuses: ['3'], createdBy: null, productKey: null, q: 'abc', from: null, to: null });
+        assert.deepEqual(filters, { statuses: ['3'], createdBy: null, productKey: null, q: 'abc', from: null, to: null, keep: [] });
       } else {
         assert.equal((await res.json()).code, 'FEATURE_FORBIDDEN');
       }
@@ -106,8 +106,13 @@ test('GET /export tra file xlsx theo bo loc; 403 tu service giu nguyen ma', asyn
   }
 });
 
+test('readFilters doc keep: so nguyen duong, bo trung, toi da 500', () => {
+  assert.deepEqual(readFilters({ keep: '5, 3,abc,0,-2,5,1.5' }).keep, [5, 3]);
+  assert.equal(readFilters({ keep: Array.from({ length: 600 }, (_, i) => i + 1).join(',') }).keep.length, 500);
+});
+
 test('readFilters bo gia tri la', () => {
-  assert.deepEqual(readFilters({ product: ' 014XOAN ', createdBy: 'u2' }), { statuses: [], createdBy: 'u2', productKey: '014xoan', q: null, from: null, to: null });
+  assert.deepEqual(readFilters({ product: ' 014XOAN ', createdBy: 'u2' }), { statuses: [], createdBy: 'u2', productKey: '014xoan', q: null, from: null, to: null, keep: [] });
 });
 
 test('PATCH /position goi service.move voi ca body (dat truoc /:id nen khong bi nuot)', async () => {

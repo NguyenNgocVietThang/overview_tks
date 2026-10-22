@@ -28,16 +28,23 @@ async function withTransaction(pool, work) {
   }
 }
 
-/** filters: { statuses[], createdBy, productKey, q, from, to } (from/to la ngay VN 'YYYY-MM-DD'). */
+/**
+ * filters: { statuses[], createdBy, productKey, q, from, to, keep[] } (from/to la ngay VN 'YYYY-MM-DD').
+ * keep: id dong KT vua sua tren man hinh — van tra ve du khong con khop bo loc (giu dong o lai bang
+ * cho toi khi KT doi bo loc), dung dung vi tri thu tu.
+ */
 async function listRequests(db, filters = {}) {
-  const where = ['NOT r.is_deleted'];
   const params = [];
   const add = value => { params.push(value); return `$${params.length}`; };
-  if (filters.statuses && filters.statuses.length) where.push(`r.status = ANY(${add(filters.statuses)}::text[])`);
-  if (filters.createdBy) where.push(`r.created_by = ${add(filters.createdBy)}`);
-  if (filters.productKey) where.push(`r.product_key = ${add(filters.productKey)}`);
-  if (filters.from) where.push(`r.created_at >= (${add(filters.from)}::date::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh')`);
-  if (filters.to) where.push(`r.created_at < ((${add(filters.to)}::date + 1)::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh')`);
+  const match = [];
+  if (filters.statuses && filters.statuses.length) match.push(`r.status = ANY(${add(filters.statuses)}::text[])`);
+  if (filters.createdBy) match.push(`r.created_by = ${add(filters.createdBy)}`);
+  if (filters.productKey) match.push(`r.product_key = ${add(filters.productKey)}`);
+  if (filters.from) match.push(`r.created_at >= (${add(filters.from)}::date::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh')`);
+  if (filters.to) match.push(`r.created_at < ((${add(filters.to)}::date + 1)::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh')`);
+  const where = ['NOT r.is_deleted'];
+  if (match.length && filters.keep && filters.keep.length) where.push(`((${match.join(' AND ')}) OR r.id = ANY(${add(filters.keep)}::bigint[]))`);
+  else where.push(...match);
   // Thu tu uu tien chung do KT keo dong (sort_rank, migration 0079); chua ap migration -> theo thoi gian tao.
   const query = order => db.query(
     `SELECT ${SELECT_COLUMNS} ${FROM_REQUESTS} WHERE ${where.join(' AND ')}
@@ -87,7 +94,8 @@ function exactFraction(k, m) {
  * ca nhom nam ngay TREN dong do, khong co thi `aboveId` -> ngay DUOI dong do. Nhom chia deu khe (low, high)
  * giua dong ke va dong ke tiep that su trong DB (bo qua cac dong trong nhom): hang = low + (high - low) * k / 2^m
  * voi 2^m > so dong, k giam dan tu tren xuong. Het dong ke thi khe la +/- 1.
- * Tra 'moved' | 'missing' (1 dong trong nhom / dong ke khong con).
+ * Tra null (1 dong trong nhom / dong ke khong con) hoac { before, after }: hang cu / moi theo id (chuoi
+ * NUMERIC chinh xac) de giao dien hoan tac / lam lai bang setRanks.
  */
 async function moveRequests(client, ids, { aboveId = null, belowId = null }) {
   const neighborId = belowId || aboveId;
@@ -95,7 +103,9 @@ async function moveRequests(client, ids, { aboveId = null, belowId = null }) {
     `SELECT id, sort_rank FROM vat_requests WHERE id = ANY($1::bigint[]) AND NOT is_deleted ORDER BY id FOR UPDATE`,
     [[...ids, neighborId]]
   );
-  if (rows.length !== ids.length + 1) return 'missing';
+  if (rows.length !== ids.length + 1) return null;
+  const before = Object.fromEntries(rows.filter(row => Number(row.id) !== neighborId).map(row => [Number(row.id), String(row.sort_rank)]));
+  const after = {};
   const neighbor = rows.find(row => Number(row.id) === neighborId);
   const next = await client.query(
     belowId
@@ -107,14 +117,27 @@ async function moveRequests(client, ids, { aboveId = null, belowId = null }) {
   const [low, high] = belowId ? [neighbor.sort_rank, edge] : [edge, neighbor.sort_rank];
   const bits = ids.length.toString(2).length; // 2^bits > so dong
   for (let i = 0; i < ids.length; i++) {
-    await client.query(
+    const updated = await client.query(
       `UPDATE vat_requests SET sort_rank = COALESCE($2::numeric, $3::numeric - 1)
          + (COALESCE($3::numeric, $2::numeric + 1) - COALESCE($2::numeric, $3::numeric - 1)) * $4::numeric
-       WHERE id = $1`,
+       WHERE id = $1 RETURNING sort_rank`,
       [ids[i], low, high, exactFraction(ids.length - i, bits)]
     );
+    after[ids[i]] = String(updated.rows[0].sort_rank);
   }
-  return 'moved';
+  return { before, after };
+}
+
+/** Dat lai hang chinh xac (hoan tac / lam lai keo dong). ranks: { id: 'numeric' }; tra so dong da dat (bo dong da xoa). */
+async function setRanks(client, ranks) {
+  let count = 0;
+  for (const [id, rank] of Object.entries(ranks)) {
+    const { rowCount } = await client.query(
+      'UPDATE vat_requests SET sort_rank = $2::numeric WHERE id = $1 AND NOT is_deleted', [Number(id), rank]
+    );
+    count += rowCount;
+  }
+  return count;
 }
 
 async function insertRequest(client, values) {
@@ -273,6 +296,7 @@ module.exports = {
   listRequests,
   getRequest,
   moveRequests,
+  setRanks,
   insertRequest,
   updateRequest,
   insertHistory,

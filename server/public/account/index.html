@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="/shared/shared.css?v=20261016">
+<link rel="stylesheet" href="/shared/shared.css?v=20261022-1">
   <link rel="stylesheet" href="/shared/search-clear.css?v=20261009-1">
 <style>
   /* ---------- Account Page Custom Styles ---------- */
@@ -86,6 +86,14 @@
 
   /* Form Elements */
   .form-group{ margin-bottom:16px; }
+  .form-hint{ display:block; margin:6px 0 0; font-size:12px; color:var(--muted); line-height:1.45; }
+  .req-mark{ color:var(--red); margin-left:2px; }
+  .req-mark[hidden]{ display:none; }
+  .dept-checklist{ display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:6px 12px; max-height:180px; overflow:auto; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:var(--surface-hover); }
+  .dept-checklist label{ display:flex; align-items:center; gap:8px; margin:0; font-weight:400; font-size:13px; color:var(--text); cursor:pointer; }
+  .dept-checklist label:has(input:disabled){ color:var(--muted); cursor:not-allowed; }
+  .dept-checklist .form-hint{ grid-column:1 / -1; margin:0; }
+  @media (max-width:600px){ .dept-checklist{ grid-template-columns:1fr; max-height:220px; } }
   .form-group label{
     display:block; margin-bottom:6px; font-size:12.5px; font-weight:600; color:var(--text-secondary);
   }
@@ -723,11 +731,11 @@
       <form id="createUserForm" onsubmit="handleCreateUser(event)">
         <div class="modal-body">
           <div class="form-group">
-            <label for="createUsername">Tên tài khoản (Username) *</label>
+            <label for="createUsername">Tên tài khoản (Username) <span class="req-mark">*</span></label>
             <input type="text" id="createUsername" class="form-control" placeholder="vd: ketoan1" required minlength="3" maxlength="50">
           </div>
           <div class="form-group">
-            <label for="createPassword">Mật khẩu khởi tạo *</label>
+            <label for="createPassword">Mật khẩu khởi tạo <span class="req-mark">*</span></label>
             <div class="password-wrap">
               <input type="password" id="createPassword" class="form-control" placeholder="Tối thiểu 8 ký tự" required minlength="8">
               <button type="button" class="password-toggle-btn" onclick="togglePassword('createPassword', this)" aria-label="Hiện mật khẩu">
@@ -736,7 +744,7 @@
             </div>
           </div>
           <div class="form-group">
-            <label for="createHoTen">Họ và tên *</label>
+            <label for="createHoTen">Họ và tên <span class="req-mark">*</span></label>
             <input type="text" id="createHoTen" class="form-control" placeholder="vd: Nguyễn Văn A" required maxlength="100">
           </div>
           <div class="form-group">
@@ -748,7 +756,12 @@
             <input type="tel" id="createPhone" class="form-control" placeholder="vd: 0912345678">
           </div>
           <div class="form-group">
-            <label for="createVaiTro">Vai trò *</label>
+            <label for="createTelegramId">ID Telegram</label>
+            <input type="text" id="createTelegramId" class="form-control" inputmode="numeric" pattern="[1-9][0-9]{0,19}" maxlength="20" placeholder="Ví dụ: 6205968899" aria-describedby="createTelegramIdHint">
+            <small id="createTelegramIdHint" class="form-hint">Không bắt buộc. ID dạng số để bot Telegram gửi thông báo nghỉ phép.</small>
+          </div>
+          <div class="form-group">
+            <label for="createVaiTro">Vai trò <span class="req-mark">*</span></label>
             <select id="createVaiTro" class="form-control" required>
               <option value="Quản lý">Quản lý</option>
               <option value="Kế toán">Kế toán</option>
@@ -761,17 +774,28 @@
               <option value="Nhân viên mua hàng">Nhân viên mua hàng</option>
               <option value="Khách" selected>Khách</option>
             </select>
+            <small class="form-hint">Chọn trước: vai trò quyết định các ô công tác có bắt buộc không và gợi ý bộ phận.</small>
           </div>
           <div class="form-group">
-            <label for="createCoSo">Cơ sở mặc định</label>
+            <label for="createWorkCoSo">Cơ sở công tác <span class="req-mark" data-req-for="create">*</span></label>
+            <select id="createWorkCoSo" class="form-control"><option value="">-- Chọn cơ sở công tác --</option><option value="Hà Nội">Hà Nội</option><option value="Sài Gòn">Sài Gòn</option></select>
+          </div>
+          <div class="form-group">
+            <label for="createBoPhan">Bộ phận trực thuộc <span class="req-mark" data-req-for="create">*</span></label>
+            <select id="createBoPhan" class="form-control" aria-describedby="createBoPhanHint"><option value="">-- Chọn bộ phận --</option></select>
+            <small id="createBoPhanHint" class="form-hint">Danh sách theo cơ sở công tác đã chọn.</small>
+          </div>
+          <div class="form-group">
+            <label for="createCoSo">Phạm vi phụ trách</label>
             <select id="createCoSo" class="form-control">
               <option value="">-- Mặc định: Cả hai --</option>
               <option value="Hà Nội">Hà Nội</option>
               <option value="Sài Gòn">Sài Gòn</option>
               <option value="Cả hai">Cả hai</option>
             </select>
+            <small class="form-hint">Cơ sở mà tài khoản được xem và xử lý dữ liệu.</small>
           </div>
-          <div class="form-group"><label>Phòng ban được duyệt nghỉ phép</label><div id="createLeaveDepartments" style="display:grid;gap:6px;max-height:180px;overflow:auto;"></div><small style="color:var(--muted)">Quản lý mới phải chọn ít nhất một phòng ban. Quyền duyệt còn cần cơ sở được giao.</small></div>
+          <div class="form-group"><label>Bộ phận được duyệt nghỉ phép</label><div id="createLeaveDepartments" class="dept-checklist"></div><small class="form-hint">Phạm vi duyệt nghỉ, độc lập với bộ phận trực thuộc. Quản lý mới phải chọn ít nhất một bộ phận; quyền duyệt còn cần phạm vi phụ trách phù hợp.</small></div>
           <div id="createUserError" class="alert-box alert-error" style="display:none;"></div>
         </div>
         <div class="modal-footer">
@@ -821,7 +845,7 @@
             <input type="text" id="editUsername" class="form-control" disabled>
           </div>
           <div class="form-group">
-            <label for="editHoTen">Họ và tên *</label>
+            <label for="editHoTen">Họ và tên <span class="req-mark">*</span></label>
             <input type="text" id="editHoTen" class="form-control" required maxlength="100">
           </div>
           <div class="form-group">
@@ -835,10 +859,23 @@
           <div class="form-group">
             <label for="editTelegramId">ID Telegram</label>
             <input type="text" id="editTelegramId" class="form-control" inputmode="numeric" pattern="[1-9][0-9]{0,19}" maxlength="20" placeholder="Ví dụ: 6205968899" aria-describedby="editTelegramIdHint">
-            <p id="editTelegramIdHint" class="profile-card-desc" style="margin:6px 0 0;">Nhập ID Telegram dạng số của nhân viên. Để trống để hủy liên kết.</p>
+            <p id="editTelegramIdHint" class="form-hint">Nhập ID Telegram dạng số của nhân viên. Để trống để hủy liên kết.</p>
           </div>
           <div class="form-group">
-            <label for="editCoSo">Cơ sở mặc định</label>
+            <label for="editVaiTro">Vai trò <span class="req-mark">*</span></label>
+            <select id="editVaiTro" class="form-control" required></select>
+          </div>
+          <div class="form-group">
+            <label for="editWorkCoSo">Cơ sở công tác <span class="req-mark" data-req-for="edit">*</span></label>
+            <select id="editWorkCoSo" class="form-control"><option value="">-- Chọn cơ sở công tác --</option><option value="Hà Nội">Hà Nội</option><option value="Sài Gòn">Sài Gòn</option></select>
+          </div>
+          <div class="form-group">
+            <label for="editBoPhan">Bộ phận trực thuộc <span class="req-mark" data-req-for="edit">*</span></label>
+            <select id="editBoPhan" class="form-control" aria-describedby="editBoPhanHint"><option value="">-- Chọn bộ phận --</option></select>
+            <small id="editBoPhanHint" class="form-hint">Danh sách theo cơ sở công tác đã chọn.</small>
+          </div>
+          <div class="form-group">
+            <label for="editCoSo">Phạm vi phụ trách</label>
             <select id="editCoSo" class="form-control">
               <option value="">-- Mặc định: Cả hai --</option>
               <option value="Hà Nội">Hà Nội</option>
@@ -846,6 +883,7 @@
               <option value="Cả hai">Cả hai</option>
             </select>
           </div>
+          <div class="form-group"><label>Bộ phận được duyệt nghỉ phép</label><div id="editLeaveDepartments" class="dept-checklist"></div><small class="form-hint">Phạm vi duyệt nghỉ, độc lập với bộ phận trực thuộc. Quyền duyệt còn cần phạm vi phụ trách phù hợp.</small></div>
           <div class="form-group">
             <label for="editNewPassword">Mật khẩu mới (để trống nếu không đổi)</label>
             <div class="password-wrap">
@@ -864,7 +902,6 @@
               </button>
             </div>
           </div>
-          <div class="form-group"><label>Phòng ban được duyệt nghỉ phép</label><div id="editLeaveDepartments" style="display:grid;gap:6px;max-height:180px;overflow:auto;"></div><small style="color:var(--muted)">Quản lý mới phải chọn ít nhất một phòng ban. Quyền duyệt còn cần cơ sở được giao.</small></div>
           <div id="editUserError" class="alert-box alert-error" style="display:none;"></div>
         </div>
         <div class="modal-footer">
@@ -914,7 +951,7 @@
           </div>
           <p class="perm-intro" id="permIntro"></p>
           <div id="permGroups"></div>
-          <div class="form-group"><label>Phòng ban được duyệt nghỉ phép</label><div id="permLeaveDepartments" style="display:grid;gap:6px;max-height:180px;overflow:auto;"></div><small style="color:var(--muted)">Quản lý mới phải chọn ít nhất một phòng ban. Quyền duyệt còn cần cơ sở được giao.</small></div>
+          <div class="form-group"><label>Bộ phận được duyệt nghỉ phép</label><div id="permLeaveDepartments" class="dept-checklist"></div><small class="form-hint">Phạm vi duyệt nghỉ, độc lập với bộ phận trực thuộc. Quản lý mới phải chọn ít nhất một bộ phận.</small></div>
           <div id="permissionsError" class="alert-box alert-error" style="display:none;"></div>
         </div>
         <div class="modal-footer">
@@ -1006,7 +1043,7 @@
   <script src="/shared/table-controls.js?v=20261016-1"></script>
   <script src="/shared/fuzzy-search.js?v=20261021"></script>
   <script src="/shared/search-clear.js?v=20261009-1"></script>
-  <script src="/shared/shared-nav.js?v=20261008"></script>
+  <script src="/shared/shared-nav.js?v=20261022-1"></script>
   <script src="/shared/table-align.js?v=20261017"></script>
 
   <script>
@@ -2082,7 +2119,7 @@
       const departments = [...new Set([...(permCatalog && permCatalog.departments || []), user.boPhan, ...persisted].filter(Boolean))];
       const own = new Set(currentUser && currentUser.leaveApprovalDepartments || []);
       const box = document.getElementById(containerId);
-      box.innerHTML = departments.length ? departments.map(department => `<label><input type="checkbox" value="${escapeHtml(department)}"${selected.has(department) ? ' checked' : ''}${disabled || (!actorIsManager() && !own.has(department) && !persisted.includes(department)) ? ' disabled' : ''}> ${escapeHtml(department)}</label>`).join('') : '<small>Chưa có phòng ban trong danh sách nhân sự.</small>';
+      box.innerHTML = departments.length ? departments.map(department => `<label><input type="checkbox" value="${escapeHtml(department)}"${selected.has(department) ? ' checked' : ''}${disabled || (!actorIsManager() && !own.has(department) && !persisted.includes(department)) ? ' disabled' : ''}> ${escapeHtml(department)}</label>`).join('') : '<small class="form-hint">Chưa có bộ phận trong danh mục.</small>';
       box.dataset.ready = '1';
     }
     function loadDepartmentSelection(containerId, user = {}, disabled = false){
@@ -2092,6 +2129,84 @@
     function selectedDepartments(containerId){
       return [...document.querySelectorAll('#' + containerId + ' input:checked')].map(input => input.value);
     }
+
+    function canApproveLeave(user){
+      if(user.vaiTro === 'Khách') return false;
+      const override = user.featurePermissions && user.featurePermissions['hr.leave.manage'];
+      if(typeof override === 'boolean') return override;
+      return (user.effective || []).includes('hr.leave.manage') || (permCatalog && permCatalog.roleDefaults && permCatalog.roleDefaults[user.vaiTro] || []).includes('hr.leave.manage');
+    }
+    // Bộ phận đang được điền tự động theo vai trò (theo từng form). Người dùng tự chọn khác thì thôi gợi ý.
+    const suggestedBoPhan = { create: '', edit: '' };
+    function suggestedDepartmentFor(prefix){
+      const branch = document.getElementById(prefix + 'WorkCoSo').value;
+      const role = document.getElementById(prefix + 'VaiTro').value;
+      const byRole = permCatalog && permCatalog.suggestedDepartmentByRole && permCatalog.suggestedDepartmentByRole[branch] || {};
+      return byRole[role] || '';
+    }
+    function setBoPhanHint(prefix, text){
+      const hint = document.getElementById(prefix + 'BoPhanHint');
+      if(hint) hint.textContent = text;
+    }
+    function renderWorkDepartments(prefix, selected){
+      const branch = document.getElementById(prefix + 'WorkCoSo').value;
+      const departments = permCatalog && permCatalog.departmentsByBranch && permCatalog.departmentsByBranch[branch] || [];
+      const input = document.getElementById(prefix + 'BoPhan');
+      const current = selected === undefined ? input.value : selected;
+      input.innerHTML = '<option value="">' + (branch ? '-- Chọn bộ phận --' : '-- Chọn cơ sở công tác trước --') + '</option>' + departments.map(value => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join('');
+      input.value = departments.includes(current) ? current : '';
+      applySuggestedDepartment(prefix);
+    }
+    // Chỉ điền gợi ý khi ô đang trống hoặc vẫn là giá trị đã gợi ý trước đó; không ghi đè lựa chọn của người dùng.
+    function applySuggestedDepartment(prefix){
+      const input = document.getElementById(prefix + 'BoPhan');
+      if(input.disabled){ setBoPhanHint(prefix, 'Khách không thuộc bộ phận nào.'); return; }
+      if(!document.getElementById(prefix + 'WorkCoSo').value){ setBoPhanHint(prefix, 'Chọn cơ sở công tác trước để hiện danh sách bộ phận.'); return; }
+      const suggestion = suggestedDepartmentFor(prefix);
+      if(suggestion && (!input.value || input.value === suggestedBoPhan[prefix])){
+        input.value = suggestion;
+        suggestedBoPhan[prefix] = suggestion;
+      }
+      setBoPhanHint(prefix, input.value && input.value === suggestedBoPhan[prefix]
+        ? 'Đã gợi ý theo vai trò — có thể chọn bộ phận khác.'
+        : 'Danh sách theo cơ sở công tác đã chọn.');
+    }
+    function updateWorkAssignmentState(prefix, user = {}){
+      const role = document.getElementById(prefix + 'VaiTro').value;
+      const guest = role === 'Khách';
+      const protectedRow = prefix === 'edit' && isProtectedManagerRow(user);
+      ['WorkCoSo', 'BoPhan'].forEach(suffix => {
+        const input = document.getElementById(prefix + suffix);
+        input.required = !guest;
+        input.disabled = guest || protectedRow;
+        if(guest) input.value = '';
+      });
+      document.querySelectorAll(`.req-mark[data-req-for="${prefix}"]`).forEach(mark => { mark.hidden = guest; });
+      if(guest) suggestedBoPhan[prefix] = '';
+      applySuggestedDepartment(prefix);
+      const approval = document.getElementById(prefix + 'LeaveDepartments');
+      approval.closest('.form-group').hidden = !canApproveLeave({ ...user, vaiTro: role });
+      if(guest) approval.querySelectorAll('input').forEach(input => { input.checked = false; });
+    }
+    function loadWorkAssignment(prefix, user = {}){
+      suggestedBoPhan[prefix] = '';
+      document.getElementById(prefix + 'WorkCoSo').value = user.workCoSo || '';
+      renderWorkDepartments(prefix, user.boPhan || '');
+      updateWorkAssignmentState(prefix, user);
+      loadPermissionsCatalog().then(() => {
+        renderWorkDepartments(prefix, user.boPhan || '');
+        updateWorkAssignmentState(prefix, user);
+      }).catch(() => {});
+    }
+    document.getElementById('createVaiTro').addEventListener('change', () => updateWorkAssignmentState('create'));
+    document.getElementById('editVaiTro').addEventListener('change', () => updateWorkAssignmentState('edit', rawAdminUsers.find(user => String(user.id) === document.getElementById('editUserId').value) || {}));
+    ['create', 'edit'].forEach(prefix => {
+      document.getElementById(prefix + 'WorkCoSo').addEventListener('change', () => renderWorkDepartments(prefix));
+      document.getElementById(prefix + 'BoPhan').addEventListener('change', event => {
+        if(event.target.value !== suggestedBoPhan[prefix]) suggestedBoPhan[prefix] = '';
+        applySuggestedDepartment(prefix);
+      });
+    });
 
     function openPermissionsModal(id){
       const u = rawAdminUsers.find(x => String(x.id) === String(id));
@@ -2400,6 +2515,7 @@
       document.getElementById('createUserError').style.display = 'none';
       applyRoleOptions('createVaiTro');
       loadDepartmentSelection('createLeaveDepartments');
+      loadWorkAssignment('create');
       openModal('createUserModal');
     }
 
@@ -2412,6 +2528,9 @@
       const soDienThoai = document.getElementById('createPhone').value.trim();
       const vaiTro = document.getElementById('createVaiTro').value;
       const coSo = document.getElementById('createCoSo').value;
+      const workCoSo = document.getElementById('createWorkCoSo').value;
+      const boPhan = document.getElementById('createBoPhan').value;
+      const telegramId = document.getElementById('createTelegramId').value.trim();
       const errEl = document.getElementById('createUserError');
       const btn = document.getElementById('btnSubmitCreate');
 
@@ -2421,7 +2540,7 @@
       fetch('/api/admin/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, hoTen, email, soDienThoai, vaiTro, coSo, leaveApprovalDepartments: selectedDepartments('createLeaveDepartments') })
+        body: JSON.stringify({ username, password, hoTen, email, soDienThoai, telegramId, vaiTro, coSo, workCoSo, boPhan, leaveApprovalDepartments: vaiTro === 'Khách' ? [] : selectedDepartments('createLeaveDepartments') })
       })
         .then(parseApiResponse)
         .then(result => {
@@ -2432,7 +2551,8 @@
             return;
           }
           closeModal('createUserModal');
-          showToast(`Đã tạo tài khoản "${username}" thành công!`);
+          if(result.data.warning) showToast(result.data.warning, 'error');
+          else showToast(`Đã tạo tài khoản "${username}" thành công!`);
           loadAdminUsers();
         })
         .catch(() => {
@@ -2460,6 +2580,10 @@
 
       // Quản lý khác + người sửa là Quản lý thường: khóa email/SĐT, ẩn đặt lại mật khẩu (xem actorIsSenior).
       const protectedManager = isProtectedManagerRow(u);
+      document.getElementById('editVaiTro').innerHTML = document.getElementById('createVaiTro').innerHTML;
+      applyRoleOptions('editVaiTro', u.vaiTro);
+      document.getElementById('editVaiTro').value = u.vaiTro || 'Khách';
+      document.getElementById('editVaiTro').disabled = protectedManager || isSelfUser(u) || isSuperAdminUser(u);
       ['editEmail', 'editPhone', 'editTelegramId'].forEach(fieldId => {
         const input = document.getElementById(fieldId);
         input.disabled = protectedManager;
@@ -2470,6 +2594,7 @@
         if(group) group.style.display = protectedManager ? 'none' : '';
       });
       loadDepartmentSelection('editLeaveDepartments', u, protectedManager || isSuperAdminUser(u));
+      loadWorkAssignment('edit', u);
       openModal('editUserModal');
     }
 
@@ -2499,6 +2624,13 @@
 
       // Bước 1: lưu thông tin cá nhân. Bước 2 (nếu có nhập): đặt lại mật khẩu.
       const fields = { hoTen, email, soDienThoai, coSo };
+      const editedUser = rawAdminUsers.find(user => String(user.id) === String(id));
+      const roleSelect = document.getElementById('editVaiTro');
+      if(!roleSelect.disabled && roleSelect.value !== editedUser.vaiTro) fields.vaiTro = roleSelect.value;
+      if(!document.getElementById('editWorkCoSo').disabled){
+        fields.workCoSo = document.getElementById('editWorkCoSo').value;
+        fields.boPhan = document.getElementById('editBoPhan').value;
+      }
       if(!isProtectedManagerRow(rawAdminUsers.find(user => String(user.id) === String(id)))) fields.leaveApprovalDepartments = selectedDepartments('editLeaveDepartments');
       if(!document.getElementById('editTelegramId').disabled) fields.telegramId = telegramId;
       fetch(`/api/admin/users/${id}`, { method: 'PUT', headers: json, body: JSON.stringify(fields) })

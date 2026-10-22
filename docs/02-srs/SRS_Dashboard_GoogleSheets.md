@@ -1,5 +1,7 @@
 # TÀI LIỆU ĐẶC TẢ YÊU CẦU PHẦN MỀM
 
+22/10/2026 — Danh sách nhân sự: Quản lý xem/sửa Số bảo hiểm sau Vân tay dưới dạng text tự do, xuất Excel kèm ID và nhập lại chỉ cập nhật Số bảo hiểm sau khi kiểm tra ID, trùng giá trị, cơ sở; không áp mẫu định dạng số.
+
 *(Software Requirements Specification – SRS)*
 
 **HỆ THỐNG DASHBOARD NỘI BỘ — TOKOSI**
@@ -818,3 +820,10 @@ Ba bảng chính Công nợ hiển thị Nhóm sale, lọc độc lập theo nh�
 ### Cập nhật 22/10/2026 — Ghi chú và Tiếp khách lần cuối theo khách
 
 FR-16.11: bảng Doanh số theo khách thêm cột Ghi chú và Tiếp khách lần cuối, hộp Chi tiết khách (Thông tin chung + Note), quyền `reports.business.customerNotes` / `reports.business.customerManage`, migration `0080` (5 bảng, đã áp DB dùng chung 22/10/2026), 11 route mới dưới `/api/business-report` (mục 6.2). Code chạy được trước migration (đọc rỗng, ghi 503 `MIGRATION_PENDING`). Hạn chế đã biết: khóa khách là `nameKey(tên)` nên khách đổi tên mất liên kết ghi chú.
+### Cập nhật 22/10/2026 — ORDER VAT giữ dòng vừa sửa, lọc nhiều trạng thái, Ctrl+Z / Ctrl+Y, bỏ thanh hàng loạt
+
+- **FR-VR-19 (22/10/2026)**: thay thế phần "chọn nhiều dòng để đổi trạng thái + ghi KT note / ngày về hàng loạt" của FR-VR-7 và lọc 1 trạng thái. (1) Bỏ thanh "N dòng đã chọn / Áp dụng" (ô tick vẫn giữ để chọn dòng khi kéo đổi thứ tự; sửa nhiều dòng bằng kéo chấm / dán). (2) Dòng KT vừa sửa (sửa ô, kéo chấm, dán, Delete, hoàn tác) ở lại bảng đúng chỗ dù không còn khớp bộ lọc: giao diện gửi `keep=id,…` khi tải danh sách, máy chủ trả các dòng đó kèm theo; bỏ khi bấm chip, đổi Sale, đổi ngày, bấm tải lại ⟳ hoặc F5 (tìm kiếm / sắp xếp / chuyển trang vẫn giữ; file Excel không áp `keep`). (3) Chip trạng thái chọn nhiều cái cùng lúc; "Cần xử lý" và "Tất cả" chỉ chọn một mình; tắt hết → "Tất cả". (4) Hoàn tác / làm lại nhiều bước (tối đa 20, mất khi tải lại trang): Ctrl+Z, Ctrl+Y / Ctrl+Shift+Z cho mọi thay đổi của KT — sửa 1 ô, kéo chấm, dán, Delete, kéo dòng; thông báo nổi góc dưới màn hình kèm nút Hoàn tác / Làm lại (tự ẩn sau 8 giây). Đang gõ trong ô sửa thì Ctrl+Z là của ô nhập.
+
+### Cập nhật 22/10/2026 — ORDER VAT: thông báo chuông cho sale sau khi kế toán sửa
+
+- **FR-VR-20 (22/10/2026)**: khi người có `accounting.vatRequestProcess` sửa KT phản hồi / KT note cho sale / Ngày về trên yêu cầu của một sale, sale đó nhận **1 thông báo chuông** sau khi kế toán ngừng sửa yêu cầu của sale đó đủ 10 phút (mỗi lần sửa thêm đếm lại từ đầu): tiêu đề "Kế toán đã cập nhật N yêu cầu ORDER VAT", mỗi yêu cầu 1 dòng với giá trị **cuối cùng** của các cột đã đổi (tối đa 5 dòng, còn lại "… và N yêu cầu khác"), bấm vào mở trang ORDER VAT. Không báo: giá trị cuối giống đầu đợt (sửa rồi hoàn tác), kéo dòng, sale tự sửa, yêu cầu không gắn tài khoản sale, người sửa là người tạo, tài khoản sale không hoạt động. Không gửi trùng. Migration `0080`, cờ `VAT_REQUEST_NOTIFY_ENABLED`.

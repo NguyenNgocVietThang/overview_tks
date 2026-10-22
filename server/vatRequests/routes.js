@@ -21,7 +21,9 @@ function readFilters(query = {}) {
     productKey: pick(query.product).toLowerCase() || null,
     q: pick(query.q).slice(0, 100) || null,
     from: DATE_RE.test(pick(query.from)) ? pick(query.from) : null,
-    to: DATE_RE.test(pick(query.to)) ? pick(query.to) : null
+    to: DATE_RE.test(pick(query.to)) ? pick(query.to) : null,
+    // Dong KT vua sua (giu lai tren bang du khong con khop bo loc); toi da 500 id.
+    keep: [...new Set(String(query.keep || '').split(',').map(Number).filter(id => Number.isInteger(id) && id > 0))].slice(0, 500)
   };
 }
 
@@ -103,6 +105,10 @@ function createVatRequestRouter({ service = createVatRequestService(), customerS
   // KT keo 1 / nhieu dong doi thu tu chung: { ids, belowId } | { ids, aboveId }. Phai dat truoc '/:id'.
   router.patch('/position', handle(async (req, res) => {
     res.json(await service.move(req.user, req.body));
+  }));
+  // Hoan tac / lam lai keo dong: { ranks: { id: 'numeric' } } (hang cu / moi do /position tra ve).
+  router.patch('/position/ranks', handle(async (req, res) => {
+    res.json(await service.restoreRanks(req.user, req.body));
   }));
   router.get('/:id', handle(async (req, res) => {
     res.json(await service.get(req.user, idParam(req)));

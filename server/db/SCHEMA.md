@@ -1,5 +1,7 @@
 # Supabase schema cho đồng bộ KiotViet
 
+22/10/2026 — `hr_employees.insurance_number TEXT NOT NULL DEFAULT ''` (migration `0078_hr_employee_insurance_number.sql`), unique index trên số không rỗng của hồ sơ chưa xóa mềm; chỉ quyền `hr.employees.manage` nhận từ API/Excel. Server áp riêng migration này trước khi nhận request, có advisory lock cho nhiều instance và không chạy migration khác đang chờ.
+
 Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0080`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
 
 ## Quy ước chung
@@ -55,8 +57,8 @@ Ba hệ định danh này khác nhau. Code sync phải nhận `branch` rõ ràng
 | `business_monthly_sale_sales` | Doanh số từng sale theo tháng đã chốt (0036) | `(month, sale_name)` | `net_revenue`, `customer_count`, `refreshed_at` |
 | `business_monthly_state` | Trạng thái chốt cứng và hash nhóm sale của từng tháng (0036) | `month` | `frozen_at`, `net_revenue`, `group_hash` |
 | `sale_teams` | Phân chia Team cho từng sale (0037) | `sale_name` | `team_name`, `updated_at` |
-| `hr_leave_work_schedules` | Lịch làm việc theo ngày và nhân viên (0038) | `(employee_id, work_date)` | `morning_start`, `afternoon_start`, `version` |
-| `hr_leave_submissions` | Lịch sử gửi đơn nghỉ phép bất biến kèm hạn nộp và snapshot (0038, 0042) | `(request_id, submission_revision)` | `hr_employee_id`, `leave_sessions`, `timing_status`, `thoi_gian_gui` |
+| `hr_leave_work_schedules` | Lịch làm việc theo ngày; từ 0077 theo tài khoản (`user_id`), `employee_id` chỉ còn dữ liệu cũ (0038, 0077) | duy nhất `(user_id, work_date)` và `(employee_id, work_date)` (một phần, khi khác NULL) | `user_id`, `morning_start`, `afternoon_start`, `version` |
+| `hr_leave_submissions` | Lịch sử gửi đơn nghỉ phép bất biến kèm hạn nộp và snapshot (0038, 0042, 0077) | `(request_id, submission_revision)` | `user_id` (0077), `hr_employee_id` (lịch sử), `leave_sessions`, `timing_status`, `thoi_gian_gui` |
 | `account_audit_log` | Nhật ký thao tác quản trị tài khoản bất biến (0040) | `id` | `action`, `actor_username`, `target_username`, `changes`, `created_at` |
 | `special_day_notice_log` | Đánh dấu ngày lễ/sinh nhật đã báo lên chuông thông báo (0043) | `(day_key, event_key)` | `sent_at` |
 | `product_stockout_days` | Số ngày đứt hàng 30 ngày gần nhất theo mã và cơ sở, cho cột Đứt HN/SG của Báo cáo hàng hóa (0067) | `product_key` | `product_code`, `days_hanoi`, `days_saigon`, `hanoi_scanned_at`, `saigon_scanned_at` |
@@ -75,7 +77,7 @@ Ngoài 19 bảng nghiệp vụ trên còn có bảng raw webhook, bảng tiến 
 | Bảng | Mục đích | Khóa chính | Cột first-class chính |
 |---|---|---|---|
 | `hr_employees` | Danh sách nhân sự (thay tab "Danh sách nhân sự" Sheets) | `id` (BIGSERIAL) | `branch`, `ho_ten`, `bo_phan`, `email`, `so_dien_thoai`, `is_active`, `employment_status` |
-| `app_users` | Tài khoản đăng nhập ứng dụng (thay tab "Users" Sheets) | `id` (UUID, sinh ở app bằng `crypto.randomUUID()`, không dùng `pgcrypto`) | `username`, `password_hash`, `vai_tro`, `co_so`, `trang_thai`, `hr_employee_id`, `telegram_id` |
+| `app_users` | Tài khoản đăng nhập ứng dụng (thay tab "Users" Sheets) | `id` (UUID, sinh ở app bằng `crypto.randomUUID()`, không dùng `pgcrypto`) | `username`, `password_hash`, `vai_tro`, `co_so`, `work_branch`/`bo_phan` (0076, nguồn chính cho cơ sở/bộ phận công tác), `trang_thai`, `hr_employee_id` (chỉ còn đối chiếu lịch sử), `telegram_id` |
 
 Hai bảng này **khác** quy ước `branch` 2 giá trị nội bộ ở cột `co_so` của `app_users`: `co_so` có 3 trạng thái + rỗng (`hanoi`/`saigon`/`both`/`''`) và chỉ là **cơ sở mặc định** lúc đăng nhập (mọi tài khoản xem được cả hai cơ sở; rỗng = mặc định `Cả hai`) — không nhầm với `branch` (chỉ `hanoi`/`saigon`) dùng ở `hr_employees` và mọi bảng KiotViet khác. `app_users.hr_employee_id` là FK tới `hr_employees(id)` (`ON DELETE SET NULL`) — thay cho cặp con trỏ sheet cũ `(hrSourceBranch, hrRowIndex)`; xoá nhân sự dùng `is_active = false` (soft-delete), không `DELETE` vật lý. Cơ chế tự khóa tài khoản khi nhân sự bị gỡ (`lock_reason = 'hr_removed'`) đã bỏ; `effectiveUserResolver.js` chỉ còn mở khóa các tài khoản từng bị khóa theo cơ chế đó khi họ đăng nhập lại. Từ migration 0041, `hr_employees.employment_status` (`active` = Đang làm việc / `resigned` = Đã nghỉ việc) là trạng thái làm việc hiển thị ở tab Danh sách nhân sự, tách khỏi `is_active` (xóa mềm); đổi sang `resigned` khóa tài khoản liên kết với `lock_reason = 'hr_resigned'` (giá trị riêng, KHÔNG dùng `hr_removed` vì resolver tự mở khóa giá trị đó), đổi lại `active` chỉ mở khóa đúng loại khóa này (`hr/hrEmployeeAdminService.js`).
 
@@ -640,3 +642,20 @@ Migration thu hồi ALL cả 5 bảng khỏi `reporting_readonly` (ghi chú nộ
 Thứ tự triển khai: **code deploy được trước khi áp migration** (fail-soft: các route đọc bắt `42P01`/`42703` và trả rỗng, `customer-meta` → `{}`; các route ghi trả 503 `MIGRATION_PENDING`; cột Ghi chú / Tiếp khách lần cuối vẫn hiện nhưng trống). Áp `0080` bằng `npm run db:migrate` khi được duyệt rồi mới dùng. Không có job nền hay bước backfill.
 
 Cập nhật: 22/10/2026.
+## ORDER VAT: con trỏ thông báo sale — migration 0080 (22/10/2026, CHƯA áp DB dùng chung)
+
+`0080_vat_request_notice_state.sql`: bảng `vat_request_notice_state(sale_id TEXT PK, last_history_id BIGINT NOT NULL, updated_at)` — con trỏ id lịch sử đã xét của từng sale; dòng mốc `sale_id='*'` = `max(vat_request_history.id)` lúc áp để không báo lại các lần sửa cũ. Chỉ thêm bảng, idempotent, thu hồi quyền `reporting_readonly`. Dùng bởi `server/vatRequests/saleNotifier.js`. Chưa áp thì job gặp `42P01`, ghi log một lần và bỏ qua; web chạy bình thường.
+
+## Tách tài khoản khỏi hồ sơ nhân sự — migration 0081, 0082 (nhánh `feat/tach-tai-khoan-nhan-su`, CHƯA áp DB)
+
+- **Nguồn chính:** `app_users` quyết định vai trò, quyền chi tiết (`feature_permissions`, giữ nguyên), cơ sở (`co_so`), cơ sở công tác (`work_branch`), bộ phận công tác (`bo_phan`) và phạm vi duyệt (`leave_approval_departments`). Đăng nhập không còn đọc/đồng bộ `hr_employees` (chỉ còn gỡ khóa `hr_removed` cũ).
+- **0081:** thêm `work_branch` (CHECK `hanoi`/`saigon`/'') và `bo_phan`; sao một lần từ hồ sơ HR đang liên kết; tài khoản không có HR lấy `work_branch` từ `co_so` nếu là cơ sở vật lý; chốt `vai_tro`/`co_so` hiệu lực cho `hr_managed`.
+- **0082:** lịch theo `user_id` (sao lịch cũ sang mọi tài khoản liên kết, giữ `version`/`updated_at`); `hr_leave_submissions.user_id` (không khóa ngoại vì bảng bất biến); trigger `hr_leave_submission_snapshot()` mới:
+  - định danh: `user_id`, hoặc `hr_telegram_links` theo `telegram_chat_id`, hoặc `hr_employee_id` cũ khi trỏ đúng MỘT tài khoản đang hoạt động; không có → `LEAVE_IDENTITY_MISMATCH`;
+  - tài khoản phải đang hoạt động, chưa xóa, `work_branch` thuộc `hanoi`/`saigon` và bằng `branch` của đơn;
+  - đơn mới: `bo_phan` = `app_users.bo_phan`; không tự điền `hr_employee_id` (giá trị bot gửi được giữ, phải khớp liên kết của tài khoản);
+  - giờ bắt đầu: `hr_leave_work_schedules` theo `user_id` + `start_date`, mặc định 07:45/12:30; chuẩn hóa buổi, hạn nộp, `timing_status`, `submission_revision`, lịch sử như 0038/0042.
+  - Sửa đơn: định danh và `hr_employee_id` giữ nguyên (lịch sử), tính lại theo lịch của tài khoản.
+- `hr_leave_department_snapshot()` dự phòng đọc `app_users.bo_phan`.
+- Quyền duyệt (web và bot Telegram) và quyền tự xin nghỉ chỉ xét trạng thái tài khoản `app_users`, không còn đọc `hr_employees.is_active` (22/10/2026). HR chuyển nghỉ việc thì khóa tài khoản liên kết; admin cấp cao, quản lý được bảo vệ và chính người thao tác không bị tự khóa nên phải khóa tay.
+- Thứ tự triển khai: deploy code nhánh → áp 0081 → 0082 (code mới vẫn đọc được trước khi áp vì các cột mới có mặc định; trigger cũ vẫn chạy cho tới khi áp 0082).

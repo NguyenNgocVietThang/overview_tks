@@ -229,7 +229,22 @@ test('voi resolver that: TK gia CHUA GAN co username/SĐT = SĐT nhan su -> 409,
   assert.equal(state[0].hrManaged, undefined);
 });
 
-test('voi resolver that: Quan ly tao san TK bang email nhan su -> nhan su dang nhap Google lien ket duoc', async () => {
+test('voi resolver that: Quan ly tao san TK bang email nhan su -> nhan su dang nhap Google lien ket duoc, vai tro do Quan ly cap', async () => {
+  const state = [{
+    id: 'PRE', username: 'a@example.com', email: 'a@example.com', passwordHash: '',
+    vaiTro: 'Kế toán', coSo: 'Hà Nội', trangThai: 'Đang hoạt động'
+  }];
+  const { service } = makeRealResolverService(state);
+  const linked = await service.linkVerifiedGoogleIdentity({ email: 'A@example.com', hoTen: 'G', allowCreate: false });
+  assert.equal(linked.id, 'PRE');
+  assert.equal(linked.verifiedEmail, true);
+  // Sau khi tách tài khoản khỏi HR: không tự nâng/đổi vai trò theo hồ sơ nhân sự, giữ vai trò Quản lý đã cấp.
+  assert.equal(linked.vaiTro, 'Kế toán');
+  assert.equal(linked.coSo, 'Hà Nội');
+  assert.equal(linked.hrManaged, undefined);
+});
+
+test('voi resolver that: TK Khach tao san duoc lien ket Google nhung KHONG tu nang quyen tu ho so nhan su', async () => {
   const state = [{
     id: 'PRE', username: 'a@example.com', email: 'a@example.com', passwordHash: '',
     vaiTro: 'Khách', coSo: '', trangThai: 'Đang hoạt động'
@@ -238,9 +253,7 @@ test('voi resolver that: Quan ly tao san TK bang email nhan su -> nhan su dang n
   const linked = await service.linkVerifiedGoogleIdentity({ email: 'A@example.com', hoTen: 'G', allowCreate: false });
   assert.equal(linked.id, 'PRE');
   assert.equal(linked.verifiedEmail, true);
-  assert.equal(linked.hrManaged, true);
-  assert.equal(linked.hrRowIndex, 2);
-  assert.equal(linked.vaiTro, 'Kế toán');
+  assert.equal(linked.vaiTro, 'Khách');
 });
 
 test('email khong thuoc nhan su HR -> null (de route di tiep luong Khach)', async () => {

@@ -38,7 +38,10 @@ function createFakeAppUsersRepository() {
     return { ...rows[index] };
   }
 
-  return { seed, selectAllRows, insertUser, updateUserRow, softDeleteUser };
+  // Ban that ghi them hr_telegram_links; ban gia chi can luu truong telegramId.
+  const updateProfileRow = updateUserRow;
+
+  return { seed, selectAllRows, insertUser, updateUserRow, updateProfileRow, softDeleteUser };
 }
 
 module.exports = { createFakeAppUsersRepository };

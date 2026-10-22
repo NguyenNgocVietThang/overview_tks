@@ -178,8 +178,10 @@ test('người có quyền quản lý: hiện bảng hồ sơ mở rộng, bấm
   const { dom, window, sent } = await openPage({ canManage: true });
   const doc = window.document;
   assert.equal(doc.getElementById('btnAddEmployee').hidden, false);
-  assert.equal(doc.querySelectorAll('#employeeDirectoryTableHead th').length, 18);
-  assert.equal(doc.getElementById('btnImportEmployeeDirectory').hidden, false, 'còn nhân sự thiếu ngày vào làm/ngày sinh/giới tính thì vẫn cho nhập bổ sung');
+  assert.equal(doc.querySelectorAll('#employeeDirectoryTableHead th').length, 19);
+  // Hai nut nhap Excel dang tam an (EMPLOYEE_IMPORT_BUTTONS_ENABLED = false).
+  assert.equal(doc.getElementById('btnImportEmployeeDirectory').hidden, true, 'nut nhap DS nhan su dang tam an');
+  assert.equal(doc.getElementById('btnImportEmployeeInsurance').hidden, true, 'nut nhap so bao hiem dang tam an');
   const row = doc.querySelector('#employeeDirectoryTableBody tr');
 
   row.cells[0].dispatchEvent(new window.Event('click', { bubbles: true }));
@@ -291,10 +293,10 @@ test('quan ly xem danh sach theo thu tu file nhan su, an nut nhap khi da co du l
     .map(th => th.textContent.replace(/[▲▼]/g, '').trim());
   assert.deepEqual(headers, [
     'Họ và tên', 'Bộ phận', 'Chức vụ', 'Ngày vào làm', 'Số ngày LV', 'Ngày sinh', 'Số CCCD', 'SĐT',
-    'Địa chỉ hiện tại', 'Giới tính', 'Hồ sơ', 'Vân tay', 'Cơ sở', 'QH người thân', 'Họ tên người thân',
+    'Địa chỉ hiện tại', 'Giới tính', 'Hồ sơ', 'Vân tay', 'Số bảo hiểm', 'Cơ sở', 'QH người thân', 'Họ tên người thân',
     'SĐT người thân', 'Trạng thái', 'Ngày nghỉ việc'
   ]);
-  assert.equal(doc.getElementById('btnImportEmployeeDirectory').hidden, false, 'còn hồ sơ thiếu thì hiện nút nhập bổ sung');
+  assert.equal(doc.getElementById('btnImportEmployeeDirectory').hidden, true, 'nut nhap dang tam an');
   const full = await openPage({ canManage: true, employees: [{ id: '9', hoTen: 'Đủ', boPhan: 'KHO', coSo: 'Hà Nội', trangThai: 'Đang làm việc', ngayVaoLam: '2020-01-01', ngaySinh: '1990-01-01', gioiTinh: 'NAM' }] });
   assert.equal(full.window.document.getElementById('btnImportEmployeeDirectory').hidden, true, 'hồ sơ đã đủ thì ẩn nút nhập');
   full.dom.window.close();
@@ -331,6 +333,15 @@ test('form nhân sự ghi đúng Bộ phận và không cho sửa email liên k�
   doc.querySelector('#employeeDirectoryTableBody tr').click();
   await window.saveEmployee({ preventDefault() {} });
   assert.equal(sent[0].body.email, 'a@x.com', 'sửa hồ sơ không làm trống email liên kết cũ');
+  dom.window.close();
+});
+
+test('ô số bảo hiểm cho nhập text không giới hạn chữ số', async () => {
+  const { dom } = await openPage({ canManage: true });
+  const input = dom.window.document.getElementById('empInsuranceNumber');
+  assert.equal(input.type, 'text');
+  assert.notEqual(input.getAttribute('inputmode'), 'numeric');
+  assert.equal(input.hasAttribute('maxlength'), false);
   dom.window.close();
 });
 

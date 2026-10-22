@@ -288,8 +288,24 @@ function createVatRequestService({ pool = getPool(), stockSource = createStockSo
       if (error.code === '42703') throw httpError(409, 'Chưa bật được kéo dòng (cần áp migration 0079).', 'ROW_ORDER_UNAVAILABLE');
       throw error;
     }
-    if (result === 'missing') throw httpError(404, 'Yêu cầu hoặc dòng bên cạnh vừa bị xóa. Hãy tải lại.', 'NOT_FOUND');
-    return { ok: true };
+    if (!result) throw httpError(404, 'Yêu cầu hoặc dòng bên cạnh vừa bị xóa. Hãy tải lại.', 'NOT_FOUND');
+    return { ok: true, before: result.before, after: result.after };
+  }
+
+  /** Hoan tac / lam lai keo dong: dat lai dung hang da luu ({ ranks: { id: 'numeric' } }, toi da 500). */
+  async function restoreRanks(user, payload = {}) {
+    if (!canProcess(user)) throw httpError(403, 'Bạn không có quyền xếp thứ tự ORDER VAT.', 'FEATURE_FORBIDDEN');
+    const ranks = payload && payload.ranks && typeof payload.ranks === 'object' && !Array.isArray(payload.ranks) ? payload.ranks : {};
+    const entries = Object.entries(ranks);
+    const valid = ([id, rank]) => /^[1-9]\d*$/.test(id) && typeof rank === 'string' && /^-?\d{1,20}(\.\d{1,1000})?$/.test(rank);
+    if (!entries.length || entries.length > 500 || !entries.every(valid)) throw httpError(400, 'Dữ liệu thứ tự không hợp lệ.', 'VALIDATION');
+    try {
+      const updated = await repository.withTransaction(pool, client => repository.setRanks(client, ranks));
+      return { ok: true, updated };
+    } catch (error) {
+      if (error.code === '42703') throw httpError(409, 'Chưa bật được kéo dòng (cần áp migration 0079).', 'ROW_ORDER_UNAVAILABLE');
+      throw error;
+    }
   }
 
   // Xuat Excel: chi KT (quyen xu ly) va quan ly; cung bo loc voi list() nen khop dung man hinh.
@@ -572,7 +588,7 @@ function createVatRequestService({ pool = getPool(), stockSource = createStockSo
     return rows.map(row => ({ code: row.product_code, name: row.product_name }));
   }
 
-  return { list, exportList, get, create, createMany, update, bulkUpdate, move, remove, history, productMetrics, lookupProducts, suggestProducts };
+  return { list, exportList, get, create, createMany, update, bulkUpdate, move, restoreRanks, remove, history, productMetrics, lookupProducts, suggestProducts };
 }
 
 module.exports = {

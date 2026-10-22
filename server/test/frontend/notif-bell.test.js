@@ -180,6 +180,33 @@ test('click vào thông báo có relatedType đánh dấu đã đọc rồi đi�
   window.close();
 });
 
+test('thong bao ORDER VAT cho sale: noi dung nhieu dong giu xuong dong, bam vao mo /vat-request/', async t => {
+  const message = 'KH A · 014XOAN: 2. Đã khai chờ về\nKH B · 26DAQUAN: ngày về 28/10/2026';
+  const { window, document } = createEnv(t, fakeUser('s1', 'Nhân viên sale'), async (url, opts) => {
+    if (String(url).includes('/unread-count')) return { ok: true, json: async () => ({ count: 1 }) };
+    if (opts && opts.method === 'PATCH') return { ok: true, json: async () => ({ notification: { id: 'n9', isRead: true } }) };
+    return { ok: true, json: async () => ({ notifications: [
+      { id: 'n9', type: 'vatRequestUpdated', title: 'Kế toán đã cập nhật 2 yêu cầu ORDER VAT', message, isRead: false, relatedType: 'vatRequest', relatedId: '12' }
+    ] }) };
+  });
+  let navigatedTo = null;
+  window.TKSNav._navigate = url => { navigatedTo = url; };
+  window.TKSNav.renderNotifBell(fakeUser('s1', 'Nhân viên sale'));
+  await new Promise(resolve => setTimeout(resolve, 0));
+  document.getElementById('tksNotifBellBtn').click();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(document.querySelector('.tks-notif-item-msg').textContent, message, 'giu ky tu xuong dong (CSS pre-line hien thanh nhieu dong)');
+  document.querySelector('.tks-notif-item').click();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(navigatedTo, '/vat-request/');
+  window.close();
+});
+
+test('shared.css: noi dung thong bao chuong xuong dong theo \\n (white-space:pre-line)', () => {
+  const css = require('node:fs').readFileSync(require('node:path').join(__dirname, '../../public/shared/shared.css'), 'utf8');
+  assert.match(css, /\.tks-notif-item-msg\{[^}]*white-space:pre-line/);
+});
+
 test('click icon xóa trên thông báo gọi DELETE /api/notifications/:id', async t => {
   const calledUrls = [];
   const { window, document } = createEnv(t, fakeUser('u1', 'Trợ lý'), async (url, opts) => {

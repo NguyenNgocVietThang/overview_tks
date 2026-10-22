@@ -400,6 +400,8 @@
     roleChangeRequest: '/account/#users',
     accountCreated: '/account/#users',
     leaveRequest: '/humanresources/#leave',
+    // Ke toan sua yeu cau ORDER VAT cua sale (vatRequests/saleNotifier.js).
+    vatRequest: '/vat-request/',
     // Gia tri co the la ham (relatedId) => url: thong bao tai lieu quy dinh tro toi
     // dung tai lieu (relatedId = slug), khong co thi ve tab Quy dinh cong ty.
     ruleDocument: function(relatedId){

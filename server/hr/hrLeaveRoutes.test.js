@@ -36,8 +36,8 @@ function getRouteHandler(method, routePath) {
 
 test('route nhập tay tính đúng số buổi và chuyển khoảng nghỉ dạng cấu trúc', async () => {
   const originalCreate = repo.createLeaveRequest;
-  const originalResolve=schedulesRepo.resolveEmployee;
-  schedulesRepo.resolveEmployee=async()=>({id:'1',ho_ten:'Nhân viên A',bo_phan:'KHO',branch:'hanoi'});
+  const originalResolve=schedulesRepo.resolveAccount;
+  schedulesRepo.resolveAccount=async()=>({user_id:'11111111-1111-1111-1111-111111111111',username:'nva',ho_ten:'Nhân viên A',bo_phan:'KHO',branch:'hanoi'});
   let received;
   repo.createLeaveRequest = async payload => { received = payload; return payload; };
   try {
@@ -65,7 +65,7 @@ test('route nhập tay tính đúng số buổi và chuyển khoảng nghỉ d�
     assert.equal(received.tong_buoi_nghi, 4);
   } finally {
     repo.createLeaveRequest = originalCreate;
-    schedulesRepo.resolveEmployee=originalResolve;
+    schedulesRepo.resolveAccount=originalResolve;
   }
 });
 
@@ -303,14 +303,15 @@ const { leaveEvents } = require('./hrLeaveEvents');
 function stubHrProfileSources({ employees = [], users = [] } = {}) {
   const originalSnapshot = employeeDirectory.getSnapshot;
   const originalFindUser = userRepository.findUserByUsername;
-  const originalResolve=schedulesRepo.resolveEmployee;
-  schedulesRepo.resolveEmployee=async({employeeId,username})=>{
+  const originalResolve=schedulesRepo.resolveAccount;
+  // Định danh ghi nhận nghỉ là tài khoản: hr_employee_id cũ chỉ còn dùng để tìm đúng MỘT tài khoản liên kết.
+  schedulesRepo.resolveAccount=async({userId,employeeId,username})=>{
     if(employeeId) {
       const employee=employees[Number(employeeId)-1];
-      return employee ? {id:String(employeeId),ho_ten:employee.hoTen,bo_phan:'KHO',branch:employee.sourceBranch==='Sài Gòn' ? 'saigon' : 'hanoi'} : null;
+      return employee ? {user_id:`u-${employeeId}`,username:'',ho_ten:employee.hoTen,bo_phan:'KHO',branch:employee.sourceBranch==='Sài Gòn' ? 'saigon' : 'hanoi'} : null;
     }
-    const user=users.find(item=>item.username===username);
-    return user ? {id:'1',username:user.username,ho_ten:'Nhân viên A',bo_phan:'KHO',branch:user.hrSourceBranch==='Sài Gòn' ? 'saigon' : 'hanoi'} : null;
+    const user=users.find(item=>item.username===username || item.id===userId);
+    return user ? {user_id:user.id || 'u-1',username:user.username,ho_ten:'Nhân viên A',bo_phan:user.boPhan || 'KHO',branch:user.workBranch || (user.hrSourceBranch==='Sài Gòn' ? 'saigon' : 'hanoi')} : null;
   };
   employeeDirectory.getSnapshot = async () => ({ employees });
   userRepository.findUserByUsername = async username =>
@@ -318,7 +319,7 @@ function stubHrProfileSources({ employees = [], users = [] } = {}) {
   return () => {
     employeeDirectory.getSnapshot = originalSnapshot;
     userRepository.findUserByUsername = originalFindUser;
-    schedulesRepo.resolveEmployee=originalResolve;
+    schedulesRepo.resolveAccount=originalResolve;
   };
 }
 
@@ -425,6 +426,20 @@ test('tạo đơn ở "Cả hai": sự kiện realtime mang cơ sở vật lý c
 
   assert.equal(events.length, 1);
   assert.equal(events[0].branch, 'Sài Gòn');
+});
+
+test('ghi nhận nghỉ theo tài khoản (user_id): bộ phận, họ tên, cơ sở lấy từ tài khoản; không gửi hr_employee_id', async () => {
+  const { res, calls } = await postLeaveRequest({
+    branch: 'Cả hai',
+    body: manualAbsenceBody({ user_id: 'acc-1', ho_ten: 'Tên giả' }),
+    users: [{ id: 'acc-1', username: 'acc', boPhan: 'Sale SG', workBranch: 'saigon' }]
+  });
+  assert.equal(res.statusCode, 201);
+  assert.equal(calls[0].branch, 'Sài Gòn');
+  assert.equal(calls[0].payload.user_id, 'acc-1');
+  assert.equal(calls[0].payload.hr_employee_id, null);
+  assert.equal(calls[0].payload.bo_phan, 'Sale SG');
+  assert.equal(calls[0].payload.ho_ten, 'Nhân viên A');
 });
 
 test('tạo đơn ở cơ sở vật lý vẫn từ chối khi thiếu định danh nhân sự', async () => {
