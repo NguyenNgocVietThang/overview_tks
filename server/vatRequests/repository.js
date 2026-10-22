@@ -38,17 +38,27 @@ async function listRequests(db, filters = {}) {
   if (filters.productKey) where.push(`r.product_key = ${add(filters.productKey)}`);
   if (filters.from) where.push(`r.created_at >= (${add(filters.from)}::date::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh')`);
   if (filters.to) where.push(`r.created_at < ((${add(filters.to)}::date + 1)::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh')`);
-  const { rows } = await db.query(
+  // Thu tu uu tien chung do KT keo dong (sort_rank, migration 0079); chua ap migration -> theo thoi gian tao.
+  const query = order => db.query(
     `SELECT ${SELECT_COLUMNS} ${FROM_REQUESTS} WHERE ${where.join(' AND ')}
-     ORDER BY r.created_at DESC NULLS LAST, r.id DESC LIMIT ${LIST_LIMIT + 1}`,
+     ORDER BY ${order} LIMIT ${LIST_LIMIT + 1}`,
     params
   );
+  let rows;
+  let rowOrder = true;
+  try {
+    ({ rows } = await query('r.sort_rank DESC, r.id DESC'));
+  } catch (error) {
+    if (error.code !== '42703') throw error;
+    rowOrder = false;
+    ({ rows } = await query('r.created_at DESC NULLS LAST, r.id DESC'));
+  }
   const truncated = rows.length > LIST_LIMIT;
   const limited = rows.slice(0, LIST_LIMIT);
-  if (!filters.q) return { rows: limited, truncated };
+  if (!filters.q) return { rows: limited, truncated, rowOrder };
   // Tim gan dung (cung luat voi o tim tren man hinh): loc + xep theo diem sau khi lay du lieu theo bo loc.
   const matcher = createMatcher(filters.q);
-  if (matcher.empty) return { rows: limited, truncated };
+  if (matcher.empty) return { rows: limited, truncated, rowOrder };
   const scored = [];
   limited.forEach((row, index) => {
     const text = fold([row.product_code, row.product_name, row.customer_code, row.customer_name, row.sale_note, row.accountant_note, row.created_by_name].join(' '));
@@ -56,7 +66,7 @@ async function listRequests(db, filters = {}) {
     if (score > 0) scored.push({ row, index, score });
   });
   scored.sort((a, b) => b.score - a.score || a.index - b.index);
-  return { rows: scored.map(entry => entry.row), truncated };
+  return { rows: scored.map(entry => entry.row), truncated, rowOrder };
 }
 
 async function getRequest(db, id, { forUpdate = false } = {}) {
@@ -65,6 +75,46 @@ async function getRequest(db, id, { forUpdate = false } = {}) {
     [id]
   );
   return rows[0] || null;
+}
+
+/** k / 2^m dang chuoi thap phan CHINH XAC (= k * 5^m / 10^m) — numeric nhan giu du chu so, chia thi lam tron. */
+function exactFraction(k, m) {
+  return `0.${(BigInt(k) * 5n ** BigInt(m)).toString().padStart(m, '0')}`;
+}
+
+/**
+ * Doi thu tu nhom dong (danh sach xep sort_rank DESC). `ids` theo thu tu tren xuong muon co; `belowId` ->
+ * ca nhom nam ngay TREN dong do, khong co thi `aboveId` -> ngay DUOI dong do. Nhom chia deu khe (low, high)
+ * giua dong ke va dong ke tiep that su trong DB (bo qua cac dong trong nhom): hang = low + (high - low) * k / 2^m
+ * voi 2^m > so dong, k giam dan tu tren xuong. Het dong ke thi khe la +/- 1.
+ * Tra 'moved' | 'missing' (1 dong trong nhom / dong ke khong con).
+ */
+async function moveRequests(client, ids, { aboveId = null, belowId = null }) {
+  const neighborId = belowId || aboveId;
+  const { rows } = await client.query(
+    `SELECT id, sort_rank FROM vat_requests WHERE id = ANY($1::bigint[]) AND NOT is_deleted ORDER BY id FOR UPDATE`,
+    [[...ids, neighborId]]
+  );
+  if (rows.length !== ids.length + 1) return 'missing';
+  const neighbor = rows.find(row => Number(row.id) === neighborId);
+  const next = await client.query(
+    belowId
+      ? `SELECT min(sort_rank) AS rank FROM vat_requests WHERE NOT is_deleted AND id <> ALL($1::bigint[]) AND sort_rank > $2`
+      : `SELECT max(sort_rank) AS rank FROM vat_requests WHERE NOT is_deleted AND id <> ALL($1::bigint[]) AND sort_rank < $2`,
+    [ids, neighbor.sort_rank]
+  );
+  const edge = next.rows[0].rank;
+  const [low, high] = belowId ? [neighbor.sort_rank, edge] : [edge, neighbor.sort_rank];
+  const bits = ids.length.toString(2).length; // 2^bits > so dong
+  for (let i = 0; i < ids.length; i++) {
+    await client.query(
+      `UPDATE vat_requests SET sort_rank = COALESCE($2::numeric, $3::numeric - 1)
+         + (COALESCE($3::numeric, $2::numeric + 1) - COALESCE($2::numeric, $3::numeric - 1)) * $4::numeric
+       WHERE id = $1`,
+      [ids[i], low, high, exactFraction(ids.length - i, bits)]
+    );
+  }
+  return 'moved';
 }
 
 async function insertRequest(client, values) {
@@ -222,6 +272,7 @@ module.exports = {
   withTransaction,
   listRequests,
   getRequest,
+  moveRequests,
   insertRequest,
   updateRequest,
   insertHistory,

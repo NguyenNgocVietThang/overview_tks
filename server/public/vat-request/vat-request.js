@@ -20,7 +20,7 @@
     rows: [], metrics: {}, sales: [], statuses: [], stockStatus: null, truncated: false,
     preset: 'all', saleFilter: '', query: '', from: '', to: '',
     groupByProduct: false, sortKey: '', sortDir: 'asc', page: 1, selected: new Set(), loading: false, error: '',
-    editing: null, requestSeq: 0, grid: null, undo: null
+    editing: null, requestSeq: 0, grid: null, undo: null, rowOrder: false
   };
 
   // ---------- Tiện ích ----------
@@ -77,7 +77,7 @@
   // nowrap: số / mã / ngày không bao giờ xuống dòng giữa chừng — cột phải đủ rộng cho cả giá trị.
   function columns() {
     const list = [];
-    if (state.canProcess) list.push({ key: 'select', label: 'Chọn', locked: true, width: 44 });
+    if (state.canProcess) list.push({ key: 'select', label: 'Chọn', locked: true, width: 62 });
     list.push(
       { key: 'createdAt', label: 'Thời gian', width: 104, mobileHidden: true },
       { key: 'sale', label: 'Tên Sale', width: 100, mobileHidden: true },
@@ -136,8 +136,12 @@
   function cellHtml(col, row) {
     const m = metricFor(row);
     switch (col.key) {
-      case 'select':
-        return `<input type="checkbox" data-select="${row.id}" aria-label="Chọn yêu cầu ${row.id}"${state.selected.has(row.id) ? ' checked' : ''}>`;
+      case 'select': {
+        const box = `<input type="checkbox" data-select="${row.id}" aria-label="Chọn yêu cầu ${row.id}"${state.selected.has(row.id) ? ' checked' : ''}>`;
+        if (!canDragRows()) return box;
+        const grip = `<button type="button" class="vr-row-grip" data-row-drag="${row.id}" aria-label="Kéo để đổi thứ tự yêu cầu #${row.id}" title="Bấm để chọn dòng (Shift / Ctrl để chọn nhiều), kéo để đổi thứ tự; Alt+↑ / Alt+↓ dời 1 dòng"><svg viewBox="0 0 10 16" width="8" height="14" fill="currentColor" aria-hidden="true"><circle cx="2" cy="3" r="1.4"/><circle cx="8" cy="3" r="1.4"/><circle cx="2" cy="8" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="2" cy="13" r="1.4"/><circle cx="8" cy="13" r="1.4"/></svg></button>`;
+        return `<span class="vr-select-cell">${grip}${box}</span>`;
+      }
       case 'createdAt': return escapeHtml(fmtDateTime(row.createdAt));
       case 'sale':
         return escapeHtml(row.createdByName || '—') + (row.isLegacy ? ' <span class="vr-tag" title="Nhập từ sheet ORDER VAT 1">cũ</span>' : '');
@@ -178,11 +182,54 @@
   }
 
   function rowHtml(row, cols) {
-    const classes = [row.isLockedForSale ? 'is-locked' : '', row.isMine ? 'is-mine' : ''].filter(Boolean).join(' ');
+    const classes = [row.isLockedForSale ? 'is-locked' : '', row.isMine ? 'is-mine' : '', state.canProcess && state.selected.has(row.id) ? 'is-picked' : ''].filter(Boolean).join(' ');
     const cellClass = col => [col.num ? 'num' : '', col.num || col.nowrap ? 'vr-nowrap' : ''].filter(Boolean).join(' ');
     const editable = col => (isGridEditable(col.key) ? ' data-editable="true" title="Nháy đúp hoặc Enter để sửa; kéo chấm góc để nhân bản"' : '');
     return `<tr data-id="${row.id}" tabindex="0"${classes ? ` class="${classes}"` : ''} title="Nháy đúp để ${row.canEditSale ? 'sửa' : 'xem lịch sử'}">` +
       cols.map(col => `<td data-field="${col.key}"${cellClass(col) ? ` class="${cellClass(col)}"` : ''}${editable(col)}>${cellHtml(col, row)}</td>`).join('') + '</tr>';
+  }
+
+  // ---------- Kéo dòng đổi thứ tự ưu tiên chung (KT, migration 0079) ----------
+  // Chỉ ở thứ tự gốc: đang sắp xếp theo cột, gộp theo mã hay gõ tìm kiếm thì chỉ là cách xem tạm -> ẩn tay nắm.
+  const coarsePointer = window.matchMedia ? window.matchMedia('(pointer: coarse)') : null;
+  function canDragRows() {
+    const searching = !!(window.TKSFuzzySearch && TKSFuzzySearch.tokens(state.query).length);
+    return state.canProcess && state.rowOrder && !state.sortKey && !state.groupByProduct && !searching && !(coarsePointer && coarsePointer.matches);
+  }
+
+  function pageRowIds() { return [...$('vrRows').querySelectorAll('tr[data-id]')].map(tr => Number(tr.dataset.id)); }
+
+  /**
+   * Dời nhóm dòng `ids` (thứ tự trên -> dưới) thành 1 khối: `below` = id dòng nằm ngay dưới khối,
+   * không có thì `above` = dòng ngay trên. Dòng rời nhau được gom lại, giữ thứ tự giữa chúng.
+   */
+  async function moveRows(ids, { below = null, above = null }) {
+    const group = new Set(ids);
+    const moving = ids.map(id => state.rows.find(r => r.id === id)).filter(Boolean);
+    if (!moving.length || (!below && !above)) return;
+    // Dời ngay trên màn hình (lạc quan), lỗi thì nạp lại.
+    const rest = state.rows.filter(r => !group.has(r.id));
+    const anchor = rest.findIndex(r => r.id === (below || above));
+    if (anchor < 0) return;
+    rest.splice(below ? anchor : anchor + 1, 0, ...moving);
+    state.rows = rest;
+    render();
+    try {
+      await api('/position', { method: 'PATCH', body: below ? { ids, belowId: below } : { ids, aboveId: above } });
+      setStatus(ids.length === 1 ? `Đã chuyển yêu cầu #${ids[0]}.` : `Đã chuyển ${ids.length} yêu cầu.`, 'ok');
+    } catch (error) {
+      await load(); // load() xóa thanh trạng thái -> báo lỗi sau khi nạp lại
+      setStatus(error.message, 'error');
+    }
+  }
+
+  /** Vị trí thả -> hàng xóm của khối sau khi thả, trong các dòng đang hiện trên trang (thứ tự DOM). */
+  function dropNeighbors(ids, targetId, after) {
+    const rest = pageRowIds().filter(rowId => !ids.includes(rowId));
+    const index = rest.indexOf(targetId);
+    if (index < 0) return null;
+    const position = after ? index + 1 : index;
+    return { below: rest[position] ?? null, above: position > 0 ? rest[position - 1] : null };
   }
 
   // ---------- Ô KT kiểu Google Sheet (vat-request-grid.js) ----------
@@ -306,8 +353,8 @@
         setStatus(`Đã hoàn tác ${result.updated} yêu cầu.`, 'ok');
       }
     } catch (error) {
+      if (error.status === 409) await load(); else render(); // load() xóa thanh trạng thái -> báo sau
       setStatus(error.message, error.status === 409 ? 'warn' : 'error');
-      if (error.status === 409) await load(); else render();
     }
   }
 
@@ -512,6 +559,7 @@
       state.statuses = data.statuses || state.statuses;
       state.stockStatus = data.stockStatus || null;
       state.truncated = !!data.truncated;
+      state.rowOrder = data.rowOrder !== false;
       state.isManager = !!(data.viewer && data.viewer.isManager);
       $('vrExport').hidden = !(state.canProcess || state.isManager);
       setStatus('');
@@ -643,8 +691,8 @@
       await load();
       setStatus(`Đã cập nhật ${result.updated} yêu cầu.`, 'ok');
     } catch (error) {
+      if (error.status === 409) await load(); // load() xóa thanh trạng thái -> báo sau
       setStatus(error.message, error.status === 409 ? 'warn' : 'error');
-      if (error.status === 409) await load();
     } finally {
       $('vrBulkApply').disabled = false;
     }
@@ -1088,6 +1136,7 @@
       if (target.matches('[data-select]')) {
         const id = Number(target.dataset.select);
         if (target.checked) state.selected.add(id); else state.selected.delete(id);
+        rowAnchor = id; // tick tay cũng làm mốc cho Shift+bấm tay nắm
         render();
         return;
       }
@@ -1119,6 +1168,92 @@
       const tr = target.closest('tr[data-id]');
       return tr ? state.rows.find(r => r.id === Number(tr.dataset.id)) : null;
     };
+    // Tay nắm ⋮⋮ ở cột Chọn, kiểu đầu dòng Google Sheet: bấm chọn cả dòng, Shift+bấm chọn đoạn liền, Ctrl/⌘+bấm
+    // thêm / bỏ từng dòng (chung vùng chọn với ô tick -> thanh hàng loạt dùng được ngay). Kéo tay nắm của 1 dòng
+    // đang chọn: cả nhóm (trên trang này) đi theo, dòng rời nhau gom thành 1 khối. Vạch xanh chỉ chỗ thả,
+    // sát mép tự cuộn, Esc hủy.
+    let rowDrag = null; // { ids, pressed, targetId, after }
+    let rowAnchor = null; // dòng mốc cho Shift+bấm
+    const clearDropMarks = () => table.querySelectorAll('.vr-drop-before, .vr-drop-after, .vr-row-dragging').forEach(tr => tr.classList.remove('vr-drop-before', 'vr-drop-after', 'vr-row-dragging'));
+    const endRowDrag = () => { rowDrag = null; clearDropMarks(); table.classList.remove('vr-rows-dragging'); };
+    table.addEventListener('mousedown', event => {
+      const grip = event.button === 0 && event.target.closest('[data-row-drag]');
+      if (!grip) return;
+      event.preventDefault();
+      const id = Number(grip.dataset.rowDrag);
+      const pageIds = pageRowIds();
+      if (event.shiftKey && rowAnchor !== null && pageIds.includes(rowAnchor)) {
+        const [from, to] = [pageIds.indexOf(rowAnchor), pageIds.indexOf(id)].sort((a, b) => a - b);
+        if (!(event.ctrlKey || event.metaKey)) state.selected.clear();
+        pageIds.slice(from, to + 1).forEach(rowId => state.selected.add(rowId));
+        render();
+        return;
+      }
+      if (event.ctrlKey || event.metaKey) {
+        if (state.selected.has(id)) state.selected.delete(id); else state.selected.add(id);
+        rowAnchor = id;
+        render();
+        return;
+      }
+      if (!state.selected.has(id)) { state.selected = new Set([id]); render(); }
+      rowAnchor = id;
+      const ids = pageRowIds().filter(rowId => state.selected.has(rowId));
+      rowDrag = { ids, pressed: id, targetId: null, after: false };
+      ids.forEach(rowId => { const tr = $('vrRows').querySelector(`tr[data-id="${rowId}"]`); if (tr) tr.classList.add('vr-row-dragging'); });
+      table.classList.add('vr-rows-dragging');
+    });
+    table.addEventListener('mousemove', event => {
+      if (!rowDrag) return;
+      const tr = event.target.closest('tr[data-id]');
+      const scroller = $('vrScroll');
+      const box = scroller.getBoundingClientRect();
+      if (event.clientY < box.top + 40) scroller.scrollTop -= 24;
+      else if (box.bottom && event.clientY > box.bottom - 40) scroller.scrollTop += 24;
+      if (!tr) return;
+      const rect = tr.getBoundingClientRect();
+      const after = event.clientY > rect.top + rect.height / 2;
+      const targetId = Number(tr.dataset.id);
+      if (rowDrag.targetId === targetId && rowDrag.after === after) return;
+      Object.assign(rowDrag, { targetId, after });
+      table.querySelectorAll('.vr-drop-before, .vr-drop-after').forEach(el => el.classList.remove('vr-drop-before', 'vr-drop-after'));
+      if (!rowDrag.ids.includes(targetId)) tr.classList.add(after ? 'vr-drop-after' : 'vr-drop-before');
+    });
+    document.addEventListener('mouseup', () => {
+      if (!rowDrag) return;
+      const { ids, pressed, targetId, after } = rowDrag;
+      endRowDrag();
+      if (!targetId || ids.includes(targetId)) {
+        // Bấm (không kéo đi đâu) vào 1 dòng trong vùng nhiều dòng -> chỉ chọn dòng đó, như Sheet.
+        if (ids.length > 1 && (!targetId || targetId === pressed)) { state.selected = new Set([pressed]); render(); }
+        return;
+      }
+      const neighbors = dropNeighbors(ids, targetId, after);
+      if (!neighbors) return;
+      // Thả lại đúng chỗ cũ (khối đã liền và không đổi vị trí) thì thôi.
+      const current = pageRowIds();
+      const rest = current.filter(rowId => !ids.includes(rowId));
+      const at = neighbors.below ? rest.indexOf(neighbors.below) : rest.indexOf(neighbors.above) + 1;
+      const next = [...rest.slice(0, at), ...ids, ...rest.slice(at)];
+      if (next.every((rowId, i) => rowId === current[i])) return;
+      moveRows(ids, neighbors);
+    });
+    document.addEventListener('keydown', event => { if (rowDrag && event.key === 'Escape') endRowDrag(); });
+    // Bàn phím: Alt+↑ / Alt+↓ trên tay nắm dời 1 dòng.
+    table.addEventListener('keydown', event => {
+      const grip = event.target.closest('[data-row-drag]');
+      if (!grip || !event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return;
+      event.preventDefault();
+      const id = Number(grip.dataset.rowDrag);
+      const ids = [...$('vrRows').querySelectorAll('tr[data-id]')].map(tr => Number(tr.dataset.id));
+      const index = ids.indexOf(id);
+      const target = ids[index + (event.key === 'ArrowUp' ? -1 : 1)];
+      if (target === undefined) return;
+      moveRows([id], dropNeighbors([id], target, event.key === 'ArrowDown')).then(() => {
+        const again = $('vrRows').querySelector(`[data-row-drag="${id}"]`);
+        if (again) again.focus();
+      });
+    });
+
     // Ô KT trên thiết bị cảm ứng: chạm là sửa (không có nháy đúp / kéo chọn vùng).
     const coarse = window.matchMedia ? window.matchMedia('(pointer: coarse)') : null;
     table.addEventListener('click', event => {
@@ -1241,7 +1376,7 @@
     state.saleFilter = ''; // mặc định xem tất cả sale; chọn 'Của tôi' ở bộ lọc Sale khi cần
     $('vrGroupToggle').hidden = !state.canProcess;
     $('vrSub').textContent = state.canProcess
-      ? 'Lọc “Cần xử lý” để xem yêu cầu chờ khai; chọn nhiều dòng để đổi trạng thái hàng loạt.'
+      ? 'Lọc “Cần xử lý” để xem yêu cầu chờ khai; chọn nhiều dòng để đổi trạng thái hàng loạt; kéo tay nắm ⋮⋮ để xếp thứ tự ưu tiên.'
       : 'Gửi ORDER VAT cho kế toán. Yêu cầu ở trạng thái 0, 1, 2 đã khóa, không sửa được.';
     if (window.TKSVatRequestBatch) {
       state.batch = window.TKSVatRequestBatch.createBatchForm({
