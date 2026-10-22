@@ -1,6 +1,8 @@
 <!-- Chính sách hiện hành: mục 16/10/2026 — Tập Pancake độc lập ở cuối tài liệu. Các mốc cũ giữ làm lịch sử. -->
 # TOKOSI Dashboard Server
 
+22/10/2026 — `0078_hr_employee_insurance_number.sql` thêm Số bảo hiểm. `POST /api/hr/employees/insurance-import` cho Quản lý xem trước file Excel; `?commit=1` chỉ cập nhật Số bảo hiểm theo ID nhân sự.
+
 Express backend cho dashboard TOKOSI.
 
 ## Nguồn dữ liệu

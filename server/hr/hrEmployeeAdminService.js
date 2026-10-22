@@ -82,6 +82,11 @@ function createHrEmployeeAdminService(options = {}) {
     if (soDienThoai && !/^\+?\d{8,15}$/.test(soDienThoai)) {
       throw new HrEmployeeAdminError('Số điện thoại không hợp lệ.', 400, 'INVALID_PHONE');
     }
+    const insuranceNumber = input.insuranceNumber === undefined && existing
+      ? clean(existing.insuranceNumber) : clean(input.insuranceNumber);
+    if (insuranceNumber && !/^\d{10,15}$/.test(insuranceNumber)) {
+      throw new HrEmployeeAdminError('Số bảo hiểm cần 10–15 chữ số.', 400, 'INVALID_INSURANCE_NUMBER');
+    }
     const date = value => { const text = clean(value); return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null; };
     return {
       hoTen, boPhan, branch, email, soDienThoai, employmentStatus: toStatus(input.trangThai),
@@ -90,6 +95,7 @@ function createHrEmployeeAdminService(options = {}) {
       nguoiThanQuanHe: clean(input.nguoiThanQuanHe), nguoiThanHoTen: clean(input.nguoiThanHoTen),
       nguoiThanSoDienThoai: clean(input.nguoiThanSoDienThoai), gioiTinh: normalizeGender(clean(input.gioiTinh)),
       hoSoDayDu: Boolean(input.hoSoDayDu), vanTayDaDangKy: Boolean(input.vanTayDaDangKy),
+      insuranceNumber,
       ngayNghiViec: date(input.ngayNghiViec)
     };
   }

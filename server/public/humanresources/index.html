@@ -1104,6 +1104,8 @@
             </div>
             <div class="row-actions">
               <input type="file" id="employeeWorkbookFile" accept=".xlsx,.xls" hidden onchange="importEmployeeWorkbook(this)">
+              <input type="file" id="employeeInsuranceFile" accept=".xlsx" hidden onchange="importEmployeeInsurance(this)">
+              <button type="button" class="btn-secondary" id="btnImportEmployeeInsurance" hidden onclick="document.getElementById('employeeInsuranceFile').click()">Nhập số bảo hiểm</button>
               <button type="button" class="btn-secondary" id="btnImportEmployeeDirectory" hidden onclick="document.getElementById('employeeWorkbookFile').click()">Nhập DS nhân sự</button>
               <button type="button" class="btn-primary" id="btnAddEmployee" hidden onclick="openEmployeeModal()">+ Thêm nhân sự</button>
               <span id="employeeImportStatus" class="form-hint" hidden aria-live="polite"></span>
@@ -1204,6 +1206,7 @@
         <div class="form-group"><label for="empGioiTinh">Giới tính</label><select id="empGioiTinh" class="form-control"><option value="">— Chưa chọn —</option><option>Nam</option><option>Nữ</option><option>Khác</option></select></div>
         <div class="form-group"><label for="empSoCccd">CCCD</label><input type="text" id="empSoCccd" class="form-control" maxlength="20"></div>
         <div class="form-group"><label><input type="checkbox" id="empHoSoDayDu"> Hồ sơ đầy đủ</label><br><label><input type="checkbox" id="empVanTay"> Đã đăng ký vân tay</label></div>
+        <div class="form-group"><label for="empInsuranceNumber">Số bảo hiểm</label><input type="text" id="empInsuranceNumber" class="form-control" inputmode="numeric" maxlength="15" autocomplete="off"></div>
         <div class="form-group employee-form-wide"><label for="empDiaChi">Địa chỉ hiện tại</label><textarea id="empDiaChi" class="form-control" rows="2" maxlength="500"></textarea></div>
         <div class="form-group"><label for="empNguoiThanQuanHe">Quan hệ người thân</label><input type="text" id="empNguoiThanQuanHe" class="form-control" maxlength="80"></div>
         <div class="form-group"><label for="empNguoiThanHoTen">Họ tên người thân</label><input type="text" id="empNguoiThanHoTen" class="form-control" maxlength="120"></div>
@@ -2944,6 +2947,7 @@
         // Nhập lại chỉ điền ô trống, không ghi đè dữ liệu đã có.
         const missingProfile = rawEmployeeDirectory.some(e => !e.ngayVaoLam || !e.ngaySinh || !String(e.gioiTinh || '').trim());
         document.getElementById('btnImportEmployeeDirectory').hidden = !employeeCanManage || (rawEmployeeDirectory.length > 0 && !missingProfile);
+        document.getElementById('btnImportEmployeeInsurance').hidden = !employeeCanManage;
         renderEmployeeDirectoryHead();
         populateDepartmentFilter('departmentFilter', document.getElementById('branchFilter').value);
         populateDepartmentFilter('employeeDepartmentFilter', document.getElementById('employeeBranchFilter').value);
@@ -2964,7 +2968,7 @@
       ['Họ và tên','ho-va-ten',240], ['Bộ phận','bo-phan',150], ['Chức vụ','chuc-vu',180],
       ['Ngày vào làm','ngay-vao-lam',110], ['Số ngày LV','so-ngay-lv',90], ['Ngày sinh','ngay-sinh',110],
       ['Số CCCD','so-cccd',125], ['SĐT','so-dien-thoai',115], ['Địa chỉ hiện tại','dia-chi',210],
-      ['Giới tính','gioi-tinh',72], ['Hồ sơ','ho-so',52], ['Vân tay','van-tay',52], ['Cơ sở','co-so',100],
+      ['Giới tính','gioi-tinh',72], ['Hồ sơ','ho-so',52], ['Vân tay','van-tay',52], ['Số bảo hiểm','so-bao-hiem',140], ['Cơ sở','co-so',100],
       ['QH người thân','qh-nguoi-than',120], ['Họ tên người thân','ten-nguoi-than',180],
       ['SĐT người thân','sdt-nguoi-than',115], ['Trạng thái','trang-thai',50,true], ['Ngày nghỉ việc','ngay-nghi-viec',110,true]
     ];
@@ -2982,6 +2986,7 @@
         case 'gioi-tinh': return normalizeEmployeeGender(employee.gioiTinh);
         case 'ho-so': return employee.hoSoDayDu ? 'Đủ' : 'Thiếu';
         case 'van-tay': return employee.vanTayDaDangKy ? 'Có' : 'Chưa';
+        case 'so-bao-hiem': return employee.insuranceNumber || '';
         case 'ngay-nghi-viec': return formatEmployeeDate(employee.ngayNghiViec);
         default: {
           const fields = {
@@ -3305,6 +3310,33 @@
       }
     }
 
+    async function importEmployeeInsurance(input){
+      const file=input.files && input.files[0];
+      if(!file) return;
+      const button=document.getElementById('btnImportEmployeeInsurance');
+      const status=document.getElementById('employeeImportStatus');
+      button.disabled=true;
+      const form=()=>{ const data=new FormData(); data.append('file',file); return data; };
+      try{
+        const previewResponse=await fetch('/api/hr/employees/insurance-import',{method:'POST',credentials:'same-origin',body:form()});
+        const preview=await previewResponse.json();
+        if(!previewResponse.ok) throw new Error(preview.error||'Không đọc được file.');
+        if(preview.errors.length){
+          const message=`Có ${preview.errors.length} dòng lỗi: `+preview.errors.slice(0,5).map(e=>`dòng ${e.row}: ${e.reason}`).join('; ');
+          status.hidden=false; status.className='form-hint error'; status.textContent=message;
+          return;
+        }
+        if(!confirm(`Sẽ cập nhật số bảo hiểm cho ${preview.valid} nhân sự theo ID. Tiếp tục?`)) return;
+        const response=await fetch('/api/hr/employees/insurance-import?commit=1',{method:'POST',credentials:'same-origin',body:form()});
+        const result=await response.json();
+        if(!response.ok) throw new Error(result.error||'Không nhập được số bảo hiểm.');
+        status.hidden=false; status.className='form-hint success'; status.textContent=`Đã cập nhật ${result.imported} số bảo hiểm.`;
+        await loadEmployeeDirectory();
+      }catch(err){
+        status.hidden=false; status.className='form-hint error'; status.textContent=err.message||'Không nhập được file.';
+      }finally{ input.value=''; button.disabled=false; }
+    }
+
     // Bam vao dong nhan su -> mo hop chi tiet (chi khi co quyen hr.employees.manage).
     document.addEventListener('click', event => {
       const row = event.target.closest && event.target.closest('#employeeDirectoryTableBody tr[data-employee-id]');
@@ -3336,6 +3368,7 @@
       document.getElementById('empNguoiThanSdt').value = employee ? (employee.nguoiThanSoDienThoai || '') : '';
       document.getElementById('empHoSoDayDu').checked = !!(employee && employee.hoSoDayDu);
       document.getElementById('empVanTay').checked = !!(employee && employee.vanTayDaDangKy);
+      document.getElementById('empInsuranceNumber').value = employee ? (employee.insuranceNumber || '') : '';
       document.getElementById('empNgayNghiViec').value = employee ? (employee.ngayNghiViec || '') : '';
       document.getElementById('empTrangThai').value = employee ? employeeStatusKey(employee) : 'active';
       const branches = ((currentUser && currentUser.branches) || []).filter(b => b !== BRANCH_BOTH_LABEL);
@@ -3392,6 +3425,7 @@
         nguoiThanSoDienThoai: document.getElementById('empNguoiThanSdt').value,
         hoSoDayDu: document.getElementById('empHoSoDayDu').checked,
         vanTayDaDangKy: document.getElementById('empVanTay').checked,
+        insuranceNumber: document.getElementById('empInsuranceNumber').value,
         ngayNghiViec: document.getElementById('empNgayNghiViec').value,
         trangThai: document.getElementById('empTrangThai').value
       };

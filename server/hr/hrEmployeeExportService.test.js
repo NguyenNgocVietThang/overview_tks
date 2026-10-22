@@ -41,7 +41,7 @@ test('Quản lý xuất đầy đủ hồ sơ nhân sự mở rộng', async () 
   const original = EMPLOYEES[0];
   Object.assign(original, {
     chucVu: 'Thủ kho', ngayVaoLam: '2024-01-02', ngaySinh: '1995-02-03', soCccd: '012345678901',
-    diaChiHienTai: 'Hà Nội', gioiTinh: 'Nam', hoSoDayDu: true, vanTayDaDangKy: true,
+    diaChiHienTai: 'Hà Nội', gioiTinh: 'Nam', hoSoDayDu: true, vanTayDaDangKy: true, insuranceNumber: '0123456789', rowIndex: 42,
     nguoiThanQuanHe: 'Vợ', nguoiThanHoTen: 'Nguyễn B', nguoiThanSoDienThoai: '0900000002',
     ngayNghiViec: '', createdAt: '2026-10-01T00:00:00.000Z'
   });
@@ -49,8 +49,8 @@ test('Quản lý xuất đầy đủ hồ sơ nhân sự mở rộng', async () 
     const { headers, rows } = await exportRows({ includeExtended: true }, [BRANCHES.HANOI]);
     assert.deepEqual(headers, [
       'Họ và tên', 'Bộ phận', 'Chức vụ', 'Ngày vào làm', 'Số ngày LV', 'Ngày sinh', 'Số CCCD', 'SĐT',
-      'Địa chỉ hiện tại', 'Giới tính', 'Hồ sơ', 'Vân tay', 'Cơ sở', 'QH người thân', 'Họ tên người thân',
-      'SĐT người thân', 'Trạng thái', 'Ngày nghỉ việc', 'Email', 'Ngày thêm'
+      'Địa chỉ hiện tại', 'Giới tính', 'Hồ sơ', 'Vân tay', 'Số bảo hiểm', 'Cơ sở', 'QH người thân', 'Họ tên người thân',
+      'SĐT người thân', 'Trạng thái', 'Ngày nghỉ việc', 'Email', 'Ngày thêm', 'ID nhân sự'
     ]);
     const row = rows.find(item => item[0] === 'Nguyễn Văn A');
     assert.ok(row);
@@ -58,8 +58,10 @@ test('Quản lý xuất đầy đủ hồ sơ nhân sự mở rộng', async () 
     assert.equal(row[2], 'Thủ kho');
     assert.equal(row[6], '012345678901');
     assert.equal(row[8], 'Hà Nội');
-    assert.equal(row[13], 'Vợ');
-    assert.equal(row[18], 'a@x.com');
+    assert.equal(row[12], '0123456789');
+    assert.equal(row[14], 'Vợ');
+    assert.equal(row[19], 'a@x.com');
+    assert.equal(row[21], '42');
   } finally {
     Object.keys(original).forEach(key => delete original[key]);
     Object.assign(original, { sourceBranch: BRANCHES.HANOI, hoTen: 'Nguyễn Văn A', boPhan: 'KHO', soDienThoai: '0900000001', email: 'a@x.com' });
@@ -87,7 +89,7 @@ test('xuất mở rộng: đủ ngày vào làm, số ngày LV, ngày sinh, gi�
     assert.equal(row[4], 10);
     assert.equal(row[5], '03/02/1995');
     assert.equal(row[9], 'Nam');
-    assert.equal(row[17], '12/01/2024');
+    assert.equal(row[18], '12/01/2024');
   } finally {
     Object.keys(original).forEach(key => delete original[key]);
     Object.assign(original, { sourceBranch: BRANCHES.HANOI, hoTen: 'Lê Văn D', boPhan: 'SALE', soDienThoai: '0900000004', email: 'd@x.com' });

@@ -38,6 +38,8 @@ const { createHrEmployeeAdminService, STATUS_LABELS } = require('./hrEmployeeAdm
 const { parseEmployeeWorkbook } = require('./hrEmployeeWorkbookImport');
 const { departmentsFor } = require('./hrDepartmentCatalog');
 const { importRows: importEmployeeRows } = require('./hrEmployeeWorkbookImportService');
+const { parseInsuranceWorkbook, previewInsuranceImport } = require('./hrEmployeeInsuranceImport');
+const hrEmployeesRepository = require('./hrEmployeesRepository');
 
 const employeeWorkbookUpload = multer({
   storage: multer.memoryStorage(),
@@ -433,7 +435,7 @@ function publicEmployee(employee, canManage) {
     diaChiHienTai: employee.diaChiHienTai || '', nguoiThanQuanHe: employee.nguoiThanQuanHe || '',
     nguoiThanHoTen: employee.nguoiThanHoTen || '', nguoiThanSoDienThoai: employee.nguoiThanSoDienThoai || '',
     gioiTinh: employee.gioiTinh || '', hoSoDayDu: !!employee.hoSoDayDu,
-    vanTayDaDangKy: !!employee.vanTayDaDangKy, ngayNghiViec: employee.ngayNghiViec || null
+    vanTayDaDangKy: !!employee.vanTayDaDangKy, insuranceNumber: employee.insuranceNumber || '', ngayNghiViec: employee.ngayNghiViec || null
   });
   return out;
 }
@@ -490,6 +492,22 @@ router.post('/api/hr/employees/import', ...authEmployeesManage, receiveEmployeeW
   } catch (err) {
     handleError(res, err, 'POST /api/hr/employees/import');
   }
+});
+
+router.post('/api/hr/employees/insurance-import', ...authEmployeesManage, receiveEmployeeWorkbook, async (req, res) => {
+  try {
+    if (!req.file || !req.file.buffer) return res.status(400).json({ error: 'Vui lòng chọn file Excel.', code: 'HR_EMPLOYEE_FILE_REQUIRED' });
+    const rows = await parseInsuranceWorkbook(req.file.buffer);
+    const snapshot = await employeeDirectory.getSnapshot({ forceRefresh: true });
+    const preview = previewInsuranceImport(rows, snapshot.employees, allowedBranches(req.user));
+    if (!rows.length || !preview.valid) return res.status(400).json({ error: 'File không có số bảo hiểm hợp lệ.', ...preview, updates: undefined });
+    if (req.query.commit === '1') {
+      if (preview.errors.length) return res.status(400).json({ error: 'Hãy sửa các dòng lỗi trước khi nhập.', ...preview, updates: undefined });
+      await hrEmployeesRepository.updateInsuranceNumbers(preview.updates);
+      employeeDirectory.clearCache();
+    }
+    return res.status(200).json({ total: preview.total, valid: preview.valid, errors: preview.errors, imported: req.query.commit === '1' ? preview.valid : 0 });
+  } catch (err) { handleError(res, err, 'POST /api/hr/employees/insurance-import'); }
 });
 
 async function scheduleEmployee(req) {

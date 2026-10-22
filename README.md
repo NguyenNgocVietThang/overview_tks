@@ -1,6 +1,8 @@
 <!-- Chính sách hiện hành: mục 16/10/2026 — Tập Pancake độc lập ở cuối tài liệu. Các mốc cũ giữ làm lịch sử. -->
 # TOKOSI Dashboard
 
+22/10/2026 — Quản lý có thể xuất Danh sách nhân sự kèm ID, điền Số bảo hiểm và nhập lại theo ID. Cần áp migration bảo hiểm trước khi triển khai code.
+
 Dashboard nội bộ cho hai cơ sở Hà Nội và Sài Gòn.
 
 Mọi bảng trên web và trong file HTML xuất ra có nút **Cột hiển thị** để chọn cột, cùng tay kéo ở mép phải tiêu đề để chỉnh độ rộng (ngoại trừ các bảng bên trong các hộp xem chi tiết dùng chung — xem `detail-panel.css` — không có nút Cột hiển thị để giữ 1 khung cuộn gọn gàng). Nội dung dài xuống dòng; sort, lọc và phân trang giữ nguyên kích thước cột. Các lựa chọn chỉ được giữ trong lần xem hiện tại và trở về mặc định khi tải lại trang hoặc mở lại file HTML. File HTML sử dụng các điều khiển này ngay cả khi offline; Excel/PDF giữ định dạng xuất hiện có.

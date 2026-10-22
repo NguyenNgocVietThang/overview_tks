@@ -1,5 +1,7 @@
 # TÀI LIỆU ĐẶC TẢ YÊU CẦU PHẦN MỀM
 
+22/10/2026 — Danh sách nhân sự: Quản lý xem/sửa Số bảo hiểm sau Vân tay, xuất Excel kèm ID và nhập lại chỉ cập nhật Số bảo hiểm sau khi kiểm tra ID, định dạng, trùng số, cơ sở.
+
 *(Software Requirements Specification – SRS)*
 
 **HỆ THỐNG DASHBOARD NỘI BỘ — TOKOSI**

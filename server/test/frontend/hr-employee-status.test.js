@@ -178,7 +178,7 @@ test('người có quyền quản lý: hiện bảng hồ sơ mở rộng, bấm
   const { dom, window, sent } = await openPage({ canManage: true });
   const doc = window.document;
   assert.equal(doc.getElementById('btnAddEmployee').hidden, false);
-  assert.equal(doc.querySelectorAll('#employeeDirectoryTableHead th').length, 18);
+  assert.equal(doc.querySelectorAll('#employeeDirectoryTableHead th').length, 19);
   assert.equal(doc.getElementById('btnImportEmployeeDirectory').hidden, false, 'còn nhân sự thiếu ngày vào làm/ngày sinh/giới tính thì vẫn cho nhập bổ sung');
   const row = doc.querySelector('#employeeDirectoryTableBody tr');
 
@@ -291,7 +291,7 @@ test('quan ly xem danh sach theo thu tu file nhan su, an nut nhap khi da co du l
     .map(th => th.textContent.replace(/[▲▼]/g, '').trim());
   assert.deepEqual(headers, [
     'Họ và tên', 'Bộ phận', 'Chức vụ', 'Ngày vào làm', 'Số ngày LV', 'Ngày sinh', 'Số CCCD', 'SĐT',
-    'Địa chỉ hiện tại', 'Giới tính', 'Hồ sơ', 'Vân tay', 'Cơ sở', 'QH người thân', 'Họ tên người thân',
+    'Địa chỉ hiện tại', 'Giới tính', 'Hồ sơ', 'Vân tay', 'Số bảo hiểm', 'Cơ sở', 'QH người thân', 'Họ tên người thân',
     'SĐT người thân', 'Trạng thái', 'Ngày nghỉ việc'
   ]);
   assert.equal(doc.getElementById('btnImportEmployeeDirectory').hidden, false, 'còn hồ sơ thiếu thì hiện nút nhập bổ sung');
