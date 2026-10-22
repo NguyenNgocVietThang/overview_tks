@@ -334,6 +334,15 @@ test('form nhân sự ghi đúng Bộ phận và không cho sửa email liên k�
   dom.window.close();
 });
 
+test('ô số bảo hiểm cho nhập text không giới hạn chữ số', async () => {
+  const { dom } = await openPage({ canManage: true });
+  const input = dom.window.document.getElementById('empInsuranceNumber');
+  assert.equal(input.type, 'text');
+  assert.notEqual(input.getAttribute('inputmode'), 'numeric');
+  assert.equal(input.hasAttribute('maxlength'), false);
+  dom.window.close();
+});
+
 test('cột ngày và số đủ chỗ cho giá trị, nhưng vẫn gọn để xem được nhiều cột', async () => {
   const { dom, window } = await openPage({ canManage: true, employees: [{ ...EMPLOYEES[0], ngayVaoLam: '2024-04-22' }] });
   assert.ok(window.employeeTextWidth('22/04/2024') >= 104, 'độ rộng gồm cả khoảng đệm ô và font thực tế');

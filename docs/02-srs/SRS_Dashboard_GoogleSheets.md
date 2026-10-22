@@ -1,6 +1,6 @@
 # TÀI LIỆU ĐẶC TẢ YÊU CẦU PHẦN MỀM
 
-22/10/2026 — Danh sách nhân sự: Quản lý xem/sửa Số bảo hiểm sau Vân tay, xuất Excel kèm ID và nhập lại chỉ cập nhật Số bảo hiểm sau khi kiểm tra ID, định dạng, trùng số, cơ sở.
+22/10/2026 — Danh sách nhân sự: Quản lý xem/sửa Số bảo hiểm sau Vân tay dưới dạng text tự do, xuất Excel kèm ID và nhập lại chỉ cập nhật Số bảo hiểm sau khi kiểm tra ID, trùng giá trị, cơ sở; không áp mẫu định dạng số.
 
 *(Software Requirements Specification – SRS)*
 

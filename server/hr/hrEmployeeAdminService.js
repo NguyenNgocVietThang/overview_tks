@@ -84,9 +84,6 @@ function createHrEmployeeAdminService(options = {}) {
     }
     const insuranceNumber = input.insuranceNumber === undefined && existing
       ? clean(existing.insuranceNumber) : clean(input.insuranceNumber);
-    if (insuranceNumber && !/^\d{10,15}$/.test(insuranceNumber)) {
-      throw new HrEmployeeAdminError('Số bảo hiểm cần 10–15 chữ số.', 400, 'INVALID_INSURANCE_NUMBER');
-    }
     const date = value => { const text = clean(value); return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null; };
     return {
       hoTen, boPhan, branch, email, soDienThoai, employmentStatus: toStatus(input.trangThai),

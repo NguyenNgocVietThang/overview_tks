@@ -24,7 +24,7 @@ async function parseInsuranceWorkbook(buffer) {
     const row = sheet.getRow(number);
     const insuranceCell = row.getCell(insuranceColumn);
     const id = cellText(row.getCell(idColumn));
-    const insuranceNumber = cellText(insuranceCell).replace(/\.0$/, '');
+    const insuranceNumber = cellText(insuranceCell);
     if (id || insuranceNumber) rows.push({ number, id, insuranceNumber });
   }
   return rows;
@@ -44,7 +44,6 @@ function previewInsuranceImport(rows, employees, branches) {
     if (!/^\d+$/.test(row.id) || !employee) reason = 'ID nhân sự không tồn tại';
     else if (!branches.includes(employee.sourceBranch)) reason = 'Nhân sự ngoài phạm vi cơ sở';
     else if (seenIds.has(row.id)) reason = 'ID nhân sự lặp trong file';
-    else if (!/^\d{10,15}$/.test(row.insuranceNumber)) reason = 'Số bảo hiểm cần 10–15 chữ số';
     else if (seenNumbers.has(row.insuranceNumber) || (existingNumbers.has(row.insuranceNumber) && existingNumbers.get(row.insuranceNumber) !== row.id)) reason = 'Số bảo hiểm bị trùng';
     if (reason) errors.push({ row: row.number, id: row.id, reason });
     else updates.push({ id: row.id, insuranceNumber: row.insuranceNumber });
