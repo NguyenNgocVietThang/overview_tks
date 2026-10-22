@@ -492,7 +492,7 @@ function createPriceAuditRepository({ pool = getPool() } = {}) {
     }
   }
 
-  /** Sale giai thich (text da kiem tra o service). options.authorize(rowTruocGhi) nem 403 neu khong dung nhom HIEN TAI. */
+  /** Sale giai thich (text/quyen da kiem tra o service). options.authorize la guard tuy chon cua caller. */
   function setExplanation(key, text, expectedVersion, actor, options = {}) {
     return writeLine(key, expectedVersion, actor, {
       action: 'explanation', sql: UPDATE_EXPLANATION_SQL, value: text, authorize: options.authorize,

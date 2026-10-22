@@ -1,6 +1,6 @@
 /* Tab Hóa đơn — mục 2 "Kiểm tra giá bán" (API /api/invoice-price-audit, quyền reports.invoices.priceAudit).
-   MỘT bảng: thead tĩnh trong index.html sinh từ catalog cột (server/invoicePriceAudit/priceAuditColumns.js — 18 cột nghiệp vụ,
-   16 hiện mặc định, cột đối chiếu ẩn, cùng bộ Cột hiển thị của table-controls). Lọc, sắp xếp, phân trang và chỉ số đều ở
+   MỘT bảng: thead tĩnh trong index.html sinh từ catalog cột (server/invoicePriceAudit/priceAuditColumns.js — 17 cột nghiệp vụ,
+   15 hiện mặc định, cột đối chiếu ẩn, cùng bộ Cột hiển thị của table-controls). Lọc, sắp xếp, phân trang và chỉ số đều ở
    máy chủ trên toàn bộ tập đã lọc; trang chỉ nhận đúng 1 trang dòng, không tính giá trong trình duyệt.
    Sửa "Sale giải thích" (Lưu/Hủy, ≤ 4000 ký tự) và "Chốt" theo quyền từng dòng (canEditExplanation / canDecide)
    kèm expectedVersion; 409 → báo xung đột + nạp dòng mới nhất. Cơ sở theo bộ chọn HN/SG/Cả hai chung (cookie). */

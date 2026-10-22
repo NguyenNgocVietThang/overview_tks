@@ -1,7 +1,7 @@
 'use strict';
 
 // Muc 2 "Kiem tra gia ban" cua tab Hoa don (/reports/#invoices): MOT bang, thead dung tu catalog cot cua may chu
-// (18 cot nghiep vu, 16 hien mac dinh + cot doi chieu an), bo loc/KPI/phan trang o may chu, sua giai thich + Chot
+// (17 cot nghiep vu, 15 hien mac dinh + cot doi chieu an), bo loc/KPI/phan trang o may chu, sua giai thich + Chot
 // theo quyen tung dong, 409, giai thich loi khong gia vo da luu, doi Chot lam dong doi tap loc.
 
 const test = require('node:test');
@@ -38,7 +38,7 @@ function line(id, over = {}) {
 
 // May chu gia co trang thai: loc status/decision, KPI theo toan tap loc, PATCH decision/explanation co version.
 function fakeServer({ rows = [line(1001)], meta = META, explanationStatus = 200 } = {}) {
-  const server = { rows: rows.map(r => ({ ...r })), meta, explanationStatus, requests: [] };
+  const server = { rows: rows.map(r => ({ ...r })), meta, explanationStatus, requests: [], editorName: 'Minh Anh' };
   const effective = r => (r.decision === 'ok' ? { ...r, effectiveStatus: 'correct', effectiveAmount: '0', reason: 'Được duyệt Ok' }
     : { ...r, effectiveStatus: r.originalStatus, effectiveAmount: r.originalAmount });
   server.report = params => {
@@ -90,7 +90,8 @@ function createPage({ permissions = ['reports.invoices', 'reports.invoices.price
       if (body.expectedVersion !== row.version) return respond(409, { error: 'Dòng đã thay đổi.', code: 'VERSION_CONFLICT', row: { ...row } });
       if (m[4] === 'explanation') {
         if (server.explanationStatus !== 200) return respond(server.explanationStatus, { error: 'Không lưu được giải thích.' });
-        Object.assign(row, { saleExplanation: body.text, version: row.version + 1 });
+        Object.assign(row, { saleExplanation: body.text, explanationBy: server.editorName,
+          explanationAt: '2026-10-22T08:30:00.000Z', version: row.version + 1 });
         return respond(200, { row: { ...row } });
       }
       Object.assign(row, { decision: body.decision, version: row.version + 1 });
@@ -128,17 +129,22 @@ test('muc 2 nam sau Giao dich trong tab Hoa don, chi MOT bang kiem tra gia', () 
   assert.equal(page.$('priceAuditSection').querySelectorAll('table').length, 1);
 });
 
-test('thead tu catalog: 18 cot nghiep vu dung thu tu, 16 hien mac dinh, cot doi chieu an sau do', async () => {
+test('thead tu catalog: 17 cot nghiep vu gon, 15 hien mac dinh, bo cot thua', async () => {
   const page = await opened();
   const labels = headLabels(page);
-  assert.deepEqual(labels.slice(0, 18), ['Ngày giờ bán', 'Cơ sở', 'Mã hóa đơn', 'Sale phụ trách', 'Khách hàng', 'Mã hàng', 'Tên hàng',
-    'Cấp khách', 'SL dòng', 'Tổng SL cùng mã', 'Full VAT', 'Đơn giá sau giảm', 'Giá min áp dụng', 'Chênh/đơn vị', 'Tiền chênh / phạt',
+  assert.deepEqual(labels.slice(0, 17), ['TGian', 'Cơ sở', 'Mã HĐ', 'Sale phụ trách', 'Khách', 'Mã hàng', 'Tên hàng',
+    'Level khách', 'Tổng SL', 'Full VAT', 'Giá sau giảm', 'Giá min', 'Chênh/ĐV', 'Tiền chênh / phạt',
     'Kết quả', 'Sale giải thích', 'Chốt']);
   assert.equal(labels.length, COLUMNS.length);
   const ths = [...page.$('priceAuditHead').querySelectorAll('th')];
   const visible = ths.filter(th => th.dataset.columnDefaultHidden !== 'true');
-  assert.equal(visible.length, 16);
-  assert.ok(ths.slice(18).every(th => th.dataset.columnDefaultHidden === 'true'));
+  assert.equal(visible.length, 15);
+  assert.ok(ths.slice(17).every(th => th.dataset.columnDefaultHidden === 'true'));
+  assert.equal(labels.length, 40);
+  for (const key of ['quantity', 'customerEmail', 'sourceLineNo', 'winningSource', 'reason', 'capturedAt']) {
+    assert.ok(!ths.some(th => th.dataset.columnKey === key), key + ' khong con trong bo chon cot');
+  }
+  assert.equal(ths.find(th => th.dataset.columnKey === 'customerName').style.width, '150px');
   // thead tinh phai khop DUNG catalog may chu (nguon duy nhat cho bang + xuat file)
   assert.deepEqual(ths.map(th => [th.dataset.columnKey, (th.querySelector('.sort-label') || th).textContent.trim(), th.dataset.colType, th.dataset.columnDefaultHidden !== 'true']),
     COLUMNS.map(c => [c.key, c.label, c.type, c.defaultVisible]));
@@ -261,6 +267,37 @@ function openEditor(page, tr) {
   cell(page, tr, 'saleExplanation').querySelector('[data-action="edit-explanation"]').click();
   return cell(page, bodyRows(page).find(r => r.dataset.rowKey === tr.dataset.rowKey), 'saleExplanation');
 }
+
+test('sale sua giai thich cua nguoi khac: hien ten nguoi luu moi nhat sau luu va tai lai', async () => {
+  const server = fakeServer({ rows: [line(1001, {
+    saleName: 'Sale khác', saleExplanation: 'Nội dung cũ', explanationBy: 'Người điền trước'
+  }), line(1002, { saleExplanation: 'Dòng khác', explanationBy: 'Giữ nguyên' })] });
+  const page = await opened({ server });
+  let savedCell = cell(page, bodyRows(page)[0], 'saleExplanation');
+  assert.equal(savedCell.querySelector('.debt-feedback-by').textContent, 'Người điền trước');
+  const box = openEditor(page, bodyRows(page)[0]);
+  const text = 'Khách <img src=x onerror=alert(1)> & đã thống nhất';
+  server.editorName = 'Minh <script>alert(1)</script> Anh';
+  box.querySelector('textarea').value = text;
+  box.querySelector('[data-action="save-explanation"]').click();
+  await settle();
+  const patch = server.requests.find(r => r.method === 'PATCH');
+  assert.deepEqual(patch.body, { text, expectedVersion: 1 }, 'ten nguoi luu do may chu lay tu tai khoan');
+  const assertSaved = () => {
+    savedCell = cell(page, bodyRows(page)[0], 'saleExplanation');
+    assert.equal(savedCell.querySelector('.debt-feedback-text').textContent, text);
+    assert.equal(savedCell.querySelector('.debt-feedback-by').textContent,
+      server.editorName + ' · 15:30 22/10/2026');
+    assert.equal(savedCell.querySelector('.debt-feedback-text').nextElementSibling.className, 'debt-feedback-by');
+    assert.equal(savedCell.querySelector('script, img'), null, 'noi dung va ten duoc escape');
+    assert.equal(cell(page, bodyRows(page)[1], 'saleExplanation').querySelector('.debt-feedback-text').textContent, 'Dòng khác');
+    assert.equal(cell(page, bodyRows(page)[1], 'saleExplanation').querySelector('.debt-feedback-by').textContent, 'Giữ nguyên');
+  };
+  assertSaved();
+  await page.w.TKSPriceAudit.load(true);
+  await settle();
+  assertSaved();
+});
 
 test('giai thich luu loi: khong gia vo da luu, giu noi dung dang go va bao loi', async () => {
   const server = fakeServer({ explanationStatus: 500 });

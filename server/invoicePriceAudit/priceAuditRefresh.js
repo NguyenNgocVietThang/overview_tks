@@ -9,7 +9,7 @@
 //      Lan chay som khong chan luot dem; goi lap truoc 23:00 van bo qua.
 //      published_day > day -> 'stale' (khong bao gio dung lai/xoa theo ngay cu hon ban da cong bo).
 //   3. BEGIN REPEATABLE READ: captureUnseenInvoices (chi them hoa don chua quet, khong upsert dong cu) ->
-//      xoa so danh dau ngoai [day-6, day] (CASCADE xoa dong chup + giai thich/chot + nhat ky) -> upsert state
+//      giu lau dai so danh dau + dong chup + giai thich/chot + nhat ky, chi doi cua so doc -> upsert state
 //      (published_day, window, last_success_at, last_error=NULL, added_invoice_count, version+1) -> COMMIT.
 //   4. Loi bat ky: ROLLBACK (ban cu nguyen ven) roi ghi RIENG last_attempt_at/last_error (thong diep an toan,
 //      khong stack/chuoi ket noi), KHONG dong vao published_day/window/last_success_at; tra 'failed' (khong nem)
@@ -61,11 +61,6 @@ const windowFromOf = day => addDaysToKey(day, -(WINDOW_DAYS - 1));
 
 const STATE_SQL = `SELECT published_day::text AS published_day, last_success_at FROM invoice_price_audit_state WHERE id`;
 
-// Xoa ca ngay > day (khong the co khi chi chay theo slot tang dan, giu cho dung dinh nghia cua so).
-const PRUNE_SQL = `WITH gone AS (
-    DELETE FROM invoice_price_audit_invoices WHERE sold_day < $1::date OR sold_day > $2::date RETURNING 1)
-  SELECT count(*)::int AS n FROM gone`;
-
 const PUBLISH_SQL = `INSERT INTO invoice_price_audit_state AS s
     (id, published_day, window_from, window_to, last_success_at, last_attempt_at, last_error, added_invoice_count, version)
   VALUES (TRUE, $1::date, $2::date, $1::date, $3::timestamptz, $3::timestamptz, NULL, $4::int, 1)
@@ -83,8 +78,6 @@ const PREVIEW_COUNT_SQL = `SELECT count(*) FILTER (WHERE l.original_status = 'wr
   FROM invoice_price_audit_lines l
   JOIN invoice_price_audit_invoices i ON i.branch = l.branch AND i.invoice_id = l.invoice_id
   WHERE i.run_day = $1::date AND i.captured_at = $2::timestamptz`;
-const PREVIEW_PRUNE_SQL = `SELECT count(*)::int AS n FROM invoice_price_audit_invoices
-  WHERE sold_day < $1::date OR sold_day > $2::date`;
 
 /** Thong diep loi an toan cho state/UI: khong stack, khong chuoi ket noi/thong tin noi bo. */
 function safeFailure(err) {
@@ -136,11 +129,12 @@ async function runDailyAudit({ day, pool, now = new Date(), capture = captureUns
     await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
     inTransaction = true;
     const { addedInvoices, addedLines } = await capture({ day, client, now: nowDate });
-    const prunedInvoices = (await client.query(PRUNE_SQL, [windowFrom, day])).rows[0].n;
+    // Ban chup la khoa ben vung cua giai thich; cua so 7 ngay chi gioi han bao cao.
+    const prunedInvoices = 0;
     await client.query(PUBLISH_SQL, [day, windowFrom, nowDate.toISOString(), addedInvoices]);
     await client.query('COMMIT');
     inTransaction = false;
-    logger.info?.(`[PriceAudit] Cong bo ${windowFrom}..${day}: them ${addedInvoices} hoa don / ${addedLines} dong, xoa ${prunedInvoices} hoa don het han.`);
+    logger.info?.(`[PriceAudit] Cong bo ${windowFrom}..${day}: them ${addedInvoices} hoa don / ${addedLines} dong; giu lich su lau dai.`);
     return result('completed', day, { addedInvoices, addedLines, prunedInvoices });
   } catch (err) {
     if (inTransaction) {
@@ -184,7 +178,7 @@ async function previewDailyAudit({ day, pool, now = new Date(), capture = captur
       const publishedDay = (await client.query(STATE_SQL)).rows[0]?.published_day || null;
       const { addedInvoices, addedLines } = await capture({ day, client, now: nowDate });
       const { wrong_lines: wrongLines } = (await client.query(PREVIEW_COUNT_SQL, [day, nowDate.toISOString()])).rows[0];
-      const prunedInvoices = (await client.query(PREVIEW_PRUNE_SQL, [windowFrom, day])).rows[0].n;
+      const prunedInvoices = 0;
       return { mode: 'dry-run', day, windowFrom, windowTo: day, publishedDay, addedInvoices, addedLines, wrongLines, prunedInvoices };
     } finally {
       try { await client.query('ROLLBACK'); } catch (rollbackError) { broken = rollbackError; }

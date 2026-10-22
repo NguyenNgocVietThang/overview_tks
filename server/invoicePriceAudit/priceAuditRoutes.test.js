@@ -97,7 +97,7 @@ test('GET /: 401 chua dang nhap, 403 thieu quyen, no-store, pham vi co so tu coo
   } finally { await db.close(); }
 });
 
-test('PATCH explanation: Sale dung nhom 200; ten gan dung / Quan ly 403 du sua request; 409; thu hoi quyen giai thich', async () => {
+test('PATCH explanation: sale khac nhom sua duoc va ghi ten moi nhat; thieu quyen 403; version cu 409', async () => {
   const { db, users, app } = await setup();
   try {
     await withServer(app, async base => {
@@ -107,13 +107,16 @@ test('PATCH explanation: Sale dung nhom 200; ten gan dung / Quan ly 403 du sua r
       assert.equal(ok.status, 200);
       assert.equal(ok.body.row.saleExplanation, 'Khách quen');
       assert.equal(ok.body.row.version, 2);
-      assert.equal((await call(base, path, { user: 'sale2', method: 'PATCH', body: { text: 'b', expectedVersion: 2 } })).status, 403);
+      const other = await call(base, path, { user: 'sale2', method: 'PATCH', body: { text: 'b', expectedVersion: 2 } });
+      assert.equal(other.status, 200);
+      assert.equal(other.body.row.explanationBy, users.sale2.hoTen);
+      assert.equal(other.body.row.version, 3);
       assert.equal((await call(base, path, { user: 'ql', method: 'PATCH', body: { text: 'b', expectedVersion: 2 } })).status, 403);
       assert.equal((await call(base, path, { user: 'kt', method: 'PATCH', body: { text: 'b', expectedVersion: 2 } })).status, 403);
       const stale = await call(base, path, { user: 'sale', method: 'PATCH', body: { text: 'c', expectedVersion: 1 } });
       assert.equal(stale.status, 409);
       assert.equal(stale.body.code, 'VERSION_CONFLICT');
-      assert.equal(stale.body.row.saleExplanation, 'Khách quen');
+      assert.equal(stale.body.row.saleExplanation, 'b');
       assert.equal((await call(base, path, { user: 'sale', method: 'PATCH', body: { text: 'c', expectedVersion: 2, originalAmount: '0' } })).status, 400);
       assert.equal((await call(base, '/hanoi/abc/1/explanation', { user: 'sale', method: 'PATCH', body: { text: 'c', expectedVersion: 2 } })).status, 400);
       users.sale.featurePermissions = { 'reports.invoices.priceAudit.explain': false };

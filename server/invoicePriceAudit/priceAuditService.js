@@ -117,7 +117,8 @@ function checkBody(body, allowedKeys) {
   return v;
 }
 
-const actorOf = viewer => String((viewer && (viewer.hoTen || viewer.username || viewer.id)) || '').trim() || 'unknown';
+const actorOf = viewer => [viewer?.hoTen, viewer?.username, viewer?.id]
+  .map(value => String(value ?? '').trim()).find(Boolean) || 'unknown';
 const isMissingTable = err => Boolean(err) && err.code === '42P01';
 
 function notMigratedReport(query) {
@@ -165,7 +166,7 @@ function createPriceAuditService({ repository = getPriceAuditRepository() } = {}
     }
   }
 
-  /** PATCH explanation: body { text, expectedVersion }; quyen giai thich + nhom khach HIEN TAI kiem tra trong giao dich ghi. */
+  /** PATCH explanation: body { text, expectedVersion }; quyen giai thich tren moi hoa don. */
   async function updateExplanation(params, body, viewer) {
     const key = parseKey(params);
     const expectedVersion = checkBody(body, ['text', 'expectedVersion']);
@@ -174,13 +175,7 @@ function createPriceAuditService({ repository = getPriceAuditRepository() } = {}
     if (!access.canView(viewer) || !hasFeature(viewer, access.FEATURE_EXPLAIN)) {
       throw httpError(403, 'Bạn không có quyền điền Sale giải thích.', 'FORBIDDEN');
     }
-    const row = await guardConflict(repository.setExplanation(key, body.text, expectedVersion, actorOf(viewer), {
-      authorize: current => {
-        if (!access.canExplain(viewer, current.currentSaleGroup)) {
-          throw httpError(403, 'Chỉ Sale đang phụ trách nhóm khách này mới được giải thích.', 'NOT_CUSTOMER_OWNER');
-        }
-      }
-    }), viewer);
+    const row = await guardConflict(repository.setExplanation(key, body.text, expectedVersion, actorOf(viewer)), viewer);
     return { row: access.withCapabilities(viewer, row) };
   }
 

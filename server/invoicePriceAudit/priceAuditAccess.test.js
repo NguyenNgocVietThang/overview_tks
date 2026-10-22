@@ -21,19 +21,20 @@ test('canView: Quan ly / Tro ly / Nhan vien sale mac dinh; Ke toan khong; thieu 
   assert.equal(A.canView(null), false);
 });
 
-test('canExplain: Sale dung nhom (NFKC/trim/khoang trang/hoa thuong) duoc; sai nhom, gan dung, nhom rong khong', () => {
+test('canExplain: quyen giai thich ap dung moi hoa don, khong phu thuoc nhom khach hay ten', () => {
   const sale = user('Nhân viên sale', 'Duy  Thái');
   assert.equal(A.canExplain(sale, 'Duy Thái'), true);
   assert.equal(A.canExplain(sale, '  duy   THÁI '), true);
   assert.equal(A.canExplain(sale, 'Duy Thái'), true, 'NFKC hop dau to hop');
   assert.equal(A.canExplain(sale, 'Duy Thái - 1234567890'), true, 'hau to ID Telegram bo ca hai phia');
-  assert.equal(A.canExplain(sale, 'Minh Anh'), false);
-  assert.equal(A.canExplain(sale, 'Duy Thai'), false, 'khong fuzzy: thieu dau la khac');
-  assert.equal(A.canExplain(sale, 'Duy Thái 2'), false);
-  assert.equal(A.canExplain(sale, ''), false);
-  assert.equal(A.canExplain(sale, null), false);
-  assert.equal(A.canExplain(user('Nhân viên sale', ''), ''), false);
-  assert.equal(A.canExplain(user('Nhân viên sale', '  '), '  '), false);
+  assert.equal(A.canExplain(sale, 'Minh Anh'), true);
+  assert.equal(A.canExplain(sale, 'Duy Thai'), true);
+  assert.equal(A.canExplain(sale, 'Duy Thái 2'), true);
+  assert.equal(A.canExplain(sale, ''), true);
+  assert.equal(A.canExplain(sale, null), true);
+  assert.equal(A.canExplain(user('Nhân viên sale', ''), ''), true);
+  assert.equal(A.canExplain(user('Nhân viên sale', '  '), '  '), true);
+  assert.equal(A.canExplain(null, 'Duy Thái'), false);
 });
 
 test('canExplain/canDecide: Quan ly chot duoc nhung KHONG tu co quyen giai thich; Tro ly khong chot', () => {

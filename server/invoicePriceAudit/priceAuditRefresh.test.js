@@ -5,7 +5,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { runDailyAudit, previewDailyAudit, slotStartUtc, latestDueDay, LOCK_KEY } = require('./priceAuditRefresh');
-const { SOURCE_NOT_READY } = require('./priceAuditRepository');
+const { SOURCE_NOT_READY, createPriceAuditRepository } = require('./priceAuditRepository');
 const { HN_NOTE, newDb, product, customer, invoice, pgliteAsPool } = require('./priceAuditFixtures');
 const { main: cliMain } = require('../scripts/refresh-invoice-price-audit');
 
@@ -97,7 +97,7 @@ test('slot 23:00 VN = 16:00 UTC; ngay den han khong phu thuoc TZ cua server', ()
   }
 });
 
-test('Nghiem thu: 20/10 cong bo 14-20; 21/10 cong bo 15-21, giu 6 ngay cu, them hoa don 23:10 cua 20/10, loai 14/10 cung nhat ky', async () => {
+test('Cua so doi ngay: giu nguyen giai thich/chot va nhat ky lau dai, chi bao cao 7 ngay', async () => {
   const days = ['2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16', '2026-10-17', '2026-10-18', '2026-10-19', '2026-10-20'];
   const db = await setup(days);
   const pool = pgliteAsPool(db);
@@ -117,8 +117,9 @@ test('Nghiem thu: 20/10 cong bo 14-20; 21/10 cong bo 15-21, giu 6 ngay cu, them 
     assert.equal(s1.last_error, null);
     assert.equal(new Date(s1.last_success_at).toISOString(), '2026-10-20T16:00:00.000Z');
 
-    // Giai thich/chot + nhat ky cho dong ngay 14 (se het han) va ngay 15 (con trong cua so).
-    await db.query(`UPDATE invoice_price_audit_lines SET sale_explanation = 'ly do', decision = 'penalty', version = 2`);
+    // Giai thich/chot + nhat ky cho ca ngay 14 (sap ra khoi cua so) va ngay 15.
+    await db.query(`UPDATE invoice_price_audit_lines SET sale_explanation = 'ly do', explanation_by = 'Sale A',
+      explanation_at = '2026-10-20T15:00:00Z', decision = 'penalty', version = 2`);
     await db.query(`INSERT INTO invoice_price_audit_changes (branch, invoice_id, source_line_no, actor, action, version_before, version_after)
       SELECT branch, invoice_id, source_line_no, 'u', 'decision', 1, 2 FROM invoice_price_audit_lines`);
     const before = await snapshot(db);
@@ -131,10 +132,10 @@ test('Nghiem thu: 20/10 cong bo 14-20; 21/10 cong bo 15-21, giu 6 ngay cu, them 
     const second = await run(pool, '2026-10-21');
     assert.equal(second.status, 'completed');
     assert.equal(second.addedInvoices, 2);
-    assert.equal(second.prunedInvoices, 1);
+    assert.equal(second.prunedInvoices, 0);
     assert.equal(second.windowFrom, '2026-10-15');
     assert.equal(second.windowTo, '2026-10-21');
-    assert.deepEqual(await soldDays(db), ['2026-10-15', '2026-10-16', '2026-10-17', '2026-10-18', '2026-10-19',
+    assert.deepEqual(await soldDays(db), ['2026-10-14', '2026-10-15', '2026-10-16', '2026-10-17', '2026-10-18', '2026-10-19',
       '2026-10-20', '2026-10-20', '2026-10-21']);
     assert.deepEqual(await soldDays(db, 'invoice_price_audit_lines'), await soldDays(db));
     const s2 = await state(db);
@@ -143,14 +144,18 @@ test('Nghiem thu: 20/10 cong bo 14-20; 21/10 cong bo 15-21, giu 6 ngay cu, them 
     assert.equal(s2.added_invoice_count, 2);
     assert.equal(s2.version, s1.version + 1);
 
-    // 6 ngay cu giu nguyen tung byte (ke ca giai thich/chot), ngay 14 bi loai cung nhat ky.
+    // Ca ngay da ra khoi cua so van giu nguyen giai thich/chot va nhat ky.
     const after = await snapshot(db);
     assert.deepEqual(after.filter(r => r.sold_day !== '2026-10-21' && r.invoice_id !== 2001),
-      before.filter(r => r.sold_day !== '2026-10-14'));
-    assert.equal(await count(db, 'invoice_price_audit_changes'), 6);
+      before);
+    assert.equal(await count(db, 'invoice_price_audit_changes'), 7);
     const { rows: changedDays } = await db.query(`SELECT DISTINCT l.sold_day::text AS d FROM invoice_price_audit_changes c
       JOIN invoice_price_audit_lines l USING (branch, invoice_id, source_line_no) ORDER BY 1`);
-    assert.equal(changedDays[0].d, '2026-10-15');
+    assert.equal(changedDays[0].d, '2026-10-14');
+    const report = await createPriceAuditRepository({ pool }).readReport({});
+    assert.equal(report.totalRows, 8);
+    assert.equal(report.rows.some(r => r.soldDay === '2026-10-14'), false);
+    assert.equal(report.rows.find(r => r.soldDay === '2026-10-15').explanationBy, 'Sale A');
     // Hoa don muon mang ngay ban 20/10, gia luc ghi nhan lan dau (mo ta moi 20000 -> dung gia).
     const late = after.find(r => r.invoice_id === 2001);
     assert.equal(late.sold_day, '2026-10-20');
@@ -172,7 +177,7 @@ test('Thang/nam: 31/12 cong bo 25-31/12; 01/01/2027 cong bo 26/12-01/01', async 
     const jan = await run(pool, '2027-01-01');
     assert.equal(jan.status, 'completed');
     assert.deepEqual([jan.windowFrom, jan.windowTo], ['2026-12-26', '2027-01-01']);
-    assert.deepEqual(await soldDays(db), days.slice(2));
+    assert.deepEqual(await soldDays(db), days.slice(1));
     assert.equal((await state(db)).published_day, '2027-01-01');
   } finally { await db.close(); }
 });
