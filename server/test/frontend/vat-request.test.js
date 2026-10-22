@@ -64,9 +64,11 @@ async function setup(t, { vaiTro, id = 'sale-1', responses, featurePermissions =
     const body = options.body ? JSON.parse(options.body) : undefined;
     calls.push({ key, query: Object.fromEntries(parsed.searchParams), body });
     const handler = responses[key];
-    const result = typeof handler === 'function' ? handler(body) : { status: 200, data: handler };
+    const result = await (typeof handler === 'function' ? handler(body) : { status: 200, data: handler });
     const headers = result.headers || {};
-    return { ok: result.status < 400, status: result.status, json: async () => result.data,
+    // Ban sao moi lan nhu fetch that: trang sua lac quan tren dong khong duoc lam doi "du lieu may chu".
+    const data = result.data === undefined || typeof result.data === 'string' ? result.data : JSON.parse(JSON.stringify(result.data));
+    return { ok: result.status < 400, status: result.status, json: async () => data,
       blob: async () => new window.Blob([result.data || '']), headers: { get: name => headers[name.toLowerCase()] ?? null } };
   };
   window.eval(batchCode);
@@ -335,13 +337,13 @@ test('Ke toan chua duoc cap quyen: chi xem, khong co sua nhanh / chon lo / gom t
   assert.ok(doc.getElementById('vrCreate'));
 });
 
-test('KT: mac dinh loc Can xu ly, doi trang thai tren dong gui version; 409 hien canh bao va thay dong moi nhat', async t => {
+test('KT: mac dinh loc Can xu ly; sua o hien ngay roi luu nen kem version; 409 nap lai ban that va canh bao', async t => {
   let conflict = false;
   const responses = {
     'GET /': listResponse([row(1, { canProcess: true, isMine: false }), row(2, { canProcess: true, isMine: false })]),
-    'PATCH /1': body => conflict
-      ? { status: 409, data: { error: 'Yêu cầu vừa được người khác cập nhật.', code: 'VERSION_CONFLICT', latest: row(1, { status: '3', statusLabel: '3. Chờ khai chèn', version: 5, canProcess: true }) } }
-      : { status: 200, data: row(1, { ...body, version: 2, canProcess: true }) }
+    'PATCH /bulk': body => conflict
+      ? { status: 409, data: { error: '1 yêu cầu vừa được người khác cập nhật. Hãy tải lại rồi thử lại.', code: 'VERSION_CONFLICT', conflictIds: [1] } }
+      : bulkEcho(body)
   };
   const { window, doc, calls } = await setup(t, { vaiTro: 'Kế toán', id: 'kt-1', responses, featurePermissions: PROCESS_GRANTED });
   assert.equal(calls[0].query.status, 'pending,3,4');
@@ -357,18 +359,41 @@ test('KT: mac dinh loc Can xu ly, doi trang thai tren dong gui version; 409 hien
   const note = editCell(window, doc, 1, 'accountantNote');
   note.value = 'CONT 10-6V';
   note.dispatchEvent(new window.Event('change', { bubbles: true }));
-  await tick();
-  const patch = calls.find(c => c.key === 'PATCH /1');
-  assert.deepEqual(patch.body, { version: 1, accountantNote: 'CONT 10-6V' });
-  assert.equal(gridCell(doc, 1, 'accountantNote').textContent, 'CONT 10-6V', 'luu xong dong o sua');
+  assert.equal(gridCell(doc, 1, 'accountantNote').textContent, 'CONT 10-6V', 'hien ngay, khong cho may chu');
+  await tick(); await tick();
+  assert.deepEqual(calls.find(c => c.key === 'PATCH /bulk').body, { items: [{ id: 1, version: 1, changes: { accountantNote: 'CONT 10-6V' } }] });
 
   conflict = true;
   const select = editCell(window, doc, 1, 'status');
   select.value = '1';
   select.dispatchEvent(new window.Event('change', { bubbles: true }));
-  await tick();
+  assert.equal(gridCell(doc, 1, 'status').querySelector('.vr-badge').dataset.status, '1', 'hien ngay');
+  await tick(); await tick(); await tick();
+  assert.deepEqual(calls.filter(c => c.key === 'PATCH /bulk').pop().body.items, [{ id: 1, version: 2, changes: { status: '1' } }], 'version moi tu lan luu truoc');
   assert.equal(doc.getElementById('vrStatus').dataset.kind, 'warn');
-  assert.equal(gridCell(doc, 1, 'status').querySelector('.vr-badge').dataset.status, '3', '409 -> hien ban moi nhat');
+  assert.equal(gridCell(doc, 1, 'status').querySelector('.vr-badge').dataset.status, 'pending', '409 -> nap lai ban that tu may chu');
+});
+
+test('sua lien tiep truoc khi may chu tra loi: hien ngay ca hai, luu tuan tu dung version (khong 409)', async t => {
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  let first = true;
+  const responses = {
+    'GET /': listResponse([row(1, { canProcess: true }), row(2, { canProcess: true })]),
+    'PATCH /bulk': async body => { if (first) { first = false; await gate; } return bulkEcho(body); }
+  };
+  const { window, doc, calls } = await setup(t, { vaiTro: 'Kế toán', id: 'kt-1', responses, featurePermissions: PROCESS_GRANTED });
+  const edit = (value) => { const input = editCell(window, doc, 1, 'accountantNote'); input.value = value; input.dispatchEvent(new window.Event('change', { bubbles: true })); };
+  edit('A');
+  edit('B');
+  assert.equal(gridCell(doc, 1, 'accountantNote').textContent, 'B', 'hien ngay gia tri moi nhat');
+  await tick();
+  assert.equal(calls.filter(c => c.key === 'PATCH /bulk').length, 1, 'lan 2 cho lan 1 xong');
+  release();
+  await tick(); await tick(); await tick(); await tick();
+  const bulks = calls.filter(c => c.key === 'PATCH /bulk').map(c => c.body.items[0]);
+  assert.deepEqual(bulks, [{ id: 1, version: 1, changes: { accountantNote: 'A' } }, { id: 1, version: 2, changes: { accountantNote: 'B' } }]);
+  assert.equal(gridCell(doc, 1, 'accountantNote').textContent, 'B', 'tra loi lan 1 khong ghi de gia tri moi hon');
 });
 
 test('tick chon dong khong con hien thanh hang loat (da bo); o tick van dung de chon dong', async t => {
@@ -672,7 +697,8 @@ test('kieu Sheet — KT dan cot trang thai tu Sheet (gia tri sai bo qua); dan 1 
   await tick(); await tick(); await tick();
   assert.deepEqual(calls.find(c => c.key === 'PATCH /bulk').body.items, [{ id: 1, version: 1, changes: { status: '2' } }, { id: 2, version: 1, changes: { status: '3' } }]);
   assert.match(doc.getElementById('vrStatus').textContent, /Đã sửa 2 yêu cầu\. Bỏ qua 1 ô/);
-  assert.equal(lists, 2, 'doi trang thai -> nap lai so lieu can khai');
+  assert.equal(lists, 1, 'doi trang thai khong nap lai ca bang');
+  assert.deepEqual(calls.find(c => c.key === 'POST /lookup').body, { codes: ['014XOAN'] }, 'chi hoi lai so lieu ma lien quan');
 
   dragSelect(window, doc, [1, 'arrivalDate'], [3, 'arrivalDate']);
   clipboard(window, doc, 'paste', '28/10/2026');
@@ -920,8 +946,7 @@ test('Ctrl+Z hoan tac sua 1 o va keo dong nhieu buoc, Ctrl+Y lam lai; dang go tr
   let version = 1;
   const responses = {
     'GET /': () => ({ status: 200, data: listResponse([row(1, { canProcess: true, version, accountantNote: version > 1 ? 'MOI' : 'CU' }), row(2, { canProcess: true })]) }),
-    'PATCH /1': body => { version = 2; return { status: 200, data: row(1, { ...body, version: 2, canProcess: true }) }; },
-    'PATCH /bulk': bulkEcho,
+    'PATCH /bulk': body => { if (body.items[0].id === 1) version = body.items[0].version + 1; return bulkEcho(body); },
     'PATCH /position': () => ({ status: 200, data: { ok: true, before: { 2: '100' }, after: { 2: '300' } } }),
     'PATCH /position/ranks': () => ({ status: 200, data: { ok: true, updated: 1 } })
   };
