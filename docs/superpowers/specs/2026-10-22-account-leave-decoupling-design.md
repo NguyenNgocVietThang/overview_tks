@@ -46,6 +46,7 @@ Quy tắc:
 - Tài khoản nội bộ (mọi vai trò trừ `Khách`) bắt buộc chọn cơ sở công tác và bộ phận.
 - `Khách` không bắt buộc và mặc định xóa `work_branch`, `bo_phan`, `leave_approval_departments`.
 - Bộ phận phải lấy từ danh mục cố định của cơ sở; server luôn xác thực lại, không tin dữ liệu giao diện.
+- Vai trò và bộ phận được chọn độc lập, không có ánh xạ bắt buộc giữa hai trường. Ví dụ tài khoản có thể mang vai trò `Trợ lý` để nhận mẫu quyền Trợ lý nhưng trực thuộc bộ phận `Kế toán` để định tuyến nghỉ phép. Không tạo các vai trò ghép như “Trợ lý kế toán”.
 - Tạo tài khoản lưu `feature_permissions = {}` nên nhận quyền mặc định theo vai trò.
 - Đổi vai trò không tự đổi bộ phận; đổi cơ sở công tác bắt buộc chọn lại bộ phận hợp lệ.
 - Đổi vai trò/bộ phận tài khoản không ghi ngược sang `hr_employees`.
