@@ -1,6 +1,6 @@
 # Supabase schema cho đồng bộ KiotViet
 
-Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0079`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
+Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0080`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
 
 ## Quy ước chung
 
@@ -620,3 +620,23 @@ Cập nhật: 21/10/2026.
 `0079_vat_request_sort_rank.sql` thêm `vat_requests.sort_rank NUMERIC NOT NULL` (mặc định = mili-giây hiện tại `extract(epoch FROM clock_timestamp()) * 1000`, nên yêu cầu mới tự lên đầu) và index `(sort_rank DESC, id DESC) WHERE NOT is_deleted`. Backfill giữ nguyên thứ tự cũ: `COALESCE(epoch(created_at) * 1000, 0) + id * 1e-9` (dòng import thiếu thời gian nằm cuối). Chỉ thêm cột, idempotent, không đổi quyền `reporting_readonly`. Danh sách ORDER VAT xếp `sort_rank DESC, id DESC`; KT kéo dòng chỉ đổi `sort_rank` của 1 dòng thành trung điểm với dòng kề (`* 0.5`, NUMERIC không làm tròn) — không tăng `version`, không ghi `vat_request_history`. Code chịu được DB chưa áp (bắt `42703`: xếp theo `created_at`, ẩn tay nắm kéo).
 
 Thứ tự triển khai: deploy được trước khi áp (thứ tự như cũ, không có tay nắm kéo); áp `0079` bằng `npm run db:migrate` khi được duyệt, sau đó tải lại trang.
+
+## Ghi chú / thông tin theo khách — migration 0080 (22/10/2026, CHƯA áp DB dùng chung)
+
+`0080_customer_notes.sql` thêm 5 bảng (idempotent `CREATE TABLE IF NOT EXISTS`, chỉ thêm, không đổi bảng cũ) cho cột **Ghi chú** và **Tiếp khách lần cuối** của bảng "Doanh số theo khách" (tab Khách hàng). Luật quyền và ngày VN nằm ở `server/businessReport/customerProfileRepository.js` / `customerProfileRules.js`; bảng giữ các ràng buộc dữ liệu.
+
+**Khóa khách:** `customer_key` = `nameKey(tên khách)` (`businessReport/businessMonths.js`: NFKC, bỏ ký tự rỗng, gộp khoảng trắng, chữ thường) — đúng khóa `key` của hàng bảng báo cáo, vì hàng bảng không có id bền (gộp HN + SG theo tên). `customer_name` chỉ là bản chụp tên lúc ghi. **Hạn chế đã biết:** khách đổi tên trên KiotViet thì `key` đổi, mọi ghi chú / ảnh / ngày đi / người sửa gắn khóa cũ không còn hiển thị cho khách đó (dữ liệu vẫn nằm trong bảng, không tự di chuyển). Mọi cột người dùng (`updated_by_id`, `author_id`, `set_by_id`, `user_id`, `assigned_by_id`) là `app_users.id` dạng TEXT, KHÔNG FK (admin cứng có id không phải UUID; xóa mềm tài khoản không làm mất ghi chú cũ, tiền lệ `0076`), kèm tên chụp lúc ghi.
+
+| Bảng | Hợp đồng dữ liệu |
+|---|---|
+| `customer_profiles` | Thông tin chung, 1 dòng / khách. PK `customer_key`; `customer_name`; `warehouse_location TEXT` (định vị kho); `warehouse_count NUMERIC` (CHECK NULL hoặc ≥ 0); `warehouse_scale TEXT` (CHECK `none`/`small`/`medium`/`large`, mặc định `none` = Chưa có); `competitor TEXT` (đối thủ, để ý tem); `sales_channels TEXT[]` (CHECK ⊆ `san`, `cua_hang`, `fb_ads`, `fb_live`, `sang_tay`, `kho_buon`); `updated_by_id` / `updated_by_name`, `updated_at`. |
+| `customer_profile_images` | Ảnh kho, lưu `data BYTEA` như `hr_rule_document_images` (0061). PK `id UUID` (server sinh bằng `crypto.randomUUID()`, không `gen_random_uuid()`); `customer_key`; `content_type` (CHECK png/jpeg/gif/webp, kiểm magic byte ở server); `byte_size` (CHECK 1…5242880 = 5 MB); `sha256 CHAR(64)` (CHECK hex thường, dùng làm ETag); `created_by_id` / `created_by_name`, `created_at`. Index `(customer_key, created_at)`. Tối đa 10 ảnh / khách do server kiểm trong cùng câu INSERT. |
+| `customer_notes` | Note kiểu tin nhắn. PK `id UUID`; `customer_key`; `note_date DATE` (ngày VN do server tính, không `CURRENT_DATE`); `body TEXT` (CHECK `btrim(body) <> ''`, server giới hạn 2000 ký tự); `author_id` / `author_name`; `created_at`, `updated_at`. `UNIQUE (customer_key, note_date)` (`customer_notes_key_date_key`) = tối đa 1 note / khách / ngày; chỉ sửa được khi `note_date` = hôm nay (VN), qua ngày thì khóa. |
+| `customer_visit_days` | Các ngày "đã đi" tiếp khách. PK `(customer_key, visit_date DATE)`; `set_by_id` / `set_by_name`, `set_at`. Tiếp khách lần cuối = `max(visit_date)`. Chỉ người có `reports.business.customerManage` (Quản lý) thay cả tập ngày; không nhận ngày tương lai. |
+| `customer_editors` | Người được Quản lý gán quyền sửa Thông tin chung + Note của từng khách. PK `(customer_key, user_id TEXT)`; `user_name` (chụp lúc gán); `assigned_by_id`, `assigned_at`. Người sửa hiệu lực = `customerManage` HOẶC (`customerNotes` VÀ có dòng ở đây). |
+
+Migration thu hồi ALL cả 5 bảng khỏi `reporting_readonly` (ghi chú nội bộ + ảnh kho; guard `pg_roles`); chỉ đọc qua API `/api/business-report/customer-*`. Không đi qua snapshot cache / bảng tính sẵn của báo cáo kinh doanh; ghép vào bảng ở client qua `GET /customer-meta`.
+
+Thứ tự triển khai: **code deploy được trước khi áp migration** (fail-soft: các route đọc bắt `42P01`/`42703` và trả rỗng, `customer-meta` → `{}`; các route ghi trả 503 `MIGRATION_PENDING`; cột Ghi chú / Tiếp khách lần cuối vẫn hiện nhưng trống). Áp `0080` bằng `npm run db:migrate` khi được duyệt rồi mới dùng. Không có job nền hay bước backfill.
+
+Cập nhật: 22/10/2026.

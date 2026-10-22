@@ -4,27 +4,37 @@
 // thang, gop HN + SG (khong theo co so dang chon nen khong dung reportsUser/resolveBranch).
 
 const express = require('express');
+const multer = require('multer');
 const { requireAuth, requireFeature } = require('../auth/authMiddleware');
+const { hasFeature } = require('../auth/featureRegistry');
 const { createRepository } = require('./businessReportRepository');
 const svc = require('./businessReportService');
 const { createExportFile, filterRows, exportFieldsFor, resolveColumnKeys } = require('./businessReportExport');
-const { nameKey, RETAIL_NAME, UNGROUPED_SALE } = require('./businessMonths');
+const { nameKey, RETAIL_NAME, UNGROUPED_SALE, vnToday } = require('./businessMonths');
+const { createCustomerProfileRepository } = require('./customerProfileRepository');
+const rules = require('./customerProfileRules');
 
 const BUILDERS = { sales: svc.buildSaleReport, customers: svc.buildCustomerReport, products: svc.buildProductReport };
+const CUSTOMER_NOTES = 'reports.business.customerNotes';
+const CUSTOMER_MANAGE = 'reports.business.customerManage';
+const MAX_IMAGE_UPLOAD_BYTES = 5 * 1024 * 1024;
 
-function createBusinessReportRouter({ repository = createRepository() } = {}) {
+// customerProfiles: ghi chu / thong tin theo khach (migration 0080); now: gio hien tai (test dong bang ngay VN).
+function createBusinessReportRouter({ repository = createRepository(), customerProfiles = createCustomerProfileRepository(), now = () => new Date() } = {}) {
   const router = express.Router();
   router.use((req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
   const view = [requireAuth, requireFeature('reports.business')];
   const kindPermission = (req, res, next) => requireFeature(
     req.query.kind === 'products' || req.query.kind === 'product' ? 'reports.products.growth' : 'reports.business'
   )(req, res, next);
+  const sendError = (req, res, e) => {
+    // 503 MIGRATION_PENDING: ghi chu khach chua co bang (deploy code truoc migration 0080).
+    if (e.statusCode && (e.statusCode < 500 || e.code === 'MIGRATION_PENDING')) return res.status(e.statusCode).json({ error: e.message, code: e.code });
+    console.error(`[business-report ${req.method} ${req.path}]`, e);
+    return res.status(500).json({ error: 'Lỗi hệ thống, vui lòng thử lại sau.', code: 'BUSINESS_REPORT_ERROR' });
+  };
   const handle = fn => async (req, res) => {
-    try { await fn(req, res); } catch (e) {
-      if (e.statusCode && e.statusCode < 500) return res.status(e.statusCode).json({ error: e.message, code: e.code });
-      console.error(`[business-report ${req.method} ${req.path}]`, e);
-      return res.status(500).json({ error: 'Lỗi hệ thống, vui lòng thử lại sau.', code: 'BUSINESS_REPORT_ERROR' });
-    }
+    try { await fn(req, res); } catch (e) { return sendError(req, res, e); }
   };
 
   for (const kind of Object.keys(BUILDERS)) {
@@ -87,13 +97,146 @@ function createBusinessReportRouter({ repository = createRepository() } = {}) {
     res.json(await repository.setSaleTeam(saleName, teamName));
   }));
 
+  // ---- Ghi chu / thong tin theo khach (bang "Doanh so theo khach", migration 0080) ----
+  const customerView = [requireAuth, requireFeature(CUSTOMER_NOTES)];
+  const customerManage = [requireAuth, requireFeature(CUSTOMER_MANAGE)];
+  const jsonBody = express.json({ limit: '64kb' });
+  const fail = (statusCode, code, message) => rules.httpError(statusCode, code, message);
+  const actorOf = user => ({ id: user && user.id !== undefined && user.id !== null ? user.id : null, name: (user && (user.hoTen || user.username)) || '' });
+
+  // key phai la 1 khach co trong bang bao cao (cung tra cuu voi /detail); tra ten hien thi.
+  async function customerOf(rawKey) {
+    const key = String(rawKey == null ? '' : rawKey);
+    if (!key) throw fail(400, 'INVALID_CUSTOMER_KEY', 'Thiếu khách hàng.');
+    const row = svc.buildCustomerReport(await repository.snapshot()).rows.find(r => r.key === key);
+    if (!row) throw fail(404, 'CUSTOMER_NOT_FOUND', 'Không tìm thấy khách hàng này.');
+    return { key, name: row.name };
+  }
+  // Quyen sua hieu luc = customerManage HOAC (customerNotes VA nam trong customer_editors cua khach nay).
+  async function accessOf(req, key) {
+    const canManage = hasFeature(req.user, CUSTOMER_MANAGE);
+    const canEdit = canManage || (hasFeature(req.user, CUSTOMER_NOTES) && await customerProfiles.isEditor(key, req.user && req.user.id));
+    return { canManage, canEdit: !!canEdit };
+  }
+  async function editableCustomer(req, rawKey) {
+    const customer = await customerOf(rawKey);
+    if (!(await accessOf(req, customer.key)).canEdit) throw fail(403, 'CUSTOMER_EDIT_FORBIDDEN', 'Bạn không có quyền sửa thông tin khách hàng này.');
+    return customer;
+  }
+  const noteView = (note, canEdit, today) => ({ ...note, editable: canEdit && note.noteDate === today });
+
+  router.get('/customer-meta', ...customerView, handle(async (req, res) => {
+    res.json({ customers: await customerProfiles.getMeta() });
+  }));
+
+  router.get('/customer-profile', ...customerView, handle(async (req, res) => {
+    const customer = await customerOf(req.query.key);
+    const [data, access] = await Promise.all([customerProfiles.getProfile(customer.key), accessOf(req, customer.key)]);
+    const today = vnToday(now());
+    res.json({
+      key: customer.key, name: customer.name, today,
+      canEdit: access.canEdit, canManage: access.canManage,
+      profile: data.profile, images: data.images,
+      notes: data.notes.map(n => noteView(n, access.canEdit, today)),
+      visitDays: data.visitDays, lastVisit: data.lastVisit, editors: data.editors
+    });
+  }));
+
+  router.put('/customer-profile', ...customerView, jsonBody, handle(async (req, res) => {
+    const body = req.body || {};
+    const customer = await editableCustomer(req, body.key);
+    const input = rules.normalizeProfileInput(body);
+    res.json({ profile: await customerProfiles.saveProfile(customer.key, customer.name, input, actorOf(req.user)) });
+  }));
+
+  router.post('/customer-profile/notes', ...customerView, jsonBody, handle(async (req, res) => {
+    const body = req.body || {};
+    const customer = await editableCustomer(req, body.key);
+    const text = rules.normalizeNoteBody(body.body);
+    const note = await customerProfiles.createNote(customer.key, text, actorOf(req.user));
+    res.status(201).json({ note: noteView(note, true, vnToday(now())) });
+  }));
+
+  router.put('/customer-profile/notes/:id', ...customerView, jsonBody, handle(async (req, res) => {
+    const body = req.body || {};
+    const customer = await editableCustomer(req, body.key);
+    if (!rules.UUID_RE.test(String(req.params.id))) throw fail(404, 'NOTE_NOT_FOUND', 'Không tìm thấy note.');
+    const text = rules.normalizeNoteBody(body.body);
+    const note = await customerProfiles.updateNote(customer.key, req.params.id, text, actorOf(req.user));
+    res.json({ note: noteView(note, true, vnToday(now())) });
+  }));
+
+  // Anh kho: kiem quyen (key tren query) TRUOC khi doc file de khong nhan 5MB cua nguoi khong co quyen.
+  const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_IMAGE_UPLOAD_BYTES, files: 1, fields: 4 } });
+  const guardImageEdit = async (req, res, next) => {
+    try { req.customer = await editableCustomer(req, req.query.key); } catch (e) { return sendError(req, res, e); }
+    return next();
+  };
+  const readImageFile = (req, res, next) => imageUpload.single('file')(req, res, err => {
+    if (!err) return next();
+    if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'Ảnh quá lớn, tối đa 5 MB.', code: 'IMAGE_TOO_LARGE' });
+    return res.status(400).json({ error: 'Không đọc được file tải lên.', code: 'IMAGE_UPLOAD_FAILED' });
+  });
+  router.post('/customer-profile/images', ...customerView, guardImageEdit, readImageFile, handle(async (req, res) => {
+    if (!req.file) throw fail(400, 'IMAGE_MISSING', 'Thiếu file ảnh.');
+    const image = await customerProfiles.addImage(req.customer.key, req.file.buffer, actorOf(req.user));
+    res.status(201).json({ image });
+  }));
+
+  router.delete('/customer-profile/images/:id', ...customerView, handle(async (req, res) => {
+    const customer = await editableCustomer(req, req.query.key);
+    if (!rules.UUID_RE.test(String(req.params.id))) throw fail(404, 'IMAGE_NOT_FOUND', 'Không tìm thấy ảnh.');
+    await customerProfiles.deleteImage(customer.key, req.params.id);
+    res.json({ ok: true });
+  }));
+
+  // Anh bat bien (xoa/them = dong moi) nen cache dai; ETag = sha256 de hoi lai bang 304.
+  router.get('/customer-profile/images/:id', ...customerView, handle(async (req, res) => {
+    const id = String(req.params.id);
+    if (!rules.UUID_RE.test(id)) throw fail(404, 'IMAGE_NOT_FOUND', 'Không tìm thấy ảnh.');
+    const meta = await customerProfiles.getImageMeta(id);
+    if (!meta) throw fail(404, 'IMAGE_NOT_FOUND', 'Không tìm thấy ảnh.');
+    res.set({ 'Content-Type': meta.contentType, 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'private, max-age=31536000, immutable', ETag: `"${meta.sha256}"` });
+    if (req.fresh) return res.status(304).end();
+    const content = await customerProfiles.getImageContent(id);
+    if (!content) throw fail(404, 'IMAGE_NOT_FOUND', 'Không tìm thấy ảnh.');
+    res.set('Content-Length', String(content.length));
+    res.status(200).end(content);
+  }));
+
+  router.put('/customer-profile/visits', ...customerManage, jsonBody, handle(async (req, res) => {
+    const body = req.body || {};
+    const customer = await customerOf(body.key);
+    const dates = rules.normalizeVisitDates(body.dates, vnToday(now()));
+    res.json(await customerProfiles.setVisitDays(customer.key, dates, actorOf(req.user)));
+  }));
+
+  router.put('/customer-profile/editors', ...customerManage, jsonBody, handle(async (req, res) => {
+    const body = req.body || {};
+    const customer = await customerOf(body.key);
+    const userIds = rules.normalizeUserIds(body.userIds);
+    res.json({ editors: await customerProfiles.setEditors(customer.key, userIds, actorOf(req.user)) });
+  }));
+
+  router.get('/customer-profile/assignable-users', ...customerManage, handle(async (req, res) => {
+    res.json({ users: await customerProfiles.listAssignableUsers() });
+  }));
+
   // Xuat can quyen xem tung muc (products.growth hoac business) va reports.export.
   const exportGuard = [requireAuth, kindPermission, requireFeature('reports.export')];
   const exportReport = async req => {
     const kind = String(req.query.kind || '');
     if (!BUILDERS[kind]) { const e = new Error('Bảng xuất không hợp lệ.'); e.statusCode = 400; throw e; }
-    const report = BUILDERS[kind](await repository.snapshot());
-    return { kind, report, rows: filterRows(kind, report.rows, req.query) };
+    let report = BUILDERS[kind](await repository.snapshot());
+    let rows = filterRows(kind, report.rows, req.query);
+    // Cot "Tiep khach lan cuoi" chi cho nguoi co quyen xem ghi chu khach; loi doc meta => de trong, khong chan xuat.
+    if (kind === 'customers' && hasFeature(req.user, CUSTOMER_NOTES)) {
+      let meta = {};
+      try { meta = await customerProfiles.getMeta() || {}; } catch (e) { console.error('[business-report export] doc tiep khach lan cuoi that bai:', e.message); }
+      report = { ...report, withLastVisit: true };
+      rows = rows.map(r => ({ ...r, lastVisit: (meta[r.key] && meta[r.key].lastVisit) || '' }));
+    }
+    return { kind, report, rows };
   };
 
   // Danh sach truong cho hop thoai "Xuat file" dung chung (cung dang /api/export/fields).

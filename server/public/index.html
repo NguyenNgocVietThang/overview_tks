@@ -1327,6 +1327,255 @@
       color: var(--text);
     }
 
+    /* ===== Tab Khách hàng: cột Ghi chú / Tiếp khách lần cuối + hộp "Chi tiết khách" (tiền tố cp-) =====
+       Chỉ dùng token màu có sẵn nên đúng cả Sáng/Tối; không hiệu ứng 3D. Màu nhấn đậm hơn --blue để chữ trắng đạt ≥4.5:1. */
+    :root { --cp-accent: color-mix(in srgb, var(--blue) 78%, #0b1220); }
+
+    .cp-cell { white-space: nowrap; }
+    .cp-detail-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 28px;
+      padding: 2px 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-pill);
+      background: var(--panel-2);
+      color: var(--text);
+      font: 600 12px var(--font-body);
+      cursor: pointer;
+      transition: border-color .15s ease, background-color .15s ease;
+    }
+    .cp-detail-btn:hover { border-color: var(--blue); background: var(--accent-blue-12); }
+    .cp-detail-btn:focus-visible,
+    .cp-cal-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+    .cp-badge {
+      min-width: 18px;
+      height: 18px;
+      padding: 0 5px;
+      border-radius: var(--radius-pill);
+      background: var(--cp-accent);
+      color: #fff;
+      font: 700 11px/18px var(--font-data);
+      text-align: center;
+    }
+    .cp-visit-wrap { display: inline-flex; align-items: center; gap: 6px; }
+    .cp-visit-date { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+    .cp-visit-empty { color: var(--muted); font-family: var(--font-data); opacity: .8; }
+    .cp-cal-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      transition: background-color .15s ease, color .15s ease, border-color .15s ease;
+    }
+    .cp-cal-btn:hover { color: var(--blue); border-color: var(--border); background: var(--accent-blue-12); }
+
+    /* --- Hộp Chi tiết khách --- */
+    .doc-modal.cp-modal { position: relative; }
+    .doc-modal.cp-modal-narrow { width: min(440px, 100%); }
+    .cp-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 22px; align-items: start; min-width: 0; }
+    .cp-col { display: grid; gap: 22px; min-width: 0; }
+    .cp-manager { grid-column: 1 / -1; padding-top: 18px; border-top: 1px solid var(--border); }
+    .cp-manager-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+    .cp-subsection { min-width: 0; display: grid; gap: 10px; align-content: start; }
+
+    .cp-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; }
+    .cp-field { display: grid; gap: 5px; min-width: 0; align-content: start; }
+    .cp-field.is-full, .cp-form > .is-full { grid-column: 1 / -1; }
+    .cp-field > label, .cp-label, .cp-composer > label, .cp-edit-form > label {
+      font-size: 12px; font-weight: 600; color: var(--text-secondary);
+    }
+    .cp-input {
+      width: 100%;
+      min-height: 36px;
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--panel-2);
+      color: var(--text);
+      font: 400 13px/1.4 var(--font-body);
+      transition: border-color .15s ease, box-shadow .15s ease;
+    }
+    .cp-input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 2px var(--accent-blue-12); }
+    .cp-input:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+    .cp-input::placeholder { color: var(--muted); opacity: .85; }
+    select.cp-input option { background-color: var(--panel); color: var(--text); }
+    .cp-textarea { resize: vertical; min-height: 76px; }
+    .cp-hint { margin: 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
+    .cp-hint-box {
+      padding: 10px 12px; border: 1px dashed var(--border); border-radius: var(--radius-md);
+      background: var(--panel-2); color: var(--text-secondary);
+    }
+    .cp-error { margin: 0; font-size: 12px; color: var(--red); }
+    .cp-error[hidden] { display: none; }
+    .cp-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .cp-form > .cp-actions { grid-column: 1 / -1; }
+    .cp-btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      min-height: 36px; padding: 0 16px;
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      background: var(--panel-2); color: var(--text);
+      font: 600 12.5px var(--font-body); cursor: pointer;
+      transition: border-color .15s ease, background-color .15s ease, opacity .15s ease;
+    }
+    .cp-btn:hover:not(:disabled) { border-color: var(--muted); }
+    .cp-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+    .cp-btn:disabled { opacity: .55; cursor: not-allowed; }
+    .cp-btn[aria-busy="true"] { cursor: progress; }
+    .cp-btn-primary { background: var(--cp-accent); border-color: var(--cp-accent); color: #fff; }
+    .cp-btn-primary:hover:not(:disabled) { border-color: var(--cp-accent); filter: brightness(1.1); }
+    .cp-btn-sm { min-height: 28px; padding: 0 10px; font-size: 12px; }
+
+    /* Dropdown tick nhiều ô */
+    .cp-ms { position: relative; }
+    .cp-ms-btn { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; cursor: pointer; }
+    .cp-ms-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cp-ms-btn.is-empty .cp-ms-text { color: var(--muted); }
+    .cp-ms-count {
+      flex: none; min-width: 20px; padding: 0 6px; border-radius: var(--radius-pill);
+      background: var(--accent-blue-12); color: var(--blue); font: 700 11px/20px var(--font-data); text-align: center;
+    }
+    .cp-ms-count:empty { display: none; }
+    .cp-ms-btn svg { flex: none; color: var(--muted); }
+    .cp-ms-pop {
+      position: absolute; z-index: 6; top: calc(100% + 4px); left: 0; right: 0;
+      max-height: 260px; overflow: auto; padding: 4px;
+      border: 1px solid var(--border); border-radius: var(--radius-md);
+      background: var(--panel); box-shadow: var(--shadow-modal);
+    }
+    .cp-ms-pop[hidden] { display: none; }
+    .cp-ms-pop.is-up { top: auto; bottom: calc(100% + 4px); }
+    .cp-ms-search { margin-bottom: 4px; }
+    .cp-ms-opt {
+      display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 4px 8px;
+      border-radius: var(--radius-sm); font-size: 13px; color: var(--text); cursor: pointer;
+    }
+    .cp-ms-opt:hover, .cp-ms-opt:focus-within { background: var(--surface-hover); }
+    .cp-ms-opt input { width: 16px; height: 16px; flex: none; accent-color: var(--cp-accent); }
+    .cp-ms-opt small { margin-left: auto; color: var(--muted); font-size: 11.5px; }
+    .cp-ms-empty { padding: 10px; font-size: 12px; color: var(--muted); }
+
+    /* Ảnh kho */
+    .cp-images { list-style: none; margin: 0 0 10px; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+    .cp-img { position: relative; aspect-ratio: 4 / 3; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--panel-2); overflow: hidden; }
+    .cp-img-open { display: block; width: 100%; height: 100%; padding: 0; border: 0; background: transparent; cursor: zoom-in; }
+    .cp-img-open:focus-visible, .cp-img-del:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+    .cp-img img { display: block; width: 100%; height: 100%; object-fit: cover; }
+    .cp-img-del {
+      position: absolute; top: 4px; right: 4px; width: 28px; height: 28px; padding: 0;
+      display: inline-flex; align-items: center; justify-content: center;
+      border: 1px solid var(--border); border-radius: var(--radius-pill);
+      background: var(--panel); color: var(--text); cursor: pointer;
+    }
+    .cp-img-del:hover { color: var(--red); border-color: var(--red); }
+    .cp-img.is-uploading { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; font-size: 11.5px; color: var(--muted); }
+    .cp-img.is-uploading .dp-spinner { margin: 0; }
+    .cp-empty { margin: 0 0 10px; font-size: 12.5px; color: var(--muted); }
+    .cp-upload { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+
+    .cp-lightbox {
+      position: absolute; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
+      padding: 20px; background: rgba(5, 10, 18, .9);
+    }
+    .cp-lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: var(--radius-md); }
+    .cp-lightbox-close {
+      position: absolute; top: 12px; right: 12px; width: 44px; height: 44px; padding: 0;
+      display: inline-flex; align-items: center; justify-content: center;
+      border: 1px solid rgba(255, 255, 255, .35); border-radius: var(--radius-pill);
+      background: rgba(15, 23, 42, .85); color: #fff; cursor: pointer;
+    }
+    .cp-lightbox-close:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+    /* Note kiểu tin nhắn */
+    .cp-composer, .cp-edit-form { display: grid; gap: 6px; }
+    .cp-bubbles { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 10px; }
+    .cp-bubble { display: flex; gap: 10px; align-items: flex-start; }
+    .cp-avatar {
+      flex: none; width: 30px; height: 30px; border-radius: var(--radius-pill);
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--panel-3); color: var(--text); font: 700 12px var(--font-body);
+    }
+    .cp-bubble-main {
+      flex: 1 1 auto; min-width: 0; padding: 10px 12px;
+      border: 1px solid var(--border); border-radius: var(--radius-lg); border-top-left-radius: var(--radius-xs);
+      background: var(--panel-2);
+    }
+    .cp-bubble.is-today .cp-bubble-main { border-color: var(--blue); background: var(--accent-blue-12); }
+    .cp-bubble-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; margin-bottom: 4px; font-size: 11.5px; color: var(--muted); }
+    .cp-author { color: var(--text); font-size: 12.5px; }
+    .cp-bubble-body { font-size: 13px; line-height: 1.5; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; }
+    .cp-bubble-actions { margin-top: 6px; display: flex; gap: 8px; }
+
+    /* Lịch chọn nhiều ngày */
+    .cp-cal { display: grid; gap: 10px; min-width: 0; }
+    .cp-cal-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .cp-cal-title { font: 700 13.5px var(--font-body); color: var(--text); }
+    .cp-cal-step {
+      width: 36px; height: 36px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
+      border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--panel-2); color: var(--text); cursor: pointer;
+    }
+    .cp-cal-step:disabled { opacity: .4; cursor: not-allowed; }
+    .cp-cal-step:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+    .cp-cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+    .cp-cal-wd { padding: 4px 0; text-align: center; font-size: 11px; font-weight: 700; color: var(--muted); }
+    .cp-day {
+      position: relative; height: 36px; padding: 0; display: inline-flex; align-items: center; justify-content: center; gap: 2px;
+      border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent;
+      color: var(--text); font: 500 13px var(--font-data); cursor: pointer;
+      transition: background-color .15s ease, border-color .15s ease;
+    }
+    .cp-day:hover:not(:disabled):not(.is-selected) { background: var(--surface-hover); border-color: var(--border); }
+    .cp-day:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+    .cp-day:disabled { color: var(--muted); opacity: .4; cursor: not-allowed; }
+    .cp-day.is-today { border-color: var(--muted); }
+    .cp-day.is-selected { background: var(--cp-accent); border-color: var(--cp-accent); color: #fff; font-weight: 700; }
+    .cp-day.is-latest { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--cp-accent); }
+    .cp-day-none { visibility: hidden; }
+    .cp-cal-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+    .cp-chip {
+      display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 2px 4px 2px 10px;
+      border: 1px solid var(--border); border-radius: var(--radius-pill); background: var(--panel-2);
+      font: 500 12px var(--font-data); color: var(--text);
+    }
+    .cp-chip-x {
+      width: 22px; height: 22px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
+      border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--muted); cursor: pointer;
+    }
+    .cp-chip-x:hover { color: var(--red); }
+    .cp-chip-x:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+    .cp-visit-summary { margin: 0; font-size: 12.5px; color: var(--text-secondary); }
+
+    @media (max-width: 860px) {
+      .cp-layout, .cp-manager-grid { grid-template-columns: minmax(0, 1fr); }
+    }
+    @media (max-width: 640px) {
+      .cp-form { grid-template-columns: minmax(0, 1fr); }
+    }
+    /* Cảm ứng / điện thoại: mọi ô bấm tối thiểu 44px, cách nhau ≥ 8px */
+    @media (max-width: 640px), (pointer: coarse) {
+      .cp-input, .cp-btn, .cp-ms-opt { min-height: 44px; }
+      .cp-detail-btn { min-height: 44px; padding: 2px 14px; }
+      .cp-cal-btn { width: 44px; height: 44px; }
+      .cp-cal-step { width: 44px; height: 44px; }
+      .cp-day { height: 44px; }
+      .cp-img-del { width: 44px; height: 44px; top: 0; right: 0; }
+      .cp-chip { min-height: 44px; padding-left: 12px; }
+      .cp-chip-x { width: 36px; height: 36px; }
+      .cp-ms-opt input { width: 20px; height: 20px; }
+      .cp-btn-sm { min-height: 44px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .cp-detail-btn, .cp-cal-btn, .cp-input, .cp-btn, .cp-day { transition: none; }
+    }
+
     .table-search-tools {
       display: flex;
       align-items: center;
@@ -4816,6 +5065,7 @@
   <script src="/shared/shared-nav.js?v=20261016-freight"></script>
   <script src="/shared/table-align.js?v=20261017"></script>
   <script src="/shared/dateInput.js?v=20260912"></script>
+  <script src="/shared/image-compress.js?v=20261022"></script>
   <script src="/marketing-report.js?v=20261021-1"></script>
   <script src="/invoice-price-audit.js?v=20261020-1"></script>
 
@@ -8144,7 +8394,8 @@
     // Tab Khách hàng (sales, customers, overview) và mục Tăng trưởng mã hàng của tab Hàng hóa (products) tải riêng
     // từng nhóm API, nên loadedAt/loading theo từng scope.
     const BUSINESS_SCOPES = { business: ['sales', 'customers', 'overview'], products: ['products'] };
-    state.business = { data: {}, loadedAt: { business: 0, products: 0 }, loading: { business: false, products: false } };
+    state.business = { data: {}, loadedAt: { business: 0, products: 0 }, loading: { business: false, products: false },
+      customerMeta: {}, metaLoading: false, metaLoadedAt: 0 };
     TABLE_EXPLORER_CONFIGS.businessSales = { title: 'Tăng trưởng Sale', searchText: tableSearchText, identity: r => r.key };
     TABLE_EXPLORER_CONFIGS.businessCustomers = { title: 'Tăng trưởng khách hàng', searchText: tableSearchText, identity: r => r.key };
     TABLE_EXPLORER_CONFIGS.businessProducts = { title: 'Tăng trưởng mã hàng', searchText: tableSearchText, code: r => r.code, identity: r => r.key, supportsCodes: true };
@@ -8159,8 +8410,23 @@
       return data.months.filter(m => m !== data.currentMonth).slice().reverse();
     }
 
+    // Hai cột cố định thêm sau "Level giá" của bảng Doanh số theo khách; chỉ có khi TKSNav.can('reports.business.customerNotes').
+    const BUSINESS_CUSTOMER_NOTE_COLUMNS = [['Ghi chú', 112, 'notes'], ['Tiếp khách lần cuối', 168, 'lastVisit']];
+
+    function businessCanNotes() {
+      return typeof TKSNav !== 'undefined' && typeof TKSNav.can === 'function' && !!TKSNav.can('reports.business.customerNotes');
+    }
+
+    function businessCanManageCustomers() {
+      return typeof TKSNav !== 'undefined' && typeof TKSNav.can === 'function' && !!TKSNav.can('reports.business.customerManage');
+    }
+
+    function businessExtraFixedColumns(kind) {
+      return kind === 'customers' && businessCanNotes() ? BUSINESS_CUSTOMER_NOTE_COLUMNS : [];
+    }
+
     function businessColumnCount(kind, data) {
-      return BUSINESS_FIXED_COLUMNS[kind].length + 2 + (data ? 1 + businessMonthColumns(data).length : 0);
+      return BUSINESS_FIXED_COLUMNS[kind].length + businessExtraFixedColumns(kind).length + 2 + (data ? 1 + businessMonthColumns(data).length : 0);
     }
 
     function businessHeadHtml(kind, data) {
@@ -8168,6 +8434,7 @@
       const fixedKeys = { sales: ['sale', 'team', 'customerCount'], customers: ['customer', 'sale', 'priceLevel'], products: ['code', 'name'] };
       const widths = BUSINESS_METRIC_COLUMN_WIDTHS[kind];
       const cols = BUSINESS_FIXED_COLUMNS[kind].map((c, i) => [c[0], c[1], fixedKeys[kind][i]])
+        .concat(businessExtraFixedColumns(kind))
         .concat([['TB 4 tháng', widths.average, 'average4Months'], ['Tăng trưởng', widths.growth, 'growth'], [today, widths.current, 'month-' + data.currentMonth]])
         .concat(businessMonthColumns(data).map(m => [data.monthLabels[data.months.indexOf(m)], widths.month, 'month-' + m]));
       return '<tr>' + cols.map(c => '<th data-column-key="' + escapeHtml(c[2]) + '" style="width:' + c[1] + 'px">' + escapeHtml(c[0]) + '</th>').join('') + '</tr>';
@@ -8230,7 +8497,8 @@
         const fixed = kind === 'sales'
           ? '<td class="name-cell">' + escapeHtml(r.saleName) + '</td>' + businessTeamCellHtml(r, data) + '<td class="mono" data-sort-value="' + r.activeCustomers + '">' + fmtNumber(r.activeCustomers) + '</td>'
           : kind === 'customers'
-            ? '<td class="name-cell">' + escapeHtml(r.name) + '</td><td>' + escapeHtml(r.saleName) + '</td><td>' + escapeHtml(r.priceLevel || '') + '</td>'
+            ? '<td class="name-cell">' + escapeHtml(r.name) + '</td><td>' + escapeHtml(r.saleName) + '</td><td>' + escapeHtml(r.priceLevel || '') + '</td>' +
+              (businessCanNotes() ? businessCustomerNoteCellsHtml(r) : '')
             : '<td class="mono muted">' + escapeHtml(r.code) + '</td><td class="name-cell">' + escapeHtml(r.name) + '</td>';
         return '<tr class="doc-row" tabindex="0" title="Bấm để xem chi tiết" data-table-item-id="' + escapeHtml(r.key) + '">' + fixed +
           money(r.avg4) +
@@ -8321,6 +8589,7 @@
     }
 
     function renderBusinessReport() {
+      businessApplyCustomerMeta();
       BUSINESS_KINDS.forEach(renderBusinessTable);
       const overview = state.business.data.overview;
       if (overview) renderSectionKpis('businessOverviewKpis', businessKpiCards(overview.kpis));
@@ -8364,7 +8633,11 @@
       scope = scope || 'business';
       const kinds = BUSINESS_SCOPES[scope];
       if (state.business.loading[scope]) return;
-      if (!force && Date.now() - state.business.loadedAt[scope] < 60000 && state.business.data[kinds[0]]) { renderBusinessReport(); return; }
+      if (!force && Date.now() - state.business.loadedAt[scope] < 60000 && state.business.data[kinds[0]]) {
+        renderBusinessReport();
+        if (scope === 'business' && !state.business.metaLoadedAt) loadBusinessCustomerMeta();
+        return;
+      }
       state.business.loading[scope] = true;
       Promise.all(kinds.map(function (kind) {
         return fetch('/api/business-report/' + kind).then(function (res) {
@@ -8385,6 +8658,7 @@
         state.business.loadedAt[scope] = Date.now();
         state.business.loading[scope] = false;
         renderBusinessReport();
+        if (scope === 'business') loadBusinessCustomerMeta();
       }).catch(function (err) {
         state.business.loading[scope] = false;
         console.error('Không tải được báo cáo kinh doanh:', err);
@@ -8452,6 +8726,1008 @@
         renderBusinessTable(entry[1]);
       });
     });
+
+    // ===== Tab Khách hàng: cột Ghi chú + Tiếp khách lần cuối của bảng "Doanh số theo khách" =====
+    // API: /api/business-report/customer-meta (nhẹ, gộp vào hàng theo r.key, lỗi thì bỏ qua) và /customer-profile* (hộp Chi tiết khách,
+    // dùng khung #docModalBackdrop). Quyền xem: reports.business.customerNotes; sửa Tiếp khách lần cuối / gán người sửa:
+    // reports.business.customerManage (Quản lý). canEdit / canManage thật do máy chủ trả trong GET /customer-profile.
+    const CP_API = '/api/business-report';
+    const CP_SCALES = [['none', 'Chưa có'], ['small', 'Nhỏ'], ['medium', 'Vừa'], ['large', 'To']];
+    const CP_CHANNELS = [['san', 'Bán sàn'], ['cua_hang', 'Bán cửa hàng'], ['fb_ads', 'FB ads'], ['fb_live', 'FB live'], ['sang_tay', 'Sang tay'], ['kho_buon', 'Kho buôn']];
+    const CP_MAX_IMAGES = 10;
+    const CP_ICONS = {
+      calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+      check: '<path d="M20 6 9 17l-5-5"/>',
+      x: '<path d="M18 6 6 18M6 6l12 12"/>',
+      down: '<path d="m6 9 6 6 6-6"/>',
+      left: '<path d="m15 18-6-6 6-6"/>',
+      right: '<path d="m9 18 6-6-6-6"/>',
+      image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>'
+    };
+    // Trạng thái hộp đang mở: mode 'profile' (Chi tiết khách) | 'visits' (chỉ lịch tiếp khách).
+    const cp = { active: false, mode: '', key: '', name: '', trigger: null, token: 0, data: null, users: null, usersError: '',
+      editingNoteId: null, uploading: 0, dirtyProfile: false, calendar: null, ms: {}, cleanups: [] };
+    let cpCalendarSeq = 0;
+
+    function cpIcon(name, size) {
+      const px = size || 16;
+      return '<svg viewBox="0 0 24 24" width="' + px + '" height="' + px + '" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' + CP_ICONS[name] + '</svg>';
+    }
+
+    function cpEl(id) { return document.getElementById(id); }
+
+    function cpFormatDate(iso) {
+      const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
+      return match ? match[3] + '/' + match[2] + '/' + match[1] : '';
+    }
+
+    // ISO UTC của máy chủ -> "dd/mm/yyyy HH:mm" theo giờ Việt Nam.
+    function cpFormatDateTime(value) {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return '';
+      try {
+        const parts = {};
+        new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+          .formatToParts(date).forEach(function (part) { parts[part.type] = part.value; });
+        return parts.day + '/' + parts.month + '/' + parts.year + ' ' + parts.hour + ':' + parts.minute;
+      } catch (_) { return ''; }
+    }
+
+    function cpDateSortValue(iso) {
+      const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
+      return match ? Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])) : null;
+    }
+
+    // ---- Gộp meta vào bảng ----
+    function businessApplyCustomerMeta() {
+      const data = state.business.data.customers;
+      if (!data || !businessCanNotes()) return;
+      const map = state.business.customerMeta || {};
+      data.rows.forEach(function (r) {
+        const meta = map[r.key];
+        r.lastVisit = meta && meta.lastVisit ? meta.lastVisit : null;
+        r.noteCount = meta ? Number(meta.noteCount) || 0 : 0;
+      });
+    }
+
+    // Fail-soft: bảng đã vẽ xong trước, lỗi/chậm ở đây chỉ làm cột Ghi chú / Tiếp khách lần cuối chưa có số.
+    function loadBusinessCustomerMeta() {
+      if (!businessCanNotes() || state.business.metaLoading) return;
+      state.business.metaLoading = true;
+      fetch(CP_API + '/customer-meta')
+        .then(function (res) { return res.json().catch(function () { return {}; }).then(function (body) {
+          if (!res.ok) throw new Error((body && body.error) || 'HTTP ' + res.status);
+          return body;
+        }); })
+        .then(function (body) {
+          state.business.metaLoading = false;
+          state.business.customerMeta = body && body.customers && typeof body.customers === 'object' ? body.customers : {};
+          state.business.metaLoadedAt = Date.now();
+          businessApplyCustomerMeta();
+          if (state.business.data.customers) renderBusinessTable('customers');
+        })
+        .catch(function (err) {
+          state.business.metaLoading = false;
+          console.warn('Không tải được ghi chú / lịch tiếp khách của khách hàng:', err);
+        });
+    }
+
+    function businessCustomerNoteCellsHtml(r) {
+      const key = escapeHtml(r.key);
+      const name = escapeHtml(r.name || '');
+      const count = Number(r.noteCount) || 0;
+      const detail = '<td class="cp-cell" data-sort-value="' + count + '"><button type="button" class="cp-detail-btn" data-cp-action="profile" data-cp-key="' + key +
+        '" aria-haspopup="dialog" aria-label="Chi tiết ghi chú của ' + name + (count > 0 ? ' (' + count + ' note)' : '') + '">Chi tiết' +
+        (count > 0 ? '<span class="cp-badge" aria-hidden="true">' + count + '</span>' : '') + '</button></td>';
+      const sortValue = cpDateSortValue(r.lastVisit);
+      const dateHtml = r.lastVisit
+        ? '<span class="cp-visit-date">' + escapeHtml(cpFormatDate(r.lastVisit)) + '</span>'
+        : '<span class="cp-visit-empty">dd/mm/yyyy</span>';
+      const calendar = businessCanManageCustomers()
+        ? '<button type="button" class="cp-cal-btn" data-cp-action="visits" data-cp-key="' + key + '" aria-haspopup="dialog" aria-label="Chọn ngày tiếp khách của ' + name + '" title="Chọn ngày tiếp khách">' + cpIcon('calendar') + '</button>'
+        : '';
+      const visit = '<td class="cp-cell" data-sort-value="' + (sortValue === null ? 'none' : sortValue) + '"><span class="cp-visit-wrap">' + dateHtml + calendar + '</span></td>';
+      return detail + visit;
+    }
+
+    document.getElementById('businessCustomersRows').addEventListener('click', function (event) {
+      const button = event.target.closest && event.target.closest('[data-cp-action]');
+      if (!button) return;
+      event.preventDefault();
+      if (button.dataset.cpAction === 'visits') openCustomerVisitDialog(button.dataset.cpKey, button);
+      else openCustomerProfile(button.dataset.cpKey, button);
+    });
+
+    // ---- API ----
+    function cpParse(res) {
+      if (res.status === 401) {
+        window.location.href = '/login/?next=' + encodeURIComponent(window.location.pathname + window.location.search + window.location.hash);
+      }
+      return res.json().catch(function () { return {}; }).then(function (body) {
+        if (!res.ok) {
+          const error = new Error((body && body.error) || 'HTTP ' + res.status);
+          error.code = body && body.code;
+          error.status = res.status;
+          throw error;
+        }
+        return body;
+      });
+    }
+
+    function cpApi(method, path, body) {
+      const options = { method: method, headers: { 'Content-Type': 'application/json' } };
+      if (body !== undefined) options.body = JSON.stringify(body);
+      return fetch(CP_API + path, options).then(cpParse);
+    }
+
+    function cpFetchProfile(key) {
+      return fetch(CP_API + '/customer-profile?key=' + encodeURIComponent(key)).then(cpParse);
+    }
+
+    function cpCustomerName(key) {
+      const rows = (state.business.data.customers && state.business.data.customers.rows) || [];
+      const row = rows.find(function (item) { return item.key === key; });
+      return row ? (row.name || row.key) : key;
+    }
+
+    // Gắn lại số liệu meta (số note, ngày tiếp khách) sau khi sửa trong hộp, rồi vẽ lại bảng.
+    function cpUpdateMeta(key, patch) {
+      const map = state.business.customerMeta || (state.business.customerMeta = {});
+      const meta = map[key] || (map[key] = { lastVisit: null, noteCount: 0 });
+      Object.assign(meta, patch);
+      businessApplyCustomerMeta();
+      if (state.business.data.customers) renderBusinessTable('customers');
+    }
+
+    // ---- Khung hộp ----
+    function cpTrapFocus(event) {
+      if (event.key !== 'Tab' || !cp.active) return;
+      const modal = document.querySelector('#docModalBackdrop .doc-modal');
+      const lightbox = document.querySelector('#docModalBackdrop .cp-lightbox');
+      const scope = lightbox || modal;
+      const items = Array.from(scope.querySelectorAll('button, input, select, textarea, [href], [tabindex]'))
+        .filter(function (el) { return !el.disabled && el.tabIndex >= 0 && !el.closest('[hidden]') && el.type !== 'hidden'; });
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (!scope.contains(document.activeElement)) { event.preventDefault(); first.focus(); return; }
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    }
+
+    function cpOpenFrame(mode, key, trigger, wide) {
+      docDetail.requestId++;
+      docDetail.item = null;
+      docDetail.focus = null;
+      docDetail.returnFocus = trigger || null;
+      cp.token++;
+      Object.assign(cp, { active: true, mode: mode, key: key, name: cpCustomerName(key), trigger: trigger || null, data: null, users: null, usersError: '',
+        editingNoteId: null, uploading: 0, dirtyProfile: false, calendar: null, ms: {}, cleanups: [] });
+      const box = document.querySelector('#docModalBackdrop .doc-modal');
+      box.classList.add('cp-modal');
+      cpEl('docModalBody').setAttribute('aria-live', 'off'); // hộp tự vẽ lại từng khối, không đọc lại cả thân hộp
+      box.classList.toggle('is-wide', !!wide);
+      box.classList.toggle('cp-modal-narrow', !wide);
+      box.classList.remove('is-medium');
+      const backdrop = cpEl('docModalBackdrop');
+      backdrop.addEventListener('keydown', cpTrapFocus);
+      document.addEventListener('paste', cpOnPaste);
+      cp.cleanups.push(function () { backdrop.removeEventListener('keydown', cpTrapFocus); document.removeEventListener('paste', cpOnPaste); });
+      setDocumentDetailTitle(mode === 'visits' ? 'Tiếp khách lần cuối' : 'Chi tiết khách', ' · ', cp.name);
+      cpEl('docModalSubtitle').textContent = '';
+      backdrop.hidden = false;
+      document.body.style.overflow = 'hidden';
+      cpEl('docModalClose').focus();
+    }
+
+    function cpTeardown() {
+      if (!cp.active) return;
+      cp.active = false;
+      cp.token++;
+      cp.cleanups.splice(0).forEach(function (fn) { try { fn(); } catch (_) { /* bỏ qua */ } });
+      const lightbox = document.querySelector('#docModalBackdrop .cp-lightbox');
+      if (lightbox) lightbox.remove();
+      const box = document.querySelector('#docModalBackdrop .doc-modal');
+      box.classList.remove('cp-modal', 'cp-modal-narrow');
+      cpEl('docModalBody').setAttribute('aria-live', 'polite');
+      // Bảng được vẽ lại khi lưu nên nút đã bấm có thể không còn trong DOM: tìm nút mới cùng khách để trả focus.
+      if (!docDetail.returnFocus || !docDetail.returnFocus.isConnected) {
+        const action = cp.mode === 'visits' ? 'visits' : 'profile';
+        docDetail.returnFocus = Array.from(document.querySelectorAll('[data-cp-action="' + action + '"]'))
+          .find(function (button) { return button.dataset.cpKey === cp.key; }) || null;
+      }
+      cp.data = null;
+      cp.calendar = null;
+      cp.ms = {};
+    }
+
+    function cpIsDirty() {
+      if (!cp.active) return false;
+      if (cp.dirtyProfile) return true;
+      const composer = cpEl('cpNoteBody');
+      if (composer && composer.value.trim()) return true;
+      const edit = document.querySelector('.cp-edit-text');
+      if (edit && cp.data) {
+        const note = (cp.data.notes || []).find(function (item) { return item.id === cp.editingNoteId; });
+        if (note && edit.value !== note.body) return true;
+      }
+      return !!(cp.calendar && cp.calendar.isDirty());
+    }
+
+    function cpConfirmDiscard() {
+      if (!cpIsDirty()) return true;
+      return window.confirm('Có thay đổi chưa lưu. Đóng hộp và bỏ các thay đổi này?');
+    }
+
+    function cpBody(html) { cpEl('docModalBody').innerHTML = html; }
+
+    function cpShowLoading() {
+      cpBody('<div class="doc-modal-note"><span class="dp-spinner" aria-hidden="true"></span>Đang tải thông tin khách...</div>');
+    }
+
+    function cpShowError(message) {
+      cpBody('<div class="doc-modal-note">' + escapeHtml(message) + '<br><button class="dp-btn" type="button" id="cpRetry" style="margin-top:12px">Thử lại</button></div>');
+      cpEl('cpRetry').addEventListener('click', cpLoad);
+    }
+
+    function openCustomerProfile(key, trigger) {
+      if (!key) return;
+      cpOpenFrame('profile', key, trigger, true);
+      cpLoad();
+    }
+
+    function openCustomerVisitDialog(key, trigger) {
+      if (!key) return;
+      cpOpenFrame('visits', key, trigger, false);
+      cpLoad();
+    }
+
+    function cpLoad() {
+      const token = cp.token;
+      cpShowLoading();
+      cpFetchProfile(cp.key).then(function (data) {
+        if (token !== cp.token) return;
+        data.images = data.images || [];
+        data.notes = data.notes || [];
+        data.visitDays = data.visitDays || [];
+        data.editors = data.editors || [];
+        cp.data = data;
+        cp.name = data.name || cp.name;
+        setDocumentDetailTitle(cp.mode === 'visits' ? 'Tiếp khách lần cuối' : 'Chi tiết khách', ' · ', cp.name);
+        if (cp.mode === 'visits') cpRenderVisitDialog();
+        else cpRenderProfile();
+      }).catch(function (err) {
+        if (token !== cp.token) return;
+        console.error('Không tải được thông tin khách:', err);
+        cpShowError(err && err.message ? 'Không tải được thông tin khách: ' + err.message : 'Không tải được thông tin khách.');
+      });
+    }
+
+    function cpSetError(id, message) {
+      const el = cpEl(id);
+      if (!el) return;
+      el.textContent = message || '';
+      el.hidden = !message;
+    }
+
+    // Nút đang gửi: vô hiệu + đổi chữ; trả hàm khôi phục.
+    function cpBusy(button, text) {
+      if (!button) return function () {};
+      const original = button.textContent;
+      button.disabled = true;
+      button.setAttribute('aria-busy', 'true');
+      button.textContent = text;
+      return function () {
+        button.disabled = false;
+        button.removeAttribute('aria-busy');
+        button.textContent = original;
+      };
+    }
+
+    // ---- Dropdown tick nhiều ô ----
+    // options: [{ value, label, sub? }]; trả HTML, gắn hành vi bằng cpBindMultiSelect.
+    function cpMultiSelectHtml(id, labelId, options, selected, searchable) {
+      const chosen = new Set(selected || []);
+      return '<div class="cp-ms" id="' + id + '">' +
+        '<button type="button" class="cp-input cp-ms-btn" id="' + id + 'Btn" aria-haspopup="true" aria-expanded="false" aria-controls="' + id + 'Pop" aria-labelledby="' + labelId + ' ' + id + 'Btn">' +
+        '<span class="cp-ms-text"></span><span class="cp-ms-count"></span>' + cpIcon('down', 14) + '</button>' +
+        '<div class="cp-ms-pop" id="' + id + 'Pop" role="group" aria-label="Chọn nhiều" hidden>' +
+        (searchable ? '<input type="search" class="cp-input cp-ms-search" aria-label="Tìm trong danh sách" placeholder="Tìm…" autocomplete="off">' : '') +
+        options.map(function (option) {
+          return '<label class="cp-ms-opt"><input type="checkbox" value="' + escapeHtml(option.value) + '"' + (chosen.has(option.value) ? ' checked' : '') + '>' +
+            '<span>' + escapeHtml(option.label) + '</span>' + (option.sub ? '<small>' + escapeHtml(option.sub) + '</small>' : '') + '</label>';
+        }).join('') + (options.length ? '' : '<div class="cp-ms-empty">Không có lựa chọn.</div>') +
+        '</div></div>';
+    }
+
+    function cpBindMultiSelect(root, placeholder, onChange) {
+      const button = root.querySelector('.cp-ms-btn');
+      const pop = root.querySelector('.cp-ms-pop');
+      const text = root.querySelector('.cp-ms-text');
+      const count = root.querySelector('.cp-ms-count');
+      const boxes = function () { return Array.from(pop.querySelectorAll('input[type="checkbox"]')); };
+      const values = function () { return boxes().filter(function (box) { return box.checked; }).map(function (box) { return box.value; }); };
+      function labelOf(box) { return box.closest('label').querySelector('span').textContent; }
+      function refresh() {
+        const chosen = boxes().filter(function (box) { return box.checked; });
+        text.textContent = chosen.length ? chosen.map(labelOf).join(', ') : placeholder;
+        count.textContent = chosen.length ? String(chosen.length) : '';
+        button.classList.toggle('is-empty', !chosen.length);
+      }
+      function close(refocus) {
+        if (pop.hidden) return;
+        pop.hidden = true;
+        button.setAttribute('aria-expanded', 'false');
+        if (refocus) button.focus();
+      }
+      function open() {
+        pop.hidden = false;
+        button.setAttribute('aria-expanded', 'true');
+        // Gần mép dưới màn hình thì mở lên trên cho khỏi bị che.
+        pop.classList.toggle('is-up', root.getBoundingClientRect().bottom + 280 > window.innerHeight);
+      }
+      function onOutside(event) {
+        if (!root.isConnected) { document.removeEventListener('mousedown', onOutside, true); return; }
+        if (!pop.hidden && !root.contains(event.target)) close(false);
+      }
+      document.addEventListener('mousedown', onOutside, true);
+      cp.cleanups.push(function () { document.removeEventListener('mousedown', onOutside, true); });
+      button.addEventListener('click', function () { if (pop.hidden) open(); else close(false); });
+      button.addEventListener('keydown', function (event) {
+        if (event.key !== 'ArrowDown') return;
+        event.preventDefault();
+        open();
+        const first = pop.querySelector('input');
+        if (first) first.focus();
+      });
+      // Esc chỉ đóng danh sách, không đóng cả hộp.
+      root.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && !pop.hidden) { event.preventDefault(); event.stopPropagation(); close(true); }
+        else if (event.key === 'Tab' && !pop.hidden && pop.contains(event.target)) close(false);
+      });
+      pop.addEventListener('change', function (event) {
+        if (!event.target.matches('input[type="checkbox"]')) return;
+        refresh();
+        if (onChange) onChange(values());
+      });
+      const search = pop.querySelector('.cp-ms-search');
+      if (search) {
+        search.addEventListener('input', function () {
+          const query = search.value.trim().toLocaleLowerCase('vi');
+          pop.querySelectorAll('.cp-ms-opt').forEach(function (label) {
+            label.hidden = !!query && label.textContent.toLocaleLowerCase('vi').indexOf(query) < 0;
+          });
+        });
+      }
+      refresh();
+      return { values: values, close: close };
+    }
+
+    // ---- Hộp Chi tiết khách ----
+    function cpUpdateSubtitle() {
+      const last = cp.data && cp.data.lastVisit;
+      cpEl('docModalSubtitle').textContent = 'Tiếp khách lần cuối: ' + (last ? cpFormatDate(last) : 'chưa có');
+    }
+
+    function cpRenderProfile() {
+      const d = cp.data;
+      cpUpdateSubtitle();
+      cpBody('<div class="cp-layout">' +
+        '<div class="cp-col"><section class="dp-section" id="cpInfo" aria-label="Thông tin chung"></section>' +
+        '<section class="dp-section" id="cpImages" aria-label="Hình ảnh kho"></section></div>' +
+        '<div class="cp-col"><section class="dp-section" id="cpNotes" aria-label="Note"></section></div>' +
+        (d.canManage ? '<section class="dp-section cp-manager" id="cpManager" aria-label="Dành cho Quản lý"><div class="cp-manager-grid">' +
+          '<div class="cp-subsection" id="cpEditors"></div><div class="cp-subsection" id="cpVisits"></div></div></section>' : '') +
+        '</div>');
+      cpRenderInfo();
+      cpRenderImages();
+      cpRenderNotes();
+      if (d.canManage) {
+        cpRenderEditors();
+        cpRenderVisits();
+        cpLoadUsers();
+      }
+    }
+
+    // -- Thông tin chung --
+    function cpInfoReadOnlyHtml(profile) {
+      const scale = CP_SCALES.find(function (item) { return item[0] === profile.warehouseScale; });
+      const channels = (profile.salesChannels || []).map(function (code) {
+        const found = CP_CHANNELS.find(function (item) { return item[0] === code; });
+        return found ? found[1] : code;
+      });
+      const value = function (text) { return text ? escapeHtml(text) : '<span class="muted">—</span>'; };
+      return '<dl class="dp-meta">' +
+        detailMetaField('Định vị kho', value(profile.warehouseLocation)) +
+        detailMetaField('Số lượng kho', profile.warehouseCount === null || profile.warehouseCount === undefined || profile.warehouseCount === '' ? value('') : escapeHtml(fmtNumber(profile.warehouseCount))) +
+        detailMetaField('Quy mô kho', value(scale ? scale[1] : '')) +
+        detailMetaField('Đối thủ (để ý tem)', value(profile.competitor)) +
+        detailMetaField('Hình thức bán hàng', value(channels.join(', ')), true) + '</dl>';
+    }
+
+    function cpRenderInfo() {
+      const d = cp.data;
+      const profile = d.profile || {};
+      const host = cpEl('cpInfo');
+      cp.dirtyProfile = false;
+      const head = detailSectionHeadHtml('Thông tin chung', d.canEdit ? '' : 'Chỉ xem');
+      if (!d.canEdit) {
+        host.innerHTML = head + cpInfoReadOnlyHtml(profile) +
+          '<p class="cp-hint" style="margin-top:10px">Bạn chưa được gán quyền sửa khách này. Liên hệ Quản lý nếu cần chỉnh sửa.</p>';
+        return;
+      }
+      const scaleOptions = CP_SCALES.map(function (item) {
+        return '<option value="' + item[0] + '"' + ((profile.warehouseScale || 'none') === item[0] ? ' selected' : '') + '>' + item[1] + '</option>';
+      }).join('');
+      const count = profile.warehouseCount === null || profile.warehouseCount === undefined ? '' : profile.warehouseCount;
+      host.innerHTML = head +
+        '<form class="cp-form" id="cpProfileForm" novalidate autocomplete="off">' +
+        '<div class="cp-field"><label for="cpWarehouseLocation">Định vị kho</label><input class="cp-input" id="cpWarehouseLocation" type="text" maxlength="300" value="' + escapeHtml(profile.warehouseLocation || '') + '"></div>' +
+        '<div class="cp-field"><label for="cpWarehouseCount">Số lượng kho</label><input class="cp-input" id="cpWarehouseCount" type="number" min="0" step="any" inputmode="decimal" value="' + escapeHtml(count) + '"></div>' +
+        '<div class="cp-field"><label for="cpWarehouseScale">Quy mô kho</label><select class="cp-input" id="cpWarehouseScale">' + scaleOptions + '</select></div>' +
+        '<div class="cp-field"><label for="cpCompetitor">Đối thủ (để ý tem)</label><input class="cp-input" id="cpCompetitor" type="text" maxlength="300" value="' + escapeHtml(profile.competitor || '') + '"></div>' +
+        '<div class="cp-field is-full"><span class="cp-label" id="cpChannelsLabel">Hình thức bán hàng</span>' +
+        cpMultiSelectHtml('cpChannels', 'cpChannelsLabel', CP_CHANNELS.map(function (item) { return { value: item[0], label: item[1] }; }), profile.salesChannels || []) + '</div>' +
+        '<p class="cp-error is-full" id="cpProfileError" role="alert" hidden></p>' +
+        '<div class="cp-actions"><button type="submit" class="cp-btn cp-btn-primary" id="cpProfileSave">Lưu thông tin</button></div></form>';
+      const form = cpEl('cpProfileForm');
+      cp.ms.channels = cpBindMultiSelect(cpEl('cpChannels'), 'Chọn hình thức bán hàng', function () { cp.dirtyProfile = true; });
+      form.addEventListener('input', function () { cp.dirtyProfile = true; });
+      form.addEventListener('change', function () { cp.dirtyProfile = true; });
+      form.addEventListener('submit', cpSaveProfile);
+    }
+
+    function cpSaveProfile(event) {
+      event.preventDefault();
+      const d = cp.data;
+      const save = cpEl('cpProfileSave');
+      if (!d || !d.canEdit || save.disabled) return;
+      cpSetError('cpProfileError', '');
+      const countText = cpEl('cpWarehouseCount').value.trim();
+      let count = null;
+      if (countText !== '') {
+        count = Number(countText);
+        if (!Number.isFinite(count) || count < 0) {
+          cpSetError('cpProfileError', 'Số lượng kho phải là số không âm.');
+          cpEl('cpWarehouseCount').focus();
+          return;
+        }
+      }
+      const payload = {
+        key: cp.key,
+        warehouseLocation: cpEl('cpWarehouseLocation').value.trim(),
+        warehouseCount: count,
+        warehouseScale: cpEl('cpWarehouseScale').value,
+        competitor: cpEl('cpCompetitor').value.trim(),
+        salesChannels: cp.ms.channels.values()
+      };
+      const token = cp.token;
+      const restore = cpBusy(save, 'Đang lưu…');
+      cpApi('PUT', '/customer-profile', payload).then(function (body) {
+        if (token !== cp.token) return;
+        d.profile = body.profile || payload;
+        showToast('Đã lưu thông tin chung.', 'success');
+        cpRenderInfo();
+        cpEl('cpProfileSave').focus();
+      }).catch(function (err) {
+        if (token !== cp.token) return;
+        restore();
+        cpSetError('cpProfileError', 'Không lưu được: ' + err.message);
+        showToast('Không lưu được thông tin chung: ' + err.message, 'error');
+      });
+    }
+
+    // -- Hình ảnh kho --
+    function cpRenderImages() {
+      const d = cp.data;
+      const host = cpEl('cpImages');
+      if (!host) return;
+      const images = d.images || [];
+      const total = images.length + cp.uploading;
+      const tiles = images.map(function (image, index) {
+        return '<li class="cp-img"><button type="button" class="cp-img-open" data-id="' + escapeHtml(image.id) + '" aria-label="Phóng to ảnh kho ' + (index + 1) + '">' +
+          '<img src="' + escapeHtml(image.url) + '" loading="lazy" decoding="async" width="160" height="120" alt="Ảnh kho ' + (index + 1) + '"></button>' +
+          (d.canEdit ? '<button type="button" class="cp-img-del" data-id="' + escapeHtml(image.id) + '" aria-label="Xóa ảnh kho ' + (index + 1) + '">' + cpIcon('x', 14) + '</button>' : '') + '</li>';
+      }).join('') + Array.from({ length: cp.uploading }).map(function () {
+        return '<li class="cp-img is-uploading" role="status"><span class="dp-spinner" aria-hidden="true"></span>Đang tải…</li>';
+      }).join('');
+      host.innerHTML = detailSectionHeadHtml('Hình ảnh kho', fmtNumber(total) + '/' + CP_MAX_IMAGES + ' ảnh') +
+        (tiles ? '<ul class="cp-images" id="cpImageList">' + tiles + '</ul>' : '<p class="cp-empty">Chưa có ảnh kho.</p>') +
+        (d.canEdit ? '<div class="cp-upload"><button type="button" class="cp-btn" id="cpImageAdd"' + (total >= CP_MAX_IMAGES ? ' disabled' : '') + '>' + cpIcon('image') + 'Thêm ảnh</button>' +
+          '<input type="file" id="cpImageInput" accept="image/*" multiple hidden tabindex="-1">' +
+          '<span class="cp-hint">Hoặc dán ảnh bằng Ctrl+V khi hộp này đang mở. Ảnh được nén trước khi tải lên.</span></div>' : '');
+      host.querySelectorAll('.cp-img-open').forEach(function (button) {
+        button.addEventListener('click', function () { cpOpenLightbox(button.dataset.id, button); });
+      });
+      host.querySelectorAll('.cp-img-del').forEach(function (button) {
+        button.addEventListener('click', function () { cpDeleteImage(button.dataset.id); });
+      });
+      const add = cpEl('cpImageAdd');
+      if (add) {
+        add.addEventListener('click', function () { cpEl('cpImageInput').click(); });
+        cpEl('cpImageInput').addEventListener('change', function (event) {
+          const files = Array.from(event.target.files || []);
+          event.target.value = '';
+          if (files.length) cpAddImages(files);
+        });
+      }
+    }
+
+    function cpCompressImage(file) {
+      if (window.TKSImageCompress && typeof window.TKSImageCompress.compress === 'function') {
+        return window.TKSImageCompress.compress(file, 1600, 0.75).catch(function () {
+          if (file.size <= 5 * 1024 * 1024) return file;
+          throw new Error('Không nén được ảnh.');
+        });
+      }
+      return Promise.resolve(file);
+    }
+
+    async function cpAddImages(list) {
+      const d = cp.data;
+      const token = cp.token;
+      if (!d || !d.canEdit) return;
+      const files = Array.from(list).filter(function (file) { return /^image\//.test(file.type || ''); });
+      if (!files.length) { showToast('Chỉ nhận tệp ảnh.', 'error'); return; }
+      for (const file of files) {
+        if (token !== cp.token) return;
+        if (d.images.length + cp.uploading >= CP_MAX_IMAGES) { showToast('Mỗi khách tối đa ' + CP_MAX_IMAGES + ' ảnh.', 'error'); break; }
+        cp.uploading++;
+        cpRenderImages();
+        try {
+          const blob = await cpCompressImage(file);
+          const form = new FormData();
+          form.append('file', blob, 'kho-' + Date.now() + '.jpg');
+          const body = await fetch(CP_API + '/customer-profile/images?key=' + encodeURIComponent(cp.key), { method: 'POST', body: form }).then(cpParse);
+          if (token !== cp.token) return;
+          if (body && body.image) d.images.push(body.image);
+        } catch (err) {
+          if (token === cp.token) showToast('Không tải được ảnh: ' + err.message, 'error');
+        }
+        if (token !== cp.token) return;
+        cp.uploading--;
+        cpRenderImages();
+      }
+    }
+
+    function cpOnPaste(event) {
+      if (!cp.active || cp.mode !== 'profile' || !cp.data || !cp.data.canEdit) return;
+      if (document.querySelector('#docModalBackdrop .cp-lightbox')) return;
+      const clip = event.clipboardData;
+      if (!clip) return;
+      let files = Array.from(clip.items || []).filter(function (item) { return item.kind === 'file' && /^image\//.test(item.type || ''); })
+        .map(function (item) { return item.getAsFile(); }).filter(Boolean);
+      if (!files.length) files = Array.from(clip.files || []).filter(function (file) { return /^image\//.test(file.type || ''); });
+      if (!files.length) return; // dán chữ bình thường
+      event.preventDefault();
+      cpAddImages(files);
+    }
+
+    function cpDeleteImage(id) {
+      const d = cp.data;
+      if (!d || !d.canEdit) return;
+      if (!window.confirm('Xóa ảnh này khỏi hồ sơ khách?')) return;
+      const token = cp.token;
+      cpApi('DELETE', '/customer-profile/images/' + encodeURIComponent(id) + '?key=' + encodeURIComponent(cp.key)).then(function () {
+        if (token !== cp.token) return;
+        d.images = d.images.filter(function (image) { return image.id !== id; });
+        showToast('Đã xóa ảnh.', 'success');
+        cpRenderImages();
+      }).catch(function (err) {
+        showToast('Không xóa được ảnh: ' + err.message, 'error');
+      });
+    }
+
+    function cpOpenLightbox(id, trigger) {
+      const image = (cp.data.images || []).find(function (item) { return item.id === id; });
+      if (!image) return;
+      const backdrop = cpEl('docModalBackdrop');
+      const box = document.createElement('div');
+      box.className = 'cp-lightbox';
+      box.setAttribute('role', 'dialog');
+      box.setAttribute('aria-modal', 'true');
+      box.setAttribute('aria-label', 'Xem ảnh kho');
+      box.innerHTML = '<img src="' + escapeHtml(image.url) + '" alt="Ảnh kho phóng to"><button type="button" class="cp-lightbox-close" aria-label="Đóng ảnh">' + cpIcon('x', 20) + '</button>';
+      function close() {
+        box.remove();
+        if (trigger && trigger.isConnected) trigger.focus();
+      }
+      box.addEventListener('click', function (event) { if (event.target !== box.querySelector('img')) close(); });
+      box.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); }
+        else if (event.key === 'Tab') { event.preventDefault(); event.stopPropagation(); box.querySelector('button').focus(); }
+      });
+      (backdrop.querySelector('.doc-modal') || backdrop).appendChild(box);
+      box.querySelector('button').focus();
+    }
+
+    // -- Note kiểu tin nhắn --
+    function cpNoteBubbleHtml(note, d) {
+      const isToday = note.noteDate === d.today;
+      const editing = cp.editingNoteId === note.id;
+      const initial = String(note.authorName || '?').trim().charAt(0).toUpperCase() || '?';
+      const edited = note.updatedAt && note.createdAt && new Date(note.updatedAt).getTime() - new Date(note.createdAt).getTime() > 1000;
+      const meta = '<div class="cp-bubble-meta"><strong class="cp-author">' + escapeHtml(note.authorName || 'Không rõ') + '</strong>' +
+        '<time datetime="' + escapeHtml(note.createdAt || '') + '">' + escapeHtml(cpFormatDateTime(note.createdAt) || cpFormatDate(note.noteDate)) + '</time>' +
+        (edited ? '<span>(đã sửa)</span>' : '') +
+        (isToday ? '<span class="dp-pill is-info">' + (d.canEdit && note.editable ? 'Hôm nay – có thể sửa' : 'Hôm nay') + '</span>' : '') + '</div>';
+      let content;
+      if (editing) {
+        content = '<form class="cp-edit-form" data-note-id="' + escapeHtml(note.id) + '" novalidate>' +
+          '<label for="cpNoteEdit">Sửa note</label>' +
+          '<textarea class="cp-input cp-textarea cp-edit-text" id="cpNoteEdit" rows="3" maxlength="2000">' + escapeHtml(note.body) + '</textarea>' +
+          '<p class="cp-error" id="cpNoteEditError" role="alert" hidden></p>' +
+          '<div class="cp-actions"><button type="submit" class="cp-btn cp-btn-primary cp-btn-sm">Lưu</button>' +
+          '<button type="button" class="cp-btn cp-btn-sm" data-note-action="cancel">Hủy</button></div></form>';
+      } else {
+        content = '<div class="cp-bubble-body">' + escapeHtml(note.body) + '</div>' +
+          (d.canEdit && note.editable ? '<div class="cp-bubble-actions"><button type="button" class="cp-btn cp-btn-sm" data-note-action="edit" data-note-id="' + escapeHtml(note.id) + '">Sửa</button></div>' : '');
+      }
+      return '<li class="cp-bubble' + (isToday ? ' is-today' : '') + '"><span class="cp-avatar" aria-hidden="true">' + escapeHtml(initial) + '</span><div class="cp-bubble-main">' + meta + content + '</div></li>';
+    }
+
+    function cpRenderNotes() {
+      const d = cp.data;
+      const host = cpEl('cpNotes');
+      if (!host) return;
+      const notes = d.notes || [];
+      const todayNote = notes.find(function (note) { return note.noteDate === d.today; });
+      let composer;
+      if (!d.canEdit) composer = '<p class="cp-hint">Bạn chỉ có quyền xem note của khách này.</p>';
+      else if (todayNote) composer = '<p class="cp-hint cp-hint-box" id="cpNoteHint">Hôm nay đã có note – bạn có thể sửa</p>';
+      else composer = '<form class="cp-composer" id="cpNoteForm" novalidate><label for="cpNoteBody">Viết note hôm nay</label>' +
+        '<textarea class="cp-input cp-textarea" id="cpNoteBody" rows="3" maxlength="2000" placeholder="Nội dung note…"></textarea>' +
+        '<p class="cp-error" id="cpNoteError" role="alert" hidden></p>' +
+        '<div class="cp-actions"><button type="submit" class="cp-btn cp-btn-primary" id="cpNoteCreate">Tạo note</button>' +
+        '<span class="cp-hint">Mỗi ngày một note, chỉ sửa được trong ngày.</span></div></form>';
+      host.innerHTML = detailSectionHeadHtml('Note', notes.length ? fmtNumber(notes.length) + ' note' : '') + composer +
+        (notes.length
+          ? '<ol class="cp-bubbles" aria-label="Danh sách note, mới nhất ở trên">' + notes.map(function (note) { return cpNoteBubbleHtml(note, d); }).join('') + '</ol>'
+          : '<p class="cp-empty" style="margin-top:12px">Chưa có note nào.</p>');
+      const form = cpEl('cpNoteForm');
+      if (form) form.addEventListener('submit', cpCreateNote);
+      host.querySelectorAll('[data-note-action="edit"]').forEach(function (button) {
+        button.addEventListener('click', function () {
+          cp.editingNoteId = button.dataset.noteId;
+          cpRenderNotes();
+          cpEl('cpNoteEdit').focus();
+        });
+      });
+      host.querySelectorAll('[data-note-action="cancel"]').forEach(function (button) {
+        button.addEventListener('click', function () {
+          cp.editingNoteId = null;
+          cpRenderNotes();
+        });
+      });
+      const editForm = host.querySelector('.cp-edit-form');
+      if (editForm) editForm.addEventListener('submit', cpUpdateNote);
+    }
+
+    function cpSyncNoteCount() {
+      cpUpdateMeta(cp.key, { noteCount: (cp.data.notes || []).length });
+    }
+
+    // Tải lại danh sách note (sau 409): chỉ thay notes/today, không đụng form Thông tin chung.
+    function cpRefreshNotes() {
+      const token = cp.token;
+      return cpFetchProfile(cp.key).then(function (fresh) {
+        if (token !== cp.token) return;
+        cp.data.notes = fresh.notes || [];
+        cp.data.today = fresh.today || cp.data.today;
+        cp.editingNoteId = null;
+        cpSyncNoteCount();
+        cpRenderNotes();
+      }).catch(function () { /* giữ nguyên màn hình hiện tại */ });
+    }
+
+    function cpHandleNoteError(err) {
+      if (err.code === 'NOTE_EXISTS_TODAY') {
+        showToast('Hôm nay khách này đã có note – danh sách đã được tải lại, bạn có thể sửa note hôm nay.', 'error');
+        return cpRefreshNotes();
+      }
+      if (err.code === 'NOTE_LOCKED') {
+        showToast('Note này đã qua ngày nên không thể sửa nữa.', 'error');
+        return cpRefreshNotes();
+      }
+      showToast('Không lưu được note: ' + err.message, 'error');
+      return null;
+    }
+
+    function cpCreateNote(event) {
+      event.preventDefault();
+      const field = cpEl('cpNoteBody');
+      const button = cpEl('cpNoteCreate');
+      if (button.disabled) return;
+      const body = field.value.trim();
+      if (!body) { cpSetError('cpNoteError', 'Vui lòng nhập nội dung note.'); field.focus(); return; }
+      cpSetError('cpNoteError', '');
+      const token = cp.token;
+      const restore = cpBusy(button, 'Đang tạo…');
+      cpApi('POST', '/customer-profile/notes', { key: cp.key, body: body }).then(function (res) {
+        if (token !== cp.token) return;
+        cp.data.notes = [res.note].concat(cp.data.notes || []);
+        showToast('Đã tạo note.', 'success');
+        cpSyncNoteCount();
+        cpRenderNotes();
+        const edit = document.querySelector('#cpNotes [data-note-action="edit"]');
+        if (edit) edit.focus();
+      }).catch(function (err) {
+        if (token !== cp.token) return;
+        restore();
+        cpHandleNoteError(err);
+      });
+    }
+
+    function cpUpdateNote(event) {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const field = form.querySelector('.cp-edit-text');
+      const button = form.querySelector('button[type="submit"]');
+      if (button.disabled) return;
+      const body = field.value.trim();
+      if (!body) { cpSetError('cpNoteEditError', 'Nội dung note không được để trống.'); field.focus(); return; }
+      cpSetError('cpNoteEditError', '');
+      const id = form.dataset.noteId;
+      const token = cp.token;
+      const restore = cpBusy(button, 'Đang lưu…');
+      cpApi('PUT', '/customer-profile/notes/' + encodeURIComponent(id), { key: cp.key, body: body }).then(function (res) {
+        if (token !== cp.token) return;
+        cp.data.notes = (cp.data.notes || []).map(function (note) { return note.id === id ? res.note : note; });
+        cp.editingNoteId = null;
+        showToast('Đã lưu note.', 'success');
+        cpRenderNotes();
+      }).catch(function (err) {
+        if (token !== cp.token) return;
+        restore();
+        cpHandleNoteError(err);
+      });
+    }
+
+    // -- Khối Quản lý: người được sửa + lịch tiếp khách --
+    function cpLoadUsers() {
+      const token = cp.token;
+      cp.usersError = '';
+      fetch(CP_API + '/customer-profile/assignable-users').then(cpParse).then(function (body) {
+        if (token !== cp.token) return;
+        cp.users = body.users || [];
+        cpRenderEditors();
+      }).catch(function (err) {
+        if (token !== cp.token) return;
+        cp.usersError = err.message || 'Không tải được danh sách tài khoản.';
+        cpRenderEditors();
+      });
+    }
+
+    function cpRenderEditors() {
+      const host = cpEl('cpEditors');
+      if (!host) return;
+      const editors = cp.data.editors || [];
+      let body;
+      if (cp.usersError) {
+        body = '<p class="cp-error" role="alert">Không tải được danh sách tài khoản: ' + escapeHtml(cp.usersError) + '</p><div class="cp-actions"><button type="button" class="cp-btn cp-btn-sm" id="cpUsersRetry">Thử lại</button></div>';
+      } else if (!cp.users) {
+        body = '<p class="cp-hint"><span class="dp-spinner" aria-hidden="true" style="display:inline-block;width:14px;height:14px;margin:0 8px -3px 0"></span>Đang tải danh sách tài khoản…</p>';
+      } else {
+        const options = cp.users.map(function (user) { return { value: String(user.id), label: user.hoTen || String(user.id), sub: user.vaiTro || '' }; });
+        editors.forEach(function (editor) {
+          if (!options.some(function (option) { return option.value === String(editor.userId); })) {
+            options.push({ value: String(editor.userId), label: editor.userName || String(editor.userId), sub: 'Không còn trong danh sách' });
+          }
+        });
+        body = '<div class="cp-field"><span class="cp-label" id="cpEditorsLabel">Chọn tài khoản được sửa</span>' +
+          cpMultiSelectHtml('cpEditorsMs', 'cpEditorsLabel', options, editors.map(function (editor) { return String(editor.userId); }), options.length > 8) + '</div>' +
+          '<p class="cp-error" id="cpEditorsError" role="alert" hidden></p>' +
+          '<div class="cp-actions"><button type="button" class="cp-btn cp-btn-primary" id="cpEditorsSave">Lưu người được sửa</button></div>';
+      }
+      host.innerHTML = '<div class="dp-section-head"><h3 class="dp-section-title">Người được sửa</h3><span class="dp-section-note">Chỉ Quản lý</span></div>' +
+        '<p class="cp-hint">Quản lý luôn sửa được. Người được chọn mới sửa được Thông tin chung và Note của khách này.</p>' + body;
+      const retry = cpEl('cpUsersRetry');
+      if (retry) retry.addEventListener('click', function () { cp.users = null; cp.usersError = ''; cpRenderEditors(); cpLoadUsers(); });
+      const root = cpEl('cpEditorsMs');
+      if (root) {
+        cp.ms.editors = cpBindMultiSelect(root, 'Chưa gán ai', null);
+        cpEl('cpEditorsSave').addEventListener('click', cpSaveEditors);
+      }
+    }
+
+    function cpSaveEditors() {
+      const button = cpEl('cpEditorsSave');
+      if (button.disabled) return;
+      const token = cp.token;
+      const restore = cpBusy(button, 'Đang lưu…');
+      cpApi('PUT', '/customer-profile/editors', { key: cp.key, userIds: cp.ms.editors.values() }).then(function (body) {
+        if (token !== cp.token) return;
+        cp.data.editors = body.editors || [];
+        showToast('Đã lưu người được sửa.', 'success');
+        cpRenderEditors();
+        cpEl('cpEditorsSave').focus();
+      }).catch(function (err) {
+        if (token !== cp.token) return;
+        restore();
+        cpSetError('cpEditorsError', 'Không lưu được: ' + err.message);
+        showToast('Không lưu được người được sửa: ' + err.message, 'error');
+      });
+    }
+
+    function cpVisitSummaryHtml() {
+      const last = cp.data.lastVisit;
+      return last ? 'Gần nhất: <strong>' + escapeHtml(cpFormatDate(last)) + '</strong>' : 'Chưa có ngày tiếp khách nào.';
+    }
+
+    function cpRenderVisits() {
+      const host = cpEl('cpVisits');
+      if (!host) return;
+      host.innerHTML = '<div class="dp-section-head"><h3 class="dp-section-title">Tiếp khách lần cuối</h3><span class="dp-section-note">Chỉ Quản lý</span></div>' +
+        '<p class="cp-visit-summary" id="cpVisitSummary">' + cpVisitSummaryHtml() + '</p><div id="cpCalendarHost"></div>';
+      cp.calendar = cpCreateCalendar(cpEl('cpCalendarHost'), {
+        today: cp.data.today, dates: cp.data.visitDays || [],
+        onSave: function (dates) { return cpSaveVisits(cp.key, dates); }
+      });
+    }
+
+    function cpRenderVisitDialog() {
+      const d = cp.data;
+      cpUpdateSubtitle();
+      if (!d.canManage) {
+        cpBody('<div class="doc-modal-note">Chỉ Quản lý được sửa ngày tiếp khách.</div>');
+        return;
+      }
+      cpBody('<p class="cp-visit-summary" id="cpVisitSummary">' + cpVisitSummaryHtml() + '</p><div id="cpCalendarHost"></div>');
+      cp.calendar = cpCreateCalendar(cpEl('cpCalendarHost'), {
+        today: d.today, dates: d.visitDays || [],
+        onSave: function (dates) { return cpSaveVisits(cp.key, dates).then(function (body) { cp.calendar.markSaved(); closeDocumentDetail(); return body; }); },
+        onCancel: function () { closeDocumentDetail(); }
+      });
+      const first = cpEl('cpCalendarHost').querySelector('.cp-day[tabindex="0"]');
+      if (first) first.focus();
+    }
+
+    function cpSaveVisits(key, dates) {
+      return cpApi('PUT', '/customer-profile/visits', { key: key, dates: dates }).then(function (body) {
+        cpUpdateMeta(key, { lastVisit: body.lastVisit || null });
+        if (cp.active && cp.key === key && cp.data) {
+          cp.data.visitDays = body.visitDays || [];
+          cp.data.lastVisit = body.lastVisit || null;
+          cpUpdateSubtitle();
+          const summary = cpEl('cpVisitSummary');
+          if (summary) summary.innerHTML = cpVisitSummaryHtml();
+        }
+        showToast('Đã lưu ngày tiếp khách.', 'success');
+        return body;
+      });
+    }
+
+    // ---- Lịch chọn nhiều ngày (dùng chung hộp Chi tiết khách và hộp lịch riêng) ----
+    // opts: { today:'YYYY-MM-DD', dates:[ISO], onSave(dates) -> Promise<{visitDays}>, onCancel?() }
+    // Bấm ngày để bật/tắt "đã đi" (ô chọn có dấu ✓, không chỉ dựa vào màu); ngày sau "today" bị khóa.
+    function cpCreateCalendar(host, opts) {
+      const uid = 'cpCal' + (++cpCalendarSeq);
+      const WEEKDAYS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+      const iso = function (y, m, d) { return y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0'); };
+      const todayParts = opts.today.split('-').map(Number);
+      const todayMonth = todayParts[0] * 12 + (todayParts[1] - 1);
+      let original = new Set(opts.dates || []);
+      let selected = new Set(original);
+      const latestOf = function (set) { return Array.from(set).sort().pop() || null; };
+      const start = latestOf(selected) || opts.today;
+      let viewYear = Number(start.slice(0, 4));
+      let viewMonth = Number(start.slice(5, 7)) - 1;
+      let saving = false;
+
+      const sameSet = function (a, b) { return a.size === b.size && Array.from(a).every(function (value) { return b.has(value); }); };
+      const isDirty = function () { return !sameSet(original, selected); };
+
+      function render(focusIso) {
+        const first = new Date(Date.UTC(viewYear, viewMonth, 1));
+        const offset = (first.getUTCDay() + 6) % 7; // Thứ Hai đứng đầu
+        const days = new Date(Date.UTC(viewYear, viewMonth + 1, 0)).getUTCDate();
+        const latest = latestOf(selected);
+        const monthDates = Array.from({ length: days }, function (_, i) { return iso(viewYear, viewMonth, i + 1); });
+        const enabled = monthDates.filter(function (value) { return value <= opts.today; });
+        const tabTarget = [focusIso, latest, opts.today].find(function (value) { return value && monthDates.indexOf(value) >= 0 && value <= opts.today; }) || enabled[0];
+        let cells = '';
+        for (let i = 0; i < offset; i++) cells += '<span class="cp-day-none" aria-hidden="true"></span>';
+        monthDates.forEach(function (value, i) {
+          const on = selected.has(value);
+          const future = value > opts.today;
+          cells += '<button type="button" class="cp-day' + (on ? ' is-selected' : '') + (value === opts.today ? ' is-today' : '') + (value === latest ? ' is-latest' : '') +
+            '" data-date="' + value + '" aria-pressed="' + on + '" aria-label="' + escapeHtml(cpFormatDate(value)) + (value === latest ? ', gần nhất' : '') + '"' +
+            (value === opts.today ? ' aria-current="date"' : '') + (future ? ' disabled' : '') + ' tabindex="' + (value === tabTarget ? '0' : '-1') + '">' +
+            (on ? cpIcon('check', 12) : '') + '<span>' + (i + 1) + '</span></button>';
+        });
+        const sorted = Array.from(selected).sort().reverse();
+        const atLastMonth = viewYear * 12 + viewMonth >= todayMonth;
+        host.innerHTML = '<div class="cp-cal">' +
+          '<div class="cp-cal-nav"><button type="button" class="cp-cal-step" data-step="-1" aria-label="Tháng trước">' + cpIcon('left') + '</button>' +
+          '<span class="cp-cal-title" id="' + uid + 'Title" aria-live="polite">Tháng ' + (viewMonth + 1) + '/' + viewYear + '</span>' +
+          '<button type="button" class="cp-cal-step" data-step="1" aria-label="Tháng sau"' + (atLastMonth ? ' disabled' : '') + '>' + cpIcon('right') + '</button></div>' +
+          '<div class="cp-cal-grid" role="group" aria-labelledby="' + uid + 'Title">' +
+          WEEKDAYS.map(function (label) { return '<span class="cp-cal-wd" aria-hidden="true">' + label + '</span>'; }).join('') + cells + '</div>' +
+          '<div><span class="cp-label">Các ngày đã đi (' + sorted.length + ')</span>' +
+          (sorted.length
+            ? '<ul class="cp-cal-list" style="margin-top:6px">' + sorted.map(function (value) {
+              return '<li class="cp-chip"><span>' + escapeHtml(cpFormatDate(value)) + '</span>' + (value === latest ? '<span class="dp-pill is-ok">Gần nhất</span>' : '') +
+                '<button type="button" class="cp-chip-x" data-remove="' + value + '" aria-label="Bỏ ngày ' + escapeHtml(cpFormatDate(value)) + '">' + cpIcon('x', 12) + '</button></li>';
+            }).join('') + '</ul>'
+            : '<p class="cp-hint" style="margin-top:4px">Chưa chọn ngày nào. Bấm vào ngày khách đã được tiếp.</p>') + '</div>' +
+          '<div class="cp-actions"><button type="button" class="cp-btn cp-btn-primary" data-act="save"' + (saving || !isDirty() ? ' disabled' : '') + '>' + (saving ? 'Đang lưu…' : 'Lưu') + '</button>' +
+          '<button type="button" class="cp-btn" data-act="cancel"' + (saving ? ' disabled' : '') + '>Hủy</button></div></div>';
+        if (focusIso) {
+          const target = host.querySelector('.cp-day[data-date="' + focusIso + '"]');
+          if (target) target.focus();
+        }
+      }
+
+      function toggle(value) {
+        if (value > opts.today) return;
+        if (selected.has(value)) selected.delete(value); else selected.add(value);
+        render(value);
+      }
+
+      function moveFocus(from, deltaDays) {
+        const date = new Date(from + 'T00:00:00Z');
+        date.setUTCDate(date.getUTCDate() + deltaDays);
+        const next = date.toISOString().slice(0, 10);
+        if (next > opts.today) return;
+        viewYear = Number(next.slice(0, 4));
+        viewMonth = Number(next.slice(5, 7)) - 1;
+        render(next);
+      }
+
+      function save() {
+        if (saving || !isDirty()) return;
+        saving = true;
+        render();
+        const dates = Array.from(selected).sort();
+        Promise.resolve(opts.onSave(dates)).then(function (body) {
+          original = new Set((body && body.visitDays) || dates);
+          selected = new Set(original);
+          saving = false;
+          if (host.isConnected) render();
+        }).catch(function (err) {
+          saving = false;
+          if (host.isConnected) render();
+          showToast('Không lưu được ngày tiếp khách: ' + err.message, 'error');
+        });
+      }
+
+      host.addEventListener('click', function (event) {
+        const day = event.target.closest('.cp-day');
+        if (day) { toggle(day.dataset.date); return; }
+        const step = event.target.closest('.cp-cal-step');
+        if (step) {
+          const next = viewYear * 12 + viewMonth + Number(step.dataset.step);
+          viewYear = Math.floor(next / 12);
+          viewMonth = next % 12;
+          render();
+          const again = host.querySelector('.cp-cal-step[data-step="' + step.dataset.step + '"]:not(:disabled)') || host.querySelector('.cp-cal-step:not(:disabled)');
+          if (again) again.focus();
+          return;
+        }
+        const remove = event.target.closest('[data-remove]');
+        if (remove) { selected.delete(remove.dataset.remove); render(); return; }
+        const action = event.target.closest('[data-act]');
+        if (!action) return;
+        if (action.dataset.act === 'save') save();
+        else if (opts.onCancel) opts.onCancel();
+        else { selected = new Set(original); render(); }
+      });
+      host.addEventListener('keydown', function (event) {
+        const day = event.target.closest && event.target.closest('.cp-day');
+        if (!day) return;
+        const delta = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[event.key];
+        if (delta === undefined) return;
+        event.preventDefault();
+        moveFocus(day.dataset.date, delta);
+      });
+
+      render();
+      return {
+        isDirty: isDirty,
+        getDates: function () { return Array.from(selected).sort(); },
+        markSaved: function () { original = new Set(selected); }
+      };
+    }
 
     // ===== Hộp chi tiết dùng chung (#docModalBackdrop) — khung .dp-* ở shared/detail-panel.css =====
     // Mọi hộp cùng một nhịp: đầu hộp (tiêu đề + phụ đề) → hàng CHỈ SỐ TỔNG QUAN (detailStatsHtml) → các khối chi tiết.
@@ -8970,6 +10246,8 @@
     }
 
     function closeDocumentDetail() {
+      if (cp.active && !cpConfirmDiscard()) return; // hộp Chi tiết khách còn thay đổi chưa lưu
+      cpTeardown();
       docDetail.requestId++; // bỏ qua kết quả của request đang chờ
       docDetail.focus = null;
       document.getElementById('docModalBackdrop').hidden = true;
@@ -9010,8 +10288,8 @@
         tbody.addEventListener('click', function (event) {
           const row = event.target.closest && event.target.closest('tr.doc-row');
           if (!row) return;
-          // Bấm dropdown đổi team không được mở hộp chi tiết.
-          if (event.target.closest('select, option')) return;
+          // Bấm dropdown đổi team / nút Chi tiết ghi chú / biểu tượng lịch tiếp khách không được mở hộp chi tiết số liệu.
+          if (event.target.closest('select, option, [data-cp-action]')) return;
           const selection = window.getSelection && window.getSelection();
           // Đang bôi đen chữ trong dòng (để sao chép mã) thì không mở panel.
           if (selection && !selection.isCollapsed && row.contains(selection.anchorNode)) return;

@@ -647,7 +647,7 @@ test('GET /api/admin/permissions/catalog tra ve danh muc + mac dinh theo vai tro
   assert.ok(res.body.features.every(f => f.key && f.label && f.groupKey));
   // Marketing giong Sale tru 5 tab xem bao cao (Sale duoc mo them tu 2026-10-02) va Vong doi don hang (shipment.lifecycle:
   // bo Nhan vien mua hang + marketing, 2026-10-02), Tao QR (2026-10-17), Yeu cau xuat VAT (2026-10-20).
-  const saleViewKeys = ['reports.overview', 'reports.products', 'reports.products.growth', 'reports.products.sales', 'reports.products.expected', 'reports.invoices', 'reports.invoices.priceAudit', 'reports.invoices.priceAudit.explain', 'reports.business', 'reports.debt'];
+  const saleViewKeys = ['reports.overview', 'reports.products', 'reports.products.growth', 'reports.products.sales', 'reports.products.expected', 'reports.invoices', 'reports.invoices.priceAudit', 'reports.invoices.priceAudit.explain', 'reports.business', 'reports.business.customerNotes', 'reports.debt'];
   assert.deepEqual(
     res.body.roleDefaults['Nhân viên marketing'].filter(key => key !== 'reports.marketing' && key !== 'reports.products.expected'),
     res.body.roleDefaults['Nhân viên sale'].filter(key => !saleViewKeys.includes(key) && key !== 'reports.debt.saleFeedback' && key !== 'accounting.qr' && key !== 'accounting.vatRequest' && !['shipment.lifecycle', 'shipment.lookup', 'shipment.history'].includes(key))

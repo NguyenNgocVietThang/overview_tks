@@ -74,6 +74,11 @@ const FEATURES = Object.freeze([
   { key: 'reports.business.refreeze', groupKey: 'reports', label: 'Khách hàng: tính lại tháng đã chốt (cần Khách hàng)', roles: MANAGER_ONLY, requires: 'reports.business' },
   // 2026-10-16: Quan ly doi team cua tung sale ngay tren bang "Tang truong Sale" (bang sale_teams).
   { key: 'reports.business.editTeam', groupKey: 'reports', label: 'Khách hàng: sửa team của sale (cần Khách hàng)', roles: MANAGER_ONLY, requires: 'reports.business' },
+  // 2026-10-22: Ghi chu / thong tin theo khach tren bang "Doanh so theo khach" (server/businessReport/customerProfile*).
+  // Xem = Quan ly + Tro ly + Sale; sua Tiep khach lan cuoi, gan nguoi sua va sua moi khach chi Quan ly.
+  // Nguoi duoc Quan ly gan (customer_editors) sua duoc Thong tin chung + Note cua dung khach do.
+  { key: 'reports.business.customerNotes', groupKey: 'reports', label: 'Khách hàng: xem ghi chú và tiếp khách (cần Khách hàng)', roles: REPORT_VIEW_ROLES, requires: 'reports.business' },
+  { key: 'reports.business.customerManage', groupKey: 'reports', label: 'Khách hàng: sửa tiếp khách lần cuối, gán người sửa ghi chú (cần Ghi chú khách)', roles: MANAGER_ONLY, requires: 'reports.business.customerNotes' },
   { key: 'reports.debt', groupKey: 'reports', label: 'Công nợ', roles: REPORT_VIEW_ROLES },
   // 2026-10-13: cong no theo lich TT (server/debtSchedule). Moi cot sua duoc la 1 quyen
   // rieng: Sale phan hoi (mac dinh Nhan vien sale), QL phan hoi + Trang thai + Lich TT (mac
