@@ -109,3 +109,22 @@ test('create form orders fields by dependency, marks required work fields and su
     assert.equal(posted.at(-1).telegramId, '6205968899');
   } finally { dom.window.close(); }
 });
+test('approval scope is always shown for every role; guest locks and clears it', async () => {
+  const { dom, w, doc } = await page();
+  try {
+    w.openCreateUserModal(); await settle();
+    const role = doc.getElementById('createVaiTro');
+    const group = doc.getElementById('createLeaveDepartments').closest('.form-group');
+    for (const value of ['Nhân viên kho', 'Trợ lý', 'Nhân viên sale']) {
+      role.value = value; role.dispatchEvent(new w.Event('change'));
+      assert.equal(group.hidden, false, value);
+      assert.ok([...group.querySelectorAll('input')].some(input => !input.disabled), value);
+    }
+    group.querySelector('input').checked = true;
+    role.value = 'Khách'; role.dispatchEvent(new w.Event('change'));
+    assert.equal(group.hidden, false);
+    assert.ok([...group.querySelectorAll('input')].every(input => input.disabled && !input.checked));
+    role.value = 'Nhân viên kho'; role.dispatchEvent(new w.Event('change'));
+    assert.ok([...group.querySelectorAll('input')].some(input => !input.disabled));
+  } finally { dom.window.close(); }
+});

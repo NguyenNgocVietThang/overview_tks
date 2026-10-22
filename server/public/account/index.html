@@ -2130,12 +2130,6 @@
       return [...document.querySelectorAll('#' + containerId + ' input:checked')].map(input => input.value);
     }
 
-    function canApproveLeave(user){
-      if(user.vaiTro === 'Khách') return false;
-      const override = user.featurePermissions && user.featurePermissions['hr.leave.manage'];
-      if(typeof override === 'boolean') return override;
-      return (user.effective || []).includes('hr.leave.manage') || (permCatalog && permCatalog.roleDefaults && permCatalog.roleDefaults[user.vaiTro] || []).includes('hr.leave.manage');
-    }
     // Bộ phận đang được điền tự động theo vai trò (theo từng form). Người dùng tự chọn khác thì thôi gợi ý.
     const suggestedBoPhan = { create: '', edit: '' };
     function suggestedDepartmentFor(prefix){
@@ -2185,8 +2179,12 @@
       if(guest) suggestedBoPhan[prefix] = '';
       applySuggestedDepartment(prefix);
       const approval = document.getElementById(prefix + 'LeaveDepartments');
-      approval.closest('.form-group').hidden = !canApproveLeave({ ...user, vaiTro: role });
-      if(guest) approval.querySelectorAll('input').forEach(input => { input.checked = false; });
+      // Phạm vi duyệt nghỉ tách khỏi vai trò/quyền: luôn hiện cho mọi tài khoản; Khách thì khóa và bỏ chọn.
+      approval.querySelectorAll('input').forEach(input => {
+        if(guest){ input.checked = false; input.disabled = true; }
+        else if(input.dataset.guestLocked) input.disabled = false;
+        if(guest) input.dataset.guestLocked = '1'; else delete input.dataset.guestLocked;
+      });
     }
     function loadWorkAssignment(prefix, user = {}){
       suggestedBoPhan[prefix] = '';

@@ -30,6 +30,7 @@ function createPage(relativePath, url) {
   dom.window.Chart = class FakeChart { destroy() {} };
   dom.window.Chart.defaults = { font: {}, animation: {}, plugins: { tooltip: {} } };
   dom.window.setInterval = () => 1;
+  dom.window.requestAnimationFrame = () => 1;
   dom.window.TKSNav = {
     authGuard: () => new Promise(() => {}),
     handleBranchError: () => false,
@@ -133,7 +134,7 @@ test('moi trang bang chi dung quy uoc sort o shared.css: khong tu dinh nghia lai
 });
 
 test('shared.css: bieu tuong sort la cot flex rieng, do rong co dinh, dinh mep phai o tieu de', () => {
-  const css = loadHtml('shared/shared.css').replace(/\/\*[\s\S]*?\*\//g, '');
+  const css = loadHtml('shared/shared.css').replace(/\r\n?/g, '\n').replace(/\/\*[\s\S]*?\*\//g, '');
   const rule = selector => {
     const match = css.match(new RegExp('(?:^|\\n)' + selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\{([^}]*)\\}'));
     assert.ok(match, selector + ' phai co trong shared.css');

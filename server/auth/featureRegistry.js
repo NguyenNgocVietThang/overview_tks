@@ -52,8 +52,8 @@ const FEATURES = Object.freeze([
   { key: 'reports.overview.containers.full', groupKey: 'reports', label: 'Xem đầy đủ chi tiết CONT (cần Hàng hóa)', roles: MANAGER_ONLY, requires: 'reports.products' },
   { key: 'reports.products', groupKey: 'reports', label: 'Hàng hóa: xem Báo cáo hàng hóa và Kiểm tra đứt hàng', roles: REPORT_VIEW_ROLES },
   { key: 'reports.products.growth', groupKey: 'reports', label: 'Hàng hóa: xem Tăng trưởng mã hàng', roles: REPORT_VIEW_ROLES },
-  // 2026-10-20: Nhan vien marketing xem tab Hang hoa nhung KHONG duoc thay thong tin suy ra duoc don gia: doanh so 90 ngay, doanh so khach lon nhat,
-  // Mo ta (thuong ghi bang gia) va hop doanh so theo khach. Mac dinh moi vai tro xem bao cao tru Marketing.
+  // Nhan vien marketing giu quyen cu: khong xem tab Hang hoa. Quyen nay chi tach rieng cac thong tin
+  // suy ra duoc don gia (doanh so 90 ngay, mo ta bang gia, doanh so khach lon nhat) cho nguoi da co reports.products.
   { key: 'reports.products.sales', groupKey: 'reports', label: 'Hàng hóa: xem doanh số, mô tả bảng giá và doanh số theo khách (cần Hàng hóa)', roles: REPORT_VIEW_ROLES, requires: 'reports.products' },
   // 2026-10-17: cot Don gia HN/SG cua Bao cao hang hoa (gia ban chung KiotViet); mac dinh chi Quan ly + Tro ly.
   { key: 'reports.products.price', groupKey: 'reports', label: 'Hàng hóa: xem đơn giá HN / SG (cần Hàng hóa)', roles: REPORTS_ROLES, requires: 'reports.products' },
