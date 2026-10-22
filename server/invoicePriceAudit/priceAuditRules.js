@@ -32,9 +32,10 @@ function isFreightCustomer(name) {
   return n !== '' && FREIGHT_SET.has(n);
 }
 
-// Phan truoc "@": bo dau, thuong, bo moi khoang trang. Chi vua/lon/vip nhan dien, con lai la Vua.
+// Khach KHONG co email (null/rong/chi khoang trang) = Lon. Co email: phan truoc "@" bo dau, thuong, bo khoang trang;
+// chi lon/vip nhan dien, email co gia tri khac la Vua.
 function customerLevelFromEmail(email) {
-  if (typeof email !== 'string') return 'medium';
+  if (typeof email !== 'string' || email.trim() === '') return 'large';
   const at = email.indexOf('@');
   const local = at >= 0 ? email.slice(0, at) : email;
   const key = local
@@ -48,8 +49,8 @@ function customerLevelFromEmail(email) {
   return 'medium';
 }
 
-// fullvat / full vat (ranh gioi tu) trong ghi chu dong HOAC ghi chu chung hoa don.
-const FULL_VAT_RE = /(?<![\p{L}\p{N}_])full ?vat(?![\p{L}\p{N}_])/u;
+// "vat" (ranh gioi tu; van nhan fullvat / full vat) trong ghi chu dong HOAC ghi chu chung hoa don.
+const FULL_VAT_RE = /(?<![\p{L}\p{N}_])(?:full ?)?vat(?![\p{L}\p{N}_])/u;
 function hasFullVat(lineNote, invoiceNote) {
   return FULL_VAT_RE.test(normalizeText(lineNote)) || FULL_VAT_RE.test(normalizeText(invoiceNote));
 }

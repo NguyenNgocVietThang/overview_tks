@@ -1,7 +1,7 @@
 'use strict';
 
-// Danh muc cot DUY NHAT cua bang "Kiem tra gia ban" (tab Hoa don): 18 cot nghiep vu dung thu tu muc 2.1
-// (16 hien mac dinh) roi cac cot doi chieu muc 2.2. Dung chung cho:
+// Danh muc cot DUY NHAT cua bang "Kiem tra gia ban" (tab Hoa don): 17 cot nghiep vu
+// (15 hien mac dinh) roi cac cot doi chieu. Dung chung cho:
 //   - API GET / (route gan `columns` de frontend dung thead tu day),
 //   - GET /export/fields + /export (whitelist cot, nhan, kieu o Excel/HTML).
 // type: datetime | branch | text | money | number | bool | status | decision | timestamp
@@ -13,54 +13,48 @@ const col = (key, label, group, type, defaultVisible = false, extra = {}) =>
   Object.freeze({ key, label, group, type, defaultVisible, ...extra });
 
 const COLUMNS = Object.freeze([
-  // 2.1 — 18 cot nghiep vu
-  col('soldAt', 'Ngày giờ bán', BUSINESS, 'datetime', true, { width: 140 }),
+  // 2.1 — 17 cot nghiep vu
+  col('soldAt', 'TGian', BUSINESS, 'datetime', true, { width: 140 }),
   col('branch', 'Cơ sở', BUSINESS, 'branch', true, { width: 70 }),
-  col('invoiceCode', 'Mã hóa đơn', BUSINESS, 'text', true, { width: 130 }),
+  col('invoiceCode', 'Mã HĐ', BUSINESS, 'text', true, { width: 110 }),
   col('saleName', 'Sale phụ trách', BUSINESS, 'text', true, { width: 150 }),
-  col('customerName', 'Khách hàng', BUSINESS, 'text', true, { width: 200 }),
+  col('customerName', 'Khách', BUSINESS, 'text', true, { width: 150, wrap: true }),
   col('productCode', 'Mã hàng', BUSINESS, 'text', true, { width: 110 }),
   col('productName', 'Tên hàng', BUSINESS, 'text', true, { width: 220 }),
-  col('customerLevel', 'Cấp khách', BUSINESS, 'text', true, { width: 85 }),
-  col('quantity', 'SL dòng', BUSINESS, 'number', true, { width: 85 }),
-  col('totalCodeQuantity', 'Tổng SL cùng mã', BUSINESS, 'number', false, { width: 110 }),
+  col('customerLevel', 'Level khách', BUSINESS, 'text', true, { width: 85 }),
+  col('totalCodeQuantity', 'Tổng SL', BUSINESS, 'number', false, { width: 85 }),
   col('fullVat', 'Full VAT', BUSINESS, 'bool', true, { width: 80 }),
-  col('netUnitPrice', 'Đơn giá sau giảm', BUSINESS, 'money', true, { width: 120 }),
-  col('minimumUnitPrice', 'Giá min áp dụng', BUSINESS, 'money', true, { width: 120 }),
-  col('unitShortfall', 'Chênh/đơn vị', BUSINESS, 'money', false, { width: 110 }),
+  col('netUnitPrice', 'Giá sau giảm', BUSINESS, 'money', true, { width: 120 }),
+  col('minimumUnitPrice', 'Giá min', BUSINESS, 'money', true, { width: 110 }),
+  col('unitShortfall', 'Chênh/ĐV', BUSINESS, 'money', false, { width: 110 }),
   col('effectiveAmount', 'Tiền chênh / phạt', BUSINESS, 'money', true, { width: 130 }),
   col('effectiveStatus', 'Kết quả', BUSINESS, 'status', true, { width: 95 }),
   col('saleExplanation', 'Sale giải thích', BUSINESS, 'text', true, { width: 260, wrap: true }),
   col('decision', 'Chốt', BUSINESS, 'decision', true, { width: 120 }),
   // 2.2 — cot doi chieu (an mac dinh)
   col('customerCode', 'Mã khách', 'Nhận diện', 'text'),
-  col('customerEmail', 'Email cấp giá lúc quét', 'Nhận diện', 'text'),
-  col('sourceLineNo', 'Dòng hóa đơn', 'Nhận diện', 'number'),
-  col('originalUnitPrice', 'Đơn giá trước giảm', 'Giá bán', 'money'),
-  col('unitDiscount', 'Giảm/đơn vị', 'Giá bán', 'money'),
-  col('cartonSizeHn', 'Chiếc/thùng HN', 'HN', 'number'),
+  col('originalUnitPrice', 'Giá trước giảm', 'Giá bán', 'money'),
+  col('unitDiscount', 'Giảm/ĐV', 'Giá bán', 'money'),
+  col('cartonSizeHn', 'SL/T HN', 'HN', 'number'),
   col('quantityPriceHn', 'Giá SL HN', 'HN', 'money'),
-  col('levelPriceHn', 'Giá cấp HN', 'HN', 'money'),
-  col('vatHn', 'VAT HN đã cộng', 'HN', 'money'),
-  col('minimumHn', 'Min HN gồm VAT', 'HN', 'money'),
+  col('levelPriceHn', 'Giá Level HN', 'HN', 'money'),
+  col('vatHn', 'VAT HN', 'HN', 'money'),
+  col('minimumHn', 'Min HN (VAT)', 'HN', 'money'),
   col('freightEligible', 'Khách bao cước', 'Cước và SG', 'bool'),
-  col('freightPerUnit', 'Cước/đơn vị đã cộng', 'Cước và SG', 'money'),
-  col('cartonSizeSg', 'Chiếc/thùng SG', 'Cước và SG', 'number'),
+  col('freightPerUnit', 'Cước/ĐV đã cộng', 'Cước và SG', 'money'),
+  col('cartonSizeSg', 'SL/T SG', 'Cước và SG', 'number'),
   col('quantityPriceSg', 'Giá SL SG', 'Cước và SG', 'money'),
-  col('levelPriceSg', 'Giá cấp SG', 'Cước và SG', 'money'),
-  col('vatSg', 'VAT SG đã cộng', 'Cước và SG', 'money'),
-  col('minimumSg', 'Min SG gồm VAT', 'Cước và SG', 'money'),
-  col('winningSource', 'Nguồn giá thắng', 'Căn cứ', 'text'),
-  col('reason', 'Lý do', 'Căn cứ', 'text', false, { wrap: true }),
-  col('productNoteHn', 'Ghi chú hàng HN', 'Căn cứ', 'text', false, { width: 260, wrap: true }),
-  col('productNoteSg', 'Ghi chú hàng SG', 'Căn cứ', 'text', false, { width: 260, wrap: true }),
-  col('lineNote', 'Ghi chú dòng', 'Căn cứ', 'text', false, { width: 220, wrap: true }),
+  col('levelPriceSg', 'Giá Level SG', 'Cước và SG', 'money'),
+  col('vatSg', 'VAT SG', 'Cước và SG', 'money'),
+  col('minimumSg', 'Min SG (VAT)', 'Cước và SG', 'money'),
+  col('productNoteHn', 'Ghi chú HN', 'Căn cứ', 'text', false, { width: 260, wrap: true }),
+  col('productNoteSg', 'Ghi chú SG', 'Căn cứ', 'text', false, { width: 260, wrap: true }),
+  col('lineNote', 'Ghi chú mã', 'Căn cứ', 'text', false, { width: 220, wrap: true }),
   col('invoiceNote', 'Ghi chú hóa đơn', 'Căn cứ', 'text', false, { width: 220, wrap: true }),
   col('originalStatus', 'Kết quả gốc', 'Duyệt', 'status'),
   col('originalAmount', 'Tiền chênh gốc', 'Duyệt', 'money'),
   col('decidedBy', 'Người chốt', 'Duyệt', 'text'),
-  col('decidedAt', 'Thời gian chốt', 'Duyệt', 'timestamp'),
-  col('capturedAt', 'Ghi nhận lúc', 'Duyệt', 'timestamp')
+  col('decidedAt', 'Thời gian chốt', 'Duyệt', 'timestamp')
 ]);
 
 const BUSINESS_KEYS = Object.freeze(COLUMNS.filter(c => c.group === BUSINESS).map(c => c.key));

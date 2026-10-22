@@ -20,8 +20,11 @@ test('cap khach tu email: vua/lon/vip, bo dau, hoa thuong, khoang trang', () => 
   assert.equal(customerLevelFromEmail('V I P@gmail.com'), 'vip');
 });
 
-test('cap khach: rong/la/khong co @ mac dinh Vua; chi phan truoc @ duoc xet', () => {
-  for (const v of ['', null, undefined, '   ', 'vipx@gmail.com', 'a@vip.com', 'vip.nguyen@gmail.com', 42]) {
+test('cap khach: khong co email = Lon; email la = Vua; chi phan truoc @ duoc xet', () => {
+  for (const v of ['', null, undefined, '   ', 42]) {
+    assert.equal(customerLevelFromEmail(v), 'large', String(v));
+  }
+  for (const v of ['vipx@gmail.com', 'a@vip.com', 'vip.nguyen@gmail.com']) {
     assert.equal(customerLevelFromEmail(v), 'medium', String(v));
   }
   assert.equal(customerLevelFromEmail('vip'), 'vip');
@@ -33,16 +36,19 @@ test('Full VAT: nhieu bien the, ghi chu dong hoac hoa don', () => {
   assert.equal(hasFullVat('Full Vat', null), true);
   assert.equal(hasFullVat('giao sang, FULLVAT.', ''), true);
   assert.equal(hasFullVat('FULL\tVAT', ''), true);
+  assert.equal(hasFullVat('Vat', ''), true);
+  assert.equal(hasFullVat('', 'khach lay VAT 8%'), true);
 });
 
 test('Full VAT: khong co / khong co ranh gioi tu thi sai', () => {
   assert.equal(hasFullVat('', ''), false);
   assert.equal(hasFullVat(null, undefined), false);
-  assert.equal(hasFullVat('vat 8%', 'full'), false);
+  assert.equal(hasFullVat('gia full', 'full'), false);
+  assert.equal(hasFullVat('invat', 'vats'), false);
   assert.equal(hasFullVat('unfullvat', ''), false);
   assert.equal(hasFullVat('fullvatx', ''), false);
   assert.equal(hasFullVat('fullvatà', ''), false);
-  assert.equal(hasFullVat('àfull vat', ''), false);
+  assert.equal(hasFullVat('àfullvat', ''), false);
 });
 
 test('bo qua OD/PK chi khi nam trong ngoac', () => {

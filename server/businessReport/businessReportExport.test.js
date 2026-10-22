@@ -155,3 +155,30 @@ test('filterRows: chi bang khach an dong khong hoat dong mac dinh; bang sale va 
   // Ca bang khach lan sale/ma hang van ap bo loc tim kiem / sale.
   assert.deepEqual(filterRows('products', [inactive, live], { q: 'cu' }).map(r => r.key), ['x']);
 });
+
+test('cot Tiep khach lan cuoi (customers): chi co khi report.withLastVisit, dd/mm/yyyy, HTML + XLSX, khoa la bi chan khi tat', async () => {
+  const base = svc.buildCustomerReport(serviceSnapshot());
+  assert.ok(!exportFieldsFor('customers', base, base.rows).worksheets[0].fields.some(f => f.key === 'lastVisit'));
+  assert.throws(() => resolveColumnKeys('customers', base, 'lastVisit'), { code: 'INVALID_COLUMNS' });
+  assert.ok(!exportFieldsFor('sales', { ...svc.buildSaleReport(serviceSnapshot()), withLastVisit: true }, []).worksheets[0].fields.some(f => f.key === 'lastVisit'));
+
+  const report = { ...base, withLastVisit: true };
+  const rows = base.rows.map((r, i) => ({ ...r, lastVisit: i === 0 ? '2026-10-05' : '' }));
+  const fields = exportFieldsFor('customers', report, rows).worksheets[0].fields;
+  assert.deepEqual(fields.slice(0, 4).map(f => f.label), ['Tên khách', 'Sale', 'Level giá', 'Tiếp khách lần cuối']);
+  assert.deepEqual(resolveColumnKeys('customers', report, 'lastVisit,name'), ['name', 'lastVisit']);
+
+  const xlsx = await createExportFile('customers', 'xlsx', report, rows, ['name', 'lastVisit']);
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(xlsx.buffer);
+  const sheet = wb.worksheets[0];
+  assert.deepEqual(sheet.getRow(1).values.slice(1), ['Tên khách', 'Tiếp khách lần cuối']);
+  assert.equal(sheet.getRow(2).getCell(2).value, '05/10/2026');
+  assert.ok(sheet.getRow(3).getCell(2).value === null || sheet.getRow(3).getCell(2).value === '');
+
+  const html = await createExportFile('customers', 'html', report, rows, ['name', 'lastVisit']);
+  const b64 = /<script type="application\/octet-stream" id="report-data"[^>]*>([^<]*)<\/script>/.exec(html.buffer.toString())[1];
+  const ws = JSON.parse(zlib.gunzipSync(Buffer.from(b64, 'base64'))).worksheets[0];
+  assert.deepEqual(ws.columns.map(c => c.label), ['Tên khách', 'Tiếp khách lần cuối']);
+  assert.equal(ws.rows[0][1], '05/10/2026');
+});

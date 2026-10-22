@@ -52,8 +52,8 @@ const FEATURES = Object.freeze([
   { key: 'reports.overview.containers.full', groupKey: 'reports', label: 'Xem đầy đủ chi tiết CONT (cần Hàng hóa)', roles: MANAGER_ONLY, requires: 'reports.products' },
   { key: 'reports.products', groupKey: 'reports', label: 'Hàng hóa: xem Báo cáo hàng hóa và Kiểm tra đứt hàng', roles: REPORT_VIEW_ROLES },
   { key: 'reports.products.growth', groupKey: 'reports', label: 'Hàng hóa: xem Tăng trưởng mã hàng', roles: REPORT_VIEW_ROLES },
-  // 2026-10-20: Nhan vien marketing xem tab Hang hoa nhung KHONG duoc thay thong tin suy ra duoc don gia: doanh so 90 ngay, doanh so khach lon nhat,
-  // Mo ta (thuong ghi bang gia) va hop doanh so theo khach. Mac dinh moi vai tro xem bao cao tru Marketing.
+  // Nhan vien marketing giu quyen cu: khong xem tab Hang hoa. Quyen nay chi tach rieng cac thong tin
+  // suy ra duoc don gia (doanh so 90 ngay, mo ta bang gia, doanh so khach lon nhat) cho nguoi da co reports.products.
   { key: 'reports.products.sales', groupKey: 'reports', label: 'Hàng hóa: xem doanh số, mô tả bảng giá và doanh số theo khách (cần Hàng hóa)', roles: REPORT_VIEW_ROLES, requires: 'reports.products' },
   // 2026-10-17: cot Don gia HN/SG cua Bao cao hang hoa (gia ban chung KiotViet); mac dinh chi Quan ly + Tro ly.
   { key: 'reports.products.price', groupKey: 'reports', label: 'Hàng hóa: xem đơn giá HN / SG (cần Hàng hóa)', roles: REPORTS_ROLES, requires: 'reports.products' },
@@ -64,7 +64,7 @@ const FEATURES = Object.freeze([
   // (kiem tra o server moi lan ghi); Chot mac dinh chi Quan ly, KHONG tu cap Tro ly; quyen Chot khong kem quyen giai thich.
   // escalationExempt cho giai thich: giong Sale phan hoi cong no (Tro ly van tao / dat lai mat khau TK Sale duoc).
   { key: 'reports.invoices.priceAudit', groupKey: 'reports', label: 'Hóa đơn: xem Kiểm tra giá bán (cần Hóa đơn)', roles: REPORT_VIEW_ROLES, requires: 'reports.invoices' },
-  { key: 'reports.invoices.priceAudit.explain', groupKey: 'reports', label: 'Kiểm tra giá bán: điền Sale giải thích cho khách mình phụ trách (cần Kiểm tra giá bán)', roles: [ROLES.NHAN_VIEN_SALE], requires: 'reports.invoices.priceAudit', escalationExempt: true },
+  { key: 'reports.invoices.priceAudit.explain', groupKey: 'reports', label: 'Kiểm tra giá bán: điền / sửa Sale giải thích trên mọi hóa đơn (cần Kiểm tra giá bán)', roles: [ROLES.NHAN_VIEN_SALE], requires: 'reports.invoices.priceAudit', escalationExempt: true },
   { key: 'reports.invoices.priceAudit.decide', groupKey: 'reports', label: 'Kiểm tra giá bán: Chốt Ok / Phạt (cần Kiểm tra giá bán)', roles: MANAGER_ONLY, requires: 'reports.invoices.priceAudit' },
   // 2026-10-07: Bao cao kinh doanh (tang truong Sale/Khach/Ma hang theo thang). Spec:
   // docs/superpowers/specs/2026-10-07-business-report-design.md.
@@ -74,6 +74,11 @@ const FEATURES = Object.freeze([
   { key: 'reports.business.refreeze', groupKey: 'reports', label: 'Khách hàng: tính lại tháng đã chốt (cần Khách hàng)', roles: MANAGER_ONLY, requires: 'reports.business' },
   // 2026-10-16: Quan ly doi team cua tung sale ngay tren bang "Tang truong Sale" (bang sale_teams).
   { key: 'reports.business.editTeam', groupKey: 'reports', label: 'Khách hàng: sửa team của sale (cần Khách hàng)', roles: MANAGER_ONLY, requires: 'reports.business' },
+  // 2026-10-22: Ghi chu / thong tin theo khach tren bang "Doanh so theo khach" (server/businessReport/customerProfile*).
+  // Xem = Quan ly + Tro ly + Sale; sua Tiep khach lan cuoi, gan nguoi sua va sua moi khach chi Quan ly.
+  // Nguoi duoc Quan ly gan (customer_editors) sua duoc Thong tin chung + Note cua dung khach do.
+  { key: 'reports.business.customerNotes', groupKey: 'reports', label: 'Khách hàng: xem ghi chú và tiếp khách (cần Khách hàng)', roles: REPORT_VIEW_ROLES, requires: 'reports.business' },
+  { key: 'reports.business.customerManage', groupKey: 'reports', label: 'Khách hàng: sửa tiếp khách lần cuối, gán người sửa ghi chú (cần Ghi chú khách)', roles: MANAGER_ONLY, requires: 'reports.business.customerNotes' },
   { key: 'reports.debt', groupKey: 'reports', label: 'Công nợ', roles: REPORT_VIEW_ROLES },
   // 2026-10-13: cong no theo lich TT (server/debtSchedule). Moi cot sua duoc la 1 quyen
   // rieng: Sale phan hoi (mac dinh Nhan vien sale), QL phan hoi + Trang thai + Lich TT (mac
@@ -230,6 +235,7 @@ function resolvePermissions(user) {
   }
   for (const key of ALWAYS_ON_KEYS) granted.add(key);
   if (canSubmitOwnLeave(user)) granted.add('hr.leave.submit');
+  else granted.delete('hr.leave.submit');
   // Quyen phu thuoc (`requires`): thieu quyen goc thi bo luon, bat ke vai tro/ghi de.
   for (const f of FEATURES) {
     if (f.requires && !granted.has(f.requires)) granted.delete(f.key);
@@ -238,10 +244,13 @@ function resolvePermissions(user) {
   return FEATURE_KEYS.filter(key => granted.has(key) && !isFeatureForbiddenForRole(key, user.vaiTro));
 }
 
-// Moi tai khoan noi bo (tru Khach) deu duoc tu gui don nghi (chua gan ho so thi dung gio mac dinh, xem migration 0042);
-// khong doi hrManaged (co dong bo vai tro tu danh sach nhan su) vi viec do khong lien quan quyen xin nghi.
+// Self-service follows active internal accounts with valid account workplace data.
 function canSubmitOwnLeave(user) {
-  return !!(user && user.vaiTro !== ROLES.KHACH && user.trangThai === 'Đang hoạt động' && !user.isDeleted && !user.hrVerificationRequired && user.hrEmployeeActive !== false);
+  if (!user || !Object.values(ROLES).includes(user.vaiTro) || user.vaiTro === ROLES.KHACH || user.trangThai !== 'Đang hoạt động' || user.isDeleted) return false;
+  try {
+    require('./accountWorkAssignment').normalizeWorkAssignment(user);
+    return true;
+  } catch { return false; }
 }
 
 /** Quyen tu dong theo tai khoan (dynamic): khong phai thu de cap cho nguoi khac, nen khong tinh vao luat chong nang quyen. */

@@ -320,7 +320,7 @@ Bổ sung 17/10/2026: tab Công nợ có thêm bảng **Tuổi nợ theo hóa đ
 
 19/10/2026 — Báo cáo hàng hóa thay phần ghép tay của sheet **BC CHUNG** (VLOOKUP từ ONRENDER + gõ tay SL 30 ngày HN/SG, Đứt HN/SG, SL đơn 90/30 ngày, giá vốn): bảng web và file Excel/HTML nay có đủ 34 cột cùng thứ tự BC CHUNG, dữ liệu tính sẵn trong DB và cập nhật cận thời gian thực. Cột mới: Giá trị có bán HN/SG (Có bán × Đơn giá cùng cơ sở), SL bán 30 ngày HN/SG, Đứt HN/SG (tổng số ngày đứt hàng 30 ngày gần nhất, cập nhật sau mỗi lần chạy "Quét đứt hàng 30 ngày"; chưa quét = 0, không có lịch tự chạy), Ngày SG + ĐC / Ngày HN / Ngày 2 miền (số ngày bán hết), SL đơn 90/30 ngày và Tăng trưởng (= SL đơn 30 ngày × 3 ÷ SL đơn 90 ngày − 1), cùng DS khách lớn nhất. Đơn giá (chính là "giá vốn" của BC CHUNG) dời xuống cuối bảng; Giá trị có bán và Đơn giá chỉ Quản lý/Trợ lý (`reports.products.price`). Migration `0067` phải áp trước khi deploy; nhắc người dùng chạy "Quét đứt hàng 30 ngày" cơ sở "Cả hai" lần đầu.
 
-Cập nhật gần nhất: 21/10/2026.
+Cập nhật gần nhất: 22/10/2026.
 
 Điều chỉnh 15/10/2026: trong tháng hiển thị điểm/hạng, thưởng tạm tính và tổng phạt từ các ngày ĐÃ CHỐT, không cộng chu kỳ đang mở. Lúc 14:59 giờ Việt Nam lưu bản cuối của chu kỳ 15:00 hôm trước–14:59 hôm sau, mỗi chu kỳ đúng một lần và không ghi đè; 15:00 mới reset. Nhiều lần Tính lại trong chu kỳ chỉ cập nhật bản đang mở, không cộng thành nhiều ngày. Tiền thưởng hiện mỗi ngày với nhãn Thưởng tạm tính, thay đổi theo điểm và tổng phạt đã chốt ngày; chỉ chốt/lưu thưởng chính thức một lần khi kết thúc tháng. Web, hộp chi tiết và file xuất đều phân biệt tạm tính/đã chốt.
 
@@ -377,7 +377,7 @@ Phương án B đã duyệt: tập SĐT/KPI Pancake riêng trong PostgreSQL, ng�
 - **Ngoài phạm vi**: bảng giá cắt lô riêng theo khách–mã, ghi ngược KiotViet/Google Sheets, lưu lịch sử quá 7 ngày.
 - **Trạng thái**: code + test xong trên nhánh `feature/invoice-price-audit`; gồm cả giao diện và xuất Excel/HTML (đã kiểm trên trình duyệt với dữ liệu thử); chưa merge/push/deploy, chưa áp migration 0077, chưa chạy job thật.
 
-Cập nhật gần nhất: 21/10/2026.
+Cập nhật gần nhất: 22/10/2026.
 
 
 21/10/2026 — **CONT TKS1 và cột Nguồn (mã cục bộ trên main, chưa deploy):** nguồn thứ bảy `CONT TKS1` sau KHÁC dùng chung snapshot, số Chưa bốc (1+2), Đã bốc (3) và chi tiết CONT; trạng thái 4 giữ trong Dự kiến hàng về, không cộng hai số tổng. Tên SP vẫn tra `product_report` theo mã. Bảng Dự kiến hàng về có 11 cột; Nguồn (`sheetName`) đứng đầu, mặc định hiện và được chọn khi xuất Excel/HTML; chọn riêng các cột cũ vẫn hợp lệ. Giữ tìm kiếm, ba bộ lọc Nguồn/Cont/Trạng thái, quyền, phân trang và cấu hình cột trong phiên. Đọc thiếu/lỗi bất kỳ nguồn nào giữ snapshot thành công gần nhất. Không thêm migration, dependency hoặc endpoint; bộ lọc Nguồn được bổ sung theo phê duyệt tiếp theo cùng ngày; không ghi Sheets hay chạy job ghi DB production trong lượt triển khai này.
@@ -396,6 +396,20 @@ Quản lý có thể theo dõi và xuất công nợ/thưởng phạt theo Nhóm
 
 21/10/2026 — **Tìm kiếm gần đúng theo từ + tìm ngay khi gõ + chỉ số theo bộ lọc (không migration; mã đã commit trên `codex/debt-sale-teams`, chưa deploy):** mọi thanh tìm kiếm văn bản thường dùng một luật chung — bỏ dấu và phân biệt hoa/thường không còn ảnh hưởng, tách câu tìm thành từng từ: 1 từ thì từ đó phải khớp; 2 từ thì khớp cả 2; từ 3 từ trở lên khớp quá nửa; kết quả xếp theo số từ khớp, khớp nguyên cụm đứng đầu. Ví dụ "combo 100 set" ra cả dòng "combo set". Ô tìm theo mã chính xác (mã hàng, mã đơn…) giữ nguyên. Frontend dùng `public/shared/fuzzy-search.js` (UMD, `window.TKSFuzzySearch`: `fold/tokens/score/matches/filter`, kiểm thử `fuzzy-search.test.js`); server dùng `shared/fuzzySearch.js` (CommonJS, `createMatcher`) và `shared/fuzzySql.js` (cùng luật ngay trong SQL, tham số hóa, dùng cho bảng lớn cần lọc + phân trang + tổng ở Postgres). Áp ở Vòng đời đơn hàng (`orderLifecycleQuery` — `filterRows`, `sortExplicit`, xếp hạng), Sổ quỹ, Nhân sự/Nghỉ phép, lịch sử tài khoản và xuất người dùng, Kiểm tra giá bán, Dự kiến hàng về (xuất), Nháp VAT (chứng từ), Báo cáo tổng hợp, Marketing, Vị trí hàng. **Sửa lỗi:** xóa hết từ khóa (Backspace) không làm mới kết quả — nay lọc lại ngay qua sự kiện `input`. **Tìm ngay khi gõ, gỡ nút "Tìm kiếm" thừa:** Vòng đời đơn hàng (`bulkSearchInput` debounce 300ms phía máy chủ, `historySearchInput` lọc phía client); ORDER VAT (`vat-request`) lọc client trên dữ liệu đã tải (tối đa `LIST_LIMIT` 5000) thay vì gửi `q` lên máy chủ. **Chỉ số/thẻ KPI nhảy theo từ khóa + bộ lọc** của bảng trên toàn bộ dòng đã lọc (không chỉ trang hiện tại): hook `afterRender` trong `renderPaginatedRows` (`index.html`, Sổ quỹ, Tài khoản, Nhân sự, Marketing); Vòng đời đơn hàng tính qua `countSummary` phía máy chủ. **Vòng đời đơn hàng:** chế độ tìm mặc định đổi sang "Theo tên khách" (`parseParams` phía máy chủ vẫn mặc định `mode='code'`). **Kiểm thử:** có 3 test đỏ nền từ trước, không do thay đổi này — quyền marketing `/api/product-report*` trong `test/overview-endpoints-access.test.js`. Không migration nên `SCHEMA.md` không đổi.
 
+## Bổ sung 22/10/2026 — Ghi chú và Tiếp khách lần cuối theo khách
+
+- **Vấn đề**: bảng Doanh số theo khách chỉ có số liệu doanh số; thông tin nghiệp vụ về từng khách (kho ở đâu, quy mô, đối thủ, kênh bán, lần gặp gần nhất, lịch sử trao đổi) nằm rời rạc ngoài hệ thống.
+- **Giải pháp**: hai cột mới trên bảng — **Ghi chú** (nút Chi tiết) và **Tiếp khách lần cuối**. Hộp Chi tiết khách có Thông tin chung (định vị kho, số lượng kho, ảnh kho, quy mô kho, đối thủ, hình thức bán hàng) và Note kiểu tin nhắn, mới nhất ở trên.
+- **Quy tắc nghiệp vụ**:
+  - Xem: Quản lý, Trợ lý, Nhân viên sale (quyền mới `reports.business.customerNotes`, cần quyền Khách hàng); Khách bên ngoài không xem.
+  - Sửa Thông tin chung, ảnh và Note: Quản lý, hoặc người được Quản lý gán riêng cho từng khách (Quản lý chọn từ danh sách tài khoản nội bộ đang hoạt động). Người không được gán chỉ xem.
+  - Mỗi khách tối đa 1 note mỗi ngày; chỉ sửa được trong ngày tạo (theo giờ Việt Nam), sang ngày sau note bị khóa; ai trong danh sách được sửa cũng sửa được note của ngày đó.
+  - Ảnh kho: tối đa 5 MB mỗi ảnh, tối đa 10 ảnh mỗi khách.
+  - Ngày tiếp khách chỉ Quản lý chọn (lịch chọn nhiều ngày đã đi, không chọn ngày tương lai); "Tiếp khách lần cuối" luôn là ngày lớn nhất trong các ngày đã chọn.
+- **Người dùng**: Quản lý (toàn quyền, gán người sửa), Trợ lý và Nhân viên sale (xem; sửa nếu được gán).
+- **Thành công**: sale/quản lý mở một hộp là thấy đủ hồ sơ và lịch sử trao đổi của khách; biết ngay lần tiếp khách gần nhất mà không cần hỏi miệng.
+- **Ngoài phạm vi**: xuất note/ảnh ra file (file xuất chỉ thêm cột Tiếp khách lần cuối), xóa note, lịch sử chỉnh sửa note, tự chuyển ghi chú khi khách đổi tên (liên kết theo tên chuẩn hóa nên khách đổi tên sẽ mất liên kết).
+- **Trạng thái**: code + test xong, đã commit trên `main`; migration `0080` đã áp DB dùng chung (22/10/2026); chưa push/deploy. Spec: `docs/superpowers/specs/2026-10-22-customer-notes-design.md`.
 ### Cập nhật 22/10/2026 — Nháp VAT: dán mã hóa đơn là xử lý luôn
 
 - **Vấn đề**: kế toán luôn biết sẵn hóa đơn cần sửa nên không dùng bảng tick chọn từng chứng từ; dán mã xong vẫn phải bấm "Thêm vào danh sách" rồi "Xử lý chứng từ đã chọn", và không xem được nội dung hóa đơn ngay trên trang.

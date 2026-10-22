@@ -19,6 +19,8 @@ const accountPolicy = require('./accountPolicy');
 const { normalizeDepartments } = require('../hr/hrApprovalDepartments');
 const userExport = require('./adminUserExportService');
 const accountAuditLog = require('./accountAuditLog');
+const { normalizeWorkAssignment } = require('./accountWorkAssignment');
+const { departmentsFor, suggestedDepartmentsByRole } = require('../hr/hrDepartmentCatalog');
 
 const router = express.Router();
 
@@ -40,6 +42,7 @@ function publicAdminUser(u) {
     coSo: u.coSo || '',
     assignedCoSo: u.assignedCoSo ?? u.coSo ?? '',
     boPhan: u.boPhan || '',
+    workCoSo: u.workCoSo || '',
     leaveApprovalDepartments: normalizeDepartments(u.leaveApprovalDepartments || []),
     trangThai: u.trangThai,
     ngayTao: u.ngayTao || '',
@@ -123,18 +126,25 @@ function approvalScopeChange(actor, current, next, body) {
     const protectedReason = accountPolicy.checkProtectedManager(actor, current, 'đổi phạm vi duyệt phòng ban');
     if (protectedReason) return { status: 403, code: accountPolicy.DENIED_CODE, error: protectedReason };
   }
-  return { departments };
+  return { departments: next.vaiTro === ROLES.KHACH ? [] : departments };
+}
+
+// ID Telegram dạng chuỗi số (giữ nguyên độ chính xác > 2^53). Rỗng = không liên kết.
+function parseTelegramId(raw) {
+  if (typeof raw !== 'string') return { error: 'ID Telegram phải là chuỗi chữ số.' };
+  const value = raw.trim();
+  if (value && !/^[1-9]\d{0,19}$/.test(value)) return { error: 'ID Telegram phải là số nguyên dương, tối đa 20 chữ số.' };
+  return { value };
 }
 
 async function departmentCatalog() {
-  const [snapshot, users, historic] = await Promise.all([
-    employeeDirectory.getSnapshot().catch(() => ({ employees: [] })),
+  const [users, historical] = await Promise.all([
     localUserStore.getAllUsers(),
     require('./appUsersRepository').selectApprovalDepartmentCatalog().catch(() => [])
   ]);
   return normalizeDepartments([
-    ...historic,
-    ...((snapshot && snapshot.employees) || []).map(employee => employee.boPhan || ''),
+    ...departmentsFor('hanoi'), ...departmentsFor('saigon'),
+    ...historical,
     ...users.flatMap(user => [user.boPhan || '', ...normalizeDepartments(user.leaveApprovalDepartments || [])])
   ]).sort((a, b) => a.localeCompare(b, 'vi'));
 }
@@ -252,8 +262,18 @@ router.post('/api/admin/users', ...authManage, async (req, res) => {
 
     const scope = approvalScopeChange(req.user, null, { vaiTro }, req.body);
     if (scope.error) return res.status(scope.status).json({ error: scope.error, code: scope.code });
+    const assignment = normalizeWorkAssignment({ vaiTro, workCoSo: req.body.workCoSo, boPhan: req.body.boPhan });
+    let telegramId = '';
+    if (Object.hasOwn(req.body, 'telegramId')) {
+      const parsedTelegram = parseTelegramId(req.body.telegramId);
+      if (parsedTelegram.error) return res.status(400).json({ error: parsedTelegram.error, code: 'INVALID_TELEGRAM_ID' });
+      telegramId = parsedTelegram.value;
+    }
+    if (telegramId && (await localUserStore.getAllUsers()).some(u => !u.isDeleted && u.telegramId === telegramId)) {
+      return res.status(409).json({ error: 'ID Telegram này đã được sử dụng. Vui lòng kiểm tra lại.', code: 'TELEGRAM_ID_EXISTS' });
+    }
     const passwordHash = await bcrypt.hash(password, 10);
-    const newUser = await localUserStore.createUser({
+    let newUser = await localUserStore.createUser({
       id: crypto.randomUUID(),
       username,
       passwordHash,
@@ -262,11 +282,23 @@ router.post('/api/admin/users', ...authManage, async (req, res) => {
       soDienThoai: normalizePhone(soDienThoai),
       vaiTro,
       coSo,
+      ...assignment,
       trangThai: ACTIVE_STATUS,
       leaveApprovalDepartments: scope.departments
     });
 
-    res.status(201).json({ user: publicAdminUser(newUser) });
+    // Telegram đi qua đường cập nhật hồ sơ để ghi đồng thời liên kết bot (hr_telegram_links).
+    let telegramWarning = null;
+    if (telegramId) {
+      try {
+        newUser = await localUserStore.updateUser(newUser.id, { telegramId });
+        employeeDirectory.clearCache();
+      } catch (telegramErr) {
+        telegramWarning = 'Đã tạo tài khoản nhưng chưa lưu được ID Telegram: ' + (telegramErr.message || 'lỗi không xác định');
+      }
+    }
+
+    res.status(201).json({ user: publicAdminUser(newUser), ...(telegramWarning ? { warning: telegramWarning } : {}) });
     await accountAuditLog.record({
       action: accountAuditLog.ACTIONS.CREATE, actor: req.user, target: newUser,
       changes: accountAuditLog.initialValues(newUser)
@@ -293,6 +325,7 @@ router.post('/api/admin/users', ...authManage, async (req, res) => {
     if (err && err.code === 'USER_EXISTS') {
       return res.status(409).json({ error: err.message });
     }
+    if (err && err.statusCode && err.statusCode < 500) return res.status(err.statusCode).json({ error: err.message, code: err.code });
     console.error('=== LOI POST /api/admin/users ===', err);
     res.status(500).json({ error: 'Không tạo được tài khoản, vui lòng thử lại.' });
   }
@@ -326,13 +359,9 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
     const updates = {};
 
     if (Object.hasOwn(req.body, 'telegramId')) {
-      if (typeof req.body.telegramId !== 'string') {
-        return res.status(400).json({ error: 'ID Telegram phải là chuỗi chữ số.', code: 'INVALID_TELEGRAM_ID' });
-      }
-      const telegramId = req.body.telegramId.trim();
-      if (telegramId && !/^[1-9]\d{0,19}$/.test(telegramId)) {
-        return res.status(400).json({ error: 'ID Telegram phải là số nguyên dương, tối đa 20 chữ số.', code: 'INVALID_TELEGRAM_ID' });
-      }
+      const parsedTelegram = parseTelegramId(req.body.telegramId);
+      if (parsedTelegram.error) return res.status(400).json({ error: parsedTelegram.error, code: 'INVALID_TELEGRAM_ID' });
+      const telegramId = parsedTelegram.value;
       if (telegramId !== (targetUser.telegramId || '')) {
         const denied = accountPolicy.checkTakeover(req.user, targetUser, 'đổi ID Telegram của tài khoản này') ||
                        accountPolicy.checkProtectedManager(req.user, targetUser, 'đổi ID Telegram');
@@ -430,8 +459,6 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
       updates.coSo = coSo;
     }
 
-    let hrRoleToSync = null;
-
     if (req.body.vaiTro !== undefined) {
       const vaiTro = String(req.body.vaiTro).trim();
       if (!VALID_ROLES.includes(vaiTro)) {
@@ -465,13 +492,10 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
         if (hrDenied) return res.status(hrDenied.status).json({ error: hrDenied.error, code: hrDenied.code });
       }
       updates.vaiTro = vaiTro;
-      // Tài khoản đồng bộ HR: resolveUser() luôn tính lại vaiTro từ Danh sách nhân sự
-      // trừ khi có vaiTroOverride — nếu không set override ở đây, thay đổi này sẽ
-      // bị ghi đè lại ngay ở lần requireAuth kế tiếp của user đó.
+      // Preserve legacy override metadata without writing the role to HR.
       if (targetUser.hrManaged) {
         updates.vaiTroOverride = vaiTro;
         updates.roleSource = 'override';
-        hrRoleToSync = vaiTro;
       }
     }
 
@@ -496,7 +520,6 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
       updates.vaiTroOverride = vaiTroOverride;
       updates.vaiTro = resultingRole;
       updates.roleSource = vaiTroOverride ? 'override' : 'sheet';
-      hrRoleToSync = vaiTroOverride || null;
     }
 
     if (req.body.coSoOverride !== undefined) {
@@ -549,6 +572,26 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
     const scope = approvalScopeChange(req.user, targetUser, { ...targetUser, ...updates }, req.body);
     if (scope.error) return res.status(scope.status).json({ error: scope.error, code: scope.code });
     updates.leaveApprovalDepartments = scope.departments;
+    // Chỉ kiểm tra công tác khi request chạm tới nó (hoặc đổi vai trò qua lại Khách),
+    // để tài khoản cũ chưa khai cơ sở/bộ phận vẫn sửa được thông tin khác.
+    const nextRole = updates.vaiTro ?? targetUser.vaiTro;
+    const touchesAssignment = Object.hasOwn(req.body, 'workCoSo') || Object.hasOwn(req.body, 'boPhan')
+      || ((nextRole === ROLES.KHACH) !== (targetUser.vaiTro === ROLES.KHACH));
+    const assignment = !touchesAssignment
+      ? { workCoSo: targetUser.workCoSo || '', boPhan: targetUser.boPhan || '' }
+      : normalizeWorkAssignment({
+        vaiTro: nextRole,
+        workCoSo: Object.hasOwn(req.body, 'workCoSo') ? req.body.workCoSo : targetUser.workCoSo,
+        boPhan: Object.hasOwn(req.body, 'boPhan') ? req.body.boPhan : targetUser.boPhan
+      });
+    if (req.body.workCoSo !== undefined && req.body.workCoSo !== targetUser.workCoSo && req.body.boPhan === undefined && assignment.boPhan !== (targetUser.boPhan || '')) {
+      return res.status(400).json({ error: 'Vui lòng chọn lại bộ phận trực thuộc tại cơ sở công tác.', code: 'DEPARTMENT_BRANCH_MISMATCH' });
+    }
+    if (assignment.workCoSo !== (targetUser.workCoSo || '') || assignment.boPhan !== (targetUser.boPhan || '')) {
+      const denied = accountPolicy.checkProtectedManager(req.user, targetUser, 'đổi cơ sở công tác hoặc bộ phận');
+      if (denied) return accountPolicy.sendDenied(res, denied);
+    }
+    Object.assign(updates, assignment);
 
     // MOI kiem tra da qua: bay gio moi ghi email/SĐT cua TK nhan su (hr_employees + app_users).
     for (const change of pendingAdminChanges) {
@@ -557,14 +600,6 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
 
     const updated = await localUserStore.updateUser(targetId, updates);
     if (Object.hasOwn(updates, 'telegramId')) employeeDirectory.clearCache();
-
-    if (hrRoleToSync && targetUser.hrSourceBranch && targetUser.hrRowIndex) {
-      try {
-        await employeeDirectory.writeDepartmentForRole(targetUser.hrSourceBranch, targetUser.hrRowIndex, hrRoleToSync);
-      } catch (syncErr) {
-        console.error('=== LOI dong bo BO PHAN len Danh sach nhan su ===', syncErr);
-      }
-    }
 
     res.status(200).json({ user: publicAdminUser(updated) });
     await accountAuditLog.record({
@@ -705,6 +740,8 @@ router.get('/api/admin/permissions/catalog', ...authView, async (req, res) => {
       requires: f.requires || null
     })),
     roleDefaults,
+    departmentsByBranch: { 'Hà Nội': departmentsFor('hanoi'), 'Sài Gòn': departmentsFor('saigon') },
+    suggestedDepartmentByRole: { 'Hà Nội': suggestedDepartmentsByRole('hanoi'), 'Sài Gòn': suggestedDepartmentsByRole('saigon') },
     departments: await departmentCatalog().catch(() => [])
   });
 });

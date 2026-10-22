@@ -55,6 +55,7 @@ function createPage({ can = () => true, notReady = false, hash = '#business' } =
       const sent = JSON.parse(opts.body);
       return ok({ saleName: sent.saleName, team: sent.teamName || 'Chưa có team' });
     }
+    if (href === '/api/business-report/customer-meta') return ok({ customers: {} });
     if (href === '/api/business-report/sales') return ok(svc.buildSaleReport(snap));
     if (href === '/api/business-report/customers') return ok(svc.buildCustomerReport(snap));
     if (href === '/api/business-report/products') return ok(svc.buildProductReport(snap));
@@ -169,12 +170,12 @@ test('quyen Tang truong doc lap: thieu quyen Khach hang van tai duoc muc ma hang
   assert.equal(page.$('productGrowthSection').hidden, false);
 });
 
-test('mo tab: goi dung 3 API /api/business-report (sales, customers, overview), KHONG goi /api/dashboard?view=business', async () => {
+test('mo tab: goi 3 API bao cao (sales, customers, overview) + customer-meta (co reports.business.customerNotes), KHONG goi /api/dashboard?view=business', async () => {
   const page = createPage();
   page.run("switchView('business')");
   await settle();
   const called = businessUrls(page);
-  assert.deepEqual(called.slice().sort(), ['/api/business-report/customers', '/api/business-report/overview', '/api/business-report/sales']);
+  assert.deepEqual(called.slice().sort(), ['/api/business-report/customer-meta', '/api/business-report/customers', '/api/business-report/overview', '/api/business-report/sales']);
   assert.equal(page.urls.some(u => u.href.startsWith('/api/dashboard?view=business')), false, 'khong goi /api/dashboard cho tab business');
   assert.equal(page.$('view-business').classList.contains('active'), true);
 });
@@ -296,7 +297,7 @@ test('bang khach: an khach khong hoat dong mac dinh, cong tac hien lai, loc theo
   assert.deepEqual(page.run('businessFilteredCustomers().map(r => r.saleName)'), ['Khang', 'Khang']);
 
   const headers = headerTexts(page, 'businessCustomersRows');
-  assert.deepEqual(headers.slice(0, 3), ['Tên khách', 'Sale', 'Level giá']);
+  assert.deepEqual(headers.slice(0, 5), ['Tên khách', 'Sale', 'Level giá', 'Ghi chú', 'Tiếp khách lần cuối']);
   const chiA = rowById(page, 'businessCustomersRows', 'chị a');
   assert.equal(chiA.cells[2].textContent.trim(), 'Level 2');
 });

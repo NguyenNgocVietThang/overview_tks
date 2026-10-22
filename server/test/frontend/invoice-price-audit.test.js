@@ -1,7 +1,7 @@
 'use strict';
 
 // Muc 2 "Kiem tra gia ban" cua tab Hoa don (/reports/#invoices): MOT bang, thead dung tu catalog cot cua may chu
-// (18 cot nghiep vu, 16 hien mac dinh + cot doi chieu an), bo loc/KPI/phan trang o may chu, sua giai thich + Chot
+// (17 cot nghiep vu, 15 hien mac dinh + cot doi chieu an), bo loc/KPI/phan trang o may chu, sua giai thich + Chot
 // theo quyen tung dong, 409, giai thich loi khong gia vo da luu, doi Chot lam dong doi tap loc.
 
 const test = require('node:test');
@@ -38,7 +38,7 @@ function line(id, over = {}) {
 
 // May chu gia co trang thai: loc status/decision, KPI theo toan tap loc, PATCH decision/explanation co version.
 function fakeServer({ rows = [line(1001)], meta = META, explanationStatus = 200 } = {}) {
-  const server = { rows: rows.map(r => ({ ...r })), meta, explanationStatus, requests: [] };
+  const server = { rows: rows.map(r => ({ ...r })), meta, explanationStatus, requests: [], editorName: 'Minh Anh' };
   const effective = r => (r.decision === 'ok' ? { ...r, effectiveStatus: 'correct', effectiveAmount: '0', reason: 'Được duyệt Ok' }
     : { ...r, effectiveStatus: r.originalStatus, effectiveAmount: r.originalAmount });
   server.report = params => {
@@ -90,7 +90,8 @@ function createPage({ permissions = ['reports.invoices', 'reports.invoices.price
       if (body.expectedVersion !== row.version) return respond(409, { error: 'Dòng đã thay đổi.', code: 'VERSION_CONFLICT', row: { ...row } });
       if (m[4] === 'explanation') {
         if (server.explanationStatus !== 200) return respond(server.explanationStatus, { error: 'Không lưu được giải thích.' });
-        Object.assign(row, { saleExplanation: body.text, version: row.version + 1 });
+        Object.assign(row, { saleExplanation: body.text, explanationBy: server.editorName,
+          explanationAt: '2026-10-22T08:30:00.000Z', version: row.version + 1 });
         return respond(200, { row: { ...row } });
       }
       Object.assign(row, { decision: body.decision, version: row.version + 1 });
@@ -112,6 +113,13 @@ async function opened(options) {
   await settle();
   return page;
 }
+// Mac dinh bang vao o Ket qua = Sai gia; test can thay ca dong Dung gia thi bo loc ve Tat ca.
+async function openedAll(options) {
+  const page = await opened(options);
+  change(page, 'priceAuditStatusFilter', '');
+  await settle();
+  return page;
+}
 
 const headLabels = page => [...page.$('priceAuditHead').querySelectorAll('th')].map(th => (th.querySelector('.sort-label') || th).textContent.trim());
 const bodyRows = page => [...page.$('priceAuditRows').querySelectorAll('tr[data-row-key]')];
@@ -128,17 +136,22 @@ test('muc 2 nam sau Giao dich trong tab Hoa don, chi MOT bang kiem tra gia', () 
   assert.equal(page.$('priceAuditSection').querySelectorAll('table').length, 1);
 });
 
-test('thead tu catalog: 18 cot nghiep vu dung thu tu, 16 hien mac dinh, cot doi chieu an sau do', async () => {
+test('thead tu catalog: 17 cot nghiep vu gon, 15 hien mac dinh, bo cot thua', async () => {
   const page = await opened();
   const labels = headLabels(page);
-  assert.deepEqual(labels.slice(0, 18), ['Ngày giờ bán', 'Cơ sở', 'Mã hóa đơn', 'Sale phụ trách', 'Khách hàng', 'Mã hàng', 'Tên hàng',
-    'Cấp khách', 'SL dòng', 'Tổng SL cùng mã', 'Full VAT', 'Đơn giá sau giảm', 'Giá min áp dụng', 'Chênh/đơn vị', 'Tiền chênh / phạt',
+  assert.deepEqual(labels.slice(0, 17), ['TGian', 'Cơ sở', 'Mã HĐ', 'Sale phụ trách', 'Khách', 'Mã hàng', 'Tên hàng',
+    'Level khách', 'Tổng SL', 'Full VAT', 'Giá sau giảm', 'Giá min', 'Chênh/ĐV', 'Tiền chênh / phạt',
     'Kết quả', 'Sale giải thích', 'Chốt']);
   assert.equal(labels.length, COLUMNS.length);
   const ths = [...page.$('priceAuditHead').querySelectorAll('th')];
   const visible = ths.filter(th => th.dataset.columnDefaultHidden !== 'true');
-  assert.equal(visible.length, 16);
-  assert.ok(ths.slice(18).every(th => th.dataset.columnDefaultHidden === 'true'));
+  assert.equal(visible.length, 15);
+  assert.ok(ths.slice(17).every(th => th.dataset.columnDefaultHidden === 'true'));
+  assert.equal(labels.length, 40);
+  for (const key of ['quantity', 'customerEmail', 'sourceLineNo', 'winningSource', 'reason', 'capturedAt']) {
+    assert.ok(!ths.some(th => th.dataset.columnKey === key), key + ' khong con trong bo chon cot');
+  }
+  assert.equal(ths.find(th => th.dataset.columnKey === 'customerName').style.width, '150px');
   // thead tinh phai khop DUNG catalog may chu (nguon duy nhat cho bang + xuat file)
   assert.deepEqual(ths.map(th => [th.dataset.columnKey, (th.querySelector('.sort-label') || th).textContent.trim(), th.dataset.colType, th.dataset.columnDefaultHidden !== 'true']),
     COLUMNS.map(c => [c.key, c.label, c.type, c.defaultVisible]));
@@ -175,7 +188,7 @@ test('dau bang: cua so, lan chay thanh cong, so hoa don bo sung; lan chay loi ->
 });
 
 test('KPI theo toan tap loc tu may chu (so hoa don phan biet, dong dung/sai)', async () => {
-  const page = await opened({ server: fakeServer({ rows: [line(1), line(1, { sourceLineNo: 2 }), line(2, { originalStatus: 'correct', originalAmount: '0' })] }) });
+  const page = await openedAll({ server: fakeServer({ rows: [line(1), line(1, { sourceLineNo: 2 }), line(2, { originalStatus: 'correct', originalAmount: '0' })] }) });
   const cards = [...page.$('priceAuditKpis').querySelectorAll('.kpi-card')].map(c => [c.querySelector('.eyebrow').textContent, c.querySelector('.value').textContent]);
   assert.deepEqual(cards.slice(0, 3), [['Số hóa đơn', '2'], ['Dòng đúng giá', '1'], ['Dòng sai giá', '2']]);
 });
@@ -186,7 +199,7 @@ test('dong OD / PK / thieu gia: "—" cho null, 0₫ cho 0, ket qua Dung gia', a
     line(12, { productName: 'Nắp (pk)', effectiveAmount: '0', originalAmount: '0', originalStatus: 'correct', unitShortfall: '0', reason: 'Không xét PK', canDecide: false }),
     line(13, { minimumUnitPrice: null, unitShortfall: null, effectiveAmount: '0', originalAmount: '0', originalStatus: 'correct', reason: 'Không có giá quy định', canDecide: false })
   ];
-  const page = await opened({ server: fakeServer({ rows }) });
+  const page = await openedAll({ server: fakeServer({ rows }) });
   const trs = bodyRows(page);
   assert.equal(trs.length, 3);
   assert.equal(cell(page, trs[0], 'productName').textContent.trim(), 'Ly (OD)');
@@ -202,13 +215,33 @@ test('dong OD / PK / thieu gia: "—" cho null, 0₫ cho 0, ket qua Dung gia', a
   assert.equal(cell(page, trs[0], 'customerLevel').textContent.trim(), 'Vừa');
 });
 
-test('nut sua theo quyen tung dong', async () => {
+test('mac dinh Ket qua = Sai gia: select, tham so gui may chu va Tat ca bo tham so', async () => {
+  const rows = [line(31), line(32, { originalStatus: 'correct', originalAmount: '0', effectiveStatus: 'correct' })];
+  const page = await opened({ server: fakeServer({ rows }) });
+  assert.equal(page.$('priceAuditStatusFilter').value, 'wrong');
+  const first = new URLSearchParams(gets(page)[0].href.split('?')[1]);
+  assert.equal(first.get('status'), 'wrong');
+  assert.equal(bodyRows(page).length, 1, 'chi dong sai gia');
+  change(page, 'priceAuditStatusFilter', '');
+  await settle();
+  const all = new URLSearchParams(gets(page).at(-1).href.split('?')[1]);
+  assert.ok(!all.has('status'), 'Tat ca = bo tham so');
+  assert.equal(bodyRows(page).length, 2);
+});
+
+test('o Sale giai thich cua Sai gia dung ma o Cong no: textarea debt-feedback-input luon hien, Luu/Huy chi hien khi sua', async () => {
   const rows = [line(21), line(22, { canEditExplanation: false, canDecide: false, saleExplanation: 'Khách quen' })];
   const page = await opened({ server: fakeServer({ rows }) });
   const [a, b] = bodyRows(page);
-  assert.ok(cell(page, a, 'saleExplanation').querySelector('[data-action="edit-explanation"]'));
+  const boxA = cell(page, a, 'saleExplanation');
+  assert.ok(boxA.querySelector('textarea.debt-feedback-input'));
+  assert.equal(boxA.querySelector('.price-audit-edit-actions').hidden, true);
+  boxA.querySelector('textarea').value = 'đang sửa';
+  boxA.querySelector('textarea').dispatchEvent(new page.w.Event('input', { bubbles: true }));
+  assert.equal(boxA.querySelector('.price-audit-edit-actions').hidden, false);
   assert.ok(cell(page, a, 'decision').querySelector('select[data-action="decision"]'));
-  assert.equal(cell(page, b, 'saleExplanation').querySelector('[data-action="edit-explanation"]'), null);
+  assert.equal(cell(page, b, 'saleExplanation').querySelector('textarea'), null);
+  assert.ok(cell(page, b, 'saleExplanation').querySelector('.debt-feedback-text'));
   assert.equal(cell(page, b, 'saleExplanation').textContent.trim(), 'Khách quen');
   assert.equal(cell(page, b, 'decision').querySelector('select'), null);
   assert.equal(cell(page, b, 'decision').textContent.trim(), 'Chưa chốt');
@@ -257,16 +290,52 @@ test('doi Chot sang Ok: PATCH dung khoa + version + bo loc; dong roi bo loc Sai 
   assert.equal(cell(page, okRow, 'originalAmount').textContent.trim(), '100,000₫', 'tien chenh goc giu nguyen');
 });
 
+// Ô luôn là textarea (như Công nợ); trình soạn tạo ở lần gõ đầu nên các test tự gõ nội dung.
 function openEditor(page, tr) {
-  cell(page, tr, 'saleExplanation').querySelector('[data-action="edit-explanation"]').click();
-  return cell(page, bodyRows(page).find(r => r.dataset.rowKey === tr.dataset.rowKey), 'saleExplanation');
+  return cell(page, tr, 'saleExplanation');
 }
+function typeInto(page, box, text) {
+  const area = box.querySelector('textarea');
+  area.value = text;
+  area.dispatchEvent(new page.w.Event('input', { bubbles: true }));
+}
+
+test('sale sua giai thich cua nguoi khac: hien ten nguoi luu moi nhat sau luu va tai lai', async () => {
+  const server = fakeServer({ rows: [line(1001, {
+    saleName: 'Sale khác', saleExplanation: 'Nội dung cũ', explanationBy: 'Người điền trước'
+  }), line(1002, { saleExplanation: 'Dòng khác', explanationBy: 'Giữ nguyên' })] });
+  const page = await opened({ server });
+  let savedCell = cell(page, bodyRows(page)[0], 'saleExplanation');
+  assert.equal(savedCell.querySelector('.debt-feedback-by').textContent, 'Người điền trước');
+  const box = openEditor(page, bodyRows(page)[0]);
+  const text = 'Khách <img src=x onerror=alert(1)> & đã thống nhất';
+  server.editorName = 'Minh <script>alert(1)</script> Anh';
+  typeInto(page, box, text);
+  box.querySelector('[data-action="save-explanation"]').click();
+  await settle();
+  const patch = server.requests.find(r => r.method === 'PATCH');
+  assert.deepEqual(patch.body, { text, expectedVersion: 1 }, 'ten nguoi luu do may chu lay tu tai khoan');
+  const assertSaved = () => {
+    savedCell = cell(page, bodyRows(page)[0], 'saleExplanation');
+    assert.equal(savedCell.querySelector('textarea').value, text);
+    assert.equal(savedCell.querySelector('.debt-feedback-by').textContent,
+      server.editorName + ' · 15:30 22/10/2026');
+    assert.equal(savedCell.querySelector('textarea').nextElementSibling.className, 'debt-feedback-by');
+    assert.equal(savedCell.querySelector('script, img'), null, 'noi dung va ten duoc escape');
+    assert.equal(cell(page, bodyRows(page)[1], 'saleExplanation').querySelector('textarea').value, 'Dòng khác');
+    assert.equal(cell(page, bodyRows(page)[1], 'saleExplanation').querySelector('.debt-feedback-by').textContent, 'Giữ nguyên');
+  };
+  assertSaved();
+  await page.w.TKSPriceAudit.load(true);
+  await settle();
+  assertSaved();
+});
 
 test('giai thich luu loi: khong gia vo da luu, giu noi dung dang go va bao loi', async () => {
   const server = fakeServer({ explanationStatus: 500 });
   const page = await opened({ server });
   const box = openEditor(page, bodyRows(page)[0]);
-  box.querySelector('textarea').value = 'Khách lấy số lượng lớn';
+  typeInto(page, box, 'Khách lấy số lượng lớn');
   box.querySelector('textarea').dispatchEvent(new page.w.Event('input', { bubbles: true }));
   box.querySelector('[data-action="save-explanation"]').click();
   await settle();
@@ -281,16 +350,18 @@ test('giai thich luu loi: khong gia vo da luu, giu noi dung dang go va bao loi',
 test('giai thich luu thanh cong: hien noi dung moi, version tang; 409 -> bao xung dot va tai lai dong', async () => {
   const page = await opened();
   let box = openEditor(page, bodyRows(page)[0]);
-  box.querySelector('textarea').value = 'Đã báo quản lý';
+  typeInto(page, box, 'Đã báo quản lý');
   box.querySelector('[data-action="save-explanation"]').click();
   await settle();
-  assert.equal(cell(page, bodyRows(page)[0], 'saleExplanation').querySelector('textarea'), null);
-  assert.match(cell(page, bodyRows(page)[0], 'saleExplanation').textContent, /Đã báo quản lý/);
+  const savedBox = cell(page, bodyRows(page)[0], 'saleExplanation');
+  assert.equal(savedBox.querySelector('textarea').value, 'Đã báo quản lý');
+  assert.equal(savedBox.querySelector('.price-audit-edit-actions').hidden, true, 'luu xong an Luu/Huy');
+  assert.equal(page.w.TKSPriceAudit.hasUnsaved(), false);
   // Nguoi khac sua truoc -> 409
   page.server.rows[0].version = 5;
   page.server.rows[0].saleExplanation = 'Bản của người khác';
   box = openEditor(page, bodyRows(page)[0]);
-  box.querySelector('textarea').value = 'Bản của tôi';
+  typeInto(page, box, 'Bản của tôi');
   box.querySelector('[data-action="save-explanation"]').click();
   await settle();
   const after = cell(page, bodyRows(page)[0], 'saleExplanation');
@@ -308,17 +379,17 @@ test('giai thich chua luu khi doi bo loc: hoi giu/bo; chon giu thi khong tai lai
   let answer = false;
   const page = await opened({ confirm: () => answer });
   const box = openEditor(page, bodyRows(page)[0]);
-  box.querySelector('textarea').value = 'đang gõ';
+  typeInto(page, box, 'đang gõ');
   box.querySelector('textarea').dispatchEvent(new page.w.Event('input', { bubbles: true }));
   const before = gets(page).length;
-  change(page, 'priceAuditStatusFilter', 'wrong');
+  change(page, 'priceAuditStatusFilter', 'correct');
   await settle();
   assert.equal(page.confirms.length, 1);
   assert.equal(gets(page).length, before, 'giu noi dung -> khong tai lai');
-  assert.equal(page.$('priceAuditStatusFilter').value, '', 'bo loc tro lai gia tri cu');
+  assert.equal(page.$('priceAuditStatusFilter').value, 'wrong', 'bo loc tro lai gia tri cu (mac dinh Sai gia)');
   assert.equal(cell(page, bodyRows(page)[0], 'saleExplanation').querySelector('textarea').value, 'đang gõ');
   answer = true;
-  change(page, 'priceAuditStatusFilter', 'wrong');
+  change(page, 'priceAuditStatusFilter', 'correct');
   await settle();
   assert.equal(gets(page).length, before + 1);
   assert.equal(page.w.TKSPriceAudit.hasUnsaved(), false);

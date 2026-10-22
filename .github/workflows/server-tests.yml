@@ -1,0 +1,79 @@
+name: Server tests
+
+on:
+  push:
+    branches:
+      - main
+      - feat/**
+  pull_request:
+
+permissions:
+  contents: read
+
+# config.js bắt buộc có hai biến này khi nạp module; test không gọi Google/JWT thật.
+env:
+  GOOGLE_SERVICE_ACCOUNT_JSON: '{}'
+  JWT_SECRET: ci-test-secret
+
+jobs:
+  hr-account-decoupling:
+    name: HR account decoupling
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run HR account and leave tests
+        run: >-
+          node --test
+          auth/appUsersRepository.test.js
+          auth/effectiveUserResolver.test.js
+          db/accountHrDecouplingMigration.test.js
+          db/accountLeaveSchedulesMigration.test.js
+          db/accountLeaveTriggerMigration.test.js
+          auth/employeeRegistrationService.test.js
+          auth/adminTelegram.test.js
+          auth/profileTelegram.test.js
+          hr/hrLeaveRoutes.test.js
+          hr/hrLeaveDeadlineRoutes.test.js
+          hr/hrLeaveDeadlineMigration.test.js
+          test/frontend/hr-leave-deadlines.test.js
+          hr/hrEmployeeAdminService.test.js
+          hr/hrLeaveSelfService.test.js
+          hr/hrLeaveWorkSchedulesRepository.test.js
+
+  full-server-suite:
+    name: Full server suite
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run all server tests
+        run: npm test

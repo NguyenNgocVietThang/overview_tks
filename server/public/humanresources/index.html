@@ -1231,7 +1231,7 @@
         <div class="modal-body">
           <p class="alert-box alert-warning">Chưa có nguồn dữ liệu chấm công tự động — Quản lý/HR ghi nhận thủ công. Bản ghi này sẽ ở trạng thái "Đã duyệt" (là bản ghi nhận, không phải đơn chờ duyệt).</p>
           <div class="form-group">
-            <label for="maEmployee">Nhân sự đã liên kết *</label><select id="maEmployee" class="form-control" onchange="selectManualAbsenceEmployee()" required><option value="">Chọn nhân sự</option></select><p>Nếu chưa có nhân sự trong danh sách, nhờ HR cập nhật hồ sơ và liên kết tài khoản trước khi ghi nhận.</p>
+            <label for="maEmployee">Tài khoản nhân viên *</label><select id="maEmployee" class="form-control" onchange="selectManualAbsenceEmployee()" required><option value="">Chọn tài khoản</option></select><p>Chỉ hiện tài khoản đang hoạt động đã có cơ sở và bộ phận công tác. Nếu thiếu, nhờ Quản lý cập nhật tại trang Quản lý tài khoản.</p>
             <label for="maHoTen">Họ tên nhân viên *</label>
             <input type="text" id="maHoTen" class="form-control" required>
           </div>
@@ -2788,7 +2788,7 @@
     async function loadSelfLeaveContext(){
       const response = await fetch('/api/hr/leave-requests/self/context', {credentials:'same-origin'});
       const {ok,data} = await parseApiResponse(response);
-      if(!ok) throw new Error(data.error || 'Không thể xác minh hồ sơ nhân sự.');
+      if(!ok) throw new Error(data.error || 'Không thể xác minh thông tin công tác của tài khoản.');
       document.getElementById('btnSelfLeave').hidden = !data.eligible;
       return data;
     }
@@ -2797,7 +2797,7 @@
       selfLeaveOpening = true;
       try{
         const context = await loadSelfLeaveContext();
-        if(!context.eligible){ showToast('Tài khoản cần liên kết nhân sự đang hoạt động.','error'); return; }
+        if(!context.eligible){ showToast('Tài khoản chưa được cấu hình cơ sở công tác và bộ phận.','error'); return; }
         selfLeaveEdit = editRow?.canEdit === true ? {id:editRow.request_id,version:editRow.decision_version} : null;
         document.getElementById('selfLeaveForm').reset();
         const p=context.profile;
@@ -2866,11 +2866,12 @@
           : '<p class="leave-history-empty">Chưa có lịch sử gửi đơn (đơn cũ).</p>';
       }catch(err){ if(leaveDetailRequestId === id) target.textContent=err.message; }
     }
+    // Đơn nghỉ mới gắn với tài khoản (app_users.id), không gắn hồ sơ nhân sự.
+    let leaveAccountChoices=[];
     async function populateLeaveEmployeeChoices(id){
-      if(!hrCan('hr.employees')){ document.getElementById(id).innerHTML='<option value="">Cần HR liên kết hồ sơ nhân sự</option>'; return; }
-      const res=await fetch('/api/hr/employees',{credentials:'same-origin'}); const {ok,data}=await parseApiResponse(res); if(!ok) throw new Error(data.error || 'Không tải được danh sách nhân sự.');
-      rawEmployeeDirectory=data.employees || [];
-      document.getElementById(id).innerHTML='<option value="">Chọn nhân sự</option>'+rawEmployeeDirectory.filter(e=>/^\d+$/.test(String(e.rowIndex ?? e.id ?? ''))).map(e=>`<option value="${Number(e.rowIndex ?? e.id)}">${escapeHtml([e.hoTen,e.boPhan,e.coSo || e.sourceBranch].filter(Boolean).join(' · '))}</option>`).join('');
+      const res=await fetch('/api/hr/leave-accounts',{credentials:'same-origin'}); const {ok,data}=await parseApiResponse(res); if(!ok) throw new Error(data.error || 'Không tải được danh sách tài khoản.');
+      leaveAccountChoices=data.accounts || [];
+      document.getElementById(id).innerHTML='<option value="">Chọn tài khoản</option>'+leaveAccountChoices.map(a=>`<option value="${escapeHtml(a.id)}">${escapeHtml([a.hoTen,a.boPhan,a.coSo].filter(Boolean).join(' · '))}</option>`).join('');
     }
     async function openManualAbsence(){
       if(!hrCan('hr.leave.absence.manage')) return;
@@ -2878,13 +2879,13 @@
       try{await populateLeaveEmployeeChoices('maEmployee');}catch(err){document.getElementById('manualAbsenceDeadline').textContent=err.message;}
       updateManualAbsencePreview();
     }
-    function selectManualAbsenceEmployee(){ const employee=rawEmployeeDirectory.find(e=>String(e.rowIndex ?? e.id)===document.getElementById('maEmployee').value); if(employee) document.getElementById('maHoTen').value=employee.hoTen; updateManualAbsencePreview(false); }
+    function selectManualAbsenceEmployee(){ const employee=leaveAccountChoices.find(a=>String(a.id)===document.getElementById('maEmployee').value); if(employee) document.getElementById('maHoTen').value=employee.hoTen; updateManualAbsencePreview(false); }
     async function updateManualAbsencePreview(){
       const version=++manualPreviewVersion,p=leaveCalendarBody('ma'),calendar=selectedLeaveCalendar('manualAbsenceSessions',p),target=document.getElementById('manualAbsenceDeadline'),employee=document.getElementById('maEmployee').value;
       if(!calendar){target.textContent='Chọn ngày và ít nhất một buổi nghỉ hợp lệ.';return;}
       const first=calendar[0],deadline=new Date(leaveDateTimestamp(first.date)-(calendar.length<=2 ? 2 : 3)*86400000).toISOString().slice(0,10);
       const text=`${calendar.length} buổi. Hạn đăng ký: ${displayLeaveDate(deadline)} 23:59:59 (Việt Nam).`;
-      target.textContent=text+' Chọn nhân sự đã liên kết; máy chủ sẽ kiểm tra lịch khi ghi nhận.';
+      target.textContent=text+' Chọn tài khoản nhân viên; máy chủ sẽ kiểm tra lịch khi ghi nhận.';
       if(!employee || !hrCan('hr.leave.manage')) return;
       try{const res=await fetch(`/api/hr/leave-work-schedules/${encodeURIComponent(employee)}?date=${first.date}`,{credentials:'same-origin'}); const {ok,data}=await parseApiResponse(res);if(version !== manualPreviewVersion)return;if(!ok)throw new Error(data.error || 'Không đọc được lịch.');const hour=first.session==='Sáng'?data.schedule?.morningStart:data.schedule?.afternoonStart;target.textContent=text+(hour ? ` Bắt đầu buổi đầu: ${first.session} ${displayLeaveDate(first.date)} ${hour}.` : ' Nhờ quản lý cấu hình giờ bắt đầu buổi nghỉ này.');}catch(err){if(version===manualPreviewVersion)target.textContent=text+' '+err.message+' Máy chủ sẽ kiểm tra khi ghi nhận.';}
     }
@@ -2902,10 +2903,10 @@
         end_date: document.getElementById('maEndDate').value || document.getElementById('maStartDate').value,
         end_session: document.getElementById('maEndSession').value,
         co_tu_y_nghi: true,
-        hr_employee_id: Number(document.getElementById('maEmployee').value)
+        user_id: document.getElementById('maEmployee').value
       };
       const selected=selectedLeaveCalendar('manualAbsenceSessions',payload);
-      if(!payload.hr_employee_id || !selected){ msgEl.textContent='Chọn nhân sự đã liên kết và buổi nghỉ hợp lệ.'; msgEl.style.display='block'; return; }
+      if(!payload.user_id || !selected){ msgEl.textContent='Chọn tài khoản nhân viên và buổi nghỉ hợp lệ.'; msgEl.style.display='block'; return; }
       if(selected.length !== leaveRangeCalendar(payload)?.length) payload.leave_sessions=selected;
       if(manualAbsenceSending) return; manualAbsenceSending=true;
       const submitButton=document.querySelector('#manualAbsenceForm button[type=submit]'); submitButton.disabled=true;

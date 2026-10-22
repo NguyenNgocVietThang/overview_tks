@@ -150,6 +150,19 @@ test('không đổi trạng thái thì không đụng tài khoản', async () =>
   assert.equal(calls.userUpdates.length, 0);
 });
 
+test('nghỉ việc trong hồ sơ nhân sự khóa tài khoản liên kết nhưng không đổi quyền', async () => {
+  const { service, store, calls } = setup({
+    users: [{ id: 'account-1', username: 'an', email: 'an@x.com', hrRowIndex: 1, vaiTro: 'Nhân viên kho', trangThai: 'Đang hoạt động', lockReason: '' }]
+  });
+  const { accounts } = await service.updateEmployee(MANAGER, 1, {
+    ...valid, hoTen: 'An', email: 'an@x.com', soDienThoai: '0900000001', trangThai: 'Đã nghỉ việc'
+  });
+  assert.deepEqual(accounts, { locked: ['an'], unlocked: [], skipped: [] });
+  assert.equal(store[0].trangThai, 'Khóa');
+  assert.equal(store[0].vaiTro, 'Nhân viên kho');
+  assert.equal(calls.userUpdates.length, 1);
+});
+
 
 test('sua nhan su luu day du ho so mo rong', async () => {
   const { service, db } = setup();

@@ -121,3 +121,10 @@ test('managers are not loaded on idle ticks and are cached for the TTL when work
   await runtime.drain();
   assert.equal(loads, 3, 'reloaded after invalidation');
 });
+
+test('bot Telegram xét người duyệt chỉ từ app_users, không JOIN hr_employees', () => {
+  const source = require('node:fs').readFileSync(require.resolve('./managerLeaveRuntime'), 'utf8');
+  const resolver = source.slice(source.indexOf('async function resolveManagerFromDb'), source.indexOf('async function loadManagersFromDb'));
+  assert.ok(resolver.includes('FROM app_users u'));
+  assert.ok(!/hr_employees/.test(resolver));
+});

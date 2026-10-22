@@ -37,4 +37,21 @@ function canonicalDepartment(branch, value) {
   return exact || (LEGACY_ALIASES[branch] && LEGACY_ALIASES[branch][wanted]) || null;
 }
 
-module.exports = { DEPARTMENTS_BY_BRANCH, departmentsFor, canonicalDepartment };
+// Gợi ý Bộ phận theo Vai trò (chỉ để điền sẵn trên form tài khoản; người dùng vẫn chọn lại được).
+const SUGGESTED_DEPARTMENT_BY_ROLE = Object.freeze({
+  hanoi: Object.freeze({
+    'Quản lý': 'Ban quản trị', 'Kế toán': 'Kế toán', 'Trợ lý': 'Trợ lý', 'Nhân viên mua hàng': 'Đặt hàng',
+    'Nhân viên marketing': 'Marketing', 'Nhân viên sale': 'Sale HN', 'Trưởng kho': 'Kho HN',
+    'Nhân viên kho': 'Kho HN', 'Lái xe': 'Lái xe HN'
+  }),
+  saigon: Object.freeze({
+    'Quản lý': 'Quản lý-KT SG', 'Kế toán': 'Quản lý-KT SG', 'Nhân viên sale': 'Sale SG',
+    'Trưởng kho': 'Kho SG', 'Nhân viên kho': 'Kho SG', 'Lái xe': 'Lái xe SG'
+  })
+});
+
+function suggestedDepartmentsByRole(branch) {
+  return { ...(SUGGESTED_DEPARTMENT_BY_ROLE[branch] || {}) };
+}
+
+module.exports = { DEPARTMENTS_BY_BRANCH, departmentsFor, canonicalDepartment, suggestedDepartmentsByRole };

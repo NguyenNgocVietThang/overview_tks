@@ -32,7 +32,7 @@ async function publish(db, from, to) {
 async function setup() {
   const db = await newDb({ syncedAt: NOW });
   await product(db, 'hanoi', 1, 'T100', 'Ly giu nhiet', HN_NOTE);
-  await customer(db, 'hanoi', 1, 'Khach Vua', { email: '', groups: 'Duy Thái' });
+  await customer(db, 'hanoi', 1, 'Khach Vua', { groups: 'Duy Thái' });
   await product(db, 'saigon', 9, 'T100', 'Ly SG', 'T100 # 1T-30000');
   await customer(db, 'saigon', 9, 'Khach SG', { groups: 'Minh Anh' });
   const ln = (qty, price) => ({ productId: 1, code: 'T100', name: 'Ly giu nhiet', qty, price });
@@ -147,7 +147,7 @@ test('Chot loi: 409 version cu kem dong hien tai; 400 Phat dong dung goc; 400 ng
   } finally { await db.close(); }
 });
 
-test('Giai thich: Sale dung nhom HIEN TAI ghi duoc + nhat ky; sai nhom / Quan ly 403; doi nhom khach co hieu luc ngay; khong sua snapshot', async () => {
+test('Giai thich: sale sua moi hoa don va noi dung cua nguoi khac, luu ten moi nhat; van kiem tra quyen/version', async () => {
   const { db, service } = await setup();
   try {
     const { row } = await service.updateExplanation(key(1), { text: 'Khách quen, sếp duyệt miệng', expectedVersion: 1 }, SALE);
@@ -159,7 +159,6 @@ test('Giai thich: Sale dung nhom HIEN TAI ghi duoc + nhat ky; sai nhom / Quan ly
     const log = (await db.query('SELECT action, before_value, after_value, version_before, version_after FROM invoice_price_audit_changes')).rows;
     assert.deepEqual(log, [{ action: 'explanation', before_value: { text: '' }, after_value: { text: 'Khách quen, sếp duyệt miệng' }, version_before: 1, version_after: 2 }]);
 
-    await rejectsWith(service.updateExplanation(key(1), { text: 'x', expectedVersion: 2 }, OTHER_SALE), 403);
     await rejectsWith(service.updateExplanation(key(1), { text: 'x', expectedVersion: 2 }, QL), 403);
     await rejectsWith(service.updateExplanation(key(1), { text: 'x', expectedVersion: 1 }, SALE), 409, 'VERSION_CONFLICT');
     await rejectsWith(service.updateExplanation(key(1), { text: 'x'.repeat(4001), expectedVersion: 2 }, SALE), 400);
@@ -168,15 +167,25 @@ test('Giai thich: Sale dung nhom HIEN TAI ghi duoc + nhat ky; sai nhom / Quan ly
       await rejectsWith(service.updateExplanation(key(1), { text: 'x', expectedVersion: 2, ...extra }, SALE), 400);
     }
 
-    // Nhom khach doi sang Minh Anh: Duy Thai mat quyen, Minh Anh duoc; nhan Sale tren ban chup giu nguyen.
+    // Doi nhom khach khong thu hoi quyen giai thich; nhan Sale tren ban chup giu nguyen.
     await db.query(`UPDATE customers SET raw = '{"groups":"Minh Anh"}' WHERE branch = 'hanoi' AND id = 1`);
-    await rejectsWith(service.updateExplanation(key(1), { text: 'x', expectedVersion: 2 }, SALE), 403);
-    const after = await service.updateExplanation(key(1), { text: '', expectedVersion: 2 }, OTHER_SALE);
+    const other = await service.updateExplanation(key(1), { text: 'Sale khac sua', expectedVersion: 2 }, OTHER_SALE);
+    assert.equal(other.row.saleExplanation, 'Sale khac sua');
+    assert.equal(other.row.explanationBy, OTHER_SALE.hoTen);
+    const after = await service.updateExplanation(key(1), { text: '', expectedVersion: 3 }, SALE);
     assert.equal(after.row.saleExplanation, '');
     assert.equal(after.row.saleName, 'Duy Thái');
-    // Nhom rong: khong ai giai thich duoc.
+    // Nhom rong van sua duoc; thu hoi quyen moi ngan ghi.
     await db.query(`UPDATE customers SET raw = '{"groups":""}' WHERE branch = 'hanoi' AND id = 1`);
-    await rejectsWith(service.updateExplanation(key(1), { text: 'y', expectedVersion: 3 }, OTHER_SALE), 403);
+    await service.updateExplanation(key(1), { text: 'y', expectedVersion: 4 }, OTHER_SALE);
+    const correct = await service.updateExplanation(key(2), { text: 'Dong dung gia', expectedVersion: 1 }, OTHER_SALE);
+    assert.equal(correct.row.originalStatus, 'correct');
+    assert.equal(correct.row.explanationBy, OTHER_SALE.hoTen);
+    const unnamed = { ...SALE, hoTen: '  ', username: 'sale.a' };
+    const fallback = await service.updateExplanation(key(2), { text: 'Sua lai', expectedVersion: 2 }, unnamed);
+    assert.equal(fallback.row.explanationBy, 'sale.a');
+    const revoked = user('Nhân viên sale', OTHER_SALE.hoTen, { 'reports.invoices.priceAudit.explain': false });
+    await rejectsWith(service.updateExplanation(key(1), { text: 'z', expectedVersion: 5 }, revoked), 403);
 
     const snap = (await db.query(`SELECT sale_name, original_amount::text AS a, original_status, minimum_unit_price::text AS m, decision
       FROM invoice_price_audit_lines WHERE invoice_id = 1 AND source_line_no = 1`)).rows[0];
@@ -191,7 +200,7 @@ test('getReport: quyen theo dong, bo currentSaleGroup, pham vi co so tu cookie, 
     assert.equal(r.totalRows, 4);
     for (const row of r.rows) {
       assert.equal('currentSaleGroup' in row, false);
-      assert.equal(row.canEditExplanation, row.branch === 'hanoi');
+      assert.equal(row.canEditExplanation, true);
       assert.equal(row.canDecide, false);
     }
     const q = await service.getReport({}, QL, BOTH);

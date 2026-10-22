@@ -65,7 +65,7 @@ test('mac dinh theo vai tro: reports.* khop dung REPORTS_ROLES cu', () => {
     const defaults = registry.defaultsForRole(role);
     for (const key of registry.ANY_REPORTS_FEATURES) {
       // Tinh lai thang chot (2026-10-07) va sua Khach moi/Ghi chu Marketing (2026-10-08) chi danh cho Quan ly.
-      if (['reports.business.refreeze', 'reports.business.editTeam', 'reports.marketing.edit', 'reports.overview.containers.full'].includes(key) && role !== ROLES.QUAN_LY) continue;
+      if (['reports.business.refreeze', 'reports.business.editTeam', 'reports.business.customerManage', 'reports.marketing.edit', 'reports.overview.containers.full'].includes(key) && role !== ROLES.QUAN_LY) continue;
       // Cong no theo lich TT (2026-10-13): Sale phan hoi mac dinh chi Nhan vien sale; QL phan hoi, trang thai, lich TT chi Quan ly.
       if (key === 'reports.debt.saleFeedback' || key === 'reports.invoices.priceAudit.explain') continue;
       if (key === 'reports.invoices.priceAudit.decide' && role !== ROLES.QUAN_LY) continue;
@@ -154,7 +154,7 @@ test('Tra cuu / Lich su / Xuat / Ghi de GAN vao Vong doi don hang: thieu lifecyc
   assert.ok(!grantedOnlyLifecycle.includes('shipment.history'));
 });
 
-const SALE_REPORT_VIEW_KEYS = ['reports.overview', 'reports.products', 'reports.products.growth', 'reports.products.sales', 'reports.products.expected', 'reports.invoices', 'reports.invoices.priceAudit', 'reports.business', 'reports.debt'];
+const SALE_REPORT_VIEW_KEYS = ['reports.overview', 'reports.products', 'reports.products.growth', 'reports.products.sales', 'reports.products.expected', 'reports.invoices', 'reports.invoices.priceAudit', 'reports.business', 'reports.business.customerNotes', 'reports.debt'];
 const SALE_REPORT_WRITE_KEYS = ['reports.debt.saleFeedback', 'reports.invoices.priceAudit.explain'];
 
 test('Nhan vien sale xem du 5 tab bao cao mac dinh + dien Sale phan hoi cong no, KHONG co xuat Excel / sua trang thai cong no', () => {
@@ -286,9 +286,9 @@ test('moi tinh nang co nhan tieng Viet va thuoc mot nhom da khai bao', () => {
   assert.equal(new Set(registry.FEATURE_KEYS).size, registry.FEATURE_KEYS.length, 'khong duoc trung key');
 });
 
-test('absence permission defaults to managers and self submission follows active linked HR identity', () => {
+test('absence permission defaults to managers and self submission follows account workplace', () => {
   assert.ok(registry.defaultsForRole(ROLES.QUAN_LY).includes('hr.leave.absence.manage'));
-  const linked = { vaiTro: ROLES.NHAN_VIEN_SALE, hrManaged: false, trangThai: 'Đang hoạt động' };
+  const linked = { vaiTro: ROLES.NHAN_VIEN_SALE, workCoSo: 'Hà Nội', boPhan: 'Kế toán', hrManaged: false, trangThai: 'Đang hoạt động' };
   assert.ok(registry.resolvePermissions(linked).includes('hr.leave.submit'), 'moi vai tro noi bo da gan nhan su deu xin nghi duoc');
   for (const role of registry.INTERNAL_ROLES || [ROLES.QUAN_LY, ROLES.KE_TOAN, ROLES.NHAN_VIEN_KHO, ROLES.NHAN_VIEN_MARKETING, ROLES.NHAN_VIEN_MUA_HANG, ROLES.TRO_LY, ROLES.TRUONG_KHO, ROLES.LAI_XE]) assert.ok(registry.resolvePermissions({ ...linked, vaiTro: role }).includes('hr.leave.submit'), role);
   assert.ok(!registry.resolvePermissions({ ...linked, vaiTro: ROLES.KHACH }).includes('hr.leave.submit'), 'Khach khong duoc xin nghi');
@@ -298,8 +298,12 @@ test('absence permission defaults to managers and self submission follows active
 
 
 
-test('active account with inactive linked HR profile cannot get self submission capability', () => {
-  assert.ok(!registry.resolvePermissions({ vaiTro: ROLES.NHAN_VIEN_SALE, hrManaged: true, hrRowIndex: 123, trangThai: 'Đang hoạt động', hrEmployeeActive: false }).includes('hr.leave.submit'));
+test('self submission requires valid account workplace and ignores linked HR data', () => {
+  const user = { vaiTro: ROLES.TRO_LY, workCoSo: 'Hà Nội', boPhan: 'Kế toán', trangThai: 'Đang hoạt động', hrEmployeeActive: false, hrVerificationRequired: true };
+  assert.ok(registry.resolvePermissions(user).includes('hr.leave.submit'));
+  for (const patch of [{ workCoSo: '' }, { workCoSo: 'Cả hai' }, { boPhan: '' }, { boPhan: 'Sale SG' }, { isDeleted: true }, { trangThai: 'Khóa' }]) {
+    assert.ok(!registry.resolvePermissions({ ...user, ...patch, featurePermissions: { 'hr.leave.submit': true } }).includes('hr.leave.submit'));
+  }
 });
 
 test('reports.products.cost da go cung tab Hang hoa cu: khong con trong registry, quyen ghi de cu bi bo qua', () => {
@@ -405,4 +409,24 @@ test('Kiem tra gia ban: xem (QL/TL/Sale, can Hoa don), giai thich mac dinh chi S
   assert.ok(!registry.resolvePermissions({ vaiTro: 'Quản lý', featurePermissions: { [VIEW]: false } }).includes(DECIDE));
   // Cap rieng cho Tro ly duoc.
   assert.ok(registry.resolvePermissions({ vaiTro: 'Trợ lý', featurePermissions: { [DECIDE]: true } }).includes(DECIDE));
+});
+
+test('Ghi chu khach (2026-10-22): xem = Quan ly + Tro ly + Sale, sua tiep khach / gan nguoi sua chi Quan ly, chuoi requires', () => {
+  const notes = registry.FEATURES.find(f => f.key === 'reports.business.customerNotes');
+  const manage = registry.FEATURES.find(f => f.key === 'reports.business.customerManage');
+  assert.equal(notes.requires, 'reports.business');
+  assert.equal(manage.requires, 'reports.business.customerNotes');
+  for (const role of [ROLES.QUAN_LY, ROLES.TRO_LY, ROLES.NHAN_VIEN_SALE]) {
+    assert.ok(registry.resolvePermissions({ vaiTro: role }).includes('reports.business.customerNotes'), `${role} xem duoc ghi chu khach`);
+  }
+  for (const role of [ROLES.NHAN_VIEN_MARKETING, ROLES.KE_TOAN, ROLES.NHAN_VIEN_KHO, ROLES.KHACH]) {
+    assert.ok(!registry.resolvePermissions({ vaiTro: role }).includes('reports.business.customerNotes'), `${role} khong xem ghi chu khach`);
+  }
+  assert.ok(registry.resolvePermissions({ vaiTro: ROLES.QUAN_LY }).includes('reports.business.customerManage'));
+  for (const role of [ROLES.TRO_LY, ROLES.NHAN_VIEN_SALE]) {
+    assert.ok(!registry.resolvePermissions({ vaiTro: role }).includes('reports.business.customerManage'), `${role} khong quan ly ghi chu khach`);
+  }
+  // Tat quyen xem thi quyen quan ly phai bi tat theo.
+  const managerWithoutView = registry.resolvePermissions({ vaiTro: ROLES.QUAN_LY, featurePermissions: { 'reports.business.customerNotes': false } });
+  assert.ok(!managerWithoutView.includes('reports.business.customerManage'));
 });

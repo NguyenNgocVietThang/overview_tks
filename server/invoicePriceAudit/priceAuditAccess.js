@@ -2,12 +2,7 @@
 
 // Quyen "Kiem tra gia ban" (muc 3.4 ke hoach 2026-10-20):
 //   - xem:        reports.invoices.priceAudit
-//   - giai thich: reports.invoices.priceAudit.explain VA ten tai khoan (hoTen) khop CHINH XAC nhom khach HIEN TAI
-//                 (customers.raw.groups) sau chuan hoa NFKC / trim / gop khoang trang / khong phan biet hoa thuong.
-//                 Khong fuzzy (thieu dau = khac ten). Nhom rong / ten rong -> khong sua duoc.
-//                 Hau to ID Telegram " - <>=5 chu so>" (dashboard/saleName.js) duoc bo o CA HAI phia: ten nhan vien Kiot
-//                 co dang do; nhom khach that hien khong co hau to (cac bao cao khac dung btrim(groups) thang), bo hau
-//                 to chi de tranh lech neu ai do dat ten nhom theo ten nhan vien Kiot.
+//   - giai thich: reports.invoices.priceAudit.explain, ap dung moi hoa don, ke ca noi dung nguoi khac da nhap.
 //   - Chot:       reports.invoices.priceAudit.decide (KHONG kem quyen giai thich); chi dong sai gia GOC.
 // Moi ham doc req.user.permissions da giai lai moi request (requireAuth) -> thu hoi quyen co hieu luc ngay.
 
@@ -28,11 +23,8 @@ function canView(viewer) {
   return Boolean(viewer) && hasFeature(viewer, FEATURE_VIEW);
 }
 
-function canExplain(viewer, currentCustomerGroup) {
-  if (!viewer || !hasFeature(viewer, FEATURE_EXPLAIN)) return false;
-  const name = normalizeSaleName(viewer.hoTen);
-  const group = normalizeSaleName(currentCustomerGroup);
-  return name !== '' && group !== '' && name === group;
+function canExplain(viewer) {
+  return Boolean(viewer) && hasFeature(viewer, FEATURE_EXPLAIN);
 }
 
 function canDecide(viewer) {

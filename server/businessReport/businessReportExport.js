@@ -53,10 +53,15 @@ function monthColumnKey(month) {
   return `m_${month.slice(0, 7).replace('-', '_')}`;
 }
 
+// Cot "Tiep khach lan cuoi" (bang Khach hang): chi co khi route danh dau report.withLastVisit (nguoi xuat co
+// quyen xem ghi chu khach) va gan row.lastVisit ('YYYY-MM-DD' hoac '') tu customerProfileRepository.getMeta().
+const LAST_VISIT_COLUMN = ['lastVisit', 'Tiếp khách lần cuối'];
+
 function columnsFor(kind, report) {
   const previous = report.months.filter(m => m !== report.currentMonth).slice().reverse();
+  const fixed = kind === 'customers' && report.withLastVisit ? [...FIXED[kind], LAST_VISIT_COLUMN] : FIXED[kind];
   return [
-    ...FIXED[kind].map(([key, label, type]) => ({ key, label, type: type || 'text' })),
+    ...fixed.map(([key, label, type]) => ({ key, label, type: type || 'text' })),
     { key: 'avg4', label: 'TB 4 tháng', type: 'number' },
     { key: 'growth', label: 'Tăng trưởng', type: 'percent' },
     { key: 'current', label: `Tháng hiện tại (đến ${dateLabel(report.today)})`, type: 'number' },
@@ -99,7 +104,13 @@ function safeText(value) {
   return /^[\s]*[=+\-@]/.test(text) ? `'${text}` : text;
 }
 
+function ddmmyyyy(isoDate) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(isoDate || ''));
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
+}
+
 function rawValue(row, column) {
+  if (column.key === 'lastVisit') return ddmmyyyy(row.lastVisit);
   if (column.month) return Number(row.series && row.series[column.month]) || 0;
   if (column.key === 'growth') return row.growth == null ? '—' : row.growth / 100;
   if (column.type === 'number') return Number(row[column.key]) || 0;

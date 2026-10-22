@@ -41,15 +41,17 @@ async function readSheet(buffer) {
   return wb.worksheets;
 }
 
-test('catalog: 18 cot nghiep vu dung thu tu muc 2.1, 16 hien mac dinh, cot doi chieu dat sau', () => {
+test('catalog: 17 cot nghiep vu thu gon, 15 hien mac dinh, cot doi chieu dat sau', () => {
   assert.deepEqual(BUSINESS_KEYS, ['soldAt', 'branch', 'invoiceCode', 'saleName', 'customerName', 'productCode', 'productName',
-    'customerLevel', 'quantity', 'totalCodeQuantity', 'fullVat', 'netUnitPrice', 'minimumUnitPrice', 'unitShortfall',
+    'customerLevel', 'totalCodeQuantity', 'fullVat', 'netUnitPrice', 'minimumUnitPrice', 'unitShortfall',
     'effectiveAmount', 'effectiveStatus', 'saleExplanation', 'decision']);
-  assert.deepEqual(COLUMNS.slice(0, 18).map(c => c.key), BUSINESS_KEYS);
-  assert.equal(COLUMNS.filter(c => c.defaultVisible).length, 16);
+  assert.deepEqual(COLUMNS.slice(0, 17).map(c => c.key), BUSINESS_KEYS);
+  assert.equal(COLUMNS.filter(c => c.defaultVisible).length, 15);
   assert.deepEqual(COLUMNS.filter(c => BUSINESS_KEYS.includes(c.key) && !c.defaultVisible).map(c => c.key), ['totalCodeQuantity', 'unitShortfall']);
   assert.equal(COLUMNS.find(c => c.key === 'effectiveAmount').label, 'Tiền chênh / phạt');
-  assert.ok(COLUMNS.length > 18 && COLUMNS.slice(18).every(c => !c.defaultVisible));
+  assert.ok(COLUMNS.length > 17 && COLUMNS.slice(17).every(c => !c.defaultVisible));
+  assert.equal(COLUMNS.length, 40);
+  assert.ok(['quantity', 'customerEmail', 'sourceLineNo', 'winningSource', 'reason', 'capturedAt'].every(key => !COLUMNS.some(c => c.key === key)));
   assert.equal(new Set(COLUMNS.map(c => c.key)).size, COLUMNS.length, 'khoa cot khong trung');
 });
 
@@ -76,7 +78,7 @@ test('exportFieldsFor: cung dang hop thoai Xuat file, selected = hien mac dinh',
   const fields = exportFieldsFor(250);
   assert.equal(fields.worksheets[0].rowCount, 250);
   assert.deepEqual(fields.worksheets[0].fields.map(f => f.key), COLUMNS.map(c => c.key));
-  assert.equal(fields.worksheets[0].fields.filter(f => f.selected).length, 16);
+  assert.equal(fields.worksheets[0].fields.filter(f => f.selected).length, 15);
 });
 
 test('XLSX: dung cot da chon, tien la so goc, null de trong, chong formula injection, sheet thong tin co cua so/lan chay/tong', async () => {
@@ -91,7 +93,7 @@ test('XLSX: dung cot da chon, tien la so goc, null de trong, chong formula injec
   assert.match(file.mimeType, /spreadsheetml/);
   assert.match(file.fileName, /\.xlsx$/);
   const [sheet, info] = await readSheet(file.buffer);
-  assert.deepEqual(sheet.getRow(1).values.slice(1), ['Mã hóa đơn', 'Khách hàng', 'Giá min áp dụng', 'Tiền chênh / phạt', 'Sale giải thích']);
+  assert.deepEqual(sheet.getRow(1).values.slice(1), ['Mã HĐ', 'Khách', 'Giá min', 'Tiền chênh / phạt', 'Sale giải thích']);
   assert.equal(sheet.rowCount, 3);
   const r1 = sheet.getRow(2).values.slice(1);
   assert.equal(r1[1], "'+SUM(A1)");
@@ -174,7 +176,7 @@ test('GET /export: xuat 130 dong da loc (vuot trang 1), cung bo loc, cot da chon
     assert.match(res.headers.get('content-disposition'), /\.xlsx/);
     const [sheet] = await readSheet(Buffer.from(await res.arrayBuffer()));
     assert.equal(sheet.rowCount, 131, 'tieu de + 130 dong sai gia');
-    assert.deepEqual(sheet.getRow(1).values.slice(1), ['Mã hóa đơn', 'Tiền chênh / phạt']);
+    assert.deepEqual(sheet.getRow(1).values.slice(1), ['Mã HĐ', 'Tiền chênh / phạt']);
     assert.equal(repo.calls.at(-1).status, 'wrong');
     const fields = await (await fetch(base + '/export/fields?status=wrong', { headers: { 'x-user': 'ql' } })).json();
     assert.equal(fields.worksheets[0].rowCount, 130);

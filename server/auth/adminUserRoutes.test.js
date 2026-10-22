@@ -14,6 +14,10 @@ const { createFakeAppUsersRepository } = require('./testHelpers/fakeAppUsersRepo
 // ket noi CSDL that. setInMemoryUsers() seed du lieu vao ca cache va repo gia.
 localUserStore.initStore(null, { repository: createFakeAppUsersRepository() });
 
+// Existing internal fixtures model accounts with the required workplace configured.
+const seedUsers = localUserStore.setInMemoryUsers;
+localUserStore.setInMemoryUsers = users => seedUsers(users.map(user => ({ workCoSo: 'Hà Nội', boPhan: 'Kế toán', ...user })));
+
 function fakeRes() {
   const res = { statusCode: null, body: null };
   res.status = code => { res.statusCode = code; return res; };
@@ -115,7 +119,7 @@ test('Admin User Management: sets and independently clears HR role and branch ov
   assert.equal(res.body.user.coSoOverride, '');
 });
 
-test('Admin User Management: editing vaiTro directly on an hrManaged user makes it sticky via override and syncs the sheet', async () => {
+test('Admin User Management: role change preserves department without HR writeback', async () => {
   localUserStore.setInMemoryUsers([{
     id: 'u1', username: 'a@example.com', hoTen: 'A', email: 'a@example.com',
     vaiTro: 'Kế toán', coSo: 'Cả hai', trangThai: 'Đang hoạt động', hrManaged: true,
@@ -140,13 +144,14 @@ test('Admin User Management: editing vaiTro directly on an hrManaged user makes 
     assert.equal(res.body.user.vaiTro, 'Trợ lý');
     // Vai trò phải "dính" qua override, không để resolveUser() tính lại từ sheet ở lần sau.
     assert.equal(res.body.user.roleSource, 'override');
-    assert.deepEqual(calls, [{ branch: 'Hà Nội', rowIndex: 5, role: 'Trợ lý' }]);
+    assert.equal(res.body.user.boPhan, 'Kế toán');
+    assert.deepEqual(calls, []);
   } finally {
     employeeDirectory.writeDepartmentForRole = originalWrite;
   }
 });
 
-test('Admin User Management: PUT still succeeds even if the best-effort sheet sync fails', async () => {
+test('Admin User Management: role edits do not depend on availability of the HR writer', async () => {
   localUserStore.setInMemoryUsers([{
     id: 'u1', username: 'a@example.com', hoTen: 'A', email: 'a@example.com',
     vaiTro: 'Kế toán', coSo: 'Cả hai', trangThai: 'Đang hoạt động', hrManaged: true,
@@ -223,6 +228,7 @@ test('Admin User Management: POST /api/admin/users tạo user mới hợp lệ',
     user: { id: 'admin-1', vaiTro: 'Quản lý' },
     body: {
       username: 'ketoan_moi',
+      workCoSo: 'Hà Nội', boPhan: 'Kế toán',
       password: 'Password123',
       hoTen: 'Kế Toán Mới',
       email: 'ketoan@tokosi.vn',
@@ -404,6 +410,7 @@ test('Admin User Management: POST /api/admin/users tự đổi tên cơ sở cũ
     user: { id: 'admin-1', vaiTro: 'Quản lý' },
     body: {
       username: 'nv_an_khanh',
+      workCoSo: 'Hà Nội', boPhan: 'Kế toán',
       password: 'MatKhau@123',
       hoTen: 'Nhân viên An Khánh',
       vaiTro: 'Kế toán',
@@ -430,6 +437,7 @@ test('Admin User Management: POST /api/admin/users tạo user với các vai tr�
         username: `user_${role.replace(/\s+/g, '_').toLowerCase()}`,
         password: 'Password@123',
         hoTen: `Họ tên ${role}`,
+        workCoSo: 'Hà Nội', boPhan: 'Kế toán',
         vaiTro: role,
         coSo: 'Hà Nội'
       }
@@ -647,7 +655,7 @@ test('GET /api/admin/permissions/catalog tra ve danh muc + mac dinh theo vai tro
   assert.ok(res.body.features.every(f => f.key && f.label && f.groupKey));
   // Marketing giong Sale tru 5 tab xem bao cao (Sale duoc mo them tu 2026-10-02) va Vong doi don hang (shipment.lifecycle:
   // bo Nhan vien mua hang + marketing, 2026-10-02), Tao QR (2026-10-17), Yeu cau xuat VAT (2026-10-20).
-  const saleViewKeys = ['reports.overview', 'reports.products', 'reports.products.growth', 'reports.products.sales', 'reports.products.expected', 'reports.invoices', 'reports.invoices.priceAudit', 'reports.invoices.priceAudit.explain', 'reports.business', 'reports.debt'];
+  const saleViewKeys = ['reports.overview', 'reports.products', 'reports.products.growth', 'reports.products.sales', 'reports.products.expected', 'reports.invoices', 'reports.invoices.priceAudit', 'reports.invoices.priceAudit.explain', 'reports.business', 'reports.business.customerNotes', 'reports.debt'];
   assert.deepEqual(
     res.body.roleDefaults['Nhân viên marketing'].filter(key => key !== 'reports.marketing' && key !== 'reports.products.expected'),
     res.body.roleDefaults['Nhân viên sale'].filter(key => !saleViewKeys.includes(key) && key !== 'reports.debt.saleFeedback' && key !== 'accounting.qr' && key !== 'accounting.vatRequest' && !['shipment.lifecycle', 'shipment.lookup', 'shipment.history'].includes(key))
@@ -802,7 +810,7 @@ test('Chong leo thang: POST vai tro vuot quyen actor bi chan, vai tro <= actor d
   assert.equal(blocked.statusCode, 403);
 
   const ok = fakeRes();
-  await withHrEmployees([], () => handler({ user: delegate(), body: { username: 'moi5678', password: 'matkhau123', hoTen: 'Mới', vaiTro: 'Nhân viên kho' } }, ok));
+  await withHrEmployees([], () => handler({ user: delegate(), body: { username: 'moi5678', password: 'matkhau123', hoTen: 'Mới', vaiTro: 'Nhân viên kho', workCoSo: 'Hà Nội', boPhan: 'Kho HN' } }, ok));
   assert.equal(ok.statusCode, 201);
 });
 
@@ -1121,7 +1129,7 @@ test('Luat 5c (F2): TK account.users.manage (khong phai Quan ly) tao TK Sale voi
     { rowIndex: 12, email: 'kho@tokosi.vn', soDienThoai: '0911000222', sheetVaiTro: 'Nhân viên kho' }
   ];
   const path = '/api/admin/users';
-  const base = { password: 'matkhau123', hoTen: 'Sale mới', vaiTro: 'Nhân viên sale' };
+  const base = { password: 'matkhau123', hoTen: 'Sale mới', vaiTro: 'Nhân viên sale', workCoSo: 'Hà Nội', boPhan: 'Sale HN' };
   await withHrEmployees(hr, async () => {
     for (const body of [
       { ...base, username: 'sale-a', soDienThoai: '0911000111' },

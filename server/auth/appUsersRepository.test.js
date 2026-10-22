@@ -21,26 +21,41 @@ test('rowToUser dùng chuỗi rỗng khi tài khoản chưa có Telegram ID', ()
   assert.equal(user.telegramId, '');
 });
 
-test('rowToUser preserves stored approval departments, linked department and raw assigned branch', () => {
-  const user = rowToUser({ id: 'scope', co_so: '', hr_branch: 'hanoi', hr_bo_phan: 'KẾ TOÁN', leave_approval_departments: ['  Kho  ', 'Kho', 'KẾ TOÁN'] });
+test('rowToUser lấy Bộ phận và Cơ sở công tác từ tài khoản, không từ hồ sơ nhân sự', () => {
+  const user = rowToUser({ id: 'scope', co_so: '', work_branch: 'hanoi', bo_phan: 'KẾ TOÁN', hr_branch: 'saigon', hr_bo_phan: 'SALE', leave_approval_departments: ['  Kho  ', 'Kho', 'KẾ TOÁN'] });
   assert.equal(user.assignedCoSo, '');
+  assert.equal(user.workCoSo, 'Hà Nội');
   assert.equal(user.boPhan, 'KẾ TOÁN');
   assert.deepEqual(user.leaveApprovalDepartments, ['Kho', 'KẾ TOÁN']);
 });
 
 
-test('department catalogue includes inactive HR, saved grants and historical request snapshots', async () => {
+test('approval department catalog reads accounts and historical requests without HR', async () => {
   const repository = require('./appUsersRepository');
   let query;
   const departments = await repository.selectApprovalDepartmentCatalog({ query: async sql => { query = sql; return { rows: [{ bo_phan: ' Old  Dept ' }, { bo_phan: 'old dept' }, { bo_phan: 'KHO' }] }; } });
   assert.deepEqual(departments, ['Old Dept', 'KHO']);
-  assert.match(query, /hr_employees/);
+  assert.doesNotMatch(query, /hr_employees/);
+  assert.match(query, /SELECT bo_phan FROM app_users WHERE NOT is_deleted/);
   assert.match(query, /hr_leave_requests/);
   assert.match(query, /unnest\(leave_approval_departments\)/);
 });
 
-test('rowToUser reports linked HR activity separately from account status', () => {
-  assert.equal(rowToUser({ id: 'inactive-hr', hr_employee_id: 123, hr_employee_active: false, trang_thai: 'Đang hoạt động' }).hrEmployeeActive, false);
+test('approval catalog includes request-only departments with no HR table present', async () => {
+  const { PGlite } = require('@electric-sql/pglite');
+  const db = new PGlite();
+  try {
+    await db.exec(`CREATE TABLE app_users (bo_phan text, leave_approval_departments text[], is_deleted boolean);
+      CREATE TABLE hr_leave_requests (bo_phan text);
+      INSERT INTO app_users VALUES ('Kho HN', ARRAY['Kế toán'], false), ('Deleted department', ARRAY['Deleted grant'], true);
+      INSERT INTO hr_leave_requests VALUES ('KHO'), ('KHO');`);
+    const departments = await require('./appUsersRepository').selectApprovalDepartmentCatalog(db);
+    assert.deepEqual(departments.slice().sort(), ['Kho HN', 'Kế toán', 'KHO'].sort());
+  } finally { await db.close(); }
+});
+
+test('rowToUser không còn mang trạng thái hồ sơ HR: quyền chỉ theo trạng thái tài khoản', () => {
+  assert.equal('hrEmployeeActive' in rowToUser({ id: 'inactive-hr', hr_employee_id: 123, hr_employee_active: false, trang_thai: 'Đang hoạt động' }), false);
 });
 
 test('selectFingerprint: băm toàn bộ snapshot trong SQL, chỉ trả 1 dòng (không kéo danh sách tài khoản về)', async () => {
@@ -64,6 +79,6 @@ test('selectFingerprint: băm toàn bộ snapshot trong SQL, chỉ trả 1 dòng
   assert.equal(calls.length, 1);
   assert.match(calls[0], /md5\(/);
   assert.match(calls[0], /string_agg/);
-  assert.match(calls[0], /hr_employees/);
+  assert.doesNotMatch(calls[0], /hr_employees/, 'fingerprint tài khoản không đọc hồ sơ nhân sự');
   assert.match(calls[0], /NOT u\.is_deleted/);
 });

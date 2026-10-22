@@ -50,13 +50,22 @@ test('self-only users see all of their submissions without a broad-view default 
 
 test('self form preserves entered data and re-enables submit after server denial',async()=>{
  const dom=page(['hr.leave.submit']);const w=dom.window;try{
- w.fetch=async(url,opts)=>opts?.method==='POST'?{ok:false,status:403,json:async()=>({error:'Hồ sơ nhân sự đã ngừng hoạt động.'})}:{ok:true,status:200,json:async()=>({eligible:true,profile:{hoTen:'A'}})};
+ w.fetch=async(url,opts)=>opts?.method==='POST'?{ok:false,status:403,json:async()=>({code:'SELF_LEAVE_WORK_ASSIGNMENT_REQUIRED',error:'Tài khoản chưa được cấu hình cơ sở công tác và bộ phận.'})}:{ok:true,status:200,json:async()=>({eligible:true,profile:{hoTen:'A'}})};
  await w.openSelfLeave();w.document.getElementById('slStartDate').value='2026-10-06';w.document.getElementById('slReason').value='Việc gia đình';
  await w.handleSelfLeaveSubmit({preventDefault(){}});
- assert.equal(w.document.getElementById('selfLeaveModal').hidden,false);assert.equal(w.document.getElementById('selfLeaveSubmit').disabled,false);assert.equal(w.document.getElementById('slReason').value,'Việc gia đình');assert.match(w.document.getElementById('selfLeaveMsg').textContent,/ngừng hoạt động/);
+ assert.equal(w.document.getElementById('selfLeaveModal').hidden,false);assert.equal(w.document.getElementById('selfLeaveSubmit').disabled,false);assert.equal(w.document.getElementById('slReason').value,'Việc gia đình');assert.match(w.document.getElementById('selfLeaveMsg').textContent,/cơ sở công tác và bộ phận/);
  }finally{dom.window.close();}
 });
 
 test('HR submission timestamps display the Vietnam calendar date and time',()=>{
  const dom=page();try{assert.equal(dom.window.formatDateTime('2026-10-05T18:30:00.000Z'),'06/10/2026 01:30');}finally{dom.window.close();}
+});
+
+test('missing self-service context reports account workplace configuration', async () => {
+ const dom=page(['hr.leave.submit']);const w=dom.window;try{
+ let message;w.showToast=text=>{message=text;};
+ w.fetch=async()=>({ok:true,status:200,json:async()=>({eligible:false,profile:null})});
+ await w.openSelfLeave();
+ assert.equal(message,'Tài khoản chưa được cấu hình cơ sở công tác và bộ phận.');
+ }finally{dom.window.close();}
 });

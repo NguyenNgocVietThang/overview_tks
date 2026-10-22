@@ -31,6 +31,8 @@ test('manager Telegram edits respect account policy and persist the actual bot l
       await db.exec(fs.readFileSync(path.join(__dirname, '../db/migrations', name), 'utf8'));
     }
     await db.exec("ALTER TABLE app_users ADD COLUMN leave_approval_departments TEXT[] NOT NULL DEFAULT '{}';");
+    // Cột công tác của tài khoản (migration 0081).
+    await db.exec("ALTER TABLE app_users ADD COLUMN work_branch TEXT NOT NULL DEFAULT '', ADD COLUMN bo_phan TEXT NOT NULL DEFAULT '';");
     await db.exec(`INSERT INTO hr_employees(id, branch) VALUES (1, 'hanoi'), (2, 'saigon');
       INSERT INTO app_users(id, username, ho_ten, email, vai_tro, hr_employee_id) VALUES
       ('${A}', 'employee', 'Employee', 'employee@example.com', 'Nhân viên kho', 1),

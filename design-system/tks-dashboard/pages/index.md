@@ -55,7 +55,14 @@ bảng chi tiết drill-down, xuất báo cáo. Bao gồm 7 tab báo cáo: Tổn
 ## Cột Sale/Team (từ 2026-10-14)
 - Bảng Doanh số theo sale: cột Sale = 125 px, Team = 133 px.
 - Bảng Doanh số theo khách: cột Sale = 117 px.
+- Bảng Doanh số theo khách từ 2026-10-22 thêm 2 cột cố định sau Level giá khi có quyền `reports.business.customerNotes`: **Ghi chú** = 112 px, **Tiếp khách lần cuối** = 168 px (thứ tự cột: Tên khách 154, Sale 117, Level giá 117, Ghi chú 112, Tiếp khách lần cuối 168, rồi TB 4 tháng…). Mỗi `<th>` có `data-column-key` (`notes`, `lastVisit`) để "Cột hiển thị" ẩn/hiện được.
 - Cả hai bảng dùng `data-table-fit="off"` để tránh tự giãn cột khi tải dữ liệu; vẫn hỗ trợ kéo chỉnh thủ công.
+
+## Hộp Chi tiết khách (`.cp-*`, từ 2026-10-22)
+- Mở từ nút **Chi tiết** ở cột Ghi chú của bảng Doanh số theo khách; dùng khung `#docModalBackdrop` + chuẩn `.dp-*`, CSS riêng tiền tố `.cp-*` đặt trong `index.html` (accent cục bộ `--cp-accent` từ `--blue`). Hộp rộng 2 cột trên desktop (Thông tin chung | Note) và khối Quản lý toàn chiều ngang bên dưới; xếp 1 cột khi ≤ 860 px, form 1 cột khi ≤ 640 px. Hộp lịch tiếp khách riêng (mở từ biểu tượng lịch ở cột) hẹp 440 px.
+- Bong bóng note dùng token nền/viền như `.dp-card`; note hôm nay có viền nhấn + nhãn "Hôm nay – có thể sửa". Lịch chọn nhiều ngày: tuần bắt đầu Thứ Hai, ngày đã chọn có nền nhấn **kèm dấu tích SVG** (không chỉ dựa vào màu), ngày lớn nhất có vòng ngoài và nhãn "Gần nhất", ngày tương lai bị khóa.
+- Dropdown tick nhiều (`.cp-ms`) cho Hình thức bán hàng và Người được sửa; lưới ảnh `.cp-images` (ảnh có `loading="lazy"`, tỉ lệ 4/3 giữ chỗ, nút xóa, phóng to bằng `.cp-lightbox`).
+- Cảm ứng / ≤ 640 px: mọi ô bấm tối thiểu 44 px, cách nhau ≥ 8 px; `prefers-reduced-motion` tắt transition. Có `role="dialog"`, nhãn hiển thị cho mọi ô nhập, focus trap, trả focus về nút Chi tiết khi đóng. Cả Light và Dark bằng token `shared.css`; không hiệu ứng 3D, không emoji.
 
 ## Nợ thiết kế riêng của trang (xem MASTER §12 để biết đầy đủ)
 1. `.export-modal-backdrop{ backdrop-filter: blur(3px); background: rgba(5,10,18,.68); }` — vi phạm §7.1 + không đổi theo Light Mode. Sửa theo mẫu `.modal-overlay` ở §5.7.

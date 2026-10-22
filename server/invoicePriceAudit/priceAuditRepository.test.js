@@ -28,7 +28,7 @@ const pick = (rows, keys) => rows.map(r => Object.fromEntries(keys.map(k => [k, 
 // Khach chuan HN cap Vua.
 async function baseHn(db) {
   await product(db, 'hanoi', 1, 'T100', 'Ly giu nhiet', HN_NOTE);
-  await customer(db, 'hanoi', 1, 'Khach Vua', { email: '', groups: 'Duy Thái' });
+  await customer(db, 'hanoi', 1, 'Khach Vua', { groups: 'Duy Thái' });
 }
 
 test('Nguong: tong SL cung ma quyet dinh bac (1..1001)', async () => {
@@ -69,14 +69,14 @@ test('Cong dong: 200 + 100 cung ma trong 1 hoa don cung xet 300; hai hoa don rie
   } finally { await db.close(); }
 });
 
-test('Cap khach: Vua du bac Lon huong gia Lon; VIP mua it huong VIP; bac 4 cho moi cap; email trong/la = Vua', async () => {
+test('Cap khach: Vua du bac Lon huong gia Lon; VIP mua it huong VIP; bac 4 cho moi cap; email trong = Lon, email la = Vua', async () => {
   const db = await newDb();
   try {
     await product(db, 'hanoi', 1, 'T100', 'Ly', HN_NOTE);
     await customer(db, 'hanoi', 1, 'Vua', { email: 'abc@gmail.com' });
     await customer(db, 'hanoi', 2, 'Vip', { Email: ' VIP @tokosi.vn' });
     await customer(db, 'hanoi', 3, 'Lon', { email: 'Lớn@x.vn' });
-    await customer(db, 'hanoi', 4, 'Rong', {});
+    await customer(db, 'hanoi', 4, 'Rong', { email: '' });
     const ln = qty => [{ productId: 1, code: 'T100', name: 'Ly', qty, price: 1 }];
     await invoice(db, { id: 1, customerId: 1, lines: ln(300) });
     await invoice(db, { id: 2, customerId: 2, lines: ln(10) });
@@ -90,10 +90,10 @@ test('Cap khach: Vua du bac Lon huong gia Lon; VIP mua it huong VIP; bac 4 cho m
       { id: '1', customer_level: 'Vừa', min: '23800' },
       { id: '2', customer_level: 'VIP', min: '23600' },
       { id: '3', customer_level: 'Lớn', min: '23800' },
-      { id: '4', customer_level: 'Vừa', min: '24000' },
+      { id: '4', customer_level: 'Lớn', min: '23800' },
       { id: '5', customer_level: 'Vừa', min: '23000' },
       { id: '6', customer_level: 'VIP', min: '23000' },
-      { id: '7', customer_level: 'Vừa', min: '24000' }
+      { id: '7', customer_level: 'Lớn', min: '23800' }
     ]);
   } finally { await db.close(); }
 });
