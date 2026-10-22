@@ -20,7 +20,10 @@
     rows: [], metrics: {}, sales: [], statuses: [], stockStatus: null, truncated: false,
     preset: 'all', saleFilter: '', query: '', from: '', to: '',
     groupByProduct: false, sortKey: '', sortDir: 'asc', page: 1, selected: new Set(), loading: false, error: '',
-    editing: null, requestSeq: 0, grid: null, undo: null, rowOrder: false
+    editing: null, requestSeq: 0, grid: null, rowOrder: false,
+    // statusSet: các chip trạng thái đang bật khi preset = 'custom'; keep: id dòng KT vừa sửa, giữ lại trên bảng
+    // cho tới khi đổi bộ lọc; history: hoàn tác / làm lại (Ctrl+Z / Ctrl+Y), mất khi tải lại trang.
+    statusSet: new Set(), keep: new Set(), history: { undo: [], redo: [] }, saving: false
   };
 
   // ---------- Tiện ích ----------
@@ -215,11 +218,13 @@
     state.rows = rest;
     render();
     try {
-      await api('/position', { method: 'PATCH', body: below ? { ids, belowId: below } : { ids, aboveId: above } });
-      setStatus(ids.length === 1 ? `Đã chuyển yêu cầu #${ids[0]}.` : `Đã chuyển ${ids.length} yêu cầu.`, 'ok');
+      const result = await api('/position', { method: 'PATCH', body: below ? { ids, belowId: below } : { ids, aboveId: above } });
+      const label = ids.length === 1 ? `chuyển yêu cầu #${ids[0]}` : `chuyển ${ids.length} yêu cầu`;
+      if (result && result.before) pushHistory({ kind: 'order', label, before: result.before, after: result.after });
+      notify(`Đã ${label}.`, 'ok', { undo: true });
     } catch (error) {
       await load(); // load() xóa thanh trạng thái -> báo lỗi sau khi nạp lại
-      setStatus(error.message, 'error');
+      notify(error.message, 'error');
     }
   }
 
@@ -331,38 +336,119 @@
       byId.get(row.id).changes[edit.field] = value;
     }
     const skippedNote = invalid ? ` Bỏ qua ${invalid} ô không hợp lệ hoặc nằm ngoài cột KT / trang này.` : '';
-    if (!byId.size) { setStatus(`Không có ô nào thay đổi.${skippedNote}`, invalid ? 'warn' : ''); return; }
+    if (!byId.size) { notify(`Không có ô nào thay đổi.${skippedNote}`, invalid ? 'warn' : ''); return; }
     const entries = [...byId.values()];
-    const undo = entries.map(({ row, changes }) => ({ id: row.id, changes: Object.fromEntries(Object.keys(changes).map(field => [field, gridCellValue(row.id, field)])) }));
-    await saveGridChanges(entries.map(({ row, changes }) => ({ id: row.id, version: row.version, changes })), { undo, note: skippedNote });
+    const before = entries.map(({ row, changes }) => ({ id: row.id, changes: Object.fromEntries(Object.keys(changes).map(field => [field, gridCellValue(row.id, field)])) }));
+    const after = entries.map(({ row, changes }) => ({ id: row.id, changes }));
+    const ok = await saveFields(entries.map(({ row, changes }) => ({ id: row.id, version: row.version, changes })));
+    if (!ok) return;
+    const label = `sửa ${entries.length} yêu cầu`;
+    pushHistory({ kind: 'fields', label, before, after });
+    notify(`Đã ${label}.${skippedNote}`, skippedNote ? 'warn' : 'ok', { undo: true });
   }
 
-  async function saveGridChanges(items, { undo = null, note = '' } = {}) {
-    state.undo = null;
+  /**
+   * Lưu nhiều trường KT 1 lần qua PATCH /bulk (items = [{ id, version, changes }]). Dòng vừa sửa vào
+   * state.keep nên vẫn ở lại bảng dù không còn khớp bộ lọc. Trả true nếu lưu được.
+   */
+  async function saveFields(items) {
     setStatus(`Đang lưu ${items.length} yêu cầu…`);
+    state.saving = true;
     try {
       const result = await api('/bulk', { method: 'PATCH', body: { items } });
+      items.forEach(item => state.keep.add(item.id));
       (result.rows || []).forEach(replaceRow);
-      // Đổi trạng thái làm đổi SLG cần khai -> nạp lại cả danh sách cho số liệu đồng nhất.
+      // Đổi trạng thái làm đổi SLG cần khai -> nạp lại cả danh sách cho số liệu đồng nhất (dòng đã sửa vẫn giữ nhờ keep).
       if (items.some(item => Object.hasOwn(item.changes, 'status'))) await load(); else render();
-      if (undo) {
-        state.undo = undo;
-        setStatus(`Đã cập nhật ${result.updated} yêu cầu.${note}`, note ? 'warn' : 'ok');
-        $('vrStatus').insertAdjacentHTML('beforeend', ' <button type="button" class="vr-undo" id="vrUndo" data-grid-keep>Hoàn tác</button>');
-      } else {
-        setStatus(`Đã hoàn tác ${result.updated} yêu cầu.`, 'ok');
-      }
+      setStatus('');
+      return true;
     } catch (error) {
       if (error.status === 409) await load(); else render(); // load() xóa thanh trạng thái -> báo sau
-      setStatus(error.message, error.status === 409 ? 'warn' : 'error');
+      notify(error.message, error.status === 409 ? 'warn' : 'error');
+      return false;
+    } finally {
+      state.saving = false;
     }
   }
 
-  async function undoGrid() {
-    const undo = state.undo;
-    if (!undo) return;
-    const items = undo.map(entry => ({ id: entry.id, version: (state.rows.find(r => r.id === entry.id) || {}).version, changes: entry.changes }));
-    await saveGridChanges(items);
+  // ---------- Hoàn tác / làm lại (Ctrl+Z / Ctrl+Y), tối đa 20 bước, mất khi tải lại trang ----------
+  // Mục: { kind: 'fields', label, before: [{ id, changes }], after } | { kind: 'order', label, before: { id: hạng }, after }.
+  const HISTORY_LIMIT = 20;
+  function pushHistory(entry) {
+    state.history.undo.push(entry);
+    if (state.history.undo.length > HISTORY_LIMIT) state.history.undo.shift();
+    state.history.redo = [];
+  }
+
+  /** version hiện tại của các dòng (dòng không còn trên bảng thì hỏi máy chủ). */
+  async function withVersions(list) {
+    return Promise.all(list.map(async entry => {
+      const row = state.rows.find(r => r.id === entry.id) || await api('/' + entry.id);
+      return { id: entry.id, version: row.version, changes: entry.changes };
+    }));
+  }
+
+  async function stepHistory(direction) {
+    if (!state.canProcess || state.saving) return;
+    const stack = state.history[direction];
+    const entry = stack.pop();
+    if (!entry) { notify(direction === 'undo' ? 'Không còn thao tác để hoàn tác.' : 'Không còn thao tác để làm lại.', ''); return; }
+    const target = direction === 'undo' ? entry.before : entry.after;
+    let ok = false;
+    try {
+      if (entry.kind === 'order') {
+        state.saving = true;
+        try {
+          await api('/position/ranks', { method: 'PATCH', body: { ranks: target } });
+          Object.keys(target).forEach(id => state.keep.add(Number(id)));
+          await load();
+          ok = true;
+        } finally { state.saving = false; }
+      } else {
+        ok = await saveFields(await withVersions(target));
+      }
+    } catch (error) {
+      await load();
+      notify(error.message, error.status === 409 ? 'warn' : 'error');
+    }
+    if (!ok) { stack.push(entry); return; }
+    state.history[direction === 'undo' ? 'redo' : 'undo'].push(entry);
+    notify(direction === 'undo' ? `Đã hoàn tác: ${entry.label}.` : `Đã làm lại: ${entry.label}.`, 'ok', { undo: state.history.undo.length > 0, redo: state.history.redo.length > 0 });
+  }
+
+  /** Thông báo: thanh trạng thái + thông báo nổi góc dưới (tự ẩn sau 8 giây, rê chuột thì giữ). */
+  let toastTimer = null;
+  function notify(message, kind, { undo = false, redo = false } = {}) {
+    setStatus(message, kind);
+    const toast = $('vrToast');
+    if (!toast) return;
+    toast.dataset.kind = kind || '';
+    toast.querySelector('.vr-toast-text').textContent = message;
+    toast.querySelector('[data-toast="undo"]').hidden = !undo;
+    toast.querySelector('[data-toast="redo"]').hidden = !redo;
+    toast.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { if (!toast.matches(':hover')) toast.hidden = true; }, 8000);
+  }
+
+  function mountToast() {
+    if ($('vrToast')) return;
+    document.body.insertAdjacentHTML('beforeend',
+      '<div class="vr-toast" id="vrToast" role="status" aria-live="polite" data-grid-keep hidden>' +
+      '<span class="vr-toast-text"></span>' +
+      '<button type="button" data-toast="undo" title="Ctrl+Z">Hoàn tác</button>' +
+      '<button type="button" data-toast="redo" title="Ctrl+Y" hidden>Làm lại</button>' +
+      '<button type="button" class="vr-toast-close" data-toast="close" aria-label="Đóng thông báo">×</button></div>');
+    $('vrToast').addEventListener('click', event => {
+      const button = event.target.closest('[data-toast]');
+      if (!button) return;
+      if (button.dataset.toast === 'close') $('vrToast').hidden = true;
+      else stepHistory(button.dataset.toast);
+    });
+    $('vrToast').addEventListener('mouseleave', () => {
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => { $('vrToast').hidden = true; }, 3000);
+    });
   }
 
   function groupHeaderHtml(key, rows, cols) {
@@ -485,7 +571,6 @@
     }
     const pageSelect = $('vrSelectPage');
     if (pageSelect) pageSelect.checked = pageRows.length > 0 && pageRows.every(r => state.selected.has(r.id));
-    renderBulk();
     updateSortHeaders();
     renderSource();
     if (window.TKSTables) window.TKSTables.refresh($('vrTable'));
@@ -506,12 +591,6 @@
     el.textContent = `Tồn VAT lấy từ Google Sheets${status.loadedAt ? ', cập nhật lúc ' + fmtDateTime(status.loadedAt) : ''}${status.stale ? ' (bản cũ do sheet đang lỗi)' : ''}. Dự kiến hàng về = cont chưa về sớm nhất (Tên Cont + Lịch/Trạng thái ở Hàng dự kiến).`;
   }
 
-  function renderBulk() {
-    const bar = $('vrBulk');
-    bar.hidden = !state.canProcess || state.selected.size === 0;
-    $('vrBulkCount').textContent = `${state.selected.size} dòng đã chọn`;
-  }
-
   function renderChips() {
     const presets = [
       ...(state.canProcess ? [{ key: 'todo', label: 'Cần xử lý' }] : []),
@@ -519,7 +598,7 @@
       ...state.statuses.map(s => ({ key: s.value, label: s.label }))
     ];
     $('vrStatusChips').innerHTML = presets.map(p =>
-      `<button type="button" class="vr-chip" data-preset="${escapeHtml(p.key)}" aria-pressed="${p.key === state.preset}">${escapeHtml(p.label)}</button>`).join('');
+      `<button type="button" class="vr-chip" data-preset="${escapeHtml(p.key)}" aria-pressed="${p.key === state.preset || (state.preset === 'custom' && state.statusSet.has(p.key))}">${escapeHtml(p.label)}</button>`).join('');
   }
 
   function renderSaleFilter() {
@@ -533,8 +612,10 @@
   // ---------- Tải dữ liệu ----------
   function filterQuery(options = {}) {
     const params = new URLSearchParams();
-    const statuses = state.preset === 'todo' ? TODO_STATUSES : state.preset === 'all' ? [] : [state.preset];
+    const statuses = state.preset === 'todo' ? TODO_STATUSES : state.preset === 'all' ? [] : [...state.statusSet];
     if (statuses.length) params.set('status', statuses.join(','));
+    // Dòng KT vừa sửa: máy chủ vẫn trả về dù không còn khớp bộ lọc (không áp cho file Excel).
+    if (options.keep && state.keep.size) params.set('keep', [...state.keep].slice(-500).join(','));
     const createdBy = state.saleFilter === 'me' ? state.viewerId : state.saleFilter;
     if (createdBy) params.set('createdBy', createdBy);
     if (state.from) params.set('from', state.from);
@@ -551,7 +632,7 @@
     setStatus('Đang tải yêu cầu…');
     render();
     try {
-      const data = await api('/' + filterQuery());
+      const data = await api('/' + filterQuery({ keep: true }));
       if (seq !== state.requestSeq) return;
       state.rows = data.rows || [];
       state.metrics = data.metrics || {};
@@ -567,7 +648,6 @@
       state.selected = new Set([...state.selected].filter(id => ids.has(id)));
       renderChips();
       renderSaleFilter();
-      fillBulkStatus();
     } catch (error) {
       if (seq !== state.requestSeq) return;
       state.rows = [];
@@ -621,11 +701,6 @@
     }
   }
 
-  function fillBulkStatus() {
-    $('vrBulkStatus').innerHTML = '<option value="">— Giữ nguyên —</option>' +
-      state.statuses.map(s => `<option value="${s.value}">${escapeHtml(s.label)}</option>`).join('');
-  }
-
   function replaceRow(updated) {
     const index = state.rows.findIndex(r => r.id === updated.id);
     if (index >= 0) state.rows[index] = updated;
@@ -644,14 +719,17 @@
     const field = input.dataset.inline;
     const value = input.value;
     if ((row[field] ?? '') === value) return;
-    state.undo = null; // Hoàn tác chỉ dành cho lần kéo / dán gần nhất
     input.disabled = true;
+    const before = row[field] ?? (field === 'arrivalDate' ? null : '');
+    const after = field === 'arrivalDate' ? (value || null) : value;
     try {
-      const updated = await api('/' + id, { method: 'PATCH', body: { version: row.version, [field]: field === 'arrivalDate' ? (value || null) : value } });
+      const updated = await api('/' + id, { method: 'PATCH', body: { version: row.version, [field]: after } });
+      state.keep.add(id); // đổi trạng thái xong vẫn ở lại bảng tới khi đổi bộ lọc
       replaceRow(updated);
       if (field === 'status') await refreshMetricsFor(row.productKey);
       else render();
-      setStatus(`Đã lưu yêu cầu #${id}.`, 'ok');
+      pushHistory({ kind: 'fields', label: `sửa yêu cầu #${id}`, before: [{ id, changes: { [field]: before } }], after: [{ id, changes: { [field]: after } }] });
+      notify(`Đã lưu yêu cầu #${id}.`, 'ok', { undo: true });
     } catch (error) {
       handleSaveError(error, id);
     }
@@ -671,31 +749,6 @@
     }
     setStatus(error.message, 'error');
     render();
-  }
-
-  // ---------- Hàng loạt ----------
-  async function applyBulk() {
-    const changes = {};
-    if ($('vrBulkStatus').value) changes.status = $('vrBulkStatus').value;
-    if ($('vrBulkNote').value.trim()) changes.accountantNote = $('vrBulkNote').value.trim();
-    if ($('vrBulkDate').value) changes.arrivalDate = $('vrBulkDate').value;
-    if (!Object.keys(changes).length) { setStatus('Chọn trạng thái, ghi chú hoặc ngày về để áp dụng.', 'warn'); return; }
-    const items = state.rows.filter(r => state.selected.has(r.id)).map(r => ({ id: r.id, version: r.version }));
-    $('vrBulkApply').disabled = true;
-    try {
-      const result = await api('/bulk', { method: 'PATCH', body: { items, changes } });
-      state.selected.clear();
-      $('vrBulkStatus').value = '';
-      $('vrBulkNote').value = '';
-      $('vrBulkDate').value = '';
-      await load();
-      setStatus(`Đã cập nhật ${result.updated} yêu cầu.`, 'ok');
-    } catch (error) {
-      if (error.status === 409) await load(); // load() xóa thanh trạng thái -> báo sau
-      setStatus(error.message, error.status === 409 ? 'warn' : 'error');
-    } finally {
-      $('vrBulkApply').disabled = false;
-    }
   }
 
   // ---------- Form tạo / sửa (sale) ----------
@@ -1093,14 +1146,24 @@
     $('vrStatusChips').addEventListener('click', event => {
       const chip = event.target.closest('[data-preset]');
       if (!chip) return;
-      state.preset = chip.dataset.preset;
-      state.page = 1;
+      // "Cần xử lý" / "Tất cả" chỉ chọn một mình; các chip trạng thái bật / tắt, chọn nhiều cái cùng lúc.
+      const key = chip.dataset.preset;
+      if (key === 'todo' || key === 'all') { state.preset = key; state.statusSet.clear(); }
+      else {
+        if (state.preset !== 'custom') { state.preset = 'custom'; state.statusSet = new Set([key]); }
+        else if (state.statusSet.has(key)) state.statusSet.delete(key);
+        else state.statusSet.add(key);
+        if (!state.statusSet.size) state.preset = 'all';
+      }
+      resetView();
       renderChips();
       load();
     });
-    $('vrSaleFilter').addEventListener('change', event => { state.saleFilter = event.target.value; state.page = 1; load(); });
-    $('vrFrom').addEventListener('change', event => { state.from = event.target.value; state.page = 1; load(); });
-    $('vrTo').addEventListener('change', event => { state.to = event.target.value; state.page = 1; load(); });
+    // Đổi bộ lọc / tải lại: bỏ các dòng đang giữ lại sau khi sửa, về trang 1.
+    const resetView = () => { state.keep.clear(); state.page = 1; };
+    $('vrSaleFilter').addEventListener('change', event => { state.saleFilter = event.target.value; resetView(); load(); });
+    $('vrFrom').addEventListener('change', event => { state.from = event.target.value; resetView(); load(); });
+    $('vrTo').addEventListener('change', event => { state.to = event.target.value; resetView(); load(); });
     // Lọc tức thì trên dữ liệu đã tải; value rỗng (Backspace/cắt/nút X) cũng chạy và trả đủ dòng.
     $('vrSearch').addEventListener('input', event => { state.query = event.target.value.trim(); state.page = 1; render(); });
     $('vrGroupToggle').addEventListener('click', event => {
@@ -1109,7 +1172,7 @@
       state.page = 1;
       render();
     });
-    $('vrReload').addEventListener('click', () => load());
+    $('vrReload').addEventListener('click', () => { state.keep.clear(); load(); });
     $('vrExport').addEventListener('click', exportExcel);
     // Tạo mới = form nhiều dòng (vat-request-batch.js); hộp sửa 1 yêu cầu chỉ còn dùng để sửa / xem lịch sử.
     $('vrCreate').addEventListener('click', () => { if (state.batch) state.batch.open(); });
@@ -1330,9 +1393,17 @@
     $('vrFormDialog').addEventListener('close', () => setHistoryOpen(false));
     $('vrFormDelete').addEventListener('click', deleteEditing);
 
-    $('vrBulkApply').addEventListener('click', applyBulk);
-    $('vrStatus').addEventListener('click', event => { if (event.target.closest('#vrUndo')) undoGrid(); });
-    $('vrBulkClear').addEventListener('click', () => { state.selected.clear(); render(); });
+    // Ctrl+Z hoàn tác, Ctrl+Y / Ctrl+Shift+Z làm lại (KT). Đang gõ trong ô nhập thì để trình duyệt tự xử lý.
+    document.addEventListener('keydown', event => {
+      if (!state.canProcess || !(event.ctrlKey || event.metaKey) || event.altKey) return;
+      const key = event.key.toLowerCase();
+      if (key !== 'z' && key !== 'y') return;
+      const focused = document.activeElement;
+      if (focused && focused !== document.body && focused.matches('input,textarea,select,[contenteditable="true"]')) return;
+      if (document.querySelector('dialog[open]')) return;
+      event.preventDefault();
+      stepHistory(key === 'y' || event.shiftKey ? 'redo' : 'undo');
+    });
 
     $('vrProduct').addEventListener('input', event => {
       const value = event.target.value;
@@ -1376,7 +1447,7 @@
     state.saleFilter = ''; // mặc định xem tất cả sale; chọn 'Của tôi' ở bộ lọc Sale khi cần
     $('vrGroupToggle').hidden = !state.canProcess;
     $('vrSub').textContent = state.canProcess
-      ? 'Lọc “Cần xử lý” để xem yêu cầu chờ khai; chọn nhiều dòng để đổi trạng thái hàng loạt; kéo tay nắm ⋮⋮ để xếp thứ tự ưu tiên.'
+      ? 'Lọc “Cần xử lý” để xem yêu cầu chờ khai; kéo chấm / dán như Sheet để sửa nhiều dòng (Ctrl+Z hoàn tác); kéo tay nắm ⋮⋮ để xếp thứ tự ưu tiên.'
       : 'Gửi ORDER VAT cho kế toán. Yêu cầu ở trạng thái 0, 1, 2 đã khóa, không sửa được.';
     if (window.TKSVatRequestBatch) {
       state.batch = window.TKSVatRequestBatch.createBatchForm({
@@ -1390,6 +1461,7 @@
       });
     }
     renderHead();
+    if (state.canProcess) mountToast();
     if (window.TKSVatGrid) {
       state.grid = window.TKSVatGrid.attach($('vrTable'), {
         canEdit: () => state.canProcess, editable: isGridEditable, copyText, cellValue: gridCellValue, startEdit, apply: applyGridEdits

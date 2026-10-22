@@ -540,3 +540,45 @@ test('KT keo nhieu dong 1 lan: dong roi nhau gom thanh 1 khoi tai cho tha, giu t
     assert.deepEqual((await order()).slice(0, 2), [r1, r3], '404 khong doi gi (huy ca lo)');
   } finally { await db.close(); }
 });
+
+test('keep: dong vua doi trang thai van nam trong danh sach dang loc, dung vi tri; bo loc khac khong keo them dong la', async () => {
+  const { db, service } = await fixture();
+  try {
+    const a = await service.create(SALE, NEW_REQUEST);
+    const b = await service.create(SALE, NEW_REQUEST);
+    const c = await service.create(SALE, NEW_REQUEST);
+    const todo = { statuses: ['pending', '3', '4'] };
+    await service.update(KT, b.id, { version: 1, status: '1' });
+    assert.deepEqual((await service.list(KT, todo)).rows.map(r => r.id), [c.id, a.id], 'khong keep: dong da xong bien mat');
+    const kept = (await service.list(KT, { ...todo, keep: [b.id] })).rows;
+    assert.deepEqual(kept.map(r => r.id), [c.id, b.id, a.id], 'keep: dong o lai dung cho');
+    assert.equal(kept.find(r => r.id === b.id).status, '1');
+    assert.deepEqual((await service.list(KT, { keep: [b.id] })).rows.map(r => r.id), [c.id, b.id, a.id], 'khong loc thi keep khong doi gi');
+    assert.deepEqual((await service.list(KT, { statuses: ['0'], keep: [] })).rows, []);
+  } finally { await db.close(); }
+});
+
+test('keo dong tra hang cu / moi; restoreRanks dat lai dung thu tu (hoan tac / lam lai); chan sai quyen / du lieu sai', async () => {
+  const { db, service } = await fixture();
+  try {
+    const ids = [];
+    for (let i = 0; i < 4; i++) ids.push((await service.create(SALE, NEW_REQUEST)).id);
+    const order = async () => (await service.list(KT)).rows.map(r => r.id);
+    const original = await order();
+    const [r0, r1, r2, r3] = original;
+    const moved = await service.move(KT, { ids: [r3, r1], belowId: r0 });
+    assert.deepEqual(Object.keys(moved.before).map(Number).sort(), [r1, r3].sort());
+    assert.deepEqual(Object.keys(moved.after).map(Number).sort(), [r1, r3].sort());
+    const afterMove = await order();
+    assert.deepEqual(afterMove, [r3, r1, r0, r2]);
+    assert.deepEqual(await service.restoreRanks(KT, { ranks: moved.before }), { ok: true, updated: 2 });
+    assert.deepEqual(await order(), original, 'hoan tac ve dung thu tu cu');
+    await service.restoreRanks(KT, { ranks: moved.after });
+    assert.deepEqual(await order(), afterMove, 'lam lai');
+    await assert.rejects(service.restoreRanks(SALE, { ranks: moved.before }), { statusCode: 403 });
+    await assert.rejects(service.restoreRanks(KT, { ranks: {} }), { statusCode: 400 });
+    await assert.rejects(service.restoreRanks(KT, { ranks: { [r0]: '1; DROP TABLE x' } }), { statusCode: 400 });
+    await assert.rejects(service.restoreRanks(KT, { ranks: { abc: '1' } }), { statusCode: 400 });
+  } finally { await db.close(); }
+});
+

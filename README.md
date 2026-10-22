@@ -7,6 +7,8 @@ Mọi bảng trên web và trong file HTML xuất ra có nút **Cột hiển th�
 
 ## Kiến trúc hiện tại
 
+**Cập nhật 22/10/2026 — ORDER VAT giữ dòng vừa sửa, lọc nhiều trạng thái, Ctrl+Z / Ctrl+Y, bỏ thanh hàng loạt (nhánh `feat/vat-request-filters-undo`, chưa merge/deploy, không migration):** dòng vừa đổi trạng thái không còn biến mất khỏi bảng đang lọc; chip trạng thái chọn nhiều; Ctrl+Z / Ctrl+Y hoàn tác / làm lại nhiều bước kèm thông báo nổi; bỏ thanh "N dòng đã chọn".
+
 **Cập nhật 22/10/2026 — ORDER VAT kéo dòng đổi thứ tự ưu tiên chung (nhánh `feat/vat-request-row-order`, chưa merge/deploy; migration `0079` chưa áp DB):** KT kéo tay nắm ⋮⋮ ở đầu dòng để xếp thứ tự ưu tiên, lưu chung cho mọi người, yêu cầu mới tự lên đầu; Excel xuất theo thứ tự này. Xem [kế hoạch](docs/superpowers/plans/2026-10-22-order-vat-row-order.md).
 
 **Cập nhật 21/10/2026 — ORDER VAT thao tác kiểu Google Sheet (nhánh `feat/vat-request-sheet-grid`, chưa merge/deploy, không migration):** bôi đen vùng ô rồi Ctrl+C (mọi người); KT kéo chấm góc để nhân bản, Ctrl+V dán cả cột, Delete xóa ở 3 cột KT phản hồi / KT note / Ngày về, lưu ngay qua `PATCH /bulk` kèm nút Hoàn tác.
@@ -394,3 +396,7 @@ ORDER VAT: người có quyền xử lý VAT kéo tay nắm ⋮⋮ (cột Chọn
 ### Cập nhật 22/10/2026 — ORDER VAT kéo nhiều dòng một lúc
 
 Chọn dòng kiểu đầu dòng Google Sheet: bấm tay nắm ⋮⋮ chọn cả dòng (tô xanh, đồng thời tick ô Chọn nên thanh hàng loạt dùng được ngay), Shift+bấm chọn đoạn liền, Ctrl/⌘+bấm thêm / bỏ từng dòng; bấm không kéo vào 1 dòng trong vùng nhiều dòng thì chỉ còn dòng đó. Kéo tay nắm của 1 dòng đang chọn: cả nhóm (các dòng đang chọn trên trang này) đi theo, dòng rời nhau gom thành 1 khối liền tại chỗ thả, giữ thứ tự giữa chúng, lưu 1 lần. API `PATCH /api/vat-requests/position` `{ ids, belowId | aboveId }`.
+
+### Cập nhật 22/10/2026 — ORDER VAT giữ dòng vừa sửa, lọc nhiều trạng thái, Ctrl+Z / Ctrl+Y, bỏ thanh hàng loạt
+
+(1) Bỏ thanh "N dòng đã chọn / Áp dụng" (ô tick vẫn giữ để chọn dòng khi kéo đổi thứ tự; sửa nhiều dòng bằng kéo chấm / dán). (2) Dòng KT vừa sửa (sửa ô, kéo chấm, dán, Delete, hoàn tác) ở lại bảng đúng chỗ dù không còn khớp bộ lọc: giao diện gửi `keep=id,…` khi tải danh sách, máy chủ trả các dòng đó kèm theo; bỏ khi bấm chip, đổi Sale, đổi ngày, bấm tải lại ⟳ hoặc F5 (tìm kiếm / sắp xếp / chuyển trang vẫn giữ; file Excel không áp `keep`). (3) Chip trạng thái chọn nhiều cái cùng lúc; "Cần xử lý" và "Tất cả" chỉ chọn một mình; tắt hết → "Tất cả". (4) Hoàn tác / làm lại nhiều bước (tối đa 20, mất khi tải lại trang): Ctrl+Z, Ctrl+Y / Ctrl+Shift+Z cho mọi thay đổi của KT — sửa 1 ô, kéo chấm, dán, Delete, kéo dòng; thông báo nổi góc dưới màn hình kèm nút Hoàn tác / Làm lại (tự ẩn sau 8 giây). Đang gõ trong ô sửa thì Ctrl+Z là của ô nhập.
