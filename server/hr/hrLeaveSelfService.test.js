@@ -28,11 +28,11 @@ test('self submission flags late morning by Vietnam time regardless of server ti
   const row = await instance.submit({ id: 'u-1' }, { ...body, end_date: '2026-10-06' });
   assert.equal(row.trang_thai, 'Chưa duyệt'); assert.equal(row.timing_status,'Vi phạm'); assert.equal(row.co_nghi_gap, false);
 });
-test('self submission rejects missing active linkage without writing', async () => {
+test('self submission reports missing account workplace without writing', async () => {
   assert.equal(typeof create, 'function');
   const { instance, record } = service(null);
   assert.deepEqual(await instance.context({ id: 'u-1' }), { eligible: false, profile: null });
-  await assert.rejects(instance.submit({ id: 'u-1' }, body), { statusCode: 403, code: 'SELF_LEAVE_INELIGIBLE' });
+  await assert.rejects(instance.submit({ id: 'u-1' }, body), { statusCode: 403, code: 'SELF_LEAVE_WORK_ASSIGNMENT_REQUIRED', message: 'Tài khoản chưa được cấu hình cơ sở công tác và bộ phận.' });
   assert.equal(record(), undefined);
 });
 test('self submission validates reason, real calendar dates and session range before writing', async () => {
@@ -56,14 +56,16 @@ test('hồ sơ gửi đơn chỉ kiểm tra tài khoản còn hoạt động và
       UPDATE app_users SET ho_ten='Quản Lý Một', co_so='both' WHERE id='mgr-both'; UPDATE app_users SET ho_ten='Quản Lý Hai', co_so='saigon' WHERE id='mgr-sg';
       UPDATE app_users SET bo_phan = 'KHO', work_branch = 'saigon' WHERE id IN ('active','inactive','locked','deleted','guest','ex-employee');
       UPDATE app_users SET bo_phan = 'SALE', work_branch = 'hanoi' WHERE id = 'unlinked';
-      UPDATE app_users SET bo_phan = 'Quản lý', work_branch = 'hanoi' WHERE id IN ('mgr-both','mgr-sg','mgr-gone');
-      UPDATE app_users SET work_branch = 'saigon' WHERE id = 'mgr-sg';
+      UPDATE app_users SET bo_phan = 'Ban quản trị', work_branch = 'hanoi' WHERE id IN ('mgr-both','mgr-sg','mgr-gone');
+      UPDATE app_users SET work_branch = 'saigon', bo_phan = 'Quản lý-KT SG' WHERE id = 'mgr-sg';
       ALTER TABLE app_users ADD COLUMN telegram_id text NOT NULL DEFAULT '';
       UPDATE app_users SET telegram_id = '123456' WHERE id = 'active';`);
     const active = await loadActiveProfile('active', db);
     assert.equal(active.hr_employee_id, null); assert.equal(active.bo_phan, 'KHO'); assert.equal(active.branch, 'saigon'); assert.equal(active.telegram_id, '123456');
+    await db.exec("UPDATE hr_employees SET bo_phan = 'Sale HN', branch = 'hanoi', is_active = false WHERE id = 42");
+    assert.deepEqual(await loadActiveProfile('active', db), active, 'HR changes cannot rewrite the account snapshot');
     const both = await loadActiveProfile('mgr-both', db);
-    assert.equal(both.hr_employee_id, null); assert.equal(both.ho_ten, 'Quản Lý Một'); assert.equal(both.bo_phan, 'Quản lý'); assert.equal(both.branch, 'hanoi');
+    assert.equal(both.hr_employee_id, null); assert.equal(both.ho_ten, 'Quản Lý Một'); assert.equal(both.bo_phan, 'Ban quản trị'); assert.equal(both.branch, 'hanoi');
     assert.equal((await loadActiveProfile('mgr-sg', db)).branch, 'saigon');
     for (const id of ['mgr-gone','inactive','locked','deleted','guest','ex-employee','guest-unlinked','missing']) assert.equal(await loadActiveProfile(id,db), null);
     const unlinked = await loadActiveProfile('unlinked', db);
@@ -109,6 +111,8 @@ test('loadActiveProfile đọc thông tin công tác từ app_users mà không c
     assert.equal(profile.bo_phan, 'Kho HN');
     assert.equal(profile.branch, 'hanoi');
     assert.equal(profile.hr_employee_id, null);
+    await db.exec("UPDATE app_users SET bo_phan = 'Sale SG' WHERE id = 'only-account'");
+    assert.equal(await loadActiveProfile('only-account', db), null, 'cross-branch account department is ineligible');
   } finally { await db.close(); }
 });
 

@@ -763,7 +763,7 @@
             </select>
           </div>
           <div class="form-group">
-            <label for="createCoSo">Cơ sở mặc định</label>
+            <label for="createCoSo">Phạm vi phụ trách</label>
             <select id="createCoSo" class="form-control">
               <option value="">-- Mặc định: Cả hai --</option>
               <option value="Hà Nội">Hà Nội</option>
@@ -771,7 +771,12 @@
               <option value="Cả hai">Cả hai</option>
             </select>
           </div>
-          <div class="form-group"><label>Phòng ban được duyệt nghỉ phép</label><div id="createLeaveDepartments" style="display:grid;gap:6px;max-height:180px;overflow:auto;"></div><small style="color:var(--muted)">Quản lý mới phải chọn ít nhất một phòng ban. Quyền duyệt còn cần cơ sở được giao.</small></div>
+          <div class="form-group">
+            <label for="createWorkCoSo">Cơ sở công tác</label>
+            <select id="createWorkCoSo" class="form-control"><option value="">-- Chọn cơ sở công tác --</option><option value="Hà Nội">Hà Nội</option><option value="Sài Gòn">Sài Gòn</option></select>
+          </div>
+          <div class="form-group"><label for="createBoPhan">Bộ phận trực thuộc</label><select id="createBoPhan" class="form-control"><option value="">-- Chọn bộ phận --</option></select></div>
+          <div class="form-group"><label>Bộ phận được duyệt nghỉ phép</label><div id="createLeaveDepartments" style="display:grid;gap:6px;max-height:180px;overflow:auto;"></div><small style="color:var(--muted)">Phạm vi duyệt nghỉ, độc lập với bộ phận trực thuộc. Quản lý mới phải chọn ít nhất một bộ phận; quyền duyệt còn cần phạm vi phụ trách phù hợp.</small></div>
           <div id="createUserError" class="alert-box alert-error" style="display:none;"></div>
         </div>
         <div class="modal-footer">
@@ -838,7 +843,11 @@
             <p id="editTelegramIdHint" class="profile-card-desc" style="margin:6px 0 0;">Nhập ID Telegram dạng số của nhân viên. Để trống để hủy liên kết.</p>
           </div>
           <div class="form-group">
-            <label for="editCoSo">Cơ sở mặc định</label>
+            <label for="editVaiTro">Vai trò</label>
+            <select id="editVaiTro" class="form-control" required></select>
+          </div>
+          <div class="form-group">
+            <label for="editCoSo">Phạm vi phụ trách</label>
             <select id="editCoSo" class="form-control">
               <option value="">-- Mặc định: Cả hai --</option>
               <option value="Hà Nội">Hà Nội</option>
@@ -846,6 +855,11 @@
               <option value="Cả hai">Cả hai</option>
             </select>
           </div>
+          <div class="form-group">
+            <label for="editWorkCoSo">Cơ sở công tác</label>
+            <select id="editWorkCoSo" class="form-control"><option value="">-- Chọn cơ sở công tác --</option><option value="Hà Nội">Hà Nội</option><option value="Sài Gòn">Sài Gòn</option></select>
+          </div>
+          <div class="form-group"><label for="editBoPhan">Bộ phận trực thuộc</label><select id="editBoPhan" class="form-control"><option value="">-- Chọn bộ phận --</option></select></div>
           <div class="form-group">
             <label for="editNewPassword">Mật khẩu mới (để trống nếu không đổi)</label>
             <div class="password-wrap">
@@ -864,7 +878,7 @@
               </button>
             </div>
           </div>
-          <div class="form-group"><label>Phòng ban được duyệt nghỉ phép</label><div id="editLeaveDepartments" style="display:grid;gap:6px;max-height:180px;overflow:auto;"></div><small style="color:var(--muted)">Quản lý mới phải chọn ít nhất một phòng ban. Quyền duyệt còn cần cơ sở được giao.</small></div>
+          <div class="form-group"><label>Bộ phận được duyệt nghỉ phép</label><div id="editLeaveDepartments" style="display:grid;gap:6px;max-height:180px;overflow:auto;"></div><small style="color:var(--muted)">Phạm vi duyệt nghỉ, độc lập với bộ phận trực thuộc. Quyền duyệt còn cần phạm vi phụ trách phù hợp.</small></div>
           <div id="editUserError" class="alert-box alert-error" style="display:none;"></div>
         </div>
         <div class="modal-footer">
@@ -914,7 +928,7 @@
           </div>
           <p class="perm-intro" id="permIntro"></p>
           <div id="permGroups"></div>
-          <div class="form-group"><label>Phòng ban được duyệt nghỉ phép</label><div id="permLeaveDepartments" style="display:grid;gap:6px;max-height:180px;overflow:auto;"></div><small style="color:var(--muted)">Quản lý mới phải chọn ít nhất một phòng ban. Quyền duyệt còn cần cơ sở được giao.</small></div>
+          <div class="form-group"><label>Bộ phận được duyệt nghỉ phép</label><div id="permLeaveDepartments" style="display:grid;gap:6px;max-height:180px;overflow:auto;"></div><small style="color:var(--muted)">Phạm vi duyệt nghỉ, độc lập với bộ phận trực thuộc. Quản lý mới phải chọn ít nhất một bộ phận.</small></div>
           <div id="permissionsError" class="alert-box alert-error" style="display:none;"></div>
         </div>
         <div class="modal-footer">
@@ -2082,7 +2096,7 @@
       const departments = [...new Set([...(permCatalog && permCatalog.departments || []), user.boPhan, ...persisted].filter(Boolean))];
       const own = new Set(currentUser && currentUser.leaveApprovalDepartments || []);
       const box = document.getElementById(containerId);
-      box.innerHTML = departments.length ? departments.map(department => `<label><input type="checkbox" value="${escapeHtml(department)}"${selected.has(department) ? ' checked' : ''}${disabled || (!actorIsManager() && !own.has(department) && !persisted.includes(department)) ? ' disabled' : ''}> ${escapeHtml(department)}</label>`).join('') : '<small>Chưa có phòng ban trong danh sách nhân sự.</small>';
+      box.innerHTML = departments.length ? departments.map(department => `<label><input type="checkbox" value="${escapeHtml(department)}"${selected.has(department) ? ' checked' : ''}${disabled || (!actorIsManager() && !own.has(department) && !persisted.includes(department)) ? ' disabled' : ''}> ${escapeHtml(department)}</label>`).join('') : '<small>Chưa có bộ phận trong danh mục.</small>';
       box.dataset.ready = '1';
     }
     function loadDepartmentSelection(containerId, user = {}, disabled = false){
@@ -2092,6 +2106,46 @@
     function selectedDepartments(containerId){
       return [...document.querySelectorAll('#' + containerId + ' input:checked')].map(input => input.value);
     }
+
+    function canApproveLeave(user){
+      if(user.vaiTro === 'Khách') return false;
+      const override = user.featurePermissions && user.featurePermissions['hr.leave.manage'];
+      if(typeof override === 'boolean') return override;
+      return (user.effective || []).includes('hr.leave.manage') || (permCatalog && permCatalog.roleDefaults && permCatalog.roleDefaults[user.vaiTro] || []).includes('hr.leave.manage');
+    }
+    function renderWorkDepartments(prefix, selected = ''){
+      const branch = document.getElementById(prefix + 'WorkCoSo').value;
+      const departments = permCatalog && permCatalog.departmentsByBranch && permCatalog.departmentsByBranch[branch] || [];
+      const input = document.getElementById(prefix + 'BoPhan');
+      input.innerHTML = '<option value="">-- Chọn bộ phận --</option>' + departments.map(value => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join('');
+      input.value = departments.includes(selected) ? selected : '';
+    }
+    function updateWorkAssignmentState(prefix, user = {}){
+      const role = document.getElementById(prefix + 'VaiTro').value;
+      const guest = role === 'Khách';
+      const protectedRow = prefix === 'edit' && isProtectedManagerRow(user);
+      ['WorkCoSo', 'BoPhan'].forEach(suffix => {
+        const input = document.getElementById(prefix + suffix);
+        input.required = !guest;
+        input.disabled = guest || protectedRow;
+        if(guest) input.value = '';
+      });
+      const approval = document.getElementById(prefix + 'LeaveDepartments');
+      approval.closest('.form-group').hidden = !canApproveLeave({ ...user, vaiTro: role });
+      if(guest) approval.querySelectorAll('input').forEach(input => { input.checked = false; });
+    }
+    function loadWorkAssignment(prefix, user = {}){
+      document.getElementById(prefix + 'WorkCoSo').value = user.workCoSo || '';
+      renderWorkDepartments(prefix, user.boPhan || '');
+      updateWorkAssignmentState(prefix, user);
+      loadPermissionsCatalog().then(() => {
+        renderWorkDepartments(prefix, user.boPhan || '');
+        updateWorkAssignmentState(prefix, user);
+      }).catch(() => {});
+    }
+    document.getElementById('createVaiTro').addEventListener('change', () => updateWorkAssignmentState('create'));
+    document.getElementById('editVaiTro').addEventListener('change', () => updateWorkAssignmentState('edit', rawAdminUsers.find(user => String(user.id) === document.getElementById('editUserId').value) || {}));
+    ['create', 'edit'].forEach(prefix => document.getElementById(prefix + 'WorkCoSo').addEventListener('change', () => renderWorkDepartments(prefix)));
 
     function openPermissionsModal(id){
       const u = rawAdminUsers.find(x => String(x.id) === String(id));
@@ -2400,6 +2454,7 @@
       document.getElementById('createUserError').style.display = 'none';
       applyRoleOptions('createVaiTro');
       loadDepartmentSelection('createLeaveDepartments');
+      loadWorkAssignment('create');
       openModal('createUserModal');
     }
 
@@ -2412,6 +2467,8 @@
       const soDienThoai = document.getElementById('createPhone').value.trim();
       const vaiTro = document.getElementById('createVaiTro').value;
       const coSo = document.getElementById('createCoSo').value;
+      const workCoSo = document.getElementById('createWorkCoSo').value;
+      const boPhan = document.getElementById('createBoPhan').value;
       const errEl = document.getElementById('createUserError');
       const btn = document.getElementById('btnSubmitCreate');
 
@@ -2421,7 +2478,7 @@
       fetch('/api/admin/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, hoTen, email, soDienThoai, vaiTro, coSo, leaveApprovalDepartments: selectedDepartments('createLeaveDepartments') })
+        body: JSON.stringify({ username, password, hoTen, email, soDienThoai, vaiTro, coSo, workCoSo, boPhan, leaveApprovalDepartments: vaiTro === 'Khách' ? [] : selectedDepartments('createLeaveDepartments') })
       })
         .then(parseApiResponse)
         .then(result => {
@@ -2460,6 +2517,10 @@
 
       // Quản lý khác + người sửa là Quản lý thường: khóa email/SĐT, ẩn đặt lại mật khẩu (xem actorIsSenior).
       const protectedManager = isProtectedManagerRow(u);
+      document.getElementById('editVaiTro').innerHTML = document.getElementById('createVaiTro').innerHTML;
+      applyRoleOptions('editVaiTro', u.vaiTro);
+      document.getElementById('editVaiTro').value = u.vaiTro || 'Khách';
+      document.getElementById('editVaiTro').disabled = protectedManager || isSelfUser(u) || isSuperAdminUser(u);
       ['editEmail', 'editPhone', 'editTelegramId'].forEach(fieldId => {
         const input = document.getElementById(fieldId);
         input.disabled = protectedManager;
@@ -2470,6 +2531,7 @@
         if(group) group.style.display = protectedManager ? 'none' : '';
       });
       loadDepartmentSelection('editLeaveDepartments', u, protectedManager || isSuperAdminUser(u));
+      loadWorkAssignment('edit', u);
       openModal('editUserModal');
     }
 
@@ -2499,6 +2561,13 @@
 
       // Bước 1: lưu thông tin cá nhân. Bước 2 (nếu có nhập): đặt lại mật khẩu.
       const fields = { hoTen, email, soDienThoai, coSo };
+      const editedUser = rawAdminUsers.find(user => String(user.id) === String(id));
+      const roleSelect = document.getElementById('editVaiTro');
+      if(!roleSelect.disabled && roleSelect.value !== editedUser.vaiTro) fields.vaiTro = roleSelect.value;
+      if(!document.getElementById('editWorkCoSo').disabled){
+        fields.workCoSo = document.getElementById('editWorkCoSo').value;
+        fields.boPhan = document.getElementById('editBoPhan').value;
+      }
       if(!isProtectedManagerRow(rawAdminUsers.find(user => String(user.id) === String(id)))) fields.leaveApprovalDepartments = selectedDepartments('editLeaveDepartments');
       if(!document.getElementById('editTelegramId').disabled) fields.telegramId = telegramId;
       fetch(`/api/admin/users/${id}`, { method: 'PUT', headers: json, body: JSON.stringify(fields) })

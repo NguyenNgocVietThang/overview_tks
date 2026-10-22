@@ -2788,7 +2788,7 @@
     async function loadSelfLeaveContext(){
       const response = await fetch('/api/hr/leave-requests/self/context', {credentials:'same-origin'});
       const {ok,data} = await parseApiResponse(response);
-      if(!ok) throw new Error(data.error || 'Không thể xác minh hồ sơ nhân sự.');
+      if(!ok) throw new Error(data.error || 'Không thể xác minh thông tin công tác của tài khoản.');
       document.getElementById('btnSelfLeave').hidden = !data.eligible;
       return data;
     }
@@ -2797,7 +2797,7 @@
       selfLeaveOpening = true;
       try{
         const context = await loadSelfLeaveContext();
-        if(!context.eligible){ showToast('Tài khoản cần liên kết nhân sự đang hoạt động.','error'); return; }
+        if(!context.eligible){ showToast('Tài khoản chưa được cấu hình cơ sở công tác và bộ phận.','error'); return; }
         selfLeaveEdit = editRow?.canEdit === true ? {id:editRow.request_id,version:editRow.decision_version} : null;
         document.getElementById('selfLeaveForm').reset();
         const p=context.profile;

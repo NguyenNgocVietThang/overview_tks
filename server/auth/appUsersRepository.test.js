@@ -30,14 +30,28 @@ test('rowToUser lấy Bộ phận và Cơ sở công tác từ tài khoản, kh�
 });
 
 
-test('department catalogue includes inactive HR, saved grants and historical request snapshots', async () => {
+test('approval department catalog reads accounts and historical requests without HR', async () => {
   const repository = require('./appUsersRepository');
   let query;
   const departments = await repository.selectApprovalDepartmentCatalog({ query: async sql => { query = sql; return { rows: [{ bo_phan: ' Old  Dept ' }, { bo_phan: 'old dept' }, { bo_phan: 'KHO' }] }; } });
   assert.deepEqual(departments, ['Old Dept', 'KHO']);
-  assert.match(query, /hr_employees/);
+  assert.doesNotMatch(query, /hr_employees/);
+  assert.match(query, /SELECT bo_phan FROM app_users WHERE NOT is_deleted/);
   assert.match(query, /hr_leave_requests/);
   assert.match(query, /unnest\(leave_approval_departments\)/);
+});
+
+test('approval catalog includes request-only departments with no HR table present', async () => {
+  const { PGlite } = require('@electric-sql/pglite');
+  const db = new PGlite();
+  try {
+    await db.exec(`CREATE TABLE app_users (bo_phan text, leave_approval_departments text[], is_deleted boolean);
+      CREATE TABLE hr_leave_requests (bo_phan text);
+      INSERT INTO app_users VALUES ('Kho HN', ARRAY['Kế toán'], false), ('Deleted department', ARRAY['Deleted grant'], true);
+      INSERT INTO hr_leave_requests VALUES ('KHO'), ('KHO');`);
+    const departments = await require('./appUsersRepository').selectApprovalDepartmentCatalog(db);
+    assert.deepEqual(departments.slice().sort(), ['Kho HN', 'Kế toán', 'KHO'].sort());
+  } finally { await db.close(); }
 });
 
 test('rowToUser không còn mang trạng thái hồ sơ HR: quyền chỉ theo trạng thái tài khoản', () => {
