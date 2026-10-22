@@ -7,6 +7,8 @@ Mọi bảng trên web và trong file HTML xuất ra có nút **Cột hiển th�
 
 ## Kiến trúc hiện tại
 
+**Cập nhật 22/10/2026 — ORDER VAT kéo dòng đổi thứ tự ưu tiên chung (nhánh `feat/vat-request-row-order`, chưa merge/deploy; migration `0079` chưa áp DB):** KT kéo tay nắm ⋮⋮ ở đầu dòng để xếp thứ tự ưu tiên, lưu chung cho mọi người, yêu cầu mới tự lên đầu; Excel xuất theo thứ tự này. Xem [kế hoạch](docs/superpowers/plans/2026-10-22-order-vat-row-order.md).
+
 **Cập nhật 21/10/2026 — ORDER VAT thao tác kiểu Google Sheet (nhánh `feat/vat-request-sheet-grid`, chưa merge/deploy, không migration):** bôi đen vùng ô rồi Ctrl+C (mọi người); KT kéo chấm góc để nhân bản, Ctrl+V dán cả cột, Delete xóa ở 3 cột KT phản hồi / KT note / Ngày về, lưu ngay qua `PATCH /bulk` kèm nút Hoàn tác.
 
 **Cập nhật 21/10/2026 — ORDER VAT: cột hàng về theo cont, ẩn 4 cột số liệu với sale (nhánh `feat/vat-request-cont-columns`, chưa merge/deploy, không migration):** cột Dự kiến hàng về hiện Tên Cont, Dự kiến ngày về gần nhất hiện Lịch/Trạng thái của cont chưa về sớm nhất; Tồn VAT, SLG tổng cần khai và 2 cột này chỉ người có quyền xử lý VAT thấy (API, bảng, form, Excel).
@@ -384,3 +386,11 @@ ORDER VAT: Dự kiến hàng về = Tên Cont, Dự kiến ngày về gần nh�
 ### Cập nhật 21/10/2026 — ORDER VAT thao tác kiểu Google Sheet
 
 ORDER VAT: bảng chọn ô như Google Sheet. Mọi người kéo chuột / Shift+click / Shift+mũi tên chọn vùng, Ctrl+C chép TSV (số trơn, ngày dd/mm/yyyy). Người có quyền xử lý: 3 cột KT phản hồi / KT note cho sale / Ngày về hiện chữ, nháy đúp / Enter / gõ phím để sửa, Esc bỏ; kéo chấm góc vùng chọn để nhân bản lên/xuống (ngày chép nguyên), Ctrl+V dán cả cột từ Sheet (1 giá trị + vùng nhiều ô → điền mọi ô), Delete xóa note/ngày; lưu ngay 1 lần qua `PATCH /bulk`, thanh trạng thái có nút Hoàn tác.
+
+### Cập nhật 22/10/2026 — ORDER VAT kéo dòng đổi thứ tự ưu tiên chung
+
+ORDER VAT: người có quyền xử lý VAT kéo tay nắm ⋮⋮ (cột Chọn) lên / xuống để xếp thứ tự ưu tiên; vạch xanh chỉ chỗ thả, sát mép tự cuộn, Esc hủy, Alt+↑/↓ dời 1 dòng. Thứ tự lưu chung (`vat_requests.sort_rank`, migration `0079`), sale thấy nhưng không kéo được; yêu cầu mới tự lên đầu; file Excel theo cùng thứ tự. Tay nắm ẩn khi đang sắp xếp theo cột, gộp theo mã SP, tìm kiếm, trên thiết bị cảm ứng, hoặc khi DB chưa áp `0079`.
+
+### Cập nhật 22/10/2026 — ORDER VAT kéo nhiều dòng một lúc
+
+Chọn dòng kiểu đầu dòng Google Sheet: bấm tay nắm ⋮⋮ chọn cả dòng (tô xanh, đồng thời tick ô Chọn nên thanh hàng loạt dùng được ngay), Shift+bấm chọn đoạn liền, Ctrl/⌘+bấm thêm / bỏ từng dòng; bấm không kéo vào 1 dòng trong vùng nhiều dòng thì chỉ còn dòng đó. Kéo tay nắm của 1 dòng đang chọn: cả nhóm (các dòng đang chọn trên trang này) đi theo, dòng rời nhau gom thành 1 khối liền tại chỗ thả, giữ thứ tự giữa chúng, lưu 1 lần. API `PATCH /api/vat-requests/position` `{ ids, belowId | aboveId }`.

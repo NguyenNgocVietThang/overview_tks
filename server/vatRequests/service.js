@@ -245,7 +245,7 @@ function createVatRequestService({ pool = getPool(), stockSource = createStockSo
   }
 
   async function list(user, filters = {}) {
-    const { rows, truncated } = await repository.listRequests(pool, filters);
+    const { rows, truncated, rowOrder } = await repository.listRequests(pool, filters);
     const [{ metrics, stockStatus }, sales] = await Promise.all([
       metricsFor(user, rows.map(row => row.product_key)),
       repository.listCreators(pool)
@@ -253,12 +253,43 @@ function createVatRequestService({ pool = getPool(), stockSource = createStockSo
     return {
       rows: rows.map(row => serializeRow(row, user)),
       truncated,
+      rowOrder: rowOrder !== false, // false = chua ap migration 0079, giao dien an tay nam keo dong
       metrics,
       stockStatus,
       sales,
       statuses: STATUSES.map(value => ({ value, label: STATUS_LABELS[value], locksSale: LOCKED_STATUSES.has(value) })),
       viewer: { id: user.id, canProcess: canProcess(user), isManager: isManager(user) }
     };
+  }
+
+  /**
+   * KT keo 1 hoac nhieu dong: { ids: [tren -> duoi], belowId } dat ca nhom ngay tren dong do, hoac
+   * { ids, aboveId } ngay duoi (tha xuong cuoi). Dong roi nhau gom thanh 1 khoi theo thu tu `ids`.
+   * Thu tu dung chung cho moi nguoi; khong doi version / khong ghi lich su (khong phai du lieu yeu cau).
+   */
+  async function move(user, payload = {}) {
+    if (!canProcess(user)) throw httpError(403, 'Bạn không có quyền xếp thứ tự ORDER VAT.', 'FEATURE_FORBIDDEN');
+    const isId = value => Number.isInteger(value) && value > 0;
+    const ids = Array.isArray(payload && payload.ids) ? payload.ids.map(Number) : [];
+    if (!ids.length || ids.length > 500 || !ids.every(isId) || new Set(ids).size !== ids.length) {
+      throw httpError(400, 'Chọn từ 1 đến 500 yêu cầu để kéo.', 'VALIDATION');
+    }
+    const neighborOf = value => (value === null || value === undefined ? null : Number(value));
+    const belowId = neighborOf(payload.belowId);
+    const aboveId = neighborOf(payload.aboveId);
+    const given = [belowId, aboveId].filter(value => value !== null);
+    if (given.length !== 1 || !isId(given[0]) || ids.includes(given[0])) {
+      throw httpError(400, 'Vị trí thả không hợp lệ.', 'VALIDATION');
+    }
+    let result;
+    try {
+      result = await repository.withTransaction(pool, client => repository.moveRequests(client, ids, { belowId, aboveId }));
+    } catch (error) {
+      if (error.code === '42703') throw httpError(409, 'Chưa bật được kéo dòng (cần áp migration 0079).', 'ROW_ORDER_UNAVAILABLE');
+      throw error;
+    }
+    if (result === 'missing') throw httpError(404, 'Yêu cầu hoặc dòng bên cạnh vừa bị xóa. Hãy tải lại.', 'NOT_FOUND');
+    return { ok: true };
   }
 
   // Xuat Excel: chi KT (quyen xu ly) va quan ly; cung bo loc voi list() nen khop dung man hinh.
@@ -541,7 +572,7 @@ function createVatRequestService({ pool = getPool(), stockSource = createStockSo
     return rows.map(row => ({ code: row.product_code, name: row.product_name }));
   }
 
-  return { list, exportList, get, create, createMany, update, bulkUpdate, remove, history, productMetrics, lookupProducts, suggestProducts };
+  return { list, exportList, get, create, createMany, update, bulkUpdate, move, remove, history, productMetrics, lookupProducts, suggestProducts };
 }
 
 module.exports = {
