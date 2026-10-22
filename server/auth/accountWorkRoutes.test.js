@@ -87,3 +87,28 @@ test('request-only legacy department can be offered and granted to a replacement
     await db.close();
   }
 });
+test('create accepts an optional Telegram ID, validates it and rejects one already in use', async () => {
+  store.setInMemoryUsers([{ id: 'taken', username: 'taken', vaiTro: 'Khách', telegramId: '111222333', trangThai: 'Đang hoạt động' }]);
+  const body = { username: 'with-telegram', password: 'password123', hoTen: 'Kho', vaiTro: 'Nhân viên kho', workCoSo: 'Hà Nội', boPhan: 'Kho HN' };
+  let res = await request('post', '/api/admin/users', { ...body, telegramId: '@abc' });
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.code, 'INVALID_TELEGRAM_ID');
+  res = await request('post', '/api/admin/users', { ...body, telegramId: ' 111222333 ' });
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.code, 'TELEGRAM_ID_EXISTS');
+  res = await request('post', '/api/admin/users', { ...body, telegramId: ' 9007199254740993 ' });
+  assert.equal(res.statusCode, 201);
+  assert.equal(res.body.user.telegramId, '9007199254740993');
+  assert.equal(res.body.warning, undefined);
+});
+test('catalog suggests a department per role inside the selected workplace', async () => {
+  const { canonicalDepartment } = require('../hr/hrDepartmentCatalog');
+  const res = await request('get', '/api/admin/permissions/catalog');
+  const suggestions = res.body.suggestedDepartmentByRole;
+  assert.equal(suggestions['Hà Nội']['Nhân viên sale'], 'Sale HN');
+  assert.equal(suggestions['Sài Gòn']['Kế toán'], 'Quản lý-KT SG');
+  assert.equal(suggestions['Sài Gòn']['Trợ lý'], undefined);
+  for (const [label, code] of [['Hà Nội', 'hanoi'], ['Sài Gòn', 'saigon']]) {
+    for (const department of Object.values(suggestions[label])) assert.equal(canonicalDepartment(code, department), department);
+  }
+});

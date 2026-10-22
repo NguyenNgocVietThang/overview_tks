@@ -20,7 +20,7 @@ const { normalizeDepartments } = require('../hr/hrApprovalDepartments');
 const userExport = require('./adminUserExportService');
 const accountAuditLog = require('./accountAuditLog');
 const { normalizeWorkAssignment } = require('./accountWorkAssignment');
-const { departmentsFor } = require('../hr/hrDepartmentCatalog');
+const { departmentsFor, suggestedDepartmentsByRole } = require('../hr/hrDepartmentCatalog');
 
 const router = express.Router();
 
@@ -127,6 +127,14 @@ function approvalScopeChange(actor, current, next, body) {
     if (protectedReason) return { status: 403, code: accountPolicy.DENIED_CODE, error: protectedReason };
   }
   return { departments: next.vaiTro === ROLES.KHACH ? [] : departments };
+}
+
+// ID Telegram dạng chuỗi số (giữ nguyên độ chính xác > 2^53). Rỗng = không liên kết.
+function parseTelegramId(raw) {
+  if (typeof raw !== 'string') return { error: 'ID Telegram phải là chuỗi chữ số.' };
+  const value = raw.trim();
+  if (value && !/^[1-9]\d{0,19}$/.test(value)) return { error: 'ID Telegram phải là số nguyên dương, tối đa 20 chữ số.' };
+  return { value };
 }
 
 async function departmentCatalog() {
@@ -255,8 +263,17 @@ router.post('/api/admin/users', ...authManage, async (req, res) => {
     const scope = approvalScopeChange(req.user, null, { vaiTro }, req.body);
     if (scope.error) return res.status(scope.status).json({ error: scope.error, code: scope.code });
     const assignment = normalizeWorkAssignment({ vaiTro, workCoSo: req.body.workCoSo, boPhan: req.body.boPhan });
+    let telegramId = '';
+    if (Object.hasOwn(req.body, 'telegramId')) {
+      const parsedTelegram = parseTelegramId(req.body.telegramId);
+      if (parsedTelegram.error) return res.status(400).json({ error: parsedTelegram.error, code: 'INVALID_TELEGRAM_ID' });
+      telegramId = parsedTelegram.value;
+    }
+    if (telegramId && (await localUserStore.getAllUsers()).some(u => !u.isDeleted && u.telegramId === telegramId)) {
+      return res.status(409).json({ error: 'ID Telegram này đã được sử dụng. Vui lòng kiểm tra lại.', code: 'TELEGRAM_ID_EXISTS' });
+    }
     const passwordHash = await bcrypt.hash(password, 10);
-    const newUser = await localUserStore.createUser({
+    let newUser = await localUserStore.createUser({
       id: crypto.randomUUID(),
       username,
       passwordHash,
@@ -270,7 +287,18 @@ router.post('/api/admin/users', ...authManage, async (req, res) => {
       leaveApprovalDepartments: scope.departments
     });
 
-    res.status(201).json({ user: publicAdminUser(newUser) });
+    // Telegram đi qua đường cập nhật hồ sơ để ghi đồng thời liên kết bot (hr_telegram_links).
+    let telegramWarning = null;
+    if (telegramId) {
+      try {
+        newUser = await localUserStore.updateUser(newUser.id, { telegramId });
+        employeeDirectory.clearCache();
+      } catch (telegramErr) {
+        telegramWarning = 'Đã tạo tài khoản nhưng chưa lưu được ID Telegram: ' + (telegramErr.message || 'lỗi không xác định');
+      }
+    }
+
+    res.status(201).json({ user: publicAdminUser(newUser), ...(telegramWarning ? { warning: telegramWarning } : {}) });
     await accountAuditLog.record({
       action: accountAuditLog.ACTIONS.CREATE, actor: req.user, target: newUser,
       changes: accountAuditLog.initialValues(newUser)
@@ -331,13 +359,9 @@ router.put('/api/admin/users/:id', ...authManage, async (req, res) => {
     const updates = {};
 
     if (Object.hasOwn(req.body, 'telegramId')) {
-      if (typeof req.body.telegramId !== 'string') {
-        return res.status(400).json({ error: 'ID Telegram phải là chuỗi chữ số.', code: 'INVALID_TELEGRAM_ID' });
-      }
-      const telegramId = req.body.telegramId.trim();
-      if (telegramId && !/^[1-9]\d{0,19}$/.test(telegramId)) {
-        return res.status(400).json({ error: 'ID Telegram phải là số nguyên dương, tối đa 20 chữ số.', code: 'INVALID_TELEGRAM_ID' });
-      }
+      const parsedTelegram = parseTelegramId(req.body.telegramId);
+      if (parsedTelegram.error) return res.status(400).json({ error: parsedTelegram.error, code: 'INVALID_TELEGRAM_ID' });
+      const telegramId = parsedTelegram.value;
       if (telegramId !== (targetUser.telegramId || '')) {
         const denied = accountPolicy.checkTakeover(req.user, targetUser, 'đổi ID Telegram của tài khoản này') ||
                        accountPolicy.checkProtectedManager(req.user, targetUser, 'đổi ID Telegram');
@@ -717,6 +741,7 @@ router.get('/api/admin/permissions/catalog', ...authView, async (req, res) => {
     })),
     roleDefaults,
     departmentsByBranch: { 'Hà Nội': departmentsFor('hanoi'), 'Sài Gòn': departmentsFor('saigon') },
+    suggestedDepartmentByRole: { 'Hà Nội': suggestedDepartmentsByRole('hanoi'), 'Sài Gòn': suggestedDepartmentsByRole('saigon') },
     departments: await departmentCatalog().catch(() => [])
   });
 });
