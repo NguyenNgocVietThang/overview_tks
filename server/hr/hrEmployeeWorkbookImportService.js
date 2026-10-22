@@ -17,6 +17,7 @@ function fillBlanks(current, row) {
   TEXT_FIELDS.forEach(f => { merged[f] = String(current[f] || '').trim() ? current[f] : (row[f] || ''); });
   DATE_FIELDS.forEach(f => { merged[f] = current[f] || row[f] || null; });
   FLAG_FIELDS.forEach(f => { merged[f] = Boolean(current[f] || row[f]); });
+  merged.insuranceNumber = current.insuranceNumber || '';
   return merged;
 }
 

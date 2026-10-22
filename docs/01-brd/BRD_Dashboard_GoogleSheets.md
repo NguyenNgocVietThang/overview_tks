@@ -1,5 +1,7 @@
 # TÀI LIỆU YÊU CẦU NGHIỆP VỤ
 
+22/10/2026 — Quản lý bổ sung Số bảo hiểm qua Excel xuất từ Danh sách nhân sự và nhập lại theo ID nhân sự; chỉ trường bảo hiểm được cập nhật.
+
 *(Business Requirements Document – BRD)*
 
 **HỆ THỐNG DASHBOARD NỘI BỘ — TOKOSI**

@@ -16,6 +16,7 @@ const { createLeaveDbRealtime } = require('./hr/hrLeaveDbRealtime');
 const { getConfiguredManagerLeaveRuntime } = require('./telegram/managerLeaveRuntime');
 const { startSpecialDayNotifySchedule } = require('./notifications/specialDayNotifier');
 const { startSaleNotifySchedule } = require('./vatRequests/saleNotifier');
+const { ensureHrInsuranceSchema } = require('./db/ensureHrInsuranceSchema');
 
 process.on('uncaughtException', (err) => {
   console.error('[Process] Uncaught exception:', err);
@@ -135,6 +136,9 @@ app.use((err, req, res, next) => {
 // admin mac dinh neu thieu. Bi loi (mat ket noi Postgres) van fail-soft,
 // khong chan server khoi dong.
 async function startServer() {
+  // The HR write path requires insurance_number. Apply only this additive
+  // migration before accepting requests; do not run other pending migrations.
+  if (CONFIG.SUPABASE_DB_URL) await ensureHrInsuranceSchema();
   localUserStore.initStore();
   await localUserStore.hydrateFromSheets().catch((err) => {
     console.error('[Users] Lỗi không mong đợi khi khởi tạo tài khoản Admin mặc định:', err.message);
@@ -190,4 +194,8 @@ async function startServer() {
   });
 }
 
-startServer();
+startServer().catch(async (error) => {
+  console.error('[Startup] HR insurance migration failed; server will not accept requests:', error);
+  try { await require('./db/pool').getPool().end(); } catch (_) {}
+  process.exitCode = 1;
+});

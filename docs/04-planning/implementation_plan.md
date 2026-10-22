@@ -1,5 +1,7 @@
 # Implementation plan hiện tại
 
+22/10/2026 — Áp migration bảo hiểm trước code; Quản lý xuất Excel có ID, điền số, xem trước và nhập lại theo ID nhân sự.
+
 21/10/2026 — **CONT TKS1 và cột Nguồn (mã cục bộ trên main, chưa deploy):** nguồn thứ bảy `CONT TKS1` sau KHÁC dùng chung snapshot, số Chưa bốc (1+2), Đã bốc (3) và chi tiết CONT; trạng thái 4 giữ trong Dự kiến hàng về, không cộng hai số tổng. Tên SP vẫn tra `product_report` theo mã. Bảng Dự kiến hàng về có 11 cột; Nguồn (`sheetName`) đứng đầu, mặc định hiện và được chọn khi xuất Excel/HTML; chọn riêng các cột cũ vẫn hợp lệ. Giữ tìm kiếm, ba bộ lọc Nguồn/Cont/Trạng thái, quyền, phân trang và cấu hình cột trong phiên. Đọc thiếu/lỗi bất kỳ nguồn nào giữ snapshot thành công gần nhất. Không thêm migration, dependency hoặc endpoint; bộ lọc Nguồn được bổ sung theo phê duyệt tiếp theo cùng ngày; không ghi Sheets hay chạy job ghi DB production trong lượt triển khai này.
 
 ## Bổ sung 21/10/2026 — Chuyển Hàng dự kiến sang Dự kiến hàng về + cột giá (mã cục bộ trên main, chưa commit/deploy)
