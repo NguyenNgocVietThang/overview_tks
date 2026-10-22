@@ -10,7 +10,7 @@ const { ROLES } = require('../auth/userRepository');
 const { createVatRequestService } = require('./service');
 const { parseStockCsv, parseMappingCsv, defaultStockConfig } = require('./stockSource');
 
-const MIGRATIONS = ['0018_product_report.sql', '0053_product_containers.sql', '0076_vat_requests.sql', '0079_vat_request_sort_rank.sql'];
+const MIGRATIONS = ['0018_product_report.sql', '0053_product_containers.sql', '0076_vat_requests.sql', '0079_vat_request_sort_rank.sql', '0083_vat_request_status_vat_ready.sql'];
 
 function poolFor(db) {
   const query = (sql, params) => db.query(sql, params);
@@ -248,7 +248,8 @@ test('P chi cong yeu cau cung ma o 3/4; Q/R tu CONT chua ve; O tu sheet ton theo
     const m = data.metrics['014xoan'];
     assert.equal(m.pendingInsertQty, 200);
     assert.equal(m.incomingContainer, 'CONT B', 'cont chua ve som nhat, bo qua cont da ve (4)');
-    assert.equal(m.nearestSchedule, '3. Đã bốc DK 28/10');
+    assert.equal(m.containerStatus, '3. Đã bốc', 'trang thai cua cont chua ve som nhat');
+    assert.equal(m.containerEta, 'DK 28/10');
     assert.equal(m.nearestArrivalDate, '2026-10-28');
     assert.equal(m.vatStock.total, 1500);
     assert.deepEqual(m.vatStock.byCompany.map(c => c.company), ['TKS THẤP', 'VC']);
@@ -258,7 +259,8 @@ test('P chi cong yeu cau cung ma o 3/4; Q/R tu CONT chua ve; O tu sheet ton theo
     assert.equal(metrics.productCode, '26DAQUAN');
     assert.equal(metrics.vatStock.total, 50, 'khong co trong Khop ma -> tra theo Mã kiot đại diện');
     assert.equal(metrics.incomingContainer, '');
-    assert.equal(metrics.nearestSchedule, '');
+    assert.equal(metrics.containerStatus, '');
+    assert.equal(metrics.containerEta, '');
     assert.equal(metrics.nearestArrivalDate, null);
 
     // Sale (khong co quyen xu ly): khong nhan 4 so O/P/Q/R o bat ky API nao.
@@ -270,6 +272,59 @@ test('P chi cong yeu cau cung ma o 3/4; Q/R tu CONT chua ve; O tu sheet ton theo
     const { results, stockStatus } = await service.lookupProducts(SALE, ['014xoan']);
     assert.equal(stockStatus, null);
     assert.deepEqual(Object.keys(results['014xoan']).sort(), ['found', 'latestOrder', 'productCode', 'productName']);
+  } finally { await db.close(); }
+});
+
+test('het cont chua ve: Trang thai / ngay ve lay cont "4. Da ve" gan nhat, Du kien hang ve de trong', async () => {
+  const { db, service } = await fixture();
+  try {
+    await service.create(SALE, NEW_REQUEST);
+    await db.exec(`INSERT INTO product_container_lines(sheet_name,sheet_order,container_row,source_row,product_code,product_key,container_name,status,status_label,quantity,eta)
+      VALUES ('YIWU',0,1,2,'014XOAN','014xoan','CONT OLD',4,'4.Đã về',10,'VỀ 25/9'),
+             ('YIWU',0,3,4,'014XOAN','014xoan','CONT NEW',4,'4.Đã về',10,'19/10 VỀ'),
+             ('SD',1,1,2,'014XOAN','014xoan','CONT HUY',5,'5. Hủy',10,'DK 30/10')`);
+    const m = (await service.list(KT)).metrics['014xoan'];
+    assert.equal(m.incomingContainer, '');
+    assert.equal(m.containerStatus, '4.Đã về');
+    assert.equal(m.containerEta, '19/10 VỀ');
+    assert.equal(m.nearestArrivalDate, '2026-10-19');
+  } finally { await db.close(); }
+});
+
+test('trang thai 5 "VAT san nhieu": KT chon duoc, khoa sale nhu 0', async () => {
+  const { db, service } = await fixture();
+  try {
+    const row = await service.create(SALE, NEW_REQUEST);
+    const updated = await service.update(KT, row.id, { version: 1, status: '5' });
+    assert.equal(updated.statusLabel, 'VAT sẵn nhiều');
+    assert.equal(updated.isLockedForSale, true);
+    assert.equal((await service.get(SALE, row.id)).canEditSale, false);
+    const list = await service.list(SALE);
+    assert.deepEqual(list.statuses.map(s => s.value), ['pending', '0', '5', '1', '2', '3', '4']);
+    assert.equal(list.statuses.find(s => s.value === '5').locksSale, true);
+  } finally { await db.close(); }
+});
+
+test('migration 0083: chuyen dong 0 co note KHOP NGUYEN san / ton nhieu / con sang 5, ghi lich su he thong; chay lai khong doi', async () => {
+  const { db, service } = await fixture({ migrations: MIGRATIONS.filter(file => !file.startsWith('0083')) });
+  try {
+    const notes = { ' SẴN ': '5', 'TỒN NHIỀU': '5', 'CÒN': '5', 'còn tồn nhiều': '5', 'sẵn VAT': '0', 'còn 2000': '0', 'không còn': '0', 's': '0', 'khai sau': '0' };
+    const ids = {};
+    for (const note of Object.keys(notes)) {
+      const row = await service.create(SALE, NEW_REQUEST);
+      await db.query("UPDATE vat_requests SET status = '0', accountant_note = $2 WHERE id = $1", [row.id, note]);
+      ids[note] = row.id;
+    }
+    const sql = fs.readFileSync(path.join(__dirname, '../db/migrations/0083_vat_request_status_vat_ready.sql'), 'utf8');
+    await db.exec(sql);
+    await db.exec(sql);
+    for (const [note, status] of Object.entries(notes)) {
+      const { rows } = await db.query('SELECT status FROM vat_requests WHERE id = $1', [ids[note]]);
+      assert.equal(rows[0].status, status, note);
+    }
+    const { rows: history } = await db.query("SELECT changed_by, changed_by_name FROM vat_request_history WHERE field = 'status' AND new_value = '5'");
+    assert.equal(history.length, 4, 'moi dong 1 lich su, chay lai khong ghi them');
+    assert.ok(history.every(h => h.changed_by === null && h.changed_by_name === 'Hệ thống'));
   } finally { await db.close(); }
 });
 

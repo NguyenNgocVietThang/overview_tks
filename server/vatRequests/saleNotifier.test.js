@@ -168,6 +168,17 @@ test('lich su truoc moc 0080 khong bi bao; KT sua yeu cau do chinh minh tao khon
   } finally { await db.close(); }
 });
 
+test('dong lich su he thong (changed_by NULL, vd migration 0083) khong bao cho sale', async () => {
+  const { db, service, notifier, sent, at } = await fixture();
+  try {
+    const a = await service.create(SALE, NEW_REQUEST);
+    await db.query("INSERT INTO vat_request_history (request_id, changed_by, changed_by_name, action, field, old_value, new_value) VALUES ($1, NULL, 'Hệ thống', 'update', 'status', '0', '5')", [a.id]);
+    at(30);
+    await notifier.runOnce();
+    assert.equal(sent.length, 0);
+  } finally { await db.close(); }
+});
+
 test('ghi chuong loi: khong throw, khong gui lai lan sau (khong trung)', async () => {
   const users = { 'sale-1': SALE, __fail: true };
   const { db, service, notifier, sent, at } = await fixture({ users });

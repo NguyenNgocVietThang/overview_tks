@@ -828,6 +828,13 @@ FR-16.11: bảng Doanh số theo khách thêm cột Ghi chú và Tiếp khách l
 
 - **FR-VR-20 (22/10/2026)**: khi người có `accounting.vatRequestProcess` sửa KT phản hồi / KT note cho sale / Ngày về trên yêu cầu của một sale, sale đó nhận **1 thông báo chuông** sau khi kế toán ngừng sửa yêu cầu của sale đó đủ 10 phút (mỗi lần sửa thêm đếm lại từ đầu): tiêu đề "Kế toán đã cập nhật N yêu cầu ORDER VAT", mỗi yêu cầu 1 dòng với giá trị **cuối cùng** của các cột đã đổi (tối đa 5 dòng, còn lại "… và N yêu cầu khác"), bấm vào mở trang ORDER VAT. Không báo: giá trị cuối giống đầu đợt (sửa rồi hoàn tác), kéo dòng, sale tự sửa, yêu cầu không gắn tài khoản sale, người sửa là người tạo, tài khoản sale không hoạt động. Không gửi trùng. Migration `0080`, cờ `VAT_REQUEST_NOTIFY_ENABLED`.
 
+### Cập nhật 22/10/2026 — ORDER VAT: trạng thái "VAT sẵn nhiều", Trạng thái / Ngày về hàng
+
+- **FR-VR-21 (22/10/2026)**: thêm trạng thái `'5'` **VAT sẵn nhiều** (KT chọn được, khóa sale như "0. Không khai được", không thuộc "Cần xử lý"); migration `0083` chuyển 1 lần các yêu cầu "0" có KT note đúng nguyên văn "sẵn" / "sẵn nhiều" / "tồn nhiều" / "còn" / "còn tồn nhiều" (khớp nguyên note, không phân biệt hoa thường) sang trạng thái này, ghi lịch sử người sửa "Hệ thống", không gửi thông báo chuông cho sale.
+- **FR-VR-22 (22/10/2026)**: người có quyền xử lý thấy cột **Trạng thái** + **Dự kiến ngày về gần nhất** (nguyên văn) lấy từ Hàng dự kiến của cont chưa về sớm nhất; mã không còn cont chưa về thì lấy cont "4. Đã về" gần nhất. Bỏ cột lịch ghép cũ. Xuất Excel theo cùng 2 cột.
+- **FR-VR-23 (22/10/2026)**: bảng hiển thị cột Thời gian không kèm năm (kéo rộng cột thì hiện năm), tiêu đề "SL", Full VAT hiện pill "Full VAT" / "Chưa VAT"; chip "Tất cả" đứng trước "Cần xử lý".
+
+
 ### Cập nhật 22/10/2026 — Nháp VAT: dán mã hóa đơn là xử lý luôn
 
 - **FR-VAT-12 (22/10/2026)**: tab **Xử lý hóa đơn → Chọn chứng từ** bỏ hẳn bảng tick chọn chứng từ (bộ lọc Loại / Từ–Đến ngày / ô tìm / Xuất file danh sách / phân trang / thanh chip "Đã chọn"). Chỉ còn ô dán mã HD/DH + ô **Cơ sở** (Cả hai / Hà Nội / Sài Gòn, mặc định theo cơ sở ở header) + nút **Xử lý** (hoặc Ctrl+Enter): tra mã rồi phân bổ luôn các chứng từ hợp lệ. Danh sách **Hóa đơn đã dán** (đúng thứ tự dán: Mã · Cơ sở · Khách hàng · Thời gian · Trạng thái · Tổng tiền) hiện trên phần Kết quả; mã không tìm thấy / sai định dạng / đã hủy là dòng đỏ có lý do và bị bỏ qua, các mã khác vẫn xử lý; mã có ở cả HN lẫn SG thì dừng, không phân bổ, nhắc chọn Cơ sở rồi bấm lại. Bấm 1 dòng (hoặc Enter) mở **hộp chi tiết** giống "Chi tiết giao dịch" ở dashboard (thẻ Tổng tiền hàng / Khách đã trả / Còn phải thu, thông tin chung, bảng hàng hóa; DH mở "Chi tiết đơn đặt hàng").

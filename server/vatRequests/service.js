@@ -14,19 +14,21 @@ const { getPool } = require('../db/pool');
 const { ROLES } = require('../auth/userRepository');
 const { hasFeature } = require('../auth/featureRegistry');
 const repository = require('./repository');
-const { nearestContainer } = require('./etaParser');
+const { nearestContainer, latestArrived } = require('./etaParser');
 const { createStockSource, lookupStock } = require('./stockSource');
 
 const STATUS_LABELS = Object.freeze({
   pending: 'Chờ KT xử lý',
   0: '0. Không khai được',
+  5: 'VAT sẵn nhiều',
   1: '1. Đã xong',
   2: '2. Đã khai chờ về',
   3: '3. Chờ khai chèn',
   4: '4. Chờ cont về, tăng slg'
 });
-const STATUSES = Object.freeze(['pending', '0', '1', '2', '3', '4']);
-const LOCKED_STATUSES = new Set(['0', '1', '2']);
+// '5' (0083) dung ngay sau '0': cung la "khong khai" nhung ma con nhieu hang VAT; thu tu nay = thu tu chip / sap xep.
+const STATUSES = Object.freeze(['pending', '0', '5', '1', '2', '3', '4']);
+const LOCKED_STATUSES = new Set(['0', '5', '1', '2']);
 const REOPEN_ON_SALE_EDIT = new Set(['3', '4']);
 
 // Ten truong API -> cot DB.
@@ -219,7 +221,8 @@ function createVatRequestService({ pool = getPool(), stockSource = createStockSo
   }
 
   /**
-   * O / P / Q / R theo product_key. Q/R = Ten Cont + Lich/Trang thai cua cont chua ve som nhat.
+   * O / P / Q / R / S theo product_key. Q = Ten Cont chua ve som nhat; R/S = Trang thai + Ngay ve cua cont do
+   * (het cont chua ve thi cont da ve gan nhat).
    * Chi KT (quyen xu ly) thay 4 so nay: user khac -> metrics rong, stockStatus null, khong doc nguon.
    */
   async function metricsFor(user, productKeys) {
@@ -232,13 +235,18 @@ function createVatRequestService({ pool = getPool(), stockSource = createStockSo
     ]);
     const metrics = {};
     for (const key of keys) {
-      const arrival = nearestContainer(incoming.get(key) || [], { now: now() });
+      const lines = incoming.get(key) || [];
+      const arrival = nearestContainer(lines.filter(line => line.status !== 4), { now: now() });
+      // Trang thai / ngay ve: cont chua ve som nhat; het cont chua ve thi cont "4. Da ve" gan nhat.
+      const shown = arrival.line ? arrival : (latestArrived(lines.filter(line => line.status === 4), { now: now() }) || arrival);
+      const cell = value => String(value == null ? '' : value).trim();
       metrics[key] = {
         vatStock: stock.snapshot ? lookupStock(stock.snapshot, key) : null,
         pendingInsertQty: pending.get(key) || 0,
         incomingContainer: arrival.containerName,
-        nearestSchedule: arrival.scheduleLabel,
-        nearestArrivalDate: arrival.date
+        containerStatus: shown.line ? cell(shown.line.statusLabel) : '',
+        containerEta: shown.line ? cell(shown.line.eta) : '',
+        nearestArrivalDate: shown.date
       };
     }
     return { metrics, stockStatus: stock.status };
@@ -391,7 +399,7 @@ function createVatRequestService({ pool = getPool(), stockSource = createStockSo
       }
       // Form nhieu dong: sale phai tu chon Full VAT / Khong full VAT cho TUNG dong (khong mac dinh).
       if (!Object.hasOwn(sale, 'fullVat') && !errors.some(e => e.row === row && e.field === 'fullVat')) {
-        errors.push({ row, field: 'fullVat', message: `Dòng ${row}: chưa chọn Full VAT / Không full VAT.` });
+        errors.push({ row, field: 'fullVat', message: `Dòng ${row}: chưa chọn Full VAT / Chưa VAT.` });
       }
       return sale;
     });

@@ -260,20 +260,20 @@ async function pendingInsertQuantities(db, productKeys) {
   return new Map(rows.map(row => [row.product_key, Number(row.qty) || 0]));
 }
 
-/** Q/R: dong CONT chua ve (1 chua lich, 2 chua boc, 3 da boc) — bang Hang du kien (0053), theo thu tu sheet. */
+/** Q/R: dong CONT chua ve (1 chua lich, 2 chua boc, 3 da boc) + da ve (4) — bang Hang du kien (0053), theo thu tu sheet. */
 async function incomingContainers(db, productKeys) {
   if (!productKeys.length) return new Map();
   try {
     const { rows } = await db.query(
-      `SELECT product_key, container_name, status_label, eta FROM product_container_lines
-       WHERE status IN (1, 2, 3) AND product_key = ANY($1::text[])
+      `SELECT product_key, status, container_name, status_label, eta FROM product_container_lines
+       WHERE status IN (1, 2, 3, 4) AND product_key = ANY($1::text[])
        ORDER BY sheet_order, container_row, source_row`,
       [productKeys]
     );
     const result = new Map();
     for (const row of rows) {
       if (!result.has(row.product_key)) result.set(row.product_key, []);
-      result.get(row.product_key).push({ containerName: row.container_name, statusLabel: row.status_label, eta: row.eta });
+      result.get(row.product_key).push({ status: Number(row.status), containerName: row.container_name, statusLabel: row.status_label, eta: row.eta });
     }
     return result;
   } catch (error) {

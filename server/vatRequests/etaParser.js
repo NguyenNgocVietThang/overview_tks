@@ -63,8 +63,22 @@ function nearestContainer(lines, options) {
     if (parsed.date && (!best || parsed.date < best.date)) best = { line, date: parsed.date };
   }
   const line = best ? best.line : (firstWithEta || lines[0]);
-  if (!line) return { containerName: '', scheduleLabel: '', date: null };
-  return { containerName: String(line.containerName || '').trim(), scheduleLabel: scheduleLabel(line.statusLabel, line.eta), date: best ? best.date : null };
+  if (!line) return { line: null, containerName: '', scheduleLabel: '', date: null };
+  return { line, containerName: String(line.containerName || '').trim(), scheduleLabel: scheduleLabel(line.statusLabel, line.eta), date: best ? best.date : null };
 }
 
-module.exports = { parseEta, nearestContainer, scheduleLabel, vietnamToday };
+/**
+ * Cont "4. Da ve" gan nhat (dung khi ma khong con cont chua ve): dong co ngay doc duoc muon nhat;
+ * khong dong nao doc duoc thi dong dau tien (sheet xep cont moi ve len tren). -> { line, date } | null.
+ */
+function latestArrived(lines, options) {
+  let best = null;
+  for (const line of lines) {
+    const parsed = parseEta(line.eta, options);
+    if (parsed.date && (!best || parsed.date > best.date)) best = { line, date: parsed.date };
+  }
+  if (best) return best;
+  return lines.length ? { line: lines[0], date: null } : null;
+}
+
+module.exports = { parseEta, nearestContainer, latestArrived, scheduleLabel, vietnamToday };

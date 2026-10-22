@@ -82,12 +82,12 @@
     const list = [];
     if (state.canProcess) list.push({ key: 'select', label: 'Chọn', locked: true, width: 62 });
     list.push(
-      { key: 'createdAt', label: 'Thời gian', width: 104, mobileHidden: true },
+      { key: 'createdAt', label: 'Thời gian', width: 84, mobileHidden: true },
       { key: 'sale', label: 'Tên Sale', width: 100, mobileHidden: true },
       { key: 'customer', label: 'Khách hàng', width: 110 },
       { key: 'productCode', label: 'Mã SP', width: 110, locked: true, nowrap: true },
       { key: 'productName', label: 'Tên SP', width: 165, mobileHidden: true },
-      { key: 'quantity', label: 'Số lượng', width: 84, num: true },
+      { key: 'quantity', label: 'SL', width: 64, num: true },
       { key: 'unitPrice', label: 'Giá chưa VAT', width: 96, num: true, mobileHidden: true },
       { key: 'total', label: 'Tổng tiền', width: 104, num: true, mobileHidden: true },
       { key: 'fullVat', label: 'Full VAT', width: 88, mobileHidden: true },
@@ -96,13 +96,15 @@
       { key: 'accountantNote', label: 'KT note cho sale', width: 118, mobileHidden: true },
       { key: 'arrivalDate', label: 'Ngày về', width: state.canProcess ? 132 : 100, mobileHidden: true, nowrap: true }
     );
-    // 4 cột số liệu chỉ dành cho KT (server cũng không gửi cho sale). Hàng về = cont chưa về sớm nhất (Tên Cont + Lịch/Trạng thái).
+    // 5 cột số liệu chỉ dành cho KT (server cũng không gửi cho sale). Hàng về = cont chưa về sớm nhất; Trạng thái / Dự kiến
+    // ngày về lấy từ cont đó (hết cont chưa về thì cont "4. Đã về" gần nhất) — như hộp chi tiết Hàng dự kiến.
     if (state.canProcess) {
       list.push(
         { key: 'vatStock', label: 'Tồn VAT', width: 74, num: true, mobileHidden: true },
         { key: 'pendingQty', label: 'SLG tổng cần khai', width: 74, num: true, mobileHidden: true },
         { key: 'incomingContainer', label: 'Dự kiến hàng về', width: 110, mobileHidden: true },
-        { key: 'nearestSchedule', label: 'Dự kiến ngày về gần nhất', width: 130, mobileHidden: true }
+        { key: 'containerStatus', label: 'Trạng thái', width: 110, mobileHidden: true },
+        { key: 'containerEta', label: 'Dự kiến ngày về gần nhất', width: 104, mobileHidden: true }
       );
     }
     list.push({ key: 'actions', label: 'Thao tác', width: 96, locked: true });
@@ -126,7 +128,8 @@
     if (window.TKSTables) {
       const mobile = screenMode() === 'mobile';
       window.TKSTables.enhance($('vrTable'), {
-        key: 'vat-requests-' + (state.canProcess ? 'kt-' : 'sale-') + screenMode(),
+        // v2: đổi cột (bỏ Lịch ghép, thêm Trạng thái / Dự kiến ngày về) -> bỏ bố cục cột đã lưu theo bộ cột cũ.
+        key: 'vat-requests-v2-' + (state.canProcess ? 'kt-' : 'sale-') + screenMode(),
         button: $('vrColumnsButton'),
         columns: columns().map(col => ({ key: col.key, label: col.label, width: col.width, locked: !!col.locked, hidden: mobile && !!col.mobileHidden }))
       });
@@ -145,7 +148,12 @@
         const grip = `<button type="button" class="vr-row-grip" data-row-drag="${row.id}" aria-label="Kéo để đổi thứ tự yêu cầu #${row.id}" title="Bấm để chọn dòng (Shift / Ctrl để chọn nhiều), kéo để đổi thứ tự; Alt+↑ / Alt+↓ dời 1 dòng"><svg viewBox="0 0 10 16" width="8" height="14" fill="currentColor" aria-hidden="true"><circle cx="2" cy="3" r="1.4"/><circle cx="8" cy="3" r="1.4"/><circle cx="2" cy="8" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="2" cy="13" r="1.4"/><circle cx="8" cy="13" r="1.4"/></svg></button>`;
         return `<span class="vr-select-cell">${grip}${box}</span>`;
       }
-      case 'createdAt': return escapeHtml(fmtDateTime(row.createdAt));
+      case 'createdAt': {
+        // Năm ẩn cho gọn; kéo rộng cột thì hiện lại (container query trong vat-request.css).
+        const text = fmtDateTime(row.createdAt);
+        const match = /^(.*\d{2}\/\d{2})(\/\d{4})$/.exec(text);
+        return match ? `<span class="vr-when">${escapeHtml(match[1])}<span class="vr-year">${escapeHtml(match[2])}</span></span>` : escapeHtml(text);
+      }
       case 'sale':
         return escapeHtml(row.createdByName || '—') + (row.isLegacy ? ' <span class="vr-tag" title="Nhập từ sheet ORDER VAT 1">cũ</span>' : '');
       case 'customer': return escapeHtml(row.customerName);
@@ -154,7 +162,7 @@
       case 'quantity': return fmtNumber(row.quantity);
       case 'unitPrice': return fmtNumber(row.unitPrice);
       case 'total': return fmtNumber(row.totalAmount);
-      case 'fullVat': return row.fullVat ? '<span class="vr-tag vr-tag-strong">Full VAT</span>' : '<span class="vr-muted">Không full VAT</span>';
+      case 'fullVat': return row.fullVat ? '<span class="vr-tag vr-tag-strong">Full VAT</span>' : '<span class="vr-tag">Chưa VAT</span>';
       case 'saleNote': return escapeHtml(row.saleNote);
       // 3 cột KT hiện chữ như sale; KT nháy đúp / Enter / gõ phím mới mở ô sửa (editorHtml) — kiểu Google Sheet.
       case 'status': return `<span class="vr-badge" data-status="${escapeHtml(row.status)}">${escapeHtml(row.statusLabel)}</span>`;
@@ -167,9 +175,12 @@
       case 'incomingContainer':
         if (!m) return '';
         return m.incomingContainer ? escapeHtml(m.incomingContainer) : '<span class="vr-muted" title="Không có cont chưa về">—</span>';
-      case 'nearestSchedule':
+      case 'containerStatus':
         if (!m) return '';
-        return m.nearestSchedule ? escapeHtml(m.nearestSchedule) : '<span class="vr-muted">—</span>';
+        return m.containerStatus ? escapeHtml(m.containerStatus) : '<span class="vr-muted" title="Mã chưa có dòng CONT trong Hàng dự kiến">—</span>';
+      case 'containerEta':
+        if (!m) return '';
+        return m.containerEta ? escapeHtml(m.containerEta) : '<span class="vr-muted">—</span>';
       case 'actions': {
         // Xóa nằm trong hộp sửa; nháy đúp / chuột phải vào dòng cũng mở hộp này.
         const lock = row.isLockedForSale
@@ -304,7 +315,7 @@
       case 'quantity': return plain(row.quantity);
       case 'unitPrice': return plain(row.unitPrice);
       case 'total': return plain(row.totalAmount);
-      case 'fullVat': return row.fullVat ? 'Full VAT' : 'Không full VAT';
+      case 'fullVat': return row.fullVat ? 'Full VAT' : 'Chưa VAT';
       case 'saleNote': return row.saleNote || '';
       case 'status': return statusLabel(row.status);
       case 'accountantNote': return row.accountantNote || '';
@@ -312,7 +323,8 @@
       case 'vatStock': return m.vatStock ? plain(m.vatStock.total) : '';
       case 'pendingQty': return plain(m.pendingInsertQty);
       case 'incomingContainer': return m.incomingContainer || '';
-      case 'nearestSchedule': return m.nearestSchedule || '';
+      case 'containerStatus': return m.containerStatus || '';
+      case 'containerEta': return m.containerEta || '';
       default: return '';
     }
   }
@@ -393,8 +405,8 @@
       const { results } = await api('/lookup', { method: 'POST', body: { codes } });
       for (const [key, found] of Object.entries(results || {})) {
         if (!found.found || found.pendingInsertQty === undefined) continue;
-        const { vatStock, pendingInsertQty, incomingContainer, nearestSchedule, nearestArrivalDate } = found;
-        state.metrics[key] = { vatStock, pendingInsertQty, incomingContainer, nearestSchedule, nearestArrivalDate };
+        const { vatStock, pendingInsertQty, incomingContainer, containerStatus, containerEta, nearestArrivalDate } = found;
+        state.metrics[key] = { vatStock, pendingInsertQty, incomingContainer, containerStatus, containerEta, nearestArrivalDate };
       }
       render();
     } catch (_) { /* số liệu phụ, lần tải sau sẽ đúng */ }
@@ -490,7 +502,7 @@
     const pick = state.canProcess ? `<input type="checkbox" data-select-group="${escapeHtml(key)}" aria-label="Chọn cả mã ${escapeHtml(first.productCode)}"> ` : '';
     // Số liệu tồn / hàng về chỉ KT thấy (sale không nhận metrics).
     const meta = state.canProcess && m
-      ? ` · Tồn VAT ${m.vatStock ? fmtNumber(m.vatStock.total) : '—'} · Cần khai ${fmtNumber(m.pendingInsertQty || 0)} · Cont ${escapeHtml(m.incomingContainer || '—')} · Lịch ${escapeHtml(m.nearestSchedule || '—')}`
+      ? ` · Tồn VAT ${m.vatStock ? fmtNumber(m.vatStock.total) : '—'} · Cần khai ${fmtNumber(m.pendingInsertQty || 0)} · Cont ${escapeHtml(m.incomingContainer || '—')} · Lịch ${escapeHtml([m.containerStatus, m.containerEta].filter(Boolean).join(' ') || '—')}`
       : '';
     return `<tr class="vr-group-row"><td colspan="${cols.length}">${pick}<strong>${escapeHtml(first.productCode)}</strong> — ${escapeHtml(first.productName)}` +
       `<span class="vr-group-meta">${rows.length} yêu cầu${meta}</span></td></tr>`;
@@ -518,7 +530,8 @@
       case 'pendingQty': return m.pendingInsertQty ?? null;
       case 'incomingContainer': return m.incomingContainer || null;
       // Ngày đọc được đứng trước theo ngày; lịch chưa có ngày xếp sau theo chữ.
-      case 'nearestSchedule': return m.nearestSchedule ? (m.nearestArrivalDate ? 'a' + m.nearestArrivalDate : 'b' + m.nearestSchedule) : null;
+      case 'containerStatus': return m.containerStatus || null;
+      case 'containerEta': return m.containerEta ? (m.nearestArrivalDate ? 'a' + m.nearestArrivalDate : 'b' + m.containerEta) : null;
       default: return null;
     }
   }
@@ -621,13 +634,13 @@
       return;
     }
     el.dataset.kind = status.stale ? 'warn' : '';
-    el.textContent = `Tồn VAT lấy từ Google Sheets${status.loadedAt ? ', cập nhật lúc ' + fmtDateTime(status.loadedAt) : ''}${status.stale ? ' (bản cũ do sheet đang lỗi)' : ''}. Dự kiến hàng về = cont chưa về sớm nhất (Tên Cont + Lịch/Trạng thái ở Hàng dự kiến).`;
+    el.textContent = `Tồn VAT lấy từ Google Sheets${status.loadedAt ? ', cập nhật lúc ' + fmtDateTime(status.loadedAt) : ''}${status.stale ? ' (bản cũ do sheet đang lỗi)' : ''}. Dự kiến hàng về = cont chưa về sớm nhất ở Hàng dự kiến; Trạng thái / Dự kiến ngày về gần nhất lấy từ cont đó (hết cont chưa về thì cont đã về gần nhất).`;
   }
 
   function renderChips() {
     const presets = [
-      ...(state.canProcess ? [{ key: 'todo', label: 'Cần xử lý' }] : []),
       { key: 'all', label: 'Tất cả' },
+      ...(state.canProcess ? [{ key: 'todo', label: 'Cần xử lý' }] : []),
       ...state.statuses.map(s => ({ key: s.value, label: s.label }))
     ];
     $('vrStatusChips').innerHTML = presets.map(p =>
@@ -838,7 +851,7 @@
   function historyValue(field, value) {
     if (value === null || value === undefined || value === '') return '(trống)';
     if (field === 'status') return statusLabel(value);
-    if (field === 'full_vat') return value === 'true' ? 'Full VAT' : 'Không full VAT';
+    if (field === 'full_vat') return value === 'true' ? 'Full VAT' : 'Chưa VAT';
     if (field === 'arrival_date') return fmtDate(value);
     if (field === 'quantity' || field === 'unit_price_excl_vat') return fmtNumber(value);
     return value;
@@ -957,7 +970,7 @@
         ? `<span>Tồn VAT: <b>${m.vatStock ? fmtNumber(m.vatStock.total) : '—'}</b></span>` +
           `<span>Đang chờ khai: <b>${fmtNumber(m.pendingInsertQty)}</b></span>` +
           `<span>Dự kiến hàng về: <b>${escapeHtml(m.incomingContainer || '—')}</b></span>` +
-          `<span>Ngày về gần nhất: <b>${escapeHtml(m.nearestSchedule || '—')}</b></span>`
+          `<span>Trạng thái hàng: <b>${escapeHtml([m.containerStatus, m.containerEta].filter(Boolean).join(' ') || '—')}</b></span>`
         : '');
       target.dataset.valid = 'true';
       loadPriceSuggestion(trimmed);

@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseEta, nearestContainer } = require('./etaParser');
+const { parseEta, nearestContainer, latestArrived } = require('./etaParser');
 
 const NOW = { now: new Date('2026-10-20T03:00:00Z') };
 
@@ -25,10 +25,21 @@ test('khong doc duoc thi date=null, giu nguyen van', () => {
 
 test('cont ve som nhat: dong co ngay doc duoc som nhat; khong co thi dong dau co ghi ngay, roi dong dau', () => {
   const line = (containerName, statusLabel, eta) => ({ containerName, statusLabel, eta });
-  assert.deepEqual(nearestContainer([line('CONT A', '1. Chưa lịch', 'DK 14-16/11'), line('CONT B', '2', ''), line(' CONT C ', '3. Đã bốc', 'DK 28/10')], NOW),
+  const nearest = (lines, options) => { const { line: picked, ...rest } = nearestContainer(lines, options); return rest; };
+  assert.equal(nearestContainer([line('CONT A', '1', 'DK 2/11'), line('CONT B', '3', 'DK 28/10')], NOW).line.containerName, 'CONT B', 'tra kem dong da chon');
+  assert.deepEqual(nearest([line('CONT A', '1. Chưa lịch', 'DK 14-16/11'), line('CONT B', '2', ''), line(' CONT C ', '3. Đã bốc', 'DK 28/10')], NOW),
     { containerName: 'CONT C', scheduleLabel: '3. Đã bốc DK 28/10', date: '2026-10-28' });
-  assert.deepEqual(nearestContainer([line('CONT A', '1. Chưa lịch', ''), line('CONT B', '1', 'chưa có lịch')], NOW),
+  assert.deepEqual(nearest([line('CONT A', '1. Chưa lịch', ''), line('CONT B', '1', 'chưa có lịch')], NOW),
     { containerName: 'CONT B', scheduleLabel: '1 chưa có lịch', date: null });
-  assert.deepEqual(nearestContainer([line('CONT A', '1. Chưa lịch', null)], NOW), { containerName: 'CONT A', scheduleLabel: '1. Chưa lịch', date: null });
-  assert.deepEqual(nearestContainer([], NOW), { containerName: '', scheduleLabel: '', date: null });
+  assert.deepEqual(nearest([line('CONT A', '1. Chưa lịch', null)], NOW), { containerName: 'CONT A', scheduleLabel: '1. Chưa lịch', date: null });
+  assert.deepEqual(nearest([], NOW), { containerName: '', scheduleLabel: '', date: null });
+});
+
+test('cont da ve gan nhat: dong co ngay doc duoc muon nhat; khong co thi dong dau; rong -> null', () => {
+  const line = (containerName, eta) => ({ containerName, statusLabel: '4. Đã về', eta });
+  const lines = [line('CONT A', '19/10 VỀ'), line('CONT B', 'VỀ 4/10'), line('CONT C', 'VỀ 25/9')];
+  assert.deepEqual(latestArrived(lines.slice().reverse(), NOW), { line: lines[0], date: '2026-10-19' });
+  const unknown = [line('CONT X', 'đã về'), line('CONT Y', '')];
+  assert.deepEqual(latestArrived(unknown, NOW), { line: unknown[0], date: null });
+  assert.equal(latestArrived([], NOW), null);
 });

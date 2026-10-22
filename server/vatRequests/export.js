@@ -41,7 +41,7 @@ const COLUMNS = Object.freeze([
   { header: 'Số lượng', width: 12, numFmt: NUMBER, value: row => row.quantity },
   { header: 'Giá chưa VAT', width: 14, numFmt: NUMBER, value: row => row.unitPrice },
   { header: 'Tổng tiền', width: 16, numFmt: NUMBER, value: row => row.totalAmount },
-  { header: 'Full VAT', width: 16, value: row => (row.fullVat ? 'Full VAT' : 'Không full VAT') },
+  { header: 'Full VAT', width: 16, value: row => (row.fullVat ? 'Full VAT' : 'Chưa VAT') },
   { header: 'Ghi chú', width: 30, value: row => row.saleNote },
   { header: 'KT phản hồi', width: 24, value: row => row.statusLabel },
   { header: 'KT note cho sale', width: 24, value: row => row.accountantNote },
@@ -49,7 +49,8 @@ const COLUMNS = Object.freeze([
   { header: 'Tồn VAT', width: 12, numFmt: NUMBER, kt: true, value: (row, m) => (m && m.vatStock ? m.vatStock.total : null) },
   { header: 'SLG tổng cần khai', width: 14, numFmt: NUMBER, kt: true, value: (row, m) => (m ? m.pendingInsertQty : null) },
   { header: 'Dự kiến hàng về', width: 18, kt: true, value: (row, m) => (m ? m.incomingContainer : null) },
-  { header: 'Dự kiến ngày về gần nhất', width: 24, kt: true, value: (row, m) => (m ? m.nearestSchedule : null) }
+  { header: 'Trạng thái hàng', width: 18, kt: true, value: (row, m) => (m ? m.containerStatus : null) },
+  { header: 'Dự kiến ngày về gần nhất', width: 18, kt: true, value: (row, m) => (m ? m.containerEta : null) }
 ]);
 
 function cellValue(value) {

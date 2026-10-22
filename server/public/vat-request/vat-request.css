@@ -12,6 +12,7 @@
 .vr-chip[data-preset="all"],.vr-chip[data-preset="todo"]{--st:var(--primary)}
 [data-preset="pending"],[data-status="pending"]{--st:var(--blue)}
 [data-preset="0"],[data-status="0"]{--st:var(--red)}
+[data-preset="5"],[data-status="5"]{--st:color-mix(in srgb,var(--green) 60%,var(--blue))}
 [data-preset="1"],[data-status="1"]{--st:var(--green)}
 [data-preset="2"],[data-status="2"]{--st:var(--purple)}
 [data-preset="3"],[data-status="3"]{--st:var(--amber);--st-on:#2b1d00}
@@ -126,6 +127,10 @@ table.tks-controlled-table.vr-table td.vr-nowrap{white-space:nowrap !important;t
 .vr-muted{color:var(--muted)}
 .vr-error-text{color:var(--red)}
 .vr-tag{display:inline-block;white-space:nowrap;padding:1px 7px;border:1px solid var(--border);border-radius:var(--radius-pill);font-size:11px;color:var(--muted)}
+/* Thời gian: năm ẩn cho gọn, kéo rộng cột (table-controls) thì hiện lại. */
+.vr-when{display:block;container-type:inline-size}
+.vr-year{display:none}
+@container (min-width: 6.4rem){.vr-year{display:inline}}
 .vr-tag-strong{color:var(--amber);border-color:color-mix(in srgb,var(--amber) 45%,transparent)}
 .vr-badge{display:inline-block;padding:3px 9px;border-radius:var(--radius-pill);font-size:12px;font-weight:600;background:color-mix(in srgb,var(--st) 10%,var(--panel));color:color-mix(in srgb,var(--st) 85%,var(--text));border:1px solid color-mix(in srgb,var(--st) 45%,transparent)}
 /* Kế toán: ô chọn KT phản hồi tô màu giống badge của sale; danh sách thả xuống cũng có màu từng lựa chọn */
