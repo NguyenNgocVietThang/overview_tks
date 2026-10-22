@@ -340,35 +340,64 @@
     const entries = [...byId.values()];
     const before = entries.map(({ row, changes }) => ({ id: row.id, changes: Object.fromEntries(Object.keys(changes).map(field => [field, gridCellValue(row.id, field)])) }));
     const after = entries.map(({ row, changes }) => ({ id: row.id, changes }));
-    const ok = await saveFields(entries.map(({ row, changes }) => ({ id: row.id, version: row.version, changes })));
-    if (!ok) return;
     const label = `sửa ${entries.length} yêu cầu`;
-    pushHistory({ kind: 'fields', label, before, after });
+    const entry = pushHistory({ kind: 'fields', label, before, after });
     notify(`Đã ${label}.${skippedNote}`, skippedNote ? 'warn' : 'ok', { undo: true });
+    if (!await saveFields(after)) dropHistory(entry);
   }
 
   /**
-   * Lưu nhiều trường KT 1 lần qua PATCH /bulk (items = [{ id, version, changes }]). Dòng vừa sửa vào
-   * state.keep nên vẫn ở lại bảng dù không còn khớp bộ lọc. Trả true nếu lưu được.
+   * Sửa trường KT như Sheet: áp NGAY lên bảng (lạc quan) rồi lưu nền qua PATCH /bulk, các lần lưu xếp hàng
+   * tuần tự để version luôn đúng (entries = [{ id, changes }]). Dòng vừa sửa vào state.keep nên vẫn ở lại bảng
+   * dù không còn khớp bộ lọc. Lưu lỗi -> nạp lại dữ liệu thật + báo. Trả Promise<true|false>.
    */
-  async function saveFields(items) {
-    setStatus(`Đang lưu ${items.length} yêu cầu…`);
-    state.saving = true;
-    try {
-      const result = await api('/bulk', { method: 'PATCH', body: { items } });
-      items.forEach(item => state.keep.add(item.id));
-      (result.rows || []).forEach(replaceRow);
-      // Đổi trạng thái làm đổi SLG cần khai -> nạp lại cả danh sách cho số liệu đồng nhất (dòng đã sửa vẫn giữ nhờ keep).
-      if (items.some(item => Object.hasOwn(item.changes, 'status'))) await load(); else render();
-      setStatus('');
-      return true;
-    } catch (error) {
-      if (error.status === 409) await load(); else render(); // load() xóa thanh trạng thái -> báo sau
-      notify(error.message, error.status === 409 ? 'warn' : 'error');
-      return false;
-    } finally {
-      state.saving = false;
+  let saveChain = Promise.resolve();
+  function saveFields(entries) {
+    for (const { id, changes } of entries) {
+      const row = state.rows.find(r => r.id === id);
+      if (row) Object.assign(row, changes, changes.status ? { statusLabel: statusLabel(changes.status) } : {});
+      state.keep.add(id);
     }
+    render();
+    const send = async () => {
+      try {
+        // version lấy lúc gửi: lần lưu trước trong hàng đợi đã cập nhật; dòng không còn trên bảng thì hỏi máy chủ.
+        const items = await Promise.all(entries.map(async ({ id, changes }) => {
+          const row = state.rows.find(r => r.id === id) || await api('/' + id);
+          return { id, version: row.version, changes };
+        }));
+        const result = await api('/bulk', { method: 'PATCH', body: { items } });
+        // Chỉ lấy version mới: giá trị trên bảng có thể đã được sửa tiếp (đang chờ trong hàng đợi).
+        for (const updated of result.rows || []) {
+          const row = state.rows.find(r => r.id === updated.id);
+          if (row) Object.assign(row, { version: updated.version, updatedAt: updated.updatedAt });
+        }
+        if (entries.some(({ changes }) => Object.hasOwn(changes, 'status'))) refreshMetrics(entries.map(e => e.id));
+        return true;
+      } catch (error) {
+        await load(); // bảng đang hiện giá trị chưa lưu được -> lấy lại dữ liệu thật
+        notify(error.message, error.status === 409 ? 'warn' : 'error');
+        return false;
+      }
+    };
+    const done = saveChain.then(send);
+    saveChain = done;
+    return done;
+  }
+
+  /** Đổi trạng thái làm đổi SLG cần khai: chỉ hỏi lại số liệu các mã liên quan (POST /lookup), không nạp lại cả bảng. */
+  async function refreshMetrics(ids) {
+    const codes = [...new Set(ids.map(id => (state.rows.find(r => r.id === id) || {}).productCode).filter(Boolean))];
+    if (!codes.length) return;
+    try {
+      const { results } = await api('/lookup', { method: 'POST', body: { codes } });
+      for (const [key, found] of Object.entries(results || {})) {
+        if (!found.found || found.pendingInsertQty === undefined) continue;
+        const { vatStock, pendingInsertQty, incomingContainer, nearestSchedule, nearestArrivalDate } = found;
+        state.metrics[key] = { vatStock, pendingInsertQty, incomingContainer, nearestSchedule, nearestArrivalDate };
+      }
+      render();
+    } catch (_) { /* số liệu phụ, lần tải sau sẽ đúng */ }
   }
 
   // ---------- Hoàn tác / làm lại (Ctrl+Z / Ctrl+Y), tối đa 20 bước, mất khi tải lại trang ----------
@@ -378,42 +407,46 @@
     state.history.undo.push(entry);
     if (state.history.undo.length > HISTORY_LIMIT) state.history.undo.shift();
     state.history.redo = [];
+    return entry;
+  }
+  /** Lưu không được thì bỏ mục khỏi lịch sử (bảng đã nạp lại dữ liệu thật). */
+  function dropHistory(entry) {
+    for (const stack of [state.history.undo, state.history.redo]) {
+      const index = stack.indexOf(entry);
+      if (index >= 0) stack.splice(index, 1);
+    }
   }
 
-  /** version hiện tại của các dòng (dòng không còn trên bảng thì hỏi máy chủ). */
-  async function withVersions(list) {
-    return Promise.all(list.map(async entry => {
-      const row = state.rows.find(r => r.id === entry.id) || await api('/' + entry.id);
-      return { id: entry.id, version: row.version, changes: entry.changes };
-    }));
-  }
-
+  let orderBusy = false;
   async function stepHistory(direction) {
-    if (!state.canProcess || state.saving) return;
+    if (!state.canProcess || orderBusy) return;
     const stack = state.history[direction];
     const entry = stack.pop();
     if (!entry) { notify(direction === 'undo' ? 'Không còn thao tác để hoàn tác.' : 'Không còn thao tác để làm lại.', ''); return; }
     const target = direction === 'undo' ? entry.before : entry.after;
-    let ok = false;
+    state.history[direction === 'undo' ? 'redo' : 'undo'].push(entry);
+    const message = direction === 'undo' ? `Đã hoàn tác: ${entry.label}.` : `Đã làm lại: ${entry.label}.`;
+    if (entry.kind === 'fields') {
+      // Như Sheet: hiện ngay, lưu nền (saveFields).
+      notify(message, 'ok', { undo: state.history.undo.length > 0, redo: state.history.redo.length > 0 });
+      if (!await saveFields(target)) dropHistory(entry);
+      return;
+    }
+    // ponytail: hoàn tác kéo dòng vẫn chờ máy chủ + nạp lại bảng (cần hạng của mọi dòng mới xếp lại tại chỗ được);
+    // làm lạc quan khi danh sách trả kèm sort_rank.
+    orderBusy = true;
     try {
-      if (entry.kind === 'order') {
-        state.saving = true;
-        try {
-          await api('/position/ranks', { method: 'PATCH', body: { ranks: target } });
-          Object.keys(target).forEach(id => state.keep.add(Number(id)));
-          await load();
-          ok = true;
-        } finally { state.saving = false; }
-      } else {
-        ok = await saveFields(await withVersions(target));
-      }
+      await api('/position/ranks', { method: 'PATCH', body: { ranks: target } });
+      Object.keys(target).forEach(id => state.keep.add(Number(id)));
+      await load();
+      notify(message, 'ok', { undo: state.history.undo.length > 0, redo: state.history.redo.length > 0 });
     } catch (error) {
+      dropHistory(entry);
       await load();
       notify(error.message, error.status === 409 ? 'warn' : 'error');
+    } finally {
+      orderBusy = false;
     }
-    if (!ok) { stack.push(entry); return; }
-    state.history[direction === 'undo' ? 'redo' : 'undo'].push(entry);
-    notify(direction === 'undo' ? `Đã hoàn tác: ${entry.label}.` : `Đã làm lại: ${entry.label}.`, 'ok', { undo: state.history.undo.length > 0, redo: state.history.redo.length > 0 });
   }
 
   /** Thông báo: thanh trạng thái + thông báo nổi góc dưới (tự ẩn sau 8 giây, rê chuột thì giữ). */
@@ -706,11 +739,6 @@
     if (index >= 0) state.rows[index] = updated;
   }
 
-  async function refreshMetricsFor(productKey) {
-    // Đổi trạng thái 3/4 làm P thay đổi: nạp lại cả danh sách cho số liệu đồng nhất.
-    if (productKey) await load();
-  }
-
   // ---------- Sửa nhanh trên dòng (KT) ----------
   async function saveInline(input) {
     const id = Number(input.dataset.id);
@@ -719,36 +747,11 @@
     const field = input.dataset.inline;
     const value = input.value;
     if ((row[field] ?? '') === value) return;
-    input.disabled = true;
     const before = row[field] ?? (field === 'arrivalDate' ? null : '');
     const after = field === 'arrivalDate' ? (value || null) : value;
-    try {
-      const updated = await api('/' + id, { method: 'PATCH', body: { version: row.version, [field]: after } });
-      state.keep.add(id); // đổi trạng thái xong vẫn ở lại bảng tới khi đổi bộ lọc
-      replaceRow(updated);
-      if (field === 'status') await refreshMetricsFor(row.productKey);
-      else render();
-      pushHistory({ kind: 'fields', label: `sửa yêu cầu #${id}`, before: [{ id, changes: { [field]: before } }], after: [{ id, changes: { [field]: after } }] });
-      notify(`Đã lưu yêu cầu #${id}.`, 'ok', { undo: true });
-    } catch (error) {
-      handleSaveError(error, id);
-    }
-  }
-
-  function handleSaveError(error, id) {
-    if (error.status === 409 && error.data.latest) {
-      replaceRow(error.data.latest);
-      setStatus(error.message, 'warn');
-      render();
-      return;
-    }
-    if (error.status === 409 && id) {
-      setStatus(error.message, 'warn');
-      load();
-      return;
-    }
-    setStatus(error.message, 'error');
-    render();
+    const entry = pushHistory({ kind: 'fields', label: `sửa yêu cầu #${id}`, before: [{ id, changes: { [field]: before } }], after: [{ id, changes: { [field]: after } }] });
+    notify(`Đã lưu yêu cầu #${id}.`, 'ok', { undo: true });
+    if (!await saveFields(entry.after)) dropHistory(entry);
   }
 
   // ---------- Form tạo / sửa (sale) ----------
