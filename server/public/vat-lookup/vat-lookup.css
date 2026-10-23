@@ -28,20 +28,6 @@
 .vl-hint{margin:0;color:var(--muted);font-size:12px}
 .vl-hint kbd{padding:1px 5px;border:1px solid var(--border);border-radius:4px;background:var(--panel-2);font:11px var(--font-data)}
 
-.vl-meta{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-/* Một hàng: tóm tắt kết quả · nguồn dữ liệu (nguồn mờ hơn, ngăn bằng vạch đứng khi có tóm tắt). */
-.vl-status{flex:1;min-width:0;margin:0;color:var(--muted);font-size:12.5px;line-height:1.5}
-.vl-summary{color:var(--text-secondary)}
-.vl-summary b{color:var(--text)}
-.vl-summary:not(:empty)::after{content:"";display:inline-block;width:1px;height:12px;margin:0 10px;vertical-align:-1px;background:var(--border)}
-.vl-source b{color:var(--text-secondary)}
-.vl-warn{color:var(--amber)}
-.vl-error{color:var(--red)}
-.vl-tool-btn{display:inline-flex;align-items:center;gap:7px;min-height:32px;padding:4px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel-2);color:var(--text);font:13px var(--font-body);cursor:pointer;transition:background .15s ease,border-color .15s ease}
-.vl-tool-btn svg{width:16px;height:16px}
-.vl-tool-btn:hover:not(:disabled){border-color:color-mix(in srgb,var(--primary) 45%,var(--border));background:color-mix(in srgb,var(--primary) 8%,var(--panel-2))}
-.vl-tool-btn:disabled{opacity:.65;cursor:progress}
-
 .vl-results{padding:0 0 4px;transition:opacity .15s ease}
 .vl-results.is-loading{opacity:.55;pointer-events:none}
 .vl-feedback{margin:10px 16px;padding:10px 12px;border:1px solid color-mix(in srgb,var(--amber) 45%,var(--border));border-radius:var(--radius-sm);background:color-mix(in srgb,var(--amber) 9%,var(--panel));color:var(--text);font-size:12.5px;line-height:1.6}
@@ -83,7 +69,6 @@ table.tks-controlled-table.vl-table th .sort-button>span:first-child{overflow-wr
   /* Điện thoại: nút cột chỉ còn icon (tên vẫn có qua aria-label) để vừa cùng hàng với 2 tab. */
   .vl-tabbar .tks-columns-button{min-height:44px;padding:0 12px;gap:0;font-size:0}
   .vl-search-row{flex-direction:column;align-items:stretch}
-  .vl-source-detail{display:none}
   .vl-table td{font-size:12.5px}
 }
-@media (prefers-reduced-motion:reduce){.vl-tab,.vl-tool-btn,.vl-results{transition:none}.vl-spinner{animation-duration:2s}}
+@media (prefers-reduced-motion:reduce){.vl-tab,.vl-results{transition:none}.vl-spinner{animation-duration:2s}}

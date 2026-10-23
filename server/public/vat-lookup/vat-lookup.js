@@ -6,9 +6,8 @@
   const API = '/api/vat-lookup';
   // Số lượng trong sheet dùng dấu phẩy phân cách hàng nghìn — giữ như app cũ (fmtSheetQuantity).
   const qtyFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
-  const dateTimeFormat = new Intl.DateTimeFormat('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
 
-  const state = { mode: 'vat', result: null, meta: null, loading: false, error: '', requestSeq: 0 };
+  const state = { mode: 'vat', result: null, loading: false, error: '', requestSeq: 0 };
 
   function $(id) { return document.getElementById(id); }
   function escapeHtml(value) {
@@ -35,14 +34,6 @@
   }
 
   // ---------- Vẽ ----------
-  function renderMeta() {
-    const meta = state.meta;
-    if (!meta) return;
-    const at = meta.loadedAt ? dateTimeFormat.format(new Date(meta.loadedAt)) : '—';
-    const stale = meta.stale ? ' · <span class="vl-warn">Sheets đang lỗi, đang dùng dữ liệu đã lưu</span>' : '';
-    $('vlSource').innerHTML = `<b>${fmtQty(meta.products)}</b> sản phẩm · cập nhật lúc <b>${escapeHtml(at)}</b>${stale}<span class="vl-source-detail"> · ${escapeHtml(meta.source)}</span>`;
-  }
-
   function badge(kind, label) {
     return `<span class="vl-badge" data-kind="${kind}"><span class="vl-dot" aria-hidden="true"></span>${escapeHtml(label)}</span>`;
   }
@@ -53,18 +44,11 @@
 
   function feedbackHtml(result) {
     const notes = [];
+    // Trang không còn dòng nguồn dữ liệu: chỉ báo khi Sheets lỗi và kết quả lấy từ bản đã lưu.
+    if (result.meta && result.meta.stale) notes.push('<b>Sheets đang lỗi</b>, kết quả lấy từ dữ liệu đã lưu trước đó.');
     if (result.notFoundQueries.length) notes.push(`<b>Không tìm thấy ${result.notFoundQueries.length}:</b> ${result.notFoundQueries.map(escapeHtml).join(', ')}`);
     if (result.ignoredCount) notes.push(`<b>Chưa xử lý ${result.ignoredCount} dòng cuối</b> vì mỗi lượt tìm tối đa 100 dòng.`);
     return notes.length ? `<div class="vl-feedback" role="status">${notes.join('<br>')}</div>` : '';
-  }
-
-  // Tóm tắt kết quả nằm chung hàng với dòng nguồn dữ liệu (#vlSummary), không chiếm 1 hàng riêng trên bảng.
-  function summaryHtml(result) {
-    const [rowCount, rowLabel] = state.mode === 'incoming' ? [result.incoming.total, 'dòng hàng sắp về'] : [result.vat.total, 'dòng VAT'];
-    if (result.queries.length <= 1) {
-      return `Tìm thấy <b>${result.productCount}</b> sản phẩm, <b>${rowCount}</b> ${rowLabel} khớp “${escapeHtml(result.queries[0])}”`;
-    }
-    return `Đã tìm thấy <b>${result.matchedQueries.length}/${result.queries.length}</b> từ khóa · <b>${result.productCount}</b> sản phẩm · <b>${rowCount}</b> ${rowLabel}`;
   }
 
   function limitNote(shown, total) {
@@ -155,8 +139,6 @@
     } else {
       box.innerHTML = state.mode === 'incoming' ? renderIncoming(result) : renderVat(result);
     }
-    const showSummary = !state.error && result && result.productCount;
-    $('vlSummary').innerHTML = showSummary ? summaryHtml(result) : '';
     box.classList.toggle('is-loading', state.loading && !!result);
     const table = box.querySelector('table');
     $('vlColumns').hidden = !table;
@@ -181,8 +163,6 @@
       const data = await api('/search', { method: 'POST', body: { q } });
       if (seq !== state.requestSeq) return;
       state.result = data;
-      state.meta = data.meta;
-      renderMeta();
     } catch (error) {
       if (seq !== state.requestSeq) return;
       state.error = error.message;
@@ -192,21 +172,6 @@
         $('vlSubmit').disabled = false;
         render();
       }
-    }
-  }
-
-  async function loadMeta(force) {
-    const button = $('vlRefresh');
-    button.disabled = true;
-    if (force) $('vlSource').textContent = 'Đang đọc lại 3 sheet…';
-    try {
-      state.meta = await api(force ? '/refresh' : '/meta', force ? { method: 'POST' } : {});
-      renderMeta();
-      if (force && state.result && state.result.queries.length) await search();
-    } catch (error) {
-      $('vlSource').innerHTML = `<span class="vl-error">${escapeHtml(error.message)}</span>`;
-    } finally {
-      button.disabled = false;
     }
   }
 
@@ -252,7 +217,6 @@
     $('vlQuery').addEventListener('input', event => autoGrow(event.currentTarget));
     $('vlTabVat').addEventListener('click', () => setMode('vat'));
     $('vlTabIncoming').addEventListener('click', () => setMode('incoming'));
-    $('vlRefresh').addEventListener('click', () => loadMeta(true));
   }
 
   async function init() {
@@ -263,7 +227,8 @@
     window.TKSNav.renderAccountingTabs($('vlTabs'));
     render();
     $('vlQuery').focus();
-    await loadMeta(false);
+    // Đọc trước 3 sheet (cache server 10 phút) để lượt tìm đầu nhanh; lỗi sẽ hiện khi tìm.
+    await api('/meta').catch(() => {});
   }
 
   window.TKSVatLookup = { init };
