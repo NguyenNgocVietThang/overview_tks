@@ -666,7 +666,7 @@ Thiết kế: [spec đã duyệt](../docs/superpowers/specs/2026-10-23-customer-
 | `GET /api/me/table-prefs` | đăng nhập | Trả `{ tables: { [tableKey]: { [mode]: { columns } } } }` của chính tài khoản |
 | `PUT /api/me/table-prefs/:tableKey/:mode` body `{ columns: { [colKey]: { width?, hidden? } } }` | đăng nhập | Ghi đè cấu hình một bảng; `mode` là `desktop`/`mobile`, độ rộng 24–2000, ≤200 cột, sai →400. `user_id` lấy từ phiên |
 
-Client nạp một lần khi tải trang (`TKSTables.loadPrefs`), lưu sau khi kéo cột/đổi cột hiển thị với debounce 800 ms; trang chưa đăng nhập (401) hoặc file HTML xuất ra không gọi API. Độ rộng đã lưu được ưu tiên hơn tự co giãn lần đầu. Không có nút đặt lại. [Thiết kế](../docs/superpowers/specs/2026-10-23-table-column-prefs-design.md).
+Client nạp một lần khi tải trang (`TKSTables.loadPrefs`), lưu sau khi kéo cột/đổi cột hiển thị với debounce 800 ms; trang chưa đăng nhập (401) hoặc file HTML xuất ra không gọi API. Độ rộng đã lưu được ưu tiên hơn tự co giãn lần đầu. Tình trạng sắp xếp cục bộ (bảng `data-table-sort="local"` và `.dp-table`) cũng được lưu theo khóa cột (`prefs.sort = {key, dir}`, tùy chọn) và khôi phục khi vào lại; bảng sắp xếp bằng mã riêng của trang hoặc ở máy chủ chưa nằm trong phạm vi. Không có nút đặt lại. [Thiết kế](../docs/superpowers/specs/2026-10-23-table-column-prefs-design.md).
 
 
 ### 23/10/2026 — Ghi chú khác của CONT

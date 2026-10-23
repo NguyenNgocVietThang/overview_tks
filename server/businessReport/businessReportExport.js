@@ -34,12 +34,19 @@ function filterRows(kind, rows, query = {}) {
   const sale = String(query.sale || '');
   const team = String(query.team || '');
   const level = String(query.level || '');
+  const salesChannel = String(query.salesChannel || '');
+  const warehouseScale = String(query.warehouseScale || '');
   const all = kind !== 'customers' || String(query.inactive || '') === '1';
   return rows.filter(r => {
     if (!all && !r.active) return false;
     if (sale && r.saleName !== sale) return false;
     if (team && r.team !== team) return false;
     if (level && kind === 'customers' && String(r.priceLevel || '') !== level) return false;
+    if (kind === 'customers') {
+      const channels = Array.isArray(r.salesChannels) ? r.salesChannels : [];
+      if (salesChannel && (salesChannel === 'none' ? channels.length > 0 : !channels.includes(salesChannel))) return false;
+      if (warehouseScale && (r.warehouseScale || 'none') !== warehouseScale) return false;
+    }
     if (q && !fold([r.code, r.name, r.saleName, r.team].filter(Boolean).join(' ')).includes(q)) return false;
     return true;
   });
@@ -56,10 +63,20 @@ function monthColumnKey(month) {
 // Cot "Tiep khach lan cuoi" (bang Khach hang): chi co khi route danh dau report.withLastVisit (nguoi xuat co
 // quyen xem ghi chu khach) va gan row.lastVisit ('YYYY-MM-DD' hoac '') tu customerProfileRepository.getMeta().
 const LAST_VISIT_COLUMN = ['lastVisit', 'Tiếp khách lần cuối'];
+const PROFILE_COLUMNS = [
+  ['warehouseLocation', 'Định vị kho'], ['warehouseCount', 'Số lượng kho', 'number'],
+  ['area', 'Diện tích'], ['competitor', 'Đối thủ'], ['salesChannels', 'Hình thức bán hàng'],
+  ['warehouseScale', 'Quy mô khách'], ['editors', 'Người được sửa'],
+  ['visitDays', 'Các ngày tiếp khách'], ['images', 'Ảnh kho']
+];
+const CHANNEL_LABELS = { san: 'Bán sàn', cua_hang: 'Bán cửa hàng', fb_ads: 'FB ads', fb_live: 'FB live', sang_tay: 'Sang tay', kho_buon: 'Kho buôn', khac: 'Khác' };
+const SCALE_LABELS = { none: 'Chưa có', small: 'Nhỏ', medium: 'Vừa', large: 'To', very_large: 'Rất to' };
 
 function columnsFor(kind, report) {
   const previous = report.months.filter(m => m !== report.currentMonth).slice().reverse();
-  const fixed = kind === 'customers' && report.withLastVisit ? [...FIXED[kind], LAST_VISIT_COLUMN] : FIXED[kind];
+  const fixed = [...FIXED[kind]];
+  if (kind === 'customers' && report.withLastVisit) fixed.push(LAST_VISIT_COLUMN);
+  if (kind === 'customers' && report.withCustomerProfile) fixed.push(...PROFILE_COLUMNS);
   return [
     ...fixed.map(([key, label, type]) => ({ key, label, type: type || 'text' })),
     { key: 'avg4', label: 'TB 4 tháng', type: 'number' },
@@ -111,6 +128,12 @@ function ddmmyyyy(isoDate) {
 
 function rawValue(row, column) {
   if (column.key === 'lastVisit') return ddmmyyyy(row.lastVisit);
+  if (column.key === 'warehouseCount') return row.warehouseCount == null ? '' : Number(row.warehouseCount);
+  if (column.key === 'warehouseScale') return SCALE_LABELS[row.warehouseScale || 'none'] || '';
+  if (column.key === 'salesChannels') return (row.salesChannels || []).map(c => CHANNEL_LABELS[c] || c).join(', ');
+  if (column.key === 'editors') return (row.editors || []).map(e => e.userName || e.userId || '').filter(Boolean).join(', ');
+  if (column.key === 'visitDays') return (row.visitDays || []).map(ddmmyyyy).filter(Boolean).join(', ');
+  if (column.key === 'images') return (row.images || []).map(i => typeof i === 'string' ? i : i.url || '').filter(Boolean).join('\n');
   if (column.month) return Number(row.series && row.series[column.month]) || 0;
   if (column.key === 'growth') return row.growth == null ? '—' : row.growth / 100;
   if (column.type === 'number') return Number(row[column.key]) || 0;
