@@ -17,10 +17,11 @@
     return folded ? folded.split(' ') : [];
   }
 
-  // Số từ tối thiểu phải khớp: 1 từ -> 1; 2 từ -> 2; từ 3 từ trở lên -> quá nửa.
+  // Tỉ lệ từ tối thiểu phải khớp: 80% (làm tròn lên). 1-3 từ -> khớp hết; 5 từ -> 4; 10 từ -> 8.
+  const MIN_MATCH_RATIO = 0.8;
   function requiredMatches(count) {
     if (count <= 1) return count;
-    return Math.max(2, Math.floor(count / 2) + 1);
+    return Math.ceil(count * MIN_MATCH_RATIO - 1e-9);
   }
 
   // Điểm khớp: 0 = không hiện. Khớp nhiều từ hơn điểm cao hơn, khớp nguyên cụm cao nhất.
