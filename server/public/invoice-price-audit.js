@@ -37,9 +37,11 @@
   const escape = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const can = key => !!(window.TKSNav && typeof window.TKSNav.can === 'function' && window.TKSNav.can(key));
   const NUMBER = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
+  // Tiền: không ký hiệu ₫, làm tròn số nguyên.
+  const MONEY = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
   const isBlank = v => v === null || v === undefined || v === '';
   const fmtNumber = v => (isBlank(v) || !Number.isFinite(Number(v)) ? '—' : NUMBER.format(Number(v)));
-  const fmtMoney = v => (isBlank(v) || !Number.isFinite(Number(v)) ? '—' : NUMBER.format(Number(v)) + '₫');
+  const fmtMoney = v => (isBlank(v) || !Number.isFinite(Number(v)) ? '—' : MONEY.format(Number(v)));
   const rowKey = r => r.branch + '/' + r.invoiceId + '/' + r.sourceLineNo;
   const muted = '<span class="muted">—</span>';
 

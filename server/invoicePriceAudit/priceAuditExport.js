@@ -58,7 +58,7 @@ function safeText(value) {
 }
 
 const day = value => (value ? formatLocalDateTime(value) : '—');
-const money = value => (value === null || value === undefined || value === '' ? '' : Number(value));
+const money = value => (value === null || value === undefined || value === '' ? '' : Math.round(Number(value)));
 
 /** Cac dong thong tin: cua so, lan chay, bo loc, chi so (cung so voi man hinh, tinh tren toan tap loc). */
 function infoLines(meta = {}) {
@@ -132,7 +132,7 @@ async function createPriceAuditExport({ rows = [], columns = null, format = 'xls
     key: c.key,
     header: c.label,
     width: c.wrap ? 40 : c.type === 'money' || c.type === 'number' ? 16 : 20,
-    style: c.type === 'money' ? { numFmt: '#,##0.##' } : c.type === 'number' ? { numFmt: '#,##0.##' } : (c.wrap ? { alignment: { wrapText: true, vertical: 'top' } } : {})
+    style: c.type === 'money' ? { numFmt: '#,##0' } : c.type === 'number' ? { numFmt: '#,##0.##' } : (c.wrap ? { alignment: { wrapText: true, vertical: 'top' } } : {})
   }));
   for (const row of rows) {
     sheet.addRow(picked.map(c => {
@@ -230,7 +230,7 @@ async function createSaleSummaryExport({ rows = [], columns = null, format = 'xl
   workbook.creator = 'TOKOSI Dashboard';
   const sheet = workbook.addWorksheet(SALE_SHEET_NAME);
   sheet.columns = picked.map(c => ({ key: c.key, header: c.label, width: c.type === 'money' ? 24 : 36,
-    style: c.type === 'money' ? { numFmt: '#,##0.##' } : {} }));
+    style: c.type === 'money' ? { numFmt: '#,##0' } : {} }));
   for (const r of data) sheet.addRow(picked.map(c => (typeof r[c.key] === 'string' ? safeText(r[c.key]) : r[c.key])));
   const totalRow = sheet.addRow(picked.map(c => (c.key === 'saleName' ? 'Tổng' : c.type === 'money' ? sum(c.key) : '')));
   totalRow.font = { bold: true };

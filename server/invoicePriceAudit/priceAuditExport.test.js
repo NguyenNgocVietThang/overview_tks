@@ -203,9 +203,9 @@ test('GET /export/sales: xuat bang tien phat theo sale (loc theo o tim kiem, co 
     assert.equal(res.status, 200);
     const [sheet] = await readSheet(Buffer.from(await res.arrayBuffer()));
     assert.deepEqual(sheet.getRow(1).values.slice(1), ['Tên sale', 'Tiền phạt chưa chốt', 'Tiền phạt đã chốt']);
-    assert.deepEqual(sheet.getRow(2).values.slice(1), ['Duy Thái', 150000.5, 20000]);
+    assert.deepEqual(sheet.getRow(2).values.slice(1), ['Duy Thái', 150001, 20000]);
     assert.equal(sheet.getRow(4).getCell(1).value, '(Chưa có sale)');
-    assert.deepEqual(sheet.getRow(5).values.slice(1), ['Tổng', 151000.5, 25000]);
+    assert.deepEqual(sheet.getRow(5).values.slice(1), ['Tổng', 151001, 25000]);
     const filtered = await fetch(base + '/export/sales?format=xlsx&saleSearch=minh', { headers: { 'x-user': 'ql' } });
     const [s2] = await readSheet(Buffer.from(await filtered.arrayBuffer()));
     assert.equal(s2.rowCount, 3, 'tieu de + 1 sale + Tong');

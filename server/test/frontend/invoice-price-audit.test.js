@@ -211,7 +211,7 @@ test('KPI theo toan tap loc tu may chu (so hoa don phan biet, dong dung/sai)', a
   assert.deepEqual(cards.slice(0, 3), [['Số hóa đơn', '2'], ['Dòng đúng giá', '1'], ['Dòng sai giá', '2']]);
 });
 
-test('dong OD / PK / thieu gia: "—" cho null, 0₫ cho 0, ket qua Dung gia', async () => {
+test('dong OD / PK / thieu gia: "—" cho null, 0 cho 0, ket qua Dung gia', async () => {
   const rows = [
     line(11, { productName: 'Ly (OD)', effectiveAmount: '0', originalAmount: '0', originalStatus: 'correct', unitShortfall: '0', reason: 'Không xét OD', winningSource: 'Không xét', canDecide: false }),
     line(12, { productName: 'Nắp (pk)', effectiveAmount: '0', originalAmount: '0', originalStatus: 'correct', unitShortfall: '0', reason: 'Không xét PK', canDecide: false }),
@@ -222,11 +222,11 @@ test('dong OD / PK / thieu gia: "—" cho null, 0₫ cho 0, ket qua Dung gia', a
   assert.equal(trs.length, 3);
   assert.equal(cell(page, trs[0], 'productName').textContent.trim(), 'Ly (OD)');
   assert.equal(cell(page, trs[0], 'effectiveStatus').textContent.trim(), 'Đúng giá');
-  assert.equal(cell(page, trs[0], 'effectiveAmount').textContent.trim(), '0₫');
-  assert.equal(cell(page, trs[0], 'minimumUnitPrice').textContent.trim(), '24,000₫');
+  assert.equal(cell(page, trs[0], 'effectiveAmount').textContent.trim(), '0');
+  assert.equal(cell(page, trs[0], 'minimumUnitPrice').textContent.trim(), '24,000');
   assert.equal(cell(page, trs[2], 'minimumUnitPrice').textContent.trim(), '—');
   assert.equal(cell(page, trs[2], 'unitShortfall').textContent.trim(), '—');
-  assert.equal(cell(page, trs[2], 'effectiveAmount').textContent.trim(), '0₫');
+  assert.equal(cell(page, trs[2], 'effectiveAmount').textContent.trim(), '0');
   assert.equal(cell(page, trs[0], 'branch').textContent.trim(), 'HN');
   assert.equal(cell(page, trs[0], 'soldAt').textContent.trim(), '19/10/2026 08:05');
   assert.equal(cell(page, trs[0], 'decision').querySelector('select'), null, 'dong dung gia goc: Chot bi khoa');
@@ -303,9 +303,9 @@ test('doi Chot sang Ok: PATCH dung khoa + version + bo loc; dong roi bo loc Sai 
   const [okRow] = bodyRows(page);
   assert.equal(okRow.dataset.rowKey, 'hanoi/1001/1');
   assert.equal(cell(page, okRow, 'effectiveStatus').textContent.trim(), 'Đúng giá');
-  assert.equal(cell(page, okRow, 'effectiveAmount').textContent.trim(), '0₫');
-  assert.equal(cell(page, okRow, 'unitShortfall').textContent.trim(), '1,000₫', 'chenh goc giu nguyen');
-  assert.equal(cell(page, okRow, 'originalAmount').textContent.trim(), '100,000₫', 'tien chenh goc giu nguyen');
+  assert.equal(cell(page, okRow, 'effectiveAmount').textContent.trim(), '0');
+  assert.equal(cell(page, okRow, 'unitShortfall').textContent.trim(), '1,000', 'chenh goc giu nguyen');
+  assert.equal(cell(page, okRow, 'originalAmount').textContent.trim(), '100,000', 'tien chenh goc giu nguyen');
 });
 
 // Ô luôn là textarea (như Công nợ); trình soạn tạo ở lần gõ đầu nên các test tự gõ nội dung.
@@ -488,11 +488,11 @@ test('bang tien phat theo sale: tong moi cot khop KPI, ten sale, dong Tong dang 
   const page = await openedAll({ server: fakeServer({ rows: saleTestRows() }) });
   const cards = [...page.$('priceAuditKpis').querySelectorAll('.kpi-card')].map(c => c.querySelector('.value').textContent);
   assert.equal(cards.length, 5);
-  assert.equal(cards[3], '107,000₫');
-  assert.equal(cards[4], '80,000₫');
+  assert.equal(cards[3], '107,000');
+  assert.equal(cards[4], '80,000');
   assert.deepEqual(salesRowsText(page), [
-    ['Duy Thái - 1234567890', '100,000₫', '50,000₫'], ['Minh Anh', '0₫', '30,000₫'], ['Lan', '7,000₫', '0₫']]);
-  assert.deepEqual(footText(page), ['Tổng đang hiển thị', '107,000₫', '80,000₫']);
+    ['Duy Thái - 1234567890', '100,000', '50,000'], ['Minh Anh', '0', '30,000'], ['Lan', '7,000', '0']]);
+  assert.deepEqual(footText(page), ['Tổng đang hiển thị', '107,000', '80,000']);
   assert.equal(page.$('tagPriceAuditSales').textContent, '3');
 });
 
@@ -502,8 +502,8 @@ test('bang tien phat theo sale: tim theo ten sale, tong theo dong dang hien thi,
   const search = page.$('priceAuditSalesSearch');
   search.value = 'minh';
   search.dispatchEvent(new page.w.Event('input', { bubbles: true }));
-  assert.deepEqual(salesRowsText(page), [['Minh Anh', '0₫', '30,000₫']]);
-  assert.deepEqual(footText(page), ['Tổng đang hiển thị', '0₫', '30,000₫']);
+  assert.deepEqual(salesRowsText(page), [['Minh Anh', '0', '30,000']]);
+  assert.deepEqual(footText(page), ['Tổng đang hiển thị', '0', '30,000']);
   assert.equal(page.$('tagPriceAuditSales').textContent, '1/3');
   assert.equal(page.$('priceAuditSalesSearchClear').hidden, false);
   search.value = 'zzzz';
