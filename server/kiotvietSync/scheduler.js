@@ -24,7 +24,9 @@ const { requestBusinessCurrentMonthRefresh } = require('./businessCurrentMonthRe
 // Activity changes affect existing snapshots and monthly scoring immediately.
 // Subscribe once per module, rather than once per scheduler/timer instance.
 dashboardRollupEvents.on('customersChanged', (info) => {
-  // Khong bumpVersion bao cao cong no o day: cache tu het han (5 phut), tranh doc lai DB moi dot dong bo khach.
+  // Trang thai hoat dong doi -> loai khach khoi ca ban chot va bang tuoi no ngay khi doc lai.
+  debtScheduleRepository.getDebtScheduleRepository().bumpVersion();
+  require('../debtSchedule/debtAgingRepository').getDebtAgingRepository().clearCache();
   require('../debtSchedule/debtRewardService').getDebtRewardService().clearScores();
   // Su kien tu worker (remote): web chi xoa cache cua minh; 'updated' + tinh Tuoi no do worker lo.
   if (info && info.remote) return;

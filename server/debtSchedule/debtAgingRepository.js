@@ -24,7 +24,10 @@ const ROWS_SQL = `
          has_stored_schedule, current_debt::text AS current_debt, overdue_debt::text AS overdue_debt,
          payoff_day::text AS payoff_day, beyond_history, equivalent_days, remaining_days
   FROM debt_aging_customers
-  WHERE branch = ANY($1::text[])`;
+  WHERE branch = ANY($1::text[])
+    AND EXISTS (SELECT 1 FROM customers c
+      WHERE c.branch = debt_aging_customers.branch AND c.id = debt_aging_customers.customer_id
+        AND COALESCE(c.raw->>'isActive', c.raw->>'IsActive', 'true') <> 'false')`;
 
 // 1 dong khach da tinh san (de dung khoang ngay + the chi so cua hop chi tiet hoa don).
 const CUSTOMER_SQL = `
@@ -32,7 +35,10 @@ const CUSTOMER_SQL = `
          has_stored_schedule, current_debt::text AS current_debt, overdue_debt::text AS overdue_debt,
          payoff_day::text AS payoff_day, beyond_history, equivalent_days, remaining_days
   FROM debt_aging_customers
-  WHERE branch = $1 AND customer_id = $2::bigint`;
+  WHERE branch = $1 AND customer_id = $2::bigint
+    AND EXISTS (SELECT 1 FROM customers c
+      WHERE c.branch = debt_aging_customers.branch AND c.id = debt_aging_customers.customer_id
+        AND COALESCE(c.raw->>'isActive', c.raw->>'IsActive', 'true') <> 'false')`;
 
 // Hoa don Hoan thanh cua khach tu ngay het no ($3, gio VN) toi nay. purchase_date luu gio VN gan nhan UTC
 // (giong AMOUNTS_SQL o debtAgingRefresh.js) -> moc = ngay::timestamp AT TIME ZONE 'UTC'.

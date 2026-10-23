@@ -12,6 +12,8 @@ module.exports = {
   ...base,
   reconcileIntervalMs: 24 * 60 * 60 * 1000,
   async upsertPage(client, branch, items) {
+    // API khach khong tra trang thai: khach da danh dau ngung hoat dong tu DS khach (raw.inactiveSource='ds-khach') giu nguyen
+    // cho den khi KiotViet doi modifiedDate (SQL ON CONFLICT ben duoi), tranh bi lan quet day du ghi lai thanh hoat dong.
     const normalized = items.map(item => {
       const active = item.isActive ?? item.IsActive ?? true;
       return { ...item, isActive: active !== false && active !== 'false' && active !== 0 && active !== '0' };
@@ -21,7 +23,9 @@ module.exports = {
       const params = batch.flatMap(item => [branch, ...mapCustomer(item), item]);
       const values = batch.map((_, row) => '(' + columns.map((_, col) => '$' + (row * columns.length + col + 1)).join(',') + ')').join(',');
       await client.query(`INSERT INTO customers (${columns.join(',')}) VALUES ${values}
-        ON CONFLICT (branch, id) DO UPDATE SET ${updateColumns.map(column => `${column}=EXCLUDED.${column}`).join(',')}, raw=EXCLUDED.raw, synced_at=now()`, params);
+        ON CONFLICT (branch, id) DO UPDATE SET ${updateColumns.map(column => `${column}=EXCLUDED.${column}`).join(',')},
+        raw=CASE WHEN customers.raw->>'inactiveSource'='ds-khach' AND EXCLUDED.modified_date IS NOT DISTINCT FROM customers.modified_date
+          THEN EXCLUDED.raw || '{"isActive":false,"inactiveSource":"ds-khach"}'::jsonb ELSE EXCLUDED.raw END, synced_at=now()`, params);
     }
   },
   async applyPageMetadata(client, branch, info = {}) {

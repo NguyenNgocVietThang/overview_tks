@@ -4,22 +4,29 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createPollingScheduler } = require('./scheduler');
 
-test('completed customer sync clears reward scores before notifying browsers and does NOT clear the debt report cache', () => {
+test('completed customer sync clears debt and aging caches and reward scores before notifying browsers, including remote sync', () => {
   const { dashboardRollupEvents: events } = require('./dashboardRollupEvents');
   const repository = require('../debtSchedule/debtScheduleRepository').getDebtScheduleRepository();
   const rewards = require('../debtSchedule/debtRewardService').getDebtRewardService();
+  const aging = require('../debtSchedule/debtAgingRepository').getDebtAgingRepository();
+  const clearAging = aging.clearCache;
   const bump = repository.bumpVersion, clear = rewards.clearScores;
   const calls = [];
   const updated = () => calls.push('notify');
   repository.bumpVersion = () => calls.push('debt');
   rewards.clearScores = () => calls.push('scores');
+  aging.clearCache = () => calls.push('aging');
   events.on('updated', updated);
   try {
     events.emit('customersChanged', { branch: 'hanoi' });
-    assert.deepEqual(calls, ['scores', 'notify']);
+    assert.deepEqual(calls, ['debt', 'aging', 'scores', 'notify']);
+    calls.length = 0;
+    events.emit('customersChanged', { branch: 'hanoi', remote: true });
+    assert.deepEqual(calls, ['debt', 'aging', 'scores']);
   } finally {
     repository.bumpVersion = bump;
     rewards.clearScores = clear;
+    aging.clearCache = clearAging;
     events.off('updated', updated);
   }
 });

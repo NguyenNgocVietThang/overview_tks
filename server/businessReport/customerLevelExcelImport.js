@@ -79,6 +79,16 @@ async function loadExisting(pool, keys) {
   return map;
 }
 
+// Khach da co trong danh muc KiotViet (customers) nhung chua co dong level (khach moi): coi nhu version 0, saveLevel se tao dong.
+async function addDirectoryOnly(pool, entries, existing) {
+  const missing = entries.filter(e => !existing.has(e.key));
+  for (const part of chunks(missing.map(e => e.name), 2000)) {
+    const { rows } = await pool.query('SELECT DISTINCT name FROM customers WHERE name = ANY($1::text[])', [part]);
+    const names = new Set(rows.map(r => r.name));
+    for (const e of missing) if (names.has(e.name)) existing.set(e.key, { level: 'large', version: 0, newCustomer: '' });
+  }
+}
+
 // Chi dien phone/address khi gia tri hien co dang rong; khong bao gio ghi de gia tri nhap tay.
 async function upsertProfiles(pool, entries, actorName, size = 500) {
   let touched = 0;
@@ -102,6 +112,7 @@ async function runImport({ rows, pool, repo, apply }) {
   const initialized = (await pool.query('SELECT initialized_at FROM customer_price_level_state WHERE id')).rows[0]?.initialized_at;
   if (apply && !initialized) throw new Error('customer_price_level_state.initialized_at rỗng: chạy initialize-customer-price-levels.js --apply trước.');
   const existing = await loadExisting(pool, entries.map(e => e.key));
+  await addDirectoryOnly(pool, entries, existing);
   const p = plan(entries, existing);
   const summary = {
     mode: apply ? 'applied' : 'preview', rows: rows.length, levelCounts: levelCounts(rows), uniqueCustomers: entries.length,
