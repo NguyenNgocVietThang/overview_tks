@@ -1384,8 +1384,13 @@
     .cp-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 22px; align-items: start; min-width: 0; }
     .cp-col { display: grid; gap: 22px; min-width: 0; }
     .cp-manager { grid-column: 1 / -1; padding-top: 18px; border-top: 1px solid var(--border); }
-    .cp-manager-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+    .cp-manager-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, .85fr) auto; gap: 22px; align-items: start; }
     .cp-subsection { min-width: 0; display: grid; gap: 10px; align-content: start; }
+    #cpEditors .cp-field { width: min(100%, 260px); }
+    #cpScale .cp-field { width: min(100%, 220px); }
+    .cp-modal .dp-meta dd, .cp-modal .cp-hint, .cp-ms-opt { white-space: pre-wrap; overflow-wrap: anywhere; }
+    #businessCustomersRows td { white-space: normal !important; overflow: visible !important; text-overflow: clip !important; overflow-wrap: anywhere; }
+    .cp-modal .dp-section-head { flex-wrap: wrap; }
 
     .cp-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; }
     .cp-field { display: grid; gap: 5px; min-width: 0; align-content: start; }
@@ -1409,6 +1414,7 @@
     .cp-input::placeholder { color: var(--muted); opacity: .85; }
     select.cp-input option { background-color: var(--panel); color: var(--text); }
     .cp-textarea { resize: vertical; min-height: 76px; }
+    .cp-autogrow { display: block; min-height: 36px; resize: none; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; }
     .cp-hint { margin: 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
     .cp-hint-box {
       padding: 10px 12px; border: 1px dashed var(--border); border-radius: var(--radius-md);
@@ -1437,7 +1443,7 @@
     /* Dropdown tick nhiều ô */
     .cp-ms { position: relative; }
     .cp-ms-btn { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; cursor: pointer; }
-    .cp-ms-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cp-ms-text { flex: 1 1 auto; min-width: 0; white-space: normal; overflow-wrap: anywhere; }
     .cp-ms-btn.is-empty .cp-ms-text { color: var(--muted); }
     .cp-ms-count {
       flex: none; min-width: 20px; padding: 0 6px; border-radius: var(--radius-pill);
@@ -1485,7 +1491,18 @@
       position: absolute; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
       padding: 20px; background: rgba(5, 10, 18, .9);
     }
-    .cp-lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: var(--radius-md); }
+    .cp-lightbox img { max-width: calc(100% - 100px); max-height: calc(100% - 60px); object-fit: contain; border-radius: var(--radius-md); }
+    .cp-lightbox-nav {
+      position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 44px;
+      display: inline-flex; align-items: center; justify-content: center; padding: 0;
+      border: 1px solid rgba(255, 255, 255, .35); border-radius: var(--radius-pill);
+      background: rgba(15, 23, 42, .85); color: #fff; cursor: pointer;
+    }
+    .cp-lightbox-prev { left: 12px; }
+    .cp-lightbox-next { right: 12px; }
+    .cp-lightbox-nav:disabled { opacity: .35; cursor: default; }
+    .cp-lightbox-nav:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+    .cp-lightbox-count { position: absolute; bottom: 12px; padding: 5px 12px; border-radius: var(--radius-pill); background: rgba(15, 23, 42, .85); color: #fff; }
     .cp-lightbox-close {
       position: absolute; top: 12px; right: 12px; width: 44px; height: 44px; padding: 0;
       display: inline-flex; align-items: center; justify-content: center;
@@ -1496,7 +1513,8 @@
 
     /* Note kiểu tin nhắn */
     .cp-composer, .cp-edit-form { display: grid; gap: 6px; }
-    .cp-bubbles { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 10px; }
+    .cp-bubbles { list-style: none; margin: 12px 0 0; padding: 2px 8px 2px 0; display: grid; gap: 10px; max-height: 360px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+    .cp-bubbles:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
     .cp-bubble { display: flex; gap: 10px; align-items: flex-start; }
     .cp-avatar {
       flex: none; width: 30px; height: 30px; border-radius: var(--radius-pill);
@@ -1515,7 +1533,8 @@
     .cp-bubble-actions { margin-top: 6px; display: flex; gap: 8px; }
 
     /* Lịch chọn nhiều ngày */
-    .cp-cal { display: grid; gap: 10px; min-width: 0; }
+    .cp-cal { --cp-day-size: 36px; display: grid; gap: 10px; min-width: 0; width: calc(7 * var(--cp-day-size) + 6 * 4px); max-width: 100%; }
+    #cpVisits { width: min(100%, 310px); }
     .cp-cal-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .cp-cal-title { font: 700 13.5px var(--font-body); color: var(--text); }
     .cp-cal-step {
@@ -1524,10 +1543,10 @@
     }
     .cp-cal-step:disabled { opacity: .4; cursor: not-allowed; }
     .cp-cal-step:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
-    .cp-cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+    .cp-cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
     .cp-cal-wd { padding: 4px 0; text-align: center; font-size: 11px; font-weight: 700; color: var(--muted); }
     .cp-day {
-      position: relative; height: 36px; padding: 0; display: inline-flex; align-items: center; justify-content: center; gap: 2px;
+      position: relative; aspect-ratio: 1; width: 100%; padding: 0; display: inline-flex; align-items: center; justify-content: center; gap: 2px;
       border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent;
       color: var(--text); font: 500 13px var(--font-data); cursor: pointer;
       transition: background-color .15s ease, border-color .15s ease;
@@ -1535,9 +1554,10 @@
     .cp-day:hover:not(:disabled):not(.is-selected) { background: var(--surface-hover); border-color: var(--border); }
     .cp-day:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
     .cp-day:disabled { color: var(--muted); opacity: .4; cursor: not-allowed; }
-    .cp-day.is-today { border-color: var(--muted); }
-    .cp-day.is-selected { background: var(--cp-accent); border-color: var(--cp-accent); color: #fff; font-weight: 700; }
-    .cp-day.is-latest { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--cp-accent); }
+    .cp-day.is-today { font-weight: 700; }
+    .cp-day.is-selected { border-color: var(--muted); font-weight: 700; }
+    .cp-day.is-latest { border-color: var(--text); }
+    .cp-day .cp-day-check { position: absolute; right: 1px; top: 1px; }
     .cp-day-none { visibility: hidden; }
     .cp-cal-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
     .cp-chip {
@@ -1565,7 +1585,8 @@
       .cp-detail-btn { min-height: 44px; padding: 2px 14px; }
       .cp-cal-btn { width: 44px; height: 44px; }
       .cp-cal-step { width: 44px; height: 44px; }
-      .cp-day { height: 44px; }
+      .cp-cal { --cp-day-size: 44px; }
+      #cpVisits { width: min(100%, 332px); }
       .cp-img-del { width: 44px; height: 44px; top: 0; right: 0; }
       .cp-chip { min-height: 44px; padding-left: 12px; }
       .cp-chip-x { width: 36px; height: 36px; }
@@ -4423,20 +4444,20 @@
                         <th data-no-sort class="sortable" data-sort="soldAt" aria-sort="none" style="width:140px" data-column-key="soldAt" data-col-type="datetime" title="Nghiệp vụ"><button type="button" class="sort-button"><span class="sort-label">TGian</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
                         <th data-no-sort class="sortable" data-sort="branch" aria-sort="none" style="width:70px" data-column-key="branch" data-col-type="branch" title="Nghiệp vụ"><button type="button" class="sort-button"><span class="sort-label">Cơ sở</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
                         <th data-no-sort class="sortable" data-sort="invoiceCode" aria-sort="none" style="width:110px" data-column-key="invoiceCode" data-col-type="text" title="Nghiệp vụ"><button type="button" class="sort-button"><span class="sort-label">Mã HĐ</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
-                        <th data-no-sort class="sortable" data-sort="saleName" aria-sort="none" style="width:150px" data-column-key="saleName" data-col-type="text" title="Nghiệp vụ"><button type="button" class="sort-button"><span class="sort-label">Sale phụ trách</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                        <th data-no-sort class="sortable" data-sort="saleName" aria-sort="none" style="width:105px" data-column-key="saleName" data-col-type="text" title="Nghiệp vụ"><button type="button" class="sort-button"><span class="sort-label">Sale phụ trách</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
                         <th data-no-sort class="sortable" data-sort="customerName" aria-sort="none" style="width:150px" data-column-key="customerName" data-col-type="text" data-col-wrap="true" title="Nghiệp vụ"><button type="button" class="sort-button"><span class="sort-label">Khách</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
                         <th data-no-sort class="sortable" data-sort="productCode" aria-sort="none" style="width:110px" data-column-key="productCode" data-col-type="text" title="Nghiệp vụ"><button type="button" class="sort-button"><span class="sort-label">Mã hàng</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
-                        <th data-no-sort class="sortable" data-sort="productName" aria-sort="none" style="width:220px" data-column-key="productName" data-col-type="text" title="Nghiệp vụ"><button type="button" class="sort-button"><span class="sort-label">Tên hàng</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                        <th data-no-sort class="sortable" data-sort="productName" aria-sort="none" style="width:205px" data-column-key="productName" data-col-type="text" title="Nghiệp vụ"><button type="button" class="sort-button"><span class="sort-label">Tên hàng</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
                         <th data-no-sort class="sortable" data-sort="customerLevel" aria-sort="none" style="width:85px" data-column-key="customerLevel" data-col-type="text" title="Nghiệp vụ"><button type="button" class="sort-button"><span class="sort-label">Level khách</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
                         <th data-no-sort class="sortable col-num" data-sort="totalCodeQuantity" aria-sort="none" style="width:85px" data-column-key="totalCodeQuantity" data-col-type="number" data-column-default-hidden="true" title="Nghiệp vụ"><button type="button" class="sort-button"><span class="sort-label">Tổng SL</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
                         <th data-no-sort class="sortable" data-sort="fullVat" aria-sort="none" style="width:80px" data-column-key="fullVat" data-col-type="bool" title="Nghiệp vụ"><button type="button" class="sort-button"><span class="sort-label">Full VAT</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
-                        <th data-no-sort class="sortable col-num" data-sort="netUnitPrice" aria-sort="none" style="width:120px" data-column-key="netUnitPrice" data-col-type="money" title="Nghiệp vụ"><button type="button" class="sort-button"><span class="sort-label">Giá sau giảm</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                        <th data-no-sort class="sortable col-num" data-sort="netUnitPrice" aria-sort="none" style="width:95px" data-column-key="netUnitPrice" data-col-type="money" title="Nghiệp vụ"><button type="button" class="sort-button"><span class="sort-label">Giá sau giảm</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
                         <th data-no-sort class="sortable col-num" data-sort="minimumUnitPrice" aria-sort="none" style="width:110px" data-column-key="minimumUnitPrice" data-col-type="money" title="Nghiệp vụ"><button type="button" class="sort-button"><span class="sort-label">Giá min</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
                         <th data-no-sort class="sortable col-num" data-sort="unitShortfall" aria-sort="none" style="width:110px" data-column-key="unitShortfall" data-col-type="money" data-column-default-hidden="true" title="Nghiệp vụ"><button type="button" class="sort-button"><span class="sort-label">Chênh/ĐV</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
                         <th data-no-sort class="sortable col-num" data-sort="effectiveAmount" aria-sort="none" style="width:130px" data-column-key="effectiveAmount" data-col-type="money" title="Nghiệp vụ"><button type="button" class="sort-button"><span class="sort-label">Tiền chênh / phạt</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
                         <th data-no-sort class="sortable" data-sort="effectiveStatus" aria-sort="none" style="width:95px" data-column-key="effectiveStatus" data-col-type="status" title="Nghiệp vụ"><button type="button" class="sort-button"><span class="sort-label">Kết quả</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
-                        <th data-no-sort class="sortable" data-sort="saleExplanation" aria-sort="none" style="width:260px" data-column-key="saleExplanation" data-col-type="text" data-col-wrap="true" title="Nghiệp vụ"><button type="button" class="sort-button"><span class="sort-label">Sale giải thích</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
-                        <th data-no-sort class="sortable" data-sort="decision" aria-sort="none" style="width:120px" data-column-key="decision" data-col-type="decision" title="Nghiệp vụ"><button type="button" class="sort-button"><span class="sort-label">Chốt</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                        <th data-no-sort class="sortable" data-sort="saleExplanation" aria-sort="none" style="width:170px" data-column-key="saleExplanation" data-col-type="text" data-col-wrap="true" title="Nghiệp vụ"><button type="button" class="sort-button"><span class="sort-label">Sale giải thích</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                        <th data-no-sort class="sortable" data-sort="decision" aria-sort="none" style="width:115px" data-column-key="decision" data-col-type="decision" title="Nghiệp vụ"><button type="button" class="sort-button"><span class="sort-label">Chốt</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
                         <th data-no-sort class="sortable" data-sort="customerCode" aria-sort="none" style="width:160px" data-column-key="customerCode" data-col-type="text" data-column-default-hidden="true" title="Nhận diện"><button type="button" class="sort-button"><span class="sort-label">Mã khách</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
                         <th data-no-sort class="sortable col-num" data-sort="originalUnitPrice" aria-sort="none" style="width:130px" data-column-key="originalUnitPrice" data-col-type="money" data-column-default-hidden="true" title="Giá bán"><button type="button" class="sort-button"><span class="sort-label">Giá trước giảm</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
                         <th data-no-sort class="sortable col-num" data-sort="unitDiscount" aria-sort="none" style="width:130px" data-column-key="unitDiscount" data-col-type="money" data-column-default-hidden="true" title="Giá bán"><button type="button" class="sort-button"><span class="sort-label">Giảm/ĐV</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
@@ -8707,8 +8728,8 @@
     // dùng khung #docModalBackdrop). Quyền xem: reports.business.customerNotes; sửa Tiếp khách lần cuối / gán người sửa:
     // reports.business.customerManage (Quản lý). canEdit / canManage thật do máy chủ trả trong GET /customer-profile.
     const CP_API = '/api/business-report';
-    const CP_SCALES = [['none', 'Chưa có'], ['small', 'Nhỏ'], ['medium', 'Vừa'], ['large', 'To']];
-    const CP_CHANNELS = [['san', 'Bán sàn'], ['cua_hang', 'Bán cửa hàng'], ['fb_ads', 'FB ads'], ['fb_live', 'FB live'], ['sang_tay', 'Sang tay'], ['kho_buon', 'Kho buôn']];
+    const CP_SCALES = [['none', 'Chưa có'], ['small', 'Nhỏ'], ['medium', 'Vừa'], ['large', 'To'], ['very_large', 'Rất to']];
+    const CP_CHANNELS = [['san', 'Bán sàn'], ['cua_hang', 'Bán cửa hàng'], ['fb_ads', 'FB ads'], ['fb_live', 'FB live'], ['sang_tay', 'Sang tay'], ['kho_buon', 'Kho buôn'], ['khac', 'Khác']];
     const CP_MAX_IMAGES = 10;
     const CP_ICONS = {
       calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
@@ -8721,7 +8742,7 @@
     };
     // Trạng thái hộp đang mở: mode 'profile' (Chi tiết khách) | 'visits' (chỉ lịch tiếp khách).
     const cp = { active: false, mode: '', key: '', name: '', trigger: null, token: 0, data: null, users: null, usersError: '',
-      editingNoteId: null, uploading: 0, dirtyProfile: false, calendar: null, ms: {}, cleanups: [] };
+      editingNoteId: null, uploading: 0, dirtyProfile: false, dirtyScale: false, calendar: null, ms: {}, cleanups: [] };
     let cpCalendarSeq = 0;
 
     function cpIcon(name, size) {
@@ -8798,10 +8819,7 @@
       const dateHtml = r.lastVisit
         ? '<span class="cp-visit-date">' + escapeHtml(cpFormatDate(r.lastVisit)) + '</span>'
         : '<span class="cp-visit-empty">dd/mm/yyyy</span>';
-      const calendar = businessCanManageCustomers()
-        ? '<button type="button" class="cp-cal-btn" data-cp-action="visits" data-cp-key="' + key + '" aria-haspopup="dialog" aria-label="Chọn ngày tiếp khách của ' + name + '" title="Chọn ngày tiếp khách">' + cpIcon('calendar') + '</button>'
-        : '';
-      const visit = '<td class="cp-cell" data-sort-value="' + (sortValue === null ? 'none' : sortValue) + '"><span class="cp-visit-wrap">' + dateHtml + calendar + '</span></td>';
+      const visit = '<td class="cp-cell" data-sort-value="' + (sortValue === null ? 'none' : sortValue) + '"><span class="cp-visit-wrap">' + dateHtml + '</span></td>';
       return detail + visit;
     }
 
@@ -8809,8 +8827,7 @@
       const button = event.target.closest && event.target.closest('[data-cp-action]');
       if (!button) return;
       event.preventDefault();
-      if (button.dataset.cpAction === 'visits') openCustomerVisitDialog(button.dataset.cpKey, button);
-      else openCustomerProfile(button.dataset.cpKey, button);
+      openCustomerProfile(button.dataset.cpKey, button);
     });
 
     // ---- API ----
@@ -8899,6 +8916,7 @@
       if (!cp.active) return;
       cp.active = false;
       cp.token++;
+      if (cp.resizeInfo) { cp.resizeInfo(); cp.resizeInfo = null; }
       cp.cleanups.splice(0).forEach(function (fn) { try { fn(); } catch (_) { /* bỏ qua */ } });
       const lightbox = document.querySelector('#docModalBackdrop .cp-lightbox');
       if (lightbox) lightbox.remove();
@@ -8918,7 +8936,7 @@
 
     function cpIsDirty() {
       if (!cp.active) return false;
-      if (cp.dirtyProfile) return true;
+      if (cp.dirtyProfile || cp.dirtyScale) return true;
       const composer = cpEl('cpNoteBody');
       if (composer && composer.value.trim()) return true;
       const edit = document.querySelector('.cp-edit-text');
@@ -9092,21 +9110,84 @@
         '<section class="dp-section" id="cpImages" aria-label="Hình ảnh kho"></section></div>' +
         '<div class="cp-col"><section class="dp-section" id="cpNotes" aria-label="Note"></section></div>' +
         (d.canManage ? '<section class="dp-section cp-manager" id="cpManager" aria-label="Dành cho Quản lý"><div class="cp-manager-grid">' +
-          '<div class="cp-subsection" id="cpEditors"></div><div class="cp-subsection" id="cpVisits"></div></div></section>' : '') +
+          '<div class="cp-subsection" id="cpEditors"></div><div class="cp-subsection" id="cpScale"></div><div class="cp-subsection" id="cpVisits"></div></div></section>' : '') +
         '</div>');
       cpRenderInfo();
       cpRenderImages();
       cpRenderNotes();
       if (d.canManage) {
         cpRenderEditors();
+        cpRenderScale();
         cpRenderVisits();
         cpLoadUsers();
       }
     }
 
+    function cpBindAutoGrow(host) {
+      if (cp.resizeInfo) cp.resizeInfo();
+      const fields = Array.from(host.querySelectorAll('.cp-autogrow'));
+      function resize() {
+        fields.forEach(function (field) {
+          field.style.height = 'auto';
+          field.style.height = (field.scrollHeight + field.offsetHeight - field.clientHeight) + 'px';
+        });
+      }
+      fields.forEach(function (field) { field.addEventListener('input', resize); });
+      window.addEventListener('resize', resize);
+      let width = host.clientWidth;
+      const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(function () {
+        if (host.clientWidth === width) return;
+        width = host.clientWidth;
+        resize();
+      }) : null;
+      if (observer) observer.observe(host);
+      cp.resizeInfo = function () {
+        window.removeEventListener('resize', resize);
+        if (observer) observer.disconnect();
+        fields.forEach(function (field) { field.removeEventListener('input', resize); });
+      };
+      resize();
+    }
+
+    // -- Quản lý đánh giá quy mô: lưu độc lập với thông tin đang nhập --
+    function cpRenderScale() {
+      const host = cpEl('cpScale');
+      if (!host || !cp.data.canManage) return;
+      const current = cp.data.profile.warehouseScale || 'none';
+      cp.dirtyScale = false;
+      host.innerHTML = detailSectionHeadHtml('Quản lý đánh giá quy mô', 'Chỉ Quản lý') +
+        '<form id="cpScaleForm" class="cp-subsection"><div class="cp-field"><label class="cp-label" for="cpWarehouseScale">Đánh giá quy mô</label>' +
+        '<select class="cp-input" id="cpWarehouseScale">' + CP_SCALES.map(function (item) {
+          return '<option value="' + item[0] + '"' + (current === item[0] ? ' selected' : '') + '>' + item[1] + '</option>';
+        }).join('') + '</select></div><p class="cp-error" id="cpScaleError" role="alert" hidden></p>' +
+        '<div class="cp-actions"><button type="submit" class="cp-btn cp-btn-primary" id="cpScaleSave">Lưu đánh giá</button></div></form>';
+      cpEl('cpWarehouseScale').addEventListener('change', function () {
+        cp.dirtyScale = cpEl('cpWarehouseScale').value !== cp.data.profile.warehouseScale;
+      });
+      cpEl('cpScaleForm').addEventListener('submit', function (event) {
+        event.preventDefault();
+        const button = cpEl('cpScaleSave');
+        if (button.disabled || !cp.data.canManage) return;
+        const warehouseScale = cpEl('cpWarehouseScale').value;
+        const token = cp.token;
+        cpSetError('cpScaleError', '');
+        const restore = cpBusy(button, 'Đang lưu…');
+        cpApi('PUT', '/customer-profile/scale', { key: cp.key, warehouseScale: warehouseScale }).then(function (body) {
+          if (token !== cp.token) return;
+          cp.data.profile.warehouseScale = body.warehouseScale;
+          cp.dirtyScale = cpEl('cpWarehouseScale').value !== body.warehouseScale;
+          restore();
+          showToast('Đã lưu đánh giá quy mô.', 'success');
+        }).catch(function (err) {
+          if (token !== cp.token) return;
+          restore();
+          cpSetError('cpScaleError', 'Không lưu được: ' + err.message);
+        });
+      });
+    }
+
     // -- Thông tin chung --
     function cpInfoReadOnlyHtml(profile) {
-      const scale = CP_SCALES.find(function (item) { return item[0] === profile.warehouseScale; });
       const channels = (profile.salesChannels || []).map(function (code) {
         const found = CP_CHANNELS.find(function (item) { return item[0] === code; });
         return found ? found[1] : code;
@@ -9115,8 +9196,8 @@
       return '<dl class="dp-meta">' +
         detailMetaField('Định vị kho', value(profile.warehouseLocation)) +
         detailMetaField('Số lượng kho', profile.warehouseCount === null || profile.warehouseCount === undefined || profile.warehouseCount === '' ? value('') : escapeHtml(fmtNumber(profile.warehouseCount))) +
-        detailMetaField('Quy mô kho', value(scale ? scale[1] : '')) +
-        detailMetaField('Đối thủ (để ý tem)', value(profile.competitor)) +
+        detailMetaField('Diện tích', value(profile.area), true) +
+        detailMetaField('Đối thủ (để ý tem)', value(profile.competitor), true) +
         detailMetaField('Hình thức bán hàng', value(channels.join(', ')), true) + '</dl>';
     }
 
@@ -9131,20 +9212,18 @@
           '<p class="cp-hint" style="margin-top:10px">Bạn chưa được gán quyền sửa khách này. Liên hệ Quản lý nếu cần chỉnh sửa.</p>';
         return;
       }
-      const scaleOptions = CP_SCALES.map(function (item) {
-        return '<option value="' + item[0] + '"' + ((profile.warehouseScale || 'none') === item[0] ? ' selected' : '') + '>' + item[1] + '</option>';
-      }).join('');
       const count = profile.warehouseCount === null || profile.warehouseCount === undefined ? '' : profile.warehouseCount;
       host.innerHTML = head +
         '<form class="cp-form" id="cpProfileForm" novalidate autocomplete="off">' +
-        '<div class="cp-field"><label for="cpWarehouseLocation">Định vị kho</label><input class="cp-input" id="cpWarehouseLocation" type="text" maxlength="300" value="' + escapeHtml(profile.warehouseLocation || '') + '"></div>' +
+        '<div class="cp-field"><label for="cpWarehouseLocation">Định vị kho</label><textarea class="cp-input cp-autogrow" id="cpWarehouseLocation" rows="1" maxlength="500">' + escapeHtml(profile.warehouseLocation || '') + '</textarea></div>' +
         '<div class="cp-field"><label for="cpWarehouseCount">Số lượng kho</label><input class="cp-input" id="cpWarehouseCount" type="number" min="0" step="any" inputmode="decimal" value="' + escapeHtml(count) + '"></div>' +
-        '<div class="cp-field"><label for="cpWarehouseScale">Quy mô kho</label><select class="cp-input" id="cpWarehouseScale">' + scaleOptions + '</select></div>' +
-        '<div class="cp-field"><label for="cpCompetitor">Đối thủ (để ý tem)</label><input class="cp-input" id="cpCompetitor" type="text" maxlength="300" value="' + escapeHtml(profile.competitor || '') + '"></div>' +
+        '<div class="cp-field is-full"><label for="cpArea">Diện tích</label><textarea class="cp-input cp-autogrow" id="cpArea" rows="1" maxlength="500">' + escapeHtml(profile.area || '') + '</textarea></div>' +
+        '<div class="cp-field is-full"><label for="cpCompetitor">Đối thủ (để ý tem)</label><textarea class="cp-input cp-autogrow" id="cpCompetitor" rows="1" maxlength="500">' + escapeHtml(profile.competitor || '') + '</textarea></div>' +
         '<div class="cp-field is-full"><span class="cp-label" id="cpChannelsLabel">Hình thức bán hàng</span>' +
         cpMultiSelectHtml('cpChannels', 'cpChannelsLabel', CP_CHANNELS.map(function (item) { return { value: item[0], label: item[1] }; }), profile.salesChannels || []) + '</div>' +
         '<p class="cp-error is-full" id="cpProfileError" role="alert" hidden></p>' +
         '<div class="cp-actions"><button type="submit" class="cp-btn cp-btn-primary" id="cpProfileSave">Lưu thông tin</button></div></form>';
+      cpBindAutoGrow(host);
       const form = cpEl('cpProfileForm');
       cp.ms.channels = cpBindMultiSelect(cpEl('cpChannels'), 'Chọn hình thức bán hàng', function () { cp.dirtyProfile = true; });
       form.addEventListener('input', function () { cp.dirtyProfile = true; });
@@ -9172,7 +9251,7 @@
         key: cp.key,
         warehouseLocation: cpEl('cpWarehouseLocation').value.trim(),
         warehouseCount: count,
-        warehouseScale: cpEl('cpWarehouseScale').value,
+        area: cpEl('cpArea').value.trim(),
         competitor: cpEl('cpCompetitor').value.trim(),
         salesChannels: cp.ms.channels.values()
       };
@@ -9180,7 +9259,7 @@
       const restore = cpBusy(save, 'Đang lưu…');
       cpApi('PUT', '/customer-profile', payload).then(function (body) {
         if (token !== cp.token) return;
-        d.profile = body.profile || payload;
+        d.profile = Object.assign({}, body.profile || payload, { warehouseScale: d.profile.warehouseScale });
         showToast('Đã lưu thông tin chung.', 'success');
         cpRenderInfo();
         cpEl('cpProfileSave').focus();
@@ -9294,23 +9373,51 @@
     }
 
     function cpOpenLightbox(id, trigger) {
-      const image = (cp.data.images || []).find(function (item) { return item.id === id; });
-      if (!image) return;
+      const images = (cp.data.images || []).slice();
+      let index = images.findIndex(function (item) { return item.id === id; });
+      if (index < 0) return;
       const backdrop = cpEl('docModalBackdrop');
       const box = document.createElement('div');
       box.className = 'cp-lightbox';
       box.setAttribute('role', 'dialog');
       box.setAttribute('aria-modal', 'true');
       box.setAttribute('aria-label', 'Xem ảnh kho');
-      box.innerHTML = '<img src="' + escapeHtml(image.url) + '" alt="Ảnh kho phóng to"><button type="button" class="cp-lightbox-close" aria-label="Đóng ảnh">' + cpIcon('x', 20) + '</button>';
+      box.innerHTML = '<img alt="Ảnh kho phóng to"><button type="button" class="cp-lightbox-close" aria-label="Đóng ảnh">' + cpIcon('x', 20) + '</button>' +
+        (images.length > 1 ? '<button type="button" class="cp-lightbox-nav cp-lightbox-prev" aria-label="Ảnh trước">' + cpIcon('left', 24) + '</button>' +
+        '<button type="button" class="cp-lightbox-nav cp-lightbox-next" aria-label="Ảnh tiếp theo">' + cpIcon('right', 24) + '</button>' : '') +
+        '<span class="cp-lightbox-count" role="status" aria-live="polite"></span>';
+      const prev = box.querySelector('.cp-lightbox-prev');
+      const next = box.querySelector('.cp-lightbox-next');
+      function render() {
+        const image = box.querySelector('img');
+        image.src = images[index].url;
+        image.alt = 'Ảnh kho ' + (index + 1) + ' / ' + images.length;
+        box.querySelector('.cp-lightbox-count').textContent = (index + 1) + ' / ' + images.length;
+        if (prev) prev.disabled = index === 0;
+        if (next) next.disabled = index === images.length - 1;
+      }
+      function move(delta) {
+        const focused = document.activeElement;
+        index = Math.max(0, Math.min(images.length - 1, index + delta));
+        render();
+        if ((focused === prev && prev.disabled) || (focused === next && next.disabled)) {
+          box.querySelector('.cp-lightbox-close').focus();
+        }
+      }
+      if (prev) prev.addEventListener('click', function () { move(-1); });
+      if (next) next.addEventListener('click', function () { move(1); });
+      render();
       function close() {
         box.remove();
         if (trigger && trigger.isConnected) trigger.focus();
       }
-      box.addEventListener('click', function (event) { if (event.target !== box.querySelector('img')) close(); });
+      box.querySelector('.cp-lightbox-close').addEventListener('click', close);
+      box.addEventListener('click', function (event) { if (event.target === box) close(); });
       box.addEventListener('keydown', function (event) {
         if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); }
-        else if (event.key === 'Tab') { event.preventDefault(); event.stopPropagation(); box.querySelector('button').focus(); }
+        else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+          event.preventDefault(); event.stopPropagation(); move(event.key === 'ArrowLeft' ? -1 : 1);
+        }
       });
       (backdrop.querySelector('.doc-modal') || backdrop).appendChild(box);
       box.querySelector('button').focus();
@@ -9357,7 +9464,7 @@
         '<span class="cp-hint">Mỗi ngày một note, chỉ sửa được trong ngày.</span></div></form>';
       host.innerHTML = detailSectionHeadHtml('Note', notes.length ? fmtNumber(notes.length) + ' note' : '') + composer +
         (notes.length
-          ? '<ol class="cp-bubbles" aria-label="Danh sách note, mới nhất ở trên">' + notes.map(function (note) { return cpNoteBubbleHtml(note, d); }).join('') + '</ol>'
+          ? '<ol class="cp-bubbles" tabindex="0" aria-label="Danh sách note, mới nhất ở trên">' + notes.map(function (note) { return cpNoteBubbleHtml(note, d); }).join('') + '</ol>'
           : '<p class="cp-empty" style="margin-top:12px">Chưa có note nào.</p>');
       const form = cpEl('cpNoteForm');
       if (form) form.addEventListener('submit', cpCreateNote);
@@ -9608,7 +9715,7 @@
           cells += '<button type="button" class="cp-day' + (on ? ' is-selected' : '') + (value === opts.today ? ' is-today' : '') + (value === latest ? ' is-latest' : '') +
             '" data-date="' + value + '" aria-pressed="' + on + '" aria-label="' + escapeHtml(cpFormatDate(value)) + (value === latest ? ', gần nhất' : '') + '"' +
             (value === opts.today ? ' aria-current="date"' : '') + (future ? ' disabled' : '') + ' tabindex="' + (value === tabTarget ? '0' : '-1') + '">' +
-            (on ? cpIcon('check', 12) : '') + '<span>' + (i + 1) + '</span></button>';
+            (on ? '<span class="cp-day-check">' + cpIcon('check', 10) + '</span>' : '') + '<span>' + (i + 1) + '</span></button>';
         });
         const sorted = Array.from(selected).sort().reverse();
         const atLastMonth = viewYear * 12 + viewMonth >= todayMonth;

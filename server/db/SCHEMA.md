@@ -1,8 +1,10 @@
 # Supabase schema cho đồng bộ KiotViet
 
+23/10/2026 — Kiểm tra giá bán (migration `0077_invoice_price_audit.sql`) với 4 bảng `invoice_price_audit_*` và cột `shipping_measures.freight_per_unit`. ORDER VAT trạng thái "VAT sẵn nhiều" (`0083_vat_request_status_vat_ready.sql`).
+
 22/10/2026 — `hr_employees.insurance_number TEXT NOT NULL DEFAULT ''` (migration `0078_hr_employee_insurance_number.sql`), unique index trên số không rỗng của hồ sơ chưa xóa mềm; chỉ quyền `hr.employees.manage` nhận từ API/Excel. Server áp riêng migration này trước khi nhận request, có advisory lock cho nhiều instance và không chạy migration khác đang chờ.
 
-Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0080`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
+Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0084`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
 
 ## Quy ước chung
 
@@ -663,3 +665,9 @@ Cập nhật: 22/10/2026.
 ## ORDER VAT: trạng thái "VAT sẵn nhiều" — migration 0083 (22/10/2026, đã áp DB dùng chung 22/10/2026)
 
 `0083_vat_request_status_vat_ready.sql`: thay CHECK `vat_requests_status_check` thành `status IN ('pending','0','1','2','3','4','5')`; `'5'` = "VAT sẵn nhiều" (khóa sale như `'0'`). Chuyển 1 lần dòng `'0'` chưa xóa có `accountant_note ~* '^\s*(sẵn|sẵn nhiều|tồn nhiều|còn|còn tồn nhiều)\s*$'` (khớp nguyên note, không tìm từ trong câu) sang `'5'`, `version + 1`, ghi `vat_request_history` (`action 'update'`, `field 'status'`, `'0'→'5'`, `changed_by NULL`, `changed_by_name 'Hệ thống'`). Idempotent (chạy lại không còn dòng khớp). Số 0081/0082 đã dùng trên `main` nên lấy 0083. Áp trước khi deploy mã mới.
+
+## Chi tiết khách — migration 0084 (23/10/2026, CHƯA áp DB dùng chung)
+
+`0084_customer_profile_details.sql` mở rộng `customer_profiles` sau 0080: thêm `area TEXT NOT NULL DEFAULT ''` (Diện tích, server giới hạn 500 ký tự), bổ sung `very_large` vào CHECK `warehouse_scale`, `khac` vào CHECK `sales_channels`. Không sửa/xóa dữ liệu cũ; chạy lại được. Bảng 0080 phía trên mô tả schema gốc trước nâng cấp.
+
+Thông tin chung và quy mô dùng hai UPSERT cập nhật các cột riêng: PUT profile không thay `warehouse_scale`, PUT `/customer-profile/scale` chỉ Quản lý lưu quy mô và không đổi area/định vị/kênh/đối thủ. Đọc nhận thêm `profile.area`; thiếu cột trước migration giữ cơ chế đọc rỗng/ghi 503 MIGRATION_PENDING. Không có job nền hoặc backfill, chưa áp DB thật trong phiên này.

@@ -6,6 +6,7 @@ const path = require('node:path');
 const { createCustomerProfileRepository, detectImageType } = require('./customerProfileRepository');
 
 const MIGRATION = fs.readFileSync(path.join(__dirname, '..', 'db', 'migrations', '0080_customer_notes.sql'), 'utf8');
+const DETAILS_MIGRATION = fs.readFileSync(path.join(__dirname, '..', 'db', 'migrations', '0084_customer_profile_details.sql'), 'utf8');
 const ACTOR = { id: 'u-1', name: 'Quản Lý A' };
 const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from('png-body')]);
 const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from('jpeg-body')]);
@@ -23,7 +24,7 @@ const USERS = [
 async function setup({ migrate = true, at = '2026-10-22T05:00:00Z' } = {}) {
   const { PGlite } = require('@electric-sql/pglite');
   const db = new PGlite();
-  if (migrate) await db.exec(MIGRATION);
+  if (migrate) { await db.exec(MIGRATION); await db.exec(DETAILS_MIGRATION); }
   const clock = { at: new Date(at) };
   const pool = { query: (q, p) => db.query(q, p), connect: async () => ({ query: (q, p) => db.query(q, p), release() {} }) };
   const repo = createCustomerProfileRepository({ pool, now: () => clock.at, userStore: { getAllUsers: async () => USERS } });
@@ -40,22 +41,51 @@ test('detectImageType nhan dien theo magic byte, tu choi file khac', () => {
   assert.equal(detectImageType('x'), null);
 });
 
+test('area and independent scale updates roundtrip without overwriting each other', async () => {
+  const { db, repo } = await setup();
+  try {
+    const initial = await repo.saveProfile('a', 'A', { area: ' Quận 1 ', warehouseScale: 'large', salesChannels: ['khac'] }, ACTOR);
+    assert.equal(initial.area, 'Quận 1');
+    assert.equal(initial.warehouseScale, 'none');
+    const scaled = await repo.saveScale('a', 'A', 'very_large', ACTOR);
+    assert.equal(scaled.area, 'Quận 1');
+    assert.deepEqual(scaled.salesChannels, ['khac']);
+    await repo.saveProfile('a', 'A', { area: 'x'.repeat(500), warehouseScale: 'invalid' }, ACTOR);
+    const current = (await repo.getProfile('a')).profile;
+    assert.equal(current.warehouseScale, 'very_large');
+    assert.equal(current.area.length, 500);
+    await assert.rejects(repo.saveProfile('a', 'A', { area: 'x'.repeat(501) }, ACTOR), { statusCode: 400 });
+    await assert.rejects(repo.saveScale('a', 'A', 'huge', ACTOR), { statusCode: 400 });
+    await repo.saveScale('scale-first', 'B', 'large', ACTOR);
+    await repo.saveProfile('scale-first', 'B', { competitor: 'X' }, ACTOR);
+    assert.equal((await repo.getProfile('scale-first')).profile.warehouseScale, 'large');
+    await Promise.all([
+      repo.saveProfile('a', 'A', { area: 'Concurrent area', competitor: 'Concurrent competitor' }, ACTOR),
+      repo.saveScale('a', 'A', 'small', ACTOR)
+    ]);
+    const concurrent = (await repo.getProfile('a')).profile;
+    assert.equal(concurrent.area, 'Concurrent area');
+    assert.equal(concurrent.competitor, 'Concurrent competitor');
+    assert.equal(concurrent.warehouseScale, 'small');
+  } finally { await db.close(); }
+});
+
 test('saveProfile upsert + getProfile: mac dinh rong, luu va doc lai dung hinh dang', async () => {
   const { db, repo } = await setup();
   try {
     const empty = await repo.getProfile('chị a');
-    assert.deepEqual(empty, { profile: { warehouseLocation: '', warehouseCount: null, warehouseScale: 'none', competitor: '', salesChannels: [] }, images: [], notes: [], visitDays: [], lastVisit: null, editors: [] });
+    assert.deepEqual(empty, { profile: { warehouseLocation: '', area: '', warehouseCount: null, warehouseScale: 'none', competitor: '', salesChannels: [] }, images: [], notes: [], visitDays: [], lastVisit: null, editors: [] });
     const saved = await repo.saveProfile('chị a', 'Chị A', {
       warehouseLocation: ' 12 Lê Lợi ', warehouseCount: '3', warehouseScale: 'medium', competitor: 'Tem X', salesChannels: ['kho_buon', 'san']
     }, ACTOR);
-    assert.deepEqual(saved, { warehouseLocation: '12 Lê Lợi', warehouseCount: 3, warehouseScale: 'medium', competitor: 'Tem X', salesChannels: ['san', 'kho_buon'] });
+    assert.deepEqual(saved, { warehouseLocation: '12 Lê Lợi', area: '', warehouseCount: 3, warehouseScale: 'none', competitor: 'Tem X', salesChannels: ['san', 'kho_buon'] });
     await repo.saveProfile('chị a', 'Chị A', { warehouseCount: null, warehouseScale: 'none', salesChannels: [] }, { id: 'u-2', name: 'Sale Hai' });
     const again = await repo.getProfile('chị a');
-    assert.deepEqual(again.profile, { warehouseLocation: '', warehouseCount: null, warehouseScale: 'none', competitor: '', salesChannels: [] });
+    assert.deepEqual(again.profile, { warehouseLocation: '', area: '', warehouseCount: null, warehouseScale: 'none', competitor: '', salesChannels: [] });
     const { rows } = await db.query('SELECT count(*)::int AS n, max(updated_by_id) AS who FROM customer_profiles');
     assert.deepEqual(rows[0], { n: 1, who: 'u-2' });
-    await assert.rejects(repo.saveProfile('chị a', 'Chị A', { warehouseScale: 'huge' }, ACTOR), { statusCode: 400, code: 'INVALID_PROFILE' });
-    await assert.rejects(repo.saveProfile('chị a', 'Chị A', { salesChannels: ['khac'] }, ACTOR), { statusCode: 400 });
+    await assert.rejects(repo.saveScale('chị a', 'Chị A', 'huge', ACTOR), { statusCode: 400, code: 'INVALID_PROFILE' });
+    await assert.rejects(repo.saveProfile('chị a', 'Chị A', { salesChannels: ['invalid'] }, ACTOR), { statusCode: 400 });
     await assert.rejects(repo.saveProfile('chị a', 'Chị A', { warehouseCount: -1 }, ACTOR), { statusCode: 400 });
     await assert.rejects(repo.saveProfile('chị a', 'Chị A', { competitor: 'x'.repeat(501) }, ACTOR), { statusCode: 400 });
   } finally { await db.close(); }
@@ -208,16 +238,30 @@ test('chua migrate (thieu bang): doc tra rong, ghi tra 503 MIGRATION_PENDING', a
   const { db, repo } = await setup({ migrate: false });
   try {
     assert.deepEqual(await repo.getMeta(), {});
-    assert.deepEqual(await repo.getProfile('chị a'), { profile: { warehouseLocation: '', warehouseCount: null, warehouseScale: 'none', competitor: '', salesChannels: [] }, images: [], notes: [], visitDays: [], lastVisit: null, editors: [] });
+    assert.deepEqual(await repo.getProfile('chị a'), { profile: { warehouseLocation: '', area: '', warehouseCount: null, warehouseScale: 'none', competitor: '', salesChannels: [] }, images: [], notes: [], visitDays: [], lastVisit: null, editors: [] });
     assert.equal(await repo.isEditor('chị a', 'u-2'), false);
     assert.equal(await repo.getImageMeta('99999999-9999-4999-8999-999999999999'), null);
     const pending = { statusCode: 503, code: 'MIGRATION_PENDING' };
     await assert.rejects(repo.saveProfile('chị a', 'Chị A', {}, ACTOR), pending);
+    await assert.rejects(repo.saveScale('chị a', 'Chị A', 'large', ACTOR), pending);
     await assert.rejects(repo.createNote('chị a', 'x', ACTOR), pending);
     await assert.rejects(repo.updateNote('chị a', '99999999-9999-4999-8999-999999999999', 'x'), pending);
     await assert.rejects(repo.addImage('chị a', PNG, ACTOR), pending);
     await assert.rejects(repo.deleteImage('chị a', '99999999-9999-4999-8999-999999999999'), pending);
     await assert.rejects(repo.setVisitDays('chị a', ['2026-10-01'], ACTOR), pending);
     await assert.rejects(repo.setEditors('chị a', ['u-2'], ACTOR), pending);
+  } finally { await db.close(); }
+});
+
+test('0084 pending: absent area column reads fail-soft and both profile writes return migration pending', async () => {
+  const { db, repo } = await setup({ migrate: false });
+  try {
+    await db.exec(MIGRATION);
+    await db.query(`INSERT INTO customer_profiles (customer_key, competitor) VALUES ('a', 'Keep')`);
+    assert.equal((await repo.getProfile('a')).profile.area, '');
+    const pending = { statusCode: 503, code: 'MIGRATION_PENDING' };
+    await assert.rejects(repo.saveProfile('a', 'A', { area: 'District' }, ACTOR), pending);
+    await assert.rejects(repo.saveScale('a', 'A', 'large', ACTOR), pending);
+    assert.deepEqual((await db.query(`SELECT warehouse_scale, competitor FROM customer_profiles`)).rows[0], { warehouse_scale: 'none', competitor: 'Keep' });
   } finally { await db.close(); }
 });

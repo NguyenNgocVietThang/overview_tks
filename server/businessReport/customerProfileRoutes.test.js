@@ -19,7 +19,7 @@ const note = (over = {}) => ({ id: NOTE_ID, noteDate: '2026-10-22', body: 'Gặp
 function fakeProfiles({ editors = [], ...over } = {}) {
   const calls = [];
   const rec = (name, result) => async (...args) => { calls.push([name, ...args]); return typeof result === 'function' ? result(...args) : result; };
-  const profile = { warehouseLocation: 'Kho 1', warehouseCount: 2, warehouseScale: 'small', competitor: '', salesChannels: ['san'] };
+  const profile = { warehouseLocation: 'Kho 1', area: '', warehouseCount: 2, warehouseScale: 'small', competitor: '', salesChannels: ['san'] };
   return {
     calls,
     getMeta: rec('getMeta', { [KEY]: { lastVisit: '2026-10-20', noteCount: 2 } }),
@@ -29,7 +29,8 @@ function fakeProfiles({ editors = [], ...over } = {}) {
       visitDays: ['2026-10-01', '2026-10-20'], lastVisit: '2026-10-20', editors: [{ userId: 'u-2', userName: 'Sale Hai' }]
     }),
     isEditor: async (key, userId) => editors.some(e => e.key === key && String(e.userId) === String(userId)),
-    saveProfile: rec('saveProfile', (key, name, input) => input),
+    saveProfile: rec('saveProfile', (key, name, input) => ({ ...input, warehouseScale: profile.warehouseScale })),
+    saveScale: rec('saveScale', (key, name, warehouseScale) => ({ ...profile, warehouseScale })),
     createNote: rec('createNote', (key, body) => note({ body })),
     updateNote: rec('updateNote', (key, id, body) => note({ id, body })),
     addImage: rec('addImage', (key, buf) => ({ id: IMG_ID, url: `/api/business-report/customer-profile/images/${IMG_ID}`, contentType: 'image/png', byteSize: buf.length, createdAt: '2026-10-22T05:00:00.000Z' })),
@@ -72,13 +73,30 @@ async function call(path, { permissions = MANAGE, user = {}, method = 'GET', bod
 }
 const writes = r => r.profiles.calls.filter(([name]) => name !== 'getProfile' && name !== 'getMeta');
 
+test('scale requires both manager and notes permissions; assigned editors cannot write scale', async () => {
+  const body = { key: KEY, warehouseScale: 'very_large' };
+  for (const permissions of [VIEW, ['reports.business', 'reports.business.customerManage']]) {
+    const profiles = fakeProfiles({ editors: [{ key: KEY, userId: 'u-2' }] });
+    const r = await call('/customer-profile/scale', { method: 'PUT', body, permissions, user: { id: 'u-2' }, profiles });
+    assert.equal(r.status, 403);
+    assert.equal(writes(r).length, 0);
+  }
+  const profiles = fakeProfiles({ saveScale: async (key, name, scale) => ({ warehouseScale: scale }) });
+  const r = await call('/customer-profile/scale', { method: 'PUT', body, profiles });
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.data, { warehouseScale: 'very_large' });
+  for (const warehouseScale of ['huge', null, '']) {
+    assert.equal((await call('/customer-profile/scale', { method: 'PUT', body: { ...body, warehouseScale }, profiles })).status, 400);
+  }
+});
+
 test('moi API ghi chu khach: 403 neu thieu reports.business.customerNotes (ke ca khi co reports.business)', async () => {
   const none = { permissions: ['reports.business'] };
   const cases = [
     ['GET', '/customer-meta'], ['GET', `/customer-profile?key=${encodeURIComponent(KEY)}`], ['PUT', '/customer-profile'],
     ['POST', '/customer-profile/notes'], ['PUT', `/customer-profile/notes/${NOTE_ID}`], ['POST', `/customer-profile/images?key=${encodeURIComponent(KEY)}`],
     ['DELETE', `/customer-profile/images/${IMG_ID}?key=${encodeURIComponent(KEY)}`], ['GET', `/customer-profile/images/${IMG_ID}`],
-    ['PUT', '/customer-profile/visits'], ['PUT', '/customer-profile/editors'], ['GET', '/customer-profile/assignable-users']
+    ['PUT', '/customer-profile/visits'], ['PUT', '/customer-profile/editors'], ['PUT', '/customer-profile/scale'], ['GET', '/customer-profile/assignable-users']
   ];
   for (const [method, path] of cases) {
     const r = await call(path, { ...none, method, body: method === 'GET' || method === 'DELETE' ? undefined : { key: KEY } });
@@ -106,7 +124,7 @@ test('GET /customer-profile: dung hop dong, Quan ly canEdit + canManage, note ho
   assert.deepEqual(r.data.notes.map(n => [n.noteDate, n.editable]), [['2026-10-22', true], ['2026-10-21', false]]);
   assert.deepEqual(r.data.visitDays, ['2026-10-01', '2026-10-20']);
   assert.equal(r.data.lastVisit, '2026-10-20');
-  assert.deepEqual(r.data.profile, { warehouseLocation: 'Kho 1', warehouseCount: 2, warehouseScale: 'small', competitor: '', salesChannels: ['san'] });
+  assert.deepEqual(r.data.profile, { warehouseLocation: 'Kho 1', area: '', warehouseCount: 2, warehouseScale: 'small', competitor: '', salesChannels: ['san'] });
   assert.equal(r.data.images[0].url, `/api/business-report/customer-profile/images/${IMG_ID}`);
   assert.deepEqual(r.data.editors, [{ userId: 'u-2', userName: 'Sale Hai' }]);
   assert.equal(r.headers.get('cache-control'), 'no-store');
@@ -138,23 +156,25 @@ test('PUT /customer-profile: Quan ly luon sua; nguoi duoc gan sua; nguoi khong d
   const body = { key: KEY, warehouseLocation: ' Kho A ', warehouseCount: '5', warehouseScale: 'large', competitor: 'Tem Y', salesChannels: ['san', 'fb_live'] };
   const manager = await call('/customer-profile', { method: 'PUT', body });
   assert.equal(manager.status, 200);
-  assert.deepEqual(manager.data, { profile: { warehouseLocation: 'Kho A', warehouseCount: 5, warehouseScale: 'large', competitor: 'Tem Y', salesChannels: ['san', 'fb_live'] } });
+  assert.deepEqual(manager.data, { profile: { warehouseLocation: 'Kho A', area: '', warehouseCount: 5, warehouseScale: 'small', competitor: 'Tem Y', salesChannels: ['san', 'fb_live'] } });
+  assert.equal(Object.hasOwn(writes(manager)[0][3], 'warehouseScale'), false);
   const [name, key, customerName, , actor] = writes(manager)[0];
   assert.deepEqual([name, key, customerName, actor], ['saveProfile', KEY, 'Chị A', { id: 'u-1', name: 'Người Test' }]);
 
   const editors = [{ key: KEY, userId: 'u-2' }];
   const assigned = await call('/customer-profile', { method: 'PUT', body, permissions: VIEW, user: { id: 'u-2' }, profiles: fakeProfiles({ editors }) });
   assert.equal(assigned.status, 200);
+  assert.equal(Object.hasOwn(writes(assigned)[0][3], 'warehouseScale'), false);
   const denied = await call('/customer-profile', { method: 'PUT', body, permissions: VIEW, user: { id: 'u-3' }, profiles: fakeProfiles({ editors }) });
   assert.equal(denied.status, 403);
   assert.equal(denied.data.code, 'CUSTOMER_EDIT_FORBIDDEN');
   assert.equal(writes(denied).length, 0);
 });
 
-test('PUT /customer-profile: validate 400 (quy mo, kenh, so luong, do dai), thieu key 400, khach la 404', async () => {
+test('PUT /customer-profile: validate 400 (area, kenh, so luong, do dai), thieu key 400, khach la 404', async () => {
   const ok = { key: KEY, warehouseScale: 'none', salesChannels: [] };
   for (const bad of [
-    { ...ok, warehouseScale: 'huge' }, { ...ok, salesChannels: ['san', 'tiktok'] }, { ...ok, salesChannels: 'san' },
+    { ...ok, area: 'x'.repeat(501) }, { ...ok, salesChannels: ['san', 'tiktok'] }, { ...ok, salesChannels: 'san' },
     { ...ok, warehouseCount: -1 }, { ...ok, warehouseCount: 'abc' }, { ...ok, competitor: 'x'.repeat(501) }, { ...ok, warehouseLocation: 'x'.repeat(501) }
   ]) {
     const r = await call('/customer-profile', { method: 'PUT', body: bad });
@@ -385,10 +405,11 @@ test('tich hop PGlite: Quan ly tao note / ngay da di / nguoi sua / anh qua route
   const { PGlite } = require('@electric-sql/pglite');
   const { createCustomerProfileRepository } = require('./customerProfileRepository');
   const sql = fs.readFileSync(path.join(__dirname, '..', 'db', 'migrations', '0080_customer_notes.sql'), 'utf8');
+  const detailsSql = fs.readFileSync(path.join(__dirname, '..', 'db', 'migrations', '0084_customer_profile_details.sql'), 'utf8');
   const users = [{ id: 'u-2', username: 'sale2', hoTen: 'Sale Hai', vaiTro: 'Nhân viên sale', trangThai: 'Đang hoạt động' }];
   const make = async migrate => {
     const db = new PGlite();
-    if (migrate) await db.exec(sql);
+    if (migrate) { await db.exec(sql); await db.exec(detailsSql); }
     const pool = { query: (q, p) => db.query(q, p), connect: async () => ({ query: (q, p) => db.query(q, p), release() {} }) };
     return { db, profiles: createCustomerProfileRepository({ pool, now: () => NOW, userStore: { getAllUsers: async () => users } }) };
   };

@@ -67,9 +67,10 @@ function createCustomerProfileRepository({ pool = null, now = () => new Date(), 
     createdAt: iso(r.created_at), updatedAt: iso(r.updated_at)
   });
   const profileOut = r => (r ? {
-    warehouseLocation: r.warehouse_location, warehouseCount: num(r.warehouse_count), warehouseScale: r.warehouse_scale,
+    warehouseLocation: r.warehouse_location, area: r.area || '', warehouseCount: num(r.warehouse_count), warehouseScale: r.warehouse_scale,
     competitor: r.competitor, salesChannels: r.sales_channels || []
   } : rules.emptyProfile());
+  const PROFILE_COLS = 'warehouse_location, area, warehouse_count, warehouse_scale, competitor, sales_channels';
   const NOTE_COLS = `id, to_char(note_date, 'YYYY-MM-DD') AS note_date, body, author_id, author_name, created_at, updated_at`;
 
   // { [customerKey]: { lastVisit, noteCount } } - chi khach co du lieu. Thieu bang => {}.
@@ -91,7 +92,7 @@ function createCustomerProfileRepository({ pool = null, now = () => new Date(), 
   async function getProfile(key) {
     try {
       const [profile, images, notes, visits, editors] = await Promise.all([
-        query('SELECT * FROM customer_profiles WHERE customer_key = $1', [key]),
+        query(`SELECT ${PROFILE_COLS} FROM customer_profiles WHERE customer_key = $1`, [key]),
         query('SELECT id, content_type, byte_size, created_at FROM customer_profile_images WHERE customer_key = $1 ORDER BY created_at, id', [key]),
         query(`SELECT ${NOTE_COLS} FROM customer_notes WHERE customer_key = $1 ORDER BY note_date DESC, created_at DESC`, [key]),
         query(`SELECT to_char(visit_date, 'YYYY-MM-DD') AS d FROM customer_visit_days WHERE customer_key = $1 ORDER BY visit_date`, [key]),
@@ -131,13 +132,28 @@ function createCustomerProfileRepository({ pool = null, now = () => new Date(), 
     const p = rules.normalizeProfileInput(input);
     return guardWrite(async () => {
       const { rows } = await query(`
-        INSERT INTO customer_profiles (customer_key, customer_name, warehouse_location, warehouse_count, warehouse_scale, competitor, sales_channels, updated_by_id, updated_by_name, updated_at)
+        INSERT INTO customer_profiles (customer_key, customer_name, warehouse_location, warehouse_count, area, competitor, sales_channels, updated_by_id, updated_by_name, updated_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7::text[], $8, $9, $10::timestamptz)
         ON CONFLICT (customer_key) DO UPDATE SET customer_name = EXCLUDED.customer_name, warehouse_location = EXCLUDED.warehouse_location,
-          warehouse_count = EXCLUDED.warehouse_count, warehouse_scale = EXCLUDED.warehouse_scale, competitor = EXCLUDED.competitor,
+          warehouse_count = EXCLUDED.warehouse_count, area = EXCLUDED.area, competitor = EXCLUDED.competitor,
           sales_channels = EXCLUDED.sales_channels, updated_by_id = EXCLUDED.updated_by_id, updated_by_name = EXCLUDED.updated_by_name, updated_at = EXCLUDED.updated_at
         RETURNING *`,
-      [key, String(customerName || ''), p.warehouseLocation, p.warehouseCount, p.warehouseScale, p.competitor, p.salesChannels, actorId(actor), actorName(actor), now().toISOString()]);
+      [key, String(customerName || ''), p.warehouseLocation, p.warehouseCount, p.area, p.competitor, p.salesChannels, actorId(actor), actorName(actor), now().toISOString()]);
+      return profileOut(rows[0]);
+    });
+  }
+
+  // Atomic column-specific upsert: never read/replace general information during a scale edit.
+  async function saveScale(key, customerName, value, actor) {
+    const scale = rules.normalizeScale(value);
+    return guardWrite(async () => {
+      const { rows } = await query(`
+        INSERT INTO customer_profiles (customer_key, customer_name, warehouse_scale, updated_by_id, updated_by_name, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6::timestamptz)
+        ON CONFLICT (customer_key) DO UPDATE SET customer_name = EXCLUDED.customer_name, warehouse_scale = EXCLUDED.warehouse_scale,
+          updated_by_id = EXCLUDED.updated_by_id, updated_by_name = EXCLUDED.updated_by_name, updated_at = EXCLUDED.updated_at
+        RETURNING ${PROFILE_COLS}`,
+      [key, String(customerName || ''), scale, actorId(actor), actorName(actor), now().toISOString()]);
       return profileOut(rows[0]);
     });
   }
@@ -266,7 +282,7 @@ function createCustomerProfileRepository({ pool = null, now = () => new Date(), 
   }
 
   return {
-    getMeta, getProfile, isEditor, saveProfile, createNote, updateNote, addImage, deleteImage,
+    getMeta, getProfile, isEditor, saveProfile, saveScale, createNote, updateNote, addImage, deleteImage,
     getImageMeta, getImageContent, setVisitDays, listAssignableUsers, setEditors, today
   };
 }

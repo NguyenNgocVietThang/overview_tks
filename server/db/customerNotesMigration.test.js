@@ -9,6 +9,21 @@ const UUID_A = '11111111-1111-4111-8111-111111111111';
 const UUID_B = '22222222-2222-4222-8222-222222222222';
 const SHA = 'a'.repeat(64);
 
+test('0084 upgrades old profiles, preserves data and can run twice', async () => {
+  const db = await open();
+  try {
+    await db.query(`INSERT INTO customer_profiles (customer_key, warehouse_scale, competitor, sales_channels) VALUES ('old', 'large', 'Keep', ARRAY['san'])`);
+    const upgrade = fs.readFileSync(path.join(__dirname, 'migrations', '0084_customer_profile_details.sql'), 'utf8');
+    await db.exec(upgrade);
+    assert.deepEqual((await db.query(`SELECT area, warehouse_scale, competitor, sales_channels FROM customer_profiles WHERE customer_key = 'old'`)).rows[0], { area: '', warehouse_scale: 'large', competitor: 'Keep', sales_channels: ['san'] });
+    await db.query(`UPDATE customer_profiles SET area = 'District', warehouse_scale = 'very_large', sales_channels = ARRAY['khac']`);
+    await db.exec(upgrade);
+    assert.deepEqual((await db.query(`SELECT area, warehouse_scale, sales_channels FROM customer_profiles`)).rows[0], { area: 'District', warehouse_scale: 'very_large', sales_channels: ['khac'] });
+    await assert.rejects(db.query(`UPDATE customer_profiles SET warehouse_scale = 'huge'`), /check/i);
+    await assert.rejects(db.query(`UPDATE customer_profiles SET sales_channels = ARRAY['invalid']`), /check/i);
+  } finally { await db.close(); }
+});
+
 async function open() {
   const { PGlite } = require('@electric-sql/pglite');
   const db = new PGlite();

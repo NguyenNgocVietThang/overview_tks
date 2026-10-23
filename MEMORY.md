@@ -1,7 +1,7 @@
 # MEMORY: BỘ NHỚ DÀI HẠN DỰ ÁN TOKOSI DASHBOARD
 
 > **Thời hạn giá trị:** Ít nhất 3 tháng (Q4/2026 – Q1/2027).  
-> **Cập nhật gần nhất:** 12/10/2026.  
+> **Cập nhật gần nhất:** 23/10/2026.  
 > **Quy tắc:** Chỉ lưu trữ các nguyên tắc cốt lõi, kiến trúc bất biến, quy ước chuẩn hóa và bài học kinh nghiệm dài hạn. Không ghi deadline ngắn hạn hay task vụn vặt vào file này.
 
 ---
@@ -69,7 +69,7 @@
 
 ---
 
-## 3. Bản đồ Migration Cơ sở dữ liệu (0001 – 0044)
+## 3. Bản đồ Migration Cơ sở dữ liệu (0001 – 0084)
 
 | Dải Migration | Phân hệ & Nội dung chính |
 |---|---|
@@ -87,8 +87,18 @@
 | `0041–0042` | Trạng thái nhân sự `employment_status` (`active`/`resigned`), đơn nghỉ phép cho tài khoản nội bộ chưa gắn nhân sự (`hr_employee_id` nullable). |
 | `0043` | `special_day_notice_log` — chống gửi trùng thông báo ngày lễ/sinh nhật. |
 | `0044` | `purchases.raw_hash` — băm raw phiếu nhập đối soát không cần tải lại cột `raw`, giảm egress Supabase. |
-| `0057` | `product_report` thêm `available_hanoi`/`available_saigon`/`description_hanoi`/`description_saigon` (Có bán + Mô tả theo từng cơ sở; NULL = chưa tính lại). |
-| `0058` | Index `orders(branch, order_date)` cho danh sách đơn đặt hàng chưa xuất HĐ của Kế toán – Nháp VAT (chưa áp; trang chạy được khi chưa áp). |
+| `0057` | `product_report` thêm `available_hanoi`/`available_saigon`/`description_hanoi`/`description_saigon` (Có bán + Mô tả theo từng cơ sở). |
+| `0058` | Index `orders(branch, order_date)` cho danh sách đơn đặt hàng chưa xuất HĐ của Kế toán – Nháp VAT. |
+| `0068–0070` | Tính sẵn Báo cáo kinh doanh (`business_current_month_*`), Báo cáo Marketing (`marketing_ads_costs`, `marketing_phone_summary`), view Sổ quỹ (`v_cash_book_transactions`). |
+| `0075` | `product_container_expected` — Bảng tính sẵn Hàng dự kiến theo Cont từ `product_container_lines`. |
+| `0076` | `vat_requests` + `vat_request_history` — Bảng Kế toán ORDER VAT. |
+| `0077` | `invoice_price_audit_*` — Bảng kiểm tra sai giá hóa đơn HN/SG trong cửa sổ 7 ngày. |
+| `0078` | `product_container_expected` thêm cột giá: `listed_at`, `unit_price_cny`, `vietnam_price`. |
+| `0079` | `vat_requests.sort_rank` NUMERIC — Thứ tự ưu tiên dòng ORDER VAT khi kéo thả. |
+| `0080` | `customer_profiles`, `customer_notes`, `customer_visit_days` (Ghi chú / Tiếp khách); `vat_request_notice_state` (chuông ORDER VAT). |
+| `0081–0082` | Tách tài khoản khỏi HR (`app_users.work_branch`, `hr_leave_work_schedules.user_id`, `hr_leave_submissions.user_id`). |
+| `0083` | `vat_requests` trạng thái 5 ("VAT sẵn nhiều"). |
+| `0084` | `customer_profiles.area`, mở rộng `warehouse_scale` (very_large) và `sales_channels` (khac). |
 
 ---
 

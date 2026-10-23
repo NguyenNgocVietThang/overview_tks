@@ -1,5 +1,7 @@
 # TÀI LIỆU ĐẶC TẢ YÊU CẦU PHẦN MỀM
 
+23/10/2026 — Kiểm tra giá bán (Invoice Price Audit) đã hoàn thiện và push 2 remote GitHub (`origin`, `tks_web`): chuẩn hóa danh sách 10 khách bao cước HN sang tên KiotViet mới (giữ dấu), đọc bậc giá theo chiếc (`CT`, `lẻ`) trực tiếp, khóa 4 mức giá Vừa - Lớn - VIP - Cắt lỗ, email 'mới' tính khách Lớn. Gộp PR #16 (Vat Draft paste codes) và PR #17 (Vat Request no hscroll).
+
 22/10/2026 — Danh sách nhân sự: Quản lý xem/sửa Số bảo hiểm sau Vân tay dưới dạng text tự do, xuất Excel kèm ID và nhập lại chỉ cập nhật Số bảo hiểm sau khi kiểm tra ID, trùng giá trị, cơ sở; không áp mẫu định dạng số.
 
 *(Software Requirements Specification – SRS)*
@@ -11,7 +13,7 @@
 | Tên dự án          | Hệ thống Dashboard nội bộ TOKOSI                           |
 | Phiên bản          | 3.0                                                        |
 | Ngày tạo           | 27/07/2026                                                 |
-| Ngày cập nhật      | 19/10/2026                                                 |
+| Ngày cập nhật      | 23/10/2026                                                 |
 | Tài liệu liên quan | BRD v2.2 · BPMN v3.0 · Implementation Plan (cập nhật 05/10/2026) · CSNS-NP-01 (Chính sách nghỉ phép) · `server/db/SCHEMA.md` · Design System MASTER (mục 7 — ràng buộc hiệu năng) |
 | Trạng thái         | Nội dung nền rà soát tại HEAD `11751c4` (05/10); FR-15 Sổ quỹ bổ sung và kiểm chứng 06/10. Migration `0033` đã áp thành công lên Supabase DB. Deploy production còn chờ. Số kiểm thử 1.704/1.701/0/3 là mốc lịch sử 05/10. |
 
@@ -769,10 +771,10 @@ Phương án B đã duyệt: tập SĐT/KPI Pancake riêng trong PostgreSQL, ng�
 
 ## Bổ sung 20/10/2026 — Kiểm tra giá bán (FR-PA)
 
-*Trạng thái: code + test xong trên nhánh `feature/invoice-price-audit`, gồm cả giao diện và xuất file (FR-PA-6, đã kiểm trên trình duyệt với dữ liệu thử); chưa merge/push/deploy, chưa áp 0077, chưa chạy job.*
+*Trạng thái: code + test xong, **đã hoàn thiện, merge vào `main` và push cả 2 remote GitHub (`origin` và `tks_web`)**; chuẩn hóa 10 khách bao cước HN sang tên KiotViet mới (giữ dấu), đọc bậc giá theo chiếc (`CT`, `lẻ`) trực tiếp, khóa 4 mức giá Vừa - Lớn - VIP - Cắt lỗ, email 'mới' tính khách Lớn; 24/24 unit test đạt; giao diện và xuất Excel/HTML (FR-PA-6) hoàn chỉnh; bước tiếp theo: áp migration 0077 lên DB production, deploy và bật cờ `INVOICE_PRICE_AUDIT_ENABLED`.*
 
 - **FR-PA-1 (phạm vi)**: một bảng trong tab Hóa đơn (`/reports/#invoices`) cho HN/SG; mỗi dòng hóa đơn Hoàn thành là một dòng kết quả. Dữ liệu `invoice_price_audit_*` (migration 0077), API `/api/invoice-price-audit`.
-- **FR-PA-2 (luật giá)**: giá min = nhỏ nhất của giá theo bậc số lượng (tổng SL cùng mã trong cùng hóa đơn) và giá theo cấp khách Vừa/Lớn/VIP (email KiotViet; khách không có email = Lớn, email lạ = Vừa) đọc từ mô tả hàng hóa từng cơ sở; cộng VAT khi có `Full Vat`; bậc trống không thành 0đ; giá thực bán = đơn giá − giảm giá dòng. Khách giao HN: `min(HN + cước, SG)`, cước từ cột O CÂN ĐO. `(OD)`/`(PK)` hoặc không có giá quy định → Đúng giá. Tiền tính NUMERIC.
+- **FR-PA-2 (luật giá)**: giá min = nhỏ nhất của giá theo bậc số lượng (tổng SL cùng mã trong cùng hóa đơn) và giá theo cấp khách Vừa/Lớn/VIP/Cắt lỗ (email KiotViet; khách không có email hoặc email chứa 'mới' = Lớn, email lạ = Vừa) đọc từ mô tả hàng hóa từng cơ sở; các mã có bậc `CT`/`lẻ` (ví dụ `100CT -2800`, `le T-`) tính trực tiếp theo số chiếc, không nhân `units_per_package`; khóa 4 bậc giá (Vừa → Lớn → VIP → Cắt lỗ; thiếu Cắt lỗ thì sàn là VIP); cộng VAT khi có `Full Vat`; bậc trống không thành 0đ; giá thực bán = đơn giá − giảm giá dòng. Khách giao HN chuẩn hóa danh sách 10 khách bao cước KiotViet: `min(HN + cước, SG)`, cước từ cột O CÂN ĐO. `(OD)`/`(PK)` hoặc không có giá quy định → Đúng giá. Tiền tính NUMERIC.
 - **FR-PA-3 (chụp 23:00)**: job 23:00 Asia/Ho_Chi_Minh (`INVOICE_PRICE_AUDIT_ENABLED`) chụp hóa đơn chưa quét của ngày chạy và 6 ngày trước; bản đã chụp bất biến trước thay đổi giá/mô tả/VAT/cước; hóa đơn đến muộn được bổ sung nếu còn trong cửa sổ; hết cửa sổ xóa cùng giải thích/Chốt. Chạy trong transaction, khóa chống chạy trùng, lỗi giữ bản cũ.
 - **FR-PA-4 (giải thích)**: Nhân viên sale (quyền `reports.invoices.priceAudit.explain`) điền giải thích cho dòng Sai giá của khách thuộc nhóm mình phụ trách hiện tại; kiểm tra ở máy chủ, khóa lạc quan `expectedVersion`.
 - **FR-PA-5 (Chốt)**: quyền `reports.invoices.priceAudit.decide` (mặc định Quản lý) Chốt Ok (thành Đúng giá, giữ số gốc) hoặc Phạt (SL × chênh/đơn vị gốc); sửa/xóa Chốt được trong cửa sổ; có nhật ký.
@@ -780,7 +782,7 @@ Phương án B đã duyệt: tập SĐT/KPI Pancake riêng trong PostgreSQL, ng�
 - **FR-PA-8 (nguồn chưa sẵn sàng)**: dòng SL > 0 có đơn giá NULL, tiêu đề cột O CÂN ĐO sai (đồng bộ m3/kg vẫn chạy, cước = NULL, ghi `freight_error`), Cân đo chưa đồng bộ, thiếu sản phẩm/khách → job báo lỗi rõ ràng và giữ bản công bố cũ. Hóa đơn chưa có dòng chi tiết không ghi sổ để lượt sau chụp lại. Bậc ghi giá 0 bị bỏ qua.
 - **FR-PA-7 (quyền xem)**: `reports.invoices.priceAudit` (Quản lý, Trợ lý, Nhân viên sale; Khách bị chặn); lỗi job không ảnh hưởng tab Giao dịch hiện có.
 
-Cập nhật gần nhất: 22/10/2026.
+Cập nhật gần nhất: 23/10/2026.
 
 
 21/10/2026 — **CONT TKS1 và cột Nguồn (mã cục bộ trên main, chưa deploy):** nguồn thứ bảy `CONT TKS1` sau KHÁC dùng chung snapshot, số Chưa bốc (1+2), Đã bốc (3) và chi tiết CONT; trạng thái 4 giữ trong Dự kiến hàng về, không cộng hai số tổng. Tên SP vẫn tra `product_report` theo mã. Bảng Dự kiến hàng về có 11 cột; Nguồn (`sheetName`) đứng đầu, mặc định hiện và được chọn khi xuất Excel/HTML; chọn riêng các cột cũ vẫn hợp lệ. Giữ tìm kiếm, ba bộ lọc Nguồn/Cont/Trạng thái, quyền, phân trang và cấu hình cột trong phiên. Đọc thiếu/lỗi bất kỳ nguồn nào giữ snapshot thành công gần nhất. Không thêm migration, dependency hoặc endpoint; bộ lọc Nguồn được bổ sung theo phê duyệt tiếp theo cùng ngày; không ghi Sheets hay chạy job ghi DB production trong lượt triển khai này.
@@ -839,3 +841,9 @@ FR-16.11: bảng Doanh số theo khách thêm cột Ghi chú và Tiếp khách l
 
 - **FR-VAT-12 (22/10/2026)**: tab **Xử lý hóa đơn → Chọn chứng từ** bỏ hẳn bảng tick chọn chứng từ (bộ lọc Loại / Từ–Đến ngày / ô tìm / Xuất file danh sách / phân trang / thanh chip "Đã chọn"). Chỉ còn ô dán mã HD/DH + ô **Cơ sở** (Cả hai / Hà Nội / Sài Gòn, mặc định theo cơ sở ở header) + nút **Xử lý** (hoặc Ctrl+Enter): tra mã rồi phân bổ luôn các chứng từ hợp lệ. Danh sách **Hóa đơn đã dán** (đúng thứ tự dán: Mã · Cơ sở · Khách hàng · Thời gian · Trạng thái · Tổng tiền) hiện trên phần Kết quả; mã không tìm thấy / sai định dạng / đã hủy là dòng đỏ có lý do và bị bỏ qua, các mã khác vẫn xử lý; mã có ở cả HN lẫn SG thì dừng, không phân bổ, nhắc chọn Cơ sở rồi bấm lại. Bấm 1 dòng (hoặc Enter) mở **hộp chi tiết** giống "Chi tiết giao dịch" ở dashboard (thẻ Tổng tiền hàng / Khách đã trả / Còn phải thu, thông tin chung, bảng hàng hóa; DH mở "Chi tiết đơn đặt hàng").
 - **FR-VAT-13 (22/10/2026)**: hộp chi tiết lấy dữ liệu qua `GET /api/vat-draft/documents/detail` theo quyền `accounting.vatDraft` (kế toán không cần quyền Báo cáo hóa đơn); đóng bằng Esc / nút × / bấm nền, trả focus về dòng vừa bấm; lỗi tải hiện trong hộp kèm nút Thử lại.
+
+## Cập nhật FR-16.11 — 23/10/2026
+
+Thiết kế hiện hành: `docs/superpowers/specs/2026-10-23-customer-profile-refinement-design.md` (thay mô tả giao diện/quy mô FR-16.11 ngày 22/10). Thêm Diện tích text ≤500 ký tự; hình thức bán hàng nhiều lựa chọn thêm Khác; quy mô chỉ Quản lý sửa riêng, thêm Rất to. API mới `PUT /api/business-report/customer-profile/scale` body `{key, warehouseScale}` trả `{warehouseScale}`, yêu cầu customerNotes + customerManage. PUT profile nhận thêm area và không được thay quy mô.
+
+Hai cột thông tin/Note; Note cuộn riêng 360px, chữ dài xuống dòng. Ba nhóm người sửa/quy mô/lịch nằm cạnh nhau desktop, xếp dọc mobile. Lịch gọn, chỉ ngày chọn có viền vuông bo góc, giữ Lưu/Hủy. Cột ngày ngoài bảng không có lịch chọn. Gallery chuyển ảnh chỉ sau khi mở ảnh lớn, hỗ trợ phím và Esc. Migration 0084 chưa áp DB dùng chung; chưa deploy.

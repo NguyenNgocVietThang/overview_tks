@@ -99,7 +99,7 @@ function createBusinessReportRouter({ repository = createRepository(), customerP
 
   // ---- Ghi chu / thong tin theo khach (bang "Doanh so theo khach", migration 0080) ----
   const customerView = [requireAuth, requireFeature(CUSTOMER_NOTES)];
-  const customerManage = [requireAuth, requireFeature(CUSTOMER_MANAGE)];
+  const customerManage = [requireAuth, requireFeature(CUSTOMER_NOTES), requireFeature(CUSTOMER_MANAGE)];
   const jsonBody = express.json({ limit: '64kb' });
   const fail = (statusCode, code, message) => rules.httpError(statusCode, code, message);
   const actorOf = user => ({ id: user && user.id !== undefined && user.id !== null ? user.id : null, name: (user && (user.hoTen || user.username)) || '' });
@@ -147,6 +147,14 @@ function createBusinessReportRouter({ repository = createRepository(), customerP
     const customer = await editableCustomer(req, body.key);
     const input = rules.normalizeProfileInput(body);
     res.json({ profile: await customerProfiles.saveProfile(customer.key, customer.name, input, actorOf(req.user)) });
+  }));
+
+  router.put('/customer-profile/scale', ...customerManage, jsonBody, handle(async (req, res) => {
+    const body = req.body || {};
+    const customer = await customerOf(body.key);
+    const scale = rules.normalizeScale(body.warehouseScale);
+    const profile = await customerProfiles.saveScale(customer.key, customer.name, scale, actorOf(req.user));
+    res.json({ warehouseScale: profile.warehouseScale });
   }));
 
   router.post('/customer-profile/notes', ...customerView, jsonBody, handle(async (req, res) => {

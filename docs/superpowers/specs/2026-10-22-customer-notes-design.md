@@ -1,5 +1,7 @@
 # Ghi chú và Tiếp khách lần cuối theo khách hàng
 
+**Cập nhật 23/10/2026:** giao diện và quyền sửa quy mô theo [thiết kế cập nhật](2026-10-23-customer-profile-refinement-design.md); các mô tả ban đầu bên dưới được giữ làm lịch sử.
+
 Ngày: 22/10/2026. Phạm vi và các quyết định (quyền xem, 1 note/khách/ngày, người sửa do Quản lý gán) đã được người dùng chốt trong chat. Trạng thái: đã commit trên `main`, chưa push/deploy; migration `0080` đã áp DB dùng chung (22/10/2026).
 
 ## Mục tiêu

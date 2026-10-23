@@ -1,5 +1,7 @@
 # TÀI LIỆU YÊU CẦU NGHIỆP VỤ
 
+23/10/2026 — Kiểm tra giá bán (Invoice Price Audit) đã hoàn thiện và push 2 remote GitHub (`origin`, `tks_web`): chuẩn hóa danh sách 10 khách bao cước HN sang tên KiotViet mới (giữ dấu), đọc bậc giá theo chiếc (`CT`, `lẻ`) trực tiếp, khóa 4 mức giá Vừa - Lớn - VIP - Cắt lỗ, email 'mới' tính khách Lớn. Gộp PR #16 (Vat Draft paste codes) và PR #17 (Vat Request no hscroll).
+
 22/10/2026 — Quản lý bổ sung Số bảo hiểm qua Excel xuất từ Danh sách nhân sự và nhập lại theo ID nhân sự; chỉ trường bảo hiểm được cập nhật.
 
 *(Business Requirements Document – BRD)*
@@ -11,7 +13,7 @@
 | Tên dự án         | Hệ thống Dashboard nội bộ TOKOSI (KiotViet → Supabase PostgreSQL → Web; Google Sheets bổ trợ) |
 | Phiên bản         | 2.3                                                                 |
 | Ngày tạo          | 27/07/2026                                                          |
-| Ngày cập nhật     | 19/10/2026                                                          |
+| Ngày cập nhật     | 23/10/2026                                                          |
 | Đối tượng sử dụng | Ban lãnh đạo, nhân viên nội bộ công ty                              |
 | Trạng thái        | Nội dung nền rà soát tại HEAD `11751c4` (05/10); bổ sung Sổ quỹ đã kiểm chứng cục bộ 06/10, migration `0033` và deploy production còn chờ. |
 
@@ -375,9 +377,9 @@ Phương án B đã duyệt: tập SĐT/KPI Pancake riêng trong PostgreSQL, ng�
 - **Người dùng**: Quản lý, Trợ lý, Nhân viên sale xem; sale giải thích; Quản lý (hoặc người được cấp) chốt.
 - **Thành công**: không còn đối chiếu thủ công, kết quả không đổi theo giá hiện tại, có dấu vết ai giải thích/chốt gì khi nào.
 - **Ngoài phạm vi**: bảng giá cắt lô riêng theo khách–mã, ghi ngược KiotViet/Google Sheets, lưu lịch sử quá 7 ngày.
-- **Trạng thái**: code + test xong trên nhánh `feature/invoice-price-audit`; gồm cả giao diện và xuất Excel/HTML (đã kiểm trên trình duyệt với dữ liệu thử); chưa merge/push/deploy, chưa áp migration 0077, chưa chạy job thật.
+- **Trạng thái**: code + test xong, **đã hoàn thiện, merge vào `main` và push cả 2 remote GitHub (`origin` và `tks_web`)**; chuẩn hóa 10 khách bao cước HN sang tên KiotViet mới (giữ dấu), đọc bậc giá theo chiếc (`CT`, `lẻ`) trực tiếp, khóa 4 mức giá Vừa - Lớn - VIP - Cắt lỗ, email 'mới' tính khách Lớn; 24/24 unit test đạt; giao diện và xuất Excel/HTML hoàn chỉnh; bước vận hành tiếp theo: áp migration `0077` lên DB production, deploy và bật cờ `INVOICE_PRICE_AUDIT_ENABLED`.
 
-Cập nhật gần nhất: 22/10/2026.
+Cập nhật gần nhất: 23/10/2026.
 
 
 21/10/2026 — **CONT TKS1 và cột Nguồn (mã cục bộ trên main, chưa deploy):** nguồn thứ bảy `CONT TKS1` sau KHÁC dùng chung snapshot, số Chưa bốc (1+2), Đã bốc (3) và chi tiết CONT; trạng thái 4 giữ trong Dự kiến hàng về, không cộng hai số tổng. Tên SP vẫn tra `product_report` theo mã. Bảng Dự kiến hàng về có 11 cột; Nguồn (`sheetName`) đứng đầu, mặc định hiện và được chọn khi xuất Excel/HTML; chọn riêng các cột cũ vẫn hợp lệ. Giữ tìm kiếm, ba bộ lọc Nguồn/Cont/Trạng thái, quyền, phân trang và cấu hình cột trong phiên. Đọc thiếu/lỗi bất kỳ nguồn nào giữ snapshot thành công gần nhất. Không thêm migration, dependency hoặc endpoint; bộ lọc Nguồn được bổ sung theo phê duyệt tiếp theo cùng ngày; không ghi Sheets hay chạy job ghi DB production trong lượt triển khai này.
@@ -416,3 +418,7 @@ Quản lý có thể theo dõi và xuất công nợ/thưởng phạt theo Nhóm
 - **Giải pháp**: chỉ còn ô dán mã + Cơ sở + nút Xử lý (một bước); danh sách hóa đơn đã dán bấm được để xem chi tiết như hộp "Chi tiết giao dịch" ở dashboard.
 - **Thành công**: dán mã, bấm một nút là có kết quả phân bổ; mã lỗi được chỉ rõ mà không chặn các mã đúng.
 - **Ngoài phạm vi**: chế độ "Dán dữ liệu" (cột Excel), tab Tạo QR, thuật toán phân bổ và bảng kết quả không đổi.
+
+## Cập nhật Chi tiết khách — 23/10/2026
+
+Bổ sung Diện tích, kênh bán Khác và đánh giá Rất to. Đánh giá quy mô do Quản lý thực hiện riêng, cạnh danh sách người sửa và lịch tiếp khách gọn. Thông tin dài xuống dòng, Note cũ xem bằng cuộn trong khung; xem ảnh lớn chuyển được ảnh trước/sau. Bảng doanh số chỉ hiển thị ngày tiếp khách; chỉnh ngày trong Chi tiết khách. Quy tắc Note và quyền sửa thông tin chung giữ nguyên. Thiết kế đã duyệt trong `docs/superpowers/specs/2026-10-23-customer-profile-refinement-design.md`; migration 0084 chưa áp DB thật, chưa deploy.

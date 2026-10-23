@@ -3,8 +3,8 @@
 // Quy tac thuan (khong DB) cho thong tin / ghi chu khach hang cua bang "Doanh so theo khach".
 // Route va repository cung dung de 400 som, dung 1 nguon su that.
 
-const SCALES = Object.freeze(['none', 'small', 'medium', 'large']);
-const SALES_CHANNELS = Object.freeze(['san', 'cua_hang', 'fb_ads', 'fb_live', 'sang_tay', 'kho_buon']);
+const SCALES = Object.freeze(['none', 'small', 'medium', 'large', 'very_large']);
+const SALES_CHANNELS = Object.freeze(['san', 'cua_hang', 'fb_ads', 'fb_live', 'sang_tay', 'kho_buon', 'khac']);
 const MAX_TEXT = 500;
 const MAX_NOTE = 2000;
 const MAX_VISIT_DATES = 400;
@@ -29,7 +29,12 @@ function text(value, label) {
   return s;
 }
 
-// body: { warehouseLocation, warehouseCount, warehouseScale, competitor, salesChannels }.
+function normalizeScale(value) {
+  if (!SCALES.includes(value)) throw bad('INVALID_PROFILE', 'Quy mô kho không hợp lệ.');
+  return value;
+}
+
+// General profile writes intentionally ignore warehouseScale; managers save it separately.
 function normalizeProfileInput(body) {
   const b = body && typeof body === 'object' ? body : {};
   let count = null;
@@ -38,8 +43,6 @@ function normalizeProfileInput(body) {
     if (!Number.isFinite(n) || n < 0 || n > MAX_WAREHOUSE_COUNT) throw bad('INVALID_PROFILE', 'Số lượng kho phải là số không âm.');
     count = n;
   }
-  const scale = b.warehouseScale === undefined || b.warehouseScale === null || b.warehouseScale === '' ? 'none' : b.warehouseScale;
-  if (!SCALES.includes(scale)) throw bad('INVALID_PROFILE', 'Quy mô kho không hợp lệ.');
   let channels = [];
   if (b.salesChannels !== undefined && b.salesChannels !== null) {
     if (!Array.isArray(b.salesChannels)) throw bad('INVALID_PROFILE', 'Hình thức bán hàng không hợp lệ.');
@@ -48,8 +51,8 @@ function normalizeProfileInput(body) {
   }
   return {
     warehouseLocation: text(b.warehouseLocation, 'Định vị kho'),
+    area: text(b.area, 'Diện tích'),
     warehouseCount: count,
-    warehouseScale: scale,
     competitor: text(b.competitor, 'Đối thủ'),
     salesChannels: channels
   };
@@ -95,9 +98,9 @@ function normalizeUserIds(userIds) {
   return out;
 }
 
-const emptyProfile = () => ({ warehouseLocation: '', warehouseCount: null, warehouseScale: 'none', competitor: '', salesChannels: [] });
+const emptyProfile = () => ({ warehouseLocation: '', area: '', warehouseCount: null, warehouseScale: 'none', competitor: '', salesChannels: [] });
 
 module.exports = {
   SCALES, SALES_CHANNELS, MAX_IMAGES, MAX_NOTE, MAX_TEXT, UUID_RE,
-  httpError, normalizeProfileInput, normalizeNoteBody, normalizeVisitDates, normalizeUserIds, emptyProfile
+  httpError, normalizeProfileInput, normalizeScale, normalizeNoteBody, normalizeVisitDates, normalizeUserIds, emptyProfile
 };

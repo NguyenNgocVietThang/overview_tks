@@ -16,11 +16,13 @@ const publicDir = path.join(__dirname, '..', '..', 'public');
 const html = fs.readFileSync(path.join(publicDir, 'index.html'), 'utf8');
 const settle = async () => { for (let i = 0; i < 12; i++) await new Promise(r => setImmediate(r)); };
 const KEY = 'chị a';
+const openPages = [];
+test.afterEach(() => openPages.splice(0).forEach(dom => dom.window.close()));
 
 function baseProfile(overrides = {}) {
   return Object.assign({
     key: KEY, name: 'Chị A', today: '2026-10-06', canEdit: true, canManage: true,
-    profile: { warehouseLocation: 'Kho Cầu Giấy', warehouseCount: 2, warehouseScale: 'small', competitor: 'Tem X', salesChannels: ['san'] },
+    profile: { warehouseLocation: 'Kho Cầu Giấy', warehouseCount: 2, area: '250 m²', warehouseScale: 'small', competitor: 'Tem X', salesChannels: ['san'] },
     images: [{ id: 'img1', url: '/api/business-report/customer-profile/images/img1', contentType: 'image/jpeg', byteSize: 10, createdAt: '2026-10-01T03:00:00.000Z' }],
     notes: [
       { id: 'n2', noteDate: '2026-10-06', body: 'Hôm nay gọi khách', authorId: 'u1', authorName: 'Khang', createdAt: '2026-10-06T03:05:00.000Z', updatedAt: '2026-10-06T03:05:00.000Z', editable: true },
@@ -32,6 +34,7 @@ function baseProfile(overrides = {}) {
 
 function createPage({ can = () => true, profile = baseProfile(), meta, metaFails = false, hash = '#business' } = {}) {
   const dom = new JSDOM(html, { runScripts: 'outside-only', url: 'https://tokosi.example/reports/' + hash });
+  openPages.push(dom);
   const win = dom.window;
   win.HTMLCanvasElement.prototype.getContext = () => ({});
   win.Chart = class FakeChart {
@@ -40,7 +43,7 @@ function createPage({ can = () => true, profile = baseProfile(), meta, metaFails
     destroy() {}
   };
   win.setInterval = () => 1;
-  win.requestAnimationFrame = cb => cb();
+  win.requestAnimationFrame = cb => { if (win.document) cb(); };
   win.HTMLElement.prototype.scrollIntoView = function () {};
   win.confirm = () => true;
   win.TKSNav = { authGuard: () => new Promise(() => {}), can, handleBranchError: () => false, renderTopSidebar() {} };
@@ -74,8 +77,13 @@ function createPage({ can = () => true, profile = baseProfile(), meta, metaFails
     if (sub === 'customer-profile' && method === 'GET') return respond(200, server.profile);
     if (sub === 'customer-profile' && method === 'PUT') {
       const body = JSON.parse(opts.body);
-      server.profile.profile = { warehouseLocation: body.warehouseLocation, warehouseCount: body.warehouseCount, warehouseScale: body.warehouseScale, competitor: body.competitor, salesChannels: body.salesChannels };
+      Object.assign(server.profile.profile, { warehouseLocation: body.warehouseLocation, warehouseCount: body.warehouseCount, area: body.area, competitor: body.competitor, salesChannels: body.salesChannels });
       return respond(200, { profile: server.profile.profile });
+    }
+    if (sub === 'customer-profile/scale' && method === 'PUT') {
+      const body = JSON.parse(opts.body);
+      server.profile.profile.warehouseScale = body.warehouseScale;
+      return respond(200, { warehouseScale: body.warehouseScale });
     }
     if (sub === 'customer-profile/notes' && method === 'POST') {
       const body = JSON.parse(opts.body);
@@ -165,8 +173,7 @@ test('co reports.business.customerNotes: 2 cot moi sau Level gia, moi th co data
   const noMeta = rows.find(tr => tr.dataset.tableItemId === 'anh b');
   assert.equal(noMeta.querySelector('.cp-visit-empty').textContent, 'dd/mm/yyyy');
   assert.equal(noMeta.querySelector('.cp-badge'), null);
-  assert.ok(calendarButton(page).getAttribute('aria-label'), 'nut lich co aria-label');
-  assert.ok(calendarButton(page).querySelector('svg'));
+  assert.equal(calendarButton(page), null, 'cot ngay chi hien ngay, Quan ly cung khong co nut lich');
 });
 
 test('thieu customerNotes: khong co 2 cot, khong co nut, khong goi customer-meta; thieu customerManage: khong co bieu tuong lich', async () => {
@@ -220,14 +227,16 @@ test('hop Chi tiet: Thong tin chung dien san, nhan hien thi, kenh ban hang la dr
   const page = await openProfile();
   const body = page.$('docModalBody');
   const labels = [...body.querySelectorAll('#cpProfileForm label[for], #cpProfileForm .cp-label')].map(l => l.textContent.trim());
-  assert.deepEqual(labels, ['Định vị kho', 'Số lượng kho', 'Quy mô kho', 'Đối thủ (để ý tem)', 'Hình thức bán hàng']);
+  assert.deepEqual(labels, ['Định vị kho', 'Số lượng kho', 'Diện tích', 'Đối thủ (để ý tem)', 'Hình thức bán hàng']);
   assert.equal(page.$('cpWarehouseLocation').value, 'Kho Cầu Giấy');
   assert.equal(page.$('cpWarehouseCount').value, '2');
   assert.equal(page.$('cpWarehouseScale').value, 'small');
-  assert.deepEqual([...page.$('cpWarehouseScale').options].map(o => o.textContent), ['Chưa có', 'Nhỏ', 'Vừa', 'To']);
+  assert.equal(page.$('cpArea').value, '250 m²');
+  assert.equal(page.$('cpWarehouseScale').closest('#cpProfileForm'), null);
+  assert.deepEqual([...page.$('cpWarehouseScale').options].map(o => o.textContent), ['Chưa có', 'Nhỏ', 'Vừa', 'To', 'Rất to']);
   assert.equal(page.$('cpChannelsBtn').textContent.trim().startsWith('Bán sàn'), true);
   assert.deepEqual([...page.$('cpChannelsPop').querySelectorAll('label')].map(l => l.textContent.trim()),
-    ['Bán sàn', 'Bán cửa hàng', 'FB ads', 'FB live', 'Sang tay', 'Kho buôn']);
+    ['Bán sàn', 'Bán cửa hàng', 'FB ads', 'FB live', 'Sang tay', 'Kho buôn', 'Khác']);
   const img = body.querySelector('.cp-images img');
   assert.equal(img.getAttribute('loading'), 'lazy');
   assert.ok(img.getAttribute('width') && img.getAttribute('height'));
@@ -254,8 +263,7 @@ test('Luu thong tin chung: PUT dung payload (nhieu kenh, so luong kho la so), nu
   const page = await openProfile();
   fireInput(page, page.$('cpWarehouseLocation'), '  Kho Hà Đông ');
   fireInput(page, page.$('cpWarehouseCount'), '5');
-  page.$('cpWarehouseScale').value = 'large';
-  fireChange(page, page.$('cpWarehouseScale'));
+  fireInput(page, page.$('cpArea'), ' Kho chính 300 m²\nKho phụ 100 m² ');
   fireInput(page, page.$('cpCompetitor'), 'Tem Y');
   page.$('cpChannelsBtn').click();
   const boxes = [...page.$('cpChannelsPop').querySelectorAll('input')];
@@ -272,7 +280,7 @@ test('Luu thong tin chung: PUT dung payload (nhieu kenh, so luong kho la so), nu
   const put = sent(page, 'PUT', 'customer-profile');
   assert.equal(put.length, 1);
   assert.deepEqual(jsonOf(put[0]), {
-    key: KEY, warehouseLocation: 'Kho Hà Đông', warehouseCount: 5, warehouseScale: 'large', competitor: 'Tem Y',
+    key: KEY, warehouseLocation: 'Kho Hà Đông', warehouseCount: 5, area: 'Kho chính 300 m²\nKho phụ 100 m²', competitor: 'Tem Y',
     salesChannels: ['san', 'fb_live', 'kho_buon']
   });
   assert.match(page.doc.getElementById('tksToastStack').textContent, /Đã lưu thông tin chung/);
@@ -449,25 +457,11 @@ test('bam ngay tren lich bat/tat; Luu -> PUT visits {key, dates} sap tang dan; o
   assert.equal(page.$('docModalBackdrop').hidden, false, 'trong hop Chi tiet thi giu hop mo');
 });
 
-test('bieu tuong lich o bang: mo hop lich rieng, Luu -> PUT visits, dong hop, o bang doi, focus ve nut lich', async () => {
-  const page = await openBusiness();
-  const trigger = calendarButton(page);
-  trigger.focus();
-  trigger.click();
-  await settle();
-  assert.equal(page.$('docModalBackdrop').hidden, false);
-  assert.match(page.$('docModalTitle').textContent, /Tiếp khách lần cuối · Chị A/);
-  assert.equal(page.doc.querySelector('#docModalBackdrop .doc-modal').classList.contains('is-wide'), false, 'hop hep');
-  assert.equal(page.server.requests.some(r => r.href.startsWith('/api/business-report/detail')), false);
-  const cal = page.$('cpCalendarHost');
-  assert.ok(cal);
-  cal.querySelector('.cp-day[data-date="2026-10-06"]').click();
-  cal.querySelector('[data-act="save"]').click();
-  await settle();
-  assert.deepEqual(jsonOf(sent(page, 'PUT', 'customer-profile/visits')[0]).dates, ['2026-10-01', '2026-10-03', '2026-10-06']);
-  assert.equal(page.$('docModalBackdrop').hidden, true, 'luu xong dong hop');
-  assert.equal(visitCell(page).querySelector('.cp-visit-date').textContent, '06/10/2026');
-  assert.equal(page.doc.activeElement, calendarButton(page));
+test('cot ngay khong co thao tac lich; Quan ly sua ngay trong Chi tiet', async () => {
+  const page = await openProfile();
+  assert.equal(calendarButton(page), null);
+  assert.ok(page.$('cpCalendarHost'));
+  assert.deepEqual([...page.doc.querySelector('.cp-manager-grid').children].map(el => el.id), ['cpEditors', 'cpScale', 'cpVisits']);
 });
 
 test('lich: Huy trong hop Chi tiet bo thay doi; dong hop khi con thay doi chua luu thi hoi xac nhan', async () => {
@@ -583,4 +577,108 @@ test('GET customer-profile loi: hop hien thong bao loi + nut Thu lai goi lai API
   page.$('cpRetry').click();
   await settle();
   assert.ok(page.$('cpProfileForm'));
+});
+
+
+test('danh gia quy mo luu rieng, khong mat thong tin chung dang nhap; chi Quan ly co dropdown', async () => {
+  const page = await openProfile();
+  fireInput(page, page.$('cpArea'), 'Dien tich chua luu');
+  page.$('cpWarehouseScale').value = 'very_large';
+  fireChange(page, page.$('cpWarehouseScale'));
+  page.$('cpScaleSave').click();
+  assert.equal(page.$('cpScaleSave').disabled, true);
+  await settle();
+  assert.deepEqual(jsonOf(sent(page, 'PUT', 'customer-profile/scale')[0]), { key: KEY, warehouseScale: 'very_large' });
+  assert.equal(sent(page, 'PUT', 'customer-profile').length, 0);
+  assert.equal(page.$('cpArea').value, 'Dien tich chua luu');
+  page.$('cpProfileSave').click();
+  await settle();
+  assert.equal(page.$('cpWarehouseScale').value, 'very_large');
+  assert.equal(page.server.profile.profile.warehouseScale, 'very_large');
+  const editor = await openProfile({ profile: baseProfile({ canManage: false }) });
+  assert.equal(editor.$('cpWarehouseScale'), null);
+});
+
+test('danh gia chua luu duoc bao ve khi dong hop; loi luu giu lua chon de thu lai', async () => {
+  const page = await openProfile();
+  page.$('cpWarehouseScale').value = 'very_large';
+  fireChange(page, page.$('cpWarehouseScale'));
+  let asked = 0;
+  page.win.confirm = () => { asked++; return false; };
+  page.run('closeDocumentDetail()');
+  assert.equal(asked, 1);
+  assert.equal(page.$('docModalBackdrop').hidden, false);
+  page.server.failNext = Object.assign(/^PUT \/api\/business-report\/customer-profile\/scale$/, { response: { status: 500, body: { error: 'Loi thu nghiem' } } });
+  page.$('cpScaleSave').click();
+  await settle();
+  assert.equal(page.$('cpScaleSave').disabled, false);
+  assert.match(page.$('cpScaleError').textContent, /Loi thu nghiem/);
+  assert.equal(page.$('cpWarehouseScale').value, 'very_large');
+});
+
+test('text dai tu tang chieu cao, lua chon Khac gui cung kenh khac; Note co vung cuon rieng', async () => {
+  const profile = baseProfile();
+  profile.notes = Array.from({ length: 25 }, (_, i) => ({ ...profile.notes[1], id: 'old' + i, body: ('Noi dung dai ' + i + ' ').repeat(100) }));
+  const page = await openProfile({ profile });
+  for (const id of ['cpWarehouseLocation', 'cpArea', 'cpCompetitor']) {
+    const field = page.$(id);
+    assert.equal(field.tagName, 'TEXTAREA');
+    Object.defineProperty(field, 'scrollHeight', { value: 130 });
+    fireInput(page, field, 'Van ban nhieu dong');
+    assert.equal(field.style.height, '130px');
+  }
+  const other = page.$('cpChannelsPop').querySelector('input[value="khac"]');
+  other.checked = true;
+  fireChange(page, other);
+  page.$('cpProfileSave').click();
+  await settle();
+  assert.deepEqual(jsonOf(sent(page, 'PUT', 'customer-profile')[0]).salesChannels, ['san', 'khac']);
+  const history = page.$('cpNotes').querySelector('.cp-bubbles');
+  assert.equal(history.querySelectorAll('.cp-bubble').length, 25);
+  assert.equal(history.contains(page.$('cpNoteForm')), false);
+  assert.equal(history.getAttribute('tabindex'), '0');
+});
+
+test('thu vien anh: mui ten chi trong anh lon, doi dung anh, chan bien, phim trai phai, Esc tra focus', async () => {
+  const profile = baseProfile();
+  profile.images = ['a', 'b', 'c'].map(id => ({ id, url: '/images/' + id }));
+  const page = await openProfile({ profile });
+  assert.equal(page.doc.querySelector('.cp-lightbox-prev'), null);
+  const trigger = page.$('cpImages').querySelectorAll('.cp-img-open')[1];
+  trigger.click();
+  const box = page.doc.querySelector('.cp-lightbox');
+  assert.equal(box.querySelector('.cp-lightbox-count').textContent, '2 / 3');
+  assert.equal(box.querySelector('img').getAttribute('src'), '/images/b');
+  box.querySelector('.cp-lightbox-next').focus();
+  box.querySelector('.cp-lightbox-next').click();
+  assert.ok(box.isConnected, 'nut chuyen anh khong dong lightbox');
+  assert.equal(box.querySelector('img').getAttribute('src'), '/images/c');
+  assert.equal(box.querySelector('.cp-lightbox-next').disabled, true);
+  assert.equal(page.doc.activeElement, box.querySelector('.cp-lightbox-close'), 'giu focus trong anh lon khi nut dang focus bi vo hieu');
+  box.dispatchEvent(new page.win.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+  assert.equal(box.querySelector('.cp-lightbox-count').textContent, '3 / 3');
+  for (let i = 0; i < 2; i++) box.dispatchEvent(new page.win.KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+  assert.equal(box.querySelector('img').getAttribute('src'), '/images/a');
+  assert.equal(box.querySelector('.cp-lightbox-prev').disabled, true);
+  box.dispatchEvent(new page.win.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  assert.equal(page.doc.querySelector('.cp-lightbox'), null);
+  assert.equal(page.$('docModalBackdrop').hidden, false);
+  assert.equal(page.doc.activeElement, trigger);
+  const single = await openProfile();
+  single.$('cpImages').querySelector('.cp-img-open').click();
+  assert.equal(single.doc.querySelector('.cp-lightbox-prev'), null);
+  assert.equal(single.doc.querySelector('.cp-lightbox-next'), null);
+});
+
+
+test('text dai tang lai chieu cao khi doi chieu rong cua so', async () => {
+  const page = await openProfile();
+  const field = page.$('cpCompetitor');
+  let measuredHeight = 80;
+  Object.defineProperty(field, 'scrollHeight', { get: () => measuredHeight });
+  fireInput(page, field, 'Noi dung dai');
+  assert.equal(field.style.height, '80px');
+  measuredHeight = 190;
+  page.win.dispatchEvent(new page.win.Event('resize'));
+  assert.equal(field.style.height, '190px');
 });
