@@ -1,5 +1,7 @@
-/* Shared by the dashboard and standalone HTML reports. All choices live only
-   in this document; stable table/field keys survive DOM replacements. */
+/* Shared by the dashboard and standalone HTML reports. Choices live in this
+   document; stable table/field keys survive DOM replacements. Column widths and
+   hidden columns are also saved per account (endpoint me/table-prefs) once the
+   saved preferences have loaded, so they outlive the session. */
 (function () {
   'use strict';
   if (window.TKSTables) return;
@@ -8,6 +10,63 @@
   var picker = null, active = null, opener = null, drag = null, queued = false;
   var MIN_WIDTH = 64;
   var textContext;
+  // Cấu hình đã lưu của tài khoản: { [tableKey]: { [mode]: { columns: { [colKey]: { width?, hidden? } } } } }.
+  var storedPrefs = {}, prefsReady = false, saveTimers = new Map();
+  // Ghép từ mảnh để file HTML xuất ra (nhúng nguyên mã này) không chứa đường dẫn API nào.
+  var PREFS_URL = ['', 'api', 'me', 'table-prefs'].join('/');
+  var SAVE_DELAY = 800, MAX_SAVED_COLUMNS = 200, MAX_KEY_LENGTH = 200, MAX_SAVED_WIDTH = 2000;
+
+  function savedColumns(key, mode) {
+    var table = storedPrefs[key], prefs = table && table[mode];
+    return prefs && prefs.columns && typeof prefs.columns === 'object' ? prefs.columns : {};
+  }
+  function copyColumns(source) {
+    var out = {};
+    Object.keys(source).forEach(function (key) { out[key] = Object.assign({}, source[key]); });
+    return out;
+  }
+  function applySaved(session, column) {
+    var saved = session.dirty[column.key];
+    if (!saved) return;
+    if (typeof saved.width === 'number' && saved.width > 0) { column.width = Math.max(MIN_WIDTH, saved.width); session.fitted = true; }
+    if (typeof saved.hidden === 'boolean') column.hidden = saved.hidden;
+  }
+  // Ghi nhận lựa chọn của người dùng (không ghi độ rộng tự co giãn) rồi lưu sau một nhịp.
+  function remember(ctrl, column, patch) {
+    var session = ctrl.session;
+    session.dirty[column.key] = Object.assign({}, session.dirty[column.key], patch);
+    scheduleSave(session);
+  }
+  function scheduleSave(session) {
+    if (!prefsReady || typeof fetch !== 'function' || session.key.length > MAX_KEY_LENGTH) return;
+    clearTimeout(saveTimers.get(session));
+    saveTimers.set(session, setTimeout(function () { saveTimers.delete(session); save(session); }, SAVE_DELAY));
+  }
+  function save(session) {
+    var columns = {}, count = 0;
+    Object.keys(session.dirty).forEach(function (key) {
+      if (key.length > MAX_KEY_LENGTH || count >= MAX_SAVED_COLUMNS) return;
+      var item = session.dirty[key], out = {};
+      if (typeof item.width === 'number' && isFinite(item.width)) out.width = Math.min(MAX_SAVED_WIDTH, Math.max(24, Math.round(item.width)));
+      if (typeof item.hidden === 'boolean') out.hidden = item.hidden;
+      if (Object.keys(out).length) { columns[key] = out; count++; }
+    });
+    var url = PREFS_URL + '/' + encodeURIComponent(session.key) + '/' + session.mode;
+    try {
+      fetch(url, { method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ columns: columns }) })
+        .catch(function () { /* mất kết nối: bảng vẫn dùng bình thường, lần chỉnh sau sẽ lưu lại */ });
+    } catch (_) { /* fetch không dùng được */ }
+  }
+  // Nạp cấu hình đã lưu; áp ngay cho các bảng đã dựng.
+  function loadPrefs(tables) {
+    storedPrefs = tables && typeof tables === 'object' ? tables : {};
+    prefsReady = true;
+    sessions.forEach(function (session) {
+      session.dirty = copyColumns(savedColumns(session.key, session.mode));
+      session.columns.forEach(function (column) { applySaved(session, column); if (column.locked) column.hidden = false; });
+    });
+    if (window.document && document.body) refreshAll();
+  }
   // Biểu tượng sắp xếp dùng chung cả hệ thống (xem "Tiêu đề cột sắp xếp được" trong shared.css):
   // chưa sắp ▲▼ · tăng dần ▼ · giảm dần ▲.
   var SORT_GLYPH = { none: '▲▼', ascending: '▼', descending: '▲' };
@@ -265,6 +324,7 @@
   function resize(ctrl, column, value) {
     if (!column) return;
     column.width = Math.max(column.minWidth || MIN_WIDTH, value); ctrl.session.fitted = true; apply(ctrl);
+    remember(ctrl, column, { width: column.width });
   }
   function finishDrag() {
     if (!drag) return;
@@ -293,7 +353,11 @@
       var first = ctrl.columns.find(function (col) { return !col.suppressed; });
       if (first) next.delete(first.key);
     }
-    ctrl.columns.forEach(function (col) { col.hidden = next.has(col.key); });
+    ctrl.columns.forEach(function (col) {
+      var hide = next.has(col.key);
+      if (col.hidden !== hide) remember(ctrl, col, { hidden: hide });
+      col.hidden = hide;
+    });
     apply(ctrl);
     if (ctrl.options.onVisibilityChange) ctrl.options.onVisibilityChange(ctrl.columns.filter(function (col) { return col.hidden; }).map(function (col) { return col.key; }));
     if (active === ctrl) renderPicker();
@@ -559,7 +623,10 @@
     if (options) Object.assign(ctrl.options, options);
     var key = ctrl.options.key || tableKey(table), mode = screenMode(), sessionKey = key + '\u001e' + mode;
     var session = sessions.get(sessionKey);
-    if (!session) { session = { columns: new Map(), fitted: false }; sessions.set(sessionKey, session); }
+    if (!session) {
+      session = { columns: new Map(), fitted: false, key: key, mode: mode, dirty: copyColumns(savedColumns(key, mode)) };
+      sessions.set(sessionKey, session);
+    }
     ctrl.key = key; ctrl.mode = mode; ctrl.session = session; ctrl.head = head;
     var used = new Set();
     ctrl.columns = head.leaves.map(function (entry, index) {
@@ -572,6 +639,7 @@
       if (!column) {
         column = { key: colKey, width: Math.max(MIN_WIDTH, pxWidth(metadata.width) || pxWidth(cell.dataset.defaultWidth) || pxWidth(cell.style.width) || defaultWidth(colKey, label, cell)), hidden: !!metadata.hidden || cell.dataset.columnDefaultHidden === 'true', locked: !!metadata.locked };
         session.columns.set(colKey, column);
+        applySaved(session, column);
       }
       column.label = label; column.locked = !!metadata.locked || cell.dataset.columnLocked === 'true';
       column.unlisted = cell.dataset.columnUnlisted === 'true';
@@ -604,10 +672,19 @@
       columns: ctrl.columns.map(function (col) { return { key: col.key, label: col.label, width: col.width, hidden: col.hidden, locked: col.locked }; })
     };
   }
-  window.TKSTables = { enhance: enhance, refresh: refresh, refreshAll: refreshAll, getState: getState };
+  window.TKSTables = { enhance: enhance, refresh: refresh, refreshAll: refreshAll, getState: getState, loadPrefs: loadPrefs };
+  function fetchPrefs() {
+    if (typeof fetch !== 'function' || !/^https?:$/.test(window.location.protocol)) return;
+    // Trang chưa đăng nhập trả 401: bỏ qua, bảng dùng mặc định và không gửi lưu.
+    fetch(PREFS_URL, { credentials: 'same-origin' })
+      .then(function (response) { return response.ok ? response.json() : null; })
+      .then(function (body) { if (body && body.tables) loadPrefs(body.tables); })
+      .catch(function () { /* dùng cấu hình mặc định */ });
+  }
   function start() {
     if (!window.document || !document.body) return;
     refreshAll();
+    fetchPrefs();
     new MutationObserver(function (records) {
       if (records.some(function (record) {
         var target = record.target.nodeType === 1 ? record.target : record.target.parentElement;

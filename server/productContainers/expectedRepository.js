@@ -8,7 +8,7 @@ const { getPool } = require('../db/pool');
 
 const STATE_SQL = 'SELECT version::text AS version, computed_at, row_count FROM product_container_expected_state WHERE id = 1';
 const ROWS_TAIL = ` FROM product_container_expected ORDER BY sheet_order, container_row, source_row`;
-const ROWS_SQL = `SELECT schedule_label, status, status_label, eta, container_name, product_code, product_name, color, sale_note,
+const ROWS_SQL = `SELECT schedule_label, status, status_label, eta, container_name, product_code, product_name, color, sale_note, other_note,
     ordered_by, listed_at, units_per_package, package_count, unit_price_cny, vietnam_price, quantity, sheet_name, source_row${ROWS_TAIL}`;
 // Du phong khi chua ap migration 0078 (thieu listed_at / unit_price_cny / vietnam_price): bang van tai, gia = null.
 const ROWS_LEGACY_SQL = `SELECT schedule_label, status, status_label, eta, container_name, product_code, product_name, color, sale_note,
@@ -27,6 +27,7 @@ function mapRow(row) {
     productName: row.product_name || '',
     color: row.color || '',
     saleNote: row.sale_note || '',
+    otherNote: row.other_note || '',
     orderedBy: row.ordered_by || '',
     listedAt: row.listed_at || '',
     unitsPerPackage: num(row.units_per_package),

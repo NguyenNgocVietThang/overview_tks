@@ -54,7 +54,7 @@ test('GET / tra rows + filters + meta; loi DB tra 503 thong diep chung', async (
   const res = response();
   await handler(router, '/')({ query: {} }, res);
   assert.equal(res.statusCode, 200);
-  assert.deepEqual(Object.keys(res.body), ['rows', 'filters', 'meta', 'fullAccess']);
+  assert.deepEqual(Object.keys(res.body), ['rows', 'filters', 'meta', 'fullAccess', 'otherNoteAccess']);
   assert.equal(res.body.fullAccess, false);
   assert.equal(res.body.rows.length, 2);
   fail = true;
@@ -313,7 +313,7 @@ test('GET / tra du truong gia + fullAccess:true khi co quyen', async () => {
   assert.equal(res.body.rows[0].unitPriceCny, 12.345);
   assert.equal(res.body.rows[0].vietnamPrice, 45678.6);
   assert.equal(res.body.rows[0].listedAt, '2026-10-01');
-  assert.deepEqual(Object.keys(res.body), ['rows', 'filters', 'meta', 'fullAccess']);
+  assert.deepEqual(Object.keys(res.body), ['rows', 'filters', 'meta', 'fullAccess', 'otherNoteAccess']);
 });
 
 test('/export/fields chi liet ke cot gia khi co quyen', async () => {
@@ -458,4 +458,29 @@ test('co quyen: ?source loc /export/fields va export, GET / giu ten Nguon that',
   await workbook.xlsx.load(xlsx.sent);
   assert.equal(workbook.worksheets[0].rowCount, 2);
   assert.equal(workbook.worksheets[0].getCell('A2').value, 'CONT TKS1');
+});
+
+
+test('otherNote permission is independent, redacts API/export/search and never mutates cache', async () => {
+  const secret = 'privatepurchasenote';
+  const data = { ...DATA, rows: [{ ...ROWS[0], otherNote: secret }] };
+  const router = createExpectedArrivalsRouter({ repository: { getExpected: async () => data } });
+  const key = 'reports.products.expected.otherNote';
+  for (const [user, allowed] of [[NO_USER, false], [FULL_USER, false], [{ vaiTro: 'Quản lý' }, true], [{ ...NO_USER, featurePermissions: { [key]: true } }, true], [{ vaiTro: 'Quản lý', featurePermissions: { [key]: false } }, false]]) {
+    const res = response();
+    await handler(router, '/')({ user, query: { otherNoteAccess: 'true' } }, res);
+    assert.equal(res.body.otherNoteAccess, allowed);
+    assert.equal('otherNote' in res.body.rows[0], allowed);
+    const fields = response();
+    await handler(router, '/export/fields')({ user, query: { q: secret } }, fields);
+    assert.equal(fields.body.worksheets[0].rowCount, allowed ? 1 : 0);
+    assert.equal(fields.body.worksheets[0].fields.some(f => f.key === 'otherNote'), allowed);
+    const file = response();
+    await handler(router, '/export')({ user, query: { columns: 'productCode,otherNote', format: 'xlsx' } }, file);
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(file.sent);
+    assert.equal(wb.worksheets[0].columnCount, allowed ? 2 : 1);
+    if (allowed) assert.equal(wb.worksheets[0].getCell('B2').value, secret);
+  }
+  assert.equal(data.rows[0].otherNote, secret);
 });

@@ -11,6 +11,8 @@ const { hasFeature } = require('../auth/featureRegistry');
 const { createExportFile, filterRows, exportFieldsFor, resolveColumnKeys, stripPriceFields } = require('./expectedExport');
 
 // Gia (Gia SP tep, Gia hang ve VN, ngay len gia) chi Quan ly co quyen xem day du CONT moi thay.
+const canSeeOtherNote = req => hasFeature(req.user, 'reports.products.expected.otherNote') === true;
+const stripOtherNote = (rows, allowed) => allowed ? rows : rows.map(({ otherNote, ...row }) => row);
 const canSeePrices = req => hasFeature(req.user, 'reports.overview.containers.full') === true;
 
 function createExpectedArrivalsRouter({ repository = expectedRepository } = {}) {
@@ -32,25 +34,27 @@ function createExpectedArrivalsRouter({ repository = expectedRepository } = {}) 
   router.get('/', ...guard, handle('Không lấy được bảng Dự kiến hàng về.', async (req, res) => {
     const data = await repository.getExpected();
     const fullAccess = canSeePrices(req);
-    res.status(200).json({ ...data, rows: stripPriceFields(data.rows, fullAccess), fullAccess });
+    const otherNoteAccess = canSeeOtherNote(req);
+    res.status(200).json({ ...data, rows: stripOtherNote(stripPriceFields(data.rows, fullAccess), otherNoteAccess), fullAccess, otherNoteAccess });
   }));
 
   const loadFiltered = async req => {
     const data = await repository.getExpected();
     const fullAccess = canSeePrices(req);
-    return { data, fullAccess, rows: stripPriceFields(filterRows(data.rows, fullAccess ? req.query : { ...req.query, source: '' }), fullAccess) };
+    const otherNoteAccess = canSeeOtherNote(req);
+    return { data, fullAccess, otherNoteAccess, rows: stripPriceFields(filterRows(stripOtherNote(data.rows, otherNoteAccess), fullAccess ? req.query : { ...req.query, source: '' }), fullAccess) };
   };
 
   // Danh sach truong cho hop thoai "Xuat file" dung chung (cung dang /api/business-report/export/fields).
   router.get('/export/fields', ...guard, handle('Không lấy được danh sách trường xuất.', async (req, res) => {
-    const { rows, fullAccess } = await loadFiltered(req);
-    res.json(exportFieldsFor(rows, { fullAccess }));
+    const { rows, fullAccess, otherNoteAccess } = await loadFiltered(req);
+    res.json(exportFieldsFor(rows, { fullAccess, otherNoteAccess }));
   }));
 
   router.get('/export', ...guard, handle('Không xuất được bảng Dự kiến hàng về.', async (req, res) => {
-    const { data, rows, fullAccess } = await loadFiltered(req);
-    const columnKeys = resolveColumnKeys(req.query.columns, { fullAccess });
-    const file = await createExportFile(String(req.query.format || 'xlsx'), rows, columnKeys, { query: req.query, meta: data.meta, fullAccess });
+    const { data, rows, fullAccess, otherNoteAccess } = await loadFiltered(req);
+    const columnKeys = resolveColumnKeys(req.query.columns, { fullAccess, otherNoteAccess });
+    const file = await createExportFile(String(req.query.format || 'xlsx'), rows, columnKeys, { query: req.query, meta: data.meta, fullAccess, otherNoteAccess });
     res.set('Content-Type', file.mimeType);
     res.set('Content-Disposition', `attachment; filename="${file.fileName}"`);
     res.send(file.buffer);

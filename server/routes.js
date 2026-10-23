@@ -47,6 +47,7 @@ const { createBusinessReportRouter } = require('./businessReport/businessReportR
 const { createExpectedArrivalsRouter } = require('./productContainers/expectedRoutes');
 const { createPriceAuditRouter } = require('./invoicePriceAudit/priceAuditRoutes');
 const { createMarketingReportRouter } = require('./marketingReport/marketingReportRoutes');
+const { createUserTablePrefsRouter } = require('./userTablePrefs/routes');
 const { dashboardRollupEvents } = require('./kiotvietSync/dashboardRollupEvents');
 
 router.get('/health', (req, res) => {
@@ -93,6 +94,7 @@ router.use('/api/expected-arrivals', createExpectedArrivalsRouter());
 // Kiem tra gia ban (tab Hoa don): quyen rieng reports.invoices.priceAudit(.explain/.decide); co so theo cookie gan trong router.
 router.use('/api/invoice-price-audit', createPriceAuditRouter());
 router.use('/api/marketing-report', createMarketingReportRouter());
+router.use('/api/me/table-prefs', createUserTablePrefsRouter());
 
 // Toan bo /api/hr/* la du lieu THEO CO SO — gan resolveBranch truoc router con.
 router.use('/api/hr', requireAuth, resolveBranch);

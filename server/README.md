@@ -657,3 +657,13 @@ Cập nhật gần nhất: 23/10/2026.
 ### Cập nhật 23/10/2026 — Chi tiết khách
 
 Thiết kế: [spec đã duyệt](../docs/superpowers/specs/2026-10-23-customer-profile-refinement-design.md). Migration mới `db/migrations/0084_customer_profile_details.sql` bổ sung area, quy mô Rất to và kênh Khác; **đã áp thành công lên DB dùng chung 23/10/2026**, chưa deploy. Cột ngày ngoài bảng bỏ nút lịch. Trong modal: text xuống dòng/tăng chiều cao, lịch sử Note cuộn riêng tối đa 360px, ba nhóm quản lý nằm cạnh nhau desktop và xếp dọc mobile, lịch gọn với ngày chọn viền vuông bo góc. Chuyển ảnh chỉ trong xem lớn.
+
+## Cấu hình bảng theo tài khoản (23/10/2026)
+Độ rộng cột và cột ẩn/hiện của mọi bảng dùng `public/shared/table-controls.js` được nhớ lâu dài theo tài khoản, tách riêng desktop/mobile. Migration `db/migrations/0085_user_table_prefs.sql` **đã áp DB dùng chung 23/10/2026**; chưa deploy. Mã: `userTablePrefs/repository.js` (kiểm tra đầu vào, upsert), `userTablePrefs/routes.js`.
+
+| API | Quyền | Mô tả |
+|---|---|---|
+| `GET /api/me/table-prefs` | đăng nhập | Trả `{ tables: { [tableKey]: { [mode]: { columns } } } }` của chính tài khoản |
+| `PUT /api/me/table-prefs/:tableKey/:mode` body `{ columns: { [colKey]: { width?, hidden? } } }` | đăng nhập | Ghi đè cấu hình một bảng; `mode` là `desktop`/`mobile`, độ rộng 24–2000, ≤200 cột, sai →400. `user_id` lấy từ phiên |
+
+Client nạp một lần khi tải trang (`TKSTables.loadPrefs`), lưu sau khi kéo cột/đổi cột hiển thị với debounce 800 ms; trang chưa đăng nhập (401) hoặc file HTML xuất ra không gọi API. Độ rộng đã lưu được ưu tiên hơn tự co giãn lần đầu. Không có nút đặt lại. [Thiết kế](../docs/superpowers/specs/2026-10-23-table-column-prefs-design.md).

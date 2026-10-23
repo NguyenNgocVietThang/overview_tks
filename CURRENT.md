@@ -369,3 +369,7 @@ Cùng khách ở 2 cơ sở (15/10/2026): ở bảng tổng thưởng/phạt sal
 - Bảng "Doanh số theo khách" (tab Khách hàng/Báo cáo kinh doanh): cột Level giá đổi nguồn từ ghi chú KiotViet (`raw->>'comments'`) sang email khách (`raw->>'email'`), dùng chung `customerLevelFromEmail` của Kiểm tra giá bán: `VIP@...` => vip, `lon@...` => lớn, trống/không có email => lớn (đổi 22/10/2026), email khác => vừa. Khách gộp theo tên lấy level của hồ sơ lớn nhất đã có level (không thì vừa).
 - Không migration. Kiểm chứng: 101 test businessReport + frontend đạt. Chưa chạy toàn bộ suite, chưa commit/deploy.
 - Sai giá (22/10/2026, chưa commit/deploy): bảng Kiểm tra giá bán mặc định bộ lọc Kết quả = Sai giá (chọn Tất cả = bỏ tham số `status`); ô "Sale giải thích" dùng chung kiểu ô phản hồi Công nợ (`.debt-feedback-input`, luôn hiện, Lưu/Hủy chỉ hiện khi đang sửa; giữ expectedVersion/409); khách không có email KiotViet = level Lớn (trước là Vừa; ảnh hưởng cả cột Level giá báo cáo kinh doanh). Dòng đã chụp trước đó giữ nguyên level cũ (snapshot).
+
+## Ghi nhớ cột theo tài khoản (23/10/2026)
+- Độ rộng cột + cột ẩn/hiện lưu theo tài khoản (bảng `user_table_prefs`, migration 0085 **đã áp DB dùng chung 23/10/2026**), API `GET/PUT /api/me/table-prefs`, client `table-controls.js` (`loadPrefs`, lưu debounce 800 ms). Không có nút đặt lại.
+- Việc còn lại: kiểm thử trên trình duyệt thật sau deploy; chưa commit/deploy.

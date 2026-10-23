@@ -654,9 +654,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1792716502.8319485,
-    "seen": 1792716698.2404273,
-    "ast_hash": "7e21a529f27d29cb2b3bb243ca59951a",
+    "mtime": 1792721013.2716036,
+    "seen": 1792721078.3947904,
+    "ast_hash": "ab2c5c896a2bcb88ef74c3666f08cccc",
     "semantic_hash": ""
   },
   "design-system/tks-dashboard/MASTER.md": {
@@ -666,15 +666,15 @@
     "semantic_hash": ""
   },
   "docs/01-brd/BRD_Dashboard_GoogleSheets.md": {
-    "mtime": 1792716378.6951482,
-    "seen": 1792716698.2404273,
-    "ast_hash": "6f77db241ed5529d8cce80fc004dd3db",
+    "mtime": 1792719049.2847452,
+    "seen": 1792719727.6392686,
+    "ast_hash": "a4975d61fe12255ec558abda98fac026",
     "semantic_hash": ""
   },
   "docs/02-srs/SRS_Dashboard_GoogleSheets.md": {
-    "mtime": 1792716415.48735,
-    "seen": 1792716698.2404273,
-    "ast_hash": "d57f36039b8aa94f5f1fec26732e437d",
+    "mtime": 1792719049.2847452,
+    "seen": 1792719727.6392686,
+    "ast_hash": "6cfae5046c2672e83b999c9702f28844",
     "semantic_hash": ""
   },
   "docs/03-process/BPMN_Dashboard_GoogleSheets.md": {
@@ -684,9 +684,9 @@
     "semantic_hash": ""
   },
   "docs/04-planning/implementation_plan.md": {
-    "mtime": 1792716339.6993017,
-    "seen": 1792716698.2404273,
-    "ast_hash": "41d8219e2bba671c06c9bb8be9ae2496",
+    "mtime": 1792719049.2847452,
+    "seen": 1792719727.6392686,
+    "ast_hash": "8f0d3eaf49ed270e3978f51e7aa47a15",
     "semantic_hash": ""
   },
   "docs/superpowers/plans/2026-08-13-dashboard-result-cache.md": {
@@ -786,9 +786,9 @@
     "semantic_hash": "58e700daf0c14819a97499bd94f6f2e1"
   },
   "server/README.md": {
-    "mtime": 1792716474.550244,
-    "seen": 1792716698.2404273,
-    "ast_hash": "ea60c29e296c3263e6852069825e0cff",
+    "mtime": 1792721029.8092434,
+    "seen": 1792721078.3947904,
+    "ast_hash": "2055ad6bb61f71ee310aa4b0028e6cbe",
     "semantic_hash": ""
   },
   "server/kiotviet/API_ENDPOINTS.md": {
@@ -816,9 +816,9 @@
     "semantic_hash": ""
   },
   "server/public/index.html": {
-    "mtime": 1792716226.908526,
-    "seen": 1792716698.2404273,
-    "ast_hash": "a6305f354179dc965d7fb2227b23e61e",
+    "mtime": 1792719299.4513683,
+    "seen": 1792719727.6392686,
+    "ast_hash": "511b7a6852183fff4c38dffc84e5b86f",
     "semantic_hash": ""
   },
   "server/public/login/index.html": {
@@ -1386,9 +1386,9 @@
     "semantic_hash": ""
   },
   "server/db/SCHEMA.md": {
-    "mtime": 1792716274.9962125,
-    "seen": 1792716698.2404273,
-    "ast_hash": "9db032550c29bb4459e4f539d4db274d",
+    "mtime": 1792720987.882257,
+    "seen": 1792721078.3947904,
+    "ast_hash": "91759587a7e54564949dcfd9ec12a220",
     "semantic_hash": ""
   },
   "server/auth/appUsersRepository.js": {
@@ -2142,9 +2142,9 @@
     "semantic_hash": ""
   },
   "server/businessReport/businessReportRoutes.js": {
-    "mtime": 1792651037.0153942,
-    "seen": 1792653829.406762,
-    "ast_hash": "74544243859bad27cdab200ff455f6eb",
+    "mtime": 1792719810.8818977,
+    "seen": 1792721078.393791,
+    "ast_hash": "89674574f98a170bfca2abe500e5676f",
     "semantic_hash": ""
   },
   "server/businessReport/businessReportRoutes.test.js": {
@@ -3366,21 +3366,21 @@
     "semantic_hash": ""
   },
   "CLAUDE.md": {
-    "mtime": 1792716568.4938545,
-    "seen": 1792716698.2404273,
-    "ast_hash": "064cf1344031bf563697c8b670cdedb2",
+    "mtime": 1792719809.3912957,
+    "seen": 1792721078.3947904,
+    "ast_hash": "c43b0698a0d64b1e978b8fc74ad6e1ec",
     "semantic_hash": ""
   },
   "CURRENT.md": {
-    "mtime": 1792716460.739671,
-    "seen": 1792716698.2404273,
-    "ast_hash": "09f153fadb7334e9c9a11336aef9b1ed",
+    "mtime": 1792719809.4003673,
+    "seen": 1792721078.3947904,
+    "ast_hash": "d1dff36d12789345f3a2b6ed7efa2851",
     "semantic_hash": ""
   },
   "MEMORY.md": {
-    "mtime": 1792716657.1504042,
-    "seen": 1792716698.2404273,
-    "ast_hash": "8b2d5fc46cc822bd1eb56b5e97bf6864",
+    "mtime": 1792719809.4003673,
+    "seen": 1792721078.3947904,
+    "ast_hash": "4ad22c466aa05c29842718ff722c9bf5",
     "semantic_hash": ""
   },
   "tasks/2026-10-09-pancake-marketing/plan.md": {
@@ -4680,8 +4680,8 @@
     "semantic_hash": ""
   },
   "docs/superpowers/plans/2026-10-20-invoice-price-audit.md": {
-    "mtime": 1792716519.2863133,
-    "seen": 1792716698.2404273,
+    "mtime": 1792719809.8652084,
+    "seen": 1792721078.3947904,
     "ast_hash": "4f7ed1a4c1bbd3a56976bf60132186d1",
     "semantic_hash": ""
   },
@@ -4728,9 +4728,9 @@
     "semantic_hash": ""
   },
   "server/invoicePriceAudit/priceAuditColumns.js": {
-    "mtime": 1792716223.4116292,
-    "seen": 1792716698.2404273,
-    "ast_hash": "20fb293467cc013862d9e76a50e7b67a",
+    "mtime": 1792719810.9878395,
+    "seen": 1792721078.3947904,
+    "ast_hash": "48eb72e069dd56eb1a88fe11ff5878d1",
     "semantic_hash": ""
   },
   "server/invoicePriceAudit/priceAuditExport.js": {
@@ -4938,33 +4938,33 @@
     "semantic_hash": ""
   },
   "server/businessReport/customerProfileRepository.js": {
-    "mtime": 1792650986.8817632,
-    "seen": 1792653829.406762,
-    "ast_hash": "f0165478f1f7ae15f2a99d41a87d8385",
+    "mtime": 1792719810.8827157,
+    "seen": 1792721078.393791,
+    "ast_hash": "d971d36b0aa2501b6938c2ee31ba1460",
     "semantic_hash": ""
   },
   "server/businessReport/customerProfileRepository.test.js": {
-    "mtime": 1792651653.0924492,
-    "seen": 1792653829.406762,
-    "ast_hash": "7d4cd48e3e78a7180ab6cdbeffe92aa9",
+    "mtime": 1792719810.8844707,
+    "seen": 1792721078.3947904,
+    "ast_hash": "17c586a1a792570a2c3cb892cad54cd4",
     "semantic_hash": ""
   },
   "server/businessReport/customerProfileRoutes.test.js": {
-    "mtime": 1792651776.6809514,
-    "seen": 1792653829.406762,
-    "ast_hash": "43ad529257b4b7e60069a02dc3337560",
+    "mtime": 1792719810.8856668,
+    "seen": 1792721078.3947904,
+    "ast_hash": "59f669361b4d8b05bf1f2369d3b76c1e",
     "semantic_hash": ""
   },
   "server/businessReport/customerProfileRules.js": {
-    "mtime": 1792650915.4061587,
-    "seen": 1792653829.406762,
-    "ast_hash": "8854b0ab70d07676f339151fa0e76bf3",
+    "mtime": 1792719810.8874345,
+    "seen": 1792721078.3947904,
+    "ast_hash": "a6a2102769cfb9cb118591362231e9dc",
     "semantic_hash": ""
   },
   "server/db/customerNotesMigration.test.js": {
-    "mtime": 1792651189.3876846,
-    "seen": 1792653829.406762,
-    "ast_hash": "f183063b69b9a0866420dbf7ac105599",
+    "mtime": 1792719810.9857478,
+    "seen": 1792721078.3947904,
+    "ast_hash": "e31b3e113a450c714a166a7e139970b5",
     "semantic_hash": ""
   },
   "server/db/migrations/0079_vat_request_sort_rank.sql": {
@@ -5022,9 +5022,9 @@
     "semantic_hash": ""
   },
   "server/test/frontend/customer-profile.test.js": {
-    "mtime": 1792651598.0720575,
-    "seen": 1792653829.4077618,
-    "ast_hash": "1cf0fd47c9e330fbc86e4280f9f63f08",
+    "mtime": 1792719811.1031668,
+    "seen": 1792721078.3947904,
+    "ast_hash": "da7b097678c84487f530a1bfdc83e8c7",
     "semantic_hash": ""
   },
   "server/vatRequests/export.js": {
@@ -5052,9 +5052,9 @@
     "semantic_hash": ""
   },
   "docs/superpowers/specs/2026-10-22-customer-notes-design.md": {
-    "mtime": 1792654026.3330677,
-    "seen": 1792716698.2404273,
-    "ast_hash": "38634feaa823fd514eacf2e8595219ab",
+    "mtime": 1792719809.8669777,
+    "seen": 1792721078.3947904,
+    "ast_hash": "6b13029615787c9e0a7daf246e3144fb",
     "semantic_hash": ""
   },
   "server/auth/accountWorkAssignment.js": {
@@ -5199,6 +5199,24 @@
     "mtime": 1792654648.241393,
     "seen": 1792716698.2404273,
     "ast_hash": "dfc9c96e8b6db06d3fc2365270ab6505",
+    "semantic_hash": ""
+  },
+  "server/db/migrations/0084_customer_profile_details.sql": {
+    "mtime": 1792719810.9868035,
+    "seen": 1792721078.3947904,
+    "ast_hash": "5cb6716da688465a21c8b3a75096bf32",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-10-23-customer-profile-refinement.md": {
+    "mtime": 1792719809.8657267,
+    "seen": 1792721078.3947904,
+    "ast_hash": "6ac880e543440b72c3da8f3e230109a5",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-10-23-customer-profile-refinement-design.md": {
+    "mtime": 1792721044.0251648,
+    "seen": 1792721078.3947904,
+    "ast_hash": "2729888b58a7608a18abd05d1915857b",
     "semantic_hash": ""
   }
 }

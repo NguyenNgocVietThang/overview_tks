@@ -4237,6 +4237,7 @@
                         <th style="width:260px" data-column-key="ten-sp">Tên SP</th>
                         <th style="width:130px" data-column-key="mau-sac">Màu sắc</th>
                         <th style="width:220px" data-column-key="ghi-chu-sale">Ghi chú sale</th>
+                        <th style="width:220px" data-column-key="ghi-chu-khac" data-other-note-column data-column-unlisted="true" hidden>Ghi chú khác</th>
                         <th style="width:130px" data-column-key="nguoi-dat">Người đặt</th>
                         <th style="width:105px" data-column-key="so-cai-kien">Số cái/kiện</th>
                         <th style="width:95px" data-column-key="so-kien">Số kiện</th>
@@ -4249,7 +4250,7 @@
                     </thead>
                     <tbody id="expectedArrivalsRows">
                       <tr>
-                        <td colspan="13" class="table-note">Đang tải...</td>
+                        <td colspan="14" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -8172,14 +8173,14 @@
     // API riêng /api/expected-arrivals (quyền reports.products.expected — cả Kế toán / Mua hàng / Kho không có Báo cáo hàng hóa vẫn xem được).
     // Máy chủ trả TOÀN BỘ dòng + danh sách Cont / Trạng thái; lọc Nguồn, Cont, Trạng thái, tìm kiếm và chỉ số làm ở trình duyệt.
     // Bộ lọc Trạng thái theo ô B (statusLabel) còn cột hiển thị là B + C (scheduleLabel).
-    const expectedArrivals = { rows: [], containers: [], statuses: [], computedAt: null, fullAccess: false, loaded: false, loading: false, loadedAt: 0 };
+    const expectedArrivals = { rows: [], containers: [], statuses: [], computedAt: null, fullAccess: false, otherNoteAccess: false, loaded: false, loading: false, loadedAt: 0 };
     const EXPECTED_ARRIVALS_IDS = {
       tbody: 'expectedArrivalsRows', pagination: 'expectedArrivalsPagination', firstBtn: 'expectedArrivalsFirstPage',
       prevBtn: 'expectedArrivalsPrevPage', nextBtn: 'expectedArrivalsNextPage', lastBtn: 'expectedArrivalsLastPage', label: 'expectedArrivalsPageLabel'
     };
     TABLE_EXPLORER_CONFIGS.expectedArrivals = {
       title: 'Dự kiến hàng về',
-      searchText: r => [r.scheduleLabel, r.containerName, r.productCode, r.productName, r.color, r.saleNote, r.orderedBy].filter(Boolean).join(' '),
+      searchText: r => [r.scheduleLabel, r.containerName, r.productCode, r.productName, r.color, r.saleNote, r.otherNote, r.orderedBy].filter(Boolean).join(' '),
       code: r => r.productCode || '', identity: r => r.sheetName + ':' + r.sourceRow, supportsCodes: true
     };
 
@@ -8213,6 +8214,7 @@
         expectedArrivalsTextCell(r.productName, 'name-cell') +
         expectedArrivalsTextCell(r.color) +
         expectedArrivalsTextCell(r.saleNote) +
+        expectedArrivalsTextCell(expectedArrivals.otherNoteAccess ? r.otherNote : null) +
         expectedArrivalsTextCell(r.orderedBy) +
         productReportNullableCell(r.unitsPerPackage, fmtNumber) +
         productReportNullableCell(r.packageCount, fmtNumber) +
@@ -8228,13 +8230,18 @@
     let expectedArrivalsColumnProfile = 'standard';
     const EXPECTED_ARRIVALS_DEFAULT_HIDDEN = ['mau-sac', 'ghi-chu-sale'];
     function applyExpectedArrivalsColumnView(full) {
-      const profile = full ? 'full' : 'standard';
+      const noteAccess = expectedArrivals.otherNoteAccess === true;
+      const profile = (full ? 'full' : 'standard') + (noteAccess ? ':notes' : '');
       // Ô lọc Nguồn đi cùng cột Nguồn: chỉ hiện khi có quyền; mất quyền thì xóa lựa chọn cũ (máy chủ cũng bỏ qua ?source= với người này).
       const sourceSelect = document.getElementById('expectedArrivalsSource');
       sourceSelect.hidden = !full;
       if (!full) sourceSelect.value = '';
       if (profile === expectedArrivalsColumnProfile) return;
       const table = document.getElementById('expectedArrivalsRows').closest('table');
+      table.querySelectorAll('thead th[data-other-note-column]').forEach(function (cell) {
+        cell.hidden = !noteAccess;
+        if (noteAccess) delete cell.dataset.columnUnlisted; else cell.dataset.columnUnlisted = 'true';
+      });
       table.querySelectorAll('thead th[data-full-column]').forEach(function (cell) {
         cell.hidden = !full;
         if (full) delete cell.dataset.columnUnlisted; else cell.dataset.columnUnlisted = 'true';
@@ -8247,7 +8254,7 @@
       expectedArrivalsColumnProfile = profile;
       if (!window.TKSTables || typeof window.TKSTables.enhance !== 'function') return;
       window.TKSTables.enhance(table, {
-        key: table.dataset.tableKey + (full ? ':full' : ''),
+        key: table.dataset.tableKey + (full ? ':full' : '') + (noteAccess ? ':notes' : ''),
         columns: Array.from(table.tHead.rows[0].cells).map(function (cell) {
           return { key: cell.dataset.columnKey, hidden: full && EXPECTED_ARRIVALS_DEFAULT_HIDDEN.indexOf(cell.dataset.columnKey) !== -1 };
         })
@@ -8273,7 +8280,7 @@
       fillBusinessSelect('expectedArrivalsContainer', 'Tất cả cont', expectedArrivalsOptions(expectedArrivals.containers, r => r.containerName));
       fillBusinessSelect('expectedArrivalsStatus', 'Tất cả trạng thái', expectedArrivalsOptions(expectedArrivals.statuses, r => r.statusLabel));
       const rows = expectedArrivalsFilteredRows();
-      renderPaginatedRows('expectedArrivals', EXPECTED_ARRIVALS_IDS, rows, expectedArrivalsRowHtml, 13,
+      renderPaginatedRows('expectedArrivals', EXPECTED_ARRIVALS_IDS, rows, expectedArrivalsRowHtml, 14,
         expectedArrivals.loaded ? 'Chưa có hàng dự kiến về.' : 'Đang tải...');
       // Chỉ số + nhãn đếm theo ĐÚNG các dòng đang hiện (đã lọc Nguồn / Cont / Trạng thái và ô tìm kiếm).
       const shown = filterTableItems(rows, TABLE_EXPLORER_CONFIGS.expectedArrivals, getTableSearchState('expectedArrivals')).items;
@@ -8306,6 +8313,7 @@
           expectedArrivals.containers = (data && data.filters && data.filters.containers) || [];
           expectedArrivals.statuses = (data && data.filters && data.filters.statuses) || [];
           expectedArrivals.computedAt = data && data.meta ? data.meta.computedAt : null;
+          expectedArrivals.otherNoteAccess = !!(data && data.otherNoteAccess === true);
           expectedArrivals.fullAccess = !!(data && data.fullAccess === true);
           applyExpectedArrivalsColumnView(expectedArrivals.fullAccess);
           expectedArrivals.loaded = true;
@@ -8316,7 +8324,7 @@
           console.error('Không tải được bảng dự kiến hàng về:', err);
           if (!expectedArrivals.loaded) {
             document.getElementById('expectedArrivalsRows').innerHTML =
-              '<tr><td colspan="13" class="table-note">Không tải được bảng dự kiến hàng về.</td></tr>';
+              '<tr><td colspan="14" class="table-note">Không tải được bảng dự kiến hàng về.</td></tr>';
           }
         }).finally(function () { expectedArrivals.loading = false; });
     }
@@ -10077,6 +10085,7 @@
         ['containerName', 'Tên CONT', false, 125], ['statusLabel', 'Trạng thái', false, 120], ['eta', 'Ngày về', false, 90],
         ['color', 'Màu sắc', false, 130], ['saleNote', 'Ghi chú sale', false, 180]
       ];
+      if (expectedArrivals.otherNoteAccess) columns.push(['otherNote', 'Ghi chú khác', false, 220]);
       if (full) columns.push(['orderedBy', 'Người đặt', false, 105], ['listedAt', 'Ngày lên list', false, 100],
         ['unitsPerPackage', 'Số cái/kiện', true, 105], ['packageCount', 'Số kiện', true, 85]);
       columns.push(['quantity', 'Tổng số lượng', true, 100]);

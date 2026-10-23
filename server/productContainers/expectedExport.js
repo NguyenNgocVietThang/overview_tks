@@ -21,6 +21,7 @@ const COLUMNS = Object.freeze([
   { key: 'productName', label: 'Tên SP', type: 'text' },
   { key: 'color', label: 'Màu sắc', type: 'text' },
   { key: 'saleNote', label: 'Ghi chú sale', type: 'text' },
+  { key: 'otherNote', label: 'Ghi chú khác', type: 'text', noteOnly: true },
   { key: 'orderedBy', label: 'Người đặt', type: 'text' },
   { key: 'unitsPerPackage', label: 'Số cái/kiện', type: 'number' },
   { key: 'packageCount', label: 'Số kiện', type: 'number' },
@@ -30,7 +31,7 @@ const COLUMNS = Object.freeze([
   { key: 'vietnamPrice', label: 'Giá hàng về VN', type: 'number', decimals: 0, priceOnly: true }
 ]);
 const PRICE_ROW_KEYS = Object.freeze(COLUMNS.filter(c => c.priceOnly).map(c => c.key));
-const columnsFor = fullAccess => (fullAccess ? COLUMNS : COLUMNS.filter(c => !c.priceOnly && !c.fullOnly));
+const columnsFor = (fullAccess, otherNoteAccess = false) => COLUMNS.filter(c => (!c.noteOnly || otherNoteAccess) && (fullAccess || (!c.priceOnly && !c.fullOnly)));
 
 // Ban sao dong da bo cac truong gia khi khong co quyen (khong sua doi dong trong cache dung chung).
 function stripPriceFields(rows, fullAccess) {
@@ -71,7 +72,7 @@ function filterRows(rows, query = {}) {
     if (status && r.statusLabel !== status) return;
     let score = 1;
     if (!matcher.empty) {
-      score = matcher.score(fuzzy.fold([r.productCode, r.productName, r.containerName, r.color, r.saleNote].join(' ')));
+      score = matcher.score(fuzzy.fold([r.productCode, r.productName, r.containerName, r.color, r.saleNote, r.otherNote].join(' ')));
       if (!score) return;
     }
     scored.push({ r, index, score });
@@ -81,7 +82,7 @@ function filterRows(rows, query = {}) {
 }
 
 // Cung dang /api/business-report/export/fields.
-function exportFieldsFor(rows, { fullAccess = false } = {}) {
+function exportFieldsFor(rows, { fullAccess = false, otherNoteAccess = false } = {}) {
   return {
     title: TITLE,
     selectionMode: 'custom',
@@ -89,13 +90,13 @@ function exportFieldsFor(rows, { fullAccess = false } = {}) {
       key: 'expected',
       name: 'Dự kiến hàng về',
       rowCount: rows.length,
-      fields: columnsFor(fullAccess).map(({ key, label, type }) => ({ key, label, type, selected: true }))
+      fields: columnsFor(fullAccess, otherNoteAccess).map(({ key, label, type }) => ({ key, label, type, selected: true }))
     }]
   };
 }
 
 // columns=a,b (chuoi hoac mang khi lap lai tham so) -> khoa theo thu tu chuan; khong truyen => null (tat ca).
-function resolveColumnKeys(param, { fullAccess = false } = {}) {
+function resolveColumnKeys(param, { fullAccess = false, otherNoteAccess = false } = {}) {
   if (param === undefined || param === null) return null;
   const bad = () => invalid('Danh sách trường xuất không hợp lệ.', 'INVALID_COLUMNS');
   const parts = Array.isArray(param) ? param : typeof param === 'string' ? [param] : null;
@@ -105,7 +106,7 @@ function resolveColumnKeys(param, { fullAccess = false } = {}) {
   const allowed = COLUMNS.map(c => c.key);
   for (const key of requested) if (!allowed.includes(key)) throw bad();
   // Khong co quyen: cot gia bi loai ngay ca khi duoc yeu cau; neu khong con cot nao => 400.
-  const usable = columnsFor(fullAccess).map(c => c.key).filter(key => requested.has(key));
+  const usable = columnsFor(fullAccess, otherNoteAccess).map(c => c.key).filter(key => requested.has(key));
   if (!usable.length) throw bad();
   return usable;
 }
@@ -139,12 +140,12 @@ function noteLines(query, meta, fullAccess) {
   return notes;
 }
 
-async function createExportFile(format, rows, columnKeys, { query = {}, meta = null, fullAccess = false } = {}) {
+async function createExportFile(format, rows, columnKeys, { query = {}, meta = null, fullAccess = false, otherNoteAccess = false } = {}) {
   if (!['xlsx', 'html'].includes(format)) throw invalid('Định dạng xuất không hợp lệ.');
   if (rows.length > MAX_EXPORT_ROWS) {
     throw invalid('Dữ liệu vượt giới hạn 20.000 dòng mỗi lần xuất. Hãy thu hẹp bộ lọc rồi xuất lại.', 'TOO_MANY_ROWS');
   }
-  const available = columnsFor(fullAccess);
+  const available = columnsFor(fullAccess, otherNoteAccess);
   const columns = columnKeys ? available.filter(c => columnKeys.includes(c.key)) : available;
   if (format === 'html') {
     return renderHtmlReport({

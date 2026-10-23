@@ -11,7 +11,7 @@ const { refreshExpected, requestExpectedRefresh, __test__ } = require('./expecte
 const { createExpectedRepository } = require('./expectedRepository');
 
 const migration = file => fs.readFileSync(path.join(__dirname, '..', 'db', 'migrations', file), 'utf8');
-const MIGRATIONS = ['0018_product_report.sql', '0053_product_containers.sql', '0072_product_container_unit_price_cny.sql', '0075_product_container_expected.sql', '0078_product_container_expected_prices.sql'];
+const MIGRATIONS = ['0018_product_report.sql', '0053_product_containers.sql', '0072_product_container_unit_price_cny.sql', '0075_product_container_expected.sql', '0078_product_container_expected_prices.sql', '0086_product_container_other_note.sql'];
 const quiet = () => {};
 
 async function setup() {
@@ -206,5 +206,21 @@ test('repository fail-soft khi chua ap 0078 (42703): doc cot cu, gia = null; ref
     const previous = CONFIG.SUPABASE_DB_URL;
     CONFIG.SUPABASE_DB_URL = 'postgres://fixture';
     try { assert.equal(await requestExpectedRefresh(pool, { log: quiet }), null); } finally { CONFIG.SUPABASE_DB_URL = previous; }
+  } finally { await db.close(); }
+});
+
+
+test('0086 other_note survives refresh/read and changing it writes only the changed row', async () => {
+  const { db, pool } = await setup();
+  try {
+    await seed(db);
+    await db.exec("UPDATE product_container_lines SET other_note = 'Ghi chú G' WHERE product_code = 'SKU1'");
+    await refreshExpected(pool, { log: quiet });
+    const repo = createExpectedRepository({ pool });
+    assert.equal((await repo.getExpected()).rows[0].otherNote, 'Ghi chú G');
+    await db.exec("UPDATE product_container_lines SET other_note = 'Đổi ghi chú' WHERE product_code = 'SKU1'");
+    assert.equal((await refreshExpected(pool, { log: quiet })).written, 1);
+    assert.equal((await repo.getExpected()).rows[0].otherNote, 'Đổi ghi chú');
+    assert.equal((await refreshExpected(pool, { log: quiet })).written, 0);
   } finally { await db.close(); }
 });

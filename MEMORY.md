@@ -69,7 +69,7 @@
 
 ---
 
-## 3. Bản đồ Migration Cơ sở dữ liệu (0001 – 0084)
+## 3. Bản đồ Migration Cơ sở dữ liệu (0001 – 0085)
 
 | Dải Migration | Phân hệ & Nội dung chính |
 |---|---|
@@ -99,6 +99,7 @@
 | `0081–0082` | Tách tài khoản khỏi HR (`app_users.work_branch`, `hr_leave_work_schedules.user_id`, `hr_leave_submissions.user_id`). |
 | `0083` | `vat_requests` trạng thái 5 ("VAT sẵn nhiều"). |
 | `0084` | `customer_profiles.area`, mở rộng `warehouse_scale` (very_large) và `sales_channels` (khac). |
+| `0085` | `user_table_prefs` — Ghi nhớ độ rộng và ẩn/hiện cột theo tài khoản (desktop/mobile). |
 
 ---
 

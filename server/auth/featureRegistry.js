@@ -47,6 +47,7 @@ const FEATURE_GROUPS = Object.freeze([
  * khong ai tat duoc (tranh khoa chet nguoi dung ra khoi he thong).
  */
 const FEATURES = Object.freeze([
+  { key: 'reports.products.expected.otherNote', groupKey: 'reports', label: 'Dự kiến hàng về: Xem Ghi chú khác', roles: MANAGER_ONLY, requires: 'reports.products.expected' },
   // --- Bao cao tong hop ---
   { key: 'reports.overview', groupKey: 'reports', label: 'Tổng quan', roles: REPORT_VIEW_ROLES },
   { key: 'reports.overview.containers.full', groupKey: 'reports', label: 'Xem đầy đủ chi tiết CONT (cần Hàng hóa)', roles: MANAGER_ONLY, requires: 'reports.products' },

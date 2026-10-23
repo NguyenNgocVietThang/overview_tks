@@ -8,7 +8,7 @@ test('CONT TKS1 keeps immediate products, repeated codes and blocks, O quantitie
   const values = [
     ['Mã SP', 'Tên SP'],
     ['CONT TKS1', '1.Chưa có lịch', 'DK tháng 11'],
-    row('QT', 184, { 4: 'Đỏ', 5: 'Gấp', 7: 'An', 12: 12, 13: 15.3, 15: 1.44, 23: 12000 }),
+    row('QT', 184, { 4: 'Đỏ', 5: 'Gấp', 6: 'Ghi chú mua hàng', 7: 'An', 12: 12, 13: 15.3, 15: 1.44, 23: 12000 }),
     row('QT', 2.5),
     ['CONT TKS1', '2.Chưa bốc'], row('QT', 7.5),
     ['CONT TKS1', '3.Đã bốc'], row('QT', 23),
@@ -23,6 +23,7 @@ test('CONT TKS1 keeps immediate products, repeated codes and blocks, O quantitie
   assert.deepEqual(parsed.rows.map(r => r.productCode), ['QT', 'QT', 'QT', 'QT', 'QT']);
   assert.ok(parsed.rows.every(r => r.containerName === 'CONT TKS1'));
   const first = parsed.rows[0];
+  assert.equal(first.otherNote, 'Ghi chú mua hàng');
   assert.deepEqual([first.color, first.saleNote, first.orderedBy, first.unitsPerPackage, first.packageCount, first.unitPriceCny, first.vietnamPrice],
     ['Đỏ', 'Gấp', 'An', 12, 15.3, 1.44, 12000]);
   assert.deepEqual(parsed.warnings, []);

@@ -15,6 +15,8 @@ Mọi bảng trên web và trong file HTML xuất ra có nút **Cột hiển th�
 
 **Cập nhật 23/10/2026 — Gộp ORDER VAT & Nháp VAT vào `main` (PR #16 & PR #17, push 2 remote GitHub):** Nháp VAT dán mã HD/DH là phân bổ xử lý ngay kèm xem chi tiết chứng từ; ORDER VAT thêm trạng thái "VAT sẵn nhiều", tách Trạng thái/Ngày về cho KT, hết tràn ngang với sale.
 
+**Cập nhật 23/10/2026 — Ghi nhớ cột theo tài khoản (chưa deploy):** độ rộng cột và cột ẩn/hiện của mọi bảng được lưu lâu dài theo tài khoản (desktop/mobile riêng) qua `GET/PUT /api/me/table-prefs`. Migration mới `0085_user_table_prefs.sql` **đã áp DB dùng chung 23/10/2026**. [Thiết kế](docs/superpowers/specs/2026-10-23-table-column-prefs-design.md).
+
 **Cập nhật 23/10/2026 — Chi tiết khách (mã cục bộ, chưa deploy):** thêm Diện tích, kênh Khác; đưa đánh giá quy mô xuống khu vực Quản lý và thêm Rất to, lưu riêng có kiểm quyền. Hai dropdown cạnh lịch gọn, lịch chỉ viền ngày chọn; Note cuộn riêng 360px, text dài xuống dòng, chuyển ảnh trong màn xem lớn. Cột ngày ngoài bảng chỉ đọc. Migration mới `0084_customer_profile_details.sql` **đã áp DB dùng chung 23/10/2026**. [Thiết kế đã duyệt](docs/superpowers/specs/2026-10-23-customer-profile-refinement-design.md).
 
 **Cập nhật 22/10/2026 — Ghi chú và Tiếp khách lần cuối theo khách (tab Khách hàng, đã commit trên main, chưa push/deploy; migration `0080` đã áp DB dùng chung 22/10/2026):** bảng Doanh số theo khách thêm cột **Ghi chú** (nút Chi tiết) và **Tiếp khách lần cuối**; hộp Chi tiết khách có Thông tin chung (định vị kho, số lượng kho, ảnh kho, quy mô kho, đối thủ, hình thức bán hàng) và Note kiểu tin nhắn. Xem [thiết kế](docs/superpowers/specs/2026-10-22-customer-notes-design.md).

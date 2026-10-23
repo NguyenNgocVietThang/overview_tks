@@ -4,7 +4,7 @@
 
 22/10/2026 — `hr_employees.insurance_number TEXT NOT NULL DEFAULT ''` (migration `0078_hr_employee_insurance_number.sql`), unique index trên số không rỗng của hồ sơ chưa xóa mềm; chỉ quyền `hr.employees.manage` nhận từ API/Excel. Server áp riêng migration này trước khi nhận request, có advisory lock cho nhiều instance và không chạy migration khác đang chờ.
 
-Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0084`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
+Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0085`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
 
 ## Quy ước chung
 
@@ -671,3 +671,7 @@ Cập nhật: 22/10/2026.
 `0084_customer_profile_details.sql` mở rộng `customer_profiles` sau 0080: thêm `area TEXT NOT NULL DEFAULT ''` (Diện tích, server giới hạn 500 ký tự), bổ sung `very_large` vào CHECK `warehouse_scale`, `khac` vào CHECK `sales_channels`. Không sửa/xóa dữ liệu cũ; chạy lại được. Bảng 0080 phía trên mô tả schema gốc trước nâng cấp.
 
 Thông tin chung và quy mô dùng hai UPSERT cập nhật các cột riêng: PUT profile không thay `warehouse_scale`, PUT `/customer-profile/scale` chỉ Quản lý lưu quy mô và không đổi area/định vị/kênh/đối thủ. Đọc nhận thêm `profile.area`; thiếu cột trước migration giữ cơ chế đọc rỗng/ghi 503 MIGRATION_PENDING. Không có job nền hoặc backfill; migration đã áp thành công lên DB dùng chung 23/10/2026.
+
+## Cấu hình bảng theo tài khoản — migration 0085 (23/10/2026, đã áp DB dùng chung 23/10/2026)
+
+`0085_user_table_prefs.sql` tạo `user_table_prefs(user_id TEXT, table_key TEXT, screen_mode TEXT CHECK desktop/mobile, prefs JSONB CHECK object, updated_at)`, khóa chính `(user_id, table_key, screen_mode)`. `prefs = {"columns": {"<colKey>": {"width": number, "hidden": boolean}}}`, chỉ chứa cột người dùng đã đổi. `user_id` không có FK tới `app_users` (tài khoản có thể nằm ở kho JSON). Đã thu hồi SELECT của `reporting_readonly`. Chạy lại được.
