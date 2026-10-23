@@ -999,3 +999,9 @@ test('Ctrl+Z khong lam gi voi sale', async t => {
   assert.equal(doc.getElementById('vrToast'), null);
 });
 
+test('thanh tab Ke toan: ORDER VAT dang chon, co Tra cuu VAT; khong con nut rieng o dau trang', async t => {
+  const { doc } = await setup(t, { vaiTro: 'Nhân viên sale', responses: { 'GET /': saleListResponse([row(1)]) } });
+  assert.deepEqual([...doc.querySelectorAll('#vrTabs a')].map(a => a.getAttribute('href')), ['/vat-draft/#tao-qr', '/vat-lookup/', '/vat-request/']);
+  assert.equal(doc.querySelector('#vrTabs [aria-current="page"]').getAttribute('href'), '/vat-request/');
+  assert.equal(doc.getElementById('vrLookupLink'), null);
+});

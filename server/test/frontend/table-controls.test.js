@@ -288,6 +288,17 @@ test('pages with their own sorting keep their markup: a header that already has 
   assert.equal(ctx.table.tHead.rows[0].cells[1].querySelectorAll('.sort-button').length,1);
 });
 
+test('data-table-fit="fill": cot cham do rong toi thieu thi giu, phan thieu tru vao cot khac de tong van vua khung', t => {
+  const ctx=setup(t,'<div class="table-wrap"><table data-table-key="fit" data-table-fit="fill"><thead><tr><th data-column-key="a" data-default-width="80">A</th><th data-column-key="b" data-default-width="400">B</th><th data-column-key="c" data-default-width="80">C</th></tr></thead><tbody><tr><td>1</td><td>2</td><td>3</td></tr></tbody></table></div>');
+  // jsdom khong co layout: gia lap bang dang hien thi trong khung rong 300px.
+  ctx.table.getClientRects=()=>[{}];
+  Object.defineProperty(ctx.table.parentElement,'clientWidth',{value:300});
+  ctx.api.enhance(ctx.table);
+  const widths=state(ctx).columns.map(c=>Math.round(c.width));
+  assert.deepEqual(widths,[64,172,64]);
+  assert.equal(widths.reduce((a,b)=>a+b,0),300);
+});
+
 function prefsContext(t, html) {
   const ctx = setup(t, html);
   ctx.window.HTMLCanvasElement.prototype.getContext = () => ({ measureText: text => ({ width: text.length * 8 }) });

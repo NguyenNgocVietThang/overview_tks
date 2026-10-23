@@ -36,7 +36,7 @@ Mở `http://localhost:3000`.
 | `KIOTVIET_CASHBOOK_SYNC_ENABLED` | Bật riêng đồng bộ Sổ quỹ khi engine tổng tắt. Khi engine tổng bật, Sổ quỹ cũng chạy. `KIOTVIET_CASHBOOK_SYNC_INTERVAL_MS` mặc định/tối thiểu 60 giây; giao diện kiểm tra mốc đồng bộ mỗi 15 giây khi đang hiển thị |
 | `KIOTVIET_WEBHOOK_SECRET` | Bí mật gắn vào đường dẫn webhook `/api/kiotviet/webhook/<secret>`; đường dẫn cũ không secret tắt bằng `KIOTVIET_WEBHOOK_LEGACY_PATH_ENABLED=false` |
 | `SPREADSHEET_ID`, `SPREADSHEET_ID_SG` | Di sản — không còn module nào đọc (Trả NCC đã chuyển sang upload Excel vào Postgres `supplier_return_imports`); bỏ trống vẫn chạy được |
-| `GOOGLE_SERVICE_ACCOUNT_JSON` | Service account Google (bắt buộc khi khởi động). Quyền Viewer cho Công nợ và Vị trí hàng; **Editor** cho workbook Vòng đời đơn hàng (ghi tab `Lịch sử cập nhật`) |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | Service account Google (bắt buộc khi khởi động). Quyền Viewer cho Công nợ, Vị trí hàng và file **VAT TKS** (`1f1vgl…`, nguồn Nháp VAT / Tra cứu VAT / Tồn VAT của ORDER VAT); **Editor** cho workbook Vòng đời đơn hàng (ghi tab `Lịch sử cập nhật`) |
 | `DEBT_MANAGEMENT_SPREADSHEET_ID` | (Không còn dùng từ 13/10/2026 — tab Công nợ tính từ KiotViet + lịch TT trong Postgres) |
 | `STOCK_LOCATIONS_SPREADSHEET_ID` | Workbook vị trí hàng HN/SG dùng chung, chỉ đọc |
 | `PRODUCT_CONTAINER_SPREADSHEET_ID` | Workbook TKS2 ĐẶT CONT; chỉ đọc 7 sheet CONT mỗi 600.000 ms; service account cần Viewer |
@@ -62,7 +62,7 @@ Mở `http://localhost:3000`.
 | `DASHBOARD_PREWARM` | Nạp sẵn cache nguồn lúc khởi động; mặc định bật, `false` để tắt |
 | `MEMORY_MONITOR` / `MEMORY_LOG_INTERVAL_MS` / `MEMORY_LIMIT_MB` | Log bộ nhớ định kỳ; mặc định bật, 60000 ms, trần cảnh báo 2048 MB (`MEMORY_MONITOR=false` để tắt) |
 | `XKIRO_API_KEY`, `XKIRO_BASE_URL`, `INVOICE_VISION_MODEL`, `INVOICE_VISION_FALLBACK_MODEL` | AI đọc ảnh hóa đơn ở tab Tạo QR (xKiro, chuẩn OpenAI). Thiếu key = tắt, trang báo nhập tay; mặc định model `qwen/qwen3.8-max:free`, dự phòng `qwen/qwen3-vl-plus:free` |
-| `VAT_REQUEST_STOCK_SHEET_ID`, `VAT_REQUEST_STOCK_GID`, `VAT_REQUEST_STOCK_COLUMN`, `VAT_REQUEST_MAPPING_SHEET_ID`, `VAT_REQUEST_MAPPING_GID` | Nguồn cột **Tồn VAT** của ORDER VAT: tab GỘP MỚI (cột I `TỒN ĐẦU NGÀY`) + Khớp mã, sheet phải chia sẻ công khai. Bỏ trống = tab GỘP MỚI (`gid=39032`) + Khớp mã của sheet Nháp VAT; nếu Render đã đặt GID cũ thì đổi thành `39032` |
+| `VAT_REQUEST_STOCK_SHEET_ID`, `VAT_REQUEST_STOCK_GID`, `VAT_REQUEST_STOCK_COLUMN`, `VAT_REQUEST_MAPPING_SHEET_ID`, `VAT_REQUEST_MAPPING_GID` | Nguồn cột **Tồn VAT** của ORDER VAT: tab Gộp VAT (cột I `TỒN ĐẦU NGÀY`) + Khớp mã, đọc bằng service account (`*_SHEET_ID` = ID file, `*_GID` = sheetId của tab; file phải chia sẻ Viewer cho service account). **Nên bỏ trống** = tab Gộp VAT (sheetId `950697804`, cùng tab Nháp VAT / Tra cứu VAT dùng) + Khớp mã (`631827560`) của file VAT TKS; nếu Render còn đặt `39032` / `1192158065` (file trung gian "cúc cu test" cũ) thì xóa các biến này |
 | `PG_POOL_MAX` | Trần kết nối pool `pg` mỗi instance (mặc định 7; 2 × giá trị ≤ 15 của Supabase session pooler) |
 
 Xem [server/.env.example](server/.env.example) để biết đầy đủ cấu hình.
@@ -93,6 +93,7 @@ server/
 ├── public/               # Frontend HTML/CSS/JS
 │   ├── cashbook/         # Trang Sổ quỹ: bộ lọc/hash, số dư, chốt và xuất chọn cột
 │   ├── vat-draft/        # Trang Kế toán – Nháp VAT: dán mã HD/DH → Xử lý luôn (danh sách đã dán + hộp chi tiết) hoặc dán dữ liệu, kết quả phân bổ + Ghi chú tổng, QR; Tạo QR từ PDF (2 cột, QR to bên phải; sale dùng được qua accounting.qr); cell-select.js chọn ô kiểu Google Sheet + Ctrl+C
+│   ├── vat-lookup/       # Trang Kế toán – Tra cứu VAT: 2 tab Hàng VAT có sẵn / Hàng sắp về, dán nhiều mã; thanh tab Kế toán chung (TKSNav.renderAccountingTabs)
 │   ├── vat-request/      # Trang Kế toán – ORDER VAT: sale tạo/sửa yêu cầu của mình, KT được cấp quyền riêng mới xử lý trạng thái/ghi chú/ngày về; vat-request-grid.js = chọn ô / copy / kéo nhân bản / dán kiểu Google Sheet
 │   ├── vendor/pdfjs/     # pdf.js 4.10.38 (legacy build) đọc text hóa đơn PDF ngay trong trình duyệt
 │   └── shared/
@@ -106,7 +107,8 @@ server/
 ├── stockLocations/       # Đọc vị trí hàng HN/SG từ DB (cache theo lần đồng bộ), ánh xạ cột và API chỉ đọc
 ├── shipment/             # Vòng đời đơn hàng: đơn KiotViet (Postgres) ghép Google Sheet, lọc/phân trang ở máy chủ
 ├── telegram/             # Bot quản lý nghỉ phép, webhook, giao tin bền vững + đăng ký webhook
-├── vatDraft/             # Kế toán – Nháp VAT (port vat-draft-app): phân bổ nguồn nháp, VietQR, đọc ảnh hóa đơn bằng AI (invoiceVision.js, xKiro), đọc 2 Google Sheet công khai, chứng từ HD/DH từ Postgres
+├── vatDraft/             # Kế toán – Nháp VAT (port vat-draft-app): phân bổ nguồn nháp, VietQR, đọc ảnh hóa đơn bằng AI (invoiceVision.js, xKiro), đọc 2 tab file VAT TKS bằng service account, chứng từ HD/DH từ Postgres
+├── vatLookup/            # Kế toán – Tra cứu VAT (port app Apps Script logic v12): lookupModel.js (ghép Khớp mã + Gộp VAT + DK về 2, tìm kiếm), lookupSource.js (3 tab file VAT TKS qua service account, cache 10 phút / stale 6 giờ), vatLookupRoutes.js (/api/vat-lookup)
 ├── vatRequests/          # ORDER VAT: quyền/khóa/version/lịch sử; xuất Excel (export.js); gợi ý khách và giá từ yêu cầu gần nhất; Tồn VAT/Dự kiến về tính live
 ├── index.js
 ├── jobs.js               # Danh sách job nền (sync KiotViet, sheet, container, Pancake)

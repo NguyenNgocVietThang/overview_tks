@@ -1768,3 +1768,15 @@ table.fixed-table td {
   body .dmy-date-wrap .dmy-date-trigger{ width:28px; }
   body .dmy-date-wrap .dmy-date-trigger svg{ width:16px; height:16px; }
 }
+
+/* ---------- Thanh tab Kế toán (Xử lý hóa đơn · Tạo QR · Tra cứu VAT · ORDER VAT) ----------
+   TKSNav.renderAccountingTabs vẽ nội dung; dùng chung cho /vat-draft/, /vat-lookup/, /vat-request/.
+   Không xuống dòng: màn hẹp thì cuộn ngang ngay trong thanh, trang không bị tràn ngang. */
+.acct-subnav{display:flex;align-items:center;gap:6px;margin:0 0 16px;border-bottom:1px solid var(--canvas-subnav-border);overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+.acct-subnav::-webkit-scrollbar{display:none}
+.acct-subnav[hidden]{display:none}
+.acct-subnav .subnav-tab{display:inline-flex;align-items:center;gap:6px;flex:none;padding:9px 14px;margin-bottom:-1px;background:transparent;border:1px solid transparent;border-bottom:2px solid transparent;border-radius:var(--radius-xs) var(--radius-xs) 0 0;color:var(--canvas-text);font-family:var(--font-body);font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap;cursor:pointer;transition:color .15s ease,border-color .15s ease,opacity .15s ease}
+.acct-subnav .subnav-tab svg{width:15px;height:15px;flex-shrink:0}
+.acct-subnav .subnav-tab[aria-current="page"]{border-bottom-color:var(--blue);font-weight:700}
+.acct-subnav .subnav-tab:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
+@media (prefers-reduced-motion:reduce){.acct-subnav .subnav-tab{transition:none}}

@@ -1457,6 +1457,7 @@
     state.user = await window.TKSNav.authGuard();
     state.viewerId = state.user && state.user.id;
     state.canProcess = window.TKSNav.can('accounting.vatRequestProcess');
+    window.TKSNav.renderAccountingTabs($('vrTabs'));
     window.TKSNav.renderTopSidebar($('sidebar'), 'accounting', state.user);
     // KT mở trang thấy ngay việc cần làm (Cần xử lý); mọi người mặc định xem tất cả sale.
     state.preset = state.canProcess ? 'todo' : 'all';

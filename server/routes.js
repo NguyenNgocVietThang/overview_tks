@@ -43,6 +43,7 @@ const stockLocationsRoutes = require('./stockLocations/stockLocationsRoutes');
 const cashbookRoutes = require('./cashbook/cashbookRoutes');
 const { createVatDraftRouter } = require('./vatDraft/vatDraftRoutes');
 const { createVatRequestRouter } = require('./vatRequests/routes');
+const { createVatLookupRouter } = require('./vatLookup/vatLookupRoutes');
 const { createBusinessReportRouter } = require('./businessReport/businessReportRoutes');
 const { createExpectedArrivalsRouter } = require('./productContainers/expectedRoutes');
 const { createPriceAuditRouter } = require('./invoicePriceAudit/priceAuditRoutes');
@@ -87,6 +88,8 @@ router.use('/api/cashbook', cashbookRoutes);
 router.use('/api/vat-draft', createVatDraftRouter());
 // Kế toán – ORDER VAT (thay sheet ORDER VAT 1): toàn công ty, không áp cookie cơ sở (gợi ý khách tự gắn resolveBranch).
 router.use('/api/vat-requests', createVatRequestRouter());
+// Kế toán – Tra cứu VAT (thay app Apps Script): đọc 3 tab Sheet công khai, toàn công ty, không áp cookie cơ sở.
+router.use('/api/vat-lookup', createVatLookupRouter());
 // Báo cáo kinh doanh (tăng trưởng Sale/Khách/Mã hàng): gộp HN + SG, cũng không áp cookie cơ sở.
 router.use('/api/business-report', createBusinessReportRouter());
 // Bang "Du kien hang ve" (tab Hang hoa): quyen rieng reports.products.expected, KHONG di qua guard /api/product-report.

@@ -175,11 +175,21 @@ test('Nhan vien sale xem du 5 tab bao cao mac dinh + dien Sale phan hoi cong no,
 
 const SHIPMENT_LIFECYCLE_GROUP = ['shipment.lifecycle', 'shipment.lookup', 'shipment.history'];
 
-test('Nhan vien marketing has own report, other permissions match sale excluding general reports, lifecycle, Tao QR and Yeu cau xuat VAT', () => {
+test('Nhan vien marketing has own report, other permissions match sale excluding general reports, lifecycle, Tao QR Yeu cau xuat VAT and Tra cuu VAT', () => {
   assert.deepEqual(
     registry.defaultsForRole(ROLES.NHAN_VIEN_MARKETING).filter(key=>key!=='reports.marketing' && key!=='reports.products.expected'),
-    registry.defaultsForRole(ROLES.NHAN_VIEN_SALE).filter(key => !SALE_REPORT_VIEW_KEYS.includes(key) && !SALE_REPORT_WRITE_KEYS.includes(key) && key !== 'accounting.qr' && key !== 'accounting.vatRequest' && !SHIPMENT_LIFECYCLE_GROUP.includes(key))
+    registry.defaultsForRole(ROLES.NHAN_VIEN_SALE).filter(key => !SALE_REPORT_VIEW_KEYS.includes(key) && !SALE_REPORT_WRITE_KEYS.includes(key) && key !== 'accounting.qr' && key !== 'accounting.vatRequest' && key !== 'accounting.vatLookup' && !SHIPMENT_LIFECYCLE_GROUP.includes(key))
   );
+});
+
+test('Tra cuu VAT: Sale + Ke toan + Quan ly mac dinh; Kho / Marketing / Khach khong co; mien kiem tra leo thang', () => {
+  for (const role of [ROLES.NHAN_VIEN_SALE, ROLES.KE_TOAN, ROLES.QUAN_LY]) {
+    assert.ok(registry.defaultsForRole(role).includes('accounting.vatLookup'), role);
+  }
+  for (const role of [ROLES.NHAN_VIEN_KHO, ROLES.NHAN_VIEN_MARKETING, ROLES.KHACH]) {
+    assert.ok(!registry.defaultsForRole(role).includes('accounting.vatLookup'), role);
+  }
+  assert.ok(registry.isEscalationExempt('accounting.vatLookup'));
 });
 
 test('Yeu cau xuat VAT: Sale + Ke toan + Quan ly xem/tao; Ke toan chi xu ly khi duoc cap rieng', () => {
