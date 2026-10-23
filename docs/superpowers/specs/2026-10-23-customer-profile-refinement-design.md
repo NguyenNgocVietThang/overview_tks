@@ -1,6 +1,6 @@
 # Cập nhật Chi tiết khách — 23/10/2026
 
-Thiết kế đã được người dùng duyệt qua demo trong chat. Thay thế các mô tả giao diện/quyền sửa quy mô tương ứng của spec 22/10/2026. Trạng thái: mã cục bộ; migration 0084 chưa áp DB dùng chung, chưa deploy.
+Thiết kế đã được người dùng duyệt qua demo trong chat. Thay thế các mô tả giao diện/quyền sửa quy mô tương ứng của spec 22/10/2026. Trạng thái: mã đã commit trên main; migration 0084 đã áp DB dùng chung (23/10/2026), chưa deploy.
 
 ## Giao diện
 - Trên: hai cột Thông tin chung / Note. Thông tin chung có Định vị kho, Số lượng kho, Diện tích (text), Đối thủ rộng hết hàng, Hình thức bán hàng chọn nhiều thêm Khác. Text dài xuống dòng; textarea tăng chiều cao cả khi nhập và khi đổi chiều rộng.

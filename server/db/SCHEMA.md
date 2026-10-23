@@ -666,8 +666,8 @@ Cập nhật: 22/10/2026.
 
 `0083_vat_request_status_vat_ready.sql`: thay CHECK `vat_requests_status_check` thành `status IN ('pending','0','1','2','3','4','5')`; `'5'` = "VAT sẵn nhiều" (khóa sale như `'0'`). Chuyển 1 lần dòng `'0'` chưa xóa có `accountant_note ~* '^\s*(sẵn|sẵn nhiều|tồn nhiều|còn|còn tồn nhiều)\s*$'` (khớp nguyên note, không tìm từ trong câu) sang `'5'`, `version + 1`, ghi `vat_request_history` (`action 'update'`, `field 'status'`, `'0'→'5'`, `changed_by NULL`, `changed_by_name 'Hệ thống'`). Idempotent (chạy lại không còn dòng khớp). Số 0081/0082 đã dùng trên `main` nên lấy 0083. Áp trước khi deploy mã mới.
 
-## Chi tiết khách — migration 0084 (23/10/2026, CHƯA áp DB dùng chung)
+## Chi tiết khách — migration 0084 (23/10/2026, đã áp DB dùng chung 23/10/2026)
 
 `0084_customer_profile_details.sql` mở rộng `customer_profiles` sau 0080: thêm `area TEXT NOT NULL DEFAULT ''` (Diện tích, server giới hạn 500 ký tự), bổ sung `very_large` vào CHECK `warehouse_scale`, `khac` vào CHECK `sales_channels`. Không sửa/xóa dữ liệu cũ; chạy lại được. Bảng 0080 phía trên mô tả schema gốc trước nâng cấp.
 
-Thông tin chung và quy mô dùng hai UPSERT cập nhật các cột riêng: PUT profile không thay `warehouse_scale`, PUT `/customer-profile/scale` chỉ Quản lý lưu quy mô và không đổi area/định vị/kênh/đối thủ. Đọc nhận thêm `profile.area`; thiếu cột trước migration giữ cơ chế đọc rỗng/ghi 503 MIGRATION_PENDING. Không có job nền hoặc backfill, chưa áp DB thật trong phiên này.
+Thông tin chung và quy mô dùng hai UPSERT cập nhật các cột riêng: PUT profile không thay `warehouse_scale`, PUT `/customer-profile/scale` chỉ Quản lý lưu quy mô và không đổi area/định vị/kênh/đối thủ. Đọc nhận thêm `profile.area`; thiếu cột trước migration giữ cơ chế đọc rỗng/ghi 503 MIGRATION_PENDING. Không có job nền hoặc backfill; migration đã áp thành công lên DB dùng chung 23/10/2026.

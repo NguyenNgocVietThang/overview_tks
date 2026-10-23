@@ -656,4 +656,4 @@ Cập nhật gần nhất: 23/10/2026.
 
 ### Cập nhật 23/10/2026 — Chi tiết khách
 
-Thiết kế: [spec đã duyệt](../docs/superpowers/specs/2026-10-23-customer-profile-refinement-design.md). Migration mới `db/migrations/0084_customer_profile_details.sql` bổ sung area, quy mô Rất to và kênh Khác; **chưa áp DB dùng chung, chưa deploy**. Cột ngày ngoài bảng bỏ nút lịch. Trong modal: text xuống dòng/tăng chiều cao, lịch sử Note cuộn riêng tối đa 360px, ba nhóm quản lý nằm cạnh nhau desktop và xếp dọc mobile, lịch gọn với ngày chọn viền vuông bo góc. Chuyển ảnh chỉ trong xem lớn. Chưa migration: giữ đọc rỗng/ghi 503 MIGRATION_PENDING.
+Thiết kế: [spec đã duyệt](../docs/superpowers/specs/2026-10-23-customer-profile-refinement-design.md). Migration mới `db/migrations/0084_customer_profile_details.sql` bổ sung area, quy mô Rất to và kênh Khác; **đã áp thành công lên DB dùng chung 23/10/2026**, chưa deploy. Cột ngày ngoài bảng bỏ nút lịch. Trong modal: text xuống dòng/tăng chiều cao, lịch sử Note cuộn riêng tối đa 360px, ba nhóm quản lý nằm cạnh nhau desktop và xếp dọc mobile, lịch gọn với ngày chọn viền vuông bo góc. Chuyển ảnh chỉ trong xem lớn.
