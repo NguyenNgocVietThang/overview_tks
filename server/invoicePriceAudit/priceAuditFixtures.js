@@ -13,7 +13,7 @@ const MIGRATIONS = ['0001_core_master_data.sql', '0002_invoices.sql', '0003_orde
   .map(file => fs.readFileSync(path.join(__dirname, '..', 'db', 'migrations', file), 'utf8'));
 
 const HN_NOTE = 'T100 # 16/10 # 1T -24000 | 3T- 23800 | 5T- 23600 | 10T-23000 | VAT+2000đ';
-const FREIGHT_NAME = 'KMN Tín Phong Shop';
+const FREIGHT_NAME = 'SG Tín Phong Shop';
 
 async function newDb({ measuresSynced = true, syncedAt = new Date('2026-10-20T16:00:00Z') } = {}) {
   const db = new PGlite();

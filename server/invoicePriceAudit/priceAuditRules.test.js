@@ -68,20 +68,20 @@ test('bo qua OD/PK chi khi nam trong ngoac', () => {
 
 test('khach bao cuoc: khop toan bo ten sau chuan hoa, giu dau', () => {
   assert.equal(FREIGHT_CUSTOMERS.length, 10);
-  assert.equal(isFreightCustomer('KMN Tín Phong Shop'), true);
-  assert.equal(isFreightCustomer('  kmn   tín phong  SHOP '), true);
-  assert.equal(isFreightCustomer('KMN C Thư Sóc Trăng'), true);
-  assert.equal(isFreightCustomer('KMN Jinlong + ĐI MÃ NÀO DÁN TÊN ĐẦU THÙNG LÊN'), true);
-  assert.equal(isFreightCustomer('KH HENG - ĐI MÃ NÀO DÁN TÊN ĐẦU THÙNG LÊN'), true);
+  assert.equal(isFreightCustomer('SG Tín Phong Shop'), true);
+  assert.equal(isFreightCustomer('  sg   tín phong  SHOP '), true);
+  assert.equal(isFreightCustomer('MN C Thư Sóc Trăng'), true);
+  assert.equal(isFreightCustomer('NN Jinlong Campuchia'), true);
+  assert.equal(isFreightCustomer('NN Heng Campuchia'), true);
   // NFC khac NFD van khop
-  assert.equal(isFreightCustomer('KMN Tín Phong Shop'.normalize('NFD')), true);
+  assert.equal(isFreightCustomer('SG Tín Phong Shop'.normalize('NFD')), true);
 });
 
 test('khach bao cuoc: khong khop chuoi con, mat dau, hoac ten khac', () => {
-  assert.equal(isFreightCustomer('KMN Tin Phong Shop'), false);
-  assert.equal(isFreightCustomer('KMN Tín Phong Shop 2'), false);
+  assert.equal(isFreightCustomer('SG Tin Phong Shop'), false);
+  assert.equal(isFreightCustomer('SG Tín Phong Shop 2'), false);
   assert.equal(isFreightCustomer('Tín Phong'), false);
-  assert.equal(isFreightCustomer('KMN Jinlong'), false);
+  assert.equal(isFreightCustomer('NN Jinlong'), false);
   assert.equal(isFreightCustomer(''), false);
   assert.equal(isFreightCustomer(null), false);
 });

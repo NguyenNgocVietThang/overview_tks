@@ -58,16 +58,16 @@ Ví dụ `T100 # 16/10 # 1T -24000 | 3T- 23800 | 5T- 23600 | 10T-23000 | VAT+200
 
 Danh sách khởi tạo:
 
-1. KMN Jinlong + ĐI MÃ NÀO DÁN TÊN ĐẦU THÙNG LÊN
-2. KMN KAI (ML)+ ĐI MÃ NÀO DÁN TÊN ĐẦU THÙNG LÊN
-3. KH Vin Dany + ĐI MÃ NÀO DÁN TÊN ĐẦU THÙNG LÊN
-4. KMN Tín Phong Shop
-5. KH HENG - ĐI MÃ NÀO DÁN TÊN ĐẦU THÙNG LÊN
-6. KMN C Thư Sóc Trăng
-7. KMN A Thìn Bình Tân
-8. KMN C Thu Thủy Bình Phước
-9. KMN C Vân Anh Bình Phước
-10. KH Srey Hi - ĐI MÃ NÀO DÁN TÊN ĐẦU THÙNG LÊN
+1. NN Jinlong Campuchia
+2. NN A Kai (ML) Campuchia
+3. NN Vin Dany Campuchia
+4. SG Tín Phong Shop
+5. NN Heng Campuchia
+6. MN C Thư Sóc Trăng
+7. SG A Thìn Bình Tân
+8. MN C Thu Thủy Bình Phước
+9. MN C Vân Anh Bình Phước
+10. NN QHI Campuchia
 
 ### 1.3. Chênh lệch, kết quả và quyết định
 

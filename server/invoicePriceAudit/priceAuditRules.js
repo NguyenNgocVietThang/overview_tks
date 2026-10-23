@@ -7,16 +7,16 @@ const { normalizeText } = require('./priceNoteParser');
 
 // Khach HN duoc bao cuoc: min ap dung = min(min_HN + cuoc; min_SG). So khop ca ten (giu dau).
 const FREIGHT_CUSTOMERS = [
-  'KMN Jinlong + ĐI MÃ NÀO DÁN TÊN ĐẦU THÙNG LÊN',
-  'KMN KAI (ML)+ ĐI MÃ NÀO DÁN TÊN ĐẦU THÙNG LÊN',
-  'KH Vin Dany + ĐI MÃ NÀO DÁN TÊN ĐẦU THÙNG LÊN',
-  'KMN Tín Phong Shop',
-  'KH HENG - ĐI MÃ NÀO DÁN TÊN ĐẦU THÙNG LÊN',
-  'KMN C Thư Sóc Trăng',
-  'KMN A Thìn Bình Tân',
-  'KMN C Thu Thủy Bình Phước',
-  'KMN C Vân Anh Bình Phước',
-  'KH Srey Hi - ĐI MÃ NÀO DÁN TÊN ĐẦU THÙNG LÊN',
+  'NN Jinlong Campuchia',
+  'NN A Kai (ML) Campuchia',
+  'NN Vin Dany Campuchia',
+  'SG Tín Phong Shop',
+  'NN Heng Campuchia',
+  'MN C Thư Sóc Trăng',
+  'SG A Thìn Bình Tân',
+  'MN C Thu Thủy Bình Phước',
+  'MN C Vân Anh Bình Phước',
+  'NN QHI Campuchia',
 ];
 
 // Ten khach: NFC + chu thuong + gop khoang trang. KHONG bo dau.

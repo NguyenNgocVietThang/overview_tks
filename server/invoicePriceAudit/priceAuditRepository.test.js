@@ -184,7 +184,7 @@ test('Bao cuoc: HN full VAT min(26500; 24800) = 24800; SG khong cong; thieu O = 
     await product(db, 'hanoi', 4, 'NOHN', 'HN trong', '');
     await product(db, 'saigon', 94, 'NOHN', 'SG co', 'T10 # 1T-100');
     await db.query("INSERT INTO shipping_measures (code_key, freight_per_unit) VALUES ('t100', 500), ('hnonly', 300), ('nofreight', NULL)");
-    await customer(db, 'hanoi', 1, `  kmn   TÍN phong shop `, {});
+    await customer(db, 'hanoi', 1, `  sg   TÍN phong shop `, {});
     await customer(db, 'hanoi', 2, 'Khach thuong', {});
     await customer(db, 'saigon', 1, FREIGHT_NAME, {});
     const t100 = { productId: 1, code: 'T100', name: 'Ly', qty: 10, price: 1, note: 'full vat' };
