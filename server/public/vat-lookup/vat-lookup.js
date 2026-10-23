@@ -6,9 +6,8 @@
   const API = '/api/vat-lookup';
   // Số lượng trong sheet dùng dấu phẩy phân cách hàng nghìn — giữ như app cũ (fmtSheetQuantity).
   const qtyFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
-  const dateTimeFormat = new Intl.DateTimeFormat('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
 
-  const state = { mode: 'vat', result: null, meta: null, loading: false, error: '', requestSeq: 0 };
+  const state = { mode: 'vat', result: null, loading: false, error: '', requestSeq: 0 };
 
   function $(id) { return document.getElementById(id); }
   function escapeHtml(value) {
@@ -35,14 +34,6 @@
   }
 
   // ---------- Vẽ ----------
-  function renderMeta() {
-    const meta = state.meta;
-    if (!meta) return;
-    const at = meta.loadedAt ? dateTimeFormat.format(new Date(meta.loadedAt)) : '—';
-    const stale = meta.stale ? ' · <span class="vl-warn">Sheets đang lỗi, đang dùng dữ liệu đã lưu</span>' : '';
-    $('vlSource').innerHTML = `<b>${fmtQty(meta.products)}</b> sản phẩm · cập nhật lúc <b>${escapeHtml(at)}</b>${stale}<span class="vl-source-detail"> · ${escapeHtml(meta.source)}</span>`;
-  }
-
   function badge(kind, label) {
     return `<span class="vl-badge" data-kind="${kind}"><span class="vl-dot" aria-hidden="true"></span>${escapeHtml(label)}</span>`;
   }
@@ -53,16 +44,11 @@
 
   function feedbackHtml(result) {
     const notes = [];
+    // Trang không còn dòng nguồn dữ liệu: chỉ báo khi Sheets lỗi và kết quả lấy từ bản đã lưu.
+    if (result.meta && result.meta.stale) notes.push('<b>Sheets đang lỗi</b>, kết quả lấy từ dữ liệu đã lưu trước đó.');
     if (result.notFoundQueries.length) notes.push(`<b>Không tìm thấy ${result.notFoundQueries.length}:</b> ${result.notFoundQueries.map(escapeHtml).join(', ')}`);
     if (result.ignoredCount) notes.push(`<b>Chưa xử lý ${result.ignoredCount} dòng cuối</b> vì mỗi lượt tìm tối đa 100 dòng.`);
     return notes.length ? `<div class="vl-feedback" role="status">${notes.join('<br>')}</div>` : '';
-  }
-
-  function summaryHtml(result, rowCount, rowLabel) {
-    if (result.queries.length <= 1) {
-      return `<p class="vl-summary">Tìm thấy <b>${result.productCount}</b> sản phẩm, <b>${rowCount}</b> ${rowLabel} khớp “${escapeHtml(result.queries[0])}”.</p>`;
-    }
-    return `<p class="vl-summary">Đã tìm thấy <b>${result.matchedQueries.length}/${result.queries.length}</b> từ khóa · <b>${result.productCount}</b> sản phẩm · <b>${rowCount}</b> ${rowLabel}.</p>`;
   }
 
   function limitNote(shown, total) {
@@ -79,18 +65,18 @@
     // Máy tính: lần đầu co / giãn các cột theo tỉ lệ cho vừa khung (không có thanh cuộn ngang);
     // điện thoại: giữ độ rộng, cuộn ngang trong khung bảng.
     const fit = window.innerWidth > 600 ? ' data-table-fit="fill"' : '';
-    return `<div class="vl-scroll"><table class="vl-table" data-table-key="${key}" data-table-sort="local"${fit}><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+    return `<div class="vl-scroll"><table class="vl-table" data-table-key="${key}" data-table-sort="local" data-columns-button="vlColumns"${fit}><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
   }
 
   const mono = value => `<span class="vl-mono">${escapeHtml(value) || '—'}</span>`;
   const text = value => escapeHtml(value) || '—';
 
   const VAT_COLUMNS = [
-    { key: 'maKiot', label: 'Mã Kiot', width: 80, cell: r => mono(r.maKiot) },
+    { key: 'maKiot', label: 'Mã Kiot', width: 90, cell: r => mono(r.maKiot) },
     { key: 'tenKiot', label: 'Tên Kiot', width: 190, cell: r => escapeHtml(r.tenKiot) || '<i>(chưa có tên)</i>' },
-    { key: 'maVat', label: 'Mã VAT Kiot', width: 85, cell: r => mono(r.maVat) },
+    { key: 'maVat', label: 'Mã VAT Kiot', width: 95, cell: r => mono(r.maVat) },
     { key: 'tenVat', label: 'Tên VAT Kiot', width: 190, cell: r => text(r.tenVat) },
-    { key: 'tenHang', label: 'Tên hàng', width: 360, cell: r => text(r.tenHang) },
+    { key: 'tenHang', label: 'Tên hàng', width: 340, cell: r => text(r.tenHang) },
     { key: 'dvt', label: 'ĐVT', width: 70, cell: r => text(r.dvt) },
     { key: 'tongThueMat', label: 'TỔNG THUẾ MẤT (thuế xuất)', width: 150, num: true, cell: r => text(r.tongThueMat) },
     { key: 'tonDauNgay', label: 'Tồn đầu ngày', width: 140, num: true, cell: r => fmtQty(r.tonDauNgay), sort: r => r.tonDauNgay },
@@ -114,7 +100,7 @@
 
   function renderVat(result) {
     const vat = result.vat;
-    return summaryHtml(result, vat.total, 'dòng VAT') + feedbackHtml(result)
+    return feedbackHtml(result)
       + tableHtml('vat-lookup-vat-v2', VAT_COLUMNS, vat.rows) + limitNote(vat.rows.length, vat.total);
   }
 
@@ -127,10 +113,10 @@
         ? `<div class="vl-feedback" role="status">Sheet DK về 2 có ${incoming.debug.length} dòng cho mã Kiot khớp tìm kiếm, nhưng không dòng nào ở trạng thái 1–3:<br>`
           + incoming.debug.map(r => `Mã Kiot <b>${escapeHtml(r.maKiot)}</b> — Trạng thái: “${escapeHtml(r.trangThai) || '(trống)'}” (dòng ${r.rowNumber})`).join('<br>') + '</div>'
         : '';
-      return summaryHtml(result, 0, 'dòng hàng sắp về') + feedbackHtml(result) + debug
+      return feedbackHtml(result) + debug
         + emptyState('Không có hàng chuẩn bị về', `Không có ${scope} đang ở trạng thái chuẩn bị về (1–3).`);
     }
-    return summaryHtml(result, incoming.total, 'dòng hàng sắp về') + feedbackHtml(result)
+    return feedbackHtml(result)
       + tableHtml('vat-lookup-incoming-v2', incomingColumns(incoming.extraKeys), incoming.rows) + limitNote(incoming.rows.length, incoming.total);
   }
 
@@ -155,6 +141,7 @@
     }
     box.classList.toggle('is-loading', state.loading && !!result);
     const table = box.querySelector('table');
+    $('vlColumns').hidden = !table;
     if (table && window.TKSTables) window.TKSTables.refresh(table);
   }
 
@@ -176,8 +163,6 @@
       const data = await api('/search', { method: 'POST', body: { q } });
       if (seq !== state.requestSeq) return;
       state.result = data;
-      state.meta = data.meta;
-      renderMeta();
     } catch (error) {
       if (seq !== state.requestSeq) return;
       state.error = error.message;
@@ -187,21 +172,6 @@
         $('vlSubmit').disabled = false;
         render();
       }
-    }
-  }
-
-  async function loadMeta(force) {
-    const button = $('vlRefresh');
-    button.disabled = true;
-    if (force) $('vlSource').textContent = 'Đang đọc lại 3 sheet…';
-    try {
-      state.meta = await api(force ? '/refresh' : '/meta', force ? { method: 'POST' } : {});
-      renderMeta();
-      if (force && state.result && state.result.queries.length) await search();
-    } catch (error) {
-      $('vlSource').innerHTML = `<span class="vl-error">${escapeHtml(error.message)}</span>`;
-    } finally {
-      button.disabled = false;
     }
   }
 
@@ -247,7 +217,6 @@
     $('vlQuery').addEventListener('input', event => autoGrow(event.currentTarget));
     $('vlTabVat').addEventListener('click', () => setMode('vat'));
     $('vlTabIncoming').addEventListener('click', () => setMode('incoming'));
-    $('vlRefresh').addEventListener('click', () => loadMeta(true));
   }
 
   async function init() {
@@ -258,7 +227,8 @@
     window.TKSNav.renderAccountingTabs($('vlTabs'));
     render();
     $('vlQuery').focus();
-    await loadMeta(false);
+    // Đọc trước 3 sheet (cache server 10 phút) để lượt tìm đầu nhanh; lỗi sẽ hiện khi tìm.
+    await api('/meta').catch(() => {});
   }
 
   window.TKSVatLookup = { init };
