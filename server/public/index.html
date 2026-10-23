@@ -3271,6 +3271,9 @@
 
     .price-audit-sales-board .debt-penalty-wrap {
       max-height: 420px;
+      /* Luôn chừa chỗ thanh cuộn dọc và không cho tràn ngang: cột cuối (Tiền phạt đã chốt) không bị thanh cuộn đè số. */
+      overflow-x: hidden;
+      overflow-y: scroll;
     }
 
     .price-audit-sales-board .debt-penalty-wrap table {
