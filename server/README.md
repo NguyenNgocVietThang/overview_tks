@@ -270,7 +270,11 @@ npm run kiotviet-sync:backfill
 npm run kiotviet-sync:reconcile
 npm run invoices:price-audit              # Kiểm tra giá bán: chạy thử (không ghi)
 npm run invoices:price-audit -- --date 2026-10-20 --apply   # ghi thật
+npm run invoices:price-audit -- --recalc                    # tính lại theo dữ liệu hiện tại: chạy thử (không ghi)
+npm run invoices:price-audit -- --recalc --apply            # ghi thật (một giao dịch, tất cả hoặc không)
 ```
+
+`--recalc` (23/10/2026) tính lại **mọi dòng đã chụp trong cửa sổ 16 ngày** `[D-15, D]` theo dữ liệu nguồn hiện tại (level khách, bảng giá/mô tả sản phẩm, Cân đo/cước, VAT, ghi chú) và chụp luôn hóa đơn chưa quét trong cửa sổ (cùng logic job 23:00). `D` mặc định là ngày đã công bố gần nhất (`--date` để đổi). Chỉ ghi đè cột tính toán; **giữ nguyên** giải thích, Chốt, `version`, `captured_at`, khách/sale/mã hàng của dòng cũ; không đụng `invoice_price_audit_state`; dòng không còn trong nguồn (hóa đơn sửa/hủy) và dòng ngoài cửa sổ giữ nguyên. Mỗi dòng đổi kết quả/level ghi nhật ký `invoice_price_audit_changes` với `action='recalc'`, `actor='system:price-audit-recalc'`. Dry-run (mặc định) chạy trọn trong giao dịch rồi ROLLBACK và in JSON: `recomputedLines`, `resultChangedLines` (tách `changedByLevel` = level của dòng đổi, `changedByData` = còn lại), `statusFlippedLines`, `levelChangedLines`, `newInvoices`/`newLines`, `decidedStatusChanged` (dòng đã có Chốt mà Sai/Đúng đổi: chỉ liệt kê, không tự gỡ Chốt). Nguồn chưa sẵn sàng → `status:"failed"`, không ghi gì. Không dùng chung `--force`.
 
 Khi `KIOTVIET_SYNC_ENABLED=true`, service chạy một lượt catch-up nền ngay lúc
 khởi động từ checkpoint gần nhất, sau đó tiếp tục polling theo
@@ -705,4 +709,4 @@ Trình tự vận hành khi triển khai: áp migration 0087, kiểm tra báo c�
 - `GET /api/business-report/customers`: level nội bộ, `priceLevelVersion`, `canEditPriceLevel`; người có quyền xem Chi tiết nhận thêm `salesChannels` và `warehouseScale`.
 - `PUT /api/business-report/customer-price-level`: `{key,level,version}` (`medium/large/vip`), yêu cầu quyền xem Chi tiết và quyền quản lý khách hoặc được gán sửa khách đó; trả `{priceLevel,priceLevelVersion}`. Xung đột phiên bản: 409 `PRICE_LEVEL_CONFLICT`. Lịch sử lưu level cũ/mới, tài khoản và thời gian.
 - `/export/fields` và `/export`: nhận thêm `salesChannel` (`none` = chưa có) và `warehouseScale`; kết hợp AND trước phân trang. Thông tin chung, quy mô, người được sửa, các ngày tiếp khách và URL ảnh chỉ xuất với quyền xem Chi tiết; không xuất Note hoặc byte ảnh. URL ảnh vẫn cần đăng nhập. Lỗi đọc hồ sơ chặn xuất, tránh xuất dữ liệu trắng sai.
-- Kiểm tra giá bán đọc level nội bộ bằng client giao dịch chụp `REPEATABLE READ`; chỉ thêm hóa đơn chưa chụp. Đổi level không tính lại bản chụp cũ.
+- Kiểm tra giá bán đọc level nội bộ bằng client giao dịch chụp `REPEATABLE READ`; job 23:00 chỉ thêm hóa đơn chưa chụp, không tính lại bản chụp cũ; muốn áp level/dữ liệu mới cho cửa sổ 16 ngày chạy tay `npm run invoices:price-audit -- --recalc [--apply]` (giữ giải thích + Chốt, xem mục lệnh trên).

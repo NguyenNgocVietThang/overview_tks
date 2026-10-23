@@ -173,6 +173,28 @@ SELECT r.branch, r.invoice_id::bigint, r.source_line_no, r.invoice_code, r.sold_
   COALESCE(r.invoice_note, ''), r.captured_at
 FROM result r`;
 
+// Tinh lai dong DA CHUP (lenh --recalc): cung cau SELECT tinh gia nhu CAPTURE_LINES_SQL, nhung gap khoa chinh thi
+// CHI ghi de cot tinh toan/nguon. Khong dong vao: nhan dien (khach/sale/ma hang/ten), captured_at, giai thich
+// (sale_explanation, explanation_by/at), Chot (decision, decided_by/at) va version -> khoa lac quan khong vo.
+// RETURNING: gia tri moi + inserted (xmax = 0: dong moi them, vd dong SL<=0 truoc day nay co SL > 0).
+const RECALC_LINES_SQL = `${CAPTURE_LINES_SQL}
+ON CONFLICT (branch, invoice_id, source_line_no) DO UPDATE SET
+  customer_level = EXCLUDED.customer_level, quantity = EXCLUDED.quantity,
+  total_code_quantity = EXCLUDED.total_code_quantity, original_unit_price = EXCLUDED.original_unit_price,
+  unit_discount = EXCLUDED.unit_discount, net_unit_price = EXCLUDED.net_unit_price, full_vat = EXCLUDED.full_vat,
+  carton_size_hn = EXCLUDED.carton_size_hn, quantity_price_hn = EXCLUDED.quantity_price_hn,
+  level_price_hn = EXCLUDED.level_price_hn, vat_hn = EXCLUDED.vat_hn, minimum_hn = EXCLUDED.minimum_hn,
+  freight_eligible = EXCLUDED.freight_eligible, freight_per_unit = EXCLUDED.freight_per_unit,
+  carton_size_sg = EXCLUDED.carton_size_sg, quantity_price_sg = EXCLUDED.quantity_price_sg,
+  level_price_sg = EXCLUDED.level_price_sg, vat_sg = EXCLUDED.vat_sg, minimum_sg = EXCLUDED.minimum_sg,
+  winning_source = EXCLUDED.winning_source, reason = EXCLUDED.reason,
+  minimum_unit_price = EXCLUDED.minimum_unit_price, unit_shortfall = EXCLUDED.unit_shortfall,
+  original_amount = EXCLUDED.original_amount, original_status = EXCLUDED.original_status,
+  calculation = EXCLUDED.calculation, product_note_hn = EXCLUDED.product_note_hn,
+  product_note_sg = EXCLUDED.product_note_sg, line_note = EXCLUDED.line_note, invoice_note = EXCLUDED.invoice_note
+RETURNING branch, invoice_id::text AS invoice_id, source_line_no, customer_level, original_status,
+  original_amount::text AS original_amount, minimum_unit_price::text AS minimum_unit_price, (xmax = 0) AS inserted`;
+
 module.exports = {
   LEVEL_LABELS,
   LEVEL_POSITIONS,
@@ -186,5 +208,6 @@ module.exports = {
   penaltyAmountSql,
   pendingAmountSql,
   effectiveReasonSql,
-  CAPTURE_LINES_SQL
+  CAPTURE_LINES_SQL,
+  RECALC_LINES_SQL
 };

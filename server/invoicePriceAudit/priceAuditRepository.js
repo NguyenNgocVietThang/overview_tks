@@ -37,7 +37,8 @@ const codeKey = code => String(code ?? '').trim().toLowerCase();
 const MEASURES_READY_SQL = "SELECT last_success_at, freight_error FROM sheet_snapshot_sync WHERE source = 'shipping_measures'";
 
 // $1 ngay chay (YYYY-MM-DD). purchase_date = gio dia phuong Kiot gan nhan UTC -> moc ngay AT TIME ZONE 'UTC'.
-const INVOICES_SQL = `
+// includeSeen=false (job 23:00): chi hoa don chua co so danh dau. includeSeen=true (--recalc): moi hoa don trong cua so.
+const invoicesSql = includeSeen => `
   SELECT i.branch, i.id::text AS invoice_id, i.code, i.purchase_date::text AS sold_at,
          (i.purchase_date AT TIME ZONE 'UTC')::date::text AS sold_day, i.modified_date::text AS modified_at,
          i.customer_id::text AS customer_id, COALESCE(i.raw->>'description', '') AS invoice_note,
@@ -52,8 +53,10 @@ const INVOICES_SQL = `
   WHERE i.purchase_date >= (($1::date - ${WINDOW_DAYS - 1})::timestamp AT TIME ZONE 'UTC')
     AND i.purchase_date <  (($1::date + 1)::timestamp AT TIME ZONE 'UTC')
     AND ${INVOICE_STATUS_SQL} = 'Hoàn thành'
-    AND NOT EXISTS (SELECT 1 FROM invoice_price_audit_invoices m WHERE m.branch = i.branch AND m.invoice_id = i.id)
+    ${includeSeen ? '' : 'AND NOT EXISTS (SELECT 1 FROM invoice_price_audit_invoices m WHERE m.branch = i.branch AND m.invoice_id = i.id)'}
   ORDER BY i.branch, i.id`;
+const INVOICES_SQL = invoicesSql(false);
+const ALL_INVOICES_SQL = invoicesSql(true);
 
 // $1 co so[], $2 id hoa don[] (cap). San pham theo (co so, product_id) cua chinh dong.
 const LINES_SQL = `
@@ -116,18 +119,18 @@ async function assertMeasuresReady(client) {
 }
 
 /**
- * Chup moi hoa don "Hoan thanh" chua quet co ngay ban trong [day-15, day].
- * @param {{ day: string, client: { query: Function }, now: Date|number|string }} args client DA o trong giao dich.
- * @returns {Promise<{ addedInvoices: number, addedLines: number }>}
+ * Doc nguon HIEN TAI va dung dau vao chup: so danh dau (markers) + dong (lineInputs) cua cac hoa don "Hoan thanh"
+ * co ngay ban trong [day-15, day]. Dung chung cho job 23:00 (includeSeen=false: chi hoa don chua quet) va
+ * tinh lai (includeSeen=true: ca hoa don da quet). Chi doc, khong ghi.
  */
-async function captureUnseenInvoices({ day, client, now }) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(day || ''))) throw new Error('captureUnseenInvoices: day phải là YYYY-MM-DD');
-  if (!client || typeof client.query !== 'function') throw new Error('captureUnseenInvoices: thiếu client giao dịch');
+async function buildCaptureInputs({ day, client, now, includeSeen, who }) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(day || ''))) throw new Error(`${who}: day phải là YYYY-MM-DD`);
+  if (!client || typeof client.query !== 'function') throw new Error(`${who}: thiếu client giao dịch`);
   const capturedAt = new Date(now ?? Date.now()).toISOString();
   await assertMeasuresReady(client);
 
-  const invoices = (await client.query(INVOICES_SQL, [day])).rows;
-  if (invoices.length === 0) return { addedInvoices: 0, addedLines: 0 };
+  const invoices = (await client.query(includeSeen ? ALL_INVOICES_SQL : INVOICES_SQL, [day])).rows;
+  if (invoices.length === 0) return { invoices, markers: [], lineInputs: [] };
 
   const customerKey = inv => nameKey(inv.customer_name || inv.raw_customer_name) || nameKey(RETAIL_NAME);
   let localLevels;
@@ -221,6 +224,17 @@ async function captureUnseenInvoices({ day, client, now }) {
     });
   }
 
+  return { invoices, markers, lineInputs };
+}
+
+/**
+ * Chup moi hoa don "Hoan thanh" chua quet co ngay ban trong [day-15, day].
+ * @param {{ day: string, client: { query: Function }, now: Date|number|string }} args client DA o trong giao dich.
+ * @returns {Promise<{ addedInvoices: number, addedLines: number }>}
+ */
+async function captureUnseenInvoices({ day, client, now }) {
+  const { markers, lineInputs } = await buildCaptureInputs({ day, client, now, includeSeen: false, who: 'captureUnseenInvoices' });
+  if (markers.length === 0) return { addedInvoices: 0, addedLines: 0 };
   const inserted = (await client.query(INSERT_MARKERS_SQL, [JSON.stringify(markers)])).rows;
   const insertedKeys = new Set(inserted.map(r => `${r.branch}:${r.invoice_id}`));
   const toInsert = lineInputs.filter(l => insertedKeys.has(`${l.branch}:${l.invoice_id}`));
@@ -230,6 +244,77 @@ async function captureUnseenInvoices({ day, client, now }) {
     addedLines = res.affectedRows ?? res.rowCount ?? toInsert.length;
   }
   return { addedInvoices: inserted.length, addedLines };
+}
+
+// ---------------------------------------------------------------- tinh lai theo du lieu hien tai
+
+const RECALC_ACTOR = 'system:price-audit-recalc';
+const BEFORE_LINES_SQL = `
+  SELECT l.branch, l.invoice_id::text AS invoice_id, l.source_line_no, l.invoice_code, l.product_code, l.sale_name,
+         l.customer_level, l.original_status, l.original_amount::text AS original_amount,
+         l.minimum_unit_price::text AS minimum_unit_price, l.decision, l.version
+  FROM invoice_price_audit_lines l
+  JOIN unnest($1::text[], $2::bigint[]) AS k(branch, invoice_id) ON k.branch = l.branch AND k.invoice_id = l.invoice_id`;
+const INSERT_RECALC_LOG_SQL = `INSERT INTO invoice_price_audit_changes
+  (branch, invoice_id, source_line_no, actor, action, before_value, after_value, version_before, version_after)
+  SELECT x.branch, x.invoice_id::bigint, x.source_line_no, $2, 'recalc', x.before_value, x.after_value, x.version, x.version
+  FROM jsonb_to_recordset($1::jsonb) AS x(branch text, invoice_id text, source_line_no int, before_value jsonb,
+    after_value jsonb, version int)`;
+
+// '10.0000' = '10'; null giu null. So sanh NUMERIC dang chuoi ma khong dung so thuc.
+const normDec = v => (v == null ? null : (String(v).includes('.') ? String(v).replace(/0+$/, '').replace(/\.$/, '') : String(v)));
+
+/**
+ * Tinh lai cac dong DA CHUP trong cua so [day-15, day] theo du lieu nguon HIEN TAI va chup them hoa don chua quet
+ * trong cua so. Chay trong giao dich cua NGUOI GOI (khong BEGIN/COMMIT): caller COMMIT (apply) hoac ROLLBACK (dry-run).
+ * Giu nguyen giai thich/Chot/version cua dong da co; dong khong con trong nguon (hoa don bi sua/huy) giu nguyen.
+ * "Do level" = level cua dong doi (customer_level moi != luc chup); con lai la "do du lieu khac" (bang gia, can do...).
+ */
+async function recalcWindow({ day, client, now }) {
+  const { invoices, markers, lineInputs } = await buildCaptureInputs({ day, client, now, includeSeen: true, who: 'recalcWindow' });
+  const empty = { recomputedLines: 0, newInvoices: 0, newLines: 0, resultChangedLines: 0, statusFlippedLines: 0,
+    changedByLevel: 0, changedByData: 0, levelChangedLines: 0, loggedChanges: 0, decidedStatusChanged: [] };
+  if (markers.length === 0) return empty;
+
+  const before = new Map((await client.query(BEFORE_LINES_SQL,
+    [invoices.map(i => i.branch), invoices.map(i => i.invoice_id)])).rows
+    .map(r => [`${r.branch}:${r.invoice_id}:${r.source_line_no}`, r]));
+  const newMarkers = (await client.query(INSERT_MARKERS_SQL, [JSON.stringify(markers)])).rows;
+  const after = lineInputs.length ? (await client.query(S.RECALC_LINES_SQL, [JSON.stringify(lineInputs)])).rows : [];
+
+  const out = { ...empty, newInvoices: newMarkers.length };
+  const log = [];
+  for (const a of after) {
+    const b = before.get(`${a.branch}:${a.invoice_id}:${a.source_line_no}`);
+    if (a.inserted || !b) { out.newLines += 1; continue; }
+    out.recomputedLines += 1;
+    const levelChanged = b.customer_level !== a.customer_level;
+    const statusChanged = b.original_status !== a.original_status;
+    const resultChanged = statusChanged || normDec(b.original_amount) !== normDec(a.original_amount)
+      || normDec(b.minimum_unit_price) !== normDec(a.minimum_unit_price);
+    if (levelChanged) out.levelChangedLines += 1;
+    if (resultChanged) {
+      out.resultChangedLines += 1;
+      if (levelChanged) out.changedByLevel += 1; else out.changedByData += 1;
+    }
+    if (statusChanged) {
+      out.statusFlippedLines += 1;
+      if (b.decision) {
+        out.decidedStatusChanged.push({ branch: b.branch, invoiceCode: b.invoice_code, productCode: b.product_code,
+          saleName: b.sale_name, sourceLineNo: b.source_line_no, from: b.original_status, to: a.original_status,
+          decision: b.decision });
+      }
+    }
+    if (resultChanged || levelChanged) {
+      const pick = r => ({ customerLevel: r.customer_level, originalStatus: r.original_status,
+        originalAmount: normDec(r.original_amount), minimumUnitPrice: normDec(r.minimum_unit_price) });
+      log.push({ branch: a.branch, invoice_id: a.invoice_id, source_line_no: a.source_line_no,
+        before_value: pick(b), after_value: pick(a), version: b.version });
+    }
+  }
+  if (log.length) await client.query(INSERT_RECALC_LOG_SQL, [JSON.stringify(log), RECALC_ACTOR]);
+  out.loggedChanges = log.length;
+  return out;
 }
 
 // ---------------------------------------------------------------- doc ket qua
@@ -549,6 +634,7 @@ function getPriceAuditRepository() {
 module.exports = {
   SOURCE_NOT_READY,
   captureUnseenInvoices,
+  recalcWindow,
   createPriceAuditRepository,
   getPriceAuditRepository,
   httpError,
