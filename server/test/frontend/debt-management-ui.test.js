@@ -204,7 +204,8 @@ test('Lịch sử chỉnh sửa hiển thị mọi loại thay đổi (phản h�
 test('khung Chỉ số then chốt: 4 chỉ số xếp dọc bên trái, bảng thưởng/phạt sale bên phải', () => {
   const dom = createDashboard();
   const document = dom.window.document;
-  const frame = document.querySelector('.debt-key-frame');
+  // Khung này còn được mục 1 của tab Hóa đơn (Kiểm tra giá bán) dùng lại, nên chọn đúng khung chứa bảng thưởng/phạt.
+  const frame = document.querySelector('#debtPenaltyTable').closest('.debt-key-frame');
   assert.ok(frame, 'có khung 2 cột');
   const [stack, board] = frame.children;
   assert.ok(stack.classList.contains('debt-key-stack'));

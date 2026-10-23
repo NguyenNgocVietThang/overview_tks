@@ -18,6 +18,7 @@ const { readCustomerPriceLevels } = require('../businessReport/customerPriceLeve
 const { nameKey, RETAIL_NAME } = require('../businessReport/businessMonths');
 const S = require('./priceAuditSql');
 const fuzzy = require('../shared/fuzzySearch');
+const { saleNameSql } = require('../dashboard/saleName');
 
 const SOURCE_NOT_READY = 'PRICE_AUDIT_SOURCE_NOT_READY';
 const WINDOW_DAYS = 16;
@@ -322,6 +323,17 @@ const KPI_SQL = `
          count(*)::int AS total_rows
   ${FILTER_SQL}`;
 
+// Tong hop tien theo sale (cung bo loc / cung bieu thuc tien voi KPI_SQL nen tong moi cot khop KPI). Ten sale cat ID Telegram
+// ngay trong SQL (cung quy tac saleName.js); chi giu sale co tien chenh chua chot hoac da chot Phat khac 0.
+const SALE_SUMMARY_SQL = `
+  SELECT ${saleNameSql('l.sale_name')} AS sale_name,
+         COALESCE(SUM(${S.pendingAmountSql('l')}), 0)::text AS pending_amount,
+         COALESCE(SUM(${S.penaltyAmountSql('l')}), 0)::text AS penalty_amount
+  ${FILTER_SQL}
+  GROUP BY 1
+  HAVING COALESCE(SUM(${S.pendingAmountSql('l')}), 0) <> 0 OR COALESCE(SUM(${S.penaltyAmountSql('l')}), 0) <> 0
+  ORDER BY 1`;
+
 const ROWS_SQL = `SELECT ${ROW_COLUMNS_SQL} ${FILTER_SQL} ORDER_PLACEHOLDER LIMIT $15 OFFSET $16`;
 const SALES_SQL = `SELECT DISTINCT l.sale_name FROM invoice_price_audit_lines l
   WHERE l.sold_day BETWEEN $1::date AND $2::date AND l.sale_name <> '' ORDER BY 1`;
@@ -425,7 +437,7 @@ function createPriceAuditRepository({ pool = getPool() } = {}) {
       decision: q.decision, vat: q.vat, freight: q.freight, q: q.q };
     if (!meta.available) {
       return { meta, filters: { applied, options: { sales: [] } }, kpis: null, totals: null,
-        rows: [], totalRows: 0, page: q.page, pageSize: q.pageSize };
+        saleSummary: [], rows: [], totalRows: 0, page: q.page, pageSize: q.pageSize };
     }
     const baseParams = [state.window_from, state.window_to, q.from, q.to, q.branch, q.sale, q.status, q.decision,
       q.vat, q.freight];
@@ -443,10 +455,11 @@ function createPriceAuditRepository({ pool = getPool() } = {}) {
     }
     const ranked = match[0] !== null;
     const params = [...baseParams, ...match];
-    const [kpi, rows, sales] = await Promise.all([
+    const [kpi, rows, sales, saleSummary] = await Promise.all([
       pool.query(KPI_SQL, params),
       pool.query(ROWS_SQL.replace('ORDER_PLACEHOLDER', orderSql(q.sort, q.dir, ranked)), [...params, q.pageSize, (q.page - 1) * q.pageSize]),
-      pool.query(SALES_SQL, [state.window_from, state.window_to])
+      pool.query(SALES_SQL, [state.window_from, state.window_to]),
+      pool.query(SALE_SUMMARY_SQL, params)
     ]);
     const k = kpi.rows[0];
     return {
@@ -455,6 +468,7 @@ function createPriceAuditRepository({ pool = getPool() } = {}) {
       kpis: { invoiceCount: k.invoice_count, correctLines: k.correct_lines, wrongLines: k.wrong_lines,
         pendingAmount: k.pending_amount, penaltyAmount: k.penalty_amount, effectiveAmount: k.effective_amount },
       totals: { quantity: k.quantity, originalAmount: k.original_amount, effectiveAmount: k.effective_amount },
+      saleSummary: saleSummary.rows.map(r => ({ saleName: r.sale_name, pendingAmount: r.pending_amount, penaltyAmount: r.penalty_amount })),
       rows: rows.rows.map(mapRow),
       totalRows: k.total_rows,
       page: q.page,

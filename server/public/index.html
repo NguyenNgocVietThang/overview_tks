@@ -3257,6 +3257,57 @@
     }
 
     /* ---------- Hóa đơn · Kiểm tra giá bán (invoice-price-audit.js) ---------- */
+    .price-audit-key-stack .kpi-card {
+      flex: 0 0 auto;
+      height: auto;
+      min-height: 76px;
+    }
+
+    .price-audit-key-stack .kpi-card .sub {
+      margin-top: 2px;
+      font-size: 10.5px;
+      line-height: 1.3;
+    }
+
+    .price-audit-sales-board .debt-penalty-wrap {
+      max-height: 420px;
+    }
+
+    .price-audit-sales-board .debt-penalty-wrap table {
+      min-width: 0;
+    }
+
+    .price-audit-sales-board .table-search-tools {
+      justify-content: flex-start;
+    }
+
+    /* Màu CHỮ trạng thái Chốt trong bảng chi tiết: OK xanh lá, Phạt đỏ (token, tự đổi theo Sáng/Tối). */
+    .price-audit-decision[data-status="Ok"],
+    .price-audit-decision-text[data-status="Ok"] { color: var(--green); font-weight: 600; }
+    .price-audit-decision[data-status="Phạt"],
+    .price-audit-decision-text[data-status="Phạt"] { color: var(--red); font-weight: 600; }
+
+    @media (max-width: 900px) {
+      .price-audit-key-frame {
+        grid-template-columns: 1fr;
+      }
+
+      .price-audit-key-stack {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .price-audit-key-stack .kpi-card {
+        overflow: visible;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .price-audit-key-stack {
+        grid-template-columns: 1fr;
+      }
+    }
+
     .price-audit-status {
       display: grid;
       gap: var(--space-md);
@@ -4319,7 +4370,39 @@
             <div class="section-head"><span class="section-step">1</span>
               <h2>Kiểm tra giá bán <span class="section-note">mỗi dòng hóa đơn so với giá min quy định, chụp lúc 23:00 trong 16 ngày</span></h2>
             </div>
-            <div class="kpi-grid section-kpis" id="priceAuditKpis"></div>
+            <!-- Cột trái: 5 khối KPI xếp dọc (cùng khung với Chỉ số then chốt của tab Công nợ); bên phải: tiền phạt theo sale (cùng bộ lọc với KPI) -->
+            <div class="debt-key-frame price-audit-key-frame section-kpis">
+              <div class="debt-key-stack price-audit-key-stack" id="priceAuditKpis"></div>
+              <div class="panel debt-penalty-board price-audit-sales-board" id="priceAuditSalesPanel">
+                <div class="panel-head">
+                  <h2>Tiền phạt theo sale <span class="tag" id="tagPriceAuditSales">—</span></h2>
+                  <div class="panel-head-actions"><button class="export-button" type="button" id="priceAuditSalesExportButton"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button></div>
+                  <div class="table-search-tools" data-table-search="priceAuditSales">
+                    <div class="table-search-input-wrap">
+                      <input type="search" class="table-search-input" id="priceAuditSalesSearch" autocomplete="off" maxlength="200" placeholder="Nhập từ khóa…" aria-label="Tìm theo tên sale trong bảng Tiền phạt theo sale">
+                      <button type="button" class="table-search-clear" id="priceAuditSalesSearchClear" aria-label="Xóa tìm kiếm Tiền phạt theo sale" hidden>×</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="debt-penalty-wrap tks-table-scroll">
+                  <table class="fixed-table price-audit-sales-table" id="priceAuditSalesTable" data-table-key="dashboard-table-price-audit-sales">
+                    <thead>
+                      <tr>
+                        <th style="width:200px" data-column-key="sale" data-col-type="text">Tên sale</th>
+                        <th class="col-num" style="width:170px" data-column-key="chua-chot" data-col-type="money">Tiền phạt chưa chốt</th>
+                        <th class="col-num" style="width:170px" data-column-key="da-chot" data-col-type="money">Tiền phạt đã chốt</th>
+                      </tr>
+                    </thead>
+                    <tbody id="priceAuditSalesRows">
+                      <tr>
+                        <td colspan="3" class="table-note">Đang tải...</td>
+                      </tr>
+                    </tbody>
+                    <tfoot id="priceAuditSalesFoot"></tfoot>
+                  </table>
+                </div>
+              </div>
+            </div>
             <div class="grid">
               <div class="panel col-12">
                 <div class="panel-head">
@@ -5068,7 +5151,7 @@
   <script src="/shared/dateInput.js?v=20260912"></script>
   <script src="/shared/image-compress.js?v=20261022"></script>
   <script src="/marketing-report.js?v=20261021-1"></script>
-  <script src="/invoice-price-audit.js?v=20261022-1"></script>
+  <script src="/invoice-price-audit.js?v=20261023-1"></script>
 
   <script>
     // Toast thong bao inline — thay the window.alert() cho loi/canh bao (khong chan luong,

@@ -162,4 +162,97 @@ async function createPriceAuditExport({ rows = [], columns = null, format = 'xls
   };
 }
 
-module.exports = { createPriceAuditExport, resolveColumnKeys, exportFieldsFor, MAX_EXPORT_ROWS };
+// ---------------------------------------------------------------- Tong hop tien phat theo sale (muc 1)
+const SALE_COLUMNS = Object.freeze([
+  { key: 'saleName', label: 'Tên sale', type: 'text' },
+  { key: 'pendingAmount', label: 'Tiền phạt chưa chốt', type: 'money' },
+  { key: 'penaltyAmount', label: 'Tiền phạt đã chốt', type: 'money' }
+]);
+const SALE_SHEET_NAME = 'Phạt theo sale';
+const SALE_TITLE = 'Hóa đơn · Kiểm tra giá bán · Tiền phạt theo sale';
+const SALE_FILE_BASE = 'TKS_Kiem_tra_gia_ban_phat_theo_sale';
+const NO_SALE_LABEL = '(Chưa có sale)';
+
+function resolveSaleColumnKeys(param) {
+  const all = SALE_COLUMNS.map(c => c.key);
+  if (param === undefined || param === null) return all;
+  const bad = () => invalid('Danh sách trường xuất không hợp lệ.', 'INVALID_COLUMNS');
+  const parts = Array.isArray(param) ? param : typeof param === 'string' ? [param] : null;
+  if (!parts || parts.some(p => typeof p !== 'string')) throw bad();
+  const requested = new Set(parts.join(',').split(',').map(s => s.trim()).filter(Boolean));
+  if (!requested.size || [...requested].some(k => !all.includes(k))) throw bad();
+  return all.filter(k => requested.has(k));
+}
+
+function saleExportFields(rowCount) {
+  return {
+    title: 'Tiền phạt theo sale',
+    selectionMode: 'custom',
+    worksheets: [{
+      key: 'priceAuditSales', name: SALE_SHEET_NAME, rowCount: Number(rowCount) || 0,
+      fields: SALE_COLUMNS.map(c => ({ key: c.key, label: c.label, type: c.type === 'money' ? 'money' : 'general', selected: true }))
+    }]
+  };
+}
+
+// rows: [{ saleName, pendingAmount, penaltyAmount }] (chuoi decimal) - cung nguon voi bang tren man hinh.
+async function createSaleSummaryExport({ rows = [], columns = null, format = 'xlsx', search = '', meta = {} } = {}) {
+  if (!['xlsx', 'html'].includes(format)) throw invalid('Định dạng xuất không hợp lệ.');
+  const keys = columns || SALE_COLUMNS.map(c => c.key);
+  const picked = SALE_COLUMNS.filter(c => keys.includes(c.key));
+  const data = rows.map(r => ({
+    saleName: r.saleName || NO_SALE_LABEL, pendingAmount: money(r.pendingAmount), penaltyAmount: money(r.penaltyAmount)
+  }));
+  const sum = key => data.reduce((t, r) => t + (Number(r[key]) || 0), 0);
+  const notes = infoLines({ ...meta, kpis: null });
+  if (search) notes.push(['Tìm theo tên sale', search]);
+  notes.push(['Tổng tiền phạt chưa chốt', sum('pendingAmount')], ['Tổng tiền phạt đã chốt', sum('penaltyAmount')]);
+
+  if (format === 'html') {
+    return renderHtmlReport({
+      meta: {
+        title: SALE_TITLE,
+        branch: meta && meta.filters && meta.filters.branch ? BRANCH_LABELS[meta.filters.branch] : 'Hà Nội + Sài Gòn',
+        generatedAt: new Date(), fileBase: SALE_FILE_BASE,
+        reportNotes: notes.map(([label, value]) => [label, typeof value === 'number' ? value.toLocaleString('en-US') : String(value)])
+      },
+      worksheets: [{
+        key: 'priceAuditSales', name: SALE_SHEET_NAME,
+        columns: picked.map(c => ({ key: c.key, label: c.label, type: c.type === 'money' ? 'money' : 'general' })),
+        rows: data.map(r => Object.fromEntries(picked.map(c => [c.key, r[c.key]]))),
+        summaryKeys: picked.filter(c => c.type === 'money').map(c => c.key),
+        hints: { labelKey: 'saleName' }
+      }]
+    });
+  }
+
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'TOKOSI Dashboard';
+  const sheet = workbook.addWorksheet(SALE_SHEET_NAME);
+  sheet.columns = picked.map(c => ({ key: c.key, header: c.label, width: c.type === 'money' ? 24 : 36,
+    style: c.type === 'money' ? { numFmt: '#,##0.##' } : {} }));
+  for (const r of data) sheet.addRow(picked.map(c => (typeof r[c.key] === 'string' ? safeText(r[c.key]) : r[c.key])));
+  const totalRow = sheet.addRow(picked.map(c => (c.key === 'saleName' ? 'Tổng' : c.type === 'money' ? sum(c.key) : '')));
+  totalRow.font = { bold: true };
+  sheet.views = frozenNoGridlinesView(1);
+  sheet.getRow(1).font = HEADER_FONT;
+  sheet.getRow(1).height = 24;
+  sheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+  applyFullTableBorder(sheet, picked.length, data.length + 2);
+
+  const info = workbook.addWorksheet('Thông tin');
+  info.columns = [{ header: 'Mục', key: 'label', width: 36 }, { header: 'Giá trị', key: 'value', width: 60 }];
+  for (const [label, value] of notes) info.addRow([safeText(label), typeof value === 'string' ? safeText(value) : value]);
+  info.getRow(1).font = HEADER_FONT;
+  info.getColumn(2).numFmt = '#,##0.##';
+  return {
+    buffer: Buffer.from(await workbook.xlsx.writeBuffer()),
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    fileName: `${SALE_FILE_BASE}.xlsx`
+  };
+}
+
+module.exports = {
+  createPriceAuditExport, resolveColumnKeys, exportFieldsFor, MAX_EXPORT_ROWS,
+  SALE_COLUMNS, resolveSaleColumnKeys, saleExportFields, createSaleSummaryExport
+};

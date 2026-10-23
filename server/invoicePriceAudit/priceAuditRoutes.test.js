@@ -81,7 +81,7 @@ test('GET /: 401 chua dang nhap, 403 thieu quyen, no-store, pham vi co so tu coo
       assert.equal(ok.status, 200);
       assert.equal(ok.headers.get('cache-control'), 'no-store');
       assert.equal(ok.body.totalRows, 3);
-      assert.deepEqual(Object.keys(ok.body).sort(), ['filters', 'kpis', 'meta', 'page', 'pageSize', 'rows', 'totalRows', 'totals']);
+      assert.deepEqual(Object.keys(ok.body).sort(), ['filters', 'kpis', 'meta', 'page', 'pageSize', 'rows', 'saleSummary', 'totalRows', 'totals']);
       assert.ok(ok.body.rows.every(r => !('currentSaleGroup' in r)));
       assert.equal((await call(base, '/', { user: 'sale', branch: 'Sài Gòn' })).body.totalRows, 1);
       assert.equal((await call(base, '/', { user: 'sale', branch: 'Hà Nội' })).body.totalRows, 2);
@@ -93,6 +93,33 @@ test('GET /: 401 chua dang nhap, 403 thieu quyen, no-store, pham vi co so tu coo
       // Nguoi duoc cap rieng (Ke toan) xem duoc.
       users.kt.featurePermissions = { 'reports.invoices': true, 'reports.invoices.priceAudit': true };
       assert.equal((await call(base, '/', { user: 'kt' })).status, 200);
+    });
+  } finally { await db.close(); }
+});
+
+test('saleSummary: tong tung cot khop KPI chua chot / da chot Phat, theo cung bo loc', async () => {
+  const { db, users, app } = await setup();
+  try {
+    await withServer(app, async base => {
+      const sumOf = (body, key) => body.saleSummary.reduce((t, r) => t + Number(r[key]), 0);
+      const first = await call(base, '/', { user: 'ql' });
+      assert.ok(first.body.saleSummary.length >= 1);
+      assert.equal(sumOf(first.body, 'pendingAmount'), Number(first.body.kpis.pendingAmount));
+      assert.equal(sumOf(first.body, 'penaltyAmount'), Number(first.body.kpis.penaltyAmount));
+      assert.equal(sumOf(first.body, 'penaltyAmount'), 0);
+      // Chot Phat 1 dong, Ok 1 dong: so "chua chot" giam, "da chot" tang, van khop KPI.
+      assert.equal((await call(base, '/saigon/3/1/decision', { user: 'ql', method: 'PATCH', body: { decision: 'penalty', expectedVersion: 1 } })).status, 200);
+      assert.equal((await call(base, '/hanoi/1/1/decision', { user: 'ql', method: 'PATCH', body: { decision: 'ok', expectedVersion: 1 } })).status, 200);
+      for (const q of ['/', '/?status=wrong', '/?branch=saigon', '/?branch=hanoi', '/?decision=pending']) {
+        const r = await call(base, q, { user: 'ql' });
+        assert.equal(sumOf(r.body, 'pendingAmount'), Number(r.body.kpis.pendingAmount), q);
+        assert.equal(sumOf(r.body, 'penaltyAmount'), Number(r.body.kpis.penaltyAmount), q);
+      }
+      const after = await call(base, '/', { user: 'ql' });
+      assert.equal(sumOf(after.body, 'penaltyAmount'), 2000);
+      const sg = await call(base, '/?branch=saigon', { user: 'ql' });
+      assert.deepEqual(sg.body.saleSummary, [{ saleName: 'Minh Anh', pendingAmount: '0', penaltyAmount: '2000' }]);
+      void users;
     });
   } finally { await db.close(); }
 });

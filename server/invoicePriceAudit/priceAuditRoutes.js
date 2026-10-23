@@ -4,6 +4,7 @@
 //   GET   /                                      bao cao theo bo loc (+ pham vi co so tu cookie tks_branch)
 //   PATCH /:branch/:invoiceId/:lineNo/explanation  { text, expectedVersion }
 //   PATCH /:branch/:invoiceId/:lineNo/decision     { decision, expectedVersion } (+ query = bo loc dang dung de tra KPI moi)
+//   GET   /export/sales/fields, /export/sales    xuat bang tong hop tien phat theo sale (muc 1), cung quyen xuat
 //   GET   /export/fields, /export              xuat Excel/HTML (can them reports.export), TOAN BO tap loc, cot theo catalog
 // Moi request di qua requireAuth (giai lai quyen) + requireFeature(xem); quyen giai thich / Chot kiem tra o service.
 
@@ -14,7 +15,9 @@ const { BRANCH_BOTH, branchLabelToCode, resolveBranchScope } = require('../branc
 const { FEATURE_VIEW } = require('./priceAuditAccess');
 const { getPriceAuditService, validateQuery } = require('./priceAuditService');
 const { getPriceAuditRepository, httpError } = require('./priceAuditRepository');
-const { createPriceAuditExport, resolveColumnKeys, exportFieldsFor, MAX_EXPORT_ROWS } = require('./priceAuditExport');
+const { createPriceAuditExport, resolveColumnKeys, exportFieldsFor, MAX_EXPORT_ROWS,
+  resolveSaleColumnKeys, saleExportFields, createSaleSummaryExport } = require('./priceAuditExport');
+const fuzzy = require('../shared/fuzzySearch');
 
 const ROW_PATH = '/:branch/:invoiceId/:lineNo';
 
@@ -85,6 +88,35 @@ function createPriceAuditRouter({
     const file = await createPriceAuditExport({
       rows: report.rows, columns, format: String(req.query.format || 'xlsx'),
       meta: { ...report.meta, kpis: report.kpis, filters }
+    });
+    res.set('Content-Type', file.mimeType);
+    res.set('Content-Disposition', `attachment; filename="${file.fileName}"`);
+    res.send(file.buffer);
+  }));
+
+  // Bang tong hop tien phat theo sale (muc 1): cung bo loc voi bang chi tiet; saleSearch = o tim kiem cua bang tong hop
+  // (loc theo ten sale, de file khop dung cac dong dang hien thi).
+  async function loadSaleSummary(req) {
+    const { query, report } = await loadForExport(req, 1);
+    const search = typeof req.query.saleSearch === 'string' ? req.query.saleSearch.trim().slice(0, 200) : '';
+    const matcher = search ? fuzzy.createMatcher(search) : null;
+    const rows = matcher && !matcher.empty
+      ? (report.saleSummary || []).filter(r => matcher.score(fuzzy.fold(r.saleName || '')) > 0)
+      : (report.saleSummary || []);
+    return { query, report, rows, search };
+  }
+
+  router.get('/export/sales/fields', ...exportGuard, handle('Không lấy được danh sách trường xuất.', async (req, res) => {
+    const { rows } = await loadSaleSummary(req);
+    res.json(saleExportFields(rows.length));
+  }));
+
+  router.get('/export/sales', ...exportGuard, handle('Không xuất được bảng tiền phạt theo sale.', async (req, res) => {
+    const columns = resolveSaleColumnKeys(req.query.columns);
+    const { query, report, rows, search } = await loadSaleSummary(req);
+    const { page, pageSize, ...filters } = query; // eslint-disable-line no-unused-vars
+    const file = await createSaleSummaryExport({
+      rows, columns, search, format: String(req.query.format || 'xlsx'), meta: { ...report.meta, filters }
     });
     res.set('Content-Type', file.mimeType);
     res.set('Content-Disposition', `attachment; filename="${file.fileName}"`);
