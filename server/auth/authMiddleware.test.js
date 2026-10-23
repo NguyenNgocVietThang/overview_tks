@@ -160,7 +160,7 @@ test('requireFeature: thieu quyen -> 403 kem code FEATURE_FORBIDDEN va ten quyen
 });
 
 test('requireFeature: nhieu quyen dung ngu nghia HOAC (co mot la du)', () => {
-  const req = { user: { vaiTro: 'Khách', permissions: ['shipment.lookup'] } };
+  const req = { user: { vaiTro: 'Nhân viên kho', permissions: ['shipment.lookup'] } };
   const res = fakeRes();
   let nextCalled = false;
   requireFeature('shipment.lifecycle', 'shipment.lookup')(req, res, () => { nextCalled = true; });

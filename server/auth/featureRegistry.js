@@ -245,7 +245,7 @@ function resolvePermissions(user) {
   return FEATURE_KEYS.filter(key => granted.has(key) && !isFeatureForbiddenForRole(key, user.vaiTro));
 }
 
-// Self-service follows active internal accounts with valid account workplace data.
+// Self-service follows active accounts (including guests) with valid workplace data.
 function canSubmitOwnLeave(user) {
   if (!user || !Object.values(ROLES).includes(user.vaiTro) || user.trangThai !== 'Đang hoạt động' || user.isDeleted || !user.workCoSo || !user.boPhan) return false;
   try {

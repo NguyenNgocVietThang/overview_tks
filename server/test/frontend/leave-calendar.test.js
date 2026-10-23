@@ -61,8 +61,13 @@ test('lịch nằm giữa chip tài khoản và chuông, ẩn khi thiếu quyề
 
   const b = createEnv(t, okFetch([]));
   b.window.TKSNav.renderLeaveCalendar(fakeUser('Khách'));
-  assert.equal(b.document.getElementById('tksLeaveCal'), null);
+  assert.ok(b.document.getElementById('tksLeaveCal'));
   b.window.close();
+
+  const c = createEnv(t, okFetch([]));
+  c.window.TKSNav.renderLeaveCalendar({ ...fakeUser('Khách'), permissions: ['account.profile', 'hr.rules'] });
+  assert.equal(c.document.getElementById('tksLeaveCal'), null);
+  c.window.close();
 });
 
 test('mở lịch: chọn sẵn hôm nay, gọi đúng from/to của tháng, lọc đơn Từ chối', async t => {
@@ -390,7 +395,7 @@ test('inline load failure keeps the month grid and reports the error; permission
   assert.match(mount.textContent, /Không tải được lịch nghỉ/);
   assert.doesNotMatch(mount.textContent, /Không có ai nghỉ/);
   controller.stop();
-  window.TKSNav.setPermissions(fakeUser('Khách'));
+  window.TKSNav.setPermissions({ ...fakeUser('Khách'), permissions: ['account.profile', 'hr.rules'] });
   const denied = document.createElement('section');
   assert.equal(window.TKSNav.mountLeaveCalendar(denied), null);
   assert.equal(denied.children.length, 0);
