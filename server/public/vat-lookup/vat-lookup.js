@@ -58,11 +58,13 @@
     return notes.length ? `<div class="vl-feedback" role="status">${notes.join('<br>')}</div>` : '';
   }
 
-  function summaryHtml(result, rowCount, rowLabel) {
+  // Tóm tắt kết quả nằm chung hàng với dòng nguồn dữ liệu (#vlSummary), không chiếm 1 hàng riêng trên bảng.
+  function summaryHtml(result) {
+    const [rowCount, rowLabel] = state.mode === 'incoming' ? [result.incoming.total, 'dòng hàng sắp về'] : [result.vat.total, 'dòng VAT'];
     if (result.queries.length <= 1) {
-      return `<p class="vl-summary">Tìm thấy <b>${result.productCount}</b> sản phẩm, <b>${rowCount}</b> ${rowLabel} khớp “${escapeHtml(result.queries[0])}”.</p>`;
+      return `Tìm thấy <b>${result.productCount}</b> sản phẩm, <b>${rowCount}</b> ${rowLabel} khớp “${escapeHtml(result.queries[0])}”`;
     }
-    return `<p class="vl-summary">Đã tìm thấy <b>${result.matchedQueries.length}/${result.queries.length}</b> từ khóa · <b>${result.productCount}</b> sản phẩm · <b>${rowCount}</b> ${rowLabel}.</p>`;
+    return `Đã tìm thấy <b>${result.matchedQueries.length}/${result.queries.length}</b> từ khóa · <b>${result.productCount}</b> sản phẩm · <b>${rowCount}</b> ${rowLabel}`;
   }
 
   function limitNote(shown, total) {
@@ -79,18 +81,18 @@
     // Máy tính: lần đầu co / giãn các cột theo tỉ lệ cho vừa khung (không có thanh cuộn ngang);
     // điện thoại: giữ độ rộng, cuộn ngang trong khung bảng.
     const fit = window.innerWidth > 600 ? ' data-table-fit="fill"' : '';
-    return `<div class="vl-scroll"><table class="vl-table" data-table-key="${key}" data-table-sort="local"${fit}><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+    return `<div class="vl-scroll"><table class="vl-table" data-table-key="${key}" data-table-sort="local" data-columns-button="vlColumns"${fit}><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
   }
 
   const mono = value => `<span class="vl-mono">${escapeHtml(value) || '—'}</span>`;
   const text = value => escapeHtml(value) || '—';
 
   const VAT_COLUMNS = [
-    { key: 'maKiot', label: 'Mã Kiot', width: 80, cell: r => mono(r.maKiot) },
+    { key: 'maKiot', label: 'Mã Kiot', width: 90, cell: r => mono(r.maKiot) },
     { key: 'tenKiot', label: 'Tên Kiot', width: 190, cell: r => escapeHtml(r.tenKiot) || '<i>(chưa có tên)</i>' },
-    { key: 'maVat', label: 'Mã VAT Kiot', width: 85, cell: r => mono(r.maVat) },
+    { key: 'maVat', label: 'Mã VAT Kiot', width: 95, cell: r => mono(r.maVat) },
     { key: 'tenVat', label: 'Tên VAT Kiot', width: 190, cell: r => text(r.tenVat) },
-    { key: 'tenHang', label: 'Tên hàng', width: 360, cell: r => text(r.tenHang) },
+    { key: 'tenHang', label: 'Tên hàng', width: 340, cell: r => text(r.tenHang) },
     { key: 'dvt', label: 'ĐVT', width: 70, cell: r => text(r.dvt) },
     { key: 'tongThueMat', label: 'TỔNG THUẾ MẤT (thuế xuất)', width: 150, num: true, cell: r => text(r.tongThueMat) },
     { key: 'tonDauNgay', label: 'Tồn đầu ngày', width: 140, num: true, cell: r => fmtQty(r.tonDauNgay), sort: r => r.tonDauNgay },
@@ -114,7 +116,7 @@
 
   function renderVat(result) {
     const vat = result.vat;
-    return summaryHtml(result, vat.total, 'dòng VAT') + feedbackHtml(result)
+    return feedbackHtml(result)
       + tableHtml('vat-lookup-vat-v2', VAT_COLUMNS, vat.rows) + limitNote(vat.rows.length, vat.total);
   }
 
@@ -127,10 +129,10 @@
         ? `<div class="vl-feedback" role="status">Sheet DK về 2 có ${incoming.debug.length} dòng cho mã Kiot khớp tìm kiếm, nhưng không dòng nào ở trạng thái 1–3:<br>`
           + incoming.debug.map(r => `Mã Kiot <b>${escapeHtml(r.maKiot)}</b> — Trạng thái: “${escapeHtml(r.trangThai) || '(trống)'}” (dòng ${r.rowNumber})`).join('<br>') + '</div>'
         : '';
-      return summaryHtml(result, 0, 'dòng hàng sắp về') + feedbackHtml(result) + debug
+      return feedbackHtml(result) + debug
         + emptyState('Không có hàng chuẩn bị về', `Không có ${scope} đang ở trạng thái chuẩn bị về (1–3).`);
     }
-    return summaryHtml(result, incoming.total, 'dòng hàng sắp về') + feedbackHtml(result)
+    return feedbackHtml(result)
       + tableHtml('vat-lookup-incoming-v2', incomingColumns(incoming.extraKeys), incoming.rows) + limitNote(incoming.rows.length, incoming.total);
   }
 
@@ -153,8 +155,11 @@
     } else {
       box.innerHTML = state.mode === 'incoming' ? renderIncoming(result) : renderVat(result);
     }
+    const showSummary = !state.error && result && result.productCount;
+    $('vlSummary').innerHTML = showSummary ? summaryHtml(result) : '';
     box.classList.toggle('is-loading', state.loading && !!result);
     const table = box.querySelector('table');
+    $('vlColumns').hidden = !table;
     if (table && window.TKSTables) window.TKSTables.refresh(table);
   }
 

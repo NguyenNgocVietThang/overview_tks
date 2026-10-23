@@ -861,6 +861,7 @@ Hai cột thông tin/Note; Note cuộn riêng 360px, chữ dài xuống dòng. B
 - **FR-VL-6 (lỗi nguồn)**: DK về 2 chỉ còn 1 ô lỗi công thức (IMPORTRANGE mất quyền) → 503 `DK_VE_REF_ERROR`, trang hiện thông báo thay vì bảng rỗng.
 - **FR-VL-7 (liên kết, sửa 23/10/2026)**: ba trang Kế toán (Nháp VAT, Tra cứu VAT, ORDER VAT) dùng chung thanh tab "Xử lý hóa đơn · Tạo QR · Tra cứu VAT · ORDER VAT" dưới tiêu đề trang, mỗi mục hiện theo quyền như sidebar (Sale: Tạo QR · Tra cứu VAT · ORDER VAT), mục đang mở được gạch chân. Tồn ở Tra cứu VAT đọc tab Gộp VAT, có thể khác cột Tồn VAT của ORDER VAT (tab GỘP MỚI) — đã thống nhất chấp nhận.
 - **FR-VL-8 (bảng)**: trên máy tính, lần đầu hiển thị các cột được co / giãn cho vừa khung (không có thanh cuộn ngang); tiêu đề cột dính khi cuộn và có nền đặc; điện thoại cuộn ngang trong khung bảng.
+- **FR-VL-9 (bố cục gọn, 23/10/2026)**: tóm tắt kết quả tìm kiếm nằm chung một hàng với dòng nguồn dữ liệu và nút "Cập nhật"; nút "Cột hiển thị" ở góc phải hàng tab (ẩn khi chưa có bảng); cỡ chữ bảng theo app Apps Script cũ — thân bảng 13.5px, tiêu đề cột 11.5px đậm.
 
 Cập nhật gần nhất: 23/10/2026.
 

@@ -153,3 +153,18 @@ test('bang tren may tinh co data-table-fit=fill de vua khung lan dau (khong co t
   doc.getElementById('vlTabIncoming').click();
   assert.equal(doc.querySelector('#vlResults table').dataset.tableFit, 'fill');
 });
+
+test('tom tat ket qua chung hang voi nguon du lieu; nut Cot hien thi o hang tab, an khi chua co bang', async t => {
+  const { window, doc } = await setup(t);
+  const columns = doc.getElementById('vlColumns');
+  assert.equal(columns.hidden, true);
+  assert.equal(doc.getElementById('vlSummary').textContent, '');
+  await submit(window, doc, 'TALEWS');
+  assert.equal(columns.hidden, false);
+  assert.ok(columns.classList.contains('tks-columns-button'), 'table-controls gan nut vao #vlColumns');
+  assert.equal(doc.querySelector('#vlResults .tks-table-tools'), null, 'khong tao them hang cong cu tren bang');
+  assert.match(doc.getElementById('vlSummary').textContent, /Tìm thấy 1 sản phẩm, 1 dòng VAT khớp “TALEWS”/);
+  assert.equal(doc.querySelector('#vlResults .vl-summary'), null);
+  doc.getElementById('vlTabIncoming').click();
+  assert.match(doc.getElementById('vlSummary').textContent, /1 dòng hàng sắp về/);
+});
