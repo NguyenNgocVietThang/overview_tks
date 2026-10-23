@@ -11,6 +11,15 @@ function customerRows() {
   return svc.buildCustomerReport(serviceSnapshot()).rows;
 }
 
+test('profile-filtered export uses the same fuzzy word matching as the customer table', () => {
+  const rows=[{name:'Chị Hoa Hà Nội',saleName:'Mai',active:true,salesChannels:['san'],warehouseScale:'large',
+    priceLevel:'vip',refs:[{branch:'hanoi',code:'KH123'}],series:{'2026-10-01':87654},warehouseLocation:'Kho bí mật',editors:[{userName:'Người ẩn'}]}];
+  assert.equal(filterRows('customers',rows,{q:'noi hoa',salesChannel:'san',warehouseScale:'large'}).length,1);
+  assert.equal(filterRows('customers',rows,{q:'hoa noi sai',salesChannel:'san'}).length,1);
+  for (const q of ['vip','KH123','87654']) assert.equal(filterRows('customers',rows,{q}).length,1,q);
+  for (const q of ['bí mật','Người ẩn']) assert.equal(filterRows('customers',rows,{q}).length,0,q);
+});
+
 test('customer profile filters use contains, empty defaults and AND with other filters', () => {
   const rows = [
     { key: 'a', name: 'Chị A', active: true, saleName: 'Mai', priceLevel: 'VIP', salesChannels: ['san', 'khac'], warehouseScale: 'large' },

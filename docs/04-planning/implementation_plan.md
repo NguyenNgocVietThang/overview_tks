@@ -214,3 +214,6 @@ Triển khai cục bộ theo spec `docs/superpowers/specs/2026-10-23-customer-pr
 
 
 23/10/2026: Dự kiến hàng về bổ sung **Ghi chú khác** từ cột G của 7 nguồn CONT; quyền riêng `reports.products.expected.otherNote`, mặc định Quản lý, cho phép cấp riêng từng tài khoản; áp dụng bảng, chi tiết, API và xuất Excel/HTML. Migration 0086 đã áp DB, đã nạp 5.839 ghi chú trên 13.044 dòng; code chưa deploy.
+# Cập nhật 23/10/2026 — level giá nội bộ
+
+Triển khai cục bộ theo `docs/superpowers/plans/2026-10-23-customer-filters-local-price-level.md`: nguồn sao lưu theo `(branch,id)`, level chung theo khóa khách gộp, ghi có phiên bản và lịch sử. Hai bộ lọc hồ sơ dùng cùng điều kiện với xuất file. `0087` chỉ tạo schema; script khởi tạo lưu nguồn và level hiện hành trước cutover; chưa áp DB thật/deploy. Chụp kiểm tra giá đọc level trong giao dịch sẵn có và giữ nguyên bản chụp cũ.

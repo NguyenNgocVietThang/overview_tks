@@ -1,6 +1,6 @@
 # Bộ lọc khách, xuất thông tin chi tiết và level giá nội bộ
 
-Ngày: 23/10/2026. Trạng thái: dự thảo chờ người dùng duyệt; chưa triển khai hoặc áp dữ liệu thật.
+Ngày: 23/10/2026. Trạng thái: người dùng đã duyệt trong chat; mã cục bộ đã kiểm chứng; chưa áp dữ liệu thật hoặc deploy.
 
 ## Quyết định đã xác nhận
 

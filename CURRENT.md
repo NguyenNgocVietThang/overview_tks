@@ -1,11 +1,13 @@
 # CURRENT: BẢNG TRẠNG THÁI THỜI GIAN THỰC (REALTIME DASHBOARD)
 
+> 23/10/2026 — **Bộ lọc khách / xuất Chi tiết / level giá nội bộ:** thiết kế đã được duyệt; mã cục bộ trên `main` đã được kiểm chứng. Thêm lọc hình thức bán hàng + quy mô quản lý, xuất thông tin Chi tiết trừ Note (ảnh là URL), dropdown Vừa/Lớn/VIP cho Quản lý/người được gán sửa. Level chung theo dòng khách gộp HN/SG; nguồn email được sao lưu một lần bằng script khởi tạo trước khi ngắt việc suy ra level. Migration `0087_customer_price_levels.sql` và `scripts/initialize-customer-price-levels.js --apply` **chưa chạy trên DB thật**; chưa deploy. Hóa đơn đã chụp bất biến. Thiết kế/kế hoạch: `docs/superpowers/{specs,plans}/2026-10-23-customer-filters-local-price-level*`. Nghiệm thu Node 24.19.0 với DB/SMTP giả: 3.379 đạt, 3 bỏ qua, 0 lỗi (3.382 test); log `.codex_tmp/customer-local-level-full-tests-final.log`. Chrome desktop/390px đạt: lưu level, lọc kết hợp, rollback 409, không tràn ngang, không lỗi JavaScript. Đã sửa các fixture cũ lệch cột CONT/quyền Ghi chú khác và API table-prefs, không đổi logic chạy thực tế của các phần này. Kiểm tra diff phần mã/tài liệu liên quan đạt. `graphify update .` đã thử nhưng bước dựng GRAPH_REPORT.md lỗi Windows `[Errno 22] Invalid argument`; chưa xác nhận đồ thị cập nhật hoàn chỉnh.
+
 > 23/10/2026 — **Sửa 9 test quyền Khách bị lệch chính sách từ `847b468` (chưa commit/push):** cập nhật 6 file test theo quyền Hồ sơ, Quy định công ty và Nghỉ phép; giữ thông tin công tác/bộ phận được duyệt khi đổi sang Khách nhưng xác nhận không có quyền duyệt nghỉ. Test middleware dùng vai trò nội bộ cho quyền tra cứu vận đơn; test lịch dùng danh sách quyền thiếu `hr.leave` để kiểm tra từ chối. Sửa hai chú thích chính sách cũ, không đổi logic chạy thực tế. Nhóm liên quan: 134/134 đạt. Toàn bộ `npm test -- --test-concurrency=4 --test-reporter=spec` trên Node 24.19.0 với biến môi trường giả, không cấu hình DB thật: 3.351 đạt, 3 bỏ qua, 0 lỗi (3.354 test). `git diff --check` đạt. Chưa cập nhật đồ thị: máy chưa có lệnh `graphify`; chưa kiểm chứng Node 22.
 
 > 23/10/2026 — **Kiểm tra giá bán (Invoice Price Audit) — hoàn thiện luật & chuẩn hóa 10 khách bao cước (đã commit `14f53e4` trên `main`, push thành công lên cả 2 remote GitHub `origin` và `tks_web`):**
 > (1) Cập nhật danh sách 10 khách hàng bao cước HN sang chuẩn tên mới trên KiotViet (giữ nguyên dấu, so khớp chính xác tên): `NN Jinlong Campuchia`, `NN A Kai (ML) Campuchia`, `NN Vin Dany Campuchia`, `SG Tín Phong Shop`, `NN Heng Campuchia`, `MN C Thư Sóc Trăng`, `SG A Thìn Bình Tân`, `MN C Thu Thủy Bình Phước`, `MN C Vân Anh Bình Phước`, `NN QHI Campuchia`.
 > (2) Đọc bậc giá theo chiếc (448 mã ghi bậc `100CT -2800`, `le T-`): bậc `CT` đếm thẳng theo số chiếc, không nhân với số chiếc/thùng; bậc `nT` vẫn tính `n × chiếc/thùng` (`fe2239c`).
-> (3) Khóa thứ tự 4 bậc giá: Vừa → Lớn → VIP → Cắt lỗ (bậc 4); bậc 4 là giá cắt lỗ áp dụng cho mọi khách khi đủ số lượng; không có bậc 4 thì sàn giá là VIP.
+> (3) Khóa thứ tự 4 bậc giá: Vừa → Lớn → VIP → Cắt lô (bậc 4); bậc 4 là giá cắt lô áp dụng cho mọi khách khi đủ số lượng; không có bậc 4 thì sàn giá là VIP.
 > (4) Email KiotViet chứa 'mới' được chuẩn hóa tính là khách Lớn (`f9bda26`).
 > (5) Đã kiểm thử node:test `priceAuditRules.test.js` & `priceAuditRepository.test.js` 24/24 pass; push đồng bộ lên 2 remote GitHub `origin` (NguyenNgocVietThang/overview_tks) và `tks_web` (tks0101ai-cmyk/tks_web).
 >
@@ -691,5 +693,11 @@ Bảng ORDER VAT luôn chừa chỗ thanh cuộn dọc nên không còn tràn ng
 - **PR #16 (`feat/vat-draft-paste-codes`)**: Xử lý hóa đơn dán mã HD/DH xử lý ngay (bỏ bảng tick chọn), xem chi tiết chứng từ; trạng thái mới '5' "VAT sẵn nhiều"; Kế toán có cột Trạng thái + Dự kiến ngày về gần nhất.
 - **PR #17 (`fix/vat-request-no-hscroll`)**: Bỏ hoàn toàn thanh cuộn ngang ORDER VAT cho sale; script import hỗ trợ cờ `--replace` và đọc nhãn trạng thái dạng chữ.
 - **Tài khoản Khách (`feat(account)`)**: Phân quyền nơi làm việc và gửi đơn nghỉ phép có kiểm soát.
+
+### Cập nhật 23/10/2026 — Đồng nhất cách xuất file với bảng đang xem
+
+- Xuất file giờ khớp màn hình ở: **sắp xếp** (`tableSort` nhãn cột cho Chi tiết giao dịch, Báo cáo hàng hóa, Chi tiết SP theo khách, Phạt công nợ, 3 bảng đứt hàng; `sortLabel`/`sortDir` cho Kinh doanh và Dự kiến hàng về; `sortKey`/`sortDir` cho Marketing), **tìm kiếm** (công nợ/tuổi nợ lọc trên dòng gốc như màn hình, không lọc hai lần; Phạt công nợ chỉ tìm theo Sale; chế độ "Nhiều mã" cho Kinh doanh và Dự kiến hàng về), **Số dư sổ quỹ** (từ khóa, nhóm, sắp xếp), **nghỉ phép lọc một ngày** (`requestIds`).
+- **Chưa làm:** sắp xếp cột cho Danh bạ nhân sự và VAT request (file vẫn theo thứ tự mặc định).
+- Test: 3379 pass / 0 fail trước khi thêm `productContainers/expectedExport.test.js` (3 test mới, xanh).
 
 Cập nhật gần nhất: 23/10/2026.

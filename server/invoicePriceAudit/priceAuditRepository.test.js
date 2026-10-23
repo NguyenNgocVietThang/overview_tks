@@ -43,6 +43,10 @@ test('local level changes affect new captures across HN/SG; email edits never al
     assert.deepEqual((await db.query('SELECT * FROM invoice_price_audit_lines WHERE invoice_id=901')).rows,before);
     assert.equal((await lines(db,'invoice_id=902'))[0].customer_level,'VIP');
     assert.equal((await lines(db,'invoice_id=902'))[0].min,'23600');
+    await db.query('UPDATE customer_price_level_state SET initialized_at=NULL WHERE id');
+    await invoice(db,{id:903,customerId:1,lines:detail});
+    await assert.rejects(capture(db),{code:SOURCE_NOT_READY});
+    assert.equal((await db.query('SELECT count(*)::int AS n FROM invoice_price_audit_invoices WHERE invoice_id=903')).rows[0].n,0);
   } finally { await db.close(); }
 });
 

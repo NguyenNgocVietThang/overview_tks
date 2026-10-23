@@ -1,7 +1,7 @@
 'use strict';
 
 // Fixture PGlite dung chung cho test "Kiem tra gia ban" (KHONG phai file test: ten khong khop mau node --test).
-// Schema THAT: migration 0001-0006, 0012, 0064, 0077.
+// Schema THAT: migration 0001-0006, 0012, 0064, 0077, 0087.
 
 const fs = require('node:fs');
 const path = require('node:path');

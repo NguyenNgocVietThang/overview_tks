@@ -425,3 +425,6 @@ Bổ sung Diện tích, kênh bán Khác và đánh giá Rất to. Đánh giá q
 
 
 23/10/2026: Dự kiến hàng về bổ sung **Ghi chú khác** từ cột G của 7 nguồn CONT; quyền riêng `reports.products.expected.otherNote`, mặc định Quản lý, cho phép cấp riêng từng tài khoản; áp dụng bảng, chi tiết, API và xuất Excel/HTML. Migration 0086 đã áp DB, đã nạp 5.839 ghi chú trên 13.044 dòng; code chưa deploy.
+# Cập nhật nghiệp vụ 23/10/2026 — quản lý level giá trên Dashboard
+
+Quản lý lọc khách theo kênh bán/quy mô đánh giá và xuất thông tin Chi tiết không kèm Note. Level giá được quản lý độc lập với email KiotViet sau bước sao lưu ban đầu, dùng chung các mã cùng tên HN/SG; Quản lý hoặc người được gán sửa được thay trực tiếp trên bảng. Thay đổi chỉ ảnh hưởng các hóa đơn kiểm tra được chụp sau đó; bản chụp cũ giữ nguyên để đối soát. Mã đang kiểm chứng cục bộ, chưa chuyển dữ liệu vận hành hoặc deploy (migration 0087).

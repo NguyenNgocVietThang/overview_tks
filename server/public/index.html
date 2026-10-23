@@ -5993,6 +5993,7 @@
             mode: getTableSearchState('recentStockout').mode,
             query: getTableSearchState('recentStockout').query
           },
+          tableSort: currentExportSort('recentStockout') || undefined,
           // Ket qua quet o "Cả hai" moi co cot nguon (theo ket qua da quet, khong
           // theo co so dang chon) — gui thua khoa nay o mot co so se bi tu choi.
           columns: {
@@ -6243,6 +6244,7 @@
             mode: getTableSearchState('stockout90d').mode,
             query: getTableSearchState('stockout90d').query
           },
+          tableSort: currentExportSort('stockout90d') || undefined,
           // Xem ghi chu tuong tu o exportRecentStockoutResult().
           columns: {
             stockout_90d_result: (isMergedStockoutResult(result) ? ['branch'] : [])
@@ -6492,6 +6494,7 @@
             mode: getTableSearchState('stockout30d').mode,
             query: getTableSearchState('stockout30d').query
           },
+          tableSort: currentExportSort('stockout30d') || undefined,
           // Xem ghi chu tuong tu o exportRecentStockoutResult().
           columns: {
             stockout_30d_result: (isMergedStockoutResult(result) ? ['branch'] : [])
@@ -6535,10 +6538,24 @@
       'overview.transactions': 'endOfDay',
       'customers.productDetail': 'cpDetail',
       'overview.productReport': 'productReport',
-      'debt.management': 'debtManagement',
-      'debt.penalty': 'debtPenalty',
-      'debt.aging': 'debtAging'
+      // Hai bảng công nợ còn lại (debt.management / debt.aging) gửi ô tìm kiếm qua context.debtSearch / debtAgingSearch
+      // để server lọc trên dòng gốc giống màn hình, không lọc lần hai theo cột xuất.
+      'debt.penalty': 'debtPenalty'
     };
+
+    // Cột đang sắp xếp của bảng (tableSearchKey -> tbody) dưới dạng { label, direction } để server sắp file xuất giống màn hình.
+    // Hai bảng công nợ tự sắp theo chỉ số cột nên gửi qua context (debtSort / debtAgingSort), không dùng hàm này.
+    function currentExportSort(tableSearchKey) {
+      const tbodyId = (state.tableTableBodies || {})[tableSearchKey];
+      const sort = tbodyId ? state.tableSorts[tbodyId] : null;
+      const tbody = sort ? document.getElementById(tbodyId) : null;
+      const table = tbody ? tbody.closest('table') : null;
+      const th = table ? table.querySelectorAll('thead th')[sort.columnIndex] : null;
+      if (!th) return null;
+      const button = th.querySelector('.sort-button');
+      const label = (button && button.firstElementChild ? button.firstElementChild.textContent : th.textContent).trim();
+      return label ? { label: label, direction: sort.direction === 'desc' ? 'desc' : 'asc' } : null;
+    }
 
     function buildExportPayload(tableKey) {
       const payload = {
@@ -6570,6 +6587,10 @@
           mode: tableSearch.mode === 'codes' ? 'codes' : 'normal',
           query: tableSearch.query || ''
         };
+        if (tableKey !== 'debt.management' && tableKey !== 'debt.aging') {
+          const tableSort = currentExportSort(tableSearchKey);
+          if (tableSort) payload.tableSort = tableSort;
+        }
       }
       return payload;
     }
@@ -8359,7 +8380,12 @@
       if (source) params.set('source', source);
       if (container) params.set('container', container);
       if (status) params.set('status', status);
-      if (search && search.query && search.query.trim()) params.set('q', search.query.trim());
+      if (search && search.query && search.query.trim()) {
+        params.set('q', search.query.trim());
+        if (search.mode === 'codes') params.set('qmode', 'codes');
+      }
+      const sort = currentExportSort('expectedArrivals');
+      if (sort) { params.set('sortLabel', sort.label); params.set('sortDir', sort.direction); }
       return params.toString();
     }
 
@@ -8724,7 +8750,12 @@
     function businessExportQuery(kind) {
       const params = new URLSearchParams({ kind: kind });
       const search = getTableSearchState(BUSINESS_TABLE_KEYS[kind]);
-      if (search && search.query && search.query.trim()) params.set('q', search.query.trim());
+      if (search && search.query && search.query.trim()) {
+        params.set('q', search.query.trim());
+        if (search.mode === 'codes') params.set('qmode', 'codes');
+      }
+      const sort = currentExportSort(BUSINESS_TABLE_KEYS[kind]);
+      if (sort) { params.set('sortLabel', sort.label); params.set('sortDir', sort.direction); }
       if (kind === 'sales') {
         const team = document.getElementById('businessSalesTeam').value;
         if (team) params.set('team', team);

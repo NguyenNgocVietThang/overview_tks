@@ -9,7 +9,7 @@ const { requireAuth, requireFeature } = require('../auth/authMiddleware');
 const { hasFeature } = require('../auth/featureRegistry');
 const { createRepository } = require('./businessReportRepository');
 const svc = require('./businessReportService');
-const { createExportFile, filterRows, exportFieldsFor, resolveColumnKeys } = require('./businessReportExport');
+const { createExportFile, filterRows, sortRowsByLabel, exportFieldsFor, resolveColumnKeys } = require('./businessReportExport');
 const { nameKey, RETAIL_NAME, UNGROUPED_SALE, vnToday, PRICE_LEVEL_LABELS } = require('./businessMonths');
 const { createCustomerPriceLevelRepository } = require('./customerPriceLevelRepository');
 const { createCustomerProfileRepository } = require('./customerProfileRepository');
@@ -277,7 +277,7 @@ function createBusinessReportRouter({ repository = createRepository(), customerP
       }
       report = await enrichCustomers(req,report,true);
     }
-    const rows = filterRows(kind, report.rows, req.query);
+    const rows = sortRowsByLabel(kind, report, filterRows(kind, report.rows, req.query), req.query);
     return { kind, report, rows };
   };
 
