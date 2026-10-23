@@ -166,7 +166,7 @@ test('VAT: ghi chu dong chi ap dong do; ghi chu don ap moi dong; thieu VAT = 0',
   } finally { await db.close(); }
 });
 
-test('Bo qua (OD)/(PK): du gia ban thap van Dung, tien 0; chu OD tran khong loai', async () => {
+test('Hang (OD)/(PK) van duoc kiem tra nhu hang thuong', async () => {
   const db = await newDb();
   try {
     await customer(db, 'hanoi', 1, 'K', {});
@@ -179,8 +179,8 @@ test('Bo qua (OD)/(PK): du gia ban thap van Dung, tien 0; chu OD tran khong loai
       { productId: 3, code: 'C', name: 'Ly OD PK', qty: 10, price: 1000 }] });
     await capture(db);
     assert.deepEqual(pick(await lines(db), ['no', 'min', 'amount', 'status', 'reason', 'winning_source']), [
-      { no: 1, min: '24000', amount: '0', status: 'correct', reason: 'Không xét OD', winning_source: 'Không xét' },
-      { no: 2, min: '24000', amount: '0', status: 'correct', reason: 'Không xét PK', winning_source: 'Không xét' },
+      { no: 1, min: '24000', amount: '230000', status: 'wrong', reason: 'Theo giá quy định', winning_source: 'HN' },
+      { no: 2, min: '24000', amount: '230000', status: 'wrong', reason: 'Theo giá quy định', winning_source: 'HN' },
       { no: 3, min: '24000', amount: '230000', status: 'wrong', reason: 'Theo giá quy định', winning_source: 'HN' }
     ]);
   } finally { await db.close(); }

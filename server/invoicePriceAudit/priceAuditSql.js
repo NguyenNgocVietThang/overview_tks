@@ -15,8 +15,6 @@ const LEVEL_POSITIONS = Object.freeze({ medium: 1, large: 2, vip: 3 });
 const REASONS = Object.freeze({
   priced: 'Theo giá quy định',
   approved: 'Được duyệt Ok',
-  od: 'Không xét OD',
-  pk: 'Không xét PK',
   noPrice: 'Không có giá quy định'
 });
 
@@ -93,7 +91,7 @@ WITH src0 AS (
     branch text, invoice_id text, source_line_no int, invoice_code text, sold_at timestamptz, sold_day date,
     customer_id text, customer_code text, customer_name text, customer_email text, customer_level text,
     level_position int, sale_name text, product_code text, code_key text, product_name text,
-    quantity text, original_unit_price text, unit_discount text, full_vat boolean, excluded text,
+    quantity text, original_unit_price text, unit_discount text, full_vat boolean,
     freight_eligible boolean, freight text, hn jsonb, sg jsonb,
     product_note_hn text, product_note_sg text, line_note text, invoice_note text, captured_at timestamptz)
 ),
@@ -137,7 +135,6 @@ applied AS (
 result AS (
   SELECT a.*,
          CASE WHEN a.applied_min IS NULL THEN NULL
-              WHEN a.excluded IS NOT NULL THEN 0::numeric
               ELSE GREATEST(0::numeric, a.applied_min - a.net_n) END AS shortfall
   FROM applied a
 )
@@ -157,14 +154,13 @@ SELECT r.branch, r.invoice_id::bigint, r.source_line_no, r.invoice_code, r.sold_
   r.carton_size_hn, r.quantity_price_hn, r.level_price_hn, r.vat_hn, r.minimum_hn,
   r.freight_eligible, r.freight_n,
   r.carton_size_sg, r.quantity_price_sg, r.level_price_sg, r.vat_sg, r.minimum_sg,
-  CASE WHEN r.applied_min IS NULL OR r.excluded IS NOT NULL THEN '${WINNING_SOURCES.none}' ELSE r.source_raw END,
-  CASE r.excluded WHEN 'od' THEN '${REASONS.od}' WHEN 'pk' THEN '${REASONS.pk}'
-    ELSE CASE WHEN r.applied_min IS NULL THEN '${REASONS.noPrice}' ELSE '${REASONS.priced}' END END,
+  CASE WHEN r.applied_min IS NULL THEN '${WINNING_SOURCES.none}' ELSE r.source_raw END,
+  CASE WHEN r.applied_min IS NULL THEN '${REASONS.noPrice}' ELSE '${REASONS.priced}' END,
   r.applied_min, r.shortfall, COALESCE(r.shortfall, 0) * r.qty,
-  CASE WHEN r.applied_min IS NOT NULL AND r.excluded IS NULL AND COALESCE(r.shortfall, 0) * r.qty > 0
+  CASE WHEN r.applied_min IS NOT NULL AND COALESCE(r.shortfall, 0) * r.qty > 0
     THEN 'wrong' ELSE 'correct' END,
   jsonb_build_object(
-    'level', r.customer_level, 'levelPosition', r.level_position, 'excluded', r.excluded,
+    'level', r.customer_level, 'levelPosition', r.level_position,
     'appliedMinimum', r.applied_min::text, 'winningSource', r.source_raw,
     'freight', jsonb_build_object('eligible', r.freight_eligible, 'sourceValue', r.freight, 'added', r.freight_n::text),
     'hn', CASE WHEN r.hn IS NULL THEN NULL ELSE r.hn || jsonb_build_object(

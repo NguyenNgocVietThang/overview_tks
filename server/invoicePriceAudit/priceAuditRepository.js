@@ -13,7 +13,7 @@ const crypto = require('node:crypto');
 const { getPool } = require('../db/pool');
 const { INVOICE_STATUS_SQL } = require('../kiotvietSync/salesSqlFragments');
 const { parsePriceNote } = require('./priceNoteParser');
-const { hasFullVat, isExcludedProduct, isFreightCustomer } = require('./priceAuditRules');
+const { hasFullVat, isFreightCustomer } = require('./priceAuditRules');
 const { readCustomerPriceLevels } = require('../businessReport/customerPriceLevelRepository');
 const { nameKey, RETAIL_NAME } = require('../businessReport/businessMonths');
 const S = require('./priceAuditSql');
@@ -209,7 +209,7 @@ async function captureUnseenInvoices({ day, client, now }) {
         customer_email: inv.customer_email, customer_level: S.LEVEL_LABELS[level], level_position: S.LEVEL_POSITIONS[level],
         sale_name: inv.sale_name, product_code: code, code_key: codeKey(code), product_name: name,
         quantity: l.quantity, original_unit_price: l.price, unit_discount: l.discount,
-        full_vat: hasFullVat(l.line_note, inv.invoice_note), excluded: isExcludedProduct(name),
+        full_vat: hasFullVat(l.line_note, inv.invoice_note),
         freight_eligible: freightEligible, freight: freightEligible ? (freightByKey.get(codeKey(code)) ?? null) : null,
         hn: inv.branch === 'hanoi' ? own : null,
         sg: inv.branch === 'saigon' ? own : (freightEligible ? regionInput(Boolean(sg), sg && sg.product_id, sg && sg.description) : null),
