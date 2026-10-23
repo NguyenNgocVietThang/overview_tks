@@ -6,13 +6,8 @@
 .vd-head .view-sub{margin:0;font-size:13.5px}
 .vd-muted{color:var(--canvas-text-muted,var(--muted))}
 .vd-small-btn{min-height:34px;padding:6px 12px;font-size:12.5px}
-/* Tab cap 2: dung khuon .subnav-tabs (gach chan, chon ngang) nhu Nhan su / Van don; mau chu/gach do shared.css ep. */
-.vd-tabs.subnav-tabs{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:0;border-bottom:1px solid var(--canvas-subnav-border)}
-.vd-tabs[hidden]{display:none}
-.vd-tabs .subnav-tab{display:inline-flex;align-items:center;gap:6px;flex:none;padding:9px 14px;margin-bottom:-1px;background:transparent;border:1px solid transparent;border-bottom:2px solid transparent;border-radius:var(--radius-xs) var(--radius-xs) 0 0;color:var(--canvas-text);font-family:var(--font-body);font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap;cursor:pointer;transition:color .15s ease,border-color .15s ease,opacity .15s ease}
-.vd-tabs .subnav-tab svg{width:15px;height:15px;flex-shrink:0}
-.vd-tabs .subnav-tab[aria-current="page"]{border-bottom-color:var(--blue);font-weight:700}
-.vd-tabs .subnav-tab:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+/* Thanh tab Ke toan (.acct-subnav, shared.css): o trang nay sat ngay duoi dau trang nhu truoc. */
+.vd-tabs.acct-subnav{margin-bottom:0}
 /* Tieu de muc nam NGOAI hop (khuon .section-head cua Cong no / So quy) */
 .vd-section,.vd-block{display:flex;flex-direction:column;min-width:0}
 .vd-section[hidden]{display:none}

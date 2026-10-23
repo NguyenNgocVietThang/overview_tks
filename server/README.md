@@ -178,6 +178,20 @@ Thay Google Form + sheet ORDER VAT 1. Module `vatRequests/` (`service.js` giữ 
 
 **Cập nhật 20/10/2026**: nguồn tồn mặc định đã đổi sang `gid=39032`; thêm `vatRequests/suggestions.js` và test PGlite/JSDOM cho gợi ý khách/giá. Luật lưu trong `service.js` và migration `0076` giữ nguyên.
 
+## Kế toán – Tra cứu VAT (`/api/vat-lookup`, 23/10/2026)
+
+Thay app Apps Script "Tra cứu VAT" (`tra-cuu-vat`, logic v12). Module `vatLookup/`: `lookupModel.js` port nguyên văn logic app cũ (dò dòng tiêu đề, ghép Khớp mã + Gộp VAT theo Tên hàng / ĐVT và cộng tồn qua CTY, DK về 2 trạng thái 1–3 gộp theo CONT + mã Kiot, bổ sung mã chỉ có ở DK về 2, xếp hạng tìm kiếm, sản phẩm chung mã VAT đi kèm); `lookupSource.js` tải 3 CSV công khai qua `vatDraft/sheetsSource.fetchSheetCsv` — Gộp VAT (gid 0), Khớp mã (gid 1192158065), DK về 2 (gid 1150116423) — đọc theo **tên cột** (không theo chữ cái như Nháp VAT), dựng model một lần rồi cache 10 phút, Sheets lỗi thì trả bản cũ tối đa 6 giờ (`stale: true`). Không lưu DB, không migration. Trang `public/vat-lookup/`. Mọi route cần `accounting.vatLookup` (mặc định Quản lý, Kế toán, Nhân viên sale; Khách bị cấm; miễn kiểm tra leo thang); toàn công ty, không áp cookie cơ sở.
+
+| Method | Path | Mô tả |
+|---|---|---|
+| GET | `/api/vat-lookup/meta` | `{ loadedAt, stale, products, source }` (số sản phẩm, số dòng từng sheet) |
+| POST | `/api/vat-lookup/search` `{ q }` | `q` = nội dung ô tìm (tách dòng / `;`, bỏ trùng, tối đa 100 từ khóa; > 20.000 ký tự → 400 `VAT_LOOKUP_QUERY_TOO_LONG`). Trả `queries`, `ignoredCount`, `productCount`, `matchedQueries`, `notFoundQueries`, `vat: { total, rows }`, `incoming: { total, rows, extraKeys, debug }` (≤ 500 dòng mỗi bảng; `debug` = mọi dòng DK về 2 của mã đã khớp khi không có dòng 1–3) |
+| POST | `/api/vat-lookup/refresh` | Ép đọc lại 3 sheet (nút "Cập nhật") |
+
+Lỗi nguồn → 503 kèm `code`: `SHEET_NOT_PUBLIC` / `SHEET_HTTP` / `SHEET_TIMEOUT` (từ `fetchSheetCsv`), `DK_VE_REF_ERROR` khi DK về 2 chỉ còn 1 ô lỗi công thức (IMPORTRANGE mất quyền), `SHEET_COLUMNS` khi không đọc được Khớp mã lẫn Gộp VAT.
+
+Giao diện (23/10/2026, chiều): bảng tự co / giãn cột vừa khung lần đầu trên máy tính (`data-table-fit="fill"`, `table-controls.js` chia phần thiếu cho các cột còn co được khi có cột chạm 64px) nên không còn thanh cuộn ngang; tiêu đề cột dính có nền đặc khi cuộn (cả 2 tab); thanh tab Kế toán dùng chung "Xử lý hóa đơn · Tạo QR · Tra cứu VAT · ORDER VAT" (`TKSNav.renderAccountingTabs`, class `.acct-subnav` trong `shared.css`) trên `/vat-draft/`, `/vat-lookup/`, `/vat-request/` — mỗi mục theo quyền, Sale cũng thấy (không còn ẩn); bỏ 2 nút liên kết riêng ở đầu trang Tra cứu VAT / ORDER VAT.
+
 ## Tài khoản, đăng ký và ID Telegram
 
 - **Tự đăng ký bị khóa từ 2026-10-03** (`ALLOW_SELF_REGISTRATION`, mặc định tắt): `POST /api/auth/register` trả 403 `REGISTRATION_DISABLED` (luồng đăng ký nhân sự bằng OTP `/register/channels`, `/register/send-otp`, `/register/verify` đã gỡ 2026-10-05); đăng nhập Google chỉ liên kết/đăng nhập tài khoản **đã có** (`linkVerifiedGoogleIdentity` với `allowCreate=false`) và không tạo Khách mới. Admin cứng (`HARDCODED_ADMINS`) luôn đăng ký/đăng nhập được. `GET /api/auth/google-config` trả `{ clientId, registrationOpen }` để trang login/register ẩn link và khóa form. Tài khoản mới do Quản lý tạo ở `/account/#users` (`POST /api/admin/users`).
@@ -385,6 +399,8 @@ Hai file Kiot HN/SG **không còn** được server truy cập.
 Bot **xin nghỉ của nhân viên** chạy ngoài repo và đọc/ghi 3 bảng nền nghỉ phép trực tiếp; bot **quản lý** trong `telegram/` dùng chung đơn và sở hữu các bảng bổ sung ở migration `0029`. Hợp đồng dữ liệu ở `db/SCHEMA.md`.
 
 ## Cập nhật gần nhất
+
+23/10/2026 — **Kế toán – Tra cứu VAT (nhánh `feat/vat-lookup`, chưa merge/deploy, không migration)**: xem mục "Kế toán – Tra cứu VAT" phía trên. File mới: `vatLookup/{lookupModel,lookupSource,vatLookupRoutes}.js` (+ test), `public/vat-lookup/`, `test/frontend/vat-lookup.test.js`. Quyền mới `accounting.vatLookup`; menu Kế toán thêm mục "Tra cứu VAT" (bump `shared-nav.js?v=20261023-1` ở 8 trang); trang ORDER VAT thêm nút "Tra cứu VAT".
 
 22/10/2026 — **Ghi chú / thông tin theo khách + Tiếp khách lần cuối (tab Khách hàng, migration `0080`, mã cục bộ trên main, chưa commit/deploy)**: 11 route mới dưới `/api/business-report` (`customer-meta`, `customer-profile`, `/notes`, `/images`, `/visits`, `/editors`, `/assignable-users`), quyền mới `reports.business.customerNotes` (xem) và `reports.business.customerManage` (Quản lý). File mới: `businessReport/customerProfileRepository.js`, `customerProfileRules.js` (+ test), `db/migrations/0080_customer_notes.sql` (+ `db/customerNotesMigration.test.js`), `test/frontend/customer-profile.test.js`; sửa `businessReportRoutes.js`, `businessReportExport.js` (cột Tiếp khách lần cuối), `auth/featureRegistry.js`, `public/index.html`. Xem mục "Báo cáo kinh doanh" phía trên và [thiết kế](../docs/superpowers/specs/2026-10-22-customer-notes-design.md). Sau khi áp `0080` mới ghi được; chưa cần chạy job nào.
 

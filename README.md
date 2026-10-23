@@ -91,6 +91,7 @@ server/
 ├── public/               # Frontend HTML/CSS/JS
 │   ├── cashbook/         # Trang Sổ quỹ: bộ lọc/hash, số dư, chốt và xuất chọn cột
 │   ├── vat-draft/        # Trang Kế toán – Nháp VAT: dán mã HD/DH → Xử lý luôn (danh sách đã dán + hộp chi tiết) hoặc dán dữ liệu, kết quả phân bổ + Ghi chú tổng, QR; Tạo QR từ PDF (2 cột, QR to bên phải; sale dùng được qua accounting.qr); cell-select.js chọn ô kiểu Google Sheet + Ctrl+C
+│   ├── vat-lookup/       # Trang Kế toán – Tra cứu VAT: 2 tab Hàng VAT có sẵn / Hàng sắp về, dán nhiều mã; thanh tab Kế toán chung (TKSNav.renderAccountingTabs)
 │   ├── vat-request/      # Trang Kế toán – ORDER VAT: sale tạo/sửa yêu cầu của mình, KT được cấp quyền riêng mới xử lý trạng thái/ghi chú/ngày về; vat-request-grid.js = chọn ô / copy / kéo nhân bản / dán kiểu Google Sheet
 │   ├── vendor/pdfjs/     # pdf.js 4.10.38 (legacy build) đọc text hóa đơn PDF ngay trong trình duyệt
 │   └── shared/
@@ -105,6 +106,7 @@ server/
 ├── shipment/             # Vòng đời đơn hàng: đơn KiotViet (Postgres) ghép Google Sheet, lọc/phân trang ở máy chủ
 ├── telegram/             # Bot quản lý nghỉ phép, webhook, giao tin bền vững + đăng ký webhook
 ├── vatDraft/             # Kế toán – Nháp VAT (port vat-draft-app): phân bổ nguồn nháp, VietQR, đọc ảnh hóa đơn bằng AI (invoiceVision.js, xKiro), đọc 2 Google Sheet công khai, chứng từ HD/DH từ Postgres
+├── vatLookup/            # Kế toán – Tra cứu VAT (port app Apps Script logic v12): lookupModel.js (ghép Khớp mã + Gộp VAT + DK về 2, tìm kiếm), lookupSource.js (3 CSV công khai, cache 10 phút / stale 6 giờ), vatLookupRoutes.js (/api/vat-lookup)
 ├── vatRequests/          # ORDER VAT: quyền/khóa/version/lịch sử; xuất Excel (export.js); gợi ý khách và giá từ yêu cầu gần nhất; Tồn VAT/Dự kiến về tính live
 ├── index.js
 ├── jobs.js               # Danh sách job nền (sync KiotViet, sheet, container, Pancake)

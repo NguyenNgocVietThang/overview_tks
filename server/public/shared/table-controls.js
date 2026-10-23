@@ -219,7 +219,15 @@
     // Bảng trong hộp chi tiết (.dp-table) nằm trong khung hẹp: co đều các cột cho vừa khung ở lần đầu,
     // không để mặc định 160px/cột làm bảng tràn ngang ngay khi mở hộp. Người dùng vẫn kéo rộng sau đó.
     else if (width && total > width && (ctrl.table.dataset.tableFit === 'fill' || ctrl.table.classList.contains('dp-table'))) {
-      visible.forEach(function (column) { column.width = Math.max(column.minWidth || MIN_WIDTH, column.width * width / total); });
+      // Cột chạm độ rộng tối thiểu thì giữ ở mức đó, phần thiếu chia cho các cột còn co được — tổng vẫn vừa khung.
+      var flexible = visible.slice(), room = width;
+      while (flexible.length) {
+        var flexTotal = flexible.reduce(function (sum, column) { return sum + column.width; }, 0), scale = room / flexTotal;
+        var pinned = flexible.filter(function (column) { return column.width * scale < (column.minWidth || MIN_WIDTH); });
+        if (!pinned.length) { flexible.forEach(function (column) { column.width *= scale; }); break; }
+        pinned.forEach(function (column) { column.width = column.minWidth || MIN_WIDTH; room -= column.width; });
+        flexible = flexible.filter(function (column) { return pinned.indexOf(column) < 0; });
+      }
     }
     ctrl.session.fitted = true;
   }

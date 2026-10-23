@@ -129,6 +129,9 @@ const FEATURES = Object.freeze([
   // escalationExempt: Tro ly duoc uy quyen van tao / dat lai mat khau TK Sale duoc (chi tao anh QR).
   { key: 'accounting.vatDraft', groupKey: 'accounting', label: 'Nháp VAT (Xử lý hóa đơn, Tạo QR)', roles: MANAGER_ONLY, forbiddenRoles: [ROLES.KHACH] },
   { key: 'accounting.qr', groupKey: 'accounting', label: 'Tạo QR chuyển khoản', roles: [ROLES.QUAN_LY, ROLES.NHAN_VIEN_SALE], forbiddenRoles: [ROLES.KHACH], escalationExempt: true },
+  // 2026-10-23: Tra cuu VAT (thay app Apps Script Tra cứu VAT, server/vatLookup): ton VAT + hang sap ve.
+  // Chi doc, cung nhom vai tro voi ORDER VAT; mien kiem tra leo thang de Tro ly van tao TK Sale / Ke toan.
+  { key: 'accounting.vatLookup', groupKey: 'accounting', label: 'Tra cứu VAT (tồn VAT, hàng sắp về)', roles: [ROLES.QUAN_LY, ROLES.KE_TOAN, ROLES.NHAN_VIEN_SALE], forbiddenRoles: [ROLES.KHACH], escalationExempt: true },
   // 2026-10-20: Yeu cau xuat VAT (thay sheet ORDER VAT 1, server/vatRequests). Moi nguoi co quyen xem ca bang
   // (chi doc), tao va sua yeu cau CUA MINH khi chua khoa; quyen Xu ly sua trang thai / ghi chu KT / ngay ve.
   // Quyen xem/tao duoc mien kiem tra leo thang de Tro ly van tao duoc TK Sale / Ke toan.
@@ -175,6 +178,7 @@ const PAGE_FEATURES = Object.freeze([
   { path: '/stock-locations', href: '/stock-locations/', anyOf: ['stockLocations.view'] },
   { path: '/cashbook', href: '/cashbook/', anyOf: ['cashbook.view'] },
   { path: '/vat-draft', href: '/vat-draft/', anyOf: ['accounting.vatDraft', 'accounting.qr'] },
+  { path: '/vat-lookup', href: '/vat-lookup/', anyOf: ['accounting.vatLookup'] },
   { path: '/vat-request', href: '/vat-request/', anyOf: ['accounting.vatRequest'] },
   { path: '/account', href: '/account/', anyOf: ['account.profile'] }
 ]);

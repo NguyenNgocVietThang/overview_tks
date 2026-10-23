@@ -1508,6 +1508,56 @@
       '</div>';
   }
 
+  // Muc nhom Ke toan: dung chung cho sidebar (renderTopSidebar) va thanh tab tren dau 3 trang
+  // Ke toan (renderAccountingTabs) de thu tu / nhan / quyen luon khop nhau.
+  function accountingNavItems(currentPath, currentHash){
+    // Kế toán – Nháp VAT: 2 tab của cùng một trang (hash #xu-ly / #tao-qr). Tài khoản chỉ có
+    // quyền Tạo QR (accounting.qr — mặc định Nhân viên sale) chỉ thấy mục Tạo QR.
+    var canProcessVat = TKSNav.can('accounting.vatDraft');
+    var vatDraftTab = canProcessVat && currentHash === 'xu-ly' ? 'xu-ly' : currentHash === 'tao-qr' || !canProcessVat ? 'tao-qr' : 'xu-ly';
+    var items = [
+      { tab: 'xu-ly', anyOf: ['accounting.vatDraft'], label: 'Xử lý hóa đơn', icon: '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"></path><path d="M14 8H8"></path><path d="M16 12H8"></path><path d="M13 16H8"></path>' },
+      { tab: 'tao-qr', anyOf: ['accounting.vatDraft', 'accounting.qr'], label: 'Tạo QR', icon: '<rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"></path>' }
+    ].map(function(item){
+      return {
+        feature: item.anyOf[0], anyOf: item.anyOf, href: '/vat-draft/#' + item.tab, label: item.label,
+        active: currentPath === '/vat-draft' && vatDraftTab === item.tab,
+        dataAttr: 'data-vat-draft-tab="' + item.tab + '"', icon: item.icon
+      };
+    });
+    // Tra cứu VAT (thay app Apps Script): Sale xem tồn VAT + hàng sắp về trước khi tạo ORDER VAT.
+    items.push({
+      feature: 'accounting.vatLookup', href: '/vat-lookup/', label: 'Tra cứu VAT',
+      active: currentPath === '/vat-lookup', dataAttr: 'data-tks-nav-key="vat-lookup"',
+      icon: '<circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path><path d="M8 11h6M11 8v6"></path>'
+    });
+    // ORDER VAT (thay sheet ORDER VAT 1): Sale tạo, Kế toán xử lý.
+    items.push({
+      feature: 'accounting.vatRequest', href: '/vat-request/', label: 'ORDER VAT',
+      active: currentPath === '/vat-request', dataAttr: 'data-tks-nav-key="vat-request"',
+      icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M9 15l2 2 4-4"></path>'
+    });
+    return items;
+  }
+
+  // Thanh tab "Xử lý hóa đơn · Tạo QR · Tra cứu VAT · ORDER VAT" dau trang Nhap VAT / Tra cuu VAT /
+  // ORDER VAT — chi hien muc tai khoan co quyen, muc dang mo co aria-current="page".
+  TKSNav.renderAccountingTabs = function renderAccountingTabs(mountEl){
+    if(!mountEl) return;
+    var currentPath = window.location.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '');
+    var currentHash = window.location.hash.replace('#', '');
+    mountEl.innerHTML = accountingNavItems(currentPath, currentHash).filter(function(item){
+      return TKSNav.can.apply(TKSNav, item.anyOf || [item.feature]);
+    }).map(function(item){
+      return '<a class="subnav-tab" href="' + item.href + '" ' + item.dataAttr + (item.active ? ' aria-current="page"' : '') + '>' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + item.icon + '</svg>' +
+        escapeHtml(item.label) + '</a>';
+    }).join('');
+    // Man hep: thanh tab cuon ngang — dua tab dang mo vao tam nhin thay vi de bi cat o mep.
+    var current = mountEl.querySelector('[aria-current="page"]');
+    if(current && mountEl.scrollWidth > mountEl.clientWidth) mountEl.scrollLeft = Math.max(0, current.offsetLeft - mountEl.offsetLeft - 16);
+  };
+
   TKSNav.renderTopSidebar = function renderTopSidebar(mountEl, activeTop, user){
     if(!mountEl) return;
     // Trang co the goi thang renderTopSidebar sau authGuard — nap lai quyen tu
@@ -1621,26 +1671,7 @@
       };
     });
 
-    // Kế toán – Nháp VAT: 2 tab của cùng một trang (hash #xu-ly / #tao-qr). Tài khoản chỉ có
-    // quyền Tạo QR (accounting.qr — mặc định Nhân viên sale) chỉ thấy mục Tạo QR.
-    var canProcessVat = TKSNav.can('accounting.vatDraft');
-    var vatDraftTab = canProcessVat && currentHash === 'xu-ly' ? 'xu-ly' : currentHash === 'tao-qr' || !canProcessVat ? 'tao-qr' : 'xu-ly';
-    var accountingItems = [
-      { tab: 'xu-ly', anyOf: ['accounting.vatDraft'], label: 'Xử lý hóa đơn', icon: '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"></path><path d="M14 8H8"></path><path d="M16 12H8"></path><path d="M13 16H8"></path>' },
-      { tab: 'tao-qr', anyOf: ['accounting.vatDraft', 'accounting.qr'], label: 'Tạo QR', icon: '<rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"></path>' }
-    ].map(function(item){
-      return {
-        feature: item.anyOf[0], anyOf: item.anyOf, href: '/vat-draft/#' + item.tab, label: item.label,
-        active: currentPath === '/vat-draft' && vatDraftTab === item.tab,
-        dataAttr: 'data-vat-draft-tab="' + item.tab + '"', icon: item.icon
-      };
-    });
-    // ORDER VAT (thay sheet ORDER VAT 1): Sale tạo, Kế toán xử lý.
-    accountingItems.push({
-      feature: 'accounting.vatRequest', href: '/vat-request/', label: 'ORDER VAT',
-      active: currentPath === '/vat-request', dataAttr: 'data-tks-nav-key="vat-request"',
-      icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M9 15l2 2 4-4"></path>'
-    });
+    var accountingItems = accountingNavItems(currentPath, currentHash);
 
     var groups = [
       {

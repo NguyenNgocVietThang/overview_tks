@@ -1462,6 +1462,8 @@
 
     state.user = await window.TKSNav.authGuard();
     state.canProcess = window.TKSNav.can('accounting.vatDraft');
+    // Thanh tab Ke toan dung chung (sale khong co Xu ly hoa don van thay Tao QR / Tra cuu VAT / ORDER VAT).
+    window.TKSNav.renderAccountingTabs($('vdTabs'));
     if (!state.canProcess) {
       // Chi co quyen Tao QR: an trang thai Sheets/KiotViet + thanh tab.
       document.querySelectorAll('[data-requires-processing]').forEach(el => { el.hidden = true; });

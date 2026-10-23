@@ -425,3 +425,14 @@ Bổ sung Diện tích, kênh bán Khác và đánh giá Rất to. Đánh giá q
 
 
 23/10/2026: Dự kiến hàng về bổ sung **Ghi chú khác** từ cột G của 7 nguồn CONT; quyền riêng `reports.products.expected.otherNote`, mặc định Quản lý, cho phép cấp riêng từng tài khoản; áp dụng bảng, chi tiết, API và xuất Excel/HTML. Migration 0086 đã áp DB, đã nạp 5.839 ghi chú trên 13.044 dòng; code chưa deploy.
+
+## Bổ sung 23/10/2026 — Kế toán – Tra cứu VAT
+
+- **Vấn đề**: sale tra tồn VAT và hàng sắp về bằng một app Apps Script riêng (link khác, đăng nhập khác) trước khi báo khách và tạo ORDER VAT.
+- **Giải pháp**: trang "Tra cứu VAT" trong menu Kế toán của web, giữ nguyên cách dùng và kết quả của app cũ (2 tab Hàng VAT có sẵn / Hàng sắp về, dán nhiều mã), có nút qua lại với ORDER VAT.
+- **Người dùng**: Nhân viên sale (chính), Kế toán, Quản lý.
+- **Thành công**: tra cùng một mã cho cùng dòng VAT và dòng sắp về như app cũ logic v12 (đối chiếu 23/10/2026: 3.142 sản phẩm; `TALEWS` 3 dòng VAT11629, CONT 10-10Y "Đang chờ khai" 972); sau đó có thể bỏ link Apps Script.
+- **Ngoài phạm vi**: cột tình trạng vận chuyển từ bảng CONT, nút tạo ORDER VAT điền sẵn mã, đổi tab nguồn của Nháp VAT / ORDER VAT, lưu dữ liệu vào DB.
+- **Việc cần xác nhận với người làm sheet**: "DK về 2" có lấy dữ liệu bằng IMPORTRANGE không (nếu có, có thể trả `#REF!` như sheet DK VỀ cũ; trang sẽ báo lỗi rõ).
+
+Cập nhật gần nhất: 23/10/2026.

@@ -214,3 +214,9 @@ Triển khai cục bộ theo spec `docs/superpowers/specs/2026-10-23-customer-pr
 
 
 23/10/2026: Dự kiến hàng về bổ sung **Ghi chú khác** từ cột G của 7 nguồn CONT; quyền riêng `reports.products.expected.otherNote`, mặc định Quản lý, cho phép cấp riêng từng tài khoản; áp dụng bảng, chi tiết, API và xuất Excel/HTML. Migration 0086 đã áp DB, đã nạp 5.839 ghi chú trên 13.044 dòng; code chưa deploy.
+
+### 23/10/2026 — Kế toán – Tra cứu VAT
+
+Nhánh `feat/vat-lookup`, không migration. Port app Apps Script "Tra cứu VAT" (logic v12) sang `server/vatLookup/`: `lookupModel.js` (logic thuần chép từ Code.gs + Index.html: dò dòng tiêu đề, ghép Khớp mã + Gộp VAT, DK về 2 trạng thái 1–3, tìm kiếm nhiều từ khóa), `lookupSource.js` (3 CSV công khai Gộp VAT gid 0 / Khớp mã / DK về 2 gid 1150116423 qua `vatDraft/sheetsSource.fetchSheetCsv`, đọc theo tên cột, model dựng sẵn trong `createTtlSnapshotCache` 10 phút / stale 6 giờ), `vatLookupRoutes.js` (`GET /meta`, `POST /search`, `POST /refresh`). Tìm kiếm chạy trên server (~10 ms trên 3.142 sản phẩm + 8.052 dòng DK về 2), client chỉ vẽ 2 bảng (`public/vat-lookup/`, `table-controls.js`). Không dùng chung bản parse của Nháp VAT (đọc theo chữ cái cột, thiếu Tên hàng, bỏ dòng tồn không phải số). Quyền `accounting.vatLookup`.
+
+Cập nhật gần nhất: 23/10/2026.

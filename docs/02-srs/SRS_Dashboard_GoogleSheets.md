@@ -850,3 +850,16 @@ Hai cột thông tin/Note; Note cuộn riêng 360px, chữ dài xuống dòng. B
 
 
 23/10/2026: Dự kiến hàng về bổ sung **Ghi chú khác** từ cột G của 7 nguồn CONT; quyền riêng `reports.products.expected.otherNote`, mặc định Quản lý, cho phép cấp riêng từng tài khoản; áp dụng bảng, chi tiết, API và xuất Excel/HTML. Migration 0086 đã áp DB, đã nạp 5.839 ghi chú trên 13.044 dòng; code chưa deploy.
+
+## Bổ sung 23/10/2026 — Kế toán – Tra cứu VAT (FR-VL)
+
+- **FR-VL-1 (phạm vi)**: trang `/vat-lookup/` trong nhóm Kế toán (ngay trên ORDER VAT) thay app Apps Script "Tra cứu VAT"; API `/api/vat-lookup`; quyền `accounting.vatLookup` mặc định Quản lý, Kế toán, Nhân viên sale; Khách bị cấm.
+- **FR-VL-2 (nguồn)**: đọc 3 tab công khai của file VAT TKS — Gộp VAT (gid 0), Khớp mã (gid 1192158065), DK về 2 (gid 1150116423); đọc theo tên cột, tự dò dòng tiêu đề; cache 10 phút, nút "Cập nhật" ép đọc lại; Sheets lỗi thì dùng bản cũ tối đa 6 giờ và ghi rõ trên trang. Không lưu DB.
+- **FR-VL-3 (tìm kiếm)**: một mã/tên hoặc dán tối đa 100 dòng (tách dòng hoặc `;`, bỏ trùng); khớp không dấu theo mã Kiot hoặc tên Kiot, thứ tự: trùng mã → trùng tên → bắt đầu bằng → chứa; sản phẩm khác dùng chung mã VAT với kết quả cũng hiện (chỉ các dòng VAT chung); liệt kê từ khóa không tìm thấy. Enter tìm, Ctrl+Enter xuống dòng.
+- **FR-VL-4 (Hàng VAT có sẵn)**: mỗi dòng VAT (gom theo mã Kiot đại diện + mã VAT + Tên hàng + ĐVT + Tên VAT, cộng tồn qua các CTY): Mã Kiot, Tên Kiot, Mã/Tên VAT Kiot, Tên hàng, ĐVT, Tổng thuế mất, Tồn đầu ngày, Tồn có thể nháp, Trạng thái (Còn VAT khi có Khớp mã và tổng Tồn có thể nháp > 0; thêm "Chuẩn bị về" khi có dòng DK về 2 trạng thái 1–3).
+- **FR-VL-5 (Hàng sắp về)**: dòng DK về 2 trạng thái 1, 2, 3 (số đứng đầu chuỗi; "10." không tính là 1), gộp theo CONT + mã Kiot và cộng số lượng; mã chỉ có ở DK về 2 vẫn tìm được. Không có dòng nào thì liệt kê các dòng DK về 2 của mã đã khớp kèm trạng thái để thấy lý do.
+- **FR-VL-6 (lỗi nguồn)**: DK về 2 chỉ còn 1 ô lỗi công thức (IMPORTRANGE mất quyền) → 503 `DK_VE_REF_ERROR`, trang hiện thông báo thay vì bảng rỗng.
+- **FR-VL-7 (liên kết, sửa 23/10/2026)**: ba trang Kế toán (Nháp VAT, Tra cứu VAT, ORDER VAT) dùng chung thanh tab "Xử lý hóa đơn · Tạo QR · Tra cứu VAT · ORDER VAT" dưới tiêu đề trang, mỗi mục hiện theo quyền như sidebar (Sale: Tạo QR · Tra cứu VAT · ORDER VAT), mục đang mở được gạch chân. Tồn ở Tra cứu VAT đọc tab Gộp VAT, có thể khác cột Tồn VAT của ORDER VAT (tab GỘP MỚI) — đã thống nhất chấp nhận.
+- **FR-VL-8 (bảng)**: trên máy tính, lần đầu hiển thị các cột được co / giãn cho vừa khung (không có thanh cuộn ngang); tiêu đề cột dính khi cuộn và có nền đặc; điện thoại cuộn ngang trong khung bảng.
+
+Cập nhật gần nhất: 23/10/2026.
