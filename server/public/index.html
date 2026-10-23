@@ -1317,6 +1317,22 @@
       cursor: pointer;
     }
 
+    .business-new-customer-input {
+      width: 100%;
+      min-width: 100px;
+      padding: 3px 6px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background-color: var(--panel);
+      color: var(--text);
+      font: 500 12.5px var(--font-body);
+    }
+
+    .business-new-customer-input:disabled {
+      opacity: .6;
+      cursor: progress;
+    }
+
     .business-team-select:disabled, .business-price-level-select:disabled {
       opacity: .6;
       cursor: progress;
@@ -8503,7 +8519,7 @@
     const BUSINESS_TABLE_KEYS = { sales: 'businessSales', customers: 'businessCustomers', products: 'businessProducts' };
     const BUSINESS_FIXED_COLUMNS = {
       sales: [['Sale', 125], ['Team', 133], ['SL Khách', 82]],
-      customers: [['Tên khách', 154], ['Sale', 117], ['Level giá', 117]],
+      customers: [['Tên khách', 154], ['Sale', 117], ['Level giá', 117], ['Khách mới', 130]],
       products: [['Mã hàng', 90], ['Tên hàng', 212]]
     };
     const BUSINESS_METRIC_COLUMN_WIDTHS = {
@@ -8551,7 +8567,7 @@
 
     function businessHeadHtml(kind, data) {
       const today = data.today.split('-').reverse().join('/');
-      const fixedKeys = { sales: ['sale', 'team', 'customerCount'], customers: ['customer', 'sale', 'priceLevel'], products: ['code', 'name'] };
+      const fixedKeys = { sales: ['sale', 'team', 'customerCount'], customers: ['customer', 'sale', 'priceLevel', 'newCustomer'], products: ['code', 'name'] };
       const widths = BUSINESS_METRIC_COLUMN_WIDTHS[kind];
       const cols = BUSINESS_FIXED_COLUMNS[kind].map((c, i) => [c[0], c[1], fixedKeys[kind][i]])
         .concat(businessExtraFixedColumns(kind))
@@ -8617,7 +8633,7 @@
         const fixed = kind === 'sales'
           ? '<td class="name-cell">' + escapeHtml(r.saleName) + '</td>' + businessTeamCellHtml(r, data) + '<td class="mono" data-sort-value="' + r.activeCustomers + '">' + fmtNumber(r.activeCustomers) + '</td>'
           : kind === 'customers'
-            ? '<td class="name-cell">' + escapeHtml(r.name) + '</td><td>' + escapeHtml(r.saleName) + '</td>' + businessPriceLevelCellHtml(r) +
+            ? '<td class="name-cell">' + escapeHtml(r.name) + '</td><td>' + escapeHtml(r.saleName) + '</td>' + businessPriceLevelCellHtml(r) + businessNewCustomerCellHtml(r) +
               (businessCanNotes() ? businessCustomerNoteCellsHtml(r) : '')
             : '<td class="mono muted">' + escapeHtml(r.code) + '</td><td class="name-cell">' + escapeHtml(r.name) + '</td>';
         return '<tr class="doc-row" tabindex="0" title="Bấm để xem chi tiết" data-table-item-id="' + escapeHtml(r.key) + '">' + fixed +
@@ -8633,6 +8649,46 @@
       return '<td data-sort-value="' + escapeHtml(row.priceLevel) + '"><select class="business-price-level-select" data-key="' + escapeHtml(row.key) + '" aria-label="Level giá của ' + escapeHtml(row.name) + '"' + (row.priceLevelSaving ? ' disabled' : '') + '>' +
         values.map(function (item) { return '<option value="' + item[0] + '"' + (row.priceLevel === item[1] ? ' selected' : '') + '>' + item[2] + '</option>'; }).join('') + '</select></td>';
     }
+
+    // Cột "Khách mới": người có quyền sửa level giá gõ tự do (gợi ý từ newCustomerOptions), lưu cùng API với level.
+    function businessNewCustomerCellHtml(row) {
+      const text = row.newCustomer || '';
+      if (!row.canEditPriceLevel) return '<td data-sort-value="' + escapeHtml(text) + '">' + escapeHtml(text) + '</td>';
+      return '<td data-sort-value="' + escapeHtml(text) + '"><input type="text" class="business-new-customer-input" list="businessNewCustomerOptions" maxlength="50" data-key="' + escapeHtml(row.key) +
+        '" value="' + escapeHtml(text) + '" placeholder="VD: T10/26" aria-label="Khách mới của ' + escapeHtml(row.name) + '"' + (row.priceLevelSaving || row.newCustomerSaving ? ' disabled' : '') + '></td>';
+    }
+
+    document.getElementById('businessCustomersRows').addEventListener('change', function (event) {
+      const input = event.target.closest && event.target.closest('.business-new-customer-input');
+      if (!input) return;
+      const data = state.business.data.customers;
+      const row = data && data.rows.find(function (item) { return item.key === input.dataset.key; });
+      if (!row || !row.canEditPriceLevel || row.priceLevelSaving || row.newCustomerSaving) return;
+      const previous = row.newCustomer || '';
+      const next = input.value.trim().replace(/s+/g, ' ').slice(0, 50);
+      if (next === previous) { input.value = previous; return; }
+      const level = { 'Vừa': 'medium', 'Lớn': 'large', 'Mới': 'new', 'Vip': 'vip' }[row.priceLevel];
+      row.newCustomerSaving = true;
+      input.disabled = true;
+      cpApi('PUT', '/customer-price-level', { key: row.key, level: level, version: row.priceLevelVersion, newCustomer: next }).then(function (body) {
+        row.newCustomer = body.newCustomer === undefined ? next : (body.newCustomer || '');
+        row.priceLevelVersion = body.priceLevelVersion;
+        if (body.priceLevel) row.priceLevel = body.priceLevel;
+        row.newCustomerSaving = false;
+        if (row.newCustomer && Array.isArray(data.newCustomerOptions) && data.newCustomerOptions.indexOf(row.newCustomer) < 0) {
+          data.newCustomerOptions.push(row.newCustomer);
+          data.newCustomerOptions.sort(function (a, b) { return String(a).localeCompare(String(b), 'vi', { numeric: true }); });
+        }
+        renderBusinessReport();
+        showToast('Đã lưu khách mới.', 'success');
+      }).catch(function (err) {
+        row.newCustomerSaving = false;
+        input.value = previous;
+        input.disabled = false;
+        renderBusinessTable('customers');
+        showToast('Không lưu được khách mới: ' + err.message + (err.status === 409 ? ' Vui lòng tải lại dữ liệu trước khi sửa tiếp.' : ''), 'error');
+      });
+    });
 
     document.getElementById('businessCustomersRows').addEventListener('change', function (event) {
       const select = event.target.closest && event.target.closest('.business-price-level-select');
@@ -8736,6 +8792,16 @@
       state.tableRenderers[prefix] = function () { renderBusinessTable(kind); };
     }
 
+    function businessFillNewCustomerOptions(options) {
+      let list = document.getElementById('businessNewCustomerOptions');
+      if (!list) {
+        list = document.createElement('datalist');
+        list.id = 'businessNewCustomerOptions';
+        document.body.appendChild(list);
+      }
+      list.innerHTML = (options || []).map(function (v) { return '<option value="' + escapeHtml(v) + '"></option>'; }).join('');
+    }
+
     function fillBusinessSelect(id, firstLabel, values) {
       const select = document.getElementById(id);
       const current = select.value;
@@ -8755,6 +8821,7 @@
       document.getElementById('businessProductsReadiness').hidden = !productsNotReady;
       const customerData = state.business.data.customers;
       if (customerData) {
+        businessFillNewCustomerOptions(customerData.newCustomerOptions);
         const levels = Array.from(new Set(customerData.rows.map(r => r.priceLevel).filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b), 'vi', { numeric: true }));
         fillBusinessSelect('businessCustomersLevel', 'Tất cả level', levels);
       }
@@ -9378,6 +9445,8 @@
       });
       const value = function (text) { return text ? escapeHtml(text) : '<span class="muted">—</span>'; };
       return '<dl class="dp-meta">' +
+        detailMetaField('Số điện thoại', value(profile.phone)) +
+        detailMetaField('Địa chỉ', value(profile.address), true) +
         detailMetaField('Định vị kho', value(profile.warehouseLocation)) +
         detailMetaField('Số lượng kho', profile.warehouseCount === null || profile.warehouseCount === undefined || profile.warehouseCount === '' ? value('') : escapeHtml(fmtNumber(profile.warehouseCount))) +
         detailMetaField('Diện tích', value(profile.area), true) +
@@ -9399,6 +9468,8 @@
       const count = profile.warehouseCount === null || profile.warehouseCount === undefined ? '' : profile.warehouseCount;
       host.innerHTML = head +
         '<form class="cp-form" id="cpProfileForm" novalidate autocomplete="off">' +
+        '<div class="cp-field"><label for="cpPhone">Số điện thoại</label><input class="cp-input" id="cpPhone" type="tel" inputmode="tel" maxlength="50" value="' + escapeHtml(profile.phone || '') + '"></div>' +
+        '<div class="cp-field is-full"><label for="cpAddress">Địa chỉ</label><textarea class="cp-input cp-autogrow" id="cpAddress" rows="1" maxlength="500">' + escapeHtml(profile.address || '') + '</textarea></div>' +
         '<div class="cp-field"><label for="cpWarehouseLocation">Định vị kho</label><textarea class="cp-input cp-autogrow" id="cpWarehouseLocation" rows="1" maxlength="500">' + escapeHtml(profile.warehouseLocation || '') + '</textarea></div>' +
         '<div class="cp-field"><label for="cpWarehouseCount">Số lượng kho</label><input class="cp-input" id="cpWarehouseCount" type="number" min="0" step="any" inputmode="decimal" value="' + escapeHtml(count) + '"></div>' +
         '<div class="cp-field is-full"><label for="cpArea">Diện tích</label><textarea class="cp-input cp-autogrow" id="cpArea" rows="1" maxlength="500">' + escapeHtml(profile.area || '') + '</textarea></div>' +
@@ -9441,6 +9512,8 @@
       }
       const payload = {
         key: cp.key,
+        phone: cpEl('cpPhone').value.trim(),
+        address: cpEl('cpAddress').value.trim(),
         warehouseLocation: cpEl('cpWarehouseLocation').value.trim(),
         warehouseCount: count,
         area: cpEl('cpArea').value.trim(),
@@ -10565,7 +10638,7 @@
           const row = event.target.closest && event.target.closest('tr.doc-row');
           if (!row) return;
           // Bấm dropdown đổi team / nút Chi tiết ghi chú / biểu tượng lịch tiếp khách không được mở hộp chi tiết số liệu.
-          if (event.target.closest('select, option, [data-cp-action]')) return;
+          if (event.target.closest('select, option, input, [data-cp-action]')) return;
           const selection = window.getSelection && window.getSelection();
           // Đang bôi đen chữ trong dòng (để sao chép mã) thì không mở panel.
           if (selection && !selection.isCollapsed && row.contains(selection.anchorNode)) return;

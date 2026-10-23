@@ -6,6 +6,7 @@ const path = require('node:path');
 const { createCustomerProfileRepository, detectImageType } = require('./customerProfileRepository');
 
 const MIGRATION = fs.readFileSync(path.join(__dirname, '..', 'db', 'migrations', '0080_customer_notes.sql'), 'utf8');
+const CONTACT_MIGRATION = fs.readFileSync(path.join(__dirname, '..', 'db', 'migrations', '0090_customer_profile_contact.sql'), 'utf8');
 const DETAILS_MIGRATION = fs.readFileSync(path.join(__dirname, '..', 'db', 'migrations', '0084_customer_profile_details.sql'), 'utf8');
 const ACTOR = { id: 'u-1', name: 'Quản Lý A' };
 const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from('png-body')]);
@@ -25,10 +26,10 @@ test('report profiles batch includes missing and visit-only customers without no
     const image = await repo.addImage('a', PNG, ACTOR);
     const result = await repo.getReportProfiles(['a', 'missing', 'visit-only', 'a']);
     assert.deepEqual(result.a, {
-      warehouseLocation: 'Kho A', warehouseCount: 2, area: '200m2', competitor: 'X', salesChannels: ['san', 'khac'], warehouseScale: 'very_large',
+      warehouseLocation: 'Kho A', warehouseCount: 2, area: '200m2', phone: '', address: '', competitor: 'X', salesChannels: ['san', 'khac'], warehouseScale: 'very_large',
       editors: [{ userId: 'u-2', userName: 'Sale Hai' }], visitDays: ['2026-10-01', '2026-10-02'], images: [{ id: image.id, url: image.url }]
     });
-    assert.deepEqual(result.missing, { warehouseLocation: '', warehouseCount: null, area: '', competitor: '', salesChannels: [], warehouseScale: 'none', editors: [], visitDays: [], images: [] });
+    assert.deepEqual(result.missing, { warehouseLocation: '', warehouseCount: null, area: '', phone: '', address: '', competitor: '', salesChannels: [], warehouseScale: 'none', editors: [], visitDays: [], images: [] });
     assert.deepEqual(result['visit-only'].visitDays, ['2026-10-03']);
     assert.equal(JSON.stringify(result).includes('PRIVATE NOTE'), false);
     assert.deepEqual(await repo.getReportProfiles([]), {});
@@ -55,7 +56,7 @@ const USERS = [
 async function setup({ migrate = true, at = '2026-10-22T05:00:00Z' } = {}) {
   const { PGlite } = require('@electric-sql/pglite');
   const db = new PGlite();
-  if (migrate) { await db.exec(MIGRATION); await db.exec(DETAILS_MIGRATION); }
+  if (migrate) { await db.exec(MIGRATION); await db.exec(DETAILS_MIGRATION); await db.exec(CONTACT_MIGRATION); }
   const clock = { at: new Date(at) };
   const pool = { query: (q, p) => db.query(q, p), connect: async () => ({ query: (q, p) => db.query(q, p), release() {} }) };
   const repo = createCustomerProfileRepository({ pool, now: () => clock.at, userStore: { getAllUsers: async () => USERS } });
@@ -105,14 +106,14 @@ test('saveProfile upsert + getProfile: mac dinh rong, luu va doc lai dung hinh d
   const { db, repo } = await setup();
   try {
     const empty = await repo.getProfile('chị a');
-    assert.deepEqual(empty, { profile: { warehouseLocation: '', area: '', warehouseCount: null, warehouseScale: 'none', competitor: '', salesChannels: [] }, images: [], notes: [], visitDays: [], lastVisit: null, editors: [] });
+    assert.deepEqual(empty, { profile: { warehouseLocation: '', area: '', phone: '', address: '', warehouseCount: null, warehouseScale: 'none', competitor: '', salesChannels: [] }, images: [], notes: [], visitDays: [], lastVisit: null, editors: [] });
     const saved = await repo.saveProfile('chị a', 'Chị A', {
       warehouseLocation: ' 12 Lê Lợi ', warehouseCount: '3', warehouseScale: 'medium', competitor: 'Tem X', salesChannels: ['kho_buon', 'san']
     }, ACTOR);
-    assert.deepEqual(saved, { warehouseLocation: '12 Lê Lợi', area: '', warehouseCount: 3, warehouseScale: 'none', competitor: 'Tem X', salesChannels: ['san', 'kho_buon'] });
+    assert.deepEqual(saved, { warehouseLocation: '12 Lê Lợi', area: '', phone: '', address: '', warehouseCount: 3, warehouseScale: 'none', competitor: 'Tem X', salesChannels: ['san', 'kho_buon'] });
     await repo.saveProfile('chị a', 'Chị A', { warehouseCount: null, warehouseScale: 'none', salesChannels: [] }, { id: 'u-2', name: 'Sale Hai' });
     const again = await repo.getProfile('chị a');
-    assert.deepEqual(again.profile, { warehouseLocation: '', area: '', warehouseCount: null, warehouseScale: 'none', competitor: '', salesChannels: [] });
+    assert.deepEqual(again.profile, { warehouseLocation: '', area: '', phone: '', address: '', warehouseCount: null, warehouseScale: 'none', competitor: '', salesChannels: [] });
     const { rows } = await db.query('SELECT count(*)::int AS n, max(updated_by_id) AS who FROM customer_profiles');
     assert.deepEqual(rows[0], { n: 1, who: 'u-2' });
     await assert.rejects(repo.saveScale('chị a', 'Chị A', 'huge', ACTOR), { statusCode: 400, code: 'INVALID_PROFILE' });
@@ -269,7 +270,7 @@ test('chua migrate (thieu bang): doc tra rong, ghi tra 503 MIGRATION_PENDING', a
   const { db, repo } = await setup({ migrate: false });
   try {
     assert.deepEqual(await repo.getMeta(), {});
-    assert.deepEqual(await repo.getProfile('chị a'), { profile: { warehouseLocation: '', area: '', warehouseCount: null, warehouseScale: 'none', competitor: '', salesChannels: [] }, images: [], notes: [], visitDays: [], lastVisit: null, editors: [] });
+    assert.deepEqual(await repo.getProfile('chị a'), { profile: { warehouseLocation: '', area: '', phone: '', address: '', warehouseCount: null, warehouseScale: 'none', competitor: '', salesChannels: [] }, images: [], notes: [], visitDays: [], lastVisit: null, editors: [] });
     assert.equal(await repo.isEditor('chị a', 'u-2'), false);
     assert.equal(await repo.getImageMeta('99999999-9999-4999-8999-999999999999'), null);
     const pending = { statusCode: 503, code: 'MIGRATION_PENDING' };

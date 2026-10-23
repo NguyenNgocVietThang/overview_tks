@@ -1,7 +1,7 @@
 'use strict';
 
 // Fixture PGlite dung chung cho test "Kiem tra gia ban" (KHONG phai file test: ten khong khop mau node --test).
-// Schema THAT: migration 0001-0006, 0012, 0064, 0077, 0087.
+// Schema THAT: migration 0001-0006, 0012, 0064, 0077, 0087, 0088.
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -9,7 +9,7 @@ const { PGlite } = require('@electric-sql/pglite');
 
 const MIGRATIONS = ['0001_core_master_data.sql', '0002_invoices.sql', '0003_orders.sql', '0004_returns.sql',
   '0005_purchases.sql', '0006_cash_flows.sql', '0012_numeric_money_quantity_columns.sql',
-  '0064_sheet_snapshots.sql', '0077_invoice_price_audit.sql', '0087_customer_price_levels.sql']
+  '0064_sheet_snapshots.sql', '0077_invoice_price_audit.sql', '0087_customer_price_levels.sql', '0088_customer_price_level_new.sql']
   .map(file => fs.readFileSync(path.join(__dirname, '..', 'db', 'migrations', file), 'utf8'));
 
 const HN_NOTE = 'T100 # 16/10 # 1T -24000 | 3T- 23800 | 5T- 23600 | 10T-23000 | VAT+2000đ';

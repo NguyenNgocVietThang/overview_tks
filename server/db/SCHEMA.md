@@ -1,5 +1,9 @@
 # Supabase schema cho đồng bộ KiotViet
 
+## Migration 0089–0090 — Khách mới, SĐT, địa chỉ (24/10/2026, chưa áp DB thật)
+
+`0089`: `customer_price_levels.new_customer TEXT NOT NULL DEFAULT ''`; `customer_price_level_history.old_new_customer/new_new_customer`. `0090`: `customer_profiles.phone/address TEXT NOT NULL DEFAULT ''`.
+
 ## Migration 0087 — level giá nội bộ (23/10/2026, chưa áp DB thật)
 
 `0087_customer_price_levels.sql` thêm `customer_price_level_state(id BOOLEAN PRIMARY KEY CHECK(id), initialized_at)`, `customer_price_levels(customer_key TEXT PRIMARY KEY, level medium/large/vip, version INTEGER > 0, updated_by_id/name, updated_at)`, `customer_price_level_sources` (khóa `(branch,customer_id)`, lưu mã/tên/khóa khách/email và level nguồn lúc chuyển đổi), `customer_price_level_history` (khóa identity, unique `(customer_key,version)`, level cũ/mới, người sửa, thời gian). Không cấp quyền đọc cho `reporting_readonly`.

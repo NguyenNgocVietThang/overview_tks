@@ -16,7 +16,7 @@ const KINDS = ['sales', 'customers', 'products'];
 const TITLES = { sales: 'Sale', customers: 'Khách hàng', products: 'Mã hàng' };
 const FIXED = {
   sales: [['saleName', 'Sale'], ['team', 'Team'], ['activeCustomers', 'SL Khách', 'number']],
-  customers: [['name', 'Tên khách'], ['saleName', 'Sale'], ['priceLevel', 'Level giá']],
+  customers: [['name', 'Tên khách'], ['saleName', 'Sale'], ['priceLevel', 'Level giá'], ['newCustomer', 'Khách mới']],
   products: [['code', 'Mã hàng'], ['name', 'Tên hàng']]
 };
 
@@ -104,7 +104,7 @@ function monthColumnKey(month) {
 // quyen xem ghi chu khach) va gan row.lastVisit ('YYYY-MM-DD' hoac '') tu customerProfileRepository.getMeta().
 const LAST_VISIT_COLUMN = ['lastVisit', 'Tiếp khách lần cuối'];
 const PROFILE_COLUMNS = [
-  ['warehouseLocation', 'Định vị kho'], ['warehouseCount', 'Số lượng kho', 'number'],
+  ['phone', 'Điện thoại'], ['address', 'Địa chỉ'], ['warehouseLocation', 'Định vị kho'], ['warehouseCount', 'Số lượng kho', 'number'],
   ['area', 'Diện tích'], ['competitor', 'Đối thủ'], ['salesChannels', 'Hình thức bán hàng'],
   ['warehouseScale', 'Quy mô khách'], ['editors', 'Người được sửa'],
   ['visitDays', 'Các ngày tiếp khách'], ['images', 'Ảnh kho']

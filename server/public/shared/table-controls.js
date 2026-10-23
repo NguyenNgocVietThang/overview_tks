@@ -526,12 +526,23 @@
     if (!Number.isFinite(value)) return null;
     return match[1] === '-' || match[1] === '−' || match[1] === '–' ? -value : value;
   }
+  // Ô nhập liệu / dropdown: textContent rỗng (input) hoặc gộp mọi option (select) → lấy giá trị đang hiển thị.
+  function cellText(cell) {
+    var field = cell.querySelector('select, input:not([type=hidden]):not([type=checkbox]):not([type=radio]), textarea');
+    if (field) {
+      var shown = field.tagName === 'SELECT'
+        ? (field.selectedIndex >= 0 ? field.options[field.selectedIndex].textContent : '')
+        : field.value;
+      return String(shown || '').replace(/\s+/g, ' ').trim();
+    }
+    return cell.textContent.replace(/\s+/g, ' ').trim();
+  }
   function sortValue(cell) {
     if (cell.hasAttribute('data-sort-value')) {
       var given = Number(cell.getAttribute('data-sort-value'));
       return { empty: !Number.isFinite(given), number: given, text: '' };
     }
-    var text = cell.textContent.replace(/\s+/g, ' ').trim();
+    var text = cellText(cell);
     if (!text || text === '—' || text === '-') return { empty: true, number: null, text: '' };
     var number = parseDateText(text);
     if (number === null) number = parseNumberText(text);

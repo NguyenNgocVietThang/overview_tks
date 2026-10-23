@@ -134,7 +134,7 @@ async function buildCaptureInputs({ day, client, now, includeSeen, who }) {
 
   const customerKey = inv => nameKey(inv.customer_name || inv.raw_customer_name) || nameKey(RETAIL_NAME);
   let localLevels;
-  try { localLevels = await readCustomerPriceLevels(client,invoices.map(customerKey)); }
+  try { localLevels = await readCustomerPriceLevels(client,invoices.map(customerKey), { createMissingAs: 'new' }); }
   catch (err) {
     if (err.code === 'MIGRATION_PENDING') throw sourceNotReady(err.message);
     throw err;

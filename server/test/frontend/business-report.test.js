@@ -298,7 +298,7 @@ test('bang khach: an khach khong hoat dong mac dinh, cong tac hien lai, loc theo
   assert.deepEqual(page.run('businessFilteredCustomers().map(r => r.saleName)'), ['Khang', 'Khang']);
 
   const headers = headerTexts(page, 'businessCustomersRows');
-  assert.deepEqual(headers.slice(0, 5), ['Tên khách', 'Sale', 'Level giá', 'Ghi chú', 'Tiếp khách lần cuối']);
+  assert.deepEqual(headers.slice(0, 6), ['Tên khách', 'Sale', 'Level giá', 'Khách mới', 'Ghi chú', 'Tiếp khách lần cuối']);
   const chiA = rowById(page, 'businessCustomersRows', 'chị a');
   assert.equal(chiA.cells[2].textContent.trim(), 'Level 2');
 });
@@ -610,6 +610,52 @@ test('price level conflict restores the saved choice and reports reload guidance
   const original = select.value;
   select.value = 'vip'; select.dispatchEvent(new page.dom.window.Event('change', { bubbles: true })); await settle();
   assert.equal(select.value, original); assert.equal(select.disabled, false);
+  assert.equal(page.run('businessFilteredCustomers()[0].priceLevelVersion'), 3);
+  assert.match(page.doc.body.textContent, /Dữ liệu đã thay đổi.*tải lại/);
+});
+
+const newCustomerRows = rows => profileRows(rows).map((r, i) => Object.assign(r, { newCustomer: i === 0 ? 'T10/26' : (i === 1 ? 'Cũ' : '') }));
+
+test('Khach moi: cot ngay sau Level gia, o nhap tu do co goi y cho nguoi sua, nguoi khac chi thay chu', async () => {
+  const page = createPage({ customerRows: newCustomerRows });
+  page.run("switchView('business')"); await settle();
+  const heads = headerTexts(page, 'businessCustomersRows');
+  assert.equal(heads[heads.indexOf('Level giá') + 1], 'Khách mới');
+  const inputs = page.doc.querySelectorAll('.business-new-customer-input');
+  assert.equal(inputs.length, 1);
+  assert.equal(inputs[0].value, 'T10/26');
+  assert.equal(inputs[0].maxLength, 50);
+  assert.equal(inputs[0].getAttribute('list'), 'businessNewCustomerOptions');
+  assert.ok(page.$('businessNewCustomerOptions'));
+  assert.match(rowsOf(page, 'businessCustomersRows')[1].textContent, /Cũ/);
+});
+
+test('Khach moi: luu thanh cong gui level + version hien tai, cap nhat version, khong mo hop chi tiet', async () => {
+  let sent;
+  const page = createPage({ customerRows: newCustomerRows, saveLevel: body => { sent = body; return Promise.resolve({ ok: true, status: 200, json: async () => ({ priceLevel: 'Lớn', priceLevelVersion: 4, newCustomer: 'T11/26' }) }); } });
+  page.run("switchView('business')"); await settle();
+  const input = page.doc.querySelector('.business-new-customer-input');
+  input.click();
+  assert.equal(page.$('docModalBackdrop').hidden, true);
+  const key = input.closest('tr').dataset.tableItemId;
+  input.value = '  T11/26 '; input.dispatchEvent(new page.dom.window.Event('change', { bubbles: true }));
+  assert.equal(input.disabled, true);
+  await settle();
+  assert.deepEqual(sent, { key, level: 'large', version: 3, newCustomer: 'T11/26' });
+  assert.equal(page.doc.querySelector('.business-new-customer-input').value, 'T11/26');
+  assert.equal(page.doc.querySelector('.business-new-customer-input').disabled, false);
+  assert.equal(page.run('businessFilteredCustomers()[0].priceLevelVersion'), 4);
+  assert.equal(page.run('businessFilteredCustomers()[0].newCustomer'), 'T11/26');
+});
+
+test('Khach moi: 409 hoan lai gia tri cu va nhac tai lai', async () => {
+  const page = createPage({ customerRows: newCustomerRows, saveLevel: () => Promise.resolve({ ok: false, status: 409, json: async () => ({ error: 'Dữ liệu đã thay đổi. Vui lòng tải lại.' }) }) });
+  page.run("switchView('business')"); await settle();
+  const input = page.doc.querySelector('.business-new-customer-input');
+  input.value = 'T12/26'; input.dispatchEvent(new page.dom.window.Event('change', { bubbles: true })); await settle();
+  const after = page.doc.querySelector('.business-new-customer-input');
+  assert.equal(after.value, 'T10/26'); assert.equal(after.disabled, false);
+  assert.equal(page.run('businessFilteredCustomers()[0].newCustomer'), 'T10/26');
   assert.equal(page.run('businessFilteredCustomers()[0].priceLevelVersion'), 3);
   assert.match(page.doc.body.textContent, /Dữ liệu đã thay đổi.*tải lại/);
 });

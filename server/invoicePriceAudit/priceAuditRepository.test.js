@@ -118,8 +118,10 @@ test('Cap khach: Vua du bac Lon huong gia Lon; VIP mua it huong VIP; bac 4 cho m
       { id: '4', customer_level: 'Lớn', min: '23800' },
       { id: '5', customer_level: 'Vừa', min: '23000' },
       { id: '6', customer_level: 'Vip', min: '23000' },
-      { id: '7', customer_level: 'Lớn', min: '23800' }
+      { id: '7', customer_level: 'Mới', min: '23800' } // khach chua co level nội bộ => mac dinh Mới (gia nhu Lon)
     ]);
+    const saved = (await db.query(`SELECT level, version FROM customer_price_levels WHERE customer_key = 'khách lẻ'`)).rows;
+    assert.deepEqual(saved.map(r => r.level), ['new'], 'khach chua co level duoc tu tao dong Mới');
   } finally { await db.close(); }
 });
 
