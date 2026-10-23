@@ -4,10 +4,14 @@
 .vl-sub{margin:6px 0 0;color:var(--canvas-text-muted);font-size:13px;max-width:720px}
 
 .vl-panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-xl);box-shadow:var(--card-shadow);overflow:hidden}
-.vl-toolbar{display:flex;flex-direction:column;gap:14px;padding:16px;border-bottom:1px solid var(--border)}
+.vl-toolbar{display:flex;flex-direction:column;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border)}
+
+/* Hàng tab: tab bên trái, nút "Cột hiển thị" (table-controls.js) ở góc phải. */
+.vl-tabbar{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.vl-tabbar .tks-columns-button{min-height:36px}
 
 /* Tab: nút phân đoạn, tab đang chọn tô màu chính. */
-.vl-tabs{display:inline-flex;gap:4px;align-self:flex-start;padding:4px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--panel-2)}
+.vl-tabs{display:inline-flex;gap:4px;padding:4px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--panel-2)}
 .vl-tab{display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:6px 14px;border:0;border-radius:var(--radius-sm);background:transparent;color:var(--text-secondary);font:600 13px var(--font-body);cursor:pointer;transition:background .15s ease,color .15s ease}
 .vl-tab:hover{color:var(--text);background:var(--surface-hover)}
 .vl-tab[aria-selected="true"]{background:var(--primary);color:var(--primary-text);box-shadow:var(--primary-shadow)}
@@ -15,7 +19,7 @@
 .vl-count{min-width:20px;padding:1px 7px;border-radius:var(--radius-pill);background:color-mix(in srgb,currentColor 16%,transparent);font:600 11.5px var(--font-data)}
 .vl-count:empty{display:none}
 
-.vl-search{display:flex;flex-direction:column;gap:6px;margin:0}
+.vl-search{display:flex;flex-direction:column;gap:5px;margin:0}
 .vl-search-label{color:var(--text-secondary);font:600 12.5px var(--font-body)}
 .vl-search-row{display:flex;gap:8px;align-items:flex-start}
 .vl-search textarea{box-sizing:border-box;flex:1;min-width:0;min-height:42px;max-height:148px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel-2);color:var(--text);font:14px var(--font-body);line-height:1.45;resize:none}
@@ -24,35 +28,28 @@
 .vl-hint{margin:0;color:var(--muted);font-size:12px}
 .vl-hint kbd{padding:1px 5px;border:1px solid var(--border);border-radius:4px;background:var(--panel-2);font:11px var(--font-data)}
 
-.vl-meta{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.vl-source{margin:0;color:var(--muted);font-size:12.5px}
-.vl-source b{color:var(--text-secondary)}
-.vl-warn{color:var(--amber)}
-.vl-error{color:var(--red)}
-.vl-tool-btn{display:inline-flex;align-items:center;gap:7px;min-height:36px;padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel-2);color:var(--text);font:13px var(--font-body);cursor:pointer;transition:background .15s ease,border-color .15s ease}
-.vl-tool-btn svg{width:16px;height:16px}
-.vl-tool-btn:hover:not(:disabled){border-color:color-mix(in srgb,var(--primary) 45%,var(--border));background:color-mix(in srgb,var(--primary) 8%,var(--panel-2))}
-.vl-tool-btn:disabled{opacity:.65;cursor:progress}
-
 .vl-results{padding:0 0 4px;transition:opacity .15s ease}
 .vl-results.is-loading{opacity:.55;pointer-events:none}
-.vl-summary{margin:0;padding:12px 16px;color:var(--text-secondary);font-size:13px}
-.vl-feedback{margin:0 16px 12px;padding:10px 12px;border:1px solid color-mix(in srgb,var(--amber) 45%,var(--border));border-radius:var(--radius-sm);background:color-mix(in srgb,var(--amber) 9%,var(--panel));color:var(--text);font-size:12.5px;line-height:1.6}
+.vl-feedback{margin:10px 16px;padding:10px 12px;border:1px solid color-mix(in srgb,var(--amber) 45%,var(--border));border-radius:var(--radius-sm);background:color-mix(in srgb,var(--amber) 9%,var(--panel));color:var(--text);font-size:12.5px;line-height:1.6}
 .vl-limit{margin:0;padding:10px 16px;color:var(--muted);font-size:12px}
 
-.vl-scroll{overflow:auto;max-height:68vh;scrollbar-gutter:stable;border-top:1px solid var(--border)}
-.vl-table{width:100%;table-layout:fixed;border-collapse:collapse;text-align:left}
+.vl-scroll{overflow:auto;max-height:72vh;scrollbar-gutter:stable;border-top:1px solid var(--border)}
+.vl-results>.vl-scroll:first-child{border-top:0}
+/* Cỡ chữ theo app Apps Script cũ: thân bảng 13.5px, tiêu đề cột 11.5px đậm. */
+.vl-table{width:100%;table-layout:fixed;border-collapse:collapse;text-align:left;font-size:13.5px}
+.vl-table thead th{font:700 11.5px/1.35 var(--font-body);letter-spacing:.02em;color:var(--text-secondary)}
 /* Tiêu đề dính khi cuộn: nền đặc để chữ các dòng bên dưới không hiện xuyên qua; kẻ dưới bằng box-shadow vì border của ô sticky không đi theo. */
 .vl-table thead th{position:sticky;top:0;z-index:3;background:var(--panel-2);box-shadow:inset 0 -1px 0 var(--border)}
 .vl-table td{color:var(--text);vertical-align:middle}
 .vl-table tbody tr:hover td{background:var(--surface-hover)}
 /* Xuống dòng theo cả từ, không cắt giữa từ (table-controls.css mặc định overflow-wrap:anywhere). */
 table.tks-controlled-table.vl-table th,
-table.tks-controlled-table.vl-table td{overflow-wrap:normal !important;word-break:normal !important;hyphens:none;overflow:hidden;padding:11px 8px}
+table.tks-controlled-table.vl-table td{overflow-wrap:normal !important;word-break:normal !important;hyphens:none;overflow:hidden;padding:9px 8px}
+table.tks-controlled-table.vl-table th .sort-button>span:first-child{overflow-wrap:normal}
 .vl-table td.num{text-align:right;font-family:var(--font-data);font-variant-numeric:tabular-nums}
-.vl-mono{font-family:'IBM Plex Mono',monospace;font-size:12.5px}
+.vl-mono{font-family:'IBM Plex Mono',monospace;font-size:12px}
 
-.vl-badge{--st:var(--muted);display:inline-flex;align-items:center;gap:6px;margin:2px 0;padding:3px 9px;border:1px solid color-mix(in srgb,var(--st) 40%,var(--border));border-radius:var(--radius-pill);background:color-mix(in srgb,var(--st) 10%,var(--panel));color:color-mix(in srgb,var(--st) 85%,var(--text));font:600 12px var(--font-body);max-width:100%;box-sizing:border-box;line-height:1.3}
+.vl-badge{--st:var(--muted);display:inline-flex;align-items:center;gap:6px;margin:2px 0;padding:3px 9px;border:1px solid color-mix(in srgb,var(--st) 40%,var(--border));border-radius:var(--radius-pill);background:color-mix(in srgb,var(--st) 10%,var(--panel));color:color-mix(in srgb,var(--st) 85%,var(--text));font:600 11.5px var(--font-body);max-width:100%;box-sizing:border-box;line-height:1.3}
 .vl-badge[data-kind="ok"]{--st:var(--green)}
 .vl-badge[data-kind="warn"]{--st:var(--amber)}
 .vl-badge[data-kind="off"]{--st:var(--red)}
@@ -67,10 +64,11 @@ table.tks-controlled-table.vl-table td{overflow-wrap:normal !important;word-brea
 @media (max-width:640px){
   .vl-title{font-size:20px}
   .vl-toolbar{padding:12px}
-  .vl-tabs{align-self:stretch}
+  .vl-tabs{flex:1;min-width:0}
   .vl-tab{flex:1;justify-content:center;padding:6px 8px}
+  /* Điện thoại: nút cột chỉ còn icon (tên vẫn có qua aria-label) để vừa cùng hàng với 2 tab. */
+  .vl-tabbar .tks-columns-button{min-height:44px;padding:0 12px;gap:0;font-size:0}
   .vl-search-row{flex-direction:column;align-items:stretch}
-  .vl-source-detail{display:none}
-  .vl-table th,.vl-table td{font-size:12px}
+  .vl-table td{font-size:12.5px}
 }
-@media (prefers-reduced-motion:reduce){.vl-tab,.vl-tool-btn,.vl-results{transition:none}.vl-spinner{animation-duration:2s}}
+@media (prefers-reduced-motion:reduce){.vl-tab,.vl-results{transition:none}.vl-spinner{animation-duration:2s}}
