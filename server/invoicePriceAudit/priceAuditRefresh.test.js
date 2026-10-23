@@ -1,6 +1,6 @@
 'use strict';
 
-// Job 23:00 "Kiem tra gia ban": cong bo cua so 7 ngay [D-6, D] tren PGlite voi schema THAT.
+// Job 23:00 "Kiem tra gia ban": cong bo cua so 16 ngay [D-15, D] tren PGlite voi schema THAT.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -97,23 +97,24 @@ test('slot 23:00 VN = 16:00 UTC; ngay den han khong phu thuoc TZ cua server', ()
   }
 });
 
-test('Cua so doi ngay: giu nguyen giai thich/chot va nhat ky lau dai, chi bao cao 7 ngay', async () => {
-  const days = ['2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16', '2026-10-17', '2026-10-18', '2026-10-19', '2026-10-20'];
+test('Cua so doi ngay: giu nguyen giai thich/chot va nhat ky lau dai, chi bao cao 16 ngay', async () => {
+  const days = ['2026-10-04', '2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09', '2026-10-10', '2026-10-11',
+    '2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16', '2026-10-17', '2026-10-18', '2026-10-19', '2026-10-20'];
   const db = await setup(days);
   const pool = pgliteAsPool(db);
   try {
     const first = await run(pool, '2026-10-20');
     assert.equal(first.status, 'completed');
-    assert.equal(first.addedInvoices, 7);
-    assert.equal(first.addedLines, 7);
-    assert.equal(first.windowFrom, '2026-10-14');
+    assert.equal(first.addedInvoices, 16);
+    assert.equal(first.addedLines, 16);
+    assert.equal(first.windowFrom, '2026-10-05');
     assert.equal(first.windowTo, '2026-10-20');
     assert.deepEqual(await soldDays(db), days.slice(1));
     const s1 = await state(db);
     assert.equal(s1.published_day, '2026-10-20');
-    assert.equal(s1.window_from, '2026-10-14');
+    assert.equal(s1.window_from, '2026-10-05');
     assert.equal(s1.window_to, '2026-10-20');
-    assert.equal(s1.added_invoice_count, 7);
+    assert.equal(s1.added_invoice_count, 16);
     assert.equal(s1.last_error, null);
     assert.equal(new Date(s1.last_success_at).toISOString(), '2026-10-20T16:00:00.000Z');
 
@@ -133,14 +134,15 @@ test('Cua so doi ngay: giu nguyen giai thich/chot va nhat ky lau dai, chi bao ca
     assert.equal(second.status, 'completed');
     assert.equal(second.addedInvoices, 2);
     assert.equal(second.prunedInvoices, 0);
-    assert.equal(second.windowFrom, '2026-10-15');
+    assert.equal(second.windowFrom, '2026-10-06');
     assert.equal(second.windowTo, '2026-10-21');
-    assert.deepEqual(await soldDays(db), ['2026-10-14', '2026-10-15', '2026-10-16', '2026-10-17', '2026-10-18', '2026-10-19',
-      '2026-10-20', '2026-10-20', '2026-10-21']);
+    assert.deepEqual(await soldDays(db), ['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09', '2026-10-10', '2026-10-11', '2026-10-12',
+      '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16', '2026-10-17', '2026-10-18', '2026-10-19', '2026-10-20',
+      '2026-10-20', '2026-10-21']);
     assert.deepEqual(await soldDays(db, 'invoice_price_audit_lines'), await soldDays(db));
     const s2 = await state(db);
     assert.equal(s2.published_day, '2026-10-21');
-    assert.equal(s2.window_from, '2026-10-15');
+    assert.equal(s2.window_from, '2026-10-06');
     assert.equal(s2.added_invoice_count, 2);
     assert.equal(s2.version, s1.version + 1);
 
@@ -148,14 +150,14 @@ test('Cua so doi ngay: giu nguyen giai thich/chot va nhat ky lau dai, chi bao ca
     const after = await snapshot(db);
     assert.deepEqual(after.filter(r => r.sold_day !== '2026-10-21' && r.invoice_id !== 2001),
       before);
-    assert.equal(await count(db, 'invoice_price_audit_changes'), 7);
+    assert.equal(await count(db, 'invoice_price_audit_changes'), 16);
     const { rows: changedDays } = await db.query(`SELECT DISTINCT l.sold_day::text AS d FROM invoice_price_audit_changes c
       JOIN invoice_price_audit_lines l USING (branch, invoice_id, source_line_no) ORDER BY 1`);
-    assert.equal(changedDays[0].d, '2026-10-14');
+    assert.equal(changedDays[0].d, '2026-10-05');
     const report = await createPriceAuditRepository({ pool }).readReport({});
-    assert.equal(report.totalRows, 8);
-    assert.equal(report.rows.some(r => r.soldDay === '2026-10-14'), false);
-    assert.equal(report.rows.find(r => r.soldDay === '2026-10-15').explanationBy, 'Sale A');
+    assert.equal(report.totalRows, 17);
+    assert.equal(report.rows.some(r => r.soldDay === '2026-10-05'), false);
+    assert.equal(report.rows.find(r => r.soldDay === '2026-10-06').explanationBy, 'Sale A');
     // Hoa don muon mang ngay ban 20/10, gia luc ghi nhan lan dau (mo ta moi 20000 -> dung gia).
     const late = after.find(r => r.invoice_id === 2001);
     assert.equal(late.sold_day, '2026-10-20');
@@ -164,19 +166,20 @@ test('Cua so doi ngay: giu nguyen giai thich/chot va nhat ky lau dai, chi bao ca
   } finally { await db.close(); }
 });
 
-test('Thang/nam: 31/12 cong bo 25-31/12; 01/01/2027 cong bo 26/12-01/01', async () => {
-  const days = ['2026-12-24', '2026-12-25', '2026-12-26', '2026-12-27', '2026-12-28', '2026-12-29', '2026-12-30',
+test('Thang/nam: 31/12 cong bo 16-31/12; 01/01/2027 cong bo 17/12-01/01', async () => {
+  const days = ['2026-12-15', '2026-12-16', '2026-12-17', '2026-12-18', '2026-12-19', '2026-12-20', '2026-12-21', '2026-12-22',
+    '2026-12-23', '2026-12-24', '2026-12-25', '2026-12-26', '2026-12-27', '2026-12-28', '2026-12-29', '2026-12-30',
     '2026-12-31', '2027-01-01'];
   const db = await setup(days);
   const pool = pgliteAsPool(db);
   try {
     const dec = await run(pool, '2026-12-31');
     assert.equal(dec.status, 'completed');
-    assert.deepEqual([dec.windowFrom, dec.windowTo], ['2026-12-25', '2026-12-31']);
-    assert.deepEqual(await soldDays(db), days.slice(1, 8));
+    assert.deepEqual([dec.windowFrom, dec.windowTo], ['2026-12-16', '2026-12-31']);
+    assert.deepEqual(await soldDays(db), days.slice(1, 17));
     const jan = await run(pool, '2027-01-01');
     assert.equal(jan.status, 'completed');
-    assert.deepEqual([jan.windowFrom, jan.windowTo], ['2026-12-26', '2027-01-01']);
+    assert.deepEqual([jan.windowFrom, jan.windowTo], ['2026-12-17', '2027-01-01']);
     assert.deepEqual(await soldDays(db), days.slice(1));
     assert.equal((await state(db)).published_day, '2027-01-01');
   } finally { await db.close(); }
@@ -318,12 +321,12 @@ test('Chay tay hom nay truoc 23:00 VN duoc cong bo; ngay tuong lai bi tu choi, k
 });
 
 test('Dry-run: dem hoa don/dong/sai gia/cua so nhung KHONG ghi gi (ke ca state/last_error)', async () => {
-  const db = await setup(['2026-10-13', '2026-10-19', '2026-10-20']);
+  const db = await setup(['2026-10-04', '2026-10-19', '2026-10-20']);
   await addInvoice(db, 50, '2026-10-20 11:00:00+00', 24000); // dung gia
   const pool = pgliteAsPool(db);
   try {
     const res = await previewDailyAudit({ day: '2026-10-20', pool, now: at23('2026-10-20') });
-    assert.deepEqual(res, { mode: 'dry-run', day: '2026-10-20', windowFrom: '2026-10-14', windowTo: '2026-10-20',
+    assert.deepEqual(res, { mode: 'dry-run', day: '2026-10-20', windowFrom: '2026-10-05', windowTo: '2026-10-20',
       publishedDay: null, addedInvoices: 3, addedLines: 3, wrongLines: 2, prunedInvoices: 0 });
     assert.equal(await state(db), null);
     assert.equal(await count(db, 'invoice_price_audit_invoices'), 0);
@@ -362,8 +365,11 @@ test('CLI: mac dinh dry-run khong ghi; --apply chay that; tham so sai tra 1', as
     assert.equal((await state(db)).published_day, '2026-10-20');
     assert.equal(await cliMain(['--date', '2026-10-20', '--apply'], io), 0);
     assert.equal(JSON.parse(out.pop()).status, 'already-completed');
+    // --force bo qua nhan already-completed (chay lai ngay da cong bo, vd sau khi doi cua so).
+    assert.equal(await cliMain(['--date', '2026-10-20', '--apply', '--force'], io), 0);
+    assert.equal(JSON.parse(out.pop()).status, 'completed');
 
-    for (const bad of [['--date', '2026-13-01'], ['--date'], ['--force'], ['--date', '20/10/2026']]) {
+    for (const bad of [['--date', '2026-13-01'], ['--date'], ['--bogus'], ['--date', '20/10/2026']]) {
       assert.equal(await cliMain(bad, io), 1, bad.join(' '));
     }
   } finally { await db.close(); }

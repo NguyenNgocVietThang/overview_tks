@@ -3,7 +3,7 @@
 // "Kiem tra gia ban" (tab Hoa don): CHUP hoa don chua quet vao invoice_price_audit_* va DOC bang ket qua.
 //
 // captureUnseenInvoices: chay trong giao dich cua NGUOI GOI (job 23:00, Task 4) - khong BEGIN/COMMIT.
-//   Chon hoa don "Hoan thanh" ngay ban trong [day-6, day] chua co so danh dau; tai DU cac dong (SL > 0),
+//   Chon hoa don "Hoan thanh" ngay ban trong [day-15, day] chua co so danh dau; tai DU cac dong (SL > 0),
 //   khach, mo ta gia HN/SG va cuoc Can do trong cung ban doc; parse mo ta o JS (chuoi), tinh gia bang
 //   NUMERIC trong SQL (priceAuditSql.CAPTURE_LINES_SQL). Them so danh dau truoc (ON CONFLICT DO NOTHING)
 //   roi chi chup dong cua hoa don vua them -> khong bao gio cap nhat/nhan ban dong cu.
@@ -20,7 +20,7 @@ const S = require('./priceAuditSql');
 const fuzzy = require('../shared/fuzzySearch');
 
 const SOURCE_NOT_READY = 'PRICE_AUDIT_SOURCE_NOT_READY';
-const WINDOW_DAYS = 7;
+const WINDOW_DAYS = 16;
 const DEFAULT_PAGE_SIZE = 50;
 
 function sourceNotReady(message) {
@@ -115,7 +115,7 @@ async function assertMeasuresReady(client) {
 }
 
 /**
- * Chup moi hoa don "Hoan thanh" chua quet co ngay ban trong [day-6, day].
+ * Chup moi hoa don "Hoan thanh" chua quet co ngay ban trong [day-15, day].
  * @param {{ day: string, client: { query: Function }, now: Date|number|string }} args client DA o trong giao dich.
  * @returns {Promise<{ addedInvoices: number, addedLines: number }>}
  */
@@ -480,7 +480,7 @@ function createPriceAuditRepository({ pool = getPool() } = {}) {
       await client.query('BEGIN');
       const locked = (await client.query(LOCK_ROW_SQL, params)).rows[0];
       if (!locked || !locked.in_window) {
-        throw httpError(404, 'Dòng kiểm tra giá không tồn tại hoặc đã hết cửa sổ 7 ngày.', 'NOT_FOUND');
+        throw httpError(404, 'Dòng kiểm tra giá không tồn tại hoặc đã hết cửa sổ 16 ngày.', 'NOT_FOUND');
       }
       const before = mapRow(locked);
       if (spec.authorize) spec.authorize(before);

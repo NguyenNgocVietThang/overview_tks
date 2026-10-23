@@ -275,7 +275,7 @@ test('Snapshot: doi nguon sau khi chup khong doi dong cu; them/xoa/doi thu tu do
       ('hanoi', 1, 0, 1, 7, 1, 0, '{}'), ('hanoi', 1, 1, 1, 10, 23000, 0, '{}'), ('hanoi', 1, 2, 1, 3, 1, 0, '{}')`);
     // Hoa don den muon (ngay ban 18/10) + hoa don ngoai cua so.
     await invoice(db, { id: 2, customerId: 1, purchaseDate: '2026-10-18 23:10:00+00', lines: [{ productId: 1, code: 'T100', name: 'Ly', qty: 1, price: 1 }] });
-    await invoice(db, { id: 3, customerId: 1, purchaseDate: '2026-10-13 23:59:00+00', lines: [{ productId: 1, code: 'T100', name: 'Ly', qty: 1, price: 1 }] });
+    await invoice(db, { id: 3, customerId: 1, purchaseDate: '2026-10-04 23:59:00+00', lines: [{ productId: 1, code: 'T100', name: 'Ly', qty: 1, price: 1 }] });
     assert.deepEqual(await capture(db), { addedInvoices: 1, addedLines: 1 });
     assert.deepEqual(await capture(db), { addedInvoices: 0, addedLines: 0 });
     const after = (await db.query('SELECT * FROM invoice_price_audit_lines WHERE invoice_id = 1 ORDER BY source_line_no')).rows;
@@ -285,26 +285,26 @@ test('Snapshot: doi nguon sau khi chup khong doi dong cu; them/xoa/doi thu tu do
   } finally { await db.close(); }
 });
 
-test('Cua so va ngay gio: Kiot 00:10 khong dich +7h; D-6 vao, D-7 khong; chua Hoan thanh khong chup', async () => {
+test('Cua so va ngay gio: Kiot 00:10 khong dich +7h; D-15 vao, D-16 khong; chua Hoan thanh khong chup', async () => {
   const db = await newDb();
   try {
     await baseHn(db);
     const ln = [{ productId: 1, code: 'T100', name: 'Ly', qty: 1, price: 24000 }];
-    await invoice(db, { id: 1, customerId: 1, purchaseDate: '2026-10-14 00:10:00+00', lines: ln });
-    await invoice(db, { id: 2, customerId: 1, purchaseDate: '2026-10-13 23:50:00+00', lines: ln });
+    await invoice(db, { id: 1, customerId: 1, purchaseDate: '2026-10-05 00:10:00+00', lines: ln });
+    await invoice(db, { id: 2, customerId: 1, purchaseDate: '2026-10-04 23:50:00+00', lines: ln });
     await invoice(db, { id: 3, customerId: 1, purchaseDate: '2026-10-20 23:59:00+00', lines: ln });
     await invoice(db, { id: 4, customerId: 1, purchaseDate: '2026-10-21 00:05:00+00', lines: ln });
     await invoice(db, { id: 5, customerId: 1, status: 'Đã hủy', lines: ln });
     await invoice(db, { id: 6, customerId: 1, lines: [{ ...ln[0], qty: 0 }] });
     assert.deepEqual(await capture(db), { addedInvoices: 3, addedLines: 2 });
     const { rows } = await db.query(`SELECT invoice_id::text AS id, sold_day::text AS day FROM invoice_price_audit_invoices ORDER BY 1`);
-    assert.deepEqual(rows, [{ id: '1', day: '2026-10-14' }, { id: '3', day: '2026-10-20' }, { id: '6', day: '2026-10-20' }]);
+    assert.deepEqual(rows, [{ id: '1', day: '2026-10-05' }, { id: '3', day: '2026-10-20' }, { id: '6', day: '2026-10-20' }]);
     const repo = createPriceAuditRepository({ pool: db });
-    await publish(db, '2026-10-14', DAY);
+    await publish(db, '2026-10-05', DAY);
     const report = await repo.readReport({}, null);
     const first = report.rows.find(r => r.invoiceId === '1');
-    assert.equal(first.soldAt, '2026-10-14T00:10:00');
-    assert.equal(first.soldDay, '2026-10-14');
+    assert.equal(first.soldAt, '2026-10-05T00:10:00');
+    assert.equal(first.soldDay, '2026-10-05');
   } finally { await db.close(); }
 });
 
