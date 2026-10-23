@@ -1,5 +1,7 @@
 # CURRENT: BẢNG TRẠNG THÁI THỜI GIAN THỰC (REALTIME DASHBOARD)
 
+> 23/10/2026 — **Sửa 9 test quyền Khách bị lệch chính sách từ `847b468` (chưa commit/push):** cập nhật 6 file test theo quyền Hồ sơ, Quy định công ty và Nghỉ phép; giữ thông tin công tác/bộ phận được duyệt khi đổi sang Khách nhưng xác nhận không có quyền duyệt nghỉ. Test middleware dùng vai trò nội bộ cho quyền tra cứu vận đơn; test lịch dùng danh sách quyền thiếu `hr.leave` để kiểm tra từ chối. Sửa hai chú thích chính sách cũ, không đổi logic chạy thực tế. Nhóm liên quan: 134/134 đạt. Toàn bộ `npm test -- --test-concurrency=4 --test-reporter=spec` trên Node 24.19.0 với biến môi trường giả, không cấu hình DB thật: 3.351 đạt, 3 bỏ qua, 0 lỗi (3.354 test). `git diff --check` đạt. Chưa cập nhật đồ thị: máy chưa có lệnh `graphify`; chưa kiểm chứng Node 22.
+
 > 23/10/2026 — **Kiểm tra giá bán (Invoice Price Audit) — hoàn thiện luật & chuẩn hóa 10 khách bao cước (đã commit `14f53e4` trên `main`, push thành công lên cả 2 remote GitHub `origin` và `tks_web`):**
 > (1) Cập nhật danh sách 10 khách hàng bao cước HN sang chuẩn tên mới trên KiotViet (giữ nguyên dấu, so khớp chính xác tên): `NN Jinlong Campuchia`, `NN A Kai (ML) Campuchia`, `NN Vin Dany Campuchia`, `SG Tín Phong Shop`, `NN Heng Campuchia`, `MN C Thư Sóc Trăng`, `SG A Thìn Bình Tân`, `MN C Thu Thủy Bình Phước`, `MN C Vân Anh Bình Phước`, `NN QHI Campuchia`.
 > (2) Đọc bậc giá theo chiếc (448 mã ghi bậc `100CT -2800`, `le T-`): bậc `CT` đếm thẳng theo số chiếc, không nhân với số chiếc/thùng; bậc `nT` vẫn tính `n × chiếc/thùng` (`fe2239c`).

@@ -41,7 +41,7 @@ test('Sổ quỹ yêu cầu đăng nhập và chặn Sale/Kho/Khách trên mọi
     assert.equal(anonymous.nextCalled, false, url);
     assert.equal(anonymous.res.redirectedTo, '/login/?next=' + encodeURIComponent(url));
     for (const [role, target] of [[ROLES.NHAN_VIEN_SALE, '/reports/'],
-      [ROLES.NHAN_VIEN_KHO, '/humanresources/'], [ROLES.KHACH, '/account/']]) {
+      [ROLES.NHAN_VIEN_KHO, '/humanresources/'], [ROLES.KHACH, '/humanresources/']]) {
       const denied = await run(guardFor({ vaiTro: role }), fakeReq(url, { token: 'ok' }));
       assert.equal(denied.nextCalled, false, role + ' ' + url);
       assert.equal(denied.res.redirectedTo, target);
@@ -116,7 +116,7 @@ test('thieu quyen: chuyen toi trang dau tien tai khoan vao duoc', async () => {
   const guest = guardFor({ vaiTro: ROLES.KHACH, trangThai: 'Đang hoạt động' });
   const { res } = await run(guest, fakeReq('/reports/', { token: 'ok' }));
   assert.equal(res.statusCode, 302);
-  assert.equal(res.redirectedTo, '/account/', 'Khach khong con Vong doi don hang nen chi con trang Tai khoan');
+  assert.equal(res.redirectedTo, '/humanresources/', 'Khách được xem Quy định công ty và Nghỉ phép');
 
   const accountant = guardFor({ vaiTro: ROLES.KE_TOAN, trangThai: 'Đang hoạt động' });
   const { res: res2 } = await run(accountant, fakeReq('/', { token: 'ok' }));

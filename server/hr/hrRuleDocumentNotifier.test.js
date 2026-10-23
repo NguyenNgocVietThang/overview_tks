@@ -23,11 +23,11 @@ function setup(overrides = {}) {
   return { notifier, created };
 }
 
-test('người nhận = tài khoản có quyền hr.rules, bỏ người thao tác và Khách', async () => {
+test('người nhận = tài khoản có quyền hr.rules, gồm Khách, bỏ người thao tác', async () => {
   const { notifier, created } = setup();
   await notifier.documentAdded({ id: 'm1', hoTen: 'Quản lý A' }, { title: 'Nội quy kho', slug: 'pdf-7' });
 
-  assert.deepEqual(created[0].ids, ['m2', 's1']);
+  assert.deepEqual(created[0].ids, ['m2', 's1', 'g1']);
   assert.equal(created[0].payload.type, 'rule_document_added');
   assert.equal(created[0].payload.relatedType, 'ruleDocument');
   assert.equal(created[0].payload.relatedId, 'pdf-7');

@@ -106,7 +106,7 @@ test('shared nav khong con mang vai tro cung — menu dung tu danh sach quyen', 
   assert.match(script, /TKSNav\.can/);
 });
 
-test('sidebar cua Khach: chi con ho so ca nhan (Vong doi don hang da gan quyen rieng)', () => {
+test('sidebar của Khách chỉ có Hồ sơ, Quy định công ty và Nghỉ phép', () => {
   const dom = loadSharedNav('https://tokosi.example/account/');
   const { window } = dom;
   const sidebar = window.document.getElementById('sidebar');
@@ -117,13 +117,17 @@ test('sidebar cua Khach: chi con ho so ca nhan (Vong doi don hang da gan quyen r
   });
 
   assert.doesNotMatch(sidebar.innerHTML, /Báo cáo tổng hợp/);
-  assert.doesNotMatch(sidebar.innerHTML, /Quản lý nhân sự/);
+  assert.match(sidebar.innerHTML, /Quản lý nhân sự/);
+  assert.match(sidebar.innerHTML, /Quy định công ty/);
+  assert.match(sidebar.innerHTML, /Nghỉ phép/);
+  assert.deepEqual([...sidebar.querySelectorAll('a')].map(a => a.getAttribute('href')),
+    ['/humanresources/#quydinh', '/humanresources/#leave', '/account/#profile']);
   assert.doesNotMatch(sidebar.innerHTML, /Quản lý người dùng/);
   assert.doesNotMatch(sidebar.innerHTML, /Vòng đời đơn hàng/);
   assert.match(sidebar.innerHTML, /Quản lý hồ sơ/);
 });
 
-test('bang PAGE_FEATURES: Khach chi vao duoc trang tai khoan', () => {
+test('PAGE_FEATURES: Khách vào được Tài khoản và Nhân sự, không vào báo cáo hoặc vận đơn', () => {
   const dom = loadSharedNav('https://tokosi.example/account/');
   const { window } = dom;
   window.TKSNav.setPermissions({ permissions: defaultsForRole('Khách'), pageFeatures: PAGE_FEATURES });
@@ -140,9 +144,9 @@ test('bang PAGE_FEATURES: Khach chi vao duoc trang tai khoan', () => {
   assert.equal(allowed('/'), false);
   assert.equal(allowed('/index.html'), false);
   assert.equal(allowed('/reports/'), false);
-  assert.equal(allowed('/humanresources/'), false);
+  assert.equal(allowed('/humanresources/'), true);
 
-  assert.equal(window.TKSNav._landingPath(), '/account/');
+  assert.equal(window.TKSNav._landingPath(), '/humanresources/');
 });
 
 test('trang bao cao duoc phuc vu o ca "/" lan "/reports/" nen ca hai cung mot quy tac quyen', () => {

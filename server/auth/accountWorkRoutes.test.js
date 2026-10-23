@@ -27,7 +27,7 @@ test('create persists independent role and workplace and rejects incomplete or c
     assert.equal(denied.body.code, code);
   }
 });
-test('partial updates validate effective workplace, preserve membership on role changes, and clear guest fields', async () => {
+test('partial updates validate effective workplace and preserve guest workplace without granting approval', async () => {
   store.setInMemoryUsers([{ id: 'staff', username: 'staff', vaiTro: 'Trợ lý', coSo: 'Cả hai', workCoSo: 'Hà Nội', boPhan: 'Kế toán', trangThai: 'Đang hoạt động', leaveApprovalDepartments: ['Kho HN'] }]);
   let res = await request('put', '/api/admin/users/:id', { vaiTro: 'Nhân viên kho' });
   assert.equal(res.statusCode, 200);
@@ -44,9 +44,11 @@ test('partial updates validate effective workplace, preserve membership on role 
   }
   res = await request('put', '/api/admin/users/:id', { vaiTro: 'Khách' });
   assert.equal(res.statusCode, 200);
-  assert.equal(res.body.user.workCoSo, '');
-  assert.equal(res.body.user.boPhan, '');
-  assert.deepEqual(res.body.user.leaveApprovalDepartments, []);
+  assert.equal(res.body.user.workCoSo, 'Sài Gòn');
+  assert.equal(res.body.user.boPhan, 'Kho SG');
+  assert.deepEqual(res.body.user.leaveApprovalDepartments, ['Kho HN']);
+  assert.ok(registry.resolvePermissions(res.body.user).includes('hr.leave.submit'));
+  assert.equal(registry.hasFeature(res.body.user, 'hr.leave.manage'), false);
 });
 test('catalog exposes fixed workplace departments without reading HR', async () => {
   const directory = require('../hr/employeeDirectory');

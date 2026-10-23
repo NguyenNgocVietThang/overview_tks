@@ -1,7 +1,7 @@
 // ==========================================
 // HR RULE DOCUMENT NOTIFIER — bao len chuong thong bao khi Quan ly them / go /
 // khoi phuc tai lieu "Quy dinh cong ty". Nguoi nhan = moi tai khoan co quyen
-// `hr.rules` (tru nguoi thao tac; tai khoan Khach khong mo duoc trang HR).
+// `hr.rules` (gồm tài khoản Khách, trừ người thao tác).
 // Best-effort: KHONG BAO GIO throw — loi thong bao khong duoc lam hong thao tac chinh.
 // ==========================================
 'use strict';
