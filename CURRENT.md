@@ -373,3 +373,13 @@ Cùng khách ở 2 cơ sở (15/10/2026): ở bảng tổng thưởng/phạt sal
 ## Ghi nhớ cột theo tài khoản (23/10/2026)
 - Độ rộng cột + cột ẩn/hiện lưu theo tài khoản (bảng `user_table_prefs`, migration 0085 **đã áp DB dùng chung 23/10/2026**), API `GET/PUT /api/me/table-prefs`, client `table-controls.js` (`loadPrefs`, lưu debounce 800 ms). Không có nút đặt lại.
 - Việc còn lại: kiểm thử trên trình duyệt thật sau deploy; chưa commit/deploy.
+
+
+### 23/10/2026 — Ghi chú khác của CONT
+
+- Đọc cột G (vị trí thứ 7) của cả 7 nguồn CONT thành `otherNote`, hiển thị **Ghi chú khác** sau Ghi chú sale trên Dự kiến hàng về, hộp chi tiết cùng mã và xuất Excel/HTML.
+- Quyền riêng `reports.products.expected.otherNote`: mặc định Quản lý, tài khoản khác cấp tại phần phân quyền. Không có quyền thì API loại trường, không tìm kiếm hoặc xuất được nội dung này; độc lập với quyền xem giá/nguồn CONT.
+- Migration `0086_product_container_other_note.sql` thêm `other_note text DEFAULT ''` vào `product_container_lines` và `product_container_expected`. Cho phép NULL để tiến trình cũ vẫn ghi được trong lúc chuyển phiên bản.
+- Đã áp riêng migration 0086 trên DB cấu hình và đồng bộ thủ công 23/10/2026: 13.044 dòng mỗi bảng, 5.839 dòng có ghi chú, 0 dòng lệch giữa hai bảng. Không áp migration khác đang chờ.
+- Kiểm tra liên quan 49/49 đạt; kiểm tra DOM các tổ hợp quyền và thu hồi quyền đạt, toàn bộ script nội tuyến phân tích cú pháp thành công. Chưa kiểm tra trình duyệt thật.
+- Code cục bộ chưa deploy. Cần triển khai phiên bản mới để web hiện cột và các lượt đồng bộ định kỳ tiếp tục giữ cột G; tiến trình đồng bộ phiên bản cũ chưa đọc trường này. Chạy thủ công khi cần: `refreshContainers({ force: true })`, sau đó `refreshExpected()`; force chỉ bỏ chờ chu kỳ, vẫn giữ khóa và kiểm tra nguồn.

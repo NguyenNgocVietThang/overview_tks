@@ -422,3 +422,6 @@ Quản lý có thể theo dõi và xuất công nợ/thưởng phạt theo Nhóm
 ## Cập nhật Chi tiết khách — 23/10/2026
 
 Bổ sung Diện tích, kênh bán Khác và đánh giá Rất to. Đánh giá quy mô do Quản lý thực hiện riêng, cạnh danh sách người sửa và lịch tiếp khách gọn. Thông tin dài xuống dòng, Note cũ xem bằng cuộn trong khung; xem ảnh lớn chuyển được ảnh trước/sau. Bảng doanh số chỉ hiển thị ngày tiếp khách; chỉnh ngày trong Chi tiết khách. Quy tắc Note và quyền sửa thông tin chung giữ nguyên. Thiết kế đã duyệt trong `docs/superpowers/specs/2026-10-23-customer-profile-refinement-design.md`; migration 0084 chưa áp DB thật, chưa deploy.
+
+
+23/10/2026: Dự kiến hàng về bổ sung **Ghi chú khác** từ cột G của 7 nguồn CONT; quyền riêng `reports.products.expected.otherNote`, mặc định Quản lý, cho phép cấp riêng từng tài khoản; áp dụng bảng, chi tiết, API và xuất Excel/HTML. Migration 0086 đã áp DB, đã nạp 5.839 ghi chú trên 13.044 dòng; code chưa deploy.

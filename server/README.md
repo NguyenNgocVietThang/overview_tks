@@ -667,3 +667,13 @@ Thiết kế: [spec đã duyệt](../docs/superpowers/specs/2026-10-23-customer-
 | `PUT /api/me/table-prefs/:tableKey/:mode` body `{ columns: { [colKey]: { width?, hidden? } } }` | đăng nhập | Ghi đè cấu hình một bảng; `mode` là `desktop`/`mobile`, độ rộng 24–2000, ≤200 cột, sai →400. `user_id` lấy từ phiên |
 
 Client nạp một lần khi tải trang (`TKSTables.loadPrefs`), lưu sau khi kéo cột/đổi cột hiển thị với debounce 800 ms; trang chưa đăng nhập (401) hoặc file HTML xuất ra không gọi API. Độ rộng đã lưu được ưu tiên hơn tự co giãn lần đầu. Không có nút đặt lại. [Thiết kế](../docs/superpowers/specs/2026-10-23-table-column-prefs-design.md).
+
+
+### 23/10/2026 — Ghi chú khác của CONT
+
+- Đọc cột G (vị trí thứ 7) của cả 7 nguồn CONT thành `otherNote`, hiển thị **Ghi chú khác** sau Ghi chú sale trên Dự kiến hàng về, hộp chi tiết cùng mã và xuất Excel/HTML.
+- Quyền riêng `reports.products.expected.otherNote`: mặc định Quản lý, tài khoản khác cấp tại phần phân quyền. Không có quyền thì API loại trường, không tìm kiếm hoặc xuất được nội dung này; độc lập với quyền xem giá/nguồn CONT.
+- Migration `0086_product_container_other_note.sql` thêm `other_note text DEFAULT ''` vào `product_container_lines` và `product_container_expected`. Cho phép NULL để tiến trình cũ vẫn ghi được trong lúc chuyển phiên bản.
+- Đã áp riêng migration 0086 trên DB cấu hình và đồng bộ thủ công 23/10/2026: 13.044 dòng mỗi bảng, 5.839 dòng có ghi chú, 0 dòng lệch giữa hai bảng. Không áp migration khác đang chờ.
+- Kiểm tra liên quan 49/49 đạt; kiểm tra DOM các tổ hợp quyền và thu hồi quyền đạt, toàn bộ script nội tuyến phân tích cú pháp thành công. Chưa kiểm tra trình duyệt thật.
+- Code cục bộ chưa deploy. Cần triển khai phiên bản mới để web hiện cột và các lượt đồng bộ định kỳ tiếp tục giữ cột G; tiến trình đồng bộ phiên bản cũ chưa đọc trường này. Chạy thủ công khi cần: `refreshContainers({ force: true })`, sau đó `refreshExpected()`; force chỉ bỏ chờ chu kỳ, vẫn giữ khóa và kiểm tra nguồn.

@@ -847,3 +847,6 @@ FR-16.11: bảng Doanh số theo khách thêm cột Ghi chú và Tiếp khách l
 Thiết kế hiện hành: `docs/superpowers/specs/2026-10-23-customer-profile-refinement-design.md` (thay mô tả giao diện/quy mô FR-16.11 ngày 22/10). Thêm Diện tích text ≤500 ký tự; hình thức bán hàng nhiều lựa chọn thêm Khác; quy mô chỉ Quản lý sửa riêng, thêm Rất to. API mới `PUT /api/business-report/customer-profile/scale` body `{key, warehouseScale}` trả `{warehouseScale}`, yêu cầu customerNotes + customerManage. PUT profile nhận thêm area và không được thay quy mô.
 
 Hai cột thông tin/Note; Note cuộn riêng 360px, chữ dài xuống dòng. Ba nhóm người sửa/quy mô/lịch nằm cạnh nhau desktop, xếp dọc mobile. Lịch gọn, chỉ ngày chọn có viền vuông bo góc, giữ Lưu/Hủy. Cột ngày ngoài bảng không có lịch chọn. Gallery chuyển ảnh chỉ sau khi mở ảnh lớn, hỗ trợ phím và Esc. Migration 0084 chưa áp DB dùng chung; chưa deploy.
+
+
+23/10/2026: Dự kiến hàng về bổ sung **Ghi chú khác** từ cột G của 7 nguồn CONT; quyền riêng `reports.products.expected.otherNote`, mặc định Quản lý, cho phép cấp riêng từng tài khoản; áp dụng bảng, chi tiết, API và xuất Excel/HTML. Migration 0086 đã áp DB, đã nạp 5.839 ghi chú trên 13.044 dòng; code chưa deploy.

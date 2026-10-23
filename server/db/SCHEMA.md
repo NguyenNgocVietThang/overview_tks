@@ -4,7 +4,7 @@
 
 22/10/2026 — `hr_employees.insurance_number TEXT NOT NULL DEFAULT ''` (migration `0078_hr_employee_insurance_number.sql`), unique index trên số không rỗng của hồ sơ chưa xóa mềm; chỉ quyền `hr.employees.manage` nhận từ API/Excel. Server áp riêng migration này trước khi nhận request, có advisory lock cho nhiều instance và không chạy migration khác đang chờ.
 
-Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0085`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
+Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0086`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
 
 ## Quy ước chung
 
@@ -675,3 +675,8 @@ Thông tin chung và quy mô dùng hai UPSERT cập nhật các cột riêng: PU
 ## Cấu hình bảng theo tài khoản — migration 0085 (23/10/2026, đã áp DB dùng chung 23/10/2026)
 
 `0085_user_table_prefs.sql` tạo `user_table_prefs(user_id TEXT, table_key TEXT, screen_mode TEXT CHECK desktop/mobile, prefs JSONB CHECK object, updated_at)`, khóa chính `(user_id, table_key, screen_mode)`. `prefs = {"columns": {"<colKey>": {"width": number, "hidden": boolean}}}`, chỉ chứa cột người dùng đã đổi. `user_id` không có FK tới `app_users` (tài khoản có thể nằm ở kho JSON). Đã thu hồi SELECT của `reporting_readonly`. Chạy lại được.
+
+## Ghi chú khác của CONT — migration 0086 (23/10/2026, đã áp DB dùng chung 23/10/2026)
+
+`0086_product_container_other_note.sql` thêm cột `other_note text DEFAULT ''` vào hai bảng `product_container_lines` và `product_container_expected`. Cho phép NULL để tiến trình cũ vẫn ghi được trong lúc chuyển phiên bản. Đã nạp 5.839 ghi chú từ cột G của 7 sheet CONT trên 13.044 dòng mỗi bảng.
+

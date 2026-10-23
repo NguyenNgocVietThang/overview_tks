@@ -69,7 +69,7 @@
 
 ---
 
-## 3. Bản đồ Migration Cơ sở dữ liệu (0001 – 0085)
+## 3. Bản đồ Migration Cơ sở dữ liệu (0001 – 0086)
 
 | Dải Migration | Phân hệ & Nội dung chính |
 |---|---|
@@ -100,6 +100,7 @@
 | `0083` | `vat_requests` trạng thái 5 ("VAT sẵn nhiều"). |
 | `0084` | `customer_profiles.area`, mở rộng `warehouse_scale` (very_large) và `sales_channels` (khac). |
 | `0085` | `user_table_prefs` — Ghi nhớ độ rộng và ẩn/hiện cột theo tài khoản (desktop/mobile). |
+| `0086` | `product_container_other_note` — Ghi chú khác của CONT từ cột G. |
 
 ---
 

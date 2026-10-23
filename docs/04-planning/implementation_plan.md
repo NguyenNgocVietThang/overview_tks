@@ -211,3 +211,6 @@ Công nợ / Nhóm sale: dùng helper `server/debtSchedule/saleTeams.js` tra nh�
 ### 23/10/2026 — Chi tiết khách
 
 Triển khai cục bộ theo spec `docs/superpowers/specs/2026-10-23-customer-profile-refinement-design.md`: area/Khác/Rất to, lưu quy mô chỉ Quản lý, bố cục ba nhóm, lịch gọn, Note cuộn riêng và gallery. Migration `0084_customer_profile_details.sql` **chưa áp DB dùng chung**; chưa deploy. Kiểm chứng trên PGlite và dữ liệu giả trong Chrome, không thay dữ liệu vận hành.
+
+
+23/10/2026: Dự kiến hàng về bổ sung **Ghi chú khác** từ cột G của 7 nguồn CONT; quyền riêng `reports.products.expected.otherNote`, mặc định Quản lý, cho phép cấp riêng từng tài khoản; áp dụng bảng, chi tiết, API và xuất Excel/HTML. Migration 0086 đã áp DB, đã nạp 5.839 ghi chú trên 13.044 dòng; code chưa deploy.
