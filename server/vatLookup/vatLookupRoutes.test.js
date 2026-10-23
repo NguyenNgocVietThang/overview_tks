@@ -6,23 +6,23 @@ const express = require('express');
 const registry = require('../auth/featureRegistry');
 const { ROLES } = require('../auth/userRepository');
 const { createVatLookupRouter } = require('./vatLookupRoutes');
+const { parseCsv } = require('../vatDraft/csv');
 const { createLookupSource } = require('./lookupSource');
 
+// Key = sheetId cua tab trong file VAT TKS (Gộp VAT, Khớp mã goc, MUA VAT SIDA).
 const CSV = {
-  0: 'CTY,Mã kiot đại diện,Tên kiot đại diện,MÃ VAT KIOT,TÊN VAT KIOT,TÊN HÀNG,Đơn vị tính,x,TỒN ĐẦU NGÀY,GIÁ BÁN,THUẾ VAT,THUẾ NK,TỔNG THUẾ MẤT,TỔNG ĐANG NHÁP,TỒN CÓ THỂ NHÁP\n'
+  950697804: 'CTY,Mã kiot đại diện,Tên kiot đại diện,MÃ VAT KIOT,TÊN VAT KIOT,TÊN HÀNG,Đơn vị tính,x,TỒN ĐẦU NGÀY,GIÁ BÁN,THUẾ VAT,THUẾ NK,TỔNG THUẾ MẤT,TỔNG ĐANG NHÁP,TỒN CÓ THỂ NHÁP\n'
     + 'TKS THẤP,TALEWS,Bút,VAT11629,Bút VAT,Bút chấm chân tóc,Cái,x,"1,000",1,8%,,8.00%,,"1,000"',
-  1192158065: 'CHECK TỒN BÊN SHEET VAT,,\nMã SP,Tên SP,,,,,,,,MÃ VAT KIOT,TÊN VAT KIOT\nTALEWS,BÚT NHUỘM TÓC SUAKE (OD),,,,,,,,VAT11629,Bút VAT',
-  1150116423: 'TRẠNG THÁI,CONT,mã kiot,tên kiot,\n1. Đang chờ khai,10-10Y,TALEWS,BÚT NHUỘM TÓC SUAKE (OD),972'
+  631827560: ',,,,,,,Đỏ cao quá,Vàng thấp quá\nMã SP,Tên SP,Giá Bq,,,,,,,Mã vat kiot,Tên trước (Giá đầu  - Giá cuối) (VAT)\nTALEWS,BÚT NHUỘM TÓC SUAKE (OD),,,,,,,,VAT11629,Bút VAT',
+  467403108: 'TRẠNG THÁI,CONT,mã kiot,tên kiot,\n1. Đang chờ khai,10-10Y,TALEWS,BÚT NHUỘM TÓC SUAKE (OD),972'
 };
 
-/** fetch gia lap Google Sheets export: tra CSV theo gid trong URL. */
-function fakeFetch(overrides = {}) {
+/** Sheets API gia lap: tra mang dong theo sheetId cua tab. */
+function fakeReadValues(overrides = {}) {
   const calls = [];
-  const impl = async url => {
-    const gid = new URL(url).searchParams.get('gid');
-    calls.push(gid);
-    const body = gid in overrides ? overrides[gid] : CSV[gid];
-    return new Response(body, { status: 200, headers: { 'content-type': 'text/csv; charset=utf-8' } });
+  const impl = async ({ sheetId }) => {
+    calls.push(String(sheetId));
+    return parseCsv(sheetId in overrides ? overrides[sheetId] : CSV[sheetId]);
   };
   impl.calls = calls;
   return impl;
@@ -33,7 +33,7 @@ function userFor(vaiTro, featurePermissions) {
   return { ...user, permissions: registry.resolvePermissions(user) };
 }
 
-async function request(path, { user = userFor(ROLES.NHAN_VIEN_SALE), method = 'GET', body, source = createLookupSource({ fetchImpl: fakeFetch() }) } = {}) {
+async function request(path, { user = userFor(ROLES.NHAN_VIEN_SALE), method = 'GET', body, source = createLookupSource({ readValues: fakeReadValues() }) } = {}) {
   const app = express();
   app.use(express.json());
   app.use((req, res, next) => { req.user = user; req.effectiveUserResolved = !!user; next(); });
@@ -72,11 +72,11 @@ test('GET /meta: so san pham, dong nguon, khong cache trinh duyet', async () => 
   assert.ok(res.body.loadedAt);
 });
 
-test('POST /search: tra ca 2 tab tu 1 lan goi; doc dung 3 gid', async () => {
-  const fetchImpl = fakeFetch();
-  const res = await request('/search', { method: 'POST', body: { q: 'talews\nkhongco' }, source: createLookupSource({ fetchImpl }) });
+test('POST /search: tra ca 2 tab tu 1 lan goi; doc dung 3 tab', async () => {
+  const readValues = fakeReadValues();
+  const res = await request('/search', { method: 'POST', body: { q: 'talews\nkhongco' }, source: createLookupSource({ readValues }) });
   assert.equal(res.status, 200);
-  assert.deepEqual(fetchImpl.calls.sort(), ['0', '1150116423', '1192158065']);
+  assert.deepEqual(readValues.calls.sort(), ['467403108', '631827560', '950697804']);
   assert.deepEqual(res.body.queries, ['talews', 'khongco']);
   assert.deepEqual(res.body.notFoundQueries, ['khongco']);
   assert.deepEqual(res.body.vat.rows.map(r => [r.maKiot, r.maVat, r.tonCoTheNhap, r.conVAT, r.hasIncoming]), [['TALEWS', 'VAT11629', 1000, true, true]]);
@@ -90,7 +90,7 @@ test('POST /search: noi dung qua dai -> 400', async () => {
 });
 
 test('DK về 2 tra #REF! -> 503 co code ro rang', async () => {
-  const source = createLookupSource({ fetchImpl: fakeFetch({ 1150116423: '#REF!' }) });
+  const source = createLookupSource({ readValues: fakeReadValues({ 467403108: '#REF!' }) });
   const res = await request('/search', { method: 'POST', body: { q: 'TALEWS' }, source });
   assert.equal(res.status, 503);
   assert.equal(res.body.code, 'DK_VE_REF_ERROR');
@@ -98,10 +98,10 @@ test('DK về 2 tra #REF! -> 503 co code ro rang', async () => {
 
 test('POST /refresh ep tai lai; Sheets loi sau do -> tra ban cu danh dau stale', async () => {
   let fail = false;
-  const base = fakeFetch();
-  const fetchImpl = async url => { if (fail) throw new Error('mạng'); return base(url); };
+  const base = fakeReadValues();
+  const readValues = async sheet => { if (fail) throw new Error('mạng'); return base(sheet); };
   let clock = 0;
-  const source = createLookupSource({ fetchImpl, now: () => clock });
+  const source = createLookupSource({ readValues, now: () => clock });
   assert.equal((await request('/refresh', { method: 'POST', source })).body.stale, false);
   assert.equal(base.calls.length, 3);
   fail = true;

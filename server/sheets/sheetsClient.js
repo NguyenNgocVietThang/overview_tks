@@ -164,6 +164,35 @@ function createClient(getSpreadsheetId, branchLabel) {
   return { getValues, getMultipleSheetValues, listSheetTitles };
 }
 
+/**
+ * Doc 1 tab xac dinh theo sheetId (= gid tren URL) thay vi theo ten: doi ten tab
+ * khong lam hong nguon. Tra mang 2 chieu nhu values.get (cuoi dong / cuoi bang trong bi cat).
+ * @param {{ spreadsheetId: string, sheetId: number|string, range?: string }} source
+ *   range dang 'A1:P' (bo trong = ca tab).
+ * @param {{ sheetsApi?: object, valueRenderOption?: string }} options sheetsApi de test gia lap.
+ */
+async function readSheetValuesById({ spreadsheetId, sheetId, range = '' }, { sheetsApi, valueRenderOption = 'FORMATTED_VALUE' } = {}) {
+  const sheets = sheetsApi || await getSheetsApi();
+  const meta = await sheets.spreadsheets.get({
+    spreadsheetId,
+    fields: 'sheets.properties(sheetId,title)'
+  }, { timeout: API_TIMEOUT_MS });
+  const tab = (meta.data.sheets || []).find(s => String(s.properties.sheetId) === String(sheetId));
+  if (!tab) {
+    const err = new Error(`Không có tab sheetId ${sheetId} trong file ${spreadsheetId}.`);
+    err.code = 'SHEET_TAB_NOT_FOUND';
+    throw err;
+  }
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: quoteSheetName(tab.properties.title) + (range ? `!${range}` : ''),
+    valueRenderOption,
+    dateTimeRenderOption: 'FORMATTED_STRING'
+  }, { timeout: API_TIMEOUT_MS });
+  return res.data.values || [];
+}
+
 module.exports = {
-  createReadOnlyClient: createClient
+  createReadOnlyClient: createClient,
+  readSheetValuesById
 };

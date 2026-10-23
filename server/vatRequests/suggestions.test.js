@@ -6,7 +6,6 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { PGlite } = require('@electric-sql/pglite');
 const { rankCustomerSuggestions, createVatRequestSuggestions } = require('./suggestions');
-const { defaultStockConfig } = require('./stockSource');
 
 test('goi y khach: khong dau, dao thu tu tu, gop ten trung va uu tien ma KiotViet', () => {
   const directory = [{ name: 'Công ty Hòa Bình', code: 'KH-204' }, { name: 'Công ty Hòa Bình', code: 'SG-999' },
@@ -42,9 +41,4 @@ test('gia goi y lay yeu cau VAT gan nhat cung ma, bo gia trong va dong da xoa', 
     });
     assert.deepEqual(await suggestions.prices('KHONGCO'), { latestOrder: null });
   } finally { await db.close(); }
-});
-
-test('tab ton VAT mac dinh la GỘP MỚI gid 39032', () => {
-  assert.equal(defaultStockConfig().stockGid, '39032');
-  assert.equal(defaultStockConfig().stockSheetId, '1dNabQaiob7CMozrqjA746uV-atHWJi8gbG6L-I0yrmU');
 });

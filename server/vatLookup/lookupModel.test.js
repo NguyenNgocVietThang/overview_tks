@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { parseCsv } = require('../vatDraft/csv');
 const m = require('./lookupModel');
-const { parseLookupCsvs, isFormulaErrorSheet } = require('./lookupSource');
+const { parseLookupRecords, isFormulaErrorSheet } = require('./lookupSource');
 
 // Header giong sheet that (23/10/2026): Khớp mã co dong ghi chu phia tren header,
 // DK về 2 co cot so luong cuoi khong co ten.
@@ -34,7 +34,7 @@ const DKVE = [
   '2. Đang về cảng,BSUNG-1,TALEWS,BÚT NHUỘM TÓC SUAKE (OD),972'
 ].join('\n');
 
-const model = () => parseLookupCsvs({ gop: GOP, khop: KHOP, dkve: DKVE });
+const model = () => parseLookupRecords({ gop: parseCsv(GOP), khop: parseCsv(KHOP), dkve: parseCsv(DKVE) });
 
 test('rowsToObjects: do dung dong header nam duoi dong ghi chu, cot khong ten thanh "Cột N"', () => {
   const rows = m.rowsToObjects(parseCsv(KHOP), ['ma sp', 'ten sp']);
@@ -122,5 +122,12 @@ test('model dem dong tung sheet', () => {
 test('sheet chi con o #REF! -> loi 503 DK_VE_REF_ERROR', () => {
   assert.equal(isFormulaErrorSheet(parseCsv('#REF!')), true);
   assert.equal(isFormulaErrorSheet(parseCsv(DKVE)), false);
-  assert.throws(() => parseLookupCsvs({ gop: GOP, khop: KHOP, dkve: '#REF!' }), error => error.code === 'DK_VE_REF_ERROR' && error.statusCode === 503);
+  assert.throws(() => parseLookupRecords({ gop: parseCsv(GOP), khop: parseCsv(KHOP), dkve: [['#REF!']] }), error => error.code === 'DK_VE_REF_ERROR' && error.statusCode === 503);
+});
+
+test('Khớp mã goc (file VAT TKS): cot K "Tên trước (Giá đầu - Giá cuối) (VAT)" dung lam ten VAT', () => {
+  const khop = parseCsv(',,,,,,,Đỏ cao quá,Vàng thấp quá\nMã SP,Tên SP,Giá Bq,,,,,,,Mã vat kiot,Tên trước (Giá đầu  - Giá cuối) (VAT)\nNOGOP,Ấm Hoa,0,,,,,,,VAT90009,"Ấm (72,300 - 78,700) (VAT)"');
+  const built = parseLookupRecords({ gop: parseCsv(GOP), khop, dkve: parseCsv(DKVE) });
+  const result = m.search(built, ['NOGOP']);
+  assert.deepEqual(result.vat.rows.map(r => [r.maKiot, r.maVat, r.tenVat]), [['NOGOP', 'VAT90009', 'Ấm (72,300 - 78,700) (VAT)']]);
 });

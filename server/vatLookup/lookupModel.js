@@ -3,7 +3,7 @@
 // Tra cuu VAT (port app Apps Script "Tra cứu VAT" logic v12, D:\tra-cuu\tra-cuu-vat).
 // Logic THUAN, chep nguyen van tu Code.gs (do dong header) + Index.html (ghep san pham,
 // tim kiem) de ket qua trung app cu: KHONG dung vatDraft/normalization (chuan hoa khac).
-// Nguon: 3 sheet cong khai Gộp VAT, Khớp mã, DK về 2 — doc theo TEN cot nhu app cu.
+// Nguon: 3 tab file VAT TKS (Gộp VAT, Khớp mã, DK về 2 = MUA VAT SIDA A:E) — doc theo TEN cot nhu app cu.
 
 /* ---------- Code.gs: nhan dien dong header, ten cot duy nhat ---------- */
 
@@ -108,7 +108,9 @@ function buildKhopMaRows(rawRows) {
   if (!rawRows.length) return [];
   const resolve = buildHeaderResolver(rawRows[0]);
   const kMaSP = resolve(['ma sp']), kTenSP = resolve(['ten sp']);
-  const kMaVat = resolve(['ma vat kiot']), kTenVat = resolve(['ten vat kiot']);
+  // Tab Khớp mã goc dat ten cot K la "Tên trước (Giá đầu - Giá cuối) (VAT)"; ban IMPORTRANGE
+  // cu (FILE SALE) dat la "TÊN VAT KIOT" — cung du lieu.
+  const kMaVat = resolve(['ma vat kiot']), kTenVat = resolve(['ten vat kiot', 'ten truoc (gia dau - gia cuoi) (vat)']);
   const out = [];
   rawRows.forEach(row => {
     const maKiot = cell(row, kMaSP), tenKiot = cell(row, kTenSP);

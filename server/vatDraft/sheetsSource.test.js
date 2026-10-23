@@ -9,9 +9,12 @@ const {
   parseGopVat,
   parseKhopMa,
   parseMasterData,
+  fetchSheetRecords,
   fetchSheetCsv,
   createMasterDataSource
 } = require('./sheetsSource');
+const vatDraftConfig = require('./vatDraftConfig');
+const { readSheetValuesById } = require('../sheets/sheetsClient');
 
 const GOP_HEADER = 'CTY,Mã kiot đại diện,Tên kiot đại diện,MÃ VAT KIOT,TÊN VAT KIOT,TÊN HÀNG,Đơn vị tính,x,TỒN ĐẦU NGÀY,GIÁ BÁN,THUẾ VAT,THUẾ NK,TỔNG THUẾ MẤT,TỔNG ĐANG NHÁP,TỒN CÓ THỂ NHÁP';
 const KHOP_HEADER = 'CHECK TỒN BÊN SHEET VAT,,,,,,,,,,\nMã SP,Tên SP,,,,,,,,MÃ VAT KIOT,TÊN VAT KIOT';
@@ -71,7 +74,7 @@ test('parseKhopMa bo 2 dong dau, doc A/B/J/K', () => {
 });
 
 test('cot nam ngoai pham vi sheet -> loi', () => {
-  const data = parseMasterData('a,b,c\n1,2,3', 'x\ny\n1,2');
+  const data = parseMasterData(parseCsv('a,b,c\n1,2,3'), parseCsv('x\ny\n1,2'));
   assert.equal(data.errors.length, 2);
   assert.match(data.errors[0], /Gộp VAT' thiếu cột/);
 });
@@ -91,27 +94,61 @@ test('fetchSheetCsv: sheet het cong khai (tra HTML) -> loi ro rang', async () =>
   );
 });
 
-test('createMasterDataSource: cache 10 phut, refresh ep tai lai, loi thi tra ban cu (stale)', async () => {
-  let calls = 0;
+test('readSheetValuesById: tim tab theo sheetId roi doc theo ten (co nhay), khong co tab -> SHEET_TAB_NOT_FOUND', async () => {
+  const calls = [];
+  const sheetsApi = {
+    spreadsheets: {
+      get: async params => { calls.push(['get', params.spreadsheetId]); return { data: { sheets: [{ properties: { sheetId: 7, title: "Gộp VAT's" } }] } }; },
+      values: { get: async params => { calls.push(['values', params.range, params.valueRenderOption]); return { data: { values: [['a']] } }; } }
+    }
+  };
+  assert.deepEqual(await readSheetValuesById({ spreadsheetId: 'F', sheetId: '7', range: 'A1:P' }, { sheetsApi }), [['a']]);
+  assert.deepEqual(calls, [['get', 'F'], ['values', "'Gộp VAT''s'!A1:P", 'FORMATTED_VALUE']]);
+  await assert.rejects(readSheetValuesById({ spreadsheetId: 'F', sheetId: 8 }, { sheetsApi }), error => error.code === 'SHEET_TAB_NOT_FOUND');
+});
+
+test('fetchSheetRecords: dem du cot nhu CSV export (values.get cat o trong cuoi dong), so -> chuoi', async () => {
+  const records = await fetchSheetRecords({
+    source: { spreadsheetId: 'F', sheetId: 1 }, sheetName: 'Gộp VAT',
+    readValues: async () => [['h1', 'h2', 'h3'], [], ['x'], [1, null, 'z']]
+  });
+  assert.deepEqual(records, [['h1', 'h2', 'h3'], ['', '', ''], ['x', '', ''], ['1', '', 'z']]);
+});
+
+test('fetchSheetRecords: loi Sheets API -> loi 503 co code ro rang', async () => {
+  const failWith = error => fetchSheetRecords({ source: { spreadsheetId: 'F', sheetId: 1 }, sheetName: 'Gộp VAT', readValues: async () => { throw error; } });
+  await assert.rejects(failWith(Object.assign(new Error('The caller does not have permission'), { code: 403 })),
+    error => error.code === 'SHEET_FORBIDDEN' && error.statusCode === 503 && /Service account/.test(error.message));
+  await assert.rejects(failWith(Object.assign(new Error('x'), { code: 'SHEET_TAB_NOT_FOUND' })), error => error.code === 'SHEET_TAB_NOT_FOUND' && /sheetId 1/.test(error.message));
+  await assert.rejects(failWith(Object.assign(new Error('Not found'), { response: { status: 404 } })), error => error.code === 'SHEET_HTTP');
+  await assert.rejects(failWith(new Error('timeout of 15000ms exceeded')), error => error.code === 'SHEET_TIMEOUT');
+  await assert.rejects(failWith(new Error('socket hang up')), error => error.code === 'SHEET_NETWORK');
+});
+
+test('createMasterDataSource: doc 2 tab theo sheetId; cache 10 phut, refresh ep tai lai, loi thi tra ban cu (stale)', async () => {
+  const sources = [];
   let fail = false;
   let clock = 0;
-  const gop = `${GOP_HEADER}\nMAY,SP1,Tên,VAT1,Tên VAT,KT,Cái,MAY,1,100,8%,,8%,,5`;
-  const khop = `${KHOP_HEADER}\nSP1,Tên,,,,,,,,VAT1,Tên VAT`;
-  const fetchImpl = async url => {
-    calls += 1;
+  const gop = parseCsv(`${GOP_HEADER}\nMAY,SP1,Tên,VAT1,Tên VAT,KT,Cái,MAY,1,100,8%,,8%,,5`);
+  const khop = parseCsv(`${KHOP_HEADER}\nSP1,Tên,,,,,,,,VAT1,Tên VAT`);
+  const readValues = async source => {
+    sources.push(source);
     if (fail) throw new Error('mat mang');
-    return fakeResponse({ body: url.includes('gid=0') ? gop : khop });
+    return source.sheetId === vatDraftConfig.gopVatSheet.sheetId ? gop : khop;
   };
-  const source = createMasterDataSource({ fetchImpl, now: () => clock });
+  const source = createMasterDataSource({ readValues, now: () => clock });
   const first = await source.get();
   assert.equal(first.stockRows.length, 1);
   assert.equal(first.mappingRows.length, 1);
-  assert.equal(calls, 2);
+  assert.deepEqual(sources.map(s => [s.spreadsheetId, s.sheetId, s.range]), [
+    [vatDraftConfig.spreadsheetId, vatDraftConfig.gopVatSheet.sheetId, 'A1:P'],
+    [vatDraftConfig.spreadsheetId, vatDraftConfig.khopMaSheet.sheetId, 'A1:K']
+  ]);
   clock = 5 * 60 * 1000;
   await source.get();
-  assert.equal(calls, 2, 'con trong 10 phut thi dung cache');
+  assert.equal(sources.length, 2, 'con trong 10 phut thi dung cache');
   await source.refresh();
-  assert.equal(calls, 4);
+  assert.equal(sources.length, 4);
   fail = true;
   const stale = await source.refresh();
   assert.equal(stale.stale, true);

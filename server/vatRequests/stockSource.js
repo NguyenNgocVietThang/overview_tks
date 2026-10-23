@@ -2,29 +2,35 @@
 
 // Cot O "Tồn VAT" cua Yeu cau xuat VAT: cot TỒN ĐẦU NGÀY cua tab GỘP MỚI (file VAT TKS).
 // Tra ma SP -> sheet "Khớp mã" -> MÃ VAT KIOT -> cong moi cong ty (cot CTY) cung ma VAT.
-// Sheet doc qua URL export CSV cong khai giong Nhap VAT (vatDraft/sheetsSource.js), cache
-// 10 phut, loi tam thoi tra ban cu toi da 6 gio. Chi DOC sheet; khong dung thuat toan
-// phan bo cua Nhap VAT.
+// Doc bang service account (Sheets API, chi doc) giong Nhap VAT (vatDraft/sheetsSource.js),
+// cache 10 phut, loi tam thoi tra ban cu toi da 6 gio. Chi DOC sheet; khong dung thuat
+// toan phan bo cua Nhap VAT.
 //
-// Mac dinh doc tab GỘP MỚI (gid 39032) cua sheet cong khai Nhap VAT; van co the
-// doi nguon qua bien moi truong (config.js). Bo cuc: A=CTY, B=Mã kiot đại diện,
-// D=MÃ VAT KIOT, I=TỒN ĐẦU NGÀY.
+// Mac dinh doc tab GỘP MỚI (sheetId 1753209460) va Khớp mã cua file VAT TKS; van co the
+// doi nguon qua bien moi truong (config.js): *_SHEET_ID = ID file, *_GID = sheetId cua tab.
+// Doc theo chu cai cot nen doc ca tab. Bo cuc: A=CTY, B=Mã kiot đại diện, D=MÃ VAT KIOT,
+// I=TỒN ĐẦU NGÀY.
 
-const { parseCsv } = require('../vatDraft/csv');
-const { fetchSheetCsv, columnLetterToIndex } = require('../vatDraft/sheetsSource');
+const { fetchSheetRecords, columnLetterToIndex } = require('../vatDraft/sheetsSource');
 const { normalizeCode, normalizeCodeForMatch, toFloatOrNone } = require('../vatDraft/normalization');
 const { createTtlSnapshotCache } = require('../lib/ttlSnapshotCache');
 const vatDraftConfig = require('../vatDraft/vatDraftConfig');
 const appConfig = require('../config');
 
+const GOP_MOI_SHEET_ID = 1753209460;
+
 function defaultStockConfig() {
   return {
-    stockSheetId: appConfig.VAT_REQUEST_STOCK_SHEET_ID || vatDraftConfig.sheetId,
-    stockGid: appConfig.VAT_REQUEST_STOCK_GID || '39032',
+    stockSheet: {
+      spreadsheetId: appConfig.VAT_REQUEST_STOCK_SHEET_ID || vatDraftConfig.spreadsheetId,
+      sheetId: appConfig.VAT_REQUEST_STOCK_GID || GOP_MOI_SHEET_ID
+    },
     stockSkipRows: 1,
     stockColumns: { company: 'A', representativeCode: 'B', vatCode: 'D', stock: appConfig.VAT_REQUEST_STOCK_COLUMN || 'I' },
-    mappingSheetId: appConfig.VAT_REQUEST_MAPPING_SHEET_ID || vatDraftConfig.sheetId,
-    mappingGid: appConfig.VAT_REQUEST_MAPPING_GID || String(vatDraftConfig.gidKhopMa),
+    mappingSheet: {
+      spreadsheetId: appConfig.VAT_REQUEST_MAPPING_SHEET_ID || vatDraftConfig.spreadsheetId,
+      sheetId: appConfig.VAT_REQUEST_MAPPING_GID || vatDraftConfig.khopMaSheet.sheetId
+    },
     mappingSkipRows: vatDraftConfig.khopMaSkipRows,
     mappingColumns: { productCode: vatDraftConfig.khopMaColumns['Mã SP'], vatCode: vatDraftConfig.khopMaColumns['Mã vat kiot'] }
   };
@@ -35,12 +41,12 @@ function cellReader(columns) {
   return (row, name) => normalizeCode(row[indexes[name]] ?? '');
 }
 
-/** CSV tab ton -> Map(maVatNorm -> [{ company, stock }]) + Map(maKiotDaiDienNorm -> Set(maVatNorm)). */
-function parseStockCsv(csv, config) {
+/** Tab ton (mang dong) -> Map(maVatNorm -> [{ company, stock }]) + Map(maKiotDaiDienNorm -> Set(maVatNorm)). */
+function parseStockRecords(records, config) {
   const read = cellReader(config.stockColumns);
   const stockByVat = new Map();
   const vatByRepresentative = new Map();
-  for (const row of parseCsv(csv).slice(config.stockSkipRows)) {
+  for (const row of records.slice(config.stockSkipRows)) {
     const vatKey = normalizeCodeForMatch(read(row, 'vatCode'));
     if (!vatKey) continue;
     const stock = toFloatOrNone(read(row, 'stock'));
@@ -55,11 +61,11 @@ function parseStockCsv(csv, config) {
   return { stockByVat, vatByRepresentative };
 }
 
-/** CSV Khớp mã -> Map(maSpNorm -> Set(maVatNorm)). */
-function parseMappingCsv(csv, config) {
+/** Tab Khớp mã (mang dong) -> Map(maSpNorm -> Set(maVatNorm)). */
+function parseMappingRecords(records, config) {
   const read = cellReader(config.mappingColumns);
   const vatByProduct = new Map();
-  for (const row of parseCsv(csv).slice(config.mappingSkipRows)) {
+  for (const row of records.slice(config.mappingSkipRows)) {
     const productKey = normalizeCodeForMatch(read(row, 'productCode'));
     const vatKey = normalizeCodeForMatch(read(row, 'vatCode'));
     if (!productKey || !vatKey) continue;
@@ -85,17 +91,17 @@ function lookupStock(snapshot, productCode) {
   return { total, byCompany };
 }
 
-function createStockSource({ fetchImpl = globalThis.fetch, config = defaultStockConfig(), now } = {}) {
+function createStockSource({ readValues, config = defaultStockConfig(), now } = {}) {
   const cache = createTtlSnapshotCache({
     freshTtlMs: 10 * 60 * 1000,
     staleTtlMs: 6 * 60 * 60 * 1000,
     ...(now ? { now } : {}),
     fetch: async () => {
-      const [stockCsv, mappingCsv] = await Promise.all([
-        fetchSheetCsv({ gid: config.stockGid, sheetName: 'Tồn VAT', sheetId: config.stockSheetId, fetchImpl }),
-        fetchSheetCsv({ gid: config.mappingGid, sheetName: 'Khớp mã', sheetId: config.mappingSheetId, fetchImpl })
+      const [stockRecords, mappingRecords] = await Promise.all([
+        fetchSheetRecords({ source: config.stockSheet, sheetName: 'Tồn VAT', readValues }),
+        fetchSheetRecords({ source: config.mappingSheet, sheetName: 'Khớp mã', readValues })
       ]);
-      return { ...parseStockCsv(stockCsv, config), vatByProduct: parseMappingCsv(mappingCsv, config) };
+      return { ...parseStockRecords(stockRecords, config), vatByProduct: parseMappingRecords(mappingRecords, config) };
     }
   });
   return {
@@ -105,4 +111,4 @@ function createStockSource({ fetchImpl = globalThis.fetch, config = defaultStock
   };
 }
 
-module.exports = { defaultStockConfig, parseStockCsv, parseMappingCsv, lookupStock, createStockSource };
+module.exports = { GOP_MOI_SHEET_ID, defaultStockConfig, parseStockRecords, parseMappingRecords, lookupStock, createStockSource };
