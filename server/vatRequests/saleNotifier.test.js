@@ -66,7 +66,7 @@ test('KT sua lien tuc: chi gui 1 thong bao khi da yen 10 phut, gia tri cuoi cung
     assert.equal(sent[0].type, TYPE);
     assert.equal(sent[0].relatedType, RELATED_TYPE);
     assert.equal(sent[0].title, 'Kế toán đã cập nhật 2 yêu cầu ORDER VAT');
-    assert.equal(sent[0].message, 'KH A · 014XOAN: 2. Đã khai chờ về, note: CONT 10-6V\nKH B · 26DAQUAN: ngày về 28/10/2026');
+    assert.equal(sent[0].message, 'KH A · 014XOAN: Đã khai chờ về, note: CONT 10-6V\nKH B · 26DAQUAN: ngày về 28/10/2026');
 
     at(30);
     await notifier.runOnce();
@@ -80,7 +80,7 @@ test('KT sua lien tuc: chi gui 1 thong bao khi da yen 10 phut, gia tri cuoi cung
     at(12);
     await notifier.runOnce();
     assert.equal(sent.length, 2);
-    assert.equal(sent[1].message, 'KH B · 26DAQUAN: 1. Đã xong');
+    assert.equal(sent[1].message, 'KH B · 26DAQUAN: Đã xong');
   } finally { await db.close(); }
 });
 
@@ -205,7 +205,7 @@ test('formatDigest: nhan trang thai, ngay, xoa note / ngay, toi da 5 dong', () =
   assert.equal(lines.length, 6);
   assert.equal(lines[0], 'KH 1 · SP1: Chờ KT xử lý, (xóa note)');
   assert.equal(lines[1], 'KH 2 · SP2: (xóa ngày về)');
-  assert.equal(lines[2], 'KH 3 · SP3: 4. Chờ cont về, tăng slg');
+  assert.equal(lines[2], 'KH 3 · SP3: Chờ cont về, tăng slg');
   assert.equal(lines[5], '… và 2 yêu cầu khác');
 });
 

@@ -270,7 +270,9 @@
     const control = td.querySelector('[data-inline]');
     if (text && field === 'accountantNote') control.value = text;
     if (text && field === 'status') {
-      const match = state.statuses.find(s => s.label.toLowerCase().startsWith(text.toLowerCase()));
+      // Gõ mã (0-5) hoặc chữ đầu nhãn; nhãn không còn đánh số nên khớp mã trước.
+      const match = state.statuses.find(s => s.value === text) ||
+        state.statuses.find(s => s.label.toLowerCase().startsWith(text.toLowerCase()));
       if (match) { control.value = match.value; control.dataset.status = match.value; }
     }
     control.focus();
