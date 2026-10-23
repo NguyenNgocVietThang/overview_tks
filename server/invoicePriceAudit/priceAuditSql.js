@@ -8,9 +8,9 @@
 // Tham so cua cac ham builder la BIEU THUC SQL noi bo (ten cot / alias), khong bao gio la du lieu
 // nguoi dung.
 
-const LEVEL_LABELS = Object.freeze({ medium: 'Vừa', large: 'Lớn', vip: 'VIP' });
+const LEVEL_LABELS = Object.freeze({ medium: 'Vừa', large: 'Lớn', new: 'Mới', vip: 'Vip' });
 // Bac thu 1/2/3 cua mo ta = cap Vua/Lon/VIP; bac 4 chi la bac so luong.
-const LEVEL_POSITIONS = Object.freeze({ medium: 1, large: 2, vip: 3 });
+const LEVEL_POSITIONS = Object.freeze({ medium: 1, large: 2, new: 2, vip: 3 });
 
 const REASONS = Object.freeze({
   priced: 'Theo giá quy định',

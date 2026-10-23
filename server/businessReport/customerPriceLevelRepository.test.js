@@ -22,7 +22,7 @@ test('initialization archives every source, preserves displayed merged level and
     await db.query(`INSERT INTO customers VALUES ('hanoi',1,'KH1','Chị A','{"email":"vip@x"}'),
       ('saigon',2,'KH2','chị  A','{"email":"lon@x"}'), ('hanoi',3,'KH3','Chưa bán','{"email":"vua@x"}')`);
     const snap = serviceSnapshot();
-    snap.directory[0].priceLevel = 'vip';
+    snap.directory[0].priceLevel = 'Vip';
     await repo.initialize(snap);
     assert.equal((await db.query('SELECT * FROM customer_price_level_sources')).rows.length, 3);
     assert.equal((await repo.getLevels(['chị a']))['chị a'].level, 'vip');

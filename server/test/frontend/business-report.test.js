@@ -548,7 +548,7 @@ test('Team trong bang Sale: Quan ly (reports.business.editTeam) thay dropdown, d
 
 
 const profileRows = rows => rows.map((r, i) => Object.assign({}, r, {
-  priceLevel: i === 0 ? 'lớn' : 'vừa', priceLevelVersion: 3, canEditPriceLevel: i === 0,
+  priceLevel: i === 0 ? 'Lớn' : 'Vừa', priceLevelVersion: 3, canEditPriceLevel: i === 0,
   salesChannels: i === 0 ? ['san', 'fb_ads'] : [], warehouseScale: i === 0 ? 'small' : 'none'
 }));
 
@@ -595,11 +595,11 @@ test('price level dropdown locks, persists version, refreshes options and never 
   select.value = 'vip'; select.dispatchEvent(new page.dom.window.Event('change', { bubbles: true }));
   assert.equal(select.disabled, true);
   assert.deepEqual(sent, { key, level: 'vip', version: 3 });
-  resolveSave({ ok: true, status: 200, json: async () => ({ priceLevel: 'vip', priceLevelVersion: 4 }) }); await settle();
+  resolveSave({ ok: true, status: 200, json: async () => ({ priceLevel: 'Vip', priceLevelVersion: 4 }) }); await settle();
   const updated = page.doc.querySelector('.business-price-level-select');
   assert.equal(updated.value, 'vip'); assert.equal(updated.disabled, false);
   assert.equal(page.run('businessFilteredCustomers()[0].priceLevelVersion'), 4);
-  assert.ok([...page.$('businessCustomersLevel').options].some(o => o.value === 'vip'));
+  assert.ok([...page.$('businessCustomersLevel').options].some(o => o.value === 'Vip'));
   assert.equal(page.$('docModalBackdrop').hidden, true);
 });
 

@@ -8629,7 +8629,7 @@
 
     function businessPriceLevelCellHtml(row) {
       if (!row.canEditPriceLevel) return '<td>' + escapeHtml(row.priceLevel || '') + '</td>';
-      const values = [['medium', 'vừa', 'Vừa'], ['large', 'lớn', 'Lớn'], ['vip', 'vip', 'VIP']];
+      const values = [['medium', 'Vừa', 'Vừa'], ['large', 'Lớn', 'Lớn'], ['new', 'Mới', 'Mới'], ['vip', 'Vip', 'Vip']];
       return '<td data-sort-value="' + escapeHtml(row.priceLevel) + '"><select class="business-price-level-select" data-key="' + escapeHtml(row.key) + '" aria-label="Level giá của ' + escapeHtml(row.name) + '"' + (row.priceLevelSaving ? ' disabled' : '') + '>' +
         values.map(function (item) { return '<option value="' + item[0] + '"' + (row.priceLevel === item[1] ? ' selected' : '') + '>' + item[2] + '</option>'; }).join('') + '</select></td>';
     }
@@ -8640,7 +8640,7 @@
       const data = state.business.data.customers;
       const row = data && data.rows.find(function (item) { return item.key === select.dataset.key; });
       if (!row || !row.canEditPriceLevel || row.priceLevelSaving) return;
-      const current = { 'vừa': 'medium', 'lớn': 'large', 'vip': 'vip' }[row.priceLevel];
+      const current = { 'Vừa': 'medium', 'Lớn': 'large', 'Mới': 'new', 'Vip': 'vip' }[row.priceLevel];
       if (select.value === current) return;
       row.priceLevelSaving = true;
       select.disabled = true;

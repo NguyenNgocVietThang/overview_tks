@@ -21,12 +21,12 @@ test('local price level: manager and assigned editor can change, unrelated viewe
   assert.equal((await call('/customer-price-level', { method:'PUT',body, permissions:VIEW })).status,403);
   const assigned = fakeProfiles({ editors:[{key:KEY,userId:'u-1'}] });
   assert.deepEqual((await call('/customer-price-level', { method:'PUT',body,permissions:VIEW,profiles:assigned })).data,
-    {priceLevel:'vip',priceLevelVersion:2});
+    {priceLevel:'Vip',priceLevelVersion:2});
   const levels = { saveLevel:async () => { throw Object.assign(new Error('conflict'),{statusCode:409,code:'PRICE_LEVEL_CONFLICT'}); } };
   assert.equal((await call('/customer-price-level', {method:'PUT',body,levels})).status,409);
   const report = await call('/customers', {permissions:VIEW,profiles:assigned});
   const row = report.data.rows.find(r => r.key === KEY);
-  assert.equal(row.priceLevel,'lớn');
+  assert.equal(row.priceLevel,'Lớn');
   assert.equal(row.canEditPriceLevel,true);
   assert.deepEqual(row.salesChannels,['san']);
   const fields = await call('/export/fields?kind=customers&salesChannel=san&warehouseScale=small', {permissions:[...VIEW,'reports.export']});
