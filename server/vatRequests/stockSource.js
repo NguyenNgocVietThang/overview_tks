@@ -1,12 +1,13 @@
 'use strict';
 
-// Cot O "Tồn VAT" cua Yeu cau xuat VAT: cot TỒN ĐẦU NGÀY cua tab GỘP MỚI (file VAT TKS).
+// Cot O "Tồn VAT" cua Yeu cau xuat VAT: cot TỒN ĐẦU NGÀY cua tab Gộp VAT (file VAT TKS, cung
+// tab Nhap VAT va Tra cuu VAT dung; truoc 23/10/2026 doc tab GỘP MỚI).
 // Tra ma SP -> sheet "Khớp mã" -> MÃ VAT KIOT -> cong moi cong ty (cot CTY) cung ma VAT.
 // Doc bang service account (Sheets API, chi doc) giong Nhap VAT (vatDraft/sheetsSource.js),
 // cache 10 phut, loi tam thoi tra ban cu toi da 6 gio. Chi DOC sheet; khong dung thuat
 // toan phan bo cua Nhap VAT.
 //
-// Mac dinh doc tab GỘP MỚI (sheetId 1753209460) va Khớp mã cua file VAT TKS; van co the
+// Mac dinh doc tab Gộp VAT va Khớp mã cua file VAT TKS (vatDraftConfig); van co the
 // doi nguon qua bien moi truong (config.js): *_SHEET_ID = ID file, *_GID = sheetId cua tab.
 // Doc theo chu cai cot nen doc ca tab. Bo cuc: A=CTY, B=Mã kiot đại diện, D=MÃ VAT KIOT,
 // I=TỒN ĐẦU NGÀY.
@@ -17,13 +18,11 @@ const { createTtlSnapshotCache } = require('../lib/ttlSnapshotCache');
 const vatDraftConfig = require('../vatDraft/vatDraftConfig');
 const appConfig = require('../config');
 
-const GOP_MOI_SHEET_ID = 1753209460;
-
 function defaultStockConfig() {
   return {
     stockSheet: {
       spreadsheetId: appConfig.VAT_REQUEST_STOCK_SHEET_ID || vatDraftConfig.spreadsheetId,
-      sheetId: appConfig.VAT_REQUEST_STOCK_GID || GOP_MOI_SHEET_ID
+      sheetId: appConfig.VAT_REQUEST_STOCK_GID || vatDraftConfig.gopVatSheet.sheetId
     },
     stockSkipRows: 1,
     stockColumns: { company: 'A', representativeCode: 'B', vatCode: 'D', stock: appConfig.VAT_REQUEST_STOCK_COLUMN || 'I' },
@@ -111,4 +110,4 @@ function createStockSource({ readValues, config = defaultStockConfig(), now } = 
   };
 }
 
-module.exports = { GOP_MOI_SHEET_ID, defaultStockConfig, parseStockRecords, parseMappingRecords, lookupStock, createStockSource };
+module.exports = { defaultStockConfig, parseStockRecords, parseMappingRecords, lookupStock, createStockSource };
