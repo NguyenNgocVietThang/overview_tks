@@ -3,7 +3,7 @@
 .locations-tabs a{padding:10px 16px;color:var(--canvas-text);text-decoration:none;font-size:13px;font-weight:600;border-bottom:2px solid transparent;margin-bottom:-1px}
 .locations-tabs a[aria-current="page"]{border-bottom-color:var(--blue);font-weight:700}
 .locations-tabs a[hidden]{display:none}
-.locations-panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-xl);box-shadow:var(--card-shadow);overflow:hidden}
+.locations-panel{background:var(--glass-panel);border:1px solid var(--border);border-radius:var(--radius-xl);box-shadow:var(--card-shadow);overflow:hidden}
 .locations-toolbar{display:flex;align-items:center;gap:16px;padding:16px;flex-wrap:wrap}
 .locations-toolbar h3{margin:0;font-family:var(--font-display);font-size:16px;color:var(--text)}
 .locations-search{position:relative;display:block;flex:1;min-width:200px}
@@ -24,7 +24,7 @@
 .locations-status{margin:0;padding:8px 16px 20px;color:var(--muted);font-size:13px}
 .locations-status:empty{display:none}
 .locations-status[data-error="true"]{color:var(--red)}
-.locations-pager{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:8px;padding:12px 16px;background:var(--panel-2);color:var(--muted);font-size:12.5px}
+.locations-pager{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:8px;padding:12px 16px;background:var(--glass-panel-2);color:var(--muted);font-size:12.5px}
 .locations-pager[hidden]{display:none}
 .locations-pager-controls{display:flex;align-items:center;gap:10px}
 .locations-pager button{min-width:40px;min-height:40px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel);color:var(--text);font:14px var(--font-data);cursor:pointer}
@@ -38,7 +38,7 @@
   .locations-table th{font-size:10.5px;letter-spacing:.01em}
   .locations-table .sort-button{gap:3px}
   .locations-table [data-field="name"]{position:sticky;left:0;background:var(--panel);z-index:1;box-shadow:1px 0 0 var(--border)}
-  .locations-table th[data-field="name"]{background:var(--panel-2);z-index:3}
+  .locations-table th[data-field="name"]{background:var(--glass-head);z-index:3}
   .locations-table td{line-height:1.5}
   .locations-pager{padding:12px;gap:10px}
 }

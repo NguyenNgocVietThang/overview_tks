@@ -41,10 +41,10 @@ test('Tổng quan không còn phần nhóm hàng, Hàng hóa không còn phần 
   });
 });
 
-test('Hóa đơn: Giao dịch rồi Kiểm tra giá bán (đã bỏ phần Phân tích/Trả hàng; Xu hướng đã chuyển sang Tổng quan), không còn Hóa đơn gần đây', () => {
+test('Hóa đơn: Kiểm tra giá bán, Bảng giá duyệt rồi Giao dịch (đã bỏ phần Phân tích/Trả hàng; Xu hướng đã chuyển sang Tổng quan), không còn Hóa đơn gần đây', () => {
   const titles = sectionTitles('invoices');
-  assert.deepEqual(titles.map(s => s.step), ['1', '2']);
-  assert.deepEqual(titles.map(s => s.title), ['Giao dịch', 'Kiểm tra giá bán']);
+  assert.deepEqual(titles.map(s => s.step), ['1', '2', '3']);
+  assert.deepEqual(titles.map(s => s.title), ['Kiểm tra giá bán', 'Bảng giá duyệt', 'Giao dịch']);
   ['in-returns-total', 'in-returns-count'].forEach(id => assert.equal(document.getElementById(id), null, id + ' da bi go'));
   ['chartInvoiceRevenue', 'in-revenue'].forEach(id => {
     assert.equal(view('invoices').querySelector('#' + id), null, id + ' da chuyen sang Tong quan');
@@ -86,6 +86,10 @@ test('không còn mục Chỉ số then chốt đầu tab; mỗi mục con có h
     const sections = [...view(name).querySelectorAll(':scope > section.section')];
     assert.ok(!sectionTitles(name).some(s => s.title === 'Chỉ số then chốt'), name);
     sections.forEach((section, index) => {
+      if (section.id === 'expectedArrivalsSection') {
+        assert.equal(section.querySelector('.section-kpis'), null);
+        return;
+      }
       assert.ok(section.querySelector('.section-kpis'), name + ' muc ' + (index + 1) + ' thieu chi so then chot');
       const firstBlock = section.querySelector(':scope > .section-head').nextElementSibling;
       assert.ok(firstBlock.classList.contains('section-kpis'), name + ' muc ' + (index + 1) + ': chi so phai o dau muc');

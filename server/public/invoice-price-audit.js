@@ -16,6 +16,7 @@
   const BRANCH_LABEL = { hanoi: 'Hà Nội', saigon: 'Sài Gòn' };
   const STATUS = { correct: ['Đúng giá', 'ok'], wrong: ['Sai giá', 'bad'] };
   const DECISION = { '': 'Chưa chốt', ok: 'Ok', penalty: 'Phạt' };
+  const NO_SALE_LABEL = '(Chưa có sale)';
   const FILTER_IDS = {
     from: 'priceAuditFrom', to: 'priceAuditTo', sale: 'priceAuditSaleFilter', status: 'priceAuditStatusFilter',
     decision: 'priceAuditDecisionFilter', vat: 'priceAuditVatFilter', freight: 'priceAuditFreightFilter'
@@ -28,7 +29,7 @@
     columns: [], data: null, error: '', loading: false, seq: 0, loadedAt: 0, initialized: false,
     // Mặc định vào bảng: chỉ dòng Sai giá (chọn "Tất cả" = bỏ tham số status). Khớp option selected trong index.html.
     filters: { from: '', to: '', sale: '', status: DEFAULT_STATUS, decision: '', vat: '', freight: '', q: '' },
-    page: 1, pageSize: 50, sort: '', dir: 'asc',
+    page: 1, pageSize: 50, sort: '', dir: 'asc', salesSearch: '',
     editors: new Map() // rowKey -> { draft, saving, error }
   };
 
@@ -36,9 +37,11 @@
   const escape = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const can = key => !!(window.TKSNav && typeof window.TKSNav.can === 'function' && window.TKSNav.can(key));
   const NUMBER = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
+  // Tiền: không ký hiệu ₫, làm tròn số nguyên.
+  const MONEY = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
   const isBlank = v => v === null || v === undefined || v === '';
   const fmtNumber = v => (isBlank(v) || !Number.isFinite(Number(v)) ? '—' : NUMBER.format(Number(v)));
-  const fmtMoney = v => (isBlank(v) || !Number.isFinite(Number(v)) ? '—' : NUMBER.format(Number(v)) + '₫');
+  const fmtMoney = v => (isBlank(v) || !Number.isFinite(Number(v)) ? '—' : MONEY.format(Number(v)));
   const rowKey = r => r.branch + '/' + r.invoiceId + '/' + r.sourceLineNo;
   const muted = '<span class="muted">—</span>';
 
@@ -86,7 +89,7 @@
     const box = $('priceAuditKpis');
     const k = state.data && state.data.meta && state.data.meta.available ? state.data.kpis : null;
     if (!k) { box.innerHTML = ''; return; }
-    const card = (span, label, value, accent, sub) => '<div class="kpi-card ' + span + ' accent-' + accent + '"><div class="eyebrow">' + escape(label) +
+    const card = (span, label, value, accent, sub) => '<div class="kpi-card accent-' + accent + '"><div class="eyebrow">' + escape(label) +
       '</div><div class="value">' + escape(value) + '</div>' + (sub ? '<div class="sub">' + escape(sub) + '</div>' : '') + '</div>';
     box.innerHTML =
       card('col-4', 'Số hóa đơn', NUMBER.format(Number(k.invoiceCount) || 0), 'blue', 'không đếm trùng đơn nhiều dòng') +
@@ -94,6 +97,54 @@
       card('col-4', 'Dòng sai giá', NUMBER.format(Number(k.wrongLines) || 0), 'red') +
       card('col-6', 'Tiền chênh chưa chốt', fmtMoney(k.pendingAmount || 0), 'amber', 'dự kiến, chưa tính là phạt') +
       card('col-6', 'Tiền đã chốt Phạt', fmtMoney(k.penaltyAmount || 0), 'red');
+  }
+
+  // ---------- tiền phạt theo sale (cột phải mục 1) ----------
+  // Dữ liệu = data.saleSummary do máy chủ cộng trên CÙNG bộ lọc với KPI (tổng mỗi cột = "Tiền chênh chưa chốt" /
+  // "Tiền đã chốt Phạt"). Tìm theo tên sale chạy tại chỗ; sắp xếp + Cột hiển thị do table-controls.js lo.
+  function salesRows() {
+    const d = state.data;
+    const all = d && d.meta && d.meta.available && Array.isArray(d.saleSummary) ? d.saleSummary : [];
+    const query = state.salesSearch.trim();
+    const fuzzy = window.TKSFuzzySearch;
+    const shown = !query ? all : all.filter(r => (fuzzy ? fuzzy.matches(r.saleName || NO_SALE_LABEL, query)
+      : String(r.saleName || NO_SALE_LABEL).toLowerCase().indexOf(query.toLowerCase()) >= 0));
+    return { all, shown, query };
+  }
+
+  function renderSales() {
+    const body = $('priceAuditSalesRows');
+    const foot = $('priceAuditSalesFoot');
+    if (!body) return;
+    const d = state.data;
+    const ok = !!(d && d.meta && d.meta.available);
+    const { all, shown, query } = salesRows();
+    $('tagPriceAuditSales').textContent = !ok ? '—' : query ? shown.length + '/' + all.length : String(all.length);
+    $('priceAuditSalesSearchClear').hidden = !state.salesSearch;
+    $('priceAuditSalesExportButton').hidden = !can('reports.export');
+    foot.innerHTML = '';
+    if (state.error) { body.innerHTML = '<tr><td colspan="3" class="table-note">' + escape(state.error) + '</td></tr>'; return; }
+    if (!d) { body.innerHTML = '<tr><td colspan="3" class="table-note">Đang tải...</td></tr>'; return; }
+    if (!ok) { body.innerHTML = '<tr><td colspan="3" class="table-note">' + escape((d.meta && d.meta.message) || 'Chưa chạy kiểm tra giá') + '</td></tr>'; return; }
+    if (!shown.length) {
+      body.innerHTML = '<tr><td colspan="3" class="table-note">' + (query ? 'Không có sale nào chứa “' + escape(query) + '”' : 'Không có sale nào có tiền phạt theo bộ lọc hiện tại') + '</td></tr>';
+      return;
+    }
+    let pending = 0;
+    let penalty = 0;
+    body.innerHTML = shown.map(r => {
+      const a = Number(r.pendingAmount) || 0;
+      const b = Number(r.penaltyAmount) || 0;
+      pending += a;
+      penalty += b;
+      return '<tr><td class="name-cell">' + escape(r.saleName || NO_SALE_LABEL) + '</td>' +
+        '<td class="mono col-num" data-sort-value="' + a + '">' + escape(fmtMoney(a)) + '</td>' +
+        '<td class="mono col-num debt-penalty-amount" data-sort-value="' + b + '">' + escape(fmtMoney(b)) + '</td></tr>';
+    }).join('');
+    foot.innerHTML = '<tr class="debt-penalty-total"><td>Tổng đang hiển thị</td><td class="mono col-num">' + escape(fmtMoney(pending)) +
+      '</td><td class="mono col-num">' + escape(fmtMoney(penalty)) + '</td></tr>';
+    // Giữ cột đang sắp xếp (bộ sắp xếp chung của trang) sau mỗi lần vẽ lại dòng.
+    if (typeof window.applyActiveTableSorts === 'function') window.applyActiveTableSorts();
   }
 
   // ---------- bảng ----------
@@ -143,7 +194,7 @@
         '</select></td>';
     }
     const locked = r.originalStatus !== 'wrong';
-    return '<td><span class="price-audit-decision-text"' + (locked ? ' title="Chỉ dòng sai giá gốc mới được chốt"' : '') + '>' + escape(DECISION[current]) + '</span>' +
+    return '<td><span class="price-audit-decision-text" data-status="' + escape(DECISION[current]) + '"' + (locked ? ' title="Chỉ dòng sai giá gốc mới được chốt"' : '') + '>' + escape(DECISION[current]) + '</span>' +
       (locked ? '<span class="price-audit-lock">' + ICON_LOCK + '</span>' : '') + '</td>';
   }
 
@@ -243,6 +294,7 @@
   function render() {
     renderStatus();
     renderKpis();
+    renderSales();
     renderFilters();
     renderRows();
     renderPagination();
@@ -363,6 +415,11 @@
     $('priceAuditNextPage').addEventListener('click', go(() => state.page + 1));
     $('priceAuditLastPage').addEventListener('click', go(() => totalPages()));
     $('priceAuditExportButton').addEventListener('click', openExport);
+    $('priceAuditSalesExportButton').addEventListener('click', openSalesExport);
+    const salesSearch = $('priceAuditSalesSearch');
+    salesSearch.addEventListener('input', () => { state.salesSearch = salesSearch.value; renderSales(); });
+    salesSearch.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); clearSalesSearch(); } });
+    $('priceAuditSalesSearchClear').addEventListener('click', clearSalesSearch);
     const body = $('priceAuditRows');
     body.addEventListener('click', onClick);
     body.addEventListener('change', onChange);
@@ -575,5 +632,30 @@
     return window.startExportDialog({ kind: 'priceAudit', query: queryString() }, EXPORT_SOURCE);
   }
 
-  window.TKSPriceAudit = { load: load, hasUnsaved: hasUnsaved, openExport: openExport };
+  // Xuất bảng "Tiền phạt theo sale": cùng bộ lọc với KPI + ô tìm của bảng này (file khớp các dòng đang hiển thị).
+  const SALES_EXPORT_SOURCE = {
+    fields: (payload, request) => window.exportFetch(API + '/export/sales/fields' + (payload.query ? '?' + payload.query : ''), null, request),
+    file: (payload, request) => {
+      const params = new URLSearchParams(payload.query);
+      params.set('format', payload.format === 'html' ? 'html' : 'xlsx');
+      const picked = payload.columns && (payload.columns[payload.kind] || Object.values(payload.columns)[0]);
+      if (picked) params.set('columns', picked.join(','));
+      return window.exportFetch(API + '/export/sales?' + params.toString(), null, request);
+    }
+  };
+
+  function openSalesExport() {
+    if (!can(FEATURE) || !can('reports.export') || typeof window.startExportDialog !== 'function') return;
+    const search = state.salesSearch.trim();
+    return window.startExportDialog({ kind: 'priceAuditSales', query: queryString(search ? { saleSearch: search } : null) }, SALES_EXPORT_SOURCE);
+  }
+
+  function clearSalesSearch() {
+    state.salesSearch = '';
+    $('priceAuditSalesSearch').value = '';
+    renderSales();
+    $('priceAuditSalesSearch').focus();
+  }
+
+  window.TKSPriceAudit = { load: load, hasUnsaved: hasUnsaved, openExport: openExport, openSalesExport: openSalesExport };
 })();

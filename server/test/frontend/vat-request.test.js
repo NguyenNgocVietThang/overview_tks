@@ -14,6 +14,11 @@ const batchCode = fs.readFileSync(path.join(publicDir, 'vat-request/vat-request-
 const gridCode = fs.readFileSync(path.join(publicDir, 'vat-request/vat-request-grid.js'), 'utf8');
 const nav = fs.readFileSync(path.join(publicDir, 'shared/shared-nav.js'), 'utf8');
 const tick = () => new Promise(resolve => setTimeout(resolve, 0));
+function chooseStatus(window, doc, value) {
+ const select = doc.getElementById('vrStatusFilter');
+ select.value = value;
+ select.dispatchEvent(new window.Event('change', { bubbles: true }));
+}
 const PROCESS_GRANTED = { 'accounting.vatRequestProcess': true };
 
 const STATUSES = [
@@ -445,7 +450,7 @@ test('xuat Excel: quan ly thay nut; tai file theo dung bo loc dang xem, bao khi 
   window.URL.createObjectURL = () => 'blob:x';
   window.URL.revokeObjectURL = () => {};
   window.HTMLAnchorElement.prototype.click = function () { downloads.push(this.download); };
-  doc.querySelector('[data-preset="3"]').click();
+  chooseStatus(window, doc, '3');
   await tick();
   button.click();
   await tick(); await tick();
@@ -636,9 +641,9 @@ test('mau theo trang thai: o chon KT phan hoi mang data-status va doi mau ngay k
   select.dispatchEvent(new window.Event('change', { bubbles: true }));
   assert.equal(select.dataset.status, '1', 'doi mau truoc khi luu xong');
   await tick(); await tick(); await tick();
-  const chips = [...doc.querySelectorAll('#vrStatusChips .vr-chip')];
-  assert.deepEqual(chips.map(c => c.dataset.preset), ['all', 'todo', 'pending', '0', '5', '1', '2', '3', '4']);
-  assert.deepEqual(chips.filter(c => c.getAttribute('aria-pressed') === 'true').map(c => c.dataset.preset), ['todo']);
+  const filter = doc.getElementById('vrStatusFilter');
+  assert.deepEqual([...filter.options].map(o => o.value), ['all', 'todo', 'pending', '0', '5', '1', '2', '3', '4']);
+  assert.equal(filter.value, 'todo');
 });
 
 test('kieu Sheet — sale: keo chon vung o roi Ctrl+C chep TSV (so tron, ngay dd/mm/yyyy); khong co cham keo / o sua', async t => {
@@ -904,27 +909,15 @@ test('keo nhieu dong — bam tay nam chon dong (tick o Chon), Shift chon doan, C
 // ---- Giu dong vua sua, chip chon nhieu, Ctrl+Z / Ctrl+Y ----
 const keyDown = (window, doc, key, extra = {}) => doc.dispatchEvent(new window.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...extra }));
 
-test('chip trang thai chon nhieu; Can xu ly / Tat ca chi chon mot minh; tat het ve Tat ca', async t => {
-  const { doc, calls } = await setup(t, { vaiTro: 'Kế toán', id: 'kt-1', responses: { 'GET /': listResponse([]) }, featurePermissions: PROCESS_GRANTED });
-  const pressed = () => [...doc.querySelectorAll('#vrStatusChips .vr-chip')].filter(c => c.getAttribute('aria-pressed') === 'true').map(c => c.dataset.preset);
-  const chip = key => doc.querySelector(`#vrStatusChips [data-preset="${key}"]`);
+test('status dropdown selects individual status, all, and todo', async t => {
+  const { window, doc, calls } = await setup(t, { vaiTro: 'Kế toán', id: 'kt-1', responses: { 'GET /': listResponse([]) }, featurePermissions: PROCESS_GRANTED });
+  assert.equal(doc.getElementById('vrStatusFilter').value, 'todo');
   const lastStatus = () => calls.filter(c => c.key === 'GET /').pop().query.status;
-  assert.deepEqual(pressed(), ['todo']);
-  chip('1').click();
-  assert.deepEqual(pressed(), ['1'], 'bam trang thai khi dang Can xu ly -> chi con trang thai do');
-  assert.equal(lastStatus(), '1');
-  chip('2').click();
-  assert.deepEqual(pressed(), ['1', '2']);
-  assert.equal(lastStatus(), '1,2');
-  chip('1').click();
-  assert.deepEqual(pressed(), ['2'], 'bam lai thi tat');
-  chip('2').click();
-  assert.deepEqual(pressed(), ['all'], 'tat het -> Tat ca');
-  assert.equal(lastStatus(), undefined);
-  chip('3').click(); chip('4').click();
-  chip('todo').click();
-  assert.deepEqual(pressed(), ['todo'], 'Can xu ly chi chon mot minh');
-  assert.equal(lastStatus(), 'pending,3,4');  await tick(); await tick();
+  for (const status of ['pending', '0', '5', '1', '2', '3', '4', 'all', 'todo']) {
+    chooseStatus(window, doc, status);
+    assert.equal(lastStatus(), status === 'all' ? undefined : status === 'todo' ? 'pending,3,4' : status);
+    await tick(); await tick();
+  }
 });
 
 test('doi trang thai: dong o lai bang (gui keep) cho toi khi doi bo loc / bam tai lai; Excel khong gui keep', async t => {
@@ -953,7 +946,7 @@ test('doi trang thai: dong o lai bang (gui keep) cho toi khi doi bo loc / bam ta
   again.dispatchEvent(new window.Event('change', { bubbles: true }));
   await tick(); await tick();
   assert.equal(lists().pop().query.keep, '1');
-  doc.querySelector('#vrStatusChips [data-preset="all"]').click();
+  chooseStatus(window, doc, 'all');
   await tick();
   assert.equal(lists().pop().query.keep, undefined, 'doi chip bo dong giu lai');
 });

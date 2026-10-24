@@ -35,6 +35,11 @@
   --text-secondary:#CBD5E1;
   --muted:#94A3B8;
   
+  /* Nền kính dùng chung cho thẻ/panel/bảng (chuẩn: trang Quản lý nhân sự). Chỉ đổi alpha của nền, không dùng opacity. */
+  --glass-panel:rgba(15,23,42,0.85);
+  --glass-panel-2:rgba(30,41,59,0.90);
+  --glass-head:rgba(30,41,59,0.95);
+  --glass-table:rgba(15,23,42,0.90);
   --surface-hover:rgba(255,255,255,0.04);
   --row-divider:rgba(255,255,255,0.05);
   --chart-grid:rgba(255,255,255,0.06);
@@ -146,6 +151,10 @@
   --bg:#F8FAFC;
   --panel:#FFFFFF;
   --panel-2:#F1F5F9;
+  --glass-panel:rgba(255,255,255,0.85);
+  --glass-panel-2:rgba(241,245,249,0.90);
+  --glass-head:rgba(241,245,249,0.95);
+  --glass-table:rgba(255,255,255,0.90);
   --panel-3:#E2E8F0;
   --border:#E2E8F0;
   --border-subtle:#F1F5F9;
@@ -592,7 +601,7 @@ body::before{
 }
 .tks-cal-num{ line-height:18px; }
 .tks-cal-count-slot{ height:14px; display:flex; align-items:center; justify-content:center; }
-.tks-cal-inline{ min-width:0; padding:16px; background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-lg); }
+.tks-cal-inline{ min-width:0; padding:16px; background:var(--glass-panel); border:1px solid var(--border); border-radius:var(--radius-lg); }
 .tks-cal-inline .tks-cal-head{ margin-bottom:8px; }
 .tks-cal-inline .tks-cal-nav, .tks-cal-inline .tks-cal-today{ min-height:30px; height:30px; }
 .tks-cal-inline .tks-cal-nav{ width:30px; }
@@ -619,7 +628,7 @@ body::before{
   font-size:12.5px; font-weight:700; color:var(--text);
 }
 .tks-cal-empty{ margin:0; padding:14px 4px; text-align:center; color:var(--muted); font-size:12.5px; }
-.tks-cal-item{ border:1px solid var(--border); border-radius:10px; margin-bottom:6px; background:var(--panel-2); }
+.tks-cal-item{ border:1px solid var(--border); border-radius:10px; margin-bottom:6px; background:var(--glass-panel-2); }
 .tks-cal-item-head{
   width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px;
   padding:8px 10px; background:none; border:none; border-radius:10px; cursor:pointer;
@@ -934,7 +943,7 @@ body.tks-sidebar-resizing .sidebar{ transition:none; }
 .tks-btn-danger:disabled{ opacity:.55; cursor:not-allowed; transform:none !important; box-shadow:none !important; }
 
 .panel{
-  background:var(--panel); border:1px solid var(--border); border-radius:16px;
+  background:var(--glass-panel); border:1px solid var(--border); border-radius:16px;
   padding:20px; box-shadow:var(--card-shadow);
   transition:background-color .2s ease, border-color .2s ease, box-shadow .2s ease;
 }
@@ -1714,7 +1723,7 @@ th[aria-sort="descending"] .sort-indicator {
 .users-table { width: 100%; border-collapse: collapse; text-align: left; }
 .users-table th, .users-table td { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 13px; }
 .users-table th {
-  background: var(--panel-2); color: var(--muted); font-size: 11.5px; font-weight: 600;
+  background: var(--glass-head); color: var(--muted); font-size: 11.5px; font-weight: 600;
   text-transform: uppercase; letter-spacing: .04em; white-space: nowrap;
 }
 .users-table td { vertical-align: top; }
@@ -1867,3 +1876,11 @@ table.fixed-table td {
 .acct-subnav .subnav-tab[aria-current="page"]{border-bottom-color:var(--blue);font-weight:700}
 .acct-subnav .subnav-tab:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
 @media (prefers-reduced-motion:reduce){.acct-subnav .subnav-tab{transition:none}}
+
+/* ---------- Ghim header chi tren desktop (>900px); mobile cuon binh thuong ---------- */
+@media (min-width:901px){
+  .receipt-header{ position:sticky; top:0; z-index:30; }
+  /* Sidebar sticky bat dau duoi header: --tks-header-h do shared-nav.js do. */
+  .sidebar{ top:var(--tks-header-h,0px); height:calc(100vh - var(--tks-header-h,0px)); }
+  .sidebar-resize-handle{ top:var(--tks-header-h,0px); height:calc(100vh - var(--tks-header-h,0px)); }
+}

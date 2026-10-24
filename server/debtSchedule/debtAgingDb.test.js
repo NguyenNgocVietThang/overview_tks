@@ -57,6 +57,27 @@ async function seed(db) {
     INSERT INTO returns VALUES ('hanoi', 20, 1, '2026-10-16T09:00:00Z', 500, '{"statusValue":"Đã trả"}');`);
 }
 
+test('aging reads hide newly inactive and deleted customers before the next refresh, including invoice details', async () => {
+  const { db, pool, repo } = await setup();
+  try {
+    await seed(db);
+    await refreshDebtAging(pool, { now: () => NOW, log: quiet });
+    await db.exec(`UPDATE customers SET raw = '{"isActive":false}' WHERE branch='hanoi' AND id=1;
+      UPDATE customers SET raw = '{"IsActive":false}' WHERE branch='hanoi' AND id=2;`);
+    assert.deepEqual((await repo.readAging(['hanoi', 'saigon'])).rows.map(row => row.branchCode + ':' + row.customerId), ['saigon:1']);
+    for (const id of ['1', '2']) {
+      assert.deepEqual(await repo.readCustomerInvoices('hanoi', id), { customer: null, invoices: [] });
+      await assert.rejects(buildDebtAgingInvoices(['hanoi'], { branch: 'hanoi', customerId: id }, { repository: repo }), { statusCode: 404 });
+    }
+    await db.exec(`UPDATE customers SET raw = '{"isActive":true,"IsActive":false}' WHERE branch='hanoi' AND id=1;
+      DELETE FROM customers WHERE branch='saigon' AND id=1;`);
+    repo.clearCache();
+    assert.deepEqual((await repo.readAging(['hanoi', 'saigon'])).rows.map(row => row.branchCode + ':' + row.customerId), ['hanoi:1']);
+    assert.deepEqual(await repo.readCustomerInvoices('saigon', '1'), { customer: null, invoices: [] });
+    assert.equal((await db.query('SELECT COUNT(*)::int AS n FROM debt_aging_customers')).rows[0].n, 3);
+  } finally { await db.close(); }
+});
+
 test('tinh san tu bang chung: bo hoa don huy, khong tru tra hang, bo khach ngung hoat dong; web chi doc', async () => {
   const { db, pool, repo } = await setup();
   try {

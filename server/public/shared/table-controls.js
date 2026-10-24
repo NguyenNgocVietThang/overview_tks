@@ -215,6 +215,15 @@
       raise(column, textContext.measureText(word).width + (parseFloat(style.letterSpacing) || 0) * word.length + boxSpace(style) + gutter);
     });
   }
+  // Tiêu đề khai báo data-min-width="N": cột không hẹp hơn N px (nhãn/chấm không bẻ dòng được), kể cả độ rộng đã lưu.
+  function declaredMinimums(ctrl) {
+    ctrl.head.leaves.forEach(function (entry, index) {
+      var column = ctrl.columns[index], min = parseFloat(entry.cell.dataset.minWidth);
+      if (!column || !(min > 0)) return;
+      column.minWidth = Math.max(column.minWidth || MIN_WIDTH, Math.ceil(min));
+      column.width = Math.max(column.width, column.minWidth);
+    });
+  }
   function fitOnce(ctrl) {
     if (ctrl.table.dataset.tableFit === 'off') return;
     if (ctrl.session.fitted || !hasLayout(ctrl.table)) return;
@@ -526,12 +535,23 @@
     if (!Number.isFinite(value)) return null;
     return match[1] === '-' || match[1] === '−' || match[1] === '–' ? -value : value;
   }
+  // Ô nhập liệu / dropdown: textContent rỗng (input) hoặc gộp mọi option (select) → lấy giá trị đang hiển thị.
+  function cellText(cell) {
+    var field = cell.querySelector('select, input:not([type=hidden]):not([type=checkbox]):not([type=radio]), textarea');
+    if (field) {
+      var shown = field.tagName === 'SELECT'
+        ? (field.selectedIndex >= 0 ? field.options[field.selectedIndex].textContent : '')
+        : field.value;
+      return String(shown || '').replace(/\s+/g, ' ').trim();
+    }
+    return cell.textContent.replace(/\s+/g, ' ').trim();
+  }
   function sortValue(cell) {
     if (cell.hasAttribute('data-sort-value')) {
       var given = Number(cell.getAttribute('data-sort-value'));
       return { empty: !Number.isFinite(given), number: given, text: '' };
     }
-    var text = cell.textContent.replace(/\s+/g, ' ').trim();
+    var text = cellText(cell);
     if (!text || text === '—' || text === '-') return { empty: true, number: null, text: '' };
     var number = parseDateText(text);
     if (number === null) number = parseNumberText(text);
@@ -674,7 +694,7 @@
       return column;
     });
     if (ctrl.columns.every(function (column) { return column.hidden; })) ctrl.columns[0].hidden = false;
-    table.classList.add('tks-controlled-table'); restoreSort(ctrl); installSort(ctrl); installButton(ctrl); dropdownMinimums(ctrl); numberMinimums(ctrl); apply(ctrl);
+    table.classList.add('tks-controlled-table'); restoreSort(ctrl); installSort(ctrl); installButton(ctrl); dropdownMinimums(ctrl); numberMinimums(ctrl); declaredMinimums(ctrl); apply(ctrl);
     if (active === ctrl && picker && !picker.hidden) renderPicker();
     return ctrl;
   }

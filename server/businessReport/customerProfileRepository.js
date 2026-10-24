@@ -67,10 +67,10 @@ function createCustomerProfileRepository({ pool = null, now = () => new Date(), 
     createdAt: iso(r.created_at), updatedAt: iso(r.updated_at)
   });
   const profileOut = r => (r ? {
-    warehouseLocation: r.warehouse_location, area: r.area || '', warehouseCount: num(r.warehouse_count), warehouseScale: r.warehouse_scale,
+    warehouseLocation: r.warehouse_location, area: r.area || '', phone: r.phone || '', address: r.address || '', warehouseCount: num(r.warehouse_count), warehouseScale: r.warehouse_scale,
     competitor: r.competitor, salesChannels: r.sales_channels || []
   } : rules.emptyProfile());
-  const PROFILE_COLS = 'warehouse_location, area, warehouse_count, warehouse_scale, competitor, sales_channels';
+  const PROFILE_COLS = 'warehouse_location, area, phone, address, warehouse_count, warehouse_scale, competitor, sales_channels';
   const NOTE_COLS = `id, to_char(note_date, 'YYYY-MM-DD') AS note_date, body, author_id, author_name, created_at, updated_at`;
 
   // Report reads must surface missing schema; do not export silently empty profiles.
@@ -80,7 +80,7 @@ function createCustomerProfileRepository({ pool = null, now = () => new Date(), 
     if (!requested.length) return {};
     return guardWrite(async () => {
       const { rows } = await query(`
-        SELECT k.customer_key, p.warehouse_location, p.area, p.warehouse_count, p.warehouse_scale, p.competitor, p.sales_channels,
+        SELECT k.customer_key, p.warehouse_location, p.area, p.phone, p.address, p.warehouse_count, p.warehouse_scale, p.competitor, p.sales_channels,
           COALESCE((SELECT json_agg(json_build_object('userId', e.user_id, 'userName', e.user_name) ORDER BY e.user_name, e.user_id)
             FROM customer_editors e WHERE e.customer_key = k.customer_key), '[]'::json) AS editors,
           COALESCE((SELECT json_agg(to_char(v.visit_date, 'YYYY-MM-DD') ORDER BY v.visit_date)
@@ -157,7 +157,7 @@ function createCustomerProfileRepository({ pool = null, now = () => new Date(), 
         INSERT INTO customer_profiles (customer_key, customer_name, warehouse_location, warehouse_count, area, competitor, sales_channels, updated_by_id, updated_by_name, updated_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7::text[], $8, $9, $10::timestamptz)
         ON CONFLICT (customer_key) DO UPDATE SET customer_name = EXCLUDED.customer_name, warehouse_location = EXCLUDED.warehouse_location,
-          warehouse_count = EXCLUDED.warehouse_count, area = EXCLUDED.area, competitor = EXCLUDED.competitor,
+          warehouse_count = EXCLUDED.warehouse_count, area = EXCLUDED.area, phone = EXCLUDED.phone, address = EXCLUDED.address, competitor = EXCLUDED.competitor,
           sales_channels = EXCLUDED.sales_channels, updated_by_id = EXCLUDED.updated_by_id, updated_by_name = EXCLUDED.updated_by_name, updated_at = EXCLUDED.updated_at
         RETURNING *`,
       [key, String(customerName || ''), p.warehouseLocation, p.warehouseCount, p.area, p.competitor, p.salesChannels, actorId(actor), actorName(actor), now().toISOString()]);

@@ -185,3 +185,33 @@ test('GET /export: xuat 130 dong da loc (vuot trang 1), cung bo loc, cot da chon
   });
 });
 
+
+test('GET /export/sales: xuat bang tien phat theo sale (loc theo o tim kiem, co dong Tong), 403 khi thieu reports.export, cot sai 400', async () => {
+  const repo = fakeRepository([]);
+  const base0 = repo.readReport;
+  repo.readReport = async query => ({ ...(await base0(query)), saleSummary: [
+    { saleName: 'Duy Thái', pendingAmount: '150000.5', penaltyAmount: '20000' },
+    { saleName: 'Minh Anh', pendingAmount: '0', penaltyAmount: '5000' },
+    { saleName: '', pendingAmount: '1000', penaltyAmount: '0' }
+  ] });
+  await withServer(makeApp(repo), async base => {
+    assert.equal((await fetch(base + '/export/sales', { headers: { 'x-user': 'sale' } })).status, 403);
+    const fields = await (await fetch(base + '/export/sales/fields', { headers: { 'x-user': 'ql' } })).json();
+    assert.deepEqual(fields.worksheets[0].fields.map(f => f.key), ['saleName', 'pendingAmount', 'penaltyAmount']);
+    assert.equal(fields.worksheets[0].rowCount, 3);
+    const res = await fetch(base + '/export/sales?format=xlsx', { headers: { 'x-user': 'ql' } });
+    assert.equal(res.status, 200);
+    const [sheet] = await readSheet(Buffer.from(await res.arrayBuffer()));
+    assert.deepEqual(sheet.getRow(1).values.slice(1), ['Tên sale', 'Tiền phạt chưa chốt', 'Tiền phạt đã chốt']);
+    assert.deepEqual(sheet.getRow(2).values.slice(1), ['Duy Thái', 150001, 20000]);
+    assert.equal(sheet.getRow(4).getCell(1).value, '(Chưa có sale)');
+    assert.deepEqual(sheet.getRow(5).values.slice(1), ['Tổng', 151001, 25000]);
+    const filtered = await fetch(base + '/export/sales?format=xlsx&saleSearch=minh', { headers: { 'x-user': 'ql' } });
+    const [s2] = await readSheet(Buffer.from(await filtered.arrayBuffer()));
+    assert.equal(s2.rowCount, 3, 'tieu de + 1 sale + Tong');
+    assert.equal((await fetch(base + '/export/sales?columns=raw', { headers: { 'x-user': 'ql' } })).status, 400);
+    const html = await fetch(base + '/export/sales?format=html', { headers: { 'x-user': 'ql' } });
+    assert.equal(html.status, 200);
+    assert.match(html.headers.get('content-disposition'), /\.html/);
+  });
+});

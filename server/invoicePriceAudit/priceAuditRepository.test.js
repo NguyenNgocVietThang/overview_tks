@@ -41,7 +41,7 @@ test('local level changes affect new captures across HN/SG; email edits never al
     await invoice(db,{branch:'saigon',id:902,customerId:2,lines:detail});
     await capture(db);
     assert.deepEqual((await db.query('SELECT * FROM invoice_price_audit_lines WHERE invoice_id=901')).rows,before);
-    assert.equal((await lines(db,'invoice_id=902'))[0].customer_level,'VIP');
+    assert.equal((await lines(db,'invoice_id=902'))[0].customer_level,'Vip');
     assert.equal((await lines(db,'invoice_id=902'))[0].min,'23600');
     await db.query('UPDATE customer_price_level_state SET initialized_at=NULL WHERE id');
     await invoice(db,{id:903,customerId:1,lines:detail});
@@ -113,13 +113,15 @@ test('Cap khach: Vua du bac Lon huong gia Lon; VIP mua it huong VIP; bac 4 cho m
     await capture(db);
     assert.deepEqual(pick(await lines(db), ['id', 'customer_level', 'min']), [
       { id: '1', customer_level: 'Vừa', min: '23800' },
-      { id: '2', customer_level: 'VIP', min: '23600' },
+      { id: '2', customer_level: 'Vip', min: '23600' },
       { id: '3', customer_level: 'Lớn', min: '23800' },
       { id: '4', customer_level: 'Lớn', min: '23800' },
       { id: '5', customer_level: 'Vừa', min: '23000' },
-      { id: '6', customer_level: 'VIP', min: '23000' },
-      { id: '7', customer_level: 'Lớn', min: '23800' }
+      { id: '6', customer_level: 'Vip', min: '23000' },
+      { id: '7', customer_level: 'Mới', min: '23800' } // khach chua co level nội bộ => mac dinh Mới (gia nhu Lon)
     ]);
+    const saved = (await db.query(`SELECT level, version FROM customer_price_levels WHERE customer_key = 'khách lẻ'`)).rows;
+    assert.deepEqual(saved.map(r => r.level), ['new'], 'khach chua co level duoc tu tao dong Mới');
   } finally { await db.close(); }
 });
 

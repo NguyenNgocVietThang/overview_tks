@@ -135,6 +135,7 @@ Chỉ hàng **Đang kinh doanh** được tính; không còn KPI nhà cung cấp
 - **Tổng quan:** biểu đồ doanh thu thực tế theo ngày; biểu đồ cột chồng **Giá trị tồn kho theo ngày** (HN + SG, bản chụp 23:59 mỗi ngày); **Kiểm tra đứt hàng** (nhập Trả NCC, hàng đứt gần đây, kiểm tra 30/90 ngày).
 - **Hàng hóa:** Báo cáo hàng hóa gộp hai cơ sở (34 cột theo thứ tự sheet BC CHUNG từ 19/10/2026: tồn thực, có bán, SL bán 30 ngày, số ngày đứt hàng, số ngày bán hết, số đơn 30/90 ngày và tăng trưởng, giá trị có bán và đơn giá từng cơ sở, tổng, số ngày cần đặt, mô tả; cột mới ẩn mặc định, bật bằng "Cột hiển thị"; giá trị có bán và đơn giá chỉ Quản lý/Trợ lý thấy và xuất được; bấm dòng xem doanh số 90 ngày từng khách; từ 21/10/2026 Hàng dự kiến xem ở bảng Dự kiến hàng về) và Tăng trưởng mã hàng theo tháng. Các mục cũ (Cơ cấu tồn kho, Sản phẩm bán chạy, Tất cả mã hàng, Hàng mới nhập, Mã mới tạo) đã gỡ ngày 16/10/2026.
 - **Hàng hóa — Dự kiến hàng về (20/10/2026, mục 2 của tab):** nhu cầu xem một chỗ toàn bộ hàng sắp về của mọi cont (trước đây chỉ tra theo từng mã trong hộp chi tiết Báo cáo hàng hóa). Bảng 11 cột (Nguồn, Lịch / Trạng thái, Tên Cont, Mã SP, Tên SP, Màu sắc, Ghi chú sale, Người đặt, Số cái/kiện, Số kiện, Tổng số lượng), lọc theo Nguồn, Cont và Trạng thái, xuất Excel/HTML theo bộ lọc; cột Lịch / Trạng thái là trạng thái + ngày dự kiến về lấy từ dòng nhãn CONT của Google Sheet. Dữ liệu tính sẵn trong DB từ snapshot CONT 10 phút, người xem chỉ đọc. Quyền riêng `reports.products.expected` cho Quản lý, Trợ lý, Nhân viên sale, Kế toán, Nhân viên marketing, Nhân viên mua hàng, Nhân viên kho (không cần quyền Báo cáo hàng hóa); Khách không xem. Ngoài phạm vi: sửa dữ liệu từ dashboard, đồ thị, cảnh báo. **Bổ sung 21/10/2026:** bấm dòng mở hộp chi tiết mọi CONT cùng mã SP kèm tổng số lượng theo từng trạng thái 1–5 (thay mục Hàng dự kiến trong hộp Chi tiết hàng hóa); thêm cột Giá SP (tệ) và Giá hàng về VN chỉ cho người có quyền `reports.overview.containers.full` (Quản lý, Trợ lý) — người này Màu sắc/Ghi chú sale ẩn mặc định, bật bằng "Cột hiển thị"; xuất file chỉ có cột giá khi có quyền; người khác không nhận dữ liệu giá từ máy chủ.
+- **Hàng hóa — Dự kiến hàng về, khung tổng hợp theo CONT (24/10/2026):** nhu cầu nhìn nhanh từng cont đang ở trạng thái nào, dự kiến về khi nào mà không phải đọc cả bảng dòng hàng. Đầu mục có 3 chỉ số xếp dọc (Số cont, Số dòng hàng, Tổng số lượng) và bảng Tổng hợp CONT (Tên CONT, Trạng thái, Dự kiến nếu có) lọc theo Trạng thái, mỗi cont một dòng; bảng chi tiết dòng hàng ở ngay bên dưới, vẫn lọc và xuất file như cũ. Dùng lại dữ liệu và quyền sẵn có (`reports.products.expected`), không thay đổi nguồn dữ liệu.
 - **Hóa đơn:** bảng Chi tiết giao dịch; bấm một dòng để xem chi tiết hóa đơn (dòng hàng, tổng tiền, thanh toán).
 - **Khách hàng:** báo cáo tăng trưởng Sale / Khách hàng / Mã hàng theo tháng (tab Báo cáo kinh doanh cũ). Bảng Top khách theo doanh thu và Chi tiết khách nợ của tab Khách hàng cũ đã gỡ (16/10/2026); công nợ theo khách xem ở tab Công nợ.
 - **Công thức Tồn có thể bán** = Tồn thực tế − Đặt hàng Phiếu tạm của khách (không kẹp về 0; không cộng hàng đang vận chuyển).
@@ -375,11 +376,25 @@ Phương án B đã duyệt: tập SĐT/KPI Pancake riêng trong PostgreSQL, ng�
 - **Vấn đề**: việc soát hóa đơn bán dưới giá quy định (theo mô tả giá từng mã trên KiotViet, bậc số lượng, cấp khách, VAT, cước) làm tay trên Excel với nhiều bảng riêng, dễ sót và không có chốt trách nhiệm.
 - **Giải pháp**: mục "Kiểm tra giá bán" trong tab Hóa đơn. Mỗi đêm 23:00 hệ thống chụp hóa đơn của 7 ngày gần nhất và đối chiếu giá min; sale giải thích dòng sai của khách mình phụ trách; Quản lý chốt Ok hoặc Phạt (tiền phạt = SL × chênh/đơn vị).
 - **Người dùng**: Quản lý, Trợ lý, Nhân viên sale xem; sale giải thích; Quản lý (hoặc người được cấp) chốt.
+- **Tổng hợp theo sale (23/10/2026)**: cạnh 5 khối chỉ số có bảng "Tiền phạt theo sale" (tiền chênh chưa chốt và tiền đã chốt Phạt của từng sale, tổng khớp các khối chỉ số; tìm kiếm, sắp xếp, xuất Excel/HTML) để Quản lý thấy ngay sale nào đang bị phạt/chờ chốt bao nhiêu; chữ Ok xanh lá, Phạt đỏ trong bảng chi tiết.
 - **Thành công**: không còn đối chiếu thủ công, kết quả không đổi theo giá hiện tại, có dấu vết ai giải thích/chốt gì khi nào.
-- **Ngoài phạm vi**: bảng giá cắt lô riêng theo khách–mã, ghi ngược KiotViet/Google Sheets, lưu lịch sử quá 7 ngày.
+- **Ngoài phạm vi**: ghi ngược KiotViet/Google Sheets, lưu lịch sử quá 7 ngày. (Giá cắt lô riêng theo khách–mã nay đã có: xem "Bảng giá duyệt" 24/10/2026 bên dưới.)
 - **Trạng thái**: code + test xong, **đã hoàn thiện, merge vào `main` và push cả 2 remote GitHub (`origin` và `tks_web`)**; chuẩn hóa 10 khách bao cước HN sang tên KiotViet mới (giữ dấu), đọc bậc giá theo chiếc (`CT`, `lẻ`) trực tiếp, khóa 4 mức giá Vừa - Lớn - VIP - Cắt lỗ, email 'mới' tính khách Lớn; 24/24 unit test đạt; giao diện và xuất Excel/HTML hoàn chỉnh; bước vận hành tiếp theo: áp migration `0077` lên DB production, deploy và bật cờ `INVOICE_PRICE_AUDIT_ENABLED`.
 
-Cập nhật gần nhất: 23/10/2026.
+## Bổ sung 24/10/2026 — Bảng giá duyệt (áp dụng cho Kiểm tra giá bán)
+
+- **Vấn đề**: Quản lý đôi khi duyệt giá đặc biệt cho một khách + một mã hàng thấp hơn giá min ghi trong mô tả KiotViet; Kiểm tra giá bán vẫn so với giá min nên đánh nhầm các dòng đó là "Sai giá" và sale bị phạt oan.
+- **Giải pháp**: mục 2 "Bảng giá duyệt" trong tab Hóa đơn (thứ tự mục: 1 Kiểm tra giá bán, 2 Bảng giá duyệt, 3 Giao dịch). Mỗi bản ghi gồm Khách hàng, Cơ sở, Mã SP (tên SP tự điền từ KiotViet), Giá không VAT, Giá có VAT (2 giá tùy chọn, phải nhập ít nhất 1 giá, mỗi giá điền vào phải lớn hơn 0), Người duyệt (Anh Quân / Anh Duy / Anh Duy Khánh), Ngày duyệt. Có tạo, sửa, xóa (có xác nhận), lọc theo Người duyệt và khoảng Ngày duyệt, sắp xếp mọi cột, xuất Excel đúng tập đang lọc, chỉ số (số bản ghi, khách, mã hàng, ngày duyệt gần nhất).
+- **Quy tắc nghiệp vụ**:
+  - Khách và mã hàng phải có thật (đang hoạt động) trên KiotViet của cơ sở đã chọn; tên đổi trên KiotViet thì bảng tự hiện tên mới. Mỗi (cơ sở, khách, mã hàng, ngày duyệt) chỉ một bản ghi.
+  - Giá duyệt thay giá min (là giá cuối đã gồm VAT/cước như đã nhập) cho hóa đơn cùng cơ sở + khách + mã hàng từ Ngày duyệt trở đi. Dòng hóa đơn Full VAT (ghi chú có VAT) dùng Giá có VAT, dòng không Full VAT dùng Giá không VAT; loại giá cần dùng mà để trống thì không áp giá duyệt cho dòng đó (vẫn so với giá min theo mô tả). Mỗi loại giá chọn riêng: lấy bản duyệt mới nhất không sau ngày hóa đơn CÓ loại giá đó (bản mới hơn để trống loại đó thì dùng bản cũ hơn). Giá bán >= giá duyệt là Đúng giá, thấp hơn là Sai giá và tiền chênh tính từ giá duyệt (nhãn "Giá duyệt" / "Theo giá duyệt").
+  - Lưu xong, các dòng đã kiểm tra của khách + mã hàng đó từ Ngày duyệt được tính lại ngay (giải thích của sale, Chốt giữ nguyên); nếu chưa tính lại được thì áp dụng ở lượt kiểm tra kế tiếp.
+- **Người dùng**: bảng nhạy cảm nên chỉ Quản lý xem được mặc định (quyền xem riêng `reports.invoices.approvedPrice`, Trợ lý / Nhân viên sale chỉ thấy khi được cấp); tạo/sửa/xóa cũng chỉ Quản lý (quyền `reports.invoices.approvedPrice.manage`, cấp riêng được ở trang Tài khoản); xuất Excel cần quyền xuất.
+- **Thành công**: dòng bán đúng giá đã duyệt không còn bị báo Sai giá; mỗi thay đổi bảng giá có dấu vết bất biến (ai, khi nào, trước/sau).
+- **Ngoài phạm vi**: ghi ngược giá duyệt lên KiotViet/Google Sheets, giá duyệt theo khoảng thời gian có ngày hết hạn, duyệt giá theo lô nhiều khách.
+- **Trạng thái**: code + test cục bộ (migration `0091` và `0092` chưa áp DB thật, chưa commit/deploy; áp cả hai trước khi deploy). Cùng ngày 24/10/2026 giá duyệt được tách từ một giá thành 2 giá tùy chọn Giá không VAT / Giá có VAT theo quyết định với người dùng.
+
+Cập nhật gần nhất: 24/10/2026.
 
 
 21/10/2026 — **CONT TKS1 và cột Nguồn (mã cục bộ trên main, chưa deploy):** nguồn thứ bảy `CONT TKS1` sau KHÁC dùng chung snapshot, số Chưa bốc (1+2), Đã bốc (3) và chi tiết CONT; trạng thái 4 giữ trong Dự kiến hàng về, không cộng hai số tổng. Tên SP vẫn tra `product_report` theo mã. Bảng Dự kiến hàng về có 11 cột; Nguồn (`sheetName`) đứng đầu, mặc định hiện và được chọn khi xuất Excel/HTML; chọn riêng các cột cũ vẫn hợp lệ. Giữ tìm kiếm, ba bộ lọc Nguồn/Cont/Trạng thái, quyền, phân trang và cấu hình cột trong phiên. Đọc thiếu/lỗi bất kỳ nguồn nào giữ snapshot thành công gần nhất. Không thêm migration, dependency hoặc endpoint; bộ lọc Nguồn được bổ sung theo phê duyệt tiếp theo cùng ngày; không ghi Sheets hay chạy job ghi DB production trong lượt triển khai này.
@@ -440,3 +455,13 @@ Cập nhật gần nhất: 23/10/2026.
 # Cập nhật nghiệp vụ 23/10/2026 — quản lý level giá trên Dashboard
 
 Quản lý lọc khách theo kênh bán/quy mô đánh giá và xuất thông tin Chi tiết không kèm Note. Level giá được quản lý độc lập với email KiotViet sau bước sao lưu ban đầu, dùng chung các mã cùng tên HN/SG; Quản lý hoặc người được gán sửa được thay trực tiếp trên bảng. Thay đổi chỉ ảnh hưởng các hóa đơn kiểm tra được chụp sau đó; bản chụp cũ giữ nguyên để đối soát. Mã đang kiểm chứng cục bộ, chưa chuyển dữ liệu vận hành hoặc deploy (migration 0087).
+
+Người có quyền sửa level điền thêm nhãn "Khách mới"; SĐT và địa chỉ khách xem/sửa trong Chi tiết; có script nhập từ file Excel DS khách.
+
+24/10/2026: Dự kiến hàng về bổ sung khung tổng hợp theo CONT (Tên CONT, Trạng thái, Dự kiến) kèm 3 chỉ số xếp dọc và bộ lọc Trạng thái; dùng lại dữ liệu và quyền sẵn có.
+
+# 24/10/2026 — Chuông thông báo lưu Postgres
+
+Người dùng phản ánh tài khoản quản trị không có lịch sử thông báo. Nguyên nhân: chuông lưu trên đĩa tạm của máy chủ nên mất sau mỗi lần cập nhật web. Nay lưu trong cơ sở dữ liệu nên lịch sử chuông được giữ lại. Người nhận thông báo nghỉ phép vẫn theo phòng ban và cơ sở được giao duyệt.
+
+Cập nhật gần nhất: 24/10/2026.

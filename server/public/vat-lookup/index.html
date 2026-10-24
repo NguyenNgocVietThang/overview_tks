@@ -13,9 +13,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="/shared/shared.css?v=20261023-1">
+  <link rel="stylesheet" href="/shared/shared.css?v=20261024-2">
   <link rel="stylesheet" href="/shared/table-controls.css?v=20261016-1">
-  <link rel="stylesheet" href="/vat-lookup/vat-lookup.css?v=20261023-2">
+  <link rel="stylesheet" href="/vat-lookup/vat-lookup.css?v=20261024-2">
 </head>
 <body>
   <div class="receipt-header">
@@ -50,9 +50,13 @@
 
       <section class="vl-panel" aria-label="Tra cứu VAT">
         <div class="vl-toolbar">
-          <div class="vl-tabs" role="tablist" aria-label="Chế độ tra cứu">
-            <button class="vl-tab" id="vlTabVat" role="tab" type="button" data-mode="vat" aria-selected="true" aria-controls="vlResults">Hàng VAT có sẵn <span class="vl-count" id="vlCountVat"></span></button>
-            <button class="vl-tab" id="vlTabIncoming" role="tab" type="button" data-mode="incoming" aria-selected="false" aria-controls="vlResults">Hàng sắp về <span class="vl-count" id="vlCountIncoming"></span></button>
+          <div class="vl-tabbar">
+            <div class="vl-tabs" role="tablist" aria-label="Chế độ tra cứu">
+              <button class="vl-tab" id="vlTabVat" role="tab" type="button" data-mode="vat" aria-selected="true" aria-controls="vlResults">Hàng VAT có sẵn <span class="vl-count" id="vlCountVat"></span></button>
+              <button class="vl-tab" id="vlTabIncoming" role="tab" type="button" data-mode="incoming" aria-selected="false" aria-controls="vlResults">Hàng sắp về <span class="vl-count" id="vlCountIncoming"></span></button>
+            </div>
+            <!-- table-controls.js tự gắn icon + chữ "Cột hiển thị" (bảng trỏ tới qua data-columns-button); ẩn khi chưa có bảng. -->
+            <button id="vlColumns" aria-label="Cột hiển thị" hidden></button>
           </div>
           <form class="vl-search" id="vlForm">
             <label class="vl-search-label" for="vlQuery">Mã Kiot hoặc tên Kiot</label>
@@ -63,13 +67,6 @@
             </div>
             <p class="vl-hint" id="vlHint">Mỗi dòng là một mã hoặc tên; dán thẳng một cột từ Excel (tối đa 100 dòng). <kbd>Enter</kbd> để tìm · <kbd>Ctrl</kbd> + <kbd>Enter</kbd> để xuống dòng.</p>
           </form>
-          <div class="vl-meta">
-            <p class="vl-source" id="vlSource" aria-live="polite">Đang tải dữ liệu…</p>
-            <button class="vl-tool-btn" id="vlRefresh" type="button" title="Đọc lại 3 sheet ngay (bình thường tự làm mới sau 10 phút)">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"></path><path d="M21 3v5h-5"></path></svg>
-              Cập nhật
-            </button>
-          </div>
         </div>
         <div class="vl-results" id="vlResults" role="tabpanel" aria-live="polite"></div>
       </section>
@@ -77,8 +74,8 @@
   </div>
 
   <script src="/shared/table-controls.js?v=20261023-1"></script>
-  <script src="/shared/shared-nav.js?v=20261023-3"></script>
-  <script src="/vat-lookup/vat-lookup.js?v=20261023-2"></script>
+  <script src="/shared/shared-nav.js?v=20261024-1"></script>
+  <script src="/vat-lookup/vat-lookup.js?v=20261023-5"></script>
   <script>window.addEventListener('DOMContentLoaded', function () { TKSVatLookup.init(); });</script>
   <script src="/shared/shooting-star.js?v=20261019"></script>
 </body>

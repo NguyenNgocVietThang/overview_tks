@@ -57,11 +57,11 @@ async function submit(window, doc, value) {
   await tick();
 }
 
-test('mo trang: hien so san pham + nguon, o tim kiem trong thi hien huong dan; thanh tab Ke toan cua Sale', async t => {
+test('mo trang: doc truoc sheet (khong hien dong nguon / nut Cap nhat), o tim kiem trong thi hien huong dan; thanh tab Ke toan cua Sale', async t => {
   const { doc, calls } = await setup(t);
   assert.deepEqual(calls.map(c => c.key), ['GET /meta']);
-  assert.match(doc.getElementById('vlSource').textContent, /3,142 sản phẩm/);
-  assert.match(doc.getElementById('vlSource').textContent, /DK về 2 8052 dòng/);
+  assert.equal(doc.getElementById('vlSource'), null);
+  assert.equal(doc.getElementById('vlRefresh'), null);
   assert.match(doc.getElementById('vlResults').textContent, /Nhập mã Kiot hoặc tên Kiot/);
   // Sale khong co Xu ly hoa don: thanh tab con Tao QR / Tra cuu VAT / ORDER VAT, dang o Tra cuu VAT.
   assert.deepEqual([...doc.querySelectorAll('#vlTabs a')].map(a => a.getAttribute('href')), ['/vat-draft/#tao-qr', '/vat-lookup/', '/vat-request/']);
@@ -129,13 +129,12 @@ test('Sheets loi: hien thong bao loi cua server, khong ve bang', async t => {
   assert.equal(doc.querySelector('#vlResults table'), null);
 });
 
-test('Cập nhật: ep doc lai sheet roi tim lai tu khoa dang co', async t => {
-  const { window, doc, calls } = await setup(t);
+test('Sheets loi nhung con ban da luu: bao ngay tren ket qua', async t => {
+  const data = searchResponse({ meta: { ...META, stale: true } });
+  const { window, doc } = await setup(t, { responses: { 'POST /search': { status: 200, data } } });
   await submit(window, doc, 'TALEWS');
-  doc.getElementById('vlRefresh').click();
-  await tick(); await tick(); await tick();
-  const keys = calls.map(c => c.key);
-  assert.deepEqual(keys.slice(-2), ['POST /refresh', 'POST /search']);
+  assert.match(doc.querySelector('#vlResults .vl-feedback').textContent, /Sheets đang lỗi/);
+  assert.ok(doc.querySelector('#vlResults table'));
 });
 
 test('thanh tab Ke toan: Quan ly thay du 4 muc; thieu quyen ORDER VAT thi an muc do', async t => {
@@ -152,4 +151,15 @@ test('bang tren may tinh co data-table-fit=fill de vua khung lan dau (khong co t
   assert.equal(doc.querySelector('#vlResults table').dataset.tableFit, 'fill');
   doc.getElementById('vlTabIncoming').click();
   assert.equal(doc.querySelector('#vlResults table').dataset.tableFit, 'fill');
+});
+
+test('nut Cot hien thi o hang tab, an khi chua co bang; khong con dong tom tat ket qua', async t => {
+  const { window, doc } = await setup(t);
+  const columns = doc.getElementById('vlColumns');
+  assert.equal(columns.hidden, true);
+  await submit(window, doc, 'TALEWS');
+  assert.equal(columns.hidden, false);
+  assert.ok(columns.classList.contains('tks-columns-button'), 'table-controls gan nut vao #vlColumns');
+  assert.equal(doc.querySelector('#vlResults .tks-table-tools'), null, 'khong tao them hang cong cu tren bang');
+  assert.doesNotMatch(doc.querySelector('.vl-panel').textContent, /Tìm thấy 1 sản phẩm/);
 });

@@ -8,17 +8,18 @@
 // Tham so cua cac ham builder la BIEU THUC SQL noi bo (ten cot / alias), khong bao gio la du lieu
 // nguoi dung.
 
-const LEVEL_LABELS = Object.freeze({ medium: 'Vừa', large: 'Lớn', vip: 'VIP' });
+const LEVEL_LABELS = Object.freeze({ medium: 'Vừa', large: 'Lớn', new: 'Mới', vip: 'Vip' });
 // Bac thu 1/2/3 cua mo ta = cap Vua/Lon/VIP; bac 4 chi la bac so luong.
-const LEVEL_POSITIONS = Object.freeze({ medium: 1, large: 2, vip: 3 });
+const LEVEL_POSITIONS = Object.freeze({ medium: 1, large: 2, new: 2, vip: 3 });
 
 const REASONS = Object.freeze({
   priced: 'Theo giá quy định',
   approved: 'Được duyệt Ok',
+  approvedPrice: 'Theo giá duyệt',
   noPrice: 'Không có giá quy định'
 });
 
-const WINNING_SOURCES = Object.freeze({ hn: 'HN', hnFreight: 'HN + cước', sg: 'SG', none: 'Không xét' });
+const WINNING_SOURCES = Object.freeze({ hn: 'HN', hnFreight: 'HN + cước', sg: 'SG', none: 'Không xét', approvedPrice: 'Giá duyệt' });
 
 // Gia theo tong so luong: bac co nguong (so thung x chiec/thung) cao nhat <= tong SL; duoi nguong
 // dau tien van dung gia bac co nguong thap nhat. Thieu chiec/thung (NULL hoac 0) -> NULL (khong doan).
@@ -93,10 +94,12 @@ WITH src0 AS (
     level_position int, sale_name text, product_code text, code_key text, product_name text,
     quantity text, original_unit_price text, unit_discount text, full_vat boolean,
     freight_eligible boolean, freight text, hn jsonb, sg jsonb,
-    product_note_hn text, product_note_sg text, line_note text, invoice_note text, captured_at timestamptz)
+    product_note_hn text, product_note_sg text, line_note text, invoice_note text, captured_at timestamptz,
+    approved_price text, approved_on date, approved_kind text)
 ),
 src AS (
   SELECT x.*,
+         x.approved_price::numeric AS approved_n,
          x.quantity::numeric AS qty,
          SUM(x.quantity::numeric) OVER (PARTITION BY x.branch, x.invoice_id, x.code_key) AS total_qty,
          x.original_unit_price::numeric AS price_n,
@@ -118,12 +121,14 @@ mins AS (
 applied AS (
   SELECT m.*,
          CASE
+           WHEN m.approved_n IS NOT NULL THEN m.approved_n   -- gia duyet THAY gia toi thieu tu mo ta (da gom VAT/cuoc)
            WHEN m.branch = 'saigon' THEN m.minimum_sg
            WHEN m.minimum_hn IS NULL THEN NULL
            WHEN m.freight_eligible THEN LEAST(m.minimum_hn + m.freight_n, m.minimum_sg)
            ELSE m.minimum_hn
          END AS applied_min,
          CASE
+           WHEN m.approved_n IS NOT NULL THEN '${WINNING_SOURCES.approvedPrice}'
            WHEN m.branch = 'saigon' THEN '${WINNING_SOURCES.sg}'
            WHEN m.freight_eligible AND m.minimum_sg IS NOT NULL AND m.minimum_sg < m.minimum_hn + m.freight_n
              THEN '${WINNING_SOURCES.sg}'
@@ -155,13 +160,16 @@ SELECT r.branch, r.invoice_id::bigint, r.source_line_no, r.invoice_code, r.sold_
   r.freight_eligible, r.freight_n,
   r.carton_size_sg, r.quantity_price_sg, r.level_price_sg, r.vat_sg, r.minimum_sg,
   CASE WHEN r.applied_min IS NULL THEN '${WINNING_SOURCES.none}' ELSE r.source_raw END,
-  CASE WHEN r.applied_min IS NULL THEN '${REASONS.noPrice}' ELSE '${REASONS.priced}' END,
+  CASE WHEN r.approved_n IS NOT NULL THEN '${REASONS.approvedPrice}'
+       WHEN r.applied_min IS NULL THEN '${REASONS.noPrice}' ELSE '${REASONS.priced}' END,
   r.applied_min, r.shortfall, COALESCE(r.shortfall, 0) * r.qty,
   CASE WHEN r.applied_min IS NOT NULL AND COALESCE(r.shortfall, 0) * r.qty > 0
     THEN 'wrong' ELSE 'correct' END,
   jsonb_build_object(
     'level', r.customer_level, 'levelPosition', r.level_position,
     'appliedMinimum', r.applied_min::text, 'winningSource', r.source_raw,
+    'approvedPrice', CASE WHEN r.approved_n IS NULL THEN NULL
+      ELSE jsonb_build_object('price', r.approved_n::text, 'approvedOn', r.approved_on::text, 'kind', r.approved_kind) END,
     'freight', jsonb_build_object('eligible', r.freight_eligible, 'sourceValue', r.freight, 'added', r.freight_n::text),
     'hn', CASE WHEN r.hn IS NULL THEN NULL ELSE r.hn || jsonb_build_object(
       'quantityPrice', r.quantity_price_hn::text, 'levelPrice', r.level_price_hn::text,
@@ -172,6 +180,28 @@ SELECT r.branch, r.invoice_id::bigint, r.source_line_no, r.invoice_code, r.sold_
   COALESCE(r.product_note_hn, ''), COALESCE(r.product_note_sg, ''), COALESCE(r.line_note, ''),
   COALESCE(r.invoice_note, ''), r.captured_at
 FROM result r`;
+
+// Tinh lai dong DA CHUP (lenh --recalc): cung cau SELECT tinh gia nhu CAPTURE_LINES_SQL, nhung gap khoa chinh thi
+// CHI ghi de cot tinh toan/nguon. Khong dong vao: nhan dien (khach/sale/ma hang/ten), captured_at, giai thich
+// (sale_explanation, explanation_by/at), Chot (decision, decided_by/at) va version -> khoa lac quan khong vo.
+// RETURNING: gia tri moi + inserted (xmax = 0: dong moi them, vd dong SL<=0 truoc day nay co SL > 0).
+const RECALC_LINES_SQL = `${CAPTURE_LINES_SQL}
+ON CONFLICT (branch, invoice_id, source_line_no) DO UPDATE SET
+  customer_level = EXCLUDED.customer_level, quantity = EXCLUDED.quantity,
+  total_code_quantity = EXCLUDED.total_code_quantity, original_unit_price = EXCLUDED.original_unit_price,
+  unit_discount = EXCLUDED.unit_discount, net_unit_price = EXCLUDED.net_unit_price, full_vat = EXCLUDED.full_vat,
+  carton_size_hn = EXCLUDED.carton_size_hn, quantity_price_hn = EXCLUDED.quantity_price_hn,
+  level_price_hn = EXCLUDED.level_price_hn, vat_hn = EXCLUDED.vat_hn, minimum_hn = EXCLUDED.minimum_hn,
+  freight_eligible = EXCLUDED.freight_eligible, freight_per_unit = EXCLUDED.freight_per_unit,
+  carton_size_sg = EXCLUDED.carton_size_sg, quantity_price_sg = EXCLUDED.quantity_price_sg,
+  level_price_sg = EXCLUDED.level_price_sg, vat_sg = EXCLUDED.vat_sg, minimum_sg = EXCLUDED.minimum_sg,
+  winning_source = EXCLUDED.winning_source, reason = EXCLUDED.reason,
+  minimum_unit_price = EXCLUDED.minimum_unit_price, unit_shortfall = EXCLUDED.unit_shortfall,
+  original_amount = EXCLUDED.original_amount, original_status = EXCLUDED.original_status,
+  calculation = EXCLUDED.calculation, product_note_hn = EXCLUDED.product_note_hn,
+  product_note_sg = EXCLUDED.product_note_sg, line_note = EXCLUDED.line_note, invoice_note = EXCLUDED.invoice_note
+RETURNING branch, invoice_id::text AS invoice_id, source_line_no, customer_level, original_status,
+  original_amount::text AS original_amount, minimum_unit_price::text AS minimum_unit_price, (xmax = 0) AS inserted`;
 
 module.exports = {
   LEVEL_LABELS,
@@ -186,5 +216,6 @@ module.exports = {
   penaltyAmountSql,
   pendingAmountSql,
   effectiveReasonSql,
-  CAPTURE_LINES_SQL
+  CAPTURE_LINES_SQL,
+  RECALC_LINES_SQL
 };

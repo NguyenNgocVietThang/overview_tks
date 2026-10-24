@@ -14,6 +14,22 @@
 
   var TKSNav = {};
 
+  // Do chieu cao header de sidebar sticky nam duoi header ghim (desktop).
+  (function trackHeaderHeight(){
+    function setup(){
+      var h = document.querySelector('.receipt-header');
+      if (!h) return;
+      var apply = function(){
+        document.documentElement.style.setProperty('--tks-header-h', h.offsetHeight + 'px');
+      };
+      apply();
+      if (window.ResizeObserver) new ResizeObserver(apply).observe(h);
+      else window.addEventListener('resize', apply);
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setup);
+    else setup();
+  })();
+
   // ---------- Quyen tinh nang cua phien hien tai ----------
   var currentPermissions = [];
   var currentPageFeatures = [];

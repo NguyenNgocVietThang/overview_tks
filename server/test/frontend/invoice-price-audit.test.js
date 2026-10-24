@@ -36,6 +36,19 @@ function line(id, over = {}) {
   };
 }
 
+const pendingOf = r => r.decision == null && r.originalStatus === 'wrong';
+function saleSummaryOf(rows) {
+  const map = new Map();
+  for (const r of rows) {
+    const entry = map.get(r.saleName) || { saleName: r.saleName, pendingAmount: 0, penaltyAmount: 0 };
+    if (pendingOf(r)) entry.pendingAmount += Number(r.originalAmount);
+    if (r.decision === 'penalty') entry.penaltyAmount += Number(r.originalAmount);
+    map.set(r.saleName, entry);
+  }
+  return [...map.values()].filter(e => e.pendingAmount || e.penaltyAmount)
+    .map(e => ({ ...e, pendingAmount: String(e.pendingAmount), penaltyAmount: String(e.penaltyAmount) }));
+}
+
 // May chu gia co trang thai: loc status/decision, KPI theo toan tap loc, PATCH decision/explanation co version.
 function fakeServer({ rows = [line(1001)], meta = META, explanationStatus = 200 } = {}) {
   const server = { rows: rows.map(r => ({ ...r })), meta, explanationStatus, requests: [], editorName: 'Minh Anh' };
@@ -54,7 +67,10 @@ function fakeServer({ rows = [line(1001)], meta = META, explanationStatus = 200 
     return {
       meta: server.meta, filters: { applied: {}, options: { sales: ['Duy Thái', 'Minh Anh'] } },
       kpis: { invoiceCount: new Set(all.map(r => r.invoiceId)).size, correctLines: all.filter(r => r.effectiveStatus === 'correct').length,
-        wrongLines: all.filter(r => r.effectiveStatus === 'wrong').length, pendingAmount: '0', penaltyAmount: '0', effectiveAmount: '0' },
+        wrongLines: all.filter(r => r.effectiveStatus === 'wrong').length,
+        pendingAmount: String(all.filter(pendingOf).reduce((t, r) => t + Number(r.originalAmount), 0)),
+        penaltyAmount: String(all.filter(r => r.decision === 'penalty').reduce((t, r) => t + Number(r.originalAmount), 0)), effectiveAmount: '0' },
+      saleSummary: saleSummaryOf(all),
       totals: {}, rows: all.slice((page - 1) * pageSize, page * pageSize), totalRows: all.length, page, pageSize
     };
   };
@@ -127,13 +143,15 @@ const cell = (page, tr, key) => tr.cells[COLUMNS.findIndex(c => c.key === key)];
 const change = (page, id, value) => { const el = page.$(id); el.value = value; el.dispatchEvent(new page.w.Event('change', { bubbles: true })); };
 const gets = page => page.server.requests.filter(r => r.method === 'GET' && r.href.startsWith('/api/invoice-price-audit'));
 
-test('muc 2 nam sau Giao dich trong tab Hoa don, chi MOT bang kiem tra gia', () => {
+test('muc 1 Kiem tra gia ban nam truoc Giao dich trong tab Hoa don, chi MOT bang chi tiet kiem tra gia', () => {
   const page = createPage();
   const sections = [...page.$('view-invoices').querySelectorAll(':scope > section.section')];
-  assert.deepEqual(sections.map(s => s.querySelector('.section-head h2').firstChild.textContent.trim()), ['Giao dịch', 'Kiểm tra giá bán']);
-  assert.equal(sections[1].id, 'priceAuditSection');
-  assert.equal(page.doc.querySelectorAll('table[data-table-key^="dashboard-table-price-audit"]').length, 1);
-  assert.equal(page.$('priceAuditSection').querySelectorAll('table').length, 1);
+  assert.deepEqual(sections.map(s => s.querySelector('.section-head h2').firstChild.textContent.trim()), ['Kiểm tra giá bán', 'Giao dịch']); // Bảng giá duyệt bị gỡ khỏi trang vì tài khoản không có quyền riêng reports.invoices.approvedPrice
+  assert.equal(sections[0].id, 'priceAuditSection');
+  assert.equal(page.doc.querySelectorAll('table[data-table-key="dashboard-table-price-audit"]').length, 1);
+  // Muc 1 co them bang tong hop tien phat theo sale (cot phai khung KPI), van la cung mot muc.
+  assert.equal(page.$('priceAuditSection').querySelectorAll('table').length, 2);
+  assert.equal(page.doc.querySelectorAll('#priceAuditSection table[data-table-key="dashboard-table-price-audit-sales"]').length, 1);
 });
 
 test('thead tu catalog: 17 cot nghiep vu gon, 15 hien mac dinh, bo cot thua', async () => {
@@ -193,7 +211,7 @@ test('KPI theo toan tap loc tu may chu (so hoa don phan biet, dong dung/sai)', a
   assert.deepEqual(cards.slice(0, 3), [['Số hóa đơn', '2'], ['Dòng đúng giá', '1'], ['Dòng sai giá', '2']]);
 });
 
-test('dong OD / PK / thieu gia: "—" cho null, 0₫ cho 0, ket qua Dung gia', async () => {
+test('dong OD / PK / thieu gia: "—" cho null, 0 cho 0, ket qua Dung gia', async () => {
   const rows = [
     line(11, { productName: 'Ly (OD)', effectiveAmount: '0', originalAmount: '0', originalStatus: 'correct', unitShortfall: '0', reason: 'Không xét OD', winningSource: 'Không xét', canDecide: false }),
     line(12, { productName: 'Nắp (pk)', effectiveAmount: '0', originalAmount: '0', originalStatus: 'correct', unitShortfall: '0', reason: 'Không xét PK', canDecide: false }),
@@ -204,11 +222,11 @@ test('dong OD / PK / thieu gia: "—" cho null, 0₫ cho 0, ket qua Dung gia', a
   assert.equal(trs.length, 3);
   assert.equal(cell(page, trs[0], 'productName').textContent.trim(), 'Ly (OD)');
   assert.equal(cell(page, trs[0], 'effectiveStatus').textContent.trim(), 'Đúng giá');
-  assert.equal(cell(page, trs[0], 'effectiveAmount').textContent.trim(), '0₫');
-  assert.equal(cell(page, trs[0], 'minimumUnitPrice').textContent.trim(), '24,000₫');
+  assert.equal(cell(page, trs[0], 'effectiveAmount').textContent.trim(), '0');
+  assert.equal(cell(page, trs[0], 'minimumUnitPrice').textContent.trim(), '24,000');
   assert.equal(cell(page, trs[2], 'minimumUnitPrice').textContent.trim(), '—');
   assert.equal(cell(page, trs[2], 'unitShortfall').textContent.trim(), '—');
-  assert.equal(cell(page, trs[2], 'effectiveAmount').textContent.trim(), '0₫');
+  assert.equal(cell(page, trs[2], 'effectiveAmount').textContent.trim(), '0');
   assert.equal(cell(page, trs[0], 'branch').textContent.trim(), 'HN');
   assert.equal(cell(page, trs[0], 'soldAt').textContent.trim(), '19/10/2026 08:05');
   assert.equal(cell(page, trs[0], 'decision').querySelector('select'), null, 'dong dung gia goc: Chot bi khoa');
@@ -285,9 +303,9 @@ test('doi Chot sang Ok: PATCH dung khoa + version + bo loc; dong roi bo loc Sai 
   const [okRow] = bodyRows(page);
   assert.equal(okRow.dataset.rowKey, 'hanoi/1001/1');
   assert.equal(cell(page, okRow, 'effectiveStatus').textContent.trim(), 'Đúng giá');
-  assert.equal(cell(page, okRow, 'effectiveAmount').textContent.trim(), '0₫');
-  assert.equal(cell(page, okRow, 'unitShortfall').textContent.trim(), '1,000₫', 'chenh goc giu nguyen');
-  assert.equal(cell(page, okRow, 'originalAmount').textContent.trim(), '100,000₫', 'tien chenh goc giu nguyen');
+  assert.equal(cell(page, okRow, 'effectiveAmount').textContent.trim(), '0');
+  assert.equal(cell(page, okRow, 'unitShortfall').textContent.trim(), '1,000', 'chenh goc giu nguyen');
+  assert.equal(cell(page, okRow, 'originalAmount').textContent.trim(), '100,000', 'tien chenh goc giu nguyen');
 });
 
 // Ô luôn là textarea (như Công nợ); trình soạn tạo ở lần gõ đầu nên các test tự gõ nội dung.
@@ -436,4 +454,110 @@ test('ma hoa don la chu thuong, khong xanh/gach chan', () => {
 test('Ngay gio ban sap theo cot thoi gian sold_at, khong theo chu', () => {
   const repo = fs.readFileSync(path.join(__dirname, '..', '..', 'invoicePriceAudit', 'priceAuditRepository.js'), 'utf8');
   assert.match(repo, /soldAt: 'l.sold_at'/);
+});
+
+// ---- Muc 1: cot trai 5 khoi KPI doc, cot phai bang tien phat theo sale ----
+
+const salesRowsText = page => [...page.$('priceAuditSalesRows').querySelectorAll('tr')].map(tr => [...tr.cells].map(td => td.textContent.trim()));
+const footText = page => [...page.$('priceAuditSalesFoot').rows[0].cells].map(td => td.textContent.trim());
+const saleTestRows = () => [
+  line(1, { saleName: 'Duy Thái - 1234567890', originalAmount: '100000' }),
+  line(2, { saleName: 'Duy Thái - 1234567890', originalAmount: '50000', decision: 'penalty' }),
+  line(3, { saleName: 'Minh Anh', originalAmount: '30000', decision: 'penalty' }),
+  line(4, { saleName: 'Minh Anh', originalAmount: '999', decision: 'ok' }),
+  line(5, { saleName: 'Lan', originalAmount: '7000' })
+];
+
+test('bo cuc muc 1: khung KPI doc ben trai, panel tien phat theo sale ben phai (cung khung Chi so then chot cua Cong no)', () => {
+  const page = createPage();
+  const frame = page.doc.querySelector('#priceAuditSection .debt-key-frame');
+  assert.ok(frame, 'dung khung debt-key-frame');
+  const [left, right] = [...frame.children];
+  assert.equal(left.id, 'priceAuditKpis');
+  assert.ok(left.classList.contains('debt-key-stack'));
+  assert.ok(right.classList.contains('panel') && right.contains(page.$('priceAuditSalesTable')));
+  assert.ok(!page.$('priceAuditTable').closest('.debt-key-frame'), 'bang chi tiet nam ngoai khung');
+  assert.deepEqual([...right.querySelectorAll('#priceAuditSalesTable thead th')].map(th => th.querySelector('.sort-label').textContent.trim()),
+    ['Tên sale', 'Tiền phạt chưa chốt', 'Tiền phạt đã chốt']);
+  assert.ok(right.querySelector('.panel-head > .panel-head-actions .export-button'), 'nut Xuat file o goc phai tren');
+  assert.equal(right.querySelector('.table-search-input').placeholder, 'Nhập từ khóa…');
+  assert.match(html, /@media \(max-width: 900px\)[\s\S]*?\.price-audit-key-frame\s*\{\s*grid-template-columns: 1fr;/, 'dien thoai: xep chong');
+});
+
+test('bang tien phat theo sale: tong moi cot khop KPI, ten sale, dong Tong dang hien thi', async () => {
+  const page = await openedAll({ server: fakeServer({ rows: saleTestRows() }) });
+  const cards = [...page.$('priceAuditKpis').querySelectorAll('.kpi-card')].map(c => c.querySelector('.value').textContent);
+  assert.equal(cards.length, 5);
+  assert.equal(cards[3], '107,000');
+  assert.equal(cards[4], '80,000');
+  assert.deepEqual(salesRowsText(page), [
+    ['Duy Thái - 1234567890', '100,000', '50,000'], ['Minh Anh', '0', '30,000'], ['Lan', '7,000', '0']]);
+  assert.deepEqual(footText(page), ['Tổng đang hiển thị', '107,000', '80,000']);
+  assert.equal(page.$('tagPriceAuditSales').textContent, '3');
+});
+
+test('bang tien phat theo sale: tim theo ten sale, tong theo dong dang hien thi, xoa tim kiem, khong goi lai API', async () => {
+  const page = await opened({ server: fakeServer({ rows: saleTestRows() }) });
+  const before = gets(page).length;
+  const search = page.$('priceAuditSalesSearch');
+  search.value = 'minh';
+  search.dispatchEvent(new page.w.Event('input', { bubbles: true }));
+  assert.deepEqual(salesRowsText(page), [['Minh Anh', '0', '30,000']]);
+  assert.deepEqual(footText(page), ['Tổng đang hiển thị', '0', '30,000']);
+  assert.equal(page.$('tagPriceAuditSales').textContent, '1/3');
+  assert.equal(page.$('priceAuditSalesSearchClear').hidden, false);
+  search.value = 'zzzz';
+  search.dispatchEvent(new page.w.Event('input', { bubbles: true }));
+  assert.match(page.$('priceAuditSalesRows').textContent, /Không có sale nào chứa/);
+  page.$('priceAuditSalesSearchClear').click();
+  assert.equal(search.value, '');
+  assert.equal(salesRowsText(page).length, 3);
+  assert.equal(gets(page).length, before);
+});
+
+test('bang tien phat theo sale: tieu de cot sort theo quy uoc ▲▼ / ▼ / ▲ cua table-controls', async () => {
+  const page = await opened({ server: fakeServer({ rows: saleTestRows() }) });
+  const head = () => [...page.$('priceAuditSalesTable').querySelectorAll('thead th')];
+  assert.ok(head().every(th => th.querySelector('.sort-button .sort-indicator')), 'moi cot co nut sort');
+  assert.deepEqual(head().map(th => th.querySelector('.sort-indicator').textContent), ['▲▼', '▲▼', '▲▼']);
+  head()[2].querySelector('.sort-button').click();
+  assert.deepEqual(salesRowsText(page).map(r => r[0]), ['Lan', 'Minh Anh', 'Duy Thái - 1234567890']);
+  assert.equal(head()[2].querySelector('.sort-indicator').textContent, '▼');
+  head()[2].querySelector('.sort-button').click();
+  assert.deepEqual(salesRowsText(page).map(r => r[0]), ['Duy Thái - 1234567890', 'Minh Anh', 'Lan']);
+  assert.equal(head()[2].querySelector('.sort-indicator').textContent, '▲');
+});
+
+test('bang tien phat theo sale: nut Xuat file chi hien khi co reports.export va mo hop thoai kem bo loc + o tim kiem', async () => {
+  const withExport = await opened({ server: fakeServer({ rows: saleTestRows() }) });
+  const calls = [];
+  withExport.w.startExportDialog = (payload, source) => { calls.push({ payload, source }); };
+  assert.equal(withExport.$('priceAuditSalesExportButton').hidden, false);
+  withExport.$('priceAuditSalesSearch').value = 'minh';
+  withExport.$('priceAuditSalesSearch').dispatchEvent(new withExport.w.Event('input', { bubbles: true }));
+  withExport.$('priceAuditSalesExportButton').click();
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].payload.kind, 'priceAuditSales');
+  const q = new URLSearchParams(calls[0].payload.query);
+  assert.equal(q.get('saleSearch'), 'minh');
+  assert.equal(q.get('status'), 'wrong');
+  const urls = [];
+  withExport.w.exportFetch = url => { urls.push(url); return Promise.resolve({}); };
+  calls[0].source.fields(calls[0].payload, {});
+  calls[0].source.file({ ...calls[0].payload, format: 'xlsx', columns: { priceAuditSales: ['saleName', 'pendingAmount'] } }, {});
+  assert.match(urls[0], /^\/api\/invoice-price-audit\/export\/sales\/fields\?/);
+  assert.match(urls[1], /^\/api\/invoice-price-audit\/export\/sales\?/);
+  assert.equal(new URLSearchParams(urls[1].split('?')[1]).get('columns'), 'saleName,pendingAmount');
+  const noExport = await opened({ permissions: ['reports.invoices', 'reports.invoices.priceAudit'], server: fakeServer({ rows: saleTestRows() }) });
+  assert.equal(noExport.$('priceAuditSalesExportButton').hidden, true);
+});
+
+test('mau chu trang thai Chot: Ok xanh la, Phat do (token CSS, chi doi mau chu)', async () => {
+  const page = await openedAll({ server: fakeServer({ rows: [line(1, { decision: 'ok', originalAmount: '100' }), line(2, { decision: 'penalty', canDecide: false }), line(3, { canDecide: false })] }) });
+  const select = page.$('priceAuditRows').querySelector('select.price-audit-decision');
+  assert.equal(select.dataset.status, 'Ok');
+  const text = [...page.$('priceAuditRows').querySelectorAll('.price-audit-decision-text')].map(el => el.dataset.status);
+  assert.deepEqual(text.sort(), ['Chưa chốt', 'Phạt']);
+  assert.match(html, /\.price-audit-decision\[data-status="Ok"\][\s\S]*?color: var\(--green\)/);
+  assert.match(html, /\.price-audit-decision\[data-status="Phạt"\][\s\S]*?color: var\(--red\)/);
 });

@@ -18,6 +18,7 @@ const { readCustomerPriceLevels } = require('../businessReport/customerPriceLeve
 const { nameKey, RETAIL_NAME } = require('../businessReport/businessMonths');
 const S = require('./priceAuditSql');
 const fuzzy = require('../shared/fuzzySearch');
+const { saleNameSql } = require('../dashboard/saleName');
 
 const SOURCE_NOT_READY = 'PRICE_AUDIT_SOURCE_NOT_READY';
 const WINDOW_DAYS = 16;
@@ -36,7 +37,8 @@ const codeKey = code => String(code ?? '').trim().toLowerCase();
 const MEASURES_READY_SQL = "SELECT last_success_at, freight_error FROM sheet_snapshot_sync WHERE source = 'shipping_measures'";
 
 // $1 ngay chay (YYYY-MM-DD). purchase_date = gio dia phuong Kiot gan nhan UTC -> moc ngay AT TIME ZONE 'UTC'.
-const INVOICES_SQL = `
+// includeSeen=false (job 23:00): chi hoa don chua co so danh dau. includeSeen=true (--recalc): moi hoa don trong cua so.
+const invoicesSql = includeSeen => `
   SELECT i.branch, i.id::text AS invoice_id, i.code, i.purchase_date::text AS sold_at,
          (i.purchase_date AT TIME ZONE 'UTC')::date::text AS sold_day, i.modified_date::text AS modified_at,
          i.customer_id::text AS customer_id, COALESCE(i.raw->>'description', '') AS invoice_note,
@@ -51,8 +53,10 @@ const INVOICES_SQL = `
   WHERE i.purchase_date >= (($1::date - ${WINDOW_DAYS - 1})::timestamp AT TIME ZONE 'UTC')
     AND i.purchase_date <  (($1::date + 1)::timestamp AT TIME ZONE 'UTC')
     AND ${INVOICE_STATUS_SQL} = 'Hoàn thành'
-    AND NOT EXISTS (SELECT 1 FROM invoice_price_audit_invoices m WHERE m.branch = i.branch AND m.invoice_id = i.id)
+    ${includeSeen ? '' : 'AND NOT EXISTS (SELECT 1 FROM invoice_price_audit_invoices m WHERE m.branch = i.branch AND m.invoice_id = i.id)'}
   ORDER BY i.branch, i.id`;
+const INVOICES_SQL = invoicesSql(false);
+const ALL_INVOICES_SQL = invoicesSql(true);
 
 // $1 co so[], $2 id hoa don[] (cap). San pham theo (co so, product_id) cua chinh dong.
 const LINES_SQL = `
@@ -100,6 +104,42 @@ function regionInput(found, productId, description) {
     vatPerUnit: note.vatPerUnit, updatedLabel: note.updatedLabel };
 }
 
+// Gia duyet (bang invoice_approved_prices, migration 0091 + 0092 tach gia khong VAT / co VAT): chua migrate -> coi nhu chua co
+// gia duyet (khong vo job). Kiem tra cot price_no_vat bang information_schema thay vi bat loi 42P01/42703 vi loi trong
+// giao dich se lam huy ca giao dich.
+const APPROVED_READY_SQL = `SELECT EXISTS (SELECT 1 FROM information_schema.columns
+  WHERE table_schema = current_schema() AND table_name = 'invoice_approved_prices' AND column_name = 'price_no_vat') AS ok`;
+const APPROVED_PRICES_SQL = `SELECT branch, customer_id::text AS customer_id, product_id::text AS product_id,
+  price_no_vat::text AS price_no_vat, price_with_vat::text AS price_with_vat, approved_on::text AS approved_on
+  FROM invoice_approved_prices ORDER BY approved_on DESC, id DESC`;
+
+/** Map "co so:khach:san pham" -> cac ban ghi, ngay duyet moi nhat truoc. */
+async function readApprovedPrices(client) {
+  const map = new Map();
+  if (!(await client.query(APPROVED_READY_SQL)).rows[0].ok) return map;
+  for (const r of (await client.query(APPROVED_PRICES_SQL)).rows) {
+    const key = `${r.branch}:${r.customer_id}:${r.product_id}`;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(r);
+  }
+  return map;
+}
+
+/**
+ * Gia duyet ap cho dong hoa don (khach le/khong co khach: khong khop). Hoa don Full VAT dung gia CO VAT, hoa don khong Full VAT
+ * dung gia KHONG VAT. Moi loai gia xet rieng: lay ban ghi MOI NHAT co ngay duyet <= ngay ban VA co nhap loai gia do; ban ghi
+ * moi hon de trong loai gia can dung thi bo qua (xet ban cu hon); khong ban nao co loai gia do -> khong ap gia duyet.
+ * Tra { approved_price, approved_on, approved_kind: 'vat' | 'no_vat' } hoac null.
+ */
+function pickApprovedPrice(map, branch, customerId, productId, soldDay, fullVat) {
+  if (!customerId || !productId) return null;
+  const list = map.get(`${branch}:${customerId}:${productId}`);
+  if (!list) return null;
+  const field = fullVat ? 'price_with_vat' : 'price_no_vat';
+  const hit = list.find(r => r.approved_on <= soldDay && r[field] != null);
+  return hit ? { approved_price: hit[field], approved_on: hit.approved_on, approved_kind: fullVat ? 'vat' : 'no_vat' } : null;
+}
+
 async function assertMeasuresReady(client) {
   let rows;
   try {
@@ -115,22 +155,29 @@ async function assertMeasuresReady(client) {
 }
 
 /**
- * Chup moi hoa don "Hoan thanh" chua quet co ngay ban trong [day-15, day].
- * @param {{ day: string, client: { query: Function }, now: Date|number|string }} args client DA o trong giao dich.
- * @returns {Promise<{ addedInvoices: number, addedLines: number }>}
+ * Doc nguon HIEN TAI va dung dau vao chup: so danh dau (markers) + dong (lineInputs) cua cac hoa don "Hoan thanh"
+ * co ngay ban trong [day-15, day]. Dung chung cho job 23:00 (includeSeen=false: chi hoa don chua quet) va
+ * tinh lai (includeSeen=true: ca hoa don da quet). Chi doc, khong ghi.
  */
-async function captureUnseenInvoices({ day, client, now }) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(day || ''))) throw new Error('captureUnseenInvoices: day phải là YYYY-MM-DD');
-  if (!client || typeof client.query !== 'function') throw new Error('captureUnseenInvoices: thiếu client giao dịch');
+async function buildCaptureInputs({ day, client, now, includeSeen, who, scope = null }) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(day || ''))) throw new Error(`${who}: day phải là YYYY-MM-DD`);
+  if (!client || typeof client.query !== 'function') throw new Error(`${who}: thiếu client giao dịch`);
   const capturedAt = new Date(now ?? Date.now()).toISOString();
   await assertMeasuresReady(client);
 
-  const invoices = (await client.query(INVOICES_SQL, [day])).rows;
-  if (invoices.length === 0) return { addedInvoices: 0, addedLines: 0 };
+  let invoices = (await client.query(includeSeen ? ALL_INVOICES_SQL : INVOICES_SQL, [day])).rows;
+  // scope (tinh lai sau khi sua Gia duyet): chi hoa don cua dung khach tu ngay duyet; loc TRUOC cac buoc kiem tra nguon
+  // de hoa don khong lien quan khong lam vuong viec luu gia duyet.
+  if (scope) {
+    invoices = invoices.filter(i => i.branch === scope.branch && String(i.customer_id) === String(scope.customerId)
+      && i.sold_day >= scope.fromDay);
+  }
+  if (invoices.length === 0) return { invoices, markers: [], lineInputs: [] };
+  const approvedPrices = await readApprovedPrices(client);
 
   const customerKey = inv => nameKey(inv.customer_name || inv.raw_customer_name) || nameKey(RETAIL_NAME);
   let localLevels;
-  try { localLevels = await readCustomerPriceLevels(client,invoices.map(customerKey)); }
+  try { localLevels = await readCustomerPriceLevels(client,invoices.map(customerKey), { createMissingAs: 'new' }); }
   catch (err) {
     if (err.code === 'MIGRATION_PENDING') throw sourceNotReady(err.message);
     throw err;
@@ -198,6 +245,9 @@ async function captureUnseenInvoices({ day, client, now }) {
     all.forEach((l, index) => {
       // Chi dong SL duong; so dong = vi tri trong hoa don nguon (1..n), giu ca khi bo dong SL <= 0.
       if (!(Number(l.quantity) > 0)) return;
+      if (scope && String(l.product_id) !== String(scope.productId)) return;
+      const fullVat = hasFullVat(l.line_note, inv.invoice_note);
+      const approved = pickApprovedPrice(approvedPrices, inv.branch, inv.customer_id, l.product_id, inv.sold_day, fullVat);
       const code = l.raw_code || l.product_code;
       const name = l.raw_name || l.product_name;
       const own = regionInput(l.product_found, l.product_id, l.description);
@@ -209,17 +259,30 @@ async function captureUnseenInvoices({ day, client, now }) {
         customer_email: inv.customer_email, customer_level: S.LEVEL_LABELS[level], level_position: S.LEVEL_POSITIONS[level],
         sale_name: inv.sale_name, product_code: code, code_key: codeKey(code), product_name: name,
         quantity: l.quantity, original_unit_price: l.price, unit_discount: l.discount,
-        full_vat: hasFullVat(l.line_note, inv.invoice_note),
+        full_vat: fullVat,
         freight_eligible: freightEligible, freight: freightEligible ? (freightByKey.get(codeKey(code)) ?? null) : null,
         hn: inv.branch === 'hanoi' ? own : null,
         sg: inv.branch === 'saigon' ? own : (freightEligible ? regionInput(Boolean(sg), sg && sg.product_id, sg && sg.description) : null),
         product_note_hn: inv.branch === 'hanoi' ? l.description : '',
         product_note_sg: inv.branch === 'saigon' ? l.description : (sg ? sg.description : ''),
-        line_note: l.line_note, invoice_note: inv.invoice_note, captured_at: capturedAt
+        line_note: l.line_note, invoice_note: inv.invoice_note, captured_at: capturedAt,
+        approved_price: approved ? approved.approved_price : null, approved_on: approved ? approved.approved_on : null,
+        approved_kind: approved ? approved.approved_kind : null
       });
     });
   }
 
+  return { invoices, markers, lineInputs };
+}
+
+/**
+ * Chup moi hoa don "Hoan thanh" chua quet co ngay ban trong [day-15, day].
+ * @param {{ day: string, client: { query: Function }, now: Date|number|string }} args client DA o trong giao dich.
+ * @returns {Promise<{ addedInvoices: number, addedLines: number }>}
+ */
+async function captureUnseenInvoices({ day, client, now }) {
+  const { markers, lineInputs } = await buildCaptureInputs({ day, client, now, includeSeen: false, who: 'captureUnseenInvoices' });
+  if (markers.length === 0) return { addedInvoices: 0, addedLines: 0 };
   const inserted = (await client.query(INSERT_MARKERS_SQL, [JSON.stringify(markers)])).rows;
   const insertedKeys = new Set(inserted.map(r => `${r.branch}:${r.invoice_id}`));
   const toInsert = lineInputs.filter(l => insertedKeys.has(`${l.branch}:${l.invoice_id}`));
@@ -229,6 +292,77 @@ async function captureUnseenInvoices({ day, client, now }) {
     addedLines = res.affectedRows ?? res.rowCount ?? toInsert.length;
   }
   return { addedInvoices: inserted.length, addedLines };
+}
+
+// ---------------------------------------------------------------- tinh lai theo du lieu hien tai
+
+const RECALC_ACTOR = 'system:price-audit-recalc';
+const BEFORE_LINES_SQL = `
+  SELECT l.branch, l.invoice_id::text AS invoice_id, l.source_line_no, l.invoice_code, l.product_code, l.sale_name,
+         l.customer_level, l.original_status, l.original_amount::text AS original_amount,
+         l.minimum_unit_price::text AS minimum_unit_price, l.decision, l.version
+  FROM invoice_price_audit_lines l
+  JOIN unnest($1::text[], $2::bigint[]) AS k(branch, invoice_id) ON k.branch = l.branch AND k.invoice_id = l.invoice_id`;
+const INSERT_RECALC_LOG_SQL = `INSERT INTO invoice_price_audit_changes
+  (branch, invoice_id, source_line_no, actor, action, before_value, after_value, version_before, version_after)
+  SELECT x.branch, x.invoice_id::bigint, x.source_line_no, $2, 'recalc', x.before_value, x.after_value, x.version, x.version
+  FROM jsonb_to_recordset($1::jsonb) AS x(branch text, invoice_id text, source_line_no int, before_value jsonb,
+    after_value jsonb, version int)`;
+
+// '10.0000' = '10'; null giu null. So sanh NUMERIC dang chuoi ma khong dung so thuc.
+const normDec = v => (v == null ? null : (String(v).includes('.') ? String(v).replace(/0+$/, '').replace(/\.$/, '') : String(v)));
+
+/**
+ * Tinh lai cac dong DA CHUP trong cua so [day-15, day] theo du lieu nguon HIEN TAI va chup them hoa don chua quet
+ * trong cua so. Chay trong giao dich cua NGUOI GOI (khong BEGIN/COMMIT): caller COMMIT (apply) hoac ROLLBACK (dry-run).
+ * Giu nguyen giai thich/Chot/version cua dong da co; dong khong con trong nguon (hoa don bi sua/huy) giu nguyen.
+ * "Do level" = level cua dong doi (customer_level moi != luc chup); con lai la "do du lieu khac" (bang gia, can do...).
+ */
+async function recalcWindow({ day, client, now, scope = null }) {
+  const { invoices, markers, lineInputs } = await buildCaptureInputs({ day, client, now, includeSeen: true, who: 'recalcWindow', scope });
+  const empty = { recomputedLines: 0, newInvoices: 0, newLines: 0, resultChangedLines: 0, statusFlippedLines: 0,
+    changedByLevel: 0, changedByData: 0, levelChangedLines: 0, loggedChanges: 0, decidedStatusChanged: [] };
+  if (markers.length === 0) return empty;
+
+  const before = new Map((await client.query(BEFORE_LINES_SQL,
+    [invoices.map(i => i.branch), invoices.map(i => i.invoice_id)])).rows
+    .map(r => [`${r.branch}:${r.invoice_id}:${r.source_line_no}`, r]));
+  const newMarkers = (await client.query(INSERT_MARKERS_SQL, [JSON.stringify(markers)])).rows;
+  const after = lineInputs.length ? (await client.query(S.RECALC_LINES_SQL, [JSON.stringify(lineInputs)])).rows : [];
+
+  const out = { ...empty, newInvoices: newMarkers.length };
+  const log = [];
+  for (const a of after) {
+    const b = before.get(`${a.branch}:${a.invoice_id}:${a.source_line_no}`);
+    if (a.inserted || !b) { out.newLines += 1; continue; }
+    out.recomputedLines += 1;
+    const levelChanged = b.customer_level !== a.customer_level;
+    const statusChanged = b.original_status !== a.original_status;
+    const resultChanged = statusChanged || normDec(b.original_amount) !== normDec(a.original_amount)
+      || normDec(b.minimum_unit_price) !== normDec(a.minimum_unit_price);
+    if (levelChanged) out.levelChangedLines += 1;
+    if (resultChanged) {
+      out.resultChangedLines += 1;
+      if (levelChanged) out.changedByLevel += 1; else out.changedByData += 1;
+    }
+    if (statusChanged) {
+      out.statusFlippedLines += 1;
+      if (b.decision) {
+        out.decidedStatusChanged.push({ branch: b.branch, invoiceCode: b.invoice_code, productCode: b.product_code,
+          saleName: b.sale_name, sourceLineNo: b.source_line_no, from: b.original_status, to: a.original_status,
+          decision: b.decision });
+      }
+    }
+    if (resultChanged || levelChanged) {
+      const pick = r => ({ customerLevel: r.customer_level, originalStatus: r.original_status,
+        originalAmount: normDec(r.original_amount), minimumUnitPrice: normDec(r.minimum_unit_price) });
+      log.push({ branch: a.branch, invoice_id: a.invoice_id, source_line_no: a.source_line_no,
+        before_value: pick(b), after_value: pick(a), version: b.version });
+    }
+  }
+  if (log.length) await client.query(INSERT_RECALC_LOG_SQL, [JSON.stringify(log), RECALC_ACTOR]);
+  out.loggedChanges = log.length;
+  return out;
 }
 
 // ---------------------------------------------------------------- doc ket qua
@@ -279,7 +413,7 @@ const FILTER_SQL = `
 
 // Ung vien de cham diem: cung bo loc co dinh, chi lay khoa + van ban tim kiem.
 const CANDIDATES_SQL = `SELECT l.branch, l.invoice_id::text AS invoice_id, l.source_line_no,
-  concat_ws(' ', l.invoice_code, l.customer_code, l.customer_name, l.product_code, l.product_name) AS search_text
+  concat_ws(' ', l.invoice_code, l.customer_code, l.customer_name, l.product_code, l.product_name, l.sale_explanation) AS search_text
   FROM invoice_price_audit_lines l ${BASE_WHERE}`;
 
 const DEFAULT_ORDER_SQL = `ORDER BY (${S.effectiveStatusSql('l')} = 'wrong') DESC, l.sold_at DESC, l.branch, l.invoice_code, l.source_line_no`;
@@ -321,6 +455,17 @@ const KPI_SQL = `
          COALESCE(SUM(l.quantity), 0)::text AS quantity,
          count(*)::int AS total_rows
   ${FILTER_SQL}`;
+
+// Tong hop tien theo sale (cung bo loc / cung bieu thuc tien voi KPI_SQL nen tong moi cot khop KPI). Ten sale cat ID Telegram
+// ngay trong SQL (cung quy tac saleName.js); chi giu sale co tien chenh chua chot hoac da chot Phat khac 0.
+const SALE_SUMMARY_SQL = `
+  SELECT ${saleNameSql('l.sale_name')} AS sale_name,
+         COALESCE(SUM(${S.pendingAmountSql('l')}), 0)::text AS pending_amount,
+         COALESCE(SUM(${S.penaltyAmountSql('l')}), 0)::text AS penalty_amount
+  ${FILTER_SQL}
+  GROUP BY 1
+  HAVING COALESCE(SUM(${S.pendingAmountSql('l')}), 0) <> 0 OR COALESCE(SUM(${S.penaltyAmountSql('l')}), 0) <> 0
+  ORDER BY 1`;
 
 const ROWS_SQL = `SELECT ${ROW_COLUMNS_SQL} ${FILTER_SQL} ORDER_PLACEHOLDER LIMIT $15 OFFSET $16`;
 const SALES_SQL = `SELECT DISTINCT l.sale_name FROM invoice_price_audit_lines l
@@ -425,7 +570,7 @@ function createPriceAuditRepository({ pool = getPool() } = {}) {
       decision: q.decision, vat: q.vat, freight: q.freight, q: q.q };
     if (!meta.available) {
       return { meta, filters: { applied, options: { sales: [] } }, kpis: null, totals: null,
-        rows: [], totalRows: 0, page: q.page, pageSize: q.pageSize };
+        saleSummary: [], rows: [], totalRows: 0, page: q.page, pageSize: q.pageSize };
     }
     const baseParams = [state.window_from, state.window_to, q.from, q.to, q.branch, q.sale, q.status, q.decision,
       q.vat, q.freight];
@@ -443,10 +588,11 @@ function createPriceAuditRepository({ pool = getPool() } = {}) {
     }
     const ranked = match[0] !== null;
     const params = [...baseParams, ...match];
-    const [kpi, rows, sales] = await Promise.all([
+    const [kpi, rows, sales, saleSummary] = await Promise.all([
       pool.query(KPI_SQL, params),
       pool.query(ROWS_SQL.replace('ORDER_PLACEHOLDER', orderSql(q.sort, q.dir, ranked)), [...params, q.pageSize, (q.page - 1) * q.pageSize]),
-      pool.query(SALES_SQL, [state.window_from, state.window_to])
+      pool.query(SALES_SQL, [state.window_from, state.window_to]),
+      pool.query(SALE_SUMMARY_SQL, params)
     ]);
     const k = kpi.rows[0];
     return {
@@ -455,6 +601,7 @@ function createPriceAuditRepository({ pool = getPool() } = {}) {
       kpis: { invoiceCount: k.invoice_count, correctLines: k.correct_lines, wrongLines: k.wrong_lines,
         pendingAmount: k.pending_amount, penaltyAmount: k.penalty_amount, effectiveAmount: k.effective_amount },
       totals: { quantity: k.quantity, originalAmount: k.original_amount, effectiveAmount: k.effective_amount },
+      saleSummary: saleSummary.rows.map(r => ({ saleName: r.sale_name, pendingAmount: r.pending_amount, penaltyAmount: r.penalty_amount })),
       rows: rows.rows.map(mapRow),
       totalRows: k.total_rows,
       page: q.page,
@@ -535,6 +682,7 @@ function getPriceAuditRepository() {
 module.exports = {
   SOURCE_NOT_READY,
   captureUnseenInvoices,
+  recalcWindow,
   createPriceAuditRepository,
   getPriceAuditRepository,
   httpError,

@@ -46,10 +46,11 @@
       setTimeout(unhide, 1200);
     })();
   </script>
-  <link rel="stylesheet" href="/shared/shared.css?v=20261022-1">
+  <link rel="stylesheet" href="/shared/shared.css?v=20261024-2">
   <link rel="stylesheet" href="/shared/search-clear.css?v=20261009-1">
   <link rel="stylesheet" href="/shared/detail-panel.css?v=20261016">
   <link rel="stylesheet" href="/marketing-report.css?v=20261016-sort">
+  <link rel="stylesheet" href="/invoice-approved-prices.css?v=20261024-4">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&display=swap">
@@ -526,7 +527,7 @@
       outline-offset: 2px;
     }
 
-    /* ---------- Modal Ho so ca nhan (mirror server/public/shared/shared.css) ---------- */
+    /* ---------- Modal Ho so ca nhan (mirror server/public/shared/shared.css?v=20261024-2) ---------- */
     .tks-profile-overlay {
       position: fixed;
       inset: 0;
@@ -809,7 +810,7 @@
     /* ---------- Thanh bộ lọc (sidebar filter layout, dạng trên cùng) ---------- */
     .filterbar {
       position: static;
-      background: var(--panel);
+      background: var(--glass-panel);
       border: 1px solid var(--border);
       border-radius: var(--radius-12);
       padding: 14px 16px;
@@ -1206,8 +1207,29 @@
       }
     }
 
+    /* Bảng giá duyệt: 4 chỉ số dàn đều 100% chiều ngang (đặt ở HTML, không phụ thuộc bản JS/CSS riêng đang cache) */
+    #approvedPriceKpis {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    #approvedPriceKpis>.kpi-card {
+      grid-column: auto;
+    }
+
+    @media (max-width:1180px) {
+      #approvedPriceKpis {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width:600px) {
+      #approvedPriceKpis {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
     .kpi-card {
-      background: var(--panel);
+      background: var(--glass-panel);
       border: 1px solid var(--border);
       border-radius: var(--radius-12);
       padding: 16px 18px;
@@ -1253,7 +1275,7 @@
     }
 
     .panel {
-      background: var(--panel);
+      background: var(--glass-panel);
       border: 1px solid var(--border);
       border-radius: var(--radius-12);
       padding: 18px 20px;
@@ -1315,6 +1337,22 @@
       color: var(--text);
       font: 500 12.5px var(--font-body);
       cursor: pointer;
+    }
+
+    .business-new-customer-input {
+      width: 100%;
+      min-width: 100px;
+      padding: 3px 6px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background-color: var(--panel);
+      color: var(--text);
+      font: 500 12.5px var(--font-body);
+    }
+
+    .business-new-customer-input:disabled {
+      opacity: .6;
+      cursor: progress;
     }
 
     .business-team-select:disabled, .business-price-level-select:disabled {
@@ -1972,7 +2010,7 @@
     }
 
     .stockout-period-row td {
-      background: var(--panel-2);
+      background: var(--glass-panel-2);
       font-size: 11px;
       color: var(--muted);
     }
@@ -2557,7 +2595,7 @@
     }
 
     .end-day-stat {
-      background: var(--panel-2);
+      background: var(--glass-panel-2);
       border: 1px solid var(--border);
       border-radius: var(--radius-9);
       padding: 12px 14px;
@@ -2678,7 +2716,7 @@
       border-top: 1px solid var(--border);
       color: var(--text);
       font-weight: 700;
-      background: var(--panel-2);
+      background: var(--glass-head);
     }
 
     .end-day-table tfoot td:first-child {
@@ -2719,7 +2757,7 @@
     .scroll-list table thead th {
       position: sticky;
       top: 0;
-      background: var(--panel);
+      background: var(--glass-head);
       z-index: 1;
     }
 
@@ -2745,7 +2783,7 @@
       border-top: 1px solid var(--border);
       color: var(--text);
       font-weight: 700;
-      background: var(--panel-2);
+      background: var(--glass-head);
     }
 
     .end-day-table tfoot td:first-child {
@@ -2786,7 +2824,7 @@
     .scroll-list table thead th {
       position: sticky;
       top: 0;
-      background: var(--panel);
+      background: var(--glass-head);
       z-index: 1;
     }
 
@@ -2915,7 +2953,7 @@
     }
 
     .pr-detail-row>td {
-      background: var(--panel-2);
+      background: var(--glass-panel-2);
     }
 
     .pr-detail-row>td>* {
@@ -3024,7 +3062,7 @@
       position: sticky;
       top: 0;
       z-index: 2;
-      background: var(--panel);
+      background: var(--glass-head);
     }
 
     .debt-head-actions {
@@ -3076,7 +3114,7 @@
       position: sticky;
       top: 0;
       z-index: 2;
-      background: var(--panel);
+      background: var(--glass-head);
     }
 
     .debt-reward-toolbar {
@@ -3126,7 +3164,7 @@
       position: sticky;
       bottom: 0;
       z-index: 1;
-      background: var(--panel);
+      background: var(--glass-head);
       font-weight: 600;
       border-top: 1px solid var(--border);
     }
@@ -3257,6 +3295,60 @@
     }
 
     /* ---------- Hóa đơn · Kiểm tra giá bán (invoice-price-audit.js) ---------- */
+    .price-audit-key-stack .kpi-card {
+      flex: 0 0 auto;
+      height: auto;
+      min-height: 76px;
+    }
+
+    .price-audit-key-stack .kpi-card .sub {
+      margin-top: 2px;
+      font-size: 10.5px;
+      line-height: 1.3;
+    }
+
+    .price-audit-sales-board .debt-penalty-wrap {
+      max-height: 420px;
+      /* Luôn chừa chỗ thanh cuộn dọc và không cho tràn ngang: cột cuối (Tiền phạt đã chốt) không bị thanh cuộn đè số. */
+      overflow-x: hidden;
+      overflow-y: scroll;
+    }
+
+    .price-audit-sales-board .debt-penalty-wrap table {
+      min-width: 0;
+    }
+
+    .price-audit-sales-board .table-search-tools {
+      justify-content: flex-start;
+    }
+
+    /* Màu CHỮ trạng thái Chốt trong bảng chi tiết: OK xanh lá, Phạt đỏ (token, tự đổi theo Sáng/Tối). */
+    .price-audit-decision[data-status="Ok"],
+    .price-audit-decision-text[data-status="Ok"] { color: var(--green); font-weight: 600; }
+    .price-audit-decision[data-status="Phạt"],
+    .price-audit-decision-text[data-status="Phạt"] { color: var(--red); font-weight: 600; }
+
+    @media (max-width: 900px) {
+      .price-audit-key-frame {
+        grid-template-columns: 1fr;
+      }
+
+      .price-audit-key-stack {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .price-audit-key-stack .kpi-card {
+        overflow: visible;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .price-audit-key-stack {
+        grid-template-columns: 1fr;
+      }
+    }
+
     .price-audit-status {
       display: grid;
       gap: var(--space-md);
@@ -4199,11 +4291,10 @@
             <div class="section-head"><span class="section-step">2</span>
               <h2>Dự kiến hàng về <span class="section-note" id="expectedArrivalsUpdatedAt">—</span></h2>
             </div>
-            <div class="kpi-grid section-kpis" id="expectedArrivalsKpis"></div>
             <div class="grid">
               <div class="panel col-12">
                 <div class="panel-head">
-                  <h2>Dòng hàng dự kiến về <span class="tag" id="tagExpectedArrivals">—</span></h2>
+                  <h2>Dòng hàng dự kiến về<span class="tag" id="tagExpectedArrivals">—</span></h2>
                   <div class="panel-head-actions expected-arrivals-filters">
                     <select class="stockout-branch-select" id="expectedArrivalsSource" aria-label="Lọc theo nguồn" hidden>
                       <option value="">Tất cả nguồn</option>
@@ -4229,8 +4320,6 @@
                   <table class="fixed-table" data-table-key="dashboard-table-expected-arrivals">
                     <thead>
                       <tr>
-                        <!-- Nguồn (cột + ô lọc #expectedArrivalsSource) chỉ dành cho fullAccess như 2 cột giá: máy chủ trả sheetName ẩn danh '#n' cho người còn lại. -->
-                        <th style="width:120px" data-column-key="nguon" data-full-column hidden data-column-unlisted="true">Nguồn</th>
                         <th style="width:190px" data-column-key="lich-trang-thai" data-hint="Trạng thái + ngày dự kiến về của cont (ô B + C dòng nhãn CONT trên sheet).">Lịch/Trạng thái</th>
                         <th style="width:130px" data-column-key="ten-cont">Tên Cont</th>
                         <th style="width:120px" data-column-key="ma-sp">Mã SP</th>
@@ -4250,7 +4339,7 @@
                     </thead>
                     <tbody id="expectedArrivalsRows">
                       <tr>
-                        <td colspan="14" class="table-note">Đang tải...</td>
+                        <td colspan="13" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -4319,7 +4408,39 @@
             <div class="section-head"><span class="section-step">1</span>
               <h2>Kiểm tra giá bán <span class="section-note">mỗi dòng hóa đơn so với giá min quy định, chụp lúc 23:00 trong 16 ngày</span></h2>
             </div>
-            <div class="kpi-grid section-kpis" id="priceAuditKpis"></div>
+            <!-- Cột trái: 5 khối KPI xếp dọc (cùng khung với Chỉ số then chốt của tab Công nợ); bên phải: tiền phạt theo sale (cùng bộ lọc với KPI) -->
+            <div class="debt-key-frame price-audit-key-frame section-kpis">
+              <div class="debt-key-stack price-audit-key-stack" id="priceAuditKpis"></div>
+              <div class="panel debt-penalty-board price-audit-sales-board" id="priceAuditSalesPanel">
+                <div class="panel-head">
+                  <h2>Tiền phạt theo sale <span class="tag" id="tagPriceAuditSales">—</span></h2>
+                  <div class="panel-head-actions"><button class="export-button" type="button" id="priceAuditSalesExportButton"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button></div>
+                  <div class="table-search-tools" data-table-search="priceAuditSales">
+                    <div class="table-search-input-wrap">
+                      <input type="search" class="table-search-input" id="priceAuditSalesSearch" autocomplete="off" maxlength="200" placeholder="Nhập từ khóa…" aria-label="Tìm theo tên sale trong bảng Tiền phạt theo sale">
+                      <button type="button" class="table-search-clear" id="priceAuditSalesSearchClear" aria-label="Xóa tìm kiếm Tiền phạt theo sale" hidden>×</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="debt-penalty-wrap tks-table-scroll">
+                  <table class="fixed-table price-audit-sales-table" id="priceAuditSalesTable" data-table-key="dashboard-table-price-audit-sales">
+                    <thead>
+                      <tr>
+                        <th style="width:200px" data-column-key="sale" data-col-type="text">Tên sale</th>
+                        <th class="col-num" style="width:170px" data-column-key="chua-chot" data-col-type="money">Tiền phạt chưa chốt</th>
+                        <th class="col-num" style="width:170px" data-column-key="da-chot" data-col-type="money">Tiền phạt đã chốt</th>
+                      </tr>
+                    </thead>
+                    <tbody id="priceAuditSalesRows">
+                      <tr>
+                        <td colspan="3" class="table-note">Đang tải...</td>
+                      </tr>
+                    </tbody>
+                    <tfoot id="priceAuditSalesFoot"></tfoot>
+                  </table>
+                </div>
+              </div>
+            </div>
             <div class="grid">
               <div class="panel col-12">
                 <div class="panel-head">
@@ -4376,8 +4497,8 @@
                     </select>
                   </div>
                   <div class="debt-filter-field search-field">
-                    <label for="priceAuditSearch">Tìm hóa đơn / khách / mã hàng</label>
-                    <input id="priceAuditSearch" type="search" autocomplete="off" maxlength="200" placeholder="Mã hóa đơn, tên khách, mã hoặc tên hàng">
+                    <label for="priceAuditSearch">Tìm hóa đơn / khách / mã hàng / ghi chú</label>
+                    <input id="priceAuditSearch" type="search" autocomplete="off" maxlength="200" placeholder="Mã hóa đơn, tên khách, mã hoặc tên hàng, ghi chú">
                   </div>
                 </div>
                 <div class="table-wrap scroll-list price-audit-scroll">
@@ -4451,8 +4572,90 @@
             </div>
           </section>
 
-          <section class="section">
+          <!-- Bảng giá duyệt (invoice-approved-prices.js, API /api/invoice-approved-prices): giá Quản lý đã duyệt riêng cho khách + mã hàng, THAY giá min khi Kiểm tra giá bán; xem theo reports.invoices.priceAudit, tạo/sửa/xóa theo reports.invoices.approvedPrice.manage -->
+          <section class="section" id="approvedPriceSection" hidden>
             <div class="section-head"><span class="section-step">2</span>
+              <h2>Bảng giá duyệt <span class="section-note">giá đã duyệt riêng cho khách + mã hàng; thay giá min khi tính sai giá cho hóa đơn từ ngày duyệt</span></h2>
+            </div>
+            <div class="kpi-grid section-kpis" id="approvedPriceKpis"></div>
+            <div class="grid">
+              <div class="panel col-12">
+                <div class="panel-head">
+                  <h2>Giá duyệt <span class="tag" id="tagApprovedPrice">—</span></h2>
+                  <div class="panel-head-actions">
+                    <button class="btn-primary price-audit-btn" type="button" id="approvedPriceCreateButton" hidden>Tạo bản ghi</button>
+                    <button class="export-button" type="button" id="approvedPriceExportButton"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>
+                  </div>
+                </div>
+                <div class="price-audit-status" id="approvedPriceStatus" role="status" aria-live="polite"></div>
+                <div class="debt-filter-controls price-audit-filters" aria-label="Bộ lọc bảng giá duyệt">
+                  <div class="debt-filter-field">
+                    <label for="approvedPriceApproverFilter">Người duyệt</label>
+                    <select id="approvedPriceApproverFilter">
+                      <option value="">Tất cả</option>
+                      <option value="Anh Quân">Anh Quân</option>
+                      <option value="Anh Duy">Anh Duy</option>
+                      <option value="Anh Duy Khánh">Anh Duy Khánh</option>
+                    </select>
+                  </div>
+                  <div class="debt-filter-field">
+                    <label for="approvedPriceFrom">Ngày duyệt từ</label>
+                    <input id="approvedPriceFrom" type="date">
+                  </div>
+                  <div class="debt-filter-field">
+                    <label for="approvedPriceTo">Ngày duyệt đến</label>
+                    <input id="approvedPriceTo" type="date">
+                  </div>
+                  <div class="debt-filter-field search-field">
+                    <label for="approvedPriceSearch">Tìm khách hàng / sản phẩm / người duyệt</label>
+                    <input id="approvedPriceSearch" type="search" autocomplete="off" maxlength="100" placeholder="Tên hoặc mã khách, mã hoặc tên SP, người duyệt">
+                  </div>
+                  <div class="debt-filter-field">
+                    <label>&nbsp;</label>
+                    <button class="btn-secondary price-audit-btn" type="button" id="approvedPriceClearFilters">Xóa lọc</button>
+                  </div>
+                </div>
+                <div class="table-wrap scroll-list approved-price-scroll">
+                  <table class="fixed-table approved-price-table" id="approvedPriceTable" data-table-key="dashboard-table-approved-price" data-table-sort="off">
+                    <thead id="approvedPriceHead">
+                      <tr>
+                        <th data-no-sort class="sortable" data-sort="customerName" aria-sort="none" style="width:220px" data-column-key="customerName" data-col-type="text" data-col-wrap="true"><button type="button" class="sort-button"><span class="sort-label">Khách hàng</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                        <th data-no-sort class="sortable" data-sort="branch" aria-sort="none" style="width:90px" data-column-key="branch" data-col-type="text"><button type="button" class="sort-button"><span class="sort-label">Cơ sở</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                        <th data-no-sort class="sortable" data-sort="productCode" aria-sort="none" style="width:120px" data-column-key="productCode" data-col-type="text"><button type="button" class="sort-button"><span class="sort-label">Mã SP</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                        <th data-no-sort class="sortable" data-sort="productName" aria-sort="none" style="width:260px" data-column-key="productName" data-col-type="text" data-col-wrap="true"><button type="button" class="sort-button"><span class="sort-label">Tên SP</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                        <th data-no-sort class="sortable col-num" data-sort="priceNoVat" aria-sort="none" style="width:120px" data-column-key="priceNoVat" data-col-type="money"><button type="button" class="sort-button"><span class="sort-label">Giá không VAT</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                        <th data-no-sort class="sortable col-num" data-sort="priceWithVat" aria-sort="none" style="width:120px" data-column-key="priceWithVat" data-col-type="money"><button type="button" class="sort-button"><span class="sort-label">Giá có VAT</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                        <th data-no-sort class="sortable" data-sort="approver" aria-sort="none" style="width:130px" data-column-key="approver" data-col-type="text"><button type="button" class="sort-button"><span class="sort-label">Người duyệt</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                        <th data-no-sort class="sortable" data-sort="approvedOn" aria-sort="none" style="width:115px" data-column-key="approvedOn" data-col-type="text"><button type="button" class="sort-button"><span class="sort-label">Ngày duyệt</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                        <th data-no-sort style="width:130px" data-column-key="actions" data-col-type="text">Thao tác</th>
+                      </tr>
+                    </thead>
+                    <tbody id="approvedPriceRows">
+                      <tr>
+                        <td colspan="9" class="table-note">Đang tải...</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="pagination-controls" id="approvedPricePagination" hidden>
+                  <button type="button" id="approvedPriceFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                  <button type="button" id="approvedPricePrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
+                  <span id="approvedPricePageLabel">Trang 1/1</span>
+                  <button type="button" id="approvedPriceNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                  <button type="button" id="approvedPriceLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
+                  <select id="approvedPricePageSize" class="price-audit-page-size" aria-label="Số dòng mỗi trang">
+                    <option value="25">25 dòng</option>
+                    <option value="50" selected>50 dòng</option>
+                    <option value="100">100 dòng</option>
+                    <option value="200">200 dòng</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section">
+            <div class="section-head"><span class="section-step">3</span>
               <h2>Giao dịch <span class="section-note">chi tiết từng giao dịch trong khoảng thời gian đã chọn</span></h2>
             </div>
             <div class="kpi-grid section-kpis" id="transactionsKpis"></div>
@@ -5063,12 +5266,13 @@
     })();
   </script>
   <script src="/shared/search-clear.js?v=20261009-1"></script>
-  <script src="/shared/shared-nav.js?v=20261023-3"></script>
+  <script src="/shared/shared-nav.js?v=20261024-1"></script>
   <script src="/shared/table-align.js?v=20261017"></script>
   <script src="/shared/dateInput.js?v=20260912"></script>
   <script src="/shared/image-compress.js?v=20261022"></script>
   <script src="/marketing-report.js?v=20261021-1"></script>
-  <script src="/invoice-price-audit.js?v=20261022-1"></script>
+  <script src="/invoice-price-audit.js?v=20261024-1"></script>
+  <script src="/invoice-approved-prices.js?v=20261024-6"></script>
 
   <script>
     // Toast thong bao inline — thay the window.alert() cho loi/canh bao (khong chan luong,
@@ -8232,7 +8436,6 @@
     // Bấm dòng mở hộp "Chi tiết hàng dự kiến" của mã SP (không gọi API): dòng là tr.doc-row, Tab tới được, Enter/Space mở.
     function expectedArrivalsRowHtml(r) {
       return '<tr class="doc-row" tabindex="0" title="Bấm để xem tất cả CONT của mã này" data-table-item-id="' + escapeHtml(r.sheetName + ':' + r.sourceRow) + '">' +
-        (expectedArrivals.fullAccess === true ? expectedArrivalsTextCell(r.sheetName) : '<td></td>') +
         expectedArrivalsTextCell(r.scheduleLabel) +
         expectedArrivalsTextCell(r.containerName) +
         expectedArrivalsTextCell(r.productCode, 'mono') +
@@ -8257,7 +8460,7 @@
     function applyExpectedArrivalsColumnView(full) {
       const noteAccess = expectedArrivals.otherNoteAccess === true;
       const profile = (full ? 'full' : 'standard') + (noteAccess ? ':notes' : '');
-      // Ô lọc Nguồn đi cùng cột Nguồn: chỉ hiện khi có quyền; mất quyền thì xóa lựa chọn cũ (máy chủ cũng bỏ qua ?source= với người này).
+      // Ô lọc Nguồn chỉ hiện khi có quyền; mất quyền thì xóa lựa chọn cũ (máy chủ cũng bỏ qua ?source= với người này).
       const sourceSelect = document.getElementById('expectedArrivalsSource');
       sourceSelect.hidden = !full;
       if (!full) sourceSelect.value = '';
@@ -8295,28 +8498,43 @@
       });
     }
 
-    // Danh sách Cont / Trạng thái lấy từ filters của máy chủ; thiếu thì suy từ các dòng.
-    function expectedArrivalsOptions(listed, pick) {
-      const values = Array.isArray(listed) && listed.length ? listed : expectedArrivals.rows.map(pick);
-      return Array.from(new Set(values.filter(Boolean)));
+    // Mỗi danh sách áp các bộ lọc còn lại, bỏ qua chính nó để người dùng đổi lựa chọn.
+    function syncExpectedArrivalsFilters() {
+      const filters = [
+        { id: 'expectedArrivalsSource', field: 'sheetName', label: 'Tất cả nguồn' },
+        { id: 'expectedArrivalsContainer', field: 'containerName', label: 'Tất cả cont', listed: expectedArrivals.containers },
+        { id: 'expectedArrivalsStatus', field: 'statusLabel', label: 'Tất cả trạng thái', listed: expectedArrivals.statuses }
+      ];
+      const selected = filters.map(function (f, i) {
+        return i === 0 && !expectedArrivals.fullAccess ? '' : document.getElementById(f.id).value;
+      });
+      const searchable = expectedArrivals.rows;
+      filters.forEach(function (f, index) {
+        if (index === 0 && !expectedArrivals.fullAccess) {
+          fillBusinessSelect(f.id, f.label, []);
+          return;
+        }
+        const available = new Set(searchable.filter(function (r) {
+          return filters.every(function (other, i) { return i === index || !selected[i] || r[other.field] === selected[i]; });
+        }).map(function (r) { return r[f.field]; }).filter(Boolean));
+        const ordered = Array.from(new Set((f.listed || []).concat(Array.from(available)))).filter(function (v) { return available.has(v); });
+        fillBusinessSelect(f.id, f.label, ordered);
+      });
+      // Snapshot mới có thể xóa lựa chọn cũ: tính lại các danh sách sau khi đã bỏ lựa chọn đó.
+      if (filters.some(function (f, i) { return document.getElementById(f.id).value !== selected[i]; })) {
+        syncExpectedArrivalsFilters();
+      }
     }
 
     function renderExpectedArrivals() {
-      fillBusinessSelect('expectedArrivalsContainer', 'Tất cả cont', expectedArrivalsOptions(expectedArrivals.containers, r => r.containerName));
-      fillBusinessSelect('expectedArrivalsStatus', 'Tất cả trạng thái', expectedArrivalsOptions(expectedArrivals.statuses, r => r.statusLabel));
+      syncExpectedArrivalsFilters();
       const rows = expectedArrivalsFilteredRows();
-      renderPaginatedRows('expectedArrivals', EXPECTED_ARRIVALS_IDS, rows, expectedArrivalsRowHtml, 14,
+      renderPaginatedRows('expectedArrivals', EXPECTED_ARRIVALS_IDS, rows, expectedArrivalsRowHtml, 13,
         expectedArrivals.loaded ? 'Chưa có hàng dự kiến về.' : 'Đang tải...');
-      // Chỉ số + nhãn đếm theo ĐÚNG các dòng đang hiện (đã lọc Nguồn / Cont / Trạng thái và ô tìm kiếm).
+      // Nhãn đếm theo ĐÚNG các dòng đang hiện (đã lọc Nguồn / Cont / Trạng thái và ô tìm kiếm).
       const shown = filterTableItems(rows, TABLE_EXPLORER_CONFIGS.expectedArrivals, getTableSearchState('expectedArrivals')).items;
       document.getElementById('tagExpectedArrivals').textContent = expectedArrivals.loaded ? fmtNumber(shown.length) : '—';
       document.getElementById('expectedArrivalsUpdatedAt').textContent = formatProductReportUpdatedAt(expectedArrivals.computedAt);
-      renderSectionKpis('expectedArrivalsKpis', [
-        { label: 'Số cont', value: fmtNumber(new Set(shown.map(r => r.containerName)).size), accent: 'amber' },
-        { label: 'Số dòng hàng', value: fmtNumber(shown.length), accent: 'blue' },
-        { label: 'Tổng số lượng', value: fmtNumber(sumBy(shown, r => r.quantity)), accent: 'green' }
-      ]);
-      // Ô tìm kiếm chỉ vẽ lại bảng qua state.tableRenderers: đăng ký lại để chỉ số cũng đổi theo.
       state.tableRenderers.expectedArrivals = renderExpectedArrivals;
     }
 
@@ -8349,7 +8567,7 @@
           console.error('Không tải được bảng dự kiến hàng về:', err);
           if (!expectedArrivals.loaded) {
             document.getElementById('expectedArrivalsRows').innerHTML =
-              '<tr><td colspan="14" class="table-note">Không tải được bảng dự kiến hàng về.</td></tr>';
+              '<tr><td colspan="13" class="table-note">Không tải được bảng dự kiến hàng về.</td></tr>';
           }
         }).finally(function () { expectedArrivals.loading = false; });
     }
@@ -8417,7 +8635,7 @@
     const BUSINESS_TABLE_KEYS = { sales: 'businessSales', customers: 'businessCustomers', products: 'businessProducts' };
     const BUSINESS_FIXED_COLUMNS = {
       sales: [['Sale', 125], ['Team', 133], ['SL Khách', 82]],
-      customers: [['Tên khách', 154], ['Sale', 117], ['Level giá', 117]],
+      customers: [['Tên khách', 154], ['Sale', 117], ['Level giá', 117], ['Khách mới', 130]],
       products: [['Mã hàng', 90], ['Tên hàng', 212]]
     };
     const BUSINESS_METRIC_COLUMN_WIDTHS = {
@@ -8465,7 +8683,7 @@
 
     function businessHeadHtml(kind, data) {
       const today = data.today.split('-').reverse().join('/');
-      const fixedKeys = { sales: ['sale', 'team', 'customerCount'], customers: ['customer', 'sale', 'priceLevel'], products: ['code', 'name'] };
+      const fixedKeys = { sales: ['sale', 'team', 'customerCount'], customers: ['customer', 'sale', 'priceLevel', 'newCustomer'], products: ['code', 'name'] };
       const widths = BUSINESS_METRIC_COLUMN_WIDTHS[kind];
       const cols = BUSINESS_FIXED_COLUMNS[kind].map((c, i) => [c[0], c[1], fixedKeys[kind][i]])
         .concat(businessExtraFixedColumns(kind))
@@ -8531,7 +8749,7 @@
         const fixed = kind === 'sales'
           ? '<td class="name-cell">' + escapeHtml(r.saleName) + '</td>' + businessTeamCellHtml(r, data) + '<td class="mono" data-sort-value="' + r.activeCustomers + '">' + fmtNumber(r.activeCustomers) + '</td>'
           : kind === 'customers'
-            ? '<td class="name-cell">' + escapeHtml(r.name) + '</td><td>' + escapeHtml(r.saleName) + '</td>' + businessPriceLevelCellHtml(r) +
+            ? '<td class="name-cell">' + escapeHtml(r.name) + '</td><td>' + escapeHtml(r.saleName) + '</td>' + businessPriceLevelCellHtml(r) + businessNewCustomerCellHtml(r) +
               (businessCanNotes() ? businessCustomerNoteCellsHtml(r) : '')
             : '<td class="mono muted">' + escapeHtml(r.code) + '</td><td class="name-cell">' + escapeHtml(r.name) + '</td>';
         return '<tr class="doc-row" tabindex="0" title="Bấm để xem chi tiết" data-table-item-id="' + escapeHtml(r.key) + '">' + fixed +
@@ -8543,10 +8761,50 @@
 
     function businessPriceLevelCellHtml(row) {
       if (!row.canEditPriceLevel) return '<td>' + escapeHtml(row.priceLevel || '') + '</td>';
-      const values = [['medium', 'vừa', 'Vừa'], ['large', 'lớn', 'Lớn'], ['vip', 'vip', 'VIP']];
+      const values = [['medium', 'Vừa', 'Vừa'], ['large', 'Lớn', 'Lớn'], ['new', 'Mới', 'Mới'], ['vip', 'Vip', 'Vip']];
       return '<td data-sort-value="' + escapeHtml(row.priceLevel) + '"><select class="business-price-level-select" data-key="' + escapeHtml(row.key) + '" aria-label="Level giá của ' + escapeHtml(row.name) + '"' + (row.priceLevelSaving ? ' disabled' : '') + '>' +
         values.map(function (item) { return '<option value="' + item[0] + '"' + (row.priceLevel === item[1] ? ' selected' : '') + '>' + item[2] + '</option>'; }).join('') + '</select></td>';
     }
+
+    // Cột "Khách mới": người có quyền sửa level giá gõ tự do (gợi ý từ newCustomerOptions), lưu cùng API với level.
+    function businessNewCustomerCellHtml(row) {
+      const text = row.newCustomer || '';
+      if (!row.canEditPriceLevel) return '<td data-sort-value="' + escapeHtml(text) + '">' + escapeHtml(text) + '</td>';
+      return '<td data-sort-value="' + escapeHtml(text) + '"><input type="text" class="business-new-customer-input" list="businessNewCustomerOptions" maxlength="50" data-key="' + escapeHtml(row.key) +
+        '" value="' + escapeHtml(text) + '" placeholder="VD: T10/26" aria-label="Khách mới của ' + escapeHtml(row.name) + '"' + (row.priceLevelSaving || row.newCustomerSaving ? ' disabled' : '') + '></td>';
+    }
+
+    document.getElementById('businessCustomersRows').addEventListener('change', function (event) {
+      const input = event.target.closest && event.target.closest('.business-new-customer-input');
+      if (!input) return;
+      const data = state.business.data.customers;
+      const row = data && data.rows.find(function (item) { return item.key === input.dataset.key; });
+      if (!row || !row.canEditPriceLevel || row.priceLevelSaving || row.newCustomerSaving) return;
+      const previous = row.newCustomer || '';
+      const next = input.value.trim().replace(/s+/g, ' ').slice(0, 50);
+      if (next === previous) { input.value = previous; return; }
+      const level = { 'Vừa': 'medium', 'Lớn': 'large', 'Mới': 'new', 'Vip': 'vip' }[row.priceLevel];
+      row.newCustomerSaving = true;
+      input.disabled = true;
+      cpApi('PUT', '/customer-price-level', { key: row.key, level: level, version: row.priceLevelVersion, newCustomer: next }).then(function (body) {
+        row.newCustomer = body.newCustomer === undefined ? next : (body.newCustomer || '');
+        row.priceLevelVersion = body.priceLevelVersion;
+        if (body.priceLevel) row.priceLevel = body.priceLevel;
+        row.newCustomerSaving = false;
+        if (row.newCustomer && Array.isArray(data.newCustomerOptions) && data.newCustomerOptions.indexOf(row.newCustomer) < 0) {
+          data.newCustomerOptions.push(row.newCustomer);
+          data.newCustomerOptions.sort(function (a, b) { return String(a).localeCompare(String(b), 'vi', { numeric: true }); });
+        }
+        renderBusinessReport();
+        showToast('Đã lưu khách mới.', 'success');
+      }).catch(function (err) {
+        row.newCustomerSaving = false;
+        input.value = previous;
+        input.disabled = false;
+        renderBusinessTable('customers');
+        showToast('Không lưu được khách mới: ' + err.message + (err.status === 409 ? ' Vui lòng tải lại dữ liệu trước khi sửa tiếp.' : ''), 'error');
+      });
+    });
 
     document.getElementById('businessCustomersRows').addEventListener('change', function (event) {
       const select = event.target.closest && event.target.closest('.business-price-level-select');
@@ -8554,7 +8812,7 @@
       const data = state.business.data.customers;
       const row = data && data.rows.find(function (item) { return item.key === select.dataset.key; });
       if (!row || !row.canEditPriceLevel || row.priceLevelSaving) return;
-      const current = { 'vừa': 'medium', 'lớn': 'large', 'vip': 'vip' }[row.priceLevel];
+      const current = { 'Vừa': 'medium', 'Lớn': 'large', 'Mới': 'new', 'Vip': 'vip' }[row.priceLevel];
       if (select.value === current) return;
       row.priceLevelSaving = true;
       select.disabled = true;
@@ -8650,6 +8908,16 @@
       state.tableRenderers[prefix] = function () { renderBusinessTable(kind); };
     }
 
+    function businessFillNewCustomerOptions(options) {
+      let list = document.getElementById('businessNewCustomerOptions');
+      if (!list) {
+        list = document.createElement('datalist');
+        list.id = 'businessNewCustomerOptions';
+        document.body.appendChild(list);
+      }
+      list.innerHTML = (options || []).map(function (v) { return '<option value="' + escapeHtml(v) + '"></option>'; }).join('');
+    }
+
     function fillBusinessSelect(id, firstLabel, values) {
       const select = document.getElementById(id);
       const current = select.value;
@@ -8669,6 +8937,7 @@
       document.getElementById('businessProductsReadiness').hidden = !productsNotReady;
       const customerData = state.business.data.customers;
       if (customerData) {
+        businessFillNewCustomerOptions(customerData.newCustomerOptions);
         const levels = Array.from(new Set(customerData.rows.map(r => r.priceLevel).filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b), 'vi', { numeric: true }));
         fillBusinessSelect('businessCustomersLevel', 'Tất cả level', levels);
       }
@@ -9292,6 +9561,8 @@
       });
       const value = function (text) { return text ? escapeHtml(text) : '<span class="muted">—</span>'; };
       return '<dl class="dp-meta">' +
+        detailMetaField('Số điện thoại', value(profile.phone)) +
+        detailMetaField('Địa chỉ', value(profile.address), true) +
         detailMetaField('Định vị kho', value(profile.warehouseLocation)) +
         detailMetaField('Số lượng kho', profile.warehouseCount === null || profile.warehouseCount === undefined || profile.warehouseCount === '' ? value('') : escapeHtml(fmtNumber(profile.warehouseCount))) +
         detailMetaField('Diện tích', value(profile.area), true) +
@@ -9313,6 +9584,8 @@
       const count = profile.warehouseCount === null || profile.warehouseCount === undefined ? '' : profile.warehouseCount;
       host.innerHTML = head +
         '<form class="cp-form" id="cpProfileForm" novalidate autocomplete="off">' +
+        '<div class="cp-field"><label for="cpPhone">Số điện thoại</label><input class="cp-input" id="cpPhone" type="tel" inputmode="tel" maxlength="50" value="' + escapeHtml(profile.phone || '') + '"></div>' +
+        '<div class="cp-field is-full"><label for="cpAddress">Địa chỉ</label><textarea class="cp-input cp-autogrow" id="cpAddress" rows="1" maxlength="500">' + escapeHtml(profile.address || '') + '</textarea></div>' +
         '<div class="cp-field"><label for="cpWarehouseLocation">Định vị kho</label><textarea class="cp-input cp-autogrow" id="cpWarehouseLocation" rows="1" maxlength="500">' + escapeHtml(profile.warehouseLocation || '') + '</textarea></div>' +
         '<div class="cp-field"><label for="cpWarehouseCount">Số lượng kho</label><input class="cp-input" id="cpWarehouseCount" type="number" min="0" step="any" inputmode="decimal" value="' + escapeHtml(count) + '"></div>' +
         '<div class="cp-field is-full"><label for="cpArea">Diện tích</label><textarea class="cp-input cp-autogrow" id="cpArea" rows="1" maxlength="500">' + escapeHtml(profile.area || '') + '</textarea></div>' +
@@ -9355,6 +9628,8 @@
       }
       const payload = {
         key: cp.key,
+        phone: cpEl('cpPhone').value.trim(),
+        address: cpEl('cpAddress').value.trim(),
         warehouseLocation: cpEl('cpWarehouseLocation').value.trim(),
         warehouseCount: count,
         area: cpEl('cpArea').value.trim(),
@@ -10479,7 +10754,7 @@
           const row = event.target.closest && event.target.closest('tr.doc-row');
           if (!row) return;
           // Bấm dropdown đổi team / nút Chi tiết ghi chú / biểu tượng lịch tiếp khách không được mở hộp chi tiết số liệu.
-          if (event.target.closest('select, option, [data-cp-action]')) return;
+          if (event.target.closest('select, option, input, [data-cp-action]')) return;
           const selection = window.getSelection && window.getSelection();
           // Đang bôi đen chữ trong dòng (để sao chép mã) thì không mở panel.
           if (selection && !selection.isCollapsed && row.contains(selection.anchorNode)) return;
@@ -12007,6 +12282,22 @@
       return !!(request && request.pending && request.sig === buildDashboardQuery(view, state.days));
     }
 
+    // Bang gia duyet nhay cam: tai khoan khong co quyen xem thi GO HAN muc khoi trang (khong chi an), de ban JS cu trong
+    // cache cua trinh duyet cung khong hien lai khung rong. Quyen da nap xong truoc khi ensureViewData chay.
+    function pruneApprovedPriceSection() {
+      const section = document.getElementById('approvedPriceSection');
+      if (section && !hasFeature('reports.invoices.approvedPrice')) section.remove();
+    }
+
+    // Danh lai buoc 1, 2, 3 cua cac muc con hien thi trong tab Hoa don (muc bi go / an khong de lai khoang trong).
+    function renumberInvoiceSections() {
+      Array.from(document.querySelectorAll('#view-invoices > section.section')).filter(function (s) { return !s.hidden; })
+        .forEach(function (s, i) {
+          const step = s.querySelector(':scope > .section-head .section-step');
+          if (step) step.textContent = String(i + 1);
+        });
+    }
+
     /**
      * Mo 1 tab: neu chua co du lieu (hoac da cu / doi bo loc) thi tai tab do. Tab da co
      * du lieu duoc ve ngay tu du lieu cu roi cap nhat khi ban moi ve (khong bat man che).
@@ -12015,6 +12306,9 @@
       if (view === 'marketing') { TKSMarketing.load(false); return; }
       // Hoa don, muc 2 "Kiem tra gia ban": API rieng /api/invoice-price-audit, tu kiem quyen + tu bo qua neu du lieu con moi.
       if (view === 'invoices' && window.TKSPriceAudit) window.TKSPriceAudit.load(false);
+      if (view === 'invoices') pruneApprovedPriceSection();
+      if (view === 'invoices' && window.TKSApprovedPrices) window.TKSApprovedPrices.load(false);
+      if (view === 'invoices') renumberInvoiceSections();
       if (isViewFresh(view) || isViewRequestPending(view)) return;
       loadData(state.days, !viewIsLoaded(view), view);
     }
