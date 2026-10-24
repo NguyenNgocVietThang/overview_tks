@@ -543,6 +543,158 @@
     .date-range-field{ flex-direction:column; align-items:stretch; gap:4px; min-width:0; }
     .users-table th, .users-table td{ padding:10px 12px; }
   }
+
+  /* ===== Thiet ke lai: Quan ly nhan su (header, tab, Danh sach nhan su) =====
+     Chi dung bien mau trong shared.css nen tu theo che do Sang/Toi; nen trang giu anh nen cua he thong. */
+  .hr-header{ margin-bottom:18px; }
+  .hr-breadcrumb{ display:flex; align-items:center; gap:8px; margin-bottom:4px; color:var(--canvas-text); font-size:12.5px; font-weight:500; opacity:.8; }
+  .hr-breadcrumb i{ font-style:normal; opacity:.55; }
+  .hr-header h2{ font-size:30px; margin:0; }
+  .hr-subnav{ gap:10px; margin-bottom:22px; }
+  .hr-subnav-item{ padding:11px 14px; font-size:14px; gap:9px; }
+  .hr-subnav-item svg{ width:18px; height:18px; }
+  .hr-subnav-item.active svg{ color:var(--blue); }
+
+  .emp-kpis{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:14px; margin-bottom:18px; }
+  .emp-kpi{
+    display:flex; align-items:center; gap:18px; min-width:0; padding:16px 22px;
+    background:color-mix(in srgb, var(--panel) 82%, transparent); border:1px solid var(--border); border-radius:var(--radius-lg);
+  }
+  .emp-kpi-icon{
+    flex:none; display:inline-flex; align-items:center; justify-content:center; width:54px; height:54px; border-radius:14px;
+    background:color-mix(in srgb, var(--kpi-tone) 16%, transparent); color:var(--kpi-tone);
+  }
+  .emp-kpi-icon svg{ width:26px; height:26px; }
+  .emp-kpi-green{ --kpi-tone:var(--green); }
+  .emp-kpi-slate{ --kpi-tone:var(--muted); }
+  .emp-kpi-blue{ --kpi-tone:var(--blue); }
+  .emp-kpi-label{ display:block; color:var(--muted); font-size:13px; font-weight:600; }
+  .emp-kpi-value{ display:block; margin-top:2px; color:var(--text); font-family:var(--font-data); font-size:30px; font-weight:800; line-height:1.15; font-variant-numeric:tabular-nums; }
+
+  .emp-dept-panel{
+    margin-bottom:18px; padding:20px; background:color-mix(in srgb, var(--panel) 82%, transparent);
+    border:1px solid var(--border); border-radius:var(--radius-lg);
+  }
+  .emp-dept-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
+  .emp-dept-title h3{ margin:0 0 3px; color:var(--text); font-family:var(--font-display); font-size:20px; font-weight:800; }
+  .emp-dept-title small{ display:inline; color:var(--muted); font-size:12px; }
+  .emp-dept-title small + small:not(:empty)::before{ content:' · '; }
+  .emp-all-btn{
+    min-height:38px; padding:0 18px; border:1px solid var(--border); border-radius:8px; cursor:pointer;
+    background:var(--panel-2); color:var(--text); font-family:var(--font-body); font-size:13px; font-weight:700;
+    transition:background-color .15s ease, border-color .15s ease, color .15s ease;
+  }
+  .emp-all-btn b{ font-family:var(--font-data); font-variant-numeric:tabular-nums; }
+  .emp-all-btn:hover{ border-color:var(--blue); }
+  .emp-all-btn.is-active{ background:var(--blue); border-color:var(--blue); color:#fff; }
+  .emp-all-btn:focus-visible, .emp-dept-more:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+  .emp-dept-grid{ display:grid; grid-template-columns:repeat(6, minmax(0,1fr)); gap:12px; }
+  .emp-dept-card{
+    display:flex; flex-direction:column; align-items:stretch; gap:6px; min-width:0; padding:12px 14px; text-align:left;
+    border:1px solid var(--border); border-radius:12px; background:color-mix(in srgb, var(--panel-2) 70%, transparent);
+    color:var(--text); font-family:var(--font-body); cursor:pointer;
+    transition:border-color .15s ease, background-color .15s ease;
+  }
+  .emp-dept-card:hover{ border-color:var(--blue); color:var(--text); }
+  .emp-dept-card.is-active{ border-color:var(--blue); background:color-mix(in srgb, var(--blue) 14%, var(--panel)); color:var(--text); }
+  .emp-dept-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; font-weight:600; }
+  .emp-dept-num{ display:flex; align-items:baseline; gap:6px; white-space:nowrap; }
+  .emp-dept-num strong{ color:var(--text); font-family:var(--font-data); font-size:26px; font-weight:800; line-height:1.1; font-variant-numeric:tabular-nums; }
+  .emp-dept-num small{ color:var(--muted); font-size:12px; font-weight:500; }
+  .emp-dept-bar{ display:block; height:5px; overflow:hidden; border-radius:999px; background:var(--border); }
+  .emp-dept-bar i{ display:block; height:100%; border-radius:inherit; background:var(--blue); }
+  .emp-dept-foot{ display:flex; justify-content:flex-end; margin-top:10px; }
+  .emp-dept-foot:has(.emp-dept-more[hidden]){ display:none; }
+  .emp-dept-more{ border:0; background:transparent; color:var(--text); font-family:var(--font-body); font-size:13px; font-weight:500; cursor:pointer; }
+  .emp-dept-more::after{ content:' \203A'; }
+  .emp-dept-more[aria-expanded="true"]::after{ content:' \2039'; }
+  .emp-dept-more:hover{ color:var(--blue); }
+
+  .emp-list-panel{ position:relative; display:flex; flex-direction:column; background:color-mix(in srgb, var(--panel) 82%, transparent); border-radius:var(--radius-lg); }
+  .emp-list-head{ display:flex; align-items:center; gap:12px; padding:18px 20px 14px; }
+  .emp-list-head h3{ margin:0; color:var(--text); font-family:var(--font-display); font-size:20px; font-weight:800; }
+  .emp-count{
+    display:inline-flex; align-items:center; padding:3px 12px; border-radius:var(--radius-pill); font-family:var(--font-data);
+    font-size:13px; font-weight:700; font-variant-numeric:tabular-nums;
+    background:color-mix(in srgb, var(--blue) 18%, transparent); color:var(--blue);
+  }
+  .emp-list-panel > .tks-table-tools{ position:absolute; top:14px; right:20px; padding:0; gap:10px; z-index:2; }
+  .emp-list-panel > .tks-table-tools :is(.btn-primary, .btn-secondary, .export-button, .tks-columns-button){
+    min-height:38px; padding:0 16px; border-radius:8px; font-size:13px; font-weight:700; gap:8px;
+  }
+  .emp-list-panel > .tks-table-tools .tks-columns-button{ background:transparent; border-color:var(--blue); color:var(--text); }
+  .emp-list-panel > .tks-table-tools svg{ width:16px; height:16px; flex:none; }
+  .emp-filters{
+    display:grid; grid-template-columns:minmax(220px,1fr) repeat(3, minmax(150px,210px)); gap:12px; padding:0 20px 16px;
+  }
+  .emp-filters .search-box{ min-width:0; }
+  .emp-filters .search-box input, .emp-filters .filter-select{ min-height:42px; border-radius:10px; font-size:13px; }
+  .emp-filters .search-box input{ padding-left:42px; }
+  .emp-filters .search-box svg{ left:14px; }
+  .emp-filters .filter-select{
+    width:100%; padding:0 36px 0 14px; appearance:none; -webkit-appearance:none; -moz-appearance:none;
+    background-repeat:no-repeat; background-position:right 12px center; background-size:16px 16px;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  }
+  .emp-list-panel > .users-table-scroll{ border-top:1px solid var(--border); }
+  #employeeDirectoryTable thead th{
+    background:color-mix(in srgb, var(--panel-2) 55%, var(--panel)); color:var(--muted);
+    font-size:12.5px; font-weight:600; text-transform:none; letter-spacing:0;
+  }
+  #employeeDirectoryTable tbody td{ padding-top:9px; padding-bottom:9px; font-size:13.5px; }
+  #employeeDirectoryTable td.emp-name-cell{ font-weight:600; color:var(--text); }
+  .emp-name-cell::before{
+    content:attr(data-initials); display:inline-flex; align-items:center; justify-content:center; vertical-align:middle;
+    width:34px; height:34px; margin-right:12px; border-radius:50%; background:linear-gradient(135deg,#4F6BED,#6D3FD6);
+    color:#fff; font-family:var(--font-body); font-size:12px; font-weight:700; letter-spacing:0;
+  }
+  .emp-pill{
+    display:inline-block; max-width:100%; padding:4px 14px; border-radius:8px; font-size:12.5px; font-weight:600;
+    background:color-mix(in srgb, #6366F1 22%, transparent); color:#4338CA; overflow:hidden; text-overflow:ellipsis; vertical-align:middle;
+  }
+  :root[data-theme="dark"] .emp-pill{ color:#C7D2FE; }
+  .emp-flag{
+    display:inline-flex; align-items:center; gap:8px; padding:3px 14px 3px 8px; border-radius:var(--radius-pill);
+    font-size:12.5px; font-weight:600; border:1px solid transparent;
+  }
+  .emp-flag::before{
+    content:'!'; display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%;
+    font-size:11px; font-weight:800; line-height:1;
+  }
+  .emp-flag-warn{ background:var(--status-pending-bg); color:var(--amber); border-color:color-mix(in srgb, var(--amber) 30%, transparent); }
+  .emp-flag-warn::before{ background:var(--amber); color:#fff; }
+  .emp-flag-ok{ background:var(--status-active-bg); color:var(--green); border-color:color-mix(in srgb, var(--green) 30%, transparent); }
+  .emp-flag-ok::before{ content:'\2713'; background:var(--green); color:#fff; }
+  .emp-dot{ display:inline-flex; align-items:center; gap:9px; }
+  .emp-dot::before{ content:''; width:10px; height:10px; border-radius:50%; flex:none; }
+  .emp-dot-on::before{ background:var(--green); }
+  .emp-dot-off::before{ background:#94A3B8; }
+  .emp-list-panel .pagination-controls{ justify-content:space-between; padding:14px 20px; font-family:var(--font-body); font-size:13px; }
+  .emp-page-nav{ display:inline-flex; align-items:center; gap:8px; }
+  .emp-page-nav button{ min-width:38px; min-height:36px; border-radius:8px; }
+  .emp-list-panel .pagination-controls .emp-page-nav > span{ padding:0 8px; }
+
+  @media (max-width:1280px){ .emp-dept-grid{ grid-template-columns:repeat(4, minmax(0,1fr)); } }
+  @media (max-width:1024px){
+    .emp-dept-grid{ grid-template-columns:repeat(3, minmax(0,1fr)); }
+    .emp-list-panel > .tks-table-tools{ position:static; order:1; flex-wrap:wrap; padding:0 20px 14px; justify-content:flex-start; }
+    .emp-list-head{ order:0; }
+    .emp-filters{ order:2; grid-template-columns:repeat(3, minmax(0,1fr)); }
+    .emp-filters .search-box{ grid-column:1 / -1; }
+    .emp-list-panel > .users-table-scroll{ order:3; }
+    .emp-list-panel > .pagination-controls{ order:4; }
+  }
+  @media (max-width:760px){
+    .hr-header h2{ font-size:24px; }
+    .emp-kpis{ grid-template-columns:1fr; gap:10px; }
+    .emp-kpi{ padding:12px 16px; }
+    .emp-dept-grid{ grid-template-columns:repeat(2, minmax(0,1fr)); }
+    .emp-dept-panel{ padding:14px; }
+    .emp-filters{ grid-template-columns:1fr; padding:0 14px 14px; }
+    .emp-list-head{ padding:14px 14px 10px; }
+    .emp-list-panel > .tks-table-tools{ padding:0 14px 12px; }
+    .emp-list-panel .pagination-controls{ flex-direction:column; align-items:flex-start; padding:12px 14px; }
+  }
 </style>
   <link rel="stylesheet" href="/shared/table-controls.css?v=20261016-1">
 </head>
@@ -574,19 +726,19 @@
     <main class="content">
       <div class="hr-wrap">
         <div class="hr-header">
+          <nav class="hr-breadcrumb" aria-label="Đường dẫn"><span>TKS</span><i aria-hidden="true">/</i><span>Nhân sự</span></nav>
           <h2>Quản lý nhân sự</h2>
-          <p>Yêu cầu nghỉ phép gửi qua bot Telegram, ghi nhận thủ công và quy định công ty áp dụng cho toàn bộ nhân viên.</p>
         </div>
 
         <!-- Tab con cua "Quan ly nhan su" — them tab moi bang cach them 1 nut o day va 1 .hr-subtab-panel ben duoi -->
         <div class="hr-subnav" role="tablist">
-          <button type="button" class="hr-subnav-item" data-subtab="quydinh" role="tab" aria-selected="false" onclick="switchHrSubtab('quydinh')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line></svg>
-            Quy định công ty
-          </button>
           <button type="button" class="hr-subnav-item" data-subtab="danhsach" role="tab" aria-selected="false" onclick="switchHrSubtab('danhsach')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
             Danh sách nhân sự
+          </button>
+          <button type="button" class="hr-subnav-item" data-subtab="quydinh" role="tab" aria-selected="false" onclick="switchHrSubtab('quydinh')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line></svg>
+            Quy định công ty
           </button>
           <button type="button" class="hr-subnav-item active" data-subtab="leave" role="tab" aria-selected="true" onclick="switchHrSubtab('leave')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
@@ -1084,13 +1236,42 @@
           </div>
         </div>
 
-        <!-- Danh sach nhan su: doc-only, lay tu tab "Danh sach nhan su" trong Google Sheet HR -->
+        <!-- Danh sach nhan su: KPI + the bo phan + bang. Giu nguyen id cu (JS/test dung): employeeSummaryTotal/Scope/Status, employeeDepartmentSummary. -->
         <div class="hr-subtab-panel" id="hrSubtab-danhsach" role="tabpanel">
-          <div class="admin-toolbar">
-            <div class="admin-filters">
+          <section class="emp-kpis" aria-label="Tổng quan nhân sự">
+            <div class="emp-kpi emp-kpi-green">
+              <span class="emp-kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span>
+              <div><span class="emp-kpi-label">Đang làm việc</span><strong class="emp-kpi-value" id="employeeKpiWorking">—</strong></div>
+            </div>
+            <div class="emp-kpi emp-kpi-slate">
+              <span class="emp-kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></span>
+              <div><span class="emp-kpi-label">Đã nghỉ việc</span><strong class="emp-kpi-value" id="employeeKpiResigned">—</strong></div>
+            </div>
+            <div class="emp-kpi emp-kpi-blue">
+              <span class="emp-kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"></rect><path d="M9 22v-4h6v4"></path><path d="M8 6h.01M12 6h.01M16 6h.01M8 10h.01M12 10h.01M16 10h.01M8 14h.01M12 14h.01M16 14h.01"></path></svg></span>
+              <div><span class="emp-kpi-label">Phòng ban</span><strong class="emp-kpi-value" id="employeeKpiDepartments">—</strong></div>
+            </div>
+          </section>
+
+          <section class="emp-dept-panel" aria-label="Nhân sự theo bộ phận">
+            <div class="emp-dept-head">
+              <div class="emp-dept-title">
+                <h3>Nhân sự theo bộ phận</h3>
+                <small class="employee-summary-scope" id="employeeSummaryScope">Đang tải dữ liệu...</small>
+                <small class="employee-summary-scope" id="employeeSummaryStatus"></small>
+              </div>
+              <button type="button" class="emp-all-btn" id="employeeDepartmentAll" onclick="clearEmployeeDepartment()">Tất cả bộ phận – <b id="employeeSummaryTotal">—</b></button>
+            </div>
+            <div class="emp-dept-grid" id="employeeDepartmentSummary" aria-live="polite"></div>
+            <div class="emp-dept-foot"><button type="button" class="emp-dept-more" id="employeeDepartmentMore" hidden onclick="toggleEmployeeDepartmentMore()"></button></div>
+          </section>
+
+          <section class="users-table-panel emp-list-panel">
+            <div class="emp-list-head"><h3>Danh sách nhân sự</h3><span class="emp-count" id="employeeListCount">0</span></div>
+            <div class="emp-filters">
               <div class="search-box">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                <input type="text" id="employeeDirectorySearchInput" placeholder="Tìm theo tên, bộ phận, chức vụ hoặc SĐT..." oninput="renderEmployeeDirectoryTable()">
+                <input type="text" id="employeeDirectorySearchInput" placeholder="Tìm tên, số điện thoại, bộ phận..." oninput="renderEmployeeDirectoryTable()">
               </div>
               <select id="employeeBranchFilter" class="filter-select" aria-label="Lọc theo cơ sở" onchange="handleEmployeeBranchChange()">
                 <option value="">Tất cả cơ sở</option>
@@ -1104,36 +1285,21 @@
                 <option value="">Tất cả trạng thái</option>
               </select>
             </div>
-            <div class="row-actions">
+            <div class="tks-table-tools">
               <input type="file" id="employeeWorkbookFile" accept=".xlsx,.xls" hidden onchange="importEmployeeWorkbook(this)">
               <input type="file" id="employeeInsuranceFile" accept=".xlsx" hidden onchange="importEmployeeInsurance(this)">
-              <button type="button" class="btn-secondary" id="btnImportEmployeeInsurance" hidden onclick="document.getElementById('employeeInsuranceFile').click()">Nhập số bảo hiểm</button>
-              <button type="button" class="btn-secondary" id="btnImportEmployeeDirectory" hidden onclick="document.getElementById('employeeWorkbookFile').click()">Nhập DS nhân sự</button>
-              <button type="button" class="btn-primary" id="btnAddEmployee" hidden onclick="openEmployeeModal()">+ Thêm nhân sự</button>
               <span id="employeeImportStatus" class="form-hint" hidden aria-live="polite"></span>
               <div id="employeeImportProgress" class="employee-import-progress" hidden role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
                 <div class="employee-import-progress-track"><span id="employeeImportProgressBar"></span></div>
                 <span id="employeeImportProgressLabel">0%</span>
               </div>
-            </div>
-          </div>
-
-          <section class="employee-summary" aria-label="Tổng quan nhân sự">
-            <div class="employee-summary-card">
-              <span class="employee-summary-label">Tổng nhân sự</span>
-              <strong class="employee-summary-total" id="employeeSummaryTotal">—</strong>
-              <small class="employee-summary-scope" id="employeeSummaryScope">Đang tải dữ liệu...</small>
-              <small class="employee-summary-scope" id="employeeSummaryStatus"></small>
-            </div>
-            <div class="employee-summary-card">
-              <span class="employee-summary-label">Nhân sự theo Bộ phận</span>
-              <div class="employee-department-list" id="employeeDepartmentSummary" aria-live="polite"></div>
-            </div>
-          </section>
-
-          <div class="users-table-panel">
-            <div class="tks-table-tools">
-<button type="button" class="export-button" id="btnExportEmployeeDirectory" onclick="exportEmployeeDirectoryExcel()">
+              <button type="button" class="btn-secondary" id="btnImportEmployeeInsurance" hidden onclick="document.getElementById('employeeInsuranceFile').click()">Nhập số bảo hiểm</button>
+              <button type="button" class="btn-secondary" id="btnImportEmployeeDirectory" hidden onclick="document.getElementById('employeeWorkbookFile').click()">Nhập DS nhân sự</button>
+              <button type="button" class="btn-primary emp-add-btn" id="btnAddEmployee" hidden onclick="openEmployeeModal()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                Thêm nhân sự
+              </button>
+              <button type="button" class="export-button" id="btnExportEmployeeDirectory" onclick="exportEmployeeDirectoryExcel()">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                 Xuất Excel
               </button>
@@ -1156,13 +1322,16 @@
               </table>
             </div>
             <div class="pagination-controls" id="employeeDirectoryPagination" hidden>
-              <button type="button" id="employeeDirectoryFirst" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
-              <button type="button" id="employeeDirectoryPrev" aria-label="Trang trước" title="Trang trước">&lt;</button>
-              <span id="employeeDirectoryPageLabel">Trang 1/1</span>
-              <button type="button" id="employeeDirectoryNext" aria-label="Trang sau" title="Trang sau">&gt;</button>
-              <button type="button" id="employeeDirectoryLast" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
+              <span class="emp-page-info" id="employeeDirectoryInfo"></span>
+              <div class="emp-page-nav">
+                <button type="button" id="employeeDirectoryFirst" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                <button type="button" id="employeeDirectoryPrev" aria-label="Trang trước" title="Trang trước">&lt;</button>
+                <span id="employeeDirectoryPageLabel">Trang 1/1</span>
+                <button type="button" id="employeeDirectoryNext" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                <button type="button" id="employeeDirectoryLast" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
+              </div>
             </div>
-          </div>
+          </section>
         </div>
       </div>
     </main>
@@ -3102,10 +3271,25 @@
       const sortValue=employeeSortValue(columnKey,employee,index);
       const sortable=sortValue === '' ? '' : ' data-sort-value="'+escapeHtml(sortValue)+'"';
       const status=columnKey === 'trang-thai' ? ' emp-status-'+employeeStatusKey(employee) : '';
-      return '<td class="'+employeeCellClass(columnKey)+status+'"'+sortable+'>'+ (escapeHtml(value) || '—') +'</td>';
+      let text=escapeHtml(value) || '—';
+      let avatar='';
+      if(columnKey === 'ho-va-ten' && value) avatar=' data-initials="'+escapeHtml(employeeInitials(value))+'"';
+      else if(columnKey === 'chuc-vu' && value) text='<span class="emp-pill">'+text+'</span>';
+      else if(columnKey === 'ho-so') text='<span class="emp-flag '+(employee.hoSoDayDu ? 'emp-flag-ok' : 'emp-flag-warn')+'">'+text+'</span>';
+      else if(columnKey === 'van-tay') text='<span class="emp-dot '+(employee.vanTayDaDangKy ? 'emp-dot-on' : 'emp-dot-off')+'">'+text+'</span>';
+      return '<td class="'+employeeCellClass(columnKey)+(avatar ? ' emp-name-cell' : '')+status+'"'+sortable+avatar+'>'+ text +'</td>';
     }
 
     const employeePaging = { page: 1, size: 50 };
+
+    // Chữ cái đầu của họ và tên cuối: "Mai Bích Phượng" -> "MP".
+    function employeeInitials(name){
+      const parts=String(name || '').trim().split(/s+/).filter(Boolean);
+      if(!parts.length) return '?';
+      const first=Array.from(parts[0])[0] || '';
+      const last=parts.length > 1 ? (Array.from(parts[parts.length - 1])[0] || '') : '';
+      return (first + last).toLocaleUpperCase('vi-VN');
+    }
 
     function employeeNewestFirst(a,b){
       const aStart=employeeStartDate(a.ngayVaoLam);
@@ -3130,6 +3314,8 @@
       const start = (employeePaging.page - 1) * employeePaging.size;
       rows.forEach((row, index) => { row.hidden = index < start || index >= start + employeePaging.size; });
       pager.hidden = total === 0;
+      const info = document.getElementById('employeeDirectoryInfo');
+      if(info) info.textContent = `${total.toLocaleString('en-US')} nhân sự · ${employeePaging.size} dòng/trang`;
       const label = document.getElementById('employeeDirectoryPageLabel');
       if(label) label.textContent = `Trang ${employeePaging.page}/${pages}`;
       const firstBtn = document.getElementById('employeeDirectoryFirst');
@@ -3185,6 +3371,8 @@
         const scores = new Map(filtered.map(e => [e, fuzzy.score(employeeText(e), keyword)]));
         filtered.sort((a, b) => scores.get(b) - scores.get(a));
       }
+      const countBadge=document.getElementById('employeeListCount');
+      if(countBadge) countBadge.textContent=String(filtered.length);
       if(!filtered.length){
         tbody.innerHTML = `<tr class="empty-row"><td colspan="${employeeCanManage ? EMPLOYEE_MANAGER_HEAD.length : EMPLOYEE_BASIC_HEAD.length}">${rawEmployeeDirectory.length ? 'Không tìm thấy nhân sự phù hợp.' : 'Chưa có dữ liệu nhân sự.'}</td></tr>`;
         paginateEmployeeDirectoryTable();
@@ -3194,7 +3382,7 @@
       if(employeeCanManage){
         tbody.innerHTML = filtered.map((e,index) => `<tr class="employee-row-clickable" data-employee-id="${escapeHtml(e.id)}">${EMPLOYEE_MANAGER_HEAD.map(c=>employeeCellHtml(c[1],e,index)).join('')}</tr>`).join('');
       }else tbody.innerHTML = filtered.map(e => `<tr>
-        <td>${escapeHtml(e.hoTen) || '—'}</td>
+        <td class="emp-name-cell" data-initials="${escapeHtml(employeeInitials(e.hoTen))}">${escapeHtml(e.hoTen) || '—'}</td>
         <td>${escapeHtml(e.boPhan) || '—'}</td>
         <td>${escapeHtml(e.coSo) || '—'}</td>
         <td>${escapeHtml(e.soDienThoai) || '—'}</td>
@@ -3237,15 +3425,45 @@
       if(split) split.innerHTML=`<span class="emp-status-active">LV <strong>${working}</strong></span> · <span class="emp-status-resigned">NV <strong>${resigned}</strong></span>`;
       const selectedDepartment=departmentKey(document.getElementById('employeeDepartmentFilter')?.value);
       const items=[...counts.values()].sort((a,b) => b.count - a.count || a.label.localeCompare(b.label,'vi'));
+      const setText=(id, value) => { const el=document.getElementById(id); if(el) el.textContent=String(value); };
+      setText('employeeKpiWorking', working);
+      setText('employeeKpiResigned', resigned);
+      setText('employeeKpiDepartments', counts.size);
+      // Gọn: chỉ hiện EMPLOYEE_DEPT_COLLAPSED thẻ đầu (luôn giữ thẻ đang lọc); "Xem tất cả" mở phần còn lại.
+      const maxCount=items.reduce((m, it) => Math.max(m, it.count), 0) || 1;
+      const visible=employeeDeptExpanded ? items : items.filter((it, i) => i < EMPLOYEE_DEPT_COLLAPSED || departmentKey(it.label) === selectedDepartment);
       departments.innerHTML=items.length
-        ? items.map(({ label, count }) => {
+        ? visible.map(({ label, count }) => {
           const active=departmentKey(label) === selectedDepartment;
-          return `<button type="button" class="employee-department-chip${active ? ' is-active' : ''}" data-employee-department="${escapeHtml(label)}" aria-pressed="${active}"><span>${escapeHtml(label)}</span><strong>${count}</strong></button>`;
+          return `<button type="button" class="employee-department-chip emp-dept-card${active ? ' is-active' : ''}" data-employee-department="${escapeHtml(label)}" aria-pressed="${active}"><span class="emp-dept-name">${escapeHtml(label)}</span><span class="emp-dept-num"><strong>${count}</strong> <small>nhân sự</small></span><span class="emp-dept-bar" aria-hidden="true"><i style="width:${Math.round(count / maxCount * 100)}%"></i></span></button>`;
         }).join('')
         : '<span class="employee-summary-empty">Chưa có dữ liệu nhân sự.</span>';
+      const allBtn=document.getElementById('employeeDepartmentAll');
+      if(allBtn) allBtn.classList.toggle('is-active', !selectedDepartment);
+      const more=document.getElementById('employeeDepartmentMore');
+      if(more){
+        more.hidden=items.length <= EMPLOYEE_DEPT_COLLAPSED;
+        more.textContent=employeeDeptExpanded ? 'Thu gọn' : `Xem tất cả ${items.length} bộ phận`;
+        more.setAttribute('aria-expanded', String(employeeDeptExpanded));
+      }
       departments.querySelectorAll('button[data-employee-department]').forEach(button => {
         button.addEventListener('click', () => toggleEmployeeDepartmentSummary(button.dataset.employeeDepartment));
       });
+    }
+
+    const EMPLOYEE_DEPT_COLLAPSED = 12;
+    let employeeDeptExpanded = false;
+
+    function toggleEmployeeDepartmentMore(){
+      employeeDeptExpanded=!employeeDeptExpanded;
+      renderEmployeeDirectoryTable();
+    }
+
+    function clearEmployeeDepartment(){
+      const select=document.getElementById('employeeDepartmentFilter');
+      if(!select || !select.value) return;
+      select.value='';
+      renderEmployeeDirectoryTable();
     }
 
     function toggleEmployeeDepartmentSummary(department){
