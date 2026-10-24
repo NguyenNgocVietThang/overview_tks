@@ -224,6 +224,8 @@ Bảng "Dự kiến hàng về" ở tab Hàng hóa (mục 2). Đọc bảng tín
 
 **Giá + hộp chi tiết (21/10/2026, migration `0078`, chưa áp DB dùng chung):** `GET /api/expected-arrivals` mỗi dòng thêm `status` (số 1–5), `listedAt`, `unitPriceCny`, `vietnamPrice` và JSON gốc thêm `fullAccess` (= `hasFeature(req.user, 'reports.overview.containers.full')`, Quản lý/Trợ lý). Không có quyền này, route trả bản sao từng dòng đã bỏ `listedAt`, `unitPriceCny`, `vietnamPrice` (cache `expectedRepository` giữ bản đầy đủ, không lọc quyền trong cache); `fullAccess:false`. `/export/fields` và `/export` chỉ thêm cột `unitPriceCny` (Giá SP (tệ)) và `vietnamPrice` (Giá hàng về VN) khi có quyền; `columns` chứa cột giá khi không có quyền bị loại/từ chối. `expectedRepository.js` chịu được DB chưa chạy `0078` (bắt `42703`, trả giá rỗng). Giao diện bảng Dự kiến hàng về có 13 cột (11 cột cũ + Giá SP (tệ), Giá hàng về VN sau Tổng số lượng; hai cột giá chỉ hiện khi `fullAccess`); khi `fullAccess`, Màu sắc và Ghi chú sale ẩn mặc định (bật bằng "Cột hiển thị"). Bấm dòng mở hộp chi tiết `expectedArrival` (không gọi API): lọc `rows` theo mã SP (lower/trim), KPI tổng số lượng theo trạng thái 1–5 và bảng mọi CONT cùng mã. Sau khi áp `0078` phải chạy tay MỘT LẦN `node productContainers/expectedRefresh.js` để đổ giá vào dòng đã có.
 
+**Khung đầu mục + bảng Tổng hợp CONT (24/10/2026, chỉ frontend, không migration, không endpoint mới):** mục 2 của tab Hàng hóa có khung đầu mục giống "Kiểm tra giá bán" tab Hóa đơn, đặt TRƯỚC bảng chi tiết dòng hàng: bên trái 3 chỉ số (Số cont, Số dòng hàng, Tổng số lượng) xếp một cột dọc (`#expectedArrivalsKpis`), bên phải bảng "Tổng hợp CONT" (Tên CONT, Trạng thái, Dự kiến nếu có; key `dashboard-table-expected-arrivals-summary`). Bảng tổng hợp gom phía trình duyệt từ `rows` của `GET /api/expected-arrivals` theo `sheetName` + `containerName` (cột `statusLabel` = B, `eta` = C), có bộ lọc Trạng thái riêng, sort/ẩn cột bằng `table-controls.js`, không phân trang, không ô tìm kiếm. Bộ lọc tổng hợp độc lập với bộ lọc Nguồn/Cont/Trạng thái của bảng chi tiết; ba chỉ số vẫn tính theo bộ lọc của bảng chi tiết. Quyền không đổi và không thêm trường nào ngoài những gì bảng chi tiết đã hiển thị.
+
 Quyền `reports.products.expected` (không `requires`): Quản lý, Trợ lý, Nhân viên sale, Kế toán, Nhân viên marketing, Nhân viên mua hàng, Nhân viên kho. Kế toán/Mua hàng/Kho mở được `/reports` (PAGE_FEATURES) nhưng trang đăng nhập mặc định của họ không đổi (`landingAnyOf` loại quyền này).
 
 Job `productContainers/expectedRefresh.js`: chạy sau mỗi lượt đồng bộ CONT `updated`/`unchanged` (10 phút, hook `afterRefresh` của `startContainerSchedule`), ghi khác biệt (bảng tạm → DELETE dòng thừa → upsert `IS DISTINCT FROM`, `version` chỉ tăng khi có ghi/xóa), khóa advisory riêng `20531073`, nguồn rỗng thì giữ bảng cũ, thiếu migration (42P01) thì bỏ qua. Lịch = `btrim(B || ' ' || C)` (một dấu cách, C rỗng không thừa). Chạy tay lần đầu sau khi áp 0075: `node productContainers/expectedRefresh.js` (trong thư mục `server`).
@@ -266,12 +268,12 @@ Mục mới của tab Hóa đơn (`/reports/#invoices`, bước 2; "Giao dịch"
 |---|---|---|
 | `GET /api/invoice-approved-prices` | `reports.invoices.priceAudit` | Query `approver, from, to, sort, dir, page, pageSize`. Trả `{rows, totalRows, kpis, options.approvers, canManage}`; bảng chưa migrate trả 503 `NOT_MIGRATED` |
 | `GET /export` | `…priceAudit` + `reports.export` | Excel `.xlsx` của tập đang lọc/sắp xếp, tối đa 20.000 dòng |
-| `GET /customer-suggest?branch=&q=`, `GET /product-suggest?branch=&q=` | `reports.invoices.priceAudit.approvedPrice` | Gợi ý khách / sản phẩm cho hộp Tạo/Sửa |
-| `POST /` | `…priceAudit.approvedPrice` | Tạo bản ghi; 422 nếu khách/sản phẩm không có trong cơ sở |
-| `PUT /:id` | `…priceAudit.approvedPrice` | Sửa toàn bộ trường kèm `expectedVersion`; 409 khi lệch `version` |
-| `DELETE /:id?expectedVersion=` | `…priceAudit.approvedPrice` | Xóa (giao diện hỏi xác nhận trước); lịch sử giữ trong `invoice_approved_price_changes` |
+| `GET /customer-suggest?branch=&q=`, `GET /product-suggest?branch=&q=` | `reports.invoices.approvedPrice.manage` | Gợi ý khách / sản phẩm cho hộp Tạo/Sửa |
+| `POST /` | `…approvedPrice.manage` | Tạo bản ghi; 422 nếu khách/sản phẩm không có trong cơ sở |
+| `PUT /:id` | `…approvedPrice.manage` | Sửa toàn bộ trường kèm `expectedVersion`; 409 khi lệch `version` |
+| `DELETE /:id?expectedVersion=` | `…approvedPrice.manage` | Xóa (giao diện hỏi xác nhận trước); lịch sử giữ trong `invoice_approved_price_changes` |
 
-Quyền `reports.invoices.priceAudit.approvedPrice` (`auth/featureRegistry.js`) mặc định chỉ Quản lý, yêu cầu quyền xem `reports.invoices.priceAudit`. **Thứ tự triển khai**: áp migration `0091` TRƯỚC khi deploy mã; chưa áp thì API bảng trả 503 `NOT_MIGRATED` và Kiểm tra giá bán chạy như cũ.
+Quyền `reports.invoices.approvedPrice.manage` (`auth/featureRegistry.js`) mặc định chỉ Quản lý, yêu cầu quyền xem `reports.invoices.priceAudit`. **Thứ tự triển khai**: áp migration `0091` TRƯỚC khi deploy mã; chưa áp thì API bảng trả 503 `NOT_MIGRATED` và Kiểm tra giá bán chạy như cũ.
 
 ## Lệnh
 
@@ -428,7 +430,7 @@ Bot **xin nghỉ của nhân viên** chạy ngoài repo và đọc/ghi 3 bảng 
 
 ## Cập nhật gần nhất
 
-24/10/2026 — **Bảng giá duyệt (tab Hóa đơn, migration `0091`, mã cục bộ, chưa commit/deploy)**: xem mục "Bảng giá duyệt" phía trên. File mới: `invoicePriceAudit/{approvedPriceRules,approvedPriceRepository,approvedPriceRoutes,approvedPriceExport}.js` (+ `approvedPrice.test.js`), `db/migrations/0091_invoice_approved_prices.sql`, `public/invoice-approved-prices.{js,css}`, `test/frontend/invoice-approved-prices.test.js`. Sửa: `priceAuditRepository.js` / `priceAuditSql.js` (giá duyệt thay giá tối thiểu theo mô tả), `auth/featureRegistry.js` (quyền `reports.invoices.priceAudit.approvedPrice`), `routes.js`, `public/index.html`. Áp `0091` trước khi deploy.
+24/10/2026 — **Bảng giá duyệt (tab Hóa đơn, migration `0091`, mã cục bộ, chưa commit/deploy)**: xem mục "Bảng giá duyệt" phía trên. File mới: `invoicePriceAudit/{approvedPriceRules,approvedPriceRepository,approvedPriceRoutes,approvedPriceExport}.js` (+ `approvedPrice.test.js`), `db/migrations/0091_invoice_approved_prices.sql`, `public/invoice-approved-prices.{js,css}`, `test/frontend/invoice-approved-prices.test.js`. Sửa: `priceAuditRepository.js` / `priceAuditSql.js` (giá duyệt thay giá tối thiểu theo mô tả), `auth/featureRegistry.js` (quyền `reports.invoices.approvedPrice.manage`), `routes.js`, `public/index.html`. Áp `0091` trước khi deploy.
 
 23/10/2026 — **Kế toán – Tra cứu VAT (nhánh `feat/vat-lookup`, chưa merge/deploy, không migration)**: xem mục "Kế toán – Tra cứu VAT" phía trên. File mới: `vatLookup/{lookupModel,lookupSource,vatLookupRoutes}.js` (+ test), `public/vat-lookup/`, `test/frontend/vat-lookup.test.js`. Quyền mới `accounting.vatLookup`; menu Kế toán thêm mục "Tra cứu VAT" (bump `shared-nav.js?v=20261023-1` ở 8 trang); trang ORDER VAT thêm nút "Tra cứu VAT".
 
