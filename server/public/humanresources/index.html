@@ -3707,7 +3707,9 @@
       const extra = !employees.length ? 0 : { 'chuc-vu':34, 'ho-so':52, 'van-tay':34 }[key] || 0;
       const contentWidth = employees.reduce((widest, employee, index) =>
         Math.max(widest, employeeTextWidth(employeeColumnText(key, employee, index))), 0);
-      return Math.min(maxWidth, Math.max(32, contentWidth) + extra);
+      // Nhãn Hồ sơ/Vân tay không xuống dòng được nên có sàn rộng cố định (chỉ khi có dữ liệu).
+      const floor = !employees.length ? 0 : { 'ho-so':112, 'van-tay':90 }[key] || 0;
+      return Math.max(floor, Math.min(maxWidth, Math.max(32, contentWidth) + extra));
     }
 
     // Dữ liệu cũ từ file ghi "NAM"/"NỮ": quy về đúng lựa chọn của ô chọn để không hiện trống và không mất khi lưu.
