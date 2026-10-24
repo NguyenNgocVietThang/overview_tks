@@ -146,7 +146,7 @@ const gets = page => page.server.requests.filter(r => r.method === 'GET' && r.hr
 test('muc 1 Kiem tra gia ban nam truoc Giao dich trong tab Hoa don, chi MOT bang chi tiet kiem tra gia', () => {
   const page = createPage();
   const sections = [...page.$('view-invoices').querySelectorAll(':scope > section.section')];
-  assert.deepEqual(sections.map(s => s.querySelector('.section-head h2').firstChild.textContent.trim()), ['Kiểm tra giá bán', 'Bảng giá duyệt', 'Giao dịch']);
+  assert.deepEqual(sections.map(s => s.querySelector('.section-head h2').firstChild.textContent.trim()), ['Kiểm tra giá bán', 'Giao dịch']); // Bảng giá duyệt bị gỡ khỏi trang vì tài khoản không có quyền riêng reports.invoices.approvedPrice
   assert.equal(sections[0].id, 'priceAuditSection');
   assert.equal(page.doc.querySelectorAll('table[data-table-key="dashboard-table-price-audit"]').length, 1);
   // Muc 1 co them bang tong hop tien phat theo sale (cot phai khung KPI), van la cung mot muc.
