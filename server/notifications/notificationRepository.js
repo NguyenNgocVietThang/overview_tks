@@ -1,6 +1,6 @@
 // ==========================================
 // NOTIFICATION REPOSITORY — Lưu trữ thông báo chuông cho mọi tài khoản ở bảng
-// Postgres `notifications` (migration 0091). Trước đây lưu ở file
+// Postgres `notifications` (migration 0092). Trước đây lưu ở file
 // server/data/notifications.json, nhưng đĩa của Render bị xóa mỗi lần deploy /
 // khởi động lại nên mất hết lịch sử chuông. Dùng chung cho MỌI loại thông báo
 // trong hệ thống — thêm loại mới bằng cách truyền `type` khác khi gọi

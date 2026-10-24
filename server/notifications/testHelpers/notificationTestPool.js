@@ -1,13 +1,13 @@
 'use strict';
 
-// Test dung chung: PGlite trong bo nho + migration 0091, tiem vao notificationRepository.
+// Test dung chung: PGlite trong bo nho + migration 0092, tiem vao notificationRepository.
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { PGlite } = require('@electric-sql/pglite');
 const repo = require('../notificationRepository');
 
-const MIGRATION = path.join(__dirname, '..', '..', 'db', 'migrations', '0091_notifications.sql');
+const MIGRATION = path.join(__dirname, '..', '..', 'db', 'migrations', '0092_notifications.sql');
 
 async function useNotificationTestPool() {
   const db = new PGlite();

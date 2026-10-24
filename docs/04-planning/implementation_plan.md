@@ -231,6 +231,6 @@ Triển khai cục bộ theo `docs/superpowers/plans/2026-10-23-customer-filters
 
 # 24/10/2026 — Chuông thông báo lưu Postgres
 
-`notifications/notificationRepository.js` đọc/ghi bảng `notifications` (migration `0091`) qua `db/pool.js` thay vì file `data/notifications.json` trên đĩa tạm Render. Giữ nguyên chữ ký hàm và API `/api/notifications/*`; test dùng PGlite qua `notifications/testHelpers/notificationTestPool.js`.
+`notifications/notificationRepository.js` đọc/ghi bảng `notifications` (migration `0092`) qua `db/pool.js` thay vì file `data/notifications.json` trên đĩa tạm Render. Giữ nguyên chữ ký hàm và API `/api/notifications/*`; test dùng PGlite qua `notifications/testHelpers/notificationTestPool.js`.
 
 Cập nhật gần nhất: 24/10/2026.
