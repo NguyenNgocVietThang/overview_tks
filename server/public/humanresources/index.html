@@ -656,10 +656,10 @@
   }
   .emp-kpi-icon svg{ width:26px; height:26px; }
   .emp-kpi-green{ --kpi-tone:var(--green); }
-  .emp-kpi-slate{ --kpi-tone:var(--muted); }
+  .emp-kpi-slate{ --kpi-tone:var(--red); }
   .emp-kpi-blue{ --kpi-tone:var(--blue); }
   .emp-kpi-label{ display:block; color:var(--muted); font-size:13px; font-weight:600; }
-  .emp-kpi-value{ display:block; margin-top:2px; color:var(--text); font-family:var(--font-data); font-size:30px; font-weight:800; line-height:1.15; font-variant-numeric:tabular-nums; }
+  .emp-kpi-value{ display:block; margin-top:2px; color:var(--kpi-tone); font-family:var(--font-data); font-size:30px; font-weight:800; line-height:1.15; font-variant-numeric:tabular-nums; }
 
   .emp-dept-panel{
     margin-bottom:18px; padding:20px; background:color-mix(in srgb, var(--panel) 82%, transparent);
@@ -689,10 +689,11 @@
   .emp-dept-card.is-active{ border-color:var(--blue); background:color-mix(in srgb, var(--blue) 14%, var(--panel)); color:var(--text); }
   .emp-dept-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; font-weight:600; }
   .emp-dept-num{ display:flex; align-items:baseline; gap:6px; white-space:nowrap; }
-  .emp-dept-num strong{ color:var(--text); font-family:var(--font-data); font-size:26px; font-weight:800; line-height:1.1; font-variant-numeric:tabular-nums; }
+  .emp-dept-num strong{ color:color-mix(in srgb, var(--tone,#6366F1) 85%, #000); font-family:var(--font-data); font-size:26px; font-weight:800; line-height:1.1; font-variant-numeric:tabular-nums; }
   .emp-dept-num small{ color:var(--muted); font-size:12px; font-weight:500; }
   .emp-dept-bar{ display:block; height:5px; overflow:hidden; border-radius:999px; background:var(--border); }
-  .emp-dept-bar i{ display:block; height:100%; border-radius:inherit; background:var(--blue); }
+  .emp-dept-bar i{ display:block; height:100%; border-radius:inherit; background:var(--tone,var(--blue)); }
+  :root[data-theme="dark"] .emp-dept-num strong{ color:color-mix(in srgb, var(--tone,#6366F1) 60%, #fff); }
   .emp-dept-foot{ display:flex; justify-content:flex-end; margin-top:10px; }
   .emp-dept-foot:has(.emp-dept-more[hidden]){ display:none; }
   .emp-dept-more{ border:0; background:transparent; color:var(--text); font-family:var(--font-body); font-size:13px; font-weight:500; cursor:pointer; }
@@ -1718,7 +1719,7 @@
             </div>
           </div>
           <div class="rte-canvas rte-preview" id="rtePreview" hidden>
-            <div class="rte-page rte-preview-page" id="rtePreviewPage">
+            <div class="rte-page doc-page rte-preview-page" id="rtePreviewPage">
               <div class="doc-page-header">
                 <img src="/Logo.jpg" alt="TOKOSI">
                 <div class="doc-page-title">
@@ -2663,6 +2664,11 @@
       ruleEditorSavedRange = null;
       if(isEdit) ruleDocEl('ruleTextName').value = doc.title || '';
       selectRuleTextIcon(isEdit ? (doc.iconKey || '') : '');
+      // form.reset() dua cac o chon ve tuy chon dau tien — dat lai dung mac dinh cua trang giay.
+      ruleDocEl('rteHeadingSelect').value = 'P';
+      setRuleSelectValue(ruleDocEl('rteFontFamily'), RTE_FONTS[0][0], RTE_FONTS[0][1]);
+      setRuleSelectValue(ruleDocEl('rteFontSize'), 13, '13');
+      setRuleSelectValue(ruleDocEl('rteLineHeight'), '1.7', '1.7');
       ruleDocEl('rteForeBar').style.background = ruleDocEl('rteForeColor').value;
       ruleDocEl('rteBackBar').style.background = ruleDocEl('rteBackColor').value;
       setRuleTextZoom(100);
@@ -3961,7 +3967,7 @@
       departments.innerHTML=items.length
         ? visible.map(({ label, count }) => {
           const active=departmentKey(label) === selectedDepartment;
-          return `<button type="button" class="employee-department-chip emp-dept-card${active ? ' is-active' : ''}" data-employee-department="${escapeHtml(label)}" aria-pressed="${active}"><span class="emp-dept-name">${escapeHtml(label)}</span><span class="emp-dept-num"><strong>${count}</strong> <small>nhân sự</small></span><span class="emp-dept-bar" aria-hidden="true"><i style="width:${Math.round(count / maxCount * 100)}%"></i></span></button>`;
+          return `<button type="button" class="employee-department-chip emp-dept-card emp-tone-${employeeRoleTone(label)}${active ? ' is-active' : ''}" data-employee-department="${escapeHtml(label)}" aria-pressed="${active}"><span class="emp-dept-name">${escapeHtml(label)}</span><span class="emp-dept-num"><strong>${count}</strong> <small>nhân sự</small></span><span class="emp-dept-bar" aria-hidden="true"><i style="width:${Math.round(count / maxCount * 100)}%"></i></span></button>`;
         }).join('')
         : '<span class="employee-summary-empty">Chưa có dữ liệu nhân sự.</span>';
       const allBtn=document.getElementById('employeeDepartmentAll');
