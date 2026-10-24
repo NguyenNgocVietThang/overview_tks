@@ -267,7 +267,7 @@ test('cot trang thai hien LV va NV theo trang thai lam viec', async () => {
 test('do rong cot nhan su dua theo gia tri dai nhat va co gioi han hop ly', async () => {
   const basic = await openPage({ canManage: false });
   const basicHeaders = basic.window.document.querySelectorAll('#employeeDirectoryTableHead th');
-  assert.ok(parseInt(basicHeaders[0].style.width, 10) < 140, 'tên ngắn không bị ép rộng theo tên cột');
+  assert.ok(parseInt(basicHeaders[0].style.width, 10) < 190, 'tên ngắn không bị ép rộng theo tên cột (đã gồm chỗ avatar)');
   assert.ok(parseInt(basicHeaders[4].style.width, 10) < 75, 'trạng thái ngắn không bị ép rộng theo tên cột');
 
   basic.dom.window.close();
@@ -281,7 +281,7 @@ test('do rong cot nhan su dua theo gia tri dai nhat va co gioi han hop ly', asyn
 
   const manager = await openPage({ canManage: true });
   const managerHeaders = manager.window.document.querySelectorAll('#employeeDirectoryTableHead th');
-  assert.ok(parseInt(managerHeaders[0].style.width, 10) < 140);
+  assert.ok(parseInt(managerHeaders[0].style.width, 10) < 190);
   assert.ok(parseInt(managerHeaders[16].style.width, 10) < 75);
   manager.dom.window.close();
 });

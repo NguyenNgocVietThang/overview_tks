@@ -641,7 +641,9 @@
     background:color-mix(in srgb, var(--panel-2) 55%, var(--panel)); color:var(--muted);
     font-size:12.5px; font-weight:600; text-transform:none; letter-spacing:0;
   }
-  #employeeDirectoryTable tbody td{ padding-top:9px; padding-bottom:9px; font-size:13.5px; }
+  #employeeDirectoryTable tbody td{ padding-top:9px; padding-bottom:9px; font-size:13.5px; vertical-align:middle; }
+  .emp-pill{ white-space:nowrap; }
+  .emp-flag, .emp-dot{ white-space:nowrap; }
   #employeeDirectoryTable td.emp-name-cell{ font-weight:600; color:var(--text); }
   .emp-name-cell::before{
     content:attr(data-initials); display:inline-flex; align-items:center; justify-content:center; vertical-align:middle;
@@ -3142,7 +3144,7 @@
       ['Họ và tên','ho-va-ten',240], ['Bộ phận','bo-phan',150], ['Chức vụ','chuc-vu',180],
       ['Ngày vào làm','ngay-vao-lam',110], ['Số ngày LV','so-ngay-lv',90], ['Ngày sinh','ngay-sinh',110],
       ['Số CCCD','so-cccd',125], ['SĐT','so-dien-thoai',115], ['Địa chỉ hiện tại','dia-chi',210],
-      ['Giới tính','gioi-tinh',72], ['Hồ sơ','ho-so',52], ['Vân tay','van-tay',52], ['Số bảo hiểm','so-bao-hiem',210], ['Cơ sở','co-so',100],
+      ['Giới tính','gioi-tinh',72], ['Hồ sơ','ho-so',120], ['Vân tay','van-tay',100], ['Số bảo hiểm','so-bao-hiem',210], ['Cơ sở','co-so',100],
       ['QH người thân','qh-nguoi-than',120], ['Họ tên người thân','ten-nguoi-than',180],
       ['SĐT người thân','sdt-nguoi-than',115], ['Trạng thái','trang-thai',50,true], ['Ngày nghỉ việc','ngay-nghi-viec',110,true]
     ];
@@ -3179,10 +3181,12 @@
     }
 
     function employeeColumnWidth(column, employees){
-      const [, key, maxWidth] = column;
+      const [label, key, maxWidth] = column;
+      // Avatar, nhãn và chấm trạng thái chiếm thêm chỗ ngoài chữ; độ rộng vẫn theo giá trị, không theo tiêu đề.
+      const extra = !employees.length ? 0 : { 'ho-va-ten':48, 'chuc-vu':34, 'ho-so':52, 'van-tay':34 }[key] || 0;
       const contentWidth = employees.reduce((widest, employee, index) =>
         Math.max(widest, employeeTextWidth(employeeColumnText(key, employee, index))), 0);
-      return Math.min(maxWidth, Math.max(32, contentWidth));
+      return Math.min(maxWidth, Math.max(32, contentWidth) + extra);
     }
 
     // Dữ liệu cũ từ file ghi "NAM"/"NỮ": quy về đúng lựa chọn của ô chọn để không hiện trống và không mất khi lưu.
