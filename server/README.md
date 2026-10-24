@@ -755,4 +755,10 @@ Chuông thông báo chuyển từ file `server/data/notifications.json` sang b�
 - Vì chuông nay ở DB dùng chung, worker (`BACKGROUND_JOBS=worker`) cũng ghi được chuông; job báo sale ORDER VAT vẫn chạy ở web như cũ.
 - Triển khai: `npm run db:migrate` (áp `0093`) **trước** khi deploy web.
 
+### 24/10/2026 — Báo cáo dùng tên hiện tại của khách/hàng
+
+- Báo cáo đọc tên từ `customers.name` / `products.name` (theo cơ sở + id) thay cho tên ghi trên chứng từ (`raw->>'customerName'` / `raw->>'productName'`): `dashboardPgReader`, `documentDetailRepository`, `kiotOrdersRepository`, `vatDraft`, `priceAudit`, `businessMonthlySql`. Không migration, không cần đồng bộ lại hóa đơn KiotViet.
+- `product_report_customers`: khách gộp theo tên chuẩn hóa (`customer_key = 'name:' + normalizedNameSql`), cùng tên khác mã = 1 khách. `customer_invoice_lines_90d`: `customer_code` / `customer_name` lấy hiện tại qua join `customers` theo `customer_id`.
+- Sau deploy chạy lại job `customerInvoiceLinesRefresh` và `productReportRefresh` để tên mới hiện. Bảng tháng đã chốt `business_monthly_*` giữ tên lúc chốt. `businessMonthlySql` khớp khách theo `name_key` trên tên chứng từ nên chứng từ cũ không có mã khách có thể không khớp lại sau đổi tên (chưa sửa).
+
 Cập nhật gần nhất: 24/10/2026.

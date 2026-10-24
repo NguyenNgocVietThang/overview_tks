@@ -884,4 +884,8 @@ Cột **Khách mới** (nhãn đợt tự do như T10/26, Cũ; tối đa 50 ký 
 
 Thông báo chuông của mọi tài khoản phải được lưu bền vững qua deploy / khởi động lại (bảng Postgres `notifications`, migration `0093`). Hành vi chuông không đổi: mỗi tài khoản chỉ thấy, đánh dấu đọc và xóa thông báo của chính mình; mới nhất trước; đếm chưa đọc 30 giây/lần.
 
+# 24/10/2026 — Báo cáo hiển thị tên hiện tại của khách/hàng
+
+Mọi báo cáo phải hiển thị tên khách và tên hàng hóa HIỆN TẠI trong danh mục (không dùng tên ghi trên chứng từ), nên đổi tên trên KiotViet lan sang báo cáo mà không cần đồng bộ lại hóa đơn. Báo cáo hàng hóa gộp khách cùng tên (đã chuẩn hóa) thành một khách dù khác mã. Bảng tháng đã chốt của báo cáo kinh doanh giữ tên tại thời điểm chốt. Hạn chế đã biết: chứng từ cũ không có mã khách có thể không khớp lại với khách đã đổi tên trong báo cáo kinh doanh tháng.
+
 Cập nhật gần nhất: 24/10/2026.

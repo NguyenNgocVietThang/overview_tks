@@ -464,4 +464,8 @@ Người có quyền sửa level điền thêm nhãn "Khách mới"; SĐT và đ
 
 Người dùng phản ánh tài khoản quản trị không có lịch sử thông báo. Nguyên nhân: chuông lưu trên đĩa tạm của máy chủ nên mất sau mỗi lần cập nhật web. Nay lưu trong cơ sở dữ liệu nên lịch sử chuông được giữ lại. Người nhận thông báo nghỉ phép vẫn theo phòng ban và cơ sở được giao duyệt.
 
+# 24/10/2026 — Báo cáo dùng tên hiện tại của khách/hàng
+
+Khi khách hoặc hàng hóa được đổi tên trên KiotViet, báo cáo trước đây vẫn hiện tên cũ ghi trên chứng từ. Nay báo cáo hiển thị tên hiện tại, và khách cùng tên nhưng khác mã được tính là một khách trong Báo cáo hàng hóa. Số liệu tháng đã chốt giữ nguyên tên lúc chốt. Chứng từ cũ không có mã khách có thể chưa khớp lại sau khi đổi tên trong báo cáo kinh doanh tháng (chưa xử lý).
+
 Cập nhật gần nhất: 24/10/2026.

@@ -741,4 +741,11 @@ Bảng ORDER VAT luôn chừa chỗ thanh cuộn dọc nên không còn tràn ng
 - **Tệp:** migration `server/db/migrations/0091_invoice_approved_prices.sql` (giữ nguyên) + `0092_invoice_approved_prices_vat_split.sql` (idempotent: thêm 2 cột giá, chép giá cũ vào cả hai, bỏ `approved_price`, thay CHECK); backend `server/invoicePriceAudit/approvedPrice{Repository,Routes,Rules,Export}.js` (nối vào `server/routes.js`, `priceAuditRepository.js`, `priceAuditSql.js`); frontend `server/public/invoice-approved-prices.js` / `.css` (gắn trong `server/public/index.html`); test `server/invoicePriceAudit/approvedPrice.test.js` và `server/test/frontend/invoice-approved-prices.test.js`.
 - **Việc kế tiếp:** (a) áp `0091` VÀ `0092` trước deploy (`npm run db:migrate` trong `server/`; cả hai chưa áp DB thật nào); (b) deploy; (c) Quản lý tạo giá duyệt đầu tiên và kiểm dòng chuyển Sai giá → Đúng giá; (d) đồng bộ tài liệu đang do tác vụ khác làm.
 
+### Cập nhật 24/10/2026 — Báo cáo dùng TÊN HIỆN TẠI của khách/hàng
+
+- **Trạng thái:** đã code ở máy cục bộ, **chưa commit, chưa deploy**. Không migration. Không cần đồng bộ lại hóa đơn từ KiotViet.
+- **Thay đổi:** báo cáo lấy tên hiện tại từ `customers.name` / `products.name` (theo cơ sở + id) thay vì tên ghi trên chứng từ (`raw->>'customerName'` / `raw->>'productName'`). Khách trong `product_report_customers` gộp theo TÊN CHUẨN HÓA (`customer_key = 'name:' + normalizedNameSql`; cùng tên khác mã = 1 khách). `customer_invoice_lines_90d` lấy `customer_code` / `customer_name` hiện tại (join `customers` theo `customer_id`). Các nơi đọc tên hiện tại: `dashboardPgReader`, `documentDetailRepository`, `kiotOrdersRepository`, `vatDraft`, `priceAudit`, `businessMonthlySql`.
+- **Việc sau deploy:** chạy lại các job tính sẵn `customerInvoiceLinesRefresh` và `productReportRefresh` để tên mới hiện ra.
+- **Giữ nguyên / còn hở:** bảng tháng đã chốt `business_monthly_*` giữ tên lúc chốt. `businessMonthlySql` khớp khách theo `name_key` trên tên chứng từ; chứng từ cũ không có mã khách có thể không khớp lại sau khi đổi tên (chưa sửa).
+
 Cập nhật gần nhất: 24/10/2026.

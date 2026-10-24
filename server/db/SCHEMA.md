@@ -715,3 +715,9 @@ Thông tin chung và quy mô dùng hai UPSERT cập nhật các cột riêng: PU
 
 `0086_product_container_other_note.sql` thêm cột `other_note text DEFAULT ''` vào hai bảng `product_container_lines` và `product_container_expected`. Cho phép NULL để tiến trình cũ vẫn ghi được trong lúc chuyển phiên bản. Đã nạp 5.839 ghi chú từ cột G của 7 sheet CONT trên 13.044 dòng mỗi bảng.
 
+## Tên hiện tại của khách/hàng trong bảng tính sẵn (24/10/2026, không migration)
+
+Không đổi cấu trúc bảng, chỉ đổi cách nạp giá trị khi job tính sẵn chạy lại. `customer_invoice_lines_90d.customer_code` / `customer_name` lấy từ `customers` hiện tại (join theo `customer_id`) thay vì tên trên chứng từ. `product_report_customers.customer_key` = `'name:' + normalizedNameSql` (gộp theo tên chuẩn hóa, cùng tên khác mã = 1 khách). Cần chạy lại `customerInvoiceLinesRefresh` và `productReportRefresh` để dữ liệu cũ cập nhật. Bảng tháng đã chốt `business_monthly_*` giữ tên lúc chốt.
+
+Cập nhật gần nhất: 24/10/2026.
+
