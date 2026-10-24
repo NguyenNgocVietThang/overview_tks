@@ -1207,6 +1207,27 @@
       }
     }
 
+    /* Bảng giá duyệt: 4 chỉ số dàn đều 100% chiều ngang (đặt ở HTML, không phụ thuộc bản JS/CSS riêng đang cache) */
+    #approvedPriceKpis {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    #approvedPriceKpis>.kpi-card {
+      grid-column: auto;
+    }
+
+    @media (max-width:1180px) {
+      #approvedPriceKpis {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width:600px) {
+      #approvedPriceKpis {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
     .kpi-card {
       background: var(--panel);
       border: 1px solid var(--border);
@@ -5284,7 +5305,7 @@
   <script src="/shared/image-compress.js?v=20261022"></script>
   <script src="/marketing-report.js?v=20261021-1"></script>
   <script src="/invoice-price-audit.js?v=20261023-1"></script>
-  <script src="/invoice-approved-prices.js?v=20261024-2"></script>
+  <script src="/invoice-approved-prices.js?v=20261024-3"></script>
 
   <script>
     // Toast thong bao inline — thay the window.alert() cho loi/canh bao (khong chan luong,
@@ -12330,6 +12351,22 @@
       return !!(request && request.pending && request.sig === buildDashboardQuery(view, state.days));
     }
 
+    // Bang gia duyet nhay cam: tai khoan khong co quyen xem thi GO HAN muc khoi trang (khong chi an), de ban JS cu trong
+    // cache cua trinh duyet cung khong hien lai khung rong. Quyen da nap xong truoc khi ensureViewData chay.
+    function pruneApprovedPriceSection() {
+      const section = document.getElementById('approvedPriceSection');
+      if (section && !hasFeature('reports.invoices.approvedPrice')) section.remove();
+    }
+
+    // Danh lai buoc 1, 2, 3 cua cac muc con hien thi trong tab Hoa don (muc bi go / an khong de lai khoang trong).
+    function renumberInvoiceSections() {
+      Array.from(document.querySelectorAll('#view-invoices > section.section')).filter(function (s) { return !s.hidden; })
+        .forEach(function (s, i) {
+          const step = s.querySelector(':scope > .section-head .section-step');
+          if (step) step.textContent = String(i + 1);
+        });
+    }
+
     /**
      * Mo 1 tab: neu chua co du lieu (hoac da cu / doi bo loc) thi tai tab do. Tab da co
      * du lieu duoc ve ngay tu du lieu cu roi cap nhat khi ban moi ve (khong bat man che).
@@ -12338,7 +12375,9 @@
       if (view === 'marketing') { TKSMarketing.load(false); return; }
       // Hoa don, muc 2 "Kiem tra gia ban": API rieng /api/invoice-price-audit, tu kiem quyen + tu bo qua neu du lieu con moi.
       if (view === 'invoices' && window.TKSPriceAudit) window.TKSPriceAudit.load(false);
+      if (view === 'invoices') pruneApprovedPriceSection();
       if (view === 'invoices' && window.TKSApprovedPrices) window.TKSApprovedPrices.load(false);
+      if (view === 'invoices') renumberInvoiceSections();
       if (isViewFresh(view) || isViewRequestPending(view)) return;
       loadData(state.days, !viewIsLoaded(view), view);
     }

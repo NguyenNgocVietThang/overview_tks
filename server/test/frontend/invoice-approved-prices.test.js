@@ -143,13 +143,13 @@ const pick = async (page, inputId, typed) => {
 test('Bảng giá duyệt là mục 2 của tab Hóa đơn, ẩn khi thiếu quyền xem; nút Tạo / Sửa / Xóa chỉ khi có quyền quản lý', async () => {
   const none = createPage({ permissions: ['reports.invoices'] });
   await none.w.TKSApprovedPrices.load(true);
-  assert.equal(none.$('approvedPriceSection').hidden, true);
+  assert.equal(none.$('approvedPriceSection'), null, 'khong co quyen xem: muc bi go han khoi trang');
   assert.equal(gets(none).length, 0);
 
   // Chi co quyen xem Kiem tra gia ban (khong co quyen rieng) -> van an: bang nay nhay cam.
   const auditOnly = createPage({ permissions: ['reports.invoices', 'reports.invoices.priceAudit', 'reports.export'] });
   await auditOnly.w.TKSApprovedPrices.load(true);
-  assert.equal(auditOnly.$('approvedPriceSection').hidden, true);
+  assert.equal(auditOnly.$('approvedPriceSection'), null, 'quyen Kiem tra gia ban khong du: muc bi go han');
   assert.equal(gets(auditOnly).length, 0);
 
   const viewer = await opened({ permissions: [VIEW] });

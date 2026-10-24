@@ -437,9 +437,9 @@
   function load(force) {
     const section = $('approvedPriceSection');
     if (!section) return Promise.resolve();
-    const allowed = can(FEATURE_VIEW);
-    section.hidden = !allowed;
-    if (!allowed) return Promise.resolve();
+    // Không có quyền xem: GỠ HẲN mục khỏi trang (không chỉ ẩn) — bảng này chỉ Quản lý thấy theo mặc định.
+    if (!can(FEATURE_VIEW)) { section.remove(); return Promise.resolve(); }
+    section.hidden = false;
     init();
     if (!force && (state.loading || Date.now() - state.loadedAt < 60000)) return Promise.resolve();
     return fetchPage();
