@@ -639,14 +639,15 @@
     el.textContent = `Tồn VAT lấy từ Google Sheets${status.loadedAt ? ', cập nhật lúc ' + fmtDateTime(status.loadedAt) : ''}${status.stale ? ' (bản cũ do sheet đang lỗi)' : ''}. Dự kiến hàng về = cont chưa về sớm nhất ở Hàng dự kiến; Trạng thái / Dự kiến ngày về gần nhất lấy từ cont đó (hết cont chưa về thì cont đã về gần nhất).`;
   }
 
-  function renderChips() {
+  function renderStatusFilter() {
     const presets = [
       { key: 'all', label: 'Tất cả' },
       ...(state.canProcess ? [{ key: 'todo', label: 'Cần xử lý' }] : []),
       ...state.statuses.map(s => ({ key: s.value, label: s.label }))
     ];
-    $('vrStatusChips').innerHTML = presets.map(p =>
-      `<button type="button" class="vr-chip" data-preset="${escapeHtml(p.key)}" aria-pressed="${p.key === state.preset || (state.preset === 'custom' && state.statusSet.has(p.key))}">${escapeHtml(p.label)}</button>`).join('');
+    $('vrStatusFilter').innerHTML = presets.map(p =>
+      `<option value="${escapeHtml(p.key)}">${escapeHtml(p.label)}</option>`).join('');
+    $('vrStatusFilter').value = state.preset === 'custom' ? [...state.statusSet][0] : state.preset;
   }
 
   function renderSaleFilter() {
@@ -694,7 +695,7 @@
       setStatus('');
       const ids = new Set(state.rows.map(r => r.id));
       state.selected = new Set([...state.selected].filter(id => ids.has(id)));
-      renderChips();
+      renderStatusFilter();
       renderSaleFilter();
     } catch (error) {
       if (seq !== state.requestSeq) return;
@@ -1161,20 +1162,12 @@
     $('menuBtn').addEventListener('click', toggleSidebar);
     $('backdrop').addEventListener('click', toggleSidebar);
 
-    $('vrStatusChips').addEventListener('click', event => {
-      const chip = event.target.closest('[data-preset]');
-      if (!chip) return;
-      // "Cần xử lý" / "Tất cả" chỉ chọn một mình; các chip trạng thái bật / tắt, chọn nhiều cái cùng lúc.
-      const key = chip.dataset.preset;
-      if (key === 'todo' || key === 'all') { state.preset = key; state.statusSet.clear(); }
-      else {
-        if (state.preset !== 'custom') { state.preset = 'custom'; state.statusSet = new Set([key]); }
-        else if (state.statusSet.has(key)) state.statusSet.delete(key);
-        else state.statusSet.add(key);
-        if (!state.statusSet.size) state.preset = 'all';
-      }
+    $('vrStatusFilter').addEventListener('change', event => {
+      const key = event.target.value;
+      state.preset = key === 'all' || key === 'todo' ? key : 'custom';
+      state.statusSet = new Set(state.preset === 'custom' ? [key] : []);
       resetView();
-      renderChips();
+      renderStatusFilter();
       load();
     });
     // Đổi bộ lọc / tải lại: bỏ các dòng đang giữ lại sau khi sửa, về trang 1.

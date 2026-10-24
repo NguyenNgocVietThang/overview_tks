@@ -3,7 +3,7 @@
 .vl-title{margin:0;font-family:var(--font-display);font-size:24px;color:var(--canvas-text);letter-spacing:-.02em}
 .vl-sub{margin:6px 0 0;color:var(--canvas-text-muted);font-size:13px;max-width:720px}
 
-.vl-panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-xl);box-shadow:var(--card-shadow);overflow:hidden}
+.vl-panel{background:var(--glass-panel);border:1px solid var(--border);border-radius:var(--radius-xl);box-shadow:var(--card-shadow);overflow:hidden}
 .vl-toolbar{display:flex;flex-direction:column;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border)}
 
 /* Hàng tab: tab bên trái, nút "Cột hiển thị" (table-controls.js) ở góc phải. */
@@ -11,7 +11,7 @@
 .vl-tabbar .tks-columns-button{min-height:36px}
 
 /* Tab: nút phân đoạn, tab đang chọn tô màu chính. */
-.vl-tabs{display:inline-flex;gap:4px;padding:4px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--panel-2)}
+.vl-tabs{display:inline-flex;gap:4px;padding:4px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--glass-panel-2)}
 .vl-tab{display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:6px 14px;border:0;border-radius:var(--radius-sm);background:transparent;color:var(--text-secondary);font:600 13px var(--font-body);cursor:pointer;transition:background .15s ease,color .15s ease}
 .vl-tab:hover{color:var(--text);background:var(--surface-hover)}
 .vl-tab[aria-selected="true"]{background:var(--primary);color:var(--primary-text);box-shadow:var(--primary-shadow)}
@@ -39,7 +39,7 @@
 .vl-table{width:100%;table-layout:fixed;border-collapse:collapse;text-align:left;font-size:13.5px}
 .vl-table thead th{font:700 11.5px/1.35 var(--font-body);letter-spacing:.02em;color:var(--text-secondary)}
 /* Tiêu đề dính khi cuộn: nền đặc để chữ các dòng bên dưới không hiện xuyên qua; kẻ dưới bằng box-shadow vì border của ô sticky không đi theo. */
-.vl-table thead th{position:sticky;top:0;z-index:3;background:var(--panel-2);box-shadow:inset 0 -1px 0 var(--border)}
+.vl-table thead th{position:sticky;top:0;z-index:3;background:var(--glass-head);box-shadow:inset 0 -1px 0 var(--border)}
 .vl-table td{color:var(--text);vertical-align:middle}
 .vl-table tbody tr:hover td{background:var(--surface-hover)}
 /* Xuống dòng theo cả từ, không cắt giữa từ (table-controls.css mặc định overflow-wrap:anywhere). */
