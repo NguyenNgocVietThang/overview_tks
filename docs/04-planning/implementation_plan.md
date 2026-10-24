@@ -245,4 +245,8 @@ Triển khai cục bộ theo `docs/superpowers/plans/2026-10-23-customer-filters
 
 `notifications/notificationRepository.js` đọc/ghi bảng `notifications` (migration `0093`) qua `db/pool.js` thay vì file `data/notifications.json` trên đĩa tạm Render. Giữ nguyên chữ ký hàm và API `/api/notifications/*`; test dùng PGlite qua `notifications/testHelpers/notificationTestPool.js`.
 
+# Cập nhật 23/10/2026 — chuông thông báo bung ra góc màn hình / Windows
+
+Chỉ frontend (`public/shared/shared-nav.js` + `shared.css`), không migration. Trong `renderNotifBell`: poll `unread-count` thấy số đổi → `GET /api/notifications?unreadOnly=true`, so với id đã thấy trong localStorage `tksNotifToastSeen:<userId>` (lưu lại đúng tập id còn chưa đọc nên tự gọn). Đang xem trang → toast `#tksNotifToasts` (góc dưới trái; ≤640px lên mép trên để không đè toast thao tác góc phải của từng trang). Tab ẩn/mất focus + `Notification.permission === "granted"` → `new Notification(title, { body, tag: "tks-notif-<id>", icon: "/Logo.jpg" })`; không có quyền hoặc trình duyệt không cho tạo (Chrome Android) → hoãn toast tới `visibilitychange`. Xin quyền: popup `#tksNotifAsk` tự hiện 1,5s sau khi vào trang (`TKSNav.notifAskDelayMs`) khi quyền còn `default` và không phải điện thoại; chỉ gọi `requestPermission` khi người dùng bấm (tránh Edge/Chrome ẩn hộp, Firefox chặn); "Để sau" lưu `tksNotifDesktopAsk:<userId>`, hỏi lại sau 2 giờ (`TKSNav.notifAskSnoozeMs`; tab vẫn mở thì hẹn giờ tự hiện lại). Nút "Bật" trong dropdown (`#tksNotifDesktop`) là đường dự phòng. Báo khi đã đóng tab (Web Push) chưa làm.
+
 Cập nhật gần nhất: 24/10/2026.

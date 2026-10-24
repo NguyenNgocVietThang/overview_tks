@@ -440,6 +440,16 @@ body::before{
 .tks-notif-clear-all{
   background:none; border:none; color:var(--red, #EF4444); font-size:11.5px; font-weight:600; cursor:pointer; padding:0;
 }
+.tks-notif-desktop{
+  display:flex; align-items:center; gap:10px; padding:10px 16px;
+  border-bottom:1px solid var(--border); background:var(--panel-2);
+}
+.tks-notif-desktop[hidden]{ display:none; }
+.tks-notif-desktop-text{ margin:0; flex:1; font-size:12px; line-height:1.4; color:var(--muted); }
+.tks-notif-desktop-enable{
+  flex:0 0 auto; padding:5px 12px; border-radius:8px; border:1px solid var(--blue);
+  background:var(--blue); color:#fff; font-size:11.5px; font-weight:700; cursor:pointer;
+}
 .tks-notif-list{ padding:0; }
 .tks-notif-empty{ padding:20px 16px; text-align:center; color:var(--muted); font-size:12.5px; margin:0; }
 .tks-notif-item{
@@ -476,6 +486,84 @@ body::before{
 .tks-notif-approve{ background:var(--blue); color:#fff; border-color:var(--blue); }
 .tks-notif-reject{ background:var(--panel-2); color:var(--text); }
 .tks-notif-approve:disabled, .tks-notif-reject:disabled{ opacity:.6; cursor:not-allowed; }
+
+/* Toast goc duoi ben trai khi co thong bao moi (kieu YouTube) — goc phai da danh cho toast thao tac cua tung trang. */
+.tks-notif-toasts{
+  position:fixed; left:20px; bottom:20px; z-index:10000;
+  display:flex; flex-direction:column; gap:10px;
+  width:min(360px, calc(100vw - 32px)); pointer-events:none;
+}
+.tks-notif-toast{
+  pointer-events:auto; position:relative; display:flex; align-items:flex-start; gap:12px;
+  padding:12px 36px 12px 12px; cursor:pointer;
+  background:var(--panel); color:var(--text);
+  border:1px solid var(--border); border-radius:12px;
+  box-shadow:var(--shadow-toast, 0 8px 24px rgba(0,0,0,0.25));
+  opacity:0; transform:translateY(12px) scale(.98);
+  transition:opacity .2s ease, transform .2s cubic-bezier(.2,.8,.2,1), background-color .12s ease;
+}
+.tks-notif-toast.is-in{ opacity:1; transform:none; }
+.tks-notif-toast.is-out{ opacity:0; transform:translateX(-16px); }
+.tks-notif-toast:hover{ background:var(--panel-2); }
+.tks-notif-toast:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+.tks-notif-toast-icon{
+  flex:0 0 34px; width:34px; height:34px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--blue); color:#fff;
+}
+.tks-notif-toast-icon svg{ width:17px; height:17px; }
+.tks-notif-toast-body{ min-width:0; flex:1; }
+.tks-notif-toast-title{ margin:0 0 3px; font-size:13px; font-weight:700; line-height:1.35; color:var(--text); }
+.tks-notif-toast-msg{
+  margin:0; font-size:12.5px; line-height:1.45; color:var(--muted); white-space:pre-line;
+  display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
+}
+.tks-notif-toast-close{
+  position:absolute; top:6px; right:6px; width:24px; height:24px; padding:0;
+  display:flex; align-items:center; justify-content:center;
+  background:none; border:none; border-radius:6px; color:var(--muted);
+  font-size:18px; line-height:1; cursor:pointer;
+}
+.tks-notif-toast-close:hover{ background:var(--surface-hover); color:var(--text); }
+/* Popup moi bat thong bao man hinh — tu hien khi vao web (shared-nav.js showAskPopup), nam duoi chuong.
+   --tks-header-h do shared-nav.js do tu header ghim; trang khong co header thi lui ve 64px. */
+.tks-notif-ask{
+  position:fixed; top:calc(var(--tks-header-h, 64px) + 12px); right:20px; z-index:10001;
+  width:min(380px, calc(100vw - 32px));
+  display:flex; align-items:flex-start; gap:12px; padding:16px;
+  background:var(--panel); color:var(--text);
+  border:1px solid var(--border); border-radius:14px;
+  box-shadow:var(--shadow-modal, 0 12px 32px rgba(0,0,0,0.25));
+  opacity:0; transform:translateY(-8px);
+  transition:opacity .2s ease, transform .2s cubic-bezier(.2,.8,.2,1);
+}
+.tks-notif-ask.is-in{ opacity:1; transform:none; }
+.tks-notif-ask-body{ min-width:0; flex:1; }
+.tks-notif-ask-title{ margin:2px 0 4px; font-size:14px; font-weight:700; line-height:1.35; color:var(--text); }
+.tks-notif-ask-text{ margin:0; font-size:12.5px; line-height:1.5; color:var(--muted); }
+.tks-notif-ask-text strong{ color:var(--text); }
+.tks-notif-ask-actions{ display:flex; justify-content:flex-end; gap:8px; margin-top:12px; }
+.tks-notif-ask-later, .tks-notif-ask-enable{
+  padding:7px 14px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer;
+  border:1px solid var(--border);
+}
+.tks-notif-ask-later{ background:var(--panel-2); color:var(--text); }
+.tks-notif-ask-later:hover{ background:var(--surface-hover); }
+.tks-notif-ask-enable{ background:var(--blue); color:#fff; border-color:var(--blue); }
+.tks-notif-ask-later:focus-visible, .tks-notif-ask-enable:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+@media (prefers-reduced-motion: reduce){
+  .tks-notif-ask{ transition:opacity .15s ease; transform:none; }
+}
+
+/* Dien thoai: toast thao tac cua trang nam day man hinh, nen dua toast chuong len mep tren (kieu thong bao day). */
+@media (max-width:640px){
+  .tks-notif-toasts{ left:16px; right:16px; top:12px; bottom:auto; width:auto; }
+  .tks-notif-toast{ transform:translateY(-12px) scale(.98); }
+  .tks-notif-toast.is-out{ transform:translateY(-12px); }
+}
+@media (prefers-reduced-motion: reduce){
+  .tks-notif-toast, .tks-notif-toast.is-out{ transition:opacity .15s ease; transform:none; }
+}
 
 /* ---------- Lich nghi phep o header (xem shared-nav.js renderLeaveCalendar) ---------- */
 .tks-cal-dropdown{
