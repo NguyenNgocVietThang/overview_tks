@@ -118,6 +118,7 @@ Bot riêng cho quản lý chạy cùng tiến trình Express; `telegram/managerL
 | `HR_LEAVE_DB_REALTIME_ENABLED` | `true`; cầu Postgres → SSE HR |
 | `SPECIAL_DAYS_NOTIFY_ENABLED` | `true`; báo ngày lễ/sinh nhật lên chuông thông báo (`notifications/specialDayNotifier.js`) |
 | `VAT_REQUEST_NOTIFY_ENABLED` | `true`; báo chuông cho sale ~10 phút sau khi kế toán ngừng sửa yêu cầu ORDER VAT của họ (`vatRequests/saleNotifier.js`, cần migration `0080`) |
+| `HR_LEAVE_BELL_NOTIFY_ENABLED` | `true`; báo chuông người duyệt khi đơn nghỉ phép đến từ Telegram (`hr/hrLeaveBellNotifier.js`, cần migration `0093`) |
 | `INVOICE_PRICE_AUDIT_ENABLED` | `false`; bật job 23:00 VN của Kiểm tra giá bán (`invoicePriceAudit/priceAuditScheduler.js`) — chỉ bật sau khi áp `0077` và chạy tay lần đầu |
 
 **Migration trước khi chạy bản web mới:** `npm run db:migrate` áp `0029_hr_manager_telegram.sql`; bản web mới đọc `decision_version` cả khi `HR_MANAGER_TELEGRAM_ENABLED=false`. Sau khi cấu hình và khởi động server, đăng ký webhook bằng `npm run telegram-manager:set-webhook`. Chi tiết ở [hướng dẫn thiết lập](../docs/telegram-manager-leave-setup.md) và [kế hoạch đã duyệt](../docs/superpowers/plans/2026-10-02-telegram-manager-leave.md).
@@ -748,5 +749,16 @@ Chuông thông báo chuyển từ file `server/data/notifications.json` sang b�
 - Bỏ `initStore` / `setInMemoryNotifications`; test dùng `notifications/testHelpers/notificationTestPool.js` (PGlite + migration 0093) và `setPool`. Trong `node --test` chưa `setPool` thì repository báo lỗi, không ghi vào DB thật.
 - Vì chuông nay ở DB dùng chung, worker (`BACKGROUND_JOBS=worker`) cũng ghi được chuông; job báo sale ORDER VAT vẫn chạy ở web như cũ.
 - Triển khai: `npm run db:migrate` (áp `0093`) **trước** khi deploy web.
+
+Cập nhật gần nhất: 24/10/2026.
+
+# Chuông cho đơn nghỉ phép từ Telegram — 24/10/2026
+
+Đơn nghỉ phép gửi qua bot Telegram (157/160 đơn trong 30 ngày) được ghi thẳng vào `hr_leave_requests` nên chưa từng tạo chuông cho người duyệt — chỉ đơn gửi qua web mới có. Job mới `hr/hrLeaveBellNotifier.js` (web, khởi động rồi 15 giây/lần, cờ `HR_LEAVE_BELL_NOTIFY_ENABLED`, mặc định bật) quét đơn `Chưa duyệt`, `source <> 'web'`, tạo trong 24 giờ, chưa có chuông `leave_request_created`, rồi báo cho người duyệt theo `routingFor()` (đúng cơ sở + phòng ban, không ai khớp thì quản trị cao nhất; bỏ chính người gửi). Không migration.
+
+- Quét + ghi chuông trong 1 transaction có khóa advisory `20531093` → 2 tiến trình chạy chồng lúc deploy cũng không gửi trùng; chống trùng bằng chính bảng `notifications` (`type=leave_request_created`, `related_id=request_id`).
+- Chưa có người duyệt thì chờ, lượt sau thử lại (trong 24 giờ). Lỗi giữa lượt thì rollback cả lượt, không throw.
+- `createNotificationForUsers(ids, payload, { db })` nhận thêm client đang mở transaction.
+- Lần đầu bật: báo luôn các đơn Telegram đang chờ duyệt tạo trong 24 giờ trước đó (chạy thử trên DB thật 24/10/2026: 3 đơn).
 
 Cập nhật gần nhất: 24/10/2026.

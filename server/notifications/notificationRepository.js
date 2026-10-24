@@ -55,13 +55,14 @@ async function createNotification({ recipientUserId, type, title, message, relat
 
 /**
  * Tạo cùng 1 thông báo cho nhiều người nhận (vd: toàn bộ Quản lý) — 1 câu INSERT cho cả lô.
+ * `db` (tùy chọn): client đang mở transaction, để ghi chuông cùng transaction với việc khác.
  */
-async function createNotificationForUsers(recipientUserIds, payload) {
+async function createNotificationForUsers(recipientUserIds, payload, { db } = {}) {
   const ids = Array.from(recipientUserIds || []);
   if (!ids.length) return [];
   if (!payload || !payload.type) throw new Error('Thiếu type khi tạo thông báo.');
   if (ids.some(id => !id)) throw new Error('Thiếu recipientUserId khi tạo thông báo.');
-  const { rows } = await resolvePool().query(
+  const { rows } = await (db || resolvePool()).query(
     `INSERT INTO notifications (id, recipient_user_id, type, title, message, related_type, related_id, created_at)
      SELECT r.id, r.recipient_user_id, $3, $4, $5, $6, $7, $8
      FROM unnest($1::uuid[], $2::text[]) WITH ORDINALITY AS r(id, recipient_user_id, ord)

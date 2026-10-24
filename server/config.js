@@ -119,6 +119,8 @@ const CONFIG = {
   SPECIAL_DAYS_NOTIFY_ENABLED: process.env.SPECIAL_DAYS_NOTIFY_ENABLED !== 'false',
   // Bao chuong cho sale ~10 phut sau khi KT ngung sua yeu cau ORDER VAT (vatRequests/saleNotifier.js, migration 0080).
   VAT_REQUEST_NOTIFY_ENABLED: process.env.VAT_REQUEST_NOTIFY_ENABLED !== 'false',
+  // Bao chuong nguoi duyet khi don nghi phep den tu Telegram (hr/hrLeaveBellNotifier.js).
+  HR_LEAVE_BELL_NOTIFY_ENABLED: process.env.HR_LEAVE_BELL_NOTIFY_ENABLED !== 'false',
 
   // ==========================================
   // SUPABASE POSTGRES — dong bo KiotViet, xem
