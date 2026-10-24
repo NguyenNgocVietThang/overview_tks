@@ -280,41 +280,45 @@
     return picker;
   }
 
-  function fieldHtml(id, label, control, hint) {
-    return '<div class="approved-price-field" id="' + id + 'Field"><label for="' + id + '">' + escape(label) + '</label>' + control +
-      (hint ? '<p class="approved-price-hint">' + escape(hint) + '</p>' : '') + '</div>';
+  // Form Tạo / Sửa dùng cùng khung với form Thêm nhân sự (HR) và Tài khoản: .modal-overlay > .modal-box > header (tiêu đề + ✕)
+  // > lưới 2 cột (.form-group + .form-control) > chân có nền riêng chứa nút. KHÔNG dùng <dialog>.showModal(): lớp "top layer"
+  // của nó che mất lịch chọn ngày của dateInput.js (gắn vào <body>), nên dùng lớp phủ thường như các form kia.
+  function fieldHtml(id, label, control, opts) {
+    const o = opts || {};
+    return '<div class="form-group ap-field' + (o.wide ? ' ap-wide' : '') + '" id="' + id + 'Field"><label for="' + id + '">' + escape(label) + '</label>' + control +
+      (o.hint ? '<small class="ap-hint">' + escape(o.hint) + '</small>' : '') + '</div>';
   }
-  const pickerControl = (id, placeholder) => '<input id="' + id + '" type="text" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="' + id + 'List" placeholder="' + escape(placeholder) + '" maxlength="100">' +
+  const pickerControl = (id, placeholder) => '<input class="form-control" id="' + id + '" type="text" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="' + id + 'List" placeholder="' + escape(placeholder) + '" maxlength="100">' +
     '<ul class="approved-price-suggest" id="' + id + 'List" role="listbox" hidden></ul>';
 
   function openEditor(row) {
     if (!canManage()) return;
-    let dialog = $('approvedPriceDialog');
-    if (dialog) dialog.remove();
-    dialog = document.createElement('dialog');
+    const old = $('approvedPriceDialog');
+    if (old) old.remove();
+    const opener = document.activeElement;
+    const dialog = document.createElement('div');
     dialog.id = 'approvedPriceDialog';
-    dialog.className = 'approved-price-dialog';
-    dialog.setAttribute('aria-labelledby', 'approvedPriceDialogTitle');
+    dialog.className = 'ap-overlay';
     const approvers = (state.data && state.data.options && state.data.options.approvers) || APPROVERS;
     const approverOptions = ['<option value="">Chọn người duyệt</option>'].concat(approvers.map(a => '<option value="' + escape(a) + '"' + (row && row.approver === a ? ' selected' : '') + '>' + escape(a) + '</option>')).join('');
     const branchOptions = BRANCHES.map(b => '<option value="' + b[0] + '"' + ((row ? row.branch : 'hanoi') === b[0] ? ' selected' : '') + '>' + b[1] + '</option>').join('');
     dialog.innerHTML =
-      '<div class="approved-price-dialog-head"><h2 id="approvedPriceDialogTitle">' + (row ? 'Sửa bản ghi giá duyệt' : 'Tạo bản ghi giá duyệt') + '</h2>' +
-      '<button type="button" class="btn-secondary price-audit-btn" data-close aria-label="Đóng">Đóng</button></div>' +
-      '<div class="approved-price-dialog-body"><form class="approved-price-form" novalidate>' +
-      fieldHtml('apBranch', 'Cơ sở', '<select id="apBranch">' + branchOptions + '</select>') +
-      fieldHtml('apCustomer', 'Khách hàng', pickerControl('apCustomer', 'Gõ tên hoặc mã khách trên KiotViet'), 'Chọn từ danh sách gợi ý của cơ sở này.') +
-      fieldHtml('apProductCode', 'Mã SP', pickerControl('apProductCode', 'Gõ mã hoặc tên sản phẩm')) +
-      fieldHtml('apProductName', 'Tên SP', '<input id="apProductName" type="text" readonly tabindex="-1" placeholder="Tự điền theo mã SP trên KiotViet">') +
-      fieldHtml('apPrice', 'Giá duyệt', '<input id="apPrice" type="number" inputmode="decimal" min="0" step="any" placeholder="Đơn giá / chiếc" value="' + escape(row ? row.approvedPrice : '') + '">', 'Thay giá min khi kiểm tra giá; coi là giá cuối đã gồm VAT / cước.') +
-      fieldHtml('apApprover', 'Người duyệt', '<select id="apApprover">' + approverOptions + '</select>') +
-      fieldHtml('apDate', 'Ngày duyệt', '<input id="apDate" type="date" value="' + escape(row ? row.approvedOn : todayVn()) + '">', 'Chỉ áp cho hóa đơn có ngày bán từ ngày này trở đi.') +
-      '<p class="approved-price-error" id="apError" role="alert"></p>' +
-      '<div class="approved-price-form-actions"><button type="button" class="btn-secondary price-audit-btn" data-close>Hủy</button>' +
-      '<button type="submit" class="btn-primary price-audit-btn" id="apSubmit">' + (row ? 'Lưu thay đổi' : 'Tạo bản ghi') + '</button></div>' +
-      '</form></div>';
+      '<div class="ap-box" role="dialog" aria-modal="true" aria-labelledby="approvedPriceDialogTitle">' +
+      '<div class="ap-header"><h3 id="approvedPriceDialogTitle">' + (row ? 'Sửa bản ghi giá duyệt' : 'Tạo bản ghi giá duyệt') + '</h3>' +
+      '<button type="button" class="ap-close" data-close aria-label="Đóng" title="Đóng">✕</button></div>' +
+      '<form novalidate><div class="ap-body">' +
+      fieldHtml('apBranch', 'Cơ sở *', '<select class="form-control" id="apBranch">' + branchOptions + '</select>') +
+      fieldHtml('apDate', 'Ngày duyệt *', '<input class="form-control" id="apDate" type="date" value="' + escape(row ? row.approvedOn : todayVn()) + '">') +
+      fieldHtml('apCustomer', 'Khách hàng *', pickerControl('apCustomer', 'Gõ tên hoặc mã khách trên KiotViet'), { wide: true, hint: 'Chọn từ danh sách gợi ý của cơ sở này; khách phải có trên KiotViet.' }) +
+      fieldHtml('apProductCode', 'Mã SP *', pickerControl('apProductCode', 'Gõ mã hoặc tên sản phẩm')) +
+      fieldHtml('apProductName', 'Tên SP', '<input class="form-control" id="apProductName" type="text" readonly tabindex="-1" placeholder="Tự điền theo mã SP trên KiotViet">') +
+      fieldHtml('apPrice', 'Giá duyệt (₫/chiếc) *', '<input class="form-control" id="apPrice" type="number" inputmode="decimal" min="0" step="any" placeholder="Đơn giá / chiếc" value="' + escape(row ? row.approvedPrice : '') + '">', { hint: 'Thay giá min khi kiểm tra giá; coi là giá cuối đã gồm VAT / cước.' }) +
+      fieldHtml('apApprover', 'Người duyệt *', '<select class="form-control" id="apApprover">' + approverOptions + '</select>', { hint: 'Giá duyệt chỉ áp cho hóa đơn có ngày bán từ ngày duyệt trở đi.' }) +
+      '<div class="ap-error ap-wide" id="apError" role="alert" hidden></div>' +
+      '</div><div class="ap-footer"><button type="button" class="btn-secondary" data-close>Hủy</button>' +
+      '<button type="submit" class="btn-primary" id="apSubmit">' + (row ? 'Lưu thay đổi' : 'Tạo bản ghi') + '</button></div></form></div>';
     document.body.appendChild(dialog);
-    // Ô ngày hiển thị dd/mm/yyyy như mọi trang (dateInput.js; value vẫn là ISO yyyy-mm-dd).
+    // Ô ngày hiển thị dd/mm/yyyy + lịch chọn ngày như mọi form khác (dateInput.js; value vẫn là ISO yyyy-mm-dd).
     if (window.TKSDateInput && typeof window.TKSDateInput.enhanceAll === 'function') window.TKSDateInput.enhanceAll(dialog);
     const q = id => dialog.querySelector('#' + id);
     const branchSel = q('apBranch');
@@ -331,24 +335,33 @@
     }
     // Đổi cơ sở: khách / SP của cơ sở cũ không còn hợp lệ → xóa lựa chọn.
     branchSel.addEventListener('change', () => { customer.reset(); productPicker.reset(); productName.value = ''; });
-    dialog.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => dialog.close()));
-    dialog.addEventListener('close', () => dialog.remove());
+
+    const onKey = event => { if (event.key === 'Escape') close(); };
+    function close() {
+      document.removeEventListener('keydown', onKey);
+      dialog.remove();
+      if (opener && typeof opener.focus === 'function' && document.contains(opener)) opener.focus();
+    }
+    dialog.close = close;
+    document.addEventListener('keydown', onKey);
+    dialog.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', close));
 
     const err = q('apError');
     const submit = q('apSubmit');
+    const showError = message => { err.textContent = message; err.hidden = !message; };
     dialog.querySelector('form').addEventListener('submit', async event => {
       event.preventDefault();
-      err.textContent = '';
+      showError('');
       const price = q('apPrice').value.trim();
       const body = {
         branch: branchSel.value, customerId: customer.id, productId: productPicker.id,
         approvedPrice: price, approver: q('apApprover').value, approvedOn: q('apDate').value
       };
-      if (!customer.id) { err.textContent = 'Chọn khách hàng từ danh sách gợi ý (khách phải có trên KiotViet).'; q('apCustomer').focus(); return; }
-      if (!productPicker.id) { err.textContent = 'Chọn mã SP từ danh sách gợi ý (mã phải có trên KiotViet).'; q('apProductCode').focus(); return; }
-      if (!price || !(Number(price) > 0)) { err.textContent = 'Nhập giá duyệt lớn hơn 0.'; q('apPrice').focus(); return; }
-      if (!body.approver) { err.textContent = 'Chọn người duyệt.'; q('apApprover').focus(); return; }
-      if (!body.approvedOn) { err.textContent = 'Chọn ngày duyệt.'; q('apDate').focus(); return; }
+      if (!customer.id) { showError('Chọn khách hàng từ danh sách gợi ý (khách phải có trên KiotViet).'); q('apCustomer').focus(); return; }
+      if (!productPicker.id) { showError('Chọn mã SP từ danh sách gợi ý (mã phải có trên KiotViet).'); q('apProductCode').focus(); return; }
+      if (!price || !(Number(price) > 0)) { showError('Nhập giá duyệt lớn hơn 0.'); q('apPrice').focus(); return; }
+      if (!body.approver) { showError('Chọn người duyệt.'); q('apApprover').focus(); return; }
+      if (!body.approvedOn) { showError('Chọn ngày duyệt (dd/mm/yyyy).'); q('apDate').focus(); return; }
       if (row) body.expectedVersion = row.version;
       submit.disabled = true;
       submit.textContent = 'Đang lưu…';
@@ -357,19 +370,18 @@
           method: row ? 'PUT' : 'POST', credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
         }));
-        dialog.close();
+        close();
         toast((row ? 'Đã lưu bản ghi giá duyệt.' : 'Đã tạo bản ghi giá duyệt.') + recalcMessage(out.recalc), 'success');
         afterWrite(out.recalc);
       } catch (e) {
-        err.textContent = e.status === 409 && e.body && e.body.code === 'VERSION_CONFLICT'
+        showError(e.status === 409 && e.body && e.body.code === 'VERSION_CONFLICT'
           ? 'Bản ghi vừa được người khác cập nhật. Hãy đóng hộp này và mở lại để xem bản mới nhất.'
-          : (e.message || 'Không lưu được bản ghi.');
+          : (e.message || 'Không lưu được bản ghi.'));
         if (e.status === 409) fetchPage();
         submit.disabled = false;
         submit.textContent = row ? 'Lưu thay đổi' : 'Tạo bản ghi';
       }
     });
-    dialog.showModal();
     q(row ? 'apPrice' : 'apCustomer').focus();
   }
 

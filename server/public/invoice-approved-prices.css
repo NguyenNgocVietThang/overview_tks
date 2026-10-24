@@ -1,5 +1,6 @@
-/* Tab Hóa đơn — mục "Bảng giá duyệt" (invoice-approved-prices.js): hộp Tạo / Sửa bản ghi + gợi ý khách / mã hàng.
-   Bảng, bộ lọc và phân trang dùng lại lớp của Kiểm tra giá bán (price-audit-*, debt-filter-*); chỉ khai báo phần riêng ở đây. */
+/* Tab Hóa đơn — mục "Bảng giá duyệt" (invoice-approved-prices.js): form Tạo / Sửa bản ghi + gợi ý khách / mã hàng.
+   Bảng, bộ lọc và phân trang dùng lại lớp của Kiểm tra giá bán (price-audit-*, debt-filter-*).
+   Form có cùng khung với form Thêm nhân sự (HR) và Tài khoản: lớp phủ → hộp → tiêu đề + ✕ → lưới 2 cột → chân có nền riêng. */
 .approved-price-table td.name-cell { overflow-wrap: anywhere; }
 .approved-price-actions { display: inline-flex; gap: 6px; flex-wrap: wrap; }
 .approved-price-actions .price-audit-btn { min-height: 30px; padding: 4px 12px; }
@@ -7,30 +8,40 @@
 .approved-price-btn-danger:hover { background: color-mix(in srgb, var(--red, #c62828) 10%, transparent); }
 .approved-price-missing { color: var(--muted, #6b7280); font-style: italic; }
 
-.approved-price-dialog { width: min(560px, calc(100vw - 32px)); max-height: 92vh; padding: 0; color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-12, 12px); box-shadow: var(--shadow-modal, 0 20px 50px rgba(0, 0, 0, .35)); }
-.approved-price-dialog::backdrop { background: var(--overlay-bg, color-mix(in srgb, var(--bg) 75%, transparent)); }
-.approved-price-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--border); }
-.approved-price-dialog-head h2 { margin: 0; font-size: 17px; }
-.approved-price-dialog-body { padding: 16px 20px 20px; overflow: auto; max-height: calc(92vh - 70px); }
-.approved-price-form { display: grid; gap: 14px; }
-.approved-price-field { display: grid; gap: 6px; position: relative; min-width: 0; }
-.approved-price-field > label { font-size: 12.5px; font-weight: 600; color: var(--muted, #6b7280); }
-.approved-price-field input, .approved-price-field select { width: 100%; min-height: 38px; box-sizing: border-box; }
-.approved-price-field input[readonly] { opacity: .85; cursor: default; }
-.approved-price-hint { font-size: 12px; color: var(--muted, #6b7280); margin: 0; }
-.approved-price-suggest { position: absolute; z-index: 5; left: 0; right: 0; top: calc(100% - 2px); margin: 0; padding: 4px; list-style: none; max-height: 240px; overflow: auto; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow-modal, 0 10px 30px rgba(0, 0, 0, .25)); }
+/* ---- Form Tạo / Sửa ---- */
+.ap-overlay { position: fixed; inset: 0; z-index: 300; display: flex; align-items: center; justify-content: center; padding: 20px; background: var(--overlay-bg); backdrop-filter: blur(3px); }
+.ap-box { width: 100%; max-width: 640px; max-height: 90vh; overflow-y: auto; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-xl); box-shadow: var(--shadow-modal); color: var(--text); }
+.ap-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+.ap-header h3 { margin: 0; font-family: var(--font-display); font-size: 16px; font-weight: 700; color: var(--text); }
+.ap-close { width: 30px; height: 30px; border: none; background: transparent; color: var(--muted); font-size: 16px; cursor: pointer; border-radius: var(--radius-xs); }
+.ap-close:hover { color: var(--text); background: var(--surface-hover); }
+.ap-body { padding: 20px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
+.ap-body .ap-wide { grid-column: 1 / -1; }
+.ap-field { position: relative; min-width: 0; margin: 0; }
+.ap-field > label { display: block; margin-bottom: 6px; font-size: 12.5px; font-weight: 600; color: var(--text-secondary); }
+.ap-box .form-control { width: 100%; box-sizing: border-box; min-height: 40px; padding: 8px 12px; background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); font-family: var(--font-body); font-size: 13px; }
+.ap-box .form-control:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px var(--accent-blue-18); }
+.ap-box .form-control[readonly] { opacity: .85; cursor: default; }
+.ap-box input[type="number"] { appearance: textfield; -moz-appearance: textfield; }
+.ap-box input[type="number"]::-webkit-outer-spin-button, .ap-box input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.ap-field.is-picked > .form-control { border-color: color-mix(in srgb, var(--green, #16a34a) 60%, var(--border)); }
+.ap-hint { display: block; margin-top: 5px; font-size: 12px; color: var(--muted); }
+.ap-error { padding: 10px 12px; border-radius: var(--radius-sm); font-size: 13px; color: var(--red, #c62828); background: color-mix(in srgb, var(--red, #c62828) 12%, transparent); border: 1px solid color-mix(in srgb, var(--red, #c62828) 40%, var(--border)); }
+.ap-error[hidden] { display: none; }
+.ap-footer { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--border); background: var(--panel-2); }
+.ap-overlay :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+/* Gợi ý khách / mã SP dưới ô nhập */
+.approved-price-suggest { position: absolute; z-index: 5; left: 0; right: 0; top: calc(100% - 2px); margin: 0; padding: 4px; list-style: none; max-height: 240px; overflow: auto; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow-modal); }
 .approved-price-suggest[hidden] { display: none; }
 .approved-price-suggest li { padding: 7px 10px; border-radius: 6px; cursor: pointer; display: flex; justify-content: space-between; gap: 10px; font-size: 13.5px; }
 .approved-price-suggest li[aria-selected="true"], .approved-price-suggest li:hover { background: color-mix(in srgb, var(--blue, #2563eb) 14%, transparent); }
-.approved-price-suggest .code { color: var(--muted, #6b7280); font-family: var(--mono, ui-monospace, monospace); white-space: nowrap; }
-.approved-price-suggest .empty { cursor: default; color: var(--muted, #6b7280); }
-.approved-price-field.is-picked > input { border-color: color-mix(in srgb, var(--green, #16a34a) 60%, var(--border)); }
-.approved-price-error { margin: 0; color: var(--red, #c62828); font-size: 13px; }
-.approved-price-error:empty { display: none; }
-.approved-price-form-actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
-.approved-price-dialog :focus-visible { outline: 2px solid var(--blue, #2563eb); outline-offset: 2px; }
-@media (max-width: 600px) {
-  .approved-price-dialog-body { padding: 14px; }
-  .approved-price-form-actions .price-audit-btn { flex: 1 1 100%; min-height: 42px; }
+.approved-price-suggest .code { color: var(--muted); font-family: var(--font-data, ui-monospace, monospace); white-space: nowrap; }
+.approved-price-suggest .empty { cursor: default; color: var(--muted); }
+
+@media (max-width: 640px) {
+  .ap-body { grid-template-columns: 1fr; padding: 16px; }
+  .ap-body .ap-wide { grid-column: auto; }
+  .ap-footer .btn-primary, .ap-footer .btn-secondary { flex: 1 1 auto; min-height: 42px; }
 }
-@media (prefers-reduced-motion: reduce) { .approved-price-dialog * { transition: none; animation: none; } }
+@media (prefers-reduced-motion: reduce) { .ap-overlay * { transition: none; animation: none; } }

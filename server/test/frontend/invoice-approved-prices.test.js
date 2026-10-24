@@ -234,7 +234,7 @@ test('sort mọi cột ở máy chủ: lần 1 tăng dần ▼, lần 2 giảm d
 test('Tạo bản ghi: ngày mặc định hôm nay, người duyệt 3 lựa chọn, Tên SP tự nhảy, phải chọn khách / mã từ gợi ý', async () => {
   const page = await opened();
   page.$('approvedPriceCreateButton').click();
-  assert.ok(dialog(page).hasAttribute('open'));
+  assert.ok(dialog(page));
   const today = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
   assert.equal(dq(page, 'apDate').value, today);
   assert.deepEqual([...dq(page, 'apApprover').options].map(o => o.textContent), ['Chọn người duyệt', ...APPROVERS]);
@@ -299,7 +299,7 @@ test('đổi Cơ sở xóa khách / SP đã chọn; gợi ý theo cơ sở', asy
 test('Sửa bản ghi: điền sẵn, gửi PUT kèm expectedVersion; 409 báo xung đột và giữ hộp mở', async () => {
   const page = await opened();
   rows(page)[0].querySelector('[data-action="edit"]').click();
-  assert.ok(dialog(page).hasAttribute('open'));
+  assert.ok(dialog(page));
   assert.equal(dq(page, 'apCustomer').value, 'Khách Vừa (KH1)');
   assert.equal(dq(page, 'apProductCode').value, 'T100');
   assert.equal(dq(page, 'apProductName').value, 'Ly giữ nhiệt');
@@ -362,4 +362,28 @@ test('Xuất file: gọi /export với đúng bộ lọc + sort đang dùng rồ
   assert.equal(q.get('dir'), 'asc');
   assert.equal(q.get('page'), null, 'xuất toàn bộ tập, không phân trang');
   assert.deepEqual(page.downloads, ['TKS_Gia_duyet.xlsx']);
+});
+
+test('Form Tạo: khung giống form nhân sự (lớp phủ, tiêu đề + nút ✕, lưới 2 cột, chân có Hủy / Tạo), đóng bằng ✕, Hủy hoặc Esc', async () => {
+  const page = await opened();
+  page.$('approvedPriceCreateButton').click();
+  const box = dialog(page);
+  assert.ok(box.classList.contains('ap-overlay'));
+  assert.equal(box.tagName, 'DIV', 'không dùng <dialog> (top layer che lịch chọn ngày)');
+  assert.equal(box.querySelector('.ap-header h3').textContent, 'Tạo bản ghi giá duyệt');
+  const x = box.querySelector('.ap-header .ap-close');
+  assert.equal(x.textContent, '✕');
+  assert.equal(x.getAttribute('aria-label'), 'Đóng');
+  assert.deepEqual([...box.querySelectorAll('.ap-body > .form-group')].map(g => g.querySelector('label').textContent),
+    ['Cơ sở *', 'Ngày duyệt *', 'Khách hàng *', 'Mã SP *', 'Tên SP', 'Giá duyệt (₫/chiếc) *', 'Người duyệt *']);
+  assert.ok(box.querySelector('#apCustomerField').classList.contains('ap-wide'));
+  assert.deepEqual([...box.querySelectorAll('.ap-footer button')].map(b => b.textContent), ['Hủy', 'Tạo bản ghi']);
+  x.click();
+  assert.equal(dialog(page), null, 'nút ✕ đóng form');
+  page.$('approvedPriceCreateButton').click();
+  dialog(page).querySelector('.ap-footer [data-close]').click();
+  assert.equal(dialog(page), null, 'nút Hủy đóng form');
+  page.$('approvedPriceCreateButton').click();
+  page.doc.dispatchEvent(new page.w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  assert.equal(dialog(page), null, 'Esc đóng form');
 });
