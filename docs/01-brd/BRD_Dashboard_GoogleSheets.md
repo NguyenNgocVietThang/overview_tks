@@ -389,7 +389,7 @@ Phương án B đã duyệt: tập SĐT/KPI Pancake riêng trong PostgreSQL, ng�
   - Khách và mã hàng phải có thật (đang hoạt động) trên KiotViet của cơ sở đã chọn; tên đổi trên KiotViet thì bảng tự hiện tên mới. Mỗi (cơ sở, khách, mã hàng, ngày duyệt) chỉ một bản ghi.
   - Giá duyệt thay giá min (là giá cuối đã gồm VAT/cước) cho hóa đơn cùng cơ sở + khách + mã hàng từ Ngày duyệt trở đi; nhiều bản ghi thì lấy bản duyệt mới nhất không sau ngày hóa đơn. Giá bán >= giá duyệt là Đúng giá, thấp hơn là Sai giá và tiền chênh tính từ giá duyệt (nhãn "Giá duyệt" / "Theo giá duyệt").
   - Lưu xong, các dòng đã kiểm tra của khách + mã hàng đó từ Ngày duyệt được tính lại ngay (giải thích của sale, Chốt giữ nguyên); nếu chưa tính lại được thì áp dụng ở lượt kiểm tra kế tiếp.
-- **Người dùng**: xem như Kiểm tra giá bán (Quản lý, Trợ lý, Nhân viên sale); tạo/sửa/xóa chỉ Quản lý (quyền `reports.invoices.approvedPrice.manage`, cấp riêng được ở trang Tài khoản); xuất Excel cần quyền xuất.
+- **Người dùng**: bảng nhạy cảm nên chỉ Quản lý xem được mặc định (quyền xem riêng `reports.invoices.approvedPrice`, Trợ lý / Nhân viên sale chỉ thấy khi được cấp); tạo/sửa/xóa cũng chỉ Quản lý (quyền `reports.invoices.approvedPrice.manage`, cấp riêng được ở trang Tài khoản); xuất Excel cần quyền xuất.
 - **Thành công**: dòng bán đúng giá đã duyệt không còn bị báo Sai giá; mỗi thay đổi bảng giá có dấu vết bất biến (ai, khi nào, trước/sau).
 - **Ngoài phạm vi**: ghi ngược giá duyệt lên KiotViet/Google Sheets, giá duyệt theo khoảng thời gian có ngày hết hạn, duyệt giá theo lô nhiều khách.
 - **Trạng thái**: code + test cục bộ (migration `0091` chưa áp DB thật, chưa commit/deploy).

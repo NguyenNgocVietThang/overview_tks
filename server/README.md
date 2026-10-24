@@ -266,14 +266,14 @@ Mục mới của tab Hóa đơn (`/reports/#invoices`, bước 2; "Giao dịch"
 
 | Endpoint | Quyền | Nội dung |
 |---|---|---|
-| `GET /api/invoice-approved-prices` | `reports.invoices.priceAudit` | Query `approver, from, to, sort, dir, page, pageSize`. Trả `{rows, totalRows, kpis, options.approvers, canManage}`; bảng chưa migrate trả 503 `NOT_MIGRATED` |
-| `GET /export` | `…priceAudit` + `reports.export` | Excel `.xlsx` của tập đang lọc/sắp xếp, tối đa 20.000 dòng |
+| `GET /api/invoice-approved-prices` | `reports.invoices.approvedPrice` | Query `approver, from, to, sort, dir, page, pageSize`. Trả `{rows, totalRows, kpis, options.approvers, canManage}`; bảng chưa migrate trả 503 `NOT_MIGRATED` |
+| `GET /export` | `…approvedPrice` + `reports.export` | Excel `.xlsx` của tập đang lọc/sắp xếp, tối đa 20.000 dòng |
 | `GET /customer-suggest?branch=&q=`, `GET /product-suggest?branch=&q=` | `reports.invoices.approvedPrice.manage` | Gợi ý khách / sản phẩm cho hộp Tạo/Sửa |
 | `POST /` | `…approvedPrice.manage` | Tạo bản ghi; 422 nếu khách/sản phẩm không có trong cơ sở |
 | `PUT /:id` | `…approvedPrice.manage` | Sửa toàn bộ trường kèm `expectedVersion`; 409 khi lệch `version` |
 | `DELETE /:id?expectedVersion=` | `…approvedPrice.manage` | Xóa (giao diện hỏi xác nhận trước); lịch sử giữ trong `invoice_approved_price_changes` |
 
-Quyền `reports.invoices.approvedPrice.manage` (`auth/featureRegistry.js`) mặc định chỉ Quản lý, yêu cầu quyền xem `reports.invoices.priceAudit`. **Thứ tự triển khai**: áp migration `0091` TRƯỚC khi deploy mã; chưa áp thì API bảng trả 503 `NOT_MIGRATED` và Kiểm tra giá bán chạy như cũ.
+Quyền `reports.invoices.approvedPrice.manage` (`auth/featureRegistry.js`) mặc định chỉ Quản lý, yêu cầu quyền xem riêng `reports.invoices.approvedPrice` (mặc định chỉ Quản lý; Trợ lý / Sale không thấy bảng nếu không được cấp). **Thứ tự triển khai**: áp migration `0091` TRƯỚC khi deploy mã; chưa áp thì API bảng trả 503 `NOT_MIGRATED` và Kiểm tra giá bán chạy như cũ.
 
 ## Lệnh
 
