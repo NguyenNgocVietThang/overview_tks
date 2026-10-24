@@ -154,7 +154,7 @@ async function startServer() {
     // Ngay le / sinh nhat -> chuong thong bao. Khong nam trong startPollingScheduler vi
     // scheduler do tat khi khong bat KiotViet.
     if (CONFIG.SPECIAL_DAYS_NOTIFY_ENABLED) startSpecialDayNotifySchedule();
-    // Chuong luu o notifications.json cua WEB nen job bao sale chay o web (ke ca khi BACKGROUND_JOBS=worker).
+    // Job bao sale chay o web (ke ca khi BACKGROUND_JOBS=worker); chuong luu o bang Postgres `notifications` (0091).
     if (CONFIG.VAT_REQUEST_NOTIFY_ENABLED) startSaleNotifySchedule();
 
     if (CONFIG.MEMORY_MONITOR) {

@@ -443,3 +443,9 @@ Cập nhật gần nhất: 23/10/2026.
 Quản lý lọc khách theo kênh bán/quy mô đánh giá và xuất thông tin Chi tiết không kèm Note. Level giá được quản lý độc lập với email KiotViet sau bước sao lưu ban đầu, dùng chung các mã cùng tên HN/SG; Quản lý hoặc người được gán sửa được thay trực tiếp trên bảng. Thay đổi chỉ ảnh hưởng các hóa đơn kiểm tra được chụp sau đó; bản chụp cũ giữ nguyên để đối soát. Mã đang kiểm chứng cục bộ, chưa chuyển dữ liệu vận hành hoặc deploy (migration 0087).
 
 Người có quyền sửa level điền thêm nhãn "Khách mới"; SĐT và địa chỉ khách xem/sửa trong Chi tiết; có script nhập từ file Excel DS khách.
+
+# 24/10/2026 — Chuông thông báo lưu Postgres
+
+Người dùng phản ánh tài khoản quản trị không có lịch sử thông báo. Nguyên nhân: chuông lưu trên đĩa tạm của máy chủ nên mất sau mỗi lần cập nhật web. Nay lưu trong cơ sở dữ liệu nên lịch sử chuông được giữ lại. Người nhận thông báo nghỉ phép vẫn theo phòng ban và cơ sở được giao duyệt.
+
+Cập nhật gần nhất: 24/10/2026.

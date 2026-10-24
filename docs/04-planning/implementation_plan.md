@@ -228,3 +228,9 @@ Cập nhật gần nhất: 23/10/2026.
 Triển khai cục bộ theo `docs/superpowers/plans/2026-10-23-customer-filters-local-price-level.md`: nguồn sao lưu theo `(branch,id)`, level chung theo khóa khách gộp, ghi có phiên bản và lịch sử. Hai bộ lọc hồ sơ dùng cùng điều kiện với xuất file. `0087` chỉ tạo schema; script khởi tạo lưu nguồn và level hiện hành trước cutover; chưa áp DB thật/deploy. Chụp kiểm tra giá đọc level trong giao dịch sẵn có và giữ nguyên bản chụp cũ.
 
 24/10/2026: Cột **Khách mới** (nhãn đợt tự do như T10/26, Cũ; tối đa 50 ký tự) nằm cạnh Level giá trong bảng Doanh số theo khách, dùng chung version/quyền sửa/409/lịch sử với level; **SĐT** và **Địa chỉ** là trường sửa tay trong Chi tiết (thông tin chung). Script `server/scripts/import-customer-levels-from-excel.js <file.xlsx> [--apply|--parse-only]` nạp level + Khách mới + SĐT/địa chỉ từ "DS khách" (mặc định xem trước; --apply cần 0087 đã khởi tạo; không đè SĐT/địa chỉ đã nhập tay). Migration 0089 và 0090 chưa áp DB thật. Kế hoạch: `tasks/2026-10-23-customer-level-update/`.
+
+# 24/10/2026 — Chuông thông báo lưu Postgres
+
+`notifications/notificationRepository.js` đọc/ghi bảng `notifications` (migration `0091`) qua `db/pool.js` thay vì file `data/notifications.json` trên đĩa tạm Render. Giữ nguyên chữ ký hàm và API `/api/notifications/*`; test dùng PGlite qua `notifications/testHelpers/notificationTestPool.js`.
+
+Cập nhật gần nhất: 24/10/2026.

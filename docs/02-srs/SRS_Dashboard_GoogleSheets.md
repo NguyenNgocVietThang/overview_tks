@@ -870,3 +870,9 @@ Cập nhật gần nhất: 23/10/2026.
 Bảng Doanh số theo khách có lọc Hình thức bán hàng (khớp thành viên của nhiều lựa chọn) và Quy mô khách do quản lý đánh giá; hai điều kiện kết hợp AND với các bộ lọc hiện có trước phân trang và khi xuất. Excel thêm thông tin chung, quy mô, người được sửa, lịch tiếp khách và URL ảnh, loại Note; quyền xem Chi tiết kiểm tra tại server. Level giá chọn trực tiếp Vừa/Lớn/VIP theo dòng gộp HN/SG; quyền sửa là quản lý khách hoặc người được gán sửa khách, kèm quyền xem Chi tiết. Ghi có phiên bản chống xung đột và lịch sử người/thời gian/giá trị. Sao lưu toàn bộ level suy từ email trước chuyển sang level nội bộ; sau chuyển đổi khách mới mặc định Lớn. Chụp hóa đơn mới dùng level lúc chụp, hóa đơn đã chụp không thay đổi. Migration 0087 và khởi tạo nguồn chưa áp DB thật; đặc tả chi tiết tại `docs/superpowers/specs/2026-10-23-customer-filters-local-price-level-design.md`.
 
 Cột **Khách mới** (nhãn đợt tự do như T10/26, Cũ; tối đa 50 ký tự) nằm cạnh Level giá trong bảng Doanh số theo khách, dùng chung version/quyền sửa/409/lịch sử với level; **SĐT** và **Địa chỉ** là trường sửa tay trong Chi tiết (thông tin chung). Script `server/scripts/import-customer-levels-from-excel.js <file.xlsx> [--apply|--parse-only]` nạp level + Khách mới + SĐT/địa chỉ từ "DS khách" (mặc định xem trước; --apply cần 0087 đã khởi tạo; không đè SĐT/địa chỉ đã nhập tay). Migration 0089 và 0090 chưa áp DB thật.
+
+# 24/10/2026 — Chuông thông báo lưu Postgres
+
+Thông báo chuông của mọi tài khoản phải được lưu bền vững qua deploy / khởi động lại (bảng Postgres `notifications`, migration `0091`). Hành vi chuông không đổi: mỗi tài khoản chỉ thấy, đánh dấu đọc và xóa thông báo của chính mình; mới nhất trước; đếm chưa đọc 30 giây/lần.
+
+Cập nhật gần nhất: 24/10/2026.
