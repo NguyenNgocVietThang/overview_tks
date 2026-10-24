@@ -732,12 +732,13 @@
     font-size:12.5px; font-weight:600; text-transform:none; letter-spacing:0;
   }
   #employeeDirectoryTable tbody td{ padding-top:9px; padding-bottom:9px; font-size:13.5px; vertical-align:middle; }
-  .emp-pill{ white-space:nowrap; }
+  /* Nội dung dài xuống dòng trong ô, không cắt: nhãn chức vụ co theo chữ, avatar nổi trái để tên bọc quanh. */
+  .emp-pill{ white-space:normal; overflow:visible; text-overflow:clip; line-height:1.3; overflow-wrap:anywhere; }
   .emp-flag, .emp-dot{ white-space:nowrap; }
   #employeeDirectoryTable td.emp-name-cell{ font-weight:600; color:var(--text); }
   .emp-name-cell::before{
     content:attr(data-initials); display:inline-flex; align-items:center; justify-content:center; vertical-align:middle;
-    width:34px; height:34px; margin-right:12px; border-radius:50%; background:linear-gradient(135deg,#4F6BED,#6D3FD6);
+    float:left; width:34px; height:34px; margin:0 12px 0 0; border-radius:50%; background:linear-gradient(135deg,#4F6BED,#6D3FD6);
     color:#fff; font-family:var(--font-body); font-size:12px; font-weight:700; letter-spacing:0;
   }
   .emp-pill{
@@ -2182,7 +2183,7 @@
       none.className = 'rte-icon-option';
       none.title = 'Không có icon';
       none.textContent = '—';
-      none.addEventListener('click', () => selectRuleTextIcon(''));
+      none.addEventListener('click', () => { selectRuleTextIcon(''); markRuleTextDirty(); });
       wrap.appendChild(none);
       Object.keys(ICON_DEFS).forEach(key => {
         const btn = document.createElement('button');
@@ -2190,7 +2191,7 @@
         btn.className = 'rte-icon-option';
         btn.title = ICON_DEFS[key].label;
         btn.innerHTML = ICON_DEFS[key].svg; // ICON_DEFS la hang so trong code, khong phai du lieu nguoi dung.
-        btn.addEventListener('click', () => selectRuleTextIcon(key));
+        btn.addEventListener('click', () => { selectRuleTextIcon(key); markRuleTextDirty(); });
         wrap.appendChild(btn);
       });
     }
@@ -2688,8 +2689,9 @@
       const url = editingId ? `/api/hr/rules/documents/${editingId}/text` : '/api/hr/rules/documents/text';
       const method = editingId ? 'PUT' : 'POST';
       submitBtn.disabled = true;
-      const originalLabel = submitBtn.textContent;
-      submitBtn.textContent = 'Đang lưu…';
+      const labelEl = ruleDocEl('ruleTextSubmitLabel');
+      const originalLabel = labelEl.textContent;
+      labelEl.textContent = 'Đang lưu…';
       try{
         const res = await fetch(url, {
           method, credentials: 'same-origin',
@@ -2698,6 +2700,7 @@
         });
         const { ok, data } = await parseApiResponse(res);
         if(!ok){ showError((data && data.error) || 'Không lưu được tài liệu.'); return; }
+        resetRuleTextDirty();
         closeModal('ruleTextModal');
         showToast(editingId ? 'Đã lưu tài liệu.' : 'Đã tạo tài liệu.', 'success');
         ruleDocState.wantedSlug = data && data.document ? data.document.slug : '';
@@ -2706,7 +2709,7 @@
         showError('Lỗi kết nối máy chủ khi lưu tài liệu.');
       }finally{
         submitBtn.disabled = false;
-        submitBtn.textContent = originalLabel;
+        labelEl.textContent = originalLabel;
       }
     }
 
@@ -3403,7 +3406,8 @@
 
     document.addEventListener('keydown', event => {
       if(event.key !== 'Escape') return;
-      if(!document.getElementById('rejectReasonModal').hidden) cancelRejectReason();
+      if(!document.getElementById('ruleTextModal').hidden) requestCloseRuleText();
+      else if(!document.getElementById('rejectReasonModal').hidden) cancelRejectReason();
       else if(!document.getElementById('leaveDetailModal').hidden) closeLeaveDetail();
       else if(!document.getElementById('selfLeaveModal').hidden) closeSelfLeave();
     });
@@ -3765,7 +3769,7 @@
 
     function employeeCellClass(columnKey){
       if(columnKey === 'dia-chi') return 'employee-address';
-      if(['bo-phan','chuc-vu'].includes(columnKey)) return 'employee-text employee-wrappable';
+      if(['ho-va-ten','bo-phan','chuc-vu','ten-nguoi-than','qh-nguoi-than','so-bao-hiem'].includes(columnKey)) return 'employee-text employee-wrappable';
       if(['so-ngay-lv','so-cccd','so-dien-thoai','sdt-nguoi-than'].includes(columnKey)) return 'employee-number';
       if(['ngay-vao-lam','ngay-sinh','ngay-nghi-viec'].includes(columnKey)) return 'employee-date';
       return 'employee-text';
