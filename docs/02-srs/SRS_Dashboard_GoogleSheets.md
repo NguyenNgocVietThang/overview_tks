@@ -878,3 +878,9 @@ Bảng Doanh số theo khách có lọc Hình thức bán hàng (khớp thành v
 Cột **Khách mới** (nhãn đợt tự do như T10/26, Cũ; tối đa 50 ký tự) nằm cạnh Level giá trong bảng Doanh số theo khách, dùng chung version/quyền sửa/409/lịch sử với level; **SĐT** và **Địa chỉ** là trường sửa tay trong Chi tiết (thông tin chung). Script `server/scripts/import-customer-levels-from-excel.js <file.xlsx> [--apply|--parse-only]` nạp level + Khách mới + SĐT/địa chỉ từ "DS khách" (mặc định xem trước; --apply cần 0087 đã khởi tạo; không đè SĐT/địa chỉ đã nhập tay). Migration 0089 và 0090 chưa áp DB thật.
 
 24/10/2026 — **Dự kiến hàng về:** bỏ các chỉ số tổng quan, bảng Tổng hợp CONT và cột Nguồn trên bảng dòng hàng. Ba ô lọc Nguồn / CONT / Trạng thái giới hạn lựa chọn theo các ô còn lại; từ khóa tìm kiếm chỉ lọc dòng, không thay đổi danh sách lựa chọn. Ô Nguồn vẫn theo quyền fullAccess; xuất file tiếp tục áp dụng các bộ lọc đang chọn. Không migration hoặc API mới.
+
+# 24/10/2026 — Chuông thông báo lưu Postgres
+
+Thông báo chuông của mọi tài khoản phải được lưu bền vững qua deploy / khởi động lại (bảng Postgres `notifications`, migration `0093`). Hành vi chuông không đổi: mỗi tài khoản chỉ thấy, đánh dấu đọc và xóa thông báo của chính mình; mới nhất trước; đếm chưa đọc 30 giây/lần.
+
+Cập nhật gần nhất: 24/10/2026.

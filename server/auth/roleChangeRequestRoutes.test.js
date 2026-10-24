@@ -10,18 +10,20 @@ const localUserStore = require('./localUserStore');
 const { createFakeAppUsersRepository } = require('./testHelpers/fakeAppUsersRepository');
 const roleRepo = require('./roleChangeRequestRepository');
 const notificationRepo = require('../notifications/notificationRepository');
+const { useNotificationTestPool } = require('../notifications/testHelpers/notificationTestPool');
 const roleChangeRequestRoutes = require('./roleChangeRequestRoutes');
 
 const requestsDbPath = path.join(os.tmpdir(), `test-role-requests-${Date.now()}.json`);
-const notificationsDbPath = path.join(os.tmpdir(), `test-notifications-${Date.now()}.json`);
 // appUsersRepository that (Postgres) can SUPABASE_DB_URL — dung repository
 // gia trong bo nho cho localUserStore, xem adminUserRoutes.test.js.
 localUserStore.initStore(null, { repository: createFakeAppUsersRepository() });
 roleRepo.initStore(requestsDbPath);
-notificationRepo.initStore(notificationsDbPath);
+let notificationStore;
+test.before(async () => { notificationStore = await useNotificationTestPool(); });
 
-test.after(() => {
-  [requestsDbPath, notificationsDbPath].forEach(p => {
+test.after(async () => {
+  await notificationStore.close();
+  [requestsDbPath].forEach(p => {
     if (fs.existsSync(p)) { try { fs.unlinkSync(p); } catch (e) {} }
   });
 });
@@ -46,7 +48,7 @@ test('POST /api/role-requests tạo yêu cầu và báo cho toàn bộ Quản l�
     { id: 'm2', username: 'ql2', hoTen: 'Quản lý 2', vaiTro: 'Quản lý', trangThai: 'Đang hoạt động' }
   ]);
   roleRepo.setInMemoryRequests([]);
-  notificationRepo.setInMemoryNotifications([]);
+  await notificationStore.reset();
 
   const handler = getRouteHandler(roleChangeRequestRoutes, 'post', '/api/role-requests');
   const req = {
@@ -112,7 +114,7 @@ test('PATCH /api/role-requests/:id/status duyệt -> cập nhật vaiTro của u
     { id: 'u1', username: 'nva', hoTen: 'Nguyễn Văn A', vaiTro: 'Trợ lý', trangThai: 'Đang hoạt động' }
   ]);
   roleRepo.setInMemoryRequests([]);
-  notificationRepo.setInMemoryNotifications([]);
+  await notificationStore.reset();
   const created = await roleRepo.createRequest({ userId: 'u1', username: 'nva', hoTen: 'Nguyễn Văn A', currentRole: 'Trợ lý', requestedRole: 'Kế toán', reason: 'x' });
 
   const handler = getRouteHandler(roleChangeRequestRoutes, 'patch', '/api/role-requests/:id/status');
@@ -141,7 +143,7 @@ test('PATCH approved role request creates a persistent override for HR-managed u
     sheetVaiTro: 'Trợ lý', coSo: 'Cả hai', hrManaged: true, trangThai: 'Đang hoạt động'
   }]);
   roleRepo.setInMemoryRequests([]);
-  notificationRepo.setInMemoryNotifications([]);
+  await notificationStore.reset();
   const created = await roleRepo.createRequest({ userId: 'u1', username: 'nva', hoTen: 'Nguyễn Văn A', currentRole: 'Trợ lý', requestedRole: 'Kế toán', reason: 'x' });
   const res = fakeRes();
   await getRouteHandler(roleChangeRequestRoutes, 'patch', '/api/role-requests/:id/status')({
@@ -162,7 +164,7 @@ test('PATCH: người duyệt không phải Quản lý không được nâng ai 
       featurePermissions: { 'account.users.manage': true } }
   ]);
   roleRepo.setInMemoryRequests([]);
-  notificationRepo.setInMemoryNotifications([]);
+  await notificationStore.reset();
   const created = await roleRepo.createRequest({ userId: 'u1', username: 'nva', hoTen: 'Nguyễn Văn A', currentRole: 'Trợ lý', requestedRole: 'Quản lý', reason: 'x' });
 
   const handler = getRouteHandler(roleChangeRequestRoutes, 'patch', '/api/role-requests/:id/status');
@@ -187,7 +189,7 @@ test('PATCH: người duyệt không phải Quản lý vẫn duyệt được y�
       featurePermissions: { 'account.users.manage': true } }
   ]);
   roleRepo.setInMemoryRequests([]);
-  notificationRepo.setInMemoryNotifications([]);
+  await notificationStore.reset();
   const created = await roleRepo.createRequest({ userId: 'u1', username: 'nva', hoTen: 'Nguyễn Văn A', currentRole: 'Khách', requestedRole: 'Nhân viên kho', reason: 'x' });
 
   const res = fakeRes();
@@ -206,7 +208,7 @@ test('PATCH: Quản lý thường KHÔNG duyệt yêu cầu HẠ vai trò của 
     { id: 'm2', username: 'ql2', hoTen: 'Quản lý 2', vaiTro: 'Quản lý', trangThai: 'Đang hoạt động' }
   ]);
   roleRepo.setInMemoryRequests([]);
-  notificationRepo.setInMemoryNotifications([]);
+  await notificationStore.reset();
   const created = await roleRepo.createRequest({ userId: 'm2', username: 'ql2', hoTen: 'Quản lý 2', currentRole: 'Quản lý', requestedRole: 'Trợ lý', reason: 'x' });
 
   const handler = getRouteHandler(roleChangeRequestRoutes, 'patch', '/api/role-requests/:id/status');
@@ -238,7 +240,7 @@ test('PATCH: Quản lý thường vẫn từ chối được yêu cầu hạ vai
     { id: 'm2', username: 'ql2', hoTen: 'Quản lý 2', vaiTro: 'Quản lý', trangThai: 'Đang hoạt động' }
   ]);
   roleRepo.setInMemoryRequests([]);
-  notificationRepo.setInMemoryNotifications([]);
+  await notificationStore.reset();
   const created = await roleRepo.createRequest({ userId: 'm2', username: 'ql2', hoTen: 'Quản lý 2', currentRole: 'Quản lý', requestedRole: 'Trợ lý', reason: 'x' });
   const res = fakeRes();
   await getRouteHandler(roleChangeRequestRoutes, 'patch', '/api/role-requests/:id/status')({
@@ -255,7 +257,7 @@ test('PATCH /api/role-requests/:id/status từ chối -> KHÔNG đổi vaiTro', 
     { id: 'u1', username: 'nva', hoTen: 'Nguyễn Văn A', vaiTro: 'Trợ lý', trangThai: 'Đang hoạt động' }
   ]);
   roleRepo.setInMemoryRequests([]);
-  notificationRepo.setInMemoryNotifications([]);
+  await notificationStore.reset();
   const created = await roleRepo.createRequest({ userId: 'u1', username: 'nva', hoTen: 'Nguyễn Văn A', currentRole: 'Trợ lý', requestedRole: 'Kế toán', reason: 'x' });
 
   const handler = getRouteHandler(roleChangeRequestRoutes, 'patch', '/api/role-requests/:id/status');
@@ -277,7 +279,7 @@ test('PATCH /api/role-requests/:id/status trả 403/ROLE_REQUEST_SELF_REVIEW khi
     { id: 'm1', username: 'ql1', hoTen: 'Quản lý 1', vaiTro: 'Quản lý', trangThai: 'Đang hoạt động' }
   ]);
   roleRepo.setInMemoryRequests([]);
-  notificationRepo.setInMemoryNotifications([]);
+  await notificationStore.reset();
   const created = await roleRepo.createRequest({ userId: 'm1', username: 'ql1', hoTen: 'Quản lý 1', currentRole: 'Quản lý', requestedRole: 'Khách', reason: 'x' });
 
   const handler = getRouteHandler(roleChangeRequestRoutes, 'patch', '/api/role-requests/:id/status');
@@ -317,7 +319,7 @@ test('POST /api/role-requests chấp nhận yêu cầu chuyển sang các vai tr
   localUserStore.setInMemoryUsers([
     { id: 'u1', username: 'nv1', hoTen: 'Nhân Viên 1', vaiTro: 'Khách', trangThai: 'Đang hoạt động' }
   ]);
-  notificationRepo.setInMemoryNotifications([]);
+  await notificationStore.reset();
 
   const newRoles = ['Nhân viên kho', 'Nhân viên sale', 'Nhân viên mua hàng'];
   for (const role of newRoles) {

@@ -240,3 +240,9 @@ Triển khai cục bộ theo `docs/superpowers/plans/2026-10-23-customer-filters
 24/10/2026: Cột **Khách mới** (nhãn đợt tự do như T10/26, Cũ; tối đa 50 ký tự) nằm cạnh Level giá trong bảng Doanh số theo khách, dùng chung version/quyền sửa/409/lịch sử với level; **SĐT** và **Địa chỉ** là trường sửa tay trong Chi tiết (thông tin chung). Script `server/scripts/import-customer-levels-from-excel.js <file.xlsx> [--apply|--parse-only]` nạp level + Khách mới + SĐT/địa chỉ từ "DS khách" (mặc định xem trước; --apply cần 0087 đã khởi tạo; không đè SĐT/địa chỉ đã nhập tay). Migration 0089 và 0090 chưa áp DB thật. Kế hoạch: `tasks/2026-10-23-customer-level-update/`.
 
 24/10/2026 — **Dự kiến hàng về:** bỏ các chỉ số tổng quan, bảng Tổng hợp CONT và cột Nguồn trên bảng dòng hàng. Ba ô lọc Nguồn / CONT / Trạng thái giới hạn lựa chọn theo các ô còn lại; từ khóa tìm kiếm chỉ lọc dòng, không thay đổi danh sách lựa chọn. Ô Nguồn vẫn theo quyền fullAccess; xuất file tiếp tục áp dụng các bộ lọc đang chọn. Không migration hoặc API mới.
+
+# 24/10/2026 — Chuông thông báo lưu Postgres
+
+`notifications/notificationRepository.js` đọc/ghi bảng `notifications` (migration `0093`) qua `db/pool.js` thay vì file `data/notifications.json` trên đĩa tạm Render. Giữ nguyên chữ ký hàm và API `/api/notifications/*`; test dùng PGlite qua `notifications/testHelpers/notificationTestPool.js`.
+
+Cập nhật gần nhất: 24/10/2026.

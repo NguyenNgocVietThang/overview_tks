@@ -108634,7 +108634,7 @@
       "file_type": "code",
       "norm_label": "call()",
       "source_file": "server/businessReport/customerProfileRoutes.test.js",
-      "source_location": "L72"
+      "source_location": "L71"
     },
     {
       "id": "server_businessreport_customerprofileroutes_test_fakeprofiles",
@@ -108646,7 +108646,7 @@
       "file_type": "code",
       "norm_label": "fakeprofiles()",
       "source_file": "server/businessReport/customerProfileRoutes.test.js",
-      "source_location": "L40"
+      "source_location": "L39"
     },
     {
       "id": "server_businessreport_customerprofileroutes_test_note",
@@ -108670,7 +108670,7 @@
       "file_type": "code",
       "norm_label": "pngform()",
       "source_file": "server/businessReport/customerProfileRoutes.test.js",
-      "source_location": "L265"
+      "source_location": "L264"
     },
     {
       "id": "server_businessreport_customerprofileroutes_test_release",
@@ -108682,7 +108682,7 @@
       "file_type": "code",
       "norm_label": "release()",
       "source_file": "server/businessReport/customerProfileRoutes.test.js",
-      "source_location": "L441"
+      "source_location": "L440"
     },
     {
       "id": "server_businessreport_customerprofileroutes_test_writes",
@@ -108694,7 +108694,7 @@
       "file_type": "code",
       "norm_label": "writes()",
       "source_file": "server/businessReport/customerProfileRoutes.test.js",
-      "source_location": "L103"
+      "source_location": "L102"
     },
     {
       "id": "server_businessreport_testfixtures_seed",
@@ -181751,7 +181751,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/businessReport/businessReportRoutes.js",
-      "source_location": "L174",
+      "source_location": "L175",
       "weight": 1.0
     },
     {
@@ -181763,19 +181763,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/businessReport/businessReportRoutes.js",
-      "source_location": "L217",
-      "weight": 1.0
-    },
-    {
-      "source": "server_businessreport_businessreportroutes_createbusinessreportrouter",
-      "target": "server_auth_featureregistry_hasfeature",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "server/businessReport/businessReportRoutes.js",
-      "source_location": "L279",
+      "source_location": "L218",
       "weight": 1.0
     },
     {
@@ -181792,6 +181780,18 @@
     },
     {
       "source": "server_businessreport_businessreportroutes_createbusinessreportrouter",
+      "target": "server_auth_featureregistry_hasfeature",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "server/businessReport/businessReportRoutes.js",
+      "source_location": "L280",
+      "weight": 1.0
+    },
+    {
+      "source": "server_businessreport_businessreportroutes_createbusinessreportrouter",
       "target": "server_businessreport_businessreportexport_filterrows",
       "relation": "calls",
       "_origin": "ast",
@@ -181799,7 +181799,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/businessReport/businessReportRoutes.js",
-      "source_location": "L284",
+      "source_location": "L285",
       "weight": 1.0
     },
     {
@@ -181811,7 +181811,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/businessReport/businessReportRoutes.js",
-      "source_location": "L284",
+      "source_location": "L285",
       "weight": 1.0
     },
     {
@@ -181823,7 +181823,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/businessReport/businessReportRoutes.js",
-      "source_location": "L291",
+      "source_location": "L292",
       "weight": 1.0
     },
     {
@@ -181835,7 +181835,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/businessReport/businessReportRoutes.js",
-      "source_location": "L297",
+      "source_location": "L298",
       "weight": 1.0
     },
     {
@@ -181847,7 +181847,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/businessReport/businessReportRoutes.js",
-      "source_location": "L298",
+      "source_location": "L299",
       "weight": 1.0
     },
     {
@@ -183203,7 +183203,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/businessReport/customerProfileRoutes.test.js",
-      "source_location": "L73",
+      "source_location": "L72",
       "weight": 1.0
     },
     {
@@ -183215,7 +183215,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/businessReport/customerProfileRoutes.test.js",
-      "source_location": "L79",
+      "source_location": "L78",
       "weight": 1.0
     },
     {
@@ -183227,7 +183227,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/businessReport/customerProfileRoutes.test.js",
-      "source_location": "L80",
+      "source_location": "L79",
       "weight": 1.0
     },
     {
@@ -183239,7 +183239,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/businessReport/customerProfileRoutes.test.js",
-      "source_location": "L53",
+      "source_location": "L52",
       "weight": 1.0
     },
     {
@@ -321059,7 +321059,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/businessReport/customerProfileRoutes.test.js",
-      "source_location": "L103",
+      "source_location": "L102",
       "weight": 1.0
     },
     {
@@ -321071,7 +321071,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/businessReport/customerProfileRoutes.test.js",
-      "source_location": "L265",
+      "source_location": "L264",
       "weight": 1.0
     },
     {
@@ -321083,7 +321083,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/businessReport/customerProfileRoutes.test.js",
-      "source_location": "L40",
+      "source_location": "L39",
       "weight": 1.0
     },
     {
@@ -321095,7 +321095,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "server/businessReport/customerProfileRoutes.test.js",
-      "source_location": "L72",
+      "source_location": "L71",
       "weight": 1.0
     },
     {
@@ -335280,7 +335280,7 @@
       "confidence_score": 1.0,
       "context": "import",
       "source_file": "server/businessReport/customerProfileRoutes.test.js",
-      "source_location": "L433",
+      "source_location": "L432",
       "weight": 1.0
     },
     {
@@ -356772,7 +356772,7 @@
       "confidence_score": 1.0,
       "context": "import",
       "source_file": "server/businessReport/customerProfileRoutes.test.js",
-      "source_location": "L430",
+      "source_location": "L429",
       "weight": 1.0
     },
     {
@@ -356784,7 +356784,7 @@
       "confidence_score": 1.0,
       "context": "import",
       "source_file": "server/businessReport/customerProfileRoutes.test.js",
-      "source_location": "L431",
+      "source_location": "L430",
       "weight": 1.0
     },
     {
@@ -356796,7 +356796,7 @@
       "confidence_score": 1.0,
       "context": "import",
       "source_file": "server/businessReport/customerProfileRoutes.test.js",
-      "source_location": "L432",
+      "source_location": "L431",
       "weight": 1.0
     },
     {
@@ -356808,7 +356808,7 @@
       "confidence_score": 1.0,
       "context": "import",
       "source_file": "server/businessReport/customerProfileRoutes.test.js",
-      "source_location": "L433",
+      "source_location": "L432",
       "weight": 1.0
     },
     {
@@ -401892,7 +401892,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "server/businessReport/customerProfileRoutes.test.js",
-      "source_location": "L441",
+      "source_location": "L440",
       "weight": 1.0
     },
     {
@@ -530890,7 +530890,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "server/businessReport/businessReportRoutes.js",
-      "source_location": "L307",
+      "source_location": "L308",
       "weight": 1.0
     },
     {
@@ -551714,5 +551714,5 @@
       "source_file": "docs/04-planning/2026-09-14-phase2-plan-supabase-kiotviet-sync.md"
     }
   ],
-  "built_at_commit": "999db4227ab9f24416f2da3f1f41123701a18942"
+  "built_at_commit": "8bde84ff59d8bf011b7bfd03c1dea8c2731b57df"
 }
