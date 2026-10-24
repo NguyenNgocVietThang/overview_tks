@@ -459,3 +459,9 @@ Quản lý lọc khách theo kênh bán/quy mô đánh giá và xuất thông ti
 Người có quyền sửa level điền thêm nhãn "Khách mới"; SĐT và địa chỉ khách xem/sửa trong Chi tiết; có script nhập từ file Excel DS khách.
 
 24/10/2026: Dự kiến hàng về bổ sung khung tổng hợp theo CONT (Tên CONT, Trạng thái, Dự kiến) kèm 3 chỉ số xếp dọc và bộ lọc Trạng thái; dùng lại dữ liệu và quyền sẵn có.
+
+# 24/10/2026 — Chuông thông báo lưu Postgres
+
+Người dùng phản ánh tài khoản quản trị không có lịch sử thông báo. Nguyên nhân: chuông lưu trên đĩa tạm của máy chủ nên mất sau mỗi lần cập nhật web. Nay lưu trong cơ sở dữ liệu nên lịch sử chuông được giữ lại. Người nhận thông báo nghỉ phép vẫn theo phòng ban và cơ sở được giao duyệt.
+
+Cập nhật gần nhất: 24/10/2026.

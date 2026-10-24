@@ -739,4 +739,14 @@ Migration `0089_customer_new_tag.sql` (cột `new_customer` + vết lịch sử)
 - `/export/fields` và `/export`: nhận thêm `salesChannel` (`none` = chưa có) và `warehouseScale`; kết hợp AND trước phân trang. Thông tin chung, quy mô, người được sửa, các ngày tiếp khách và URL ảnh chỉ xuất với quyền xem Chi tiết; không xuất Note hoặc byte ảnh. URL ảnh vẫn cần đăng nhập. Lỗi đọc hồ sơ chặn xuất, tránh xuất dữ liệu trắng sai.
 - Kiểm tra giá bán đọc level nội bộ bằng client giao dịch chụp `REPEATABLE READ`; job 23:00 chỉ thêm hóa đơn chưa chụp, không tính lại bản chụp cũ; muốn áp level/dữ liệu mới cho cửa sổ 16 ngày chạy tay `npm run invoices:price-audit -- --recalc [--apply]` (giữ giải thích + Chốt, xem mục lệnh trên).
 
+# Chuông thông báo lưu Postgres — 24/10/2026
+
+Chuông thông báo chuyển từ file `server/data/notifications.json` sang bảng Postgres `notifications` (migration `0093`). File cũ nằm trên đĩa tạm của Render nên mỗi lần deploy / khởi động lại là mất hết lịch sử chuông của mọi tài khoản. Không đổi API, không đổi giao diện; thông báo cũ trong file không chuyển sang.
+
+- Migration `0093_notifications.sql`: bảng `notifications(id UUID PK, seq identity, recipient_user_id TEXT, type, title, message, related_type, related_id, is_read, created_at)`, index theo người nhận + index thông báo chưa đọc; thu hồi quyền `reporting_readonly`. Chỉ thêm bảng, idempotent.
+- `notifications/notificationRepository.js` giữ nguyên các hàm (`createNotification`, `createNotificationForUsers`, `listForUser`, `getUnreadCount`, `markRead`, `markAllRead`, `deleteNotification`, `deleteAllForUser`) nên mọi nơi gọi và `/api/notifications/*` không đổi. Gửi cho nhiều người = 1 câu `INSERT ... unnest`. Thứ tự: mới nhất trước, trùng thời điểm thì dòng chèn sau trước (`seq`). id không phải UUID → 404 như trước.
+- Bỏ `initStore` / `setInMemoryNotifications`; test dùng `notifications/testHelpers/notificationTestPool.js` (PGlite + migration 0093) và `setPool`. Trong `node --test` chưa `setPool` thì repository báo lỗi, không ghi vào DB thật.
+- Vì chuông nay ở DB dùng chung, worker (`BACKGROUND_JOBS=worker`) cũng ghi được chuông; job báo sale ORDER VAT vẫn chạy ở web như cũ.
+- Triển khai: `npm run db:migrate` (áp `0093`) **trước** khi deploy web.
+
 Cập nhật gần nhất: 24/10/2026.
