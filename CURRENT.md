@@ -404,7 +404,8 @@ Cùng khách ở 2 cơ sở (15/10/2026): ở bảng tổng thưởng/phạt sal
 
 ## Ghi nhớ cột theo tài khoản (23/10/2026)
 - Độ rộng cột + cột ẩn/hiện lưu theo tài khoản (bảng `user_table_prefs`, migration 0085 **đã áp DB dùng chung 23/10/2026**), API `GET/PUT /api/me/table-prefs`, client `table-controls.js` (`loadPrefs`, lưu debounce 800 ms). Có lưu cả sắp xếp cục bộ (`prefs.sort`) cho bảng `data-table-sort="local"`/`.dp-table`; bảng tự sắp bằng mã riêng chưa lưu. Không có nút đặt lại.
-- Việc còn lại: kiểm thử trên trình duyệt thật sau deploy; chưa commit/deploy.
+- 24/10/2026 — **Cột luôn lấp đầy khung chứa:** [table-controls.js](server/public/shared/table-controls.js) đặt `min-width:100%` + `width` = tổng cột + `max-width:none` (trừ `data-table-fit="contain"`), nên ẩn cột / kéo hẹp cột thì các cột còn lại giãn đều ra; nhiều cột quá khung vẫn tràn và cuộn ngang. Bỏ bước nhân sẵn độ rộng gốc ở lần đầu (`fitOnce`) vì trình duyệt tự giãn. Kéo hẹp 1 cột: cột khác giãn bù (tính lại từ ảnh chụp lúc bắt đầu kéo) và được lưu cùng; kéo rộng: cột khác giữ nguyên. Đã xem trên trình duyệt thật (trang thử: ẩn cột 225→300px, kéo hẹp 225→175 thì 3 cột kia 241.7, kéo rộng thì bảng tràn 1127px); thêm 6 test trong `test/frontend/table-controls.test.js`.
+- Việc còn lại: kiểm thử trên trình duyệt thật sau deploy; chưa commit/deploy. Bảng `data-table-fit="off"` (HR danh sách nhân sự cho Quản lý, 2 bảng Kinh doanh) cũng giãn theo — bỏ cờ nếu muốn giữ khoảng trống bên phải.
 
 
 ### 23/10/2026 — Ghi chú khác của CONT

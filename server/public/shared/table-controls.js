@@ -231,10 +231,11 @@
     var width = wrapper.clientWidth;
     var visible = ctrl.columns.filter(function (column) { return !column.hidden && !column.suppressed; });
     var total = visible.reduce(function (sum, column) { return sum + column.width; }, 0);
-    if (width > total && total) visible.forEach(function (column) { column.width *= width / total; });
+    // Khung rộng hơn tổng các cột: không sửa độ rộng gốc ở đây — apply() đặt min-width:100% nên trình duyệt tự giãn đều
+    // các cột đang hiện (ẩn/hiện cột hay đổi cỡ cửa sổ đều giãn lại đúng), còn độ rộng gốc vẫn là số người dùng đã chọn.
     // Bảng trong hộp chi tiết (.dp-table) nằm trong khung hẹp: co đều các cột cho vừa khung ở lần đầu,
     // không để mặc định 160px/cột làm bảng tràn ngang ngay khi mở hộp. Người dùng vẫn kéo rộng sau đó.
-    else if (width && total > width && (ctrl.table.dataset.tableFit === 'fill' || ctrl.table.classList.contains('dp-table'))) {
+    if (width && total > width && (ctrl.table.dataset.tableFit === 'fill' || ctrl.table.classList.contains('dp-table'))) {
       // Cột chạm độ rộng tối thiểu thì giữ ở mức đó, phần thiếu chia cho các cột còn co được — tổng vẫn vừa khung.
       var flexible = visible.slice(), room = width;
       while (flexible.length) {
@@ -246,6 +247,21 @@
       }
     }
     ctrl.session.fitted = true;
+  }
+  // Bề rộng nội dung của khung chứa bảng (px) — đúng mốc mà min-width:100% của bảng lấy; 0 khi chưa có bố cục (tab ẩn, jsdom).
+  function roomOf(ctrl) {
+    var wrapper = ctrl.table.parentElement;
+    if (!wrapper || !hasLayout(ctrl.table)) return 0;
+    var style = window.getComputedStyle(wrapper);
+    return Math.max(0, wrapper.clientWidth - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0));
+  }
+  // Độ rộng đang THẤY (px) của từng cột: bảng nào có tổng độ rộng gốc < khung thì mọi cột đang hiện được giãn cùng tỉ lệ cho đầy khung.
+  function renderedWidths(ctrl) {
+    var shown = ctrl.columns.filter(function (column) { return !column.hidden && !column.suppressed; });
+    var total = shown.reduce(function (sum, column) { return sum + column.width; }, 0), room = roomOf(ctrl);
+    var scale = total && room > total ? room / total : 1, out = new Map();
+    ctrl.columns.forEach(function (column) { out.set(column, column.width * (shown.indexOf(column) >= 0 ? scale : 1)); });
+    return out;
   }
   function attachHandle(ctrl, cell, column) {
     if (window.getComputedStyle(cell).position === 'static') cell.style.position = 'relative';
@@ -264,14 +280,17 @@
         if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
         event.preventDefault(); event.stopPropagation();
         var current = controllers.get(ctrl.table), col = current.columns.find(function (item) { return item.key === handle.dataset.columnKey; });
-        resize(current, col, col.width + (event.key === 'ArrowRight' ? 10 : -10));
+        var seen = renderedWidths(current);
+        resize(current, col, seen.get(col) + (event.key === 'ArrowRight' ? 10 : -10), seen);
       });
       handle.addEventListener('pointerdown', function (event) {
         if (event.button !== 0) return;
         event.preventDefault(); event.stopPropagation();
         finishDrag();
         var current = controllers.get(ctrl.table), col = current.columns.find(function (item) { return item.key === handle.dataset.columnKey; });
-        drag = { ctrl: current, column: col, handle: handle, id: event.pointerId, x: event.clientX, width: col.width };
+        // Chụp độ rộng đang thấy lúc bắt đầu kéo: mỗi lần di chuột các cột khác được tính lại từ ảnh chụp này (kéo qua lại không trôi).
+        var seen = renderedWidths(current);
+        drag = { ctrl: current, column: col, handle: handle, id: event.pointerId, x: event.clientX, width: seen.get(col), seen: seen };
         current.session.fitted = true;
         document.body.classList.add('tks-table-resizing');
         if (handle.setPointerCapture) { try { handle.setPointerCapture(event.pointerId); } catch (_) { /* detached pointer */ } }
@@ -334,8 +353,11 @@
       shown.forEach(function (column, index) { changeStyle(group.children[index], 'width', (total ? column.width / total * 100 : 0) + '%'); });
       changeStyle(table, 'width', '100%'); changeStyle(table, 'min-width', '0px'); changeStyle(table, 'max-width', '100%');
     } else {
+      // Bảng rộng đúng tổng cột (nhiều cột thì tràn khung và cuộn ngang) nhưng KHÔNG BAO GIỜ hẹp hơn khung chứa:
+      // min-width:100% khiến trình duyệt chia phần dư theo tỉ lệ cho các cột đang hiện (ẩn cột / kéo hẹp cột đều giãn lại).
       shown.forEach(function (column, index) { changeStyle(group.children[index], 'width', column.width + 'px'); });
-      ['width', 'min-width', 'max-width'].forEach(function (property) { changeStyle(table, property, Math.max(MIN_WIDTH, total) + 'px'); });
+      changeStyle(table, 'width', Math.max(MIN_WIDTH, total) + 'px');
+      changeStyle(table, 'min-width', '100%'); changeStyle(table, 'max-width', 'none');
     }
     ctrl.columns.forEach(function (column, index) {
       if (ctrl.head.leaves[index].span === 1) attachHandle(ctrl, ctrl.head.leaves[index].cell, column);
@@ -345,9 +367,23 @@
       editor.style.height = Math.max(30, editor.scrollHeight) + 'px';
     });
   }
-  function resize(ctrl, column, value) {
+  // Đổi độ rộng 1 cột, `seen` = độ rộng đang thấy của mọi cột trước khi đổi (renderedWidths).
+  // Kéo hẹp: bảng hụt so với khung nên các cột còn lại giãn ra bù (tổng vẫn bằng khung, tay kéo bám đúng con trỏ).
+  // Kéo rộng: các cột khác giữ nguyên, bảng rộng hơn khung thì khung cuộn ngang.
+  function resize(ctrl, column, value, seen) {
     if (!column) return;
-    column.width = Math.max(column.minWidth || MIN_WIDTH, value); ctrl.session.fitted = true; apply(ctrl);
+    seen = seen || renderedWidths(ctrl);
+    var target = Math.max(column.minWidth || MIN_WIDTH, value), room = roomOf(ctrl);
+    var others = ctrl.columns.filter(function (item) { return item !== column && !item.hidden && !item.suppressed; });
+    var othersTotal = others.reduce(function (sum, item) { return sum + seen.get(item); }, 0);
+    var scale = room && othersTotal && target + othersTotal < room ? (room - target) / othersTotal : 1;
+    column.width = target; ctrl.session.fitted = true;
+    others.forEach(function (item) {
+      var next = seen.get(item) * scale;
+      if (Math.abs(next - item.width) < 0.01) return;
+      item.width = next; remember(ctrl, item, { width: next });
+    });
+    apply(ctrl);
     remember(ctrl, column, { width: column.width });
   }
   function finishDrag() {
@@ -358,7 +394,7 @@
   }
   document.addEventListener('pointermove', function (event) {
     if (!drag || event.pointerId !== drag.id) return;
-    event.preventDefault(); resize(drag.ctrl, drag.column, drag.width + event.clientX - drag.x);
+    event.preventDefault(); resize(drag.ctrl, drag.column, drag.width + event.clientX - drag.x, drag.seen);
   }, { passive: false });
   document.addEventListener('pointerup', function (event) { if (drag && event.pointerId === drag.id) finishDrag(); });
   document.addEventListener('pointercancel', function (event) { if (drag && event.pointerId === drag.id) finishDrag(); });

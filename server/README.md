@@ -712,6 +712,8 @@ Thiết kế: [spec đã duyệt](../docs/superpowers/specs/2026-10-23-customer-
 ## Cấu hình bảng theo tài khoản (23/10/2026)
 Độ rộng cột và cột ẩn/hiện của mọi bảng dùng `public/shared/table-controls.js` được nhớ lâu dài theo tài khoản, tách riêng desktop/mobile. Migration `db/migrations/0085_user_table_prefs.sql` **đã áp DB dùng chung 23/10/2026**; chưa deploy. Mã: `userTablePrefs/repository.js` (kiểm tra đầu vào, upsert), `userTablePrefs/routes.js`.
 
+**Bố cục độ rộng cột (24/10/2026):** bảng luôn rộng tối thiểu 100% khung chứa (`min-width:100%`, `width` = tổng độ rộng cột, `max-width:none`), phần dư do trình duyệt chia theo tỉ lệ cho các cột đang hiện — nên ẩn/hiện cột hay đổi cỡ cửa sổ đều giãn lại; tổng cột lớn hơn khung thì bảng tràn và khung cuộn ngang. Độ rộng gốc (`column.width`, thứ được lưu) không bị sửa khi giãn tự động. Kéo hẹp 1 cột: các cột khác giãn bù để tổng bằng khung (tính lại từ ảnh chụp lúc bắt đầu kéo nên kéo qua lại không trôi) và được lưu cùng; kéo rộng: cột khác giữ nguyên. `data-table-fit="contain"` (độ rộng theo tỉ lệ, không cuộn ngang) giữ nguyên.
+
 | API | Quyền | Mô tả |
 |---|---|---|
 | `GET /api/me/table-prefs` | đăng nhập | Trả `{ tables: { [tableKey]: { [mode]: { columns } } } }` của chính tài khoản |
