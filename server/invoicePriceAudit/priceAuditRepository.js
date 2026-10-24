@@ -413,7 +413,7 @@ const FILTER_SQL = `
 
 // Ung vien de cham diem: cung bo loc co dinh, chi lay khoa + van ban tim kiem.
 const CANDIDATES_SQL = `SELECT l.branch, l.invoice_id::text AS invoice_id, l.source_line_no,
-  concat_ws(' ', l.invoice_code, l.customer_code, l.customer_name, l.product_code, l.product_name) AS search_text
+  concat_ws(' ', l.invoice_code, l.customer_code, l.customer_name, l.product_code, l.product_name, l.sale_explanation) AS search_text
   FROM invoice_price_audit_lines l ${BASE_WHERE}`;
 
 const DEFAULT_ORDER_SQL = `ORDER BY (${S.effectiveStatusSql('l')} = 'wrong') DESC, l.sold_at DESC, l.branch, l.invoice_code, l.source_line_no`;
