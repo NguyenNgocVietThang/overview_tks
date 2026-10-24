@@ -43,8 +43,8 @@ function createApprovedPriceRouter({
         });
       }
       // Bang chua migrate (42P01): bao ro de van hanh biet, khong lo chi tiet DB.
-      if (error && error.code === '42P01') {
-        return res.status(503).json({ error: 'Bảng Giá duyệt chưa được cài đặt (cần chạy migration 0091).', code: 'NOT_MIGRATED' });
+      if (error && (error.code === '42P01' || error.code === '42703')) {
+        return res.status(503).json({ error: 'Bảng Giá duyệt chưa được cài đặt (cần chạy migration 0091 và 0092).', code: 'NOT_MIGRATED' });
       }
       console.error(`[invoice-approved-prices ${req.method} ${req.path}]`, error && error.message);
       return res.status(503).json({ error: message });

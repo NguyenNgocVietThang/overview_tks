@@ -26,6 +26,7 @@
 .ap-box input[type="number"]::-webkit-outer-spin-button, .ap-box input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .ap-field.is-picked > .form-control { border-color: color-mix(in srgb, var(--green, #16a34a) 60%, var(--border)); }
 .ap-hint { display: block; margin-top: 5px; font-size: 12px; color: var(--muted); }
+.ap-hint.ap-wide { margin: -6px 0 0; }
 .ap-error { padding: 10px 12px; border-radius: var(--radius-sm); font-size: 13px; color: var(--red, #c62828); background: color-mix(in srgb, var(--red, #c62828) 12%, transparent); border: 1px solid color-mix(in srgb, var(--red, #c62828) 40%, var(--border)); }
 .ap-error[hidden] { display: none; }
 .ap-footer { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--border); background: var(--panel-2); }

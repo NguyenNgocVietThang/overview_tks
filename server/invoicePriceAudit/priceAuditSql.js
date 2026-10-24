@@ -95,7 +95,7 @@ WITH src0 AS (
     quantity text, original_unit_price text, unit_discount text, full_vat boolean,
     freight_eligible boolean, freight text, hn jsonb, sg jsonb,
     product_note_hn text, product_note_sg text, line_note text, invoice_note text, captured_at timestamptz,
-    approved_price text, approved_on date)
+    approved_price text, approved_on date, approved_kind text)
 ),
 src AS (
   SELECT x.*,
@@ -169,7 +169,7 @@ SELECT r.branch, r.invoice_id::bigint, r.source_line_no, r.invoice_code, r.sold_
     'level', r.customer_level, 'levelPosition', r.level_position,
     'appliedMinimum', r.applied_min::text, 'winningSource', r.source_raw,
     'approvedPrice', CASE WHEN r.approved_n IS NULL THEN NULL
-      ELSE jsonb_build_object('price', r.approved_n::text, 'approvedOn', r.approved_on::text) END,
+      ELSE jsonb_build_object('price', r.approved_n::text, 'approvedOn', r.approved_on::text, 'kind', r.approved_kind) END,
     'freight', jsonb_build_object('eligible', r.freight_eligible, 'sourceValue', r.freight, 'added', r.freight_n::text),
     'hn', CASE WHEN r.hn IS NULL THEN NULL ELSE r.hn || jsonb_build_object(
       'quantityPrice', r.quantity_price_hn::text, 'levelPrice', r.level_price_hn::text,

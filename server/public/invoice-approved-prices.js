@@ -11,7 +11,7 @@
   const FEATURE_MANAGE = 'reports.invoices.approvedPrice.manage';
   const APPROVERS = ['Anh Quân', 'Anh Duy', 'Anh Duy Khánh'];
   const BRANCHES = [['hanoi', 'Hà Nội'], ['saigon', 'Sài Gòn']];
-  const COLUMN_COUNT = 8;
+  const COLUMN_COUNT = 9;
 
   const state = {
     data: null, error: '', loading: false, seq: 0, loadedAt: 0, initialized: false,
@@ -24,6 +24,8 @@
   const NUMBER = new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 });
   const isBlank = v => v === null || v === undefined || v === '';
   const fmtPrice = v => (isBlank(v) || !Number.isFinite(Number(v)) ? '—' : NUMBER.format(Number(v)));
+  // Nhãn giá cho hộp xác nhận xóa: chỉ in giá đã nhập ("không VAT 23,000 · có VAT 25,000").
+  const pricesLabel = r => [!isBlank(r.priceNoVat) ? 'không VAT ' + fmtPrice(r.priceNoVat) : '', !isBlank(r.priceWithVat) ? 'có VAT ' + fmtPrice(r.priceWithVat) : ''].filter(Boolean).join(' · ') || '—';
   const fmtDay = v => { const m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3] + '/' + m[2] + '/' + m[1] : (v ? String(v) : '—'); };
   const todayVn = () => new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
   const toast = (message, type) => { if (typeof window.showToast === 'function') window.showToast(message, type); };
@@ -67,7 +69,8 @@
       '<td>' + escape(r.branchLabel) + '</td>' +
       '<td class="mono">' + escape(r.productCode || '—') + '</td>' +
       '<td class="name-cell price-audit-wrap">' + escape(r.productName || '—') + '</td>' +
-      '<td class="mono col-num">' + escape(fmtPrice(r.approvedPrice)) + '</td>' +
+      '<td class="mono col-num' + (isBlank(r.priceNoVat) ? ' muted' : '') + '">' + escape(fmtPrice(r.priceNoVat)) + '</td>' +
+      '<td class="mono col-num' + (isBlank(r.priceWithVat) ? ' muted' : '') + '">' + escape(fmtPrice(r.priceWithVat)) + '</td>' +
       '<td>' + escape(r.approver) + '</td>' +
       '<td class="mono">' + escape(fmtDay(r.approvedOn)) + '</td>' +
       '<td>' + actions + '</td></tr>';
@@ -291,6 +294,8 @@
   const pickerControl = (id, placeholder) => '<input class="form-control" id="' + id + '" type="text" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="' + id + 'List" placeholder="' + escape(placeholder) + '" maxlength="100">' +
     '<ul class="approved-price-suggest" id="' + id + 'List" role="listbox" hidden></ul>';
 
+  const priceControl = (id, value) => '<input class="form-control" id="' + id + '" type="number" inputmode="decimal" min="0" step="any" placeholder="Để trống nếu không áp" value="' + escape(isBlank(value) ? '' : value) + '">';
+
   function openEditor(row) {
     if (!canManage()) return;
     const old = $('approvedPriceDialog');
@@ -312,7 +317,9 @@
       fieldHtml('apCustomer', 'Khách hàng *', pickerControl('apCustomer', 'Gõ tên hoặc mã khách trên KiotViet'), { wide: true, hint: 'Chọn từ danh sách gợi ý của cơ sở này; khách phải có trên KiotViet.' }) +
       fieldHtml('apProductCode', 'Mã SP *', pickerControl('apProductCode', 'Gõ mã hoặc tên sản phẩm')) +
       fieldHtml('apProductName', 'Tên SP', '<input class="form-control" id="apProductName" type="text" readonly tabindex="-1" placeholder="Tự điền theo mã SP trên KiotViet">') +
-      fieldHtml('apPrice', 'Giá duyệt (₫/chiếc) *', '<input class="form-control" id="apPrice" type="number" inputmode="decimal" min="0" step="any" placeholder="Đơn giá / chiếc" value="' + escape(row ? row.approvedPrice : '') + '">', { hint: 'Thay giá min khi kiểm tra giá; coi là giá cuối đã gồm VAT / cước.' }) +
+      fieldHtml('apPriceNoVat', 'Giá không VAT (₫/chiếc)', priceControl('apPriceNoVat', row && row.priceNoVat)) +
+      fieldHtml('apPriceWithVat', 'Giá có VAT (₫/chiếc)', priceControl('apPriceWithVat', row && row.priceWithVat)) +
+      '<small class="ap-hint ap-wide" id="apPriceHint">Nhập ít nhất 1 trong 2 giá. Hóa đơn Full VAT dùng giá có VAT, hóa đơn không VAT dùng giá không VAT; loại để trống thì không áp giá duyệt cho loại hóa đơn đó. Là giá cuối/chiếc.</small>' +
       fieldHtml('apApprover', 'Người duyệt *', '<select class="form-control" id="apApprover">' + approverOptions + '</select>', { hint: 'Giá duyệt chỉ áp cho hóa đơn có ngày bán từ ngày duyệt trở đi.' }) +
       '<div class="ap-error ap-wide" id="apError" role="alert" hidden></div>' +
       '</div><div class="ap-footer"><button type="button" class="btn-secondary" data-close>Hủy</button>' +
@@ -352,14 +359,17 @@
     dialog.querySelector('form').addEventListener('submit', async event => {
       event.preventDefault();
       showError('');
-      const price = q('apPrice').value.trim();
+      const noVat = q('apPriceNoVat').value.trim();
+      const withVat = q('apPriceWithVat').value.trim();
       const body = {
         branch: branchSel.value, customerId: customer.id, productId: productPicker.id,
-        approvedPrice: price, approver: q('apApprover').value, approvedOn: q('apDate').value
+        priceNoVat: noVat || null, priceWithVat: withVat || null, approver: q('apApprover').value, approvedOn: q('apDate').value
       };
       if (!customer.id) { showError('Chọn khách hàng từ danh sách gợi ý (khách phải có trên KiotViet).'); q('apCustomer').focus(); return; }
       if (!productPicker.id) { showError('Chọn mã SP từ danh sách gợi ý (mã phải có trên KiotViet).'); q('apProductCode').focus(); return; }
-      if (!price || !(Number(price) > 0)) { showError('Nhập giá duyệt lớn hơn 0.'); q('apPrice').focus(); return; }
+      if (!noVat && !withVat) { showError('Nhập ít nhất một trong hai giá (không VAT / có VAT).'); q('apPriceNoVat').focus(); return; }
+      if (noVat && !(Number(noVat) > 0)) { showError('Giá phải lớn hơn 0.'); q('apPriceNoVat').focus(); return; }
+      if (withVat && !(Number(withVat) > 0)) { showError('Giá phải lớn hơn 0.'); q('apPriceWithVat').focus(); return; }
       if (!body.approver) { showError('Chọn người duyệt.'); q('apApprover').focus(); return; }
       if (!body.approvedOn) { showError('Chọn ngày duyệt (dd/mm/yyyy).'); q('apDate').focus(); return; }
       if (row) body.expectedVersion = row.version;
@@ -382,7 +392,7 @@
         submit.textContent = row ? 'Lưu thay đổi' : 'Tạo bản ghi';
       }
     });
-    q(row ? 'apPrice' : 'apCustomer').focus();
+    q(row ? 'apPriceNoVat' : 'apCustomer').focus();
   }
 
   // Sau khi ghi: nạp lại bảng này, và bảng Kiểm tra giá bán nếu đã tính lại các dòng của nó.
@@ -393,7 +403,7 @@
 
   async function remove(row) {
     if (!canManage()) return;
-    const label = (row.customerName || '(khách không còn trên KiotViet)') + ' · ' + (row.productCode || '—') + ' · ' + fmtPrice(row.approvedPrice) + ' · ' + fmtDay(row.approvedOn);
+    const label = (row.customerName || '(khách không còn trên KiotViet)') + ' · ' + (row.productCode || '—') + ' · ' + pricesLabel(row) + ' · ' + fmtDay(row.approvedOn);
     if (!window.confirm('Xóa bản ghi giá duyệt?\n' + label + '\n\nCác dòng Kiểm tra giá bán liên quan sẽ được tính lại theo giá min thông thường.')) return;
     try {
       const out = await readJson(await fetch(API + '/' + encodeURIComponent(row.id) + '?expectedVersion=' + encodeURIComponent(row.version), { method: 'DELETE', credentials: 'same-origin' }));

@@ -384,15 +384,15 @@ Phương án B đã duyệt: tập SĐT/KPI Pancake riêng trong PostgreSQL, ng�
 ## Bổ sung 24/10/2026 — Bảng giá duyệt (áp dụng cho Kiểm tra giá bán)
 
 - **Vấn đề**: Quản lý đôi khi duyệt giá đặc biệt cho một khách + một mã hàng thấp hơn giá min ghi trong mô tả KiotViet; Kiểm tra giá bán vẫn so với giá min nên đánh nhầm các dòng đó là "Sai giá" và sale bị phạt oan.
-- **Giải pháp**: mục 2 "Bảng giá duyệt" trong tab Hóa đơn (thứ tự mục: 1 Kiểm tra giá bán, 2 Bảng giá duyệt, 3 Giao dịch). Mỗi bản ghi gồm Khách hàng, Cơ sở, Mã SP (tên SP tự điền từ KiotViet), Giá duyệt, Người duyệt (Anh Quân / Anh Duy / Anh Duy Khánh), Ngày duyệt. Có tạo, sửa, xóa (có xác nhận), lọc theo Người duyệt và khoảng Ngày duyệt, sắp xếp mọi cột, xuất Excel đúng tập đang lọc, chỉ số (số bản ghi, khách, mã hàng, ngày duyệt gần nhất).
+- **Giải pháp**: mục 2 "Bảng giá duyệt" trong tab Hóa đơn (thứ tự mục: 1 Kiểm tra giá bán, 2 Bảng giá duyệt, 3 Giao dịch). Mỗi bản ghi gồm Khách hàng, Cơ sở, Mã SP (tên SP tự điền từ KiotViet), Giá không VAT, Giá có VAT (2 giá tùy chọn, phải nhập ít nhất 1 giá, mỗi giá điền vào phải lớn hơn 0), Người duyệt (Anh Quân / Anh Duy / Anh Duy Khánh), Ngày duyệt. Có tạo, sửa, xóa (có xác nhận), lọc theo Người duyệt và khoảng Ngày duyệt, sắp xếp mọi cột, xuất Excel đúng tập đang lọc, chỉ số (số bản ghi, khách, mã hàng, ngày duyệt gần nhất).
 - **Quy tắc nghiệp vụ**:
   - Khách và mã hàng phải có thật (đang hoạt động) trên KiotViet của cơ sở đã chọn; tên đổi trên KiotViet thì bảng tự hiện tên mới. Mỗi (cơ sở, khách, mã hàng, ngày duyệt) chỉ một bản ghi.
-  - Giá duyệt thay giá min (là giá cuối đã gồm VAT/cước) cho hóa đơn cùng cơ sở + khách + mã hàng từ Ngày duyệt trở đi; nhiều bản ghi thì lấy bản duyệt mới nhất không sau ngày hóa đơn. Giá bán >= giá duyệt là Đúng giá, thấp hơn là Sai giá và tiền chênh tính từ giá duyệt (nhãn "Giá duyệt" / "Theo giá duyệt").
+  - Giá duyệt thay giá min (là giá cuối đã gồm VAT/cước như đã nhập) cho hóa đơn cùng cơ sở + khách + mã hàng từ Ngày duyệt trở đi. Dòng hóa đơn Full VAT (ghi chú có VAT) dùng Giá có VAT, dòng không Full VAT dùng Giá không VAT; loại giá cần dùng mà để trống thì không áp giá duyệt cho dòng đó (vẫn so với giá min theo mô tả). Mỗi loại giá chọn riêng: lấy bản duyệt mới nhất không sau ngày hóa đơn CÓ loại giá đó (bản mới hơn để trống loại đó thì dùng bản cũ hơn). Giá bán >= giá duyệt là Đúng giá, thấp hơn là Sai giá và tiền chênh tính từ giá duyệt (nhãn "Giá duyệt" / "Theo giá duyệt").
   - Lưu xong, các dòng đã kiểm tra của khách + mã hàng đó từ Ngày duyệt được tính lại ngay (giải thích của sale, Chốt giữ nguyên); nếu chưa tính lại được thì áp dụng ở lượt kiểm tra kế tiếp.
 - **Người dùng**: bảng nhạy cảm nên chỉ Quản lý xem được mặc định (quyền xem riêng `reports.invoices.approvedPrice`, Trợ lý / Nhân viên sale chỉ thấy khi được cấp); tạo/sửa/xóa cũng chỉ Quản lý (quyền `reports.invoices.approvedPrice.manage`, cấp riêng được ở trang Tài khoản); xuất Excel cần quyền xuất.
 - **Thành công**: dòng bán đúng giá đã duyệt không còn bị báo Sai giá; mỗi thay đổi bảng giá có dấu vết bất biến (ai, khi nào, trước/sau).
 - **Ngoài phạm vi**: ghi ngược giá duyệt lên KiotViet/Google Sheets, giá duyệt theo khoảng thời gian có ngày hết hạn, duyệt giá theo lô nhiều khách.
-- **Trạng thái**: code + test cục bộ (migration `0091` chưa áp DB thật, chưa commit/deploy).
+- **Trạng thái**: code + test cục bộ (migration `0091` và `0092` chưa áp DB thật, chưa commit/deploy; áp cả hai trước khi deploy). Cùng ngày 24/10/2026 giá duyệt được tách từ một giá thành 2 giá tùy chọn Giá không VAT / Giá có VAT theo quyết định với người dùng.
 
 Cập nhật gần nhất: 24/10/2026.
 

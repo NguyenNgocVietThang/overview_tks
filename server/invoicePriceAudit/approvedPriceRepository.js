@@ -20,7 +20,7 @@ const ACTIVE_CUSTOMER_SQL = "COALESCE(c.raw->>'isActive', c.raw->>'IsActive', 't
 
 const SELECT_SQL = `
   SELECT p.id::text AS id, p.branch, p.customer_id::text AS customer_id, p.product_id::text AS product_id,
-         p.approved_price::text AS approved_price, p.approver, p.approved_on::text AS approved_on, p.version,
+         p.price_no_vat::text AS price_no_vat, p.price_with_vat::text AS price_with_vat, p.approver, p.approved_on::text AS approved_on, p.version,
          p.created_by, p.updated_by, p.updated_at,
          c.id IS NULL AS customer_missing, COALESCE(c.name, '') AS customer_name, COALESCE(c.code, '') AS customer_code,
          COALESCE(pr.code, '') AS product_code, COALESCE(pr.name, '') AS product_name
@@ -36,7 +36,7 @@ const WHERE_SQL = `
 // Khoa cot (approvedPriceRules.SORT_KEYS) -> bieu thuc SQL; la hang so, khong bao gio la chuoi nguoi dung.
 const SORT_SQL = Object.freeze({
   customerName: "lower(COALESCE(c.name, ''))", branch: 'p.branch', productCode: "lower(COALESCE(pr.code, ''))",
-  productName: "lower(COALESCE(pr.name, ''))", approvedPrice: 'p.approved_price', approver: 'p.approver',
+  productName: "lower(COALESCE(pr.name, ''))", priceNoVat: 'p.price_no_vat', priceWithVat: 'p.price_with_vat', approver: 'p.approver',
   approvedOn: 'p.approved_on'
 });
 
@@ -52,27 +52,28 @@ function mapRow(r) {
     customerId: r.customer_id, customerName: r.customer_name, customerCode: r.customer_code,
     customerMissing: Boolean(r.customer_missing),
     productId: r.product_id, productCode: r.product_code, productName: r.product_name,
-    approvedPrice: r.approved_price, approver: r.approver, approvedOn: r.approved_on,
+    priceNoVat: r.price_no_vat, priceWithVat: r.price_with_vat, approver: r.approver, approvedOn: r.approved_on,
     version: Number(r.version), createdBy: r.created_by, updatedBy: r.updated_by,
     updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : null
   };
 }
 
 // Nhat ky luon camelCase; nhan dong DB (snake_case) hoac dau vao da kiem tra (camelCase).
+const priceText = v => (v === null || v === undefined ? null : String(v));
 const snapshot = row => row && ({ branch: row.branch, customerId: String(row.customerId ?? row.customer_id),
-  productId: String(row.productId ?? row.product_id), approvedPrice: String(row.approvedPrice ?? row.approved_price),
+  productId: String(row.productId ?? row.product_id), priceNoVat: priceText(row.priceNoVat ?? row.price_no_vat), priceWithVat: priceText(row.priceWithVat ?? row.price_with_vat),
   approver: row.approver, approvedOn: row.approvedOn ?? row.approved_on, version: Number(row.version) });
 
 const CUSTOMER_EXISTS_SQL = `SELECT 1 FROM customers c WHERE c.branch = $1 AND c.id = $2::bigint AND ${ACTIVE_CUSTOMER_SQL}`;
 const PRODUCT_EXISTS_SQL = 'SELECT 1 FROM products WHERE branch = $1 AND id = $2::bigint AND COALESCE(is_active, TRUE)';
-const LOCK_SQL = 'SELECT id::text AS id, branch, customer_id::text AS customer_id, product_id::text AS product_id, approved_price::text AS approved_price, approver, approved_on::text AS approved_on, version FROM invoice_approved_prices WHERE id = $1::bigint FOR UPDATE';
+const LOCK_SQL = 'SELECT id::text AS id, branch, customer_id::text AS customer_id, product_id::text AS product_id, price_no_vat::text AS price_no_vat, price_with_vat::text AS price_with_vat, approver, approved_on::text AS approved_on, version FROM invoice_approved_prices WHERE id = $1::bigint FOR UPDATE';
 const INSERT_SQL = `INSERT INTO invoice_approved_prices
-  (branch, customer_id, product_id, approved_price, approver, approved_on, created_by, updated_by)
-  VALUES ($1, $2::bigint, $3::bigint, $4::numeric, $5, $6::date, $7, $7) RETURNING id::text AS id`;
+  (branch, customer_id, product_id, price_no_vat, price_with_vat, approver, approved_on, created_by, updated_by)
+  VALUES ($1, $2::bigint, $3::bigint, $4::numeric, $5::numeric, $6, $7::date, $8, $8) RETURNING id::text AS id`;
 const UPDATE_SQL = `UPDATE invoice_approved_prices
-  SET branch = $2, customer_id = $3::bigint, product_id = $4::bigint, approved_price = $5::numeric, approver = $6,
-      approved_on = $7::date, version = version + 1, updated_by = $8, updated_at = now()
-  WHERE id = $1::bigint AND version = $9 RETURNING version`;
+  SET branch = $2, customer_id = $3::bigint, product_id = $4::bigint, price_no_vat = $5::numeric, price_with_vat = $6::numeric, approver = $7,
+      approved_on = $8::date, version = version + 1, updated_by = $9, updated_at = now()
+  WHERE id = $1::bigint AND version = $10 RETURNING version`;
 const DELETE_SQL = 'DELETE FROM invoice_approved_prices WHERE id = $1::bigint';
 const CHANGE_SQL = `INSERT INTO invoice_approved_price_changes (price_id, action, actor, before_value, after_value)
   VALUES ($1::bigint, $2, $3, $4::jsonb, $5::jsonb)`;
@@ -82,6 +83,8 @@ function conflict(row) {
   return Object.assign(bad('Bản ghi vừa được người khác cập nhật. Hãy tải lại rồi thử lại.', 'VERSION_CONFLICT', 409), row ? { row } : {});
 }
 
+// null (de trong) khac moi gia tri; so sanh so, khong so sanh chuoi (23000 = 23000.00).
+const samePrice = (a, b) => (a === null || a === undefined ? b === null || b === undefined : b !== null && b !== undefined && Number(a) === Number(b));
 const sameKey = (a, b) => a.branch === b.branch && String(a.customerId) === String(b.customerId)
   && String(a.productId) === String(b.productId);
 
@@ -174,8 +177,8 @@ function createApprovedPriceRepository({ pool = getPool(), now = () => new Date(
   async function create(input, actor) {
     return inTransaction(async client => {
       await assertTargets(client, input);
-      const id = (await client.query(INSERT_SQL, [input.branch, input.customerId, input.productId, input.approvedPrice,
-        input.approver, input.approvedOn, actor])).rows[0].id;
+      const id = (await client.query(INSERT_SQL, [input.branch, input.customerId, input.productId, input.priceNoVat,
+        input.priceWithVat, input.approver, input.approvedOn, actor])).rows[0].id;
       await client.query(CHANGE_SQL, [id, 'create', actor, null, JSON.stringify(snapshot({ ...input, version: 1 }))]);
       const recalc = await applyRecalc(client, [{ branch: input.branch, customerId: input.customerId,
         productId: input.productId, fromDay: input.approvedOn }], now());
@@ -189,15 +192,15 @@ function createApprovedPriceRepository({ pool = getPool(), now = () => new Date(
       if (!before) throw bad('Bản ghi giá duyệt không tồn tại (có thể đã bị xóa).', 'NOT_FOUND', 404);
       if (Number(before.version) !== input.expectedVersion) throw conflict(await readOne(id, client));
       await assertTargets(client, input);
-      const updated = (await client.query(UPDATE_SQL, [id, input.branch, input.customerId, input.productId, input.approvedPrice,
-        input.approver, input.approvedOn, actor, input.expectedVersion])).rows[0];
+      const updated = (await client.query(UPDATE_SQL, [id, input.branch, input.customerId, input.productId, input.priceNoVat,
+        input.priceWithVat, input.approver, input.approvedOn, actor, input.expectedVersion])).rows[0];
       if (!updated) throw conflict(await readOne(id, client));
       const after = { ...input, version: Number(updated.version) };
       await client.query(CHANGE_SQL, [id, 'update', actor, JSON.stringify(snapshot(before)), JSON.stringify(snapshot(after))]);
       // Chi gia / ngay / khach / san pham / co so moi doi ket qua kiem tra gia; doi moi nguoi duyet thi khong can tinh lai.
       const oldKey = { branch: before.branch, customerId: before.customer_id, productId: before.product_id };
       const effectChanged = !sameKey(oldKey, input) || before.approved_on !== input.approvedOn
-        || Number(before.approved_price) !== Number(input.approvedPrice);
+        || !samePrice(before.price_no_vat, input.priceNoVat) || !samePrice(before.price_with_vat, input.priceWithVat);
       const scopes = [];
       if (effectChanged) {
         if (sameKey(oldKey, input)) {

@@ -15,7 +15,8 @@ const COLUMNS = Object.freeze([
   { key: 'branchLabel', label: 'Cơ sở', width: 12, value: r => r.branchLabel },
   { key: 'productCode', label: 'Mã SP', width: 18, value: r => r.productCode },
   { key: 'productName', label: 'Tên SP', width: 44, value: r => r.productName },
-  { key: 'approvedPrice', label: 'Giá duyệt', width: 16, numFmt: '#,##0.##', value: r => Number(r.approvedPrice) },
+  { key: 'priceNoVat', label: 'Giá không VAT', width: 16, numFmt: '#,##0.##', value: r => (r.priceNoVat == null ? null : Number(r.priceNoVat)) },
+  { key: 'priceWithVat', label: 'Giá có VAT', width: 16, numFmt: '#,##0.##', value: r => (r.priceWithVat == null ? null : Number(r.priceWithVat)) },
   { key: 'approver', label: 'Người duyệt', width: 18, value: r => r.approver },
   { key: 'approvedOn', label: 'Ngày duyệt', width: 14, value: r => dmy(r.approvedOn) }
 ]);

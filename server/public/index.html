@@ -50,7 +50,7 @@
   <link rel="stylesheet" href="/shared/search-clear.css?v=20261009-1">
   <link rel="stylesheet" href="/shared/detail-panel.css?v=20261016">
   <link rel="stylesheet" href="/marketing-report.css?v=20261016-sort">
-  <link rel="stylesheet" href="/invoice-approved-prices.css?v=20261024-2">
+  <link rel="stylesheet" href="/invoice-approved-prices.css?v=20261024-3">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&display=swap">
@@ -4657,7 +4657,8 @@
                         <th data-no-sort class="sortable" data-sort="branch" aria-sort="none" style="width:90px" data-column-key="branch" data-col-type="text"><button type="button" class="sort-button"><span class="sort-label">Cơ sở</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
                         <th data-no-sort class="sortable" data-sort="productCode" aria-sort="none" style="width:120px" data-column-key="productCode" data-col-type="text"><button type="button" class="sort-button"><span class="sort-label">Mã SP</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
                         <th data-no-sort class="sortable" data-sort="productName" aria-sort="none" style="width:260px" data-column-key="productName" data-col-type="text" data-col-wrap="true"><button type="button" class="sort-button"><span class="sort-label">Tên SP</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
-                        <th data-no-sort class="sortable col-num" data-sort="approvedPrice" aria-sort="none" style="width:120px" data-column-key="approvedPrice" data-col-type="money"><button type="button" class="sort-button"><span class="sort-label">Giá duyệt</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                        <th data-no-sort class="sortable col-num" data-sort="priceNoVat" aria-sort="none" style="width:120px" data-column-key="priceNoVat" data-col-type="money"><button type="button" class="sort-button"><span class="sort-label">Giá không VAT</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                        <th data-no-sort class="sortable col-num" data-sort="priceWithVat" aria-sort="none" style="width:120px" data-column-key="priceWithVat" data-col-type="money"><button type="button" class="sort-button"><span class="sort-label">Giá có VAT</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
                         <th data-no-sort class="sortable" data-sort="approver" aria-sort="none" style="width:130px" data-column-key="approver" data-col-type="text"><button type="button" class="sort-button"><span class="sort-label">Người duyệt</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
                         <th data-no-sort class="sortable" data-sort="approvedOn" aria-sort="none" style="width:115px" data-column-key="approvedOn" data-col-type="text"><button type="button" class="sort-button"><span class="sort-label">Ngày duyệt</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
                         <th data-no-sort style="width:130px" data-column-key="actions" data-col-type="text">Thao tác</th>
@@ -4665,7 +4666,7 @@
                     </thead>
                     <tbody id="approvedPriceRows">
                       <tr>
-                        <td colspan="8" class="table-note">Đang tải...</td>
+                        <td colspan="9" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -5305,7 +5306,7 @@
   <script src="/shared/image-compress.js?v=20261022"></script>
   <script src="/marketing-report.js?v=20261021-1"></script>
   <script src="/invoice-price-audit.js?v=20261023-1"></script>
-  <script src="/invoice-approved-prices.js?v=20261024-4"></script>
+  <script src="/invoice-approved-prices.js?v=20261024-5"></script>
 
   <script>
     // Toast thong bao inline — thay the window.alert() cho loi/canh bao (khong chan luong,
