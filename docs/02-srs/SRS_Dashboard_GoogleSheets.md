@@ -878,6 +878,6 @@ Cột **Khách mới** (nhãn đợt tự do như T10/26, Cũ; tối đa 50 ký 
 
 # 24/10/2026 — Chuông thông báo lưu Postgres
 
-Thông báo chuông của mọi tài khoản phải được lưu bền vững qua deploy / khởi động lại (bảng Postgres `notifications`, migration `0092`). Hành vi chuông không đổi: mỗi tài khoản chỉ thấy, đánh dấu đọc và xóa thông báo của chính mình; mới nhất trước; đếm chưa đọc 30 giây/lần.
+Thông báo chuông của mọi tài khoản phải được lưu bền vững qua deploy / khởi động lại (bảng Postgres `notifications`, migration `0093`). Hành vi chuông không đổi: mỗi tài khoản chỉ thấy, đánh dấu đọc và xóa thông báo của chính mình; mới nhất trước; đếm chưa đọc 30 giây/lần.
 
 Cập nhật gần nhất: 24/10/2026.

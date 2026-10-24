@@ -7,7 +7,7 @@
 // tung truong — giong nhau (sua roi hoan tac) thi bo — roi gui 1 thong bao tom tat.
 //
 // Thu tu: don con tro + COMMIT truoc, roi moi ghi chuong -> khong bao gio gui trung; ghi chuong loi
-// dung luc do thi dot do mat thong bao (ghi log). Chuong luu o bang Postgres `notifications` (0092).
+// dung luc do thi dot do mat thong bao (ghi log). Chuong luu o bang Postgres `notifications` (0093).
 // Khoa advisory chong 2 tien trinh quet cung luc.
 
 const notificationRepository = require('../notifications/notificationRepository');
