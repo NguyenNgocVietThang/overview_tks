@@ -15,19 +15,18 @@ const IMG_ID = '22222222-2222-4222-8222-222222222222';
 const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47]), Buffer.from('png-body')]);
 const note = (over = {}) => ({ id: NOTE_ID, noteDate: '2026-10-22', body: 'Gặp khách', authorId: 'u-9', authorName: 'Sale', createdAt: '2026-10-22T03:00:00.000Z', updatedAt: '2026-10-22T03:00:00.000Z', ...over });
 
-test('local price level: manager and assigned editor can change, unrelated viewer cannot; conflict is 409', async () => {
+test('local price level: only customer manager can change; assigned editor and unrelated viewer cannot', async () => {
   const body = { key:KEY,level:'vip',version:1 };
   assert.equal((await call('/customer-price-level', { method:'PUT',body })).status,200);
   assert.equal((await call('/customer-price-level', { method:'PUT',body, permissions:VIEW })).status,403);
   const assigned = fakeProfiles({ editors:[{key:KEY,userId:'u-1'}] });
-  assert.deepEqual((await call('/customer-price-level', { method:'PUT',body,permissions:VIEW,profiles:assigned })).data,
-    {priceLevel:'Vip',priceLevelVersion:2,newCustomer:''});
+  assert.equal((await call('/customer-price-level', { method:'PUT',body,permissions:VIEW,profiles:assigned })).status,403);
   const levels = { saveLevel:async () => { throw Object.assign(new Error('conflict'),{statusCode:409,code:'PRICE_LEVEL_CONFLICT'}); } };
   assert.equal((await call('/customer-price-level', {method:'PUT',body,levels})).status,409);
   const report = await call('/customers', {permissions:VIEW,profiles:assigned});
   const row = report.data.rows.find(r => r.key === KEY);
   assert.equal(row.priceLevel,'Lớn');
-  assert.equal(row.canEditPriceLevel,true);
+  assert.equal(row.canEditPriceLevel,false);
   assert.equal(row.newCustomer,'');
   assert.deepEqual(report.data.newCustomerOptions,[]);
   assert.deepEqual(row.salesChannels,['san']);

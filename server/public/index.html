@@ -3322,13 +3322,6 @@
       justify-content: flex-start;
     }
 
-    /* Dự kiến hàng về · bảng Tổng hợp CONT dùng lại khung trên; ô lọc trạng thái không tràn khi tên trạng thái dài / trên điện thoại. */
-    .expected-arrivals-key-frame .panel-head-actions .stockout-branch-select {
-      min-width: 0;
-      max-width: 100%;
-      text-overflow: ellipsis;
-    }
-
     /* Màu CHỮ trạng thái Chốt trong bảng chi tiết: OK xanh lá, Phạt đỏ (token, tự đổi theo Sáng/Tối). */
     .price-audit-decision[data-status="Ok"],
     .price-audit-decision-text[data-status="Ok"] { color: var(--green); font-weight: 600; }
@@ -4298,35 +4291,6 @@
             <div class="section-head"><span class="section-step">2</span>
               <h2>Dự kiến hàng về <span class="section-note" id="expectedArrivalsUpdatedAt">—</span></h2>
             </div>
-            <!-- Cột trái: 3 chỉ số xếp dọc (theo bộ lọc của bảng chi tiết bên dưới); bên phải: tổng hợp mỗi CONT 1 dòng (Tên CONT / Trạng thái / Dự kiến)
-                 với bộ lọc trạng thái RIÊNG, độc lập với 3 ô lọc của bảng chi tiết. Cùng khung với "Kiểm tra giá bán" tab Hóa đơn. -->
-            <div class="debt-key-frame price-audit-key-frame expected-arrivals-key-frame section-kpis">
-              <div class="debt-key-stack price-audit-key-stack" id="expectedArrivalsKpis"></div>
-              <div class="panel debt-penalty-board price-audit-sales-board" id="expectedArrivalsSummaryPanel">
-                <div class="panel-head">
-                  <h2>Tổng hợp CONT <span class="tag" id="tagExpectedArrivalsSummary">—</span></h2>
-                  <div class="panel-head-actions">
-                    <select class="stockout-branch-select" id="expectedArrivalsSummaryStatus" aria-label="Lọc tổng hợp theo trạng thái"><option value="">Tất cả trạng thái</option></select>
-                  </div>
-                </div>
-                <div class="debt-penalty-wrap tks-table-scroll">
-                  <table class="fixed-table" data-table-key="dashboard-table-expected-arrivals-summary">
-                    <thead>
-                      <tr>
-                        <th style="width:200px" data-column-key="ten-cont">Tên CONT</th>
-                        <th style="width:200px" data-column-key="trang-thai">Trạng thái</th>
-                        <th style="width:160px" data-column-key="du-kien">Dự kiến</th>
-                      </tr>
-                    </thead>
-                    <tbody id="expectedArrivalsSummaryRows">
-                      <tr>
-                        <td colspan="3" class="table-note">Đang tải...</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
             <div class="grid">
               <div class="panel col-12">
                 <div class="panel-head">
@@ -4356,8 +4320,6 @@
                   <table class="fixed-table" data-table-key="dashboard-table-expected-arrivals">
                     <thead>
                       <tr>
-                        <!-- Nguồn (cột + ô lọc #expectedArrivalsSource) chỉ dành cho fullAccess như 2 cột giá: máy chủ trả sheetName ẩn danh '#n' cho người còn lại. -->
-                        <th style="width:120px" data-column-key="nguon" data-full-column hidden data-column-unlisted="true">Nguồn</th>
                         <th style="width:190px" data-column-key="lich-trang-thai" data-hint="Trạng thái + ngày dự kiến về của cont (ô B + C dòng nhãn CONT trên sheet).">Lịch/Trạng thái</th>
                         <th style="width:130px" data-column-key="ten-cont">Tên Cont</th>
                         <th style="width:120px" data-column-key="ma-sp">Mã SP</th>
@@ -4377,7 +4339,7 @@
                     </thead>
                     <tbody id="expectedArrivalsRows">
                       <tr>
-                        <td colspan="14" class="table-note">Đang tải...</td>
+                        <td colspan="13" class="table-note">Đang tải...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -8474,7 +8436,6 @@
     // Bấm dòng mở hộp "Chi tiết hàng dự kiến" của mã SP (không gọi API): dòng là tr.doc-row, Tab tới được, Enter/Space mở.
     function expectedArrivalsRowHtml(r) {
       return '<tr class="doc-row" tabindex="0" title="Bấm để xem tất cả CONT của mã này" data-table-item-id="' + escapeHtml(r.sheetName + ':' + r.sourceRow) + '">' +
-        (expectedArrivals.fullAccess === true ? expectedArrivalsTextCell(r.sheetName) : '<td></td>') +
         expectedArrivalsTextCell(r.scheduleLabel) +
         expectedArrivalsTextCell(r.containerName) +
         expectedArrivalsTextCell(r.productCode, 'mono') +
@@ -8499,7 +8460,7 @@
     function applyExpectedArrivalsColumnView(full) {
       const noteAccess = expectedArrivals.otherNoteAccess === true;
       const profile = (full ? 'full' : 'standard') + (noteAccess ? ':notes' : '');
-      // Ô lọc Nguồn đi cùng cột Nguồn: chỉ hiện khi có quyền; mất quyền thì xóa lựa chọn cũ (máy chủ cũng bỏ qua ?source= với người này).
+      // Ô lọc Nguồn chỉ hiện khi có quyền; mất quyền thì xóa lựa chọn cũ (máy chủ cũng bỏ qua ?source= với người này).
       const sourceSelect = document.getElementById('expectedArrivalsSource');
       sourceSelect.hidden = !full;
       if (!full) sourceSelect.value = '';
@@ -8537,73 +8498,43 @@
       });
     }
 
-    // Danh sách Cont / Trạng thái lấy từ filters của máy chủ; thiếu thì suy từ các dòng.
-    function expectedArrivalsOptions(listed, pick) {
-      const values = Array.isArray(listed) && listed.length ? listed : expectedArrivals.rows.map(pick);
-      return Array.from(new Set(values.filter(Boolean)));
-    }
-
-    // Bảng "Tổng hợp CONT": gom expectedArrivals.rows theo (nguồn + tên cont), mỗi cont 1 dòng, giữ thứ tự xuất hiện.
-    // Trạng thái / Dự kiến lấy từ dòng đầu của cont (ô B + C dòng nhãn CONT giống nhau ở mọi dòng hàng của cont).
-    // Lọc theo ô #expectedArrivalsSummaryStatus (so statusLabel) — độc lập với 3 ô lọc của bảng chi tiết. Khóa gom có sheetName
-    // nên cont trùng tên ở 2 nguồn khác nhau không bị gộp (người không fullAccess nhận sheetName ẩn danh '#n' từ máy chủ, khóa vẫn đúng).
-    function expectedArrivalsSummaryRows() {
-      const status = document.getElementById('expectedArrivalsSummaryStatus').value;
-      const byKey = new Map();
-      expectedArrivals.rows.forEach(function (r) {
-        const key = r.sheetName + '\u0001' + r.containerName;
-        if (byKey.has(key)) return;
-        byKey.set(key, { containerName: r.containerName, statusLabel: r.statusLabel, eta: r.eta });
+    // Mỗi danh sách áp các bộ lọc còn lại, bỏ qua chính nó để người dùng đổi lựa chọn.
+    function syncExpectedArrivalsFilters() {
+      const filters = [
+        { id: 'expectedArrivalsSource', field: 'sheetName', label: 'Tất cả nguồn' },
+        { id: 'expectedArrivalsContainer', field: 'containerName', label: 'Tất cả cont', listed: expectedArrivals.containers },
+        { id: 'expectedArrivalsStatus', field: 'statusLabel', label: 'Tất cả trạng thái', listed: expectedArrivals.statuses }
+      ];
+      const selected = filters.map(function (f, i) {
+        return i === 0 && !expectedArrivals.fullAccess ? '' : document.getElementById(f.id).value;
       });
-      return Array.from(byKey.values()).filter(function (c) { return !status || c.statusLabel === status; });
-    }
-
-    function expectedArrivalsSummaryRowHtml(c) {
-      return '<tr>' +
-        expectedArrivalsTextCell(c.containerName, 'name-cell') +
-        expectedArrivalsTextCell(c.statusLabel) +
-        (c.eta
-          ? '<td data-sort-value="' + escapeHtml(c.eta) + '">' + escapeHtml(c.eta) + '</td>'
-          : '<td><span class="muted">—</span></td>') +
-        '</tr>';
-    }
-
-    // Chỉ vẽ lại phần tổng hợp (đổi ô lọc trạng thái KHÔNG đưa bảng chi tiết về trang 1). Không phân trang, không ô tìm kiếm.
-    function renderExpectedArrivalsSummary() {
-      fillBusinessSelect('expectedArrivalsSummaryStatus', 'Tất cả trạng thái', expectedArrivalsOptions(expectedArrivals.statuses, r => r.statusLabel));
-      const tbody = document.getElementById('expectedArrivalsSummaryRows');
-      const tag = document.getElementById('tagExpectedArrivalsSummary');
-      if (!expectedArrivals.loaded) {
-        tbody.innerHTML = '<tr><td colspan="3" class="table-note">Đang tải...</td></tr>';
-        tag.textContent = '—';
-        return;
+      const searchable = expectedArrivals.rows;
+      filters.forEach(function (f, index) {
+        if (index === 0 && !expectedArrivals.fullAccess) {
+          fillBusinessSelect(f.id, f.label, []);
+          return;
+        }
+        const available = new Set(searchable.filter(function (r) {
+          return filters.every(function (other, i) { return i === index || !selected[i] || r[other.field] === selected[i]; });
+        }).map(function (r) { return r[f.field]; }).filter(Boolean));
+        const ordered = Array.from(new Set((f.listed || []).concat(Array.from(available)))).filter(function (v) { return available.has(v); });
+        fillBusinessSelect(f.id, f.label, ordered);
+      });
+      // Snapshot mới có thể xóa lựa chọn cũ: tính lại các danh sách sau khi đã bỏ lựa chọn đó.
+      if (filters.some(function (f, i) { return document.getElementById(f.id).value !== selected[i]; })) {
+        syncExpectedArrivalsFilters();
       }
-      const containers = expectedArrivalsSummaryRows();
-      tbody.innerHTML = containers.length
-        ? containers.map(expectedArrivalsSummaryRowHtml).join('')
-        : '<tr><td colspan="3" class="table-note">Chưa có CONT nào</td></tr>';
-      tag.textContent = fmtNumber(containers.length);
-      // Giữ cột đang sắp xếp (bộ sắp xếp chung của trang) sau mỗi lần vẽ lại dòng.
-      if (typeof window.applyActiveTableSorts === 'function') window.applyActiveTableSorts();
     }
 
     function renderExpectedArrivals() {
-      renderExpectedArrivalsSummary();
-      fillBusinessSelect('expectedArrivalsContainer', 'Tất cả cont', expectedArrivalsOptions(expectedArrivals.containers, r => r.containerName));
-      fillBusinessSelect('expectedArrivalsStatus', 'Tất cả trạng thái', expectedArrivalsOptions(expectedArrivals.statuses, r => r.statusLabel));
+      syncExpectedArrivalsFilters();
       const rows = expectedArrivalsFilteredRows();
-      renderPaginatedRows('expectedArrivals', EXPECTED_ARRIVALS_IDS, rows, expectedArrivalsRowHtml, 14,
+      renderPaginatedRows('expectedArrivals', EXPECTED_ARRIVALS_IDS, rows, expectedArrivalsRowHtml, 13,
         expectedArrivals.loaded ? 'Chưa có hàng dự kiến về.' : 'Đang tải...');
-      // Chỉ số + nhãn đếm theo ĐÚNG các dòng đang hiện (đã lọc Nguồn / Cont / Trạng thái và ô tìm kiếm).
+      // Nhãn đếm theo ĐÚNG các dòng đang hiện (đã lọc Nguồn / Cont / Trạng thái và ô tìm kiếm).
       const shown = filterTableItems(rows, TABLE_EXPLORER_CONFIGS.expectedArrivals, getTableSearchState('expectedArrivals')).items;
       document.getElementById('tagExpectedArrivals').textContent = expectedArrivals.loaded ? fmtNumber(shown.length) : '—';
       document.getElementById('expectedArrivalsUpdatedAt').textContent = formatProductReportUpdatedAt(expectedArrivals.computedAt);
-      renderSectionKpis('expectedArrivalsKpis', [
-        { label: 'Số cont', value: fmtNumber(new Set(shown.map(r => r.containerName)).size), accent: 'amber' },
-        { label: 'Số dòng hàng', value: fmtNumber(shown.length), accent: 'blue' },
-        { label: 'Tổng số lượng', value: fmtNumber(sumBy(shown, r => r.quantity)), accent: 'green' }
-      ]);
-      // Ô tìm kiếm chỉ vẽ lại bảng qua state.tableRenderers: đăng ký lại để chỉ số cũng đổi theo.
       state.tableRenderers.expectedArrivals = renderExpectedArrivals;
     }
 
@@ -8636,9 +8567,7 @@
           console.error('Không tải được bảng dự kiến hàng về:', err);
           if (!expectedArrivals.loaded) {
             document.getElementById('expectedArrivalsRows').innerHTML =
-              '<tr><td colspan="14" class="table-note">Không tải được bảng dự kiến hàng về.</td></tr>';
-            document.getElementById('expectedArrivalsSummaryRows').innerHTML =
-              '<tr><td colspan="3" class="table-note">Không tải được bảng dự kiến hàng về.</td></tr>';
+              '<tr><td colspan="13" class="table-note">Không tải được bảng dự kiến hàng về.</td></tr>';
           }
         }).finally(function () { expectedArrivals.loading = false; });
     }
@@ -8660,9 +8589,6 @@
         renderExpectedArrivals();
       });
     });
-
-    // Ô lọc trạng thái của bảng Tổng hợp CONT: chỉ vẽ lại phần tổng hợp, không đổi trang / chỉ số của bảng chi tiết.
-    document.getElementById('expectedArrivalsSummaryStatus').addEventListener('change', renderExpectedArrivalsSummary);
 
     // Bộ lọc đang áp trên bảng -> tham số URL cho API xuất riêng (danh sách trường + file dùng chung hộp thoại Xuất file).
     function expectedArrivalsExportQuery() {

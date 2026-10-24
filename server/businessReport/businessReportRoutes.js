@@ -143,21 +143,22 @@ function createBusinessReportRouter({ repository = createRepository(), customerP
         const local = levels[row.key];
         const canEdit = canView && (hasFeature(req.user, CUSTOMER_MANAGE) ||
           (meta.editors || []).some(e => String(e.userId) === String(req.user.id)));
+        const canEditPriceLevel = canView && hasFeature(req.user, CUSTOMER_MANAGE);
         const profile = !canView ? {} : exporting ? {
           ...meta, images:(meta.images || []).map(img => ({ ...img, url: new URL(img.url, `${req.protocol}://${req.get('host')}`).href }))
         } : { salesChannels:meta.salesChannels || [], warehouseScale:meta.warehouseScale || 'none',
           phone:meta.phone || '', address:meta.address || '' };
         return { ...row, ...profile, priceLevel:PRICE_LEVEL_LABELS[local.level],
-          priceLevelVersion:local.version, newCustomer:local.newCustomer || '', canEditPriceLevel:canEdit,
+          priceLevelVersion:local.version, newCustomer:local.newCustomer || '', canEditPriceLevel,
           ...(canView ? { lastVisit:meta.lastVisit || (meta.visitDays || []).slice(-1)[0] || '' } : {}) };
       });
     const newCustomerOptions = [...new Set(outRows.map(r => r.newCustomer).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'vi'));
     return { ...report, withLastVisit: canView, withCustomerProfile: canView, newCustomerOptions, rows: outRows };
   }
 
-  router.put('/customer-price-level', ...customerView, jsonBody, handle(async (req, res) => {
+  router.put('/customer-price-level', ...customerManage, jsonBody, handle(async (req, res) => {
     const body = req.body || {};
-    const customer = await editableCustomer(req, body.key);
+    const customer = await customerOf(body.key);
     const saved = Object.prototype.hasOwnProperty.call(body,'newCustomer')
       ? await customerPriceLevels.saveLevel(customer.key,body.level,body.version,actorOf(req.user),body.newCustomer)
       : await customerPriceLevels.saveLevel(customer.key,body.level,body.version,actorOf(req.user));

@@ -86,6 +86,10 @@ test('không còn mục Chỉ số then chốt đầu tab; mỗi mục con có h
     const sections = [...view(name).querySelectorAll(':scope > section.section')];
     assert.ok(!sectionTitles(name).some(s => s.title === 'Chỉ số then chốt'), name);
     sections.forEach((section, index) => {
+      if (section.id === 'expectedArrivalsSection') {
+        assert.equal(section.querySelector('.section-kpis'), null);
+        return;
+      }
       assert.ok(section.querySelector('.section-kpis'), name + ' muc ' + (index + 1) + ' thieu chi so then chot');
       const firstBlock = section.querySelector(':scope > .section-head').nextElementSibling;
       assert.ok(firstBlock.classList.contains('section-kpis'), name + ' muc ' + (index + 1) + ': chi so phai o dau muc');
