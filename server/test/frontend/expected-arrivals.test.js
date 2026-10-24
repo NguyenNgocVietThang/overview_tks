@@ -850,3 +850,177 @@ test('hop chi tiet: trang thai 4 va 5 cu da gop thanh "4.Da ve": dong con mang s
   assert.equal(tiles.length, 4);
   assert.equal(tiles[3][1], '250');
 });
+
+// ---- Khung chi so doc + bang tong hop theo CONT (truoc bang chi tiet) ----
+// 6 dong hang -> 4 CONT (gom theo sheetName + containerName): CONT 10-5H o 2 nguon cho ra 2 dong rieng.
+const SUMMARY_ROWS = [
+  row({ sheetName: 'YIWU', containerName: 'CONT 10-5H', statusLabel: '2. Đã bốc', status: 2, eta: '18-20/10', productCode: 'MCRY301', quantity: 240, sourceRow: 5 }),
+  row({ sheetName: 'YIWU', containerName: 'CONT 10-5H', statusLabel: '2. Đã bốc', status: 2, eta: '18-20/10', productCode: 'MCRY302', quantity: 60, sourceRow: 6 }),
+  row({ sheetName: 'YIWU', containerName: 'CONT 11-2A', statusLabel: '1. Chưa bốc', status: 1, eta: '05/11', productCode: 'QAT001', quantity: 1000, sourceRow: 12 }),
+  row({ sheetName: 'YIWU', containerName: 'CONT 11-2A', statusLabel: '1. Chưa bốc', status: 1, eta: '05/11', productCode: 'QAT002', quantity: 200, sourceRow: 13 }),
+  row({ sheetName: 'YIWU', containerName: 'CONT 09-1C', statusLabel: '3. Đã về kho', status: 3, eta: '', productCode: 'DEN200', quantity: 500, sourceRow: 20 }),
+  row({ sheetName: 'CONT TKS1', containerName: 'CONT 10-5H', statusLabel: '2. Đã bốc', status: 2, eta: '', productCode: 'MCRY303', quantity: 40, sourceRow: 7 })
+];
+const SUMMARY_SAMPLE = { ...SAMPLE, rows: SUMMARY_ROWS, meta: { ...SAMPLE.meta, rowCount: 6 } };
+const SUMMARY_KEY = 'dashboard-table-expected-arrivals-summary';
+const summaryTable = page => page.$('expectedArrivalsSummaryRows').closest('table');
+const summaryRows = page => [...page.$('expectedArrivalsSummaryRows').querySelectorAll('tr')].filter(tr => tr.cells.length > 1);
+const summaryTexts = page => summaryRows(page).map(cellTexts);
+const loaded = async options => {
+  const page = createPage(options);
+  page.run("switchView('products')");
+  await settle();
+  return page;
+};
+
+test('tong hop CONT: khung debt-key-frame ngay sau section-head, chi so doc ben trai, bang tong hop ben phai, dung truoc bang chi tiet', () => {
+  const page = createPage();
+  const section = page.$('expectedArrivalsSection');
+  const frame = section.querySelector(':scope > .section-head').nextElementSibling;
+  assert.ok(frame.classList.contains('debt-key-frame'));
+  assert.ok(frame.classList.contains('section-kpis'));
+  assert.equal(frame.children.length, 2);
+  assert.equal(frame.firstElementChild, page.$('expectedArrivalsKpis'));
+  assert.ok(page.$('expectedArrivalsKpis').classList.contains('debt-key-stack'));
+  assert.equal(frame.lastElementChild, page.$('expectedArrivalsSummaryPanel'));
+  assert.ok(page.$('expectedArrivalsSummaryPanel').classList.contains('panel'));
+  // Khung dung truoc bang chi tiet, va bang chi tiet khong nam trong khung.
+  const detailBody = page.$('expectedArrivalsRows');
+  assert.ok(frame.compareDocumentPosition(detailBody) & page.dom.window.Node.DOCUMENT_POSITION_FOLLOWING, 'khung truoc bang chi tiet');
+  assert.equal(frame.contains(detailBody), false);
+  assert.equal(frame.contains(page.$('expectedArrivalsContainer')), false, 'o loc chi tiet van nam o bang chi tiet');
+  // Cot chi so khong con la luoi kpi-grid ngang.
+  assert.equal(page.$('expectedArrivalsKpis').classList.contains('kpi-grid'), false);
+});
+
+test('tong hop CONT: bang 3 cot dung thu tu + data-column-key, key bang rieng, khong o tim kiem, o loc trang thai co tuy chon tu may chu', async () => {
+  const page = await loaded();
+  const table = summaryTable(page);
+  assert.equal(table.dataset.tableKey, SUMMARY_KEY);
+  assert.notEqual(table, page.$('expectedArrivalsRows').closest('table'));
+  const ths = [...table.querySelectorAll('thead th')];
+  assert.deepEqual(ths.map(th => th.textContent.replace(/[▲▼]/g, '').trim()), ['Tên CONT', 'Trạng thái', 'Dự kiến']);
+  assert.deepEqual(ths.map(th => th.dataset.columnKey), ['ten-cont', 'trang-thai', 'du-kien']);
+  assert.equal(table.querySelector('tbody').id, 'expectedArrivalsSummaryRows');
+
+  const panel = page.$('expectedArrivalsSummaryPanel');
+  assert.equal(panel.querySelector('[data-table-search]'), null, 'bang tong hop khong co o tim kiem');
+  assert.equal(panel.querySelector('input[type="search"]'), null);
+  const select = page.$('expectedArrivalsSummaryStatus');
+  assert.equal(select.tagName, 'SELECT');
+  assert.ok(panel.contains(select));
+  assert.deepEqual([...select.options].map(o => o.value), ['', '1. Chưa bốc', '2. Đã bốc', '3. Đã về kho']);
+  assert.equal(select.options[0].textContent, 'Tất cả trạng thái');
+  assert.ok(panel.contains(page.$('tagExpectedArrivalsSummary')));
+  // Khong dang ky them TABLE_EXPLORER_CONFIGS cho bang tong hop.
+  assert.equal(page.dom.window.TABLE_EXPLORER_CONFIGS.expectedArrivalsSummary, undefined);
+});
+
+test('tong hop CONT: moi CONT dung 1 dong 3 o (gom theo nguon + ten cont), Du kien trong hien "—", tag dem so CONT', async () => {
+  const page = await loaded({ respond: SUMMARY_SAMPLE });
+  assert.equal(bodyRows(page).length, 6, 'bang chi tiet van du 6 dong hang');
+  const rows = summaryTexts(page);
+  assert.equal(rows.length, 4);
+  rows.forEach(r => assert.equal(r.length, 3));
+  assert.deepEqual(rows.map(r => r.join('|')).sort(), [
+    'CONT 09-1C|3. Đã về kho|—',
+    'CONT 10-5H|2. Đã bốc|18-20/10',
+    'CONT 10-5H|2. Đã bốc|—',
+    'CONT 11-2A|1. Chưa bốc|05/11'
+  ].sort());
+  assert.equal(page.$('tagExpectedArrivalsSummary').textContent.trim(), '4');
+  // Khong lap CONT cung nguon: 2 dong hang CONT 11-2A chi ra 1 dong.
+  assert.equal(rows.filter(r => r[0] === 'CONT 11-2A').length, 1);
+  assert.equal(rows.filter(r => r[0] === 'CONT 10-5H').length, 2);
+});
+
+test('tong hop CONT: du lieu mau chung (4 dong, 4 CONT theo nguon) va ten CONT bi escape', async () => {
+  const page = await loaded();
+  assert.equal(summaryRows(page).length, 4);
+  assert.equal(page.$('tagExpectedArrivalsSummary').textContent.trim(), '4');
+  const evil = '<img src=x onerror="alert(1)">';
+  const xss = await loaded({ respond: { ...SAMPLE, rows: [row({ containerName: evil, statusLabel: '<b>x</b>' })] } });
+  const tr = summaryRows(xss)[0];
+  assert.equal(tr.querySelector('img'), null);
+  assert.equal(tr.querySelector('b'), null);
+  assert.equal(tr.cells[0].textContent.trim(), evil);
+});
+
+test('tong hop CONT: loc trang thai chi con CONT dung trang thai, tag cap nhat, "Tat ca" khoi phuc', async () => {
+  const page = await loaded({ respond: SUMMARY_SAMPLE });
+  setSelect(page, 'expectedArrivalsSummaryStatus', '2. Đã bốc');
+  let rows = summaryTexts(page);
+  assert.equal(rows.length, 2);
+  rows.forEach(r => assert.equal(r[1], '2. Đã bốc'));
+  assert.equal(page.$('tagExpectedArrivalsSummary').textContent.trim(), '2');
+
+  setSelect(page, 'expectedArrivalsSummaryStatus', '1. Chưa bốc');
+  rows = summaryTexts(page);
+  assert.deepEqual(rows, [['CONT 11-2A', '1. Chưa bốc', '05/11']]);
+  assert.equal(page.$('tagExpectedArrivalsSummary').textContent.trim(), '1');
+
+  setSelect(page, 'expectedArrivalsSummaryStatus', '');
+  assert.equal(summaryRows(page).length, 4);
+  assert.equal(page.$('tagExpectedArrivalsSummary').textContent.trim(), '4');
+});
+
+test('tong hop CONT: bo loc tong hop doc lap voi bo loc chi tiet (hai chieu), chi so van theo bang chi tiet', async () => {
+  const page = await loaded({ respond: SUMMARY_SAMPLE });
+  const kpisBefore = cardsOf(page, 'expectedArrivalsKpis');
+  assert.deepEqual(kpisBefore, [['Số cont', '3'], ['Số dòng hàng', '6'], ['Tổng số lượng', '2,040']]);
+
+  // Doi loc tong hop: bang chi tiet, chi so, tag chi tiet khong doi.
+  setSelect(page, 'expectedArrivalsSummaryStatus', '3. Đã về kho');
+  assert.equal(summaryRows(page).length, 1);
+  assert.equal(bodyRows(page).length, 6);
+  assert.deepEqual(cardsOf(page, 'expectedArrivalsKpis'), kpisBefore);
+  assert.equal(page.$('tagExpectedArrivals').textContent, '6');
+  assert.equal(page.$('expectedArrivalsStatus').value, '');
+  assert.equal(page.$('expectedArrivalsContainer').value, '');
+
+  // Doi loc chi tiet (Cont / Trang thai): bang tong hop va tag tong hop khong doi.
+  setSelect(page, 'expectedArrivalsStatus', '1. Chưa bốc');
+  assert.equal(bodyRows(page).length, 2);
+  assert.deepEqual(cardsOf(page, 'expectedArrivalsKpis'), [['Số cont', '1'], ['Số dòng hàng', '2'], ['Tổng số lượng', '1,200']]);
+  assert.deepEqual(summaryTexts(page), [['CONT 09-1C', '3. Đã về kho', '—']]);
+  assert.equal(page.$('tagExpectedArrivalsSummary').textContent.trim(), '1');
+  assert.equal(page.$('expectedArrivalsSummaryStatus').value, '3. Đã về kho');
+
+  setSelect(page, 'expectedArrivalsStatus', '');
+  setSelect(page, 'expectedArrivalsContainer', 'CONT 10-5H');
+  assert.equal(bodyRows(page).length, 3);
+  assert.deepEqual(summaryTexts(page), [['CONT 09-1C', '3. Đã về kho', '—']]);
+
+  // Tim kiem bang chi tiet cung khong dong vao bang tong hop.
+  page.run("Object.assign(getTableSearchState('expectedArrivals'), {mode: 'normal', query: 'khongcogi'}); renderExpectedArrivals()");
+  assert.equal(bodyRows(page).length, 0);
+  assert.equal(summaryRows(page).length, 1);
+  assert.equal(page.$('expectedArrivalsSummaryStatus').value, '3. Đã về kho', 'lua chon giu nguyen sau khi ve lai');
+});
+
+test('tong hop CONT: bam tieu de cot Ten CONT sap xep tang roi giam, khong mat dong', async () => {
+  const page = await loaded({ respond: SUMMARY_SAMPLE });
+  const sort = summaryTable(page).querySelector('thead th[data-column-key="ten-cont"] .sort-button');
+  assert.ok(sort, 'tieu de co nut sap xep');
+  sort.click();
+  assert.deepEqual(summaryTexts(page).map(r => r[0]), ['CONT 09-1C', 'CONT 10-5H', 'CONT 10-5H', 'CONT 11-2A']);
+  sort.click();
+  assert.deepEqual(summaryTexts(page).map(r => r[0]), ['CONT 11-2A', 'CONT 10-5H', 'CONT 10-5H', 'CONT 09-1C']);
+});
+
+test('tong hop CONT: dang tai / rong / loi -> khong co dong du lieu, khong nem loi, loi chi tiet van hien', async () => {
+  const loading = createPage();
+  assert.equal(summaryRows(loading).length, 0);
+  loading.run('renderExpectedArrivals()');
+  assert.equal(summaryRows(loading).length, 0);
+
+  const empty = await loaded({ respond: { ...SAMPLE, rows: [], filters: { containers: [], statuses: [] } } });
+  assert.equal(summaryRows(empty).length, 0);
+  assert.match(empty.$('expectedArrivalsSummaryRows').textContent, /Chưa có CONT/);
+  assert.equal(empty.$('tagExpectedArrivalsSummary').textContent.trim(), '0');
+  assert.deepEqual([...empty.$('expectedArrivalsSummaryStatus').options].map(o => o.value), ['']);
+
+  const error = await loaded({ respond: new Error('fixture error') });
+  assert.equal(summaryRows(error).length, 0);
+  assert.match(error.$('expectedArrivalsRows').textContent, /Không tải được bảng dự kiến hàng về/);
+});

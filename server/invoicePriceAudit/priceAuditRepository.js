@@ -104,11 +104,13 @@ function regionInput(found, productId, description) {
     vatPerUnit: note.vatPerUnit, updatedLabel: note.updatedLabel };
 }
 
-// Gia duyet (bang invoice_approved_prices, migration 0091): chua migrate -> coi nhu chua co gia duyet (khong vo job).
-// to_regclass thay vi bat loi 42P01 vi loi trong giao dich se lam huy ca giao dich.
-const APPROVED_READY_SQL = "SELECT to_regclass('invoice_approved_prices') IS NOT NULL AS ok";
+// Gia duyet (bang invoice_approved_prices, migration 0091 + 0092 tach gia khong VAT / co VAT): chua migrate -> coi nhu chua co
+// gia duyet (khong vo job). Kiem tra cot price_no_vat bang information_schema thay vi bat loi 42P01/42703 vi loi trong
+// giao dich se lam huy ca giao dich.
+const APPROVED_READY_SQL = `SELECT EXISTS (SELECT 1 FROM information_schema.columns
+  WHERE table_schema = current_schema() AND table_name = 'invoice_approved_prices' AND column_name = 'price_no_vat') AS ok`;
 const APPROVED_PRICES_SQL = `SELECT branch, customer_id::text AS customer_id, product_id::text AS product_id,
-  approved_price::text AS approved_price, approved_on::text AS approved_on
+  price_no_vat::text AS price_no_vat, price_with_vat::text AS price_with_vat, approved_on::text AS approved_on
   FROM invoice_approved_prices ORDER BY approved_on DESC, id DESC`;
 
 /** Map "co so:khach:san pham" -> cac ban ghi, ngay duyet moi nhat truoc. */
@@ -123,11 +125,19 @@ async function readApprovedPrices(client) {
   return map;
 }
 
-/** Ban ghi moi nhat co ngay duyet <= ngay ban cua hoa don (khach le/khong co khach: khong khop). */
-function pickApprovedPrice(map, branch, customerId, productId, soldDay) {
+/**
+ * Gia duyet ap cho dong hoa don (khach le/khong co khach: khong khop). Hoa don Full VAT dung gia CO VAT, hoa don khong Full VAT
+ * dung gia KHONG VAT. Moi loai gia xet rieng: lay ban ghi MOI NHAT co ngay duyet <= ngay ban VA co nhap loai gia do; ban ghi
+ * moi hon de trong loai gia can dung thi bo qua (xet ban cu hon); khong ban nao co loai gia do -> khong ap gia duyet.
+ * Tra { approved_price, approved_on, approved_kind: 'vat' | 'no_vat' } hoac null.
+ */
+function pickApprovedPrice(map, branch, customerId, productId, soldDay, fullVat) {
   if (!customerId || !productId) return null;
   const list = map.get(`${branch}:${customerId}:${productId}`);
-  return list ? list.find(r => r.approved_on <= soldDay) || null : null;
+  if (!list) return null;
+  const field = fullVat ? 'price_with_vat' : 'price_no_vat';
+  const hit = list.find(r => r.approved_on <= soldDay && r[field] != null);
+  return hit ? { approved_price: hit[field], approved_on: hit.approved_on, approved_kind: fullVat ? 'vat' : 'no_vat' } : null;
 }
 
 async function assertMeasuresReady(client) {
@@ -236,7 +246,8 @@ async function buildCaptureInputs({ day, client, now, includeSeen, who, scope = 
       // Chi dong SL duong; so dong = vi tri trong hoa don nguon (1..n), giu ca khi bo dong SL <= 0.
       if (!(Number(l.quantity) > 0)) return;
       if (scope && String(l.product_id) !== String(scope.productId)) return;
-      const approved = pickApprovedPrice(approvedPrices, inv.branch, inv.customer_id, l.product_id, inv.sold_day);
+      const fullVat = hasFullVat(l.line_note, inv.invoice_note);
+      const approved = pickApprovedPrice(approvedPrices, inv.branch, inv.customer_id, l.product_id, inv.sold_day, fullVat);
       const code = l.raw_code || l.product_code;
       const name = l.raw_name || l.product_name;
       const own = regionInput(l.product_found, l.product_id, l.description);
@@ -248,14 +259,15 @@ async function buildCaptureInputs({ day, client, now, includeSeen, who, scope = 
         customer_email: inv.customer_email, customer_level: S.LEVEL_LABELS[level], level_position: S.LEVEL_POSITIONS[level],
         sale_name: inv.sale_name, product_code: code, code_key: codeKey(code), product_name: name,
         quantity: l.quantity, original_unit_price: l.price, unit_discount: l.discount,
-        full_vat: hasFullVat(l.line_note, inv.invoice_note),
+        full_vat: fullVat,
         freight_eligible: freightEligible, freight: freightEligible ? (freightByKey.get(codeKey(code)) ?? null) : null,
         hn: inv.branch === 'hanoi' ? own : null,
         sg: inv.branch === 'saigon' ? own : (freightEligible ? regionInput(Boolean(sg), sg && sg.product_id, sg && sg.description) : null),
         product_note_hn: inv.branch === 'hanoi' ? l.description : '',
         product_note_sg: inv.branch === 'saigon' ? l.description : (sg ? sg.description : ''),
         line_note: l.line_note, invoice_note: inv.invoice_note, captured_at: capturedAt,
-        approved_price: approved ? approved.approved_price : null, approved_on: approved ? approved.approved_on : null
+        approved_price: approved ? approved.approved_price : null, approved_on: approved ? approved.approved_on : null,
+        approved_kind: approved ? approved.approved_kind : null
       });
     });
   }

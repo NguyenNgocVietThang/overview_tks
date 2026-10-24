@@ -1,17 +1,17 @@
 /* Tab Hóa đơn — mục 2 "Bảng giá duyệt" (API /api/invoice-approved-prices).
    Giá Quản lý đã duyệt riêng cho (cơ sở, khách, mã hàng): khi Kiểm tra giá bán tính sai giá, giá duyệt THAY giá min của hóa đơn
-   có ngày bán ≥ Ngày duyệt. Xem theo reports.invoices.priceAudit; Tạo / Sửa / Xóa theo reports.invoices.priceAudit.approvedPrice.
+   có ngày bán ≥ Ngày duyệt. Xem theo reports.invoices.approvedPrice (mặc định chỉ Quản lý, ẩn với người khác); Tạo / Sửa / Xóa theo reports.invoices.approvedPrice.manage.
    Lọc (Người duyệt, Ngày duyệt Từ–Đến), sắp xếp mọi cột và phân trang đều ở máy chủ; Xuất Excel đúng tập đang lọc + thứ tự sort.
    Khách / mã SP chỉ chọn được từ gợi ý KiotViet của cơ sở (lưu theo id nên Kiot đổi tên thì bảng tự cập nhật). */
 (function () {
   'use strict';
 
   const API = '/api/invoice-approved-prices';
-  const FEATURE_VIEW = 'reports.invoices.priceAudit';
-  const FEATURE_MANAGE = 'reports.invoices.priceAudit.approvedPrice';
+  const FEATURE_VIEW = 'reports.invoices.approvedPrice';
+  const FEATURE_MANAGE = 'reports.invoices.approvedPrice.manage';
   const APPROVERS = ['Anh Quân', 'Anh Duy', 'Anh Duy Khánh'];
   const BRANCHES = [['hanoi', 'Hà Nội'], ['saigon', 'Sài Gòn']];
-  const COLUMN_COUNT = 8;
+  const COLUMN_COUNT = 9;
 
   const state = {
     data: null, error: '', loading: false, seq: 0, loadedAt: 0, initialized: false,
@@ -24,6 +24,8 @@
   const NUMBER = new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 });
   const isBlank = v => v === null || v === undefined || v === '';
   const fmtPrice = v => (isBlank(v) || !Number.isFinite(Number(v)) ? '—' : NUMBER.format(Number(v)));
+  // Nhãn giá cho hộp xác nhận xóa: chỉ in giá đã nhập ("không VAT 23,000 · có VAT 25,000").
+  const pricesLabel = r => [!isBlank(r.priceNoVat) ? 'không VAT ' + fmtPrice(r.priceNoVat) : '', !isBlank(r.priceWithVat) ? 'có VAT ' + fmtPrice(r.priceWithVat) : ''].filter(Boolean).join(' · ') || '—';
   const fmtDay = v => { const m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3] + '/' + m[2] + '/' + m[1] : (v ? String(v) : '—'); };
   const todayVn = () => new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
   const toast = (message, type) => { if (typeof window.showToast === 'function') window.showToast(message, type); };
@@ -67,7 +69,8 @@
       '<td>' + escape(r.branchLabel) + '</td>' +
       '<td class="mono">' + escape(r.productCode || '—') + '</td>' +
       '<td class="name-cell price-audit-wrap">' + escape(r.productName || '—') + '</td>' +
-      '<td class="mono col-num">' + escape(fmtPrice(r.approvedPrice)) + '</td>' +
+      '<td class="mono col-num' + (isBlank(r.priceNoVat) ? ' muted' : '') + '">' + escape(fmtPrice(r.priceNoVat)) + '</td>' +
+      '<td class="mono col-num' + (isBlank(r.priceWithVat) ? ' muted' : '') + '">' + escape(fmtPrice(r.priceWithVat)) + '</td>' +
       '<td>' + escape(r.approver) + '</td>' +
       '<td class="mono">' + escape(fmtDay(r.approvedOn)) + '</td>' +
       '<td>' + actions + '</td></tr>';
@@ -280,41 +283,49 @@
     return picker;
   }
 
-  function fieldHtml(id, label, control, hint) {
-    return '<div class="approved-price-field" id="' + id + 'Field"><label for="' + id + '">' + escape(label) + '</label>' + control +
-      (hint ? '<p class="approved-price-hint">' + escape(hint) + '</p>' : '') + '</div>';
+  // Form Tạo / Sửa dùng cùng khung với form Thêm nhân sự (HR) và Tài khoản: .modal-overlay > .modal-box > header (tiêu đề + ✕)
+  // > lưới 2 cột (.form-group + .form-control) > chân có nền riêng chứa nút. KHÔNG dùng <dialog>.showModal(): lớp "top layer"
+  // của nó che mất lịch chọn ngày của dateInput.js (gắn vào <body>), nên dùng lớp phủ thường như các form kia.
+  function fieldHtml(id, label, control, opts) {
+    const o = opts || {};
+    return '<div class="form-group ap-field' + (o.wide ? ' ap-wide' : '') + '" id="' + id + 'Field"><label for="' + id + '">' + escape(label) + '</label>' + control +
+      (o.hint ? '<small class="ap-hint">' + escape(o.hint) + '</small>' : '') + '</div>';
   }
-  const pickerControl = (id, placeholder) => '<input id="' + id + '" type="text" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="' + id + 'List" placeholder="' + escape(placeholder) + '" maxlength="100">' +
+  const pickerControl = (id, placeholder) => '<input class="form-control" id="' + id + '" type="text" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="' + id + 'List" placeholder="' + escape(placeholder) + '" maxlength="100">' +
     '<ul class="approved-price-suggest" id="' + id + 'List" role="listbox" hidden></ul>';
+
+  const priceControl = (id, value) => '<input class="form-control" id="' + id + '" type="number" inputmode="decimal" min="0" step="any" placeholder="Để trống nếu không áp" value="' + escape(isBlank(value) ? '' : value) + '">';
 
   function openEditor(row) {
     if (!canManage()) return;
-    let dialog = $('approvedPriceDialog');
-    if (dialog) dialog.remove();
-    dialog = document.createElement('dialog');
+    const old = $('approvedPriceDialog');
+    if (old) old.remove();
+    const opener = document.activeElement;
+    const dialog = document.createElement('div');
     dialog.id = 'approvedPriceDialog';
-    dialog.className = 'approved-price-dialog';
-    dialog.setAttribute('aria-labelledby', 'approvedPriceDialogTitle');
+    dialog.className = 'ap-overlay';
     const approvers = (state.data && state.data.options && state.data.options.approvers) || APPROVERS;
     const approverOptions = ['<option value="">Chọn người duyệt</option>'].concat(approvers.map(a => '<option value="' + escape(a) + '"' + (row && row.approver === a ? ' selected' : '') + '>' + escape(a) + '</option>')).join('');
     const branchOptions = BRANCHES.map(b => '<option value="' + b[0] + '"' + ((row ? row.branch : 'hanoi') === b[0] ? ' selected' : '') + '>' + b[1] + '</option>').join('');
     dialog.innerHTML =
-      '<div class="approved-price-dialog-head"><h2 id="approvedPriceDialogTitle">' + (row ? 'Sửa bản ghi giá duyệt' : 'Tạo bản ghi giá duyệt') + '</h2>' +
-      '<button type="button" class="btn-secondary price-audit-btn" data-close aria-label="Đóng">Đóng</button></div>' +
-      '<div class="approved-price-dialog-body"><form class="approved-price-form" novalidate>' +
-      fieldHtml('apBranch', 'Cơ sở', '<select id="apBranch">' + branchOptions + '</select>') +
-      fieldHtml('apCustomer', 'Khách hàng', pickerControl('apCustomer', 'Gõ tên hoặc mã khách trên KiotViet'), 'Chọn từ danh sách gợi ý của cơ sở này.') +
-      fieldHtml('apProductCode', 'Mã SP', pickerControl('apProductCode', 'Gõ mã hoặc tên sản phẩm')) +
-      fieldHtml('apProductName', 'Tên SP', '<input id="apProductName" type="text" readonly tabindex="-1" placeholder="Tự điền theo mã SP trên KiotViet">') +
-      fieldHtml('apPrice', 'Giá duyệt', '<input id="apPrice" type="number" inputmode="decimal" min="0" step="any" placeholder="Đơn giá / chiếc" value="' + escape(row ? row.approvedPrice : '') + '">', 'Thay giá min khi kiểm tra giá; coi là giá cuối đã gồm VAT / cước.') +
-      fieldHtml('apApprover', 'Người duyệt', '<select id="apApprover">' + approverOptions + '</select>') +
-      fieldHtml('apDate', 'Ngày duyệt', '<input id="apDate" type="date" value="' + escape(row ? row.approvedOn : todayVn()) + '">', 'Chỉ áp cho hóa đơn có ngày bán từ ngày này trở đi.') +
-      '<p class="approved-price-error" id="apError" role="alert"></p>' +
-      '<div class="approved-price-form-actions"><button type="button" class="btn-secondary price-audit-btn" data-close>Hủy</button>' +
-      '<button type="submit" class="btn-primary price-audit-btn" id="apSubmit">' + (row ? 'Lưu thay đổi' : 'Tạo bản ghi') + '</button></div>' +
-      '</form></div>';
+      '<div class="ap-box" role="dialog" aria-modal="true" aria-labelledby="approvedPriceDialogTitle">' +
+      '<div class="ap-header"><h3 id="approvedPriceDialogTitle">' + (row ? 'Sửa bản ghi giá duyệt' : 'Tạo bản ghi giá duyệt') + '</h3>' +
+      '<button type="button" class="ap-close" data-close aria-label="Đóng" title="Đóng">✕</button></div>' +
+      '<form novalidate><div class="ap-body">' +
+      fieldHtml('apBranch', 'Cơ sở *', '<select class="form-control" id="apBranch">' + branchOptions + '</select>') +
+      fieldHtml('apDate', 'Ngày duyệt *', '<input class="form-control" id="apDate" type="date" value="' + escape(row ? row.approvedOn : todayVn()) + '">') +
+      fieldHtml('apCustomer', 'Khách hàng *', pickerControl('apCustomer', 'Gõ tên hoặc mã khách trên KiotViet'), { wide: true, hint: 'Chọn từ danh sách gợi ý của cơ sở này; khách phải có trên KiotViet.' }) +
+      fieldHtml('apProductCode', 'Mã SP *', pickerControl('apProductCode', 'Gõ mã hoặc tên sản phẩm')) +
+      fieldHtml('apProductName', 'Tên SP', '<input class="form-control" id="apProductName" type="text" readonly tabindex="-1" placeholder="Tự điền theo mã SP trên KiotViet">') +
+      fieldHtml('apPriceNoVat', 'Giá không VAT (₫/chiếc)', priceControl('apPriceNoVat', row && row.priceNoVat)) +
+      fieldHtml('apPriceWithVat', 'Giá có VAT (₫/chiếc)', priceControl('apPriceWithVat', row && row.priceWithVat)) +
+      '<small class="ap-hint ap-wide" id="apPriceHint">Nhập ít nhất 1 trong 2 giá. Hóa đơn Full VAT dùng giá có VAT, hóa đơn không VAT dùng giá không VAT; loại để trống thì không áp giá duyệt cho loại hóa đơn đó. Là giá cuối/chiếc.</small>' +
+      fieldHtml('apApprover', 'Người duyệt *', '<select class="form-control" id="apApprover">' + approverOptions + '</select>', { hint: 'Giá duyệt chỉ áp cho hóa đơn có ngày bán từ ngày duyệt trở đi.' }) +
+      '<div class="ap-error ap-wide" id="apError" role="alert" hidden></div>' +
+      '</div><div class="ap-footer"><button type="button" class="btn-secondary" data-close>Hủy</button>' +
+      '<button type="submit" class="btn-primary" id="apSubmit">' + (row ? 'Lưu thay đổi' : 'Tạo bản ghi') + '</button></div></form></div>';
     document.body.appendChild(dialog);
-    // Ô ngày hiển thị dd/mm/yyyy như mọi trang (dateInput.js; value vẫn là ISO yyyy-mm-dd).
+    // Ô ngày hiển thị dd/mm/yyyy + lịch chọn ngày như mọi form khác (dateInput.js; value vẫn là ISO yyyy-mm-dd).
     if (window.TKSDateInput && typeof window.TKSDateInput.enhanceAll === 'function') window.TKSDateInput.enhanceAll(dialog);
     const q = id => dialog.querySelector('#' + id);
     const branchSel = q('apBranch');
@@ -331,24 +342,36 @@
     }
     // Đổi cơ sở: khách / SP của cơ sở cũ không còn hợp lệ → xóa lựa chọn.
     branchSel.addEventListener('change', () => { customer.reset(); productPicker.reset(); productName.value = ''; });
-    dialog.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => dialog.close()));
-    dialog.addEventListener('close', () => dialog.remove());
+
+    const onKey = event => { if (event.key === 'Escape') close(); };
+    function close() {
+      document.removeEventListener('keydown', onKey);
+      dialog.remove();
+      if (opener && typeof opener.focus === 'function' && document.contains(opener)) opener.focus();
+    }
+    dialog.close = close;
+    document.addEventListener('keydown', onKey);
+    dialog.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', close));
 
     const err = q('apError');
     const submit = q('apSubmit');
+    const showError = message => { err.textContent = message; err.hidden = !message; };
     dialog.querySelector('form').addEventListener('submit', async event => {
       event.preventDefault();
-      err.textContent = '';
-      const price = q('apPrice').value.trim();
+      showError('');
+      const noVat = q('apPriceNoVat').value.trim();
+      const withVat = q('apPriceWithVat').value.trim();
       const body = {
         branch: branchSel.value, customerId: customer.id, productId: productPicker.id,
-        approvedPrice: price, approver: q('apApprover').value, approvedOn: q('apDate').value
+        priceNoVat: noVat || null, priceWithVat: withVat || null, approver: q('apApprover').value, approvedOn: q('apDate').value
       };
-      if (!customer.id) { err.textContent = 'Chọn khách hàng từ danh sách gợi ý (khách phải có trên KiotViet).'; q('apCustomer').focus(); return; }
-      if (!productPicker.id) { err.textContent = 'Chọn mã SP từ danh sách gợi ý (mã phải có trên KiotViet).'; q('apProductCode').focus(); return; }
-      if (!price || !(Number(price) > 0)) { err.textContent = 'Nhập giá duyệt lớn hơn 0.'; q('apPrice').focus(); return; }
-      if (!body.approver) { err.textContent = 'Chọn người duyệt.'; q('apApprover').focus(); return; }
-      if (!body.approvedOn) { err.textContent = 'Chọn ngày duyệt.'; q('apDate').focus(); return; }
+      if (!customer.id) { showError('Chọn khách hàng từ danh sách gợi ý (khách phải có trên KiotViet).'); q('apCustomer').focus(); return; }
+      if (!productPicker.id) { showError('Chọn mã SP từ danh sách gợi ý (mã phải có trên KiotViet).'); q('apProductCode').focus(); return; }
+      if (!noVat && !withVat) { showError('Nhập ít nhất một trong hai giá (không VAT / có VAT).'); q('apPriceNoVat').focus(); return; }
+      if (noVat && !(Number(noVat) > 0)) { showError('Giá phải lớn hơn 0.'); q('apPriceNoVat').focus(); return; }
+      if (withVat && !(Number(withVat) > 0)) { showError('Giá phải lớn hơn 0.'); q('apPriceWithVat').focus(); return; }
+      if (!body.approver) { showError('Chọn người duyệt.'); q('apApprover').focus(); return; }
+      if (!body.approvedOn) { showError('Chọn ngày duyệt (dd/mm/yyyy).'); q('apDate').focus(); return; }
       if (row) body.expectedVersion = row.version;
       submit.disabled = true;
       submit.textContent = 'Đang lưu…';
@@ -357,20 +380,19 @@
           method: row ? 'PUT' : 'POST', credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
         }));
-        dialog.close();
+        close();
         toast((row ? 'Đã lưu bản ghi giá duyệt.' : 'Đã tạo bản ghi giá duyệt.') + recalcMessage(out.recalc), 'success');
         afterWrite(out.recalc);
       } catch (e) {
-        err.textContent = e.status === 409 && e.body && e.body.code === 'VERSION_CONFLICT'
+        showError(e.status === 409 && e.body && e.body.code === 'VERSION_CONFLICT'
           ? 'Bản ghi vừa được người khác cập nhật. Hãy đóng hộp này và mở lại để xem bản mới nhất.'
-          : (e.message || 'Không lưu được bản ghi.');
+          : (e.message || 'Không lưu được bản ghi.'));
         if (e.status === 409) fetchPage();
         submit.disabled = false;
         submit.textContent = row ? 'Lưu thay đổi' : 'Tạo bản ghi';
       }
     });
-    dialog.showModal();
-    q(row ? 'apPrice' : 'apCustomer').focus();
+    q(row ? 'apPriceNoVat' : 'apCustomer').focus();
   }
 
   // Sau khi ghi: nạp lại bảng này, và bảng Kiểm tra giá bán nếu đã tính lại các dòng của nó.
@@ -381,7 +403,7 @@
 
   async function remove(row) {
     if (!canManage()) return;
-    const label = (row.customerName || '(khách không còn trên KiotViet)') + ' · ' + (row.productCode || '—') + ' · ' + fmtPrice(row.approvedPrice) + ' · ' + fmtDay(row.approvedOn);
+    const label = (row.customerName || '(khách không còn trên KiotViet)') + ' · ' + (row.productCode || '—') + ' · ' + pricesLabel(row) + ' · ' + fmtDay(row.approvedOn);
     if (!window.confirm('Xóa bản ghi giá duyệt?\n' + label + '\n\nCác dòng Kiểm tra giá bán liên quan sẽ được tính lại theo giá min thông thường.')) return;
     try {
       const out = await readJson(await fetch(API + '/' + encodeURIComponent(row.id) + '?expectedVersion=' + encodeURIComponent(row.version), { method: 'DELETE', credentials: 'same-origin' }));
@@ -437,9 +459,9 @@
   function load(force) {
     const section = $('approvedPriceSection');
     if (!section) return Promise.resolve();
-    const allowed = can(FEATURE_VIEW);
-    section.hidden = !allowed;
-    if (!allowed) return Promise.resolve();
+    // Không có quyền xem: GỠ HẲN mục khỏi trang (không chỉ ẩn) — bảng này chỉ Quản lý thấy theo mặc định.
+    if (!can(FEATURE_VIEW)) { section.remove(); return Promise.resolve(); }
+    section.hidden = false;
     init();
     if (!force && (state.loading || Date.now() - state.loadedAt < 60000)) return Promise.resolve();
     return fetchPage();

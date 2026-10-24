@@ -67,8 +67,10 @@ const FEATURES = Object.freeze([
   { key: 'reports.invoices.priceAudit', groupKey: 'reports', label: 'Hóa đơn: xem Kiểm tra giá bán (cần Hóa đơn)', roles: REPORT_VIEW_ROLES, requires: 'reports.invoices' },
   { key: 'reports.invoices.priceAudit.explain', groupKey: 'reports', label: 'Kiểm tra giá bán: điền / sửa Sale giải thích trên mọi hóa đơn (cần Kiểm tra giá bán)', roles: [ROLES.NHAN_VIEN_SALE], requires: 'reports.invoices.priceAudit', escalationExempt: true },
   { key: 'reports.invoices.priceAudit.decide', groupKey: 'reports', label: 'Kiểm tra giá bán: Chốt Ok / Phạt (cần Kiểm tra giá bán)', roles: MANAGER_ONLY, requires: 'reports.invoices.priceAudit' },
-  // 2026-10-24: Bang Gia duyet (tao / sua / xoa) ap thay gia toi thieu khi kiem tra gia; xem theo quyen Kiem tra gia ban.
-  { key: 'reports.invoices.priceAudit.approvedPrice', groupKey: 'reports', label: 'Kiểm tra giá bán: tạo / sửa / xóa Giá duyệt (cần Kiểm tra giá bán)', roles: MANAGER_ONLY, requires: 'reports.invoices.priceAudit' },
+  // 2026-10-24: Bang Gia duyet (ap thay gia toi thieu khi kiem tra gia). Bang nay NHAY CAM nen xem cung la quyen rieng:
+  // mac dinh chi Quan ly (Tro ly / Sale khong thay muc nay neu khong duoc cap); tao / sua / xoa can them quyen .manage.
+  { key: 'reports.invoices.approvedPrice', groupKey: 'reports', label: 'Hóa đơn: xem Bảng giá duyệt (cần Hóa đơn)', roles: MANAGER_ONLY, requires: 'reports.invoices' },
+  { key: 'reports.invoices.approvedPrice.manage', groupKey: 'reports', label: 'Bảng giá duyệt: tạo / sửa / xóa (cần xem Bảng giá duyệt)', roles: MANAGER_ONLY, requires: 'reports.invoices.approvedPrice' },
   // 2026-10-07: Bao cao kinh doanh (tang truong Sale/Khach/Ma hang theo thang). Spec:
   // docs/superpowers/specs/2026-10-07-business-report-design.md.
   // 2026-10-16: tab nay thay tab Khach hang cu (da go, quyen reports.customers bo) nen hien ten "Khách hàng";

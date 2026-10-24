@@ -4,9 +4,9 @@
 
 `0093_notifications.sql` tạo bảng `notifications`: `id UUID PRIMARY KEY` (server sinh), `seq BIGINT GENERATED ALWAYS AS IDENTITY` (thứ tự chèn, phân xử trùng `created_at`), `recipient_user_id TEXT NOT NULL` (= `app_users.id`, không FK vì admin cứng không có UUID), `type TEXT NOT NULL` (khác rỗng), `title`, `message` (`TEXT NOT NULL DEFAULT ''`), `related_type`, `related_id` (TEXT, NULL được), `is_read BOOLEAN NOT NULL DEFAULT false`, `created_at TIMESTAMPTZ NOT NULL DEFAULT now()`. Index `(recipient_user_id, created_at DESC, seq DESC)` và index một phần `(recipient_user_id) WHERE NOT is_read`. Thu hồi quyền `reporting_readonly`. Thay cho file `data/notifications.json` (mất mỗi lần deploy Render); dữ liệu cũ không chuyển.
 
-## Migration 0091 — Bảng giá duyệt (24/10/2026, chưa áp DB thật)
+## Migration 0091–0092 — Bảng giá duyệt (24/10/2026, chưa áp DB thật)
 
-`0091_invoice_approved_prices.sql` thêm 2 bảng `invoice_approved_prices` và `invoice_approved_price_changes`; hợp đồng chi tiết ở mục "Bảng giá duyệt — migration 0091" bên dưới (sau mục Kiểm tra giá bán 0077). Áp TRƯỚC khi deploy mã.
+`0091_invoice_approved_prices.sql` thêm 2 bảng `invoice_approved_prices` và `invoice_approved_price_changes`; `0092_invoice_approved_prices_vat_split.sql` tách cột giá `approved_price` thành `price_no_vat` + `price_with_vat`; hợp đồng chi tiết ở mục "Bảng giá duyệt — migration 0091 và 0092" bên dưới (sau mục Kiểm tra giá bán 0077). Áp CẢ HAI TRƯỚC khi deploy mã.
 
 ## Migration 0089–0090 — Khách mới, SĐT, địa chỉ (24/10/2026, chưa áp DB thật)
 
@@ -18,13 +18,13 @@
 
 Schema không tự bật cutover. Script `scripts/initialize-customer-price-levels.js --apply` chụp mọi nguồn và tạo level gộp trong giao dịch trước khi đánh dấu khởi tạo; giữ nguyên dữ liệu đã có khi chạy lại. Khách mới chưa có dòng level dùng Lớn, phiên bản 0 cho lần ghi đầu. Giá trị level nội bộ thay email khi đọc báo cáo và chụp hóa đơn. Không cập nhật `invoice_price_audit_*` lịch sử.
 
-24/10/2026 — Bảng giá duyệt (migration `0091_invoice_approved_prices.sql`) với 2 bảng `invoice_approved_prices` và `invoice_approved_price_changes`.
+24/10/2026 — Bảng giá duyệt (migration `0091_invoice_approved_prices.sql`) với 2 bảng `invoice_approved_prices` và `invoice_approved_price_changes`; `0092_invoice_approved_prices_vat_split.sql` tách giá thành `price_no_vat` / `price_with_vat`.
 
 23/10/2026 — Kiểm tra giá bán (migration `0077_invoice_price_audit.sql`) với 4 bảng `invoice_price_audit_*` và cột `shipping_measures.freight_per_unit`. ORDER VAT trạng thái "VAT sẵn nhiều" (`0083_vat_request_status_vat_ready.sql`).
 
 22/10/2026 — `hr_employees.insurance_number TEXT NOT NULL DEFAULT ''` (migration `0078_hr_employee_insurance_number.sql`), unique index trên số không rỗng của hồ sơ chưa xóa mềm; chỉ quyền `hr.employees.manage` nhận từ API/Excel. Server áp riêng migration này trước khi nhận request, có advisory lock cho nhiều instance và không chạy migration khác đang chờ.
 
-Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0091` (0087 và 0089–0091 đang chờ áp). Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
+Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0092` (0087 và 0089–0092 đang chờ áp). Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
 
 ## Quy ước chung
 
@@ -618,18 +618,18 @@ Nguồn chưa sẵn sàng khác (không ghi gì, giữ bản cũ): dòng SL > 0 
 
 Migration **thu hồi ALL** 4 bảng mới khỏi `reporting_readonly` (có giải thích của sale, quyết định phạt và nhật ký; guard `pg_roles`); chỉ đọc qua API. Thứ tự: áp `0077` TRƯỚC khi deploy bản sync Cân đo mới (INSERT `freight_per_unit` cần cột này).
 
-## Bảng giá duyệt — migration 0091 (24/10/2026, CHƯA áp DB dùng chung)
+## Bảng giá duyệt — migration 0091 và 0092 (24/10/2026, CHƯA áp DB dùng chung)
 
-`0091_invoice_approved_prices.sql` thêm 2 bảng (idempotent, không CONCURRENTLY). Không có FK sang `customers` / `products`: tên khách và sản phẩm được JOIN lúc đọc nên KiotViet đổi tên thì bảng giá duyệt tự theo. Bảng phục vụ mục Bảng giá duyệt của tab Hóa đơn và được Kiểm tra giá bán (`invoicePriceAudit/`) đọc khi chụp/tính lại.
+`0091_invoice_approved_prices.sql` thêm 2 bảng (idempotent, không CONCURRENTLY); `0092_invoice_approved_prices_vat_split.sql` (idempotent, giữ nguyên `0091`) thêm `price_no_vat` và `price_with_vat`, chuyển dữ liệu cũ bằng cách chép `approved_price` vào CẢ HAI cột (giữ hành vi cũ), bỏ cột `approved_price` rồi thay CHECK. Không có FK sang `customers` / `products`: tên khách và sản phẩm được JOIN lúc đọc nên KiotViet đổi tên thì bảng giá duyệt tự theo. Bảng phục vụ mục Bảng giá duyệt của tab Hóa đơn và được Kiểm tra giá bán (`invoicePriceAudit/`) đọc khi chụp/tính lại.
 
 | Bảng | Hợp đồng dữ liệu |
 |---|---|
-| `invoice_approved_prices` | `id` identity PK. `branch` (`hanoi`/`saigon`), `customer_id BIGINT` = `customers.id` cùng cơ sở, `product_id BIGINT` = `products.id` cùng cơ sở, `approved_price NUMERIC > 0`, `approver TEXT` (danh sách cố định Anh Quân / Anh Duy / Anh Duy Khánh, kiểm ở `approvedPriceRules.js`), `approved_on DATE` (ngày theo giờ Việt Nam), `version INT` (khóa lạc quan; lệch trả 409), `created_by`/`created_at`/`updated_by`/`updated_at`. UNIQUE `(branch, customer_id, product_id, approved_on)`; index `approved_on DESC`. Sự tồn tại khách/sản phẩm hoạt động trong cơ sở kiểm ở tầng ứng dụng (422 `CUSTOMER_NOT_FOUND` / `PRODUCT_NOT_FOUND`) |
+| `invoice_approved_prices` | `id` identity PK. `branch` (`hanoi`/`saigon`), `customer_id BIGINT` = `customers.id` cùng cơ sở, `product_id BIGINT` = `products.id` cùng cơ sở, `price_no_vat NUMERIC` ("Giá không VAT", cho phép NULL) và `price_with_vat NUMERIC` ("Giá có VAT", cho phép NULL) (từ `0092`, thay cột `approved_price NUMERIC > 0` của `0091`; CHECK: ít nhất 1 trong 2 giá khác NULL và mỗi giá khác NULL phải > 0), `approver TEXT` (danh sách cố định Anh Quân / Anh Duy / Anh Duy Khánh, kiểm ở `approvedPriceRules.js`), `approved_on DATE` (ngày theo giờ Việt Nam), `version INT` (khóa lạc quan; lệch trả 409), `created_by`/`created_at`/`updated_by`/`updated_at`. UNIQUE `(branch, customer_id, product_id, approved_on)`; index `approved_on DESC`. Sự tồn tại khách/sản phẩm hoạt động trong cơ sở kiểm ở tầng ứng dụng (422 `CUSTOMER_NOT_FOUND` / `PRODUCT_NOT_FOUND`) |
 | `invoice_approved_price_changes` | Nhật ký bất biến (trigger chặn UPDATE/DELETE): `price_id`, `action` (`create`/`update`/`delete`), `actor`, `changed_at`, `before_value` / `after_value` JSONB. Không FK tới `invoice_approved_prices` để lịch sử của bản ghi đã xóa còn nguyên |
 
-Luật dùng giá duyệt (`priceAuditSql.js`): hóa đơn có `sold_day >= approved_on` của cùng `(branch, customer_id, product_id)` dùng giá duyệt THAY cho mức tối thiểu theo mô tả; nhiều bản ghi thì `approved_on` mới nhất không quá ngày bán thắng. Dòng kết quả ghi `winning_source` = `Giá duyệt`, lý do `Theo giá duyệt`, `calculation.approvedPrice` JSON. Ghi bảng giá duyệt tính lại có phạm vi các dòng `invoice_price_audit_lines` đã chụp trong SAVEPOINT (kết quả `applied`/`skipped`/`not_published`/`busy`/`failed`; lỗi tính lại không hoàn tác bản ghi đã lưu). Kiểm tra giá bán dò bảng bằng `to_regclass`, chưa migrate thì chạy như cũ.
+Luật dùng giá duyệt (`priceAuditSql.js`): hóa đơn có `sold_day >= approved_on` của cùng `(branch, customer_id, product_id)` dùng giá duyệt THAY cho mức tối thiểu theo mô tả. Dòng Full VAT (`hasFullVat`, ghi chú có VAT) dùng `price_with_vat`, dòng không Full VAT dùng `price_no_vat`; loại giá cần dùng mà trống thì KHÔNG áp giá duyệt (rơi về mức tối thiểu theo mô tả). Mỗi loại giá chọn riêng: trong các bản ghi có `approved_on` không quá ngày bán, lấy bản mới nhất CÓ loại giá đó (bản mới hơn để trống loại đó bị bỏ qua). Giá chọn là giá cuối cùng (đã gồm VAT/cước như đã nhập). Dòng kết quả ghi `winning_source` = `Giá duyệt`, lý do `Theo giá duyệt`, `calculation.approvedPrice` JSON có thêm `kind` = `vat` | `no_vat`. Ảnh chụp nhật ký `before_value` / `after_value` chứa `priceNoVat` / `priceWithVat`. Ghi bảng giá duyệt tính lại có phạm vi các dòng `invoice_price_audit_lines` đã chụp trong SAVEPOINT (kết quả `applied`/`skipped`/`not_published`/`busy`/`failed`; lỗi tính lại không hoàn tác bản ghi đã lưu). Kiểm tra giá bán dò bảng bằng `to_regclass` và cột `price_no_vat` qua `information_schema`, chưa migrate thì chạy như cũ (êm bỏ qua giá duyệt).
 
-Migration **thu hồi ALL** cả 2 bảng khỏi `reporting_readonly` (có tên người duyệt và nhật ký; guard `pg_roles`); chỉ đọc qua API `/api/invoice-approved-prices`. Thứ tự: áp `0091` TRƯỚC khi deploy; chưa áp thì API bảng trả 503 `NOT_MIGRATED`.
+Migration **thu hồi ALL** cả 2 bảng khỏi `reporting_readonly` (có tên người duyệt và nhật ký; guard `pg_roles`); chỉ đọc qua API `/api/invoice-approved-prices`. Thứ tự: áp `0091` VÀ `0092` TRƯỚC khi deploy; chưa áp thì API bảng trả 503 `NOT_MIGRATED` (cả khi Postgres báo lỗi 42703).
 
 Cập nhật: 24/10/2026.
 

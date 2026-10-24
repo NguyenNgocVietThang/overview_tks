@@ -15,18 +15,18 @@ const html = fs.readFileSync(path.join(publicDir, 'index.html'), 'utf8');
 const js = fs.readFileSync(path.join(publicDir, 'invoice-approved-prices.js'), 'utf8');
 const settle = async () => { for (let i = 0; i < 25; i++) await new Promise(r => setImmediate(r)); };
 const APPROVERS = ['Anh Quân', 'Anh Duy', 'Anh Duy Khánh'];
-const VIEW = 'reports.invoices.priceAudit';
-const MANAGE = 'reports.invoices.priceAudit.approvedPrice';
+const VIEW = 'reports.invoices.approvedPrice';
+const MANAGE = 'reports.invoices.approvedPrice.manage';
 
 function rec(id, over = {}) {
   return {
     id: String(id), branch: 'hanoi', branchLabel: 'Hà Nội', customerId: '1', customerName: 'Khách Vừa', customerCode: 'KH1',
-    customerMissing: false, productId: '1', productCode: 'T100', productName: 'Ly giữ nhiệt', approvedPrice: '23500',
+    customerMissing: false, productId: '1', productCode: 'T100', productName: 'Ly giữ nhiệt', priceNoVat: '23500', priceWithVat: '25850',
     approver: 'Anh Quân', approvedOn: '2026-10-19', version: 1, ...over
   };
 }
 
-function fakeServer({ rows = [rec(1), rec(2, { customerName: 'An Khách', approver: 'Anh Duy', approvedPrice: '50000', approvedOn: '2026-10-21', productId: '2', productCode: 'T200', productName: 'Bình nước' })] } = {}) {
+function fakeServer({ rows = [rec(1), rec(2, { customerName: 'An Khách', approver: 'Anh Duy', priceNoVat: null, priceWithVat: '50000', approvedOn: '2026-10-21', productId: '2', productCode: 'T200', productName: 'Bình nước' })] } = {}) {
   const server = { rows: rows.map(r => ({ ...r })), requests: [], nextId: 100 };
   server.list = params => {
     let all = server.rows.filter(r => (!params.get('approver') || r.approver === params.get('approver'))
@@ -143,8 +143,14 @@ const pick = async (page, inputId, typed) => {
 test('Bảng giá duyệt là mục 2 của tab Hóa đơn, ẩn khi thiếu quyền xem; nút Tạo / Sửa / Xóa chỉ khi có quyền quản lý', async () => {
   const none = createPage({ permissions: ['reports.invoices'] });
   await none.w.TKSApprovedPrices.load(true);
-  assert.equal(none.$('approvedPriceSection').hidden, true);
+  assert.equal(none.$('approvedPriceSection'), null, 'khong co quyen xem: muc bi go han khoi trang');
   assert.equal(gets(none).length, 0);
+
+  // Chi co quyen xem Kiem tra gia ban (khong co quyen rieng) -> van an: bang nay nhay cam.
+  const auditOnly = createPage({ permissions: ['reports.invoices', 'reports.invoices.priceAudit', 'reports.export'] });
+  await auditOnly.w.TKSApprovedPrices.load(true);
+  assert.equal(auditOnly.$('approvedPriceSection'), null, 'quyen Kiem tra gia ban khong du: muc bi go han');
+  assert.equal(gets(auditOnly).length, 0);
 
   const viewer = await opened({ permissions: [VIEW] });
   assert.equal(viewer.$('approvedPriceSection').hidden, false);
@@ -159,13 +165,17 @@ test('Bảng giá duyệt là mục 2 của tab Hóa đơn, ẩn khi thiếu quy
   assert.equal(manager.$('approvedPriceRows').querySelectorAll('button[data-action="delete"]').length, 2);
 });
 
-test('bảng hiển thị 7 cột + thao tác, giá định dạng en-US, ngày dd/mm/yyyy, tag số bản ghi', async () => {
+test('bảng hiển thị 8 cột + thao tác, 2 cột giá (trống là —), giá định dạng en-US, ngày dd/mm/yyyy, tag số bản ghi', async () => {
   const page = await opened();
   const heads = [...page.$('approvedPriceHead').querySelectorAll('th')].map(th => th.textContent.replace(/[▲▼]/g, '').trim());
-  assert.deepEqual(heads, ['Khách hàng', 'Cơ sở', 'Mã SP', 'Tên SP', 'Giá duyệt', 'Người duyệt', 'Ngày duyệt', 'Thao tác']);
+  assert.deepEqual(heads, ['Khách hàng', 'Cơ sở', 'Mã SP', 'Tên SP', 'Giá không VAT', 'Giá có VAT', 'Người duyệt', 'Ngày duyệt', 'Thao tác']);
   assert.equal(page.$('tagApprovedPrice').textContent, '2 bản ghi');
   const first = texts(rows(page)[0]);
-  assert.deepEqual(first.slice(0, 7), ['Khách Vừa · KH1', 'Hà Nội', 'T100', 'Ly giữ nhiệt', '23,500', 'Anh Quân', '19/10/2026']);
+  assert.deepEqual(first.slice(0, 8), ['Khách Vừa · KH1', 'Hà Nội', 'T100', 'Ly giữ nhiệt', '23,500', '25,850', 'Anh Quân', '19/10/2026']);
+  const second = texts(rows(page)[1]);
+  assert.deepEqual(second.slice(4, 6), ['—', '50,000'], 'giá để trống hiện —');
+  assert.equal(rows(page)[1].cells[4].classList.contains('col-num'), true);
+  assert.equal(rows(page)[0].cells.length, 9);
   // Chỉ số theo mục nằm ngay dưới tiêu đề mục (quy ước mọi mục của tab).
   const kpis = [...page.$('approvedPriceKpis').querySelectorAll('.kpi-card')].map(c => [c.querySelector('.eyebrow').textContent, c.querySelector('.value').textContent]);
   assert.deepEqual(kpis, [['Bản ghi giá duyệt', '2'], ['Khách có giá duyệt', '1'], ['Mã SP có giá duyệt', '2'], ['Duyệt gần nhất', '21/10/2026']]);
@@ -198,19 +208,19 @@ test('lọc Người duyệt + Ngày duyệt Từ–Đến gửi lên máy chủ
 test('sort mọi cột ở máy chủ: lần 1 tăng dần ▼, lần 2 giảm dần ▲, lần 3 bỏ sắp xếp ▲▼', async () => {
   const page = await opened();
   const keys = [...page.$('approvedPriceHead').querySelectorAll('th.sortable')].map(th => th.dataset.sort);
-  assert.deepEqual(keys, ['customerName', 'branch', 'productCode', 'productName', 'approvedPrice', 'approver', 'approvedOn']);
-  const th = page.$('approvedPriceHead').querySelector('th[data-sort="approvedPrice"]');
+  assert.deepEqual(keys, ['customerName', 'branch', 'productCode', 'productName', 'priceNoVat', 'priceWithVat', 'approver', 'approvedOn']);
+  const th = page.$('approvedPriceHead').querySelector('th[data-sort="priceWithVat"]');
   th.querySelector('button').click();
   await settle();
-  assert.match(gets(page).at(-1).href, /sort=approvedPrice&dir=asc/);
+  assert.match(gets(page).at(-1).href, /sort=priceWithVat&dir=asc/);
   assert.equal(th.getAttribute('aria-sort'), 'ascending');
   assert.equal(th.querySelector('.sort-indicator').textContent, '▼');
-  assert.equal(texts(rows(page)[0])[4], '23,500');
+  assert.equal(texts(rows(page)[0])[5], '25,850');
   th.querySelector('button').click();
   await settle();
   assert.match(gets(page).at(-1).href, /dir=desc/);
   assert.equal(th.querySelector('.sort-indicator').textContent, '▲');
-  assert.equal(texts(rows(page)[0])[4], '50,000');
+  assert.equal(texts(rows(page)[0])[5], '50,000');
   th.querySelector('button').click();
   await settle();
   assert.doesNotMatch(gets(page).at(-1).href, /sort=/);
@@ -228,7 +238,7 @@ test('sort mọi cột ở máy chủ: lần 1 tăng dần ▼, lần 2 giảm d
 test('Tạo bản ghi: ngày mặc định hôm nay, người duyệt 3 lựa chọn, Tên SP tự nhảy, phải chọn khách / mã từ gợi ý', async () => {
   const page = await opened();
   page.$('approvedPriceCreateButton').click();
-  assert.ok(dialog(page).hasAttribute('open'));
+  assert.ok(dialog(page));
   const today = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
   assert.equal(dq(page, 'apDate').value, today);
   assert.deepEqual([...dq(page, 'apApprover').options].map(o => o.textContent), ['Chọn người duyệt', ...APPROVERS]);
@@ -238,7 +248,7 @@ test('Tạo bản ghi: ngày mặc định hôm nay, người duyệt 3 lựa ch
   // Gõ khách nhưng KHÔNG chọn từ gợi ý → không gửi.
   await typeInto(page, dq(page, 'apCustomer'), 'khach');
   assert.equal(dialog(page).querySelectorAll('#apCustomerList li[data-i]').length, 2);
-  dq(page, 'apPrice').value = '23000';
+  dq(page, 'apPriceNoVat').value = '23000';
   dq(page, 'apApprover').value = 'Anh Duy';
   dialog(page).querySelector('form').dispatchEvent(new page.w.Event('submit', { bubbles: true, cancelable: true }));
   await settle();
@@ -268,10 +278,75 @@ test('Tạo bản ghi: ngày mặc định hôm nay, người duyệt 3 lựa ch
   dialog(page).querySelector('form').dispatchEvent(new page.w.Event('submit', { bubbles: true, cancelable: true }));
   await settle();
   const post = page.server.requests.find(r => r.method === 'POST');
-  assert.deepEqual(post.body, { branch: 'hanoi', customerId: '1', productId: '2', approvedPrice: '23000', approver: 'Anh Duy', approvedOn: '2026-10-18' });
+  assert.deepEqual(post.body, { branch: 'hanoi', customerId: '1', productId: '2', priceNoVat: '23000', priceWithVat: null, approver: 'Anh Duy', approvedOn: '2026-10-18' });
   assert.equal(dialog(page), null, 'hộp đóng sau khi tạo');
   assert.equal(rows(page).length, 3, 'bảng nạp lại');
   assert.match(page.toasts.at(-1)[0], /Đã tạo bản ghi giá duyệt\. Đã tính lại 3 dòng/);
+});
+
+test('Tạo bản ghi: chỉ giá có VAT, hoặc cả hai giá — body đúng khóa priceNoVat / priceWithVat (ô trống gửi null)', async () => {
+  const page = await opened();
+  const submit = () => dialog(page).querySelector('form').dispatchEvent(new page.w.Event('submit', { bubbles: true, cancelable: true }));
+  const posts = () => page.server.requests.filter(r => r.method === 'POST');
+
+  page.$('approvedPriceCreateButton').click();
+  await pick(page, 'apCustomer', 'khach v');
+  await pick(page, 'apProductCode', 't100');
+  dq(page, 'apApprover').value = 'Anh Quân';
+  dq(page, 'apDate').value = '2026-10-18';
+  dq(page, 'apPriceWithVat').value = '25000';
+  submit();
+  await settle();
+  assert.deepEqual(posts()[0].body, { branch: 'hanoi', customerId: '1', productId: '1', priceNoVat: null, priceWithVat: '25000', approver: 'Anh Quân', approvedOn: '2026-10-18' });
+  assert.ok(!('approvedPrice' in posts()[0].body));
+
+  page.$('approvedPriceCreateButton').click();
+  await pick(page, 'apCustomer', 'khach v');
+  await pick(page, 'apProductCode', 't200');
+  dq(page, 'apApprover').value = 'Anh Duy';
+  dq(page, 'apDate').value = '2026-10-18';
+  dq(page, 'apPriceNoVat').value = '23000';
+  dq(page, 'apPriceWithVat').value = '25300';
+  submit();
+  await settle();
+  assert.deepEqual(posts()[1].body, { branch: 'hanoi', customerId: '1', productId: '2', priceNoVat: '23000', priceWithVat: '25300', approver: 'Anh Duy', approvedOn: '2026-10-18' });
+});
+
+test('Tạo bản ghi: kiểm tra giá — cả hai trống hoặc giá ≤ 0 thì báo lỗi, không gọi máy chủ', async () => {
+  const page = await opened();
+  const submit = () => dialog(page).querySelector('form').dispatchEvent(new page.w.Event('submit', { bubbles: true, cancelable: true }));
+  page.$('approvedPriceCreateButton').click();
+  await pick(page, 'apCustomer', 'khach v');
+  await pick(page, 'apProductCode', 't100');
+  dq(page, 'apApprover').value = 'Anh Duy';
+  assert.equal(dq(page, 'apPriceNoVat').placeholder, 'Để trống nếu không áp');
+  assert.equal(dq(page, 'apPriceWithVat').placeholder, 'Để trống nếu không áp');
+
+  submit();
+  await settle();
+  assert.equal(dq(page, 'apError').textContent, 'Nhập ít nhất một trong hai giá (không VAT / có VAT).');
+  assert.equal(dq(page, 'apError').hidden, false);
+  assert.equal(page.doc.activeElement, dq(page, 'apPriceNoVat'));
+
+  dq(page, 'apPriceNoVat').value = '0';
+  submit();
+  await settle();
+  assert.equal(dq(page, 'apError').textContent, 'Giá phải lớn hơn 0.');
+  assert.equal(page.doc.activeElement, dq(page, 'apPriceNoVat'));
+
+  dq(page, 'apPriceNoVat').value = '';
+  dq(page, 'apPriceWithVat').value = '-5';
+  submit();
+  await settle();
+  assert.equal(dq(page, 'apError').textContent, 'Giá phải lớn hơn 0.');
+  assert.equal(page.doc.activeElement, dq(page, 'apPriceWithVat'));
+
+  dq(page, 'apPriceNoVat').value = '1000';
+  dq(page, 'apPriceWithVat').value = '0';
+  submit();
+  await settle();
+  assert.equal(dq(page, 'apError').textContent, 'Giá phải lớn hơn 0.');
+  assert.equal(page.server.requests.filter(r => r.method === 'POST').length, 0);
 });
 
 test('đổi Cơ sở xóa khách / SP đã chọn; gợi ý theo cơ sở', async () => {
@@ -293,31 +368,40 @@ test('đổi Cơ sở xóa khách / SP đã chọn; gợi ý theo cơ sở', asy
 test('Sửa bản ghi: điền sẵn, gửi PUT kèm expectedVersion; 409 báo xung đột và giữ hộp mở', async () => {
   const page = await opened();
   rows(page)[0].querySelector('[data-action="edit"]').click();
-  assert.ok(dialog(page).hasAttribute('open'));
+  assert.ok(dialog(page));
   assert.equal(dq(page, 'apCustomer').value, 'Khách Vừa (KH1)');
   assert.equal(dq(page, 'apProductCode').value, 'T100');
   assert.equal(dq(page, 'apProductName').value, 'Ly giữ nhiệt');
-  assert.equal(dq(page, 'apPrice').value, '23500');
+  assert.equal(dq(page, 'apPriceNoVat').value, '23500');
+  assert.equal(dq(page, 'apPriceWithVat').value, '25850');
   assert.equal(dq(page, 'apApprover').value, 'Anh Quân');
   assert.equal(dq(page, 'apDate').value, '2026-10-19');
-  dq(page, 'apPrice').value = '23600';
+  dq(page, 'apPriceNoVat').value = '23600';
+  dq(page, 'apPriceWithVat').value = ''; // xóa giá có VAT → gửi null
   dq(page, 'apApprover').value = 'Anh Duy Khánh';
   dialog(page).querySelector('form').dispatchEvent(new page.w.Event('submit', { bubbles: true, cancelable: true }));
   await settle();
   const put = page.server.requests.find(r => r.method === 'PUT');
-  assert.deepEqual(put.body, { branch: 'hanoi', customerId: '1', productId: '1', approvedPrice: '23600', approver: 'Anh Duy Khánh', approvedOn: '2026-10-19', expectedVersion: 1 });
+  assert.deepEqual(put.body, { branch: 'hanoi', customerId: '1', productId: '1', priceNoVat: '23600', priceWithVat: null, approver: 'Anh Duy Khánh', approvedOn: '2026-10-19', expectedVersion: 1 });
   assert.equal(dialog(page), null);
-  assert.equal(texts(rows(page).find(tr => tr.dataset.id === '1'))[4], '23,600');
+  assert.deepEqual(texts(rows(page).find(tr => tr.dataset.id === '1')).slice(4, 6), ['23,600', '—']);
 
   // Người khác sửa trước → 409.
   page.server.rows.find(r => r.id === '1').version = 9;
   rows(page).find(tr => tr.dataset.id === '1').querySelector('[data-action="edit"]').click();
   page.server.rows.find(r => r.id === '1').version = 12;
-  dq(page, 'apPrice').value = '1000';
+  dq(page, 'apPriceNoVat').value = '1000';
   dialog(page).querySelector('form').dispatchEvent(new page.w.Event('submit', { bubbles: true, cancelable: true }));
   await settle();
   assert.ok(dialog(page), 'hộp vẫn mở');
   assert.match(dq(page, 'apError').textContent, /người khác cập nhật/);
+});
+
+test('Sửa bản ghi chỉ có giá có VAT: ô giá không VAT trống sẵn', async () => {
+  const page = await opened();
+  rows(page)[1].querySelector('[data-action="edit"]').click();
+  assert.equal(dq(page, 'apPriceNoVat').value, '');
+  assert.equal(dq(page, 'apPriceWithVat').value, '50000');
 });
 
 test('Xóa: có hộp xác nhận; Hủy thì không gọi máy chủ, đồng ý thì DELETE kèm expectedVersion rồi nạp lại bảng', async () => {
@@ -327,6 +411,12 @@ test('Xóa: có hộp xác nhận; Hủy thì không gọi máy chủ, đồng �
   assert.equal(declined.confirms.length, 1);
   assert.match(declined.confirms[0], /Xóa bản ghi giá duyệt\?/);
   assert.match(declined.confirms[0], /Khách Vừa/);
+  assert.match(declined.confirms[0], /không VAT 23,500 · có VAT 25,850/);
+  rows(declined)[1].querySelector('[data-action="delete"]').click();
+  await settle();
+  assert.match(declined.confirms[1], /có VAT 50,000/);
+  assert.doesNotMatch(declined.confirms[1], /không VAT/, 'giá trống không in');
+  declined.confirms.length = 1;
   assert.equal(declined.server.requests.filter(r => r.method === 'DELETE').length, 0);
   assert.equal(rows(declined).length, 2);
 
@@ -356,4 +446,32 @@ test('Xuất file: gọi /export với đúng bộ lọc + sort đang dùng rồ
   assert.equal(q.get('dir'), 'asc');
   assert.equal(q.get('page'), null, 'xuất toàn bộ tập, không phân trang');
   assert.deepEqual(page.downloads, ['TKS_Gia_duyet.xlsx']);
+});
+
+test('Form Tạo: khung giống form nhân sự (lớp phủ, tiêu đề + nút ✕, lưới 2 cột, chân có Hủy / Tạo), đóng bằng ✕, Hủy hoặc Esc', async () => {
+  const page = await opened();
+  page.$('approvedPriceCreateButton').click();
+  const box = dialog(page);
+  assert.ok(box.classList.contains('ap-overlay'));
+  assert.equal(box.tagName, 'DIV', 'không dùng <dialog> (top layer che lịch chọn ngày)');
+  assert.equal(box.querySelector('.ap-header h3').textContent, 'Tạo bản ghi giá duyệt');
+  const x = box.querySelector('.ap-header .ap-close');
+  assert.equal(x.textContent, '✕');
+  assert.equal(x.getAttribute('aria-label'), 'Đóng');
+  assert.deepEqual([...box.querySelectorAll('.ap-body > .form-group')].map(g => g.querySelector('label').textContent),
+    ['Cơ sở *', 'Ngày duyệt *', 'Khách hàng *', 'Mã SP *', 'Tên SP', 'Giá không VAT (₫/chiếc)', 'Giá có VAT (₫/chiếc)', 'Người duyệt *']);
+  assert.ok(box.querySelector('#apCustomerField').classList.contains('ap-wide'));
+  assert.equal(box.querySelector('#apPriceNoVatField').classList.contains('ap-wide'), false, 'hai ô giá nằm cạnh nhau');
+  assert.equal(box.querySelector('#apPriceWithVatField').classList.contains('ap-wide'), false);
+  assert.match(box.querySelector('#apPriceHint.ap-wide').textContent, /Nhập ít nhất 1 trong 2 giá\. Hóa đơn Full VAT dùng giá có VAT, hóa đơn không VAT dùng giá không VAT/);
+  assert.equal(box.querySelector('#apPrice'), null, 'không còn ô giá duyệt đơn');
+  assert.deepEqual([...box.querySelectorAll('.ap-footer button')].map(b => b.textContent), ['Hủy', 'Tạo bản ghi']);
+  x.click();
+  assert.equal(dialog(page), null, 'nút ✕ đóng form');
+  page.$('approvedPriceCreateButton').click();
+  dialog(page).querySelector('.ap-footer [data-close]').click();
+  assert.equal(dialog(page), null, 'nút Hủy đóng form');
+  page.$('approvedPriceCreateButton').click();
+  page.doc.dispatchEvent(new page.w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  assert.equal(dialog(page), null, 'Esc đóng form');
 });
