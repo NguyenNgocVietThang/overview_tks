@@ -462,47 +462,137 @@
   #selfLeaveModal .btn-mini{ padding:8px 16px; min-height:38px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--panel); color:var(--text); font:inherit; cursor:pointer; }
   .modal-footer{ display:flex; align-items:center; justify-content:flex-end; gap:10px; padding:14px 20px; border-top:1px solid var(--border); background:var(--panel-2); }
 
-  /* ---- Soan tai lieu go tay: thanh cong cu dinh dang + vung contenteditable ---- */
-  .rte-toolbar{
-    display:flex; flex-wrap:wrap; align-items:center; gap:4px; padding:6px;
-    border:1px solid var(--border); border-bottom:none; border-radius:var(--radius-sm) var(--radius-sm) 0 0;
-    background:var(--panel-2);
+  /* ---- Soan tai lieu go tay: hop thoai toan man hinh (header, tab, thanh cong cu, trang giay, cot ben phai) ---- */
+  .rte-modal{
+    width:min(1280px, 100%); height:min(940px, 100%); display:flex; flex-direction:column; overflow:hidden;
+    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-xl); box-shadow:var(--shadow-modal);
   }
-  .rte-sep{ width:1px; height:22px; background:var(--border); margin:0 4px; flex-shrink:0; }
+  .rte-head{ display:flex; align-items:center; gap:14px; padding:16px 22px; border-bottom:1px solid var(--border); flex-shrink:0; }
+  .rte-head-icon{
+    width:44px; height:44px; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0;
+    border-radius:var(--radius-md); background:var(--panel-2); border:1px solid var(--border); color:var(--blue);
+  }
+  .rte-head-icon svg{ width:22px; height:22px; }
+  .rte-head-title{ min-width:0; flex:1; }
+  .rte-head-title h3{ margin:0; font-family:var(--font-display); font-size:17px; font-weight:700; color:var(--text); }
+  .rte-head-title p{ margin:2px 0 0; font-size:12.5px; color:var(--muted); }
+  .rte-head-actions{ display:flex; align-items:center; gap:10px; flex-shrink:0; }
+  .rte-head-btn{ display:inline-flex; align-items:center; gap:8px; }
+  .rte-tabs{ display:flex; gap:4px; padding:0 18px; border-bottom:1px solid var(--border); flex-shrink:0; }
+  .rte-tab{
+    display:inline-flex; align-items:center; gap:8px; padding:12px 14px; margin-bottom:-1px; border:none; background:transparent;
+    border-bottom:2px solid transparent; color:var(--muted); font:inherit; font-size:13.5px; font-weight:600; cursor:pointer;
+  }
+  .rte-tab:hover{ color:var(--text); }
+  .rte-tab.active{ color:var(--blue); border-bottom-color:var(--blue); }
+  .rte-body{ flex:1; min-height:0; display:grid; grid-template-columns:minmax(0, 1fr) 320px; }
+  .rte-workspace{ min-width:0; min-height:0; display:flex; flex-direction:column; }
+  .rte-error{ margin:12px 18px 0; }
+  .rte-side{ border-left:1px solid var(--border); overflow-y:auto; padding:6px 22px 20px; background:var(--panel); }
+  .rte-side-block{ padding:16px 0; border-bottom:1px solid var(--border); }
+  .rte-side-block:last-child{ border-bottom:none; }
+  .rte-side-block h4{ margin:0 0 12px; font-family:var(--font-display); font-size:14.5px; font-weight:700; color:var(--text); }
+  .rte-side .form-group{ margin-bottom:14px; }
+  .rte-side .form-group:last-child{ margin-bottom:0; }
+  .rte-req{ color:var(--red); }
+  .rte-hint-inline{ font-weight:400; color:var(--muted); }
+  .rte-outline{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; counter-reset:rte-sec; }
+  .rte-outline li{ counter-increment:rte-sec; }
+  .rte-outline button{
+    width:100%; display:flex; align-items:center; gap:12px; padding:9px 12px; text-align:left;
+    border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--panel-2); color:var(--text);
+    font:inherit; font-size:13px; cursor:pointer;
+  }
+  .rte-outline button::before{ content:counter(rte-sec, decimal-leading-zero); color:var(--muted); font-variant-numeric:tabular-nums; font-size:12px; }
+  .rte-outline button:hover{ border-color:var(--blue); background:var(--accent-blue-18); }
+  .rte-outline li[data-level="2"] button{ margin-left:12px; width:calc(100% - 12px); }
+  .rte-outline li[data-level="3"] button{ margin-left:24px; width:calc(100% - 24px); }
+  .rte-outline span{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .rte-side-empty{ margin:0; font-size:12.5px; color:var(--muted); line-height:1.5; }
+  .rte-outline:not(:empty) + .rte-side-empty{ display:none; }
+  .rte-tips{ list-style:none; margin:0 0 6px; padding:0; display:flex; flex-direction:column; gap:8px; }
+  .rte-tips li{ display:flex; align-items:center; gap:12px; font-size:12.5px; color:var(--muted); }
+  .rte-tips kbd{
+    min-width:88px; padding:5px 9px; border:1px solid var(--border); border-radius:var(--radius-xs); background:var(--panel-2);
+    color:var(--text); font:600 12px var(--font-body); text-align:center;
+  }
+  .rte-foot{
+    display:flex; align-items:center; gap:18px; padding:12px 22px; border-top:1px solid var(--border);
+    background:var(--panel-2); flex-shrink:0; font-size:12.5px; color:var(--muted);
+  }
+  .rte-status{ display:inline-flex; align-items:center; gap:8px; margin-right:auto; }
+  .rte-status-dot{ width:9px; height:9px; border-radius:50%; background:var(--green); }
+  .rte-status.dirty .rte-status-dot{ background:var(--amber); }
+  .rte-zoom{ display:inline-flex; align-items:center; gap:6px; padding:2px 4px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--panel); color:var(--text); }
+  .rte-zoom span{ min-width:44px; text-align:center; font-variant-numeric:tabular-nums; }
+
+  .rte-toolbar{ flex-shrink:0; padding:12px 18px 10px; border-bottom:1px solid var(--border); background:var(--panel); display:flex; flex-direction:column; gap:8px; }
+  .rte-row{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+  .rte-group{ display:inline-flex; align-items:center; gap:2px; padding:3px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--panel-2); }
   .rte-btn{
-    min-width:30px; height:30px; padding:0 8px; border:1px solid transparent; border-radius:var(--radius-xs);
-    background:transparent; color:var(--text); font:inherit; font-size:13px; cursor:pointer; white-space:nowrap;
+    min-width:32px; height:32px; padding:0 6px; display:inline-flex; align-items:center; justify-content:center;
+    border:1px solid transparent; border-radius:var(--radius-xs); background:transparent; color:var(--text); font:inherit; cursor:pointer;
   }
-  .rte-btn:hover{ background:var(--surface-hover); border-color:var(--border); }
-  .rte-btn.active{ background:rgba(249,115,22,0.18); border-color:#f97316; }
+  .rte-btn svg, .rte-color-btn svg, .rte-inline-icon{ width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .rte-inline-icon{ margin:0 4px 0 6px; color:var(--muted); flex-shrink:0; }
+  .rte-btn:hover{ background:var(--surface-hover); }
+  .rte-btn:focus-visible, .rte-select:focus-visible{ outline:2px solid var(--blue); outline-offset:1px; }
+  .rte-btn.active{ background:var(--accent-blue-18); border-color:var(--blue); color:var(--blue); }
   .rte-select{
-    height:30px; padding:0 6px; border:1px solid var(--border); border-radius:var(--radius-xs);
-    background:var(--panel); color:var(--text); font:inherit; font-size:12.5px; cursor:pointer;
+    height:32px; padding:0 8px; border:1px solid transparent; border-radius:var(--radius-xs);
+    background:transparent; color:var(--text); font:inherit; font-size:13px; cursor:pointer;
   }
+  .rte-select:hover{ background:var(--surface-hover); }
+  .rte-select option{ background:var(--panel); color:var(--text); }
+  .rte-select-block{ width:150px; }
+  .rte-select-font{ width:150px; }
+  .rte-select-size{ width:64px; }
+  .rte-select-lh{ width:64px; }
   .rte-color-btn{
-    display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px;
-    border:1px solid var(--border); border-radius:var(--radius-xs); cursor:pointer; font-size:13px; color:var(--text);
-    position:relative; background:var(--panel);
+    position:relative; display:inline-flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+    width:34px; height:32px; border:1px solid transparent; border-radius:var(--radius-xs); cursor:pointer; color:var(--text);
   }
   .rte-color-btn:hover{ background:var(--surface-hover); }
+  .rte-color-bar{ width:16px; height:3px; border-radius:2px; background:#000; }
+  #rteBackBar{ background:#ffff00; }
   .rte-color-btn input[type="color"]{ position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; }
-  .rte-icon-picker{ display:flex; flex-wrap:wrap; gap:6px; }
+
+  .rte-canvas{ flex:1; min-height:0; overflow:auto; padding:26px 28px 40px; background:var(--panel-2); }
+  .rte-canvas[hidden]{ display:none; }
+  .rte-page{
+    width:100%; max-width:820px; margin:0 auto; background:#fff; color:#23262f; zoom:1;
+    box-shadow:0 1px 2px rgba(0,0,0,.08), 0 12px 32px rgba(0,0,0,.22);
+  }
+  .rte-preview-page{ padding:44px 56px 52px; font-family:'Noto Serif', Georgia, serif; }
+  .rte-editor{
+    min-height:640px; padding:44px 56px 52px; background:#fff; color:#23262f; border:none; border-radius:0;
+    font-family:'Noto Serif', Georgia, serif; font-size:13px; line-height:1.7; outline:none;
+  }
+  .rte-editor:focus{ outline:none; }
+  .rte-page:focus-within{ box-shadow:0 0 0 2px var(--blue), 0 12px 32px rgba(0,0,0,.22); }
+  .rte-editor a, .rte-preview-page a{ color:#2563eb; text-decoration:underline; }
+  .rte-editor ul, .rte-editor ol{ margin:0 0 10px; padding-left:26px; }
+  @media (max-width:900px){
+    .rte-modal{ height:100%; border-radius:var(--radius-md); }
+    .rte-body{ grid-template-columns:1fr; overflow-y:auto; }
+    .rte-side{ border-left:none; border-top:1px solid var(--border); overflow:visible; }
+    .rte-canvas{ padding:16px 10px 24px; overflow:visible; }
+    .rte-editor, .rte-preview-page{ padding:28px 22px 32px; min-height:420px; }
+    .rte-head-btn span{ display:none; }
+    .rte-foot{ flex-wrap:wrap; gap:10px; }
+  }
+  .rte-icon-picker{ display:flex; flex-wrap:wrap; gap:8px; }
   .rte-icon-option{
-    width:36px; height:36px; display:inline-flex; align-items:center; justify-content:center;
-    border:1px solid var(--border); border-radius:var(--radius-xs); background:var(--panel); color:var(--text);
+    width:44px; height:44px; display:inline-flex; align-items:center; justify-content:center;
+    border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--panel-2); color:var(--text);
     cursor:pointer; padding:0;
   }
   .rte-icon-option:hover{ background:var(--surface-hover); }
-  .rte-icon-option.active{ background:rgba(249,115,22,0.18); border-color:#f97316; color:#f97316; }
-  .rte-icon-option svg{ width:18px; height:18px; }
+  .rte-icon-option.active{ background:var(--accent-blue-18); border-color:var(--blue); color:var(--blue); }
+  .rte-icon-option svg{ width:20px; height:20px; }
   .rte-doc-icon{ display:inline-flex; margin-right:8px; vertical-align:-4px; color:#14161c; }
   .rte-doc-icon svg{ width:20px; height:20px; }
-  .rte-editor{
-    min-height:260px; max-height:50vh; overflow-y:auto; padding:16px 18px; background:#fff; color:#23262f;
-    border:1px solid var(--border); border-radius:0 0 var(--radius-sm) var(--radius-sm);
-    font-family:'Noto Serif', Georgia, serif; font-size:13px; line-height:1.7;
-  }
-  .rte-editor:focus{ outline:2px solid #f97316; outline-offset:-1px; }
+  .rte-toolbar[hidden], .rte-head-btn[hidden]{ display:none; }
   .rte-editor h1{ font-family:'Be Vietnam Pro', var(--font-display); font-size:20px; font-weight:800; margin:0 0 10px; color:#14161c; }
   .rte-editor h2{ font-family:'Be Vietnam Pro', var(--font-display); font-size:16px; font-weight:700; margin:0 0 8px; color:#14161c; }
   .rte-editor h3{ font-family:'Be Vietnam Pro', var(--font-display); font-size:14.5px; font-weight:700; margin:0 0 6px; color:#14161c; }
@@ -654,7 +744,10 @@
     display:inline-block; max-width:100%; padding:4px 14px; border-radius:8px; font-size:12.5px; font-weight:600;
     background:color-mix(in srgb, #6366F1 22%, transparent); color:#4338CA; overflow:hidden; text-overflow:ellipsis; vertical-align:middle;
   }
-  :root[data-theme="dark"] .emp-pill{ color:#C7D2FE; }
+  .emp-pill{ --tone:#6366F1; background:color-mix(in srgb, var(--tone) 22%, transparent); color:color-mix(in srgb, var(--tone) 70%, #000); }
+  :root[data-theme="dark"] .emp-pill{ color:color-mix(in srgb, var(--tone) 45%, #fff); }
+  .emp-tone-0{ --tone:#6366F1; } .emp-tone-1{ --tone:#10B981; } .emp-tone-2{ --tone:#F59E0B; } .emp-tone-3{ --tone:#EC4899; }
+  .emp-tone-4{ --tone:#06B6D4; } .emp-tone-5{ --tone:#EF4444; } .emp-tone-6{ --tone:#8B5CF6; } .emp-tone-7{ --tone:#84CC16; }
   .emp-flag{
     display:inline-flex; align-items:center; gap:8px; padding:3px 14px 3px 8px; border-radius:var(--radius-pill);
     font-size:12.5px; font-weight:600; border:1px solid transparent;
@@ -1516,64 +1609,173 @@
 
   <!-- Modal: soan / sua tai lieu quy dinh go tay (kind=text) -->
   <div class="modal-overlay" id="ruleTextModal" hidden>
-    <div class="modal-box modal-box-wide" role="dialog" aria-modal="true" aria-labelledby="ruleTextHeading">
-      <div class="modal-header">
-        <h3 id="ruleTextHeading">Soạn tài liệu quy định</h3>
-        <button type="button" class="modal-close" onclick="closeModal('ruleTextModal')" aria-label="Đóng">✕</button>
+    <div class="rte-modal" role="dialog" aria-modal="true" aria-labelledby="ruleTextHeading">
+      <div class="rte-head">
+        <span class="rte-head-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
+        <div class="rte-head-title">
+          <h3 id="ruleTextHeading">Soạn tài liệu quy định</h3>
+          <p>Quản lý nội dung và định dạng tài liệu</p>
+        </div>
+        <div class="rte-head-actions">
+          <button type="button" class="btn-secondary rte-head-btn" id="rtePreviewBtn" onclick="setRuleTextTab('preview')">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            <span>Xem trước</span>
+          </button>
+          <button type="submit" form="ruleTextForm" class="btn-primary rte-head-btn" id="ruleTextSubmit">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            <span id="ruleTextSubmitLabel">Lưu thay đổi</span>
+          </button>
+          <button type="button" class="modal-close" onclick="requestCloseRuleText()" aria-label="Đóng">✕</button>
+        </div>
       </div>
-      <form id="ruleTextForm" onsubmit="submitRuleText(event)">
-        <div class="modal-body">
-          <div class="alert-box alert-error" id="ruleTextError" hidden></div>
-          <div class="form-group">
-            <label for="ruleTextName">Tên tài liệu * (hiện làm tên tab)</label>
-            <input type="text" id="ruleTextName" class="form-control" maxlength="120" required>
-          </div>
-          <div class="form-group">
-            <label>Icon (tùy chọn — hiện cạnh tiêu đề)</label>
-            <!-- Chi CHON tu danh sach co dinh (hrRuleDocumentIcons.js / ICON_DEFS ben duoi),
-                 khong go tay duoc — khong di qua bo loc XSS, khong co nguy co chen SVG doc hai. -->
-            <div class="rte-icon-picker" id="rteIconPicker"></div>
-            <input type="hidden" id="ruleTextIcon" value="">
-          </div>
-          <div class="form-group">
-            <label>Nội dung *</label>
-            <div class="rte-toolbar" id="rteToolbar">
-              <button type="button" class="rte-btn" data-cmd="bold" title="Đậm (Ctrl+B)"><b>B</b></button>
-              <button type="button" class="rte-btn" data-cmd="italic" title="Nghiêng (Ctrl+I)"><i>I</i></button>
-              <button type="button" class="rte-btn" data-cmd="underline" title="Gạch chân (Ctrl+U)"><u>U</u></button>
-              <button type="button" class="rte-btn" data-cmd="strikeThrough" title="Gạch ngang"><s>S</s></button>
-              <span class="rte-sep"></span>
-              <select class="rte-select" id="rteHeadingSelect" title="Kiểu đoạn văn">
-                <option value="P">Normal</option>
-                <option value="H1">Heading 1</option>
-                <option value="H2">Heading 2</option>
-                <option value="H3">Heading 3</option>
-                <option value="H4">Heading 4</option>
-              </select>
-              <span class="rte-sep"></span>
-              <button type="button" class="rte-btn" data-cmd="insertUnorderedList" title="Danh sách gạch đầu dòng">• ≡</button>
-              <button type="button" class="rte-btn" data-cmd="insertOrderedList" title="Danh sách đánh số">1. ≡</button>
-              <span class="rte-sep"></span>
-              <button type="button" class="rte-btn" data-cmd="justifyLeft" title="Căn trái">Trái</button>
-              <button type="button" class="rte-btn" data-cmd="justifyCenter" title="Căn giữa">Giữa</button>
-              <button type="button" class="rte-btn" data-cmd="justifyRight" title="Căn phải">Phải</button>
-              <span class="rte-sep"></span>
-              <label class="rte-color-btn" title="Màu chữ">A<input type="color" id="rteForeColor" value="#000000"></label>
-              <label class="rte-color-btn" title="Màu nền">🖍<input type="color" id="rteBackColor" value="#ffff00"></label>
-              <span class="rte-sep"></span>
-              <button type="button" class="rte-btn" id="rteInsertTableBtn" title="Chèn bảng">Bảng</button>
-              <button type="button" class="rte-btn" id="rteInsertImageBtn" title="Chèn ảnh">Ảnh</button>
-              <input type="file" id="ruleTextImageInput" accept="image/png,image/jpeg,image/gif,image/webp" onchange="onRuleTextImageSelected()" hidden>
+
+      <div class="rte-tabs" role="tablist">
+        <button type="button" class="rte-tab active" id="rteTabEdit" role="tab" aria-selected="true" onclick="setRuleTextTab('edit')">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          Soạn thảo
+        </button>
+        <button type="button" class="rte-tab" id="rteTabPreview" role="tab" aria-selected="false" onclick="setRuleTextTab('preview')">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          Xem trước
+        </button>
+      </div>
+
+      <form id="ruleTextForm" class="rte-body" onsubmit="submitRuleText(event)">
+        <div class="rte-workspace">
+          <div class="alert-box alert-error rte-error" id="ruleTextError" hidden></div>
+
+          <!-- Thanh cong cu: 2 hang, gom nhom giong trinh soan van ban. data-cmd = lenh execCommand. -->
+          <div class="rte-toolbar" id="rteToolbar">
+            <div class="rte-row">
+              <div class="rte-group">
+                <button type="button" class="rte-btn" data-cmd="undo" title="Hoàn tác (Ctrl+Z)" aria-label="Hoàn tác"><svg viewBox="0 0 24 24"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg></button>
+                <button type="button" class="rte-btn" data-cmd="redo" title="Làm lại (Ctrl+Y)" aria-label="Làm lại"><svg viewBox="0 0 24 24"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"/></svg></button>
+              </div>
+              <div class="rte-group">
+                <select class="rte-select rte-select-block" id="rteHeadingSelect" title="Kiểu đoạn văn" aria-label="Kiểu đoạn văn">
+                  <option value="P">Văn bản thường</option>
+                  <option value="H1">Tiêu đề 1</option>
+                  <option value="H2">Tiêu đề 2</option>
+                  <option value="H3">Tiêu đề 3</option>
+                  <option value="H4">Tiêu đề 4</option>
+                </select>
+              </div>
+              <div class="rte-group">
+                <select class="rte-select rte-select-font" id="rteFontFamily" title="Phông chữ" aria-label="Phông chữ"></select>
+              </div>
+              <div class="rte-group">
+                <select class="rte-select rte-select-size" id="rteFontSize" title="Cỡ chữ (px)" aria-label="Cỡ chữ"></select>
+                <button type="button" class="rte-btn" id="rteSizeDown" title="Giảm cỡ chữ" aria-label="Giảm cỡ chữ"><svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                <button type="button" class="rte-btn" id="rteSizeUp" title="Tăng cỡ chữ" aria-label="Tăng cỡ chữ"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+              </div>
             </div>
-            <div id="ruleTextEditor" class="rte-editor form-control" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Nội dung tài liệu" onpaste="onRuleEditorPaste(event)"></div>
-            <p class="rule-doc-hint" id="rteSizeHint"></p>
+            <div class="rte-row">
+              <div class="rte-group">
+                <button type="button" class="rte-btn" data-cmd="bold" title="Đậm (Ctrl+B)" aria-label="Đậm"><svg viewBox="0 0 24 24"><path d="M6 4h8a4 4 0 0 1 0 8H6z"/><path d="M6 12h9a4 4 0 0 1 0 8H6z"/></svg></button>
+                <button type="button" class="rte-btn" data-cmd="italic" title="Nghiêng (Ctrl+I)" aria-label="Nghiêng"><svg viewBox="0 0 24 24"><line x1="19" y1="4" x2="10" y2="4"/><line x1="14" y1="20" x2="5" y2="20"/><line x1="15" y1="4" x2="9" y2="20"/></svg></button>
+                <button type="button" class="rte-btn" data-cmd="underline" title="Gạch chân (Ctrl+U)" aria-label="Gạch chân"><svg viewBox="0 0 24 24"><path d="M6 3v7a6 6 0 0 0 12 0V3"/><line x1="4" y1="21" x2="20" y2="21"/></svg></button>
+                <button type="button" class="rte-btn" data-cmd="strikeThrough" title="Gạch ngang" aria-label="Gạch ngang"><svg viewBox="0 0 24 24"><path d="M16 4H9a3 3 0 0 0-2.83 4"/><path d="M14 12a4 4 0 0 1 0 8H6"/><line x1="4" y1="12" x2="20" y2="12"/></svg></button>
+              </div>
+              <div class="rte-group">
+                <label class="rte-color-btn" title="Màu chữ">
+                  <svg viewBox="0 0 24 24"><path d="M4 20 12 4l8 16"/><path d="M7 14h10"/></svg>
+                  <span class="rte-color-bar" id="rteForeBar"></span>
+                  <input type="color" id="rteForeColor" value="#000000" aria-label="Màu chữ">
+                </label>
+                <label class="rte-color-btn" title="Màu nền chữ (tô sáng)">
+                  <svg viewBox="0 0 24 24"><path d="m9 11-6 6v3h9l3-3"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/></svg>
+                  <span class="rte-color-bar" id="rteBackBar"></span>
+                  <input type="color" id="rteBackColor" value="#ffff00" aria-label="Màu nền chữ">
+                </label>
+              </div>
+              <div class="rte-group">
+                <button type="button" class="rte-btn" data-cmd="justifyLeft" title="Căn trái" aria-label="Căn trái"><svg viewBox="0 0 24 24"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/></svg></button>
+                <button type="button" class="rte-btn" data-cmd="justifyCenter" title="Căn giữa" aria-label="Căn giữa"><svg viewBox="0 0 24 24"><line x1="18" y1="10" x2="6" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="18" y1="18" x2="6" y2="18"/></svg></button>
+                <button type="button" class="rte-btn" data-cmd="justifyRight" title="Căn phải" aria-label="Căn phải"><svg viewBox="0 0 24 24"><line x1="21" y1="10" x2="7" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="21" y1="18" x2="7" y2="18"/></svg></button>
+                <button type="button" class="rte-btn" data-cmd="justifyFull" title="Căn đều hai bên" aria-label="Căn đều"><svg viewBox="0 0 24 24"><line x1="21" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="21" y1="18" x2="3" y2="18"/></svg></button>
+              </div>
+              <div class="rte-group">
+                <svg class="rte-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 10H11"/><path d="M21 6H11"/><path d="M21 14H11"/><path d="M21 18H11"/><path d="m3 8 3-3 3 3"/><path d="m3 16 3 3 3-3"/><line x1="6" y1="5" x2="6" y2="19"/></svg>
+                <select class="rte-select rte-select-lh" id="rteLineHeight" title="Giãn dòng" aria-label="Giãn dòng"></select>
+              </div>
+              <div class="rte-group">
+                <button type="button" class="rte-btn" data-cmd="insertUnorderedList" title="Danh sách gạch đầu dòng" aria-label="Danh sách gạch đầu dòng"><svg viewBox="0 0 24 24"><line x1="9" y1="6" x2="21" y2="6"/><line x1="9" y1="12" x2="21" y2="12"/><line x1="9" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg></button>
+                <button type="button" class="rte-btn" data-cmd="insertOrderedList" title="Danh sách đánh số" aria-label="Danh sách đánh số"><svg viewBox="0 0 24 24"><line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/><path d="M4 6h1v4"/><path d="M4 10h2"/><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/></svg></button>
+              </div>
+              <div class="rte-group">
+                <button type="button" class="rte-btn" id="rteInsertLinkBtn" title="Chèn liên kết (Ctrl+K)" aria-label="Chèn liên kết"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></button>
+                <button type="button" class="rte-btn" id="rteInsertImageBtn" title="Chèn ảnh" aria-label="Chèn ảnh"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></button>
+                <button type="button" class="rte-btn" id="rteInsertTableBtn" title="Chèn bảng" aria-label="Chèn bảng"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg></button>
+                <input type="file" id="ruleTextImageInput" accept="image/png,image/jpeg,image/gif,image/webp" onchange="onRuleTextImageSelected()" hidden>
+              </div>
+            </div>
+          </div>
+
+          <div class="rte-canvas" id="rteCanvas">
+            <div class="rte-page" id="rtePage">
+              <div id="ruleTextEditor" class="rte-editor" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Nội dung tài liệu" onpaste="onRuleEditorPaste(event)"></div>
+            </div>
+          </div>
+          <div class="rte-canvas rte-preview" id="rtePreview" hidden>
+            <div class="rte-page rte-preview-page" id="rtePreviewPage">
+              <div class="doc-page-header">
+                <img src="/Logo.jpg" alt="TOKOSI">
+                <div class="doc-page-title">
+                  <h1><span class="rte-doc-icon" id="rtePreviewIcon" hidden></span><span id="rtePreviewTitle"></span></h1>
+                  <p>TOKOSI · Nội bộ</p>
+                </div>
+              </div>
+              <hr class="doc-divider">
+              <div class="doc-section rule-doc-rich-body" id="rtePreviewBody"></div>
+            </div>
           </div>
         </div>
-        <div class="modal-footer">
-          <button type="button" class="btn-secondary" onclick="closeModal('ruleTextModal')">Hủy</button>
-          <button type="submit" class="btn-primary" id="ruleTextSubmit">Lưu</button>
-        </div>
+
+        <aside class="rte-side">
+          <section class="rte-side-block">
+            <h4>Thông tin tài liệu</h4>
+            <div class="form-group">
+              <label for="ruleTextName">Tên tài liệu <span class="rte-req">*</span> <span class="rte-hint-inline">(hiện làm tên tab)</span></label>
+              <input type="text" id="ruleTextName" class="form-control" maxlength="120" required>
+            </div>
+            <div class="form-group">
+              <label>Biểu tượng <span class="rte-hint-inline">(tùy chọn, hiện cạnh tiêu đề)</span></label>
+              <!-- Chi CHON tu danh sach co dinh (hrRuleDocumentIcons.js / ICON_DEFS ben duoi),
+                   khong go tay duoc — khong di qua bo loc XSS, khong co nguy co chen SVG doc hai. -->
+              <div class="rte-icon-picker" id="rteIconPicker"></div>
+              <input type="hidden" id="ruleTextIcon" value="">
+            </div>
+          </section>
+
+          <section class="rte-side-block">
+            <h4>Cấu trúc tài liệu</h4>
+            <ol class="rte-outline" id="rteOutline"></ol>
+            <p class="rte-side-empty" id="rteOutlineEmpty">Chưa có tiêu đề. Dùng “Tiêu đề 1–3” để tạo mục lục.</p>
+          </section>
+
+          <section class="rte-side-block">
+            <h4>Mẹo soạn thảo</h4>
+            <ul class="rte-tips">
+              <li><kbd>Ctrl + B</kbd><span>In đậm</span></li>
+              <li><kbd>Ctrl + I</kbd><span>In nghiêng</span></li>
+              <li><kbd>Ctrl + K</kbd><span>Chèn liên kết</span></li>
+              <li><kbd>Ctrl + Z</kbd><span>Hoàn tác</span></li>
+            </ul>
+            <p class="rule-doc-hint" id="rteSizeHint"></p>
+          </section>
+        </aside>
       </form>
+
+      <div class="rte-foot">
+        <span class="rte-status" id="rteStatus"><i class="rte-status-dot"></i><span id="rteStatusText">Chưa có thay đổi</span></span>
+        <span class="rte-foot-stat" id="rteWordCount">0 từ</span>
+        <div class="rte-zoom" role="group" aria-label="Thu phóng trang soạn thảo">
+          <button type="button" class="rte-btn" id="rteZoomOut" title="Thu nhỏ" aria-label="Thu nhỏ"><svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+          <span id="rteZoomValue">100%</span>
+          <button type="button" class="rte-btn" id="rteZoomIn" title="Phóng to" aria-label="Phóng to"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+        </div>
+        <button type="button" class="btn-secondary" onclick="requestCloseRuleText()">Hủy</button>
+      </div>
     </div>
   </div>
 
@@ -2003,6 +2205,23 @@
 
     let ruleTextEditingId = null; // null = tao moi, co gia tri = dang sua tai lieu do
     let ruleEditorSavedRange = null;
+    let ruleTextDirty = false;
+    let ruleTextZoom = 100;
+    let ruleOutlineTimer = null;
+
+    // Phong chu / co chu / gian dong cho thanh cong cu. Gia tri phai khop whitelist
+    // style trong hrRuleDocumentSanitizer.js (font-family, font-size px, line-height).
+    const RTE_FONTS = [
+      ['Noto Serif', 'Noto Serif (mặc định)'], ['Be Vietnam Pro', 'Be Vietnam Pro'], ['Inter', 'Inter'],
+      ['Arial', 'Arial'], ['Times New Roman', 'Times New Roman'], ['Georgia', 'Georgia'],
+      ['Tahoma', 'Tahoma'], ['Verdana', 'Verdana'], ['Courier New', 'Courier New']
+    ];
+    const RTE_SIZES = [10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 32, 36, 48, 60, 72];
+    const RTE_LINE_HEIGHTS = [['1', '1.0'], ['1.15', '1.15'], ['1.5', '1.5'], ['1.7', '1.7'], ['2', '2.0'], ['2.5', '2.5']];
+    const RTE_FONT_MIN = 8, RTE_FONT_MAX = 72;
+    const RTE_STATE_BUTTONS = ['bold','italic','underline','strikeThrough','insertUnorderedList','insertOrderedList',
+      'justifyLeft','justifyCenter','justifyRight','justifyFull'];
+    const RTE_BLOCK_SELECTOR = 'p,div,h1,h2,h3,h4,li';
 
     function ruleEditor(){ return ruleDocEl('ruleTextEditor'); }
 
@@ -2025,9 +2244,28 @@
       if(editor){ editor.focus(); restoreRuleEditorSelection(); }
     }
 
+    function markRuleTextDirty(){
+      ruleTextDirty = true;
+      const box = ruleDocEl('rteStatus');
+      if(box) box.classList.add('dirty');
+      const text = ruleDocEl('rteStatusText');
+      if(text) text.textContent = 'Có thay đổi chưa lưu';
+    }
+
+    function resetRuleTextDirty(){
+      ruleTextDirty = false;
+      const box = ruleDocEl('rteStatus');
+      if(box) box.classList.remove('dirty');
+      const text = ruleDocEl('rteStatusText');
+      if(text) text.textContent = 'Chưa có thay đổi';
+    }
+
     function ruleEditorCommand(command, value){
       focusRuleEditor();
+      if(typeof document.execCommand !== 'function') return;
       document.execCommand(command, false, value == null ? null : value);
+      markRuleTextDirty();
+      syncRuleToolbar();
     }
 
     function ruleEditorBlock(tag){
@@ -2037,6 +2275,88 @@
     function ruleEditorColor(property, value){
       if(!value) return;
       ruleEditorCommand(property === 'backgroundColor' ? 'hiliteColor' : 'foreColor', value);
+    }
+
+    function ruleEditorFontFamily(name){
+      if(!name) return;
+      ruleEditorCommand('fontName', name);
+    }
+
+    // execCommand('fontSize') chi nhan 1..7; dat 7 roi doi sang px that de giu dung cap so nguoi dung chon.
+    function ruleEditorFontSize(px){
+      const size = Math.max(RTE_FONT_MIN, Math.min(RTE_FONT_MAX, Math.round(Number(px) || 0)));
+      if(!size) return;
+      focusRuleEditor();
+      const selection = window.getSelection();
+      if(!selection || !selection.rangeCount || selection.isCollapsed){
+        showToast('Hãy bôi đen đoạn chữ cần đổi cỡ.', 'error');
+        syncRuleToolbar();
+        return;
+      }
+      if(typeof document.execCommand !== 'function') return;
+      document.execCommand('fontSize', false, '7');
+      const editor = ruleEditor();
+      editor.querySelectorAll('font[size="7"]').forEach(font => {
+        const span = document.createElement('span');
+        while(font.firstChild) span.appendChild(font.firstChild);
+        font.replaceWith(span);
+        span.style.fontSize = `${size}px`;
+      });
+      editor.querySelectorAll('span').forEach(span => {
+        if(/xxx-large/.test(span.style.fontSize || '')) span.style.fontSize = `${size}px`;
+      });
+      saveRuleEditorSelection();
+      markRuleTextDirty();
+      syncRuleToolbar();
+    }
+
+    function stepRuleFontSize(delta){
+      const current = ruleEditorCurrentStyle();
+      ruleEditorFontSize((current ? current.size : 13) + delta);
+    }
+
+    function selectedRuleBlocks(){
+      const selection = window.getSelection();
+      if(!selection || !selection.rangeCount) return [];
+      const range = selection.getRangeAt(0);
+      const editor = ruleEditor();
+      if(!editor.contains(range.commonAncestorContainer)) return [];
+      const closestBlock = node => {
+        let el = node.nodeType === 1 ? node : node.parentElement;
+        while(el && el !== editor){ if(el.matches(RTE_BLOCK_SELECTOR)) return el; el = el.parentElement; }
+        return null;
+      };
+      const found = new Set();
+      [range.startContainer, range.endContainer].forEach(node => { const b = closestBlock(node); if(b) found.add(b); });
+      editor.querySelectorAll(RTE_BLOCK_SELECTOR).forEach(b => { if(range.intersectsNode(b)) found.add(b); });
+      return Array.from(found).filter(b => !b.querySelector(RTE_BLOCK_SELECTOR));
+    }
+
+    function ruleEditorLineHeight(value){
+      if(!value) return;
+      focusRuleEditor();
+      let blocks = selectedRuleBlocks();
+      if(!blocks.length && typeof document.execCommand === 'function'){
+        document.execCommand('formatBlock', false, 'P');
+        blocks = selectedRuleBlocks();
+      }
+      blocks.forEach(b => { b.style.lineHeight = value; });
+      markRuleTextDirty();
+      syncRuleToolbar();
+    }
+
+    function insertRuleLink(){
+      focusRuleEditor();
+      const selection = window.getSelection();
+      const hasText = !!(selection && selection.rangeCount && !selection.isCollapsed);
+      const raw = window.prompt('Địa chỉ liên kết (http:// hoặc https://):', 'https://');
+      if(raw == null) return;
+      let url = raw.trim();
+      if(!url || url === 'https://') return;
+      if(!/^https?:\/\//i.test(url)) url = `https://${url}`;
+      try{ new URL(url); }catch(err){ showToast('Địa chỉ liên kết không hợp lệ.', 'error'); return; }
+      if(hasText) ruleEditorCommand('createLink', url);
+      else ruleEditorCommand('insertHTML', `<a href="${escapeHtml(url)}">${escapeHtml(url)}</a>`);
     }
 
     function insertRuleTable(){
@@ -2079,6 +2399,23 @@
       insertRuleImageFile(ruleDocEl('ruleTextImageInput').files[0]);
     }
 
+    // Go the/thuoc tinh nguy hiem khoi 1 cay DOM tam (paste + xem truoc). Server van
+    // sanitize lai bang sanitize-html khi luu — day chi la lop phong thu som cho trinh soan.
+    function stripUnsafeRuleNodes(root, dropRemoteImages){
+      root.querySelectorAll('script,style,iframe,object,embed,form,svg,meta,link').forEach(el => el.remove());
+      root.querySelectorAll('*').forEach(el => {
+        Array.from(el.attributes).forEach(attr => {
+          const name = attr.name.toLowerCase();
+          if(name.startsWith('on') || name === 'srcdoc') el.removeAttribute(attr.name);
+          else if((name === 'href' || name === 'src') && /^\s*javascript:/i.test(attr.value)) el.removeAttribute(attr.name);
+        });
+        if(dropRemoteImages && el.tagName === 'IMG'){
+          const src = el.getAttribute('src') || '';
+          if(!src.startsWith('data:image/')) el.remove();
+        }
+      });
+    }
+
     function onRuleEditorPaste(event){
       const items = Array.from((event.clipboardData && event.clipboardData.items) || []);
       const imageItem = items.find(item => item.kind === 'file' && item.type.startsWith('image/'));
@@ -2089,24 +2426,13 @@
       }
 
       // Chan HTML nguy hiem / anh ngoai tai ngay luc paste (truoc khi bam Luu),
-      // de khong phat sinh request ra ngoai tu <img src=https://...>. Server van
-      // sanitize lai bang sanitize-html — day chi la lop phong thu som cho editor.
+      // de khong phat sinh request ra ngoai tu <img src=https://...>.
       const html = event.clipboardData && event.clipboardData.getData('text/html');
       if(!html) return; // van ban thuan de trinh duyet xu ly binh thuong
       event.preventDefault();
       const template = document.createElement('template');
       template.innerHTML = html;
-      template.content.querySelectorAll('script,style,iframe,object,embed,form,svg,meta,link').forEach(el => el.remove());
-      template.content.querySelectorAll('*').forEach(el => {
-        Array.from(el.attributes).forEach(attr => {
-          const name = attr.name.toLowerCase();
-          if(name.startsWith('on') || name === 'srcdoc') el.removeAttribute(attr.name);
-        });
-        if(el.tagName === 'IMG'){
-          const src = el.getAttribute('src') || '';
-          if(!src.startsWith('data:image/')) el.remove();
-        }
-      });
+      stripUnsafeRuleNodes(template.content, true);
       ruleEditorCommand('insertHTML', template.innerHTML);
     }
 
@@ -2122,6 +2448,157 @@
       if(!editor || !hint) return;
       const chars = editor.innerHTML.length;
       hint.textContent = `Nội dung HTML: ${chars.toLocaleString('vi-VN')} ký tự · Ảnh tối đa 5 MB/ảnh`;
+      const words = editor.textContent.split(/\s+/).filter(Boolean).length;
+      const counter = ruleDocEl('rteWordCount');
+      if(counter) counter.textContent = `${words.toLocaleString('vi-VN')} từ`;
+    }
+
+    // Muc luc: cac tieu de h1-h3 trong noi dung; bam de cuon toi tieu de do.
+    function rebuildRuleOutline(){
+      const list = ruleDocEl('rteOutline');
+      if(!list) return;
+      list.textContent = '';
+      ruleEditor().querySelectorAll('h1,h2,h3').forEach(heading => {
+        const text = heading.textContent.trim();
+        if(!text) return;
+        const item = document.createElement('li');
+        item.dataset.level = heading.tagName.slice(1);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        const label = document.createElement('span');
+        label.textContent = text;
+        btn.appendChild(label);
+        btn.addEventListener('click', () => heading.scrollIntoView({ block: 'center', behavior: 'smooth' }));
+        item.appendChild(btn);
+        list.appendChild(item);
+      });
+    }
+
+    function scheduleRuleOutline(){
+      clearTimeout(ruleOutlineTimer);
+      ruleOutlineTimer = setTimeout(rebuildRuleOutline, 250);
+    }
+
+    // Dinh dang tai vi tri con tro: co chu + phong + gian dong doc tu CSS thuc te cua phan tu.
+    function ruleEditorCurrentStyle(){
+      const selection = window.getSelection && window.getSelection();
+      if(!selection || !selection.rangeCount) return null;
+      const node = selection.anchorNode;
+      const el = node && (node.nodeType === 1 ? node : node.parentElement);
+      if(!el || !ruleEditor().contains(el)) return null;
+      const cs = window.getComputedStyle(el);
+      const size = parseFloat(cs.fontSize);
+      const lh = parseFloat(cs.lineHeight);
+      const family = String(cs.fontFamily || '').split(',')[0].replace(/["']/g, '').trim();
+      return {
+        size: Number.isFinite(size) ? size : 13,
+        family,
+        lineHeight: Number.isFinite(lh) && size ? Math.round((lh / size) * 100) / 100 : null
+      };
+    }
+
+    function setRuleSelectValue(select, value, label){
+      if(!select) return;
+      const key = String(value);
+      let option = Array.from(select.options).find(o => o.value === key);
+      if(!option){
+        option = select.querySelector('option[data-dynamic]');
+        if(!option){ option = document.createElement('option'); option.dataset.dynamic = '1'; select.appendChild(option); }
+        option.value = key;
+      }
+      option.textContent = label == null ? key : label;
+      select.value = key;
+    }
+
+    function syncRuleToolbar(){
+      const editor = ruleEditor();
+      const selection = window.getSelection && window.getSelection();
+      if(!editor || !selection || !selection.rangeCount || !editor.contains(selection.anchorNode)) return;
+      RTE_STATE_BUTTONS.forEach(cmd => {
+        const btn = document.querySelector(`#rteToolbar [data-cmd="${cmd}"]`);
+        if(!btn) return;
+        let on = false;
+        try{ on = !!document.queryCommandState(cmd); }catch(err){}
+        btn.classList.toggle('active', on);
+      });
+      let block = '';
+      try{ block = String(document.queryCommandValue('formatBlock') || '').toUpperCase().replace(/[<>]/g, ''); }catch(err){}
+      ruleDocEl('rteHeadingSelect').value = ['H1','H2','H3','H4'].includes(block) ? block : 'P';
+      const style = ruleEditorCurrentStyle();
+      if(!style) return;
+      const font = RTE_FONTS.find(f => f[0].toLowerCase() === style.family.toLowerCase());
+      if(font) setRuleSelectValue(ruleDocEl('rteFontFamily'), font[0], font[1]);
+      else if(style.family) setRuleSelectValue(ruleDocEl('rteFontFamily'), style.family, style.family);
+      const px = Math.round(style.size * 10) / 10;
+      setRuleSelectValue(ruleDocEl('rteFontSize'), px, String(px));
+      if(style.lineHeight){
+        const known = RTE_LINE_HEIGHTS.find(l => Number(l[0]) === style.lineHeight);
+        setRuleSelectValue(ruleDocEl('rteLineHeight'), known ? known[0] : style.lineHeight, known ? known[1] : String(style.lineHeight));
+      }
+    }
+
+    function fillRuleToolbarSelects(){
+      const fontSel = ruleDocEl('rteFontFamily');
+      fontSel.textContent = '';
+      RTE_FONTS.forEach(([value, label]) => {
+        const o = document.createElement('option');
+        o.value = value; o.textContent = label; o.style.fontFamily = `"${value}"`;
+        fontSel.appendChild(o);
+      });
+      const sizeSel = ruleDocEl('rteFontSize');
+      sizeSel.textContent = '';
+      RTE_SIZES.forEach(n => {
+        const o = document.createElement('option');
+        o.value = String(n); o.textContent = String(n);
+        sizeSel.appendChild(o);
+      });
+      sizeSel.value = '13';
+      const lhSel = ruleDocEl('rteLineHeight');
+      lhSel.textContent = '';
+      RTE_LINE_HEIGHTS.forEach(([value, label]) => {
+        const o = document.createElement('option');
+        o.value = value; o.textContent = label;
+        lhSel.appendChild(o);
+      });
+      lhSel.value = '1.7';
+    }
+
+    function setRuleTextTab(tab){
+      const preview = tab === 'preview';
+      ruleDocEl('rteTabEdit').classList.toggle('active', !preview);
+      ruleDocEl('rteTabEdit').setAttribute('aria-selected', String(!preview));
+      ruleDocEl('rteTabPreview').classList.toggle('active', preview);
+      ruleDocEl('rteTabPreview').setAttribute('aria-selected', String(preview));
+      ruleDocEl('rteToolbar').hidden = preview;
+      ruleDocEl('rteCanvas').hidden = preview;
+      ruleDocEl('rtePreview').hidden = !preview;
+      ruleDocEl('rtePreviewBtn').hidden = preview;
+      if(preview) renderRuleTextPreview();
+      else focusRuleEditor();
+    }
+
+    function renderRuleTextPreview(){
+      const template = document.createElement('template');
+      template.innerHTML = ruleEditor().innerHTML;
+      stripUnsafeRuleNodes(template.content, false);
+      ruleDocEl('rtePreviewBody').replaceChildren(template.content);
+      ruleDocEl('rtePreviewTitle').textContent = ruleDocEl('ruleTextName').value.trim() || 'Tài liệu chưa đặt tên';
+      const iconEl = ruleDocEl('rtePreviewIcon');
+      const def = ICON_DEFS[ruleTextSelectedIcon];
+      if(def){ iconEl.innerHTML = def.svg; iconEl.hidden = false; } // ICON_DEFS la hang so trong code.
+      else { iconEl.textContent = ''; iconEl.hidden = true; }
+    }
+
+    function setRuleTextZoom(value){
+      ruleTextZoom = Math.max(50, Math.min(200, value));
+      ruleDocEl('rtePage').style.zoom = String(ruleTextZoom / 100);
+      ruleDocEl('rtePreviewPage').style.zoom = String(ruleTextZoom / 100);
+      ruleDocEl('rteZoomValue').textContent = `${ruleTextZoom}%`;
+    }
+
+    function requestCloseRuleText(){
+      if(ruleTextDirty && !window.confirm('Các thay đổi chưa lưu sẽ bị mất. Đóng hộp soạn thảo?')) return;
+      closeModal('ruleTextModal');
     }
 
     function initRuleTextEditor(){
@@ -2129,19 +2606,46 @@
         button.addEventListener('mousedown', event => event.preventDefault());
         button.addEventListener('click', () => ruleEditorCommand(button.dataset.cmd));
       });
+      document.querySelectorAll('#rteToolbar .rte-btn:not([data-cmd])').forEach(button => {
+        button.addEventListener('mousedown', event => event.preventDefault());
+      });
+      fillRuleToolbarSelects();
       ruleDocEl('rteHeadingSelect').addEventListener('change', event => ruleEditorBlock(event.target.value));
-      ruleDocEl('rteForeColor').addEventListener('input', event => ruleEditorColor('color', event.target.value));
-      ruleDocEl('rteBackColor').addEventListener('input', event => ruleEditorColor('backgroundColor', event.target.value));
+      ruleDocEl('rteFontFamily').addEventListener('change', event => ruleEditorFontFamily(event.target.value));
+      ruleDocEl('rteFontSize').addEventListener('change', event => ruleEditorFontSize(event.target.value));
+      ruleDocEl('rteLineHeight').addEventListener('change', event => ruleEditorLineHeight(event.target.value));
+      ruleDocEl('rteSizeDown').addEventListener('click', () => stepRuleFontSize(-1));
+      ruleDocEl('rteSizeUp').addEventListener('click', () => stepRuleFontSize(1));
+      ruleDocEl('rteForeColor').addEventListener('input', event => {
+        ruleDocEl('rteForeBar').style.background = event.target.value;
+        ruleEditorColor('color', event.target.value);
+      });
+      ruleDocEl('rteBackColor').addEventListener('input', event => {
+        ruleDocEl('rteBackBar').style.background = event.target.value;
+        ruleEditorColor('backgroundColor', event.target.value);
+      });
       ruleDocEl('rteInsertTableBtn').addEventListener('click', insertRuleTable);
       ruleDocEl('rteInsertImageBtn').addEventListener('click', insertRuleImage);
-      ruleEditor().addEventListener('input', updateRuleEditorSizeHint);
-      ruleEditor().addEventListener('keyup', saveRuleEditorSelection);
-      ruleEditor().addEventListener('mouseup', saveRuleEditorSelection);
-      ruleEditor().addEventListener('focus', saveRuleEditorSelection);
+      ruleDocEl('rteInsertLinkBtn').addEventListener('click', insertRuleLink);
+      ruleDocEl('rteZoomOut').addEventListener('click', () => setRuleTextZoom(ruleTextZoom - 10));
+      ruleDocEl('rteZoomIn').addEventListener('click', () => setRuleTextZoom(ruleTextZoom + 10));
+      ruleDocEl('ruleTextName').addEventListener('input', markRuleTextDirty);
+      const editor = ruleEditor();
+      editor.addEventListener('input', () => { markRuleTextDirty(); updateRuleEditorSizeHint(); scheduleRuleOutline(); });
+      editor.addEventListener('keyup', () => { saveRuleEditorSelection(); syncRuleToolbar(); });
+      editor.addEventListener('mouseup', () => { saveRuleEditorSelection(); syncRuleToolbar(); });
+      editor.addEventListener('focus', saveRuleEditorSelection);
+      editor.addEventListener('keydown', event => {
+        if((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'k'){
+          event.preventDefault();
+          insertRuleLink();
+        }
+      });
       document.addEventListener('selectionchange', saveRuleEditorSelection);
       // Buoc trinh duyet dung inline CSS cho mau/can le; server chi giu dung cac
-      // thuoc tinh CSS trong whitelist.
+      // thuoc tinh CSS trong whitelist. Doan moi la <p> (khong phai <div>) de gian dong/can le dong nhat.
       try{ document.execCommand('styleWithCSS', false, true); }catch(err){}
+      try{ document.execCommand('defaultParagraphSeparator', false, 'p'); }catch(err){}
       renderIconPicker();
     }
 
@@ -2153,12 +2657,18 @@
       const isEdit = !!(doc && doc.kind === 'text');
       ruleTextEditingId = isEdit ? doc.id : null;
       ruleDocEl('ruleTextHeading').textContent = isEdit ? 'Sửa tài liệu quy định' : 'Soạn tài liệu quy định';
-      ruleDocEl('ruleTextSubmit').textContent = isEdit ? 'Lưu' : 'Tạo tài liệu';
+      ruleDocEl('ruleTextSubmitLabel').textContent = isEdit ? 'Lưu thay đổi' : 'Tạo tài liệu';
       ruleEditor().innerHTML = isEdit ? (doc.body || '') : '<p><br></p>';
       ruleEditorSavedRange = null;
       if(isEdit) ruleDocEl('ruleTextName').value = doc.title || '';
       selectRuleTextIcon(isEdit ? (doc.iconKey || '') : '');
+      ruleDocEl('rteForeBar').style.background = ruleDocEl('rteForeColor').value;
+      ruleDocEl('rteBackBar').style.background = ruleDocEl('rteBackColor').value;
+      setRuleTextZoom(100);
+      setRuleTextTab('edit');
       updateRuleEditorSizeHint();
+      rebuildRuleOutline();
+      resetRuleTextDirty();
       openModal('ruleTextModal');
     }
 
@@ -3278,13 +3788,21 @@
       let text=escapeHtml(value) || '—';
       let avatar='';
       if(columnKey === 'ho-va-ten' && value) avatar=' data-initials="'+escapeHtml(employeeInitials(value))+'"';
-      else if(columnKey === 'chuc-vu' && value) text='<span class="emp-pill">'+text+'</span>';
+      else if(columnKey === 'chuc-vu' && value) text='<span class="emp-pill emp-tone-'+employeeRoleTone(value)+'">'+text+'</span>';
       else if(columnKey === 'ho-so') text='<span class="emp-flag '+(employee.hoSoDayDu ? 'emp-flag-ok' : 'emp-flag-warn')+'">'+text+'</span>';
       else if(columnKey === 'van-tay') text='<span class="emp-dot '+(employee.vanTayDaDangKy ? 'emp-dot-on' : 'emp-dot-off')+'">'+text+'</span>';
       return '<td class="'+employeeCellClass(columnKey)+(avatar ? ' emp-name-cell' : '')+status+'"'+sortable+avatar+'>'+ text +'</td>';
     }
 
     const employeePaging = { page: 1, size: 50 };
+
+    // Mỗi chức vụ một màu cố định (băm theo chữ không dấu, không phân biệt hoa thường) trong bảng 8 tông.
+    function employeeRoleTone(role){
+      const key=String(role || '').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/đ/gi,'d').trim().toLowerCase();
+      let hash=0;
+      for(const ch of key) hash=(hash * 31 + ch.charCodeAt(0)) >>> 0;
+      return hash % 8;
+    }
 
     // Chữ cái đầu của họ và tên cuối: "Mai Bích Phượng" -> "MP".
     function employeeInitials(name){
