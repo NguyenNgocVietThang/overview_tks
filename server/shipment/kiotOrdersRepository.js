@@ -108,6 +108,7 @@ function allocateSellable(lines, availableOf) {
 
 // Dau don CUA MOI TRANG THAI (khong dong hang): trang thai Kiot + ghi chu + khach + sale. Sale lay tu
 // o.raw soldByName, thieu thi bang staff, roi cat ID Telegram (dashboard/saleName.js). Ngay dat doc bang
+// Ten khach: uu tien TEN HIEN TAI o bang customers (doi ten tren Kiot thi hien ngay), ten tren don chi la du phong.
 // AT TIME ZONE 'UTC' ("gio treo tuong VN mang nhan UTC", xem dashboardPgReader.js).
 const ALL_ORDERS_SQL = `
   SELECT
@@ -117,13 +118,14 @@ const ALL_ORDERS_SQL = `
     COALESCE(o.total, 0)::float8 AS total,
     COALESCE(to_char(o.order_date AT TIME ZONE 'UTC', 'DD/MM/YYYY HH24:MI'), '') AS order_date_text,
     COALESCE(to_char(o.order_date AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS'), '') AS order_date_key,
-    COALESCE(NULLIF(o.raw->>'customerName', ''), 'Khách lẻ') AS customer_name,
+    COALESCE(NULLIF(c.name, ''), NULLIF(o.raw->>'customerName', ''), 'Khách lẻ') AS customer_name,
     ${saleNameSql(`COALESCE(NULLIF(o.raw->>'soldByName', ''), s.name, '')`)} AS sale_name,
     COALESCE(o.raw->>'statusValue', '') AS kiot_status,
     COALESCE(o.raw->>'description', '') AS note,
     o.modified_date
   FROM orders o
   LEFT JOIN staff s ON s.branch = o.branch AND s.id = o.sold_by_id
+  LEFT JOIN customers c ON c.branch = o.branch AND c.id = o.customer_id
   WHERE (o.raw->>'statusValue' = '${PHIEU_TAM}'
      OR o.order_date IS NULL
      OR (o.order_date AT TIME ZONE 'UTC') >= TIMESTAMP '${LIFECYCLE_ORDER_FROM} 00:00:00')`;

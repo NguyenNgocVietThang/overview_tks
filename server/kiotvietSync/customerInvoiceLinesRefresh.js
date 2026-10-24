@@ -42,6 +42,10 @@ const { DETAIL_AMOUNT_SQL, RETURN_AMOUNT_SQL, INVOICE_STATUS_SQL, normalizedName
 const { vnDateKey, vnMinutesOfDay, addDaysToKey } = require('./vnTime');
 
 const BRANCH_CODES = Object.freeze(['hanoi', 'saigon']);
+
+// Ten khach HIEN TAI (customers.name theo customer_id) uu tien hon ten ghi tren chung tu: doi ten khach tren
+// KiotViet khong sua chung tu cu nen khong can dong bo lai hoa don, chi can dung lai bang nay.
+const currentName = alias => `COALESCE(NULLIF(btrim(cc.name), ''), NULLIF(btrim(${alias}.raw->>'customerName'), ''), 'Khách lẻ')`;
 const WINDOW_DAYS = 90;
 const SETTLE_MINUTES_AFTER_MIDNIGHT = 10;
 const REFRESH_WORK_MEM = '32MB';
@@ -76,24 +80,25 @@ const FILL_STAGING_SQL = `${CUSTOMER_BY_NAME_CTE}
     d.line_no,
     i.code,
     (i.purchase_date AT TIME ZONE 'UTC')::date,
-    COALESCE(NULLIF(btrim(i.raw->>'customerCode'), ''), cbn.code),
-    COALESCE(NULLIF(i.raw->>'customerName', ''), 'Khách lẻ'),
+    COALESCE(NULLIF(btrim(i.raw->>'customerCode'), ''), cc.code, cbn.code),
+    ${currentName('i')},
     COALESCE(NULLIF(d.raw->>'productCode', ''), p.code, ''),
-    COALESCE(NULLIF(d.raw->>'productName', ''), p.name, ''),
+    COALESCE(NULLIF(btrim(p.raw->>'fullName'), ''), NULLIF(btrim(p.name), ''), NULLIF(d.raw->>'productName', ''), ''),
     COALESCE(d.quantity, 0)::numeric,
     (${DETAIL_AMOUNT_SQL})::numeric
   FROM invoices i
   JOIN invoice_details d ON d.branch = i.branch AND d.invoice_id = i.id
   LEFT JOIN products p ON p.branch = d.branch AND p.id = d.product_id
+  LEFT JOIN customers cc ON cc.branch = i.branch AND cc.id = i.customer_id
   LEFT JOIN customer_by_name cbn
     ON cbn.branch = i.branch
-   AND cbn.name_key = ${normalizedNameSql(`COALESCE(NULLIF(i.raw->>'customerName', ''), 'Khách lẻ')`)}
+   AND cbn.name_key = ${normalizedNameSql(currentName('i'))}
   WHERE i.branch = ANY($1::text[])
     AND i.purchase_date >= ($2::date::timestamp AT TIME ZONE 'UTC')
     AND i.purchase_date <  (($3::date + 1)::timestamp AT TIME ZONE 'UTC')
     AND ${INVOICE_STATUS_SQL} = 'Hoàn thành'
     AND btrim(i.code) <> ''
-    AND COALESCE(NULLIF(btrim(i.raw->>'customerCode'), ''), cbn.code) IS NOT NULL`;
+    AND COALESCE(NULLIF(btrim(i.raw->>'customerCode'), ''), cc.code, cbn.code) IS NOT NULL`;
 
 // DOANH THU THUC TE: hang khach tra (phieu tra statusValue='Đã trả') la cac dong AM
 // trong cung bang, theo ngay TRA, gan cho khach nhu hoa don (ma tren phieu tra, khong
@@ -111,24 +116,25 @@ const FILL_STAGING_RETURNS_SQL = `${CUSTOMER_BY_NAME_CTE}
     rd.line_no,
     r.code,
     (r.return_date AT TIME ZONE 'UTC')::date,
-    COALESCE(NULLIF(btrim(r.raw->>'customerCode'), ''), cbn.code),
-    COALESCE(NULLIF(r.raw->>'customerName', ''), 'Khách lẻ'),
+    COALESCE(NULLIF(btrim(r.raw->>'customerCode'), ''), cc.code, cbn.code),
+    ${currentName('r')},
     COALESCE(NULLIF(rd.raw->>'productCode', ''), p.code, ''),
-    COALESCE(NULLIF(rd.raw->>'productName', ''), p.name, ''),
+    COALESCE(NULLIF(btrim(p.raw->>'fullName'), ''), NULLIF(btrim(p.name), ''), NULLIF(rd.raw->>'productName', ''), ''),
     -abs(COALESCE(rd.quantity, 0))::numeric,
     -(${RETURN_AMOUNT_SQL})::numeric
   FROM returns r
   JOIN return_details rd ON rd.branch = r.branch AND rd.return_id = r.id
   LEFT JOIN products p ON p.branch = rd.branch AND p.id = rd.product_id
+  LEFT JOIN customers cc ON cc.branch = r.branch AND cc.id = r.customer_id
   LEFT JOIN customer_by_name cbn
     ON cbn.branch = r.branch
-   AND cbn.name_key = ${normalizedNameSql(`COALESCE(NULLIF(r.raw->>'customerName', ''), 'Khách lẻ')`)}
+   AND cbn.name_key = ${normalizedNameSql(currentName('r'))}
   WHERE r.branch = ANY($1::text[])
     AND r.return_date >= ($2::date::timestamp AT TIME ZONE 'UTC')
     AND r.return_date <  (($3::date + 1)::timestamp AT TIME ZONE 'UTC')
     AND r.raw->>'statusValue' = 'Đã trả'
     AND btrim(r.code) <> ''
-    AND COALESCE(NULLIF(btrim(r.raw->>'customerCode'), ''), cbn.code) IS NOT NULL`;
+    AND COALESCE(NULLIF(btrim(r.raw->>'customerCode'), ''), cc.code, cbn.code) IS NOT NULL`;
 
 // Ban tang dan: cung cau, them dieu kien synced_at ($4). Tao bang replace + kiem tra de khong
 // am tham tro thanh ban sao y nguyen ban day du khi ai do sua dinh dang cau goc.

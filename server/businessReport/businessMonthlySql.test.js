@@ -119,10 +119,11 @@ test('khop khach: ma uu tien, ten chuan hoa (hoa/thuong, khoang trang, ky tu ron
       [sql.BRANCH_CODES, '2026-08-01', '2026-09-01']);
     assert.deepEqual(rows.map(r => [r.branch, r.customer_code, r.customer_name, Number(r.invoice_amount),
       Number(r.return_amount), Number(r.net_revenue), r.invoice_count, r.return_count]), [
-      ['hanoi', 'KH3', 'Tên khác', 140, 30, 110, 2, 1],
-      ['hanoi', 'KH5', 'Trùng  Tên', 90, 0, 90, 2, 0],
+      // Ten hien thi = ten HIEN TAI trong bang customers (co ma), khong phai ten ghi tren chung tu.
+      ['hanoi', 'KH3', 'Nguyễn Văn Đức', 140, 30, 110, 2, 1],
+      ['hanoi', 'KH5', 'Trùng Tên', 90, 0, 90, 2, 0],
       ['saigon', '', 'Khách không tồn tại', 110, 5, 105, 2, 1],
-      ['saigon', 'KS1', 'LÊ THỊ HOA', 80, 0, 80, 1, 0]
+      ['saigon', 'KS1', 'Lê Thị Hoa', 80, 0, 80, 1, 0]
     ]);
   } finally { await db.close(); }
 });

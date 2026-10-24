@@ -1,6 +1,8 @@
 <!-- Chính sách hiện hành: mục 16/10/2026 — Tập Pancake độc lập ở cuối tài liệu. Các mốc cũ giữ làm lịch sử. -->
 # TOKOSI Dashboard Server
 
+24/10/2026 — `public/shared/motion.js` (kèm `motion.test.js`) bổ sung hiệu ứng xuất hiện dùng chung trên 13 trang HTML, gồm đăng nhập/đăng ký/404 và Telegram miniapp. Không thay CSS, nền, bố cục, cột bảng, dữ liệu hoặc API; giảm chuyển động tắt hiệu ứng. Số đếm hiển thị bằng lớp thị giác tạm thời, giữ nguyên text số thật cho truy cập và xử lý. Chạy `node --test public/shared/motion.test.js test/frontend/shared-motion-integration.test.js` để kiểm tra riêng.
+
 23/10/2026 — **Kiểm tra giá bán (Invoice Price Audit)** đã hoàn thiện và push lên 2 remote GitHub (`origin` và `tks_web`): cập nhật chuẩn hóa danh sách 10 khách hàng bao cước HN theo tên KiotViet mới (giữ dấu), đọc bậc giá theo chiếc (`CT`, `lẻ`) trực tiếp theo số chiếc, khóa thứ tự 4 mức giá Vừa - Lớn - VIP - Cắt lỗ, email 'mới' tính là khách Lớn. Gộp PR #16 (Nháp VAT dán mã xử lý luôn) và PR #17 (ORDER VAT hết tràn ngang sale) vào `main`.
 
 22/10/2026 — `0078_hr_employee_insurance_number.sql` thêm Số bảo hiểm dạng text tự do, không giới hạn mẫu 10–15 chữ số. Server tự áp riêng migration này trong transaction trước khi mở cổng HTTP (không chạy các migration khác); nếu DB/DDL lỗi, bản mới không khởi động. `POST /api/hr/employees/insurance-import` cho Quản lý xem trước file Excel; `?commit=1` chỉ cập nhật Số bảo hiểm theo ID nhân sự.

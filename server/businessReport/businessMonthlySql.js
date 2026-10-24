@@ -36,7 +36,15 @@ const returnsWithCustomer = `(SELECT r.branch, r.id, r.return_date, r.total, r.r
       OFFSET 0) r
     LEFT JOIN customer_by_name cbn ON cbn.branch = r.branch AND cbn.name_key = r.name_key`;
 
+// Ten HIEN TAI cua khach (bang customers, theo co so + ma trim, id moi nhat) de hien thi; ten ghi tren
+// chung tu chi la du phong. Chi doi ten HIEN THI — khoa gom/khop khach (name_key, customer_code) giu nguyen.
 const CUSTOMER_MONTH_SELECT_SQL = `${CUSTOMER_BY_NAME_CTE},
+  current_names AS (
+    SELECT DISTINCT ON (branch, btrim(code)) branch, btrim(code) AS code, btrim(name) AS name
+    FROM customers
+    WHERE branch = ANY($1::text[]) AND btrim(COALESCE(code, '')) <> '' AND btrim(COALESCE(name, '')) <> ''
+    ORDER BY branch, btrim(code), id DESC
+  ),
   docs AS (
     SELECT i.branch, ${customerCode('i')} AS customer_code,
            COALESCE(NULLIF(i.raw->>'customerName', ''), 'Khách lẻ') AS customer_name, i.purchase_date AS at,
@@ -48,13 +56,19 @@ const CUSTOMER_MONTH_SELECT_SQL = `${CUSTOMER_BY_NAME_CTE},
            0::numeric, abs(COALESCE(r.total, 0))::numeric, 0, 1
     FROM ${returnsWithCustomer}
   )
-  SELECT branch, customer_code,
-         (array_agg(customer_name ORDER BY at DESC))[1] AS customer_name,
-         SUM(invoice_amount) AS invoice_amount, SUM(return_amount) AS return_amount,
-         SUM(invoice_amount) - SUM(return_amount) AS net_revenue,
-         SUM(invoice_count)::int AS invoice_count, SUM(return_count)::int AS return_count
-  FROM docs
-  GROUP BY branch, customer_code`;
+  SELECT g.branch, g.customer_code,
+         COALESCE(cn.name, g.customer_name) AS customer_name,
+         g.invoice_amount, g.return_amount, g.net_revenue, g.invoice_count, g.return_count
+  FROM (
+    SELECT branch, customer_code,
+           (array_agg(customer_name ORDER BY at DESC))[1] AS customer_name,
+           SUM(invoice_amount) AS invoice_amount, SUM(return_amount) AS return_amount,
+           SUM(invoice_amount) - SUM(return_amount) AS net_revenue,
+           SUM(invoice_count)::int AS invoice_count, SUM(return_count)::int AS return_count
+    FROM docs
+    GROUP BY branch, customer_code
+  ) g
+  LEFT JOIN current_names cn ON cn.branch = g.branch AND cn.code = g.customer_code`;
 
 // Phan bo tong chung tu (da tru giam gia ca don / giam gia tra) cho tung dong theo ty le
 // thanh tien dong => tong theo ma hang = tong theo khach. Chung tu co tong thanh tien
@@ -63,7 +77,7 @@ const CUSTOMER_PRODUCT_MONTH_SELECT_SQL = `${CUSTOMER_BY_NAME_CTE},
   lines AS (
     SELECT i.branch, ${customerCode('i')} AS customer_code,
            COALESCE(NULLIF(d.raw->>'productCode', ''), p.code, '') AS product_code,
-           COALESCE(NULLIF(d.raw->>'productName', ''), p.name, '') AS product_name,
+           COALESCE(NULLIF(p.name, ''), NULLIF(d.raw->>'productName', ''), '') AS product_name,
            COALESCE(d.quantity, 0)::numeric AS qty,
            (${DETAIL_AMOUNT_SQL})::numeric AS line_amount,
            COALESCE(i.total, 0)::numeric AS doc_total,
@@ -74,7 +88,7 @@ const CUSTOMER_PRODUCT_MONTH_SELECT_SQL = `${CUSTOMER_BY_NAME_CTE},
     UNION ALL
     SELECT r.branch, ${customerCode('r')},
            COALESCE(NULLIF(rd.raw->>'productCode', ''), p.code, ''),
-           COALESCE(NULLIF(rd.raw->>'productName', ''), p.name, ''),
+           COALESCE(NULLIF(p.name, ''), NULLIF(rd.raw->>'productName', ''), ''),
            -abs(COALESCE(rd.quantity, 0))::numeric,
            (${RETURN_AMOUNT_SQL})::numeric,
            -abs(COALESCE(r.total, 0))::numeric,

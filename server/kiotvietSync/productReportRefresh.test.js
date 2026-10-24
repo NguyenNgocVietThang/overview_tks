@@ -272,7 +272,7 @@ test('SQL that (PGlite): REFRESH_SQL ghi SL ban 30 ngay theo co so + SL don 30/9
     ]);
     // Khach ngung hoat dong (C2) van bi loai khoi bang khach nhu truoc, hoa don cua ho khong lam rot dong dem don.
     const customers = (await db.query('SELECT customer_key FROM product_report_customers WHERE product_key = $1 ORDER BY 1', ['a'])).rows;
-    assert.deepEqual(customers.map(row => row.customer_key), ['code:c1']);
+    assert.deepEqual(customers.map(row => row.customer_key), ['name:kh 1']);
   } finally { await db.close(); }
 });
 
@@ -291,4 +291,22 @@ test('refreshProductReportIfDue: chua ap migration 0057 (42703) => doc moc thoi 
   assert.doesNotMatch(queries[1], /available_hanoi/);
   // Loi khac 42703 van duoc nem ra, khong bi nuot.
   await assert.rejects(() => refreshProductReportIfDue({ query: async () => { throw new Error('db down'); } }, { now: () => now, log: () => {} }), /db down/);
+});
+
+test('SQL that (PGlite): doi ten khach/hang tren bang chu => product_report_customers ra TEN MOI; 2 khach khac ma cung ten gop 1 dong', async () => {
+  const db = await bcChungFixture();
+  try {
+    // Hoa don da ghi ten cu trong raw; sau do doi ten tren bang chu (HN#1, SG#1 va them khach C3 khac ma, cung ten sai hoa/khoang trang).
+    await db.exec(`
+      UPDATE invoices SET raw = raw || '{"customerName":"KH Cu"}'::jsonb;
+      UPDATE customers SET name = 'KH Moi' WHERE id = 1;
+      INSERT INTO customers VALUES ('hanoi', 3, 'C3', 'kh   MOI', '{}');
+      UPDATE invoices SET customer_id = 3 WHERE branch = 'hanoi' AND id = 100;`);
+    await db.query(__sql__.REFRESH_SQL, [['hanoi', 'saigon']]);
+    const rows = (await db.query('SELECT customer_key, customer_name FROM product_report_customers WHERE product_key = $1', ['a'])).rows;
+    assert.equal(rows.length, 1, 'cung ten (chuan hoa) khac ma = 1 khach');
+    assert.equal(rows[0].customer_key, 'name:kh moi');
+    assert.match(rows[0].customer_name, /^kh +moi$/i);
+    assert.doesNotMatch(rows[0].customer_name, /Cu/);
+  } finally { await db.close(); }
 });

@@ -70,7 +70,7 @@ async function getOrderDetail({ code, branchCode, pool = getPool() } = {}) {
     `SELECT o.id,
             o.code,
             COALESCE(to_char(o.order_date AT TIME ZONE 'UTC', '${DATE_FORMAT}'), '') AS order_date,
-            COALESCE(NULLIF(o.raw->>'customerName', ''), 'Khách lẻ') AS customer_name,
+            COALESCE(NULLIF(c.name, ''), NULLIF(o.raw->>'customerName', ''), 'Khách lẻ') AS customer_name,
             COALESCE(o.raw->>'customerCode', '')                     AS customer_code,
             ${saleNameSql(`COALESCE(NULLIF(o.raw->>'soldByName', ''), s.name, '')`)} AS seller,
             COALESCE(o.raw->>'branchName', '')                       AS warehouse,
@@ -81,6 +81,7 @@ async function getOrderDetail({ code, branchCode, pool = getPool() } = {}) {
             COALESCE(o.raw->>'description', '')                      AS note
      FROM orders o
      LEFT JOIN staff s ON s.branch = o.branch AND s.id = o.sold_by_id
+     LEFT JOIN customers c ON c.branch = o.branch AND c.id = o.customer_id
      WHERE o.branch = $1 AND o.code = $2`,
     [branchCode, orderCode]
   );
@@ -89,7 +90,7 @@ async function getOrderDetail({ code, branchCode, pool = getPool() } = {}) {
 
   const { rows } = await timedQuery(pool, 'invoiceLines',
     `SELECT COALESCE(NULLIF(d.raw->>'productCode', ''), p.code, '') AS product_code,
-            COALESCE(NULLIF(d.raw->>'productName', ''), p.name, '') AS product_name,
+            COALESCE(NULLIF(p.name, ''), NULLIF(d.raw->>'productName', ''), '') AS product_name,
             d.quantity, d.price, d.discount,
             d.raw->>'subTotal'                                     AS sub_total,
             COALESCE(d.raw->>'note', '')                           AS note
@@ -124,7 +125,7 @@ async function getInvoiceDetail({ code, branchCode, pool = getPool() } = {}) {
     `SELECT i.id,
             i.code,
             COALESCE(to_char(i.purchase_date AT TIME ZONE 'UTC', '${DATE_FORMAT}'), '') AS purchase_date,
-            COALESCE(NULLIF(i.raw->>'customerName', ''), 'Khách lẻ') AS customer_name,
+            COALESCE(NULLIF(c.name, ''), NULLIF(i.raw->>'customerName', ''), 'Khách lẻ') AS customer_name,
             COALESCE(i.raw->>'customerCode', '')                     AS customer_code,
             ${saleNameSql(`COALESCE(NULLIF(i.raw->>'soldByName', ''), s.name, '')`)} AS seller,
             COALESCE(i.raw->>'branchName', '')                       AS warehouse,
@@ -136,6 +137,7 @@ async function getInvoiceDetail({ code, branchCode, pool = getPool() } = {}) {
             COALESCE(i.raw->>'description', '')                      AS note
      FROM invoices i
      LEFT JOIN staff s ON s.branch = i.branch AND s.id = i.sold_by_id
+     LEFT JOIN customers c ON c.branch = i.branch AND c.id = i.customer_id
      WHERE i.branch = $1 AND i.code = $2`,
     [branchCode, invoiceCode]
   );
@@ -144,7 +146,7 @@ async function getInvoiceDetail({ code, branchCode, pool = getPool() } = {}) {
 
   const { rows } = await pool.query(
     `SELECT COALESCE(NULLIF(d.raw->>'productCode', ''), p.code, '') AS product_code,
-            COALESCE(NULLIF(d.raw->>'productName', ''), p.name, '') AS product_name,
+            COALESCE(NULLIF(p.name, ''), NULLIF(d.raw->>'productName', ''), '') AS product_name,
             d.quantity, d.price, d.discount,
             d.raw->>'subTotal'                                     AS sub_total,
             COALESCE(d.raw->>'note', '')                           AS note

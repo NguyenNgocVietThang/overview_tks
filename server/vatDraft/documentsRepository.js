@@ -46,7 +46,8 @@ function mapHead(row) {
 
 const HEAD_COLUMNS = alias => `
   ${alias}.branch, ${alias}.id, ${alias}.code,
-  COALESCE(NULLIF(${alias}.raw->>'customerName', ''), 'Khách lẻ') AS customer_name,
+  COALESCE(NULLIF((SELECT c.name FROM customers c WHERE c.branch = ${alias}.branch AND c.id = ${alias}.customer_id), ''),
+           NULLIF(${alias}.raw->>'customerName', ''), 'Khách lẻ') AS customer_name,
   COALESCE(${alias}.raw->>'customerCode', '') AS customer_code,
   COALESCE(${alias}.raw->>'description', '') AS note,
   COALESCE(${alias}.total, 0)::float8 AS total`;
@@ -139,7 +140,7 @@ function createDocumentsRepository({ query = (sql, params) => getPool().query(sq
                 COALESCE(h.raw->>'description', '') AS doc_note,
                 d.line_no,
                 COALESCE(NULLIF(d.raw->>'productCode', ''), p.code, '') AS product_code,
-                COALESCE(NULLIF(d.raw->>'productName', ''), p.name, '') AS product_name,
+                COALESCE(NULLIF(p.name, ''), NULLIF(d.raw->>'productName', ''), '') AS product_name,
                 d.quantity::text AS quantity,
                 CASE WHEN d.price IS NULL THEN NULL ELSE (d.price - COALESCE(d.discount, 0))::text END AS unit_price,
                 ${lineTotal} AS line_total,

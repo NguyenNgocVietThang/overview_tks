@@ -249,7 +249,7 @@ async function buildCaptureInputs({ day, client, now, includeSeen, who, scope = 
       const fullVat = hasFullVat(l.line_note, inv.invoice_note);
       const approved = pickApprovedPrice(approvedPrices, inv.branch, inv.customer_id, l.product_id, inv.sold_day, fullVat);
       const code = l.raw_code || l.product_code;
-      const name = l.raw_name || l.product_name;
+      const name = l.product_name || l.raw_name;
       const own = regionInput(l.product_found, l.product_id, l.description);
       const sg = freightEligible ? sgProducts.get(codeKey(code)) : null;
       lineInputs.push({

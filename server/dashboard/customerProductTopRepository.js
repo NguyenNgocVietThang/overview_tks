@@ -54,7 +54,7 @@ function fromWallClockInstant(date) {
 }
 
 const PRODUCT_CODE_SQL = `COALESCE(NULLIF(d.raw->>'productCode', ''), p.code, '')`;
-const PRODUCT_NAME_SQL = `COALESCE(NULLIF(d.raw->>'productName', ''), p.name, '')`;
+const PRODUCT_NAME_SQL = `COALESCE(NULLIF(p.name, ''), NULLIF(d.raw->>'productName', ''), '')`;
 const RETURN_PRODUCT_CODE_SQL = `COALESCE(NULLIF(rd.raw->>'productCode', ''), rp.code, '')`;
 
 function customerCodeSql(alias) {
@@ -62,7 +62,7 @@ function customerCodeSql(alias) {
 }
 
 function customerNameSql(alias) {
-  return `COALESCE(NULLIF(${alias}.raw->>'customerName', ''), NULLIF(c.name, ''), 'Khách lẻ')`;
+  return `COALESCE(NULLIF(c.name, ''), NULLIF(${alias}.raw->>'customerName', ''), 'Khách lẻ')`;
 }
 
 function customerKeySql(alias) {

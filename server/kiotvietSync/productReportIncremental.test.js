@@ -388,7 +388,7 @@ test('SQL that (PGlite): luot NANG ghi SL ban 30 ngay theo co so (gom hom nay) +
     // HN#101 da huy, HN#103 qua 90 ngay, dong tra hang khong tinh; khach ngung (HN#102) van tinh.
     assert.deepEqual(orders, [{ product_key: 'a', o30: 4, o90: 5 }]);
     const customers = (await db.query('SELECT customer_key FROM pr_customers_new ORDER BY 1')).rows;
-    assert.deepEqual(customers.map(row => row.customer_key), ['code:c1'], 'khach ngung hoat dong van bi loai khoi bang khach');
+    assert.deepEqual(customers.map(row => row.customer_key), ['name:kh 1'], 'khach ngung hoat dong van bi loai khoi bang khach');
 
     await db.query(__sql__.fillProductsHeavy, [['hanoi', 'saigon']]);
     const rows = (await db.query(`SELECT product_code, qty_sold_30d::float8 AS q, qty_sold_30d_hanoi::float8 AS qh, qty_sold_30d_saigon::float8 AS qs,
