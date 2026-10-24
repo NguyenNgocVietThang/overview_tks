@@ -525,9 +525,10 @@ body::before{
   font-size:18px; line-height:1; cursor:pointer;
 }
 .tks-notif-toast-close:hover{ background:var(--surface-hover); color:var(--text); }
-/* Popup moi bat thong bao man hinh — tu hien khi vao web (shared-nav.js showAskPopup), nam duoi chuong. */
+/* Popup moi bat thong bao man hinh — tu hien khi vao web (shared-nav.js showAskPopup), nam duoi chuong.
+   --tks-header-h do shared-nav.js do tu header ghim; trang khong co header thi lui ve 64px. */
 .tks-notif-ask{
-  position:fixed; top:76px; right:20px; z-index:10001;
+  position:fixed; top:calc(var(--tks-header-h, 64px) + 12px); right:20px; z-index:10001;
   width:min(380px, calc(100vw - 32px));
   display:flex; align-items:flex-start; gap:12px; padding:16px;
   background:var(--panel); color:var(--text);
