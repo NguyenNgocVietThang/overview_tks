@@ -1784,7 +1784,7 @@
 
   <div class="toast-container" id="toastContainer"></div>
 
-  <script src="/shared/table-controls.js?v=20261016-1"></script>
+  <script src="/shared/table-controls.js?v=20261024-1"></script>
   <script src="/shared/fuzzy-search.js?v=20261021"></script>
   <script src="/shared/search-clear.js?v=20261009-1"></script>
   <script src="/shared/shared-nav.js?v=20261024-1"></script>
@@ -3670,6 +3670,9 @@
       ['SĐT người thân','sdt-nguoi-than',115], ['Trạng thái','trang-thai',50,true], ['Ngày nghỉ việc','ngay-nghi-viec',110,true]
     ];
 
+    // Cột chứa nhãn/chấm không xuống dòng được: không cho hẹp hơn mức này (table-controls đọc data-min-width).
+    const EMPLOYEE_MIN_WIDTHS = { 'ho-so':112, 'van-tay':92 };
+
     function employeeColumnText(columnKey, employee, index){
       switch(columnKey){
         case 'trang-thai': return employeeStatusText(employee);
@@ -3737,7 +3740,7 @@
       const columns=employeeCanManage ? EMPLOYEE_MANAGER_HEAD : EMPLOYEE_BASIC_HEAD;
       const widths=columns.map(column => employeeColumnWidth(column, rawEmployeeDirectory));
       // Cột thứ 4 = true: ẩn mặc định (Trạng thái, Ngày nghỉ việc) — dữ liệu vẫn có để lọc/xuất, bật lại ở "Cột hiển thị".
-      head.innerHTML='<tr>'+columns.map(function(c,index){ return '<th class="'+employeeCellClass(c[1])+'" style="width:'+widths[index]+'px" data-column-key="'+c[1]+'"'+(c[3] ? ' data-column-default-hidden="true"' : '')+'>'+c[0]+'</th>'; }).join('')+'</tr>';
+      head.innerHTML='<tr>'+columns.map(function(c,index){ return '<th class="'+employeeCellClass(c[1])+'" style="width:'+widths[index]+'px" data-column-key="'+c[1]+'"'+(EMPLOYEE_MIN_WIDTHS[c[1]] ? ' data-min-width="'+EMPLOYEE_MIN_WIDTHS[c[1]]+'"' : '')+(c[3] ? ' data-column-default-hidden="true"' : '')+'>'+c[0]+'</th>'; }).join('')+'</tr>';
       // Không để CSS width:100% tự chia phần trống khiến cột ngắn bị giãn quá mức.
       table.dataset.tableFit=employeeCanManage ? 'off' : 'contain';
       table.style.width=employeeCanManage ? widths.reduce((total,width,index) => total + (columns[index][3] ? 0 : width), 0)+'px' : '100%';

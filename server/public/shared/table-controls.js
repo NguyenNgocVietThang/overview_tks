@@ -215,6 +215,15 @@
       raise(column, textContext.measureText(word).width + (parseFloat(style.letterSpacing) || 0) * word.length + boxSpace(style) + gutter);
     });
   }
+  // Tiêu đề khai báo data-min-width="N": cột không hẹp hơn N px (nhãn/chấm không bẻ dòng được), kể cả độ rộng đã lưu.
+  function declaredMinimums(ctrl) {
+    ctrl.head.leaves.forEach(function (entry, index) {
+      var column = ctrl.columns[index], min = parseFloat(entry.cell.dataset.minWidth);
+      if (!column || !(min > 0)) return;
+      column.minWidth = Math.max(column.minWidth || MIN_WIDTH, Math.ceil(min));
+      column.width = Math.max(column.width, column.minWidth);
+    });
+  }
   function fitOnce(ctrl) {
     if (ctrl.table.dataset.tableFit === 'off') return;
     if (ctrl.session.fitted || !hasLayout(ctrl.table)) return;
@@ -685,7 +694,7 @@
       return column;
     });
     if (ctrl.columns.every(function (column) { return column.hidden; })) ctrl.columns[0].hidden = false;
-    table.classList.add('tks-controlled-table'); restoreSort(ctrl); installSort(ctrl); installButton(ctrl); dropdownMinimums(ctrl); numberMinimums(ctrl); apply(ctrl);
+    table.classList.add('tks-controlled-table'); restoreSort(ctrl); installSort(ctrl); installButton(ctrl); dropdownMinimums(ctrl); numberMinimums(ctrl); declaredMinimums(ctrl); apply(ctrl);
     if (active === ctrl && picker && !picker.hidden) renderPicker();
     return ctrl;
   }
