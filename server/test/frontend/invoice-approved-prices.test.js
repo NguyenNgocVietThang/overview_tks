@@ -15,8 +15,8 @@ const html = fs.readFileSync(path.join(publicDir, 'index.html'), 'utf8');
 const js = fs.readFileSync(path.join(publicDir, 'invoice-approved-prices.js'), 'utf8');
 const settle = async () => { for (let i = 0; i < 25; i++) await new Promise(r => setImmediate(r)); };
 const APPROVERS = ['Anh Quân', 'Anh Duy', 'Anh Duy Khánh'];
-const VIEW = 'reports.invoices.priceAudit';
-const MANAGE = 'reports.invoices.priceAudit.approvedPrice';
+const VIEW = 'reports.invoices.approvedPrice';
+const MANAGE = 'reports.invoices.approvedPrice.manage';
 
 function rec(id, over = {}) {
   return {
@@ -145,6 +145,12 @@ test('Bảng giá duyệt là mục 2 của tab Hóa đơn, ẩn khi thiếu quy
   await none.w.TKSApprovedPrices.load(true);
   assert.equal(none.$('approvedPriceSection').hidden, true);
   assert.equal(gets(none).length, 0);
+
+  // Chi co quyen xem Kiem tra gia ban (khong co quyen rieng) -> van an: bang nay nhay cam.
+  const auditOnly = createPage({ permissions: ['reports.invoices', 'reports.invoices.priceAudit', 'reports.export'] });
+  await auditOnly.w.TKSApprovedPrices.load(true);
+  assert.equal(auditOnly.$('approvedPriceSection').hidden, true);
+  assert.equal(gets(auditOnly).length, 0);
 
   const viewer = await opened({ permissions: [VIEW] });
   assert.equal(viewer.$('approvedPriceSection').hidden, false);

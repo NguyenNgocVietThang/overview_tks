@@ -313,7 +313,10 @@ const USERS = {
   ql: { id: 'ql', vaiTro: 'Quản lý', hoTen: 'Quản Lý A', featurePermissions: {} },
   tl: { id: 'tl', vaiTro: 'Trợ lý', hoTen: 'Trợ Lý', featurePermissions: {} },
   sale: { id: 'sale', vaiTro: 'Nhân viên sale', hoTen: 'Duy Thái', featurePermissions: {} },
-  kt: { id: 'kt', vaiTro: 'Kế toán', hoTen: 'Kế Toán', featurePermissions: {} }
+  kt: { id: 'kt', vaiTro: 'Kế toán', hoTen: 'Kế Toán', featurePermissions: {} },
+  viewer: { id: 'viewer', vaiTro: 'Trợ lý', hoTen: 'Trợ Lý Xem', featurePermissions: { 'reports.invoices.approvedPrice': true } },
+  viewerSale: { id: 'viewerSale', vaiTro: 'Nhân viên sale', hoTen: 'Sale Xem', featurePermissions: { 'reports.invoices.approvedPrice': true } },
+  manageOnly: { id: 'manageOnly', vaiTro: 'Trợ lý', hoTen: 'Chi Sua', featurePermissions: { 'reports.invoices.approvedPrice.manage': true } }
 };
 
 test('HTTP: quyen xem / tao-sua-xoa, no-store, tao 201, sua + xoa co xac nhan version, xuat Excel theo bo loc va sort', async () => {
@@ -324,18 +327,26 @@ test('HTTP: quyen xem / tao-sua-xoa, no-store, tao 201, sua + xoa co xac nhan ve
     await withServer(app, async base => {
       assert.equal((await call(base, '/')).status, 401);
       assert.equal((await call(base, '/', { user: 'kt' })).status, 403);
-      const sale = await call(base, '/', { user: 'sale' });
-      assert.equal(sale.status, 200);
-      assert.equal(sale.headers.get('cache-control'), 'no-store');
-      assert.equal(sale.body.canManage, false);
-      assert.deepEqual(sale.body.options.approvers, ['Anh Quân', 'Anh Duy', 'Anh Duy Khánh']);
-      // Sale / Tro ly chi xem: khong tao / sua / xoa / goi y.
+      // Bang nhay cam: Tro ly / Sale (du xem duoc Kiem tra gia ban) KHONG xem duoc neu khong duoc cap quyen rieng.
       for (const u of ['sale', 'tl']) {
+        for (const p of ['/', '/export', '/customer-suggest?branch=hanoi&q=a', '/product-suggest?branch=hanoi&q=a']) {
+          assert.equal((await call(base, p, { user: u })).status, 403, u + ' ' + p);
+        }
+      }
+      // Duoc cap rieng quyen xem: chi xem, van khong tao / sua / xoa / goi y.
+      for (const u of ['viewer', 'viewerSale']) {
+        const view = await call(base, '/', { user: u });
+        assert.equal(view.status, 200, u);
+        assert.equal(view.headers.get('cache-control'), 'no-store');
+        assert.equal(view.body.canManage, false);
+        assert.deepEqual(view.body.options.approvers, ['Anh Quân', 'Anh Duy', 'Anh Duy Khánh']);
         assert.equal((await call(base, '/', { user: u, method: 'POST', body: valid() })).status, 403, u);
         assert.equal((await call(base, '/1', { user: u, method: 'PUT', body: { ...valid(), expectedVersion: 1 } })).status, 403, u);
         assert.equal((await call(base, '/1', { user: u, method: 'DELETE' })).status, 403, u);
         assert.equal((await call(base, '/customer-suggest?branch=hanoi&q=a', { user: u })).status, 403, u);
       }
+      // Chi cap quyen tao / sua / xoa ma khong cap quyen xem thi quyen do bi vo hieu (requires).
+      assert.equal((await call(base, '/', { user: 'manageOnly', method: 'POST', body: valid() })).status, 403);
       assert.equal((await call(base, '/', { user: 'ql' })).body.canManage, true);
 
       assert.equal((await call(base, '/', { user: 'ql', method: 'POST', body: valid({ customerId: '999' }) })).status, 422);
@@ -359,14 +370,14 @@ test('HTTP: quyen xem / tao-sua-xoa, no-store, tao 201, sua + xoa co xac nhan ve
 
       // Loc + sort qua query; tham so sai -> 400.
       await call(base, '/', { user: 'ql', method: 'POST', body: valid({ productId: '2', approver: 'Anh Duy', approvedOn: '2026-10-21', approvedPrice: '50000' }) });
-      const filtered = await call(base, '/?approver=Anh%20Duy&sort=approvedPrice&dir=desc', { user: 'sale' });
+      const filtered = await call(base, '/?approver=Anh%20Duy&sort=approvedPrice&dir=desc', { user: 'viewer' });
       assert.equal(filtered.body.totalRows, 1);
       assert.equal(filtered.body.rows[0].approvedPrice, '50000');
-      assert.equal((await call(base, '/?sort=hack', { user: 'sale' })).status, 400);
-      assert.equal((await call(base, '/?approver=Ai', { user: 'sale' })).status, 400);
+      assert.equal((await call(base, '/?sort=hack', { user: 'viewer' })).status, 400);
+      assert.equal((await call(base, '/?approver=Ai', { user: 'viewer' })).status, 400);
 
       // Xuat Excel: can reports.export (Sale khong co), dung tap loc + thu tu sort.
-      assert.equal((await call(base, '/export', { user: 'sale' })).status, 403);
+      assert.equal((await call(base, '/export', { user: 'viewerSale' })).status, 403);
       const xlsx = await call(base, '/export?sort=approvedPrice&dir=asc', { user: 'ql', raw: true });
       assert.equal(xlsx.status, 200);
       assert.match(xlsx.headers.get('content-disposition'), /TKS_Gia_duyet\.xlsx/);
@@ -386,7 +397,7 @@ test('HTTP: quyen xem / tao-sua-xoa, no-store, tao 201, sua + xoa co xac nhan ve
       assert.equal(del.status, 200);
       assert.equal((await call(base, `/${id}`, { user: 'ql', method: 'DELETE' })).status, 404);
       // Thu hoi quyen co hieu luc ngay.
-      users.ql.featurePermissions = { 'reports.invoices.priceAudit.approvedPrice': false };
+      users.ql.featurePermissions = { 'reports.invoices.approvedPrice.manage': false };
       assert.equal((await call(base, '/', { user: 'ql', method: 'POST', body: valid() })).status, 403);
     });
   } finally { await db.close(); }

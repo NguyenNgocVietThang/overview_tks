@@ -3,8 +3,9 @@
 // Luat dau vao cua bang "Gia duyet" (tab Hoa don): danh sach nguoi duyet, kiem tra gia / ngay / id, bo loc va sap xep.
 // Thuan (khong cham DB) de service/route/test dung chung.
 
-const FEATURE_VIEW = 'reports.invoices.priceAudit';
-const FEATURE_MANAGE = 'reports.invoices.priceAudit.approvedPrice';
+// Bang gia duyet la du lieu nhay cam: xem la quyen RIENG (mac dinh chi Quan ly), khong di theo quyen Kiem tra gia ban.
+const FEATURE_VIEW = 'reports.invoices.approvedPrice';
+const FEATURE_MANAGE = 'reports.invoices.approvedPrice.manage';
 
 const APPROVERS = Object.freeze(['Anh Quân', 'Anh Duy', 'Anh Duy Khánh']);
 const BRANCHES = Object.freeze(['hanoi', 'saigon']);

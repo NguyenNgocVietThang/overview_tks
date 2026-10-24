@@ -8,7 +8,7 @@
 //   POST   /                      tao (chi quyen ...approvedPrice)
 //   PUT    /:id                   sua toan bo + expectedVersion
 //   DELETE /:id                   xoa (?expectedVersion=)
-// Xem: reports.invoices.priceAudit. Tao / sua / xoa: reports.invoices.priceAudit.approvedPrice (mac dinh chi Quan ly).
+// Xem: reports.invoices.approvedPrice (mac dinh chi Quan ly). Tao / sua / xoa: reports.invoices.approvedPrice.manage (mac dinh chi Quan ly).
 
 const express = require('express');
 const authMiddleware = require('../auth/authMiddleware');

@@ -1,14 +1,14 @@
 /* Tab Hóa đơn — mục 2 "Bảng giá duyệt" (API /api/invoice-approved-prices).
    Giá Quản lý đã duyệt riêng cho (cơ sở, khách, mã hàng): khi Kiểm tra giá bán tính sai giá, giá duyệt THAY giá min của hóa đơn
-   có ngày bán ≥ Ngày duyệt. Xem theo reports.invoices.priceAudit; Tạo / Sửa / Xóa theo reports.invoices.priceAudit.approvedPrice.
+   có ngày bán ≥ Ngày duyệt. Xem theo reports.invoices.approvedPrice (mặc định chỉ Quản lý, ẩn với người khác); Tạo / Sửa / Xóa theo reports.invoices.approvedPrice.manage.
    Lọc (Người duyệt, Ngày duyệt Từ–Đến), sắp xếp mọi cột và phân trang đều ở máy chủ; Xuất Excel đúng tập đang lọc + thứ tự sort.
    Khách / mã SP chỉ chọn được từ gợi ý KiotViet của cơ sở (lưu theo id nên Kiot đổi tên thì bảng tự cập nhật). */
 (function () {
   'use strict';
 
   const API = '/api/invoice-approved-prices';
-  const FEATURE_VIEW = 'reports.invoices.priceAudit';
-  const FEATURE_MANAGE = 'reports.invoices.priceAudit.approvedPrice';
+  const FEATURE_VIEW = 'reports.invoices.approvedPrice';
+  const FEATURE_MANAGE = 'reports.invoices.approvedPrice.manage';
   const APPROVERS = ['Anh Quân', 'Anh Duy', 'Anh Duy Khánh'];
   const BRANCHES = [['hanoi', 'Hà Nội'], ['saigon', 'Sài Gòn']];
   const COLUMN_COUNT = 8;
