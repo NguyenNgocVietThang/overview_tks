@@ -465,3 +465,9 @@ Người có quyền sửa level điền thêm nhãn "Khách mới"; SĐT và đ
 Người dùng phản ánh tài khoản quản trị không có lịch sử thông báo. Nguyên nhân: chuông lưu trên đĩa tạm của máy chủ nên mất sau mỗi lần cập nhật web. Nay lưu trong cơ sở dữ liệu nên lịch sử chuông được giữ lại. Người nhận thông báo nghỉ phép vẫn theo phòng ban và cơ sở được giao duyệt.
 
 Cập nhật gần nhất: 24/10/2026.
+
+# 24/10/2026 — Chuông cho đơn nghỉ phép từ Telegram
+
+Hầu hết đơn nghỉ phép được gửi qua Telegram nhưng trước đây người duyệt không nhận chuông trên web cho các đơn này. Nay người duyệt (theo phòng ban và cơ sở được giao) nhận chuông cho mọi đơn mới, dù gửi qua web hay Telegram.
+
+Cập nhật gần nhất: 24/10/2026.

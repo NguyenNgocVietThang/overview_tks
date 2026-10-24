@@ -246,3 +246,9 @@ Triển khai cục bộ theo `docs/superpowers/plans/2026-10-23-customer-filters
 `notifications/notificationRepository.js` đọc/ghi bảng `notifications` (migration `0093`) qua `db/pool.js` thay vì file `data/notifications.json` trên đĩa tạm Render. Giữ nguyên chữ ký hàm và API `/api/notifications/*`; test dùng PGlite qua `notifications/testHelpers/notificationTestPool.js`.
 
 Cập nhật gần nhất: 24/10/2026.
+
+# 24/10/2026 — Chuông cho đơn nghỉ phép từ Telegram
+
+Job `hr/hrLeaveBellNotifier.js` chạy trong web (cờ `HR_LEAVE_BELL_NOTIFY_ENABLED`) quét đơn nghỉ phép không đến từ web, chưa duyệt, tạo trong 24 giờ và chưa có chuông `leave_request_created`; báo người duyệt theo `hrLeaveAuthorization.routingFor()`. Quét + ghi trong 1 transaction có khóa advisory; không migration.
+
+Cập nhật gần nhất: 24/10/2026.
