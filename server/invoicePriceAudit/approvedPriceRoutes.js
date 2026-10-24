@@ -1,7 +1,7 @@
 'use strict';
 
 // API bang "Gia duyet" (tab Hoa don): /api/invoice-approved-prices. Cache-Control: no-store.
-//   GET    /                      danh sach theo bo loc (approver, from, to) + sort/dir + phan trang
+//   GET    /                      danh sach theo bo loc (q, approver, from, to) + sort/dir + phan trang
 //   GET    /export                xuat Excel TOAN BO tap dang loc/sap xep (can them reports.export)
 //   GET    /customer-suggest      ?branch=&q=  goi y khach { id, code, name } cua co so
 //   GET    /product-suggest       ?branch=&q=  goi y san pham { id, code, name } cua co so
@@ -61,7 +61,7 @@ function createApprovedPriceRouter({
     const report = await repo().list(query);
     res.json({
       ...report,
-      filters: { approver: query.approver, from: query.from, to: query.to, sort: query.sort, dir: query.dir },
+      filters: { approver: query.approver, from: query.from, to: query.to, q: query.q, sort: query.sort, dir: query.dir },
       options: { approvers: rules.APPROVERS },
       canManage: hasFeature(req.user, rules.FEATURE_MANAGE)
     });
@@ -72,7 +72,7 @@ function createApprovedPriceRouter({
       const query = rules.parseListQuery({ ...req.query, page: undefined, pageSize: undefined });
       const report = await repo().list(query, { all: true });
       const file = await createApprovedPriceExport({ rows: report.rows,
-        filters: { approver: query.approver, from: query.from, to: query.to } });
+        filters: { approver: query.approver, from: query.from, to: query.to, q: query.q } });
       res.set('Content-Type', file.mimeType);
       res.set('Content-Disposition', `attachment; filename="${file.fileName}"`);
       res.send(file.buffer);

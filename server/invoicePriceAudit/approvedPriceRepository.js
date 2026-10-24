@@ -126,6 +126,24 @@ function createApprovedPriceRepository({ pool = getPool(), now = () => new Date(
   async function list(query, { all = false } = {}) {
     const params = [query.approver, query.from, query.to];
     const order = orderSql(query.sort, query.dir);
+    if (query.q) {
+      const candidates = (await pool.query(`${SELECT_SQL} ${WHERE_SQL} ${order}`, params)).rows.map(mapRow);
+      const matcher = fuzzy.createMatcher(query.q);
+      const matched = candidates.filter(row => matcher.score(fuzzy.fold([
+        row.customerName, row.customerCode, row.productCode, row.productName, row.approver
+      ].join(' '))));
+      const records = matched.length;
+      const customers = new Set(matched.map(row => `${row.branch}:${row.customerId}`)).size;
+      const products = new Set(matched.map(row => `${row.branch}:${row.productId}`)).size;
+      const latest = matched.reduce((value, row) => !value || row.approvedOn > value ? row.approvedOn : value, null);
+      const limit = all ? MAX_EXPORT_ROWS + 1 : query.pageSize;
+      const offset = all ? 0 : (query.page - 1) * query.pageSize;
+      return {
+        rows: all ? matched.slice(0, limit) : matched.slice(offset, offset + limit), totalRows: records,
+        page: all ? 1 : query.page, pageSize: all ? limit : query.pageSize,
+        kpis: { records, customers, products, latestApprovedOn: latest }
+      };
+    }
     // Chi so theo CUNG bo loc voi bang (dem tren toan tap loc, khong chi trang hien tai).
     const k = (await pool.query(`SELECT count(*)::int AS n, count(DISTINCT (p.branch, p.customer_id))::int AS customers,
       count(DISTINCT (p.branch, p.product_id))::int AS products, max(p.approved_on)::text AS latest

@@ -102,6 +102,7 @@ const nil = v => (v === undefined || v === null || v === '' ? null : v);
 
 /** Bo loc + sap xep + phan trang tu query string; gia tri la la -> 400. */
 function parseListQuery(query = {}) {
+  const q = typeof query.q === 'string' ? query.q.trim().slice(0, 100) : '';
   const approver = nil(query.approver);
   if (approver !== null && !APPROVERS.includes(approver)) throw bad('Người duyệt không hợp lệ.', 'INVALID_APPROVER');
   const from = nil(query.from);
@@ -113,7 +114,7 @@ function parseListQuery(query = {}) {
   if (sort !== null && !SORT_KEYS.includes(sort)) throw bad('Cột sắp xếp không hợp lệ.', 'INVALID_SORT');
   const page = Math.max(1, Number.parseInt(query.page, 10) || 1);
   const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, Number.parseInt(query.pageSize, 10) || DEFAULT_PAGE_SIZE));
-  return { approver, from, to, sort, dir: query.dir === 'desc' ? 'desc' : 'asc', page, pageSize };
+  return { approver, from, to, q, sort, dir: query.dir === 'desc' ? 'desc' : 'asc', page, pageSize };
 }
 
 module.exports = {

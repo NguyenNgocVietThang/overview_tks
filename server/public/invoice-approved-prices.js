@@ -1,7 +1,7 @@
 /* Tab Hóa đơn — mục 2 "Bảng giá duyệt" (API /api/invoice-approved-prices).
    Giá Quản lý đã duyệt riêng cho (cơ sở, khách, mã hàng): khi Kiểm tra giá bán tính sai giá, giá duyệt THAY giá min của hóa đơn
    có ngày bán ≥ Ngày duyệt. Xem theo reports.invoices.approvedPrice (mặc định chỉ Quản lý, ẩn với người khác); Tạo / Sửa / Xóa theo reports.invoices.approvedPrice.manage.
-   Lọc (Người duyệt, Ngày duyệt Từ–Đến), sắp xếp mọi cột và phân trang đều ở máy chủ; Xuất Excel đúng tập đang lọc + thứ tự sort.
+   Lọc (từ khóa khách / sản phẩm / người duyệt, Người duyệt, Ngày duyệt Từ–Đến), sắp xếp mọi cột và phân trang ở máy chủ; Xuất Excel theo bộ lọc + thứ tự sort.
    Khách / mã SP chỉ chọn được từ gợi ý KiotViet của cơ sở (lưu theo id nên Kiot đổi tên thì bảng tự cập nhật). */
 (function () {
   'use strict';
@@ -15,7 +15,7 @@
 
   const state = {
     data: null, error: '', loading: false, seq: 0, loadedAt: 0, initialized: false,
-    filters: { approver: '', from: '', to: '' }, sort: '', dir: 'asc', page: 1, pageSize: 50
+    filters: { approver: '', from: '', to: '', q: '' }, sort: '', dir: 'asc', page: 1, pageSize: 50
   };
 
   const $ = id => document.getElementById(id);
@@ -102,7 +102,7 @@
     if (state.error) body.innerHTML = noteRow(state.error);
     else if (!d) body.innerHTML = noteRow('Đang tải...');
     else body.innerHTML = d.rows.length ? d.rows.map(rowHtml).join('')
-      : noteRow(state.filters.approver || state.filters.from || state.filters.to ? 'Không có bản ghi nào khớp bộ lọc.' : 'Chưa có bản ghi giá duyệt nào.');
+      : noteRow(state.filters.approver || state.filters.from || state.filters.to || state.filters.q ? 'Không có bản ghi nào khớp bộ lọc.' : 'Chưa có bản ghi giá duyệt nào.');
     const total = d ? Number(d.totalRows) || 0 : 0;
     $('tagApprovedPrice').textContent = d ? NUMBER.format(total) + ' bản ghi' : '—';
     $('approvedPricePagination').hidden = !d || total === 0;
@@ -111,8 +111,8 @@
     $('approvedPriceNextPage').disabled = $('approvedPriceLastPage').disabled = state.page >= totalPages();
     $('approvedPriceCreateButton').hidden = !canManage();
     $('approvedPriceExportButton').hidden = !can('reports.export');
-    ['approver', 'from', 'to'].forEach(name => {
-      const el = $(name === 'approver' ? 'approvedPriceApproverFilter' : name === 'from' ? 'approvedPriceFrom' : 'approvedPriceTo');
+    ['approver', 'from', 'to', 'q'].forEach(name => {
+      const el = $(name === 'approver' ? 'approvedPriceApproverFilter' : name === 'from' ? 'approvedPriceFrom' : name === 'to' ? 'approvedPriceTo' : 'approvedPriceSearch');
       if (el.value !== state.filters[name]) el.value = state.filters[name];
     });
   }
@@ -433,9 +433,15 @@
     $('approvedPriceApproverFilter').addEventListener('change', e => applyFilter('approver', e.target.value));
     $('approvedPriceFrom').addEventListener('change', e => applyFilter('from', e.target.value));
     $('approvedPriceTo').addEventListener('change', e => applyFilter('to', e.target.value));
+    let searchTimer = null;
+    $('approvedPriceSearch').addEventListener('input', e => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => applyFilter('q', e.target.value.trim()), 250);
+    });
     $('approvedPriceClearFilters').addEventListener('click', () => {
-      if (!state.filters.approver && !state.filters.from && !state.filters.to) return;
-      state.filters = { approver: '', from: '', to: '' };
+      if (!state.filters.approver && !state.filters.from && !state.filters.to && !state.filters.q) return;
+      clearTimeout(searchTimer);
+      state.filters = { approver: '', from: '', to: '', q: '' };
       state.page = 1;
       fetchPage();
     });

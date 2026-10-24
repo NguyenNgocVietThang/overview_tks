@@ -33,7 +33,7 @@ function tooMany() {
     { statusCode: 400, code: 'TOO_MANY_ROWS' });
 }
 
-/** @param {{ rows: object[], filters?: { approver?, from?, to? } }} input */
+/** @param {{ rows: object[], filters?: { approver?, from?, to?, q? } }} input */
 async function createApprovedPriceExport({ rows = [], filters = {} } = {}) {
   if (rows.length > MAX_EXPORT_ROWS) throw tooMany();
   const workbook = new ExcelJS.Workbook();
@@ -57,6 +57,7 @@ async function createApprovedPriceExport({ rows = [], filters = {} } = {}) {
   info.columns = [{ header: 'Mục', key: 'label', width: 30 }, { header: 'Giá trị', key: 'value', width: 50 }];
   info.addRow(['Người duyệt', filters.approver || 'Tất cả']);
   info.addRow(['Ngày duyệt', filters.from || filters.to ? `${dmy(filters.from) || '…'} – ${dmy(filters.to) || '…'}` : 'Tất cả']);
+  if (filters.q) info.addRow(['Tìm kiếm', filters.q]);
   info.addRow(['Số dòng xuất', rows.length]);
   info.getRow(1).font = HEADER_FONT;
 
