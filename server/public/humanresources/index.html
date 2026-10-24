@@ -574,7 +574,13 @@
   .rte-editor ul, .rte-editor ol{ margin:0 0 10px; padding-left:26px; }
   @media (max-width:900px){
     .rte-modal{ height:100%; border-radius:var(--radius-md); }
-    .rte-body{ grid-template-columns:1fr; overflow-y:auto; }
+    .rte-body{ display:block; overflow-y:auto; }
+    .rte-workspace{ display:block; }
+    .rte-head{ padding:12px 14px; gap:10px; }
+    .rte-head-title h3{ font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .rte-head-title p{ display:none; }
+    .rte-head-actions{ gap:6px; }
+    .rte-toolbar{ padding:10px 12px 8px; }
     .rte-side{ border-left:none; border-top:1px solid var(--border); overflow:visible; }
     .rte-canvas{ padding:16px 10px 24px; overflow:visible; }
     .rte-editor, .rte-preview-page{ padding:28px 22px 32px; min-height:420px; }
@@ -733,15 +739,10 @@
     font-size:12.5px; font-weight:600; text-transform:none; letter-spacing:0;
   }
   #employeeDirectoryTable tbody td{ padding-top:9px; padding-bottom:9px; font-size:13.5px; vertical-align:middle; }
-  /* Nội dung dài xuống dòng trong ô, không cắt: nhãn chức vụ co theo chữ, avatar nổi trái để tên bọc quanh. */
+  /* Nội dung dài xuống dòng trong ô, không cắt: nhãn chức vụ co theo chữ,. */
   .emp-pill{ white-space:normal; overflow:visible; text-overflow:clip; line-height:1.3; overflow-wrap:anywhere; }
   .emp-flag, .emp-dot{ white-space:nowrap; }
   #employeeDirectoryTable td.emp-name-cell{ font-weight:600; color:var(--text); }
-  .emp-name-cell::before{
-    content:attr(data-initials); display:inline-flex; align-items:center; justify-content:center; vertical-align:middle;
-    float:left; width:34px; height:34px; margin:0 12px 0 0; border-radius:50%; background:linear-gradient(135deg,#4F6BED,#6D3FD6);
-    color:#fff; font-family:var(--font-body); font-size:12px; font-weight:700; letter-spacing:0;
-  }
   .emp-pill{
     display:inline-block; max-width:100%; padding:4px 14px; border-radius:8px; font-size:12.5px; font-weight:600;
     background:color-mix(in srgb, #6366F1 22%, transparent); color:#4338CA; overflow:hidden; text-overflow:ellipsis; vertical-align:middle;
@@ -3703,7 +3704,7 @@
     function employeeColumnWidth(column, employees){
       const [label, key, maxWidth] = column;
       // Avatar, nhãn và chấm trạng thái chiếm thêm chỗ ngoài chữ; độ rộng vẫn theo giá trị, không theo tiêu đề.
-      const extra = !employees.length ? 0 : { 'ho-va-ten':48, 'chuc-vu':34, 'ho-so':52, 'van-tay':34 }[key] || 0;
+      const extra = !employees.length ? 0 : { 'chuc-vu':34, 'ho-so':52, 'van-tay':34 }[key] || 0;
       const contentWidth = employees.reduce((widest, employee, index) =>
         Math.max(widest, employeeTextWidth(employeeColumnText(key, employee, index))), 0);
       return Math.min(maxWidth, Math.max(32, contentWidth) + extra);
@@ -3796,12 +3797,10 @@
       const sortable=sortValue === '' ? '' : ' data-sort-value="'+escapeHtml(sortValue)+'"';
       const status=columnKey === 'trang-thai' ? ' emp-status-'+employeeStatusKey(employee) : '';
       let text=escapeHtml(value) || '—';
-      let avatar='';
-      if(columnKey === 'ho-va-ten' && value) avatar=' data-initials="'+escapeHtml(employeeInitials(value))+'"';
-      else if(columnKey === 'chuc-vu' && value) text='<span class="emp-pill emp-tone-'+employeeRoleTone(value)+'">'+text+'</span>';
+      if(columnKey === 'chuc-vu' && value) text='<span class="emp-pill emp-tone-'+employeeRoleTone(value)+'">'+text+'</span>';
       else if(columnKey === 'ho-so') text='<span class="emp-flag '+(employee.hoSoDayDu ? 'emp-flag-ok' : 'emp-flag-warn')+'">'+text+'</span>';
       else if(columnKey === 'van-tay') text='<span class="emp-dot '+(employee.vanTayDaDangKy ? 'emp-dot-on' : 'emp-dot-off')+'">'+text+'</span>';
-      return '<td class="'+employeeCellClass(columnKey)+(avatar ? ' emp-name-cell' : '')+status+'"'+sortable+avatar+'>'+ text +'</td>';
+      return '<td class="'+employeeCellClass(columnKey)+(columnKey === 'ho-va-ten' ? ' emp-name-cell' : '')+status+'"'+sortable+'>'+ text +'</td>';
     }
 
     const employeePaging = { page: 1, size: 50 };
@@ -3814,14 +3813,6 @@
       return hash % 8;
     }
 
-    // Chữ cái đầu của họ và tên cuối: "Mai Bích Phượng" -> "MP".
-    function employeeInitials(name){
-      const parts=String(name || '').trim().split(/s+/).filter(Boolean);
-      if(!parts.length) return '?';
-      const first=Array.from(parts[0])[0] || '';
-      const last=parts.length > 1 ? (Array.from(parts[parts.length - 1])[0] || '') : '';
-      return (first + last).toLocaleUpperCase('vi-VN');
-    }
 
     function employeeNewestFirst(a,b){
       const aStart=employeeStartDate(a.ngayVaoLam);
@@ -3914,7 +3905,7 @@
       if(employeeCanManage){
         tbody.innerHTML = filtered.map((e,index) => `<tr class="employee-row-clickable" data-employee-id="${escapeHtml(e.id)}">${EMPLOYEE_MANAGER_HEAD.map(c=>employeeCellHtml(c[1],e,index)).join('')}</tr>`).join('');
       }else tbody.innerHTML = filtered.map(e => `<tr>
-        <td class="emp-name-cell" data-initials="${escapeHtml(employeeInitials(e.hoTen))}">${escapeHtml(e.hoTen) || '—'}</td>
+        <td class="emp-name-cell">${escapeHtml(e.hoTen) || '—'}</td>
         <td>${escapeHtml(e.boPhan) || '—'}</td>
         <td>${escapeHtml(e.coSo) || '—'}</td>
         <td>${escapeHtml(e.soDienThoai) || '—'}</td>
