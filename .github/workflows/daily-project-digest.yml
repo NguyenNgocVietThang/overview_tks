@@ -1,0 +1,27 @@
+name: Daily project digest
+
+on:
+  schedule:
+    - cron: "0 5 * * *"
+      timezone: "Asia/Ho_Chi_Minh"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  daily-digest:
+    name: Summarize recent project activity
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Write activity summary
+        run: node .github/scripts/daily-project-digest.mjs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
