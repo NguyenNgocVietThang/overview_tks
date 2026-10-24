@@ -47,6 +47,7 @@ const { createVatLookupRouter } = require('./vatLookup/vatLookupRoutes');
 const { createBusinessReportRouter } = require('./businessReport/businessReportRoutes');
 const { createExpectedArrivalsRouter } = require('./productContainers/expectedRoutes');
 const { createPriceAuditRouter } = require('./invoicePriceAudit/priceAuditRoutes');
+const { createApprovedPriceRouter } = require('./invoicePriceAudit/approvedPriceRoutes');
 const { createMarketingReportRouter } = require('./marketingReport/marketingReportRoutes');
 const { createUserTablePrefsRouter } = require('./userTablePrefs/routes');
 const { dashboardRollupEvents } = require('./kiotvietSync/dashboardRollupEvents');
@@ -96,6 +97,7 @@ router.use('/api/business-report', createBusinessReportRouter());
 router.use('/api/expected-arrivals', createExpectedArrivalsRouter());
 // Kiem tra gia ban (tab Hoa don): quyen rieng reports.invoices.priceAudit(.explain/.decide); co so theo cookie gan trong router.
 router.use('/api/invoice-price-audit', createPriceAuditRouter());
+router.use('/api/invoice-approved-prices', createApprovedPriceRouter());
 router.use('/api/marketing-report', createMarketingReportRouter());
 router.use('/api/me/table-prefs', createUserTablePrefsRouter());
 
