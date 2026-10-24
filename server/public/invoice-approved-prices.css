@@ -1,0 +1,36 @@
+/* Tab Hóa đơn — mục "Bảng giá duyệt" (invoice-approved-prices.js): hộp Tạo / Sửa bản ghi + gợi ý khách / mã hàng.
+   Bảng, bộ lọc và phân trang dùng lại lớp của Kiểm tra giá bán (price-audit-*, debt-filter-*); chỉ khai báo phần riêng ở đây. */
+.approved-price-table td.name-cell { overflow-wrap: anywhere; }
+.approved-price-actions { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.approved-price-actions .price-audit-btn { min-height: 30px; padding: 4px 12px; }
+.approved-price-btn-danger { color: var(--red, #c62828); border-color: color-mix(in srgb, var(--red, #c62828) 55%, var(--border)); }
+.approved-price-btn-danger:hover { background: color-mix(in srgb, var(--red, #c62828) 10%, transparent); }
+.approved-price-missing { color: var(--muted, #6b7280); font-style: italic; }
+
+.approved-price-dialog { width: min(560px, calc(100vw - 32px)); max-height: 92vh; padding: 0; color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-12, 12px); box-shadow: var(--shadow-modal, 0 20px 50px rgba(0, 0, 0, .35)); }
+.approved-price-dialog::backdrop { background: var(--overlay-bg, color-mix(in srgb, var(--bg) 75%, transparent)); }
+.approved-price-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+.approved-price-dialog-head h2 { margin: 0; font-size: 17px; }
+.approved-price-dialog-body { padding: 16px 20px 20px; overflow: auto; max-height: calc(92vh - 70px); }
+.approved-price-form { display: grid; gap: 14px; }
+.approved-price-field { display: grid; gap: 6px; position: relative; min-width: 0; }
+.approved-price-field > label { font-size: 12.5px; font-weight: 600; color: var(--muted, #6b7280); }
+.approved-price-field input, .approved-price-field select { width: 100%; min-height: 38px; box-sizing: border-box; }
+.approved-price-field input[readonly] { opacity: .85; cursor: default; }
+.approved-price-hint { font-size: 12px; color: var(--muted, #6b7280); margin: 0; }
+.approved-price-suggest { position: absolute; z-index: 5; left: 0; right: 0; top: calc(100% - 2px); margin: 0; padding: 4px; list-style: none; max-height: 240px; overflow: auto; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow-modal, 0 10px 30px rgba(0, 0, 0, .25)); }
+.approved-price-suggest[hidden] { display: none; }
+.approved-price-suggest li { padding: 7px 10px; border-radius: 6px; cursor: pointer; display: flex; justify-content: space-between; gap: 10px; font-size: 13.5px; }
+.approved-price-suggest li[aria-selected="true"], .approved-price-suggest li:hover { background: color-mix(in srgb, var(--blue, #2563eb) 14%, transparent); }
+.approved-price-suggest .code { color: var(--muted, #6b7280); font-family: var(--mono, ui-monospace, monospace); white-space: nowrap; }
+.approved-price-suggest .empty { cursor: default; color: var(--muted, #6b7280); }
+.approved-price-field.is-picked > input { border-color: color-mix(in srgb, var(--green, #16a34a) 60%, var(--border)); }
+.approved-price-error { margin: 0; color: var(--red, #c62828); font-size: 13px; }
+.approved-price-error:empty { display: none; }
+.approved-price-form-actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+.approved-price-dialog :focus-visible { outline: 2px solid var(--blue, #2563eb); outline-offset: 2px; }
+@media (max-width: 600px) {
+  .approved-price-dialog-body { padding: 14px; }
+  .approved-price-form-actions .price-audit-btn { flex: 1 1 100%; min-height: 42px; }
+}
+@media (prefers-reduced-motion: reduce) { .approved-price-dialog * { transition: none; animation: none; } }

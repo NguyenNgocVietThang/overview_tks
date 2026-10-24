@@ -104,6 +104,32 @@ function regionInput(found, productId, description) {
     vatPerUnit: note.vatPerUnit, updatedLabel: note.updatedLabel };
 }
 
+// Gia duyet (bang invoice_approved_prices, migration 0091): chua migrate -> coi nhu chua co gia duyet (khong vo job).
+// to_regclass thay vi bat loi 42P01 vi loi trong giao dich se lam huy ca giao dich.
+const APPROVED_READY_SQL = "SELECT to_regclass('invoice_approved_prices') IS NOT NULL AS ok";
+const APPROVED_PRICES_SQL = `SELECT branch, customer_id::text AS customer_id, product_id::text AS product_id,
+  approved_price::text AS approved_price, approved_on::text AS approved_on
+  FROM invoice_approved_prices ORDER BY approved_on DESC, id DESC`;
+
+/** Map "co so:khach:san pham" -> cac ban ghi, ngay duyet moi nhat truoc. */
+async function readApprovedPrices(client) {
+  const map = new Map();
+  if (!(await client.query(APPROVED_READY_SQL)).rows[0].ok) return map;
+  for (const r of (await client.query(APPROVED_PRICES_SQL)).rows) {
+    const key = `${r.branch}:${r.customer_id}:${r.product_id}`;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(r);
+  }
+  return map;
+}
+
+/** Ban ghi moi nhat co ngay duyet <= ngay ban cua hoa don (khach le/khong co khach: khong khop). */
+function pickApprovedPrice(map, branch, customerId, productId, soldDay) {
+  if (!customerId || !productId) return null;
+  const list = map.get(`${branch}:${customerId}:${productId}`);
+  return list ? list.find(r => r.approved_on <= soldDay) || null : null;
+}
+
 async function assertMeasuresReady(client) {
   let rows;
   try {
@@ -123,14 +149,21 @@ async function assertMeasuresReady(client) {
  * co ngay ban trong [day-15, day]. Dung chung cho job 23:00 (includeSeen=false: chi hoa don chua quet) va
  * tinh lai (includeSeen=true: ca hoa don da quet). Chi doc, khong ghi.
  */
-async function buildCaptureInputs({ day, client, now, includeSeen, who }) {
+async function buildCaptureInputs({ day, client, now, includeSeen, who, scope = null }) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(day || ''))) throw new Error(`${who}: day phải là YYYY-MM-DD`);
   if (!client || typeof client.query !== 'function') throw new Error(`${who}: thiếu client giao dịch`);
   const capturedAt = new Date(now ?? Date.now()).toISOString();
   await assertMeasuresReady(client);
 
-  const invoices = (await client.query(includeSeen ? ALL_INVOICES_SQL : INVOICES_SQL, [day])).rows;
+  let invoices = (await client.query(includeSeen ? ALL_INVOICES_SQL : INVOICES_SQL, [day])).rows;
+  // scope (tinh lai sau khi sua Gia duyet): chi hoa don cua dung khach tu ngay duyet; loc TRUOC cac buoc kiem tra nguon
+  // de hoa don khong lien quan khong lam vuong viec luu gia duyet.
+  if (scope) {
+    invoices = invoices.filter(i => i.branch === scope.branch && String(i.customer_id) === String(scope.customerId)
+      && i.sold_day >= scope.fromDay);
+  }
   if (invoices.length === 0) return { invoices, markers: [], lineInputs: [] };
+  const approvedPrices = await readApprovedPrices(client);
 
   const customerKey = inv => nameKey(inv.customer_name || inv.raw_customer_name) || nameKey(RETAIL_NAME);
   let localLevels;
@@ -202,6 +235,8 @@ async function buildCaptureInputs({ day, client, now, includeSeen, who }) {
     all.forEach((l, index) => {
       // Chi dong SL duong; so dong = vi tri trong hoa don nguon (1..n), giu ca khi bo dong SL <= 0.
       if (!(Number(l.quantity) > 0)) return;
+      if (scope && String(l.product_id) !== String(scope.productId)) return;
+      const approved = pickApprovedPrice(approvedPrices, inv.branch, inv.customer_id, l.product_id, inv.sold_day);
       const code = l.raw_code || l.product_code;
       const name = l.raw_name || l.product_name;
       const own = regionInput(l.product_found, l.product_id, l.description);
@@ -219,7 +254,8 @@ async function buildCaptureInputs({ day, client, now, includeSeen, who }) {
         sg: inv.branch === 'saigon' ? own : (freightEligible ? regionInput(Boolean(sg), sg && sg.product_id, sg && sg.description) : null),
         product_note_hn: inv.branch === 'hanoi' ? l.description : '',
         product_note_sg: inv.branch === 'saigon' ? l.description : (sg ? sg.description : ''),
-        line_note: l.line_note, invoice_note: inv.invoice_note, captured_at: capturedAt
+        line_note: l.line_note, invoice_note: inv.invoice_note, captured_at: capturedAt,
+        approved_price: approved ? approved.approved_price : null, approved_on: approved ? approved.approved_on : null
       });
     });
   }
@@ -270,8 +306,8 @@ const normDec = v => (v == null ? null : (String(v).includes('.') ? String(v).re
  * Giu nguyen giai thich/Chot/version cua dong da co; dong khong con trong nguon (hoa don bi sua/huy) giu nguyen.
  * "Do level" = level cua dong doi (customer_level moi != luc chup); con lai la "do du lieu khac" (bang gia, can do...).
  */
-async function recalcWindow({ day, client, now }) {
-  const { invoices, markers, lineInputs } = await buildCaptureInputs({ day, client, now, includeSeen: true, who: 'recalcWindow' });
+async function recalcWindow({ day, client, now, scope = null }) {
+  const { invoices, markers, lineInputs } = await buildCaptureInputs({ day, client, now, includeSeen: true, who: 'recalcWindow', scope });
   const empty = { recomputedLines: 0, newInvoices: 0, newLines: 0, resultChangedLines: 0, statusFlippedLines: 0,
     changedByLevel: 0, changedByData: 0, levelChangedLines: 0, loggedChanges: 0, decidedStatusChanged: [] };
   if (markers.length === 0) return empty;

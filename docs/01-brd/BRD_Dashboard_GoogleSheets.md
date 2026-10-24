@@ -377,10 +377,23 @@ Phương án B đã duyệt: tập SĐT/KPI Pancake riêng trong PostgreSQL, ng�
 - **Người dùng**: Quản lý, Trợ lý, Nhân viên sale xem; sale giải thích; Quản lý (hoặc người được cấp) chốt.
 - **Tổng hợp theo sale (23/10/2026)**: cạnh 5 khối chỉ số có bảng "Tiền phạt theo sale" (tiền chênh chưa chốt và tiền đã chốt Phạt của từng sale, tổng khớp các khối chỉ số; tìm kiếm, sắp xếp, xuất Excel/HTML) để Quản lý thấy ngay sale nào đang bị phạt/chờ chốt bao nhiêu; chữ Ok xanh lá, Phạt đỏ trong bảng chi tiết.
 - **Thành công**: không còn đối chiếu thủ công, kết quả không đổi theo giá hiện tại, có dấu vết ai giải thích/chốt gì khi nào.
-- **Ngoài phạm vi**: bảng giá cắt lô riêng theo khách–mã, ghi ngược KiotViet/Google Sheets, lưu lịch sử quá 7 ngày.
+- **Ngoài phạm vi**: ghi ngược KiotViet/Google Sheets, lưu lịch sử quá 7 ngày. (Giá cắt lô riêng theo khách–mã nay đã có: xem "Bảng giá duyệt" 24/10/2026 bên dưới.)
 - **Trạng thái**: code + test xong, **đã hoàn thiện, merge vào `main` và push cả 2 remote GitHub (`origin` và `tks_web`)**; chuẩn hóa 10 khách bao cước HN sang tên KiotViet mới (giữ dấu), đọc bậc giá theo chiếc (`CT`, `lẻ`) trực tiếp, khóa 4 mức giá Vừa - Lớn - VIP - Cắt lỗ, email 'mới' tính khách Lớn; 24/24 unit test đạt; giao diện và xuất Excel/HTML hoàn chỉnh; bước vận hành tiếp theo: áp migration `0077` lên DB production, deploy và bật cờ `INVOICE_PRICE_AUDIT_ENABLED`.
 
-Cập nhật gần nhất: 23/10/2026.
+## Bổ sung 24/10/2026 — Bảng giá duyệt (áp dụng cho Kiểm tra giá bán)
+
+- **Vấn đề**: Quản lý đôi khi duyệt giá đặc biệt cho một khách + một mã hàng thấp hơn giá min ghi trong mô tả KiotViet; Kiểm tra giá bán vẫn so với giá min nên đánh nhầm các dòng đó là "Sai giá" và sale bị phạt oan.
+- **Giải pháp**: mục 2 "Bảng giá duyệt" trong tab Hóa đơn (thứ tự mục: 1 Kiểm tra giá bán, 2 Bảng giá duyệt, 3 Giao dịch). Mỗi bản ghi gồm Khách hàng, Cơ sở, Mã SP (tên SP tự điền từ KiotViet), Giá duyệt, Người duyệt (Anh Quân / Anh Duy / Anh Duy Khánh), Ngày duyệt. Có tạo, sửa, xóa (có xác nhận), lọc theo Người duyệt và khoảng Ngày duyệt, sắp xếp mọi cột, xuất Excel đúng tập đang lọc, chỉ số (số bản ghi, khách, mã hàng, ngày duyệt gần nhất).
+- **Quy tắc nghiệp vụ**:
+  - Khách và mã hàng phải có thật (đang hoạt động) trên KiotViet của cơ sở đã chọn; tên đổi trên KiotViet thì bảng tự hiện tên mới. Mỗi (cơ sở, khách, mã hàng, ngày duyệt) chỉ một bản ghi.
+  - Giá duyệt thay giá min (là giá cuối đã gồm VAT/cước) cho hóa đơn cùng cơ sở + khách + mã hàng từ Ngày duyệt trở đi; nhiều bản ghi thì lấy bản duyệt mới nhất không sau ngày hóa đơn. Giá bán >= giá duyệt là Đúng giá, thấp hơn là Sai giá và tiền chênh tính từ giá duyệt (nhãn "Giá duyệt" / "Theo giá duyệt").
+  - Lưu xong, các dòng đã kiểm tra của khách + mã hàng đó từ Ngày duyệt được tính lại ngay (giải thích của sale, Chốt giữ nguyên); nếu chưa tính lại được thì áp dụng ở lượt kiểm tra kế tiếp.
+- **Người dùng**: xem như Kiểm tra giá bán (Quản lý, Trợ lý, Nhân viên sale); tạo/sửa/xóa chỉ Quản lý (quyền `reports.invoices.priceAudit.approvedPrice`, cấp riêng được ở trang Tài khoản); xuất Excel cần quyền xuất.
+- **Thành công**: dòng bán đúng giá đã duyệt không còn bị báo Sai giá; mỗi thay đổi bảng giá có dấu vết bất biến (ai, khi nào, trước/sau).
+- **Ngoài phạm vi**: ghi ngược giá duyệt lên KiotViet/Google Sheets, giá duyệt theo khoảng thời gian có ngày hết hạn, duyệt giá theo lô nhiều khách.
+- **Trạng thái**: code + test cục bộ (migration `0091` chưa áp DB thật, chưa commit/deploy).
+
+Cập nhật gần nhất: 24/10/2026.
 
 
 21/10/2026 — **CONT TKS1 và cột Nguồn (mã cục bộ trên main, chưa deploy):** nguồn thứ bảy `CONT TKS1` sau KHÁC dùng chung snapshot, số Chưa bốc (1+2), Đã bốc (3) và chi tiết CONT; trạng thái 4 giữ trong Dự kiến hàng về, không cộng hai số tổng. Tên SP vẫn tra `product_report` theo mã. Bảng Dự kiến hàng về có 11 cột; Nguồn (`sheetName`) đứng đầu, mặc định hiện và được chọn khi xuất Excel/HTML; chọn riêng các cột cũ vẫn hợp lệ. Giữ tìm kiếm, ba bộ lọc Nguồn/Cont/Trạng thái, quyền, phân trang và cấu hình cột trong phiên. Đọc thiếu/lỗi bất kỳ nguồn nào giữ snapshot thành công gần nhất. Không thêm migration, dependency hoặc endpoint; bộ lọc Nguồn được bổ sung theo phê duyệt tiếp theo cùng ngày; không ghi Sheets hay chạy job ghi DB production trong lượt triển khai này.

@@ -46,10 +46,11 @@
       setTimeout(unhide, 1200);
     })();
   </script>
-  <link rel="stylesheet" href="/shared/shared.css?v=20261022-1">
+  <link rel="stylesheet" href="/shared/shared.css?v=20261024-1">
   <link rel="stylesheet" href="/shared/search-clear.css?v=20261009-1">
   <link rel="stylesheet" href="/shared/detail-panel.css?v=20261016">
   <link rel="stylesheet" href="/marketing-report.css?v=20261016-sort">
+  <link rel="stylesheet" href="/invoice-approved-prices.css?v=20261024-1">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&display=swap">
@@ -4553,8 +4554,85 @@
             </div>
           </section>
 
-          <section class="section">
+          <!-- Bảng giá duyệt (invoice-approved-prices.js, API /api/invoice-approved-prices): giá Quản lý đã duyệt riêng cho khách + mã hàng, THAY giá min khi Kiểm tra giá bán; xem theo reports.invoices.priceAudit, tạo/sửa/xóa theo reports.invoices.priceAudit.approvedPrice -->
+          <section class="section" id="approvedPriceSection" hidden>
             <div class="section-head"><span class="section-step">2</span>
+              <h2>Bảng giá duyệt <span class="section-note">giá đã duyệt riêng cho khách + mã hàng; thay giá min khi tính sai giá cho hóa đơn từ ngày duyệt</span></h2>
+            </div>
+            <div class="kpi-grid section-kpis" id="approvedPriceKpis"></div>
+            <div class="grid">
+              <div class="panel col-12">
+                <div class="panel-head">
+                  <h2>Giá duyệt <span class="tag" id="tagApprovedPrice">—</span></h2>
+                  <div class="panel-head-actions">
+                    <button class="btn-primary price-audit-btn" type="button" id="approvedPriceCreateButton" hidden>Tạo bản ghi</button>
+                    <button class="export-button" type="button" id="approvedPriceExportButton"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Xuất file</button>
+                  </div>
+                </div>
+                <div class="price-audit-status" id="approvedPriceStatus" role="status" aria-live="polite"></div>
+                <div class="debt-filter-controls price-audit-filters" aria-label="Bộ lọc bảng giá duyệt">
+                  <div class="debt-filter-field">
+                    <label for="approvedPriceApproverFilter">Người duyệt</label>
+                    <select id="approvedPriceApproverFilter">
+                      <option value="">Tất cả</option>
+                      <option value="Anh Quân">Anh Quân</option>
+                      <option value="Anh Duy">Anh Duy</option>
+                      <option value="Anh Duy Khánh">Anh Duy Khánh</option>
+                    </select>
+                  </div>
+                  <div class="debt-filter-field">
+                    <label for="approvedPriceFrom">Ngày duyệt từ</label>
+                    <input id="approvedPriceFrom" type="date">
+                  </div>
+                  <div class="debt-filter-field">
+                    <label for="approvedPriceTo">Ngày duyệt đến</label>
+                    <input id="approvedPriceTo" type="date">
+                  </div>
+                  <div class="debt-filter-field">
+                    <label>&nbsp;</label>
+                    <button class="btn-secondary price-audit-btn" type="button" id="approvedPriceClearFilters">Xóa lọc</button>
+                  </div>
+                </div>
+                <div class="table-wrap scroll-list approved-price-scroll">
+                  <table class="fixed-table approved-price-table" id="approvedPriceTable" data-table-key="dashboard-table-approved-price" data-table-sort="off">
+                    <thead id="approvedPriceHead">
+                      <tr>
+                        <th data-no-sort class="sortable" data-sort="customerName" aria-sort="none" style="width:220px" data-column-key="customerName" data-col-type="text" data-col-wrap="true"><button type="button" class="sort-button"><span class="sort-label">Khách hàng</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                        <th data-no-sort class="sortable" data-sort="branch" aria-sort="none" style="width:90px" data-column-key="branch" data-col-type="text"><button type="button" class="sort-button"><span class="sort-label">Cơ sở</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                        <th data-no-sort class="sortable" data-sort="productCode" aria-sort="none" style="width:120px" data-column-key="productCode" data-col-type="text"><button type="button" class="sort-button"><span class="sort-label">Mã SP</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                        <th data-no-sort class="sortable" data-sort="productName" aria-sort="none" style="width:260px" data-column-key="productName" data-col-type="text" data-col-wrap="true"><button type="button" class="sort-button"><span class="sort-label">Tên SP</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                        <th data-no-sort class="sortable col-num" data-sort="approvedPrice" aria-sort="none" style="width:120px" data-column-key="approvedPrice" data-col-type="money"><button type="button" class="sort-button"><span class="sort-label">Giá duyệt</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                        <th data-no-sort class="sortable" data-sort="approver" aria-sort="none" style="width:130px" data-column-key="approver" data-col-type="text"><button type="button" class="sort-button"><span class="sort-label">Người duyệt</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                        <th data-no-sort class="sortable" data-sort="approvedOn" aria-sort="none" style="width:115px" data-column-key="approvedOn" data-col-type="text"><button type="button" class="sort-button"><span class="sort-label">Ngày duyệt</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button></th>
+                        <th data-no-sort style="width:130px" data-column-key="actions" data-col-type="text">Thao tác</th>
+                      </tr>
+                    </thead>
+                    <tbody id="approvedPriceRows">
+                      <tr>
+                        <td colspan="8" class="table-note">Đang tải...</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="pagination-controls" id="approvedPricePagination" hidden>
+                  <button type="button" id="approvedPriceFirstPage" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+                  <button type="button" id="approvedPricePrevPage" aria-label="Trang trước" title="Trang trước">&lt;</button>
+                  <span id="approvedPricePageLabel">Trang 1/1</span>
+                  <button type="button" id="approvedPriceNextPage" aria-label="Trang sau" title="Trang sau">&gt;</button>
+                  <button type="button" id="approvedPriceLastPage" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
+                  <select id="approvedPricePageSize" class="price-audit-page-size" aria-label="Số dòng mỗi trang">
+                    <option value="25">25 dòng</option>
+                    <option value="50" selected>50 dòng</option>
+                    <option value="100">100 dòng</option>
+                    <option value="200">200 dòng</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section">
+            <div class="section-head"><span class="section-step">3</span>
               <h2>Giao dịch <span class="section-note">chi tiết từng giao dịch trong khoảng thời gian đã chọn</span></h2>
             </div>
             <div class="kpi-grid section-kpis" id="transactionsKpis"></div>
@@ -5165,12 +5243,13 @@
     })();
   </script>
   <script src="/shared/search-clear.js?v=20261009-1"></script>
-  <script src="/shared/shared-nav.js?v=20261023-3"></script>
+  <script src="/shared/shared-nav.js?v=20261024-1"></script>
   <script src="/shared/table-align.js?v=20261017"></script>
   <script src="/shared/dateInput.js?v=20260912"></script>
   <script src="/shared/image-compress.js?v=20261022"></script>
   <script src="/marketing-report.js?v=20261021-1"></script>
   <script src="/invoice-price-audit.js?v=20261023-1"></script>
+  <script src="/invoice-approved-prices.js?v=20261024-1"></script>
 
   <script>
     // Toast thong bao inline — thay the window.alert() cho loi/canh bao (khong chan luong,
@@ -12174,6 +12253,7 @@
       if (view === 'marketing') { TKSMarketing.load(false); return; }
       // Hoa don, muc 2 "Kiem tra gia ban": API rieng /api/invoice-price-audit, tu kiem quyen + tu bo qua neu du lieu con moi.
       if (view === 'invoices' && window.TKSPriceAudit) window.TKSPriceAudit.load(false);
+      if (view === 'invoices' && window.TKSApprovedPrices) window.TKSApprovedPrices.load(false);
       if (isViewFresh(view) || isViewRequestPending(view)) return;
       loadData(state.days, !viewIsLoaded(view), view);
     }

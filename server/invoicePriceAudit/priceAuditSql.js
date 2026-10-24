@@ -15,10 +15,11 @@ const LEVEL_POSITIONS = Object.freeze({ medium: 1, large: 2, new: 2, vip: 3 });
 const REASONS = Object.freeze({
   priced: 'Theo giá quy định',
   approved: 'Được duyệt Ok',
+  approvedPrice: 'Theo giá duyệt',
   noPrice: 'Không có giá quy định'
 });
 
-const WINNING_SOURCES = Object.freeze({ hn: 'HN', hnFreight: 'HN + cước', sg: 'SG', none: 'Không xét' });
+const WINNING_SOURCES = Object.freeze({ hn: 'HN', hnFreight: 'HN + cước', sg: 'SG', none: 'Không xét', approvedPrice: 'Giá duyệt' });
 
 // Gia theo tong so luong: bac co nguong (so thung x chiec/thung) cao nhat <= tong SL; duoi nguong
 // dau tien van dung gia bac co nguong thap nhat. Thieu chiec/thung (NULL hoac 0) -> NULL (khong doan).
@@ -93,10 +94,12 @@ WITH src0 AS (
     level_position int, sale_name text, product_code text, code_key text, product_name text,
     quantity text, original_unit_price text, unit_discount text, full_vat boolean,
     freight_eligible boolean, freight text, hn jsonb, sg jsonb,
-    product_note_hn text, product_note_sg text, line_note text, invoice_note text, captured_at timestamptz)
+    product_note_hn text, product_note_sg text, line_note text, invoice_note text, captured_at timestamptz,
+    approved_price text, approved_on date)
 ),
 src AS (
   SELECT x.*,
+         x.approved_price::numeric AS approved_n,
          x.quantity::numeric AS qty,
          SUM(x.quantity::numeric) OVER (PARTITION BY x.branch, x.invoice_id, x.code_key) AS total_qty,
          x.original_unit_price::numeric AS price_n,
@@ -118,12 +121,14 @@ mins AS (
 applied AS (
   SELECT m.*,
          CASE
+           WHEN m.approved_n IS NOT NULL THEN m.approved_n   -- gia duyet THAY gia toi thieu tu mo ta (da gom VAT/cuoc)
            WHEN m.branch = 'saigon' THEN m.minimum_sg
            WHEN m.minimum_hn IS NULL THEN NULL
            WHEN m.freight_eligible THEN LEAST(m.minimum_hn + m.freight_n, m.minimum_sg)
            ELSE m.minimum_hn
          END AS applied_min,
          CASE
+           WHEN m.approved_n IS NOT NULL THEN '${WINNING_SOURCES.approvedPrice}'
            WHEN m.branch = 'saigon' THEN '${WINNING_SOURCES.sg}'
            WHEN m.freight_eligible AND m.minimum_sg IS NOT NULL AND m.minimum_sg < m.minimum_hn + m.freight_n
              THEN '${WINNING_SOURCES.sg}'
@@ -155,13 +160,16 @@ SELECT r.branch, r.invoice_id::bigint, r.source_line_no, r.invoice_code, r.sold_
   r.freight_eligible, r.freight_n,
   r.carton_size_sg, r.quantity_price_sg, r.level_price_sg, r.vat_sg, r.minimum_sg,
   CASE WHEN r.applied_min IS NULL THEN '${WINNING_SOURCES.none}' ELSE r.source_raw END,
-  CASE WHEN r.applied_min IS NULL THEN '${REASONS.noPrice}' ELSE '${REASONS.priced}' END,
+  CASE WHEN r.approved_n IS NOT NULL THEN '${REASONS.approvedPrice}'
+       WHEN r.applied_min IS NULL THEN '${REASONS.noPrice}' ELSE '${REASONS.priced}' END,
   r.applied_min, r.shortfall, COALESCE(r.shortfall, 0) * r.qty,
   CASE WHEN r.applied_min IS NOT NULL AND COALESCE(r.shortfall, 0) * r.qty > 0
     THEN 'wrong' ELSE 'correct' END,
   jsonb_build_object(
     'level', r.customer_level, 'levelPosition', r.level_position,
     'appliedMinimum', r.applied_min::text, 'winningSource', r.source_raw,
+    'approvedPrice', CASE WHEN r.approved_n IS NULL THEN NULL
+      ELSE jsonb_build_object('price', r.approved_n::text, 'approvedOn', r.approved_on::text) END,
     'freight', jsonb_build_object('eligible', r.freight_eligible, 'sourceValue', r.freight, 'added', r.freight_n::text),
     'hn', CASE WHEN r.hn IS NULL THEN NULL ELSE r.hn || jsonb_build_object(
       'quantityPrice', r.quantity_price_hn::text, 'levelPrice', r.level_price_hn::text,

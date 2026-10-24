@@ -253,6 +253,26 @@ Cột bảng, bộ chọn hiển thị và xuất file dùng nhãn rút gọn t�
 
 Dữ liệu: 4 bảng `invoice_price_audit_{invoices,lines,state,changes}` (xem `db/SCHEMA.md`), web chỉ đọc bản đã chụp và ghi giải thích/Chốt kèm nhật ký `invoice_price_audit_changes`; không ghi ngược KiotViet hay Google Sheets. Rollback: tắt `INVOICE_PRICE_AUDIT_ENABLED` (và ẩn quyền nếu cần), giữ bảng; lỗi job không chặn tab Giao dịch cũ.
 
+## Bảng giá duyệt (`/api/invoice-approved-prices`, 24/10/2026)
+
+Mục mới của tab Hóa đơn (`/reports/#invoices`, bước 2; "Giao dịch" thành bước 3), áp dụng cho Kiểm tra giá bán. Mã trong `invoicePriceAudit/`: `approvedPriceRules.js` (danh sách người duyệt cố định Anh Quân / Anh Duy / Anh Duy Khánh; kiểm tra giá, ngày, id, khóa sắp xếp, query danh sách), `approvedPriceRepository.js` (danh sách + lọc + sắp xếp/phân trang phía máy chủ + KPI; tạo/sửa/xóa trong một giao dịch), `approvedPriceRoutes.js`, `approvedPriceExport.js` (Excel `.xlsx` đúng tập đang lọc/sắp xếp, tối đa 20.000 dòng), kiểm thử `approvedPrice.test.js`; gắn trong `server/routes.js`. Frontend: `public/invoice-approved-prices.js` + `.css`, kiểm thử `test/frontend/invoice-approved-prices.test.js`. Trạng thái: mã cục bộ, migration `0091` **chưa áp DB dùng chung**.
+
+- **Ghi (tạo/sửa/xóa)**: một giao dịch gồm kiểm tra `version` (sai trả 409), kiểm tra khách và sản phẩm còn hoạt động trong cơ sở (không có trả 422 `CUSTOMER_NOT_FOUND` / `PRODUCT_NOT_FOUND`), ghi `invoice_approved_price_changes`, rồi tính lại có phạm vi (`recalcWindow` nhận thêm tham số `scope`) các dòng Kiểm tra giá bán đã chụp trong SAVEPOINT. Kết quả tính lại: `applied`, `skipped`, `not_published`, `busy`, `failed`; tính lại lỗi KHÔNG hoàn tác bản ghi đã lưu.
+- **Tác động lên Kiểm tra giá bán**: `priceAuditRepository.js` (`buildCaptureInputs`) đọc giá duyệt (bỏ qua êm nếu chưa migrate, kiểm bằng `to_regclass`); `priceAuditSql.js` dùng giá duyệt THAY cho mức tối thiểu theo mô tả khi `sold_day >= approved_on` của cùng `(branch, customer_id, product_id)`; chọn bản ghi có `approved_on` mới nhất không quá ngày bán. Nguồn thắng ghi "Giá duyệt", lý do "Theo giá duyệt", `calculation.approvedPrice` dạng JSON.
+- **Gợi ý khách / sản phẩm**: tìm gần đúng không dấu từ dữ liệu KiotViet cùng cơ sở, cache 60 giây; hộp Tạo/Sửa chỉ cho chọn từ gợi ý, Tên SP tự điền, ngày duyệt mặc định hôm nay (giờ VN).
+- **API** (`approvedPriceRoutes.js`, `Cache-Control: no-store`, cơ sở theo cookie `tks_branch` hoặc `?branch=`):
+
+| Endpoint | Quyền | Nội dung |
+|---|---|---|
+| `GET /api/invoice-approved-prices` | `reports.invoices.priceAudit` | Query `approver, from, to, sort, dir, page, pageSize`. Trả `{rows, totalRows, kpis, options.approvers, canManage}`; bảng chưa migrate trả 503 `NOT_MIGRATED` |
+| `GET /export` | `…priceAudit` + `reports.export` | Excel `.xlsx` của tập đang lọc/sắp xếp, tối đa 20.000 dòng |
+| `GET /customer-suggest?branch=&q=`, `GET /product-suggest?branch=&q=` | `reports.invoices.priceAudit.approvedPrice` | Gợi ý khách / sản phẩm cho hộp Tạo/Sửa |
+| `POST /` | `…priceAudit.approvedPrice` | Tạo bản ghi; 422 nếu khách/sản phẩm không có trong cơ sở |
+| `PUT /:id` | `…priceAudit.approvedPrice` | Sửa toàn bộ trường kèm `expectedVersion`; 409 khi lệch `version` |
+| `DELETE /:id?expectedVersion=` | `…priceAudit.approvedPrice` | Xóa (giao diện hỏi xác nhận trước); lịch sử giữ trong `invoice_approved_price_changes` |
+
+Quyền `reports.invoices.priceAudit.approvedPrice` (`auth/featureRegistry.js`) mặc định chỉ Quản lý, yêu cầu quyền xem `reports.invoices.priceAudit`. **Thứ tự triển khai**: áp migration `0091` TRƯỚC khi deploy mã; chưa áp thì API bảng trả 503 `NOT_MIGRATED` và Kiểm tra giá bán chạy như cũ.
+
 ## Lệnh
 
 ```bash
@@ -402,10 +422,13 @@ Hai file Kiot HN/SG **không còn** được server truy cập.
 | `0080` (file `0080_vat_request_notice_state.sql`, trùng số với `0080_customer_notes.sql`; runner theo tên file nên không xung đột; **chưa áp DB dùng chung**, 22/10/2026) | `vat_request_notice_state` — con trỏ id lịch sử ORDER VAT đã xét cho từng sale, dòng mốc `'*'` khi áp; dùng cho thông báo chuông của `vatRequests/saleNotifier.js`. Chưa áp thì job bỏ qua |
 | `0081` | Tách tài khoản khỏi HR (nhánh `feat/tach-tai-khoan-nhan-su`, CHƯA áp DB): `app_users.work_branch` (`hanoi`/`saigon`/'') + `app_users.bo_phan`, sao chép một lần cơ sở/bộ phận từ hồ sơ HR đang liên kết; chốt `vai_tro`/`co_so` đang hiệu lực (ghi đè > sheet > hiện có) cho tài khoản `hr_managed`; KHÔNG sửa `feature_permissions`. |
 | `0082` | Lịch và đơn nghỉ theo tài khoản (CHƯA áp DB, áp sau 0081): `hr_leave_work_schedules.user_id` + chỉ mục duy nhất `(user_id, work_date)` / `(employee_id, work_date)` một phần, `employee_id` cho phép NULL; sao lịch cũ sang MỌI tài khoản liên kết (giữ version); `hr_leave_submissions.user_id`; viết lại `hr_leave_submission_snapshot()` (tài khoản đang hoạt động, `u.work_branch` = cơ sở đơn, bộ phận từ `u.bo_phan`, lịch tra theo `user_id` + ngày, bot quy chat id/`hr_employee_id` cũ về đúng một tài khoản, `hr_employee_id` chỉ còn lịch sử) và `hr_leave_department_snapshot()` (không đọc `hr_employees`). Kiểm thử SQL thật: `db/accountLeaveTriggerMigration.test.js` (PGlite). |
+| `0091` (**chưa áp DB dùng chung**, 24/10/2026) | Bảng giá duyệt của tab Hóa đơn: `invoice_approved_prices` (khóa `id` identity; `branch` hanoi|saigon, `customer_id`/`product_id` BIGINT = `customers.id`/`products.id` cùng cơ sở, `approved_price NUMERIC > 0`, `approver`, `approved_on DATE` (ngày VN), `version` khóa lạc quan, `created_by/at`, `updated_by/at`; UNIQUE `(branch, customer_id, product_id, approved_on)`, index `approved_on DESC`) + `invoice_approved_price_changes` (nhật ký bất biến bằng trigger: `price_id`, `action` create|update|delete, `actor`, `changed_at`, `before_value/after_value jsonb`; không FK để lịch sử xóa còn lại); không FK sang `customers`/`products` (tên JOIN lúc đọc nên đổi tên trên KiotViet tự cập nhật); thu hồi ALL của `reporting_readonly`; idempotent. **Áp TRƯỚC khi deploy mã** |
 
 Bot **xin nghỉ của nhân viên** chạy ngoài repo và đọc/ghi 3 bảng nền nghỉ phép trực tiếp; bot **quản lý** trong `telegram/` dùng chung đơn và sở hữu các bảng bổ sung ở migration `0029`. Hợp đồng dữ liệu ở `db/SCHEMA.md`.
 
 ## Cập nhật gần nhất
+
+24/10/2026 — **Bảng giá duyệt (tab Hóa đơn, migration `0091`, mã cục bộ, chưa commit/deploy)**: xem mục "Bảng giá duyệt" phía trên. File mới: `invoicePriceAudit/{approvedPriceRules,approvedPriceRepository,approvedPriceRoutes,approvedPriceExport}.js` (+ `approvedPrice.test.js`), `db/migrations/0091_invoice_approved_prices.sql`, `public/invoice-approved-prices.{js,css}`, `test/frontend/invoice-approved-prices.test.js`. Sửa: `priceAuditRepository.js` / `priceAuditSql.js` (giá duyệt thay giá tối thiểu theo mô tả), `auth/featureRegistry.js` (quyền `reports.invoices.priceAudit.approvedPrice`), `routes.js`, `public/index.html`. Áp `0091` trước khi deploy.
 
 23/10/2026 — **Kế toán – Tra cứu VAT (nhánh `feat/vat-lookup`, chưa merge/deploy, không migration)**: xem mục "Kế toán – Tra cứu VAT" phía trên. File mới: `vatLookup/{lookupModel,lookupSource,vatLookupRoutes}.js` (+ test), `public/vat-lookup/`, `test/frontend/vat-lookup.test.js`. Quyền mới `accounting.vatLookup`; menu Kế toán thêm mục "Tra cứu VAT" (bump `shared-nav.js?v=20261023-1` ở 8 trang); trang ORDER VAT thêm nút "Tra cứu VAT".
 

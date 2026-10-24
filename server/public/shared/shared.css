@@ -1780,3 +1780,11 @@ table.fixed-table td {
 .acct-subnav .subnav-tab[aria-current="page"]{border-bottom-color:var(--blue);font-weight:700}
 .acct-subnav .subnav-tab:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
 @media (prefers-reduced-motion:reduce){.acct-subnav .subnav-tab{transition:none}}
+
+/* ---------- Ghim header chi tren desktop (>900px); mobile cuon binh thuong ---------- */
+@media (min-width:901px){
+  .receipt-header{ position:sticky; top:0; z-index:30; }
+  /* Sidebar sticky bat dau duoi header: --tks-header-h do shared-nav.js do. */
+  .sidebar{ top:var(--tks-header-h,0px); height:calc(100vh - var(--tks-header-h,0px)); }
+  .sidebar-resize-handle{ top:var(--tks-header-h,0px); height:calc(100vh - var(--tks-header-h,0px)); }
+}
