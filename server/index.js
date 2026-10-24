@@ -15,6 +15,7 @@ const { pageGuard } = require('./auth/pageGuard');
 const { createLeaveDbRealtime } = require('./hr/hrLeaveDbRealtime');
 const { getConfiguredManagerLeaveRuntime } = require('./telegram/managerLeaveRuntime');
 const { startSpecialDayNotifySchedule } = require('./notifications/specialDayNotifier');
+const { startLeaveBellSchedule } = require('./hr/hrLeaveBellNotifier');
 const { startSaleNotifySchedule } = require('./vatRequests/saleNotifier');
 const { ensureHrInsuranceSchema } = require('./db/ensureHrInsuranceSchema');
 
@@ -156,6 +157,8 @@ async function startServer() {
     if (CONFIG.SPECIAL_DAYS_NOTIFY_ENABLED) startSpecialDayNotifySchedule();
     // Job bao sale chay o web (ke ca khi BACKGROUND_JOBS=worker); chuong luu o bang Postgres `notifications` (0093).
     if (CONFIG.VAT_REQUEST_NOTIFY_ENABLED) startSaleNotifySchedule();
+    // Don nghi phep tu bot Telegram (ghi thang vao DB) -> chuong cho nguoi duyet.
+    if (CONFIG.HR_LEAVE_BELL_NOTIFY_ENABLED) startLeaveBellSchedule();
 
     if (CONFIG.MEMORY_MONITOR) {
       const memoryMonitor = require('./lib/memoryMonitor').startMemoryMonitor({
