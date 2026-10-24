@@ -118,3 +118,20 @@ test('loai bo nhan Cot hien thi do table-controls chen nham vao trinh soan thao'
     '<table><tr><td>Nội dung thật</td></tr></table>'
   );
 });
+
+test('giu phong chu, co chu px va gian dong do trinh soan sinh ra', () => {
+  const input = '<p style="line-height:1.5;text-align:justify"><span style="font-family:Arial;font-size:18px">A</span><span style="font-family:&quot;Times New Roman&quot;">B</span></p><ul><li style="line-height:2">x</li></ul>';
+  const output = sanitizeRuleDocumentHtml(input);
+  assert.match(output, /line-height:1\.5/);
+  assert.match(output, /text-align:justify/);
+  assert.match(output, /font-family:Arial/);
+  assert.match(output, /font-size:18px/);
+  assert.match(output, /font-family:&quot;Times New Roman&quot;/);
+  assert.match(output, /<li style="line-height:2">/);
+});
+
+test('CHAN font-family/font-size/line-height chua url(), expression hoac don vi la', () => {
+  const input = '<p style="line-height:expression(alert(1))"><span style="font-family:url(javascript:alert(1));font-size:999px">x</span><span style="font-size:12em">y</span></p>';
+  const output = sanitizeRuleDocumentHtml(input);
+  assert.doesNotMatch(output, /expression|url\(|999px|12em/);
+});
