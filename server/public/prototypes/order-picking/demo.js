@@ -6,12 +6,12 @@ window.PickingDemo = {
     { branch:'HN', orderCode:'DH-DEMO-004', customerName:'Gia dụng Phương Nam · mô phỏng', saleName:'Nguyễn Hà', status:{code:'NOT_SENT',label:'Đơn chưa gửi kế toán'}, lines:[{productCode:'BN2L',productName:'Bình giữ nhiệt 2L',quantity:10}] }
   ],
   locations: [
-    {branch:'HN',code:'ADN3LYU',location:'A01',available:100,notes:'Dãy cửa kho',arrivalDate:'15/10/2026'},
-    {branch:'HN',code:'ADN3LYU',location:'B02',available:35,notes:'Kệ giữa kho',arrivalDate:'18/10/2026'},
-    {branch:'HN',code:'ADN3LYU',location:'C03',available:20,notes:'Khu cuối kho',arrivalDate:'20/10/2026'},
-    {branch:'HN',code:'BN2L',location:'A01',available:25,notes:'Hàng lẻ',arrivalDate:'12/10/2026'},
-    {branch:'HN',code:'BN2L',location:'B02',available:30,notes:'Thùng đã mở',arrivalDate:'19/10/2026'},
-    {branch:'HN',code:'BN2L',location:'C03',available:15,notes:'Kệ cao',arrivalDate:'20/10/2026'},
+    {branch:'HN',code:'ADN3LYU',location:'A01',available:20,notes:'Dãy cửa kho',arrivalDate:'15/10/2026'},
+    {branch:'HN',code:'ADN3LYU',location:'B02',available:12,notes:'Kệ giữa kho',arrivalDate:'18/10/2026'},
+    {branch:'HN',code:'ADN3LYU',location:'C03',available:8,notes:'Khu cuối kho',arrivalDate:'20/10/2026'},
+    {branch:'HN',code:'BN2L',location:'A01',available:70,notes:'Hàng lẻ',arrivalDate:'12/10/2026'},
+    {branch:'HN',code:'BN2L',location:'B02',available:50,notes:'Thùng đã mở',arrivalDate:'19/10/2026'},
+    {branch:'HN',code:'BN2L',location:'C03',available:40,notes:'Kệ cao',arrivalDate:'20/10/2026'},
     {branch:'HN',code:'0012',location:'D04',available:12,notes:'Đúng số lượng đơn',arrivalDate:'17/10/2026'},
     {branch:'SG',code:'ADN3LYU',location:'36',available:null,totalQuantity:'15',notes:'Cần xác nhận tồn thực tế; TỔNG SL đã đi không phải tồn',arrivalDate:'03/10/2026'}
   ]
@@ -20,17 +20,17 @@ window.PickingDemo = {
 // Additional orders share ONE location ledger per branch, never a stock copy per order.
 (function(){
   const products=[
-    {code:'COC123',name:'Cốc thủy tinh 123',stock:[12000,10000,8000],price:3500,note:'40T x 250'},
-    {code:'BINH500',name:'Bình nước 500 ml',stock:[400,500,600],price:18000,note:'Thùng 100 chiếc'},
-    {code:'HOP1000',name:'Hộp thực phẩm 1.000 ml',stock:[1000,800,1200],price:6500,note:'Thùng 200 chiếc'},
-    {code:'KEP78',name:'Móc phơi đồ 1 kẹp K78',stock:[1500,1200,3300],price:690,note:'Thùng 600 chiếc'},
-    {code:'KHAN30',name:'Khăn lau đa năng 30 cm',stock:[500,300,700],price:4200,note:'Thùng 100 chiếc'},
-    {code:'THAU28',name:'Thau nhựa 28 cm',stock:[200,180,420],price:12000,note:'Kiện 60 chiếc'},
-    {code:'KETO3',name:'Kệ để đồ 3 tầng',stock:[150,120,330],price:29000,note:'Thùng 30 chiếc'},
-    {code:'BANCHAIGC',name:'Bàn chải đánh răng GC',stock:[1000,600,1400],price:1800,note:'Thùng 300 chiếc'}
+    {code:'COC123',name:'Cốc thủy tinh 123',stock:[12000, 10000, 9000],stockSG:[8000, 7000, 5000],price:3500,note:'40T x 250'},
+    {code:'BINH500',name:'Bình nước 500 ml',stock:[500, 420, 320],stockSG:[300, 240, 160],price:18000,note:'Thùng 100 chiếc'},
+    {code:'HOP1000',name:'Hộp thực phẩm 1.000 ml',stock:[1300, 1100, 960],stockSG:[750, 650, 450],price:6500,note:'Thùng 200 chiếc'},
+    {code:'KEP78',name:'Móc phơi đồ 1 kẹp K78',stock:[2200, 1700, 1230],stockSG:[1100, 900, 500],price:690,note:'Thùng 600 chiếc'},
+    {code:'KHAN30',name:'Khăn lau đa năng 30 cm',stock:[600, 500, 300],stockSG:[300, 250, 150],price:4200,note:'Thùng 100 chiếc'},
+    {code:'THAU28',name:'Thau nhựa 28 cm',stock:[300, 230, 150],stockSG:[150, 110, 80],price:12000,note:'Kiện 60 chiếc'},
+    {code:'KETO3',name:'Kệ để đồ 3 tầng',stock:[270, 230, 160],stockSG:[120, 90, 70],price:29000,note:'Thùng 30 chiếc'},
+    {code:'BANCHAIGC',name:'Bàn chải đánh răng GC',stock:[1400, 1100, 780],stockSG:[600, 500, 350],price:1800,note:'Thùng 300 chiếc'}
   ];
-  for(const branch of ['HN','SG'])products.forEach((product,i)=>product.stock.forEach((qty,j)=>{
-    window.PickingDemo.locations.push({branch,code:product.code,location:['A','B','C'][j]+String(i+5).padStart(2,'0'),available:branch==='HN'?qty:qty*2,notes:product.note,arrivalDate:'20/10/2026'});
+  for(const branch of ['HN','SG'])products.forEach((product,i)=>(branch==='HN'?product.stock:product.stockSG).forEach((qty,j)=>{
+    window.PickingDemo.locations.push({branch,code:product.code,location:['A','B','C'][j]+String(i+5).padStart(2,'0'),available:qty,notes:product.note,arrivalDate:'20/10/2026'});
   }));
   const cases=[
     {id:'005',branch:'HN',name:'TEST TỒN · Đơn 1 · Minh Anh',qty:[10000,300,800,1200,300,180,120,600]},
@@ -45,12 +45,7 @@ window.PickingDemo = {
   for(const item of cases)window.PickingDemo.orders.push({
     branch:item.branch,orderCode:'DH-DEMO-'+item.id,customerName:item.name+' · mô phỏng',saleName:item.branch==='HN'?'Nguyễn Hà':'Lê An',
     status:{code:'SENT_TO_ACCOUNTANT',label:'Đơn đã gửi kế toán'},invoiceDiscount:0,priorDebt:0,
-    note:'Dữ liệu thử tồn kho sỉ dùng chung. COC123: HN ban đầu 3.000.000; đơn 005 lấy đủ 10.000 thì đơn 006 còn khả dụng 2.990.000. SG là nguồn tồn riêng.',
+    note:'Dữ liệu thử tồn kho sỉ dùng chung. COC123: HN ban đầu 31.000 (sát tổng SL các đơn HN); đơn 005 lấy đủ 10.000 thì đơn 006 còn khả dụng 30.990. SG là nguồn tồn riêng.',
     lines:products.map((p,i)=>({productCode:p.code,productName:p.name,quantity:item.qty[i],price:p.price,note:p.note}))
   });
 })();
-
-// Wholesale quantities; order quantities stay unchanged so repeated orders can be tested.
-window.PickingDemo.locations.forEach(row=>{
-  if(typeof row.available==='number')row.available*= ['ADN3LYU','BN2L','0012'].includes(row.code)?1000:100;
-});

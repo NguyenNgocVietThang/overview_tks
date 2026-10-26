@@ -119,6 +119,8 @@ const CONFIG = {
   SPECIAL_DAYS_NOTIFY_ENABLED: process.env.SPECIAL_DAYS_NOTIFY_ENABLED !== 'false',
   // Bao chuong cho sale ~10 phut sau khi KT ngung sua yeu cau ORDER VAT (vatRequests/saleNotifier.js, migration 0080).
   VAT_REQUEST_NOTIFY_ENABLED: process.env.VAT_REQUEST_NOTIFY_ENABLED !== 'false',
+  // Bao chuong nguoi duyet khi don nghi phep den tu Telegram (hr/hrLeaveBellNotifier.js).
+  HR_LEAVE_BELL_NOTIFY_ENABLED: process.env.HR_LEAVE_BELL_NOTIFY_ENABLED !== 'false',
 
   // ==========================================
   // SUPABASE POSTGRES — dong bo KiotViet, xem
@@ -192,8 +194,9 @@ const CONFIG = {
   INVOICE_VISION_MODEL: process.env.INVOICE_VISION_MODEL || 'qwen/qwen3.8-max:free',
   INVOICE_VISION_FALLBACK_MODEL: process.env.INVOICE_VISION_FALLBACK_MODEL ?? 'qwen/qwen3-vl-plus:free',
 
-  // Cot "Tồn VAT" cua Yeu cau xuat VAT = TỒN ĐẦU NGÀY tab GỘP MỚI (file VAT TKS, phai chia se
-  // cong khai). Bo trong = doc tab Gộp VAT + Khớp mã cua sheet cong khai Nhap VAT (vatDraftConfig).
+  // Cot "Tồn VAT" cua Yeu cau xuat VAT = TỒN ĐẦU NGÀY tab Gộp VAT (file VAT TKS, doc bang service
+  // account). *_SHEET_ID = ID file, *_GID = sheetId cua tab. Bo trong = tab Gộp VAT + Khớp mã cua
+  // file VAT TKS (vatDraftConfig).
   VAT_REQUEST_STOCK_SHEET_ID: process.env.VAT_REQUEST_STOCK_SHEET_ID || '',
   VAT_REQUEST_STOCK_GID: process.env.VAT_REQUEST_STOCK_GID || '',
   VAT_REQUEST_STOCK_COLUMN: process.env.VAT_REQUEST_STOCK_COLUMN || '',

@@ -235,10 +235,10 @@ function createHrLeaveRepository({ pool = getPool() } = {}) {
   // Truy vấn nhẹ cho realtime: chỉ id + phiên bản quyết định + cơ sở.
   async function getLeaveVersions(branch) {
     const { rows } = await pool.query(
-      `SELECT request_id, decision_version::text AS decision_version, branch FROM hr_leave_requests WHERE branch = ANY($1::text[])`,
+      `SELECT request_id, decision_version::text AS decision_version, branch, user_id FROM hr_leave_requests WHERE branch = ANY($1::text[])`,
       [toBranchCodes(branch)]
     );
-    return rows.map(row => ({ request_id: row.request_id, decision_version: String(row.decision_version == null ? '0' : row.decision_version), branch: row.branch }));
+    return rows.map(row => ({ request_id: row.request_id, decision_version: String(row.decision_version == null ? '0' : row.decision_version), branch: row.branch, user_id: row.user_id }));
   }
 
   async function getLeaveRequestById(id, branch) {

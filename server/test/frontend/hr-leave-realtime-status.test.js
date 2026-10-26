@@ -384,12 +384,11 @@ test('hộp chi tiết nghỉ phép: hàng chỉ số tổng quan (trạng thái
     el.querySelector('.dp-stat-label').textContent,
     { value: el.querySelector('.dp-stat-value').textContent, sub: (el.querySelector('.dp-stat-sub') || { textContent: '' }).textContent }
   ]));
-  assert.ok(stats['Trạng thái duyệt'] && stats['Số ngày nghỉ'] && stats['Thời gian nghỉ'] && stats['Loại yêu cầu']);
-  assert.match(stats['Số ngày nghỉ'].value, /ngày$/);
-  assert.match(stats['Số ngày nghỉ'].sub, /buổi$/);
+  assert.deepEqual(Object.keys(stats), ['Thời gian nghỉ', 'Trạng thái', 'Thời hạn']);
+  assert.match(stats['Thời gian nghỉ'].sub, /ngày · .+ buổi$/);
   assert.match(doc.getElementById('leaveDetailSubtitle').textContent, /^Mã NP-R1/);
   assert.ok(doc.getElementById('leaveDetailHeading').textContent.length > 0);
-  assert.deepEqual([...doc.querySelectorAll('#leaveDetailBody .dp-section-title')].map(el => el.textContent), ['Nội dung nghỉ', 'Người gửi', 'Duyệt đơn']);
+  assert.deepEqual([...doc.querySelectorAll('#leaveDetailBody .dp-section-title')].map(el => el.textContent), ['Nội dung nghỉ', 'Người gửi', 'Thông tin phê duyệt']);
   assert.equal(doc.querySelector('#leaveDetailModal .tks-columns-button'), null);
   dom.window.close();
 });

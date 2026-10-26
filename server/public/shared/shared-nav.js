@@ -14,6 +14,22 @@
 
   var TKSNav = {};
 
+  // Do chieu cao header de sidebar sticky nam duoi header ghim (desktop).
+  (function trackHeaderHeight(){
+    function setup(){
+      var h = document.querySelector('.receipt-header');
+      if (!h) return;
+      var apply = function(){
+        document.documentElement.style.setProperty('--tks-header-h', h.offsetHeight + 'px');
+      };
+      apply();
+      if (window.ResizeObserver) new ResizeObserver(apply).observe(h);
+      else window.addEventListener('resize', apply);
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setup);
+    else setup();
+  })();
+
   // ---------- Quyen tinh nang cua phien hien tai ----------
   var currentPermissions = [];
   var currentPageFeatures = [];
@@ -429,18 +445,19 @@
     wrap.className = 'tks-notif-wrap';
     wrap.id = 'tksNotifBell';
     wrap.innerHTML =
-      '<button type="button" class="tks-notif-bell" id="tksNotifBellBtn" aria-label="Thông báo" aria-haspopup="true" aria-expanded="false">' +
+      '<button type="button" class="tks-notif-bell" id="tksNotifBellBtn" aria-label="Thông báo" aria-controls="tksNotifDropdown" aria-haspopup="true" aria-expanded="false">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>' +
         '<span class="tks-notif-badge" id="tksNotifBadge" hidden>0</span>' +
       '</button>' +
       '<div class="tks-notif-dropdown" id="tksNotifDropdown" hidden>' +
         '<div class="tks-notif-dropdown-header">' +
-          '<span>Thông báo</span>' +
+          '<div class="tks-notif-heading"><span>Thông báo</span><span class="tks-notif-summary" id="tksNotifSummary" hidden></span></div>' +
           '<div class="tks-notif-header-actions">' +
-            '<button type="button" class="tks-notif-mark-all" id="tksNotifMarkAll">Đánh dấu đã đọc</button>' +
+            '<button type="button" class="tks-notif-mark-all" id="tksNotifMarkAll">Đánh dấu tất cả đã đọc</button>' +
             '<button type="button" class="tks-notif-clear-all" id="tksNotifClearAll" hidden>Xóa tất cả</button>' +
           '</div>' +
         '</div>' +
+        '<div class="tks-notif-desktop" id="tksNotifDesktop" hidden></div>' +
         '<div class="tks-notif-list" id="tksNotifList"><p class="tks-notif-empty">Đang tải...</p></div>' +
       '</div>';
     // Nằm bên phải chip tài khoản, sau biểu tượng lịch (nếu có).
@@ -451,12 +468,17 @@
     var btn = wrap.querySelector('#tksNotifBellBtn');
     var dropdown = wrap.querySelector('#tksNotifDropdown');
     var badge = wrap.querySelector('#tksNotifBadge');
+    var summary = wrap.querySelector('#tksNotifSummary');
     var list = wrap.querySelector('#tksNotifList');
     var markAllBtn = wrap.querySelector('#tksNotifMarkAll');
     var clearAllBtn = wrap.querySelector('#tksNotifClearAll');
+    var desktopPrompt = wrap.querySelector('#tksNotifDesktop');
     var isOpen = false;
 
     function renderBadge(count){
+      summary.hidden = !(count > 0);
+      summary.textContent = count > 0 ? String(count) + ' chưa đọc' : '';
+      btn.setAttribute('aria-label', count > 0 ? 'Thông báo, ' + count + ' chưa đọc' : 'Thông báo');
       if(count > 0){
         badge.textContent = count > 99 ? '99+' : String(count);
         badge.hidden = false;
@@ -465,11 +487,203 @@
       }
     }
 
+    var lastCount = null;
+
     function refreshCount(){
       fetch('/api/notifications/unread-count', { credentials: 'same-origin' })
         .then(function(res){ return res.ok ? res.json() : { count: 0 }; })
-        .then(function(data){ renderBadge(data.count || 0); })
+        .then(function(data){
+          var count = data.count || 0;
+          renderBadge(count);
+          // So luong doi (hoac lan dau tai trang) moi tai danh sach chua doc de tim thong bao moi.
+          if(lastCount === null || count !== lastCount) checkNewForToast();
+          lastCount = count;
+        })
         .catch(function(){});
+    }
+
+    // ---------- Toast goc man hinh khi co thong bao moi (kieu YouTube) ----------
+    // Nho id cac thong bao chua doc da "thay" theo user trong localStorage (dung chung
+    // moi tab/trang) de chuyen trang khong bung lai. Lan dau chua co gi thi chi ghi
+    // nho, khong bung thong bao cu.
+    var TOAST_MAX = 3;
+    var TOAST_MS = 7000;
+    var seenKey = 'tksNotifToastSeen:' + String((user && user.id) || '');
+    var memSeen = null;
+    var pendingToasts = [];
+
+    function readSeen(){
+      try{
+        var raw = localStorage.getItem(seenKey);
+        if(raw) return JSON.parse(raw);
+      }catch(e){}
+      return memSeen;
+    }
+    function writeSeen(ids){
+      memSeen = ids;
+      try{ localStorage.setItem(seenKey, JSON.stringify(ids)); }catch(e){}
+    }
+
+    function checkNewForToast(){
+      fetch('/api/notifications?unreadOnly=true', { credentials: 'same-origin' })
+        .then(function(res){ return res.ok ? res.json() : null; })
+        .then(function(data){
+          if(!data) return;
+          var unread = (data.notifications || []).filter(function(n){ return n && n.id != null && !n.isRead; });
+          var seen = readSeen();
+          // Chi giu id con chua doc: danh sach tu gon, thong bao da doc khong quay lai.
+          writeSeen(unread.map(function(n){ return String(n.id); }));
+          if(!Array.isArray(seen)) return;
+          var fresh = unread.filter(function(n){ return seen.indexOf(String(n.id)) === -1; });
+          if(!fresh.length) return;
+          // Nguoi dung dang o ung dung khac (tab an / cua so mat focus): bung thong bao
+          // ra man hinh he dieu hanh. Tab an ma da bung duoc thi khong xep hang toast nua.
+          var away = document.hidden || (typeof document.hasFocus === 'function' && !document.hasFocus());
+          if(away && showDesktopNotifications(fresh) && document.hidden) return;
+          if(isOpen){ loadList(); return; }
+          showToasts(fresh);
+        })
+        .catch(function(){});
+    }
+
+    var toastHost = null;
+    function getToastHost(){
+      if(toastHost && toastHost.parentNode) return toastHost;
+      toastHost = document.createElement('div');
+      toastHost.className = 'tks-notif-toasts';
+      toastHost.id = 'tksNotifToasts';
+      toastHost.setAttribute('aria-live', 'polite');
+      document.body.appendChild(toastHost);
+      return toastHost;
+    }
+
+    function dismissToast(el){
+      if(!el || el.dataset.leaving) return;
+      el.dataset.leaving = '1';
+      window.clearTimeout(Number(el.dataset.timer || 0));
+      el.classList.remove('is-in');
+      el.classList.add('is-out');
+      window.setTimeout(function(){ if(el.parentNode) el.parentNode.removeChild(el); }, 220);
+    }
+
+    function armToast(el){
+      window.clearTimeout(Number(el.dataset.timer || 0));
+      el.dataset.timer = String(window.setTimeout(function(){ dismissToast(el); }, TOAST_MS));
+    }
+
+    function createToast(title, message, onOpen){
+      var el = document.createElement('div');
+      el.className = 'tks-notif-toast';
+      el.setAttribute('role', 'status');
+      el.tabIndex = 0;
+      el.innerHTML =
+        '<span class="tks-notif-toast-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg></span>' +
+        '<div class="tks-notif-toast-body">' +
+          '<p class="tks-notif-toast-title">' + escapeHtml(title) + '</p>' +
+          (message ? '<p class="tks-notif-toast-msg">' + escapeHtml(message) + '</p>' : '') +
+        '</div>' +
+        '<button type="button" class="tks-notif-toast-close" aria-label="Đóng thông báo">&times;</button>';
+      el.addEventListener('click', function(e){
+        if(e.target.closest && e.target.closest('.tks-notif-toast-close')){ dismissToast(el); return; }
+        dismissToast(el);
+        onOpen();
+      });
+      el.addEventListener('keydown', function(e){
+        if(e.key === 'Escape') dismissToast(el);
+        else if((e.key === 'Enter' || e.key === ' ') && e.target === el){ e.preventDefault(); dismissToast(el); onOpen(); }
+      });
+      // Re chuot / focus vao thi giu toast lai, roi ra moi dem gio tiep.
+      el.addEventListener('mouseenter', function(){ window.clearTimeout(Number(el.dataset.timer || 0)); });
+      el.addEventListener('mouseleave', function(){ if(!el.dataset.leaving) armToast(el); });
+      return el;
+    }
+
+    function showToasts(fresh){
+      // Tab dang an: doi nguoi dung quay lai moi bung, tranh toast tu tat khi khong ai xem.
+      if(document.hidden){ pendingToasts = pendingToasts.concat(fresh); return; }
+      var host = getToastHost();
+      var shown = fresh.slice(0, TOAST_MAX);
+      var toasts = shown.map(function(n){
+        return createToast(n.title || 'Thông báo mới', n.message || '', function(){ openNotification(n); });
+      });
+      if(fresh.length > TOAST_MAX){
+        toasts.push(createToast('Bạn có thêm ' + (fresh.length - TOAST_MAX) + ' thông báo mới', 'Bấm để xem tất cả.', function(){ if(!isOpen) openDropdown(); }));
+      }
+      // Moi nhat nam tren cung; danh sach API da sap moi nhat truoc nen chen nguoc.
+      toasts.reverse().forEach(function(el){
+        host.insertBefore(el, host.firstChild);
+        armToast(el);
+        (window.requestAnimationFrame || window.setTimeout)(function(){ el.classList.add('is-in'); });
+      });
+      var all = host.querySelectorAll('.tks-notif-toast:not(.is-out)');
+      for(var i = TOAST_MAX + 1; i < all.length; i++) dismissToast(all[i]);
+    }
+
+    document.addEventListener('visibilitychange', function(){
+      if(document.hidden || !pendingToasts.length) return;
+      var queued = pendingToasts;
+      pendingToasts = [];
+      showToasts(queued);
+    });
+
+    // ---------- Thong bao ra man hinh he dieu hanh (Notification API) ----------
+    // Chi chay khi trinh duyet con mo tab (thu nho/an sau ung dung khac van duoc).
+    // Quyen do nguoi dung bat tu nut trong dropdown chuong (trinh duyet bat buoc thao tac tay).
+    function desktopNotifySupported(){ return typeof window.Notification === 'function'; }
+    function desktopNotifyGranted(){ return desktopNotifySupported() && window.Notification.permission === 'granted'; }
+
+    function fireDesktop(title, body, tag, onOpen){
+      var note = new window.Notification(title, { body: body, tag: tag, icon: '/Logo.jpg' });
+      note.onclick = function(){
+        try{ window.focus(); }catch(e){}
+        note.close();
+        onOpen();
+      };
+    }
+
+    function showDesktopNotifications(fresh){
+      if(!desktopNotifyGranted()) return false;
+      try{
+        fresh.slice(0, TOAST_MAX).forEach(function(n){
+          // tag theo id: nhieu tab cung bung thi he dieu hanh chi giu 1 cai.
+          fireDesktop(n.title || 'Thông báo mới', n.message || '', 'tks-notif-' + n.id, function(){ openNotification(n); });
+        });
+        if(fresh.length > TOAST_MAX){
+          fireDesktop('Bạn có thêm ' + (fresh.length - TOAST_MAX) + ' thông báo mới', 'Bấm để xem tất cả.', 'tks-notif-more', function(){ if(!isOpen) openDropdown(); });
+        }
+        return true;
+      }catch(e){
+        // Vd. Chrome Android khong cho `new Notification` -> quay ve toast trong trang.
+        return false;
+      }
+    }
+
+    var desktopAsked = false;
+    function renderDesktopPrompt(){
+      if(!desktopNotifySupported() || window.Notification.permission === 'granted'){
+        desktopPrompt.hidden = true;
+        return;
+      }
+      desktopPrompt.hidden = false;
+      if(window.Notification.permission === 'denied'){
+        desktopPrompt.innerHTML = '<p class="tks-notif-desktop-text">Thông báo ra màn hình đang bị chặn. Bấm biểu tượng ổ khóa cạnh địa chỉ web để cho phép lại.</p>';
+        return;
+      }
+      desktopPrompt.innerHTML = desktopAsked
+        ? '<p class="tks-notif-desktop-text">Không thấy hộp hỏi quyền? Bấm biểu tượng chuông gạch chéo hoặc ổ khóa trên thanh địa chỉ → Thông báo → Cho phép, rồi mở lại chuông.</p>' +
+          '<button type="button" class="tks-notif-desktop-enable" id="tksNotifDesktopEnable">Thử lại</button>'
+        : '<p class="tks-notif-desktop-text">Nhận thông báo ra màn hình máy tính kể cả khi đang mở ứng dụng khác.</p>' +
+          '<button type="button" class="tks-notif-desktop-enable" id="tksNotifDesktopEnable">Bật</button>';
+    }
+
+    // Mo 1 thong bao (tu toast): danh dau da doc roi dieu huong theo relatedType;
+    // khong co dich den thi mo dropdown chuong.
+    function openNotification(n){
+      var target = notifNavTarget(n.relatedType, n.relatedId || '');
+      if(!target){ if(!isOpen) openDropdown(); return; }
+      fetch('/api/notifications/' + encodeURIComponent(n.id) + '/read', { method: 'PATCH', credentials: 'same-origin' })
+        .catch(function(){})
+        .then(function(){ TKSNav._navigate(target); });
     }
 
     function escapeHtml(str){
@@ -542,12 +756,13 @@
     function positionDropdown(){
       var rect = btn.getBoundingClientRect();
       var margin = 12;
-      var width = Math.min(340, window.innerWidth - margin * 2);
+      var width = Math.min(420, window.innerWidth - margin * 2);
       var left = window.innerWidth - width - margin;
       var top = Math.min(rect.bottom + 8, window.innerHeight - margin);
       dropdown.style.width = width + 'px';
       dropdown.style.top = top + 'px';
       dropdown.style.left = left + 'px';
+      dropdown.style.maxHeight = Math.min(520, Math.max(0, window.innerHeight - top - margin)) + 'px';
     }
 
     function onViewportChange(){ if(isOpen) positionDropdown(); }
@@ -566,6 +781,9 @@
       positionDropdown();
       window.addEventListener('resize', onViewportChange);
       window.addEventListener('scroll', onViewportChange, true);
+      // Danh sach da hien du thong bao; dong toast de khong che dropdown (mobile toast nam mep tren).
+      if(toastHost) Array.prototype.forEach.call(toastHost.querySelectorAll('.tks-notif-toast'), dismissToast);
+      renderDesktopPrompt();
       loadList();
     }
 
@@ -576,12 +794,103 @@
     document.addEventListener('click', function(e){
       if(isOpen && !wrap.contains(e.target)) closeDropdown();
     });
+    document.addEventListener('keydown', function(e){
+      if(isOpen && e.key === 'Escape'){
+        closeDropdown();
+        btn.focus();
+      }
+    });
 
     markAllBtn.addEventListener('click', function(){
       fetch('/api/notifications/read-all', { method: 'PATCH', credentials: 'same-origin' })
         .then(function(){ refreshCount(); loadList(); })
         .catch(function(){});
     });
+
+    desktopPrompt.addEventListener('click', function(e){
+      if(!(e.target.closest && e.target.closest('#tksNotifDesktopEnable'))) return;
+      // Nut bi thay ngay ben duoi -> e.target roi khoi DOM; chan de document khong tuong bam ra ngoai roi dong dropdown.
+      e.stopPropagation();
+      requestDesktopPermission();
+    });
+
+    function requestDesktopPermission(){
+      // Edge/Chrome hay de "yen lang" (chi hien icon nho tren thanh dia chi, khong bung hop):
+      // hien huong dan ngay luc bam, giu lai neu nguoi dung chua chon gi.
+      desktopAsked = true;
+      renderDesktopPrompt();
+      // requestPermission tra Promise (trinh duyet moi) hoac goi callback (Safari cu).
+      return new Promise(function(resolve){
+        var maybe = window.Notification.requestPermission(resolve);
+        if(maybe && typeof maybe.then === 'function') maybe.then(resolve);
+      }).then(function(permission){
+        renderDesktopPrompt();
+        if(permission !== 'default') closeAskPopup();
+        if(permission === 'granted'){
+          try{ fireDesktop('Đã bật thông báo ra màn hình', 'Thông báo mới của TOKOSI sẽ hiện ở đây.', 'tks-notif-enabled', function(){}); }catch(err){}
+        }
+        return permission;
+      });
+    }
+
+    // ---------- Popup moi bat thong bao man hinh (tu hien khi vao web) ----------
+    // Khong goi thang requestPermission luc tai trang: Edge/Chrome se an hop hoi quyen
+    // (chi hien icon) va Firefox chan han neu khong co thao tac tay. Hien popup cua minh
+    // truoc, nguoi dung bam "Bat thong bao" moi xin quyen. Chi hoi MOT lan tren moi trinh duyet
+    // (khong theo tai khoan, khong het han): hien popup xong la ghi nho, ke ca bam "De sau"
+    // hay dong hop quyen khong chon. Muon bat lai thi dung nut "Bat" trong dropdown chuong.
+    var askKey = 'tksNotifDesktopAsked';
+    var askPopup = null;
+
+    function shouldAutoAsk(){
+      if(!desktopNotifySupported() || window.Notification.permission !== 'default') return false;
+      // Dien thoai: `new Notification` khong chay (can service worker) -> hoi quyen vo ich.
+      if(/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '')) return false;
+      try{ if(localStorage.getItem(askKey)) return false; }catch(e){}
+      return true;
+    }
+
+    function closeAskPopup(){
+      if(askPopup && askPopup.parentNode) askPopup.parentNode.removeChild(askPopup);
+      askPopup = null;
+    }
+
+    function renderAskPopup(waiting){
+      askPopup.innerHTML =
+        '<span class="tks-notif-toast-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg></span>' +
+        '<div class="tks-notif-ask-body">' +
+          '<p class="tks-notif-ask-title" id="tksNotifAskTitle">Bật thông báo trên máy tính?</p>' +
+          '<p class="tks-notif-ask-text">' + (waiting
+            ? 'Bấm <strong>Cho phép</strong> trong hộp trình duyệt vừa hiện. Không thấy hộp? Bấm biểu tượng chuông gạch chéo hoặc ổ khóa trên thanh địa chỉ → Thông báo → Cho phép.'
+            : 'Nhận ngay thông báo duyệt nghỉ phép, ORDER VAT… kể cả khi đang làm việc trên Excel hay ứng dụng khác.') + '</p>' +
+          '<div class="tks-notif-ask-actions">' +
+            '<button type="button" class="tks-notif-ask-later">Để sau</button>' +
+            '<button type="button" class="tks-notif-ask-enable">' + (waiting ? 'Thử lại' : 'Bật thông báo') + '</button>' +
+          '</div>' +
+        '</div>';
+    }
+
+    function showAskPopup(){
+      if(askPopup || !shouldAutoAsk()) return;
+      askPopup = document.createElement('div');
+      askPopup.className = 'tks-notif-ask';
+      askPopup.id = 'tksNotifAsk';
+      askPopup.setAttribute('role', 'dialog');
+      askPopup.setAttribute('aria-labelledby', 'tksNotifAskTitle');
+      renderAskPopup(false);
+      try{ localStorage.setItem(askKey, String(Date.now())); }catch(err){}
+      document.body.appendChild(askPopup);
+      var popup = askPopup;
+      (window.requestAnimationFrame || window.setTimeout)(function(){ popup.classList.add('is-in'); });
+      popup.addEventListener('click', function(e){
+        if(e.target.closest('.tks-notif-ask-later')){
+          closeAskPopup();
+        } else if(e.target.closest('.tks-notif-ask-enable')){
+          renderAskPopup(true);
+          requestDesktopPermission();
+        }
+      });
+    }
 
     clearAllBtn.addEventListener('click', function(){
       fetch('/api/notifications', { method: 'DELETE', credentials: 'same-origin' })
@@ -704,7 +1013,10 @@
     if(notifPollTimer) window.clearInterval(notifPollTimer);
     notifPollTimer = window.setInterval(refreshCount, 30000);
     autoShowSpecialDay();
+    // Tre 1 chut de trang dung xong roi moi moi bat thong bao.
+    window.setTimeout(showAskPopup, TKSNav.notifAskDelayMs);
   };
+  TKSNav.notifAskDelayMs = 1500;
 
   // ---------- Lich nghi phep o header (dung chung moi trang, canh chuong) ----------
   // Chon ngay -> liet ke nhan su xin nghi ngay do. Du lieu: GET /api/hr/leave-requests
@@ -806,7 +1118,7 @@
     wrap.className = 'tks-cal-wrap';
     wrap.id = 'tksLeaveCal';
     wrap.innerHTML =
-      '<button type="button" class="tks-cal-btn" id="tksLeaveCalBtn" aria-label="Lịch nghỉ phép" title="Lịch nghỉ phép" aria-haspopup="true" aria-expanded="false">' +
+      '<button type="button" class="tks-cal-btn" id="tksLeaveCalBtn" aria-label="Lịch nghỉ phép" title="Lịch nghỉ phép" aria-controls="tksLeaveCalDropdown" aria-haspopup="true" aria-expanded="false">' +
         leaveCalIcon +
       '</button>' +
       '<div class="tks-cal-dropdown" id="tksLeaveCalDropdown" role="dialog" aria-label="Lịch nghỉ phép" hidden></div>';
@@ -953,6 +1265,8 @@
     }
 
     function render(){
+      var previousList = dropdown.querySelector('.tks-cal-list');
+      var listScroll = previousList && previousList.getAttribute('data-selected-date') === state.selected ? previousList.scrollTop : 0;
       var now = TKSNav._now();
       todayIso = calIso(now.getFullYear(), now.getMonth() + 1, now.getDate());
       // Replacing the month DOM must preserve keyboard focus, including on SSE refresh.
@@ -996,6 +1310,8 @@
       }
 
       dropdown.innerHTML =
+        (inline ? '' : '<div class="tks-cal-heading">' + leaveCalIcon + '<span>Lịch nghỉ phép</span></div>') +
+        '<div class="tks-cal-month">' +
         '<div class="tks-cal-head">' +
           '<button type="button" class="tks-cal-nav" data-nav="-1" aria-label="Tháng trước">‹</button>' +
           '<span class="tks-cal-title">Tháng ' + state.month + '/' + state.year + '</span>' +
@@ -1004,13 +1320,17 @@
         '</div>' +
         '<div class="tks-cal-weekdays">' + LEAVE_CAL_WEEKDAYS.map(function(w){ return '<span>' + w + '</span>'; }).join('') + '</div>' +
         '<div class="tks-cal-grid">' + cells + '</div>' +
+        '</div>' +
         (inline ? '<p class="tks-cal-hint" role="status">' +
           (data && (data.error || data.refreshError) ? 'Không tải được lịch nghỉ. Nhấn Hôm nay hoặc chuyển tháng để thử lại.' :
             !data ? 'Đang tải lịch nghỉ…' : 'Chọn ngày để lọc bảng bên dưới. Số trên lịch không áp dụng bộ lọc của bảng.') + '</p>' :
-        '<div class="tks-cal-list-head">Nghỉ ngày ' + calVn(state.selected) +
-          (state.selected === todayIso ? ' (hôm nay)' : '') +
-          (data && !data.error ? ' · ' + entries.length + ' người' : '') + '</div>' +
-        '<div class="tks-cal-list">' + listHtml + '</div>');
+        '<div class="tks-cal-list-head"><div><span class="tks-cal-date-label">' +
+          (state.selected === todayIso ? 'Hôm nay, ' : 'Ngày ') + calVn(state.selected) +
+          '</span><span class="tks-cal-list-caption">Danh sách nghỉ phép</span></div>' +
+          (data && !data.error ? '<span class="tks-cal-total">' + entries.length + ' người nghỉ</span>' : '') + '</div>' +
+        '<div class="tks-cal-list" data-selected-date="' + state.selected + '">' + listHtml + '</div>');
+      var currentList = dropdown.querySelector('.tks-cal-list');
+      if(currentList) currentList.scrollTop = listScroll;
       if(!inline) positionDropdown();
       var nextFocus;
       if(focusKey === 'today') nextFocus = dropdown.querySelector('[data-today]');
@@ -1028,13 +1348,13 @@
     function positionDropdown(){
       var rect = btn.getBoundingClientRect();
       var margin = 12;
-      var width = Math.min(360, window.innerWidth - margin * 2);
+      var width = Math.min(460, window.innerWidth - margin * 2);
       var left = window.innerWidth - width - margin;
       var top = Math.min(rect.bottom + 8, window.innerHeight - margin);
       dropdown.style.width = width + 'px';
       dropdown.style.top = top + 'px';
       dropdown.style.left = left + 'px';
-      dropdown.style.maxHeight = Math.max(240, window.innerHeight - top - margin) + 'px';
+      dropdown.style.maxHeight = Math.max(0, window.innerHeight - top - margin) + 'px';
     }
 
     function onViewportChange(){ if(isOpen) positionDropdown(); }
@@ -1508,6 +1828,56 @@
       '</div>';
   }
 
+  // Muc nhom Ke toan: dung chung cho sidebar (renderTopSidebar) va thanh tab tren dau 3 trang
+  // Ke toan (renderAccountingTabs) de thu tu / nhan / quyen luon khop nhau.
+  function accountingNavItems(currentPath, currentHash){
+    // Kế toán – Nháp VAT: 2 tab của cùng một trang (hash #xu-ly / #tao-qr). Tài khoản chỉ có
+    // quyền Tạo QR (accounting.qr — mặc định Nhân viên sale) chỉ thấy mục Tạo QR.
+    var canProcessVat = TKSNav.can('accounting.vatDraft');
+    var vatDraftTab = canProcessVat && currentHash === 'xu-ly' ? 'xu-ly' : currentHash === 'tao-qr' || !canProcessVat ? 'tao-qr' : 'xu-ly';
+    var items = [
+      { tab: 'xu-ly', anyOf: ['accounting.vatDraft'], label: 'Xử lý hóa đơn', icon: '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"></path><path d="M14 8H8"></path><path d="M16 12H8"></path><path d="M13 16H8"></path>' },
+      { tab: 'tao-qr', anyOf: ['accounting.vatDraft', 'accounting.qr'], label: 'Tạo QR', icon: '<rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"></path>' }
+    ].map(function(item){
+      return {
+        feature: item.anyOf[0], anyOf: item.anyOf, href: '/vat-draft/#' + item.tab, label: item.label,
+        active: currentPath === '/vat-draft' && vatDraftTab === item.tab,
+        dataAttr: 'data-vat-draft-tab="' + item.tab + '"', icon: item.icon
+      };
+    });
+    // Tra cứu VAT (thay app Apps Script): Sale xem tồn VAT + hàng sắp về trước khi tạo ORDER VAT.
+    items.push({
+      feature: 'accounting.vatLookup', href: '/vat-lookup/', label: 'Tra cứu VAT',
+      active: currentPath === '/vat-lookup', dataAttr: 'data-tks-nav-key="vat-lookup"',
+      icon: '<circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path><path d="M8 11h6M11 8v6"></path>'
+    });
+    // ORDER VAT (thay sheet ORDER VAT 1): Sale tạo, Kế toán xử lý.
+    items.push({
+      feature: 'accounting.vatRequest', href: '/vat-request/', label: 'ORDER VAT',
+      active: currentPath === '/vat-request', dataAttr: 'data-tks-nav-key="vat-request"',
+      icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M9 15l2 2 4-4"></path>'
+    });
+    return items;
+  }
+
+  // Thanh tab "Xử lý hóa đơn · Tạo QR · Tra cứu VAT · ORDER VAT" dau trang Nhap VAT / Tra cuu VAT /
+  // ORDER VAT — chi hien muc tai khoan co quyen, muc dang mo co aria-current="page".
+  TKSNav.renderAccountingTabs = function renderAccountingTabs(mountEl){
+    if(!mountEl) return;
+    var currentPath = window.location.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '');
+    var currentHash = window.location.hash.replace('#', '');
+    mountEl.innerHTML = accountingNavItems(currentPath, currentHash).filter(function(item){
+      return TKSNav.can.apply(TKSNav, item.anyOf || [item.feature]);
+    }).map(function(item){
+      return '<a class="subnav-tab" href="' + item.href + '" ' + item.dataAttr + (item.active ? ' aria-current="page"' : '') + '>' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + item.icon + '</svg>' +
+        escapeHtml(item.label) + '</a>';
+    }).join('');
+    // Man hep: thanh tab cuon ngang — dua tab dang mo vao tam nhin thay vi de bi cat o mep.
+    var current = mountEl.querySelector('[aria-current="page"]');
+    if(current && mountEl.scrollWidth > mountEl.clientWidth) mountEl.scrollLeft = Math.max(0, current.offsetLeft - mountEl.offsetLeft - 16);
+  };
+
   TKSNav.renderTopSidebar = function renderTopSidebar(mountEl, activeTop, user){
     if(!mountEl) return;
     // Trang co the goi thang renderTopSidebar sau authGuard — nap lai quyen tu
@@ -1621,26 +1991,7 @@
       };
     });
 
-    // Kế toán – Nháp VAT: 2 tab của cùng một trang (hash #xu-ly / #tao-qr). Tài khoản chỉ có
-    // quyền Tạo QR (accounting.qr — mặc định Nhân viên sale) chỉ thấy mục Tạo QR.
-    var canProcessVat = TKSNav.can('accounting.vatDraft');
-    var vatDraftTab = canProcessVat && currentHash === 'xu-ly' ? 'xu-ly' : currentHash === 'tao-qr' || !canProcessVat ? 'tao-qr' : 'xu-ly';
-    var accountingItems = [
-      { tab: 'xu-ly', anyOf: ['accounting.vatDraft'], label: 'Xử lý hóa đơn', icon: '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"></path><path d="M14 8H8"></path><path d="M16 12H8"></path><path d="M13 16H8"></path>' },
-      { tab: 'tao-qr', anyOf: ['accounting.vatDraft', 'accounting.qr'], label: 'Tạo QR', icon: '<rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"></path>' }
-    ].map(function(item){
-      return {
-        feature: item.anyOf[0], anyOf: item.anyOf, href: '/vat-draft/#' + item.tab, label: item.label,
-        active: currentPath === '/vat-draft' && vatDraftTab === item.tab,
-        dataAttr: 'data-vat-draft-tab="' + item.tab + '"', icon: item.icon
-      };
-    });
-    // ORDER VAT (thay sheet ORDER VAT 1): Sale tạo, Kế toán xử lý.
-    accountingItems.push({
-      feature: 'accounting.vatRequest', href: '/vat-request/', label: 'ORDER VAT',
-      active: currentPath === '/vat-request', dataAttr: 'data-tks-nav-key="vat-request"',
-      icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M9 15l2 2 4-4"></path>'
-    });
+    var accountingItems = accountingNavItems(currentPath, currentHash);
 
     var groups = [
       {

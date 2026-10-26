@@ -1,10 +1,30 @@
 # Supabase schema cho đồng bộ KiotViet
 
+## Migration 0093 — Chuông thông báo (24/10/2026, chưa áp DB thật)
+
+`0093_notifications.sql` tạo bảng `notifications`: `id UUID PRIMARY KEY` (server sinh), `seq BIGINT GENERATED ALWAYS AS IDENTITY` (thứ tự chèn, phân xử trùng `created_at`), `recipient_user_id TEXT NOT NULL` (= `app_users.id`, không FK vì admin cứng không có UUID), `type TEXT NOT NULL` (khác rỗng), `title`, `message` (`TEXT NOT NULL DEFAULT ''`), `related_type`, `related_id` (TEXT, NULL được), `is_read BOOLEAN NOT NULL DEFAULT false`, `created_at TIMESTAMPTZ NOT NULL DEFAULT now()`. Index `(recipient_user_id, created_at DESC, seq DESC)` và index một phần `(recipient_user_id) WHERE NOT is_read`. Thu hồi quyền `reporting_readonly`. Thay cho file `data/notifications.json` (mất mỗi lần deploy Render); dữ liệu cũ không chuyển.
+
+## Migration 0091–0092 — Bảng giá duyệt (24/10/2026, chưa áp DB thật)
+
+`0091_invoice_approved_prices.sql` thêm 2 bảng `invoice_approved_prices` và `invoice_approved_price_changes`; `0092_invoice_approved_prices_vat_split.sql` tách cột giá `approved_price` thành `price_no_vat` + `price_with_vat`; hợp đồng chi tiết ở mục "Bảng giá duyệt — migration 0091 và 0092" bên dưới (sau mục Kiểm tra giá bán 0077). Áp CẢ HAI TRƯỚC khi deploy mã.
+
+## Migration 0089–0090 — Khách mới, SĐT, địa chỉ (24/10/2026, chưa áp DB thật)
+
+`0089`: `customer_price_levels.new_customer TEXT NOT NULL DEFAULT ''`; `customer_price_level_history.old_new_customer/new_new_customer`. `0090`: `customer_profiles.phone/address TEXT NOT NULL DEFAULT ''`.
+
+## Migration 0087 — level giá nội bộ (23/10/2026, chưa áp DB thật)
+
+`0087_customer_price_levels.sql` thêm `customer_price_level_state(id BOOLEAN PRIMARY KEY CHECK(id), initialized_at)`, `customer_price_levels(customer_key TEXT PRIMARY KEY, level medium/large/vip, version INTEGER > 0, updated_by_id/name, updated_at)`, `customer_price_level_sources` (khóa `(branch,customer_id)`, lưu mã/tên/khóa khách/email và level nguồn lúc chuyển đổi), `customer_price_level_history` (khóa identity, unique `(customer_key,version)`, level cũ/mới, người sửa, thời gian). Không cấp quyền đọc cho `reporting_readonly`.
+
+Schema không tự bật cutover. Script `scripts/initialize-customer-price-levels.js --apply` chụp mọi nguồn và tạo level gộp trong giao dịch trước khi đánh dấu khởi tạo; giữ nguyên dữ liệu đã có khi chạy lại. Khách mới chưa có dòng level dùng Lớn, phiên bản 0 cho lần ghi đầu. Giá trị level nội bộ thay email khi đọc báo cáo và chụp hóa đơn. Không cập nhật `invoice_price_audit_*` lịch sử.
+
+24/10/2026 — Bảng giá duyệt (migration `0091_invoice_approved_prices.sql`) với 2 bảng `invoice_approved_prices` và `invoice_approved_price_changes`; `0092_invoice_approved_prices_vat_split.sql` tách giá thành `price_no_vat` / `price_with_vat`.
+
 23/10/2026 — Kiểm tra giá bán (migration `0077_invoice_price_audit.sql`) với 4 bảng `invoice_price_audit_*` và cột `shipping_measures.freight_per_unit`. ORDER VAT trạng thái "VAT sẵn nhiều" (`0083_vat_request_status_vat_ready.sql`).
 
 22/10/2026 — `hr_employees.insurance_number TEXT NOT NULL DEFAULT ''` (migration `0078_hr_employee_insurance_number.sql`), unique index trên số không rỗng của hồ sơ chưa xóa mềm; chỉ quyền `hr.employees.manage` nhận từ API/Excel. Server áp riêng migration này trước khi nhận request, có advisory lock cho nhiều instance và không chạy migration khác đang chờ.
 
-Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0084`. Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
+Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0092` (0087 và 0089–0092 đang chờ áp). Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
 
 ## Quy ước chung
 
@@ -419,7 +439,7 @@ Migration `0043_special_day_notice_log.sql` tạo bảng `special_day_notice_log
 
 - Danh mục ngày lễ/sinh nhật nằm trong code (`public/shared/special-days.js`), không lưu DB.
 - Job `notifications/specialDayNotifier.js` chỉ gửi khi `INSERT ... ON CONFLICT DO NOTHING RETURNING` chèn được dòng; gửi lỗi hoặc chưa có người nhận thì xóa dòng để lần quét sau thử lại.
-- Thông báo vẫn lưu ở `data/notifications.json` (chuông), nên bảng này mới là nguồn chống gửi trùng — người dùng xóa thông báo cũng không khiến job gửi lại.
+- Thông báo lưu ở bảng `notifications` (0093; trước đó là `data/notifications.json`), nên bảng này mới là nguồn chống gửi trùng — người dùng xóa thông báo cũng không khiến job gửi lại.
 
 ## Marketing Pancake — migration 0044
 
@@ -590,13 +610,28 @@ Dựng bởi `productContainers/expectedRefresh.js`, web chỉ SELECT (`expected
 | `invoice_price_audit_invoices` | Sổ hóa đơn ĐÃ QUÉT (kể cả hóa đơn không có dòng sai), PK `(branch, invoice_id)`; `invoice_code`, `sold_day DATE`, `captured_at`, `run_day`, `source_hash`, `source_modified_at`. Index `sold_day`. Giữ lâu dài qua các phiên chạy; cửa sổ 7 ngày chỉ giới hạn truy vấn hiển thị. FK ON DELETE CASCADE vẫn có nhưng job không xóa dòng hết cửa sổ |
 | `invoice_price_audit_lines` | 1 dòng = 1 dòng hàng của hóa đơn, PK `(branch, invoice_id, source_line_no)`, FK → bảng sổ. Nhận diện: `invoice_code`, `sold_at` (giờ Kiot gắn nhãn UTC, như `invoices.purchase_date`), `sold_day`, **`customer_id BIGINT`** (nhận diện khách nguồn; quyền giải thích không còn phụ thuộc sale phụ trách), `customer_code/name/email`, `customer_level` (Vừa/Lớn/VIP), `sale_name` (nhóm khách lúc ghi nhận), `product_code/name`. Số: `quantity`, `total_code_quantity`, `original_unit_price`, `unit_discount`, `net_unit_price`, `full_vat BOOLEAN` — tất cả `NUMERIC`. Đối chiếu từng miền: `carton_size_*`, `quantity_price_*`, `level_price_*`, `vat_*`, `minimum_*` (`_hn` / `_sg`, NULL = không có), `freight_eligible`, `freight_per_unit`. Kết quả: `winning_source`, `reason`, `minimum_unit_price` (NULL = thiếu giá), `unit_shortfall`, `original_amount`, `original_status` (`correct`/`wrong`), `calculation JSONB`. Ghi chú nguồn: `product_note_hn/sg`, `line_note`, `invoice_note`. Sau chụp: `sale_explanation`, `explanation_by/at`, `decision` (`ok`/`penalty`/NULL), `decided_by/at`, `version INTEGER` (khóa lạc quan), `captured_at`. Index theo `(sold_day DESC, branch)`, `(decision, sale_name)`, `(original_status, sold_day DESC)` |
 | `invoice_price_audit_state` | 1 dòng `id = TRUE`: `published_day`, `window_from`, `window_to`, `last_success_at`, `last_attempt_at`, `last_error`, `added_invoice_count`, `version`. Web chỉ hiện dữ liệu khi có `published_day` |
-| `invoice_price_audit_changes` | Nhật ký sửa giải thích / Chốt: `id` identity, `(branch, invoice_id, source_line_no)` FK → dòng chụp (CASCADE), `actor`, `action` (`explanation`/`decision`), `changed_at`, `before_value` / `after_value JSONB`, `version_before` / `version_after`. Giữ lâu dài cùng dòng chụp, không bị job xóa khi dịch cửa sổ |
+| `invoice_price_audit_changes` | Nhật ký sửa giải thích / Chốt: `id` identity, `(branch, invoice_id, source_line_no)` FK → dòng chụp (CASCADE), `actor`, `action` (`explanation`/`decision`/`recalc` — `recalc` do lệnh `--recalc` ghi, actor `system:price-audit-recalc`, before/after gồm `customerLevel`, `originalStatus`, `originalAmount`, `minimumUnitPrice`, `version` không đổi), `changed_at`, `before_value` / `after_value JSONB`, `version_before` / `version_after`. Giữ lâu dài cùng dòng chụp, không bị job xóa khi dịch cửa sổ |
 | `shipping_measures.freight_per_unit` | **Cột mới `NUMERIC NULL`**: cột O "Cước 1 Sp" của sheet CÂN ĐO, đọc trực tiếp (không tính lại từ kg/m3); NULL = ô trống (luật đối chiếu áp 0). Không ảnh hưởng m3/kg của Vòng đời đơn |
 | `sheet_snapshot_sync.freight_error` | **Cột mới `TEXT NULL`**, chỉ dùng cho nguồn `shipping_measures`: tiêu đề cột O sai/thiếu → đồng bộ Cân đo vẫn ghi m3/kg, mọi `freight_per_unit` = NULL và cột này lưu thông báo lỗi; lượt đồng bộ thành công với tiêu đề đúng đặt lại NULL. Khác NULL → job kiểm tra giá báo `PRICE_AUDIT_SOURCE_NOT_READY`, giữ bản công bố cũ |
 
 Nguồn chưa sẵn sàng khác (không ghi gì, giữ bản cũ): dòng SL > 0 có `invoice_details.price` NULL (giảm giá NULL vẫn = 0). Hóa đơn chưa có dòng chi tiết nào không được ghi vào `invoice_price_audit_invoices` (lượt sau chụp lại); hóa đơn mọi dòng SL ≤ 0 vẫn ghi sổ, không có dòng chụp.
 
 Migration **thu hồi ALL** 4 bảng mới khỏi `reporting_readonly` (có giải thích của sale, quyết định phạt và nhật ký; guard `pg_roles`); chỉ đọc qua API. Thứ tự: áp `0077` TRƯỚC khi deploy bản sync Cân đo mới (INSERT `freight_per_unit` cần cột này).
+
+## Bảng giá duyệt — migration 0091 và 0092 (24/10/2026, CHƯA áp DB dùng chung)
+
+`0091_invoice_approved_prices.sql` thêm 2 bảng (idempotent, không CONCURRENTLY); `0092_invoice_approved_prices_vat_split.sql` (idempotent, giữ nguyên `0091`) thêm `price_no_vat` và `price_with_vat`, chuyển dữ liệu cũ bằng cách chép `approved_price` vào CẢ HAI cột (giữ hành vi cũ), bỏ cột `approved_price` rồi thay CHECK. Không có FK sang `customers` / `products`: tên khách và sản phẩm được JOIN lúc đọc nên KiotViet đổi tên thì bảng giá duyệt tự theo. Bảng phục vụ mục Bảng giá duyệt của tab Hóa đơn và được Kiểm tra giá bán (`invoicePriceAudit/`) đọc khi chụp/tính lại.
+
+| Bảng | Hợp đồng dữ liệu |
+|---|---|
+| `invoice_approved_prices` | `id` identity PK. `branch` (`hanoi`/`saigon`), `customer_id BIGINT` = `customers.id` cùng cơ sở, `product_id BIGINT` = `products.id` cùng cơ sở, `price_no_vat NUMERIC` ("Giá không VAT", cho phép NULL) và `price_with_vat NUMERIC` ("Giá có VAT", cho phép NULL) (từ `0092`, thay cột `approved_price NUMERIC > 0` của `0091`; CHECK: ít nhất 1 trong 2 giá khác NULL và mỗi giá khác NULL phải > 0), `approver TEXT` (danh sách cố định Anh Quân / Anh Duy / Anh Duy Khánh, kiểm ở `approvedPriceRules.js`), `approved_on DATE` (ngày theo giờ Việt Nam), `version INT` (khóa lạc quan; lệch trả 409), `created_by`/`created_at`/`updated_by`/`updated_at`. UNIQUE `(branch, customer_id, product_id, approved_on)`; index `approved_on DESC`. Sự tồn tại khách/sản phẩm hoạt động trong cơ sở kiểm ở tầng ứng dụng (422 `CUSTOMER_NOT_FOUND` / `PRODUCT_NOT_FOUND`) |
+| `invoice_approved_price_changes` | Nhật ký bất biến (trigger chặn UPDATE/DELETE): `price_id`, `action` (`create`/`update`/`delete`), `actor`, `changed_at`, `before_value` / `after_value` JSONB. Không FK tới `invoice_approved_prices` để lịch sử của bản ghi đã xóa còn nguyên |
+
+Luật dùng giá duyệt (`priceAuditSql.js`): hóa đơn có `sold_day >= approved_on` của cùng `(branch, customer_id, product_id)` dùng giá duyệt THAY cho mức tối thiểu theo mô tả. Dòng Full VAT (`hasFullVat`, ghi chú có VAT) dùng `price_with_vat`, dòng không Full VAT dùng `price_no_vat`; loại giá cần dùng mà trống thì KHÔNG áp giá duyệt (rơi về mức tối thiểu theo mô tả). Mỗi loại giá chọn riêng: trong các bản ghi có `approved_on` không quá ngày bán, lấy bản mới nhất CÓ loại giá đó (bản mới hơn để trống loại đó bị bỏ qua). Giá chọn là giá cuối cùng (đã gồm VAT/cước như đã nhập). Dòng kết quả ghi `winning_source` = `Giá duyệt`, lý do `Theo giá duyệt`, `calculation.approvedPrice` JSON có thêm `kind` = `vat` | `no_vat`. Ảnh chụp nhật ký `before_value` / `after_value` chứa `priceNoVat` / `priceWithVat`. Ghi bảng giá duyệt tính lại có phạm vi các dòng `invoice_price_audit_lines` đã chụp trong SAVEPOINT (kết quả `applied`/`skipped`/`not_published`/`busy`/`failed`; lỗi tính lại không hoàn tác bản ghi đã lưu). Kiểm tra giá bán dò bảng bằng `to_regclass` và cột `price_no_vat` qua `information_schema`, chưa migrate thì chạy như cũ (êm bỏ qua giá duyệt).
+
+Migration **thu hồi ALL** cả 2 bảng khỏi `reporting_readonly` (có tên người duyệt và nhật ký; guard `pg_roles`); chỉ đọc qua API `/api/invoice-approved-prices`. Thứ tự: áp `0091` VÀ `0092` TRƯỚC khi deploy; chưa áp thì API bảng trả 503 `NOT_MIGRATED` (cả khi Postgres báo lỗi 42703).
+
+Cập nhật: 24/10/2026.
 
 ## Dự kiến hàng về: thêm giá — migration 0078 (21/10/2026, CHƯA áp DB dùng chung)
 
@@ -671,3 +706,30 @@ Cập nhật: 22/10/2026.
 `0084_customer_profile_details.sql` mở rộng `customer_profiles` sau 0080: thêm `area TEXT NOT NULL DEFAULT ''` (Diện tích, server giới hạn 500 ký tự), bổ sung `very_large` vào CHECK `warehouse_scale`, `khac` vào CHECK `sales_channels`. Không sửa/xóa dữ liệu cũ; chạy lại được. Bảng 0080 phía trên mô tả schema gốc trước nâng cấp.
 
 Thông tin chung và quy mô dùng hai UPSERT cập nhật các cột riêng: PUT profile không thay `warehouse_scale`, PUT `/customer-profile/scale` chỉ Quản lý lưu quy mô và không đổi area/định vị/kênh/đối thủ. Đọc nhận thêm `profile.area`; thiếu cột trước migration giữ cơ chế đọc rỗng/ghi 503 MIGRATION_PENDING. Không có job nền hoặc backfill; migration đã áp thành công lên DB dùng chung 23/10/2026.
+
+## Cấu hình bảng theo tài khoản — migration 0085 (23/10/2026, đã áp DB dùng chung 23/10/2026)
+
+`0085_user_table_prefs.sql` tạo `user_table_prefs(user_id TEXT, table_key TEXT, screen_mode TEXT CHECK desktop/mobile, prefs JSONB CHECK object, updated_at)`, khóa chính `(user_id, table_key, screen_mode)`. `prefs = {"columns": {"<colKey>": {"width": number, "hidden": boolean}}}`, chỉ chứa cột người dùng đã đổi; có thể kèm `"sort": {"key": colKey, "dir": "asc"|"desc"}` cho sắp xếp cục bộ (không có nghĩa là chưa sắp). `user_id` không có FK tới `app_users` (tài khoản có thể nằm ở kho JSON). Đã thu hồi SELECT của `reporting_readonly`. Chạy lại được.
+
+## Ghi chú khác của CONT — migration 0086 (23/10/2026, đã áp DB dùng chung 23/10/2026)
+
+`0086_product_container_other_note.sql` thêm cột `other_note text DEFAULT ''` vào hai bảng `product_container_lines` và `product_container_expected`. Cho phép NULL để tiến trình cũ vẫn ghi được trong lúc chuyển phiên bản. Đã nạp 5.839 ghi chú từ cột G của 7 sheet CONT trên 13.044 dòng mỗi bảng.
+
+## Tên hiện tại của khách/hàng trong bảng tính sẵn (24/10/2026, không migration)
+
+Không đổi cấu trúc bảng, chỉ đổi cách nạp giá trị khi job tính sẵn chạy lại. `customer_invoice_lines_90d.customer_code` / `customer_name` lấy từ `customers` hiện tại (join theo `customer_id`) thay vì tên trên chứng từ. `product_report_customers.customer_key` = `'name:' + normalizedNameSql` (gộp theo tên chuẩn hóa, cùng tên khác mã = 1 khách). Cần chạy lại `customerInvoiceLinesRefresh` và `productReportRefresh` để dữ liệu cũ cập nhật. Bảng tháng đã chốt `business_monthly_*` giữ tên lúc chốt.
+
+Cập nhật gần nhất: 24/10/2026.
+
+
+## 0094 — Chủ đơn hủy và xóa vĩnh viễn (26/10/2026)
+
+- `hr_leave_cancellation_jobs`: `id` identity PK, `request_id` TEXT không FK, `kind` card/notify, `telegram_chat_id`, `message_id` TEXT, `text`, `attempts`, `available_at`, `lease_token` UUID, `lease_until`, `last_error`; unique `(request_id,kind,telegram_chat_id,message_id)`. Payload xóa khi hoàn tất; lease và retry dùng cùng pattern worker quản lý.
+- `hr_leave_approver_recipients`: PK `(request_id,user_id TEXT)`, FK request cascade; trigger nhớ người duyệt từ thời điểm migration, seed người duyệt đang lưu. Không giữ nội dung quyết định; xóa cùng đơn.
+- `hr_leave_submissions.request_id` đổi FK sang ON DELETE CASCADE. Guard chỉ cho phép DELETE lồng từ cascade sau parent bị xóa; trực tiếp DELETE/UPDATE vẫn bị chặn.
+- `hr_cancel_own_leave(TEXT,TEXT,BIGINT,TEXT[])` kiểm tra owner hoạt động, loại Xin nghỉ phép, phiên bản, snapshot hữu hạn và thời hạn bằng `clock_timestamp()` sau advisory lock + khóa dòng. Tạo chuông/queue, dọn chuông cũ, xóa parent/con nguyên tử. Parent guard yêu cầu context xác thực transaction; function không cấp EXECUTE cho PUBLIC. Chạy bằng role sở hữu migration như các repository hiện có.
+- `notifications` có guard chặn INSERT liên quan leaveRequest nếu parent đã xóa, cùng advisory lock theo đơn để ngăn chuông trễ. Chuông hủy `hr_leave_cancelled` không có related_type/related_id.
+- Inbox `hr_manager_telegram_updates` dọn payload/effects khi hoàn tất, giữ update_id chống trùng; giao dịch hủy dọn thêm job tham chiếu mã đơn hoặc bản chụp request/delivery, dùng SKIP LOCKED tránh chờ ngược thứ tự khóa. Job đang xử lý dọn khi hoàn tất.
+- Reporting role không được truy cập hai bảng mới. Không thay đổi hợp đồng INSERT bot xin nghỉ bên ngoài.
+
+Cập nhật gần nhất: 26/10/2026.

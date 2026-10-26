@@ -47,6 +47,7 @@ const FEATURE_GROUPS = Object.freeze([
  * khong ai tat duoc (tranh khoa chet nguoi dung ra khoi he thong).
  */
 const FEATURES = Object.freeze([
+  { key: 'reports.products.expected.otherNote', groupKey: 'reports', label: 'Dự kiến hàng về: Xem Ghi chú khác', roles: MANAGER_ONLY, requires: 'reports.products.expected' },
   // --- Bao cao tong hop ---
   { key: 'reports.overview', groupKey: 'reports', label: 'Tổng quan', roles: REPORT_VIEW_ROLES },
   { key: 'reports.overview.containers.full', groupKey: 'reports', label: 'Xem đầy đủ chi tiết CONT (cần Hàng hóa)', roles: MANAGER_ONLY, requires: 'reports.products' },
@@ -66,6 +67,10 @@ const FEATURES = Object.freeze([
   { key: 'reports.invoices.priceAudit', groupKey: 'reports', label: 'Hóa đơn: xem Kiểm tra giá bán (cần Hóa đơn)', roles: REPORT_VIEW_ROLES, requires: 'reports.invoices' },
   { key: 'reports.invoices.priceAudit.explain', groupKey: 'reports', label: 'Kiểm tra giá bán: điền / sửa Sale giải thích trên mọi hóa đơn (cần Kiểm tra giá bán)', roles: [ROLES.NHAN_VIEN_SALE], requires: 'reports.invoices.priceAudit', escalationExempt: true },
   { key: 'reports.invoices.priceAudit.decide', groupKey: 'reports', label: 'Kiểm tra giá bán: Chốt Ok / Phạt (cần Kiểm tra giá bán)', roles: MANAGER_ONLY, requires: 'reports.invoices.priceAudit' },
+  // 2026-10-24: Bang Gia duyet (ap thay gia toi thieu khi kiem tra gia). Bang nay NHAY CAM nen xem cung la quyen rieng:
+  // mac dinh chi Quan ly (Tro ly / Sale khong thay muc nay neu khong duoc cap); tao / sua / xoa can them quyen .manage.
+  { key: 'reports.invoices.approvedPrice', groupKey: 'reports', label: 'Hóa đơn: xem Bảng giá duyệt (cần Hóa đơn)', roles: MANAGER_ONLY, requires: 'reports.invoices' },
+  { key: 'reports.invoices.approvedPrice.manage', groupKey: 'reports', label: 'Bảng giá duyệt: tạo / sửa / xóa (cần xem Bảng giá duyệt)', roles: MANAGER_ONLY, requires: 'reports.invoices.approvedPrice' },
   // 2026-10-07: Bao cao kinh doanh (tang truong Sale/Khach/Ma hang theo thang). Spec:
   // docs/superpowers/specs/2026-10-07-business-report-design.md.
   // 2026-10-16: tab nay thay tab Khach hang cu (da go, quyen reports.customers bo) nen hien ten "Khách hàng";
@@ -128,6 +133,9 @@ const FEATURES = Object.freeze([
   // escalationExempt: Tro ly duoc uy quyen van tao / dat lai mat khau TK Sale duoc (chi tao anh QR).
   { key: 'accounting.vatDraft', groupKey: 'accounting', label: 'Nháp VAT (Xử lý hóa đơn, Tạo QR)', roles: MANAGER_ONLY, forbiddenRoles: [ROLES.KHACH] },
   { key: 'accounting.qr', groupKey: 'accounting', label: 'Tạo QR chuyển khoản', roles: [ROLES.QUAN_LY, ROLES.NHAN_VIEN_SALE], forbiddenRoles: [ROLES.KHACH], escalationExempt: true },
+  // 2026-10-23: Tra cuu VAT (thay app Apps Script Tra cứu VAT, server/vatLookup): ton VAT + hang sap ve.
+  // Chi doc, cung nhom vai tro voi ORDER VAT; mien kiem tra leo thang de Tro ly van tao TK Sale / Ke toan.
+  { key: 'accounting.vatLookup', groupKey: 'accounting', label: 'Tra cứu VAT (tồn VAT, hàng sắp về)', roles: [ROLES.QUAN_LY, ROLES.KE_TOAN, ROLES.NHAN_VIEN_SALE], forbiddenRoles: [ROLES.KHACH], escalationExempt: true },
   // 2026-10-20: Yeu cau xuat VAT (thay sheet ORDER VAT 1, server/vatRequests). Moi nguoi co quyen xem ca bang
   // (chi doc), tao va sua yeu cau CUA MINH khi chua khoa; quyen Xu ly sua trang thai / ghi chu KT / ngay ve.
   // Quyen xem/tao duoc mien kiem tra leo thang de Tro ly van tao duoc TK Sale / Ke toan.
@@ -174,6 +182,7 @@ const PAGE_FEATURES = Object.freeze([
   { path: '/stock-locations', href: '/stock-locations/', anyOf: ['stockLocations.view'] },
   { path: '/cashbook', href: '/cashbook/', anyOf: ['cashbook.view'] },
   { path: '/vat-draft', href: '/vat-draft/', anyOf: ['accounting.vatDraft', 'accounting.qr'] },
+  { path: '/vat-lookup', href: '/vat-lookup/', anyOf: ['accounting.vatLookup'] },
   { path: '/vat-request', href: '/vat-request/', anyOf: ['accounting.vatRequest'] },
   { path: '/account', href: '/account/', anyOf: ['account.profile'] }
 ]);

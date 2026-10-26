@@ -43,10 +43,13 @@ const stockLocationsRoutes = require('./stockLocations/stockLocationsRoutes');
 const cashbookRoutes = require('./cashbook/cashbookRoutes');
 const { createVatDraftRouter } = require('./vatDraft/vatDraftRoutes');
 const { createVatRequestRouter } = require('./vatRequests/routes');
+const { createVatLookupRouter } = require('./vatLookup/vatLookupRoutes');
 const { createBusinessReportRouter } = require('./businessReport/businessReportRoutes');
 const { createExpectedArrivalsRouter } = require('./productContainers/expectedRoutes');
 const { createPriceAuditRouter } = require('./invoicePriceAudit/priceAuditRoutes');
+const { createApprovedPriceRouter } = require('./invoicePriceAudit/approvedPriceRoutes');
 const { createMarketingReportRouter } = require('./marketingReport/marketingReportRoutes');
+const { createUserTablePrefsRouter } = require('./userTablePrefs/routes');
 const { dashboardRollupEvents } = require('./kiotvietSync/dashboardRollupEvents');
 
 router.get('/health', (req, res) => {
@@ -86,13 +89,17 @@ router.use('/api/cashbook', cashbookRoutes);
 router.use('/api/vat-draft', createVatDraftRouter());
 // Kế toán – ORDER VAT (thay sheet ORDER VAT 1): toàn công ty, không áp cookie cơ sở (gợi ý khách tự gắn resolveBranch).
 router.use('/api/vat-requests', createVatRequestRouter());
+// Kế toán – Tra cứu VAT (thay app Apps Script): đọc 3 tab Sheet công khai, toàn công ty, không áp cookie cơ sở.
+router.use('/api/vat-lookup', createVatLookupRouter());
 // Báo cáo kinh doanh (tăng trưởng Sale/Khách/Mã hàng): gộp HN + SG, cũng không áp cookie cơ sở.
 router.use('/api/business-report', createBusinessReportRouter());
 // Bang "Du kien hang ve" (tab Hang hoa): quyen rieng reports.products.expected, KHONG di qua guard /api/product-report.
 router.use('/api/expected-arrivals', createExpectedArrivalsRouter());
 // Kiem tra gia ban (tab Hoa don): quyen rieng reports.invoices.priceAudit(.explain/.decide); co so theo cookie gan trong router.
 router.use('/api/invoice-price-audit', createPriceAuditRouter());
+router.use('/api/invoice-approved-prices', createApprovedPriceRouter());
 router.use('/api/marketing-report', createMarketingReportRouter());
+router.use('/api/me/table-prefs', createUserTablePrefsRouter());
 
 // Toan bo /api/hr/* la du lieu THEO CO SO — gan resolveBranch truoc router con.
 router.use('/api/hr', requireAuth, resolveBranch);

@@ -151,6 +151,15 @@ function inactiveCustomerSql(rowRef) {
         ) THEN 'Có' ELSE '' END`;
 }
 
+// Ten khach HIEN TAI tu bang chu customers (tra theo khoa chinh), ten ghi tren
+// chung tu chi la du phong -> doi ten tren KiotViet thi bao cao theo ngay.
+function currentCustomerNameSql(rowRef) {
+  return `COALESCE(
+          NULLIF((SELECT c.name FROM customers c
+                  WHERE c.branch = ${rowRef}.branch AND c.id = ${rowRef}.customer_id), ''),
+          NULLIF(${rowRef}.raw->>'customerName', ''), 'Khách lẻ')`;
+}
+
 const TABS = [
   {
     sheetName: CONFIG.SHEET_CATEGORIES,
@@ -253,7 +262,7 @@ const TABS = [
       SELECT
         ${text('i.code')}                                          AS ma_hoa_don,
         ${fmtTs('i.purchase_date')}                                AS ngay_ban,
-        COALESCE(NULLIF(i.raw->>'customerName', ''), 'Khách lẻ')   AS khach_hang,
+        ${currentCustomerNameSql('i')} AS khach_hang,
         ${MISSING}                                                 AS sdt_khach,
         ${saleNameSql(`COALESCE(NULLIF(i.raw->>'soldByName', ''), s.name, '')`)} AS nhan_vien_ban,
         ${text(`i.raw->>'branchName'`)}                            AS chi_nhanh,
@@ -295,7 +304,7 @@ const TABS = [
       SELECT
         ${text('i.code')}                                       AS ma_hoa_don,
         COALESCE(NULLIF(d.raw->>'productCode', ''), p.code, '') AS ma_hang,
-        COALESCE(NULLIF(d.raw->>'productName', ''), p.name, '') AS ten_hang,
+        COALESCE(NULLIF(p.name, ''), NULLIF(d.raw->>'productName', ''), '') AS ten_hang,
         ${num('d.quantity')}                                    AS so_luong,
         ${num('d.price')}                                       AS don_gia,
         ${num('d.discount')}                                    AS giam_gia,
@@ -335,7 +344,7 @@ const TABS = [
       SELECT
         ${text('code')}                                        AS ma_dat_hang,
         ${fmtTs('order_date')}                                 AS ngay_dat,
-        COALESCE(NULLIF(raw->>'customerName', ''), 'Khách lẻ') AS khach_hang,
+        ${currentCustomerNameSql('orders')} AS khach_hang,
         ${saleNameSql(text(`raw->>'soldByName'`))}             AS nhan_vien_lap,
         ${text(`raw->>'branchName'`)}                          AS chi_nhanh,
         ${num('total')}                                        AS tong_tien,
@@ -381,7 +390,7 @@ const TABS = [
       SELECT
         ${text('code')}                                        AS ma_tra_hang,
         ${fmtTs('return_date')}                                AS ngay_tra,
-        COALESCE(NULLIF(raw->>'customerName', ''), 'Khách lẻ') AS khach_hang,
+        ${currentCustomerNameSql('returns')} AS khach_hang,
         ${num('total')}                                        AS tong_tien_tra,
         ${statusLabel(RETURN_STATUS_FALLBACK)}                 AS trang_thai,
         COALESCE(id::text, '')                                 AS id_tra_hang,

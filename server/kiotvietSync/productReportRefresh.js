@@ -18,8 +18,14 @@ if (process.env.NODE_ENV !== 'production') {
 const CONFIG = require('../config');
 const { getPool } = require('../db/pool');
 const { sqlLiteral } = require('../dashboard/inTransitSource');
+const { normalizedNameSql } = require('./salesSqlFragments');
 
 const BRANCH_CODES = Object.freeze(['hanoi', 'saigon']);
+
+// TEN KHACH HIEN TAI uu tien hon ten ghi tren hoa don (doi ten khach tren KiotViet khong sua hoa don cu, ten cu
+// con trong raw); khach gop theo TEN CHUAN HOA (cung ten khac ma = 1 khach). c = customers join theo customer_id.
+const CUSTOMER_NAME_SQL = alias => `COALESCE(NULLIF(btrim(c.name), ''), NULLIF(btrim(${alias}.raw->>'customerName'), ''), 'Khách lẻ')`;
+const CUSTOMER_KEY_SQL = alias => `'name:' || ${normalizedNameSql(CUSTOMER_NAME_SQL(alias))}`;
 
 // Don dat hang cua khach ("Phieu tam") dang giu cho hang — chi trang thai nay bi tru khoi ton
 // co the ban cua snapshot nen (Ton thuc - Dat hang phieu tam). Tu 16/10/2026,
@@ -135,12 +141,8 @@ const REFRESH_SQL = `
   sales90_lines AS (
     (SELECT
       lower(btrim(COALESCE(NULLIF(d.raw->>'productCode', ''), p.code, ''))) AS product_key,
-      CASE
-        WHEN COALESCE(NULLIF(i.raw->>'customerCode', ''), c.code, '') <> ''
-          THEN 'code:' || lower(COALESCE(NULLIF(i.raw->>'customerCode', ''), c.code, ''))
-        ELSE 'name:' || lower(COALESCE(NULLIF(i.raw->>'customerName', ''), NULLIF(c.name, ''), 'Khách lẻ'))
-      END AS customer_key,
-      COALESCE(NULLIF(i.raw->>'customerName', ''), NULLIF(c.name, ''), 'Khách lẻ') AS customer_name,
+      ${CUSTOMER_KEY_SQL('i')} AS customer_key,
+      ${CUSTOMER_NAME_SQL('i')} AS customer_name,
       ${DETAIL_AMOUNT_SQL} AS amount,
       d.branch || ':' || d.invoice_id AS invoice_key,
       i.purchase_date AS line_at,
@@ -157,12 +159,8 @@ const REFRESH_SQL = `
     UNION ALL
     (SELECT
       lower(btrim(COALESCE(NULLIF(rd.raw->>'productCode', ''), p.code, ''))) AS product_key,
-      CASE
-        WHEN COALESCE(NULLIF(r.raw->>'customerCode', ''), c.code, '') <> ''
-          THEN 'code:' || lower(COALESCE(NULLIF(r.raw->>'customerCode', ''), c.code, ''))
-        ELSE 'name:' || lower(COALESCE(NULLIF(r.raw->>'customerName', ''), NULLIF(c.name, ''), 'Khách lẻ'))
-      END AS customer_key,
-      COALESCE(NULLIF(r.raw->>'customerName', ''), NULLIF(c.name, ''), 'Khách lẻ') AS customer_name,
+      ${CUSTOMER_KEY_SQL('r')} AS customer_key,
+      ${CUSTOMER_NAME_SQL('r')} AS customer_name,
       -(${RETURN_AMOUNT_SQL}) AS amount,
       NULL::text AS invoice_key,
       r.return_date AS line_at,

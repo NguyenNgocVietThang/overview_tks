@@ -1,116 +1,47 @@
 // ==========================================
-// NOTIFICATION REPOSITORY — Lưu trữ thông báo chuông cho mọi tài khoản tại
-// server/data/notifications.json. Dùng chung cho MỌI loại thông báo trong hệ
-// thống (hiện tại: yêu cầu đổi vai trò) — thêm loại mới bằng cách truyền
-// `type` khác khi gọi createNotification(), không cần đổi schema.
+// NOTIFICATION REPOSITORY — Lưu trữ thông báo chuông cho mọi tài khoản ở bảng
+// Postgres `notifications` (migration 0093). Trước đây lưu ở file
+// server/data/notifications.json, nhưng đĩa của Render bị xóa mỗi lần deploy /
+// khởi động lại nên mất hết lịch sử chuông. Dùng chung cho MỌI loại thông báo
+// trong hệ thống — thêm loại mới bằng cách truyền `type` khác khi gọi
+// createNotification(), không cần đổi schema.
 // ==========================================
 'use strict';
 
-const fs = require('fs');
-const path = require('path');
-const os = require('os');
 const crypto = require('crypto');
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
-const DEFAULT_STORE_PATH = path.join(DATA_DIR, 'notifications.json');
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const COLUMNS = 'id, recipient_user_id, type, title, message, related_type, related_id, is_read, created_at';
 
-let currentStorePath = DEFAULT_STORE_PATH;
-let inMemoryNotifications = null;
-let isInitialized = false;
-let lastLoadedMtime = 0;
+let injectedPool = null;
 
-function ensureDataDir(filePath) {
-  const dir = path.dirname(filePath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
+/** Test thay pool gia (PGlite) — null = quay ve mac dinh. */
+function setPool(pool) {
+  injectedPool = pool || null;
 }
 
-function loadFromDisk() {
-  ensureDataDir(currentStorePath);
-  if (fs.existsSync(currentStorePath)) {
-    try {
-      const stats = fs.statSync(currentStorePath);
-      const raw = fs.readFileSync(currentStorePath, 'utf8');
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        inMemoryNotifications = parsed;
-        lastLoadedMtime = stats.mtimeMs;
-        return inMemoryNotifications;
-      }
-    } catch (err) {
-      console.error('Lỗi khi đọc file notifications.json:', err.message);
-      if (Array.isArray(inMemoryNotifications) && inMemoryNotifications.length > 0) {
-        return inMemoryNotifications;
-      }
-    }
+function resolvePool() {
+  if (injectedPool) return injectedPool;
+  // node --test nap .env (config.js) nen co the tro vao DB that: test khong tiem
+  // pool thi bao loi, tranh ghi rac vao chuong production.
+  if (process.env.NODE_TEST_CONTEXT) {
+    throw new Error('notificationRepository: test chưa gọi setPool().');
   }
-  if (!Array.isArray(inMemoryNotifications)) {
-    inMemoryNotifications = [];
-    if (!fs.existsSync(currentStorePath)) {
-      saveToDisk(inMemoryNotifications);
-    }
-  }
-  return inMemoryNotifications;
+  return require('../db/pool').getPool();
 }
 
-function saveToDisk(notifications) {
-  ensureDataDir(currentStorePath);
-  const tempPath = `${currentStorePath}.${Date.now()}.${Math.random().toString(36).substring(2, 7)}.tmp`;
-  fs.writeFileSync(tempPath, JSON.stringify(notifications, null, 2), 'utf8');
-  let renamed = false;
-  let lastErr = null;
-  for (let attempt = 0; attempt < 5; attempt++) {
-    try {
-      fs.renameSync(tempPath, currentStorePath);
-      renamed = true;
-      break;
-    } catch (err) {
-      lastErr = err;
-      if (err.code === 'EPERM' || err.code === 'EBUSY' || err.code === 'EACCES') {
-        const sleepEnd = Date.now() + 20 * (attempt + 1);
-        while (Date.now() < sleepEnd) {}
-      } else {
-        break;
-      }
-    }
-  }
-  if (!renamed) {
-    try {
-      fs.copyFileSync(tempPath, currentStorePath);
-      fs.unlinkSync(tempPath);
-    } catch (fallbackErr) {
-      try { if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath); } catch (_) {}
-      throw (lastErr || fallbackErr);
-    }
-  }
-  try {
-    lastLoadedMtime = fs.statSync(currentStorePath).mtimeMs;
-  } catch (e) {}
-}
-
-function initStore(customPath) {
-  if (customPath) {
-    currentStorePath = customPath;
-  }
-  loadFromDisk();
-  isInitialized = true;
-}
-
-function ensureLoaded() {
-  if (!isInitialized || !inMemoryNotifications) {
-    initStore();
-    return inMemoryNotifications;
-  }
-  try {
-    if (fs.existsSync(currentStorePath)) {
-      const currentMtime = fs.statSync(currentStorePath).mtimeMs;
-      if (currentMtime > lastLoadedMtime) {
-        loadFromDisk();
-      }
-    }
-  } catch (e) {}
-  return inMemoryNotifications;
+function rowToNotification(row) {
+  return {
+    id: String(row.id),
+    recipientUserId: row.recipient_user_id,
+    type: row.type,
+    title: row.title,
+    message: row.message,
+    relatedType: row.related_type,
+    relatedId: row.related_id,
+    isRead: row.is_read === true,
+    createdAt: new Date(row.created_at).toISOString()
+  };
 }
 
 /**
@@ -118,133 +49,93 @@ function ensureLoaded() {
  */
 async function createNotification({ recipientUserId, type, title, message, relatedType, relatedId }) {
   if (!recipientUserId) throw new Error('Thiếu recipientUserId khi tạo thông báo.');
-  if (!type) throw new Error('Thiếu type khi tạo thông báo.');
-  const notifications = ensureLoaded();
-  const notification = {
-    id: crypto.randomUUID(),
-    recipientUserId: String(recipientUserId),
-    type,
-    title: title || '',
-    message: message || '',
-    relatedType: relatedType || null,
-    relatedId: relatedId || null,
-    isRead: false,
-    createdAt: new Date().toISOString()
-  };
-  notifications.push(notification);
-  saveToDisk(notifications);
-  return { ...notification };
+  const [created] = await createNotificationForUsers([recipientUserId], { type, title, message, relatedType, relatedId });
+  return created;
 }
 
 /**
- * Tạo cùng 1 thông báo cho nhiều người nhận (vd: toàn bộ Quản lý).
+ * Tạo cùng 1 thông báo cho nhiều người nhận (vd: toàn bộ Quản lý) — 1 câu INSERT cho cả lô.
+ * `db` (tùy chọn): client đang mở transaction, để ghi chuông cùng transaction với việc khác.
  */
-async function createNotificationForUsers(recipientUserIds, payload) {
+async function createNotificationForUsers(recipientUserIds, payload, { db } = {}) {
   const ids = Array.from(recipientUserIds || []);
   if (!ids.length) return [];
   if (!payload || !payload.type) throw new Error('Thiếu type khi tạo thông báo.');
   if (ids.some(id => !id)) throw new Error('Thiếu recipientUserId khi tạo thông báo.');
-  // Đẩy tất cả rồi ghi file đúng 1 lần (trước đây ghi lại cả file cho từng người nhận).
-  const notifications = ensureLoaded();
-  const createdAt = new Date().toISOString();
-  const created = ids.map(recipientUserId => ({
-    id: crypto.randomUUID(),
-    recipientUserId: String(recipientUserId),
-    type: payload.type,
-    title: payload.title || '',
-    message: payload.message || '',
-    relatedType: payload.relatedType || null,
-    relatedId: payload.relatedId || null,
-    isRead: false,
-    createdAt
-  }));
-  notifications.push(...created);
-  saveToDisk(notifications);
-  return created.map(n => ({ ...n }));
+  const { rows } = await (db || resolvePool()).query(
+    `INSERT INTO notifications (id, recipient_user_id, type, title, message, related_type, related_id, created_at)
+     SELECT r.id, r.recipient_user_id, $3, $4, $5, $6, $7, $8
+     FROM unnest($1::uuid[], $2::text[]) WITH ORDINALITY AS r(id, recipient_user_id, ord)
+     ORDER BY r.ord
+     RETURNING ${COLUMNS}`,
+    [
+      ids.map(() => crypto.randomUUID()),
+      ids.map(String),
+      payload.type,
+      payload.title || '',
+      payload.message || '',
+      payload.relatedType || null,
+      payload.relatedId == null ? null : String(payload.relatedId),
+      new Date().toISOString()
+    ]
+  );
+  return rows.map(rowToNotification);
 }
 
 async function listForUser(userId, { unreadOnly } = {}) {
-  const notifications = ensureLoaded();
-  const target = String(userId);
-  return notifications
-    .map((notification, index) => ({ notification, index }))
-    .filter(({ notification }) => notification.recipientUserId === target && (!unreadOnly || !notification.isRead))
-    .sort((a, b) => (
-      new Date(b.notification.createdAt) - new Date(a.notification.createdAt) || b.index - a.index
-    ))
-    .map(({ notification }) => ({ ...notification }));
+  const { rows } = await resolvePool().query(
+    `SELECT ${COLUMNS} FROM notifications
+     WHERE recipient_user_id = $1 AND ($2::boolean IS NOT TRUE OR NOT is_read)
+     ORDER BY created_at DESC, seq DESC`,
+    [String(userId), unreadOnly === true]
+  );
+  return rows.map(rowToNotification);
 }
 
 async function getUnreadCount(userId) {
-  const notifications = ensureLoaded();
-  const target = String(userId);
-  return notifications.filter(n => n.recipientUserId === target && !n.isRead).length;
+  const { rows } = await resolvePool().query(
+    'SELECT count(*)::int AS n FROM notifications WHERE recipient_user_id = $1 AND NOT is_read',
+    [String(userId)]
+  );
+  return Number(rows[0].n);
 }
 
 async function markRead(id, userId) {
-  const notifications = ensureLoaded();
-  const target = String(userId);
-  const index = notifications.findIndex(n => String(n.id) === String(id) && n.recipientUserId === target);
-  if (index < 0) return null;
-  notifications[index] = { ...notifications[index], isRead: true };
-  saveToDisk(notifications);
-  return { ...notifications[index] };
+  if (!UUID_RE.test(String(id))) return null;
+  const { rows } = await resolvePool().query(
+    `UPDATE notifications SET is_read = true WHERE id = $1 AND recipient_user_id = $2 RETURNING ${COLUMNS}`,
+    [String(id), String(userId)]
+  );
+  return rows.length ? rowToNotification(rows[0]) : null;
 }
 
 async function markAllRead(userId) {
-  const notifications = ensureLoaded();
-  const target = String(userId);
-  let changed = 0;
-  const updated = notifications.map(n => {
-    if (n.recipientUserId === target && !n.isRead) {
-      changed++;
-      return { ...n, isRead: true };
-    }
-    return n;
-  });
-  if (changed > 0) {
-    inMemoryNotifications = updated;
-    saveToDisk(updated);
-  }
-  return changed;
+  const { rows } = await resolvePool().query(
+    'UPDATE notifications SET is_read = true WHERE recipient_user_id = $1 AND NOT is_read RETURNING id',
+    [String(userId)]
+  );
+  return rows.length;
 }
 
 async function deleteNotification(id, userId) {
-  const notifications = ensureLoaded();
-  const target = String(userId);
-  const index = notifications.findIndex(n => String(n.id) === String(id) && n.recipientUserId === target);
-  if (index < 0) return false;
-  notifications.splice(index, 1);
-  saveToDisk(notifications);
-  return true;
+  if (!UUID_RE.test(String(id))) return false;
+  const { rows } = await resolvePool().query(
+    'DELETE FROM notifications WHERE id = $1 AND recipient_user_id = $2 RETURNING id',
+    [String(id), String(userId)]
+  );
+  return rows.length > 0;
 }
 
 async function deleteAllForUser(userId) {
-  const notifications = ensureLoaded();
-  const target = String(userId);
-  const remaining = notifications.filter(n => n.recipientUserId !== target);
-  const deleted = notifications.length - remaining.length;
-  if (deleted > 0) {
-    inMemoryNotifications = remaining;
-    saveToDisk(remaining);
-  }
-  return deleted;
-}
-
-function setInMemoryNotifications(notifications) {
-  if (currentStorePath === DEFAULT_STORE_PATH) {
-    // Test quen goi initStore(tempPath) truoc setInMemoryNotifications se khong bi anh
-    // huong (currentStorePath da doi). Neu ai quen initStore, tu dong chuyen sang file
-    // tam de KHONG BAO GIO ghi de du lieu that trong server/data/notifications.json.
-    currentStorePath = path.join(os.tmpdir(), `notifications-safety-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
-  }
-  inMemoryNotifications = notifications.map(n => ({ ...n }));
-  isInitialized = true;
-  lastLoadedMtime = Infinity;
+  const { rows } = await resolvePool().query(
+    'DELETE FROM notifications WHERE recipient_user_id = $1 RETURNING id',
+    [String(userId)]
+  );
+  return rows.length;
 }
 
 module.exports = {
-  initStore,
+  setPool,
   createNotification,
   createNotificationForUsers,
   listForUser,
@@ -252,6 +143,5 @@ module.exports = {
   markRead,
   markAllRead,
   deleteNotification,
-  deleteAllForUser,
-  setInMemoryNotifications
+  deleteAllForUser
 };

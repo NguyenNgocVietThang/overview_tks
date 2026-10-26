@@ -65,10 +65,10 @@ test('mac dinh theo vai tro: reports.* khop dung REPORTS_ROLES cu', () => {
     const defaults = registry.defaultsForRole(role);
     for (const key of registry.ANY_REPORTS_FEATURES) {
       // Tinh lai thang chot (2026-10-07) va sua Khach moi/Ghi chu Marketing (2026-10-08) chi danh cho Quan ly.
-      if (['reports.business.refreeze', 'reports.business.editTeam', 'reports.business.customerManage', 'reports.marketing.edit', 'reports.overview.containers.full'].includes(key) && role !== ROLES.QUAN_LY) continue;
+      if (['reports.business.refreeze', 'reports.business.editTeam', 'reports.business.customerManage', 'reports.marketing.edit', 'reports.overview.containers.full', 'reports.products.expected.otherNote'].includes(key) && role !== ROLES.QUAN_LY) continue;
       // Cong no theo lich TT (2026-10-13): Sale phan hoi mac dinh chi Nhan vien sale; QL phan hoi, trang thai, lich TT chi Quan ly.
       if (key === 'reports.debt.saleFeedback' || key === 'reports.invoices.priceAudit.explain') continue;
-      if (key === 'reports.invoices.priceAudit.decide' && role !== ROLES.QUAN_LY) continue;
+      if ((key === 'reports.invoices.priceAudit.decide' || key === 'reports.invoices.approvedPrice' || key === 'reports.invoices.approvedPrice.manage') && role !== ROLES.QUAN_LY) continue;
       if (['reports.debt.managerFeedback', 'reports.debt.edit', 'reports.debt.schedule', 'reports.debt.penalty', 'reports.debt.refresh'].includes(key) && role !== ROLES.QUAN_LY) continue;
       assert.ok(defaults.includes(key), `${role} phai co ${key}`);
     }
@@ -94,7 +94,7 @@ test('mac dinh theo vai tro: hr.* danh cho moi vai tro noi bo, account.users chi
 });
 
 test('chi Quan ly moi co cac quyen quan tri mac dinh', () => {
-  const managerOnly = ['hr.leave.manage', 'hr.rules.manage', 'account.users', 'account.users.manage', 'account.permissions', 'system.syncStatus'];
+  const managerOnly = ['hr.leave.manage', 'hr.rules.manage', 'account.users', 'account.users.manage', 'account.permissions', 'system.syncStatus', 'reports.products.expected.otherNote'];
   for (const key of managerOnly) {
     assert.ok(registry.defaultsForRole(ROLES.QUAN_LY).includes(key), `Quản lý phai co ${key}`);
     for (const role of Object.values(ROLES)) {
@@ -175,11 +175,21 @@ test('Nhan vien sale xem du 5 tab bao cao mac dinh + dien Sale phan hoi cong no,
 
 const SHIPMENT_LIFECYCLE_GROUP = ['shipment.lifecycle', 'shipment.lookup', 'shipment.history'];
 
-test('Nhan vien marketing has own report, other permissions match sale excluding general reports, lifecycle, Tao QR and Yeu cau xuat VAT', () => {
+test('Nhan vien marketing has own report, other permissions match sale excluding general reports, lifecycle, Tao QR Yeu cau xuat VAT and Tra cuu VAT', () => {
   assert.deepEqual(
     registry.defaultsForRole(ROLES.NHAN_VIEN_MARKETING).filter(key=>key!=='reports.marketing' && key!=='reports.products.expected'),
-    registry.defaultsForRole(ROLES.NHAN_VIEN_SALE).filter(key => !SALE_REPORT_VIEW_KEYS.includes(key) && !SALE_REPORT_WRITE_KEYS.includes(key) && key !== 'accounting.qr' && key !== 'accounting.vatRequest' && !SHIPMENT_LIFECYCLE_GROUP.includes(key))
+    registry.defaultsForRole(ROLES.NHAN_VIEN_SALE).filter(key => !SALE_REPORT_VIEW_KEYS.includes(key) && !SALE_REPORT_WRITE_KEYS.includes(key) && key !== 'accounting.qr' && key !== 'accounting.vatRequest' && key !== 'accounting.vatLookup' && !SHIPMENT_LIFECYCLE_GROUP.includes(key))
   );
+});
+
+test('Tra cuu VAT: Sale + Ke toan + Quan ly mac dinh; Kho / Marketing / Khach khong co; mien kiem tra leo thang', () => {
+  for (const role of [ROLES.NHAN_VIEN_SALE, ROLES.KE_TOAN, ROLES.QUAN_LY]) {
+    assert.ok(registry.defaultsForRole(role).includes('accounting.vatLookup'), role);
+  }
+  for (const role of [ROLES.NHAN_VIEN_KHO, ROLES.NHAN_VIEN_MARKETING, ROLES.KHACH]) {
+    assert.ok(!registry.defaultsForRole(role).includes('accounting.vatLookup'), role);
+  }
+  assert.ok(registry.isEscalationExempt('accounting.vatLookup'));
 });
 
 test('Yeu cau xuat VAT: Sale + Ke toan + Quan ly xem/tao; Ke toan chi xu ly khi duoc cap rieng', () => {
@@ -437,4 +447,21 @@ test('Ghi chu khach (2026-10-22): xem = Quan ly + Tro ly + Sale, sua tiep khach 
   // Tat quyen xem thi quyen quan ly phai bi tat theo.
   const managerWithoutView = registry.resolvePermissions({ vaiTro: ROLES.QUAN_LY, featurePermissions: { 'reports.business.customerNotes': false } });
   assert.ok(!managerWithoutView.includes('reports.business.customerManage'));
+});
+
+test('Bang gia duyet (2026-10-24): xem va tao/sua/xoa mac dinh chi Quan ly, Tro ly/Sale khong thay neu khong duoc cap, chuoi requires', () => {
+  const VIEW = 'reports.invoices.approvedPrice';
+  const MANAGE = 'reports.invoices.approvedPrice.manage';
+  for (const key of [VIEW, MANAGE]) {
+    assert.deepEqual(['Quản lý', 'Trợ lý', 'Nhân viên sale', 'Kế toán'].filter(r => registry.defaultsForRole(r).includes(key)), ['Quản lý'], key);
+  }
+  // Quyen Kiem tra gia ban khong keo theo quyen xem bang gia duyet.
+  assert.ok(!registry.resolvePermissions({ vaiTro: 'Nhân viên sale' }).includes(VIEW));
+  assert.ok(!registry.resolvePermissions({ vaiTro: 'Trợ lý' }).includes(VIEW));
+  // Cap rieng xem cho Tro ly / Sale; quyen sua khong dung duoc khi thieu quyen xem.
+  assert.ok(registry.resolvePermissions({ vaiTro: 'Trợ lý', featurePermissions: { [VIEW]: true } }).includes(VIEW));
+  assert.ok(!registry.resolvePermissions({ vaiTro: 'Trợ lý', featurePermissions: { [MANAGE]: true } }).includes(MANAGE));
+  assert.ok(registry.resolvePermissions({ vaiTro: 'Trợ lý', featurePermissions: { [VIEW]: true, [MANAGE]: true } }).includes(MANAGE));
+  assert.ok(!registry.resolvePermissions({ vaiTro: 'Quản lý', featurePermissions: { [VIEW]: false } }).includes(MANAGE));
+  assert.ok(!registry.resolvePermissions({ vaiTro: 'Quản lý', featurePermissions: { 'reports.invoices': false } }).includes(VIEW));
 });

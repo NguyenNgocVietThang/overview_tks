@@ -733,6 +733,8 @@ Quy tắc: API luôn trả `kpis: { status, warnings }` kèm kết quả chính;
 
 ## 6. Motion & Micro-Interactions (Chuyển Động & Hiệu Ứng)
 
+**Cập nhật được duyệt 24/10/2026:** `public/shared/motion.js` thêm hiệu ứng xuất hiện trên các trang hiện có. Chỉ thêm chuyển động, giữ nguyên toàn bộ ảnh nền/hiệu ứng nền, CSS, màu, bố cục, cấu trúc bảng và dữ liệu. Tiêu đề rơi/nảy từng chữ 40ms; KPI lật Y lần đầu, cách nhau 150ms; panel/dòng bảng hiện nhẹ. Count-up là lớp hiển thị tạm, không sửa số liệu thật; tự dọn khi dữ liệu đổi. Chỉ chạy lần đầu khi phần tử xuất hiện, dòng bảng tối đa 12, tôn trọng `prefers-reduced-motion`. Ngoại lệ duy nhất cho mục 7.1 là phép lật KPI ngắn bằng Web Animations API; không thêm 3D vào CSS, hover, nền hoặc dòng bảng; không giữ layer/transform sau hiệu ứng.
+
 ### 6.1 Chuẩn Hoạt Họa Giao Diện
 - **Thời lượng tiêu chuẩn:** `150ms – 300ms` (không vượt quá 300ms cho các tương tác UI nhằm tránh cảm giác chậm chạp).
 - **Ngoại lệ — Hoạt họa xuất hiện trang (page-entrance):** hoạt họa chạy **một lần duy nhất** khi trang
