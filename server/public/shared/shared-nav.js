@@ -825,19 +825,17 @@
     // ---------- Popup moi bat thong bao man hinh (tu hien khi vao web) ----------
     // Khong goi thang requestPermission luc tai trang: Edge/Chrome se an hop hoi quyen
     // (chi hien icon) va Firefox chan han neu khong co thao tac tay. Hien popup cua minh
-    // truoc, nguoi dung bam "Bat thong bao" moi xin quyen. "De sau" thi 2 gio sau hoi lai
-    // (ke ca khi van dang mo trang, khong can tai lai) — TKSNav.notifAskSnoozeMs.
-    var askKey = 'tksNotifDesktopAsk:' + String((user && user.id) || '');
+    // truoc, nguoi dung bam "Bat thong bao" moi xin quyen. Chi hoi MOT lan tren moi trinh duyet
+    // (khong theo tai khoan, khong het han): hien popup xong la ghi nho, ke ca bam "De sau"
+    // hay dong hop quyen khong chon. Muon bat lai thi dung nut "Bat" trong dropdown chuong.
+    var askKey = 'tksNotifDesktopAsked';
     var askPopup = null;
 
     function shouldAutoAsk(){
       if(!desktopNotifySupported() || window.Notification.permission !== 'default') return false;
       // Dien thoai: `new Notification` khong chay (can service worker) -> hoi quyen vo ich.
       if(/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '')) return false;
-      try{
-        var snoozedAt = Number(localStorage.getItem(askKey) || 0);
-        if(snoozedAt && Date.now() - snoozedAt < TKSNav.notifAskSnoozeMs) return false;
-      }catch(e){}
+      try{ if(localStorage.getItem(askKey)) return false; }catch(e){}
       return true;
     }
 
@@ -869,15 +867,13 @@
       askPopup.setAttribute('role', 'dialog');
       askPopup.setAttribute('aria-labelledby', 'tksNotifAskTitle');
       renderAskPopup(false);
+      try{ localStorage.setItem(askKey, String(Date.now())); }catch(err){}
       document.body.appendChild(askPopup);
       var popup = askPopup;
       (window.requestAnimationFrame || window.setTimeout)(function(){ popup.classList.add('is-in'); });
       popup.addEventListener('click', function(e){
         if(e.target.closest('.tks-notif-ask-later')){
-          try{ localStorage.setItem(askKey, String(Date.now())); }catch(err){}
           closeAskPopup();
-          // Van mo trang thi tu hoi lai khi het han (them 1s de chac chan qua moc).
-          window.setTimeout(showAskPopup, TKSNav.notifAskSnoozeMs + 1000);
         } else if(e.target.closest('.tks-notif-ask-enable')){
           renderAskPopup(true);
           requestDesktopPermission();
@@ -1010,7 +1006,6 @@
     window.setTimeout(showAskPopup, TKSNav.notifAskDelayMs);
   };
   TKSNav.notifAskDelayMs = 1500;
-  TKSNav.notifAskSnoozeMs = 2 * 60 * 60 * 1000;
 
   // ---------- Lich nghi phep o header (dung chung moi trang, canh chuong) ----------
   // Chon ngay -> liet ke nhan su xin nghi ngay do. Du lieu: GET /api/hr/leave-requests

@@ -1,5 +1,5 @@
 'use strict';
-const {createMarketingRepository,PAGE_IDS}=require('./marketingRepository');
+const {createMarketingRepository,ACTIVE_PAGE_IDS}=require('./marketingRepository');
 const {createPancakeClient,safeError}=require('./pancakeClient');
 const {phoneText}=require('./marketingParsers');
 const {isPhoneReportObservation}=require('./marketingAggregation');
@@ -88,7 +88,7 @@ function createPancakeSync({repository=createMarketingRepository(),client=create
    const snapshot=independent?{rawRows:[],facts:[]}:await repository.readSnapshot({includeIdentities:true});const unresolved=[],baselineSkipped=[];const adoptedIds=new Set([...snapshot.facts.map(f=>f.historicalRowId),...(snapshot.identities||[]).map(l=>l.historyRowId)].filter(Boolean));
    // Pages use independent tokens and rate limits, so read them concurrently (the largest page dominates the run);
    // everything is still prepared and committed one page at a time.
-   const fetches=new Map(PAGE_IDS.map(pageId=>[pageId,client.fetchPage(pageId,{since:independent?0:pageHorizon(snapshot,pageId),until}).then(rows=>({rows}),error=>({error}))]));
+   const fetches=new Map(ACTIVE_PAGE_IDS.map(pageId=>[pageId,client.fetchPage(pageId,{since:independent?0:pageHorizon(snapshot,pageId),until}).then(rows=>({rows}),error=>({error}))]));
    let committing=Promise.resolve();
    const processPage=async pageId=>{
     const fetched=await fetches.get(pageId);
@@ -101,10 +101,10 @@ function createPancakeSync({repository=createMarketingRepository(),client=create
     for(const row of prepared)if(row.historicalRowId)adoptedIds.add(row.historicalRowId);
    }catch(error){if(error.unresolved)unresolved.push(...error.unresolved);await repository[independent?'failIndependentPageSync':'failPageSync']({runId:run.id,pageId,completedAt:now().toISOString(),errorCode:error.code||'PANCAKE_UNAVAILABLE'});}finally{releaseCommit();}};
    if(independent){
-    const results=await Promise.allSettled(PAGE_IDS.map(processPage));
+    const results=await Promise.allSettled(ACTIVE_PAGE_IDS.map(processPage));
     const failure=results.find(r=>r.status==='rejected');if(failure)throw failure.reason;
-   }else for(const pageId of PAGE_IDS)await processPage(pageId);
-   const unlinkedHistoricalRows=PAGE_IDS.map(pageId=>({pageId,rowReferences:snapshot.rawRows.filter(r=>r.origin==='sheet'&&r.pageId===pageId&&isPhoneReportObservation(r)&&!adoptedIds.has(r.id)).map(rowRef)})).filter(r=>r.rowReferences.length);
+   }else for(const pageId of ACTIVE_PAGE_IDS)await processPage(pageId);
+   const unlinkedHistoricalRows=ACTIVE_PAGE_IDS.map(pageId=>({pageId,rowReferences:snapshot.rawRows.filter(r=>r.origin==='sheet'&&r.pageId===pageId&&isPhoneReportObservation(r)&&!adoptedIds.has(r.id)).map(rowRef)})).filter(r=>r.rowReferences.length);
    const finished=await repository.finishSyncRun(run.id);
    // Gộp SĐT sẵn vào marketing_phone_summary (migration 0069); lỗi/thiếu bảng chỉ bỏ qua, báo cáo lùi về gộp JS.
    if(independent&&typeof repository.refreshIndependentSummary==='function')await repository.refreshIndependentSummary().catch(()=>{});

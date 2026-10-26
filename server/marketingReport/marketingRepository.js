@@ -4,6 +4,8 @@ const { createHash } = require('node:crypto');
 
 const PAGE_IDS = Object.freeze(['1184366971419195', '1144127138790204', '430840296781378', '1094883173717378', '1222318524308489', '1387564787764418']);
 const PAGE_NAMES = Object.freeze(['Hữu Nghị', 'Tân Thanh', 'Bắc Lãm', 'Phú Lương', 'HN-SG', 'Dương Nội']);
+// HN-SG is retired; keep its IDs valid for historical records only.
+const ACTIVE_PAGE_IDS = Object.freeze(PAGE_IDS.filter(id => id !== '1222318524308489'));
 const SAFE_FAILURES = new Set(['PANCAKE_UNAVAILABLE', 'PANCAKE_UNAUTHORIZED', 'PANCAKE_INVALID_RESPONSE', 'MARKETING_STORAGE_ERROR', 'INVALID_MARKETING_INPUT', 'MARKETING_SYNC_INTERRUPTED']);
 function error(code, statusCode = 400) {
   return Object.assign(new Error(code === 'MARKETING_STORAGE_ERROR' ? 'Marketing storage operation failed.' : 'Marketing operation could not be completed.'), { code, statusCode });
@@ -197,7 +199,7 @@ function createMarketingRepository({ pool = require('../db/pool').getPool(), log
     return transaction(async client => {
       const run = (await client.query(`INSERT INTO marketing_sync_runs(run_key,started_at) VALUES($1,$2::timestamptz)
         ON CONFLICT(run_key) DO UPDATE SET run_key=excluded.run_key RETURNING id::text AS id,status,started_at,finished_at`,[runKey,startedAt])).rows[0];
-      await client.query('INSERT INTO marketing_sync_pages(run_id,page_id) SELECT $1,page_id FROM marketing_pages ON CONFLICT DO NOTHING',[run.id]);
+      await client.query('INSERT INTO marketing_sync_pages(run_id,page_id) SELECT $1,page_id FROM marketing_pages WHERE page_id=ANY($2::text[]) ON CONFLICT DO NOTHING',[run.id,ACTIVE_PAGE_IDS]);
       return camel(run);
     });
   }
@@ -395,7 +397,7 @@ function createMarketingRepository({ pool = require('../db/pool').getPool(), log
     return rows.map(row=>{const {input,...meta}=row;const out={...input,...camel(meta),origin:'pancake',independent:true};if(!includeRaw)delete out.raw;return out;});
   }
   async function independentCommon(client,includeRaw) {
-    const pages=(await client.query('SELECT p.page_id,p.name,p.platform,s.status,s.last_success_at,s.last_attempt_at,s.error_code,s.coverage FROM marketing_pages p JOIN marketing_pancake_independent_page_state s ON s.page_id=p.page_id ORDER BY p.page_id')).rows.map(camel);
+    const pages=(await client.query('SELECT p.page_id,p.name,p.platform,s.status,s.last_success_at,s.last_attempt_at,s.error_code,s.coverage FROM marketing_pages p JOIN marketing_pancake_independent_page_state s ON s.page_id=p.page_id ORDER BY p.page_id')).rows.map(camel).filter(p=>ACTIVE_PAGE_IDS.includes(p.pageId));
     const aliases=(await client.query('SELECT raw_name,report_employee,updated_at,actor FROM marketing_employee_aliases ORDER BY raw_name')).rows.map(camel);
     const monthlyRows=(await client.query(`SELECT ${includeRaw?monthlyColumns:monthlyColumns.replace(',source_raw','')} FROM marketing_monthly_rows WHERE origin='manual' ORDER BY report_year,report_month,id`)).rows.map(monthlyShape);
     const latest=(await client.query("SELECT id::text AS id FROM marketing_sync_runs WHERE starts_with(run_key,'pancake-independent:') ORDER BY id DESC LIMIT 1")).rows[0];
@@ -460,7 +462,7 @@ function createMarketingRepository({ pool = require('../db/pool').getPool(), log
   }
   async function readSnapshot({ includeRaw = true, includeIdentities = false } = {}) {
     return transaction(async client => {
-      const pages=(await client.query('SELECT page_id,name,platform,status,last_success_at,last_attempt_at,error_code FROM marketing_pages ORDER BY page_id')).rows.map(camel);
+      const pages=(await client.query('SELECT page_id,name,platform,status,last_success_at,last_attempt_at,error_code FROM marketing_pages ORDER BY page_id')).rows.map(camel).filter(p=>ACTIVE_PAGE_IDS.includes(p.pageId));
       const aliases=(await client.query('SELECT raw_name,report_employee,updated_at,actor FROM marketing_employee_aliases ORDER BY raw_name')).rows.map(camel);
       const facts=includeRaw ? (await client.query('SELECT id::text AS id,page_id,source_key,historical_row_id::text AS historical_row_id,credited_date::text AS credited_date,first_seen_run_id::text AS first_seen_run_id,current_input FROM marketing_pancake_facts ORDER BY id')).rows.map(camel) : [];
       const history=(await client.query(`SELECT id::text AS id,batch_id::text AS batch_id,workbook_id,source_tab AS tab,source_row AS row_number,source_order::text AS source_order,page_id,source_created_at,source_created_text,phone,phone_key,employee_raw,credited_date::text AS credited_date${includeRaw ? ",raw" : ""} FROM marketing_history_rows ORDER BY source_order`)).rows.map(row=>({...camel(row),origin:'sheet',sourceCreatedAt:iso(row.source_created_at)}));
@@ -477,4 +479,4 @@ function createMarketingRepository({ pool = require('../db/pool').getPool(), log
   return Object.fromEntries(Object.entries({importHistory,importIdentities,readIndependentSnapshot,readIndependentLite,readIndependentSummary,readIndependentObservations,refreshIndependentSummary,commitIndependentPageSync,failIndependentPageSync,upsertAlias,startSyncRun,commitPageSync,failPageSync,finishSyncRun,getSyncRun,getLatestSlotRun,readSnapshot,createMonthlyRow,updateMonthlyRow,listMonthlyRows,listMonthlyAudit}).map(([name,fn])=>[name,safe(fn)]));
 }
 
-module.exports={createMarketingRepository,PAGE_IDS,PAGE_NAMES};
+module.exports={createMarketingRepository,PAGE_IDS,PAGE_NAMES,ACTIVE_PAGE_IDS};

@@ -8,6 +8,7 @@ const {
 const {
   norm
 }=require('./marketingParsers');
+const { ACTIVE_PAGE_IDS } = require('./marketingRepository');
 const fail=(statusCode,code,message)=>Object.assign(new Error(message),{
   statusCode,code
 });
@@ -43,7 +44,7 @@ function createDatabaseMarketingReportService({
   const employeeRawsOf=s=>s.summary?s.summary.employeeRaws:s.rawRows.map(r=>r.employeeRaw);
   const periodsOf=s=>s.summary?s.summary.periods:s.rawRows.map(r=>r.creditedDate?.slice(0,7));
   const sourceInfo={phones:independent?'pancake-independent':'legacy-db',closures:independent?'manual-db':'legacy-db',revenue:'kiotviet',costs:'sheets'};
-  const completeness=s=>({complete:s.pages.length===6&&s.pages.every(p=>p.lastSuccessAt&&p.coverage?.complete===true&&p.status==='success'),pages:s.pages});
+  const completeness=s=>({complete:s.pages.length===ACTIVE_PAGE_IDS.length&&ACTIVE_PAGE_IDS.every(id=>s.pages.some(p=>p.pageId===id))&&s.pages.every(p=>p.lastSuccessAt&&p.coverage?.complete===true&&p.status==='success'),pages:s.pages});
   async function directorySnapshot(){try{return await business().snapshot();}catch{throw fail(503,'MARKETING_CUSTOMERS_UNAVAILABLE','Không đọc được danh sách khách KiotViet. Vui lòng thử lại.');}}
   function period(q={
   }){

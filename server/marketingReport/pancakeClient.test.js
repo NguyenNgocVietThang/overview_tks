@@ -40,3 +40,8 @@ test('assignment evidence records conversation observation time before a long me
  let observed=Date.parse('2026-09-30T16:59:00Z');const wire=transport(u=>{if(u.pathname.endsWith('/messages')){observed=Date.parse('2026-09-30T18:10:00Z');return {success:true,messages:[message('m')]};}return {success:true,conversations:u.searchParams.get('type')==='INBOX'?[{id:'c',current_assign_users:[{name:'B'}]}]:[]};});
  const rows=await api().createPancakeClient({...wire,now:()=>observed,tokens:{[PAGE]:'secret'}}).fetchPage(PAGE,{since:0,until:1791000000});assert.equal(rows[0].raw.assignmentObservedAt,'2026-09-30T16:59:00.000Z');
 });
+
+test('retired HN-SG is rejected before any API request even with a token',async()=>{
+ let calls=0;const client=api().createPancakeClient({tokens:{'1222318524308489':'retired'},fetch:async()=>{calls++;throw Error('must not fetch');}});
+ await assert.rejects(client.fetchPage('1222318524308489',{since:0,until:1}),{code:'INVALID_MARKETING_INPUT'});assert.equal(calls,0);
+});

@@ -749,3 +749,6 @@ Bảng ORDER VAT luôn chừa chỗ thanh cuộn dọc nên không còn tràn ng
 - **Giữ nguyên / còn hở:** bảng tháng đã chốt `business_monthly_*` giữ tên lúc chốt. `businessMonthlySql` khớp khách theo `name_key` trên tên chứng từ; chứng từ cũ không có mã khách có thể không khớp lại sau khi đổi tên (chưa sửa).
 
 Cập nhật gần nhất: 24/10/2026.
+
+26/10/2026 — HN-SG đã ngừng hoạt động: chỉ 5 fanpage còn lại được đồng bộ Pancake và hiển thị trạng thái. Client từ chối gọi API page 1222318524308489 kể cả khi còn token; đã gỡ token trong cấu hình cục bộ và mẫu. Giữ dữ liệu lịch sử, không đổi schema. Cần triển khai/restart server và worker để áp dụng trên môi trường đang chạy; thu hồi token tại Pancake nếu cần vô hiệu hóa token ở nhà cung cấp.
+Kiểm chứng phiên 26/10: bộ test tập trung Pancake client/sync/report đạt (log .codex_tmp/retire-hn-sg-verified.log). npm test toàn bộ đã chạy nhưng có lỗi, gồm EPERM khi ghi/đổi tên file tạm; không xác nhận toàn bộ xanh. graphify update bị Windows Application Control chặn. Chưa deploy/restart dịch vụ đang chạy.

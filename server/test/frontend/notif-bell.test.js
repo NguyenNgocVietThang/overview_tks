@@ -469,33 +469,18 @@ test('popup mời bật thông báo: Edge không bung hộp (vẫn default) thì
   assert.equal(window.Notification.permission, 'default');
 });
 
-test('popup mời bật thông báo: "Để sau" đóng, tải lại trong 2 giờ không hỏi, quá 2 giờ thì hỏi lại', async t => {
+test('popup mời bật thông báo: chỉ hỏi một lần, "Để sau" hay đã từng hiện thì không hỏi lại (kể cả tài khoản khác)', async t => {
   const { window, document } = await renderWithAsk(t, 'default');
-  assert.equal(window.TKSNav.notifAskSnoozeMs, 2 * 3600000);
-  document.querySelector('.tks-notif-ask-later').click();
-  assert.equal(document.getElementById('tksNotifAsk'), null);
-  const snoozedAt = Number(window.localStorage.getItem('tksNotifDesktopAsk:u1'));
-  assert.ok(Date.now() - snoozedAt < 5000);
-
-  const recent = await renderWithAsk(t, 'default', ({ window }) => {
-    window.localStorage.setItem('tksNotifDesktopAsk:u1', String(Date.now() - 119 * 60000));
-  });
-  assert.equal(recent.document.getElementById('tksNotifAsk'), null, '1h59: chua hoi lai');
-
-  const old = await renderWithAsk(t, 'default', ({ window }) => {
-    window.localStorage.setItem('tksNotifDesktopAsk:u1', String(Date.now() - 121 * 60000));
-  });
-  assert.ok(old.document.getElementById('tksNotifAsk'), '2h01: hoi lai');
-});
-
-test('popup mời bật thông báo: vẫn mở trang thì hết hạn "Để sau" tự hiện lại, không cần tải lại', async t => {
-  const { window, document } = await renderWithAsk(t, 'default', ({ window }) => {
-    window.TKSNav.notifAskSnoozeMs = 50;
-  });
+  assert.ok(window.localStorage.getItem('tksNotifDesktopAsked'), 'ghi nho ngay khi hien popup');
   document.querySelector('.tks-notif-ask-later').click();
   assert.equal(document.getElementById('tksNotifAsk'), null);
   await new Promise(resolve => window.setTimeout(resolve, 1150));
-  assert.ok(document.getElementById('tksNotifAsk'), 'het han thi popup tu hien lai');
+  assert.equal(document.getElementById('tksNotifAsk'), null, 'khong tu hien lai');
+
+  const again = await renderWithAsk(t, 'default', ({ window }) => {
+    window.localStorage.setItem('tksNotifDesktopAsked', String(Date.now() - 365 * 86400000));
+  });
+  assert.equal(again.document.getElementById('tksNotifAsk'), null, 'da hoi tu truoc: khong hoi lai');
 });
 
 test('popup mời bật thông báo: không hiện khi đã cho phép, đã chặn, hoặc trên điện thoại', async t => {

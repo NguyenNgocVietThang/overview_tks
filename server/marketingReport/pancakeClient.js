@@ -1,5 +1,5 @@
 'use strict';
-const { PAGE_IDS } = require('./marketingRepository');
+const { ACTIVE_PAGE_IDS } = require('./marketingRepository');
 const SAFE_CODES = new Set(['PANCAKE_INVALID_RESPONSE','PANCAKE_UNAUTHORIZED','PANCAKE_UNAVAILABLE','INVALID_MARKETING_INPUT','MARKETING_STORAGE_ERROR']);
 function safeError(code='PANCAKE_UNAVAILABLE') { return Object.assign(new Error(SAFE_CODES.has(code)?code:'PANCAKE_UNAVAILABLE'),{code:SAFE_CODES.has(code)?code:'PANCAKE_UNAVAILABLE'}); }
 function sourceTimestamp(value) {
@@ -10,7 +10,7 @@ function sourceTimestamp(value) {
  if(day.getUTCFullYear()!==+m[1]||day.getUTCMonth()+1!==+m[2]||day.getUTCDate()!==+m[3]) throw safeError('PANCAKE_INVALID_RESPONSE');
  const parsed=new Date(value+(m[8]?'':'Z'));if(!Number.isFinite(+parsed)) throw safeError('PANCAKE_INVALID_RESPONSE');return parsed.toISOString();
 }
-function createPancakeClient({fetch:fetchFn=globalThis.fetch,tokens=Object.fromEntries(PAGE_IDS.map(id=>[id,process.env['PANCAKE_PAGE_TOKEN_'+id]])),now=Date.now,sleep=ms=>new Promise(r=>setTimeout(r,ms)),timeoutMs=20000,maxAttempts=6,maxConversationPages=10000,maxMessagePages=10000}={}) {
+function createPancakeClient({fetch:fetchFn=globalThis.fetch,tokens=Object.fromEntries(ACTIVE_PAGE_IDS.map(id=>[id,process.env['PANCAKE_PAGE_TOKEN_'+id]])),now=Date.now,sleep=ms=>new Promise(r=>setTimeout(r,ms)),timeoutMs=20000,maxAttempts=6,maxConversationPages=10000,maxMessagePages=10000}={}) {
  const lastRequest=new Map();const queues=new Map();
  async function request(pageId,path,params,arrayField) {
   // Serialize all requests per page, including retries and separate callers.
@@ -31,7 +31,7 @@ function createPancakeClient({fetch:fetchFn=globalThis.fetch,tokens=Object.fromE
   }} finally {release();if(queues.get(pageId)===turn) queues.delete(pageId);}
  }
  async function fetchPage(pageId,{since,until}) {
-  if(!PAGE_IDS.includes(pageId)||!Number.isInteger(since)||!Number.isInteger(until)||since<0||until<since) throw safeError('INVALID_MARKETING_INPUT');
+  if(!ACTIVE_PAGE_IDS.includes(pageId)||!Number.isInteger(since)||!Number.isInteger(until)||since<0||until<since) throw safeError('INVALID_MARKETING_INPUT');
   if(!tokens[pageId]) throw safeError('PANCAKE_UNAUTHORIZED');
   const conversations=[],seenConversations=new Set();
   for(const type of ['INBOX','COMMENT']) {

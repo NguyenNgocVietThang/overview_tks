@@ -772,3 +772,5 @@ Migration `0094` thêm `hr_leave_cancellation_jobs`, `hr_leave_approver_recipien
 Áp `npm run db:migrate` trước triển khai. Telegram dùng cấu hình bot quản lý hiện có; khi bot tắt, queue giữ việc chờ nhưng chuông web/xóa đơn vẫn commit. Theo dõi `attempts`, `available_at`, `lease_until`, `last_error` của queue. Không thêm biến môi trường hoặc dependency.
 
 Cập nhật gần nhất: 26/10/2026.
+
+26/10/2026 — HN-SG đã ngừng hoạt động: chỉ 5 fanpage còn lại được đồng bộ Pancake và hiển thị trạng thái. Client từ chối gọi API page 1222318524308489 kể cả khi còn token; đã gỡ token trong cấu hình cục bộ và mẫu. Giữ dữ liệu lịch sử, không đổi schema. Cần triển khai/restart server và worker để áp dụng trên môi trường đang chạy; thu hồi token tại Pancake nếu cần vô hiệu hóa token ở nhà cung cấp.

@@ -26,3 +26,9 @@ test('initial backfill publishes pending state and no misleading zero KPIs',asyn
  const s=fixture();s.pages=s.pages.map(p=>({...p,lastSuccessAt:null,status:'pending',coverage:{}}));s.rawRows=[];
  const r=await make(s).report('phones');assert.equal(r.publicationStatus,'pending');assert.ok(r.kpis.every(k=>k.value===null));
 });
+
+test('coverage is complete for the five active pages',async()=>{
+ const {ACTIVE_PAGE_IDS}=require('./marketingRepository');const s=fixture();s.pages=ACTIVE_PAGE_IDS.map(pageId=>({...s.pages[0],pageId}));
+ assert.equal((await make(s).report('phones')).completeness.complete,true);
+ s.pages.pop();assert.equal((await make(s).report('phones')).completeness.complete,false);
+});
