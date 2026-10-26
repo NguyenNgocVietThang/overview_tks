@@ -49,3 +49,11 @@ window.PickingDemo = {
     lines:products.map((p,i)=>({productCode:p.code,productName:p.name,quantity:item.qty[i],price:p.price,note:p.note}))
   });
 })();
+
+// ID Telegram của sale: KiotViet lưu kèm trong tên ("<tên> - <ID>"), bản in ghi lại cạnh tên.
+// Dữ liệu mô phỏng — không phải ID Telegram thật của ai.
+(function(){
+  const SALE_TELEGRAM = { 'Nguyễn Hà':'1000000001', 'Trần Linh':'1000000002', 'Lê An':'1000000003' };
+  for (const order of window.PickingDemo.orders)
+    order.saleTelegramId = order.saleTelegramId || SALE_TELEGRAM[order.saleName] || '';
+})();
