@@ -225,6 +225,33 @@ test('moi bang chi co hang 3 chi so Tang truong / TB 4 thang / Doanh so thang na
   }
 });
 
+test('sort Team uses the selected team and preserves filtering and editing', async () => {
+  const page = createPage();
+  page.run("switchView('business')");
+  await settle();
+  const rows = () => rowsOf(page, 'businessSalesRows');
+  const original = rows().map(row => row.dataset.tableItemId);
+  const expected = rows().slice().sort((a, b) => {
+    const team = row => row.cells[1].querySelector('select')?.value || row.cells[1].textContent.trim();
+    return team(a).localeCompare(team(b), 'vi', { numeric: true, sensitivity: 'base' });
+  }).map(row => row.dataset.tableItemId);
+  const button = page.$('businessSalesRows').closest('table').querySelectorAll('thead th')[1].querySelector('button');
+  button.click();
+  assert.deepEqual(rows().map(row => row.dataset.tableItemId), expected);
+  button.click();
+  assert.deepEqual(rows().map(row => row.dataset.tableItemId), expected.slice().reverse());
+  const filter = page.$('businessSalesTeam');
+  filter.value = 'Team Khang';
+  fire(page, filter);
+  assert.deepEqual(rows().map(row => row.dataset.tableItemId), ['Khang']);
+  assert.equal(rows()[0].querySelector('select.business-team-select').value, 'Team Khang');
+  filter.value = '';
+  fire(page, filter);
+  assert.deepEqual(rows().map(row => row.dataset.tableItemId), expected.slice().reverse());
+  button.click();
+  assert.deepEqual(rows().map(row => row.dataset.tableItemId), original);
+});
+
 test('loc team o bang Sale: dong, the 3 chi so va tag doi theo; "Tat ca team" tra lai het', async () => {
   const page = createPage();
   page.run("switchView('business')");

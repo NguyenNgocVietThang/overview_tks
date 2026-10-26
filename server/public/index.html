@@ -5597,6 +5597,10 @@
     }
 
     function getTableSortValue(cell) {
+      if (cell.hasAttribute('data-sort-text')) {
+        const text = cell.getAttribute('data-sort-text').trim();
+        return { empty: !text || text === '—', number: null, text: text };
+      }
       if (cell.hasAttribute('data-sort-value')) {
         const numberValue = Number(cell.getAttribute('data-sort-value'));
         return { empty: !Number.isFinite(numberValue), number: numberValue, text: '' };
@@ -8707,7 +8711,7 @@
       const names = (data.teams || []).filter(t => t !== BUSINESS_NO_TEAM);
       if (names.indexOf(team) < 0 && team !== BUSINESS_NO_TEAM) names.push(team);
       const option = (value, label) => '<option value="' + escapeHtml(value) + '"' + (value === team ? ' selected' : '') + '>' + escapeHtml(label) + '</option>';
-      return '<td data-sort-value="' + escapeHtml(team) + '"><select class="business-team-select" data-sale="' + escapeHtml(r.saleName) + '" data-current="' + escapeHtml(team) + '" aria-label="Team của ' + escapeHtml(r.saleName) + '">' +
+      return '<td data-sort-text="' + escapeHtml(team) + '"><select class="business-team-select" data-sale="' + escapeHtml(r.saleName) + '" data-current="' + escapeHtml(team) + '" aria-label="Team của ' + escapeHtml(r.saleName) + '">' +
         option(BUSINESS_NO_TEAM, BUSINESS_NO_TEAM) + names.map(t => option(t, t)).join('') +
         '<option value="' + BUSINESS_NEW_TEAM + '">+ Team mới…</option></select></td>';
     }

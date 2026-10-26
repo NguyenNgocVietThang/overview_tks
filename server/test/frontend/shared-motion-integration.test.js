@@ -13,12 +13,17 @@ function entrypoints(dir) {
   });
 }
 
-test('every application HTML entrypoint loads shared entrance motion once without blocking parsing', () => {
+test('application HTML entrypoints load shared entrance motion except the static login page', () => {
   const files = entrypoints(publicDir);
   assert.ok(files.length >= 13, 'cover dashboard, standalone tools, auth, error and Telegram pages');
   for (const file of files) {
     const dom = new JSDOM(fs.readFileSync(file, 'utf8'));
     const scripts = dom.window.document.querySelectorAll('script[src^="/shared/motion.js"]');
+    if (path.relative(publicDir, file).split(path.sep).join('/') === 'login/index.html') {
+      assert.equal(scripts.length, 0, 'login stays static');
+      dom.window.close();
+      continue;
+    }
     assert.equal(scripts.length, 1, path.relative(publicDir, file));
     assert.equal(scripts[0].defer, true, path.relative(publicDir, file));
     assert.ok(fs.existsSync(path.join(publicDir, scripts[0].getAttribute('src').split('?')[0])));
