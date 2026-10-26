@@ -8200,6 +8200,19 @@ window.PickingDemo.locations.forEach(row=>{
         const opening = api.opening(movement.branch, movement.code, movement.location);
         if (!opening) throw Error('Chưa có tồn kiểm kê cho ' + movement.code + ' tại ' + movement.location + '.');
         if (!['receipt','pick','adjust'].includes(movement.type)) throw Error('Loại biến động phải là receipt, pick hoặc adjust.');
+        /* Một chứng từ gốc chỉ ghi một lần: đồng bộ lại hoặc bấm lại không cộng thêm.
+           Cùng ref mà khác số thì là chứng từ đã bị sửa — phải xử lý bằng điều chỉnh có lý do,
+           không ghi đè lịch sử. */
+        if (movement.ref) {
+          const existing = movements.find(m => m.ref === movement.ref);
+          if (existing) {
+            const repeat = parseQuantity(String(movement.quantity ?? '').trim().replace(/^-/,''));
+            if (Math.abs(Math.abs(existing.quantity) - (repeat ?? NaN)) > 1e-6)
+              throw Error('Chứng từ ' + movement.ref + ' đã ghi ' + existing.quantity + ', nay nhận ' + movement.quantity
+                + '. Chứng từ đã bị sửa: ghi điều chỉnh chênh lệch có lý do, không ghi đè.');
+            return { ...existing, duplicate:true };
+          }
+        }
         // Chỉ điều chỉnh được mang dấu âm; nhập và thực nhặt luôn là số không âm.
         const text = String(movement.quantity ?? '').trim();
         const negative = movement.type === 'adjust' && text.startsWith('-');
@@ -8217,6 +8230,75 @@ window.PickingDemo.locations.forEach(row=>{
       },
       movements(filter = {}){
         return movements.filter(m => (!filter.key || m.key === filter.key) && (!filter.branch || m.branch === filter.branch));
+      },
+
+      /* Ghép phiếu nhập Kiot với vị trí của tab Vị trí hàng.
+         Kiot cho số lượng + ngày nhưng không cho vị trí; tab Vị trí hàng cho vị trí + NGÀY VỀ
+         nhưng TỔNG SL không phải tồn còn. Ghép theo mã hàng + ngày lấy được cả hai.
+         receipts: [{branch, productCode, purchaseDate, quantity, documentId, documentCode, lineNo}]
+         — purchase_details.product_id phải được đổi sang mã hàng qua bảng products trước khi gọi. */
+      matchReceipts(branch, sheetRows, receipts){
+        const plan = [];
+        for (const receipt of receipts || []) {
+          if (receipt.branch && receipt.branch !== branch) continue;
+          const quantity = parseQuantity(receipt.quantity);
+          const day = parseSheetDate(receipt.purchaseDate);
+          const base = { branch, productCode:receipt.productCode, purchaseDate:receipt.purchaseDate,
+            quantity, documentId:receipt.documentId, documentCode:receipt.documentCode, lineNo:receipt.lineNo ?? 0 };
+          if (quantity === null || !receipt.productCode) { plan.push({ ...base, status:'invalid',
+            reason:'Phiếu nhập thiếu mã hàng hoặc số lượng không đọc được.' }); continue; }
+          if (day === null) { plan.push({ ...base, status:'invalid',
+            reason:'Ngày phiếu nhập không đọc được: ' + (receipt.purchaseDate ?? '(trống)') }); continue; }
+          const receiptDay = vnDate(day);
+
+          // Vị trí ứng viên: cùng mã, cùng NGÀY VỀ, thuộc khu đã chốt kỳ kiểm kê.
+          const candidates = [];
+          let countedAlready = false;
+          for (const row of sheetRows || []) {
+            if ((row.branch && row.branch !== branch) || codeKey(row.code) !== codeKey(receipt.productCode)) continue;
+            const arrival = parseSheetDate(row.arrivalDate);
+            if (arrival === null || vnDate(arrival) !== receiptDay) continue;
+            const zone = api.zoneOfLocation(branch, row.location);
+            const cutoff = zone && api.cutoff(branch, zone);
+            if (!cutoff) continue;
+            if (receiptDay <= vnDate(time(cutoff))) { countedAlready = true; continue; }
+            candidates.push({ location:locationKey(row.location), zone, cutoffAt:cutoff });
+          }
+          const unique = [...new Map(candidates.map(c => [c.location, c])).values()];
+
+          if (unique.length === 1) plan.push({ ...base, status:'matched', location:unique[0].location, zone:unique[0].zone,
+            candidates:unique, reason:'Một vị trí duy nhất cùng mã và cùng NGÀY VỀ. Cộng được tự động.' });
+          else if (unique.length > 1) plan.push({ ...base, status:'ambiguous', candidates:unique,
+            reason:'Cùng mã về cùng ngày ở ' + unique.length + ' vị trí: ' + unique.map(c => c.location).join(', ')
+              + '. Máy không chia được, cần người phân số lượng.' });
+          else if (countedAlready) plan.push({ ...base, status:'counted', candidates:[],
+            reason:'Về trước hoặc đúng ngày chốt kiểm kê, đã nằm trong số đếm.' });
+          else plan.push({ ...base, status:'no-location', candidates:[],
+            reason:'Kiot có phiếu nhập nhưng tab Vị trí hàng chưa có dòng cùng mã và cùng NGÀY VỀ ở khu đã kiểm kê.' });
+        }
+        return plan;
+      },
+
+      /* Ghi một dòng kế hoạch vào sổ. allocation = {vị trí: số lượng} cho trường hợp nhiều vị trí;
+         bỏ trống thì dùng vị trí duy nhất đã ghép. Mỗi chứng từ–dòng–vị trí chỉ ghi một lần. */
+      applyMatch(entry, allocation){
+        if (!['matched','ambiguous'].includes(entry.status)) throw Error('Chỉ ghi được dòng đã ghép được vị trí.');
+        const split = allocation || (entry.location ? { [entry.location]:entry.quantity } : null);
+        if (!split) throw Error('Cần phân số lượng theo vị trí.');
+        const total = Object.values(split).reduce((sum, q) => sum + Number(q || 0), 0);
+        if (Math.abs(total - entry.quantity) > 1e-6)
+          throw Error('Tổng phân bổ ' + total + ' không bằng số nhập ' + entry.quantity + '.');
+        const allowed = new Set(entry.candidates.map(c => c.location));
+        const written = [];
+        for (const [location, quantity] of Object.entries(split)) {
+          if (!Number(quantity)) continue;
+          if (!allowed.has(locationKey(location))) throw Error('Vị trí ' + location + ' không phải ứng viên của phiếu nhập này.');
+          if (!openings.has(stockKey(entry.branch, entry.productCode, location))) api.openZero(entry.branch, entry.productCode, location);
+          written.push(api.record({ branch:entry.branch, code:entry.productCode, location, type:'receipt', quantity:Number(quantity),
+            ref:'KIOT:' + entry.documentId + ':' + entry.lineNo + '@' + locationKey(location),
+            document:entry.documentCode, at:new Date(parseSheetDate(entry.purchaseDate) + 12 * 3600e3).toISOString() }));
+        }
+        return written;
       },
       /* null = chưa có tồn xác nhận cho vị trí này; không suy ra từ số nhập đầu của Sheet. */
       onHand(branch, code, location){
@@ -8466,7 +8548,24 @@ function summary(branch,code){
   const unknown=!rows.length||rows.some(r=>onHand(r)===null);
   return {onHand:unknown?null:rows.reduce((s,r)=>s+onHand(r),0),held:rows.reduce((s,r)=>s+held(r.id),0),available:unknown?null:rows.reduce((s,r)=>s+api.available(r),0)};
 }
-const api={version:0,confirmStock(r,q){const s=stock(r);if(onHand(r)===null&&held(r.id)===0){s.override=q;s.moved=0;log('Xác nhận khả dụng',r.location+' · '+q);}},available(r,except){const s=stock(r),total=onHand(r);return freeze(r)?null:s.locked?0:total===null?null:Math.max(0,total-held(r.id,except));},has(o){return !!state.orders[D.key(o)];},reserve(o,allocations){
+const api={version:0,confirmStock(r,q){const s=stock(r);if(onHand(r)===null&&held(r.id)===0){s.override=q;s.moved=0;log('Xác nhận khả dụng',r.location+' · '+q);}},/* available() là số CẤP ĐƯỢC cho đơn mới nên không âm — không lấy được âm sản phẩm.
+   Nhưng số 0 ở đây có thể là "hết hàng" hoặc "đang giữ vượt tồn", hai việc khác nhau.
+   Vì vậy chênh lệch giữ-vượt-tồn không bị clamp che: xem api.conflicts(). */
+available(r,except){const s=stock(r),total=onHand(r);return freeze(r)?null:s.locked?0:total===null?null:Math.max(0,total-held(r.id,except));},
+availableRaw(r,except){const total=onHand(r);return total===null?null:total-held(r.id,except);},
+/* Vị trí đang giữ chỗ nhiều hơn tồn sổ. Xảy ra khi nạp kỳ kiểm kê mới có số thấp hơn
+   lượng đã giữ cho các đơn đang xử lý, hoặc khi điều chỉnh giảm tồn. Phải báo để kế toán
+   xử lý từng đơn; không tự hủy giữ chỗ của đơn đang nhặt. */
+conflicts(branch){
+  return D.get().locations.filter(r=>(!branch||r.branch===branch)).map(r=>{
+    const total=onHand(r),reserved=held(r.id);
+    return total===null?null:reserved>total+1e-6?{id:r.id,branch:r.branch,code:r.code,location:r.location,onHand:total,held:reserved,excess:Math.round((reserved-total)*1e6)/1e6,negative:total<0}:null;
+  }).filter(Boolean);
+},
+orders(locationId){
+  return Object.entries(state.orders).filter(([,o])=>o.jobs.some(j=>j.id===locationId&&j.reserved>0))
+    .map(([key,o])=>({key,orderCode:o.order.orderCode,reserved:o.jobs.filter(j=>j.id===locationId).reduce((s,j)=>s+j.reserved,0)}));
+},has(o){return !!state.orders[D.key(o)];},reserve(o,allocations){
   const key=D.key(o),old=state.orders[key];
   if(old?.jobs.some(j=>j.taken>0))throw Error('Đơn đã bắt đầu nhặt. Dùng Kho nhặt hàng để lấy bù, không chỉ định lại toàn đơn.');
   const jobs=[];o.lines.forEach((l,i)=>(allocations[i]||[]).forEach(p=>jobs.push({id:p.id,line:i,reserved:p.quantity,taken:0,closed:false})));
@@ -8484,7 +8583,7 @@ const o=current.order,key=D.key(o),rows=D.get().locations.filter(r=>r.branch===o
 $('inventoryTitle').textContent=o.orderCode+' · '+o.customerName;
 $('inventoryBody').innerHTML=`<h3>1. Nhập số thực nhặt tại vị trí đã chỉ định</h3><p>Nhập số lấy thêm lần này. Nếu vị trí không đủ: chọn “Kết thúc tại vị trí này” để giải phóng phần giữ chỗ chưa lấy. Nếu báo hết, vị trí bị khóa chờ kiểm đếm.</p><div style="overflow:auto"><table class="dp-table"><thead><tr><th>Mã / vị trí</th><th>Đã nhặt</th><th>Còn giữ chỗ</th><th>Thực nhặt thêm</th><th>Xử lý</th></tr></thead><tbody>${jobs.map((j,i)=>{const r=rows.find(r=>r.id===j.id);return `<tr><td>${e(o.lines[j.line].productCode)} · ${e(r.location)}</td><td>${j.taken}</td><td>${j.reserved}</td><td><input aria-label="Thực nhặt dòng ${i}" id="taken-${i}" type="number" min="0" max="${j.reserved}" value="${j.reserved}" ${!j.reserved?'disabled':''} style="width:80px"></td><td>${j.reserved?`<label><input type="checkbox" id="finish-${i}"> Kết thúc tại vị trí này</label><br><label><input type="checkbox" id="empty-${i}"> Kho báo đã hết hàng</label><br><button data-take="${i}">Xác nhận thực nhặt</button>`:'Đã kết thúc'}</td></tr>`;}).join('')}</tbody></table></div><h3 style="margin-top:24px">2. Lấy bù số còn thiếu</h3>${o.lines.map((l,i)=>{
 const taken=jobs.filter(j=>j.line===i).reduce((s,j)=>s+j.taken,0),reserved=jobs.filter(j=>j.line===i).reduce((s,j)=>s+j.reserved,0),missing=Math.max(0,l.quantity-taken-reserved);
-return `<p><strong>${e(l.productCode)}</strong>: Đơn ${l.quantity} · Đã nhặt ${taken} · Đang giữ ${reserved} · <strong>Cần chỉ định bù ${missing}</strong> ${missing?`<button data-fill="${i}">Gợi ý & giữ chỗ lấy bù</button>`:taken===l.quantity?'✓ Đã nhặt đủ':''}</p>`;}).join('')}<h3>3. Sổ tồn vị trí & xử lý chênh lệch</h3><div style="overflow:auto"><table class="dp-table"><thead><tr><th>Mã / vị trí</th><th>Tồn sổ</th><th>Giữ chỗ mọi đơn</th><th>Khả dụng</th><th>Kiểm đếm & điều chỉnh</th></tr></thead><tbody>${rows.map(r=>{const s=stock(r);return `<tr><td>${e(r.code)} · ${e(r.location)}</td><td>${onHand(r)??'Chưa có tồn xác nhận'}</td><td>${held(r.id)}</td><td>${s.locked?'🔒 Chờ kiểm đếm':api.available(r)??'Chưa rõ'}</td><td>${s.locked?`<label>Đếm còn <input id="count-${r.id}" type="number" min="0" placeholder="SL thực tế" style="width:90px"></label><input id="reason-${r.id}" placeholder="Lý do điều chỉnh" style="width:150px"><button data-count="${r.id}">Quản lý xác nhận</button>`:'Đang hoạt động'}</td></tr>`;}).join('')}</tbody></table></div><p id="inventoryError" style="color:var(--amber)" role="status"></p><h3 style="margin-top:24px">Lịch sử thao tác trong phiên thử</h3>${state.history.map(h=>`<p style="font-size:12px">${h.at} · <strong>${e(h.type)}</strong> · ${e(h.text)}</p>`).join('')}<p><small>Dữ liệu giữ trong bộ nhớ phiên thử. Tải lại trang sẽ đặt lại sổ tồn và giữ chỗ. Không ghi DB, không trừ tồn KiotViet.</small></p>`;
+return `<p><strong>${e(l.productCode)}</strong>: Đơn ${l.quantity} · Đã nhặt ${taken} · Đang giữ ${reserved} · <strong>Cần chỉ định bù ${missing}</strong> ${missing?`<button data-fill="${i}">Gợi ý & giữ chỗ lấy bù</button>`:taken===l.quantity?'✓ Đã nhặt đủ':''}</p>`;}).join('')}<h3>3. Sổ tồn vị trí & xử lý chênh lệch</h3><div style="overflow:auto"><table class="dp-table"><thead><tr><th>Mã / vị trí</th><th>Tồn sổ</th><th>Giữ chỗ mọi đơn</th><th>Khả dụng</th><th>Kiểm đếm & điều chỉnh</th></tr></thead><tbody>${rows.map(r=>{const s=stock(r);return `<tr><td>${e(r.code)} · ${e(r.location)}</td><td>${onHand(r)??'Chưa có tồn xác nhận'}</td><td>${held(r.id)}</td><td>${s.locked?'🔒 Chờ kiểm đếm':api.available(r)??'Chưa rõ'}${held(r.id)>(onHand(r)??Infinity)?`<br><strong style="color:var(--amber)">⚠ Giữ vượt tồn ${held(r.id)-onHand(r)}</strong>`:''}</td><td>${s.locked?`<label>Đếm còn <input id="count-${r.id}" type="number" min="0" placeholder="SL thực tế" style="width:90px"></label><input id="reason-${r.id}" placeholder="Lý do điều chỉnh" style="width:150px"><button data-count="${r.id}">Quản lý xác nhận</button>`:'Đang hoạt động'}</td></tr>`;}).join('')}</tbody></table></div><p id="inventoryError" style="color:var(--amber)" role="status"></p><h3 style="margin-top:24px">Lịch sử thao tác trong phiên thử</h3>${state.history.map(h=>`<p style="font-size:12px">${h.at} · <strong>${e(h.type)}</strong> · ${e(h.text)}</p>`).join('')}<p><small>Dữ liệu giữ trong bộ nhớ phiên thử. Tải lại trang sẽ đặt lại sổ tồn và giữ chỗ. Không ghi DB, không trừ tồn KiotViet.</small></p>`;
 if(auditOnly){const body=$('inventoryBody'),heading=[...body.querySelectorAll('h3')].find(h=>h.textContent.startsWith('3.'));if(heading){while(body.firstChild!==heading)body.firstChild.remove();heading.textContent='Sổ tồn vị trí & xử lý chênh lệch';}}
 }
 $('inventoryBody').onclick=event=>{
@@ -8801,7 +8900,35 @@ window.PickingKiotLink={urlFor,attach};attach();
   if (!S || !ledger || !$('pickingStocktakeDialog')) return;
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmt = v => Number(v || 0).toLocaleString('vi-VN', { maximumFractionDigits:3 });
-  let snapshot = null;
+  let snapshot = null, kiotReceipts = [];
+
+  // Phiếu nhập Kiot xuất ra CSV/TSV. purchase_details.product_id phải đổi sang mã hàng trước.
+  const KIOT_COLUMNS = [
+    { field:'documentCode', names:['ma phieu','ma phieu nhap','code','ma chung tu'] },
+    { field:'productCode',  names:['ma hang','ma san pham','ma hang hoa'] },
+    { field:'purchaseDate', names:['ngay','ngay nhap','ngay phieu','purchase date'] },
+    { field:'quantity',     names:['so luong','sl','quantity'] }
+  ];
+  const norm = v => String(v ?? '').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/đ/g,'d').trim().toLowerCase().replace(/\s+/g,' ');
+
+  function parseKiotFile(text){
+    const rows = S.parseTable(text);
+    if (!rows.length) throw Error('File phiếu nhập rỗng.');
+    const header = rows[0].map(norm), index = {};
+    for (const column of KIOT_COLUMNS)
+      for (const name of column.names) { const at = header.indexOf(name); if (at !== -1) { index[column.field] = at; break; } }
+    const missing = ['productCode','purchaseDate','quantity'].filter(f => index[f] === undefined);
+    if (missing.length) throw Error('File phiếu nhập thiếu cột: ' + missing.join(', ') + '.');
+    return rows.slice(1).map((cells, i) => ({
+      branch: $('pickingStocktakeBranch').value,
+      productCode: String(cells[index.productCode] ?? '').trim(),
+      purchaseDate: String(cells[index.purchaseDate] ?? '').trim(),
+      quantity: String(cells[index.quantity] ?? '').trim(),
+      documentCode: index.documentCode === undefined ? '' : String(cells[index.documentCode] ?? '').trim(),
+      documentId: (index.documentCode === undefined ? 'ROW' : String(cells[index.documentCode] ?? '').trim()) || 'ROW',
+      lineNo: i + 1
+    }));
+  }
 
   // datetime-local trả giờ địa phương không có offset; giờ kiểm kê là giờ Việt Nam (UTC+7).
   const toISO = value => value ? new Date(value + '+07:00').toISOString() : null;
@@ -8852,7 +8979,49 @@ window.PickingKiotLink={urlFor,attach};attach();
       <p>Tổng đã xác minh chỉ gồm vị trí có tồn kiểm kê, không phải tổng đầy đủ của kho. Biến động sau giờ chốt được cộng/trừ; biến động trước giờ chốt coi như đã nằm trong số đếm.</p>`
       : '<p>Chưa nạp khu nào. Khi chưa có tồn kiểm kê, sổ tồn dùng số khả dụng đã xác nhận của dữ liệu mô phỏng.</p>'}
       ${countingZones.length ? `<p style="color:var(--amber)">Khu đang kiểm kê (đóng băng, không ra đơn): ${countingZones.map(z => esc(z.branch + ' · ' + z.zone + ' từ ' + show(z.startedAt))).join(' · ')}. Nạp file kiểm kê của khu đó để chốt và mở lại khu.</p>` : ''}
-      ${renderReceipts(pending, branch)}`;
+      ${renderConflicts(branch)}
+      ${renderReceipts(pending, branch)}
+      ${renderKiotPlan(branch)}`;
+  }
+
+  /* Giữ chỗ vượt tồn sổ. available() trả 0 vì không cấp được âm, nhưng 0 đó không có nghĩa
+     là ổn — phải hiện chênh lệch và các đơn đang giữ để kế toán xử lý từng đơn. */
+  function renderConflicts(branch){
+    const conflicts = window.PickingInventory?.conflicts?.(branch) || [];
+    if (!conflicts.length) return '';
+    return `<h3 style="color:var(--amber)">⚠ Giữ chỗ vượt tồn sổ (${fmt(conflicts.length)} vị trí)</h3>
+      <p>Xảy ra khi kỳ kiểm kê mới có số thấp hơn lượng đã giữ cho các đơn đang xử lý, hoặc sau điều chỉnh giảm tồn. Không tự hủy giữ chỗ của đơn đang nhặt — kế toán xử lý từng đơn.</p>
+      <div style="overflow:auto"><table class="dp-table" data-table-controls="off" data-table-sort="off"><thead><tr><th>Mã / vị trí</th><th>Tồn sổ</th><th>Đang giữ</th><th>Vượt</th><th>Đơn đang giữ</th></tr></thead><tbody>
+      ${conflicts.map(c => `<tr><td>${esc(c.code)} · ${esc(c.location)}</td>
+        <td class="num">${fmt(c.onHand)}${c.negative ? ' <strong style="color:var(--amber)">(âm)</strong>' : ''}</td>
+        <td class="num">${fmt(c.held)}</td><td class="num"><strong>${fmt(c.excess)}</strong></td>
+        <td>${(window.PickingInventory.orders(c.id) || []).map(o => esc(o.orderCode) + ' (' + fmt(o.reserved) + ')').join(', ') || '—'}</td></tr>`).join('')}
+      </tbody></table></div>`;
+  }
+
+  /* Ghép phiếu nhập Kiot: Kiot cho số lượng + ngày, tab Vị trí hàng cho vị trí + NGÀY VỀ. */
+  const KIOT_LABEL = { matched:'Ghép được một vị trí', ambiguous:'Nhiều vị trí, cần phân', counted:'Đã nằm trong số đếm', 'no-location':'Chưa có vị trí', invalid:'Dữ liệu phiếu không hợp lệ' };
+  let kiotPlan = [];
+
+  function renderKiotPlan(branch){
+    if (!kiotReceipts.length) return `<h3>Ghép phiếu nhập Kiot</h3>
+      <p>Chọn file phiếu nhập xuất từ Kiot (CSV/TSV, các cột <code>Mã hàng</code>, <code>Ngày</code>, <code>Số lượng</code>, <code>Mã phiếu</code>) để cộng số nhập vào đúng vị trí.
+      Số lượng lấy từ phiếu nhập Kiot, vị trí lấy từ NGÀY VỀ của tab Vị trí hàng. Mỗi chứng từ chỉ ghi một lần.</p>
+      <p><label class="picking-import">Chọn file phiếu nhập Kiot <input id="pickingKiotFile" type="file" accept=".csv,.tsv,.txt,text/csv,text/plain"></label></p>`;
+    kiotPlan = ledger.matchReceipts(branch, sheetRows(), kiotReceipts);
+    const counts = kiotPlan.reduce((acc, row) => ({ ...acc, [row.status]:(acc[row.status] || 0) + 1 }), {});
+    return `<h3>Ghép phiếu nhập Kiot · cơ sở ${esc(branch)}</h3>
+      <p>${Object.entries(counts).map(([status, n]) => esc((KIOT_LABEL[status] || status) + ': ' + n)).join(' · ')}
+      <label class="picking-import">Chọn file khác <input id="pickingKiotFile" type="file" accept=".csv,.tsv,.txt,text/csv,text/plain"></label></p>
+      ${counts.matched ? `<p><button id="pickingKiotApplyAll" class="btn-primary">Ghi tất cả ${fmt(counts.matched)} dòng ghép được</button></p>` : ''}
+      <div style="overflow:auto;max-height:320px"><table class="dp-table" data-table-controls="off" data-table-sort="off"><thead><tr><th>Mã hàng</th><th>Ngày</th><th>SL nhập</th><th>Phiếu</th><th>Kết quả ghép</th><th>Ghi vào sổ</th></tr></thead><tbody>
+      ${kiotPlan.map((row, i) => `<tr><td>${esc(row.productCode || '—')}</td><td>${esc(row.purchaseDate || '—')}</td>
+        <td class="num">${row.quantity === null ? '—' : fmt(row.quantity)}</td><td>${esc(row.documentCode || row.documentId || '—')}</td>
+        <td>${esc(KIOT_LABEL[row.status] || row.status)}<br><small>${esc(row.reason)}</small></td>
+        <td>${row.status === 'matched' ? `<button data-kiot="${i}">Ghi ${fmt(row.quantity)} vào ${esc(row.location)}</button>`
+          : row.status === 'ambiguous' ? row.candidates.map(c => `<label><small>${esc(c.location)}</small> <input type="number" min="0" step="any" id="split-${i}-${esc(c.location)}" style="width:90px" aria-label="Phân ${esc(c.location)}"></label>`).join(' ')
+            + `<button data-kiot="${i}">Ghi theo phân bổ</button>` : '—'}</td></tr>`).join('')}
+      </tbody></table></div>`;
   }
 
   /* Hàng về sau giờ chốt: tab Vị trí hàng cho vị trí và NGÀY VỀ, TỔNG SL của tab đó không phải
@@ -8894,6 +9063,30 @@ window.PickingKiotLink={urlFor,attach};attach();
         ledger.record({ branch:row.branch, code:row.code, location:row.location, type:'receipt', quantity:Number(input) });
         $('pickingStocktakeError').textContent = 'Đã ghi nhập ' + fmt(Number(input)) + ' vào ' + row.location
           + ' · tồn sổ hiện tại ' + fmt(ledger.onHand(row.branch, row.code, row.location));
+      } else if (button.id === 'pickingKiotApplyAll') {
+        let applied = 0, duplicate = 0, failed = [];
+        for (const entry of kiotPlan.filter(row => row.status === 'matched')) {
+          try { const written = ledger.applyMatch(entry); written.forEach(m => m.duplicate ? duplicate++ : applied++); }
+          catch (err) { failed.push((entry.documentCode || entry.documentId) + ': ' + err.message); }
+        }
+        $('pickingStocktakeError').textContent = 'Đã ghi ' + fmt(applied) + ' dòng nhập'
+          + (duplicate ? ' · ' + fmt(duplicate) + ' dòng đã ghi trước đó, không cộng lại' : '')
+          + (failed.length ? ' · Lỗi: ' + failed.join(' | ') : '');
+      } else if (button.dataset.kiot !== undefined) {
+        const entry = kiotPlan[Number(button.dataset.kiot)];
+        let allocation;
+        if (entry.status === 'ambiguous') {
+          allocation = {};
+          for (const candidate of entry.candidates) {
+            const value = $('split-' + button.dataset.kiot + '-' + candidate.location)?.value;
+            if (value !== '' && value !== undefined) allocation[candidate.location] = Number(value);
+          }
+          if (!Object.keys(allocation).length) throw Error('Nhập số lượng phân bổ cho ít nhất một vị trí.');
+        }
+        const written = ledger.applyMatch(entry, allocation);
+        $('pickingStocktakeError').textContent = written.every(m => m.duplicate)
+          ? 'Chứng từ này đã được ghi trước đó, không cộng lại.'
+          : 'Đã ghi ' + written.map(m => fmt(m.quantity) + ' vào ' + m.location).join(', ') + '.';
       } else return;
       renderLedger();
       window.PickingPopup?.attach();
@@ -8936,6 +9129,23 @@ window.PickingKiotLink={urlFor,attach};attach();
       window.PickingPopup?.attach();
       if ($('pickingDialog')?.open) window.PickingPopup?.refresh?.();
     } catch (err) { $('pickingStocktakeError').textContent = err.message; }
+  };
+
+  $('pickingStocktakeLedger').onchange = async event => {
+    if (event.target.id !== 'pickingKiotFile') return;
+    $('pickingStocktakeError').textContent = '';
+    try {
+      const file = event.target.files[0];
+      if (!file) return;
+      if (file.size > 20e6) throw Error('File phiếu nhập tối đa 20 MB.');
+      kiotReceipts = parseKiotFile(await file.text());
+      if (!kiotReceipts.length) throw Error('Không đọc được dòng phiếu nhập nào.');
+      renderLedger();
+    } catch (err) {
+      kiotReceipts = [];
+      renderLedger();
+      $('pickingStocktakeError').textContent = err.message;
+    } finally { event.target.value = ''; }
   };
 
   document.addEventListener('keydown', event => {

@@ -86,3 +86,25 @@ api.reserve(second,{0:[{id:'B',quantity:40}]});
 api.confirmActual(order,[{value:'100',outcome:'end'}]);
 assert.deepEqual(JSON.parse(JSON.stringify(api.summary('HN','P1'))),{onHand:60,held:40,available:20});
 });
+
+test('giữ chỗ vượt tồn được báo xung đột, không bị clamp về 0 che mất',t=>{
+const {api,ledger,w,order,locations}=setup(t);
+const snap=q=>w.PickingStocktake.build([['Mã hàng','Tên khách hàng','Ghi chú','Số lượng'],['P1','Khu A','A01',String(q)]],{branch:'HN'});
+ledger.load(snap(500),{'Khu A':'2026-10-20T18:00:00+07:00'});
+api.reserve(order,{0:[{id:'A',quantity:100}]});
+assert.deepEqual(api.conflicts('HN'),[],'giữ 100 trên tồn 500 thì không có xung đột');
+// Kỳ kiểm kê mới hạ tồn xuống dưới mức đang giữ chỗ.
+ledger.load(snap(60),{'Khu A':'2026-10-21T18:00:00+07:00'});
+assert.equal(api.available(locations[0]),0,'cấp cho đơn mới vẫn là 0 vì không cấp được âm');
+assert.equal(api.availableRaw(locations[0]),-40,'nhưng số thật là âm 40');
+const conflicts=JSON.parse(JSON.stringify(api.conflicts('HN')));
+assert.equal(conflicts.length,1);
+assert.deepEqual([conflicts[0].location,conflicts[0].onHand,conflicts[0].held,conflicts[0].excess],['A01',60,100,40]);
+assert.deepEqual(JSON.parse(JSON.stringify(api.orders('A'))),[{key:'TEST',orderCode:'TEST',reserved:100}],'biết đơn nào đang giữ để xử lý từng đơn');
+// Tồn âm sau điều chỉnh cũng phải hiện, không che thành 0.
+ledger.record({branch:'HN',code:'P1',location:'A01',type:'adjust',quantity:'-200',at:'2026-10-22T08:00:00+07:00'});
+const negative=JSON.parse(JSON.stringify(api.conflicts('HN')));
+assert.equal(negative[0].onHand,-140);
+assert.equal(negative[0].negative,true);
+assert.equal(negative[0].excess,240);
+});

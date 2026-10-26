@@ -212,3 +212,89 @@ test('mã mới tại vị trí đã kiểm kê: tồn đầu 0 rồi ghi đư�
   assert.equal(ledger.zoneOfLocation('HN','A05'), 'Khu A');
   assert.throws(() => ledger.openZero('HN','HOP1000','KHONG-CO'), /chưa thuộc khu nào/);
 });
+
+/* --- Ghép phiếu nhập Kiot (số lượng) với vị trí của tab Vị trí hàng (NGÀY VỀ) --- */
+
+function loadedLedger(){
+  const ledger = S.createLedger();
+  ledger.load(S.build(FILE, { branch:'HN' }), { 'Khu A':'2026-10-20T16:00:00+07:00', 'Khu B':'2026-10-21T16:00:00+07:00' });
+  return ledger;
+}
+const SHEET = [
+  { branch:'HN', code:'COC123',  location:'A05', arrivalDate:'22/10/2026' },
+  { branch:'HN', code:'HOP1000', location:'A05', arrivalDate:'23/10/2026' },
+  { branch:'HN', code:'HOP1000', location:'B05', arrivalDate:'23/10/2026' }
+];
+
+test('một mã về một vị trí: ghép tự động và cộng đúng số của phiếu nhập', () => {
+  const ledger = loadedLedger();
+  const plan = ledger.matchReceipts('HN', SHEET, [
+    { branch:'HN', productCode:'COC123', purchaseDate:'22/10/2026', quantity:'50.000', documentId:901, documentCode:'PN0901' }
+  ]);
+  assert.equal(plan[0].status, 'matched');
+  assert.equal(plan[0].location, 'A05');
+  assert.equal(plan[0].quantity, 50000);
+  ledger.applyMatch(plan[0]);
+  assert.equal(ledger.onHand('HN','COC123','A05'), 65000, 'tồn đầu 15.000 + nhập 50.000');
+});
+
+test('cùng mã về cùng ngày ở nhiều vị trí: máy không tự chia, phải phân tay', () => {
+  const ledger = loadedLedger();
+  const plan = ledger.matchReceipts('HN', SHEET, [
+    { branch:'HN', productCode:'HOP1000', purchaseDate:'23/10/2026', quantity:1000, documentId:902, documentCode:'PN0902' }
+  ]);
+  assert.equal(plan[0].status, 'ambiguous');
+  assert.deepEqual(plan[0].candidates.map(c => c.location), ['A05','B05']);
+  assert.throws(() => ledger.applyMatch(plan[0]), /Cần phân số lượng/);
+  assert.throws(() => ledger.applyMatch(plan[0], { A05:600, B05:300 }), /không bằng số nhập 1000/);
+  assert.throws(() => ledger.applyMatch(plan[0], { A05:600, 'KHONG-CO':400 }), /không phải ứng viên/);
+  ledger.applyMatch(plan[0], { A05:600, B05:400 });
+  assert.equal(ledger.onHand('HN','HOP1000','A05'), 600, 'mã mới ở vị trí đã kiểm kê: tồn đầu 0 + 600');
+  assert.equal(ledger.onHand('HN','HOP1000','B05'), 400);
+});
+
+test('phiếu nhập không ghép được vị trí hoặc đã nằm trong số đếm', () => {
+  const ledger = loadedLedger();
+  const plan = ledger.matchReceipts('HN', SHEET, [
+    { branch:'HN', productCode:'KEP78',  purchaseDate:'22/10/2026', quantity:10, documentId:903 },  // sheet không có dòng nào
+    { branch:'HN', productCode:'COC123', purchaseDate:'19/10/2026', quantity:10, documentId:904 },  // trước giờ chốt, sheet không có
+    { branch:'HN', productCode:'COC123', purchaseDate:'',           quantity:10, documentId:905 },
+    { branch:'HN', productCode:'',       purchaseDate:'22/10/2026', quantity:10, documentId:906 }
+  ]);
+  assert.deepEqual(plan.map(p => p.status), ['no-location','no-location','invalid','invalid']);
+  assert.throws(() => ledger.applyMatch(plan[0]), /Chỉ ghi được dòng đã ghép được vị trí/);
+});
+
+test('lô về trước giờ chốt khu được nhận là đã nằm trong số đếm, không cộng lại', () => {
+  const ledger = loadedLedger();
+  const sheet = [{ branch:'HN', code:'COC123', location:'A05', arrivalDate:'18/10/2026' }];
+  const plan = ledger.matchReceipts('HN', sheet, [
+    { branch:'HN', productCode:'COC123', purchaseDate:'18/10/2026', quantity:7000, documentId:907 }
+  ]);
+  assert.equal(plan[0].status, 'counted');
+  assert.equal(ledger.onHand('HN','COC123','A05'), 15000);
+});
+
+test('một chứng từ chỉ ghi một lần, dù bấm lại hay đồng bộ lại', () => {
+  const ledger = loadedLedger();
+  const receipt = { branch:'HN', productCode:'COC123', purchaseDate:'22/10/2026', quantity:50000, documentId:901, documentCode:'PN0901' };
+  const plan = ledger.matchReceipts('HN', SHEET, [receipt]);
+  ledger.applyMatch(plan[0]);
+  assert.equal(ledger.onHand('HN','COC123','A05'), 65000);
+  const again = ledger.applyMatch(plan[0]);
+  assert.equal(again[0].duplicate, true);
+  assert.equal(ledger.onHand('HN','COC123','A05'), 65000, 'ghi lại cùng chứng từ không cộng thêm');
+  assert.equal(ledger.movements({ branch:'HN' }).filter(m => m.type === 'receipt').length, 1);
+  // Chứng từ bị sửa số: phải xử lý bằng điều chỉnh, không ghi đè lịch sử.
+  const edited = ledger.matchReceipts('HN', SHEET, [{ ...receipt, quantity:60000 }]);
+  assert.throws(() => ledger.applyMatch(edited[0]), /Chứng từ đã bị sửa/);
+  assert.equal(ledger.onHand('HN','COC123','A05'), 65000);
+});
+
+test('ghép Kiot không chạm cơ sở khác', () => {
+  const ledger = loadedLedger();
+  const plan = ledger.matchReceipts('HN', SHEET, [
+    { branch:'SG', productCode:'COC123', purchaseDate:'22/10/2026', quantity:50000, documentId:908 }
+  ]);
+  assert.deepEqual(plan, [], 'phiếu nhập của SG không được ghép vào HN');
+});

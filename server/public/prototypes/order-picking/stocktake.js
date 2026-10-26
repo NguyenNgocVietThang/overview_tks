@@ -223,6 +223,19 @@
         const opening = api.opening(movement.branch, movement.code, movement.location);
         if (!opening) throw Error('Chưa có tồn kiểm kê cho ' + movement.code + ' tại ' + movement.location + '.');
         if (!['receipt','pick','adjust'].includes(movement.type)) throw Error('Loại biến động phải là receipt, pick hoặc adjust.');
+        /* Một chứng từ gốc chỉ ghi một lần: đồng bộ lại hoặc bấm lại không cộng thêm.
+           Cùng ref mà khác số thì là chứng từ đã bị sửa — phải xử lý bằng điều chỉnh có lý do,
+           không ghi đè lịch sử. */
+        if (movement.ref) {
+          const existing = movements.find(m => m.ref === movement.ref);
+          if (existing) {
+            const repeat = parseQuantity(String(movement.quantity ?? '').trim().replace(/^-/,''));
+            if (Math.abs(Math.abs(existing.quantity) - (repeat ?? NaN)) > 1e-6)
+              throw Error('Chứng từ ' + movement.ref + ' đã ghi ' + existing.quantity + ', nay nhận ' + movement.quantity
+                + '. Chứng từ đã bị sửa: ghi điều chỉnh chênh lệch có lý do, không ghi đè.');
+            return { ...existing, duplicate:true };
+          }
+        }
         // Chỉ điều chỉnh được mang dấu âm; nhập và thực nhặt luôn là số không âm.
         const text = String(movement.quantity ?? '').trim();
         const negative = movement.type === 'adjust' && text.startsWith('-');
@@ -240,6 +253,75 @@
       },
       movements(filter = {}){
         return movements.filter(m => (!filter.key || m.key === filter.key) && (!filter.branch || m.branch === filter.branch));
+      },
+
+      /* Ghép phiếu nhập Kiot với vị trí của tab Vị trí hàng.
+         Kiot cho số lượng + ngày nhưng không cho vị trí; tab Vị trí hàng cho vị trí + NGÀY VỀ
+         nhưng TỔNG SL không phải tồn còn. Ghép theo mã hàng + ngày lấy được cả hai.
+         receipts: [{branch, productCode, purchaseDate, quantity, documentId, documentCode, lineNo}]
+         — purchase_details.product_id phải được đổi sang mã hàng qua bảng products trước khi gọi. */
+      matchReceipts(branch, sheetRows, receipts){
+        const plan = [];
+        for (const receipt of receipts || []) {
+          if (receipt.branch && receipt.branch !== branch) continue;
+          const quantity = parseQuantity(receipt.quantity);
+          const day = parseSheetDate(receipt.purchaseDate);
+          const base = { branch, productCode:receipt.productCode, purchaseDate:receipt.purchaseDate,
+            quantity, documentId:receipt.documentId, documentCode:receipt.documentCode, lineNo:receipt.lineNo ?? 0 };
+          if (quantity === null || !receipt.productCode) { plan.push({ ...base, status:'invalid',
+            reason:'Phiếu nhập thiếu mã hàng hoặc số lượng không đọc được.' }); continue; }
+          if (day === null) { plan.push({ ...base, status:'invalid',
+            reason:'Ngày phiếu nhập không đọc được: ' + (receipt.purchaseDate ?? '(trống)') }); continue; }
+          const receiptDay = vnDate(day);
+
+          // Vị trí ứng viên: cùng mã, cùng NGÀY VỀ, thuộc khu đã chốt kỳ kiểm kê.
+          const candidates = [];
+          let countedAlready = false;
+          for (const row of sheetRows || []) {
+            if ((row.branch && row.branch !== branch) || codeKey(row.code) !== codeKey(receipt.productCode)) continue;
+            const arrival = parseSheetDate(row.arrivalDate);
+            if (arrival === null || vnDate(arrival) !== receiptDay) continue;
+            const zone = api.zoneOfLocation(branch, row.location);
+            const cutoff = zone && api.cutoff(branch, zone);
+            if (!cutoff) continue;
+            if (receiptDay <= vnDate(time(cutoff))) { countedAlready = true; continue; }
+            candidates.push({ location:locationKey(row.location), zone, cutoffAt:cutoff });
+          }
+          const unique = [...new Map(candidates.map(c => [c.location, c])).values()];
+
+          if (unique.length === 1) plan.push({ ...base, status:'matched', location:unique[0].location, zone:unique[0].zone,
+            candidates:unique, reason:'Một vị trí duy nhất cùng mã và cùng NGÀY VỀ. Cộng được tự động.' });
+          else if (unique.length > 1) plan.push({ ...base, status:'ambiguous', candidates:unique,
+            reason:'Cùng mã về cùng ngày ở ' + unique.length + ' vị trí: ' + unique.map(c => c.location).join(', ')
+              + '. Máy không chia được, cần người phân số lượng.' });
+          else if (countedAlready) plan.push({ ...base, status:'counted', candidates:[],
+            reason:'Về trước hoặc đúng ngày chốt kiểm kê, đã nằm trong số đếm.' });
+          else plan.push({ ...base, status:'no-location', candidates:[],
+            reason:'Kiot có phiếu nhập nhưng tab Vị trí hàng chưa có dòng cùng mã và cùng NGÀY VỀ ở khu đã kiểm kê.' });
+        }
+        return plan;
+      },
+
+      /* Ghi một dòng kế hoạch vào sổ. allocation = {vị trí: số lượng} cho trường hợp nhiều vị trí;
+         bỏ trống thì dùng vị trí duy nhất đã ghép. Mỗi chứng từ–dòng–vị trí chỉ ghi một lần. */
+      applyMatch(entry, allocation){
+        if (!['matched','ambiguous'].includes(entry.status)) throw Error('Chỉ ghi được dòng đã ghép được vị trí.');
+        const split = allocation || (entry.location ? { [entry.location]:entry.quantity } : null);
+        if (!split) throw Error('Cần phân số lượng theo vị trí.');
+        const total = Object.values(split).reduce((sum, q) => sum + Number(q || 0), 0);
+        if (Math.abs(total - entry.quantity) > 1e-6)
+          throw Error('Tổng phân bổ ' + total + ' không bằng số nhập ' + entry.quantity + '.');
+        const allowed = new Set(entry.candidates.map(c => c.location));
+        const written = [];
+        for (const [location, quantity] of Object.entries(split)) {
+          if (!Number(quantity)) continue;
+          if (!allowed.has(locationKey(location))) throw Error('Vị trí ' + location + ' không phải ứng viên của phiếu nhập này.');
+          if (!openings.has(stockKey(entry.branch, entry.productCode, location))) api.openZero(entry.branch, entry.productCode, location);
+          written.push(api.record({ branch:entry.branch, code:entry.productCode, location, type:'receipt', quantity:Number(quantity),
+            ref:'KIOT:' + entry.documentId + ':' + entry.lineNo + '@' + locationKey(location),
+            document:entry.documentCode, at:new Date(parseSheetDate(entry.purchaseDate) + 12 * 3600e3).toISOString() }));
+        }
+        return written;
       },
       /* null = chưa có tồn xác nhận cho vị trí này; không suy ra từ số nhập đầu của Sheet. */
       onHand(branch, code, location){

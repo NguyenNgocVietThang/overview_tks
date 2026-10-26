@@ -6,7 +6,35 @@
   if (!S || !ledger || !$('pickingStocktakeDialog')) return;
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmt = v => Number(v || 0).toLocaleString('vi-VN', { maximumFractionDigits:3 });
-  let snapshot = null;
+  let snapshot = null, kiotReceipts = [];
+
+  // Phiếu nhập Kiot xuất ra CSV/TSV. purchase_details.product_id phải đổi sang mã hàng trước.
+  const KIOT_COLUMNS = [
+    { field:'documentCode', names:['ma phieu','ma phieu nhap','code','ma chung tu'] },
+    { field:'productCode',  names:['ma hang','ma san pham','ma hang hoa'] },
+    { field:'purchaseDate', names:['ngay','ngay nhap','ngay phieu','purchase date'] },
+    { field:'quantity',     names:['so luong','sl','quantity'] }
+  ];
+  const norm = v => String(v ?? '').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/đ/g,'d').trim().toLowerCase().replace(/\s+/g,' ');
+
+  function parseKiotFile(text){
+    const rows = S.parseTable(text);
+    if (!rows.length) throw Error('File phiếu nhập rỗng.');
+    const header = rows[0].map(norm), index = {};
+    for (const column of KIOT_COLUMNS)
+      for (const name of column.names) { const at = header.indexOf(name); if (at !== -1) { index[column.field] = at; break; } }
+    const missing = ['productCode','purchaseDate','quantity'].filter(f => index[f] === undefined);
+    if (missing.length) throw Error('File phiếu nhập thiếu cột: ' + missing.join(', ') + '.');
+    return rows.slice(1).map((cells, i) => ({
+      branch: $('pickingStocktakeBranch').value,
+      productCode: String(cells[index.productCode] ?? '').trim(),
+      purchaseDate: String(cells[index.purchaseDate] ?? '').trim(),
+      quantity: String(cells[index.quantity] ?? '').trim(),
+      documentCode: index.documentCode === undefined ? '' : String(cells[index.documentCode] ?? '').trim(),
+      documentId: (index.documentCode === undefined ? 'ROW' : String(cells[index.documentCode] ?? '').trim()) || 'ROW',
+      lineNo: i + 1
+    }));
+  }
 
   // datetime-local trả giờ địa phương không có offset; giờ kiểm kê là giờ Việt Nam (UTC+7).
   const toISO = value => value ? new Date(value + '+07:00').toISOString() : null;
@@ -57,7 +85,49 @@
       <p>Tổng đã xác minh chỉ gồm vị trí có tồn kiểm kê, không phải tổng đầy đủ của kho. Biến động sau giờ chốt được cộng/trừ; biến động trước giờ chốt coi như đã nằm trong số đếm.</p>`
       : '<p>Chưa nạp khu nào. Khi chưa có tồn kiểm kê, sổ tồn dùng số khả dụng đã xác nhận của dữ liệu mô phỏng.</p>'}
       ${countingZones.length ? `<p style="color:var(--amber)">Khu đang kiểm kê (đóng băng, không ra đơn): ${countingZones.map(z => esc(z.branch + ' · ' + z.zone + ' từ ' + show(z.startedAt))).join(' · ')}. Nạp file kiểm kê của khu đó để chốt và mở lại khu.</p>` : ''}
-      ${renderReceipts(pending, branch)}`;
+      ${renderConflicts(branch)}
+      ${renderReceipts(pending, branch)}
+      ${renderKiotPlan(branch)}`;
+  }
+
+  /* Giữ chỗ vượt tồn sổ. available() trả 0 vì không cấp được âm, nhưng 0 đó không có nghĩa
+     là ổn — phải hiện chênh lệch và các đơn đang giữ để kế toán xử lý từng đơn. */
+  function renderConflicts(branch){
+    const conflicts = window.PickingInventory?.conflicts?.(branch) || [];
+    if (!conflicts.length) return '';
+    return `<h3 style="color:var(--amber)">⚠ Giữ chỗ vượt tồn sổ (${fmt(conflicts.length)} vị trí)</h3>
+      <p>Xảy ra khi kỳ kiểm kê mới có số thấp hơn lượng đã giữ cho các đơn đang xử lý, hoặc sau điều chỉnh giảm tồn. Không tự hủy giữ chỗ của đơn đang nhặt — kế toán xử lý từng đơn.</p>
+      <div style="overflow:auto"><table class="dp-table" data-table-controls="off" data-table-sort="off"><thead><tr><th>Mã / vị trí</th><th>Tồn sổ</th><th>Đang giữ</th><th>Vượt</th><th>Đơn đang giữ</th></tr></thead><tbody>
+      ${conflicts.map(c => `<tr><td>${esc(c.code)} · ${esc(c.location)}</td>
+        <td class="num">${fmt(c.onHand)}${c.negative ? ' <strong style="color:var(--amber)">(âm)</strong>' : ''}</td>
+        <td class="num">${fmt(c.held)}</td><td class="num"><strong>${fmt(c.excess)}</strong></td>
+        <td>${(window.PickingInventory.orders(c.id) || []).map(o => esc(o.orderCode) + ' (' + fmt(o.reserved) + ')').join(', ') || '—'}</td></tr>`).join('')}
+      </tbody></table></div>`;
+  }
+
+  /* Ghép phiếu nhập Kiot: Kiot cho số lượng + ngày, tab Vị trí hàng cho vị trí + NGÀY VỀ. */
+  const KIOT_LABEL = { matched:'Ghép được một vị trí', ambiguous:'Nhiều vị trí, cần phân', counted:'Đã nằm trong số đếm', 'no-location':'Chưa có vị trí', invalid:'Dữ liệu phiếu không hợp lệ' };
+  let kiotPlan = [];
+
+  function renderKiotPlan(branch){
+    if (!kiotReceipts.length) return `<h3>Ghép phiếu nhập Kiot</h3>
+      <p>Chọn file phiếu nhập xuất từ Kiot (CSV/TSV, các cột <code>Mã hàng</code>, <code>Ngày</code>, <code>Số lượng</code>, <code>Mã phiếu</code>) để cộng số nhập vào đúng vị trí.
+      Số lượng lấy từ phiếu nhập Kiot, vị trí lấy từ NGÀY VỀ của tab Vị trí hàng. Mỗi chứng từ chỉ ghi một lần.</p>
+      <p><label class="picking-import">Chọn file phiếu nhập Kiot <input id="pickingKiotFile" type="file" accept=".csv,.tsv,.txt,text/csv,text/plain"></label></p>`;
+    kiotPlan = ledger.matchReceipts(branch, sheetRows(), kiotReceipts);
+    const counts = kiotPlan.reduce((acc, row) => ({ ...acc, [row.status]:(acc[row.status] || 0) + 1 }), {});
+    return `<h3>Ghép phiếu nhập Kiot · cơ sở ${esc(branch)}</h3>
+      <p>${Object.entries(counts).map(([status, n]) => esc((KIOT_LABEL[status] || status) + ': ' + n)).join(' · ')}
+      <label class="picking-import">Chọn file khác <input id="pickingKiotFile" type="file" accept=".csv,.tsv,.txt,text/csv,text/plain"></label></p>
+      ${counts.matched ? `<p><button id="pickingKiotApplyAll" class="btn-primary">Ghi tất cả ${fmt(counts.matched)} dòng ghép được</button></p>` : ''}
+      <div style="overflow:auto;max-height:320px"><table class="dp-table" data-table-controls="off" data-table-sort="off"><thead><tr><th>Mã hàng</th><th>Ngày</th><th>SL nhập</th><th>Phiếu</th><th>Kết quả ghép</th><th>Ghi vào sổ</th></tr></thead><tbody>
+      ${kiotPlan.map((row, i) => `<tr><td>${esc(row.productCode || '—')}</td><td>${esc(row.purchaseDate || '—')}</td>
+        <td class="num">${row.quantity === null ? '—' : fmt(row.quantity)}</td><td>${esc(row.documentCode || row.documentId || '—')}</td>
+        <td>${esc(KIOT_LABEL[row.status] || row.status)}<br><small>${esc(row.reason)}</small></td>
+        <td>${row.status === 'matched' ? `<button data-kiot="${i}">Ghi ${fmt(row.quantity)} vào ${esc(row.location)}</button>`
+          : row.status === 'ambiguous' ? row.candidates.map(c => `<label><small>${esc(c.location)}</small> <input type="number" min="0" step="any" id="split-${i}-${esc(c.location)}" style="width:90px" aria-label="Phân ${esc(c.location)}"></label>`).join(' ')
+            + `<button data-kiot="${i}">Ghi theo phân bổ</button>` : '—'}</td></tr>`).join('')}
+      </tbody></table></div>`;
   }
 
   /* Hàng về sau giờ chốt: tab Vị trí hàng cho vị trí và NGÀY VỀ, TỔNG SL của tab đó không phải
@@ -99,6 +169,30 @@
         ledger.record({ branch:row.branch, code:row.code, location:row.location, type:'receipt', quantity:Number(input) });
         $('pickingStocktakeError').textContent = 'Đã ghi nhập ' + fmt(Number(input)) + ' vào ' + row.location
           + ' · tồn sổ hiện tại ' + fmt(ledger.onHand(row.branch, row.code, row.location));
+      } else if (button.id === 'pickingKiotApplyAll') {
+        let applied = 0, duplicate = 0, failed = [];
+        for (const entry of kiotPlan.filter(row => row.status === 'matched')) {
+          try { const written = ledger.applyMatch(entry); written.forEach(m => m.duplicate ? duplicate++ : applied++); }
+          catch (err) { failed.push((entry.documentCode || entry.documentId) + ': ' + err.message); }
+        }
+        $('pickingStocktakeError').textContent = 'Đã ghi ' + fmt(applied) + ' dòng nhập'
+          + (duplicate ? ' · ' + fmt(duplicate) + ' dòng đã ghi trước đó, không cộng lại' : '')
+          + (failed.length ? ' · Lỗi: ' + failed.join(' | ') : '');
+      } else if (button.dataset.kiot !== undefined) {
+        const entry = kiotPlan[Number(button.dataset.kiot)];
+        let allocation;
+        if (entry.status === 'ambiguous') {
+          allocation = {};
+          for (const candidate of entry.candidates) {
+            const value = $('split-' + button.dataset.kiot + '-' + candidate.location)?.value;
+            if (value !== '' && value !== undefined) allocation[candidate.location] = Number(value);
+          }
+          if (!Object.keys(allocation).length) throw Error('Nhập số lượng phân bổ cho ít nhất một vị trí.');
+        }
+        const written = ledger.applyMatch(entry, allocation);
+        $('pickingStocktakeError').textContent = written.every(m => m.duplicate)
+          ? 'Chứng từ này đã được ghi trước đó, không cộng lại.'
+          : 'Đã ghi ' + written.map(m => fmt(m.quantity) + ' vào ' + m.location).join(', ') + '.';
       } else return;
       renderLedger();
       window.PickingPopup?.attach();
@@ -141,6 +235,23 @@
       window.PickingPopup?.attach();
       if ($('pickingDialog')?.open) window.PickingPopup?.refresh?.();
     } catch (err) { $('pickingStocktakeError').textContent = err.message; }
+  };
+
+  $('pickingStocktakeLedger').onchange = async event => {
+    if (event.target.id !== 'pickingKiotFile') return;
+    $('pickingStocktakeError').textContent = '';
+    try {
+      const file = event.target.files[0];
+      if (!file) return;
+      if (file.size > 20e6) throw Error('File phiếu nhập tối đa 20 MB.');
+      kiotReceipts = parseKiotFile(await file.text());
+      if (!kiotReceipts.length) throw Error('Không đọc được dòng phiếu nhập nào.');
+      renderLedger();
+    } catch (err) {
+      kiotReceipts = [];
+      renderLedger();
+      $('pickingStocktakeError').textContent = err.message;
+    } finally { event.target.value = ''; }
   };
 
   document.addEventListener('keydown', event => {
