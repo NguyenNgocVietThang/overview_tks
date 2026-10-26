@@ -42,7 +42,8 @@ function show(order,record){
   const now=new Date();
   const notes=[order.note].filter(Boolean).join(' · ');
   root.innerHTML=replace(root.innerHTML,{
-    Nhan_Vien_Ban_Hang:order.saleName,Dien_Thoai_Nguoi_Ban:order.sellerPhone,
+    // Bản in ghi cả ID Telegram cạnh tên sale, đúng dạng KiotViet lưu: "<tên> - <ID>".
+    Nhan_Vien_Ban_Hang:order.saleName+(order.saleTelegramId?' - '+order.saleTelegramId:''),Dien_Thoai_Nguoi_Ban:order.sellerPhone,
     Ten_Chi_Nhanh:order.branch==='SG'?' TP.HCM':'',
     Dia_Chi_Chi_Nhanh:order.branchAddress||(order.branch==='SG'?'Lô 13 KCN Tân Bình, Tân Phú, HCM':'Cụm CN Cầu Nổi, Hoài Đức, HN'),
     Ma_Don_Hang:order.orderCode,Khach_Hang:order.customerName,So_Dien_Thoai:order.customerPhone,Dia_Chi_Khach_Hang:order.customerAddress,
