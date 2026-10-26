@@ -352,6 +352,15 @@
   .lc-detail-label{ padding-top:1px; color:var(--muted); font-size:12px; font-weight:600; }
   .lc-detail-value{ min-width:0; color:var(--text); font-weight:500; overflow-wrap:anywhere; }
   .lc-detail-value.is-note{ white-space:pre-wrap; }
+  /* ID Telegram cua sale: KiotViet luu "<ten> - <ID>", o day hien ID thanh the nho canh ten. */
+  .lc-sale-telegram{
+    display:inline-block; margin-left:6px; padding:1px 7px; border:1px solid var(--border);
+    border-radius:999px; background:var(--panel-2); color:var(--muted);
+    font-size:11px; font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap;
+  }
+  /* Mo dung don tren giao dien Kiot de ke toan tu bam Ket thuc; web khong gui lenh nao sang Kiot. */
+  .lc-kiot-link{ margin-left:8px; color:var(--blue); font-size:12px; font-weight:600; white-space:nowrap; }
+  .lc-kiot-link:hover{ text-decoration:underline; }
   /* Tien trinh xu ly: duong doc noi cac moc, moc da xong co dau tich xanh */
   .lc-steps{ list-style:none; margin:0; padding:0; }
   .lc-step{ position:relative; display:grid; grid-template-columns:22px minmax(0, 1fr); gap:11px; padding-bottom:14px; }
@@ -839,6 +848,9 @@
     let detailRequestId = 0; // bo qua phan hoi chi tiet Kiot den muon sau khi hop da dong / doi sang don khac
     let detailOrder = null;  // don dang xem (dong bang hoac ket qua tra cuu)
     let detailKiot = null;   // ket qua order-detail cua Kiot (null = chua nap / khong co)
+    // { HN, SG } ten mien gian hang Kiot, do GET /api/shipment/lifecycle tra ve (server/shipment/kiotOrderLink.js).
+    // Tra cuu cho Khach khong nhan truong nay nen khong bao gio hien nut "Mo don tren Kiot".
+    let kiotOrderHosts = {};
 
     const STEP_CHECK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>';
 
@@ -920,12 +932,34 @@
       if(box && detailOrder) box.innerHTML = detailStatsHtml(detailStatTiles(detailOrder, detailKiot));
     }
 
+    // Dia chi mo dung don tren giao dien Kiot (loc theo ma don). Ke toan tu kiem tra roi tu bam
+    // Ket thuc tren Kiot — web KHONG gui lenh hoan thanh va khong doc lai trang thai Kiot.
+    // Ma don / ID Telegram KHONG di qua detailText: detailText la bo dinh dang NGAY GIO, dung cho
+    // dinh danh la sai ngu nghia (va de vo neu quy tac dinh dang ngay doi).
+    function plainText(value){ return String(value === undefined || value === null ? '' : value).trim(); }
+
+    function kiotOrderUrl(order){
+      const host = order && kiotOrderHosts[order.branch];
+      const code = plainText(order ? order.orderCode : '');
+      return host && code ? 'https://' + host + '/man/#/Orders?code=' + encodeURIComponent(code) : null;
+    }
+
     function detailInfoHtml(detail){
       return DETAIL_INFO_FIELDS.filter(function(field){
         return !field.kiotOnly || (detail && Object.prototype.hasOwnProperty.call(detail, field.key));
       }).map(function(field){
         const text = detailText(detail ? detail[field.key] : '');
-        const value = field.badge && text ? kiotStatusHtml(text) : escapeHtml(text || '—');
+        let value = field.badge && text ? kiotStatusHtml(text) : escapeHtml(text || '—');
+        // Sale: hien them ID Telegram ben canh ten, giong cach KiotViet luu "<ten> - <ID>".
+        if(field.key === 'saleName'){
+          const telegramId = plainText(detail ? detail.saleTelegramId : '');
+          if(text && telegramId) value += ' <span class="lc-sale-telegram" title="ID Telegram của nhân viên bán hàng trên KiotViet">' + escapeHtml(telegramId) + '</span>';
+        }
+        if(field.key === 'kiotStatus'){
+          const url = kiotOrderUrl(detail);
+          if(url) value += ' <a class="lc-kiot-link" href="' + escapeHtml(url) + '" target="_blank" rel="noopener noreferrer"' +
+            ' title="Mở KiotViet và lọc theo mã đơn này để tự bấm Kết thúc">Mở đơn trên Kiot ↗</a>';
+        }
         return '<div class="lc-detail-row"><span class="lc-detail-label">' + escapeHtml(field.label) + '</span>' +
           '<span class="lc-detail-value' + (field.multiline ? ' is-note' : '') + '">' + value + '</span></div>';
       }).join('');
@@ -2004,6 +2038,8 @@
     });
 
     function applyBulkResponse(body){
+      // Ten mien Kiot theo co so (server doc tu bien moi truong). Thieu -> khong hien nut mo don.
+      if(body.kiotOrderHosts) kiotOrderHosts = body.kiotOrderHosts;
       bulkPage = body.page || 1;
       bulkTotalPages = body.totalPages || 1;
       renderKpis(body.kpis);
