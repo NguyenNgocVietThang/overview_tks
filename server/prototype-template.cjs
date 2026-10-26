@@ -24,9 +24,11 @@ function prepare(){
   for(const tr of goods.rows)tr.cells[0].remove();
   goods.querySelectorAll('td').forEach(el=>el.style.removeProperty('width'));
   const cols=d.createElement('colgroup');
-  [4,32,8,10,13,10,10,13].forEach(width=>{const col=d.createElement('col');col.style.width=width+'%';cols.append(col);});goods.prepend(cols);
+  [4,27,7,6,10,12,10,11,13].forEach(width=>{const col=d.createElement('col');col.style.width=width+'%';cols.append(col);});goods.prepend(cols);
   row.cells[5].className='invoice-location';
   row.cells[7].className='invoice-actual';row.cells[7].textContent='{Thuc_Te_Nhat}';
+  // Cột ST ngay bên phải cột SL: số thùng của dòng, lấy từ record chỉ định (trống khi chưa chỉ định đủ SL).
+  for(const tr of goods.rows){const st=tr.cells[2].cloneNode(true);st.removeAttribute('class');st.className='invoice-st';st.textContent=tr===row?'{ST}':'ST';tr.cells[2].after(st);}
   boxes[1].classList.add('invoice-footer');
   const summary=boxes[1].querySelector('table');summary.classList.add('invoice-summary');
   summary.querySelectorAll('td').forEach(el=>el.style.removeProperty('width'));

@@ -49,6 +49,20 @@
     return Number.isFinite(number) && number >= 0 ? number : null;
   }
 
+  /* Gộp ghi chú của hai dòng cùng mã + vị trí: cùng SL/thùng thì cộng thùng, khác SL/thùng thì thành nhiều số hạng. */
+  function mergeSpec(a, b){
+    if (!String(a ?? '').trim()) return b;
+    if (!String(b ?? '').trim()) return a;
+    const C = root.PickingCarton, left = C?.parseSpec(a), right = C?.parseSpec(b);
+    if (!left || !right) return a && b && a !== b ? a + ' + ' + b : (a || b);
+    const terms = left.terms.map(t => ({ ...t }));
+    for (const term of right.terms) {
+      const same = terms.find(t => t.perCarton === term.perCarton);
+      if (same) same.cartons += term.cartons; else terms.push({ ...term });
+    }
+    return C.formatSpec({ terms, loose:left.loose + right.loose });
+  }
+
   function parseTable(text){
     const body = String(text ?? '').replace(/^﻿/,'');
     if (!body.trim()) return [];
@@ -81,7 +95,8 @@
     const rows = Array.isArray(text) ? text : parseTable(text);
     if (!rows.length) return { branch, lines:[], zones:[], errors:['File kiểm kê rỗng.'], skipped:[] };
     const columns = detectColumns(rows[0]);
-    const missing = ['code','location','quantity'].filter(field => columns[field] === undefined);
+    // SL lấy từ ghi chú quy cách nên cột Số lượng chỉ bắt buộc khi file không có cột Ghi chú hàng hóa.
+    const missing = ['code','location','quantity'].filter(field => columns[field] === undefined && !(field === 'quantity' && columns.spec !== undefined));
     if (missing.length) return { branch, lines:[], zones:[], skipped:[],
       errors:['Thiếu cột bắt buộc: ' + missing.map(f => ({code:'Mã hàng',location:'Ghi chú (vị trí)',quantity:'Số lượng'})[f]).join(', ') + '.'] };
 
@@ -91,7 +106,9 @@
     rows.slice(1).forEach((cells, index) => {
       const sourceRow = index + 2;
       const code = cell(cells,'code'), location = cell(cells,'location');
-      const quantity = parseQuantity(cell(cells,'quantity'));
+      /* Ghi chú đọc được (5T x 100) là nguồn SL chính; cột Số lượng của file chỉ là dự phòng cho dòng chưa có quy cách. */
+      const specCell = cell(cells,'spec'), parsedSpec = specCell ? root.PickingCarton?.parseSpec(specCell) : null;
+      const quantity = parsedSpec ? parsedSpec.quantity : parseQuantity(cell(cells,'quantity'));
       const zone = cell(cells,'zone') || 'Chưa đặt tên khu';
       if (!code || !location || quantity === null) {
         skipped.push({ sourceRow, code, location, zone, reason:
@@ -102,6 +119,8 @@
       const existing = lines.get(key);
       if (existing) {
         existing.quantity += quantity;
+        // Hai dòng cùng vị trí là hai quy cách của cùng một chỗ chứa: nối bằng dấu + (sẽ bị cảnh báo nhiều quy cách).
+        existing.spec = mergeSpec(existing.spec, cell(cells,'spec'));
         existing.sourceRows.push(sourceRow);
         if (existing.zone !== zone) existing.zoneConflicts.add(zone);
       } else {

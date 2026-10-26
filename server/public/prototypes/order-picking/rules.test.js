@@ -27,3 +27,12 @@ test('validation blocks under/over allocation, mismatched code and shared stock 
   assert.ok(validate([lines[0]],locations,{0:[{id:'A',quantity:5}]}).length);
   assert.ok(validate([lines[0]],[{...locations[0],code:'P2'}],{0:[{id:'A',quantity:6}]}).length);
 });
+test('nhặt tròn thùng được vượt SL cần nhưng ít hơn một thùng; vị trí không có quy cách thì vẫn phải đúng SL',()=>{
+  const lines=[{productCode:'P1',quantity:100}];
+  const cartons=[{...row('A',50),perCarton:50},{...row('B',60),perCarton:60}];
+  assert.deepEqual(validate(lines,cartons,{0:[{id:'A',quantity:50},{id:'B',quantity:60}]}),[],'110 cho đơn 100 là 2 thùng nguyên');
+  assert.ok(validate(lines,cartons,{0:[{id:'A',quantity:50},{id:'B',quantity:60},{id:'A',quantity:1}]}).length,'thừa từ một thùng trở lên bị chặn');
+  const loose=[{...row('A',50),perCarton:null},{...row('B',60),perCarton:null}];
+  assert.ok(validate(lines,loose,{0:[{id:'A',quantity:50},{id:'B',quantity:60}]}).some(e=>e.includes('đã chỉ định')),'không có quy cách thì không được thừa');
+  assert.ok(validate(lines,cartons,{0:[{id:'A',quantity:50},{id:'B',quantity:30}]}).length,'thiếu vẫn bị chặn');
+});

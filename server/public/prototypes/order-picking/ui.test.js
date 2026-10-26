@@ -16,7 +16,7 @@ function setup(t){
 test('eligible order has action above goods and popup includes the remaining total stock column',t=>{
   const {d}=setup(t);d.querySelector('#openPickingBtn').click();
   assert.equal(d.querySelector('#pickingDialog').open,true);
-  assert.deepEqual([...d.querySelectorAll('.picking-table th')].map(e=>e.textContent),['Mã hàng','Tên hàng','SL đơn','Tổng tồn chung','Vị trí kho']);
+  assert.deepEqual([...d.querySelectorAll('.picking-table th')].map(e=>e.textContent),['Mã hàng','Tên hàng','Cần nhặt','ST','Tồn kho','Vị trí kho']);
   assert.equal(d.querySelectorAll('[data-line="0"][data-location]').length,3);
   assert.equal(d.querySelector('[data-line="0"][data-location="loc-1"]').getAttribute('aria-pressed'),'true','need 30 must suggest B02 stock 35');
   assert.equal(d.querySelector('[data-line="0"][data-location="loc-0"]').getAttribute('aria-pressed'),'false','stock 100 must not be the initial selection');
@@ -69,4 +69,22 @@ test('original lifecycle template is reused without modifying its table or detai
   assert.ok(result.includes(original.match(/<table[^>]*id="bulkTable"[\s\S]*?<\/table>/)[0]));
   assert.ok(result.includes('id="lcDetailOverlay"'));
   assert.ok(result.includes('lifecycle-data.js'));
+});
+test('SL nhặt stepper/input keeps each location within stock and each line within the needed quantity',t=>{
+  const {w,d}=setup(t);d.querySelector('#openPickingBtn').click();
+  const sel=(k,id)=>`[${k}][data-qline="0"][data-qloc="${id}"]`;
+  const qty=id=>d.querySelector(sel('data-qty',id)),total=()=>w.PickingPopup.getAllocations()[0].reduce((s,p)=>s+p.quantity,0);
+  const type=(id,v)=>{qty(id).value=v;qty(id).dispatchEvent(new w.Event('change',{bubbles:true}));};
+  assert.equal(qty('loc-0').value,'0','unselected location defaults to 0');assert.equal(qty('loc-1').value,'30');
+  d.querySelector(sel('data-step="1"','loc-0')).click();assert.equal(qty('loc-0').value,'0','line already full');
+  type('loc-1','10');assert.equal(total(),10);
+  type('loc-0','25');assert.equal(qty('loc-0').value,'20','capped to the remaining need');assert.equal(total(),30);
+  type('loc-2','5');assert.equal(qty('loc-2').value,'0');
+  type('loc-1','-5');assert.equal(qty('loc-1').value,'0','never negative');
+  type('loc-0','999');assert.equal(qty('loc-0').value,'30','capped to the line need');
+  type('loc-2','999');assert.equal(qty('loc-2').value,'0');
+  type('loc-0','0');type('loc-2','999');assert.equal(qty('loc-2').value,'20','capped to location stock');
+  d.querySelector(sel('data-step="-1"','loc-1')).click();assert.equal(qty('loc-1').value,'0');
+  assert.equal(d.querySelector('[data-allocated]').textContent,'20/30');
+  assert.ok(d.querySelector('[data-allocated]').classList.contains('picking-bad'));
 });

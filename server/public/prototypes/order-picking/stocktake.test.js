@@ -298,3 +298,36 @@ test('ghép Kiot không chạm cơ sở khác', () => {
   ]);
   assert.deepEqual(plan, [], 'phiếu nhập của SG không được ghép vào HN');
 });
+
+test('SL của dòng kiểm kê lấy từ Ghi chú hàng hóa (5T x 100 = 500), cột Số lượng chỉ là dự phòng; cột Số lượng không bắt buộc khi có ghi chú', () => {
+  globalThis.PickingCarton = require('./carton.js');
+  try {
+    const rows = [
+      ['Mã hàng','Tên khách hàng','Ghi chú','Ghi chú hàng hóa','Số lượng'],
+      ['P1','Khu A','A01','5T x 100','1'],
+      ['P2','Khu A','A02','Dãy cửa kho','70'],
+      ['P3','Khu A','A03','1Tx50 + 2Tx25','']
+    ];
+    const snapshot = S.build(rows, { branch:'HN' });
+    const by = code => snapshot.lines.find(line => line.code === code);
+    assert.equal(by('P1').quantity, 500, 'ghi chú đọc được thắng cột Số lượng');
+    assert.equal(by('P2').quantity, 70, 'ghi chú không đọc được thì dùng Số lượng dự phòng (dòng vẫn bị cảnh báo ở sổ vị trí)');
+    assert.equal(by('P3').quantity, 100, 'nhiều quy cách vẫn tính SL, thiếu cột Số lượng cũng được');
+    const noQuantityColumn = S.build([['Mã hàng','Tên khách hàng','Ghi chú','Ghi chú hàng hóa'], ['P1','Khu A','A01','5T x 100']], { branch:'HN' });
+    assert.deepEqual(noQuantityColumn.errors, []);
+    assert.equal(noQuantityColumn.lines[0].quantity, 500);
+  } finally { delete globalThis.PickingCarton; }
+});
+
+test('hai dòng cùng mã và vị trí: cùng SL/thùng thì cộng thùng, khác SL/thùng thì thành nhiều quy cách; mã giống nhau ở HN và SG tách riêng', () => {
+  globalThis.PickingCarton = require('./carton.js');
+  try {
+    const header = ['Mã hàng','Tên khách hàng','Ghi chú','Ghi chú hàng hóa'];
+    const merged = S.build([header, ['P1','Khu A','A01','3T x 100'], ['P1','Khu A','A01','2T x 100']], { branch:'HN' });
+    assert.equal(merged.lines.length, 1);assert.equal(merged.lines[0].spec, '5T x 100');assert.equal(merged.lines[0].quantity, 500);
+    const mixed = S.build([header, ['P1','Khu A','A01','1T x 50'], ['P1','Khu A','A01','2T x 25']], { branch:'HN' });
+    assert.equal(mixed.lines[0].spec, '1T x 50 + 2T x 25');assert.equal(mixed.lines[0].quantity, 100);
+    const sg = S.build([header, ['P1','Khu A','A01','1T x 60']], { branch:'SG' });
+    assert.equal(sg.lines[0].key, 'SG|p1|A01');assert.notEqual(sg.lines[0].key, mixed.lines[0].key);
+  } finally { delete globalThis.PickingCarton; }
+});

@@ -1,10 +1,11 @@
 (function(){
 'use strict';
 const esc=v=>String(v??'—').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const stText=v=>v===null||v===undefined?'':Number(v).toLocaleString('en-US',{maximumFractionDigits:2});
 const money=v=>typeof v==='number'&&Number.isFinite(v)?v.toLocaleString('vi-VN'):'—';
 const replace=(html,values)=>html.replace(/\{([^{}]+)\}/g,(token,key)=>Object.hasOwn(values,key)?esc(values[key]):token);
-function show(order,record,type,batch=1){
-  const delivery=type==='delivery',root=document.createElement('div');
+function show(order,record){
+  const root=document.createElement('div');
   root.className='tokosi-invoice';root.innerHTML=window.PickingInvoiceTemplate;
   // The supplied template has global selectors; the popup stylesheet scopes them instead.
   root.querySelectorAll('style').forEach(el=>el.remove());
@@ -13,8 +14,8 @@ function show(order,record,type,batch=1){
   let total=0,totalKnown=true,index=0;
   const locations=window.PickingData.get().locations;
   order.lines.forEach((line,i)=>{
-    const jobs=record.jobs.filter(j=>j.line===i&&(delivery||j.batch===batch));
-    const qty=type==='extra'?jobs.reduce((sum,j)=>sum+j.planned,0):line.quantity;
+    const jobs=record.jobs.filter(j=>j.line===i);
+    const qty=line.quantity;
     if(!(qty>0))return;
     const unit=typeof line.price==='number'&&Number.isFinite(line.price)?line.price-(line.discount??0):null;
     const amount=unit===null?null:unit*qty;
@@ -23,23 +24,23 @@ function show(order,record,type,batch=1){
       const location=locations.find(l=>l.id===j.id);
       return location?.location||'—';
     });
-    const actual=delivery?record.delivery.qty[i]:null;
-    // Multiple locations stay identifiable when the accountant reports each location.
-    const actualText=actual===null?'':jobs.length>1?jobs.map(j=>(locations.find(l=>l.id===j.id)?.location||'—')+': '+j.taken).join(' / '):String(actual);
+    // ST lấy từ record chỉ định (cùng hàm với chi tiết đơn) nên in lại ra cùng số; trống khi chưa đủ SL hoặc đã Hủy nhặt.
+    const st=window.PickingInventory?.lineSt?window.PickingInventory.lineSt(order,i):null;
     const rendered=document.createElement('tbody');
     rendered.innerHTML=replace(row.outerHTML,{
       STT:++index,Ten_Hang_Hoa_Don_Gian:line.productName+' ('+line.productCode+')',
       So_Luong:qty.toLocaleString('vi-VN'),Don_Gia_Sau_Chiet_Khau:money(unit),Thanh_Tien:money(amount),
-      Vi_Tri:[...new Set(assigned)].join(' / '),Vi_Tri_Hang_Hoa:[...new Set(assigned)].join(' / '),Ghi_Chu_Hang_Hoa:line.note||'',Thuc_Te_Nhat:actualText
+      Vi_Tri:[...new Set(assigned)].join(' / '),Vi_Tri_Hang_Hoa:[...new Set(assigned)].join(' / '),Ghi_Chu_Hang_Hoa:line.note||'',Thuc_Te_Nhat:'',ST:stText(st)
     });
     const item=rendered.firstElementChild;
+    if(st!==null&&!window.PickingCarton.isWhole(st))item.querySelector('td.invoice-st')?.classList.add('invoice-st-frac');
     row.before(item);
   });
   row.remove();
   const discount=order.invoiceDiscount,prior=order.priorDebt;
   const payable=totalKnown&&typeof discount==='number'&&Number.isFinite(discount)?total-discount:null;
   const now=new Date();
-  const notes=[order.note,delivery?record.delivery.action:''].filter(Boolean).join(' · ');
+  const notes=[order.note].filter(Boolean).join(' · ');
   root.innerHTML=replace(root.innerHTML,{
     Nhan_Vien_Ban_Hang:order.saleName,Dien_Thoai_Nguoi_Ban:order.sellerPhone,
     Ten_Chi_Nhanh:order.branch==='SG'?' TP.HCM':'',
@@ -50,11 +51,11 @@ function show(order,record,type,batch=1){
     Du_No_Tam_Tinh:money(payable!==null&&typeof prior==='number'&&Number.isFinite(prior)?payable+prior:null),
     Ghi_Chu:notes,Ngay:now.getDate(),Thang:now.getMonth()+1,Nam:now.getFullYear()
   });
-  const title=type==='extra'?'PHIẾU NHẶT BỔ SUNG':'PHIẾU ĐẶT HÀNG';
+  const title='PHIẾU ĐẶT HÀNG';
   const heading=[...root.querySelectorAll('strong')].find(el=>/HÓA ĐƠN\s*BÁN\s*HÀNG/.test(el.textContent.replace(/\u00a0/g,' ')));
   if(heading)heading.textContent=title;
   const marker=document.createElement('p');marker.className='invoice-demo';
-  marker.textContent='MÔ PHỎNG · '+order.orderCode+' · '+order.branch+' · '+(delivery?'Đã ghi thực tế nhặt':'Chưa ghi thực tế nhặt')+' · Giá minh họa; trường chưa có dữ liệu hiển thị —.';
+  marker.textContent='MÔ PHỎNG · '+order.orderCode+' · '+order.branch+' · '+'Chưa ghi thực tế nhặt'+' · Giá minh họa; trường chưa có dữ liệu hiển thị —.';
   root.prepend(marker);
   root.setAttribute('contenteditable','true');
   root.setAttribute('aria-label','Nội dung phiếu có thể chỉnh sửa trước khi in');

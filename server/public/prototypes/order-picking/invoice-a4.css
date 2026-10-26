@@ -18,8 +18,9 @@
 #pickingPrintSheet .tokosi-invoice .invoice-goods thead td{font-size:8.5pt;font-weight:bold;text-align:center;vertical-align:middle;padding:1mm .5mm}
 #pickingPrintSheet .tokosi-invoice .invoice-goods tbody tr:first-child td{font-weight:normal;vertical-align:middle}
 #pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(2){text-align:left}
-#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(3),#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(4),#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(5){text-align:right;font-variant-numeric:tabular-nums}
-#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(6),#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(7),#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(8){text-align:center}
+#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(3),#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(5),#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(6){text-align:right;font-variant-numeric:tabular-nums}
+#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(4),#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(7),#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(8),#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(9){text-align:center}
+#pickingPrintSheet .tokosi-invoice .invoice-goods td.invoice-st-frac{color:#c00;font-weight:bold}
 #pickingPrintSheet .tokosi-invoice .invoice-footer{margin-top:3mm;break-inside:avoid;page-break-inside:avoid}
 #pickingPrintSheet .tokosi-invoice .invoice-summary td{padding:.6mm 1mm}
 #pickingPrintSheet .tokosi-invoice .invoice-signatures{margin:3mm 0 0!important;min-height:16mm}

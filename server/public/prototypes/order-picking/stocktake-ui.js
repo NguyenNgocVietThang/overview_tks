@@ -167,12 +167,14 @@
         // Mã chưa từng có ở vị trí này: lập tồn đầu 0 trước khi ghi lô nhập.
         if (!row.hasOpening) ledger.openZero(row.branch, row.code, row.location);
         ledger.record({ branch:row.branch, code:row.code, location:row.location, type:'receipt', quantity:Number(input) });
+        // SL luôn lấy từ ghi chú hàng hóa: hàng nhập thêm cũng phải cộng vào ghi chú của vị trí.
+        window.PickingInventory?.noteReceipt(row.branch, row.code, row.location, Number(input));
         $('pickingStocktakeError').textContent = 'Đã ghi nhập ' + fmt(Number(input)) + ' vào ' + row.location
           + ' · tồn sổ hiện tại ' + fmt(ledger.onHand(row.branch, row.code, row.location));
       } else if (button.id === 'pickingKiotApplyAll') {
         let applied = 0, duplicate = 0, failed = [];
         for (const entry of kiotPlan.filter(row => row.status === 'matched')) {
-          try { const written = ledger.applyMatch(entry); written.forEach(m => m.duplicate ? duplicate++ : applied++); }
+          try { const written = ledger.applyMatch(entry); written.forEach(m => { if (m.duplicate) duplicate++; else { applied++; window.PickingInventory?.noteReceipt(m.branch, m.code, m.location, m.quantity); } }); }
           catch (err) { failed.push((entry.documentCode || entry.documentId) + ': ' + err.message); }
         }
         $('pickingStocktakeError').textContent = 'Đã ghi ' + fmt(applied) + ' dòng nhập'
@@ -190,6 +192,7 @@
           if (!Object.keys(allocation).length) throw Error('Nhập số lượng phân bổ cho ít nhất một vị trí.');
         }
         const written = ledger.applyMatch(entry, allocation);
+        written.forEach(m => { if (!m.duplicate) window.PickingInventory?.noteReceipt(m.branch, m.code, m.location, m.quantity); });
         $('pickingStocktakeError').textContent = written.every(m => m.duplicate)
           ? 'Chứng từ này đã được ghi trước đó, không cộng lại.'
           : 'Đã ghi ' + written.map(m => fmt(m.quantity) + ' vào ' + m.location).join(', ') + '.';
@@ -228,6 +231,8 @@
         if (iso) cutoffs[zone.zone] = iso;
       });
       const result = ledger.load(snapshot, cutoffs);
+      // Ghi chú hàng hóa của file thành ghi chú hiện hành của vị trí (nguồn SL), có ghi lịch sử nguồn Import.
+      window.PickingInventory?.importSpecs(snapshot.branch, snapshot.lines.filter(line => result.loadedZones.includes(line.zone)));
       $('pickingStocktakeError').textContent = 'Đã nạp ' + fmt(result.lineCount) + ' dòng tồn đầu cho khu: '
         + (result.loadedZones.join(', ') || 'không có')
         + (result.pendingZones.length ? ' · Chờ giờ chốt: ' + result.pendingZones.join(', ') : '');

@@ -31,14 +31,18 @@
     const used = new Map();
     const errors = [];
     lines.forEach((line, index) => {
-      let total = 0;
+      let total = 0, cartoned = true, maxCarton = 0;
       for (const pick of allocations[index] || []) {
         const row = locations.find(c => c.id === pick.id && key(c.code) === key(line.productCode));
         if (!row || !row.location || quantity(row.available) === null || !Number.isFinite(pick.quantity) || pick.quantity < 0) { errors.push('Chỉ định không hợp lệ: ' + line.productCode); continue; }
         total += pick.quantity;
+        if (pick.quantity > 0) { if (row.perCarton > 0) maxCarton = Math.max(maxCarton, row.perCarton); else cartoned = false; }
         used.set(row.id, (used.get(row.id) || 0) + pick.quantity);
       }
-      if (Math.abs(total - line.quantity) > 0.000001) errors.push(line.productCode + ': đã chỉ định ' + total + '/' + line.quantity);
+      /* Nhặt tròn thùng: khi mọi vị trí được chọn có quy cách thùng, SL thực nhặt được vượt SL cần
+         nhưng phải ít hơn một thùng (bỏ bớt được một thùng thì đã thiếu). */
+      const over = total - line.quantity, roundedUp = cartoned && maxCarton > 0 && over > 0.000001 && over < maxCarton - 0.000001;
+      if (Math.abs(over) > 0.000001 && !roundedUp) errors.push(line.productCode + ': đã chỉ định ' + total + '/' + line.quantity);
     });
     locations.forEach(row => {
       if (quantity(row.available) !== null && (used.get(row.id) || 0) > quantity(row.available) + 0.000001)
@@ -46,7 +50,7 @@
     });
     return errors;
   }
-  const api = { version:'best-fit-v3', key, quantity, suggest, validate };
+  const api = { version:'best-fit-v4', key, quantity, suggest, validate };
   if (typeof module !== 'undefined') module.exports = api;
   else root.PickingRules = api;
 })(typeof window !== 'undefined' ? window : globalThis);
