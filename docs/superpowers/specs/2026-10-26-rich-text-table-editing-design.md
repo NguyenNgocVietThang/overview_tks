@@ -30,3 +30,10 @@ Giữ nguyên các dòng `border:1px solid #d8d5cb !important` hiện có (test 
 - Sanitizer: giữ giá trị hợp lệ, loại giá trị lạ/độc hại.
 - Frontend: từng thao tác trên DOM (có ô gộp), viền, độ rộng, các nút có mặt, các assert CSS cũ vẫn xanh.
 - Cập nhật CURRENT.md, SRS/README liên quan.
+
+## Cải tiến UI theo ảnh demo đã duyệt (26/10/2026)
+- Thanh công cụ trắng, biểu tượng nét mảnh, các nhóm Chèn / Gộp ô / Tách ô / Viền bảng / menu thao tác khác. Chèn mở bốn lệnh thêm dòng/cột; menu khác chứa ba lệnh xóa. Chuột phải vẫn có đủ mười lệnh.
+- Ô hiện tại có lớp phủ viền xanh bên ngoài nội dung soạn thảo, không đi vào HTML lưu. Gộp/tách bị vô hiệu hóa khi vùng chọn không phù hợp.
+- Khoảng trống trên bảng dành cho toolbar, tăng đệm ô, tiêu đề cột xanh nhạt. Giữ các định dạng viền và dữ liệu tài liệu hiện có.
+- Menu giới hạn trong viewport; phím mũi tên/Home/End di chuyển nút, Esc đóng menu trước và trả focus về nút mở menu.
+- Trình tự thực hiện: cập nhật kiểm thử tương tác → triển khai toolbar/menu và lớp phủ → kiểm tra DOM/sanitizer → kiểm tra Edge desktop 1440px và mobile 390px với dữ liệu mẫu.

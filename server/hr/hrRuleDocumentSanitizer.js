@@ -34,6 +34,24 @@ const BLOCK_STYLES = {
   'line-height': [LINE_HEIGHT]
 };
 
+// Bang (chi la HTML, khong can migration): data-border/data-border-width + bien --tb-color
+// tren <table>, width (px) tren <td>/<th>. Gia tri la => bo thuoc tinh (xem transformTags).
+const TABLE_BORDER_KINDS = new Set(['all', 'outer', 'none']);
+const TABLE_BORDER_WIDTHS = new Set(['1', '2', '3']);
+const CELL_WIDTH_MIN = 40;
+const CELL_WIDTH_MAX = 800;
+
+function transformCell(tagName, attribs) {
+  const next = { ...attribs };
+  if ('width' in next) {
+    const raw = String(next.width).trim();
+    const n = Number(raw);
+    if (/^\d{1,4}$/.test(raw) && n >= CELL_WIDTH_MIN && n <= CELL_WIDTH_MAX) next.width = String(n);
+    else delete next.width;
+  }
+  return { tagName, attribs: next };
+}
+
 const SANITIZE_OPTIONS = {
   allowedTags: [
     'p', 'div', 'br', 'hr', 'b', 'strong', 'i', 'em', 'u', 's', 'strike',
@@ -58,8 +76,9 @@ const SANITIZE_OPTIONS = {
     a: ['href', 'target', 'rel'],
     img: ['src', 'alt', 'width', 'height'],
     li: ['style'],
-    td: ['colspan', 'rowspan'],
-    th: ['colspan', 'rowspan']
+    table: ['data-border', 'data-border-width', 'style'],
+    td: ['colspan', 'rowspan', 'width'],
+    th: ['colspan', 'rowspan', 'width']
   },
   allowedStyles: {
     'p': BLOCK_STYLES,
@@ -69,6 +88,8 @@ const SANITIZE_OPTIONS = {
     'h3': BLOCK_STYLES,
     'h4': BLOCK_STYLES,
     'li': { 'line-height': [LINE_HEIGHT] },
+    // Custom property: postcss cua sanitize-html giu nguyen ten; chi nhan hex 3/6 ky tu.
+    'table': { '--tb-color': [HEX_COLOR] },
     'span': {
       color: [HEX_COLOR, RGB_COLOR],
       'background-color': [HEX_COLOR, RGB_COLOR],
@@ -85,6 +106,14 @@ const SANITIZE_OPTIONS = {
     a(tagName, attribs) {
       return { tagName: 'a', attribs: { ...attribs, target: '_blank', rel: 'noopener noreferrer' } };
     },
+    table(tagName, attribs) {
+      const next = { ...attribs };
+      if ('data-border' in next && !TABLE_BORDER_KINDS.has(String(next['data-border']).trim())) delete next['data-border'];
+      if ('data-border-width' in next && !TABLE_BORDER_WIDTHS.has(String(next['data-border-width']).trim())) delete next['data-border-width'];
+      return { tagName: 'table', attribs: next };
+    },
+    td: transformCell,
+    th: transformCell,
     img(tagName, attribs) {
       // src khong dung dinh dang URL noi bo cua chinh he thong -> bo het thuoc tinh src
       // (anh vo hinh thay vi lam sap trang hoac giu lai nguon la).

@@ -451,3 +451,66 @@ test('kind="builtin" con lai truoc migration 0065 van hien noi dung cu', async (
   assert.match(document.querySelector('[data-rule-doc="gio-giac"]').textContent, /Giờ làm việc chính thức/);
   window.close();
 });
+
+test('sửa bảng trong trình soạn: thanh nổi hiện khi con trỏ trong ô, thêm dòng/cột, gộp ô, viền, xóa bảng', async () => {
+  const { window, document } = await openPage({ docs: [...BUILTINS, TEXT] });
+  window.eval(fs.readFileSync(path.join(__dirname, '..', '..', 'public', 'shared', 'rte-table.js'), 'utf8'));
+  window.openRuleTextModal(TEXT);
+  const editor = document.getElementById('ruleTextEditor');
+  editor.innerHTML = '<table><tbody><tr><td>A</td><td>B</td></tr><tr><td>C</td><td>D</td></tr></tbody></table>';
+  const cell = () => editor.querySelector('td');
+  const place = (node) => { const r = document.createRange(); r.selectNodeContents(node); r.collapse(true); const s = window.getSelection(); s.removeAllRanges(); s.addRange(r); window.document.dispatchEvent(new window.Event('selectionchange')); };
+
+  const actions = [...document.querySelectorAll('#rteTableBar button[data-table-action]')].map(b => b.dataset.tableAction);
+  assert.deepEqual(actions, ['merge', 'split', 'border']);
+  assert.equal(document.querySelectorAll('#rteTableBar [aria-haspopup="menu"]').length, 2);
+  assert.equal(document.querySelectorAll('#rteTableMenu button').length, 10);
+
+  place(cell());
+  assert.equal(document.getElementById('rteTableBar').hidden, false);
+  assert.equal(document.querySelector('#rteTableBar [data-table-action="merge"]').disabled, true);
+  assert.equal(document.querySelector('#rteTableBar [data-table-action="split"]').disabled, true);
+  assert.equal(editor.querySelector('#rteTableSelection'), null, 'selection overlay must not enter saved content');
+  const insert = document.querySelector('#rteTableBar [data-table-menu="insert"]');
+  insert.click();
+  assert.equal(insert.getAttribute('aria-expanded'), 'true');
+  assert.equal(document.querySelectorAll('#rteTableMenu button').length, 4);
+  document.activeElement.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  assert.equal(document.getElementById('rteTableMenu').hidden, true);
+  assert.equal(insert.getAttribute('aria-expanded'), 'false');
+  const click = id => {
+    const direct = document.querySelector(`#rteTableBar [data-table-action="${id}"]`);
+    if(direct) return direct.click();
+    document.querySelector(`#rteTableBar [data-table-menu="${id.startsWith('del') ? 'delete' : 'insert'}"]`).click();
+    assert.equal(document.getElementById('rteTableMenu').hidden, false);
+    document.querySelector(`#rteTableMenu [data-table-action="${id}"]`).click();
+  };
+
+  click('rowBelow');
+  assert.equal(editor.querySelectorAll('tr').length, 3);
+  place(cell());
+  click('colRight');
+  assert.equal(editor.querySelectorAll('tr')[0].children.length, 3);
+  place(cell());
+  click('delCol');
+  assert.equal(editor.querySelectorAll('tr')[0].children.length, 2);
+
+  place(cell());
+  click('border');
+  const style = document.getElementById('rteBorderStyle');
+  style.value = 'outer';
+  style.dispatchEvent(new window.Event('change'));
+  assert.equal(editor.querySelector('table').dataset.border, 'outer');
+
+  cell().dispatchEvent(new window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+  assert.equal(document.querySelectorAll('#rteTableMenu button').length, 10, 'right-click retains all commands');
+
+  place(cell());
+  click('delTable');
+  assert.equal(editor.querySelectorAll('table').length, 0);
+  window.close();
+});
+
+test('script rte-table.js được nạp trong trang HR', () => {
+  assert.match(html, /<script src="\/shared\/rte-table\.js\?v=[^"]+"><\/script>/);
+});

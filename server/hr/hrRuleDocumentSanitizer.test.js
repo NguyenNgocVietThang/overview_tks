@@ -135,3 +135,54 @@ test('CHAN font-family/font-size/line-height chua url(), expression hoac don vi 
   const output = sanitizeRuleDocumentHtml(input);
   assert.doesNotMatch(output, /expression|url\(|999px|12em/);
 });
+
+test('bang: giu data-border, data-border-width, --tb-color hex va width o hop le', () => {
+  const html = '<table data-border="outer" data-border-width="2" style="--tb-color:#aabbcc"><tbody><tr><td width="120" colspan="2">a</td><th width="40">b</th></tr></tbody></table>';
+  assert.equal(sanitizeRuleDocumentHtml(html), html);
+  const short = sanitizeRuleDocumentHtml('<table data-border="none" data-border-width="3" style="--tb-color:#abc"><tr><td width="800">a</td></tr></table>');
+  assert.match(short, /data-border="none"/);
+  assert.match(short, /data-border-width="3"/);
+  assert.match(short, /style="--tb-color:#abc"/);
+  assert.match(short, /width="800"/);
+  assert.match(sanitizeRuleDocumentHtml('<table data-border="all"><tr><td>a</td></tr></table>'), /data-border="all"/);
+});
+
+test('bang: loai data-border / data-border-width co gia tri la', () => {
+  const out = sanitizeRuleDocumentHtml('<table data-border="dashed" data-border-width="9"><tr><td>a</td></tr></table>');
+  assert.equal(out, '<table><tr><td>a</td></tr></table>');
+  const out2 = sanitizeRuleDocumentHtml('<table data-border="all" onclick="x" data-border-width="1 2"><tr><td>a</td></tr></table>');
+  assert.doesNotMatch(out2, /onclick|data-border-width/);
+  assert.match(out2, /data-border="all"/);
+});
+
+test('bang: --tb-color chi nhan hex, loai CSS injection va thuoc tinh style khac', () => {
+  const bad = [
+    'red',
+    'red; background:url(x)',
+    'expression(alert(1))',
+    'url(javascript:alert(1))',
+    'rgb(1,2,3)',
+    '#12345',
+    '#ggg'
+  ];
+  for (const v of bad) {
+    const out = sanitizeRuleDocumentHtml(`<table style="--tb-color:${v}"><tr><td>a</td></tr></table>`);
+    assert.equal(out, '<table><tr><td>a</td></tr></table>', v);
+  }
+  const mixed = sanitizeRuleDocumentHtml('<table style="--tb-color:#fff;background:url(x);color:red;width:9999px"><tr><td>a</td></tr></table>');
+  assert.equal(mixed, '<table style="--tb-color:#fff"><tr><td>a</td></tr></table>');
+});
+
+test('o bang: width ngoai 40-800, khong phai so nguyen, hoac co don vi thi bi loai', () => {
+  for (const v of ['39', '801', '0', '-5', '100.5', '100px', '1e2', 'abc', '', '99999', '50%']) {
+    const out = sanitizeRuleDocumentHtml(`<table><tr><td width="${v}">a</td><th width="${v}">b</th></tr></table>`);
+    assert.equal(out, '<table><tr><td>a</td><th>b</th></tr></table>', `width=${JSON.stringify(v)}`);
+  }
+  assert.match(sanitizeRuleDocumentHtml('<table><tr><td width="40">a</td></tr></table>'), /<td width="40">/);
+});
+
+test('bang: width khong lam mat colspan/rowspan va khong mo width cho the khac', () => {
+  const out = sanitizeRuleDocumentHtml('<table><tr><td width="100" colspan="2" rowspan="3" style="color:red">a</td></tr></table><p width="100">x</p>');
+  assert.match(out, /<td width="100" colspan="2" rowspan="3">a<\/td>/);
+  assert.match(out, /<p>x<\/p>/);
+});

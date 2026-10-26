@@ -445,15 +445,15 @@
     wrap.className = 'tks-notif-wrap';
     wrap.id = 'tksNotifBell';
     wrap.innerHTML =
-      '<button type="button" class="tks-notif-bell" id="tksNotifBellBtn" aria-label="Thông báo" aria-haspopup="true" aria-expanded="false">' +
+      '<button type="button" class="tks-notif-bell" id="tksNotifBellBtn" aria-label="Thông báo" aria-controls="tksNotifDropdown" aria-haspopup="true" aria-expanded="false">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>' +
         '<span class="tks-notif-badge" id="tksNotifBadge" hidden>0</span>' +
       '</button>' +
       '<div class="tks-notif-dropdown" id="tksNotifDropdown" hidden>' +
         '<div class="tks-notif-dropdown-header">' +
-          '<span>Thông báo</span>' +
+          '<div class="tks-notif-heading"><span>Thông báo</span><span class="tks-notif-summary" id="tksNotifSummary" hidden></span></div>' +
           '<div class="tks-notif-header-actions">' +
-            '<button type="button" class="tks-notif-mark-all" id="tksNotifMarkAll">Đánh dấu đã đọc</button>' +
+            '<button type="button" class="tks-notif-mark-all" id="tksNotifMarkAll">Đánh dấu tất cả đã đọc</button>' +
             '<button type="button" class="tks-notif-clear-all" id="tksNotifClearAll" hidden>Xóa tất cả</button>' +
           '</div>' +
         '</div>' +
@@ -468,6 +468,7 @@
     var btn = wrap.querySelector('#tksNotifBellBtn');
     var dropdown = wrap.querySelector('#tksNotifDropdown');
     var badge = wrap.querySelector('#tksNotifBadge');
+    var summary = wrap.querySelector('#tksNotifSummary');
     var list = wrap.querySelector('#tksNotifList');
     var markAllBtn = wrap.querySelector('#tksNotifMarkAll');
     var clearAllBtn = wrap.querySelector('#tksNotifClearAll');
@@ -475,6 +476,9 @@
     var isOpen = false;
 
     function renderBadge(count){
+      summary.hidden = !(count > 0);
+      summary.textContent = count > 0 ? String(count) + ' chưa đọc' : '';
+      btn.setAttribute('aria-label', count > 0 ? 'Thông báo, ' + count + ' chưa đọc' : 'Thông báo');
       if(count > 0){
         badge.textContent = count > 99 ? '99+' : String(count);
         badge.hidden = false;
@@ -752,12 +756,13 @@
     function positionDropdown(){
       var rect = btn.getBoundingClientRect();
       var margin = 12;
-      var width = Math.min(340, window.innerWidth - margin * 2);
+      var width = Math.min(420, window.innerWidth - margin * 2);
       var left = window.innerWidth - width - margin;
       var top = Math.min(rect.bottom + 8, window.innerHeight - margin);
       dropdown.style.width = width + 'px';
       dropdown.style.top = top + 'px';
       dropdown.style.left = left + 'px';
+      dropdown.style.maxHeight = Math.min(520, Math.max(0, window.innerHeight - top - margin)) + 'px';
     }
 
     function onViewportChange(){ if(isOpen) positionDropdown(); }
@@ -788,6 +793,12 @@
     });
     document.addEventListener('click', function(e){
       if(isOpen && !wrap.contains(e.target)) closeDropdown();
+    });
+    document.addEventListener('keydown', function(e){
+      if(isOpen && e.key === 'Escape'){
+        closeDropdown();
+        btn.focus();
+      }
     });
 
     markAllBtn.addEventListener('click', function(){
@@ -1107,7 +1118,7 @@
     wrap.className = 'tks-cal-wrap';
     wrap.id = 'tksLeaveCal';
     wrap.innerHTML =
-      '<button type="button" class="tks-cal-btn" id="tksLeaveCalBtn" aria-label="Lịch nghỉ phép" title="Lịch nghỉ phép" aria-haspopup="true" aria-expanded="false">' +
+      '<button type="button" class="tks-cal-btn" id="tksLeaveCalBtn" aria-label="Lịch nghỉ phép" title="Lịch nghỉ phép" aria-controls="tksLeaveCalDropdown" aria-haspopup="true" aria-expanded="false">' +
         leaveCalIcon +
       '</button>' +
       '<div class="tks-cal-dropdown" id="tksLeaveCalDropdown" role="dialog" aria-label="Lịch nghỉ phép" hidden></div>';
@@ -1254,6 +1265,8 @@
     }
 
     function render(){
+      var previousList = dropdown.querySelector('.tks-cal-list');
+      var listScroll = previousList && previousList.getAttribute('data-selected-date') === state.selected ? previousList.scrollTop : 0;
       var now = TKSNav._now();
       todayIso = calIso(now.getFullYear(), now.getMonth() + 1, now.getDate());
       // Replacing the month DOM must preserve keyboard focus, including on SSE refresh.
@@ -1297,6 +1310,8 @@
       }
 
       dropdown.innerHTML =
+        (inline ? '' : '<div class="tks-cal-heading">' + leaveCalIcon + '<span>Lịch nghỉ phép</span></div>') +
+        '<div class="tks-cal-month">' +
         '<div class="tks-cal-head">' +
           '<button type="button" class="tks-cal-nav" data-nav="-1" aria-label="Tháng trước">‹</button>' +
           '<span class="tks-cal-title">Tháng ' + state.month + '/' + state.year + '</span>' +
@@ -1305,13 +1320,17 @@
         '</div>' +
         '<div class="tks-cal-weekdays">' + LEAVE_CAL_WEEKDAYS.map(function(w){ return '<span>' + w + '</span>'; }).join('') + '</div>' +
         '<div class="tks-cal-grid">' + cells + '</div>' +
+        '</div>' +
         (inline ? '<p class="tks-cal-hint" role="status">' +
           (data && (data.error || data.refreshError) ? 'Không tải được lịch nghỉ. Nhấn Hôm nay hoặc chuyển tháng để thử lại.' :
             !data ? 'Đang tải lịch nghỉ…' : 'Chọn ngày để lọc bảng bên dưới. Số trên lịch không áp dụng bộ lọc của bảng.') + '</p>' :
-        '<div class="tks-cal-list-head">Nghỉ ngày ' + calVn(state.selected) +
-          (state.selected === todayIso ? ' (hôm nay)' : '') +
-          (data && !data.error ? ' · ' + entries.length + ' người' : '') + '</div>' +
-        '<div class="tks-cal-list">' + listHtml + '</div>');
+        '<div class="tks-cal-list-head"><div><span class="tks-cal-date-label">' +
+          (state.selected === todayIso ? 'Hôm nay, ' : 'Ngày ') + calVn(state.selected) +
+          '</span><span class="tks-cal-list-caption">Danh sách nghỉ phép</span></div>' +
+          (data && !data.error ? '<span class="tks-cal-total">' + entries.length + ' người nghỉ</span>' : '') + '</div>' +
+        '<div class="tks-cal-list" data-selected-date="' + state.selected + '">' + listHtml + '</div>');
+      var currentList = dropdown.querySelector('.tks-cal-list');
+      if(currentList) currentList.scrollTop = listScroll;
       if(!inline) positionDropdown();
       var nextFocus;
       if(focusKey === 'today') nextFocus = dropdown.querySelector('[data-today]');
@@ -1329,13 +1348,13 @@
     function positionDropdown(){
       var rect = btn.getBoundingClientRect();
       var margin = 12;
-      var width = Math.min(360, window.innerWidth - margin * 2);
+      var width = Math.min(460, window.innerWidth - margin * 2);
       var left = window.innerWidth - width - margin;
       var top = Math.min(rect.bottom + 8, window.innerHeight - margin);
       dropdown.style.width = width + 'px';
       dropdown.style.top = top + 'px';
       dropdown.style.left = left + 'px';
-      dropdown.style.maxHeight = Math.max(240, window.innerHeight - top - margin) + 'px';
+      dropdown.style.maxHeight = Math.max(0, window.innerHeight - top - margin) + 'px';
     }
 
     function onViewportChange(){ if(isOpen) positionDropdown(); }

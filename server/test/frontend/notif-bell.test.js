@@ -86,6 +86,32 @@ test('click vào chuông mở dropdown và tải danh sách thông báo', async 
   window.close();
 });
 
+test('header popovers highlight only the open control and Escape clears the bell state', async t => {
+  const user = fakeUser('u1', 'Trợ lý');
+  const { window, document } = createEnv(t, user, async () => ({
+    ok: true, json: async () => ({ count: 2, notifications: [], requests: [] })
+  }));
+  window.TKSNav.renderLeaveCalendar(user);
+  window.TKSNav.renderNotifBell(user);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  const bell = document.getElementById('tksNotifBellBtn');
+  const calendar = document.getElementById('tksLeaveCalBtn');
+  calendar.click();
+  assert.equal(calendar.getAttribute('aria-expanded'), 'true');
+  bell.click();
+  assert.equal(calendar.getAttribute('aria-expanded'), 'false');
+  assert.equal(bell.getAttribute('aria-expanded'), 'true');
+  document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
+  assert.equal(bell.getAttribute('aria-expanded'), 'false');
+  assert.equal(document.getElementById('tksNotifDropdown').hidden, true);
+  bell.click();
+  calendar.click();
+  assert.equal(bell.getAttribute('aria-expanded'), 'false');
+  assert.equal(calendar.getAttribute('aria-expanded'), 'true');
+  await new Promise(resolve => setTimeout(resolve, 0));
+  document.body.click();
+});
+
 test('Quản lý thấy nút Duyệt/Từ chối trên thông báo yêu cầu đổi vai trò chưa đọc, và click Duyệt gọi đúng API', async t => {
   const patchCalls = [];
   const { window, document } = createEnv(t, fakeUser('m1', 'Quản lý'), async (url, opts) => {
