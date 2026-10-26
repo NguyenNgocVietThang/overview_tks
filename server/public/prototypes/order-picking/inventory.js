@@ -12,6 +12,8 @@ function base(r){
   if(book&&book.has(r.branch))return book.onHand(r.branch,r.code,r.location);
   return R.quantity(r.available);
 }
+// Khu đang kiểm kê thì không ra đơn ở khu đó: vị trí không khả dụng cho tới khi chốt kỳ kiểm kê.
+const freeze=r=>ledger()?.frozen(r.branch,r.location)||null;
 function onHand(r){
   const s=stock(r),start=s.override!==null?s.override:base(r);
   return start===null?null:Math.round((start+s.moved)*1e6)/1e6;
@@ -39,12 +41,14 @@ function summary(branch,code){
   const unknown=!rows.length||rows.some(r=>onHand(r)===null);
   return {onHand:unknown?null:rows.reduce((s,r)=>s+onHand(r),0),held:rows.reduce((s,r)=>s+held(r.id),0),available:unknown?null:rows.reduce((s,r)=>s+api.available(r),0)};
 }
-const api={version:0,confirmStock(r,q){const s=stock(r);if(onHand(r)===null&&held(r.id)===0){s.override=q;s.moved=0;log('Xác nhận khả dụng',r.location+' · '+q);}},available(r,except){const s=stock(r),total=onHand(r);return s.locked?0:total===null?null:Math.max(0,total-held(r.id,except));},has(o){return !!state.orders[D.key(o)];},reserve(o,allocations){
+const api={version:0,confirmStock(r,q){const s=stock(r);if(onHand(r)===null&&held(r.id)===0){s.override=q;s.moved=0;log('Xác nhận khả dụng',r.location+' · '+q);}},available(r,except){const s=stock(r),total=onHand(r);return freeze(r)?null:s.locked?0:total===null?null:Math.max(0,total-held(r.id,except));},has(o){return !!state.orders[D.key(o)];},reserve(o,allocations){
   const key=D.key(o),old=state.orders[key];
   if(old?.jobs.some(j=>j.taken>0))throw Error('Đơn đã bắt đầu nhặt. Dùng Kho nhặt hàng để lấy bù, không chỉ định lại toàn đơn.');
   const jobs=[];o.lines.forEach((l,i)=>(allocations[i]||[]).forEach(p=>jobs.push({id:p.id,line:i,reserved:p.quantity,taken:0,closed:false})));
   const used={};for(const j of jobs)used[j.id]=(used[j.id]||0)+j.reserved;
-  for(const [id,q]of Object.entries(used)){const r=D.get().locations.find(r=>r.id===id);if(q>api.available(r,key))throw Error('Vị trí '+r.location+' không còn đủ khả dụng.');}
+  for(const [id,q]of Object.entries(used)){const r=D.get().locations.find(r=>r.id===id);const f=freeze(r);
+    if(f)throw Error('Khu '+f.zone+' đang kiểm kê. Không chỉ định vị trí '+r.location+' đến khi chốt kỳ kiểm kê.');
+    if(q>api.available(r,key))throw Error('Vị trí '+r.location+' không còn đủ khả dụng.');}
   state.orders[key]={order:o,jobs};log('Giữ chỗ',o.orderCode+' · '+jobs.reduce((s,j)=>s+j.reserved,0)+' sản phẩm');
 },open(o,options={}){current=state.orders[D.key(o)];auditOnly=!!options.auditOnly;render();$('inventoryDialog').showModal();}};
 function log(type,text){state.history.unshift({type,text,at:new Date().toLocaleTimeString('vi-VN')});api.version++;}

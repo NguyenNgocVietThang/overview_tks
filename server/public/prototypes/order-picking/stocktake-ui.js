@@ -38,18 +38,73 @@
     return local.toISOString().slice(0, 16);
   }
 
+  // Dòng tab Vị trí hàng của mọi cơ sở; cột NGÀY VỀ cho biết lô nào về sau giờ chốt.
+  const sheetRows = () => (window.PickingData?.get().locations || [])
+    .map(row => ({ branch:row.branch, code:row.code, location:row.location, arrivalDate:row.arrivalDate }));
+
+  const RECEIPT_LABEL = { 'after':'Về sau giờ chốt', 'same-day':'Về đúng ngày chốt', 'missing':'Không có trong file kiểm kê', 'unknown-date':'NGÀY VỀ không đọc được' };
+
   function renderLedger(){
-    const zones = ledger.zones();
+    const zones = ledger.zones(), countingZones = ledger.countingZones();
+    const branch = $('pickingStocktakeBranch').value;
+    const pending = ledger.has(branch) ? ledger.pendingReceipts(branch, sheetRows()) : [];
+    pendingRows = pending;
     $('pickingStocktakeLedger').innerHTML = `<h3>Sổ tồn đầu đang hoạt động</h3>${zones.length ? `
-      <div style="overflow:auto"><table class="dp-table" data-table-controls="off" data-table-sort="off"><thead><tr><th>Cơ sở</th><th>Khu</th><th>Số vị trí đã xác minh</th><th>Giờ chốt</th></tr></thead><tbody>
-      ${zones.map(zone => `<tr><td>${esc(zone.branch)}</td><td>${esc(zone.zone)}</td><td class="num">${fmt(zone.locationCount)}</td><td>${esc(show(zone.cutoffAt))}</td></tr>`).join('')}
+      <div style="overflow:auto"><table class="dp-table" data-table-controls="off" data-table-sort="off"><thead><tr><th>Cơ sở</th><th>Khu</th><th>Số vị trí đã xác minh</th><th>Giờ chốt</th><th>Kiểm kê lại</th></tr></thead><tbody>
+      ${zones.map(zone => `<tr><td>${esc(zone.branch)}</td><td>${esc(zone.zone)}</td><td class="num">${fmt(zone.locationCount)}</td><td>${esc(show(zone.cutoffAt))}</td>
+        <td>${ledger.countingZone(zone.branch, zone.zone) ? '🔒 Đang đếm, khu bị đóng băng' : `<button data-recount="${esc(zone.zone)}" data-branch="${esc(zone.branch)}">Bắt đầu đếm lại</button>`}</td></tr>`).join('')}
       </tbody></table></div>
       <p>Tổng đã xác minh chỉ gồm vị trí có tồn kiểm kê, không phải tổng đầy đủ của kho. Biến động sau giờ chốt được cộng/trừ; biến động trước giờ chốt coi như đã nằm trong số đếm.</p>`
-      : '<p>Chưa nạp khu nào. Khi chưa có tồn kiểm kê, sổ tồn dùng số khả dụng đã xác nhận của dữ liệu mô phỏng.</p>'}`;
+      : '<p>Chưa nạp khu nào. Khi chưa có tồn kiểm kê, sổ tồn dùng số khả dụng đã xác nhận của dữ liệu mô phỏng.</p>'}
+      ${countingZones.length ? `<p style="color:var(--amber)">Khu đang kiểm kê (đóng băng, không ra đơn): ${countingZones.map(z => esc(z.branch + ' · ' + z.zone + ' từ ' + show(z.startedAt))).join(' · ')}. Nạp file kiểm kê của khu đó để chốt và mở lại khu.</p>` : ''}
+      ${renderReceipts(pending, branch)}`;
   }
+
+  /* Hàng về sau giờ chốt: tab Vị trí hàng cho vị trí và NGÀY VỀ, TỔNG SL của tab đó không phải
+     tồn còn nên số lượng nhập phải lấy từ nguồn đáng tin và do người nhập xác nhận. */
+  function renderReceipts(pending, branch){
+    if (!pending.length) return '';
+    return `<h3>Hàng về sau giờ chốt · cơ sở ${esc(branch)} (${fmt(pending.length)} dòng)</h3>
+      <p>Lấy từ cột NGÀY VỀ của tab Vị trí hàng so với giờ chốt từng khu. Số lượng <strong>không</strong> lấy từ TỔNG SL của tab đó — nhập số nhập thực tế theo phiếu nhập rồi bấm ghi.</p>
+      <div style="overflow:auto;max-height:300px"><table class="dp-table" data-table-controls="off" data-table-sort="off"><thead><tr><th>Mã / vị trí</th><th>Khu</th><th>NGÀY VỀ</th><th>Tình trạng</th><th>Tồn sổ hiện tại</th><th>Ghi số nhập</th></tr></thead><tbody>
+      ${pending.map((row, i) => `<tr><td>${esc(row.code)} · ${esc(row.location)}</td><td>${esc(row.zone)}</td><td>${esc(row.arrivalDate || '—')}</td>
+        <td>${esc(RECEIPT_LABEL[row.status] || row.status)}<br><small>${esc(row.reason)}</small></td>
+        <td class="num">${row.hasOpening ? fmt(ledger.onHand(branch, row.code, row.location)) : 'Chưa có tồn đầu'}</td>
+        <td>${row.status === 'after'
+          ? `<input type="number" min="0" step="any" id="receipt-qty-${i}" placeholder="SL nhập" style="width:100px" aria-label="Số nhập ${esc(row.code)} ${esc(row.location)}"><button data-receipt="${i}">Ghi nhập</button>`
+          : 'Cần xác minh trước khi ghi'}</td></tr>`).join('')}
+      </tbody></table></div>`;
+  }
+  let pendingRows = [];
 
   $('pickingStocktakeBtn').onclick = () => { renderLedger(); $('pickingStocktakeDialog').showModal(); };
   $('pickingStocktakeClose').onclick = () => $('pickingStocktakeDialog').close();
+  $('pickingStocktakeBranch').onchange = () => renderLedger();
+
+  $('pickingStocktakeLedger').onclick = event => {
+    const button = event.target.closest('button');
+    if (!button) return;
+    $('pickingStocktakeError').textContent = '';
+    try {
+      if (button.dataset.recount !== undefined) {
+        const result = ledger.startCount(button.dataset.branch, button.dataset.recount, { recount:true });
+        $('pickingStocktakeError').textContent = 'Khu ' + result.zone + ' đang kiểm kê: ' + fmt(result.locationCount)
+          + ' vị trí bị đóng băng, không chỉ định hoặc nhặt đến khi nạp file kiểm kê mới của khu này.';
+      } else if (button.dataset.receipt !== undefined) {
+        const row = pendingRows[Number(button.dataset.receipt)];
+        const input = $('receipt-qty-' + button.dataset.receipt).value;
+        if (input === '') throw Error('Nhập số lượng nhập thực tế theo phiếu nhập.');
+        // Mã chưa từng có ở vị trí này: lập tồn đầu 0 trước khi ghi lô nhập.
+        if (!row.hasOpening) ledger.openZero(row.branch, row.code, row.location);
+        ledger.record({ branch:row.branch, code:row.code, location:row.location, type:'receipt', quantity:Number(input) });
+        $('pickingStocktakeError').textContent = 'Đã ghi nhập ' + fmt(Number(input)) + ' vào ' + row.location
+          + ' · tồn sổ hiện tại ' + fmt(ledger.onHand(row.branch, row.code, row.location));
+      } else return;
+      renderLedger();
+      window.PickingPopup?.attach();
+      if ($('pickingDialog')?.open) window.PickingPopup?.refresh?.();
+    } catch (err) { $('pickingStocktakeError').textContent = err.message; }
+  };
 
   $('pickingStocktakeFile').onchange = async event => {
     $('pickingStocktakeError').textContent = '';

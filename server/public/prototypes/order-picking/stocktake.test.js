@@ -126,3 +126,89 @@ test('comma separated files and quoted fields parse the same way', () => {
   const rows = S.parseTable('Mã hàng,Tên khách hàng,Ghi chú,Số lượng\n"COC, 123",Khu A,A05,"1.500"\n');
   assert.deepEqual(rows[1], ['COC, 123','Khu A','A05','1.500']);
 });
+
+/* --- Đóng băng khu đang kiểm kê (quyết định: trong ngày kiểm khu sẽ không ra đơn) --- */
+
+test('khu đang kiểm kê bị đóng băng, không ghi được biến động cho tới khi chốt', () => {
+  const ledger = S.createLedger();
+  ledger.startCount('HN', 'Khu A', { locations:['A05','Z09'], startedAt:'2026-10-20T08:00:00+07:00' });
+  assert.equal(ledger.frozen('HN','A05').zone, 'Khu A');
+  assert.equal(ledger.frozen('HN','B05'), null, 'khu khác vẫn hoạt động bình thường');
+  assert.throws(() => ledger.record({ branch:'HN', code:'COC123', location:'A05', type:'pick', quantity:2000 }),
+    /Khu Khu A đang kiểm kê/);
+  // Chốt kỳ kiểm kê là mốc mở lại khu.
+  ledger.load(S.build(FILE, { branch:'HN' }), { 'Khu A':'2026-10-20T16:00:00+07:00' });
+  assert.equal(ledger.frozen('HN','A05'), null);
+  assert.equal(ledger.onHand('HN','COC123','A05'), 15000);
+  ledger.record({ branch:'HN', code:'COC123', location:'A05', type:'pick', quantity:2000, at:'2026-10-20T17:00:00+07:00' });
+  assert.equal(ledger.onHand('HN','COC123','A05'), 13000);
+});
+
+test('đếm lại một khu đã chốt phải khai báo rõ là đếm lại', () => {
+  const ledger = S.createLedger();
+  ledger.load(S.build(FILE, { branch:'HN' }), { 'Khu A':'2026-10-20T16:00:00+07:00' });
+  assert.throws(() => ledger.startCount('HN','Khu A'), /đã có kỳ kiểm kê chốt/);
+  // Đếm lại dùng chính danh sách vị trí của kỳ trước, không cần khai lại.
+  assert.equal(ledger.startCount('HN','Khu A',{ recount:true }).locationCount, 1);
+  assert.equal(ledger.frozen('HN','A05').zone, 'Khu A');
+});
+
+test('đóng băng khu chưa từng kiểm kê cần danh sách vị trí', () => {
+  const ledger = S.createLedger();
+  assert.throws(() => ledger.startCount('HN','Khu C'), /Cần danh sách vị trí/);
+});
+
+/* --- Hàng về sau giờ chốt, lấy vị trí từ tab Vị trí hàng (cột NGÀY VỀ) --- */
+
+test('NGÀY VỀ đọc được định dạng ngày Việt Nam', () => {
+  assert.equal(S.parseSheetDate('22/10/2026'), Date.parse('2026-10-22T00:00:00+07:00'));
+  assert.equal(S.parseSheetDate('3/9/2026'), Date.parse('2026-09-03T00:00:00+07:00'));
+  assert.equal(S.parseSheetDate('2026-10-22'), Date.parse('2026-10-22T00:00:00+07:00'));
+  assert.equal(S.parseSheetDate('tháng 10'), null);
+  assert.equal(S.parseSheetDate(''), null);
+});
+
+test('phân loại dòng Vị trí hàng theo NGÀY VỀ so với giờ chốt khu', () => {
+  const ledger = S.createLedger();
+  ledger.load(S.build(FILE, { branch:'HN' }), { 'Khu A':'2026-10-20T16:00:00+07:00' });
+  const sheet = [
+    { branch:'HN', code:'COC123',  location:'A05', arrivalDate:'22/10/2026' },  // về sau giờ chốt
+    { branch:'HN', code:'HOP1000', location:'A05', arrivalDate:'23/10/2026' },  // mã mới ở vị trí đã kiểm kê
+    { branch:'HN', code:'COC123',  location:'A05', arrivalDate:'20/10/2026' },  // đúng ngày chốt
+    { branch:'HN', code:'KEP78',   location:'A05', arrivalDate:'15/10/2026' },  // trước chốt mà không có trong file
+    { branch:'HN', code:'COC123',  location:'A05', arrivalDate:'' },            // không đọc được ngày
+    { branch:'HN', code:'COC123',  location:'B05', arrivalDate:'22/10/2026' },  // khu B chưa chốt → bỏ qua
+    { branch:'SG', code:'COC123',  location:'A05', arrivalDate:'22/10/2026' }   // cơ sở khác → bỏ qua
+  ];
+  const pending = ledger.pendingReceipts('HN', sheet);
+  assert.deepEqual(pending.map(p => [p.code, p.status]), [
+    ['COC123','after'], ['HOP1000','after'], ['COC123','same-day'], ['KEP78','missing'], ['COC123','unknown-date']
+  ]);
+  assert.equal(pending[0].hasOpening, true);
+  assert.equal(pending[1].hasOpening, false, 'mã mới tại vị trí cũ chưa có tồn đầu');
+  assert.equal(pending[0].zone, 'Khu A');
+});
+
+test('danh sách hàng về không tự cộng số lượng nào vào sổ', () => {
+  const ledger = S.createLedger();
+  ledger.load(S.build(FILE, { branch:'HN' }), { 'Khu A':'2026-10-20T16:00:00+07:00' });
+  const before = ledger.onHand('HN','COC123','A05');
+  ledger.pendingReceipts('HN', [{ branch:'HN', code:'COC123', location:'A05', arrivalDate:'22/10/2026' }]);
+  assert.equal(ledger.onHand('HN','COC123','A05'), before, 'TỔNG SL của tab Vị trí hàng không được dùng làm số nhập');
+  // Chỉ khi có số lượng từ nguồn đáng tin mới ghi nhập.
+  ledger.record({ branch:'HN', code:'COC123', location:'A05', type:'receipt', quantity:50000, at:'2026-10-22T09:00:00+07:00' });
+  assert.equal(ledger.onHand('HN','COC123','A05'), before + 50000);
+});
+
+test('mã mới tại vị trí đã kiểm kê: tồn đầu 0 rồi ghi được lô nhập', () => {
+  const ledger = S.createLedger();
+  ledger.load(S.build(FILE, { branch:'HN' }), { 'Khu A':'2026-10-20T16:00:00+07:00' });
+  assert.equal(ledger.onHand('HN','HOP1000','A05'), null);
+  assert.throws(() => ledger.record({ branch:'HN', code:'HOP1000', location:'A05', type:'receipt', quantity:800 }), /Chưa có tồn kiểm kê/);
+  ledger.openZero('HN','HOP1000','A05');
+  assert.equal(ledger.onHand('HN','HOP1000','A05'), 0);
+  ledger.record({ branch:'HN', code:'HOP1000', location:'A05', type:'receipt', quantity:800, at:'2026-10-23T09:00:00+07:00' });
+  assert.equal(ledger.onHand('HN','HOP1000','A05'), 800);
+  assert.equal(ledger.zoneOfLocation('HN','A05'), 'Khu A');
+  assert.throws(() => ledger.openZero('HN','HOP1000','KHONG-CO'), /chưa thuộc khu nào/);
+});

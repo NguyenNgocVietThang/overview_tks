@@ -8113,11 +8113,23 @@ window.PickingDemo.locations.forEach(row=>{
     };
   }
 
+  /* NGÀY VỀ của tab Vị trí hàng là ngày, không có giờ. Trả về mốc 00:00 giờ Việt Nam. */
+  function parseSheetDate(value){
+    const text = String(value ?? '').trim();
+    let match = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(text);
+    if (match) return Date.parse(match[3] + '-' + match[2].padStart(2,'0') + '-' + match[1].padStart(2,'0') + 'T00:00:00+07:00');
+    match = /^(\d{4})-(\d{2})-(\d{2})/.exec(text);
+    if (match) return Date.parse(match[1] + '-' + match[2] + '-' + match[3] + 'T00:00:00+07:00');
+    return null;
+  }
+  const vnDate = ms => new Date(ms + 7 * 3600e3).toISOString().slice(0, 10);
+
   /* Sổ tồn vị trí dùng chung.
      tồn vị trí = tồn kiểm kê tại giờ chốt + nhập sau giờ chốt − thực nhặt sau giờ chốt ± điều chỉnh */
   function createLedger(){
     const openings = new Map();   // stockKey -> {quantity, zone, location, code, branch, confirmedAt}
     const zoneCutoffs = new Map(); // branch|zone -> ISO string
+    const counting = new Map();   // branch|zone -> {zone, startedAt, locations:Set} — khu đang đếm, đóng băng
     const movements = [];
     let version = 0;
 
@@ -8135,6 +8147,8 @@ window.PickingDemo.locations.forEach(row=>{
           const cutoff = cutoffs[zone.zone] ?? zone.cutoffAt;
           if (!cutoff || time(cutoff) === null) { pending.push(zone.zone); continue; }
           zoneCutoffs.set(zoneKey(snapshot.branch, zone.zone), new Date(time(cutoff)).toISOString());
+          // Chốt kỳ kiểm kê là mốc mở lại khu: hết đóng băng, từ đây mới cộng biến động.
+          counting.delete(zoneKey(snapshot.branch, zone.zone));
           loaded.push(zone.zone);
         }
         const accepted = new Set(loaded);
@@ -8148,6 +8162,30 @@ window.PickingDemo.locations.forEach(row=>{
         version++;
         return { loadedZones:loaded, pendingZones:pending, lineCount };
       },
+      /* Khu đang kiểm kê bị đóng băng: không chỉ định, không nhặt ở khu đó trong ngày đếm.
+         Nhờ vậy một giờ chốt cho cả khu là đủ — không có biến động nào xảy ra giữa lúc đếm. */
+      startCount(branch, zone, options = {}){
+        if (api.cutoff(branch, zone) && !options.recount) throw Error('Khu ' + zone + ' đã có kỳ kiểm kê chốt lúc ' + api.cutoff(branch, zone) + '. Dùng recount để đếm lại.');
+        const previous = [...openings.values()].filter(o => o.branch === branch && o.zone === zone).map(o => o.location);
+        const locations = new Set((options.locations || previous).map(locationKey));
+        if (!locations.size) throw Error('Cần danh sách vị trí của khu ' + zone + ' để đóng băng khu khi đếm.');
+        counting.set(zoneKey(branch, zone), { zone, branch, startedAt:options.startedAt || new Date().toISOString(), locations });
+        version++;
+        return { zone, locationCount:locations.size };
+      },
+      // Khu đang đếm; trả null nếu khu đã chốt hoặc chưa bắt đầu đếm.
+      countingZone(branch, zone){ return counting.get(zoneKey(branch, zone)) || null; },
+      /* Vị trí có đang bị đóng băng vì khu của nó đang đếm hay không.
+         Dùng cho cả vị trí chưa từng có tồn kiểm kê (kỳ đếm đầu tiên của khu). */
+      frozen(branch, location){
+        const key = locationKey(location);
+        for (const entry of counting.values()) if (entry.branch === branch && entry.locations.has(key)) return entry;
+        return null;
+      },
+      countingZones(branch){
+        return [...counting.values()].filter(entry => !branch || entry.branch === branch)
+          .map(entry => ({ branch:entry.branch, zone:entry.zone, startedAt:entry.startedAt, locationCount:entry.locations.size }));
+      },
       setCutoff(branch, zone, cutoffAt){
         if (time(cutoffAt) === null) throw Error('Thời điểm chốt kiểm kê không hợp lệ.');
         zoneCutoffs.set(zoneKey(branch, zone), new Date(time(cutoffAt)).toISOString());
@@ -8157,6 +8195,8 @@ window.PickingDemo.locations.forEach(row=>{
       opening(branch, code, location){ return openings.get(stockKey(branch, code, location)) || null; },
       /* Biến động trước hoặc đúng giờ chốt đã nằm trong số kiểm kê — ghi nhận nhưng không cộng lại. */
       record(movement){
+        const freeze = api.frozen(movement.branch, movement.location);
+        if (freeze) throw Error('Khu ' + freeze.zone + ' đang kiểm kê từ ' + freeze.startedAt + '. Không ra đơn hoặc nhặt ở khu này đến khi chốt kỳ kiểm kê.');
         const opening = api.opening(movement.branch, movement.code, movement.location);
         if (!opening) throw Error('Chưa có tồn kiểm kê cho ' + movement.code + ' tại ' + movement.location + '.');
         if (!['receipt','pick','adjust'].includes(movement.type)) throw Error('Loại biến động phải là receipt, pick hoặc adjust.');
@@ -8209,12 +8249,61 @@ window.PickingDemo.locations.forEach(row=>{
         return [...seen.values()];
       },
       has(branch){ for (const opening of openings.values()) if (!branch || opening.branch === branch) return true; return false; },
-      reset(){ openings.clear(); zoneCutoffs.clear(); movements.length = 0; version++; }
+      // Khu của một vị trí, suy từ các dòng đã kiểm kê. Vị trí là duy nhất nên chỉ thuộc một khu.
+      zoneOfLocation(branch, location){
+        const key = locationKey(location);
+        for (const opening of openings.values()) if (opening.branch === branch && opening.location === key) return opening.zone;
+        for (const entry of counting.values()) if (entry.branch === branch && entry.locations.has(key)) return entry.zone;
+        return null;
+      },
+      /* Mã mới tại một vị trí đã kiểm kê: người đếm không thấy mã này ở đó lúc chốt, nên tồn đầu
+         là 0 — một dữ kiện có thật, không phải phỏng đoán. Phải có để ghi được lô nhập sau đó. */
+      openZero(branch, code, location){
+        const zone = api.zoneOfLocation(branch, location);
+        if (!zone) throw Error('Vị trí ' + location + ' chưa thuộc khu nào đã kiểm kê.');
+        if (!api.cutoff(branch, zone)) throw Error('Khu ' + zone + ' chưa chốt kỳ kiểm kê.');
+        const key = stockKey(branch, code, location);
+        if (openings.has(key)) return openings.get(key);
+        const entry = { branch, code, codeKey:codeKey(code), location:locationKey(location), zone,
+          spec:'', name:'', quantity:0, sourceRows:[] };
+        openings.set(key, entry);
+        version++;
+        return entry;
+      },
+      /* Hàng về sau giờ chốt: tab Vị trí hàng cho biết mã + vị trí + NGÀY VỀ, nhưng TỔNG SL
+         của tab đó không phải tồn còn (quy tắc 1). Vì vậy chỉ lập danh sách việc cần nhập số
+         lượng từ nguồn đáng tin, không tự cộng số nào vào sổ. */
+      pendingReceipts(branch, rows){
+        const result = [];
+        for (const row of rows || []) {
+          if (row.branch && row.branch !== branch) continue;
+          if (!row.code || !row.location) continue;
+          const zone = api.zoneOfLocation(branch, row.location);
+          if (!zone) continue;                                   // vị trí chưa thuộc khu nào đã kiểm kê
+          const cutoff = api.cutoff(branch, zone);
+          if (!cutoff) continue;                                 // khu chưa chốt, chưa so được
+          const arrival = parseSheetDate(row.arrivalDate);
+          const key = stockKey(branch, row.code, row.location);
+          const base = { branch, code:row.code, location:locationKey(row.location), zone, cutoffAt:cutoff,
+            arrivalDate:row.arrivalDate, hasOpening:openings.has(key), key };
+          if (arrival === null) { result.push({ ...base, status:'unknown-date',
+            reason:'NGÀY VỀ không đọc được: ' + (row.arrivalDate ?? '(trống)') }); continue; }
+          const arrivalDay = vnDate(arrival), cutoffDay = vnDate(time(cutoff));
+          if (arrivalDay > cutoffDay) result.push({ ...base, status:'after',
+            reason: base.hasOpening ? 'Lô về sau giờ chốt, cần số lượng nhập.' : 'Mã mới tại vị trí đã kiểm kê, cần số lượng nhập.' });
+          else if (arrivalDay === cutoffDay) result.push({ ...base, status:'same-day',
+            reason:'Về đúng ngày chốt. Cần xác nhận người đếm đã tính lô này chưa.' });
+          else if (!base.hasOpening) result.push({ ...base, status:'missing',
+            reason:'Về trước giờ chốt nhưng không có trong file kiểm kê. Có thể đếm sót.' });
+        }
+        return result;
+      },
+      reset(){ openings.clear(); zoneCutoffs.clear(); counting.clear(); movements.length = 0; version++; }
     };
     return api;
   }
 
-  const api = { version:'stocktake-opening-v1', parseTable, parseQuantity, detectColumns, build, createLedger, locationKey, codeKey, stockKey };
+  const api = { version:'stocktake-opening-v2', parseTable, parseQuantity, parseSheetDate, detectColumns, build, createLedger, locationKey, codeKey, stockKey };
   if (typeof module !== 'undefined') module.exports = api;
   else { root.PickingStocktake = api; root.PickingLedger = createLedger(); }
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -8348,6 +8437,8 @@ function base(r){
   if(book&&book.has(r.branch))return book.onHand(r.branch,r.code,r.location);
   return R.quantity(r.available);
 }
+// Khu đang kiểm kê thì không ra đơn ở khu đó: vị trí không khả dụng cho tới khi chốt kỳ kiểm kê.
+const freeze=r=>ledger()?.frozen(r.branch,r.location)||null;
 function onHand(r){
   const s=stock(r),start=s.override!==null?s.override:base(r);
   return start===null?null:Math.round((start+s.moved)*1e6)/1e6;
@@ -8375,12 +8466,14 @@ function summary(branch,code){
   const unknown=!rows.length||rows.some(r=>onHand(r)===null);
   return {onHand:unknown?null:rows.reduce((s,r)=>s+onHand(r),0),held:rows.reduce((s,r)=>s+held(r.id),0),available:unknown?null:rows.reduce((s,r)=>s+api.available(r),0)};
 }
-const api={version:0,confirmStock(r,q){const s=stock(r);if(onHand(r)===null&&held(r.id)===0){s.override=q;s.moved=0;log('Xác nhận khả dụng',r.location+' · '+q);}},available(r,except){const s=stock(r),total=onHand(r);return s.locked?0:total===null?null:Math.max(0,total-held(r.id,except));},has(o){return !!state.orders[D.key(o)];},reserve(o,allocations){
+const api={version:0,confirmStock(r,q){const s=stock(r);if(onHand(r)===null&&held(r.id)===0){s.override=q;s.moved=0;log('Xác nhận khả dụng',r.location+' · '+q);}},available(r,except){const s=stock(r),total=onHand(r);return freeze(r)?null:s.locked?0:total===null?null:Math.max(0,total-held(r.id,except));},has(o){return !!state.orders[D.key(o)];},reserve(o,allocations){
   const key=D.key(o),old=state.orders[key];
   if(old?.jobs.some(j=>j.taken>0))throw Error('Đơn đã bắt đầu nhặt. Dùng Kho nhặt hàng để lấy bù, không chỉ định lại toàn đơn.');
   const jobs=[];o.lines.forEach((l,i)=>(allocations[i]||[]).forEach(p=>jobs.push({id:p.id,line:i,reserved:p.quantity,taken:0,closed:false})));
   const used={};for(const j of jobs)used[j.id]=(used[j.id]||0)+j.reserved;
-  for(const [id,q]of Object.entries(used)){const r=D.get().locations.find(r=>r.id===id);if(q>api.available(r,key))throw Error('Vị trí '+r.location+' không còn đủ khả dụng.');}
+  for(const [id,q]of Object.entries(used)){const r=D.get().locations.find(r=>r.id===id);const f=freeze(r);
+    if(f)throw Error('Khu '+f.zone+' đang kiểm kê. Không chỉ định vị trí '+r.location+' đến khi chốt kỳ kiểm kê.');
+    if(q>api.available(r,key))throw Error('Vị trí '+r.location+' không còn đủ khả dụng.');}
   state.orders[key]={order:o,jobs};log('Giữ chỗ',o.orderCode+' · '+jobs.reduce((s,j)=>s+j.reserved,0)+' sản phẩm');
 },open(o,options={}){current=state.orders[D.key(o)];auditOnly=!!options.auditOnly;render();$('inventoryDialog').showModal();}};
 function log(type,text){state.history.unshift({type,text,at:new Date().toLocaleTimeString('vi-VN')});api.version++;}
@@ -8740,18 +8833,73 @@ window.PickingKiotLink={urlFor,attach};attach();
     return local.toISOString().slice(0, 16);
   }
 
+  // Dòng tab Vị trí hàng của mọi cơ sở; cột NGÀY VỀ cho biết lô nào về sau giờ chốt.
+  const sheetRows = () => (window.PickingData?.get().locations || [])
+    .map(row => ({ branch:row.branch, code:row.code, location:row.location, arrivalDate:row.arrivalDate }));
+
+  const RECEIPT_LABEL = { 'after':'Về sau giờ chốt', 'same-day':'Về đúng ngày chốt', 'missing':'Không có trong file kiểm kê', 'unknown-date':'NGÀY VỀ không đọc được' };
+
   function renderLedger(){
-    const zones = ledger.zones();
+    const zones = ledger.zones(), countingZones = ledger.countingZones();
+    const branch = $('pickingStocktakeBranch').value;
+    const pending = ledger.has(branch) ? ledger.pendingReceipts(branch, sheetRows()) : [];
+    pendingRows = pending;
     $('pickingStocktakeLedger').innerHTML = `<h3>Sổ tồn đầu đang hoạt động</h3>${zones.length ? `
-      <div style="overflow:auto"><table class="dp-table" data-table-controls="off" data-table-sort="off"><thead><tr><th>Cơ sở</th><th>Khu</th><th>Số vị trí đã xác minh</th><th>Giờ chốt</th></tr></thead><tbody>
-      ${zones.map(zone => `<tr><td>${esc(zone.branch)}</td><td>${esc(zone.zone)}</td><td class="num">${fmt(zone.locationCount)}</td><td>${esc(show(zone.cutoffAt))}</td></tr>`).join('')}
+      <div style="overflow:auto"><table class="dp-table" data-table-controls="off" data-table-sort="off"><thead><tr><th>Cơ sở</th><th>Khu</th><th>Số vị trí đã xác minh</th><th>Giờ chốt</th><th>Kiểm kê lại</th></tr></thead><tbody>
+      ${zones.map(zone => `<tr><td>${esc(zone.branch)}</td><td>${esc(zone.zone)}</td><td class="num">${fmt(zone.locationCount)}</td><td>${esc(show(zone.cutoffAt))}</td>
+        <td>${ledger.countingZone(zone.branch, zone.zone) ? '🔒 Đang đếm, khu bị đóng băng' : `<button data-recount="${esc(zone.zone)}" data-branch="${esc(zone.branch)}">Bắt đầu đếm lại</button>`}</td></tr>`).join('')}
       </tbody></table></div>
       <p>Tổng đã xác minh chỉ gồm vị trí có tồn kiểm kê, không phải tổng đầy đủ của kho. Biến động sau giờ chốt được cộng/trừ; biến động trước giờ chốt coi như đã nằm trong số đếm.</p>`
-      : '<p>Chưa nạp khu nào. Khi chưa có tồn kiểm kê, sổ tồn dùng số khả dụng đã xác nhận của dữ liệu mô phỏng.</p>'}`;
+      : '<p>Chưa nạp khu nào. Khi chưa có tồn kiểm kê, sổ tồn dùng số khả dụng đã xác nhận của dữ liệu mô phỏng.</p>'}
+      ${countingZones.length ? `<p style="color:var(--amber)">Khu đang kiểm kê (đóng băng, không ra đơn): ${countingZones.map(z => esc(z.branch + ' · ' + z.zone + ' từ ' + show(z.startedAt))).join(' · ')}. Nạp file kiểm kê của khu đó để chốt và mở lại khu.</p>` : ''}
+      ${renderReceipts(pending, branch)}`;
   }
+
+  /* Hàng về sau giờ chốt: tab Vị trí hàng cho vị trí và NGÀY VỀ, TỔNG SL của tab đó không phải
+     tồn còn nên số lượng nhập phải lấy từ nguồn đáng tin và do người nhập xác nhận. */
+  function renderReceipts(pending, branch){
+    if (!pending.length) return '';
+    return `<h3>Hàng về sau giờ chốt · cơ sở ${esc(branch)} (${fmt(pending.length)} dòng)</h3>
+      <p>Lấy từ cột NGÀY VỀ của tab Vị trí hàng so với giờ chốt từng khu. Số lượng <strong>không</strong> lấy từ TỔNG SL của tab đó — nhập số nhập thực tế theo phiếu nhập rồi bấm ghi.</p>
+      <div style="overflow:auto;max-height:300px"><table class="dp-table" data-table-controls="off" data-table-sort="off"><thead><tr><th>Mã / vị trí</th><th>Khu</th><th>NGÀY VỀ</th><th>Tình trạng</th><th>Tồn sổ hiện tại</th><th>Ghi số nhập</th></tr></thead><tbody>
+      ${pending.map((row, i) => `<tr><td>${esc(row.code)} · ${esc(row.location)}</td><td>${esc(row.zone)}</td><td>${esc(row.arrivalDate || '—')}</td>
+        <td>${esc(RECEIPT_LABEL[row.status] || row.status)}<br><small>${esc(row.reason)}</small></td>
+        <td class="num">${row.hasOpening ? fmt(ledger.onHand(branch, row.code, row.location)) : 'Chưa có tồn đầu'}</td>
+        <td>${row.status === 'after'
+          ? `<input type="number" min="0" step="any" id="receipt-qty-${i}" placeholder="SL nhập" style="width:100px" aria-label="Số nhập ${esc(row.code)} ${esc(row.location)}"><button data-receipt="${i}">Ghi nhập</button>`
+          : 'Cần xác minh trước khi ghi'}</td></tr>`).join('')}
+      </tbody></table></div>`;
+  }
+  let pendingRows = [];
 
   $('pickingStocktakeBtn').onclick = () => { renderLedger(); $('pickingStocktakeDialog').showModal(); };
   $('pickingStocktakeClose').onclick = () => $('pickingStocktakeDialog').close();
+  $('pickingStocktakeBranch').onchange = () => renderLedger();
+
+  $('pickingStocktakeLedger').onclick = event => {
+    const button = event.target.closest('button');
+    if (!button) return;
+    $('pickingStocktakeError').textContent = '';
+    try {
+      if (button.dataset.recount !== undefined) {
+        const result = ledger.startCount(button.dataset.branch, button.dataset.recount, { recount:true });
+        $('pickingStocktakeError').textContent = 'Khu ' + result.zone + ' đang kiểm kê: ' + fmt(result.locationCount)
+          + ' vị trí bị đóng băng, không chỉ định hoặc nhặt đến khi nạp file kiểm kê mới của khu này.';
+      } else if (button.dataset.receipt !== undefined) {
+        const row = pendingRows[Number(button.dataset.receipt)];
+        const input = $('receipt-qty-' + button.dataset.receipt).value;
+        if (input === '') throw Error('Nhập số lượng nhập thực tế theo phiếu nhập.');
+        // Mã chưa từng có ở vị trí này: lập tồn đầu 0 trước khi ghi lô nhập.
+        if (!row.hasOpening) ledger.openZero(row.branch, row.code, row.location);
+        ledger.record({ branch:row.branch, code:row.code, location:row.location, type:'receipt', quantity:Number(input) });
+        $('pickingStocktakeError').textContent = 'Đã ghi nhập ' + fmt(Number(input)) + ' vào ' + row.location
+          + ' · tồn sổ hiện tại ' + fmt(ledger.onHand(row.branch, row.code, row.location));
+      } else return;
+      renderLedger();
+      window.PickingPopup?.attach();
+      if ($('pickingDialog')?.open) window.PickingPopup?.refresh?.();
+    } catch (err) { $('pickingStocktakeError').textContent = err.message; }
+  };
 
   $('pickingStocktakeFile').onchange = async event => {
     $('pickingStocktakeError').textContent = '';
