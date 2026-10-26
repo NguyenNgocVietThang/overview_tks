@@ -1,5 +1,7 @@
 # TOKOSI Dashboard
 
+26/10/2026 — **Bảng nhập liệu:** sort đọc giá trị hiện tại của input/textarea/select, ưu tiên hơn metadata cũ; so sánh đúng số/ngày và giữ SĐT dạng chữ. Tiêu đề bảng căn giữa, nội dung số vẫn căn phải. Đã kiểm tra 54/54 test liên quan và fixture Edge desktop/mobile, sáng/tối; toàn suite 3.582 test: 3.579 đạt, 3 bỏ qua, 0 lỗi; chưa commit/push/deploy. Xem [thiết kế](docs/superpowers/specs/2026-10-26-editable-table-sorting-design.md).
+
 Dashboard nội bộ cho hai cơ sở Hà Nội và Sài Gòn.
 
 24/10/2026 — Hiệu ứng xuất hiện dùng chung `public/shared/motion.js` trên toàn bộ trang: chữ nảy lần lượt, KPI lật/count-up, panel và dòng bảng hiện nhẹ. Giữ nguyên ảnh nền/hiệu ứng nền, giao diện, bố cục, cấu trúc bảng và dữ liệu; tôn trọng giảm chuyển động, không chạy lại khi bảng tự cập nhật. Không migration/API. Xem [kế hoạch và phạm vi](docs/superpowers/plans/2026-10-24-shared-ui-motion.md).
@@ -141,3 +143,5 @@ Trạng thái, lịch sử cập nhật và checklist vận hành: [CURRENT.md](
 Chủ đơn hoạt động có thể xóa vĩnh viễn đơn xin nghỉ từ web/Telegram ở mọi trạng thái trước buổi nghỉ đầu tiên. Gồm xác nhận trên web, xóa đơn/lịch sử, chuông hủy, hàng đợi Telegram và realtime. Áp migration `0094_hr_leave_cancellation.sql` trước backend/worker/frontend. Xem [thiết kế](docs/superpowers/specs/2026-10-26-own-leave-cancellation-design.md) và [kế hoạch/triển khai](docs/superpowers/plans/2026-10-26-own-leave-cancellation.md).
 
 Cập nhật gần nhất: 26/10/2026.
+
+Cập nhật gần nhất cho sort bảng nhập liệu: 26/10/2026.

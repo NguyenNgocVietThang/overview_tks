@@ -1,5 +1,7 @@
 # TÀI LIỆU ĐẶC TẢ YÊU CẦU PHẦN MỀM
 
+26/10/2026 — **Yêu cầu bảng dữ liệu:** cột có input/textarea/select sắp xếp theo giá trị hiện tại, đúng kiểu số/ngày; giữ số điện thoại như chuỗi. Tiêu đề căn giữa, nội dung ô giữ cách căn hiện có. Chu kỳ sort tăng dần → giảm dần → thứ tự ban đầu; bảng phân trang sắp xếp toàn bộ danh sách đã lọc, giữ các ngoại lệ chủ đích tắt sort.
+
 23/10/2026 — Kiểm tra giá bán (Invoice Price Audit) đã hoàn thiện và push 2 remote GitHub (`origin`, `tks_web`): chuẩn hóa danh sách 10 khách bao cước HN sang tên KiotViet mới (giữ dấu), đọc bậc giá theo chiếc (`CT`, `lẻ`) trực tiếp, khóa 4 mức giá Vừa - Lớn - VIP - Cắt lỗ, email 'mới' tính khách Lớn. Gộp PR #16 (Vat Draft paste codes) và PR #17 (Vat Request no hscroll).
 
 22/10/2026 — Danh sách nhân sự: Quản lý xem/sửa Số bảo hiểm sau Vân tay dưới dạng text tự do, xuất Excel kèm ID và nhập lại chỉ cập nhật Số bảo hiểm sau khi kiểm tra ID, trùng giá trị, cơ sở; không áp mẫu định dạng số.
@@ -13,7 +15,7 @@
 | Tên dự án          | Hệ thống Dashboard nội bộ TOKOSI                           |
 | Phiên bản          | 3.0                                                        |
 | Ngày tạo           | 27/07/2026                                                 |
-| Ngày cập nhật      | 23/10/2026                                                 |
+| Ngày cập nhật      | 26/10/2026                                                 |
 | Tài liệu liên quan | BRD v2.2 · BPMN v3.0 · Implementation Plan (cập nhật 05/10/2026) · CSNS-NP-01 (Chính sách nghỉ phép) · `server/db/SCHEMA.md` · Design System MASTER (mục 7 — ràng buộc hiệu năng) |
 | Trạng thái         | Nội dung nền rà soát tại HEAD `11751c4` (05/10); FR-15 Sổ quỹ bổ sung và kiểm chứng 06/10. Migration `0033` đã áp thành công lên Supabase DB. Deploy production còn chờ. Số kiểm thử 1.704/1.701/0/3 là mốc lịch sử 05/10. |
 

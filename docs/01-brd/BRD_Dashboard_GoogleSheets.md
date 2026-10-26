@@ -1,5 +1,7 @@
 # TÀI LIỆU YÊU CẦU NGHIỆP VỤ
 
+26/10/2026 — **Trải nghiệm bảng dữ liệu:** người dùng sắp xếp được các cột đang nhập/chọn thông tin theo giá trị hiện tại, gồm số, ngày và ghi chú; tiêu đề cột căn giữa thống nhất, giữ căn nội dung ô. Bấm tiêu đề lần lượt tăng dần, giảm dần rồi về thứ tự ban đầu.
+
 23/10/2026 — Kiểm tra giá bán (Invoice Price Audit) đã hoàn thiện và push 2 remote GitHub (`origin`, `tks_web`): chuẩn hóa danh sách 10 khách bao cước HN sang tên KiotViet mới (giữ dấu), đọc bậc giá theo chiếc (`CT`, `lẻ`) trực tiếp, khóa 4 mức giá Vừa - Lớn - VIP - Cắt lỗ, email 'mới' tính khách Lớn. Gộp PR #16 (Vat Draft paste codes) và PR #17 (Vat Request no hscroll).
 
 22/10/2026 — Quản lý bổ sung Số bảo hiểm qua Excel xuất từ Danh sách nhân sự và nhập lại theo ID nhân sự; chỉ trường bảo hiểm được cập nhật.
@@ -13,7 +15,7 @@
 | Tên dự án         | Hệ thống Dashboard nội bộ TOKOSI (KiotViet → Supabase PostgreSQL → Web; Google Sheets bổ trợ) |
 | Phiên bản         | 2.3                                                                 |
 | Ngày tạo          | 27/07/2026                                                          |
-| Ngày cập nhật     | 23/10/2026                                                          |
+| Ngày cập nhật     | 26/10/2026                                                          |
 | Đối tượng sử dụng | Ban lãnh đạo, nhân viên nội bộ công ty                              |
 | Trạng thái        | Nội dung nền rà soát tại HEAD `11751c4` (05/10); bổ sung Sổ quỹ đã kiểm chứng cục bộ 06/10, migration `0033` và deploy production còn chờ. |
 

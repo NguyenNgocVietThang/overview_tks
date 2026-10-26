@@ -292,3 +292,46 @@ test('trang Tai khoan: thu tu mac dinh (ngayTao moi nhat truoc) theo THOI GIAN t
   assert.deepEqual(usernames(), users.map(user => user.username));
   window.close();
 });
+
+
+test('editable dashboard columns read current fields before stale sort metadata', () => {
+  const dom = createDashboard();
+  const doc = dom.window.document;
+  const get = dom.window.getTableSortValue;
+  const cell = html => { const td = doc.createElement('td'); td.innerHTML = html; return td; };
+  const number = cell('<input type="number" value="2">');
+  number.dataset.sortValue = '999';
+  number.querySelector('input').value = '12.5';
+  assert.equal(get(number).number, 12.5);
+  const choice = cell('<select><option>Zebra</option><option selected>An</option></select>');
+  choice.dataset.sortText = 'Old';
+  assert.equal(get(choice).text, 'An');
+  choice.querySelector('select').selectedIndex = 0;
+  assert.equal(get(choice).text, 'Zebra');
+  const note = cell('<textarea>Old</textarea>');
+  note.querySelector('textarea').value = 'New';
+  assert.equal(get(note).text, 'New');
+  assert.equal(get(cell('<input type="date" value="2026-10-01">')).number, Date.UTC(2026,9,1));
+  assert.equal(get(cell('<input value="">')).empty, true);
+  assert.equal(get(cell('<input value="1,234.50">')).number, 1234.5);
+  assert.equal(get(cell('<input value="-12,5">')).number, -12.5);
+  assert.equal(get(cell('<input value="0901234567">')).number, null);
+  const sorted = dom.window.sortItemsByRenderedColumn([{n:100},{n:2}], item=>'<tr><td><input type="number" value="'+item.n+'"></td></tr>',0,'asc');
+  assert.deepEqual(Array.from(sorted,item=>item.n),[2,100]);
+  dom.window.close();
+});
+
+test('editable HR columns read current numbers, dates and selected labels', () => {
+  const dom = new JSDOM('<table></table>', {runScripts:'outside-only'});
+  const html = fs.readFileSync(path.join(publicDir,'humanresources/index.html'),'utf8');
+  const start = html.indexOf('    function getTableSortValue(cell)');
+  const end = html.indexOf('    function sortTableRows(', start);
+  dom.window.eval(html.slice(start,end));
+  const get = dom.window.getTableSortValue;
+  const cell = html => {const td=dom.window.document.createElement('td');td.innerHTML=html;return td;};
+  assert.equal(get(cell('<input type="number" value="12.5">')).number,12.5);
+  assert.equal(get(cell('<input type="date" value="2026-10-01">')).number,Date.UTC(2026,9,1));
+  assert.equal(get(cell('<select><option>Z</option><option selected>A</option></select>')).text,'A');
+  assert.equal(get(cell('<textarea>Ghi chú</textarea>')).text,'Ghi chú');
+  dom.window.close();
+});
