@@ -1682,13 +1682,15 @@ tbody tr:hover {
 
 
 /* ---------- Cột số liệu căn phải (gắn tự động bởi shared/table-align.js) ---------- */
-table th.col-num,
 table td.col-num {
   text-align: right;
 }
 
-table th.col-num .sort-button {
-  text-align: right;
+/* Center headings while keeping numeric body cells right aligned. */
+table thead th,
+table thead th .sort-button,
+table thead th button[data-col] {
+  text-align: center !important;
 }
 
 /* ---------- Tiêu đề cột sắp xếp được: MỘT quy ước cho mọi bảng ----------

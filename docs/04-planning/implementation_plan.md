@@ -1,5 +1,7 @@
 # Implementation plan hiện tại
 
+26/10/2026 — **Sort bảng nhập liệu và căn giữa tiêu đề (cục bộ):** đã sửa bộ đọc giá trị hiện tại của input/textarea/select trong sort dùng chung, Dashboard và Nhân sự; CSS chung căn giữa tiêu đề, giữ căn ô dữ liệu. 54/54 test liên quan và fixture Edge desktop/mobile sáng/tối đạt; toàn suite 3.582 test: 3.579 đạt, 3 bỏ qua, 0 lỗi (log `server/table-sort-full.log`). Checkout riêng của main, không pull; chưa commit/push/deploy. Chi tiết: [kế hoạch](../superpowers/plans/2026-10-26-editable-table-sorting.md).
+
 23/10/2026 — Kiểm tra giá bán (Invoice Price Audit) đã hoàn thiện và push 2 remote GitHub (`origin` và `tks_web`): chuẩn hóa danh sách 10 khách bao cước HN sang tên KiotViet mới (giữ dấu), đọc bậc giá theo chiếc (`CT`, `lẻ`) trực tiếp, khóa 4 mức giá Vừa - Lớn - VIP - Cắt lỗ, email 'mới' tính khách Lớn. Gộp PR #16 và PR #17 vào `main`.
 
 22/10/2026 — Áp migration bảo hiểm trước code; Quản lý xuất Excel có ID, điền số, xem trước và nhập lại theo ID nhân sự.

@@ -147,6 +147,7 @@ test('shared.css: bieu tuong sort la cot flex rieng, do rong co dinh, dinh mep p
   assert.match(rule('.sort-indicator'), /flex:\s*none/, 'bieu tuong khong co/gian theo nhan');
   assert.match(rule('.sort-indicator'), /width:\s*\d+px/, 'do rong co dinh de doi trang thai khong lam nhan nhay dong');
   assert.match(rule('.sort-button > .sort-label,\n.sort-button > span:first-child'), /flex:\s*1 1 auto/, 'nhan chiem phan con lai va tu xuong dong');
-  assert.match(rule('table th.col-num .sort-button'), /text-align:\s*right/);
+  assert.match(rule('table thead th,\ntable thead th .sort-button,\ntable thead th button[data-col]'), /text-align:\s*center\s*!important/);
+  assert.match(rule('table td.col-num'), /text-align:\s*right/, 'numeric body alignment is preserved');
   assert.match(css, /th\[aria-sort="ascending"\] \.sort-indicator[\s\S]*?color:\s*var\(--amber\)/);
 });

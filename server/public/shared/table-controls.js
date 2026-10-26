@@ -573,7 +573,7 @@
   }
   // Ô nhập liệu / dropdown: textContent rỗng (input) hoặc gộp mọi option (select) → lấy giá trị đang hiển thị.
   function cellText(cell) {
-    var field = cell.querySelector('select, input:not([type=hidden]):not([type=checkbox]):not([type=radio]), textarea');
+    var field = cell.querySelector('select, input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]):not([type=reset]), textarea');
     if (field) {
       var shown = field.tagName === 'SELECT'
         ? (field.selectedIndex >= 0 ? field.options[field.selectedIndex].textContent : '')
@@ -583,13 +583,19 @@
     return cell.textContent.replace(/\s+/g, ' ').trim();
   }
   function sortValue(cell) {
-    if (cell.hasAttribute('data-sort-value')) {
+    var field = cell.querySelector('select, input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]):not([type=reset]), textarea');
+    if (!field && cell.hasAttribute('data-sort-text')) {
+      var label = cell.getAttribute('data-sort-text').trim();
+      return { empty: !label || label === '—', number: null, text: label };
+    }
+    if (!field && cell.hasAttribute('data-sort-value')) {
       var given = Number(cell.getAttribute('data-sort-value'));
       return { empty: !Number.isFinite(given), number: given, text: '' };
     }
     var text = cellText(cell);
     if (!text || text === '—' || text === '-') return { empty: true, number: null, text: '' };
-    var number = parseDateText(text);
+    var number = field && field.tagName === 'INPUT' && /^(number|range|date|datetime-local|time|month|week)$/.test(field.type) && Number.isFinite(field.valueAsNumber)
+      ? field.valueAsNumber : parseDateText(text);
     if (number === null) number = parseNumberText(text);
     return { empty: false, number: number, text: text };
   }

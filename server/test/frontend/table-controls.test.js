@@ -477,3 +477,16 @@ test('clearing the sort is saved without a sort, and an unknown saved sort colum
   other.api.loadPrefs({ [state(other).key]: { desktop: { columns: {}, sort: { key: 'gone', dir: 'asc' } } } });
   assert.equal(state(other).sort, null);
 });
+
+
+test('local sorting uses live numeric inputs over stale metadata and restores original order', t => {
+  const ctx=setup(t, '<table data-table-sort="local"><thead><tr><th>SL</th></tr></thead><tbody><tr id="a"><td data-sort-value="1"><input type="number" value="100"></td></tr><tr id="b"><td data-sort-value="2"><input type="number" value="2"></td></tr><tr id="c"><td><input type="number" value=""></td></tr></tbody></table>');
+  ctx.api.enhance(ctx.table);
+  const ids=()=>Array.from(ctx.table.tBodies[0].rows,r=>r.id);
+  const button=ctx.table.querySelector('.sort-button');
+  button.click();assert.deepEqual(ids(),['b','a','c']);
+  ctx.doc.querySelector('#a input').value='0.5';
+  button.click();assert.deepEqual(ids(),['b','a','c']);
+  button.click();assert.deepEqual(ids(),['a','b','c']);
+  button.click();assert.deepEqual(ids(),['a','b','c']);
+});

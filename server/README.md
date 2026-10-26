@@ -1,4 +1,6 @@
 <!-- Chính sách hiện hành: mục 16/10/2026 — Tập Pancake độc lập ở cuối tài liệu. Các mốc cũ giữ làm lịch sử. -->
+
+26/10/2026 — **Sort cột nhập liệu và tiêu đề bảng:** sửa bộ đọc giá trị ở `public/shared/table-controls.js`, Dashboard và Nhân sự để dùng input/textarea/select hiện tại trước metadata sort cũ; đọc số định dạng, ngày và giữ SĐT dạng chữ. CSS chung căn giữa tiêu đề, không đổi căn nội dung ô. Nhóm sort/table-controls: 54/54 đạt (`table-sort-targeted.log`); fixture Edge 1440px/390px sáng/tối đạt, chưa xác nhận ứng dụng đăng nhập/production; toàn suite `npm test -- --test-concurrency=4` exit 0: 3.582 test, 3.579 đạt, 3 bỏ qua, 0 lỗi (`table-sort-full.log`); chưa commit/push/deploy. Không API/migration/dependency mới.
 # TOKOSI Dashboard Server
 
 24/10/2026 — `public/shared/motion.js` (kèm `motion.test.js`) bổ sung hiệu ứng xuất hiện dùng chung trên 13 trang HTML, gồm đăng nhập/đăng ký/404 và Telegram miniapp. Không thay CSS, nền, bố cục, cột bảng, dữ liệu hoặc API; giảm chuyển động tắt hiệu ứng. Số đếm hiển thị bằng lớp thị giác tạm thời, giữ nguyên text số thật cho truy cập và xử lý. Chạy `node --test public/shared/motion.test.js test/frontend/shared-motion-integration.test.js` để kiểm tra riêng.
@@ -774,3 +776,5 @@ Migration `0094` thêm `hr_leave_cancellation_jobs`, `hr_leave_approver_recipien
 Cập nhật gần nhất: 26/10/2026.
 
 26/10/2026 — HN-SG đã ngừng hoạt động: chỉ 5 fanpage còn lại được đồng bộ Pancake và hiển thị trạng thái. Client từ chối gọi API page 1222318524308489 kể cả khi còn token; đã gỡ token trong cấu hình cục bộ và mẫu. Giữ dữ liệu lịch sử, không đổi schema. Cần triển khai/restart server và worker để áp dụng trên môi trường đang chạy; thu hồi token tại Pancake nếu cần vô hiệu hóa token ở nhà cung cấp.
+
+Cập nhật gần nhất cho sort bảng nhập liệu: 26/10/2026.
