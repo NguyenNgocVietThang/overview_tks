@@ -4,7 +4,35 @@ const {JSDOM}=require('jsdom');
 function setup(t){const dom=new JSDOM('<body></body>',{runScripts:'outside-only',url:'http://localhost/'});t.after(()=>dom.window.close());const w=dom.window;w.structuredClone=structuredClone;w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;};w.eval(fs.readFileSync(path.join(__dirname,'rules.js'),'utf8'));
 const order={branch:'HN',orderCode:'TEST',customerName:'Mô phỏng',lines:[{productCode:'P1',quantity:100}]};
 const locations=[{id:'A',branch:'HN',code:'P1',location:'A01',available:120},{id:'B',branch:'HN',code:'P1',location:'B02',available:40}];
-w.PickingData={get:()=>({locations}),key:o=>o.orderCode};w.eval(fs.readFileSync(path.join(__dirname,'inventory.js'),'utf8'));return {w,d:w.document,api:w.PickingInventory,order,locations};}
+w.PickingData={get:()=>({locations}),key:o=>o.orderCode};w.eval(fs.readFileSync(path.join(__dirname,'stocktake.js'),'utf8'));w.eval(fs.readFileSync(path.join(__dirname,'inventory.js'),'utf8'));return {w,d:w.document,api:w.PickingInventory,ledger:w.PickingLedger,order,locations};}
+const STOCKTAKE=[
+  ['Mã hàng','Tên khách hàng','Ghi chú','Số lượng'],
+  ['P1','Khu A','A01','300'],
+  ['P1','Khu A','A01','200'],
+  ['P1','Khu B','B02','40']
+];
+test('opening stock comes from the stocktake ledger, not from the location module quantity',t=>{
+const {api,ledger,w,order,locations}=setup(t);
+assert.equal(api.available(locations[0]),120,'chưa nạp kiểm kê thì dùng số khả dụng đã xác nhận của dữ liệu thử');
+ledger.load(w.PickingStocktake.build(STOCKTAKE,{branch:'HN'}),{'Khu A':'2026-10-20T18:00:00+07:00'});
+// A01 lấy 300+200 từ file kiểm kê, không phải 120 của module Vị trí hàng; B02 chưa chốt giờ nên chưa có tồn.
+assert.equal(api.available(locations[0]),500);
+assert.equal(api.available(locations[1]),null);
+assert.equal(api.summary('HN','P1').available,null,'còn vị trí chưa xác minh thì tổng không được coi là đầy đủ');
+ledger.setCutoff('HN','Khu B','2026-10-21T18:00:00+07:00');
+ledger.load(w.PickingStocktake.build(STOCKTAKE,{branch:'HN'}),{'Khu B':'2026-10-21T18:00:00+07:00'});
+assert.deepEqual(JSON.parse(JSON.stringify(api.summary('HN','P1'))),{onHand:540,held:0,available:540});
+});
+test('actual pickup writes a post-cutoff movement into the stocktake ledger',t=>{
+const {api,ledger,w,order,locations}=setup(t);
+ledger.load(w.PickingStocktake.build(STOCKTAKE,{branch:'HN'}),{'Khu A':'2026-10-20T18:00:00+07:00','Khu B':'2026-10-21T18:00:00+07:00'});
+api.reserve(order,{0:[{id:'A',quantity:100}]});
+assert.equal(api.available(locations[0]),400,'giữ chỗ chưa trừ tồn thực');
+api.confirmActual(order,[{value:'100',outcome:'end'}]);
+assert.equal(ledger.onHand('HN','P1','A01'),400,'tồn thực trừ theo số thực nhặt');
+assert.deepEqual(JSON.parse(JSON.stringify(ledger.movements({branch:'HN'}).map(m=>[m.type,m.quantity,m.counted]))),[['pick',100,false]]);
+assert.deepEqual(JSON.parse(JSON.stringify(api.summary('HN','P1'))),{onHand:440,held:0,available:440});
+});
 test('reservation reduces availability, partial pickup subtracts actual and releases unfinished reservation',t=>{
 const {api,order,locations,d}=setup(t);api.reserve(order,{0:[{id:'A',quantity:100}]});assert.equal(api.available(locations[0]),20);api.open(order);
 d.querySelector('#taken-0').value='70';d.querySelector('#finish-0').checked=true;d.querySelector('[data-take="0"]').click();

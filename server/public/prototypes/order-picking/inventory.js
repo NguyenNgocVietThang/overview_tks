@@ -3,14 +3,43 @@
 const D=window.PickingData,R=window.PickingRules,$=id=>document.getElementById(id);
 const e=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const state={stock:{},orders:{},history:[]};let current,auditOnly=false;
-const stock=r=>state.stock[r.id]||(state.stock[r.id]={onHand:R.quantity(r.available),locked:false});
+const stock=r=>state.stock[r.id]||(state.stock[r.id]={override:null,moved:0,locked:false});
+/* Nguồn tồn: sổ kiểm kê theo mã hàng + vị trí có giờ chốt theo khu.
+   Số lượng của module Vị trí hàng chỉ dùng khi chưa nạp file kiểm kê cho cơ sở đó. */
+const ledger=()=>window.PickingLedger;
+function base(r){
+  const book=ledger();
+  if(book&&book.has(r.branch))return book.onHand(r.branch,r.code,r.location);
+  return R.quantity(r.available);
+}
+function onHand(r){
+  const s=stock(r),start=s.override!==null?s.override:base(r);
+  return start===null?null:Math.round((start+s.moved)*1e6)/1e6;
+}
+/* Thực nhặt/nhập/điều chỉnh sau giờ chốt ghi vào sổ kiểm kê khi vị trí đã có tồn chốt;
+   vị trí chưa có tồn kiểm kê chỉ ghi biến động trong phiên thử. */
+function move(r,type,quantity){
+  const book=ledger();
+  if(book&&book.opening(r.branch,r.code,r.location)){
+    book.record({branch:r.branch,code:r.code,location:r.location,type,quantity:type==='adjust'?String(quantity):quantity});
+    return;
+  }
+  const s=stock(r);s.moved+=type==='pick'?-quantity:quantity;
+}
+// Kiểm đếm cho một con số tuyệt đối: ghi phần chênh lệch, không ghi đè lịch sử.
+function setCount(r,quantity){
+  const before=onHand(r),s=stock(r);
+  if(ledger()?.opening(r.branch,r.code,r.location)&&before!==null)move(r,'adjust',quantity-before);
+  else{s.override=quantity;s.moved=0;}
+  return before;
+}
 const held=(id,except)=>Object.entries(state.orders).reduce((s,[k,o])=>s+(k===except?0:o.jobs.filter(j=>j.id===id).reduce((n,j)=>n+j.reserved,0)),0);
 function summary(branch,code){
   const rows=D.get().locations.filter(r=>r.branch===branch&&R.key(r.code)===R.key(code));
-  const unknown=!rows.length||rows.some(r=>stock(r).onHand===null);
-  return {onHand:unknown?null:rows.reduce((s,r)=>s+stock(r).onHand,0),held:rows.reduce((s,r)=>s+held(r.id),0),available:unknown?null:rows.reduce((s,r)=>s+api.available(r),0)};
+  const unknown=!rows.length||rows.some(r=>onHand(r)===null);
+  return {onHand:unknown?null:rows.reduce((s,r)=>s+onHand(r),0),held:rows.reduce((s,r)=>s+held(r.id),0),available:unknown?null:rows.reduce((s,r)=>s+api.available(r),0)};
 }
-const api={version:0,confirmStock(r,q){const s=stock(r);if(s.onHand===null&&held(r.id)===0){s.onHand=q;log('Xác nhận khả dụng',r.location+' · '+q);}},available(r,except){const s=stock(r);return s.locked?0:s.onHand===null?null:Math.max(0,s.onHand-held(r.id,except));},has(o){return !!state.orders[D.key(o)];},reserve(o,allocations){
+const api={version:0,confirmStock(r,q){const s=stock(r);if(onHand(r)===null&&held(r.id)===0){s.override=q;s.moved=0;log('Xác nhận khả dụng',r.location+' · '+q);}},available(r,except){const s=stock(r),total=onHand(r);return s.locked?0:total===null?null:Math.max(0,total-held(r.id,except));},has(o){return !!state.orders[D.key(o)];},reserve(o,allocations){
   const key=D.key(o),old=state.orders[key];
   if(old?.jobs.some(j=>j.taken>0))throw Error('Đơn đã bắt đầu nhặt. Dùng Kho nhặt hàng để lấy bù, không chỉ định lại toàn đơn.');
   const jobs=[];o.lines.forEach((l,i)=>(allocations[i]||[]).forEach(p=>jobs.push({id:p.id,line:i,reserved:p.quantity,taken:0,closed:false})));
@@ -26,17 +55,17 @@ const o=current.order,key=D.key(o),rows=D.get().locations.filter(r=>r.branch===o
 $('inventoryTitle').textContent=o.orderCode+' · '+o.customerName;
 $('inventoryBody').innerHTML=`<h3>1. Nhập số thực nhặt tại vị trí đã chỉ định</h3><p>Nhập số lấy thêm lần này. Nếu vị trí không đủ: chọn “Kết thúc tại vị trí này” để giải phóng phần giữ chỗ chưa lấy. Nếu báo hết, vị trí bị khóa chờ kiểm đếm.</p><div style="overflow:auto"><table class="dp-table"><thead><tr><th>Mã / vị trí</th><th>Đã nhặt</th><th>Còn giữ chỗ</th><th>Thực nhặt thêm</th><th>Xử lý</th></tr></thead><tbody>${jobs.map((j,i)=>{const r=rows.find(r=>r.id===j.id);return `<tr><td>${e(o.lines[j.line].productCode)} · ${e(r.location)}</td><td>${j.taken}</td><td>${j.reserved}</td><td><input aria-label="Thực nhặt dòng ${i}" id="taken-${i}" type="number" min="0" max="${j.reserved}" value="${j.reserved}" ${!j.reserved?'disabled':''} style="width:80px"></td><td>${j.reserved?`<label><input type="checkbox" id="finish-${i}"> Kết thúc tại vị trí này</label><br><label><input type="checkbox" id="empty-${i}"> Kho báo đã hết hàng</label><br><button data-take="${i}">Xác nhận thực nhặt</button>`:'Đã kết thúc'}</td></tr>`;}).join('')}</tbody></table></div><h3 style="margin-top:24px">2. Lấy bù số còn thiếu</h3>${o.lines.map((l,i)=>{
 const taken=jobs.filter(j=>j.line===i).reduce((s,j)=>s+j.taken,0),reserved=jobs.filter(j=>j.line===i).reduce((s,j)=>s+j.reserved,0),missing=Math.max(0,l.quantity-taken-reserved);
-return `<p><strong>${e(l.productCode)}</strong>: Đơn ${l.quantity} · Đã nhặt ${taken} · Đang giữ ${reserved} · <strong>Cần chỉ định bù ${missing}</strong> ${missing?`<button data-fill="${i}">Gợi ý & giữ chỗ lấy bù</button>`:taken===l.quantity?'✓ Đã nhặt đủ':''}</p>`;}).join('')}<h3>3. Sổ tồn vị trí & xử lý chênh lệch</h3><div style="overflow:auto"><table class="dp-table"><thead><tr><th>Mã / vị trí</th><th>Tồn sổ</th><th>Giữ chỗ mọi đơn</th><th>Khả dụng</th><th>Kiểm đếm & điều chỉnh</th></tr></thead><tbody>${rows.map(r=>{const s=stock(r);return `<tr><td>${e(r.code)} · ${e(r.location)}</td><td>${s.onHand??'Chưa rõ'}</td><td>${held(r.id)}</td><td>${s.locked?'🔒 Chờ kiểm đếm':api.available(r)??'Chưa rõ'}</td><td>${s.locked?`<label>Đếm còn <input id="count-${r.id}" type="number" min="0" placeholder="SL thực tế" style="width:90px"></label><input id="reason-${r.id}" placeholder="Lý do điều chỉnh" style="width:150px"><button data-count="${r.id}">Quản lý xác nhận</button>`:'Đang hoạt động'}</td></tr>`;}).join('')}</tbody></table></div><p id="inventoryError" style="color:var(--amber)" role="status"></p><h3 style="margin-top:24px">Lịch sử thao tác trong phiên thử</h3>${state.history.map(h=>`<p style="font-size:12px">${h.at} · <strong>${e(h.type)}</strong> · ${e(h.text)}</p>`).join('')}<p><small>Dữ liệu giữ trong bộ nhớ phiên thử. Tải lại trang sẽ đặt lại sổ tồn và giữ chỗ. Không ghi DB, không trừ tồn KiotViet.</small></p>`;
+return `<p><strong>${e(l.productCode)}</strong>: Đơn ${l.quantity} · Đã nhặt ${taken} · Đang giữ ${reserved} · <strong>Cần chỉ định bù ${missing}</strong> ${missing?`<button data-fill="${i}">Gợi ý & giữ chỗ lấy bù</button>`:taken===l.quantity?'✓ Đã nhặt đủ':''}</p>`;}).join('')}<h3>3. Sổ tồn vị trí & xử lý chênh lệch</h3><div style="overflow:auto"><table class="dp-table"><thead><tr><th>Mã / vị trí</th><th>Tồn sổ</th><th>Giữ chỗ mọi đơn</th><th>Khả dụng</th><th>Kiểm đếm & điều chỉnh</th></tr></thead><tbody>${rows.map(r=>{const s=stock(r);return `<tr><td>${e(r.code)} · ${e(r.location)}</td><td>${onHand(r)??'Chưa có tồn xác nhận'}</td><td>${held(r.id)}</td><td>${s.locked?'🔒 Chờ kiểm đếm':api.available(r)??'Chưa rõ'}</td><td>${s.locked?`<label>Đếm còn <input id="count-${r.id}" type="number" min="0" placeholder="SL thực tế" style="width:90px"></label><input id="reason-${r.id}" placeholder="Lý do điều chỉnh" style="width:150px"><button data-count="${r.id}">Quản lý xác nhận</button>`:'Đang hoạt động'}</td></tr>`;}).join('')}</tbody></table></div><p id="inventoryError" style="color:var(--amber)" role="status"></p><h3 style="margin-top:24px">Lịch sử thao tác trong phiên thử</h3>${state.history.map(h=>`<p style="font-size:12px">${h.at} · <strong>${e(h.type)}</strong> · ${e(h.text)}</p>`).join('')}<p><small>Dữ liệu giữ trong bộ nhớ phiên thử. Tải lại trang sẽ đặt lại sổ tồn và giữ chỗ. Không ghi DB, không trừ tồn KiotViet.</small></p>`;
 if(auditOnly){const body=$('inventoryBody'),heading=[...body.querySelectorAll('h3')].find(h=>h.textContent.startsWith('3.'));if(heading){while(body.firstChild!==heading)body.firstChild.remove();heading.textContent='Sổ tồn vị trí & xử lý chênh lệch';}}
 }
 $('inventoryBody').onclick=event=>{
 try{
 const b=event.target.closest('button');if(!b)return;
 if(b.dataset.take!==undefined){const i=Number(b.dataset.take),j=current.jobs[i],input=$('taken-'+i).value,q=Number(input),r=D.get().locations.find(r=>r.id===j.id),s=stock(r);
-if(input===''||!Number.isFinite(q)||q<0||q>j.reserved||s.onHand===null||q>s.onHand)throw Error('Số thực nhặt phải từ 0 đến lượng còn giữ chỗ và tồn sổ.');
-s.onHand-=q;j.taken+=q;j.reserved-=q;
+if(input===''||!Number.isFinite(q)||q<0||q>j.reserved||onHand(r)===null||q>onHand(r))throw Error('Số thực nhặt phải từ 0 đến lượng còn giữ chỗ và tồn sổ.');
+move(r,'pick',q);j.taken+=q;j.reserved-=q;
 const end=$('finish-'+i).checked||$('empty-'+i).checked;if(end){j.reserved=0;j.closed=true;}
-if($('empty-'+i).checked){s.locked=true;log('Khóa vị trí',r.code+' · '+r.location+' báo hết hàng, tồn sổ còn '+s.onHand);}
+if($('empty-'+i).checked){s.locked=true;log('Khóa vị trí',r.code+' · '+r.location+' báo hết hàng, tồn sổ còn '+onHand(r));}
 log('Thực nhặt',current.order.orderCode+' · '+r.location+' lấy '+q+(end?' · giải phóng giữ chỗ còn lại':''));
 }else if(b.dataset.fill!==undefined){const i=Number(b.dataset.fill),l=current.order.lines[i],missing=l.quantity-current.jobs.filter(j=>j.line===i).reduce((s,j)=>s+j.taken+j.reserved,0),rows=D.get().locations.filter(r=>r.branch===current.order.branch&&R.key(r.code)===R.key(l.productCode)).map(r=>({...r,available:api.available(r)}));
 const excluded=new Set(current.jobs.filter(j=>j.line===i&&j.closed).map(j=>j.id));
@@ -45,7 +74,7 @@ log('Giữ chỗ lấy bù',l.productCode+' · giữ thêm '+(missing-result.sho
 }else if(b.dataset.count){const id=b.dataset.count,r=D.get().locations.find(r=>r.id===id),raw=$('count-'+id).value,q=Number(raw),reason=$('reason-'+id).value.trim();
 if(raw===''||!Number.isFinite(q)||q<0||!reason)throw Error('Nhập số kiểm đếm không âm và lý do điều chỉnh.');
 if(held(id)>0)throw Error('Còn giữ chỗ của đơn khác. Cần xử lý các giữ chỗ trước khi điều chỉnh.');
-const s=stock(r),before=s.onHand;s.onHand=q;s.locked=false;log('Quản lý điều chỉnh',r.code+' · '+r.location+' từ '+before+' → '+q+' · '+reason);
+const s=stock(r),before=setCount(r,q);s.locked=false;log('Quản lý điều chỉnh',r.code+' · '+r.location+' từ '+before+' → '+q+' · '+reason);
 }render();window.PickingPopup?.attach();
 }catch(err){$('inventoryError').textContent=err.message;}
 };
@@ -61,10 +90,10 @@ api.confirmActual=(o,entries)=>{
     if(!Number.isFinite(value)||delta<0||delta>job.reserved)throw Error('Thực nhặt lũy kế phải từ số đã xác nhận đến số đã chỉ định. Sửa giảm cần xử lý hoàn/sửa sai riêng.');
     used[job.id]=(used[job.id]||0)+delta;changes.push({job,value,delta,outcome:entry.outcome||'continue'});
   });
-  Object.entries(used).forEach(([id,q])=>{const row=D.get().locations.find(r=>r.id===id);if(stock(row).onHand===null||q>stock(row).onHand)throw Error('Không đủ tồn vị trí để xác nhận thực nhặt.');});
+  Object.entries(used).forEach(([id,q])=>{const row=D.get().locations.find(r=>r.id===id);if(onHand(row)===null||q>onHand(row))throw Error('Không đủ tồn vị trí để xác nhận thực nhặt.');});
   let changed=false;
   for(const c of changes){const row=D.get().locations.find(r=>r.id===c.job.id),s=stock(row);const end=['end','empty'].includes(c.outcome);
-    if(c.delta||!c.job.reported||c.job.outcome!==c.outcome){s.onHand-=c.delta;c.job.taken=c.value;c.job.reserved-=c.delta;c.job.reported=true;c.job.outcome=c.outcome;if(end){c.job.reserved=0;c.job.closed=true;}if(c.outcome==='empty')s.locked=true;changed=true;log('Xác nhận thực nhặt',o.orderCode+' · '+row.location+' lũy kế '+c.value+' (tăng '+c.delta+')');}
+    if(c.delta||!c.job.reported||c.job.outcome!==c.outcome){if(c.delta)move(row,'pick',c.delta);c.job.taken=c.value;c.job.reserved-=c.delta;c.job.reported=true;c.job.outcome=c.outcome;if(end){c.job.reserved=0;c.job.closed=true;}if(c.outcome==='empty')s.locked=true;changed=true;log('Xác nhận thực nhặt',o.orderCode+' · '+row.location+' lũy kế '+c.value+' (tăng '+c.delta+')');}
   }
   if(changed)record.delivery=null;return changed;
 };

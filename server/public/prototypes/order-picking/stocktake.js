@@ -1,0 +1,243 @@
+/* Tồn đầu từ file kiểm kê: khóa mã hàng + vị trí, có thời điểm chốt theo khu.
+   Không đọc số lượng của module Vị trí hàng làm tồn hiện tại. */
+(function(root){
+  'use strict';
+
+  const strip = value => String(value ?? '')
+    .normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .replace(/đ/g,'d').replace(/Đ/g,'D');
+  const header = value => strip(value).trim().toLowerCase().replace(/\s+/g,' ');
+  // Rule 3: a location name is the identity of the location, so it is normalised once here.
+  const locationKey = value => String(value ?? '').trim().toUpperCase().replace(/\s+/g,' ');
+  const codeKey = value => String(value ?? '').trim().toLowerCase();
+  const stockKey = (branch, code, location) => branch + '|' + codeKey(code) + '|' + locationKey(location);
+
+  // "Ghi chú hàng hóa" must be tested before "Ghi chú"; longest match wins.
+  const COLUMNS = [
+    { field:'spec',     names:['ghi chu hang hoa','quy cach'] },
+    { field:'zone',     names:['ten khach hang','nhom kiem ke','khu'] },
+    { field:'code',     names:['ma hang','ma hang hoa','ma'] },
+    { field:'name',     names:['ten hang','ten hang hoa','ten san pham'] },
+    { field:'location', names:['ghi chu','vi tri'] },
+    { field:'quantity', names:['so luong','sl'] }
+  ];
+
+  function detectColumns(headerRow){
+    const normalised = headerRow.map(header);
+    const map = {};
+    for (const column of COLUMNS) {
+      for (const name of column.names) {
+        const index = normalised.indexOf(name);
+        if (index !== -1 && !Object.values(map).includes(index)) { map[column.field] = index; break; }
+      }
+    }
+    return map;
+  }
+
+  /* Số lượng trong file kiểm kê theo định dạng Việt: dấu . là nghìn, dấu , là thập phân.
+     Không đoán bừa: chuỗi không khớp định dạng nào trả null để báo lỗi dòng, không coi là 0. */
+  function parseQuantity(value){
+    if (typeof value === 'number') return Number.isFinite(value) && value >= 0 ? value : null;
+    const text = String(value ?? '').trim().replace(/\s/g,'');
+    if (!text) return null;
+    let normalised;
+    if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(text)) normalised = text.replace(/\./g,'').replace(',','.');
+    else if (/^\d+,\d+$/.test(text)) normalised = text.replace(',','.');
+    else if (/^\d+(\.\d{1,2})?$/.test(text)) normalised = text;
+    else return null;
+    const number = Number(normalised);
+    return Number.isFinite(number) && number >= 0 ? number : null;
+  }
+
+  function parseTable(text){
+    const body = String(text ?? '').replace(/^﻿/,'');
+    if (!body.trim()) return [];
+    const first = body.split(/\r?\n/,1)[0];
+    const delimiter = ['\t',';',','].reduce((best,candidate) =>
+      (first.split(candidate).length > first.split(best).length ? candidate : best), ',');
+    const rows = [];
+    let row = [], field = '', quoted = false;
+    for (let i = 0; i < body.length; i++) {
+      const char = body[i];
+      if (quoted) {
+        if (char !== '"') { field += char; continue; }
+        if (body[i+1] === '"') { field += '"'; i++; continue; }
+        quoted = false; continue;
+      }
+      if (char === '"') { quoted = true; continue; }
+      if (char === delimiter) { row.push(field); field = ''; continue; }
+      if (char === '\n') { row.push(field); rows.push(row); row = []; field = ''; continue; }
+      if (char === '\r') continue;
+      field += char;
+    }
+    row.push(field); rows.push(row);
+    return rows.filter(cells => cells.some(cell => String(cell).trim() !== ''));
+  }
+
+  /* Gộp file kiểm kê thành tồn đầu theo mã hàng + vị trí.
+     Dòng trùng mã và vị trí được cộng lại (quy tắc 2). */
+  function build(text, options = {}){
+    const branch = options.branch;
+    const rows = Array.isArray(text) ? text : parseTable(text);
+    if (!rows.length) return { branch, lines:[], zones:[], errors:['File kiểm kê rỗng.'], skipped:[] };
+    const columns = detectColumns(rows[0]);
+    const missing = ['code','location','quantity'].filter(field => columns[field] === undefined);
+    if (missing.length) return { branch, lines:[], zones:[], skipped:[],
+      errors:['Thiếu cột bắt buộc: ' + missing.map(f => ({code:'Mã hàng',location:'Ghi chú (vị trí)',quantity:'Số lượng'})[f]).join(', ') + '.'] };
+
+    const cell = (cells, field) => columns[field] === undefined ? '' : String(cells[columns[field]] ?? '').trim();
+    const lines = new Map(), zones = new Map(), errors = [], skipped = [];
+
+    rows.slice(1).forEach((cells, index) => {
+      const sourceRow = index + 2;
+      const code = cell(cells,'code'), location = cell(cells,'location');
+      const quantity = parseQuantity(cell(cells,'quantity'));
+      const zone = cell(cells,'zone') || 'Chưa đặt tên khu';
+      if (!code || !location || quantity === null) {
+        skipped.push({ sourceRow, code, location, zone, reason:
+          !code ? 'Thiếu mã hàng' : !location ? 'Thiếu vị trí ở cột Ghi chú' : 'Số lượng không đọc được: ' + cell(cells,'quantity') });
+        return;
+      }
+      const key = stockKey(branch, code, location);
+      const existing = lines.get(key);
+      if (existing) {
+        existing.quantity += quantity;
+        existing.sourceRows.push(sourceRow);
+        if (existing.zone !== zone) existing.zoneConflicts.add(zone);
+      } else {
+        lines.set(key, { key, branch, code, codeKey:codeKey(code), location:locationKey(location), rawLocation:location,
+          name:cell(cells,'name'), spec:cell(cells,'spec'), zone, quantity, sourceRows:[sourceRow], zoneConflicts:new Set() });
+      }
+      const zoneEntry = zones.get(zone) || { zone, locations:new Set(), codes:new Set(), quantity:0, cutoffAt:null };
+      zoneEntry.locations.add(locationKey(location));
+      zoneEntry.codes.add(codeKey(code));
+      zoneEntry.quantity += quantity;
+      zones.set(zone, zoneEntry);
+    });
+
+    /* Quy tắc 3: một vị trí chỉ thuộc một khu. Vị trí nằm ở hai khu nghĩa là hai giờ chốt
+       khác nhau cho cùng chỗ chứa, không thể tính tồn đúng — phải sửa file trước. */
+    const owners = new Map();
+    for (const line of lines.values()) {
+      const zoneSet = owners.get(line.location) || new Set();
+      zoneSet.add(line.zone);
+      for (const zone of line.zoneConflicts) zoneSet.add(zone);
+      owners.set(line.location, zoneSet);
+    }
+    for (const [location, zoneSet] of owners) {
+      if (zoneSet.size > 1) errors.push('Vị trí ' + location + ' xuất hiện ở nhiều khu: ' + [...zoneSet].join(' / ') + '. Vị trí phải là duy nhất.');
+    }
+
+    return {
+      branch,
+      lines: [...lines.values()].map(({ zoneConflicts, ...line }) => line),
+      zones: [...zones.values()].map(z => ({ zone:z.zone, locationCount:z.locations.size, codeCount:z.codes.size, quantity:z.quantity, cutoffAt:null })),
+      errors, skipped
+    };
+  }
+
+  /* Sổ tồn vị trí dùng chung.
+     tồn vị trí = tồn kiểm kê tại giờ chốt + nhập sau giờ chốt − thực nhặt sau giờ chốt ± điều chỉnh */
+  function createLedger(){
+    const openings = new Map();   // stockKey -> {quantity, zone, location, code, branch, confirmedAt}
+    const zoneCutoffs = new Map(); // branch|zone -> ISO string
+    const movements = [];
+    let version = 0;
+
+    const zoneKey = (branch, zone) => branch + '|' + String(zone ?? '').trim().toLowerCase();
+    const time = value => { const t = Date.parse(value); return Number.isFinite(t) ? t : null; };
+
+    const api = {
+      get version(){ return version; },
+      /* Nạp một snapshot kiểm kê. Mỗi khu phải có giờ chốt, nếu không thì khu đó không được dùng
+         làm tồn đầu (không thể biết biến động nào đã nằm trong số đếm). */
+      load(snapshot, cutoffs = {}){
+        if (snapshot.errors?.length) throw Error(snapshot.errors[0]);
+        const loaded = [], pending = [];
+        for (const zone of snapshot.zones) {
+          const cutoff = cutoffs[zone.zone] ?? zone.cutoffAt;
+          if (!cutoff || time(cutoff) === null) { pending.push(zone.zone); continue; }
+          zoneCutoffs.set(zoneKey(snapshot.branch, zone.zone), new Date(time(cutoff)).toISOString());
+          loaded.push(zone.zone);
+        }
+        const accepted = new Set(loaded);
+        let lineCount = 0;
+        for (const line of snapshot.lines) {
+          if (!accepted.has(line.zone)) continue;
+          openings.set(line.key, { branch:line.branch, code:line.code, codeKey:line.codeKey, location:line.location,
+            zone:line.zone, spec:line.spec, name:line.name, quantity:line.quantity, sourceRows:line.sourceRows.slice() });
+          lineCount++;
+        }
+        version++;
+        return { loadedZones:loaded, pendingZones:pending, lineCount };
+      },
+      setCutoff(branch, zone, cutoffAt){
+        if (time(cutoffAt) === null) throw Error('Thời điểm chốt kiểm kê không hợp lệ.');
+        zoneCutoffs.set(zoneKey(branch, zone), new Date(time(cutoffAt)).toISOString());
+        version++;
+      },
+      cutoff(branch, zone){ return zoneCutoffs.get(zoneKey(branch, zone)) || null; },
+      opening(branch, code, location){ return openings.get(stockKey(branch, code, location)) || null; },
+      /* Biến động trước hoặc đúng giờ chốt đã nằm trong số kiểm kê — ghi nhận nhưng không cộng lại. */
+      record(movement){
+        const opening = api.opening(movement.branch, movement.code, movement.location);
+        if (!opening) throw Error('Chưa có tồn kiểm kê cho ' + movement.code + ' tại ' + movement.location + '.');
+        if (!['receipt','pick','adjust'].includes(movement.type)) throw Error('Loại biến động phải là receipt, pick hoặc adjust.');
+        // Chỉ điều chỉnh được mang dấu âm; nhập và thực nhặt luôn là số không âm.
+        const text = String(movement.quantity ?? '').trim();
+        const negative = movement.type === 'adjust' && text.startsWith('-');
+        const magnitude = parseQuantity(negative ? text.slice(1) : movement.quantity);
+        if (magnitude === null) throw Error('Số lượng biến động không hợp lệ.');
+        const signed = negative ? -magnitude : magnitude;
+        const at = movement.at || new Date().toISOString();
+        const cutoff = api.cutoff(movement.branch, opening.zone);
+        const counted = cutoff !== null && time(at) !== null && time(at) <= time(cutoff);
+        const entry = { ...movement, quantity:signed, at, zone:opening.zone, counted,
+          key:stockKey(movement.branch, movement.code, movement.location) };
+        movements.push(entry);
+        version++;
+        return entry;
+      },
+      movements(filter = {}){
+        return movements.filter(m => (!filter.key || m.key === filter.key) && (!filter.branch || m.branch === filter.branch));
+      },
+      /* null = chưa có tồn xác nhận cho vị trí này; không suy ra từ số nhập đầu của Sheet. */
+      onHand(branch, code, location){
+        const key = stockKey(branch, code, location);
+        const opening = openings.get(key);
+        if (!opening) return null;
+        let total = opening.quantity;
+        for (const movement of movements) {
+          if (movement.key !== key || movement.counted) continue;
+          if (movement.type === 'receipt') total += movement.quantity;
+          else if (movement.type === 'pick') total -= movement.quantity;
+          else if (movement.type === 'adjust') total += movement.quantity;
+        }
+        return Math.round(total * 1e6) / 1e6;
+      },
+      /* Tổng đã xác minh: chỉ gồm vị trí có tồn kiểm kê. Không gọi là tổng đầy đủ. */
+      verifiedTotal(branch, code){
+        const rows = [...openings.values()].filter(o => o.branch === branch && o.codeKey === codeKey(code));
+        return { locationCount:rows.length,
+          quantity: rows.reduce((sum, row) => sum + api.onHand(row.branch, row.code, row.location), 0) };
+      },
+      zones(branch){
+        const seen = new Map();
+        for (const opening of openings.values()) {
+          if (branch && opening.branch !== branch) continue;
+          const entry = seen.get(opening.zone) || { zone:opening.zone, branch:opening.branch, locationCount:0, cutoffAt:api.cutoff(opening.branch, opening.zone) };
+          entry.locationCount++;
+          seen.set(opening.zone, entry);
+        }
+        return [...seen.values()];
+      },
+      has(branch){ for (const opening of openings.values()) if (!branch || opening.branch === branch) return true; return false; },
+      reset(){ openings.clear(); zoneCutoffs.clear(); movements.length = 0; version++; }
+    };
+    return api;
+  }
+
+  const api = { version:'stocktake-opening-v1', parseTable, parseQuantity, detectColumns, build, createLedger, locationKey, codeKey, stockKey };
+  if (typeof module !== 'undefined') module.exports = api;
+  else { root.PickingStocktake = api; root.PickingLedger = createLedger(); }
+})(typeof window !== 'undefined' ? window : globalThis);
