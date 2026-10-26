@@ -26,6 +26,10 @@ const COLUMNS = [
   { key: 'orderDate', label: 'Thời gian đặt hàng' },
   { key: 'branchLabel', label: 'Cơ sở' },
   { key: 'saleName', label: 'Nhân viên bán hàng' },
+  // ID Telegram cua sale, KiotViet luu chung o ten ("<ten> - <ID>"); xuat thanh COT RIENG de cot ten
+  // van sach cho loc/sap xep. Trong neu don khong co o Kiot. Cot CHUOI: ID la dinh danh, khong phai so
+  // de tinh toan, va de so 10 chu so khong bi Excel doi sang dang khoa hoc.
+  { key: 'saleTelegramId', label: 'ID Telegram sale' },
   { key: 'customerName', label: 'Khách hàng' },
   // Giá trị đơn = tổng tiền phiếu trên Kiot (mọi đơn Kiot; ô trống nếu dòng không có đơn Kiot) — cột SỐ.
   { key: 'orderTotal', label: 'Giá trị đơn', numeric: true },

@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { stripTelegramId, saleNameSql, TELEGRAM_ID_SUFFIX_SQL } = require('./saleName');
+const { stripTelegramId, saleNameSql, TELEGRAM_ID_SUFFIX_SQL, extractTelegramId, saleTelegramIdSql, TELEGRAM_ID_CAPTURE_SQL } = require('./saleName');
 
 test('stripTelegramId: bo hau to " - <ID Telegram 10 so>", chi giu phan ten', () => {
   assert.equal(stripTelegramId('Nguyễn Văn A - 1234567890'), 'Nguyễn Văn A');
@@ -63,4 +63,62 @@ test('mau POSIX trong SQL tuong duong regex JS tren tap ten that (dang ky tu)', 
     const viaPosix = sample.replace(posixAsJs, '').trim() || sample;
     assert.equal(viaPosix, stripTelegramId(sample), sample);
   }
+});
+
+// --- extractTelegramId: mat con lai cua stripTelegramId (chi tiet don hien them ID nhu Kiot) ---
+
+test('extractTelegramId: lay dung phan ID o hau to', () => {
+  assert.equal(extractTelegramId('Nguyễn Văn A - 1234567890'), '1234567890');
+  assert.equal(extractTelegramId('Trần Thị Bích Hạnh - 9876543210'), '9876543210');
+  assert.equal(extractTelegramId('  Lê Văn B   -   1234567890  '), '1234567890');
+  assert.equal(extractTelegramId('Lê Văn B-1234567890'), '1234567890');
+});
+
+test('extractTelegramId: khong co hau to / so ngan / so khong o cuoi -> chuoi rong', () => {
+  assert.equal(extractTelegramId('Phạm Văn C'), '');
+  assert.equal(extractTelegramId('Kho 2 - 3'), '');
+  assert.equal(extractTelegramId('Quầy - 1234'), '');
+  assert.equal(extractTelegramId('Chi nhánh 12345678 Tân Phú'), '');
+  assert.equal(extractTelegramId(''), '');
+  assert.equal(extractTelegramId(null), '');
+  assert.equal(extractTelegramId(undefined), '');
+});
+
+test('extractTelegramId: chuoi chi gom ID -> rong, vi stripTelegramId dang giu no lam ten', () => {
+  assert.equal(extractTelegramId('- 1234567890'), '');
+  assert.equal(extractTelegramId('1234567890'), '');
+});
+
+test('extractTelegramId: chi lay 1 hau to o cuoi, giong stripTelegramId', () => {
+  assert.equal(extractTelegramId('Anh - Em - 1234567890'), '1234567890');
+  assert.equal(extractTelegramId('Nguyễn Văn A - 1234567890 - 1234567890'), '1234567890');
+});
+
+test('BAT BIEN: ten da cat + " - " + ID dung lai duoc chuoi goc', () => {
+  const samples = [
+    'Nguyễn Văn A - 1234567890', 'Trần Thị Bích Hạnh - 9876543210', 'Anh - Em - 1234567890',
+    'Phạm Văn C', 'Kho 2 - 3', 'Quầy - 1234', '- 1234567890', '1234567890', ''
+  ];
+  for (const sample of samples) {
+    const id = extractTelegramId(sample);
+    const rebuilt = stripTelegramId(sample) + (id ? ' - ' + id : '');
+    // So sau khi bo khoang trang: chi khac nhau o cach dat khoang trang quanh gach ngang.
+    assert.equal(rebuilt.replace(/\s/g, ''), String(sample).trim().replace(/\s/g, ''), sample);
+  }
+});
+
+test('saleTelegramIdSql: mau POSIX cho cung ket qua voi extractTelegramId tren tap ten that', () => {
+  const posixAsJs = new RegExp(TELEGRAM_ID_CAPTURE_SQL.replace(/\[\[:space:\]\]/g, '\\s'));
+  const stripAsJs = new RegExp(TELEGRAM_ID_SUFFIX_SQL.replace(/\[\[:space:\]\]/g, '\\s'));
+  const samples = [
+    'Nguyễn Văn A - 1234567890', 'Lê Văn B-1234567890', 'Phạm Văn C', 'Kho 2 - 3', 'Quầy - 1234',
+    'Chi nhánh 12345678 Tân Phú', 'Anh - Em - 1234567890', '- 1234567890', '1234567890'
+  ];
+  for (const sample of samples) {
+    // Mo phong dung thu tu CASE WHEN cua saleTelegramIdSql.
+    const match = posixAsJs.exec(sample);
+    const viaPosix = sample.replace(stripAsJs, '').trim() ? (match ? match[1] : '') : '';
+    assert.equal(viaPosix, extractTelegramId(sample), sample);
+  }
+  assert.match(saleTelegramIdSql(`raw->>'soldByName'`), /^CASE WHEN btrim\(regexp_replace\(/);
 });

@@ -26,6 +26,7 @@ const { createLifecycleExportFile, MAX_EXPORT_ROWS } = require('./orderLifecycle
 // thuoc tinh cua module (khong destructure) de test thay the duoc `kiotOrders.*`.
 const kiotRepository = require('./kiotOrdersRepository');
 const containerRepository = require('../productContainers/repository');
+const { retailerHosts } = require('./kiotOrderLink');
 
 // Phan quyen theo TINH NANG (server/auth/featureRegistry.js), khong con theo
 // mang vai tro — cung mot nguon su that voi menu phia client.
@@ -71,7 +72,9 @@ function handleError(res, err, context) {
 router.get('/', ...authBulk, async (req, res) => {
   try {
     const result = await service.queryOrders(req.query, { kiot: kiotRepository.kiotOrders });
-    res.status(200).json(result);
+    // kiotOrderHosts: de giao dien dung link "Mo don tren Kiot" o chi tiet don. Chi tra o route nay
+    // (quyen shipment.lifecycle) — tra cuu 1 don cho Khach KHONG co.
+    res.status(200).json({ ...result, kiotOrderHosts: retailerHosts() });
   } catch (err) {
     handleError(res, err, 'GET /api/shipment/lifecycle');
   }
