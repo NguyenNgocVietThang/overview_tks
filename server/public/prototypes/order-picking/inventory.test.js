@@ -1,0 +1,60 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const {JSDOM}=require('jsdom');
+function setup(t){const dom=new JSDOM('<body></body>',{runScripts:'outside-only',url:'http://localhost/'});t.after(()=>dom.window.close());const w=dom.window;w.structuredClone=structuredClone;w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;};w.eval(fs.readFileSync(path.join(__dirname,'rules.js'),'utf8'));
+const order={branch:'HN',orderCode:'TEST',customerName:'Mô phỏng',lines:[{productCode:'P1',quantity:100}]};
+const locations=[{id:'A',branch:'HN',code:'P1',location:'A01',available:120},{id:'B',branch:'HN',code:'P1',location:'B02',available:40}];
+w.PickingData={get:()=>({locations}),key:o=>o.orderCode};w.eval(fs.readFileSync(path.join(__dirname,'inventory.js'),'utf8'));return {w,d:w.document,api:w.PickingInventory,order,locations};}
+test('reservation reduces availability, partial pickup subtracts actual and releases unfinished reservation',t=>{
+const {api,order,locations,d}=setup(t);api.reserve(order,{0:[{id:'A',quantity:100}]});assert.equal(api.available(locations[0]),20);api.open(order);
+d.querySelector('#taken-0').value='70';d.querySelector('#finish-0').checked=true;d.querySelector('[data-take="0"]').click();
+assert.equal(api.available(locations[0]),50);assert.match(d.querySelector('#inventoryBody').textContent,/Cần chỉ định bù 30/);
+d.querySelector('[data-fill="0"]').click();assert.equal(api.available(locations[0]),50);assert.equal(api.available(locations[1]),10);
+});
+test('empty report locks stock, replacement reserves elsewhere and counted correction unlocks stock',t=>{
+const {api,order,locations,d}=setup(t);api.reserve(order,{0:[{id:'A',quantity:100}]});api.open(order);
+d.querySelector('#taken-0').value='70';d.querySelector('#empty-0').checked=true;d.querySelector('[data-take="0"]').click();assert.equal(api.available(locations[0]),0);
+d.querySelector('[data-fill="0"]').click();assert.equal(api.available(locations[1]),10);
+d.querySelector('#count-A').value='0';d.querySelector('#reason-A').value='Kiểm đếm xác nhận đã hết';d.querySelector('[data-count="A"]').click();assert.match(d.querySelector('#inventoryBody').textContent,/từ 50 → 0/);
+d.querySelector('#taken-1').value='30';d.querySelector('[data-take="1"]').click();assert.equal(api.available(locations[1]),10);assert.match(d.querySelector('#inventoryBody').textContent,/Đã nhặt đủ/);
+});
+test('over-picking and repeated confirmation do not subtract twice',t=>{
+const {api,order,locations,d}=setup(t);api.reserve(order,{0:[{id:'A',quantity:100}]});api.open(order);d.querySelector('#taken-0').value='101';d.querySelector('[data-take="0"]').click();assert.match(d.querySelector('#inventoryError').textContent,/Số thực nhặt/);assert.equal(api.available(locations[0]),20);
+d.querySelector('#taken-0').value='100';d.querySelector('[data-take="0"]').click();assert.equal(d.querySelector('[data-take="0"]'),null);assert.equal(api.available(locations[0]),20);assert.throws(()=>api.reserve(order,{0:[{id:'A',quantity:100}]}),/đã bắt đầu nhặt/);
+});
+test('other orders cannot reserve stock that is already held',t=>{
+const {api,order,locations}=setup(t);api.reserve(order,{0:[{id:'A',quantity:100}]});assert.throws(()=>api.reserve({...order,orderCode:'OTHER'},{0:[{id:'A',quantity:30}]}),/không còn đủ/);assert.equal(api.available(locations[0]),20);
+});
+test('a single product stock source is shared by all orders: 150 minus 30 equals 120',t=>{
+const {api,order,locations}=setup(t);locations[0].available=110;
+assert.deepEqual(JSON.parse(JSON.stringify(api.summary('HN','P1'))),{onHand:150,held:0,available:150});
+api.reserve(order,{0:[{id:'A',quantity:30}]});
+assert.deepEqual(JSON.parse(JSON.stringify(api.summary('HN','p1'))),{onHand:150,held:30,available:120});
+api.reserve({...order,orderCode:'SECOND'},{0:[{id:'B',quantity:20}]});
+assert.deepEqual(JSON.parse(JSON.stringify(api.summary('HN','P1'))),{onHand:150,held:50,available:100});
+});
+test('cumulative actual is idempotent, blank is pending and explicit zero is reported',t=>{
+const {api,order,locations}=setup(t);api.reserve(order,{0:[{id:'A',quantity:100}]});
+api.confirmActual(order,[{value:''}]);assert.equal(api.record(order).jobs[0].reported,undefined);
+api.confirmActual(order,[{value:'0',outcome:'continue'}]);assert.equal(api.record(order).jobs[0].reported,true);
+api.confirmActual(order,[{value:'70',outcome:'continue'}]);const before=api.summary('HN','P1');
+api.confirmActual(order,[{value:'70',outcome:'continue'}]);assert.deepEqual(api.summary('HN','P1'),before);
+assert.throws(()=>api.confirmActual(order,[{value:'60',outcome:'end'}]),/Sửa giảm/);
+assert.equal(api.record(order).jobs[0].taken,70);assert.equal(api.available(locations[0]),20);
+});
+test('all actual rows are validated before stock is modified',t=>{
+const {api,order}=setup(t);api.reserve(order,{0:[{id:'A',quantity:70},{id:'B',quantity:30}]});const before=api.summary('HN','P1');
+assert.throws(()=>api.confirmActual(order,[{value:'50',outcome:'end'},{value:'40',outcome:'end'}]),/Thực nhặt/);
+assert.deepEqual(api.summary('HN','P1'),before);assert.equal(api.record(order).jobs[0].taken,0);
+});
+test('completed full pickup reduces stock exactly once and preserves the next order reservation',t=>{
+const {api,order,locations}=setup(t),second={...order,orderCode:'SECOND'};
+api.reserve(order,{0:[{id:'A',quantity:100}]});
+assert.deepEqual(JSON.parse(JSON.stringify(api.summary('HN','P1'))),{onHand:160,held:100,available:60});
+api.confirmActual(order,[{value:'100',outcome:'end'}]);
+assert.deepEqual(JSON.parse(JSON.stringify(api.summary('HN','P1'))),{onHand:60,held:0,available:60});
+assert.equal(api.available(locations[0]),20);assert.equal(api.available(locations[1]),40);
+api.reserve(second,{0:[{id:'B',quantity:40}]});
+api.confirmActual(order,[{value:'100',outcome:'end'}]);
+assert.deepEqual(JSON.parse(JSON.stringify(api.summary('HN','P1'))),{onHand:60,held:40,available:20});
+});

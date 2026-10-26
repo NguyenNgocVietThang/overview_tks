@@ -1,6 +1,8 @@
 <!-- Chính sách hiện hành: mục 16/10/2026 — Tập Pancake độc lập ở cuối tài liệu. Các mốc cũ giữ làm lịch sử. -->
 # TOKOSI Dashboard
 
+> Prototype 23/10/2026: **Chỉ định vị trí nhặt đơn** ở `server/public/prototypes/order-picking/`, dựng từ nguyên trang Vòng đời hiện có: mở chi tiết → chỉ định bằng popup → xác nhận → in. Chạy `node prototype-preview.cjs` từ `server`, mở `http://127.0.0.1:4178/prototypes/order-picking/`. [Hướng dẫn prototype](server/public/prototypes/order-picking/README.md). Dữ liệu mô phỏng/JSON, chưa tích hợp vào luồng vận hành.
+
 23/10/2026 — **Kiểm tra giá bán (Invoice Price Audit)** đã hoàn thiện và push lên 2 remote GitHub (`origin` và `tks_web`): cập nhật chuẩn hóa danh sách 10 khách hàng bao cước HN theo tên KiotViet mới (giữ dấu), đọc bậc giá theo chiếc (`CT`, `lẻ`) trực tiếp theo số chiếc, khóa thứ tự 4 mức giá Vừa - Lớn - VIP - Cắt lỗ, email 'mới' tính là khách Lớn. Đồng thời đã gộp PR #16 (Nháp VAT dán mã xử lý luôn) và PR #17 (ORDER VAT hết tràn ngang sale) vào `main`.
 
 22/10/2026 — Quản lý có thể xuất Danh sách nhân sự kèm ID, điền Số bảo hiểm dạng text tự do và nhập lại theo ID. Khi server khởi động với DB đã cấu hình, nó tự áp riêng migration bảo hiểm trước khi nhận request; nếu migration lỗi, bản mới không khởi động. Migration đã được xác nhận trên Supabase bằng SQL Editor.

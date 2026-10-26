@@ -1,6 +1,8 @@
 <!-- Chính sách hiện hành: mục 16/10/2026 — Tập Pancake độc lập ở cuối tài liệu. Các mốc cũ giữ làm lịch sử. -->
 # TOKOSI Dashboard Server
 
+> Prototype 23/10/2026: `public/prototypes/order-picking/` — giữ nguyên bảng/chi tiết Vòng đời bằng `prototype-build.cjs`, thêm nút chỉ định trên bảng hàng hóa chỉ khi đơn đã gửi kế toán. Popup bốn cột, chọn các ô vị trí, xác nhận rồi in. Gợi ý đủ → số lượng lớn nhất; đã bỏ khoảng cách/thứ tự ưu tiên. Chạy `node prototype-preview.cjs`, mở `http://127.0.0.1:4178/prototypes/order-picking/`. Không DB/job nền/migration; dùng adapter dữ liệu mô phỏng hoặc JSON, không gọi API vận hành. [Hướng dẫn](public/prototypes/order-picking/README.md).
+
 23/10/2026 — **Kiểm tra giá bán (Invoice Price Audit)** đã hoàn thiện và push lên 2 remote GitHub (`origin` và `tks_web`): cập nhật chuẩn hóa danh sách 10 khách hàng bao cước HN theo tên KiotViet mới (giữ dấu), đọc bậc giá theo chiếc (`CT`, `lẻ`) trực tiếp theo số chiếc, khóa thứ tự 4 mức giá Vừa - Lớn - VIP - Cắt lỗ, email 'mới' tính là khách Lớn. Gộp PR #16 (Nháp VAT dán mã xử lý luôn) và PR #17 (ORDER VAT hết tràn ngang sale) vào `main`.
 
 22/10/2026 — `0078_hr_employee_insurance_number.sql` thêm Số bảo hiểm dạng text tự do, không giới hạn mẫu 10–15 chữ số. Server tự áp riêng migration này trong transaction trước khi mở cổng HTTP (không chạy các migration khác); nếu DB/DDL lỗi, bản mới không khởi động. `POST /api/hr/employees/insurance-import` cho Quản lý xem trước file Excel; `?commit=1` chỉ cập nhật Số bảo hiểm theo ID nhân sự.
