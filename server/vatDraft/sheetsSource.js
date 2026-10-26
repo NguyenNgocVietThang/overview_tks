@@ -1,11 +1,11 @@
 'use strict';
 
-// Du lieu nguon Nhap VAT: 2 Google Sheet CONG KHAI ("Gộp VAT", "Khớp mã") doc qua URL
-// export CSV — dung duong doc cua vat-draft-app (requests + pandas.read_csv), khong
-// dung service account. Parse theo CHU CAI cot (vatDraftConfig) va mo phong cach pandas
-// doc o trong / "#N/A" (NaN -> chuoi 'nan' o cot chu, None o cot so) de ket qua khop app cu.
+// Du lieu nguon Nhap VAT: 2 tab "Gộp VAT", "Khớp mã" cua file VAT TKS doc bang service
+// account (Sheets API, chi doc, FORMATTED_VALUE = dung chuoi nhu CSV export truoc day).
+// Parse theo CHU CAI cot (vatDraftConfig) va mo phong cach pandas doc o trong / "#N/A"
+// (NaN -> chuoi 'nan' o cot chu, None o cot so) de ket qua khop app cu (vat-draft-app).
 
-const { parseCsv } = require('./csv');
+const { readSheetValuesById } = require('../sheets/sheetsClient');
 const { normalizeCode, normalizeCodeForMatch, toFloatOrNone } = require('./normalization');
 const { createTtlSnapshotCache } = require('../lib/ttlSnapshotCache');
 const vatDraftConfig = require('./vatDraftConfig');
@@ -180,8 +180,36 @@ function sheetError(message, code) {
   return error;
 }
 
-/** Tai CSV 1 sheet; sheet het chia se cong khai thi Google tra HTML dang nhap -> bao loi ro. */
-async function fetchSheetCsv({ gid, sheetName, sheetId = vatDraftConfig.sheetId, fetchImpl = globalThis.fetch }) {
+/**
+ * Doc 1 tab qua Sheets API -> mang dong chuoi, dem du so cot nhu CSV export (values.get
+ * cat o trong cuoi dong). Loi API -> loi 503 co code de route bao ro.
+ * @param {{ source: { spreadsheetId, sheetId, range? }, sheetName: string, readValues?: Function }} args
+ *   readValues(source) gia lap duoc trong test.
+ */
+async function fetchSheetRecords({ source, sheetName, readValues = readSheetValuesById }) {
+  let values;
+  try {
+    values = await readValues(source);
+  } catch (error) {
+    const status = error.status || (error.response && error.response.status) || (typeof error.code === 'number' ? error.code : null);
+    if (error.code === 'SHEET_TAB_NOT_FOUND') {
+      throw sheetError(`Không tìm thấy tab '${sheetName}' (sheetId ${source.sheetId}) trong file nguồn. Kiểm tra cấu hình nguồn sheet.`, 'SHEET_TAB_NOT_FOUND');
+    }
+    if (status === 403) {
+      throw sheetError(`Service account chưa có quyền xem file chứa sheet '${sheetName}'. Chia sẻ quyền Người xem cho service account.`, 'SHEET_FORBIDDEN');
+    }
+    if (status === 404) throw sheetError(`Không tìm thấy file chứa sheet '${sheetName}'.`, 'SHEET_HTTP');
+    if (/timeout/i.test(String(error.message)) || error.code === 'ETIMEDOUT') {
+      throw sheetError(`Đọc sheet '${sheetName}' quá lâu. Thử lại sau.`, 'SHEET_TIMEOUT');
+    }
+    throw sheetError(`Lỗi khi đọc sheet '${sheetName}' qua Google Sheets API: ${error.message}`, status ? 'SHEET_HTTP' : 'SHEET_NETWORK');
+  }
+  const width = values.reduce((max, row) => Math.max(max, row.length), 0);
+  return values.map(row => Array.from({ length: width }, (_, i) => (row[i] === undefined || row[i] === null ? '' : String(row[i]))));
+}
+
+/** Tai CSV 1 sheet cong khai (chi con script import ORDER VAT dung); sheet het chia se cong khai thi Google tra HTML dang nhap -> bao loi ro. */
+async function fetchSheetCsv({ gid, sheetName, sheetId, fetchImpl = globalThis.fetch }) {
   const url = EXPORT_URL.replace('{sheetId}', sheetId).replace('{gid}', String(gid));
   let response;
   try {
@@ -202,10 +230,10 @@ async function fetchSheetCsv({ gid, sheetName, sheetId = vatDraftConfig.sheetId,
   return response.text();
 }
 
-/** Parse 2 CSV -> { stockRows, mappingRows, errors, warnings, summaries }. */
-function parseMasterData(gopVatCsv, khopMaCsv, config = vatDraftConfig) {
-  const gopVat = parseGopVat(toPandasFrame(parseCsv(gopVatCsv), config.gopVatSkipRows), config.gopVatColumns);
-  const khopMa = parseKhopMa(toPandasFrame(parseCsv(khopMaCsv), config.khopMaSkipRows), config.khopMaColumns);
+/** Parse 2 tab (mang dong) -> { stockRows, mappingRows, errors, warnings, summaries }. */
+function parseMasterData(gopVatRecords, khopMaRecords, config = vatDraftConfig) {
+  const gopVat = parseGopVat(toPandasFrame(gopVatRecords, config.gopVatSkipRows), config.gopVatColumns);
+  const khopMa = parseKhopMa(toPandasFrame(khopMaRecords, config.khopMaSkipRows), config.khopMaColumns);
   return {
     stockRows: gopVat.stockRows,
     mappingRows: khopMa.mappingRows,
@@ -219,17 +247,17 @@ function parseMasterData(gopVatCsv, khopMaCsv, config = vatDraftConfig) {
  * Nguon master data co cache: tuoi 10 phut, nut "Cập nhật" ep tai lai; Sheets loi tam
  * thoi thi tra ban cu (stale, toi da 6 gio) thay vi lam hong ca trang.
  */
-function createMasterDataSource({ fetchImpl = globalThis.fetch, config = vatDraftConfig, now } = {}) {
+function createMasterDataSource({ readValues, config = vatDraftConfig, now } = {}) {
   const cache = createTtlSnapshotCache({
     freshTtlMs: 10 * 60 * 1000,
     staleTtlMs: 6 * 60 * 60 * 1000,
     ...(now ? { now } : {}),
     fetch: async () => {
-      const [gopVatCsv, khopMaCsv] = await Promise.all([
-        fetchSheetCsv({ gid: config.gidGopVat, sheetName: 'Gộp VAT', sheetId: config.sheetId, fetchImpl }),
-        fetchSheetCsv({ gid: config.gidKhopMa, sheetName: 'Khớp mã', sheetId: config.sheetId, fetchImpl })
+      const [gopVatRecords, khopMaRecords] = await Promise.all([
+        fetchSheetRecords({ source: { spreadsheetId: config.spreadsheetId, ...config.gopVatSheet }, sheetName: 'Gộp VAT', readValues }),
+        fetchSheetRecords({ source: { spreadsheetId: config.spreadsheetId, ...config.khopMaSheet }, sheetName: 'Khớp mã', readValues })
       ]);
-      const data = parseMasterData(gopVatCsv, khopMaCsv, config);
+      const data = parseMasterData(gopVatRecords, khopMaRecords, config);
       if (data.errors.length) throw sheetError(data.errors.join(' '), 'SHEET_COLUMNS');
       return data;
     }
@@ -249,6 +277,7 @@ module.exports = {
   parseGopVat,
   parseKhopMa,
   parseMasterData,
+  fetchSheetRecords,
   fetchSheetCsv,
   createMasterDataSource
 };

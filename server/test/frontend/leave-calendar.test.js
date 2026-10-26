@@ -85,7 +85,10 @@ test('mở lịch: chọn sẵn hôm nay, gọi đúng from/to của tháng, l�
   const dropdown = document.getElementById('tksLeaveCalDropdown');
   assert.equal(dropdown.hidden, false);
   assert.equal(dropdown.querySelector('.is-selected').dataset.date, '2026-10-02');
-  assert.match(dropdown.querySelector('.tks-cal-list-head').textContent, /02\/10\/2026 \(hôm nay\) · 2 người/);
+  assert.match(dropdown.querySelector('.tks-cal-list-head').textContent, /Hôm nay, 02\/10\/2026/);
+  assert.equal(dropdown.querySelector('.tks-cal-total').textContent, '2 người nghỉ');
+  assert.equal(dropdown.querySelector('.tks-cal-heading').textContent.trim(), 'Lịch nghỉ phép');
+  assert.equal(dropdown.querySelector('.tks-cal-avatar'), null);
   const names = [...dropdown.querySelectorAll('.tks-cal-item-name')].map(n => n.textContent.trim());
   assert.deepEqual(names, ['An', 'Chi Nghỉ gấp']);
   assert.equal(dropdown.querySelector('[data-date="2026-10-02"] .tks-cal-count').textContent, '2');
@@ -123,6 +126,19 @@ test('chọn ngày khác đổi danh sách; bấm dòng mở chi tiết thời g
   assert.match(detail.textContent, /4 buổi \(2 ngày\)/);
   assert.match(detail.textContent, /Đi khám/);
   window.close();
+});
+
+test('calendar list keeps its scroll on detail render and resets for another date', async t => {
+  const { window, document } = createEnv(t, okFetch([leave({})]));
+  window.TKSNav.renderLeaveCalendar(fakeUser('Trợ lý'));
+  document.getElementById('tksLeaveCalBtn').click();
+  await tick();
+  document.querySelector('.tks-cal-list').scrollTop = 120;
+  document.querySelector('.tks-cal-item-head').click();
+  assert.equal(document.querySelector('.tks-cal-list').scrollTop, 120);
+  document.querySelector('[data-date="2026-10-03"]').click();
+  assert.equal(document.querySelector('.tks-cal-list').scrollTop, 0);
+  document.getElementById('tksLeaveCalBtn').click();
 });
 
 test('đổi tháng gọi lại API đúng khoảng; lỗi API hiện thông báo', async t => {

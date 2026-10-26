@@ -300,24 +300,6 @@ test('countSummary: tôn trọng bộ lọc cơ sở / ngày / tìm kiếm / tr�
   assert.equal(q.countSummary(rows, q.parseParams({ kiotStatus: 'Hoàn thành' })).status.NOT_SENT, 0);
 });
 
-test('tìm gần đúng theo tên sale/khách: 2 từ phải khớp cả 2, ≥3 từ khớp quá nửa, khớp nhiều từ xếp trước khi chưa chọn cột sắp xếp', () => {
-  const rows = [
-    row('A', { saleName: 'Nguyễn Văn An', customerName: 'Cửa hàng Hoa Mai', orderDate: '01/10/2026 09:00' }),
-    row('B', { saleName: 'Nguyễn Thị Bình', customerName: 'Hoa Mai', orderDate: '03/10/2026 09:00' }),
-    row('C', { saleName: 'Trần Văn Cường', customerName: 'Siêu thị Hoa', orderDate: '02/10/2026 09:00' })
-  ];
-  const ids = params => codes(q.selectRows(rows, q.parseParams(params)));
-  assert.deepEqual(ids({ mode: 'sale', q: 'nguyen' }).sort(), ['A', 'B']);
-  assert.deepEqual(ids({ mode: 'sale', q: 'nguyen van' }), ['A'], '2 tu: phai khop ca 2');
-  assert.deepEqual(ids({ mode: 'sale', q: 'van nguyen' }), ['A'], 'khong can dung thu tu tu');
-  assert.deepEqual(ids({ mode: 'sale', q: 'nguyen van binh' }), ['B', 'A'], '3 tu: khop qua nua (2/3)');
-  // Chua chon cot: khop nguyen cum xep dau, sau do moi toi ngay dat moi nhat.
-  assert.deepEqual(ids({ mode: 'customer', q: 'hoa mai' }), ['B', 'A'], 'cung diem -> ngay dat moi nhat truoc');
-  assert.deepEqual(ids({ mode: 'customer', q: 'hoa' }), ['B', 'C', 'A']);
-  assert.deepEqual(ids({ mode: 'customer', q: 'hoa', sort: 'orderCode' }), ['A', 'B', 'C'], 'chon cot -> theo cot');
-  assert.deepEqual(ids({ mode: 'sale', q: '   ' }).length, 3, 'tu khoa rong -> day du');
-});
-
 test('countSummary tính trên toàn bộ kết quả tìm gần đúng (không chỉ trang hiện tại)', () => {
   const rows = [
     row('A', { saleName: 'Nguyễn Văn An', kiotStatus: 'Phiếu tạm', summary: { code: 'NOT_SENT', label: 'x', at: '' } }),

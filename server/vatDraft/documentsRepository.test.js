@@ -9,11 +9,12 @@ let db;
 let repo;
 
 const SCHEMA = `
-CREATE TABLE invoices (branch text, id bigint, code text, purchase_date timestamptz, total numeric, status smallint, raw jsonb NOT NULL, PRIMARY KEY (branch, id), UNIQUE (branch, code));
+CREATE TABLE invoices (branch text, id bigint, code text, purchase_date timestamptz, total numeric, status smallint, raw jsonb NOT NULL, customer_id bigint, PRIMARY KEY (branch, id), UNIQUE (branch, code));
 CREATE TABLE invoice_details (branch text, invoice_id bigint, line_no int, product_id bigint, quantity numeric, price numeric, discount numeric, raw jsonb NOT NULL, PRIMARY KEY (branch, invoice_id, line_no));
-CREATE TABLE orders (branch text, id bigint, code text, order_date timestamptz, total numeric, status smallint, raw jsonb NOT NULL, PRIMARY KEY (branch, id), UNIQUE (branch, code));
+CREATE TABLE orders (branch text, id bigint, code text, order_date timestamptz, total numeric, status smallint, raw jsonb NOT NULL, customer_id bigint, PRIMARY KEY (branch, id), UNIQUE (branch, code));
 CREATE TABLE order_details (branch text, order_id bigint, line_no int, product_id bigint, quantity numeric, price numeric, discount numeric, raw jsonb NOT NULL, PRIMARY KEY (branch, order_id, line_no));
 CREATE TABLE products (branch text, id bigint, code text, name text, PRIMARY KEY (branch, id));
+CREATE TABLE customers (branch text, id bigint, code text, name text, PRIMARY KEY (branch, id));
 CREATE TABLE sync_checkpoints (branch text, entity text, last_synced_at timestamptz);
 `;
 
@@ -60,6 +61,18 @@ test.before(async () => {
 });
 
 test.after(async () => { await db.close(); });
+
+test('ten khach/ten hang: uu tien ten HIEN TAI (customers/products), ten tren chung tu chi la du phong (ca hoa don lan don hang)', async () => {
+  await db.exec("INSERT INTO customers VALUES ('hanoi', 900, 'KH900', 'Tên khách mới')");
+  await db.exec("INSERT INTO products VALUES ('hanoi', 8, 'P8', 'Tên hàng mới')");
+  await invoice('hanoi', 90, 'HD090000', '2026-10-16T10:00:00Z', { statusValue: 'Hoàn thành', customerName: 'Tên khách cũ' }, [{ q: 1, p: 10, productId: 8, raw: { productName: 'Tên hàng cũ', subTotal: 10 } }]);
+  await order('hanoi', 91, 'DH090000', '2026-10-16T10:00:00Z', { statusValue: 'Phiếu tạm', customerName: 'Tên khách cũ' }, [{ q: 1, p: 10, productId: 8, raw: { productName: 'Tên hàng cũ' } }]);
+  await db.exec("UPDATE invoices SET customer_id = 900 WHERE id = 90; UPDATE orders SET customer_id = 900 WHERE id = 91");
+  const { found } = await repo.resolveCodes({ branchCodes: ['hanoi'], codes: ['HD090000', 'DH090000'] });
+  assert.deepEqual(found.map(d => d.customerName), ['Tên khách mới', 'Tên khách mới']);
+  const docs = await repo.readDocumentLines([{ kind: 'invoice', branch: 'hanoi', code: 'HD090000' }, { kind: 'order', branch: 'hanoi', code: 'DH090000' }]);
+  assert.deepEqual(docs.map(d => d.lines[0].productName), ['Tên hàng mới', 'Tên hàng mới']);
+});
 
 test('resolveCodes: tim/thieu/trung 2 co so, canh bao don da xuat hoa don va chung tu huy', async () => {
   const result = await repo.resolveCodes({ branchCodes: ['hanoi', 'saigon'], codes: ['DH044391', 'HD028346', 'HD999999', 'HD028345', 'HD000001', 'DH050001'] });

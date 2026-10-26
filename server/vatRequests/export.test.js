@@ -14,7 +14,7 @@ async function readSheet(buffer) {
 const ROW = {
   id: 7, createdAt: '2026-10-19T03:05:00Z', createdByName: 'Khánh Thịnh', customerName: '=HYPERLINK("x")',
   productCode: '014XOAN', productKey: '014xoan', productName: 'Bát inox', quantity: 400, unitPrice: 11400, totalAmount: 4560000,
-  fullVat: true, saleNote: 'VAT1', status: '2', statusLabel: '2. Đã khai chờ về', accountantNote: 'CONT 10-6V', arrivalDate: '2026-10-28'
+  fullVat: true, saleNote: 'VAT1', status: '2', statusLabel: 'Đã khai chờ về', accountantNote: 'CONT 10-6V', arrivalDate: '2026-10-28'
 };
 
 test('KT: xuat du moi cot cua bang, so / ngay la o that, gio theo VN, chan cong thuc', async () => {
@@ -33,7 +33,7 @@ test('KT: xuat du moi cot cua bang, so / ngay la o that, gio theo VN, chan cong 
   assert.equal(first[5], 400);
   assert.equal(first[7], 4560000);
   assert.equal(first[8], 'Full VAT');
-  assert.equal(first[10], '2. Đã khai chờ về');
+  assert.equal(first[10], 'Đã khai chờ về');
   assert.equal(first[12].toISOString(), '2026-10-28T00:00:00.000Z');
   assert.deepEqual(first.slice(13), [1500, 200, 'CONT 10-7G', '3. Đã bốc', 'DK 28/10']);
   const second = sheet.getRow(3).values.slice(1);

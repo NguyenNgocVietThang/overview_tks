@@ -18,7 +18,7 @@ const { getPool } = require('../db/pool');
 const LOCK_KEY = 20531073;
 
 const VALUE_COLUMNS = ['sheet_order', 'container_row', 'container_name', 'status', 'status_label', 'eta', 'schedule_label',
-  'product_code', 'product_key', 'product_name', 'color', 'sale_note', 'ordered_by', 'listed_at', 'units_per_package', 'package_count', 'unit_price_cny', 'vietnam_price', 'quantity'];
+  'product_code', 'product_key', 'product_name', 'color', 'sale_note', 'other_note', 'ordered_by', 'listed_at', 'units_per_package', 'package_count', 'unit_price_cny', 'vietnam_price', 'quantity'];
 const COLUMNS = ['sheet_name', 'source_row', ...VALUE_COLUMNS];
 
 // Ten SP: product_report 1 dong / ma hang (gom ca 2 co so) nen ten da on dinh; min() chi phong khi
@@ -28,7 +28,7 @@ const STAGE_SQL = `
   SELECT l.sheet_name, l.source_row, l.sheet_order, l.container_row, l.container_name, l.status, l.status_label, l.eta,
          btrim(concat_ws(' ', NULLIF(btrim(l.status_label), ''), NULLIF(btrim(l.eta), ''))) AS schedule_label,
          l.product_code, l.product_key, COALESCE(n.product_name, '') AS product_name,
-         l.color, l.sale_note, l.ordered_by, l.listed_at, l.units_per_package, l.package_count,
+         l.color, l.sale_note, l.other_note, l.ordered_by, l.listed_at, l.units_per_package, l.package_count,
          l.unit_price_cny, l.vietnam_price, l.quantity
   FROM product_container_lines l
   LEFT JOIN (SELECT lower(btrim(product_code)) AS product_key, min(product_name) AS product_name

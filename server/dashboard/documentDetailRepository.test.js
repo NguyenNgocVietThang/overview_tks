@@ -100,3 +100,14 @@ test('getInvoiceDetail tra dau chung + dong hang, dung subTotal cua hoa don (giu
 test('getInvoiceDetail: khong co hoa don -> 404', async () => {
   await assert.rejects(getInvoiceDetail({ code: 'HD-NONE', branchCode: 'hanoi', pool: fakePool([]) }), { statusCode: 404 });
 });
+
+test('Ten khach/ten hang: uu tien ten HIEN TAI (customers.name, products.name), ten tren chung tu chi la du phong', async () => {
+  for (const [fn, alias] of [[getOrderDetail, 'o'], [getInvoiceDetail, 'i']]) {
+    const pool = fakePool([{ id: '1', code: 'X1' }], []);
+    await fn({ code: 'X1', branchCode: 'hanoi', pool });
+    const [head, lines] = [pool.calls[0].sql, pool.calls[1].sql];
+    assert.match(head, new RegExp(`LEFT JOIN customers c ON c\.branch = ${alias}\.branch AND c\.id = ${alias}\.customer_id`));
+    assert.ok(head.includes(`NULLIF(c.name, ''), NULLIF(${alias}.raw->>'customerName', '')`));
+    assert.match(lines, /NULLIF\(p\.name, ''\), NULLIF\(d\.raw->>'productName', ''\)/);
+  }
+});

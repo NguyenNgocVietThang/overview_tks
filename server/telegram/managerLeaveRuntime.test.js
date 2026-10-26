@@ -3,6 +3,23 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createManagerLeaveRuntime, validateManagerTelegramConfig, loadManagersFromDb } = require('./managerLeaveRuntime');
 
+test('cancellation delivery clears card actions, retries transient errors and completes missing cards',async()=>{
+ const calls=[],done=[],retried=[];let failure;
+ const runtime=createManagerLeaveRuntime({store:{completeCancellation:async job=>done.push(job.id),retryCancellation:async(job,error)=>retried.push([job.id,error.retryAfter])},telegram:{call:async(method,params)=>{calls.push({method,params});if(failure)throw failure;}},logger:{error(){}}});
+ const job={id:'1',kind:'card',telegram_chat_id:'123',message_id:'99',text:'Đã hủy bởi người xin nghỉ'};
+ await runtime.processCancellation(job);assert.equal(calls[0].method,'editMessageText');assert.deepEqual(calls[0].params.reply_markup,{inline_keyboard:[]});assert.deepEqual(done,['1']);
+ failure={code:429,retryAfter:17};await runtime.processCancellation({...job,id:'2'});assert.deepEqual(retried,[['2',17]]);
+ failure={code:400,messageMissing:true};await runtime.processCancellation({...job,id:'3'});assert.deepEqual(done,['1','3']);
+ failure=null;await runtime.processCancellation({...job,id:'4',kind:'notify'});assert.equal(calls.at(-1).method,'sendMessage');assert.equal(calls.at(-1).params.reply_markup,undefined);
+});
+
+test('delivery reloads under request lock and never sends a card for a deleted request',async()=>{
+ let locked=false,sent=0,finished=0;
+ const runtime=createManagerLeaveRuntime({store:{withRequestLock:async(id,callback)=>{assert.equal(id,'gone');locked=true;try{return await callback();}finally{locked=false;}},finishDelivery:async()=>{assert.equal(locked,true);finished++;}},leaveRepo:{getLeaveRequestById:async()=>{assert.equal(locked,true);return null;}},getManager:async()=>null,telegram:{call:async()=>{sent++;}},logger:{error(){}}});
+ await runtime.processDelivery({request_id:'gone',user_id:'manager',telegram_chat_id:'1',desired_version:'0'});
+ assert.equal(sent,0);assert.equal(finished,1);
+});
+
 test('one conflicting linked account does not stop notifications for valid managers', async () => {
   const good = { id: 'good', telegramId: '100', vaiTro: 'Quản lý', trangThai: 'Đang hoạt động', coSo: 'Hà Nội',assignedCoSo:'Hà Nội',leaveApprovalDepartments:['Kho'] };
   const managers = await loadManagersFromDb({ selectAll: async () => [{ id: 'conflict', telegramId: '101' }, good],

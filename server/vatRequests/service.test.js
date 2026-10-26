@@ -8,7 +8,8 @@ const { PGlite } = require('@electric-sql/pglite');
 const registry = require('../auth/featureRegistry');
 const { ROLES } = require('../auth/userRepository');
 const { createVatRequestService } = require('./service');
-const { parseStockCsv, parseMappingCsv, defaultStockConfig } = require('./stockSource');
+const { parseStockRecords, parseMappingRecords, defaultStockConfig } = require('./stockSource');
+const { parseCsv } = require('../vatDraft/csv');
 
 const MIGRATIONS = ['0018_product_report.sql', '0053_product_containers.sql', '0076_vat_requests.sql', '0079_vat_request_sort_rank.sql', '0083_vat_request_status_vat_ready.sql'];
 
@@ -233,7 +234,7 @@ test('P chi cong yeu cau cung ma o 3/4; Q/R tu CONT chua ve; O tu sheet ton theo
   const stockCsv = 'CTY,Mã kiot đại diện,Tên,MÃ VAT KIOT,TÊN VAT,Tên hàng,ĐVT,x,TỒN ĐẦU NGÀY\n'
     + 'TKS THẤP,014XOAN,,VAT1,,,Cái,,"1,200"\nVC,,,VAT1,,,Cái,,300\nSHC,26DAQUAN,,VAT2,,,Cái,,50\n';
   const mappingCsv = 'CHECK TỒN BÊN SHEET VAT\nMã SP,Tên SP,,,,,,,,Mã vat kiot\n014xoan,Bát,,,,,,,,VAT1\n';
-  const stock = { ...parseStockCsv(stockCsv, config), vatByProduct: parseMappingCsv(mappingCsv, config), loadedAt: Date.now() };
+  const stock = { ...parseStockRecords(parseCsv(stockCsv), config), vatByProduct: parseMappingRecords(parseCsv(mappingCsv), config), loadedAt: Date.now() };
   const { db, service } = await fixture({ stock });
   try {
     for (const status of ['pending', '0', '1', '2', '3', '4']) {

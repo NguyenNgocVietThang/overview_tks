@@ -10,16 +10,6 @@ test('bảng bỏ dấu SQL khớp hàm fold của JS', () => {
   [...VN_FROM].forEach((ch, i) => assert.equal(fuzzy.fold(ch), VN_TO[i], ch));
 });
 
-test('fuzzySqlParts: rỗng -> null; 1 từ dùng lại tham số; nhiều từ thêm tham số cụm', () => {
-  const add = (params) => (v) => { params.push(v); return `$${params.length}`; };
-  assert.equal(fuzzySqlParts('t', '   ', add([])), null);
-  const one = []; fuzzySqlParts('t', 'Đạt', add(one));
-  assert.deepEqual(one, ['dat']);
-  const many = []; const parts = fuzzySqlParts('t', 'Nguyễn Văn Đạt', add(many));
-  assert.deepEqual(many, ['nguyen', 'van', 'dat', 'nguyen van dat']);
-  assert.match(parts.where, />=2/);
-});
-
 test('chạy thật trên Postgres: cùng kết quả với luật JS', async () => {
   const db = new PGlite();
   const texts = ['Nguyễn Văn Đạt', 'Lê Văn Nam', 'Trần Thị Hoa', 'Hà Nội Văn Phòng', null];

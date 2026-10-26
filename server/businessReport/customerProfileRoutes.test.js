@@ -15,6 +15,26 @@ const IMG_ID = '22222222-2222-4222-8222-222222222222';
 const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47]), Buffer.from('png-body')]);
 const note = (over = {}) => ({ id: NOTE_ID, noteDate: '2026-10-22', body: 'Gặp khách', authorId: 'u-9', authorName: 'Sale', createdAt: '2026-10-22T03:00:00.000Z', updatedAt: '2026-10-22T03:00:00.000Z', ...over });
 
+test('local price level: only customer manager can change; assigned editor and unrelated viewer cannot', async () => {
+  const body = { key:KEY,level:'vip',version:1 };
+  assert.equal((await call('/customer-price-level', { method:'PUT',body })).status,200);
+  assert.equal((await call('/customer-price-level', { method:'PUT',body, permissions:VIEW })).status,403);
+  const assigned = fakeProfiles({ editors:[{key:KEY,userId:'u-1'}] });
+  assert.equal((await call('/customer-price-level', { method:'PUT',body,permissions:VIEW,profiles:assigned })).status,403);
+  const levels = { saveLevel:async () => { throw Object.assign(new Error('conflict'),{statusCode:409,code:'PRICE_LEVEL_CONFLICT'}); } };
+  assert.equal((await call('/customer-price-level', {method:'PUT',body,levels})).status,409);
+  const report = await call('/customers', {permissions:VIEW,profiles:assigned});
+  const row = report.data.rows.find(r => r.key === KEY);
+  assert.equal(row.priceLevel,'Lớn');
+  assert.equal(row.canEditPriceLevel,false);
+  assert.equal(row.newCustomer,'');
+  assert.deepEqual(report.data.newCustomerOptions,[]);
+  assert.deepEqual(row.salesChannels,['san']);
+  const fields = await call('/export/fields?kind=customers&salesChannel=san&warehouseScale=small', {permissions:[...VIEW,'reports.export']});
+  assert.equal(fields.data.worksheets[0].rowCount,1);
+  assert.ok(fields.data.worksheets[0].fields.some(f => f.key === 'warehouseScale'));
+});
+
 // Kho gia luu trong RAM, ghi lai moi loi goi ghi (de kiem "khong ghi" khi bi 403).
 function fakeProfiles({ editors = [], ...over } = {}) {
   const calls = [];
@@ -22,6 +42,10 @@ function fakeProfiles({ editors = [], ...over } = {}) {
   const profile = { warehouseLocation: 'Kho 1', area: '', warehouseCount: 2, warehouseScale: 'small', competitor: '', salesChannels: ['san'] };
   return {
     calls,
+    getReportProfiles: async keys => Object.fromEntries(keys.filter(k => k === KEY).map(k => [k, {
+      ...profile, editors: editors.length ? editors.map(e => ({userId:e.userId,userName:'Sale'})) : [{ userId: 'u-2', userName: 'Sale Hai' }], visitDays: ['2026-10-01','2026-10-20'],
+      images: [{ url: `/api/business-report/customer-profile/images/${IMG_ID}` }], lastVisit: '2026-10-20'
+    }])),
     getMeta: rec('getMeta', { [KEY]: { lastVisit: '2026-10-20', noteCount: 2 } }),
     getProfile: rec('getProfile', {
       profile, images: [{ id: IMG_ID, url: `/api/business-report/customer-profile/images/${IMG_ID}`, contentType: 'image/png', byteSize: 12, createdAt: '2026-10-21T00:00:00.000Z' }],
@@ -44,7 +68,7 @@ function fakeProfiles({ editors = [], ...over } = {}) {
   };
 }
 
-async function call(path, { permissions = MANAGE, user = {}, method = 'GET', body, form, headers = {}, profiles = fakeProfiles() } = {}) {
+async function call(path, { permissions = MANAGE, user = {}, method = 'GET', body, form, headers = {}, profiles = fakeProfiles(), levels = null } = {}) {
   const app = express();
   app.use((req, res, next) => {
     req.user = { id: 'u-1', username: 'tester', hoTen: 'Người Test', vaiTro: 'Quản lý', permissions, ...user };
@@ -54,6 +78,10 @@ async function call(path, { permissions = MANAGE, user = {}, method = 'GET', bod
   app.use('/api/business-report', createBusinessReportRouter({
     repository: { snapshot: async () => serviceSnapshot() },
     customerProfiles: profiles,
+    customerPriceLevels: levels || {
+      getLevels: async keys => Object.fromEntries(keys.map(k => [k, { level:'large', version:1 }])),
+      saveLevel: async (key, level, version) => ({ level,version:version+1 })
+    },
     now: () => NOW
   }));
   const server = app.listen(0);
@@ -156,7 +184,7 @@ test('PUT /customer-profile: Quan ly luon sua; nguoi duoc gan sua; nguoi khong d
   const body = { key: KEY, warehouseLocation: ' Kho A ', warehouseCount: '5', warehouseScale: 'large', competitor: 'Tem Y', salesChannels: ['san', 'fb_live'] };
   const manager = await call('/customer-profile', { method: 'PUT', body });
   assert.equal(manager.status, 200);
-  assert.deepEqual(manager.data, { profile: { warehouseLocation: 'Kho A', area: '', warehouseCount: 5, warehouseScale: 'small', competitor: 'Tem Y', salesChannels: ['san', 'fb_live'] } });
+  assert.deepEqual(manager.data, { profile: { warehouseLocation: 'Kho A', area: '', phone: '', address: '', warehouseCount: 5, warehouseScale: 'small', competitor: 'Tem Y', salesChannels: ['san', 'fb_live'] } });
   assert.equal(Object.hasOwn(writes(manager)[0][3], 'warehouseScale'), false);
   const [name, key, customerName, , actor] = writes(manager)[0];
   assert.deepEqual([name, key, customerName, actor], ['saveProfile', KEY, 'Chị A', { id: 'u-1', name: 'Người Test' }]);
@@ -369,7 +397,7 @@ test('loi he thong ghi chu khach van la 500 khong lo chi tiet', async () => {
 test('GET /export?kind=customers: them cot "Tiep khach lan cuoi" (dd/mm/yyyy) khi co quyen xem ghi chu khach', async () => {
   const exporter = [...VIEW, 'reports.products.growth', 'reports.export'];
   const fields = await call('/export/fields?kind=customers&inactive=1', { permissions: exporter });
-  assert.deepEqual(fields.data.worksheets[0].fields.slice(0, 4).map(f => f.label), ['Tên khách', 'Sale', 'Level giá', 'Tiếp khách lần cuối']);
+  assert.deepEqual(fields.data.worksheets[0].fields.slice(0, 5).map(f => f.label), ['Tên khách', 'Sale', 'Level giá', 'Khách mới', 'Tiếp khách lần cuối']);
   const res = await call('/export?kind=customers&format=xlsx&inactive=1&columns=' + encodeURIComponent('name,lastVisit'), { permissions: exporter });
   assert.equal(res.status, 200);
   const wb = new ExcelJS.Workbook();
@@ -380,7 +408,7 @@ test('GET /export?kind=customers: them cot "Tiep khach lan cuoi" (dd/mm/yyyy) kh
   assert.deepEqual(rows.find(r => r[0] === 'Anh B'), ['Anh B', '']);
 });
 
-test('GET /export: khong co quyen xem ghi chu khach thi khong co cot Tiep khach lan cuoi (khong lo du lieu); meta loi => cot de trong', async () => {
+test('GET /export: no profile fields without view permission; batch read failure blocks export', async () => {
   const plain = ['reports.business', 'reports.products.growth', 'reports.export'];
   const fields = await call('/export/fields?kind=customers', { permissions: plain });
   assert.ok(!fields.data.worksheets[0].fields.some(f => f.key === 'lastVisit'));
@@ -389,12 +417,10 @@ test('GET /export: khong co quyen xem ghi chu khach thi khong co cot Tiep khach 
   const origError = console.error;
   console.error = () => {};
   try {
-    const broken = fakeProfiles({ getMeta: async () => { throw new Error('db down'); } });
+    const broken = fakeProfiles({ getReportProfiles: async () => { throw new Error('db down'); } });
     const res = await call('/export?kind=customers&format=xlsx&inactive=1&columns=' + encodeURIComponent('name,lastVisit'), { permissions: [...VIEW, 'reports.products.growth', 'reports.export'], profiles: broken });
-    assert.equal(res.status, 200);
-    const wb = new ExcelJS.Workbook();
-    await wb.xlsx.load(res.data);
-    assert.ok(wb.worksheets[0].getSheetValues().slice(2).map(r => r.slice(1)).every(r => r[1] === ''));
+    assert.equal(res.status, 500);
+    assert.equal(res.data.code,'BUSINESS_REPORT_ERROR');
   } finally { console.error = origError; }
 });
 
@@ -406,10 +432,11 @@ test('tich hop PGlite: Quan ly tao note / ngay da di / nguoi sua / anh qua route
   const { createCustomerProfileRepository } = require('./customerProfileRepository');
   const sql = fs.readFileSync(path.join(__dirname, '..', 'db', 'migrations', '0080_customer_notes.sql'), 'utf8');
   const detailsSql = fs.readFileSync(path.join(__dirname, '..', 'db', 'migrations', '0084_customer_profile_details.sql'), 'utf8');
+  const contactSql = fs.readFileSync(path.join(__dirname, '..', 'db', 'migrations', '0090_customer_profile_contact.sql'), 'utf8');
   const users = [{ id: 'u-2', username: 'sale2', hoTen: 'Sale Hai', vaiTro: 'Nhân viên sale', trangThai: 'Đang hoạt động' }];
   const make = async migrate => {
     const db = new PGlite();
-    if (migrate) { await db.exec(sql); await db.exec(detailsSql); }
+    if (migrate) { await db.exec(sql); await db.exec(detailsSql); await db.exec(contactSql); }
     const pool = { query: (q, p) => db.query(q, p), connect: async () => ({ query: (q, p) => db.query(q, p), release() {} }) };
     return { db, profiles: createCustomerProfileRepository({ pool, now: () => NOW, userStore: { getAllUsers: async () => users } }) };
   };
@@ -451,4 +478,37 @@ test('tich hop PGlite: Quan ly tao note / ngay da di / nguoi sua / anh qua route
     const write = await call('/customer-profile/notes', { method: 'POST', body: { key: KEY, body: 'x' }, profiles: bare.profiles });
     assert.deepEqual([write.status, write.data.code], [503, 'MIGRATION_PENDING']);
   } finally { await bare.db.close(); }
+});
+
+test('customer-price-level: newCustomer chi truyen khi co trong body; GET tra newCustomer + newCustomerOptions; 400 bubbles', async () => {
+  const seen = [];
+  const levels = {
+    getLevels: async keys => Object.fromEntries(keys.map(k => [k, { level:'large', version:1, newCustomer:'Mới T10' }])),
+    saveLevel: async (...args) => { seen.push(args); if (args[4] === 'bad') throw Object.assign(new Error('bad'),{statusCode:400,code:'INVALID_NEW_CUSTOMER'}); return { level:args[1], version:args[2]+1, newCustomer:args[4] === undefined ? 'Mới T10' : args[4] }; }
+  };
+  const base = { key:KEY, level:'vip', version:1 };
+  const without = await call('/customer-price-level', { method:'PUT', body:base, levels });
+  assert.equal(without.status,200);
+  assert.equal(seen[0].length,4);
+  assert.equal(without.data.newCustomer,'Mới T10');
+  const withValue = await call('/customer-price-level', { method:'PUT', body:{ ...base, newCustomer:'Mới T11' }, levels });
+  assert.deepEqual([withValue.status,seen[1][4],withValue.data.newCustomer],[200,'Mới T11','Mới T11']);
+  const bad = await call('/customer-price-level', { method:'PUT', body:{ ...base, newCustomer:'bad' }, levels });
+  assert.equal(bad.status,400);
+  assert.equal((await call('/customer-price-level', { method:'PUT', body:{ ...base, newCustomer:'x' }, levels, permissions:VIEW })).status,403);
+  const report = await call('/customers', { permissions:VIEW, levels });
+  assert.equal(report.data.rows.find(r => r.key === KEY).newCustomer,'Mới T10');
+  assert.deepEqual(report.data.newCustomerOptions,['Mới T10']);
+});
+
+test('GET /customers carries phone/address for profile viewers; PUT /customer-profile accepts phone/address', async () => {
+  const profiles = fakeProfiles();
+  const orig = profiles.getReportProfiles;
+  profiles.getReportProfiles = async keys => { const o = await orig(keys); for (const v of Object.values(o)) { v.phone = '0901234567'; v.address = '1 Lê Lợi'; } return o; };
+  const row = (await call('/customers', { permissions:VIEW, profiles })).data.rows.find(r => r.key === KEY);
+  assert.deepEqual([row.phone,row.address],['0901234567','1 Lê Lợi']);
+  const put = await call('/customer-profile', { method:'PUT', body:{ key:KEY, warehouseLocation:'K', warehouseCount:1, warehouseScale:'small', competitor:'', salesChannels:[], phone:' 0901234567 ', address:' 1 Lê Lợi ' } });
+  assert.equal(put.status,200);
+  assert.equal(put.data.profile.phone,'0901234567');
+  assert.equal(put.data.profile.address,'1 Lê Lợi');
 });

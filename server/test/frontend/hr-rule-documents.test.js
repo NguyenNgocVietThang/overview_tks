@@ -334,6 +334,41 @@ test('trình soạn thảo rich-text có đủ nhóm Word: định dạng, headi
   window.close();
 });
 
+test('trình soạn thảo có đổi phông, cỡ chữ, giãn dòng, căn đều, liên kết, xem trước và mục lục', async () => {
+  const { window, document } = await openPage({ docs: [...BUILTINS, TEXT] });
+  window.openRuleTextModal(TEXT);
+  const fonts = [...document.querySelectorAll('#rteFontFamily option')].map(o => o.value);
+  assert.ok(fonts.includes('Arial') && fonts.includes('Times New Roman'));
+  assert.ok([...document.querySelectorAll('#rteFontSize option')].some(o => o.value === '14'));
+  assert.ok([...document.querySelectorAll('#rteLineHeight option')].some(o => o.value === '1.5'));
+  assert.ok(document.querySelector('#rteToolbar [data-cmd="justifyFull"]'));
+  assert.ok(document.getElementById('rteInsertLinkBtn'));
+
+  // mục lục lấy từ tiêu đề trong nội dung
+  document.getElementById('ruleTextEditor').innerHTML = '<h2>Mục một</h2><p>a</p><h3>Mục hai</h3>';
+  window.rebuildRuleOutline();
+  assert.deepEqual([...document.querySelectorAll('#rteOutline li span')].map(s => s.textContent), ['Mục một', 'Mục hai']);
+
+  // xem trước: lọc script/on*, hiện tên tài liệu, ẩn thanh công cụ
+  document.getElementById('ruleTextEditor').innerHTML = '<p onclick="x()">Chào<script>1</script> <a href="javascript:alert(1)">l</a></p>';
+  window.setRuleTextTab('preview');
+  const body = document.getElementById('rtePreviewBody');
+  assert.equal(document.getElementById('rtePreview').hidden, false);
+  assert.equal(document.getElementById('rteToolbar').hidden, true);
+  assert.equal(body.querySelector('script'), null);
+  assert.equal(body.querySelector('p').getAttribute('onclick'), null);
+  assert.equal(body.querySelector('a').getAttribute('href'), null);
+  window.setRuleTextTab('edit');
+  assert.equal(document.getElementById('rtePreview').hidden, true);
+
+  // thay đổi nội dung đánh dấu chưa lưu; mở lại hộp thì reset
+  window.markRuleTextDirty();
+  assert.match(document.getElementById('rteStatusText').textContent, /chưa lưu/);
+  window.openRuleTextModal(TEXT);
+  assert.match(document.getElementById('rteStatusText').textContent, /Chưa có thay đổi/);
+  window.close();
+});
+
 test('tạo rich-text gửi innerHTML (không phải textContent) và chọn tab mới', async () => {
   const { window, document, server } = await openPage();
   window.openRuleTextModal(null);
@@ -415,4 +450,67 @@ test('kind="builtin" con lai truoc migration 0065 van hien noi dung cu', async (
   assert.deepEqual(visibleViews(document), ['gio-giac']);
   assert.match(document.querySelector('[data-rule-doc="gio-giac"]').textContent, /Giờ làm việc chính thức/);
   window.close();
+});
+
+test('sửa bảng trong trình soạn: thanh nổi hiện khi con trỏ trong ô, thêm dòng/cột, gộp ô, viền, xóa bảng', async () => {
+  const { window, document } = await openPage({ docs: [...BUILTINS, TEXT] });
+  window.eval(fs.readFileSync(path.join(__dirname, '..', '..', 'public', 'shared', 'rte-table.js'), 'utf8'));
+  window.openRuleTextModal(TEXT);
+  const editor = document.getElementById('ruleTextEditor');
+  editor.innerHTML = '<table><tbody><tr><td>A</td><td>B</td></tr><tr><td>C</td><td>D</td></tr></tbody></table>';
+  const cell = () => editor.querySelector('td');
+  const place = (node) => { const r = document.createRange(); r.selectNodeContents(node); r.collapse(true); const s = window.getSelection(); s.removeAllRanges(); s.addRange(r); window.document.dispatchEvent(new window.Event('selectionchange')); };
+
+  const actions = [...document.querySelectorAll('#rteTableBar button[data-table-action]')].map(b => b.dataset.tableAction);
+  assert.deepEqual(actions, ['merge', 'split', 'border']);
+  assert.equal(document.querySelectorAll('#rteTableBar [aria-haspopup="menu"]').length, 2);
+  assert.equal(document.querySelectorAll('#rteTableMenu button').length, 10);
+
+  place(cell());
+  assert.equal(document.getElementById('rteTableBar').hidden, false);
+  assert.equal(document.querySelector('#rteTableBar [data-table-action="merge"]').disabled, true);
+  assert.equal(document.querySelector('#rteTableBar [data-table-action="split"]').disabled, true);
+  assert.equal(editor.querySelector('#rteTableSelection'), null, 'selection overlay must not enter saved content');
+  const insert = document.querySelector('#rteTableBar [data-table-menu="insert"]');
+  insert.click();
+  assert.equal(insert.getAttribute('aria-expanded'), 'true');
+  assert.equal(document.querySelectorAll('#rteTableMenu button').length, 4);
+  document.activeElement.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  assert.equal(document.getElementById('rteTableMenu').hidden, true);
+  assert.equal(insert.getAttribute('aria-expanded'), 'false');
+  const click = id => {
+    const direct = document.querySelector(`#rteTableBar [data-table-action="${id}"]`);
+    if(direct) return direct.click();
+    document.querySelector(`#rteTableBar [data-table-menu="${id.startsWith('del') ? 'delete' : 'insert'}"]`).click();
+    assert.equal(document.getElementById('rteTableMenu').hidden, false);
+    document.querySelector(`#rteTableMenu [data-table-action="${id}"]`).click();
+  };
+
+  click('rowBelow');
+  assert.equal(editor.querySelectorAll('tr').length, 3);
+  place(cell());
+  click('colRight');
+  assert.equal(editor.querySelectorAll('tr')[0].children.length, 3);
+  place(cell());
+  click('delCol');
+  assert.equal(editor.querySelectorAll('tr')[0].children.length, 2);
+
+  place(cell());
+  click('border');
+  const style = document.getElementById('rteBorderStyle');
+  style.value = 'outer';
+  style.dispatchEvent(new window.Event('change'));
+  assert.equal(editor.querySelector('table').dataset.border, 'outer');
+
+  cell().dispatchEvent(new window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+  assert.equal(document.querySelectorAll('#rteTableMenu button').length, 10, 'right-click retains all commands');
+
+  place(cell());
+  click('delTable');
+  assert.equal(editor.querySelectorAll('table').length, 0);
+  window.close();
+});
+
+test('script rte-table.js được nạp trong trang HR', () => {
+  assert.match(html, /<script src="\/shared\/rte-table\.js\?v=[^"]+"><\/script>/);
 });

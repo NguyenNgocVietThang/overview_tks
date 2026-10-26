@@ -5,7 +5,6 @@ const assert = require('node:assert/strict');
 const {
   customerLevelFromEmail,
   hasFullVat,
-  isExcludedProduct,
   isFreightCustomer,
   normalizeCustomerName,
   FREIGHT_CUSTOMERS,
@@ -51,19 +50,6 @@ test('Full VAT: khong co / khong co ranh gioi tu thi sai', () => {
   assert.equal(hasFullVat('fullvatx', ''), false);
   assert.equal(hasFullVat('fullvatà', ''), false);
   assert.equal(hasFullVat('àfullvat', ''), false);
-});
-
-test('bo qua OD/PK chi khi nam trong ngoac', () => {
-  assert.equal(isExcludedProduct('Hàng phụ (pk)'), 'pk');
-  assert.equal(isExcludedProduct('Hàng (OD)'), 'od');
-  assert.equal(isExcludedProduct('Hàng ( Od )'), 'od');
-  assert.equal(isExcludedProduct('Hàng (PK) loai 2'), 'pk');
-  assert.equal(isExcludedProduct('Hàng OD'), null);
-  assert.equal(isExcludedProduct('PK ABC'), null);
-  assert.equal(isExcludedProduct('Hang [OD]'), null);
-  assert.equal(isExcludedProduct('Hàng (ODX)'), null);
-  assert.equal(isExcludedProduct(''), null);
-  assert.equal(isExcludedProduct(null), null);
 });
 
 test('khach bao cuoc: khop toan bo ten sau chuan hoa, giu dau', () => {

@@ -9,9 +9,10 @@ const FIRST_MONTH = '2026-03-01';
 const UNGROUPED_SALE = 'Chưa phân nhóm';
 const NO_TEAM = 'Chưa có team';
 const RETAIL_NAME = 'Khách lẻ';
-// Level giá khách lấy từ email KiotViet (phần trước @: vip/lớn/vừa); email trống => Lớn, email lạ => Vừa (DEFAULT chỉ cho khách không có hồ sơ).
-const DEFAULT_PRICE_LEVEL = 'vừa';
-const PRICE_LEVEL_LABELS = { vip: 'vip', large: 'lớn', medium: DEFAULT_PRICE_LEVEL };
+// Legacy aggregation default used only when preserving the displayed level at cutover.
+// Live routes overlay the stored local level; new customer keys default to large there.
+const DEFAULT_PRICE_LEVEL = 'Vừa';
+const PRICE_LEVEL_LABELS = { vip: 'Vip', large: 'Lớn', new: 'Mới', medium: DEFAULT_PRICE_LEVEL };
 
 // Khoa so khop ten (khach, sale): NFKC, bo ky tu rong (zero-width), gop khoang trang, chu thuong.
 // CUNG cong thuc voi ham SQL tks_name_key() (migration 0069) / normalizedNameSql(): JS truoc day khong bo

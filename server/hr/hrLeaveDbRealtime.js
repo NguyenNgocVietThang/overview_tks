@@ -24,10 +24,14 @@ function createLeaveDbRealtime({
       const changed = [];
       for (const row of rows) {
         const version = String(row.decision_version || '0');
-        next.set(row.request_id, version);
+        next.set(row.request_id, {version,branch:row.branch,co_so:row.co_so,user_id:row.user_id});
         if (!versions) continue;
         if (!versions.has(row.request_id)) changed.push([LEAVE_EVENT_TYPES.CREATED, row.request_id]);
-        else if (versions.get(row.request_id) !== version) changed.push([LEAVE_EVENT_TYPES.STATUS_CHANGED, row.request_id]);
+        else if (versions.get(row.request_id).version !== version) changed.push([LEAVE_EVENT_TYPES.STATUS_CHANGED, row.request_id]);
+      }
+      if (versions) for (const [id,previous] of versions) if (!next.has(id)) {
+        const branch = previous.co_so || (previous.branch === 'saigon' ? BRANCHES.SAIGON : BRANCHES.HANOI);
+        broadcast(LEAVE_EVENT_TYPES.DELETED,{request_id:id,user_id:previous.user_id,co_so:branch},branch);
       }
       for (const [type, id] of changed) {
         const record = await loadRecord(id);

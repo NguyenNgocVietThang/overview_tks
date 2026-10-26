@@ -11,6 +11,45 @@ function customerRows() {
   return svc.buildCustomerReport(serviceSnapshot()).rows;
 }
 
+test('customer profile filters use contains, empty defaults and AND with other filters', () => {
+  const rows = [
+    { key: 'a', name: 'Chị A', active: true, saleName: 'Mai', priceLevel: 'VIP', salesChannels: ['san', 'khac'], warehouseScale: 'large' },
+    { key: 'b', name: 'Chị B', active: true, saleName: 'Mai', priceLevel: 'VIP', salesChannels: ['khac'], warehouseScale: 'large' },
+    { key: 'c', active: true }, { key: 'd', active: false, salesChannels: [], warehouseScale: 'none' }
+  ];
+  assert.deepEqual(filterRows('customers', rows, { salesChannel: 'san', warehouseScale: 'large', sale: 'Mai', level: 'VIP', q: 'chi' }).map(r => r.key), ['a']);
+  assert.deepEqual(filterRows('customers', rows, { salesChannel: 'san', warehouseScale: 'small' }), []);
+  assert.deepEqual(filterRows('customers', rows, { warehouseScale: 'none' }).map(r => r.key), ['c']);
+  assert.deepEqual(filterRows('customers', rows, { salesChannel: 'none', warehouseScale: 'none' }).map(r => r.key), ['c']);
+  assert.deepEqual(filterRows('customers', rows, { salesChannel: 'none', warehouseScale: 'none', inactive: '1' }).map(r => r.key), ['c', 'd']);
+  assert.equal(filterRows('products', rows, { salesChannel: 'san', warehouseScale: 'small' }).length, 4);
+});
+
+test('profile export fields require profile permission and format labels, dates, URLs and safe text', async () => {
+  const base = svc.buildCustomerReport(serviceSnapshot());
+  assert.throws(() => resolveColumnKeys('customers', base, 'salesChannels'), { code: 'INVALID_COLUMNS' });
+  const report = { ...base, withCustomerProfile: true, withLastVisit: true };
+  const keys = ['phone', 'address', 'warehouseLocation', 'warehouseCount', 'area', 'competitor', 'salesChannels', 'warehouseScale', 'editors', 'visitDays', 'images'];
+  const fields = exportFieldsFor('customers', report, []).worksheets[0].fields;
+  assert.ok(keys.every(key => fields.some(f => f.key === key)));
+  assert.ok(!fields.some(f => f.key === 'notes'));
+  assert.ok(!exportFieldsFor('sales', report, []).worksheets[0].fields.some(f => keys.includes(f.key)));
+  const rows = [{ phone: '0901', address: 'HN', warehouseLocation: '=CMD()', warehouseCount: 2, area: '200m2', competitor: 'X', salesChannels: ['san', 'fb_ads', 'khac'], warehouseScale: 'very_large', editors: [{ userId: '1', userName: 'Mai' }, { userId: '2', userName: 'Hoa' }], visitDays: ['2026-10-01', '2026-10-02'], images: [{ url: 'https://tks.test/api/images/1' }, 'https://tks.test/api/images/2'], notes: ['PRIVATE'] }, {}];
+  const file = await createExportFile('customers', 'xlsx', report, rows, keys);
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(file.buffer);
+  const sheet = wb.worksheets[0];
+  assert.deepEqual(sheet.getRow(1).values.slice(1), ['Điện thoại', 'Địa chỉ', 'Định vị kho', 'Số lượng kho', 'Diện tích', 'Đối thủ', 'Hình thức bán hàng', 'Quy mô khách', 'Người được sửa', 'Các ngày tiếp khách', 'Ảnh kho']);
+  assert.deepEqual(sheet.getRow(2).values.slice(1), ['0901', 'HN', "'=CMD()", 2, '200m2', 'X', 'Bán sàn, FB ads, Khác', 'Rất to', 'Mai, Hoa', '01/10/2026, 02/10/2026', 'https://tks.test/api/images/1\nhttps://tks.test/api/images/2']);
+  assert.ok(sheet.getRow(3).getCell(4).value == null || sheet.getRow(3).getCell(4).value === '');
+  assert.equal(sheet.getRow(3).getCell(8).value, 'Chưa có');
+  const html = await createExportFile('customers', 'html', report, rows, keys);
+  const b64 = /<script type="application\/octet-stream" id="report-data"[^>]*>([^<]*)<\/script>/.exec(html.buffer.toString())[1];
+  const ws = JSON.parse(zlib.gunzipSync(Buffer.from(b64, 'base64'))).worksheets[0];
+  assert.equal(ws.rows[0][6], 'Bán sàn, FB ads, Khác');
+  assert.equal(ws.rows[0][9], '01/10/2026, 02/10/2026');
+});
+
 test('filterRows khach: mac dinh chi giu khach hoat dong, inactive=1 giu tat ca', () => {
   const rows = customerRows();
   const active = filterRows('customers', rows, {});
@@ -107,8 +146,8 @@ test('exportFieldsFor: danh sach truong cho hop thoai Xuat file = dung cac cot c
     ['Sale', 'Team', 'SL Khách', 'TB 4 tháng', 'Tăng trưởng', 'Tháng hiện tại (đến 06/10)', 'T9/26', 'T8/26', 'T7/26']);
   assert.ok(ws.fields.every(f => f.selected === true));
   const customers = svc.buildCustomerReport(serviceSnapshot());
-  assert.deepEqual(exportFieldsFor('customers', customers, []).worksheets[0].fields.slice(0, 3).map(f => f.key),
-    ['name', 'saleName', 'priceLevel']);
+  assert.deepEqual(exportFieldsFor('customers', customers, []).worksheets[0].fields.slice(0, 4).map(f => f.key),
+    ['name', 'saleName', 'priceLevel', 'newCustomer']);
   assert.throws(() => exportFieldsFor('nope', report, []), e => e.statusCode === 400);
 });
 
@@ -165,7 +204,7 @@ test('cot Tiep khach lan cuoi (customers): chi co khi report.withLastVisit, dd/m
   const report = { ...base, withLastVisit: true };
   const rows = base.rows.map((r, i) => ({ ...r, lastVisit: i === 0 ? '2026-10-05' : '' }));
   const fields = exportFieldsFor('customers', report, rows).worksheets[0].fields;
-  assert.deepEqual(fields.slice(0, 4).map(f => f.label), ['Tên khách', 'Sale', 'Level giá', 'Tiếp khách lần cuối']);
+  assert.deepEqual(fields.slice(0, 5).map(f => f.label), ['Tên khách', 'Sale', 'Level giá', 'Khách mới', 'Tiếp khách lần cuối']);
   assert.deepEqual(resolveColumnKeys('customers', report, 'lastVisit,name'), ['name', 'lastVisit']);
 
   const xlsx = await createExportFile('customers', 'xlsx', report, rows, ['name', 'lastVisit']);

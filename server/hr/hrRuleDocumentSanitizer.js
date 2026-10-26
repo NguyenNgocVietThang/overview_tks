@@ -25,6 +25,33 @@ const IMAGE_SRC_PATTERN = /^\/api\/hr\/rules\/documents\/\d+\/images\/\d+$/;
 const HEX_COLOR = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 const RGB_COLOR = /^rgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\)$/;
 
+// Chi chu/so/dau cach/dau phay/gach/nhay — khong cho url(), dau ngoac, dau cham phay.
+const FONT_FAMILY = /^[\p{L}\p{N} ,'"-]{1,80}$/u;
+const FONT_SIZE_PX = /^(?:[89]|[1-9]\d|1\d\d)(?:\.\d)?px$/;
+const LINE_HEIGHT = /^(?:[1-3](?:\.\d{1,2})?|0\.\d{1,2})$/;
+const BLOCK_STYLES = {
+  'text-align': [/^(left|center|right|justify)$/],
+  'line-height': [LINE_HEIGHT]
+};
+
+// Bang (chi la HTML, khong can migration): data-border/data-border-width + bien --tb-color
+// tren <table>, width (px) tren <td>/<th>. Gia tri la => bo thuoc tinh (xem transformTags).
+const TABLE_BORDER_KINDS = new Set(['all', 'outer', 'none']);
+const TABLE_BORDER_WIDTHS = new Set(['1', '2', '3']);
+const CELL_WIDTH_MIN = 40;
+const CELL_WIDTH_MAX = 800;
+
+function transformCell(tagName, attribs) {
+  const next = { ...attribs };
+  if ('width' in next) {
+    const raw = String(next.width).trim();
+    const n = Number(raw);
+    if (/^\d{1,4}$/.test(raw) && n >= CELL_WIDTH_MIN && n <= CELL_WIDTH_MAX) next.width = String(n);
+    else delete next.width;
+  }
+  return { tagName, attribs: next };
+}
+
 const SANITIZE_OPTIONS = {
   allowedTags: [
     'p', 'div', 'br', 'hr', 'b', 'strong', 'i', 'em', 'u', 's', 'strike',
@@ -48,21 +75,28 @@ const SANITIZE_OPTIONS = {
     span: ['style'],
     a: ['href', 'target', 'rel'],
     img: ['src', 'alt', 'width', 'height'],
-    td: ['colspan', 'rowspan'],
-    th: ['colspan', 'rowspan']
+    li: ['style'],
+    table: ['data-border', 'data-border-width', 'style'],
+    td: ['colspan', 'rowspan', 'width'],
+    th: ['colspan', 'rowspan', 'width']
   },
   allowedStyles: {
-    'p': { 'text-align': [/^(left|center|right|justify)$/] },
-    'div': { 'text-align': [/^(left|center|right|justify)$/] },
-    'h1': { 'text-align': [/^(left|center|right|justify)$/] },
-    'h2': { 'text-align': [/^(left|center|right|justify)$/] },
-    'h3': { 'text-align': [/^(left|center|right|justify)$/] },
-    'h4': { 'text-align': [/^(left|center|right|justify)$/] },
+    'p': BLOCK_STYLES,
+    'div': BLOCK_STYLES,
+    'h1': BLOCK_STYLES,
+    'h2': BLOCK_STYLES,
+    'h3': BLOCK_STYLES,
+    'h4': BLOCK_STYLES,
+    'li': { 'line-height': [LINE_HEIGHT] },
+    // Custom property: postcss cua sanitize-html giu nguyen ten; chi nhan hex 3/6 ky tu.
+    'table': { '--tb-color': [HEX_COLOR] },
     'span': {
       color: [HEX_COLOR, RGB_COLOR],
       'background-color': [HEX_COLOR, RGB_COLOR],
       'font-weight': [/^(bold|700)$/],
       'font-style': [/^italic$/],
+      'font-family': [FONT_FAMILY],
+      'font-size': [FONT_SIZE_PX],
       'text-decoration': [/^(?:underline|line-through)(?:\s+(?:underline|line-through))?$/]
     }
   },
@@ -72,6 +106,14 @@ const SANITIZE_OPTIONS = {
     a(tagName, attribs) {
       return { tagName: 'a', attribs: { ...attribs, target: '_blank', rel: 'noopener noreferrer' } };
     },
+    table(tagName, attribs) {
+      const next = { ...attribs };
+      if ('data-border' in next && !TABLE_BORDER_KINDS.has(String(next['data-border']).trim())) delete next['data-border'];
+      if ('data-border-width' in next && !TABLE_BORDER_WIDTHS.has(String(next['data-border-width']).trim())) delete next['data-border-width'];
+      return { tagName: 'table', attribs: next };
+    },
+    td: transformCell,
+    th: transformCell,
     img(tagName, attribs) {
       // src khong dung dinh dang URL noi bo cua chinh he thong -> bo het thuoc tinh src
       // (anh vo hinh thay vi lam sap trang hoac giu lai nguon la).

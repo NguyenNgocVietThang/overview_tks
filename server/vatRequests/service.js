@@ -19,12 +19,12 @@ const { createStockSource, lookupStock } = require('./stockSource');
 
 const STATUS_LABELS = Object.freeze({
   pending: 'Chờ KT xử lý',
-  0: '0. Không khai được',
+  0: 'Không khai được',
   5: 'VAT sẵn nhiều',
-  1: '1. Đã xong',
-  2: '2. Đã khai chờ về',
-  3: '3. Chờ khai chèn',
-  4: '4. Chờ cont về, tăng slg'
+  1: 'Đã xong',
+  2: 'Đã khai chờ về',
+  3: 'Chờ khai chèn',
+  4: 'Chờ cont về, tăng slg'
 });
 // '5' (0083) dung ngay sau '0': cung la "khong khai" nhung ma con nhieu hang VAT; thu tu nay = thu tu chip / sap xep.
 const STATUSES = Object.freeze(['pending', '0', '5', '1', '2', '3', '4']);

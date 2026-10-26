@@ -1,5 +1,7 @@
-/* Shared by the dashboard and standalone HTML reports. All choices live only
-   in this document; stable table/field keys survive DOM replacements. */
+/* Shared by the dashboard and standalone HTML reports. Choices live in this
+   document; stable table/field keys survive DOM replacements. Column widths and
+   hidden columns are also saved per account (endpoint me/table-prefs) once the
+   saved preferences have loaded, so they outlive the session. */
 (function () {
   'use strict';
   if (window.TKSTables) return;
@@ -8,6 +10,70 @@
   var picker = null, active = null, opener = null, drag = null, queued = false;
   var MIN_WIDTH = 64;
   var textContext;
+  // Cấu hình đã lưu của tài khoản: { [tableKey]: { [mode]: { columns: { [colKey]: { width?, hidden? } } } } }.
+  var storedPrefs = {}, prefsReady = false, saveTimers = new Map();
+  // Ghép từ mảnh để file HTML xuất ra (nhúng nguyên mã này) không chứa đường dẫn API nào.
+  var PREFS_URL = ['', 'api', 'me', 'table-prefs'].join('/');
+  var SAVE_DELAY = 800, MAX_SAVED_COLUMNS = 200, MAX_KEY_LENGTH = 200, MAX_SAVED_WIDTH = 2000;
+
+  function savedColumns(key, mode) {
+    var table = storedPrefs[key], prefs = table && table[mode];
+    return prefs && prefs.columns && typeof prefs.columns === 'object' ? prefs.columns : {};
+  }
+  function savedSort(key, mode) {
+    var table = storedPrefs[key], prefs = table && table[mode], sort = prefs && prefs.sort;
+    return sort && typeof sort.key === 'string' && (sort.dir === 'asc' || sort.dir === 'desc') ? { key: sort.key, dir: sort.dir } : null;
+  }
+  function copyColumns(source) {
+    var out = {};
+    Object.keys(source).forEach(function (key) { out[key] = Object.assign({}, source[key]); });
+    return out;
+  }
+  function applySaved(session, column) {
+    var saved = session.dirty[column.key];
+    if (!saved) return;
+    if (typeof saved.width === 'number' && saved.width > 0) { column.width = Math.max(MIN_WIDTH, saved.width); session.fitted = true; }
+    if (typeof saved.hidden === 'boolean') column.hidden = saved.hidden;
+  }
+  // Ghi nhận lựa chọn của người dùng (không ghi độ rộng tự co giãn) rồi lưu sau một nhịp.
+  function remember(ctrl, column, patch) {
+    var session = ctrl.session;
+    session.dirty[column.key] = Object.assign({}, session.dirty[column.key], patch);
+    scheduleSave(session);
+  }
+  function scheduleSave(session) {
+    if (!prefsReady || typeof fetch !== 'function' || session.key.length > MAX_KEY_LENGTH) return;
+    clearTimeout(saveTimers.get(session));
+    saveTimers.set(session, setTimeout(function () { saveTimers.delete(session); save(session); }, SAVE_DELAY));
+  }
+  function save(session) {
+    var columns = {}, count = 0;
+    Object.keys(session.dirty).forEach(function (key) {
+      if (key.length > MAX_KEY_LENGTH || count >= MAX_SAVED_COLUMNS) return;
+      var item = session.dirty[key], out = {};
+      if (typeof item.width === 'number' && isFinite(item.width)) out.width = Math.min(MAX_SAVED_WIDTH, Math.max(24, Math.round(item.width)));
+      if (typeof item.hidden === 'boolean') out.hidden = item.hidden;
+      if (Object.keys(out).length) { columns[key] = out; count++; }
+    });
+    var body = { columns: columns };
+    if (session.sort && session.sort.key.length <= MAX_KEY_LENGTH) body.sort = { key: session.sort.key, dir: session.sort.dir };
+    var url = PREFS_URL + '/' + encodeURIComponent(session.key) + '/' + session.mode;
+    try {
+      fetch(url, { method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        .catch(function () { /* mất kết nối: bảng vẫn dùng bình thường, lần chỉnh sau sẽ lưu lại */ });
+    } catch (_) { /* fetch không dùng được */ }
+  }
+  // Nạp cấu hình đã lưu; áp ngay cho các bảng đã dựng.
+  function loadPrefs(tables) {
+    storedPrefs = tables && typeof tables === 'object' ? tables : {};
+    prefsReady = true;
+    sessions.forEach(function (session) {
+      session.dirty = copyColumns(savedColumns(session.key, session.mode));
+      session.sort = savedSort(session.key, session.mode);
+      session.columns.forEach(function (column) { applySaved(session, column); if (column.locked) column.hidden = false; });
+    });
+    if (window.document && document.body) refreshAll();
+  }
   // Biểu tượng sắp xếp dùng chung cả hệ thống (xem "Tiêu đề cột sắp xếp được" trong shared.css):
   // chưa sắp ▲▼ · tăng dần ▼ · giảm dần ▲.
   var SORT_GLYPH = { none: '▲▼', ascending: '▼', descending: '▲' };
@@ -149,6 +215,15 @@
       raise(column, textContext.measureText(word).width + (parseFloat(style.letterSpacing) || 0) * word.length + boxSpace(style) + gutter);
     });
   }
+  // Tiêu đề khai báo data-min-width="N": cột không hẹp hơn N px (nhãn/chấm không bẻ dòng được), kể cả độ rộng đã lưu.
+  function declaredMinimums(ctrl) {
+    ctrl.head.leaves.forEach(function (entry, index) {
+      var column = ctrl.columns[index], min = parseFloat(entry.cell.dataset.minWidth);
+      if (!column || !(min > 0)) return;
+      column.minWidth = Math.max(column.minWidth || MIN_WIDTH, Math.ceil(min));
+      column.width = Math.max(column.width, column.minWidth);
+    });
+  }
   function fitOnce(ctrl) {
     if (ctrl.table.dataset.tableFit === 'off') return;
     if (ctrl.session.fitted || !hasLayout(ctrl.table)) return;
@@ -156,13 +231,37 @@
     var width = wrapper.clientWidth;
     var visible = ctrl.columns.filter(function (column) { return !column.hidden && !column.suppressed; });
     var total = visible.reduce(function (sum, column) { return sum + column.width; }, 0);
-    if (width > total && total) visible.forEach(function (column) { column.width *= width / total; });
+    // Khung rộng hơn tổng các cột: không sửa độ rộng gốc ở đây — apply() đặt min-width:100% nên trình duyệt tự giãn đều
+    // các cột đang hiện (ẩn/hiện cột hay đổi cỡ cửa sổ đều giãn lại đúng), còn độ rộng gốc vẫn là số người dùng đã chọn.
     // Bảng trong hộp chi tiết (.dp-table) nằm trong khung hẹp: co đều các cột cho vừa khung ở lần đầu,
     // không để mặc định 160px/cột làm bảng tràn ngang ngay khi mở hộp. Người dùng vẫn kéo rộng sau đó.
-    else if (width && total > width && (ctrl.table.dataset.tableFit === 'fill' || ctrl.table.classList.contains('dp-table'))) {
-      visible.forEach(function (column) { column.width = Math.max(column.minWidth || MIN_WIDTH, column.width * width / total); });
+    if (width && total > width && (ctrl.table.dataset.tableFit === 'fill' || ctrl.table.classList.contains('dp-table'))) {
+      // Cột chạm độ rộng tối thiểu thì giữ ở mức đó, phần thiếu chia cho các cột còn co được — tổng vẫn vừa khung.
+      var flexible = visible.slice(), room = width;
+      while (flexible.length) {
+        var flexTotal = flexible.reduce(function (sum, column) { return sum + column.width; }, 0), scale = room / flexTotal;
+        var pinned = flexible.filter(function (column) { return column.width * scale < (column.minWidth || MIN_WIDTH); });
+        if (!pinned.length) { flexible.forEach(function (column) { column.width *= scale; }); break; }
+        pinned.forEach(function (column) { column.width = column.minWidth || MIN_WIDTH; room -= column.width; });
+        flexible = flexible.filter(function (column) { return pinned.indexOf(column) < 0; });
+      }
     }
     ctrl.session.fitted = true;
+  }
+  // Bề rộng nội dung của khung chứa bảng (px) — đúng mốc mà min-width:100% của bảng lấy; 0 khi chưa có bố cục (tab ẩn, jsdom).
+  function roomOf(ctrl) {
+    var wrapper = ctrl.table.parentElement;
+    if (!wrapper || !hasLayout(ctrl.table)) return 0;
+    var style = window.getComputedStyle(wrapper);
+    return Math.max(0, wrapper.clientWidth - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0));
+  }
+  // Độ rộng đang THẤY (px) của từng cột: bảng nào có tổng độ rộng gốc < khung thì mọi cột đang hiện được giãn cùng tỉ lệ cho đầy khung.
+  function renderedWidths(ctrl) {
+    var shown = ctrl.columns.filter(function (column) { return !column.hidden && !column.suppressed; });
+    var total = shown.reduce(function (sum, column) { return sum + column.width; }, 0), room = roomOf(ctrl);
+    var scale = total && room > total ? room / total : 1, out = new Map();
+    ctrl.columns.forEach(function (column) { out.set(column, column.width * (shown.indexOf(column) >= 0 ? scale : 1)); });
+    return out;
   }
   function attachHandle(ctrl, cell, column) {
     if (window.getComputedStyle(cell).position === 'static') cell.style.position = 'relative';
@@ -181,14 +280,17 @@
         if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
         event.preventDefault(); event.stopPropagation();
         var current = controllers.get(ctrl.table), col = current.columns.find(function (item) { return item.key === handle.dataset.columnKey; });
-        resize(current, col, col.width + (event.key === 'ArrowRight' ? 10 : -10));
+        var seen = renderedWidths(current);
+        resize(current, col, seen.get(col) + (event.key === 'ArrowRight' ? 10 : -10), seen);
       });
       handle.addEventListener('pointerdown', function (event) {
         if (event.button !== 0) return;
         event.preventDefault(); event.stopPropagation();
         finishDrag();
         var current = controllers.get(ctrl.table), col = current.columns.find(function (item) { return item.key === handle.dataset.columnKey; });
-        drag = { ctrl: current, column: col, handle: handle, id: event.pointerId, x: event.clientX, width: col.width };
+        // Chụp độ rộng đang thấy lúc bắt đầu kéo: mỗi lần di chuột các cột khác được tính lại từ ảnh chụp này (kéo qua lại không trôi).
+        var seen = renderedWidths(current);
+        drag = { ctrl: current, column: col, handle: handle, id: event.pointerId, x: event.clientX, width: seen.get(col), seen: seen };
         current.session.fitted = true;
         document.body.classList.add('tks-table-resizing');
         if (handle.setPointerCapture) { try { handle.setPointerCapture(event.pointerId); } catch (_) { /* detached pointer */ } }
@@ -251,8 +353,11 @@
       shown.forEach(function (column, index) { changeStyle(group.children[index], 'width', (total ? column.width / total * 100 : 0) + '%'); });
       changeStyle(table, 'width', '100%'); changeStyle(table, 'min-width', '0px'); changeStyle(table, 'max-width', '100%');
     } else {
+      // Bảng rộng đúng tổng cột (nhiều cột thì tràn khung và cuộn ngang) nhưng KHÔNG BAO GIỜ hẹp hơn khung chứa:
+      // min-width:100% khiến trình duyệt chia phần dư theo tỉ lệ cho các cột đang hiện (ẩn cột / kéo hẹp cột đều giãn lại).
       shown.forEach(function (column, index) { changeStyle(group.children[index], 'width', column.width + 'px'); });
-      ['width', 'min-width', 'max-width'].forEach(function (property) { changeStyle(table, property, Math.max(MIN_WIDTH, total) + 'px'); });
+      changeStyle(table, 'width', Math.max(MIN_WIDTH, total) + 'px');
+      changeStyle(table, 'min-width', '100%'); changeStyle(table, 'max-width', 'none');
     }
     ctrl.columns.forEach(function (column, index) {
       if (ctrl.head.leaves[index].span === 1) attachHandle(ctrl, ctrl.head.leaves[index].cell, column);
@@ -262,9 +367,24 @@
       editor.style.height = Math.max(30, editor.scrollHeight) + 'px';
     });
   }
-  function resize(ctrl, column, value) {
+  // Đổi độ rộng 1 cột, `seen` = độ rộng đang thấy của mọi cột trước khi đổi (renderedWidths).
+  // Kéo hẹp: bảng hụt so với khung nên các cột còn lại giãn ra bù (tổng vẫn bằng khung, tay kéo bám đúng con trỏ).
+  // Kéo rộng: các cột khác giữ nguyên, bảng rộng hơn khung thì khung cuộn ngang.
+  function resize(ctrl, column, value, seen) {
     if (!column) return;
-    column.width = Math.max(column.minWidth || MIN_WIDTH, value); ctrl.session.fitted = true; apply(ctrl);
+    seen = seen || renderedWidths(ctrl);
+    var target = Math.max(column.minWidth || MIN_WIDTH, value), room = roomOf(ctrl);
+    var others = ctrl.columns.filter(function (item) { return item !== column && !item.hidden && !item.suppressed; });
+    var othersTotal = others.reduce(function (sum, item) { return sum + seen.get(item); }, 0);
+    var scale = room && othersTotal && target + othersTotal < room ? (room - target) / othersTotal : 1;
+    column.width = target; ctrl.session.fitted = true;
+    others.forEach(function (item) {
+      var next = seen.get(item) * scale;
+      if (Math.abs(next - item.width) < 0.01) return;
+      item.width = next; remember(ctrl, item, { width: next });
+    });
+    apply(ctrl);
+    remember(ctrl, column, { width: column.width });
   }
   function finishDrag() {
     if (!drag) return;
@@ -274,7 +394,7 @@
   }
   document.addEventListener('pointermove', function (event) {
     if (!drag || event.pointerId !== drag.id) return;
-    event.preventDefault(); resize(drag.ctrl, drag.column, drag.width + event.clientX - drag.x);
+    event.preventDefault(); resize(drag.ctrl, drag.column, drag.width + event.clientX - drag.x, drag.seen);
   }, { passive: false });
   document.addEventListener('pointerup', function (event) { if (drag && event.pointerId === drag.id) finishDrag(); });
   document.addEventListener('pointercancel', function (event) { if (drag && event.pointerId === drag.id) finishDrag(); });
@@ -293,7 +413,11 @@
       var first = ctrl.columns.find(function (col) { return !col.suppressed; });
       if (first) next.delete(first.key);
     }
-    ctrl.columns.forEach(function (col) { col.hidden = next.has(col.key); });
+    ctrl.columns.forEach(function (col) {
+      var hide = next.has(col.key);
+      if (col.hidden !== hide) remember(ctrl, col, { hidden: hide });
+      col.hidden = hide;
+    });
     apply(ctrl);
     if (ctrl.options.onVisibilityChange) ctrl.options.onVisibilityChange(ctrl.columns.filter(function (col) { return col.hidden; }).map(function (col) { return col.key; }));
     if (active === ctrl) renderPicker();
@@ -447,12 +571,23 @@
     if (!Number.isFinite(value)) return null;
     return match[1] === '-' || match[1] === '−' || match[1] === '–' ? -value : value;
   }
+  // Ô nhập liệu / dropdown: textContent rỗng (input) hoặc gộp mọi option (select) → lấy giá trị đang hiển thị.
+  function cellText(cell) {
+    var field = cell.querySelector('select, input:not([type=hidden]):not([type=checkbox]):not([type=radio]), textarea');
+    if (field) {
+      var shown = field.tagName === 'SELECT'
+        ? (field.selectedIndex >= 0 ? field.options[field.selectedIndex].textContent : '')
+        : field.value;
+      return String(shown || '').replace(/\s+/g, ' ').trim();
+    }
+    return cell.textContent.replace(/\s+/g, ' ').trim();
+  }
   function sortValue(cell) {
     if (cell.hasAttribute('data-sort-value')) {
       var given = Number(cell.getAttribute('data-sort-value'));
       return { empty: !Number.isFinite(given), number: given, text: '' };
     }
-    var text = cell.textContent.replace(/\s+/g, ' ').trim();
+    var text = cellText(cell);
     if (!text || text === '—' || text === '-') return { empty: true, number: null, text: '' };
     var number = parseDateText(text);
     if (number === null) number = parseNumberText(text);
@@ -512,7 +647,19 @@
     if (!current || current.index !== index) ctrl.sort = { index: index, dir: 'asc' };
     else if (current.dir === 'asc') ctrl.sort = { index: index, dir: 'desc' };
     else ctrl.sort = null;
+    ctrl.sortByUser = true;
+    ctrl.session.sort = ctrl.sort && ctrl.columns[ctrl.sort.index] ? { key: ctrl.columns[ctrl.sort.index].key, dir: ctrl.sort.dir } : null;
+    scheduleSave(ctrl.session);
     applySort(ctrl);
+  }
+  // Khôi phục sắp xếp đã lưu (theo khóa cột) trừ khi người dùng đã tự sắp xếp bảng này trong lần xem hiện tại.
+  function restoreSort(ctrl) {
+    if (ctrl.sortByUser) return;
+    var saved = ctrl.session.sort, signature = saved ? saved.key + '|' + saved.dir : '';
+    if (ctrl.sortRestored === signature) return;
+    ctrl.sortRestored = signature;
+    var index = saved ? ctrl.columns.findIndex(function (column) { return column.key === saved.key; }) : -1;
+    ctrl.sort = index >= 0 ? { index: index, dir: saved.dir } : null;
   }
   function rowsChanged(ctrl) {
     var body = ctrl.table.tBodies[0], rows = body ? body.rows : [], previous = ctrl.sortedRows || [];
@@ -559,7 +706,10 @@
     if (options) Object.assign(ctrl.options, options);
     var key = ctrl.options.key || tableKey(table), mode = screenMode(), sessionKey = key + '\u001e' + mode;
     var session = sessions.get(sessionKey);
-    if (!session) { session = { columns: new Map(), fitted: false }; sessions.set(sessionKey, session); }
+    if (!session) {
+      session = { columns: new Map(), fitted: false, key: key, mode: mode, dirty: copyColumns(savedColumns(key, mode)), sort: savedSort(key, mode) };
+      sessions.set(sessionKey, session);
+    }
     ctrl.key = key; ctrl.mode = mode; ctrl.session = session; ctrl.head = head;
     var used = new Set();
     ctrl.columns = head.leaves.map(function (entry, index) {
@@ -572,6 +722,7 @@
       if (!column) {
         column = { key: colKey, width: Math.max(MIN_WIDTH, pxWidth(metadata.width) || pxWidth(cell.dataset.defaultWidth) || pxWidth(cell.style.width) || defaultWidth(colKey, label, cell)), hidden: !!metadata.hidden || cell.dataset.columnDefaultHidden === 'true', locked: !!metadata.locked };
         session.columns.set(colKey, column);
+        applySaved(session, column);
       }
       column.label = label; column.locked = !!metadata.locked || cell.dataset.columnLocked === 'true';
       column.unlisted = cell.dataset.columnUnlisted === 'true';
@@ -579,7 +730,7 @@
       return column;
     });
     if (ctrl.columns.every(function (column) { return column.hidden; })) ctrl.columns[0].hidden = false;
-    table.classList.add('tks-controlled-table'); installSort(ctrl); installButton(ctrl); dropdownMinimums(ctrl); numberMinimums(ctrl); apply(ctrl);
+    table.classList.add('tks-controlled-table'); restoreSort(ctrl); installSort(ctrl); installButton(ctrl); dropdownMinimums(ctrl); numberMinimums(ctrl); declaredMinimums(ctrl); apply(ctrl);
     if (active === ctrl && picker && !picker.hidden) renderPicker();
     return ctrl;
   }
@@ -604,10 +755,19 @@
       columns: ctrl.columns.map(function (col) { return { key: col.key, label: col.label, width: col.width, hidden: col.hidden, locked: col.locked }; })
     };
   }
-  window.TKSTables = { enhance: enhance, refresh: refresh, refreshAll: refreshAll, getState: getState };
+  window.TKSTables = { enhance: enhance, refresh: refresh, refreshAll: refreshAll, getState: getState, loadPrefs: loadPrefs };
+  function fetchPrefs() {
+    if (typeof fetch !== 'function' || !/^https?:$/.test(window.location.protocol)) return;
+    // Trang chưa đăng nhập trả 401: bỏ qua, bảng dùng mặc định và không gửi lưu.
+    fetch(PREFS_URL, { credentials: 'same-origin' })
+      .then(function (response) { return response.ok ? response.json() : null; })
+      .then(function (body) { if (body && body.tables) loadPrefs(body.tables); })
+      .catch(function () { /* dùng cấu hình mặc định */ });
+  }
   function start() {
     if (!window.document || !document.body) return;
     refreshAll();
+    fetchPrefs();
     new MutationObserver(function (records) {
       if (records.some(function (record) {
         var target = record.target.nodeType === 1 ? record.target : record.target.parentElement;

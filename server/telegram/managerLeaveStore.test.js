@@ -27,6 +27,7 @@ async function fixture() {
   await db.exec("ALTER TABLE hr_employees ADD COLUMN branch TEXT DEFAULT 'hanoi', ADD COLUMN is_active BOOLEAN DEFAULT true; INSERT INTO hr_employees(id,bo_phan) VALUES(1,'KHO'); ALTER TABLE app_users ADD COLUMN trang_thai TEXT DEFAULT 'Đang hoạt động'");
   await db.exec(fs.readFileSync(path.join(__dirname,'../db/migrations/0038_hr_leave_deadlines.sql'),'utf8'));
   await db.exec("ALTER TABLE hr_leave_requests ALTER COLUMN hr_employee_id SET DEFAULT 1; INSERT INTO hr_leave_work_schedules(employee_id,work_date,morning_start,afternoon_start) VALUES(1,'2026-10-02','08:15','13:00')");
+  for(const name of ['0093_notifications.sql','0094_hr_leave_cancellation.sql']) await db.exec(fs.readFileSync(path.join(__dirname,'../db/migrations',name),'utf8'));
   let releases = 0;
   const pool = { query: (sql, params) => db.query(sql, params), async connect() {
     return { query: (sql, params) => db.query(sql, params), release() { releases += 1; } };
@@ -34,6 +35,19 @@ async function fixture() {
   return { db, pool, store: createManagerLeaveStore({ pool }), releases: () => releases };
   } catch (error) { await db.close(); throw error; }
 }
+
+test('cancellation queue leases, retries and cleans completed payloads without a live request',async()=>{
+ const {db,store}=await fixture();try{
+  await db.exec("INSERT INTO hr_leave_cancellation_jobs(request_id,kind,telegram_chat_id,text) VALUES('gone','notify','123','Đã hủy')");
+  const [job]=await store.claimCancellations();assert.equal(job.request_id,'gone');assert.equal((await store.claimCancellations()).length,0);
+  assert.equal(await store.retryCancellation(job,{message:'temporary',retryAfter:1}),true);
+  await db.exec("UPDATE hr_leave_cancellation_jobs SET available_at=now()-interval '1 second'");
+  const [retry]=await store.claimCancellations();assert.equal(retry.attempts,2);assert.notEqual(retry.lease_token,job.lease_token);
+  await store.completeCancellation(job);assert.equal((await db.query('SELECT count(*)::int n FROM hr_leave_cancellation_jobs')).rows[0].n,1);
+  await store.completeCancellation(retry);assert.equal((await db.query('SELECT count(*)::int n FROM hr_leave_cancellation_jobs')).rows[0].n,0);
+  await assert.rejects(store.withRequestLock('gone',async()=>{throw new Error('rollback');}),/rollback/);
+ }finally{await db.close();}
+});
 
 test('activation refreshes delivered open cards without replaying final cards or unblocking recipients', async () => {
   const { db, store } = await fixture();

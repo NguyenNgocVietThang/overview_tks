@@ -61,6 +61,7 @@ async function setup(t, { hash = '#xu-ly', responses = api(), vaiTro = 'Quản l
   const calls = [];
   window.fetch = async (url, options = {}) => {
     const parsed = new URL(url, window.location.href);
+    if (parsed.pathname === '/api/me/table-prefs') return { ok: true, status: 200, json: async () => ({ tables: {} }) };
     const key = `${options.method || 'GET'} ${parsed.pathname.replace('/api/vat-draft', '')}`;
     const body = options.body ? JSON.parse(options.body) : undefined;
     calls.push({ key, query: Object.fromEntries(parsed.searchParams), body });
@@ -364,7 +365,9 @@ test('Nhan vien sale: chi thay Tao QR, khong tai chung tu, hash #xu-ly van o Tao
   const { doc, calls } = await setup(t, { hash: '#xu-ly', responses, vaiTro: 'Nhân viên sale' });
   assert.equal(doc.getElementById('vdQrPage').hidden, false);
   assert.equal(doc.getElementById('vdInputPanel').hidden, true);
-  assert.equal(doc.querySelector('.vd-tabs').hidden, true);
+  // Thanh tab Ke toan van hien voi sale, chi thieu Xu ly hoa don.
+  assert.equal(doc.querySelector('.vd-tabs').hidden, false);
+  assert.deepEqual([...doc.querySelectorAll('.vd-tabs a')].map(a => a.getAttribute('href')), ['/vat-draft/#tao-qr', '/vat-lookup/', '/vat-request/']);
   assert.equal(doc.getElementById('vdSourceBar').hidden, true);
   assert.equal(doc.getElementById('vdTitle').textContent, 'Tạo QR chuyển khoản');
   assert.deepEqual(calls.map(c => c.key), ['GET /meta'], 'sale chi tai /meta');

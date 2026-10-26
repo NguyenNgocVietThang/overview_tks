@@ -3,7 +3,7 @@
 .vr-title{margin:0;font-family:var(--font-display);font-size:24px;color:var(--canvas-text);letter-spacing:-.02em}
 .vr-sub{margin:6px 0 0;color:var(--canvas-text-muted);font-size:13px;max-width:720px}
 .vr-create{display:inline-flex;align-items:center;gap:6px}
-.vr-panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-xl);box-shadow:var(--card-shadow);overflow:hidden}
+.vr-panel{background:var(--glass-panel);border:1px solid var(--border);border-radius:var(--radius-xl);box-shadow:var(--card-shadow);overflow:hidden}
 .vr-toolbar{display:flex;flex-direction:column;gap:12px;padding:16px}
 .vr-chips{display:flex;gap:6px;flex-wrap:wrap}
 /* Màu theo trạng thái — dùng chung cho nút lọc, badge (sale) và ô chọn KT phản hồi (kế toán).
@@ -39,10 +39,16 @@
 .vr-tool-btn:hover:not(:disabled){border-color:color-mix(in srgb,var(--primary) 45%,var(--border));background:color-mix(in srgb,var(--primary) 8%,var(--panel-2))}
 .vr-tool-btn[hidden]{display:none}
 /* Hàng trên: chip trạng thái bên trái, nút thao tác với bảng (Xuất Excel, Cột hiển thị) góc phải. */
-.vr-toolbar-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.vr-toolbar-top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.vr-filter-controls{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;flex:1;min-width:0}
+.vr-filter-controls .vr-field{flex:1;min-width:140px}
+.vr-filters .vr-search{flex:1;min-width:0;width:100%}
 .vr-table-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:auto}
 .vr-table-actions .vr-tool-btn{min-height:34px;padding:6px 12px;font-weight:600}
-.vr-export-btn svg{color:var(--green)}
+.vr-status-filter{min-width:180px}
+.vr-table-actions .vr-export-btn{min-height:38px;padding:9px 14px;font-size:12px}
+.vr-export-btn[hidden]{display:none}
+.vr-export-btn svg{width:16px;height:16px;flex:none}
 .vr-export-btn.is-loading svg{display:none}
 .vr-export-btn.is-loading .vr-spinner{display:inline-block}
 .vr-tool-btn:disabled{opacity:.65;cursor:progress}
@@ -122,7 +128,7 @@ table.tks-controlled-table.vr-table td.vr-nowrap{white-space:nowrap !important;t
 .vr-hscroll:focus-visible{outline:2px solid var(--blue);outline-offset:2px;opacity:1}
 .vr-table .num{text-align:right;font-variant-numeric:tabular-nums;font-family:var(--font-data)}
 .vr-table tr.is-locked td{background:color-mix(in srgb,var(--panel-2) 55%,transparent)}
-.vr-table tr.vr-group-row td{background:var(--panel-2);color:var(--text);font-size:13px;border-top:2px solid var(--border)}
+.vr-table tr.vr-group-row td{background:var(--glass-panel-2);color:var(--text);font-size:13px;border-top:2px solid var(--border)}
 .vr-group-meta{margin-left:12px;color:var(--muted);font-size:12px}
 .vr-code{font-family:var(--font-data);font-weight:600}
 .vr-muted{color:var(--muted)}
@@ -150,7 +156,7 @@ table.tks-controlled-table.vr-table td.vr-nowrap{white-space:nowrap !important;t
 .vr-icon-btn{min-height:30px;padding:4px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel-2);color:var(--text);font:12px var(--font-body);cursor:pointer}
 .vr-icon-btn.vr-danger{color:var(--red)}
 .vr-link{padding:0;border:0;background:none;color:var(--blue);font:inherit;text-decoration:underline;cursor:pointer}
-.vr-pager{display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px 16px;background:var(--panel-2);color:var(--muted);font-size:12.5px}
+.vr-pager{display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px 16px;background:var(--glass-panel-2);color:var(--muted);font-size:12.5px}
 .vr-pager[hidden]{display:none}
 .vr-pager-controls{display:flex;align-items:center;gap:10px}
 .vr-pager button{min-width:40px;min-height:40px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel);color:var(--text);font:14px var(--font-data);cursor:pointer}
@@ -187,16 +193,19 @@ table.tks-controlled-table.vr-table td.vr-nowrap{white-space:nowrap !important;t
   .vr-toolbar{padding:12px}
   .vr-toolbar-top{flex-direction:column;align-items:stretch}
   .vr-table-actions{margin-left:0;justify-content:flex-end}
-  .vr-filters{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .vr-filter-controls{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .vr-filter-controls .vr-field{min-width:0}
+  .vr-filter-controls .vr-status-filter{min-width:0}
+  .vr-filters{display:block}
   .vr-pill-toggle{justify-content:center}
   /* Tải lại nằm cùng hàng ô tìm kiếm, bên phải. */
-  .vr-filters .vr-search{grid-row:1;margin-right:50px}
-  .vr-icon-tool{grid-column:2;grid-row:1;justify-self:end}
+  .vr-filters .vr-search{margin-right:0}
+  .vr-icon-tool{justify-self:end}
   .vr-search{grid-column:1 / -1;min-width:0}
   .vr-table{min-width:var(--vr-mobile-min,640px)}
   .vr-table th,.vr-table td{padding:10px 8px;font-size:12px}
   .vr-table [data-field="productCode"]{position:sticky;left:0;background:var(--panel);z-index:1;box-shadow:1px 0 0 var(--border)}
-  .vr-table th[data-column-key="productCode"]{position:sticky;left:0;background:var(--panel-2);z-index:3}
+  .vr-table th[data-column-key="productCode"]{position:sticky;left:0;background:var(--glass-head);z-index:3}
   .vr-dialog{padding:16px}
   .vr-hscroll-right{right:8px}
 }

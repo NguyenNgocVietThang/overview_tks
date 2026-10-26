@@ -55,19 +55,10 @@ function hasFullVat(lineNote, invoiceNote) {
   return FULL_VAT_RE.test(normalizeText(lineNote)) || FULL_VAT_RE.test(normalizeText(invoiceNote));
 }
 
-// Chi "(OD)" / "(PK)" trong ngoac (cho phep dau cach ben trong); chu OD/PK tran khong tinh.
-function isExcludedProduct(name) {
-  const n = normalizeText(name);
-  if (/\( ?od ?\)/.test(n)) return 'od';
-  if (/\( ?pk ?\)/.test(n)) return 'pk';
-  return null;
-}
-
 module.exports = {
   FREIGHT_CUSTOMERS,
   normalizeCustomerName,
   isFreightCustomer,
   customerLevelFromEmail,
   hasFullVat,
-  isExcludedProduct,
 };

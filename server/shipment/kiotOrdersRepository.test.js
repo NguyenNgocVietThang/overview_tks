@@ -629,3 +629,9 @@ test('readOrderDetail: doc sheet loi -> fail-soft, van tra chi tiet don', async 
   assert.match(detail.freight.message, /CÂN ĐO/);
   assert.equal(detail.lines.length, 1);
 });
+
+test('SQL vong doi don: ten khach uu tien customers.name (join theo khoa chinh), ten tren don chi la du phong', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, 'kiotOrdersRepository.js'), 'utf8');
+  assert.match(src, /LEFT JOIN customers c ON c\.branch = o\.branch AND c\.id = o\.customer_id/);
+  assert.match(src, /NULLIF\(c\.name, ''\), NULLIF\(o\.raw->>'customerName', ''\)/);
+});

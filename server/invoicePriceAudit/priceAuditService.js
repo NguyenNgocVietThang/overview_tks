@@ -125,7 +125,7 @@ function notMigratedReport(query) {
   return {
     meta: { available: false, reason: 'not_migrated', message: NOT_MIGRATED_MESSAGE, windowFrom: null, windowTo: null,
       lastSuccessAt: null, lastAttemptAt: null, lastError: null, addedInvoiceCount: 0 },
-    filters: { applied: query, options: { sales: [] } }, kpis: null, totals: null,
+    filters: { applied: query, options: { sales: [] } }, kpis: null, totals: null, saleSummary: [],
     rows: [], totalRows: 0, page: query.page, pageSize: query.pageSize
   };
 }

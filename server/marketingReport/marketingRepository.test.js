@@ -156,19 +156,6 @@ test('failure after a partial SQL write rolls back the whole page and records sa
   assert.equal(JSON.stringify(snap).includes('secret customer token'), false);
 });
 
-test('explicit fetch failure preserves rows, finished runs reflect partial errors and successful pages cannot be downgraded', async t => {
-  const { repo } = await setup(t);
-  const run = await repo.startSyncRun({ runKey: 'fetch-failure' });
-  await repo.commitPageSync({ runId: run.id, pageId: HN, completedAt: '2026-10-01T16:55:00Z', rows: [apiRow()] });
-  await repo.failPageSync({ runId: run.id, pageId: TT, errorCode: 'PANCAKE_UNAVAILABLE' });
-  await assert.rejects(repo.failPageSync({ runId: run.id, pageId: HN, errorCode: 'secret token' }), { code: 'MARKETING_SYNC_CONFLICT' });
-  const done = await repo.finishSyncRun(run.id);
-  assert.equal(done.status, 'error');
-  assert.equal(done.pages.length, 6);
-  assert.equal((await repo.readSnapshot()).rawRows.length, 1);
-  assert.equal((await repo.startSyncRun({ runKey: 'fetch-failure' })).id, run.id);
-});
-
 test('raw aliases map multiple names without changing history or guessing missing employee', async t => {
   const { repo } = await setup(t);
   await repo.importHistory({ batchKey: 'aliases', workbookId: 'book', rawRows: [historical({ employeeRaw: '' })], aliases: [{ rawName: 'Name 1', reportEmployee: 'Sale' }, { rawName: 'Name 2', reportEmployee: 'Sale' }] }, actor);

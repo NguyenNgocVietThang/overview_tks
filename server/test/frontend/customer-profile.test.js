@@ -22,7 +22,7 @@ test.afterEach(() => openPages.splice(0).forEach(dom => dom.window.close()));
 function baseProfile(overrides = {}) {
   return Object.assign({
     key: KEY, name: 'Chị A', today: '2026-10-06', canEdit: true, canManage: true,
-    profile: { warehouseLocation: 'Kho Cầu Giấy', warehouseCount: 2, area: '250 m²', warehouseScale: 'small', competitor: 'Tem X', salesChannels: ['san'] },
+    profile: { phone: '0901234567', address: '12 Hoàng Quốc Việt', warehouseLocation: 'Kho Cầu Giấy', warehouseCount: 2, area: '250 m²', warehouseScale: 'small', competitor: 'Tem X', salesChannels: ['san'] },
     images: [{ id: 'img1', url: '/api/business-report/customer-profile/images/img1', contentType: 'image/jpeg', byteSize: 10, createdAt: '2026-10-01T03:00:00.000Z' }],
     notes: [
       { id: 'n2', noteDate: '2026-10-06', body: 'Hôm nay gọi khách', authorId: 'u1', authorName: 'Khang', createdAt: '2026-10-06T03:05:00.000Z', updatedAt: '2026-10-06T03:05:00.000Z', editable: true },
@@ -77,7 +77,7 @@ function createPage({ can = () => true, profile = baseProfile(), meta, metaFails
     if (sub === 'customer-profile' && method === 'GET') return respond(200, server.profile);
     if (sub === 'customer-profile' && method === 'PUT') {
       const body = JSON.parse(opts.body);
-      Object.assign(server.profile.profile, { warehouseLocation: body.warehouseLocation, warehouseCount: body.warehouseCount, area: body.area, competitor: body.competitor, salesChannels: body.salesChannels });
+      Object.assign(server.profile.profile, { phone: body.phone, address: body.address, warehouseLocation: body.warehouseLocation, warehouseCount: body.warehouseCount, area: body.area, competitor: body.competitor, salesChannels: body.salesChannels });
       return respond(200, { profile: server.profile.profile });
     }
     if (sub === 'customer-profile/scale' && method === 'PUT') {
@@ -159,7 +159,7 @@ test('co reports.business.customerNotes: 2 cot moi sau Level gia, moi th co data
   const page = await openBusiness();
   const table = page.$('businessCustomersRows').closest('table');
   const ths = [...table.querySelectorAll('thead th')];
-  assert.deepEqual(ths.slice(0, 5).map(th => th.dataset.columnKey), ['customer', 'sale', 'priceLevel', 'notes', 'lastVisit']);
+  assert.deepEqual(ths.slice(0, 6).map(th => th.dataset.columnKey), ['customer', 'sale', 'priceLevel', 'newCustomer', 'notes', 'lastVisit']);
   ths.forEach(th => {
     assert.ok(th.dataset.columnKey, 'th thieu data-column-key');
     assert.match(th.getAttribute('style') || '', /width:\s*\d+px/);
@@ -227,7 +227,7 @@ test('hop Chi tiet: Thong tin chung dien san, nhan hien thi, kenh ban hang la dr
   const page = await openProfile();
   const body = page.$('docModalBody');
   const labels = [...body.querySelectorAll('#cpProfileForm label[for], #cpProfileForm .cp-label')].map(l => l.textContent.trim());
-  assert.deepEqual(labels, ['Định vị kho', 'Số lượng kho', 'Diện tích', 'Đối thủ (để ý tem)', 'Hình thức bán hàng']);
+  assert.deepEqual(labels, ['Số điện thoại', 'Địa chỉ', 'Định vị kho', 'Số lượng kho', 'Diện tích', 'Đối thủ (để ý tem)', 'Hình thức bán hàng']);
   assert.equal(page.$('cpWarehouseLocation').value, 'Kho Cầu Giấy');
   assert.equal(page.$('cpWarehouseCount').value, '2');
   assert.equal(page.$('cpWarehouseScale').value, 'small');
@@ -261,6 +261,10 @@ test('dropdown Hinh thuc ban hang: mo/dong bang nut, Esc chi dong danh sach (kho
 
 test('Luu thong tin chung: PUT dung payload (nhieu kenh, so luong kho la so), nut vo hieu khi dang gui, toast thanh cong', async () => {
   const page = await openProfile();
+  assert.equal(page.$('cpPhone').value, '0901234567');
+  assert.equal(page.$('cpAddress').value, '12 Hoàng Quốc Việt');
+  fireInput(page, page.$('cpPhone'), ' 0988 111 222 ');
+  fireInput(page, page.$('cpAddress'), ' 5 Trần Duy Hưng ');
   fireInput(page, page.$('cpWarehouseLocation'), '  Kho Hà Đông ');
   fireInput(page, page.$('cpWarehouseCount'), '5');
   fireInput(page, page.$('cpArea'), ' Kho chính 300 m²\nKho phụ 100 m² ');
@@ -280,11 +284,14 @@ test('Luu thong tin chung: PUT dung payload (nhieu kenh, so luong kho la so), nu
   const put = sent(page, 'PUT', 'customer-profile');
   assert.equal(put.length, 1);
   assert.deepEqual(jsonOf(put[0]), {
-    key: KEY, warehouseLocation: 'Kho Hà Đông', warehouseCount: 5, area: 'Kho chính 300 m²\nKho phụ 100 m²', competitor: 'Tem Y',
+    key: KEY, phone: '0988 111 222', address: '5 Trần Duy Hưng', warehouseLocation: 'Kho Hà Đông', warehouseCount: 5, area: 'Kho chính 300 m²\nKho phụ 100 m²', competitor: 'Tem Y',
     salesChannels: ['san', 'fb_live', 'kho_buon']
   });
   assert.match(page.doc.getElementById('tksToastStack').textContent, /Đã lưu thông tin chung/);
   assert.equal(page.$('cpProfileSave').disabled, false);
+  page.$('businessCustomersSalesChannel').value = 'fb_live';
+  fireChange(page, page.$('businessCustomersSalesChannel'));
+  assert.deepEqual(Array.from(page.run('businessFilteredCustomers().map(r => r.key)')), [KEY]);
 });
 
 test('so luong kho am: bao loi ngay o form, khong goi PUT', async () => {
@@ -381,6 +388,10 @@ test('khong co quyen sua (canEdit=false): Thong tin chung chi doc, khong khung s
   assert.equal(body.querySelector('form'), null);
   assert.equal(body.querySelector('#cpProfileSave'), null);
   assert.match(page.$('cpInfo').textContent, /Kho Cầu Giấy/);
+  assert.match(page.$('cpInfo').textContent, /Số điện thoại.*0901234567/);
+  assert.match(page.$('cpInfo').textContent, /Địa chỉ.*12 Hoàng Quốc Việt/);
+  assert.equal(body.querySelector('#cpPhone'), null);
+  assert.equal(body.querySelector('#cpAddress'), null);
   assert.match(page.$('cpInfo').textContent, /Bán sàn/);
   assert.equal(body.querySelector('[data-note-action="edit"]'), null);
   assert.equal(body.querySelector('#cpNoteForm'), null);
@@ -595,6 +606,9 @@ test('danh gia quy mo luu rieng, khong mat thong tin chung dang nhap; chi Quan l
   await settle();
   assert.equal(page.$('cpWarehouseScale').value, 'very_large');
   assert.equal(page.server.profile.profile.warehouseScale, 'very_large');
+  page.$('businessCustomersScale').value = 'very_large';
+  fireChange(page, page.$('businessCustomersScale'));
+  assert.deepEqual(Array.from(page.run('businessFilteredCustomers().map(r => r.key)')), [KEY]);
   const editor = await openProfile({ profile: baseProfile({ canManage: false }) });
   assert.equal(editor.$('cpWarehouseScale'), null);
 });

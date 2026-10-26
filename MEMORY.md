@@ -1,11 +1,12 @@
 # MEMORY: BỘ NHỚ DÀI HẠN DỰ ÁN TOKOSI DASHBOARD
 
 > **Thời hạn giá trị:** Ít nhất 3 tháng (Q4/2026 – Q1/2027).  
-> **Cập nhật gần nhất:** 23/10/2026.  
+> **Cập nhật gần nhất:** 24/10/2026.  
 > **Quy tắc:** Chỉ lưu trữ các nguyên tắc cốt lõi, kiến trúc bất biến, quy ước chuẩn hóa và bài học kinh nghiệm dài hạn. Không ghi deadline ngắn hạn hay task vụn vặt vào file này.
 
 ---
 
+- **Tên khách/hàng trong báo cáo (24/10/2026):** báo cáo dùng TÊN HIỆN TẠI (`customers.name`, `products.name` theo cơ sở + id), không dùng tên ghi trên chứng từ (`raw->>'customerName'`/`'productName'`); khách trong `product_report_customers` gộp theo tên chuẩn hóa. Đổi tên trên KiotViet chỉ cần chạy lại job tính sẵn (`customerInvoiceLinesRefresh`, `productReportRefresh`), không đồng bộ lại hóa đơn. Bảng tháng đã chốt `business_monthly_*` giữ tên lúc chốt.
 - **Khách hoạt động trong Công nợ (15/10/2026):** danh sách/KPI/điểm/phạt/xuất file chỉ dùng khách hiện còn hoạt động. KiotViet retail không trả cờ hoạt động trong các payload khách đã kiểm tra và bỏ qua query `isActive`; đồng bộ chuẩn hóa `customers.raw.isActive` từ cờ rõ ràng nếu có, danh sách hiện hành và `removedIds`. Đối soát đầy đủ lần đầu/mỗi ngày, không đánh dấu vắng mặt khi thiếu trang/tổng thay đổi/trùng ID/lỗi giữa chừng; không xóa dữ liệu nguồn hoặc audit. Lọc hoạt động trước chọn ID mới nhất của cơ sở+mã. Kết quả thưởng tháng đã chốt bất biến.
 
 ## 1. Hồ sơ dự án (Project Profile)
@@ -69,7 +70,7 @@
 
 ---
 
-## 3. Bản đồ Migration Cơ sở dữ liệu (0001 – 0084)
+## 3. Bản đồ Migration Cơ sở dữ liệu (0001 – 0086)
 
 | Dải Migration | Phân hệ & Nội dung chính |
 |---|---|
@@ -99,6 +100,8 @@
 | `0081–0082` | Tách tài khoản khỏi HR (`app_users.work_branch`, `hr_leave_work_schedules.user_id`, `hr_leave_submissions.user_id`). |
 | `0083` | `vat_requests` trạng thái 5 ("VAT sẵn nhiều"). |
 | `0084` | `customer_profiles.area`, mở rộng `warehouse_scale` (very_large) và `sales_channels` (khac). |
+| `0085` | `user_table_prefs` — Ghi nhớ độ rộng và ẩn/hiện cột theo tài khoản (desktop/mobile). |
+| `0086` | `product_container_other_note` — Ghi chú khác của CONT từ cột G. |
 
 ---
 

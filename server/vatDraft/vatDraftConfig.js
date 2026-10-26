@@ -13,12 +13,15 @@ function deepFreeze(value) {
 }
 
 module.exports = deepFreeze({
-  // Google Sheets cong khai (CSV export).
-  sheetId: '1dNabQaiob7CMozrqjA746uV-atHWJi8gbG6L-I0yrmU',
-  gidGopVat: 0,
-  gidKhopMa: 1192158065,
-  // So dong tieu de bo qua: Gop VAT co 1 dong header; Khop ma co dong tieu de tong
-  // 'CHECK TỒN BÊN SHEET VAT' roi moi toi header.
+  // File "VAT TKS" (khong cong khai) doc bang service account GOOGLE_SERVICE_ACCOUNT_JSON,
+  // file phai chia se quyen Nguoi xem cho service account. Tab xac dinh theo sheetId
+  // (= gid tren URL) nen doi ten tab khong anh huong; range giu dung so cot nhu IMPORTRANGE
+  // cua file trung gian "cúc cu test" truoc day (Tra cuu VAT doc theo ten cot nen nhay so cot).
+  spreadsheetId: '1f1vglJwshMF5Ol7mGk3Ll2p8cxoZ_UhevRkzqzknBzU',
+  gopVatSheet: { sheetId: 950697804, range: 'A1:P' },
+  khopMaSheet: { sheetId: 631827560, range: 'A1:K' },
+  // So dong tieu de bo qua: Gop VAT co 1 dong header; Khop ma co 1 dong ghi chu
+  // ('Đỏ cao quá' / 'Vàng thấp quá') roi moi toi header.
   gopVatSkipRows: 1,
   khopMaSkipRows: 2,
   // Doc theo CHU CAI cot (khong theo ten header). Chen/xoa cot trong sheet thi sua o day.

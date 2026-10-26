@@ -287,3 +287,193 @@ test('pages with their own sorting keep their markup: a header that already has 
   assert.equal(ctx.table.tHead.rows[0].cells[0].querySelector('[data-tks-sort]'),null);
   assert.equal(ctx.table.tHead.rows[0].cells[1].querySelectorAll('.sort-button').length,1);
 });
+
+test('data-table-fit="fill": cot cham do rong toi thieu thi giu, phan thieu tru vao cot khac de tong van vua khung', t => {
+  const ctx=setup(t,'<div class="table-wrap"><table data-table-key="fit" data-table-fit="fill"><thead><tr><th data-column-key="a" data-default-width="80">A</th><th data-column-key="b" data-default-width="400">B</th><th data-column-key="c" data-default-width="80">C</th></tr></thead><tbody><tr><td>1</td><td>2</td><td>3</td></tr></tbody></table></div>');
+  // jsdom khong co layout: gia lap bang dang hien thi trong khung rong 300px.
+  ctx.table.getClientRects=()=>[{}];
+  Object.defineProperty(ctx.table.parentElement,'clientWidth',{value:300});
+  ctx.api.enhance(ctx.table);
+  const widths=state(ctx).columns.map(c=>Math.round(c.width));
+  assert.deepEqual(widths,[64,172,64]);
+  assert.equal(widths.reduce((a,b)=>a+b,0),300);
+});
+
+// Bảng 3 cột có bố cục giả lập: khung chứa rộng `room` px.
+function stretchContext(t, room, widths) {
+  const cells = widths.map((w, i) => '<th data-column-key="c' + i + '" data-default-width="' + w + '">C' + i + '</th>').join('');
+  const ctx = setup(t, '<div class="table-wrap"><table data-table-key="stretch"><thead><tr>' + cells + '</tr></thead><tbody><tr>' + widths.map(() => '<td>x</td>').join('') + '</tr></tbody></table></div>');
+  ctx.table.getClientRects = () => [{}];
+  Object.defineProperty(ctx.table.parentElement, 'clientWidth', { value: room });
+  ctx.api.enhance(ctx.table);
+  ctx.widths = () => state(ctx).columns.map(c => Math.round(c.width * 100) / 100);
+  ctx.pointer = (type, x) => { const e = new ctx.window.MouseEvent(type, { clientX: x, button: 0, bubbles: true, cancelable: true }); Object.defineProperty(e, 'pointerId', { value: 3 }); return e; };
+  ctx.handle = index => ctx.table.querySelectorAll('.tks-column-resizer')[index];
+  return ctx;
+}
+
+test('bang luon rong toi thieu 100% khung chua: min-width 100%, khong khoa max-width, do rong goc khong bi sua', t => {
+  const ctx = stretchContext(t, 1000, [100, 100, 100]);
+  assert.equal(ctx.table.style.getPropertyValue('min-width'), '100%');
+  assert.equal(ctx.table.style.getPropertyValue('max-width'), 'none');
+  assert.equal(ctx.table.style.getPropertyValue('width'), '300px', 'rong dung tong cot; phan du do trinh duyet chia theo ti le nho min-width');
+  assert.deepEqual(ctx.widths(), [100, 100, 100]);
+  toggle(ctx, 'c1');
+  assert.equal(ctx.table.style.getPropertyValue('min-width'), '100%', 'an cot: cac cot con lai van lap day khung');
+  assert.equal(ctx.table.style.getPropertyValue('width'), '200px');
+  assert.deepEqual(ctx.widths(), [100, 100, 100], 'do rong goc cua cot an/hien khong doi');
+});
+
+test('nhieu cot: tong cot lon hon khung thi bang van tran khung (cuon ngang), khong bi ep ve 100%', t => {
+  const ctx = stretchContext(t, 300, [200, 200, 200]);
+  assert.equal(ctx.table.style.getPropertyValue('width'), '600px');
+  assert.equal(ctx.table.style.getPropertyValue('min-width'), '100%');
+  assert.deepEqual(ctx.widths(), [200, 200, 200]);
+});
+
+test('keo hep 1 cot: cac cot con lai gian deu ra bu, tong van bang khung; keo lai thi tra ve dung cu', t => {
+  const ctx = stretchContext(t, 1000, [300, 400, 300]);
+  ctx.handle(0).dispatchEvent(ctx.pointer('pointerdown', 300));
+  ctx.doc.dispatchEvent(ctx.pointer('pointermove', 200));
+  assert.deepEqual(ctx.widths(), [200, 457.14, 342.86]);
+  assert.equal(ctx.widths().reduce((a, b) => a + b, 0).toFixed(0), '1000');
+  ctx.doc.dispatchEvent(ctx.pointer('pointermove', 300));
+  assert.deepEqual(ctx.widths(), [300, 400, 300], 'keo qua lai khong troi: cac cot khac tinh lai tu anh chup luc bat dau keo');
+  ctx.doc.dispatchEvent(ctx.pointer('pointerup', 300));
+});
+
+test('keo rong 1 cot: cac cot khac giu nguyen, bang tran khung va cuon ngang', t => {
+  const ctx = stretchContext(t, 1000, [300, 400, 300]);
+  ctx.handle(0).dispatchEvent(ctx.pointer('pointerdown', 300));
+  ctx.doc.dispatchEvent(ctx.pointer('pointermove', 500));
+  assert.deepEqual(ctx.widths(), [500, 400, 300]);
+  assert.equal(ctx.table.style.getPropertyValue('width'), '1200px');
+  ctx.doc.dispatchEvent(ctx.pointer('pointerup', 500));
+});
+
+test('bang chua du khung (tong goc < khung): do rong dang thay duoc dung lam goc khi keo / bam phim', t => {
+  const ctx = stretchContext(t, 600, [100, 100, 100]);
+  ctx.handle(0).dispatchEvent(new ctx.window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+  assert.deepEqual(ctx.widths(), [210, 200, 200], 'cot dang thay rong 200 (da gian) nen +10 thanh 210, cac cot khac giu 200');
+  const shrunk = stretchContext(t, 600, [100, 100, 100]);
+  shrunk.handle(0).dispatchEvent(ctx.pointer('pointerdown', 200));
+  shrunk.doc.dispatchEvent(ctx.pointer('pointermove', 150));
+  assert.deepEqual(shrunk.widths(), [150, 225, 225]);
+  shrunk.doc.dispatchEvent(ctx.pointer('pointerup', 150));
+});
+
+test('keo hep luu do rong cua cot duoc keo va cac cot gian ra bu (gia tri da lam tron)', t => {
+  const ctx = stretchContext(t, 1000, [300, 400, 300]);
+  const puts = [], timers = [];
+  ctx.api.loadPrefs({});
+  ctx.window.fetch = (url, init) => { if (init.method === 'PUT') puts.push(JSON.parse(init.body)); return Promise.resolve({ ok: true }); };
+  ctx.window.setTimeout = fn => { timers.push(fn); return timers.length; };
+  ctx.window.clearTimeout = id => { timers[id - 1] = null; };
+  ctx.handle(0).dispatchEvent(ctx.pointer('pointerdown', 300));
+  ctx.doc.dispatchEvent(ctx.pointer('pointermove', 200));
+  ctx.doc.dispatchEvent(ctx.pointer('pointerup', 200));
+  while (timers.length) { const fn = timers.shift(); if (fn) fn(); }
+  assert.equal(puts.length, 1);
+  const saved = puts[0].columns;
+  assert.equal(saved.c0.width, 200);
+  assert.equal(saved.c1.width, 457);
+  assert.equal(saved.c2.width, 343);
+});
+
+function prefsContext(t, html) {
+  const ctx = setup(t, html);
+  ctx.window.HTMLCanvasElement.prototype.getContext = () => ({ measureText: text => ({ width: text.length * 8 }) });
+  ctx.api.enhance(ctx.table);
+  const puts = [], timers = [];
+  ctx.window.fetch = (url, init) => { if (init.method !== 'PUT') return Promise.resolve({ ok: false }); puts.push({ url, body: JSON.parse(init.body), method: init.method }); return Promise.resolve({ ok: true }); };
+  ctx.window.setTimeout = fn => { timers.push(fn); return timers.length; };
+  ctx.window.clearTimeout = id => { timers[id - 1] = null; };
+  ctx.flush = () => { while (timers.length) { const fn = timers.shift(); if (fn) fn(); } };
+  ctx.puts = puts;
+  return ctx;
+}
+
+test('saved account preferences set width and hidden columns, and survive a new page load', t => {
+  const ctx = prefsContext(t);
+  const key = state(ctx).key;
+  ctx.api.loadPrefs({ [key]: { desktop: { columns: { name: { width: 333 }, qty: { hidden: true } } } } });
+  const columns = state(ctx).columns;
+  assert.equal(columns.find(c => c.key === 'name').width, 333);
+  assert.equal(columns.find(c => c.key === 'qty').hidden, true);
+  assert.equal(columns.find(c => c.key === 'code').width, 130, 'Unsaved columns keep their default');
+
+  const fresh = setup(t);
+  fresh.api.enhance(fresh.table);
+  fresh.api.loadPrefs({ [key]: { desktop: { columns: { name: { width: 333 } } } } });
+  assert.equal(state(fresh).columns.find(c => c.key === 'name').width, 333);
+});
+
+test('dragging a column or toggling visibility is saved once, debounced, for the account', t => {
+  const ctx = prefsContext(t);
+  const key = state(ctx).key;
+  ctx.api.loadPrefs({});
+  const handle = ctx.table.querySelectorAll('.tks-column-resizer')[1];
+  for (let i = 0; i < 5; i++) handle.dispatchEvent(new ctx.window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+  toggle(ctx, 'qty');
+  assert.equal(ctx.puts.length, 0, 'Nothing is sent until the debounce fires');
+  ctx.flush();
+  assert.equal(ctx.puts.length, 1);
+  assert.equal(ctx.puts[0].method, 'PUT');
+  assert.equal(ctx.puts[0].url, '/api/me/table-prefs/' + encodeURIComponent(key) + '/desktop');
+  assert.deepEqual(ctx.puts[0].body, { columns: { name: { width: 290 }, qty: { hidden: true } } });
+});
+
+test('nothing is saved before the preferences have loaded (for example when signed out)', t => {
+  const ctx = prefsContext(t);
+  const handle = ctx.table.querySelectorAll('.tks-column-resizer')[1];
+  handle.dispatchEvent(new ctx.window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+  ctx.flush();
+  assert.equal(ctx.puts.length, 0);
+});
+
+test('a locked column is never hidden by saved preferences', t => {
+  const ctx = setup(t, fixture.replace('<th data-column-key="code"', '<th data-column-locked="true" data-column-key="code"'));
+  ctx.api.enhance(ctx.table);
+  const key = state(ctx).key;
+  ctx.api.loadPrefs({ [key]: { desktop: { columns: { code: { hidden: true }, gone: { width: 500 } } } } });
+  assert.equal(state(ctx).columns.find(c => c.key === 'code').hidden, false);
+});
+
+// Sắp xếp cục bộ chỉ bật khi bảng khai báo data-table-sort="local" (hoặc là .dp-table).
+const localSortFixture = fixture.replace('<table id="orders"', '<table id="orders" data-table-sort="local"');
+function sortHeader(ctx, label) {
+  return Array.from(ctx.table.tHead.rows[0].cells).find(cell => cell.textContent.includes(label)).querySelector('.sort-button');
+}
+function rowCodes(ctx) { return Array.from(ctx.table.tBodies[0].rows).filter(r => r.cells.length === 3).map(r => r.cells[0].textContent); }
+
+test('sorting a column is saved by column key and restored from saved preferences', t => {
+  const html = localSortFixture.replace('<tr><td>A</td>', '<tr><td>B</td><td>x</td><td>2</td></tr><tr><td>A</td>');
+  const ctx = prefsContext(t, html);
+  const key = state(ctx).key;
+  ctx.api.loadPrefs({});
+  sortHeader(ctx, 'Số lượng').click();
+  sortHeader(ctx, 'Số lượng').click();
+  ctx.flush();
+  assert.deepEqual(ctx.puts[ctx.puts.length - 1].body.sort, { key: 'qty', dir: 'desc' });
+  assert.deepEqual(rowCodes(ctx), ['A', 'B']);
+
+  const fresh = setup(t, html);
+  fresh.api.enhance(fresh.table);
+  fresh.api.loadPrefs({ [key]: { desktop: { columns: {}, sort: { key: 'code', dir: 'desc' } } } });
+  assert.deepEqual(state(fresh).sort, { key: 'code', direction: 'desc' });
+  assert.deepEqual(rowCodes(fresh), ['B', 'A']);
+});
+
+test('clearing the sort is saved without a sort, and an unknown saved sort column is ignored', t => {
+  const ctx = prefsContext(t, localSortFixture);
+  ctx.api.loadPrefs({});
+  const button = sortHeader(ctx, 'Mã hàng');
+  button.click(); button.click(); button.click();
+  ctx.flush();
+  assert.equal('sort' in ctx.puts[ctx.puts.length - 1].body, false);
+
+  const other = setup(t, localSortFixture);
+  other.api.enhance(other.table);
+  other.api.loadPrefs({ [state(other).key]: { desktop: { columns: {}, sort: { key: 'gone', dir: 'asc' } } } });
+  assert.equal(state(other).sort, null);
+});

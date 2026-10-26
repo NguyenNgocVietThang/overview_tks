@@ -69,7 +69,7 @@ test('cau nap dong hang doi chieu ten khach nhu luong sheet cu va chi lay hoa do
   assert.match(sql, /i\.purchase_date >= \(\$2::date::timestamp AT TIME ZONE 'UTC'\)/);
   assert.match(sql, /i\.purchase_date <  \(\(\$3::date \+ 1\)::timestamp AT TIME ZONE 'UTC'\)/);
   // Ma khach tren hoa don, khong co thi ma tim theo ten chuan hoa (ten trung => ma lon nhat).
-  assert.match(sql, /COALESCE\(NULLIF\(btrim\(i\.raw->>'customerCode'\), ''\), cbn\.code\)/);
+  assert.match(sql, /COALESCE\(NULLIF\(btrim\(i\.raw->>'customerCode'\), ''\), cc\.code, cbn\.code\)/);
   assert.match(sql, /ORDER BY branch, name_key, raw_code DESC/);
   assert.match(sql, /normalize\(/);
 });
@@ -332,4 +332,34 @@ test('IfDue che do tang dan: thieu cot last_full_at (chua migrate) => quay ve lu
     }
   };
   assert.deepEqual(await refreshCustomerInvoiceLinesIfDue(pool, { incremental: true, now: () => NOW_INCR, log: () => {} }), { skipped: true });
+});
+
+test('SQL that (PGlite): ten khach/hang HIEN TAI o bang chu thay ten cu ghi tren chung tu', async () => {
+  const { PGlite } = require('@electric-sql/pglite');
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const db = new PGlite();
+  try {
+    await db.exec(fs.readFileSync(path.join(__dirname, '../db/migrations/0022_customer_invoice_lines_90d.sql'), 'utf8'));
+    await db.exec(`
+      CREATE TABLE products (branch text, id bigint, code text, name text, raw jsonb);
+      CREATE TABLE customers (branch text, id bigint, code text, name text, raw jsonb);
+      CREATE TABLE invoices (branch text, id bigint, code text, customer_id bigint, purchase_date timestamptz, status int, raw jsonb);
+      CREATE TABLE invoice_details (branch text, invoice_id bigint, line_no int, product_id bigint, quantity numeric, price numeric, discount numeric, sub_total numeric, raw jsonb);
+      INSERT INTO products VALUES ('hanoi', 1, 'A', 'Hang Moi', '{}');
+      INSERT INTO customers VALUES ('hanoi', 1, 'C1', 'Khach Moi', '{}'), ('hanoi', 2, 'C2', 'khach  moi', '{}');
+      INSERT INTO invoices VALUES
+        ('hanoi', 10, 'HD1', 1, '2026-09-20T05:00:00Z', 1, '{"statusValue":"Hoàn thành","customerName":"Khach Cu","customerCode":"C1"}'),
+        ('hanoi', 11, 'HD2', 2, '2026-09-21T05:00:00Z', 1, '{"statusValue":"Hoàn thành","customerName":"Khach Cu 2","customerCode":"C2"}');
+      INSERT INTO invoice_details VALUES
+        ('hanoi', 10, 1, 1, 1, 100, 0, 100, '{"productCode":"A","productName":"Hang Cu"}'),
+        ('hanoi', 11, 1, 1, 2, 100, 0, 200, '{"productCode":"A","productName":"Hang Cu"}');`);
+    const rows = await db.transaction(async tx => {
+      await tx.query(__sql__.CREATE_STAGING_SQL);
+      await tx.query(__sql__.FILL_STAGING_SQL, [['hanoi'], '2026-09-01', '2026-09-30']);
+      return (await tx.query('SELECT customer_name, item_name FROM customer_invoice_lines_new ORDER BY invoice_id')).rows;
+    });
+    assert.equal(rows.length, 2);
+    for (const row of rows) { assert.equal(row.item_name, 'Hang Moi'); assert.match(row.customer_name, /^khach +moi$/i); }
+  } finally { await db.close(); }
 });

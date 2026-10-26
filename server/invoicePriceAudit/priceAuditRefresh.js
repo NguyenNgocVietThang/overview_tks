@@ -1,6 +1,6 @@
 'use strict';
 
-// Job 23:00 (Asia/Ho_Chi_Minh) "Kiem tra gia ban": cong bo cua so 7 ngay [D-6, D] - tat ca hoac khong.
+// Job 23:00 (Asia/Ho_Chi_Minh) "Kiem tra gia ban": cong bo cua so 16 ngay [D-15, D] - tat ca hoac khong.
 //
 // runDailyAudit({ day, pool, now }):
 //   1. Khoa advisory PHIEN (pg_try_advisory_lock, khoa rieng LOCK_KEY) tren 1 ket noi rieng: instance khac dang
@@ -18,12 +18,12 @@
 // Gio: purchase_date la gio dia phuong Kiot gan nhan UTC (xem priceAuditRepository). Slot job tinh tu UTC thuan:
 // 23:00 VN = 16:00 UTC, khong dung gio dia phuong cua server.
 
-const { captureUnseenInvoices, SOURCE_NOT_READY } = require('./priceAuditRepository');
+const { captureUnseenInvoices, recalcWindow, SOURCE_NOT_READY } = require('./priceAuditRepository');
 const { addDaysToKey, vnDateKey } = require('../kiotvietSync/vnTime');
 
 // Khoa advisory rieng cua tinh nang (20531077 ~ migration 0077), khac cac khoa 205310xx/205311xx da dung.
 const LOCK_KEY = 20531077;
-const WINDOW_DAYS = 7;
+const WINDOW_DAYS = 16;
 const VN_OFFSET_MS = 7 * 3600 * 1000;
 const AUDIT_HOUR_VN = 23;
 const DB_ERROR = 'PRICE_AUDIT_DB_ERROR';
@@ -99,7 +99,7 @@ function result(status, day, extra = {}) {
  *   day, windowFrom, windowTo, addedInvoices, addedLines, prunedInvoices, code?, message? }>}
  *   Chi nem khi tham so sai (lap trinh); loi chay tra status 'failed'.
  */
-async function runDailyAudit({ day, pool, now = new Date(), capture = captureUnseenInvoices, logger = console } = {}) {
+async function runDailyAudit({ day, pool, now = new Date(), capture = captureUnseenInvoices, logger = console, force = false } = {}) {
   assertDay(day);
   const nowDate = new Date(now);
   // Cho phep chay tay ngay hom nay truoc 23:00 (lan cong bo dau sau deploy); chi chan ngay TUONG LAI theo gio VN,
@@ -120,7 +120,7 @@ async function runDailyAudit({ day, pool, now = new Date(), capture = captureUns
     const state = (await client.query(STATE_SQL)).rows[0];
     const published = state?.published_day || null;
     const slot = slotStartUtc(day);
-    if (published === day && (nowDate < slot ||
+    if (!force && published === day && (nowDate < slot ||
         (state.last_success_at && +new Date(state.last_success_at) >= +slot))) {
       return result('already-completed', day);
     }
@@ -129,7 +129,7 @@ async function runDailyAudit({ day, pool, now = new Date(), capture = captureUns
     await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
     inTransaction = true;
     const { addedInvoices, addedLines } = await capture({ day, client, now: nowDate });
-    // Ban chup la khoa ben vung cua giai thich; cua so 7 ngay chi gioi han bao cao.
+    // Ban chup la khoa ben vung cua giai thich; cua so 16 ngay chi gioi han bao cao.
     const prunedInvoices = 0;
     await client.query(PUBLISH_SQL, [day, windowFrom, nowDate.toISOString(), addedInvoices]);
     await client.query('COMMIT');
@@ -188,7 +188,65 @@ async function previewDailyAudit({ day, pool, now = new Date(), capture = captur
   }
 }
 
+/**
+ * Tinh lai theo du lieu hien tai (lenh --recalc): cap nhat cot tinh toan cua dong da chup + chup hoa don chua quet,
+ * trong cua so [day-15, day]. day mac dinh = ngay da cong bo gan nhat (state), khong co thi hom nay VN.
+ * apply=false (mac dinh): chay het trong giao dich roi ROLLBACK, khong ghi gi (ke ca state/nhat ky).
+ * apply=true: khoa advisory nhu runDailyAudit, tat ca hoac khong, KHONG dong vao invoice_price_audit_state.
+ * Giu nguyen giai thich/Chot/version. Loi nguon (SOURCE_NOT_READY...) -> ROLLBACK, status 'failed'.
+ */
+async function runRecalc({ day = null, pool, now = new Date(), apply = false, logger = console, recalc = recalcWindow } = {}) {
+  if (day != null) assertDay(day);
+  const nowDate = new Date(now);
+  const mode = apply ? 'recalc-apply' : 'recalc-dry-run';
+  let client = null;
+  let locked = false;
+  let inTransaction = false;
+  let broken = null;
+  let resolvedDay = day;
+  try {
+    client = await pool.connect();
+    if (apply) {
+      locked = (await client.query('SELECT pg_try_advisory_lock($1::bigint) AS locked', [LOCK_KEY])).rows[0]?.locked === true;
+      if (!locked) return { mode, ...result('busy', day || vnDateKey(nowDate)) };
+    }
+    await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
+    inTransaction = true;
+    if (!resolvedDay) resolvedDay = (await client.query(STATE_SQL)).rows[0]?.published_day || vnDateKey(nowDate);
+    if (resolvedDay > vnDateKey(nowDate)) {
+      await client.query('ROLLBACK');
+      inTransaction = false;
+      return { mode, ...result('future-day', resolvedDay) };
+    }
+    const stats = await recalc({ day: resolvedDay, client, now: nowDate });
+    await client.query(apply ? 'COMMIT' : 'ROLLBACK');
+    inTransaction = false;
+    if (apply) {
+      logger.info?.(`[PriceAudit] Tinh lai ${windowFromOf(resolvedDay)}..${resolvedDay}: ${stats.recomputedLines} dong, doi ket qua ${stats.resultChangedLines}, chup moi ${stats.newInvoices} hoa don.`);
+    }
+    return { mode, status: apply ? 'completed' : 'dry-run', day: resolvedDay,
+      windowFrom: windowFromOf(resolvedDay), windowTo: resolvedDay, ...stats };
+  } catch (err) {
+    if (inTransaction) {
+      try { await client.query('ROLLBACK'); } catch (rollbackError) { broken = rollbackError; }
+      inTransaction = false;
+    }
+    const failure = safeFailure(err);
+    logger.error?.(`[PriceAudit] Tinh lai that bai: ${failure.code} ${err && err.code ? `(${err.code})` : ''} ${failure.message}`);
+    const base = resolvedDay || vnDateKey(nowDate);
+    return { mode, ...result('failed', base), ...failure };
+  } finally {
+    if (client) {
+      if (locked && !broken) {
+        try { await client.query('SELECT pg_advisory_unlock($1::bigint)', [LOCK_KEY]); } catch (unlockError) { broken = unlockError; }
+      }
+      client.release(broken || undefined);
+    }
+  }
+}
+
 module.exports = {
+  runRecalc,
   LOCK_KEY,
   WINDOW_DAYS,
   runDailyAudit,

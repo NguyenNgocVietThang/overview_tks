@@ -22,7 +22,8 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&display=swap"
     />
-    <link rel="stylesheet" href="/shared/shared.css?v=20261022-1" />
+    <link rel="stylesheet" href="/shared/shared.css?v=20261026-calendar-ui" />
+    <script src="/shared/motion.js?v=20261024-1" defer></script>
   <link rel="stylesheet" href="/shared/search-clear.css?v=20261009-1">
     <style>
       /* Sổ quỹ dùng lại khuôn của tab Báo cáo tổng hợp (index.html): section-head có số
@@ -100,7 +101,7 @@
       }
       .kpi-card {
         min-width: 0;
-        background: var(--panel);
+        background: var(--glass-panel);
         border: 1px solid var(--border);
         border-radius: var(--radius-lg);
         padding: 16px 18px;
@@ -325,7 +326,7 @@
         font-size: 13px;
         font-weight: 500;
         color: var(--text);
-        background: var(--panel);
+        background: var(--glass-head);
         border-bottom: 1px solid var(--border);
         white-space: nowrap;
         text-align: left;
@@ -823,7 +824,7 @@
       .cb-status {
         margin: 0 0 14px;
         padding: 10px 14px;
-        background: var(--panel);
+        background: var(--glass-panel);
         border: 1px solid var(--border);
         border-radius: var(--radius-sm);
         font-size: 12.5px;
@@ -1377,10 +1378,10 @@
         </div>
       </div>
     </dialog>
-  <script src="/shared/table-controls.js?v=20261016-1"></script>
+  <script src="/shared/table-controls.js?v=20261024-2"></script>
   <script src="/shared/fuzzy-search.js?v=20261021-1"></script>
   <script src="/shared/search-clear.js?v=20261009-1"></script>
-    <script src="/shared/shared-nav.js?v=20261022-1"></script>
+    <script src="/shared/shared-nav.js?v=20261026-calendar-ui"></script>
     <script src="/shared/dateInput.js?v=20260912"></script>
     <script id="cashbook-script">
       (function () {
@@ -1625,6 +1626,16 @@
           params.set("view", view);
           params.set("format", format);
           params.set("columns", columns.join(","));
+          if (view === "balances") {
+            // Bảng Số dư lọc/sắp ngay trên màn hình nên gửi kèm để file khớp các dòng đang hiện.
+            const q = $("balancesSearch").value.trim(), group = $("balancesGroupFilter").value;
+            if (q) params.set("balanceQ", q);
+            if (group) params.set("balanceGroup", group);
+            if (balanceSort.field && balanceSort.dir) {
+              params.set("balanceSortField", balanceSort.field);
+              params.set("balanceSortDir", balanceSort.dir);
+            }
+          }
           return "/api/cashbook/export?" + params.toString();
         }
         async function request(url, options = {}) {

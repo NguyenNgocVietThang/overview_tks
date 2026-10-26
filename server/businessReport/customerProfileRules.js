@@ -52,6 +52,8 @@ function normalizeProfileInput(body) {
   return {
     warehouseLocation: text(b.warehouseLocation, 'Định vị kho'),
     area: text(b.area, 'Diện tích'),
+    phone: text(b.phone, 'Số điện thoại'),
+    address: text(b.address, 'Địa chỉ'),
     warehouseCount: count,
     competitor: text(b.competitor, 'Đối thủ'),
     salesChannels: channels
@@ -98,7 +100,7 @@ function normalizeUserIds(userIds) {
   return out;
 }
 
-const emptyProfile = () => ({ warehouseLocation: '', area: '', warehouseCount: null, warehouseScale: 'none', competitor: '', salesChannels: [] });
+const emptyProfile = () => ({ warehouseLocation: '', area: '', phone: '', address: '', warehouseCount: null, warehouseScale: 'none', competitor: '', salesChannels: [] });
 
 module.exports = {
   SCALES, SALES_CHANNELS, MAX_IMAGES, MAX_NOTE, MAX_TEXT, UUID_RE,

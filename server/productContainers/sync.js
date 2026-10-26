@@ -44,7 +44,7 @@ const fingerprint = (lines, warnings) =>
 async function refreshContainers({
   pool = getPool(), spreadsheetId = CONFIG.PRODUCT_CONTAINER_SPREADSHEET_ID,
   client = createReadOnlyClient(() => spreadsheetId, 'Hàng dự kiến'),
-  now = () => new Date(), logger = console
+  now = () => new Date(), logger = console, force = false
 } = {}) {
   if (!spreadsheetId) return { status: 'disabled' };
   const connection = await pool.connect();
@@ -63,7 +63,7 @@ async function refreshContainers({
     // Also gate on attempts, so restarts after a failed first run cannot hammer
     // Sheets. This same persisted gate serializes staggered server instances.
     const previous = new Date(rows[0]?.last_attempt_at || rows[0]?.last_success_at || 0).getTime();
-    if (previous && attemptAt.getTime() - previous < INTERVAL_MS) return { status: 'not-due', nextAttemptAt:previous + INTERVAL_MS };
+    if (!force && previous && attemptAt.getTime() - previous < INTERVAL_MS) return { status: 'not-due', nextAttemptAt:previous + INTERVAL_MS };
     nextAttemptAt = attemptAt.getTime() + INTERVAL_MS;
     attempted = true;
     await connection.query('UPDATE product_container_sync SET last_attempt_at=$1 WHERE singleton=true',[attemptAt]);
@@ -84,7 +84,7 @@ async function refreshContainers({
     const lines = parsed.flatMap((sheet,sheetOrder)=>sheet.rows.map(row=>({
       sheet_name:row.sheetName,sheet_order:sheetOrder,container_row:row.containerRow,source_row:row.sourceRow,
       product_code:row.productCode,product_key:row.productKey,container_name:row.containerName,
-      status:row.status,status_label:row.statusLabel,eta:row.eta,color:row.color,sale_note:row.saleNote,
+      status:row.status,status_label:row.statusLabel,eta:row.eta,color:row.color,sale_note:row.saleNote,other_note:row.otherNote,
       ordered_by:row.orderedBy,listed_at:row.listedAt,units_per_package:row.unitsPerPackage,
       package_count:row.packageCount,quantity:row.quantity,vietnam_price:row.vietnamPrice,unit_price_cny:row.unitPriceCny
     })));

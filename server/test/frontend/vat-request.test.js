@@ -14,16 +14,21 @@ const batchCode = fs.readFileSync(path.join(publicDir, 'vat-request/vat-request-
 const gridCode = fs.readFileSync(path.join(publicDir, 'vat-request/vat-request-grid.js'), 'utf8');
 const nav = fs.readFileSync(path.join(publicDir, 'shared/shared-nav.js'), 'utf8');
 const tick = () => new Promise(resolve => setTimeout(resolve, 0));
+function chooseStatus(window, doc, value) {
+ const select = doc.getElementById('vrStatusFilter');
+ select.value = value;
+ select.dispatchEvent(new window.Event('change', { bubbles: true }));
+}
 const PROCESS_GRANTED = { 'accounting.vatRequestProcess': true };
 
 const STATUSES = [
   { value: 'pending', label: 'Chờ KT xử lý', locksSale: false },
-  { value: '0', label: '0. Không khai được', locksSale: true },
+  { value: '0', label: 'Không khai được', locksSale: true },
   { value: '5', label: 'VAT sẵn nhiều', locksSale: true },
-  { value: '1', label: '1. Đã xong', locksSale: true },
-  { value: '2', label: '2. Đã khai chờ về', locksSale: true },
-  { value: '3', label: '3. Chờ khai chèn', locksSale: false },
-  { value: '4', label: '4. Chờ cont về, tăng slg', locksSale: false }
+  { value: '1', label: 'Đã xong', locksSale: true },
+  { value: '2', label: 'Đã khai chờ về', locksSale: true },
+  { value: '3', label: 'Chờ khai chèn', locksSale: false },
+  { value: '4', label: 'Chờ cont về, tăng slg', locksSale: false }
 ];
 
 function row(id, extra = {}) {
@@ -61,6 +66,7 @@ async function setup(t, { vaiTro, id = 'sale-1', responses, featurePermissions =
   const calls = [];
   window.fetch = async (url, options = {}) => {
     const parsed = new URL(url, window.location.href);
+    if (parsed.pathname === '/api/me/table-prefs') return { ok: true, status: 200, json: async () => ({ tables: {} }) };
     const key = `${options.method || 'GET'} ${parsed.pathname.replace('/api/vat-requests', '') || '/'}`;
     const body = options.body ? JSON.parse(options.body) : undefined;
     calls.push({ key, query: Object.fromEntries(parsed.searchParams), body });
@@ -106,7 +112,7 @@ function clipboard(window, doc, type, text = '') {
 const bulkEcho = body => ({ status: 200, data: { updated: body.items.length, rows: body.items.map(item => row(item.id, { canProcess: true, version: item.version + 1, ...item.changes })) } });
 
 test('sale: mac dinh xem tat ca sale, khong co cot chon / sua nhanh, dong khoa khong co nut Sua', async t => {
-  const rows = [row(1), row(2, { status: '1', statusLabel: '1. Đã xong', isLockedForSale: true, canEditSale: false, canDelete: false }),
+  const rows = [row(1), row(2, { status: '1', statusLabel: 'Đã xong', isLockedForSale: true, canEditSale: false, canDelete: false }),
     row(3, { createdBy: 'sale-2', createdByName: 'Tuyên', isMine: false, canEditSale: false, canDelete: false, fullVat: false })];
   const { doc, calls } = await setup(t, { vaiTro: 'Nhân viên sale', responses: { 'GET /': saleListResponse(rows) } });
   assert.equal(calls[0].query.createdBy, undefined, 'mac dinh tat ca sale');
@@ -444,7 +450,7 @@ test('xuat Excel: quan ly thay nut; tai file theo dung bo loc dang xem, bao khi 
   window.URL.createObjectURL = () => 'blob:x';
   window.URL.revokeObjectURL = () => {};
   window.HTMLAnchorElement.prototype.click = function () { downloads.push(this.download); };
-  doc.querySelector('[data-preset="3"]').click();
+  chooseStatus(window, doc, '3');
   await tick();
   button.click();
   await tick(); await tick();
@@ -468,7 +474,7 @@ const HISTORY = { rows: [
 ] };
 
 function lockedRow(id) {
-  return row(id, { status: '1', statusLabel: '1. Đã xong', isLockedForSale: true, canEditSale: false, canDelete: false });
+  return row(id, { status: '1', statusLabel: 'Đã xong', isLockedForSale: true, canEditSale: false, canDelete: false });
 }
 
 test('nhay dup dong sua duoc: modal sua gon, nut Lich su (co so dem) mo khung chat noi, form khong doi; dong da khoa: chi lich su', async t => {
@@ -491,7 +497,7 @@ test('nhay dup dong sua duoc: modal sua gon, nut Lich su (co so dem) mo khung ch
   const items = [...doc.querySelectorAll('#vrHistoryList .vr-chat-item')];
   assert.deepEqual(items.map(li => li.dataset.kind), ['status', 'create']);
   assert.match(items[0].textContent, /Kế toán Lan/);
-  assert.match(items[0].textContent, /Thay đổi trạng thái: Chờ KT xử lý → 1\. Đã xong/);
+  assert.match(items[0].textContent, /Thay đổi trạng thái: Chờ KT xử lý → Đã xong/);
   assert.equal(doc.getElementById('vrProduct').value, '014XOAN');
   doc.getElementById('vrHistoryToggle').click();
   assert.equal(chat.hidden, false);
@@ -623,8 +629,8 @@ test('sap xep theo cot tren toan bo danh sach: tang dan -> giam dan -> ve thu tu
 
 test('mau theo trang thai: o chon KT phan hoi mang data-status va doi mau ngay khi chon; nut loc dang chon co aria-pressed', async t => {
   const responses = {
-    'GET /': listResponse([row(1, { canProcess: true, status: '3', statusLabel: '3. Chờ khai chèn' })]),
-    'PATCH /1': body => ({ status: 200, data: row(1, { ...body, version: 2, canProcess: true, statusLabel: '1. Đã xong' }) })
+    'GET /': listResponse([row(1, { canProcess: true, status: '3', statusLabel: 'Chờ khai chèn' })]),
+    'PATCH /1': body => ({ status: 200, data: row(1, { ...body, version: 2, canProcess: true, statusLabel: 'Đã xong' }) })
   };
   const { window, doc } = await setup(t, { vaiTro: 'Kế toán', id: 'kt-1', responses, featurePermissions: PROCESS_GRANTED });
   assert.equal(gridCell(doc, 1, 'status').querySelector('.vr-badge').dataset.status, '3', 'chua sua: hien nhan mau');
@@ -635,9 +641,9 @@ test('mau theo trang thai: o chon KT phan hoi mang data-status va doi mau ngay k
   select.dispatchEvent(new window.Event('change', { bubbles: true }));
   assert.equal(select.dataset.status, '1', 'doi mau truoc khi luu xong');
   await tick(); await tick(); await tick();
-  const chips = [...doc.querySelectorAll('#vrStatusChips .vr-chip')];
-  assert.deepEqual(chips.map(c => c.dataset.preset), ['all', 'todo', 'pending', '0', '5', '1', '2', '3', '4']);
-  assert.deepEqual(chips.filter(c => c.getAttribute('aria-pressed') === 'true').map(c => c.dataset.preset), ['todo']);
+  const filter = doc.getElementById('vrStatusFilter');
+  assert.deepEqual([...filter.options].map(o => o.value), ['all', 'todo', 'pending', '0', '5', '1', '2', '3', '4']);
+  assert.equal(filter.value, 'todo');
 });
 
 test('kieu Sheet — sale: keo chon vung o roi Ctrl+C chep TSV (so tron, ngay dd/mm/yyyy); khong co cham keo / o sua', async t => {
@@ -726,6 +732,12 @@ test('kieu Sheet — KT: go phim mo o sua voi ky tu vua go; Esc o ngay ve bo sua
   assert.equal(doc.activeElement, input);
   input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
   assert.equal(gridCell(doc, 1, 'accountantNote').textContent, 'cũ');
+
+  mouse(window, gridCell(doc, 1, 'status'), 'mousedown');
+  doc.dispatchEvent(new window.KeyboardEvent('keydown', { key: '3', bubbles: true, cancelable: true }));
+  const select = gridCell(doc, 1, 'status').querySelector('select[data-inline]');
+  assert.equal(select.value, '3', 'go ma so chon dung trang thai du nhan khong danh so');
+  select.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
 
   const date = editCell(window, doc, 1, 'arrivalDate');
   assert.equal(date.type, 'date');
@@ -897,33 +909,21 @@ test('keo nhieu dong — bam tay nam chon dong (tick o Chon), Shift chon doan, C
 // ---- Giu dong vua sua, chip chon nhieu, Ctrl+Z / Ctrl+Y ----
 const keyDown = (window, doc, key, extra = {}) => doc.dispatchEvent(new window.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...extra }));
 
-test('chip trang thai chon nhieu; Can xu ly / Tat ca chi chon mot minh; tat het ve Tat ca', async t => {
-  const { doc, calls } = await setup(t, { vaiTro: 'Kế toán', id: 'kt-1', responses: { 'GET /': listResponse([]) }, featurePermissions: PROCESS_GRANTED });
-  const pressed = () => [...doc.querySelectorAll('#vrStatusChips .vr-chip')].filter(c => c.getAttribute('aria-pressed') === 'true').map(c => c.dataset.preset);
-  const chip = key => doc.querySelector(`#vrStatusChips [data-preset="${key}"]`);
+test('status dropdown selects individual status, all, and todo', async t => {
+  const { window, doc, calls } = await setup(t, { vaiTro: 'Kế toán', id: 'kt-1', responses: { 'GET /': listResponse([]) }, featurePermissions: PROCESS_GRANTED });
+  assert.equal(doc.getElementById('vrStatusFilter').value, 'todo');
   const lastStatus = () => calls.filter(c => c.key === 'GET /').pop().query.status;
-  assert.deepEqual(pressed(), ['todo']);
-  chip('1').click();
-  assert.deepEqual(pressed(), ['1'], 'bam trang thai khi dang Can xu ly -> chi con trang thai do');
-  assert.equal(lastStatus(), '1');
-  chip('2').click();
-  assert.deepEqual(pressed(), ['1', '2']);
-  assert.equal(lastStatus(), '1,2');
-  chip('1').click();
-  assert.deepEqual(pressed(), ['2'], 'bam lai thi tat');
-  chip('2').click();
-  assert.deepEqual(pressed(), ['all'], 'tat het -> Tat ca');
-  assert.equal(lastStatus(), undefined);
-  chip('3').click(); chip('4').click();
-  chip('todo').click();
-  assert.deepEqual(pressed(), ['todo'], 'Can xu ly chi chon mot minh');
-  assert.equal(lastStatus(), 'pending,3,4');  await tick(); await tick();
+  for (const status of ['pending', '0', '5', '1', '2', '3', '4', 'all', 'todo']) {
+    chooseStatus(window, doc, status);
+    assert.equal(lastStatus(), status === 'all' ? undefined : status === 'todo' ? 'pending,3,4' : status);
+    await tick(); await tick();
+  }
 });
 
 test('doi trang thai: dong o lai bang (gui keep) cho toi khi doi bo loc / bam tai lai; Excel khong gui keep', async t => {
   const responses = {
     'GET /': () => ({ status: 200, data: listResponse([row(1, { canProcess: true }), row(2, { canProcess: true })]) }),
-    'PATCH /1': body => ({ status: 200, data: row(1, { ...body, version: 2, canProcess: true, statusLabel: '1. Đã xong' }) }),
+    'PATCH /1': body => ({ status: 200, data: row(1, { ...body, version: 2, canProcess: true, statusLabel: 'Đã xong' }) }),
     'GET /export': () => ({ status: 200, data: 'xlsx', headers: { 'content-disposition': 'attachment; filename="x.xlsx"' } })
   };
   const { window, doc, calls } = await setup(t, { vaiTro: 'Kế toán', id: 'kt-1', responses, featurePermissions: PROCESS_GRANTED });
@@ -946,7 +946,7 @@ test('doi trang thai: dong o lai bang (gui keep) cho toi khi doi bo loc / bam ta
   again.dispatchEvent(new window.Event('change', { bubbles: true }));
   await tick(); await tick();
   assert.equal(lists().pop().query.keep, '1');
-  doc.querySelector('#vrStatusChips [data-preset="all"]').click();
+  chooseStatus(window, doc, 'all');
   await tick();
   assert.equal(lists().pop().query.keep, undefined, 'doi chip bo dong giu lai');
 });
@@ -998,3 +998,9 @@ test('Ctrl+Z khong lam gi voi sale', async t => {
   assert.equal(doc.getElementById('vrToast'), null);
 });
 
+test('thanh tab Ke toan: ORDER VAT dang chon, co Tra cuu VAT; khong con nut rieng o dau trang', async t => {
+  const { doc } = await setup(t, { vaiTro: 'Nhân viên sale', responses: { 'GET /': saleListResponse([row(1)]) } });
+  assert.deepEqual([...doc.querySelectorAll('#vrTabs a')].map(a => a.getAttribute('href')), ['/vat-draft/#tao-qr', '/vat-lookup/', '/vat-request/']);
+  assert.equal(doc.querySelector('#vrTabs [aria-current="page"]').getAttribute('href'), '/vat-request/');
+  assert.equal(doc.getElementById('vrLookupLink'), null);
+});

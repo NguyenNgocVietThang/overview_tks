@@ -13,9 +13,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="/shared/shared.css?v=20261022-1">
+  <link rel="stylesheet" href="/shared/shared.css?v=20261026-calendar-ui">
+  <script src="/shared/motion.js?v=20261024-1" defer></script>
   <link rel="stylesheet" href="/shared/detail-panel.css?v=20261016">
-  <link rel="stylesheet" href="/vat-draft/vat-draft.css?v=20261022-1">
+  <link rel="stylesheet" href="/vat-draft/vat-draft.css?v=20261023-2">
   <link rel="stylesheet" href="/shared/table-controls.css?v=20261016-1">
 </head>
 <body>
@@ -62,16 +63,7 @@
           </div>
         </details>
       </div>
-      <nav class="vd-tabs subnav-tabs" aria-label="Chức năng Nháp VAT" data-requires-processing>
-        <a class="subnav-tab" href="#xu-ly" data-vat-draft-tab="xu-ly">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6M9 13h8M9 17h6"/></svg>
-          Xử lý hóa đơn
-        </a>
-        <a class="subnav-tab" href="#tao-qr" data-vat-draft-tab="tao-qr">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/></svg>
-          Tạo QR
-        </a>
-      </nav>
+      <nav class="vd-tabs acct-subnav subnav-tabs" id="vdTabs" aria-label="Chức năng Kế toán"></nav>
 
       <!-- 1. Nhap du lieu cho Xu ly hoa don -->
       <section class="vd-section" id="vdInputPanel" aria-labelledby="vdInputTitle">
@@ -378,12 +370,12 @@
       <div class="doc-modal-body dp-body" id="vdDocModalBody" aria-live="polite"></div>
     </section>
   </div>
-  <script src="/shared/table-controls.js?v=20261016-1"></script>
+  <script src="/shared/table-controls.js?v=20261024-2"></script>
   <script src="/shared/dateInput.js?v=20260912"></script>
-  <script src="/shared/shared-nav.js?v=20261022-1"></script>
+  <script src="/shared/shared-nav.js?v=20261026-calendar-ui"></script>
   <script src="/vat-draft/cell-select.js?v=20261017-1"></script>
   <script src="/vat-draft/vnd-words.js?v=20261019-1"></script>
-  <script src="/vat-draft/vat-draft.js?v=20261022-1"></script>
+  <script src="/vat-draft/vat-draft.js?v=20261023-2"></script>
   <script>window.addEventListener('DOMContentLoaded', function () { TKSVatDraft.init(); });</script>
   <script src="/shared/shooting-star.js?v=20261019"></script>
 </body>
