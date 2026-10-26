@@ -8,7 +8,7 @@ const { PGlite } = require('@electric-sql/pglite');
 const registry = require('../auth/featureRegistry');
 const { ROLES } = require('../auth/userRepository');
 const { createVatRequestService } = require('./service');
-const { parseStockRecords, parseMappingRecords, defaultStockConfig } = require('./stockSource');
+const { parseStockRecords, parseMappingRecords, defaultStockConfig, createStockSource } = require('./stockSource');
 const { parseCsv } = require('../vatDraft/csv');
 
 const MIGRATIONS = ['0018_product_report.sql', '0053_product_containers.sql', '0076_vat_requests.sql', '0079_vat_request_sort_rank.sql', '0083_vat_request_status_vat_ready.sql'];
@@ -638,3 +638,51 @@ test('keo dong tra hang cu / moi; restoreRanks dat lai dung thu tu (hoan tac / l
   } finally { await db.close(); }
 });
 
+
+// Snapshot that tu createStockSource (co danh muc ma): CBBCM chi co o Gộp VAT cot B, VATCB chi la MÃ VAT KIOT,
+// BATSG chi co o Khớp mã — ca 3 deu khong co trong product_report.
+async function sheetStock() {
+  const config = defaultStockConfig();
+  const tabs = {
+    [config.stockSheet.sheetId]: parseCsv('CTY,Mã kiot đại diện,Tên kiot đại diện,MÃ VAT KIOT,TÊN VAT KIOT,Tên hàng,ĐVT,x,TỒN ĐẦU NGÀY\n'
+      + 'TKS THẤP,CBBCM,Cốc bỏ bia cao mỏng,VATCB,Cốc thủy tinh VAT,,Cái,,500\nVC,,,VATCB,,,Cái,,20\n'),
+    [config.mappingSheet.sheetId]: [[], ['Mã SP', 'Tên SP', '', '', '', '', '', '', '', 'Mã vat kiot'], ['BATSG', 'Bát Sài Gòn', '', '', '', '', '', '', '', 'VATCB']]
+  };
+  return createStockSource({ config, readValues: async sheet => tabs[sheet.sheetId] }).get();
+}
+
+test('ma khong co trong product_report nhung co trong sheet Gộp VAT / Khớp mã: sale order duoc, ten lay tu sheet', async () => {
+  const { db, service } = await fixture({ stock: await sheetStock() });
+  try {
+    const row = await service.create(SALE, { ...NEW_REQUEST, productCode: ' cbbcm ' });
+    assert.equal(row.productCode, 'CBBCM');
+    assert.equal(row.productName, 'Cốc bỏ bia cao mỏng');
+
+    const batch = await service.createMany(SALE, { submissionId: 'sheet', items: [
+      { ...NEW_REQUEST, productCode: 'vatcb' }, { ...NEW_REQUEST, productCode: 'BATSG' }
+    ] });
+    const [vatRow, mapRow] = await Promise.all(batch.ids.map(id => service.get(SALE, id)));
+    assert.deepEqual([vatRow.productCode, vatRow.productName], ['VATCB', 'Cốc thủy tinh VAT']);
+    assert.deepEqual([mapRow.productCode, mapRow.productName], ['BATSG', 'Bát Sài Gòn']);
+
+    const { results } = await service.lookupProducts(KT, ['CBBCM', 'VATCB', 'KHONGCO']);
+    assert.equal(results.cbbcm.found, true);
+    assert.equal(results.cbbcm.vatStock.total, 520);
+    assert.equal(results.vatcb.vatStock.total, 520, 'nhap thang MÃ VAT KIOT van ra ton');
+    assert.deepEqual(results.khongco, { found: false });
+
+    assert.equal((await service.productMetrics(KT, 'cbbcm')).productCode, 'CBBCM');
+    assert.deepEqual((await service.suggestProducts('cbb')).map(r => r.code), ['CBBCM']);
+    assert.deepEqual((await service.suggestProducts('xoan')).map(r => r.code), ['014XOAN'], 'ma KiotViet van dung truoc');
+    await assert.rejects(service.create(SALE, { ...NEW_REQUEST, productCode: 'KHONGCO' }), { statusCode: 400, code: 'PRODUCT_NOT_FOUND' });
+  } finally { await db.close(); }
+});
+
+test('sheet loi: ma chi co trong sheet bi bao khong tim thay, ma KiotViet van order binh thuong', async () => {
+  const { db, service } = await fixture();
+  try {
+    await assert.rejects(service.create(SALE, { ...NEW_REQUEST, productCode: 'CBBCM' }), { statusCode: 400, code: 'PRODUCT_NOT_FOUND' });
+    assert.equal((await service.create(SALE, NEW_REQUEST)).productCode, '014XOAN');
+    assert.deepEqual((await service.suggestProducts('cbb')), []);
+  } finally { await db.close(); }
+});
