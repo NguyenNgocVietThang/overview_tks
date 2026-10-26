@@ -30,6 +30,7 @@ test('real DB complete workflow: scoped backlog, Telegram rejection, duplicate u
     await db.exec("ALTER TABLE hr_employees ADD COLUMN branch TEXT DEFAULT 'hanoi',ADD COLUMN is_active BOOLEAN DEFAULT true; INSERT INTO hr_employees(id,bo_phan) VALUES(1,'Kho'); ALTER TABLE app_users ADD COLUMN trang_thai TEXT DEFAULT 'Đang hoạt động'");
     await db.exec(fs.readFileSync(path.join(__dirname,'../db/migrations/0038_hr_leave_deadlines.sql'),'utf8'));
     await db.exec("ALTER TABLE hr_leave_requests ALTER COLUMN hr_employee_id SET DEFAULT 1; INSERT INTO hr_leave_work_schedules(employee_id,work_date,morning_start,afternoon_start) VALUES(1,'2026-10-02','08:15','13:00')");
+    for(const name of ['0093_notifications.sql','0094_hr_leave_cancellation.sql']) await db.exec(fs.readFileSync(path.join(__dirname,'../db/migrations',name),'utf8'));
     const store = createManagerLeaveStore({ pool });
     const leaveRepo = createHrLeaveRepository({ pool });
     const calls = [];

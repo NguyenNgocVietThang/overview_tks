@@ -3,6 +3,14 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createLeaveDbRealtime } = require('./hrLeaveDbRealtime');
 
+test('DB bridge preserves deleted record branch and owner for scoped deletion events',async()=>{
+ let rows=[{request_id:'SG',decision_version:'1',branch:'saigon',user_id:'owner'}];const events=[];
+ const bridge=createLeaveDbRealtime({loadVersions:async()=>rows,broadcast:(...args)=>events.push(args)});
+ await bridge.poll();rows=[];await bridge.poll();await bridge.poll();
+ assert.equal(events.length,1);assert.equal(events[0][0],'LEAVE_REQUEST_DELETED');
+ assert.deepEqual(events[0][1],{request_id:'SG',user_id:'owner',co_so:'Sài Gòn'});assert.equal(events[0][2],'Sài Gòn');
+});
+
 test('DB bridge detects external inserts and decisions, ignoring employee notification marker updates', async () => {
   let rows = [{ request_id: 'NP-1', decision_version: '0', co_so: 'Hà Nội' }];
   const events = [];

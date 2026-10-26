@@ -33,6 +33,26 @@ function isForbidden(error) {
 }
 
 function createManagerLeaveStore({ pool = getPool() } = {}) {
+  async function withRequestLock(requestId, callback) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query("SELECT pg_advisory_xact_lock(hashtextextended('leave:'||$1,0))",[requestId]);
+      const result = await callback({store:createManagerLeaveStore({pool:client}),leaveRepo:createHrLeaveRepository({pool:client})});
+      await client.query('COMMIT');
+      return result;
+    } catch(error) { await client.query('ROLLBACK'); throw error; }
+    finally { client.release(); }
+  }
+  async function claimCancellations(limit = 20) {
+    return claim('hr_leave_cancellation_jobs','id','true',limit);
+  }
+  async function completeCancellation(job) {
+    await pool.query('DELETE FROM hr_leave_cancellation_jobs WHERE id=$1::bigint AND lease_token=$2::uuid',[job.id,job.lease_token]);
+  }
+  async function retryCancellation(job,error) {
+    return retryOwned('hr_leave_cancellation_jobs','id',job,error,error.retryAfter);
+  }
   async function activate() {
     await pool.query(`INSERT INTO hr_manager_telegram_state(singleton)
       VALUES (true) ON CONFLICT (singleton) DO NOTHING`);
@@ -115,7 +135,8 @@ function createManagerLeaveStore({ pool = getPool() } = {}) {
 
   async function completeUpdate(job) {
     const { rows } = await pool.query(`UPDATE hr_manager_telegram_updates
-      SET completed_at = now(), lease_token = NULL, lease_until = NULL, last_error = NULL
+      SET completed_at = now(), lease_token = NULL, lease_until = NULL, last_error = NULL,
+        payload = '{}'::jsonb, effects = '[]'::jsonb, effects_done = 0
       WHERE update_id = $1::bigint AND lease_token = $2::uuid AND handled_at IS NOT NULL
         AND effects_done = jsonb_array_length(effects) RETURNING update_id`, [job.update_id, job.lease_token]);
     return rows.length > 0;
@@ -258,7 +279,7 @@ function createManagerLeaveStore({ pool = getPool() } = {}) {
     return retryOwned('hr_leave_change_events', 'id', job, error);
   }
 
-  return { activate, enqueueUpdate, claimUpdates, handleUpdate, completeEffect, completeUpdate, retryUpdate,
+  return { withRequestLock, claimCancellations, completeCancellation, retryCancellation, activate, enqueueUpdate, claimUpdates, handleUpdate, completeEffect, completeUpdate, retryUpdate,
     getSession, saveSession, deleteSession, setSessionPrompt, getDelivery, enqueueDelivery,
     recordDeliveryMessage, listCards, finishCard, requeueStaleCards, queueExistingDeliveries, claimDeliveries, finishDelivery, retryDelivery, wakeDeliveries,
     claimEvents, completeEvent, retryEvent };

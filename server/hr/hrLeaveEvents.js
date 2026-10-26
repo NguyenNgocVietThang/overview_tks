@@ -12,6 +12,7 @@ const leaveEvents = new EventEmitter();
 leaveEvents.setMaxListeners(200);
 
 const LEAVE_EVENT_TYPES = Object.freeze({
+  DELETED: 'LEAVE_REQUEST_DELETED',
   STATUS_CHANGED: 'LEAVE_STATUS_CHANGED',
   CREATED: 'LEAVE_REQUEST_CREATED'
 });

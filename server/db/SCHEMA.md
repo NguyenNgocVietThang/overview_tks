@@ -721,3 +721,15 @@ Không đổi cấu trúc bảng, chỉ đổi cách nạp giá trị khi job t�
 
 Cập nhật gần nhất: 24/10/2026.
 
+
+## 0094 — Chủ đơn hủy và xóa vĩnh viễn (26/10/2026)
+
+- `hr_leave_cancellation_jobs`: `id` identity PK, `request_id` TEXT không FK, `kind` card/notify, `telegram_chat_id`, `message_id` TEXT, `text`, `attempts`, `available_at`, `lease_token` UUID, `lease_until`, `last_error`; unique `(request_id,kind,telegram_chat_id,message_id)`. Payload xóa khi hoàn tất; lease và retry dùng cùng pattern worker quản lý.
+- `hr_leave_approver_recipients`: PK `(request_id,user_id TEXT)`, FK request cascade; trigger nhớ người duyệt từ thời điểm migration, seed người duyệt đang lưu. Không giữ nội dung quyết định; xóa cùng đơn.
+- `hr_leave_submissions.request_id` đổi FK sang ON DELETE CASCADE. Guard chỉ cho phép DELETE lồng từ cascade sau parent bị xóa; trực tiếp DELETE/UPDATE vẫn bị chặn.
+- `hr_cancel_own_leave(TEXT,TEXT,BIGINT,TEXT[])` kiểm tra owner hoạt động, loại Xin nghỉ phép, phiên bản, snapshot hữu hạn và thời hạn bằng `clock_timestamp()` sau advisory lock + khóa dòng. Tạo chuông/queue, dọn chuông cũ, xóa parent/con nguyên tử. Parent guard yêu cầu context xác thực transaction; function không cấp EXECUTE cho PUBLIC. Chạy bằng role sở hữu migration như các repository hiện có.
+- `notifications` có guard chặn INSERT liên quan leaveRequest nếu parent đã xóa, cùng advisory lock theo đơn để ngăn chuông trễ. Chuông hủy `hr_leave_cancelled` không có related_type/related_id.
+- Inbox `hr_manager_telegram_updates` dọn payload/effects khi hoàn tất, giữ update_id chống trùng; giao dịch hủy dọn thêm job tham chiếu mã đơn hoặc bản chụp request/delivery, dùng SKIP LOCKED tránh chờ ngược thứ tự khóa. Job đang xử lý dọn khi hoàn tất.
+- Reporting role không được truy cập hai bảng mới. Không thay đổi hợp đồng INSERT bot xin nghỉ bên ngoài.
+
+Cập nhật gần nhất: 26/10/2026.

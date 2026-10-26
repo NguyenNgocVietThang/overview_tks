@@ -1558,12 +1558,20 @@
       <div class="dp-body">
         <div id="leaveDetailStats" class="dp-stats"></div>
         <div id="leaveDetailBody" class="dp-body-sections"></div>
-        <div class="leave-detail-actions"><button type="button" class="btn-primary" id="leaveEditButton" hidden>Sửa và gửi lại</button> <button type="button" class="btn-primary" id="leaveHistoryButton" hidden>Lịch sử gửi đơn</button></div>
+        <div class="leave-detail-actions"><button type="button" class="btn-primary" id="leaveEditButton" hidden>Sửa và gửi lại</button> <button type="button" class="btn-primary" id="leaveHistoryButton" hidden>Lịch sử gửi đơn</button> <button type="button" class="btn-mini" id="leaveCancelButton" hidden>Hủy đơn</button></div>
         <div id="leaveHistoryBody" aria-live="polite"></div>
       </div>
     </div>
   </div>
 
+  <!-- Modal: owner confirms permanent cancellation. -->
+  <div class="modal-overlay" id="leaveCancelModal" hidden>
+    <div class="modal-box" role="alertdialog" aria-modal="true" aria-labelledby="leaveCancelHeading" aria-describedby="leaveCancelWarning">
+      <div class="modal-header"><h3 id="leaveCancelHeading">Hủy đơn nghỉ phép</h3></div>
+      <div class="modal-body"><p id="leaveCancelSummary"></p><p id="leaveCancelWarning">Đơn và lịch sử gửi sẽ bị xóa vĩnh viễn. Những người duyệt liên quan sẽ nhận thông báo hủy.</p><p id="leaveCancelError" role="alert"></p></div>
+      <div class="modal-footer"><button type="button" class="btn-mini" id="leaveCancelBack" onclick="closeLeaveCancellation()">Quay lại</button><button type="button" class="btn-primary" id="leaveCancelConfirm" onclick="confirmLeaveCancellation()">Xóa vĩnh viễn</button></div>
+    </div>
+  </div>
   <!-- Modal: nhap ly do tu choi. "Bo qua" = tu choi khong can ly do; ✕ / Esc = huy, khong doi trang thai. -->
   <div class="modal-overlay" id="rejectReasonModal" hidden>
     <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="rejectReasonHeading">
@@ -3098,6 +3106,9 @@
           return;
         }
         rawLeaveRequests = data.requests || [];
+        if(leaveDetailRequestId && !rawLeaveRequests.some(r=>r.request_id===leaveDetailRequestId)){
+          closeLeaveDetail(); closeLeaveCancellation(); showToast('Đơn không còn trong danh sách hiện tại.','warning');
+        } else if(leaveDetailRequestId && !leaveCancelTarget) openLeaveDetail(leaveDetailRequestId);
         renderStats(rawLeaveRequests);
         renderTable(rawLeaveRequests);
         if(hrCan('hr.leave')) loadUrgentSummary();
@@ -3405,6 +3416,7 @@
           ]) + '</div>') +
         '</div>';
       const editButton=document.getElementById('leaveEditButton'); editButton.hidden=r.canEdit !== true; editButton.onclick=()=>openSelfLeaveEdit(requestId);
+      const cancelButton=document.getElementById('leaveCancelButton'); cancelButton.hidden=r.canCancel !== true; cancelButton.onclick=()=>openLeaveCancellation(requestId);
       const historyButton=document.getElementById('leaveHistoryButton'); historyButton.hidden=!canReadLeaveHistory(r); historyButton.onclick=()=>loadLeaveHistory(requestId);
       document.getElementById('leaveHistoryBody').textContent=''; leaveDetailRequestId=requestId;
       openModal('leaveDetailModal');
@@ -3412,8 +3424,63 @@
 
     function closeLeaveDetail(){ leaveDetailRequestId=null; closeModal('leaveDetailModal'); }
 
+    let leaveCancelTarget=null, leaveCancelSending=false;
+    function openLeaveCancellation(id){
+      const row=rawLeaveRequests.find(r=>r.request_id===id);
+      if(!row?.canCancel) return;
+      leaveCancelTarget={id,version:row.decision_version};
+      document.getElementById('leaveCancelSummary').textContent=`${id} · ${formatLeaveCalendar(row.leave_sessions) || `${row.thoi_gian_bat_dau || ''} → ${row.thoi_gian_ket_thuc || ''}`}`;
+      document.getElementById('leaveCancelError').textContent='';
+      document.getElementById('leaveDetailModal').inert=true;
+      openModal('leaveCancelModal'); document.getElementById('leaveCancelBack').focus();
+    }
+    function closeLeaveCancellation(){
+      if(leaveCancelSending) return;
+      leaveCancelTarget=null; closeModal('leaveCancelModal');
+      document.getElementById('leaveDetailModal').inert=false;
+      if(leaveDetailRequestId) document.getElementById('leaveCancelButton').focus();
+    }
+    function removeDeletedLeave(id){
+      rawLeaveRequests=rawLeaveRequests.filter(row=>row.request_id!==id);
+      if(leaveCancelTarget?.id===id && !leaveCancelSending) closeLeaveCancellation();
+      if(leaveDetailRequestId===id){ closeLeaveDetail(); if(!leaveCancelSending) showToast('Đơn nghỉ phép đã được xóa.','warning'); }
+      if(selfLeaveEdit?.id===id){ closeSelfLeave(); showToast('Đơn đang sửa đã được xóa.','warning'); }
+      renderStats(rawLeaveRequests); renderTable(rawLeaveRequests);
+    }
+    async function confirmLeaveCancellation(){
+      if(leaveCancelSending || !leaveCancelTarget) return;
+      const target={...leaveCancelTarget}; leaveCancelSending=true;
+      const confirm=document.getElementById('leaveCancelConfirm'), back=document.getElementById('leaveCancelBack');
+      confirm.disabled=back.disabled=true;
+      try {
+        const res=await fetch(`/api/hr/leave-requests/self/${encodeURIComponent(target.id)}`,{method:'DELETE',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({expectedVersion:target.version})});
+        const {ok,data}=await parseApiResponse(res);
+        if(!ok){
+          leaveCancelSending=false; closeLeaveCancellation();
+          if(res.status===404) removeDeletedLeave(target.id);
+          showToast(data.error || 'Không thể hủy đơn. Vui lòng thử lại.','error');
+          await loadLeaveRequests(true); return;
+        }
+        removeDeletedLeave(target.id); leaveCancelSending=false; closeLeaveCancellation();
+        showToast('Đã xóa vĩnh viễn đơn nghỉ phép.','success'); await loadLeaveRequests(true);
+      } catch(error){
+        leaveCancelSending=false; closeLeaveCancellation();
+        showToast('Lỗi kết nối máy chủ. Đang tải lại dữ liệu; hãy kiểm tra đơn trước khi xác nhận lại.','error');
+        await loadLeaveRequests(true);
+      }
+      finally { leaveCancelSending=false; confirm.disabled=back.disabled=false; }
+    }
+
     document.addEventListener('keydown', event => {
+      if(event.key==='Tab' && !document.getElementById('leaveCancelModal').hidden){
+        const back=document.getElementById('leaveCancelBack'), confirm=document.getElementById('leaveCancelConfirm');
+        if(leaveCancelSending){event.preventDefault();return;}
+        if(event.shiftKey && document.activeElement===back){event.preventDefault();confirm.focus();}
+        else if(!event.shiftKey && document.activeElement===confirm){event.preventDefault();back.focus();}
+        return;
+      }
       if(event.key !== 'Escape') return;
+      if(!document.getElementById('leaveCancelModal').hidden){ closeLeaveCancellation(); return; }
       if(!document.getElementById('ruleTextModal').hidden) requestCloseRuleText();
       else if(!document.getElementById('rejectReasonModal').hidden) cancelRejectReason();
       else if(!document.getElementById('leaveDetailModal').hidden) closeLeaveDetail();
@@ -4456,6 +4523,9 @@
           try{
             const payload = JSON.parse(event.data);
             if(!payload || !payload.type) return;
+            if(payload.type==='LEAVE_REQUEST_DELETED' && payload.data){
+              removeDeletedLeave(payload.data.request_id); loadLeaveRequests(true); return;
+            }
 
             if(payload.data){
               const index = rawLeaveRequests.findIndex(r => r.request_id === payload.data.request_id);
@@ -4508,6 +4578,7 @@
                 rowEl.classList.add('row-highlight-update');
               }
             }
+            if(payload.type==='LEAVE_STATUS_CHANGED' || payload.type==='LEAVE_REQUEST_CREATED') loadLeaveRequests(true);
           }catch(err){ /* parse error */ }
         };
 
@@ -4544,7 +4615,7 @@
           if(hrCan('hr.leave.submit') || hrCan('hr.leave.manage') || hrCan('hr.leave')) loadSelfLeaveContext().catch(err => showToast(err.message, 'error'));
           if(!hrCan('hr.leave') || user.vaiTro === 'Khách') document.getElementById('btnExportExcel').hidden = true;
           if(hrCan('hr.employees')) loadEmployeeDirectory();
-          if(hrCan('hr.leave') && user.vaiTro !== 'Khách') setupLeaveRealtimeStream();
+          if(hrCan('hr.leave') || hrCan('hr.leave.submit')) setupLeaveRealtimeStream();
         });
       }
 

@@ -8,6 +8,47 @@ function page(features=['hr.leave','hr.leave.manage','hr.leave.submit']) {
   return dom;
 }
 const row={request_id:'NP-1',ho_ten:'A',trang_thai:'Đã duyệt',canManage:true,decision_version:9,thoi_gian_bat_dau:'Sáng 06/10/2026',thoi_gian_ket_thuc:'Chiều 06/10/2026'};
+
+test('owner cancellation confirms permanently, sends displayed version once and closes deleted detail',async()=>{
+ const dom=page();const w=dom.window;try{
+  w.fetch=async()=>({ok:true,status:200,json:async()=>({requests:[{...row,source:'telegram',canCancel:true}]})});await w.loadLeaveRequests();
+  w.openLeaveDetail('NP-1');assert.equal(w.document.getElementById('leaveCancelButton').hidden,false);
+  w.document.getElementById('leaveCancelButton').click();assert.match(w.document.getElementById('leaveCancelWarning').textContent,/xóa vĩnh viễn/);
+  let finish,calls=0,payload;
+  w.fetch=async(url,opts)=>{if(opts?.method==='DELETE'){calls++;payload=JSON.parse(opts.body);await new Promise(resolve=>finish=resolve);return {ok:true,status:200,json:async()=>({deleted:true,requestId:'NP-1'})};}return {ok:true,status:200,json:async()=>({requests:[]})};};
+  const pending=w.confirmLeaveCancellation();await w.confirmLeaveCancellation();assert.equal(calls,1);assert.equal(w.document.getElementById('leaveCancelConfirm').disabled,true);
+  assert.deepEqual(payload,{expectedVersion:9});finish();await pending;
+  assert.equal(w.document.getElementById('leaveCancelModal').hidden,true);assert.equal(w.document.getElementById('leaveDetailModal').hidden,true);
+ }finally{dom.window.close();}
+});
+test('stale cancellation reloads capabilities and requires a fresh explicit confirmation',async()=>{
+ const dom=page();const w=dom.window;try{
+  w.fetch=async()=>({ok:true,json:async()=>({requests:[{...row,canCancel:true}]})});await w.loadLeaveRequests();w.openLeaveDetail('NP-1');w.openLeaveCancellation('NP-1');let calls=0;
+  w.fetch=async(url,opts)=>{if(opts?.method==='DELETE'){calls++;return {ok:false,status:409,json:async()=>({error:'Đơn đã thay đổi'})};}return {ok:true,status:200,json:async()=>({requests:[{...row,decision_version:10,canCancel:false}]})};};
+  await w.confirmLeaveCancellation();assert.equal(calls,1);assert.equal(w.document.getElementById('leaveCancelModal').hidden,true);assert.equal(w.document.getElementById('leaveCancelButton').hidden,true);
+  await w.confirmLeaveCancellation();assert.equal(calls,1);
+ }finally{dom.window.close();}
+});
+
+test('deletion in one session closes an open detail in another session through SSE',async()=>{
+ const first=page(['hr.leave.submit']),second=page(['hr.leave.submit']);let deleted=false,stream;
+ try{
+  for(const dom of [first,second]){
+   dom.window.fetch=async()=>({ok:true,status:200,json:async()=>({requests:deleted?[]:[{...row,canCancel:true,user_id:'owner'}]})});
+   await dom.window.loadLeaveRequests();dom.window.openLeaveDetail('NP-1');
+  }
+  second.window.EventSource=class{constructor(){stream=this;}close(){}};second.window.setupLeaveRealtimeStream();
+  first.window.openLeaveCancellation('NP-1');
+  first.window.fetch=async(url,opts)=>{
+   if(opts?.method==='DELETE'){deleted=true;stream.onmessage({data:JSON.stringify({type:'LEAVE_REQUEST_DELETED',data:{request_id:'NP-1',user_id:'owner'}})});return {ok:true,status:200,json:async()=>({deleted:true})};}
+   return {ok:true,status:200,json:async()=>({requests:[]})};
+  };
+  await first.window.confirmLeaveCancellation();await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(second.window.document.getElementById('leaveDetailModal').hidden,true);
+  assert.equal(second.window.document.getElementById('leave-row-NP-1'),null);
+  assert.match(second.window.document.getElementById('toastContainer').textContent,/đã được xóa/);
+ }finally{first.window.close();second.window.close();}
+});
 test('approval dropdowns follow per-row canManage and submit the displayed version for reopening',async()=>{
  const dom=page();const w=dom.window;try{
  w.fetch=async()=>({ok:true,status:200,json:async()=>({requests:[row,{...row,request_id:'NP-2',canManage:false}],summary:[]})});

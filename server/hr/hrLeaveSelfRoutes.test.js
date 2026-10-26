@@ -5,6 +5,26 @@ const routes = require('./hrLeaveRoutes');
 function res() { return { code: 0, status(code) {this.code=code; return this;}, json(body) {this.body=body; return this;} }; }
 function handler(router, method, path) { const layer=router.stack.find(x=>x.route?.path===path && x.route.methods[method]); assert.ok(layer, path+' registered'); return layer.route.stack.at(-1).handle; }
 function router(deps) { assert.equal(typeof routes.createHrLeaveRoutes, 'function', 'routes support injected collaborators'); return routes.createHrLeaveRoutes(deps); }
+
+test('DELETE cancellation trusts session identity and forwards conflict without retry',async()=>{
+ let input,calls=0;
+ const app=router({cancellation:{cancel:async(...args)=>{input=args;calls++;return {request_id:'OWN',user_id:'u',co_so:'Hà Nội'};}}});
+ const response=res();await handler(app,'delete','/api/hr/leave-requests/self/:id')({user:{id:'u'},params:{id:'OWN'},body:{expectedVersion:5,userId:'spoof'}},response);
+ assert.equal(response.code,200);assert.deepEqual(response.body,{deleted:true,requestId:'OWN'});assert.deepEqual(input,[{id:'u'},'OWN',5]);assert.equal(calls,1);
+ const conflict=router({cancellation:{cancel:async()=>{throw Object.assign(new Error('Đơn đã thay đổi'),{statusCode:409,code:'LEAVE_DECISION_CONFLICT'});}}});
+ const denied=res();await handler(conflict,'delete','/api/hr/leave-requests/self/:id')({user:{id:'u'},params:{id:'OWN'},body:{expectedVersion:5}},denied);
+ assert.equal(denied.code,409);assert.equal(denied.body.code,'LEAVE_DECISION_CONFLICT');
+});
+
+test('self-only SSE includes own deletions across branches and excludes other accounts',()=>{
+ const {leaveEvents}=require('./hrLeaveEvents');let close;const chunks=[];
+ const req={user:{id:'u',vaiTro:'Khách',coSo:'Hà Nội',permissions:['hr.leave.submit']},on:(name,fn)=>{if(name==='close')close=fn;}};
+ handler(router({}),'get','/api/hr/leave-requests/stream')(req,{writeHead(){},write:text=>chunks.push(text)});
+ try{
+  for(const [user_id,branch] of [['other','Hà Nội'],['u','Sài Gòn'],['u','Hà Nội']]) leaveEvents.emit('leave-event',{type:'LEAVE_REQUEST_DELETED',branch,data:{request_id:'X',user_id}});
+  assert.equal(chunks.filter(text=>text.startsWith('data:')).length,2);
+ }finally{close();}
+});
 test('list enriches row capabilities using shared fresh authorization', async () => {
   const row = { request_id:'NP-1', bo_phan:'KHO', co_so:'Hà Nội' };
   const app=router({ repo:{getLeaveRequests:async()=>[row]}, authorization:{describeRequests:async(user, rows)=>rows.map(r=>({...r,canManage:false,routingWarning:'Chưa có người duyệt'}))} });
@@ -31,7 +51,7 @@ test('guest cannot read another request or history and cannot export or stream a
     const response=res(); await handler(app,'get',path)({user,params:{id:'OTHER'}},response);
     assert.equal(response.code,404,path);
   }
-  for (const [method,path] of [['post','/api/hr/leave-requests/export'],['get','/api/hr/leave-requests/stream'],['get','/api/hr/leave-requests/summary/urgent-flags']]) {
+  for (const [method,path] of [['post','/api/hr/leave-requests/export'],['get','/api/hr/leave-requests/summary/urgent-flags']]) {
     const route=app.stack.find(layer=>layer.route?.path===path && layer.route.methods[method]).route;
     const response=res(); let next=false;
     route.stack[2].handle({user},response,()=>{next=true;});

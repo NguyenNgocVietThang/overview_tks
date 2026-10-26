@@ -469,3 +469,7 @@ Người dùng phản ánh tài khoản quản trị không có lịch sử thô
 Khi khách hoặc hàng hóa được đổi tên trên KiotViet, báo cáo trước đây vẫn hiện tên cũ ghi trên chứng từ. Nay báo cáo hiển thị tên hiện tại, và khách cùng tên nhưng khác mã được tính là một khách trong Báo cáo hàng hóa. Số liệu tháng đã chốt giữ nguyên tên lúc chốt. Chứng từ cũ không có mã khách có thể chưa khớp lại sau khi đổi tên trong báo cáo kinh doanh tháng (chưa xử lý).
 
 Cập nhật gần nhất: 24/10/2026.
+
+## Cá nhân tự rút đơn nghỉ phép — 26/10/2026
+
+Nhân viên đổi kế hoạch được tự xóa vĩnh viễn đơn của mình trước buổi nghỉ đầu tiên, dù đang chờ, đã duyệt hay bị từ chối; áp dụng đơn gửi từ web và Telegram. Người duyệt liên quan được báo hủy, lịch và thống kê bỏ đơn. Không cho quản lý hủy thay, không áp dụng nghỉ không phép HR ghi nhận, không hủy sau giờ bắt đầu. Có xác nhận trước khi xóa, không cần duyệt lại.

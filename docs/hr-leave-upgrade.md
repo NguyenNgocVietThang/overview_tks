@@ -17,3 +17,7 @@ Quản lý người dùng: mặc định Họ và tên, Vai trò, Cơ sở, Tr�
 Áp migration 0031 trên staging trước ứng dụng mới, kể cả bot đang tắt; không sửa hợp đồng INSERT bot nhân viên. Rà grant quản lý hiện có, dự phòng senior, thiếu senior hoạt động, staff tự duyệt, sai phạm vi/khóa/thu hồi, cạnh tranh web/Telegram, mở lại, giả danh, Mini App giả/hết hạn và cột/trạng thái/Excel. Xem [checklist thực hiện](../tasks/2026-10-05-hr-approval/todo.md), [schema](../server/db/SCHEMA.md), [vận hành bot](telegram-manager-leave-setup.md).
 
 Đo p95 tiếp nhận <1 giây, kết quả thường <2 giây trên staging đang chạy; kiểm thử giả không thay thế Telegram thật. Chưa áp migration hoặc deploy production trong đợt thực hiện này.
+
+## Cá nhân hủy đơn — 26/10/2026
+
+Chủ đơn hoạt động được tự hủy trên web, kể cả đơn Telegram và đơn đã duyệt/từ chối, trước buổi nghỉ đầu tiên. Xác nhận xóa vĩnh viễn, không nhập lý do, không duyệt lại. Xóa cả lịch sử gửi; HR ghi nhận nghỉ không phép không thuộc luồng này. Người liên quan nhận chuông/Telegram; thẻ cũ mất nút duyệt. Migration 0094 bắt buộc trước backend/worker/frontend. Xem thiết kế và kế hoạch `docs/superpowers/*/2026-10-26-own-leave-cancellation*`. Kiểm thử dùng DB giả lập; chưa áp production.

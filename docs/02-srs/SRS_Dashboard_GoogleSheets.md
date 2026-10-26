@@ -889,3 +889,7 @@ Thông báo chuông của mọi tài khoản phải được lưu bền vững q
 Mọi báo cáo phải hiển thị tên khách và tên hàng hóa HIỆN TẠI trong danh mục (không dùng tên ghi trên chứng từ), nên đổi tên trên KiotViet lan sang báo cáo mà không cần đồng bộ lại hóa đơn. Báo cáo hàng hóa gộp khách cùng tên (đã chuẩn hóa) thành một khách dù khác mã. Bảng tháng đã chốt của báo cáo kinh doanh giữ tên tại thời điểm chốt. Hạn chế đã biết: chứng từ cũ không có mã khách có thể không khớp lại với khách đã đổi tên trong báo cáo kinh doanh tháng.
 
 Cập nhật gần nhất: 24/10/2026.
+
+## Bổ sung yêu cầu hủy đơn cá nhân — 26/10/2026
+
+Chỉ chủ đơn hoạt động được hủy đơn Xin nghỉ phép của mình từ web/Telegram, mọi trạng thái, trước `first_session_start_at` đã lưu. Xóa hẳn đơn và lịch sử trong giao dịch; thiếu snapshot, hết giờ, sai chủ/loại hoặc phiên bản cũ phải từ chối. DELETE self nhận expectedVersion, capability canCancel/cancelBlockedReason. Xác nhận xóa vĩnh viễn trên web; không lý do, không duyệt hủy. Chuông hủy cho người liên quan, queue Telegram độc lập để retry và vô hiệu hóa thẻ; SSE xóa giới hạn theo chủ đơn cho người chỉ xem cá nhân. Migration 0094; thiết kế chi tiết ở `docs/superpowers/specs/2026-10-26-own-leave-cancellation-design.md`.

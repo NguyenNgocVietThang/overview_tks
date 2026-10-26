@@ -254,3 +254,7 @@ Chỉ frontend (`public/shared/shared-nav.js` + `shared.css`), không migration.
 Không migration. Các lớp đọc báo cáo (`dashboardPgReader`, `documentDetailRepository`, `kiotOrdersRepository`, `vatDraft`, `priceAudit`, `businessMonthlySql`) lấy tên từ `customers.name` / `products.name` theo cơ sở + id thay cho tên ghi trên chứng từ. Bảng tính sẵn: `product_report_customers` gộp khách theo tên chuẩn hóa; `customer_invoice_lines_90d` lấy mã/tên khách hiện tại. Không đồng bộ lại hóa đơn KiotViet, chỉ chạy lại `customerInvoiceLinesRefresh` và `productReportRefresh`. Bảng tháng đã chốt giữ tên lúc chốt; khớp khách của `businessMonthlySql` theo `name_key` trên tên chứng từ còn hạn chế với chứng từ cũ không có mã khách.
 
 Cập nhật gần nhất: 24/10/2026.
+
+## 26/10/2026 — Cá nhân hủy đơn nghỉ phép
+
+Đã bổ sung giao dịch xóa chủ đơn, migration 0094, queue Telegram/chuông, SSE xóa và hộp xác nhận web cùng kiểm thử SQL/service/route/worker/giao diện. Kế hoạch: `docs/superpowers/plans/2026-10-26-own-leave-cancellation.md`. Việc vận hành còn lại: kiểm tra staging/Telegram thật, áp migration trước backend/worker/frontend; chưa sửa DB production.

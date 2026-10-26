@@ -762,3 +762,13 @@ Chuông thông báo chuyển từ file `server/data/notifications.json` sang b�
 - Sau deploy chạy lại job `customerInvoiceLinesRefresh` và `productReportRefresh` để tên mới hiện. Bảng tháng đã chốt `business_monthly_*` giữ tên lúc chốt. `businessMonthlySql` khớp khách theo `name_key` trên tên chứng từ nên chứng từ cũ không có mã khách có thể không khớp lại sau đổi tên (chưa sửa).
 
 Cập nhật gần nhất: 24/10/2026.
+
+## Cá nhân hủy đơn nghỉ phép — migration 0094
+
+Module `hr/hrLeaveCancellation.js` kiểm tra capability và gọi giao dịch `hr_cancel_own_leave`. DELETE `/api/hr/leave-requests/self/:id` nhận `{expectedVersion}`, chỉ chủ đơn hoạt động được hủy trước `first_session_start_at`; kết quả `{deleted:true,requestId}`. Danh sách/chi tiết thêm `canCancel`, `cancelBlockedReason`. HTTP 403 sai chủ/loại, 404 mất đơn, 409 phiên bản hoặc thời hạn/snapshot. Mọi trạng thái, cả web/Telegram; không hủy bản ghi HR ghi nhận.
+
+Migration `0094` thêm `hr_leave_cancellation_jobs`, `hr_leave_approver_recipients`, bảo vệ xóa parent/history và chặn chuông tạo trễ. Worker quản lý claim/retry/dọn queue, đổi thẻ cũ thành đã hủy và bỏ nút. Advisory lock cùng transaction gửi/ghi message ID phối hợp với xóa đơn. SSE cá nhân chỉ nhận đơn của mình; bridge DB phát `LEAVE_REQUEST_DELETED`. Kiểm thử mới: `hr/hrLeaveCancellation.test.js`, `db/hrLeaveCancellationMigration.test.js`; các bộ route, worker, queue và giao diện hiện có được mở rộng.
+
+Áp `npm run db:migrate` trước triển khai. Telegram dùng cấu hình bot quản lý hiện có; khi bot tắt, queue giữ việc chờ nhưng chuông web/xóa đơn vẫn commit. Theo dõi `attempts`, `available_at`, `lease_until`, `last_error` của queue. Không thêm biến môi trường hoặc dependency.
+
+Cập nhật gần nhất: 26/10/2026.

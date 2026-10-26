@@ -85,6 +85,14 @@ function createManagerLeaveRuntime({
     finally { timing('ack',started,{updateId:update.update_id}); }
   }
   async function executeEffect(effect) {
+    const requestId = effect.delivery?.requestId;
+    if (requestId && store.withRequestLock) return store.withRequestLock(requestId,async(scope)=>{
+      if (!await (scope?.leaveRepo || leaveRepo).getLeaveRequestById(requestId,BOTH_BRANCHES)) return;
+      return executeEffectUnlocked(effect,scope?.store);
+    });
+    return executeEffectUnlocked(effect);
+  }
+  async function executeEffectUnlocked(effect,lockedStore=store) {
     if (effect.method === 'notifyDecision') {
       await (notifyDecision || decisionNotifications.notifyDecision)(effect.request, effect.userId, effect.note);
       return;
@@ -93,14 +101,14 @@ function createManagerLeaveRuntime({
       throw new Error('Unsupported Telegram effect');
     }
     if (effect.session) {
-      const session = await store.getSession(effect.session.chatId);
+      const session = await lockedStore.getSession(effect.session.chatId);
       if (!session || session.session_id !== effect.session.sessionId || new Date(session.expires_at).getTime() <= Date.now()) return;
     }
     try {
       const result = await callTelegram(effect.method, effect.params);
-      if(effect.delivery && result && result.message_id) await store.recordDeliveryMessage({...effect.delivery,messageId:String(result.message_id)});
+      if(effect.delivery && result && result.message_id) await lockedStore.recordDeliveryMessage({...effect.delivery,messageId:String(result.message_id)});
       if (effect.session && result && result.message_id) {
-        await store.setSessionPrompt(effect.session.chatId, effect.session.sessionId, String(result.message_id));
+        await lockedStore.setSessionPrompt(effect.session.chatId, effect.session.sessionId, String(result.message_id));
       }
     } catch (err) {
       // A blocked private chat cannot receive effects. The committed decision
@@ -148,9 +156,13 @@ function createManagerLeaveRuntime({
   }
 
   async function processDelivery(job) {
+    if (store.withRequestLock) return store.withRequestLock(job.request_id,scope=>processDeliveryUnlocked(job,scope?.store,scope?.leaveRepo));
+    return processDeliveryUnlocked(job);
+  }
+  async function processDeliveryUnlocked(job,lockedStore=store,lockedRepo=leaveRepo) {
     try {
       const user = await getManager(job.telegram_chat_id);
-      const record = await leaveRepo.getLeaveRequestById(job.request_id, BOTH_BRANCHES);
+      const record = await lockedRepo.getLeaveRequestById(job.request_id, BOTH_BRANCHES);
       const authorized = user && String(user.id) === String(job.user_id) && record &&
         await authorization.canDecide(user,record) && record.loai_yeu_cau === 'Xin nghỉ phép';
       if (!authorized) {
@@ -158,7 +170,7 @@ function createManagerLeaveRuntime({
           try { await callTelegram('editMessageReplyMarkup', { chat_id: job.telegram_chat_id, message_id: job.message_id, reply_markup: { inline_keyboard: [] } }); }
           catch (err) { if (!err.notModified && !err.messageMissing && err.code !== 403) throw err; }
         }
-        await store.finishDelivery(job, { messageId: job.message_id, version: job.desired_version, blocked: true });
+        await lockedStore.finishDelivery(job, { messageId: job.message_id, version: job.desired_version, blocked: true });
         return;
       }
       const payload = { chat_id: job.telegram_chat_id, ...buildMessage(record, { webUrl }) };
@@ -171,9 +183,9 @@ function createManagerLeaveRuntime({
         }
       }
       if (!messageId) messageId = String((await callTelegram('sendMessage', payload)).message_id);
-      await store.finishDelivery(job, { messageId, version: record.decision_version });
+      await lockedStore.finishDelivery(job, { messageId, version: record.decision_version });
     } catch (err) {
-      await store.retryDelivery(job, err, err.retryAfter);
+      await lockedStore.retryDelivery(job, err, err.retryAfter);
       logger.error('[Telegram manager] Chưa gửi được thông báo:', err.code || 'DELIVERY_FAILED');
     }
   }
@@ -188,40 +200,58 @@ function createManagerLeaveRuntime({
     }
   }
 
-  async function refreshCards(record) {
-    for(const card of await store.listCards(record.request_id)) {
+  async function refreshCards(record,lockedStore=store) {
+    for(const card of await lockedStore.listCards(record.request_id)) {
       const user=await getManager(card.telegram_chat_id);
       const authorized=user && String(user.id)===String(card.user_id) && record.loai_yeu_cau==='Xin nghỉ phép' && await authorization.canDecide(user,record);
       const params={chat_id:card.telegram_chat_id,message_id:card.message_id};
       try {
         await callTelegram(authorized ? 'editMessageText' : 'editMessageReplyMarkup',authorized ? {...params,...buildMessage(record,{webUrl})} : {...params,reply_markup:{inline_keyboard:[]}});
       } catch(error) {
-        if(error.code===403 || error.messageMissing){await store.finishCard(card,record.decision_version,{remove:true});continue;}
+        if(error.code===403 || error.messageMissing){await lockedStore.finishCard(card,record.decision_version,{remove:true});continue;}
         if(!error.notModified)throw error;
       }
-      await store.finishCard(card,record.decision_version);
+      await lockedStore.finishCard(card,record.decision_version);
     }
   }
   async function processEvent(job, getManagers) {
+    if (store.withRequestLock) return store.withRequestLock(job.request_id,scope=>processEventUnlocked(job,getManagers,scope?.store,scope?.leaveRepo));
+    return processEventUnlocked(job,getManagers);
+  }
+  async function processEventUnlocked(job, getManagers,lockedStore=store,lockedRepo=leaveRepo) {
     try {
-      const record = await leaveRepo.getLeaveRequestById(job.request_id, BOTH_BRANCHES);
+      const record = await lockedRepo.getLeaveRequestById(job.request_id, BOTH_BRANCHES);
       if (record) {
-        await store.queueExistingDeliveries(record.request_id, record.decision_version);
-        await refreshCards(record);
+        await lockedStore.queueExistingDeliveries(record.request_id, record.decision_version);
+        await refreshCards(record,lockedStore);
         const isNewRequest = job.event_type === 'CREATE' && new Date(job.created_at).getTime() >= new Date(firstEnabledAt).getTime();
         if (record.loai_yeu_cau === 'Xin nghỉ phép' && (isNewRequest || !['Đã duyệt', 'Từ chối'].includes(record.trang_thai))) {
           for (const user of selectApprovers(await getManagers(),record).users.filter(user=>isEligibleManager(user))) {
-            await store.enqueueDelivery({ requestId: record.request_id, userId: user.id, chatId: user.telegramId, version: record.decision_version });
+            await lockedStore.enqueueDelivery({ requestId: record.request_id, userId: user.id, chatId: user.telegramId, version: record.decision_version });
           }
         }
       }
-      await store.completeEvent(job);
-    } catch (err) { await store.retryEvent(job, err); }
+      await lockedStore.completeEvent(job);
+    } catch (err) { await lockedStore.retryEvent(job, err); }
   }
 
   async function activate() {
     if(!activation) activation=store.activate().then(value=>{firstEnabledAt=value;}).catch(error=>{activation=null;throw error;});
     await activation;
+  }
+  async function processCancellation(job) {
+    try {
+      const params = {chat_id:job.telegram_chat_id,text:job.text};
+      if (job.kind === 'card') Object.assign(params,{message_id:job.message_id,reply_markup:{inline_keyboard:[]}});
+      await callTelegram(job.kind === 'card' ? 'editMessageText' : 'sendMessage',params);
+      await store.completeCancellation(job);
+    } catch(error) {
+      if (error.code === 403 || (job.kind === 'card' && (error.notModified || error.messageMissing))) await store.completeCancellation(job);
+      else {
+        await store.retryCancellation(job,error);
+        logger.error('[Telegram manager] Chưa gửi được thông báo hủy:',error.code || 'CANCELLATION_DELIVERY_FAILED');
+      }
+    }
   }
   async function drainInbox() {
     if(inboxRunning){inboxRequested=true;return;} inboxRunning=true;
@@ -231,7 +261,7 @@ function createManagerLeaveRuntime({
   }
   async function drainDeliveries() {
     if(deliveryRunning){deliveryRequested=true;return;} deliveryRunning=true;
-    try {await activate();do {deliveryRequested=false;await seedBacklog(lazyManagers);await store.requeueStaleCards();for(const job of await store.claimEvents())await processEvent(job,lazyManagers);for(let i=0;i<20;i++){const [job]=await store.claimDeliveries(1);if(!job)break;await processDelivery(job);}}while(deliveryRequested);}
+    try {await activate();do {deliveryRequested=false;if(store.claimCancellations)for(const job of await store.claimCancellations())await processCancellation(job);await seedBacklog(lazyManagers);await store.requeueStaleCards();for(const job of await store.claimEvents())await processEvent(job,lazyManagers);for(let i=0;i<20;i++){const [job]=await store.claimDeliveries(1);if(!job)break;await processDelivery(job);}}while(deliveryRequested);}
     catch(error){logger.error('[Telegram manager] Delivery tạm dừng:',error.code || 'DB_UNAVAILABLE');}
     finally {deliveryRunning=false;}
   }
@@ -243,7 +273,7 @@ function createManagerLeaveRuntime({
     timer.unref();
   }
   function stop() { clearInterval(timer); timer = null; }
-  return { telegram, store, invalidateManagers, start, stop, drain, drainInbox, acknowledgeUpdate, getManager, processUpdate, processDelivery };
+  return { telegram, store, invalidateManagers, start, stop, drain, drainInbox, acknowledgeUpdate, getManager, processUpdate, processDelivery, processCancellation };
 }
 
 function createConfiguredManagerLeaveRuntime({ logger = console } = {}) {

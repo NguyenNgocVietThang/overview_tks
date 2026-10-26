@@ -17,6 +17,7 @@ const { requireAuth, requireFeature } = require('../auth/authMiddleware');
 const defaultRepo = require('./hrLeaveRepository');
 const { hasFeature } = require('../auth/featureRegistry');
 const { createHrLeaveSelfService } = require('./hrLeaveSelfService');
+const { cancellationEligibility, createHrLeaveCancellation } = require('./hrLeaveCancellation');
 const defaultSchedules=require('./hrLeaveWorkSchedulesRepository');
 const {normalizeCalendar}=require('./hrLeaveTiming');
 const { createHrLeaveAuthorization, routingWarning } = require('./hrLeaveAuthorization');
@@ -64,6 +65,7 @@ const authorization = options.authorization || createHrLeaveAuthorization();
 const notifyApprovers = options.notifyApprovers || notificationRepo.createNotificationForUsers;
 const schedules=options.schedules || defaultSchedules;
 const selfService = options.selfService || createHrLeaveSelfService({ repo, schedules });
+const cancellation = options.cancellation || createHrLeaveCancellation({ repo, authorization });
 const decisions = options.decisions || createHrLeaveDecisionService({ repo, authorization });
 
 // Phan quyen theo TINH NANG (server/auth/featureRegistry.js).
@@ -131,7 +133,7 @@ function handleError(res, err, context) {
 // ---------------------------------------------------------------------------
 // Dat TRUOC route /:id de tranh "stream" bi hieu nham la 1 request_id.
 
-router.get('/api/hr/leave-requests/stream', ...authInternal, (req, res) => {
+router.get('/api/hr/leave-requests/stream', ...authLeaveList, (req, res) => {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache, no-transform',
@@ -143,7 +145,9 @@ router.get('/api/hr/leave-requests/stream', ...authInternal, (req, res) => {
   res.write(': connected\n\n');
 
   const watchedBranches = allowedBranches(req.user);
+  const ownOnly = req.user.vaiTro === 'Khách' || !hasFeature(req.user,'hr.leave');
   const onLeaveEvent = (payload) => {
+    if (ownOnly && String(payload?.data?.user_id) !== String(req.user.id)) return;
     // Chi day su kien cua cac co so tai khoan nay duoc phep xem.
     if (payload && payload.branch && !watchedBranches.includes(payload.branch)) return;
     try {
@@ -190,7 +194,7 @@ router.get('/api/hr/leave-requests', ...authLeaveList, async (req, res) => {
     const visible = viewAll ? rows : rows.filter(row => String(row.user_id) === String(req.user.id));
     const described = visible.length ? await authorization.describeRequests(req.user, visible) : [];
     const editContext=selfService.canEdit && described.some(row=>row.source==='web' && String(row.user_id)===String(req.user.id)) ? await selfService.context(req.user) : null;
-    const requests=await Promise.all(described.map(async row=>({...row,canEdit:selfService.canEdit ? await selfService.canEdit(req.user,row,editContext) : false})));
+    const requests=await Promise.all(described.map(async row=>({...row,...cancellationEligibility(req.user,row),canEdit:selfService.canEdit ? await selfService.canEdit(req.user,row,editContext) : false})));
     res.status(200).json({ requests });
   } catch (err) {
     handleError(res, err, 'GET /api/hr/leave-requests');
@@ -201,6 +205,13 @@ router.get('/api/hr/leave-requests', ...authLeaveList, async (req, res) => {
 router.get('/api/hr/leave-requests/self/context', requireAuth, async (req, res) => {
   try { res.status(200).json(await selfService.context(req.user)); }
   catch (err) { handleError(res, err, 'GET /api/hr/leave-requests/self/context'); }
+});
+router.delete('/api/hr/leave-requests/self/:id', requireAuth, async(req,res)=>{
+  try {
+    const record = await cancellation.cancel(req.user,req.params.id,req.body?.expectedVersion);
+    broadcastLeaveEvent(LEAVE_EVENT_TYPES.DELETED,record,record.co_so);
+    res.status(200).json({deleted:true,requestId:record.request_id});
+  } catch(err) { handleError(res,err,'DELETE own leave request'); }
 });
 router.post('/api/hr/leave-requests/self/preview', requireAuth, async(req,res)=>{
   try {res.status(200).json(await selfService.preview(req.user,req.body || {}));}
@@ -291,7 +302,7 @@ router.get('/api/hr/leave-requests/:id', ...authLeaveList, async (req, res) => {
       return res.status(404).json({ error: `Không tìm thấy yêu cầu "${req.params.id}".`, code: 'LEAVE_REQUEST_NOT_FOUND' });
     }
     const [described] = await authorization.describeRequests(req.user, [request]);
-    res.status(200).json({ request: {...described,canEdit:selfService.canEdit ? await selfService.canEdit(req.user,request) : false} });
+    res.status(200).json({ request: {...described,...cancellationEligibility(req.user,request),canEdit:selfService.canEdit ? await selfService.canEdit(req.user,request) : false} });
   } catch (err) {
     handleError(res, err, 'GET /api/hr/leave-requests/:id');
   }
