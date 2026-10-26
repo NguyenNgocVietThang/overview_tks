@@ -181,15 +181,6 @@ async function listHistory(db, id) {
   return rows;
 }
 
-/** Ten SP hien tai theo ma (product_report gop 2 co so). */
-async function findProduct(db, productCode) {
-  const { rows } = await db.query(
-    `SELECT product_code, product_name FROM product_report WHERE lower(btrim(product_code)) = lower(btrim($1)) LIMIT 1`,
-    [productCode]
-  );
-  return rows[0] || null;
-}
-
 /** Tra nhieu ma SP cung luc (form nhieu dong) -> Map(lower(btrim(code)) -> { product_code, product_name }). */
 async function findProducts(db, productCodes) {
   const keys = [...new Set(productCodes.map(code => String(code || '').trim().toLowerCase()).filter(Boolean))];
@@ -301,7 +292,6 @@ module.exports = {
   updateRequest,
   insertHistory,
   listHistory,
-  findProduct,
   findProducts,
   latestProductPrices,
   suggestProducts,
