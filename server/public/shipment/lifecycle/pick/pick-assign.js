@@ -7,25 +7,25 @@
   const R=window.PickingRules,C=window.PickingCarton;
   const API='/api/shipment/pick';
   const STATUS_LABEL={picking:'Đang nhặt',confirmed:'Xác nhận nhặt',cancelled:'Hủy nhặt'};
-  const REFETCH_CODES=['VERSION_CONFLICT','INSUFFICIENT_AVAILABLE','STOCK_CHANGED','ALREADY_ASSIGNED'];
+  const REFETCH_CODES=['VERSION_CONFLICT','INVALID_STATE','INSUFFICIENT_AVAILABLE','STOCK_CHANGED','ALREADY_ASSIGNED'];
   const $=id=>document.getElementById(id);
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmt=v=>Number(v||0).toLocaleString('en-US',{maximumFractionDigits:3});
   const fmtSt=v=>Number(v).toLocaleString('en-US',{maximumFractionDigits:2});
   const key=v=>R.key(v);
   const round6=n=>Math.round(n*1e6)/1e6;
-  const state={listOrder:null,order:null,cand:{},assignment:null,allocations:{},suggestions:{},busy:false,reopened:false,armed:false,onChange:null};
+  const state={listOrder:null,order:null,cand:{},assignment:null,allocations:{},suggestions:{},busy:false,needsSync:true,requestEpoch:0,reopened:false,armed:false,onChange:null};
 
   const DIALOGS_HTML='<dialog id="pickingDialog" aria-labelledby="pickingTitle"><div class="dp-head"><div class="dp-head-text"><h2 class="dp-title" id="pickingTitle"></h2><p class="dp-subtitle">Chọn vị trí và điều chỉnh số lượng nhặt. Tổng phân bổ không vượt quá số lượng cần nhặt; vị trí được giữ chỗ cho đơn này sau khi xác nhận.</p></div><button id="pickingClose" type="button" class="dp-close" aria-label="Đóng chỉ định vị trí">×</button></div>'
     +'<div class="picking-body"><div class="picking-status-bar"><span id="pickingOrderStatus" class="picking-order-status" data-status="">Chưa chỉ định</span><button id="pickingConfirmPick" type="button" class="btn-primary" hidden>Xác nhận nhặt</button><button id="pickingCancelPick" type="button" hidden>Hủy nhặt</button><button id="pickingReopen" type="button" hidden>Chỉ định lại</button><button id="pickingReprint" type="button" hidden>In đơn</button></div>'
     +'<p id="pickingSource" class="picking-source"></p><div class="picking-table-wrap"><table class="dp-table picking-table" data-table-controls="off" data-table-sort="off"><thead><tr><th>Mã hàng</th><th>Tên hàng</th><th>Cần nhặt</th><th title="Số thùng thực nhặt theo chỉ định (SL nhặt / SL mỗi thùng). Trống khi dòng chưa chỉ định đủ SL; lẻ hiện đỏ.">ST</th><th title="Tổng khả dụng cùng mã tại cơ sở sau giữ chỗ của các đơn khác">Tồn kho</th><th>Vị trí kho</th></tr></thead><tbody id="pickingRows"></tbody></table></div><p id="pickingStatus" role="status"></p></div>'
-    +'<div class="picking-footer"><span id="pickingProgress"></span><div><button id="pickingSuggest" type="button">Gợi ý lại</button><button id="pickingConfirm" type="button" class="btn-primary">Xác nhận &amp; In phiếu nhặt</button></div></div></dialog>'
+    +'<div class="picking-footer"><span id="pickingProgress"></span><div><button id="pickingReload" type="button" hidden>Tải lại</button><button id="pickingSuggest" type="button">Gợi ý lại</button><button id="pickingConfirm" type="button" class="btn-primary">Xác nhận &amp; In phiếu nhặt</button></div></div></dialog>'
     +'<dialog id="pickingPrintDialog" aria-labelledby="pickingPrintTitle"><div class="dp-head"><div><p class="dp-kicker">PHIẾU NHẶT HÀNG</p><h2 class="dp-title" id="pickingPrintTitle">Xem trước phiếu nhặt</h2></div><div><button id="pickingPrintBtn" type="button" class="btn-primary">In phiếu</button><button id="pickingPrintClose" type="button" class="dp-close" aria-label="Đóng bản in">×</button></div></div><div id="pickingPrintSheet"></div></dialog>';
 
   // ---------- Gọi API ----------
   async function api(method,url,body){
     const res=await fetch(url,{method,credentials:'same-origin',cache:'no-store',headers:body?{'Content-Type':'application/json'}:undefined,body:body?JSON.stringify(body):undefined});
-    let data={};try{data=await res.json();}catch(error){/* thân rỗng */}
+    const data=await res.json();
     return {ok:!!res.ok,status:res.status,data:data||{}};
   }
 
@@ -48,7 +48,7 @@
     const seen=new Map();lines().forEach(l=>rowsFor(l).forEach(r=>{if(!seen.has(r.id))seen.set(r.id,r);}));
     return [...seen.values()];
   }
-  const editable=()=>!!state.order&&!state.assignment&&state.order.eligible!==false;
+  const editable=()=>!!state.order&&!state.assignment&&state.order.eligible!==false&&!state.busy&&!state.needsSync;
 
   // ---------- Gợi ý phân bổ ----------
   function suggest(){
@@ -95,16 +95,18 @@
       const shared=unknown?null:before,st=stOfLine(l,i,picks);
       return `<tr data-line="${i}"><td class="picking-code">${esc(l.productCode)}</td><td>${esc(l.productName)}</td><td class="picking-need"><strong>${fmt(l.quantity)}</strong><small class="${lineOk(i)?'picking-good':'picking-bad'}" data-allocated="${total}">${fmt(total)}/${fmt(l.quantity)}</small></td><td class="picking-st" data-st="${st===null?'':st}"><strong class="${st!==null&&!C.isWhole(st)?'picking-st-frac':''}">${st===null?'':fmtSt(st)}</strong></td><td class="picking-total" data-total-code="${esc(l.productCode)}" data-shared-available="${shared===null?'unknown':shared}" data-remaining="${unknown?'unknown':before-selected}"><strong class="${shared===null?'picking-bad':'picking-good'}">${shared===null?'Chưa xác định':fmt(shared)}</strong></td><td><div class="picking-locations">${rows.map(r=>{
         const take=picks.find(p=>p.id===r.id)?.quantity||0,available=R.quantity(r.available),hint=(state.suggestions[i]||[]).some(p=>p.id===r.id);
-        const off=a||available===null||!r.location||!available?'disabled':'';
+        const off=!editable()||available===null||!r.location||!available?'disabled':'';
         const row=r.spec&&take?C.cartonsFor(r.spec,take):null;
         const locSt=a?(a.status==='cancelled'?null:(a.lines.find(j=>String(j.positionId)===r.id&&key(j.productCode)===key(l.productCode))?.stCartons??null)):row;
         const label=available===null?(r.warnings.length?esc(C.WARNING_LABEL[r.warnings[0]]||r.warnings[0]):(a?esc(r.specText):'Chưa rõ SL')):fmt(available);
-        return `<div class="picking-loc ${take?'selected':''}" data-zone="${esc(String(r.location||'').trim().charAt(0).toUpperCase())}"><button type="button" class="picking-location ${take?'selected':''} ${hint?'suggested':''}" data-line="${i}" data-location="${esc(r.id)}" aria-pressed="${!!take}" ${off}><strong>${esc(r.location||'Chưa có vị trí')}</strong><span>${label}</span>${r.specText&&available!==null?`<small class="picking-spec ${r.warnings.length?'picking-st-frac':''}" title="${esc(r.warnings.map(w=>C.WARNING_LABEL[w]||w).join(', '))}">${esc(r.specText)}</small>`:''}</button><div class="picking-qty"><div class="picking-stepper"><button type="button" data-step="-1" data-qline="${i}" data-qloc="${esc(r.id)}" aria-label="Giảm SL nhặt ${esc(l.productCode)} ${esc(r.location)}" ${off}>−</button><input type="text" inputmode="decimal" data-qty data-qline="${i}" data-qloc="${esc(r.id)}" value="${fmt(take)}" aria-label="SL nhặt ${esc(l.productCode)} ${esc(r.location)}" ${off}><button type="button" data-step="1" data-qline="${i}" data-qloc="${esc(r.id)}" aria-label="Tăng SL nhặt ${esc(l.productCode)} ${esc(r.location)}" ${off}>+</button></div></div>${locSt===null||locSt===undefined?'':`<small class="picking-loc-st ${C.isWhole(locSt)?'':'picking-st-frac'}" data-loc-st="${locSt}">ST ${fmtSt(locSt)}</small>`}</div>`;
+        return `<div class="picking-loc ${take?'selected':''}" data-zone="${esc(String(r.location||'').trim().charAt(0).toUpperCase())}"><button type="button" class="picking-location ${take?'selected':''} ${hint?'suggested':''}" data-line="${i}" data-location="${esc(r.id)}" aria-pressed="${!!take}" ${off}><strong>${esc(r.location||'Chưa có vị trí')}</strong><span>${label}</span>${r.specText&&available!==null?`<small class="picking-spec ${r.warnings.length?'picking-st-frac':''}" title="${esc(r.warnings.map(w=>C.WARNING_LABEL[w]||w).join(', '))}">${esc(r.specText)}</small>`:''}</button><div class="picking-qty"><div class="picking-stepper"><button type="button" data-step="-1" data-qline="${i}" data-qloc="${esc(r.id)}" aria-label="Giảm SL nhặt ${esc(l.productCode)} ${esc(r.location)}" ${off}>−</button><input type="text" inputmode="numeric" step="1" data-qty data-qline="${i}" data-qloc="${esc(r.id)}" value="${fmt(take)}" aria-label="SL nhặt ${esc(l.productCode)} ${esc(r.location)}" ${off}><button type="button" data-step="1" data-qline="${i}" data-qloc="${esc(r.id)}" aria-label="Tăng SL nhặt ${esc(l.productCode)} ${esc(r.location)}" ${off}>+</button></div></div>${locSt===null||locSt===undefined?'':`<small class="picking-loc-st ${C.isWhole(locSt)?'':'picking-st-frac'}" data-loc-st="${locSt}">ST ${fmtSt(locSt)}</small>`}</div>`;
       }).join('')||'<span class="picking-bad">Chưa tìm thấy vị trí của mã này.</span>'}</div></td></tr>`;
     }).join('');
     const errors=order?R.validate(ls,allLocations(),state.allocations):['no-order'];
     $('pickingProgress').textContent=ls.filter((l,i)=>lineOk(i)).length+'/'+ls.length+' mã hàng đã phân bổ đủ';
-    const busy=state.busy;
+    const busy=state.busy||state.needsSync;
+    $('pickingReload').hidden=!state.needsSync;
+    $('pickingReload').disabled=state.busy;
     $('pickingSuggest').disabled=!!a||!editable()||busy;
     $('pickingConfirm').disabled=!!a||!editable()||busy||!!errors.length;
     $('pickingConfirm').textContent=a?'Đã xác nhận vị trí':'Xác nhận & In phiếu nhặt';
@@ -116,75 +118,104 @@
     $('pickingReopen').textContent=state.armed?'Bấm lại để hoàn tác nhặt và chỉ định lại':'Chỉ định lại';
     $('pickingReprint').hidden=!(status==='picking'||status==='confirmed');$('pickingReprint').disabled=busy;
     if(!order)return;
-    const hint=a?'Đã chỉ định bởi '+(a.assignedByName||'—')+'. Bản ghi được giữ chỗ trên máy chủ.'
+    const validationErrors=Array.isArray(order.validationErrors)?order.validationErrors:[];
+    const hint=validationErrors.length?validationErrors.join('; '):a?'Đã chỉ định bởi '+(a.assignedByName||'—')+'. Bản ghi được giữ chỗ trên máy chủ.'
       :editable()?'Gợi ý mới: chọn vị trí đủ hàng có lượng khả dụng sát số cần nhất.':'Chỉ định chỉ áp dụng cho đơn “Đã gửi kế toán”.';
     $('pickingSource').textContent=hint;
   }
 
   // ---------- Tải dữ liệu ----------
-  async function load(){
+  const current=epoch=>epoch===state.requestEpoch;
+  async function load(epoch=state.requestEpoch){
     const o=state.listOrder;
     const r=await api('GET',API+'/candidates?branch='+encodeURIComponent(o.branch)+'&order='+encodeURIComponent(o.orderCode));
-    if(!r.ok){state.order=null;setStatus(r.data.error||'Không tải được dữ liệu chỉ định.',true);return false;}
+    if(!current(epoch))return false;
+    if(!r.ok||!r.data.order)throw new Error(r.data.error||'Không tải được dữ liệu chỉ định.');
     state.order=r.data.order;state.cand=r.data.candidates||{};
     const latest=r.data.assignment||null;
     state.assignment=state.reopened&&latest&&latest.status==='cancelled'?null:latest;
-    state.armed=false;
-    if(state.assignment)allocationsFromAssignment();else suggest();
+    state.armed=false;state.needsSync=false;
+    if(state.assignment)allocationsFromAssignment();else if(state.order.eligible!==false)suggest();else state.allocations={};
     return true;
+  }
+  async function reloadCurrent(epoch=state.requestEpoch,message='',changed=false){
+    if(!current(epoch))return false;
+    state.busy=true;state.needsSync=true;render();
+    try{
+      const ok=await load(epoch);
+      if(!ok)return false;
+      if(changed)notify();
+      setStatus(message?message+' Đã tải lại dữ liệu mới nhất.':'',!!message);
+      return true;
+    }catch(error){
+      if(current(epoch)){
+        state.needsSync=true;
+        setStatus((message?message+' ':'')+'Không kết nối được để xác minh trạng thái. Hãy Tải lại trước khi thao tác tiếp.',true);
+      }
+      return false;
+    }finally{
+      if(current(epoch)){state.busy=false;render();}
+    }
   }
   async function open(listOrder){
     ensureDialogs();
-    state.listOrder=listOrder;state.reopened=false;state.order=null;state.assignment=null;state.allocations={};state.suggestions={};
+    const epoch=++state.requestEpoch;
+    state.listOrder=listOrder;state.reopened=false;state.order=null;state.assignment=null;state.allocations={};state.suggestions={};state.busy=false;state.needsSync=true;
     $('pickingTitle').textContent=listOrder.orderCode+' · '+(listOrder.branch==='SG'?'Sài Gòn':'Hà Nội');
     setStatus('Đang tải…');render();
     if(!$('pickingDialog').open)$('pickingDialog').showModal();
-    const ok=await load();
-    if(ok)setStatus('');
-    render();
-  }
-  function fail(r){
-    const text=(r.data&&r.data.error)||'Không thực hiện được. Thử lại sau.';
-    if(r.data&&REFETCH_CODES.includes(r.data.code)){
-      return load().then(()=>{render();setStatus(text+' Đã tải lại dữ liệu mới nhất.',true);});
-    }
-    setStatus(text,true);render();return Promise.resolve();
+    await reloadCurrent(epoch);
   }
   function notify(){if(state.onChange)state.onChange(state.assignment);}
-  function busy(flag){state.busy=flag;render();}
+
+  // A rejected POST can already have committed. Only reads may be retried automatically.
+  async function write(url,body){
+    const epoch=state.requestEpoch;
+    state.busy=true;render();
+    try{
+      const r=await api('POST',url,body);
+      if(!current(epoch))return false;
+      if(r.status>=500)throw new Error('Chưa xác định được kết quả thao tác.');
+      if(!r.ok){
+        const message=r.data.error||'Không thực hiện được. Thử lại sau.';
+        if(REFETCH_CODES.includes(r.data.code))await reloadCurrent(epoch,message,true);
+        else setStatus(message,true);
+        return false;
+      }
+      if(!r.data.assignment)throw new Error('Phản hồi không có trạng thái chỉ định.');
+      state.assignment=r.data.assignment;state.armed=false;state.needsSync=false;
+      setStatus('');notify();return true;
+    }catch(error){
+      if(current(epoch))await reloadCurrent(epoch,'Chưa xác định được kết quả thao tác do lỗi kết nối.',true);
+      return false;
+    }finally{
+      if(current(epoch)){state.busy=false;render();}
+    }
+  }
 
   // ---------- Thao tác ----------
   async function submitAssign(){
-    if(state.busy||!editable()||R.validate(lines(),allLocations(),state.allocations).length)return;
+    if(!editable()||R.validate(lines(),allLocations(),state.allocations).length)return;
     const allocations=[];
     lines().forEach((l,i)=>(state.allocations[i]||[]).forEach(p=>{if(p.quantity>0)allocations.push({productCode:l.productCode,positionId:Number(p.id),qty:p.quantity});}));
-    busy(true);
-    const r=await api('POST',API,{branch:state.order.branch,orderCode:state.order.orderCode,allocations});
-    state.busy=false;
-    if(!r.ok){await fail(r);return;}
-    state.assignment=r.data.assignment;state.reopened=false;setStatus('');
-    notify();render();
+    if(!await write(API,{branch:state.order.branch,orderCode:state.order.orderCode,allocations}))return;
+    state.reopened=false;
     $('pickingDialog').close();
     await printPick();
   }
   async function changeStatus(action){
-    const a=state.assignment;if(!a||state.busy)return false;
-    busy(true);
-    const r=await api('POST',API+'/'+encodeURIComponent(a.id)+'/'+action,{version:a.version});
-    state.busy=false;
-    if(!r.ok){await fail(r);return false;}
-    state.assignment=r.data.assignment;state.armed=false;setStatus('');
-    notify();render();return true;
+    const a=state.assignment;if(!a||state.busy||state.needsSync)return false;
+    return write(API+'/'+encodeURIComponent(a.id)+'/'+action,{version:a.version});
   }
   async function reopen(){
-    const a=state.assignment;if(!a||state.busy)return;
+    const a=state.assignment;if(!a||state.busy||state.needsSync)return;
+    const epoch=state.requestEpoch;
     // Sau Xác nhận nhặt, chỉ định lại sẽ hoàn tác số thùng đã trừ: bấm hai lần để xác nhận.
     if(a.status==='confirmed'&&!state.armed){state.armed=true;render();return;}
     if(a.status==='confirmed'&&!await changeStatus('cancel'))return;
+    if(!current(epoch))return;
     state.reopened=true;
-    busy(true);const ok=await load();state.busy=false;
-    if(ok)setStatus('');
-    render();
+    await reloadCurrent(epoch);
   }
   async function printPick(){
     const a=state.assignment;
@@ -195,11 +226,15 @@
       setStatus('Không mở được phiếu in: '+(error&&error.message||'lỗi'),true);
     }
   }
-  const parseQty=text=>{const n=Number(String(text).trim().replace(/,/g,''));return Number.isFinite(n)?n:0;};
+  const parseQty=text=>{
+    const raw=String(text).trim();
+    if(!/^(?:\d+|\d{1,3}(?:,\d{3})+)$/.test(raw))return null;
+    const n=Number(raw.replace(/,/g,''));return Number.isSafeInteger(n)&&n>=0?n:null;
+  };
   // SL nhặt tại một vị trí: không âm, không vượt tồn khả dụng của vị trí và không làm tổng của dòng vượt SL cần nhặt.
   function setQty(i,id,value){
     const line=lines()[i],rows=rowsFor(line),row=rows.find(r=>r.id===id),available=R.quantity(row&&row.available);
-    if(!line||available===null)return;
+    if(!line||available===null||!Number.isSafeInteger(value)||value<0)return;
     const picks=state.allocations[i]||[],others=picks.filter(p=>p.id!==id).reduce((s,p)=>s+p.quantity,0);
     const usedByOtherLines=lines().reduce((s,_,j)=>s+(j===i?0:(state.allocations[j]||[]).filter(p=>p.id===id).reduce((n,p)=>n+p.quantity,0)),0);
     const cap=Math.max(0,Math.min(available-usedByOtherLines,line.quantity-others+(row.perCarton?row.perCarton-1:0)));
@@ -230,7 +265,9 @@
   }
   function onRowsChange(event){
     if(!editable()||!event.target.matches('[data-qty]'))return;
-    setQty(Number(event.target.dataset.qline),event.target.dataset.qloc,parseQty(event.target.value));render();
+    const qty=parseQty(event.target.value);
+    if(qty===null){setStatus('Số lượng nhặt phải là số nguyên không âm.',true);render();return;}
+    setStatus('');setQty(Number(event.target.dataset.qline),event.target.dataset.qloc,qty);render();
   }
 
   let bound=false;
@@ -247,7 +284,9 @@
     $('pickingCancelPick').addEventListener('click',()=>changeStatus('cancel'));
     $('pickingReopen').addEventListener('click',reopen);
     $('pickingReprint').addEventListener('click',()=>printPick());
+    $('pickingReload').addEventListener('click',()=>{if(!state.busy)reloadCurrent(state.requestEpoch,'',true);});
     $('pickingClose').addEventListener('click',()=>$('pickingDialog').close());
+    $('pickingDialog').addEventListener('close',()=>{state.requestEpoch++;state.busy=false;state.needsSync=true;});
     $('pickingPrintClose').addEventListener('click',()=>$('pickingPrintDialog').close());
     // Esc chỉ đóng hộp chỉ định/phiếu đang mở, không đóng luôn hộp chi tiết đơn bên dưới.
     document.addEventListener('keydown',event=>{if(event.key==='Escape'&&['pickingDialog','pickingPrintDialog'].some(id=>$(id)&&$(id).open))event.stopImmediatePropagation();},true);

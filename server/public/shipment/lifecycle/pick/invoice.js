@@ -9,7 +9,24 @@ const key=v=>String(v??'').trim().toLowerCase();
 const esc=v=>String(v??'—').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const qtyText=v=>Number(v).toLocaleString('en-US',{maximumFractionDigits:3});
 const stText=v=>v===null||v===undefined?'':Number(v).toLocaleString('en-US',{maximumFractionDigits:2});
-const money=v=>typeof v==='number'&&Number.isFinite(v)?v.toLocaleString('en-US',{maximumFractionDigits:0}):'—';
+// Decimal strings from snapshot v2 are rounded only for display, without losing large integer digits.
+const decimal=v=>{
+  if(v===null||v===undefined||v==='')return null;
+  const s=String(v),m=/^(-?)(\d+)(?:\.(\d+))?$/.exec(s);
+  return m?{negative:m[1]==='-',whole:m[2],fraction:m[3]||''}:null;
+};
+const money=v=>{
+  const d=decimal(v);if(!d)return '—';
+  let whole=BigInt(d.whole);if(d.fraction[0]>='5')whole+=1n;
+  return(d.negative&&whole!==0n?'-':'')+whole.toString().replace(/\B(?=(\d{3})+(?!\d))/g,',');
+};
+const sumMoney=(a,b)=>{
+  const x=decimal(a),y=decimal(b);if(!x||!y)return null;
+  const scale=Math.max(x.fraction.length,y.fraction.length);
+  const coefficient=d=>BigInt(d.whole+d.fraction.padEnd(scale,'0'))*(d.negative?-1n:1n);
+  const n=coefficient(x)+coefficient(y),digits=(n<0n?-n:n).toString().padStart(scale+1,'0');
+  return(n<0n?'-':'')+(scale?digits.slice(0,-scale)+'.'+digits.slice(-scale):digits);
+};
 const replace=(html,values)=>html.replace(/\{([^{}]+)\}/g,(token,k)=>Object.hasOwn(values,k)?esc(values[k]):token);
 let assetsPromise=null;
 
@@ -47,6 +64,9 @@ function loadAssets(){
 /* order: assignment.snapshot (+ orderCode, branch); record: assignment. Trả Promise (nạp mẫu lần đầu cần mạng). */
 async function show(order,record){
   await loadAssets();
+  let style=document.getElementById('pickingInvoiceStyle');
+  if(!style){style=document.createElement('style');style.id='pickingInvoiceStyle';document.head.append(style);}
+  style.textContent=window.PickingPrintCSS;
   const root=document.createElement('div');
   root.className='tokosi-invoice';root.innerHTML=window.PickingInvoiceTemplate;
   // Mẫu có selector toàn cục; stylesheet của popup đã giới hạn phạm vi cho nó.
@@ -54,51 +74,58 @@ async function show(order,record){
   const row=[...root.querySelectorAll('tr')].find(el=>el.textContent.includes('{STT}'));
   const table=row.closest('table');table.classList.add('invoice-goods');
   let total=0,totalKnown=true,index=0;
+  const v2=order.schemaVersion===2,seenCodes=new Map();
   (order.lines||[]).forEach(line=>{
     const jobs=(record.lines||[]).filter(j=>key(j.productCode)===key(line.productCode));
     const qty=Number(line.quantity);
     if(!(qty>0))return;
-    const unit=typeof line.price==='number'&&Number.isFinite(line.price)?line.price-(line.discount??0):null;
-    const amount=unit===null?null:unit*qty;
-    if(amount===null)totalKnown=false;else total+=amount;
+    const unit=v2?line.unitPrice:(typeof line.price==='number'&&Number.isFinite(line.price)?line.price-(line.discount??0):null);
+    const amount=v2?line.amount:(unit===null?null:unit*qty);
+    if(amount===null||amount===undefined)totalKnown=false;else if(!v2)total+=amount;
     const assigned=jobs.map(j=>j.location||'—');
     // Một khu: chỉ tên khu. Từ hai khu trở lên: mỗi khu một dòng "Tên khu: số thùng" (vd "A07: 1Tx50" / "B06: 2Tx60-20"); thiếu quy cách thì ghi SL.
     const multiZone=new Set(assigned).size>1;
-    const placement=multiZone?jobs.map((j,n)=>assigned[n]+': '+(j.stText||j.plannedQty)).join('\n'):[...new Set(assigned)].join(' / ');
+    const priorLine=seenCodes.get(key(line.productCode));
+    const placement=priorLine?'Vị trí/ST: xem dòng '+priorLine:(multiZone?jobs.map((j,n)=>assigned[n]+': '+(j.stText||j.plannedQty)).join('\n'):[...new Set(assigned)].join(' / '));
     // ST lấy từ bản ghi chỉ định nên in lại ra cùng số; trống khi đã Hủy nhặt hoặc chưa có quy cách thùng.
     const cancelled=record.status==='cancelled';
-    const stLabel=cancelled?'':jobs.map(j=>j.stText).filter(Boolean).join(' + ');
+    const stLabel=cancelled||priorLine?'':jobs.map(j=>j.stText).filter(Boolean).join(' + ');
     const cartons=jobs.every(j=>typeof j.stCartons==='number')&&jobs.length?jobs.reduce((n,j)=>n+j.stCartons,0):null;
     const rendered=document.createElement('tbody');
     rendered.innerHTML=replace(row.outerHTML,{
       STT:++index,Ten_Hang_Hoa_Don_Gian:line.productName+' ('+line.productCode+')',
       So_Luong:qtyText(qty),Don_Gia_Sau_Chiet_Khau:money(unit),Thanh_Tien:money(amount),
-      Vi_Tri_Hang_Hoa:placement,Ghi_Chu_Hang_Hoa:line.note||'',Thuc_Te_Nhat:'',ST:cancelled?'':(stLabel||stText(cartons))
+      Vi_Tri_Hang_Hoa:placement,Ghi_Chu_Hang_Hoa:line.note||'',Thuc_Te_Nhat:'',ST:cancelled||priorLine?'':(stLabel||stText(cartons))
     });
     const item=rendered.firstElementChild;
-    if(stLabel?stLabel.includes('-'):cartons!==null&&!Number.isInteger(cartons))item.querySelector('td.invoice-st')?.classList.add('invoice-st-frac');
+    if(!priorLine&&!cancelled&&(stLabel?stLabel.includes('-'):cartons!==null&&!Number.isInteger(cartons)))item.querySelector('td.invoice-st')?.classList.add('invoice-st-frac');
     if(multiZone)[...item.querySelectorAll('td')].filter(td=>td.textContent.includes(assigned[0]+': ')).forEach(td=>{td.style.whiteSpace='pre-line';});
     row.before(item);
+    if(!priorLine)seenCodes.set(key(line.productCode),index);
   });
   row.remove();
   const discount=order.invoiceDiscount,prior=order.priorDebt;
-  const payable=totalKnown&&typeof discount==='number'&&Number.isFinite(discount)?total-discount:null;
+  if(v2){total=order.goodsTotal;totalKnown=decimal(total)!==null;}
+  const payable=v2?order.payable:(totalKnown&&typeof discount==='number'&&Number.isFinite(discount)?total-discount:null);
+  const debt=sumMoney(payable,prior);
   const now=new Date();
+  const dateParts=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Ho_Chi_Minh',day:'numeric',month:'numeric',year:'numeric'}).formatToParts(now);
+  const datePart=name=>dateParts.find(part=>part.type===name).value;
   root.innerHTML=replace(root.innerHTML,{
     // Bản in ghi cả ID Telegram cạnh tên sale, đúng dạng KiotViet lưu: "<tên> - <ID>".
     Nhan_Vien_Ban_Hang:(order.saleName||'')+(order.saleTelegramId?' - '+order.saleTelegramId:''),Dien_Thoai_Nguoi_Ban:order.sellerPhone,
     Ma_Don_Hang:order.orderCode,Khach_Hang:order.customerName,So_Dien_Thoai:order.customerPhone,Dia_Chi_Khach_Hang:order.customerAddress,
     Tong_Tien_Hang:money(totalKnown?total:null),Chiet_Khau_Hoa_Don:money(discount),Tong_Cong:money(payable),Du_No_Truoc:money(prior),
-    Du_No_Hoa_Don:money(payable!==null&&typeof prior==='number'&&Number.isFinite(prior)?payable+prior:null),
-    Du_No_Tam_Tinh:money(payable!==null&&typeof prior==='number'&&Number.isFinite(prior)?payable+prior:null),
-    Ghi_Chu:order.note||'',Ngay:now.getDate(),Thang:now.getMonth()+1,Nam:now.getFullYear()
+    Du_No_Hoa_Don:money(debt),Du_No_Tam_Tinh:money(debt),
+    Ghi_Chu:order.note||'',Ngay:datePart('day'),Thang:datePart('month'),Nam:datePart('year')
   });
   const title='PHIẾU ĐẶT HÀNG';
   const heading=[...root.querySelectorAll('strong')].find(el=>/HÓA ĐƠN\s*BÁN\s*HÀNG/.test(el.textContent.replace(/ /g,' ')));
   if(heading)heading.textContent=title;
   const marker=document.createElement('p');marker.className='invoice-demo';
   marker.textContent=order.orderCode+' · '+(order.branch==='SG'?'Sài Gòn':'Hà Nội')+' · Chưa ghi thực tế nhặt'+(record.assignedByName?' · Chỉ định bởi '+record.assignedByName:'')+'.';
-  root.prepend(marker);
+  root.append(marker);
+  if(!v2){const warning=document.createElement('p');warning.className='invoice-legacy';warning.textContent='Phiếu cũ chưa lưu dòng gốc; tiền hiển thị theo dữ liệu đã lưu, chưa đối chiếu được chi tiết ban đầu.';root.prepend(warning);}
   root.setAttribute('contenteditable','true');
   root.setAttribute('aria-label','Nội dung phiếu có thể chỉnh sửa trước khi in');
   root.setAttribute('spellcheck','false');

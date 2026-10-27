@@ -393,3 +393,160 @@ test('in lại (In đơn) mở phiếu từ bản ghi chỉ định; Hủy nhặ
   assert.doesNotMatch(page.document.getElementById('pickingPrintSheet').textContent, /2Tx50/);
   page.dom.window.close();
 });
+
+test('lỗi tải ban đầu hết bận, cho tải lại mà không gửi lệnh ghi', async () => {
+  let offline = true;
+  const page = await renderPage({ fetchImpl: async url => {
+    if (url.includes('/pick/candidates') && offline) throw new TypeError('offline');
+  } });
+  await openPopup(page);
+  assert.equal(page.window.TKSPick._state.busy, false);
+  assert.equal(page.window.TKSPick._state.needsSync, true);
+  assert.equal(page.document.getElementById('pickingConfirm').disabled, true);
+  assert.equal(page.document.getElementById('pickingReload').hidden, false);
+  offline = false;
+  await click(page, 'pickingReload');
+  assert.equal(page.window.TKSPick._state.needsSync, false);
+  assert.equal(page.document.getElementById('pickingConfirm').disabled, false);
+  assert.equal(page.store.posted.length, 0);
+  page.dom.window.close();
+});
+
+test('mất phản hồi sau confirm đồng bộ bản đã commit, không gửi POST lần hai', async () => {
+  const store = newStore({ assignment: makeAssignment('picking') });
+  let writes = 0;
+  const page = await renderPage({ store, fetchImpl: async (url, options) => {
+    if (url.endsWith('/7/confirm') && options.method === 'POST') {
+      writes++;
+      store.assignment = makeAssignment('confirmed', { version: 2 });
+      throw new TypeError('lost response');
+    }
+  } });
+  await openPopup(page);
+  await click(page, 'pickingConfirmPick');
+  assert.equal(page.window.TKSPick._state.busy, false);
+  assert.equal(page.window.TKSPick._state.needsSync, false);
+  assert.equal(page.window.TKSPick._state.assignment.version, 2);
+  assert.equal(text(page, 'pickingOrderStatus'), 'Xác nhận nhặt');
+  assert.equal(writes, 1);
+  page.dom.window.close();
+});
+
+test('POST reject và đọc lại lỗi: khóa ghi, vẫn đóng/tải lại được', async () => {
+  let offline = false, writes = 0;
+  const page = await renderPage({ fetchImpl: async (url, options) => {
+    if (url === '/api/shipment/pick' && options.method === 'POST') {
+      offline = true; writes++; throw new TypeError('offline');
+    }
+    if (url.includes('/pick/candidates') && offline) throw new TypeError('offline');
+  } });
+  await openPopup(page);
+  await click(page, 'pickingConfirm');
+  assert.equal(page.window.TKSPick._state.busy, false);
+  assert.equal(page.window.TKSPick._state.needsSync, true);
+  assert.equal(page.document.getElementById('pickingConfirm').disabled, true);
+  assert.equal(page.document.getElementById('pickingReload').disabled, false);
+  await click(page, 'pickingConfirm');
+  assert.equal(writes, 1);
+  offline = false;
+  await click(page, 'pickingReload');
+  assert.equal(page.window.TKSPick._state.needsSync, false);
+  await click(page, 'pickingClose');
+  assert.equal(page.document.getElementById('pickingDialog').open, false);
+  page.dom.window.close();
+});
+
+test('JSON hỏng sau ghi được coi là kết quả chưa rõ và tải lại', async () => {
+  const store = newStore();
+  const page = await renderPage({ store, fetchImpl: async (url, options) => {
+    if (url === '/api/shipment/pick' && options.method === 'POST') {
+      store.assignment = makeAssignment('picking');
+      return { ok:true, status:201, json:async () => { throw new SyntaxError('invalid JSON'); } };
+    }
+  } });
+  await openPopup(page);
+  await click(page, 'pickingConfirm');
+  assert.equal(page.window.TKSPick._state.busy, false);
+  assert.equal(page.window.TKSPick._state.assignment.id, 7);
+  assert.equal(page.window.TKSPick._state.needsSync, false);
+  assert.equal(page.document.getElementById('pickingDialog').open, true);
+  page.dom.window.close();
+});
+
+test('đổi đơn khi GET đang chờ không bị phản hồi cũ ghi đè', async () => {
+  let finishOld;
+  const page = await renderPage({ fetchImpl: async url => {
+    if (url.includes('/pick/candidates') && new URL(url, 'https://test').searchParams.get('order') === 'OLD') {
+      return await new Promise(resolve => { finishOld = resolve; });
+    }
+  } });
+  const old = page.window.TKSPick.open({ branch:'HN', orderCode:'OLD' });
+  await settle();
+  await page.window.TKSPick.open({ branch:'HN', orderCode:'DH1' });
+  finishOld(json({ order:{ ...page.store.order, orderCode:'OLD' }, candidates:{}, assignment:null }));
+  await old;
+  assert.equal(page.window.TKSPick._state.order.orderCode, 'DH1');
+  assert.match(text(page, 'pickingTitle'), /DH1/);
+  assert.equal(page.window.TKSPick._state.busy, false);
+  page.dom.window.close();
+});
+
+test('số chiếc nhập tay không được lẻ; lỗi nguồn hiện rõ, vẫn cho hủy bản cũ', async () => {
+  const page = await renderPage();
+  await openPopup(page);
+  const input = page.document.querySelector('[data-qty]');
+  assert.equal(input.getAttribute('step'), '1');
+  input.value = '0.4';
+  input.dispatchEvent(new page.window.Event('change', { bubbles:true }));
+  assert.match(text(page, 'pickingStatus'), /số nguyên/i);
+  assert.equal(page.window.TKSPick._state.allocations[0][0].quantity, 100);
+  const store = newStore({ assignment:makeAssignment('picking') });
+  store.order.eligible = false;
+  store.order.validationErrors = ['A: số lượng phải là số nguyên dương'];
+  const legacy = await renderPage({ store });
+  await openPopup(legacy);
+  assert.match(text(legacy, 'pickingSource'), /số nguyên/);
+  assert.equal(legacy.document.getElementById('pickingCancelPick').disabled, false);
+  [page, legacy].forEach(p => p.dom.window.close());
+});
+
+test('chỉ định lại bị mất phản hồi hủy: tải trạng thái, không tự tạo chỉ định mới', async () => {
+  const store = newStore({ assignment:makeAssignment('confirmed') });
+  let cancels=0;
+  const page=await renderPage({ store, fetchImpl:async (url,options) => {
+    if(url.endsWith('/7/cancel')&&options.method==='POST'){
+      cancels++;
+      store.assignment=makeAssignment('cancelled',{version:2});
+      throw new TypeError('lost cancel response');
+    }
+  } });
+  await openPopup(page);
+  await click(page,'pickingReopen');
+  await click(page,'pickingReopen');
+  assert.equal(cancels,1);
+  assert.equal(store.posted.length,0);
+  assert.equal(page.window.TKSPick._state.assignment.status,'cancelled');
+  assert.equal(page.window.TKSPick._state.busy,false);
+  assert.equal(page.window.TKSPick._state.needsSync,false);
+  assert.equal(page.document.getElementById('pickingConfirm').disabled,true);
+  page.dom.window.close();
+});
+
+test('đóng popup khi POST đang chờ không cho phản hồi cũ ghi đè lần mở mới', async () => {
+  let finishPost;
+  const page=await renderPage({ fetchImpl:async (url,options) => {
+    if(url==='/api/shipment/pick'&&options.method==='POST')return await new Promise(resolve=>{finishPost=resolve;});
+  } });
+  await openPopup(page);
+  await click(page,'pickingConfirm');
+  assert.equal(page.window.TKSPick._state.busy,true);
+  await click(page,'pickingClose');
+  await page.window.TKSPick.open({branch:'HN',orderCode:'DH1'});
+  finishPost(json({assignment:makeAssignment('picking')}));
+  await settle();
+  assert.equal(page.window.TKSPick._state.assignment,null);
+  assert.equal(page.window.TKSPick._state.busy,false);
+  assert.equal(page.document.getElementById('pickingDialog').open,true);
+  assert.equal(page.document.getElementById('pickingPrintDialog').open,false);
+  page.dom.window.close();
+});

@@ -5,7 +5,7 @@
         <tr>
           <td style="text-align:left; width:47%">
             <p><span style=""><strong class="invoice-brand">KHO SỈ TOKOSI</strong></span><br><span style="">Đ/c: Cụm CN Cầu Nổi, Hoài Đức, HN<br>ĐT: 0903 255 456 - 0343 468 468</span></p>
-            <p><br>NV Bán hàng: <span style="">{Nhan_Vien_Ban_Hang}</span>&nbsp;|
+            <p class="invoice-seller">NV Bán hàng: <span style="">{Nhan_Vien_Ban_Hang}</span>&nbsp;|
               Zalo:&nbsp;{Dien_Thoai_Nguoi_Ban}</p>
           </td>
           <td style="text-align:right">
@@ -13,9 +13,9 @@
             <table cellpadding="3" width="100%" style="border-collapse: collapse; width: 100%;" data-table-controls="off" data-table-sort="off" class="invoice-qr">
               <tbody>
                 <tr>
-                  <td><img src="https://cdn2-retail-images.kiotviet.vn/2026/10/05/chhanoi/f21f9e7c2de54f74ae9f4e20fd1a5b72.jpg"></td>
-                  <td><img src="https://cdn2-retail-images.kiotviet.vn/2026/10/05/chhanoi/319a40a6042c42d8b060b8de556be120.jpg"></td>
-                  <td><img src="https://cdn2-retail-images.kiotviet.vn/2026/10/05/chhanoi/ea96abd2bef74b4e89dc164eb814dba2.jpg"></td>
+                  <td><img alt="Mã QR thanh toán Nguyễn Văn Quân" src="https://cdn2-retail-images.kiotviet.vn/2026/10/05/chhanoi/f21f9e7c2de54f74ae9f4e20fd1a5b72.jpg"></td>
+                  <td><img alt="Mã QR thanh toán Đặng Thị Anh Nguyệt" src="https://cdn2-retail-images.kiotviet.vn/2026/10/05/chhanoi/319a40a6042c42d8b060b8de556be120.jpg"></td>
+                  <td><img alt="Mã QR thanh toán Nguyễn Ngọc Duy" src="https://cdn2-retail-images.kiotviet.vn/2026/10/05/chhanoi/ea96abd2bef74b4e89dc164eb814dba2.jpg"></td>
                 </tr>
               </tbody>
             </table>
@@ -27,8 +27,8 @@
       <tbody>
         <tr>
           <td style="text-align:left"><span style="">Khách hàng: {Khach_Hang}</span></td>
-          <td width="30">&nbsp;</td>
-          <td style="text-align:left"><span style="">SĐT khách: {So_Dien_Thoai}</span></td>
+          <td style="width:3%">&nbsp;</td>
+          <td style="text-align:left;width:40%"><span style="">SĐT khách: {So_Dien_Thoai}</span></td>
         </tr>
         <tr>
           <td colspan="3" style="text-align:left"><span style="">Địa chỉ: {Dia_Chi_Khach_Hang}</span>
@@ -37,7 +37,7 @@
       </tbody>
     </table>
   </div>
-  <table cellpadding="3" cellspacing="0" border="1" style="border-collapse: collapse; width: 100%" data-table-controls="off" data-table-sort="off" class="invoice-goods"><colgroup><col style="width: 4%;"><col style="width: 27%;"><col style="width: 7%;"><col style="width: 6%;"><col style="width: 10%;"><col style="width: 12%;"><col style="width: 10%;"><col style="width: 11%;"><col style="width: 13%;"></colgroup><thead><tr>
+  <table cellpadding="3" cellspacing="0" border="1" style="border-collapse: collapse; width: 100%" data-table-controls="off" data-table-sort="off" class="invoice-goods"><colgroup><col style="width: 4%;"><col style="width: 25%;"><col style="width: 8%;"><col style="width: 10%;"><col style="width: 10%;"><col style="width: 13%;"><col style="width: 9%;"><col style="width: 9%;"><col style="width: 12%;"></colgroup><thead><tr>
         
         <td style="text-align: center; border-color: rgb(0, 0, 0);">
           <span style=""><strong>TT</strong></span></td>
@@ -125,7 +125,7 @@
       </tr>
     </tbody>
   </table>
-  <p><span style=""><strong><u>Ghi chú: {Ghi_Chu}</u></strong></span></p>
+  <p class="invoice-notes"><strong><u>Ghi chú: {Ghi_Chu}</u></strong></p>
   <table style="margin-top: 20px; width: 100%" data-table-controls="off" data-table-sort="off" class="invoice-signatures">
     <tbody>
       <tr>
