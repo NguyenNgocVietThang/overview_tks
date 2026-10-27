@@ -28,8 +28,11 @@
 /* Ghi chú thùng nằm dưới cùng thẻ, dưới ô nhập SL (không còn dòng "ST n" ở đây). */
 .picking-spec{display:block;overflow-wrap:anywhere;font-size:11px;font-family:var(--font-data);color:var(--muted);font-weight:400;text-align:center}
 .picking-st-frac{color:var(--red)!important;font-weight:600}
-.picking-loc[data-zone="A"]{--zone:#a78bfa}.picking-loc[data-zone="B"]{--zone:#2dd4bf}.picking-loc[data-zone="C"]{--zone:#f472b6}.picking-loc[data-zone="D"]{--zone:#fb923c}.picking-loc[data-zone="E"]{--zone:#a3e635}
-:root[data-theme="light"] .picking-loc[data-zone="A"]{--zone:#7c3aed}:root[data-theme="light"] .picking-loc[data-zone="B"]{--zone:#0d9488}:root[data-theme="light"] .picking-loc[data-zone="C"]{--zone:#db2777}:root[data-theme="light"] .picking-loc[data-zone="D"]{--zone:#ea580c}:root[data-theme="light"] .picking-loc[data-zone="E"]{--zone:#65a30d}
+/* Màu theo ký tự khu vực chính thức (HN: A B C F G P V X; SG: H K L Q). data-zone chỉ có khi ký tự thuộc cơ sở của đơn, còn lại dùng màu mặc định. */
+.picking-loc[data-zone="A"]{--zone:#a78bfa}.picking-loc[data-zone="B"]{--zone:#2dd4bf}.picking-loc[data-zone="C"]{--zone:#f472b6}.picking-loc[data-zone="F"]{--zone:#fb923c}.picking-loc[data-zone="G"]{--zone:#a3e635}.picking-loc[data-zone="P"]{--zone:#38bdf8}.picking-loc[data-zone="V"]{--zone:#facc15}.picking-loc[data-zone="X"]{--zone:#94a3b8}
+.picking-loc[data-zone="H"]{--zone:#818cf8}.picking-loc[data-zone="K"]{--zone:#22d3ee}.picking-loc[data-zone="L"]{--zone:#c084fc}.picking-loc[data-zone="Q"]{--zone:#fb7185}
+:root[data-theme="light"] .picking-loc[data-zone="A"]{--zone:#7c3aed}:root[data-theme="light"] .picking-loc[data-zone="B"]{--zone:#0d9488}:root[data-theme="light"] .picking-loc[data-zone="C"]{--zone:#db2777}:root[data-theme="light"] .picking-loc[data-zone="F"]{--zone:#ea580c}:root[data-theme="light"] .picking-loc[data-zone="G"]{--zone:#65a30d}:root[data-theme="light"] .picking-loc[data-zone="P"]{--zone:#0284c7}:root[data-theme="light"] .picking-loc[data-zone="V"]{--zone:#ca8a04}:root[data-theme="light"] .picking-loc[data-zone="X"]{--zone:#64748b}
+:root[data-theme="light"] .picking-loc[data-zone="H"]{--zone:#4f46e5}:root[data-theme="light"] .picking-loc[data-zone="K"]{--zone:#0891b2}:root[data-theme="light"] .picking-loc[data-zone="L"]{--zone:#9333ea}:root[data-theme="light"] .picking-loc[data-zone="Q"]{--zone:#e11d48}
 .picking-qty{text-align:center}
 .picking-stepper{display:grid;grid-template-columns:26px minmax(0,1fr) 26px;gap:4px;align-items:center}
 .picking-stepper button{height:26px;padding:0;border:1px solid var(--border);border-radius:6px;background:var(--panel);color:var(--text);font-size:18px;line-height:1;cursor:pointer}

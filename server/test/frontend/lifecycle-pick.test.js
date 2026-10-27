@@ -591,13 +591,23 @@ test('thẻ vị trí trong hộp chỉ định: tên vị trí đậm màu nổ
   const card = page.document.querySelector('.picking-location.selected');
   assert.deepEqual([...card.children].map(el => el.tagName), ['STRONG', 'SPAN'], 'nút chọn chỉ còn vị trí và tổng SL');
   assert.equal(card.children[0].textContent, 'A07');
-  assert.equal(card.children[0].getAttribute('title'), 'A07', 'tên vị trí dài bị cắt thì còn tooltip');
+  assert.equal(card.children[0].getAttribute('title'), 'A07 · Kho chính to', 'tooltip kèm tên kho theo khu vực chính thức');
+  assert.equal(card.parentElement.getAttribute('data-zone'), 'A');
   assert.equal(card.children[1].textContent, '200');
   const wrap = card.parentElement;
   assert.deepEqual([...wrap.children].map(el => el.className.split(' ')[0]), ['picking-location', 'picking-qty', 'picking-spec'], 'ghi chú thùng nằm dưới cùng thẻ, sau ô nhập SL');
   assert.equal(wrap.querySelector('.picking-spec').textContent, '4T x 50');
   assert.equal(wrap.querySelector('.picking-loc-st'), null, 'không còn dòng ST n trong thẻ');
   page.dom.window.close();
+});
+
+test('khu vực chính thức: CSS có màu cho đủ 12 ký tự HN (A B C F G P V X) và SG (H K L Q), sáng lẫn tối; D/E thử nghiệm đã bỏ', () => {
+  const css = read(path.join(pickDir, 'pick-assign.css'));
+  for (const z of 'ABCFGPVXHKLQ') {
+    assert.ok(css.includes(`.picking-loc[data-zone="${z}"]{`), `thiếu màu tối khu ${z}`);
+    assert.ok(css.includes(`:root[data-theme="light"] .picking-loc[data-zone="${z}"]{`), `thiếu màu sáng khu ${z}`);
+  }
+  assert.doesNotMatch(css, /data-zone="(D|E)"/);
 });
 
 test('CSS thẻ vị trí: lưới 2 dòng, ghi chú không còn chen lên trước tên vị trí', () => {
