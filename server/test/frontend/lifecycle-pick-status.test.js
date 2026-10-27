@@ -105,6 +105,30 @@ test('người có quyền: cột nằm sau Trạng thái; Chưa bốc / Đã b�
   page.dom.window.close();
 });
 
+test('cột Trạng thái bốc: mặc định ẩn (bật ở hộp Cột hiển thị) và có sort phía máy chủ ▲▼', async () => {
+  const page = await renderPage({ orders: [orderRow('DH1', { pickStatus: 'picking' })] });
+  const th = page.document.querySelector('#bulkHeadRow th[data-col="pickStatus"]');
+  assert.equal(th.classList.contains('tks-column-hidden'), true, 'mặc định ẩn');
+  assert.equal(th.classList.contains('sortable'), true);
+  assert.equal(th.dataset.sort, 'pickStatus');
+  assert.equal(th.getAttribute('aria-sort'), 'none');
+  assert.equal(th.querySelector('.sort-indicator').textContent, '▲▼');
+  const before = page.calls.filter(c => isListUrl(c.url)).length;
+  th.click();
+  await settle();
+  const listCalls = page.calls.filter(c => isListUrl(c.url));
+  assert.ok(listCalls.length > before, 'bấm tiêu đề thì tải lại danh sách');
+  const url = new URL(listCalls[listCalls.length - 1].url, 'https://tokosi.example');
+  assert.equal(url.searchParams.get('sort'), 'pickStatus');
+  assert.equal(url.searchParams.get('dir'), 'asc');
+  assert.equal(th.getAttribute('aria-sort'), 'ascending');
+  th.click();
+  await settle();
+  const again = new URL(page.calls.filter(c => isListUrl(c.url)).pop().url, 'https://tokosi.example');
+  assert.equal(again.searchParams.get('dir'), 'desc');
+  page.dom.window.close();
+});
+
 test('dropdown Đang bốc → Đã bốc: hỏi xác nhận, POST đúng body, ô thành nhãn Đã bốc (hết dropdown)', async () => {
   const page = await renderPage({ orders: [orderRow('DH2', { pickStatus: 'picking' })] });
   const select = pickCell(rowsOf(page.document)[0]).querySelector('select');

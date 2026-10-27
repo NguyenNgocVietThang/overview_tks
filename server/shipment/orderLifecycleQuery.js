@@ -17,7 +17,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 const SORT_KEYS = Object.freeze([
   'orderCode', 'branch', 'orderDate', 'saleName', 'customerName', 'orderTotal', 'sellableValue', 'note',
-  'saleSentAt', 'kiotStatus', 'status', 'at', 'warning'
+  'saleSentAt', 'kiotStatus', 'status', 'at', 'warning', 'pickStatus'
 ]);
 // Cot thoi gian duoc phep dung cho bo loc "tu ... den ...".
 const DATE_FIELDS = Object.freeze(['saleSentAt', 'at', 'orderDate']);
@@ -192,7 +192,10 @@ const SORT_VALUE = {
   status: row => memoKey(row, 'status', r => normalizeSearchText(r.summary && r.summary.label)),
   at: row => memoKey(row, 'at', r => parseDateTimeValue(r.summary && r.summary.at)),
   // Nhieu canh bao xep truoc it canh bao.
-  warning: row => (Array.isArray(row.warnings) ? row.warnings.length : (row.warning ? 1 : 0))
+  warning: row => (Array.isArray(row.warnings) ? row.warnings.length : (row.warning ? 1 : 0)),
+  // Trang thai boc nam o Postgres (khong co trong dong): service truyen gia tri that qua `params.sortValues`;
+  // khong co thi coi nhu nhau (giu thu tu goc).
+  pickStatus: () => null
 };
 
 // Van ban da bo dau/hoa thuong, gop khoang trang — dau vao cua tim gan dung.
@@ -210,9 +213,12 @@ function compareValues(a, b, dir) {
   return 0;
 }
 
-/** Sap xep BEN VUNG (cung gia tri giu thu tu goc); moi dong chi tinh gia tri sap xep 1 lan. */
-function sortRows(rows, key, dir) {
-  const valueOf = SORT_VALUE[key] || SORT_VALUE[DEFAULT_SORT.key];
+/**
+ * Sap xep BEN VUNG (cung gia tri giu thu tu goc); moi dong chi tinh gia tri sap xep 1 lan.
+ * `overrides` { [key]: row => gia tri } cho cot khong nam trong dong (vd pickStatus o Postgres, do service cung cap).
+ */
+function sortRows(rows, key, dir, overrides) {
+  const valueOf = (overrides && overrides[key]) || SORT_VALUE[key] || SORT_VALUE[DEFAULT_SORT.key];
   const decorated = rows.map((row, index) => ({ row, index, value: valueOf(row) }));
   decorated.sort((a, b) => compareValues(a.value, b.value, dir) || (a.index - b.index));
   return decorated.map(item => item.row);
@@ -304,7 +310,7 @@ function distinctKiotStatuses(rows) {
 
 /** Loc roi sap xep TOAN BO danh sach (chua cat trang) — dung chung cho trang xem va xuat Excel. */
 function selectRows(rows, params) {
-  const sorted = sortRows(filterRows(rowsInBranch(rows, params.branch), params), params.sort, params.dir);
+  const sorted = sortRows(filterRows(rowsInBranch(rows, params.branch), params), params.sort, params.dir, params.sortValues);
   // Tim ten (gan dung) ma chua chon cot sap xep: khop nhieu tu / nguyen cum xep truoc, giu thu tu mac dinh khi bang diem.
   if (params.mode === 'code' || params.sortExplicit || !pickString(params.q)) return sorted;
   const matcher = fuzzy.createMatcher(params.q);

@@ -512,6 +512,31 @@ test('queryOrders: lọc theo trạng thái Kiot + trạng thái vòng đời + 
 
 // Chi dinh vi tri (migration 0096): pickStatuses() tra Map 'HN|ma don chu thuong' -> trang thai MOI NHAT; gan `pickStatus` len cac dong
 // cua TRANG tra ve (khong sua dong trong cache) va loc `pickStatus` bang cach thu hep tap dong truoc khi loc/sap xep.
+test('sort=pickStatus: Chưa bốc, Đang bốc, Đã bốc, Đã hủy (tăng dần), đảo khi giảm dần; xuất Excel cùng thứ tự; không có bản đồ chỉ định thì không vỡ', async () => {
+  const ctx = freshService([]);
+  try {
+    const orders = [1, 2, 3, 4].map(i => kiotOrder({ code: 'DH00000' + i, orderDate: `0${i}/10/2026 10:00` }));
+    const kiot = fakeKiot({ ok: true, orders });
+    // DH1 chưa có chỉ định (Chưa bốc), DH2 Đã hủy, DH3 Đã bốc, DH4 Đang bốc.
+    const pickStatuses = async () => new Map([['HN|dh000002', 'cancelled'], ['HN|dh000003', 'confirmed'], ['HN|dh000004', 'picking']]);
+    const asc = await ctx.service.queryOrders({ sort: 'pickStatus', dir: 'asc' }, { kiot, pickStatuses });
+    assert.deepEqual(asc.orders.map(o => o.orderCode), ['DH000001', 'DH000004', 'DH000003', 'DH000002']);
+    const desc = await ctx.service.queryOrders({ sort: 'pickStatus', dir: 'desc' }, { kiot, pickStatuses });
+    assert.deepEqual(desc.orders.map(o => o.orderCode), ['DH000002', 'DH000003', 'DH000004', 'DH000001']);
+    // Sort theo cột khác sau đó vẫn dùng cache bình thường, không bị lây gia trị pickStatus.
+    const byDate = await ctx.service.queryOrders({}, { kiot, pickStatuses });
+    assert.deepEqual(byDate.orders.map(o => o.orderCode), ['DH000004', 'DH000003', 'DH000002', 'DH000001']);
+    const exported = await ctx.service.exportOrders({ sort: 'pickStatus', dir: 'asc' }, { kiot, pickStatuses });
+    assert.deepEqual(exported.map(o => o.orderCode), ['DH000001', 'DH000004', 'DH000003', 'DH000002']);
+    // Người không có quyền (không truyền pickStatuses): sort hợp lệ, không lỗi, không thêm trường pickStatus.
+    const noPerm = await ctx.service.queryOrders({ sort: 'pickStatus' }, { kiot });
+    assert.equal(noPerm.orders.length, 4);
+    assert.ok(noPerm.orders.every(o => !('pickStatus' in o)));
+  } finally {
+    ctx.restore();
+  }
+});
+
 test('queryOrders + pickStatuses: dong cua trang co pickStatus (null neu chua chi dinh), loc theo pickStatus, KPI theo tap da loc; khong truyen thi khong them truong', async () => {
   const ctx = freshService([]);
   try {

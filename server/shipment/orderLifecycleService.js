@@ -517,7 +517,9 @@ async function queryOrders(rawParams, { kiot, pickStatuses, pickMismatches } = {
   // selectionCache (gan voi mang dong nguon). Khong loc thi van dung cache; pickStatus chi gan len cac dong cua trang tra ve.
   const filtered = pickMap && params.pickStatus ? rows.filter(row => matchesPickFilter(pickMap.get(pickKey(row)), params.pickStatus)) : null;
   const scope = query.rowsInBranch(rows, params.branch);
-  const selected = filtered ? query.selectRows(filtered, params) : selectionCache.select(rows, params);
+  // Sap xep theo trang thai boc can ban do chi dinh (Postgres) nen cung khong qua selectionCache.
+  const sortParams = withPickSort(params, pickMap);
+  const selected = filtered || sortParams !== params ? query.selectRows(filtered || rows, sortParams) : selectionCache.select(rows, params);
   const paged = query.paginate(selected, params.page, params.pageSize);
   return {
     orders: pickMap ? await withPickMismatch(withPickStatus(paged.items, pickMap), pickMap, pickMismatches) : paged.items,
@@ -536,6 +538,15 @@ async function queryOrders(rawParams, { kiot, pickStatuses, pickMismatches } = {
 // Khoa trang thai chi dinh theo (co so, ma don) — khop pickAssignmentsService.latestStatuses ('HN|ma don chu thuong').
 function pickKey(row) {
   return `${row.branch}|${normalizeCode(row.orderCode)}`;
+}
+
+// Thu tu sap xep cot "Trang thai boc" (tang dan theo luong lam viec): Chua boc, Dang boc, Da boc, Da huy.
+const PICK_SORT_RANK = { picking: 1, confirmed: 2, cancelled: 3 };
+
+/** Ban sao params kem gia tri sap xep pickStatus (neu dang sap theo cot nay va co ban do chi dinh); khong thi tra nguyen params. */
+function withPickSort(params, pickMap) {
+  if (params.sort !== 'pickStatus' || !pickMap) return params;
+  return Object.assign({}, params, { sortValues: { pickStatus: row => PICK_SORT_RANK[pickMap.get(pickKey(row))] || 0 } });
 }
 
 // Bo loc "Trang thai boc": 'none' = Chua boc (khong co khoa trong ban do), con lai khop dung trang thai chi dinh moi nhat.
@@ -578,9 +589,10 @@ async function findMergedOrder(branch, orderCode, { kiot } = {}) {
 async function exportOrders(rawParams, { kiot, pickStatuses } = {}) {
   const params = query.parseParams(rawParams);
   const { rows } = await loadMergedRows(kiot);
-  if (pickStatuses && params.pickStatus) {
+  if (pickStatuses && (params.pickStatus || params.sort === 'pickStatus')) {
     const pickMap = await pickStatuses();
-    return query.selectRows(rows.filter(row => matchesPickFilter(pickMap.get(pickKey(row)), params.pickStatus)), params);
+    const source = params.pickStatus ? rows.filter(row => matchesPickFilter(pickMap.get(pickKey(row)), params.pickStatus)) : rows;
+    return query.selectRows(source, withPickSort(params, pickMap));
   }
   return selectionCache.select(rows, params);
 }

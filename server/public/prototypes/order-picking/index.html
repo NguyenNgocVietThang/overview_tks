@@ -1838,7 +1838,8 @@
     };
     const CELL_CLASS = { orderTotal: 'lc-money', sellableValue: 'lc-money', note: 'lc-note', status: 'lc-status-cell', pickStatus: 'lc-status-cell' };
 
-    const DEFAULT_HIDDEN_COLUMNS = ['branch', 'note', 'kiotStatus'];
+    // "Trang thai boc" mac dinh an (bat trong hop "Cot hien thi"); cot chi ton tai voi nguoi co quyen shipment.pick.
+    const DEFAULT_HIDDEN_COLUMNS = ['branch', 'note', 'kiotStatus', 'pickStatus'];
     function bulkTableColumns(){
       return BULK_COLUMNS.map(function(col){ return Object.assign({}, col, { hidden: DEFAULT_HIDDEN_COLUMNS.indexOf(col.key) !== -1 }); });
     }
@@ -1851,11 +1852,15 @@
       const th = document.createElement('th');
       th.setAttribute('data-col', PICK_COLUMN.key);
       th.setAttribute('data-column-key', PICK_COLUMN.key);
+      th.setAttribute('data-sort', PICK_COLUMN.key);
+      th.setAttribute('aria-sort', 'none');
+      th.className = 'sortable';
       th.style.width = '150px';
       th.title = 'Trạng thái bốc hàng: Chưa bốc / Đang bốc / Đã bốc / Đã hủy. Đang bốc đổi được sang Đã bốc hoặc Đã hủy.';
-      th.textContent = PICK_COLUMN.label;
+      th.innerHTML = '<button type="button" class="sort-button"><span class="sort-label">' + PICK_COLUMN.label + '</span><span class="sort-indicator" aria-hidden="true">▲▼</span></button>';
       bulkHeadRow.insertBefore(th, bulkHeadRow.querySelector('th[data-col="at"]'));
       BULK_COLUMNS.splice(at, 0, PICK_COLUMN);
+      syncSortHeaderUI();
       if(window.TKSTables) window.TKSTables.enhance(bulkTable, { columns: bulkTableColumns() });
     }
 

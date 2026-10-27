@@ -249,7 +249,7 @@ test('bộ lọc trạng thái chính vẫn dùng được và kết hợp với
 
 const ALL_COLUMNS = ['orderCode', 'branch', 'orderDate', 'saleName', 'customerName', 'orderTotal', 'sellableValue', 'note', 'saleSentAt', 'kiotStatus', 'status', 'pickStatus', 'at', 'warning'];
 
-const DEFAULT_HIDDEN = ['branch', 'note', 'kiotStatus'];
+const DEFAULT_HIDDEN = ['branch', 'note', 'kiotStatus', 'pickStatus']; // Trạng thái bốc mặc định ẩn
 
 const hiddenKeys = document => Array.from(document.querySelectorAll('#bulkHeadRow th.tks-column-hidden'), th => th.dataset.col);
 function openPicker(page) { page.document.getElementById('bulkColumnsBtn').click(); return page.document.querySelector('.tks-columns-picker:not([hidden])'); }
