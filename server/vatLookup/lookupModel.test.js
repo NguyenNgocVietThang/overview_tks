@@ -125,6 +125,45 @@ test('sheet chi con o #REF! -> loi 503 DK_VE_REF_ERROR', () => {
   assert.throws(() => parseLookupRecords({ gop: parseCsv(GOP), khop: parseCsv(KHOP), dkve: [['#REF!']] }), error => error.code === 'DK_VE_REF_ERROR' && error.statusCode === 503);
 });
 
+// Anh loi 27/10/2026: TBVC200, HDLCNL khop VAT10680 nhung khong co dong Gộp VAT rieng.
+const GOP_SHARED = [
+  'CTY,Mã kiot đại diện,Tên kiot đại diện,MÃ VAT KIOT,TÊN VAT KIOT,TÊN HÀNG,Đơn vị tính,x,TỒN ĐẦU NGÀY,GIÁ BÁN,THUẾ VAT,THUẾ NK,TỔNG THUẾ MẤT,TỔNG ĐANG NHÁP,TỒN CÓ THỂ NHÁP',
+  'SHC,H200TMC,Bông 200c,VAT10680,Hộp bông (VAT),Bông A,Hộp,x,720,1,8%,,13.40%,,720',
+  'SHC,18S45TB,Bông 180c,VAT10680,Hộp bông (VAT),Bông B,Hộp,x,"1,800",1,8%,,13.40%,,0',
+  'SHC,ZERO1,Hàng hết,VAT50005,Hết (VAT),Hàng hết,Cái,x,5,1,8%,,8.00%,,0',
+  'SHC,,,VAT60006,Lẻ (VAT),Hàng không mã đại diện,Cái,x,50,1,8%,,8.00%,,50'
+].join('\n');
+const KHOP_SHARED = [
+  'Mã SP,Tên SP,,,,,,,,MÃ VAT KIOT,TÊN VAT KIOT',
+  'TBVC200,Hộp bông VCool,0,,,,,,,VAT10680,Hộp bông (VAT)',
+  'HDLCNL,Hộp bông Dalaini,0,,,,,,,VAT10680,Hộp bông (VAT)',
+  'H200TMC,Bông 200c,0,,,,,,,VAT10680,Hộp bông (VAT)',
+  '18S45TB,Bông 180c,0,,,,,,,VAT10680,Hộp bông (VAT)',
+  'ZERO1,Hàng hết,0,,,,,,,VAT50005,Hết (VAT)',
+  'LONE,Hàng lẻ,0,,,,,,,VAT60006,Lẻ (VAT)'
+].join('\n');
+const sharedModel = () => parseLookupRecords({ gop: parseCsv(GOP_SHARED), khop: parseCsv(KHOP_SHARED), dkve: parseCsv(DKVE) });
+const statusOf = (built, query) => m.search(built, [query]).vat.rows.map(r => [r.maKiot, r.tonCoTheNhap, r.conVAT]);
+
+test('Còn VAT = SUMIF Tồn có thể nháp theo mã VAT: moi dong cung VAT10680 deu con VAT', () => {
+  assert.deepEqual(statusOf(sharedModel(), 'TBVC200'), [
+    ['TBVC200', 0, true],
+    ['HDLCNL', 0, true],
+    ['H200TMC', 720, true],
+    ['18S45TB', 0, true]
+  ]);
+  assert.deepEqual(statusOf(sharedModel(), 'HDLCNL')[0], ['HDLCNL', 0, true]);
+});
+
+test('Còn VAT theo ma VAT: tong = 0 -> khong con; cong ca dong Gộp VAT khong co ma dai dien', () => {
+  assert.deepEqual(statusOf(sharedModel(), 'ZERO1'), [['ZERO1', 0, false]]);
+  assert.deepEqual(statusOf(sharedModel(), 'LONE'), [['LONE', 0, true]]);
+});
+
+test('Còn VAT khong con doi Khớp mã: ma chi co o Gộp VAT, ma VAT con ton -> con VAT', () => {
+  assert.deepEqual(statusOf(model(), 'ONLYGOP'), [['ONLYGOP', 10, true]]);
+});
+
 test('Khớp mã goc (file VAT TKS): cot K "Tên trước (Giá đầu - Giá cuối) (VAT)" dung lam ten VAT', () => {
   const khop = parseCsv(',,,,,,,Đỏ cao quá,Vàng thấp quá\nMã SP,Tên SP,Giá Bq,,,,,,,Mã vat kiot,Tên trước (Giá đầu  - Giá cuối) (VAT)\nNOGOP,Ấm Hoa,0,,,,,,,VAT90009,"Ấm (72,300 - 78,700) (VAT)"');
   const built = parseLookupRecords({ gop: parseCsv(GOP), khop, dkve: parseCsv(DKVE) });

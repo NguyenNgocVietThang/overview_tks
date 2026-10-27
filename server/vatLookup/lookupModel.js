@@ -285,11 +285,19 @@ function addMissingDkVeProducts(products, dkVeByMaKiot) {
 
 /* ---------- Index.html: trang thai + tim kiem ---------- */
 
-/** Con VAT khi: co mapping trong Khop ma VA tong TON CO THE NHAP > 0. */
-function summarizeVat(product) {
-  const tongTonDauNgay = product.vatLines.reduce((s, l) => s + l.tonDauNgay, 0);
-  const tongTonCoTheNhap = product.vatLines.reduce((s, l) => s + l.tonCoTheNhap, 0);
-  return { tongTonDauNgay, tongTonCoTheNhap, conVAT: product.hasKhopMa && tongTonCoTheNhap > 0 };
+/** SUMIF TON CO THE NHAP theo ma VAT tren toan sheet Gop VAT (ca dong khong co ma Kiot dai dien). */
+function sumTonCoTheNhapByMaVat(gopByKey) {
+  const totals = new Map();
+  gopByKey.forEach(g => {
+    if (g.maVatNorm) totals.set(g.maVatNorm, (totals.get(g.maVatNorm) || 0) + g.tonCoTheNhap);
+  });
+  return totals;
+}
+
+/** Con VAT khi tong TON CO THE NHAP cua moi san pham cung ma VAT > 0 (theo ma VAT cua tung dong, 27/10/2026). */
+function isConVat(model, maVat) {
+  const maVatNorm = normalizeCode(maVat);
+  return !!maVatNorm && (model.tonCoTheNhapByMaVat.get(maVatNorm) || 0) > 0;
 }
 
 function getIncomingRows(model, product) {
@@ -398,12 +406,14 @@ function searchMultipleProducts(products, queries) {
 /** rowsBySheet: { gop, khop, dkve } = mang object (rowsToObjects). */
 function buildModel(rowsBySheet) {
   const gop = rowsBySheet.gop || [], khop = rowsBySheet.khop || [], dkve = rowsBySheet.dkve || [];
-  const products = buildProducts(buildKhopMaRows(khop), buildGopVatGroups(gop));
+  const gopByKey = buildGopVatGroups(gop);
+  const products = buildProducts(buildKhopMaRows(khop), gopByKey);
   const dkVeByMaKiot = buildDkVeRows(dkve);
   addMissingDkVeProducts(products, dkVeByMaKiot);
   return {
     products,
     dkVeByMaKiot,
+    tonCoTheNhapByMaVat: sumTonCoTheNhapByMaVat(gopByKey),
     counts: { gop: gop.length, khop: khop.length, dkve: dkve.length },
     source: `Gộp VAT ${gop.length} dòng · Khớp mã ${khop.length} dòng · DK về 2 ${dkve.length} dòng`
   };
@@ -413,7 +423,6 @@ function buildModel(rowsBySheet) {
 function buildVatRows(model, products) {
   const rows = [];
   products.forEach(p => {
-    const vat = summarizeVat(p);
     const hasIncoming = getIncomingRows(model, p).length > 0;
     if (!p.vatLines.length) {
       rows.push({ maKiot: p.maKiot, tenKiot: p.tenKiot, maVat: '', tenVat: '', tenHang: '', dvt: '', tongThueMat: '', tonDauNgay: 0, tonCoTheNhap: 0, conVAT: false, hasIncoming });
@@ -422,7 +431,7 @@ function buildVatRows(model, products) {
     p.vatLines.forEach(l => rows.push({
       maKiot: p.maKiot, tenKiot: p.tenKiot, maVat: l.maVat, tenVat: l.tenVat,
       tenHang: l.tenHang, dvt: l.dvt, tongThueMat: l.tongThueMat, tonDauNgay: l.tonDauNgay, tonCoTheNhap: l.tonCoTheNhap,
-      conVAT: vat.conVAT, hasIncoming
+      conVAT: isConVat(model, l.maVat), hasIncoming
     }));
   });
   return rows;

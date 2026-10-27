@@ -140,4 +140,8 @@ Trạng thái, lịch sử cập nhật và checklist vận hành: [CURRENT.md](
 
 Chủ đơn hoạt động có thể xóa vĩnh viễn đơn xin nghỉ từ web/Telegram ở mọi trạng thái trước buổi nghỉ đầu tiên. Gồm xác nhận trên web, xóa đơn/lịch sử, chuông hủy, hàng đợi Telegram và realtime. Áp migration `0094_hr_leave_cancellation.sql` trước backend/worker/frontend. Xem [thiết kế](docs/superpowers/specs/2026-10-26-own-leave-cancellation-design.md) và [kế hoạch/triển khai](docs/superpowers/plans/2026-10-26-own-leave-cancellation.md).
 
-Cập nhật gần nhất: 26/10/2026.
+## Tra cứu VAT: trạng thái theo Mã VAT Kiot — 27/10/2026
+
+Cột Trạng thái ở tab Hàng VAT có sẵn tính theo mã VAT của từng dòng: tổng Tồn có thể nháp của mọi dòng Gộp VAT cùng mã VAT (toàn sheet) > 0 là "Còn VAT". Mã Kiot dùng chung mã VAT với mã còn tồn không còn bị báo "Không còn VAT". Không migration/API mới. Xem [thiết kế](docs/superpowers/specs/2026-10-27-vat-status-by-vat-code-design.md).
+
+Cập nhật gần nhất: 27/10/2026.
