@@ -20,6 +20,8 @@
     const origin=location.protocol==='file:'?'http://prototype.local':location.origin;
     const url=new URL(typeof resource==='string'?resource:resource.url,origin);
     if(url.origin!==origin||!url.pathname.startsWith('/api/'))return realFetch(resource,options);
+    // Chỉ endpoint ĐỌC của Vị trí hàng đi ra server thật khi prototype được phục vụ qua http(s); mở file trực tiếp thì dùng dữ liệu demo bên dưới.
+    if(url.pathname==='/api/stock-locations'&&location.protocol!=='file:'&&(options.method||'GET').toUpperCase()==='GET')return realFetch(resource,options);
     if((options.method||'GET').toUpperCase()!=='GET')return reply({error:'Prototype chỉ đọc, không ghi hệ thống.'},403);
     if(url.pathname==='/api/auth/me')return reply({id:'prototype-accountant',username:'prototype',hoTen:'Kế toán · Mô phỏng',vaiTro:'Kế toán',coSo:'Cả hai',trangThai:'Đang hoạt động',permissions:['shipment.lifecycle','shipment.lookup','shipment.history','shipment.export','stockLocations.view','account.profile'],pageFeatures:[]});
     if(url.pathname==='/api/shipment/lifecycle/order-detail'){

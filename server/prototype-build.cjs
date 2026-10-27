@@ -12,7 +12,7 @@ function build(){
   template=template.replace(/https:\/\/cdn2-retail-images\.kiotviet\.vn\/2026\/10\/05\/chhanoi\/([a-f0-9]+)\.jpg/g,(_,id)=>'data:image/jpeg;base64,'+fs.readFileSync(path.join(dir,'invoice-assets',id+'.jpg')).toString('base64'));
   const printCSS=fs.readFileSync(path.join(dir,'invoice-a4.css'),'utf8');
   const templateScript='<script>window.PickingInvoiceTemplate='+JSON.stringify(template).replace(/<\/script/gi,'<\\/script')+';window.PickingPrintCSS='+JSON.stringify(printCSS).replace(/<\/script/gi,'<\\/script')+';</script>';
-  const result=html.replace('</body>',templateScript+'<script src="/prototypes/order-picking/invoice.js"></script><script src="/prototypes/order-picking/print-tools.js"></script><script src="/prototypes/order-picking/kiot-link.js"></script><script src="/prototypes/order-picking/stocktake-ui.js"></script><script src="/prototypes/order-picking/locations-ui.js"></script></body>');
+  const result=html.replace('</body>',templateScript+'<script src="/prototypes/order-picking/invoice.js"></script><script src="/prototypes/order-picking/print-tools.js"></script><script src="/prototypes/order-picking/kiot-link.js"></script><script src="/prototypes/order-picking/stocktake-ui.js"></script><script src="/prototypes/order-picking/locations-ui.js"></script><script src="/prototypes/order-picking/locations-source.js"></script></body>');
   fs.writeFileSync(path.join(dir,'index.html'),result);
   return result;
 }

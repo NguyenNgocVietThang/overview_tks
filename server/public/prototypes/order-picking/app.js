@@ -99,7 +99,7 @@
     order=o;suggest();const entry=validSaved(o);if(entry)allocations=structuredClone(entry.allocations);
     const record=window.PickingInventory?.record(o);if(record){allocations={};record.jobs.forEach(j=>{(allocations[j.line]??=[]).push({id:j.id,quantity:(j.taken+j.reserved)||(record.status==='cancelled'?j.planned:0)||0});});}
     $('pickingNote').value=entry?.note||'';$('pickingTitle').innerHTML=esc(o.orderCode+' · '+(o.branch==='HN'?'Hà Nội':'Sài Gòn'))+(D.source==='MÔ PHỎNG'?' <span class="picking-badge">Mô phỏng</span>':'');
-    $('pickingSource').textContent='Bản '+R.version+' · Nguồn: '+D.source+' · '+(entry?'Đang khôi phục chỉ định đã xác nhận. Bấm “Gợi ý lại” để tính phương án mới.':'Gợi ý mới: chọn vị trí đủ hàng có lượng khả dụng sát số cần nhất.');
+    $('pickingSource').textContent='Bản '+R.version+' · Nguồn: '+D.source+' · '+(D.locationSource?'Vị trí: '+D.locationSource+' · ':'')+(entry?'Đang khôi phục chỉ định đã xác nhận. Bấm “Gợi ý lại” để tính phương án mới.':'Gợi ý mới: chọn vị trí đủ hàng có lượng khả dụng sát số cần nhất.');
     render();$('pickingDialog').showModal();
   }
   // Dòng đã phân bổ đủ: đúng SL cần, hoặc làm tròn lên thùng nguyên (vượt chưa tới một thùng) — cùng luật với R.validate.
