@@ -1,5 +1,13 @@
 # Supabase schema cho đồng bộ KiotViet
 
+## Migration 0097 — Dấu vết phiếu chỉ định (27/10/2026, chưa áp DB)
+
+`0097_order_pick_assignment_snapshots.sql` thêm `order_pick_lines.allocation_snapshot JSONB` nullable, ghi lúc chỉ định để kiểm mã/vị trí/quy cách và cách lấy trên phiếu dưới khóa trước xác nhận. Dấu vết này tách với `position_snapshot` ghi lúc trừ tồn để hoàn tác. Không backfill từ tồn hiện tại hoặc sửa lịch sử cũ.
+
+## Migration 0096 — Chỉ định vị trí trên Vòng đời đơn hàng (27/10/2026, chưa áp DB)
+
+Bảng `order_pick_assignments`, `order_pick_lines`, `order_pick_history` (chỉ thêm) và mở rộng CHECK `stock_position_history.action` (`pick`, `pick_revert`). Chi tiết ở mục “0096” cuối tài liệu. Schema hiện có migration `0001` đến `0097`.
+
 ## Migration 0095 — Vị trí hàng mới: `stock_positions` (27/10/2026, chưa commit/migrate/deploy)
 
 Bảng `stock_positions` + `stock_position_history`; dữ liệu đầu sao chép từ `stock_location_lines`; SL kho tính từ ghi chú bằng `carton.js`; khóa lạc quan `version`; lịch sử chỉ thêm. Chi tiết ở mục cuối.
@@ -748,5 +756,25 @@ Cập nhật gần nhất: 24/10/2026.
 - **Dữ liệu đầu (một lần, chỉ khi bảng rỗng)**: `INSERT … SELECT` từ `stock_location_lines`, `updated_by_name = 'Nhập dữ liệu đầu'`. Gỡ tiền tố "T x " thừa của HN (vd "T x 4T*100" → "4T*100") khi phần sau là "<số>T…"; **bỏ** dòng thiếu mã và dòng hết hàng (ghi chú rỗng / "Hết hàng") vì quy tắc tự xóa khi SL = 0. Sau khi sao chép, hai bảng không còn liên hệ (Google Sheets chỉ còn nuôi hai tab cũ "Vị trí HN/SG"). Mỗi cơ sở có một bản ghi lịch sử `seed`.
 - Tự xóa khi hết: sau mọi lần lưu, SL tính ra = 0 thì dòng bị xóa và ghi `auto_delete`.
 - **27/10/2026 (không migration mới):** `GET /api/stock-positions/history` có thêm tham số `positionId` lọc theo cột `position_id` có sẵn (hộp chi tiết dòng); `GET /api/stock-positions/history/export` đọc cùng bảng `stock_position_history` (trần 50.000 dòng mới nhất). Không đổi cấu trúc bảng/index.
+
+## 0096 — Chỉ định vị trí trên Vòng đời đơn hàng (27/10/2026, chưa áp DB)
+
+- `order_pick_assignments (id BIGSERIAL)`: `branch` ("HN"|"SG"), `order_code`, `status` (`picking|confirmed|cancelled`), `version INTEGER` (khóa lạc quan), `order_snapshot JSONB` (khách, sale, `saleTelegramId`, dòng hàng, giá, chiết khấu — để in lại phiếu đúng nội dung), người/thời điểm chỉ định, xác nhận và hủy, `updated_at`. **Unique một phần** `order_pick_assignments_active_uidx` trên `(branch, lower(btrim(order_code))) WHERE status IN ('picking','confirmed')`: tối đa một chỉ định hoạt động mỗi đơn; chỉ định đã `cancelled` được giữ làm lịch sử.
+- `order_pick_lines (id BIGSERIAL)`: `assignment_id` (FK), `product_code`, `position_id` (trỏ `stock_positions.id`, không FK vì dòng có thể bị tự xóa), `location`, `planned_qty`, `reserved_qty`, `st_cartons`, `st_text`, `picked_qty NUMERIC` (NULL trước xác nhận), `spec_before` / `spec_after` (ghi chú vị trí trước/sau khi trừ thùng, để hoàn tác đúng chuỗi), `position_snapshot JSONB` (mã, tên, ghi chú, ngày về, vị trí — để tạo lại dòng đã bị `auto_delete`). UNIQUE `(assignment_id, position_id)`; `planned_qty > 0`, `reserved_qty >= 0`. Index `order_pick_lines_position_idx (position_id)` để cộng giữ chỗ. `position_snapshot` có khóa `{code, name, notes, arrivalDate, location}`.
+- `order_pick_history`: nhật ký **chỉ thêm** (trigger chặn UPDATE/DELETE như `stock_position_history_guard`; `REVOKE` khỏi `reporting_readonly`): hành động `assign|confirm|cancel`, người thực hiện (`actor_user_id`, `actor_name`), `created_at`, `assignment_id`, `branch`, `order_code`, `summary JSONB`. `assignment_id` của lịch sử không có FK; FK của lines có ON DELETE CASCADE.
+- **Tra cứu:** `order_pick_assignments_order_idx` trên `(branch, lower(btrim(order_code)), id DESC)`; API đọc chỉ định mới nhất kể cả cancelled. Khớp mã vị trí bằng `lower(btrim(code))`, tách HN/SG.
+- **Giữ chỗ không có cột riêng:** tồn khả dụng của vị trí = SL tính từ `stock_positions.notes` − Σ `reserved_qty` của các `order_pick_lines` thuộc chỉ định đang `picking` ở đơn khác. Xác nhận nhặt trừ thùng thật (giữ chỗ hết hiệu lực vì đơn không còn `picking`).
+- **`stock_position_history.action`** mở rộng CHECK thêm `pick` (xác nhận nhặt trừ thùng) và `pick_revert` (hủy/hoàn tác), `summary` mang `{orderCode, assignmentId}`; dòng tự xóa khi trừ hết vẫn ghi `auto_delete`.
+- Mọi thao tác ghi chạy trong một giao dịch dưới khóa advisory theo cơ sở của `stockPositions/` + `FOR UPDATE` các dòng vị trí theo thứ tự `id`.
+
+Trạng thái: đang làm trên nhánh `feat/lifecycle-pick-assign`, **chưa merge, chưa migrate (`0096`, `0097`), chưa deploy**. Người dùng tự chạy `npm run db:migrate`.
+
+## 0097 — Snapshot lúc chỉ định và tiền phiếu v2 (27/10/2026, chưa áp DB)
+
+- `order_pick_lines.allocation_snapshot JSONB` nullable: mã/vị trí chuẩn hóa, version vị trí, ghi chú/quy cách và phương án lấy lúc giữ chỗ. Xác nhận kiểm dấu vết dưới cùng khóa cơ sở/dòng; version tăng do đơn khác giảm tồn không tự làm phiếu mất hiệu lực nếu cách lấy vẫn đúng và tồn đủ.
+- `position_snapshot` giữ nguyên mục đích hoàn tác tại thời điểm xác nhận; không dùng thay dấu vết lúc chỉ định. Dòng cũ có `allocation_snapshot IS NULL` được xem/in/hủy giữ chỗ nhưng không xác nhận bằng dữ liệu hiện tại.
+- `order_snapshot` mới dùng `schemaVersion: 2`, giữ dòng gốc theo thứ tự, `amount` mỗi dòng và `goodsTotal`/`payable`/`invoiceDiscount` dưới dạng chuỗi thập phân chuẩn do máy chủ tính. Các dòng cùng mã chỉ gộp để phân bổ; ảnh chụp cũ không được suy dựng lại từ đơn Kiot mới.
+- Các cột lượng vẫn là `NUMERIC`; service yêu cầu số chiếc nguyên an toàn trước gộp, trước ghi và trước hoàn. Không cưỡng ép chuyển kiểu trên dữ liệu cũ. Bản đã xác nhận có lượng lẻ hoặc `picked_qty` lệch chênh lệch `spec_before`/`spec_after` cần đối soát, không hoàn tự động.
+- Áp `0096` rồi `0097` trước đưa backend/frontend mới vào vận hành; chưa áp DB thật trong phiên sửa này.
 
 Cập nhật gần nhất: 27/10/2026.

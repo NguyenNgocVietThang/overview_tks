@@ -212,4 +212,14 @@ Mục 3 spec -> Task 2; mục 4 -> Task 1 và 3; mục 5 -> Task 4; mục 6 -> T
 
 ## Bàn giao thực thi
 
-Kế hoạch đã ghi và tự rà soát; chưa sửa nguồn. Hai lựa chọn theo skill writing-plans: thực thi bằng subagent theo task hoặc thực thi trực tiếp trong chat với executing-plans. Chỉ dùng subagent sau khi người dùng chọn phương án đó.
+Người dùng đã yêu cầu triển khai nhanh và cho phép nhiều subagent chạy song song. Task 1–5 đã có mã cục bộ; Task 6 đang tổng hợp kiểm chứng và báo cáo, chưa áp migration/merge/deploy.
+
+## Trạng thái thực thi — 27/10/2026
+
+- **Backend và dữ liệu:** 20 service test và 31 test carton/rules/snapshot vị trí đạt, gồm rollback đổi vị trí/quy cách, số chiếc nguyên, tồn giảm hợp lệ, dữ liệu cũ và hoàn tác. Migration thực tế là `0097_order_pick_assignment_snapshots.sql`.
+- **Tiền và phiếu:** 3 test tiền và 2 frontend phiếu đạt; phiếu A4 giữ ST theo mẫu người dùng. Đã nối SĐT/địa chỉ khách từ nguồn máy chủ; 10 test metadata đạt. `sellerPhone` để trống vì nguồn staff chưa có SĐT, không suy diễn Zalo sale theo tên.
+- **Popup:** 24 frontend test đạt, gồm mất phản hồi sau commit, tải lại lỗi, chặn ghi khi chưa đồng bộ và phản hồi cũ.
+- **Tích hợp:** 12 route đạt với localhost fixture được phép; prototype build thành công và 92/92 test đạt. Tổng nhóm tập trung khác nhau là 90 test; không cộng trùng các lượt chạy.
+- **Graph:** `graphify update .` exit 0, cập nhật 13.491 node / 29.505 cạnh / 562 community. Nguồn metadata bổ sung sau lượt graph này cần được đối chiếu ở lần cập nhật cuối nếu có thay đổi.
+- **Toàn suite:** đang chạy `node --max-old-space-size=4096 --test --test-force-exit --test-concurrency=4`, log `.codex_tmp/pick-full-suite-force.log`; lượt trước không kết thúc vì timer nền của test auth. Chưa tuyên bố toàn suite xanh khi chưa có summary.
+- **Chưa xác minh:** PostgreSQL nhiều kết nối và hộp in hệ điều hành. Chưa áp migration 0096/0097 vào DB thật, chưa merge/push/deploy.

@@ -476,3 +476,15 @@ Cập nhật gần nhất: 27/10/2026.
 ## Cá nhân tự rút đơn nghỉ phép — 26/10/2026
 
 Nhân viên đổi kế hoạch được tự xóa vĩnh viễn đơn của mình trước buổi nghỉ đầu tiên, dù đang chờ, đã duyệt hay bị từ chối; áp dụng đơn gửi từ web và Telegram. Người duyệt liên quan được báo hủy, lịch và thống kê bỏ đơn. Không cho quản lý hủy thay, không áp dụng nghỉ không phép HR ghi nhận, không hủy sau giờ bắt đầu. Có xác nhận trước khi xóa, không cần duyệt lại.
+
+## Bổ sung 27/10/2026 — Chỉ định vị trí trên Vòng đời đơn hàng
+
+Khi đơn đã gửi kế toán, Quản lý chỉ định hàng của đơn lấy từ thùng/vị trí nào trong kho ngay trên trang Vòng đời đơn hàng, thay vì ghi tay. Hệ thống gợi ý thùng nguyên, **giữ chỗ** theo mã hàng đã gộp và cơ sở HN/SG (khả dụng = lượng ghi chú trừ giữ chỗ của đơn khác đang nhặt), in **phiếu nhặt** 9 cột, rồi khi kho lấy xong thì **Xác nhận nhặt** để trừ thùng thật trong sổ Vị trí hàng (VT Hà Nội/Sài Gòn), hoặc **Hủy nhặt** để hoàn lại đúng như trước. Mỗi đơn/cơ sở chỉ có một chỉ định hoạt động; sau hủy có thể chỉ định lại, trạng thái danh sách lấy lần chỉ định mới nhất kể cả đã hủy. Xác nhận/hủy lặp không được trừ/cộng hai lần. Mỗi bước lưu lịch sử người thực hiện. Đợt đầu chỉ Quản lý dùng (cấp thêm cho tài khoản khác được), chưa gồm kiểm kê, thực nhặt/lấy bù và thông báo chuông.
+
+Rà soát bản trước khi sửa ngày 2026-10-27 ghi lỗi xử lý vị trí/quy cách đổi sau giữ chỗ, số lượng lẻ, tiền khi gộp dòng và popup khi mất mạng ([báo cáo](../superpowers/reviews/2026-10-27-pick-assign-review.md)). Prototype chỉ là demo, 92/92 test đạt không chứng minh luồng DB thật đã hoàn chỉnh.
+
+**Quy tắc đã được người dùng chốt trong đợt sửa:** nhặt theo số chiếc nguyên, số thùng quy đổi vẫn có thể lẻ. Phiếu đã in phải giữ đúng vị trí và cách lấy; đổi mã/vị trí/quy cách làm phiếu không còn đúng thì hủy và chỉ định lại, không âm thầm trừ ở chỗ mới. Đơn khác giảm tồn bình thường không làm phiếu mất hiệu lực nếu vẫn lấy đúng và đủ. Tiền trên phiếu giữ từng dòng giá/chiết khấu gốc; cùng mã không bị mất tiền vì bình quân giá. Phiếu A4 theo mẫu kho người dùng cung cấp, vẫn có cột ST; thông tin lấy hàng theo mã chỉ xuất hiện một lần khi có nhiều dòng giá. Mất mạng cho đóng/thử tải lại, kiểm trạng thái trước thao tác tiếp để tránh gửi lặp. Phiếu cũ thiếu dấu vết được hủy/chỉ định lại; lịch sử đã nhặt lẻ hoặc lệch phải đối soát trước hoàn. Đợt sửa đang kiểm chứng cục bộ theo [thiết kế](../superpowers/specs/2026-10-27-pick-assign-hardening-design.md), chưa nghiệm thu vận hành.
+
+Trạng thái: đang làm trên nhánh `feat/lifecycle-pick-assign`, **chưa merge, chưa migrate (`0096`, `0097`), chưa deploy**.
+
+Cập nhật gần nhất: 27/10/2026.

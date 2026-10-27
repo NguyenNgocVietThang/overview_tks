@@ -70,6 +70,15 @@ test('original lifecycle template is reused without modifying its table or detai
   assert.ok(result.includes('id="lcDetailOverlay"'));
   assert.ok(result.includes('lifecycle-data.js'));
 });
+test('bản demo không nạp popup/phiếu in thật dùng trùng global với demo',()=>{
+  const {build}=require('../../../prototype-build.cjs');
+  const dom=new JSDOM(build());
+  try{
+    const assets=[...dom.window.document.querySelectorAll('script[src],link[href]')];
+    assert.deepEqual(assets.map(el=>el.getAttribute('src')||el.getAttribute('href')).filter(url=>url.startsWith('/shipment/lifecycle/pick/')),[]);
+    assert.equal(assets.filter(el=>el.getAttribute('src')==='/prototypes/order-picking/invoice.js').length,1);
+  }finally{dom.window.close();}
+});
 test('SL nhặt stepper/input keeps each location within stock and each line within the needed quantity',t=>{
   const {w,d}=setup(t);d.querySelector('#openPickingBtn').click();
   const sel=(k,id)=>`[${k}][data-qline="0"][data-qloc="${id}"]`;

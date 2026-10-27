@@ -1,5 +1,7 @@
 # Prototype: Vòng đời đơn hàng → Chỉ định vị trí
 
+> **Cập nhật 27/10/2026:** tính năng này nay đã có **bản thật** trên trang Vòng đời đơn hàng `/shipment/lifecycle/` (nhánh `feat/lifecycle-pick-assign`: migration `0096`, module `server/pickAssignments/`, API `/api/shipment/pick`, giao diện `public/shipment/lifecycle/pick/`, quyền `shipment.pick`). Bản thử này **giữ làm demo** (đơn demo, bộ nhớ phiên, không ghi DB); mọi mô tả “chưa có API ghi / chưa nối Vị trí hàng thật” bên dưới chỉ đúng với bản thử. Chạy lại `node prototype-build.cjs` mỗi khi `public/shipment/lifecycle/index.html` đổi.
+
 ## Thùng, ST và trạng thái nhặt (26/10/2026) — thay thế mọi mô tả cũ về SL, tồn và trạng thái bên dưới
 
 Phạm vi: chỉ prototype chạy trên trình duyệt (bộ nhớ phiên), không DB/API, chưa nối trang Vị trí hàng thật.
@@ -7,7 +9,7 @@ Phạm vi: chỉ prototype chạy trên trình duyệt (bộ nhớ phiên), khô
 ### Ghi chú hàng hóa là nguồn SL
 - Quy cách: `<số thùng>T x <SL/thùng>`, ví dụ `5Tx100` = 500. Chịu T/t, dấu x hoặc * hoặc ×, khoảng trắng. **Số thùng và SL/thùng phải là số nguyên dương** (`0.5Tx100`, `0Tx50` không hợp lệ).
 - Dấu phẩy cũng nối nhiều quy cách như `+` khi đứng ngay sau SL/thùng của số hạng trước: `9tx14, 5tx 14` = `9tx14,5tx14` = 196 (vẫn cảnh báo nhiều quy cách). Dấu phẩy thập phân (`0,5Tx100`) không bị tách. Khi ghi lại ghi chú sau trừ thùng, dấu nối được chuẩn hóa thành ` + `. `2X20` (thiếu chữ T), `1t`, `1b*200`, `1tx40 + 1t39` vẫn sai định dạng.
-- Dấu nhân giữa thùng và SL/thùng là x, X, * hoặc × và tùy chọn khi có khoảng trắng: `1t 11` = `1t x 11` = `1T*11` (bắt buộc có chữ T; `1t11` dính liền, `1t`, `2X20`, `1b*200` vẫn sai định dạng và bị cảnh báo vì dễ nhập nhằng).
+- Dấu nhân giữa thùng và SL/thùng là x, X, * hoặc × và tùy chọn khi có khoảng trắng: `1t 11` = `1t x 11` = `1T*11` (bắt buộc có chữ T; `1t11` cũng hợp lệ (= 11 chiếc); `1t`, `2X20`, `1b*200` vẫn sai định dạng).
 - **Chuẩn hóa khi lưu** (sửa tại chỗ, nhập tay, import, và khi hệ thống ghi lại sau trừ): ghi chú đọc được về `<thùng>T x <SL/thùng>`, nhiều quy cách nối ` + `, trừ lẻ ` - N`, T hoa, c thường (`1t 11`, `1T X 11`, `1t*11` → `1T x 11`; `9tx14,5tx 14` → `9T x 14 + 5T x 14`). Ghi chú sai định dạng giữ chữ người dùng gõ, chỉ cắt đầu/cuối và gộp khoảng trắng liên tiếp; rỗng giữ rỗng. Chuỗi chỉ khác khoảng trắng thì không ghi lịch sử thừa; hoàn tác vẫn khôi phục đúng chuỗi đã lưu.
 - Số hạng cùng SL/thùng được gộp thành một khi đọc và khi chuẩn hóa (cộng thùng, thứ tự theo lần xuất hiện đầu tiên): `9tx14, 5tx 14` → `14T x 14`, `1Tx50 + 2Tx25 + 1Tx50` → `2T x 50 + 2T x 25`; phần trừ lẻ giữ ở cuối. Cảnh báo nhiều quy cách tính sau khi gộp nên `14T x 14` không còn cảnh báo.
 - Hậu tố `c` (cái) sau SL/thùng chỉ là đơn vị: `1T x 50c`, `5Tx100c`, `1Tx50c + 2Tx25c - 30` (c hoa/thường, có hoặc không khoảng trắng; 50c = 50). Khi trừ thùng, mỗi số hạng giữ hậu tố c như đã nhập; phần trừ lẻ ` - N` thêm mới luôn không có c (cách đơn giản nhất, không đoán phong cách).
@@ -48,16 +50,19 @@ Phạm vi: chỉ prototype chạy trên trình duyệt (bộ nhớ phiên), khô
 - Hướng sau này (người dùng chốt): Vị trí hàng trên web là nguồn chính, bỏ Google Sheets. Việc cần cho bản thật: migration lưu ghi chú và lịch sử chỉnh sửa (kèm người thực hiện thật), API ghi (sửa/thêm dòng, trừ và hoàn tác khi xác nhận/hủy nhặt, giữ chỗ Đang nhặt), quyền ghi riêng, tên hàng từ danh mục sản phẩm, bỏ đồng bộ Sheets cùng cột SL/total_quantity, lưu đơn Đang nhặt/Xác nhận/Hủy ở DB.
 
 ### Tệp
-`../../shared/carton.js` (đã chuyển lên public/shared; parser, trừ thùng, ST, gợi ý thùng nguyên, cảnh báo), `inventory.js` (SL từ ghi chú, vòng đời đơn, lịch sử), `locations-ui.js` (Sổ vị trí), `locations-source.js` (đọc Vị trí hàng thật, dự phòng demo), `app.js` (popup, cột ST, chip lọc), `invoice.js` + `order-template.html` (cột ST trên phiếu). Kiểm thử: `carton.test.js`, `carton-ui.test.js`, `locations-ui.test.js`, `locations-entry.test.js`, `locations-detail.test.js`, `inventory.test.js`, `ui.test.js`, `rules.test.js`, `stocktake.test.js` và `node prototype-smoke.cjs` (sau `node prototype-single.cjs`). Ví dụ ABC/DEF/GHI nằm ở đơn `DH-DEMO-013`.
+`../../shared/carton.js` (đã chuyển lên public/shared; parser, trừ thùng, ST, gợi ý thùng nguyên, cảnh báo), `inventory.js` (SL từ ghi chú, vòng đời đơn, lịch sử), `locations-ui.js` (Sổ vị trí), `locations-source.js` (đọc Vị trí hàng thật, dự phòng demo), `app.js` (popup, cột ST, chip lọc), `invoice.js` + `order-template.html` (cột ST trên phiếu). Kiểm thử: `../../shared/carton.test.js`, `carton-ui.test.js`, `locations-ui.test.js`, `locations-entry.test.js`, `locations-detail.test.js`, `inventory.test.js`, `ui.test.js`, `rules.test.js`, `stocktake.test.js` và `node prototype-smoke.cjs` (sau `node prototype-single.cjs`). Ví dụ ABC/DEF/GHI nằm ở đơn `DH-DEMO-013`.
 
 
 ## Đã bỏ luồng thực nhặt (26/10/2026) — thay thế các mục mô tả thực nhặt bên dưới
 
-Popup có 6 cột: Mã hàng, Tên hàng, Cần nhặt, ST, Tồn kho, Vị trí kho. Đã gỡ cột Kho nhặt thực và Còn thiếu cùng các luồng đi kèm: nhập/lưu nháp/xác nhận thực nhặt, lấy bù và phiếu bổ sung, chốt phiếu giao thiếu, `workflow.js`, `simple-flow.js`, `PickingInventory.confirmActual/fill`. Luồng hiện tại: **Xác nhận & In phiếu nhặt** → giữ chỗ và mở phiếu; mở lại popup chỉ còn nút **In đơn** để in lại, không trừ tồn. Cột giấy "Thực tế nhặt" trên phiếu in (theo mẫu được cấp) vẫn để trống cho người nhặt. Hộp Kho nhặt hàng/kiểm đếm trong `inventory.js` không còn lối vào từ giao diện.
+Popup có 6 cột: Mã hàng, Tên hàng, Cần nhặt, ST, Tồn kho, Vị trí kho. Đã gỡ cột Kho nhặt thực và Còn thiếu cùng các luồng đi kèm: nhập/lưu nháp/xác nhận thực nhặt, lấy bù và phiếu bổ sung, chốt phiếu giao thiếu, `workflow.js`, `simple-flow.js`, `PickingInventory.confirmActual/fill`. Luồng hiện tại: **Xác nhận & In phiếu nhặt** → giữ chỗ và mở phiếu; mở lại popup có **Xác nhận nhặt**, **Hủy nhặt** và **In đơn** theo trạng thái; in lại không trừ tồn. Cột giấy "Thực tế nhặt" trên phiếu in (theo mẫu được cấp) vẫn để trống cho người nhặt. Hộp Kho nhặt hàng/kiểm đếm trong `inventory.js` không còn lối vào từ giao diện.
 
 ## Mẫu in và giao diện hiện tại — thay thế mô tả các phiên bản bên dưới
 
 Đường dẫn Kiot: chi tiết đơn có **Mở đơn trên Kiot ↗** cạnh trạng thái KiotViet, ngoài popup nhặt. HN mở chhanoi, SG mở chsaigon, trang `/man/#/Orders?code=...`; query `code` được đối chiếu với mã OrderCtrl của giao diện Kiot. Link lọc theo mã để kế toán chọn/kiểm tra rồi tự bấm Kết thúc trên Kiot. Mã DH-DEMO được ghi rõ là mô phỏng, không tồn tại như đơn thật. File HTML không gửi lệnh hoàn thành và không tự đọc lại trạng thái Kiot; phần cập nhật trạng thái qua đồng bộ thuộc hệ thống máy chủ hiện có, chưa kết nối vào prototype. Không chứa khóa API trong link hoặc mã HTML.
+
+<details>
+<summary>Lịch sử các phiên bản trước — mô tả thực nhặt, số cột và số test bên trong không áp dụng cho bản hiện tại</summary>
 
 Kho nhặt thực tự điền theo số đã chỉ định ở từng vị trí sau khi xác nhận chỉ định. Kế toán chỉ sửa những ô lệch. Đây là giá trị đề xuất trong ô nhập, chưa tự ghi thực nhặt hoặc trừ tồn. Giữ nguyên giá trị nháp đã sửa (kể cả 0 hoặc ô bị xóa), không ghi đè khi mở lại; đã ghi nhận thì hiển thị số thực nhặt đã lưu. Nhấn In đơn mới kiểm tra và ghi số thực nhặt theo luồng hiện tại. Phiếu nhặt lần đầu vẫn để trống cột giấy Thực tế nhặt.
 
@@ -113,21 +118,23 @@ Sổ tồn/giữ chỗ chỉ nằm trong bộ nhớ phiên thử, tải lại fi
 
 Cập nhật 23/10/2026 theo ảnh chụp và bản vẽ người dùng. Chỉ là bản thử, chưa sửa luồng vận hành hoặc triển khai lên máy chủ.
 
+</details>
+
 ## Chạy thử
 
 Từ thư mục `server`: `node prototype-preview.cjs`, mở `http://127.0.0.1:4178/prototypes/order-picking/`.
 
-`prototype-build.cjs` đọc nguyên `public/shipment/lifecycle/index.html`, thêm adapter dữ liệu và popup rồi tạo `public/prototypes/order-picking/index.html`. Không sửa file Vòng đời nguồn. Muốn dựng lại khi nguồn thay đổi: `node prototype-build.cjs`. Không chỉnh tay file index đã sinh.
+`prototype-build.cjs` đọc `public/shipment/lifecycle/index.html`, giữ markup bảng/chi tiết, bỏ các link CSS/script của `/shipment/lifecycle/pick/` để tránh trùng global/id với bộ popup/in demo, thêm adapter dữ liệu và popup rồi tạo `public/prototypes/order-picking/index.html`. Không sửa file Vòng đời nguồn. Muốn dựng lại khi nguồn thay đổi: `node prototype-build.cjs`. Không chỉnh tay file index đã sinh.
 
 ## Luồng
 
 1. Bảng Toàn bộ đơn hàng và hộp Chi tiết dùng nguyên template hiện tại, giữ bộ lọc, cột, sắp xếp, bảng hàng hóa và theme.
 2. Bấm một dòng đơn để mở chi tiết. Chỉ đơn `SENT_TO_ACCOUNTANT` có nút **Chỉ định vị trí** ngay trên bảng Hàng hóa trong đơn.
-3. Bấm nút để mở popup bốn cột **Mã hàng / Tên hàng / SL đơn / Vị trí kho**. Từng vị trí hiển thị dưới dạng ô chọn có tên, khả dụng, số lấy và trạng thái đã chọn.
+3. Bấm nút để mở popup sáu cột **Mã hàng / Tên hàng / Cần nhặt / ST / Tồn kho / Vị trí kho**. Từng vị trí hiển thị dưới dạng ô chọn có tên, khả dụng, số lấy và trạng thái đã chọn.
 4. Gợi ý mới: trong các vị trí đủ lượng còn cần lấy, chọn vị trí có khả dụng nhỏ nhất (phần dư nhỏ nhất, ưu tiên khớp chính xác). Ví dụ cần 100: chọn 100 trước 120, 200, 500; nếu không có 100 thì chọn 120. Không dựa khoảng cách hoặc thứ tự vị trí. Nếu không vị trí nào đủ, chia từ vị trí nhiều hàng nhất rồi tính lại cho lượng còn thiếu. Khả dụng đã trừ giữ chỗ của các đơn khác.
 5. Bấm vị trí đủ hàng để chuyển sang vị trí đó; bấm các vị trí không đủ để chia nhiều nơi. Bấm ô đang chọn để bỏ chọn. Không xác nhận khi thiếu, thừa, vượt khả dụng hoặc mã chưa có vị trí.
-6. **Xác nhận chỉ định** lưu localStorage riêng `tks-picking-popup-v2`, đóng popup, hiện dấu đã xác nhận và nút **In đơn** tại chi tiết. Bản lưu có fingerprint đơn/vị trí để chặn in phương án cũ khi dữ liệu đổi.
-7. Nút In đơn mở xem trước mẫu tạm; in qua hộp in trình duyệt. Format chính thức đang chờ người dùng gửi.
+6. **Xác nhận & In phiếu nhặt** lưu localStorage riêng `tks-picking-popup-v2`, đóng popup, hiện dấu đã xác nhận và nút **In đơn** tại chi tiết. Bản lưu có fingerprint đơn/vị trí để chặn in phương án cũ khi dữ liệu đổi.
+7. Nút In đơn mở mẫu `order-template.html` chín cột (có ST, không còn cột Nhặt); in qua hộp in trình duyệt.
 
 ## Dữ liệu
 
@@ -135,12 +142,14 @@ Adapter `lifecycle-data.js` cung cấp JSON theo hợp đồng API hiện có ch
 
 Nút **Nguồn dữ liệu** cho tải mẫu/nhập JSON `{orders,locations}`, tối đa 10 MB, 1.000 đơn, 50.000 dòng vị trí. `orders`: `branch` HN/SG, `orderCode`, `status.code`, `lines` với `productCode`, `productName`, `quantity`. `locations`: `branch`, `code`, `location`, `available` (số đã xác nhận cùng đơn vị với dòng đơn).
 
-Chưa kết nối DB hoặc API thật. Không coi `totalQuantity` trên sheet, đặc biệt “TỔNG SL đã đi” SG, là tồn còn tại vị trí. Vị trí thiếu `available` cần người thử xác nhận trước khi chọn. Không giữ hàng giữa các đơn, không trừ tồn, không migration. Bản in và giao diện ghi nhãn mô phỏng.
+Chưa kết nối DB hoặc API thật. Không coi `totalQuantity` trên sheet, đặc biệt “TỔNG SL đã đi” SG, là tồn còn tại vị trí. Vị trí thiếu `available` cần người thử xác nhận trước khi chọn. Có giữ chỗ giữa các đơn và trừ/hoàn tác tồn mô phỏng trong bộ nhớ phiên; không migration hoặc ghi tồn thật. Bản in và giao diện ghi nhãn mô phỏng.
 
 ## Kiểm thử
 
-`node --test public/prototypes/order-picking/rules.test.js public/prototypes/order-picking/ui.test.js`
+Từ gốc repo: `node server/prototype-build.cjs`. Sau đó từ thư mục `server`: `node --test "public/prototypes/order-picking/*.test.js"` (dùng glob, không truyền thư mục).
 
-10 test: gợi ý số lượng không dựa ưu tiên vị trí, chia hàng/thiếu hàng, số liệu chưa rõ, kiểm tra khả dụng dùng chung, bố cục popup, đổi ô chọn, xác nhận/mở in, điều kiện trạng thái và giữ nguyên markup bảng Vòng đời nguồn.
+Kết quả 2026-10-27: build thành công; 91 test sẵn có đạt. Ca hồi quy mới “bản demo không nạp popup/phiếu in thật dùng trùng global với demo” thất bại trước sửa vì còn 4 asset pick thật; sau sửa `prototype-build.cjs`, toàn bộ **92/92 đạt, 0 lỗi, 0 bỏ qua**. Test giữ nguyên markup bảng/chi tiết nguồn vẫn đạt. Không sửa nguồn lifecycle. Chưa kiểm máy in/trình duyệt thật trong phiên này.
 
-Cập nhật lần cuối: 26/10/2026 (thùng, ST, trạng thái Đang nhặt/Xác nhận/Hủy nhặt, Sổ vị trí cảnh báo và lịch sử).
+Bản thật dùng `public/shipment/lifecycle/pick/order-template.tpl`; bản thử giữ `order-template.html`. API thật: GET `/api/shipment/pick/candidates?branch&order`, GET `/api/shipment/pick?branch&order` (assignment mới nhất kể cả đã hủy), POST `/api/shipment/pick`, POST `/api/shipment/pick/:id/confirm` và `/:id/cancel` với version. Các route thật có quyền `shipment.pick`; adapter demo chặn ghi, không gọi các route này để thay đổi tồn.
+
+Cập nhật lần cuối: 2026-10-27 (đối chiếu bản thật, dựng lại prototype và 92 test).
