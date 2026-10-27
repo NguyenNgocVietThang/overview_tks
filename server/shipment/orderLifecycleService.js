@@ -509,18 +509,18 @@ async function loadMergedRows(kiot) {
  * filteredTotal (sau loc), kiotStatuses (cho o loc), warningCounts (theo co so), kpis (chi so tong quat dau
  * trang theo bo loc hien tai — xem orderLifecycleQuery.countSummary), kiot (tom tat nguon Kiot | null) }.
  */
-async function queryOrders(rawParams, { kiot, pickStatuses } = {}) {
+async function queryOrders(rawParams, { kiot, pickStatuses, pickMismatches } = {}) {
   const params = query.parseParams(rawParams);
   const { rows, kiotResult } = await loadMergedRows(kiot);
   const pickMap = pickStatuses ? await pickStatuses() : null;
   // Loc theo trang thai chi dinh vi tri: thu hep tap dong (chi dinh it, don ~60 nghin) roi loc/sap xep nhu thuong, khong qua
   // selectionCache (gan voi mang dong nguon). Khong loc thi van dung cache; pickStatus chi gan len cac dong cua trang tra ve.
-  const filtered = pickMap && params.pickStatus ? rows.filter(row => pickMap.get(pickKey(row)) === params.pickStatus) : null;
+  const filtered = pickMap && params.pickStatus ? rows.filter(row => matchesPickFilter(pickMap.get(pickKey(row)), params.pickStatus)) : null;
   const scope = query.rowsInBranch(rows, params.branch);
   const selected = filtered ? query.selectRows(filtered, params) : selectionCache.select(rows, params);
   const paged = query.paginate(selected, params.page, params.pageSize);
   return {
-    orders: pickMap ? withPickStatus(paged.items, pickMap) : paged.items,
+    orders: pickMap ? await withPickMismatch(withPickStatus(paged.items, pickMap), pickMap, pickMismatches) : paged.items,
     page: paged.page,
     pageSize: paged.pageSize,
     totalPages: paged.totalPages,
@@ -536,6 +536,27 @@ async function queryOrders(rawParams, { kiot, pickStatuses } = {}) {
 // Khoa trang thai chi dinh theo (co so, ma don) — khop pickAssignmentsService.latestStatuses ('HN|ma don chu thuong').
 function pickKey(row) {
   return `${row.branch}|${normalizeCode(row.orderCode)}`;
+}
+
+// Bo loc "Trang thai boc": 'none' = Chua boc (khong co khoa trong ban do), con lai khop dung trang thai chi dinh moi nhat.
+function matchesPickFilter(status, filter) {
+  return filter === 'none' ? !status : status === filter;
+}
+
+/**
+ * Canh bao LECH SL (don Dang boc / Da boc ma tong ST da chi dinh khac SL dong don Kiot o bat ky ma nao): gan
+ * `pickMismatch` [{ productCode, picked, ordered }] cho dong co lech cua TRANG tra ve. `pickMismatches(pairs)` do
+ * pickAssignmentsService cung cap (chi doc cac don cua trang, khong doc ca 60 nghin don); khong truyen thi bo qua.
+ */
+async function withPickMismatch(items, pickMap, pickMismatches) {
+  if (!pickMismatches) return items;
+  const pairs = items
+    .filter(row => { const status = pickMap.get(pickKey(row)); return status === 'picking' || status === 'confirmed'; })
+    .map(row => ({ branch: row.branch, orderCode: row.orderCode }));
+  if (!pairs.length) return items;
+  const found = await pickMismatches(pairs);
+  if (!found || !found.size) return items;
+  return items.map(row => (found.has(pickKey(row)) ? Object.assign({}, row, { pickMismatch: found.get(pickKey(row)) }) : row));
 }
 
 /** Gan `pickStatus` (picking|confirmed|cancelled|null) cho cac dong cua TRANG tra ve (ban sao nong, khong sua dong trong cache). */
@@ -559,7 +580,7 @@ async function exportOrders(rawParams, { kiot, pickStatuses } = {}) {
   const { rows } = await loadMergedRows(kiot);
   if (pickStatuses && params.pickStatus) {
     const pickMap = await pickStatuses();
-    return query.selectRows(rows.filter(row => pickMap.get(pickKey(row)) === params.pickStatus), params);
+    return query.selectRows(rows.filter(row => matchesPickFilter(pickMap.get(pickKey(row)), params.pickStatus)), params);
   }
   return selectionCache.select(rows, params);
 }

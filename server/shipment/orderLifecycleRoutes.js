@@ -19,6 +19,7 @@ const express = require('express');
 const router = express.Router();
 
 const { requireAuth, requireFeature } = require('../auth/authMiddleware');
+const featureRegistry = require('../auth/featureRegistry');
 const { LIFECYCLE_BRANCH } = require('./orderLifecycleRepository');
 const service = require('./orderLifecycleService');
 const { createLifecycleExportFile, MAX_EXPORT_ROWS } = require('./orderLifecycleExport');
@@ -27,6 +28,13 @@ const { createLifecycleExportFile, MAX_EXPORT_ROWS } = require('./orderLifecycle
 const kiotRepository = require('./kiotOrdersRepository');
 // Trang thai chi dinh vi tri (cot pickStatus cua bang, bo loc pickStatus) — goi qua thuoc tinh module de test thay the duoc.
 const pickAssignments = require('../pickAssignments/pickAssignmentsService');
+
+// Trang thai boc (cot pickStatus, bo loc, canh bao lech SL) CHI tra cho nguoi co quyen chi dinh (shipment.pick, mac dinh
+// chi Quan ly): nguoi khac khong nhan truong nao, giao dien tu an cot. Goi qua thuoc tinh module de test thay the duoc.
+function pickOptions(req) {
+  if (!featureRegistry.hasFeature(req.user, 'shipment.pick')) return {};
+  return { pickStatuses: pickAssignments.latestStatuses, pickMismatches: pickAssignments.pickMismatches };
+}
 const containerRepository = require('../productContainers/repository');
 const { retailerHosts } = require('./kiotOrderLink');
 
@@ -73,7 +81,7 @@ function handleError(res, err, context) {
 
 router.get('/', ...authBulk, async (req, res) => {
   try {
-    const result = await service.queryOrders(req.query, { kiot: kiotRepository.kiotOrders, pickStatuses: pickAssignments.latestStatuses });
+    const result = await service.queryOrders(req.query, { kiot: kiotRepository.kiotOrders, ...pickOptions(req) });
     // kiotOrderHosts: de giao dien dung link "Mo don tren Kiot" o chi tiet don. Chi tra o route nay
     // (quyen shipment.lifecycle) — tra cuu 1 don cho Khach KHONG co.
     res.status(200).json({ ...result, kiotOrderHosts: retailerHosts() });
@@ -184,7 +192,7 @@ router.post('/:orderCode/override', ...authOverride, async (req, res) => {
 
 router.post('/export', ...authExport, async (req, res) => {
   try {
-    const orders = await service.exportOrders(req.body, { kiot: kiotRepository.kiotOrders, pickStatuses: pickAssignments.latestStatuses });
+    const orders = await service.exportOrders(req.body, { kiot: kiotRepository.kiotOrders, ...pickOptions(req) });
     if (orders.length > MAX_EXPORT_ROWS) {
       return res.status(400).json({
         error: `Có ${orders.length.toLocaleString('en-US')} đơn khớp bộ lọc, vượt giới hạn ${MAX_EXPORT_ROWS.toLocaleString('en-US')} đơn mỗi lần xuất. Hãy lọc thêm theo cơ sở, trạng thái hoặc khoảng thời gian rồi xuất lại.`,

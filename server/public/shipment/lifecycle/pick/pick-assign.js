@@ -1,20 +1,20 @@
 /* Chỉ định vị trí cho đơn "Đã gửi kế toán" trên trang Vòng đời đơn hàng (quyền shipment.pick).
    Dữ liệu và giữ chỗ nằm ở máy chủ (/api/shipment/pick): popup chỉ chọn vị trí/số lượng, máy chủ kiểm lại và giữ chỗ.
-   Luồng: Chỉ định (Đang nhặt, giữ chỗ) → Xác nhận nhặt (trừ thùng thật) hoặc Hủy nhặt (trả lại); cả hai cho Chỉ định lại.
+   Luồng: Chỉ định (Đang nhặt, giữ chỗ) → Xác nhận nhặt (trừ thùng thật, trạng thái cuối) hoặc Hủy nhặt (trả lại). Đang nhặt và Hủy nhặt cho Chỉ định lại (Đang nhặt: reassign một giao dịch).
    Hàm thuần dùng chung: shared/carton.js (PickingCarton) và shared/pick-rules.js (PickingRules). */
 (function(){
   'use strict';
   const R=window.PickingRules,C=window.PickingCarton;
   const API='/api/shipment/pick';
   const STATUS_LABEL={picking:'Đang nhặt',confirmed:'Xác nhận nhặt',cancelled:'Hủy nhặt'};
-  const REFETCH_CODES=['VERSION_CONFLICT','INVALID_STATE','INSUFFICIENT_AVAILABLE','STOCK_CHANGED','ALREADY_ASSIGNED'];
+  const REFETCH_CODES=['VERSION_CONFLICT','INVALID_STATE','INSUFFICIENT_AVAILABLE','STOCK_CHANGED','ALREADY_ASSIGNED','ALREADY_CONFIRMED'];
   const $=id=>document.getElementById(id);
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmt=v=>Number(v||0).toLocaleString('en-US',{maximumFractionDigits:3});
   const fmtSt=v=>Number(v).toLocaleString('en-US',{maximumFractionDigits:2});
   const key=v=>R.key(v);
   const round6=n=>Math.round(n*1e6)/1e6;
-  const state={listOrder:null,order:null,cand:{},assignment:null,allocations:{},suggestions:{},busy:false,needsSync:true,requestEpoch:0,reopened:false,armed:false,onChange:null};
+  const state={listOrder:null,order:null,cand:{},assignment:null,allocations:{},suggestions:{},busy:false,needsSync:true,requestEpoch:0,reopened:false,reassignOf:null,onChange:null};
 
   const DIALOGS_HTML='<dialog id="pickingDialog" aria-labelledby="pickingTitle"><div class="dp-head"><div class="dp-head-text"><h2 class="dp-title" id="pickingTitle"></h2><p class="dp-subtitle">Chọn vị trí và điều chỉnh số lượng nhặt. Tổng phân bổ không vượt quá số lượng cần nhặt; vị trí được giữ chỗ cho đơn này sau khi xác nhận.</p></div><button id="pickingClose" type="button" class="dp-close" aria-label="Đóng chỉ định vị trí">×</button></div>'
     +'<div class="picking-body"><div class="picking-status-bar"><span id="pickingOrderStatus" class="picking-order-status" data-status="">Chưa chỉ định</span><button id="pickingConfirmPick" type="button" class="btn-primary" hidden>Xác nhận nhặt</button><button id="pickingCancelPick" type="button" hidden>Hủy nhặt</button><button id="pickingReopen" type="button" hidden>Chỉ định lại</button><button id="pickingReprint" type="button" hidden>In đơn</button></div>'
@@ -99,7 +99,7 @@
         const row=r.spec&&take?C.cartonsFor(r.spec,take):null;
         const locSt=a?(a.status==='cancelled'?null:(a.lines.find(j=>String(j.positionId)===r.id&&key(j.productCode)===key(l.productCode))?.stCartons??null)):row;
         const label=available===null?(r.warnings.length?esc(C.WARNING_LABEL[r.warnings[0]]||r.warnings[0]):(a?esc(r.specText):'Chưa rõ SL')):fmt(available);
-        return `<div class="picking-loc ${take?'selected':''}" data-zone="${esc(String(r.location||'').trim().charAt(0).toUpperCase())}"><button type="button" class="picking-location ${take?'selected':''} ${hint?'suggested':''}" data-line="${i}" data-location="${esc(r.id)}" aria-pressed="${!!take}" ${off}><strong>${esc(r.location||'Chưa có vị trí')}</strong><span>${label}</span>${r.specText&&available!==null?`<small class="picking-spec ${r.warnings.length?'picking-st-frac':''}" title="${esc(r.warnings.map(w=>C.WARNING_LABEL[w]||w).join(', '))}">${esc(r.specText)}</small>`:''}</button><div class="picking-qty"><div class="picking-stepper"><button type="button" data-step="-1" data-qline="${i}" data-qloc="${esc(r.id)}" aria-label="Giảm SL nhặt ${esc(l.productCode)} ${esc(r.location)}" ${off}>−</button><input type="text" inputmode="numeric" step="1" data-qty data-qline="${i}" data-qloc="${esc(r.id)}" value="${fmt(take)}" aria-label="SL nhặt ${esc(l.productCode)} ${esc(r.location)}" ${off}><button type="button" data-step="1" data-qline="${i}" data-qloc="${esc(r.id)}" aria-label="Tăng SL nhặt ${esc(l.productCode)} ${esc(r.location)}" ${off}>+</button></div></div>${locSt===null||locSt===undefined?'':`<small class="picking-loc-st ${C.isWhole(locSt)?'':'picking-st-frac'}" data-loc-st="${locSt}">ST ${fmtSt(locSt)}</small>`}</div>`;
+        return `<div class="picking-loc ${take?'selected':''}" data-zone="${esc(String(r.location||'').trim().charAt(0).toUpperCase())}"><button type="button" class="picking-location ${take?'selected':''} ${hint?'suggested':''}" data-line="${i}" data-location="${esc(r.id)}" aria-pressed="${!!take}" ${off}><strong title="${esc(r.location||'Chưa có vị trí')}">${esc(r.location||'Chưa có vị trí')}</strong><span${available===null?' class="picking-warn"':''}>${label}</span>${r.specText&&available!==null?`<small class="picking-spec ${r.warnings.length?'picking-st-frac':''}" title="${esc(r.warnings.map(w=>C.WARNING_LABEL[w]||w).join(', '))}">${esc(r.specText)}</small>`:''}</button><div class="picking-qty"><div class="picking-stepper"><button type="button" data-step="-1" data-qline="${i}" data-qloc="${esc(r.id)}" aria-label="Giảm SL nhặt ${esc(l.productCode)} ${esc(r.location)}" ${off}>−</button><input type="text" inputmode="numeric" step="1" data-qty data-qline="${i}" data-qloc="${esc(r.id)}" value="${fmt(take)}" aria-label="SL nhặt ${esc(l.productCode)} ${esc(r.location)}" ${off}><button type="button" data-step="1" data-qline="${i}" data-qloc="${esc(r.id)}" aria-label="Tăng SL nhặt ${esc(l.productCode)} ${esc(r.location)}" ${off}>+</button></div></div>${locSt===null||locSt===undefined?'':`<small class="picking-loc-st ${C.isWhole(locSt)?'':'picking-st-frac'}" data-loc-st="${locSt}">ST ${fmtSt(locSt)}</small>`}</div>`;
       }).join('')||'<span class="picking-bad">Chưa tìm thấy vị trí của mã này.</span>'}</div></td></tr>`;
     }).join('');
     const errors=order?R.validate(ls,allLocations(),state.allocations):['no-order'];
@@ -113,9 +113,9 @@
     const status=a?a.status:'';
     $('pickingOrderStatus').textContent=status?STATUS_LABEL[status]:'Chưa chỉ định';$('pickingOrderStatus').dataset.status=status;
     $('pickingConfirmPick').hidden=status!=='picking';$('pickingConfirmPick').disabled=busy;
-    $('pickingCancelPick').hidden=!(status==='picking'||status==='confirmed');$('pickingCancelPick').disabled=busy;
-    $('pickingReopen').hidden=!(status==='confirmed'||status==='cancelled');$('pickingReopen').disabled=busy;
-    $('pickingReopen').textContent=state.armed?'Bấm lại để hoàn tác nhặt và chỉ định lại':'Chỉ định lại';
+    // Đã bốc là trạng thái cuối: không hủy, không chỉ định lại. Đang bốc chỉ định lại = hủy lượt cũ + lượt mới trong một giao dịch (reassign).
+    $('pickingCancelPick').hidden=status!=='picking';$('pickingCancelPick').disabled=busy;
+    $('pickingReopen').hidden=!(status==='picking'||status==='cancelled');$('pickingReopen').disabled=busy;
     $('pickingReprint').hidden=!(status==='picking'||status==='confirmed');$('pickingReprint').disabled=busy;
     if(!order)return;
     const validationErrors=Array.isArray(order.validationErrors)?order.validationErrors:[];
@@ -133,8 +133,11 @@
     if(!r.ok||!r.data.order)throw new Error(r.data.error||'Không tải được dữ liệu chỉ định.');
     state.order=r.data.order;state.cand=r.data.candidates||{};
     const latest=r.data.assignment||null;
-    state.assignment=state.reopened&&latest&&latest.status==='cancelled'?null:latest;
-    state.armed=false;state.needsSync=false;
+    // Chế độ chọn lại: lượt Đã hủy hoặc Đang bốc được thay bằng lượt mới (Đang bốc giữ lại để gửi reassign kèm version).
+    const replacing=state.reopened&&latest&&(latest.status==='cancelled'||latest.status==='picking');
+    state.assignment=replacing?null:latest;
+    state.reassignOf=replacing&&latest.status==='picking'?latest:null;
+    state.needsSync=false;
     if(state.assignment)allocationsFromAssignment();else if(state.order.eligible!==false)suggest();else state.allocations={};
     return true;
   }
@@ -160,7 +163,7 @@
   async function open(listOrder){
     ensureDialogs();
     const epoch=++state.requestEpoch;
-    state.listOrder=listOrder;state.reopened=false;state.order=null;state.assignment=null;state.allocations={};state.suggestions={};state.busy=false;state.needsSync=true;
+    state.listOrder=listOrder;state.reopened=false;state.reassignOf=null;state.order=null;state.assignment=null;state.allocations={};state.suggestions={};state.busy=false;state.needsSync=true;
     $('pickingTitle').textContent=listOrder.orderCode+' · '+(listOrder.branch==='SG'?'Sài Gòn':'Hà Nội');
     setStatus('Đang tải…');render();
     if(!$('pickingDialog').open)$('pickingDialog').showModal();
@@ -183,9 +186,11 @@
         return false;
       }
       if(!r.data.assignment)throw new Error('Phản hồi không có trạng thái chỉ định.');
-      state.assignment=r.data.assignment;state.armed=false;state.needsSync=false;
+      state.assignment=r.data.assignment;state.reassignOf=null;state.needsSync=false;
       setStatus('');notify();return true;
     }catch(error){
+      // Không rõ máy chủ đã ghi chưa: thoát chế độ chọn lại để hiện đúng trạng thái thật, không tự gửi lần nữa.
+      state.reopened=false;
       if(current(epoch))await reloadCurrent(epoch,'Chưa xác định được kết quả thao tác do lỗi kết nối.',true);
       return false;
     }finally{
@@ -198,7 +203,9 @@
     if(!editable()||R.validate(lines(),allLocations(),state.allocations).length)return;
     const allocations=[];
     lines().forEach((l,i)=>(state.allocations[i]||[]).forEach(p=>{if(p.quantity>0)allocations.push({productCode:l.productCode,positionId:Number(p.id),qty:p.quantity});}));
-    if(!await write(API,{branch:state.order.branch,orderCode:state.order.orderCode,allocations}))return;
+    // In lại đơn Đang bốc: một lệnh hủy lượt cũ + giữ chỗ lượt mới (lỗi ở bước sau thì lượt cũ giữ nguyên).
+    const reassign=state.reassignOf?{reassign:true,version:state.reassignOf.version}:{};
+    if(!await write(API,{branch:state.order.branch,orderCode:state.order.orderCode,allocations,...reassign}))return;
     state.reopened=false;
     $('pickingDialog').close();
     await printPick();
@@ -210,9 +217,7 @@
   async function reopen(){
     const a=state.assignment;if(!a||state.busy||state.needsSync)return;
     const epoch=state.requestEpoch;
-    // Sau Xác nhận nhặt, chỉ định lại sẽ hoàn tác số thùng đã trừ: bấm hai lần để xác nhận.
-    if(a.status==='confirmed'&&!state.armed){state.armed=true;render();return;}
-    if(a.status==='confirmed'&&!await changeStatus('cancel'))return;
+    if(a.status==='confirmed')return;
     if(!current(epoch))return;
     state.reopened=true;
     await reloadCurrent(epoch);

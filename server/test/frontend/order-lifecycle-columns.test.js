@@ -67,13 +67,13 @@ function setValue(window, element, value) {
 
 const cell = (row, key) => row.querySelector(`[data-col="${key}"]`);
 
-test('bảng có đủ cột: Giá trị đơn + Giá trị có bán + Ghi chú (sau Khách hàng), Sale ra đơn, Trạng thái KiotViet, Trạng thái, Cập nhật gần nhất và Cảnh báo', async () => {
+test('bảng có đủ cột: Giá trị đơn + Giá trị có bán + Ghi chú (sau Khách hàng), Sale ra đơn, Trạng thái KiotViet, Trạng thái, Trạng thái bốc (người có quyền chỉ định), Cập nhật gần nhất và Cảnh báo', async () => {
   const dom = await renderTable();
   const { document } = dom.window;
   const headers = [...document.querySelectorAll('#bulkHeadRow th')].map(th => th.textContent.replace(/[▲▼]/g, '').trim());
   assert.deepEqual(headers, [
     'Mã đơn', 'Cơ sở', 'Thời gian đặt hàng', 'Sale', 'Khách hàng', 'Giá trị đơn', 'Giá trị có bán', 'Ghi chú', 'Sale ra đơn',
-    'Trạng thái KiotViet', 'Trạng thái', 'Cập nhật gần nhất', 'Cảnh báo'
+    'Trạng thái KiotViet', 'Trạng thái', 'Trạng thái bốc', 'Cập nhật gần nhất', 'Cảnh báo'
   ]);
 
   const rows = [...document.querySelectorAll('#bulkBody tr')];

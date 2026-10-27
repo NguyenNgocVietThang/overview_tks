@@ -29,7 +29,8 @@ const WARNING_FILTERS = Object.freeze([
 ]);
 // Bo loc "Chi dinh vi tri" (migration 0096): trang thai chi dinh MOI NHAT cua don. Du lieu o Postgres (khong nam trong cac dong
 // da gop/cache) nen KHONG loc o filterRows: orderLifecycleService thu hep danh sach theo pickStatus truoc khi loc/sap xep.
-const PICK_STATUSES = Object.freeze(['picking', 'confirmed', 'cancelled']);
+// 'none' = Chua boc (don khong co chi dinh, hoac chi dinh bi huy do Kiot huy don).
+const PICK_STATUSES = Object.freeze(['picking', 'confirmed', 'cancelled', 'none']);
 // Mac dinh (khi khong chon cot sap xep): don moi dat nhat truoc.
 const DEFAULT_SORT = Object.freeze({ key: 'orderDate', dir: -1 });
 // Thu tu hien thi cua bo loc "Trang thai KiotViet"; trang thai la xep sau theo ten.

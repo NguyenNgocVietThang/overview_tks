@@ -81,6 +81,11 @@
   .lc-status-cell .status-select{ min-width:0; padding-right:4px; }
   /* 1 don co the dinh nhieu canh bao: nhan nho hon, xuong dong khi het cho. */
   .lc-warning-badge{ padding:3px 8px; margin:2px 0; font-size:12px; }
+  /* Cot "Trang thai boc" (chi nguoi co quyen shipment.pick): nhan tinh cho Chua boc / Da boc / Da huy, dropdown cho Dang boc. */
+  .lc-status-cell .lc-pick-state.lc-badge{ padding:0; }
+  /* Don Dang boc / Da boc ma tong ST da chi dinh khac SL tren Kiot: to do ca dong + nhan canh bao o cot Canh bao. */
+  .bulk-table tbody tr.lc-row-mismatch{ background:rgba(239,68,68,.10); box-shadow:inset 3px 0 0 var(--red); }
+  .bulk-table tbody tr.lc-row-mismatch:hover{ background:rgba(239,68,68,.16); }
   .badge-not-sent{ color:var(--muted); background:var(--surface-hover); border:1px solid var(--border); }
   .badge-sent{ color:var(--amber); background:rgba(245,158,11,.12); border:1px solid rgba(245,158,11,.3); }
   .badge-delivering{ color:var(--blue); background:rgba(59,130,246,.12); border:1px solid rgba(59,130,246,.3); }
@@ -545,11 +550,12 @@
                   <option value="NO_TRAIN_BILL">Chưa chụp bill tàu</option>
                 </select>
                 <span class="bulk-pick-filter" id="bulkPickWrap" hidden>
-                  <select class="bulk-status-select" id="bulkPickStatusFilter" aria-label="Lọc theo trạng thái chỉ định vị trí">
-                    <option value="">Tất cả chỉ định</option>
-                    <option value="picking">Đang nhặt</option>
-                    <option value="confirmed">Xác nhận nhặt</option>
-                    <option value="cancelled">Hủy nhặt</option>
+                  <select class="bulk-status-select" id="bulkPickStatusFilter" aria-label="Lọc theo trạng thái bốc hàng">
+                    <option value="">Tất cả trạng thái bốc</option>
+                    <option value="none">Chưa bốc</option>
+                    <option value="picking">Đang bốc</option>
+                    <option value="confirmed">Đã bốc</option>
+                    <option value="cancelled">Đã hủy</option>
                   </select>
                 </span>
                 <label class="bulk-field" for="bulkKiotStatusFilter">
@@ -1244,15 +1250,67 @@
     function onPickChanged(order, assignment){
       const status = assignment ? assignment.status : null;
       detailPick = assignment || null;
-      order.pickStatus = status;
+      applyPickStatus(order, status);
+      if(detailOrder === order) renderKiotHolder(order);
+    }
+    // Ghi trang thai bốc moi len dong (va dong dang hien tren bang): ve lai o "Trang thai boc"; khong con Dang boc / Da boc thi het canh bao lech SL.
+    function applyPickStatus(order, status){
+      const targets = [order];
       const entry = bulkRowNodes.get(rowKey(order));
+      if(entry && entry.tr && entry.tr._order && entry.tr._order !== order) targets.push(entry.tr._order);
+      targets.forEach(function(target){
+        target.pickStatus = status;
+        if(status !== 'picking' && status !== 'confirmed') target.pickMismatch = undefined;
+      });
       if(entry && entry.tr && entry.tr._order){
-        entry.tr._order.pickStatus = status;
-        const cell = entry.tr.querySelector('[data-col="orderCode"]');
-        if(cell) cell.innerHTML = CELL_HTML.orderCode(entry.tr._order);
+        const cell = entry.tr.querySelector('[data-col="pickStatus"]');
+        if(cell) cell.innerHTML = CELL_HTML.pickStatus(entry.tr._order);
+        const warningCell = entry.tr.querySelector('[data-col="warning"]');
+        if(warningCell) warningCell.innerHTML = warningHtml(entry.tr._order);
+        syncMismatchRow(entry.tr, entry.tr._order);
         entry.sig = rowSignature(entry.tr._order);
       }
-      if(detailOrder === order) renderKiotHolder(order);
+    }
+    // Dropdown "Trang thai boc" (Dang boc -> Da boc / Da huy): hoi lai vi Da boc tru thung that, roi goi /api/shipment/pick/status.
+    // Loi 4xx: tra dropdown ve cu + bao loi; 409 (nguoi khac / Kiot vua doi) thi tai lai danh sach.
+    async function handlePickStatusChange(selectEl){
+      const orderCode = selectEl.dataset.pickOrder;
+      const branch = selectEl.dataset.pickBranch;
+      const prev = selectEl.dataset.prev;
+      const next = selectEl.value;
+      if(next === prev) return;
+      const question = next === 'confirmed'
+        ? 'Xác nhận ĐÃ BỐC đơn ' + orderCode + '?\nHệ thống sẽ trừ thùng khỏi số lượng thực tế của vị trí và sửa ghi chú vị trí.'
+        : 'Hủy bốc đơn ' + orderCode + '?\nPhần hàng đang giữ chỗ cho đơn này sẽ được trả lại, tồn thực không đổi.';
+      if(!window.confirm(question)){ selectEl.value = prev; return; }
+      selectEl.disabled = true;
+      try{
+        const res = await fetch('/api/shipment/pick/status', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+          body: JSON.stringify({ branch: branch, orderCode: orderCode, status: next })
+        });
+        const body = await res.json().catch(function(){ return {}; });
+        if(!res.ok){
+          selectEl.value = prev;
+          showToast(body.error || 'Không đổi được trạng thái bốc.', 'error');
+          if(res.status === 409) loadBulkOrders(true);
+          return;
+        }
+        const tr = selectEl.closest('tr');
+        const order = tr && tr._order;
+        const assignment = body.assignment || null;
+        if(order){
+          if(detailOrder === order) detailPick = assignment;
+          applyPickStatus(order, assignment ? assignment.status : null);
+          if(detailOrder === order) renderKiotHolder(order);
+        }
+        showToast('Đã chuyển đơn "' + orderCode + '" sang "' + PICK_STATE_LABEL[next] + '".', 'success');
+      }catch(err){
+        selectEl.value = prev;
+        showToast('Lỗi kết nối máy chủ.', 'error');
+      }finally{
+        selectEl.disabled = false;
+      }
     }
     function readDetailJSON(url, options){
       if(TKSNav.readCachedJSON) return TKSNav.readCachedJSON(url, options);
@@ -1699,11 +1757,28 @@
       PICKUP_PENDING: 'Khách/Ship chưa lấy',
       NO_TRAIN_BILL: 'Chưa chụp bill tàu'
     };
+    // Canh bao LECH SL bốc (server chi tra pickMismatch cho nguoi co quyen shipment.pick): tong ST da chi dinh khac SL dong don Kiot.
+    function hasPickMismatch(order){
+      return Array.isArray(order.pickMismatch) && order.pickMismatch.length > 0;
+    }
+    function pickMismatchTitle(order){
+      return order.pickMismatch.map(function(item){
+        return item.productCode + ': bốc ' + VND_FORMAT.format(item.picked) + ' / đặt ' + VND_FORMAT.format(item.ordered);
+      }).join('; ');
+    }
     function warningHtml(order){
       const codes = Array.isArray(order.warnings) ? order.warnings : (order.warning ? [''] : []);
-      return codes.map(function(code){
+      const html = codes.map(function(code){
         return '<span class="lc-badge badge-exception lc-warning-badge">' + escapeHtml(WARNING_LABEL[code] || 'Cảnh báo') + '</span>';
-      }).join(' ');
+      });
+      if(hasPickMismatch(order)){
+        html.push('<span class="lc-badge badge-exception lc-warning-badge lc-pick-mismatch" title="' + escapeHtml('Lệch SL (ST đã chỉ định so với SL đơn trên Kiot) — ' + pickMismatchTitle(order)) + '">Lệch SL bốc</span>');
+      }
+      return html.join(' ');
+    }
+    // Tô đỏ cả dòng khi lệch SL bốc.
+    function syncMismatchRow(tr, order){
+      tr.classList.toggle('lc-row-mismatch', hasPickMismatch(order));
     }
 
     // ---------- Cot cua bang + hop "Cot hien thi" ----------
@@ -1723,13 +1798,28 @@
       { key: 'at', label: 'Cập nhật gần nhất' },
       { key: 'warning', label: 'Cảnh báo' }
     ];
-    const PICK_LABEL = { picking: 'Đang nhặt', confirmed: 'Xác nhận nhặt', cancelled: 'Hủy nhặt' };
+    // Cot "Trang thai boc" (chi nguoi co quyen shipment.pick, them luc dang nhap xong — xem addPickColumn). pickStatus do may chu
+    // tra: null = Chua boc (khong co chi dinh, hoac Kiot da huy don), picking = Dang boc, confirmed = Da boc, cancelled = Da huy.
+    const PICK_STATE_LABEL = { none: 'Chưa bốc', picking: 'Đang bốc', confirmed: 'Đã bốc', cancelled: 'Đã hủy' };
+    const PICK_STATE_BADGE = { none: 'badge-not-sent', picking: 'badge-sent', confirmed: 'badge-delivered', cancelled: 'badge-cancelled' };
+    const PICK_COLUMN = { key: 'pickStatus', label: 'Trạng thái bốc' };
+    function pickStateKey(order){
+      return order.pickStatus && PICK_STATE_LABEL[order.pickStatus] ? order.pickStatus : 'none';
+    }
+    // Đang bốc: dropdown (Đang bốc → Đã bốc / Đã hủy). Đã bốc là trạng thái cuối nên các trạng thái khác chỉ là nhãn.
+    function pickStatusHtml(order){
+      const key = pickStateKey(order);
+      if(key !== 'picking'){
+        return '<span class="lc-badge lc-pick-state ' + PICK_STATE_BADGE[key] + '" data-pick-status="' + key + '">' + PICK_STATE_LABEL[key] + '</span>';
+      }
+      return '<select class="status-select lc-pick-state ' + PICK_STATE_BADGE.picking + '" data-pick-status="picking" data-prev="picking"' +
+        ' data-pick-order="' + escapeHtml(order.orderCode) + '" data-pick-branch="' + escapeHtml(order.branch) + '"' +
+        ' aria-label="Trạng thái bốc đơn ' + escapeHtml(order.orderCode) + '">' +
+        '<option value="picking" selected>Đang bốc</option><option value="confirmed">Đã bốc</option><option value="cancelled">Đã hủy</option></select>';
+    }
     // Noi dung o theo cot (rowInnerHtml ghep theo thu tu BULK_COLUMNS).
     const CELL_HTML = {
-      orderCode: function(o){
-        // Nhan nho trang thai chi dinh vi tri (chi khi don da co chi dinh) ngay trong o ma don — khong them cot.
-        return escapeHtml(o.orderCode) + (PICK_LABEL[o.pickStatus] ? '<span class="lc-pick-chip" data-pick-status="' + o.pickStatus + '" title="Chỉ định vị trí: ' + PICK_LABEL[o.pickStatus] + '">' + PICK_LABEL[o.pickStatus] + '</span>' : '');
-      },
+      orderCode: function(o){ return escapeHtml(o.orderCode); },
       branch: function(o){ return escapeHtml(BRANCH_LABEL[o.branch] || o.branch || '—'); },
       orderDate: function(o){ return escapeHtml(formatDisplayDateTime(o.orderDate) || '—'); },
       saleName: function(o){ return escapeHtml(o.saleName || '—'); },
@@ -1742,16 +1832,32 @@
       saleSentAt: function(o){ return escapeHtml(formatDisplayDateTime(o.saleSentAt) || '—'); },
       kiotStatus: function(o){ return kiotStatusHtml(o.kiotStatus); },
       status: function(o){ return renderBadge(o.summary, { editable: isEditableRow(o), orderCode: o.orderCode }); },
+      pickStatus: pickStatusHtml,
       at: function(o){ return escapeHtml(formatDisplayDateTime(o.summary && o.summary.at) || '—'); },
       warning: function(o){ return warningHtml(o); }
     };
-    const CELL_CLASS = { orderTotal: 'lc-money', sellableValue: 'lc-money', note: 'lc-note', status: 'lc-status-cell' };
+    const CELL_CLASS = { orderTotal: 'lc-money', sellableValue: 'lc-money', note: 'lc-note', status: 'lc-status-cell', pickStatus: 'lc-status-cell' };
 
     const DEFAULT_HIDDEN_COLUMNS = ['branch', 'note', 'kiotStatus'];
-    if(window.TKSTables) window.TKSTables.enhance(bulkTable, {
-      key: 'lifecycle-orders', button: bulkColumnsBtn,
-      columns: BULK_COLUMNS.map(function(col){ return Object.assign({}, col, { hidden: DEFAULT_HIDDEN_COLUMNS.indexOf(col.key) !== -1 }); })
-    });
+    function bulkTableColumns(){
+      return BULK_COLUMNS.map(function(col){ return Object.assign({}, col, { hidden: DEFAULT_HIDDEN_COLUMNS.indexOf(col.key) !== -1 }); });
+    }
+    if(window.TKSTables) window.TKSTables.enhance(bulkTable, { key: 'lifecycle-orders', button: bulkColumnsBtn, columns: bulkTableColumns() });
+    // Chi nguoi co quyen shipment.pick moi co cot "Trang thai boc": them <th> + khai bao cot truoc lan ve bang dau tien
+    // (nguoi khac khong thay cot, khong thay trong hop "Cot hien thi", server cung khong tra du lieu nay cho ho).
+    function addPickColumn(){
+      if(BULK_COLUMNS.some(function(col){ return col.key === PICK_COLUMN.key; })) return;
+      const at = BULK_COLUMNS.findIndex(function(col){ return col.key === 'at'; });
+      const th = document.createElement('th');
+      th.setAttribute('data-col', PICK_COLUMN.key);
+      th.setAttribute('data-column-key', PICK_COLUMN.key);
+      th.style.width = '150px';
+      th.title = 'Trạng thái bốc hàng: Chưa bốc / Đang bốc / Đã bốc / Đã hủy. Đang bốc đổi được sang Đã bốc hoặc Đã hủy.';
+      th.textContent = PICK_COLUMN.label;
+      bulkHeadRow.insertBefore(th, bulkHeadRow.querySelector('th[data-col="at"]'));
+      BULK_COLUMNS.splice(at, 0, PICK_COLUMN);
+      if(window.TKSTables) window.TKSTables.enhance(bulkTable, { columns: bulkTableColumns() });
+    }
 
     // ---------- Sap xep (do may chu thuc hien; o day chi giu trang thai + chi bao tren tieu de cot) ----------
     // Bieu tuong sap xep dung chung moi bang (vi tri/mau o shared/shared.css): chua sap ▲▼ · tang dan ▼ · giam dan ▲.
@@ -1823,7 +1929,8 @@
         hasOrderTotal(order) ? order.orderTotal : null,
         hasSellableValue(order) ? order.sellableValue : null,
         order.summary && order.summary.code, order.summary && order.summary.label, order.summary && order.summary.at,
-        (order.warnings || []).join(','), !!order.warning, isEditableRow(order), order.pickStatus || null
+        (order.warnings || []).join(','), !!order.warning, isEditableRow(order), order.pickStatus || null,
+        hasPickMismatch(order) ? pickMismatchTitle(order) : null
       ]);
     }
 
@@ -1838,6 +1945,7 @@
       const tr = document.createElement('tr');
       tr.innerHTML = rowInnerHtml(order);
       tr._order = order;
+      syncMismatchRow(tr, order);
       tr.addEventListener('click', function(e){
         // Thanh trang thai la 1 <select> that (xem renderBadge) — bam vao no
         // de mo dropdown KHONG duoc coi la bam vao dong (khong mo modal chi tiet).
@@ -1942,6 +2050,7 @@
           entry.sig = sig;
         }
         entry.tr._order = order; // du khong doi noi dung hien thi, cap nhat detail moi nhat cho modal
+        syncMismatchRow(entry.tr, order);
         const expectedNext = prevNode ? prevNode.nextSibling : bulkBody.firstChild;
         if(expectedNext !== entry.tr) bulkBody.insertBefore(entry.tr, expectedNext);
         prevNode = entry.tr;
@@ -2223,6 +2332,12 @@
     bulkWarningFilter.addEventListener('change', function(){
       activeWarningFilter = bulkWarningFilter.value;
       reloadBulk();
+    });
+
+    // Dropdown "Trang thai boc" trong cac dong (uy quyen su kien: dong duoc ve lai lien tuc).
+    bulkBody.addEventListener('change', function(e){
+      const select = e.target;
+      if(select && select.tagName === 'SELECT' && select.classList.contains('lc-pick-state')) handlePickStatusChange(select);
     });
 
     const bulkPickStatusFilter = document.getElementById('bulkPickStatusFilter');
@@ -2535,7 +2650,8 @@
       if(!TKSNav.can('shipment.lifecycle')) return;
       canOverride = TKSNav.can('shipment.override');
       canPick = TKSNav.can('shipment.pick');
-      document.getElementById('bulkPickWrap').hidden = !canPick; // bo loc chi dinh vi tri chi cho nguoi co quyen
+      document.getElementById('bulkPickWrap').hidden = !canPick; // bo loc trang thai boc chi cho nguoi co quyen
+      if(canPick) addPickColumn(); // cot "Trang thai boc" (dropdown Dang boc -> Da boc / Da huy) chi cho nguoi co quyen
       lookupForm.hidden = true;
       lcInternalWrap.hidden = false;
       // Quyen "Lich su cap nhat" va "Xuat Excel" co the bi thu hoi rieng cho

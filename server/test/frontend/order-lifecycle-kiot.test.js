@@ -247,7 +247,7 @@ test('bộ lọc trạng thái chính vẫn dùng được và kết hợp với
 // Hop "Cot hien thi" — tick an/hien cot
 // ---------------------------------------------------------------------------
 
-const ALL_COLUMNS = ['orderCode', 'branch', 'orderDate', 'saleName', 'customerName', 'orderTotal', 'sellableValue', 'note', 'saleSentAt', 'kiotStatus', 'status', 'at', 'warning'];
+const ALL_COLUMNS = ['orderCode', 'branch', 'orderDate', 'saleName', 'customerName', 'orderTotal', 'sellableValue', 'note', 'saleSentAt', 'kiotStatus', 'status', 'pickStatus', 'at', 'warning'];
 
 const DEFAULT_HIDDEN = ['branch', 'note', 'kiotStatus'];
 

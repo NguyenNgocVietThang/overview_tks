@@ -10,8 +10,8 @@ const { createStockPositionsRouter } = require('./stockPositionsRoutes');
 
 const MANAGER = { id: 'ql', vaiTro: 'Quản lý' };
 const ROWS = [
-  { id: 1, code: 'AAA1', name: 'Hàng A', notes: '3T x 100', arrivalDate: '4/10', location: 'H1', quantity: 300, kiotQuantity: 42, warnings: [], updatedByName: 'QL', updatedAt: '2026-10-27T03:00:00.000Z', version: 1 },
-  { id: 2, code: 'BBB2', name: '=SUM(A1)', notes: 'rác', arrivalDate: '', location: '', quantity: null, kiotQuantity: null, warnings: ['unreadable'], updatedByName: 'QL', updatedAt: '2026-10-27T04:30:00.000Z', version: 1 }
+  { id: 1, code: 'AAA1', name: 'Hàng A', notes: '3T x 100', arrivalDate: '4/10', location: 'H1', quantity: 300, held: 120, available: 180, kiotQuantity: 42, warnings: [], updatedByName: 'QL', updatedAt: '2026-10-27T03:00:00.000Z', version: 1 },
+  { id: 2, code: 'BBB2', name: '=SUM(A1)', notes: 'rác', arrivalDate: '', location: '', quantity: null, held: 0, available: null, kiotQuantity: null, warnings: ['unreadable'], updatedByName: 'QL', updatedAt: '2026-10-27T04:30:00.000Z', version: 1 }
 ];
 
 const HISTORY = [
@@ -111,7 +111,7 @@ test('Import: nhận file multipart, chặn sai đuôi file, truyền chế đ�
   assert.equal((await none.json()).code, 'IMPORT_FILE_REQUIRED');
 });
 
-test('Xuất Excel: đủ 9 cột dữ liệu, tên file theo cơ sở, chặn công thức, giờ VN', async t => {
+test('Xuất Excel: đủ 10 cột dữ liệu (gồm Có thể bốc), tên file theo cơ sở, chặn công thức, giờ VN', async t => {
   const { base } = await start(t);
   const res = await fetch(base + '/export?branch=HN');
   assert.equal(res.status, 200);
@@ -119,11 +119,12 @@ test('Xuất Excel: đủ 9 cột dữ liệu, tên file theo cơ sở, chặn c
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(Buffer.from(await res.arrayBuffer()));
   const sheet = workbook.getWorksheet('VT Hà Nội');
-  assert.deepEqual(sheet.getRow(1).values.slice(1), ['Mã hàng', 'Tên hàng', 'SL kho', 'SL Kiot', 'Ghi chú số thùng', 'Ngày về', 'Vị trí', 'Người cập nhật', 'TG cập nhật']);
-  assert.deepEqual(sheet.getRow(2).values.slice(1, 8), ['AAA1', 'Hàng A', 300, 42, '3T x 100', '4/10', 'H1']);
-  assert.equal(sheet.getRow(2).getCell(9).value.toISOString(), '2026-10-27T10:00:00.000Z'); // 03:00 UTC = 10:00 giờ VN
+  assert.deepEqual(sheet.getRow(1).values.slice(1), ['Mã hàng', 'Tên hàng', 'SL kho', 'Có thể bốc', 'SL Kiot', 'Ghi chú số thùng', 'Ngày về', 'Vị trí', 'Người cập nhật', 'TG cập nhật']);
+  assert.deepEqual(sheet.getRow(2).values.slice(1, 9), ['AAA1', 'Hàng A', 300, 180, 42, '3T x 100', '4/10', 'H1']);
+  assert.equal(sheet.getRow(2).getCell(10).value.toISOString(), '2026-10-27T10:00:00.000Z'); // 03:00 UTC = 10:00 giờ VN
   assert.equal(sheet.getRow(3).getCell(2).value, "'=SUM(A1)");
   assert.equal(sheet.getRow(3).getCell(3).value, null);
+  assert.equal(sheet.getRow(3).getCell(4).value, null); // Có thể bốc trống khi ghi chú không đọc được
 });
 
 test('Xuất Excel lịch sử: truyền bộ lọc + phạm vi, 9 cột, nhãn tiếng Việt, giờ VN, chặn công thức', async t => {

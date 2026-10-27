@@ -16,6 +16,7 @@ const { AUTH_COOKIE_NAME } = require('../auth/authMiddleware');
 const router = require('./orderLifecycleRoutes');
 const service = require('./orderLifecycleService');
 const kiotRepository = require('./kiotOrdersRepository');
+const pickAssignments = require('../pickAssignments/pickAssignmentsService');
 
 function fakeRes() {
   const res = { statusCode: null, body: null, headers: {}, sentBuffer: null };
@@ -182,7 +183,17 @@ test('GET /api/shipment/lifecycle trả 1 TRANG đơn (gộp đơn Kiot mọi tr
   assert.deepEqual(res.body, { ...payload, kiotOrderHosts: { HN: null, SG: null } });
   assert.deepEqual(received.params, query, 'bo loc/sap xep/trang di thang xuong service (service kiem tra hop le)');
   assert.equal(received.options.kiot, kiotRepository.kiotOrders, 'phai truyen repository doc don cua Kiot');
-  assert.equal(typeof received.options.pickStatuses, 'function', 'phai truyen nguon trang thai chi dinh vi tri (cot pickStatus + bo loc)');
+  // Nhan vien sale khong co shipment.pick -> KHONG nhan trang thai boc / canh bao lech SL (cot bi an).
+  assert.equal(received.options.pickStatuses, undefined);
+  assert.equal(received.options.pickMismatches, undefined);
+});
+
+test('GET /api/shipment/lifecycle: nguoi co quyen shipment.pick (Quan ly) nhan nguon trang thai boc + canh bao lech SL', async () => {
+  let received = null;
+  service.queryOrders = async (params, options) => { received = options; return { orders: [], page: 1, pageSize: 100, totalPages: 1, total: 0, filteredTotal: 0 }; };
+  await callRoute('get', '/', reqAs('Quản lý'), fakeRes());
+  assert.equal(received.pickStatuses, pickAssignments.latestStatuses, 'phai truyen nguon trang thai chi dinh vi tri (cot pickStatus + bo loc)');
+  assert.equal(received.pickMismatches, pickAssignments.pickMismatches, 'phai truyen nguon canh bao lech SL');
 });
 
 test('GET /api/shipment/lifecycle: co bien gian hang thi tra ten mien de mo don tren Kiot', async () => {

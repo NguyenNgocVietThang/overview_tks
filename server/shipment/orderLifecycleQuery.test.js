@@ -46,10 +46,10 @@ test('parseParams: mặc định — mọi cơ sở, không lọc, sắp theo th
   assert.deepEqual(q.parseParams(undefined).sort, 'orderDate');
 });
 
-test('parseParams: pickStatus (Chi dinh vi tri) chi nhan picking | confirmed | cancelled, gia tri la -> 400 INVALID_PICK_STATUS', () => {
-  for (const status of ['picking', 'confirmed', 'cancelled']) assert.equal(q.parseParams({ pickStatus: status }).pickStatus, status);
+test('parseParams: pickStatus (Chi dinh vi tri) chi nhan picking | confirmed | cancelled | none (Chua boc), gia tri la -> 400 INVALID_PICK_STATUS', () => {
+  for (const status of ['picking', 'confirmed', 'cancelled', 'none']) assert.equal(q.parseParams({ pickStatus: status }).pickStatus, status);
   assert.equal(q.parseParams({ pickStatus: '' }).pickStatus, '');
-  assert.deepEqual(q.PICK_STATUSES, ['picking', 'confirmed', 'cancelled']);
+  assert.deepEqual(q.PICK_STATUSES, ['picking', 'confirmed', 'cancelled', 'none']);
   assert.throws(() => q.parseParams({ pickStatus: 'done' }), { statusCode: 400, code: 'INVALID_PICK_STATUS' });
 });
 

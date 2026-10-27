@@ -17,7 +17,7 @@ async function start(t, { user = MANAGER, failWith } = {}) {
     if (failWith) throw failWith;
     return name === 'candidates' ? { order: { orderCode: 'DH001' }, candidates: {}, assignment: null } : name === 'get' ? { assignment: null } : { assignment: ASSIGNMENT };
   };
-  const service = { candidates: record('candidates'), get: record('get'), assign: record('assign'), confirm: record('confirm'), cancel: record('cancel') };
+  const service = { candidates: record('candidates'), get: record('get'), assign: record('assign'), confirm: record('confirm'), cancel: record('cancel'), setStatus: record('setStatus') };
   const app = express();
   app.use(express.json());
   app.use((req, res, next) => { if (user) req.user = user; next(); });
@@ -53,6 +53,17 @@ test('POST chi dinh 201; confirm / cancel truyen id so + version', async t => {
   assert.deepEqual(calls, [['assign', body], ['confirm', 7, { version: 1 }], ['cancel', 7, { version: 2 }]]);
 });
 
+test('POST /status (dropdown Trang thai boc): truyen nguyen body, body client khong chen duoc ly do huy', async t => {
+  const { base, calls } = await start(t);
+  const body = { branch: 'HN', orderCode: 'DH001', status: 'confirmed', reason: 'kiot_cancelled' };
+  const res = await fetch(base + '/status', { method: 'POST', headers: json, body: JSON.stringify(body) });
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).assignment.id, 7);
+  assert.deepEqual(calls, [['setStatus', body]]);
+  await fetch(base + '/7/cancel', { method: 'POST', headers: json, body: JSON.stringify({ version: 1, reason: 'kiot_cancelled' }) });
+  assert.deepEqual(calls[1], ['cancel', 7, { version: 1, reason: 'kiot_cancelled' }], 'route khong truyen tuy chon thu 4: ly do cua client bi bo qua o service');
+});
+
 test('Quan ly co quyen; chua dang nhap 401; Ke toan / NV kho / Khach (ke ca cap quyen gia mao) 403 va khong goi service', async t => {
   assert.equal((await fetch((await start(t, { user: null })).base + '?branch=HN&order=A')).status, 401);
   const denied = [
@@ -62,7 +73,7 @@ test('Quan ly co quyen; chua dang nhap 401; Ke toan / NV kho / Khach (ke ca cap 
   ];
   for (const user of denied) {
     const { base, calls } = await start(t, { user });
-    for (const [method, url] of [['GET', '/candidates?branch=HN&order=A'], ['GET', '?branch=HN&order=A'], ['POST', ''], ['POST', '/1/confirm'], ['POST', '/1/cancel']]) {
+    for (const [method, url] of [['GET', '/candidates?branch=HN&order=A'], ['GET', '?branch=HN&order=A'], ['POST', ''], ['POST', '/1/confirm'], ['POST', '/1/cancel'], ['POST', '/status']]) {
       const res = await fetch(base + url, { method, headers: json, ...(method === 'POST' ? { body: '{}' } : {}) });
       assert.equal(res.status, 403, `${user.vaiTro} ${method} ${url}`);
     }

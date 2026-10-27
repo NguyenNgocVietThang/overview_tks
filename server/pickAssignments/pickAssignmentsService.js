@@ -3,7 +3,7 @@
 // Chi dinh vi tri hang cho don (trang Vong doi don hang) — migration 0096.
 //   picking   = Dang nhat: giu cho tren dong vi tri (stock_positions), CHUA doi ghi chu thung.
 //   confirmed = Xac nhan nhat: tru thung that (stock_position_history action 'pick').
-//   cancelled = Huy nhat: tra giu cho; neu da xac nhan thi hoan tac (action 'pick_revert').
+//   cancelled = Huy nhat: tra giu cho (chi huy duoc chi dinh 'picking'; 'confirmed' la trang thai cuoi, khong hoan tac).
 // Moi thao tac ghi chay trong 1 giao dich co khoa advisory theo co so (cung khoa voi stockPositionsService) + FOR UPDATE
 // cac dong vi tri theo id, nen khong the chi dinh/tru vuot ton khi nhieu nguoi cung thao tac.
 // Ton kha dung cua vi tri = SL (tinh tu ghi chu, carton.parseSpec) - tong giu cho (reserved_qty) cua cac chi dinh 'picking' o DON KHAC.
@@ -13,13 +13,19 @@ const rules = require('../public/shared/pick-rules.js');
 const { makeAllocationSnapshot, allocationMatches, deductAllocation } = require('./pickAssignmentSnapshot');
 const { makeOrderSnapshot } = require('./pickOrderSnapshot');
 const { tx } = require('../stockPositions/stockPositionsService');
+const kiotData = require('./pickKiotData');
 
 const {
-  withTransaction, lockBranch, writeHistory, removeRow, fail, assertBranch, assertScope, actorOf, lower, normalizeLocation,
+  withTransaction, lockBranch, writeHistory, removeRow, fail, assertBranch, assertScope, actorOf,
   isEmptyNote, isoOf, ROW_COLUMNS
 } = tx;
 
 const STATUS = Object.freeze({ PICKING: 'picking', CONFIRMED: 'confirmed', CANCELLED: 'cancelled' });
+// Ly do huy ghi trong order_pick_history.summary.reason (khong can migration). 'kiot_cancelled': don bi huy tren Kiot — giao
+// dien hien "Chua boc" thay vi "Da huy" (latestStatuses bo dong nay khoi ban do).
+const CANCEL_REASON = Object.freeze({ MANUAL: 'manual', REASSIGN: 'reassign', KIOT: 'kiot_cancelled' });
+// Nguoi thuc hien cua cac chuyen trang thai tu dong theo Kiot (lich su ghi ten nay).
+const KIOT_CTX = Object.freeze({ user: Object.freeze({ id: null, hoTen: 'Hệ thống (KiotViet)', username: 'kiot-sync' }) });
 const ELIGIBLE_STATUS = 'SENT_TO_ACCOUNTANT';
 const MAX_ALLOCATIONS = 500;
 const AVAILABILITY_ERROR = /vượt số lượng khả dụng/u;
@@ -233,14 +239,21 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
   }
 
   // Trang thai chi dinh MOI NHAT cua moi don: Map 'HN|ma don chu thuong' -> picking|confirmed|cancelled (cot pickStatus cua danh sach).
+  // Don khong co chi dinh = "Chua boc" (khong co khoa); chi dinh bi huy do Kiot huy don cung KHONG co khoa (hien "Chua boc").
   // Fail-soft: chua ap migration 0096 hoac loi DB thi tra Map rong, danh sach Vong doi van chay binh thuong.
   async function latestStatuses() {
     const map = new Map();
     try {
       const { rows } = await getDb().query(
-        `SELECT DISTINCT ON (branch, lower(btrim(order_code))) branch, lower(btrim(order_code)) AS code_key, status
-           FROM order_pick_assignments ORDER BY branch, lower(btrim(order_code)), id DESC`);
-      for (const row of rows) map.set(`${row.branch}|${row.code_key}`, row.status);
+        `SELECT DISTINCT ON (a.branch, lower(btrim(a.order_code))) a.branch, lower(btrim(a.order_code)) AS code_key, a.status,
+                CASE WHEN a.status = 'cancelled'
+                     THEN COALESCE((SELECT h.summary->>'reason' FROM order_pick_history h WHERE h.assignment_id = a.id AND h.action = 'cancel' ORDER BY h.id DESC LIMIT 1), '')
+                     ELSE '' END AS cancel_reason
+           FROM order_pick_assignments a ORDER BY a.branch, lower(btrim(a.order_code)), a.id DESC`);
+      for (const row of rows) {
+        if (row.status === STATUS.CANCELLED && row.cancel_reason === CANCEL_REASON.KIOT) continue;
+        map.set(`${row.branch}|${row.code_key}`, row.status);
+      }
     } catch (error) {
       if (error && error.code !== '42P01') console.error('[PickAssignments] status lookup failed:', error.code || error.message);
     }
@@ -281,6 +294,7 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
     if (invalidQuantities.length) throw fail(400, 'VALIDATION', invalidQuantities.join('; '), { field: 'allocations' });
     const perLine = parseAllocations(body, lines);
     const actor = actorOf(ctx);
+    const reassign = body.reassign === true;
     const snapshot = makeOrderSnapshot(order);
     const db = getDb();
     let assignmentId;
@@ -288,9 +302,22 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
       assignmentId = await withTransaction(db, async client => {
         await lockBranch(client, branch);
         const active = (await client.query(
-          `SELECT id FROM order_pick_assignments WHERE branch = $1 AND lower(btrim(order_code)) = $2 AND status IN ('picking', 'confirmed') LIMIT 1`,
+          `SELECT id, status, version FROM order_pick_assignments WHERE branch = $1 AND lower(btrim(order_code)) = $2 AND status IN ('picking', 'confirmed') LIMIT 1 FOR UPDATE`,
           [branch, codeKey(order.orderCode)])).rows[0];
-        if (active) throw fail(409, 'ALREADY_ASSIGNED', 'Đơn này đã được chỉ định vị trí. Hãy hủy nhặt rồi chỉ định lại.');
+        if (active) {
+          if (!reassign) throw fail(409, 'ALREADY_ASSIGNED', 'Đơn này đã được chỉ định vị trí. Hãy hủy nhặt rồi chỉ định lại.');
+          // In lai don Dang boc = huy luot cu + luot moi trong CUNG giao dich: loi o buoc sau thi luot cu van giu nguyen.
+          if (active.status === STATUS.CONFIRMED) throw fail(409, 'ALREADY_CONFIRMED', 'Đơn đã bốc xong, không in lại hoặc chỉ định lại được.');
+          if (body.version !== undefined && body.version !== null && Number(body.version) !== active.version) {
+            throw fail(409, 'VERSION_CONFLICT', 'Chỉ định đã bị người khác thay đổi. Hãy tải lại.', { latest: await readAssignment(client, Number(active.id)) });
+          }
+          await client.query(
+            `UPDATE order_pick_assignments SET status = 'cancelled', version = version + 1, cancelled_by_user_id = $2, cancelled_by_name = $3, cancelled_at = now(), updated_at = now() WHERE id = $1`,
+            [active.id, actor.id, actor.name]);
+          await client.query(
+            `INSERT INTO order_pick_history (assignment_id, branch, order_code, action, summary, actor_user_id, actor_name) VALUES ($1, $2, $3, 'cancel', $4::jsonb, $5, $6)`,
+            [active.id, branch, order.orderCode, JSON.stringify({ reverted: false, reason: CANCEL_REASON.REASSIGN }), actor.id, actor.name]);
+        }
 
         const ids = [...new Set(perLine.flatMap(map => [...map.keys()]))].sort((a, b) => a - b);
         const positions = (await client.query(
@@ -413,76 +440,137 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
     return { assignment: await readAssignment(db, id) };
   }
 
-  // Hoan tac 1 dong da tru: khoi phuc dung chuoi cu neu ghi chu chua bi doi tiep, khong thi cong tra so da nhat; dong da bi
-  // tu xoa (het hang) duoc tao lai (hoac cong vao dong cung ma + vi tri vua duoc nhap lai).
-  async function revertJob(client, head, actor, job, row) {
-    const picked = Number(job.picked_qty);
-    const before = carton.parseSpec(job.spec_before);
-    const after = carton.parseSpec(job.spec_after);
-    if (!Number.isSafeInteger(picked) || picked <= 0 || !before || !after ||
-        !Number.isSafeInteger(before.quantity) || !Number.isSafeInteger(after.quantity) ||
-        before.quantity - after.quantity !== picked) {
-      throw stockChanged(job, 'cần đối soát số đã nhặt trước khi hoàn tồn');
-    }
-    const summary = { orderCode: head.order_code, assignmentId: Number(head.id), restored: picked };
-    const restoredText = spec => {
-      const result = carton.restore(spec, picked);
-      if (!result) throw stockChanged(job, 'không thể cộng trả số đã nhặt trong giới hạn cho phép');
-      return result.text;
-    };
-    const update = async (target, notes, extra) => {
-      await client.query(
-        `UPDATE stock_positions SET notes = $2, version = version + 1, updated_by_user_id = $3, updated_by_name = $4, updated_at = now() WHERE id = $1`,
-        [target.id, notes, actor.id, actor.name]);
-      await writeHistory(client, head.branch, actor, [{ positionId: target.id, code: target.code, location: target.location, action: 'pick_revert', field: 'notes', oldValue: target.notes, newValue: notes, summary: { ...summary, ...extra } }]);
-    };
-    if (row) {
-      if (row.notes === job.spec_after) return update(row, job.spec_before, { exact: true });
-      const spec = carton.parseSpec(row.notes);
-      if (!spec) throw stockChanged(job, 'có ghi chú sai định dạng nên không cộng trả được số đã nhặt');
-      return update(row, restoredText(spec), { exact: false });
-    }
-    const snapshot = job.position_snapshot || {};
-    const same = (await client.query(
-      `SELECT ${ROW_COLUMNS} FROM stock_positions WHERE branch = $1 AND lower(btrim(code)) = $2
-         AND upper(regexp_replace(location, '\\s+', '', 'g')) = $3 ORDER BY id LIMIT 1 FOR UPDATE`,
-      [head.branch, lower(snapshot.code || job.product_code), normalizeLocation(snapshot.location ?? job.location)])).rows[0];
-    if (same) {
-      const spec = carton.parseSpec(same.notes);
-      if (!spec) throw stockChanged(job, 'đã được nhập lại với ghi chú sai định dạng nên không cộng trả được');
-      return update(same, restoredText(spec), { exact: false, recreated: false });
-    }
-    // Chi co the khoi phuc nguyen chuoi cu khi chinh luot xac nhan nay da lam het hang (spec_after rong).
-    const notes = isEmptyNote(job.spec_after) ? job.spec_before : restoredText(carton.parseSpec(''));
-    const { rows } = await client.query(
-      `INSERT INTO stock_positions (branch, code, name, notes, arrival_date, location, updated_by_user_id, updated_by_name)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
-      [head.branch, snapshot.code || job.product_code, snapshot.name || '', notes, snapshot.arrivalDate || '', snapshot.location ?? job.location, actor.id, actor.name]);
-    await writeHistory(client, head.branch, actor, [{ positionId: rows[0].id, code: snapshot.code || job.product_code, location: snapshot.location ?? job.location, action: 'pick_revert', field: 'notes', oldValue: null, newValue: notes, summary: { ...summary, recreated: true } }]);
-  }
-
-  async function cancel(ctx, id, body = {}) {
+  // `options.reason` (CANCEL_REASON) chi do may chu truyen — khong doc tu body de client khong gia mao "Kiot huy".
+  async function cancel(ctx, id, body = {}, options = {}) {
+    const reason = options.reason || CANCEL_REASON.MANUAL;
     const actor = actorOf(ctx);
     const db = getDb();
     await withTransaction(db, async client => {
       const head = await lockAssignment(client, ctx, id, body.version, [STATUS.PICKING, STATUS.CONFIRMED]);
-      const wasConfirmed = head.status === STATUS.CONFIRMED;
-      if (wasConfirmed) {
-        const jobs = (await client.query('SELECT * FROM order_pick_lines WHERE assignment_id = $1 AND picked_qty IS NOT NULL ORDER BY position_id', [id])).rows;
-        const positions = await lockPositions(client, head.branch, jobs);
-        for (const job of jobs) await revertJob(client, head, actor, job, positions.get(Number(job.position_id)));
+      // Da boc la trang thai cuoi: khong huy / hoan tac duoc (thung da tru that). Chi 'picking' moi huy duoc (tra giu cho).
+      if (head.status === STATUS.CONFIRMED) {
+        throw fail(409, 'ALREADY_CONFIRMED', 'Đơn đã bốc xong, không hủy được nữa.', { latest: await readAssignment(client, id) });
       }
       await client.query(
         `UPDATE order_pick_assignments SET status = 'cancelled', version = version + 1, cancelled_by_user_id = $2, cancelled_by_name = $3, cancelled_at = now(), updated_at = now() WHERE id = $1`,
         [id, actor.id, actor.name]);
       await client.query(
         `INSERT INTO order_pick_history (assignment_id, branch, order_code, action, summary, actor_user_id, actor_name) VALUES ($1, $2, $3, 'cancel', $4::jsonb, $5, $6)`,
-        [id, head.branch, head.order_code, JSON.stringify({ reverted: wasConfirmed }), actor.id, actor.name]);
+        [id, head.branch, head.order_code, JSON.stringify({ reverted: false, reason }), actor.id, actor.name]);
     });
     return { assignment: await readAssignment(db, id) };
   }
 
-  return { candidates, get, assign, confirm, cancel, latestStatuses };
+  // Doi trang thai tu cot "Trang thai boc" cua Vong doi don hang: CHI Dang boc -> Da boc (confirm: tru thung that) hoac
+  // Dang boc -> Da huy (cancel: tra giu cho). Da boc la trang thai cuoi (khong qua day). Dat lai ve chinh trang thai da co thi
+  // tra nguyen ket qua (idempotent, bam 2 lan khong tru thung 2 lan). Khoa lac quan theo version cua chi dinh moi nhat.
+  async function setStatus(ctx, body = {}) {
+    const branch = body.branch;
+    assertBranch(branch);
+    assertScope(ctx, branch);
+    const orderCode = cleanOrderCode(body.orderCode);
+    const target = body.status;
+    if (target !== STATUS.CONFIRMED && target !== STATUS.CANCELLED) {
+      throw fail(400, 'VALIDATION', 'Chỉ chuyển được từ "Đang bốc" sang "Đã bốc" hoặc "Đã hủy".', { field: 'status' });
+    }
+    const latest = await readLatest(getDb(), branch, orderCode);
+    if (!latest) throw fail(409, 'INVALID_STATE', 'Đơn chưa được chỉ định bốc nên không đổi được trạng thái bốc.');
+    if (latest.status === target) return { assignment: latest };
+    if (latest.status !== STATUS.PICKING) {
+      throw fail(409, 'INVALID_STATE', `Đơn đang ở trạng thái bốc "${latest.status}", chỉ đơn "Đang bốc" mới đổi được.`, { latest });
+    }
+    return target === STATUS.CONFIRMED
+      ? confirm(ctx, latest.id, { version: latest.version })
+      : cancel(ctx, latest.id, { version: latest.version });
+  }
+
+  // Tu dong theo Kiot (chay dinh ky, xem pickKiotReconcileJob.js): chi dong 'picking'.
+  //   Kiot "Hoan thanh" -> confirm (luc nay moi tru thung); Kiot "Da huy" -> huy chi dinh + tra giu cho (hien "Chua boc").
+  // 'confirmed' khong bao gio bi dong toi. Doc trang thai tu bang orders DA DONG BO (khong goi API Kiot). Idempotent:
+  // dung version cua chi dinh, nguoi khac vua doi tay (VERSION_CONFLICT / INVALID_STATE) thi bo qua luot nay.
+  async function reconcileWithKiot() {
+    const result = { checked: 0, confirmed: 0, cancelled: 0, skipped: 0, failed: [] };
+    const db = getDb();
+    let active;
+    try {
+      active = (await db.query(`SELECT id, branch, order_code, version FROM order_pick_assignments WHERE status = 'picking' ORDER BY id`)).rows;
+    } catch (error) {
+      if (error && error.code === '42P01') return result; // chua ap migration 0096
+      throw error;
+    }
+    result.checked = active.length;
+    const byBranch = new Map();
+    for (const row of active) {
+      if (!byBranch.has(row.branch)) byBranch.set(row.branch, []);
+      byBranch.get(row.branch).push(row);
+    }
+    for (const [branch, rows] of byBranch) {
+      const statuses = await kiotData.readKiotStatuses(db, branch, rows.map(row => row.order_code));
+      for (const row of rows) {
+        const outcome = kiotData.kiotOutcome(statuses.get(codeKey(row.order_code)));
+        if (!outcome) continue;
+        try {
+          if (outcome === 'completed') {
+            await confirm(KIOT_CTX, Number(row.id), { version: row.version });
+            result.confirmed += 1;
+          } else {
+            await cancel(KIOT_CTX, Number(row.id), { version: row.version }, { reason: CANCEL_REASON.KIOT });
+            result.cancelled += 1;
+          }
+        } catch (error) {
+          if (error && (error.code === 'VERSION_CONFLICT' || error.code === 'INVALID_STATE')) { result.skipped += 1; continue; }
+          result.failed.push({ id: Number(row.id), branch, orderCode: row.order_code, outcome, code: (error && error.code) || 'ERROR', message: error && error.message });
+        }
+      }
+    }
+    return result;
+  }
+
+  // Canh bao LECH SL: voi cac don (Dang boc / Da boc) trong `pairs` [{ branch, orderCode }], so tong SL da chi dinh theo tung ma
+  // voi SL dong don Kiot hien tai. Tra Map 'HN|ma don chu thuong' -> [{ productCode, picked, ordered }] (chi don co lech).
+  // Tu het khi Kiot sua don khop lai (moi lan goi doc lai). Fail-soft: loi DB tra Map rong, danh sach van chay.
+  async function pickMismatches(pairs) {
+    const out = new Map();
+    const byBranch = new Map();
+    for (const pair of Array.isArray(pairs) ? pairs : []) {
+      const code = codeKey(pair && pair.orderCode);
+      if (!pair || !code) continue;
+      if (!byBranch.has(pair.branch)) byBranch.set(pair.branch, new Set());
+      byBranch.get(pair.branch).add(code);
+    }
+    try {
+      const db = getDb();
+      for (const [branch, codes] of byBranch) {
+        if (!tx.BRANCH_CODES.includes(branch)) continue;
+        const { rows } = await db.query(
+          `SELECT a.order_code, lower(btrim(l.product_code)) AS product_key, MAX(l.product_code) AS product_code, SUM(l.planned_qty)::float8 AS quantity
+             FROM order_pick_assignments a JOIN order_pick_lines l ON l.assignment_id = a.id
+            WHERE a.branch = $1 AND a.status IN ('picking', 'confirmed') AND lower(btrim(a.order_code)) = ANY($2::text[])
+            GROUP BY a.order_code, 2`,
+          [branch, [...codes]]);
+        const assigned = new Map(); // ma don chu thuong -> Map(ma hang -> { productCode, quantity })
+        const exactCodes = new Set();
+        for (const row of rows) {
+          const key = codeKey(row.order_code);
+          exactCodes.add(row.order_code);
+          if (!assigned.has(key)) assigned.set(key, new Map());
+          assigned.get(key).set(row.product_key, { productCode: row.product_code, quantity: Number(row.quantity) });
+        }
+        const ordered = await kiotData.readKiotQuantities(db, branch, [...exactCodes]);
+        for (const [key, lines] of assigned) {
+          if (!ordered.has(key)) continue; // chua co don tren Kiot (DB chua dong bo): khong ket luan
+          const diff = kiotData.diffQuantities(lines, ordered.get(key));
+          if (diff.length) out.set(`${branch}|${key}`, diff);
+        }
+      }
+    } catch (error) {
+      if (error && error.code !== '42P01') console.error('[PickAssignments] mismatch lookup failed:', error.code || error.message);
+      return new Map();
+    }
+    return out;
+  }
+
+  return { candidates, get, assign, confirm, cancel, setStatus, reconcileWithKiot, pickMismatches, latestStatuses };
 }
 
-module.exports = { createPickAssignmentsService, mergeOrderLines, STATUS, ELIGIBLE_STATUS, ...createPickAssignmentsService() };
+module.exports = { createPickAssignmentsService, mergeOrderLines, STATUS, CANCEL_REASON, ELIGIBLE_STATUS, ...createPickAssignmentsService() };

@@ -29,6 +29,13 @@ function startBackgroundJobs() {
     stops.push(priceAuditScheduler);
   }
 
+  // Trang thai boc hang theo Kiot (Dang boc + Kiot hoan thanh -> Da boc; + Kiot huy -> Chua boc): chi doc DB, nhe.
+  if (CONFIG.PICK_KIOT_RECONCILE_ENABLED && CONFIG.SUPABASE_DB_URL) {
+    const pickScheduler = require('./pickAssignments/pickKiotReconcileJob').createPickKiotReconcileScheduler({ enabled: true });
+    pickScheduler.start();
+    stops.push(pickScheduler);
+  }
+
   if (CONFIG.KIOTVIET_SYNC_ENABLED || CONFIG.KIOTVIET_CASHBOOK_SYNC_ENABLED) {
     require('./kiotvietSync/scheduler').startPollingScheduler();
   }

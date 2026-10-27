@@ -764,7 +764,7 @@ Cập nhật gần nhất: 24/10/2026.
 - `order_pick_history`: nhật ký **chỉ thêm** (trigger chặn UPDATE/DELETE như `stock_position_history_guard`; `REVOKE` khỏi `reporting_readonly`): hành động `assign|confirm|cancel`, người thực hiện (`actor_user_id`, `actor_name`), `created_at`, `assignment_id`, `branch`, `order_code`, `summary JSONB`. `assignment_id` của lịch sử không có FK; FK của lines có ON DELETE CASCADE.
 - **Tra cứu:** `order_pick_assignments_order_idx` trên `(branch, lower(btrim(order_code)), id DESC)`; API đọc chỉ định mới nhất kể cả cancelled. Khớp mã vị trí bằng `lower(btrim(code))`, tách HN/SG.
 - **Giữ chỗ không có cột riêng:** tồn khả dụng của vị trí = SL tính từ `stock_positions.notes` − Σ `reserved_qty` của các `order_pick_lines` thuộc chỉ định đang `picking` ở đơn khác. Xác nhận nhặt trừ thùng thật (giữ chỗ hết hiệu lực vì đơn không còn `picking`).
-- **`stock_position_history.action`** mở rộng CHECK thêm `pick` (xác nhận nhặt trừ thùng) và `pick_revert` (hủy/hoàn tác), `summary` mang `{orderCode, assignmentId}`; dòng tự xóa khi trừ hết vẫn ghi `auto_delete`.
+- **`stock_position_history.action`** mở rộng CHECK thêm `pick` (xác nhận nhặt trừ thùng) và `pick_revert` (hoàn tác; giữ trong ràng buộc cho lịch sử cũ, từ 27/10/2026 tối code không còn ghi vì Đã bốc là trạng thái cuối), `summary` mang `{orderCode, assignmentId}`; dòng tự xóa khi trừ hết vẫn ghi `auto_delete`.
 - Mọi thao tác ghi chạy trong một giao dịch dưới khóa advisory theo cơ sở của `stockPositions/` + `FOR UPDATE` các dòng vị trí theo thứ tự `id`.
 
 Trạng thái: đang làm trên nhánh `feat/lifecycle-pick-assign`, **chưa merge, chưa migrate (`0096`, `0097`), chưa deploy**. Người dùng tự chạy `npm run db:migrate`.

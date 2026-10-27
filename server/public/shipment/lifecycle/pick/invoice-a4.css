@@ -22,10 +22,14 @@
 #pickingPrintSheet .tokosi-invoice .invoice-goods thead td{font-size:8pt;font-weight:bold;text-align:center;vertical-align:middle;padding:1mm .5mm}
 #pickingPrintSheet .tokosi-invoice .invoice-goods tbody tr:first-child td{font-weight:normal;vertical-align:middle}
 #pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(2){text-align:left}
-#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(3),#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(5),#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(6){text-align:right;font-variant-numeric:tabular-nums}
-#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(1),#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(4),#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(7),#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(8),#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(9){text-align:center}
+/* Thứ tự cột: 1 TT, 2 Tên hàng, 3 SL, 4 Đơn giá, 5 Thành tiền, 6 Ghi chú, 7 Vị trí, 8 Thùng, 9 Thực nhặt. */
+#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(3),#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(4),#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(5){text-align:right;font-variant-numeric:tabular-nums}
+#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(1),#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(6),#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(7),#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(8),#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(9){text-align:center}
 #pickingPrintSheet .tokosi-invoice .invoice-goods td.invoice-st-frac{color:#b00000;font-weight:bold}
-#pickingPrintSheet .tokosi-invoice .invoice-location{white-space:pre-line!important}
+/* Ô Vị trí: một vị trí chỉ ghi tên; từ hai vị trí mỗi vị trí một dòng "VT: SL" (SL in đậm), không ngắt dòng giữa VT và SL (vd "A01: 200,000"). */
+#pickingPrintSheet .tokosi-invoice .invoice-location{white-space:normal}
+#pickingPrintSheet .tokosi-invoice .invoice-loc-line{white-space:nowrap;text-align:center;font-variant-numeric:tabular-nums}
+#pickingPrintSheet .tokosi-invoice .invoice-loc-line b{font-weight:bold}
 #pickingPrintSheet .tokosi-invoice .invoice-footer{margin-top:9mm;padding-bottom:22mm;break-inside:avoid;page-break-inside:avoid}
 #pickingPrintSheet .tokosi-invoice .invoice-summary td{font-size:9pt;padding:.5mm 1mm;line-height:1.1}
 #pickingPrintSheet .tokosi-invoice .invoice-notes{margin-top:4mm;line-height:1.2;white-space:pre-line}

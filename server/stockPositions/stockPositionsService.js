@@ -104,6 +104,14 @@ const ON_HAND_SQL = `
 // Tra khong phan biet hoa/thuong de chuan hoa ma nhap tay / import ve ma KiotViet (khong dung duoc index nen chi goi luc ghi).
 const RESOLVE_SQL = `SELECT code, name FROM products WHERE branch = $1 AND lower(code) = ANY($2::text[])`;
 
+// Giu cho cua cac don "Dang nhat" (order_pick_assignments.status = 'picking', 0096) theo vi tri: 1 truy van gop cho ca bang.
+// Chi chi dinh 'picking' giu cho; 'confirmed' da tru thung that, 'cancelled' da tra. Cung cong thuc voi pickAssignmentsService.heldByPosition (khong loai tru don nao).
+const HELD_SQL = `
+  SELECT l.position_id, COALESCE(SUM(l.reserved_qty), 0)::float8 AS held
+  FROM order_pick_lines l JOIN order_pick_assignments a ON a.id = l.assignment_id
+  WHERE a.status = 'picking' AND a.branch = $1 AND l.position_id = ANY($2::bigint[])
+  GROUP BY l.position_id`;
+
 const ROW_COLUMNS = 'id, branch, code, name, notes, arrival_date, location, version, updated_by_name, updated_at';
 
 const historySql = `INSERT INTO stock_position_history (branch, position_id, code, location, action, field, old_value, new_value, summary, actor_user_id, actor_name)
@@ -156,7 +164,21 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
     return map;
   }
 
-  function shape(row, product) {
+  // Chua ap migration 0096 thi khong co bang giu cho: tra Map rong (Co the boc = SL kho). to_regclass khong gay loi nen an toan ca khi db la client dang trong giao dich.
+  let heldTablesReady = false;
+  async function heldByPosition(db, branch, ids) {
+    const held = new Map();
+    if (!ids.length) return held;
+    if (!heldTablesReady) {
+      const probe = (await db.query(`SELECT to_regclass('order_pick_lines') IS NOT NULL AND to_regclass('order_pick_assignments') IS NOT NULL AS ready`)).rows[0];
+      heldTablesReady = Boolean(probe && probe.ready);
+      if (!heldTablesReady) return held;
+    }
+    for (const row of (await db.query(HELD_SQL, [branch, ids])).rows) held.set(Number(row.position_id), Number(row.held));
+    return held;
+  }
+
+  function shape(row, product, held = 0) {
     const spec = carton.parseSpec(row.notes);
     return {
       id: Number(row.id),
@@ -166,6 +188,8 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
       arrivalDate: row.arrival_date,
       location: row.location,
       quantity: spec ? spec.quantity : null,
+      held,
+      available: spec ? Math.max(0, spec.quantity - held) : null,
       kiotQuantity: product ? product.onHand : null,
       warnings: carton.warnings(row.notes, { unknownCode: !product }),
       updatedByName: row.updated_by_name,
@@ -185,7 +209,8 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
     const db = getDb();
     const rows = (await db.query(`SELECT ${ROW_COLUMNS} FROM stock_positions WHERE branch = $1 ORDER BY id`, [branch])).rows;
     const products = await loadProducts(db, branch, rows.map(row => row.code));
-    return { branch, rows: rows.map(row => shape(row, products.get(row.code))) };
+    const held = await heldByPosition(db, branch, rows.map(row => Number(row.id)));
+    return { branch, rows: rows.map(row => shape(row, products.get(row.code), held.get(Number(row.id)) || 0)) };
   }
 
   const FIELD_COLUMN = { notes: 'notes', arrivalDate: 'arrival_date', location: 'location' };

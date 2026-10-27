@@ -5,7 +5,8 @@
   const NUM='\\d+(?:[.,]\\d+)?';
   // Hậu tố c (cái) sau SL/thùng chỉ là đơn vị, không đổi nghĩa số: 50c = 50. Có thể c hoa/thường, có hoặc không có khoảng trắng.
   // Ghi chú được xóa mọi khoảng trắng trước khi đọc (xem scan), nên dấu nhân x X * × là tùy chọn: 1t100 = 1t 100 = 1t x 100.
-  const TERM=new RegExp('^('+NUM+')[Tt](?:[xX*×]|(?=\\d))('+NUM+')([cC])?$');
+  // Chữ T có thể bỏ khi có dấu nhân: 9*12 = 9x12 = 9X12 = 9Tx12 (a*B là aTxB). Không có T mà cũng không có dấu nhân (912) vẫn sai định dạng.
+  const TERM=new RegExp('^('+NUM+')(?:[Tt](?:[xX*×]|(?=\\d))|[xX*×])('+NUM+')([cC])?$');
   const LOOSE=new RegExp('^(.*?)[-−]('+NUM+')[cC]?$');
   // Dấu nối nhiều quy cách: + hoặc dấu phẩy ngay sau SL/thùng của số hạng trước (9tx14, 5tx 14). Dấu phẩy thập phân (0,5Tx100) không bị tách. Khi ghi lại ghi chú, dấu nối được chuẩn hóa thành ' + '.
   const SEPARATOR=/\s*\+\s*|(?<=[xX*×Tt]\s*\d+(?:[.,]\d+)?\s*[cC]?)\s*,\s*/;

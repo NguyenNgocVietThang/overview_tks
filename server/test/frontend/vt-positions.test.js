@@ -15,7 +15,7 @@ const settle = async () => { for (let i = 0; i < 6; i++) await tick(); };
 
 const row = (id, extra = {}) => ({
   id, code: 'MA' + id, name: 'Hàng ' + id, notes: '2T x 100', arrivalDate: '', location: 'K' + id,
-  quantity: 200, kiotQuantity: 350, warnings: [], updatedByName: 'Quản lý', updatedAt: '2026-10-27T02:30:00.000Z', version: 3, ...extra
+  quantity: 200, held: 0, available: 200, kiotQuantity: 350, warnings: [], updatedByName: 'Quản lý', updatedAt: '2026-10-27T02:30:00.000Z', version: 3, ...extra
 });
 const json = (body, status = 200) => ({ ok: status < 400, status, json: async () => body });
 
@@ -132,14 +132,16 @@ test('bộ lọc cảnh báo: số đếm tính trên toàn bộ dòng (không t
   assert.deepEqual(Array.from(filterRows(sample, '', false), r => r.id), [1, 2]);
 });
 
-test('hiện 9 cột gồm Cập nhật và Người sửa cuối riêng (không còn cột Thao tác), số en-US và giờ Việt Nam, SL Kiot trống khi không có', async t => {
-  const data = { HN: [row(1, { quantity: 12345.5, kiotQuantity: null, arrivalDate: 'KK 4.10' })], SG: [] };
+test('hiện 10 cột gồm Có thể bốc, Cập nhật và Người sửa cuối riêng (không còn cột Thao tác), số en-US và giờ Việt Nam, SL Kiot trống khi không có', async t => {
+  const data = { HN: [row(1, { quantity: 12345.5, available: 12000.5, held: 345, kiotQuantity: null, arrivalDate: 'KK 4.10' })], SG: [] };
   const { doc } = await setup(t, { data });
   const labels = [...doc.querySelectorAll('#vtTable thead th')].map(th => th.textContent.replace(/[▲▼]/g, '').trim());
-  assert.deepEqual(labels, ['Mã hàng', 'Tên hàng', 'SL kho', 'SL Kiot', 'Ghi chú số thùng', 'Ngày về', 'Vị trí', 'Cập nhật', 'Người sửa cuối']);
+  assert.deepEqual(labels, ['Mã hàng', 'Tên hàng', 'SL kho', 'Có thể bốc', 'SL Kiot', 'Ghi chú số thùng', 'Ngày về', 'Vị trí', 'Cập nhật', 'Người sửa cuối']);
   assert.equal(doc.querySelector('#vtTable th[data-field="actions"]'), null);
   assert.equal(doc.querySelector('#vtRows [data-menu-toggle], #vtRows [data-action]'), null, 'không còn nút ⋯/Xóa trong bảng');
   assert.equal(doc.querySelector('td[data-field="quantity"]').textContent, '12,345.5');
+  assert.equal(doc.querySelector('td[data-field="available"]').textContent, '12,000.5');
+  assert.match(doc.querySelector('td[data-field="available"]').title, /345/, 'tooltip nói rõ phần đang giữ chỗ');
   assert.equal(doc.querySelector('td[data-field="kiotQuantity"]').textContent, '');
   assert.equal(doc.querySelector('td[data-field="arrivalDate"]').textContent, 'KK 4.10');
   assert.equal(doc.querySelector('td[data-field="updated"] .vt-updated-time').textContent, '27/10/2026 09:30');
@@ -150,7 +152,7 @@ test('hiện 9 cột gồm Cập nhật và Người sửa cuối riêng (không
 test('mỗi cột khai báo độ rộng tối thiểu để kéo hẹp không làm chữ xếp từng ký tự', async t => {
   const { doc } = await setup(t);
   const mins = [...doc.querySelectorAll('#vtTable thead th')].map(th => Number(th.dataset.minWidth));
-  assert.equal(mins.length, 9);
+  assert.equal(mins.length, 10);
   assert.ok(mins.every(min => min >= 80), 'mọi cột ≥ 80px: ' + mins.join(','));
 });
 

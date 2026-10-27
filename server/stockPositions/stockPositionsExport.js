@@ -1,6 +1,6 @@
 'use strict';
 
-// Xuat Excel bang VT Ha Noi / VT Sai Gon: du 10 cot nhu tren trang (cung thu tu), ke ca dong dang bi loc.
+// Xuat Excel bang VT Ha Noi / VT Sai Gon: du 10 cot nhu tren trang (cung thu tu), ke ca dong dang bi loc; 'Co the boc' = SL kho tru giu cho don Dang nhat.
 const ExcelJS = require('exceljs');
 const { HEADER_FONT, frozenNoGridlinesView, applyFullTableBorder } = require('../excelTableStyle');
 
@@ -18,6 +18,7 @@ const COLUMNS = Object.freeze([
   { header: 'Mã hàng', width: 16, value: row => row.code },
   { header: 'Tên hàng', width: 40, value: row => row.name },
   { header: 'SL kho', width: 12, numFmt: NUMBER, value: row => row.quantity },
+  { header: 'Có thể bốc', width: 12, numFmt: NUMBER, value: row => row.available },
   { header: 'SL Kiot', width: 12, numFmt: NUMBER, value: row => row.kiotQuantity },
   { header: 'Ghi chú số thùng', width: 30, value: row => row.notes },
   { header: 'Ngày về', width: 14, value: row => row.arrivalDate },

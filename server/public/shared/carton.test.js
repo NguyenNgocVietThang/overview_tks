@@ -150,20 +150,21 @@ test('trừ thùng giữ hậu tố c của từng số hạng; phần trừ l�
   assert.equal(C.deduct(C.parseSpec('1Tx50c - 25'),10).text,'1T x 50c - 35');
   assert.equal(C.restore(C.parseSpec('3T x 100c'),200).text,'5T x 100c');
 });
-test('dấu phẩy nối nhiều quy cách tương đương +; 2X20 và các dạng khác vẫn sai định dạng',()=>{
+test('dấu phẩy nối nhiều quy cách tương đương +; các dạng khác vẫn sai định dạng (2X20 nay hợp lệ = 2Tx20)',()=>{
   for(const t of ['9tx14, 5tx 14','9tx14,5tx14','9tx14 , 5tx14','9tx14 + 5tx14']){const s=C.parseSpec(t);assert.equal(s.quantity,196,t);assert.equal(s.multi,false,'cùng SL/thùng gộp thành một');assert.deepEqual(C.warnings(t),[]);}
   assert.deepEqual(C.warnings('9tx14, 5tx 15'),['multi']);
   assert.equal(C.deduct(C.parseSpec('9tx14, 5tx 14'),126).text,'5T x 14','chuẩn hóa dấu nối thành + khi ghi lại');
   assert.deepEqual(C.warnings('0,5Tx100'),['badnumber'],'dấu phẩy thập phân không bị tách');
-  for(const bad of ['2X20','1t','1b*200','1tx40 + 1t','vin 19/9 gọi vỏ','9tx14, 5'])assert.deepEqual(C.warnings(bad),['unreadable'],bad);
+  for(const bad of ['1t','1b*200','1tx40 + 1t','vin 19/9 gọi vỏ','9tx14, 5'])assert.deepEqual(C.warnings(bad),['unreadable'],bad);
+  assert.equal(C.parseSpec('2X20').quantity,40,'a*B không có T là aTxB');
 });
-test('mọi khoảng trắng bị xóa trước khi đọc, dấu nhân tùy chọn: 1t 11 = 1T11 = 1t x 11; 1t và 2X20 vẫn sai',()=>{
+test('mọi khoảng trắng bị xóa trước khi đọc, dấu nhân tùy chọn: 1t 11 = 1T11 = 1t x 11; 1t vẫn sai (2X20 nay = 2Tx20)',()=>{
   for(const t of ['1t 11','1T X 11','1t x 11','1t*11','1T * 11','1t×11','1t  11','1t11','1T11',' 1 T 1 1 '])assert.equal(C.parseSpec(t).quantity,11,t);
   assert.equal(C.parseSpec('5T 100c').quantity,500);
   for(const t of ['1t 11, 2t 5','1t 11 + 2t 5','1t*11, 2T*5','1t 11,2t 5'])assert.equal(C.parseSpec(t).quantity,21,t);
   assert.equal(C.parseSpec('1t*11 - 4').quantity,7);assert.equal(C.parseSpec('1t 11 - 4').quantity,7);
   assert.deepEqual(C.warnings('1t 11, 2t 5'),['multi']);
-  for(const bad of ['1t','2X20','1b*200','1 11','t 11','1t x','1t 11 ,'])assert.deepEqual(C.warnings(bad),['unreadable'],bad);
+  for(const bad of ['1t','1b*200','1 11','t 11','1t x','1t 11 ,'])assert.deepEqual(C.warnings(bad),['unreadable'],bad);
   assert.deepEqual(C.warnings('0,5Tx100'),['badnumber']);
 });
 test('normalizeNote: đọc được thì về dạng chuẩn, sai định dạng chỉ gộp khoảng trắng, rỗng giữ rỗng',()=>{
@@ -227,4 +228,46 @@ test('chuẩn hóa ghi chú: bỏ khoảng trắng, không phân biệt hoa/thư
   assert.equal(C.normalizeNote('1tX50C + 2T*25c'),'1T x 50c + 2T x 25c');
   for(const t of ['Hết hàng','HẾT HÀNG','hết  hàng','  hết hàng '])assert.equal(C.parseSpec(t).quantity,0,t);
   assert.deepEqual(C.warnings('HẾT HÀNG'),[]);
+});
+
+test('a*B (không có T) là aTxB: x X * × đều chuẩn hóa thành x, hợp lệ, không cảnh báo sai định dạng',()=>{
+  for(const t of ['9*12','9x12','9X12','9×12',' 9 * 12 '])assert.equal(C.normalizeNote(t),'9T x 12',t);
+  assert.equal(C.parseSpec('9*12').quantity,108);
+  assert.deepEqual(C.warnings('9*12'),[],'không còn Sai định dạng');
+  // Ví dụ người dùng gửi: 9X12+1TX12 = 10 thùng 12 (cùng quy cách gộp một).
+  const mixed=C.parseSpec('9X12+1TX12');
+  assert.equal(mixed.quantity,120);assert.equal(mixed.cartons,10);assert.equal(mixed.multi,false);
+  assert.equal(C.normalizeNote('9X12+1TX12'),'10T x 12');
+  assert.deepEqual(C.warnings('9X12+1TX12'),[]);
+  assert.equal(C.parseSpec('5*200c').quantity,1000,'hậu tố c vẫn là đơn vị');
+  assert.equal(C.parseSpec('9*12+1*50 - 8').quantity,150,'trộn nhiều quy cách và phần trừ lẻ');
+});
+
+test('không có T mà cũng không có dấu nhân thì vẫn sai định dạng (không đoán)',()=>{
+  for(const bad of ['912','9 12','x12','9*','9*0','0*12','0.5*12','9*12 ghi chú','9**12','9x'])assert.equal(C.parseSpec(bad),null,bad);
+  assert.deepEqual(C.warnings('912'),['unreadable']);
+});
+
+test('cùng quy cách gộp thành một dù viết bằng t*B hay *B: 3t*40+14t*40+1t*39 = 17Tx40 + 1Tx39',()=>{
+  const spec=C.parseSpec('3t*40+14t*40+1t*39');
+  assert.deepEqual(spec.terms.map(t=>[t.cartons,t.perCarton]),[[17,40],[1,39]]);
+  assert.equal(spec.quantity,719);
+  assert.equal(C.normalizeNote('3t*40+14t*40+1t*39'),'17T x 40 + 1T x 39');
+  assert.equal(C.normalizeNote('3*40+14X40+1t*40'),'18T x 40');
+  assert.deepEqual(C.warnings('3t*40+14t*40'),[],'gộp về một quy cách thì không còn cảnh báo nhiều quy cách');
+});
+
+test('cùng SL/thùng gộp kể cả khi cách nhau: 9X12+1Tx20+1TX12 = 10T x 12 + 1T x 20 (thứ tự theo lần xuất hiện đầu)',()=>{
+  const spec=C.parseSpec('9X12+1Tx20+1TX12');
+  assert.deepEqual(spec.terms.map(t=>[t.cartons,t.perCarton]),[[10,12],[1,20]]);
+  assert.equal(spec.quantity,140);
+  assert.equal(C.normalizeNote('9X12+1Tx20+1TX12'),'10T x 12 + 1T x 20');
+  assert.equal(C.normalizeNote('1Tx20+2Tx12+3*20+4X12'),'4T x 20 + 6T x 12');
+  assert.equal(C.normalizeNote('2T x 12 + 1T x 20 + 3T x 12 - 5'),'5T x 12 + 1T x 20 - 5');
+  assert.deepEqual(C.warnings('9X12+1Tx20+1TX12'),['multi'],'còn 2 quy cách khác nhau thì vẫn cảnh báo nhiều quy cách');
+  assert.deepEqual(C.warnings('1Tx12+1Tx20+1Tx12+1Tx20'),['multi']);
+  assert.deepEqual(C.warnings('1Tx12+1Tx20+1Tx12'),['multi']);
+  // Sau khi gộp, trừ/in phiếu làm việc trên số hạng đã gộp.
+  assert.equal(C.pickText(spec,120),'10Tx12');
+  assert.equal(C.deduct(spec,20).text,'10T x 12');
 });

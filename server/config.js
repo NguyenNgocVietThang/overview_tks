@@ -121,6 +121,10 @@ const CONFIG = {
   VAT_REQUEST_NOTIFY_ENABLED: process.env.VAT_REQUEST_NOTIFY_ENABLED !== 'false',
   // Bao chuong nguoi duyet khi don nghi phep den tu Telegram (hr/hrLeaveBellNotifier.js).
   HR_LEAVE_BELL_NOTIFY_ENABLED: process.env.HR_LEAVE_BELL_NOTIFY_ENABLED !== 'false',
+  // Trang thai boc hang tu dong theo Kiot: Dang boc + Kiot hoan thanh -> Da boc, + Kiot huy -> Chua boc
+  // (pickAssignments/pickKiotReconcileJob.js; doc bang orders da dong bo, khong goi API Kiot). Mac dinh bat, chu ky 2 phut.
+  PICK_KIOT_RECONCILE_ENABLED: process.env.PICK_KIOT_RECONCILE_ENABLED !== 'false',
+  PICK_KIOT_RECONCILE_INTERVAL_MS: Math.min(30 * 60 * 1000, Math.max(30 * 1000, Number(process.env.PICK_KIOT_RECONCILE_INTERVAL_MS) || 2 * 60 * 1000)),
 
   // ==========================================
   // SUPABASE POSTGRES — dong bo KiotViet, xem

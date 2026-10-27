@@ -538,6 +538,34 @@ test('queryOrders + pickStatuses: dong cua trang co pickStatus (null neu chua ch
   }
 });
 
+test('queryOrders: bo loc "none" (Chua boc) = don khong co khoa chi chi dinh; pickMismatch chi gan cho don Dang boc / Da boc cua TRANG, chi hoi cac don do', async () => {
+  const ctx = freshService([]);
+  try {
+    const orders = [1, 2, 3, 4].map(i => kiotOrder({ code: 'DH00000' + i, orderDate: `0${i}/10/2026 10:00` }));
+    const kiot = fakeKiot({ ok: true, orders });
+    const pickStatuses = async () => new Map([['HN|dh000002', 'picking'], ['HN|dh000003', 'confirmed'], ['HN|dh000004', 'cancelled']]);
+    const asked = [];
+    const pickMismatches = async pairs => {
+      asked.push(pairs.map(p => p.branch + '|' + p.orderCode).sort());
+      return new Map([['HN|dh000002', [{ productCode: 'A1', picked: 400, ordered: 395 }]]]);
+    };
+    const none = await ctx.service.queryOrders({ pickStatus: 'none' }, { kiot, pickStatuses, pickMismatches });
+    assert.deepEqual(none.orders.map(o => o.orderCode), ['DH000001'], 'Chua boc = khong co khoa (khong co chi dinh / Kiot huy don)');
+    assert.deepEqual(asked.at(-1), undefined, 'trang chi co don Chua boc -> khong hoi canh bao lech SL');
+    const all = await ctx.service.queryOrders({}, { kiot, pickStatuses, pickMismatches });
+    assert.deepEqual(all.orders.map(o => [o.orderCode, o.pickMismatch || null]), [
+      ['DH000004', null], ['DH000003', null], ['DH000002', [{ productCode: 'A1', picked: 400, ordered: 395 }]], ['DH000001', null]]);
+    assert.deepEqual(asked.at(-1), ['HN|DH000002', 'HN|DH000003'], 'chi hoi don Dang boc / Da boc cua trang');
+    // Khong truyen pickMismatches (nguoi khong co quyen) thi khong co truong.
+    const plain = await ctx.service.queryOrders({}, { kiot, pickStatuses });
+    assert.ok(plain.orders.every(o => !('pickMismatch' in o)));
+    // Xuat Excel loc 'none' cung bo tham so.
+    assert.deepEqual((await ctx.service.exportOrders({ pickStatus: 'none' }, { kiot, pickStatuses })).map(o => o.orderCode), ['DH000001']);
+  } finally {
+    ctx.restore();
+  }
+});
+
 test('findMergedOrder: tim dong gop theo (co so, ma don) khong phan biet hoa/thuong; khac co so hoac khong co -> null', async () => {
   const ctx = freshService([]);
   try {

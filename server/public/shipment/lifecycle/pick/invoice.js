@@ -82,11 +82,15 @@ async function show(order,record){
     const unit=v2?line.unitPrice:(typeof line.price==='number'&&Number.isFinite(line.price)?line.price-(line.discount??0):null);
     const amount=v2?line.amount:(unit===null?null:unit*qty);
     if(amount===null||amount===undefined)totalKnown=false;else if(!v2)total+=amount;
-    const assigned=jobs.map(j=>j.location||'—');
-    // Một khu: chỉ tên khu. Từ hai khu trở lên: mỗi khu một dòng "Tên khu: số thùng" (vd "A07: 1Tx50" / "B06: 2Tx60-20"); thiếu quy cách thì ghi SL.
-    const multiZone=new Set(assigned).size>1;
+    // Cùng tên vị trí cộng gộp SL. Một vị trí: chỉ tên vị trí (số thùng đã có ở cột Thùng). Từ hai vị trí: mỗi vị trí một dòng "VT: SL", SL in đậm.
+    const zones=[];
+    jobs.forEach(j=>{
+      const name=j.location||'—',zone=zones.find(z=>z.name===name),planned=Number(j.plannedQty)||0;
+      if(zone)zone.qty+=planned;else zones.push({name,qty:planned});
+    });
+    const multiZone=zones.length>1;
     const priorLine=seenCodes.get(key(line.productCode));
-    const placement=priorLine?'Vị trí/ST: xem dòng '+priorLine:(multiZone?jobs.map((j,n)=>assigned[n]+': '+(j.stText||j.plannedQty)).join('\n'):[...new Set(assigned)].join(' / '));
+    const placement=priorLine?'Vị trí/Thùng: xem dòng '+priorLine:zones.map(z=>z.name).join(' / ');
     // ST lấy từ bản ghi chỉ định nên in lại ra cùng số; trống khi đã Hủy nhặt hoặc chưa có quy cách thùng.
     const cancelled=record.status==='cancelled';
     const stLabel=cancelled||priorLine?'':jobs.map(j=>j.stText).filter(Boolean).join(' + ');
@@ -99,7 +103,12 @@ async function show(order,record){
     });
     const item=rendered.firstElementChild;
     if(!priorLine&&!cancelled&&(stLabel?stLabel.includes('-'):cartons!==null&&!Number.isInteger(cartons)))item.querySelector('td.invoice-st')?.classList.add('invoice-st-frac');
-    if(multiZone)[...item.querySelectorAll('td')].filter(td=>td.textContent.includes(assigned[0]+': ')).forEach(td=>{td.style.whiteSpace='pre-line';});
+    const locationCell=item.querySelector('td.invoice-location');
+    if(multiZone&&!priorLine&&locationCell)locationCell.replaceChildren(...zones.map(z=>{
+      const div=document.createElement('div'),qtyNode=document.createElement('b');
+      div.className='invoice-loc-line';qtyNode.textContent=qtyText(z.qty);
+      div.append(z.name+': ',qtyNode);return div;
+    }));
     row.before(item);
     if(!priorLine)seenCodes.set(key(line.productCode),index);
   });

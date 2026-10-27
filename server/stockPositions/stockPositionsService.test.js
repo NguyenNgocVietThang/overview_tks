@@ -383,3 +383,42 @@ test('historyAll: lọc theo hành động và từ khóa không dấu, tôn tr�
     await assert.rejects(() => service.historyAll(ctx(), 'XX'), { code: 'INVALID_BRANCH' });
   } finally { await db.close(); }
 });
+
+test('list: Có thể bốc = SL kho trừ giữ chỗ của các đơn Đang bốc (confirmed/cancelled không tính), bằng 1 truy vấn gộp', async () => {
+  const { db, service } = await fixture({ lines: [
+    { branch: 'HN', code: 'AAA1', name: 'A', notes: '3T x 100', location: 'H1' },
+    { branch: 'HN', code: 'BBB2', name: 'B', notes: '1T x 5', location: 'H2' },
+    { branch: 'HN', code: 'FFF6', name: 'F', notes: 'T x Ghi chú lạ', location: 'H3' },
+    { branch: 'SG', code: 'AAA1', name: 'A', notes: '2T x 100', location: 'S1' }
+  ] });
+  try {
+    await db.exec(migration('0096_order_pick_assignments.sql'));
+    await db.exec(migration('0097_order_pick_assignment_snapshots.sql'));
+    const hn = (await service.list(ctx(), 'HN')).rows;
+    const sg = (await service.list(ctx(), 'SG')).rows;
+    const [a, b] = hn;
+    const assign = async (branch, orderCode, status) =>
+      Number((await db.query(`INSERT INTO order_pick_assignments (branch, order_code, status) VALUES ($1, $2, $3) RETURNING id`, [branch, orderCode, status])).rows[0].id);
+    const line = (assignmentId, position, reserved) => db.query(
+      `INSERT INTO order_pick_lines (assignment_id, product_code, position_id, location, planned_qty, reserved_qty) VALUES ($1, $2, $3, $4, $5, $6)`,
+      [assignmentId, position.code, position.id, position.location, 50, reserved]);
+    await line(await assign('HN', 'DH1', 'picking'), a, 120);
+    await line(await assign('HN', 'DH2', 'picking'), a, 30);
+    await line(await assign('HN', 'DH3', 'confirmed'), a, 0);
+    await line(await assign('HN', 'DH4', 'cancelled'), a, 99);
+    await line(await assign('HN', 'DH5', 'picking'), b, 9); // giữ vượt SL: không âm
+    await line(await assign('SG', 'DH6', 'picking'), sg[0], 40);
+    const after = (await service.list(ctx(), 'HN')).rows;
+    assert.deepEqual(after.map(r => [r.quantity, r.held, r.available]), [[300, 150, 150], [5, 9, 0], [null, 0, null]]);
+    const afterSg = (await service.list(ctx(), 'SG')).rows;
+    assert.deepEqual(afterSg.map(r => [r.quantity, r.held, r.available]), [[200, 40, 160]]);
+  } finally { await db.close(); }
+});
+
+test('list: chưa áp migration giữ chỗ (0096) thì Có thể bốc = SL kho, bảng không hỏng', async () => {
+  const { db, service } = await fixture({ lines: [{ branch: 'HN', code: 'AAA1', name: 'A', notes: '3T x 100', location: 'H1' }] });
+  try {
+    const { rows } = await service.list(ctx(), 'HN');
+    assert.deepEqual([rows[0].quantity, rows[0].held, rows[0].available], [300, 0, 300]);
+  } finally { await db.close(); }
+});

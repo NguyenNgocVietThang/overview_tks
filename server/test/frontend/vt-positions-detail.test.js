@@ -16,7 +16,7 @@ const settle = async () => { for (let i = 0; i < 6; i++) await tick(); };
 
 const row = (id, extra = {}) => ({
   id, code: 'MA' + id, name: 'Hàng ' + id, notes: '2T x 100', arrivalDate: '', location: 'K' + id,
-  quantity: 200, kiotQuantity: 350, warnings: [], updatedByName: 'Quản lý', updatedAt: '2026-10-27T02:30:00.000Z', version: 3, ...extra
+  quantity: 200, held: 50, available: 150, kiotQuantity: 350, warnings: [], updatedByName: 'Quản lý', updatedAt: '2026-10-27T02:30:00.000Z', version: 3, ...extra
 });
 const json = (body, status = 200) => ({ ok: status < 400, status, json: async () => body });
 const entry = (id, extra = {}) => ({
@@ -84,6 +84,7 @@ test('bấm dòng mở hộp chi tiết: mã, tên, vị trí và thông số SL
   assert.equal(ui.text('vtDetailSubtitle'), 'VT Hà Nội · K1');
   assert.equal(ui.text('vtDetailCartons'), '2');
   assert.equal(ui.text('vtDetailPieces'), '200');
+  assert.equal(ui.text('vtDetailAvailable'), '150', 'Có thể bốc = SL chiếc − giữ chỗ (50)');
   assert.equal(ui.text('vtDetailKiot'), '350');
   assert.equal(ui.text('vtDetailStatLocation'), 'K1');
   assert.equal(ui.text('vtDetailStatArrival'), '4/10');

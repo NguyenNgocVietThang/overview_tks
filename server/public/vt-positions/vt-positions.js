@@ -3,21 +3,21 @@
   let pageSize = 100;
   const API = '/api/stock-positions';
   // "updated" = thời điểm cập nhật cuối (sắp xếp theo updatedAt); "updatedByName" = Người sửa cuối, cột riêng.
-  const BASE_FIELDS = ['code', 'name', 'quantity', 'kiotQuantity', 'notes', 'arrivalDate', 'location', 'updated', 'updatedByName'];
+  const BASE_FIELDS = ['code', 'name', 'quantity', 'available', 'kiotQuantity', 'notes', 'arrivalDate', 'location', 'updated', 'updatedByName'];
   const LABELS = {
-    code: 'Mã hàng', name: 'Tên hàng', quantity: 'SL kho', kiotQuantity: 'SL Kiot', notes: 'Ghi chú số thùng',
+    code: 'Mã hàng', name: 'Tên hàng', quantity: 'SL kho', available: 'Có thể bốc', kiotQuantity: 'SL Kiot', notes: 'Ghi chú số thùng',
     arrivalDate: 'Ngày về', location: 'Vị trí', updated: 'Cập nhật', updatedByName: 'Người sửa cuối'
   };
   // Các trường sửa được trong hộp chi tiết của dòng (bấm vào dòng để mở).
   const DETAIL_FIELDS = ['notes', 'arrivalDate', 'location'];
-  const NUMERIC = ['quantity', 'kiotQuantity'];
-  const MOBILE_FIELDS = ['name', 'quantity', 'kiotQuantity', 'location'];
+  const NUMERIC = ['quantity', 'available', 'kiotQuantity'];
+  const MOBILE_FIELDS = ['name', 'quantity', 'available', 'kiotQuantity', 'location'];
   const WIDTHS = {
-    desktop: { code: 120, name: 220, quantity: 90, kiotQuantity: 90, notes: 220, arrivalDate: 110, location: 110, updated: 150, updatedByName: 160 },
-    mobile: { code: 100, name: 180, quantity: 70, kiotQuantity: 70, notes: 200, arrivalDate: 100, location: 90, updated: 140, updatedByName: 130 }
+    desktop: { code: 120, name: 220, quantity: 90, available: 100, kiotQuantity: 90, notes: 220, arrivalDate: 110, location: 110, updated: 150, updatedByName: 160 },
+    mobile: { code: 100, name: 180, quantity: 70, available: 80, kiotQuantity: 70, notes: 200, arrivalDate: 100, location: 90, updated: 140, updatedByName: 130 }
   };
   // Đủ cho từ dài nhất của tiêu đề + nút sắp xếp + lề ô (≥ 80px), và cho nội dung cột bẻ dòng được.
-  const MIN_WIDTHS = { code: 110, name: 150, quantity: 90, kiotQuantity: 90, notes: 130, arrivalDate: 90, location: 80, updated: 140, updatedByName: 120 };
+  const MIN_WIDTHS = { code: 110, name: 150, quantity: 90, available: 100, kiotQuantity: 90, notes: 130, arrivalDate: 90, location: 80, updated: 140, updatedByName: 120 };
   const WARNING_LABELS = { multi: 'Nhiều quy cách', loose: 'Trừ lẻ', unreadable: 'Sai định dạng', badnumber: 'Số thùng sai', unknowncode: 'Mã SP lạ' };
   const ACTION_LABELS = {
     seed: 'Nhập dữ liệu đầu', create: 'Thêm dòng', edit: 'Sửa', delete: 'Xóa dòng', auto_delete: 'Tự xóa (hết hàng)',
@@ -224,7 +224,11 @@
     fields().forEach(field => {
       const td = document.createElement('td');
       td.dataset.field = field;
-      if (field === 'quantity' || field === 'kiotQuantity') td.textContent = formatNumber(row[field]);
+      if (field === 'quantity' || field === 'available' || field === 'kiotQuantity') {
+        td.textContent = formatNumber(row[field]);
+        // Có thể bốc = SL kho − phần các đơn Đang bốc đang giữ chỗ; tooltip nói rõ phần giữ chỗ.
+        if (field === 'available' && Number(row.held) > 0) td.title = 'Đang giữ chỗ ' + formatNumber(row.held) + ' cho các đơn Đang bốc';
+      }
       else if (field === 'updated') {
         const time = document.createElement('span');
         time.className = 'vt-updated-time';
@@ -396,6 +400,9 @@
     const spec = carton && carton.parseSpec ? carton.parseSpec(notes) : null;
     $('vtDetailCartons').textContent = spec ? formatNumber(spec.cartons) : '—';
     $('vtDetailPieces').textContent = spec ? formatNumber(spec.quantity) : '—';
+    const held = Number(row.held) || 0;
+    $('vtDetailAvailable').textContent = spec ? formatNumber(Math.max(0, spec.quantity - held)) : '—';
+    $('vtDetailAvailable').closest('.dp-stat').title = held > 0 ? 'Đang giữ chỗ ' + formatNumber(held) + ' cho các đơn Đang bốc' : '';
     $('vtDetailKiot').textContent = dash(formatNumber(row.kiotQuantity));
     $('vtDetailStatLocation').textContent = dash(form.elements.location.value.trim());
     $('vtDetailStatArrival').textContent = dash(form.elements.arrivalDate.value.trim());

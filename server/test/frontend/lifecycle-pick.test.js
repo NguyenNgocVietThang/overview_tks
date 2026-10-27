@@ -226,7 +226,7 @@ test('Xác nhận & In: POST đúng phân bổ, đóng popup, mở phiếu in c�
   assert.equal(page.document.querySelector('#pickingPrintSheet td.invoice-actual').textContent.trim(), '', 'Thực tế nhặt để trống');
   assert.match(page.document.querySelector('#lcDetailKiot .picking-confirmed').textContent, /Đã chỉ định · Đang nhặt/);
   // dòng đơn trên danh sách có nhãn trạng thái ngay trong ô mã đơn (không thêm cột)
-  assert.equal(rowsOf(page.document)[0].querySelector('.lc-pick-chip').dataset.pickStatus, 'picking');
+  assert.equal(rowsOf(page.document)[0].querySelector('[data-col="pickStatus"] .lc-pick-state').dataset.pickStatus, 'picking');
   // đơn đã có chỉ định (đang nhặt): bảng hàng hóa có thêm cột ST = 2
   const heads = [...page.document.querySelectorAll('#lcDetailKiot table.lc-lines thead th')].map(th => th.textContent);
   assert.equal(heads.length, 10);
@@ -247,10 +247,10 @@ test('bảng hàng hóa mặc định giữ 9 cột (không ST) khi đơn chưa 
   [page, cancelled].forEach(p => p.dom.window.close());
 });
 
-test('nút theo trạng thái: Đang nhặt = Xác nhận nhặt / Hủy nhặt / In đơn; Xác nhận nhặt = Hủy nhặt / Chỉ định lại / In đơn; Hủy nhặt = Chỉ định lại', async () => {
+test('nút theo trạng thái: Đang nhặt = Xác nhận nhặt / Hủy nhặt / Chỉ định lại / In đơn; Xác nhận nhặt (trạng thái cuối) = chỉ In đơn; Hủy nhặt = Chỉ định lại', async () => {
   const expectations = {
-    picking: { confirmPick: true, cancelPick: true, reopen: false, reprint: true },
-    confirmed: { confirmPick: false, cancelPick: true, reopen: true, reprint: true },
+    picking: { confirmPick: true, cancelPick: true, reopen: true, reprint: true },
+    confirmed: { confirmPick: false, cancelPick: false, reopen: false, reprint: true },
     cancelled: { confirmPick: false, cancelPick: false, reopen: true, reprint: false }
   };
   for (const [status, want] of Object.entries(expectations)) {
@@ -269,7 +269,7 @@ test('nút theo trạng thái: Đang nhặt = Xác nhận nhặt / Hủy nhặt 
   }
 });
 
-test('Xác nhận nhặt và Hủy nhặt gọi đúng API kèm version, cập nhật chip, nhãn danh sách và cột ST', async () => {
+test('Xác nhận nhặt gọi đúng API kèm version và là trạng thái cuối (hết nút Hủy nhặt / Chỉ định lại); Hủy nhặt đơn Đang nhặt gọi đúng API', async () => {
   const store = newStore({ assignment: makeAssignment('picking') });
   const page = await renderPage({ orders: [orderRow('DH1', { pickStatus: 'picking' })], store });
   await openPopup(page);
@@ -277,36 +277,66 @@ test('Xác nhận nhặt và Hủy nhặt gọi đúng API kèm version, cập n
   assert.deepEqual(store.statusCalls, [{ id: '7', action: 'confirm', body: { version: 1 } }]);
   assert.equal(text(page, 'pickingOrderStatus'), 'Xác nhận nhặt');
   assert.match(page.document.querySelector('#lcDetailKiot .picking-confirmed').textContent, /Xác nhận nhặt/);
-  assert.equal(rowsOf(page.document)[0].querySelector('.lc-pick-chip').dataset.pickStatus, 'confirmed');
-  await click(page, 'pickingCancelPick');
-  assert.deepEqual(store.statusCalls[1], { id: '7', action: 'cancel', body: { version: 2 } }, 'version mới sau lần xác nhận');
-  assert.equal(text(page, 'pickingOrderStatus'), 'Hủy nhặt');
-  assert.equal(rowsOf(page.document)[0].querySelector('.lc-pick-chip').dataset.pickStatus, 'cancelled');
-  assert.equal(page.document.querySelectorAll('#lcDetailKiot table.lc-lines thead th').length, 9, 'Hủy nhặt: bỏ cột ST');
-  page.dom.window.close();
+  assert.equal(rowsOf(page.document)[0].querySelector('[data-col="pickStatus"] .lc-pick-state').dataset.pickStatus, 'confirmed');
+  assert.equal(visible(page, 'pickingCancelPick'), false, 'Đã bốc: không hủy được nữa');
+  assert.equal(visible(page, 'pickingReopen'), false, 'Đã bốc: không chỉ định lại được');
+
+  const cancelStore = newStore({ assignment: makeAssignment('picking') });
+  const cancelPage = await renderPage({ orders: [orderRow('DH1', { pickStatus: 'picking' })], store: cancelStore });
+  await openPopup(cancelPage);
+  await click(cancelPage, 'pickingCancelPick');
+  assert.deepEqual(cancelStore.statusCalls, [{ id: '7', action: 'cancel', body: { version: 1 } }]);
+  assert.equal(text(cancelPage, 'pickingOrderStatus'), 'Hủy nhặt');
+  assert.equal(rowsOf(cancelPage.document)[0].querySelector('[data-col="pickStatus"] .lc-pick-state').dataset.pickStatus, 'cancelled');
+  assert.equal(cancelPage.document.querySelectorAll('#lcDetailKiot table.lc-lines thead th').length, 9, 'Hủy nhặt: bỏ cột ST');
+  [page, cancelPage].forEach(p => p.dom.window.close());
 });
 
-test('Chỉ định lại: sau Hủy nhặt vào chế độ chọn mới; sau Xác nhận nhặt phải bấm hai lần (hoàn tác nhặt rồi chỉ định lại)', async () => {
+test('Chỉ định lại: sau Hủy nhặt vào chế độ chọn mới; đơn Đang nhặt chỉ định lại bằng MỘT lệnh reassign (không gọi hủy riêng); Đã bốc không có nút', async () => {
   const cancelled = await renderPage({ orders: [orderRow('DH1', { pickStatus: 'cancelled' })], store: newStore({ assignment: makeAssignment('cancelled') }) });
   await openPopup(cancelled);
   await click(cancelled, 'pickingReopen');
   assert.equal(cancelled.store.statusCalls.length, 0, 'đã hủy sẵn: không gọi hủy lần nữa');
   assert.equal(cancelled.document.getElementById('pickingConfirm').disabled, false, 'chọn lại được');
   assert.equal(text(cancelled, 'pickingOrderStatus'), 'Chưa chỉ định');
+  await click(cancelled, 'pickingConfirm');
+  assert.equal(cancelled.store.posted[0].reassign, undefined, 'đơn Đã hủy: chỉ định mới thường, không reassign');
 
-  const store = newStore({ assignment: makeAssignment('confirmed') });
-  const confirmed = await renderPage({ orders: [orderRow('DH1', { pickStatus: 'confirmed' })], store });
+  const store = newStore({ assignment: makeAssignment('picking', { version: 3 }) });
+  const picking = await renderPage({ orders: [orderRow('DH1', { pickStatus: 'picking' })], store });
+  await openPopup(picking);
+  await click(picking, 'pickingReopen');
+  assert.equal(store.statusCalls.length, 0, 'không hủy riêng: lượt cũ chỉ bị hủy cùng giao dịch với lượt mới');
+  assert.equal(text(picking, 'pickingOrderStatus'), 'Chưa chỉ định', 'vào chế độ chọn lại');
+  assert.equal(picking.document.getElementById('pickingConfirm').disabled, false);
+  await click(picking, 'pickingConfirm');
+  assert.equal(store.posted.length, 1);
+  assert.equal(store.posted[0].reassign, true);
+  assert.equal(store.posted[0].version, 3, 'kèm version của lượt đang bốc để khóa lạc quan');
+  assert.equal(store.statusCalls.length, 0);
+  assert.equal(text(picking, 'pickingOrderStatus'), 'Đang nhặt');
+
+  const confirmed = await renderPage({ orders: [orderRow('DH1', { pickStatus: 'confirmed' })], store: newStore({ assignment: makeAssignment('confirmed') }) });
   await openPopup(confirmed);
-  await click(confirmed, 'pickingReopen');
-  assert.match(text(confirmed, 'pickingReopen'), /Bấm lại để hoàn tác nhặt/);
-  assert.equal(store.statusCalls.length, 0, 'bấm lần đầu chỉ chờ xác nhận');
-  await click(confirmed, 'pickingReopen');
-  assert.deepEqual(store.statusCalls, [{ id: '7', action: 'cancel', body: { version: 1 } }]);
-  assert.equal(text(confirmed, 'pickingOrderStatus'), 'Chưa chỉ định');
-  assert.equal(confirmed.document.getElementById('pickingConfirm').disabled, false);
-  await click(confirmed, 'pickingConfirm');
-  assert.equal(store.posted.length, 1, 'chỉ định mới được gửi');
-  [cancelled, confirmed].forEach(p => p.dom.window.close());
+  assert.equal(visible(confirmed, 'pickingReopen'), false);
+  [cancelled, picking, confirmed].forEach(p => p.dom.window.close());
+});
+
+test('reassign gặp 409 ALREADY_CONFIRMED (người khác vừa bốc xong): báo rõ đơn đã bốc, tải lại, hiện Đã bốc và khóa chọn', async () => {
+  const store = newStore({ assignment: makeAssignment('picking'), postError: { status: 409, body: { error: 'Đơn đã bốc xong, không in lại hoặc chỉ định lại được.', code: 'ALREADY_CONFIRMED' } } });
+  const page = await renderPage({ orders: [orderRow('DH1', { pickStatus: 'picking' })], store });
+  await openPopup(page);
+  await click(page, 'pickingReopen');
+  store.assignment = makeAssignment('confirmed', { version: 2 });
+  const before = store.candidateCalls;
+  await click(page, 'pickingConfirm');
+  assert.match(text(page, 'pickingStatus'), /đã bốc xong/);
+  assert.match(text(page, 'pickingStatus'), /Đã tải lại/);
+  assert.equal(store.candidateCalls, before + 1, 'tải lại candidates');
+  assert.equal(text(page, 'pickingOrderStatus'), 'Xác nhận nhặt');
+  assert.equal(visible(page, 'pickingReopen'), false);
+  assert.equal(page.document.getElementById('pickingConfirm').disabled, true);
+  page.dom.window.close();
 });
 
 test('lỗi 409 hiện thông báo trong popup và tải lại dữ liệu (không đóng popup, không đổi trạng thái)', async () => {
@@ -342,14 +372,17 @@ test('đơn không còn đủ điều kiện (eligible=false) và chưa chỉ đ
   page.dom.window.close();
 });
 
-test('danh sách: nhãn chỉ định trong ô mã đơn không thêm cột; ô lọc chỉ định gửi pickStatus và có đủ 4 lựa chọn', async () => {
+test('danh sách: người có quyền chỉ định có cột Trạng thái bốc (14 cột); ô lọc gửi pickStatus và có đủ 5 lựa chọn', async () => {
   const page = await renderPage({ orders: [orderRow('DH1', { pickStatus: 'picking' }), orderRow('DH2')] });
   const { document, window } = page;
-  assert.equal(document.querySelectorAll('#bulkHeadRow th').length, 13, 'giữ nguyên 13 cột');
+  assert.equal(document.querySelectorAll('#bulkHeadRow th').length, 14, '13 cột + cột Trạng thái bốc');
   const rows = rowsOf(document);
-  assert.equal(rows[0].querySelector('.lc-pick-chip').textContent, 'Đang nhặt');
-  assert.equal(rows[1].querySelector('.lc-pick-chip'), null);
-  assert.deepEqual([...document.getElementById('bulkPickStatusFilter').options].map(o => o.value), ['', 'picking', 'confirmed', 'cancelled']);
+  const stateOf = row => row.querySelector('[data-col="pickStatus"] .lc-pick-state');
+  assert.equal(stateOf(rows[0]).value, 'picking');
+  assert.equal(stateOf(rows[0]).selectedOptions[0].textContent, 'Đang bốc');
+  assert.equal(stateOf(rows[1]).textContent, 'Chưa bốc');
+  assert.equal(stateOf(rows[1]).dataset.pickStatus, 'none');
+  assert.deepEqual([...document.getElementById('bulkPickStatusFilter').options].map(o => o.value), ['', 'none', 'picking', 'confirmed', 'cancelled']);
   const select = document.getElementById('bulkPickStatusFilter');
   select.value = 'confirmed';
   select.dispatchEvent(new window.Event('change', { bubbles: true }));
@@ -365,11 +398,11 @@ test('danh sách: nhãn chỉ định trong ô mã đơn không thêm cột; ô 
 
 test('làm mới danh sách: pickStatus đổi thì dòng vẽ lại nhãn (có trong chữ ký dòng)', async () => {
   const page = await renderPage({ orders: [orderRow('DH1')] });
-  assert.equal(rowsOf(page.document)[0].querySelector('.lc-pick-chip'), null);
+  assert.equal(rowsOf(page.document)[0].querySelector('[data-col="pickStatus"] .lc-pick-state').dataset.pickStatus, 'none');
   page.source.orders = [orderRow('DH1', { pickStatus: 'confirmed' })];
   page.window.eval('loadBulkOrders(true)');
   await settle();
-  assert.equal(rowsOf(page.document)[0].querySelector('.lc-pick-chip').dataset.pickStatus, 'confirmed');
+  assert.equal(rowsOf(page.document)[0].querySelector('[data-col="pickStatus"] .lc-pick-state').dataset.pickStatus, 'confirmed');
   page.dom.window.close();
 });
 
@@ -510,22 +543,23 @@ test('số chiếc nhập tay không được lẻ; lỗi nguồn hiện rõ, v�
   [page, legacy].forEach(p => p.dom.window.close());
 });
 
-test('chỉ định lại bị mất phản hồi hủy: tải trạng thái, không tự tạo chỉ định mới', async () => {
-  const store = newStore({ assignment:makeAssignment('confirmed') });
-  let cancels=0;
+test('chỉ định lại (reassign) bị mất phản hồi: tải trạng thái thật, không tự gửi lần nữa', async () => {
+  const store = newStore({ assignment:makeAssignment('picking') });
+  let posts=0;
   const page=await renderPage({ store, fetchImpl:async (url,options) => {
-    if(url.endsWith('/7/cancel')&&options.method==='POST'){
-      cancels++;
-      store.assignment=makeAssignment('cancelled',{version:2});
-      throw new TypeError('lost cancel response');
+    if(url==='/api/shipment/pick'&&options.method==='POST'){
+      posts++;
+      store.assignment=makeAssignment('picking',{id:8,version:3});
+      throw new TypeError('lost reassign response');
     }
   } });
   await openPopup(page);
   await click(page,'pickingReopen');
-  await click(page,'pickingReopen');
-  assert.equal(cancels,1);
-  assert.equal(store.posted.length,0);
-  assert.equal(page.window.TKSPick._state.assignment.status,'cancelled');
+  await click(page,'pickingConfirm');
+  assert.equal(posts,1);
+  assert.equal(store.statusCalls.length,0);
+  assert.equal(page.window.TKSPick._state.assignment.id,8,'hiện lượt mới đã được ghi trên máy chủ');
+  assert.equal(page.window.TKSPick._state.assignment.status,'picking');
   assert.equal(page.window.TKSPick._state.busy,false);
   assert.equal(page.window.TKSPick._state.needsSync,false);
   assert.equal(page.document.getElementById('pickingConfirm').disabled,true);
@@ -549,4 +583,34 @@ test('đóng popup khi POST đang chờ không cho phản hồi cũ ghi đè l�
   assert.equal(page.document.getElementById('pickingDialog').open,true);
   assert.equal(page.document.getElementById('pickingPrintDialog').open,false);
   page.dom.window.close();
+});
+
+test('thẻ vị trí trong hộp chỉ định: tên vị trí đậm màu nổi bên trái, tổng SL bên phải, ghi chú thùng ở dòng dưới', async () => {
+  const page = await renderPage();
+  await openPopup(page);
+  const card = page.document.querySelector('.picking-location.selected');
+  assert.deepEqual([...card.children].map(el => el.tagName), ['STRONG', 'SPAN', 'SMALL'], 'thứ tự DOM: vị trí, SL, ghi chú thùng');
+  assert.equal(card.children[0].textContent, 'A07');
+  assert.equal(card.children[0].getAttribute('title'), 'A07', 'tên vị trí dài bị cắt thì còn tooltip');
+  assert.equal(card.children[1].textContent, '200');
+  assert.equal(card.children[2].className.includes('picking-spec'), true);
+  assert.equal(card.children[2].textContent, '4T x 50');
+  page.dom.window.close();
+});
+
+test('CSS thẻ vị trí: lưới 2 dòng, ghi chú không còn chen lên trước tên vị trí', () => {
+  const css = read(path.join(pickDir, 'pick-assign.css'));
+  // Nội dung khai báo của luật CSS có đúng selector này (một dòng, không lồng).
+  const rule = selector => { const at = css.indexOf(selector + '{'); return at < 0 ? '' : css.slice(at + selector.length + 1, css.indexOf('}', at)); };
+  assert.match(rule('.picking-location'), /display:grid/);
+  const name = rule('.picking-location strong');
+  assert.match(name, /grid-column:1/);
+  assert.match(name, /color:var\(--zone\)/, 'màu nổi theo khu');
+  assert.match(name, /font-weight:(700|800)/);
+  assert.match(name, /white-space:nowrap/);
+  assert.match(rule('.picking-location span'), /grid-column:2/, 'tổng SL góc phải');
+  const spec = rule('.picking-spec');
+  assert.match(spec, /grid-row:2/);
+  assert.match(spec, /grid-column:1\s*\/\s*-1/);
+  assert.doesNotMatch(rule('.picking-location strong') + rule('.picking-location span'), /order:/, 'không dùng order: ghi chú (order mặc định 0) sẽ nhảy lên đầu');
 });
