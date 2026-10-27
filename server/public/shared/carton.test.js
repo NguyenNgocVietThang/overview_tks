@@ -141,15 +141,15 @@ test('dấu phẩy nối nhiều quy cách tương đương +; 2X20 và các d�
   assert.deepEqual(C.warnings('9tx14, 5tx 15'),['multi']);
   assert.equal(C.deduct(C.parseSpec('9tx14, 5tx 14'),126).text,'5T x 14','chuẩn hóa dấu nối thành + khi ghi lại');
   assert.deepEqual(C.warnings('0,5Tx100'),['badnumber'],'dấu phẩy thập phân không bị tách');
-  for(const bad of ['2X20','1t','1b*200','1tx40 + 1t39','vin 19/9 gọi vỏ','9tx14, 5'])assert.deepEqual(C.warnings(bad),['unreadable'],bad);
+  for(const bad of ['2X20','1t','1b*200','1tx40 + 1t','vin 19/9 gọi vỏ','9tx14, 5'])assert.deepEqual(C.warnings(bad),['unreadable'],bad);
 });
-test('dấu nhân x X * × tùy chọn khi có khoảng trắng: 1t 11 = 1t x 11; 1t11, 1t và 2X20 vẫn sai',()=>{
-  for(const t of ['1t 11','1T X 11','1t x 11','1t*11','1T * 11','1t×11','1t  11'])assert.equal(C.parseSpec(t).quantity,11,t);
+test('mọi khoảng trắng bị xóa trước khi đọc, dấu nhân tùy chọn: 1t 11 = 1T11 = 1t x 11; 1t và 2X20 vẫn sai',()=>{
+  for(const t of ['1t 11','1T X 11','1t x 11','1t*11','1T * 11','1t×11','1t  11','1t11','1T11',' 1 T 1 1 '])assert.equal(C.parseSpec(t).quantity,11,t);
   assert.equal(C.parseSpec('5T 100c').quantity,500);
   for(const t of ['1t 11, 2t 5','1t 11 + 2t 5','1t*11, 2T*5','1t 11,2t 5'])assert.equal(C.parseSpec(t).quantity,21,t);
   assert.equal(C.parseSpec('1t*11 - 4').quantity,7);assert.equal(C.parseSpec('1t 11 - 4').quantity,7);
   assert.deepEqual(C.warnings('1t 11, 2t 5'),['multi']);
-  for(const bad of ['1t','1t11','2X20','1b*200','1 11','t 11','1t 11 5'])assert.deepEqual(C.warnings(bad),['unreadable'],bad);
+  for(const bad of ['1t','2X20','1b*200','1 11','t 11','1t x','1t 11 ,'])assert.deepEqual(C.warnings(bad),['unreadable'],bad);
   assert.deepEqual(C.warnings('0,5Tx100'),['badnumber']);
 });
 test('normalizeNote: đọc được thì về dạng chuẩn, sai định dạng chỉ gộp khoảng trắng, rỗng giữ rỗng',()=>{
@@ -198,4 +198,19 @@ test('pickText: cột Số thùng khi in — lấy tròn 5Tx50, lấy lẻ 2Tx60
   assert.equal(p('rác',5),null);
   assert.equal(p('',5),null);
   assert.equal(C.pickText(null,5),null);
+});
+
+test('1T100 (không dấu nhân, không khoảng trắng) là 1 thùng 100; ví dụ 1t100 + 2T*100 = 3T x 100 (SL 300)',()=>{
+  assert.equal(C.parseSpec('1T100').quantity,100);
+  assert.equal(C.parseSpec('1t100 + 2T*100').quantity,300);
+  assert.equal(C.normalizeNote('1t100 + 2T*100'),'3T x 100');
+  assert.equal(C.normalizeNote(' 2 t 5 0 c - 1 0 '),'2T x 50c - 10');
+  assert.deepEqual(C.warnings('1T100'),[]);
+});
+
+test('chuẩn hóa ghi chú: bỏ khoảng trắng, không phân biệt hoa/thường, x X * × đều là dấu nhân',()=>{
+  for(const t of ['3T x 100','3t X100','3 T * 100','3t×100','3T100','3tx100',' 3 t x 1 0 0 ','3TX100'])assert.equal(C.normalizeNote(t),'3T x 100',t);
+  assert.equal(C.normalizeNote('1tX50C + 2T*25c'),'1T x 50c + 2T x 25c');
+  for(const t of ['Hết hàng','HẾT HÀNG','hết  hàng','  hết hàng '])assert.equal(C.parseSpec(t).quantity,0,t);
+  assert.deepEqual(C.warnings('HẾT HÀNG'),[]);
 });

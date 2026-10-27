@@ -4,8 +4,9 @@
   const number=text=>Number(String(text).replace(',','.'));
   const NUM='\\d+(?:[.,]\\d+)?';
   // Hậu tố c (cái) sau SL/thùng chỉ là đơn vị, không đổi nghĩa số: 50c = 50. Có thể c hoa/thường, có hoặc không có khoảng trắng.
-  const TERM=new RegExp('^\\s*('+NUM+')\\s*[Tt](?:\\s*[xX*×]\\s*|\\s+)('+NUM+')(\\s*[cC])?\\s*$');
-  const LOOSE=new RegExp('^(.*?)\\s*[-−]\\s*('+NUM+')\\s*[cC]?\\s*$');
+  // Ghi chú được xóa mọi khoảng trắng trước khi đọc (xem scan), nên dấu nhân x X * × là tùy chọn: 1t100 = 1t 100 = 1t x 100.
+  const TERM=new RegExp('^('+NUM+')[Tt](?:[xX*×]|(?=\\d))('+NUM+')([cC])?$');
+  const LOOSE=new RegExp('^(.*?)[-−]('+NUM+')[cC]?$');
   // Dấu nối nhiều quy cách: + hoặc dấu phẩy ngay sau SL/thùng của số hạng trước (9tx14, 5tx 14). Dấu phẩy thập phân (0,5Tx100) không bị tách. Khi ghi lại ghi chú, dấu nối được chuẩn hóa thành ' + '.
   const SEPARATOR=/\s*\+\s*|(?<=[xX*×Tt]\s*\d+(?:[.,]\d+)?\s*[cC]?)\s*,\s*/;
   // Ghi chú của vị trí đã nhặt hết: SL = 0, không cảnh báo, chưa có quy cách để chỉ định.
@@ -13,7 +14,7 @@
   const positiveInt=n=>Number.isInteger(n)&&n>0;
   // Đọc cú pháp, chưa kiểm số: trả {terms, loose} hoặc null nếu không đúng dạng <thùng>T x <SL/thùng> (+ ...) (- N).
   function scan(text){
-    let body=String(text??''),loose=0;
+    let body=String(text??'').replace(/\s+/gu,''),loose=0;
     const tail=LOOSE.exec(body);
     if(tail){body=tail[1];loose=number(tail[2]);}
     const terms=[];
@@ -30,7 +31,9 @@
   function parseSpec(text){
     // Ghi chú rỗng (hoặc chỉ có khoảng trắng) và "Hết hàng" là hợp lệ: SL 0, không cảnh báo, chưa có hàng để chỉ định nhặt.
     const trimmed=String(text??'').trim();
-    if(trimmed===''||trimmed===EMPTY_NOTE)return {terms:[],loose:0,quantity:0,cartons:0,perCarton:null,multi:false,empty:true};
+    // "Hết hàng" không phân biệt hoa/thường và khoảng trắng ("HẾT  HÀNG").
+    const emptyWord=trimmed.normalize('NFC').replace(/\s+/gu,'').toLowerCase()==='hếthàng';
+    if(trimmed===''||emptyWord)return {terms:[],loose:0,quantity:0,cartons:0,perCarton:null,multi:false,empty:true};
     const s=scan(text);if(!s)return null;
     if(!s.terms.every(t=>positiveInt(t.cartons)&&positiveInt(t.perCarton)))return null;
     if(s.loose!==0&&!positiveInt(s.loose))return null;
