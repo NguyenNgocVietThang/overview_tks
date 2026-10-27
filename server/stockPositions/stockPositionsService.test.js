@@ -394,6 +394,7 @@ test('list: Có thể bốc = SL kho trừ giữ chỗ của các đơn Đang b�
   try {
     await db.exec(migration('0096_order_pick_assignments.sql'));
     await db.exec(migration('0097_order_pick_assignment_snapshots.sql'));
+    await db.exec(migration('0098_order_pick_history_mismatch_ack.sql'));
     const hn = (await service.list(ctx(), 'HN')).rows;
     const sg = (await service.list(ctx(), 'SG')).rows;
     const [a, b] = hn;

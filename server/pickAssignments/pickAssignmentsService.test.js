@@ -34,6 +34,7 @@ async function fixture({ orders = { DH001: order() }, positions } = {}) {
   await db.exec(migration('0095_stock_positions.sql'));
   await db.exec(migration('0096_order_pick_assignments.sql'));
   await db.exec(migration('0097_order_pick_assignment_snapshots.sql'));
+  await db.exec(migration('0098_order_pick_history_mismatch_ack.sql'));
   const seed = positions || [
     { code: 'AAA1', location: 'A01', notes: '3T x 100' }, // id 1: 300
     { code: 'AAA1', location: 'B02', notes: '2T x 100' }, // id 2: 200

@@ -39,6 +39,7 @@ async function fixture({ orders = { DH001: order() } } = {}) {
   await db.exec(migration('0095_stock_positions.sql'));
   await db.exec(migration('0096_order_pick_assignments.sql'));
   await db.exec(migration('0097_order_pick_assignment_snapshots.sql'));
+  await db.exec(migration('0098_order_pick_history_mismatch_ack.sql'));
   const seed = [
     { code: 'AAA1', location: 'A01', notes: '3T x 100' }, // id 1: 300
     { code: 'AAA1', location: 'B02', notes: '2T x 100' }, // id 2: 200
@@ -254,5 +255,90 @@ test('cancel: ly do huy chi do may chu dat; body.reason tu client bi bo qua (kho
     await service.cancel(ctx(), assignment.id, { version: 1, reason: 'kiot_cancelled' });
     assert.equal((await latest('DH001')).history.at(-1).summary.reason, 'manual');
     assert.equal((await service.latestStatuses()).get('HN|dh001'), 'cancelled');
+  } finally { await db.close(); }
+});
+
+// ---------- "Da xu ly" canh bao lech SL (migration 0098) ----------
+const historyCount = async (db, action) => (await db.query(`SELECT count(*)::int AS n FROM order_pick_history WHERE action = $1`, [action])).rows[0].n;
+const PAIRS = [{ branch: 'HN', orderCode: 'DH001' }];
+const mismatchOf = async service => (await service.pickMismatches(PAIRS)).get('HN|dh001');
+
+async function lechOrder(extra) {
+  // Chi dinh 250 AAA1 nhung Kiot chi dat 240.
+  const f = await fixture(extra);
+  await addKiotOrder(f.db, { code: 'DH001', status: 'Phiếu tạm', id: 1, lines: [{ productCode: 'AAA1', quantity: 240 }] });
+  await f.service.assign(ctx(), body([{ productCode: 'AAA1', positionId: 1, qty: 250 }]));
+  return f;
+}
+
+test('acknowledgeMismatch: lech SL -> ack gan handled {by, at} cho tung dong; chua ack thi khong co handled', async () => {
+  const { db, service } = await lechOrder();
+  try {
+    assert.deepEqual(await mismatchOf(service), [{ productCode: 'AAA1', picked: 250, ordered: 240 }]);
+    const result = await service.acknowledgeMismatch(ctx(), { branch: 'HN', orderCode: 'DH001' });
+    assert.equal(result.mismatch.length, 1);
+    const handled = result.mismatch[0].handled;
+    assert.equal(handled.by, 'Quản Lý A');
+    assert.ok(!Number.isNaN(Date.parse(handled.at)));
+    assert.equal(result.assignment.status, 'picking');
+    const after = await mismatchOf(service);
+    assert.deepEqual(after.map(({ handled: _handled, ...rest }) => rest), [{ productCode: 'AAA1', picked: 250, ordered: 240 }]);
+    assert.equal(after[0].handled.by, 'Quản Lý A');
+    assert.equal(result.assignment.history.at(-1).action, 'mismatch_ack');
+  } finally { await db.close(); }
+});
+
+test('acknowledgeMismatch: ack lan hai khi da handled la idempotent (khong them lich su)', async () => {
+  const { db, service } = await lechOrder();
+  try {
+    await service.acknowledgeMismatch(ctx(), { branch: 'HN', orderCode: 'DH001' });
+    const second = await service.acknowledgeMismatch(ctx(), { branch: 'HN', orderCode: 'DH001' });
+    assert.equal(second.mismatch[0].handled.by, 'Quản Lý A');
+    assert.equal(await historyCount(db, 'mismatch_ack'), 1);
+  } finally { await db.close(); }
+});
+
+test('acknowledgeMismatch: Kiot sua tiep lam so lech doi -> handled mat (canh bao hien lai), ack lai duoc', async () => {
+  const { db, service } = await lechOrder();
+  try {
+    await service.acknowledgeMismatch(ctx(), { branch: 'HN', orderCode: 'DH001' });
+    await db.query(`UPDATE order_details SET quantity = 230 WHERE branch = 'hanoi' AND order_id = 1 AND line_no = 1`);
+    assert.deepEqual(await mismatchOf(service), [{ productCode: 'AAA1', picked: 250, ordered: 230 }]);
+    const again = await service.acknowledgeMismatch(ctx(), { branch: 'HN', orderCode: 'DH001' });
+    assert.equal(again.mismatch[0].handled.by, 'Quản Lý A');
+    assert.equal(await historyCount(db, 'mismatch_ack'), 2);
+  } finally { await db.close(); }
+});
+
+test('acknowledgeMismatch: Kiot khop lai -> NO_MISMATCH 409; khong chi dinh / da huy -> INVALID_STATE 409', async () => {
+  const { db, service, latest } = await lechOrder();
+  try {
+    await db.query(`UPDATE order_details SET quantity = 250 WHERE branch = 'hanoi' AND order_id = 1 AND line_no = 1`);
+    await assert.rejects(() => service.acknowledgeMismatch(ctx(), { branch: 'HN', orderCode: 'DH001' }), { statusCode: 409, code: 'NO_MISMATCH' });
+    await assert.rejects(() => service.acknowledgeMismatch(ctx(), { branch: 'HN', orderCode: 'DH404' }), { statusCode: 409, code: 'INVALID_STATE' });
+    await service.cancel(ctx(), (await latest('DH001')).id, { version: 1 });
+    await assert.rejects(() => service.acknowledgeMismatch(ctx(), { branch: 'HN', orderCode: 'DH001' }), { statusCode: 409, code: 'INVALID_STATE' });
+    assert.equal(await historyCount(db, 'mismatch_ack'), 0);
+  } finally { await db.close(); }
+});
+
+test('acknowledgeMismatch: don Da boc cung ack duoc', async () => {
+  const { db, service, latest } = await lechOrder();
+  try {
+    await service.confirm(ctx(), (await latest('DH001')).id, { version: 1 });
+    const result = await service.acknowledgeMismatch(ctx(), { branch: 'HN', orderCode: 'DH001' });
+    assert.equal(result.assignment.status, 'confirmed');
+    assert.equal(result.mismatch[0].handled.by, 'Quản Lý A');
+    assert.equal((await mismatchOf(service))[0].handled.by, 'Quản Lý A');
+  } finally { await db.close(); }
+});
+
+test('acknowledgeMismatch: chi dinh moi (reassign) thi ack cu khong con hieu luc', async () => {
+  const { db, service } = await lechOrder();
+  try {
+    await service.acknowledgeMismatch(ctx(), { branch: 'HN', orderCode: 'DH001' });
+    // Chi dinh lai cung so lech 250 vs 240: la chi dinh moi nen phai ack lai.
+    await service.assign(ctx(), body([{ productCode: 'AAA1', positionId: 1, qty: 250 }], { reassign: true, version: 1 }));
+    assert.deepEqual(await mismatchOf(service), [{ productCode: 'AAA1', picked: 250, ordered: 240 }]);
   } finally { await db.close(); }
 });

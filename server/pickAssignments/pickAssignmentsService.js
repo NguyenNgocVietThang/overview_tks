@@ -526,6 +526,53 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
     return result;
   }
 
+  // "Da xu ly" (khong doi so luong): order_pick_history action 'mismatch_ack' ghi lai dung SO LECH luc bam. Con khop voi so lech hien tai
+  // thi gan `handled` cho tung dong lech; Kiot sua tiep lam so lech doi (hoac chi dinh moi) thi canh bao hien lai.
+  const mismatchSignature = diff => JSON.stringify(diff.map(item => [codeKey(item.productCode), Number(item.picked), Number(item.ordered)]));
+
+  async function markHandled(db, branch, out, assignmentOf) {
+    const ids = [];
+    for (const [mapKey] of out) {
+      if (!mapKey.startsWith(`${branch}|`)) continue;
+      const id = assignmentOf.get(mapKey.slice(branch.length + 1));
+      if (id) ids.push(id);
+    }
+    if (!ids.length) return;
+    const { rows } = await db.query(
+      `SELECT DISTINCT ON (assignment_id) assignment_id, summary, actor_name, created_at
+         FROM order_pick_history WHERE assignment_id = ANY($1::bigint[]) AND action = 'mismatch_ack' ORDER BY assignment_id, id DESC`,
+      [ids]);
+    const acks = new Map(rows.map(row => [Number(row.assignment_id), row]));
+    for (const [mapKey, diff] of out) {
+      if (!mapKey.startsWith(`${branch}|`)) continue;
+      const ack = acks.get(assignmentOf.get(mapKey.slice(branch.length + 1)));
+      if (!ack || !ack.summary || ack.summary.signature !== mismatchSignature(diff)) continue;
+      const handled = { by: ack.actor_name || '', at: isoOf(ack.created_at) };
+      out.set(mapKey, diff.map(item => ({ ...item, handled })));
+    }
+  }
+
+  async function acknowledgeMismatch(ctx, body = {}) {
+    const branch = body.branch;
+    assertBranch(branch);
+    assertScope(ctx, branch);
+    const db = getDb();
+    const latest = await readLatest(db, branch, cleanOrderCode(body.orderCode));
+    if (!latest || (latest.status !== STATUS.PICKING && latest.status !== STATUS.CONFIRMED)) {
+      throw fail(409, 'INVALID_STATE', 'Đơn chưa có chỉ định Đang bốc / Đã bốc nên không có cảnh báo lệch SL để xử lý.');
+    }
+    const pair = [{ branch, orderCode: latest.orderCode }];
+    const mapKey = `${branch}|${codeKey(latest.orderCode)}`;
+    const found = (await pickMismatches(pair)).get(mapKey);
+    if (!found) throw fail(409, 'NO_MISMATCH', 'Đơn không còn lệch SL (có thể Kiot vừa sửa khớp lại).');
+    if (found.every(item => item.handled)) return { assignment: latest, mismatch: found };
+    const actor = actorOf(ctx);
+    await db.query(
+      `INSERT INTO order_pick_history (assignment_id, branch, order_code, action, summary, actor_user_id, actor_name) VALUES ($1, $2, $3, 'mismatch_ack', $4::jsonb, $5, $6)`,
+      [latest.id, branch, latest.orderCode, JSON.stringify({ signature: mismatchSignature(found), items: found.map(({ productCode, picked, ordered }) => ({ productCode, picked, ordered })) }), actor.id, actor.name]);
+    return { assignment: await readAssignment(db, latest.id), mismatch: (await pickMismatches(pair)).get(mapKey) || [] };
+  }
+
   // Canh bao LECH SL: voi cac don (Dang boc / Da boc) trong `pairs` [{ branch, orderCode }], so tong SL da chi dinh theo tung ma
   // voi SL dong don Kiot hien tai. Tra Map 'HN|ma don chu thuong' -> [{ productCode, picked, ordered }] (chi don co lech).
   // Tu het khi Kiot sua don khop lai (moi lan goi doc lai). Fail-soft: loi DB tra Map rong, danh sach van chay.
@@ -543,15 +590,17 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
       for (const [branch, codes] of byBranch) {
         if (!tx.BRANCH_CODES.includes(branch)) continue;
         const { rows } = await db.query(
-          `SELECT a.order_code, lower(btrim(l.product_code)) AS product_key, MAX(l.product_code) AS product_code, SUM(l.planned_qty)::float8 AS quantity
+          `SELECT a.id, a.order_code, lower(btrim(l.product_code)) AS product_key, MAX(l.product_code) AS product_code, SUM(l.planned_qty)::float8 AS quantity
              FROM order_pick_assignments a JOIN order_pick_lines l ON l.assignment_id = a.id
             WHERE a.branch = $1 AND a.status IN ('picking', 'confirmed') AND lower(btrim(a.order_code)) = ANY($2::text[])
-            GROUP BY a.order_code, 2`,
+            GROUP BY a.id, a.order_code, lower(btrim(l.product_code))`,
           [branch, [...codes]]);
         const assigned = new Map(); // ma don chu thuong -> Map(ma hang -> { productCode, quantity })
+        const assignmentOf = new Map(); // ma don chu thuong -> id chi dinh hoat dong
         const exactCodes = new Set();
         for (const row of rows) {
           const key = codeKey(row.order_code);
+          assignmentOf.set(key, Number(row.id));
           exactCodes.add(row.order_code);
           if (!assigned.has(key)) assigned.set(key, new Map());
           assigned.get(key).set(row.product_key, { productCode: row.product_code, quantity: Number(row.quantity) });
@@ -562,6 +611,7 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
           const diff = kiotData.diffQuantities(lines, ordered.get(key));
           if (diff.length) out.set(`${branch}|${key}`, diff);
         }
+        await markHandled(db, branch, out, assignmentOf);
       }
     } catch (error) {
       if (error && error.code !== '42P01') console.error('[PickAssignments] mismatch lookup failed:', error.code || error.message);
@@ -570,7 +620,7 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
     return out;
   }
 
-  return { candidates, get, assign, confirm, cancel, setStatus, reconcileWithKiot, pickMismatches, latestStatuses };
+  return { candidates, get, assign, confirm, cancel, setStatus, reconcileWithKiot, pickMismatches, acknowledgeMismatch, latestStatuses };
 }
 
 module.exports = { createPickAssignmentsService, mergeOrderLines, STATUS, CANCEL_REASON, ELIGIBLE_STATUS, ...createPickAssignmentsService() };

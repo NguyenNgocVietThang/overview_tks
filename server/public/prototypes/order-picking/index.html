@@ -86,6 +86,10 @@
   /* Don Dang boc / Da boc ma tong ST da chi dinh khac SL tren Kiot: to do ca dong + nhan canh bao o cot Canh bao. */
   .bulk-table tbody tr.lc-row-mismatch{ background:rgba(239,68,68,.10); box-shadow:inset 3px 0 0 var(--red); }
   .bulk-table tbody tr.lc-row-mismatch:hover{ background:rgba(239,68,68,.16); }
+  /* Lệch SL đã bấm "Đã xử lý": nhãn và dòng chuyển vàng, không còn đỏ. */
+  .badge-handled{ color:var(--amber); background:rgba(245,158,11,.14); border:1px solid rgba(245,158,11,.4); }
+  .bulk-table tbody tr.lc-row-handled{ background:rgba(245,158,11,.10); box-shadow:inset 3px 0 0 var(--amber); }
+  .bulk-table tbody tr.lc-row-handled:hover{ background:rgba(245,158,11,.16); }
   .badge-not-sent{ color:var(--muted); background:var(--surface-hover); border:1px solid var(--border); }
   .badge-sent{ color:var(--amber); background:rgba(245,158,11,.12); border:1px solid rgba(245,158,11,.3); }
   .badge-delivering{ color:var(--blue); background:rgba(59,130,246,.12); border:1px solid rgba(59,130,246,.3); }
@@ -348,6 +352,12 @@
     border:1px solid var(--alert-error-border); border-radius:var(--radius-lg); background:var(--alert-error-bg);
   }
   .lc-detail-alert-title{ font-size:12px; font-weight:700; color:var(--red); }
+  .lc-detail-alert.is-handled{ border-color:rgba(245,158,11,.4); background:rgba(245,158,11,.10); }
+  .lc-detail-alert.is-handled .lc-detail-alert-title{ color:var(--amber); }
+  .lc-handle-btn{ margin-left:auto; padding:4px 12px; font:inherit; font-size:12.5px; font-weight:700; color:var(--amber); background:rgba(245,158,11,.12); border:1px solid rgba(245,158,11,.4); border-radius:var(--radius-md, 8px); cursor:pointer; }
+  .lc-handle-btn:hover:not(:disabled){ background:rgba(245,158,11,.22); }
+  .lc-handle-btn:disabled{ opacity:.6; cursor:default; }
+  #lcDetailAlertHost:empty{ display:none; }
   .lc-detail-alert .lc-warning-badge{ margin:0; }
   .lc-detail-row{
     display:grid; grid-template-columns:116px minmax(0, 1fr); gap:12px; padding:9px 0;
@@ -1011,9 +1021,8 @@
       const subtitle = [BRANCH_LABEL[order.branch] ? 'Cơ sở ' + BRANCH_LABEL[order.branch] : '', detailText(order.orderDate)].filter(Boolean).join(' · ');
       document.getElementById('lcDetailTitle').textContent = order.orderCode || '—';
       document.getElementById('lcDetailSubtitle').textContent = subtitle;
-      const warnings = Array.isArray(order.warnings) ? order.warnings : (order.warning ? [''] : []);
       detailBody.innerHTML =
-        (warnings.length ? '<div class="lc-detail-alert"><span class="lc-detail-alert-title">Cảnh báo</span>' + warningHtml(order) + '</div>' : '') +
+        '<div id="lcDetailAlertHost"></div>' +
         '<div id="lcDetailStats"></div>' +
         '<div class="dp-split is-even">' +
           '<div class="dp-section">' + detailSectionHead('Thông tin đơn') + '<div class="dp-card">' + detailInfoHtml(order) + '</div></div>' +
@@ -1021,6 +1030,7 @@
             '<div class="dp-card"><ol class="lc-steps">' + detailStepsHtml(order) + '</ol></div></div>' +
         '</div>' +
         '<div id="lcDetailKiot"></div>';
+      renderDetailAlert(order);
       renderDetailStats();
       detailDialog.classList.remove('is-wide');
       detailRequestId++;
@@ -1231,6 +1241,54 @@
         });
     }
     // Ve lai khoi "Hang hoa trong don" + gan nut/chip Chi dinh vi tri (pick/pick-assign.js).
+    // Khung Cảnh báo đầu hộp chi tiết: nhãn cảnh báo + (người có quyền bốc, đơn đang lệch SL chưa xử lý) nút "Đã xử lý".
+    function renderDetailAlert(order){
+      const host = document.getElementById('lcDetailAlertHost');
+      if(!host) return;
+      const warnings = Array.isArray(order.warnings) ? order.warnings : (order.warning ? [''] : []);
+      if(!warnings.length && !hasPickMismatch(order)){ host.innerHTML = ''; return; }
+      const onlyHandled = !warnings.length && pickMismatchHandled(order);
+      const canHandle = canPick && hasPickMismatch(order) && !pickMismatchHandled(order);
+      host.innerHTML = '<div class="lc-detail-alert' + (onlyHandled ? ' is-handled' : '') + '"><span class="lc-detail-alert-title">' + (onlyHandled ? 'Đã xử lý' : 'Cảnh báo') + '</span>' + warningHtml(order) +
+        (canHandle ? '<button type="button" class="lc-handle-btn" id="lcMismatchHandle" title="Giữ nguyên số lượng đã chỉ định, chuyển cảnh báo sang Đã xử lý">Đã xử lý</button>' : '') + '</div>';
+      const button = document.getElementById('lcMismatchHandle');
+      if(button) button.addEventListener('click', function(){ handleMismatch(order, button); });
+    }
+    // "Đã xử lý": không đổi số lượng, chỉ ghi nhận đã xem lệch SL (máy chủ nhớ theo đúng số lệch hiện tại; Kiot sửa tiếp thì cảnh báo hiện lại).
+    async function handleMismatch(order, button){
+      button.disabled = true;
+      try{
+        const res = await fetch('/api/shipment/pick/mismatch-ack', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+          body: JSON.stringify({ branch: order.branch, orderCode: order.orderCode })
+        });
+        const body = await res.json().catch(function(){ return {}; });
+        if(!res.ok){
+          showToast(body.error || 'Không đánh dấu được đã xử lý.', 'error');
+          button.disabled = false;
+          if(res.status === 409) loadBulkOrders(true);
+          return;
+        }
+        applyMismatch(order, body.mismatch);
+        showToast('Đã đánh dấu đơn "' + order.orderCode + '" là đã xử lý.', 'success');
+      }catch(err){
+        showToast('Lỗi kết nối máy chủ.', 'error');
+        button.disabled = false;
+      }
+    }
+    function applyMismatch(order, items){
+      const targets = [order];
+      const entry = bulkRowNodes.get(rowKey(order));
+      if(entry && entry.tr && entry.tr._order && entry.tr._order !== order) targets.push(entry.tr._order);
+      targets.forEach(function(target){ target.pickMismatch = Array.isArray(items) && items.length ? items : undefined; });
+      if(entry && entry.tr && entry.tr._order){
+        const warningCell = entry.tr.querySelector('[data-col="warning"]');
+        if(warningCell) warningCell.innerHTML = warningHtml(entry.tr._order);
+        syncMismatchRow(entry.tr, entry.tr._order);
+        entry.sig = rowSignature(entry.tr._order);
+      }
+      if(detailOrder === order) renderDetailAlert(order);
+    }
     function renderKiotHolder(order){
       const holder = document.getElementById('lcDetailKiot');
       if(!holder || !detailKiot) return;
@@ -1270,6 +1328,7 @@
         syncMismatchRow(entry.tr, entry.tr._order);
         entry.sig = rowSignature(entry.tr._order);
       }
+      if(detailOrder === order) renderDetailAlert(order);
     }
     // Dropdown "Trang thai boc" (Dang boc -> Da boc / Da huy): hoi lai vi Da boc tru thung that, roi goi /api/shipment/pick/status.
     // Loi 4xx: tra dropdown ve cu + bao loi; 409 (nguoi khac / Kiot vua doi) thi tai lai danh sach.
@@ -1761,6 +1820,10 @@
     function hasPickMismatch(order){
       return Array.isArray(order.pickMismatch) && order.pickMismatch.length > 0;
     }
+    // Đã xử lý = mọi dòng lệch đều đã được ghi nhận khớp đúng số lệch hiện tại (máy chủ gắn `handled`).
+    function pickMismatchHandled(order){
+      return hasPickMismatch(order) && order.pickMismatch.every(function(item){ return !!item.handled; });
+    }
     function pickMismatchTitle(order){
       return order.pickMismatch.map(function(item){
         return item.productCode + ': bốc ' + VND_FORMAT.format(item.picked) + ' / đặt ' + VND_FORMAT.format(item.ordered);
@@ -1771,14 +1834,19 @@
       const html = codes.map(function(code){
         return '<span class="lc-badge badge-exception lc-warning-badge">' + escapeHtml(WARNING_LABEL[code] || 'Cảnh báo') + '</span>';
       });
-      if(hasPickMismatch(order)){
+      if(pickMismatchHandled(order)){
+        const by = order.pickMismatch[0].handled;
+        html.push('<span class="lc-badge badge-handled lc-warning-badge lc-pick-mismatch" title="' + escapeHtml('Lệch SL đã xử lý' + (by && by.by ? ' bởi ' + by.by : '') + ' — ' + pickMismatchTitle(order)) + '">Đã xử lý</span>');
+      }else if(hasPickMismatch(order)){
         html.push('<span class="lc-badge badge-exception lc-warning-badge lc-pick-mismatch" title="' + escapeHtml('Lệch SL (ST đã chỉ định so với SL đơn trên Kiot) — ' + pickMismatchTitle(order)) + '">Lệch SL bốc</span>');
       }
       return html.join(' ');
     }
-    // Tô đỏ cả dòng khi lệch SL bốc.
+    // Tô đỏ cả dòng khi lệch SL bốc; đã bấm "Đã xử lý" thì tô vàng.
     function syncMismatchRow(tr, order){
-      tr.classList.toggle('lc-row-mismatch', hasPickMismatch(order));
+      const handled = pickMismatchHandled(order);
+      tr.classList.toggle('lc-row-mismatch', hasPickMismatch(order) && !handled);
+      tr.classList.toggle('lc-row-handled', handled);
     }
 
     // ---------- Cot cua bang + hop "Cot hien thi" ----------
@@ -1935,7 +2003,7 @@
         hasSellableValue(order) ? order.sellableValue : null,
         order.summary && order.summary.code, order.summary && order.summary.label, order.summary && order.summary.at,
         (order.warnings || []).join(','), !!order.warning, isEditableRow(order), order.pickStatus || null,
-        hasPickMismatch(order) ? pickMismatchTitle(order) : null
+        hasPickMismatch(order) ? pickMismatchTitle(order) + (pickMismatchHandled(order) ? '|handled' : '') : null
       ]);
     }
 

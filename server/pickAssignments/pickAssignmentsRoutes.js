@@ -46,6 +46,10 @@ function createPickAssignmentsRouter(dependencies = {}) {
   router.post('/status', handle(async (req, res) => {
     res.json(await svc().setStatus(ctxOf(req), req.body || {}));
   }));
+  // "Da xu ly" canh bao lech SL (giu nguyen so luong): body { branch, orderCode }.
+  router.post('/mismatch-ack', handle(async (req, res) => {
+    res.json(await svc().acknowledgeMismatch(ctxOf(req), req.body || {}));
+  }));
   router.post('/:id/confirm', handle(async (req, res) => {
     res.json(await svc().confirm(ctxOf(req), Number(req.params.id), req.body || {}));
   }));

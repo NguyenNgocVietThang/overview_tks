@@ -28,6 +28,7 @@ const sumMoney=(a,b)=>{
   return(n<0n?'-':'')+(scale?digits.slice(0,-scale)+'.'+digits.slice(-scale):digits);
 };
 const replace=(html,values)=>html.replace(/\{([^{}]+)\}/g,(token,k)=>Object.hasOwn(values,k)?esc(values[k]):token);
+const byName=(a,b)=>String(a).localeCompare(String(b),'vi',{numeric:true,sensitivity:'base'});
 let assetsPromise=null;
 
 async function fetchText(url){
@@ -75,8 +76,13 @@ async function show(order,record){
   const table=row.closest('table');table.classList.add('invoice-goods');
   let total=0,totalKnown=true,index=0;
   const v2=order.schemaVersion===2,seenCodes=new Map();
-  (order.lines||[]).forEach(line=>{
-    const jobs=(record.lines||[]).filter(j=>key(j.productCode)===key(line.productCode));
+  const jobsOf=line=>(record.lines||[]).filter(j=>key(j.productCode)===key(line.productCode));
+  // Dòng in ra xếp theo tên vị trí (kho) đầu tiên của dòng, tức chữ cái đầu cột Vị trí; dòng chưa có vị trí xuống cuối, cùng vị trí giữ thứ tự đơn. STT đánh lại 1, 2, 3… sau khi xếp.
+  const firstZone=line=>jobsOf(line).map(j=>j.location||'').filter(Boolean).sort(byName)[0]||'';
+  const ordered=(order.lines||[]).map((line,n)=>({line,n,zone:firstZone(line)}))
+    .sort((a,b)=>(!a.zone-!b.zone)||(a.zone&&b.zone?byName(a.zone,b.zone):0)||a.n-b.n).map(e=>e.line);
+  ordered.forEach(line=>{
+    const jobs=jobsOf(line);
     const qty=Number(line.quantity);
     if(!(qty>0))return;
     const unit=v2?line.unitPrice:(typeof line.price==='number'&&Number.isFinite(line.price)?line.price-(line.discount??0):null);
@@ -88,6 +94,7 @@ async function show(order,record){
       const name=j.location||'—',zone=zones.find(z=>z.name===name),planned=Number(j.plannedQty)||0;
       if(zone)zone.qty+=planned;else zones.push({name,qty:planned});
     });
+    zones.sort((a,b)=>(a.name==='—')-(b.name==='—')||byName(a.name,b.name));
     const multiZone=zones.length>1;
     const priorLine=seenCodes.get(key(line.productCode));
     const placement=priorLine?'Vị trí/Thùng: xem dòng '+priorLine:zones.map(z=>z.name).join(' / ');

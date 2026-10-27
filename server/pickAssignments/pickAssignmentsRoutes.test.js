@@ -17,7 +17,7 @@ async function start(t, { user = MANAGER, failWith } = {}) {
     if (failWith) throw failWith;
     return name === 'candidates' ? { order: { orderCode: 'DH001' }, candidates: {}, assignment: null } : name === 'get' ? { assignment: null } : { assignment: ASSIGNMENT };
   };
-  const service = { candidates: record('candidates'), get: record('get'), assign: record('assign'), confirm: record('confirm'), cancel: record('cancel'), setStatus: record('setStatus') };
+  const service = { candidates: record('candidates'), get: record('get'), assign: record('assign'), confirm: record('confirm'), cancel: record('cancel'), setStatus: record('setStatus'), acknowledgeMismatch: record('acknowledgeMismatch') };
   const app = express();
   app.use(express.json());
   app.use((req, res, next) => { if (user) req.user = user; next(); });
@@ -102,4 +102,13 @@ test('Loi nghiep vu 4xx tra { error, code, latest, field }; loi la 500 khong lo 
     assert.equal(res.status, 500);
     assert.equal((await res.json()).code, 'PICK_ASSIGNMENTS_FAILED');
   } finally { console.error = original; }
+});
+
+test('POST /mismatch-ack (Da xu ly canh bao lech SL): truyen nguyen body cho service, tra JSON, khong nham voi /:id/...', async t => {
+  const { base, calls } = await start(t);
+  const body = { branch: 'HN', orderCode: 'DH001' };
+  const res = await fetch(base + '/mismatch-ack', { method: 'POST', headers: json, body: JSON.stringify(body) });
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).assignment.id, 7);
+  assert.deepEqual(calls, [['acknowledgeMismatch', body]]);
 });
