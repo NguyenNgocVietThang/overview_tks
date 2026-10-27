@@ -137,7 +137,8 @@ test('trừ thùng giữ hậu tố c của từng số hạng; phần trừ l�
   assert.equal(C.restore(C.parseSpec('3T x 100c'),200).text,'5T x 100c');
 });
 test('dấu phẩy nối nhiều quy cách tương đương +; 2X20 và các dạng khác vẫn sai định dạng',()=>{
-  for(const t of ['9tx14, 5tx 14','9tx14,5tx14','9tx14 , 5tx14','9tx14 + 5tx14']){const s=C.parseSpec(t);assert.equal(s.quantity,196,t);assert.equal(s.multi,true);assert.deepEqual(C.warnings(t),['multi']);}
+  for(const t of ['9tx14, 5tx 14','9tx14,5tx14','9tx14 , 5tx14','9tx14 + 5tx14']){const s=C.parseSpec(t);assert.equal(s.quantity,196,t);assert.equal(s.multi,false,'cùng SL/thùng gộp thành một');assert.deepEqual(C.warnings(t),[]);}
+  assert.deepEqual(C.warnings('9tx14, 5tx 15'),['multi']);
   assert.equal(C.deduct(C.parseSpec('9tx14, 5tx 14'),126).text,'5T x 14','chuẩn hóa dấu nối thành + khi ghi lại');
   assert.deepEqual(C.warnings('0,5Tx100'),['badnumber'],'dấu phẩy thập phân không bị tách');
   for(const bad of ['2X20','1t','1b*200','1tx40 + 1t39','vin 19/9 gọi vỏ','9tx14, 5'])assert.deepEqual(C.warnings(bad),['unreadable'],bad);
@@ -153,9 +154,20 @@ test('dấu nhân x X * × tùy chọn khi có khoảng trắng: 1t 11 = 1t x 11
 });
 test('normalizeNote: đọc được thì về dạng chuẩn, sai định dạng chỉ gộp khoảng trắng, rỗng giữ rỗng',()=>{
   for(const t of ['1t 11','1T X 11','1t*11','  1t   x 11 '])assert.equal(C.normalizeNote(t),'1T x 11',t);
-  assert.equal(C.normalizeNote('9tx14,5tx 14'),'9T x 14 + 5T x 14');
+  assert.equal(C.normalizeNote('9tx14,5tx 14'),'14T x 14');
   assert.equal(C.normalizeNote('1tx50C+2Tx25c-30'),'1T x 50c + 2T x 25c - 30');
   assert.equal(C.normalizeNote('  vin   19/9  gọi vỏ '),'vin 19/9 gọi vỏ');
   assert.equal(C.normalizeNote('   '),'');assert.equal(C.normalizeNote(null),'');
   assert.equal(C.normalizeNote('1Tx50 - 50'),'1T x 50 - 50');
+});
+test('số hạng cùng SL/thùng gộp thành một; chỉ còn một SL/thùng thì hết cảnh báo nhiều quy cách',()=>{
+  assert.equal(C.normalizeNote('9T x 14 + 5T x 14'),'14T x 14');assert.equal(C.normalizeNote('9tx14, 5tx 14'),'14T x 14');
+  assert.equal(C.normalizeNote('1t 11 + 2t 11'),'3T x 11');
+  assert.equal(C.normalizeNote('1Tx50 + 2Tx25 + 1Tx50'),'2T x 50 + 2T x 25');
+  assert.equal(C.normalizeNote('1Tx50 + 2Tx50 - 30'),'3T x 50 - 30');
+  assert.equal(C.parseSpec('9T x 14 + 5T x 14').quantity,196);
+  assert.deepEqual(C.warnings('9T x 14 + 5T x 14'),[]);assert.deepEqual(C.warnings('9tx14, 5tx 14'),[]);
+  assert.deepEqual(C.warnings('9T x 14 + 5T x 14 - 6'),['loose']);
+  assert.deepEqual(C.warnings('1Tx50 + 2Tx25'),['multi']);assert.deepEqual(C.warnings('1Tx50 + 2Tx25 + 1Tx50'),['multi']);
+  assert.equal(C.deduct(C.parseSpec('9T x 14 + 5T x 14'),28).text,'12T x 14');
 });

@@ -8956,7 +8956,9 @@ tr.loc-row{cursor:pointer}tr.loc-row.loc-open td{border-bottom-color:var(--blue)
     if(s.loose!==0&&!positiveInt(s.loose))return null;
     const quantity=s.terms.reduce((sum,t)=>sum+t.cartons*t.perCarton,0)-s.loose;
     if(quantity<0)return null;
-    return {terms:s.terms,loose:s.loose,quantity,cartons:s.terms.reduce((sum,t)=>sum+t.cartons,0),perCarton:s.terms[0].perCarton,multi:s.terms.length>1};
+    // Số hạng cùng SL/thùng gộp thành một (cộng thùng, giữ thứ tự xuất hiện đầu tiên); nhiều quy cách tính sau khi gộp.
+    const terms=[];for(const t of s.terms){const same=terms.find(x=>x.perCarton===t.perCarton);if(same)same.cartons+=t.cartons;else terms.push({...t});}
+    return {terms,loose:s.loose,quantity,cartons:terms.reduce((sum,t)=>sum+t.cartons,0),perCarton:terms[0].perCarton,multi:terms.length>1};
   }
   /* formatSpec(spec) hoặc formatSpec(số thùng, SL/thùng). Số hạng hết thùng bị bỏ; hết sạch thì ghi "Hết hàng".
      Không bao giờ sinh số thùng thập phân: phần không tròn thùng đi vào phần trừ lẻ " - N". */

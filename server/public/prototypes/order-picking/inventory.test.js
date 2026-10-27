@@ -192,7 +192,7 @@ test('lưu ghi chú chuẩn hóa: ghi lịch sử khi chuỗi đổi thật, kh�
 const {api,order,locations}=setup(t,{locations:[{id:'A',branch:'HN',code:'P1',location:'A01',notes:'5Tx100'}]});
 api.setSpec(locations[0],'5T  x 100');assert.equal(api.specText(locations[0]),'5T x 100');assert.equal(api.history('HN').length,0,'chỉ khác khoảng trắng: không ghi lịch sử');
 api.setSpec(locations[0],'1t 11');assert.equal(api.specText(locations[0]),'1T x 11');assert.equal(api.history('HN').length,1);
-api.setSpec(locations[0],' 9tx14,5tx 14 ');assert.equal(api.specText(locations[0]),'9T x 14 + 5T x 14');
+api.setSpec(locations[0],' 9tx14,5tx 14 ');assert.equal(api.specText(locations[0]),'14T x 14');
 api.setSpec(locations[0],'5Tx100',undefined);
 const row=api.addLocation('HN',{code:'P2',location:'B1',notes:'1t*11'});assert.equal(row.notes,'1T x 11');
 const o={...order,lines:[{productCode:'P1',quantity:100}]};api.setSpec(locations[0],'1Tx100');api.reserve(o,{0:[{id:'A',quantity:100}]});api.confirmPick(o);api.cancelPick(o);
