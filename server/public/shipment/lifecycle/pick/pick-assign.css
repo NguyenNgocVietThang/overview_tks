@@ -1,5 +1,5 @@
 /* Chỉ định vị trí trên trang Vòng đời đơn hàng: popup chọn vị trí/thùng, phiếu nhặt, chip trạng thái. Màu lấy từ biến theme (sáng/tối). */
-#pickingDialog,#pickingPrintDialog{padding:0;border:1px solid var(--border);border-radius:14px;background:var(--panel-solid,var(--panel));color:var(--text);max-height:92vh;overflow:auto}
+#pickingDialog,#pickingPrintDialog{box-sizing:border-box;min-width:0;max-width:calc(100vw - 20px);padding:0;border:1px solid var(--border);border-radius:14px;background:var(--panel-solid,var(--panel));color:var(--text);max-height:92vh;overflow:auto}
 #pickingDialog{width:min(1500px,98vw)}#pickingPrintDialog{width:min(900px,96vw)}
 #pickingDialog::backdrop,#pickingPrintDialog::backdrop{background:var(--overlay-bg,rgba(0,0,0,.55));backdrop-filter:blur(2px)}
 .picking-body{padding:20px 22px;max-height:calc(92vh - 190px);overflow:auto}
@@ -40,11 +40,11 @@
 .picking-order-status[data-status="confirmed"]{color:var(--green);border-color:var(--green)}
 .picking-order-status[data-status="cancelled"]{color:var(--red);border-color:var(--red)}
 .picking-footer{padding:15px 22px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--border);font-size:12px}
-.picking-footer>div{display:flex;gap:10px}
+.picking-footer>div{display:flex;flex-wrap:wrap;gap:10px;min-width:0;max-width:100%}
 .picking-footer button,.picking-body button:not(.picking-location):not([data-step]){padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--panel-2);color:var(--text);cursor:pointer}
 .picking-footer button.btn-primary,.picking-body button.btn-primary{background:var(--primary-gradient);color:#fff;border-color:transparent}
 .picking-footer button:disabled,.picking-body button:disabled{opacity:.4;cursor:not-allowed}
-#pickingStatus{margin:12px 0 0;font-size:12px;color:var(--amber);min-height:1.2em}
+#pickingStatus{margin:12px 0 0;font-size:12px;color:var(--amber);min-height:1.2em;overflow-wrap:anywhere}
 #pickingStatus[data-error="true"]{color:var(--red)}
 /* Nút + chip ở đầu khối "Hàng hóa trong đơn" của hộp chi tiết đơn. */
 .picking-actions{display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap;margin-left:auto}

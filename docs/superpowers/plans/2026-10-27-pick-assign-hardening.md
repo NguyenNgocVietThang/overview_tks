@@ -220,6 +220,7 @@ Người dùng đã yêu cầu triển khai nhanh và cho phép nhiều subagent
 - **Tiền và phiếu:** 3 test tiền và 2 frontend phiếu đạt; phiếu A4 giữ ST theo mẫu người dùng. Đã nối SĐT/địa chỉ khách từ nguồn máy chủ; 10 test metadata đạt. `sellerPhone` để trống vì nguồn staff chưa có SĐT, không suy diễn Zalo sale theo tên.
 - **Popup:** 24 frontend test đạt, gồm mất phản hồi sau commit, tải lại lỗi, chặn ghi khi chưa đồng bộ và phản hồi cũ.
 - **Tích hợp:** 12 route đạt với localhost fixture được phép; prototype build thành công và 92/92 test đạt. Tổng nhóm tập trung khác nhau là 90 test; không cộng trùng các lượt chạy.
-- **Graph:** `graphify update .` exit 0, cập nhật 13.491 node / 29.505 cạnh / 562 community. Nguồn metadata bổ sung sau lượt graph này cần được đối chiếu ở lần cập nhật cuối nếu có thay đổi.
-- **Toàn suite:** đang chạy `node --max-old-space-size=4096 --test --test-force-exit --test-concurrency=4`, log `.codex_tmp/pick-full-suite-force.log`; lượt trước không kết thúc vì timer nền của test auth. Chưa tuyên bố toàn suite xanh khi chưa có summary.
+- **Graph:** `graphify update .` chạy lại sau khi suite kết thúc, exit 0: 13.500 node / 29.519 cạnh / 591 community (lượt bị ngắt giữa chừng trước đó không còn tính). Chi tiết ở [báo cáo kiểm chứng](../reviews/2026-10-27-pick-assign-hardening-validation.md).
+- **Toàn suite:** `--test-force-exit --test-concurrency=4` kết thúc, 3854 test / 3849 đạt / 2 lỗi / 3 bỏ qua. Hai lỗi là 2 file `telegram/managerLeave*.test.js` chết do assertion libuv của Node trên Windows khi force-exit; chạy riêng không force-exit đạt 4/4; không thuộc Chỉ định hàng.
+- **Viewport hẹp:** đã kiểm Chrome headless với viewport thật 375/320/1280 (CDP), không tràn; CSS đã commit.
 - **Chưa xác minh:** PostgreSQL nhiều kết nối và hộp in hệ điều hành. Chưa áp migration 0096/0097 vào DB thật, chưa merge/push/deploy.
