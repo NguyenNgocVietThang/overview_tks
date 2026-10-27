@@ -7,12 +7,14 @@ const { getPool } = require('../db/pool');
 const carton = require('../public/shared/carton.js');
 const { stripTelegramId } = require('../dashboard/saleName');
 const { parseImportWorkbook } = require('./stockPositionsImport');
+const { ACTION_LABELS, FIELD_LABELS, summaryText } = require('./stockPositionsHistoryLabels');
 
 const BRANCH_CODES = Object.freeze(['HN', 'SG']);
 const DB_BRANCH = Object.freeze({ HN: 'hanoi', SG: 'saigon' });
 const PRODUCT_TTL_MS = 60 * 1000; // SL KiotViet co the cham vai phut (giam tai doc products.raw)
 const MAX = Object.freeze({ code: 60, notes: 500, arrivalDate: 60, location: 100 });
 const HISTORY_MAX = 1000;
+const HISTORY_EXPORT_MAX = 50000;
 const ERROR_LIMIT = 50;
 const MODES = Object.freeze(['replace', 'add']);
 
@@ -23,6 +25,8 @@ function fail(statusCode, code, message, extra = {}) {
 const clean = value => String(value ?? '').replace(/\s+/gu, ' ').trim();
 const lower = value => clean(value).toLocaleLowerCase('vi');
 const keyOf = (code, location) => `${lower(code)}|${lower(location)}`;
+// Bo dau tieng Viet + hoa/thuong + khoang trang de so khop tu khoa.
+const foldText = value => String(value ?? '').normalize('NFD').replace(/[̀-ͯ]/gu, '').replace(/[đĐ]/gu, 'd').toLowerCase().replace(/\s+/gu, ' ').trim();
 const isoOf = value => (value instanceof Date ? value : new Date(value)).toISOString();
 
 function assertBranch(branch) {
@@ -309,15 +313,18 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
     });
   }
 
-  async function history(ctx, branch, { limit, before } = {}) {
+  // positionId (tuy chon): chi lay lich su cua mot dong; gia tri khong phai so nguyen duong thi bo qua nhu `before`.
+  async function history(ctx, branch, { limit, before, positionId } = {}) {
     assertBranch(branch);
     assertScope(ctx, branch);
     const size = Math.min(HISTORY_MAX, Math.max(1, Number.parseInt(limit, 10) || 200));
     const beforeId = Number.parseInt(before, 10);
+    const rowId = Number.parseInt(positionId, 10);
     const { rows } = await getDb().query(
       `SELECT id, created_at, branch, position_id, code, location, action, field, old_value, new_value, summary, actor_name
-       FROM stock_position_history WHERE branch = $1 AND ($2::bigint IS NULL OR id < $2) ORDER BY id DESC LIMIT $3`,
-      [branch, Number.isInteger(beforeId) && beforeId > 0 ? beforeId : null, size]);
+       FROM stock_position_history WHERE branch = $1 AND ($2::bigint IS NULL OR id < $2) AND ($4::bigint IS NULL OR position_id = $4)
+       ORDER BY id DESC LIMIT $3`,
+      [branch, Number.isInteger(beforeId) && beforeId > 0 ? beforeId : null, size, Number.isInteger(rowId) && rowId > 0 ? rowId : null]);
     return {
       rows: rows.map(r => ({
         id: Number(r.id), createdAt: isoOf(r.created_at), branch: r.branch, positionId: r.position_id === null ? null : Number(r.position_id),
@@ -325,6 +332,30 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
       })),
       nextBefore: rows.length === size ? Number(rows[rows.length - 1].id) : null
     };
+  }
+
+  // Toan bo lich su cua co so (xuat Excel): loc hanh dong o SQL, loc tu khoa (khong dau, khong phan biet hoa/thuong) o day.
+  // Doc toi da HISTORY_EXPORT_MAX dong moi nhat; truncated=true neu con dong cu hon bi bo.
+  async function historyAll(ctx, branch, { action, q } = {}) {
+    assertBranch(branch);
+    assertScope(ctx, branch);
+    const actionCode = clean(action);
+    const params = [branch];
+    let where = 'branch = $1';
+    if (actionCode) { params.push(actionCode); where += ' AND action = $2'; }
+    params.push(HISTORY_EXPORT_MAX + 1);
+    const { rows } = await getDb().query(
+      `SELECT id, created_at, branch, position_id, code, location, action, field, old_value, new_value, summary, actor_name
+       FROM stock_position_history WHERE ${where} ORDER BY id DESC LIMIT $${params.length}`, params);
+    const truncated = rows.length > HISTORY_EXPORT_MAX;
+    const needle = foldText(q);
+    const entries = rows.slice(0, HISTORY_EXPORT_MAX).map(r => ({
+      id: Number(r.id), createdAt: isoOf(r.created_at), branch: r.branch, positionId: r.position_id === null ? null : Number(r.position_id),
+      code: r.code, location: r.location, action: r.action, field: r.field, oldValue: r.old_value, newValue: r.new_value, summary: r.summary, actorName: r.actor_name
+    }));
+    const matches = entry => foldText([entry.actorName, entry.code, entry.location, ACTION_LABELS[entry.action], FIELD_LABELS[entry.field] || entry.field,
+      entry.oldValue, entry.newValue, summaryText(entry.summary)].join(' ')).includes(needle);
+    return { rows: needle ? entries.filter(matches) : entries, truncated };
   }
 
   // ---- Import file Excel/CSV (4 cot: Ma hang, Ghi chu, Ngay ve, Vi tri) ----
@@ -444,7 +475,7 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
     });
   }
 
-  return { list, create, update, deduct, remove, history, importFile };
+  return { list, create, update, deduct, remove, history, historyAll, importFile };
 }
 
 module.exports = { createStockPositionsService, mergeNotes, keyOf, ...createStockPositionsService() };

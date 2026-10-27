@@ -1,5 +1,13 @@
 # Supabase schema cho đồng bộ KiotViet
 
+## Migration 0095 — Vị trí hàng mới: `stock_positions` (27/10/2026, chưa commit/migrate/deploy)
+
+Bảng `stock_positions` + `stock_position_history`; dữ liệu đầu sao chép từ `stock_location_lines`; SL kho tính từ ghi chú bằng `carton.js`; khóa lạc quan `version`; lịch sử chỉ thêm. Chi tiết ở mục cuối.
+
+## Migration 0094 — Cá nhân hủy đơn nghỉ phép (26/10/2026, chưa áp DB thật)
+
+`hr_leave_cancellation_jobs`, `hr_leave_approver_recipients`; hàm `hr_cancel_own_leave`; FK `hr_leave_submissions.request_id` đổi sang ON DELETE CASCADE; guard chặn INSERT chuông trễ trong `notifications`. Chi tiết ở mục 0094 phía cuối.
+
 ## Migration 0093 — Chuông thông báo (24/10/2026, chưa áp DB thật)
 
 `0093_notifications.sql` tạo bảng `notifications`: `id UUID PRIMARY KEY` (server sinh), `seq BIGINT GENERATED ALWAYS AS IDENTITY` (thứ tự chèn, phân xử trùng `created_at`), `recipient_user_id TEXT NOT NULL` (= `app_users.id`, không FK vì admin cứng không có UUID), `type TEXT NOT NULL` (khác rỗng), `title`, `message` (`TEXT NOT NULL DEFAULT ''`), `related_type`, `related_id` (TEXT, NULL được), `is_read BOOLEAN NOT NULL DEFAULT false`, `created_at TIMESTAMPTZ NOT NULL DEFAULT now()`. Index `(recipient_user_id, created_at DESC, seq DESC)` và index một phần `(recipient_user_id) WHERE NOT is_read`. Thu hồi quyền `reporting_readonly`. Thay cho file `data/notifications.json` (mất mỗi lần deploy Render); dữ liệu cũ không chuyển.
@@ -24,7 +32,7 @@ Schema không tự bật cutover. Script `scripts/initialize-customer-price-leve
 
 22/10/2026 — `hr_employees.insurance_number TEXT NOT NULL DEFAULT ''` (migration `0078_hr_employee_insurance_number.sql`), unique index trên số không rỗng của hồ sơ chưa xóa mềm; chỉ quyền `hr.employees.manage` nhận từ API/Excel. Server áp riêng migration này trước khi nhận request, có advisory lock cho nhiều instance và không chạy migration khác đang chờ.
 
-Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0092` (0087 và 0089–0092 đang chờ áp). Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
+Tài liệu này mô tả schema Postgres được tạo bởi `db/migrations/0001` đến `0095` (0087, 0089–0095 chưa áp DB thật). Mọi module đồng bộ ở Giai đoạn 2/3 phải đọc cả tài liệu này và `kiotviet/API_ENDPOINTS.md` trước khi ánh xạ payload.
 
 ## Quy ước chung
 
@@ -739,5 +747,6 @@ Cập nhật gần nhất: 24/10/2026.
 - `stock_position_history`: nhật ký **chỉ thêm** (trigger chặn UPDATE/DELETE, không khóa ngoại): `id`, `created_at`, `branch`, `position_id`, `code`, `location`, `action` (`seed|create|edit|delete|auto_delete|deduct|import_replace|import_add`), `field`, `old_value`, `new_value`, `summary JSONB` (số dòng thêm/đổi/xóa/bỏ qua của import), `actor_user_id`, `actor_name`. Thu hồi `reporting_readonly`.
 - **Dữ liệu đầu (một lần, chỉ khi bảng rỗng)**: `INSERT … SELECT` từ `stock_location_lines`, `updated_by_name = 'Nhập dữ liệu đầu'`. Gỡ tiền tố "T x " thừa của HN (vd "T x 4T*100" → "4T*100") khi phần sau là "<số>T…"; **bỏ** dòng thiếu mã và dòng hết hàng (ghi chú rỗng / "Hết hàng") vì quy tắc tự xóa khi SL = 0. Sau khi sao chép, hai bảng không còn liên hệ (Google Sheets chỉ còn nuôi hai tab cũ "Vị trí HN/SG"). Mỗi cơ sở có một bản ghi lịch sử `seed`.
 - Tự xóa khi hết: sau mọi lần lưu, SL tính ra = 0 thì dòng bị xóa và ghi `auto_delete`.
+- **27/10/2026 (không migration mới):** `GET /api/stock-positions/history` có thêm tham số `positionId` lọc theo cột `position_id` có sẵn (hộp chi tiết dòng); `GET /api/stock-positions/history/export` đọc cùng bảng `stock_position_history` (trần 50.000 dòng mới nhất). Không đổi cấu trúc bảng/index.
 
 Cập nhật gần nhất: 27/10/2026.

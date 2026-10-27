@@ -4,6 +4,8 @@
 const ExcelJS = require('exceljs');
 const { HEADER_FONT, frozenNoGridlinesView, applyFullTableBorder } = require('../excelTableStyle');
 
+const { ACTION_LABELS, FIELD_LABELS, summaryText } = require('./stockPositionsHistoryLabels');
+
 const VN_OFFSET_MS = 7 * 60 * 60 * 1000;
 const NUMBER = '#,##0.##';
 
@@ -50,4 +52,38 @@ async function createStockPositionsWorkbook({ branch, rows = [] }, { now = new D
   };
 }
 
-module.exports = { createStockPositionsWorkbook, COLUMNS };
+const HISTORY_COLUMNS = Object.freeze([
+  { header: 'Thời gian', width: 18, numFmt: 'dd/mm/yyyy hh:mm', value: entry => vnTime(entry.createdAt) },
+  { header: 'Người thực hiện', width: 24, value: entry => entry.actorName },
+  { header: 'Hành động', width: 22, value: entry => ACTION_LABELS[entry.action] || entry.action },
+  { header: 'Mã hàng', width: 16, value: entry => entry.code },
+  { header: 'Vị trí', width: 16, value: entry => entry.location },
+  { header: 'Trường', width: 16, value: entry => FIELD_LABELS[entry.field] || entry.field },
+  { header: 'Giá trị cũ', width: 30, value: entry => entry.oldValue },
+  { header: 'Giá trị mới', width: 30, value: entry => entry.newValue },
+  { header: 'Tóm tắt', width: 36, value: entry => summaryText(entry.summary) }
+]);
+
+// Xuat Excel Lich su cap nhat: moi dong lich su 1 dong Excel, thu tu moi nhat truoc nhu tren man hinh.
+async function createStockPositionsHistoryWorkbook({ branch, rows = [] }, { now = new Date() } = {}) {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'TOKOSI Dashboard';
+  const sheet = workbook.addWorksheet(branch === 'SG' ? 'Lịch sử VT Sài Gòn' : 'Lịch sử VT Hà Nội');
+  sheet.columns = HISTORY_COLUMNS.map(col => ({ header: col.header, width: col.width, style: col.numFmt ? { numFmt: col.numFmt } : { alignment: { wrapText: true, vertical: 'top' } } }));
+  rows.forEach(entry => sheet.addRow(HISTORY_COLUMNS.map(col => cellValue(col.value(entry)))));
+  sheet.views = frozenNoGridlinesView(1);
+  const header = sheet.getRow(1);
+  header.font = HEADER_FONT;
+  header.height = 28;
+  header.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+  sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: Math.max(1, rows.length + 1), column: HISTORY_COLUMNS.length } };
+  applyFullTableBorder(sheet, HISTORY_COLUMNS.length, rows.length + 1);
+  const stamp = new Date(now.getTime() + VN_OFFSET_MS).toISOString();
+  return {
+    buffer: Buffer.from(await workbook.xlsx.writeBuffer()),
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    fileName: `vt_${String(branch).toLowerCase()}_lich-su_${stamp.slice(0, 10).replace(/-/g, '')}_${stamp.slice(11, 16).replace(':', '')}.xlsx`
+  };
+}
+
+module.exports = { createStockPositionsWorkbook, createStockPositionsHistoryWorkbook, COLUMNS, HISTORY_COLUMNS };

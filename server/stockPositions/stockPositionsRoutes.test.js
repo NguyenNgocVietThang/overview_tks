@@ -14,12 +14,18 @@ const ROWS = [
   { id: 2, code: 'BBB2', name: '=SUM(A1)', notes: 'rác', arrivalDate: '', location: '', quantity: null, kiotQuantity: null, warnings: ['unreadable'], updatedByName: 'QL', updatedAt: '2026-10-27T04:30:00.000Z', version: 1 }
 ];
 
+const HISTORY = [
+  { id: 2, createdAt: '2026-10-27T03:44:00.000Z', branch: 'HN', code: 'CKL2DBV', location: 'ST', action: 'edit', field: 'notes', oldValue: '41T x 250', newValue: '=40T x 250', summary: null, actorName: 'Nguyễn Ngọc Việt Thắng' },
+  { id: 1, createdAt: '2026-10-27T03:27:00.000Z', branch: 'HN', code: 'CKL2DBV', location: 'ST', action: 'import_add', field: null, oldValue: null, newValue: null, summary: { added: 3, fileName: 'a.xlsx' }, actorName: 'Nhập dữ liệu đầu' }
+];
+
 async function start(t, { user = MANAGER, scope = 'Cả hai' } = {}) {
   const calls = [];
   const record = name => async (ctx, ...args) => { calls.push([name, ...args]); return { ok: name }; };
   const service = {
     list: async (ctx, branch) => { calls.push(['list', branch, ctx.scope]); return { branch, rows: ROWS }; },
     create: record('create'), update: record('update'), deduct: record('deduct'), remove: record('remove'), history: record('history'),
+    historyAll: async (ctx, branch, filters) => { calls.push(['historyAll', branch, filters, ctx.scope]); return { rows: HISTORY, truncated: false }; },
     importFile: async (ctx, branch, options) => { calls.push(['importFile', branch, options.mode, options.commit, options.fileName, options.buffer.length]); return { counts: {} }; }
   };
   const app = express();
@@ -69,7 +75,16 @@ test('Chỉ xem (đã cấp view, không edit/export): đọc được, ghi + xu
   assert.equal((await fetch(base + '/5', { method: 'DELETE' })).status, 403);
   assert.equal((await fetch(base + '/import?branch=HN&mode=add', { method: 'POST' })).status, 403);
   assert.equal((await fetch(base + '/export?branch=HN')).status, 403);
+  assert.equal((await fetch(base + '/history/export?branch=HN')).status, 403);
   assert.deepEqual(calls.map(c => c[0]), ['list']);
+});
+
+test('GET /history chuyển positionId (và limit/before) tới service', async t => {
+  const { base, calls } = await start(t);
+  await fetch(base + '/history?branch=SG&limit=50&before=9&positionId=12');
+  await fetch(base + '/history?branch=HN');
+  assert.deepEqual(calls[0], ['history', 'SG', { limit: '50', before: '9', positionId: '12' }]);
+  assert.deepEqual(calls[1], ['history', 'HN', { limit: undefined, before: undefined, positionId: undefined }]);
 });
 
 test('Route ghi chuyển đúng tham số tới service', async t => {
@@ -109,4 +124,22 @@ test('Xuất Excel: đủ 9 cột dữ liệu, tên file theo cơ sở, chặn c
   assert.equal(sheet.getRow(2).getCell(9).value.toISOString(), '2026-10-27T10:00:00.000Z'); // 03:00 UTC = 10:00 giờ VN
   assert.equal(sheet.getRow(3).getCell(2).value, "'=SUM(A1)");
   assert.equal(sheet.getRow(3).getCell(3).value, null);
+});
+
+test('Xuất Excel lịch sử: truyền bộ lọc + phạm vi, 9 cột, nhãn tiếng Việt, giờ VN, chặn công thức', async t => {
+  const { base, calls } = await start(t, { scope: 'Hà Nội' });
+  const res = await fetch(base + '/history/export?branch=HN&action=edit&q=th%E1%BA%AFng');
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-disposition'), /attachment; filename="vt_hn_lich-su_\d{8}_\d{4}\.xlsx"/);
+  assert.equal(res.headers.get('x-history-truncated'), 'false');
+  assert.deepEqual(calls[0], ['historyAll', 'HN', { action: 'edit', q: 'thắng' }, ['HN']]);
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(Buffer.from(await res.arrayBuffer()));
+  const sheet = workbook.getWorksheet('Lịch sử VT Hà Nội');
+  assert.deepEqual(sheet.getRow(1).values.slice(1), ['Thời gian', 'Người thực hiện', 'Hành động', 'Mã hàng', 'Vị trí', 'Trường', 'Giá trị cũ', 'Giá trị mới', 'Tóm tắt']);
+  assert.equal(sheet.getRow(2).getCell(1).value.toISOString(), '2026-10-27T10:44:00.000Z'); // 03:44 UTC = 10:44 giờ VN
+  assert.deepEqual(sheet.getRow(2).values.slice(2, 8), ['Nguyễn Ngọc Việt Thắng', 'Sửa', 'CKL2DBV', 'ST', 'Ghi chú', '41T x 250']);
+  assert.equal(sheet.getRow(2).getCell(8).value, "'=40T x 250");
+  assert.equal(sheet.getRow(3).getCell(3).value, 'Import bổ sung');
+  assert.equal(sheet.getRow(3).getCell(9).value, 'Thêm 3 · a.xlsx');
 });

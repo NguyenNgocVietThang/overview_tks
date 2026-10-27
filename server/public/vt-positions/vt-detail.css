@@ -1,0 +1,36 @@
+/* Hộp chi tiết một dòng (bấm vào dòng của bảng VT Hà Nội / VT Sài Gòn): thông số, form sửa, lịch sử của dòng, chân hộp Lưu/Xóa. */
+.vt-detail{width:min(860px,calc(100vw - 32px))}
+.vt-detail-code{font-family:var(--font-data);font-weight:800}
+.vt-detail .dp-title-kind{font-weight:600}
+.vt-detail-stats{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}
+
+/* Form sửa: Ghi chú chiếm cả hàng, Ngày về + Vị trí cạnh nhau. */
+.vt-detail-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 14px;margin:0}
+.vt-detail-notes,.vt-detail-warn,.vt-detail-error{grid-column:1 / -1}
+.vt-detail-warn:empty{display:none}
+.vt-detail-warn .vt-badge{margin-top:0}
+.vt-detail-form .vt-field input[readonly]{background:transparent;cursor:default}
+.vt-detail-form .vt-field input:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+
+/* Lịch sử của dòng: tái dùng kiểu bảng/pill của hộp Lịch sử chung (vt-history.css). */
+.vt-detail .dp-table-wrap{--dp-table-max:240px}
+.vt-detail-more{margin-top:10px}
+
+/* Chân hộp dính đáy khung cuộn: Xóa dòng (đỏ) bên trái; Đóng + Lưu (xanh) bên phải. */
+.vt-detail-foot{position:sticky;bottom:0;z-index:2;display:flex;align-items:center;gap:8px;padding:12px 22px;border-top:1px solid var(--border);background:var(--panel-solid,var(--panel))}
+.vt-detail-spacer{flex:1 1 auto}
+.vt-detail-foot [hidden]{display:none}
+.vt-detail-delete{color:var(--red);border-color:color-mix(in srgb,var(--red) 55%,var(--border))}
+.vt-detail-delete:hover:not(:disabled){border-color:var(--red);background:color-mix(in srgb,var(--red) 10%,transparent)}
+.vt-detail-foot .vt-btn-primary{min-width:84px}
+.vt-detail-foot button:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+
+@media(max-width:600px){
+  .vt-detail{width:calc(100vw - 16px);max-height:calc(100vh - 16px)}
+  .vt-detail-form{grid-template-columns:minmax(0,1fr)}
+  .vt-detail .dp-head{padding:14px 16px 12px}
+  .vt-detail .dp-body{padding:14px 16px 18px}
+  .vt-detail-foot{flex-direction:column-reverse;align-items:stretch;padding:12px 16px}
+  .vt-detail-spacer{display:none}
+  .vt-detail-foot .locations-columns-button{width:100%}
+}

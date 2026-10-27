@@ -1,18 +1,69 @@
-/* Trang VT Hà Nội / VT Sài Gòn: khung bảng dùng lại /stock-locations/stock-locations.css, ở đây chỉ phần riêng (sửa tại chỗ, hộp thoại). */
-.vt-hint{margin:0;padding:0 16px 10px;color:var(--muted);font-size:12px}
+/* Trang VT Hà Nội / VT Sài Gòn: khung bảng dùng lại /stock-locations/stock-locations.css, ở đây chỉ phần riêng (bảng bấm được, hộp thoại). */
+/* ---- Đầu trang + tab ---- */
+.vt-page-head{display:flex;align-items:center;gap:14px;margin:0 0 18px}
+.vt-page-icon{display:inline-flex;align-items:center;justify-content:center;flex:none;width:44px;height:44px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--panel);color:var(--blue);box-shadow:var(--card-shadow)}
+.vt-page-icon svg{width:22px;height:22px}
+.vt-page-head .locations-title{margin:0;font-size:22px;line-height:1.2}
+.vt-page-sub{margin:3px 0 0;font-size:13px;color:var(--canvas-text);opacity:.7}
+.vt-tabs a{display:inline-flex;align-items:center;gap:8px}
+.vt-tabs a:not([aria-current="page"]){opacity:.72}
+.vt-tab-icon{width:16px;height:16px;flex:none}
+
+/* ---- Thanh công cụ: nút có biểu tượng ---- */
+.locations-toolbar{gap:10px}
+.locations-toolbar h3{margin-right:4px}
+.vt-btn{transition:background-color .15s,border-color .15s,color .15s}
+.vt-btn:hover:not(:disabled){background:var(--surface-hover);border-color:var(--blue)}
+.vt-btn-primary{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600}
+.vt-btn-primary:hover:not(:disabled){background:var(--blue);border-color:var(--blue);filter:brightness(1.1)}
+/* Bộ lọc cảnh báo: ô chọn có biểu tượng; chữ luôn dùng --text (đọc rõ cả sáng/tối), chỉ viền/nền đổi tông theo lựa chọn. */
+.vt-warn-filter{position:relative;display:inline-flex;align-items:center;flex:none}
+.vt-warn-filter svg{position:absolute;left:12px;top:50%;width:15px;height:15px;margin-top:-7.5px;color:var(--amber);pointer-events:none}
+.vt-warn-filter select{box-sizing:border-box;min-height:40px;padding:8px 12px 8px 34px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel-2);color:var(--text);font:600 13px var(--font-body);cursor:pointer;transition:background-color .15s,border-color .15s}
+.vt-warn-filter select:hover:not(:disabled){border-color:var(--blue)}
+.vt-warn-filter select:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.vt-warn-filter select:disabled{opacity:.5;cursor:not-allowed}
+.vt-warn-filter[data-filter="warn"] select{border-color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,var(--panel-2))}
+.vt-warn-filter[data-filter="valid"] select{border-color:var(--green);background:color-mix(in srgb,var(--green) 12%,var(--panel-2))}
+.vt-warn-filter[data-filter="valid"] svg{color:var(--green)}
+
+/* ---- Thanh gợi ý ---- */
+.vt-hint{display:flex;align-items:flex-start;gap:10px;margin:0 16px 12px;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel-2);color:var(--muted);font-size:12.5px;line-height:1.5}
+.vt-hint svg{width:16px;height:16px;flex:none;margin-top:2px;color:var(--blue)}
 .vt-notice{padding-bottom:10px}
 .locations-toolbar [hidden]{display:none}
 .vt-table [data-field="quantity"],.vt-table [data-field="kiotQuantity"]{text-align:right;font-variant-numeric:tabular-nums}
 .vt-table th[data-field="quantity"] .sort-button,.vt-table th[data-field="kiotQuantity"] .sort-button{text-align:right}
-.vt-table td[data-field="updatedAt"]{font-family:var(--font-data);white-space:nowrap}
+/* Khung bảng: tiêu đề nhỏ in hoa, ngăn cột nhẹ, hàng xen kẽ rất nhạt. */
+.vt-table th{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.vt-table th,.vt-table td{border-right:1px solid var(--row-divider)}
+.vt-table th:last-child,.vt-table td:last-child{border-right:0}
+.vt-table td{vertical-align:middle;border-bottom:1px solid var(--row-divider)}
+.vt-table tbody tr:nth-child(even) td{background:color-mix(in srgb,var(--text) 2.5%,transparent)}
+.vt-table tbody tr:hover td{background:var(--surface-hover)}
+.vt-table td[data-field="code"]{font-weight:700}
+/* Cột Cập nhật: giờ VN + người cập nhật ở dòng dưới. */
+.vt-table td[data-field="updated"]{white-space:nowrap}
+.vt-table td[data-field="updatedByName"]{overflow-wrap:anywhere}
+.vt-updated-time,.vt-updated-by{display:block}
+.vt-updated-time{font-family:var(--font-data);font-size:13px}
+.vt-updated-by{margin-top:2px;font-size:12px;color:var(--muted)}
+.vt-updated-by:empty{display:none}
+.vt-pill{display:inline-flex;align-items:center;justify-content:center;min-width:34px;padding:3px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel-2);color:var(--text);font:600 12.5px var(--font-data)}
 /* Dòng cảnh báo: chỉ đổi chữ sang đỏ (không tô nền), biến --red tự đúng cả sáng/tối. */
 .vt-table tr.vt-warning td{color:var(--red)}
-.vt-badge{display:block;margin-top:4px;padding:1px 8px;width:fit-content;border:1px solid var(--red);border-radius:999px;font-size:11px;font-weight:600;color:var(--red)}
-.vt-table td.vt-editable{cursor:text}
-.vt-table td.vt-editable:hover{background:var(--surface-hover)}
-.vt-table td.vt-editable:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
-.vt-inline-input{box-sizing:border-box;width:100%;min-height:32px;padding:5px 8px;border:1px solid var(--blue);border-radius:var(--radius-sm);background:var(--panel-2);color:var(--text);font:13px var(--font-body)}
-.vt-table td[data-field="actions"]{white-space:nowrap}
+.vt-table tr.vt-warning .vt-pill{color:var(--text)}
+.vt-table tr.vt-warning .vt-updated-by{color:var(--muted)}
+.vt-badge{display:flex;align-items:center;gap:5px;margin-top:5px;padding:2px 9px 2px 7px;width:fit-content;max-width:100%;border:1px solid color-mix(in srgb,var(--red) 60%,transparent);border-radius:999px;background:color-mix(in srgb,var(--red) 12%,transparent);font-size:11px;font-weight:600;color:var(--red)}
+.vt-badge-icon{width:12px;height:12px;flex:none}
+.vt-table tbody tr.vt-row{cursor:pointer}
+.vt-table tbody tr.vt-row:hover td{background:color-mix(in srgb,var(--blue) 9%,transparent)}
+.vt-table tbody tr.vt-row:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
+.vt-table tbody tr.vt-row:focus-visible td{background:color-mix(in srgb,var(--blue) 9%,transparent)}
+/* Phân trang: đếm dòng bên trái, chọn số dòng + nút trang bên phải. */
+#vtPager{flex-direction:row;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px 16px}
+.vt-page-size select{min-height:40px;padding:0 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel);color:var(--text);font:13px var(--font-body);cursor:pointer}
+.vt-page-size select:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 .vt-row-button{min-height:30px;margin-right:6px;padding:4px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel-2);color:var(--text);font:12px var(--font-body);cursor:pointer}
 .vt-row-button:hover{background:var(--surface-hover)}
 .vt-row-button.vt-danger{color:var(--red);border-color:var(--red)}
@@ -45,5 +96,9 @@
 .vt-history-filters input{flex:1 1 240px}
 @media(max-width:600px){
   .locations-toolbar .locations-columns-button{font-size:12px}
-  .vt-table td[data-field="actions"]{white-space:normal}
+  .vt-page-icon{width:38px;height:38px}
+  .vt-hint{margin:0 12px 10px}
+  .vt-table tbody tr td[data-field="name"]{background:var(--panel)}
+  .vt-table td[data-field="updated"]{white-space:normal}
+  #vtPager{flex-direction:column;justify-content:center}
 }

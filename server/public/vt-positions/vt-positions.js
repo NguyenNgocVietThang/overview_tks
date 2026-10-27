@@ -1,19 +1,23 @@
 (function () {
   'use strict';
-  const PAGE_SIZE = 100;
+  let pageSize = 100;
   const API = '/api/stock-positions';
-  const BASE_FIELDS = ['code', 'name', 'quantity', 'kiotQuantity', 'notes', 'arrivalDate', 'location', 'updatedByName', 'updatedAt'];
+  // "updated" = thời điểm cập nhật cuối (sắp xếp theo updatedAt); "updatedByName" = Người sửa cuối, cột riêng.
+  const BASE_FIELDS = ['code', 'name', 'quantity', 'kiotQuantity', 'notes', 'arrivalDate', 'location', 'updated', 'updatedByName'];
   const LABELS = {
     code: 'Mã hàng', name: 'Tên hàng', quantity: 'SL kho', kiotQuantity: 'SL Kiot', notes: 'Ghi chú số thùng',
-    arrivalDate: 'Ngày về', location: 'Vị trí', updatedByName: 'Người cập nhật', updatedAt: 'TG cập nhật', actions: 'Thao tác'
+    arrivalDate: 'Ngày về', location: 'Vị trí', updated: 'Cập nhật', updatedByName: 'Người sửa cuối'
   };
-  const EDITABLE = ['notes', 'arrivalDate', 'location'];
+  // Các trường sửa được trong hộp chi tiết của dòng (bấm vào dòng để mở).
+  const DETAIL_FIELDS = ['notes', 'arrivalDate', 'location'];
   const NUMERIC = ['quantity', 'kiotQuantity'];
   const MOBILE_FIELDS = ['name', 'quantity', 'kiotQuantity', 'location'];
   const WIDTHS = {
-    desktop: { code: 120, name: 220, quantity: 90, kiotQuantity: 90, notes: 220, arrivalDate: 110, location: 110, updatedByName: 140, updatedAt: 150, actions: 130 },
-    mobile: { code: 100, name: 180, quantity: 70, kiotQuantity: 70, notes: 200, arrivalDate: 100, location: 90, updatedByName: 120, updatedAt: 130, actions: 120 }
+    desktop: { code: 120, name: 220, quantity: 90, kiotQuantity: 90, notes: 220, arrivalDate: 110, location: 110, updated: 150, updatedByName: 160 },
+    mobile: { code: 100, name: 180, quantity: 70, kiotQuantity: 70, notes: 200, arrivalDate: 100, location: 90, updated: 140, updatedByName: 130 }
   };
+  // Đủ cho từ dài nhất của tiêu đề + nút sắp xếp + lề ô (≥ 80px), và cho nội dung cột bẻ dòng được.
+  const MIN_WIDTHS = { code: 110, name: 150, quantity: 90, kiotQuantity: 90, notes: 130, arrivalDate: 90, location: 80, updated: 140, updatedByName: 120 };
   const WARNING_LABELS = { multi: 'Nhiều quy cách', loose: 'Trừ lẻ', unreadable: 'Sai định dạng', badnumber: 'Số thùng sai', unknowncode: 'Mã SP lạ' };
   const ACTION_LABELS = {
     seed: 'Nhập dữ liệu đầu', create: 'Thêm dòng', edit: 'Sửa', delete: 'Xóa dòng', auto_delete: 'Tự xóa (hết hàng)',
@@ -22,15 +26,17 @@
   const FIELD_LABELS = { code: 'Mã hàng', notes: 'Ghi chú', arrivalDate: 'Ngày về', location: 'Vị trí', quantity: 'Số lượng' };
   const collator = new Intl.Collator('vi', { numeric: true, sensitivity: 'base' });
   const QUANTITY_FORMAT = new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 });
-  const newState = () => ({ rows: [], query: '', page: 1, sortField: '', sortDirection: 'asc', loading: false, error: '', onlyWarnings: false, canEdit: null, canExport: false });
+  const newState = () => ({ rows: [], query: '', page: 1, sortField: '', sortDirection: 'asc', loading: false, error: '', warnFilter: 'all', canEdit: null, canExport: false });
   const state = { hn: newState(), sg: newState() };
   let user, activeTab, allowedTabs, requestVersion = 0;
   let screenMode, visibleFields, columnPreferences = {}, canEditPermission = false;
   const importState = { ready: false };
   const history = { rows: [], nextBefore: null, branch: '', version: 0 };
+  // Hộp chi tiết một dòng: row = bản đang mở (để lấy version), version chống tải lịch sử cũ ghi đè.
+  const detail = { id: null, tab: '', row: null, rows: [], nextBefore: null, version: 0, busy: false };
 
   const $ = id => document.getElementById(id);
-  const fields = () => BASE_FIELDS.concat(canEditPermission ? ['actions'] : []);
+  const fields = () => BASE_FIELDS;
   const editable = () => canEditPermission && state[activeTab].canEdit !== false;
 
   function normalizeSearch(value) {
@@ -55,8 +61,11 @@
     return `${parts.day}/${parts.month}/${parts.year} ${parts.hour}:${parts.minute}`;
   }
 
-  function filterRows(rows, query, onlyWarnings) {
-    if (onlyWarnings) rows = rows.filter(row => warningsOf(row).length > 0);
+  // warn: 'all' | 'warn' (chỉ dòng có cảnh báo) | 'valid' (chỉ dòng không cảnh báo); true = 'warn' để tương thích bản cũ dùng boolean.
+  function filterRows(rows, query, warn) {
+    const mode = warn === true ? 'warn' : warn === 'warn' || warn === 'valid' ? warn : 'all';
+    if (mode === 'warn') rows = rows.filter(row => warningsOf(row).length > 0);
+    else if (mode === 'valid') rows = rows.filter(row => warningsOf(row).length === 0);
     const needle = normalizeSearch(query);
     if (!needle) return rows;
     const text = row => ['code', 'name', 'location'].map(field => row[field]).join(' ');
@@ -66,13 +75,13 @@
 
   function sortValue(row, field) {
     if (NUMERIC.includes(field)) { const value = row[field]; return value === null || value === undefined ? null : Number(value); }
-    if (field === 'updatedAt') { const time = Date.parse(row.updatedAt); return Number.isNaN(time) ? null : time; }
+    if (field === 'updated' || field === 'updatedAt') { const time = Date.parse(row.updatedAt); return Number.isNaN(time) ? null : time; }
     return String(row[field] ?? '').trim() || null;
   }
 
   function sortRows(rows, field, direction) {
     if (!BASE_FIELDS.includes(field)) return rows;
-    const numeric = NUMERIC.includes(field) || field === 'updatedAt';
+    const numeric = NUMERIC.includes(field) || field === 'updated';
     return rows.slice().sort((a, b) => {
       const left = sortValue(a, field), right = sortValue(b, field);
       if (left === null || right === null) return left === right ? 0 : left === null ? 1 : -1;
@@ -109,24 +118,20 @@
       th.dataset.field = field;
       th.dataset.columnKey = field;
       th.dataset.defaultWidth = widths[field];
-      if (field === 'actions') {
-        const label = document.createElement('span');
-        label.textContent = LABELS[field];
-        th.appendChild(label);
-      } else {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'sort-button';
-        button.dataset.sortField = field;
-        const label = document.createElement('span');
-        label.className = 'sort-label';
-        label.textContent = LABELS[field];
-        const icon = document.createElement('span');
-        icon.className = 'sort-indicator';
-        icon.setAttribute('aria-hidden', 'true');
-        button.append(label, icon);
-        th.appendChild(button);
-      }
+      // Không cho kéo hẹp quá mức tối thiểu (chữ không bị xếp từng ký tự); table-controls cũng nâng độ rộng đã lưu lên mức này.
+      th.dataset.minWidth = MIN_WIDTHS[field];
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'sort-button';
+      button.dataset.sortField = field;
+      const label = document.createElement('span');
+      label.className = 'sort-label';
+      label.textContent = LABELS[field];
+      const icon = document.createElement('span');
+      icon.className = 'sort-indicator';
+      icon.setAttribute('aria-hidden', 'true');
+      button.append(label, icon);
+      th.appendChild(button);
       header.appendChild(th);
     });
     updateSortHeaders();
@@ -136,11 +141,11 @@
     if (!window.TKSTables) return;
     const widths = WIDTHS[screenMode];
     window.TKSTables.enhance($('vtTable'), {
-      key: 'vt-positions-' + screenMode,
+      key: 'vt-positions-v4-' + screenMode,
       button: $('vtColumnsButton'),
-      columns: fields().map(field => ({ key: field, label: LABELS[field], width: widths[field], locked: field === 'name' || field === 'actions', hidden: !visibleFields.includes(field) })),
+      columns: fields().map(field => ({ key: field, label: LABELS[field], width: widths[field], locked: field === 'name', hidden: !visibleFields.includes(field) })),
       onVisibilityChange: hiddenKeys => {
-        visibleFields = fields().filter(field => field === 'name' || field === 'actions' || !hiddenKeys.includes(field));
+        visibleFields = fields().filter(field => field === 'name' || !hiddenKeys.includes(field));
         columnPreferences[screenMode] = visibleFields.slice();
         for (const current of Object.values(state)) if (!visibleFields.includes(current.sortField)) current.sortField = '';
         render();
@@ -152,51 +157,90 @@
     screenMode = mobile ? 'mobile' : 'desktop';
     const saved = columnPreferences[screenMode];
     const base = Array.isArray(saved) ? fields().filter(field => field === 'name' || saved.includes(field)) : mobile ? MOBILE_FIELDS.slice() : BASE_FIELDS.slice();
-    visibleFields = canEditPermission && !base.includes('actions') ? base.concat('actions') : base;
+    visibleFields = base;
     for (const current of Object.values(state)) if (!visibleFields.includes(current.sortField)) current.sortField = '';
     renderColumns();
     enhanceColumns();
     if (activeTab) render();
   }
 
+  let noticeTimer = null;
   function notify(text, isError) {
     const node = $('vtNotice');
+    clearTimeout(noticeTimer);
     node.textContent = text || '';
     node.dataset.error = String(!!isError);
   }
 
-  function actionButton(label, action, danger) {
+  // Sau khi xóa dòng: báo kèm nút Hoàn tác (tạo lại dòng từ ảnh chụp trước khi xóa), tự ẩn sau UNDO_MS.
+  const UNDO_MS = 10000;
+  function offerUndo(tab, row) {
+    const snapshot = { code: row.code, notes: row.notes, arrivalDate: row.arrivalDate, location: row.location };
+    notify('Đã xóa dòng ' + row.code + (row.location ? ' tại ' + row.location : '') + '. ');
+    const node = $('vtNotice');
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = 'vt-row-button' + (danger ? ' vt-danger' : '');
-    button.dataset.action = action;
-    button.textContent = label;
-    return button;
+    button.className = 'vt-row-button vt-undo';
+    button.textContent = 'Hoàn tác';
+    button.addEventListener('click', async () => {
+      button.disabled = true;
+      const { response, payload } = await request(API + '?branch=' + tab.toUpperCase(), jsonOptions('POST', snapshot));
+      if (response.ok) {
+        applyResult(tab, payload);
+        notify('Đã hoàn tác, khôi phục dòng ' + row.code + '.');
+        if (tab === activeTab) render();
+      } else notify(payload.error || 'Không hoàn tác được.', true);
+    });
+    node.appendChild(button);
+    noticeTimer = setTimeout(() => notify(''), UNDO_MS);
   }
 
-  function buildRow(row, canEdit) {
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  function svgIcon(className, paths) {
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('class', className);
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '2');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    svg.setAttribute('aria-hidden', 'true');
+    paths.forEach(d => { const path = document.createElementNS(SVG_NS, 'path'); path.setAttribute('d', d); svg.appendChild(path); });
+    return svg;
+  }
+  const WARN_ICON = ['M12 3 2 20h20L12 3Z', 'M12 10v4M12 17h.01'];
+
+  // Bấm (hoặc Enter/Space) vào dòng để mở hộp chi tiết; ô Cập nhật gộp giờ + người cập nhật.
+  function buildRow(row) {
     const tr = document.createElement('tr');
     tr.dataset.id = String(row.id);
+    tr.tabIndex = 0;
+    tr.title = 'Bấm để xem chi tiết';
     const warnings = warningsOf(row);
-    if (warnings.length) { tr.className = 'vt-warning'; tr.dataset.warning = warnings.join(' '); }
+    tr.className = 'vt-row' + (warnings.length ? ' vt-warning' : '');
+    if (warnings.length) tr.dataset.warning = warnings.join(' ');
     fields().forEach(field => {
       const td = document.createElement('td');
       td.dataset.field = field;
       if (field === 'quantity' || field === 'kiotQuantity') td.textContent = formatNumber(row[field]);
-      else if (field === 'updatedAt') td.textContent = formatTime(row.updatedAt);
-      else if (field === 'actions') {
-        if (canEdit) td.append(actionButton('Trừ SL', 'deduct'), actionButton('Xóa', 'delete', true));
+      else if (field === 'updated') {
+        const time = document.createElement('span');
+        time.className = 'vt-updated-time';
+        time.textContent = formatTime(row.updatedAt);
+        td.appendChild(time);
+      } else if (field === 'location' && row.location) {
+        const pill = document.createElement('span');
+        pill.className = 'vt-pill';
+        pill.textContent = String(row.location);
+        td.appendChild(pill);
       } else td.textContent = String(row[field] ?? '');
-      if (canEdit && EDITABLE.includes(field)) {
-        td.classList.add('vt-editable');
-        td.tabIndex = 0;
-        td.title = 'Bấm để sửa';
-      }
       if (field === 'notes' && warnings.length) {
         // Nhãn chữ kèm tooltip để không chỉ dựa vào màu.
         const badge = document.createElement('span');
         badge.className = 'vt-badge';
-        badge.textContent = warningText(row);
+        badge.appendChild(svgIcon('vt-badge-icon', WARN_ICON));
+        badge.appendChild(document.createTextNode(warningText(row)));
         badge.title = warningText(row);
         td.appendChild(badge);
       }
@@ -211,16 +255,19 @@
     $('vtAddButton').hidden = !canEdit;
     $('vtImportButton').hidden = !canEdit;
     $('vtExportButton').hidden = state[activeTab].canExport !== true;
-    const rows = sortRows(filterRows(current.rows, current.query, current.onlyWarnings), current.sortField, current.sortDirection);
+    const rows = sortRows(filterRows(current.rows, current.query, current.warnFilter), current.sortField, current.sortDirection);
     updateSortHeaders();
-    const chip = $('vtWarnFilter');
-    chip.textContent = 'Cảnh báo (' + current.rows.filter(row => warningsOf(row).length > 0).length + ')';
-    chip.setAttribute('aria-pressed', String(current.onlyWarnings));
-    chip.classList.toggle('active', current.onlyWarnings);
-    chip.disabled = current.loading || !!current.error;
-    const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+    // Bộ lọc cảnh báo: số đếm tính trên toàn bộ dòng của cơ sở (không theo từ khóa tìm).
+    const select = $('vtWarnFilter');
+    const warned = current.rows.filter(row => warningsOf(row).length > 0).length;
+    select.querySelector('option[value="warn"]').textContent = 'Cảnh báo (' + formatNumber(warned) + ')';
+    select.querySelector('option[value="valid"]').textContent = 'Hợp lệ (' + formatNumber(current.rows.length - warned) + ')';
+    select.value = current.warnFilter;
+    select.parentElement.dataset.filter = current.warnFilter;
+    select.disabled = current.loading || !!current.error;
+    const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
     if (!current.loading && !current.error) current.page = Math.min(current.page, pageCount);
-    const start = (current.page - 1) * PAGE_SIZE;
+    const start = (current.page - 1) * pageSize;
     const body = $('vtRows');
     body.replaceChildren();
     const search = $('vtSearch');
@@ -230,17 +277,18 @@
     const status = $('vtStatus');
     status.dataset.error = String(!!current.error);
     status.textContent = current.loading ? 'Đang tải vị trí hàng…' : current.error ||
-      (current.rows.length === 0 ? 'Chưa có dữ liệu vị trí hàng.' : rows.length === 0 ? (current.onlyWarnings ? 'Không có dòng cảnh báo.' : 'Không tìm thấy hàng phù hợp.') : '');
+      (current.rows.length === 0 ? 'Chưa có dữ liệu vị trí hàng.' : rows.length === 0 ? (current.warnFilter === 'warn' ? 'Không có dòng cảnh báo.' : current.warnFilter === 'valid' ? 'Không có dòng hợp lệ.' : 'Không tìm thấy hàng phù hợp.') : '');
     const ready = !current.loading && !current.error && rows.length > 0;
     $('vtPager').hidden = !ready;
     if (!ready) return;
 
     const fragment = document.createDocumentFragment();
-    rows.slice(start, start + PAGE_SIZE).forEach(row => fragment.appendChild(buildRow(row, canEdit)));
+    rows.slice(start, start + pageSize).forEach(row => fragment.appendChild(buildRow(row)));
     body.appendChild(fragment);
     if (window.TKSTables) window.TKSTables.refresh($('vtTable'));
-    $('vtCount').textContent = `${start + 1}–${Math.min(start + PAGE_SIZE, rows.length)} / ${rows.length} dòng`;
+    $('vtCount').textContent = `${formatNumber(start + 1)}–${formatNumber(Math.min(start + pageSize, rows.length))} / ${formatNumber(rows.length)} dòng`;
     $('vtPage').textContent = `Trang ${current.page} / ${pageCount}`;
+    if ($('vtPageSize').value !== String(pageSize)) $('vtPageSize').value = String(pageSize);
     $('vtPrevious').disabled = current.page === 1;
     $('vtNext').disabled = current.page === pageCount;
     $('vtFirst').disabled = current.page === 1;
@@ -264,26 +312,33 @@
     else rows.unshift(payload.row);
   }
 
-  // 409 VERSION_CONFLICT: dòng đã bị người khác sửa → báo và tải lại; lỗi khác → báo tại chỗ.
+  // 409 VERSION_CONFLICT: dòng đã bị người khác sửa → báo, đóng hộp chi tiết (đang giữ bản cũ) và tải lại; lỗi khác → báo tại chỗ.
   async function handleFailure(payload) {
     if (payload.code === 'VERSION_CONFLICT') {
+      closeDialog($('vtDetailDialog'));
       notify('Dòng đã bị người khác sửa. Đã tải lại dữ liệu mới nhất.', true);
       await selectTab(activeTab);
     } else notify(payload.error || 'Không lưu được thay đổi.', true);
     return false;
   }
 
-  async function patchRow(tab, row, patch, confirmEmpty) {
+  // onError: nơi hiện lỗi (hộp chi tiết dùng ô lỗi trong hộp); bỏ trống thì báo ở dòng thông báo của trang.
+  async function patchRow(tab, row, patch, confirmEmpty, onError) {
     notify('');
     const body = Object.assign({ version: row.version }, patch);
     if (confirmEmpty) body.confirmEmpty = true;
     const { response, payload } = await request(API + '/' + encodeURIComponent(row.id), jsonOptions('PATCH', body));
-    if (response.ok) { applyResult(tab, payload); return true; }
+    if (response.ok) {
+      applyResult(tab, payload);
+      if (payload.deleted) offerUndo(tab, row);
+      return true;
+    }
     // Sửa tay làm hết hàng: hỏi lại rồi gửi lại kèm confirmEmpty.
     if (payload.code === 'WOULD_AUTO_DELETE') {
-      if (await confirmBox('Sau khi sửa dòng này hết hàng nên sẽ bị xóa khỏi bảng. Tiếp tục?', 'Xóa dòng')) return patchRow(tab, row, patch, true);
+      if (await confirmBox('Ghi chú trống nghĩa là hết hàng nên dòng ' + row.code + (row.location ? ' tại ' + row.location : '') + ' sẽ bị xóa khỏi bảng. Bạn có chắc chắn muốn xóa không? (Hủy để giữ lại ghi chú cũ.)', 'Xóa dòng')) return patchRow(tab, row, patch, true, onError);
       return false;
     }
+    if (onError && payload.code !== 'VERSION_CONFLICT') { onError(payload.error || 'Không lưu được thay đổi.'); return false; }
     return handleFailure(payload);
   }
 
@@ -308,68 +363,158 @@
     });
   }
 
-  function startEdit(td, row, field) {
-    if (td.querySelector('input')) return;
-    const original = String(row[field] ?? '');
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.className = 'vt-inline-input';
-    input.value = original;
-    input.setAttribute('aria-label', LABELS[field]);
-    td.replaceChildren(input);
-    input.focus();
-    const tab = activeTab;
-    let finished = false;
-    const finish = async save => {
-      if (finished) return;
-      finished = true;
-      const value = input.value.trim();
-      if (save && value !== original.trim()) await patchRow(tab, row, { [field]: value });
-      if (tab === activeTab) render();
-    };
-    input.addEventListener('keydown', event => {
-      if (event.key === 'Enter') { event.preventDefault(); finish(true); }
-      else if (event.key === 'Escape') { event.preventDefault(); finish(false); }
-    });
-    input.addEventListener('blur', () => finish(true));
-  }
-
-  function openDeduct(row) {
-    const form = $('vtDeductForm');
-    form.reset();
-    $('vtDeductError').textContent = '';
-    $('vtDeductSubtitle').textContent = `${row.code} · ${row.location || 'chưa có vị trí'} · hiện có ${formatNumber(row.quantity) || '?'}`;
-    form.dataset.rowId = String(row.id);
-    openDialog($('vtDeductDialog'));
-    form.elements.quantity.focus();
-  }
-
-  async function submitDeduct(event) {
-    event.preventDefault();
-    const form = $('vtDeductForm');
-    const tab = activeTab;
-    const row = state[tab].rows.find(item => String(item.id) === form.dataset.rowId);
-    const quantity = Number(form.elements.quantity.value);
-    if (!row) return;
-    if (!Number.isInteger(quantity) || quantity <= 0) { $('vtDeductError').textContent = 'Số lượng cần trừ phải là số nguyên dương.'; return; }
-    const { response, payload } = await request(API + '/' + encodeURIComponent(row.id) + '/deduct', jsonOptions('POST', { version: row.version, quantity }));
-    if (response.ok) {
-      applyResult(tab, payload);
-      closeDialog($('vtDeductDialog'));
-      if (tab === activeTab) render();
-    } else if (payload.code === 'VERSION_CONFLICT') {
-      closeDialog($('vtDeductDialog'));
-      await handleFailure(payload);
-    } else $('vtDeductError').textContent = payload.error || 'Không trừ được số lượng.';
-  }
-
-  async function deleteRow(row) {
-    if (!await confirmBox(`Xóa dòng ${row.code}${row.location ? ' tại ' + row.location : ''}?`, 'Xóa dòng')) return;
+  // onError: nơi hiện lỗi khi xóa thất bại (hộp chi tiết dùng ô lỗi trong hộp); trả true khi đã xóa.
+  async function deleteRow(row, onError) {
+    if (!await confirmBox(`Xóa dòng ${row.code}${row.location ? ' tại ' + row.location : ''}?`, 'Xóa dòng')) return false;
     const tab = activeTab;
     notify('');
     const { response, payload } = await request(API + '/' + encodeURIComponent(row.id) + '?version=' + encodeURIComponent(row.version), { method: 'DELETE' });
-    if (response.ok) { applyResult(tab, payload.deleted ? payload : { deleted: true, id: row.id }); if (tab === activeTab) render(); }
-    else await handleFailure(payload);
+    if (response.ok) { applyResult(tab, payload.deleted ? payload : { deleted: true, id: row.id }); offerUndo(tab, row); if (tab === activeTab) render(); return true; }
+    if (onError && payload.code !== 'VERSION_CONFLICT') { onError(payload.error || 'Không xóa được dòng.'); return false; }
+    return handleFailure(payload);
+  }
+
+  // ---------- Hộp chi tiết một dòng (bấm vào dòng): thông số, sửa Ghi chú/Ngày về/Vị trí, lịch sử của dòng, Lưu/Xóa ----------
+  const tabLabel = tab => 'VT ' + (tab === 'hn' ? 'Hà Nội' : 'Sài Gòn');
+  const dash = value => (value === null || value === undefined || value === '' ? '—' : value);
+  const setDetailError = message => { $('vtDetailError').textContent = message || ''; };
+
+  function setDetailBusy(busy) {
+    detail.busy = busy;
+    $('vtDetailSave').disabled = busy;
+    $('vtDetailDelete').disabled = busy;
+  }
+
+  // SL thùng / SL chiếc tính từ ghi chú đang gõ, cùng bộ đọc quy cách với máy chủ (shared/carton.js); sai định dạng thì '—' kèm huy hiệu.
+  function renderDetailStats() {
+    const row = detail.row;
+    if (!row) return;
+    const form = $('vtDetailForm');
+    const carton = window.PickingCarton;
+    const notes = form.elements.notes.value;
+    const spec = carton && carton.parseSpec ? carton.parseSpec(notes) : null;
+    $('vtDetailCartons').textContent = spec ? formatNumber(spec.cartons) : '—';
+    $('vtDetailPieces').textContent = spec ? formatNumber(spec.quantity) : '—';
+    $('vtDetailKiot').textContent = dash(formatNumber(row.kiotQuantity));
+    $('vtDetailStatLocation').textContent = dash(form.elements.location.value.trim());
+    $('vtDetailStatArrival').textContent = dash(form.elements.arrivalDate.value.trim());
+    const codes = carton && carton.warnings ? carton.warnings(notes) : [];
+    if (warningsOf(row).includes('unknowncode')) codes.push('unknowncode');
+    const box = $('vtDetailWarn');
+    box.replaceChildren();
+    if (!codes.length) return;
+    const text = codes.map(code => WARNING_LABELS[code] || code).join(', ');
+    const badge = document.createElement('span');
+    badge.className = 'vt-badge';
+    badge.title = text;
+    badge.append(svgIcon('vt-badge-icon', WARN_ICON), document.createTextNode(text));
+    box.appendChild(badge);
+  }
+
+  // message: chữ thay cho danh sách rỗng (đang tải / lỗi); bỏ trống thì hiện kết quả đã tải.
+  function renderDetailHistory(message) {
+    const body = $('vtDetailHistoryRows');
+    body.replaceChildren();
+    if (!detail.rows.length) {
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 4;
+      td.className = 'table-note';
+      td.textContent = message || 'Chưa có lịch sử cho dòng này.';
+      tr.appendChild(td);
+      body.appendChild(tr);
+    }
+    detail.rows.forEach(entry => {
+      const tr = document.createElement('tr');
+      const time = document.createElement('td');
+      time.className = 'mono vt-hist-time';
+      time.textContent = formatTime(entry.createdAt);
+      const actor = document.createElement('td');
+      actor.textContent = entry.actorName || '—';
+      const kind = document.createElement('td');
+      kind.appendChild(historyActionPill(entry.action));
+      const change = document.createElement('td');
+      change.className = 'vt-hist-change';
+      change.appendChild(historyChange(entry));
+      tr.append(time, actor, kind, change);
+      body.appendChild(tr);
+    });
+    const more = detail.nextBefore !== null && detail.nextBefore !== undefined;
+    $('vtDetailHistoryNote').textContent = detail.rows.length ? `${detail.rows.length} thay đổi${more ? ' đã tải' : ''} • Lưu vĩnh viễn` : '';
+    $('vtDetailHistoryMore').hidden = !more;
+  }
+
+  async function loadDetailHistory(append) {
+    const version = ++detail.version;
+    const id = detail.id;
+    const before = append && detail.nextBefore ? '&before=' + encodeURIComponent(detail.nextBefore) : '';
+    const { response, payload } = await request(API + '/history?branch=' + detail.tab.toUpperCase() + '&positionId=' + encodeURIComponent(id) + '&limit=50' + before);
+    if (version !== detail.version || detail.id !== id) return;
+    if (!response.ok) { renderDetailHistory(payload.error || 'Không tải được lịch sử.'); return; }
+    detail.rows = append ? detail.rows.concat(payload.rows || []) : (payload.rows || []);
+    detail.nextBefore = payload.nextBefore ?? null;
+    renderDetailHistory();
+  }
+
+  function openDetail(row) {
+    const canEdit = editable();
+    detail.id = row.id;
+    detail.tab = activeTab;
+    detail.row = row;
+    detail.rows = [];
+    detail.nextBefore = null;
+    $('vtDetailCode').textContent = String(row.code ?? '');
+    $('vtDetailName').textContent = row.name ? ' · ' + row.name : '';
+    $('vtDetailSubtitle').textContent = tabLabel(activeTab) + (row.location ? ' · ' + row.location : '');
+    const form = $('vtDetailForm');
+    DETAIL_FIELDS.forEach(name => { form.elements[name].value = String(row[name] ?? ''); form.elements[name].readOnly = !canEdit; });
+    $('vtDetailSave').hidden = !canEdit;
+    $('vtDetailDelete').hidden = !canEdit;
+    // Chỉ xem: chân hộp không còn nút nào (đóng bằng dấu ×), ẩn luôn cho khỏi trơ khung.
+    $('vtDetailDialog').querySelector('.vt-detail-foot').style.display = canEdit ? '' : 'none';
+    setDetailBusy(false);
+    setDetailError('');
+    renderDetailStats();
+    renderDetailHistory('Đang tải lịch sử…');
+    openDialog($('vtDetailDialog'));
+    loadDetailHistory(false);
+  }
+
+  // Chỉ gửi trường đã đổi; không đổi gì thì chỉ đóng hộp.
+  async function saveDetail() {
+    if (detail.busy || !detail.row || !editable()) return;
+    const row = detail.row, tab = detail.tab, form = $('vtDetailForm');
+    const patch = {};
+    DETAIL_FIELDS.forEach(name => {
+      const before = String(row[name] ?? '').trim();
+      let value = form.elements[name].value.trim();
+      // Xóa hết ô Ghi chú rồi chỉ gõ "+1t100": hiểu là cộng thêm vào ghi chú cũ.
+      if (name === 'notes' && before && value.startsWith('+')) value = before + ' ' + value;
+      if (value !== before) patch[name] = value;
+    });
+    setDetailError('');
+    if (!Object.keys(patch).length) { closeDialog($('vtDetailDialog')); return; }
+    setDetailBusy(true);
+    try {
+      if (!await patchRow(tab, row, patch, false, setDetailError)) return;
+      closeDialog($('vtDetailDialog'));
+      // Sửa ghi chú thành trống + xác nhận thì dòng đã bị xóa (patchRow đã báo kèm nút Hoàn tác).
+      if (state[tab].rows.some(item => String(item.id) === String(row.id))) notify('Đã lưu dòng ' + row.code + '.');
+      if (tab === activeTab) render();
+    } finally {
+      setDetailBusy(false);
+    }
+  }
+
+  async function deleteDetail() {
+    if (detail.busy || !detail.row || !editable()) return;
+    setDetailError('');
+    setDetailBusy(true);
+    try {
+      if (await deleteRow(detail.row, setDetailError)) closeDialog($('vtDetailDialog'));
+    } finally {
+      setDetailBusy(false);
+    }
   }
 
   async function submitAdd(event) {
@@ -528,7 +673,7 @@
     if (!rows.length) {
       const tr = document.createElement('tr');
       const td = document.createElement('td');
-      td.colSpan = 7;
+      td.colSpan = 5;
       td.className = 'table-note';
       td.textContent = history.rows.length ? 'Không có thay đổi khớp bộ lọc.' : 'Chưa có thay đổi nào.';
       tr.appendChild(td);
@@ -536,22 +681,99 @@
     }
     rows.forEach(entry => {
       const tr = document.createElement('tr');
-      const cells = [
-        formatTime(entry.createdAt), entry.actorName || '—', ACTION_LABELS[entry.action] || entry.action,
-        [entry.code, entry.location].filter(Boolean).join(' · '), FIELD_LABELS[entry.field] || entry.field || '',
-        historyValue(entry, 'old'), historyValue(entry, 'new')
-      ];
-      cells.forEach((value, index) => {
-        const td = document.createElement('td');
-        td.textContent = value;
-        if (index === 0) td.className = 'mono';
-        if (index === 3) td.className = 'dp-cell-main';
-        tr.appendChild(td);
-      });
+      const time = document.createElement('td');
+      time.className = 'mono vt-hist-time';
+      time.textContent = formatTime(entry.createdAt);
+      const actor = document.createElement('td');
+      actor.textContent = entry.actorName || '—';
+      const kind = document.createElement('td');
+      kind.appendChild(historyActionPill(entry.action));
+      const target = document.createElement('td');
+      target.className = 'dp-cell-main';
+      target.textContent = [entry.code, entry.location].filter(Boolean).join(' · ');
+      const change = document.createElement('td');
+      change.className = 'vt-hist-change';
+      change.appendChild(historyChange(entry));
+      tr.append(time, actor, kind, target, change);
       body.appendChild(tr);
     });
-    $('vtHistorySubtitle').textContent = `${rows.length === history.rows.length ? history.rows.length : rows.length + '/' + history.rows.length} thay đổi đã tải · lưu vĩnh viễn`;
-    $('vtHistoryMore').hidden = history.nextBefore === null || history.nextBefore === undefined;
+    const more = history.nextBefore !== null && history.nextBefore !== undefined;
+    const count = rows.length === history.rows.length ? String(history.rows.length) : rows.length + '/' + history.rows.length;
+    $('vtHistorySubtitle').textContent = `${count} thay đổi${more ? ' đã tải' : ''} • Lưu vĩnh viễn`;
+    $('vtHistoryMore').hidden = !more;
+    $('vtHistoryExport').hidden = state[history.branch.toLowerCase()].canExport !== true;
+  }
+
+  // Nhãn hành động dạng pill: màu theo loại (có chữ nên không chỉ dựa vào màu).
+  const HISTORY_TONES = { edit: 'blue', create: 'green', import_add: 'green', delete: 'red', auto_delete: 'red', deduct: 'amber', seed: 'neutral', import_replace: 'neutral' };
+  const HISTORY_ICONS = {
+    blue: '<path d="M4 20h4L19 9l-4-4L4 16v4Z"></path>',
+    green: '<path d="M12 5v14M5 12h14"></path>',
+    red: '<path d="M5 7h14M10 11v6M14 11v6M9 7V4h6v3M7 7l1 13h8l1-13"></path>',
+    amber: '<path d="M5 12h14"></path>',
+    neutral: '<path d="M7 3h8l4 4v14H7V3Z"></path><path d="M14 3v5h5"></path>'
+  };
+  function historyActionPill(action) {
+    const tone = HISTORY_TONES[action] || 'neutral';
+    const pill = document.createElement('span');
+    pill.className = 'vt-hist-pill';
+    pill.dataset.tone = tone;
+    pill.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">' + HISTORY_ICONS[tone] + '</svg>';
+    pill.appendChild(document.createTextNode(ACTION_LABELS[action] || action || ''));
+    return pill;
+  }
+
+  // Cột Thay đổi: tóm tắt import | cũ gạch ngang → mới | Tạo mới | Đã xóa; trường khác Ghi chú có nhãn đứng trước.
+  function historyChange(entry) {
+    const box = document.createDocumentFragment();
+    const add = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; node.textContent = text; box.appendChild(node); return node; };
+    if (entry.summary) { add('span', 'vt-hist-summary', historyValue(entry, 'new')); return box; }
+    const before = historyValue(entry, 'old'), after = historyValue(entry, 'new');
+    if (!before && !after) { add('span', 'vt-hist-empty', '—'); return box; }
+    if (entry.field && entry.field !== 'notes') add('span', 'vt-hist-field', (FIELD_LABELS[entry.field] || entry.field) + ': ');
+    if (before && after) {
+      add('del', 'vt-hist-old', before);
+      add('span', 'vt-hist-arrow', ' → ');
+      add('ins', 'vt-hist-new', after);
+    } else if (after) {
+      add('span', 'vt-hist-created', 'Tạo mới: ');
+      add('ins', 'vt-hist-new', after);
+    } else {
+      add('span', 'vt-hist-created', 'Đã xóa: ');
+      add('del', 'vt-hist-old', before);
+    }
+    return box;
+  }
+
+  // Xuất Excel toàn bộ lịch sử của cơ sở theo hành động/từ khóa đang chọn (lọc ở máy chủ).
+  async function exportHistory() {
+    const button = $('vtHistoryExport');
+    const branch = history.branch;
+    const params = new URLSearchParams({ branch });
+    if ($('vtHistoryAction').value) params.set('action', $('vtHistoryAction').value);
+    if ($('vtHistorySearch').value.trim()) params.set('q', $('vtHistorySearch').value.trim());
+    button.disabled = true;
+    try {
+      const response = await fetch(API + '/history/export?' + params.toString(), { credentials: 'same-origin', cache: 'no-store' });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        $('vtHistorySubtitle').textContent = payload.error || 'Không xuất được file Excel.';
+        return;
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = exportFileName(response.headers && response.headers.get && response.headers.get('Content-Disposition'), 'lich-su-' + branch.toLowerCase());
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      $('vtHistorySubtitle').textContent = 'Không xuất được file Excel.';
+    } finally {
+      button.disabled = false;
+    }
   }
 
   async function loadHistory(append) {
@@ -577,6 +799,7 @@
     $('vtHistorySubtitle').textContent = 'Đang tải…';
     $('vtHistoryRows').replaceChildren();
     $('vtHistoryMore').hidden = true;
+    $('vtHistoryExport').hidden = state[activeTab].canExport !== true;
     openDialog($('vtHistoryDialog'));
     loadHistory(false);
   }
@@ -635,7 +858,6 @@
       $('vtAddForm').elements.code.focus();
     });
     $('vtAddForm').addEventListener('submit', submitAdd);
-    $('vtDeductForm').addEventListener('submit', submitDeduct);
     $('vtImportButton').addEventListener('click', () => {
       $('vtImportFile').value = '';
       resetImport();
@@ -650,31 +872,42 @@
     $('vtHistorySearch').addEventListener('input', renderHistory);
     $('vtHistoryAction').addEventListener('change', renderHistory);
     $('vtHistoryMore').addEventListener('click', () => loadHistory(true));
+    $('vtHistoryExport').addEventListener('click', exportHistory);
   }
 
+  // Bấm (hoặc Enter/Space) vào dòng để mở hộp chi tiết; đang bôi đen chữ để sao chép thì không mở.
   function bindTable() {
     const body = $('vtRows');
+    const rowOf = tr => state[activeTab].rows.find(item => String(item.id) === tr.dataset.id);
     body.addEventListener('click', event => {
-      const current = state[activeTab];
       const tr = event.target.closest('tr[data-id]');
-      if (!tr || !editable()) return;
-      const row = current.rows.find(item => String(item.id) === tr.dataset.id);
-      if (!row) return;
-      const button = event.target.closest('[data-action]');
-      if (button) {
-        if (button.dataset.action === 'deduct') openDeduct(row);
-        else if (button.dataset.action === 'delete') deleteRow(row);
-        return;
-      }
-      const td = event.target.closest('td.vt-editable');
-      if (td && !event.target.closest('input')) startEdit(td, row, td.dataset.field);
+      if (!tr) return;
+      if (window.getSelection && window.getSelection().toString()) return;
+      const row = rowOf(tr);
+      if (row) openDetail(row);
     });
     body.addEventListener('keydown', event => {
-      const td = event.target.closest && event.target.closest('td.vt-editable');
-      if (!td || event.target !== td || event.key !== 'Enter' || !editable()) return;
-      const row = state[activeTab].rows.find(item => String(item.id) === td.parentElement.dataset.id);
-      if (row) startEdit(td, row, td.dataset.field);
+      if (event.target.tagName !== 'TR' || (event.key !== 'Enter' && event.key !== ' ')) return;
+      event.preventDefault();
+      const row = rowOf(event.target);
+      if (row) openDetail(row);
     });
+  }
+
+  function bindDetail() {
+    const dialog = $('vtDetailDialog');
+    const form = $('vtDetailForm');
+    dialog.addEventListener('close', () => { detail.id = null; detail.row = null; detail.version++; });
+    // Esc đóng hộp (trình duyệt tự đóng khi Esc; xử lý thêm để nhất quán, đóng hai lần không sao).
+    dialog.addEventListener('keydown', event => { if (event.key === 'Escape') closeDialog(dialog); });
+    $('vtDetailSave').addEventListener('click', saveDetail);
+    $('vtDetailDelete').addEventListener('click', deleteDetail);
+    form.addEventListener('submit', event => { event.preventDefault(); saveDetail(); });
+    form.addEventListener('keydown', event => {
+      if (event.key === 'Enter' && event.target.tagName === 'INPUT') { event.preventDefault(); saveDetail(); }
+    });
+    form.addEventListener('input', () => { renderDetailStats(); setDetailError(''); });
+    $('vtDetailHistoryMore').addEventListener('click', () => loadDetailHistory(true));
   }
 
   async function init() {
@@ -701,6 +934,7 @@
     if (mobileQuery) mobileQuery.addEventListener('change', event => applyScreenMode(event.matches));
     bindDialogs();
     bindTable();
+    bindDetail();
     document.querySelector('#vtTable thead').addEventListener('click', event => {
       const button = event.target.closest('[data-sort-field]');
       if (!button) return;
@@ -713,9 +947,10 @@
       render();
       document.querySelector('.locations-scroll').scrollTop = 0;
     });
-    $('vtWarnFilter').addEventListener('click', () => {
+    $('vtWarnFilter').addEventListener('change', event => {
+      const value = event.target.value;
       const current = state[activeTab];
-      current.onlyWarnings = !current.onlyWarnings;
+      current.warnFilter = value === 'warn' || value === 'valid' ? value : 'all';
       current.page = 1;
       render();
     });
@@ -724,10 +959,18 @@
       state[activeTab].page = 1;
       render();
     });
+    $('vtPageSize').addEventListener('change', event => {
+      const size = Number(event.target.value);
+      if (![50, 100, 200].includes(size)) return;
+      pageSize = size;
+      for (const current of Object.values(state)) current.page = 1;
+      render();
+      document.querySelector('.locations-scroll').scrollTop = 0;
+    });
     ['First', 'Previous', 'Next', 'Last'].forEach(direction => {
       $('vt' + direction).addEventListener('click', () => {
         const current = state[activeTab];
-        const pageCount = Math.max(1, Math.ceil(filterRows(current.rows, current.query, current.onlyWarnings).length / PAGE_SIZE));
+        const pageCount = Math.max(1, Math.ceil(filterRows(current.rows, current.query, current.warnFilter).length / pageSize));
         if (direction === 'First') current.page = 1;
         else if (direction === 'Last') current.page = pageCount;
         else current.page = Math.max(1, Math.min(pageCount, current.page + (direction === 'Previous' ? -1 : 1)));
