@@ -8,7 +8,7 @@ const { hasFeature } = require('../auth/featureRegistry');
 const { resolveBranch } = require('../branch/branchMiddleware');
 const { BRANCHES, resolveBranchScope } = require('../branch/branches');
 const service = require('./stockPositionsService');
-const { createStockPositionsWorkbook } = require('./stockPositionsExport');
+const { createStockPositionsWorkbook, createStockPositionsHistoryWorkbook } = require('./stockPositionsExport');
 
 const IMPORT_MAX_BYTES = 8 * 1024 * 1024;
 const IMPORT_EXTENSIONS = /\.(xlsx|xls|csv)$/iu;
@@ -60,7 +60,17 @@ function createStockPositionsRouter(dependencies = {}) {
   }));
   // Phai dat truoc '/:id'.
   router.get('/api/stock-positions/history', handle(async (req, res) => {
-    res.json(await svc().history(ctxOf(req), req.query.branch, { limit: req.query.limit, before: req.query.before }));
+    res.json(await svc().history(ctxOf(req), req.query.branch, { limit: req.query.limit, before: req.query.before, positionId: req.query.positionId }));
+  }));
+  // Xuat Excel Lich su cap nhat cua co so (loc theo hanh dong + tu khoa nhu hop tren man hinh); quyen stockLocationsV2.export.
+  router.get('/api/stock-positions/history/export', requireFeature('stockLocationsV2.export'), handle(async (req, res) => {
+    const branch = req.query.branch;
+    const { rows, truncated } = await svc().historyAll(ctxOf(req), branch, { action: req.query.action, q: req.query.q });
+    const file = await createStockPositionsHistoryWorkbook({ branch, rows });
+    res.set('Content-Type', file.mimeType);
+    res.set('Content-Disposition', `attachment; filename="${file.fileName}"`);
+    res.set('X-History-Truncated', String(Boolean(truncated)));
+    res.send(file.buffer);
   }));
   router.post('/api/stock-positions/import', edit, (req, res, next) => upload.single('file')(req, res, error => {
     if (!error) return next();

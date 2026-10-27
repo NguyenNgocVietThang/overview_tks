@@ -196,6 +196,23 @@ test('lich su bat bien: khong sua/xoa duoc, phan trang theo before', async () =>
   } finally { await db.close(); }
 });
 
+test('history: positionId chi lay lich su cua dong do, gia tri rac thi bo qua', async () => {
+  const { db, service } = await fixture();
+  try {
+    const first = (await service.create(ctx(), 'HN', { code: 'AAA1', notes: '1T x 5', location: 'A' })).row;
+    await service.create(ctx(), 'HN', { code: 'AAA1', notes: '1T x 5', location: 'B' });
+    await service.update(ctx(), first.id, { version: first.version, notes: '2T x 5' });
+    const all = await service.history(ctx(), 'HN');
+    const own = await service.history(ctx(), 'HN', { positionId: String(first.id) });
+    assert.equal(all.rows.length, 3);
+    assert.deepEqual(own.rows.map(h => h.action), ['edit', 'create']);
+    assert.ok(own.rows.every(h => h.positionId === first.id));
+    assert.equal((await service.history(ctx(), 'HN', { positionId: 999999 })).rows.length, 0);
+    for (const junk of ['abc', '', '0', '-3', null, undefined]) assert.equal((await service.history(ctx(), 'HN', { positionId: junk })).rows.length, 3, String(junk));
+    assert.equal((await service.history(ctx(), 'SG', { positionId: first.id })).rows.length, 0);
+  } finally { await db.close(); }
+});
+
 test('mergeNotes: gop cung quy cach, khac quy cach noi bang +, cong phan tru le', () => {
   assert.equal(mergeNotes('5T x 100', '2T x 100'), '7T x 100');
   assert.equal(mergeNotes('5T x 100', '2T x 50'), '5T x 100 + 2T x 50');
@@ -245,6 +262,19 @@ test('import add: cong ghi chu vao dong trung (ma, vi tri), dong moi them, dong 
     const rows = (await service.list(ctx(), 'HN')).rows;
     assert.deepEqual(rows.map(r => [r.code, r.notes, r.arrivalDate, r.location]),
       [['AAA1', '7T x 100', '16/10', 'H1'], ['BBB2', '1T x 10', '1/10', 'H2'], ['AAA1', '1T x 30', '', 'H3']]);
+  } finally { await db.close(); }
+});
+
+test('import add: ghi chu viet tu do (2Tx100 co san, file 1T100) tu nhay thanh 3T x 100, ke ca khi xem truoc', async () => {
+  const { db, service } = await fixture();
+  try {
+    await service.create(ctx(), 'HN', { code: 'AAA1', notes: '2Tx100', arrivalDate: '1/10', location: 'H1' });
+    const buffer = workbook([HEADER, ['aaa1', '1T100', '', 'h1']]);
+    const preview = await service.importFile(ctx(), 'HN', { mode: 'add', buffer, fileName: 'them.xlsx' });
+    assert.deepEqual(preview.counts, { added: 0, updated: 1, deleted: 0, unchanged: 0, skippedEmpty: 0, errors: 0 });
+    await service.importFile(ctx(), 'HN', { mode: 'add', commit: true, buffer, fileName: 'them.xlsx' });
+    const rows = (await service.list(ctx(), 'HN')).rows;
+    assert.deepEqual(rows.map(r => [r.code, r.notes, r.quantity, r.arrivalDate, r.location]), [['AAA1', '3T x 100', 300, '1/10', 'H1']]);
   } finally { await db.close(); }
 });
 
@@ -306,5 +336,26 @@ test('deduct thông minh trong cùng vị trí nhiều quy cách: 3T x 200 + 1T 
     assert.equal(result.row.notes, '2T x 200');
     assert.equal(result.row.quantity, 400);
     assert.deepEqual(result.row.warnings, []);
+  } finally { await db.close(); }
+});
+
+test('historyAll: lọc theo hành động và từ khóa không dấu, tôn trọng phạm vi cơ sở', async () => {
+  const { db, service } = await fixture();
+  try {
+    const { row } = await service.create({ user: { id: 'u2', hoTen: 'Nguyễn Văn Đạt' }, scope: ['HN', 'SG'] }, 'HN', { code: 'AAA1', notes: '3T x 100', location: 'H1' });
+    await service.update(ctx(), row.id, { version: row.version, notes: '2T x 100' });
+    await service.create(ctx(), 'SG', { code: 'BBB2', notes: '1T x 5', location: 'S1' });
+    const all = await service.historyAll(ctx(), 'HN');
+    assert.equal(all.truncated, false);
+    assert.ok(all.rows.length >= 2);
+    assert.ok(all.rows.every(entry => entry.branch === 'HN'));
+    assert.deepEqual((await service.historyAll(ctx(), 'HN', { action: 'edit' })).rows.map(h => h.action), ['edit']);
+    assert.deepEqual((await service.historyAll(ctx(), 'HN', { q: 'nguyen van dat' })).rows.map(h => h.action), ['create']);
+    assert.equal((await service.historyAll(ctx(), 'HN', { q: 'ĐẠT', action: 'create' })).rows.length, 1);
+    assert.equal((await service.historyAll(ctx(), 'HN', { q: '2t x 100' })).rows.length, 1);
+    assert.equal((await service.historyAll(ctx(), 'HN', { q: 'sửa' })).rows[0].action, 'edit');
+    assert.equal((await service.historyAll(ctx(), 'HN', { q: 'khong-co-tu-nay' })).rows.length, 0);
+    await assert.rejects(() => service.historyAll(ctx(['SG']), 'HN'), { code: 'BRANCH_OUT_OF_SCOPE' });
+    await assert.rejects(() => service.historyAll(ctx(), 'XX'), { code: 'INVALID_BRANCH' });
   } finally { await db.close(); }
 });

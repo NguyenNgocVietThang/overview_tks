@@ -92,6 +92,7 @@ server/
 │   ├── documentDetailRepository.js  # Chi tiết hóa đơn (popup bảng Chi tiết giao dịch) và chi tiết đơn đặt hàng (trang Vòng đời đơn hàng)
 │   └── stockoutCheck/    # Engine kiểm tra đứt hàng + upload Trả NCC Excel; stockoutDaysStore.js lưu số ngày đứt 30 ngày theo cơ sở vào product_stockout_days (cột Đứt HN/SG của Báo cáo hàng hóa)
 ├── data/                 # Dữ liệu lưu trữ local (users.json.example, ...); chuông thông báo đã chuyển sang bảng Postgres `notifications` (0093)
+├── debtSchedule/         # Lịch thanh toán công nợ: chốt 15:00 mỗi ngày, quy tắc thưởng/phạt, sổ cái, xếp hạng, sale teams; migration `0047`
 ├── db/                   # Migration Supabase và SCHEMA.md (trạng thái áp dụng xem CURRENT.md)
 ├── hr/                   # Nhân sự, nghỉ phép tự gửi, phạm vi duyệt chung, tài liệu quy định, nhập Excel và cầu Postgres → SSE
 ├── invoicePriceAudit/    # Kiểm tra giá bán (20/10/2026): priceNoteParser.js + priceAuditRules.js (đọc mô tả giá, VAT, cấp khách), priceAuditSql.js (tính NUMERIC), priceAuditRepository.js (chụp hóa đơn, đọc bảng, sửa giải thích / Chốt có version), priceAuditRefresh.js + priceAuditScheduler.js (job 23:00 và cửa sổ 7 ngày), priceAuditService.js / priceAuditRoutes.js / priceAuditAccess.js (API `/api/invoice-price-audit`, quyền) và kiểm thử PGlite; sale có quyền sửa giải thích mọi hóa đơn, hiện tên người lưu gần nhất, giữ lâu dài qua các phiên chạy; bảng dùng nhãn cột rút gọn; mục 1 có thêm bảng Tiền phạt theo sale cạnh 5 khối KPI (`saleSummary`, `GET /export/sales`); **Bảng giá duyệt** (24/10/2026, migration `0091` + `0092` tách 2 giá `price_no_vat` / `price_with_vat`): approvedPriceRules.js / approvedPriceRepository.js / approvedPriceRoutes.js / approvedPriceExport.js (API `/api/invoice-approved-prices`, bảng `invoice_approved_prices` + nhật ký bất biến `invoice_approved_price_changes`), giá duyệt (giá có VAT cho dòng Full VAT, giá không VAT cho dòng còn lại) thay giá tối thiểu theo mô tả khi tính Kiểm tra giá bán
@@ -116,9 +117,10 @@ server/
 │       └── detail-panel.css # Khung xem chi tiết dùng chung (.dp-): chỉ số tổng quan, bảng 1 khung cuộn, tắt nút chọn cột
 ├── scripts/              # Script thủ công (migrate dữ liệu, cài đặt ban đầu)
 ├── shared/               # Tiện ích dùng chung phía máy chủ: fuzzySearch.js (CommonJS, createMatcher — tìm gần đúng theo từ, cùng luật với public/shared/fuzzy-search.js) và fuzzySql.js (cùng luật trong SQL)
+├── userTablePrefs/       # Cấu hình bảng theo tài khoản: độ rộng cột và ẩn/hiện cột trên desktop/mobile, lưu lâu dài Postgres `user_table_prefs` (migration `0085`); API `/api/me/table-prefs`
 ├── sheets/               # Google Sheets client (Công nợ, Vòng đời, Vị trí hàng, lưu ý `hrSheetsClient.js` là mã chết chờ xóa tay)
 ├── sheetSnapshots/       # Job đọc Google Sheets (Vị trí HN/SG, CÂN ĐO) theo chu kỳ vào Postgres, ghi khác biệt; kiểm thử PGlite
-├── stockPositions/       # Vị trí hàng mới (VT Hà Nội/VT Sài Gòn, migration 0095): bảng `stock_positions` sửa/thêm/xóa/import trực tiếp, SL kho tính từ ghi chú thùng, SL Kiot từ `products`, lịch sử; API `/api/stock-positions`
+├── stockPositions/       # Vị trí hàng mới (VT Hà Nội/VT Sài Gòn, migration 0095): bảng `stock_positions` sửa/thêm/xóa/import trực tiếp, SL kho tính từ ghi chú thùng, SL Kiot từ `products`, lịch sử (lọc theo dòng `positionId`, xuất Excel `stockPositionsHistoryLabels.js` + `history/export`); API `/api/stock-positions`
 ├── stockLocations/       # Đọc vị trí hàng HN/SG từ DB (cache theo lần đồng bộ), ánh xạ cột và API chỉ đọc
 ├── shipment/             # Vòng đời đơn hàng: đơn KiotViet (Postgres) ghép Google Sheet, lọc/phân trang ở máy chủ
 ├── telegram/             # Bot quản lý nghỉ phép, webhook, giao tin bền vững + đăng ký webhook
@@ -145,6 +147,10 @@ Trạng thái, lịch sử cập nhật và checklist vận hành: [CURRENT.md](
 
 Chủ đơn hoạt động có thể xóa vĩnh viễn đơn xin nghỉ từ web/Telegram ở mọi trạng thái trước buổi nghỉ đầu tiên. Gồm xác nhận trên web, xóa đơn/lịch sử, chuông hủy, hàng đợi Telegram và realtime. Áp migration `0094_hr_leave_cancellation.sql` trước backend/worker/frontend. Xem [thiết kế](docs/superpowers/specs/2026-10-26-own-leave-cancellation-design.md) và [kế hoạch/triển khai](docs/superpowers/plans/2026-10-26-own-leave-cancellation.md).
 
-Cập nhật gần nhất: 26/10/2026.
+## Vị trí hàng mới: VT Hà Nội / VT Sài Gòn — 27/10/2026
 
-Cập nhật gần nhất: 27/10/2026 (Vị trí HN/SG giữ như cũ; thêm trang VT Hà Nội / VT Sài Gòn `/vt-positions/`, migration `0095`, quyền `stockLocationsV2.view/edit/export` — chưa commit/migrate/deploy).
+Trang `/vt-positions/#hn|#sg` (module `stockPositions/`) là cơ sở dữ liệu Vị trí hàng mới, chạy song song hai tab cũ "Vị trí HN/SG" (còn đọc Google Sheets). Dữ liệu đầu sao chép một lần từ `stock_location_lines`; từ đó sửa/thêm/xóa/import trực tiếp. Quyền: `stockLocationsV2.view`, `stockLocationsV2.edit`, `stockLocationsV2.export`. API `/api/stock-positions`.
+
+Giao diện làm lại (27/10/2026): tiêu đề + tab có icon, thanh công cụ nút icon, cột "Cập nhật" gộp (giờ VN + người cập nhật), vị trí dạng pill, chọn 50/100/200 dòng/trang, bộ lọc dropdown **Cảnh báo / Hợp lệ / Tất cả** (thay nút bật-tắt). Không còn cột Thao tác/menu ⋯ và không sửa tại chỗ: **bấm vào một dòng** mở hộp chi tiết gồm thông số (SL thùng, SL chiếc, SL Kiot, Vị trí, Ngày về), form sửa Ghi chú/Ngày về/Vị trí, lịch sử riêng của dòng và nút **Lưu** / **Xóa dòng** (quyền chỉ xem: ẩn Lưu/Xóa). Hộp "Lịch sử cập nhật" chung có bảng 5 cột (Thời gian · Người thực hiện · Hành động · Mã hàng/Vị trí · Thay đổi cũ→mới) và nút **Xuất Excel** (`GET /api/stock-positions/history/export`, cần `stockLocationsV2.export`, theo bộ lọc hành động/từ khóa, tối đa 50.000 dòng, header `X-History-Truncated`). File mới `public/vt-positions/vt-history.css`, `vt-detail.css`. Không thêm migration. Migration `0095` — **chưa commit, chưa migrate, chưa deploy**; áp `npm run db:migrate` trước khi deploy. Xem [thiết kế](docs/superpowers/specs/2026-10-27-vt-positions-tabs-design.md).
+
+Cập nhật gần nhất: 27/10/2026.

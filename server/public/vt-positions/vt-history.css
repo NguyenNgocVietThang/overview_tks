@@ -1,0 +1,39 @@
+/* Hộp Lịch sử cập nhật (trang VT Hà Nội / VT Sài Gòn): đầu hộp có icon, bảng 5 cột, pill hành động, cột Thay đổi cũ → mới. */
+.vt-hist-head{align-items:center}
+.vt-hist-icon{flex:none;display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border:1px solid var(--border);border-radius:var(--radius-md,10px);background:var(--panel-2);color:var(--text)}
+.vt-hist-icon svg{width:20px;height:20px}
+
+.vt-history-filters{align-items:center}
+.vt-hist-search{position:relative;display:block;flex:1 1 260px;min-width:0}
+.vt-hist-search svg{position:absolute;left:12px;top:50%;width:16px;height:16px;margin-top:-8px;color:var(--muted);pointer-events:none}
+.vt-hist-search input{box-sizing:border-box;width:100%;min-height:40px;padding:0 12px 0 36px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel-2);color:var(--text);font:13px var(--font-body)}
+.vt-hist-search input:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.vt-history-filters select{min-height:40px;min-width:170px}
+.vt-hist-export[hidden]{display:none}
+
+.vt-hist-table th{white-space:nowrap}
+.vt-hist-table td{vertical-align:middle}
+.vt-hist-time{white-space:nowrap}
+.vt-hist-change{overflow-wrap:anywhere}
+
+/* Pill hành động: nền nhạt + viền cùng tông, màu theo biến nên đúng cả sáng/tối. */
+.vt-hist-pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border:1px solid var(--border);border-radius:8px;background:var(--panel-2);color:var(--text);font-size:12px;font-weight:600;white-space:nowrap}
+.vt-hist-pill svg{width:13px;height:13px;flex:none}
+.vt-hist-pill[data-tone="blue"]{color:var(--blue);border-color:var(--blue);background:color-mix(in srgb,var(--blue) 14%,transparent)}
+.vt-hist-pill[data-tone="green"]{color:var(--green);border-color:var(--green);background:color-mix(in srgb,var(--green) 14%,transparent)}
+.vt-hist-pill[data-tone="red"]{color:var(--red);border-color:var(--red);background:color-mix(in srgb,var(--red) 14%,transparent)}
+.vt-hist-pill[data-tone="amber"]{color:var(--amber);border-color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,transparent)}
+
+/* Cột Thay đổi: giá trị cũ gạch ngang (muted) → giá trị mới xanh lục đậm. */
+.vt-hist-old{color:var(--muted);text-decoration:line-through}
+.vt-hist-arrow{color:var(--muted)}
+.vt-hist-new{color:var(--green);font-weight:700;text-decoration:none}
+.vt-hist-field,.vt-hist-created{color:var(--muted)}
+.vt-hist-summary{color:var(--text)}
+.vt-hist-empty{color:var(--muted)}
+
+@media(max-width:600px){
+  .vt-hist-head .dp-title{font-size:16px}
+  .vt-history-filters select,.vt-hist-export{flex:1 1 100%}
+  .vt-hist-table th,.vt-hist-table td{padding:8px 10px}
+}
