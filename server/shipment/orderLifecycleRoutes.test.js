@@ -168,9 +168,39 @@ test('GET /api/shipment/lifecycle trả 1 TRANG đơn (gộp đơn Kiot mọi tr
   const res = fakeRes();
   await callRoute('get', '/', reqAs('Nhân viên sale', {}, query), res);
   assert.equal(res.statusCode, 200);
-  assert.deepEqual(res.body, payload);
+  // Body = nguyen ket qua service + kiotOrderHosts (ten mien gian hang cho nut "Mo don tren Kiot").
+  // Test chay khong co bien KIOTVIET_RETAILER nen hai co so deu null -> giao dien khong hien nut.
+  assert.deepEqual(res.body, { ...payload, kiotOrderHosts: { HN: null, SG: null } });
   assert.deepEqual(received.params, query, 'bo loc/sap xep/trang di thang xuong service (service kiem tra hop le)');
   assert.equal(received.options.kiot, kiotRepository.kiotOrders, 'phai truyen repository doc don cua Kiot');
+});
+
+test('GET /api/shipment/lifecycle: co bien gian hang thi tra ten mien de mo don tren Kiot', async () => {
+  const previous = { hn: process.env.KIOTVIET_RETAILER, sg: process.env.KIOTVIET_RETAILER_SG };
+  process.env.KIOTVIET_RETAILER = 'CHhanoi';
+  process.env.KIOTVIET_RETAILER_SG = 'CHsaigon';
+  try {
+    service.queryOrders = async () => ({ orders: [], page: 1, pageSize: 100, totalPages: 1, total: 0, filteredTotal: 0 });
+    const res = fakeRes();
+    await callRoute('get', '/', reqAs('Quản lý'), res);
+    assert.deepEqual(res.body.kiotOrderHosts, { HN: 'chhanoi.kiotviet.vn', SG: 'chsaigon.kiotviet.vn' });
+  } finally {
+    if (previous.hn === undefined) delete process.env.KIOTVIET_RETAILER; else process.env.KIOTVIET_RETAILER = previous.hn;
+    if (previous.sg === undefined) delete process.env.KIOTVIET_RETAILER_SG; else process.env.KIOTVIET_RETAILER_SG = previous.sg;
+  }
+});
+
+test('Tra cuu 1 don KHONG tra ten mien Kiot: chi route xem toan bo don can nut "Mo don tren Kiot"', async () => {
+  const previous = process.env.KIOTVIET_RETAILER;
+  process.env.KIOTVIET_RETAILER = 'CHhanoi';
+  try {
+    const res = fakeRes();
+    await callRoute('get', '/:orderCode', reqAs('Quản lý', { orderCode: 'HD001' }), res);
+    assert.equal(res.statusCode, 200);
+    assert.equal(Object.prototype.hasOwnProperty.call(res.body || {}, 'kiotOrderHosts'), false);
+  } finally {
+    if (previous === undefined) delete process.env.KIOTVIET_RETAILER; else process.env.KIOTVIET_RETAILER = previous;
+  }
 });
 
 test('GET /api/shipment/lifecycle: tham số sai (service ném 400) -> trả 400 kèm mã, không phải 500', async () => {

@@ -15,7 +15,7 @@ const { ROLES } = require('../auth/userRepository');
 const { hasFeature } = require('../auth/featureRegistry');
 const repository = require('./repository');
 const { nearestContainer, latestArrived } = require('./etaParser');
-const { createStockSource, lookupStock } = require('./stockSource');
+const { createStockSource, lookupStock, findSheetProduct, suggestSheetProducts } = require('./stockSource');
 
 const STATUS_LABELS = Object.freeze({
   pending: 'Chờ KT xử lý',
@@ -221,6 +221,27 @@ function createVatRequestService({ pool = getPool(), stockSource = createStockSo
   }
 
   /**
+   * Tra ma SP cho ORDER VAT -> Map(lower(btrim(ma)) -> { product_code, product_name }).
+   * Uu tien product_report (ma hang KiotViet); ma khong co thi tra tiep sheet Khớp mã / Gộp VAT
+   * (ma chi co o KiotViet SG, ngung kinh doanh, ma VAT...). Sheet loi -> chi con ket qua product_report.
+   */
+  async function resolveProducts(db, codes) {
+    const products = await repository.findProducts(db, codes);
+    const missing = [...new Set(codes.map(code => String(code || '').trim().toLowerCase()).filter(key => key && !products.has(key)))];
+    if (!missing.length) return products;
+    const { snapshot } = await readStock();
+    for (const key of missing) {
+      const entry = findSheetProduct(snapshot, key);
+      if (entry) products.set(key, { product_code: entry.code, product_name: entry.name });
+    }
+    return products;
+  }
+
+  async function resolveProduct(db, code) {
+    return (await resolveProducts(db, [code])).get(String(code || '').trim().toLowerCase()) || null;
+  }
+
+  /**
    * O / P / Q / R / S theo product_key. Q = Ten Cont chua ve som nhat; R/S = Trang thai + Ngay ve cua cont do
    * (het cont chua ve thi cont da ve gan nhat).
    * Chi KT (quyen xu ly) thay 4 so nay: user khac -> metrics rong, stockStatus null, khong doc nguon.
@@ -331,7 +352,7 @@ function createVatRequestService({ pool = getPool(), stockSource = createStockSo
     for (const key of ['customerName', 'productCode', 'quantity', 'unitPrice']) {
       if (!Object.hasOwn(sale, key)) VALIDATORS[key](undefined);
     }
-    const product = await repository.findProduct(pool, sale.productCode);
+    const product = await resolveProduct(pool, sale.productCode);
     if (!product) throw httpError(400, `Không tìm thấy mã SP "${sale.productCode}".`, 'PRODUCT_NOT_FOUND');
     const values = {
       created_by: String(user.id),
@@ -403,7 +424,7 @@ function createVatRequestService({ pool = getPool(), stockSource = createStockSo
       }
       return sale;
     });
-    const products = await repository.findProducts(pool, parsed.filter(Boolean).map(sale => sale.productCode));
+    const products = await resolveProducts(pool, parsed.filter(Boolean).map(sale => sale.productCode));
     parsed.forEach((sale, index) => {
       if (!sale || !sale.productCode) return;
       if (!products.has(sale.productCode.trim().toLowerCase())) {
@@ -434,7 +455,7 @@ function createVatRequestService({ pool = getPool(), stockSource = createStockSo
   /** Thong tin cho tung dong cua form nhieu dong: ten SP, O/P/Q/R, gia VAT gan nhat — 1 lan goi cho ca bang. */
   async function lookupProducts(user, codes) {
     const list = (Array.isArray(codes) ? codes : []).map(code => String(code || '').trim()).filter(Boolean).slice(0, MAX_BATCH_ROWS);
-    const products = await repository.findProducts(pool, list);
+    const products = await resolveProducts(pool, list);
     const keys = [...products.keys()];
     const [{ metrics, stockStatus }, prices] = await Promise.all([metricsFor(user, keys), repository.latestProductPrices(pool, keys)]);
     const results = {};
@@ -475,7 +496,7 @@ function createVatRequestService({ pool = getPool(), stockSource = createStockSo
       if (!sameValue(column, row[column], value)) changes[column] = value;
     }
     if (changes.product_code !== undefined) {
-      const product = await repository.findProduct(client, changes.product_code);
+      const product = await resolveProduct(client, changes.product_code);
       if (!product) throw httpError(400, `Không tìm thấy mã SP "${changes.product_code}".`, 'PRODUCT_NOT_FOUND');
       if (product.product_code === row.product_code) delete changes.product_code;
       else { changes.product_code = product.product_code; changes.product_name = product.product_name || ''; }
@@ -582,7 +603,7 @@ function createVatRequestService({ pool = getPool(), stockSource = createStockSo
   }
 
   async function productMetrics(user, productCode) {
-    const product = await repository.findProduct(pool, productCode);
+    const product = await resolveProduct(pool, productCode);
     if (!product) throw httpError(404, 'Không tìm thấy mã SP.', 'PRODUCT_NOT_FOUND');
     const key = product.product_code.trim().toLowerCase();
     const { metrics, stockStatus } = await metricsFor(user, [key]);
@@ -592,8 +613,21 @@ function createVatRequestService({ pool = getPool(), stockSource = createStockSo
   async function suggestProducts(query, limit) {
     const q = String(query || '').trim().slice(0, 60);
     if (!q) return [];
-    const rows = await repository.suggestProducts(pool, q, Math.min(Math.max(Number(limit) || 10, 1), 30));
-    return rows.map(row => ({ code: row.product_code, name: row.product_name }));
+    const max = Math.min(Math.max(Number(limit) || 10, 1), 30);
+    const rows = await repository.suggestProducts(pool, q, max);
+    const results = rows.map(row => ({ code: row.product_code, name: row.product_name }));
+    if (results.length >= max) return results;
+    // Bo sung ma chi co trong sheet Khớp mã / Gộp VAT (sau ma KiotViet, khong trung ma).
+    const seen = new Set(results.map(row => row.code.trim().toLowerCase()));
+    const { snapshot } = await readStock();
+    for (const entry of suggestSheetProducts(snapshot, q, max)) {
+      if (results.length >= max) break;
+      const key = entry.code.trim().toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      results.push({ code: entry.code, name: entry.name });
+    }
+    return results;
   }
 
   return { list, exportList, get, create, createMany, update, bulkUpdate, move, restoreRanks, remove, history, productMetrics, lookupProducts, suggestProducts };

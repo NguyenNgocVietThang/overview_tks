@@ -172,7 +172,7 @@ Thay Google Form + sheet ORDER VAT 1. Module `vatRequests/` (`service.js` giữ 
 | GET | `/api/vat-requests/metrics?code=` | Tên SP của 1 mã (form); kèm O/P/Q/R khi có quyền xử lý |
 | POST | `/api/vat-requests/batch` `{ submissionId, items: [...] }` | Form nhiều dòng: tạo tối đa 200 yêu cầu trong 1 transaction; dòng sai → 400 `BATCH_INVALID` + `errors: [{ row, field, message }]`, không ghi dòng nào; cùng `submissionId` + tài khoản trong 6 giờ → trả lại kết quả cũ (`duplicate: true`) |
 | POST | `/api/vat-requests/lookup` `{ codes: [...] }` | Tra nhiều mã 1 lần cho form nhiều dòng: tên SP, giá VAT gần nhất, O/P/Q/R khi có quyền xử lý; mã không có → `found: false` |
-| GET | `/api/vat-requests/product-suggest?q=` / `customer-suggest?q=` | Gợi ý mã SP (`product_report`) / khách KiotViet theo cơ sở + tên từ yêu cầu VAT cũ (không dấu, mã khách, đảo từ) |
+| GET | `/api/vat-requests/product-suggest?q=` / `customer-suggest?q=` | Gợi ý mã SP (`product_report`, thiếu thì bổ sung mã của sheet Khớp mã / Gộp VAT từ 26/10/2026) / khách KiotViet theo cơ sở + tên từ yêu cầu VAT cũ (không dấu, mã khách, đảo từ) |
 | GET | `/api/vat-requests/export?status&createdBy&q&from&to` | Xuất `.xlsx` (sheet `ORDER VAT`, file `order_vat_YYYYMMDD_HHmm.xlsx`): mọi dòng khớp bộ lọc như danh sách, đủ 17 cột của bảng (người không có quyền xử lý — Quản lý bị gỡ quyền — còn 13 cột, bỏ O/P/Q/R), mỗi yêu cầu một dòng; chỉ KT có quyền xử lý hoặc Quản lý (khác → 403 `FEATURE_FORBIDDEN`); header `X-Export-Truncated: 1` khi vượt 5.000 dòng |
 | GET | `/api/vat-requests/price-suggest?code=` | Giá chưa VAT của yêu cầu gần nhất cùng mã SP; không tự ghi vào form |
 

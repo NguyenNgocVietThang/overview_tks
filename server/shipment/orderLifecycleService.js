@@ -387,6 +387,7 @@ function kiotOnlyRow(order) {
     orderCode: order.code,
     branch: order.branch,
     saleName: order.saleName || '',
+    saleTelegramId: order.saleTelegramId || '',
     customerName: order.customerName || '',
     saleSentAt: '',
     summary: { code: STATUS.NOT_SENT, label: STATUS_LABEL[STATUS.NOT_SENT], actor: null, at: order.orderDate || null },
@@ -453,7 +454,7 @@ function mergeRows({ records, overrides, kiotResult }) {
       note: kiotOrder ? (kiotOrder.note || '') : ''
     });
     // Sale + khach hang lay tu don Kiot (khong doc o sheet); sheet chi cung cap cac moc thoi gian/trang thai.
-    if (kiotOrder) Object.assign(row, { saleName: kiotOrder.saleName || '', customerName: kiotOrder.customerName || '' });
+    if (kiotOrder) Object.assign(row, { saleName: kiotOrder.saleName || '', saleTelegramId: kiotOrder.saleTelegramId || '', customerName: kiotOrder.customerName || '' });
     rows.push(withOrderDateAsUpdate(row, row.orderDate));
   });
 

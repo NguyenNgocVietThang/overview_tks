@@ -27,7 +27,7 @@
 
 const { getPool } = require('../db/pool');
 const { readInTransitByCode } = require('../dashboard/inTransitSource');
-const { saleNameSql } = require('../dashboard/saleName');
+const { saleNameSql, saleTelegramIdSql } = require('../dashboard/saleName');
 const { getOrderDetail } = require('../dashboard/documentDetailRepository');
 const measureSheet = require('./measureSheet');
 const { buildOrderFreight } = require('./freightCalculator');
@@ -120,6 +120,7 @@ const ALL_ORDERS_SQL = `
     COALESCE(to_char(o.order_date AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS'), '') AS order_date_key,
     COALESCE(NULLIF(c.name, ''), NULLIF(o.raw->>'customerName', ''), 'Khách lẻ') AS customer_name,
     ${saleNameSql(`COALESCE(NULLIF(o.raw->>'soldByName', ''), s.name, '')`)} AS sale_name,
+    ${saleTelegramIdSql(`COALESCE(NULLIF(o.raw->>'soldByName', ''), s.name, '')`)} AS sale_telegram_id,
     COALESCE(o.raw->>'statusValue', '') AS kiot_status,
     COALESCE(o.raw->>'description', '') AS note,
     o.modified_date
@@ -229,6 +230,8 @@ function createKiotOrdersRepository({
           code: String(row.code || ''),
           customerName: row.customer_name || '',
           saleName: row.sale_name || '',
+          // ID Telegram cat khoi ten (dashboard/saleName.js) — chi tiet don hien them ben canh ten nhu Kiot.
+          saleTelegramId: row.sale_telegram_id || '',
           orderDate: row.order_date_text || '',
           total: toNumber(row.total),
           kiotStatus: row.kiot_status || '',
