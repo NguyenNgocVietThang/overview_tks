@@ -27,7 +27,6 @@
   "43": "dashboardPgReader.js",
   "47": "dashboardRollupRepository.js",
   "48": "kiotvietSyncStatusRoutes.js",
-  "50": "Dict",
   "53": "effectiveUserResolver.js",
   "54": "cashbookRoutes.js",
   "58": "vn",
@@ -71,7 +70,6 @@
   "126": "AnnotationEditor",
   "128": "Giảm lag TKS Dashboard Implementation Plan",
   "129": "expectedExport.js",
-  "130": "orderLifecycleService.js",
   "133": "HighlightEditor",
   "138": "shared-nav.js",
   "140": "businessCurrentMonthRefresh.js",
@@ -131,7 +129,6 @@
   "212": "bg-dark.jpg (night sky background image)",
   "213": "bg-light.jpg - light-theme background image: serene dusk/sunrise landscape with a large glowing sun, a streaking meteor/shooting star, layered clouds, silhouetted mountain ridges, and a scattering of small warm lights in the valley; pastel blue-to-orange gradient sky used as a full-bleed hero/backdrop asset for the light UI theme, semantically paired with a dark-theme counterpart (bg-dark.jpg, not present in this chunk)",
   "214": "Biến môi trường triển khai Render/Firebase",
-  "215": "branch-column-tables.test.js",
   "216": "mount",
   "218": "0013_dashboard_rollups.sql",
   "220": "orders",
@@ -189,7 +186,6 @@
   "315": "debug-route.test.js",
   "316": "productReportRepository.js",
   "319": "Nâng cấp nghỉ phép và quản trị tài khoản",
-  "321": "Bằng chứng xác minh Pancake Marketing",
   "322": "Todo: Tính sẵn báo cáo trong DB (2026-10-19)",
   "326": "0040_account_audit_log.sql",
   "327": "search-clear.js",
@@ -295,6 +291,5 @@
   "552": "0086_product_container_other_note.sql",
   "554": "cell-select.js",
   "558": "0092_invoice_approved_prices_vat_split.sql",
-  "571": "XFAParser",
   "572": "Page Design Notes — `vat-draft/index.html` (Kế toán – Nháp VAT / Tạo QR)"
 }
