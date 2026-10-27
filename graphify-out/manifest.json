@@ -2232,15 +2232,15 @@
     "semantic_hash": ""
   },
   "server/dashboard/documentDetailRepository.js": {
-    "mtime": 1792998490.570938,
-    "seen": 1793063448.4694643,
-    "ast_hash": "614bbfeedc2219320b7e0db46dfd38f7",
+    "mtime": 1793082934.0465968,
+    "seen": 1793083874.334644,
+    "ast_hash": "c5d721eede1bd063ce98ed8b1dbd5896",
     "semantic_hash": ""
   },
   "server/dashboard/documentDetailRepository.test.js": {
-    "mtime": 1792998490.570938,
-    "seen": 1793063448.4694643,
-    "ast_hash": "ffe15435dc8dfc081e3144c6f5afa37b",
+    "mtime": 1793082934.0465968,
+    "seen": 1793083874.334644,
+    "ast_hash": "3c9a7a50da5d2525599694e8bec8ee1a",
     "semantic_hash": ""
   },
   "server/dashboard/documentDetailRoutes.test.js": {
@@ -3360,9 +3360,9 @@
     "semantic_hash": ""
   },
   "CURRENT.md": {
-    "mtime": 1793082887.6098735,
-    "seen": 1793082906.8148167,
-    "ast_hash": "61d9fe24f73ed5d9aa543d4dcb910603",
+    "mtime": 1793083865.999776,
+    "seen": 1793083874.3360438,
+    "ast_hash": "664fa97d56b7a94914a7c29b6b3a699a",
     "semantic_hash": ""
   },
   "MEMORY.md": {
@@ -5820,8 +5820,8 @@
     "semantic_hash": ""
   },
   "server/public/prototypes/order-picking/index.html": {
-    "mtime": 1793082850.463699,
-    "seen": 1793082906.8148167,
+    "mtime": 1793083426.179279,
+    "seen": 1793083874.3370717,
     "ast_hash": "135d521b21ea0f0e2e81dbbcc6d27adf",
     "semantic_hash": ""
   },
@@ -5838,8 +5838,8 @@
     "semantic_hash": ""
   },
   "server/public/prototypes/order-picking/order-template.html": {
-    "mtime": 1793082850.4491901,
-    "seen": 1793082906.8148167,
+    "mtime": 1793083426.166716,
+    "seen": 1793083874.3370717,
     "ast_hash": "a540c3585514b9a0455146e6f12398ee",
     "semantic_hash": ""
   },
@@ -6078,9 +6078,9 @@
     "semantic_hash": ""
   },
   "docs/superpowers/plans/2026-10-27-pick-assign-hardening.md": {
-    "mtime": 1793082146.2970493,
-    "seen": 1793082906.8148167,
-    "ast_hash": "073df3d185dd97deee7158b9667757a0",
+    "mtime": 1793083865.996273,
+    "seen": 1793083874.3370717,
+    "ast_hash": "de4d38614b17d84ce719f90fec1e29c8",
     "semantic_hash": ""
   },
   "docs/superpowers/reviews/2026-10-27-pick-assign-review.md": {
@@ -6090,9 +6090,9 @@
     "semantic_hash": ""
   },
   "docs/superpowers/specs/2026-10-27-pick-assign-hardening-design.md": {
-    "mtime": 1793082146.2970493,
-    "seen": 1793082906.8148167,
-    "ast_hash": "48594295df11d62e7becb525793a5d04",
+    "mtime": 1793083170.4076753,
+    "seen": 1793083874.3370717,
+    "ast_hash": "9eebd08332f94df4d1578d27faa62923",
     "semantic_hash": ""
   },
   "server/public/shipment/lifecycle/pick/invoice-assets/319a40a6042c42d8b060b8de556be120.jpg": {
@@ -6111,6 +6111,12 @@
     "mtime": 1793080055.4631317,
     "seen": 1793082906.8148167,
     "ast_hash": "e508d4fe3597cc4c64fb845e536b4bfa",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/reviews/2026-10-27-pick-assign-hardening-validation.md": {
+    "mtime": 1793083865.9952567,
+    "seen": 1793083874.3370717,
+    "ast_hash": "ab4478b7e139e23e43ac6ff6e32a844f",
     "semantic_hash": ""
   }
 }
