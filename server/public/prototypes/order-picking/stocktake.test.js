@@ -300,7 +300,7 @@ test('ghép Kiot không chạm cơ sở khác', () => {
 });
 
 test('SL của dòng kiểm kê lấy từ Ghi chú hàng hóa (5T x 100 = 500), cột Số lượng chỉ là dự phòng; cột Số lượng không bắt buộc khi có ghi chú', () => {
-  globalThis.PickingCarton = require('./carton.js');
+  globalThis.PickingCarton = require('../../shared/carton.js');
   try {
     const rows = [
       ['Mã hàng','Tên khách hàng','Ghi chú','Ghi chú hàng hóa','Số lượng'],
@@ -320,7 +320,7 @@ test('SL của dòng kiểm kê lấy từ Ghi chú hàng hóa (5T x 100 = 500),
 });
 
 test('hai dòng cùng mã và vị trí: cùng SL/thùng thì cộng thùng, khác SL/thùng thì thành nhiều quy cách; mã giống nhau ở HN và SG tách riêng', () => {
-  globalThis.PickingCarton = require('./carton.js');
+  globalThis.PickingCarton = require('../../shared/carton.js');
   try {
     const header = ['Mã hàng','Tên khách hàng','Ghi chú','Ghi chú hàng hóa'];
     const merged = S.build([header, ['P1','Khu A','A01','3T x 100'], ['P1','Khu A','A01','2T x 100']], { branch:'HN' });

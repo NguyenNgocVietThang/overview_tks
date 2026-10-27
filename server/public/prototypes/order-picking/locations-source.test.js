@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
 const S=require('./locations-source.js');
-const C=require('./carton.js');
+const C=require('../../shared/carton.js');
 test('mapRows: map dòng API sang dòng vị trí, bỏ dòng thiếu mã, SL không lấy từ totalQuantity',()=>{
   const rows=S.mapRows('HN',[{code:' A1 ',name:'Hàng A',totalQuantity:'999',notes:'5T x 100',location:'A01',arrivalDate:'4/10'},{code:'',notes:'x'},null,{code:'B2',name:null,notes:null,location:null,arrivalDate:null,totalQuantity:3}]);
   assert.equal(rows.length,2);

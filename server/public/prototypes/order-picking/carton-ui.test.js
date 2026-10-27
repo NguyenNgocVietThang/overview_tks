@@ -8,7 +8,7 @@ function setup(t,mutate){
   const dom=new JSDOM(LIST+DETAIL+read('panel.html'),{url:'http://localhost/',runScripts:'outside-only'});
   t.after(()=>dom.window.close());const w=dom.window;w.structuredClone=structuredClone;
   w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;};
-  for(const f of ['carton.js','rules.js','demo.js','stocktake.js'])w.eval(read(f));
+  for(const f of ['../../shared/carton.js','rules.js','demo.js','stocktake.js'])w.eval(read(f));
   const data=structuredClone(w.PickingDemo);data.orders.forEach(o=>o.summary=o.status);data.locations.forEach((r,i)=>r.id='loc-'+i);
   if(mutate)mutate(data);
   w.PickingData={get:()=>data,key:o=>o.branch+'|'+o.orderCode,source:'MÔ PHỎNG'};

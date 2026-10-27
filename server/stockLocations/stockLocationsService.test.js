@@ -4,7 +4,7 @@ process.env.GOOGLE_SERVICE_ACCOUNT_JSON ||= '{}';
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseLocationRows, createStockLocationsService } = require('./stockLocationsService');
+const { parseLocationRows, createStockLocationsService, withQuantity } = require('./stockLocationsService');
 
 const hnHeader = ['MÃ SẢN PHẨM', 'TÊN SẢN PHẨM', 'TỔNG SL', 'MÔ TẢ', 'KHU', 'NGÀY VỀ'];
 const sgHeader = ['Mã hàng', 'Tên hàng', 'TỔNG SL đã đi', 'Ghi chú hàng hóa', 'Vị trí', 'NGÀY VỀ'];
@@ -65,7 +65,7 @@ test('getLocations đọc từ DB đúng cơ sở, giữ nguyên chuỗi và th�
   const service = createStockLocationsService({ getDb: () => db, now: () => Date.parse('2026-10-17T03:05:00Z') });
   assert.deepEqual(await service.getLocations('SG'), {
     branch: 'SG',
-    rows: [{ code: '0012', name: 'Đèn', totalQuantity: '1.000', notes: 'Dòng 1', location: 'A01', arrivalDate: 'KK 25.7' }],
+    rows: [{ code: '0012', name: 'Đèn', totalQuantity: '1.000', notes: 'Dòng 1', location: 'A01', arrivalDate: 'KK 25.7', quantity: null, warnings: ['unreadable'] }],
     syncedAt: '2026-10-17T03:00:00.000Z',
     stale: false
   });
@@ -105,4 +105,28 @@ test('chưa đồng bộ lần nào, cơ sở sai hoặc DB lỗi trả lỗi 50
   await assert.rejects(unsynced.getLocations('XX'), { code: 'INVALID_BRANCH', statusCode: 503 });
   const broken = createStockLocationsService({ getDb: () => fakeDb({ fail: true }) });
   await assert.rejects(broken.getLocations('HN'), err => err.code === 'STOCK_LOCATIONS_SOURCE_UNAVAILABLE' && !/secret/.test(err.message));
+});
+
+test('withQuantity: SL luôn tính từ ghi chú theo luật thùng dùng chung, TỔNG SL của Sheets chỉ giữ nguyên làm dự phòng', () => {
+  const base = { code: 'A', name: 'Hàng', totalQuantity: '999', location: 'A01', arrivalDate: '' };
+  const q = notes => { const row = withQuantity({ ...base, notes }); return [row.quantity, row.warnings]; };
+  assert.deepEqual(q('5T x 100'), [500, []]);
+  assert.deepEqual(q('9tx14, 5tx 14'), [196, []]);
+  assert.deepEqual(q('1Tx50 + 2Tx25'), [100, ['multi']]);
+  assert.deepEqual(q('1Tx100 - 30'), [70, ['loose']]);
+  assert.deepEqual(q(''), [0, []]);
+  assert.deepEqual(q('0.5Tx100'), [null, ['badnumber']]);
+  assert.deepEqual(q('vin 19/9 gọi vỏ'), [null, ['unreadable']]);
+  assert.deepEqual(q('2X20'), [null, ['unreadable']]);
+  assert.deepEqual(q(null), [0, []]);
+  assert.equal(withQuantity({ ...base, notes: '5T x 100' }).totalQuantity, '999');
+});
+
+test('getLocations thêm quantity và warnings cho mỗi dòng, giữ nguyên các trường cũ, cache vẫn đúng', async () => {
+  const lines = [line, { ...line, code: '0013', notes: '3T x 10' }, { ...line, code: '0014', notes: '1Tx5 + 1Tx6' }];
+  const db = fakeDb({ sync: { last_success_at: '2026-10-17T03:00:00Z', last_error: null }, lines });
+  const service = createStockLocationsService({ getDb: () => db, now: () => Date.parse('2026-10-17T03:01:00Z') });
+  const { rows } = await service.getLocations('HN');
+  assert.deepEqual(rows.map(r => [r.code, r.quantity, r.warnings, r.totalQuantity]), [['0012', null, ['unreadable'], '1.000'], ['0013', 30, [], '1.000'], ['0014', 11, ['multi'], '1.000']]);
+  assert.deepEqual((await service.getLocations('HN')).rows, rows);
 });

@@ -2,7 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {JSDOM}=require('jsdom');
 function setup(t,extra={}){const dom=new JSDOM('<body></body>',{runScripts:'outside-only',url:'http://localhost/'});t.after(()=>dom.window.close());const w=dom.window;w.structuredClone=structuredClone;w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;};
-for(const f of ['carton.js','rules.js'])w.eval(fs.readFileSync(path.join(__dirname,f),'utf8'));
+for(const f of ['../../shared/carton.js','rules.js'])w.eval(fs.readFileSync(path.join(__dirname,f),'utf8'));
 const order={branch:'HN',orderCode:'TEST',customerName:'Mô phỏng',lines:[{productCode:'P1',quantity:100}]};
 // SL của vị trí chỉ lấy từ ghi chú: A = 12T x 10 = 120, B = 4T x 10 = 40.
 const locations=extra.locations||[{id:'A',branch:'HN',code:'P1',location:'A01',notes:'12T x 10'},{id:'B',branch:'HN',code:'P1',location:'B02',notes:'4T x 10'}];

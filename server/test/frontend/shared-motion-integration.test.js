@@ -9,6 +9,7 @@ const publicDir = path.resolve(__dirname, '../../public');
 function entrypoints(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
     const file = path.join(dir, entry.name);
+    if (entry.isDirectory() && entry.name === 'prototypes') return [];
     return entry.isDirectory() ? entrypoints(file) : entry.name.endsWith('.html') ? [file] : [];
   });
 }

@@ -46,6 +46,7 @@ test('ngày lễ dương lịch cố định', () => {
   assert.equal(key('2026-05-01'), 'labour_day');
   assert.equal(key('2026-09-02'), 'national_day');
   assert.equal(key('2026-10-20'), 'vn_womens_day');
+  assert.equal(key('2026-11-19'), 'mens_day');
   assert.equal(key('2026-11-20'), 'teachers_day');
   assert.equal(key('2026-12-25'), 'christmas');
 });
@@ -87,8 +88,8 @@ test('mọi mục đều có title, type hợp lệ và message (ngoại trừ b
       }
     }
   }
-  // 9 lễ dương + sinh nhật + Giao thừa + 3 mùng + Giỗ Tổ + Trung thu = đủ trong 2 năm
-  for (const k of ['new_year', 'birthday_thang', 'tet_eve', 'tet_1', 'tet_2', 'tet_3', 'hung_kings', 'mid_autumn', 'christmas']) {
+  // 10 lễ dương + sinh nhật + Giao thừa + 3 mùng + Giỗ Tổ + Trung thu = đủ trong 2 năm
+  for (const k of ['new_year', 'birthday_thang', 'mens_day', 'teachers_day', 'tet_eve', 'tet_1', 'tet_2', 'tet_3', 'hung_kings', 'mid_autumn', 'christmas']) {
     assert.ok(seen.has(k), `thiếu ${k}`);
   }
 });

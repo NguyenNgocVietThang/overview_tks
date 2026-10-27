@@ -12,7 +12,7 @@ function setup(t){
   const dom=new JSDOM('<div id="lcDetailBody"></div>'+read('panel.html'),{url:'http://localhost/',runScripts:'outside-only'});
   t.after(()=>dom.window.close());const w=dom.window;w.structuredClone=structuredClone;
   w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;};
-  for(const f of ['carton.js','rules.js'])w.eval(read(f));
+  for(const f of ['../../shared/carton.js','rules.js'])w.eval(read(f));
   const data={orders:[],locations:structuredClone(LOCATIONS)};
   w.PickingData={get:()=>data,key:o=>o.branch+'|'+o.orderCode};
   for(const f of ['stocktake.js','inventory.js','locations-ui.js'])w.eval(read(f));
