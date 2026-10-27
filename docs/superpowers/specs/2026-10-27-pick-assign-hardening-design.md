@@ -1,6 +1,6 @@
 # Sửa luồng Chỉ định hàng trên Vòng đời đơn hàng và VT hàng
 
-Ngày: 2026-10-27. Trạng thái: thiết kế trao đổi đã được duyệt; bản spec này chờ người dùng kiểm tra trước bước lập kế hoạch triển khai.
+Ngày: 2026-10-27. Trạng thái: người dùng đã duyệt bản spec trong chat; chuyển sang lập kế hoạch triển khai.
 
 ## 1. Mục tiêu và phạm vi
 
