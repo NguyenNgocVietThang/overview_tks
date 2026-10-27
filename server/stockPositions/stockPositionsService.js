@@ -24,7 +24,9 @@ function fail(statusCode, code, message, extra = {}) {
 
 const clean = value => String(value ?? '').replace(/\s+/gu, ' ').trim();
 const lower = value => clean(value).toLocaleLowerCase('vi');
-const keyOf = (code, location) => `${lower(code)}|${lower(location)}`;
+// Vị trí chuẩn hóa: bỏ mọi khoảng trắng và viết hoa ("a 05" -> "A05"); dùng khi nhập liệu và khi so trùng.
+const normalizeLocation = value => String(value ?? '').replace(/\s+/gu, '').toLocaleUpperCase('vi');
+const keyOf = (code, location) => `${lower(code)}|${normalizeLocation(location)}`;
 // Bo dau tieng Viet + hoa/thuong + khoang trang de so khop tu khoa.
 const foldText = value => String(value ?? '').normalize('NFD').replace(/[̀-ͯ]/gu, '').replace(/[đĐ]/gu, 'd').toLowerCase().replace(/\s+/gu, ' ').trim();
 const isoOf = value => (value instanceof Date ? value : new Date(value)).toISOString();
@@ -47,6 +49,11 @@ function textField(body, field, label) {
   const value = clean(body[field]);
   if (value.length > MAX[field]) throw fail(400, 'VALIDATION', `${label} tối đa ${MAX[field]} ký tự.`, { field });
   return value;
+}
+
+// Vị trí: kiểm độ dài như trường văn bản rồi chuẩn hóa.
+function locationField(body) {
+  return normalizeLocation(textField(body, 'location', 'Vị trí'));
 }
 
 function validNotes(body) {
@@ -184,9 +191,9 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
   // Dong da co cung (ma, vi tri) (khong phan biet hoa/thuong); exceptId bo qua chinh dong dang sua.
   async function findSamePosition(client, branch, code, location, exceptId = null) {
     const { rows } = await client.query(
-      `SELECT ${ROW_COLUMNS} FROM stock_positions WHERE branch = $1 AND lower(btrim(code)) = $2 AND lower(btrim(location)) = $3
+      `SELECT ${ROW_COLUMNS} FROM stock_positions WHERE branch = $1 AND lower(btrim(code)) = $2 AND upper(regexp_replace(location, '\\s+', '', 'g')) = $3
          AND ($4::bigint IS NULL OR id <> $4) ORDER BY id LIMIT 1 FOR UPDATE`,
-      [branch, lower(code), lower(location), exceptId]);
+      [branch, lower(code), normalizeLocation(location), exceptId]);
     return rows[0] || null;
   }
 
@@ -198,7 +205,7 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
     const notes = validNotes(body);
     if (isEmptyNote(notes)) throw fail(400, 'VALIDATION', 'Ghi chú phải có số lượng lớn hơn 0.', { field: 'notes' });
     const arrivalDate = textField(body, 'arrivalDate', 'Ngày về');
-    const location = textField(body, 'location', 'Vị trí');
+    const location = locationField(body);
     const actor = actorOf(ctx);
     const db = getDb();
     let merged = false;
@@ -260,7 +267,7 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
       const next = {};
       if (body.notes !== undefined) next.notes = validNotes(body);
       if (body.arrivalDate !== undefined) next.arrivalDate = textField(body, 'arrivalDate', 'Ngày về');
-      if (body.location !== undefined) next.location = textField(body, 'location', 'Vị trí');
+      if (body.location !== undefined) next.location = locationField(body);
       const changes = fieldChanges(row, next);
       if (!changes.length) return { row: await shapeOne(client, row) };
       const merged = { notes: next.notes ?? row.notes, arrivalDate: next.arrivalDate ?? row.arrival_date, location: next.location ?? row.location };
@@ -374,7 +381,7 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
     for (const line of fileRows) {
       const code = clean(line.code);
       if (!code) { errors.push({ row: line.row, message: 'Thiếu mã hàng.' }); continue; }
-      const location = clean(line.location);
+      const location = normalizeLocation(line.location);
       const notes = carton.normalizeNote(line.notes);
       if (notes.length > MAX.notes || code.length > MAX.code || location.length > MAX.location || clean(line.arrivalDate).length > MAX.arrivalDate) {
         errors.push({ row: line.row, message: 'Dữ liệu quá dài (mã ≤ 60, ghi chú ≤ 500, ngày về ≤ 60, vị trí ≤ 100 ký tự).' }); continue;
@@ -408,7 +415,7 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
         nextNotes = mergeNotes(current.notes, notes);
         if (nextNotes === null) { errors.push({ row, message: `Ghi chú hiện có "${current.notes}" sai định dạng, không cộng thêm được.` }); continue; }
         nextDate = arrivalDate || current.arrival_date;
-        nextLocation = current.location; // khop khong phan biet hoa/thuong: giu cach viet dang co
+        nextLocation = location; // khop khong phan biet hoa/thuong/khoang trang: ghi lai theo dang chuan
       }
       if (nextNotes === current.notes && nextDate === current.arrival_date && nextLocation === current.location) unchangedIds.push(current.id);
       else updates.push({ id: current.id, code: current.code, notes: nextNotes, arrivalDate: nextDate, location: nextLocation, row, before: current });
@@ -478,4 +485,4 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
   return { list, create, update, deduct, remove, history, historyAll, importFile };
 }
 
-module.exports = { createStockPositionsService, mergeNotes, keyOf, ...createStockPositionsService() };
+module.exports = { createStockPositionsService, mergeNotes, keyOf, normalizeLocation, ...createStockPositionsService() };

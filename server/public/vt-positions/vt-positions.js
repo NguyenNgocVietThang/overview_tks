@@ -846,9 +846,15 @@
     button.setAttribute('aria-pressed', String(light));
   }
 
+  // Vị trí về dạng chuẩn khi rời ô: bỏ mọi khoảng trắng, viết hoa ("a 05" -> "A05"); máy chủ cũng chuẩn hóa lại khi lưu.
+  const normalizeLocation = value => String(value ?? '').replace(/\s+/g, '').toLocaleUpperCase('vi');
+
   function bindDialogs() {
     document.querySelectorAll('.vt-dialog [data-vt-close]').forEach(button => {
       button.addEventListener('click', () => closeDialog(button.closest('dialog')));
+    });
+    document.querySelectorAll('#vtAddForm [name="location"], #vtDetailForm [name="location"]').forEach(input => {
+      input.addEventListener('blur', () => { input.value = normalizeLocation(input.value); });
     });
     $('vtAddButton').addEventListener('click', () => {
       $('vtAddForm').reset();

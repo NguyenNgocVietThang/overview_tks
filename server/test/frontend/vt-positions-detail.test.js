@@ -184,6 +184,18 @@ test('lịch sử rỗng hoặc lỗi hiện thông báo trong bảng; mở dòn
   assert.match(ui.text('vtDetailHistoryRows'), /Lỗi tải/);
 });
 
+test('ô Vị trí tự về dạng chuẩn khi rời ô (bỏ khoảng trắng, viết hoa: "a 05" -> "A05"), cả hộp chi tiết lẫn Thêm dòng', async t => {
+  const ui = await setup(t);
+  await ui.open(1);
+  ui.type('location', ' a 05 ');
+  ui.field('location').dispatchEvent(new ui.window.Event('blur'));
+  assert.equal(ui.field('location').value, 'A05');
+  const add = ui.doc.getElementById('vtAddForm').elements.location;
+  add.value = 'kệ 1';
+  add.dispatchEvent(new ui.window.Event('blur'));
+  assert.equal(add.value, 'KỆ1');
+});
+
 test('Lưu gửi PATCH kèm đúng version chỉ các trường đã đổi, rồi đóng hộp và cập nhật dòng', async t => {
   let sent;
   const ui = await setup(t, {

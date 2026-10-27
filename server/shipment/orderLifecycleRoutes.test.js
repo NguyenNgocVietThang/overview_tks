@@ -166,10 +166,19 @@ test('GET /api/shipment/lifecycle trả 1 TRANG đơn (gộp đơn Kiot mọi tr
   };
   const query = { branch: 'SG', kiotStatus: 'Hoàn thành', page: '2', sort: 'note', dir: 'desc' };
   const res = fakeRes();
-  await callRoute('get', '/', reqAs('Nhân viên sale', {}, query), res);
+  // Xóa tạm hai biến retailer của .env để kết quả không phụ thuộc máy chạy test.
+  const previous = { hn: process.env.KIOTVIET_RETAILER, sg: process.env.KIOTVIET_RETAILER_SG };
+  delete process.env.KIOTVIET_RETAILER;
+  delete process.env.KIOTVIET_RETAILER_SG;
+  try {
+    await callRoute('get', '/', reqAs('Nhân viên sale', {}, query), res);
+  } finally {
+    if (previous.hn !== undefined) process.env.KIOTVIET_RETAILER = previous.hn;
+    if (previous.sg !== undefined) process.env.KIOTVIET_RETAILER_SG = previous.sg;
+  }
   assert.equal(res.statusCode, 200);
   // Body = nguyen ket qua service + kiotOrderHosts (ten mien gian hang cho nut "Mo don tren Kiot").
-  // Test chay khong co bien KIOTVIET_RETAILER nen hai co so deu null -> giao dien khong hien nut.
+  // Khong co bien KIOTVIET_RETAILER nen hai co so deu null -> giao dien khong hien nut.
   assert.deepEqual(res.body, { ...payload, kiotOrderHosts: { HN: null, SG: null } });
   assert.deepEqual(received.params, query, 'bo loc/sap xep/trang di thang xuong service (service kiem tra hop le)');
   assert.equal(received.options.kiot, kiotRepository.kiotOrders, 'phai truyen repository doc don cua Kiot');

@@ -313,7 +313,31 @@ test('import csv UTF-8 co dau', async () => {
     const done = await service.importFile(ctx(), 'SG', { mode: 'replace', commit: true, buffer: csv, fileName: 'vt.csv' });
     assert.equal(done.counts.added, 1);
     const [row] = (await service.list(ctx(), 'SG')).rows;
-    assert.deepEqual([row.notes, row.arrivalDate, row.location, row.name], ['3T x 10', 'KK 4.10', 'Kệ 1', 'Hàng A một SG']);
+    assert.deepEqual([row.notes, row.arrivalDate, row.location, row.name], ['3T x 10', 'KK 4.10', 'KỆ1', 'Hàng A một SG']);
+  } finally { await db.close(); }
+});
+
+test('Vị trí được chuẩn hóa khi nhập: bỏ mọi khoảng trắng + viết hoa ("a 05" -> "A05"), cả Thêm dòng, Sửa và Import; so trùng không phân biệt khoảng trắng/hoa-thường', async () => {
+  const { normalizeLocation } = require('./stockPositionsService');
+  assert.deepEqual(['a 05', ' kệ  1 ', 'sm', 'A05', '', null].map(normalizeLocation), ['A05', 'KỆ1', 'SM', 'A05', '', '']);
+  const { db, service } = await fixture();
+  try {
+    const first = await service.create(ctx(), 'HN', { code: 'AAA1', notes: '1T x 5', location: 'a 05' });
+    assert.equal(first.row.location, 'A05');
+    // "A 05" và "a05" đều là cùng vị trí "A05": cộng vào dòng sẵn có, không tạo dòng mới.
+    const same = await service.create(ctx(), 'HN', { code: 'AAA1', notes: '1T x 5', location: ' A 0 5 ' });
+    assert.equal(same.merged, true);
+    assert.equal(same.row.id, first.row.id);
+    const other = await service.create(ctx(), 'HN', { code: 'AAA1', notes: '1T x 5', location: 'b 1' });
+    assert.equal(other.row.location, 'B1');
+    const moved = await service.update(ctx(), other.row.id, { version: other.row.version, location: 'c 7' });
+    assert.equal(moved.row.location, 'C7');
+    await assert.rejects(() => service.update(ctx(), other.row.id, { version: moved.row.version, location: 'a  05' }), { code: 'DUPLICATE_POSITION' });
+    const buffer = workbook([HEADER, ['AAA1', '1T x 5', '', 'd 9'], ['aaa1', '2T x 5', '', 'D9']]);
+    const done = await service.importFile(ctx(), 'HN', { mode: 'add', commit: true, buffer, fileName: 'chuan-hoa.xlsx' });
+    assert.equal(done.counts.added, 1, 'hai dòng "d 9" và "D9" trong file là cùng một vị trí D9');
+    const rows = (await service.list(ctx(), 'HN')).rows;
+    assert.deepEqual(rows.map(r => r.location).sort(), ['A05', 'C7', 'D9']);
   } finally { await db.close(); }
 });
 
