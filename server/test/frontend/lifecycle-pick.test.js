@@ -589,12 +589,14 @@ test('thẻ vị trí trong hộp chỉ định: tên vị trí đậm màu nổ
   const page = await renderPage();
   await openPopup(page);
   const card = page.document.querySelector('.picking-location.selected');
-  assert.deepEqual([...card.children].map(el => el.tagName), ['STRONG', 'SPAN', 'SMALL'], 'thứ tự DOM: vị trí, SL, ghi chú thùng');
+  assert.deepEqual([...card.children].map(el => el.tagName), ['STRONG', 'SPAN'], 'nút chọn chỉ còn vị trí và tổng SL');
   assert.equal(card.children[0].textContent, 'A07');
   assert.equal(card.children[0].getAttribute('title'), 'A07', 'tên vị trí dài bị cắt thì còn tooltip');
   assert.equal(card.children[1].textContent, '200');
-  assert.equal(card.children[2].className.includes('picking-spec'), true);
-  assert.equal(card.children[2].textContent, '4T x 50');
+  const wrap = card.parentElement;
+  assert.deepEqual([...wrap.children].map(el => el.className.split(' ')[0]), ['picking-location', 'picking-qty', 'picking-spec'], 'ghi chú thùng nằm dưới cùng thẻ, sau ô nhập SL');
+  assert.equal(wrap.querySelector('.picking-spec').textContent, '4T x 50');
+  assert.equal(wrap.querySelector('.picking-loc-st'), null, 'không còn dòng ST n trong thẻ');
   page.dom.window.close();
 });
 
@@ -609,8 +611,7 @@ test('CSS thẻ vị trí: lưới 2 dòng, ghi chú không còn chen lên trư�
   assert.match(name, /font-weight:(700|800)/);
   assert.match(name, /white-space:nowrap/);
   assert.match(rule('.picking-location span'), /grid-column:2/, 'tổng SL góc phải');
-  const spec = rule('.picking-spec');
-  assert.match(spec, /grid-row:2/);
-  assert.match(spec, /grid-column:1\s*\/\s*-1/);
+  assert.doesNotMatch(rule('.picking-loc'), /--zone:var\(--muted\)/, 'tên vị trí không xám khi không thuộc khu A–E');
+  assert.match(rule('.picking-spec'), /display:block/, 'ghi chú thùng là dòng riêng dưới thẻ');
   assert.doesNotMatch(rule('.picking-location strong') + rule('.picking-location span'), /order:/, 'không dùng order: ghi chú (order mặc định 0) sẽ nhảy lên đầu');
 });
