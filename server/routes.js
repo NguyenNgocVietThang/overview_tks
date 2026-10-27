@@ -40,6 +40,7 @@ const kiotvietSyncStatusRoutes = require('./kiotvietSync/kiotvietSyncStatusRoute
 const debtManagementRoutes = require('./dashboard/debtManagementRoutes');
 const orderLifecycleRoutes = require('./shipment/orderLifecycleRoutes');
 const stockLocationsRoutes = require('./stockLocations/stockLocationsRoutes');
+const stockPositionsRoutes = require('./stockPositions/stockPositionsRoutes');
 const cashbookRoutes = require('./cashbook/cashbookRoutes');
 const { createVatDraftRouter } = require('./vatDraft/vatDraftRoutes');
 const { createVatRequestRouter } = require('./vatRequests/routes');
@@ -83,6 +84,8 @@ router.use(adminUserRoutes);
 // chinh hai route nay quyet dinh gia tri cookie ma resolveBranch se doc.
 router.use(branchRoutes);
 router.use(stockLocationsRoutes);
+// VT Hà Nội / VT Sài Gòn (cơ sở dữ liệu vị trí hàng mới, sửa trực tiếp + import): quyền stockLocationsV2.*.
+router.use(stockPositionsRoutes);
 // Sổ quỹ toàn công ty: không áp cookie hoặc middleware chọn cơ sở.
 router.use('/api/cashbook', cashbookRoutes);
 // Kế toán – Nháp VAT (port vat-draft-app): chứng từ theo cookie cơ sở, gắn resolveBranch trong router.

@@ -15,7 +15,7 @@
 | Tên dự án         | Hệ thống Dashboard nội bộ TOKOSI (KiotViet → Supabase PostgreSQL → Web; Google Sheets bổ trợ) |
 | Phiên bản         | 2.3                                                                 |
 | Ngày tạo          | 27/07/2026                                                          |
-| Ngày cập nhật     | 26/10/2026                                                          |
+| Ngày cập nhật     | 27/10/2026                                                          |
 | Đối tượng sử dụng | Ban lãnh đạo, nhân viên nội bộ công ty                              |
 | Trạng thái        | Nội dung nền rà soát tại HEAD `11751c4` (05/10); bổ sung Sổ quỹ đã kiểm chứng cục bộ 06/10, migration `0033` và deploy production còn chờ. |
 
@@ -195,6 +195,7 @@ Chỉ hàng **Đang kinh doanh** được tính; không còn KPI nhà cung cấp
 
 - Mọi tài khoản nội bộ (không phải Khách) tra cứu vị trí hàng Hà Nội/Sài Gòn từ workbook Google Sheets dùng chung. Nhóm riêng trên sidebar có hai tab theo cơ sở đang chọn; bảng 6 cột (Mã hàng, Tên hàng, Tổng SL, Ghi chú hàng hóa, Ngày về, Vị trí), tìm mã/tên/vị trí không dấu, 100 dòng/trang, không xuất file.
 - Giữ từng dòng nguồn kể cả mã trùng, SL = 0 hoặc vị trí trống. Dữ liệu đọc mới mỗi lần mở tab/tải lại. Khách bị chặn hoàn toàn, kể cả khi được ghi đè cấp quyền. Xem [thiết lập/nguồn](../stock-locations-setup.md).
+- **VT Hà Nội / VT Sài Gòn (27/10/2026, chạy song song hai tab cũ):** cơ sở dữ liệu Vị trí hàng mới trong hệ thống, dữ liệu đầu sao chép một lần từ Vị trí HN/SG rồi ngắt khỏi Google Sheets. Bảng gồm mã hàng, tên hàng (tự tra theo mã từ KiotViet), số lượng kho (tự tính từ ghi chú số thùng), số lượng KiotViet (tồn thực), ghi chú số thùng (tự chuẩn hóa khi lưu; trừ số lượng thì ghi chú tự cập nhật), ngày về (text, có thể trống), vị trí (mỗi dòng một vị trí của một mã), người cập nhật và thời gian cập nhật cuối. Quản lý sửa trực tiếp, thêm/xóa dòng, import file 4 cột (mã, ghi chú, ngày về, vị trí) theo hai chế độ (thay toàn bộ / bổ sung thêm), dòng hết hàng tự xóa, mọi thay đổi có lịch sử; người có quyền xuất Excel tải được bảng của cơ sở đang xem. Trước mắt chỉ Quản lý và người được cấp quyền xem/sửa/xuất; chưa deploy.
 
 ## 5.10. Vòng đời đơn hàng
 
@@ -470,7 +471,7 @@ Người dùng phản ánh tài khoản quản trị không có lịch sử thô
 
 Khi khách hoặc hàng hóa được đổi tên trên KiotViet, báo cáo trước đây vẫn hiện tên cũ ghi trên chứng từ. Nay báo cáo hiển thị tên hiện tại, và khách cùng tên nhưng khác mã được tính là một khách trong Báo cáo hàng hóa. Số liệu tháng đã chốt giữ nguyên tên lúc chốt. Chứng từ cũ không có mã khách có thể chưa khớp lại sau khi đổi tên trong báo cáo kinh doanh tháng (chưa xử lý).
 
-Cập nhật gần nhất: 24/10/2026.
+Cập nhật gần nhất: 27/10/2026.
 
 ## Cá nhân tự rút đơn nghỉ phép — 26/10/2026
 

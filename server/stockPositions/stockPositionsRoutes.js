@@ -1,0 +1,96 @@
+'use strict';
+
+// /api/stock-positions/* — tab "VT Ha Noi" / "VT Sai Gon" (xem: stockLocationsV2.view, ghi: stockLocationsV2.edit).
+const express = require('express');
+const multer = require('multer');
+const { requireAuth, requireFeature } = require('../auth/authMiddleware');
+const { hasFeature } = require('../auth/featureRegistry');
+const { resolveBranch } = require('../branch/branchMiddleware');
+const { BRANCHES, resolveBranchScope } = require('../branch/branches');
+const service = require('./stockPositionsService');
+const { createStockPositionsWorkbook } = require('./stockPositionsExport');
+
+const IMPORT_MAX_BYTES = 8 * 1024 * 1024;
+const IMPORT_EXTENSIONS = /\.(xlsx|xls|csv)$/iu;
+
+function createStockPositionsRouter(dependencies = {}) {
+  const router = express.Router();
+  const svc = () => dependencies.service || service;
+  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: IMPORT_MAX_BYTES } });
+
+  router.use('/api/stock-positions', (req, res, next) => { res.set('Cache-Control', 'no-store'); next(); },
+    dependencies.requireAuth || requireAuth,
+    requireFeature('stockLocationsV2.view'),
+    dependencies.resolveBranch || resolveBranch);
+  const edit = requireFeature('stockLocationsV2.edit');
+
+  // Pham vi co so theo cookie: 'Ca hai' -> HN + SG.
+  const ctxOf = req => ({
+    user: req.user,
+    scope: resolveBranchScope(req.branch).map(label => (label === BRANCHES.HANOI ? 'HN' : 'SG'))
+  });
+
+  const handle = fn => async (req, res) => {
+    try {
+      await fn(req, res);
+    } catch (error) {
+      if (error && error.statusCode && error.statusCode < 500) {
+        const body = { ...error.body, error: error.message, code: error.code };
+        if (error.latest) body.latest = error.latest;
+        if (error.field) body.field = error.field;
+        return res.status(error.statusCode).json(body);
+      }
+      console.error('[stock-positions]', error);
+      return res.status(500).json({ error: 'Lỗi máy chủ khi xử lý Vị trí hàng.', code: 'STOCK_POSITIONS_FAILED' });
+    }
+  };
+  const idOf = req => Number(req.params.id);
+
+  router.get('/api/stock-positions', handle(async (req, res) => {
+    const result = await svc().list(ctxOf(req), req.query.branch);
+    res.json({ ...result, canEdit: hasFeature(req.user, 'stockLocationsV2.edit'), canExport: hasFeature(req.user, 'stockLocationsV2.export') });
+  }));
+  // Xuat Excel toan bo dong cua co so (khong theo bo loc tren man hinh); quyen rieng stockLocationsV2.export.
+  router.get('/api/stock-positions/export', requireFeature('stockLocationsV2.export'), handle(async (req, res) => {
+    const { branch, rows } = await svc().list(ctxOf(req), req.query.branch);
+    const file = await createStockPositionsWorkbook({ branch, rows });
+    res.set('Content-Type', file.mimeType);
+    res.set('Content-Disposition', `attachment; filename="${file.fileName}"`);
+    res.send(file.buffer);
+  }));
+  // Phai dat truoc '/:id'.
+  router.get('/api/stock-positions/history', handle(async (req, res) => {
+    res.json(await svc().history(ctxOf(req), req.query.branch, { limit: req.query.limit, before: req.query.before }));
+  }));
+  router.post('/api/stock-positions/import', edit, (req, res, next) => upload.single('file')(req, res, error => {
+    if (!error) return next();
+    const tooBig = error.code === 'LIMIT_FILE_SIZE';
+    return res.status(tooBig ? 413 : 400).json({ error: tooBig ? 'File quá lớn (tối đa 8 MB).' : 'Không đọc được file tải lên.', code: tooBig ? 'IMPORT_FILE_TOO_LARGE' : 'IMPORT_UPLOAD_FAILED' });
+  }), handle(async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'Vui lòng chọn file Excel hoặc CSV.', code: 'IMPORT_FILE_REQUIRED' });
+    // multer giai ma ten file kieu latin1; doi ve UTF-8 de hien ten tieng Viet trong lich su.
+    const fileName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+    if (!IMPORT_EXTENSIONS.test(fileName)) return res.status(400).json({ error: 'Chỉ nhận file .xlsx, .xls hoặc .csv.', code: 'IMPORT_BAD_EXTENSION' });
+    res.json(await svc().importFile(ctxOf(req), req.query.branch, {
+      mode: req.query.mode, commit: req.query.commit === '1', buffer: req.file.buffer, fileName
+    }));
+  }));
+  router.post('/api/stock-positions', edit, handle(async (req, res) => {
+    const result = await svc().create(ctxOf(req), req.query.branch, req.body || {});
+    res.status(result.merged ? 200 : 201).json(result);
+  }));
+  router.patch('/api/stock-positions/:id', edit, handle(async (req, res) => {
+    res.json(await svc().update(ctxOf(req), idOf(req), req.body || {}));
+  }));
+  router.post('/api/stock-positions/:id/deduct', edit, handle(async (req, res) => {
+    res.json(await svc().deduct(ctxOf(req), idOf(req), req.body || {}));
+  }));
+  router.delete('/api/stock-positions/:id', edit, handle(async (req, res) => {
+    const version = req.query.version === undefined ? undefined : Number(req.query.version);
+    res.json(await svc().remove(ctxOf(req), idOf(req), version));
+  }));
+  return router;
+}
+
+module.exports = createStockPositionsRouter();
+module.exports.createStockPositionsRouter = createStockPositionsRouter;

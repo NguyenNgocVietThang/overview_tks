@@ -6,8 +6,8 @@
   const MOBILE_FIELDS = ['name', 'totalQuantity', 'location'];
   const collator = new Intl.Collator('vi', { numeric: true, sensitivity: 'base' });
   const state = {
-    hn: { rows: [], query: '', page: 1, sortField: '', sortDirection: 'asc', loading: false, error: '', onlyWarnings: false },
-    sg: { rows: [], query: '', page: 1, sortField: '', sortDirection: 'asc', loading: false, error: '', onlyWarnings: false }
+    hn: { rows: [], query: '', page: 1, sortField: '', sortDirection: 'asc', loading: false, error: '' },
+    sg: { rows: [], query: '', page: 1, sortField: '', sortDirection: 'asc', loading: false, error: '' }
   };
   let user, activeTab, allowedTabs, requestVersion = 0;
   let screenMode, visibleFields, columnPreferences = {};
@@ -16,16 +16,7 @@
     return String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[đĐ]/g, 'd').toLowerCase().replace(/\s+/g, ' ').trim();
   }
 
-  /* SL và cảnh báo do máy chủ tính từ ghi chú (public/shared/carton.js): row.quantity (null = ghi chú sai định dạng, không tính được SL)
-     và row.warnings (multi, loose, unreadable, badnumber). Dữ liệu cũ không có hai trường này thì dùng TỔNG SL của Sheets. */
-  const WARNING_LABELS = { multi: 'Nhiều quy cách', loose: 'Có phần trừ lẻ', unreadable: 'Ghi chú sai định dạng', badnumber: 'Số thùng và SL/thùng phải là số nguyên dương' };
-  const warningsOf = row => (Array.isArray(row.warnings) ? row.warnings : []);
-  const warningText = row => warningsOf(row).map(code => (window.PickingCarton && window.PickingCarton.WARNING_LABEL[code]) || WARNING_LABELS[code] || code).join(', ');
-  const quantityOf = row => ('quantity' in row ? row.quantity : quantityNumber(row.totalQuantity));
-  const QUANTITY_FORMAT = new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 });
-
-  function filterRows(rows, query, onlyWarnings) {
-    if (onlyWarnings) rows = rows.filter(row => warningsOf(row).length > 0);
+  function filterRows(rows, query) {
     const needle = normalizeSearch(query);
     if (!needle) return rows;
     const text = row => ['code', 'name', 'location'].map(field => row[field]).join(' ');
@@ -51,8 +42,8 @@
   function sortRows(rows, field, direction) {
     if (!FIELDS.includes(field)) return rows;
     return rows.slice().sort((a, b) => {
-      const left = field === 'totalQuantity' ? quantityOf(a) : String(a[field] ?? '').trim() || null;
-      const right = field === 'totalQuantity' ? quantityOf(b) : String(b[field] ?? '').trim() || null;
+      const left = field === 'totalQuantity' ? quantityNumber(a[field]) : String(a[field] ?? '').trim() || null;
+      const right = field === 'totalQuantity' ? quantityNumber(b[field]) : String(b[field] ?? '').trim() || null;
       if (left === null || right === null) return left === right ? 0 : left === null ? 1 : -1;
       const result = field === 'totalQuantity' ? left - right : collator.compare(left, right);
       return direction === 'desc' ? -result : result;
@@ -135,13 +126,8 @@
 
   function render() {
     const current = state[activeTab];
-    const rows = sortRows(filterRows(current.rows, current.query, current.onlyWarnings), current.sortField, current.sortDirection);
+    const rows = sortRows(filterRows(current.rows, current.query), current.sortField, current.sortDirection);
     updateSortHeaders();
-    const chip = document.getElementById('locationWarnFilter');
-    chip.textContent = 'Cảnh báo (' + current.rows.filter(row => warningsOf(row).length > 0).length + ')';
-    chip.setAttribute('aria-pressed', String(current.onlyWarnings));
-    chip.classList.toggle('active', current.onlyWarnings);
-    chip.disabled = current.loading || !!current.error;
     const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
     if (!current.loading && !current.error) current.page = Math.min(current.page, pageCount);
     const start = (current.page - 1) * PAGE_SIZE;
@@ -154,7 +140,7 @@
     const status = document.getElementById('locationStatus');
     status.dataset.error = String(!!current.error);
     status.textContent = current.loading ? 'Đang tải vị trí hàng…' : current.error ||
-      (current.rows.length === 0 ? 'Chưa có dữ liệu vị trí hàng.' : rows.length === 0 ? (current.onlyWarnings ? 'Không có dòng cảnh báo.' : 'Không tìm thấy hàng phù hợp.') : '');
+      (current.rows.length === 0 ? 'Chưa có dữ liệu vị trí hàng.' : rows.length === 0 ? 'Không tìm thấy hàng phù hợp.' : '');
     const ready = !current.loading && !current.error && rows.length > 0;
     document.getElementById('locationPager').hidden = !ready;
     if (!ready) return;
@@ -162,23 +148,10 @@
     const fragment = document.createDocumentFragment();
     rows.slice(start, start + PAGE_SIZE).forEach(row => {
       const tr = document.createElement('tr');
-      const warnings = warningsOf(row);
-      if (warnings.length) { tr.className = 'locations-warning'; tr.dataset.warning = warnings.join(' '); }
       FIELDS.forEach(field => {
         const td = document.createElement('td');
         td.dataset.field = field;
-        if (field === 'totalQuantity') {
-          const quantity = quantityOf(row);
-          td.textContent = 'quantity' in row ? (quantity === null ? '' : QUANTITY_FORMAT.format(quantity)) : String(row[field] ?? '');
-        } else td.textContent = String(row[field] ?? '');
-        if (field === 'notes' && warnings.length) {
-          // Nhãn chữ kèm tooltip để không chỉ dựa vào màu.
-          const badge = document.createElement('span');
-          badge.className = 'locations-badge';
-          badge.textContent = warningText(row);
-          badge.title = warningText(row);
-          td.appendChild(badge);
-        }
+        td.textContent = String(row[field] ?? '');
         tr.appendChild(td);
       });
       fragment.appendChild(tr);
@@ -267,12 +240,6 @@
       render();
       document.querySelector('.locations-scroll').scrollTop = 0;
     });
-    document.getElementById('locationWarnFilter').addEventListener('click', () => {
-      const current = state[activeTab];
-      current.onlyWarnings = !current.onlyWarnings;
-      current.page = 1;
-      render();
-    });
     document.getElementById('locationSearch').addEventListener('input', event => {
       state[activeTab].query = event.target.value;
       state[activeTab].page = 1;
@@ -281,7 +248,7 @@
     ['First', 'Previous', 'Next', 'Last'].forEach(direction => {
       document.getElementById('location' + direction).addEventListener('click', () => {
         const current = state[activeTab];
-        const pageCount = Math.max(1, Math.ceil(filterRows(current.rows, current.query, current.onlyWarnings).length / PAGE_SIZE));
+        const pageCount = Math.max(1, Math.ceil(filterRows(current.rows, current.query).length / PAGE_SIZE));
         if (direction === 'First') current.page = 1;
         else if (direction === 'Last') current.page = pageCount;
         else current.page = Math.max(1, Math.min(pageCount, current.page + (direction === 'Previous' ? -1 : 1)));

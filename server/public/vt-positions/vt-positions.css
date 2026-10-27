@@ -1,0 +1,49 @@
+/* Trang VT Hà Nội / VT Sài Gòn: khung bảng dùng lại /stock-locations/stock-locations.css, ở đây chỉ phần riêng (sửa tại chỗ, hộp thoại). */
+.vt-hint{margin:0;padding:0 16px 10px;color:var(--muted);font-size:12px}
+.vt-notice{padding-bottom:10px}
+.locations-toolbar [hidden]{display:none}
+.vt-table [data-field="quantity"],.vt-table [data-field="kiotQuantity"]{text-align:right;font-variant-numeric:tabular-nums}
+.vt-table th[data-field="quantity"] .sort-button,.vt-table th[data-field="kiotQuantity"] .sort-button{text-align:right}
+.vt-table td[data-field="updatedAt"]{font-family:var(--font-data);white-space:nowrap}
+/* Dòng cảnh báo: chỉ đổi chữ sang đỏ (không tô nền), biến --red tự đúng cả sáng/tối. */
+.vt-table tr.vt-warning td{color:var(--red)}
+.vt-badge{display:block;margin-top:4px;padding:1px 8px;width:fit-content;border:1px solid var(--red);border-radius:999px;font-size:11px;font-weight:600;color:var(--red)}
+.vt-table td.vt-editable{cursor:text}
+.vt-table td.vt-editable:hover{background:var(--surface-hover)}
+.vt-table td.vt-editable:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
+.vt-inline-input{box-sizing:border-box;width:100%;min-height:32px;padding:5px 8px;border:1px solid var(--blue);border-radius:var(--radius-sm);background:var(--panel-2);color:var(--text);font:13px var(--font-body)}
+.vt-table td[data-field="actions"]{white-space:nowrap}
+.vt-row-button{min-height:30px;margin-right:6px;padding:4px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel-2);color:var(--text);font:12px var(--font-body);cursor:pointer}
+.vt-row-button:hover{background:var(--surface-hover)}
+.vt-row-button.vt-danger{color:var(--red);border-color:var(--red)}
+.vt-row-button:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+
+/* Hộp thoại dùng khung .dp-* của detail-panel.css */
+.vt-dialog{width:min(480px,calc(100vw - 32px));max-height:calc(100vh - 48px);padding:0;border:1px solid var(--border);border-radius:var(--radius-xl);background:var(--panel-solid,var(--panel));color:var(--text);overflow:auto}
+.vt-dialog::backdrop{background:rgba(0,0,0,.55)}
+.vt-dialog-narrow{width:min(400px,calc(100vw - 32px))}
+.vt-dialog-wide{width:min(980px,calc(100vw - 32px))}
+.vt-field{display:flex;flex-direction:column;gap:5px;font-size:12.5px;color:var(--muted)}
+.vt-field input[type="text"],.vt-field input[type="number"],.vt-field input[type="file"]{box-sizing:border-box;width:100%;min-height:38px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel-2);color:var(--text);font:13px var(--font-body)}
+.vt-field input:focus-visible,.vt-history-filters input:focus-visible,.vt-history-filters select:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.vt-form-error{margin:0;min-height:0;color:var(--red);font-size:12.5px}
+.vt-form-error:empty{display:none}
+.vt-dialog-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.vt-primary{border-color:var(--blue);color:var(--blue);font-weight:600}
+.vt-primary.vt-danger{border-color:var(--red);color:var(--red)}
+.vt-dialog button:disabled{opacity:.45;cursor:not-allowed}
+.vt-modes{display:flex;flex-direction:column;gap:8px;margin:0;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px}
+.vt-modes legend{padding:0 6px;color:var(--muted);font-size:12px}
+.vt-modes small{display:block;margin-left:22px;color:var(--muted);font-size:12px}
+.vt-import-counts{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:0;padding:0;list-style:none}
+.vt-import-counts li{padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel-2);font-size:12.5px}
+.vt-import-counts b{display:block;font:600 16px var(--font-data);color:var(--text)}
+.vt-import-counts li[data-count="errors"] b{color:var(--red)}
+.vt-import-errors{margin:10px 0 0;padding-left:20px;color:var(--red);font-size:12.5px;max-height:200px;overflow:auto}
+.vt-history-filters{display:flex;flex-wrap:wrap;gap:8px}
+.vt-history-filters input,.vt-history-filters select{min-height:36px;padding:0 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel-2);color:var(--text);font:13px var(--font-body)}
+.vt-history-filters input{flex:1 1 240px}
+@media(max-width:600px){
+  .locations-toolbar .locations-columns-button{font-size:12px}
+  .vt-table td[data-field="actions"]{white-space:normal}
+}

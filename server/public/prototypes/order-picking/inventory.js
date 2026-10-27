@@ -112,7 +112,7 @@ orders(locationId){
     if(f)throw Error('Khu '+f.zone+' đang kiểm kê. Không chỉ định vị trí '+r.location+' đến khi chốt kỳ kiểm kê.');
     if(q>api.available(r,key))throw Error('Vị trí '+r.location+' không còn đủ khả dụng.');}
   // ST của từng nhiệm vụ tính ngay lúc chỉ định (trước khi trừ thùng) và giữ nguyên sau Xác nhận nhặt.
-  jobs.forEach(j=>{j.st=api.cartonsFor(locationOf(j.id),j.reserved);});
+  jobs.forEach(j=>{j.st=api.cartonsFor(locationOf(j.id),j.reserved);j.stText=api.pickTextFor(locationOf(j.id),j.reserved);});
   state.orders[key]={order:o,jobs,status:'picking'};log('Đang nhặt',o.orderCode+' · '+jobs.reduce((s,j)=>s+j.reserved,0)+' sản phẩm');
 },open(o,options={}){current=state.orders[D.key(o)];auditOnly=!!options.auditOnly;render();$('inventoryDialog').showModal();}};
 function log(type,text){state.history.unshift({type,text,at:new Date().toLocaleTimeString('vi-VN')});api.version++;}
@@ -169,6 +169,13 @@ api.lineSt=(o,index)=>{
 api.cartonInfo=r=>{const spec=specOf(r);return spec?{text:specText(r),terms:spec.terms,loose:spec.loose,multi:spec.multi,perCarton:spec.terms.length?Math.max(...spec.terms.map(t=>t.perCarton)):null}:null;};
 // ST của một lượt nhặt: thùng nguyên theo từng quy cách, phần lẻ chia SL/thùng của số hạng đầu. null = vị trí chưa có quy cách.
 api.cartonsFor=(r,quantity)=>{const spec=specOf(r);return spec&&spec.terms.length?C.cartonsFor(spec,quantity):null;};
+// Cột Số thùng trên phiếu in: "2Tx60-20" (lấy lẻ), "5Tx50" (tròn thùng); nhiều vị trí nối " + ". null = dùng ST dạng số.
+api.pickTextFor=(r,quantity)=>{const spec=specOf(r);return spec?C.pickText(spec,quantity):null;};
+api.lineStText=(o,index)=>{
+  if(api.lineSt(o,index)===null)return null;
+  const texts=state.orders[D.key(o)].jobs.filter(j=>j.line===index).map(j=>j.stText);
+  return texts.every(Boolean)?texts.join(' + '):null;
+};
 // Một dòng của sổ vị trí: bảng Sổ kho/Kiểm kê, bộ lọc Cảnh báo và số đếm cùng đọc từ đây.
 api.row=r=>{const text=specText(r),total=onHand(r);return {id:r.id,branch:r.branch,code:r.code,manual:!!r.manual,name:r.name||nameOf(r.code),location:r.location,arrivalDate:r.arrivalDate||'',notes:text,quantity:total,held:held(r.id),pickable:api.available(r),warnings:C.warnings(text,{unknownCode:isUnknownCode(r)})};};
 api.rows=branch=>D.get().locations.filter(r=>r.branch===branch).map(api.row);

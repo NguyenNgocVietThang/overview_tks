@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VT Hà Nội / VT Sài Gòn · TOKOSI Dashboard</title>
+  <link rel="icon" type="image/jpeg" href="/Logo.jpg">
+  <script>
+    try { document.documentElement.dataset.theme = localStorage.getItem('tks-dashboard-theme') === 'light' ? 'light' : 'dark'; }
+    catch (error) { document.documentElement.dataset.theme = 'dark'; }
+    document.documentElement.style.visibility = 'hidden';
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/shared/shared.css?v=20261026-calendar-ui">
+  <script src="/shared/motion.js?v=20261024-1" defer></script>
+  <link rel="stylesheet" href="/shared/search-clear.css?v=20261009-1">
+  <link rel="stylesheet" href="/stock-locations/stock-locations.css?v=20261016">
+  <link rel="stylesheet" href="/shared/detail-panel.css?v=20261012">
+  <link rel="stylesheet" href="/shared/table-controls.css?v=20261016-1">
+  <link rel="stylesheet" href="/vt-positions/vt-positions.css?v=20261027-1">
+</head>
+<body>
+  <div class="receipt-header">
+    <div class="brand">
+      <button class="menu-btn" id="menuBtn" type="button" aria-label="Mở menu điều hướng" aria-expanded="false" aria-controls="sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"></path></svg>
+      </button>
+      <div class="brand-mark"><img src="/Logo.jpg" alt="TOKOSI Logo" width="44" height="44"></div>
+      <div class="brand-text"><h1>Tổng kho gia dụng Tokosi</h1></div>
+    </div>
+    <div class="status-line">
+      <button class="theme-toggle" id="themeToggle" type="button" aria-label="Chuyển chế độ giao diện">
+        <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1 1M18 18l1 1M5 19l1-1M18 6l1-1"></path></svg>
+        <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg>
+        <span id="themeLabel">Light mode</span>
+      </button>
+      <div class="account-chip" id="accountChip"></div>
+    </div>
+  </div>
+  <div class="shell">
+    <div class="backdrop" id="backdrop"></div>
+    <div class="sidebar" id="sidebar" data-tks-active-top="stockLocations"></div>
+    <main class="content">
+      <h2 class="locations-title">Vị trí hàng</h2>
+      <nav class="locations-tabs" aria-label="Cơ sở tra cứu vị trí hàng">
+        <a href="#hn" data-vt-tab="hn">VT Hà Nội</a>
+        <a href="#sg" data-vt-tab="sg">VT Sài Gòn</a>
+      </nav>
+      <section class="locations-panel" aria-labelledby="vtTableTitle">
+        <div class="locations-toolbar">
+          <h3 id="vtTableTitle">VT Hà Nội</h3>
+          <label class="locations-search">
+            <span class="locations-sr-only">Tìm theo mã hàng, tên hàng hoặc vị trí</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m16 16 4 4"></path></svg>
+            <input id="vtSearch" type="search" placeholder="Tìm mã, tên hàng hoặc vị trí…" autocomplete="off">
+          </label>
+          <button class="locations-warn-chip" id="vtWarnFilter" type="button" aria-pressed="false">Cảnh báo (0)</button>
+          <button class="locations-columns-button" id="vtAddButton" type="button" hidden>Thêm dòng</button>
+          <button class="locations-columns-button" id="vtImportButton" type="button" hidden>Import</button>
+          <button class="locations-columns-button" id="vtExportButton" type="button" hidden>Xuất Excel</button>
+          <button class="locations-columns-button" id="vtHistoryButton" type="button">Lịch sử cập nhật</button>
+          <button class="locations-columns-button" id="vtColumnsButton" type="button" aria-haspopup="dialog" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M9 4v16M15 4v16"></path></svg>
+            Cột hiển thị
+          </button>
+        </div>
+        <p id="vtStatus" class="locations-status" role="status" aria-live="polite"></p>
+        <p id="vtNotice" class="locations-status vt-notice" role="status" aria-live="polite"></p>
+        <p class="vt-hint">SL KiotViet lấy theo tồn thực trong cơ sở dữ liệu và có thể chậm vài phút so với KiotViet.</p>
+        <div class="locations-scroll" tabindex="0" aria-label="Bảng vị trí hàng">
+          <table class="users-table locations-table vt-table" aria-labelledby="vtTableTitle" id="vtTable" data-table-key="vtPositionsTable" data-columns-button="vtColumnsButton">
+            <colgroup></colgroup>
+            <thead><tr></tr></thead>
+            <tbody id="vtRows"></tbody>
+          </table>
+        </div>
+        <div class="locations-pager" id="vtPager" hidden>
+          <span id="vtCount"></span>
+          <div class="locations-pager-controls">
+            <button id="vtFirst" type="button" aria-label="Trang đầu" title="Trang đầu">&lt;&lt;</button>
+            <button id="vtPrevious" type="button" aria-label="Trang trước" title="Trang trước">&lt;</button>
+            <span id="vtPage"></span>
+            <button id="vtNext" type="button" aria-label="Trang sau" title="Trang sau">&gt;</button>
+            <button id="vtLast" type="button" aria-label="Trang cuối" title="Trang cuối">&gt;&gt;</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Thêm dòng -->
+  <dialog class="vt-dialog" id="vtAddDialog" aria-labelledby="vtAddTitle">
+    <form id="vtAddForm" novalidate>
+      <div class="dp-head">
+        <div class="dp-head-text"><h3 class="dp-title" id="vtAddTitle">Thêm dòng vị trí</h3><p class="dp-subtitle" id="vtAddSubtitle"></p></div>
+        <button type="button" class="dp-close" data-vt-close aria-label="Đóng">×</button>
+      </div>
+      <div class="dp-body">
+        <label class="vt-field"><span>Mã hàng</span><input name="code" type="text" autocomplete="off" required></label>
+        <label class="vt-field"><span>Ghi chú số thùng</span><input name="notes" type="text" autocomplete="off" placeholder="VD: 3T x 100"></label>
+        <label class="vt-field"><span>Ngày về</span><input name="arrivalDate" type="text" autocomplete="off" placeholder="Có thể để trống"></label>
+        <label class="vt-field"><span>Vị trí</span><input name="location" type="text" autocomplete="off"></label>
+        <p class="vt-form-error" id="vtAddError" role="alert"></p>
+        <div class="vt-dialog-actions">
+          <button type="button" class="locations-columns-button" data-vt-close>Hủy</button>
+          <button type="submit" class="locations-columns-button vt-primary" id="vtAddSubmit">Thêm dòng</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Trừ SL -->
+  <dialog class="vt-dialog" id="vtDeductDialog" aria-labelledby="vtDeductTitle">
+    <form id="vtDeductForm" novalidate>
+      <div class="dp-head">
+        <div class="dp-head-text"><h3 class="dp-title" id="vtDeductTitle">Trừ số lượng</h3><p class="dp-subtitle" id="vtDeductSubtitle"></p></div>
+        <button type="button" class="dp-close" data-vt-close aria-label="Đóng">×</button>
+      </div>
+      <div class="dp-body">
+        <label class="vt-field"><span>Số lượng cần trừ</span><input name="quantity" type="number" min="1" step="1" inputmode="numeric" required></label>
+        <p class="vt-form-error" id="vtDeductError" role="alert"></p>
+        <div class="vt-dialog-actions">
+          <button type="button" class="locations-columns-button" data-vt-close>Hủy</button>
+          <button type="submit" class="locations-columns-button vt-primary">Trừ</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Xác nhận -->
+  <dialog class="vt-dialog vt-dialog-narrow" id="vtConfirmDialog" aria-labelledby="vtConfirmTitle">
+    <div class="dp-head">
+      <div class="dp-head-text"><h3 class="dp-title" id="vtConfirmTitle">Xác nhận</h3><p class="dp-subtitle" id="vtConfirmMessage"></p></div>
+    </div>
+    <div class="dp-body">
+      <div class="vt-dialog-actions">
+        <button type="button" class="locations-columns-button" id="vtConfirmCancel">Hủy</button>
+        <button type="button" class="locations-columns-button vt-primary vt-danger" id="vtConfirmOk">Đồng ý</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Import -->
+  <dialog class="vt-dialog vt-dialog-wide" id="vtImportDialog" aria-labelledby="vtImportTitle">
+    <div class="dp-head">
+      <div class="dp-head-text"><h3 class="dp-title" id="vtImportTitle">Import vị trí hàng</h3><p class="dp-subtitle">File .xlsx, .xls hoặc .csv gồm 4 cột: Mã hàng, Ghi chú, Ngày về, Vị trí.</p></div>
+      <button type="button" class="dp-close" data-vt-close aria-label="Đóng">×</button>
+    </div>
+    <div class="dp-body">
+      <label class="vt-field"><span>Chọn file</span><input id="vtImportFile" type="file" accept=".xlsx,.xls,.csv"></label>
+      <fieldset class="vt-modes">
+        <legend>Chế độ</legend>
+        <label><input type="radio" name="vtImportMode" value="add" checked> Bổ sung thêm SL <small>(cộng vào dòng trùng mã + vị trí, dòng mới thì thêm, dòng không có trong file giữ nguyên)</small></label>
+        <label><input type="radio" name="vtImportMode" value="replace"> Thay toàn bộ <small>(bảng của cơ sở được thay bằng nội dung file, dòng không có trong file bị xóa)</small></label>
+      </fieldset>
+      <p class="vt-form-error" id="vtImportError" role="alert"></p>
+      <div id="vtImportResult" class="vt-import-result" aria-live="polite"></div>
+      <div class="vt-dialog-actions">
+        <button type="button" class="locations-columns-button" data-vt-close>Đóng</button>
+        <button type="button" class="locations-columns-button" id="vtImportPreview">Xem trước</button>
+        <button type="button" class="locations-columns-button vt-primary" id="vtImportConfirm" disabled>Xác nhận import</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Lịch sử cập nhật -->
+  <dialog class="vt-dialog vt-dialog-wide" id="vtHistoryDialog" aria-labelledby="vtHistoryTitle">
+    <div class="dp-head">
+      <div class="dp-head-text"><h3 class="dp-title" id="vtHistoryTitle">Lịch sử cập nhật</h3><p class="dp-subtitle" id="vtHistorySubtitle"></p></div>
+      <button type="button" class="dp-close" data-vt-close aria-label="Đóng">×</button>
+    </div>
+    <div class="dp-body">
+      <div class="vt-history-filters">
+        <input type="search" id="vtHistorySearch" placeholder="Tìm mã, vị trí, người thực hiện, giá trị…" autocomplete="off" aria-label="Tìm trong lịch sử">
+        <select id="vtHistoryAction" aria-label="Lọc theo hành động"><option value="">Tất cả hành động</option></select>
+      </div>
+      <div class="dp-table-wrap">
+        <table class="dp-table" id="vtHistoryTable" data-table-controls="off">
+          <thead><tr><th>Thời gian</th><th>Người thực hiện</th><th>Hành động</th><th>Mã hàng / Vị trí</th><th>Trường</th><th>Trước</th><th>Sau</th></tr></thead>
+          <tbody id="vtHistoryRows"></tbody>
+        </table>
+      </div>
+      <button type="button" class="locations-columns-button" id="vtHistoryMore" hidden>Tải thêm</button>
+    </div>
+  </dialog>
+
+  <script src="/shared/table-controls.js?v=20261024-2"></script>
+  <script src="/shared/fuzzy-search.js?v=20261021-1"></script>
+  <script src="/shared/carton.js?v=20261027-1"></script>
+  <script src="/shared/search-clear.js?v=20261009-1"></script>
+  <script src="/shared/shared-nav.js?v=20261026-calendar-ui"></script>
+  <script src="/vt-positions/vt-positions.js?v=20261027-1"></script>
+  <script>window.addEventListener('DOMContentLoaded', function () { TKSVtPositions.init(); });</script>
+  <script src="/shared/shooting-star.js?v=20261019"></script>
+</body>
+</html>

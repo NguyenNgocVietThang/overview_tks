@@ -24,16 +24,22 @@ function show(order,record){
       const location=locations.find(l=>l.id===j.id);
       return location?.location||'—';
     });
+    // Một khu: chỉ tên khu. Từ hai khu trở lên: mỗi khu một dòng "Tên khu: số thùng" (vd "A07: 1Tx50" / "B06: 2Tx60-20"); thiếu quy cách thì ghi SL.
+    const multiZone=new Set(assigned).size>1;
+    const placement=multiZone?jobs.map((j,n)=>assigned[n]+': '+(j.stText||j.planned)).join('\n'):[...new Set(assigned)].join(' / ');
     // ST lấy từ record chỉ định (cùng hàm với chi tiết đơn) nên in lại ra cùng số; trống khi chưa đủ SL hoặc đã Hủy nhặt.
     const st=window.PickingInventory?.lineSt?window.PickingInventory.lineSt(order,i):null;
+    const stLabel=window.PickingInventory?.lineStText?window.PickingInventory.lineStText(order,i):null;
     const rendered=document.createElement('tbody');
     rendered.innerHTML=replace(row.outerHTML,{
       STT:++index,Ten_Hang_Hoa_Don_Gian:line.productName+' ('+line.productCode+')',
       So_Luong:qty.toLocaleString('vi-VN'),Don_Gia_Sau_Chiet_Khau:money(unit),Thanh_Tien:money(amount),
-      Vi_Tri:[...new Set(assigned)].join(' / '),Vi_Tri_Hang_Hoa:[...new Set(assigned)].join(' / '),Ghi_Chu_Hang_Hoa:line.note||'',Thuc_Te_Nhat:'',ST:stText(st)
+      Vi_Tri:placement,Vi_Tri_Hang_Hoa:placement,Ghi_Chu_Hang_Hoa:line.note||'',Thuc_Te_Nhat:'',ST:stLabel||stText(st)
     });
     const item=rendered.firstElementChild;
-    if(st!==null&&!window.PickingCarton.isWhole(st))item.querySelector('td.invoice-st')?.classList.add('invoice-st-frac');
+    if(stLabel?stLabel.includes('-'):st!==null&&!window.PickingCarton.isWhole(st))item.querySelector('td.invoice-st')?.classList.add('invoice-st-frac');
+    // Mỗi khu một dòng: giữ xuống dòng của ô Vị trí.
+    if(multiZone)[...item.querySelectorAll('td')].filter(td=>td.textContent.includes(assigned[0]+': ')).forEach(td=>{td.style.whiteSpace='pre-line';});
     row.before(item);
   });
   row.remove();

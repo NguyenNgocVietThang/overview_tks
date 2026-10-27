@@ -52,6 +52,32 @@ test('Vị trí hàng defaults for every internal role; guest grants are always 
   assert.ok(!registry.resolvePermissions({ vaiTro: ROLES.NHAN_VIEN_KHO, featurePermissions: { 'stockLocations.view': false } }).includes('stockLocations.view'));
 });
 
+test('VT Hà Nội / VT Sài Gòn: mặc định chỉ Quản lý, sửa cần quyền xem, Khách bị chặn dù được cấp', () => {
+  for (const vaiTro of INTERNAL_ROLES) {
+    const defaults = registry.defaultsForRole(vaiTro);
+    const manager = vaiTro === ROLES.QUAN_LY;
+    assert.equal(defaults.includes('stockLocationsV2.view'), manager, vaiTro);
+    assert.equal(defaults.includes('stockLocationsV2.edit'), manager, vaiTro);
+    assert.equal(defaults.includes('stockLocationsV2.export'), manager, vaiTro);
+  }
+  // Xuất Excel là quyền riêng: được xem/được sửa chưa chắc được xuất, và cần quyền xem.
+  const exporter = registry.resolvePermissions({ vaiTro: ROLES.NHAN_VIEN_KHO, featurePermissions: { 'stockLocationsV2.view': true, 'stockLocationsV2.export': true } });
+  assert.ok(exporter.includes('stockLocationsV2.export') && !exporter.includes('stockLocationsV2.edit'));
+  assert.ok(!registry.resolvePermissions({ vaiTro: ROLES.NHAN_VIEN_KHO, featurePermissions: { 'stockLocationsV2.export': true } }).includes('stockLocationsV2.export'));
+  const editor = registry.resolvePermissions({ vaiTro: ROLES.QUAN_LY, featurePermissions: { 'stockLocationsV2.export': false } });
+  assert.ok(editor.includes('stockLocationsV2.edit') && !editor.includes('stockLocationsV2.export'));
+  // Cấp riêng quyền xem cho nhân viên kho: xem được, chưa sửa được.
+  const viewer = registry.resolvePermissions({ vaiTro: ROLES.NHAN_VIEN_KHO, featurePermissions: { 'stockLocationsV2.view': true } });
+  assert.ok(viewer.includes('stockLocationsV2.view'));
+  assert.ok(!viewer.includes('stockLocationsV2.edit'));
+  // Cấp quyền sửa mà thiếu quyền xem thì không có hiệu lực (requires).
+  const editOnly = registry.resolvePermissions({ vaiTro: ROLES.NHAN_VIEN_KHO, featurePermissions: { 'stockLocationsV2.edit': true } });
+  assert.ok(!editOnly.includes('stockLocationsV2.edit'));
+  const guest = registry.resolvePermissions({ vaiTro: ROLES.KHACH, featurePermissions: { 'stockLocationsV2.view': true, 'stockLocationsV2.edit': true } });
+  assert.ok(!guest.includes('stockLocationsV2.view') && !guest.includes('stockLocationsV2.edit'));
+  assert.deepEqual(registry.pageRuleFor('/vt-positions/'), { path: '/vt-positions', href: '/vt-positions/', anyOf: ['stockLocationsV2.view'] });
+});
+
 // Cac tap hop vai tro CU (truoc khi co featureRegistry) — giu lai nguyen van o
 // day de test bat duoc moi thay doi hanh vi ngoai y muon khi sua bang mac dinh.
 // (Nhan vien sale da duoc mo them 5 tab xem bao cao — xem test rieng ben duoi.)

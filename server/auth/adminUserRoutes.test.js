@@ -35,6 +35,10 @@ test('permission catalog marks guest exclusion; granting stock locations to a gu
   const catalog = fakeRes();
   await getRouteHandler(adminUserRoutes, 'get', '/api/admin/permissions/catalog')({}, catalog);
   assert.deepEqual(catalog.body.features.find(f => f.key === 'stockLocations.view').forbiddenRoles, ['Khách']);
+  // VT Hà Nội / VT Sài Gòn: quyền xem, sửa, xuất Excel hiện trong danh mục để Quản lý cấp thêm từng tài khoản.
+  const vt = catalog.body.features.filter(f => f.key.startsWith('stockLocationsV2.')).map(f => f.key).sort();
+  assert.deepEqual(vt, ['stockLocationsV2.edit', 'stockLocationsV2.export', 'stockLocationsV2.view']);
+  assert.deepEqual(catalog.body.features.find(f => f.key === 'stockLocationsV2.view').forbiddenRoles, ['Khách']);
   localUserStore.setInMemoryUsers([{ id: 'location-guest', username: 'location-guest', vaiTro: 'Khách', trangThai: 'Đang hoạt động' }]);
   const res = fakeRes();
   await getRouteHandler(adminUserRoutes, 'put', '/api/admin/users/:id/permissions')({

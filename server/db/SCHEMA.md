@@ -732,4 +732,12 @@ Cập nhật gần nhất: 24/10/2026.
 - Inbox `hr_manager_telegram_updates` dọn payload/effects khi hoàn tất, giữ update_id chống trùng; giao dịch hủy dọn thêm job tham chiếu mã đơn hoặc bản chụp request/delivery, dùng SKIP LOCKED tránh chờ ngược thứ tự khóa. Job đang xử lý dọn khi hoàn tất.
 - Reporting role không được truy cập hai bảng mới. Không thay đổi hợp đồng INSERT bot xin nghỉ bên ngoài.
 
-Cập nhật gần nhất: 26/10/2026.
+## 0095 — Cơ sở dữ liệu Vị trí hàng mới: `stock_positions` (27/10/2026)
+
+- `stock_positions (id BIGSERIAL)`: `branch` ('HN'|'SG'), `code` (không rỗng), `name` (dự phòng khi `products` chưa có mã), `notes` (ghi chú số thùng, chuẩn hóa khi lưu), `arrival_date` (**TEXT**, có thể rỗng, vd "KK 4.10", "16/10"), `location`, `version` (khóa lạc quan, +1 mỗi lần sửa), `updated_by_user_id`, `updated_by_name`, `updated_at`, `created_at`. Index `(branch, lower(btrim(code)))` và `(branch, location)`. **Không có UNIQUE** (mã, vị trí): dữ liệu đầu có dòng trùng; nhập mới/import trùng (mã, vị trí) thì ứng dụng tự cộng ghi chú vào dòng cũ; dòng trùng sẵn có của dữ liệu đầu giữ nguyên, không cảnh báo.
+- **SL kho và cảnh báo KHÔNG lưu**: luôn tính từ `notes` bằng `public/shared/carton.js` (`parseSpec`, `normalizeNote`, `warnings`). Tên SP và SL KiotViet đọc theo mã từ `products` (`code`, `name`, tổng `raw->'inventories'[].onHand`) khi xem.
+- `stock_position_history`: nhật ký **chỉ thêm** (trigger chặn UPDATE/DELETE, không khóa ngoại): `id`, `created_at`, `branch`, `position_id`, `code`, `location`, `action` (`seed|create|edit|delete|auto_delete|deduct|import_replace|import_add`), `field`, `old_value`, `new_value`, `summary JSONB` (số dòng thêm/đổi/xóa/bỏ qua của import), `actor_user_id`, `actor_name`. Thu hồi `reporting_readonly`.
+- **Dữ liệu đầu (một lần, chỉ khi bảng rỗng)**: `INSERT … SELECT` từ `stock_location_lines`, `updated_by_name = 'Nhập dữ liệu đầu'`. Gỡ tiền tố "T x " thừa của HN (vd "T x 4T*100" → "4T*100") khi phần sau là "<số>T…"; **bỏ** dòng thiếu mã và dòng hết hàng (ghi chú rỗng / "Hết hàng") vì quy tắc tự xóa khi SL = 0. Sau khi sao chép, hai bảng không còn liên hệ (Google Sheets chỉ còn nuôi hai tab cũ "Vị trí HN/SG"). Mỗi cơ sở có một bản ghi lịch sử `seed`.
+- Tự xóa khi hết: sau mọi lần lưu, SL tính ra = 0 thì dòng bị xóa và ghi `auto_delete`.
+
+Cập nhật gần nhất: 27/10/2026.

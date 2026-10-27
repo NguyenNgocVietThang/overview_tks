@@ -430,6 +430,7 @@ Hai file Kiot HN/SG **không còn** được server truy cập.
 | `0082` | Lịch và đơn nghỉ theo tài khoản (CHƯA áp DB, áp sau 0081): `hr_leave_work_schedules.user_id` + chỉ mục duy nhất `(user_id, work_date)` / `(employee_id, work_date)` một phần, `employee_id` cho phép NULL; sao lịch cũ sang MỌI tài khoản liên kết (giữ version); `hr_leave_submissions.user_id`; viết lại `hr_leave_submission_snapshot()` (tài khoản đang hoạt động, `u.work_branch` = cơ sở đơn, bộ phận từ `u.bo_phan`, lịch tra theo `user_id` + ngày, bot quy chat id/`hr_employee_id` cũ về đúng một tài khoản, `hr_employee_id` chỉ còn lịch sử) và `hr_leave_department_snapshot()` (không đọc `hr_employees`). Kiểm thử SQL thật: `db/accountLeaveTriggerMigration.test.js` (PGlite). |
 | `0091` (**chưa áp DB dùng chung**, 24/10/2026) | Bảng giá duyệt của tab Hóa đơn: `invoice_approved_prices` (khóa `id` identity; `branch` hanoi|saigon, `customer_id`/`product_id` BIGINT = `customers.id`/`products.id` cùng cơ sở, `approved_price NUMERIC > 0` (một giá duy nhất; ĐÃ được `0092` thay bằng 2 giá `price_no_vat` / `price_with_vat`), `approver`, `approved_on DATE` (ngày VN), `version` khóa lạc quan, `created_by/at`, `updated_by/at`; UNIQUE `(branch, customer_id, product_id, approved_on)`, index `approved_on DESC`) + `invoice_approved_price_changes` (nhật ký bất biến bằng trigger: `price_id`, `action` create|update|delete, `actor`, `changed_at`, `before_value/after_value jsonb`; không FK để lịch sử xóa còn lại); không FK sang `customers`/`products` (tên JOIN lúc đọc nên đổi tên trên KiotViet tự cập nhật); thu hồi ALL của `reporting_readonly`; idempotent. **Áp TRƯỚC khi deploy mã** (cùng `0092`) |
 | `0092` (**chưa áp DB dùng chung**, 24/10/2026) | Tách giá duyệt thành 2 giá tùy chọn (áp sau `0091`, giữ nguyên `0091`): thêm `invoice_approved_prices.price_no_vat` ("Giá không VAT") và `price_with_vat` ("Giá có VAT") kiểu `NUMERIC`; chuyển dữ liệu cũ bằng cách chép `approved_price` vào CẢ HAI cột (giữ hành vi cũ); bỏ cột `approved_price`; thay CHECK bằng "ít nhất 1 trong 2 giá, mỗi giá điền vào phải > 0"; idempotent. **Áp `0091` VÀ `0092` TRƯỚC khi deploy mã**: chưa áp thì chụp Kiểm tra giá bán êm bỏ qua giá duyệt (kiểm cột `price_no_vat` qua `information_schema`), API bảng trả 503 `NOT_MIGRATED` (cả khi Postgres báo lỗi 42703) |
+| `0095` | `stock_positions` (cơ sở dữ liệu Vị trí hàng mới cho trang `/vt-positions/`: ngày về TEXT, `version`, người/thời gian cập nhật) + `stock_position_history` (nhật ký chỉ thêm, trigger chặn sửa/xóa); seed một lần từ `stock_location_lines` (gỡ tiền tố "T x " thừa, bỏ dòng hết hàng/thiếu mã); **chưa áp DB** |
 
 Bot **xin nghỉ của nhân viên** chạy ngoài repo và đọc/ghi 3 bảng nền nghỉ phép trực tiếp; bot **quản lý** trong `telegram/` dùng chung đơn và sở hữu các bảng bổ sung ở migration `0029`. Hợp đồng dữ liệu ở `db/SCHEMA.md`.
 
@@ -777,6 +778,29 @@ Cập nhật gần nhất: 26/10/2026.
 
 26/10/2026 — HN-SG đã ngừng hoạt động: chỉ 5 fanpage còn lại được đồng bộ Pancake và hiển thị trạng thái. Client từ chối gọi API page 1222318524308489 kể cả khi còn token; đã gỡ token trong cấu hình cục bộ và mẫu. Giữ dữ liệu lịch sử, không đổi schema. Cần triển khai/restart server và worker để áp dụng trên môi trường đang chạy; thu hồi token tại Pancake nếu cần vô hiệu hóa token ở nhà cung cấp.
 
-27/10/2026 — **Vị trí hàng: SL tự tính từ ghi chú thùng + cảnh báo (Giai đoạn 1, chỉ đọc; không migration, không ghi DB, chưa commit/deploy):** luật đọc ghi chú `<thùng>T x <SL/thùng>` (x/X/*/×, `1t 11`, `+` hoặc dấu phẩy nối quy cách, hậu tố `c`, gộp cùng SL/thùng, trừ lẻ ` - N`, rỗng = 0) chuyển từ prototype order-picking thành `public/shared/carton.js` (UMD, `require` ở server, global `PickingCarton` ở trình duyệt; test `public/shared/carton.test.js`). `stockLocations/stockLocationsService.getLocations` thêm cho mỗi dòng `quantity` (null nếu ghi chú sai định dạng) và `warnings` (`multi`, `loose`, `unreadable`, `badnumber`), giữ nguyên các trường cũ (`totalQuantity` của Sheets chỉ là dự phòng). Trang `/stock-locations/` hiện Tổng SL từ `quantity` (số en-US, trống khi sai định dạng), bôi đỏ dòng cảnh báo kèm nhãn lý do, chip lọc "Cảnh báo (n)" riêng từng tab HN/SG, sort theo `quantity`. Google Sheets vẫn là nơi sửa dữ liệu; sửa/nhập tay/lịch sử là Giai đoạn 2, đơn vòng đời là Giai đoạn 3 (xem kế hoạch).
+
+## Vị trí hàng mới: VT Hà Nội / VT Sài Gòn — migration 0095 (27/10/2026)
+
+Trang `/vt-positions/#hn|#sg` (module `stockPositions/`) là cơ sở dữ liệu Vị trí hàng mới, chạy song song hai tab cũ "Vị trí HN/SG" (còn đọc Google Sheets). Dữ liệu đầu sao chép một lần từ `stock_location_lines`; từ đó sửa/thêm/xóa/import trực tiếp trên web.
+
+- **Bảng 9 cột + Thao tác:** Mã hàng, Tên hàng (tra theo mã từ `products`), SL kho (tính từ ghi chú bằng `public/shared/carton.js`), SL KiotViet (tồn thực `products.raw.inventories[].onHand`, có thể chậm vài phút), Ghi chú số thùng (tự chuẩn hóa khi lưu: `1t100 + 2T*100` → `3T x 100`; trừ số lượng thì ghi chú cập nhật, vd `3T x 100` trừ 200 → `1T x 100`; trừ thông minh nhiều quy cách `carton.deduct`: `3T x 200 + 1T x 50` trừ 250 → `2T x 200`), Ngày về (text, có thể trống), Vị trí (mỗi dòng đúng 1 vị trí của 1 mã), Người cập nhật, TG cập nhật (giờ Việt Nam). Dòng có cảnh báo (nhiều quy cách, trừ lẻ, sai định dạng, số thùng sai, mã SP lạ) đổi chữ sang đỏ; chip lọc "Cảnh báo (n)" riêng từng tab.
+- **Sửa tại chỗ** Ghi chú / Ngày về / Vị trí, thêm dòng (trùng mã + vị trí thì **tự cộng** ghi chú vào dòng cũ, cùng SL/thùng thì gộp thùng), xóa dòng (có xác nhận), **tự xóa dòng khi SL về 0**; lưu có `version` (409 nếu sửa chồng).
+- **Import** (file có 4 cột Mã, Ghi chú, Ngày về, Vị trí; `.xlsx/.xls/.csv`, tối đa 8 MB): chế độ **thay toàn bộ** (bảng của cơ sở thay bằng nội dung file) hoặc **bổ sung thêm SL** (dòng trùng mã + vị trí thì cộng ghi chú; dòng trùng ngay trong file cũng tự cộng), luôn có bước xem trước (`commit=0`) rồi xác nhận (`commit=1`), trong một giao dịch có khóa advisory theo cơ sở.
+- **Xuất Excel** (quyền riêng `stockLocationsV2.export`): nút xuất bảng của cơ sở đang xem ra `.xlsx` gồm 9 cột như bảng (Mã hàng, Tên hàng, SL kho, SL Kiot, Ghi chú số thùng, Ngày về, Vị trí, Người cập nhật, TG cập nhật giờ Việt Nam).
+- **Lịch sử cập nhật** (vĩnh viễn) trong `stock_position_history`.
+- **Quyền:** `stockLocationsV2.view` (xem), `stockLocationsV2.edit` (sửa/thêm/xóa/import) và `stockLocationsV2.export` (xuất Excel), hai quyền sau cần quyền xem, mặc định chỉ **Quản lý**, cấp thêm từng tài khoản trong trang Tài khoản; Khách luôn bị chặn. Trang `/vt-positions/` thuộc `PAGE_FEATURES`.
+
+| Method | Đường dẫn | Mô tả |
+|---|---|---|
+| GET | `/api/stock-positions?branch=HN\|SG` | Danh sách dòng kèm SL kho, SL Kiot, cảnh báo |
+| POST | `/api/stock-positions` | Thêm dòng (Mã, Ghi chú, Ngày về, Vị trí); trùng (mã, vị trí) thì cộng ghi chú vào dòng cũ (200 + `merged: true`) |
+| PATCH | `/api/stock-positions/:id` | Sửa Ghi chú / Ngày về / Vị trí kèm `version` |
+| POST | `/api/stock-positions/:id/deduct` | Trừ số lượng, ghi chú tự cập nhật; về 0 thì tự xóa |
+| DELETE | `/api/stock-positions/:id` | Xóa dòng |
+| POST | `/api/stock-positions/import?branch=…&mode=replace\|add&commit=0\|1` | Import file, xem trước / xác nhận |
+| GET | `/api/stock-positions/export?branch=HN\|SG` | Xuất Excel (`.xlsx`) 9 cột như bảng; cần `stockLocationsV2.export` |
+| GET | `/api/stock-positions/history?branch=…&limit=…&before=…` | Lịch sử cập nhật |
+
+Trạng thái: **chưa commit, chưa migrate, chưa deploy**; người dùng tự chạy `npm run db:migrate` (áp `0095`) trước khi deploy mã.
 
 Cập nhật gần nhất: 27/10/2026.

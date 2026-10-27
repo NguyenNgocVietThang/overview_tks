@@ -1,0 +1,310 @@
+'use strict';
+
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const { PGlite } = require('@electric-sql/pglite');
+const XLSX = require('xlsx');
+const { createStockPositionsService, mergeNotes } = require('./stockPositionsService');
+
+const MIGRATIONS = path.join(__dirname, '../db/migrations');
+const migration = file => fs.readFileSync(path.join(MIGRATIONS, file), 'utf8');
+
+function poolFor(db) {
+  const query = (sql, params) => db.query(sql, params);
+  return { query, connect: async () => ({ query, release() {} }) };
+}
+
+const QL = { id: 'ql-1', hoTen: 'Quản Lý A - 123456789', username: 'ql' };
+const ctx = (scope = ['HN', 'SG']) => ({ user: QL, scope });
+
+async function fixture({ lines = [] } = {}) {
+  const db = new PGlite();
+  await db.exec(migration('0001_core_master_data.sql'));
+  await db.exec(migration('0064_sheet_snapshots.sql'));
+  let row = 0;
+  for (const line of lines) {
+    await db.query(`INSERT INTO stock_location_lines (branch, source_row, code, name, notes, location, arrival_date) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [line.branch, ++row, line.code, line.name || '', line.notes, line.location || '', line.arrivalDate || '']);
+  }
+  await db.exec(migration('0095_stock_positions.sql'));
+  await db.query(`INSERT INTO products (branch, id, code, name, raw) VALUES
+    ('hanoi', 1, 'AAA1', 'Hàng A một', '{"inventories":[{"onHand":30},{"onHand":12}]}'),
+    ('hanoi', 2, 'BBB2', 'Hàng B hai', '{"inventories":[{"onHand":5}]}'),
+    ('saigon', 3, 'AAA1', 'Hàng A một SG', '{"inventories":[{"onHand":7}]}')`);
+  const service = createStockPositionsService({ getDb: () => poolFor(db) });
+  return { db, service };
+}
+
+function workbook(rows, name = 'Sheet1') {
+  const sheet = XLSX.utils.aoa_to_sheet(rows);
+  const book = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(book, sheet, name);
+  return XLSX.write(book, { type: 'buffer', bookType: 'xlsx' });
+}
+
+const HEADER = ['Mã hàng', 'Ghi chú', 'Ngày về', 'Vị trí'];
+
+test('migration seed: sao chep Vi tri HN/SG, go tien to "T x ", bo dong het hang va thieu ma, ghi lich su seed', async () => {
+  const { db, service } = await fixture({ lines: [
+    { branch: 'HN', code: 'AAA1', name: 'A', notes: 'T x 4T*100', location: '42', arrivalDate: 'KK 4.10' },
+    { branch: 'HN', code: 'BBB2', name: 'B', notes: 'T x 50t*800', location: 'sm' },
+    { branch: 'HN', code: 'CCC3', name: 'C', notes: '', location: '1' },
+    { branch: 'HN', code: 'DDD4', name: 'D', notes: 'Hết hàng', location: '2' },
+    { branch: 'HN', code: '', name: 'E', notes: '1T x 5', location: '3' },
+    { branch: 'HN', code: 'FFF6', name: 'F', notes: 'T x Ghi chú lạ', location: '4' },
+    { branch: 'SG', code: 'AAA1', name: 'A', notes: '3T X 200', location: '38', arrivalDate: '08/10' }
+  ] });
+  try {
+    const hn = await service.list(ctx(), 'HN');
+    assert.deepEqual(hn.rows.map(r => [r.code, r.notes]), [['AAA1', '4T*100'], ['BBB2', '50t*800'], ['FFF6', 'T x Ghi chú lạ']]);
+    assert.equal(hn.rows[0].arrivalDate, 'KK 4.10');
+    assert.equal(hn.rows[0].updatedByName, 'Nhập dữ liệu đầu');
+    assert.equal(hn.rows[0].quantity, 400);
+    assert.equal(hn.rows[2].quantity, null);
+    assert.deepEqual(hn.rows[2].warnings, ['unreadable', 'unknowncode']);
+    const sg = await service.list(ctx(), 'SG');
+    assert.equal(sg.rows[0].quantity, 600);
+    const seeds = await db.query(`SELECT branch, summary FROM stock_position_history WHERE action = 'seed' ORDER BY branch`);
+    assert.deepEqual(seeds.rows.map(r => [r.branch, r.summary.rows]), [['HN', 3], ['SG', 1]]);
+  } finally { await db.close(); }
+});
+
+test('list: ten + SL Kiot tra theo ma tu products, ma la bi canh bao, dong trung (ma, vi tri) cua du lieu dau khong bi canh bao', async () => {
+  const { db, service } = await fixture({ lines: [
+    { branch: 'HN', code: 'AAA1', name: 'tên sheet', notes: '1T x 50', location: 'H1' },
+    { branch: 'HN', code: 'AAA1', name: 'tên sheet', notes: '2T x 50', location: 'h1' },
+    { branch: 'HN', code: 'ZZZ9', name: 'Mã lạ', notes: '1T x 5 + 1T x 6', location: 'H2' }
+  ] });
+  try {
+    const { rows } = await service.list(ctx(['HN']), 'HN');
+    assert.equal(rows[0].name, 'Hàng A một');
+    assert.equal(rows[0].kiotQuantity, 42);
+    assert.deepEqual(rows[0].warnings, []);
+    assert.deepEqual(rows[1].warnings, []);
+    assert.equal(rows[2].name, 'Mã lạ');
+    assert.equal(rows[2].kiotQuantity, null);
+    assert.deepEqual(rows[2].warnings, ['multi', 'unknowncode']);
+    await assert.rejects(() => service.list(ctx(['SG']), 'HN'), { code: 'BRANCH_OUT_OF_SCOPE' });
+  } finally { await db.close(); }
+});
+
+test('create: chuan hoa ghi chu, tra ten theo ma khong phan biet hoa/thuong, trung (ma, vi tri) thi tu cong vao dong cu, ghi lich su', async () => {
+  const { db, service } = await fixture();
+  try {
+    const { row } = await service.create(ctx(), 'HN', { code: ' aaa1 ', notes: '1t 100 + 2T*100', arrivalDate: '4/10', location: 'H1' });
+    assert.equal(row.code, 'AAA1');
+    assert.equal(row.name, 'Hàng A một');
+    assert.equal(row.notes, '3T x 100');
+    assert.equal(row.quantity, 300);
+    assert.equal(row.kiotQuantity, 42);
+    assert.equal(row.updatedByName, 'Quản Lý A');
+    assert.equal(row.version, 1);
+    assert.equal(row.merged, undefined);
+    // Trung (ma, vi tri): cong thong minh vao dong cu — cung SL/thung thi gop thung, khac thi noi bang " + ".
+    const same = await service.create(ctx(), 'HN', { code: 'aaa1', notes: '2T*100', arrivalDate: '20/10', location: 'h1' });
+    assert.equal(same.merged, true);
+    assert.equal(same.row.id, row.id);
+    assert.equal(same.row.notes, '5T x 100');
+    assert.equal(same.row.quantity, 500);
+    assert.equal(same.row.arrivalDate, '20/10');
+    assert.equal(same.row.version, 2);
+    assert.equal(same.row.location, 'H1');
+    const other50 = await service.create(ctx(), 'HN', { code: 'AAA1', notes: '1T x 50', location: 'H1' });
+    assert.equal(other50.row.notes, '5T x 100 + 1T x 50');
+    assert.deepEqual(other50.row.warnings, ['multi']);
+    assert.equal((await service.list(ctx(), 'HN')).rows.length, 1);
+    await assert.rejects(() => service.create(ctx(), 'HN', { code: 'AAA1', notes: 'rác', location: 'H1' }), { code: 'VALIDATION', field: 'notes' });
+    await assert.rejects(() => service.create(ctx(), 'HN', { code: 'AAA1', notes: '', location: 'H2' }), { code: 'VALIDATION', field: 'notes' });
+    await assert.rejects(() => service.create(ctx(), 'HN', { code: '', notes: '1T x 5', location: 'H2' }), { code: 'VALIDATION', field: 'code' });
+    const other = await service.create(ctx(), 'HN', { code: 'ZZZ', notes: '1T x 5', location: 'H1' });
+    assert.equal(other.row.name, '');
+    assert.deepEqual(other.row.warnings, ['unknowncode']);
+    const history = await service.history(ctx(), 'HN');
+    assert.deepEqual(history.rows.map(h => [h.action, h.code]), [['create', 'ZZZ'], ['edit', 'AAA1'], ['edit', 'AAA1'], ['edit', 'AAA1'], ['create', 'AAA1']]);
+  } finally { await db.close(); }
+});
+
+test('update: chuan hoa, version, 409 sua chong, khong ghi lich su khi khong doi, tu xoa khi het hang can xac nhan', async () => {
+  const { db, service } = await fixture();
+  try {
+    const { row } = await service.create(ctx(), 'HN', { code: 'AAA1', notes: '3T x 100', location: 'H1' });
+    const same = await service.update(ctx(), row.id, { version: 1, notes: '3t  x 100', location: 'H1' });
+    assert.equal(same.row.version, 1);
+    const edited = await service.update(ctx(), row.id, { version: 1, notes: '1t*100 + 1t*100', arrivalDate: '16/10' });
+    assert.equal(edited.row.notes, '2T x 100');
+    assert.equal(edited.row.arrivalDate, '16/10');
+    assert.equal(edited.row.version, 2);
+    await assert.rejects(() => service.update(ctx(), row.id, { version: 1, notes: '9T x 1' }),
+      error => error.code === 'VERSION_CONFLICT' && error.latest.notes === '2T x 100');
+    const second = await service.create(ctx(), 'HN', { code: 'AAA1', notes: '1T x 5', location: 'H2' });
+    await assert.rejects(() => service.update(ctx(), second.row.id, { version: 1, location: 'h1' }), { code: 'DUPLICATE_POSITION' });
+    await assert.rejects(() => service.update(ctx(), row.id, { version: 2, notes: '' }), { code: 'WOULD_AUTO_DELETE' });
+    assert.equal((await service.list(ctx(), 'HN')).rows.length, 2);
+    assert.deepEqual(await service.update(ctx(), row.id, { version: 2, notes: '', confirmEmpty: true }), { deleted: true, id: row.id });
+    assert.equal((await service.list(ctx(), 'HN')).rows.length, 1);
+    const history = (await service.history(ctx(), 'HN')).rows.map(h => [h.action, h.field, h.oldValue, h.newValue]);
+    assert.ok(history.some(h => h[0] === 'auto_delete' && h[2] === '2T x 100'));
+    assert.equal(history.filter(h => h[0] === 'edit').length, 2); // notes + arrivalDate, lan "khong doi" khong ghi
+    await assert.rejects(() => service.update(ctx(['SG']), row.id + 1000, { version: 1 }), { code: 'NOT_FOUND' });
+    await assert.rejects(() => service.update(ctx(['SG']), second.row.id, { version: 1, notes: '1T x 9' }), { code: 'BRANCH_OUT_OF_SCOPE' });
+  } finally { await db.close(); }
+});
+
+test('deduct: 3T x 100 tru 200 -> 1T x 100; tru le them phan " - N"; tru het thi tu xoa; tru qua thi bao loi', async () => {
+  const { db, service } = await fixture();
+  try {
+    const { row } = await service.create(ctx(), 'HN', { code: 'AAA1', notes: '3T x 100', location: 'H1' });
+    const a = await service.deduct(ctx(), row.id, { version: 1, quantity: 200 });
+    assert.equal(a.row.notes, '1T x 100');
+    assert.equal(a.row.quantity, 100);
+    const b = await service.deduct(ctx(), row.id, { version: 2, quantity: 30 });
+    assert.equal(b.row.notes, '1T x 100 - 30');
+    assert.equal(b.row.quantity, 70);
+    await assert.rejects(() => service.deduct(ctx(), row.id, { version: 3, quantity: 71 }), { code: 'VALIDATION' });
+    await assert.rejects(() => service.deduct(ctx(), row.id, { version: 3, quantity: 0 }), { code: 'VALIDATION' });
+    assert.deepEqual(await service.deduct(ctx(), row.id, { version: 3, quantity: 70 }), { deleted: true, id: row.id });
+    const history = (await service.history(ctx(), 'HN')).rows.map(h => h.action);
+    assert.deepEqual(history.slice(0, 3), ['auto_delete', 'deduct', 'deduct']);
+  } finally { await db.close(); }
+});
+
+test('remove: xoa dong, ghi lich su delete, sai version bi 409', async () => {
+  const { db, service } = await fixture();
+  try {
+    const { row } = await service.create(ctx(), 'SG', { code: 'AAA1', notes: '1T x 5', location: 'S1' });
+    await assert.rejects(() => service.remove(ctx(), row.id, 9), { code: 'VERSION_CONFLICT' });
+    assert.deepEqual(await service.remove(ctx(), row.id, 1), { deleted: true, id: row.id });
+    assert.equal((await service.history(ctx(), 'SG')).rows[0].action, 'delete');
+    assert.equal((await service.list(ctx(), 'SG')).rows.length, 0);
+  } finally { await db.close(); }
+});
+
+test('lich su bat bien: khong sua/xoa duoc, phan trang theo before', async () => {
+  const { db, service } = await fixture();
+  try {
+    for (const location of ['A', 'B', 'C']) await service.create(ctx(), 'HN', { code: 'AAA1', notes: '1T x 5', location });
+    await assert.rejects(() => db.query('UPDATE stock_position_history SET code = $1', ['x']), /immutable/);
+    await assert.rejects(() => db.query('DELETE FROM stock_position_history'), /immutable/);
+    const page1 = await service.history(ctx(), 'HN', { limit: 2 });
+    assert.equal(page1.rows.length, 2);
+    assert.ok(page1.nextBefore);
+    const page2 = await service.history(ctx(), 'HN', { limit: 2, before: page1.nextBefore });
+    assert.equal(page2.rows.length, 1);
+    assert.equal(page2.nextBefore, null);
+  } finally { await db.close(); }
+});
+
+test('mergeNotes: gop cung quy cach, khac quy cach noi bang +, cong phan tru le', () => {
+  assert.equal(mergeNotes('5T x 100', '2T x 100'), '7T x 100');
+  assert.equal(mergeNotes('5T x 100', '2T x 50'), '5T x 100 + 2T x 50');
+  assert.equal(mergeNotes('5T x 100 - 30', '1T x 100'), '6T x 100 - 30');
+  assert.equal(mergeNotes('rác', '1T x 5'), null);
+});
+
+async function seedImportRows(service) {
+  await service.create(ctx(), 'HN', { code: 'AAA1', notes: '5T x 100', arrivalDate: '1/10', location: 'H1' });
+  await service.create(ctx(), 'HN', { code: 'BBB2', notes: '1T x 10', arrivalDate: '1/10', location: 'H2' });
+}
+
+test('import replace: xem truoc khong ghi, xac nhan thay toan bo (them/doi/xoa), bo dong SL 0', async () => {
+  const { db, service } = await fixture();
+  try {
+    await seedImportRows(service);
+    const buffer = workbook([
+      ['Báo cáo vị trí', '', '', '', 'Cột thừa'],
+      ['STT', 'mã SP', 'GHI CHÚ', 'Ngày về', 'Vị trí', 'Cột thừa'],
+      [1, 'aaa1', '5T x 100', '1/10', 'H1', 'x'],       // khong doi
+      [2, 'ZZZ9', '1t*20 + 2T*20', 'KK 4.10', 'H9', ''], // them (ma la)
+      [3, 'BBB2', '', '', 'H2', ''],                      // SL 0: bo qua => dong BBB2 cu bi xoa
+      [4, '', '', '', '', '']
+    ]);
+    const preview = await service.importFile(ctx(), 'HN', { mode: 'replace', buffer, fileName: 'vt.xlsx' });
+    assert.deepEqual(preview.counts, { added: 1, updated: 0, deleted: 1, unchanged: 1, skippedEmpty: 1, errors: 0 });
+    assert.equal((await service.list(ctx(), 'HN')).rows.length, 2);
+    const done = await service.importFile(ctx(), 'HN', { mode: 'replace', commit: true, buffer, fileName: 'vt.xlsx' });
+    assert.equal(done.imported, true);
+    const rows = (await service.list(ctx(), 'HN')).rows;
+    assert.deepEqual(rows.map(r => [r.code, r.notes, r.arrivalDate, r.location]), [['AAA1', '5T x 100', '1/10', 'H1'], ['ZZZ9', '3T x 20', 'KK 4.10', 'H9']]);
+    const history = (await service.history(ctx(), 'HN')).rows;
+    const summary = history.find(h => h.action === 'import_replace');
+    assert.equal(summary.summary.file, 'vt.xlsx');
+    assert.equal(summary.summary.added, 1);
+    assert.ok(history.some(h => h.action === 'delete' && h.code === 'BBB2'));
+  } finally { await db.close(); }
+});
+
+test('import add: cong ghi chu vao dong trung (ma, vi tri), dong moi them, dong ngoai file giu nguyen', async () => {
+  const { db, service } = await fixture();
+  try {
+    await seedImportRows(service);
+    const buffer = workbook([HEADER, ['AAA1', '2T x 100', '16/10', 'h1'], ['AAA1', '1T x 30', '', 'H3']]);
+    const done = await service.importFile(ctx(), 'HN', { mode: 'add', commit: true, buffer, fileName: 'them.xlsx' });
+    assert.deepEqual(done.counts, { added: 1, updated: 1, deleted: 0, unchanged: 0, skippedEmpty: 0, errors: 0 });
+    const rows = (await service.list(ctx(), 'HN')).rows;
+    assert.deepEqual(rows.map(r => [r.code, r.notes, r.arrivalDate, r.location]),
+      [['AAA1', '7T x 100', '16/10', 'H1'], ['BBB2', '1T x 10', '1/10', 'H2'], ['AAA1', '1T x 30', '', 'H3']]);
+  } finally { await db.close(); }
+});
+
+test('import loi: thieu cot, ghi chu sai dinh dang, trung ma + vi tri trong file tu cong, ngay Excel -> dd/MM; co loi thi khong nhap', async () => {
+  const { db, service } = await fixture();
+  try {
+    await seedImportRows(service);
+    await assert.rejects(() => service.importFile(ctx(), 'HN', { mode: 'add', buffer: workbook([['Mã hàng', 'Ghi chú', 'Vị trí'], ['A', '1T x 1', 'x']]) }),
+      error => error.code === 'IMPORT_HEADERS_MISSING' && /Ngày về/.test(error.message));
+    await assert.rejects(() => service.importFile(ctx(), 'HN', { mode: 'add', buffer: Buffer.from('không phải excel') }), error => ['IMPORT_UNREADABLE', 'IMPORT_HEADERS_MISSING'].includes(error.code));
+    await assert.rejects(() => service.importFile(ctx(), 'HN', { mode: 'xoa', buffer: workbook([HEADER, ['A', '1T x 1', '', 'x']]) }), { code: 'VALIDATION' });
+    const bad = workbook([HEADER, ['', '1T x 5', '', 'H1'], ['AAA1', 'nhiều thùng', '', 'H1'], ['CCC3', '1T x 5', '', 'H5'], ['ccc3', '2T x 5', '', 'h5']]);
+    const preview = await service.importFile(ctx(), 'HN', { mode: 'replace', buffer: bad });
+    assert.equal(preview.counts.errors, 2);
+    assert.deepEqual(preview.errors.map(e => e.row), [2, 3]);
+    await assert.rejects(() => service.importFile(ctx(), 'HN', { mode: 'replace', commit: true, buffer: bad }),
+      error => error.code === 'IMPORT_HAS_ERRORS' && error.body.counts.errors === 2);
+    assert.equal((await service.list(ctx(), 'HN')).rows.length, 2);
+
+    const sheet = XLSX.utils.aoa_to_sheet([HEADER, ['AAA1', '1T x 5', '', 'H1']]);
+    sheet.C2 = { t: 'n', v: 46300, z: 'dd/mm/yyyy' }; // 2026-08-... theo serial Excel
+    sheet['!ref'] = 'A1:D2';
+    const book = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(book, sheet, 'S');
+    const dated = await service.importFile(ctx(), 'HN', { mode: 'add', commit: true, buffer: XLSX.write(book, { type: 'buffer', bookType: 'xlsx', cellStyles: true }), fileName: 'ngay.xlsx' });
+    assert.equal(dated.counts.updated, 1);
+    const row = (await service.list(ctx(), 'HN')).rows.find(r => r.location === 'H1');
+    assert.match(row.arrivalDate, /^\d{2}\/\d{2}(\/\d{4})?$/);
+  } finally { await db.close(); }
+});
+
+test('import csv UTF-8 co dau', async () => {
+  const { db, service } = await fixture();
+  try {
+    const csv = Buffer.from('﻿Mã hàng,Ghi chú,Ngày về,Vị trí\nAAA1,"1T x 10 + 2T x 10",KK 4.10,Kệ 1\n', 'utf8');
+    const done = await service.importFile(ctx(), 'SG', { mode: 'replace', commit: true, buffer: csv, fileName: 'vt.csv' });
+    assert.equal(done.counts.added, 1);
+    const [row] = (await service.list(ctx(), 'SG')).rows;
+    assert.deepEqual([row.notes, row.arrivalDate, row.location, row.name], ['3T x 10', 'KK 4.10', 'Kệ 1', 'Hàng A một SG']);
+  } finally { await db.close(); }
+});
+
+test('import: dong trung (ma, vi tri) trong file tu cong, ke ca che do thay toan bo', async () => {
+  const { db, service } = await fixture();
+  try {
+    const buffer = workbook([HEADER, ['AAA1', '2T x 100', '', 'H1'], ['aaa1', '3T x 100 + 1T x 50', '16/10', 'h1'], ['AAA1', '1T x 20', '', 'H2']]);
+    const done = await service.importFile(ctx(), 'SG', { mode: 'replace', commit: true, buffer, fileName: 'trung.xlsx' });
+    assert.equal(done.counts.added, 2);
+    const rows = (await service.list(ctx(), 'SG')).rows;
+    assert.deepEqual(rows.map(r => [r.code, r.notes, r.arrivalDate, r.location]), [['AAA1', '5T x 100 + 1T x 50', '16/10', 'H1'], ['AAA1', '1T x 20', '', 'H2']]);
+  } finally { await db.close(); }
+});
+
+test('deduct thông minh trong cùng vị trí nhiều quy cách: 3T x 200 + 1T x 50 trừ 250 còn 2T x 200', async () => {
+  const { db, service } = await fixture();
+  try {
+    const { row } = await service.create(ctx(), 'HN', { code: 'AAA1', notes: '3T x 200 + 1T x 50', location: 'H1' });
+    const result = await service.deduct(ctx(), row.id, { version: 1, quantity: 250 });
+    assert.equal(result.row.notes, '2T x 200');
+    assert.equal(result.row.quantity, 400);
+    assert.deepEqual(result.row.warnings, []);
+  } finally { await db.close(); }
+});

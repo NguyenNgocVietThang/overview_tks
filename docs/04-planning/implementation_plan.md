@@ -71,6 +71,7 @@ Cập nhật: 2026-10-19 (Tính sẵn báo cáo, web chỉ đọc: doanh số th
 11. **Quy định công ty** (tab HR): bảng `hr_rule_documents` (migration `0027`), 2 tài liệu dựng sẵn + PDF upload, quyền `hr.rules`/`hr.rules.manage`, thông báo chuông.
 12. Dọn bảng `suppliers` và `daily_purchase_summary` (migration `0026`) sau khi gỡ tab Nhà cung cấp.
 13. **Vị trí hàng** (2026-10-03): module `stockLocations/` phục vụ dữ liệu hai sheet HN/SG của workbook dùng chung (từ 17/10/2026 qua bảng `stock_location_lines`, job `sheetSnapshots/sync.js` đồng bộ 3 phút/lần, migration `0064`; sheet `CÂN ĐO` cũng qua `shipping_measures` 5 phút/lần), trang `/stock-locations/` 6 cột (Mã hàng, Tên hàng, Tổng SL, Ghi chú hàng hóa, Ngày về, Vị trí), quyền `stockLocations.view` (Khách bị chặn). Xem [thiết lập](../stock-locations-setup.md).
+13b. **VT Hà Nội / VT Sài Gòn** (2026-10-27): module `stockPositions/` + trang `/vt-positions/` là cơ sở dữ liệu Vị trí hàng mới trong Postgres (migration `0095`: `stock_positions`, `stock_position_history`), seed một lần từ `stock_location_lines` rồi ngắt khỏi Google Sheets; SL kho tính từ ghi chú bằng `public/shared/carton.js`, SL Kiot/tên từ `products`; sửa tại chỗ, thêm/xóa, tự xóa khi SL = 0, import (thay toàn bộ / bổ sung) và lịch sử; quyền `stockLocationsV2.view/edit/export` (xuất Excel 9 cột) mặc định chỉ Quản lý. Chưa commit/migrate/deploy.
 14. **Tài khoản** (2026-10-03): tự đăng ký bị khóa (`ALLOW_SELF_REGISTRATION`), ID Telegram lưu trong một giao dịch đồng bộ `app_users`/`hr_telegram_links`/`hr_employees` và chỉ Quản lý được sửa; trang Quản lý người dùng nhập hộ ID.
 15. **Nghỉ phép (web)**: gỡ trạng thái `Tạm duyệt` (migration `0030`), bảng nghỉ phép có phân trang, lịch nghỉ phép cạnh chuông thông báo (quyền `hr.leave`). Đơn xin nghỉ do bot ngoài repo ghi trực tiếp; web chỉ nhập tay "Tự ý nghỉ" và duyệt.
 16. **Bảo mật hồ sơ & dọn API** (2026-10-05, đã commit): hồ sơ cá nhân không tự đổi email/SĐT (TK nhân sự chỉ Quản lý đổi; TK thường đổi email qua OTP gửi tới email mới — `/api/auth/profile/contact-change`); TK đã gắn dòng nhân sự không tự nhảy sang dòng khác. Gỡ API không còn dùng: `GET /api/search`, `GET /api/customer-product-top`, export `search.results`, `/api/auth/register/{channels,send-otp,verify}`, `GET /api/hr/telegram/link-status`, `POST /api/shipment/lifecycle/lookup`; gỡ trường payload dashboard không hiển thị (KPI "hôm nay", `activeProducts`, `stockByCategory`…, bộ lọc `ov*`). Không migration.
@@ -255,7 +256,7 @@ Chỉ frontend (`public/shared/shared-nav.js` + `shared.css`), không migration.
 
 Không migration. Các lớp đọc báo cáo (`dashboardPgReader`, `documentDetailRepository`, `kiotOrdersRepository`, `vatDraft`, `priceAudit`, `businessMonthlySql`) lấy tên từ `customers.name` / `products.name` theo cơ sở + id thay cho tên ghi trên chứng từ. Bảng tính sẵn: `product_report_customers` gộp khách theo tên chuẩn hóa; `customer_invoice_lines_90d` lấy mã/tên khách hiện tại. Không đồng bộ lại hóa đơn KiotViet, chỉ chạy lại `customerInvoiceLinesRefresh` và `productReportRefresh`. Bảng tháng đã chốt giữ tên lúc chốt; khớp khách của `businessMonthlySql` theo `name_key` trên tên chứng từ còn hạn chế với chứng từ cũ không có mã khách.
 
-Cập nhật gần nhất: 24/10/2026.
+Cập nhật gần nhất: 27/10/2026.
 
 ## 26/10/2026 — Cá nhân hủy đơn nghỉ phép
 

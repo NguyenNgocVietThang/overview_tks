@@ -61,7 +61,6 @@ async function setup(t, { branch = 'Cả hai', hash = '', data = { HN: [row('001
   window.HTMLDialogElement.prototype.showModal = function() { this.setAttribute('open', ''); };
   window.HTMLDialogElement.prototype.close = function() { this.removeAttribute('open'); this.dispatchEvent(new window.Event('close')); };
   window.eval(fs.readFileSync(path.join(publicDir, 'shared/fuzzy-search.js'), 'utf8'));
-  window.eval(fs.readFileSync(path.join(publicDir, 'shared/carton.js'), 'utf8'));
   window.eval(fs.readFileSync(path.join(publicDir, 'shared/table-controls.js'), 'utf8'));
   window.eval(nav);
   const user = { vaiTro: 'Nhân viên kho', branch, permissions: resolvePermissions({ vaiTro: 'Nhân viên kho' }), pageFeatures: PAGE_FEATURES };
@@ -300,53 +299,4 @@ test('account permissions form disables location grant for guest and permits sta
   assert.equal(select.disabled, false);
   assert.equal(select.value, 'default');
   dom.window.close();
-});
-
-const lineWith = (code, notes, quantity, warnings, name = 'Hàng') => ({ code, name, totalQuantity: '999', notes, location: 'A01', arrivalDate: '', quantity, warnings });
-const warnData = () => ({
-  HN: [lineWith('H1', '5T x 100', 500, []), lineWith('H2', '1Tx50 + 2Tx25', 100, ['multi']), lineWith('H3', '1Tx100 - 30', 70, ['loose']), lineWith('H4', 'vin 19/9', null, ['unreadable']), lineWith('H5', '', 0, [])],
-  SG: [lineWith('S1', '3T x 20', 60, []), lineWith('S2', '0.5Tx10', null, ['badnumber'])]
-});
-
-test('Tổng SL lấy từ quantity: số en-US, trống khi ghi chú sai định dạng, 0 khi ghi chú rỗng', async t => {
-  const { doc } = await setup(t, { data: warnData() });
-  const qty = code => [...doc.querySelectorAll('#locationRows tr')].find(tr => tr.querySelector('[data-field="code"]').textContent === code).querySelector('[data-field="totalQuantity"]').textContent;
-  assert.deepEqual(['H1', 'H2', 'H3', 'H4', 'H5'].map(qty), ['500', '100', '70', '', '0']);
-});
-
-test('dòng cảnh báo bôi đỏ kèm nhãn lý do, dòng sạch và rỗng không bôi', async t => {
-  const { doc } = await setup(t, { data: warnData() });
-  const rows = [...doc.querySelectorAll('#locationRows tr')];
-  assert.deepEqual(rows.map(tr => tr.classList.contains('locations-warning')), [false, true, true, true, false]);
-  assert.deepEqual(rows.map(tr => tr.querySelector('.locations-badge')?.textContent ?? null), [null, 'Nhiều quy cách', 'Có phần trừ lẻ', 'Ghi chú sai định dạng', null]);
-  assert.equal(rows[1].querySelector('.locations-badge').title, 'Nhiều quy cách');
-});
-
-test('chip Cảnh báo đếm riêng từng tab, lọc đúng dòng và bỏ chọn về đầy đủ', async t => {
-  const { doc, changeTab } = await setup(t, { data: warnData() });
-  const chip = doc.getElementById('locationWarnFilter');
-  const codes = () => [...doc.querySelectorAll('#locationRows [data-field="code"]')].map(td => td.textContent);
-  assert.equal(chip.textContent, 'Cảnh báo (3)');
-  chip.click();
-  assert.equal(chip.getAttribute('aria-pressed'), 'true');
-  assert.deepEqual(codes(), ['H2', 'H3', 'H4']);
-  await changeTab('sg');
-  assert.equal(doc.getElementById('locationWarnFilter').textContent, 'Cảnh báo (1)', 'SG đếm riêng');
-  assert.deepEqual(codes(), ['S1', 'S2'], 'bộ lọc của tab SG chưa bật');
-  doc.getElementById('locationWarnFilter').click();
-  assert.deepEqual(codes(), ['S2']);
-  await changeTab('hn');
-  assert.equal(doc.getElementById('locationWarnFilter').getAttribute('aria-pressed'), 'true', 'HN vẫn giữ trạng thái lọc');
-  doc.getElementById('locationWarnFilter').click();
-  assert.deepEqual(codes(), ['H1', 'H2', 'H3', 'H4', 'H5']);
-});
-
-test('sort cột Tổng SL theo quantity, dòng không tính được SL xuống cuối', async t => {
-  const { doc } = await setup(t, { data: warnData() });
-  const button = doc.querySelector('[data-sort-field="totalQuantity"]');
-  const codes = () => [...doc.querySelectorAll('#locationRows [data-field="code"]')].map(td => td.textContent);
-  button.click();
-  assert.deepEqual(codes(), ['H5', 'H3', 'H2', 'H1', 'H4']);
-  button.click();
-  assert.deepEqual(codes(), ['H1', 'H2', 'H3', 'H5', 'H4']);
 });

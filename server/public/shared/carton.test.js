@@ -171,3 +171,31 @@ test('số hạng cùng SL/thùng gộp thành một; chỉ còn một SL/thùng
   assert.deepEqual(C.warnings('1Tx50 + 2Tx25'),['multi']);assert.deepEqual(C.warnings('1Tx50 + 2Tx25 + 1Tx50'),['multi']);
   assert.equal(C.deduct(C.parseSpec('9T x 14 + 5T x 14'),28).text,'12T x 14');
 });
+
+test('trừ thông minh nhiều quy cách: 3T x 200 + 1T x 50 trừ 250 còn 2T x 200; ít thùng nhất; không khớp thì trừ lẻ',()=>{
+  const d=(note,q)=>C.deduct(C.parseSpec(note),q);
+  assert.equal(d('3T x 200 + 1T x 50',250).text,'2T x 200');
+  assert.equal(d('3T x 200 + 1T x 50',250).taken,2);
+  assert.equal(d('3T x 200 + 1T x 50',50).text,'3T x 200');
+  assert.equal(d('3T x 200 + 1T x 50',600).text,'1T x 50');
+  assert.equal(d('2T x 100 + 4T x 50',100).text,'1T x 100 + 4T x 50','ưu tiên ít thùng nhất');
+  assert.equal(d('2T x 100 + 4T x 50',150).text,'1T x 100 + 3T x 50');
+  assert.equal(d('3T x 200 + 1T x 50',30).text,'3T x 200 + 1T x 50 - 30','không ghép được trọn thùng: trừ lẻ');
+  assert.equal(d('3T x 200 + 1T x 50',650).text,'Hết hàng');
+});
+
+test('pickText: cột Số thùng khi in — lấy tròn 5Tx50, lấy lẻ 2Tx60-20, nhiều quy cách ghép thông minh',()=>{
+  const p=(note,q)=>C.pickText(C.parseSpec(note),q);
+  assert.equal(p('2T x 60',100),'2Tx60-20','khách lấy 100 từ khu 2Tx60');
+  assert.equal(p('7T x 50',250),'5Tx50','khách lấy 250 từ khu 7Tx50: tròn thùng');
+  assert.equal(p('2T x 60',60),'1Tx60');
+  assert.equal(p('2T x 60',20),'1Tx60-40');
+  assert.equal(p('3T x 200 + 1T x 50',250),'1Tx200+1Tx50');
+  assert.equal(p('3T x 200 + 1T x 50',100),'1Tx200-100');
+  assert.equal(p('1T x 100 - 30',70),'1Tx100-30','thùng đã mở thiếu 30');
+  assert.equal(p('2T x 60',121),null,'vượt tồn');
+  assert.equal(p('2T x 60',0),null);
+  assert.equal(p('rác',5),null);
+  assert.equal(p('',5),null);
+  assert.equal(C.pickText(null,5),null);
+});

@@ -84,12 +84,12 @@ test('vị trí ghi chú sai định dạng không chọn được và hiện nh
   inv.setSpec(bad,'1Tx60');w.PickingPopup.refresh();
   assert.equal(d.querySelector(`[data-line="0"][data-location="${bad.id}"]`).disabled,false);
 });
-test('khu nhiều quy cách vẫn tính SL, gợi ý được và ST lẻ hiện đỏ',t=>{
+test('khu nhiều quy cách vẫn tính SL, gợi ý được và trừ thông minh trọn thùng từ nhiều quy cách (ST nguyên)',t=>{
   const {d,order,at,data}=setup(t,x=>{const o=x.orders.find(o=>o.orderCode==='DH-DEMO-013');o.lines.push({productCode:'GHI',productName:'GHI',quantity:75,price:1});x.locations.push({branch:'HN',code:'GHI',location:'M01',notes:'1Tx50 + 2Tx25',id:'loc-ghi'});});
   d.querySelector('#lcDetailTitle').textContent='DH-DEMO-013';d.querySelector('#openPickingBtn').click();
   assert.equal(d.querySelector('[data-qty][data-qline="2"][data-qloc="loc-ghi"]').value,'75');
-  assert.equal(popupSt(d)[2].dataset.st,'1.5','75 không khớp trọn một quy cách: phần lẻ chia SL/thùng của số hạng đầu (50)');
-  assert.ok(popupSt(d)[2].querySelector('strong').classList.contains('picking-st-frac'));
+  assert.equal(popupSt(d)[2].dataset.st,'2','75 = 1 thùng 50 + 1 thùng 25: ghép trọn thùng từ hai quy cách nên ST là số nguyên');
+  assert.ok(!popupSt(d)[2].querySelector('strong').classList.contains('picking-st-frac'));
 });
 test('đơn của cơ sở nào chỉ thấy vị trí của cơ sở đó (HN không lẫn SG)',t=>{
   const {w,d,data,at}=setup(t,x=>{x.orders.push({branch:'SG',orderCode:'DH-DEMO-SG',customerName:'SG',saleName:'x',status:{code:'SENT_TO_ACCOUNTANT'},summary:{code:'SENT_TO_ACCOUNTANT'},lines:[{productCode:'ABC',productName:'ABC',quantity:100,price:1}]});});
@@ -114,4 +114,29 @@ test('bộ lọc trạng thái nhặt của cả đơn ở danh sách vòng đ�
   press('confirmed');assert.deepEqual(visible().filter(Boolean),['DH-DEMO-001']);
   press('cancelled');assert.deepEqual(visible().filter(Boolean),['DH-DEMO-003'],'SG lọc theo cơ sở của dòng');
   press('');assert.deepEqual(visible().filter(Boolean),['DH-DEMO-013','DH-DEMO-001','DH-DEMO-003']);
+});
+test('cột Số thùng khi in: lấy lẻ 100 từ 2Tx60 ra 2Tx60-20; lấy tròn 250 từ 7Tx50 ra 5Tx50; nhiều vị trí nối " + "',t=>{
+  const {inv,order}=setup(t,x=>{const o=x.orders.find(o=>o.orderCode==='DH-DEMO-013');
+    o.lines.push({productCode:'LE',productName:'LE',quantity:100,price:1},{productCode:'TRON',productName:'TRON',quantity:250,price:1},{productCode:'HAI',productName:'HAI',quantity:70,price:1});
+    x.locations.push({branch:'HN',code:'LE',location:'M01',notes:'2Tx60',id:'loc-le'},{branch:'HN',code:'TRON',location:'M02',notes:'7Tx50',id:'loc-tron'},
+      {branch:'HN',code:'HAI',location:'M03',notes:'2Tx60',id:'loc-hai1'},{branch:'HN',code:'HAI',location:'M04',notes:'1Tx50',id:'loc-hai2'});});
+  inv.reserve(order,{2:[{id:'loc-le',quantity:100}],3:[{id:'loc-tron',quantity:250}],4:[{id:'loc-hai1',quantity:60},{id:'loc-hai2',quantity:10}]});
+  assert.equal(inv.lineStText(order,2),'2Tx60-20');
+  assert.equal(inv.lineStText(order,3),'5Tx50');
+  assert.equal(inv.lineStText(order,4),'1Tx60 + 1Tx50-40');
+  assert.equal(inv.lineStText(order,0),null,'dòng chưa chỉ định thì trống');
+});
+test('phiếu in: hàng lấy ở 2 khu trở lên ghi mỗi khu một dòng "Tên khu: số thùng"; một khu chỉ ghi tên khu',t=>{
+  const {w,inv,order,data}=setup(t,x=>{const o=x.orders.find(o=>o.orderCode==='DH-DEMO-013');
+    o.lines.push({productCode:'HAI',productName:'HAI',quantity:100,price:1},{productCode:'MOT',productName:'MOT',quantity:100,price:1});
+    x.locations.push({branch:'HN',code:'HAI',location:'A07',notes:'1Tx50',id:'loc-a07'},{branch:'HN',code:'HAI',location:'B06',notes:'2Tx60',id:'loc-b06'},{branch:'HN',code:'MOT',location:'C01',notes:'2Tx60',id:'loc-c01'});});
+  inv.reserve(order,{2:[{id:'loc-a07',quantity:50},{id:'loc-b06',quantity:50}],3:[{id:'loc-c01',quantity:100}]});
+  w.PickingInvoiceTemplate=read('order-template.html');
+  w.eval(read('invoice.js'));
+  w.PickingInvoice.show(order,w.PickingInventory.record(order));
+  const rows=[...w.document.querySelectorAll('#pickingPrintSheet .invoice-goods tbody tr')];
+  const cellOf=code=>[...rows.find(r=>r.textContent.includes('('+code+')')).cells].find(td=>/A07|B06|C01/.test(td.textContent));
+  assert.equal(cellOf('HAI').textContent.trim(),'A07: 1Tx50\nB06: 1Tx60-10');
+  assert.equal(cellOf('HAI').style.whiteSpace,'pre-line');
+  assert.equal(cellOf('MOT').textContent.trim(),'C01');
 });

@@ -59,15 +59,51 @@
   }
   const cartonsOf=(quantity,perCarton)=>perCarton>0&&Number.isFinite(quantity)?round6(quantity/perCarton):null;
   const isWhole=n=>Math.abs(n-Math.round(n))<1e-4;
-  /* Trừ hàng khỏi ghi chú. SL lấy khớp trọn số thùng của một quy cách (và chưa có phần trừ lẻ) thì giảm số thùng
-     của quy cách đó, về 0 thì bỏ số hạng. Không khớp, hoặc đã có phần trừ lẻ, thì cộng dồn vào " - N".
+  /* Trừ thông minh: tìm cách lấy trọn thùng từ MỘT HOẶC NHIỀU quy cách sao cho đủ đúng SL cần trừ, ít thùng nhất
+     (vd 3T x 200 + 1T x 50 trừ 250 = 1 thùng 200 + 1 thùng 50). Trả mảng số thùng lấy theo từng số hạng, hoặc null nếu không có
+     cách nào (SL lẻ, quy cách không nguyên, bài toán quá lớn). */
+  function searchCartons(terms,quantity,cover){
+    const q=Math.round(quantity);
+    if(!isWhole(quantity)||q<0||terms.some(t=>!Number.isInteger(t.perCarton)||t.perCarton<=0))return null;
+    // cover: không ghép trọn được thì lấy tổng nhỏ nhất vượt SL cần (không quá SL cần + SL/thùng lớn nhất).
+    const limit=cover?q+Math.max(...terms.map(t=>t.perCarton)):q;
+    let layer=new Map([[0,{counts:[],cartons:0}]]),work=0;
+    for(const t of terms){
+      const next=new Map();
+      for(const [sum,state] of layer)for(let k=0;k<=t.cartons;k++){
+        const total=sum+k*t.perCarton;if(total>limit)break;
+        if(++work>4e6)return null;
+        const cartons=state.cartons+k,old=next.get(total);
+        if(!old||cartons<old.cartons)next.set(total,{counts:[...state.counts,k],cartons});
+      }
+      layer=next;
+    }
+    if(layer.has(q))return {counts:layer.get(q).counts,total:q};
+    if(!cover)return null;
+    let best=null;for(const sum of layer.keys())if(sum>q&&(best===null||sum<best))best=sum;
+    return best===null?null:{counts:layer.get(best).counts,total:best};
+  }
+  const wholeCartons=(terms,quantity)=>{const hit=searchCartons(terms,quantity,false);return hit?hit.counts:null;};
+  /* Cột Số thùng khi in phiếu: các thùng phải mở để lấy đủ SL, trừ phần dư nếu mở thùng mà không lấy hết.
+     Lấy tròn thùng: 250 từ 7T x 50 → "5Tx50". Lấy lẻ: 100 từ 2T x 60 → "2Tx60-20" (2 thùng 60 = 120, trừ 20).
+     Nhiều quy cách ghép thông minh: 250 từ 3T x 200 + 1T x 50 → "1Tx200+1Tx50". null = không tính được (ghi chú sai/rỗng, SL không nguyên hoặc vượt tồn). */
+  function pickText(spec,quantity){
+    if(!spec||!spec.terms.length||!Number.isInteger(quantity)||quantity<=0||quantity>spec.quantity+1e-6)return null;
+    const hit=searchCartons(spec.terms,quantity,true);
+    if(!hit)return null;
+    const body=spec.terms.map((t,i)=>hit.counts[i]>0?hit.counts[i]+'Tx'+t.perCarton:'').filter(Boolean).join('+');
+    const excess=hit.total-quantity;
+    return body+(excess>0?'-'+excess:'');
+  }
+  /* Trừ hàng khỏi ghi chú. SL lấy khớp trọn số thùng (một hoặc nhiều quy cách, và chưa có phần trừ lẻ) thì giảm số thùng
+     của các quy cách đó, về 0 thì bỏ số hạng. Không khớp, hoặc đã có phần trừ lẻ, thì cộng dồn vào " - N".
      taken = số thùng đã lấy (ST): thùng nguyên theo từng quy cách, phần lẻ chia SL/thùng của số hạng đầu (có thể lẻ). */
   function deduct(spec,quantity){
     if(!spec.terms.length||!(quantity>=0)||quantity>spec.quantity+1e-6)return null;
     const terms=spec.terms.map(t=>({...t}));
     let loose=spec.loose,taken;
-    const hit=loose>0?-1:terms.findIndex(t=>t.cartons>0&&isWhole(quantity/t.perCarton)&&Math.round(quantity/t.perCarton)<=t.cartons);
-    if(hit>=0){taken=Math.round(quantity/terms[hit].perCarton);terms[hit].cartons-=taken;}
+    const counts=loose>0?null:wholeCartons(terms,quantity);
+    if(counts){taken=counts.reduce((sum,k)=>sum+k,0);counts.forEach((k,i)=>{terms[i].cartons-=k;});}
     else{loose+=Math.round(quantity);taken=round6(quantity/terms[0].perCarton);}
     const text=formatSpec({terms,loose});
     return {spec:parseSpec(text),text,taken};
@@ -146,7 +182,7 @@
     return reasons;
   }
   const WARNING_LABEL={multi:'Nhiều quy cách',loose:'Có phần trừ lẻ',unreadable:'Ghi chú sai định dạng',badnumber:'Số thùng và SL/thùng phải là số nguyên dương',unknowncode:'Mã hàng chưa có trong danh mục'};
-  const api={normalizeNote,EMPTY_NOTE,warnings,WARNING_LABEL,parseSpec,formatSpec,cartonsOf,isWhole,deduct,cartonsFor,restore,suggest};
+  const api={normalizeNote,EMPTY_NOTE,warnings,WARNING_LABEL,parseSpec,formatSpec,cartonsOf,isWhole,deduct,cartonsFor,pickText,restore,suggest};
   if(typeof module!=='undefined')module.exports=api;
   else root.PickingCarton=api;
 })(typeof window!=='undefined'?window:globalThis);

@@ -10,7 +10,7 @@ Hai tab tra vị trí mới, chạy song song với hai tab cũ "Vị trí HN/SG
 - Đổi hoặc bỏ hai tab cũ và đồng bộ Google Sheets.
 
 ## 1. Dữ liệu (migration 0095)
-- `stock_positions`: `id BIGSERIAL`, `branch` (`HN`|`SG`), `code`, `name`, `notes`, `arrival_date` (DATE, null được), `location`, `updated_by_user_id`, `updated_by_name`, `updated_at TIMESTAMPTZ DEFAULT now()`, `created_at`. Chỉ số theo `(branch, lower(btrim(code)))` và `(branch, location)`. Không có ràng buộc UNIQUE trên (mã, vị trí): dữ liệu đầu có dòng trùng; ứng dụng chặn khi nhập mới, dòng trùng sẵn có gắn cảnh báo "Trùng vị trí".
+- `stock_positions`: `id BIGSERIAL`, `branch` (`HN`|`SG`), `code`, `name`, `notes`, `arrival_date` (TEXT, có thể rỗng, ví dụ "KK 4.10", "16/10"), `version` (khóa lạc quan), `location`, `updated_by_user_id`, `updated_by_name`, `updated_at TIMESTAMPTZ DEFAULT now()`, `created_at`. Chỉ số theo `(branch, lower(btrim(code)))` và `(branch, location)`. Không có ràng buộc UNIQUE trên (mã, vị trí): dữ liệu đầu có thể có dòng trùng, giữ nguyên và không cảnh báo; nhập mới/import trùng (mã, vị trí) thì tự cộng ghi chú vào dòng cũ (xem mục 4, 5).
 - Số lượng và cảnh báo **không lưu**, luôn tính từ ghi chú bằng `server/public/shared/carton.js` (`parseSpec`, `normalizeNote`, `warnings`).
 - Dữ liệu đầu: câu lệnh `INSERT ... SELECT` từ `stock_location_lines` (HN/SG) ngay trong migration, `updated_by_name='Nhập dữ liệu đầu'`, `updated_at = now()`. Ngày về chuyển từ TEXT sang DATE nếu đọc được, không đọc được thì để null và giữ chuỗi gốc vào bản ghi lịch sử nhập đầu. Tên hàng lấy từ sheet làm giá trị khởi đầu.
 - `stock_position_history` (chỉ thêm, trigger chặn UPDATE/DELETE, không khóa ngoại, theo `0040_account_audit_log` và `0076`): `id`, `created_at`, `branch`, `position_id`, `code`, `location`, `action` (`import_replace`, `import_add`, `edit`, `create`, `delete`, `auto_delete`, `seed`), `field`, `old_value`, `new_value`, `summary JSONB` (số dòng thêm/đổi/xóa/lỗi cho import), `actor_user_id`, `actor_name`. `REVOKE SELECT ... FROM reporting_readonly`.
@@ -24,7 +24,7 @@ Hai tab tra vị trí mới, chạy song song với hai tab cũ "Vị trí HN/SG
 
 ## 3. Bảng
 Mỗi tab một bảng (`TKSTables.enhance`, tìm kiếm mờ, sắp xếp, phân trang 100): Mã SP, Tên SP, Số lượng, SL KiotViet, Ghi chú, Ngày về, Vị trí, Người cập nhật, TG cập nhật (giờ Việt Nam), Cảnh báo. Số theo en-US.
-- Cảnh báo là nhãn ngắn: "Nhiều quy cách", "Trừ lẻ", "Sai định dạng", "Số thùng sai", "Mã SP lạ", "Trùng vị trí". Dòng có cảnh báo **đổi chữ sang màu đỏ** (không tô nền), bằng biến CSS hợp chế độ sáng/tối.
+- Cảnh báo là nhãn ngắn: "Nhiều quy cách", "Trừ lẻ", "Sai định dạng", "Số thùng sai", "Mã SP lạ". Dòng có cảnh báo **đổi chữ sang màu đỏ** (không tô nền), bằng biến CSS hợp chế độ sáng/tối.
 - Dòng sai định dạng/số không nguyên: Số lượng để trống.
 - Chip lọc "Cảnh báo (n)" từng tab.
 - Số lượng của dòng ghi chú rỗng = 0 và không cảnh báo (nhưng xem quy tắc tự xóa ở mục 4).
@@ -32,7 +32,8 @@ Mỗi tab một bảng (`TKSTables.enhance`, tìm kiếm mờ, sắp xếp, phâ
 ## 4. Sửa trực tiếp (cần `stockLocationsV2.edit`)
 - Sửa tại chỗ Ghi chú, Ngày về, Vị trí. Số lượng và cảnh báo tính lại ngay; Người/TG cập nhật tự ghi. Lưu bằng `PATCH /api/stock-positions/:id` kèm `version`/`updated_at` để phát hiện sửa chồng (409, giống VAT request).
 - Ghi chú được chuẩn hóa khi lưu (`1t*11` -> `1T x 11`, gộp cùng SL/thùng, ` + `, ` - N`).
-- Thêm dòng: nhập Mã SP, Ghi chú, Ngày về, Vị trí; Tên SP tự tra từ `products`; trùng (cơ sở, Mã SP, Vị trí) thì chặn.
+- Thêm dòng: nhập Mã SP, Ghi chú, Ngày về, Vị trí; Tên SP tự tra từ `products`; trùng (cơ sở, Mã SP, Vị trí) thì **tự cộng thông minh** ghi chú vào dòng cũ (cùng SL/thùng thì gộp thùng: `5T x 100` + `2T x 100` = `7T x 100`; khác thì nối ` + `), Ngày về lấy theo lần nhập nếu có. Sửa Vị trí của một dòng sang vị trí đã có mã đó thì báo lỗi, dùng Thêm dòng để cộng.
+- Xuất Excel (`GET /api/stock-positions/export`, quyền `stockLocationsV2.export`): toàn bộ dòng của cơ sở, 9 cột như bảng.
 - Xóa dòng bằng nút, có hộp xác nhận.
 - **Tự xóa khi hết:** sau mọi lần lưu (sửa tay, import, và về sau là trừ do nhặt hàng), nếu số lượng tính ra bằng 0 (ghi chú rỗng, `Hết hàng` hoặc tổng bằng 0) thì dòng bị xóa và ghi lịch sử `auto_delete`. Hộp xác nhận khi sửa tay làm hết hàng để tránh xóa nhầm.
 - Mọi thay đổi ghi `stock_position_history` trong cùng giao dịch với thay đổi dữ liệu; không ghi khi giá trị không đổi (kể cả chỉ khác khoảng trắng).
@@ -55,6 +56,6 @@ Nút "Lịch sử cập nhật" mở hộp `.dp-*` giống Công nợ (`index.ht
 - Người dùng tự chạy `npm run db:migrate`; áp migration trước khi deploy mã.
 
 ## Giả định cần theo dõi
-- Dữ liệu đầu có dòng trùng và dòng rỗng vị trí: giữ nguyên, chỉ cảnh báo.
-- Ngày về TEXT không đọc được: để null, giữ chuỗi gốc trong lịch sử `seed`.
+- Dữ liệu đầu có dòng trùng và dòng rỗng vị trí: giữ nguyên, không cảnh báo.
+- Ngày về lưu nguyên dạng text, không chuyển sang DATE.
 - Quyền sửa riêng khỏi quyền xem để cấp cho người chỉ cần tra.

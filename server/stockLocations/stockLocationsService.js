@@ -1,8 +1,6 @@
 'use strict';
 
 const { getPool } = require('../db/pool');
-// Luật đọc ghi chú thùng dùng chung với trình duyệt (public/shared/carton.js, UMD).
-const carton = require('../public/shared/carton.js');
 
 const HEADERS = Object.freeze({
   HN: { code: 'MÃ SẢN PHẨM', name: 'TÊN SẢN PHẨM', totalQuantity: 'TỔNG SL', notes: 'MÔ TẢ', location: 'KHU', arrivalDate: 'NGÀY VỀ' },
@@ -43,15 +41,6 @@ function parseLocationRows(values, branch) {
 // (3 phut/lan). Web KHONG goi Google moi request. Qua 15 phut khong dong bo thanh cong => stale.
 const STALE_AFTER_MS = 15 * 60 * 1000;
 
-/* SL luôn suy ra từ ghi chú (<thùng>T x <SL/thùng>, nhiều quy cách, trừ lẻ): quantity = null khi ghi chú sai định dạng
-   (không tính được SL), warnings = mã lý do cảnh báo (multi, loose, unreadable, badnumber). totalQuantity (cột TỔNG SL của Sheets)
-   giữ nguyên chỉ để dự phòng, không phải nguồn chính. */
-function withQuantity(row) {
-  const warnings = carton.warnings(row.notes);
-  const spec = carton.parseSpec(row.notes);
-  return { ...row, quantity: spec ? spec.quantity : null, warnings };
-}
-
 function createStockLocationsService({ getDb = getPool, now = () => Date.now() } = {}) {
   // Cache theo co so, khoa = last_success_at. Moi request chi doc 1 dong trang thai (vai tram byte);
   // ~10K dong chi duoc keo tu DB khi lan dong bo thanh cong ke tiep thay doi moc do (giam egress DB).
@@ -72,7 +61,7 @@ function createStockLocationsService({ getDb = getPool, now = () => Date.now() }
         else {
           const lines = await db.query(`SELECT code, name, total_quantity, notes, location, arrival_date FROM stock_location_lines
             WHERE branch = $1 ORDER BY source_row`, [branch]);
-          rows = lines.rows.map(row => withQuantity({
+          rows = lines.rows.map(row => ({
             code: row.code, name: row.name, totalQuantity: row.total_quantity,
             notes: row.notes, location: row.location, arrivalDate: row.arrival_date
           }));
@@ -98,4 +87,4 @@ function createStockLocationsService({ getDb = getPool, now = () => Date.now() }
   return { getLocations };
 }
 
-module.exports = { withQuantity, parseLocationRows, normalizeHeader, createStockLocationsService, ...createStockLocationsService() };
+module.exports = { parseLocationRows, normalizeHeader, createStockLocationsService, ...createStockLocationsService() };

@@ -118,7 +118,8 @@ server/
 ├── shared/               # Tiện ích dùng chung phía máy chủ: fuzzySearch.js (CommonJS, createMatcher — tìm gần đúng theo từ, cùng luật với public/shared/fuzzy-search.js) và fuzzySql.js (cùng luật trong SQL)
 ├── sheets/               # Google Sheets client (Công nợ, Vòng đời, Vị trí hàng, lưu ý `hrSheetsClient.js` là mã chết chờ xóa tay)
 ├── sheetSnapshots/       # Job đọc Google Sheets (Vị trí HN/SG, CÂN ĐO) theo chu kỳ vào Postgres, ghi khác biệt; kiểm thử PGlite
-├── stockLocations/       # Đọc vị trí hàng HN/SG từ DB (cache theo lần đồng bộ), ánh xạ cột và API chỉ đọc; thêm quantity/warnings từ ghi chú thùng (public/shared/carton.js)
+├── stockPositions/       # Vị trí hàng mới (VT Hà Nội/VT Sài Gòn, migration 0095): bảng `stock_positions` sửa/thêm/xóa/import trực tiếp, SL kho tính từ ghi chú thùng, SL Kiot từ `products`, lịch sử; API `/api/stock-positions`
+├── stockLocations/       # Đọc vị trí hàng HN/SG từ DB (cache theo lần đồng bộ), ánh xạ cột và API chỉ đọc
 ├── shipment/             # Vòng đời đơn hàng: đơn KiotViet (Postgres) ghép Google Sheet, lọc/phân trang ở máy chủ
 ├── telegram/             # Bot quản lý nghỉ phép, webhook, giao tin bền vững + đăng ký webhook
 ├── vatDraft/             # Kế toán – Nháp VAT (port vat-draft-app): phân bổ nguồn nháp, VietQR, đọc ảnh hóa đơn bằng AI (invoiceVision.js, xKiro), đọc 2 tab file VAT TKS bằng service account, chứng từ HD/DH từ Postgres
@@ -146,4 +147,4 @@ Chủ đơn hoạt động có thể xóa vĩnh viễn đơn xin nghỉ từ web
 
 Cập nhật gần nhất: 26/10/2026.
 
-Cập nhật gần nhất: 27/10/2026 (Vị trí hàng: SL tự tính từ ghi chú thùng + cảnh báo).
+Cập nhật gần nhất: 27/10/2026 (Vị trí HN/SG giữ như cũ; thêm trang VT Hà Nội / VT Sài Gòn `/vt-positions/`, migration `0095`, quyền `stockLocationsV2.view/edit/export` — chưa commit/migrate/deploy).

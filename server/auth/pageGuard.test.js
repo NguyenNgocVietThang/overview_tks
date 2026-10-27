@@ -95,6 +95,22 @@ test('Vị trí hàng page requires login and rejects guests with a grant on eve
   }
 });
 
+test('VT Hà Nội / VT Sài Gòn page: cần đăng nhập, mặc định chỉ Quản lý, nhân viên được cấp quyền xem thì vào được', async () => {
+  for (const url of ['/vt-positions', '/vt-positions/', '/vt-positions/index.html']) {
+    const anonymous = await run(guardFor({ vaiTro: ROLES.QUAN_LY }), fakeReq(url));
+    assert.equal(anonymous.nextCalled, false);
+    assert.match(anonymous.res.redirectedTo, /^\/login\//);
+    const staff = await run(guardFor({ vaiTro: ROLES.NHAN_VIEN_KHO }), fakeReq(url, { token: 'ok' }));
+    assert.equal(staff.nextCalled, false);
+    const granted = await run(guardFor({ vaiTro: ROLES.NHAN_VIEN_KHO, featurePermissions: { 'stockLocationsV2.view': true } }), fakeReq(url, { token: 'ok' }));
+    assert.equal(granted.nextCalled, true);
+    const guest = await run(guardFor({ vaiTro: ROLES.KHACH, featurePermissions: { 'stockLocationsV2.view': true } }), fakeReq(url, { token: 'ok' }));
+    assert.equal(guest.nextCalled, false);
+    const manager = await run(guardFor({ vaiTro: ROLES.QUAN_LY }), fakeReq(url, { token: 'ok' }));
+    assert.equal(manager.nextCalled, true);
+  }
+});
+
 test('token hong: chuyen ve /login/', async () => {
   const guard = guardFor({ vaiTro: ROLES.QUAN_LY }, {
     verifyToken: () => { throw new Error('bad token'); }

@@ -111,6 +111,10 @@ const FEATURES = Object.freeze([
   { key: 'shipment.override', groupKey: 'shipment', label: 'Ghi đè trạng thái đơn (cần Vòng đời đơn hàng)', roles: MANAGER_ONLY, requires: 'shipment.lifecycle' },
 
   { key: 'stockLocations.view', groupKey: 'stockLocations', label: 'Xem vị trí hàng HN / SG', roles: INTERNAL_ROLES, forbiddenRoles: [ROLES.KHACH] },
+  // 2026-10-27: co so du lieu Vi tri hang moi (tab VT Ha Noi / VT Sai Gon, bang stock_positions). Tam thoi chi Quan ly; cap them tung tai khoan duoc.
+  { key: 'stockLocationsV2.view', groupKey: 'stockLocations', label: 'Xem VT Hà Nội / VT Sài Gòn', roles: MANAGER_ONLY, forbiddenRoles: [ROLES.KHACH] },
+  { key: 'stockLocationsV2.edit', groupKey: 'stockLocations', label: 'Sửa / thêm / xóa / import VT Hà Nội / VT Sài Gòn (cần xem VT)', roles: MANAGER_ONLY, requires: 'stockLocationsV2.view' },
+  { key: 'stockLocationsV2.export', groupKey: 'stockLocations', label: 'Xuất Excel VT Hà Nội / VT Sài Gòn (cần xem)', roles: MANAGER_ONLY, requires: 'stockLocationsV2.view' },
 
   // --- Quan ly nhan su ---
   { key: 'hr.rules', groupKey: 'hr', label: 'Quy định công ty', roles: ALL_ROLES },
@@ -180,6 +184,7 @@ const PAGE_FEATURES = Object.freeze([
   { path: '/shipment/lifecycle', href: '/shipment/lifecycle/', anyOf: ['shipment.lifecycle'] },
   { path: '/humanresources', href: '/humanresources/', anyOf: ['hr.rules', 'hr.employees', 'hr.leave', 'hr.leave.submit'] },
   { path: '/stock-locations', href: '/stock-locations/', anyOf: ['stockLocations.view'] },
+  { path: '/vt-positions', href: '/vt-positions/', anyOf: ['stockLocationsV2.view'] },
   { path: '/cashbook', href: '/cashbook/', anyOf: ['cashbook.view'] },
   { path: '/vat-draft', href: '/vat-draft/', anyOf: ['accounting.vatDraft', 'accounting.qr'] },
   { path: '/vat-lookup', href: '/vat-lookup/', anyOf: ['accounting.vatLookup'] },

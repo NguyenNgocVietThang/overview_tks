@@ -15,7 +15,7 @@
 | Tên dự án          | Hệ thống Dashboard nội bộ TOKOSI                           |
 | Phiên bản          | 3.0                                                        |
 | Ngày tạo           | 27/07/2026                                                 |
-| Ngày cập nhật      | 26/10/2026                                                 |
+| Ngày cập nhật      | 27/10/2026                                                 |
 | Tài liệu liên quan | BRD v2.2 · BPMN v3.0 · Implementation Plan (cập nhật 05/10/2026) · CSNS-NP-01 (Chính sách nghỉ phép) · `server/db/SCHEMA.md` · Design System MASTER (mục 7 — ràng buộc hiệu năng) |
 | Trạng thái         | Nội dung nền rà soát tại HEAD `11751c4` (05/10); FR-15 Sổ quỹ bổ sung và kiểm chứng 06/10. Migration `0033` đã áp thành công lên Supabase DB. Deploy production còn chờ. Số kiểm thử 1.704/1.701/0/3 là mốc lịch sử 05/10. |
 
@@ -351,9 +351,13 @@ Lớp hiệu ứng 3D và giám sát hiệu năng thích ứng đã gỡ bỏ v�
 |---|---|---|---|
 | FR-13.1 | `STOCK_LOCATIONS_SPREADSHEET_ID` chỉ workbook HN/SG dùng chung; service account có Viewer. Đọc `FORMATTED_VALUE`, nhận diện hàng/cột theo tiêu đề (không cố định chỉ số), không lưu Postgres, không migration. | Cao | Hoàn thành |
 | FR-13.2 | `GET /api/stock-locations?branch=HN\|SG` trả `{ branch, rows: [{ code, name, totalQuantity, notes, arrivalDate, location, quantity, warnings }] }` (`quantity` = SL tính từ ghi chú theo `public/shared/carton.js`, null nếu ghi chú sai định dạng; `warnings` = mã cảnh báo `multi`/`loose`/`unreadable`/`badnumber`; `totalQuantity` của Sheets chỉ là dự phòng); yêu cầu đăng nhập + quyền + cơ sở thuộc phạm vi bộ chọn. Thiếu/sai branch: 400; ngoài phạm vi/thiếu quyền: 403; thiếu cấu hình/sheet/header hoặc Google lỗi: 503 với `STOCK_LOCATIONS_NOT_CONFIGURED` / `_SHEET_MISSING` / `_HEADERS_MISSING` / `_SOURCE_UNAVAILABLE`. Thành công trả `Cache-Control: no-store`. | Cao | Hoàn thành |
-| FR-13.3 | Trang `/stock-locations/#hn\|sg` và nhóm sidebar "Vị trí hàng": chọn Hà Nội/Sài Gòn chỉ hiện tab tương ứng, Cả hai hiện hai tab (mặc định HN). Bảng 6 cột (Mã hàng, Tên hàng, Tổng SL, Ghi chú hàng hóa, Ngày về, Vị trí); tìm mã/tên/vị trí không dấu; sắp xếp toàn bộ rồi phân trang 100 dòng; mỗi tab giữ trạng thái riêng; nút hiện/ẩn cột nhớ riêng điện thoại/máy tính (điện thoại mặc định Tên hàng, Tổng SL, Vị trí). Cột Tổng SL hiển thị `quantity` (trống khi ghi chú sai định dạng), dòng cảnh báo bôi đỏ kèm nhãn lý do, chip lọc "Cảnh báo (n)" riêng từng tab, sắp xếp theo `quantity`. Không xuất file, không tải định kỳ. | Cao | Hoàn thành |
+| FR-13.3 | Trang `/stock-locations/#hn\|sg` và nhóm sidebar "Vị trí hàng": chọn Hà Nội/Sài Gòn chỉ hiện tab tương ứng, Cả hai hiện hai tab (mặc định HN). Bảng 6 cột (Mã hàng, Tên hàng, Tổng SL, Ghi chú hàng hóa, Ngày về, Vị trí); tìm mã/tên/vị trí không dấu; sắp xếp toàn bộ rồi phân trang 100 dòng; mỗi tab giữ trạng thái riêng; nút hiện/ẩn cột nhớ riêng điện thoại/máy tính (điện thoại mặc định Tên hàng, Tổng SL, Vị trí). Không xuất file, không tải định kỳ. | Cao | Hoàn thành |
 | FR-13.4 | Giữ từng dòng có mã hoặc tên theo thứ tự sheet, không gộp mã trùng; giữ SL = 0/vị trí trống, số 0 đầu mã và xuống dòng. Chỉ gộp các lượt đọc đồng thời cùng workbook/cơ sở, không cache giá trị. | Cao | Hoàn thành |
 | FR-13.5 | `stockLocations.view` mặc định cho mọi vai trò nội bộ; Khách luôn bị loại khỏi quyền hiệu lực dù có ghi đè; API cấp quyền từ chối grant cho Khách (400) và form vô hiệu hóa lựa chọn. Bản đồ cột HN/SG và nghiệm thu xem `docs/stock-locations-setup.md`. | Cao | Hoàn thành |
+| FR-13.6 | Trang `/vt-positions/#hn\|sg` (mục "VT Hà Nội"/"VT Sài Gòn" trong nhóm Vị trí hàng) đọc bảng `stock_positions` (migration `0095`, sao chép một lần từ `stock_location_lines`, không còn đồng bộ Google Sheets). `GET /api/stock-positions?branch=HN\|SG` trả mỗi dòng: mã, tên (tra theo mã từ `products`, dự phòng `stock_positions.name`), SL kho (tính từ ghi chú bằng `public/shared/carton.js`, null khi sai định dạng), SL KiotViet (tồn thực), ghi chú, ngày về (text), vị trí, người và thời gian cập nhật cuối, cảnh báo (nhiều quy cách, trừ lẻ, sai định dạng, số thùng sai, mã SP lạ; dòng cảnh báo đổi chữ đỏ) | Cao | Đã làm, chưa deploy |
+| FR-13.7 | Sửa tại chỗ Ghi chú/Ngày về/Vị trí (`PATCH /api/stock-positions/:id` kèm `version`, 409 khi sửa chồng), thêm dòng (trùng mã + vị trí thì tự cộng ghi chú vào dòng cũ, cùng SL/thùng thì gộp thùng), xóa dòng có xác nhận, trừ số lượng (`POST …/:id/deduct`). Ghi chú tự chuẩn hóa khi lưu (`1t100 + 2T*100` → `3T x 100`; trừ 200 → `1T x 100`; trừ thông minh trọn thùng từ nhiều quy cách: `3T x 200 + 1T x 50` trừ 250 → `2T x 200`, không ghép được thì ghi phần trừ lẻ ` - N`). SL tính ra bằng 0 thì dòng **tự xóa** và ghi lịch sử | Cao | Đã làm, chưa deploy |
+| FR-13.8 | Import file `.xlsx/.xls/.csv` (≤ 8 MB, 4 cột Mã, Ghi chú, Ngày về, Vị trí; cột thừa bỏ qua, thiếu cột thì báo): chế độ **thay toàn bộ** hoặc **bổ sung thêm SL** (dòng trùng mã + vị trí thì cộng ghi chú; dòng trùng ngay trong file cũng tự cộng), luôn xem trước (`commit=0`) rồi xác nhận (`commit=1`), một giao dịch có khóa theo cơ sở; lịch sử cập nhật vĩnh viễn (`GET /api/stock-positions/history`) | Cao | Đã làm, chưa deploy |
+| FR-13.9 | Quyền `stockLocationsV2.view` (xem), `stockLocationsV2.edit` (sửa/thêm/xóa/import) và `stockLocationsV2.export` (xuất Excel; `GET /api/stock-positions/export?branch=` trả `.xlsx` 9 cột như bảng: Mã hàng, Tên hàng, SL kho, SL Kiot, Ghi chú số thùng, Ngày về, Vị trí, Người cập nhật, TG cập nhật giờ VN), hai quyền sau cần quyền xem, mặc định chỉ Quản lý; cấp thêm từng tài khoản; Khách luôn bị chặn; `/vt-positions` thuộc `PAGE_FEATURES` | Cao | Đã làm, chưa deploy |
 
 ## 3.14. FR-14: Vòng đời đơn hàng
 
@@ -890,10 +894,9 @@ Thông báo chuông của mọi tài khoản phải được lưu bền vững q
 
 Mọi báo cáo phải hiển thị tên khách và tên hàng hóa HIỆN TẠI trong danh mục (không dùng tên ghi trên chứng từ), nên đổi tên trên KiotViet lan sang báo cáo mà không cần đồng bộ lại hóa đơn. Báo cáo hàng hóa gộp khách cùng tên (đã chuẩn hóa) thành một khách dù khác mã. Bảng tháng đã chốt của báo cáo kinh doanh giữ tên tại thời điểm chốt. Hạn chế đã biết: chứng từ cũ không có mã khách có thể không khớp lại với khách đã đổi tên trong báo cáo kinh doanh tháng.
 
-Cập nhật gần nhất: 24/10/2026.
+Cập nhật gần nhất: 27/10/2026.
 
 ## Bổ sung yêu cầu hủy đơn cá nhân — 26/10/2026
 
 Chỉ chủ đơn hoạt động được hủy đơn Xin nghỉ phép của mình từ web/Telegram, mọi trạng thái, trước `first_session_start_at` đã lưu. Xóa hẳn đơn và lịch sử trong giao dịch; thiếu snapshot, hết giờ, sai chủ/loại hoặc phiên bản cũ phải từ chối. DELETE self nhận expectedVersion, capability canCancel/cancelBlockedReason. Xác nhận xóa vĩnh viễn trên web; không lý do, không duyệt hủy. Chuông hủy cho người liên quan, queue Telegram độc lập để retry và vô hiệu hóa thẻ; SSE xóa giới hạn theo chủ đơn cho người chỉ xem cá nhân. Migration 0094; thiết kế chi tiết ở `docs/superpowers/specs/2026-10-26-own-leave-cancellation-design.md`.
 
-27/10/2026 — **Vị trí hàng (FR-13.2, FR-13.3):** SL tự tính từ ghi chú thùng và cảnh báo ghi chú (Giai đoạn 1, chỉ đọc, không migration).

@@ -42,9 +42,3 @@
   .locations-table td{line-height:1.5}
   .locations-pager{padding:12px;gap:10px}
 }
-/* Dòng cảnh báo ghi chú thùng: bôi đỏ cả dòng bằng biến theme (sáng/tối) kèm nhãn chữ. */
-.locations-warn-chip{min-height:40px;padding:8px 14px;border:1px solid var(--border);border-radius:999px;background:var(--panel-2);color:var(--text);font:600 13px var(--font-data);cursor:pointer}
-.locations-warn-chip.active,.locations-warn-chip[aria-pressed="true"]{border-color:var(--red);color:var(--red);background:rgba(239,68,68,.12)}
-.locations-warn-chip:disabled{opacity:.45;cursor:not-allowed}.locations-warn-chip:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
-.locations-table tr.locations-warning td{background:rgba(239,68,68,.12);color:var(--red)}
-.locations-badge{display:block;margin-top:4px;padding:1px 8px;width:fit-content;border:1px solid var(--red);border-radius:999px;font-size:11px;font-weight:600;color:var(--red)}
