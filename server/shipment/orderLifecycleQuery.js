@@ -27,6 +27,9 @@ const BRANCHES = Object.freeze(['HN', 'SG']);
 const WARNING_FILTERS = Object.freeze([
   'any', 'ACCOUNTANT_LATE', 'DRIVER_NO_PHOTO', 'DRIVER_FORGOT_PHOTO', 'NOT_SIGNED_6H', 'PICKUP_PENDING', 'NO_TRAIN_BILL'
 ]);
+// Bo loc "Chi dinh vi tri" (migration 0096): trang thai chi dinh MOI NHAT cua don. Du lieu o Postgres (khong nam trong cac dong
+// da gop/cache) nen KHONG loc o filterRows: orderLifecycleService thu hep danh sach theo pickStatus truoc khi loc/sap xep.
+const PICK_STATUSES = Object.freeze(['picking', 'confirmed', 'cancelled']);
 // Mac dinh (khi khong chon cot sap xep): don moi dat nhat truoc.
 const DEFAULT_SORT = Object.freeze({ key: 'orderDate', dir: -1 });
 // Thu tu hien thi cua bo loc "Trang thai KiotViet"; trang thai la xep sau theo ten.
@@ -130,6 +133,10 @@ function parseParams(input) {
   if (warning && !WARNING_FILTERS.includes(warning)) {
     throw makeError('Loại cảnh báo không hợp lệ.', 'INVALID_WARNING');
   }
+  const pickStatus = pickString(raw.pickStatus);
+  if (pickStatus && !PICK_STATUSES.includes(pickStatus)) {
+    throw makeError('Trạng thái chỉ định vị trí không hợp lệ.', 'INVALID_PICK_STATUS');
+  }
   const page = Math.floor(Number(raw.page));
   const pageSize = Math.floor(Number(raw.pageSize));
   return {
@@ -137,6 +144,7 @@ function parseParams(input) {
     status: pickString(raw.status),
     kiotStatus: pickString(raw.kiotStatus),
     warning,
+    pickStatus,
     dateField,
     from,
     to,
@@ -343,7 +351,7 @@ function createSelectionCache(limit = 6) {
 }
 
 module.exports = {
-  DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, SORT_KEYS, DATE_FIELDS, SEARCH_MODES, DEFAULT_SORT, WARNING_FILTERS,
+  DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, SORT_KEYS, DATE_FIELDS, SEARCH_MODES, DEFAULT_SORT, WARNING_FILTERS, PICK_STATUSES,
   normalizeSearchText, parseDateTimeValue, parseSearchCodes,
   parseParams, rowsInBranch, filterRows, sortRows, selectRows, paginate, distinctKiotStatuses, countWarnings,
   countSummary, createSelectionCache

@@ -150,6 +150,16 @@ test('ghi de trang thai don hang mac dinh chi danh cho Quan ly (Ke toan khong co
   assert.ok(granted.includes('shipment.override'));
 });
 
+test('chi dinh vi tri hang (shipment.pick) mac dinh chi danh cho Quan ly, cap rieng duoc, gan vao Vong doi don hang', () => {
+  for (const role of Object.values(ROLES)) {
+    assert.equal(registry.defaultsForRole(role).includes('shipment.pick'), role === ROLES.QUAN_LY, role);
+  }
+  const granted = registry.resolvePermissions({ vaiTro: ROLES.KE_TOAN, featurePermissions: { 'shipment.pick': true } });
+  assert.ok(granted.includes('shipment.pick'));
+  const noLifecycle = registry.resolvePermissions({ vaiTro: ROLES.NHAN_VIEN_KHO, featurePermissions: { 'shipment.pick': true } });
+  assert.ok(!noLifecycle.includes('shipment.pick'), 'thieu Vong doi don hang thi khong co shipment.pick');
+});
+
 test('Tra cuu / Lich su / Xuat / Ghi de GAN vao Vong doi don hang: thieu lifecycle thi mat het', () => {
   const LINKED = ['shipment.lookup', 'shipment.history', 'shipment.export', 'shipment.override'];
   // Mac dinh: ai co Vong doi don hang thi co Tra cuu + Lich su (cung nhom vai tro).

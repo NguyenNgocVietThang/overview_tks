@@ -510,6 +510,48 @@ test('queryOrders: lọc theo trạng thái Kiot + trạng thái vòng đời + 
   }
 });
 
+// Chi dinh vi tri (migration 0096): pickStatuses() tra Map 'HN|ma don chu thuong' -> trang thai MOI NHAT; gan `pickStatus` len cac dong
+// cua TRANG tra ve (khong sua dong trong cache) va loc `pickStatus` bang cach thu hep tap dong truoc khi loc/sap xep.
+test('queryOrders + pickStatuses: dong cua trang co pickStatus (null neu chua chi dinh), loc theo pickStatus, KPI theo tap da loc; khong truyen thi khong them truong', async () => {
+  const ctx = freshService([]);
+  try {
+    const orders = [1, 2, 3, 4].map(i => kiotOrder({ code: 'DH00000' + i, orderDate: `0${i}/10/2026 10:00` }));
+    const kiot = fakeKiot({ ok: true, orders });
+    const pickStatuses = async () => new Map([['HN|dh000002', 'picking'], ['HN|dh000003', 'confirmed'], ['HN|dh000004', 'cancelled'], ['SG|dh000001', 'picking']]);
+    const all = await ctx.service.queryOrders({}, { kiot, pickStatuses });
+    assert.deepEqual(all.orders.map(o => [o.orderCode, o.pickStatus]), [['DH000004', 'cancelled'], ['DH000003', 'confirmed'], ['DH000002', 'picking'], ['DH000001', null]]);
+    assert.equal(all.total, 4);
+    const picking = await ctx.service.queryOrders({ pickStatus: 'picking' }, { kiot, pickStatuses });
+    assert.deepEqual(picking.orders.map(o => o.orderCode), ['DH000002']);
+    assert.deepEqual([picking.filteredTotal, picking.total], [1, 4], 'tong theo co so khong thu hep, so da loc thu hep');
+    assert.equal((await ctx.service.queryOrders({ pickStatus: 'confirmed', pageSize: '1' }, { kiot, pickStatuses })).filteredTotal, 1);
+    assert.equal((await ctx.service.queryOrders({ pickStatus: 'cancelled', branch: 'SG' }, { kiot, pickStatuses })).filteredTotal, 0);
+    // Dong trong cache khong bi gan truong (ban sao nong): goi lai khong co pickStatuses thi khong co truong pickStatus.
+    const plain = await ctx.service.queryOrders({}, { kiot });
+    assert.ok(plain.orders.every(o => !('pickStatus' in o)));
+    // Xuat Excel loc cung bo tham so.
+    const exported = await ctx.service.exportOrders({ pickStatus: 'confirmed' }, { kiot, pickStatuses });
+    assert.deepEqual(exported.map(o => o.orderCode), ['DH000003']);
+    await assert.rejects(ctx.service.queryOrders({ pickStatus: 'x' }, { kiot, pickStatuses }), { statusCode: 400, code: 'INVALID_PICK_STATUS' });
+  } finally {
+    ctx.restore();
+  }
+});
+
+test('findMergedOrder: tim dong gop theo (co so, ma don) khong phan biet hoa/thuong; khac co so hoac khong co -> null', async () => {
+  const ctx = freshService([]);
+  try {
+    const kiot = fakeKiot({ ok: true, orders: [kiotOrder({ code: 'DH000001', branch: 'HN' }), kiotOrder({ code: 'DH000002', branch: 'SG' })] });
+    const hit = await ctx.service.findMergedOrder('SG', ' dh000002 ', { kiot });
+    assert.equal(hit.orderCode, 'DH000002');
+    assert.equal(hit.summary.code, 'NOT_SENT');
+    assert.equal(await ctx.service.findMergedOrder('HN', 'DH000002', { kiot }), null);
+    assert.equal(await ctx.service.findMergedOrder('HN', 'KHONGCO', { kiot }), null);
+  } finally {
+    ctx.restore();
+  }
+});
+
 test('queryOrders: tham số không hợp lệ -> lỗi 400 kèm mã, trước khi đọc nguồn dữ liệu', async () => {
   const ctx = freshService([]);
   try {

@@ -40,10 +40,17 @@ test('parseDateTimeValue: dd/MM/yyyy[ HH:mm[:ss]] (kể cả lỗi gõ "15,35"),
 
 test('parseParams: mặc định — mọi cơ sở, không lọc, sắp theo thời gian đặt hàng mới nhất trước, trang 1 x 100 dòng', () => {
   assert.deepEqual(q.parseParams({}), {
-    branch: '', status: '', kiotStatus: '', warning: '', dateField: 'saleSentAt', from: '', to: '', mode: 'code', q: '',
+    branch: '', status: '', kiotStatus: '', warning: '', pickStatus: '', dateField: 'saleSentAt', from: '', to: '', mode: 'code', q: '',
     sort: 'orderDate', sortExplicit: false, dir: -1, page: 1, pageSize: 100
   });
   assert.deepEqual(q.parseParams(undefined).sort, 'orderDate');
+});
+
+test('parseParams: pickStatus (Chi dinh vi tri) chi nhan picking | confirmed | cancelled, gia tri la -> 400 INVALID_PICK_STATUS', () => {
+  for (const status of ['picking', 'confirmed', 'cancelled']) assert.equal(q.parseParams({ pickStatus: status }).pickStatus, status);
+  assert.equal(q.parseParams({ pickStatus: '' }).pickStatus, '');
+  assert.deepEqual(q.PICK_STATUSES, ['picking', 'confirmed', 'cancelled']);
+  assert.throws(() => q.parseParams({ pickStatus: 'done' }), { statusCode: 400, code: 'INVALID_PICK_STATUS' });
 });
 
 test('parseParams: sắp xếp — chọn cột mà không có chiều thì tăng dần; có dir thì theo dir; dir không đi kèm cột đổi chiều của mặc định', () => {

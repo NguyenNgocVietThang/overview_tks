@@ -1,0 +1,88 @@
+/* Chỉ định vị trí trên trang Vòng đời đơn hàng: popup chọn vị trí/thùng, phiếu nhặt, chip trạng thái. Màu lấy từ biến theme (sáng/tối). */
+#pickingDialog,#pickingPrintDialog{padding:0;border:1px solid var(--border);border-radius:14px;background:var(--panel-solid,var(--panel));color:var(--text);max-height:92vh;overflow:auto}
+#pickingDialog{width:min(1500px,98vw)}#pickingPrintDialog{width:min(900px,96vw)}
+#pickingDialog::backdrop,#pickingPrintDialog::backdrop{background:var(--overlay-bg,rgba(0,0,0,.55));backdrop-filter:blur(2px)}
+.picking-body{padding:20px 22px;max-height:calc(92vh - 190px);overflow:auto}
+.picking-source{font-size:12px;color:var(--muted);margin:0 0 16px}
+.picking-table-wrap{overflow:auto;border:1px solid var(--border);border-radius:10px}
+.picking-table{width:100%;table-layout:fixed;min-width:1180px}
+.picking-table th:nth-child(1){width:9%}.picking-table th:nth-child(2){width:13%}.picking-table th:nth-child(3){width:8%}.picking-table th:nth-child(4){width:6%}.picking-table th:nth-child(5){width:8%}.picking-table th:nth-child(6){width:56%}
+.picking-table td{white-space:normal!important;vertical-align:middle!important;padding:7px 12px!important}
+.picking-table th:nth-child(3),.picking-table th:nth-child(4),.picking-table th:nth-child(5),.picking-need,.picking-st,.picking-total{text-align:center!important}
+.picking-table .picking-code{font-family:var(--font-data);font-weight:600}
+.picking-need strong,.picking-total strong,.picking-st strong{display:block;font-size:17px;font-family:var(--font-data);font-variant-numeric:tabular-nums}
+.picking-need small{display:block;margin-top:2px;font-size:11px;font-family:var(--font-data);font-weight:600}
+.picking-good{color:var(--green)}.picking-bad{color:var(--amber)}
+.picking-locations{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;padding:0}
+.picking-loc{--zone:var(--muted);display:flex;flex-direction:column;gap:5px;padding:6px 8px;min-width:0;background:var(--panel-2);border:1px solid var(--border);border-top:1px solid var(--border);border-radius:10px}
+.picking-loc.selected{border:2px solid var(--green);border-top:3px solid var(--zone);padding:5px 7px;background:rgba(34,197,94,.08)}
+.picking-location{position:relative;display:flex;align-items:baseline;gap:6px;width:100%;min-width:0;padding:0 0 5px;text-align:left;background:transparent;border:0;border-bottom:1px solid var(--border);border-radius:0;color:var(--text);cursor:pointer;font-family:var(--font-body)}
+.picking-location strong{order:1;font-size:13px;color:var(--zone)}
+.picking-location span{order:2;margin:0 0 0 auto;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--muted)}
+.picking-location.selected::after{content:'✓';order:3;display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;margin:-2px -2px 0 0;border-radius:50%;background:var(--green);color:#fff;font-size:12px;font-weight:700;line-height:1;align-self:center}
+.picking-location:disabled{opacity:.5;cursor:not-allowed}
+.picking-location:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
+.picking-spec{display:block;margin-top:2px;font-size:11px;font-family:var(--font-data);color:var(--muted);font-weight:400}
+.picking-loc-st{font-size:11px;font-family:var(--font-data);color:var(--muted);text-align:center}
+.picking-st-frac{color:var(--red)!important;font-weight:600}
+.picking-loc[data-zone="A"]{--zone:#a78bfa}.picking-loc[data-zone="B"]{--zone:#2dd4bf}.picking-loc[data-zone="C"]{--zone:#f472b6}.picking-loc[data-zone="D"]{--zone:#fb923c}.picking-loc[data-zone="E"]{--zone:#a3e635}
+:root[data-theme="light"] .picking-loc[data-zone="A"]{--zone:#7c3aed}:root[data-theme="light"] .picking-loc[data-zone="B"]{--zone:#0d9488}:root[data-theme="light"] .picking-loc[data-zone="C"]{--zone:#db2777}:root[data-theme="light"] .picking-loc[data-zone="D"]{--zone:#ea580c}:root[data-theme="light"] .picking-loc[data-zone="E"]{--zone:#65a30d}
+.picking-qty{text-align:center}
+.picking-stepper{display:grid;grid-template-columns:26px minmax(0,1fr) 26px;gap:4px;align-items:center}
+.picking-stepper button{height:26px;padding:0;border:1px solid var(--border);border-radius:6px;background:var(--panel);color:var(--text);font-size:18px;line-height:1;cursor:pointer}
+.picking-stepper button:hover:not(:disabled){border-color:var(--blue)}
+.picking-stepper input{width:100%;min-width:0;height:26px;padding:0 4px;text-align:center;border:1px solid var(--border);border-radius:6px;background:var(--bg,var(--panel));color:var(--text);font:inherit;font-weight:600;font-variant-numeric:tabular-nums}
+.picking-stepper button:disabled,.picking-stepper input:disabled{opacity:.45;cursor:not-allowed}
+.picking-stepper input:focus-visible,.picking-stepper button:focus-visible{outline:2px solid var(--blue);outline-offset:1px}
+.picking-status-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 12px}
+.picking-order-status{padding:3px 12px;border-radius:999px;font-size:13px;font-weight:600;background:var(--panel-2);color:var(--muted);border:1px solid var(--border)}
+.picking-order-status[data-status="picking"]{color:var(--amber);border-color:var(--amber)}
+.picking-order-status[data-status="confirmed"]{color:var(--green);border-color:var(--green)}
+.picking-order-status[data-status="cancelled"]{color:var(--red);border-color:var(--red)}
+.picking-footer{padding:15px 22px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--border);font-size:12px}
+.picking-footer>div{display:flex;gap:10px}
+.picking-footer button,.picking-body button:not(.picking-location):not([data-step]){padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--panel-2);color:var(--text);cursor:pointer}
+.picking-footer button.btn-primary,.picking-body button.btn-primary{background:var(--primary-gradient);color:#fff;border-color:transparent}
+.picking-footer button:disabled,.picking-body button:disabled{opacity:.4;cursor:not-allowed}
+#pickingStatus{margin:12px 0 0;font-size:12px;color:var(--amber);min-height:1.2em}
+#pickingStatus[data-error="true"]{color:var(--red)}
+/* Nút + chip ở đầu khối "Hàng hóa trong đơn" của hộp chi tiết đơn. */
+.picking-actions{display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap;margin-left:auto}
+.picking-open-btn{padding:6px 12px;border-radius:8px;border:0;background:var(--primary-gradient);color:#fff;font-weight:600;cursor:pointer}
+.picking-open-btn:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.picking-confirmed{font-size:12px;font-weight:600;color:var(--green)}
+.picking-confirmed[data-status="picking"]{color:var(--amber)}.picking-confirmed[data-status="cancelled"]{color:var(--red)}
+td.lc-st{font-variant-numeric:tabular-nums}
+.lc-pick-chip{display:inline-block;margin-left:6px;padding:0 7px;border-radius:999px;border:1px solid var(--muted);font-size:10.5px;font-weight:600;line-height:1.6;color:var(--muted);vertical-align:middle;white-space:nowrap}
+.lc-pick-chip[data-pick-status="picking"]{color:var(--amber);border-color:var(--amber)}
+.lc-pick-chip[data-pick-status="confirmed"]{color:var(--green);border-color:var(--green)}
+.lc-pick-chip[data-pick-status="cancelled"]{color:var(--red);border-color:var(--red)}
+/* Phiếu nhặt (xem trước, sửa trực tiếp trước khi in). */
+#pickingPrintSheet{padding:32px;background:#fff;color:#222;font-size:13px}
+#pickingPrintSheet .tokosi-invoice{font-family:Arial,sans-serif;font-size:12px;color:#000;line-height:1.2}
+#pickingPrintSheet .tokosi-invoice table{margin:0;width:100%;border-collapse:collapse;page-break-inside:auto;table-layout:auto}
+#pickingPrintSheet .tokosi-invoice td,#pickingPrintSheet .tokosi-invoice th{border:0;padding:3px;white-space:normal;word-wrap:break-word;word-break:break-word;color:#000;background:#fff;font-family:Arial,sans-serif;font-weight:normal;font-size:12px;vertical-align:top}
+#pickingPrintSheet .tokosi-invoice .invoice-goods{table-layout:fixed}
+#pickingPrintSheet .tokosi-invoice .invoice-goods td{border:1px solid #000}
+#pickingPrintSheet .tokosi-invoice .invoice-goods thead td,#pickingPrintSheet .tokosi-invoice .invoice-goods tr:first-child td{text-align:center;font-weight:bold;vertical-align:middle}
+#pickingPrintSheet .tokosi-invoice .invoice-goods tbody tr:first-child td{font-weight:normal;vertical-align:top}
+#pickingPrintSheet .tokosi-invoice tr{page-break-inside:avoid;page-break-after:auto}
+#pickingPrintSheet .tokosi-invoice img{max-width:100%;height:auto}
+#pickingPrintSheet .tokosi-invoice h1{font-family:Arial,sans-serif;font-size:23px;line-height:1.15;margin:0;font-weight:bold}
+#pickingPrintSheet .tokosi-invoice h2{font-family:Arial,sans-serif;font-size:20px;line-height:1.15;font-weight:bold}
+#pickingPrintSheet .tokosi-invoice p{margin:10px 0}
+#pickingPrintSheet .tokosi-invoice .invoice-qr{margin-top:12px}
+#pickingPrintSheet .tokosi-invoice .invoice-qr td{text-align:center}
+#pickingPrintSheet .tokosi-invoice .invoice-qr img{width:90px;max-height:112px;object-fit:contain}
+#pickingPrintSheet .tokosi-invoice .invoice-customer{margin:18px 0 12px}
+#pickingPrintSheet .tokosi-invoice .invoice-location,#pickingPrintSheet .tokosi-invoice .invoice-actual{text-align:center;min-width:0}
+#pickingPrintSheet .tokosi-invoice .invoice-actual{min-width:65px;vertical-align:middle}
+#pickingPrintSheet .invoice-demo{font-size:10px;color:#555;margin:0 0 12px}
+.print-edit-hint,#pickingPrintMessage{font-size:12px;padding:0 22px;color:var(--muted);line-height:1.5}
+#pickingPrintMessage:empty{display:none}
+#pickingPrintSheet [contenteditable="true"]:focus{outline:1px dashed #aaa;outline-offset:4px}
+#pickingSavePrint{margin:0 8px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--panel-2);color:var(--text);cursor:pointer}
+@page{size:A4;margin:12mm}
+@media print{.print-edit-hint,#pickingPrintMessage{display:none!important}#pickingPrintSheet [contenteditable="true"]:focus{outline:none}body.picking-printing>*:not(#pickingPrintDialog){display:none!important}#pickingPrintDialog{display:block!important;position:static!important;width:100%!important;max-height:none!important;overflow:visible!important;margin:0!important;border:0!important}#pickingPrintDialog .dp-head{display:none}#pickingPrintSheet{padding:0}#pickingPrintSheet tr{break-inside:avoid}#pickingPrintSheet thead{display:table-header-group}}
+@media(max-width:1100px){.picking-locations{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}.picking-table{min-width:900px}}
+@media(max-width:600px){.picking-body{padding:14px;max-height:62vh}.picking-footer{flex-wrap:wrap;padding:14px}.picking-actions{flex-wrap:wrap;margin-left:0}#pickingPrintSheet{padding:12px}}

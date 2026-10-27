@@ -39,6 +39,7 @@ const managerLeaveRuntime = getConfiguredManagerLeaveRuntime();
 const kiotvietSyncStatusRoutes = require('./kiotvietSync/kiotvietSyncStatusRoutes');
 const debtManagementRoutes = require('./dashboard/debtManagementRoutes');
 const orderLifecycleRoutes = require('./shipment/orderLifecycleRoutes');
+const pickAssignmentsRoutes = require('./pickAssignments/pickAssignmentsRoutes');
 const stockLocationsRoutes = require('./stockLocations/stockLocationsRoutes');
 const stockPositionsRoutes = require('./stockPositions/stockPositionsRoutes');
 const cashbookRoutes = require('./cashbook/cashbookRoutes');
@@ -131,6 +132,8 @@ router.use(kiotvietSyncStatusRoutes);
 
 // Tra cuu & quan ly vong doi don hang — Khach (xem don cua minh) + vai tro noi bo.
 router.use('/api/shipment/lifecycle', requireAuth, orderLifecycleRoutes);
+// Chi dinh vi tri hang cho don (giu cho / in phieu nhat / xac nhan, huy nhat): quyen shipment.pick (mac dinh chi Quan ly).
+router.use('/api/shipment/pick', pickAssignmentsRoutes);
 
 // Toan bo API "Bao cao tong hop" ben duoi day duoc gac bang QUYEN TINH NANG
 // (server/auth/featureRegistry.js), khong con bang mang vai tro. Mac dinh chi

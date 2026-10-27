@@ -182,6 +182,7 @@ test('GET /api/shipment/lifecycle trả 1 TRANG đơn (gộp đơn Kiot mọi tr
   assert.deepEqual(res.body, { ...payload, kiotOrderHosts: { HN: null, SG: null } });
   assert.deepEqual(received.params, query, 'bo loc/sap xep/trang di thang xuong service (service kiem tra hop le)');
   assert.equal(received.options.kiot, kiotRepository.kiotOrders, 'phai truyen repository doc don cua Kiot');
+  assert.equal(typeof received.options.pickStatuses, 'function', 'phai truyen nguon trang thai chi dinh vi tri (cot pickStatus + bo loc)');
 });
 
 test('GET /api/shipment/lifecycle: co bien gian hang thi tra ten mien de mo don tren Kiot', async () => {

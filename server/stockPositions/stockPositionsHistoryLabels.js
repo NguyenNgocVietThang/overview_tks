@@ -3,7 +3,9 @@
 // Nhan tieng Viet cua lich su VT Ha Noi / VT Sai Gon, dung chung cho loc tu khoa va xuat Excel (khop public/vt-positions/vt-positions.js).
 const ACTION_LABELS = Object.freeze({
   seed: 'Nhập dữ liệu đầu', create: 'Thêm dòng', edit: 'Sửa', delete: 'Xóa dòng', auto_delete: 'Tự xóa (hết hàng)',
-  deduct: 'Trừ SL', import_replace: 'Import thay toàn bộ', import_add: 'Import bổ sung'
+  deduct: 'Trừ SL', import_replace: 'Import thay toàn bộ', import_add: 'Import bổ sung',
+  // Nhat hang theo don (Vong doi don hang, migration 0096): tru thung khi Xac nhan nhat / hoan tac khi Huy nhat.
+  pick: 'Nhặt hàng theo đơn', pick_revert: 'Hoàn tác nhặt hàng'
 });
 const FIELD_LABELS = Object.freeze({ code: 'Mã hàng', notes: 'Ghi chú', arrivalDate: 'Ngày về', location: 'Vị trí', quantity: 'Số lượng' });
 const SUMMARY_KEYS = Object.freeze([['added', 'Thêm'], ['updated', 'Đổi'], ['deleted', 'Xóa'], ['skippedEmpty', 'Bỏ qua']]);

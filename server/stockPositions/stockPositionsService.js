@@ -106,6 +106,26 @@ const RESOLVE_SQL = `SELECT code, name FROM products WHERE branch = $1 AND lower
 
 const ROW_COLUMNS = 'id, branch, code, name, notes, arrival_date, location, version, updated_by_name, updated_at';
 
+const historySql = `INSERT INTO stock_position_history (branch, position_id, code, location, action, field, old_value, new_value, summary, actor_user_id, actor_name)
+  SELECT $1, t.position_id, t.code, t.location, t.action, t.field, t.old_value, t.new_value, t.summary::jsonb, $2, $3
+  FROM unnest($4::bigint[], $5::text[], $6::text[], $7::text[], $8::text[], $9::text[], $10::text[], $11::text[])
+    AS t(position_id, code, location, action, field, old_value, new_value, summary)`;
+
+// entries: [{positionId, code, location, action, field, oldValue, newValue, summary}]. Ghi cung giao dich voi thao tac (client).
+async function writeHistory(client, branch, actor, entries) {
+  if (!entries.length) return;
+  const col = pick => entries.map(pick);
+  await client.query(historySql, [branch, actor.id, actor.name,
+    col(e => e.positionId ?? null), col(e => e.code ?? ''), col(e => e.location ?? ''), col(e => e.action),
+    col(e => e.field ?? null), col(e => e.oldValue ?? null), col(e => e.newValue ?? null),
+    col(e => (e.summary === undefined ? null : JSON.stringify(e.summary)))]);
+}
+
+async function removeRow(client, branch, actor, row, action, extra = {}) {
+  await client.query('DELETE FROM stock_positions WHERE id = $1', [row.id]);
+  await writeHistory(client, branch, actor, [{ positionId: row.id, code: row.code, location: row.location, action, field: 'notes', oldValue: row.notes, newValue: extra.newValue ?? null, summary: extra.summary }]);
+}
+
 function createStockPositionsService({ getDb = getPool, now = () => Date.now() } = {}) {
   const productCache = new Map(); // nhanh -> Map(code -> {at, product|null})
 
@@ -166,21 +186,6 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
     const rows = (await db.query(`SELECT ${ROW_COLUMNS} FROM stock_positions WHERE branch = $1 ORDER BY id`, [branch])).rows;
     const products = await loadProducts(db, branch, rows.map(row => row.code));
     return { branch, rows: rows.map(row => shape(row, products.get(row.code))) };
-  }
-
-  const historySql = `INSERT INTO stock_position_history (branch, position_id, code, location, action, field, old_value, new_value, summary, actor_user_id, actor_name)
-    SELECT $1, t.position_id, t.code, t.location, t.action, t.field, t.old_value, t.new_value, t.summary::jsonb, $2, $3
-    FROM unnest($4::bigint[], $5::text[], $6::text[], $7::text[], $8::text[], $9::text[], $10::text[], $11::text[])
-      AS t(position_id, code, location, action, field, old_value, new_value, summary)`;
-
-  // entries: [{positionId, code, location, action, field, oldValue, newValue, summary}]
-  async function writeHistory(client, branch, actor, entries) {
-    if (!entries.length) return;
-    const col = pick => entries.map(pick);
-    await client.query(historySql, [branch, actor.id, actor.name,
-      col(e => e.positionId ?? null), col(e => e.code ?? ''), col(e => e.location ?? ''), col(e => e.action),
-      col(e => e.field ?? null), col(e => e.oldValue ?? null), col(e => e.newValue ?? null),
-      col(e => (e.summary === undefined ? null : JSON.stringify(e.summary)))]);
   }
 
   const FIELD_COLUMN = { notes: 'notes', arrivalDate: 'arrival_date', location: 'location' };
@@ -252,11 +257,6 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
       throw fail(409, 'VERSION_CONFLICT', 'Dòng đã bị người khác sửa. Dữ liệu mới nhất đã được tải lại.', { latest: await shapeOne(client, row) });
     }
     return row;
-  }
-
-  async function removeRow(client, branch, actor, row, action, extra = {}) {
-    await client.query('DELETE FROM stock_positions WHERE id = $1', [row.id]);
-    await writeHistory(client, branch, actor, [{ positionId: row.id, code: row.code, location: row.location, action, field: 'notes', oldValue: row.notes, newValue: extra.newValue ?? null, summary: extra.summary }]);
   }
 
   async function update(ctx, id, body = {}) {
@@ -485,4 +485,10 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
   return { list, create, update, deduct, remove, history, historyAll, importFile };
 }
 
-module.exports = { createStockPositionsService, mergeNotes, keyOf, normalizeLocation, ...createStockPositionsService() };
+// `tx`: helper giao dich dung chung cho module khac can tru/cong thung that trong cung giao dich + khoa co so (pickAssignments).
+const tx = Object.freeze({
+  withTransaction, lockBranch, writeHistory, removeRow, fail, assertBranch, assertScope, actorOf, lower, normalizeLocation,
+  isEmptyNote, isoOf, ROW_COLUMNS, BRANCH_CODES, DB_BRANCH
+});
+
+module.exports = { createStockPositionsService, mergeNotes, keyOf, normalizeLocation, tx, ...createStockPositionsService() };

@@ -509,14 +509,18 @@ async function loadMergedRows(kiot) {
  * filteredTotal (sau loc), kiotStatuses (cho o loc), warningCounts (theo co so), kpis (chi so tong quat dau
  * trang theo bo loc hien tai — xem orderLifecycleQuery.countSummary), kiot (tom tat nguon Kiot | null) }.
  */
-async function queryOrders(rawParams, { kiot } = {}) {
+async function queryOrders(rawParams, { kiot, pickStatuses } = {}) {
   const params = query.parseParams(rawParams);
   const { rows, kiotResult } = await loadMergedRows(kiot);
+  const pickMap = pickStatuses ? await pickStatuses() : null;
+  // Loc theo trang thai chi dinh vi tri: thu hep tap dong (chi dinh it, don ~60 nghin) roi loc/sap xep nhu thuong, khong qua
+  // selectionCache (gan voi mang dong nguon). Khong loc thi van dung cache; pickStatus chi gan len cac dong cua trang tra ve.
+  const filtered = pickMap && params.pickStatus ? rows.filter(row => pickMap.get(pickKey(row)) === params.pickStatus) : null;
   const scope = query.rowsInBranch(rows, params.branch);
-  const selected = selectionCache.select(rows, params);
+  const selected = filtered ? query.selectRows(filtered, params) : selectionCache.select(rows, params);
   const paged = query.paginate(selected, params.page, params.pageSize);
   return {
-    orders: paged.items,
+    orders: pickMap ? withPickStatus(paged.items, pickMap) : paged.items,
     page: paged.page,
     pageSize: paged.pageSize,
     totalPages: paged.totalPages,
@@ -524,18 +528,39 @@ async function queryOrders(rawParams, { kiot } = {}) {
     filteredTotal: selected.length,
     kiotStatuses: query.distinctKiotStatuses(scope),
     warningCounts: query.countWarnings(scope),
-    kpis: query.countSummary(rows, params),
+    kpis: query.countSummary(filtered || rows, params),
     kiot: kiotMeta(kiotResult)
   };
+}
+
+// Khoa trang thai chi dinh theo (co so, ma don) — khop pickAssignmentsService.latestStatuses ('HN|ma don chu thuong').
+function pickKey(row) {
+  return `${row.branch}|${normalizeCode(row.orderCode)}`;
+}
+
+/** Gan `pickStatus` (picking|confirmed|cancelled|null) cho cac dong cua TRANG tra ve (ban sao nong, khong sua dong trong cache). */
+function withPickStatus(items, pickMap) {
+  return items.map(row => Object.assign({}, row, { pickStatus: pickMap.get(pickKey(row)) || null }));
+}
+
+/** Dong gop cua 1 don theo (co so, ma don); null neu khong co (hoac Kiot loi va don khong co trong sheet). */
+async function findMergedOrder(branch, orderCode, { kiot } = {}) {
+  const { rows } = await loadMergedRows(kiot);
+  const target = normalizeCode(orderCode);
+  return rows.find(row => row.branch === branch && normalizeCode(row.orderCode) === target) || null;
 }
 
 /**
  * Toan bo dong DA LOC + SAP XEP (moi trang, khong cat trang) de xuat Excel — cung bo tham so voi queryOrders
  * nen file khop dung bang tren man hinh. Khong truyen bo loc nao -> toan bo (don moi dat nhat truoc).
  */
-async function exportOrders(rawParams, { kiot } = {}) {
+async function exportOrders(rawParams, { kiot, pickStatuses } = {}) {
   const params = query.parseParams(rawParams);
   const { rows } = await loadMergedRows(kiot);
+  if (pickStatuses && params.pickStatus) {
+    const pickMap = await pickStatuses();
+    return query.selectRows(rows.filter(row => pickMap.get(pickKey(row)) === params.pickStatus), params);
+  }
   return selectionCache.select(rows, params);
 }
 
@@ -631,6 +656,6 @@ async function overrideStatus(orderCode, { code, changedBy, changedByRole, note 
 module.exports = {
   STATUS, STATUS_LABEL, STATUS_RANK,
   computeStatus, computeEffectiveStatus, WARNING, WARNING_LABEL, computeWarnings, workingMsBetween, parseSheetTimeMs, findOrder, listAllOrders, queryOrders,
-  exportOrders, overrideStatus, listHistory,
+  exportOrders, overrideStatus, listHistory, findMergedOrder,
   mergeRows, pickAccountingKiotOrder
 };

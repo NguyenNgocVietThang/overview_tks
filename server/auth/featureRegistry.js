@@ -109,6 +109,9 @@ const FEATURES = Object.freeze([
   { key: 'shipment.export', groupKey: 'shipment', label: 'Xuất Excel đơn hàng (cần Vòng đời đơn hàng)', roles: MANAGER_ONLY, requires: 'shipment.lifecycle' },
   // 2026-10-03: Ke toan khong con duoc ghi de mac dinh; Quan ly cap rieng tung tai khoan khi can.
   { key: 'shipment.override', groupKey: 'shipment', label: 'Ghi đè trạng thái đơn (cần Vòng đời đơn hàng)', roles: MANAGER_ONLY, requires: 'shipment.lifecycle' },
+  // 2026-10-27: Chi dinh vi tri hang cho don "Da gui ke toan" (giu cho, in phieu nhat, xac nhan / huy nhat = tru / hoan tac thung that
+  // trong VT Ha Noi / VT Sai Gon). Chi Quan ly mac dinh; Quan ly cap rieng tung tai khoan khi can.
+  { key: 'shipment.pick', groupKey: 'shipment', label: 'Chỉ định vị trí hàng cho đơn (cần Vòng đời đơn hàng)', roles: MANAGER_ONLY, requires: 'shipment.lifecycle' },
 
   { key: 'stockLocations.view', groupKey: 'stockLocations', label: 'Xem vị trí hàng HN / SG', roles: INTERNAL_ROLES, forbiddenRoles: [ROLES.KHACH] },
   // 2026-10-27: co so du lieu Vi tri hang moi (tab VT Ha Noi / VT Sai Gon, bang stock_positions). Tam thoi chi Quan ly; cap them tung tai khoan duoc.

@@ -21,7 +21,8 @@
   const WARNING_LABELS = { multi: 'Nhiều quy cách', loose: 'Trừ lẻ', unreadable: 'Sai định dạng', badnumber: 'Số thùng sai', unknowncode: 'Mã SP lạ' };
   const ACTION_LABELS = {
     seed: 'Nhập dữ liệu đầu', create: 'Thêm dòng', edit: 'Sửa', delete: 'Xóa dòng', auto_delete: 'Tự xóa (hết hàng)',
-    deduct: 'Trừ SL', import_replace: 'Import thay toàn bộ', import_add: 'Import bổ sung'
+    deduct: 'Trừ SL', import_replace: 'Import thay toàn bộ', import_add: 'Import bổ sung',
+    pick: 'Nhặt hàng (đơn)', pick_revert: 'Hoàn tác nhặt (đơn)'
   };
   const FIELD_LABELS = { code: 'Mã hàng', notes: 'Ghi chú', arrivalDate: 'Ngày về', location: 'Vị trí', quantity: 'Số lượng' };
   const collator = new Intl.Collator('vi', { numeric: true, sensitivity: 'base' });
@@ -705,7 +706,7 @@
   }
 
   // Nhãn hành động dạng pill: màu theo loại (có chữ nên không chỉ dựa vào màu).
-  const HISTORY_TONES = { edit: 'blue', create: 'green', import_add: 'green', delete: 'red', auto_delete: 'red', deduct: 'amber', seed: 'neutral', import_replace: 'neutral' };
+  const HISTORY_TONES = { edit: 'blue', create: 'green', import_add: 'green', delete: 'red', auto_delete: 'red', deduct: 'amber', pick: 'amber', pick_revert: 'blue', seed: 'neutral', import_replace: 'neutral' };
   const HISTORY_ICONS = {
     blue: '<path d="M4 20h4L19 9l-4-4L4 16v4Z"></path>',
     green: '<path d="M12 5v14M5 12h14"></path>',
