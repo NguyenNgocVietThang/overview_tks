@@ -91,7 +91,7 @@ test('Lịch sử chỉnh sửa: chỉ của cơ sở đang mở, mới nhất l
   tab(d,'HN');d.querySelector('#locHistoryBtn').click();
   rows=[...d.querySelectorAll('#historyBody tr')];
   assert.deepEqual(rows.map(r=>r.cells[1].textContent),['P2','P1'],'mới nhất (h2) lên đầu, không lẫn bản ghi SG');
-  assert.match(rows[0].cells[3].textContent,/1Tx50 \+ 2Tx25 → 1Tx50/);
+  assert.match(rows[0].cells[3].textContent,/1Tx50 \+ 2Tx25 → 1T x 50/);
 });
 test('dòng lịch sử có ghi chú sau gây cảnh báo thì tô đỏ nhãn lý do',t=>{
   const {w,d}=setup(t);

@@ -40,11 +40,13 @@ function nameOf(code){
 }
 // Chỉ dòng nhập tay mới bị cảnh báo mã chưa có trong danh mục (dòng import/demo không mang tên riêng).
 const isUnknownCode=r=>!!r.manual&&!r.name&&!nameOf(r.code);
-function setText(r,text,source,orderCode=''){
+// raw=true (hoàn tác) ghi lại đúng chuỗi gốc đã lưu, không chuẩn hóa. Chỉ khác khoảng trắng thì đổi chuỗi nhưng không ghi lịch sử thừa.
+function setText(r,text,source,orderCode='',raw=false){
   const beforeText=specText(r),beforeQty=specOf(r)?.quantity??null;
+  if(!raw)text=C.normalizeNote(text);
   stock(r).specText=text;
   const afterQty=specOf(r)?.quantity??null;
-  if(beforeText===text&&beforeQty===afterQty)return;
+  if(beforeQty===afterQty&&beforeText.replace(/\s+/g,'')===text.replace(/\s+/g,''))return;
   pushChange(r,beforeText,beforeQty,text,afterQty,source,orderCode);
 }
 function pushChange(r,notesBefore,qtyBefore,notesAfter,qtyAfter,source,orderCode=''){
@@ -219,7 +221,7 @@ api.previewLocation=(branch,{code,notes,location})=>{
 // Thêm dòng bằng tay vào đúng cơ sở. Trùng khóa (cơ sở, mã hàng, vị trí) thì không tạo dòng thứ hai: báo trùng kèm dòng sẵn có (err.duplicate).
 let manualSeq=0;
 api.addLocation=(branch,{code,notes,location},source='Sửa tay')=>{
-  const c=String(code??'').trim(),l=String(location??'').trim(),n=String(notes??'').trim();
+  const c=String(code??'').trim(),l=String(location??'').trim(),n=C.normalizeNote(notes);
   if(!['HN','SG'].includes(branch))throw Error('Cơ sở không hợp lệ.');
   if(!c)throw Error('Nhập Mã hàng.');
   if(!l)throw Error('Nhập Vị trí.');
@@ -262,7 +264,7 @@ function undoPicks(rec,source,orderCode){
   for(const job of [...rec.jobs].reverse()){
     if(!(job.picked>0))continue;
     const r=locationOf(job.id),current=specText(r);
-    if(job.specAfter!==undefined&&current===job.specAfter)setText(r,job.specBefore,source,orderCode);
+    if(job.specAfter!==undefined&&current===job.specAfter)setText(r,job.specBefore,source,orderCode,true);
     else{const spec=C.parseSpec(current);if(spec)setText(r,C.restore(spec,job.picked).text,source,orderCode);}
     ledgerRecord(r,'receipt',job.picked);
     job.taken-=job.picked;restored+=job.picked;job.picked=0;

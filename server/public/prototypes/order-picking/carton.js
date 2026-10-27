@@ -4,8 +4,10 @@
   const number=text=>Number(String(text).replace(',','.'));
   const NUM='\\d+(?:[.,]\\d+)?';
   // Hậu tố c (cái) sau SL/thùng chỉ là đơn vị, không đổi nghĩa số: 50c = 50. Có thể c hoa/thường, có hoặc không có khoảng trắng.
-  const TERM=new RegExp('^\\s*('+NUM+')\\s*[Tt]\\s*[xX*×]\\s*('+NUM+')(\\s*[cC])?\\s*$');
+  const TERM=new RegExp('^\\s*('+NUM+')\\s*[Tt](?:\\s*[xX*×]\\s*|\\s+)('+NUM+')(\\s*[cC])?\\s*$');
   const LOOSE=new RegExp('^(.*?)\\s*[-−]\\s*('+NUM+')\\s*[cC]?\\s*$');
+  // Dấu nối nhiều quy cách: + hoặc dấu phẩy ngay sau SL/thùng của số hạng trước (9tx14, 5tx 14). Dấu phẩy thập phân (0,5Tx100) không bị tách. Khi ghi lại ghi chú, dấu nối được chuẩn hóa thành ' + '.
+  const SEPARATOR=/\s*\+\s*|(?<=[xX*×Tt]\s*\d+(?:[.,]\d+)?\s*[cC]?)\s*,\s*/;
   // Ghi chú của vị trí đã nhặt hết: SL = 0, không cảnh báo, chưa có quy cách để chỉ định.
   const EMPTY_NOTE='Hết hàng';
   const positiveInt=n=>Number.isInteger(n)&&n>0;
@@ -15,9 +17,9 @@
     const tail=LOOSE.exec(body);
     if(tail){body=tail[1];loose=number(tail[2]);}
     const terms=[];
-    for(const part of body.split('+')){
+    for(const part of body.split(SEPARATOR)){
       const m=TERM.exec(part);if(!m)return null;
-      terms.push({cartons:number(m[1]),perCarton:number(m[2]),suffix:m[3]?m[3].trim():''});
+      terms.push({cartons:number(m[1]),perCarton:number(m[2]),suffix:m[3]?m[3].trim().toLowerCase():''});
     }
     return {terms,loose};
   }
@@ -45,6 +47,13 @@
     // Mỗi số hạng giữ hậu tố c như người dùng đã nhập; phần trừ lẻ " - N" thêm mới luôn không có c (đơn giản, không đoán phong cách).
     const text=terms.map(t=>t.cartons+'T x '+t.perCarton+(t.suffix||'')).join(' + ')+(spec.loose>0?' - '+spec.loose:'');
     return parseSpec(text)&&parseSpec(text).quantity>0?text:EMPTY_NOTE;
+  }
+  /* Chuẩn hóa ghi chú khi lưu: đọc được thì về dạng <thùng>T x <SL/thùng> nối ' + ', phần trừ ' - N', T hoa, c thường, bỏ khoảng trắng thừa;
+     sai định dạng thì giữ chữ người dùng gõ, chỉ cắt đầu/cuối và gộp khoảng trắng liên tiếp; rỗng giữ rỗng. */
+  function normalizeNote(text){
+    const raw=String(text??''),spec=parseSpec(raw);
+    if(!spec||spec.empty)return raw.trim().replace(/\s+/g,' ');
+    return spec.terms.map(t=>t.cartons+'T x '+t.perCarton+(t.suffix||'')).join(' + ')+(spec.loose>0?' - '+spec.loose:'');
   }
   const cartonsOf=(quantity,perCarton)=>perCarton>0&&Number.isFinite(quantity)?round6(quantity/perCarton):null;
   const isWhole=n=>Math.abs(n-Math.round(n))<1e-4;
@@ -135,7 +144,7 @@
     return reasons;
   }
   const WARNING_LABEL={multi:'Nhiều quy cách',loose:'Có phần trừ lẻ',unreadable:'Ghi chú sai định dạng',badnumber:'Số thùng và SL/thùng phải là số nguyên dương',unknowncode:'Mã hàng chưa có trong danh mục'};
-  const api={EMPTY_NOTE,warnings,WARNING_LABEL,parseSpec,formatSpec,cartonsOf,isWhole,deduct,cartonsFor,restore,suggest};
+  const api={normalizeNote,EMPTY_NOTE,warnings,WARNING_LABEL,parseSpec,formatSpec,cartonsOf,isWhole,deduct,cartonsFor,restore,suggest};
   if(typeof module!=='undefined')module.exports=api;
   else root.PickingCarton=api;
 })(typeof window!=='undefined'?window:globalThis);

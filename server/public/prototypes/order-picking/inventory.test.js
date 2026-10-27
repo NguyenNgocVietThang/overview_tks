@@ -188,3 +188,13 @@ test('over-picking in the dialog is refused and repeated confirmation does not s
 const {api,order,locations,d}=setup(t);api.reserve(order,{0:[{id:'A',quantity:100}]});api.open(order);d.querySelector('#taken-0').value='101';d.querySelector('[data-take="0"]').click();assert.match(d.querySelector('#inventoryError').textContent,/Số thực nhặt/);assert.equal(api.available(locations[0]),20);
 d.querySelector('#taken-0').value='100';d.querySelector('[data-take="0"]').click();assert.equal(d.querySelector('[data-take="0"]'),null);assert.equal(api.available(locations[0]),20);assert.throws(()=>api.reserve(order,{0:[{id:'A',quantity:100}]}),/đã bắt đầu nhặt/);
 });
+test('lưu ghi chú chuẩn hóa: ghi lịch sử khi chuỗi đổi thật, không ghi khi chỉ khác khoảng trắng, hoàn tác khôi phục chuỗi gốc',t=>{
+const {api,order,locations}=setup(t,{locations:[{id:'A',branch:'HN',code:'P1',location:'A01',notes:'5Tx100'}]});
+api.setSpec(locations[0],'5T  x 100');assert.equal(api.specText(locations[0]),'5T x 100');assert.equal(api.history('HN').length,0,'chỉ khác khoảng trắng: không ghi lịch sử');
+api.setSpec(locations[0],'1t 11');assert.equal(api.specText(locations[0]),'1T x 11');assert.equal(api.history('HN').length,1);
+api.setSpec(locations[0],' 9tx14,5tx 14 ');assert.equal(api.specText(locations[0]),'9T x 14 + 5T x 14');
+api.setSpec(locations[0],'5Tx100',undefined);
+const row=api.addLocation('HN',{code:'P2',location:'B1',notes:'1t*11'});assert.equal(row.notes,'1T x 11');
+const o={...order,lines:[{productCode:'P1',quantity:100}]};api.setSpec(locations[0],'1Tx100');api.reserve(o,{0:[{id:'A',quantity:100}]});api.confirmPick(o);api.cancelPick(o);
+assert.equal(api.specText(locations[0]),'1T x 100','hoàn tác về chuỗi đã lưu (đã chuẩn hóa)');
+});
