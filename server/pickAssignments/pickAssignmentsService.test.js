@@ -33,6 +33,7 @@ async function fixture({ orders = { DH001: order() }, positions } = {}) {
   await db.exec(migration('0064_sheet_snapshots.sql'));
   await db.exec(migration('0095_stock_positions.sql'));
   await db.exec(migration('0096_order_pick_assignments.sql'));
+  await db.exec(migration('0097_order_pick_assignment_snapshots.sql'));
   const seed = positions || [
     { code: 'AAA1', location: 'A01', notes: '3T x 100' }, // id 1: 300
     { code: 'AAA1', location: 'B02', notes: '2T x 100' }, // id 2: 200
@@ -54,6 +55,84 @@ async function fixture({ orders = { DH001: order() }, positions } = {}) {
 }
 
 const assignBody = (allocations, extra = {}) => ({ branch: 'HN', orderCode: 'DH001', allocations, ...extra });
+
+test('reject fractional source lines before merging and fractional allocations', async () => {
+  for (const quantities of [[0.4], [0.6], [0.4, 0.6], [-1], [0]]) {
+    const {db,service}=await fixture({orders:{DH001:order({lines:quantities.map(quantity=>({productCode:'AAA1',quantity,price:10}))})}});
+    try {
+      await assert.rejects(()=>service.assign(ctx(),assignBody([{productCode:'AAA1',positionId:1,qty:1}])),{code:'VALIDATION'});
+      assert.equal(Number((await db.query('SELECT count(*) FROM order_pick_assignments')).rows[0].count),0);
+      const view=await service.candidates(ctx(),{branch:'HN',orderCode:'DH001'});
+      assert.equal(view.order.eligible,false);
+      assert.ok(view.order.validationErrors.length);
+    } finally { await db.close(); }
+  }
+  const {db,service}=await fixture();
+  try { await assert.rejects(()=>service.assign(ctx(),assignBody([{productCode:'AAA1',positionId:1,qty:0.6}])),{code:'VALIDATION'}); }
+  finally { await db.close(); }
+});
+
+test('confirm rejects moved or repacked positions and rolls back every line',async()=>{
+  for(const change of ["location='B99'", "notes='3Tx50'", "code='OTHER'"]){
+    const {db,service,notesOf}=await fixture();
+    try{
+      const {assignment}=await service.assign(ctx(),assignBody([{productCode:'AAA1',positionId:1,qty:200},{productCode:'AAA1',positionId:2,qty:50}]));
+      await db.query('UPDATE stock_positions SET '+change+', version=version+1 WHERE id=2');
+      await assert.rejects(()=>service.confirm(ctx(),assignment.id,{version:1}),{code:'STOCK_CHANGED'});
+      assert.equal(await notesOf(1),'3T x 100');
+      assert.equal((await service.get(ctx(),{branch:'HN',orderCode:'DH001'})).assignment.status,'picking');
+      assert.equal(Number((await db.query("SELECT count(*) FROM stock_position_history WHERE action='pick'")).rows[0].count),0);
+    }finally{await db.close();}
+  }
+});
+
+test('confirmed legacy fractional quantity or mismatched stock delta cannot restore',async()=>{
+  for(const picked of [0.4,0.6,249]){
+    const {db,service,notesOf}=await fixture();
+    try{
+      const {assignment}=await service.assign(ctx(),assignBody([{productCode:'AAA1',positionId:1,qty:250}]));
+      await service.confirm(ctx(),assignment.id,{version:1});
+      const before=await notesOf(1);
+      await db.query('UPDATE order_pick_lines SET picked_qty=$1 WHERE assignment_id=$2',[picked,assignment.id]);
+      await assert.rejects(()=>service.cancel(ctx(),assignment.id,{version:2}),{code:'STOCK_CHANGED'});
+      assert.equal(await notesOf(1),before);
+    }finally{await db.close();}
+  }
+});
+
+test('two orders share stock safely after depletion and old picking can cancel only',async()=>{
+  const orders={
+    DH001:order({lines:[{productCode:'AAA1',quantity:100,price:10}]}),
+    DH002:order({orderCode:'DH002',lines:[{productCode:'AAA1',quantity:100,price:10}]})
+  };
+  const {db,service,notesOf}=await fixture({orders});
+  try{
+    const first=(await service.assign(ctx(),assignBody([{productCode:'AAA1',positionId:1,qty:100}]))).assignment;
+    const second=(await service.assign(ctx(),assignBody([{productCode:'AAA1',positionId:1,qty:100}],{orderCode:'DH002'}))).assignment;
+    await service.confirm(ctx(),first.id,{version:1});
+    await service.confirm(ctx(),second.id,{version:1});
+    assert.equal(require('../public/shared/carton').parseSpec(await notesOf(1)).quantity,100);
+    await service.cancel(ctx(),first.id,{version:2});
+    const third=(await service.assign(ctx(),assignBody([{productCode:'AAA1',positionId:1,qty:100}]))).assignment;
+    await db.query('UPDATE order_pick_lines SET allocation_snapshot=NULL WHERE assignment_id=$1',[third.id]);
+    await assert.rejects(()=>service.confirm(ctx(),third.id,{version:1}),{code:'STOCK_CHANGED'});
+    await service.cancel(ctx(),third.id,{version:1});
+    assert.equal(require('../public/shared/carton').parseSpec(await notesOf(1)).quantity,200);
+  }finally{await db.close();}
+});
+
+test('order snapshot keeps original duplicate-code lines and exact total',async()=>{
+  const lines=[{productCode:'AAA1',quantity:10000,price:10,discount:0},{productCode:'aaa1',quantity:1,price:11,discount:0}];
+  const {db,service}=await fixture({orders:{DH001:order({lines})},positions:[{code:'AAA1',location:'A01',notes:'101Tx100'}]});
+  try{
+    const {assignment}=await service.assign(ctx(),assignBody([{productCode:'AAA1',positionId:1,qty:10001}]));
+    assert.equal(assignment.snapshot.schemaVersion,2);
+    assert.equal(assignment.snapshot.lines.length,2);
+    assert.equal(assignment.snapshot.goodsTotal,'100011');
+    lines[0].price=99;
+    assert.equal((await service.get(ctx(),{branch:'HN',orderCode:'DH001'})).assignment.snapshot.goodsTotal,'100011');
+  }finally{await db.close();}
+});
 
 test('mergeOrderLines: gop theo ma (khong phan biet hoa/thuong), bo dong dich vu va VAT, binh quan gia khi khac gia', () => {
   const merged = mergeOrderLines([
@@ -113,7 +192,8 @@ test('assign: tao chi dinh Dang nhat, giu cho (chua doi ghi chu), tinh ST, luu s
     assert.equal(assignment.assignedByName, 'Quản Lý A');
     assert.equal(assignment.snapshot.customerName, 'Khách A');
     assert.equal(assignment.snapshot.saleTelegramId, '555');
-    assert.deepEqual(assignment.snapshot.lines, [{ productCode: 'AAA1', productName: 'Hàng A', quantity: 250, price: 10, discount: 0 }]);
+    assert.deepEqual(assignment.snapshot.lines, [{ productCode: 'AAA1', productName: 'Hàng A', quantity: 250, price: 10, discount: 0, note: '', unitPrice: '10', amount: '2500' }]);
+    assert.equal(assignment.snapshot.schemaVersion, 2);
     assert.deepEqual(assignment.lines.map(l => [l.positionId, l.location, l.plannedQty, l.reservedQty, l.stCartons, l.stText, l.pickedQty]),
       [[1, 'A01', 200, 200, 2, '2Tx100', null], [2, 'B02', 50, 50, 0.5, '1Tx100-50', null]]);
     assert.deepEqual(assignment.history.map(h => [h.action, h.actorName]), [['assign', 'Quản Lý A']]);

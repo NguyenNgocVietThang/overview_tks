@@ -2,6 +2,20 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const C=require('./carton.js');
 const pick=s=>({terms:s.terms,loose:s.loose,quantity:s.quantity});
+test('deduct/restore reject fractional or unsafe pieces instead of rounding',()=>{
+  const spec=C.parseSpec('1Tx100');
+  for(const quantity of [0.4,0.6,-1,Infinity,NaN,Number.MAX_SAFE_INTEGER+1]){
+    assert.equal(C.deduct(spec,quantity),null);
+    assert.equal(C.restore(spec,quantity),null);
+  }
+  assert.equal(C.deduct(spec,30).spec.quantity,70);
+  assert.equal(C.restore(C.parseSpec('1Tx100-30'),30).spec.quantity,100);
+  assert.equal(C.deduct(spec,0).spec.quantity,100);
+});
+test('restore integer pieces exactly for large cartons without near-whole rounding',()=>{
+  assert.equal(C.restore(C.parseSpec('1Tx10000'),9999).spec.quantity,19999);
+  assert.equal(C.restore(C.parseSpec('1Tx20000'),1).spec.quantity,20001);
+});
 test('parseSpec đọc <số thùng>T x <SL/thùng>, chịu hoa thường, dấu x * ×, khoảng trắng và dấu phẩy thập phân',()=>{
   assert.deepEqual(pick(C.parseSpec('5Tx100')),{terms:[{cartons:5,perCarton:100,suffix:''}],loose:0,quantity:500});
   assert.equal(C.parseSpec(' 40T x 250 ').quantity,10000);

@@ -10,6 +10,8 @@
 const { getPool } = require('../db/pool');
 const carton = require('../public/shared/carton.js');
 const rules = require('../public/shared/pick-rules.js');
+const { makeAllocationSnapshot, allocationMatches, deductAllocation } = require('./pickAssignmentSnapshot');
+const { makeOrderSnapshot } = require('./pickOrderSnapshot');
 const { tx } = require('../stockPositions/stockPositionsService');
 
 const {
@@ -24,6 +26,22 @@ const AVAILABILITY_ERROR = /vượt số lượng khả dụng/u;
 
 const codeKey = value => String(value ?? '').trim().toLowerCase();
 const num = value => (value === null || value === undefined ? null : Number(value));
+
+function quantityErrors(order) {
+  const errors = [];
+  const totals = new Map();
+  for (const line of Array.isArray(order.lines) ? order.lines : []) {
+    const key = codeKey(line.productCode);
+    if (!key || line.isService || key.startsWith('vat')) continue;
+    const qty = Number(line.quantity);
+    const total = (totals.get(key) || 0) + qty;
+    if (!Number.isSafeInteger(qty) || qty <= 0 || !Number.isSafeInteger(total)) {
+      errors.push(`${line.productCode}: số lượng nhặt phải là số chiếc nguyên dương trong giới hạn cho phép.`);
+    }
+    totals.set(key, total);
+  }
+  return errors;
+}
 
 /**
  * Dong don Kiot -> dong chi dinh: bo dong dich vu (VAT*), GOP theo ma hang (khong phan biet hoa/thuong).
@@ -69,6 +87,10 @@ async function defaultLoadOrder({ branch, orderCode }) {
     orderDate: row.orderDate || detail.date || '',
     status: { code: row.summary.code, label: row.summary.label },
     invoiceDiscount: Number(detail.discount) || 0,
+    customerPhone: detail.customerPhone || '',
+    customerAddress: detail.customerAddress || '',
+    sellerPhone: detail.sellerPhone || '',
+    note: detail.note || row.note || '',
     lines: detail.lines
   };
 }
@@ -157,6 +179,7 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
   }
 
   function orderView(order, lines) {
+    const validationErrors = quantityErrors(order);
     return {
       branch: order.branch,
       orderCode: order.orderCode,
@@ -165,7 +188,8 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
       saleTelegramId: order.saleTelegramId,
       orderDate: order.orderDate,
       status: order.status,
-      eligible: order.status.code === ELIGIBLE_STATUS,
+      eligible: order.status.code === ELIGIBLE_STATUS && validationErrors.length === 0,
+      validationErrors,
       lines
     };
   }
@@ -235,8 +259,10 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
       const qty = Number(item && item.qty);
       if (index === undefined) throw fail(400, 'VALIDATION', `Mã hàng ${item && item.productCode ? item.productCode : '(trống)'} không có trong đơn.`, { field: 'allocations' });
       if (!Number.isInteger(positionId) || positionId < 1) throw fail(400, 'VALIDATION', 'Mã dòng vị trí không hợp lệ.', { field: 'allocations' });
-      if (!Number.isFinite(qty) || qty <= 0) throw fail(400, 'VALIDATION', 'Số lượng chỉ định phải lớn hơn 0.', { field: 'allocations' });
-      perLine[index].set(positionId, (perLine[index].get(positionId) || 0) + qty);
+      if (!Number.isSafeInteger(qty) || qty <= 0) throw fail(400, 'VALIDATION', 'Số lượng chỉ định phải là số chiếc nguyên dương.', { field: 'allocations' });
+      const total = (perLine[index].get(positionId) || 0) + qty;
+      if (!Number.isSafeInteger(total)) throw fail(400, 'VALIDATION', 'Tổng số lượng vượt giới hạn cho phép.', { field: 'allocations' });
+      perLine[index].set(positionId, total);
     }
     return perLine;
   }
@@ -251,12 +277,11 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
       throw fail(409, 'ORDER_NOT_ELIGIBLE', `Đơn đang ở trạng thái "${order.status.label}", chỉ đơn "Đã gửi kế toán" mới được chỉ định vị trí.`);
     }
     if (!lines.length) throw fail(400, 'VALIDATION', 'Đơn không có dòng hàng cần nhặt.');
+    const invalidQuantities = quantityErrors(order);
+    if (invalidQuantities.length) throw fail(400, 'VALIDATION', invalidQuantities.join('; '), { field: 'allocations' });
     const perLine = parseAllocations(body, lines);
     const actor = actorOf(ctx);
-    const snapshot = {
-      customerName: order.customerName, saleName: order.saleName, saleTelegramId: order.saleTelegramId, orderDate: order.orderDate,
-      lines, invoiceDiscount: order.invoiceDiscount
-    };
+    const snapshot = makeOrderSnapshot(order);
     const db = getDb();
     let assignmentId;
     try {
@@ -294,11 +319,13 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
           for (const [positionId, qty] of map) {
             const row = byId.get(positionId);
             const spec = carton.parseSpec(row.notes);
+            const allocationSnapshot = makeAllocationSnapshot(row, qty);
+            if (!allocationSnapshot) throw fail(400, 'VALIDATION', `Không lập được quy cách nhặt cho mã ${row.code}.`);
             total += qty;
             await client.query(
-              `INSERT INTO order_pick_lines (assignment_id, product_code, position_id, location, planned_qty, reserved_qty, st_cartons, st_text)
-               VALUES ($1, $2, $3, $4, $5, $5, $6, $7)`,
-              [head.id, lines[lineIndex].productCode, positionId, row.location, qty, spec ? carton.cartonsFor(spec, qty) : null, spec ? carton.pickText(spec, qty) : null]);
+              `INSERT INTO order_pick_lines (assignment_id, product_code, position_id, location, planned_qty, reserved_qty, st_cartons, st_text, allocation_snapshot)
+               VALUES ($1, $2, $3, $4, $5, $5, $6, $7, $8::jsonb)`,
+              [head.id, lines[lineIndex].productCode, positionId, row.location, qty, spec ? carton.cartonsFor(spec, qty) : null, spec ? carton.pickText(spec, qty) : null, JSON.stringify(allocationSnapshot)]);
           }
         }
         await client.query(
@@ -357,7 +384,11 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
         const spec = carton.parseSpec(row.notes);
         if (!spec || spec.empty) throw stockChanged(job, 'đã hết hàng hoặc ghi chú sai định dạng');
         const planned = Number(job.planned_qty);
-        const result = carton.deduct(spec, planned);
+        if (!Number.isSafeInteger(planned) || planned <= 0 ||
+            !allocationMatches(job.allocation_snapshot, row) || job.allocation_snapshot.plannedQty !== planned) {
+          throw stockChanged(job, 'đã đổi mã/vị trí/quy cách hoặc phiếu cũ thiếu dấu vết để xác nhận an toàn');
+        }
+        const result = deductAllocation(job.allocation_snapshot, row);
         if (!result) throw stockChanged(job, `không còn đủ ${planned} để nhặt (hiện ${spec.quantity})`);
         const snapshot = { code: row.code, name: row.name, notes: row.notes, arrivalDate: row.arrival_date, location: row.location };
         if (isEmptyNote(result.text)) {
@@ -386,7 +417,19 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
   // tu xoa (het hang) duoc tao lai (hoac cong vao dong cung ma + vi tri vua duoc nhap lai).
   async function revertJob(client, head, actor, job, row) {
     const picked = Number(job.picked_qty);
+    const before = carton.parseSpec(job.spec_before);
+    const after = carton.parseSpec(job.spec_after);
+    if (!Number.isSafeInteger(picked) || picked <= 0 || !before || !after ||
+        !Number.isSafeInteger(before.quantity) || !Number.isSafeInteger(after.quantity) ||
+        before.quantity - after.quantity !== picked) {
+      throw stockChanged(job, 'cần đối soát số đã nhặt trước khi hoàn tồn');
+    }
     const summary = { orderCode: head.order_code, assignmentId: Number(head.id), restored: picked };
+    const restoredText = spec => {
+      const result = carton.restore(spec, picked);
+      if (!result) throw stockChanged(job, 'không thể cộng trả số đã nhặt trong giới hạn cho phép');
+      return result.text;
+    };
     const update = async (target, notes, extra) => {
       await client.query(
         `UPDATE stock_positions SET notes = $2, version = version + 1, updated_by_user_id = $3, updated_by_name = $4, updated_at = now() WHERE id = $1`,
@@ -397,7 +440,7 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
       if (row.notes === job.spec_after) return update(row, job.spec_before, { exact: true });
       const spec = carton.parseSpec(row.notes);
       if (!spec) throw stockChanged(job, 'có ghi chú sai định dạng nên không cộng trả được số đã nhặt');
-      return update(row, carton.restore(spec, picked).text, { exact: false });
+      return update(row, restoredText(spec), { exact: false });
     }
     const snapshot = job.position_snapshot || {};
     const same = (await client.query(
@@ -407,10 +450,10 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
     if (same) {
       const spec = carton.parseSpec(same.notes);
       if (!spec) throw stockChanged(job, 'đã được nhập lại với ghi chú sai định dạng nên không cộng trả được');
-      return update(same, carton.restore(spec, picked).text, { exact: false, recreated: false });
+      return update(same, restoredText(spec), { exact: false, recreated: false });
     }
     // Chi co the khoi phuc nguyen chuoi cu khi chinh luot xac nhan nay da lam het hang (spec_after rong).
-    const notes = isEmptyNote(job.spec_after) ? job.spec_before : carton.restore(carton.parseSpec('') || { terms: [], loose: 0 }, picked).text;
+    const notes = isEmptyNote(job.spec_after) ? job.spec_before : restoredText(carton.parseSpec(''));
     const { rows } = await client.query(
       `INSERT INTO stock_positions (branch, code, name, notes, arrival_date, location, updated_by_user_id, updated_by_name)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,

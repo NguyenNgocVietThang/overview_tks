@@ -111,3 +111,28 @@ test('Ten khach/ten hang: uu tien ten HIEN TAI (customers.name, products.name), 
     assert.match(lines, /NULLIF\(p\.name, ''\), NULLIF\(d\.raw->>'productName', ''\)/);
   }
 });
+
+test('order print contacts use same-branch customer master; absent seller contact stays blank', async () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const { PGlite } = require('@electric-sql/pglite');
+  const db = new PGlite();
+  try {
+    for (const name of ['0001_core_master_data.sql', '0003_orders.sql']) {
+      await db.exec(fs.readFileSync(path.join(__dirname, '../db/migrations', name), 'utf8'));
+    }
+    await db.query(`INSERT INTO customers(branch,id,name,phone,raw)
+      VALUES('hanoi',1,'Khách A','0338818683','{"address":"Kho sau zocco"}'),
+            ('saigon',1,'Khách khác','0900000002','{"address":"Sai cơ sở"}')`);
+    await db.query(`INSERT INTO orders(branch,id,code,customer_id,raw)
+      VALUES('hanoi',1,'DH1',1,'{"soldByName":"Sale A - 123456789"}')`);
+    let detail = await getOrderDetail({ code:'DH1', branchCode:'hanoi', pool:db });
+    assert.equal(detail.customerPhone, '0338818683');
+    assert.equal(detail.customerAddress, 'Kho sau zocco');
+    assert.equal(detail.sellerPhone, '', 'staff has no trusted phone source');
+    await db.query(`UPDATE customers SET phone=NULL,raw='{}' WHERE branch='hanoi' AND id=1`);
+    detail = await getOrderDetail({ code:'DH1', branchCode:'hanoi', pool:db });
+    assert.equal(detail.customerPhone, '');
+    assert.equal(detail.customerAddress, '');
+  } finally { await db.close(); }
+});

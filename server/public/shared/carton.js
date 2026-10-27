@@ -102,12 +102,12 @@
      của các quy cách đó, về 0 thì bỏ số hạng. Không khớp, hoặc đã có phần trừ lẻ, thì cộng dồn vào " - N".
      taken = số thùng đã lấy (ST): thùng nguyên theo từng quy cách, phần lẻ chia SL/thùng của số hạng đầu (có thể lẻ). */
   function deduct(spec,quantity){
-    if(!spec.terms.length||!(quantity>=0)||quantity>spec.quantity+1e-6)return null;
+    if(!spec||!spec.terms.length||!Number.isSafeInteger(quantity)||quantity<0||quantity>spec.quantity)return null;
     const terms=spec.terms.map(t=>({...t}));
     let loose=spec.loose,taken;
     const counts=loose>0?null:wholeCartons(terms,quantity);
     if(counts){taken=counts.reduce((sum,k)=>sum+k,0);counts.forEach((k,i)=>{terms[i].cartons-=k;});}
-    else{loose+=Math.round(quantity);taken=round6(quantity/terms[0].perCarton);}
+    else{loose+=quantity;taken=round6(quantity/terms[0].perCarton);}
     const text=formatSpec({terms,loose});
     return {spec:parseSpec(text),text,taken};
   }
@@ -116,12 +116,13 @@
   /* Cộng trả lại khi hoàn tác mà ghi chú đã bị lượt khác thay đổi (không khôi phục nguyên chuỗi được):
      ưu tiên giảm phần trừ lẻ, phần còn lại cộng vào thùng của quy cách chia hết, không thì thêm 1 thùng gồm phần còn lại. */
   function restore(spec,quantity){
+    if(!spec||!Number.isSafeInteger(quantity)||quantity<0||!Number.isSafeInteger(spec.quantity+quantity))return null;
     const terms=spec.terms.map(t=>({...t}));
-    let loose=spec.loose,rest=Math.round(quantity);
+    let loose=spec.loose,rest=quantity;
     const fromLoose=Math.min(loose,rest);loose-=fromLoose;rest-=fromLoose;
     if(rest>0){
-      const hit=terms.find(t=>isWhole(rest/t.perCarton));
-      if(hit)hit.cartons+=Math.round(rest/hit.perCarton);else terms.push({cartons:1,perCarton:rest});
+      const hit=terms.find(t=>rest%t.perCarton===0);
+      if(hit)hit.cartons+=rest/hit.perCarton;else terms.push({cartons:1,perCarton:rest});
     }
     const text=formatSpec({terms,loose});
     return {spec:parseSpec(text),text};
