@@ -7310,8 +7310,25 @@
       return !permissionsDeferred || hasFeature(key);
     }
 
-    let marketingProductDeferred = (window.location.hash || '') === '#marketing';
-    let marketingHistoryDeferred = marketingProductDeferred;
+    let supplierReturnPanelInitialized = false;
+    function loadReportAuxiliaries(view) {
+      if (view === 'products') {
+        if (allowedAtBoot('reports.products')) {
+          if (!state.productReport.loaded) loadProductReport();
+          else refreshProductContainerMeta();
+        }
+        applyProductsViewPermissions();
+        loadProductGrowth();
+        loadExpectedArrivals();
+      }
+      if (view === 'overview' && allowedAtBoot('reports.overview')) {
+        loadInventoryHistory(true);
+        if (state.currentUser && applyOverviewSectionPermissions() && !supplierReturnPanelInitialized) {
+          supplierReturnPanelInitialized = true;
+          initSupplierReturnImportPanel(state.currentUser);
+        }
+      }
+    }
 
     function switchView(view) {
       // Chan doi sang tab khong co quyen (vd go thang /reports/#debt).
@@ -7334,17 +7351,9 @@
       // Bao cao kinh doanh co API rieng (/api/business-report), khong di qua /api/dashboard.
       if (view === 'business') { loadBusinessReport(false); return; }
       if (view === 'marketing') { TKSMarketing.load(false); return; }
-      // Marketing opens independently; only load the other report sources when their view is opened.
-      if (view === 'products' && marketingProductDeferred) {
-        marketingProductDeferred = false;
-        if (hasFeature('reports.products')) loadProductReport();
-      }
-      refreshProductContainerMeta();
-      // Tab Hang hoa khong co payload /api/dashboard: Bao cao hang hoa tu tai (loadProductReport; chi voi reports.products), muc Tang
-      // truong ma hang dung API /api/business-report/products (chi voi reports.products.growth), muc Du kien hang ve dung /api/expected-arrivals
-      // (chi voi reports.products.expected). Muc nao khong co quyen thi an va KHONG goi API cua muc do.
-      if (view === 'products') { applyProductsViewPermissions(); loadProductGrowth(); loadExpectedArrivals(); return; }
-      if (view === 'overview' && marketingHistoryDeferred) { marketingHistoryDeferred = false; loadInventoryHistory(); }
+      loadReportAuxiliaries(view);
+      // Hang hoa dung cac API rieng, khong co payload /api/dashboard.
+      if (view === 'products') return;
       // Moi tab tai rieng khi duoc mo (xem ensureViewData): tab da co du lieu van ve ngay
       // tu du lieu cu roi cap nhat khi ban moi ve; tab chua co du lieu hien man che "Dang tai".
       ensureViewData(view);
@@ -7643,10 +7652,14 @@
     }
 
     // Tải riêng (không qua loadData/SSE): bảng chụp 1 lần/ngày, bộ lọc Từ–Đến riêng (mặc định 30 ngày).
-    function loadInventoryHistory() {
+    function loadInventoryHistory(reuseLoaded) {
+      if (state.view !== 'overview' || !allowedAtBoot('reports.overview')) return;
       const store = state.inventoryHistory;
-      const requestId = ++store.requestId;
       const bounds = dateFilterBounds(store.filter);
+      const key = JSON.stringify(bounds);
+      if (store.pendingKey === key || (reuseLoaded && store.loadedKey === key && !store.failed)) return;
+      const requestId = ++store.requestId;
+      store.pendingKey = key;
       const params = [];
       if (bounds.from) params.push('from=' + encodeURIComponent(bounds.from));
       if (bounds.to) params.push('to=' + encodeURIComponent(bounds.to));
@@ -7659,6 +7672,7 @@
           if (requestId !== store.requestId) return; // bộ lọc đã đổi tiếp, bỏ kết quả cũ
           store.rows = (data && data.rows) || [];
           store.failed = false;
+          store.loadedKey = key;
           store.loaded = true;
           if (state.view === 'overview') renderInventoryHistoryChart();
         })
@@ -7669,6 +7683,8 @@
           store.failed = true;
           store.loaded = true;
           if (state.view === 'overview') renderInventoryHistoryChart();
+        }).finally(function () {
+          if (requestId === store.requestId) store.pendingKey = null;
         });
     }
 
@@ -8309,6 +8325,7 @@
     }
 
     function loadProductReport() {
+      if (state.view !== 'products' || !allowedAtBoot('reports.products')) return Promise.resolve();
       if (state.productReport.loading) return Promise.resolve();
       state.productReport.loading = true;
       return fetch('/api/product-report')
@@ -12614,7 +12631,7 @@
         applyExportPermission();
         syncSidebarActiveView();
         // Panel nhap Tra NCC nam trong muc 4 — chi khoi tao (goi /import-status) khi nguoi dung thay muc do.
-        if (applyOverviewSectionPermissions()) initSupplierReturnImportPanel(user);
+        applyOverviewSectionPermissions();
         permissionsReadyResolve(); // quyen da nap: bootReportLoads + ket noi SSE chi goi API duoc phep
       }).catch(function(err){
         document.documentElement.style.visibility = '';
@@ -12638,7 +12655,7 @@
     renderStockoutKpis();
 
     // Bao cao hang hoa: bang tinh san 1 lan/dem, khong phu thuoc bo loc thoi
-    // gian/cache dashboard nen goi rieng 1 lan khi vao trang (khong qua
+    // gian/cache dashboard nen tai rieng khi mo tab Hang hoa (khong qua
     // loadData()/SSE o duoi).
     initDocumentDetail();
     setInterval(refreshProductContainerMeta, 60000);
@@ -12648,14 +12665,9 @@
     // Cac lan tai luc khoi dong. Trang that chay SAU khi authGuard() nap quyen (afterPermissions) va chi goi API tai khoan duoc
     // phep: tai khoan chi co "Du kien hang ve" (Ke toan / Mua hang / Kho) khong goi Bao cao hang hoa, Gia tri ton kho, /api/dashboard.
     function bootReportLoads() {
-      if (initialReportView() !== 'marketing' && allowedAtBoot('reports.products')) loadProductReport();
-      // Bieu do gia tri ton kho theo ngay (muc 1 Xu huong): cung ly do nhu bao cao hang hoa o tren.
-      if (initialReportView() !== 'marketing' && allowedAtBoot('reports.overview')) loadInventoryHistory();
-
-      // Chi tai tab can xem ngay: tab theo hash (/reports/#products) hoac tab dang mo. Cac tab khac tai
-      // khi nguoi dung bam vao (switchView -> ensureViewData).
-      const bootView = initialReportView();
-      if (permissionsDeferred && !canViewReport(bootView)) return; // applyReportViewPermissions da chuyen sang tab duoc phep
+      const bootView = state.view;
+      if (permissionsDeferred && !canViewReport(bootView)) return;
+      loadReportAuxiliaries(bootView);
       if (viewIsLoaded(state.view)) {
         // Ve ngay tu cache de khong nhap nhay, nhung VAN goi lai server o nen:
         // cache chi de tranh man hinh trang, khong duoc phep quyet dinh du lieu

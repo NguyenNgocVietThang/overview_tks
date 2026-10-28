@@ -39,7 +39,7 @@ function customersPayload(code, count = 3) {
 }
 
 function createPage({ customers = code => customersPayload(code), meta, report, reportVersion, can = () => true } = {}) {
-  const dom = new JSDOM(html, { runScripts: 'outside-only', url: 'https://tokosi.example/' });
+  const dom = new JSDOM(html, { runScripts: 'outside-only', url: 'https://tokosi.example/#products' });
   dom.window.HTMLCanvasElement.prototype.getContext = () => ({});
   const charts = [];
   dom.window.Chart = class FakeChart {
