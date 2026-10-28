@@ -342,3 +342,20 @@ test('acknowledgeMismatch: chi dinh moi (reassign) thi ack cu khong con hieu luc
     assert.deepEqual(await mismatchOf(service), [{ productCode: 'AAA1', picked: 250, ordered: 240 }]);
   } finally { await db.close(); }
 });
+
+test('trừ tồn theo đơn: người sửa = mã đơn (người bấm tay lẫn job Kiot), tên người bấm nằm trong summary', async () => {
+  const { db, service } = await fixture({ orders: { DH001: order(), DH002: order({ orderCode: 'DH002', lines: [lineOf('BBB2', 20)] }) } });
+  try {
+    await addKiotOrder(db, { code: 'DH002', status: 'Hoàn thành', id: 2, lines: [{ productCode: 'BBB2', quantity: 20 }] });
+    const manual = (await service.assign(ctx(), body([{ productCode: 'AAA1', positionId: 1, qty: 250 }]))).assignment;
+    await service.confirm(ctx(), manual.id, { version: 1 });
+    await service.assign(ctx(), { branch: 'HN', orderCode: 'DH002', allocations: [{ productCode: 'BBB2', positionId: 3, qty: 20 }] });
+    await service.reconcileWithKiot();
+    const log = (await db.query(`SELECT position_id, actor_name, summary FROM stock_position_history WHERE action = 'pick' ORDER BY id`)).rows;
+    assert.deepEqual(log.map(r => [Number(r.position_id), r.actor_name, r.summary.confirmedBy]), [[1, 'DH001', 'Quản Lý A'], [3, 'DH002', '']]);
+    const updated = (await db.query(`SELECT updated_by_name FROM stock_positions WHERE id IN (1, 3) ORDER BY id`)).rows.map(r => r.updated_by_name);
+    assert.deepEqual(updated, ['DH001', 'DH002']);
+    const orderLog = (await db.query(`SELECT order_code, actor_name FROM order_pick_history WHERE action = 'confirm' ORDER BY id`)).rows;
+    assert.deepEqual(orderLog.map(r => [r.order_code, r.actor_name]), [['DH001', 'Quản Lý A'], ['DH002', 'Hệ thống (KiotViet)']]);
+  } finally { await db.close(); }
+});

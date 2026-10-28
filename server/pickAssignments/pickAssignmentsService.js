@@ -404,7 +404,10 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
       const head = await lockAssignment(client, ctx, id, body.version, [STATUS.PICKING]);
       const jobs = (await client.query('SELECT * FROM order_pick_lines WHERE assignment_id = $1 ORDER BY position_id', [id])).rows;
       const positions = await lockPositions(client, head.branch, jobs);
-      const summary = { orderCode: head.order_code, assignmentId: Number(head.id) };
+      // Ton that do don hang tru: nguoi sua (lich su VT + cot Nguoi sua cuoi) la MA DON; ten nguoi bam that nam trong summary
+      // (rong khi job Kiot tu dong, actor.id === null). order_pick_history van ghi nguoi bam.
+      const stockActor = { id: actor.id, name: head.order_code };
+      const summary = { orderCode: head.order_code, assignmentId: Number(head.id), confirmedBy: actor.id === null ? '' : actor.name };
       for (const job of jobs) {
         const row = positions.get(Number(job.position_id));
         if (!row) throw stockChanged(job, 'không còn tồn tại');
@@ -419,12 +422,12 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
         if (!result) throw stockChanged(job, `không còn đủ ${planned} để nhặt (hiện ${spec.quantity})`);
         const snapshot = { code: row.code, name: row.name, notes: row.notes, arrivalDate: row.arrival_date, location: row.location };
         if (isEmptyNote(result.text)) {
-          await removeRow(client, head.branch, actor, row, 'auto_delete', { newValue: result.text, summary: { ...summary, picked: planned } });
+          await removeRow(client, head.branch, stockActor, row, 'auto_delete', { newValue: result.text, summary: { ...summary, picked: planned } });
         } else {
           await client.query(
             `UPDATE stock_positions SET notes = $2, version = version + 1, updated_by_user_id = $3, updated_by_name = $4, updated_at = now() WHERE id = $1`,
-            [row.id, result.text, actor.id, actor.name]);
-          await writeHistory(client, head.branch, actor, [{ positionId: row.id, code: row.code, location: row.location, action: 'pick', field: 'notes', oldValue: row.notes, newValue: result.text, summary: { ...summary, picked: planned } }]);
+            [row.id, result.text, stockActor.id, stockActor.name]);
+          await writeHistory(client, head.branch, stockActor, [{ positionId: row.id, code: row.code, location: row.location, action: 'pick', field: 'notes', oldValue: row.notes, newValue: result.text, summary: { ...summary, picked: planned } }]);
         }
         await client.query(
           `UPDATE order_pick_lines SET picked_qty = $2, spec_before = $3, spec_after = $4, position_snapshot = $5::jsonb WHERE id = $1`,
