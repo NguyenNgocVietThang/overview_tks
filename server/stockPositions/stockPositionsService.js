@@ -73,7 +73,8 @@ function mergeNotes(current, added) {
   const terms = [...a.terms, ...b.terms];
   if (!terms.length) return '';
   const loose = a.loose + b.loose;
-  const text = terms.map(t => t.cartons + 'T x ' + t.perCarton + (t.suffix || '')).join(' + ') + (loose > 0 ? ' - ' + loose : '');
+  const annotation = [a.annotation, b.annotation].filter(Boolean).join(' ');
+  const text = terms.map(t => t.cartons + 'T x ' + t.perCarton + (t.suffix || '')).join(' + ') + (loose > 0 ? ' - ' + loose : '') + (annotation ? ' ' + annotation : '');
   return carton.normalizeNote(text);
 }
 
@@ -184,7 +185,8 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
       id: Number(row.id),
       code: row.code,
       name: (product && product.name) || row.name,
-      notes: row.notes,
+      // Dữ liệu seed/cũ chưa qua validNotes: chuẩn hóa cả khi đọc để bảng và Excel dùng cùng dạng gộp.
+      notes: carton.normalizeNote(row.notes),
       arrivalDate: row.arrival_date,
       location: row.location,
       quantity: spec ? spec.quantity : null,

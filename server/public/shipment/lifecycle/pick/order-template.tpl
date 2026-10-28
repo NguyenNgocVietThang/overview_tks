@@ -3,12 +3,7 @@
     <table cellpadding="1" cellspacing="1" border="0" style="width: 100%" data-table-controls="off" data-table-sort="off" class="invoice-header">
       <tbody>
         <tr>
-          <td style="text-align:left; width:47%">
-            <p><span style=""><strong class="invoice-brand">KHO SỈ TOKOSI</strong></span><br><span style="">Đ/c: Cụm CN Cầu Nổi, Hoài Đức, HN<br>ĐT: 0903 255 456 - 0343 468 468</span></p>
-            <p class="invoice-seller">NV Bán hàng: <span style="">{Nhan_Vien_Ban_Hang}</span>&nbsp;|
-              Zalo:&nbsp;{Dien_Thoai_Nguoi_Ban}</p>
-          </td>
-          <td style="text-align:right">
+          <td class="invoice-order" style="text-align:left; width:53%">
             <p><span style=""><strong class="invoice-title">PHIẾU ĐẶT HÀNG</strong></span><br><span style="">Mã đơn hàng:&nbsp;</span><span style=""><strong>{Ma_Don_Hang}</strong></span><br></p>
             <table cellpadding="3" width="100%" style="border-collapse: collapse; width: 100%;" data-table-controls="off" data-table-sort="off" class="invoice-qr">
               <tbody>
@@ -19,6 +14,11 @@
                 </tr>
               </tbody>
             </table>
+          </td>
+          <td class="invoice-business" style="text-align:left; width:47%">
+            <p><span style=""><strong class="invoice-brand">KHO SỈ TOKOSI</strong></span><br><span style="">Đ/c: Cụm CN Cầu Nổi, Hoài Đức, HN<br>ĐT: 0903 255 456 - 0343 468 468</span></p>
+            <p class="invoice-seller">NV Bán hàng: <span style="">{Nhan_Vien_Ban_Hang}</span>&nbsp;|
+              Zalo:&nbsp;{Dien_Thoai_Nguoi_Ban}</p>
           </td>
         </tr>
       </tbody>

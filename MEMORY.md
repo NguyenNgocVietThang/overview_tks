@@ -3,6 +3,8 @@
 > **Thời hạn giá trị:** Ít nhất 3 tháng (Q4/2026 – Q1/2027).  
 > **Cập nhật gần nhất:** 24/10/2026.  
 > **Quy tắc:** Chỉ lưu trữ các nguyên tắc cốt lõi, kiến trúc bất biến, quy ước chuẩn hóa và bài học kinh nghiệm dài hạn. Không ghi deadline ngắn hạn hay task vụn vặt vào file này.
+>
+> **Nguyên tắc tiên quyết:** với chức năng chưa quen thuộc, đừng viết từ con số 0 — tìm các dự án mã nguồn mở trên GitHub để so sánh ý tưởng trước khi bắt tay làm (xem mục 0 của [CLAUDE.md](CLAUDE.md)).
 
 ---
 

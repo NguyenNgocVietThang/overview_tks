@@ -4,6 +4,12 @@ Tài liệu quy định phương thức làm việc, quy chuẩn mã nguồn và
 
 ---
 
+## 0. Nguyên tắc tiên quyết: Tham khảo mã nguồn mở trước khi làm
+
+Đối với những chức năng chưa quen thuộc, **đừng viết từ con số 0**. Hãy tìm kiếm các dự án mã nguồn mở trên GitHub để so sánh ý tưởng, cách tổ chức và các bẫy thường gặp trước khi bắt tay làm.
+
+---
+
 ## 1. Khởi động phiên làm việc (Startup Checklist)
 
 Mỗi khi bắt đầu một phiên làm việc mới, AI Assistant cần:

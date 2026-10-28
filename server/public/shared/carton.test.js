@@ -257,6 +257,80 @@ test('cùng quy cách gộp thành một dù viết bằng t*B hay *B: 3t*40+14t
   assert.deepEqual(C.warnings('3t*40+14t*40'),[],'gộp về một quy cách thì không còn cảnh báo nhiều quy cách');
 });
 
+test('chuẩn hóa từng phần ở mọi vị trí, giữ chữ, dấu câu và xuống dòng',()=>{
+  for(const [raw,expected] of [
+    ['14tx30 chổi','14T x 30 chổi'],
+    ['37T (chổi) x30 + 30T (xô)x30','37T x 30 (chổi) + 30T x 30 (xô)'],
+    ['1TX26 ( KO VỎ )','1T x 26 (KO VỎ)'],
+    ['T x','T x'],
+    ['kho: 2th (chổi mịn) * 30, 3t (xô)×20','kho: 2T x 30 (chổi mịn), 3T x 20 (xô)'],
+    ['4t*30, check lại','4T x 30, check lại'],
+    ['T x (1 bóng mịn + 1 bóng sần hở)\n1t*19','T x (1 bóng mịn + 1 bóng sần hở)\n1T x 19'],
+    ['check lại: 4th*30, còn 1t*19 ở kho','check lại: 4T x 30, còn 1T x 19 ở kho'],
+    ['ghi chú 1t*30+2T30; kiểm lại 1th*19','ghi chú 3T x 30; kiểm lại 1T x 19'],
+    ['MÃ1t30 và ngày 1/10, còn 2t*50','MÃ1t30 và ngày 1/10, còn 2T x 50']
+  ]){
+    assert.equal(C.normalizeNote(raw),expected,raw);
+    assert.equal(C.normalizeNote(expected),expected);
+    assert.equal(C.parseSpec(C.normalizeNote(raw)),null,'định dạng không tự xác nhận toàn bộ ghi chú hợp lệ');
+  }
+});
+
+test('chú thích sau một số hạng giữ đúng số thùng, không bị gộp với số hạng đứng trước',()=>{
+  for(const unit of ['t','T','th','TH'])for(const sign of ['*','x','X','×']){
+    const raw=`1${unit}${sign}30+ 2${unit}${sign}30 (dán tem) + 2${unit}${sign}30\n+1${unit}${sign}30`;
+    const expected='4T x 30 + 2T x 30 (dán tem)';
+    assert.equal(C.normalizeNote(raw),expected,raw);
+    assert.equal(C.normalizeNote(expected),expected);
+  }
+  assert.equal(C.normalizeNote('T x 11X250 +1TX250'),'12T x 250');
+  assert.equal(C.normalizeNote('1t30+2t(chổi)x30 + 3t(xô)x30'),'1T x 30 + 2T x 30 (chổi) + 3T x 30 (xô)');
+  assert.equal(C.normalizeNote('1t30 (dán tem) + 2t30 + 3t30 (dán tem) + 1t30'),'4T x 30 (dán tem) + 3T x 30');
+});
+
+test('chuẩn hóa độc lập với hợp lệ: tiền tố thừa, chú thích tự do và phần số sai vẫn được định dạng',()=>{
+  for(const [raw,expected] of [
+    ['T x 2X20','2T x 20'],
+    ['T x 9X12+1TX12','10T x 12'],
+    ['1TX800 ( DÁN LẠI TEM )','1T x 800 (DÁN LẠI TEM)'],
+    ['T x 9X12+1TX12 ( DÁN LẠI TEM )','9T x 12 + 1T x 12 (DÁN LẠI TEM)'],
+    ['T x 1b*80','1b x 80'],
+    ['0.5th*100','0.5T x 100'],
+    ['1tx40 + 1t','1T x 40 + 1t'],
+    ['1t*100 thiếu 20','1T x 100 thiếu 20']
+  ]){
+    assert.equal(C.normalizeNote(raw),expected,raw);
+    assert.equal(C.normalizeNote(expected),expected,'chuẩn hóa lặp lại không đổi');
+  }
+  assert.equal(C.parseSpec('T x 2X20').quantity,40);
+  assert.equal(C.parseSpec('T x 9X12+1TX12').quantity,120);
+  for(const bad of ['T x 1b*80','1b x 80','1TX800 ( DÁN LẠI TEM )','0.5th*100','1t*100 thiếu 20']){
+    assert.equal(C.parseSpec(bad),null,bad);
+    assert.equal(C.parseSpec(C.normalizeNote(bad)),null,bad);
+  }
+});
+
+test('cách ghi thùng th và chú thích lẻ/in tem vẫn chuẩn hóa, giữ chú thích qua cộng trừ',()=>{
+  for(const unit of ['th','TH','Th','tH','t','T']){
+    for(const sign of ['*','x','X','×',''])assert.equal(C.normalizeNote('1'+unit+sign+'360'),'1T x 360');
+    assert.equal(C.normalizeNote('1'+unit+'360, 2'+unit+'360'),'3T x 360');
+  }
+  for(const [raw,normalized,quantity] of [
+    ['1th*360','1T x 360',360],
+    [' 2 TH x 100 + 1t100 ','3T x 100',300],
+    ['1t*7c lẻ','1T x 7c lẻ',7],
+    ['1t x 72 ( in tem )','1T x 72 (in tem)',72]
+  ]){
+    assert.equal(C.normalizeNote(raw),normalized,raw);
+    assert.equal(C.parseSpec(raw).quantity,quantity,raw);
+    assert.deepEqual(C.warnings(raw),[],raw);
+    assert.equal(C.normalizeNote(normalized),normalized);
+  }
+  assert.equal(C.deduct(C.parseSpec('2th*72 (in tem)'),72).text,'1T x 72 (in tem)');
+  assert.equal(C.restore(C.parseSpec('1t*7c lẻ'),7).text,'2T x 7c lẻ');
+  for(const raw of ['1t*7c lẻ 3','1th*360 thiếu 20','1t x 72 (thiếu 2)','1t x 72 ghi chú'])assert.equal(C.parseSpec(raw),null,raw);
+});
+
 test('cùng SL/thùng gộp kể cả khi cách nhau: 9X12+1Tx20+1TX12 = 10T x 12 + 1T x 20 (thứ tự theo lần xuất hiện đầu)',()=>{
   const spec=C.parseSpec('9X12+1Tx20+1TX12');
   assert.deepEqual(spec.terms.map(t=>[t.cartons,t.perCarton]),[[10,12],[1,20]]);

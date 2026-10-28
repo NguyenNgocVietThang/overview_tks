@@ -58,7 +58,7 @@ test('migration seed: sao chep Vi tri HN/SG, go tien to "T x ", bo dong het hang
   ] });
   try {
     const hn = await service.list(ctx(), 'HN');
-    assert.deepEqual(hn.rows.map(r => [r.code, r.notes]), [['AAA1', '4T*100'], ['BBB2', '50t*800'], ['FFF6', 'T x Ghi chú lạ']]);
+    assert.deepEqual(hn.rows.map(r => [r.code, r.notes]), [['AAA1', '4T x 100'], ['BBB2', '50T x 800'], ['FFF6', 'T x Ghi chú lạ']]);
     assert.equal(hn.rows[0].arrivalDate, 'KK 4.10');
     assert.equal(hn.rows[0].updatedByName, 'Nhập dữ liệu đầu');
     assert.equal(hn.rows[0].quantity, 400);
@@ -68,6 +68,53 @@ test('migration seed: sao chep Vi tri HN/SG, go tien to "T x ", bo dong het hang
     assert.equal(sg.rows[0].quantity, 600);
     const seeds = await db.query(`SELECT branch, summary FROM stock_position_history WHERE action = 'seed' ORDER BY branch`);
     assert.deepEqual(seeds.rows.map(r => [r.branch, r.summary.rows]), [['HN', 3], ['SG', 1]]);
+  } finally { await db.close(); }
+});
+
+test('list: chuẩn hóa ghi chú cũ và gộp quy cách không liền nhau mà không ghi lại DB', async () => {
+  const original = '1t*100+1t*100+1t*80+1t*100';
+  const { db, service } = await fixture({ lines: [
+    { branch: 'HN', code: 'AAA1', notes: original, location: 'A01' },
+    { branch: 'HN', code: 'BBB2', notes: '1t100+2T*100', location: 'A02' },
+    { branch: 'HN', code: 'AAA1', notes: '3T*50+1T*49', location: 'SMT2' },
+    { branch: 'HN', code: 'AAA1', notes: '1t*7c lẻ', location: 'A03' },
+    { branch: 'HN', code: 'AAA1', notes: '1th*360', location: 'A04' },
+    { branch: 'HN', code: 'AAA1', notes: '1t x 72 ( in tem )', location: 'A05' },
+    { branch: 'HN', code: 'AAA1', notes: 'T x 9X12+1TX12', location: 'A06' },
+    { branch: 'HN', code: 'AAA1', notes: '1TX800 ( DÁN LẠI TEM )', location: 'A07' },
+    { branch: 'HN', code: 'AAA1', notes: 'T x 1b*80', location: 'A08' },
+    { branch: 'HN', code: 'AAA1', notes: '4t*30, check lại', location: 'A09' },
+    { branch: 'HN', code: 'AAA1', notes: 'T x (1 bóng mịn + 1 bóng sần hở)\n1t*19', location: 'A10' },
+    { branch: 'HN', code: 'AAA1', notes: '1t*30+2t*30 (dán tem)+2t*30+1t*30', location: 'A11' }
+  ] });
+  try {
+    const { rows } = await service.list(ctx(), 'HN');
+    assert.equal(rows[0].notes, '3T x 100 + 1T x 80');
+    assert.equal(rows[0].quantity, 380);
+    assert.equal(rows[0].available, 380);
+    assert.deepEqual(rows[0].warnings, ['multi']);
+    assert.equal(rows[1].notes, '3T x 100');
+    assert.deepEqual(rows[1].warnings, []);
+    assert.equal(rows[2].notes, '3T x 50 + 1T x 49');
+    assert.equal(rows[2].quantity, 199);
+    assert.deepEqual(rows.slice(3).map(r => [r.notes, r.quantity, r.warnings]), [
+      ['1T x 7c lẻ', 7, []], ['1T x 360', 360, []], ['1T x 72 (in tem)', 72, []],
+      ['10T x 12', 120, []], ['1T x 800 (DÁN LẠI TEM)', null, ['unreadable']],
+      ['1b x 80', null, ['unreadable']], ['4T x 30, check lại', null, ['unreadable']],
+      ['T x (1 bóng mịn + 1 bóng sần hở)\n1T x 19', null, ['unreadable']],
+      ['4T x 30 + 2T x 30 (dán tem)', null, ['unreadable']]
+    ]);
+    const { createStockPositionsWorkbook } = require('./stockPositionsExport');
+    const exported = await createStockPositionsWorkbook({ branch: 'HN', rows });
+    const book = XLSX.read(exported.buffer, { type: 'buffer' });
+    const sheetRows = XLSX.utils.sheet_to_json(book.Sheets[book.SheetNames[0]]);
+    assert.equal(sheetRows[0]['Ghi chú số thùng'], '3T x 100 + 1T x 80');
+    assert.equal(sheetRows.at(-2)['Ghi chú số thùng'], 'T x (1 bóng mịn + 1 bóng sần hở)\n1T x 19');
+    assert.equal(sheetRows.at(-1)['Ghi chú số thùng'], '4T x 30 + 2T x 30 (dán tem)');
+    const stored = (await db.query('SELECT notes, version FROM stock_positions WHERE id = $1', [rows[0].id])).rows[0];
+    assert.equal(stored.notes, original);
+    assert.equal(stored.version, rows[0].version);
+    assert.equal((await db.query("SELECT COUNT(*)::int AS count FROM stock_position_history WHERE action <> 'seed'")).rows[0].count, 0);
   } finally { await db.close(); }
 });
 
@@ -214,6 +261,9 @@ test('history: positionId chi lay lich su cua dong do, gia tri rac thi bo qua', 
 });
 
 test('mergeNotes: gop cung quy cach, khac quy cach noi bang +, cong phan tru le', () => {
+  assert.equal(mergeNotes('1th*72 (in tem)', '1t*72'), '2T x 72 (in tem)');
+  assert.equal(mergeNotes('1t*7c lẻ', '1t*7c lẻ'), '2T x 7c lẻ');
+  assert.equal(mergeNotes('1t*7c lẻ', '1t*72 (in tem)'), '1T x 7c + 1T x 72 lẻ (in tem)');
   assert.equal(mergeNotes('5T x 100', '2T x 100'), '7T x 100');
   assert.equal(mergeNotes('5T x 100', '2T x 50'), '5T x 100 + 2T x 50');
   assert.equal(mergeNotes('5T x 100 - 30', '1T x 100'), '6T x 100 - 30');

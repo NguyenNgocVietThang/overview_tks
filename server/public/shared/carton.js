@@ -6,16 +6,80 @@
   // Hậu tố c (cái) sau SL/thùng chỉ là đơn vị, không đổi nghĩa số: 50c = 50. Có thể c hoa/thường, có hoặc không có khoảng trắng.
   // Ghi chú được xóa mọi khoảng trắng trước khi đọc (xem scan), nên dấu nhân x X * × là tùy chọn: 1t100 = 1t 100 = 1t x 100.
   // Chữ T có thể bỏ khi có dấu nhân: 9*12 = 9x12 = 9X12 = 9Tx12 (a*B là aTxB). Không có T mà cũng không có dấu nhân (912) vẫn sai định dạng.
-  const TERM=new RegExp('^('+NUM+')(?:[Tt](?:[xX*×]|(?=\\d))|[xX*×])('+NUM+')([cC])?$');
+  // "th" cũng là thùng; chú thích cuối "lẻ" / "(in tem)" được giữ riêng, không tham gia phép tính.
+  const TERM=new RegExp('^('+NUM+')(?:[Tt][Hh]?(?:[xX*×]|(?=\\d))|[xX*×])('+NUM+')([cC])?$');
   const LOOSE=new RegExp('^(.*?)[-−]('+NUM+')[cC]?$');
   // Dấu nối nhiều quy cách: + hoặc dấu phẩy ngay sau SL/thùng của số hạng trước (9tx14, 5tx 14). Dấu phẩy thập phân (0,5Tx100) không bị tách. Khi ghi lại ghi chú, dấu nối được chuẩn hóa thành ' + '.
-  const SEPARATOR=/\s*\+\s*|(?<=[xX*×Tt]\s*\d+(?:[.,]\d+)?\s*[cC]?)\s*,\s*/;
+  const SEPARATOR=/\s*\+\s*|(?<=(?:[xX*×]|[Tt][Hh]?)\s*\d+(?:[.,]\d+)?\s*[cC]?)\s*,\s*/;
   // Ghi chú của vị trí đã nhặt hết: SL = 0, không cảnh báo, chưa có quy cách để chỉ định.
   const EMPTY_NOTE='Hết hàng';
   const positiveInt=n=>Number.isInteger(n)&&n>0;
+  // Tiền tố do dữ liệu cũ ghép thêm trước một quy cách đã có đủ số thùng.
+  const stripLegacyPrefix=text=>String(text??'').replace(/^(?:\s*T\s*[x*×]\s*)+(?=\d+(?:[.,]\d+)?\s*(?:th?|b|[x*×]))/iu,'');
+  const NOTE_TERM=new RegExp('^('+NUM+')\\s*(?:(th?|b)\\s*(?:[x*×]\\s*)?|([x*×])\\s*)('+NUM+')([cC])?(?![\\p{L}\\d])','iu');
+  const NOTE_RUN=new RegExp('(?<![\\p{L}\\p{N}_.,/])'+NOTE_TERM.source.slice(1)+'(?:\\s*[+,]\\s*'+NOTE_TERM.source.slice(1)+')*','giu');
+  const ANNOTATED_TERM=new RegExp('(?<![\\p{L}\\p{N}_.,/])('+NUM+')\\s*(th?|b)\\s*(\\([^()\\r\\n]+\\))\\s*[x*×]\\s*('+NUM+')([cC])?(?![\\p{L}\\d])','giu');
+  // Biểu thức chỉ gồm các số hạng có/không chú thích: gộp theo cả quy cách và chú thích dù không liền nhau.
+  function groupAnnotatedTerms(text){
+    let rest=text;
+    const groups=new Map();
+    while(rest){
+      const match=NOTE_TERM.exec(rest);
+      if(!match)return null;
+      const spec=parseSpec(match[0]);
+      if(!spec)return null;
+      rest=rest.slice(match[0].length);
+      const label=/^\s*\(([^()\r\n]*)\)/u.exec(rest);
+      const annotation=label?'('+label[1].trim().replace(/[\t ]+/gu,' ')+')':'';
+      if(label)rest=rest.slice(label[0].length);
+      const term=spec.terms[0],key=JSON.stringify([term.perCarton,term.suffix,annotation]);
+      const previous=groups.get(key);
+      if(previous)previous.cartons+=term.cartons;
+      else groups.set(key,{...term,annotation});
+      rest=rest.trim();
+      if(!rest)break;
+      const separator=/^[+,]\s*/u.exec(rest);
+      if(!separator)return null;
+      rest=rest.slice(separator[0].length);
+      if(!rest)return null;
+    }
+    return [...groups.values()].map(t=>t.cartons+'T x '+t.perCarton+(t.suffix||'')+(t.annotation?' '+t.annotation:'')).join(' + ');
+  }
+  // Định dạng phần quy cách nhận ra được, kể cả số không hợp lệ; phần còn lại giữ nguyên ý nghĩa.
+  // "b" chưa có hợp đồng tính tồn: chỉ chuẩn hóa dấu nhân, giữ đơn vị b và cảnh báo.
+  function formatUnparsedNote(text){
+    const body=stripLegacyPrefix(text).trim().replace(/[\t ]+/gu,' ').replace(ANNOTATED_TERM,(_,count,unit,annotation,perCarton,suffix)=>
+      count+(unit.toLowerCase()==='b'?'b':'T')+' x '+perCarton+(suffix?'c':'')+' '+annotation);
+    const grouped=groupAnnotatedTerms(body);
+    if(grouped!==null)return grouped;
+    return body.replace(NOTE_RUN,(...args)=>{
+      const run=args[0],offset=args.at(-2);
+      // Chú thích sau số hạng cuối chỉ thuộc số hạng đó. Không gộp số thùng đứng trước vào nhãn này.
+      if(/^[\t ]*\(/u.test(body.slice(offset+run.length))){
+        const matches=[...run.matchAll(new RegExp(NOTE_TERM.source.slice(1),'giu'))];
+        if(matches.length>1){
+          const last=matches.at(-1),prefix=run.slice(0,last.index).replace(/[+,]\s*$/u,'');
+          if(parseSpec(prefix)&&parseSpec(last[0]))return normalizeNote(prefix)+' + '+normalizeNote(last[0]);
+        }
+      }
+      const parsed=parseSpec(run);
+      if(parsed)return parsed.terms.map(t=>t.cartons+'T x '+t.perCarton+(t.suffix||'')).join(' + ');
+      // Số sai hoặc đơn vị chưa hiểu vẫn định dạng từng số hạng, không cộng/đoán số lượng.
+      return run.replace(new RegExp(NOTE_TERM.source.slice(1),'giu'),(_,count,unit,sign,perCarton,suffix)=>
+        count+(unit&&unit.toLowerCase()==='b'?'b':'T')+' x '+perCarton+(suffix?'c':''));
+    }).replace(/\([\t ]+/gu,'(').replace(/[\t ]+\)/gu,')');
+  }
   // Đọc cú pháp, chưa kiểm số: trả {terms, loose} hoặc null nếu không đúng dạng <thùng>T x <SL/thùng> (+ ...) (- N).
   function scan(text){
-    let body=String(text??'').replace(/\s+/gu,''),loose=0;
+    let body=stripLegacyPrefix(String(text??'').normalize('NFC').trim()),loose=0;
+    // Chỉ nhận chú thích đã biết, không bỏ tùy tiện chữ/số có thể mô tả thiếu hàng.
+    const annotations=new Set();
+    let annotation;
+    while((annotation=/(?:\s+(lẻ)|\s*\(\s*(in\s+tem)\s*\))$/iu.exec(body))){
+      annotations.add(annotation[1]?'lẻ':'(in tem)');
+      body=body.slice(0,annotation.index).trim();
+    }
+    body=body.replace(/\s+/gu,'');
     const tail=LOOSE.exec(body);
     if(tail){body=tail[1];loose=number(tail[2]);}
     const terms=[];
@@ -23,7 +87,7 @@
       const m=TERM.exec(part);if(!m)return null;
       terms.push({cartons:number(m[1]),perCarton:number(m[2]),suffix:m[3]?m[3].trim().toLowerCase():''});
     }
-    return {terms,loose};
+    return {terms,loose,...(annotations.size?{annotation:['lẻ','(in tem)'].filter(a=>annotations.has(a)).join(' ')}:{})};
   }
   /* Quy cách thùng trong "Ghi chú hàng hóa": một hoặc nhiều số hạng <số thùng>T x <SL/thùng> nối bằng dấu +,
      có thể kèm phần trừ lẻ " - N" ở cuối. Ví dụ 5T x 100 = 500; 1Tx50 + 2Tx25 = 100; 1Tx50 + 2Tx25 - 30 = 70.
@@ -42,7 +106,7 @@
     if(quantity<0)return null;
     // Số hạng cùng SL/thùng gộp thành một (cộng thùng, giữ thứ tự xuất hiện đầu tiên); nhiều quy cách tính sau khi gộp.
     const terms=[];for(const t of s.terms){const same=terms.find(x=>x.perCarton===t.perCarton);if(same)same.cartons+=t.cartons;else terms.push({...t});}
-    return {terms,loose:s.loose,quantity,cartons:terms.reduce((sum,t)=>sum+t.cartons,0),perCarton:terms[0].perCarton,multi:terms.length>1};
+    return {terms,loose:s.loose,quantity,cartons:terms.reduce((sum,t)=>sum+t.cartons,0),perCarton:terms[0].perCarton,multi:terms.length>1,...(s.annotation?{annotation:s.annotation}:{})};
   }
   /* formatSpec(spec) hoặc formatSpec(số thùng, SL/thùng). Số hạng hết thùng bị bỏ; hết sạch thì ghi "Hết hàng".
      Không bao giờ sinh số thùng thập phân: phần không tròn thùng đi vào phần trừ lẻ " - N". */
@@ -51,15 +115,16 @@
     const terms=spec.terms.filter(t=>t.cartons>0);
     if(!terms.length)return EMPTY_NOTE;
     // Mỗi số hạng giữ hậu tố c như người dùng đã nhập; phần trừ lẻ " - N" thêm mới luôn không có c (đơn giản, không đoán phong cách).
-    const text=terms.map(t=>t.cartons+'T x '+t.perCarton+(t.suffix||'')).join(' + ')+(spec.loose>0?' - '+spec.loose:'');
+    const text=terms.map(t=>t.cartons+'T x '+t.perCarton+(t.suffix||'')).join(' + ')+(spec.loose>0?' - '+spec.loose:'')+(spec.annotation?' '+spec.annotation:'');
     return parseSpec(text)&&parseSpec(text).quantity>0?text:EMPTY_NOTE;
   }
   /* Chuẩn hóa ghi chú khi lưu: đọc được thì về dạng <thùng>T x <SL/thùng> nối ' + ', phần trừ ' - N', T hoa, c thường, bỏ khoảng trắng thừa;
-     sai định dạng thì giữ chữ người dùng gõ, chỉ cắt đầu/cuối và gộp khoảng trắng liên tiếp; rỗng giữ rỗng. */
+     sai định dạng vẫn chuẩn hóa phần quy cách nhận ra được, giữ phần chữ chưa hiểu và cảnh báo; rỗng giữ rỗng. */
   function normalizeNote(text){
     const raw=String(text??''),spec=parseSpec(raw);
-    if(!spec||spec.empty)return raw.trim().replace(/\s+/g,' ');
-    return spec.terms.map(t=>t.cartons+'T x '+t.perCarton+(t.suffix||'')).join(' + ')+(spec.loose>0?' - '+spec.loose:'');
+    if(!spec)return formatUnparsedNote(raw);
+    if(spec.empty)return raw.trim().replace(/\s+/g,' ');
+    return spec.terms.map(t=>t.cartons+'T x '+t.perCarton+(t.suffix||'')).join(' + ')+(spec.loose>0?' - '+spec.loose:'')+(spec.annotation?' '+spec.annotation:'');
   }
   const cartonsOf=(quantity,perCarton)=>perCarton>0&&Number.isFinite(quantity)?round6(quantity/perCarton):null;
   const isWhole=n=>Math.abs(n-Math.round(n))<1e-4;
@@ -109,7 +174,7 @@
     const counts=loose>0?null:wholeCartons(terms,quantity);
     if(counts){taken=counts.reduce((sum,k)=>sum+k,0);counts.forEach((k,i)=>{terms[i].cartons-=k;});}
     else{loose+=quantity;taken=round6(quantity/terms[0].perCarton);}
-    const text=formatSpec({terms,loose});
+    const text=formatSpec({terms,loose,annotation:spec.annotation});
     return {spec:parseSpec(text),text,taken};
   }
   // Số thùng (ST) của một lượt nhặt trước khi nhặt, theo cùng quy tắc trừ.
@@ -125,7 +190,7 @@
       const hit=terms.find(t=>rest%t.perCarton===0);
       if(hit)hit.cartons+=rest/hit.perCarton;else terms.push({cartons:1,perCarton:rest});
     }
-    const text=formatSpec({terms,loose});
+    const text=formatSpec({terms,loose,annotation:spec.annotation});
     return {spec:parseSpec(text),text};
   }
   /* Gợi ý theo thùng nguyên. candidates: [{id, available, perCarton}] hoặc [{id, available, terms:[{cartons,perCarton}]}].
