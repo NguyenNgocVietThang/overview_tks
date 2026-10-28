@@ -77,6 +77,14 @@ test('ST của một lượt nhặt theo từng quy cách',()=>{
   assert.equal(C.cartonsFor(C.parseSpec('1Tx50 + 2Tx25'),25),1,'25 khớp một thùng của quy cách thứ hai');
   assert.equal(C.cartonsFor(C.parseSpec('1Tx50'),999),null);
 });
+test('stFor: ST nguyên + phần thiếu khi mở thùng không lấy hết',()=>{
+  const st=(n,q)=>C.stFor(C.parseSpec(n),q);
+  assert.deepEqual(st('1Tx150',100),{cartons:1,excess:50,text:'1T x 150 - 50'});
+  assert.deepEqual(st('1Tx50',50),{cartons:1,excess:0,text:'1T x 50'});
+  assert.deepEqual(st('1Tx50',25),{cartons:1,excess:25,text:'1T x 50 - 25'});
+  assert.deepEqual(st('7Tx50',250),{cartons:5,excess:0,text:'5T x 50'});
+  assert.equal(st('1Tx50',999),null);
+});
 test('restore cộng trả lại khi không khôi phục nguyên chuỗi được',()=>{
   assert.equal(C.restore(C.parseSpec('1T x 50 + 2T x 25 - 55'),25).text,'1T x 50 + 2T x 25 - 30');
   assert.equal(C.restore(C.parseSpec('3T x 100'),200).text,'5T x 100');

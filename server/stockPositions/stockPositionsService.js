@@ -16,6 +16,7 @@ const MAX = Object.freeze({ code: 60, notes: 500, arrivalDate: 60, location: 100
 const HISTORY_MAX = 1000;
 const HISTORY_EXPORT_MAX = 50000;
 const ERROR_LIMIT = 50;
+const NORMALIZE_ACTOR = 'Chuẩn hóa ghi chú';
 const MODES = Object.freeze(['replace', 'add']);
 
 function fail(statusCode, code, message, extra = {}) {
@@ -67,7 +68,7 @@ function locationField(body) {
 }
 
 function validNotes(body) {
-  const notes = carton.normalizeNote(clean(body.notes));
+  const notes = carton.normalizeStoredNote(clean(body.notes));
   if (notes.length > MAX.notes) throw fail(400, 'VALIDATION', `Ghi chú tối đa ${MAX.notes} ký tự.`, { field: 'notes' });
   return notes;
 }
@@ -77,8 +78,8 @@ const isEmptyNote = notes => { const spec = carton.parseSpec(notes); return Bool
 
 // Cong don 2 ghi chu (import "Bo sung them SL"): gop quy cach, cong phan tru le. null neu mot ben sai dinh dang.
 function mergeNotes(current, added) {
-  const a = carton.parseSpec(current);
-  const b = carton.parseSpec(added);
+  const a = carton.parseSpec(carton.normalizeStoredNote(current));
+  const b = carton.parseSpec(carton.normalizeStoredNote(added));
   if (!a || !b) return null;
   const terms = [...a.terms, ...b.terms];
   if (!terms.length) return '';
@@ -198,7 +199,7 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
       code: normalizeCode(row.code),
       name: clean(product ? product.name : row.name),
       // Dữ liệu seed/cũ chưa qua validNotes: chuẩn hóa cả khi đọc để bảng và Excel dùng cùng dạng gộp.
-      notes: product ? carton.normalizeNote(row.notes) : clean(row.notes),
+      notes: product ? carton.normalizeStoredNote(row.notes) : clean(row.notes),
       arrivalDate: clean(row.arrival_date),
       location: row.location,
       quantity: spec ? spec.quantity : null,
@@ -469,7 +470,7 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
       if (!code) { errors.push({ row: line.row, message: 'Thiếu mã hàng.' }); continue; }
       const product = resolved.get(lower(code));
       const location = normalizeLocation(line.location);
-      const notes = product ? carton.normalizeNote(clean(line.notes)) : clean(line.notes);
+      const notes = product ? carton.normalizeStoredNote(clean(line.notes)) : clean(line.notes);
       if (notes.length > MAX.notes || code.length > MAX.code || location.length > MAX.location || clean(line.arrivalDate).length > MAX.arrivalDate) {
         errors.push({ row: line.row, message: 'Dữ liệu quá dài (mã ≤ 60, ghi chú ≤ 500, ngày về ≤ 60, vị trí ≤ 100 ký tự).' }); continue;
       }
@@ -572,7 +573,28 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
     });
   }
 
-  return { list, create, update, deduct, remove, acknowledge, history, historyAll, purgeHistory, importFile };
+  /* Chuẩn hóa hàng loạt ghi chú đã lưu (số trần 60 -> 1T x 60, gộp cộng dồn, thống nhất ký hiệu) bằng đúng hàm của VT.
+     Mỗi dòng đổi: version + 1 và 1 dòng lịch sử 'edit' (người sửa = NORMALIZE_ACTOR). Không xóa dòng, không đụng dòng đã chuẩn.
+     dryRun (mặc định) chỉ đếm và trả mẫu. Chạy lại an toàn (idempotent). */
+  async function normalizeAllNotes({ branch, dryRun = true } = {}) {
+    assertBranch(branch);
+    const db = getDb();
+    return withTransaction(db, async client => {
+      await lockBranch(client, branch);
+      const { rows } = await client.query(`SELECT ${BASE_COLUMNS} FROM stock_positions WHERE branch = $1 ORDER BY id FOR UPDATE`, [branch]);
+      const changed = rows.map(row => ({ row, next: carton.normalizeStoredNote(row.notes) })).filter(({ row, next }) => next !== row.notes);
+      if (!dryRun && changed.length) {
+        const actor = { id: null, name: NORMALIZE_ACTOR };
+        for (const { row, next } of changed) {
+          await client.query('UPDATE stock_positions SET notes = $2, version = version + 1, updated_by_user_id = NULL, updated_by_name = $3, updated_at = now() WHERE id = $1', [row.id, next, actor.name]);
+        }
+        await writeHistory(client, branch, actor, changed.map(({ row, next }) => ({ positionId: row.id, code: row.code, location: row.location, action: 'edit', field: 'notes', oldValue: row.notes, newValue: next, summary: { normalized: true } })));
+      }
+      return { branch, scanned: rows.length, changed: changed.length, dryRun, sample: changed.slice(0, 20).map(({ row, next }) => ({ code: row.code, location: row.location, from: row.notes, to: next })) };
+    });
+  }
+
+  return { list, create, update, deduct, remove, acknowledge, history, historyAll, purgeHistory, importFile, normalizeAllNotes };
 }
 
 // `tx`: helper giao dich dung chung cho module khac can tru/cong thung that trong cung giao dich + khoa co so (pickAssignments).

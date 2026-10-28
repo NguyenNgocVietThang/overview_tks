@@ -601,3 +601,39 @@ test('purgeHistory: xóa theo khoảng ngày giờ VN, chỉ cơ sở chỉ đ�
     await assert.rejects(() => service.purgeHistory(ctx(), 'XX', {}), { statusCode: 400, code: 'INVALID_BRANCH' });
   } finally { await db.close(); }
 });
+
+test('normalizeStoredNote: số trần = 1 thùng, gộp cộng dồn, thống nhất ký hiệu', () => {
+  const carton = require('../public/shared/carton.js');
+  assert.equal(carton.normalizeStoredNote('60'), '1T x 60');
+  assert.equal(carton.normalizeStoredNote(' 150 '), '1T x 150');
+  assert.equal(carton.normalizeStoredNote('1t*150'), '1T x 150');
+  assert.equal(carton.normalizeStoredNote('1tx432'), '1T x 432');
+  assert.equal(carton.normalizeStoredNote('50Tx50 + 70Tx50 + 5Tx50'), '125T x 50');
+  assert.equal(carton.normalizeStoredNote('0'), '0');
+  assert.equal(carton.normalizeStoredNote('abc'), carton.normalizeNote('abc'));
+});
+
+test('normalizeAllNotes: dry-run không ghi; --apply đổi ghi chú, tăng version, ghi lịch sử; chạy lại không đổi gì', async () => {
+  const { db, service } = await fixture();
+  try {
+    await db.query(`INSERT INTO stock_positions (branch, code, name, notes, location) VALUES
+      ('HN', 'AAA1', '', '60', 'A1'), ('HN', 'BBB2', '', '50Tx50 + 70tx50', 'A2'), ('HN', 'AAA1', '', '3T x 100', 'A3'), ('SG', 'AAA1', '', '1t*150', 'H1')`);
+    const dry = await service.normalizeAllNotes({ branch: 'HN' });
+    assert.equal(dry.changed, 2);
+    assert.equal((await db.query(`SELECT notes FROM stock_positions WHERE location = 'A1'`)).rows[0].notes, '60');
+    const applied = await service.normalizeAllNotes({ branch: 'HN', dryRun: false });
+    assert.equal(applied.changed, 2);
+    const notes = Object.fromEntries((await db.query(`SELECT location, notes, version FROM stock_positions WHERE branch = 'HN'`)).rows.map(r => [r.location, r.notes]));
+    assert.deepEqual(notes, { A1: '1T x 60', A2: '120T x 50', A3: '3T x 100' });
+    assert.equal((await db.query(`SELECT notes FROM stock_positions WHERE branch = 'SG'`)).rows[0].notes, '1t*150', 'không đụng cơ sở khác');
+    const history = (await db.query(`SELECT action, old_value, new_value, actor_name FROM stock_position_history WHERE summary->>'normalized' = 'true' ORDER BY id`)).rows;
+    assert.equal(history.length, 2);
+    assert.equal(history[0].action, 'edit');
+    assert.equal(history[0].old_value, '60');
+    assert.equal((await service.normalizeAllNotes({ branch: 'HN', dryRun: false })).changed, 0);
+  } finally { await db.close(); }
+});
+
+test('mergeNotes: ghi chú số trần được hiểu là 1 thùng', () => {
+  assert.equal(mergeNotes('60', '2T x 60'), '3T x 60');
+});

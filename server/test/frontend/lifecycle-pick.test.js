@@ -187,7 +187,7 @@ test('popup gọi candidates đúng cơ sở + mã đơn, hiện 6 cột và g�
   page.dom.window.close();
 });
 
-test('validate: SL phân bổ thiếu thì khóa Xác nhận; bấm − / + theo bước thùng; không vượt tồn khả dụng', async () => {
+test('validate: SL phân bổ thiếu vẫn mở Xác nhận kèm cảnh báo; bấm − / + theo bước thùng; không vượt tồn khả dụng', async () => {
   const page = await renderPage();
   await openPopup(page);
   const { document } = page;
@@ -195,7 +195,8 @@ test('validate: SL phân bổ thiếu thì khóa Xác nhận; bấm − / + theo
   const minus = document.querySelector('[data-step="-1"][data-qloc="11"]');
   minus.click();
   assert.equal(document.querySelector('[data-qty][data-qloc="11"]').value, '50', 'trừ đúng một thùng (50)');
-  assert.equal(confirmBtn.disabled, true, 'đã phân bổ 50/100');
+  assert.equal(confirmBtn.disabled, false, 'thiếu 50/100 vẫn chỉ định được (có cảnh báo)');
+  assert.match(document.getElementById('pickingSource').textContent, /thiếu 50/);
   assert.equal(document.querySelector('.picking-need small').dataset.allocated, '50');
   // nhập tay quá tồn khả dụng của vị trí B02 (50): bị chặn về 50
   const typed = document.querySelector('[data-qty][data-qloc="12"]');

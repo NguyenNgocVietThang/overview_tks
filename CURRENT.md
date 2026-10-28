@@ -1,5 +1,7 @@
 # CURRENT: BẢNG TRẠNG THÁI THỜI GIAN THỰC (REALTIME DASHBOARD)
 
+> 28/10/2026 — **Chống tách số trong bảng phiếu in:** toàn bảng dùng Calibri 9.5pt, tiêu đề 10.5pt đồng đều (bỏ cỡ riêng cột Thực nhặt); giảm padding, cân lại 9 cột (4/22/8/10/13/10/13/10/10%). Cột SL/Đơn giá/Thành tiền giữ nguyên chuỗi số trên một dòng, Thùng chỉ ngắt ở khoảng trắng. Tái hiện trước sửa: `21,120,000` xuống 2 dòng dù không tràn chiều ngang; sau sửa dữ liệu ảnh thật và kiểm tra thêm `999,999,999,999` đều 1 dòng, không tràn; kiểm thử phiếu 6/6 đạt. Không sửa các thay đổi đang có ở service/pick-rules/pick-assign. Chưa commit/deploy.
+
 > 28/10/2026 — **Bỏ khung bọc giá trị Vị trí ở VT Hà Nội/VT Sài Gòn:** `.vt-pill` chỉ giữ kiểu chữ, bỏ nền/viền/bo góc/khoảng đệm; tăng phiên bản CSS. Edge headless kiểm tra ST/46/H2 ở sáng và tối: không nền, viền 0, bo góc 0, đệm 0. Chưa commit/deploy.
 
 > 28/10/2026 — **Đưa nút Chỉ định vị trí lên đầu chi tiết đơn & Hoàn thiện phiếu in A4:** nút ngang hàng mã đơn, bên trái dấu X; chip trạng thái vẫn ở khối Hàng hóa. Xóa nút cũ khi đổi đơn để tránh giữ thao tác của đơn trước. Phiếu A4 tiêu đề cột Calibri 12pt, nhúng font Bold, bố cục và tỷ lệ cột chuẩn. Edge headless kiểm tra 1100px/390px sáng/tối không tràn/lỗi. Bộ kiểm thử liên quan pick & invoice đạt 38/38. Migration `0099` đã áp thành công (`npm run db:migrate`). `graphify update .` đã chạy và cập nhật toàn bộ đồ thị tri thức (13621 nodes, 612 communities).

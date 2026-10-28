@@ -17,14 +17,15 @@
 #pickingPrintSheet .tokosi-invoice .invoice-qr img{display:block;width:30mm;max-width:100%;height:36mm;max-height:none;object-fit:contain;object-position:center bottom;margin:0 auto}
 #pickingPrintSheet .tokosi-invoice .invoice-customer{margin:6mm 0 2mm;text-align:left;line-height:1.4}
 #pickingPrintSheet .tokosi-invoice .invoice-goods{table-layout:fixed}
-#pickingPrintSheet .tokosi-invoice .invoice-goods td{border:.3mm solid #000;font-size:11pt;padding:1.4mm 1mm;line-height:1.2;vertical-align:middle;min-width:0}
+#pickingPrintSheet .tokosi-invoice .invoice-goods td{border:.3mm solid #000;font-family:Calibri,Roboto,"Segoe UI",Arial,sans-serif;font-size:9.5pt;padding:1.2mm .7mm;line-height:1.2;vertical-align:middle;min-width:0}
 #pickingPrintSheet .tokosi-invoice .invoice-goods td p{margin:0}
-#pickingPrintSheet .tokosi-invoice .invoice-goods thead td{font-family:Calibri,Roboto,"Segoe UI",Arial,sans-serif;font-size:12pt;font-weight:700;text-align:center;vertical-align:middle;padding:1.5mm .5mm;height:12mm}
-#pickingPrintSheet .tokosi-invoice .invoice-goods thead td:last-child{font-size:11.5pt;white-space:nowrap;padding-left:.3mm;padding-right:.3mm}
+#pickingPrintSheet .tokosi-invoice .invoice-goods thead td{font-size:10.5pt;font-weight:700;text-align:center;vertical-align:middle;padding:1.3mm .4mm;height:10mm}
+#pickingPrintSheet .tokosi-invoice .invoice-goods thead td:last-child{white-space:nowrap;padding-left:.3mm;padding-right:.3mm}
 #pickingPrintSheet .tokosi-invoice .invoice-goods tbody tr:first-child td{font-weight:normal;vertical-align:middle}
 #pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(2){text-align:left}
 /* Thứ tự cột: 1 TT, 2 Tên hàng, 3 SL, 4 Đơn giá, 5 Thành tiền, 6 Ghi chú, 7 Vị trí, 8 Thùng, 9 Thực nhặt. */
-#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(3),#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(4),#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(5){text-align:right;font-variant-numeric:tabular-nums}
+#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(3),#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(4),#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(5){text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;overflow-wrap:normal;word-break:normal}
+#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td.invoice-st{overflow-wrap:normal;word-break:normal}
 #pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(1),#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(6),#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(7),#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(8),#pickingPrintSheet .tokosi-invoice .invoice-goods tbody td:nth-child(9){text-align:center}
 #pickingPrintSheet .tokosi-invoice .invoice-goods td.invoice-st-frac{color:#b00000;font-weight:bold}
 /* Một vị trí chỉ ghi tên; nhiều vị trí mỗi dòng "VT:SL", chỉ SL in đậm, không phân cách hàng nghìn (vd "B01:100000"). */

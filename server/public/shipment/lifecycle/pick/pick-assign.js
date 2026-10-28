@@ -106,8 +106,15 @@
     }
     if(R.validate([l],allLocations(),{0:picks}).length)return null;
     const rows=rowsFor(l);
-    const parts=picks.map(p=>{const row=rows.find(r=>r.id===p.id);return row&&row.spec?C.cartonsFor(row.spec,p.quantity):null;});
+    const parts=picks.map(p=>{const row=rows.find(r=>r.id===p.id);const st=row&&row.spec?C.stFor(row.spec,p.quantity):null;return st?st.cartons:null;});
     return parts.length&&!parts.some(v=>v===null)?round6(parts.reduce((n,v)=>n+v,0)):null;
+  }
+  // Chú thích thiếu thùng của ST ("1T x 150 - 50"): chỉ khi có vị trí mở thùng mà không lấy hết; trống nếu mọi vị trí tròn thùng.
+  function stShortNote(l,i,picks){
+    const a=state.assignment;
+    if(a){if(a.status==='cancelled')return '';return a.lines.filter(j=>key(j.productCode)===key(l.productCode)&&/-s*d/.test(j.stText||'')).map(j=>String(j.stText).replace(/Tx/g,'T x ').replace(/-/g,' - ')).join(' + ');}
+    const rows=rowsFor(l);
+    return picks.map(p=>{const row=rows.find(r=>r.id===p.id),st=row&&row.spec?C.stFor(row.spec,p.quantity):null;return st&&st.excess>0?st.text:'';}).filter(Boolean).join(' + ');
   }
   const lineOk=i=>!R.validate([lines()[i]],allLocations(),{0:state.allocations[i]||[]}).length;
   // Đang nhặt: phân bổ trên màn hình khác bản đã lưu trên máy chủ → phải Cập nhật chỉ định trước khi Xác nhận nhặt / In đơn.
@@ -129,8 +136,8 @@
       const unknown=rows.some(r=>R.quantity(r.available)===null&&!a);
       const before=rows.reduce((s,r)=>s+(R.quantity(r.available)||0),0);
       const selected=ls.reduce((s,line,j)=>s+(key(line.productCode)===key(l.productCode)?(state.allocations[j]||[]).reduce((n,p)=>n+p.quantity,0):0),0);
-      const shared=unknown?null:before,st=stOfLine(l,i,picks);
-      return `<tr data-line="${i}"><td class="picking-code">${esc(l.productCode)}</td><td>${esc(l.productName)}</td><td class="picking-need"><strong>${fmt(l.quantity)}</strong><small class="${lineOk(i)?'picking-good':'picking-bad'}" data-allocated="${total}">${fmt(total)}/${fmt(l.quantity)}</small></td><td class="picking-st" data-st="${st===null?'':st}"><strong class="${st!==null&&!C.isWhole(st)?'picking-st-frac':''}">${st===null?'':fmtSt(st)}</strong></td><td class="picking-total" data-total-code="${esc(l.productCode)}" data-shared-available="${shared===null?'unknown':shared}" data-remaining="${unknown?'unknown':before-selected}"><strong class="${shared===null?'picking-bad':'picking-good'}">${shared===null?'Chưa xác định':fmt(shared)}</strong></td><td><div class="picking-locations">${rows.map(r=>{
+      const shared=unknown?null:before,st=stOfLine(l,i,picks),shortNote=st===null?'':stShortNote(l,i,picks);
+      return `<tr data-line="${i}"><td class="picking-code">${esc(l.productCode)}</td><td>${esc(l.productName)}</td><td class="picking-need"><strong>${fmt(l.quantity)}</strong><small class="${lineOk(i)?'picking-good':'picking-bad'}" data-allocated="${total}">${fmt(total)}/${fmt(l.quantity)}</small></td><td class="picking-st" data-st="${st===null?'':st}"><strong class="${st!==null&&!C.isWhole(st)?'picking-st-frac':''}">${st===null?'':fmtSt(st)}</strong>${st===null||!shortNote?'':`<small class="picking-st-short" title="Thùng mở nhưng không lấy hết">${esc(shortNote)}</small>`}</td><td class="picking-total" data-total-code="${esc(l.productCode)}" data-shared-available="${shared===null?'unknown':shared}" data-remaining="${unknown?'unknown':before-selected}"><strong class="${shared===null?'picking-bad':'picking-good'}">${shared===null?'Chưa xác định':fmt(shared)}</strong></td><td><div class="picking-locations">${rows.map(r=>{
         const take=picks.find(p=>p.id===r.id)?.quantity||0,available=R.quantity(r.available),hint=(state.suggestions[i]||[]).some(p=>p.id===r.id);
         const off=!editable()||available===null||!r.location||!available?'disabled':'';
         const zone=zoneOf((state.order||{}).branch,r.location),locTitle=r.location?(zone.name?r.location+' · '+zone.name:r.location):'Chưa có vị trí';
@@ -139,7 +146,8 @@
         return `<div class="picking-loc ${take?'selected':''}" data-zone="${zone.key}"><button type="button" class="picking-location ${take?'selected':''} ${hint?'suggested':''}" data-line="${i}" data-location="${esc(r.id)}" aria-pressed="${!!take}" ${off}><strong title="${esc(locTitle)}">${esc(r.location||'Chưa có vị trí')}</strong><span${available===null?' class="picking-warn"':''}>${label}</span></button><div class="picking-qty"><div class="picking-stepper"><button type="button" data-step="-1" data-qline="${i}" data-qloc="${esc(r.id)}" aria-label="Giảm SL nhặt ${esc(l.productCode)} ${esc(r.location)}" ${off}>−</button><input type="text" inputmode="numeric" step="1" data-qty data-qline="${i}" data-qloc="${esc(r.id)}" value="${fmt(take)}" aria-label="SL nhặt ${esc(l.productCode)} ${esc(r.location)}" ${off}><button type="button" data-step="1" data-qline="${i}" data-qloc="${esc(r.id)}" aria-label="Tăng SL nhặt ${esc(l.productCode)} ${esc(r.location)}" ${off}>+</button></div></div>${specNote}</div>`;
       }).join('')||'<span class="picking-bad">Chưa tìm thấy vị trí của mã này.</span>'}</div></td></tr>`;
     }).join('');
-    const errors=order?R.validate(ls,allLocations(),state.allocations):['no-order'];
+    const errors=order?allocErrors():['no-order'];
+    const mism=order&&!errors.length?mismatchList():[];
     $('pickingProgress').textContent=ls.filter((l,i)=>lineOk(i)).length+'/'+ls.length+' mã hàng đã phân bổ đủ';
     const busy=state.busy||state.needsSync;
     $('pickingReload').hidden=!state.needsSync;
@@ -158,7 +166,7 @@
     const validationErrors=Array.isArray(order.validationErrors)?order.validationErrors:[];
     const hint=validationErrors.length?validationErrors.join('; '):a?'Đã chỉ định bởi '+(a.assignedByName||'—')+'. Bản ghi được giữ chỗ trên máy chủ.'
       :picking&&editable()?(isDirty?'Có thay đổi chưa lưu: bấm “Cập nhật chỉ định & In phiếu” để đổi vị trí đã giữ chỗ.':'Đã chỉ định bởi '+(state.reassignOf.assignedByName||'—')+'. Đang nhặt vẫn đổi được vị trí/số lượng: sửa rồi bấm “Cập nhật chỉ định & In phiếu”.')
-      :editable()?'Gợi ý mới: chọn vị trí đủ hàng có lượng khả dụng sát số cần nhất.':'Chỉ định chỉ áp dụng cho đơn “Đã gửi kế toán”.';
+      :editable()?(mism.length?'Cảnh báo: '+mism.map(m=>m.productCode+' '+(m.kind==='short'?'thiếu ':'thừa ')+fmt(m.diff)).join('; ')+'. Vẫn chỉ định được, hệ thống sẽ hỏi xác nhận trước khi lưu.':'Gợi ý mới: chọn vị trí đủ hàng có lượng khả dụng sát số cần nhất.'):'Chỉ định chỉ áp dụng cho đơn “Đã gửi kế toán”.';
     $('pickingSource').textContent=hint;
   }
 
@@ -243,13 +251,23 @@
   }
 
   // ---------- Thao tác ----------
+  // Lệch SL (thiếu/thừa) vẫn chỉ định được nhưng phải được người dùng xác nhận qua cảnh báo.
+  const hasPicks=()=>lines().some((l,i)=>(state.allocations[i]||[]).some(p=>p.quantity>0));
+  const allocErrors=()=>hasPicks()?R.validate(lines(),allLocations(),state.allocations,{allowMismatch:true}):['Chưa chọn vị trí nào'];
+  const mismatchList=()=>R.mismatches(lines(),allLocations(),state.allocations);
+  function mismatchWarning(list){
+    const rows=list.map(m=>'• '+m.productCode+': '+(m.kind==='short'?'THIẾU ':'THỪA ')+fmt(m.diff)+' (chỉ định '+fmt(m.total)+'/'+fmt(m.need)+')');
+    return 'Cảnh báo: số lượng chỉ định không khớp số cần nhặt.\n'+rows.join('\n')+'\n\nVẫn chỉ định vị trí và in phiếu?';
+  }
   async function submitAssign(){
-    if(!editable()||R.validate(lines(),allLocations(),state.allocations).length)return;
+    if(!editable()||allocErrors().length)return;
+    const mismatched=mismatchList();
+    if(mismatched.length&&!window.confirm(mismatchWarning(mismatched)))return;
     const allocations=[];
     lines().forEach((l,i)=>(state.allocations[i]||[]).forEach(p=>{if(p.quantity>0)allocations.push({productCode:l.productCode,positionId:Number(p.id),qty:p.quantity});}));
     // In lại đơn Đang bốc: một lệnh hủy lượt cũ + giữ chỗ lượt mới (lỗi ở bước sau thì lượt cũ giữ nguyên).
     const reassign=state.reassignOf?{reassign:true,version:state.reassignOf.version}:{};
-    if(!await write(API,{branch:state.order.branch,orderCode:state.order.orderCode,allocations,...reassign}))return;
+    if(!await write(API,{branch:state.order.branch,orderCode:state.order.orderCode,allocations,...(mismatched.length?{allowMismatch:true}:{}),...reassign}))return;
     $('pickingDialog').close();
     await printPick();
   }
@@ -281,7 +299,8 @@
     if(!line||available===null||!Number.isSafeInteger(value)||value<0)return;
     const picks=state.allocations[i]||[],others=picks.filter(p=>p.id!==id).reduce((s,p)=>s+p.quantity,0);
     const usedByOtherLines=lines().reduce((s,_,j)=>s+(j===i?0:(state.allocations[j]||[]).filter(p=>p.id===id).reduce((n,p)=>n+p.quantity,0)),0);
-    const cap=Math.max(0,Math.min(available-usedByOtherLines,line.quantity-others+(row.perCarton?row.perCarton-1:0)));
+    // Chỉ chặn theo tồn khả dụng của vị trí; nhặt vượt SL cần (thừa hàng) được phép và sẽ có cảnh báo khi chỉ định.
+    const cap=Math.max(0,available-usedByOtherLines);
     const qty=round6(Math.min(Math.max(0,value),cap));
     state.allocations[i]=[...picks.filter(p=>p.id!==id),...(qty>0?[{id,quantity:qty}]:[])].sort((x,y)=>rows.findIndex(r=>r.id===x.id)-rows.findIndex(r=>r.id===y.id));
   }

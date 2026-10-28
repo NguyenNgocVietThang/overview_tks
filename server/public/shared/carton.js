@@ -164,6 +164,14 @@
     const excess=hit.total-quantity;
     return body+(excess>0?'-'+excess:'');
   }
+  /* ST hiển thị/in của một lượt nhặt = số thùng phải chạm tới (nguyên), kèm phần thiếu khi mở thùng mà không lấy hết:
+     100 từ 1T x 150 → {cartons:1, excess:50, text:'1T x 150 - 50'}; 50 từ 1T x 50 → {cartons:1, excess:0, text:'1T x 50'}.
+     Khác cartonsFor (số thùng lẻ dùng để trừ tồn): hàm này không bao giờ trả phân số. null = không tính được. */
+  function stFor(spec,quantity){
+    const raw=pickText(spec,quantity);if(raw===null)return null;
+    const hit=searchCartons(spec.terms,quantity,true);
+    return {cartons:hit.counts.reduce((n,k)=>n+k,0),excess:hit.total-quantity,text:raw.replace(/Tx/g,'T x ').replace(/\+/g,' + ').replace(/-/g,' - ')};
+  }
   /* Trừ hàng khỏi ghi chú. SL lấy khớp trọn số thùng (một hoặc nhiều quy cách, và chưa có phần trừ lẻ) thì giảm số thùng
      của các quy cách đó, về 0 thì bỏ số hạng. Không khớp, hoặc đã có phần trừ lẻ, thì cộng dồn vào " - N".
      taken = số thùng đã lấy (ST): thùng nguyên theo từng quy cách, phần lẻ chia SL/thùng của số hạng đầu (có thể lẻ). */
@@ -252,7 +260,14 @@
     return reasons;
   }
   const WARNING_LABEL={multi:'Nhiều quy cách',loose:'Có phần trừ lẻ',unreadable:'Ghi chú sai định dạng',badnumber:'Số thùng và SL/thùng phải là số nguyên dương',unknowncode:'Mã hàng chưa có trong danh mục'};
-  const api={normalizeNote,EMPTY_NOTE,warnings,WARNING_LABEL,parseSpec,formatSpec,cartonsOf,isWhole,deduct,cartonsFor,pickText,restore,suggest};
+  /* Chuẩn hóa ghi chú khi LƯU vào DB (VT): như normalizeNote, và số trần (60) hiểu là 1 thùng (1T x 60).
+     Chỉ dùng cho ghi chú đã lưu; ô nhập tự do ở nơi khác vẫn dùng normalizeNote. */
+  function normalizeStoredNote(text){
+    const raw=String(text??'').trim();
+    if(/^\d+$/.test(raw)&&Number(raw)>0)return '1T x '+Number(raw);
+    return normalizeNote(raw);
+  }
+  const api={normalizeNote,normalizeStoredNote,EMPTY_NOTE,warnings,WARNING_LABEL,parseSpec,formatSpec,cartonsOf,isWhole,deduct,cartonsFor,pickText,stFor,restore,suggest};
   if(typeof module!=='undefined')module.exports=api;
   else root.PickingCarton=api;
 })(typeof window!=='undefined'?window:globalThis);

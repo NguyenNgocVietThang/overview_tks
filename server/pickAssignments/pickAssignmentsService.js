@@ -331,7 +331,8 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
           return { id: String(row.id), code: row.code, location: row.location, available: onHand === null ? null : Math.max(0, onHand - (held.get(Number(row.id)) || 0)), perCarton: spec && spec.perCarton ? spec.perCarton : 0 };
         });
         const allocations = perLine.map(map => [...map].map(([id, quantity]) => ({ id: String(id), quantity })));
-        const errors = rules.validate(lines, locations, allocations);
+        // allowMismatch: người dùng đã xác nhận cảnh báo thiếu/thừa hàng; vẫn chặn vượt khả dụng của từng vị trí.
+        const errors = rules.validate(lines, locations, allocations, { allowMismatch: body.allowMismatch === true });
         if (errors.length) {
           if (errors.every(message => AVAILABILITY_ERROR.test(message))) throw fail(409, 'INSUFFICIENT_AVAILABLE', errors.join('; '));
           throw fail(400, 'VALIDATION', errors.join('; '), { field: 'allocations' });
@@ -352,7 +353,7 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
             await client.query(
               `INSERT INTO order_pick_lines (assignment_id, product_code, position_id, location, planned_qty, reserved_qty, st_cartons, st_text, allocation_snapshot)
                VALUES ($1, $2, $3, $4, $5, $5, $6, $7, $8::jsonb)`,
-              [head.id, lines[lineIndex].productCode, positionId, row.location, qty, spec ? carton.cartonsFor(spec, qty) : null, spec ? carton.pickText(spec, qty) : null, JSON.stringify(allocationSnapshot)]);
+              [head.id, lines[lineIndex].productCode, positionId, row.location, qty, spec && carton.stFor(spec, qty) ? carton.stFor(spec, qty).cartons : null, spec ? carton.pickText(spec, qty) : null, JSON.stringify(allocationSnapshot)]);
           }
         }
         await client.query(

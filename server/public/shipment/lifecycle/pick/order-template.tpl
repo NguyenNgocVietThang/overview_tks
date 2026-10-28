@@ -26,7 +26,7 @@
       </tr></tbody>
     </table>
   </div>
-  <table cellpadding="3" cellspacing="0" border="1" style="border-collapse: collapse; width: 100%" data-table-controls="off" data-table-sort="off" class="invoice-goods"><colgroup><col style="width: 5%;"><col style="width: 22%;"><col style="width: 7%;"><col style="width: 10%;"><col style="width: 11%;"><col style="width: 11%;"><col style="width: 13%;"><col style="width: 10%;"><col style="width: 11%;"></colgroup><thead><tr>
+  <table cellpadding="3" cellspacing="0" border="1" style="border-collapse: collapse; width: 100%" data-table-controls="off" data-table-sort="off" class="invoice-goods"><colgroup><col style="width: 4%;"><col style="width: 22%;"><col style="width: 8%;"><col style="width: 10%;"><col style="width: 13%;"><col style="width: 10%;"><col style="width: 13%;"><col style="width: 10%;"><col style="width: 10%;"></colgroup><thead><tr>
 
         <td style="text-align: center; border-color: rgb(0, 0, 0);">
           <span style=""><strong>TT</strong></span></td>
