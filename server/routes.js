@@ -39,6 +39,8 @@ const managerLeaveRuntime = getConfiguredManagerLeaveRuntime();
 const kiotvietSyncStatusRoutes = require('./kiotvietSync/kiotvietSyncStatusRoutes');
 const debtManagementRoutes = require('./dashboard/debtManagementRoutes');
 const orderLifecycleRoutes = require('./shipment/orderLifecycleRoutes');
+const { createBotLifecycleIntegrationRouter } = require('./shipment/botLifecycleIntegrationRoutes');
+const orderLifecycleService = require('./shipment/orderLifecycleService');
 const pickAssignmentsRoutes = require('./pickAssignments/pickAssignmentsRoutes');
 const stockLocationsRoutes = require('./stockLocations/stockLocationsRoutes');
 const stockPositionsRoutes = require('./stockPositions/stockPositionsRoutes');
@@ -66,6 +68,12 @@ router.post('/api/client-log', express.text({ type: '*/*' }), (req, res) => {
 // Webhook tu KiotViet (nguoi goi la KiotViet, khong phai nguoi dung dang
 // nhap) — mount TRUOC moi guard auth/co so. Xem server/kiotviet/kiotvietWebhookRoutes.js.
 router.use(kiotvietWebhookRoutes);
+// Bot lai xe dung token rieng, chi doc cac cot doi chieu vong doi don. Route
+// nay phai nam truoc guard JWT chung vi bot khong co phien dang nhap website.
+router.use('/api/integrations/driver-orders', createBotLifecycleIntegrationRouter({
+  token: CONFIG.BOT_LIFECYCLE_API_TOKEN,
+  findOrder: orderLifecycleService.findOrder
+}));
 router.use(createManagerLeaveWebhook({
   enabled: !!managerLeaveRuntime,
   secret: CONFIG.HR_MANAGER_TELEGRAM_WEBHOOK_SECRET,
