@@ -11,6 +11,8 @@
 - **Tên khách/hàng trong báo cáo (24/10/2026):** báo cáo dùng TÊN HIỆN TẠI (`customers.name`, `products.name` theo cơ sở + id), không dùng tên ghi trên chứng từ (`raw->>'customerName'`/`'productName'`); khách trong `product_report_customers` gộp theo tên chuẩn hóa. Đổi tên trên KiotViet chỉ cần chạy lại job tính sẵn (`customerInvoiceLinesRefresh`, `productReportRefresh`), không đồng bộ lại hóa đơn. Bảng tháng đã chốt `business_monthly_*` giữ tên lúc chốt.
 - **Khách hoạt động trong Công nợ (15/10/2026):** danh sách/KPI/điểm/phạt/xuất file chỉ dùng khách hiện còn hoạt động. KiotViet retail không trả cờ hoạt động trong các payload khách đã kiểm tra và bỏ qua query `isActive`; đồng bộ chuẩn hóa `customers.raw.isActive` từ cờ rõ ràng nếu có, danh sách hiện hành và `removedIds`. Đối soát đầy đủ lần đầu/mỗi ngày, không đánh dấu vắng mặt khi thiếu trang/tổng thay đổi/trùng ID/lỗi giữa chừng; không xóa dữ liệu nguồn hoặc audit. Lọc hoạt động trước chọn ID mới nhất của cơ sở+mã. Kết quả thưởng tháng đã chốt bất biến.
 
+- **Form phiếu in dùng chung (28/10/2026):** người dùng yêu cầu một người chỉnh form thì mọi người dùng cùng định dạng ở các phiên sau, trên máy khác cũng vậy. Bỏ ô chọn font/cỡ chữ/nhập độ rộng; kéo viền chỉnh cột/hàng, bôi đen rồi Ctrl+] / Ctrl+[ đổi cỡ chữ. Lưu PostgreSQL riêng mẫu `order`/`delivery` (`shared_print_layouts`, migration 0100), không lưu riêng theo tài khoản/trình duyệt. Nội dung và số liệu luôn chỉ đọc.
+
 ## 1. Hồ sơ dự án (Project Profile)
 
 - **Tên dự án:** TOKOSI Dashboard (Web TKS Dashboard).

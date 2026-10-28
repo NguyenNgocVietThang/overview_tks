@@ -511,9 +511,10 @@ test('phiếu in: dòng sắp theo tên vị trí đầu tiên (chữ cái đầ
   });
   const snapshot = { ...record.snapshot, lines: [line('P1', 10), line('P2', 10), line('P3', 10), line('P4', 10)] };
   await page.window.PickingInvoice.show({ ...snapshot, orderCode: 'DH1', branch: 'HN' }, record);
-  const rows = [...page.document.querySelectorAll('#pickingPrintSheet table.invoice-goods tbody tr')].filter(tr => /\(P\d\)/.test(tr.textContent));
+  const rows = [...page.document.querySelectorAll('#pickingPrintSheet table.invoice-goods tbody tr')];
   assert.deepEqual(rows.map(tr => tr.cells[0].textContent.trim()), ['1', '2', '3', '4'], 'TT đánh lại sau khi sắp');
-  assert.deepEqual(rows.map(tr => /\((P\d)\)/.exec(tr.textContent)[1]), ['P3', 'P2', 'P1', 'P4'], 'H01 (P3) → H02 (P2) → K05 (P1) → chưa có vị trí');
+  assert.deepEqual(rows.map(tr => tr.cells[1].textContent.trim()), ['Hàng P3', 'Hàng P2', 'Hàng P1', 'Hàng P4'], 'H01 → H02 → K05 → chưa có vị trí; chỉ in tên hàng');
+  assert.ok(rows.every(tr=>!tr.textContent.includes('(P')), 'không in mã hàng trong ngoặc');
   const p3Location = rows[0].querySelector('td.invoice-location').textContent;
   assert.ok(p3Location.indexOf('H01') < p3Location.indexOf('K09'), 'nhiều vị trí trong một dòng cũng theo tên');
   page.dom.window.close();

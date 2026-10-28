@@ -291,3 +291,16 @@ Module `stockPositions/` + trang `/vt-positions/`: cơ sở dữ liệu Vị tr�
 - **Việc tiếp theo:** hoàn tất kiểm chứng tính năng thật, merge nhánh, chạy `npm run db:migrate` (`0096`, `0097`, `0098`) rồi deploy; sau đó cân nhắc đợt 2 (thực nhặt, thông báo, mở quyền).
 
 Cập nhật gần nhất: 28/10/2026.
+# Phiếu giao hàng và định dạng bản in — 28/10/2026
+
+Thiết kế đã được người dùng đồng ý: thêm mẫu Phiếu xác nhận giao hàng bảy cột theo ảnh, giữ mẫu Phiếu đặt hàng; nội dung/số liệu chỉ đọc; kéo viền chỉnh cột/hàng, bôi đen và Ctrl+] / Ctrl+[ chỉnh cỡ chữ, lưu định dạng trên máy chủ cho mọi tài khoản qua các phiên/máy. Bổ sung yêu cầu: chỉ in tên sản phẩm, bỏ mã hàng trên cả hai mẫu. Không đổi dữ liệu chỉ định hoặc tồn kho.
+
+Kế hoạch thực hiện (Vanilla JS/CSS; không thêm dependency; bổ sung API form chung và migration 0100):
+
+- [x] Bổ sung kiểm thử mẫu giao hàng, khóa nội dung và định dạng không thay đổi text trong `server/test/frontend/lifecycle-pick-invoice.test.js`; chạy để xác nhận thất bại trước sửa.
+- [x] `invoice.js`: thêm mẫu giao hàng và chuyển mẫu từ cùng snapshot, giữ ghép vị trí theo mã nội bộ, bỏ mã trong tên hàng hiển thị.
+- [x] `print-tools.js`: bộ chọn mẫu, kéo viền chỉnh cột tổng 100% và chiều cao hàng, Ctrl+] / Ctrl+[ chỉnh vùng chữ được chọn, PostgreSQL riêng từng mẫu dùng chung mọi người, khôi phục định dạng; dùng chung cho xem trước và HTML độc lập; loại bỏ khả năng sửa nội dung.
+- [x] `invoice-a4.css`: bố cục giao hàng A4, điều khiển định dạng không xuất hiện trên giấy; tăng phiên bản tài nguyên ở trang Vòng đời.
+- [x] Xác minh: 51/51 test liên quan và Edge 2 mẫu × 1/45 dòng đạt; toàn suite đã thử nhưng không hoàn tất vì thiếu bộ nhớ/quyền sandbox, ghi giới hạn trong CURRENT.md. Graphify chạy thành công.
+
+- [x] Form dùng chung: `pickAssignments/printLayouts.js`, GET/PUT `/api/shipment/pick/print-layout/:template`, kiểm tra định dạng/version (409), migration `0100_shared_print_layouts.sql`; mới có mã và kiểm thử, chưa áp DB/deploy.

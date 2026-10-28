@@ -30,6 +30,16 @@ const sumMoney=(a,b)=>{
 const replace=(html,values)=>html.replace(/\{([^{}]+)\}/g,(token,k)=>Object.hasOwn(values,k)?esc(values[k]):token);
 const byName=(a,b)=>String(a).localeCompare(String(b),'vi',{numeric:true,sensitivity:'base'});
 let assetsPromise=null;
+// Mẫu giao hàng không có giá; cùng nguồn dòng hàng/vị trí với phiếu đặt hàng.
+const deliveryTemplate=`<div class="delivery-heading"><strong class="delivery-title">PHIẾU XÁC NHẬN GIAO HÀNG</strong><p>Mã đặt hàng: {Ma_Don_Hang}</p></div>
+<div class="delivery-contacts"><p><strong><u>Người gửi:</u></strong><br>{Nguoi_Gui}</p>
+<p><strong><u>Người nhận:</u></strong><br>Khách hàng: {Khach_Hang}<br>SĐT KH: {So_Dien_Thoai}<br>Địa chỉ: {Dia_Chi_Khach_Hang}<br>NV Bán hàng: {Nhan_Vien_Ban_Hang}</p></div>
+<table class="invoice-goods" data-table-controls="off" data-table-sort="off"><colgroup><col style="width:6%"><col style="width:5%"><col style="width:39%"><col style="width:8%"><col style="width:12%"><col style="width:14%"><col style="width:16%"></colgroup>
+<thead><tr><td>Nhặt</td><td>STT</td><td>Tên hàng</td><td>SL</td><td>Vị trí</td><td>Ghi chú</td><td>Thực tế nhặt</td></tr></thead>
+<tbody><tr><td></td><td>{STT}</td><td>{Ten_Hang_Hoa_Don_Gian}</td><td>{So_Luong}</td><td class="invoice-location">{Vi_Tri_Hang_Hoa}</td><td>{Ghi_Chu_Hang_Hoa}</td><td class="invoice-actual">{Thuc_Te_Nhat}</td></tr></tbody></table>
+<p class="delivery-note"><strong><u>Quý khách vui lòng kiểm tra hàng khi nhận, gọi trước cho khách, báo sale thu tiền.</u></strong></p>
+<div class="delivery-signatures"><div><strong>Người nhận hàng</strong></div><div><strong>Nhân viên nhặt hàng</strong></div><div><em>Ngày {Ngay} tháng {Thang} năm {Nam}</em><br><strong>Nhân viên xuất hàng</strong></div></div>`;
+let currentPrint=null;
 
 async function fetchText(url){
   const res=await fetch(url,{credentials:'same-origin'});
@@ -49,7 +59,7 @@ function loadAssets(){
   if(window.PickingInvoiceTemplate&&window.PickingPrintCSS)return Promise.resolve();
   if(!assetsPromise){
     assetsPromise=(async()=>{
-      const [template,css]=await Promise.all([fetchText(BASE+'order-template.tpl?v=20261028-3'),fetchText(BASE+'invoice-a4.css?v=20261028-3')]);
+      const [template,css]=await Promise.all([fetchText(BASE+'order-template.tpl?v=20261028-6'),fetchText(BASE+'invoice-a4.css?v=20261028-6')]);
       let out=template;
       for(const id of new Set([...template.matchAll(CDN)].map(m=>m[1]))){
         const uri=await dataUri(BASE+'invoice-assets/'+id+'.jpg');
@@ -63,13 +73,16 @@ function loadAssets(){
 }
 
 /* order: assignment.snapshot (+ orderCode, branch); record: assignment. Trả Promise (nạp mẫu lần đầu cần mạng). */
-async function show(order,record){
+async function show(order,record,template='order'){
   await loadAssets();
   let style=document.getElementById('pickingInvoiceStyle');
   if(!style){style=document.createElement('style');style.id='pickingInvoiceStyle';document.head.append(style);}
   style.textContent=window.PickingPrintCSS;
   const root=document.createElement('div');
-  root.className='tokosi-invoice';root.innerHTML=window.PickingInvoiceTemplate;
+  const delivery=template==='delivery';
+  root.className='tokosi-invoice'+(delivery?' delivery-slip':'');
+  root.dataset.template=delivery?'delivery':'order';
+  root.innerHTML=delivery?deliveryTemplate:window.PickingInvoiceTemplate;
   // Mẫu có selector toàn cục; stylesheet của popup đã giới hạn phạm vi cho nó.
   root.querySelectorAll('style').forEach(el=>el.remove());
   const row=[...root.querySelectorAll('tr')].find(el=>el.textContent.includes('{STT}'));
@@ -106,7 +119,7 @@ async function show(order,record){
     const cartons=jobs.every(j=>typeof j.stCartons==='number')&&jobs.length?jobs.reduce((n,j)=>n+j.stCartons,0):null;
     const rendered=document.createElement('tbody');
     rendered.innerHTML=replace(row.outerHTML,{
-      STT:++index,Ten_Hang_Hoa_Don_Gian:line.productName+' ('+line.productCode+')',
+      STT:++index,Ten_Hang_Hoa_Don_Gian:line.productName||'',
       So_Luong:qtyText(qty),Don_Gia_Sau_Chiet_Khau:money(unit),Thanh_Tien:money(amount),
       Vi_Tri_Hang_Hoa:placement,Ghi_Chu_Hang_Hoa:line.note||'',Thuc_Te_Nhat:'',ST:cancelled||priorLine?'':(stLabel||stText(cartons))
     });
@@ -133,24 +146,28 @@ async function show(order,record){
     // Bản in ghi cả ID Telegram cạnh tên sale, đúng dạng KiotViet lưu: "<tên> - <ID>".
     Nhan_Vien_Ban_Hang:(order.saleName||'')+(order.saleTelegramId?' - '+order.saleTelegramId:''),Dien_Thoai_Nguoi_Ban:order.sellerPhone,
     Ma_Don_Hang:order.orderCode,Khach_Hang:order.customerName,So_Dien_Thoai:order.customerPhone,Dia_Chi_Khach_Hang:order.customerAddress,
+    Nguoi_Gui:order.branch==='SG'?'TỔNG KHO GIA DỤNG SÀI GÒN':'TỔNG KHO GIA DỤNG HÀ NỘI',
     Tong_Tien_Hang:money(totalKnown?total:null),Chiet_Khau_Hoa_Don:money(discount),Tong_Cong:money(payable),Du_No_Truoc:money(prior),
     Du_No_Hoa_Don:money(debt),Du_No_Tam_Tinh:money(debt),
     Ghi_Chu:order.note||'',Ngay:datePart('day'),Thang:datePart('month'),Nam:datePart('year')
   });
-  const title='PHIẾU ĐẶT HÀNG';
+  const title=delivery?'PHIẾU XÁC NHẬN GIAO HÀNG':'PHIẾU ĐẶT HÀNG';
   const heading=[...root.querySelectorAll('strong')].find(el=>/HÓA ĐƠN\s*BÁN\s*HÀNG/.test(el.textContent.replace(/ /g,' ')));
   if(heading)heading.textContent=title;
   const marker=document.createElement('p');marker.className='invoice-demo';
   marker.textContent=order.orderCode+' · '+(order.branch==='SG'?'Sài Gòn':'Hà Nội')+' · Chưa ghi thực tế nhặt'+(record.assignedByName?' · Chỉ định bởi '+record.assignedByName:'')+'.';
   root.append(marker);
-  if(!v2){const warning=document.createElement('p');warning.className='invoice-legacy';warning.textContent='Phiếu cũ chưa lưu dòng gốc; tiền hiển thị theo dữ liệu đã lưu, chưa đối chiếu được chi tiết ban đầu.';root.prepend(warning);}
-  root.setAttribute('contenteditable','true');
-  root.setAttribute('aria-label','Nội dung phiếu có thể chỉnh sửa trước khi in');
+  if(!v2&&!delivery){const warning=document.createElement('p');warning.className='invoice-legacy';warning.textContent='Phiếu cũ chưa lưu dòng gốc; tiền hiển thị theo dữ liệu đã lưu, chưa đối chiếu được chi tiết ban đầu.';root.prepend(warning);}
+  root.setAttribute('contenteditable','false');
+  root.setAttribute('aria-label','Nội dung phiếu chỉ đọc');
   root.setAttribute('spellcheck','false');
   const printMessage=document.getElementById('pickingPrintMessage');if(printMessage)printMessage.textContent='';
   document.getElementById('pickingPrintTitle').textContent=title+' · '+order.orderCode;
   document.getElementById('pickingPrintSheet').replaceChildren(root);
-  document.getElementById('pickingPrintDialog').showModal();
+  currentPrint={order,record};
+  await window.PickingPrint?.prepare?.();
+  const dialog=document.getElementById('pickingPrintDialog');
+  if(!dialog.open)dialog.showModal();
 }
-window.PickingInvoice={show,loadAssets};
+window.PickingInvoice={show,loadAssets,changeTemplate:template=>currentPrint?show(currentPrint.order,currentPrint.record,template):Promise.resolve()};
 })();

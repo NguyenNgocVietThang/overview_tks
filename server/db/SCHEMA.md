@@ -799,3 +799,10 @@ Trạng thái: đang làm trên nhánh `feat/lifecycle-pick-assign`, **chưa mer
 - Chưa áp thì danh sách/thêm VT lỗi (thiếu cột `format_ack`) — phải `npm run db:migrate` trước deploy.
 
 Cập nhật gần nhất: 28/10/2026.
+
+## 0100 — Form phiếu in dùng chung (28/10/2026, chưa áp DB)
+
+- `shared_print_layouts`: khóa `template` (`order`/`delivery`); `layout JSONB` chỉ có `widths` (phần trăm, tổng 100), `heights` (px theo hàng), `fonts` (đường dẫn phần tử, offset vùng chữ, cỡ pt), không HTML/nội dung đơn.
+- `version INTEGER` tăng mỗi lần ghi, `updated_by TEXT`, `updated_at TIMESTAMPTZ`; PUT có phiên bản cũ trả 409, reset ghi form rỗng với phiên bản mới.
+- Dùng chung mọi tài khoản/cơ sở/thiết bị; quyền API `shipment.pick`. Thu hồi SELECT của `reporting_readonly`.
+- Cần áp migration trước deploy (`npm run db:migrate`). Cập nhật: 28/10/2026.

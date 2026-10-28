@@ -8,7 +8,7 @@ const {makeOrderSnapshot} = require('../../pickAssignments/pickOrderSnapshot');
 const dir = path.join(__dirname, '../../public/shipment/lifecycle/pick');
 
 async function invoice(order, record) {
-  const dom = new JSDOM('<dialog id="pickingPrintDialog"></dialog><div id="pickingPrintTitle"></div><div id="pickingPrintSheet"></div>', {runScripts:'outside-only'});
+  const dom = new JSDOM('<dialog id="pickingPrintDialog"></dialog><div id="pickingPrintTitle"></div><p id="pickingPrintMessage"></p><div id="pickingPrintSheet"></div>', {runScripts:'outside-only'});
   const w = dom.window;
   w.HTMLDialogElement.prototype.showModal = function() { this.setAttribute('open', ''); };
   w.PickingInvoiceTemplate = fs.readFileSync(path.join(dir,'order-template.tpl'),'utf8');
@@ -36,7 +36,104 @@ test('v2 print uses original amounts, keeps ST and prints placement once per cod
     assert.match(d.querySelector('.invoice-summary').textContent,/100,011/);
     assert.equal(d.querySelectorAll('.invoice-qr img').length,3);
     assert.equal(d.querySelector('.invoice-brand').textContent,'KHO SỈ TOKOSI');
-    assert.equal(d.querySelector('.tokosi-invoice').getAttribute('contenteditable'),'true');
+    assert.equal(d.querySelector('.tokosi-invoice').getAttribute('contenteditable'),'false');
+  } finally {dom.window.close();}
+});
+
+test('delivery template has seven columns, no prices, and uses saved order data', async () => {
+  const order={schemaVersion:2,orderCode:'DH7',branch:'SG',customerName:'Khách <A>',customerPhone:'0901234567',customerAddress:'Địa chỉ',saleName:'Sale',lines:[{productCode:'A',productName:'Bình',quantity:600,unitPrice:'10',amount:'6000',note:'15th'}]};
+  const record={status:'picking',lines:[{productCode:'A',location:'128',plannedQty:600}]};
+  const dom=await invoice(order,record);
+  try {
+    await dom.window.PickingInvoice.show(order,record,'delivery');
+    const d=dom.window.document;
+    assert.deepEqual(headers(d),['Nhặt','STT','Tên hàng','SL','Vị trí','Ghi chú','Thực tế nhặt']);
+    assert.match(d.querySelector('.delivery-slip').textContent,/TỔNG KHO GIA DỤNG SÀI GÒN/);
+    assert.match(d.querySelector('.delivery-slip').textContent,/Khách <A>/);
+    assert.equal(cells(d)[3].textContent.trim(),'600');
+    assert.equal(cells(d)[4].textContent.trim(),'128');
+    assert.equal(cells(d)[5].textContent.trim(),'15th');
+    assert.equal(cells(d)[6].textContent.trim(),'');
+    assert.equal(d.querySelector('.invoice-summary'),null);
+    assert.equal(d.querySelector('[contenteditable="true"]'),null);
+  } finally {dom.window.close();}
+});
+
+test('direct print formatting keeps text read-only, persists across sessions and exports styles', async () => {
+  const order={schemaVersion:2,orderCode:'DH8',branch:'HN',lines:[{productCode:'A',productName:'Hàng A',quantity:10,unitPrice:'2',amount:'20'}]};
+  const record={status:'picking',lines:[]};
+  const dom=await invoice(order,record);
+  const stored={};
+  const sharedFetch=async(url,options={})=>{
+    if(options.method==='PUT'){
+      const body=JSON.parse(options.body),previous=stored[url]||{layout:null,version:0};
+      assert.equal(body.version,previous.version);
+      stored[url]={layout:body.layout,version:body.version+1};
+    }
+    return {ok:true,json:async()=>JSON.parse(JSON.stringify(stored[url]||{layout:null,version:0}))};
+  };
+  try {
+    const w=dom.window,d=w.document;
+    w.fetch=sharedFetch;
+    w.eval(fs.readFileSync(path.join(dir,'print-tools.js'),'utf8'));
+    await w.PickingPrint.prepare();
+    const root=d.querySelector('.tokosi-invoice'),before=root.textContent;
+    assert.equal(d.querySelector('#pickingPrintFormatting input,#pickingPrintFormatting select'),null);
+    const cell=d.querySelector('.invoice-goods thead td'),table=cell.closest('table');
+    cell.getBoundingClientRect=()=>({left:0,right:40,top:0,bottom:30,width:40,height:30});
+    table.getBoundingClientRect=()=>({width:1000});
+    const pointer=(target,type,x,y)=>target.dispatchEvent(new w.MouseEvent(type,{bubbles:true,button:0,clientX:x,clientY:y}));
+    pointer(cell,'pointerdown',40,10);pointer(d,'pointermove',60,10);pointer(d,'pointerup',60,10);
+    const cols=[...root.querySelectorAll('.invoice-goods col')];
+    assert.equal(parseFloat(cols[0].style.width),6);
+    assert.equal(parseFloat(cols[1].style.width),20);
+    assert.ok(Math.abs(cols.reduce((n,c)=>n+parseFloat(c.style.width),0)-100)<.01);
+    cell.parentElement.getBoundingClientRect=()=>({height:30});
+    pointer(cell,'pointerdown',20,30);pointer(d,'pointermove',20,45);pointer(d,'pointerup',20,45);
+    assert.equal(cell.parentElement.style.height,'45px');
+    const name=cells(d)[1];name.style.fontSize='16px';
+    const walker=d.createTreeWalker(name,w.NodeFilter.SHOW_TEXT);let node;
+    while(walker.nextNode()){if(walker.currentNode.textContent.includes('Hàng A')){node=walker.currentNode;break;}}
+    const range=d.createRange();range.setStart(node,0);range.setEnd(node,4);
+    const selection=w.getSelection();selection.removeAllRanges();selection.addRange(range);
+    const key=value=>root.dispatchEvent(new w.KeyboardEvent('keydown',{key:value,ctrlKey:true,bubbles:true,cancelable:true}));
+    key(']');
+    assert.equal(name.querySelector('[data-print-font]:not(:has([data-print-font]))').style.fontSize,'13pt');
+    assert.equal(selection.toString(),'Hàng');
+    key(']');
+    assert.equal(name.querySelector('[data-print-font] [data-print-font]').style.fontSize,'14pt');
+    key('[');
+    assert.equal(name.querySelector('[data-print-font] [data-print-font] [data-print-font]').style.fontSize,'13pt');
+    assert.equal(root.textContent,before);
+    assert.equal(root.getAttribute('contenteditable'),'false');
+    const exported=new JSDOM(w.PickingPrint.document());
+    assert.equal(exported.window.document.querySelector('[contenteditable="true"]'),null);
+    assert.equal(exported.window.document.querySelector('[data-print-font]:not(:has([data-print-font]))').style.fontSize,'13pt');
+    assert.equal(exported.window.document.querySelector('.invoice-goods col').style.width,'6%');
+    assert.equal(exported.window.document.querySelector('.invoice-goods tr').style.height,'45px');
+    exported.window.close();
+    await w.PickingInvoice.changeTemplate('delivery');
+    assert.equal(d.querySelectorAll('.invoice-goods col').length,7);
+    assert.equal(d.querySelector('[data-print-font]'),null);
+    await w.PickingInvoice.changeTemplate('order');
+    assert.equal(d.querySelector('.invoice-goods col').style.width,'6%');
+    assert.equal(d.querySelector('[data-print-font]:not(:has([data-print-font]))').style.fontSize,'13pt');
+    // Another user/browser receives the shared server form without any local preferences.
+    const reopened=await invoice(order,record);
+    try{
+      reopened.window.fetch=sharedFetch;
+      Object.defineProperty(reopened.window,'localStorage',{get(){throw new Error('Other user has no local preferences');}});
+      reopened.window.eval(fs.readFileSync(path.join(dir,'print-tools.js'),'utf8'));
+      await reopened.window.PickingPrint.prepare();
+      const rd=reopened.window.document;
+      assert.equal(rd.querySelector('.invoice-goods col').style.width,'6%');
+      assert.equal(rd.querySelector('.invoice-goods tr').style.height,'45px');
+      assert.equal(rd.querySelector('[data-print-font]:not(:has([data-print-font]))').style.fontSize,'13pt');
+      rd.querySelector('#pickingPrintFormatting button').click();
+      assert.equal(rd.querySelector('[data-print-font]'),null);
+      assert.equal(rd.querySelector('.invoice-goods col').style.width,'4%');
+      assert.equal(rd.querySelector('.invoice-goods tr').style.height,'');
+    }finally{reopened.window.close();}
   } finally {dom.window.close();}
 });
 
@@ -61,7 +158,7 @@ test('thứ tự cột phiếu: TT, Tên hàng, SL, Đơn giá, Thành tiền, G
     const c = cells(d);
     assert.equal(c.length, 9);
     assert.equal(c[0].textContent.trim(), '1');
-    assert.match(c[1].textContent, /Hàng A \(A\)/);
+    assert.equal(c[1].textContent.trim(), 'Hàng A');
     assert.equal(c[2].textContent.trim(), '100');
     assert.equal(c[3].textContent.trim(), '15,400');
     assert.equal(c[4].textContent.trim(), '1,540,000');
@@ -109,4 +206,28 @@ test('CSS phiếu: cột Vị trí đủ rộng, mỗi dòng vị trí không xu
   assert.ok(widths[6] >= 13, 'cột Vị trí chứa "A01: 200,000"');
   assert.match(css, /\.invoice-loc-line\{[^}]*white-space:nowrap/);
   assert.match(css, /td:nth-child\(7\)/, 'Vị trí là cột thứ 7');
+});
+
+test('shared form load failure is visible and does not fall back to local user preferences',async()=>{
+ const dom=await invoice({schemaVersion:2,orderCode:'DH9',lines:[]},{lines:[]});
+ try{
+  const w=dom.window;w.fetch=async()=>({ok:false,status:500});
+  w.eval(fs.readFileSync(path.join(dir,'print-tools.js'),'utf8'));
+  await w.PickingPrint.prepare();
+  assert.match(w.document.getElementById('pickingPrintMessage').textContent,/Không tải được form chung/);
+  assert.equal(w.document.querySelector('#pickingPrintFormatting button'),null);
+ }finally{dom.window.close();}
+});
+
+test('shared form conflict is visible and never reports local changes as shared success',async()=>{
+ const dom=await invoice({schemaVersion:2,orderCode:'DH10',lines:[]},{lines:[]});
+ try{
+  const w=dom.window;w.fetch=async(url,options={})=>options.method==='PUT'?{ok:false,status:409,json:async()=>({error:'Form chung đã được người khác sửa.'})}:{ok:true,json:async()=>({layout:null,version:0})};
+  w.eval(fs.readFileSync(path.join(dir,'print-tools.js'),'utf8'));
+  await w.PickingPrint.prepare();
+  w.document.querySelector('#pickingPrintFormatting button').click();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.match(w.document.getElementById('pickingPrintMessage').textContent,/người khác sửa/);
+  assert.match(w.document.getElementById('pickingPrintMessage').textContent,/chưa được lưu chung/);
+ }finally{dom.window.close();}
 });

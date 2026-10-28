@@ -32,6 +32,15 @@ function createPickAssignmentsRouter(dependencies = {}) {
   };
   const query = req => ({ branch: req.query.branch, orderCode: req.query.order });
 
+  // Form in chung, dùng cùng quyền với thao tác in/chỉ định.
+  const layouts=dependencies.printLayouts || require('./printLayouts');
+  const pool=()=>dependencies.pool || require('../db/pool').getPool();
+  router.get('/print-layout/:template',handle(async(req,res)=>{
+    res.json(await layouts.readLayout(pool(),req.params.template));
+  }));
+  router.put('/print-layout/:template',handle(async(req,res)=>{
+    res.json(await layouts.writeLayout(pool(),req.params.template,req.body,req.user.id));
+  }));
   router.get('/candidates', handle(async (req, res) => {
     res.json(await svc().candidates(ctxOf(req), query(req)));
   }));

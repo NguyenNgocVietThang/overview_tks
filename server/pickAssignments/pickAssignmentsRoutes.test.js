@@ -23,7 +23,9 @@ async function start(t, { user = MANAGER, failWith } = {}) {
   app.use((req, res, next) => { if (user) req.user = user; next(); });
   app.use('/api/shipment/pick', createPickAssignmentsRouter({
     requireAuth: (req, res, next) => (req.user ? next() : res.status(401).json({ error: 'Chưa đăng nhập.' })),
-    service
+    service,
+    pool:{},
+    printLayouts:{readLayout:async(pool,template)=>({layout:{template},version:2}),writeLayout:async(pool,template,input,userId)=>({layout:input.layout,version:input.version+1,userId})}
   }));
   const server = await new Promise(resolve => { const s = app.listen(0, () => resolve(s)); });
   t.after(() => server.close());
@@ -111,4 +113,18 @@ test('POST /mismatch-ack (Da xu ly canh bao lech SL): truyen nguyen body cho ser
   assert.equal(res.status, 200);
   assert.equal((await res.json()).assignment.id, 7);
   assert.deepEqual(calls, [['acknowledgeMismatch', body]]);
+});
+
+test('shared form GET/PUT uses shipment.pick, user from session and no-store',async t=>{
+ const {base}=await start(t);
+ const res=await fetch(base+'/print-layout/order');
+ assert.equal(res.status,200);assert.equal(res.headers.get('cache-control'),'no-store');
+ assert.deepEqual(await res.json(),{layout:{template:'order'},version:2});
+ const updated=await fetch(base+'/print-layout/order',{method:'PUT',headers:json,body:JSON.stringify({layout:{fonts:[]},version:2,userId:'spoof'})});
+ assert.equal(updated.status,200);assert.deepEqual(await updated.json(),{layout:{fonts:[]},version:3,userId:'ql'});
+ const denied=await start(t,{user:{vaiTro:'Khách'}});
+ assert.equal((await fetch(denied.base+'/print-layout/order')).status,403);
+ assert.equal((await fetch(denied.base+'/print-layout/order',{method:'PUT',headers:json,body:'{}'})).status,403);
+ const anon=await start(t,{user:null});
+ assert.equal((await fetch(anon.base+'/print-layout/order')).status,401);
 });

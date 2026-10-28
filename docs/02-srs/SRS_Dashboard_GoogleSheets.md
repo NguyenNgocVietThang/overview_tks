@@ -940,3 +940,8 @@ Chỉ chủ đơn hoạt động được hủy đơn Xin nghỉ phép của mì
 Trạng thái: đang làm trên nhánh `feat/lifecycle-pick-assign`, **chưa merge, chưa migrate (`0096`, `0097`, `0098`), chưa deploy**; phần 27/10 (tối và khuya) chưa commit và chưa kiểm trên trình duyệt thật.
 
 Cập nhật gần nhất: 28/10/2026.
+## Bổ sung yêu cầu phiếu in — 28/10/2026
+
+Vòng đời đơn hàng / Chỉ định vị trí: chọn Phiếu đặt hàng hoặc Phiếu xác nhận giao hàng; mẫu giao hàng gồm Nhặt, STT, Tên hàng, SL, Vị trí, Ghi chú, Thực tế nhặt (trống để ghi tay), thông tin người gửi theo cơ sở, khách hàng và ba phần ký nhận. Cả hai mẫu chỉ in tên hàng; mã chỉ dùng nội bộ để ghép dòng/vị trí. Cấm sửa nội dung trên giao diện in và HTML xuất; cho chỉnh font, cỡ chữ, độ rộng cột và khôi phục định dạng. In/đổi mẫu/đổi định dạng không cập nhật đơn hay tồn kho.
+
+28/10/2026 — **Form phiếu in dùng chung:** kéo viền chỉnh độ rộng cột/chiều cao hàng, bôi đen và Ctrl+] / Ctrl+[ chỉnh cỡ chữ (7–36pt), bỏ ô chọn định dạng. Lưu PostgreSQL theo mẫu `order`/`delivery` cho mọi người, mọi phiên/máy; GET/PUT `/api/shipment/pick/print-layout/:template` cần `shipment.pick`; kiểm tra version chống ghi đè (409). Chỉ lưu định dạng, không sửa text/số liệu. Migration `0100_shared_print_layouts.sql` chưa áp DB; chưa deploy.

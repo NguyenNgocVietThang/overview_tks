@@ -494,3 +494,8 @@ Rà soát bản trước khi sửa ngày 2026-10-27 ghi lỗi xử lý vị trí
 Trạng thái: đang làm trên nhánh `feat/lifecycle-pick-assign`, **chưa merge, chưa migrate (`0096`, `0097`, `0098`), chưa deploy**; phần trạng thái bốc và đợt khuya chưa commit.
 
 Cập nhật gần nhất: 28/10/2026.
+## Bổ sung nghiệp vụ in phiếu kho — 28/10/2026
+
+Kho được chọn thêm Phiếu xác nhận giao hàng theo mẫu bảy cột và ba phần ký nhận. Tất cả phiếu chỉ hiện tên hàng, bỏ mã trong ngoặc; nội dung và số liệu lấy từ đơn/chỉ định đã lưu và không được chỉnh trên màn hình in. Cho phép căn trình bày bằng độ rộng cột, font và cỡ chữ, dùng cả khi tải HTML. Các thao tác căn/in không thay đổi đơn hàng hay tồn kho.
+
+28/10/2026 — **Form phiếu in dùng chung:** kéo viền chỉnh độ rộng cột/chiều cao hàng, bôi đen và Ctrl+] / Ctrl+[ chỉnh cỡ chữ (7–36pt), bỏ ô chọn định dạng. Lưu PostgreSQL theo mẫu `order`/`delivery` cho mọi người, mọi phiên/máy; GET/PUT `/api/shipment/pick/print-layout/:template` cần `shipment.pick`; kiểm tra version chống ghi đè (409). Chỉ lưu định dạng, không sửa text/số liệu. Migration `0100_shared_print_layouts.sql` chưa áp DB; chưa deploy.
