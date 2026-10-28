@@ -662,6 +662,30 @@ test('normalizeAllNotes: dry-run không ghi; --apply đổi ghi chú, tăng vers
   } finally { await db.close(); }
 });
 
+test('mergeDuplicateRows: dry-run không ghi; --apply cộng ghi chú dòng trùng (mã, vị trí) vào dòng id nhỏ nhất, xóa dòng thừa, ghi lịch sử; bỏ qua nhóm sai định dạng', async () => {
+  const { db, service } = await fixture();
+  try {
+    await db.query(`INSERT INTO stock_positions (branch, code, name, notes, arrival_date, location) VALUES
+      ('HN', 'AAA1', '', '1T x 100', 'KK 4.10', '30'), ('HN', 'AAA1', '', '1T x 100', '', ' 30 '),
+      ('HN', 'BBB2', '', '2T x 10', '', 'A1'), ('HN', 'BBB2', '', 'rác', '', 'A1'),
+      ('HN', 'AAA1', '', '3T x 5', '', 'B2'), ('SG', 'AAA1', '', '1T x 100', '', '30'), ('SG', 'AAA1', '', '1T x 100', '', '30')`);
+    const dry = await service.mergeDuplicateRows({ branch: 'HN' });
+    assert.equal(dry.groups, 1);
+    assert.equal(dry.removed, 1);
+    assert.equal(dry.skipped.length, 1);
+    assert.equal((await db.query(`SELECT count(*)::int AS n FROM stock_positions WHERE branch = 'HN'`)).rows[0].n, 5);
+    const applied = await service.mergeDuplicateRows({ branch: 'HN', dryRun: false });
+    assert.equal(applied.removed, 1);
+    const rows = (await db.query(`SELECT code, location, notes, arrival_date, version FROM stock_positions WHERE branch = 'HN' ORDER BY id`)).rows;
+    assert.equal(rows.length, 4);
+    assert.deepEqual(rows[0], { code: 'AAA1', location: '30', notes: '2T x 100', arrival_date: 'KK 4.10', version: 2 });
+    assert.equal((await db.query(`SELECT count(*)::int AS n FROM stock_positions WHERE branch = 'SG'`)).rows[0].n, 2, 'không đụng cơ sở khác');
+    const history = (await db.query(`SELECT action FROM stock_position_history WHERE actor_name = 'Gộp dòng trùng' ORDER BY id`)).rows.map(r => r.action);
+    assert.deepEqual(history, ['edit', 'delete']);
+    assert.equal((await service.mergeDuplicateRows({ branch: 'HN', dryRun: false })).removed, 0);
+  } finally { await db.close(); }
+});
+
 test('mergeNotes: ghi chú số trần được hiểu là 1 thùng', () => {
   assert.equal(mergeNotes('60', '2T x 60'), '3T x 60');
 });

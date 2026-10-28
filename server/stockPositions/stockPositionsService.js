@@ -18,6 +18,7 @@ const HISTORY_EXPORT_MAX = 50000;
 const ERROR_LIMIT = 50;
 const PREVIEW_LIMIT = 300;
 const NORMALIZE_ACTOR = 'Chuẩn hóa ghi chú';
+const MERGE_ACTOR = 'Gộp dòng trùng';
 const MODES = Object.freeze(['replace', 'add']);
 
 function fail(statusCode, code, message, extra = {}) {
@@ -616,7 +617,64 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
     });
   }
 
-  return { list, create, update, deduct, remove, acknowledge, history, historyAll, purgeHistory, importFile, normalizeAllNotes };
+  /* Gộp các dòng đã lưu trùng (mã, vị trí) (dữ liệu đầu sao từ Google Sheets không có ràng buộc UNIQUE) thành 1 dòng:
+     giữ dòng id nhỏ nhất, cộng dồn ghi chú bằng mergeNotes (Ngày về lấy dòng mới nhất có giá trị), xóa các dòng còn lại,
+     ghi lịch sử 'edit' + 'delete'. Nhóm có ghi chú sai định dạng hoặc dòng đang được phiếu bốc giữ chỗ thì bỏ qua và báo lại.
+     dryRun (mặc định) chỉ đếm. Chạy lại an toàn (idempotent). */
+  async function mergeDuplicateRows({ branch, dryRun = true } = {}) {
+    assertBranch(branch);
+    const db = getDb();
+    return withTransaction(db, async client => {
+      await lockBranch(client, branch);
+      const { rows } = await client.query(`SELECT ${BASE_COLUMNS} FROM stock_positions WHERE branch = $1 ORDER BY id FOR UPDATE`, [branch]);
+      const groups = new Map();
+      for (const row of rows) {
+        const key = keyOf(row.code, row.location);
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(row);
+      }
+      const dupGroups = [...groups.values()].filter(group => group.length > 1);
+      const doomedIds = dupGroups.flatMap(group => group.slice(1).map(row => Number(row.id)));
+      const referenced = new Set();
+      if (doomedIds.length && (await client.query(`SELECT to_regclass('order_pick_lines') IS NOT NULL AS ready`)).rows[0].ready) {
+        for (const r of (await client.query('SELECT DISTINCT position_id FROM order_pick_lines WHERE position_id = ANY($1::bigint[])', [doomedIds])).rows) referenced.add(Number(r.position_id));
+      }
+      const plan = [];
+      const skipped = [];
+      for (const group of dupGroups) {
+        const [keep, ...rest] = group;
+        let notes = keep.notes;
+        let failed = false;
+        for (const row of rest) {
+          const sum = mergeNotes(notes, row.notes);
+          if (sum === null) { failed = true; break; }
+          notes = sum;
+        }
+        if (failed) { skipped.push({ code: keep.code, location: keep.location, reason: 'Ghi chú sai định dạng' }); continue; }
+        if (rest.some(row => referenced.has(Number(row.id)))) { skipped.push({ code: keep.code, location: keep.location, reason: 'Đang có phiếu bốc dùng dòng trùng' }); continue; }
+        const arrivalDate = [...group].reverse().map(row => clean(row.arrival_date)).find(Boolean) || '';
+        plan.push({ keep, rest, notes, arrivalDate });
+      }
+      if (!dryRun && plan.length) {
+        const actor = { id: null, name: MERGE_ACTOR };
+        const entries = [];
+        for (const { keep, rest, notes, arrivalDate } of plan) {
+          await client.query('UPDATE stock_positions SET notes = $2, arrival_date = $3, version = version + 1, updated_by_user_id = NULL, updated_by_name = $4, updated_at = now() WHERE id = $1', [keep.id, notes, arrivalDate, actor.name]);
+          await client.query('DELETE FROM stock_positions WHERE id = ANY($1::bigint[])', [rest.map(row => row.id)]);
+          entries.push({ positionId: keep.id, code: keep.code, location: keep.location, action: 'edit', field: 'notes', oldValue: keep.notes, newValue: notes, summary: { duplicatesMerged: rest.length } });
+          for (const row of rest) entries.push({ positionId: row.id, code: row.code, location: row.location, action: 'delete', field: 'notes', oldValue: row.notes, summary: { mergedInto: Number(keep.id) } });
+        }
+        await writeHistory(client, branch, actor, entries);
+        productCache.delete(branch);
+      }
+      return {
+        branch, scanned: rows.length, groups: plan.length, removed: plan.reduce((sum, p) => sum + p.rest.length, 0), skipped, dryRun,
+        sample: plan.slice(0, 20).map(p => ({ code: p.keep.code, location: p.keep.location, from: [p.keep, ...p.rest].map(row => row.notes), to: p.notes }))
+      };
+    });
+  }
+
+  return { list, create, update, deduct, remove, acknowledge, history, historyAll, purgeHistory, importFile, normalizeAllNotes, mergeDuplicateRows };
 }
 
 // `tx`: helper giao dich dung chung cho module khac can tru/cong thung that trong cung giao dich + khoa co so (pickAssignments).

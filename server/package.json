@@ -26,7 +26,8 @@
     "marketing:summary:refresh": "node scripts/refresh-marketing-summary.js",
     "marketing:identity:import": "node scripts/import-pancake-identities.js",
     "invoices:price-audit": "node scripts/refresh-invoice-price-audit.js",
-    "vt:normalize-notes": "node scripts/normalize-stock-position-notes.js"
+    "vt:normalize-notes": "node scripts/normalize-stock-position-notes.js",
+    "vt:merge-duplicates": "node scripts/merge-stock-position-duplicates.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
