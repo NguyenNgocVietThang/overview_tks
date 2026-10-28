@@ -94,6 +94,14 @@ test('bấm dòng mở hộp chi tiết: mã, tên, vị trí và thông số SL
   assert.equal(ui.field('notes').readOnly, false);
 });
 
+test('hàng ngoài Kiot không tự tính thông số trong hộp chi tiết kể cả khi đã đánh dấu Đã sửa', async t => {
+  const ui = await setup(t, { data: { HN: [row(1, { quantity: null, available: null, kiotQuantity: null, rawWarnings: ['unknowncode'], warnings: [], acknowledged: true })], SG: [] } });
+  await ui.open(1);
+  for (const id of ['vtDetailCartons', 'vtDetailPieces', 'vtDetailAvailable', 'vtDetailKiot']) assert.equal(ui.text(id), '—');
+  ui.type('notes', '3T x 100');
+  for (const id of ['vtDetailCartons', 'vtDetailPieces', 'vtDetailAvailable']) assert.equal(ui.text(id), '—');
+});
+
 test('mở bằng Enter/Space trên dòng; đang bôi đen chữ thì bấm dòng không mở', async t => {
   const ui = await setup(t);
   const tr = ui.doc.querySelector('#vtRows tr[data-id="2"]');

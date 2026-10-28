@@ -294,7 +294,7 @@ test('import replace: xem truoc khong ghi, xac nhan thay toan bo (them/doi/xoa),
     const done = await service.importFile(ctx(), 'HN', { mode: 'replace', commit: true, buffer, fileName: 'vt.xlsx' });
     assert.equal(done.imported, true);
     const rows = (await service.list(ctx(), 'HN')).rows;
-    assert.deepEqual(rows.map(r => [r.code, r.notes, r.arrivalDate, r.location]), [['AAA1', '5T x 100', '1/10', 'H1'], ['ZZZ9', '3T x 20', 'KK 4.10', 'H9']]);
+    assert.deepEqual(rows.map(r => [r.code, r.notes, r.arrivalDate, r.location]), [['AAA1', '5T x 100', '1/10', 'H1'], ['ZZZ9', '1t*20 + 2T*20', 'KK 4.10', 'H9']]);
     const history = (await service.history(ctx(), 'HN')).rows;
     const summary = history.find(h => h.action === 'import_replace');
     assert.equal(summary.summary.file, 'vt.xlsx');
@@ -354,6 +354,62 @@ test('import loi: thieu cot, ghi chu sai dinh dang, trung ma + vi tri trong file
     assert.equal(dated.counts.updated, 1);
     const row = (await service.list(ctx(), 'HN')).rows.find(r => r.location === 'H1');
     assert.match(row.arrivalDate, /^\d{2}\/\d{2}(\/\d{4})?$/);
+  } finally { await db.close(); }
+});
+
+test('import: mã ngoài Kiot giữ tên và ghi chú tự do, cập nhật tên và không tự tính SL', async () => {
+  const { db, service } = await fixture();
+  try {
+    const header = ['Mã', 'Tên hàng', 'Thùng', 'Ngày về', 'Ô'];
+    const buffer = workbook([header, ['NEW1', 'Hàng mẫu', 'Chưa kiểm đếm', '28/10', 'a 1'], ['AAA1', 'Tên Excel', '1T x 5', '', 'A2'], ['NEW2', 'Hàng rỗng', '', '', 'A3']]);
+    const preview = await service.importFile(ctx(), 'HN', { mode: 'replace', buffer });
+    assert.equal(preview.counts.errors, 0);
+    await service.importFile(ctx(), 'HN', { mode: 'replace', commit: true, buffer });
+    let rows = (await service.list(ctx(), 'HN')).rows;
+    const manual = rows.find(r => r.code === 'NEW1');
+    assert.deepEqual([manual.name, manual.notes, manual.arrivalDate, manual.location, manual.quantity, manual.available, manual.kiotQuantity], ['Hàng mẫu', 'Chưa kiểm đếm', '28/10', 'A1', null, null, null]);
+    assert.equal(rows.find(r => r.code === 'AAA1').name, 'Hàng A một');
+    assert.ok(rows.some(r => r.code === 'NEW2'));
+    await service.importFile(ctx(), 'HN', { mode: 'add', commit: true, buffer: workbook([header, ['NEW1', 'Tên mới', '1T x 5', '', 'A1']]) });
+    rows = (await service.list(ctx(), 'HN')).rows;
+    const updated = rows.find(r => r.code === 'NEW1');
+    assert.deepEqual([updated.name, updated.notes, updated.quantity], ['Tên mới', 'Chưa kiểm đếm + 1T x 5', null]);
+    assert.ok((await service.history(ctx(), 'HN')).rows.some(r => r.field === 'name' && r.newValue === 'Tên mới'));
+    await service.importFile(ctx(), 'HN', { mode: 'replace', commit: true, buffer: workbook([header, ['NEW1', 'Tên mới', '2T x 5', '', 'A1']]) });
+    const numeric = (await service.list(ctx(), 'HN')).rows[0];
+    assert.equal(numeric.quantity, null);
+    await assert.rejects(() => service.deduct(ctx(), numeric.id, { version: numeric.version, quantity: 1 }), { code: 'NOT_DEDUCTIBLE' });
+    const edited = await service.update(ctx(), numeric.id, { version: numeric.version, notes: '' });
+    assert.equal(edited.row.notes, '');
+    assert.equal(edited.row.quantity, null);
+  } finally { await db.close(); }
+});
+
+test('import: mã bỏ mọi khoảng trắng, viết hoa và tra đúng tên Kiot; hàng ngoài Kiot gộp space', async () => {
+  const { db, service } = await fixture();
+  try {
+    const header = ['Mã', 'Tên hàng', 'Ghi chú', 'Ngày về', 'Vị trí'];
+    const buffer = workbook([header,
+      [' a a\ta1 ', 'Tên Excel sai', ' 1t  x  5 ', '  KK   28.10 ', ' a 1 '],
+      [' ne\tw 1 ', '  Hàng   mẫu  ', '  Chưa   kiểm\tđếm  ', '  KK   28.10 ', ' a 2 ']
+    ]);
+    await service.importFile(ctx(), 'HN', { mode: 'replace', commit: true, buffer });
+    const rows = (await service.list(ctx(), 'HN')).rows;
+    assert.deepEqual(rows.map(r => [r.code, r.name, r.notes, r.arrivalDate, r.location]), [
+      ['AAA1', 'Hàng A một', '1T x 5', 'KK 28.10', 'A1'],
+      ['NEW1', 'Hàng mẫu', 'Chưa kiểm đếm', 'KK 28.10', 'A2']
+    ]);
+    const stored = (await db.query('SELECT code FROM stock_positions ORDER BY id')).rows;
+    assert.deepEqual(stored.map(r => r.code), ['AAA1', 'NEW1']);
+    const added = await service.create(ctx(), 'HN', { code: ' a a a 1 ', notes: '1T x 5', location: 'A1' });
+    assert.equal(added.merged, true);
+    assert.equal(added.row.quantity, 10);
+    await db.query("UPDATE stock_positions SET code = ' n e w 1 ', notes = ' Chưa   kiểm đếm ' WHERE code = 'NEW1'");
+    await service.importFile(ctx(), 'HN', { mode: 'add', commit: true, buffer: workbook([header, ['n e w 1', '', ' Ghi   thêm ', '', 'A2']]) });
+    const unknown = (await service.list(ctx(), 'HN')).rows.find(r => r.code === 'NEW1');
+    assert.equal(unknown.name, 'Hàng mẫu');
+    assert.equal(unknown.notes, 'Chưa kiểm đếm + Ghi thêm');
+    assert.equal((await db.query("SELECT code FROM stock_positions WHERE id = $1", [unknown.id])).rows[0].code, 'NEW1');
   } finally { await db.close(); }
 });
 

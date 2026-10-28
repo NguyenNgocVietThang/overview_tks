@@ -23,7 +23,8 @@ function fail(statusCode, code, message, extra = {}) {
 }
 
 const clean = value => String(value ?? '').replace(/\s+/gu, ' ').trim();
-const lower = value => clean(value).toLocaleLowerCase('vi');
+const normalizeCode = value => String(value ?? '').replace(/\s+/gu, '').toLocaleUpperCase('vi');
+const lower = value => normalizeCode(value).toLocaleLowerCase('vi');
 // Vị trí chuẩn hóa: bỏ mọi khoảng trắng và viết hoa ("a 05" -> "A05"); dùng khi nhập liệu và khi so trùng.
 const normalizeLocation = value => String(value ?? '').replace(/\s+/gu, '').toLocaleUpperCase('vi');
 const keyOf = (code, location) => `${lower(code)}|${normalizeLocation(location)}`;
@@ -55,7 +56,7 @@ function actorOf(ctx) {
 }
 
 function textField(body, field, label) {
-  const value = clean(body[field]);
+  const value = field === 'code' ? normalizeCode(body[field]) : clean(body[field]);
   if (value.length > MAX[field]) throw fail(400, 'VALIDATION', `${label} tối đa ${MAX[field]} ký tự.`, { field });
   return value;
 }
@@ -66,7 +67,7 @@ function locationField(body) {
 }
 
 function validNotes(body) {
-  const notes = carton.normalizeNote(body.notes);
+  const notes = carton.normalizeNote(clean(body.notes));
   if (notes.length > MAX.notes) throw fail(400, 'VALIDATION', `Ghi chú tối đa ${MAX.notes} ký tự.`, { field: 'notes' });
   return notes;
 }
@@ -108,11 +109,11 @@ const ON_HAND_SQL = `
   SELECT p.code, p.name, COALESCE(SUM((inv->>'onHand')::numeric), 0)::float8 AS on_hand
   FROM products p
   LEFT JOIN LATERAL jsonb_array_elements(COALESCE(p.raw->'inventories', '[]'::jsonb)) inv ON true
-  WHERE p.branch = $1 AND p.code = ANY($2::text[])
+  WHERE p.branch = $1 AND upper(regexp_replace(p.code, '\\s+', '', 'g')) = ANY($2::text[])
   GROUP BY p.code, p.name`;
 
 // Tra khong phan biet hoa/thuong de chuan hoa ma nhap tay / import ve ma KiotViet (khong dung duoc index nen chi goi luc ghi).
-const RESOLVE_SQL = `SELECT code, name FROM products WHERE branch = $1 AND lower(code) = ANY($2::text[])`;
+const RESOLVE_SQL = `SELECT code, name FROM products WHERE branch = $1 AND lower(regexp_replace(code, '\\s+', '', 'g')) = ANY($2::text[])`;
 
 // Giu cho cua cac don "Dang nhat" (order_pick_assignments.status = 'picking', 0096) theo vi tri: 1 truy van gop cho ca bang.
 // Chi chi dinh 'picking' giu cho; 'confirmed' da tru thung that, 'cancelled' da tra. Cung cong thuc voi pickAssignmentsService.heldByPosition (khong loai tru don nao).
@@ -157,12 +158,12 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
     if (stale.length) {
       const found = new Map();
       try {
-        for (const row of (await db.query(ON_HAND_SQL, [DB_BRANCH[branch], stale])).rows) found.set(row.code, { name: row.name, onHand: Number(row.on_hand) });
+        for (const row of (await db.query(ON_HAND_SQL, [DB_BRANCH[branch], stale.map(normalizeCode)])).rows) found.set(normalizeCode(row.code), { name: clean(row.name), onHand: Number(row.on_hand) });
       } catch (error) {
         console.error('[StockPositions] products lookup failed:', error.code || error.message);
         return new Map(); // khong tra duoc SL Kiot: de trong, khong lam hong bang
       }
-      for (const code of stale) cache.set(code, { at: now(), product: found.get(code) || null });
+      for (const code of stale) cache.set(code, { at: now(), product: found.get(normalizeCode(code)) || null });
     }
     return new Map(codes.map(code => [code, cache.get(code)?.product || null]));
   }
@@ -171,7 +172,7 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
     const keys = [...new Set(codes.map(lower).filter(Boolean))];
     const map = new Map();
     if (!keys.length) return map;
-    for (const row of (await db.query(RESOLVE_SQL, [DB_BRANCH[branch], keys])).rows) map.set(lower(row.code), { code: row.code, name: row.name });
+    for (const row of (await db.query(RESOLVE_SQL, [DB_BRANCH[branch], keys])).rows) map.set(lower(row.code), { code: normalizeCode(row.code), name: clean(row.name) });
     return map;
   }
 
@@ -190,15 +191,15 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
   }
 
   function shape(row, product, held = 0) {
-    const spec = carton.parseSpec(row.notes);
+    const spec = product ? carton.parseSpec(row.notes) : null;
     const rawWarnings = carton.warnings(row.notes, { unknownCode: !product });
     return {
       id: Number(row.id),
-      code: row.code,
-      name: (product && product.name) || row.name,
+      code: normalizeCode(row.code),
+      name: clean(product ? product.name : row.name),
       // Dữ liệu seed/cũ chưa qua validNotes: chuẩn hóa cả khi đọc để bảng và Excel dùng cùng dạng gộp.
-      notes: carton.normalizeNote(row.notes),
-      arrivalDate: row.arrival_date,
+      notes: product ? carton.normalizeNote(row.notes) : clean(row.notes),
+      arrivalDate: clean(row.arrival_date),
       location: row.location,
       quantity: spec ? spec.quantity : null,
       held,
@@ -237,7 +238,7 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
   // Dong da co cung (ma, vi tri) (khong phan biet hoa/thuong); exceptId bo qua chinh dong dang sua.
   async function findSamePosition(client, branch, code, location, exceptId = null) {
     const { rows } = await client.query(
-      `SELECT ${ROW_COLUMNS} FROM stock_positions WHERE branch = $1 AND lower(btrim(code)) = $2 AND upper(regexp_replace(location, '\\s+', '', 'g')) = $3
+      `SELECT ${ROW_COLUMNS} FROM stock_positions WHERE branch = $1 AND lower(regexp_replace(code, '\\s+', '', 'g')) = $2 AND upper(regexp_replace(location, '\\s+', '', 'g')) = $3
          AND ($4::bigint IS NULL OR id <> $4) ORDER BY id LIMIT 1 FOR UPDATE`,
       [branch, lower(code), normalizeLocation(location), exceptId]);
     return rows[0] || null;
@@ -280,7 +281,7 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
       await writeHistory(client, branch, actor, [{ positionId: rows[0].id, code: finalCode, location, action: 'create', newValue: notes, summary: { notes, arrivalDate, location } }]);
       return rows[0].id;
     });
-    productCache.get(branch)?.delete(clean(code));
+    productCache.get(branch)?.delete(code);
     const row = (await db.query(`SELECT ${ROW_COLUMNS} FROM stock_positions WHERE id = $1`, [id])).rows[0];
     return { row: await shapeOne(db, row), merged };
   }
@@ -306,7 +307,8 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
     return withTransaction(db, async client => {
       const row = await lockRow(client, ctx, id, body.version);
       const next = {};
-      if (body.notes !== undefined) next.notes = validNotes(body);
+      const knownProduct = (await resolveCodes(client, row.branch, [row.code])).has(lower(row.code));
+      if (body.notes !== undefined) next.notes = knownProduct ? validNotes(body) : textField(body, 'notes', 'Ghi chú');
       if (body.arrivalDate !== undefined) next.arrivalDate = textField(body, 'arrivalDate', 'Ngày về');
       if (body.location !== undefined) next.location = locationField(body);
       const changes = fieldChanges(row, next);
@@ -315,7 +317,7 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
       if (next.location !== undefined && await findSamePosition(client, row.branch, row.code, merged.location, row.id)) {
         throw fail(409, 'DUPLICATE_POSITION', 'Mã hàng này đã có ở vị trí đó. Hãy dùng Thêm dòng để cộng vào dòng sẵn có.', { field: 'location' });
       }
-      if (next.notes !== undefined && isEmptyNote(merged.notes)) {
+      if (knownProduct && next.notes !== undefined && isEmptyNote(merged.notes)) {
         if (!body.confirmEmpty) throw fail(409, 'WOULD_AUTO_DELETE', 'Số lượng về 0 nên dòng sẽ bị xóa. Xác nhận để tiếp tục.');
         await removeRow(client, row.branch, actor, row, 'auto_delete', { newValue: merged.notes });
         return { deleted: true, id: Number(row.id) };
@@ -336,6 +338,9 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
     const actor = actorOf(ctx);
     return withTransaction(getDb(), async client => {
       const row = await lockRow(client, ctx, id, body.version);
+      if (!(await resolveCodes(client, row.branch, [row.code])).has(lower(row.code))) {
+        throw fail(400, 'NOT_DEDUCTIBLE', 'Mã hàng chưa có trên KiotViet nên không tự động trừ số lượng được.');
+      }
       const spec = carton.parseSpec(row.notes);
       if (!spec || spec.empty) throw fail(400, 'NOT_DEDUCTIBLE', 'Ghi chú không đọc được hoặc đã hết hàng nên không trừ được.');
       const result = carton.deduct(spec, quantity);
@@ -460,29 +465,30 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
     const entries = new Map(); // (ma, vi tri) -> dong da gop (dong trung trong file tu cong ghi chu)
     const touched = new Set();
     for (const line of fileRows) {
-      const code = clean(line.code);
+      const code = normalizeCode(line.code);
       if (!code) { errors.push({ row: line.row, message: 'Thiếu mã hàng.' }); continue; }
+      const product = resolved.get(lower(code));
       const location = normalizeLocation(line.location);
-      const notes = carton.normalizeNote(line.notes);
+      const notes = product ? carton.normalizeNote(clean(line.notes)) : clean(line.notes);
       if (notes.length > MAX.notes || code.length > MAX.code || location.length > MAX.location || clean(line.arrivalDate).length > MAX.arrivalDate) {
         errors.push({ row: line.row, message: 'Dữ liệu quá dài (mã ≤ 60, ghi chú ≤ 500, ngày về ≤ 60, vị trí ≤ 100 ký tự).' }); continue;
       }
       const spec = carton.parseSpec(notes);
-      if (!spec) { errors.push({ row: line.row, message: `Ghi chú "${notes}" sai định dạng (cần dạng 3T x 100, nối nhiều quy cách bằng +).` }); continue; }
-      if (spec.quantity === 0) { skippedEmpty += 1; continue; }
-      const product = resolved.get(lower(code));
+      if (product && !spec) { errors.push({ row: line.row, message: `Ghi chú "${notes}" sai định dạng (cần dạng 3T x 100, nối nhiều quy cách bằng +).` }); continue; }
+      if (product && spec.quantity === 0) { skippedEmpty += 1; continue; }
       const finalCode = product ? product.code : code;
       const key = keyOf(finalCode, location);
       const arrivalDate = clean(line.arrivalDate);
       const earlier = entries.get(key);
       if (earlier) {
-        const sum = mergeNotes(earlier.notes, notes);
+        const sum = product ? mergeNotes(earlier.notes, notes) : [earlier.notes, notes].filter(Boolean).join(' + ');
         if (sum === null) { errors.push({ row: line.row, message: `Ghi chú dòng ${earlier.row} sai định dạng, không cộng được dòng trùng này.` }); continue; }
         earlier.notes = sum;
         earlier.arrivalDate = arrivalDate || earlier.arrivalDate;
+        earlier.name = (product ? product.name : clean(line.name)) || earlier.name;
         continue;
       }
-      entries.set(key, { row: line.row, code: finalCode, name: product ? product.name : '', notes, arrivalDate, location });
+      entries.set(key, { row: line.row, code: finalCode, name: product ? product.name : clean(line.name), notes, arrivalDate, location });
     }
     for (const entry of entries.values()) {
       const { row, notes, arrivalDate, location } = entry;
@@ -492,14 +498,15 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
       let nextNotes = notes;
       let nextDate = arrivalDate;
       let nextLocation = location;
+      const nextName = resolved.has(lower(entry.code)) ? entry.name : entry.name || clean(current.name);
       if (mode === 'add') {
-        nextNotes = mergeNotes(current.notes, notes);
+        nextNotes = resolved.has(lower(entry.code)) ? mergeNotes(current.notes, notes) : [clean(current.notes), notes].filter(Boolean).join(' + ');
         if (nextNotes === null) { errors.push({ row, message: `Ghi chú hiện có "${current.notes}" sai định dạng, không cộng thêm được.` }); continue; }
-        nextDate = arrivalDate || current.arrival_date;
+        nextDate = arrivalDate || clean(current.arrival_date);
         nextLocation = location; // khop khong phan biet hoa/thuong/khoang trang: ghi lai theo dang chuan
       }
-      if (nextNotes === current.notes && nextDate === current.arrival_date && nextLocation === current.location) unchangedIds.push(current.id);
-      else updates.push({ id: current.id, code: current.code, notes: nextNotes, arrivalDate: nextDate, location: nextLocation, row, before: current });
+      if (nextNotes === current.notes && nextDate === current.arrival_date && nextLocation === current.location && nextName === current.name && entry.code === current.code) unchangedIds.push(current.id);
+      else updates.push({ id: current.id, code: entry.code, name: nextName, notes: nextNotes, arrivalDate: nextDate, location: nextLocation, row, before: current });
     }
     // Thay toan bo: dong hien co khong nam trong file bi xoa (ke ca dong trung ma + vi tri thua).
     const deletes = mode === 'replace' ? existing.filter(row => !touched.has(row.id)) : [];
@@ -543,11 +550,13 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
       if (plan.updates.length) {
         const col = pick => plan.updates.map(pick);
         await client.query(
-          `UPDATE stock_positions p SET notes = u.notes, arrival_date = u.arrival_date, location = u.location, version = p.version + 1,
+          `UPDATE stock_positions p SET code = u.code, notes = u.notes, arrival_date = u.arrival_date, location = u.location, name = u.name, version = p.version + 1,
              updated_by_user_id = $2, updated_by_name = $3, updated_at = now()
-           FROM unnest($1::bigint[], $4::text[], $5::text[], $6::text[]) AS u(id, notes, arrival_date, location) WHERE p.id = u.id`,
-          [col(u => u.id), actor.id, actor.name, col(u => u.notes), col(u => u.arrivalDate), col(u => u.location)]);
+           FROM unnest($1::bigint[], $4::text[], $5::text[], $6::text[], $7::text[], $8::text[]) AS u(id, notes, arrival_date, location, name, code) WHERE p.id = u.id`,
+          [col(u => u.id), actor.id, actor.name, col(u => u.notes), col(u => u.arrivalDate), col(u => u.location), col(u => u.name), col(u => u.code)]);
         for (const u of plan.updates) {
+          if (u.code !== u.before.code) entries.push({ positionId: u.id, code: u.code, location: u.location, action: 'edit', field: 'code', oldValue: u.before.code, newValue: u.code });
+          if (u.name !== u.before.name) entries.push({ positionId: u.id, code: u.code, location: u.location, action: 'edit', field: 'name', oldValue: u.before.name, newValue: u.name });
           for (const change of fieldChanges(u.before, { notes: u.notes, arrivalDate: u.arrivalDate, location: u.location })) {
             entries.push({ positionId: u.id, code: u.code, location: u.location, action: 'edit', ...change });
           }

@@ -8,9 +8,9 @@ const XLSX = require('xlsx');
 const HEADER_SCAN_ROWS = 20;
 const COLUMNS = Object.freeze({
   code: { label: 'Mã hàng', aliases: ['ma hang', 'ma sp', 'ma san pham', 'ma'] },
-  notes: { label: 'Ghi chú', aliases: ['ghi chu', 'ghi chu so thung', 'ghi chu hang hoa', 'mo ta'] },
+  notes: { label: 'Ghi chú', aliases: ['ghi chu', 'ghi chu so thung', 'thung', 'ghi chu hang hoa', 'mo ta'] },
   arrivalDate: { label: 'Ngày về', aliases: ['ngay ve'] },
-  location: { label: 'Vị trí', aliases: ['vi tri', 'khu'] }
+  location: { label: 'Vị trí', aliases: ['vi tri', 'vt', 'o', 'khu'] }
 });
 
 function importError(code, message) {
@@ -64,6 +64,10 @@ function parseImportWorkbook(buffer, { fileName = '', now = new Date() } = {}) {
       for (const [key, def] of Object.entries(COLUMNS)) if (found[key] === undefined && def.aliases.includes(text)) found[key] = c;
     }
     const hits = Object.keys(found).length;
+    // Tên hàng là cột tùy chọn, không ảnh hưởng việc tìm đủ 4 cột bắt buộc.
+    for (let c = range.s.c; c <= range.e.c; c += 1) {
+      if (['ten hang', 'ten sp', 'ten san pham'].includes(fold(plainText(cellAt(r, c))))) { found.name = c; break; }
+    }
     if (hits === 4) { best = { r, found, hits }; break; }
     if (hits > 0 && (!best || hits > best.hits)) best = { r, found, hits };
   }
@@ -76,6 +80,7 @@ function parseImportWorkbook(buffer, { fileName = '', now = new Date() } = {}) {
     const line = {
       row: r + 1,
       code: plainText(cellAt(r, best.found.code)),
+      name: best.found.name === undefined ? '' : plainText(cellAt(r, best.found.name)),
       notes: plainText(cellAt(r, best.found.notes)),
       arrivalDate: dateText(cellAt(r, best.found.arrivalDate), now),
       location: plainText(cellAt(r, best.found.location))

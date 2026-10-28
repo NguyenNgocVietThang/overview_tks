@@ -9,7 +9,7 @@ const ACTION_LABELS = Object.freeze({
   // 2026-10-28: co Da sua + dau vet xoa lich su (migration 0099).
   ack: 'Đánh dấu Đã sửa', unack: 'Bỏ Đã sửa', history_purged: 'Xóa lịch sử'
 });
-const FIELD_LABELS = Object.freeze({ code: 'Mã hàng', notes: 'Ghi chú', arrivalDate: 'Ngày về', location: 'Vị trí', quantity: 'Số lượng' });
+const FIELD_LABELS = Object.freeze({ code: 'Mã hàng', name: 'Tên hàng', notes: 'Ghi chú', arrivalDate: 'Ngày về', location: 'Vị trí', quantity: 'Số lượng' });
 const SUMMARY_KEYS = Object.freeze([['added', 'Thêm'], ['updated', 'Đổi'], ['deleted', 'Xóa'], ['skippedEmpty', 'Bỏ qua']]);
 const WARNING_LABELS = Object.freeze({ multi: 'Nhiều quy cách', loose: 'Trừ lẻ', unreadable: 'Sai định dạng', badnumber: 'Số thùng sai', unknowncode: 'Mã SP lạ' });
 const vnDate = iso => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
