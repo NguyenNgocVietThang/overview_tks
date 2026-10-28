@@ -839,6 +839,8 @@
       if (!response.ok) { error.textContent = payload.error || 'Không xóa được lịch sử.'; return; }
       closeDialog($('vtPurgeDialog'));
       loadHistory(false);
+    } catch (err) {
+      error.textContent = 'Không xóa được lịch sử (lỗi kết nối).';
     } finally {
       $('vtPurgeOk').disabled = false;
     }

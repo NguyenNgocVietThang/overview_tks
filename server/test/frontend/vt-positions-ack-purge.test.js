@@ -129,6 +129,8 @@ test('Xóa lịch sử: để trống 2 ngày = xóa toàn bộ (không gửi fr
   doc.getElementById('vtHistoryPurge').click();
   doc.getElementById('vtPurgeCancel').click();
   assert.equal(calls.filter(c => c.method === 'DELETE').length, 0);
+  assert.equal(doc.getElementById('vtPurgeDialog').hasAttribute('open'), false);
+  assert.ok(doc.getElementById('vtHistoryDialog').hasAttribute('open'));
   doc.getElementById('vtHistoryPurge').click();
   doc.getElementById('vtPurgeOk').click();
   await settle();
@@ -141,4 +143,50 @@ test('Xóa lịch sử: không có quyền historyDelete thì ẩn nút', async 
   const ui = await setup(t, { canDeleteHistory: false });
   await openHistory(ui);
   assert.equal(ui.doc.getElementById('vtHistoryPurge').hidden, true);
+});
+
+const histGets = calls => calls.filter(c => c.method === 'GET' && c.path === '/api/stock-positions/history').length;
+
+test('Xóa lịch sử: máy chủ báo lỗi thì hiện lỗi, giữ hộp mở, không tải lại lịch sử', async t => {
+  const ui = await setup(t, { handlers: { 'DELETE /api/stock-positions/history': () => json({ error: 'Lỗi máy chủ' }, 500) } });
+  const { doc, calls } = ui;
+  await openHistory(ui);
+  doc.getElementById('vtHistoryPurge').click();
+  const before = histGets(calls);
+  doc.getElementById('vtPurgeOk').click();
+  await settle();
+  assert.equal(doc.getElementById('vtPurgeError').textContent, 'Lỗi máy chủ');
+  assert.ok(doc.getElementById('vtPurgeDialog').hasAttribute('open'));
+  assert.equal(histGets(calls), before);
+  assert.equal(doc.getElementById('vtPurgeOk').disabled, false);
+});
+
+test('Xóa lịch sử: lỗi kết nối hiện thông báo và bật lại nút OK', async t => {
+  const ui = await setup(t, { handlers: { 'DELETE /api/stock-positions/history': () => { throw new Error('network'); } } });
+  const { doc } = ui;
+  await openHistory(ui);
+  doc.getElementById('vtHistoryPurge').click();
+  doc.getElementById('vtPurgeOk').click();
+  await settle();
+  assert.equal(doc.getElementById('vtPurgeError').textContent, 'Không xóa được lịch sử (lỗi kết nối).');
+  assert.equal(doc.getElementById('vtPurgeOk').disabled, false);
+  assert.ok(doc.getElementById('vtPurgeDialog').hasAttribute('open'));
+});
+
+test('Xóa lịch sử: ngày nhuận hợp lệ, ngày không tồn tại bị từ chối', async t => {
+  const ui = await setup(t, { handlers: { 'DELETE /api/stock-positions/history': () => json({ deleted: 1, from: '2024-02-29', to: null }) } });
+  const { doc, calls } = ui;
+  await openHistory(ui);
+  doc.getElementById('vtHistoryPurge').click();
+  doc.getElementById('vtPurgeFrom').value = '31/04/2026';
+  doc.getElementById('vtPurgeOk').click();
+  await settle();
+  assert.match(doc.getElementById('vtPurgeError').textContent, /dd\/mm\/yyyy/);
+  assert.equal(calls.filter(c => c.method === 'DELETE').length, 0);
+  doc.getElementById('vtPurgeFrom').value = '29/02/2024';
+  doc.getElementById('vtPurgeOk').click();
+  await settle();
+  const del = calls.find(c => c.method === 'DELETE');
+  assert.equal(del.query.get('from'), '2024-02-29');
+  assert.equal(del.query.has('to'), false);
 });
