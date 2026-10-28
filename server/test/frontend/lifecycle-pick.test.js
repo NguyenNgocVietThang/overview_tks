@@ -261,7 +261,7 @@ test('Xác nhận & In: POST đúng phân bổ, đóng popup, mở phiếu in c�
   assert.match(sheet, /KH A/);
   assert.match(sheet, /Sale A - 123456/, 'tên sale kèm ID Telegram');
   assert.match(sheet, /A07/);
-  assert.match(sheet, /2Tx50/);
+  assert.match(sheet, /2T x 50/);
   assert.equal(page.document.querySelector('#pickingPrintSheet td.invoice-actual').textContent.trim(), '', 'Thực tế nhặt để trống');
   assert.match(page.document.querySelector('#lcDetailKiot .picking-confirmed').textContent, /Đã chỉ định · Đang nhặt/);
   // dòng đơn trên danh sách có nhãn trạng thái ngay trong ô mã đơn (không thêm cột)
@@ -481,10 +481,23 @@ test('in lại (In đơn) mở phiếu từ bản ghi chỉ định; Hủy nhặ
   await click(page, 'pickingReprint');
   assert.equal(page.document.getElementById('pickingPrintDialog').hasAttribute('open'), true);
   assert.match(page.document.getElementById('pickingPrintTitle').textContent, /PHIẾU ĐẶT HÀNG · DH1/);
-  assert.match(page.document.getElementById('pickingPrintSheet').textContent, /2Tx50/);
+  assert.match(page.document.getElementById('pickingPrintSheet').textContent, /2T x 50/);
   // phiếu của đơn đã hủy: không còn ST
   await page.window.PickingInvoice.show({ ...makeAssignment('cancelled').snapshot, orderCode: 'DH1', branch: 'HN' }, makeAssignment('cancelled'));
-  assert.doesNotMatch(page.document.getElementById('pickingPrintSheet').textContent, /2Tx50/);
+  assert.doesNotMatch(page.document.getElementById('pickingPrintSheet').textContent, /2T x 50/);
+  page.dom.window.close();
+});
+
+test('phiếu in: ST gộp mọi vị trí của một mã (5T x 200 + 1T x 50 - 30), đỏ khi có phần thiếu', async () => {
+  const page = await renderPage();
+  await openPopup(page);
+  const job = (id, location, plannedQty, stCartons, stText) => ({ id, productCode: 'A', positionId: id, location, plannedQty, reservedQty: plannedQty, stCartons, stText });
+  const record = makeAssignment('picking', { lines: [job(1, '1', 400, 2, '2Tx200'), job(2, '24', 600, 3, '3Tx200'), job(3, 'SSP1', 20, 1, '1Tx50-30')] });
+  const snapshot = { ...record.snapshot, lines: [{ productCode: 'A', productName: 'Hàng A', quantity: 1020, price: 1000, discount: 0 }] };
+  await page.window.PickingInvoice.show({ ...snapshot, orderCode: 'DH1', branch: 'HN' }, record);
+  const st = page.document.querySelector('#pickingPrintSheet tbody td.invoice-st');
+  assert.equal(st.textContent.trim(), '5T x 200 + 1T x 50 - 30');
+  assert.ok(st.classList.contains('invoice-st-frac'));
   page.dom.window.close();
 });
 

@@ -100,7 +100,9 @@ async function show(order,record){
     const placement=priorLine?'Vị trí/Thùng: xem dòng '+priorLine:zones.map(z=>z.name).join(' / ');
     // ST lấy từ bản ghi chỉ định nên in lại ra cùng số; trống khi đã Hủy nhặt hoặc chưa có quy cách thùng.
     const cancelled=record.status==='cancelled';
-    const stLabel=cancelled||priorLine?'':jobs.map(j=>j.stText).filter(Boolean).join(' + ');
+    // Gộp ST của mọi vị trí thành một chuỗi (5T x 100 + 2T x 50 - 30); chuỗi nào không đọc được thì giữ cách nối cũ.
+    const stTexts=jobs.map(j=>j.stText).filter(Boolean),mergedSt=window.PickingCarton&&stTexts.length?window.PickingCarton.mergeSt(stTexts):null;
+    const stLabel=cancelled||priorLine?'':(mergedSt?mergedSt.text:stTexts.join(' + '));
     const cartons=jobs.every(j=>typeof j.stCartons==='number')&&jobs.length?jobs.reduce((n,j)=>n+j.stCartons,0):null;
     const rendered=document.createElement('tbody');
     rendered.innerHTML=replace(row.outerHTML,{
