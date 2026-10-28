@@ -55,6 +55,7 @@
 .vt-table tr.vt-warning .vt-pill{color:var(--text)}
 .vt-table tr.vt-warning .vt-updated-by{color:var(--muted)}
 .vt-badge{display:flex;align-items:center;gap:5px;margin-top:5px;padding:2px 9px 2px 7px;width:fit-content;max-width:100%;border:1px solid color-mix(in srgb,var(--red) 60%,transparent);border-radius:999px;background:color-mix(in srgb,var(--red) 12%,transparent);font-size:11px;font-weight:600;color:var(--red)}
+.vt-badge.is-ack{border-color:color-mix(in srgb,var(--green,#2e9e5b) 60%,transparent);background:color-mix(in srgb,var(--green,#2e9e5b) 12%,transparent);color:var(--green,#2e9e5b)}
 .vt-badge-icon{width:12px;height:12px;flex:none}
 .vt-table tbody tr.vt-row{cursor:pointer}
 .vt-table tbody tr.vt-row:hover td{background:color-mix(in srgb,var(--blue) 9%,transparent)}

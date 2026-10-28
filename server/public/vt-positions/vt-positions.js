@@ -22,7 +22,8 @@
   const ACTION_LABELS = {
     seed: 'Nhập dữ liệu đầu', create: 'Thêm dòng', edit: 'Sửa', delete: 'Xóa dòng', auto_delete: 'Tự xóa (hết hàng)',
     deduct: 'Trừ SL', import_replace: 'Import thay toàn bộ', import_add: 'Import bổ sung',
-    pick: 'Nhặt hàng (đơn)', pick_revert: 'Hoàn tác nhặt (đơn)'
+    pick: 'Nhặt hàng (đơn)', pick_revert: 'Hoàn tác nhặt (đơn)',
+    ack: 'Đánh dấu Đã sửa', unack: 'Bỏ Đã sửa', history_purged: 'Xóa lịch sử'
   };
   const FIELD_LABELS = { code: 'Mã hàng', notes: 'Ghi chú', arrivalDate: 'Ngày về', location: 'Vị trí', quantity: 'Số lượng' };
   const collator = new Intl.Collator('vi', { numeric: true, sensitivity: 'base' });
@@ -47,6 +48,9 @@
   // Cảnh báo do máy chủ tính từ ghi chú (public/shared/carton.js); nhãn lấy từ PickingCarton khi có.
   const warningsOf = row => (Array.isArray(row.warnings) ? row.warnings : []);
   const warningText = row => warningsOf(row).map(code => WARNING_LABELS[code] || (window.PickingCarton && window.PickingCarton.WARNING_LABEL[code]) || code).join(', ');
+  // Cảnh báo gốc (kể cả khi dòng đã "Đã sửa" nên warnings rỗng).
+  const rawWarningsOf = row => (Array.isArray(row.rawWarnings) ? row.rawWarnings : warningsOf(row));
+  const warningLabel = code => WARNING_LABELS[code] || (window.PickingCarton && window.PickingCarton.WARNING_LABEL[code]) || code;
 
   function formatNumber(value) {
     return value === null || value === undefined || value === '' || !Number.isFinite(Number(value)) ? '' : QUANTITY_FORMAT.format(Number(value));
@@ -240,7 +244,14 @@
         pill.textContent = String(row.location);
         td.appendChild(pill);
       } else td.textContent = String(row[field] ?? '');
-      if (field === 'notes' && warnings.length) {
+      if (field === 'notes' && row.acknowledged === true) {
+        // Đã sửa: nhãn xanh, tooltip giữ lý do cảnh báo gốc.
+        const badge = document.createElement('span');
+        badge.className = 'vt-badge is-ack';
+        badge.textContent = 'Đã sửa';
+        badge.title = rawWarningsOf(row).map(warningLabel).join(', ');
+        td.appendChild(badge);
+      } else if (field === 'notes' && warnings.length) {
         // Nhãn chữ kèm tooltip để không chỉ dựa vào màu.
         const badge = document.createElement('span');
         badge.className = 'vt-badge';
@@ -407,16 +418,51 @@
     $('vtDetailStatLocation').textContent = dash(form.elements.location.value.trim());
     $('vtDetailStatArrival').textContent = dash(form.elements.arrivalDate.value.trim());
     const codes = carton && carton.warnings ? carton.warnings(notes) : [];
-    if (warningsOf(row).includes('unknowncode')) codes.push('unknowncode');
+    if (rawWarningsOf(row).includes('unknowncode')) codes.push('unknowncode');
     const box = $('vtDetailWarn');
     box.replaceChildren();
-    if (!codes.length) return;
-    const text = codes.map(code => WARNING_LABELS[code] || code).join(', ');
-    const badge = document.createElement('span');
-    badge.className = 'vt-badge';
-    badge.title = text;
-    badge.append(svgIcon('vt-badge-icon', WARN_ICON), document.createTextNode(text));
-    box.appendChild(badge);
+    const acked = row.acknowledged === true;
+    if (codes.length || acked) {
+      const text = codes.map(warningLabel).join(', ');
+      const badge = document.createElement('span');
+      badge.className = 'vt-badge' + (acked ? ' is-ack' : '');
+      badge.title = text;
+      if (acked) badge.textContent = 'Đã sửa' + (text ? ' · ' + text : '');
+      else badge.append(svgIcon('vt-badge-icon', WARN_ICON), document.createTextNode(text));
+      box.appendChild(badge);
+    }
+    if (editable() && (acked || codes.length)) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.id = 'vtDetailAck';
+      button.className = 'locations-columns-button vt-detail-ack';
+      button.textContent = acked ? 'Bỏ đánh dấu Đã sửa' : 'Đánh dấu Đã sửa';
+      button.addEventListener('click', ackDetail);
+      box.appendChild(button);
+    }
+  }
+
+  // Đổi cờ Đã sửa của dòng đang mở; dùng version mới nhất của dòng, cập nhật bảng + hộp chi tiết, tải lại lịch sử dòng.
+  async function ackDetail() {
+    if (detail.busy || !detail.row || !editable()) return;
+    const row = detail.row, tab = detail.tab;
+    setDetailError('');
+    setDetailBusy(true);
+    try {
+      const { response, payload } = await request(API + '/' + encodeURIComponent(row.id) + '/ack', jsonOptions('POST', { version: row.version, acknowledged: row.acknowledged !== true }));
+      if (!response.ok) {
+        if (payload.code === 'VERSION_CONFLICT') await handleFailure(payload);
+        else setDetailError(payload.error || 'Không đổi được trạng thái Đã sửa.');
+        return;
+      }
+      applyResult(tab, payload);
+      detail.row = payload.row;
+      renderDetailStats();
+      if (tab === activeTab) render();
+      loadDetailHistory(false);
+    } finally {
+      setDetailBusy(false);
+    }
   }
 
   // message: chữ thay cho danh sách rỗng (đang tải / lỗi); bỏ trống thì hiện kết quả đã tải.
@@ -659,11 +705,14 @@
   }
 
   // ---------- Lịch sử cập nhật ----------
+  const vnDate = iso => iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4);
   function historyValue(entry, side) {
     if (entry.summary && side === 'new') {
       const s = entry.summary, parts = [];
       [['added', 'Thêm'], ['updated', 'Đổi'], ['deleted', 'Xóa'], ['skippedEmpty', 'Bỏ qua']].forEach(([key, label]) => { if (s[key] !== undefined) parts.push(label + ' ' + s[key]); });
       if (s.rows !== undefined) parts.push(s.rows + ' dòng');
+      if ('from' in s || 'to' in s) parts.push(s.from && s.to ? vnDate(s.from) + ' – ' + vnDate(s.to) : s.from ? 'từ ' + vnDate(s.from) : s.to ? 'đến ' + vnDate(s.to) : 'toàn bộ');
+      if (Array.isArray(s.warnings)) parts.push(s.warnings.map(warningLabel).join(', '));
       if (s.fileName) parts.push(s.fileName);
       return parts.length ? parts.join(' · ') : JSON.stringify(s);
     }
@@ -713,7 +762,7 @@
   }
 
   // Nhãn hành động dạng pill: màu theo loại (có chữ nên không chỉ dựa vào màu).
-  const HISTORY_TONES = { edit: 'blue', create: 'green', import_add: 'green', delete: 'red', auto_delete: 'red', deduct: 'amber', pick: 'amber', pick_revert: 'blue', seed: 'neutral', import_replace: 'neutral' };
+  const HISTORY_TONES = { edit: 'blue', create: 'green', import_add: 'green', delete: 'red', auto_delete: 'red', deduct: 'amber', pick: 'amber', pick_revert: 'blue', seed: 'neutral', import_replace: 'neutral', ack: 'green', unack: 'neutral', history_purged: 'red' };
   const HISTORY_ICONS = {
     blue: '<path d="M4 20h4L19 9l-4-4L4 16v4Z"></path>',
     green: '<path d="M12 5v14M5 12h14"></path>',
