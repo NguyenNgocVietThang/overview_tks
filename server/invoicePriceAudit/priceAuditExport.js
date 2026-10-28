@@ -132,7 +132,7 @@ async function createPriceAuditExport({ rows = [], columns = null, format = 'xls
     key: c.key,
     header: c.label,
     width: c.wrap ? 40 : c.type === 'money' || c.type === 'number' ? 16 : 20,
-    style: c.type === 'money' ? { numFmt: '#,##0' } : c.type === 'number' ? { numFmt: '#,##0.##' } : (c.wrap ? { alignment: { wrapText: true, vertical: 'top' } } : {})
+    style: c.type === 'money' ? { numFmt: '#,##0' } : c.type === 'number' ? { numFmt: '#,##0' } : (c.wrap ? { alignment: { wrapText: true, vertical: 'top' } } : {})
   }));
   for (const row of rows) {
     sheet.addRow(picked.map(c => {
@@ -153,7 +153,7 @@ async function createPriceAuditExport({ rows = [], columns = null, format = 'xls
   for (const [label, value] of notes) info.addRow([safeText(label), typeof value === 'string' ? safeText(value) : value]);
   info.addRow(['Số dòng xuất', rows.length]);
   info.getRow(1).font = HEADER_FONT;
-  info.getColumn(2).numFmt = '#,##0.##';
+  info.getColumn(2).numFmt = '#,##0';
 
   return {
     buffer: Buffer.from(await workbook.xlsx.writeBuffer()),
@@ -244,7 +244,7 @@ async function createSaleSummaryExport({ rows = [], columns = null, format = 'xl
   info.columns = [{ header: 'Mục', key: 'label', width: 36 }, { header: 'Giá trị', key: 'value', width: 60 }];
   for (const [label, value] of notes) info.addRow([safeText(label), typeof value === 'string' ? safeText(value) : value]);
   info.getRow(1).font = HEADER_FONT;
-  info.getColumn(2).numFmt = '#,##0.##';
+  info.getColumn(2).numFmt = '#,##0';
   return {
     buffer: Buffer.from(await workbook.xlsx.writeBuffer()),
     mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

@@ -7,7 +7,7 @@ const { HEADER_FONT, frozenNoGridlinesView, applyFullTableBorder } = require('..
 const { ACTION_LABELS, FIELD_LABELS, summaryText } = require('./stockPositionsHistoryLabels');
 
 const VN_OFFSET_MS = 7 * 60 * 60 * 1000;
-const NUMBER = '#,##0.##';
+const NUMBER = '#,##0';
 
 // Chan cong thuc Excel do du lieu nguoi dung nhap (giong vatRequests/export.js).
 const safeText = value => (/^[\s]*[=+\-@]/u.test(String(value ?? '')) ? `'${value}` : String(value ?? ''));

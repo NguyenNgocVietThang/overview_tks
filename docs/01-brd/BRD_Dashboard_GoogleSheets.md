@@ -15,7 +15,7 @@
 | Tên dự án         | Hệ thống Dashboard nội bộ TOKOSI (KiotViet → Supabase PostgreSQL → Web; Google Sheets bổ trợ) |
 | Phiên bản         | 2.3                                                                 |
 | Ngày tạo          | 27/07/2026                                                          |
-| Ngày cập nhật     | 27/10/2026                                                          |
+| Ngày cập nhật     | 28/10/2026                                                          |
 | Đối tượng sử dụng | Ban lãnh đạo, nhân viên nội bộ công ty                              |
 | Trạng thái        | Nội dung nền rà soát tại HEAD `11751c4` (05/10); bổ sung Sổ quỹ đã kiểm chứng cục bộ 06/10, migration `0033` và deploy production còn chờ. |
 
@@ -192,6 +192,8 @@ Chỉ hàng **Đang kinh doanh** được tính; không còn KPI nhà cung cấp
 - Thông báo gần thời gian thực chỉ khi máy chủ chạy liên tục (quét mặc định 5 giây); máy chủ ngủ/tắt thì trì hoãn đến khi chạy lại. Hướng dẫn: [thiết lập bot](../telegram-manager-leave-setup.md).
 
 ## 5.9. Vị trí hàng
+
+- **Chỉnh sửa khi xem trước import VT (28/10/2026):** người có quyền sửa có thể thêm/sửa/xóa dữ liệu nhập trực tiếp trước khi xác nhận, gồm cả dòng lỗi, bỏ qua hoặc không đổi. Dòng trùng mã + vị trí được sửa trên từng dữ liệu nguồn để số lượng không bị cộng lại hai lần; khi Thay toàn bộ có thể **Giữ dòng** mà hệ thống dự kiến xóa. Cảnh báo/lỗi được đưa lên đầu; tìm mã/tên/vị trí/ghi chú không dấu, kết hợp bộ lọc cảnh báo và loại thao tác, xem toàn bộ danh sách qua phân trang 100 dòng. Hệ thống kiểm tra lại sau thay đổi, khóa xác nhận khi còn lỗi hoặc chưa kiểm tra thành công; lỗi kết nối giữ bản sửa để thử lại. Chỉ xác nhận mới ghi dữ liệu theo quyền và cơ sở hiện có; không bổ sung migration.
 
 - Mọi tài khoản nội bộ (không phải Khách) tra cứu vị trí hàng Hà Nội/Sài Gòn từ workbook Google Sheets dùng chung. Nhóm riêng trên sidebar có hai tab theo cơ sở đang chọn; bảng 6 cột (Mã hàng, Tên hàng, Tổng SL, Ghi chú hàng hóa, Ngày về, Vị trí), tìm mã/tên/vị trí không dấu, 100 dòng/trang, không xuất file.
 - Giữ từng dòng nguồn kể cả mã trùng, SL = 0 hoặc vị trí trống. Dữ liệu đọc mới mỗi lần mở tab/tải lại. Khách bị chặn hoàn toàn, kể cả khi được ghi đè cấp quyền. Xem [thiết lập/nguồn](../stock-locations-setup.md).
@@ -501,3 +503,7 @@ Kho được chọn thêm Phiếu xác nhận giao hàng theo mẫu bảy cột 
 28/10/2026 — **Form phiếu in dùng chung:** kéo viền chỉnh độ rộng cột/chiều cao hàng, bôi đen và Ctrl+] / Ctrl+[ chỉnh cỡ chữ (7–36pt), bỏ ô chọn định dạng. Lưu PostgreSQL theo mẫu `order`/`delivery` cho mọi người, mọi phiên/máy; GET/PUT `/api/shipment/pick/print-layout/:template` cần `shipment.pick`; kiểm tra version chống ghi đè (409). Chỉ lưu định dạng, không sửa text/số liệu. Migration `0100_shared_print_layouts.sql` chưa áp DB; chưa deploy.
 
 28/10/2026 — Phiếu in: UI thanh công cụ theo ảnh demo (mã đơn, trạng thái form chung, khôi phục, phím tắt; responsive sáng/tối), kéo viền chỉnh cột/hàng; Thùng căn giữa, gộp quy cách chỉ trong cùng khu và nối cộng giữa khu. Lời lưu ý theo sát khối ký, bỏ đẩy đáy/min-height gây trang lẻ khi in 120%; Edge/PDF xác nhận phiếu ngắn còn 1 trang. Không đổi API/migration/tính SL nguồn.
+
+Cập nhật gần nhất: 28/10/2026 (chỉnh sửa khi xem trước import VT).
+
+28/10/2026 — Phiếu in: đồng bộ chiều cao và cỡ chữ mọi hàng dữ liệu trong bảng, tiêu đề chỉnh riêng. Ctrl+L/R/E căn trái/phải/giữa và Ctrl+B/I đậm/nghiêng cho các cột bôi chọn ở mọi hàng cùng nhóm; ngoài bảng định dạng vùng chữ/đoạn chọn. Form chung JSONB thêm `groups.body/header` (height/size/columns: align/bold/italic), `blocks` (căn đoạn); `fonts` hỗ trợ đậm/nghiêng vùng chữ. Cấu hình áp dụng cả phiếu số dòng khác, qua tài khoản/máy/phiên; giữ kiểm tra version, chỉ lưu khi báo thành công. Không migration/API mới; nội dung chỉ đọc.

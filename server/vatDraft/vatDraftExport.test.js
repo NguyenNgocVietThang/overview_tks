@@ -64,6 +64,6 @@ test('view allocation vẫn chạy', async () => {
   assert.equal(sh.name, 'Xử lý hóa đơn');
   assert.equal(sh.getCell('A2').value, 2);
   assert.equal(sh.getCell('B2').value, '\'=HYPERLINK("x")');
-  assert.equal(sh.getColumn(1).numFmt, '#,##0.##');
+  assert.equal(sh.getColumn(1).numFmt, '#,##0');
   assert.equal(sh.getColumn(3).width, 36);
 });

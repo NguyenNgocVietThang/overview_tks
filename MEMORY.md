@@ -15,6 +15,8 @@
 
 - **Phiếu in theo khu (28/10/2026):** cột Thùng căn giữa; chỉ gộp thông minh trong cùng khu/vị trí, khác khu giữ cộng nối (`2Tx50+3Tx50`, không thành `5Tx50`), phần thiếu giữ riêng. Lời lưu ý cuối phiếu đi sát khối ký, không dùng min-height A4/margin tự đẩy đáy gây tách trang khi in 120%.
 
+- **Định dạng hàng phiếu in (28/10/2026):** chiều cao và cỡ chữ phần hàng hóa đồng bộ toàn tbody; thead riêng. Căn lề/đậm/nghiêng theo cột chọn cho mọi hàng cùng nhóm. Ctrl+L/R/E trái/phải/giữa, Ctrl+B/I đậm/nghiêng; Ctrl+[/] cỡ chữ. Mọi định dạng lưu form chung trên máy chủ cho mọi người/phiên/máy; số dòng khác vẫn nhận. Chỉ bắt phím khi có vùng bôi chọn trong phiếu, không sửa số liệu.
+
 ## 1. Hồ sơ dự án (Project Profile)
 
 - **Tên dự án:** TOKOSI Dashboard (Web TKS Dashboard).

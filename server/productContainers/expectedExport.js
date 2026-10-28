@@ -200,7 +200,7 @@ async function createExportFile(format, rows, columnKeys, { query = {}, meta = n
     key: c.key,
     header: c.label,
     width: c.type === 'number' ? 16 : c.key === 'productName' || c.key === 'saleNote' ? 36 : 22,
-    style: c.type === 'number' ? { numFmt: c.decimals === 2 ? '#,##0.00' : c.decimals === 0 ? '#,##0' : '#,##0.##' } : {}
+    style: c.type === 'number' ? { numFmt: c.decimals === 2 ? '#,##0.00' : c.decimals === 0 ? '#,##0' : '#,##0' } : {}
   }));
   for (const row of rows) {
     sheet.addRow(columns.map(c => {

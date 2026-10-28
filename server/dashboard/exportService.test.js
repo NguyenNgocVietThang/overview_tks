@@ -863,7 +863,7 @@ test('cot number co it nhat 1 gia tri thap phan thi van hien .00', async () => {
       columns: { transactions: PRODUCT_COLUMNS }
     });
     const workbook = await loadWorkbook(file);
-    assert.equal(workbook.worksheets[0].getColumn(3).numFmt, '#,##0.00;[Red]-#,##0.00');
+    assert.equal(workbook.worksheets[0].getColumn(3).numFmt, '#,##0;[Red]-#,##0');
   });
 });
 

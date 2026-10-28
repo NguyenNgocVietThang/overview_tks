@@ -14,7 +14,7 @@ const VIEWS = Object.freeze({
 });
 
 function numberFormat(column) {
-  return column === GIA_NHAP_COLUMN ? '#,##0.00' : '#,##0.##';
+  return column === GIA_NHAP_COLUMN ? '#,##0.00' : '#,##0';
 }
 
 function invalid(message) {

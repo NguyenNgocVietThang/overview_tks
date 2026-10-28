@@ -18,9 +18,10 @@ test('two users share persisted form; templates isolated; stale writes rejected 
   await db.exec('CREATE ROLE reporting_readonly');
   await db.exec(fs.readFileSync(path.join(__dirname,'../db/migrations/0100_shared_print_layouts.sql'),'utf8'));
   assert.deepEqual(await readLayout(db,'order'),{layout:null,version:0});
-  const first=await writeLayout(db,'order',{layout,version:0},'user-a');
+  const shared={...layout,groups:{body:{height:42,size:12,columns:{1:{align:'center',bold:true,italic:true}}},header:{size:11}},blocks:[{path:'p:nth-child(1)',align:'right'}]};
+  const first=await writeLayout(db,'order',{layout:shared,version:0},'user-a');
   assert.equal(first.version,1);
-  assert.deepEqual((await readLayout(db,'order')).layout,layout);
+  assert.deepEqual((await readLayout(db,'order')).layout,shared);
   assert.deepEqual(await readLayout(db,'delivery'),{layout:null,version:0});
   await assert.rejects(writeLayout(db,'order',{layout,version:0},'user-b'),{statusCode:409});
   const second=await writeLayout(db,'order',{layout:{widths:[],heights:[],fonts:[]},version:1},'user-b');
@@ -28,4 +29,19 @@ test('two users share persisted form; templates isolated; stale writes rejected 
   assert.equal((await db.query('SELECT updated_by FROM shared_print_layouts')).rows[0].updated_by,'user-b');
   assert.deepEqual((await readLayout(db,'order')).layout,{widths:[],heights:[],fonts:[]});
  }finally{await db.close();}
+});
+
+test('shared form validates table groups, column formatting and rich text without accepting arbitrary styles',()=>{
+ const groups={body:{height:42,size:12,columns:{1:{align:'center',bold:true,italic:false}}},header:{height:36,size:11,columns:{1:{align:'left',bold:false}}}};
+ const rich={...layout,groups,blocks:[{path:'p:nth-child(1)',align:'right'}],fonts:[{path:'p:nth-child(1)',start:0,end:4,bold:true,italic:false}]};
+ assert.deepEqual(validateLayout('order',rich),rich);
+ for(const bad of [
+  {...rich,groups:{body:{height:-2}}},
+  {...rich,groups:{body:{size:99}}},
+  {...rich,groups:{body:{columns:{9:{bold:true}}}}},
+  {...rich,groups:{body:{columns:{1:{align:'justify'}}}}},
+  {...rich,groups:{header:{columns:{1:{italic:'yes'}}}}},
+  {...rich,fonts:[{path:'p:nth-child(1)',start:0,end:4,bold:'yes'}]},
+  {...rich,blocks:[{path:'script',align:'left'}]}
+ ])assert.throws(()=>validateLayout('order',bad),{statusCode:400});
 });

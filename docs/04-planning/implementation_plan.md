@@ -1,5 +1,7 @@
 # Implementation plan hiện tại
 
+28/10/2026 — **Chỉnh sửa xem trước import VT (trực tiếp trên main theo yêu cầu):** mở rộng `stockPositionsService.js`/`stockPositionsRoutes.js` và modal `/vt-positions/` để thêm/sửa/xóa dữ liệu nhập trước khi xác nhận. API multipart hiện có nhận `rows` JSON tùy chọn, trả đầy đủ `inputRows` cùng kết quả chuẩn hóa `rows` có `sourceIndexes`/`warnings` và lỗi, kể cả dòng bỏ qua/không đổi. Dòng gộp sửa trên dữ liệu nguồn trước cộng dồn; Thay toàn bộ có **Giữ dòng** dự kiến xóa. Cảnh báo/lỗi lên đầu, tìm kiếm và hai bộ lọc kết hợp, phân trang 100 dòng toàn bộ danh sách. Máy chủ kiểm lại dữ liệu và quyền/phạm vi cơ sở, chỉ ghi trong giao dịch khi xác nhận hợp lệ; khóa xác nhận trong lúc sửa/gửi hoặc chưa kiểm tra thành công, lỗi mạng giữ bản sửa để kiểm tra lại. Không dependency/migration mới. Kết quả kiểm chứng và trạng thái triển khai cập nhật tại `CURRENT.md`.
+
 26/10/2026 — **Sort bảng nhập liệu và căn giữa tiêu đề (cục bộ):** đã sửa bộ đọc giá trị hiện tại của input/textarea/select trong sort dùng chung, Dashboard và Nhân sự; CSS chung căn giữa tiêu đề, giữ căn ô dữ liệu. 54/54 test liên quan và fixture Edge desktop/mobile sáng/tối đạt; toàn suite 3.582 test: 3.579 đạt, 3 bỏ qua, 0 lỗi (log `server/table-sort-full.log`). Checkout riêng của main, không pull; chưa commit/push/deploy. Chi tiết: [kế hoạch](../superpowers/plans/2026-10-26-editable-table-sorting.md).
 
 23/10/2026 — Kiểm tra giá bán (Invoice Price Audit) đã hoàn thiện và push 2 remote GitHub (`origin` và `tks_web`): chuẩn hóa danh sách 10 khách bao cước HN sang tên KiotViet mới (giữ dấu), đọc bậc giá theo chiếc (`CT`, `lẻ`) trực tiếp, khóa 4 mức giá Vừa - Lớn - VIP - Cắt lỗ, email 'mới' tính khách Lớn. Gộp PR #16 và PR #17 vào `main`.
@@ -306,3 +308,7 @@ Kế hoạch thực hiện (Vanilla JS/CSS; không thêm dependency; bổ sung A
 - [x] Form dùng chung: `pickAssignments/printLayouts.js`, GET/PUT `/api/shipment/pick/print-layout/:template`, kiểm tra định dạng/version (409), migration `0100_shared_print_layouts.sql`; mới có mã và kiểm thử, chưa áp DB/deploy.
 
 28/10/2026 — Phiếu in: UI thanh công cụ theo ảnh demo (mã đơn, trạng thái form chung, khôi phục, phím tắt; responsive sáng/tối), kéo viền chỉnh cột/hàng; Thùng căn giữa, gộp quy cách chỉ trong cùng khu và nối cộng giữa khu. Lời lưu ý theo sát khối ký, bỏ đẩy đáy/min-height gây trang lẻ khi in 120%; Edge/PDF xác nhận phiếu ngắn còn 1 trang. Không đổi API/migration/tính SL nguồn.
+
+Cập nhật gần nhất: 28/10/2026 (chỉnh sửa khi xem trước import VT).
+
+28/10/2026 — Phiếu in: đồng bộ chiều cao và cỡ chữ mọi hàng dữ liệu trong bảng, tiêu đề chỉnh riêng. Ctrl+L/R/E căn trái/phải/giữa và Ctrl+B/I đậm/nghiêng cho các cột bôi chọn ở mọi hàng cùng nhóm; ngoài bảng định dạng vùng chữ/đoạn chọn. Form chung JSONB thêm `groups.body/header` (height/size/columns: align/bold/italic), `blocks` (căn đoạn); `fonts` hỗ trợ đậm/nghiêng vùng chữ. Cấu hình áp dụng cả phiếu số dòng khác, qua tài khoản/máy/phiên; giữ kiểm tra version, chỉ lưu khi báo thành công. Không migration/API mới; nội dung chỉ đọc.

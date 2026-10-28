@@ -123,7 +123,7 @@ async function createExportFile(kind, table, format, result, rows, columnKeys) {
     key: c.key,
     header: c.label,
     width: c.type === 'number' ? 18 : c.type === 'percent' ? 14 : 28,
-    style: c.type === 'number' ? { numFmt: '#,##0.##' } : c.type === 'percent' ? { numFmt: '0.0%' } : {}
+    style: c.type === 'number' ? { numFmt: '#,##0' } : c.type === 'percent' ? { numFmt: '0.0%' } : {}
   }));
   for (const row of rows) {
     sheet.addRow(columns.map(c => {

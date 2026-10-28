@@ -47,6 +47,63 @@ function workbook(rows, name = 'Sheet1') {
 
 const HEADER = ['Mã hàng', 'Ghi chú', 'Ngày về', 'Vị trí'];
 
+test('import review: keeps error, skipped and unchanged sources; draft edits commit without adding existing quantity twice', async () => {
+  const { db, service } = await fixture({ lines: [{ branch: 'HN', code: 'AAA1', notes: '5T x 100', location: 'A1' }] });
+  try {
+    const buffer = workbook([HEADER, ['AAA1', '2T x 100', '', 'A1'], ['AAA1', '1T x 100', '', 'A1'], ['', 'bad', '', 'B1'], ['BBB2', '', '', 'B2']]);
+    const preview = await service.importFile(ctx(), 'HN', { mode: 'add', buffer });
+    assert.equal(preview.inputRows.length, 4);
+    const merged = preview.rows.find(r => r.kind === 'update');
+    assert.deepEqual(merged.sourceIndexes, [0, 1]);
+    assert.equal(merged.notes, '8T x 100');
+    assert.deepEqual(preview.rows.find(r => r.kind === 'error').sourceIndexes, [2]);
+    assert.equal(preview.rows.find(r => r.kind === 'skipped').row, 5);
+    const inputRows = [{ ...preview.inputRows[0], notes: '4T x 100' }, { row: null, code: 'BBB2', notes: '2T x 20', arrivalDate: '29/10', location: ' c 1 ' }];
+    const checked = await service.importFile(ctx(), 'HN', { mode: 'add', buffer, inputRows });
+    assert.equal(checked.rows.find(r => r.kind === 'update').notes, '9T x 100');
+    await service.importFile(ctx(), 'HN', { mode: 'add', buffer, inputRows, commit: true });
+    const saved = (await service.list(ctx(), 'HN')).rows;
+    assert.deepEqual(saved.map(r => [r.code, r.notes, r.location]), [['AAA1', '9T x 100', 'A1'], ['BBB2', '2T x 20', 'C1']]);
+    const unchanged = await service.importFile(ctx(), 'HN', { mode: 'replace', buffer, inputRows: saved });
+    assert.equal(unchanged.rows.filter(r => r.kind === 'unchanged').length, 2);
+    await assert.rejects(() => service.importFile(ctx(), 'HN', { mode: 'add', buffer, inputRows: [{ code: {} }] }), { code: 'IMPORT_INVALID_ROWS' });
+    await assert.rejects(() => service.importFile(ctx(), 'HN', { mode: 'add', buffer, inputRows: [] }), { code: 'IMPORT_EMPTY_FILE' });
+  } finally { await db.close(); }
+});
+
+test('import review: invalid edited draft rolls back replace without changing stock or history', async () => {
+  const { db, service } = await fixture({ lines: [{ branch: 'HN', code: 'AAA1', notes: '5T x 100', location: 'A1' }] });
+  try {
+    const before = await db.query('SELECT id, code, notes, location, version FROM stock_positions ORDER BY id');
+    const historyBefore = await db.query('SELECT count(*)::int AS total FROM stock_position_history');
+    const buffer = workbook([HEADER, ['BBB2', '1T x 10', '', 'B1']]);
+    await assert.rejects(() => service.importFile(ctx(), 'HN', {
+      mode: 'replace', commit: true, buffer,
+      inputRows: [{ row: 2, code: 'BBB2', notes: 'bad note', location: 'B1' }, { row: 3, code: 'AAA1', notes: '1T x 5', location: 'A2' }]
+    }), error => {
+      assert.equal(error.code, 'IMPORT_HAS_ERRORS');
+      assert.equal(error.body.counts.errors, 1);
+      assert.equal(error.body.inputRows[0].notes, 'bad note');
+      assert.equal(error.body.rows.find(row => row.kind === 'error').code, 'BBB2');
+      return true;
+    });
+    assert.deepEqual((await db.query('SELECT id, code, notes, location, version FROM stock_positions ORDER BY id')).rows, before.rows);
+    assert.deepEqual((await db.query('SELECT count(*)::int AS total FROM stock_position_history')).rows, historyBefore.rows);
+  } finally { await db.close(); }
+});
+
+test('import review: warnings and every input past 300 are returned, including unknown codes', async () => {
+  const { db, service } = await fixture();
+  try {
+    const buffer = workbook([HEADER, ...Array.from({ length: 305 }, (_, i) => ['AAA1', '1T x 10', '', 'A' + i]), ['ZZZ9', '1T x 10 + 1T x 20', '', 'Z']]);
+    const preview = await service.importFile(ctx(), 'HN', { mode: 'add', buffer });
+    assert.equal(preview.inputRows.length, 306);
+    assert.equal(preview.rows.length, 306);
+    assert.deepEqual(preview.rows.find(r => r.code === 'ZZZ9').warnings, ['multi', 'unknowncode']);
+    assert.equal((await service.list(ctx(), 'HN')).rows.length, 0);
+  } finally { await db.close(); }
+});
+
 test('migration seed: sao chep Vi tri HN/SG, go tien to "T x ", bo dong het hang va thieu ma, ghi lich su seed', async () => {
   const { db, service } = await fixture({ lines: [
     { branch: 'HN', code: 'AAA1', name: 'A', notes: 'T x 4T*100', location: '42', arrivalDate: 'KK 4.10' },
@@ -290,7 +347,7 @@ test('import replace: xem truoc khong ghi, xac nhan thay toan bo (them/doi/xoa),
     ]);
     const preview = await service.importFile(ctx(), 'HN', { mode: 'replace', buffer, fileName: 'vt.xlsx' });
     assert.deepEqual(preview.counts, { added: 1, updated: 0, deleted: 1, unchanged: 1, skippedEmpty: 1, errors: 0 });
-    assert.deepEqual(preview.rows.map(r => [r.kind, r.code, r.notes, r.location, r.cartons, r.quantity]), [['add', 'ZZZ9', '3T x 20', 'H9', 3, 60], ['delete', 'BBB2', '1T x 10', 'H2', 1, 10]]);
+    assert.deepEqual(preview.rows.map(r => [r.kind, r.code, r.notes, r.location, r.cartons, r.quantity]), [['add', 'ZZZ9', '3T x 20', 'H9', 3, 60], ['delete', 'BBB2', '1T x 10', 'H2', 1, 10], ['unchanged', 'AAA1', '5T x 100', 'H1', 5, 500], ['skipped', 'BBB2', '', 'H2', 0, 0]]);
     assert.equal((await service.list(ctx(), 'HN')).rows.length, 2);
     const done = await service.importFile(ctx(), 'HN', { mode: 'replace', commit: true, buffer, fileName: 'vt.xlsx' });
     assert.equal(done.imported, true);
@@ -325,7 +382,7 @@ test('import add: ghi chu viet tu do (2Tx100 co san, file 1T100) tu nhay thanh 3
     const preview = await service.importFile(ctx(), 'HN', { mode: 'add', buffer, fileName: 'them.xlsx' });
     assert.deepEqual(preview.counts, { added: 0, updated: 1, deleted: 0, unchanged: 0, skippedEmpty: 0, errors: 0 });
     assert.equal(preview.rowsTotal, 1);
-    assert.deepEqual(preview.rows[0], { kind: 'update', row: preview.rows[0].row, code: 'AAA1', name: preview.rows[0].name, notes: '3T x 100', arrivalDate: '1/10', location: 'H1', cartons: 3, quantity: 300, before: { notes: '2T x 100', arrivalDate: '1/10', location: 'H1' } },
+    assert.deepEqual(preview.rows[0], { kind: 'update', row: preview.rows[0].row, code: 'AAA1', name: preview.rows[0].name, notes: '3T x 100', arrivalDate: '1/10', location: 'H1', cartons: 3, quantity: 300, sourceIndexes: [0], warnings: [], before: { notes: '2T x 100', arrivalDate: '1/10', location: 'H1' } },
       'xem trước hiện đúng giá trị sẽ ghi (đã chuẩn hóa, đã cộng) kèm giá trị cũ');
     await service.importFile(ctx(), 'HN', { mode: 'add', commit: true, buffer, fileName: 'them.xlsx' });
     const rows = (await service.list(ctx(), 'HN')).rows;

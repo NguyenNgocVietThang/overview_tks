@@ -27,7 +27,7 @@ async function start(t, { user = MANAGER, scope = 'Cả hai' } = {}) {
     create: record('create'), update: record('update'), deduct: record('deduct'), remove: record('remove'), history: record('history'),
     acknowledge: record('acknowledge'), purgeHistory: record('purgeHistory'),
     historyAll: async (ctx, branch, filters) => { calls.push(['historyAll', branch, filters, ctx.scope]); return { rows: HISTORY, truncated: false }; },
-    importFile: async (ctx, branch, options) => { calls.push(['importFile', branch, options.mode, options.commit, options.fileName, options.buffer.length]); return { counts: {} }; }
+    importFile: async (ctx, branch, options) => { calls.push(['importFile', branch, options.mode, options.commit, options.fileName, options.buffer.length, ...(options.inputRows === undefined ? [] : [options.inputRows])]); return { counts: {} }; }
   };
   const app = express();
   app.use(express.json());
@@ -110,6 +110,21 @@ test('Import: nhận file multipart, chặn sai đuôi file, truyền chế đ�
   const none = await fetch(base + '/import?branch=SG&mode=add', { method: 'POST', body: new FormData() });
   assert.equal(none.status, 400);
   assert.equal((await none.json()).code, 'IMPORT_FILE_REQUIRED');
+});
+
+test('Import review: malformed JSON is rejected and edited rows reach the service', async t => {
+  const { base, calls } = await start(t);
+  const form = rows => { const value = new FormData(); value.append('file', new Blob(['abc']), 'vt.csv'); value.append('rows', rows); return value; };
+  for (const invalid of ['{', 'null', '{}', '42']) {
+    const response = await fetch(base + '/import?branch=HN&mode=replace&commit=1', { method: 'POST', body: form(invalid) });
+    assert.equal(response.status, 400);
+    assert.equal((await response.json()).code, 'IMPORT_INVALID_ROWS');
+  }
+  assert.deepEqual(calls, []);
+  const rows = [{ row: 7, code: 'AAA1', notes: '3T x 100', arrivalDate: '29/10', location: 'B1' }];
+  const response = await fetch(base + '/import?branch=HN&mode=replace&commit=1', { method: 'POST', body: form(JSON.stringify(rows)) });
+  assert.equal(response.status, 200);
+  assert.deepEqual(calls, [['importFile', 'HN', 'replace', true, 'vt.csv', 3, rows]]);
 });
 
 test('Xuất Excel: đủ 10 cột dữ liệu (gồm Có thể bốc), tên file theo cơ sở, chặn công thức, giờ VN', async t => {

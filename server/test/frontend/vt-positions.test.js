@@ -76,6 +76,228 @@ const pickFilter = (doc, window, value) => {
   select.dispatchEvent(new window.Event('change'));
 };
 
+test('import review: warnings first, combined filters/search and paging include rows past 300', async t => {
+  const inputs = Array.from({ length: 305 }, (_, i) => ({ row: i + 2, code: 'AAA' + i, notes: '1T x 10', location: 'A' + i }));
+  const rows = inputs.map((r, i) => ({ ...r, kind: 'add', sourceIndexes: [i], warnings: i === 304 ? ['multi'] : [], name: i === 304 ? 'Miếng tẩy' : 'Hàng', cartons: 1, quantity: 10 }));
+  const { doc, window } = await setup(t, { handler: async (url, options, parsed) => parsed.pathname.endsWith('/import') ? json({ counts: { added: 305 }, inputRows: inputs, rows }) : null });
+  doc.getElementById('vtImportButton').click();
+  Object.defineProperty(doc.getElementById('vtImportFile'), 'files', { value: [new window.File(['x'], 'a.csv')] });
+  doc.getElementById('vtImportPreview').click();
+  await settle();
+  assert.match(doc.querySelector('#vtImportPreviewRows tr').textContent, /AAA304/);
+  assert.equal(doc.querySelectorAll('#vtImportPreviewRows tr').length, 100);
+  const search = doc.getElementById('vtImportSearch');
+  search.value = 'mieng tay';
+  search.dispatchEvent(new window.Event('input'));
+  assert.equal(doc.querySelectorAll('#vtImportPreviewRows tr').length, 1);
+  doc.getElementById('vtImportWarnFilter').value = 'warn';
+  doc.getElementById('vtImportWarnFilter').dispatchEvent(new window.Event('change'));
+  assert.match(doc.querySelector('#vtImportPreviewRows tr').textContent, /Nhiều quy cách/);
+  search.value = 'A0';
+  search.dispatchEvent(new window.Event('input'));
+  assert.match(doc.querySelector('#vtImportPreviewRows').textContent, /Không có dòng/);
+});
+
+test('import review: edit uses raw sources, add/remove recalculate and commit the exact edited draft', async t => {
+  let received;
+  const initial = [{ row: 2, code: 'AAA1', notes: '2T x 100', location: 'A1', name: '', arrivalDate: '' }];
+  const { doc, window } = await setup(t, { handler: async (url, options, parsed) => {
+    if (!parsed.pathname.endsWith('/import')) return null;
+    received = options.body.get('rows') ? JSON.parse(options.body.get('rows')) : initial;
+    return json({ counts: { updated: received.length }, inputRows: received, rows: received.map((r, i) => ({ ...r, kind: 'update', notes: '7T x 100', sourceIndexes: [i], warnings: [], quantity: 700 })) });
+  } });
+  doc.getElementById('vtImportButton').click();
+  Object.defineProperty(doc.getElementById('vtImportFile'), 'files', { value: [new window.File(['x'], 'a.csv')] });
+  doc.getElementById('vtImportPreview').click();
+  await settle();
+  doc.querySelector('[data-import-edit]').click();
+  assert.equal(doc.querySelector('#vtImportEditor [data-field="notes"]').value, '2T x 100');
+  assert.equal(doc.getElementById('vtImportConfirm').disabled, true);
+  doc.querySelector('#vtImportEditor [data-field="notes"]').value = '4T x 100';
+  doc.getElementById('vtImportSave').click();
+  await settle();
+  assert.equal(received[0].notes, '4T x 100');
+  doc.getElementById('vtImportAdd').click();
+  doc.querySelector('#vtImportEditor [data-field="code"]').value = 'BBB2';
+  doc.querySelector('#vtImportEditor [data-field="notes"]').value = '1T x 20';
+  doc.getElementById('vtImportSave').click();
+  await settle();
+  assert.equal(received.length, 2);
+  doc.querySelector('[data-import-remove]').click();
+  await settle();
+  assert.equal(received.length, 1);
+  assert.equal(received[0].code, 'BBB2');
+  doc.getElementById('vtImportConfirm').click();
+  await settle();
+  assert.equal(received[0].notes, '1T x 20');
+  assert.equal(doc.getElementById('vtImportDialog').open, false);
+});
+
+test('import review: merged source editor saves each original once and cancel changes nothing', async t => {
+  let draft = [
+    { row: 2, code: 'AAA1', notes: '2T x 100', location: 'A1' },
+    { row: 3, code: 'AAA1', notes: '1T x 100', location: 'A1' }
+  ];
+  let submissions = 0;
+  const { doc, window } = await setup(t, { handler: async (url, options, parsed) => {
+    if (!parsed.pathname.endsWith('/import')) return null;
+    submissions += 1;
+    if (options.body.get('rows')) draft = JSON.parse(options.body.get('rows'));
+    return json({ counts: { updated: 1 }, inputRows: draft, rows: [{ kind: 'update', code: 'AAA1', notes: '8T x 100', location: 'A1', sourceIndexes: [0, 1], warnings: [] }] });
+  } });
+  doc.getElementById('vtImportButton').click();
+  Object.defineProperty(doc.getElementById('vtImportFile'), 'files', { value: [new window.File(['x'], 'a.csv')] });
+  doc.getElementById('vtImportPreview').click();
+  await settle();
+  doc.querySelector('[data-import-edit]').click();
+  const groups = [...doc.querySelectorAll('#vtImportEditor fieldset')];
+  assert.equal(groups.length, 2);
+  assert.deepEqual(groups.map(group => group.querySelector('[data-field="notes"]').value), ['2T x 100', '1T x 100']);
+  groups[0].querySelector('[data-field="notes"]').value = '9T x 100';
+  doc.getElementById('vtImportCancelEdit').click();
+  assert.equal(submissions, 1);
+  assert.equal(doc.getElementById('vtImportConfirm').disabled, false);
+  doc.querySelector('[data-import-edit]').click();
+  assert.equal(doc.querySelector('#vtImportEditor [data-field="notes"]').value, '2T x 100');
+  doc.querySelector('#vtImportEditor [data-field="notes"]').value = '4T x 100';
+  doc.getElementById('vtImportSave').click();
+  await settle();
+  assert.deepEqual(draft.map(source => source.notes), ['4T x 100', '1T x 100']);
+  assert.equal(submissions, 2);
+});
+
+test('import review: keep planned deletion submits existing row into replace draft', async t => {
+  let draft = [{ row: 2, code: 'AAA1', notes: '1T x 10', location: 'A1' }];
+  const removed = { kind: 'delete', code: 'BBB2', name: 'Hàng B', notes: '2T x 20', arrivalDate: '25/10', location: 'B2', sourceIndexes: [], warnings: [] };
+  const { doc, window } = await setup(t, { handler: async (url, options, parsed) => {
+    if (!parsed.pathname.endsWith('/import')) return null;
+    if (options.body.get('rows')) draft = JSON.parse(options.body.get('rows'));
+    return json({ counts: { deleted: draft.length === 1 ? 1 : 0 }, inputRows: draft, rows: [
+      { ...draft[0], kind: 'add', sourceIndexes: [0], warnings: [] },
+      ...(draft.length === 1 ? [removed] : [{ ...draft[1], kind: 'unchanged', sourceIndexes: [1], warnings: [] }])
+    ] });
+  } });
+  doc.getElementById('vtImportButton').click();
+  doc.querySelector('input[name="vtImportMode"][value="replace"]').checked = true;
+  Object.defineProperty(doc.getElementById('vtImportFile'), 'files', { value: [new window.File(['x'], 'a.csv')] });
+  doc.getElementById('vtImportPreview').click();
+  await settle();
+  doc.querySelector('[data-import-keep]').click();
+  await settle();
+  assert.deepEqual(draft[1], { row: null, code: 'BBB2', name: 'Hàng B', notes: '2T x 20', arrivalDate: '25/10', location: 'B2' });
+  assert.equal(doc.querySelector('[data-import-keep]'), null);
+  assert.equal(doc.querySelector('[data-count="deleted"] b').textContent, '0');
+});
+
+test('import review: deleting the last source blocks commit but a new row can restore the draft', async t => {
+  let draft = [{ row: 2, code: 'AAA1', notes: '1T x 10', location: 'A1' }];
+  const { doc, window } = await setup(t, { handler: async (url, options, parsed) => {
+    if (!parsed.pathname.endsWith('/import')) return null;
+    if (options.body.get('rows')) draft = JSON.parse(options.body.get('rows'));
+    return json({ counts: { added: draft.length }, inputRows: draft, rows: draft.map((source, index) => ({ ...source, kind: 'add', sourceIndexes: [index], warnings: [] })) });
+  } });
+  doc.getElementById('vtImportButton').click();
+  Object.defineProperty(doc.getElementById('vtImportFile'), 'files', { value: [new window.File(['x'], 'a.csv')] });
+  doc.getElementById('vtImportPreview').click();
+  await settle();
+  doc.querySelector('[data-import-remove]').click();
+  await settle();
+  assert.equal(doc.getElementById('vtImportConfirm').disabled, true);
+  assert.equal(doc.getElementById('vtImportAdd').disabled, false);
+  doc.getElementById('vtImportAdd').click();
+  doc.querySelector('#vtImportEditor [data-field="code"]').value = 'BBB2';
+  doc.querySelector('#vtImportEditor [data-field="notes"]').value = '3T x 20';
+  doc.getElementById('vtImportSave').click();
+  await settle();
+  assert.equal(draft.length, 1);
+  assert.equal(draft[0].code, 'BBB2');
+  assert.equal(doc.getElementById('vtImportConfirm').disabled, false);
+});
+
+test('import review: errors block commit; failed recalculation retains edits until retry succeeds', async t => {
+  let failRefresh = false;
+  let draft;
+  const { doc, window } = await setup(t, { handler: async (url, options, parsed) => {
+    if (!parsed.pathname.endsWith('/import')) return null;
+    if (failRefresh) throw new Error('offline');
+    draft = options.body.get('rows') ? JSON.parse(options.body.get('rows')) : [{ row: 2, code: '', notes: 'bad' }];
+    return json({ counts: { errors: draft[0].code ? 0 : 1 }, inputRows: draft, rows: [{ ...draft[0], kind: draft[0].code ? 'add' : 'error', sourceIndexes: [0], warnings: [], message: draft[0].code ? '' : 'Thiếu mã hàng.' }] });
+  } });
+  doc.getElementById('vtImportButton').click();
+  Object.defineProperty(doc.getElementById('vtImportFile'), 'files', { value: [new window.File(['x'], 'a.csv')] });
+  doc.getElementById('vtImportPreview').click();
+  await settle();
+  assert.equal(doc.getElementById('vtImportConfirm').disabled, true);
+  doc.querySelector('[data-import-edit]').click();
+  doc.querySelector('#vtImportEditor [data-field="code"]').value = 'ZZZ9';
+  failRefresh = true;
+  doc.getElementById('vtImportSave').click();
+  await settle();
+  assert.equal(doc.getElementById('vtImportConfirm').disabled, true);
+  assert.equal(doc.getElementById('vtImportRetry').hidden, false);
+  doc.querySelector('#vtImportFilter [data-kind="error"]').click();
+  assert.equal(doc.querySelector('[data-import-edit]').disabled, true, 'stale source indexes cannot be used after rerender');
+  assert.equal(doc.querySelector('[data-import-remove]').disabled, true);
+  failRefresh = false;
+  doc.getElementById('vtImportRetry').click();
+  await settle();
+  assert.equal(draft[0].code, 'ZZZ9');
+  assert.equal(doc.getElementById('vtImportConfirm').disabled, false);
+});
+
+test('import review: pending recalculation prevents close and escape until the draft is checked', async t => {
+  let release;
+  const draft = [{ row: 2, code: 'AAA1', notes: '1T x 10', location: 'A1' }];
+  const answer = source => ({ counts: { added: 1 }, inputRows: source, rows: [{ ...source[0], kind: 'add', sourceIndexes: [0], warnings: [] }] });
+  const { doc, window } = await setup(t, { handler: async (url, options, parsed) => {
+    if (!parsed.pathname.endsWith('/import')) return null;
+    if (options.body.get('rows')) return new Promise(resolve => { release = () => resolve(json(answer(JSON.parse(options.body.get('rows'))))); });
+    return json(answer(draft));
+  } });
+  doc.getElementById('vtImportButton').click();
+  Object.defineProperty(doc.getElementById('vtImportFile'), 'files', { value: [new window.File(['x'], 'a.csv')] });
+  doc.getElementById('vtImportPreview').click();
+  await settle();
+  doc.querySelector('[data-import-edit]').click();
+  doc.querySelector('#vtImportEditor [data-field="notes"]').value = '2T x 10';
+  doc.getElementById('vtImportSave').click();
+  await settle();
+  const dialog = doc.getElementById('vtImportDialog');
+  const escape = new window.Event('cancel', { cancelable: true });
+  dialog.dispatchEvent(escape);
+  assert.equal(escape.defaultPrevented, true);
+  const closes = [...dialog.querySelectorAll('[data-vt-close]')];
+  assert.ok(closes.length);
+  assert.ok(closes.every(button => button.disabled));
+  assert.equal(doc.getElementById('vtImportButton').disabled, true, 'a pending import cannot be reset by reopening the modal');
+  doc.getElementById('vtImportButton').dispatchEvent(new window.Event('click'));
+  assert.equal(doc.getElementById('vtImportConfirm').disabled, true);
+  closes[0].click();
+  assert.equal(dialog.open, true);
+  assert.equal(doc.getElementById('vtImportConfirm').disabled, true);
+  release();
+  await settle();
+  assert.equal(doc.getElementById('vtImportConfirm').disabled, false);
+  assert.ok(closes.every(button => !button.disabled));
+  assert.equal(doc.getElementById('vtImportButton').disabled, false);
+});
+
+test('import review: duplicate existing key cannot be kept by adding the same quantity again', async t => {
+  const { doc, window } = await setup(t, { handler: async (url, options, parsed) => {
+    if (!parsed.pathname.endsWith('/import')) return null;
+    return json({ counts: { unchanged: 1, deleted: 1 }, inputRows: [{ row: 2, code: 'AAA1', notes: '2T x 10', location: 'A1' }], rows: [
+      { kind: 'unchanged', code: 'AAA1', notes: '2T x 10', location: 'A1', sourceIndexes: [0], warnings: [] },
+      { kind: 'delete', code: 'AAA1', notes: '1T x 10', location: ' a 1 ', sourceIndexes: [], warnings: [] }
+    ] });
+  } });
+  doc.getElementById('vtImportButton').click();
+  doc.querySelector('input[name="vtImportMode"][value="replace"]').checked = true;
+  Object.defineProperty(doc.getElementById('vtImportFile'), 'files', { value: [new window.File(['x'], 'a.csv')] });
+  doc.getElementById('vtImportPreview').click();
+  await settle();
+  assert.equal(doc.querySelector('[data-import-keep]'), null, 'keeping a duplicate through input addition would merge quantities');
+});
+
 test('hàng cảnh báo đổi chữ sang đỏ (không tô nền); bộ lọc Cảnh báo/Hợp lệ/Tất cả đếm và nhớ riêng từng tab', async t => {
   const data = {
     HN: [row(1, { warnings: ['multi'] }), row(2, { warnings: ['unknowncode', 'multi'], kiotQuantity: null }), row(3)],
@@ -319,7 +541,7 @@ test('import: xem trước tùy chọn hiện số liệu và lỗi theo dòng; 
   assert.equal(doc.querySelector('[data-count="added"] b').textContent, '2');
   assert.equal(doc.querySelector('[data-count="errors"] b').textContent, '1');
   assert.match(doc.querySelector('[data-import-errors]').textContent, /Dòng 7: Thiếu mã SP/);
-  assert.equal(doc.getElementById('vtImportConfirm').disabled, false, 'máy chủ kiểm tra lại khi xác nhận');
+  assert.equal(doc.getElementById('vtImportConfirm').disabled, true, 'dòng lỗi phải được sửa trước khi xác nhận');
 
   preview = { ...preview, counts: { ...preview.counts, errors: 0 }, errors: [] };
   doc.getElementById('vtImportPreview').click();
@@ -358,9 +580,9 @@ test('import: bước Xem trước hiện bảng các dòng đã chuẩn hóa (c
   assert.equal(doc.getElementById('vtImportConfirm').hidden, false);
   const bodyRows = () => [...doc.querySelectorAll('#vtImportPreviewRows tr')].map(tr => [...tr.children].map(td => td.textContent.replace(/\s+/g, ' ').trim()));
   assert.deepEqual(bodyRows(), [
-    ['Thêm', '3', 'ZZZ9Hàng mới', '3T x 20', '3', '60', 'KK 4.10', 'H9'],
-    ['Cập nhật', '4', 'AAA1Cưa', '5T x 100 → 7T x 100', '7', '700', '1/10', 'H1'],
-    ['Xóa', '—', 'BBB2', '1T x 10', '1', '10', '—', 'H2']
+    ['Thêm', '3', 'ZZZ9Hàng mới', '3T x 20', '3', '60', 'KK 4.10', 'H9', '—', ''],
+    ['Cập nhật', '4', 'AAA1Cưa', '5T x 100 → 7T x 100', '7', '700', '1/10', 'H1', '—', ''],
+    ['Xóa', '—', 'BBB2', '1T x 10', '1', '10', '—', 'H2', '—', '']
   ]);
   assert.match(doc.getElementById('vtImportPreviewNote').textContent, /3 \/ 5 dòng/);
   doc.querySelector('#vtImportFilter [data-kind="update"]').click();
@@ -408,13 +630,16 @@ test('import trực tiếp sau chọn file, không gọi xem trước; lỗi má
   assert.equal(imports[0].query.get('commit'), '1');
   assert.ok(doc.getElementById('vtImportDialog').hasAttribute('open'));
   assert.match(doc.querySelector('[data-import-errors]').textContent, /Thiếu mã hàng/);
-  assert.equal(doc.getElementById('vtImportConfirm').disabled, false);
+  assert.equal(doc.getElementById('vtImportConfirm').disabled, true, 'lỗi từ máy chủ khóa xác nhận');
   valid = true;
+  doc.getElementById('vtImportBack').click();
+  doc.getElementById('vtImportPreview').click();
+  await settle();
   doc.getElementById('vtImportConfirm').click();
   await settle();
   imports = calls.filter(c => c.path === '/api/stock-positions/import');
-  assert.equal(imports.length, 2);
-  assert.ok(imports.every(c => c.query.get('commit') === '1'));
+  assert.equal(imports.length, 3);
+  assert.deepEqual(imports.map(c => c.query.get('commit')), ['1', '0', '1']);
   assert.equal(doc.getElementById('vtImportDialog').hasAttribute('open'), false);
 });
 

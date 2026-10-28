@@ -16,7 +16,7 @@ const IMPORT_EXTENSIONS = /\.(xlsx|xls|csv)$/iu;
 function createStockPositionsRouter(dependencies = {}) {
   const router = express.Router();
   const svc = () => dependencies.service || service;
-  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: IMPORT_MAX_BYTES } });
+  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: IMPORT_MAX_BYTES, fieldSize: IMPORT_MAX_BYTES, fields: 1, files: 1 } });
 
   router.use('/api/stock-positions', (req, res, next) => { res.set('Cache-Control', 'no-store'); next(); },
     dependencies.requireAuth || requireAuth,
@@ -86,8 +86,15 @@ function createStockPositionsRouter(dependencies = {}) {
     // multer giai ma ten file kieu latin1; doi ve UTF-8 de hien ten tieng Viet trong lich su.
     const fileName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
     if (!IMPORT_EXTENSIONS.test(fileName)) return res.status(400).json({ error: 'Chỉ nhận file .xlsx, .xls hoặc .csv.', code: 'IMPORT_BAD_EXTENSION' });
+    let inputRows;
+    if (req.body && req.body.rows !== undefined) {
+      try { inputRows = JSON.parse(req.body.rows); }
+      catch { return res.status(400).json({ error: 'Danh sách dòng import không hợp lệ.', code: 'IMPORT_INVALID_ROWS' }); }
+      if (!Array.isArray(inputRows)) return res.status(400).json({ error: 'Danh sách dòng import không hợp lệ.', code: 'IMPORT_INVALID_ROWS' });
+    }
     res.json(await svc().importFile(ctxOf(req), req.query.branch, {
-      mode: req.query.mode, commit: req.query.commit === '1', buffer: req.file.buffer, fileName
+      mode: req.query.mode, commit: req.query.commit === '1', buffer: req.file.buffer, fileName,
+      ...(inputRows !== undefined ? { inputRows } : {})
     }));
   }));
   router.post('/api/stock-positions', edit, handle(async (req, res) => {

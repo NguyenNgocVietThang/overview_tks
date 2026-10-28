@@ -806,3 +806,5 @@ Cập nhật gần nhất: 28/10/2026.
 - `version INTEGER` tăng mỗi lần ghi, `updated_by TEXT`, `updated_at TIMESTAMPTZ`; PUT có phiên bản cũ trả 409, reset ghi form rỗng với phiên bản mới.
 - Dùng chung mọi tài khoản/cơ sở/thiết bị; quyền API `shipment.pick`. Thu hồi SELECT của `reporting_readonly`.
 - Cần áp migration trước deploy (`npm run db:migrate`). Cập nhật: 28/10/2026.
+
+28/10/2026 — `shared_print_layouts.layout` (0100) mở rộng tương thích ngược, không đổi DDL: `groups?: {body?: {height?, size?, columns?: {index: {align?, bold?, italic?}}}, header?: ...}`; `height` 16–1200px, `size` 7–36pt, index theo 9/7 cột của mẫu; `blocks?: [{path,align}]`; `fonts` nhận size/bold/italic vùng chữ (ít nhất một), chỉ selector phần tử dạng nth-child, không nhận HTML/CSS tùy ý. Chỉ nhận align left/right/center và boolean cho bold/italic. Giữ định dạng cũ widths/heights/fonts; frontend chuyển heights cũ sang hai nhóm và áp dụng đúng cho mọi số dòng.

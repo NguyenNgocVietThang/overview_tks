@@ -362,7 +362,8 @@
   function openDialog(dialog) {
     if (dialog.showModal) dialog.showModal(); else dialog.setAttribute('open', '');
   }
-  function closeDialog(dialog) {
+  function closeDialog(dialog, force = false) {
+    if (dialog.id === 'vtImportDialog' && importState.busy && !force) return;
     if (dialog.close) dialog.close(); else dialog.removeAttribute('open');
   }
 
@@ -600,12 +601,19 @@
   const importMode = () => document.querySelector('input[name="vtImportMode"]:checked').value;
   function setImportBusy(busy) {
     importState.busy = busy;
+    $('vtImportButton').disabled = busy;
+    $('vtImportDialog').querySelectorAll('[data-vt-close]').forEach(button => { button.disabled = busy; });
     $('vtImportFile').disabled = busy;
     $('vtImportPick').disabled = busy;
     $('vtImportBack').disabled = busy;
     document.querySelectorAll('input[name="vtImportMode"]').forEach(radio => { radio.disabled = busy; });
     $('vtImportPreview').disabled = busy;
-    $('vtImportConfirm').disabled = busy || !$('vtImportFile').files?.length;
+    $('vtImportConfirm').disabled = busy || !$('vtImportFile').files?.length || importState.stale || importState.editing || importState.errors > 0 || (importState.inputRows && !importState.inputRows.length);
+    $('vtImportReview').querySelectorAll('button, input, select').forEach(control => { control.disabled = busy; });
+    $('vtImportReview').querySelectorAll('.vt-import-row-actions button, #vtImportAdd').forEach(control => { control.disabled = busy || importState.stale || importState.editing; });
+    $('vtImportRetry').hidden = !importState.stale;
+    // Restore paging boundaries after unlocking controls.
+    if (!busy && importState.rows?.length) updateImportPaging();
   }
 
   // Bước 1 = chọn file + chế độ; bước 2 = xem trước (bảng dòng đã chuẩn hóa); bước 3 chỉ thoáng qua vì hộp đóng ngay khi nhập xong.
@@ -628,6 +636,18 @@
     importState.rows = [];
     importState.total = 0;
     importState.filter = 'all';
+    importState.tab = activeTab;
+    importState.warnFilter = 'all';
+    importState.page = 0;
+    importState.inputRows = null;
+    importState.errors = 0;
+    importState.stale = false;
+    importState.editing = false;
+    $('vtImportSearch').value = '';
+    $('vtImportWarnFilter').value = 'all';
+    $('vtImportEditor').hidden = true;
+    $('vtImportRetry').hidden = true;
+    setImportBusy(false);
     $('vtImportResult').replaceChildren();
     $('vtImportPreviewBox').hidden = true;
     $('vtImportError').textContent = '';
@@ -636,7 +656,112 @@
     $('vtImportDrop').classList.toggle('has-file', Boolean(file));
   }
 
-  const IMPORT_KINDS = { add: 'Thêm', update: 'Cập nhật', delete: 'Xóa' };
+  const IMPORT_KINDS = { add: 'Thêm', update: 'Cập nhật', delete: 'Xóa', unchanged: 'Không đổi', skipped: 'Bỏ qua', error: 'Lỗi' };
+  const IMPORT_PAGE_SIZE = 100;
+  const importWarning = row => row.kind === 'error' || Boolean(row.warnings?.length);
+  const importPriority = row => row.kind === 'error' ? 2 : importWarning(row) ? 1 : 0;
+  const importKey = row => [row.code, row.location].map(value => String(value || '').replace(/\s+/gu, '').toLocaleUpperCase('vi')).join('|');
+
+  function filteredImportRows() {
+    const needle = normalizeSearch($('vtImportSearch').value);
+    return importState.rows.filter(row => (importState.filter === 'all' || row.kind === importState.filter)
+      && (importState.warnFilter === 'all' || (importState.warnFilter === 'error' ? row.kind === 'error' : importWarning(row)))
+      && (!needle || normalizeSearch([row.code, row.name, row.notes, row.location, row.arrivalDate].join(' ')).includes(needle)))
+      .sort((a, b) => importPriority(b) - importPriority(a));
+  }
+
+  function updateImportPaging() {
+    const count = filteredImportRows().length;
+    const pages = Math.max(1, Math.ceil(count / IMPORT_PAGE_SIZE));
+    importState.page = Math.min(importState.page || 0, pages - 1);
+    $('vtImportPrevPage').disabled = importState.busy || importState.page === 0;
+    $('vtImportNextPage').disabled = importState.busy || importState.page >= pages - 1;
+    $('vtImportPage').textContent = `Trang ${importState.page + 1} / ${pages} · ${formatNumber(count)} dòng`;
+  }
+
+  function importButton(label, dataKey, action) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'locations-columns-button';
+    button.textContent = label;
+    button.dataset[dataKey] = '';
+    button.disabled = importState.busy || importState.stale || importState.editing;
+    button.addEventListener('click', action);
+    return button;
+  }
+
+  function closeImportEditor() {
+    importState.editing = false;
+    $('vtImportEditor').hidden = true;
+    setImportBusy(importState.busy);
+  }
+
+  function editImportRows(row) {
+    if (importState.busy || importState.stale || importState.editing || !importState.inputRows) return;
+    importState.editing = true;
+    importState.editIndexes = row ? row.sourceIndexes : [-1];
+    const fields = $('vtImportEditorFields');
+    fields.replaceChildren();
+    importState.editIndexes.forEach(index => {
+      const source = index < 0 ? {} : importState.inputRows[index];
+      const group = document.createElement('fieldset');
+      group.dataset.sourceIndex = String(index);
+      const legend = document.createElement('legend');
+      legend.textContent = index < 0 ? 'Dòng mới' : source.row ? `Dòng file ${source.row}` : 'Dòng thêm thủ công';
+      group.appendChild(legend);
+      [['code', 'Mã hàng'], ['name', 'Tên hàng (mã chưa có)'], ['notes', 'Ghi chú số thùng'], ['arrivalDate', 'Ngày về'], ['location', 'Vị trí']].forEach(([key, label]) => {
+        const wrapper = document.createElement('label');
+        wrapper.textContent = label;
+        const input = document.createElement('input');
+        input.dataset.field = key;
+        input.value = source[key] || '';
+        wrapper.appendChild(input);
+        group.appendChild(wrapper);
+      });
+      fields.appendChild(group);
+    });
+    $('vtImportEditorTitle').textContent = row ? 'Sửa dữ liệu nhập' : 'Thêm dòng import';
+    $('vtImportEditor').hidden = false;
+    setImportBusy(false);
+    fields.querySelector('input')?.focus();
+  }
+
+  async function recheckImport() {
+    if (importState.busy) return;
+    importState.stale = true;
+    setImportBusy(true);
+    try { await runImport(false); }
+    catch { $('vtImportError').textContent = 'Chưa kiểm tra được dữ liệu. Các chỉnh sửa vẫn được giữ; bấm Kiểm tra lại.'; }
+    finally { setImportBusy(false); }
+  }
+
+  function saveImportRows() {
+    if (importState.busy) return;
+    $('vtImportEditorFields').querySelectorAll('fieldset').forEach(group => {
+      const index = Number(group.dataset.sourceIndex);
+      const source = index < 0 ? { row: null } : { ...importState.inputRows[index] };
+      group.querySelectorAll('input[data-field]').forEach(input => { source[input.dataset.field] = input.value; });
+      if (index < 0) importState.inputRows.push(source);
+      else importState.inputRows[index] = source;
+    });
+    closeImportEditor();
+    recheckImport();
+  }
+
+  function removeImportRows(row) {
+    if (importState.busy || importState.stale || importState.editing) return;
+    const indexes = new Set(row.sourceIndexes);
+    importState.inputRows = importState.inputRows.filter((_, index) => !indexes.has(index));
+    closeImportEditor();
+    if (!importState.inputRows.length) {
+      importState.rows = [];
+      renderImportResult({ inputRows: [], rows: [], counts: {} });
+      $('vtImportError').textContent = 'Danh sách trống. Hãy thêm ít nhất một dòng trước khi import.';
+      setImportBusy(false);
+      return;
+    }
+    recheckImport();
+  }
 
   function importCell(text, className) {
     const td = document.createElement('td');
@@ -664,17 +789,18 @@
   function renderImportPreviewRows() {
     const body = $('vtImportPreviewRows');
     body.replaceChildren();
-    const rows = importState.filter === 'all' ? importState.rows : importState.rows.filter(row => row.kind === importState.filter);
+    updateImportPaging();
+    const rows = filteredImportRows().slice(importState.page * IMPORT_PAGE_SIZE, (importState.page + 1) * IMPORT_PAGE_SIZE);
     if (!rows.length) {
       const tr = document.createElement('tr');
       const td = importCell('Không có dòng nào.', 'table-note');
-      td.colSpan = 8;
+      td.colSpan = 10;
       tr.appendChild(td);
       body.appendChild(tr);
     }
     rows.forEach(row => {
       const tr = document.createElement('tr');
-      tr.className = 'vt-import-row is-' + row.kind;
+      tr.className = 'vt-import-row is-' + row.kind + (importWarning(row) ? ' has-warning' : '');
       const kind = document.createElement('td');
       const pill = document.createElement('span');
       pill.className = 'vt-kind is-' + row.kind;
@@ -688,7 +814,7 @@
       }
       tr.append(
         kind,
-        importCell(row.row == null ? '—' : String(row.row), 'num'),
+        importCell(row.sourceIndexes?.length > 1 ? row.sourceIndexes.map(i => importState.inputRows?.[i]?.row || 'Mới').join(', ') : row.row == null ? '—' : String(row.row), 'num'),
         code,
         importChange(row.before && row.before.notes, row.notes, 'vt-import-notes'),
         importCell(row.cartons == null ? '—' : formatNumber(row.cartons), 'num'),
@@ -696,6 +822,26 @@
         importCell(dash(row.arrivalDate)),
         importChange(row.before && row.before.location, row.location, 'vt-import-location')
       );
+      const warnings = [row.message, ...(row.warnings || []).map(key => WARNING_LABELS[key] || key)].filter(Boolean).join(' · ');
+      tr.appendChild(importCell(warnings || '—', 'vt-import-warning'));
+      const actions = document.createElement('td');
+      actions.className = 'vt-import-row-actions';
+      if (importState.inputRows && row.sourceIndexes?.length) {
+        actions.append(importButton('Sửa', 'importEdit', () => editImportRows(row)), importButton('Xóa', 'importRemove', () => removeImportRows(row)));
+      } else if (importState.inputRows && row.kind === 'delete') {
+        const duplicate = importState.rows.some(other => ['add', 'update', 'unchanged'].includes(other.kind) && importKey(other) === importKey(row));
+        if (duplicate) {
+          const reason = document.createElement('small');
+          reason.textContent = 'Trùng mã + vị trí; chỉ giữ một dòng.';
+          actions.appendChild(reason);
+        } else actions.appendChild(importButton('Giữ dòng', 'importKeep', () => {
+          if (importState.busy || importState.stale || importState.editing) return;
+          importState.inputRows.push({ row: null, code: row.code, name: row.name, notes: row.notes, arrivalDate: row.arrivalDate, location: row.location });
+          closeImportEditor();
+          recheckImport();
+        }));
+      }
+      tr.appendChild(actions);
       body.appendChild(tr);
     });
     const shown = importState.rows.length;
@@ -705,25 +851,31 @@
   function renderImportPreview(payload) {
     importState.rows = Array.isArray(payload.rows) ? payload.rows : [];
     importState.total = Number(payload.rowsTotal) || importState.rows.length;
-    importState.filter = 'all';
-    $('vtImportPreviewBox').hidden = !importState.rows.length;
+    if (Array.isArray(payload.inputRows)) importState.inputRows = payload.inputRows;
+    importState.errors = Number(payload.counts?.errors) || 0;
+    importState.stale = false;
+    $('vtImportPreviewBox').hidden = !importState.rows.length && !importState.inputRows;
     const filter = $('vtImportFilter');
     filter.replaceChildren();
     const tallies = { all: importState.rows.length };
     importState.rows.forEach(row => { tallies[row.kind] = (tallies[row.kind] || 0) + 1; });
+    if (importState.filter !== 'all' && !tallies[importState.filter]) importState.filter = 'all';
     [['all', 'Tất cả'], ...Object.entries(IMPORT_KINDS)].filter(([key]) => key === 'all' || tallies[key]).forEach(([key, label]) => {
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = 'vt-filter-chip' + (key === 'all' ? ' is-active' : '');
+      button.className = 'vt-filter-chip' + (key === importState.filter ? ' is-active' : '');
       button.dataset.kind = key;
       button.textContent = `${label} (${formatNumber(tallies[key] || 0)})`;
       button.addEventListener('click', () => {
         importState.filter = key;
+        importState.page = 0;
         filter.querySelectorAll('button').forEach(other => other.classList.toggle('is-active', other === button));
         renderImportPreviewRows();
       });
       filter.appendChild(button);
     });
+    $('vtImportWarnFilter').options[1].textContent = `Có cảnh báo (${importState.rows.filter(importWarning).length})`;
+    $('vtImportWarnFilter').options[2].textContent = `Có lỗi (${importState.rows.filter(row => row.kind === 'error').length})`;
     renderImportPreviewRows();
   }
 
@@ -766,7 +918,7 @@
       errors.forEach(error => {
         const li = document.createElement('li');
         li.value = Number(error.row) || 0;
-        li.textContent = `Dòng ${error.row}: ${error.message}`;
+        li.textContent = `${error.row == null ? 'Dòng thêm thủ công' : `Dòng ${error.row}`}: ${error.message}`;
         ol.appendChild(li);
       });
       box.appendChild(ol);
@@ -783,9 +935,10 @@
     const file = $('vtImportFile').files && $('vtImportFile').files[0];
     $('vtImportError').textContent = '';
     if (!file) { $('vtImportError').textContent = 'Vui lòng chọn file .xlsx, .xls hoặc .csv.'; return null; }
-    const tab = activeTab;
+    const tab = importState.tab || activeTab;
     const form = new window.FormData();
     form.append('file', file, file.name);
+    if (importState.inputRows) form.append('rows', JSON.stringify(importState.inputRows));
     const query = `?branch=${tab.toUpperCase()}&mode=${importMode()}&commit=${commit ? 1 : 0}`;
     const { response, payload } = await request(API + '/import' + query, { method: 'POST', body: form });
     if (payload.counts) renderImportResult(payload);
@@ -798,7 +951,7 @@
     setImportBusy(true);
     try {
       const result = await runImport(false);
-      if (result && result.payload.counts?.errors) $('vtImportError').textContent = 'File còn lỗi, hãy sửa file rồi thử lại.';
+      if (result && result.payload.counts?.errors) $('vtImportError').textContent = 'Còn dòng lỗi. Hãy sửa hoặc xóa dòng lỗi ngay trong bảng xem trước.';
     } catch (error) {
       $('vtImportError').textContent = 'Không kết nối được máy chủ. Vui lòng thử lại.';
     } finally {
@@ -807,13 +960,13 @@
   }
 
   async function confirmImport() {
-    if (importState.busy) return;
+    if (importState.busy || importState.editing || importState.stale || importState.errors > 0 || (importState.inputRows && !importState.inputRows.length)) return;
     setImportBusy(true);
     try {
       const result = await runImport(true);
       if (!result) return;
       const counts = result.payload.counts || {};
-      closeDialog($('vtImportDialog'));
+      closeDialog($('vtImportDialog'), true);
       notify(`Đã import: thêm ${counts.added || 0}, cập nhật ${counts.updated || 0}, xóa ${counts.deleted || 0}.`);
       await selectTab(activeTab);
     } catch (error) {
@@ -1129,6 +1282,7 @@
     });
     $('vtAddForm').addEventListener('submit', submitAdd);
     $('vtImportButton').addEventListener('click', () => {
+      if (importState.busy) return;
       $('vtImportFile').value = '';
       resetImport();
       openDialog($('vtImportDialog'));
@@ -1152,6 +1306,15 @@
     document.querySelectorAll('input[name="vtImportMode"]').forEach(radio => radio.addEventListener('change', resetImport));
     $('vtImportPreview').addEventListener('click', previewImport);
     $('vtImportConfirm').addEventListener('click', confirmImport);
+    $('vtImportDialog').addEventListener('cancel', event => { if (importState.busy) event.preventDefault(); });
+    $('vtImportAdd').addEventListener('click', () => editImportRows(null));
+    $('vtImportSave').addEventListener('click', saveImportRows);
+    $('vtImportCancelEdit').addEventListener('click', closeImportEditor);
+    $('vtImportRetry').addEventListener('click', recheckImport);
+    $('vtImportSearch').addEventListener('input', () => { importState.page = 0; renderImportPreviewRows(); });
+    $('vtImportWarnFilter').addEventListener('change', () => { importState.warnFilter = $('vtImportWarnFilter').value; importState.page = 0; renderImportPreviewRows(); });
+    $('vtImportPrevPage').addEventListener('click', () => { importState.page -= 1; renderImportPreviewRows(); });
+    $('vtImportNextPage').addEventListener('click', () => { importState.page += 1; renderImportPreviewRows(); });
     $('vtExportButton').addEventListener('click', exportExcel);
     $('vtHistoryButton').addEventListener('click', openHistory);
     $('vtHistorySearch').addEventListener('input', renderHistory);

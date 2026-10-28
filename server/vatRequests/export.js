@@ -28,7 +28,7 @@ function safeText(value) {
 
 const DATE_TIME = 'dd/mm/yyyy hh:mm';
 const DATE = 'dd/mm/yyyy';
-const NUMBER = '#,##0.##';
+const NUMBER = '#,##0';
 
 // Cung thu tu / ten cot voi bang tren trang (bo cot Chon, Thao tac). `kt`: chi nguoi co quyen xu ly
 // (viewer.canProcess) moi co cot nay — service cung khong gui so lieu cho nguoi khac.

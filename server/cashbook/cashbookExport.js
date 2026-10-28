@@ -166,7 +166,7 @@ async function createExportFile(view, format, rows, columns, meta = {}) {
     key,
     header: label,
     width: numeric ? 20 : 28,
-    style: numeric ? { numFmt: '#,##0.##' } : {},
+    style: numeric ? { numFmt: '#,##0' } : {},
   }));
   rows.forEach((row) => sheet.addRow(cols.map((c) => cell(row, c))));
   sheet.views = frozenNoGridlinesView(1);
