@@ -1,7 +1,7 @@
 # Graph Report - Web TKS Dashboard  (2026-10-28)
 
 ## Corpus Check
-- 1007 files · ~1,500,887 words
+- 1007 files · ~1,501,638 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 36 file(s) not represented in the graph (top: .css 18, .jfif 8, (none) 3)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `55cc4d05`
+- Built from commit: `b1894d3c`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 

@@ -65,7 +65,7 @@
           <span style="">{Ghi_Chu_Hang_Hoa}</span></td>
         <td style="text-align: center; border-color: rgb(0, 0, 0);" class="invoice-location">
           <span style="">{Vi_Tri_Hang_Hoa}</span></td>
-        <td style="text-align: right; border-color: rgb(0, 0, 0);" class="invoice-st">{ST}</td>
+        <td style="text-align: center; border-color: rgb(0, 0, 0);" class="invoice-st">{ST}</td>
         <td style="" class="invoice-actual">{Thuc_Te_Nhat}</td>
       </tr>
     </tbody>

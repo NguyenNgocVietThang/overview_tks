@@ -30,6 +30,7 @@ test('v2 print uses original amounts, keeps ST and prints placement once per cod
     assert.match(d.querySelector('.invoice-goods thead').textContent,/Thùng/);
     assert.doesNotMatch(d.querySelector('.invoice-goods thead').textContent,/\bST\b/,'cột ST cũ đã đổi tên thành Thùng');
     assert.equal(d.querySelectorAll('.invoice-goods tbody tr').length,2);
+    assert.equal(d.querySelector('.invoice-goods tbody .invoice-st').style.textAlign,'center');
     assert.equal(d.querySelectorAll('.invoice-goods tbody .invoice-st')[0].textContent.trim(),'101Tx100-99');
     assert.equal(d.querySelectorAll('.invoice-goods tbody .invoice-st')[1].textContent.trim(),'');
     assert.match(d.querySelectorAll('.invoice-location')[1].textContent,/dòng 1/);
@@ -229,5 +230,24 @@ test('shared form conflict is visible and never reports local changes as shared 
   await new Promise(resolve=>setImmediate(resolve));
   assert.match(w.document.getElementById('pickingPrintMessage').textContent,/người khác sửa/);
   assert.match(w.document.getElementById('pickingPrintMessage').textContent,/chưa được lưu chung/);
+ }finally{dom.window.close();}
+});
+
+test('phiếu in gộp thùng trong từng khu, nối cộng giữa các khu và giữ phần thiếu riêng',async()=>{
+ const order={schemaVersion:2,orderCode:'DH-KHU',lines:[{productCode:'A',productName:'Hàng A',quantity:285,unitPrice:'1',amount:'285'}]};
+ const record={status:'picking',lines:[
+  {productCode:'A',location:'B',plannedQty:140,stText:'3Tx50-10',stCartons:3},
+  {productCode:'A',location:'A',plannedQty:100,stText:'2Tx50',stCartons:2},
+  {productCode:'A',location:'A',plannedQty:45,stText:'1Tx50-5',stCartons:1}
+ ]};
+ const dom=await invoice(order,record);
+ try{
+  dom.window.PickingCarton=require('../../public/shared/carton.js');
+  await dom.window.PickingInvoice.show(order,record);
+  const d=dom.window.document;
+  const printed=d.querySelector('tbody .invoice-st');
+  assert.equal(printed.textContent.trim(),'3T x 50 - 5 + 3T x 50 - 10');
+  assert.ok(printed.classList.contains('invoice-st-frac'));
+  assert.equal(d.querySelector('.invoice-goods tbody tr').cells[2].textContent.trim(),'285');
  }finally{dom.window.close();}
 });

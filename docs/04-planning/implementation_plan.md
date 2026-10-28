@@ -304,3 +304,5 @@ Kế hoạch thực hiện (Vanilla JS/CSS; không thêm dependency; bổ sung A
 - [x] Xác minh: 51/51 test liên quan và Edge 2 mẫu × 1/45 dòng đạt; toàn suite đã thử nhưng không hoàn tất vì thiếu bộ nhớ/quyền sandbox, ghi giới hạn trong CURRENT.md. Graphify chạy thành công.
 
 - [x] Form dùng chung: `pickAssignments/printLayouts.js`, GET/PUT `/api/shipment/pick/print-layout/:template`, kiểm tra định dạng/version (409), migration `0100_shared_print_layouts.sql`; mới có mã và kiểm thử, chưa áp DB/deploy.
+
+28/10/2026 — Phiếu in: UI thanh công cụ theo ảnh demo (mã đơn, trạng thái form chung, khôi phục, phím tắt; responsive sáng/tối), kéo viền chỉnh cột/hàng; Thùng căn giữa, gộp quy cách chỉ trong cùng khu và nối cộng giữa khu. Lời lưu ý theo sát khối ký, bỏ đẩy đáy/min-height gây trang lẻ khi in 120%; Edge/PDF xác nhận phiếu ngắn còn 1 trang. Không đổi API/migration/tính SL nguồn.

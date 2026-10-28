@@ -13,6 +13,8 @@
 
 - **Form phiếu in dùng chung (28/10/2026):** người dùng yêu cầu một người chỉnh form thì mọi người dùng cùng định dạng ở các phiên sau, trên máy khác cũng vậy. Bỏ ô chọn font/cỡ chữ/nhập độ rộng; kéo viền chỉnh cột/hàng, bôi đen rồi Ctrl+] / Ctrl+[ đổi cỡ chữ. Lưu PostgreSQL riêng mẫu `order`/`delivery` (`shared_print_layouts`, migration 0100), không lưu riêng theo tài khoản/trình duyệt. Nội dung và số liệu luôn chỉ đọc.
 
+- **Phiếu in theo khu (28/10/2026):** cột Thùng căn giữa; chỉ gộp thông minh trong cùng khu/vị trí, khác khu giữ cộng nối (`2Tx50+3Tx50`, không thành `5Tx50`), phần thiếu giữ riêng. Lời lưu ý cuối phiếu đi sát khối ký, không dùng min-height A4/margin tự đẩy đáy gây tách trang khi in 120%.
+
 ## 1. Hồ sơ dự án (Project Profile)
 
 - **Tên dự án:** TOKOSI Dashboard (Web TKS Dashboard).

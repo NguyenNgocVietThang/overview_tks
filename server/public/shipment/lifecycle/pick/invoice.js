@@ -59,7 +59,7 @@ function loadAssets(){
   if(window.PickingInvoiceTemplate&&window.PickingPrintCSS)return Promise.resolve();
   if(!assetsPromise){
     assetsPromise=(async()=>{
-      const [template,css]=await Promise.all([fetchText(BASE+'order-template.tpl?v=20261028-6'),fetchText(BASE+'invoice-a4.css?v=20261028-6')]);
+      const [template,css]=await Promise.all([fetchText(BASE+'order-template.tpl?v=20261028-8'),fetchText(BASE+'invoice-a4.css?v=20261028-8')]);
       let out=template;
       for(const id of new Set([...template.matchAll(CDN)].map(m=>m[1]))){
         const uri=await dataUri(BASE+'invoice-assets/'+id+'.jpg');
@@ -113,18 +113,24 @@ async function show(order,record,template='order'){
     const placement=priorLine?'Vị trí/Thùng: xem dòng '+priorLine:zones.map(z=>z.name).join(' / ');
     // ST lấy từ bản ghi chỉ định nên in lại ra cùng số; trống khi đã Hủy nhặt hoặc chưa có quy cách thùng.
     const cancelled=record.status==='cancelled';
-    // Gộp ST của mọi vị trí thành một chuỗi (5T x 100 + 2T x 50 - 30); chuỗi nào không đọc được thì giữ cách nối cũ.
-    const stTexts=jobs.map(j=>j.stText).filter(Boolean),mergedSt=window.PickingCarton&&stTexts.length?window.PickingCarton.mergeSt(stTexts):null;
-    const stLabel=cancelled||priorLine?'':(mergedSt?mergedSt.text:stTexts.join(' + '));
-    const cartons=jobs.every(j=>typeof j.stCartons==='number')&&jobs.length?jobs.reduce((n,j)=>n+j.stCartons,0):null;
+    // Chỉ gộp quy cách trong cùng khu/vị trí; khác khu nối cộng theo thứ tự cột Vị trí.
+    const stParts=zones.map(zone=>{
+      const zoneJobs=jobs.filter(j=>(j.location||'—')===zone.name);
+      const texts=zoneJobs.map(j=>j.stText).filter(Boolean);
+      const merged=window.PickingCarton&&texts.length?window.PickingCarton.mergeSt(texts):null;
+      const cartons=zoneJobs.every(j=>typeof j.stCartons==='number')?zoneJobs.reduce((n,j)=>n+j.stCartons,0):null;
+      const text=merged?merged.text:(texts.join(' + ')||stText(cartons));
+      return {text,fractional:text.includes('-')||(!texts.length&&cartons!==null&&!Number.isInteger(cartons))};
+    });
+    const stLabel=cancelled||priorLine?'':stParts.map(part=>part.text).filter(Boolean).join(' + ');
     const rendered=document.createElement('tbody');
     rendered.innerHTML=replace(row.outerHTML,{
       STT:++index,Ten_Hang_Hoa_Don_Gian:line.productName||'',
       So_Luong:qtyText(qty),Don_Gia_Sau_Chiet_Khau:money(unit),Thanh_Tien:money(amount),
-      Vi_Tri_Hang_Hoa:placement,Ghi_Chu_Hang_Hoa:line.note||'',Thuc_Te_Nhat:'',ST:cancelled||priorLine?'':(stLabel||stText(cartons))
+      Vi_Tri_Hang_Hoa:placement,Ghi_Chu_Hang_Hoa:line.note||'',Thuc_Te_Nhat:'',ST:stLabel
     });
     const item=rendered.firstElementChild;
-    if(!priorLine&&!cancelled&&(stLabel?stLabel.includes('-'):cartons!==null&&!Number.isInteger(cartons)))item.querySelector('td.invoice-st')?.classList.add('invoice-st-frac');
+    if(!priorLine&&!cancelled&&stParts.some(part=>part.fractional))item.querySelector('td.invoice-st')?.classList.add('invoice-st-frac');
     const locationCell=item.querySelector('td.invoice-location');
     if(multiZone&&!priorLine&&locationCell)locationCell.replaceChildren(...zones.map(z=>{
       const div=document.createElement('div'),qtyNode=document.createElement('b');
@@ -162,7 +168,9 @@ async function show(order,record,template='order'){
   root.setAttribute('aria-label','Nội dung phiếu chỉ đọc');
   root.setAttribute('spellcheck','false');
   const printMessage=document.getElementById('pickingPrintMessage');if(printMessage)printMessage.textContent='';
-  document.getElementById('pickingPrintTitle').textContent=title+' · '+order.orderCode;
+  const titleEl=document.getElementById('pickingPrintTitle'),codeEl=document.createElement('span');
+  codeEl.className='print-order-code';codeEl.textContent=order.orderCode;
+  titleEl.replaceChildren(document.createTextNode(title+' · '),codeEl);
   document.getElementById('pickingPrintSheet').replaceChildren(root);
   currentPrint={order,record};
   await window.PickingPrint?.prepare?.();

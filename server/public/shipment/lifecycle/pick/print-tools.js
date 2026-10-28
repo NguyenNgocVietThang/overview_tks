@@ -126,7 +126,7 @@ function formattingControls(host,restore=true,shared=null){
   root.tabIndex=0;
   root.onpointerup=()=>{root.focus({preventScroll:true});};
   // Giữ tương thích font đã nhúng trong file HTML cũ, nhưng không ép cỡ chữ lên span được chọn.
-  const reset=document.createElement('button');reset.type='button';reset.textContent='Khôi phục định dạng';host.append(reset);
+  const reset=document.createElement('button');reset.type='button';reset.innerHTML='<span aria-hidden="true">↶</span> Khôi phục mặc định';host.append(reset);
   reset.onclick=()=>{
     prefs={widths:[],heights:[],fonts:[]};save();
     root.setAttribute('style',defaults.style);cols.forEach((c,i)=>c.style.width=defaults.widths[i]);rows.forEach(r=>r.style.removeProperty('height'));
@@ -140,7 +140,8 @@ async function prepare(){
   if(!host){host=document.createElement('div');host.id='pickingPrintFormatting';host.className='print-format-controls';$('pickingPrintSheet').before(host);}
   host.replaceChildren();
   const template=root.dataset.template,url='/api/shipment/pick/print-layout/'+template;
-  const message=text=>{if(root.isConnected&&$('pickingPrintMessage'))$('pickingPrintMessage').textContent=text;};
+  const message=(text,state='')=>{if(root.isConnected&&$('pickingPrintMessage')){const el=$('pickingPrintMessage');el.textContent=text;el.dataset.state=state;}};
+  message('Đang tải form chung…','loading');
   try{
     await layoutWrites.get(template);
     const res=await fetch(url,{credentials:'same-origin',cache:'no-store'});
@@ -150,18 +151,19 @@ async function prepare(){
     let version=saved.version,blocked=false;
     formattingControls(host,true,{layout:saved.layout,save:prefs=>{
       const layout=JSON.parse(JSON.stringify(prefs));
-      message('Đang lưu form chung…');
+      message('Đang lưu form chung…','saving');
       const task=(layoutWrites.get(template)||Promise.resolve()).then(async()=>{
-        if(blocked){message('Chưa lưu form chung. Đóng rồi mở lại phiếu trước khi chỉnh tiếp.');return;}
+        if(blocked){message('Chưa lưu form chung. Đóng rồi mở lại phiếu trước khi chỉnh tiếp.','error');return;}
         const result=await fetch(url,{method:'PUT',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({layout,version})});
         const data=await result.json();
         if(!result.ok)throw new Error(data.error||'Không lưu được form chung.');
-        version=data.version;message('Đã lưu form chung cho mọi người.');
-      }).catch(error=>{blocked=true;message(error.message+' Các chỉnh sửa trên phiếu này chưa được lưu chung.');});
+        version=data.version;message('Đã lưu form chung','saved');
+      }).catch(error=>{blocked=true;message(error.message+' Các chỉnh sửa trên phiếu này chưa được lưu chung.','error');});
       layoutWrites.set(template,task);
     }});
     const picker=$('pickingPrintTemplate');if(picker)picker.value=template;
-  }catch(error){message('Không tải được form chung. Đóng rồi mở lại phiếu để thử lại.');}
+    message(saved.version?'Đã lưu form chung':'Form mặc định','saved');
+  }catch(error){message('Không tải được form chung. Đóng rồi mở lại phiếu để thử lại.','error');}
 }
 // Các nút này cũng được nhúng trong file đơn độc lập tải về.
 function standaloneControls(){
@@ -196,9 +198,13 @@ function init(){
   const button=$('pickingPrintBtn');
   if(!button||button.dataset.ready)return;
   button.dataset.ready='1';
-  button.innerHTML=printerIcon+'<span>In</span>';
-  button.insertAdjacentHTML('afterend',' <button id="pickingSavePrint" type="button">Lưu file HTML</button>');
-  $('pickingPrintDialog').querySelector('.dp-head').insertAdjacentHTML('afterend','<div class="print-template-controls"><label>Mẫu in <select id="pickingPrintTemplate"><option value="order">Phiếu đặt hàng</option><option value="delivery">Phiếu xác nhận giao hàng</option></select></label></div><p class="print-edit-hint">Nội dung và số liệu chỉ đọc. Kéo viền để chỉnh cột/hàng; bôi đen chữ rồi nhấn Ctrl+] / Ctrl+[ để tăng/giảm cỡ chữ. Định dạng được lưu thành form chung cho mọi người ở các phiên sau.</p><p id="pickingPrintMessage" role="status"></p>');
+  button.innerHTML=printerIcon+'<span>In phiếu</span>';
+  button.parentElement.classList.add('print-header-actions');
+  button.insertAdjacentHTML('afterend',' <button id="pickingSavePrint" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></svg>Lưu HTML</button>');
+  $('pickingPrintDialog').querySelector('.dp-head').insertAdjacentHTML('afterend',
+    '<div class="print-toolbar"><label class="print-template-field" for="pickingPrintTemplate"><span>Mẫu in</span><select id="pickingPrintTemplate"><option value="order">Phiếu đặt hàng</option><option value="delivery">Phiếu xác nhận giao hàng</option></select></label>'
+    +'<div class="print-save-status"><p id="pickingPrintMessage" role="status" aria-live="polite" data-state="loading">Đang tải form chung…</p><small>Định dạng dùng chung cho mọi người</small></div><div id="pickingPrintFormatting" class="print-format-controls"></div></div>'
+    +'<div class="print-edit-hint"><span><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 3v18M3 12h18M8 7l4-4 4 4M8 17l4 4 4-4M7 8l-4 4 4 4m10-8 4 4-4 4"/></svg>Kéo viền để chỉnh cột / hàng</span><span class="print-shortcuts">Bôi đen chữ <kbd>Ctrl</kbd> + <kbd>]</kbd><span aria-hidden="true">/</span><kbd>Ctrl</kbd> + <kbd>[</kbd><span>Tăng / giảm cỡ chữ</span></span><span class="print-readonly">Nội dung chỉ đọc</span></div>');
   $('pickingPrintTemplate').onchange=async event=>{const picker=event.target;picker.disabled=true;try{await window.PickingInvoice.changeTemplate(picker.value);}catch(error){$('pickingPrintMessage').textContent='Không đổi được mẫu in. Hãy thử lại.';}finally{picker.disabled=false;}};
   button.onclick=()=>{
     $('pickingPrintFrame')?.remove();
@@ -208,7 +214,6 @@ function init(){
       try{
         await Promise.all([...frame.contentDocument.images].map(img=>img.complete?Promise.resolve():new Promise(resolve=>{img.addEventListener('load',resolve,{once:true});img.addEventListener('error',resolve,{once:true});})));
         frame.contentWindow.focus();frame.contentWindow.print();
-        $('pickingPrintMessage').textContent='';
       }catch(error){$('pickingPrintMessage').textContent='Trình duyệt chưa mở được hộp in. Hãy mở file HTML bằng Chrome hoặc Edge rồi bấm In.';}
     };
     frame.srcdoc=printDocument();document.body.append(frame);

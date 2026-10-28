@@ -488,7 +488,7 @@ test('in lại (In đơn) mở phiếu từ bản ghi chỉ định; Hủy nhặ
   page.dom.window.close();
 });
 
-test('phiếu in: ST gộp mọi vị trí của một mã (5T x 200 + 1T x 50 - 30), đỏ khi có phần thiếu', async () => {
+test('phiếu in: ST nối cộng từng khu (2T x 200 + 3T x 200 + 1T x 50 - 30), đỏ khi có phần thiếu', async () => {
   const page = await renderPage();
   await openPopup(page);
   const job = (id, location, plannedQty, stCartons, stText) => ({ id, productCode: 'A', positionId: id, location, plannedQty, reservedQty: plannedQty, stCartons, stText });
@@ -496,7 +496,7 @@ test('phiếu in: ST gộp mọi vị trí của một mã (5T x 200 + 1T x 50 -
   const snapshot = { ...record.snapshot, lines: [{ productCode: 'A', productName: 'Hàng A', quantity: 1020, price: 1000, discount: 0 }] };
   await page.window.PickingInvoice.show({ ...snapshot, orderCode: 'DH1', branch: 'HN' }, record);
   const st = page.document.querySelector('#pickingPrintSheet tbody td.invoice-st');
-  assert.equal(st.textContent.trim(), '5T x 200 + 1T x 50 - 30');
+  assert.equal(st.textContent.trim(), '2T x 200 + 3T x 200 + 1T x 50 - 30');
   assert.ok(st.classList.contains('invoice-st-frac'));
   page.dom.window.close();
 });

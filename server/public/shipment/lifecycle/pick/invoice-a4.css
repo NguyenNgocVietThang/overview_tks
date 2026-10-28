@@ -1,7 +1,7 @@
 /* One print design shared by preview, iframe and the standalone downloaded HTML. */
 @page{size:A4 portrait;margin:18mm 11mm 25mm}
 #pickingPrintSheet{box-sizing:border-box;width:210mm;max-width:none;min-width:210mm;min-height:297mm;margin:0 auto;padding:18mm 11mm 25mm;background:#fff;color:#000}
-#pickingPrintSheet .tokosi-invoice{font-family:Arial,Helvetica,sans-serif;font-size:12pt;line-height:1.3;min-width:0;max-width:100%;min-height:254mm;display:flex;flex-direction:column;color:#000}
+#pickingPrintSheet .tokosi-invoice{font-family:Arial,Helvetica,sans-serif;font-size:12pt;line-height:1.3;min-width:0;max-width:100%;min-height:0;display:flex;flex-direction:column;color:#000}
 #pickingPrintSheet .tokosi-invoice *{box-sizing:border-box}
 #pickingPrintSheet .tokosi-invoice table{width:100%;max-width:100%;min-width:0!important;margin:0;border-collapse:collapse;table-layout:fixed}
 #pickingPrintSheet .tokosi-invoice td,#pickingPrintSheet .tokosi-invoice th{font-family:Arial,Helvetica,sans-serif;font-size:12pt;font-weight:normal;color:#000;background:#fff;border:0;padding:0;vertical-align:top;word-break:normal;overflow-wrap:anywhere;white-space:normal}
@@ -32,12 +32,12 @@
 #pickingPrintSheet .tokosi-invoice .invoice-location{white-space:normal}
 #pickingPrintSheet .tokosi-invoice .invoice-loc-line{white-space:nowrap;text-align:center;font-variant-numeric:tabular-nums}
 #pickingPrintSheet .tokosi-invoice .invoice-loc-line b{font-weight:bold}
-#pickingPrintSheet .tokosi-invoice .invoice-footer{margin-top:8mm;padding-bottom:20mm;break-inside:avoid;page-break-inside:avoid}
+#pickingPrintSheet .tokosi-invoice .invoice-footer{margin-top:6mm;padding-bottom:10mm;break-inside:avoid;page-break-inside:avoid;break-after:avoid;page-break-after:avoid}
 #pickingPrintSheet .tokosi-invoice .invoice-summary td{font-size:12pt;padding:.4mm 1mm;line-height:1.2}
 #pickingPrintSheet .tokosi-invoice .invoice-notes{margin-top:5mm;line-height:1.2;white-space:pre-line}
 #pickingPrintSheet .tokosi-invoice .invoice-signatures{margin:7mm 0 0!important;min-height:0}
 #pickingPrintSheet .tokosi-invoice .invoice-signatures td{padding:.3mm 0;font-size:12pt}
-#pickingPrintSheet .tokosi-invoice .invoice-notice{position:relative;padding-top:6mm;margin: auto 0 0;font-size:12pt;text-align:center;line-height:1.3;break-inside:avoid}
+#pickingPrintSheet .tokosi-invoice .invoice-notice{position:relative;padding-top:3mm;margin:4mm 0 0;font-size:12pt;text-align:center;line-height:1.3;break-inside:avoid;break-before:avoid;page-break-before:avoid}
 #pickingPrintSheet .tokosi-invoice .invoice-notice:before{content:'';display:block;width:144mm;max-width:85%;margin:0 auto 4mm;border-top:.2mm solid #000}
 #pickingPrintSheet .tokosi-invoice .invoice-demo{font-size:7pt;margin:5mm 0 0;color:#666;line-height:1.2}
 #pickingPrintSheet .tokosi-invoice .invoice-legacy{font-size:8pt;margin:0 0 3mm;color:#555;line-height:1.2}
@@ -62,10 +62,52 @@
 /* Biến chỉ đặt khi người dùng chọn định dạng; mặc định giữ tỷ lệ chữ của từng mẫu. */
 #pickingPrintSheet .tokosi-invoice[style*="--print-font"],#pickingPrintSheet .tokosi-invoice[style*="--print-font"] *{font-family:var(--print-font)!important}
 #pickingPrintSheet .tokosi-invoice[style*="--print-size"],#pickingPrintSheet .tokosi-invoice[style*="--print-size"] *:not([data-print-font]){font-size:var(--print-size)!important}
-.print-template-controls,.print-format-controls{padding:8px 22px;display:flex;align-items:center;flex-wrap:wrap;gap:12px;font-size:13px}
-.print-format-controls label,.print-template-controls label{display:inline-flex;align-items:center;gap:5px}
-.print-template-controls select{max-width:100%}
-@media print{.print-format-controls,.print-template-controls{display:none!important}}
+/* Thanh công cụ xem trước: dùng token sáng/tối của ứng dụng, không ảnh hưởng nội dung giấy. */
+#pickingPrintDialog .dp-head{padding:22px 24px;gap:20px;align-items:center}
+#pickingPrintDialog .dp-kicker{letter-spacing:.1em;font-size:11px;color:var(--muted,#94a3b8);margin:0 0 6px}
+#pickingPrintDialog .dp-title{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:19px;line-height:1.4;margin:0}
+.print-order-code{display:inline-flex;border:1px solid var(--border,#26334d);border-radius:7px;padding:3px 9px;font-size:14px;background:var(--panel-2,#1e293b);font-weight:600}
+#pickingPrintDialog .print-header-actions{display:flex;align-items:center;gap:10px;flex-shrink:0}
+#pickingPrintDialog #pickingPrintBtn,#pickingPrintDialog #pickingSavePrint{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:10px 16px;margin:0;border-radius:9px;font-size:13px;font-weight:600;white-space:nowrap;cursor:pointer}
+#pickingPrintDialog #pickingPrintBtn{background:var(--primary,#3b82f6);color:#fff;border:1px solid transparent;box-shadow:0 4px 14px #2563eb26}
+#pickingPrintDialog #pickingSavePrint{border:1px solid var(--border,#26334d);background:transparent;color:var(--text,#f8fafc)}
+#pickingPrintDialog #pickingPrintBtn svg{margin:0!important}
+#pickingPrintDialog #pickingPrintClose{width:36px;min-height:36px;border-radius:8px;font-size:23px}
+.print-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:16px;padding:18px 24px 14px;color:var(--text,#f8fafc)}
+.print-template-field{display:flex;align-items:center;gap:12px;font-size:13px;font-weight:600;min-width:0}
+.print-template-field>span{white-space:nowrap;color:var(--text-secondary,#cbd5e1)}
+.print-template-field select{appearance:none;min-height:42px;width:238px;max-width:100%;padding:9px 34px 9px 12px;border:1px solid var(--border,#26334d);border-radius:9px;font:inherit;font-weight:500;color:var(--text,#f8fafc);background:var(--panel,#111827) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center;cursor:pointer}
+.print-save-status{flex:1;min-width:180px;font-size:12px;line-height:1.4}
+#pickingPrintDialog #pickingPrintMessage{display:block;padding:0;margin:0 0 3px;font-size:12px;line-height:1.45;color:var(--muted,#94a3b8);overflow-wrap:anywhere}
+#pickingPrintDialog #pickingPrintMessage[data-state="saved"]{color:var(--green,#10b981);font-weight:600}
+#pickingPrintDialog #pickingPrintMessage[data-state="saved"]:before{content:'✓';display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--green,#10b981);color:var(--panel,#111827);margin-right:7px;font-size:12px}
+#pickingPrintDialog #pickingPrintMessage[data-state="error"]{color:var(--red,#ef4444)}
+.print-save-status small{color:var(--muted,#94a3b8);font-size:11px}
+.print-format-controls{display:flex;align-items:center;gap:8px}
+.print-format-controls button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:38px;padding:8px 12px;border:1px solid var(--border,#26334d);border-radius:8px;background:var(--panel-2,#1e293b);color:var(--text,#f8fafc);font-size:12px;font-weight:500;white-space:nowrap;cursor:pointer}
+.print-format-controls button span{font-size:21px;line-height:1}
+#pickingPrintDialog .print-edit-hint{display:flex;flex-wrap:wrap;align-items:center;gap:12px 18px;margin:0 24px 20px;padding:12px 14px;border:1px solid var(--border,#26334d);border-radius:9px;background:var(--panel-2,#1e293b);font-size:11px;line-height:1.6;color:var(--text-secondary,#cbd5e1)}
+.print-edit-hint>span,.print-shortcuts{display:inline-flex;align-items:center;flex-wrap:wrap;gap:7px}
+.print-shortcuts{padding-left:16px;border-left:1px solid var(--border,#26334d)}
+.print-edit-hint kbd{display:inline-flex;align-items:center;justify-content:center;min-width:23px;height:24px;padding:0 6px;border:1px solid var(--border,#475569);border-bottom-width:2px;border-radius:5px;background:var(--panel,#111827);font:11px ui-sans-serif,system-ui,sans-serif;color:var(--text,#f8fafc)}
+.print-readonly{margin-left:auto;color:var(--muted,#94a3b8)}
+.print-preview-stage{padding:24px;background:var(--bg,#090d16);border-top:1px solid var(--border,#26334d);overflow:auto}
+.print-preview-stage #pickingPrintSheet{box-shadow:0 3px 16px #0003}
+#pickingPrintDialog button:hover{filter:brightness(1.08)}
+#pickingPrintDialog button:focus-visible,#pickingPrintDialog select:focus-visible{outline:2px solid var(--primary,#3b82f6);outline-offset:3px}
+@media(max-width:700px){
+ #pickingPrintDialog .dp-head{padding:16px;align-items:flex-start;flex-direction:column;gap:14px}
+ #pickingPrintDialog .dp-title{font-size:16px}
+ #pickingPrintDialog .print-header-actions{width:100%}
+ #pickingPrintDialog #pickingPrintClose{margin-left:auto}
+ .print-toolbar{padding:16px;gap:14px}
+ .print-template-field{width:100%}.print-template-field select{flex:1;width:auto;min-width:0}
+ .print-save-status{min-width:140px}.print-format-controls button{font-size:11px;padding:8px}
+ #pickingPrintDialog .print-edit-hint{margin:0 16px 16px;gap:10px;padding:10px 12px}
+ .print-shortcuts{padding-left:0;border-left:0}.print-readonly{margin-left:0}
+ .print-preview-stage{padding:16px}
+}
+@media print{.print-toolbar,.print-format-controls,.print-template-controls,.print-edit-hint{display:none!important}.print-preview-stage{padding:0;background:white;border:0;overflow:visible}.print-preview-stage #pickingPrintSheet{box-shadow:none}}
 
 #pickingPrintSheet .tokosi-invoice{user-select:text;outline:none}
 #pickingPrintSheet .tokosi-invoice [data-print-font]{font-size:inherit}
