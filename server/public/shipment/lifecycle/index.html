@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Roboto:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="/shared/shared.css?v=20261026-calendar-ui">
+<link rel="stylesheet" href="/shared/shared.css?v=20261028-leave-btn">
 <script src="/shared/motion.js?v=20261024-1" defer></script>
   <link rel="stylesheet" href="/shared/search-clear.css?v=20261009-1">
   <link rel="stylesheet" href="/shared/detail-panel.css?v=20261016">
@@ -345,6 +345,14 @@
   .lc-detail-dialog{ max-width:780px; display:flex; flex-direction:column; overflow:hidden; }
   .lc-detail-dialog.is-wide{ max-width:1100px; }
   .lc-detail-dialog .dp-body{ flex:1; min-height:0; overflow-y:auto; }
+  .lc-detail-dialog > .dp-head{ display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:0 16px; }
+  .lc-detail-dialog > .dp-head > .dp-head-text{ display:contents; }
+  .lc-detail-dialog > .dp-head .dp-kicker{ grid-column:1; grid-row:1; }
+  .lc-detail-dialog > .dp-head .dp-title{ grid-column:1; grid-row:2; align-self:center; }
+  .lc-detail-dialog > .dp-head .dp-subtitle{ grid-column:1; grid-row:3; }
+  .lc-detail-dialog > .dp-head > .dp-head-actions{ grid-column:2; grid-row:2; align-self:center; }
+  #lcDetailPickActions{ display:flex; }
+  #lcDetailPickActions:empty{ display:none; }
   /* Gia tri don chi toi hang trieu/ty nen the hep hon duoc: 6 the nam tron 1 hang o hop rong */
   .lc-detail-dialog .dp-stats{ grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); }
   .lc-detail-alert{
@@ -688,7 +696,10 @@
           <h3 class="dp-title" id="lcDetailTitle"></h3>
           <p class="dp-subtitle" id="lcDetailSubtitle"></p>
         </div>
-        <button type="button" class="dp-close" id="lcDetailClose" aria-label="Đóng">×</button>
+        <div class="dp-head-actions">
+          <span id="lcDetailPickActions"></span>
+          <button type="button" class="dp-close" id="lcDetailClose" aria-label="Đóng">×</button>
+        </div>
       </div>
       <div class="dp-body" id="lcDetailBody"></div>
     </div>
@@ -710,14 +721,14 @@
   <script src="/shared/table-controls.js?v=20261024-2"></script>
   <script src="/shared/fuzzy-search.js"></script>
   <script src="/shared/search-clear.js?v=20261009-1"></script>
-  <script src="/shared/shared-nav.js?v=20261026-calendar-ui"></script>
+  <script src="/shared/shared-nav.js?v=20261028-leave-btn"></script>
   <script src="/shared/table-align.js?v=20261017"></script>
   <script src="/shared/dateInput.js?v=20260912"></script>
   <script src="/shared/carton.js?v=20261027-1"></script>
   <script src="/shared/pick-rules.js?v=20261027-1"></script>
-  <script src="/shipment/lifecycle/pick/invoice.js?v=20261027-1"></script>
+  <script src="/shipment/lifecycle/pick/invoice.js?v=20261028-2"></script>
   <script src="/shipment/lifecycle/pick/print-tools.js?v=20261027-1"></script>
-  <script src="/shipment/lifecycle/pick/pick-assign.js?v=20261027-1"></script>
+  <script src="/shipment/lifecycle/pick/pick-assign.js?v=20261028-1"></script>
 
   <script>
     const THEME_STORAGE_KEY = 'tks-dashboard-theme';
@@ -1019,6 +1030,7 @@
       detailOrder = order;
       detailKiot = null;
       detailPick = null;
+      document.getElementById('lcDetailPickActions').replaceChildren();
       const milestones = milestonesFor(order);
       const doneMilestones = milestones.filter(function(field){ return detailText(order[field.key]); }).length;
       const subtitle = [BRANCH_LABEL[order.branch] ? 'Cơ sở ' + BRANCH_LABEL[order.branch] : '', detailText(order.orderDate)].filter(Boolean).join(' · ');
@@ -1303,7 +1315,7 @@
     function attachPick(order){
       if(!window.TKSPick) return;
       window.TKSPick.attach({
-        order: order, host: document.getElementById('lcDetailKiot'), canPick: canPick, assignment: detailPick,
+        order: order, host: document.getElementById('lcDetailKiot'), buttonHost: document.getElementById('lcDetailPickActions'), canPick: canPick, assignment: detailPick,
         onChange: function(assignment){ onPickChanged(order, assignment); }
       });
     }

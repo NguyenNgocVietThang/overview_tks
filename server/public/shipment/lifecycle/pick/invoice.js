@@ -49,7 +49,7 @@ function loadAssets(){
   if(window.PickingInvoiceTemplate&&window.PickingPrintCSS)return Promise.resolve();
   if(!assetsPromise){
     assetsPromise=(async()=>{
-      const [template,css]=await Promise.all([fetchText(BASE+'order-template.tpl'),fetchText(BASE+'invoice-a4.css')]);
+      const [template,css]=await Promise.all([fetchText(BASE+'order-template.tpl?v=20261028-2'),fetchText(BASE+'invoice-a4.css?v=20261028-2')]);
       let out=template;
       for(const id of new Set([...template.matchAll(CDN)].map(m=>m[1]))){
         const uri=await dataUri(BASE+'invoice-assets/'+id+'.jpg');
@@ -113,8 +113,8 @@ async function show(order,record){
     const locationCell=item.querySelector('td.invoice-location');
     if(multiZone&&!priorLine&&locationCell)locationCell.replaceChildren(...zones.map(z=>{
       const div=document.createElement('div'),qtyNode=document.createElement('b');
-      div.className='invoice-loc-line';qtyNode.textContent=qtyText(z.qty);
-      div.append(z.name+': ',qtyNode);return div;
+      div.className='invoice-loc-line';qtyNode.textContent=z.qty.toLocaleString('en-US',{useGrouping:false,maximumFractionDigits:3});
+      div.append(z.name+':',qtyNode);return div;
     }));
     row.before(item);
     if(!priorLine)seenCodes.set(key(line.productCode),index);

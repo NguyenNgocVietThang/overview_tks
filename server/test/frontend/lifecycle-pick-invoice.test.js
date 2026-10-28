@@ -94,8 +94,8 @@ test('ô Vị trí: từ hai vị trí mỗi vị trí một dòng "VT: SL" vớ
   try {
     const cell = cells(dom.window.document)[6];
     const lines = [...cell.querySelectorAll('.invoice-loc-line')];
-    assert.deepEqual(lines.map(l => l.textContent.replace(/\s+/g, ' ').trim()), ['A01: 200,000', 'B02: 50']);
-    assert.deepEqual([...cell.querySelectorAll('.invoice-loc-line b')].map(b => b.textContent), ['200,000', '50'], 'chỉ số lượng in đậm');
+    assert.deepEqual(lines.map(l => l.textContent.replace(/\s+/g, ' ').trim()), ['A01:200000', 'B02:50']);
+    assert.deepEqual([...cell.querySelectorAll('.invoice-loc-line b')].map(b => b.textContent), ['200000', '50'], 'chỉ số lượng in đậm, không thêm dấu phân cách hàng nghìn');
     assert.doesNotMatch(cell.textContent, /Tx/, 'số thùng không lặp ở ô Vị trí (đã có cột Thùng)');
   } finally {dom.window.close();}
 });

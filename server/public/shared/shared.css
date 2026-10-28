@@ -398,6 +398,23 @@ body::before{
 .profile-trigger .who .name{ font-weight:600; color:var(--text); }
 .profile-trigger .who .role{ color:var(--muted); font-size:11px; }
 
+/* ---------- Nut Xin nghi phep (header moi trang, shared-nav.js) ---------- */
+.tks-leave-request-btn{
+  display:flex; align-items:center; justify-content:center; gap:8px;
+  min-height:40px; padding:0 14px; border-radius:10px; cursor:pointer;
+  background:var(--blue); color:#fff; border:1px solid var(--blue);
+  font-family:var(--font-body); font-size:12.5px; font-weight:600; white-space:nowrap;
+  transition:filter .15s ease, transform .15s ease;
+}
+.tks-leave-request-btn:hover{ filter:brightness(1.08); transform:translateY(-1px); }
+.tks-leave-request-btn:active{ transform:translateY(0); }
+.tks-leave-request-btn:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+.tks-leave-request-btn svg{ width:18px; height:18px; flex-shrink:0; }
+@media (prefers-reduced-motion: reduce){
+  .tks-leave-request-btn{ transition:none; }
+  .tks-leave-request-btn:hover{ transform:none; }
+}
+
 /* ---------- Chuong thong bao (dung chung moi trang) ---------- */
 .tks-notif-wrap, .tks-cal-wrap{ position:relative; }
 .tks-notif-bell, .tks-cal-btn{
@@ -1841,15 +1858,19 @@ table.fixed-table td {
   body .receipt-header .status-line{
     flex:1 1 100%; width:100%; flex-wrap:wrap; justify-content:stretch; align-items:center; gap:8px;
   }
-  /* Hàng 2: [chế độ sáng/tối] [cơ sở — giãn hết chỗ] [chuông] */
-  body .receipt-header .theme-toggle{ flex:0 0 40px; width:40px; min-height:40px; padding:0; justify-content:center; border-radius:10px; }
+  /* Hàng 2: [sáng/tối] [cơ sở — giãn hết chỗ] [xin nghỉ] [lịch] [chuông]
+     Dùng order vì lịch/chuông/nút nghỉ được chèn sau #accountChip trong DOM. */
+  body .receipt-header .theme-toggle{ order:1; flex:0 0 40px; width:40px; min-height:40px; padding:0; justify-content:center; border-radius:10px; }
   body .receipt-header .theme-toggle span{ display:none; }
-  body .receipt-header .tks-branch-mount{ flex:1 1 0; min-width:0; }
+  body .receipt-header .tks-branch-mount{ order:2; flex:1 1 0; min-width:0; }
   body .receipt-header .tks-branch{ width:100%; min-height:40px; }
   body .receipt-header .tks-branch-select{ max-width:none; width:100%; font-size:14px; }
-  body .receipt-header .tks-notif-wrap, body .receipt-header .tks-cal-wrap{ flex:0 0 40px; }
+  body .receipt-header .tks-leave-request-btn{ order:3; flex:0 0 40px; width:40px; padding:0; }
+  body .receipt-header .tks-leave-request-btn span{ display:none; }
+  body .receipt-header .tks-cal-wrap{ order:4; flex:0 0 40px; }
+  body .receipt-header .tks-notif-wrap{ order:5; flex:0 0 40px; }
   /* Hàng 3: [hồ sơ — giãn hết chỗ] [Đăng xuất] */
-  body .receipt-header #accountChip{ flex:1 1 100%; min-width:0; gap:8px; }
+  body .receipt-header #accountChip{ order:6; flex:1 1 100%; min-width:0; gap:8px; }
   body .receipt-header .profile-trigger{ flex:1 1 0; min-width:0; }
   body .receipt-header .profile-trigger .who{ min-width:0; }
   body .receipt-header .profile-trigger .who .name,

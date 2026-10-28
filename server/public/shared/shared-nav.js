@@ -347,6 +347,7 @@
         TKSNav.renderHeaderBranch(user);
         TKSNav.renderLeaveCalendar(user);
         TKSNav.renderNotifBell(user);
+        TKSNav.renderLeaveRequestButton(user);
         return user;
       })
       .catch(function(){
@@ -1127,6 +1128,37 @@
     var btn = wrap.querySelector('#tksLeaveCalBtn');
     var dropdown = wrap.querySelector('#tksLeaveCalDropdown');
     createLeaveCalendar(dropdown, { button: btn, wrap: wrap });
+  };
+
+  // Nút "Xin nghỉ phép" ở header mọi trang. Chỉ hiện khi máy chủ xác nhận tài khoản
+  // đủ điều kiện (đã gán cơ sở + bộ phận). Trang Nhân sự mở thẳng form; trang khác
+  // chuyển sang đó kèm ?newLeave=1 để form tự mở.
+  var leaveRequestIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><polyline points="14 3 14 8 19 8"></polyline><line x1="12" y1="12" x2="12" y2="18"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>';
+
+  TKSNav.renderLeaveRequestButton = function renderLeaveRequestButton(user){
+    if(user && Array.isArray(user.permissions)) TKSNav.setPermissions(user);
+    if(!TKSNav.can(['hr.leave.submit', 'hr.leave.manage', 'hr.leave'])) return Promise.resolve();
+    var chipMount = document.getElementById('accountChip');
+    if(!chipMount || !chipMount.parentNode) return Promise.resolve();
+    if(document.getElementById('tksLeaveRequestBtn')) return Promise.resolve();
+    return fetch('/api/hr/leave-requests/self/context', { credentials: 'same-origin', cache: 'no-store' })
+      .then(function(res){ return res.ok ? res.json() : null; })
+      .then(function(data){
+        if(!data || !data.eligible || document.getElementById('tksLeaveRequestBtn')) return;
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.id = 'tksLeaveRequestBtn';
+        btn.className = 'tks-leave-request-btn';
+        btn.setAttribute('aria-label', 'Xin nghỉ phép');
+        btn.title = 'Xin nghỉ phép';
+        btn.innerHTML = leaveRequestIcon + '<span>Xin nghỉ phép</span>';
+        btn.addEventListener('click', function(){
+          if(typeof window.openSelfLeave === 'function'){ window.openSelfLeave(); return; }
+          window.location.href = '/humanresources/?newLeave=1#leave';
+        });
+        chipMount.parentNode.insertBefore(btn, chipMount);
+      })
+      .catch(function(){ /* noop: thiếu nút không được làm hỏng header */ });
   };
 
   /** Inline month view. The caller controls visibility and the table's date filters. */

@@ -140,8 +140,9 @@ const makeDirty = async page => {
 test('quyền shipment.pick: có quyền + đơn Đã gửi kế toán thì có nút Chỉ định vị trí; không quyền thì không nút và ẩn ô lọc chỉ định', async () => {
   const withPick = await renderPage();
   await openDetail(withPick);
-  assert.ok(withPick.document.getElementById('openPickingBtn'), 'nút Chỉ định vị trí ở đầu khối Hàng hóa');
-  assert.ok(withPick.document.querySelector('#lcDetailKiot .dp-section-head #pickingActions'));
+  assert.ok(withPick.document.querySelector('#lcDetailPickActions #openPickingBtn'), 'nút Chỉ định vị trí ở đầu hộp');
+  assert.equal(withPick.document.getElementById('lcDetailPickActions').nextElementSibling.id, 'lcDetailClose', 'nút chỉ định bên trái dấu X');
+  assert.equal(withPick.document.querySelector('#lcDetailKiot #openPickingBtn'), null);
   assert.equal(withPick.document.getElementById('bulkPickWrap').hidden, false);
 
   const without = await renderPage({ permissions: ['shipment.lifecycle'] });

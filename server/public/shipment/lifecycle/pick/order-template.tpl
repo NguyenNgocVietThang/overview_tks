@@ -1,10 +1,18 @@
 <div class="printBox">
   <div class="invoice-top">
-    <table cellpadding="1" cellspacing="1" border="0" style="width: 100%" data-table-controls="off" data-table-sort="off" class="invoice-header">
-      <tbody>
-        <tr>
-          <td class="invoice-order" style="text-align:left; width:53%">
-            <p><span style=""><strong class="invoice-title">PHIẾU ĐẶT HÀNG</strong></span><br><span style="">Mã đơn hàng:&nbsp;</span><span style=""><strong>{Ma_Don_Hang}</strong></span><br></p>
+    <table data-table-controls="off" data-table-sort="off" class="invoice-header">
+      <tbody><tr>
+        <td class="invoice-order">
+          <p><strong class="invoice-title">PHIẾU ĐẶT HÀNG</strong><br>Mã đơn hàng: <strong>{Ma_Don_Hang}</strong></p>
+          <p class="invoice-seller">NV Bán hàng: {Nhan_Vien_Ban_Hang} | Zalo: {Dien_Thoai_Nguoi_Ban}</p>
+          <div class="invoice-customer">
+            <p>Khách hàng: {Khach_Hang}</p>
+            <p>SĐT khách: {So_Dien_Thoai}</p>
+            <p>Địa chỉ: {Dia_Chi_Khach_Hang}</p>
+          </div>
+        </td>
+        <td class="invoice-business">
+          <p class="invoice-business-details"><strong class="invoice-brand">KHO SỈ TOKOSI</strong><br>Đ/c: Cụm CN Cầu Nổi, Hoài Đức, HN<br>ĐT: 0903 255 456 - 0343 468 468</p>
             <table cellpadding="3" width="100%" style="border-collapse: collapse; width: 100%;" data-table-controls="off" data-table-sort="off" class="invoice-qr">
               <tbody>
                 <tr>
@@ -14,30 +22,11 @@
                 </tr>
               </tbody>
             </table>
-          </td>
-          <td class="invoice-business" style="text-align:left; width:47%">
-            <p><span style=""><strong class="invoice-brand">KHO SỈ TOKOSI</strong></span><br><span style="">Đ/c: Cụm CN Cầu Nổi, Hoài Đức, HN<br>ĐT: 0903 255 456 - 0343 468 468</span></p>
-            <p class="invoice-seller">NV Bán hàng: <span style="">{Nhan_Vien_Ban_Hang}</span>&nbsp;|
-              Zalo:&nbsp;{Dien_Thoai_Nguoi_Ban}</p>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-    <table style="margin: 10px 0px 15px; width: 100%;" data-table-controls="off" data-table-sort="off" class="invoice-customer">
-      <tbody>
-        <tr>
-          <td style="text-align:left"><span style="">Khách hàng: {Khach_Hang}</span></td>
-          <td style="width:3%">&nbsp;</td>
-          <td style="text-align:left;width:40%"><span style="">SĐT khách: {So_Dien_Thoai}</span></td>
-        </tr>
-        <tr>
-          <td colspan="3" style="text-align:left"><span style="">Địa chỉ: {Dia_Chi_Khach_Hang}</span>
-          </td>
-        </tr>
-      </tbody>
+        </td>
+      </tr></tbody>
     </table>
   </div>
-  <table cellpadding="3" cellspacing="0" border="1" style="border-collapse: collapse; width: 100%" data-table-controls="off" data-table-sort="off" class="invoice-goods"><colgroup><col style="width: 4%;"><col style="width: 22%;"><col style="width: 8%;"><col style="width: 9%;"><col style="width: 11%;"><col style="width: 11%;"><col style="width: 14%;"><col style="width: 11%;"><col style="width: 10%;"></colgroup><thead><tr>
+  <table cellpadding="3" cellspacing="0" border="1" style="border-collapse: collapse; width: 100%" data-table-controls="off" data-table-sort="off" class="invoice-goods"><colgroup><col style="width: 5%;"><col style="width: 22%;"><col style="width: 7%;"><col style="width: 10%;"><col style="width: 11%;"><col style="width: 11%;"><col style="width: 13%;"><col style="width: 10%;"><col style="width: 11%;"></colgroup><thead><tr>
 
         <td style="text-align: center; border-color: rgb(0, 0, 0);">
           <span style=""><strong>TT</strong></span></td>
@@ -48,7 +37,7 @@
         <td style="text-align: center; border-color: rgb(0, 0, 0);">
           <span style=""><strong>Đơn giá</strong></span></td>
         <td style="text-align: center; border-color: rgb(0, 0, 0);">
-          <span style=""><strong>Thành tiền</strong></span></td>
+          <span style=""><strong>Thành <br>tiền</strong></span></td>
         <td style="text-align: center; border-color: rgb(0, 0, 0);">
           <span style=""><strong>Ghi chú</strong></span></td>
         <td style="text-align: center; border-color: rgb(0, 0, 0);">

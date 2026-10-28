@@ -337,11 +337,13 @@
   }
 
   // ---------- Gắn vào hộp chi tiết đơn ----------
-  /* opts: {order (đơn đang xem, có summary.code và pickStatus), host (#lcDetailKiot), canPick, assignment (nếu đã tải), onChange(assignment)}.
+  /* opts: {order (đơn đang xem, có summary.code và pickStatus), host (#lcDetailKiot), buttonHost (đầu hộp, bên trái nút đóng), canPick, assignment (nếu đã tải), onChange(assignment)}.
      Nút "Chỉ định vị trí" chỉ hiện với người có quyền khi đơn đang "Đã gửi kế toán" hoặc đã có chỉ định (để xem/in);
      chip "Đã chỉ định · <trạng thái>" hiện cho mọi người xem được hộp. */
   function attach(opts){
     const host=opts&&opts.host;if(!host)return;
+    const buttonHost=opts.buttonHost;
+    if(buttonHost)buttonHost.replaceChildren();
     state.onChange=opts.onChange||null;
     host.querySelectorAll('#pickingActions').forEach(node=>node.remove());
     const o=opts.order||{},status=opts.assignment?opts.assignment.status:(o.pickStatus||null);
@@ -352,12 +354,12 @@
     const controls=document.createElement('span');controls.id='pickingActions';controls.className='picking-actions';
     if(canOpen){
       const button=document.createElement('button');button.type='button';button.id='openPickingBtn';button.className='picking-open-btn';button.textContent='Chỉ định vị trí';
-      button.addEventListener('click',()=>open(o));controls.appendChild(button);
+      button.addEventListener('click',()=>open(o));(buttonHost||controls).appendChild(button);
     }
     if(status){
       const chip=document.createElement('span');chip.className='picking-confirmed';chip.dataset.status=status;chip.textContent='✓ Đã chỉ định · '+(STATUS_LABEL[status]||status);controls.appendChild(chip);
     }
-    head.appendChild(controls);
+    if(controls.childNodes.length)head.appendChild(controls);
   }
   // Tải chỉ định mới nhất của đơn (null nếu chưa có hoặc lỗi) — hộp chi tiết dùng để vẽ cột ST.
   async function loadAssignment(o){
