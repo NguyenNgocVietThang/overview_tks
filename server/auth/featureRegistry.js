@@ -118,6 +118,7 @@ const FEATURES = Object.freeze([
   { key: 'stockLocationsV2.view', groupKey: 'stockLocations', label: 'Xem VT Hà Nội / VT Sài Gòn', roles: MANAGER_ONLY, forbiddenRoles: [ROLES.KHACH] },
   { key: 'stockLocationsV2.edit', groupKey: 'stockLocations', label: 'Sửa / thêm / xóa / import VT Hà Nội / VT Sài Gòn (cần xem VT)', roles: MANAGER_ONLY, requires: 'stockLocationsV2.view' },
   { key: 'stockLocationsV2.export', groupKey: 'stockLocations', label: 'Xuất Excel VT Hà Nội / VT Sài Gòn (cần xem)', roles: MANAGER_ONLY, requires: 'stockLocationsV2.view' },
+  { key: 'stockLocationsV2.historyDelete', groupKey: 'stockLocations', label: 'Xóa lịch sử VT Hà Nội / VT Sài Gòn (cần xem VT)', roles: MANAGER_ONLY, requires: 'stockLocationsV2.view' },
 
   // --- Quan ly nhan su ---
   { key: 'hr.rules', groupKey: 'hr', label: 'Quy định công ty', roles: ALL_ROLES },

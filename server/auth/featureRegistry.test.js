@@ -59,6 +59,7 @@ test('VT Hà Nội / VT Sài Gòn: mặc định chỉ Quản lý, sửa cần q
     assert.equal(defaults.includes('stockLocationsV2.view'), manager, vaiTro);
     assert.equal(defaults.includes('stockLocationsV2.edit'), manager, vaiTro);
     assert.equal(defaults.includes('stockLocationsV2.export'), manager, vaiTro);
+    assert.equal(defaults.includes('stockLocationsV2.historyDelete'), manager, vaiTro);
   }
   // Xuất Excel là quyền riêng: được xem/được sửa chưa chắc được xuất, và cần quyền xem.
   const exporter = registry.resolvePermissions({ vaiTro: ROLES.NHAN_VIEN_KHO, featurePermissions: { 'stockLocationsV2.view': true, 'stockLocationsV2.export': true } });
