@@ -10,12 +10,12 @@ Ngày: 2026-10-28. Module: `server/stockPositions/`, `server/pickAssignments/`, 
 - `shape()` trả thêm `acknowledged`; dòng `acknowledged = true` có `warnings = []` ở phía hiển thị và đếm (không còn trong bộ lọc Cảnh báo, số đếm giảm); danh sách cảnh báo gốc vẫn trả ở `rawWarnings` để bỏ cờ xem lại được.
 - API: `POST /api/stock-positions/:id/ack` body `{version, acknowledged}`, cần `stockLocationsV2.edit`, tăng `version`, kiểm khóa dòng như `update`.
 - Lịch sử: action `ack` / `unack` (mở rộng CHECK trong migration), ghi người bấm.
-- Giao diện: nhãn cảnh báo thành nút "Sai định dạng → Đã sửa" (nhãn xanh); hộp chi tiết có nút "Đánh dấu Đã sửa" / "Bỏ đánh dấu". Ẩn nếu không có quyền sửa.
+- Giao diện: nút "Đánh dấu Đã sửa" / "Bỏ đánh dấu Đã sửa" chỉ nằm trong **hộp chi tiết** (ẩn nếu không có quyền sửa); bảng chỉ hiện nhãn xanh "Đã sửa" không bấm được (bấm dòng đã mở hộp chi tiết).
 - Import "thay toàn bộ" và sửa tay không đụng vào cờ (dòng cập nhật giữ cờ; dòng mới mặc định false).
 
 ## 2. Lịch sử cho lượt trừ tồn tự động theo đơn
 
-- `pickAssignmentsService.confirm()` (job Kiot và người bấm tay) và hoàn tác ghi `actor_name = mã đơn` cho `stock_position_history` (`pick`, `pick_revert`, `auto_delete` trong luồng đơn) và `stock_positions.updated_by_name`.
+- `pickAssignmentsService.confirm()` (job Kiot và người bấm tay) ghi `actor_name = mã đơn` cho `stock_position_history` (`pick`, `auto_delete` trong luồng đơn) và `stock_positions.updated_by_name`.
 - Tên người bấm thật lưu vào `summary.confirmedBy` (job tự động: rỗng); không mất dấu vết.
 - `actor_user_id` giữ nguyên người bấm (hoặc null khi job).
 - Giao diện lịch sử đã hiển thị `actorName`, không cần đổi.

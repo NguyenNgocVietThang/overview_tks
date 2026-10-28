@@ -1,5 +1,9 @@
 # Supabase schema cho đồng bộ KiotViet
 
+## Migration 0099 — VT: Đã sửa + xóa lịch sử có kiểm soát (28/10/2026, chưa áp DB)
+
+`0099_stock_position_ack_and_history_purge.sql`: thêm `stock_positions.format_ack`, mở CHECK action lịch sử, viết lại trigger chặn. Chi tiết ở mục cuối.
+
 ## Migration 0098 — Đã xử lý cảnh báo Lệch SL bốc (27/10/2026, chưa áp DB)
 
 `0098_order_pick_history_mismatch_ack.sql` chỉ mở rộng CHECK `order_pick_history.action` thêm `mismatch_ack` (xóa rồi tạo lại ràng buộc `order_pick_history_action_check`). Không thêm cột/bảng; `summary` của dòng này mang `signature` (JSON các `[mã hàng, picked, ordered]` lúc bấm Đã xử lý) và `items`. Chi tiết ở mục “0098” cuối tài liệu.
@@ -787,4 +791,11 @@ Trạng thái: đang làm trên nhánh `feat/lifecycle-pick-assign`, **chưa mer
 - Dòng `mismatch_ack` ghi khi người có `shipment.pick` bấm **Đã xử lý**: `summary.signature` = JSON các `[mã chữ thường, picked, ordered]` của số lệch lúc bấm, `summary.items` = `[{productCode, picked, ordered}]`. Chỉ dòng mới nhất của chỉ định hoạt động được xét; còn khớp số lệch hiện tại thì API đánh dấu `handled`. Kiot sửa tiếp hoặc chỉ định mới (`assignment_id` mới) thì không còn khớp.
 - Chưa áp thì `POST /api/shipment/pick/mismatch-ack` trả 500 (vi phạm CHECK); các phần khác (danh sách, chỉ định, nhãn đỏ Lệch SL bốc) không ảnh hưởng. Người dùng tự chạy `npm run db:migrate`.
 
-Cập nhật gần nhất: 27/10/2026.
+## 0099 — VT: Đã sửa + xóa lịch sử (28/10/2026, chưa áp DB)
+
+- `stock_positions.format_ack BOOLEAN NOT NULL DEFAULT false`: người dùng xác nhận cảnh báo của dòng (mọi loại, kể cả mã lạ) đã xử lý; giữ mãi, sửa ghi chú không tự bỏ. Cảnh báo vẫn tính từ `notes` (`carton.js`), cờ chỉ đổi cách hiển thị/đếm (`warnings` rỗng, `rawWarnings` giữ bản gốc).
+- `stock_position_history_action_check` mở rộng: thêm `ack`, `unack` (bật/tắt cờ), `history_purged` (dấu vết mỗi lần xóa lịch sử, `summary = {deleted, from, to}`).
+- Trigger `stock_position_history_guard`: UPDATE luôn bị chặn; DELETE chỉ qua khi `current_setting('app.history_purge', true) = 'on'` — chỉ `stockPositionsService.purgeHistory` đặt (`set_config('app.history_purge','on',true)`, chỉ có hiệu lực trong giao dịch đó). Lượt trừ tồn do đơn ghi mã đơn vào `actor_name` (và `stock_positions.updated_by_name`); tên người xác nhận ở `summary.confirmedBy`.
+- Chưa áp thì danh sách/thêm VT lỗi (thiếu cột `format_ack`) — phải `npm run db:migrate` trước deploy.
+
+Cập nhật gần nhất: 28/10/2026.
