@@ -399,6 +399,8 @@
     detail.busy = busy;
     $('vtDetailSave').disabled = busy;
     $('vtDetailDelete').disabled = busy;
+    const ack = $('vtDetailAck');
+    if (ack) ack.disabled = busy;
   }
 
   // SL thùng / SL chiếc tính từ ghi chú đang gõ, cùng bộ đọc quy cách với máy chủ (shared/carton.js); sai định dạng thì '—' kèm huy hiệu.
@@ -437,6 +439,7 @@
       button.id = 'vtDetailAck';
       button.className = 'locations-columns-button vt-detail-ack';
       button.textContent = acked ? 'Bỏ đánh dấu Đã sửa' : 'Đánh dấu Đã sửa';
+      button.disabled = detail.busy;
       button.addEventListener('click', ackDetail);
       box.appendChild(button);
     }
@@ -446,6 +449,7 @@
   async function ackDetail() {
     if (detail.busy || !detail.row || !editable()) return;
     const row = detail.row, tab = detail.tab;
+    let refocus = false;
     setDetailError('');
     setDetailBusy(true);
     try {
@@ -456,12 +460,19 @@
         return;
       }
       applyResult(tab, payload);
+      if (tab === activeTab) render();
+      // Người dùng đã đóng hộp / mở dòng khác trong lúc chờ: chỉ cập nhật bảng, không đụng hộp chi tiết đang mở.
+      if (detail.id !== row.id) return;
       detail.row = payload.row;
       renderDetailStats();
-      if (tab === activeTab) render();
       loadDetailHistory(false);
+      refocus = true;
+    } catch (error) {
+      if (detail.id === row.id) setDetailError('Không đổi được trạng thái Đã sửa (lỗi kết nối).');
     } finally {
       setDetailBusy(false);
+      // renderDetailStats dựng lại nút nên tiêu điểm bàn phím bị mất: trả lại sau khi nút hết khóa.
+      if (refocus && detail.id === row.id) { const again = $('vtDetailAck'); if (again) again.focus(); }
     }
   }
 
@@ -494,7 +505,7 @@
       body.appendChild(tr);
     });
     const more = detail.nextBefore !== null && detail.nextBefore !== undefined;
-    $('vtDetailHistoryNote').textContent = detail.rows.length ? `${detail.rows.length} thay đổi${more ? ' đã tải' : ''} • Lưu vĩnh viễn` : '';
+    $('vtDetailHistoryNote').textContent = detail.rows.length ? `${detail.rows.length} thay đổi${more ? ' đã tải' : ''}` : '';
     $('vtDetailHistoryMore').hidden = !more;
   }
 
@@ -712,8 +723,11 @@
       [['added', 'Thêm'], ['updated', 'Đổi'], ['deleted', 'Xóa'], ['skippedEmpty', 'Bỏ qua']].forEach(([key, label]) => { if (s[key] !== undefined) parts.push(label + ' ' + s[key]); });
       if (s.rows !== undefined) parts.push(s.rows + ' dòng');
       if ('from' in s || 'to' in s) parts.push(s.from && s.to ? vnDate(s.from) + ' – ' + vnDate(s.to) : s.from ? 'từ ' + vnDate(s.from) : s.to ? 'đến ' + vnDate(s.to) : 'toàn bộ');
-      if (Array.isArray(s.warnings)) parts.push(s.warnings.map(warningLabel).join(', '));
+      if (Array.isArray(s.warnings) && s.warnings.length) parts.push(s.warnings.map(warningLabel).join(', '));
+      if (s.picked !== undefined) parts.push('Nhặt ' + s.picked);
+      if ('confirmedBy' in s) parts.push(s.confirmedBy ? 'Xác nhận: ' + s.confirmedBy : 'Job Kiot');
       if (s.fileName) parts.push(s.fileName);
+      if (!parts.length && Array.isArray(s.warnings)) return 'Không có cảnh báo';
       return parts.length ? parts.join(' · ') : JSON.stringify(s);
     }
     return String((side === 'old' ? entry.oldValue : entry.newValue) ?? '');
@@ -756,7 +770,7 @@
     });
     const more = history.nextBefore !== null && history.nextBefore !== undefined;
     const count = rows.length === history.rows.length ? String(history.rows.length) : rows.length + '/' + history.rows.length;
-    $('vtHistorySubtitle').textContent = `${count} thay đổi${more ? ' đã tải' : ''} • Lưu vĩnh viễn`;
+    $('vtHistorySubtitle').textContent = `${count} thay đổi${more ? ' đã tải' : ''}`;
     $('vtHistoryMore').hidden = !more;
     $('vtHistoryExport').hidden = state[history.branch.toLowerCase()].canExport !== true;
     $('vtHistoryPurge').hidden = state[history.branch.toLowerCase()].canDeleteHistory !== true;
@@ -838,7 +852,9 @@
       const { response, payload } = await request(API + '/history?' + params.toString(), { method: 'DELETE' });
       if (!response.ok) { error.textContent = payload.error || 'Không xóa được lịch sử.'; return; }
       closeDialog($('vtPurgeDialog'));
-      loadHistory(false);
+      await loadHistory(false);
+      // loadHistory ghi đè dòng phụ, nên báo kết quả sau khi tải xong.
+      $('vtHistorySubtitle').textContent = 'Đã xóa ' + (Number(payload.deleted) || 0) + ' dòng lịch sử • ' + $('vtHistorySubtitle').textContent;
     } catch (err) {
       error.textContent = 'Không xóa được lịch sử (lỗi kết nối).';
     } finally {

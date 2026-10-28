@@ -23,7 +23,7 @@ const ENTRIES = [
   { id: 26, createdAt: '2026-10-27T00:30:00Z', branch: 'HN', code: '', location: '', action: 'import_add', field: null, summary: { added: 3, updated: 1, deleted: 0, skippedEmpty: 2, fileName: 'a.xlsx' }, actorName: 'Minh' }
 ];
 
-async function setup(t, { canExport = true, exportResponse } = {}) {
+async function setup(t, { canExport = true, exportResponse, entries = ENTRIES } = {}) {
   const dom = new JSDOM(html, { url: 'https://tokosi.test/vt-positions/', runScripts: 'outside-only' });
   t.after(() => dom.window.close());
   const window = dom.window;
@@ -44,7 +44,7 @@ async function setup(t, { canExport = true, exportResponse } = {}) {
     if (parsed.pathname === '/api/me/table-prefs') return json({ tables: {} });
     calls.push({ path: parsed.pathname, query: parsed.searchParams, options });
     if (parsed.pathname === '/api/stock-positions') return json({ branch: parsed.searchParams.get('branch'), canEdit: true, canExport, rows: [row(1)] });
-    if (parsed.pathname === '/api/stock-positions/history') return json({ rows: ENTRIES, nextBefore: null });
+    if (parsed.pathname === '/api/stock-positions/history') return json({ rows: entries, nextBefore: null });
     if (parsed.pathname === '/api/stock-positions/history/export') {
       return exportResponse || { ok: true, status: 200, headers: { get: name => (name === 'Content-Disposition' ? 'attachment; filename="vt_hn_lich-su_20261027_1000.xlsx"' : null) }, blob: async () => ({ size: 3 }) };
     }
@@ -57,12 +57,12 @@ async function setup(t, { canExport = true, exportResponse } = {}) {
 
 const openHistory = async ({ doc }) => { doc.getElementById('vtHistoryButton').click(); await settle(); };
 
-test('hộp Lịch sử: đầu hộp có icon, dòng phụ "N thay đổi • Lưu vĩnh viễn" và bảng 5 cột', async t => {
+test('hộp Lịch sử: đầu hộp có icon, dòng phụ "N thay đổi" (không hứa lưu vĩnh viễn) và bảng 5 cột', async t => {
   const ctx = await setup(t);
   await openHistory(ctx);
   const { doc } = ctx;
   assert.equal(doc.getElementById('vtHistoryTitle').textContent, 'Lịch sử cập nhật · VT Hà Nội');
-  assert.equal(doc.getElementById('vtHistorySubtitle').textContent, '5 thay đổi • Lưu vĩnh viễn');
+  assert.equal(doc.getElementById('vtHistorySubtitle').textContent, '5 thay đổi');
   assert.ok(doc.querySelector('#vtHistoryDialog .vt-hist-icon svg'));
   assert.deepEqual([...doc.querySelectorAll('#vtHistoryTable thead th')].map(th => th.textContent), ['Thời gian', 'Người thực hiện', 'Hành động', 'Mã hàng / Vị trí', 'Thay đổi']);
   assert.equal(doc.querySelectorAll('#vtHistoryRows tr:first-child td').length, 5);
@@ -138,4 +138,20 @@ test('Xuất Excel lịch sử lỗi: báo trong dòng phụ và bật lại nú
   await settle();
   assert.equal(ctx.doc.getElementById('vtHistorySubtitle').textContent, 'Không đủ quyền');
   assert.equal(ctx.doc.getElementById('vtHistoryExport').disabled, false);
+});
+
+test('cột Thay đổi: bỏ Đã sửa (warnings rỗng) không để trống; dòng nhặt hàng hiện chữ thay vì JSON', async t => {
+  const entries = [
+    { id: 3, createdAt: '2026-10-27T03:00:00Z', branch: 'HN', code: 'AAA', location: 'K1', action: 'unack', field: null, summary: { warnings: [] }, actorName: 'Lan' },
+    { id: 2, createdAt: '2026-10-27T02:00:00Z', branch: 'HN', code: 'AAA', location: 'K1', action: 'pick', field: null, summary: { orderCode: 'DH1', assignmentId: 7, confirmedBy: 'Hà', picked: 12 }, actorName: 'Lan' },
+    { id: 1, createdAt: '2026-10-27T01:00:00Z', branch: 'HN', code: 'AAA', location: 'K1', action: 'pick', field: null, summary: { orderCode: 'DH2', assignmentId: 8, confirmedBy: '', picked: 5 }, actorName: 'Job' }
+  ];
+  const ctx = await setup(t, { entries });
+  await openHistory(ctx);
+  const cells = [...ctx.doc.querySelectorAll('#vtHistoryRows .vt-hist-change')].map(td => td.textContent);
+  assert.notEqual(cells[0], '');
+  assert.equal(cells[0], 'Không có cảnh báo');
+  assert.equal(cells[1], 'Nhặt 12 · Xác nhận: Hà');
+  assert.equal(cells[2], 'Nhặt 5 · Job Kiot');
+  assert.ok(!cells.join('').includes('{'));
 });

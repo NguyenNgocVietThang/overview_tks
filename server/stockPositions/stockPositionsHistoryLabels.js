@@ -23,8 +23,11 @@ function summaryText(summary) {
   if ('from' in summary || 'to' in summary) {
     parts.push(summary.from && summary.to ? `${vnDate(summary.from)} – ${vnDate(summary.to)}` : summary.from ? `từ ${vnDate(summary.from)}` : summary.to ? `đến ${vnDate(summary.to)}` : 'toàn bộ');
   }
-  if (Array.isArray(summary.warnings)) parts.push(summary.warnings.map(code => WARNING_LABELS[code] || code).join(', '));
+  if (Array.isArray(summary.warnings) && summary.warnings.length) parts.push(summary.warnings.map(code => WARNING_LABELS[code] || code).join(', '));
+  if (summary.picked !== undefined) parts.push(`Nhặt ${summary.picked}`);
+  if ('confirmedBy' in summary) parts.push(summary.confirmedBy ? `Xác nhận: ${summary.confirmedBy}` : 'Job Kiot');
   if (summary.fileName) parts.push(summary.fileName);
+  if (!parts.length && Array.isArray(summary.warnings)) return 'Không có cảnh báo';
   return parts.length ? parts.join(' · ') : JSON.stringify(summary);
 }
 

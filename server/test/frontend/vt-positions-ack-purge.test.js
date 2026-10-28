@@ -190,3 +190,64 @@ test('Xóa lịch sử: ngày nhuận hợp lệ, ngày không tồn tại bị 
   assert.equal(del.query.get('from'), '2024-02-29');
   assert.equal(del.query.has('to'), false);
 });
+
+test('Đã sửa: đóng hộp rồi mở dòng khác khi /ack còn chạy thì kết quả cũ không đè hộp mới; Lưu gửi đúng dòng mới', async t => {
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  const acked = row(1, { notes: 'rác', quantity: null, warnings: [], rawWarnings: ['unreadable'], acknowledged: true, version: 4 });
+  const { doc, calls } = await setup(t, {
+    rows: [BAD(1), BAD(2)],
+    handlers: {
+      'POST /api/stock-positions/1/ack': async () => { await gate; return json({ row: acked }); },
+      'PATCH /api/stock-positions/2': () => json({ row: row(2, { notes: 'rác', location: 'MOI', version: 4 }) })
+    }
+  });
+  doc.querySelector('#vtRows tr[data-id="1"]').click();
+  await settle();
+  const button = doc.getElementById('vtDetailAck');
+  button.click();
+  await tick();
+  assert.equal(doc.getElementById('vtDetailAck').disabled, true, 'nút khóa khi đang gửi');
+  doc.getElementById('vtDetailDialog').close();
+  doc.querySelector('#vtRows tr[data-id="2"]').click();
+  await settle();
+  release();
+  await settle();
+  assert.equal(doc.getElementById('vtDetailCode').textContent, 'MA2');
+  assert.equal(doc.getElementById('vtDetailForm').elements.location.value, 'K2');
+  assert.equal(doc.getElementById('vtDetailAck').textContent, 'Đánh dấu Đã sửa', 'hộp mới vẫn là dòng 2 chưa Đã sửa');
+  doc.getElementById('vtDetailForm').elements.location.value = 'MOI';
+  doc.getElementById('vtDetailSave').click();
+  await settle();
+  const patch = calls.find(c => c.method === 'PATCH');
+  assert.equal(patch.path, '/api/stock-positions/2');
+  assert.deepEqual(patch.body, { version: 3, location: 'MOI' });
+});
+
+test('Đã sửa: lỗi kết nối hiện thông báo trong hộp và mở khóa nút; bấm thành công trả lại tiêu điểm cho nút', async t => {
+  let fail = true;
+  const acked = row(1, { notes: 'rác', quantity: null, warnings: [], rawWarnings: ['unreadable'], acknowledged: true, version: 4 });
+  const { doc } = await setup(t, { handlers: { 'POST /api/stock-positions/1/ack': () => { if (fail) throw new Error('network'); return json({ row: acked }); } } });
+  doc.querySelector('#vtRows tr[data-id="1"]').click();
+  await settle();
+  doc.getElementById('vtDetailAck').click();
+  await settle();
+  assert.match(doc.getElementById('vtDetailError').textContent, /lỗi kết nối/);
+  assert.equal(doc.getElementById('vtDetailSave').disabled, false);
+  assert.equal(doc.getElementById('vtDetailAck').disabled, false);
+  fail = false;
+  doc.getElementById('vtDetailAck').click();
+  await settle();
+  assert.equal(doc.getElementById('vtDetailAck').textContent, 'Bỏ đánh dấu Đã sửa');
+  assert.equal(doc.activeElement, doc.getElementById('vtDetailAck'), 'tiêu điểm bàn phím giữ ở nút');
+});
+
+test('Xóa lịch sử: thành công báo số dòng đã xóa trong hộp Lịch sử', async t => {
+  const ui = await setup(t, { handlers: { 'DELETE /api/stock-positions/history': () => json({ deleted: 7, from: null, to: null }) } });
+  const { doc } = ui;
+  await openHistory(ui);
+  doc.getElementById('vtHistoryPurge').click();
+  doc.getElementById('vtPurgeOk').click();
+  await settle();
+  assert.match(doc.getElementById('vtHistorySubtitle').textContent, /Đã xóa 7 dòng lịch sử/);
+});

@@ -14,3 +14,10 @@ test('nhãn + tóm tắt cho ack / unack / history_purged', () => {
   assert.equal(summaryText({ deleted: 5, from: null, to: '2026-10-05' }), 'Xóa 5 · đến 05/10/2026');
   assert.equal(summaryText({ deleted: 5, from: null, to: null }), 'Xóa 5 · toàn bộ');
 });
+
+test('tóm tắt bỏ Đã sửa (warnings rỗng) không rỗng; tóm tắt nhặt hàng đọc được', () => {
+  assert.equal(summaryText({ warnings: [] }), 'Không có cảnh báo');
+  assert.equal(summaryText({ orderCode: 'DH1', assignmentId: 7, confirmedBy: 'Hà', picked: 12 }), 'Nhặt 12 · Xác nhận: Hà');
+  assert.equal(summaryText({ orderCode: 'DH2', assignmentId: 8, confirmedBy: '', picked: 5 }), 'Nhặt 5 · Job Kiot');
+  assert.equal(summaryText({ warnings: ['unreadable'] }), 'Sai định dạng');
+});
