@@ -113,7 +113,8 @@ const HELD_SQL = `
   WHERE a.status = 'picking' AND a.branch = $1 AND l.position_id = ANY($2::bigint[])
   GROUP BY l.position_id`;
 
-const ROW_COLUMNS = 'id, branch, code, name, notes, arrival_date, location, version, updated_by_name, updated_at';
+const BASE_COLUMNS = 'id, branch, code, name, notes, arrival_date, location, version, updated_by_name, updated_at';
+const ROW_COLUMNS = BASE_COLUMNS + ', format_ack';
 
 const historySql = `INSERT INTO stock_position_history (branch, position_id, code, location, action, field, old_value, new_value, summary, actor_user_id, actor_name)
   SELECT $1, t.position_id, t.code, t.location, t.action, t.field, t.old_value, t.new_value, t.summary::jsonb, $2, $3
@@ -181,6 +182,7 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
 
   function shape(row, product, held = 0) {
     const spec = carton.parseSpec(row.notes);
+    const rawWarnings = carton.warnings(row.notes, { unknownCode: !product });
     return {
       id: Number(row.id),
       code: row.code,
@@ -193,7 +195,10 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
       held,
       available: spec ? Math.max(0, spec.quantity - held) : null,
       kiotQuantity: product ? product.onHand : null,
-      warnings: carton.warnings(row.notes, { unknownCode: !product }),
+      // Cảnh báo gốc tính từ ghi chú; dòng đã "Đã sửa" (format_ack) thì warnings rỗng để không đếm/lọc là cảnh báo.
+      acknowledged: Boolean(row.format_ack),
+      rawWarnings: rawWarnings,
+      warnings: row.format_ack ? [] : rawWarnings,
       updatedByName: row.updated_by_name,
       updatedAt: isoOf(row.updated_at),
       version: row.version
@@ -344,6 +349,22 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
       const row = await lockRow(client, ctx, id, version);
       await removeRow(client, row.branch, actor, row, 'delete');
       return { deleted: true, id: Number(row.id) };
+    });
+  }
+
+  // Bat/tat co "Da sua" (xac nhan canh bao). Khong doi du lieu nen khong doi updated_at/nguoi sua cuoi, chi tang version (khoa lac quan).
+  async function acknowledge(ctx, id, body = {}) {
+    if (typeof body.acknowledged !== 'boolean') throw fail(400, 'VALIDATION', 'Thiếu trạng thái Đã sửa (true/false).', { field: 'acknowledged' });
+    const actor = actorOf(ctx);
+    return withTransaction(getDb(), async client => {
+      const row = await lockRow(client, ctx, id, body.version);
+      if (Boolean(row.format_ack) === body.acknowledged) return { row: await shapeOne(client, row) };
+      const product = (await loadProducts(client, row.branch, [row.code])).get(row.code);
+      const warnings = carton.warnings(row.notes, { unknownCode: !product });
+      if (body.acknowledged && !warnings.length) throw fail(409, 'NOTHING_TO_ACK', 'Dòng này không có cảnh báo nên không cần đánh dấu Đã sửa.');
+      const { rows } = await client.query(`UPDATE stock_positions SET format_ack = $2, version = version + 1 WHERE id = $1 RETURNING ${ROW_COLUMNS}`, [row.id, body.acknowledged]);
+      await writeHistory(client, row.branch, actor, [{ positionId: row.id, code: row.code, location: row.location, action: body.acknowledged ? 'ack' : 'unack', summary: { warnings } }]);
+      return { row: await shapeOne(client, rows[0]) };
     });
   }
 
@@ -509,13 +530,13 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
     });
   }
 
-  return { list, create, update, deduct, remove, history, historyAll, importFile };
+  return { list, create, update, deduct, remove, acknowledge, history, historyAll, importFile };
 }
 
 // `tx`: helper giao dich dung chung cho module khac can tru/cong thung that trong cung giao dich + khoa co so (pickAssignments).
 const tx = Object.freeze({
   withTransaction, lockBranch, writeHistory, removeRow, fail, assertBranch, assertScope, actorOf, lower, normalizeLocation,
-  isEmptyNote, isoOf, ROW_COLUMNS, BRANCH_CODES, DB_BRANCH
+  isEmptyNote, isoOf, ROW_COLUMNS: BASE_COLUMNS, BRANCH_CODES, DB_BRANCH
 });
 
 module.exports = { createStockPositionsService, mergeNotes, keyOf, normalizeLocation, tx, ...createStockPositionsService() };

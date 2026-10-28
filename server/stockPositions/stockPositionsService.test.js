@@ -29,6 +29,7 @@ async function fixture({ lines = [] } = {}) {
       [line.branch, ++row, line.code, line.name || '', line.notes, line.location || '', line.arrivalDate || '']);
   }
   await db.exec(migration('0095_stock_positions.sql'));
+  await db.exec(migration('0099_stock_position_ack_and_history_purge.sql'));
   await db.query(`INSERT INTO products (branch, id, code, name, raw) VALUES
     ('hanoi', 1, 'AAA1', 'Hàng A một', '{"inventories":[{"onHand":30},{"onHand":12}]}'),
     ('hanoi', 2, 'BBB2', 'Hàng B hai', '{"inventories":[{"onHand":5}]}'),
@@ -470,6 +471,41 @@ test('list: chưa áp migration giữ chỗ (0096) thì Có thể bốc = SL kho
   const { db, service } = await fixture({ lines: [{ branch: 'HN', code: 'AAA1', name: 'A', notes: '3T x 100', location: 'H1' }] });
   try {
     const { rows } = await service.list(ctx(), 'HN');
-    assert.deepEqual([rows[0].quantity, rows[0].held, rows[0].available], [300, 0, 300]);
+    assert.deepEqual([rows[0].quantity, rows[0].held, rows[0].available], [300,0, 300]);
+  } finally { await db.close(); }
+});
+
+test('ack: Đã sửa cho dòng có cảnh báo (kể cả Mã SP lạ), giữ khi sửa ghi chú, bỏ đánh dấu, ghi lịch sử, tăng version', async () => {
+  const { db, service } = await fixture();
+  try {
+    const bad = (await service.create(ctx(), 'HN', { code: 'AAA1', notes: 'rác', location: 'A1' })).row;
+    assert.deepEqual(bad.warnings, ['unreadable']);
+    assert.equal(bad.acknowledged, false);
+    const acked = (await service.acknowledge(ctx(), bad.id, { version: bad.version, acknowledged: true })).row;
+    assert.equal(acked.acknowledged, true);
+    assert.deepEqual(acked.warnings, []);
+    assert.deepEqual(acked.rawWarnings, ['unreadable']);
+    assert.equal(acked.version, bad.version + 1);
+    assert.equal(acked.updatedAt, bad.updatedAt, 'Đã sửa không phải sửa dữ liệu nên không đổi giờ/người cập nhật');
+    const edited = (await service.update(ctx(), bad.id, { version: acked.version, notes: 'vẫn rác' })).row;
+    assert.equal(edited.acknowledged, true, 'sửa ghi chú không tự bỏ cờ');
+    assert.deepEqual(edited.warnings, []);
+    assert.deepEqual(edited.rawWarnings, ['unreadable']);
+    const unknown = (await service.create(ctx(), 'HN', { code: 'ZZZ9', notes: '1T x 5', location: 'B1' })).row;
+    assert.deepEqual(unknown.warnings, ['unknowncode']);
+    assert.deepEqual((await service.acknowledge(ctx(), unknown.id, { version: unknown.version, acknowledged: true })).row.warnings, []);
+    const back = (await service.acknowledge(ctx(), bad.id, { version: edited.version, acknowledged: false })).row;
+    assert.equal(back.acknowledged, false);
+    assert.deepEqual(back.warnings, ['unreadable']);
+    const log = (await db.query(`SELECT action, actor_name FROM stock_position_history WHERE action IN ('ack', 'unack') ORDER BY id`)).rows;
+    assert.deepEqual(log.map(r => [r.action, r.actor_name]), [['ack', 'Quản Lý A'], ['ack', 'Quản Lý A'], ['unack', 'Quản Lý A']]);
+    // lặp lại cùng trạng thái: không tăng version, không ghi lịch sử
+    assert.equal((await service.acknowledge(ctx(), bad.id, { version: back.version, acknowledged: false })).row.version, back.version);
+    assert.equal((await db.query(`SELECT count(*)::int AS n FROM stock_position_history WHERE action IN ('ack', 'unack')`)).rows[0].n, 3);
+    await assert.rejects(() => service.acknowledge(ctx(), bad.id, { version: back.version, acknowledged: 'yes' }), { statusCode: 400, code: 'VALIDATION' });
+    const fine = (await service.create(ctx(), 'HN', { code: 'AAA1', notes: '2T x 10', location: 'C1' })).row;
+    await assert.rejects(() => service.acknowledge(ctx(), fine.id, { version: fine.version, acknowledged: true }), { statusCode: 409, code: 'NOTHING_TO_ACK' });
+    await assert.rejects(() => service.acknowledge(ctx(), bad.id, { version: 1, acknowledged: true }), { statusCode: 409, code: 'VERSION_CONFLICT' });
+    await assert.rejects(() => service.acknowledge(ctx(['SG']), bad.id, { version: back.version, acknowledged: true }), { statusCode: 403, code: 'BRANCH_OUT_OF_SCOPE' });
   } finally { await db.close(); }
 });
