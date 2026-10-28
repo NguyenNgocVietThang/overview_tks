@@ -378,7 +378,7 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
       const warnings = carton.warnings(row.notes, { unknownCode: !product });
       if (body.acknowledged && !warnings.length) throw fail(409, 'NOTHING_TO_ACK', 'Dòng này không có cảnh báo nên không cần đánh dấu Đã sửa.');
       const { rows } = await client.query(`UPDATE stock_positions SET format_ack = $2, version = version + 1 WHERE id = $1 RETURNING ${ROW_COLUMNS}`, [row.id, body.acknowledged]);
-      await writeHistory(client, row.branch, actor, [{ positionId: row.id, code: row.code, location: row.location, action: body.acknowledged ? 'ack' : 'unack', summary: { warnings } }]);
+      await writeHistory(client, row.branch, actor, [{ positionId: row.id, code: row.code, location: row.location, action: body.acknowledged ? 'ack' : 'unack', summary: { warnings, notes: row.notes } }]);
       return { row: await shapeOne(client, rows[0]) };
     });
   }

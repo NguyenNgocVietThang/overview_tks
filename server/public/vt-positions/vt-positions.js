@@ -724,6 +724,7 @@
       if (s.rows !== undefined) parts.push(s.rows + ' dòng');
       if ('from' in s || 'to' in s) parts.push(s.from && s.to ? vnDate(s.from) + ' – ' + vnDate(s.to) : s.from ? 'từ ' + vnDate(s.from) : s.to ? 'đến ' + vnDate(s.to) : 'toàn bộ');
       if (Array.isArray(s.warnings) && s.warnings.length) parts.push(s.warnings.map(warningLabel).join(', '));
+      if (Array.isArray(s.warnings) && typeof s.notes === 'string' && s.notes.trim()) parts.push('Ghi chú: ' + s.notes.trim());
       if (s.picked !== undefined) parts.push('Nhặt ' + s.picked);
       if ('confirmedBy' in s) parts.push(s.confirmedBy ? 'Xác nhận: ' + s.confirmedBy : 'Job Kiot');
       if (s.fileName) parts.push(s.fileName);

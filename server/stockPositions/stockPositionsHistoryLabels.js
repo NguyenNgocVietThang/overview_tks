@@ -24,6 +24,7 @@ function summaryText(summary) {
     parts.push(summary.from && summary.to ? `${vnDate(summary.from)} – ${vnDate(summary.to)}` : summary.from ? `từ ${vnDate(summary.from)}` : summary.to ? `đến ${vnDate(summary.to)}` : 'toàn bộ');
   }
   if (Array.isArray(summary.warnings) && summary.warnings.length) parts.push(summary.warnings.map(code => WARNING_LABELS[code] || code).join(', '));
+  if (Array.isArray(summary.warnings) && typeof summary.notes === 'string' && summary.notes.trim()) parts.push(`Ghi chú: ${summary.notes.trim()}`);
   if (summary.picked !== undefined) parts.push(`Nhặt ${summary.picked}`);
   if ('confirmedBy' in summary) parts.push(summary.confirmedBy ? `Xác nhận: ${summary.confirmedBy}` : 'Job Kiot');
   if (summary.fileName) parts.push(summary.fileName);
