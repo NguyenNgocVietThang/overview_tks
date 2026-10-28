@@ -187,6 +187,34 @@ test('popup gọi candidates đúng cơ sở + mã đơn, hiện 6 cột và g�
   page.dom.window.close();
 });
 
+test('ST ghi đầy đủ gộp mọi vị trí (cùng SL/thùng cộng thùng, phần thiếu cộng dồn) và Tồn kho có dòng Có thể bốc', async () => {
+  const store = newStore();
+  store.order.lines[0].quantity = 250;
+  store.candidates = { a: [position(11, 'A07', '3T x 100', 300), position(12, 'B02', '2T x 100', 200), position(13, 'C01', '2T x 50', 100)] };
+  const page = await renderPage({ store });
+  await openPopup(page);
+  const { document } = page;
+  const setQty = id => value => { const input = document.querySelector('[data-qty][data-qloc="' + id + '"]'); input.value = value; input.dispatchEvent(new page.window.Event('change', { bubbles: true })); };
+  // 200 từ A07 (2T x 100) + 50 từ C01 (1T x 50) = 250
+  setQty(11)('0'); setQty(12)('0'); setQty(13)('0');
+  setQty(11)('200'); setQty(13)('50');
+  const cell = document.querySelector('.picking-st');
+  assert.equal(cell.dataset.stText, '2T x 100 + 1T x 50', 'gộp thùng 100 của vị trí A07 với thùng 50 của C01');
+  assert.equal(cell.dataset.st, '3');
+  assert.equal(cell.querySelector('strong').textContent, '2T x 100 + 1T x 50');
+  assert.match(cell.querySelector('small').textContent, /Tổng 3 thùng/);
+  // Có thể bốc = tồn kho (600) trừ SL đang chọn (250)
+  const total = document.querySelector('.picking-total');
+  assert.match(total.querySelector('strong').textContent, /600/);
+  assert.equal(total.querySelector('.picking-pickable').dataset.pickable, '350');
+  assert.match(total.querySelector('.picking-pickable').textContent, /Có thể bốc: 350/);
+  // Hai vị trí cùng SL/thùng + phần thiếu: A07 nhặt 150 = 2T x 100 - 50, B02 nhặt 100 = 1T x 100 → 3T x 100 - 50
+  setQty(11)('0'); setQty(13)('0'); setQty(11)('150'); setQty(12)('100');
+  assert.equal(document.querySelector('.picking-st').dataset.stText, '3T x 100 - 50');
+  assert.ok(document.querySelector('.picking-st strong').classList.contains('picking-st-frac'), 'có phần thiếu thì hiện đỏ');
+  page.dom.window.close();
+});
+
 test('validate: SL phân bổ thiếu vẫn mở Xác nhận kèm cảnh báo; bấm − / + theo bước thùng; không vượt tồn khả dụng', async () => {
   const page = await renderPage();
   await openPopup(page);

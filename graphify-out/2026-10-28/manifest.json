@@ -5820,8 +5820,8 @@
     "semantic_hash": ""
   },
   "server/public/prototypes/order-picking/index.html": {
-    "mtime": 1793160850.1159422,
-    "seen": 1793162702.774016,
+    "mtime": 1793162804.0489933,
+    "seen": 1793162874.5693228,
     "ast_hash": "b95f6cc370678d3c5e9ab30ff2017da2",
     "semantic_hash": ""
   },
@@ -5838,8 +5838,8 @@
     "semantic_hash": ""
   },
   "server/public/prototypes/order-picking/order-template.html": {
-    "mtime": 1793160850.057937,
-    "seen": 1793162702.774016,
+    "mtime": 1793162804.3684833,
+    "seen": 1793162874.5693228,
     "ast_hash": "a540c3585514b9a0455146e6f12398ee",
     "semantic_hash": ""
   },
@@ -5928,9 +5928,9 @@
     "semantic_hash": ""
   },
   "server/stockPositions/stockPositionsService.test.js": {
-    "mtime": 1793162589.0491374,
-    "seen": 1793162702.7730176,
-    "ast_hash": "c26d6f5eca7d53be70bf073e14394219",
+    "mtime": 1793162748.1694908,
+    "seen": 1793162874.5683215,
+    "ast_hash": "3aa9ad4d5e7f647f8148773b43061db9",
     "semantic_hash": ""
   },
   "server/test/frontend/vt-positions-detail.test.js": {

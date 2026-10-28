@@ -85,6 +85,14 @@ test('stFor: ST nguyên + phần thiếu khi mở thùng không lấy hết',()=
   assert.deepEqual(st('7Tx50',250),{cartons:5,excess:0,text:'5T x 50'});
   assert.equal(st('1Tx50',999),null);
 });
+test('mergeSt: gộp ST nhiều vị trí thành một chuỗi, cùng SL/thùng cộng thùng, phần thiếu cộng dồn',()=>{
+  assert.deepEqual(C.mergeSt(['3Tx100','2Tx100','2Tx50-30']),{terms:[{cartons:5,perCarton:100},{cartons:2,perCarton:50}],excess:30,cartons:7,text:'5T x 100 + 2T x 50 - 30'});
+  assert.equal(C.mergeSt(['1T x 50','1T x 150 - 50','1Tx150-20']).text,'2T x 150 + 1T x 50 - 70');
+  assert.equal(C.mergeSt(['1Tx200+1Tx50']).text,'1T x 200 + 1T x 50');
+  assert.equal(C.mergeSt([]),null);
+  assert.equal(C.mergeSt(['abc']),null);
+  assert.equal(C.parseStText('1T x 150 - 50').excess,50);
+});
 test('restore cộng trả lại khi không khôi phục nguyên chuỗi được',()=>{
   assert.equal(C.restore(C.parseSpec('1T x 50 + 2T x 25 - 55'),25).text,'1T x 50 + 2T x 25 - 30');
   assert.equal(C.restore(C.parseSpec('3T x 100'),200).text,'5T x 100');

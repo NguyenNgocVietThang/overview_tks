@@ -654,9 +654,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1793152508.9843824,
-    "seen": 1793153101.6583729,
-    "ast_hash": "e6d0f1264c893f2a90dac64d7a848da6",
+    "mtime": 1793166482.745345,
+    "seen": 1793168051.949635,
+    "ast_hash": "5e573dc8bd1fb0c186973637610af83f",
     "semantic_hash": ""
   },
   "design-system/tks-dashboard/MASTER.md": {
@@ -666,15 +666,15 @@
     "semantic_hash": ""
   },
   "docs/01-brd/BRD_Dashboard_GoogleSheets.md": {
-    "mtime": 1793152509.515764,
-    "seen": 1793153101.6583729,
-    "ast_hash": "339515b4243d8766c70abdf36d6580ca",
+    "mtime": 1793168043.6779342,
+    "seen": 1793168051.949635,
+    "ast_hash": "c551097f9a136b9db30deffb254b9e68",
     "semantic_hash": ""
   },
   "docs/02-srs/SRS_Dashboard_GoogleSheets.md": {
-    "mtime": 1793153504.1937983,
-    "seen": 1793154546.9437718,
-    "ast_hash": "93ab3b83ab3ce619ff22ff2832206c71",
+    "mtime": 1793168043.6759253,
+    "seen": 1793168051.949635,
+    "ast_hash": "ec19485f8111449518f7592673964e09",
     "semantic_hash": ""
   },
   "docs/03-process/BPMN_Dashboard_GoogleSheets.md": {
@@ -684,9 +684,9 @@
     "semantic_hash": ""
   },
   "docs/04-planning/implementation_plan.md": {
-    "mtime": 1793152509.3982563,
-    "seen": 1793153101.6583729,
-    "ast_hash": "78c79258349a77fadc85f9cd25c4c4cd",
+    "mtime": 1793168043.676934,
+    "seen": 1793168051.949635,
+    "ast_hash": "cab832ac795322aaa67fb4edebe38ba8",
     "semantic_hash": ""
   },
   "docs/superpowers/plans/2026-08-13-dashboard-result-cache.md": {
@@ -786,9 +786,9 @@
     "semantic_hash": "58e700daf0c14819a97499bd94f6f2e1"
   },
   "server/README.md": {
-    "mtime": 1793162683.7029433,
-    "seen": 1793162702.774016,
-    "ast_hash": "05559b0cbd338af18c8180c716aa7b39",
+    "mtime": 1793168043.6823714,
+    "seen": 1793168051.949635,
+    "ast_hash": "3ddb69d3618e505938600cabdbecfb8e",
     "semantic_hash": ""
   },
   "server/kiotviet/API_ENDPOINTS.md": {
@@ -816,9 +816,9 @@
     "semantic_hash": ""
   },
   "server/public/index.html": {
-    "mtime": 1793156118.2897964,
-    "seen": 1793156889.4630597,
-    "ast_hash": "1b7d95ce21772b6c37536ae3c4749621",
+    "mtime": 1793167942.1663032,
+    "seen": 1793168051.949635,
+    "ast_hash": "323f24f2a7f2682c3a0584ce1ea36b0c",
     "semantic_hash": ""
   },
   "server/public/login/index.html": {
@@ -834,9 +834,9 @@
     "semantic_hash": ""
   },
   "server/public/shipment/lifecycle/index.html": {
-    "mtime": 1793157899.5750053,
-    "seen": 1793158132.0843165,
-    "ast_hash": "652d7b1e4822a03eeb519a82a1fcf6aa",
+    "mtime": 1793167365.5625615,
+    "seen": 1793168051.949635,
+    "ast_hash": "cbdf392748e1e5c944ef85abcd96ebcd",
     "semantic_hash": ""
   },
   "Logo.jpg": {
@@ -3066,15 +3066,15 @@
     "semantic_hash": ""
   },
   "server/test/frontend/overview-section-permissions.test.js": {
-    "mtime": 1791355302.548956,
-    "seen": 1793063448.4734848,
-    "ast_hash": "2b9fc29f5aba040683c09e8fa22d080d",
+    "mtime": 1793168019.1731732,
+    "seen": 1793168051.949635,
+    "ast_hash": "52bed49bf1d2c06c10f131386ef2ad3a",
     "semantic_hash": ""
   },
   "server/test/frontend/product-report-detail.test.js": {
-    "mtime": 1792632347.7734885,
-    "seen": 1793063448.4734848,
-    "ast_hash": "0cd62aaee16bff892f1cbaf402bee949",
+    "mtime": 1793167964.5561743,
+    "seen": 1793168051.949635,
+    "ast_hash": "bc962fab49b82cd84c791bab8954c664",
     "semantic_hash": ""
   },
   "server/test/frontend/profile-email-change.test.js": {
@@ -3360,9 +3360,9 @@
     "semantic_hash": ""
   },
   "CURRENT.md": {
-    "mtime": 1793159370.690698,
-    "seen": 1793162702.774016,
-    "ast_hash": "70c1ddd8c24b3461c0c31f764471747e",
+    "mtime": 1793168043.6724203,
+    "seen": 1793168051.949635,
+    "ast_hash": "9aea0715389a4ef4355c6399007802ac",
     "semantic_hash": ""
   },
   "MEMORY.md": {
@@ -5772,15 +5772,15 @@
     "semantic_hash": ""
   },
   "server/public/shared/carton.js": {
-    "mtime": 1793159325.33548,
-    "seen": 1793162702.7720163,
-    "ast_hash": "936ba65bb6280c6ea3b07ada771f7285",
+    "mtime": 1793167327.8032627,
+    "seen": 1793168051.949635,
+    "ast_hash": "41488415f59f3560a13988d321f6f516",
     "semantic_hash": ""
   },
   "server/public/shared/carton.test.js": {
-    "mtime": 1793158911.1214359,
-    "seen": 1793162702.7720163,
-    "ast_hash": "26ee5aac89cc856d9138e905f8453a4d",
+    "mtime": 1793167365.5625615,
+    "seen": 1793168051.949635,
+    "ast_hash": "024efb4cb7863d190b46eca657dbd1d0",
     "semantic_hash": ""
   },
   "TOKOSI-prototype-nhat-don.html": {
@@ -5820,9 +5820,9 @@
     "semantic_hash": ""
   },
   "server/public/prototypes/order-picking/index.html": {
-    "mtime": 1793162804.0489933,
-    "seen": 1793162874.5693228,
-    "ast_hash": "b95f6cc370678d3c5e9ab30ff2017da2",
+    "mtime": 1793167710.1655593,
+    "seen": 1793168051.949635,
+    "ast_hash": "2ae213c499b9ec45bdcce0c4f1422016",
     "semantic_hash": ""
   },
   "server/public/prototypes/order-picking/invoice-template.html": {
@@ -5838,8 +5838,8 @@
     "semantic_hash": ""
   },
   "server/public/prototypes/order-picking/order-template.html": {
-    "mtime": 1793162804.3684833,
-    "seen": 1793162874.5693228,
+    "mtime": 1793167710.1463914,
+    "seen": 1793168051.949635,
     "ast_hash": "a540c3585514b9a0455146e6f12398ee",
     "semantic_hash": ""
   },
@@ -5874,9 +5874,9 @@
     "semantic_hash": ""
   },
   "server/public/vt-positions/vt-positions.js": {
-    "mtime": 1793162525.475785,
-    "seen": 1793162702.7720163,
-    "ast_hash": "ed9ba558db114ad1d554ceec38490224",
+    "mtime": 1793166337.7397957,
+    "seen": 1793168051.949635,
+    "ast_hash": "87e538ee2a1dd5aeb3dfbdd41ffd7c85",
     "semantic_hash": ""
   },
   "server/shipment/kiotOrderLink.js": {
@@ -5922,21 +5922,21 @@
     "semantic_hash": ""
   },
   "server/stockPositions/stockPositionsService.js": {
-    "mtime": 1793162646.9240184,
-    "seen": 1793162702.7730176,
-    "ast_hash": "18e55af1a896654df64b66296262f482",
+    "mtime": 1793166254.0949214,
+    "seen": 1793168051.949635,
+    "ast_hash": "abbbc1d61ade94b91f4af60ef71cb977",
     "semantic_hash": ""
   },
   "server/stockPositions/stockPositionsService.test.js": {
-    "mtime": 1793162748.1694908,
-    "seen": 1793162874.5683215,
-    "ast_hash": "3aa9ad4d5e7f647f8148773b43061db9",
+    "mtime": 1793166262.740811,
+    "seen": 1793168051.949635,
+    "ast_hash": "46b4b4cba3e668a89b816018655865d6",
     "semantic_hash": ""
   },
   "server/test/frontend/vt-positions-detail.test.js": {
-    "mtime": 1793152166.9839873,
-    "seen": 1793153101.6583729,
-    "ast_hash": "ef35732e309b216140e51e3eb6c1d916",
+    "mtime": 1793166401.3865747,
+    "seen": 1793168051.949635,
+    "ast_hash": "05fdf660b68fbdedae86952238807a31",
     "semantic_hash": ""
   },
   "server/test/frontend/vt-positions-history.test.js": {
@@ -5952,9 +5952,9 @@
     "semantic_hash": ""
   },
   "server/test/frontend/vt-positions.test.js": {
-    "mtime": 1793162552.187383,
-    "seen": 1793162702.7730176,
-    "ast_hash": "8450635a65b3e66c5262fbad7ba6fdc5",
+    "mtime": 1793166410.433703,
+    "seen": 1793168051.949635,
+    "ast_hash": "9e28166320e999ac97d6a92c9dd92eeb",
     "semantic_hash": ""
   },
   "docs/superpowers/specs/2026-10-27-vat-status-by-vat-code-design.md": {
@@ -5970,9 +5970,9 @@
     "semantic_hash": ""
   },
   "server/public/vt-positions/index.html": {
-    "mtime": 1793156981.3296804,
-    "seen": 1793158132.0843165,
-    "ast_hash": "d70e9a82fb13d6707fcb31546c926598",
+    "mtime": 1793166503.0999396,
+    "seen": 1793168051.949635,
+    "ast_hash": "565544544e26851224490866a128c6c4",
     "semantic_hash": ""
   },
   "server/db/migrations/0096_order_pick_assignments.sql": {
@@ -6054,9 +6054,9 @@
     "semantic_hash": ""
   },
   "server/public/shipment/lifecycle/pick/pick-assign.js": {
-    "mtime": 1793158905.4214797,
-    "seen": 1793162702.7720163,
-    "ast_hash": "6df3ffadf256b41894d44600629b2014",
+    "mtime": 1793167354.8726237,
+    "seen": 1793168051.949635,
+    "ast_hash": "b9962c64b1a9dc32d02abff9c9e9e2f1",
     "semantic_hash": ""
   },
   "server/public/shipment/lifecycle/pick/print-tools.js": {
@@ -6072,9 +6072,9 @@
     "semantic_hash": ""
   },
   "server/test/frontend/lifecycle-pick.test.js": {
-    "mtime": 1793158305.4039316,
-    "seen": 1793162702.7730176,
-    "ast_hash": "e647fa1b659e9241238a5597e7059302",
+    "mtime": 1793167427.58919,
+    "seen": 1793168051.949635,
+    "ast_hash": "d3d4a747254449b8c7d483fa6121ee90",
     "semantic_hash": ""
   },
   "docs/superpowers/plans/2026-10-27-pick-assign-hardening.md": {

@@ -172,6 +172,32 @@
     const hit=searchCartons(spec.terms,quantity,true);
     return {cartons:hit.counts.reduce((n,k)=>n+k,0),excess:hit.total-quantity,text:raw.replace(/Tx/g,'T x ').replace(/\+/g,' + ').replace(/-/g,' - ')};
   }
+  /* Đọc lại chuỗi ST của một lượt nhặt ("1Tx200+1Tx50-30", "1T x 150 - 50") thành {terms:[{cartons,perCarton}], excess}; null nếu sai dạng. */
+  function parseStText(text){
+    const m=/^([^-−]*?)(?:\s*[-−]\s*(\d+))?$/.exec(String(text??'').trim());
+    if(!m||!m[1].trim())return null;
+    const terms=[];
+    for(const part of m[1].split('+')){
+      const t=/^\s*(\d+)\s*[Tt]\s*[xX*×]\s*(\d+)\s*$/.exec(part);
+      if(!t||Number(t[1])<=0||Number(t[2])<=0)return null;
+      terms.push({cartons:Number(t[1]),perCarton:Number(t[2])});
+    }
+    return {terms,excess:m[2]?Number(m[2]):0};
+  }
+  /* Gộp ST của nhiều lượt nhặt (nhiều vị trí) của cùng một mã thành một chuỗi duy nhất: cùng SL/thùng cộng số thùng (quy cách lớn trước),
+     phần thiếu cộng dồn. 3 vị trí "3Tx100", "2Tx100", "2Tx50-30" → "5T x 100 + 2T x 50 - 30". null nếu danh sách rỗng hoặc có chuỗi sai dạng. */
+  function mergeSt(texts){
+    if(!Array.isArray(texts)||!texts.length)return null;
+    const byUnit=new Map();let excess=0;
+    for(const text of texts){
+      const p=parseStText(text);if(!p)return null;
+      p.terms.forEach(t=>byUnit.set(t.perCarton,(byUnit.get(t.perCarton)||0)+t.cartons));
+      excess+=p.excess;
+    }
+    const terms=[...byUnit].map(([perCarton,cartons])=>({cartons,perCarton})).sort((a,b)=>b.perCarton-a.perCarton);
+    const text=terms.map(t=>t.cartons+'T x '+t.perCarton).join(' + ')+(excess>0?' - '+excess:'');
+    return {terms,excess,cartons:terms.reduce((n,t)=>n+t.cartons,0),text};
+  }
   /* Trừ hàng khỏi ghi chú. SL lấy khớp trọn số thùng (một hoặc nhiều quy cách, và chưa có phần trừ lẻ) thì giảm số thùng
      của các quy cách đó, về 0 thì bỏ số hạng. Không khớp, hoặc đã có phần trừ lẻ, thì cộng dồn vào " - N".
      taken = số thùng đã lấy (ST): thùng nguyên theo từng quy cách, phần lẻ chia SL/thùng của số hạng đầu (có thể lẻ). */
@@ -267,7 +293,7 @@
     if(/^\d+$/.test(raw)&&Number(raw)>0)return '1T x '+Number(raw);
     return normalizeNote(raw);
   }
-  const api={normalizeNote,normalizeStoredNote,EMPTY_NOTE,warnings,WARNING_LABEL,parseSpec,formatSpec,cartonsOf,isWhole,deduct,cartonsFor,pickText,stFor,restore,suggest};
+  const api={normalizeNote,normalizeStoredNote,EMPTY_NOTE,warnings,WARNING_LABEL,parseSpec,formatSpec,cartonsOf,isWhole,deduct,cartonsFor,pickText,stFor,parseStText,mergeSt,restore,suggest};
   if(typeof module!=='undefined')module.exports=api;
   else root.PickingCarton=api;
 })(typeof window!=='undefined'?window:globalThis);

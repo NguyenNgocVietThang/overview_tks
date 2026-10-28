@@ -6,7 +6,7 @@
 .picking-source{font-size:12px;color:var(--muted);margin:0 0 16px}
 .picking-table-wrap{overflow:auto;border:1px solid var(--border);border-radius:10px}
 .picking-table{width:100%;table-layout:fixed;min-width:1180px}
-.picking-table th:nth-child(1){width:9%}.picking-table th:nth-child(2){width:13%}.picking-table th:nth-child(3){width:8%}.picking-table th:nth-child(4){width:6%}.picking-table th:nth-child(5){width:8%}.picking-table th:nth-child(6){width:56%}
+.picking-table th:nth-child(1){width:9%}.picking-table th:nth-child(2){width:13%}.picking-table th:nth-child(3){width:8%}.picking-table th:nth-child(4){width:11%}.picking-table th:nth-child(5){width:8%}.picking-table th:nth-child(6){width:51%}
 .picking-table td{white-space:normal!important;vertical-align:middle!important;padding:7px 12px!important}
 .picking-table th:nth-child(3),.picking-table th:nth-child(4),.picking-table th:nth-child(5),.picking-need,.picking-st,.picking-total{text-align:center!important}
 .picking-table .picking-code{font-family:var(--font-data);font-weight:600}
@@ -29,6 +29,10 @@
 .picking-spec{display:block;overflow-wrap:anywhere;font-size:11px;font-family:var(--font-data);color:var(--muted);font-weight:400;text-align:center}
 .picking-st-frac{color:var(--red)!important;font-weight:600}
 .picking-st-short{display:block;color:var(--muted);font-size:11px;font-weight:400;white-space:nowrap}
+/* ST đầy đủ: mỗi số hạng một dòng (5T x 100 / + 2T x 50 / - 30), chữ nhỏ hơn số thùng cũ để vừa cột. */
+.picking-st strong.picking-st-text{font-size:13px;line-height:1.35}.picking-st-text span{display:block;white-space:nowrap}
+/* Có thể bốc = tồn kho trừ SL đang chọn nhặt (màu vàng, dưới số Tồn kho). */
+.picking-pickable{display:block;margin-top:3px;font-size:11px;font-family:var(--font-data);font-weight:600;color:var(--amber)}
 /* Màu theo ký tự khu vực chính thức (HN: A B C F G P V X; SG: H K L Q). data-zone chỉ có khi ký tự thuộc cơ sở của đơn, còn lại dùng màu mặc định. */
 .picking-loc[data-zone="A"]{--zone:#a78bfa}.picking-loc[data-zone="B"]{--zone:#2dd4bf}.picking-loc[data-zone="C"]{--zone:#f472b6}.picking-loc[data-zone="F"]{--zone:#fb923c}.picking-loc[data-zone="G"]{--zone:#a3e635}.picking-loc[data-zone="P"]{--zone:#38bdf8}.picking-loc[data-zone="V"]{--zone:#facc15}.picking-loc[data-zone="X"]{--zone:#94a3b8}
 .picking-loc[data-zone="H"]{--zone:#818cf8}.picking-loc[data-zone="K"]{--zone:#22d3ee}.picking-loc[data-zone="L"]{--zone:#c084fc}.picking-loc[data-zone="Q"]{--zone:#fb7185}

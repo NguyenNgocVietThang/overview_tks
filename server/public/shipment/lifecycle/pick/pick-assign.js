@@ -96,25 +96,30 @@
     lines().forEach((l,i)=>{state.allocations[i]=a.lines.filter(j=>key(j.productCode)===key(l.productCode)).map(j=>({id:String(j.positionId),quantity:Number(j.plannedQty)||0}));});
   }
 
-  // ST của một dòng: từ bản ghi chỉ định (đủ SL, chưa Hủy) hoặc tính từ phân bổ đang chọn khi đủ SL; lẻ hiện đỏ.
+  /* ST của một dòng: {cartons (tổng thùng), text (đầy đủ, đã gộp mọi vị trí: "5T x 100 + 2T x 50 - 30"), excess}.
+     Lấy từ bản ghi chỉ định (đủ SL, chưa Hủy) hoặc tính từ phân bổ đang chọn khi đủ SL. text trống khi chuỗi ST không đọc được (chỉ còn số thùng). */
   function stOfLine(l,i,picks){
     const a=state.assignment;
     if(a){
       if(a.status==='cancelled')return null;
       const jobs=a.lines.filter(j=>key(j.productCode)===key(l.productCode));
-      return jobs.length&&!jobs.some(j=>typeof j.stCartons!=='number')?round6(jobs.reduce((n,j)=>n+j.stCartons,0)):null;
+      if(!jobs.length||jobs.some(j=>typeof j.stCartons!=='number'))return null;
+      const merged=C.mergeSt(jobs.map(j=>j.stText));
+      return {cartons:round6(jobs.reduce((n,j)=>n+j.stCartons,0)),text:merged?merged.text:'',excess:merged?merged.excess:0};
     }
     if(R.validate([l],allLocations(),{0:picks}).length)return null;
     const rows=rowsFor(l);
-    const parts=picks.map(p=>{const row=rows.find(r=>r.id===p.id);const st=row&&row.spec?C.stFor(row.spec,p.quantity):null;return st?st.cartons:null;});
-    return parts.length&&!parts.some(v=>v===null)?round6(parts.reduce((n,v)=>n+v,0)):null;
+    const sts=picks.map(p=>{const row=rows.find(r=>r.id===p.id);return row&&row.spec?C.stFor(row.spec,p.quantity):null;});
+    if(!sts.length||sts.some(v=>v===null))return null;
+    const merged=C.mergeSt(sts.map(v=>v.text));
+    return {cartons:round6(sts.reduce((n,v)=>n+v.cartons,0)),text:merged?merged.text:'',excess:merged?merged.excess:0};
   }
-  // Chú thích thiếu thùng của ST ("1T x 150 - 50"): chỉ khi có vị trí mở thùng mà không lấy hết; trống nếu mọi vị trí tròn thùng.
-  function stShortNote(l,i,picks){
-    const a=state.assignment;
-    if(a){if(a.status==='cancelled')return '';return a.lines.filter(j=>key(j.productCode)===key(l.productCode)&&/-s*d/.test(j.stText||'')).map(j=>String(j.stText).replace(/Tx/g,'T x ').replace(/-/g,' - ')).join(' + ');}
-    const rows=rowsFor(l);
-    return picks.map(p=>{const row=rows.find(r=>r.id===p.id),st=row&&row.spec?C.stFor(row.spec,p.quantity):null;return st&&st.excess>0?st.text:'';}).filter(Boolean).join(' + ');
+  // Ô ST: dòng đầu là quy cách đầy đủ (mỗi số hạng một dòng), dòng nhỏ là tổng số thùng; thiếu thùng (mở thùng không lấy hết) hiện đỏ.
+  function stCell(st){
+    if(st===null)return '<td class="picking-st" data-st=""><strong></strong></td>';
+    if(!st.text)return `<td class="picking-st" data-st="${st.cartons}"><strong class="${C.isWhole(st.cartons)?'':'picking-st-frac'}">${fmtSt(st.cartons)}</strong></td>`;
+    const m=/^(.*?)(?: - (\d+))?$/.exec(st.text),parts=m[1].split(' + ').map((t,k)=>k?'+ '+t:t).concat(m[2]?['- '+m[2]]:[]);
+    return `<td class="picking-st" data-st="${st.cartons}" data-st-text="${esc(st.text)}" title="${esc(st.text)}"><strong class="picking-st-text ${st.excess>0||!C.isWhole(st.cartons)?'picking-st-frac':''}">${parts.map(p=>'<span>'+esc(p)+'</span>').join(' ')}</strong><small class="picking-st-short" title="Tổng số thùng phải chạm tới">Tổng ${fmtSt(st.cartons)} thùng</small></td>`;
   }
   const lineOk=i=>!R.validate([lines()[i]],allLocations(),{0:state.allocations[i]||[]}).length;
   // Đang nhặt: phân bổ trên màn hình khác bản đã lưu trên máy chủ → phải Cập nhật chỉ định trước khi Xác nhận nhặt / In đơn.
@@ -136,8 +141,8 @@
       const unknown=rows.some(r=>R.quantity(r.available)===null&&!a);
       const before=rows.reduce((s,r)=>s+(R.quantity(r.available)||0),0);
       const selected=ls.reduce((s,line,j)=>s+(key(line.productCode)===key(l.productCode)?(state.allocations[j]||[]).reduce((n,p)=>n+p.quantity,0):0),0);
-      const shared=unknown?null:before,st=stOfLine(l,i,picks),shortNote=st===null?'':stShortNote(l,i,picks);
-      return `<tr data-line="${i}"><td class="picking-code">${esc(l.productCode)}</td><td>${esc(l.productName)}</td><td class="picking-need"><strong>${fmt(l.quantity)}</strong><small class="${lineOk(i)?'picking-good':'picking-bad'}" data-allocated="${total}">${fmt(total)}/${fmt(l.quantity)}</small></td><td class="picking-st" data-st="${st===null?'':st}"><strong class="${st!==null&&!C.isWhole(st)?'picking-st-frac':''}">${st===null?'':fmtSt(st)}</strong>${st===null||!shortNote?'':`<small class="picking-st-short" title="Thùng mở nhưng không lấy hết">${esc(shortNote)}</small>`}</td><td class="picking-total" data-total-code="${esc(l.productCode)}" data-shared-available="${shared===null?'unknown':shared}" data-remaining="${unknown?'unknown':before-selected}"><strong class="${shared===null?'picking-bad':'picking-good'}">${shared===null?'Chưa xác định':fmt(shared)}</strong></td><td><div class="picking-locations">${rows.map(r=>{
+      const shared=unknown?null:before,st=stOfLine(l,i,picks);
+      return `<tr data-line="${i}"><td class="picking-code">${esc(l.productCode)}</td><td>${esc(l.productName)}</td><td class="picking-need"><strong>${fmt(l.quantity)}</strong><small class="${lineOk(i)?'picking-good':'picking-bad'}" data-allocated="${total}">${fmt(total)}/${fmt(l.quantity)}</small></td>${stCell(st)}<td class="picking-total" data-total-code="${esc(l.productCode)}" data-shared-available="${shared===null?'unknown':shared}" data-remaining="${unknown?'unknown':before-selected}"><strong class="${shared===null?'picking-bad':'picking-good'}">${shared===null?'Chưa xác định':fmt(shared)}</strong>${shared===null?'':`<small class="picking-pickable" data-pickable="${Math.max(0,before-selected)}" title="Tồn kho trừ số lượng đang chọn nhặt cho mã này">Có thể bốc: ${fmt(Math.max(0,before-selected))}</small>`}</td><td><div class="picking-locations">${rows.map(r=>{
         const take=picks.find(p=>p.id===r.id)?.quantity||0,available=R.quantity(r.available),hint=(state.suggestions[i]||[]).some(p=>p.id===r.id);
         const off=!editable()||available===null||!r.location||!available?'disabled':'';
         const zone=zoneOf((state.order||{}).branch,r.location),locTitle=r.location?(zone.name?r.location+' · '+zone.name:r.location):'Chưa có vị trí';
