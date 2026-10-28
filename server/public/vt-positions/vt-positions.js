@@ -32,7 +32,7 @@
   const state = { hn: newState(), sg: newState() };
   let user, activeTab, allowedTabs, requestVersion = 0;
   let screenMode, visibleFields, columnPreferences = {}, canEditPermission = false;
-  const importState = { ready: false };
+  const importState = { busy: false };
   const history = { rows: [], nextBefore: null, branch: '', version: 0 };
   // Hộp chi tiết một dòng: row = bản đang mở (để lấy version), version chống tải lịch sử cũ ghi đè.
   const detail = { id: null, tab: '', row: null, rows: [], nextBefore: null, version: 0, busy: false };
@@ -418,7 +418,6 @@
     $('vtDetailAvailable').closest('.dp-stat').title = held > 0 ? 'Đang giữ chỗ ' + formatNumber(held) + ' cho các đơn Đang bốc' : '';
     $('vtDetailKiot').textContent = dash(formatNumber(row.kiotQuantity));
     $('vtDetailStatLocation').textContent = dash(form.elements.location.value.trim());
-    $('vtDetailStatArrival').textContent = dash(form.elements.arrivalDate.value.trim());
     const codes = carton && carton.warnings ? carton.warnings(notes) : [];
     if (rawWarningsOf(row).includes('unknowncode')) codes.push('unknowncode');
     const box = $('vtDetailWarn');
@@ -529,8 +528,8 @@
     detail.rows = [];
     detail.nextBefore = null;
     $('vtDetailCode').textContent = String(row.code ?? '');
-    $('vtDetailName').textContent = row.name ? ' · ' + row.name : '';
-    $('vtDetailSubtitle').textContent = tabLabel(activeTab) + (row.location ? ' · ' + row.location : '');
+    $('vtDetailName').textContent = row.name ? String(row.name) : '';
+    $('vtDetailSubtitle').textContent = tabLabel(activeTab);
     const form = $('vtDetailForm');
     DETAIL_FIELDS.forEach(name => { form.elements[name].value = String(row[name] ?? ''); form.elements[name].readOnly = !canEdit; });
     $('vtDetailSave').hidden = !canEdit;
@@ -599,16 +598,153 @@
 
   // ---------- Import ----------
   const importMode = () => document.querySelector('input[name="vtImportMode"]:checked').value;
+  function setImportBusy(busy) {
+    importState.busy = busy;
+    $('vtImportFile').disabled = busy;
+    $('vtImportPick').disabled = busy;
+    $('vtImportBack').disabled = busy;
+    document.querySelectorAll('input[name="vtImportMode"]').forEach(radio => { radio.disabled = busy; });
+    $('vtImportPreview').disabled = busy;
+    $('vtImportConfirm').disabled = busy || !$('vtImportFile').files?.length;
+  }
+
+  // Bước 1 = chọn file + chế độ; bước 2 = xem trước (bảng dòng đã chuẩn hóa); bước 3 chỉ thoáng qua vì hộp đóng ngay khi nhập xong.
+  function setImportStep(step) {
+    document.querySelectorAll('#vtImportSteps li').forEach(li => {
+      const n = Number(li.dataset.step);
+      li.classList.toggle('is-current', n === step);
+      li.classList.toggle('is-done', n < step);
+    });
+    $('vtImportPickPanel').hidden = step !== 1;
+    $('vtImportReview').hidden = step === 1;
+    $('vtImportBack').hidden = step === 1;
+    $('vtImportPreview').hidden = step !== 1;
+    $('vtImportConfirm').hidden = step === 1;
+  }
+
   function resetImport() {
-    importState.ready = false;
-    $('vtImportConfirm').disabled = true;
+    setImportBusy(false);
+    setImportStep(1);
+    importState.rows = [];
+    importState.total = 0;
+    importState.filter = 'all';
     $('vtImportResult').replaceChildren();
+    $('vtImportPreviewBox').hidden = true;
     $('vtImportError').textContent = '';
+    const file = $('vtImportFile').files && $('vtImportFile').files[0];
+    $('vtImportFileName').textContent = file ? file.name : '';
+    $('vtImportDrop').classList.toggle('has-file', Boolean(file));
+  }
+
+  const IMPORT_KINDS = { add: 'Thêm', update: 'Cập nhật', delete: 'Xóa' };
+
+  function importCell(text, className) {
+    const td = document.createElement('td');
+    if (className) td.className = className;
+    td.textContent = text;
+    return td;
+  }
+
+  // "cũ → mới" khi giá trị đổi, chỉ giá trị mới (đậm) khi không.
+  function importChange(oldValue, newValue, className) {
+    const td = document.createElement('td');
+    td.className = className;
+    if (oldValue !== undefined && oldValue !== newValue) {
+      const old = document.createElement('s');
+      old.textContent = oldValue || '—';
+      td.append(old, document.createTextNode(' → '));
+    }
+    const value = document.createElement('b');
+    value.textContent = dash(newValue);
+    td.appendChild(value);
+    return td;
+  }
+
+  // Bảng "Các dòng sau khi chuẩn hóa": đúng giá trị sẽ được ghi (ghi chú đã chuẩn + cộng dồn, vị trí viết hoa không dấu cách).
+  function renderImportPreviewRows() {
+    const body = $('vtImportPreviewRows');
+    body.replaceChildren();
+    const rows = importState.filter === 'all' ? importState.rows : importState.rows.filter(row => row.kind === importState.filter);
+    if (!rows.length) {
+      const tr = document.createElement('tr');
+      const td = importCell('Không có dòng nào.', 'table-note');
+      td.colSpan = 8;
+      tr.appendChild(td);
+      body.appendChild(tr);
+    }
+    rows.forEach(row => {
+      const tr = document.createElement('tr');
+      tr.className = 'vt-import-row is-' + row.kind;
+      const kind = document.createElement('td');
+      const pill = document.createElement('span');
+      pill.className = 'vt-kind is-' + row.kind;
+      pill.textContent = IMPORT_KINDS[row.kind] || row.kind;
+      kind.appendChild(pill);
+      const code = importCell(row.code, 'vt-import-code');
+      if (row.name) {
+        const name = document.createElement('small');
+        name.textContent = row.name;
+        code.appendChild(name);
+      }
+      tr.append(
+        kind,
+        importCell(row.row == null ? '—' : String(row.row), 'num'),
+        code,
+        importChange(row.before && row.before.notes, row.notes, 'vt-import-notes'),
+        importCell(row.cartons == null ? '—' : formatNumber(row.cartons), 'num'),
+        importCell(row.quantity == null ? '—' : formatNumber(row.quantity), 'num'),
+        importCell(dash(row.arrivalDate)),
+        importChange(row.before && row.before.location, row.location, 'vt-import-location')
+      );
+      body.appendChild(tr);
+    });
+    const shown = importState.rows.length;
+    $('vtImportPreviewNote').textContent = importState.total > shown ? `Chỉ hiển thị ${formatNumber(shown)} / ${formatNumber(importState.total)} dòng đầu; khi xác nhận máy chủ vẫn nhập đủ.` : '';
+  }
+
+  function renderImportPreview(payload) {
+    importState.rows = Array.isArray(payload.rows) ? payload.rows : [];
+    importState.total = Number(payload.rowsTotal) || importState.rows.length;
+    importState.filter = 'all';
+    $('vtImportPreviewBox').hidden = !importState.rows.length;
+    const filter = $('vtImportFilter');
+    filter.replaceChildren();
+    const tallies = { all: importState.rows.length };
+    importState.rows.forEach(row => { tallies[row.kind] = (tallies[row.kind] || 0) + 1; });
+    [['all', 'Tất cả'], ...Object.entries(IMPORT_KINDS)].filter(([key]) => key === 'all' || tallies[key]).forEach(([key, label]) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'vt-filter-chip' + (key === 'all' ? ' is-active' : '');
+      button.dataset.kind = key;
+      button.textContent = `${label} (${formatNumber(tallies[key] || 0)})`;
+      button.addEventListener('click', () => {
+        importState.filter = key;
+        filter.querySelectorAll('button').forEach(other => other.classList.toggle('is-active', other === button));
+        renderImportPreviewRows();
+      });
+      filter.appendChild(button);
+    });
+    renderImportPreviewRows();
+  }
+
+  // File mẫu dựng ngay trên trình duyệt (CSV có BOM để Excel đọc đúng tiếng Việt); phần import nhận .csv.
+  function downloadImportTemplate() {
+    const csv = '﻿Mã hàng,Ghi chú,Ngày về,Vị trí\r\nVASNAM,7T x 600,4/10,42\r\n';
+    const url = URL.createObjectURL(new window.Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'mau-import-vi-tri-hang.csv';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   function renderImportResult(payload) {
     const box = $('vtImportResult');
     box.replaceChildren();
+    setImportStep(2);
+    renderImportPreview(payload);
     const counts = payload.counts || {};
     const items = [['added', 'Thêm'], ['updated', 'Cập nhật'], ['deleted', 'Xóa'], ['unchanged', 'Không đổi'], ['skippedEmpty', 'Bỏ qua (SL 0/trống)'], ['errors', 'Lỗi']];
     const list = document.createElement('ul');
@@ -658,25 +794,33 @@
   }
 
   async function previewImport() {
-    importState.ready = false;
-    $('vtImportConfirm').disabled = true;
-    const result = await runImport(false);
-    if (!result) return;
-    importState.ready = (result.payload.counts?.errors || 0) === 0;
-    $('vtImportConfirm').disabled = !importState.ready;
-    if (!importState.ready) $('vtImportError').textContent = 'File còn lỗi, hãy sửa file rồi xem trước lại.';
+    if (importState.busy) return;
+    setImportBusy(true);
+    try {
+      const result = await runImport(false);
+      if (result && result.payload.counts?.errors) $('vtImportError').textContent = 'File còn lỗi, hãy sửa file rồi thử lại.';
+    } catch (error) {
+      $('vtImportError').textContent = 'Không kết nối được máy chủ. Vui lòng thử lại.';
+    } finally {
+      setImportBusy(false);
+    }
   }
 
   async function confirmImport() {
-    if (!importState.ready) return;
-    $('vtImportConfirm').disabled = true;
-    const result = await runImport(true);
-    if (!result) { $('vtImportConfirm').disabled = !importState.ready; return; }
-    const counts = result.payload.counts || {};
-    closeDialog($('vtImportDialog'));
-    notify(`Đã import: thêm ${counts.added || 0}, cập nhật ${counts.updated || 0}, xóa ${counts.deleted || 0}.`);
-    importState.ready = false;
-    await selectTab(activeTab);
+    if (importState.busy) return;
+    setImportBusy(true);
+    try {
+      const result = await runImport(true);
+      if (!result) return;
+      const counts = result.payload.counts || {};
+      closeDialog($('vtImportDialog'));
+      notify(`Đã import: thêm ${counts.added || 0}, cập nhật ${counts.updated || 0}, xóa ${counts.deleted || 0}.`);
+      await selectTab(activeTab);
+    } catch (error) {
+      $('vtImportError').textContent = 'Không kết nối được máy chủ. Vui lòng thử lại.';
+    } finally {
+      setImportBusy(false);
+    }
   }
 
   // ---------- Xuất Excel (toàn bộ dòng của cơ sở đang chọn, tải qua fetch để giữ cookie) ----------
@@ -990,6 +1134,21 @@
       openDialog($('vtImportDialog'));
     });
     $('vtImportFile').addEventListener('change', resetImport);
+    $('vtImportPick').addEventListener('click', () => $('vtImportFile').click());
+    $('vtImportBack').addEventListener('click', resetImport);
+    $('vtImportTemplate').addEventListener('click', downloadImportTemplate);
+    // Kéo thả file vào khung: gán vào ô chọn file rồi chạy như khi chọn bằng nút.
+    const drop = $('vtImportDrop');
+    ['dragenter', 'dragover'].forEach(name => drop.addEventListener(name, event => { event.preventDefault(); if (!importState.busy) drop.classList.add('is-over'); }));
+    ['dragleave', 'dragend'].forEach(name => drop.addEventListener(name, () => drop.classList.remove('is-over')));
+    drop.addEventListener('drop', event => {
+      event.preventDefault();
+      drop.classList.remove('is-over');
+      const files = event.dataTransfer && event.dataTransfer.files;
+      if (importState.busy || !files || !files.length) return;
+      $('vtImportFile').files = files;
+      resetImport();
+    });
     document.querySelectorAll('input[name="vtImportMode"]').forEach(radio => radio.addEventListener('change', resetImport));
     $('vtImportPreview').addEventListener('click', previewImport);
     $('vtImportConfirm').addEventListener('click', confirmImport);

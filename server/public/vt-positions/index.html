@@ -19,9 +19,9 @@
   <link rel="stylesheet" href="/stock-locations/stock-locations.css?v=20261016">
   <link rel="stylesheet" href="/shared/detail-panel.css?v=20261012">
   <link rel="stylesheet" href="/shared/table-controls.css?v=20261016-1">
-  <link rel="stylesheet" href="/vt-positions/vt-positions.css?v=20261028-2">
+  <link rel="stylesheet" href="/vt-positions/vt-positions.css?v=20261028-4">
   <link rel="stylesheet" href="/vt-positions/vt-history.css?v=20261028-2">
-  <link rel="stylesheet" href="/vt-positions/vt-detail.css?v=20261028-1">
+  <link rel="stylesheet" href="/vt-positions/vt-detail.css?v=20261028-2">
 </head>
 <body>
   <div class="receipt-header">
@@ -162,56 +162,95 @@
   </dialog>
 
   <!-- Import -->
-  <dialog class="vt-dialog vt-dialog-wide" id="vtImportDialog" aria-labelledby="vtImportTitle">
+  <dialog class="vt-dialog vt-dialog-wide vt-import" id="vtImportDialog" aria-labelledby="vtImportTitle">
     <div class="dp-head">
-      <div class="dp-head-text"><h3 class="dp-title" id="vtImportTitle">Import vị trí hàng</h3><p class="dp-subtitle">File .xlsx, .xls hoặc .csv gồm 4 cột: Mã hàng, Ghi chú, Ngày về, Vị trí.</p></div>
+      <div class="dp-head-text"><h3 class="dp-title" id="vtImportTitle">Import vị trí hàng</h3><p class="dp-subtitle">Nhập dữ liệu vị trí từ file Excel hoặc CSV</p></div>
       <button type="button" class="dp-close" data-vt-close aria-label="Đóng">×</button>
     </div>
     <div class="dp-body">
-      <label class="vt-field"><span>Chọn file</span><input id="vtImportFile" type="file" accept=".xlsx,.xls,.csv"></label>
-      <fieldset class="vt-modes">
-        <legend>Chế độ</legend>
-        <label><input type="radio" name="vtImportMode" value="add" checked> Bổ sung thêm SL <small>(cộng vào dòng trùng mã + vị trí, dòng mới thì thêm, dòng không có trong file giữ nguyên)</small></label>
-        <label><input type="radio" name="vtImportMode" value="replace"> Thay toàn bộ <small>(bảng của cơ sở được thay bằng nội dung file, dòng không có trong file bị xóa)</small></label>
-      </fieldset>
+      <ol class="vt-steps" id="vtImportSteps" aria-label="Các bước import">
+        <li class="is-current" data-step="1"><span class="vt-step-dot">1</span>Chọn file</li>
+        <li data-step="2"><span class="vt-step-dot">2</span>Xem trước</li>
+        <li data-step="3"><span class="vt-step-dot">3</span>Hoàn tất</li>
+      </ol>
+      <div class="vt-import-pick" id="vtImportPickPanel">
+        <div class="vt-drop" id="vtImportDrop">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"></path><path d="M14 3v5h5M12 17v-6M9.5 13.5 12 11l2.5 2.5"></path></svg>
+          <strong>Kéo thả file vào đây</strong>
+          <button type="button" class="locations-columns-button vt-btn-primary vt-drop-pick" id="vtImportPick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"></path></svg>Chọn file</button>
+          <span class="vt-drop-ext">.xlsx, .xls, .csv</span>
+          <span class="vt-drop-file" id="vtImportFileName" aria-live="polite"></span>
+          <input id="vtImportFile" type="file" accept=".xlsx,.xls,.csv" tabindex="-1" aria-label="Chọn file import">
+        </div>
+        <div class="vt-import-cols">
+          <span>4 cột bắt buộc: <b>Mã hàng</b> · <b>Ghi chú</b> · <b>Ngày về</b> · <b>Vị trí</b></span>
+          <button type="button" class="vt-link-button" id="vtImportTemplate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"></path></svg>Tải file mẫu</button>
+        </div>
+        <fieldset class="vt-modes">
+          <legend>Chế độ import</legend>
+          <label class="vt-mode"><input type="radio" name="vtImportMode" value="add" checked><span class="vt-mode-text"><b>Bổ sung số lượng</b><small>Cộng vào dòng trùng mã và vị trí. Giữ nguyên dữ liệu khác.</small></span><span class="vt-mode-tag">Khuyên dùng</span></label>
+          <label class="vt-mode"><input type="radio" name="vtImportMode" value="replace"><span class="vt-mode-text"><b>Thay toàn bộ</b><small>Thay dữ liệu cơ sở bằng nội dung file.</small><small class="vt-mode-warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 2 20h20L12 3Z"></path><path d="M12 10v4M12 17h.01"></path></svg>Các dòng không có trong file sẽ bị xóa.</small></span></label>
+        </fieldset>
+      </div>
       <p class="vt-form-error" id="vtImportError" role="alert"></p>
-      <div id="vtImportResult" class="vt-import-result" aria-live="polite"></div>
+      <div class="vt-import-review" id="vtImportReview" hidden>
+        <div id="vtImportResult" class="vt-import-result" aria-live="polite"></div>
+        <div class="vt-import-preview" id="vtImportPreviewBox" hidden>
+          <div class="vt-import-preview-head">
+            <h4 class="dp-section-title">Các dòng sau khi chuẩn hóa</h4>
+            <div class="vt-import-filter" id="vtImportFilter" role="group" aria-label="Lọc theo loại dòng"></div>
+          </div>
+          <div class="dp-table-wrap vt-import-table-wrap">
+            <table class="dp-table vt-import-table" id="vtImportPreviewTable" data-table-controls="off">
+              <thead><tr><th>Loại</th><th class="num">Dòng file</th><th>Mã hàng</th><th>Ghi chú số thùng</th><th class="num">SL thùng</th><th class="num">SL chiếc</th><th>Ngày về</th><th>Vị trí</th></tr></thead>
+              <tbody id="vtImportPreviewRows"></tbody>
+            </table>
+          </div>
+          <p class="dp-note" id="vtImportPreviewNote"></p>
+        </div>
+      </div>
       <div class="vt-dialog-actions">
         <button type="button" class="locations-columns-button" data-vt-close>Đóng</button>
-        <button type="button" class="locations-columns-button" id="vtImportPreview">Xem trước</button>
-        <button type="button" class="locations-columns-button vt-primary" id="vtImportConfirm" disabled>Xác nhận import</button>
+        <button type="button" class="locations-columns-button" id="vtImportBack" hidden>Quay lại</button>
+        <button type="button" class="locations-columns-button vt-btn-primary" id="vtImportPreview">Xem trước →</button>
+        <button type="button" class="locations-columns-button vt-btn-primary" id="vtImportConfirm" disabled hidden>Xác nhận import</button>
       </div>
     </div>
   </dialog>
 
   <!-- Chi tiết một dòng (bấm vào dòng của bảng) -->
   <dialog class="vt-dialog vt-dialog-wide vt-detail" id="vtDetailDialog" aria-labelledby="vtDetailTitle">
-    <div class="dp-head">
+    <div class="dp-head vt-detail-head">
+      <span class="vt-hist-icon vt-detail-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5V8Z"></path><path d="m3 8 9 5 9-5M12 13v8"></path></svg></span>
       <div class="dp-head-text">
         <h3 class="dp-title" id="vtDetailTitle"><span class="vt-detail-code" id="vtDetailCode"></span><span class="dp-title-kind" id="vtDetailName"></span></h3>
-        <p class="dp-subtitle" id="vtDetailSubtitle"></p>
+      </div>
+      <div class="vt-detail-chips">
+        <span class="vt-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v16M14 9h5a1 1 0 0 1 1 1v11M3 21h18M8 8h2M8 12h2M8 16h2"></path></svg><span id="vtDetailSubtitle"></span></span>
+        <span class="vt-chip is-location"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11Z"></path><circle cx="12" cy="10" r="2.5"></circle></svg><span>Vị trí <b id="vtDetailStatLocation">—</b></span></span>
       </div>
       <button type="button" class="dp-close" data-vt-close aria-label="Đóng">×</button>
     </div>
     <div class="dp-body">
       <ul class="dp-stats vt-detail-stats">
-        <li class="dp-stat is-blue"><div class="dp-stat-label">SL thùng</div><div class="dp-stat-value" id="vtDetailCartons">—</div></li>
-        <li class="dp-stat is-blue"><div class="dp-stat-label">SL chiếc</div><div class="dp-stat-value" id="vtDetailPieces">—</div></li>
-        <li class="dp-stat is-blue"><div class="dp-stat-label">Có thể bốc</div><div class="dp-stat-value" id="vtDetailAvailable">—</div></li>
-        <li class="dp-stat"><div class="dp-stat-label">SL Kiot</div><div class="dp-stat-value" id="vtDetailKiot">—</div></li>
-        <li class="dp-stat"><div class="dp-stat-label">Vị trí</div><div class="dp-stat-value is-text" id="vtDetailStatLocation">—</div></li>
-        <li class="dp-stat"><div class="dp-stat-label">Ngày về</div><div class="dp-stat-value is-text" id="vtDetailStatArrival">—</div></li>
+        <li class="dp-stat is-blue"><span class="vt-stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5V8Z"></path><path d="m3 8 9 5 9-5M12 13v8"></path></svg></span><div><div class="dp-stat-label">SL thùng</div><div class="dp-stat-value" id="vtDetailCartons">—</div></div></li>
+        <li class="dp-stat is-blue"><span class="vt-stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5V8Z"></path><path d="m3 8 9 5 9-5M12 13v8"></path></svg></span><div><div class="dp-stat-label">SL chiếc</div><div class="dp-stat-value" id="vtDetailPieces">—</div></div></li>
+        <li class="dp-stat is-blue"><span class="vt-stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.4"></circle><circle cx="18" cy="20" r="1.4"></circle><path d="M3 4h2.5l2.2 11h10.6l2-8H7"></path></svg></span><div><div class="dp-stat-label">Có thể bốc</div><div class="dp-stat-value" id="vtDetailAvailable">—</div></div></li>
+        <li class="dp-stat"><span class="vt-stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9 5.5 4h13L20 9M4 9v11h16V9M4 9h16M9 20v-6h6v6"></path></svg></span><div><div class="dp-stat-label">SL Kiot</div><div class="dp-stat-value" id="vtDetailKiot">—</div></div></li>
       </ul>
-      <form class="vt-detail-form" id="vtDetailForm" novalidate>
-        <label class="vt-field vt-detail-notes"><span>Ghi chú số thùng</span><input name="notes" type="text" autocomplete="off" placeholder="VD: 3T x 100"></label>
-        <div id="vtDetailWarn" class="vt-detail-warn" aria-live="polite"></div>
-        <label class="vt-field"><span>Ngày về</span><input name="arrivalDate" type="text" autocomplete="off" placeholder="Có thể để trống"></label>
-        <label class="vt-field"><span>Vị trí</span><input name="location" type="text" autocomplete="off"></label>
-        <p class="vt-form-error vt-detail-error" id="vtDetailError" role="alert"></p>
-      </form>
+      <section class="dp-section" aria-labelledby="vtDetailInfoTitle">
+        <div class="dp-section-head"><h4 class="dp-section-title" id="vtDetailInfoTitle">Thông tin vị trí</h4></div>
+        <form class="vt-detail-form" id="vtDetailForm" novalidate>
+          <label class="vt-field vt-detail-location"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11Z"></path><circle cx="12" cy="10" r="2.5"></circle></svg>Vị trí</span><input name="location" type="text" autocomplete="off" placeholder="VD: K1, 42"></label>
+          <label class="vt-field vt-detail-notes"><span>Ghi chú số thùng</span><input name="notes" type="text" autocomplete="off" placeholder="VD: 3T x 100"></label>
+          <label class="vt-field vt-detail-arrival"><span>Ngày về</span><input name="arrivalDate" type="text" autocomplete="off" placeholder="Có thể để trống"></label>
+          <div id="vtDetailWarn" class="vt-detail-warn" aria-live="polite"></div>
+          <p class="vt-form-error vt-detail-error" id="vtDetailError" role="alert"></p>
+        </form>
+      </section>
       <section class="dp-section" aria-labelledby="vtDetailHistoryTitle">
         <div class="dp-section-head">
-          <h4 class="dp-section-title" id="vtDetailHistoryTitle">Lịch sử của dòng này</h4>
+          <h4 class="dp-section-title" id="vtDetailHistoryTitle">Lịch sử thay đổi</h4>
           <span class="dp-section-note" id="vtDetailHistoryNote"></span>
         </div>
         <div class="dp-table-wrap">
@@ -224,9 +263,10 @@
       </section>
     </div>
     <div class="vt-detail-foot">
-      <button type="button" class="locations-columns-button vt-detail-delete" id="vtDetailDelete">Xóa dòng</button>
+      <button type="button" class="locations-columns-button vt-detail-delete" id="vtDetailDelete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7h14M10 11v6M14 11v6M9 7V4h6v3M7 7l1 13h8l1-13"></path></svg>Xóa dòng</button>
       <span class="vt-detail-spacer"></span>
-      <button type="button" class="locations-columns-button vt-btn-primary" id="vtDetailSave">Lưu</button>
+      <button type="button" class="locations-columns-button" data-vt-close>Hủy</button>
+      <button type="button" class="locations-columns-button vt-btn-primary" id="vtDetailSave">Lưu thay đổi</button>
     </div>
   </dialog>
 

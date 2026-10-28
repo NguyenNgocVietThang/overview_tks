@@ -290,11 +290,12 @@ test('import replace: xem truoc khong ghi, xac nhan thay toan bo (them/doi/xoa),
     ]);
     const preview = await service.importFile(ctx(), 'HN', { mode: 'replace', buffer, fileName: 'vt.xlsx' });
     assert.deepEqual(preview.counts, { added: 1, updated: 0, deleted: 1, unchanged: 1, skippedEmpty: 1, errors: 0 });
+    assert.deepEqual(preview.rows.map(r => [r.kind, r.code, r.notes, r.location, r.cartons, r.quantity]), [['add', 'ZZZ9', '3T x 20', 'H9', 3, 60], ['delete', 'BBB2', '1T x 10', 'H2', 1, 10]]);
     assert.equal((await service.list(ctx(), 'HN')).rows.length, 2);
     const done = await service.importFile(ctx(), 'HN', { mode: 'replace', commit: true, buffer, fileName: 'vt.xlsx' });
     assert.equal(done.imported, true);
     const rows = (await service.list(ctx(), 'HN')).rows;
-    assert.deepEqual(rows.map(r => [r.code, r.notes, r.arrivalDate, r.location]), [['AAA1', '5T x 100', '1/10', 'H1'], ['ZZZ9', '1t*20 + 2T*20', 'KK 4.10', 'H9']]);
+    assert.deepEqual(rows.map(r => [r.code, r.notes, r.arrivalDate, r.location]), [['AAA1', '5T x 100', '1/10', 'H1'], ['ZZZ9', '3T x 20', 'KK 4.10', 'H9']]);
     const history = (await service.history(ctx(), 'HN')).rows;
     const summary = history.find(h => h.action === 'import_replace');
     assert.equal(summary.summary.file, 'vt.xlsx');
@@ -323,6 +324,9 @@ test('import add: ghi chu viet tu do (2Tx100 co san, file 1T100) tu nhay thanh 3
     const buffer = workbook([HEADER, ['aaa1', '1T100', '', 'h1']]);
     const preview = await service.importFile(ctx(), 'HN', { mode: 'add', buffer, fileName: 'them.xlsx' });
     assert.deepEqual(preview.counts, { added: 0, updated: 1, deleted: 0, unchanged: 0, skippedEmpty: 0, errors: 0 });
+    assert.equal(preview.rowsTotal, 1);
+    assert.deepEqual(preview.rows[0], { kind: 'update', row: preview.rows[0].row, code: 'AAA1', name: preview.rows[0].name, notes: '3T x 100', arrivalDate: '1/10', location: 'H1', cartons: 3, quantity: 300, before: { notes: '2T x 100', arrivalDate: '1/10', location: 'H1' } },
+      'xem trước hiện đúng giá trị sẽ ghi (đã chuẩn hóa, đã cộng) kèm giá trị cũ');
     await service.importFile(ctx(), 'HN', { mode: 'add', commit: true, buffer, fileName: 'them.xlsx' });
     const rows = (await service.list(ctx(), 'HN')).rows;
     assert.deepEqual(rows.map(r => [r.code, r.notes, r.quantity, r.arrivalDate, r.location]), [['AAA1', '3T x 100', 300, '1/10', 'H1']]);
@@ -382,6 +386,30 @@ test('import: mã ngoài Kiot giữ tên và ghi chú tự do, cập nhật tên
     const edited = await service.update(ctx(), numeric.id, { version: numeric.version, notes: '' });
     assert.equal(edited.row.notes, '');
     assert.equal(edited.row.quantity, null);
+  } finally { await db.close(); }
+});
+
+test('import: mã lạ chuẩn hóa và gộp ghi chú ngay trong DB ở replace, dòng trùng và add', async () => {
+  const { db, service } = await fixture();
+  try {
+    const raw = '5t 100 + 1t*100 + 3T x100 + 3thX100';
+    const buffer = workbook([HEADER, ['TEXT', raw, 'TEXT', 'TEXT']]);
+    const preview = await service.importFile(ctx(), 'HN', { mode: 'replace', buffer });
+    assert.equal(preview.counts.errors, 0);
+    assert.equal((await db.query('SELECT * FROM stock_positions')).rows.length, 0, 'xem trước không ghi DB');
+    await service.importFile(ctx(), 'HN', { mode: 'replace', commit: true, buffer });
+    assert.equal((await db.query("SELECT notes FROM stock_positions WHERE code = 'TEXT'")).rows[0].notes, '12T x 100');
+    await service.importFile(ctx(), 'HN', { mode: 'replace', commit: true,
+      buffer: workbook([HEADER, ['TEXT', '5t100', '', 'TEXT'], ['TEXT', '1t*100', '', 'TEXT']]) });
+    assert.equal((await db.query("SELECT notes FROM stock_positions WHERE code = 'TEXT'")).rows[0].notes, '6T x 100');
+    await db.query("UPDATE stock_positions SET notes = '5t100 + 1t*100' WHERE code = 'TEXT'");
+    await service.importFile(ctx(), 'HN', { mode: 'add', commit: true,
+      buffer: workbook([HEADER, ['TEXT', '3thX100', '', 'TEXT'], ['TEXT', '3t100', '', 'TEXT']]) });
+    assert.equal((await db.query("SELECT notes FROM stock_positions WHERE code = 'TEXT'")).rows[0].notes, '12T x 100');
+    const result = (await service.list(ctx(), 'HN')).rows[0];
+    assert.equal(result.quantity, null, 'chuẩn hóa không tự suy ra SL cho mã lạ');
+    assert.ok(result.rawWarnings.includes('unknowncode'));
+    assert.ok((await service.history(ctx(), 'HN')).rows.some(r => r.field === 'notes' && r.newValue === '12T x 100'));
   } finally { await db.close(); }
 });
 

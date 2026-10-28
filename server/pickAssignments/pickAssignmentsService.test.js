@@ -200,7 +200,7 @@ test('assign: tao chi dinh Dang nhat, giu cho (chua doi ghi chu), tinh ST, luu s
     assert.deepEqual(assignment.snapshot.lines, [{ productCode: 'AAA1', productName: 'Hàng A', quantity: 250, price: 10, discount: 0, note: '', unitPrice: '10', amount: '2500' }]);
     assert.equal(assignment.snapshot.schemaVersion, 2);
     assert.deepEqual(assignment.lines.map(l => [l.positionId, l.location, l.plannedQty, l.reservedQty, l.stCartons, l.stText, l.pickedQty]),
-      [[1, 'A01', 200, 200, 2, '2Tx100', null], [2, 'B02', 50, 50, 0.5, '1Tx100-50', null]]);
+      [[1, 'A01', 200, 200, 2, '2Tx100', null], [2, 'B02', 50, 50, 1, '1Tx100-50', null]]);
     assert.deepEqual(assignment.history.map(h => [h.action, h.actorName]), [['assign', 'Quản Lý A']]);
     assert.equal(await notesOf(1), '3T x 100', 'giu cho khong doi ghi chu');
     assert.equal(await notesOf(2), '2T x 100');

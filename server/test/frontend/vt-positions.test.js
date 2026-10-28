@@ -291,7 +291,7 @@ test('hộp Lịch sử cập nhật tải theo cơ sở, lọc theo hành độ
   assert.equal(doc.getElementById('vtHistoryMore').hidden, true);
 });
 
-test('import: xem trước hiện số liệu và lỗi theo dòng; chỉ cho xác nhận khi không còn lỗi, rồi tải lại bảng', async t => {
+test('import: xem trước tùy chọn hiện số liệu và lỗi theo dòng; xác nhận rồi tải lại bảng', async t => {
   const queries = [];
   let preview = { mode: 'add', commit: false, counts: { added: 2, updated: 1, deleted: 0, unchanged: 4, skippedEmpty: 1, errors: 1 }, errors: [{ row: 7, message: 'Thiếu mã SP' }] };
   const { doc, calls, window } = await setup(t, {
@@ -319,7 +319,7 @@ test('import: xem trước hiện số liệu và lỗi theo dòng; chỉ cho x�
   assert.equal(doc.querySelector('[data-count="added"] b').textContent, '2');
   assert.equal(doc.querySelector('[data-count="errors"] b').textContent, '1');
   assert.match(doc.querySelector('[data-import-errors]').textContent, /Dòng 7: Thiếu mã SP/);
-  assert.equal(doc.getElementById('vtImportConfirm').disabled, true, 'còn lỗi thì chưa cho xác nhận');
+  assert.equal(doc.getElementById('vtImportConfirm').disabled, false, 'máy chủ kiểm tra lại khi xác nhận');
 
   preview = { ...preview, counts: { ...preview.counts, errors: 0 }, errors: [] };
   doc.getElementById('vtImportPreview').click();
@@ -334,7 +334,43 @@ test('import: xem trước hiện số liệu và lỗi theo dòng; chỉ cho x�
   assert.match(doc.getElementById('vtNotice').textContent, /thêm 2, cập nhật 1, xóa 0/);
 });
 
-test('đổi chế độ hoặc file sau khi xem trước thì phải xem trước lại', async t => {
+test('import: bước Xem trước hiện bảng các dòng đã chuẩn hóa (cũ → mới), lọc theo loại, Quay lại về bước chọn file', async t => {
+  const rows = [
+    { kind: 'add', row: 3, code: 'ZZZ9', name: 'Hàng mới', notes: '3T x 20', arrivalDate: 'KK 4.10', location: 'H9', cartons: 3, quantity: 60 },
+    { kind: 'update', row: 4, code: 'AAA1', name: 'Cưa', notes: '7T x 100', arrivalDate: '1/10', location: 'H1', cartons: 7, quantity: 700, before: { notes: '5T x 100', arrivalDate: '1/10', location: 'H1' } },
+    { kind: 'delete', row: null, code: 'BBB2', name: '', notes: '1T x 10', arrivalDate: '', location: 'H2', cartons: 1, quantity: 10 }
+  ];
+  const { doc, window } = await setup(t, {
+    handler: async (url, options, parsed) => parsed.pathname === '/api/stock-positions/import'
+      ? json({ mode: 'add', commit: false, counts: { added: 1, updated: 1, deleted: 1, unchanged: 0, skippedEmpty: 0, errors: 0 }, errors: [], rows, rowsTotal: 5 })
+      : null
+  });
+  doc.getElementById('vtImportButton').click();
+  assert.equal(doc.getElementById('vtImportPickPanel').hidden, false);
+  assert.equal(doc.getElementById('vtImportConfirm').hidden, true, 'bước 1 chỉ có Xem trước');
+  Object.defineProperty(doc.getElementById('vtImportFile'), 'files', { value: [new window.File(['x'], 'vitri.xlsx')], configurable: true });
+  doc.getElementById('vtImportFile').dispatchEvent(new window.Event('change'));
+  assert.equal(doc.getElementById('vtImportFileName').textContent, 'vitri.xlsx');
+  doc.getElementById('vtImportPreview').click();
+  await settle();
+  assert.equal(doc.getElementById('vtImportPickPanel').hidden, true);
+  assert.equal(doc.querySelector('#vtImportSteps [data-step="2"]').classList.contains('is-current'), true);
+  assert.equal(doc.getElementById('vtImportConfirm').hidden, false);
+  const bodyRows = () => [...doc.querySelectorAll('#vtImportPreviewRows tr')].map(tr => [...tr.children].map(td => td.textContent.replace(/\s+/g, ' ').trim()));
+  assert.deepEqual(bodyRows(), [
+    ['Thêm', '3', 'ZZZ9Hàng mới', '3T x 20', '3', '60', 'KK 4.10', 'H9'],
+    ['Cập nhật', '4', 'AAA1Cưa', '5T x 100 → 7T x 100', '7', '700', '1/10', 'H1'],
+    ['Xóa', '—', 'BBB2', '1T x 10', '1', '10', '—', 'H2']
+  ]);
+  assert.match(doc.getElementById('vtImportPreviewNote').textContent, /3 \/ 5 dòng/);
+  doc.querySelector('#vtImportFilter [data-kind="update"]').click();
+  assert.deepEqual(bodyRows().map(r => r[2]), ['AAA1Cưa']);
+  doc.getElementById('vtImportBack').click();
+  assert.equal(doc.getElementById('vtImportPickPanel').hidden, false);
+  assert.equal(doc.getElementById('vtImportPreviewBox').hidden, true);
+});
+
+test('đổi chế độ hoặc file không bắt buộc xem trước lại; bỏ chọn file thì khóa import', async t => {
   const { doc, window } = await setup(t, {
     handler: async (url, options, parsed) => parsed.pathname === '/api/stock-positions/import'
       ? json({ counts: { added: 1, updated: 0, deleted: 0, unchanged: 0, skippedEmpty: 0, errors: 0 }, errors: [] }) : null
@@ -345,7 +381,61 @@ test('đổi chế độ hoặc file sau khi xem trước thì phải xem trư�
   await settle();
   assert.equal(doc.getElementById('vtImportConfirm').disabled, false);
   doc.querySelector('input[name="vtImportMode"][value="replace"]').dispatchEvent(new window.Event('change'));
+  assert.equal(doc.getElementById('vtImportConfirm').disabled, false);
+  Object.defineProperty(doc.getElementById('vtImportFile'), 'files', { value: [], configurable: true });
+  doc.getElementById('vtImportFile').dispatchEvent(new window.Event('change'));
   assert.equal(doc.getElementById('vtImportConfirm').disabled, true);
+});
+
+test('import trực tiếp sau chọn file, không gọi xem trước; lỗi máy chủ giữ hộp và cho thử lại', async t => {
+  let valid = false;
+  const { doc, calls, window } = await setup(t, {
+    handler: async (url, options, parsed) => parsed.pathname === '/api/stock-positions/import'
+      ? valid ? json({ counts: { added: 1 }, imported: true })
+        : json({ error: 'File còn lỗi', counts: { errors: 1 }, errors: [{ row: 2, message: 'Thiếu mã hàng.' }] }, 400)
+      : null
+  });
+  doc.getElementById('vtImportButton').click();
+  const input = doc.getElementById('vtImportFile');
+  Object.defineProperty(input, 'files', { value: [new window.File(['x'], 'Book1.xlsx')], configurable: true });
+  input.dispatchEvent(new window.Event('change'));
+  assert.equal(doc.getElementById('vtImportConfirm').disabled, false);
+  doc.getElementById('vtImportConfirm').click();
+  doc.getElementById('vtImportConfirm').click();
+  await settle();
+  let imports = calls.filter(c => c.path === '/api/stock-positions/import');
+  assert.equal(imports.length, 1, 'chặn bấm lặp khi đang gửi');
+  assert.equal(imports[0].query.get('commit'), '1');
+  assert.ok(doc.getElementById('vtImportDialog').hasAttribute('open'));
+  assert.match(doc.querySelector('[data-import-errors]').textContent, /Thiếu mã hàng/);
+  assert.equal(doc.getElementById('vtImportConfirm').disabled, false);
+  valid = true;
+  doc.getElementById('vtImportConfirm').click();
+  await settle();
+  imports = calls.filter(c => c.path === '/api/stock-positions/import');
+  assert.equal(imports.length, 2);
+  assert.ok(imports.every(c => c.query.get('commit') === '1'));
+  assert.equal(doc.getElementById('vtImportDialog').hasAttribute('open'), false);
+});
+
+test('import lỗi kết nối báo trong hộp và mở lại nút để thử lại', async t => {
+  const { doc, window } = await setup(t, {
+    handler: async (url, options, parsed) => {
+      if (parsed.pathname === '/api/stock-positions/import') throw new TypeError('Failed to fetch');
+    }
+  });
+  doc.getElementById('vtImportButton').click();
+  const input = doc.getElementById('vtImportFile');
+  Object.defineProperty(input, 'files', { value: [new window.File(['x'], 'Book1.xlsx')], configurable: true });
+  input.dispatchEvent(new window.Event('change'));
+  for (const button of ['vtImportPreview', 'vtImportConfirm']) {
+    doc.getElementById(button).click();
+    await settle();
+    assert.match(doc.getElementById('vtImportError').textContent, /Không kết nối được máy chủ/);
+    assert.equal(doc.getElementById('vtImportConfirm').disabled, false);
+    assert.equal(input.disabled, false);
+    assert.ok(doc.getElementById('vtImportDialog').hasAttribute('open'));
+  }
 });
 
 test('nút Xuất Excel chỉ hiện khi canExport, tải file theo cơ sở với tên từ Content-Disposition', async t => {

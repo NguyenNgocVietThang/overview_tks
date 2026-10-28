@@ -16,6 +16,7 @@ const MAX = Object.freeze({ code: 60, notes: 500, arrivalDate: 60, location: 100
 const HISTORY_MAX = 1000;
 const HISTORY_EXPORT_MAX = 50000;
 const ERROR_LIMIT = 50;
+const PREVIEW_LIMIT = 300;
 const NORMALIZE_ACTOR = 'Chuẩn hóa ghi chú';
 const MODES = Object.freeze(['replace', 'add']);
 
@@ -470,7 +471,7 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
       if (!code) { errors.push({ row: line.row, message: 'Thiếu mã hàng.' }); continue; }
       const product = resolved.get(lower(code));
       const location = normalizeLocation(line.location);
-      const notes = product ? carton.normalizeStoredNote(clean(line.notes)) : clean(line.notes);
+      const notes = carton.normalizeStoredNote(clean(line.notes));
       if (notes.length > MAX.notes || code.length > MAX.code || location.length > MAX.location || clean(line.arrivalDate).length > MAX.arrivalDate) {
         errors.push({ row: line.row, message: 'Dữ liệu quá dài (mã ≤ 60, ghi chú ≤ 500, ngày về ≤ 60, vị trí ≤ 100 ký tự).' }); continue;
       }
@@ -482,7 +483,8 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
       const arrivalDate = clean(line.arrivalDate);
       const earlier = entries.get(key);
       if (earlier) {
-        const sum = product ? mergeNotes(earlier.notes, notes) : [earlier.notes, notes].filter(Boolean).join(' + ');
+        const sum = product ? mergeNotes(earlier.notes, notes)
+          : mergeNotes(earlier.notes, notes) ?? carton.normalizeStoredNote([earlier.notes, notes].filter(Boolean).join(' + '));
         if (sum === null) { errors.push({ row: line.row, message: `Ghi chú dòng ${earlier.row} sai định dạng, không cộng được dòng trùng này.` }); continue; }
         earlier.notes = sum;
         earlier.arrivalDate = arrivalDate || earlier.arrivalDate;
@@ -501,7 +503,8 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
       let nextLocation = location;
       const nextName = resolved.has(lower(entry.code)) ? entry.name : entry.name || clean(current.name);
       if (mode === 'add') {
-        nextNotes = resolved.has(lower(entry.code)) ? mergeNotes(current.notes, notes) : [clean(current.notes), notes].filter(Boolean).join(' + ');
+        nextNotes = resolved.has(lower(entry.code)) ? mergeNotes(current.notes, notes)
+          : mergeNotes(current.notes, notes) ?? carton.normalizeStoredNote([clean(current.notes), notes].filter(Boolean).join(' + '));
         if (nextNotes === null) { errors.push({ row, message: `Ghi chú hiện có "${current.notes}" sai định dạng, không cộng thêm được.` }); continue; }
         nextDate = arrivalDate || clean(current.arrival_date);
         nextLocation = location; // khop khong phan biet hoa/thuong/khoang trang: ghi lai theo dang chuan
@@ -515,6 +518,25 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
   }
 
   const countsOf = plan => ({ added: plan.adds.length, updated: plan.updates.length, deleted: plan.deletes.length, unchanged: plan.unchanged, skippedEmpty: plan.skippedEmpty, errors: plan.errors.length });
+
+  // Các dòng sẽ thêm / đổi / xóa sau khi chuẩn hóa (đúng giá trị sẽ ghi), cho bước Xem trước; cắt ở PREVIEW_LIMIT dòng.
+  function previewOf(plan) {
+    const view = (kind, entry, before) => {
+      const spec = carton.parseSpec(clean(entry.notes));
+      return {
+        kind, row: entry.row ?? null, code: entry.code, name: clean(entry.name), notes: clean(entry.notes),
+        arrivalDate: clean(entry.arrivalDate ?? entry.arrival_date), location: clean(entry.location),
+        cartons: spec ? spec.cartons : null, quantity: spec ? spec.quantity : null,
+        ...(before ? { before: { notes: clean(before.notes), arrivalDate: clean(before.arrival_date), location: clean(before.location) } } : {})
+      };
+    };
+    const rows = [
+      ...plan.adds.map(entry => view('add', entry)),
+      ...plan.updates.map(entry => view('update', entry, entry.before)),
+      ...plan.deletes.map(entry => view('delete', entry))
+    ];
+    return { rows: rows.slice(0, PREVIEW_LIMIT), rowsTotal: rows.length };
+  }
 
   async function importFile(ctx, branch, { mode, commit = false, buffer, fileName = '' } = {}) {
     assertBranch(branch);
@@ -530,12 +552,12 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
       return { plan: planImport(mode, fileRows, existing, resolved) };
     };
     const response = (plan, extra = {}) => ({ mode, commit: Boolean(commit), counts: countsOf(plan), errors: plan.errors.slice(0, ERROR_LIMIT), ...extra });
-    if (!commit) return response((await run(db)).plan);
+    if (!commit) { const { plan } = await run(db); return response(plan, previewOf(plan)); }
 
     return withTransaction(db, async client => {
       await lockBranch(client, branch);
       const { plan } = await run(client);
-      if (plan.errors.length) throw fail(400, 'IMPORT_HAS_ERRORS', `File còn ${plan.errors.length} dòng lỗi, chưa nhập. Sửa file rồi thử lại.`, { body: response(plan) });
+      if (plan.errors.length) throw fail(400, 'IMPORT_HAS_ERRORS', `File còn ${plan.errors.length} dòng lỗi, chưa nhập. Sửa file rồi thử lại.`, { body: response(plan, previewOf(plan)) });
       const summaryAction = mode === 'replace' ? 'import_replace' : 'import_add';
       const entries = [{ action: summaryAction, summary: { file: fileName, ...countsOf(plan) } }];
       if (plan.adds.length) {

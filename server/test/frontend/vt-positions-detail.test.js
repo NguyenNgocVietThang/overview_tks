@@ -80,14 +80,13 @@ test('bấm dòng mở hộp chi tiết: mã, tên, vị trí và thông số SL
   await ui.open(1);
   assert.equal(ui.isOpen(), true);
   assert.equal(ui.text('vtDetailCode'), 'MA1');
-  assert.equal(ui.text('vtDetailName'), ' · Hàng 1');
-  assert.equal(ui.text('vtDetailSubtitle'), 'VT Hà Nội · K1');
+  assert.equal(ui.text('vtDetailName'), 'Hàng 1');
+  assert.equal(ui.text('vtDetailSubtitle'), 'VT Hà Nội');
   assert.equal(ui.text('vtDetailCartons'), '2');
   assert.equal(ui.text('vtDetailPieces'), '200');
   assert.equal(ui.text('vtDetailAvailable'), '150', 'Có thể bốc = SL chiếc − giữ chỗ (50)');
   assert.equal(ui.text('vtDetailKiot'), '350');
   assert.equal(ui.text('vtDetailStatLocation'), 'K1');
-  assert.equal(ui.text('vtDetailStatArrival'), '4/10');
   assert.equal(ui.field('notes').value, '2T x 100');
   assert.equal(ui.field('arrivalDate').value, '4/10');
   assert.equal(ui.field('location').value, 'K1');
@@ -142,7 +141,6 @@ test('SL thùng / SL chiếc cập nhật khi gõ Ghi chú; sai định dạng t
   ui.type('location', 'Z9');
   ui.type('arrivalDate', '1/11');
   assert.equal(ui.text('vtDetailStatLocation'), 'Z9');
-  assert.equal(ui.text('vtDetailStatArrival'), '1/11');
   ui.type('location', '');
   assert.equal(ui.text('vtDetailStatLocation'), '—');
 });
@@ -363,13 +361,13 @@ test('xóa thất bại hiện lỗi trong hộp và giữ hộp mở', async t 
   assert.ok(ui.doc.querySelector('#vtRows tr[data-id="1"]'));
 });
 
-test('dấu × / Esc đóng hộp (không có nút Đóng riêng); mở lại thì dữ liệu nhập dở bị bỏ', async t => {
+test('dấu × / Esc / Hủy đóng hộp; mở lại thì dữ liệu nhập dở bị bỏ', async t => {
   const ui = await setup(t);
   await ui.open(1);
   ui.doc.querySelector('#vtDetailDialog .dp-close').click();
   assert.equal(ui.isOpen(), false);
   await ui.open(1);
-  assert.equal(ui.doc.querySelector('#vtDetailDialog .vt-detail-foot [data-vt-close]'), null, 'chân hộp không còn nút Đóng riêng, chỉ có dấu ×');
+  assert.ok(ui.doc.querySelector('#vtDetailDialog .vt-detail-foot [data-vt-close]'), 'chân hộp có nút Hủy đóng hộp không lưu');
   await ui.open(1);
   ui.type('notes', 'nhập dở');
   ui.doc.getElementById('vtDetailDialog').dispatchEvent(new ui.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
@@ -415,7 +413,7 @@ test('mã ở tab Sài Gòn: tiêu đề phụ và URL lịch sử theo SG', asy
   await changed;
   await settle();
   await ui.open(3);
-  assert.equal(ui.text('vtDetailSubtitle'), 'VT Sài Gòn · K3');
+  assert.equal(ui.text('vtDetailSubtitle'), 'VT Sài Gòn');
   assert.equal(queries[0].get('branch'), 'SG');
   assert.equal(queries[0].get('positionId'), '3');
 });
