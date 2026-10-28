@@ -31,6 +31,15 @@ const keyOf = (code, location) => `${lower(code)}|${normalizeLocation(location)}
 const foldText = value => String(value ?? '').normalize('NFD').replace(/[̀-ͯ]/gu, '').replace(/[đĐ]/gu, 'd').toLowerCase().replace(/\s+/gu, ' ').trim();
 const isoOf = value => (value instanceof Date ? value : new Date(value)).toISOString();
 
+// Ngay loc xoa lich su: rong -> null; dung dang yyyy-mm-dd va la ngay that.
+function dateParam(value, field) {
+  const text = clean(value);
+  if (!text) return null;
+  const valid = /^\d{4}-\d{2}-\d{2}$/u.test(text) && Number.isFinite(Date.parse(text + 'T00:00:00Z')) && new Date(text + 'T00:00:00Z').toISOString().slice(0, 10) === text;
+  if (!valid) throw fail(400, 'VALIDATION', 'Ngày không hợp lệ (cần dạng yyyy-mm-dd).', { field });
+  return text;
+}
+
 function assertBranch(branch) {
   if (!BRANCH_CODES.includes(branch)) throw fail(400, 'INVALID_BRANCH', 'Cơ sở phải là HN hoặc SG.');
   return branch;
@@ -413,6 +422,30 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
     return { rows: needle ? entries.filter(matches) : entries, truncated };
   }
 
+  // Xoa lich su cua MOT co so theo khoang ngay (gio VN, gom ca 2 dau; trong = khong gioi han). Trigger chi cho DELETE khi
+  // giao dich dat app.history_purge = 'on'. Xong ghi 1 dong 'history_purged' (nam ngoai pham vi vua xoa) lam dau vet.
+  async function purgeHistory(ctx, branch, { from, to } = {}) {
+    assertBranch(branch);
+    assertScope(ctx, branch);
+    const fromDay = dateParam(from, 'from');
+    const toDay = dateParam(to, 'to');
+    if (fromDay && toDay && fromDay > toDay) throw fail(400, 'VALIDATION', 'Từ ngày phải trước hoặc bằng Đến ngày.', { field: 'from' });
+    const actor = actorOf(ctx);
+    return withTransaction(getDb(), async client => {
+      await lockBranch(client, branch);
+      await client.query(`SELECT set_config('app.history_purge', 'on', true)`);
+      const { rows } = await client.query(
+        `DELETE FROM stock_position_history WHERE branch = $1
+           AND ($2::date IS NULL OR created_at >= $2::date::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh')
+           AND ($3::date IS NULL OR created_at < ($3::date + 1)::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh')
+         RETURNING id`, [branch, fromDay, toDay]);
+      await client.query(`SELECT set_config('app.history_purge', 'off', true)`);
+      const summary = { deleted: rows.length, from: fromDay, to: toDay };
+      await writeHistory(client, branch, actor, [{ action: 'history_purged', summary }]);
+      return summary;
+    });
+  }
+
   // ---- Import file Excel/CSV (4 cot: Ma hang, Ghi chu, Ngay ve, Vi tri) ----
 
   // Thuan tuy: tu dong file + dong hien co + bang tra ma -> ke hoach them/doi/xoa/loi.
@@ -530,7 +563,7 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
     });
   }
 
-  return { list, create, update, deduct, remove, acknowledge, history, historyAll, importFile };
+  return { list, create, update, deduct, remove, acknowledge, history, historyAll, purgeHistory, importFile };
 }
 
 // `tx`: helper giao dich dung chung cho module khac can tru/cong thung that trong cung giao dich + khoa co so (pickAssignments).

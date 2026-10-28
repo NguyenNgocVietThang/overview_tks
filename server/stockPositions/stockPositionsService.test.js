@@ -471,7 +471,7 @@ test('list: chưa áp migration giữ chỗ (0096) thì Có thể bốc = SL kho
   const { db, service } = await fixture({ lines: [{ branch: 'HN', code: 'AAA1', name: 'A', notes: '3T x 100', location: 'H1' }] });
   try {
     const { rows } = await service.list(ctx(), 'HN');
-    assert.deepEqual([rows[0].quantity, rows[0].held, rows[0].available], [300,0, 300]);
+    assert.deepEqual([rows[0].quantity, rows[0].held, rows[0].available], [300, 0, 300]);
   } finally { await db.close(); }
 });
 
@@ -507,5 +507,41 @@ test('ack: Đã sửa cho dòng có cảnh báo (kể cả Mã SP lạ), giữ k
     await assert.rejects(() => service.acknowledge(ctx(), fine.id, { version: fine.version, acknowledged: true }), { statusCode: 409, code: 'NOTHING_TO_ACK' });
     await assert.rejects(() => service.acknowledge(ctx(), bad.id, { version: 1, acknowledged: true }), { statusCode: 409, code: 'VERSION_CONFLICT' });
     await assert.rejects(() => service.acknowledge(ctx(['SG']), bad.id, { version: back.version, acknowledged: true }), { statusCode: 403, code: 'BRANCH_OUT_OF_SCOPE' });
+  } finally { await db.close(); }
+});
+
+test('purgeHistory: xóa theo khoảng ngày giờ VN, chỉ cơ sở chỉ định, để lại dòng history_purged, UPDATE vẫn bị chặn', async () => {
+  const { db, service } = await fixture();
+  try {
+    const add = (branch, iso, code) => db.query(`INSERT INTO stock_position_history (branch, created_at, code, action, actor_name) VALUES ($1, $2, $3, 'edit', 'x')`, [branch, iso, code]);
+    await add('HN', '2026-10-01T16:59:00Z', 'D1'); // 01/10 23:59 giờ VN
+    await add('HN', '2026-10-01T17:00:00Z', 'D2'); // 02/10 00:00
+    await add('HN', '2026-10-03T16:59:59Z', 'D3'); // 03/10 23:59:59
+    await add('HN', '2026-10-03T17:00:00Z', 'D4'); // 04/10 00:00
+    await add('SG', '2026-10-02T05:00:00Z', 'S1');
+    const result = await service.purgeHistory(ctx(), 'HN', { from: '2026-10-02', to: '2026-10-03' });
+    assert.deepEqual(result, { deleted: 2, from: '2026-10-02', to: '2026-10-03' });
+    const left = (await db.query(`SELECT code FROM stock_position_history WHERE code <> '' ORDER BY code`)).rows.map(r => r.code);
+    assert.deepEqual(left, ['D1', 'D4', 'S1']);
+    const purged = (await db.query(`SELECT branch, actor_name, summary FROM stock_position_history WHERE action = 'history_purged'`)).rows;
+    assert.equal(purged.length, 1);
+    assert.equal(purged[0].branch, 'HN');
+    assert.equal(purged[0].actor_name, 'Quản Lý A');
+    assert.deepEqual(purged[0].summary, { deleted: 2, from: '2026-10-02', to: '2026-10-03' });
+    // Xóa toàn bộ cơ sở: gồm cả dòng history_purged cũ, rồi để lại 1 dòng mới
+    assert.equal((await service.purgeHistory(ctx(), 'HN', {})).deleted, 3);
+    const hn = (await db.query(`SELECT action, summary FROM stock_position_history WHERE branch = 'HN'`)).rows;
+    assert.deepEqual(hn.map(r => r.action), ['history_purged']);
+    assert.deepEqual(hn[0].summary, { deleted: 3, from: null, to: null });
+    assert.equal((await db.query(`SELECT count(*)::int AS n FROM stock_position_history WHERE branch = 'SG'`)).rows[0].n, 1);
+    // Ngoài hàm purge vẫn bất biến; trong giao dịch có cờ purge thì UPDATE vẫn bị chặn
+    await assert.rejects(() => db.query('DELETE FROM stock_position_history'), /immutable/);
+    await db.exec(`BEGIN; SELECT set_config('app.history_purge', 'on', true);`);
+    await assert.rejects(() => db.query(`UPDATE stock_position_history SET actor_name = 'y'`), /immutable/);
+    await db.exec('ROLLBACK');
+    await assert.rejects(() => service.purgeHistory(ctx(['SG']), 'HN', {}), { statusCode: 403, code: 'BRANCH_OUT_OF_SCOPE' });
+    await assert.rejects(() => service.purgeHistory(ctx(), 'HN', { from: '2026-13-40' }), { statusCode: 400, code: 'VALIDATION' });
+    await assert.rejects(() => service.purgeHistory(ctx(), 'HN', { from: '2026-10-05', to: '2026-10-01' }), { statusCode: 400, code: 'VALIDATION' });
+    await assert.rejects(() => service.purgeHistory(ctx(), 'XX', {}), { statusCode: 400, code: 'INVALID_BRANCH' });
   } finally { await db.close(); }
 });
