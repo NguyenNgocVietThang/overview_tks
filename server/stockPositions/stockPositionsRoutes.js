@@ -48,7 +48,7 @@ function createStockPositionsRouter(dependencies = {}) {
 
   router.get('/api/stock-positions', handle(async (req, res) => {
     const result = await svc().list(ctxOf(req), req.query.branch);
-    res.json({ ...result, canEdit: hasFeature(req.user, 'stockLocationsV2.edit'), canExport: hasFeature(req.user, 'stockLocationsV2.export') });
+    res.json({ ...result, canEdit: hasFeature(req.user, 'stockLocationsV2.edit'), canExport: hasFeature(req.user, 'stockLocationsV2.export'), canDeleteHistory: hasFeature(req.user, 'stockLocationsV2.historyDelete') });
   }));
   // Xuat Excel toan bo dong cua co so (khong theo bo loc tren man hinh); quyen rieng stockLocationsV2.export.
   router.get('/api/stock-positions/export', requireFeature('stockLocationsV2.export'), handle(async (req, res) => {
@@ -72,6 +72,11 @@ function createStockPositionsRouter(dependencies = {}) {
     res.set('X-History-Truncated', String(Boolean(truncated)));
     res.send(file.buffer);
   }));
+  // Xoa lich su cua mot co so theo khoang ngay (yyyy-mm-dd, trong = khong gioi han); quyen rieng stockLocationsV2.historyDelete.
+  // Dat TRUOC router.delete('/:id') de khong bi coi 'history' la ma dong.
+  router.delete('/api/stock-positions/history', requireFeature('stockLocationsV2.historyDelete'), handle(async (req, res) => {
+    res.json(await svc().purgeHistory(ctxOf(req), req.query.branch, { from: req.query.from, to: req.query.to }));
+  }));
   router.post('/api/stock-positions/import', edit, (req, res, next) => upload.single('file')(req, res, error => {
     if (!error) return next();
     const tooBig = error.code === 'LIMIT_FILE_SIZE';
@@ -94,6 +99,9 @@ function createStockPositionsRouter(dependencies = {}) {
   }));
   router.post('/api/stock-positions/:id/deduct', edit, handle(async (req, res) => {
     res.json(await svc().deduct(ctxOf(req), idOf(req), req.body || {}));
+  }));
+  router.post('/api/stock-positions/:id/ack', edit, handle(async (req, res) => {
+    res.json(await svc().acknowledge(ctxOf(req), idOf(req), req.body || {}));
   }));
   router.delete('/api/stock-positions/:id', edit, handle(async (req, res) => {
     const version = req.query.version === undefined ? undefined : Number(req.query.version);

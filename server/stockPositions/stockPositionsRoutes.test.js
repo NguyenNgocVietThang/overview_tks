@@ -25,6 +25,7 @@ async function start(t, { user = MANAGER, scope = 'Cả hai' } = {}) {
   const service = {
     list: async (ctx, branch) => { calls.push(['list', branch, ctx.scope]); return { branch, rows: ROWS }; },
     create: record('create'), update: record('update'), deduct: record('deduct'), remove: record('remove'), history: record('history'),
+    acknowledge: record('acknowledge'), purgeHistory: record('purgeHistory'),
     historyAll: async (ctx, branch, filters) => { calls.push(['historyAll', branch, filters, ctx.scope]); return { rows: HISTORY, truncated: false }; },
     importFile: async (ctx, branch, options) => { calls.push(['importFile', branch, options.mode, options.commit, options.fileName, options.buffer.length]); return { counts: {} }; }
   };
@@ -143,4 +144,32 @@ test('Xuất Excel lịch sử: truyền bộ lọc + phạm vi, 9 cột, nhãn 
   assert.equal(sheet.getRow(2).getCell(8).value, "'=40T x 250");
   assert.equal(sheet.getRow(3).getCell(3).value, 'Import bổ sung');
   assert.equal(sheet.getRow(3).getCell(9).value, 'Thêm 3 · a.xlsx');
+});
+
+test('Đã sửa + xóa lịch sử: chuyển tham số, route history không bị /:id nuốt, canDeleteHistory theo quyền', async t => {
+  const { base, calls } = await start(t);
+  const json = { 'Content-Type': 'application/json' };
+  const list = await (await fetch(base + '?branch=HN')).json();
+  assert.equal(list.canDeleteHistory, true);
+  assert.equal((await fetch(base + '/7/ack', { method: 'POST', headers: json, body: JSON.stringify({ version: 2, acknowledged: true }) })).status, 200);
+  assert.equal((await fetch(base + '/history?branch=SG&from=2026-10-01&to=2026-10-05', { method: 'DELETE' })).status, 200);
+  assert.equal((await fetch(base + '/history?branch=HN', { method: 'DELETE' })).status, 200);
+  assert.deepEqual(calls.map(c => c[0]), ['list', 'acknowledge', 'purgeHistory', 'purgeHistory']);
+  assert.deepEqual(calls[1].slice(1), [7, { version: 2, acknowledged: true }]);
+  assert.deepEqual(calls[2].slice(1), ['SG', { from: '2026-10-01', to: '2026-10-05' }]);
+  assert.deepEqual(calls[3].slice(1), ['HN', { from: undefined, to: undefined }]);
+});
+
+test('Quyền: chỉ sửa được Đã sửa khi có edit; chỉ xóa lịch sử khi có historyDelete', async t => {
+  const editor = { vaiTro: 'Nhân viên kho', featurePermissions: { 'stockLocationsV2.view': true, 'stockLocationsV2.edit': true } };
+  const { base, calls } = await start(t, { user: editor });
+  const json = { 'Content-Type': 'application/json' };
+  assert.equal((await (await fetch(base + '?branch=HN')).json()).canDeleteHistory, false);
+  assert.equal((await fetch(base + '/7/ack', { method: 'POST', headers: json, body: JSON.stringify({ version: 1, acknowledged: true }) })).status, 200);
+  assert.equal((await fetch(base + '/history?branch=HN', { method: 'DELETE' })).status, 403);
+  const viewer = await start(t, { user: { vaiTro: 'Nhân viên kho', featurePermissions: { 'stockLocationsV2.view': true } } });
+  assert.equal((await fetch(viewer.base + '/7/ack', { method: 'POST', headers: json, body: '{}' })).status, 403);
+  const granted = await start(t, { user: { vaiTro: 'Nhân viên kho', featurePermissions: { 'stockLocationsV2.view': true, 'stockLocationsV2.historyDelete': true } } });
+  assert.equal((await fetch(granted.base + '/history?branch=HN', { method: 'DELETE' })).status, 200);
+  assert.deepEqual(calls.map(c => c[0]), ['list', 'acknowledge']);
 });
