@@ -340,11 +340,13 @@ async function findOrder(orderCode) {
     return { found: false, summary: computeStatus(null) };
   }
   const overrides = latestOverrideByCode(historyRows);
+  const summary = computeEffectiveStatus(record, overrides.get(target));
   return {
     found: true,
     branch: record._branch,
     flow: record._flow || FLOW_DELIVERY,
-    summary: computeEffectiveStatus(record, overrides.get(target)),
+    summary,
+    warnings: computeWarnings(record, summary),
     detail: toDetail(record)
   };
 }

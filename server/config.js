@@ -87,6 +87,9 @@ const CONFIG = {
   // server tu tao/ghi (ghi de trang thai thu cong cua Quan ly/Ke toan).
   // ==========================================
   ORDER_LIFECYCLE_SPREADSHEET_ID: process.env.ORDER_LIFECYCLE_SPREADSHEET_ID || null,
+  // Token rieng cho bot lai xe goi API doi chieu don. Khong dung JWT nguoi dung
+  // va khong bao gio tra token qua endpoint nao.
+  BOT_LIFECYCLE_API_TOKEN: process.env.BOT_LIFECYCLE_API_TOKEN || null,
   ORDER_LIFECYCLE_SHEET_HN: 'DonHang_HN',
   ORDER_LIFECYCLE_SHEET_SG: 'DonHang_SG',
   ORDER_LIFECYCLE_SHEET_NORTH_SOUTH: 'DonHang_MienNam',
