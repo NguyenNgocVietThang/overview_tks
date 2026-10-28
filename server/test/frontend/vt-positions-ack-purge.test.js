@@ -82,3 +82,63 @@ test('Đã sửa: dòng không cảnh báo không có nút; chỉ xem thì khôn
   await settle();
   assert.equal(doc.getElementById('vtDetailAck'), null);
 });
+
+const openHistory = async ({ doc }) => { doc.getElementById('vtHistoryButton').click(); await settle(); };
+const WARNING_TEXT = 'Bạn có chắc chắn muốn xóa? Hãy lưu dữ liệu lịch sử trước khi xóa.';
+
+test('Xóa lịch sử: chỉ người có quyền thấy nút; hộp thoại có cảnh báo, ngày sai không gọi API, OK mới xóa rồi tải lại', async t => {
+  const ui = await setup(t, { handlers: { 'DELETE /api/stock-positions/history': () => json({ deleted: 7, from: '2026-10-01', to: '2026-10-05' }) } });
+  const { doc, calls, window } = ui;
+  await openHistory(ui);
+  const button = doc.getElementById('vtHistoryPurge');
+  assert.equal(button.hidden, false);
+  button.click();
+  const dialog = doc.getElementById('vtPurgeDialog');
+  assert.ok(dialog.hasAttribute('open'));
+  assert.ok(dialog.textContent.includes(WARNING_TEXT));
+  doc.getElementById('vtPurgeFrom').value = '31/02/2026';
+  doc.getElementById('vtPurgeOk').click();
+  await settle();
+  assert.match(doc.getElementById('vtPurgeError').textContent, /dd\/mm\/yyyy/);
+  assert.equal(calls.filter(c => c.method === 'DELETE').length, 0);
+  doc.getElementById('vtPurgeFrom').value = '05/10/2026';
+  doc.getElementById('vtPurgeTo').value = '01/10/2026';
+  doc.getElementById('vtPurgeOk').click();
+  await settle();
+  assert.match(doc.getElementById('vtPurgeError').textContent, /Từ ngày/);
+  assert.equal(calls.filter(c => c.method === 'DELETE').length, 0);
+  doc.getElementById('vtPurgeFrom').value = '1/10/2026';
+  doc.getElementById('vtPurgeTo').value = '05/10/2026';
+  const before = calls.filter(c => c.method === 'GET' && c.path === '/api/stock-positions/history').length;
+  doc.getElementById('vtPurgeOk').click();
+  await settle();
+  const del = calls.filter(c => c.method === 'DELETE');
+  assert.equal(del.length, 1);
+  assert.equal(del[0].query.get('branch'), 'HN');
+  assert.equal(del[0].query.get('from'), '2026-10-01');
+  assert.equal(del[0].query.get('to'), '2026-10-05');
+  assert.equal(dialog.hasAttribute('open'), false);
+  assert.equal(calls.filter(c => c.method === 'GET' && c.path === '/api/stock-positions/history').length, before + 1, 'tải lại lịch sử');
+  void window;
+});
+
+test('Xóa lịch sử: để trống 2 ngày = xóa toàn bộ (không gửi from/to); Hủy không gọi API', async t => {
+  const ui = await setup(t, { handlers: { 'DELETE /api/stock-positions/history': () => json({ deleted: 3, from: null, to: null }) } });
+  const { doc, calls } = ui;
+  await openHistory(ui);
+  doc.getElementById('vtHistoryPurge').click();
+  doc.getElementById('vtPurgeCancel').click();
+  assert.equal(calls.filter(c => c.method === 'DELETE').length, 0);
+  doc.getElementById('vtHistoryPurge').click();
+  doc.getElementById('vtPurgeOk').click();
+  await settle();
+  const del = calls.find(c => c.method === 'DELETE');
+  assert.equal(del.query.has('from'), false);
+  assert.equal(del.query.has('to'), false);
+});
+
+test('Xóa lịch sử: không có quyền historyDelete thì ẩn nút', async t => {
+  const ui = await setup(t, { canDeleteHistory: false });
+  await openHistory(ui);
+  assert.equal(ui.doc.getElementById('vtHistoryPurge').hidden, true);
+});

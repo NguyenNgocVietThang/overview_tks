@@ -37,3 +37,6 @@
   .vt-history-filters select,.vt-hist-export{flex:1 1 100%}
   .vt-hist-table th,.vt-hist-table td{padding:8px 10px}
 }
+
+.vt-hist-purge{color:var(--red)}
+.vt-purge-warning{margin:0 0 12px;padding:10px 12px;border:1px solid color-mix(in srgb,var(--red) 55%,transparent);border-radius:8px;background:color-mix(in srgb,var(--red) 10%,transparent);color:var(--red);font-weight:600}

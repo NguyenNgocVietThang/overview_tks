@@ -25,10 +25,10 @@
     pick: 'Nhặt hàng (đơn)', pick_revert: 'Hoàn tác nhặt (đơn)',
     ack: 'Đánh dấu Đã sửa', unack: 'Bỏ Đã sửa', history_purged: 'Xóa lịch sử'
   };
-  const FIELD_LABELS = { code: 'Mã hàng', notes: 'Ghi chú', arrivalDate: 'Ngày về', location: 'Vị trí', quantity: 'Số lượng' };
+  const FIELD_LABELS = { code: 'Mã hàng', name: 'Tên hàng', notes: 'Ghi chú', arrivalDate: 'Ngày về', location: 'Vị trí', quantity: 'Số lượng' };
   const collator = new Intl.Collator('vi', { numeric: true, sensitivity: 'base' });
   const QUANTITY_FORMAT = new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 });
-  const newState = () => ({ rows: [], query: '', page: 1, sortField: '', sortDirection: 'asc', loading: false, error: '', warnFilter: 'all', canEdit: null, canExport: false });
+  const newState = () => ({ rows: [], query: '', page: 1, sortField: '', sortDirection: 'asc', loading: false, error: '', warnFilter: 'all', canEdit: null, canExport: false, canDeleteHistory: false });
   const state = { hn: newState(), sg: newState() };
   let user, activeTab, allowedTabs, requestVersion = 0;
   let screenMode, visibleFields, columnPreferences = {}, canEditPermission = false;
@@ -408,7 +408,7 @@
     const form = $('vtDetailForm');
     const carton = window.PickingCarton;
     const notes = form.elements.notes.value;
-    const spec = carton && carton.parseSpec ? carton.parseSpec(notes) : null;
+    const spec = row.kiotQuantity != null && carton && carton.parseSpec ? carton.parseSpec(notes) : null;
     $('vtDetailCartons').textContent = spec ? formatNumber(spec.cartons) : '—';
     $('vtDetailPieces').textContent = spec ? formatNumber(spec.quantity) : '—';
     const held = Number(row.held) || 0;
@@ -759,6 +759,7 @@
     $('vtHistorySubtitle').textContent = `${count} thay đổi${more ? ' đã tải' : ''} • Lưu vĩnh viễn`;
     $('vtHistoryMore').hidden = !more;
     $('vtHistoryExport').hidden = state[history.branch.toLowerCase()].canExport !== true;
+    $('vtHistoryPurge').hidden = state[history.branch.toLowerCase()].canDeleteHistory !== true;
   }
 
   // Nhãn hành động dạng pill: màu theo loại (có chữ nên không chỉ dựa vào màu).
@@ -800,6 +801,47 @@
       add('del', 'vt-hist-old', before);
     }
     return box;
+  }
+
+  // dd/mm/yyyy -> yyyy-mm-dd; '' khi để trống; null khi sai định dạng hoặc không phải ngày thật.
+  function parseVnDate(text) {
+    const value = String(text || '').trim();
+    if (!value) return '';
+    const match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(value);
+    if (!match) return null;
+    const day = Number(match[1]), month = Number(match[2]), year = Number(match[3]);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
+    return year + '-' + String(month).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+  }
+
+  function openPurge() {
+    $('vtPurgeFrom').value = '';
+    $('vtPurgeTo').value = '';
+    $('vtPurgeError').textContent = '';
+    $('vtPurgeSubtitle').textContent = 'VT ' + (history.branch === 'HN' ? 'Hà Nội' : 'Sài Gòn');
+    openDialog($('vtPurgeDialog'));
+  }
+
+  // Xóa lịch sử của cơ sở đang xem theo khoảng ngày (trống = toàn bộ); thành công thì đóng hộp và tải lại danh sách lịch sử.
+  async function runPurge() {
+    const from = parseVnDate($('vtPurgeFrom').value), to = parseVnDate($('vtPurgeTo').value);
+    const error = $('vtPurgeError');
+    error.textContent = '';
+    if (from === null || to === null) { error.textContent = 'Ngày không hợp lệ (cần dạng dd/mm/yyyy).'; return; }
+    if (from && to && from > to) { error.textContent = 'Từ ngày phải trước hoặc bằng Đến ngày.'; return; }
+    const params = new URLSearchParams({ branch: history.branch });
+    if (from) params.set('from', from);
+    if (to) params.set('to', to);
+    $('vtPurgeOk').disabled = true;
+    try {
+      const { response, payload } = await request(API + '/history?' + params.toString(), { method: 'DELETE' });
+      if (!response.ok) { error.textContent = payload.error || 'Không xóa được lịch sử.'; return; }
+      closeDialog($('vtPurgeDialog'));
+      loadHistory(false);
+    } finally {
+      $('vtPurgeOk').disabled = false;
+    }
   }
 
   // Xuất Excel toàn bộ lịch sử của cơ sở theo hành động/từ khóa đang chọn (lọc ở máy chủ).
@@ -857,6 +899,7 @@
     $('vtHistoryRows').replaceChildren();
     $('vtHistoryMore').hidden = true;
     $('vtHistoryExport').hidden = state[activeTab].canExport !== true;
+    $('vtHistoryPurge').hidden = state[activeTab].canDeleteHistory !== true;
     openDialog($('vtHistoryDialog'));
     loadHistory(false);
   }
@@ -887,6 +930,7 @@
       current.rows = payload.rows;
       current.canEdit = typeof payload.canEdit === 'boolean' ? payload.canEdit : null;
       current.canExport = payload.canExport === true;
+      current.canDeleteHistory = payload.canDeleteHistory === true;
     } catch (error) {
       if (version !== requestVersion) return;
       current.error = error.message || 'Lỗi kết nối, vui lòng tải lại trang.';
@@ -936,6 +980,8 @@
     $('vtHistoryAction').addEventListener('change', renderHistory);
     $('vtHistoryMore').addEventListener('click', () => loadHistory(true));
     $('vtHistoryExport').addEventListener('click', exportHistory);
+    $('vtHistoryPurge').addEventListener('click', openPurge);
+    $('vtPurgeOk').addEventListener('click', runPurge);
   }
 
   // Bấm (hoặc Enter/Space) vào dòng để mở hộp chi tiết; đang bôi đen chữ để sao chép thì không mở.

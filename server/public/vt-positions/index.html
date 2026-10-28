@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/shared/detail-panel.css?v=20261012">
   <link rel="stylesheet" href="/shared/table-controls.css?v=20261016-1">
   <link rel="stylesheet" href="/vt-positions/vt-positions.css?v=20261028-1">
-  <link rel="stylesheet" href="/vt-positions/vt-history.css?v=20261027-1">
+  <link rel="stylesheet" href="/vt-positions/vt-history.css?v=20261028-2">
   <link rel="stylesheet" href="/vt-positions/vt-detail.css?v=20261028-1">
 </head>
 <body>
@@ -248,6 +248,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"></path></svg>
           Xuất Excel
         </button>
+        <button class="locations-columns-button vt-hist-purge" id="vtHistoryPurge" type="button" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 7h14M10 11v6M14 11v6M9 7V4h6v3M7 7l1 13h8l1-13"></path></svg>
+          Xóa lịch sử
+        </button>
       </div>
       <div class="dp-table-wrap">
         <table class="dp-table vt-hist-table" id="vtHistoryTable" data-table-controls="off">
@@ -259,12 +263,33 @@
     </div>
   </dialog>
 
+  <!-- Xóa lịch sử cập nhật -->
+  <dialog class="vt-dialog vt-dialog-narrow" id="vtPurgeDialog" aria-labelledby="vtPurgeTitle">
+    <div class="dp-head">
+      <div class="dp-head-text"><h3 class="dp-title" id="vtPurgeTitle">Xóa lịch sử</h3><p class="dp-subtitle" id="vtPurgeSubtitle"></p></div>
+      <button type="button" class="dp-close" data-vt-close aria-label="Đóng">×</button>
+    </div>
+    <div class="dp-body">
+      <p class="vt-purge-warning" role="alert">Bạn có chắc chắn muốn xóa? Hãy lưu dữ liệu lịch sử trước khi xóa.</p>
+      <div class="vt-detail-form">
+        <label class="vt-field"><span>Từ ngày</span><input id="vtPurgeFrom" type="text" inputmode="numeric" autocomplete="off" placeholder="dd/mm/yyyy"></label>
+        <label class="vt-field"><span>Đến ngày</span><input id="vtPurgeTo" type="text" inputmode="numeric" autocomplete="off" placeholder="dd/mm/yyyy"></label>
+      </div>
+      <p class="vt-form-hint">Để trống cả hai ô để xóa toàn bộ lịch sử của cơ sở này. Dùng nút Xuất Excel trong hộp Lịch sử để lưu trước.</p>
+      <p class="vt-form-error" id="vtPurgeError" role="alert"></p>
+      <div class="vt-dialog-actions">
+        <button type="button" class="locations-columns-button" id="vtPurgeCancel" data-vt-close>Hủy</button>
+        <button type="button" class="locations-columns-button vt-primary vt-danger" id="vtPurgeOk">OK</button>
+      </div>
+    </div>
+  </dialog>
+
   <script src="/shared/table-controls.js?v=20261024-2"></script>
   <script src="/shared/fuzzy-search.js?v=20261021-1"></script>
   <script src="/shared/carton.js?v=20261027-1"></script>
   <script src="/shared/search-clear.js?v=20261009-1"></script>
   <script src="/shared/shared-nav.js?v=20261026-calendar-ui"></script>
-  <script src="/vt-positions/vt-positions.js?v=20261028-1"></script>
+  <script src="/vt-positions/vt-positions.js?v=20261028-2"></script>
   <script>window.addEventListener('DOMContentLoaded', function () { TKSVtPositions.init(); });</script>
   <script src="/shared/shooting-star.js?v=20261019"></script>
 </body>
