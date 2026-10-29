@@ -9,6 +9,13 @@ const { tx } = require('../stockPositions/stockPositionsService');
 
 const { DB_BRANCH } = tx;
 
+// KiotViet luu SĐT dang "+84923170904"; ban in muon dang noi dia "0923170904". Khong doan duoc thi giu nguyen.
+function toLocalPhone(value) {
+  const raw = String(value ?? '').trim();
+  const match = /^(?:\+84|0084|84)0?(\d{9})$/.exec(raw.replace(/[\s.\-()]/g, ''));
+  return match ? '0' + match[1] : raw;
+}
+
 // GET /users: mobilePhone belongs to sold_by_id in the same retailer. Never match by name.
 function createSellerPhoneLookup({
   getBranches = () => require('../kiotvietSync/config').getConfiguredBranches({warn:()=>{}}),
@@ -29,7 +36,7 @@ function createSellerPhoneLookup({
           const phones = new Map();
           const client = createClient({...config, requestOptions:{maxRetries:1,timeoutMs:5000}});
           await client.fetchAllPages('users', {}, async users => {
-            for (const user of users) phones.set(String(user.id), String(user.mobilePhone || '').trim());
+            for (const user of users) phones.set(String(user.id), toLocalPhone(user.mobilePhone));
           }, {requireComplete:true});
           entry.expires = now() + 300000;
           return phones;
@@ -118,4 +125,4 @@ function diffQuantities(assigned, ordered) {
   return out.sort((a, b) => a.productCode.localeCompare(b.productCode));
 }
 
-module.exports = { kiotOutcome, readKiotStatuses, readKiotQuantities, diffQuantities, codeKey, createSellerPhoneLookup, readSellerPhone, loadSellerPhone };
+module.exports = { toLocalPhone, kiotOutcome, readKiotStatuses, readKiotQuantities, diffQuantities, codeKey, createSellerPhoneLookup, readSellerPhone, loadSellerPhone };

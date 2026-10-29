@@ -3,6 +3,8 @@
 const esc=v=>String(v??'—').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const stText=v=>v===null||v===undefined?'':Number(v).toLocaleString('en-US',{maximumFractionDigits:2});
 const money=v=>typeof v==='number'&&Number.isFinite(v)?v.toLocaleString('vi-VN'):'—';
+// SĐT người bán in dạng nội địa: "+84923170904" → "0923170904".
+const localPhone=v=>{const raw=String(v??'').trim(),m=/^(?:\+84|0084|84)0?(\d{9})$/.exec(raw.replace(/[\s.\-()]/g,''));return m?'0'+m[1]:raw;};
 const replace=(html,values)=>html.replace(/\{([^{}]+)\}/g,(token,key)=>Object.hasOwn(values,key)?esc(values[key]):token);
 function show(order,record){
   const root=document.createElement('div');
@@ -49,7 +51,7 @@ function show(order,record){
   const notes=[order.note].filter(Boolean).join(' · ');
   root.innerHTML=replace(root.innerHTML,{
     // Bản in ghi cả ID Telegram cạnh tên sale, đúng dạng KiotViet lưu: "<tên> - <ID>".
-    Nhan_Vien_Ban_Hang:order.saleName+(order.saleTelegramId?' - '+order.saleTelegramId:''),Dien_Thoai_Nguoi_Ban:order.sellerPhone,
+    Nhan_Vien_Ban_Hang:order.saleName+(order.saleTelegramId?' - '+order.saleTelegramId:''),Dien_Thoai_Nguoi_Ban:localPhone(order.sellerPhone),
     Ten_Chi_Nhanh:order.branch==='SG'?' TP.HCM':'',
     Dia_Chi_Chi_Nhanh:order.branchAddress||(order.branch==='SG'?'Lô 13 KCN Tân Bình, Tân Phú, HCM':'Cụm CN Cầu Nổi, Hoài Đức, HN'),
     Ma_Don_Hang:order.orderCode,Khach_Hang:order.customerName,So_Dien_Thoai:order.customerPhone,Dia_Chi_Khach_Hang:order.customerAddress,
