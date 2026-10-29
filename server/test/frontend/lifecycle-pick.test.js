@@ -238,6 +238,27 @@ test('validate: SL phân bổ thiếu vẫn mở Xác nhận kèm cảnh báo; b
   page.dom.window.close();
 });
 
+test('chọn vị trí mới bổ sung 360 còn thiếu và giữ nguyên vị trí đã chọn 40', async () => {
+  const store = newStore();
+  store.order.lines[0].quantity = 400;
+  store.candidates = { a: [position(11, 'A07', '1T x 40', 40), position(12, 'B02', '2T x 400', 800)] };
+  const page = await renderPage({ store });
+  try {
+    await openPopup(page);
+    // Xóa gợi ý để chọn lần lượt vị trí nhỏ trước, vị trí lớn sau.
+    for (const input of [...page.document.querySelectorAll('[data-qty]')]) {
+      input.value = '0';
+      input.dispatchEvent(new page.window.Event('change', { bubbles: true }));
+    }
+    page.document.querySelector('[data-location="11"]').click();
+    assert.equal(page.document.querySelector('[data-qty][data-qloc="11"]').value, '40');
+    page.document.querySelector('[data-location="12"]').click();
+    assert.equal(page.document.querySelector('[data-qty][data-qloc="11"]').value, '40');
+    assert.equal(page.document.querySelector('[data-qty][data-qloc="12"]').value, '360');
+    assert.equal(page.document.querySelector('.picking-need small').dataset.allocated, '400');
+  } finally { page.dom.window.close(); }
+});
+
 test('vị trí ghi chú sai định dạng (không có SL) bị khóa và hiện nhãn cảnh báo', async () => {
   const store = newStore({ candidates: { a: [position(11, 'A07', '4T x 50', 200), position(13, 'C01', 'abc', null, { onHand: null, available: null, warnings: ['unreadable'] })] } });
   const page = await renderPage({ store });

@@ -322,7 +322,6 @@
     const i=Number(button.dataset.line),line=lines()[i],row=rowsFor(line).find(r=>r.id===button.dataset.location),picks=state.allocations[i]||[];
     if(!row)return;
     if(picks.some(p=>p.id===row.id))state.allocations[i]=picks.filter(p=>p.id!==row.id);
-    else if(row.available>=line.quantity)state.allocations[i]=[{id:row.id,quantity:line.quantity}];
     else{
       const total=picks.reduce((s,p)=>s+p.quantity,0);
       // Đang đủ hàng ở nơi khác thì chuyển sang tách tay từ đầu; chưa đủ thì bổ sung thêm vị trí.
