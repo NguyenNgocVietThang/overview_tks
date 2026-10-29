@@ -12,7 +12,7 @@
 const crypto = require('node:crypto');
 const { getPool } = require('../db/pool');
 const { INVOICE_STATUS_SQL } = require('../kiotvietSync/salesSqlFragments');
-const { parsePriceNote } = require('./priceNoteParser');
+const { parsePriceNote, htmlToPlainText } = require('./priceNoteParser');
 const { hasFullVat, isFreightCustomer } = require('./priceAuditRules');
 const { readCustomerPriceLevels } = require('../businessReport/customerPriceLevelRepository');
 const { nameKey, RETAIL_NAME } = require('../businessReport/businessMonths');
@@ -263,8 +263,8 @@ async function buildCaptureInputs({ day, client, now, includeSeen, who, scope = 
         freight_eligible: freightEligible, freight: freightEligible ? (freightByKey.get(codeKey(code)) ?? null) : null,
         hn: inv.branch === 'hanoi' ? own : null,
         sg: inv.branch === 'saigon' ? own : (freightEligible ? regionInput(Boolean(sg), sg && sg.product_id, sg && sg.description) : null),
-        product_note_hn: inv.branch === 'hanoi' ? l.description : '',
-        product_note_sg: inv.branch === 'saigon' ? l.description : (sg ? sg.description : ''),
+        product_note_hn: inv.branch === 'hanoi' ? htmlToPlainText(l.description) : '',
+        product_note_sg: inv.branch === 'saigon' ? htmlToPlainText(l.description) : (sg ? htmlToPlainText(sg.description) : ''),
         line_note: l.line_note, invoice_note: inv.invoice_note, captured_at: capturedAt,
         approved_price: approved ? approved.approved_price : null, approved_on: approved ? approved.approved_on : null,
         approved_kind: approved ? approved.approved_kind : null

@@ -472,3 +472,21 @@ test('readReport: chua cong bo -> available=false; loc/KPI/sap xep/phan trang; D
     assert.equal(await repo.readRow({ branch: 'hanoi', invoiceId: '1', sourceLineNo: 99 }), null);
   } finally { await db.close(); }
 });
+
+test('Mo ta HN boc HTML (dan tu Google Sheets): gia/bac nhu mo ta sach, ghi chu HN luu dang chu thuong', async () => {
+  const db = await newDb();
+  try {
+    await product(db, 'hanoi', 1, 'T100', 'Ly sach', HN_NOTE);
+    await product(db, 'hanoi', 2, 'T100H', 'Ly html', `<span data-sheets-root="1" style="font-family:Calibri, Arial;">${HN_NOTE}</span>`);
+    await customer(db, 'hanoi', 1, 'Khach Vua', { groups: 'Duy Thái' });
+    await invoice(db, { id: 100, customerId: 1, lines: [
+      { productId: 1, code: 'T100', name: 'Ly sach', qty: 5, price: 1 },
+      { productId: 2, code: 'T100H', name: 'Ly html', qty: 5, price: 1 }] });
+    await capture(db);
+    const rows = await lines(db);
+    assert.equal(rows[0].min, rows[1].min);
+    const { rows: notes } = await db.query('SELECT product_code, product_note_hn FROM invoice_price_audit_lines ORDER BY source_line_no');
+    assert.equal(notes[1].product_note_hn, HN_NOTE);
+    assert.equal(notes[0].product_note_hn, notes[1].product_note_hn);
+  } finally { await db.close(); }
+});

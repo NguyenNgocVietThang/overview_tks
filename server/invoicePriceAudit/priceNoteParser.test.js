@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parsePriceNote, parseMoney, normalizeText } = require('./priceNoteParser');
+const { parsePriceNote, parseMoney, normalizeText, htmlToPlainText } = require('./priceNoteParser');
 
 test('mau T30 co o trong -T -- giu vi tri va bo bac trong', () => {
   const r = parsePriceNote('T30 # 4/10 # 1T -169000 | 2T- 168000 | 3T- 167000 | -T -- | VAT+16800đ');
@@ -105,4 +105,31 @@ test('parseMoney tra decimal string hoac null', () => {
 
 test('normalizeText: NFKC, hoa thuong, gop khoang trang', () => {
   assert.equal(normalizeText('  FULL    VAT '), 'full vat');
+});
+
+// Mo ta HN dan tu Google Sheets vao KiotViet bi boc <span data-sheets-root...>...</span> (hoac <p>): truoc day doan dau
+// "<span ...>t24" bi coi la 1 bac gia -> vi tri bac lech +1, mat so chiec/thung va VAT.
+const CLEAN_NOTE = 'T24 # 23/4 # 1T -52500 | 3T- 52000 | 5T- 51500 | 15T -51000 | VAT+5400đ';
+const SPAN_NOTE = '<span data-sheets-root="1" style="font-family:Calibri, Arial;">' + CLEAN_NOTE + '</span>';
+
+test('mo ta boc HTML (span/p) phan tich giong mo ta sach', () => {
+  const clean = parsePriceNote(CLEAN_NOTE);
+  assert.deepEqual(parsePriceNote(SPAN_NOTE), clean);
+  assert.deepEqual(parsePriceNote('<p><span style="color:#2e2e2e;">' + CLEAN_NOTE + '</span></p>'), clean);
+  assert.equal(clean.cartonSize, '24');
+  assert.equal(clean.tiers[0].position, 1);
+  assert.equal(clean.vatPerUnit, '5400');
+});
+
+test('mo ta boc HTML: giai ma thuc the, <br> thanh khoang trang', () => {
+  const r = parsePriceNote('<span>T20&nbsp;#&nbsp;6/10 # 1T&nbsp;-100 |<br>3T- 90 | VAT+&amp;đ</span>');
+  assert.equal(r.cartonSize, '20');
+  assert.deepEqual(r.tiers.map(t => t.position), [1, 2]);
+});
+
+test('htmlToPlainText: bo the, giai ma thuc the, giu nguyen van ban thuong', () => {
+  assert.equal(htmlToPlainText(SPAN_NOTE), CLEAN_NOTE);
+  assert.equal(htmlToPlainText(CLEAN_NOTE), CLEAN_NOTE);
+  assert.equal(htmlToPlainText('a &lt; b'), 'a < b');
+  assert.equal(htmlToPlainText(null), '');
 });

@@ -8,6 +8,21 @@
 //   VAT+2000đ   = VAT moi don vi
 // Ham thuan, khong doc DB. Tien tra ve dang chuoi decimal (khong dung so thuc JS) de SQL CAST NUMERIC.
 
+// Mo ta KiotViet la rich text: dan tu Google Sheets sinh "<span data-sheets-root=...>...</span>" (hoac <p>, <table>).
+// Bo the, ngat dong/o bang thanh khoang trang, giai ma thuc the; van ban thuong giu nguyen ("a < b" khong bi coi la the).
+const ENTITIES = { nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
+function htmlToPlainText(value) {
+  if (value == null) return '';
+  return String(value)
+    .replace(/<br\s*\/?>|<\/(?:p|div|td|th|tr|li)>/gi, ' ')
+    .replace(/<\/?[a-zA-Z][^>]*>/g, '')
+    .replace(/&(?:#(\d+)|#x([0-9a-f]+)|([a-z]+));/gi, (m, dec, hex, name) => {
+      if (name) return Object.prototype.hasOwnProperty.call(ENTITIES, name.toLowerCase()) ? ENTITIES[name.toLowerCase()] : m;
+      const code = dec ? Number(dec) : parseInt(hex, 16);
+      return code === 160 ? ' ' : (code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : m);
+    });
+}
+
 // Chuan hoa: NFKC, chu thuong, gop moi dang khoang trang thanh 1 dau cach, trim.
 function normalizeText(value) {
   if (value == null) return '';
@@ -38,7 +53,7 @@ const TIER_RE = /^-? ?(?:(\d*) ?(c)?|(lẻ)) ?t ?- ?(.*)$/;
 function parsePriceNote(text) {
   const result = { cartonSize: null, tiers: [], vatPerUnit: null, updatedLabel: null };
   if (typeof text !== 'string') return result;
-  const normalized = normalizeText(text);
+  const normalized = normalizeText(htmlToPlainText(text));
   if (!normalized) return result;
 
   let position = 0;
@@ -75,4 +90,4 @@ function parsePriceNote(text) {
   return result;
 }
 
-module.exports = { parsePriceNote, parseMoney, normalizeText };
+module.exports = { parsePriceNote, parseMoney, normalizeText, htmlToPlainText };

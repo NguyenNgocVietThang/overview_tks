@@ -204,9 +204,9 @@
     "semantic_hash": ""
   },
   "server/config.js": {
-    "mtime": 1793171211.6780577,
-    "seen": 1793181370.385198,
-    "ast_hash": "cf22eaff5be18a23e7b95ee4cc846895",
+    "mtime": 1793244813.5648603,
+    "seen": 1793246640.4454024,
+    "ast_hash": "bc51015923f2961809dde3dcb4e21afd",
     "semantic_hash": ""
   },
   "server/dashboard/dashboardData.js": {
@@ -1080,9 +1080,9 @@
     "semantic_hash": ""
   },
   "server/kiotvietSync/entities/customers.js": {
-    "mtime": 1792754560.5107718,
-    "seen": 1793063448.4714727,
-    "ast_hash": "52d5cd8fb429d5cf70d319b5bc426e00",
+    "mtime": 1793244813.3703446,
+    "seen": 1793246640.4454024,
+    "ast_hash": "b4bbddb480531356843a5a71494f16b3",
     "semantic_hash": ""
   },
   "server/kiotvietSync/entities/customers.test.js": {
@@ -1134,15 +1134,15 @@
     "semantic_hash": ""
   },
   "server/kiotvietSync/entities/products.js": {
-    "mtime": 1790644622.0958526,
-    "seen": 1793063448.4714727,
-    "ast_hash": "7e91d04c8d26bafece83759dd2e73ae2",
+    "mtime": 1793244846.1677725,
+    "seen": 1793246640.4454024,
+    "ast_hash": "142c97ff5c0f8a5ca21fab3c1434c4d9",
     "semantic_hash": ""
   },
   "server/kiotvietSync/entities/products.test.js": {
-    "mtime": 1790644630.4383981,
-    "seen": 1793063448.4714727,
-    "ast_hash": "c8769da055465770f8fe7da4a2898667",
+    "mtime": 1793244891.4359715,
+    "seen": 1793246640.4454024,
+    "ast_hash": "dbc5fe1bfa1f80a65e1b6ee20ac9319b",
     "semantic_hash": ""
   },
   "server/kiotvietSync/entities/purchases.js": {
@@ -1236,9 +1236,9 @@
     "semantic_hash": ""
   },
   "server/kiotvietSync/syncDriver.js": {
-    "mtime": 1792488867.6015632,
-    "seen": 1793063448.4714727,
-    "ast_hash": "8dd33be886c5f23cec67a933a612f9d3",
+    "mtime": 1793244801.5813384,
+    "seen": 1793246640.4454024,
+    "ast_hash": "8d43a87f4834daa8c0428c14f9ea5670",
     "semantic_hash": ""
   },
   "server/kiotvietSync/syncDriver.test.js": {
@@ -3360,9 +3360,9 @@
     "semantic_hash": ""
   },
   "CURRENT.md": {
-    "mtime": 1793239835.0474522,
-    "seen": 1793242141.3029299,
-    "ast_hash": "e2c3f9926271445c91378e59f7167ebc",
+    "mtime": 1793242909.918328,
+    "seen": 1793246640.4454024,
+    "ast_hash": "66a5c34a87cb3b67c66725a4253d0b9c",
     "semantic_hash": ""
   },
   "MEMORY.md": {
@@ -4752,15 +4752,15 @@
     "semantic_hash": ""
   },
   "server/invoicePriceAudit/priceAuditRepository.js": {
-    "mtime": 1792998490.587534,
-    "seen": 1793063448.4714727,
-    "ast_hash": "9742dae93f1d1b414715cca7dee1ee62",
+    "mtime": 1793244230.4680586,
+    "seen": 1793246640.4454024,
+    "ast_hash": "afc84435e0380f199a46e6eefa6a89ac",
     "semantic_hash": ""
   },
   "server/invoicePriceAudit/priceAuditRepository.test.js": {
-    "mtime": 1792998490.587534,
-    "seen": 1793063448.4714727,
-    "ast_hash": "b2f94b3093bc12aa1526d9b43d914b2d",
+    "mtime": 1793244230.4680586,
+    "seen": 1793246640.4454024,
+    "ast_hash": "e322f832ed66ae528404e588f6fbabbb",
     "semantic_hash": ""
   },
   "server/invoicePriceAudit/priceAuditRoutes.js": {
@@ -4824,15 +4824,15 @@
     "semantic_hash": ""
   },
   "server/invoicePriceAudit/priceNoteParser.js": {
-    "mtime": 1792663166.7661157,
-    "seen": 1793063448.4714727,
-    "ast_hash": "4eadcfbf3246fe90be0f250cb81afd56",
+    "mtime": 1793244230.4680586,
+    "seen": 1793246640.4454024,
+    "ast_hash": "5df244882bbe105e1683602a4c6066b8",
     "semantic_hash": ""
   },
   "server/invoicePriceAudit/priceNoteParser.test.js": {
-    "mtime": 1792492544.596469,
-    "seen": 1793063448.4714727,
-    "ast_hash": "5687b4afd95e432a6064bf3e3a07a539",
+    "mtime": 1793244230.4680586,
+    "seen": 1793246640.4454024,
+    "ast_hash": "32febdb9906fcc986bf13578e8a07c90",
     "semantic_hash": ""
   },
   "server/jobs.js": {
@@ -5820,8 +5820,8 @@
     "semantic_hash": ""
   },
   "server/public/prototypes/order-picking/index.html": {
-    "mtime": 1793182016.2612355,
-    "seen": 1793182499.8364842,
+    "mtime": 1793243743.0770838,
+    "seen": 1793246640.4454024,
     "ast_hash": "2ae213c499b9ec45bdcce0c4f1422016",
     "semantic_hash": ""
   },
@@ -5838,8 +5838,8 @@
     "semantic_hash": ""
   },
   "server/public/prototypes/order-picking/order-template.html": {
-    "mtime": 1793182016.2198956,
-    "seen": 1793182499.8364842,
+    "mtime": 1793243743.0581822,
+    "seen": 1793246640.4454024,
     "ast_hash": "a540c3585514b9a0455146e6f12398ee",
     "semantic_hash": ""
   },
@@ -6249,6 +6249,12 @@
     "mtime": 1793242042.9746234,
     "seen": 1793242141.3034353,
     "ast_hash": "550a88a39de672bdf5281c35fa4fcb77",
+    "semantic_hash": ""
+  },
+  "server/kiotvietSync/productsReconcile.test.js": {
+    "mtime": 1793244919.8533568,
+    "seen": 1793246640.4454024,
+    "ast_hash": "51a5afcae4367af564866b32114d7396",
     "semantic_hash": ""
   }
 }

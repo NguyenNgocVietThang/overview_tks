@@ -159,6 +159,11 @@ const CONFIG = {
   // kiotvietSync/entities/productOnHandsSnapshot.js). Mac dinh 10 phut.
   KIOTVIET_SYNC_ONHAND_SNAPSHOT_INTERVAL_MS: Number(process.env.KIOTVIET_SYNC_ONHAND_SNAPSHOT_INTERVAL_MS) > 0
     ? Number(process.env.KIOTVIET_SYNC_ONHAND_SNAPSHOT_INTERVAL_MS) : 10 * 60 * 1000,
+  // Chu ky quet TOAN BO hang hoa (/products, xem kiotvietSync/entities/products.js):
+  // poll tang dan theo lastModifiedFrom bo sot dong khi sua hang loat / khong bump
+  // modifiedDate (vd chi sua Mo ta). Mac dinh 24 gio.
+  KIOTVIET_SYNC_PRODUCT_RECONCILE_INTERVAL_MS: Number(process.env.KIOTVIET_SYNC_PRODUCT_RECONCILE_INTERVAL_MS) > 0
+    ? Number(process.env.KIOTVIET_SYNC_PRODUCT_RECONCILE_INTERVAL_MS) : 24 * 60 * 60 * 1000,
   // Bi mat gan vao duong dan webhook KiotViet: cau hinh ben KiotViet tro toi
   // /api/kiotviet/webhook/<secret>. Bat buoc de nhan su kien — de trong thi
   // duong dan co secret bi tat hoan toan (404).

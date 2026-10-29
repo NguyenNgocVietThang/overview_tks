@@ -11,6 +11,10 @@ const base = createSimpleEntity({
 module.exports = {
   ...base,
   reconcileIntervalMs: 24 * 60 * 60 * 1000,
+  // Khoa/nhan/su kien cho syncDriver.pollReconciled (giu nguyen ten khoa cu trong checkpoint.note).
+  reconcileMarkerKey: 'activeCustomersReconciledAt',
+  snapshotLabel: 'customer',
+  changeEvent: 'customersChanged',
   async upsertPage(client, branch, items) {
     // API khach khong tra trang thai: khach da danh dau ngung hoat dong tu DS khach (raw.inactiveSource='ds-khach') giu nguyen
     // cho den khi KiotViet doi modifiedDate (SQL ON CONFLICT ben duoi), tranh bi lan quet day du ghi lai thanh hoat dong.

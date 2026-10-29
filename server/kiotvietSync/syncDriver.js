@@ -89,16 +89,27 @@ function createSyncDriver({ pool = getPool(), checkpointRepository: checkpoints 
     });
   }
 
-  async function pollCustomers(api, branch, entity, checkpoint, runEndIso) {
+  // Entity dang "tang dan + doi soat day du dinh ky" (customers, products): poll tang
+  // dan theo lastModifiedFrom, moi `reconcileIntervalMs` quet TOAN BO mot lan de vua
+  // cac dong tang dan bo sot (nhieu dong cung modifiedDate khi sua hang loat lam
+  // phan trang theo vi tri truot dong) va danh dau dong da het ton tai o nguon.
+  // Entity khai bao: reconcileMarkerKey (khoa luu moc quet day du trong
+  // sync_checkpoints.note), snapshotLabel (cho thong bao loi), changeEvent (tuy chon),
+  // fullScanQuery (tham so them khi quet day du), reconcilePage (tuy chon, thay
+  // upsertPage khi quet day du), applyPageMetadata (tuy chon), markMissing.
+  async function pollReconciled(api, branch, entity, checkpoint, runEndIso) {
+    const markerKey = entity.reconcileMarkerKey;
+    const label = entity.snapshotLabel || entity.entity;
     let reconciledAt;
-    try { reconciledAt = JSON.parse(checkpoint?.note || '{}').activeCustomersReconciledAt; } catch (_) {}
+    try { reconciledAt = JSON.parse(checkpoint?.note || '{}')[markerKey]; } catch (_) {}
     const lastFullMs = Date.parse(reconciledAt);
     const full = !Number.isFinite(lastFullMs) || Date.parse(runEndIso) - lastFullMs >= entity.reconcileIntervalMs;
     const query = { ...entity.listQuery };
-    // Many customers share modifiedDate; sorting by a unique, immutable ID
+    // Many rows share modifiedDate; sorting by a unique, immutable ID
     // prevents tied rows moving across offset pages during a full scan.
-    if (full) Object.assign(query, { orderBy: 'id', orderDirection: 'ASC' });
+    if (full) Object.assign(query, entity.fullScanQuery || { orderBy: 'id', orderDirection: 'ASC' });
     else query[entity.incrementalParam] = new Date(checkpoint.last_synced_at).toISOString();
+    const writePage = full && entity.reconcilePage ? entity.reconcilePage : entity.upsertPage;
     const seenIds = new Set();
     let expectedTotal;
     await api.fetchAllPages(entity.endpoint, query, async (items, info) => {
@@ -106,47 +117,47 @@ function createSyncDriver({ pool = getPool(), checkpointRepository: checkpoints 
         const total = Number(info?.total);
         if (info?.total == null || !Number.isInteger(total) || total <= 0 || !items.length
           || (expectedTotal !== undefined && expectedTotal !== total)) {
-          throw new Error(`Incomplete customer snapshot: ${branch}, invalid or empty page/total`);
+          throw new Error(`Incomplete ${label} snapshot: ${branch}, invalid or empty page/total`);
         }
         expectedTotal = total;
         for (const item of items) {
-          const id = String(item.Id ?? item.id ?? item.CustomerId ?? item.customerId ?? '');
-          if (!/^[1-9]\d*$/.test(id) || seenIds.has(id)) throw new Error(`Incomplete customer snapshot: ${branch}, missing/duplicate ID`);
+          const id = String(item.Id ?? item.id ?? item.CustomerId ?? item.customerId ?? item.ProductId ?? item.productId ?? '');
+          if (!/^[1-9]\d*$/.test(id) || seenIds.has(id)) throw new Error(`Incomplete ${label} snapshot: ${branch}, missing/duplicate ID`);
           seenIds.add(id);
         }
       }
       await inTransaction(async client => {
-        await entity.upsertPage(client, branch, items);
-        await entity.applyPageMetadata(client, branch, info);
+        await writePage(client, branch, items);
+        if (entity.applyPageMetadata) await entity.applyPageMetadata(client, branch, info);
       });
     }, { requireComplete: full });
     if (full && (expectedTotal === undefined || seenIds.size !== expectedTotal)) {
-      throw new Error(`Incomplete customer snapshot: ${branch}, ${seenIds.size}/${expectedTotal} unique IDs`);
+      throw new Error(`Incomplete ${label} snapshot: ${branch}, ${seenIds.size}/${expectedTotal} unique IDs`);
     }
     // Only a complete, validated scan may flag absences. The completion marker
     // commits with those flags, so failures retry the full scan on the next poll.
     await inTransaction(async client => {
       if (full) await entity.markMissing(client, branch, [...seenIds], runEndIso);
       await checkpoints.advanceCheckpoint(branch, entity.entity, runEndIso, {
-        client, note: JSON.stringify({ windowEnd: runEndIso, activeCustomersReconciledAt: full ? runEndIso : reconciledAt })
+        client, note: JSON.stringify({ windowEnd: runEndIso, [markerKey]: full ? runEndIso : reconciledAt })
       });
     });
-    events.emit('customersChanged', { branch });
+    if (entity.changeEvent) events.emit(entity.changeEvent, { branch });
   }
 
   // Entity co minIntervalMs (vd product_on_hands_snapshot: quet toan bo, nang) chi
   // chay khi lan thanh cong truoc da du cu, va khong bao gio chay chong nhau.
   const inFlight = new Set();
-  const customerInFlight = new Map();
+  const reconcileInFlight = new Map();
 
   async function pollEntityOnce(kiotVietClient, branch, entityModule) {
-    if (entityModule.entity === 'customers') {
-      const key = `${branch}:customers`;
-      if (customerInFlight.has(key)) return customerInFlight.get(key);
+    if (entityModule.reconcileMarkerKey) {
+      const key = `${branch}:${entityModule.entity}`;
+      if (reconcileInFlight.has(key)) return reconcileInFlight.get(key);
       const running = pollEntityNow(kiotVietClient, branch, entityModule);
-      customerInFlight.set(key, running);
+      reconcileInFlight.set(key, running);
       try { return await running; }
-      finally { customerInFlight.delete(key); }
+      finally { reconcileInFlight.delete(key); }
     }
     if (!entityModule.minIntervalMs) return pollEntityNow(kiotVietClient, branch, entityModule);
     const key = `${branch}:${entityModule.entity}`;
@@ -168,8 +179,8 @@ function createSyncDriver({ pool = getPool(), checkpointRepository: checkpoints 
     if (entityModule.entity === 'cash_flows') {
       return pollCashFlows(kiotVietClient, branch, entityModule, checkpoint, runEndIso);
     }
-    if (entityModule.entity === 'customers' && entityModule.reconcileIntervalMs) {
-      return pollCustomers(kiotVietClient, branch, entityModule, checkpoint, runEndIso);
+    if (entityModule.reconcileMarkerKey && entityModule.reconcileIntervalMs) {
+      return pollReconciled(kiotVietClient, branch, entityModule, checkpoint, runEndIso);
     }
     const neverSynced = !checkpoint?.last_synced_at;
     // Entity CHUA TUNG dong bo thanh cong (checkpoint rong) va khong can
