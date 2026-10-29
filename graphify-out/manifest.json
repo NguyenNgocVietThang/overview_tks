@@ -786,9 +786,9 @@
     "semantic_hash": "58e700daf0c14819a97499bd94f6f2e1"
   },
   "server/README.md": {
-    "mtime": 1793266772.7652316,
-    "seen": 1793266954.5706773,
-    "ast_hash": "60c83e64e2cb4a934954fe41f039952e",
+    "mtime": 1793268689.7736328,
+    "seen": 1793268891.4099965,
+    "ast_hash": "b6e285ec088c129ceb588e82371e870e",
     "semantic_hash": ""
   },
   "server/kiotviet/API_ENDPOINTS.md": {
@@ -5874,9 +5874,9 @@
     "semantic_hash": ""
   },
   "server/public/vt-positions/vt-positions.js": {
-    "mtime": 1793267184.3250349,
-    "seen": 1793268080.2137356,
-    "ast_hash": "70b4938471d0b21e9bc37bf4b2747636",
+    "mtime": 1793268705.8285227,
+    "seen": 1793268891.4099965,
+    "ast_hash": "360bfe96dd1753a2bd786ec3bbf92b50",
     "semantic_hash": ""
   },
   "server/shipment/kiotOrderLink.js": {
@@ -5922,15 +5922,15 @@
     "semantic_hash": ""
   },
   "server/stockPositions/stockPositionsService.js": {
-    "mtime": 1793266701.5055244,
-    "seen": 1793266954.5693195,
-    "ast_hash": "6c8fb61fb88c4a1c6f2aa6b5bb1da6c2",
+    "mtime": 1793268705.8230827,
+    "seen": 1793268891.4099965,
+    "ast_hash": "6a610a1012435de1ad1e5050e5f9b795",
     "semantic_hash": ""
   },
   "server/stockPositions/stockPositionsService.test.js": {
-    "mtime": 1793266743.8487804,
-    "seen": 1793266954.5693195,
-    "ast_hash": "72b22bd2725288bd2c958830a0115218",
+    "mtime": 1793268705.8309932,
+    "seen": 1793268891.4099965,
+    "ast_hash": "16c97acbfaa1866ebbab562f392152bf",
     "semantic_hash": ""
   },
   "server/test/frontend/vt-positions-detail.test.js": {
@@ -5952,9 +5952,9 @@
     "semantic_hash": ""
   },
   "server/test/frontend/vt-positions.test.js": {
-    "mtime": 1793267239.749151,
-    "seen": 1793268080.2137356,
-    "ast_hash": "ecc76581bb3355cbe7aaf1511c2a322f",
+    "mtime": 1793268763.814617,
+    "seen": 1793268891.4099965,
+    "ast_hash": "5b798981aa0cbcd697a29c8c7d927c92",
     "semantic_hash": ""
   },
   "docs/superpowers/specs/2026-10-27-vat-status-by-vat-code-design.md": {
