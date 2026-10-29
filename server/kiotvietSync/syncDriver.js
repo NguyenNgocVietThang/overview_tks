@@ -12,6 +12,8 @@ function notifyInvoicesWritten(events, entityModule, branch, items) {
   events.emit('invoicesChanged', { branch, count: items.length });
 }
 
+const INCREMENTAL_OVERLAP_MS = 5 * 60 * 1000;
+
 function createSyncDriver({ pool = getPool(), checkpointRepository: checkpoints = checkpointRepository, now = Date.now, logger = console, events = dashboardRollupEvents } = {}) {
   async function inTransaction(work) {
     const client = await pool.connect();
@@ -106,9 +108,17 @@ function createSyncDriver({ pool = getPool(), checkpointRepository: checkpoints 
     const full = !Number.isFinite(lastFullMs) || Date.parse(runEndIso) - lastFullMs >= entity.reconcileIntervalMs;
     const query = { ...entity.listQuery };
     // Many rows share modifiedDate; sorting by a unique, immutable ID
-    // prevents tied rows moving across offset pages during a full scan.
-    if (full) Object.assign(query, entity.fullScanQuery || { orderBy: 'id', orderDirection: 'ASC' });
-    else query[entity.incrementalParam] = new Date(checkpoint.last_synced_at).toISOString();
+    // prevents tied rows moving across offset pages during a scan.
+    const stableOrder = { orderBy: 'id', orderDirection: 'ASC' };
+    if (full) Object.assign(query, entity.fullScanQuery || stableOrder);
+    // Poll tang dan cung sap theo id: mac dinh customers sap theo modifiedDate, dong vua quet
+    // bi sua lai (sua hang loat dang dien ra) nhay xuong cuoi lam trang ke tiep truot 1 dong,
+    // ma dong bi truot co modifiedDate cu hon moc checkpoint nen khong bao gio duoc doc lai.
+    // Chong lan 5 phut: moc la gio BAT DAU luot truoc theo dong ho may minh (lech KiotViet ~2s,
+    // them thoi gian quet va tre hien thi); upsert idempotent nen doc lai vai dong la re.
+    else Object.assign(query, stableOrder, {
+      [entity.incrementalParam]: new Date(Date.parse(checkpoint.last_synced_at) - INCREMENTAL_OVERLAP_MS).toISOString()
+    });
     const writePage = full && entity.reconcilePage ? entity.reconcilePage : entity.upsertPage;
     const seenIds = new Set();
     let expectedTotal;

@@ -59,13 +59,14 @@ test('lan dau quet toan bo (sap theo id, requireComplete), ghi Mo ta moi va danh
   assert.equal(JSON.parse(first.note).productsReconciledAt, '2026-10-15T01:00:00.000Z');
   assert.equal((await db.query('SELECT COUNT(*)::int n FROM products')).rows[0].n, 3);
 
-  // Poll tang dan: dung lastModifiedFrom, khong sap xep, khong danh dau, giu moc doi soat.
+  // Poll tang dan: dung lastModifiedFrom (chong lan 5 phut), sap theo id, khong danh dau, giu moc doi soat.
   await db.query("INSERT INTO products(branch,id,code,name,raw,synced_at) VALUES ('hanoi',4,'SP4','Hang 4','{}','2020-01-01')");
   state.clock += 20 * 60 * 1000;
   const incr = fakeApi([[item(2)]]);
   await driver.pollEntityOnce(incr, 'hanoi', products);
-  assert.equal(incr.calls[0].query.lastModifiedFrom, '2026-10-15T01:00:00.000Z');
-  assert.equal(incr.calls[0].query.orderBy, undefined);
+  assert.equal(incr.calls[0].query.lastModifiedFrom, '2026-10-15T00:55:00.000Z', 'chong lan 5 phut so voi checkpoint 01:00');
+  assert.equal(incr.calls[0].query.orderBy, 'id');
+  assert.equal(incr.calls[0].query.orderDirection, 'ASC');
   assert.notEqual(incr.calls[0].options?.requireComplete, true);
   assert.equal((await activeOf())[4], null, 'poll tang dan khong danh dau hang vang mat');
   const second = await checkpoints.getCheckpoint('hanoi', 'products');

@@ -309,6 +309,17 @@ Kế hoạch thực hiện (Vanilla JS/CSS; không thêm dependency; bổ sung A
 
 28/10/2026 — Phiếu in: UI thanh công cụ theo ảnh demo (mã đơn, trạng thái form chung, khôi phục, phím tắt; responsive sáng/tối), kéo viền chỉnh cột/hàng; Thùng căn giữa, gộp quy cách chỉ trong cùng khu và nối cộng giữa khu. Lời lưu ý theo sát khối ký, bỏ đẩy đáy/min-height gây trang lẻ khi in 120%; Edge/PDF xác nhận phiếu ngắn còn 1 trang. Không đổi API/migration/tính SL nguồn.
 
-Cập nhật gần nhất: 28/10/2026 (chỉnh sửa khi xem trước import VT).
+# Engine KiotViet: đối soát đầy đủ hàng hóa và sync tăng dần theo id — 29/10/2026
+
+Bổ sung cho mục 1 "Kiến trúc đã triển khai" (polling của `server/kiotvietSync/`). Nguyên nhân: đối chiếu thật 29/10/2026 cho thấy `products` thiếu 35 hàng Hà Nội + 10 hàng Sài Gòn (đợt sửa hàng loạt 22/10 với nhiều dòng trùng `modifiedDate`) và còn 9 hàng Hà Nội đã xóa bên KiotViet; poll tăng dần theo `lastModifiedFrom` có thể sót khi phân trang trên dữ liệu đang đổi, và `products` trước đó không có lượt quét đầy đủ định kỳ (chỉ `customers` có).
+
+- [x] `syncDriver.pollReconciled` (đổi tên từ `pollCustomers`) dùng chung cho `customers` và `products`; entity khai báo `reconcileMarkerKey`/`snapshotLabel`/`markMissing` (+ tùy chọn `reconcilePage`, `applyPageMetadata`, `changeEvent`, `fullScanQuery`).
+- [x] `products`: quét TOÀN BỘ `/products` mỗi `KIOTVIET_SYNC_PRODUCT_RECONCILE_INTERVAL_MS` (mặc định 24 giờ), `orderBy=id`, `requireComplete`, lỗi thì không tiến checkpoint; chỉ ghi dòng thật sự đổi, giữ `raw->'inventories'` (do `productOnHands` vá riêng), hàng vắng mặt chỉ đánh dấu `is_active=false` + `raw.sourceMissingAt`.
+- [x] Poll tăng dần của `customers`/`products` thêm `orderBy=id ASC` và chồng lấn 5 phút (`INCREMENTAL_OVERLAP_MS`). Cơ sở thực nghiệm: `orderBy` kết hợp được với `lastModifiedFrom`, cửa sổ bao gồm (`>=`), ISO `Z` là UTC thật, đồng hồ máy chạy nhanh hơn KiotViet ~2,4 giây (chi tiết `server/kiotviet/API_ENDPOINTS.md`).
+- [x] Nạp bù tay lên Supabase bằng đúng đường đối soát mới (35 + 10 hàng thiếu đã nạp, 9 hàng thừa đã đánh dấu ngừng; không ghi checkpoint nên lần đầu sau deploy tự quét lại 1 lần).
+- [x] Kiểm thử: `productsReconcile.test.js`, `entities/products.test.js`, `syncDriver.test.js`; 254 pass / 0 fail. Không có migration/bảng mới.
+- [ ] Deploy (server production vẫn code cũ). Sau deploy: kiểm tra log `[KiotViet Sync] <cơ sở>/products: ...` của lượt đối soát đầu tiên (HN ~110 trang, ~13 phút), rồi chạy lại đối chiếu `products` với KiotViet để xác nhận hết lệch.
+
+Cập nhật gần nhất: 29/10/2026 (đối soát đầy đủ `products`, sync tăng dần sắp theo id + chồng lấn 5 phút).
 
 28/10/2026 — Phiếu in: đồng bộ chiều cao và cỡ chữ mọi hàng dữ liệu trong bảng, tiêu đề chỉnh riêng. Ctrl+L/R/E căn trái/phải/giữa và Ctrl+B/I đậm/nghiêng cho các cột bôi chọn ở mọi hàng cùng nhóm; ngoài bảng định dạng vùng chữ/đoạn chọn. Form chung JSONB thêm `groups.body/header` (height/size/columns: align/bold/italic), `blocks` (căn đoạn); `fonts` hỗ trợ đậm/nghiêng vùng chữ. Cấu hình áp dụng cả phiếu số dòng khác, qua tài khoản/máy/phiên; giữ kiểm tra version, chỉ lưu khi báo thành công. Không migration/API mới; nội dung chỉ đọc.

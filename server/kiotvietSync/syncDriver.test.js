@@ -248,7 +248,9 @@ test('customers force initial reconciliation, preserve daily marker, then use in
   assert.equal(JSON.parse(checkpoint.note).activeCustomersReconciledAt, '2026-10-15T01:00:00.000Z');
   clock += 60000;
   await driver.pollEntityOnce(api, 'hanoi', entity);
-  assert.equal(queries[1].lastModifiedFrom, '2026-10-15T01:00:00.000Z');
+  assert.equal(queries[1].lastModifiedFrom, '2026-10-15T00:55:00.000Z', 'chong lan 5 phut so voi checkpoint 01:00');
+  assert.equal(queries[1].orderBy, 'id');
+  assert.equal(queries[1].orderDirection, 'ASC');
   assert.equal(queries[1].includeRemoveIds, 'true');
   assert.equal(missing.length, 1);
   assert.equal(JSON.parse(checkpoint.note).activeCustomersReconciledAt, '2026-10-15T01:00:00.000Z');
