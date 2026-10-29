@@ -786,9 +786,9 @@
     "semantic_hash": "58e700daf0c14819a97499bd94f6f2e1"
   },
   "server/README.md": {
-    "mtime": 1793255650.141463,
-    "seen": 1793256657.110692,
-    "ast_hash": "673b6a47af28f3a60fd854a683088799",
+    "mtime": 1793266772.7652316,
+    "seen": 1793266954.5706773,
+    "ast_hash": "60c83e64e2cb4a934954fe41f039952e",
     "semantic_hash": ""
   },
   "server/kiotviet/API_ENDPOINTS.md": {
@@ -3360,9 +3360,9 @@
     "semantic_hash": ""
   },
   "CURRENT.md": {
-    "mtime": 1793265768.5092242,
-    "seen": 1793265800.0809906,
-    "ast_hash": "77cf4f2262effa4bcd1a43455b2f7484",
+    "mtime": 1793266911.5630603,
+    "seen": 1793266954.5706773,
+    "ast_hash": "8869de969307bfde1d68a6f62456623d",
     "semantic_hash": ""
   },
   "MEMORY.md": {
@@ -5874,9 +5874,9 @@
     "semantic_hash": ""
   },
   "server/public/vt-positions/vt-positions.js": {
-    "mtime": 1793265626.5340738,
-    "seen": 1793265800.0809906,
-    "ast_hash": "d37f3a6c0cdc40832316c25f7522f210",
+    "mtime": 1793266566.471476,
+    "seen": 1793266954.5693195,
+    "ast_hash": "7f50e09b7216f96d3bd23b9753a33fb1",
     "semantic_hash": ""
   },
   "server/shipment/kiotOrderLink.js": {
@@ -5910,9 +5910,9 @@
     "semantic_hash": ""
   },
   "server/stockPositions/stockPositionsRoutes.js": {
-    "mtime": 1793185492.4137564,
-    "seen": 1793186071.8613787,
-    "ast_hash": "1fdac2cbfc2f20596d05fc24d21b5dd8",
+    "mtime": 1793266566.0790114,
+    "seen": 1793266954.5693195,
+    "ast_hash": "d1488d3ce25cd1c2d277f182c90287cf",
     "semantic_hash": ""
   },
   "server/stockPositions/stockPositionsRoutes.test.js": {
@@ -5922,15 +5922,15 @@
     "semantic_hash": ""
   },
   "server/stockPositions/stockPositionsService.js": {
-    "mtime": 1793185492.2371018,
-    "seen": 1793186071.8613787,
-    "ast_hash": "b96b6acaad9e8314f6df4923f2b36e68",
+    "mtime": 1793266701.5055244,
+    "seen": 1793266954.5693195,
+    "ast_hash": "6c8fb61fb88c4a1c6f2aa6b5bb1da6c2",
     "semantic_hash": ""
   },
   "server/stockPositions/stockPositionsService.test.js": {
-    "mtime": 1793185719.133037,
-    "seen": 1793186071.8613787,
-    "ast_hash": "876d2dbe39184e03169f29227efad719",
+    "mtime": 1793266743.8487804,
+    "seen": 1793266954.5693195,
+    "ast_hash": "72b22bd2725288bd2c958830a0115218",
     "semantic_hash": ""
   },
   "server/test/frontend/vt-positions-detail.test.js": {
@@ -5970,9 +5970,9 @@
     "semantic_hash": ""
   },
   "server/public/vt-positions/index.html": {
-    "mtime": 1793265626.3713078,
-    "seen": 1793265800.0809906,
-    "ast_hash": "c20e9bb2c3474eecaae8af13c09580b5",
+    "mtime": 1793266566.192346,
+    "seen": 1793266954.5706773,
+    "ast_hash": "549f3f2dd9b33950e689cab49619983e",
     "semantic_hash": ""
   },
   "server/db/migrations/0096_order_pick_assignments.sql": {

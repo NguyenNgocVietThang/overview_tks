@@ -579,7 +579,8 @@ test('import: xem trước tùy chọn hiện số liệu và lỗi theo dòng; 
   assert.equal(queries[0].body.get('file').name, 'vitri.xlsx');
   assert.equal(doc.querySelector('[data-count="added"] b').textContent, '2');
   assert.equal(doc.querySelector('[data-count="errors"] b').textContent, '1');
-  assert.match(doc.querySelector('[data-import-errors]').textContent, /Dòng 7: Thiếu mã SP/);
+  assert.equal(doc.querySelector('[data-import-errors]'), null, 'không lặp lại danh sách lỗi phía trên bảng');
+  assert.equal(doc.getElementById('vtImportError').textContent, '');
   assert.equal(doc.getElementById('vtImportConfirm').disabled, true, 'dòng lỗi phải được sửa trước khi xác nhận');
 
   preview = { ...preview, counts: { ...preview.counts, errors: 0 }, errors: [] };
@@ -668,7 +669,8 @@ test('import trực tiếp sau chọn file, không gọi xem trước; lỗi má
   assert.equal(imports.length, 1, 'chặn bấm lặp khi đang gửi');
   assert.equal(imports[0].query.get('commit'), '1');
   assert.ok(doc.getElementById('vtImportDialog').hasAttribute('open'));
-  assert.match(doc.querySelector('[data-import-errors]').textContent, /Thiếu mã hàng/);
+  assert.equal(doc.querySelector('[data-import-errors]'), null);
+  assert.match(doc.getElementById('vtImportError').textContent, /File còn lỗi/);
   assert.equal(doc.getElementById('vtImportConfirm').disabled, true, 'lỗi từ máy chủ khóa xác nhận');
   valid = true;
   doc.getElementById('vtImportBack').click();

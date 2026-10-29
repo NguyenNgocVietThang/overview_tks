@@ -983,30 +983,11 @@
       const li = document.createElement('li');
       li.dataset.count = key;
       const value = document.createElement('b');
-      value.textContent = String(counts[key] ?? 0);
+      value.textContent = formatNumber(counts[key] ?? 0);
       li.append(value, label);
       list.appendChild(li);
     });
     box.appendChild(list);
-    const errors = Array.isArray(payload.errors) ? payload.errors : [];
-    if (errors.length) {
-      const ol = document.createElement('ol');
-      ol.className = 'vt-import-errors';
-      ol.dataset.importErrors = '';
-      errors.forEach(error => {
-        const li = document.createElement('li');
-        li.value = Number(error.row) || 0;
-        li.textContent = `${error.row == null ? 'Dòng thêm thủ công' : `Dòng ${error.row}`}: ${error.message}`;
-        ol.appendChild(li);
-      });
-      box.appendChild(ol);
-      if ((counts.errors || 0) > errors.length) {
-        const more = document.createElement('p');
-        more.className = 'vt-form-error';
-        more.textContent = `… và ${counts.errors - errors.length} lỗi khác.`;
-        box.appendChild(more);
-      }
-    }
   }
 
   async function runImport(commit) {
@@ -1028,8 +1009,7 @@
     if (importState.busy) return;
     setImportBusy(true);
     try {
-      const result = await runImport(false);
-      if (result && result.payload.counts?.errors) $('vtImportError').textContent = 'Còn dòng lỗi. Hãy sửa hoặc xóa dòng lỗi ngay trong bảng xem trước.';
+      await runImport(false);
     } catch (error) {
       $('vtImportError').textContent = 'Không kết nối được máy chủ. Vui lòng thử lại.';
     } finally {

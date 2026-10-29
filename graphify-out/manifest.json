@@ -3360,9 +3360,9 @@
     "semantic_hash": ""
   },
   "CURRENT.md": {
-    "mtime": 1793266911.5630603,
-    "seen": 1793266954.5706773,
-    "ast_hash": "8869de969307bfde1d68a6f62456623d",
+    "mtime": 1793268040.2888808,
+    "seen": 1793268080.2137356,
+    "ast_hash": "2a45583c7543bb939a12a7ec16d8b7e1",
     "semantic_hash": ""
   },
   "MEMORY.md": {
@@ -5874,9 +5874,9 @@
     "semantic_hash": ""
   },
   "server/public/vt-positions/vt-positions.js": {
-    "mtime": 1793266566.471476,
-    "seen": 1793266954.5693195,
-    "ast_hash": "7f50e09b7216f96d3bd23b9753a33fb1",
+    "mtime": 1793267184.3250349,
+    "seen": 1793268080.2137356,
+    "ast_hash": "70b4938471d0b21e9bc37bf4b2747636",
     "semantic_hash": ""
   },
   "server/shipment/kiotOrderLink.js": {
@@ -5952,9 +5952,9 @@
     "semantic_hash": ""
   },
   "server/test/frontend/vt-positions.test.js": {
-    "mtime": 1793265655.494135,
-    "seen": 1793265800.0809906,
-    "ast_hash": "61567e2ccc5c083bd7defe76c10099bc",
+    "mtime": 1793267239.749151,
+    "seen": 1793268080.2137356,
+    "ast_hash": "ecc76581bb3355cbe7aaf1511c2a322f",
     "semantic_hash": ""
   },
   "docs/superpowers/specs/2026-10-27-vat-status-by-vat-code-design.md": {
@@ -5970,9 +5970,9 @@
     "semantic_hash": ""
   },
   "server/public/vt-positions/index.html": {
-    "mtime": 1793266566.192346,
-    "seen": 1793266954.5706773,
-    "ast_hash": "549f3f2dd9b33950e689cab49619983e",
+    "mtime": 1793267209.410484,
+    "seen": 1793268080.2137356,
+    "ast_hash": "f4f5c3a0d46949a78b34015ee1db881e",
     "semantic_hash": ""
   },
   "server/db/migrations/0096_order_pick_assignments.sql": {
