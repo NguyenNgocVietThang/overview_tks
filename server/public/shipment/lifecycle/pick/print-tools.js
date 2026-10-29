@@ -35,8 +35,8 @@ function formattingControls(host,restore=true,shared=null){
   const groupOf=name=>prefs.groups[name]||(prefs.groups[name]={});
   const points=el=>{const value=getComputedStyle(el).fontSize;return (parseFloat(value)||16)*(value.endsWith('pt')?1:.75);};
   const format=(el,style)=>{
-    if(style.align)el.style.setProperty('text-align',style.align,'important');
     for(const node of [el,...el.querySelectorAll('*')]){
+      if(style.align)node.style.setProperty('text-align',style.align,'important');
       if(style.size!==undefined)node.style.setProperty('font-size',style.size+'pt','important');
       if(style.bold!==undefined)node.style.setProperty('font-weight',style.bold?'bold':'normal','important');
       if(style.italic!==undefined)node.style.setProperty('font-style',style.italic?'italic':'normal','important');
@@ -152,7 +152,7 @@ function formattingControls(host,restore=true,shared=null){
         if(!groups.has(name))groups.set(name,{columns:new Set(),first:node.parentElement});
         groups.get(name).columns.add(cell.cellIndex);continue;
       }
-      const block=node.parentElement.closest('td,th,p,h1,h2,h3,.invoice-title,.invoice-brand,.delivery-title')||root;
+      const block=node.parentElement.closest(align?'td,th,p,h1,h2,h3,div':'td,th,p,h1,h2,h3,.invoice-title,.invoice-brand,.delivery-title')||root;
       const path=pathOf(block);
       if(align){blocks.set(path,{path,align});continue;}
       let offset=0;for(const n of textNodes(block)){if(n===node)break;offset+=n.length;}
