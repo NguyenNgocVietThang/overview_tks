@@ -70,6 +70,7 @@ test('bot integration returns only the lifecycle fields needed to reconcile an e
   assert.equal(res.statusCode, 200);
   assert.deepEqual(res.body, {
     found: true,
+    identitySource: null,
     branch: 'HN',
     flow: 'DELIVERY',
     summary: { code: 'DELIVERING', label: 'Đơn đang được giao', at: '28/10/2026 12:16' },
@@ -78,6 +79,9 @@ test('bot integration returns only the lifecycle fields needed to reconcile an e
       orderCode: 'DH046861',
       saleName: 'Nguyễn Thị Ngọc Lan',
       customerName: 'KH C Quỳnh Hải Dương',
+      saleTelegramId: '',
+      orderDate: '',
+      orderTotal: null,
       driverName: 'Tài xế 122',
       saleSentAt: '28/10/2026 08:21',
       accountantApprovedAt: '28/10/2026 08:21',
@@ -87,6 +91,24 @@ test('bot integration returns only the lifecycle fields needed to reconcile an e
       orderSignedAt: ''
     }
   });
+});
+
+test('Kiot identity ignores a bot-written Sheet identity and respects the requested branch', async () => {
+  const { findKiotIdentity } = require('./botLifecycleIntegrationRoutes');
+  const repository = { readOrders: async () => ({ ok: true, stale: false, orders: [
+    { code: 'DH021857', branch: 'HN', saleName: 'Other branch' },
+    { code: 'DH021857', branch: 'SG', saleName: 'Uyên', saleTelegramId: '8630766689',
+      customerName: 'MN A Việt Anh Long An', orderDate: '29/10/2026 10:28', total: 10300000 }
+  ] }) };
+  const order = await findKiotIdentity('dh021857', 'SG', repository);
+  assert.equal(order.identitySource, 'kiotviet');
+  assert.equal(order.detail.saleTelegramId, '8630766689');
+  assert.equal(order.detail.orderDate, '29/10/2026 10:28');
+  assert.equal(order.detail.orderTotal, 10300000);
+  assert.equal((await findKiotIdentity('DH000000', 'SG', repository)).found, false);
+  await assert.rejects(findKiotIdentity('DH021857', 'SG', {
+    readOrders: async () => ({ ok: true, stale: true, orders: [] })
+  }), /Fresh Kiot/);
 });
 
 test('bot integration can enforce the requested branch', async () => {

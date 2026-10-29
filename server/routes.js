@@ -39,7 +39,7 @@ const managerLeaveRuntime = getConfiguredManagerLeaveRuntime();
 const kiotvietSyncStatusRoutes = require('./kiotvietSync/kiotvietSyncStatusRoutes');
 const debtManagementRoutes = require('./dashboard/debtManagementRoutes');
 const orderLifecycleRoutes = require('./shipment/orderLifecycleRoutes');
-const { createBotLifecycleIntegrationRouter } = require('./shipment/botLifecycleIntegrationRoutes');
+const { createBotLifecycleIntegrationRouter, findKiotIdentity } = require('./shipment/botLifecycleIntegrationRoutes');
 const orderLifecycleService = require('./shipment/orderLifecycleService');
 const pickAssignmentsRoutes = require('./pickAssignments/pickAssignmentsRoutes');
 const stockLocationsRoutes = require('./stockLocations/stockLocationsRoutes');
@@ -72,7 +72,7 @@ router.use(kiotvietWebhookRoutes);
 // nay phai nam truoc guard JWT chung vi bot khong co phien dang nhap website.
 router.use('/api/integrations/driver-orders', createBotLifecycleIntegrationRouter({
   token: CONFIG.BOT_LIFECYCLE_API_TOKEN,
-  findOrder: orderLifecycleService.findOrder
+  findOrder: (code, branch) => findKiotIdentity(code, branch, require('./shipment/kiotOrdersRepository').kiotOrders)
 }));
 router.use(createManagerLeaveWebhook({
   enabled: !!managerLeaveRuntime,
