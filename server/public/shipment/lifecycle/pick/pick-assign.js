@@ -39,10 +39,12 @@
 
   // ---------- Dữ liệu dòng đơn và vị trí ----------
   const lines=()=>(state.order&&state.order.lines||[]).filter(l=>!key(l.productCode).startsWith('vat'));
+  // Hiển thị quy cách đã chuẩn hóa: bỏ hậu tố c ("2T x 20c" -> "2T x 20"); chuỗi không đọc được giữ nguyên để người dùng thấy lỗi. Dữ liệu lưu không đổi.
+  const displaySpec=(notes,spec)=>spec&&spec.terms.length?C.normalizeNote(notes).replace(/(\d)c\b/g,'$1'):(notes||'');
   function mapRow(c){
     const spec=C?C.parseSpec(c.notes):null,terms=spec&&spec.terms.length?spec.terms:null;
     return {id:String(c.positionId),code:c.code,name:c.name,location:c.location||'',available:c.available===null||c.available===undefined?null:Number(c.available),
-      specText:c.notes||'',warnings:Array.isArray(c.warnings)?c.warnings:[],terms,loose:spec?spec.loose:0,perCarton:terms?terms[0].perCarton:null,spec};
+      specText:displaySpec(c.notes,spec),warnings:Array.isArray(c.warnings)?c.warnings:[],terms,loose:spec?spec.loose:0,perCarton:terms?terms[0].perCarton:null,spec};
   }
   // Vị trí của đúng mã và đúng cơ sở của đơn (máy chủ đã lọc). Đã chỉ định mà vị trí không còn trong danh sách (vd hết hàng bị xóa) vẫn hiện để xem/in.
   function rowsFor(l){
@@ -142,7 +144,8 @@
       const before=rows.reduce((s,r)=>s+(R.quantity(r.available)||0),0);
       const selected=ls.reduce((s,line,j)=>s+(key(line.productCode)===key(l.productCode)?(state.allocations[j]||[]).reduce((n,p)=>n+p.quantity,0):0),0);
       const shared=unknown?null:before,st=stOfLine(l,i,picks);
-      return `<tr data-line="${i}"><td class="picking-code">${esc(l.productCode)}</td><td>${esc(l.productName)}</td><td class="picking-need"><strong>${fmt(l.quantity)}</strong><small class="${lineOk(i)?'picking-good':'picking-bad'}" data-allocated="${total}">${fmt(total)}/${fmt(l.quantity)}</small></td>${stCell(st)}<td class="picking-total" data-total-code="${esc(l.productCode)}" data-shared-available="${shared===null?'unknown':shared}" data-remaining="${unknown?'unknown':before-selected}"><strong class="${shared===null?'picking-bad':'picking-good'}">${shared===null?'Chưa xác định':fmt(shared)}</strong>${shared===null?'':`<small class="picking-pickable" data-pickable="${Math.max(0,before-selected)}" title="Tồn kho trừ số lượng đang chọn nhặt cho mã này">Có thể bốc: ${fmt(Math.max(0,before-selected))}</small>`}</td><td><div class="picking-locations">${rows.map(r=>{
+      const uncertainty=unknown?' (chưa xác định)':'';
+      return `<tr data-line="${i}"><td class="picking-code">${esc(l.productCode)}</td><td>${esc(l.productName)}</td><td class="picking-need"><strong>${fmt(l.quantity)}</strong><small class="${lineOk(i)?'picking-good':'picking-bad'}" data-allocated="${total}">${fmt(total)}/${fmt(l.quantity)}</small></td>${stCell(st)}<td class="picking-total" data-total-code="${esc(l.productCode)}" data-shared-available="${shared===null?'unknown':shared}" data-remaining="${unknown?'unknown':before-selected}"><strong class="${shared===null?'picking-bad':'picking-good'}">${fmt(before)}${uncertainty}</strong><small class="picking-pickable" data-pickable="${Math.max(0,before-selected)}" title="Tồn kho trừ số lượng đang chọn nhặt cho mã này">Có thể bốc: ${fmt(Math.max(0,before-selected))}${uncertainty}</small></td><td><div class="picking-locations">${rows.map(r=>{
         const take=picks.find(p=>p.id===r.id)?.quantity||0,available=R.quantity(r.available),hint=(state.suggestions[i]||[]).some(p=>p.id===r.id);
         const off=!editable()||available===null||!r.location||!available?'disabled':'';
         const zone=zoneOf((state.order||{}).branch,r.location),locTitle=r.location?(zone.name?r.location+' · '+zone.name:r.location):'Chưa có vị trí';

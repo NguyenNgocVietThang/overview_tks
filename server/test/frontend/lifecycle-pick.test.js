@@ -166,6 +166,26 @@ test('đơn chưa gửi kế toán và chưa có chỉ định: không có nút;
   [notSent, assigned].forEach(page => page.dom.window.close());
 });
 
+test('mở chỉ định, sửa số lượng rồi đóng không ghi chỉ định hoặc chuyển Đang bốc; chỉ Xác nhận & In mới chuyển', async () => {
+  const page = await renderPage();
+  try {
+    const status = () => rowsOf(page.document)[0].querySelector('[data-col="pickStatus"] .lc-pick-state').dataset.pickStatus;
+    await openPopup(page);
+    assert.equal(status(), 'none');
+    page.document.querySelector('[data-step="-1"][data-qloc="11"]').click();
+    assert.equal(status(), 'none');
+    await click(page, 'pickingClose');
+    assert.equal(status(), 'none');
+    assert.equal(page.store.assignment, null);
+    assert.equal(page.calls.filter(c => c.method === 'POST').length, 0);
+    await click(page, 'openPickingBtn');
+    assert.equal(status(), 'none');
+    await click(page, 'pickingConfirm');
+    assert.equal(page.store.posted.length, 1);
+    assert.equal(status(), 'picking');
+  } finally { page.dom.window.close(); }
+});
+
 test('popup gọi candidates đúng cơ sở + mã đơn, hiện 6 cột và gợi ý tròn thùng; Xác nhận bật khi phân bổ đủ', async () => {
   const page = await renderPage();
   await openPopup(page);
@@ -266,6 +286,13 @@ test('vị trí ghi chú sai định dạng (không có SL) bị khóa và hiệ
   const button = page.document.querySelector('[data-location="13"]');
   assert.equal(button.disabled, true);
   assert.match(button.textContent, /Ghi chú sai định dạng/);
+  const total = page.document.querySelector('.picking-total');
+  assert.equal(total.querySelector('strong').textContent, '200 (chưa xác định)');
+  assert.equal(total.querySelector('.picking-pickable').textContent, 'Có thể bốc: 100 (chưa xác định)');
+  const input = page.document.querySelector('[data-qty][data-qloc="11"]');
+  input.value = '50';
+  input.dispatchEvent(new page.window.Event('change', { bubbles: true }));
+  assert.equal(page.document.querySelector('.picking-pickable').textContent, 'Có thể bốc: 150 (chưa xác định)');
   page.dom.window.close();
 });
 
