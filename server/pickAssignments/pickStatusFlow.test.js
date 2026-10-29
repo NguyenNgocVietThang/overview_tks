@@ -361,6 +361,12 @@ test('trừ tồn theo đơn: người sửa = mã đơn (người bấm tay l�
 });
 
 
+test('Kiot seller phone +84 is stored with a leading 0',async()=>{
+ for(const [input,expected] of [['+84923170904','0923170904'],['+84 923 170 904','0923170904'],['84923170904','0923170904'],['+840923170904','0923170904'],['0923170904','0923170904'],['','']])assert.equal(kiotData.toLocalPhone(input),expected);
+ const lookup=kiotData.createSellerPhoneLookup({getBranches:()=>[{branch:'hanoi'}],createClient:()=>({fetchAllPages:async(e,q,cb)=>{await cb([{id:7,mobilePhone:'+84923170904'}]);}})});
+ assert.equal(await lookup('hanoi',7),'0923170904');
+});
+
 test('Kiot seller phones match ID and retailer, cache concurrent pages and retry after failure',async()=>{
  let calls=0,time=0;
  const lookup=kiotData.createSellerPhoneLookup({now:()=>time,getBranches:()=>[{branch:'hanoi'},{branch:'saigon'}],createClient:config=>({fetchAllPages:async(endpoint,query,onPage)=>{

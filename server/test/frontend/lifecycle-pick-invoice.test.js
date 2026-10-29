@@ -308,6 +308,11 @@ test('table body columns share size and rows share height, header stays separate
 });
 
 
+test('seller Zalo phone prints with leading 0 even when the snapshot holds +84',async()=>{
+ const dom=await invoice({schemaVersion:2,orderCode:'DH-PHONE',saleName:'Sale A',sellerPhone:'+84923170904',lines:[{productCode:'A',productName:'A',quantity:1,unitPrice:'2',amount:'2'}]},{status:'picking',lines:[]});
+ try{assert.match(dom.window.document.querySelector('.invoice-seller').textContent,/Zalo: 0923170904/);}finally{dom.window.close();}
+});
+
 test('Telegram ID is bold and footer columns resize, format and restore independently',async()=>{
  const order={schemaVersion:2,orderCode:'DH-FOOT',saleName:'Sale A',saleTelegramId:'123456',sellerPhone:'0901234567',lines:[{productCode:'A',productName:'A',quantity:1,unitPrice:'2',amount:'2'}]};
  const dom=await invoice(order,{status:'picking',lines:[]});
