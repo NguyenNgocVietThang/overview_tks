@@ -288,6 +288,21 @@
     select.innerHTML = options.join('');
     select.value = state.filters.sale;
     Object.keys(FILTER_IDS).forEach(name => { if (name !== 'sale' && $(FILTER_IDS[name]).value !== state.filters[name]) $(FILTER_IDS[name]).value = state.filters[name]; });
+    // Các ô lọc ảnh hưởng lẫn nhau: máy chủ đếm số dòng của từng giá trị theo CÁC ô khác (filters.facets); giá trị không còn
+    // dòng nào thì khóa + ẩn (trừ giá trị đang chọn) để không ghép ra bảng rỗng.
+    const facets = d && d.filters && d.filters.facets;
+    if (facets) {
+      Object.keys(FILTER_IDS).forEach(name => {
+        const counts = facets[name];
+        if (!counts) return;
+        Array.prototype.forEach.call($(FILTER_IDS[name]).options, option => {
+          if (!option.value) return;
+          const blocked = !counts[option.value] && option.value !== state.filters[name];
+          option.disabled = blocked;
+          option.hidden = blocked;
+        });
+      });
+    }
     $('priceAuditExportButton').hidden = !can('reports.export');
   }
 

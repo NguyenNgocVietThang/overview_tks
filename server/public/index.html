@@ -5253,6 +5253,7 @@
       };
     })();
   </script>
+  <script src="/shared/filter-links.js?v=20261029-1"></script>
   <script src="/shared/table-controls.js?v=20261024-2"></script>
   <script>
     // Bảng công nợ: mặc định ẩn cột Cảnh báo (người dùng vẫn bật lại được ở bộ chọn cột).
@@ -5272,7 +5273,7 @@
   <script src="/shared/dateInput.js?v=20260912"></script>
   <script src="/shared/image-compress.js?v=20261022"></script>
   <script src="/marketing-report.js?v=20261021-1"></script>
-  <script src="/invoice-price-audit.js?v=20261024-1"></script>
+  <script src="/invoice-price-audit.js?v=20261029-1"></script>
   <script src="/invoice-approved-prices.js?v=20261024-6"></script>
 
   <script>
@@ -8886,9 +8887,27 @@
       });
     });
 
+    // Các ô lọc của bảng Khách ảnh hưởng lẫn nhau (xem shared/filter-links.js): chỉ còn giá trị có khách khi ghép với ô khác.
+    function businessLinkCustomerFilters() {
+      const data = state.business.data.customers;
+      if (!data || !window.TKSFilterLinks) return;
+      const select = id => document.getElementById(id);
+      const inactive = select('businessCustomersInactive').checked;
+      const defs = [
+        { select: select('businessCustomersSale'), value: r => r.saleName },
+        { select: select('businessCustomersLevel'), value: r => r.priceLevel || '' }
+      ];
+      if (businessCanNotes()) {
+        defs.push({ select: select('businessCustomersSalesChannel'), value: r => ((r.salesChannels || []).length ? r.salesChannels : ['none']) });
+        defs.push({ select: select('businessCustomersScale'), value: r => r.warehouseScale || 'none' });
+      }
+      window.TKSFilterLinks.apply(data.rows, defs, r => inactive || r.active);
+    }
+
     function businessFilteredCustomers() {
       const data = state.business.data.customers;
       if (!data) return [];
+      businessLinkCustomerFilters();
       const sale = document.getElementById('businessCustomersSale').value;
       const level = document.getElementById('businessCustomersLevel').value;
       const inactive = document.getElementById('businessCustomersInactive').checked;
@@ -9011,6 +9030,7 @@
       if (sales) {
         fillBusinessSelect('businessCustomersSale', 'Tất cả sale', sales.rows.map(r => r.saleName));
         fillBusinessSelect('businessSalesTeam', 'Tất cả team', sales.teams || []);
+        businessLinkCustomerFilters(); // ô Sale vừa được điền lại sau khi vẽ bảng
         document.getElementById('businessUpdatedAt').textContent = formatProductReportUpdatedAt(sales.computedAt);
       }
       const can = k => typeof TKSNav !== 'undefined' && typeof TKSNav.can === 'function' && !!TKSNav.can(k);
@@ -11381,6 +11401,21 @@
       const query = normalizeDebtSearch(filters.search);
       return ((debt && debt.customers) || []).filter(function (customer) {
         if (filters.queue === 'needsAction' && !customer.needsAction) return false;
+      // Hàng chờ / Nhóm sale / Sale / Lịch TT ảnh hưởng lẫn nhau (shared/filter-links.js), cùng ô tìm kiếm.
+      if (window.TKSFilterLinks) {
+        window.TKSFilterLinks.apply((debt && debt.customers) || [], [
+          { select: document.getElementById('debtQueueFilter'), neutral: ['', 'all'], value: function (c) {
+            const queues = [];
+            if (c.needsAction) queues.push('needsAction');
+            if (Number(c.currentDebt) > 0) queues.push('currentDebt');
+            if (Number(c.overdueDebt) > 0) queues.push('overdue');
+            return queues;
+          } },
+          { select: document.getElementById('debtTeamFilter'), value: function (c) { return c.saleTeam || 'Chưa có team'; } },
+          { select: document.getElementById('debtSaleFilter'), value: function (c) { return c.sale; } },
+          { select: document.getElementById('debtScheduleFilter'), value: function (c) { return c.paymentSchedule; } }
+        ], function (c) { return !query || fuzzyMatches(tableSearchText(c), query); });
+      }
         if (filters.queue === 'currentDebt' && !(Number(customer.currentDebt) > 0)) return false;
         if (filters.queue === 'overdue' && !(Number(customer.overdueDebt) > 0)) return false;
         if (filters.team && (customer.saleTeam || 'Chưa có team') !== filters.team) return false;
@@ -11620,6 +11655,14 @@
       const query = normalizeDebtSearch(filters.search);
       return state.debtAging.customers.filter(function (customer) {
         if (filters.team && (customer.saleTeam || 'Chưa có team') !== filters.team) return false;
+      // Nhóm sale / Sale / Lịch TT ảnh hưởng lẫn nhau (shared/filter-links.js), cùng ô tìm kiếm.
+      if (window.TKSFilterLinks) {
+        window.TKSFilterLinks.apply(state.debtAging.customers, [
+          { select: document.getElementById('debtAgingTeamFilter'), value: function (c) { return c.saleTeam || 'Chưa có team'; } },
+          { select: document.getElementById('debtAgingSaleFilter'), value: function (c) { return c.sale; } },
+          { select: document.getElementById('debtAgingScheduleFilter'), value: function (c) { return c.paymentSchedule; } }
+        ], function (c) { return !query || fuzzyMatches(tableSearchText(c), query); });
+      }
         if (filters.sale && customer.sale !== filters.sale) return false;
         if (filters.schedule && customer.paymentSchedule !== filters.schedule) return false;
         if (query && !fuzzyMatches(tableSearchText(customer), query)) return false;

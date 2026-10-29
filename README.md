@@ -8,6 +8,7 @@
 
 Dashboard nội bộ cho hai cơ sở Hà Nội và Sài Gòn.
 
+29/10/2026 — **Dropdown bộ lọc không bị che + bộ lọc ảnh hưởng lẫn nhau:** danh sách dropdown tùy biến (Vòng đời đơn hàng, Sổ quỹ) dùng `position:fixed`, tự mở lên/xuống theo chỗ trống của màn hình; mỗi ô lọc chỉ cho chọn giá trị còn dòng khi ghép với các ô khác — máy chủ đếm `facets` cho Toàn bộ đơn hàng (`orderLifecycleQuery.countFacets`) và Kiểm tra giá bán (`priceAuditRepository` `FACETS_SQL`), còn các bảng đã có dữ liệu ở trình duyệt (Công nợ, Tuổi nợ, Doanh số theo khách, Danh bạ nhân sự, Quản lý tài khoản) dùng `public/shared/filter-links.js` (`TKSFilterLinks.apply`). Không migration. Chi tiết: `CURRENT.md`.
 24/10/2026 — Hiệu ứng xuất hiện dùng chung `public/shared/motion.js` trên toàn bộ trang: chữ nảy lần lượt, KPI lật/count-up, panel và dòng bảng hiện nhẹ. Giữ nguyên ảnh nền/hiệu ứng nền, giao diện, bố cục, cấu trúc bảng và dữ liệu; tôn trọng giảm chuyển động, không chạy lại khi bảng tự cập nhật. Không migration/API. Xem [kế hoạch và phạm vi](docs/superpowers/plans/2026-10-24-shared-ui-motion.md).
 
 23/10/2026 — Bảng Khách hàng bổ sung bộ lọc hình thức bán hàng/quy mô, xuất thông tin Chi tiết (trừ Note) và dropdown level nội bộ dùng chung HN/SG theo tên khách. Mã cục bộ; migration `0087` và bước khởi tạo nguồn **chưa áp DB thật**. Xem [thiết kế](docs/superpowers/specs/2026-10-23-customer-filters-local-price-level-design.md), [kế hoạch](docs/superpowers/plans/2026-10-23-customer-filters-local-price-level.md). Sau migration, chạy `node scripts/initialize-customer-price-levels.js` trong `server` để xem trước; `--apply` sao lưu nguồn và bật level nội bộ. Hóa đơn đã chụp giữ nguyên.
@@ -118,6 +119,8 @@ server/
 │   └── shared/
 │       ├── fuzzy-search.js # Tìm gần đúng theo từ dùng chung (UMD, window.TKSFuzzySearch: fold/tokens/score/matches/filter)
 │       ├── fuzzy-search.test.js # Kiểm thử luật tìm gần đúng
+│       ├── filter-links.js # Bộ lọc dropdown ảnh hưởng lẫn nhau trên dữ liệu có sẵn ở trình duyệt (window.TKSFilterLinks.apply: khóa giá trị không còn dòng)
+│       ├── filter-links.test.js # Kiểm thử filter-links
 │       ├── carton.js     # Luật đọc ghi chú thùng `<thùng>T x <SL/thùng>` dùng chung (UMD, `require` ở server, `PickingCarton` ở trình duyệt): SL, cảnh báo, chuẩn hóa
 │       ├── carton.test.js # Kiểm thử luật ghi chú thùng
 │       └── detail-panel.css # Khung xem chi tiết dùng chung (.dp-): chỉ số tổng quan, bảng 1 khung cuộn, tắt nút chọn cột

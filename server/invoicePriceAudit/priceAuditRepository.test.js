@@ -465,6 +465,16 @@ test('readReport: chua cong bo -> available=false; loc/KPI/sap xep/phan trang; D
     assert.equal(page2.totalRows, 5);
     assert.equal(page2.kpis.invoiceCount, 3);
     assert.deepEqual(all.filters.options.sales, ['Duy Thái', 'Minh Anh']);
+    // Facet cho o loc anh huong lan nhau: moi o dem theo CAC bo loc khac (bo chinh no).
+    const sumOf = counts => Object.values(counts).reduce((a, b) => a + b, 0);
+    const none = await repo.readReport({}, null);
+    ['sale', 'status', 'decision', 'vat', 'freight'].forEach(name => assert.equal(sumOf(none.filters.facets[name]), 5, `facet ${name} khi chua loc`));
+    const byMinh = await repo.readReport({ sale: 'Minh Anh' }, null);
+    assert.equal(sumOf(byMinh.filters.facets.sale), 5, 'o Sale van thay tat ca sale (bo chinh no)');
+    ['status', 'decision', 'vat', 'freight'].forEach(name => assert.equal(sumOf(byMinh.filters.facets[name]), byMinh.totalRows, `facet ${name} theo sale da chon`));
+    const penaltyAndVat = await repo.readReport({ decision: 'penalty', vat: true }, null);
+    assert.equal(sumOf(penaltyAndVat.filters.facets.decision), (await repo.readReport({ vat: true }, null)).totalRows, 'o Chot bo chinh no, giu Full VAT');
+    assert.equal(sumOf(penaltyAndVat.filters.facets.vat), penalty.totalRows, 'o Full VAT bo chinh no, giu Phat');
 
     const row = await repo.readRow({ branch: 'hanoi', invoiceId: '1', sourceLineNo: 3 });
     assert.equal(row.decision, 'penalty');

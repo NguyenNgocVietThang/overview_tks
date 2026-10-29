@@ -634,12 +634,14 @@
         font-weight: 600;
         line-height: 1.4;
       }
+      /* position: fixed + placeDdList(): mở xuống hoặc lên theo chỗ trống thật của màn hình nên không bị che/cắt ở mép trang. */
       .dd-list {
-        position: absolute;
-        z-index: 30;
-        top: calc(100% + 6px);
+        position: fixed;
+        z-index: 25;
+        top: 0;
         left: 0;
         min-width: 100%;
+        overscroll-behavior: contain;
         width: max-content;
         max-width: min(340px, 86vw);
         max-height: 360px;
@@ -2026,6 +2028,7 @@
               (input) => input.checked,
             );
           }
+          placeOpenDropdown(); // lọc trong danh sách đổi chiều cao: dán lại sát nút
         }
         function setDropdown(dd, open) {
           dd.classList.toggle("open", open);
@@ -2034,7 +2037,40 @@
             String(open),
           );
           dd.querySelector(".dd-list").hidden = !open;
+          if (open) placeDdList(dd);
         }
+        // Danh sách dùng position: fixed (CSS): mở xuống nếu đủ chỗ (hoặc dưới rộng hơn trên), ngược lại mở lên;
+        // thu chiều cao cho vừa khoảng trống để không bị che/cắt khi nút nằm sát mép trên hoặc dưới màn hình.
+        function placeDdList(dd) {
+          const list = dd.querySelector(".dd-list"),
+            button = dd.querySelector(".dd-button");
+          if (list.hidden || getComputedStyle(list).position !== "fixed") return;
+          // Vùng dùng được nằm DƯỚI header ghim (.receipt-header): không mở lên đè header / nút Đăng xuất.
+          const margin = 8,
+            gap = 6,
+            rect = button.getBoundingClientRect(),
+            header = document.querySelector(".receipt-header"),
+            topEdge = Math.max(margin, header ? header.getBoundingClientRect().bottom + 4 : 0),
+            below = window.innerHeight - rect.bottom - margin - gap,
+            above = rect.top - topEdge - gap;
+          list.style.maxHeight = "";
+          list.style.minWidth = rect.width + "px";
+          const natural = Math.min(list.scrollHeight + 2, 360),
+            openUp = natural > below && above > below,
+            room = Math.max(160, openUp ? above : below);
+          list.style.maxHeight = Math.min(360, room) + "px";
+          const height = Math.min(natural, room);
+          list.style.top = (openUp ? Math.max(topEdge, rect.top - gap - height) : rect.bottom + gap) + "px";
+          list.style.left =
+            Math.max(margin, Math.min(rect.left, window.innerWidth - list.offsetWidth - margin)) + "px";
+        }
+        function placeOpenDropdown(event) {
+          const current = openDropdown();
+          if (current && !(event && event.target.closest && event.target.closest(".dd-list")))
+            placeDdList(current);
+        }
+        window.addEventListener("scroll", placeOpenDropdown, true);
+        window.addEventListener("resize", placeOpenDropdown);
         function openDropdown() {
           return document.querySelector("[data-dd].open");
         }

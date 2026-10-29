@@ -468,6 +468,45 @@ const SALE_SUMMARY_SQL = `
   ORDER BY 1`;
 
 const ROWS_SQL = `SELECT ${ROW_COLUMNS_SQL} ${FILTER_SQL} ORDER_PLACEHOLDER LIMIT $15 OFFSET $16`;
+
+// So dong theo TUNG GIA TRI cua 5 o loc dropdown (Sale, Ket qua, Chot, Full VAT, Bao cuoc), theo cac o loc KHAC dang chon (bo
+// chinh no) + cua so ngay + co so + tim kiem — de giao dien khoa cac lua chon khong the ra dong nao khi ghep voi bo loc dang chon.
+// Cung tham so $1..$14 voi FILTER_SQL; moi dong chi tinh 1 lan trong CTE roi gom 5 lan.
+const FACETS_SQL = `
+  WITH base AS (
+    SELECT l.sale_name AS sale_value,
+           ${S.effectiveStatusSql('l')} AS status_value,
+           COALESCE(l.decision, 'pending') AS decision_value,
+           COALESCE(l.full_vat, false) AS vat_value,
+           COALESCE(l.freight_eligible, false) AS freight_value,
+           ($6::text IS NULL OR l.sale_name = $6) AS ok_sale,
+           ($7::text IS NULL OR ${S.effectiveStatusSql('l')} = $7) AS ok_status,
+           ($8::text IS NULL OR ($8 = 'pending' AND l.decision IS NULL) OR l.decision = $8) AS ok_decision,
+           ($9::boolean IS NULL OR l.full_vat = $9) AS ok_vat,
+           ($10::boolean IS NULL OR l.freight_eligible = $10) AS ok_freight
+    FROM invoice_price_audit_lines l
+    LEFT JOIN unnest($11::text[], $12::text[], $13::int[], $14::int[]) AS m(branch, invoice_id, line_no, score)
+      ON m.branch = l.branch AND m.invoice_id = l.invoice_id::text AND m.line_no = l.source_line_no
+    WHERE l.sold_day BETWEEN GREATEST($1::date, COALESCE($3::date, $1::date)) AND LEAST($2::date, COALESCE($4::date, $2::date))
+      AND ($5::text IS NULL OR l.branch = $5)
+      AND ($11::text[] IS NULL OR m.branch IS NOT NULL)
+  )
+  SELECT 'sale' AS facet, sale_value AS value, count(*)::int AS n FROM base
+    WHERE ok_status AND ok_decision AND ok_vat AND ok_freight GROUP BY 2
+  UNION ALL SELECT 'status', status_value, count(*)::int FROM base
+    WHERE ok_sale AND ok_decision AND ok_vat AND ok_freight GROUP BY 2
+  UNION ALL SELECT 'decision', decision_value, count(*)::int FROM base
+    WHERE ok_sale AND ok_status AND ok_vat AND ok_freight GROUP BY 2
+  UNION ALL SELECT 'vat', vat_value::text, count(*)::int FROM base
+    WHERE ok_sale AND ok_status AND ok_decision AND ok_freight GROUP BY 2
+  UNION ALL SELECT 'freight', freight_value::text, count(*)::int FROM base
+    WHERE ok_sale AND ok_status AND ok_decision AND ok_vat GROUP BY 2`;
+
+function mapFacets(rows) {
+  const facets = { sale: {}, status: {}, decision: {}, vat: {}, freight: {} };
+  rows.forEach(r => { if (facets[r.facet] && r.value !== null) facets[r.facet][r.value] = r.n; });
+  return facets;
+}
 const SALES_SQL = `SELECT DISTINCT l.sale_name FROM invoice_price_audit_lines l
   WHERE l.sold_day BETWEEN $1::date AND $2::date AND l.sale_name <> '' ORDER BY 1`;
 const ROW_BY_KEY_SQL = `SELECT ${ROW_COLUMNS_SQL} FROM invoice_price_audit_lines l
@@ -588,16 +627,17 @@ function createPriceAuditRepository({ pool = getPool() } = {}) {
     }
     const ranked = match[0] !== null;
     const params = [...baseParams, ...match];
-    const [kpi, rows, sales, saleSummary] = await Promise.all([
+    const [kpi, rows, sales, saleSummary, facets] = await Promise.all([
       pool.query(KPI_SQL, params),
       pool.query(ROWS_SQL.replace('ORDER_PLACEHOLDER', orderSql(q.sort, q.dir, ranked)), [...params, q.pageSize, (q.page - 1) * q.pageSize]),
       pool.query(SALES_SQL, [state.window_from, state.window_to]),
-      pool.query(SALE_SUMMARY_SQL, params)
+      pool.query(SALE_SUMMARY_SQL, params),
+      pool.query(FACETS_SQL, params)
     ]);
     const k = kpi.rows[0];
     return {
       meta,
-      filters: { applied, options: { sales: sales.rows.map(r => r.sale_name) } },
+      filters: { applied, options: { sales: sales.rows.map(r => r.sale_name) }, facets: mapFacets(facets.rows) },
       kpis: { invoiceCount: k.invoice_count, correctLines: k.correct_lines, wrongLines: k.wrong_lines,
         pendingAmount: k.pending_amount, penaltyAmount: k.penalty_amount, effectiveAmount: k.effective_amount },
       totals: { quantity: k.quantity, originalAmount: k.original_amount, effectiveAmount: k.effective_amount },

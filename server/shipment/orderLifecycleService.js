@@ -509,7 +509,8 @@ async function loadMergedRows(kiot) {
  * -> loi 400). `kiot` (repository co readOrders(), khong bao gio throw) tuy chon: khong truyen thi chi co dong sheet.
  * Tra { orders (cac dong cua trang), page, pageSize, totalPages, total (don trong co so da chon, chua loc),
  * filteredTotal (sau loc), kiotStatuses (cho o loc), warningCounts (theo co so), kpis (chi so tong quat dau
- * trang theo bo loc hien tai — xem orderLifecycleQuery.countSummary), kiot (tom tat nguon Kiot | null) }.
+ * trang theo bo loc hien tai — xem orderLifecycleQuery.countSummary), facets (so don theo tung gia tri cua cac o loc
+ * dropdown, theo cac bo loc khac dang chon — xem orderLifecycleQuery.countFacets), kiot (tom tat nguon Kiot | null) }.
  */
 async function queryOrders(rawParams, { kiot, pickStatuses, pickMismatches } = {}) {
   const params = query.parseParams(rawParams);
@@ -533,6 +534,7 @@ async function queryOrders(rawParams, { kiot, pickStatuses, pickMismatches } = {
     kiotStatuses: query.distinctKiotStatuses(scope),
     warningCounts: query.countWarnings(scope),
     kpis: query.countSummary(filtered || rows, params),
+    facets: query.countFacets(rows, params, pickMap ? row => pickMap.get(pickKey(row)) || 'none' : null),
     kiot: kiotMeta(kiotResult)
   };
 }

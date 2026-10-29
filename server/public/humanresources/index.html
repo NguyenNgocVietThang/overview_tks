@@ -1912,6 +1912,7 @@
 
   <div class="toast-container" id="toastContainer"></div>
 
+  <script src="/shared/filter-links.js?v=20261029-1"></script>
   <script src="/shared/table-controls.js?v=20261024-2"></script>
   <script src="/shared/rte-table.js?v=20261026"></script>
   <script src="/shared/fuzzy-search.js?v=20261021"></script>
@@ -4479,6 +4480,14 @@
       renderEmployeeDirectorySummary(branch, status, keyword);
       const fuzzy = window.TKSFuzzySearch;
       const employeeText = e => [e.hoTen, e.boPhan, e.chucVu, e.soDienThoai].filter(Boolean).join(' ');
+      // Cơ sở / Phòng ban / Trạng thái ảnh hưởng lẫn nhau (shared/filter-links.js), cùng ô tìm kiếm.
+      if(window.TKSFilterLinks){
+        window.TKSFilterLinks.apply(rawEmployeeDirectory, [
+          { select: document.getElementById('employeeBranchFilter'), value: e => e.coSo },
+          { select: document.getElementById('employeeDepartmentFilter'), value: e => e.boPhan, norm: departmentKey },
+          { select: document.getElementById('employeeStatusFilter'), value: e => employeeStatusKey(e) }
+        ], e => !keyword || fuzzy.matches(employeeText(e), keyword));
+      }
       const filtered = rawEmployeeDirectory.filter(e => {
         if(status && employeeStatusKey(e) !== status) return false;
         if(branch && e.coSo !== branch) return false;

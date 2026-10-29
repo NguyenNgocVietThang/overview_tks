@@ -297,6 +297,49 @@ function countSummary(rows, params) {
   return { status, warnings };
 }
 
+/**
+ * So don theo TUNG GIA TRI cua cac o loc dang dropdown (co so, trang thai, canh bao, trang thai Kiot, trang thai boc),
+ * tinh theo cac bo loc KHAC dang chon (bo chinh o loc do) + tim kiem + khoang thoi gian — de giao dien khoa cac lua
+ * chon khong the cho ra don nao khi ket hop voi bo loc dang chon. 1 lan duyet duy nhat (khong loc lai 5 lan).
+ * `pickOf(row)` (tuy chon) tra 'picking'|'confirmed'|'cancelled'|'none'; khong truyen thi khong co facet `pick`.
+ * Tra { branch, status, kiot, warning, pick? } moi cai la { gia_tri: so_don }.
+ */
+function countFacets(rows, params, pickOf) {
+  const base = filterRows(rows, Object.assign({}, params, { status: '', kiotStatus: '', warning: '' }));
+  const facets = { branch: {}, status: {}, kiot: {}, warning: {} };
+  if (pickOf) facets.pick = {};
+  const names = pickOf ? ['branch', 'status', 'kiot', 'warning', 'pick'] : ['branch', 'status', 'kiot', 'warning'];
+  const bump = (name, value) => { if (value) facets[name][value] = (facets[name][value] || 0) + 1; };
+  base.forEach(row => {
+    const warnings = Array.isArray(row.warnings) ? row.warnings : [];
+    const code = row.summary && row.summary.code;
+    const pick = pickOf ? pickOf(row) : null;
+    const pass = {
+      branch: !params.branch || row.branch === params.branch,
+      status: !params.status || code === params.status,
+      kiot: !params.kiotStatus || row.kiotStatus === params.kiotStatus,
+      warning: !params.warning || rowHasWarning(row, params.warning),
+      pick: !pickOf || !params.pickStatus || pick === params.pickStatus
+    };
+    let failed = null;
+    for (const name of names) {
+      if (pass[name]) continue;
+      if (failed) return; // khong khop tu 2 bo loc tro len: khong thuoc facet nao
+      failed = name;
+    }
+    const counts = name => !failed || failed === name;
+    if (counts('branch')) bump('branch', row.branch);
+    if (counts('status')) bump('status', code);
+    if (counts('kiot')) bump('kiot', row.kiotStatus);
+    if (counts('warning')) {
+      if (warnings.length) bump('warning', 'any');
+      warnings.forEach(item => bump('warning', item));
+    }
+    if (pickOf && counts('pick')) bump('pick', pick);
+  });
+  return facets;
+}
+
 /** Danh sach TRANG THAI KIOT co mat trong cac don (cho o loc), theo thu tu quen thuoc roi theo ten. */
 function distinctKiotStatuses(rows) {
   const seen = new Set();
@@ -361,5 +404,5 @@ module.exports = {
   DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, SORT_KEYS, DATE_FIELDS, SEARCH_MODES, DEFAULT_SORT, WARNING_FILTERS, PICK_STATUSES,
   normalizeSearchText, parseDateTimeValue, parseSearchCodes,
   parseParams, rowsInBranch, filterRows, sortRows, selectRows, paginate, distinctKiotStatuses, countWarnings,
-  countSummary, createSelectionCache
+  countSummary, countFacets, createSelectionCache
 };

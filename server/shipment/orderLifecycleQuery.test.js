@@ -307,6 +307,39 @@ test('countSummary: tôn trọng bộ lọc cơ sở / ngày / tìm kiếm / tr�
   assert.equal(q.countSummary(rows, q.parseParams({ kiotStatus: 'Hoàn thành' })).status.NOT_SENT, 0);
 });
 
+test('countFacets: mỗi ô lọc đếm theo CÁC bộ lọc khác (bỏ chính nó) nên giá trị không còn đơn nào được lộ ra để khóa', () => {
+  const rows = [
+    summaryRow('HN1', 'NOT_SENT', { kiotStatus: 'Phiếu tạm', warnings: ['ACCOUNTANT_LATE'] }),
+    summaryRow('HN2', 'DELIVERING', { kiotStatus: 'Đang giao hàng', warnings: ['NOT_SIGNED_6H', 'NO_TRAIN_BILL'] }),
+    summaryRow('SG1', 'NOT_SENT', { branch: 'SG', kiotStatus: 'Phiếu tạm' }),
+    summaryRow('SG2', 'COMPLETED', { branch: 'SG', kiotStatus: 'Hoàn thành' })
+  ];
+  const pickOf = row => ({ HN1: 'picking', SG2: 'confirmed' }[row.orderCode] || 'none');
+  // Không lọc gì: đếm toàn bộ.
+  const all = q.countFacets(rows, q.parseParams({}), pickOf);
+  assert.deepEqual(all.branch, { HN: 2, SG: 2 });
+  assert.deepEqual(all.status, { NOT_SENT: 2, DELIVERING: 1, COMPLETED: 1 });
+  assert.deepEqual(all.warning, { any: 2, ACCOUNTANT_LATE: 1, NOT_SIGNED_6H: 1, NO_TRAIN_BILL: 1 });
+  assert.deepEqual(all.pick, { picking: 1, none: 2, confirmed: 1 });
+  // Đang lọc Sài Gòn: Trạng thái/Kiot/Cảnh báo/Bốc chỉ còn giá trị của đơn SG; ô Cơ sở vẫn thấy cả HN (bỏ chính nó).
+  const sg = q.countFacets(rows, q.parseParams({ branch: 'SG' }), pickOf);
+  assert.deepEqual(sg.branch, { HN: 2, SG: 2 });
+  assert.deepEqual(sg.status, { NOT_SENT: 1, COMPLETED: 1 });
+  assert.deepEqual(sg.kiot, { 'Phiếu tạm': 1, 'Hoàn thành': 1 });
+  assert.deepEqual(sg.warning, {});
+  assert.deepEqual(sg.pick, { none: 1, confirmed: 1 });
+  // Hai bộ lọc cùng lúc (Sài Gòn + Hoàn thành): ô Kiot vẫn đếm theo Sài Gòn, ô Trạng thái theo Sài Gòn + Kiot...
+  const two = q.countFacets(rows, q.parseParams({ branch: 'SG', status: 'COMPLETED' }), pickOf);
+  assert.deepEqual(two.kiot, { 'Hoàn thành': 1 });
+  assert.deepEqual(two.status, { NOT_SENT: 1, COMPLETED: 1 });
+  assert.deepEqual(two.branch, { SG: 1 });
+  // Không truyền pickOf (người không có quyền bốc): không có facet pick.
+  assert.equal(q.countFacets(rows, q.parseParams({})).pick, undefined);
+  // Tìm kiếm / khoảng ngày vẫn áp cho mọi ô.
+  const searched = q.countFacets(rows, q.parseParams({ mode: 'code', q: 'hn2' }), pickOf);
+  assert.deepEqual(searched.branch, { HN: 1 });
+});
+
 test('countSummary tính trên toàn bộ kết quả tìm gần đúng (không chỉ trang hiện tại)', () => {
   const rows = [
     row('A', { saleName: 'Nguyễn Văn An', kiotStatus: 'Phiếu tạm', summary: { code: 'NOT_SENT', label: 'x', at: '' } }),

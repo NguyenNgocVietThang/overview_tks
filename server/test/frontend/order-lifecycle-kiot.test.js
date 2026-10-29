@@ -860,6 +860,7 @@ test('cột "Cơ sở": hiện Hà Nội / Sài Gòn theo từng dòng (cùng m�
 const DROPDOWN_IDS = ['bulkStatusFilter', 'bulkKiotStatusFilter', 'bulkBranchFilter', 'bulkDateField', 'historyStatusFilter', 'historyBranchFilter'];
 
 const ddOf = (document, id) => document.getElementById(id).closest('.dd');
+const ddListOf = (document, dd) => document.getElementById(dd.querySelector('.dd-button').getAttribute('aria-controls'));
 const clickEl = (window, el) => el.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 const ddOptionTexts = dd => [...dd.querySelectorAll('.dd-option')].map(li => li.textContent);
 
@@ -903,18 +904,20 @@ test('chọn Cơ sở bằng dropdown: gửi branch lên máy chủ, nút đổi
   const button = dd.querySelector('.dd-button');
 
   clickEl(window, button);
-  assert.equal(dd.querySelector('.dd-list').hidden, false);
+  assert.equal(ddListOf(document, dd).hidden, false);
+  assert.equal(ddListOf(document, dd).parentNode, document.body, 'mo thi danh sach ra <body> (khong bi khung cha cat)');
   assert.equal(button.getAttribute('aria-expanded'), 'true');
-  clickEl(window, [...dd.querySelectorAll('.dd-option')][2]);
+  clickEl(window, [...ddListOf(document, dd).querySelectorAll('.dd-option')][2]);
   await settle();
   assert.equal(lastListParams(page).get('branch'), 'SG');
   assert.equal(document.getElementById('bulkBranchFilter').value, 'SG');
   assert.equal(button.textContent, 'Sài Gòn');
-  assert.equal(dd.querySelector('.dd-list').hidden, true, 'chon xong thi dong');
+  assert.equal(ddListOf(document, dd).hidden, true, 'chon xong thi dong');
+  assert.equal(ddListOf(document, dd).parentNode, dd, 'dong thi danh sach ve lai trong .dd');
   assert.equal(dd.querySelector('.dd-option[aria-selected="true"]').textContent, 'Sài Gòn');
 
   clickEl(window, button);
-  clickEl(window, [...dd.querySelectorAll('.dd-option')][0]);
+  clickEl(window, [...ddListOf(document, dd).querySelectorAll('.dd-option')][0]);
   await settle();
   assert.equal(lastListParams(page).has('branch'), false);
   assert.equal(button.textContent, 'Tất cả cơ sở');
@@ -929,7 +932,7 @@ test('dropdown: bàn phím (↓ mở, ↓ ↓ chọn bằng Enter, Esc đóng) v
   const press = key => button.dispatchEvent(new window.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
 
   press('ArrowDown');
-  assert.equal(dd.querySelector('.dd-list').hidden, false, 'mui xuong mo danh sach');
+  assert.equal(ddListOf(document, dd).hidden, false, 'mui xuong mo danh sach');
   press('ArrowDown');
   press('ArrowDown');
   press('Enter');
@@ -939,11 +942,11 @@ test('dropdown: bàn phím (↓ mở, ↓ ↓ chọn bằng Enter, Esc đóng) v
 
   press('ArrowDown');
   press('Escape');
-  assert.equal(dd.querySelector('.dd-list').hidden, true);
+  assert.equal(ddListOf(document, dd).hidden, true);
 
   press('ArrowDown');
   document.body.dispatchEvent(new window.MouseEvent('mousedown', { bubbles: true }));
-  assert.equal(dd.querySelector('.dd-list').hidden, true, 'bam ra ngoai thi dong');
+  assert.equal(ddListOf(document, dd).hidden, true, 'bam ra ngoai thi dong');
   page.dom.window.close();
 });
 
