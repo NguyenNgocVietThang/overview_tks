@@ -4889,6 +4889,15 @@
                       <option value="">Tất cả lịch</option>
                     </select>
                   </div>
+                  <div class="debt-filter-field">
+                    <label for="debtStatusFilter">Trạng thái</label>
+                    <select id="debtStatusFilter" onchange="handleDebtFilterChange()">
+                      <option value="">Tất cả trạng thái</option>
+                      <option value="Chưa xử lý">Chưa xử lý</option>
+                      <option value="Đã xử lý">Đã xử lý</option>
+                      <option value="Bỏ qua">Bỏ qua</option>
+                    </select>
+                  </div>
                   <div class="debt-filter-field search-field">
                     <label for="debtManagementSearch">Tìm khách / sale</label>
                     <input id="debtManagementSearch" type="search" autocomplete="off" placeholder="Nhập tên khách hoặc sale" oninput="handleDebtFilterChange()">
@@ -5313,6 +5322,7 @@
       inventoryHistory: { filter: { mode: 'days', days: 30 }, rows: [], loaded: false, failed: false, requestId: 0 },
       debtFilters: {
         queue: 'all',
+        status: '',
         team: '',
         sale: '',
         schedule: '',
@@ -6807,6 +6817,7 @@
         filters: currentExportFilters(),
         context: {
           debtQueue: state.debtFilters.queue,
+          debtStatus: state.debtFilters.status,
           debtSale: state.debtFilters.sale,
           debtSchedule: state.debtFilters.schedule,
           debtSearch: state.debtFilters.search,
@@ -11423,6 +11434,7 @@
         if (filters.team && (customer.saleTeam || 'Chưa có team') !== filters.team) return false;
         if (filters.sale && customer.sale !== filters.sale) return false;
         if (filters.schedule && customer.paymentSchedule !== filters.schedule) return false;
+        if (filters.status && customer.workflowStatus !== filters.status) return false;
         if (query && !fuzzyMatches(tableSearchText(customer), query)) return false;
         return true;
       });
@@ -11497,6 +11509,7 @@
     }
 
     function handleDebtFilterChange() {
+      state.debtFilters.status = document.getElementById('debtStatusFilter').value;
       state.debtFilters.team = document.getElementById('debtTeamFilter').value;
       state.debtFilters.queue = document.getElementById('debtQueueFilter').value;
       state.debtFilters.sale = document.getElementById('debtSaleFilter').value;
@@ -11968,6 +11981,7 @@
       populateDebtSaleFilter(customers);
       populateDebtScheduleFilter(customers);
       document.getElementById('debtQueueFilter').value = state.debtFilters.queue;
+      document.getElementById('debtStatusFilter').value = state.debtFilters.status;
       document.getElementById('debtScheduleFilter').value = state.debtFilters.schedule;
       document.getElementById('debtManagementSearch').value = state.debtFilters.search;
       renderDebtManagementTable();
