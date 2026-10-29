@@ -50,6 +50,9 @@ function createStockPositionsRouter(dependencies = {}) {
     const result = await svc().list(ctxOf(req), req.query.branch);
     res.json({ ...result, canEdit: hasFeature(req.user, 'stockLocationsV2.edit'), canExport: hasFeature(req.user, 'stockLocationsV2.export'), canDeleteHistory: hasFeature(req.user, 'stockLocationsV2.historyDelete') });
   }));
+  router.get('/api/stock-positions/code-suggestions', handle(async (req, res) => {
+    res.json(await svc().suggestCodes(ctxOf(req), req.query.branch, req.query.q));
+  }));
   // Xuat Excel toan bo dong cua co so (khong theo bo loc tren man hinh); quyen rieng stockLocationsV2.export.
   router.get('/api/stock-positions/export', requireFeature('stockLocationsV2.export'), handle(async (req, res) => {
     const { branch, rows } = await svc().list(ctxOf(req), req.query.branch);

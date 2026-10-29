@@ -232,6 +232,23 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
     return { branch, rows: rows.map(row => shape(row, products.get(row.code), held.get(Number(row.id)) || 0)) };
   }
 
+  // Goi y ma hang khi go o "Them dong": khop dau/giua ma (bo khoang trang, khong phan biet hoa thuong) hoac trong ten; ma bat dau bang tu khoa xep truoc.
+  async function suggestCodes(ctx, branch, query) {
+    assertBranch(branch);
+    assertScope(ctx, branch);
+    const term = clean(query).slice(0, 60);
+    if (!term) return { items: [] };
+    const escape = value => value.replace(/[\\%_]/gu, '\\$&');
+    const codeTerm = escape(lower(term));
+    const { rows } = await getDb().query(
+      `SELECT code, name FROM products
+       WHERE branch = $1 AND (lower(regexp_replace(code, '\\s+', '', 'g')) LIKE '%' || $2 || '%' ESCAPE '\\' OR name ILIKE '%' || $3 || '%' ESCAPE '\\')
+       ORDER BY (lower(regexp_replace(code, '\\s+', '', 'g')) LIKE $2 || '%' ESCAPE '\\') DESC, code
+       LIMIT 12`,
+      [DB_BRANCH[branch], codeTerm, escape(term)]);
+    return { items: rows.map(row => ({ code: normalizeCode(row.code), name: clean(row.name) })) };
+  }
+
   const FIELD_COLUMN = { notes: 'notes', arrivalDate: 'arrival_date', location: 'location' };
   const fieldChanges = (row, next) => ['notes', 'arrivalDate', 'location']
     .filter(field => next[field] !== undefined && next[field] !== row[FIELD_COLUMN[field]])
@@ -479,16 +496,15 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
         invalid('Dữ liệu quá dài (mã ≤ 60, ghi chú ≤ 500, ngày về ≤ 60, vị trí ≤ 100 ký tự).'); continue;
       }
       const spec = carton.parseSpec(notes);
-      if (product && !spec) { invalid(`Ghi chú "${notes}" sai định dạng (cần dạng 3T x 100, nối nhiều quy cách bằng +).`); continue; }
-      if (product && spec.quantity === 0) { skippedEmpty += 1; skipped.push({ ...line, notes, sourceIndexes: [sourceIndex] }); continue; }
+      // Free-form notes are imported with warnings; an unreadable quantity is not zero.
+      if (product && spec && spec.quantity === 0) { skippedEmpty += 1; skipped.push({ ...line, notes, sourceIndexes: [sourceIndex] }); continue; }
       const finalCode = product ? product.code : code;
       const key = keyOf(finalCode, location);
       const arrivalDate = clean(line.arrivalDate);
       const earlier = entries.get(key);
       if (earlier) {
-        const sum = product ? mergeNotes(earlier.notes, notes)
-          : mergeNotes(earlier.notes, notes) ?? carton.normalizeStoredNote([earlier.notes, notes].filter(Boolean).join(' + '));
-        if (sum === null) { invalid(`Ghi chú dòng ${earlier.row} sai định dạng, không cộng được dòng trùng này.`); continue; }
+        const sum = mergeNotes(earlier.notes, notes)
+          ?? carton.normalizeStoredNote([earlier.notes, notes].filter(Boolean).join(' + '));
         earlier.sourceIndexes.push(sourceIndex);
         earlier.notes = sum;
         earlier.arrivalDate = arrivalDate || earlier.arrivalDate;
@@ -507,9 +523,8 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
       let nextLocation = location;
       const nextName = resolved.has(lower(entry.code)) ? entry.name : entry.name || clean(current.name);
       if (mode === 'add') {
-        nextNotes = resolved.has(lower(entry.code)) ? mergeNotes(current.notes, notes)
-          : mergeNotes(current.notes, notes) ?? carton.normalizeStoredNote([clean(current.notes), notes].filter(Boolean).join(' + '));
-        if (nextNotes === null) { errors.push({ ...entry, message: `Ghi chú hiện có "${current.notes}" sai định dạng, không cộng thêm được.` }); continue; }
+        nextNotes = mergeNotes(current.notes, notes)
+          ?? carton.normalizeStoredNote([clean(current.notes), notes].filter(Boolean).join(' + '));
         nextDate = arrivalDate || clean(current.arrival_date);
         nextLocation = location; // khop khong phan biet hoa/thuong/khoang trang: ghi lai theo dang chuan
       }
@@ -695,7 +710,7 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
     });
   }
 
-  return { list, create, update, deduct, remove, acknowledge, history, historyAll, purgeHistory, importFile, normalizeAllNotes, mergeDuplicateRows };
+  return { list, suggestCodes, create, update, deduct, remove, acknowledge, history, historyAll, purgeHistory, importFile, normalizeAllNotes, mergeDuplicateRows };
 }
 
 // `tx`: helper giao dich dung chung cho module khac can tru/cong thung that trong cung giao dich + khoa co so (pickAssignments).

@@ -135,7 +135,7 @@
         <button type="button" class="dp-close" data-vt-close aria-label="Đóng">×</button>
       </div>
       <div class="dp-body">
-        <label class="vt-field"><span>Mã hàng</span><input name="code" type="text" autocomplete="off" required></label>
+        <label class="vt-field"><span>Mã hàng</span><input name="code" type="text" autocomplete="off" list="vtCodeSuggestions" required><datalist id="vtCodeSuggestions"></datalist></label>
         <label class="vt-field"><span>Ghi chú số thùng</span><input name="notes" type="text" autocomplete="off" placeholder="VD: 3T x 100"></label>
         <label class="vt-field"><span>Ngày về</span><input name="arrivalDate" type="text" autocomplete="off" placeholder="Có thể để trống"></label>
         <label class="vt-field"><span>Vị trí</span><input name="location" type="text" autocomplete="off"></label>

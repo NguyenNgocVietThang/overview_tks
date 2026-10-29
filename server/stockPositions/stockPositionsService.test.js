@@ -47,6 +47,28 @@ function workbook(rows, name = 'Sheet1') {
 
 const HEADER = ['Mã hàng', 'Ghi chú', 'Ngày về', 'Vị trí'];
 
+test('import: known products keep unreadable notes as warnings through replace and additive merges', async () => {
+  const { db, service } = await fixture({ lines: [{ branch: 'HN', code: 'AAA1', notes: '5T x 100', location: 'A1' }] });
+  try {
+    const buffer = workbook([HEADER, ['AAA1', '1/10 đi sửa', '29/10', 'A1'], ['BBB2', '1T x 50 (K TEM)', '', 'B1']]);
+    const preview = await service.importFile(ctx(), 'HN', { mode: 'replace', buffer });
+    assert.equal(preview.counts.errors, 0);
+    const row = preview.rows.find(row => row.code === 'AAA1');
+    assert.equal(row.kind, 'update');
+    assert.equal(row.quantity, null);
+    assert.ok(row.warnings.length > 0);
+    await service.importFile(ctx(), 'HN', { mode: 'replace', commit: true, buffer });
+    assert.equal((await db.query("SELECT notes FROM stock_positions WHERE code = 'AAA1'")).rows[0].notes, '1/10 đi sửa');
+    const additions = workbook([HEADER, ['AAA1', '2T x 10', '', 'A1'], ['AAA1', 'chờ sửa', '', 'A1'], ['BBB2', 'kiểm tem', '', 'B1']]);
+    const done = await service.importFile(ctx(), 'HN', { mode: 'add', commit: true, buffer: additions });
+    assert.equal(done.counts.errors, 0);
+    const stored = (await db.query('SELECT code, notes FROM stock_positions ORDER BY code')).rows;
+    assert.equal(stored[0].notes, '1/10 đi sửa + 2T x 10 + chờ sửa');
+    assert.match(stored[1].notes, /K TEM/);
+    assert.match(stored[1].notes, /kiểm tem/);
+  } finally { await db.close(); }
+});
+
 test('import review: keeps error, skipped and unchanged sources; draft edits commit without adding existing quantity twice', async () => {
   const { db, service } = await fixture({ lines: [{ branch: 'HN', code: 'AAA1', notes: '5T x 100', location: 'A1' }] });
   try {
@@ -79,12 +101,12 @@ test('import review: invalid edited draft rolls back replace without changing st
     const buffer = workbook([HEADER, ['BBB2', '1T x 10', '', 'B1']]);
     await assert.rejects(() => service.importFile(ctx(), 'HN', {
       mode: 'replace', commit: true, buffer,
-      inputRows: [{ row: 2, code: 'BBB2', notes: 'bad note', location: 'B1' }, { row: 3, code: 'AAA1', notes: '1T x 5', location: 'A2' }]
+      inputRows: [{ row: 2, code: '', notes: 'bad note', location: 'B1' }, { row: 3, code: 'AAA1', notes: '1T x 5', location: 'A2' }]
     }), error => {
       assert.equal(error.code, 'IMPORT_HAS_ERRORS');
       assert.equal(error.body.counts.errors, 1);
       assert.equal(error.body.inputRows[0].notes, 'bad note');
-      assert.equal(error.body.rows.find(row => row.kind === 'error').code, 'BBB2');
+      assert.equal(error.body.rows.find(row => row.kind === 'error').code, '');
       return true;
     });
     assert.deepEqual((await db.query('SELECT id, code, notes, location, version FROM stock_positions ORDER BY id')).rows, before.rows);
@@ -390,7 +412,7 @@ test('import add: ghi chu viet tu do (2Tx100 co san, file 1T100) tu nhay thanh 3
   } finally { await db.close(); }
 });
 
-test('import loi: thieu cot, ghi chu sai dinh dang, trung ma + vi tri trong file tu cong, ngay Excel -> dd/MM; co loi thi khong nhap', async () => {
+test('import loi: missing code blocks commit; free-form notes do not; Excel dates remain supported', async () => {
   const { db, service } = await fixture();
   try {
     await seedImportRows(service);
@@ -400,10 +422,10 @@ test('import loi: thieu cot, ghi chu sai dinh dang, trung ma + vi tri trong file
     await assert.rejects(() => service.importFile(ctx(), 'HN', { mode: 'xoa', buffer: workbook([HEADER, ['A', '1T x 1', '', 'x']]) }), { code: 'VALIDATION' });
     const bad = workbook([HEADER, ['', '1T x 5', '', 'H1'], ['AAA1', 'nhiều thùng', '', 'H1'], ['CCC3', '1T x 5', '', 'H5'], ['ccc3', '2T x 5', '', 'h5']]);
     const preview = await service.importFile(ctx(), 'HN', { mode: 'replace', buffer: bad });
-    assert.equal(preview.counts.errors, 2);
-    assert.deepEqual(preview.errors.map(e => e.row), [2, 3]);
+    assert.equal(preview.counts.errors, 1);
+    assert.deepEqual(preview.errors.map(e => e.row), [2]);
     await assert.rejects(() => service.importFile(ctx(), 'HN', { mode: 'replace', commit: true, buffer: bad }),
-      error => error.code === 'IMPORT_HAS_ERRORS' && error.body.counts.errors === 2);
+      error => error.code === 'IMPORT_HAS_ERRORS' && error.body.counts.errors === 1);
     assert.equal((await service.list(ctx(), 'HN')).rows.length, 2);
 
     const sheet = XLSX.utils.aoa_to_sheet([HEADER, ['AAA1', '1T x 5', '', 'H1']]);
@@ -745,4 +767,19 @@ test('mergeDuplicateRows: dry-run không ghi; --apply cộng ghi chú dòng trù
 
 test('mergeNotes: ghi chú số trần được hiểu là 1 thùng', () => {
   assert.equal(mergeNotes('60', '2T x 60'), '3T x 60');
+});
+
+test('suggestCodes: khop ma (bo khoang trang, hoa/thuong) hoac ten, ma bat dau bang tu khoa xep truoc, rong thi tra rong', async () => {
+  const { db, service } = await fixture();
+  try {
+    const byCode = await service.suggestCodes(ctx(), 'HN', ' aaa ');
+    assert.ok(byCode.items.length >= 1);
+    assert.ok(byCode.items.every(item => item.code.includes('AAA')));
+    assert.equal(byCode.items[0].code, 'AAA1');
+    assert.equal(byCode.items[0].name, 'Hàng A một');
+    assert.deepEqual((await service.suggestCodes(ctx(), 'HN', '')).items, []);
+    assert.deepEqual((await service.suggestCodes(ctx(), 'HN', '%')).items, []);
+  } finally {
+    await db.close();
+  }
 });

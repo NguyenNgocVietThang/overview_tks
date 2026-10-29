@@ -582,6 +582,30 @@
     }
   }
 
+  // Gợi ý mã hàng khi gõ ô Mã hàng (hộp Thêm dòng): chờ 200ms, bỏ kết quả của lần gõ cũ.
+  let suggestTimer = null;
+  let suggestSeq = 0;
+  function suggestCodes() {
+    clearTimeout(suggestTimer);
+    const list = $('vtCodeSuggestions');
+    const term = $('vtAddForm').elements.code.value.trim();
+    if (!term) { list.replaceChildren(); return; }
+    const tab = activeTab;
+    suggestTimer = setTimeout(async () => {
+      const seq = ++suggestSeq;
+      try {
+        const { response, payload } = await request(API + '/code-suggestions?branch=' + tab.toUpperCase() + '&q=' + encodeURIComponent(term));
+        if (seq !== suggestSeq || !response.ok) return;
+        list.replaceChildren(...(payload.items || []).map(item => {
+          const option = document.createElement('option');
+          option.value = item.code;
+          option.label = item.name ? item.code + ' — ' + item.name : item.code;
+          return option;
+        }));
+      } catch (error) { /* gợi ý chỉ là tiện ích, lỗi mạng thì bỏ qua */ }
+    }, 200);
+  }
+
   async function submitAdd(event) {
     event.preventDefault();
     const form = $('vtAddForm');
@@ -1335,6 +1359,7 @@
       $('vtAddForm').elements.code.focus();
     });
     $('vtAddForm').addEventListener('submit', submitAdd);
+    $('vtAddForm').elements.code.addEventListener('input', suggestCodes);
     $('vtImportButton').addEventListener('click', () => {
       if (importState.busy) return;
       $('vtImportFile').value = '';

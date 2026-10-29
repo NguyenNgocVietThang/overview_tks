@@ -1,5 +1,7 @@
 # CURRENT: BẢNG TRẠNG THÁI THỜI GIAN THỰC (REALTIME DASHBOARD)
 
+> 29/10/2026 — **VT: gợi ý mã hàng khi thêm dòng và nới lỏng lỗi import ghi chú:** thêm API `GET /api/stock-positions/suggest-codes` gợi ý theo mã/tên từ products (ưu tiên mã bắt đầu bằng từ khóa); import cho phép ghi chú tự do không đọc được quy cách (chuyển thành cảnh báo thay vì lỗi chặn commit), vẫn chặn mã trống; test backend và frontend 73/73 đạt; đã commit và đẩy GitHub.
+
 > 29/10/2026 — **VT: chỉnh độ rộng và sort bảng preview import vị trí:** bật table-controls dùng chung để kéo độ rộng cột; các tiêu đề dữ liệu có nút sort tăng/giảm/bỏ sort, áp dụng trên toàn bộ danh sách đã lọc trước phân trang, ô trống luôn cuối. Bỏ sort khôi phục ưu tiên lỗi/cảnh báo; đổi sort về trang đầu. Kiểm thử frontend vị trí 27/27 đạt; đã commit, chưa deploy.
 
 > 29/10/2026 — **Phiếu in: dùng chân trang chung (notice footer cố định ở đáy), in đậm số Zalo sale và hỗ trợ lặp footer khi in nhiều trang:** Mẫu phiếu đặt hàng và phiếu xác nhận giao hàng dùng chung một phần chân lưu ý (`.invoice-notice`) cố định ở đáy trang (`absolute` trên xem trước, `fixed` + `tfoot` trên bản in `.print-page-layout`), gỡ bỏ metadata trùng lặp; SĐT Zalo người bán in đậm; toàn bộ 15/15 test frontend đạt; đã commit và đẩy GitHub.
