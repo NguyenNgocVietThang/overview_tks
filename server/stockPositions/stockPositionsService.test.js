@@ -78,8 +78,8 @@ test('import review: keeps error, skipped and unchanged sources; draft edits com
     const merged = preview.rows.find(r => r.kind === 'update');
     assert.deepEqual(merged.sourceIndexes, [0, 1]);
     assert.equal(merged.notes, '8T x 100');
-    assert.deepEqual(preview.rows.find(r => r.kind === 'error').sourceIndexes, [2]);
-    assert.equal(preview.rows.find(r => r.kind === 'skipped').row, 5);
+    assert.deepEqual(preview.rows.find(r => r.row === 4).sourceIndexes, [2]);
+    assert.equal(preview.rows.find(r => r.row === 5).kind, 'skipped');
     const inputRows = [{ ...preview.inputRows[0], notes: '4T x 100' }, { row: null, code: 'BBB2', notes: '2T x 20', arrivalDate: '29/10', location: ' c 1 ' }];
     const checked = await service.importFile(ctx(), 'HN', { mode: 'add', buffer, inputRows });
     assert.equal(checked.rows.find(r => r.kind === 'update').notes, '9T x 100');
@@ -93,24 +93,18 @@ test('import review: keeps error, skipped and unchanged sources; draft edits com
   } finally { await db.close(); }
 });
 
-test('import review: invalid edited draft rolls back replace without changing stock or history', async () => {
+test('import review: all invalid rows skip without deleting existing stock', async () => {
   const { db, service } = await fixture({ lines: [{ branch: 'HN', code: 'AAA1', notes: '5T x 100', location: 'A1' }] });
   try {
-    const before = await db.query('SELECT id, code, notes, location, version FROM stock_positions ORDER BY id');
-    const historyBefore = await db.query('SELECT count(*)::int AS total FROM stock_position_history');
-    const buffer = workbook([HEADER, ['BBB2', '1T x 10', '', 'B1']]);
-    await assert.rejects(() => service.importFile(ctx(), 'HN', {
-      mode: 'replace', commit: true, buffer,
-      inputRows: [{ row: 2, code: '', notes: 'bad note', location: 'B1' }, { row: 3, code: 'AAA1', notes: '1T x 5', location: 'A2' }]
-    }), error => {
-      assert.equal(error.code, 'IMPORT_HAS_ERRORS');
-      assert.equal(error.body.counts.errors, 1);
-      assert.equal(error.body.inputRows[0].notes, 'bad note');
-      assert.equal(error.body.rows.find(row => row.kind === 'error').code, '');
-      return true;
-    });
-    assert.deepEqual((await db.query('SELECT id, code, notes, location, version FROM stock_positions ORDER BY id')).rows, before.rows);
-    assert.deepEqual((await db.query('SELECT count(*)::int AS total FROM stock_position_history')).rows, historyBefore.rows);
+    const buffer = workbook([HEADER, ['', '', '29/10', ''], ['BBB2', 'bad', '', 'B'.repeat(101)]]);
+    const preview = await service.importFile(ctx(), 'HN', { mode: 'replace', buffer });
+    assert.equal(preview.counts.errors, 0);
+    assert.equal(preview.counts.skippedEmpty, 2);
+    assert.equal(preview.counts.deleted, 0);
+    assert.ok(preview.rows.every(row => row.kind === 'skipped' && row.message));
+    const done = await service.importFile(ctx(), 'HN', { mode: 'replace', buffer, commit: true });
+    assert.equal(done.imported, true);
+    assert.equal((await service.list(ctx(), 'HN')).rows.length, 1);
   } finally { await db.close(); }
 });
 
@@ -422,10 +416,9 @@ test('import loi: missing code blocks commit; free-form notes do not; Excel date
     await assert.rejects(() => service.importFile(ctx(), 'HN', { mode: 'xoa', buffer: workbook([HEADER, ['A', '1T x 1', '', 'x']]) }), { code: 'VALIDATION' });
     const bad = workbook([HEADER, ['', '1T x 5', '', 'H1'], ['AAA1', 'nhiều thùng', '', 'H1'], ['CCC3', '1T x 5', '', 'H5'], ['ccc3', '2T x 5', '', 'h5']]);
     const preview = await service.importFile(ctx(), 'HN', { mode: 'replace', buffer: bad });
-    assert.equal(preview.counts.errors, 1);
-    assert.deepEqual(preview.errors.map(e => e.row), [2]);
-    await assert.rejects(() => service.importFile(ctx(), 'HN', { mode: 'replace', commit: true, buffer: bad }),
-      error => error.code === 'IMPORT_HAS_ERRORS' && error.body.counts.errors === 1);
+    assert.equal(preview.counts.errors, 0);
+    assert.equal(preview.rows.find(row => row.row === 2).kind, 'skipped');
+    assert.equal((await service.importFile(ctx(), 'HN', { mode: 'replace', commit: true, buffer: bad })).imported, true);
     assert.equal((await service.list(ctx(), 'HN')).rows.length, 2);
 
     const sheet = XLSX.utils.aoa_to_sheet([HEADER, ['AAA1', '1T x 5', '', 'H1']]);

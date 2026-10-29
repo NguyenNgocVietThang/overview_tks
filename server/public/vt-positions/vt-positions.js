@@ -632,7 +632,7 @@
     $('vtImportBack').disabled = busy;
     document.querySelectorAll('input[name="vtImportMode"]').forEach(radio => { radio.disabled = busy; });
     $('vtImportPreview').disabled = busy;
-    $('vtImportConfirm').disabled = busy || !$('vtImportFile').files?.length || importState.stale || importState.editing || importState.errors > 0 || (importState.inputRows && !importState.inputRows.length);
+    $('vtImportConfirm').disabled = busy || !$('vtImportFile').files?.length || importState.stale || importState.editing || (importState.inputRows && !importState.inputRows.length);
     $('vtImportReview').querySelectorAll('button, input, select').forEach(control => { control.disabled = busy; });
     $('vtImportReview').querySelectorAll('.vt-import-row-actions button, #vtImportAdd').forEach(control => { control.disabled = busy || importState.stale || importState.editing; });
     $('vtImportRetry').hidden = !importState.stale;
@@ -976,7 +976,7 @@
     setImportStep(2);
     renderImportPreview(payload);
     const counts = payload.counts || {};
-    const items = [['added', 'Thêm'], ['updated', 'Cập nhật'], ['deleted', 'Xóa'], ['unchanged', 'Không đổi'], ['skippedEmpty', 'Bỏ qua (SL 0/trống)'], ['errors', 'Lỗi']];
+    const items = [['added', 'Thêm'], ['updated', 'Cập nhật'], ['deleted', 'Xóa'], ['unchanged', 'Không đổi'], ['skippedEmpty', 'Bỏ qua (trống/lỗi)'], ['errors', 'Lỗi']];
     const list = document.createElement('ul');
     list.className = 'vt-import-counts';
     items.forEach(([key, label]) => {
@@ -1018,7 +1018,7 @@
   }
 
   async function confirmImport() {
-    if (importState.busy || importState.editing || importState.stale || importState.errors > 0 || (importState.inputRows && !importState.inputRows.length)) return;
+    if (importState.busy || importState.editing || importState.stale || (importState.inputRows && !importState.inputRows.length)) return;
     setImportBusy(true);
     try {
       const result = await runImport(true);

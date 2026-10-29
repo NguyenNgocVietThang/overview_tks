@@ -486,7 +486,7 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
     const entries = new Map(); // (ma, vi tri) -> dong da gop (dong trung trong file tu cong ghi chu)
     const touched = new Set();
     for (const [sourceIndex, line] of fileRows.entries()) {
-      const invalid = message => errors.push({ ...line, sourceIndexes: [sourceIndex], message });
+      const invalid = message => { skippedEmpty += 1; skipped.push({ ...line, sourceIndexes: [sourceIndex], message }); };
       const code = normalizeCode(line.code);
       if (!code) { invalid('Thiếu mã hàng.'); continue; }
       const product = resolved.get(lower(code));
@@ -535,7 +535,7 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
       else updates.push({ sourceIndexes: entry.sourceIndexes, id: current.id, code: entry.code, name: nextName, notes: nextNotes, arrivalDate: nextDate, location: nextLocation, row, before: current });
     }
     // Thay toan bo: dong hien co khong nam trong file bi xoa (ke ca dong trung ma + vi tri thua).
-    const deletes = mode === 'replace' ? existing.filter(row => !touched.has(row.id)) : [];
+    const deletes = mode === 'replace' && entries.size > 0 ? existing.filter(row => !touched.has(row.id)) : [];
     return { adds, updates, deletes, unchangedRows, skipped, unchanged: unchangedIds.length, skippedEmpty, errors };
   }
 
@@ -594,7 +594,6 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
     return withTransaction(db, async client => {
       await lockBranch(client, branch);
       const { plan, resolved } = await run(client);
-      if (plan.errors.length) throw fail(400, 'IMPORT_HAS_ERRORS', `Còn ${plan.errors.length} dòng lỗi, chưa nhập. Hãy sửa tại bước xem trước.`, { body: response(plan, previewOf(plan, resolved, fileRows)) });
       const summaryAction = mode === 'replace' ? 'import_replace' : 'import_add';
       const entries = [{ action: summaryAction, summary: { file: fileName, ...countsOf(plan) } }];
       if (plan.adds.length) {

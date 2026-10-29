@@ -253,7 +253,7 @@ test('import review: deleting the last source blocks commit but a new row can re
   assert.equal(doc.getElementById('vtImportConfirm').disabled, false);
 });
 
-test('import review: errors block commit; failed recalculation retains edits until retry succeeds', async t => {
+test('import review: errors allow commit; failed recalculation retains edits until retry succeeds', async t => {
   let failRefresh = false;
   let draft;
   const { doc, window } = await setup(t, { handler: async (url, options, parsed) => {
@@ -266,7 +266,7 @@ test('import review: errors block commit; failed recalculation retains edits unt
   Object.defineProperty(doc.getElementById('vtImportFile'), 'files', { value: [new window.File(['x'], 'a.csv')] });
   doc.getElementById('vtImportPreview').click();
   await settle();
-  assert.equal(doc.getElementById('vtImportConfirm').disabled, true);
+  assert.equal(doc.getElementById('vtImportConfirm').disabled, false);
   doc.querySelector('[data-import-edit]').click();
   doc.querySelector('#vtImportEditor [data-field="code"]').value = 'ZZZ9';
   failRefresh = true;
@@ -581,7 +581,7 @@ test('import: xem trước tùy chọn hiện số liệu và lỗi theo dòng; 
   assert.equal(doc.querySelector('[data-count="errors"] b').textContent, '1');
   assert.equal(doc.querySelector('[data-import-errors]'), null, 'không lặp lại danh sách lỗi phía trên bảng');
   assert.equal(doc.getElementById('vtImportError').textContent, '');
-  assert.equal(doc.getElementById('vtImportConfirm').disabled, true, 'dòng lỗi phải được sửa trước khi xác nhận');
+  assert.equal(doc.getElementById('vtImportConfirm').disabled, false, 'dòng lỗi không khóa xác nhận');
 
   preview = { ...preview, counts: { ...preview.counts, errors: 0 }, errors: [] };
   doc.getElementById('vtImportPreview').click();
@@ -671,7 +671,7 @@ test('import trực tiếp sau chọn file, không gọi xem trước; lỗi má
   assert.ok(doc.getElementById('vtImportDialog').hasAttribute('open'));
   assert.equal(doc.querySelector('[data-import-errors]'), null);
   assert.match(doc.getElementById('vtImportError').textContent, /File còn lỗi/);
-  assert.equal(doc.getElementById('vtImportConfirm').disabled, true, 'lỗi từ máy chủ khóa xác nhận');
+  assert.equal(doc.getElementById('vtImportConfirm').disabled, false, 'lỗi từ máy chủ không khóa xác nhận');
   valid = true;
   doc.getElementById('vtImportBack').click();
   doc.getElementById('vtImportPreview').click();
