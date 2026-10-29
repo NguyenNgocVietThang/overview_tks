@@ -1,7 +1,7 @@
 # Graph Report - Web TKS Dashboard  (2026-10-29)
 
 ## Corpus Check
-- 1015 files · ~1,522,089 words
+- 1015 files · ~1,522,332 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 36 file(s) not represented in the graph (top: .css 18, .jfif 8, (none) 3)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `7ac67739`
+- Built from commit: `9cf82639`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -2346,7 +2346,7 @@ Nodes (3): balanceAt(), cp, entries
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `c()` connect `t` to `e`, `CURRENT: BẢNG TRẠNG THÁI THỜI GIAN THỰC (REALTIME DASHBOARD)`, `html2pdf.bundle.min.js`, `Qe`, `shadow`, `Thùng, ST và trạng thái nhặt (26/10/2026) — thay thế mọi mô tả cũ về SL, tồn và trạng thái bên dưới`, `t`, `pdf.worker.min.mjs`?**
-  _High betweenness centrality (0.187) - this node is a cross-community bridge._
+  _High betweenness centrality (0.190) - this node is a cross-community bridge._
 - **What connects `ensureKiotVietQuotaAvailable_() — chặn trước mọi UrlFetch thật`, `hydrateIncompleteWebhookItems_() — hydrate-skip tổng quát có cờ bật/tắt`, `runKiotVietMaintenanceTick_() — tách bảo trì khỏi hàng đợi webhook` to the rest of the system?**
   _47 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `chart.umd.min.js` be split into smaller, more focused modules?**

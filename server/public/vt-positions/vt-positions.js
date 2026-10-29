@@ -639,6 +639,8 @@
     importState.tab = activeTab;
     importState.warnFilter = 'all';
     importState.page = 0;
+    importState.sortField = '';
+    importState.sortDirection = 'asc';
     importState.inputRows = null;
     importState.errors = 0;
     importState.stale = false;
@@ -662,12 +664,58 @@
   const importPriority = row => row.kind === 'error' ? 2 : importWarning(row) ? 1 : 0;
   const importKey = row => [row.code, row.location].map(value => String(value || '').replace(/\s+/gu, '').toLocaleUpperCase('vi')).join('|');
 
+  const importWarningsText = row => [row.message, ...(row.warnings || []).map(key => WARNING_LABELS[key] || key)].filter(Boolean).join(' · ');
+  function importSortValue(row, field) {
+    if (field === 'kind') return IMPORT_KINDS[row.kind] || row.kind;
+    if (field === 'warnings') return importWarningsText(row) || null;
+    if (field === 'row' && row.sourceIndexes?.length > 1) {
+      const numbers = row.sourceIndexes.map(i => importState.inputRows?.[i]?.row).filter(value => value != null);
+      return numbers.length ? Math.min(...numbers) : null;
+    }
+    return row[field] === '' ? null : row[field] ?? null;
+  }
+
+  function initImportTable() {
+    const table = $('vtImportPreviewTable');
+    const fields = ['kind', 'row', 'code', 'notes', 'cartons', 'quantity', 'arrivalDate', 'location', 'warnings'];
+    fields.forEach((field, index) => {
+      const th = table.tHead.rows[0].cells[index];
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'sort-button';
+      button.dataset.importSort = field;
+      const label = document.createElement('span');
+      label.className = 'sort-label';
+      label.textContent = th.textContent;
+      const icon = document.createElement('span');
+      icon.className = 'sort-indicator';
+      icon.setAttribute('aria-hidden', 'true');
+      button.append(label, icon);
+      th.replaceChildren(button);
+      button.addEventListener('click', () => {
+        if (importState.sortField !== field) { importState.sortField = field; importState.sortDirection = 'asc'; }
+        else if (importState.sortDirection === 'asc') importState.sortDirection = 'desc';
+        else importState.sortField = '';
+        importState.page = 0;
+        renderImportPreviewRows();
+      });
+    });
+    window.TKSTables?.enhance(table, { sort: false });
+  }
+
   function filteredImportRows() {
     const needle = normalizeSearch($('vtImportSearch').value);
     return importState.rows.filter(row => (importState.filter === 'all' || row.kind === importState.filter)
       && (importState.warnFilter === 'all' || (importState.warnFilter === 'error' ? row.kind === 'error' : importWarning(row)))
       && (!needle || normalizeSearch([row.code, row.name, row.notes, row.location, row.arrivalDate].join(' ')).includes(needle)))
-      .sort((a, b) => importPriority(b) - importPriority(a));
+      .sort((a, b) => {
+        const field = importState.sortField;
+        if (!field) return importPriority(b) - importPriority(a);
+        const left = importSortValue(a, field), right = importSortValue(b, field);
+        if (left === null || right === null) return left === right ? 0 : left === null ? 1 : -1;
+        const result = ['row', 'cartons', 'quantity'].includes(field) ? Number(left) - Number(right) : collator.compare(String(left), String(right));
+        return importState.sortDirection === 'desc' ? -result : result;
+      });
   }
 
   function updateImportPaging() {
@@ -787,6 +835,12 @@
 
   // Bảng "Các dòng sau khi chuẩn hóa": đúng giá trị sẽ được ghi (ghi chú đã chuẩn + cộng dồn, vị trí viết hoa không dấu cách).
   function renderImportPreviewRows() {
+    $('vtImportPreviewTable').querySelectorAll('[data-import-sort]').forEach(button => {
+      const selected = importState.sortField === button.dataset.importSort;
+      button.closest('th').setAttribute('aria-sort', selected ? importState.sortDirection === 'asc' ? 'ascending' : 'descending' : 'none');
+      button.querySelector('.sort-indicator').textContent = selected ? importState.sortDirection === 'asc' ? '▲' : '▼' : '▲▼';
+      button.title = selected ? importState.sortDirection === 'asc' ? 'Sắp xếp giảm dần' : 'Về thứ tự ưu tiên lỗi' : 'Sắp xếp tăng dần';
+    });
     const body = $('vtImportPreviewRows');
     body.replaceChildren();
     updateImportPaging();
@@ -822,7 +876,7 @@
         importCell(dash(row.arrivalDate)),
         importChange(row.before && row.before.location, row.location, 'vt-import-location')
       );
-      const warnings = [row.message, ...(row.warnings || []).map(key => WARNING_LABELS[key] || key)].filter(Boolean).join(' · ');
+      const warnings = importWarningsText(row);
       tr.appendChild(importCell(warnings || '—', 'vt-import-warning'));
       const actions = document.createElement('td');
       actions.className = 'vt-import-row-actions';
@@ -1383,6 +1437,7 @@
     applyScreenMode(mobileQuery ? mobileQuery.matches : window.innerWidth <= 600);
     if (mobileQuery) mobileQuery.addEventListener('change', event => applyScreenMode(event.matches));
     bindDialogs();
+    initImportTable();
     bindTable();
     bindDetail();
     document.querySelector('#vtTable thead').addEventListener('click', event => {

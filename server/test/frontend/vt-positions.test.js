@@ -76,6 +76,45 @@ const pickFilter = (doc, window, value) => {
   select.dispatchEvent(new window.Event('change'));
 };
 
+test('import review: column resizing and sorting cover the full filtered draft before paging', async t => {
+  const rows = Array.from({ length: 205 }, (_, i) => ({ row: i + 2, code: 'MA' + i, kind: 'add', quantity: i, cartons: i, location: 'K' + i, warnings: i === 150 ? ['multi'] : [] }));
+  rows.push({ row: null, code: 'EMPTY', kind: 'add', quantity: null, cartons: null, warnings: [] });
+  const { doc, window } = await setup(t, { handler: async (url, options, parsed) => parsed.pathname.endsWith('/import') ? json({ counts: { added: rows.length }, rows }) : null });
+  doc.getElementById('vtImportButton').click();
+  Object.defineProperty(doc.getElementById('vtImportFile'), 'files', { value: [new window.File(['x'], 'a.csv')] });
+  doc.getElementById('vtImportPreview').click();
+  await settle();
+  const table = doc.getElementById('vtImportPreviewTable');
+  assert.equal(table.querySelectorAll('th > .tks-column-resizer').length, 10);
+  const firstCode = () => doc.querySelector('#vtImportPreviewRows tr .vt-import-code').textContent;
+  assert.equal(firstCode(), 'MA150');
+  const sort = table.querySelector('[data-import-sort="quantity"]');
+  sort.click();
+  assert.equal(firstCode(), 'MA0');
+  assert.equal(sort.closest('th').getAttribute('aria-sort'), 'ascending');
+  doc.getElementById('vtImportNextPage').click();
+  assert.equal(firstCode(), 'MA100');
+  sort.click();
+  assert.equal(firstCode(), 'MA204');
+  assert.match(doc.getElementById('vtImportPage').textContent, /Trang 1/);
+  doc.getElementById('vtImportNextPage').click();
+  doc.getElementById('vtImportNextPage').click();
+  assert.equal(doc.querySelector('#vtImportPreviewRows tr:last-child .vt-import-code').textContent, 'EMPTY');
+  sort.click();
+  assert.equal(firstCode(), 'MA150');
+  assert.equal(sort.closest('th').getAttribute('aria-sort'), 'none');
+  const search = doc.getElementById('vtImportSearch');
+  search.value = 'MA20';
+  search.dispatchEvent(new window.Event('input'));
+  sort.click();
+  assert.equal(firstCode(), 'MA20');
+  const handle = sort.closest('th').querySelector('.tks-column-resizer');
+  const before = window.TKSTables.getState(table).columns[5].width;
+  handle.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+  assert.ok(window.TKSTables.getState(table).columns[5].width > before);
+  assert.equal(sort.closest('th').getAttribute('aria-sort'), 'ascending');
+});
+
 test('import review: warnings first, combined filters/search and paging include rows past 300', async t => {
   const inputs = Array.from({ length: 305 }, (_, i) => ({ row: i + 2, code: 'AAA' + i, notes: '1T x 10', location: 'A' + i }));
   const rows = inputs.map((r, i) => ({ ...r, kind: 'add', sourceIndexes: [i], warnings: i === 304 ? ['multi'] : [], name: i === 304 ? 'Miếng tẩy' : 'Hàng', cartons: 1, quantity: 10 }));
