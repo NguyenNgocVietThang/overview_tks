@@ -11351,6 +11351,8 @@
       const note = customer.penaltyIsManual
         ? '<span class="debt-penalty-note">Sửa tay' + (customer.penaltyBy ? ' · ' + escapeHtml(customer.penaltyBy) : '') + '</span>'
         : '';
+      // "Đã xử lý" = không phạt: máy chủ bỏ qua số tay, nên không cho nhập.
+      if (customer.workflowStatus === 'Đã xử lý') return '—';
       if (customer.canEditPenalty) {
         return '<input class="debt-penalty-input" type="number" min="0" step="1000" inputmode="numeric" ' + debtCustomerAttrs(customer) + ' ' +
           'value="' + amount + '" data-previous-value="' + amount + '" data-suggested="' + (Number(customer.suggestedPenalty) || 0) + '" ' +
@@ -11399,8 +11401,6 @@
       const debt = state.data && state.data.debtManagement;
       const filters = state.debtFilters;
       const query = normalizeDebtSearch(filters.search);
-      return ((debt && debt.customers) || []).filter(function (customer) {
-        if (filters.queue === 'needsAction' && !customer.needsAction) return false;
       // Hàng chờ / Nhóm sale / Sale / Lịch TT ảnh hưởng lẫn nhau (shared/filter-links.js), cùng ô tìm kiếm.
       if (window.TKSFilterLinks) {
         window.TKSFilterLinks.apply((debt && debt.customers) || [], [
@@ -11416,6 +11416,8 @@
           { select: document.getElementById('debtScheduleFilter'), value: function (c) { return c.paymentSchedule; } }
         ], function (c) { return !query || fuzzyMatches(tableSearchText(c), query); });
       }
+      return ((debt && debt.customers) || []).filter(function (customer) {
+        if (filters.queue === 'needsAction' && !customer.needsAction) return false;
         if (filters.queue === 'currentDebt' && !(Number(customer.currentDebt) > 0)) return false;
         if (filters.queue === 'overdue' && !(Number(customer.overdueDebt) > 0)) return false;
         if (filters.team && (customer.saleTeam || 'Chưa có team') !== filters.team) return false;
@@ -11653,8 +11655,6 @@
     function getFilteredDebtAgingCustomers() {
       const filters = state.debtAgingFilters;
       const query = normalizeDebtSearch(filters.search);
-      return state.debtAging.customers.filter(function (customer) {
-        if (filters.team && (customer.saleTeam || 'Chưa có team') !== filters.team) return false;
       // Nhóm sale / Sale / Lịch TT ảnh hưởng lẫn nhau (shared/filter-links.js), cùng ô tìm kiếm.
       if (window.TKSFilterLinks) {
         window.TKSFilterLinks.apply(state.debtAging.customers, [
@@ -11663,6 +11663,8 @@
           { select: document.getElementById('debtAgingScheduleFilter'), value: function (c) { return c.paymentSchedule; } }
         ], function (c) { return !query || fuzzyMatches(tableSearchText(c), query); });
       }
+      return state.debtAging.customers.filter(function (customer) {
+        if (filters.team && (customer.saleTeam || 'Chưa có team') !== filters.team) return false;
         if (filters.sale && customer.sale !== filters.sale) return false;
         if (filters.schedule && customer.paymentSchedule !== filters.schedule) return false;
         if (query && !fuzzyMatches(tableSearchText(customer), query)) return false;

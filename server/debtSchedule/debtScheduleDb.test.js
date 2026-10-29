@@ -266,7 +266,7 @@ test('tinh lai bang tay: ghi de chu ky dang mo tai luc bam, giu phan hoi, khong 
   } finally { await db.close(); }
 });
 
-test('so phien lien tiep: +1 moi chot khi qua han >= 400k, Da xu ly giu nguyen, het no cham reset 0', async () => {
+test('so phien lien tiep: +1 moi chot khi qua han >= 400k, Da xu ly reset chuoi, het no cham reset 0', async () => {
   const { db, pool } = await setup();
   try {
     await db.query(`INSERT INTO customers (branch, id, code, name, debt, raw) VALUES
@@ -281,9 +281,9 @@ test('so phien lien tiep: +1 moi chot khi qua han >= 400k, Da xu ly giu nguyen, 
     assert.equal((await streak('2026-08-09'))[0].streak, 2);
     await db.query(`INSERT INTO debt_cycle_feedback (cycle_date, branch, customer_id, status) VALUES ('2026-08-09', 'hanoi', 1, 'Đã xử lý')`);
     await take('2026-08-10');
-    assert.equal((await streak('2026-08-10'))[0].streak, 2, 'Da xu ly o chu ky truoc: giu nguyen');
+    assert.equal((await streak('2026-08-10'))[0].streak, 1, 'Da xu ly o chu ky truoc: chuoi reset, phien 1');
     await take('2026-08-11');
-    assert.equal((await streak('2026-08-11'))[0].streak, 3, 'khong con Da xu ly: +1');
+    assert.equal((await streak('2026-08-11'))[0].streak, 2, 'khong con Da xu ly: +1');
     await db.query(`UPDATE customers SET debt = 100000 WHERE id = 1`);
     await take('2026-08-12');
     assert.equal((await streak('2026-08-12'))[0].streak, 0, 'het no cham thi reset 0');

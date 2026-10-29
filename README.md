@@ -198,6 +198,6 @@ Cập nhật gần nhất: 28/10/2026 (Đã sửa/người sửa theo mã đơn/
 
 **Bẫy ghi nhận:** cột `modified_date` trong DB lưu giờ VN nhưng gắn nhãn UTC (lệch 7 giờ) — so sánh với checkpoint phải dùng `raw->>'modifiedDate'`. **Trạng thái:** phần đối soát `products` đã commit cục bộ (`b282d213`, chưa push); phần sync tăng dần theo id + chồng lấn 5 phút (`syncDriver.js` + test) chưa commit; chưa deploy (server production vẫn code cũ nên nguy cơ sót khi sửa hàng loạt còn tới khi deploy); test sync 254 pass / 0 fail. Chi tiết thăm dò API ở `server/kiotviet/API_ENDPOINTS.md`.
 
-Cập nhật gần nhất: 29/10/2026 (đối soát đầy đủ `products` mỗi 24 giờ, sync tăng dần `customers`/`products` sắp theo id + chồng lấn 5 phút, nạp bù 45 hàng thiếu / 9 hàng thừa).
+Cập nhật gần nhất: 29/10/2026 (Công nợ: "Đã xử lý" = không phạt, kể cả số tay, số phiên reset; đối soát đầy đủ `products` mỗi 24 giờ, sync tăng dần `customers`/`products` sắp theo id + chồng lấn 5 phút, nạp bù 45 hàng thiếu / 9 hàng thừa).
 
 28/10/2026 — Phiếu in: đồng bộ chiều cao và cỡ chữ mọi hàng dữ liệu trong bảng, tiêu đề chỉnh riêng. Ctrl+L/R/E căn trái/phải/giữa và Ctrl+B/I đậm/nghiêng cho các cột bôi chọn ở mọi hàng cùng nhóm; ngoài bảng định dạng vùng chữ/đoạn chọn. Form chung JSONB thêm `groups.body/header` (height/size/columns: align/bold/italic), `blocks` (căn đoạn); `fonts` hỗ trợ đậm/nghiêng vùng chữ. Cấu hình áp dụng cả phiếu số dòng khác, qua tài khoản/máy/phiên; giữ kiểm tra version, chỉ lưu khi báo thành công. Không migration/API mới; nội dung chỉ đọc.

@@ -58,11 +58,8 @@ Khi có bất kỳ thay đổi nào về cấu trúc thư mục, thêm/xóa file
 ## 4. Kiểm tra trước khi kết thúc (Verification & Teardown)
 
 Trước khi kết thúc phiên hoặc commit code:
-1. **Chạy toàn bộ unit tests:**
-   ```powershell
-   cd "d:\Web TKS Dashboard\server"
-   npm test
-   ```
+1. **Chạy unit tests liên quan phần vừa thay đổi và các phần liên quan có thể bị ảnh hưởng (Dựa vào graphify):**
+
    Yêu cầu: 100% test xanh (không có lỗi mới phát sinh).
 2. **Cập nhật đồ thị mã nguồn (Knowledge Graph):**
    ```powershell

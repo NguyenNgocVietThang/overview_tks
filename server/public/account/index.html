@@ -2133,6 +2133,12 @@
       box.innerHTML = departments.length ? departments.map(department => `<label><input type="checkbox" value="${escapeHtml(department)}"${selected.has(department) ? ' checked' : ''}${disabled || (!actorIsManager() && !own.has(department) && !persisted.includes(department)) ? ' disabled' : ''}> ${escapeHtml(department)}</label>`).join('') : '<small class="form-hint">Chưa có bộ phận trong danh mục.</small>';
       box.dataset.ready = '1';
     }
+    // Quyền duyệt nghỉ (hr.leave.manage) chỉ dành cho Quản lý: vai trò khác thì ẩn hẳn khung chọn bộ phận.
+    function toggleLeaveDepartments(containerId, role){
+      const box = document.getElementById(containerId);
+      const group = box && box.closest('.form-group');
+      if(group) group.hidden = role !== 'Quản lý';
+    }
     function loadDepartmentSelection(containerId, user = {}, disabled = false){
       renderDepartmentSelection(containerId, user, disabled);
       loadPermissionsCatalog().then(() => renderDepartmentSelection(containerId, user, disabled)).catch(() => {});
@@ -2188,8 +2194,7 @@
       document.querySelectorAll(`.req-mark[data-req-for="${prefix}"]`).forEach(mark => { mark.hidden = guest; });
       if(guest) suggestedBoPhan[prefix] = '';
       applySuggestedDepartment(prefix);
-      const approval = document.getElementById(prefix + 'LeaveDepartments');
-      // Phạm vi lưu độc lập với vai trò; chọn bộ phận không tự cấp quyền duyệt.
+      toggleLeaveDepartments(prefix + 'LeaveDepartments', role);
     }
     function loadWorkAssignment(prefix, user = {}){
       suggestedBoPhan[prefix] = '';
@@ -2328,6 +2333,11 @@
       const isOn = select => select.value === 'allow' || (select.value === 'default' && select.dataset.default === '1');
       const byKey = {};
       selects.forEach(select => { byKey[select.dataset.feature] = select; });
+      // Hộp phân quyền: chỉ hiện khung bộ phận duyệt nghỉ khi quyền "Duyệt nghỉ phép" đang bật.
+      const approveSelect = byKey['hr.leave.manage'];
+      const approveBox = document.getElementById('permLeaveDepartments');
+      const approveGroup = approveBox && approveBox.closest('.form-group');
+      if(approveGroup) approveGroup.hidden = !(approveSelect && isOn(approveSelect));
       selects.forEach(select => {
         const parent = byKey[select.dataset.requires];
         if(!parent) return;

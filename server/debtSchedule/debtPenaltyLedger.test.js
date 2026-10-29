@@ -145,3 +145,17 @@ test('migration 0051: tien phat phai > 0, khoa chinh theo chu ky + khach', async
     await assert.rejects(db.query(`INSERT INTO debt_penalty_daily (cycle_date, branch, customer_id, amount) VALUES ('2026-08-08', 'hanoi', 1, 50000)`), /duplicate|unique/i);
   } finally { await db.close(); }
 });
+
+test('chốt sổ phạt: khách "Đã xử lý" không vào sổ kể cả khi Quản lý đã nhập số tay', async () => {
+  const { db, pool, repository } = await setup();
+  try {
+    await snapshot(pool, '2026-08-08');
+    await repository.savePenalty({ branch: 'hanoi', customerId: '1', amount: 90000, user });
+    await repository.saveStatus({ branch: 'hanoi', customerId: '1', status: 'Đã xử lý', user });
+    await snapshot(pool, '2026-08-09');
+    const done = await finalizePendingPenaltyCycles(pool, { log: () => {} });
+    assert.deepEqual(done, [{ cycleDate: '2026-08-08', customers: 1, amount: 25000 }]);
+    const { rows } = await db.query('SELECT branch, amount::int AS amount FROM debt_penalty_daily');
+    assert.deepEqual(rows, [{ branch: 'saigon', amount: 25000 }]);
+  } finally { await db.close(); }
+});

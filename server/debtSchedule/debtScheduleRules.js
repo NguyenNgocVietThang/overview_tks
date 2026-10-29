@@ -73,13 +73,12 @@ function overdueDebt(currentDebt, inSchedule) {
 
 /**
  * So phien lien tiep tai ban chot 15:00 nay. Qua han < 400k -> reset 0. Qua han >= 400k:
- * chu ky truoc "Da xu ly" -> giu nguyen so phien (toi thieu 1); con lai (Chua xu ly / Bo qua)
+ * chu ky truoc "Da xu ly" -> chuoi RESET (coi phien truoc = 0) nen chu ky nay la phien 1; con lai (Chua xu ly / Bo qua)
  * -> phien truoc + 1. Khach khong co dong o ban chot truoc coi nhu phien truoc = 0.
  */
 function nextOverdueStreak(overdue, previousStreak, previousStatus) {
   if (!((Number(overdue) || 0) >= SLOW_DEBT_THRESHOLD)) return 0;
-  const previous = Math.max(0, Math.trunc(Number(previousStreak) || 0));
-  if (previousStatus === RESOLVED_STATUS) return Math.max(1, previous);
+  const previous = previousStatus === RESOLVED_STATUS ? 0 : Math.max(0, Math.trunc(Number(previousStreak) || 0));
   return previous + 1;
 }
 
@@ -95,8 +94,8 @@ function suggestedPenalty(overdue, streak) {
 /** Tien phat cua phien truoc (chu ky ngay truoc): so tay neu co, "Da xu ly" -> 0, con lai theo goi y. null = khong co dong phien truoc. */
 function previousPenaltyOf(previous) {
   if (!previous) return null;
-  if (previous.penaltyOverride !== null && previous.penaltyOverride !== undefined) return Number(previous.penaltyOverride);
   if (previous.status === RESOLVED_STATUS) return 0;
+  if (previous.penaltyOverride !== null && previous.penaltyOverride !== undefined) return Number(previous.penaltyOverride);
   return suggestedPenalty(previous.overdueDebt, previous.overdueStreak);
 }
 
@@ -123,9 +122,11 @@ function buildCustomerRow(row, { cycleDate, dailyAmounts, anchorDate, access = {
   const feedback = row.feedback || {};
   const workflowStatus = WORKFLOW_STATUSES.includes(feedback.status) ? feedback.status : 'Chưa xử lý';
   const alertCodes = overdue > 0 ? ['overdue'] : [];
-  const overdueStreak = Math.max(0, Math.trunc(Number(row.overdueStreak) || 0));
-  const suggested = suggestedPenalty(overdue, overdueStreak);
-  const hasManualPenalty = row.penaltyOverride !== null && row.penaltyOverride !== undefined;
+  // "Da xu ly" = coi nhu khong no qua han cua phien nay: phat 0 (bo ca so tay), so phien ve 0; so no qua han van hien.
+  const resolved = workflowStatus === RESOLVED_STATUS;
+  const overdueStreak = resolved ? 0 : Math.max(0, Math.trunc(Number(row.overdueStreak) || 0));
+  const suggested = resolved ? 0 : suggestedPenalty(overdue, overdueStreak);
+  const hasManualPenalty = !resolved && row.penaltyOverride !== null && row.penaltyOverride !== undefined;
   return {
     customerKey: customerKeyOf(row.branch, row.customerId),
     customerId: String(row.customerId),
@@ -147,8 +148,7 @@ function buildCustomerRow(row, { cycleDate, dailyAmounts, anchorDate, access = {
     alertCodes,
     overdueStreak,
     suggestedPenalty: suggested,
-    // "Da xu ly" -> tien phat phien nay ve 0 (tru khi co nguoi dien tay).
-    penaltyAmount: hasManualPenalty ? Number(row.penaltyOverride) : (workflowStatus === RESOLVED_STATUS ? 0 : suggested),
+    penaltyAmount: hasManualPenalty ? Number(row.penaltyOverride) : suggested,
     previousPenaltyAmount: previousPenaltyOf(row.previousCycle),
     penaltyIsManual: hasManualPenalty,
     penaltyBy: hasManualPenalty ? row.penaltyBy || '' : '',
