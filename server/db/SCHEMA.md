@@ -808,3 +808,6 @@ Cập nhật gần nhất: 28/10/2026.
 - Cần áp migration trước deploy (`npm run db:migrate`). Cập nhật: 28/10/2026.
 
 28/10/2026 — `shared_print_layouts.layout` (0100) mở rộng tương thích ngược, không đổi DDL: `groups?: {body?: {height?, size?, columns?: {index: {align?, bold?, italic?}}}, header?: ...}`; `height` 16–1200px, `size` 7–36pt, index theo 9/7 cột của mẫu; `blocks?: [{path,align}]`; `fonts` nhận size/bold/italic vùng chữ (ít nhất một), chỉ selector phần tử dạng nth-child, không nhận HTML/CSS tùy ý. Chỉ nhận align left/right/center và boolean cho bold/italic. Giữ định dạng cũ widths/heights/fonts; frontend chuyển heights cũ sang hai nhóm và áp dụng đúng cho mọi số dòng.
+
+
+29/10/2026 — Shared print layout JSON (0100): goods delivery validates 6 columns (order 9); `groups.body/header.columns[index]` accepts size 7–36pt plus bold/italic/align. Optional `tables` holds independent validated footer layouts: order summary(4), signatures(2), notes(1); delivery deliverySignatures(3), deliveryNote(1). No DDL change. Existing order_snapshot sellerPhone is populated from Kiot users mobilePhone for new assignments; old history is not rewritten.

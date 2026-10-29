@@ -59,7 +59,7 @@
 #pickingPrintSheet .delivery-slip .invoice-goods tbody td:nth-child(2){text-align:left;white-space:normal;overflow-wrap:anywhere}
 #pickingPrintSheet .delivery-slip .invoice-goods tbody td:nth-child(3){text-align:right;white-space:nowrap;overflow-wrap:normal}
 #pickingPrintSheet .delivery-slip .delivery-note{margin-top:4mm;font-size:11pt}
-#pickingPrintSheet .delivery-slip .delivery-signatures{display:grid;grid-template-columns:1fr 1fr 1.3fr;text-align:center;gap:3mm;margin-top:5mm;min-height:25mm;break-inside:avoid;font-family:"Times New Roman",serif;font-size:11pt}
+#pickingPrintSheet .delivery-slip .delivery-signatures{text-align:center;margin-top:5mm;min-height:25mm;break-inside:avoid;font-family:"Times New Roman",serif;font-size:11pt}
 /* Biến chỉ đặt khi người dùng chọn định dạng; mặc định giữ tỷ lệ chữ của từng mẫu. */
 #pickingPrintSheet .tokosi-invoice[style*="--print-font"],#pickingPrintSheet .tokosi-invoice[style*="--print-font"] *{font-family:var(--print-font)!important}
 #pickingPrintSheet .tokosi-invoice[style*="--print-size"],#pickingPrintSheet .tokosi-invoice[style*="--print-size"] *:not([data-print-font]){font-size:var(--print-size)!important}
@@ -113,3 +113,9 @@
 #pickingPrintSheet .tokosi-invoice{user-select:text;outline:none}
 #pickingPrintSheet .tokosi-invoice [data-print-font]{font-size:inherit}
 @media print{#pickingPrintSheet .tokosi-invoice{cursor:auto!important}}
+
+/* Bảng bố cục chỉnh được nhưng không hiện đường kẻ trên giấy. */
+#pickingPrintSheet .tokosi-invoice .invoice-layout-table td{border:1px solid #fff}
+#pickingPrintSheet .tokosi-invoice .invoice-summary td:nth-child(1),#pickingPrintSheet .tokosi-invoice .invoice-summary td:nth-child(2){text-align:left}
+#pickingPrintSheet .tokosi-invoice .delivery-signatures td{text-align:center;font-family:"Times New Roman",serif;font-size:11pt;padding:0 1.5mm}
+#pickingPrintSheet .tokosi-invoice .invoice-telegram{font-weight:bold;font-size:calc(1em + 1pt)}

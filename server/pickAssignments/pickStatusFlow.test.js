@@ -359,3 +359,19 @@ test('trừ tồn theo đơn: người sửa = mã đơn (người bấm tay l�
     assert.deepEqual(orderLog.map(r => [r.order_code, r.actor_name]), [['DH001', 'Quản Lý A'], ['DH002', 'Hệ thống (KiotViet)']]);
   } finally { await db.close(); }
 });
+
+
+test('Kiot seller phones match ID and retailer, cache concurrent pages and retry after failure',async()=>{
+ let calls=0,time=0;
+ const lookup=kiotData.createSellerPhoneLookup({now:()=>time,getBranches:()=>[{branch:'hanoi'},{branch:'saigon'}],createClient:config=>({fetchAllPages:async(endpoint,query,onPage)=>{
+  calls++;assert.equal(endpoint,'users');await onPage([{id:7,mobilePhone:config.branch==='hanoi'?'0901111111':'0902222222'},{id:8,mobilePhone:''}]);
+ }})});
+ assert.deepEqual(await Promise.all([lookup('hanoi',7),lookup('hanoi',7)]),['0901111111','0901111111']);
+ assert.equal(calls,1);assert.equal(await lookup('saigon',7),'0902222222');assert.equal(await lookup('hanoi',8),'');
+ assert.equal(await lookup('hanoi',999),'');assert.equal(await lookup('unknown',7),'');
+ time=301000;assert.equal(await lookup('hanoi',7),'0901111111');assert.equal(calls,3);
+ let fail=true,attempts=0;
+ const retry=kiotData.createSellerPhoneLookup({now:()=>time,getBranches:()=>[{branch:'hanoi'}],createClient:()=>({fetchAllPages:async(e,q,cb)=>{attempts++;if(fail)throw new Error('API unavailable');await cb([{id:7,mobilePhone:'0903333333'}]);}})});
+ assert.equal(await retry('hanoi',7),'');assert.equal(await retry('hanoi',7),'');assert.equal(attempts,1);
+ fail=false;time+=31000;assert.equal(await retry('hanoi',7),'0903333333');
+});

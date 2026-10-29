@@ -18,6 +18,16 @@ function poolFor(db) {
 const QL = { id: 'ql-1', hoTen: 'Quản Lý A - 123456789', username: 'ql' };
 const ctx = (scope) => ({ user: QL, ...(scope ? { scope } : {}) });
 
+test('old print snapshots receive seller contact without changing stored history or existing phones',async()=>{
+ const snapshot={saleName:'Sale',sellerPhone:''};let lookups=0;
+ const db={query:async(sql)=>({rows:sql.includes('SELECT id FROM')?[{id:1}]:sql.includes('SELECT * FROM order_pick_assignments')?[{id:1,branch:'SG',order_code:'DH1',order_snapshot:snapshot}]:[]})};
+ const service=createPickAssignmentsService({getDb:()=>db,loadSellerPhone:async(pool,branch,code)=>{lookups++;assert.equal(pool,db);assert.equal(branch,'SG');assert.equal(code,'DH1');return '0901234567';}});
+ const result=await service.get(ctx(),{branch:'SG',orderCode:'DH1'});
+ assert.equal(result.assignment.snapshot.sellerPhone,'0901234567');assert.equal(snapshot.sellerPhone,'');
+ snapshot.sellerPhone='0907654321';
+ assert.equal((await service.get(ctx(),{branch:'SG',orderCode:'DH1'})).assignment.snapshot.sellerPhone,'0907654321');assert.equal(lookups,1);
+});
+
 function order(overrides = {}) {
   return {
     branch: 'HN', orderCode: 'DH001', customerName: 'Khách A', saleName: 'Sale B', saleTelegramId: '555', orderDate: '27/10/2026 09:00',

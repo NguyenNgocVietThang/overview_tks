@@ -68,6 +68,10 @@ Nếu tham số được API tôn trọng, `total` phải về 0.
 
 `staff` không có endpoint riêng (suy ra từ các entity trên) và `suppliers` đã bỏ khỏi scheduler (migration `0026`; file `entities/suppliers.js` chỉ còn lại như mã chết có test). Webhook KiotViet gọi `POST /api/kiotviet/webhook/<KIOTVIET_WEBHOOK_SECRET>` (secret nằm trên đường dẫn; sai → 404) và hiện **chỉ được lưu thô** vào `webhook_events_raw`, không upsert dữ liệu nghiệp vụ — nguồn dữ liệu thật là polling ở bảng trên.
 
+## Bổ sung 29/10/2026 — số Zalo trên phiếu in
+
+Theo yêu cầu mới, phần phiếu nhặt đọc `/users` theo retailer để lấy `mobilePhone`, ghép `id` với `orders.sold_by_id`. Cache 5 phút, single-flight; lỗi chờ 30 giây trước thử lại; request tối đa 5 giây, một lần thử. Chỉ lưu số cần in vào snapshot mới; bản cũ bổ sung ở response, không sửa lịch sử. Không thay đổi thiết kế bảng staff hoặc checkpoint đồng bộ Phase 1.
+
 ## Ghi chú quan trọng: `GET /users`
 
 Live probe xác nhận `GET /users` **tồn tại và trả dữ liệu thật** (status 200, `total=113` nhân

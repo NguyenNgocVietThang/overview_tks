@@ -4,7 +4,7 @@
       <tbody><tr>
         <td class="invoice-order">
           <p><strong class="invoice-title">PHIẾU ĐẶT HÀNG</strong><br>Mã đơn hàng: <strong>{Ma_Don_Hang}</strong></p>
-          <p class="invoice-seller">NV Bán hàng: {Nhan_Vien_Ban_Hang} | Zalo: {Dien_Thoai_Nguoi_Ban}</p>
+          <p class="invoice-seller">NV Bán hàng: {Nhan_Vien_Ban_Hang}<span class="invoice-telegram-slot"></span> | Zalo: {Dien_Thoai_Nguoi_Ban}</p>
           <div class="invoice-customer">
             <p>Khách hàng: {Khach_Hang}</p>
             <p>SĐT khách: {So_Dien_Thoai}</p>
@@ -73,51 +73,51 @@
 </div>
 
 <div class="printBox invoice-footer">
-  <table cellpadding="1" cellspacing="1" border="0" style="width: 100%" data-table-controls="off" data-table-sort="off" class="invoice-summary"><colgroup><col style="width: 47%;"><col style="width: 20%;"><col style="width: 5%;"><col style="width: 28%;"></colgroup>
+  <table cellpadding="1" cellspacing="1" border="0" style="width: 100%" data-table-controls="off" data-table-sort="off" class="invoice-summary invoice-layout-table" data-print-table="summary"><colgroup><col style="width: 47%;"><col style="width: 20%;"><col style="width: 5%;"><col style="width: 28%;"></colgroup>
     <tbody>
       
       <tr>
-        <td style="text-align: right;"><span style="">Tổng tiền hàng:&nbsp;</span></td>
-        <td style="text-align: right;"><span style="">{Tong_Tien_Hang}</span></td>
+        <td style="text-align: left;"><span style="">Tổng tiền hàng:&nbsp;</span></td>
+        <td style="text-align: left;"><span style="">{Tong_Tien_Hang}</span></td>
         <td style="border-right: medium;"><br></td>
-        <td style="text-align: right;">
+        <td style="text-align: left;">
           <p style="text-align: center;"><span style=""><strong><u>Người nhận
                   hàng</u></strong><u>&nbsp;</u></span></p>
         </td>
       </tr>
       <tr>
-        <td style="text-align: right;"><span style="">Giảm giá hóa đơn:</span></td>
-        <td style="text-align: right;"><span style="">{Chiet_Khau_Hoa_Don}</span></td>
+        <td style="text-align: left;"><span style="">Giảm giá hóa đơn:</span></td>
+        <td style="text-align: left;"><span style="">{Chiet_Khau_Hoa_Don}</span></td>
         <td style="border-right: medium;"><br></td>
-        <td style="text-align: right;">
+        <td style="text-align: left;">
           <p style="text-align: center;"></p>
         </td>
       </tr>
       <tr>
-        <td style="text-align: right;"><span style=""><strong>Tổng thanh toán:</strong></span>
+        <td style="text-align: left;"><span style=""><strong>Tổng thanh toán:</strong></span>
         </td>
-        <td style="text-align: right;"><span style=""><strong>{Tong_Cong}</strong></span></td>
+        <td style="text-align: left;"><span style=""><strong>{Tong_Cong}</strong></span></td>
         <td style="border-right: medium;"><br></td>
-        <td style="text-align: right;">&nbsp;</td>
+        <td style="text-align: left;">&nbsp;</td>
       </tr>
       <tr>
-        <td style="text-align: right;"><span style="">Công nợ cũ:</span></td>
-        <td style="text-align: right;"><span style="">&nbsp;{Du_No_Truoc}</span></td>
+        <td style="text-align: left;"><span style="">Công nợ cũ:</span></td>
+        <td style="text-align: left;"><span style="">&nbsp;{Du_No_Truoc}</span></td>
         <td style="border-right: medium;"><br></td>
-        <td style="text-align: right;">&nbsp;</td>
+        <td style="text-align: left;">&nbsp;</td>
       </tr>
       <tr>
-        <td style="text-align: right;"><span style=""><strong>Tổng công nợ:</strong></span>
+        <td style="text-align: left;"><span style=""><strong>Tổng công nợ:</strong></span>
         </td>
-        <td style="text-align: right;"><span style=""><strong>{Du_No_Tam_Tinh}</strong></span>
+        <td style="text-align: left;"><span style=""><strong>{Du_No_Tam_Tinh}</strong></span>
         </td>
         <td style="border-right: medium;"><br></td>
-        <td style="text-align: right;">&nbsp;</td>
+        <td style="text-align: left;">&nbsp;</td>
       </tr>
     </tbody>
   </table>
-  <p class="invoice-notes"><strong><u>Ghi chú: {Ghi_Chu}</u></strong></p>
-  <table style="margin-top: 20px; width: 100%" data-table-controls="off" data-table-sort="off" class="invoice-signatures">
+  <table class="invoice-notes invoice-layout-table" data-print-table="notes" data-table-controls="off" data-table-sort="off"><colgroup><col style="width:100%"></colgroup><tbody><tr><td><strong><u>Ghi chú: {Ghi_Chu}</u></strong></td></tr></tbody></table>
+  <table style="margin-top: 20px; width: 100%" data-table-controls="off" data-table-sort="off" class="invoice-signatures invoice-layout-table" data-print-table="signatures"><colgroup><col style="width:50%"><col style="width:50%"></colgroup>
     <tbody>
       <tr>
         <td>&nbsp;</td>

@@ -95,18 +95,22 @@ async function defaultLoadOrder({ branch, orderCode }) {
     invoiceDiscount: Number(detail.discount) || 0,
     customerPhone: detail.customerPhone || '',
     customerAddress: detail.customerAddress || '',
-    sellerPhone: detail.sellerPhone || '',
+    sellerPhone: detail.sellerPhone || await kiotData.readSellerPhone(tx.DB_BRANCH[branch], detail.sellerId),
     note: detail.note || row.note || '',
     lines: detail.lines
   };
 }
 
-function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoadOrder } = {}) {
+function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoadOrder,
+  loadSellerPhone = loadOrder === defaultLoadOrder ? kiotData.loadSellerPhone : null } = {}) {
   // ---------- Doc / dinh dang ----------
 
   async function readAssignment(db, id) {
     const head = (await db.query('SELECT * FROM order_pick_assignments WHERE id = $1', [id])).rows[0];
     if (!head) return null;
+    // Older snapshots have no seller contact: supplement the print response without rewriting history.
+    const snapshot = {...(head.order_snapshot || {})};
+    if (!snapshot.sellerPhone && loadSellerPhone) snapshot.sellerPhone = await loadSellerPhone(db, head.branch, head.order_code);
     const lines = (await db.query('SELECT * FROM order_pick_lines WHERE assignment_id = $1 ORDER BY id', [id])).rows;
     const history = (await db.query('SELECT created_at, action, actor_name, summary FROM order_pick_history WHERE assignment_id = $1 ORDER BY id', [id])).rows;
     const at = value => (value ? isoOf(value) : null);
@@ -122,7 +126,7 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
       confirmedAt: at(head.confirmed_at),
       cancelledByName: head.cancelled_by_name || null,
       cancelledAt: at(head.cancelled_at),
-      snapshot: head.order_snapshot || {},
+      snapshot,
       lines: lines.map(line => ({
         id: Number(line.id),
         productCode: line.product_code,

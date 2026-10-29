@@ -1,5 +1,7 @@
 # TOKOSI Dashboard
 
+29/10/2026 — **Mẫu in theo cột:** ID Telegram đậm +1pt; Zalo lấy `mobilePhone` của Kiot `/users` theo ID người bán/cơ sở; các bảng tổng tiền, ghi chú và chữ ký có viền trắng, kéo cột và lưu định dạng từng cột. Sửa kiểm tra mẫu giao hàng thành 6 cột. Xem [thiết kế](docs/superpowers/specs/2026-10-29-print-columns-design.md) và [kế hoạch](docs/superpowers/plans/2026-10-29-print-columns.md). Chưa deploy.
+
 > **Nguyên tắc tiên quyết:** với chức năng chưa quen thuộc, đừng viết từ con số 0 — tìm các dự án mã nguồn mở trên GitHub để so sánh ý tưởng trước khi bắt tay làm (xem mục 0 của [CLAUDE.md](CLAUDE.md)).
 
 26/10/2026 — **Bảng nhập liệu:** sort đọc giá trị hiện tại của input/textarea/select, ưu tiên hơn metadata cũ; so sánh đúng số/ngày và giữ SĐT dạng chữ. Tiêu đề bảng căn giữa, nội dung số vẫn căn phải. Đã kiểm tra 54/54 test liên quan và fixture Edge desktop/mobile, sáng/tối; toàn suite 3.582 test: 3.579 đạt, 3 bỏ qua, 0 lỗi; chưa commit/push/deploy. Xem [thiết kế](docs/superpowers/specs/2026-10-26-editable-table-sorting-design.md).

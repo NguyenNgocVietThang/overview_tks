@@ -67,7 +67,7 @@ function summarize(lines) {
 async function getOrderDetail({ code, branchCode, pool = getPool() } = {}) {
   const orderCode = cleanCode(code);
   const { rows: heads } = await pool.query(
-    `SELECT o.id,
+    `SELECT o.id, o.sold_by_id,
             o.code,
             COALESCE(to_char(o.order_date AT TIME ZONE 'UTC', '${DATE_FORMAT}'), '') AS order_date,
             COALESCE(NULLIF(c.name, ''), NULLIF(o.raw->>'customerName', ''), 'Khách lẻ') AS customer_name,
@@ -110,8 +110,9 @@ async function getOrderDetail({ code, branchCode, pool = getPool() } = {}) {
     customerName: head.customer_name,
     customerPhone: head.customer_phone || '',
     customerAddress: head.customer_address || '',
-    // Kiot staff master has no phone column; do not infer contacts by name.
+    // Contact is resolved by sellerId through Kiot /users by the picking service.
     sellerPhone: '',
+    sellerId: head.sold_by_id || null,
     customerCode: head.customer_code,
     seller: head.seller,
     warehouse: head.warehouse,

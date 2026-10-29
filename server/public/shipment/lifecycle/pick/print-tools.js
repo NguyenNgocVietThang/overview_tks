@@ -11,7 +11,11 @@ function formattingControls(host,restore=true,shared=null){
   if(!root)return;
   host.replaceChildren();
   const storageKey='tokosi.print-layout.v2.'+root.dataset.template;
-  const cols=[...root.querySelectorAll('.invoice-goods col')];
+  const tableKey=el=>el.closest('table')?.dataset.printTable||'goods';
+  const tables=new Map([['goods',root.querySelector('.invoice-goods')],...[...root.querySelectorAll('[data-print-table]')].map(t=>[t.dataset.printTable,t])]);
+  const columns=table=>[...table.querySelectorAll('col')];
+  const cols=columns(tables.get('goods'));
+  const names=()=>[...tables.keys()].flatMap(key=>['header','body'].map(section=>key==='goods'?section:key+':'+section));
   const rows=[...root.querySelectorAll('.invoice-goods tr')];
   const defaults=new Map([root,...root.querySelectorAll('*')].map(el=>[el,el.getAttribute('style')]));
   let prefs={widths:[],heights:[],fonts:[],groups:{},blocks:[]};
@@ -30,9 +34,12 @@ function formattingControls(host,restore=true,shared=null){
     return nodes;
   };
   const find=path=>{try{return path?root.querySelector(path):root;}catch(error){return null;}};
-  const sectionOf=cell=>cell.closest('thead')?'header':'body';
-  const sectionRows=name=>[...root.querySelectorAll('.invoice-goods '+(name==='header'?'thead':'tbody')+' tr')];
-  const groupOf=name=>prefs.groups[name]||(prefs.groups[name]={});
+  const sectionOf=cell=>(tableKey(cell)==='goods'?'':tableKey(cell)+':')+(cell.closest('thead')?'header':'body');
+  const tablePrefs=key=>key==='goods'?prefs:((prefs.tables||={})[key]||={widths:[],heights:[],fonts:[],groups:{}});
+  const parts=name=>name.includes(':')?name.split(':'):['goods',name];
+  const sectionRows=name=>{const [key,section]=parts(name);return [...tables.get(key).querySelectorAll((section==='header'?'thead':'tbody')+' tr')];};
+  const getGroup=name=>{const [key,section]=parts(name);return tablePrefs(key).groups?.[section];};
+  const groupOf=name=>{const [key,section]=parts(name),p=tablePrefs(key);p.groups||={};return p.groups[section]||={};};
   const points=el=>{const value=getComputedStyle(el).fontSize;return (parseFloat(value)||16)*(value.endsWith('pt')?1:.75);};
   const format=(el,style)=>{
     for(const node of [el,...el.querySelectorAll('*')]){
@@ -46,16 +53,16 @@ function formattingControls(host,restore=true,shared=null){
   const equalRows=name=>{
     const list=sectionRows(name);if(!list.length)return;
     list.forEach(r=>r.style.removeProperty('height'));
-    const height=Math.max(16,prefs.groups[name]?.height||0,...list.map(r=>r.getBoundingClientRect().height));
+    const height=Math.max(16,getGroup(name)?.height||0,...list.map(r=>r.getBoundingClientRect().height));
     list.forEach(r=>r.style.height=height+'px');
   };
   const applyGroup=name=>{
-    const group=prefs.groups[name];
+    const group=getGroup(name);
     if(group)for(const row of sectionRows(name))for(const cell of row.cells){
       if(group.size!==undefined)format(cell,{size:group.size});
       const style=group.columns?.[cell.cellIndex];if(style)format(cell,style);
     }
-    if(name==='body'||group)equalRows(name);
+    if(name==='body'||group?.height!==undefined)equalRows(name);
   };
   const paint=op=>{
     if(!op||!Number.isInteger(op.start)||!Number.isInteger(op.end)||op.start<0||op.end<=op.start)return;
@@ -73,24 +80,27 @@ function formattingControls(host,restore=true,shared=null){
     if(restore&&saved&&Array.isArray(saved.widths)&&Array.isArray(saved.heights)&&Array.isArray(saved.fonts)){
       prefs={...saved,groups:saved.groups||{},blocks:saved.blocks||[]};
       const widths=saved.widths.map(Number);
+      for(const [key,table] of tables){if(key==='goods')continue;const widths=tablePrefs(key).widths,cols=columns(table);
+        if(widths?.length===cols.length&&widths.every(n=>Number.isFinite(n)&&n>=2)&&Math.abs(widths.reduce((a,b)=>a+b,0)-100)<.1)cols.forEach((c,i)=>c.style.width=widths[i]+'%');
+      }
       if(widths.length===cols.length&&widths.every(n=>Number.isFinite(n)&&n>=2)&&Math.abs(widths.reduce((a,b)=>a+b,0)-100)<.1)cols.forEach((c,i)=>c.style.width=widths[i]+'%');
       // Chuyển chiều cao cũ theo chỉ số sang hai nhóm để phiếu ít/nhiều dòng đều nhận cùng form.
       for(const name of ['body','header']){
         const old=sectionRows(name).map(r=>Number(saved.heights[rows.indexOf(r)])).filter(h=>Number.isFinite(h)&&h>=16&&h<=1200);
-        if(old.length&&prefs.groups[name]?.height===undefined)groupOf(name).height=Math.max(...old);
+        if(old.length&&getGroup(name)?.height===undefined)groupOf(name).height=Math.max(...old);
       }
       saved.fonts.forEach(paint);
       prefs.blocks.forEach(op=>{const block=find(op.path);if(block)format(block,{align:op.align});});
     }
   }catch(error){/* JSON cũ/hỏng hoặc localStorage không khả dụng. */}
-  applyGroup('header');applyGroup('body');
+  names().forEach(applyGroup);
   // Chạm ngay viền bảng: không thêm nút hoặc chữ vào nội dung phiếu.
   let edge=null,drag=null;
   const hit=event=>{
-    const cell=event.target.closest?.('.invoice-goods td,.invoice-goods th');
+    const cell=event.target.closest?.('.invoice-goods td,.invoice-goods th,[data-print-table] td,[data-print-table] th');
     if(!cell||!root.contains(cell))return null;
     const rect=cell.getBoundingClientRect(),table=cell.closest('table');
-    const index=cell.cellIndex;
+    const index=cell.cellIndex,cols=columns(table);
     if(index<cols.length-1&&Math.abs(event.clientX-rect.right)<=5)return {type:'col',index,table};
     if(index>0&&Math.abs(event.clientX-rect.left)<=5)return {type:'col',index:index-1,table};
     if(Math.abs(event.clientY-rect.bottom)<=5)return {type:'row',row:cell.parentElement};
@@ -106,16 +116,17 @@ function formattingControls(host,restore=true,shared=null){
     if(event.button!==0)return;
     edge=hit(event);if(!edge)return;
     event.preventDefault();
-    drag={...edge,x:event.clientX,y:event.clientY,widths:cols.map(c=>parseFloat(c.style.width)),height:edge.row?.getBoundingClientRect().height};
+    drag={...edge,cols:columns(edge.table||edge.row.closest('table')),x:event.clientX,y:event.clientY,widths:columns(edge.table||edge.row.closest('table')).map(c=>parseFloat(c.style.width)),height:edge.row?.getBoundingClientRect().height};
     const oldSelect=root.style.userSelect;root.style.userSelect='none';
     const move=e=>{
       if(drag.type==='col'){
         const i=drag.index,total=drag.widths[i]+drag.widths[i+1],tableWidth=drag.table.getBoundingClientRect().width;
         if(!tableWidth)return;
         const width=Math.max(2,Math.min(total-2,drag.widths[i]+(e.clientX-drag.x)*100/tableWidth));
-        cols[i].style.width=width+'%';cols[i+1].style.width=(total-width)+'%';
-        prefs.widths=cols.map(c=>parseFloat(c.style.width));
-        equalRows('body');if(prefs.groups.header)equalRows('header');
+        drag.cols[i].style.width=width+'%';drag.cols[i+1].style.width=(total-width)+'%';
+        tablePrefs(tableKey(drag.table)).widths=drag.cols.map(c=>parseFloat(c.style.width));
+        const prefix=tableKey(drag.table)==='goods'?'':tableKey(drag.table)+':';
+        applyGroup(prefix+'body');applyGroup(prefix+'header');
       }else{
         const name=sectionOf(drag.row);
         groupOf(name).height=Math.max(16,Math.min(1200,drag.height+e.clientY-drag.y));
@@ -146,7 +157,7 @@ function formattingControls(host,restore=true,shared=null){
     const style=align?{align}:key==='b'?{bold:!(computed.fontWeight==='bold'||Number(computed.fontWeight)>=600)}:key==='i'?{italic:!['italic','oblique'].includes(computed.fontStyle)}:{};
     const groups=new Map(),ops=[],blocks=new Map();
     for(const node of nodes){
-      const cell=node.parentElement.closest('.invoice-goods td,.invoice-goods th');
+      const cell=node.parentElement.closest('.invoice-goods td,.invoice-goods th,[data-print-table] td,[data-print-table] th');
       if(cell){
         const name=sectionOf(cell);
         if(!groups.has(name))groups.set(name,{columns:new Set(),first:node.parentElement});
@@ -161,11 +172,12 @@ function formattingControls(host,restore=true,shared=null){
     }
     for(const [name,target] of groups){
       const group=groupOf(name);
-      if(delta)group.size=Math.max(7,Math.min(36,Math.round((group.size??points(target.first))*2)/2+delta));
-      else{
-        group.columns||={};
-        target.columns.forEach(index=>group.columns[index]={...group.columns[index],...style});
-      }
+      group.columns||={};
+      target.columns.forEach(index=>{
+        const cell=sectionRows(name).map(r=>r.cells[index]).find(c=>c&&selected.intersectsNode(c));
+        const size=delta?{size:Math.max(7,Math.min(36,Math.round((group.columns[index]?.size??group.size??points(cell||target.first))*2)/2+delta))}:{};
+        group.columns[index]={...group.columns[index],...style,...size};
+      });
       applyGroup(name);
     }
     blocks.forEach(op=>{
@@ -193,7 +205,7 @@ function formattingControls(host,restore=true,shared=null){
     equalRows('body');
   };
   // showModal mở sau prepare; đo lại khi bảng đã hiển thị để lấy đúng chiều cao tự nhiên.
-  window.requestAnimationFrame?.(()=>{if(root.isConnected){applyGroup('body');if(prefs.groups.header)applyGroup('header');}});
+  window.requestAnimationFrame?.(()=>{if(root.isConnected)names().forEach(applyGroup);});
 }
 const layoutWrites=new Map();
 async function prepare(){
@@ -248,7 +260,7 @@ function printDocument(){
   const content=$('pickingPrintSheet').cloneNode(true);
   content.querySelectorAll('[contenteditable]').forEach(el=>el.setAttribute('contenteditable','false'));
   const title=$('pickingPrintTitle').textContent;
-  return '<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+esc(title)+'</title><style>'+css.join('\n')+'\nbody{margin:0;background:#eee;font-family:Arial,sans-serif}#pickingPrintDialog{max-width:794px;margin:20px auto;background:white}.print-controls{padding:12px;text-align:center}.print-controls button{padding:9px 14px;margin:4px;cursor:pointer}.print-controls p{font-size:12px} [contenteditable]:focus{outline:1px dashed #888}@media print{.print-controls{display:none!important}body{background:white}#pickingPrintDialog{margin:0;max-width:none}[contenteditable]:focus{outline:none}}</style></head><body><div class="print-controls"><button id="printDocument">'+printerIcon+'<span>In</span></button><button id="saveDocument">Lưu file HTML</button><p>Nội dung và số liệu chỉ đọc. Kéo viền chỉnh cột/hàng; bôi đen và Ctrl+] / Ctrl+[ chỉnh cỡ chữ. Ctrl+L / R / E căn trái / phải / giữa; Ctrl+B / I đậm / nghiêng. Hàng dữ liệu đồng bộ, tiêu đề chỉnh riêng. Bấm In để chọn máy in. Chỉnh form chung tại Dashboard; thay đổi trong file này chỉ áp dụng cho file này.</p></div><div id="pickingPrintFormatting" class="print-format-controls"></div><main id="pickingPrintDialog">'+content.outerHTML+'</main><script>'+formattingControls.toString()+';('+standaloneControls.toString()+')();<\/script></body></html>';
+  return '<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+esc(title)+'</title><style>'+css.join('\n')+'\nbody{margin:0;background:#eee;font-family:Arial,sans-serif}#pickingPrintDialog{max-width:794px;margin:20px auto;background:white}.print-controls{padding:12px;text-align:center}.print-controls button{padding:9px 14px;margin:4px;cursor:pointer}.print-controls p{font-size:12px} [contenteditable]:focus{outline:1px dashed #888}@media print{.print-controls{display:none!important}body{background:white}#pickingPrintDialog{margin:0;max-width:none}[contenteditable]:focus{outline:none}}</style></head><body><div class="print-controls"><button id="printDocument">'+printerIcon+'<span>In</span></button><button id="saveDocument">Lưu file HTML</button><p>Nội dung và số liệu chỉ đọc. Kéo viền chỉnh cột/hàng; bôi đen và Ctrl+] / Ctrl+[ chỉnh cỡ chữ. Ctrl+L / R / E căn trái / phải / giữa; Ctrl+B / I đậm / nghiêng. Định dạng đồng bộ theo cột trong từng bảng; tiêu đề chỉnh riêng. Bấm In để chọn máy in. Chỉnh form chung tại Dashboard; thay đổi trong file này chỉ áp dụng cho file này.</p></div><div id="pickingPrintFormatting" class="print-format-controls"></div><main id="pickingPrintDialog">'+content.outerHTML+'</main><script>'+formattingControls.toString()+';('+standaloneControls.toString()+')();<\/script></body></html>';
 }
 function save(){
   const blob=new Blob([printDocument()],{type:'text/html;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');

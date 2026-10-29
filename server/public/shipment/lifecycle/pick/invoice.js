@@ -33,12 +33,12 @@ let assetsPromise=null;
 // Mẫu giao hàng không có giá; cùng nguồn dòng hàng/vị trí với phiếu đặt hàng.
 const deliveryTemplate=`<div class="delivery-heading"><strong class="delivery-title">PHIẾU XÁC NHẬN GIAO HÀNG</strong><p>Mã đặt hàng: {Ma_Don_Hang}</p></div>
 <div class="delivery-contacts"><p><strong><u>Người gửi:</u></strong><br>{Nguoi_Gui}</p>
-<p><strong><u>Người nhận:</u></strong><br>Khách hàng: {Khach_Hang}<br>SĐT KH: {So_Dien_Thoai}<br>Địa chỉ: {Dia_Chi_Khach_Hang}<br>NV Bán hàng: {Nhan_Vien_Ban_Hang}</p></div>
+<p><strong><u>Người nhận:</u></strong><br>Khách hàng: {Khach_Hang}<br>SĐT KH: {So_Dien_Thoai}<br>Địa chỉ: {Dia_Chi_Khach_Hang}<br>NV Bán hàng: {Nhan_Vien_Ban_Hang}<span class="invoice-telegram-slot"></span></p></div>
 <table class="invoice-goods" data-table-controls="off" data-table-sort="off"><colgroup><col style="width:5%"><col style="width:39%"><col style="width:8%"><col style="width:14%"><col style="width:18%"><col style="width:16%"></colgroup>
 <thead><tr><td>TT</td><td>Tên hàng</td><td>SL</td><td>Vị trí</td><td>Thùng</td><td>Thực nhặt</td></tr></thead>
 <tbody><tr><td>{STT}</td><td>{Ten_Hang_Hoa_Don_Gian}</td><td>{So_Luong}</td><td class="invoice-location">{Vi_Tri_Hang_Hoa}</td><td class="invoice-st">{ST}</td><td class="invoice-actual">{Thuc_Te_Nhat}</td></tr></tbody></table>
-<p class="delivery-note"><strong><u>Quý khách vui lòng kiểm tra hàng khi nhận, gọi trước cho khách, báo sale thu tiền.</u></strong></p>
-<div class="delivery-signatures"><div><strong>Người nhận hàng</strong></div><div><strong>Nhân viên nhặt hàng</strong></div><div><em>Ngày {Ngay} tháng {Thang} năm {Nam}</em><br><strong>Nhân viên xuất hàng</strong></div></div>`;
+<table class="invoice-layout-table delivery-note" data-print-table="deliveryNote" data-table-controls="off" data-table-sort="off"><colgroup><col style="width:100%"></colgroup><tbody><tr><td><strong><u>Quý khách vui lòng kiểm tra hàng khi nhận, gọi trước cho khách, báo sale thu tiền.</u></strong></td></tr></tbody></table>
+<table class="invoice-layout-table delivery-signatures" data-print-table="deliverySignatures" data-table-controls="off" data-table-sort="off"><colgroup><col style="width:30%"><col style="width:30%"><col style="width:40%"></colgroup><tbody><tr><td><strong>Người nhận hàng</strong></td><td><strong>Nhân viên nhặt hàng</strong></td><td><em>Ngày {Ngay} tháng {Thang} năm {Nam}</em><br><strong>Nhân viên xuất hàng</strong></td></tr></tbody></table>`;
 let currentPrint=null;
 
 async function fetchText(url){
@@ -59,7 +59,7 @@ function loadAssets(){
   if(window.PickingInvoiceTemplate&&window.PickingPrintCSS)return Promise.resolve();
   if(!assetsPromise){
     assetsPromise=(async()=>{
-      const [template,css]=await Promise.all([fetchText(BASE+'order-template.tpl?v=20261029-3'),fetchText(BASE+'invoice-a4.css?v=20261029-3')]);
+      const [template,css]=await Promise.all([fetchText(BASE+'order-template.tpl?v=20261029-4'),fetchText(BASE+'invoice-a4.css?v=20261029-4')]);
       let out=template;
       for(const id of new Set([...template.matchAll(CDN)].map(m=>m[1]))){
         const uri=await dataUri(BASE+'invoice-assets/'+id+'.jpg');
@@ -150,12 +150,17 @@ async function show(order,record,template='order'){
   const datePart=name=>dateParts.find(part=>part.type===name).value;
   root.innerHTML=replace(root.innerHTML,{
     // Bản in ghi cả ID Telegram cạnh tên sale, đúng dạng KiotViet lưu: "<tên> - <ID>".
-    Nhan_Vien_Ban_Hang:(order.saleName||'')+(order.saleTelegramId?' - '+order.saleTelegramId:''),Dien_Thoai_Nguoi_Ban:order.sellerPhone,
+    Nhan_Vien_Ban_Hang:order.saleName||'',Dien_Thoai_Nguoi_Ban:order.sellerPhone||'',
     Ma_Don_Hang:order.orderCode,Khach_Hang:order.customerName,So_Dien_Thoai:order.customerPhone,Dia_Chi_Khach_Hang:order.customerAddress,
     Nguoi_Gui:order.branch==='SG'?'TỔNG KHO GIA DỤNG SÀI GÒN':'TỔNG KHO GIA DỤNG HÀ NỘI',
     Tong_Tien_Hang:money(totalKnown?total:null),Chiet_Khau_Hoa_Don:money(discount),Tong_Cong:money(payable),Du_No_Truoc:money(prior),
     Du_No_Hoa_Don:money(debt),Du_No_Tam_Tinh:money(debt),
     Ghi_Chu:order.note||'',Ngay:datePart('day'),Thang:datePart('month'),Nam:datePart('year')
+  });
+  root.querySelectorAll('.invoice-telegram-slot').forEach(slot=>{
+    if(!order.saleTelegramId){slot.remove();return;}
+    const id=document.createElement('strong');id.className='invoice-telegram';id.textContent=order.saleTelegramId;
+    slot.replaceChildren(document.createTextNode(' - '),id);
   });
   const title=delivery?'PHIẾU XÁC NHẬN GIAO HÀNG':'PHIẾU ĐẶT HÀNG';
   const heading=[...root.querySelectorAll('strong')].find(el=>/HÓA ĐƠN\s*BÁN\s*HÀNG/.test(el.textContent.replace(/ /g,' ')));

@@ -1,12 +1,22 @@
 'use strict';
 // Form in chung: chỉ lưu định dạng, không nhận HTML/text hoặc dữ liệu đơn.
 const fail=(statusCode,message)=>Object.assign(new Error(message),{statusCode});
-const templates={order:9,delivery:7};
+const templates={order:9,delivery:6};
+const footerTables={order:{summary:4,signatures:2,notes:1},delivery:{deliverySignatures:3,deliveryNote:1}};
 function assertTemplate(template){if(!Object.hasOwn(templates,template))throw fail(400,'Mẫu in không hợp lệ.');}
 const plain=value=>value&&typeof value==='object'&&!Array.isArray(value);
 const validPath=value=>typeof value==='string'&&value.length<=1200&&(value===''||/^([a-z][a-z0-9]*:nth-child\([1-9][0-9]*\))( > [a-z][a-z0-9]*:nth-child\([1-9][0-9]*\))*$/.test(value));
 function validateLayout(template,input){
  assertTemplate(template);
+ const result=validateTable(input,templates[template]);
+ if(input.tables!==undefined){
+  if(!plain(input.tables)||Object.keys(input.tables).some(key=>!Object.hasOwn(footerTables[template],key)))throw fail(400,'Định dạng bảng phụ không hợp lệ.');
+  result.tables={};
+  for(const [key,value] of Object.entries(input.tables))result.tables[key]=validateTable(value,footerTables[template][key]);
+ }
+ return result;
+}
+function validateTable(input,columnCount){
  const invalid=()=>{throw fail(400,'Định dạng phiếu không hợp lệ.');};
  const number=(n,min,max)=>typeof n==='number'&&Number.isFinite(n)&&n>=min&&n<=max;
  const formatting=(source,allowSize=false)=>{
@@ -19,7 +29,7 @@ function validateLayout(template,input){
  };
  if(!input||!Array.isArray(input.widths)||!Array.isArray(input.heights)||!Array.isArray(input.fonts))invalid();
  const {widths,heights,fonts}=input;
- if(widths.length&&(widths.length!==templates[template]||widths.some(n=>!number(n,2,100))||Math.abs(widths.reduce((a,b)=>a+b,0)-100)>.1))invalid();
+ if(widths.length&&(widths.length!==columnCount||widths.some(n=>!number(n,2,100))||Math.abs(widths.reduce((a,b)=>a+b,0)-100)>.1))invalid();
  if(heights.length>2000||heights.some(n=>n!==null&&!number(n,16,1200)))invalid();
  if(fonts.length>2000)invalid();
  const cleanFonts=fonts.map(op=>{
@@ -38,11 +48,11 @@ function validateLayout(template,input){
    if(group.height!==undefined){if(!number(group.height,16,1200))invalid();clean.height=group.height;}
    if(group.size!==undefined){if(!number(group.size,7,36))invalid();clean.size=group.size;}
    if(group.columns!==undefined){
-    if(!plain(group.columns)||Object.keys(group.columns).length>templates[template])invalid();
+    if(!plain(group.columns)||Object.keys(group.columns).length>columnCount)invalid();
     clean.columns={};
     for(const [index,format] of Object.entries(group.columns)){
-     if(!/^(0|[1-9][0-9]*)$/.test(index)||Number(index)>=templates[template])invalid();
-     clean.columns[index]=formatting(format);
+     if(!/^(0|[1-9][0-9]*)$/.test(index)||Number(index)>=columnCount)invalid();
+     clean.columns[index]=formatting(format,true);
     }
    }
    result.groups[key]=clean;

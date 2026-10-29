@@ -109,7 +109,7 @@ test('direct print formatting keeps text read-only, persists across sessions and
     assert.equal(root.getAttribute('contenteditable'),'false');
     const exported=new JSDOM(w.PickingPrint.document());
     assert.equal(exported.window.document.querySelector('[contenteditable="true"]'),null);
-    assert.equal(exported.window.document.querySelector('.invoice-goods tbody td').style.fontSize,'13pt');
+    assert.equal(exported.window.document.querySelector('.invoice-goods tbody td:nth-child(2)').style.fontSize,'13pt');
     assert.equal(exported.window.document.querySelector('.invoice-goods col').style.width,'6%');
     assert.equal(exported.window.document.querySelector('.invoice-goods tr').style.height,'45px');
     exported.window.close();
@@ -118,7 +118,7 @@ test('direct print formatting keeps text read-only, persists across sessions and
     assert.equal(d.querySelector('[data-print-font]'),null);
     await w.PickingInvoice.changeTemplate('order');
     assert.equal(d.querySelector('.invoice-goods col').style.width,'6%');
-    assert.equal(d.querySelector('.invoice-goods tbody td').style.fontSize,'13pt');
+    assert.equal(d.querySelector('.invoice-goods tbody td:nth-child(2)').style.fontSize,'13pt');
     // Another user/browser receives the shared server form without any local preferences.
     const reopened=await invoice(order,record);
     try{
@@ -129,7 +129,7 @@ test('direct print formatting keeps text read-only, persists across sessions and
       const rd=reopened.window.document;
       assert.equal(rd.querySelector('.invoice-goods col').style.width,'6%');
       assert.equal(rd.querySelector('.invoice-goods tr').style.height,'45px');
-      assert.equal(rd.querySelector('.invoice-goods tbody td').style.fontSize,'13pt');
+      assert.equal(rd.querySelector('.invoice-goods tbody td:nth-child(2)').style.fontSize,'13pt');
       rd.querySelector('#pickingPrintFormatting button').click();
       assert.equal(rd.querySelector('[data-print-font]'),null);
       assert.equal(rd.querySelector('.invoice-goods col').style.width,'4%');
@@ -252,7 +252,7 @@ test('phiếu in gộp thùng trong từng khu, nối cộng giữa các khu và
  }finally{dom.window.close();}
 });
 
-test('table body rows share size/height, header stays separate and shortcuts persist for other users/new rows',async()=>{
+test('table body columns share size and rows share height, header stays separate and shortcuts persist for other users/new rows',async()=>{
  const order={schemaVersion:2,orderCode:'DH-STYLE',lines:[1,2].map(n=>({productCode:'P'+n,productName:'Hàng '+n,quantity:10,unitPrice:'1',amount:'10'}))};
  const record={status:'picking',lines:[]},saved={};
  const fetchShared=async(url,options={})=>{
@@ -271,7 +271,7 @@ test('table body rows share size/height, header stays separate and shortcuts per
   const select=el=>{const range=d.createRange();range.selectNodeContents(el);w.getSelection().removeAllRanges();w.getSelection().addRange(range);};
   const key=k=>root.dispatchEvent(new w.KeyboardEvent('keydown',{key:k,ctrlKey:true,bubbles:true,cancelable:true}));
   select(bodyRows[0].cells[1]);key(']');
-  assert.ok(bodyRows.every(r=>[...r.cells].every(td=>td.style.fontSize==='13pt')));
+  assert.ok(bodyRows.every(r=>r.cells[1].style.fontSize==='13pt'&&r.cells[0].style.fontSize==='16px'));
   assert.equal(d.querySelector('.invoice-goods thead td').style.fontSize,'');
   for(const [shortcut,align] of [['l','left'],['r','right'],['e','center']]){
    key(shortcut);assert.ok(bodyRows.every(r=>r.cells[1].style.textAlign===align));
@@ -286,7 +286,7 @@ test('table body rows share size/height, header stays separate and shortcuts per
   assert.ok(bodyRows.every(r=>r.style.height==='44px'));
   const header=d.querySelector('.invoice-goods thead td');select(header);key(']');key('r');
   assert.equal(header.style.textAlign,'right');assert.equal(bodyRows[0].cells[0].style.textAlign,'center');
-  assert.ok(bodyRows.every(r=>r.cells[0].style.fontSize==='13pt'));
+  assert.ok(bodyRows.every(r=>r.cells[0].style.fontSize==='16px'));
   const lastHeader=d.querySelector('.invoice-goods thead td:last-child');select(lastHeader);key('r');
   assert.equal(lastHeader.querySelector('p').style.textAlign,'right');
   const title=d.querySelector('.invoice-title');select(title);key('e');assert.equal(title.closest('p').style.textAlign,'center');
@@ -298,11 +298,48 @@ test('table body rows share size/height, header stays separate and shortcuts per
   try{
    const rw=reopened.window;rw.fetch=fetchShared;rw.eval(fs.readFileSync(path.join(dir,'print-tools.js'),'utf8'));await rw.PickingPrint.prepare();
    const rows=[...rw.document.querySelectorAll('.invoice-goods tbody tr')];assert.equal(rows.length,4);
-   assert.ok(rows.every(r=>r.style.height==='44px'&&r.cells[0].style.fontSize==='13pt'&&r.cells[1].style.textAlign==='center'&&r.cells[1].style.fontWeight==='bold'&&r.cells[1].style.fontStyle==='italic'));
+   assert.ok(rows.every(r=>r.style.height==='44px'&&r.cells[0].style.fontSize===''&&r.cells[1].style.fontSize==='13pt'&&r.cells[1].style.textAlign==='center'&&r.cells[1].style.fontWeight==='bold'&&r.cells[1].style.fontStyle==='italic'));
    assert.equal(rw.document.querySelector('.invoice-goods thead td').style.textAlign,'right');
    const exported=new JSDOM(rw.PickingPrint.document());
    assert.equal(exported.window.document.querySelector('.invoice-goods tbody td:nth-child(2)').style.fontWeight,'bold');exported.window.close();
    rw.document.querySelector('#pickingPrintFormatting button').click();assert.equal(rows[0].cells[1].style.textAlign,'');assert.equal(rows[0].cells[1].style.fontWeight,'');
   }finally{reopened.window.close();}
+ }finally{dom.window.close();}
+});
+
+
+test('Telegram ID is bold and footer columns resize, format and restore independently',async()=>{
+ const order={schemaVersion:2,orderCode:'DH-FOOT',saleName:'Sale A',saleTelegramId:'123456',sellerPhone:'0901234567',lines:[{productCode:'A',productName:'A',quantity:1,unitPrice:'2',amount:'2'}]};
+ const dom=await invoice(order,{status:'picking',lines:[]});
+ try{
+  const w=dom.window,d=w.document;
+  assert.equal(d.querySelector('.invoice-telegram').textContent,'123456');
+  assert.equal(d.querySelector('.invoice-telegram').tagName,'STRONG');
+  assert.match(d.querySelector('.invoice-seller').textContent,/Zalo: 0901234567/);
+  let saved=null;
+  w.fetch=async(url,opts={})=>{if(opts.method==='PUT')saved=JSON.parse(opts.body).layout;return {ok:true,json:async()=>({layout:saved,version:0})};};
+  w.eval(fs.readFileSync(path.join(dir,'print-tools.js'),'utf8'));await w.PickingPrint.prepare();
+  const root=d.querySelector('.tokosi-invoice'),summary=d.querySelector('.invoice-summary'),cell=summary.rows[0].cells[1];
+  assert.equal(summary.querySelectorAll('col').length,4);
+  const range=d.createRange();range.selectNodeContents(cell);w.getSelection().addRange(range);
+  const key=k=>root.dispatchEvent(new w.KeyboardEvent('keydown',{key:k,ctrlKey:true,bubbles:true,cancelable:true}));
+  key(']');key('r');key('b');key('i');
+  assert.ok([...summary.rows].every(r=>r.cells[1].style.fontSize&&r.cells[1].style.textAlign==='right'&&r.cells[1].style.fontWeight==='bold'&&r.cells[1].style.fontStyle==='italic'));
+  assert.equal(summary.rows[0].cells[0].style.fontSize,'');
+  assert.equal(d.querySelector('.invoice-goods tbody td:nth-child(2)').style.fontSize,'');
+  cell.getBoundingClientRect=()=>({left:470,right:670,top:0,bottom:30});summary.getBoundingClientRect=()=>({width:1000});
+  cell.dispatchEvent(new w.MouseEvent('pointerdown',{bubbles:true,button:0,clientX:670,clientY:10}));
+  d.dispatchEvent(new w.MouseEvent('pointermove',{clientX:680,clientY:10}));d.dispatchEvent(new w.MouseEvent('pointerup'));
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(summary.querySelectorAll('col')[1].style.width,'21%');
+  assert.equal(saved.tables.summary.widths[1],21);
+  await w.PickingInvoice.changeTemplate('order');
+  assert.equal(d.querySelector('.invoice-summary').rows[1].cells[1].style.fontStyle,'italic');
+  const exported=new JSDOM(w.PickingPrint.document());
+  assert.equal(exported.window.document.querySelector('.invoice-summary col:nth-child(2)').style.width,'21%');exported.window.close();
+  d.querySelector('#pickingPrintFormatting button').click();assert.equal(d.querySelector('.invoice-summary').rows[1].cells[1].style.fontSize,'');
+  await w.PickingInvoice.changeTemplate('delivery');
+  assert.equal(d.querySelectorAll('.delivery-signatures col').length,3);
+  assert.equal(d.querySelector('.invoice-telegram').textContent,'123456');
  }finally{dom.window.close();}
 });

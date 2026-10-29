@@ -14,14 +14,15 @@ function createKiotVietClient(config) {
     clientSecret,
     retailer,
     fetchImpl = global.fetch,
-    now = Date.now
+    now = Date.now,
+    requestOptions = {}
   } = config;
 
   let cachedToken = null;
   let cachedTokenExpiresAt = 0;
 
   async function fetchJsonWithRetry(url, options = {}, opts = {}) {
-    const { maxRetries = 5, baseDelayMs = 1000, timeoutMs = 45000 } = opts;
+    const { maxRetries = 5, baseDelayMs = 1000, timeoutMs = 45000 } = {...requestOptions,...opts};
     let lastError = null;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {

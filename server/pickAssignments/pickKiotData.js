@@ -9,6 +9,48 @@ const { tx } = require('../stockPositions/stockPositionsService');
 
 const { DB_BRANCH } = tx;
 
+// GET /users: mobilePhone belongs to sold_by_id in the same retailer. Never match by name.
+function createSellerPhoneLookup({
+  getBranches = () => require('../kiotvietSync/config').getConfiguredBranches({warn:()=>{}}),
+  createClient = require('../kiotviet/kiotVietApiClient').createKiotVietClient,
+  now = Date.now
+} = {}) {
+  const cache = new Map();
+  return async (branch, sellerId) => {
+    if (!sellerId) return '';
+    const config = getBranches().find(item => item.branch === branch);
+    if (!config) return '';
+    const key = branch + ':' + (config.retailer || '');
+    let entry = cache.get(key);
+    if (!entry || entry.expires <= now()) {
+      entry = {expires:Infinity};
+      entry.pending = (async () => {
+        try {
+          const phones = new Map();
+          const client = createClient({...config, requestOptions:{maxRetries:1,timeoutMs:5000}});
+          await client.fetchAllPages('users', {}, async users => {
+            for (const user of users) phones.set(String(user.id), String(user.mobilePhone || '').trim());
+          }, {requireComplete:true});
+          entry.expires = now() + 300000;
+          return phones;
+        } catch (error) {
+          entry.expires = now() + 30000;
+          return new Map();
+        }
+      })();
+      cache.set(key, entry);
+    }
+    return (await entry.pending).get(String(sellerId)) || '';
+  };
+}
+const readSellerPhone = createSellerPhoneLookup();
+async function loadSellerPhone(db, branch, orderCode) {
+  try {
+    const {rows} = await db.query('SELECT sold_by_id FROM orders WHERE branch=$1 AND code=$2', [DB_BRANCH[branch], orderCode]);
+    return await readSellerPhone(DB_BRANCH[branch], rows[0]?.sold_by_id);
+  } catch (error) { return ''; }
+}
+
 const codeKey = value => String(value ?? '').trim().toLowerCase();
 const foldText = value => String(value ?? '').normalize('NFD').replace(/[̀-ͯ]/gu, '').replace(/[đĐ]/gu, 'd').toLowerCase().replace(/\s+/gu, ' ').trim();
 
@@ -76,4 +118,4 @@ function diffQuantities(assigned, ordered) {
   return out.sort((a, b) => a.productCode.localeCompare(b.productCode));
 }
 
-module.exports = { kiotOutcome, readKiotStatuses, readKiotQuantities, diffQuantities, codeKey };
+module.exports = { kiotOutcome, readKiotStatuses, readKiotQuantities, diffQuantities, codeKey, createSellerPhoneLookup, readSellerPhone, loadSellerPhone };
