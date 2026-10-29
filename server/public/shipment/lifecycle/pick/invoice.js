@@ -32,6 +32,7 @@ const localPhone=v=>{const raw=String(v??'').trim(),m=/^(?:\+84|0084|84)0?(\d{9}
 const replace=(html,values)=>html.replace(/\{([^{}]+)\}/g,(token,k)=>Object.hasOwn(values,k)?esc(values[k]):token);
 const byName=(a,b)=>String(a).localeCompare(String(b),'vi',{numeric:true,sensitivity:'base'});
 let assetsPromise=null;
+const pageFooter='<p class="invoice-notice" style="text-align: center;"><span><strong><em>Lưu ý: Vui lòng&nbsp;kiểm hàng thừa/thiếu/vỡ trong vòng 3 ngày.<br>Nếu có vấn đề vui lòng báo lại <u>kèm ảnh/video</u> nhận hàng.&nbsp;Xin cảm ơn !</em></strong></span></p>';
 // Mẫu giao hàng không có giá; cùng nguồn dòng hàng/vị trí với phiếu đặt hàng.
 const deliveryTemplate=`<div class="delivery-heading"><strong class="delivery-title">PHIẾU XÁC NHẬN GIAO HÀNG</strong><p>Mã đặt hàng: {Ma_Don_Hang}</p></div>
 <div class="delivery-contacts"><p><strong><u>Người gửi:</u></strong><br>{Nguoi_Gui}</p>
@@ -61,7 +62,7 @@ function loadAssets(){
   if(window.PickingInvoiceTemplate&&window.PickingPrintCSS)return Promise.resolve();
   if(!assetsPromise){
     assetsPromise=(async()=>{
-      const [template,css]=await Promise.all([fetchText(BASE+'order-template.tpl?v=20261029-4'),fetchText(BASE+'invoice-a4.css?v=20261029-4')]);
+      const [template,css]=await Promise.all([fetchText(BASE+'order-template.tpl?v=20261029-7'),fetchText(BASE+'invoice-a4.css?v=20261029-7')]);
       let out=template;
       for(const id of new Set([...template.matchAll(CDN)].map(m=>m[1]))){
         const uri=await dataUri(BASE+'invoice-assets/'+id+'.jpg');
@@ -85,6 +86,9 @@ async function show(order,record,template='order'){
   root.className='tokosi-invoice'+(delivery?' delivery-slip':'');
   root.dataset.template=delivery?'delivery':'order';
   root.innerHTML=delivery?deliveryTemplate:window.PickingInvoiceTemplate;
+  // Thay lưu ý cũ trong luồng nội dung bằng footer dùng chung cho cả hai mẫu.
+  root.querySelectorAll('.invoice-notice,.invoice-demo').forEach(el=>el.remove());
+  root.insertAdjacentHTML('beforeend',pageFooter);
   // Mẫu có selector toàn cục; stylesheet của popup đã giới hạn phạm vi cho nó.
   root.querySelectorAll('style').forEach(el=>el.remove());
   const row=[...root.querySelectorAll('tr')].find(el=>el.textContent.includes('{STT}'));
@@ -167,9 +171,6 @@ async function show(order,record,template='order'){
   const title=delivery?'PHIẾU XÁC NHẬN GIAO HÀNG':'PHIẾU ĐẶT HÀNG';
   const heading=[...root.querySelectorAll('strong')].find(el=>/HÓA ĐƠN\s*BÁN\s*HÀNG/.test(el.textContent.replace(/ /g,' ')));
   if(heading)heading.textContent=title;
-  const marker=document.createElement('p');marker.className='invoice-demo';
-  marker.textContent=order.orderCode+' · '+(order.branch==='SG'?'Sài Gòn':'Hà Nội')+' · Chưa ghi thực tế nhặt'+(record.assignedByName?' · Chỉ định bởi '+record.assignedByName:'')+'.';
-  root.append(marker);
   if(!v2&&!delivery){const warning=document.createElement('p');warning.className='invoice-legacy';warning.textContent='Phiếu cũ chưa lưu dòng gốc; tiền hiển thị theo dữ liệu đã lưu, chưa đối chiếu được chi tiết ban đầu.';root.prepend(warning);}
   root.setAttribute('contenteditable','false');
   root.setAttribute('aria-label','Nội dung phiếu chỉ đọc');
