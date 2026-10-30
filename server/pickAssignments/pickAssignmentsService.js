@@ -26,8 +26,6 @@ const STATUS = Object.freeze({ PICKING: 'picking', CONFIRMED: 'confirmed', CANCE
 const CANCEL_REASON = Object.freeze({ MANUAL: 'manual', REASSIGN: 'reassign', KIOT: 'kiot_cancelled' });
 // Nguoi thuc hien cua cac chuyen trang thai tu dong theo Kiot (lich su ghi ten nay).
 const KIOT_CTX = Object.freeze({ user: Object.freeze({ id: null, hoTen: 'Hệ thống (KiotViet)', username: 'kiot-sync' }) });
-// Chi dinh duoc o moi trang thai vong doi TRU "Don chua gui ke toan" (NOT_SENT).
-const UNASSIGNABLE_STATUS = 'NOT_SENT';
 const MAX_ALLOCATIONS = 500;
 // Ma canh bao chi dinh (cung chuoi voi orderLifecycleService.WARNING).
 const PICK_WARNING = Object.freeze({ KIOT_DIFF: 'PICK_KIOT_DIFF', ORDER_DIFF: 'PICK_ORDER_DIFF' });
@@ -238,13 +236,11 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
       saleTelegramId: order.saleTelegramId,
       orderDate: order.orderDate,
       status: order.status,
-      eligible: canAssignOrder(order) && validationErrors.length === 0,
+      eligible: validationErrors.length === 0, // chi dinh o MOI trang thai vong doi
       validationErrors,
       lines
     };
   }
-
-  const canAssignOrder = order => order.status.code !== UNASSIGNABLE_STATUS;
 
   async function requireOrder(branch, orderCode) {
     const order = await loadOrder({ branch, orderCode });
@@ -332,9 +328,6 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
     assertScope(ctx, branch);
     const orderCode = cleanOrderCode(body.orderCode);
     const { order, lines: kiotLines } = await requireOrder(branch, orderCode);
-    if (!canAssignOrder(order)) {
-      throw fail(409, 'ORDER_NOT_ELIGIBLE', `Đơn đang ở trạng thái "${order.status.label}", đơn "Chưa gửi kế toán" chưa được chỉ định vị trí.`);
-    }
     if (!kiotLines.length) throw fail(400, 'VALIDATION', 'Đơn không có dòng hàng cần nhặt.');
     const invalidQuantities = quantityErrors(order);
     if (invalidQuantities.length) throw fail(400, 'VALIDATION', invalidQuantities.join('; '), { field: 'allocations' });
@@ -640,4 +633,4 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
   return { candidates, get, assign, confirm, cancel, setStatus, reconcileWithKiot, pickWarnings, latestStatuses };
 }
 
-module.exports = { createPickAssignmentsService, mergeOrderLines, applyNeeds, PICK_WARNING, STATUS, CANCEL_REASON, UNASSIGNABLE_STATUS, ...createPickAssignmentsService() };
+module.exports = { createPickAssignmentsService, mergeOrderLines, applyNeeds, PICK_WARNING, STATUS, CANCEL_REASON, ...createPickAssignmentsService() };

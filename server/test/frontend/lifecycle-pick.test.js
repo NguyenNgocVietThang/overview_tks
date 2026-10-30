@@ -595,7 +595,7 @@ test('đơn không còn đủ điều kiện (eligible=false) và chưa chỉ đ
   store.order.eligible = false;
   const page = await renderPage({ store });
   await openPopup(page);
-  assert.match(text(page, 'pickingSource'), /Chưa gửi kế toán/);
+  assert.match(text(page, 'pickingSource'), /chưa đủ điều kiện/);
   assert.equal(page.document.getElementById('pickingConfirm').disabled, true);
   assert.equal(page.document.getElementById('pickingSuggest').disabled, true);
   page.dom.window.close();

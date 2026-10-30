@@ -228,7 +228,6 @@ test('assign: loi 404 / 409 don khong du dieu kien / 400 thieu SL, vi tri la, ma
   try {
     const A = (positionId, qty, productCode = 'AAA1') => ({ productCode, positionId, qty });
     await assert.rejects(() => service.assign(ctx(), { branch: 'HN', orderCode: 'KHONGCO', allocations: [A(1, 1)] }), { statusCode: 404, code: 'NOT_FOUND' });
-    await assert.rejects(() => service.assign(ctx(), { branch: 'HN', orderCode: 'DH003', allocations: [A(1, 250)] }), { statusCode: 409, code: 'ORDER_NOT_ELIGIBLE' });
     await assert.rejects(() => service.assign(ctx(), { branch: 'XX', orderCode: 'DH001', allocations: [] }), { statusCode: 400, code: 'INVALID_BRANCH' });
     await assert.rejects(() => service.assign(ctx(), { branch: 'HN', orderCode: '  ', allocations: [A(1, 1)] }), { statusCode: 400, code: 'VALIDATION' });
     await assert.rejects(() => service.assign(ctx(), assignBody([])), { statusCode: 400, code: 'VALIDATION' });
@@ -377,20 +376,17 @@ test('empty allocation can be saved with mismatch acknowledgement without reserv
   } finally { await db.close(); }
 });
 
-test('chi dinh duoc o moi trang thai vong doi tru "Don chua gui ke toan"; don da huy nhat chi dinh lai duoc', async () => {
+test('chi dinh duoc o MOI trang thai vong doi (ke ca chua gui ke toan); don da huy nhat chi dinh lai duoc', async () => {
   const orders = { DH001: order() };
   const { db, service } = await fixture({ orders });
   try {
     const first = await service.assign(ctx(), assignBody([{ productCode: 'AAA1', positionId: 1, qty: 250 }]));
     await service.cancel(ctx(), first.assignment.id, { version: first.assignment.version });
-    for (const code of ['SENT_TO_ACCOUNTANT', 'DELIVERING', 'DELIVERED', 'SHIP_RECEIVED', 'SIGNED', 'COMPLETED', 'CANCELLED', 'EXCEPTION']) {
+    for (const code of ['NOT_SENT', 'SENT_TO_ACCOUNTANT', 'DELIVERING', 'DELIVERED', 'SHIP_RECEIVED', 'SIGNED', 'COMPLETED', 'CANCELLED', 'EXCEPTION']) {
       orders.DH001 = order({ status: { code, label: code } });
       assert.equal((await service.candidates(ctx(), { branch: 'HN', orderCode: 'DH001' })).order.eligible, true, code);
     }
     orders.DH001 = order({ status: { code: 'NOT_SENT', label: 'Đơn chưa gửi kế toán' } });
-    assert.equal((await service.candidates(ctx(), { branch: 'HN', orderCode: 'DH001' })).order.eligible, false);
-    await assert.rejects(() => service.assign(ctx(), assignBody([{ productCode: 'AAA1', positionId: 1, qty: 250 }])), { code: 'ORDER_NOT_ELIGIBLE' });
-    orders.DH001 = order({ status: { code: 'DELIVERING', label: 'Đơn đang được giao' } });
     const again = await service.assign(ctx(), assignBody([{ productCode: 'AAA1', positionId: 1, qty: 250 }]));
     assert.equal(again.assignment.status, 'picking');
   } finally { await db.close(); }
