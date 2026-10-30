@@ -65,6 +65,10 @@
 .vt-table td.vt-cell-flash{animation:vt-cell-flash 1.6s ease-out}
 @keyframes vt-cell-flash{from{background:color-mix(in srgb,var(--blue) 30%,transparent)}to{background:transparent}}
 @media (prefers-reduced-motion:reduce){.vt-table td.vt-cell-flash{animation:none}}
+/* Hộp chi tiết đang mở mà dòng bị người khác sửa/xóa. */
+.vt-detail-stale{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:0 0 10px;padding:8px 12px;border:1px solid color-mix(in srgb,var(--blue) 55%,transparent);border-radius:var(--radius-sm);background:color-mix(in srgb,var(--blue) 10%,transparent);font-size:13px}
+.vt-detail-stale[hidden]{display:none}
+.vt-detail-stale .vt-row-button{margin-right:0}
 /* Phân trang: đếm dòng bên trái, chọn số dòng + nút trang bên phải. */
 #vtPager{flex-direction:row;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px 16px}
 .vt-page-size select{min-height:40px;padding:0 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel);color:var(--text);font:13px var(--font-body);cursor:pointer}

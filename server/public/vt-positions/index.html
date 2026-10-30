@@ -258,6 +258,10 @@
           <label class="vt-field vt-detail-notes"><span>Ghi chú số thùng</span><input name="notes" type="text" autocomplete="off" placeholder="VD: 3T x 100"></label>
           <label class="vt-field vt-detail-arrival"><span>Ngày về</span><input name="arrivalDate" type="text" autocomplete="off" placeholder="Có thể để trống"></label>
           <div id="vtDetailWarn" class="vt-detail-warn" aria-live="polite"></div>
+          <div class="vt-detail-stale" id="vtDetailStale" role="status" aria-live="polite" hidden>
+            <span id="vtDetailStaleText"></span>
+            <button type="button" class="vt-row-button" id="vtDetailStaleReload">Xem bản mới</button>
+          </div>
           <p class="vt-form-error vt-detail-error" id="vtDetailError" role="alert"></p>
         </form>
       </section>

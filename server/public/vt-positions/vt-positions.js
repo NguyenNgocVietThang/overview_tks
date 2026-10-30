@@ -40,7 +40,7 @@
   const importState = { busy: false };
   const history = { rows: [], nextBefore: null, branch: '', version: 0 };
   // Hộp chi tiết một dòng: row = bản đang mở (để lấy version), version chống tải lịch sử cũ ghi đè.
-  const detail = { id: null, tab: '', row: null, rows: [], nextBefore: null, version: 0, busy: false };
+  const detail = { id: null, tab: '', row: null, fresh: null, rows: [], nextBefore: null, version: 0, busy: false };
 
   const $ = id => document.getElementById(id);
   const fields = () => BASE_FIELDS;
@@ -598,6 +598,7 @@
     detail.id = row.id;
     detail.tab = activeTab;
     detail.row = row;
+    detail.fresh = null;
     detail.rows = [];
     detail.nextBefore = null;
     $('vtDetailCode').textContent = String(row.code ?? '');
@@ -611,10 +612,35 @@
     $('vtDetailDialog').querySelector('.vt-detail-foot').style.display = canEdit ? '' : 'none';
     setDetailBusy(false);
     setDetailError('');
+    $('vtDetailStale').hidden = true;
     renderDetailStats();
     renderDetailHistory('Đang tải lịch sử…');
-    openDialog($('vtDetailDialog'));
+    if (!$('vtDetailDialog').open) openDialog($('vtDetailDialog'));
     loadDetailHistory(false);
+  }
+
+  // Sau mỗi lần tải nền: hộp chi tiết đang mở KHÔNG bị đóng hay ghi đè. Dòng đổi version -> hiện dải + nút Xem bản mới;
+  // dòng bị xóa -> báo đã xóa; version giữ nguyên nhưng số phái sinh (SL Kiot, giữ chỗ) đổi -> cập nhật thẳng.
+  function syncOpenDetail() {
+    if (detail.id === null || !detail.row || detail.tab !== activeTab) return;
+    const fresh = state[activeTab].rows.find(item => String(item.id) === String(detail.id));
+    const banner = $('vtDetailStale');
+    const reload = $('vtDetailStaleReload');
+    if (!fresh) {
+      $('vtDetailStaleText').textContent = 'Dòng này vừa bị người khác xóa.';
+      reload.hidden = true;
+      banner.hidden = false;
+      return;
+    }
+    if (fresh.version !== detail.row.version) {
+      detail.fresh = fresh;
+      $('vtDetailStaleText').textContent = 'Dòng này vừa được người khác sửa.';
+      reload.hidden = false;
+      banner.hidden = false;
+      return;
+    }
+    detail.row = fresh;
+    renderDetailStats();
   }
 
   // Chỉ gửi trường đã đổi; không đổi gì thì chỉ đóng hộp.
@@ -1361,6 +1387,7 @@
     activeTab = allowedTabs.includes(requested) ? requested : allowedTabs[0];
     if (window.location.hash !== '#' + activeTab) window.history.replaceState(null, '', '#' + activeTab);
     const tab = activeTab;
+    stopLive();
     document.querySelectorAll('[data-vt-tab]').forEach(link => {
       link.hidden = !allowedTabs.includes(link.dataset.vtTab);
       if (link.dataset.vtTab === tab) link.setAttribute('aria-current', 'page');
@@ -1387,7 +1414,7 @@
       if (version !== requestVersion) return;
       current.error = error.message || 'Lỗi kết nối, vui lòng tải lại trang.';
     } finally {
-      if (version === requestVersion) { current.loading = false; render(); }
+      if (version === requestVersion) { current.loading = false; render(); startLive(tab); }
     }
   }
 
@@ -1410,10 +1437,49 @@
       current.canExport = payload.canExport === true;
       current.canDeleteHistory = payload.canDeleteHistory === true;
       render({ background: true });
+      syncOpenDetail();
     } catch (error) { /* lần tải bù sau sẽ thử lại */ } finally {
       live.busy = false;
       if (live.pending) { live.pending = false; refreshInBackground(activeTab); }
     }
+  }
+
+  // ---------- Thời gian thực (SSE) ----------
+  // Máy chủ chỉ báo "cơ sở này vừa đổi"; ở đây gộp tín hiệu rồi tải nền. SSE lỗi -> tải bù định kỳ cho tới khi nối lại.
+  const feed = { source: null, debounce: null, fallback: null, opened: false, missed: false };
+
+  function scheduleRefresh() {
+    clearTimeout(feed.debounce);
+    feed.debounce = setTimeout(() => {
+      if (document.hidden) { feed.missed = true; return; }
+      refreshInBackground(activeTab);
+    }, LIVE.debounceMs);
+  }
+
+  function stopFallback() { clearInterval(feed.fallback); feed.fallback = null; }
+
+  function stopLive() {
+    if (feed.source) feed.source.close();
+    feed.source = null;
+    feed.opened = false;
+    clearTimeout(feed.debounce);
+    stopFallback();
+  }
+
+  function startLive(tab) {
+    stopLive();
+    if (typeof window.EventSource !== 'function') return;
+    const source = new window.EventSource(API + '/events?branch=' + tab.toUpperCase());
+    feed.source = source;
+    source.addEventListener('positions-changed', scheduleRefresh);
+    source.addEventListener('open', () => {
+      stopFallback();
+      if (feed.opened) scheduleRefresh(); // nối lại sau khi ngắt: có thể đã lỡ tín hiệu
+      feed.opened = true;
+    });
+    source.addEventListener('error', () => {
+      if (!feed.fallback) feed.fallback = setInterval(() => { if (!document.hidden) refreshInBackground(activeTab); }, LIVE.fallbackMs);
+    });
   }
 
   function syncTheme() {
@@ -1520,6 +1586,7 @@
     });
     form.addEventListener('input', () => { renderDetailStats(); setDetailError(''); });
     $('vtDetailHistoryMore').addEventListener('click', () => loadDetailHistory(true));
+    $('vtDetailStaleReload').addEventListener('click', () => { if (detail.fresh) openDetail(detail.fresh); });
   }
 
   async function init() {
@@ -1602,6 +1669,10 @@
       else window.location.hash = tab;
     });
     window.addEventListener('hashchange', () => selectTab(window.location.hash.slice(1)));
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && feed.missed) { feed.missed = false; refreshInBackground(activeTab); }
+    });
+    window.addEventListener('pagehide', stopLive);
     await selectTab(window.location.hash.slice(1));
   }
 
