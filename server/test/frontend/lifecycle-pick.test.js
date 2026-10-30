@@ -843,3 +843,27 @@ test('order without pickable stock still enables assignment and printing', async
     assert.ok(page.document.getElementById('pickingPrintDialog').open);
   } finally {page.dom.window.close();}
 });
+
+
+test('after printing or cancelling the browser print dialog returns to the lifecycle list', async () => {
+  for (const outcome of ['print', 'cancel']) {
+    const page = await renderPage({store: newStore({assignment: makeAssignment('picking')})});
+    try {
+      await openPopup(page);
+      await click(page, 'pickingReprint');
+      page.document.getElementById('pickingPrintBtn').click();
+      const frame = page.document.getElementById('pickingPrintFrame');
+      const printWindow = frame.contentWindow;
+      printWindow.focus = () => {};
+      let opened = false;
+      printWindow.print = () => {opened = true;};
+      await frame.onload();
+      assert.ok(opened);
+      assert.ok(page.document.getElementById('pickingPrintDialog').open, 'keep preview until native dialog closes');
+      printWindow.dispatchEvent(new printWindow.Event('afterprint'));
+      assert.equal(page.document.getElementById('pickingPrintDialog').open, false, outcome);
+      assert.equal(page.document.getElementById('pickingDialog').open, false, outcome);
+      assert.equal(page.document.getElementById('lcDetailOverlay').hidden, true, outcome);
+    } finally {page.dom.window.close();}
+  }
+});

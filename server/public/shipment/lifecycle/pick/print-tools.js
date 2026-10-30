@@ -291,6 +291,13 @@ function init(){
     frame.onload=async()=>{
       try{
         await Promise.all([...frame.contentDocument.images].map(img=>img.complete?Promise.resolve():new Promise(resolve=>{img.addEventListener('load',resolve,{once:true});img.addEventListener('error',resolve,{once:true});})));
+        // afterprint fires when the native print dialog closes, including Cancel.
+        frame.contentWindow.addEventListener('afterprint',()=>{
+          for(const id of ['pickingPrintDialog','pickingDialog']){
+            const dialog=$(id);if(dialog?.open)dialog.close();
+          }
+          $('lcDetailClose')?.click();
+        },{once:true});
         frame.contentWindow.focus();frame.contentWindow.print();
       }catch(error){$('pickingPrintMessage').textContent='Trình duyệt chưa mở được hộp in. Hãy mở file HTML bằng Chrome hoặc Edge rồi bấm In.';}
     };
