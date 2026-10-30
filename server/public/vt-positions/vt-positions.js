@@ -68,9 +68,10 @@
 
   // warn: 'all' | 'warn' (chỉ dòng có cảnh báo) | 'valid' (chỉ dòng không cảnh báo); true = 'warn' để tương thích bản cũ dùng boolean.
   function filterRows(rows, query, warn) {
-    const mode = warn === true ? 'warn' : warn === 'warn' || warn === 'valid' ? warn : 'all';
+    const mode = warn === true ? 'warn' : typeof warn === 'string' ? warn : 'all';
     if (mode === 'warn') rows = rows.filter(row => warningsOf(row).length > 0);
     else if (mode === 'valid') rows = rows.filter(row => warningsOf(row).length === 0);
+    else if (mode.startsWith('type:')) rows = rows.filter(row => warningsOf(row).includes(mode.slice(5)));
     const needle = normalizeSearch(query);
     if (!needle) return rows;
     const text = row => ['code', 'name', 'location'].map(field => row[field]).join(' ');
@@ -278,6 +279,16 @@
     const warned = current.rows.filter(row => warningsOf(row).length > 0).length;
     select.querySelector('option[value="warn"]').textContent = 'Cảnh báo (' + formatNumber(warned) + ')';
     select.querySelector('option[value="valid"]').textContent = 'Hợp lệ (' + formatNumber(current.rows.length - warned) + ')';
+    select.querySelectorAll('option[data-warning-type]').forEach(option => option.remove());
+    const warningTypes = new Set([...Object.keys(WARNING_LABELS), ...current.rows.flatMap(warningsOf)]);
+    if (current.warnFilter.startsWith('type:')) warningTypes.add(current.warnFilter.slice(5));
+    warningTypes.forEach(code => {
+      const option = document.createElement('option');
+      option.value = 'type:' + code;
+      option.dataset.warningType = code;
+      option.textContent = warningLabel(code) + ' (' + formatNumber(current.rows.filter(row => warningsOf(row).includes(code)).length) + ')';
+      select.appendChild(option);
+    });
     select.value = current.warnFilter;
     select.parentElement.dataset.filter = current.warnFilter;
     select.disabled = current.loading || !!current.error;
@@ -1048,7 +1059,13 @@
     notify('');
     $('vtExportButton').disabled = true;
     try {
-      const response = await fetch(API + '/export?branch=' + tab.toUpperCase(), { credentials: 'same-origin', cache: 'no-store' });
+      const current = state[tab];
+      const rows = sortRows(filterRows(current.rows, current.query, current.warnFilter), current.sortField, current.sortDirection);
+      const response = await fetch(API + '/export?branch=' + tab.toUpperCase(), {
+        method: 'POST', credentials: 'same-origin', cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: rows.map(row => row.id) })
+      });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
         notify(payload.error || 'Không xuất được file Excel.', true);
@@ -1460,7 +1477,7 @@
     $('vtWarnFilter').addEventListener('change', event => {
       const value = event.target.value;
       const current = state[activeTab];
-      current.warnFilter = value === 'warn' || value === 'valid' ? value : 'all';
+      current.warnFilter = value === 'warn' || value === 'valid' || value.startsWith('type:') ? value : 'all';
       current.page = 1;
       render();
     });

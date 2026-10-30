@@ -53,14 +53,23 @@ function createStockPositionsRouter(dependencies = {}) {
   router.get('/api/stock-positions/code-suggestions', handle(async (req, res) => {
     res.json(await svc().suggestCodes(ctxOf(req), req.query.branch, req.query.q));
   }));
-  // Xuat Excel toan bo dong cua co so (khong theo bo loc tren man hinh); quyen rieng stockLocationsV2.export.
-  router.get('/api/stock-positions/export', requireFeature('stockLocationsV2.export'), handle(async (req, res) => {
+  // Export selected rows in screen order, restricted to the authorized branch.
+  router.route('/api/stock-positions/export').get(requireFeature('stockLocationsV2.export'), exportPositions).post(requireFeature('stockLocationsV2.export'), express.json({ limit: '8mb' }), exportPositions);
+  async function exportPositions(req, res, next) {
+    return handle(async (req, res) => {
     const { branch, rows } = await svc().list(ctxOf(req), req.query.branch);
-    const file = await createStockPositionsWorkbook({ branch, rows });
+    let exportRows = rows;
+    if (req.method === 'POST') {
+      if (!Array.isArray(req.body?.ids)) return res.status(400).json({ error: 'Danh sách dòng xuất không hợp lệ.' });
+      const byId = new Map(rows.map(row => [String(row.id), row]));
+      exportRows = [...new Set(req.body.ids.map(String))].map(id => byId.get(id)).filter(Boolean);
+    }
+    const file = await createStockPositionsWorkbook({ branch, rows: exportRows });
     res.set('Content-Type', file.mimeType);
     res.set('Content-Disposition', `attachment; filename="${file.fileName}"`);
     res.send(file.buffer);
-  }));
+    })(req, res, next);
+  }
   // Phai dat truoc '/:id'.
   router.get('/api/stock-positions/history', handle(async (req, res) => {
     res.json(await svc().history(ctxOf(req), req.query.branch, { limit: req.query.limit, before: req.query.before, positionId: req.query.positionId }));
