@@ -826,6 +826,7 @@ Trang `/vt-positions/#hn|#sg` (module `stockPositions/`) là cơ sở dữ liệ
 | Method | Đường dẫn | Mô tả |
 |---|---|---|
 | GET | `/api/stock-positions?branch=HN\|SG` | Danh sách dòng kèm SL kho, SL Kiot, cảnh báo |
+| GET | `/api/stock-positions/events?branch=HN|SG` | SSE (`text/event-stream`, heartbeat 25 giây, `X-Accel-Buffering: no`): sự kiện `positions-changed {"branch"}` sau mỗi giao dịch ghi `stock_positions` (tạo/sửa/xóa/import/trừ thùng/trừ tồn theo đơn/giữ chỗ). Không kèm dữ liệu — client tự gọi lại danh sách. Phát trên `dashboardRollupEvents` nên job chạy ở `worker.js` cũng tới web qua Postgres NOTIFY; 403 `BRANCH_FORBIDDEN` nếu ngoài phạm vi cơ sở |
 | POST | `/api/stock-positions` | Thêm dòng (Mã, Ghi chú, Ngày về, Vị trí); trùng (mã, vị trí) thì cộng ghi chú vào dòng cũ (200 + `merged: true`) |
 | GET | `/api/stock-positions/code-suggestions?branch=HN\|SG&q=…` | Gợi ý mã hàng cho ô Mã hàng của hộp Thêm dòng: khớp mã (bỏ khoảng trắng, không phân biệt hoa/thường) hoặc tên trong `products`, tối đa 12, mã bắt đầu bằng từ khóa xếp trước |
 | PATCH | `/api/stock-positions/:id` | Sửa Ghi chú / Ngày về / Vị trí kèm `version` |

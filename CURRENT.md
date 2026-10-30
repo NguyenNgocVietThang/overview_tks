@@ -1,3 +1,5 @@
+> 30/10/2026 — **VT: bảng cập nhật thời gian thực (SSE):** thêm `stockPositions/stockPositionsEvents.js`; `lockBranch`/`withTransaction` phát `stock-positions-changed` sau COMMIT (kể cả `pickAssignmentsService`), route `GET /api/stock-positions/events`. Trang `/vt-positions/` nghe SSE, tải nền và vá `<tbody>` theo `data-id` (giữ node, bộ lọc, cuộn; nháy ô đổi); hộp chi tiết đang mở hiện dải "Dòng này vừa được người khác sửa". Không có migration. Test service/route/frontend VT xanh; 3 test cũ trong `vt-positions.test.js` (nhãn bộ lọc cảnh báo ×2, Xuất Excel) đã hỏng sẵn từ HEAD. Đã commit trên main, chưa push/deploy, chưa xem thử trên trình duyệt hai cửa sổ.
+
 > 30/10/2026 — **In đơn khi không có hàng bốc (chưa triển khai):** Cho phép Xác nhận & In với phân bổ rỗng sau cảnh báo thiếu SL; máy chủ lưu phiếu không giữ chỗ tồn. Cột Thùng và Vị trí để trống cho dòng chưa phân bổ, kể cả mã lặp, trên cả hai mẫu phiếu. Kiểm thử liên quan: 72/72 đạt; đã chạy `graphify update .`.
 
 # CURRENT: BẢNG TRẠNG THÁI THỜI GIAN THỰC (REALTIME DASHBOARD)

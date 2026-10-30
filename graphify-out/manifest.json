@@ -654,9 +654,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1793255657.850776,
-    "seen": 1793256657.110692,
-    "ast_hash": "63d73e04e12924a2e3c1bb60d55ff645",
+    "mtime": 1793325481.6883297,
+    "seen": 1793325566.6269414,
+    "ast_hash": "def2989159c5da60293c82b90db8c838",
     "semantic_hash": ""
   },
   "design-system/tks-dashboard/MASTER.md": {
@@ -786,9 +786,9 @@
     "semantic_hash": "58e700daf0c14819a97499bd94f6f2e1"
   },
   "server/README.md": {
-    "mtime": 1793268689.7736328,
-    "seen": 1793268891.4099965,
-    "ast_hash": "b6e285ec088c129ceb588e82371e870e",
+    "mtime": 1793325491.5705647,
+    "seen": 1793325566.6269414,
+    "ast_hash": "9d192939d39cbd70c83223deea24a9a5",
     "semantic_hash": ""
   },
   "server/kiotviet/API_ENDPOINTS.md": {
@@ -3360,9 +3360,9 @@
     "semantic_hash": ""
   },
   "CURRENT.md": {
-    "mtime": 1793268040.2888808,
-    "seen": 1793268080.2137356,
-    "ast_hash": "2a45583c7543bb939a12a7ec16d8b7e1",
+    "mtime": 1793325491.5705647,
+    "seen": 1793325566.6269414,
+    "ast_hash": "43011a910790f846e3a8c5f1402788b3",
     "semantic_hash": ""
   },
   "MEMORY.md": {
@@ -5874,9 +5874,9 @@
     "semantic_hash": ""
   },
   "server/public/vt-positions/vt-positions.js": {
-    "mtime": 1793323235.8090553,
-    "seen": 1793324219.7052567,
-    "ast_hash": "7ac4d691f513f37a5c29616769ab5808",
+    "mtime": 1793325432.5370984,
+    "seen": 1793325566.6269414,
+    "ast_hash": "596bc2e246ad285a71841f10fa57c8de",
     "semantic_hash": ""
   },
   "server/shipment/kiotOrderLink.js": {
@@ -5910,27 +5910,27 @@
     "semantic_hash": ""
   },
   "server/stockPositions/stockPositionsRoutes.js": {
-    "mtime": 1793322975.8225584,
-    "seen": 1793324219.7052567,
-    "ast_hash": "cc8cd5679093f1ee676a6cb2f9ad429f",
+    "mtime": 1793325227.8260715,
+    "seen": 1793325566.6269414,
+    "ast_hash": "1d6a8a6647605687d0d083badaa4f254",
     "semantic_hash": ""
   },
   "server/stockPositions/stockPositionsRoutes.test.js": {
-    "mtime": 1793323319.4822195,
-    "seen": 1793324219.7052567,
-    "ast_hash": "f39e95022de2fb656842a5ae618988d5",
+    "mtime": 1793325228.1334288,
+    "seen": 1793325566.6269414,
+    "ast_hash": "45da4b72066b118d1f93ef9b462698bc",
     "semantic_hash": ""
   },
   "server/stockPositions/stockPositionsService.js": {
-    "mtime": 1793268705.8230827,
-    "seen": 1793268891.4099965,
-    "ast_hash": "6a610a1012435de1ad1e5050e5f9b795",
+    "mtime": 1793324959.3554094,
+    "seen": 1793325566.6269414,
+    "ast_hash": "82aa9146465e9a89a09f9c7506b1794e",
     "semantic_hash": ""
   },
   "server/stockPositions/stockPositionsService.test.js": {
-    "mtime": 1793268705.8309932,
-    "seen": 1793268891.4099965,
-    "ast_hash": "16c97acbfaa1866ebbab562f392152bf",
+    "mtime": 1793324959.5496066,
+    "seen": 1793325566.6269414,
+    "ast_hash": "1576ec213702e7378e74e4f480fda2fd",
     "semantic_hash": ""
   },
   "server/test/frontend/vt-positions-detail.test.js": {
@@ -5970,9 +5970,9 @@
     "semantic_hash": ""
   },
   "server/public/vt-positions/index.html": {
-    "mtime": 1793267209.410484,
-    "seen": 1793268080.2137356,
-    "ast_hash": "f4f5c3a0d46949a78b34015ee1db881e",
+    "mtime": 1793325431.941527,
+    "seen": 1793325566.6269414,
+    "ast_hash": "6150ff40caee692f6ca2c9dea4eb3ad2",
     "semantic_hash": ""
   },
   "server/db/migrations/0096_order_pick_assignments.sql": {
@@ -6279,6 +6279,30 @@
     "mtime": 1793255235.326408,
     "seen": 1793256657.110692,
     "ast_hash": "a8b8b15b4112276056a183c8fa01c4ab",
+    "semantic_hash": ""
+  },
+  "server/stockPositions/stockPositionsEvents.js": {
+    "mtime": 1793324947.8395133,
+    "seen": 1793325566.6269414,
+    "ast_hash": "b8690cc4e4a1f332b2afee7e2973cc2b",
+    "semantic_hash": ""
+  },
+  "server/test/frontend/vt-positions-live.test.js": {
+    "mtime": 1793325445.9897354,
+    "seen": 1793325566.6269414,
+    "ast_hash": "b72bd3ea199017941e3620ba8ba1d309",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-10-30-vt-positions-realtime.md": {
+    "mtime": 1793324894.796073,
+    "seen": 1793325566.6269414,
+    "ast_hash": "d299a8b791cd15a06bce9bc82e9dad39",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-10-30-vt-positions-realtime-design.md": {
+    "mtime": 1793324611.7318656,
+    "seen": 1793325566.6269414,
+    "ast_hash": "7efc4903e49452fe11b2c1d87326bc49",
     "semantic_hash": ""
   }
 }
