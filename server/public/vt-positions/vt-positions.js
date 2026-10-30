@@ -289,7 +289,8 @@
     }
     Array.from(node.children).forEach((cell, index) => {
       const next = fresh.children[index];
-      if (!next || signatures.get(cell) === signatures.get(next)) return;
+      // Ô đang được gõ trực tiếp thì giữ nguyên (không ghi đè chữ người dùng đang nhập).
+      if (!next || cell.classList.contains('is-editing') || signatures.get(cell) === signatures.get(next)) return;
       cell.replaceChildren(...Array.from(next.childNodes));
       if (next.title) cell.title = next.title; else cell.removeAttribute('title');
       signatures.set(cell, signatures.get(next));
@@ -342,6 +343,7 @@
     const current = state[activeTab];
     const canEdit = editable();
     $('vtAddButton').hidden = !canEdit;
+    $('vtTable').dataset.editable = String(canEdit);
     $('vtImportButton').hidden = !canEdit;
     $('vtExportButton').hidden = state[activeTab].canExport !== true;
     const rows = sortRows(filterRows(current.rows, current.query, current.warnFilter), current.sortField, current.sortDirection);
@@ -1553,7 +1555,117 @@
     $('vtPurgeOk').addEventListener('click', runPurge);
   }
 
-  // Bấm (hoặc Enter/Space) vào dòng để mở hộp chi tiết; đang bôi đen chữ để sao chép thì không mở.
+  // ---------- Nhập trực tiếp trong bảng (Ghi chú số thùng / Ngày về / Vị trí) ----------
+  // Bấm vào ô → thành ô nhập; Enter hoặc rời ô → lưu, Esc → hủy, mũi tên → sang ô nhập kề bên.
+  // Các lần lưu xếp hàng nối đuôi nhau để dòng luôn được gửi với version mới nhất.
+  let saveChain = Promise.resolve();
+  const rowById = (tab, id) => state[tab].rows.find(item => String(item.id) === String(id));
+  const isVisible = node => node.offsetParent !== null;
+
+  function restoreCell(td, row) {
+    const index = Array.from(td.parentElement.children).indexOf(td);
+    const next = buildRow(row).children[index];
+    td.classList.remove('is-editing');
+    td.replaceChildren(...Array.from(next.childNodes));
+    if (next.title) td.title = next.title; else td.removeAttribute('title');
+    signatures.set(td, signatures.get(next));
+  }
+
+  function startEdit(td) {
+    if (!editable() || !DETAIL_FIELDS.includes(td.dataset.field)) return null;
+    const existing = td.querySelector('input.vt-inline');
+    if (existing) return existing;
+    const row = rowById(activeTab, td.parentElement.dataset.id);
+    if (!row) return null;
+    const field = td.dataset.field;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'vt-inline';
+    input.autocomplete = 'off';
+    input.value = String(row[field] ?? '');
+    input.dataset.field = field;
+    input.dataset.id = String(row.id);
+    input.setAttribute('aria-label', LABELS[field] + ' ' + row.code);
+    td.classList.add('is-editing');
+    // Chỉ thay phần chữ bằng ô nhập (giữ nhãn cảnh báo / Đã sửa, viên Vị trí) để bố cục dòng không đổi.
+    const holder = td.querySelector('.vt-pill') || td;
+    const text = Array.from(holder.childNodes).find(node => node.nodeType === 3);
+    if (text) text.replaceWith(input); else holder.insertBefore(input, holder.firstChild);
+    input.addEventListener('keydown', inlineKeydown);
+    input.addEventListener('blur', () => finishEdit(input, true));
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+    return input;
+  }
+
+  function finishEdit(input, save) {
+    if (input.dataset.done) return;
+    input.dataset.done = '1';
+    const td = input.closest('td');
+    const tab = activeTab, field = input.dataset.field, id = input.dataset.id, raw = input.value;
+    const row = rowById(tab, id);
+    if (td && row) {
+      // Hiện ngay giá trị vừa gõ trong lúc chờ máy chủ; thất bại thì render() bên dưới trả về giá trị cũ.
+      restoreCell(td, save ? Object.assign({}, row, { [field]: field === 'location' ? normalizeLocation(raw) : raw.trim() }) : row);
+    }
+    if (!save) return;
+    saveChain = saveChain.then(async () => {
+      const current = rowById(tab, id);
+      if (!current) return;
+      const before = String(current[field] ?? '').trim();
+      let value = raw.trim();
+      if (field === 'location') value = normalizeLocation(value);
+      if (field === 'notes' && before && value.startsWith('+')) value = before + ' ' + value;
+      if (value !== before) await patchRow(tab, current, { [field]: value }, false, message => notify(message, true));
+      if (tab === activeTab) render();
+    }).catch(() => notify('Không lưu được thay đổi.', true));
+  }
+
+  const caretAtEdge = (input, forward) => {
+    if (input.selectionStart === 0 && input.selectionEnd === input.value.length) return true;
+    if (input.selectionStart !== input.selectionEnd) return false;
+    return forward ? input.selectionEnd === input.value.length : input.selectionStart === 0;
+  };
+
+  function neighborCell(td, key) {
+    const tr = td.parentElement;
+    if (key === 'ArrowUp' || key === 'ArrowDown') {
+      const step = key === 'ArrowUp' ? 'previousElementSibling' : 'nextElementSibling';
+      for (let other = tr[step]; other; other = other[step]) {
+        const cell = other.children[td.cellIndex];
+        if (cell && isVisible(cell)) return cell;
+      }
+      return null;
+    }
+    const step = key === 'ArrowLeft' ? 'previousElementSibling' : 'nextElementSibling';
+    for (let cell = td[step]; cell; cell = cell[step]) {
+      if (DETAIL_FIELDS.includes(cell.dataset.field) && isVisible(cell)) return cell;
+    }
+    return null;
+  }
+
+  function inlineKeydown(event) {
+    const input = event.target;
+    if (event.isComposing) return;
+    if (event.key === 'Enter' || event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      const tr = input.closest('tr');
+      finishEdit(input, event.key === 'Enter');
+      if (tr) tr.focus();
+      return;
+    }
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+    if ((event.key === 'ArrowLeft' || event.key === 'ArrowRight') && !caretAtEdge(input, event.key === 'ArrowRight')) return;
+    const target = neighborCell(input.closest('td'), event.key);
+    if (!target) return;
+    event.preventDefault();
+    startEdit(target); // lấy focus → ô cũ rời đi và tự lưu
+  }
+
+  // Bấm vào ô nhập liệu được → gõ ngay tại ô; bấm cột khác (hoặc Enter/Space trên dòng) → mở hộp chi tiết.
+  // Đang bôi đen chữ để sao chép thì không làm gì.
   function bindTable() {
     const body = $('vtRows');
     const rowOf = tr => state[activeTab].rows.find(item => String(item.id) === tr.dataset.id);
@@ -1561,6 +1673,8 @@
       const tr = event.target.closest('tr[data-id]');
       if (!tr) return;
       if (window.getSelection && window.getSelection().toString()) return;
+      const cell = event.target.closest('td[data-field]');
+      if (cell && editable() && DETAIL_FIELDS.includes(cell.dataset.field)) { startEdit(cell); return; }
       const row = rowOf(tr);
       if (row) openDetail(row);
     });
