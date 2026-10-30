@@ -362,3 +362,16 @@ test('lich su chi dinh va lich su VT la bat bien (trigger chan sua/xoa)', async 
     await assert.rejects(() => db.query(`DELETE FROM order_pick_history`), /immutable/);
   } finally { await db.close(); }
 });
+
+
+test('empty allocation can be saved with mismatch acknowledgement without reserving stock', async () => {
+  const { db, service } = await fixture();
+  try {
+    await assert.rejects(() => service.assign(ctx(), assignBody([])), { code: 'VALIDATION' });
+    const { assignment: result } = await service.assign(ctx(), { ...assignBody([]), allowMismatch: true });
+    assert.equal(result.status, 'picking');
+    assert.deepEqual(result.lines, []);
+    const candidates = await service.candidates(ctx(), { branch: 'HN', orderCode: 'DH001' });
+    assert.ok(candidates.candidates.aaa1.every(row => row.held === 0));
+  } finally { await db.close(); }
+});

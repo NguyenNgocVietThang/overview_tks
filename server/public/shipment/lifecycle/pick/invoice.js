@@ -116,7 +116,7 @@ async function show(order,record,template='order'){
     zones.sort((a,b)=>(a.name==='—')-(b.name==='—')||byName(a.name,b.name));
     const multiZone=zones.length>1;
     const priorLine=seenCodes.get(key(line.productCode));
-    const placement=priorLine?'Vị trí/Thùng: xem dòng '+priorLine:zones.map(z=>z.name).join(' / ');
+    const placement=!jobs.length?'':priorLine?'Vị trí/Thùng: xem dòng '+priorLine:zones.map(z=>z.name).join(' / ');
     // ST lấy từ bản ghi chỉ định nên in lại ra cùng số; trống khi đã Hủy nhặt hoặc chưa có quy cách thùng.
     const cancelled=record.status==='cancelled';
     // Chỉ gộp quy cách trong cùng khu/vị trí; khác khu nối cộng theo thứ tự cột Vị trí.

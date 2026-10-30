@@ -1,3 +1,5 @@
+> 30/10/2026 — **In đơn khi không có hàng bốc (chưa triển khai):** Cho phép Xác nhận & In với phân bổ rỗng sau cảnh báo thiếu SL; máy chủ lưu phiếu không giữ chỗ tồn. Cột Thùng và Vị trí để trống cho dòng chưa phân bổ, kể cả mã lặp, trên cả hai mẫu phiếu. Kiểm thử liên quan: 72/72 đạt; đã chạy `graphify update .`.
+
 # CURRENT: BẢNG TRẠNG THÁI THỜI GIAN THỰC (REALTIME DASHBOARD)
 
 > 29/10/2026 — **UI xem trước import vị trí:** bỏ câu nhắc lỗi và danh sách lỗi lặp phía trên bảng; giữ cảnh báo trong bảng và chặn xác nhận khi còn lỗi. Thẻ tổng quan lớn hơn, số có phân cách hàng nghìn, màu riêng (Thêm xanh lá, Cập nhật xanh dương, Xóa cam, Không đổi xám, Bỏ qua tím, Lỗi đỏ), lưới 6/3/2 cột theo màn hình. Cập nhật phiên bản CSS/JS để tải giao diện mới. Kiểm thử frontend vị trí: 65/65 đạt; kiểm tra cú pháp JS và diff đạt. Đã commit và đẩy GitHub.

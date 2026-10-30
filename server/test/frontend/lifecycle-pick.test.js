@@ -804,3 +804,17 @@ test('CSS thẻ vị trí: lưới 2 dòng, ghi chú không còn chen lên trư�
   assert.match(rule('.picking-spec'), /display:block/, 'ghi chú thùng là dòng riêng dưới thẻ');
   assert.doesNotMatch(rule('.picking-location strong') + rule('.picking-location span'), /order:/, 'không dùng order: ghi chú (order mặc định 0) sẽ nhảy lên đầu');
 });
+
+
+test('order without pickable stock still enables assignment and printing', async () => {
+  const page = await renderPage({store: newStore({candidates: {a: []}})});
+  try {
+    await openPopup(page);
+    assert.equal(page.document.getElementById('pickingConfirm').disabled, false);
+    page.dom.window.confirm = () => true;
+    page.document.getElementById('pickingConfirm').click();
+    await settle();
+    assert.deepEqual(page.store.posted, [{branch:'HN',orderCode:'DH1',allocations:[],allowMismatch:true}]);
+    assert.ok(page.document.getElementById('pickingPrintDialog').open);
+  } finally {page.dom.window.close();}
+});

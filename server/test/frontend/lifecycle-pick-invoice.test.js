@@ -373,3 +373,16 @@ test('Telegram ID is bold and footer columns resize, format and restore independ
   assert.equal(d.querySelector('.invoice-telegram').textContent,'123456');
  }finally{dom.window.close();}
 });
+
+
+test('unallocated repeated products leave both placement columns blank in both templates', async () => {
+  const order={schemaVersion:2,orderCode:'DH-empty',branch:'HN',lines:[1,2].map(() => ({productCode:'A',productName:'Hàng A',quantity:10,unitPrice:'2',amount:'20'}))};
+  const record={status:'picking',lines:[]};
+  const dom=await invoice(order,record);
+  try {
+    for(const template of ['order','delivery']) {
+      await dom.window.PickingInvoice.show(order,record,template);
+      for(const cell of dom.window.document.querySelectorAll('.invoice-goods tbody .invoice-location, .invoice-goods tbody .invoice-st')) assert.equal(cell.textContent.trim(),'');
+    }
+  } finally {dom.window.close();}
+});

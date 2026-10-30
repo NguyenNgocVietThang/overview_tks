@@ -266,7 +266,7 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
 
   function parseAllocations(body, lines) {
     const raw = Array.isArray(body.allocations) ? body.allocations : null;
-    if (!raw || !raw.length) throw fail(400, 'VALIDATION', 'Chưa chỉ định vị trí nào.', { field: 'allocations' });
+    if (!raw) throw fail(400, 'VALIDATION', 'Chưa chỉ định vị trí nào.', { field: 'allocations' });
     if (raw.length > MAX_ALLOCATIONS) throw fail(400, 'VALIDATION', 'Quá nhiều dòng chỉ định.', { field: 'allocations' });
     const lineIndex = new Map(lines.map((line, index) => [codeKey(line.productCode), index]));
     const perLine = lines.map(() => new Map()); // dong don -> Map(positionId -> qty)

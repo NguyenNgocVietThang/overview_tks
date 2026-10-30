@@ -260,8 +260,7 @@
 
   // ---------- Thao tác ----------
   // Lệch SL (thiếu/thừa) vẫn chỉ định được nhưng phải được người dùng xác nhận qua cảnh báo.
-  const hasPicks=()=>lines().some((l,i)=>(state.allocations[i]||[]).some(p=>p.quantity>0));
-  const allocErrors=()=>hasPicks()?R.validate(lines(),allLocations(),state.allocations,{allowMismatch:true}):['Chưa chọn vị trí nào'];
+  const allocErrors=()=>R.validate(lines(),allLocations(),state.allocations,{allowMismatch:true});
   const mismatchList=()=>R.mismatches(lines(),allLocations(),state.allocations);
   function mismatchWarning(list){
     const rows=list.map(m=>'• '+m.productCode+': '+(m.kind==='short'?'THIẾU ':'THỪA ')+fmt(m.diff)+' (chỉ định '+fmt(m.total)+'/'+fmt(m.need)+')');
