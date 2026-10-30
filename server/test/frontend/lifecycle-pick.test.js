@@ -186,12 +186,12 @@ test('mở chỉ định, sửa số lượng rồi đóng không ghi chỉ đ�
   } finally { page.dom.window.close(); }
 });
 
-test('popup gọi candidates đúng cơ sở + mã đơn, hiện 6 cột và gợi ý tròn thùng; Xác nhận bật khi phân bổ đủ', async () => {
+test('popup gọi candidates đúng cơ sở + mã đơn, hiện 7 cột và gợi ý tròn thùng; Xác nhận bật khi phân bổ đủ', async () => {
   const page = await renderPage();
   await openPopup(page);
   const call = page.calls.find(c => c.url.startsWith('/api/shipment/pick/candidates'));
   assert.equal(call.url, '/api/shipment/pick/candidates?branch=HN&order=DH1');
-  assert.deepEqual([...page.document.querySelectorAll('#pickingDialog thead th')].map(th => th.textContent), ['Mã hàng', 'Tên hàng', 'Cần nhặt', 'ST', 'Tồn kho', 'Vị trí kho']);
+  assert.deepEqual([...page.document.querySelectorAll('#pickingDialog thead th')].map(th => th.textContent), ['Mã hàng', 'Tên hàng', 'Ghi chú', 'Cần nhặt', 'ST', 'Tồn kho', 'Vị trí kho']);
   assert.equal(page.document.querySelectorAll('#pickingRows tr').length, 1, 'dòng VAT bị bỏ');
   assert.equal(text(page, 'pickingTitle'), 'DH1 · Hà Nội');
   // gợi ý: 100 = 2 thùng x 50 tại A07
@@ -204,6 +204,31 @@ test('popup gọi candidates đúng cơ sở + mã đơn, hiện 6 cột và g�
   assert.equal(page.document.getElementById('pickingConfirm').disabled, false);
   assert.equal(text(page, 'pickingOrderStatus'), 'Chưa chỉ định');
   assert.equal(page.document.getElementById('pickingConfirmPick').hidden, true);
+  page.dom.window.close();
+});
+
+test('hộp chỉ định: dòng có SL chọn khác SL khách đặt bôi đỏ; cột Ghi chú hiện ghi chú dòng hàng; cột kéo được độ rộng', async () => {
+  const store = newStore();
+  store.order.lines[0].note = 'full vat';
+  const page = await renderPage({ store });
+  await openPopup(page);
+  const { document } = page;
+  const row = () => document.querySelector('#pickingRows tr');
+  assert.equal(row().querySelector('.picking-note').textContent, 'full vat');
+  assert.equal(row().classList.contains('picking-mismatch'), false, 'chọn đủ 100/100 thì không đỏ');
+  document.querySelector('[data-step="-1"][data-qloc="11"]').click();
+  assert.equal(row().classList.contains('picking-mismatch'), true, 'thiếu 50/100 → đỏ');
+  document.querySelector('[data-step="1"][data-qloc="11"]').click();
+  assert.equal(row().classList.contains('picking-mismatch'), false, 'trở lại 100/100 → hết đỏ');
+  const input = document.querySelector('[data-qty][data-qloc="12"]');
+  input.value = '25';
+  input.dispatchEvent(new page.window.Event('change', { bubbles: true }));
+  assert.equal(row().classList.contains('picking-mismatch'), true, 'thừa 125/100 → đỏ');
+  const table = document.querySelector('#pickingDialog .picking-table');
+  assert.equal(table.dataset.tableControls, undefined, 'bảng không còn tắt table-controls');
+  assert.equal(table.querySelectorAll('thead th .tks-column-resizer').length, 7, 'mỗi cột có tay kéo độ rộng');
+  const css = fs.readFileSync(path.join(publicDir, 'shipment/lifecycle/pick/pick-assign.css'), 'utf8');
+  assert.match(css, /tr\.picking-mismatch>td\{background:rgba\(239,68,68/);
   page.dom.window.close();
 });
 

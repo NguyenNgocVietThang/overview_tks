@@ -51,7 +51,7 @@ function quantityErrors(order) {
 
 /**
  * Dong don Kiot -> dong chi dinh: bo dong dich vu (VAT*), GOP theo ma hang (khong phan biet hoa/thuong).
- * Gia / chiet khau: cung gia thi giu nguyen, khac gia thi binh quan theo so luong.
+ * Gia / chiet khau: cung gia thi giu nguyen, khac gia thi binh quan theo so luong. Ghi chu dong: gop cac ghi chu khac nhau (ngan cach "; ").
  */
 function mergeOrderLines(lines) {
   const merged = new Map();
@@ -64,13 +64,16 @@ function mergeOrderLines(lines) {
     const discount = Number(line.discount) || 0;
     const hit = merged.get(key);
     if (!hit) {
-      merged.set(key, { productCode: String(line.productCode).trim(), productName: String(line.productName || '').trim(), quantity, price, discount, _p: price * quantity, _d: discount * quantity, _same: true });
+      merged.set(key, { productCode: String(line.productCode).trim(), productName: String(line.productName || '').trim(), quantity, price, discount, note: String(line.note || '').trim(), _p: price * quantity, _d: discount * quantity, _same: true });
     } else {
       hit.quantity += quantity;
       hit._same = hit._same && hit.price === price && hit.discount === discount;
       hit._p += price * quantity;
       hit._d += discount * quantity;
       if (!hit.productName && line.productName) hit.productName = String(line.productName).trim();
+      // Ghi chú từng dòng Kiot (vd "15th", "full vat"): gộp các ghi chú khác nhau của cùng mã, bỏ trùng.
+      const extra = String(line.note || '').trim();
+      if (extra && !hit.note.split('; ').includes(extra)) hit.note = hit.note ? hit.note + '; ' + extra : extra;
     }
   }
   return [...merged.values()].map(({ _p, _d, _same, ...line }) => (_same ? line

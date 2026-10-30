@@ -32,7 +32,7 @@ function order(overrides = {}) {
   return {
     branch: 'HN', orderCode: 'DH001', customerName: 'Khách A', saleName: 'Sale B', saleTelegramId: '555', orderDate: '27/10/2026 09:00',
     status: { code: 'SENT_TO_ACCOUNTANT', label: 'Đơn đã gửi kế toán' }, invoiceDiscount: 0,
-    lines: [{ productCode: 'AAA1', productName: 'Hàng A', quantity: 250, price: 10, discount: 0 }],
+    lines: [{ productCode: 'AAA1', productName: 'Hàng A', quantity: 250, price: 10, discount: 0, note: '' }],
     ...overrides
   };
 }
@@ -151,8 +151,9 @@ test('order snapshot keeps original duplicate-code lines and exact total',async(
 
 test('mergeOrderLines: gop theo ma (khong phan biet hoa/thuong), bo dong dich vu va VAT, binh quan gia khi khac gia', () => {
   const merged = mergeOrderLines([
-    { productCode: 'AAA1', productName: 'Hàng A', quantity: 100, price: 10, discount: 0 },
-    { productCode: 'aaa1', productName: '', quantity: 50, price: 10, discount: 0 },
+    { productCode: 'AAA1', productName: 'Hàng A', quantity: 100, price: 10, discount: 0, note: '15th' },
+    { productCode: 'aaa1', productName: '', quantity: 50, price: 10, discount: 0, note: ' full vat ' },
+    { productCode: 'AAA1', productName: '', quantity: 5, price: 10, discount: 0, note: '15th' },
     { productCode: 'BBB2', productName: 'B', quantity: 10, price: 10, discount: 2 },
     { productCode: 'bbb2', productName: 'B', quantity: 30, price: 20, discount: 2 },
     { productCode: 'VAT8', productName: 'Thuế', quantity: 1, price: 5 },
@@ -160,8 +161,8 @@ test('mergeOrderLines: gop theo ma (khong phan biet hoa/thuong), bo dong dich vu
     { productCode: 'ZERO', productName: 'Không SL', quantity: 0, price: 1 }
   ]);
   assert.deepEqual(merged, [
-    { productCode: 'AAA1', productName: 'Hàng A', quantity: 150, price: 10, discount: 0 },
-    { productCode: 'BBB2', productName: 'B', quantity: 40, price: 17.5, discount: 2 }
+    { productCode: 'AAA1', productName: 'Hàng A', quantity: 155, price: 10, discount: 0, note: '15th; full vat' },
+    { productCode: 'BBB2', productName: 'B', quantity: 40, price: 17.5, discount: 2, note: '' }
   ]);
 });
 
@@ -173,7 +174,7 @@ test('candidates: ung vien theo ma kem onHand / held (chi chi dinh dang nhat cua
   try {
     let result = await service.candidates(ctx(), { branch: 'HN', orderCode: 'DH001' });
     assert.equal(result.order.eligible, true);
-    assert.deepEqual(result.order.lines, [{ productCode: 'AAA1', productName: 'Hàng A', quantity: 250, price: 10, discount: 0 }]);
+    assert.deepEqual(result.order.lines, [{ productCode: 'AAA1', productName: 'Hàng A', quantity: 250, price: 10, discount: 0, note: '' }]);
     assert.deepEqual(result.candidates.aaa1.map(c => [c.positionId, c.location, c.onHand, c.held, c.available]), [[1, 'A01', 300, 0, 300], [2, 'B02', 200, 0, 200]]);
     assert.equal(result.assignment, null);
     await service.assign(ctx(), assignBody([{ productCode: 'AAA1', positionId: 1, qty: 200 }, { productCode: 'AAA1', positionId: 2, qty: 50 }]));

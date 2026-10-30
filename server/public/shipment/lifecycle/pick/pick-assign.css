@@ -6,10 +6,18 @@
 .picking-source{font-size:12px;color:var(--muted);margin:0 0 16px}
 .picking-table-wrap{overflow:auto;border:1px solid var(--border);border-radius:10px}
 .picking-table{width:100%;table-layout:fixed;min-width:1180px}
-.picking-table th:nth-child(1){width:9%}.picking-table th:nth-child(2){width:13%}.picking-table th:nth-child(3){width:8%}.picking-table th:nth-child(4){width:11%}.picking-table th:nth-child(5){width:8%}.picking-table th:nth-child(6){width:51%}
+/* Độ rộng cột do shared/table-controls.js quản lý (kéo mép tiêu đề, lưu theo tài khoản); % dưới đây chỉ là mốc trước khi script chạy. */
+.picking-table th:nth-child(1){width:8%}.picking-table th:nth-child(2){width:12%}.picking-table th:nth-child(3){width:10%}.picking-table th:nth-child(4){width:7%}.picking-table th:nth-child(5){width:10%}.picking-table th:nth-child(6){width:7%}.picking-table th:nth-child(7){width:46%}
 .picking-table td{white-space:normal!important;vertical-align:middle!important;padding:7px 12px!important}
-.picking-table th:nth-child(3),.picking-table th:nth-child(4),.picking-table th:nth-child(5),.picking-need,.picking-st,.picking-total{text-align:center!important}
+.picking-table th:nth-child(4),.picking-table th:nth-child(5),.picking-table th:nth-child(6),.picking-need,.picking-st,.picking-total{text-align:center!important}
 .picking-table .picking-code{font-family:var(--font-data);font-weight:600}
+.picking-table .picking-note{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+/* Dòng có SL chọn khác SL khách đặt: nền + vạch trái đỏ, số "chọn/đặt" đỏ. */
+.picking-table tr.picking-mismatch>td{background:rgba(239,68,68,.12)!important}
+.picking-table tr.picking-mismatch>td:first-child{box-shadow:inset 3px 0 0 var(--red)}
+.picking-table tr.picking-mismatch .picking-need small{color:var(--red)}
+/* Chỉ cho kéo độ rộng cột: ẩn nút "Cột hiển thị" do table-controls tự chèn phía trên bảng. */
+#pickingDialog .tks-table-tools,#pickingDialog .tks-columns-button{display:none!important}
 .picking-need strong,.picking-total strong,.picking-st strong{display:block;font-size:17px;font-family:var(--font-data);font-variant-numeric:tabular-nums}
 .picking-need small{display:block;margin-top:2px;font-size:11px;font-family:var(--font-data);font-weight:600}
 .picking-good{color:var(--green)}.picking-bad{color:var(--amber)}
