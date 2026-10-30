@@ -308,7 +308,7 @@ test('Đang nhặt: SL cần nhặt lấy từ snapshot đã lưu; sửa "Cần 
   const page = await renderPage({ store, orders: [orderRow('DH1', { pickStatus: 'picking' })] });
   await openPopup(page);
   const { document, window } = page;
-  assert.equal(document.getElementById('pickingConfirm').disabled, true, 'chưa đổi gì');
+  assert.equal(document.getElementById('pickingConfirm').disabled, false, 'chưa đổi gì vẫn chỉ định lại được');
   const input = document.querySelector('#pickingRows [data-need]');
   input.value = '90'; input.dispatchEvent(new window.Event('change', { bubbles: true }));
   assert.equal(document.getElementById('pickingConfirm').disabled, false, 'đổi Cần nhặt = có thay đổi chưa lưu');
@@ -323,7 +323,7 @@ test('Đang nhặt: SL cần nhặt lấy từ snapshot đã lưu; sửa "Cần 
   assert.equal(reopened.document.querySelector('#pickingRows [data-need]').value, '90');
   assert.equal(reopened.document.querySelector('.picking-kiot').textContent, 'Kiot: 100');
   assert.equal(reopened.document.querySelector('#pickingRows tr').classList.contains('picking-mismatch'), false, 'chọn 90 = cần nhặt 90');
-  assert.equal(reopened.document.getElementById('pickingConfirm').disabled, true, 'chưa có thay đổi chưa lưu');
+  assert.equal(reopened.document.getElementById('pickingConfirmPick').disabled, false, 'chưa có thay đổi chưa lưu');
   reopened.dom.window.close();
 });
 
@@ -463,15 +463,15 @@ test('nút theo trạng thái: Đang nhặt = Xác nhận nhặt / Hủy nhặt 
   for (const [status, want] of Object.entries(expectations)) {
     const page = await renderPage({ orders: [orderRow('DH1', { pickStatus: status })], store: newStore({ assignment: makeAssignment(status) }) });
     await openPopup(page);
-    assert.equal(page.document.getElementById('pickingReopen'), null, 'đã bỏ nút Chỉ định lại');
+    assert.equal(page.document.getElementById('pickingReopen').hidden, status !== 'confirmed', 'nút Chỉ định lại chỉ hiện với Đã bốc');
     assert.equal(text(page, 'pickingOrderStatus'), { picking: 'Đang nhặt', confirmed: 'Xác nhận nhặt', cancelled: 'Hủy nhặt' }[status]);
     assert.deepEqual(
       { confirmPick: visible(page, 'pickingConfirmPick'), cancelPick: visible(page, 'pickingCancelPick'), reprint: visible(page, 'pickingReprint'), editable: !page.document.querySelector('[data-qty][data-qloc="11"]').disabled },
       want, status);
     assert.equal(page.document.getElementById('pickingSuggest').disabled, !want.editable);
     assert.equal(page.document.querySelector('[data-qty][data-qloc="11"]').value, '100', status === 'cancelled' ? 'đã hủy: gợi ý mới' : 'hiện lại đúng phân bổ đã chỉ định');
-    // Chỉ Đang nhặt cần thay đổi thật mới lưu được; Đã hủy chỉ định mới ngay; Đã bốc khóa.
-    assert.equal(page.document.getElementById('pickingConfirm').disabled, status !== 'cancelled', status);
+    // Đang nhặt và Đã hủy chỉ định (lại) được ngay; Đã bốc khóa tới khi bấm Chỉ định lại.
+    assert.equal(page.document.getElementById('pickingConfirm').disabled, status === 'confirmed', status);
     page.dom.window.close();
   }
 });
@@ -550,6 +550,30 @@ test('Đã hủy chỉ định mới ngay (không reassign); Đang nhặt đổi
   assert.equal(confirmed.document.getElementById('pickingConfirm').disabled, true);
   assert.ok([...confirmed.document.querySelectorAll('[data-qty],[data-step],[data-location]')].every(el => el.disabled));
   [cancelled, picking, confirmed].forEach(p => p.dom.window.close());
+});
+
+test('Đã bốc: bấm Chỉ định lại (hỏi xác nhận) thì mở khóa; lưu bằng MỘT lệnh reassign kèm version; từ chối hỏi thì vẫn khóa', async () => {
+  const store = newStore({ assignment: makeAssignment('confirmed', { version: 4 }) });
+  const page = await renderPage({ orders: [orderRow('DH1', { pickStatus: 'confirmed' })], store });
+  await openPopup(page);
+  const { document, window } = page;
+  assert.equal(document.getElementById('pickingReopen').hidden, false);
+  assert.equal(document.getElementById('pickingConfirm').disabled, true);
+  window.confirm = () => false;
+  await click(page, 'pickingReopen');
+  assert.equal(document.getElementById('pickingConfirm').disabled, true, 'từ chối thì vẫn khóa');
+  window.confirm = () => true;
+  await click(page, 'pickingReopen');
+  assert.equal(document.getElementById('pickingReopen').hidden, true);
+  assert.equal(document.getElementById('pickingConfirm').disabled, false);
+  assert.equal(text(page, 'pickingConfirm'), 'Chỉ định lại & In phiếu');
+  assert.ok([...document.querySelectorAll('[data-location]')].some(el => !el.disabled), 'chọn lại được vị trí');
+  await click(page, 'pickingConfirm');
+  assert.equal(store.posted.length, 1);
+  assert.equal(store.posted[0].reassign, true);
+  assert.equal(store.posted[0].version, 4);
+  assert.equal(store.statusCalls.length, 0);
+  page.dom.window.close();
 });
 
 test('reassign gặp 409 ALREADY_CONFIRMED (người khác vừa bốc xong): báo rõ đơn đã bốc, tải lại, hiện Đã bốc và khóa chọn', async () => {
@@ -823,7 +847,7 @@ test('chỉ định lại (reassign) bị mất phản hồi: tải trạng thá
   assert.equal(page.window.TKSPick._state.latest.status,'picking');
   assert.equal(page.window.TKSPick._state.busy,false);
   assert.equal(page.window.TKSPick._state.needsSync,false);
-  assert.equal(page.document.getElementById('pickingConfirm').disabled,true);
+  assert.equal(page.document.getElementById('pickingConfirm').disabled,false,'Đang nhặt luôn chỉ định lại được');
   page.dom.window.close();
 });
 

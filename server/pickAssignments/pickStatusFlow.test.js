@@ -110,14 +110,28 @@ test('assign reassign: in lai don Dang boc = huy luot cu + luot moi cung giao di
 });
 
 test('assign reassign: loi o luot moi thi luot cu giu nguyen; Da boc khong in lai duoc', async () => {
-  const { db, service, latest } = await fixture();
+  const { db, service, latest, notesOf } = await fixture();
   try {
     const first = (await service.assign(ctx(), body([{ productCode: 'AAA1', positionId: 1, qty: 250 }]))).assignment;
     await assert.rejects(() => service.assign(ctx(), body([{ productCode: 'AAA1', positionId: 1, qty: 10 }], { reassign: true })), { code: 'VALIDATION' });
     const still = await latest('DH001');
     assert.deepEqual([still.id, still.status, still.version], [first.id, 'picking', 1]);
     await service.confirm(ctx(), first.id, { version: 1 });
-    await assert.rejects(() => service.assign(ctx(), body([{ productCode: 'AAA1', positionId: 2, qty: 250 }], { reassign: true })), { statusCode: 409, code: 'ALREADY_CONFIRMED' });
+    assert.notEqual(await notesOf(1), '3T x 100', 'da tru thung that');
+    // Da boc cung chi dinh lai duoc: hoan thung da tru, huy luot cu, tao luot Dang boc moi trong 1 giao dich.
+    await assert.rejects(() => service.assign(ctx(), body([{ productCode: 'AAA1', positionId: 1, qty: 10 }], { reassign: true })), { code: 'VALIDATION' });
+    assert.notEqual(await notesOf(1), '3T x 100', 'loi o luot moi thi thung van tru nhu cu');
+    assert.equal((await latest('DH001')).status, 'confirmed');
+    const second = (await service.assign(ctx(), body([{ productCode: 'AAA1', positionId: 1, qty: 250 }], { reassign: true, version: 2 }))).assignment;
+    assert.equal(second.status, 'picking');
+    assert.notEqual(second.id, first.id);
+    assert.equal(await notesOf(1), '3T x 100', 'thung da tru duoc hoan lai');
+    const old = await service.get(ctx(), { branch: 'HN', orderCode: 'DH001' });
+    assert.equal(old.assignment.id, second.id);
+    const history = (await db.query(`SELECT summary FROM order_pick_history WHERE assignment_id = $1 AND action = 'cancel'`, [first.id])).rows;
+    assert.deepEqual(history.map(r => [r.summary.reverted, r.summary.reason]), [[true, 'reassign']]);
+    const revert = (await db.query(`SELECT count(*)::int AS n FROM stock_position_history WHERE action = 'pick_revert'`)).rows[0];
+    assert.equal(revert.n, 1);
   } finally { await db.close(); }
 });
 
@@ -238,7 +252,7 @@ test('pickWarnings: Lech Kiot = SL can nhat (snapshot) khac SL don Kiot hien tai
 });
 
 test('pickWarnings: Lech SL trong don = tong SL chon theo vi tri khac SL can nhat (dong do da xac nhan luu); chi dinh lai khop thi het', async () => {
-  const { db, service, latest } = await fixture();
+  const { db, service, latest, notesOf } = await fixture();
   try {
     await addKiotOrder(db, { code: 'DH001', status: 'Phiếu tạm', id: 1, lines: [{ productCode: 'AAA1', quantity: 250 }] });
     await service.assign(ctx(), body([{ productCode: 'AAA1', positionId: 1, qty: 200 }], { allowMismatch: true }));
@@ -250,7 +264,7 @@ test('pickWarnings: Lech SL trong don = tong SL chon theo vi tri khac SL can nha
 });
 
 test('pickWarnings: don Da boc van canh bao khi SL Kiot lech', async () => {
-  const { db, service, latest } = await fixture();
+  const { db, service, latest, notesOf } = await fixture();
   try {
     await addKiotOrder(db, { code: 'DH001', status: 'Hoàn thành', id: 1, lines: [{ productCode: 'AAA1', quantity: 230 }] });
     await service.assign(ctx(), body([{ productCode: 'AAA1', positionId: 1, qty: 250 }]));
@@ -292,7 +306,7 @@ test('assign needs: SL sua phai nguyen duong va ma co trong don; trung SL Kiot t
 });
 
 test('cancel: ly do huy chi do may chu dat; body.reason tu client bi bo qua (khong gia mao "Kiot huy" de an trang thai Da huy)', async () => {
-  const { db, service, latest } = await fixture();
+  const { db, service, latest, notesOf } = await fixture();
   try {
     const { assignment } = await service.assign(ctx(), body([{ productCode: 'AAA1', positionId: 1, qty: 250 }]));
     await service.cancel(ctx(), assignment.id, { version: 1, reason: 'kiot_cancelled' });

@@ -22,10 +22,10 @@
   const key=v=>R.key(v);
   const round6=n=>Math.round(n*1e6)/1e6;
   // latest = chỉ định mới nhất của đơn; assignment = latest khi Đã bốc (chỉ xem); reassignOf = latest khi Đang nhặt (đang sửa, lưu bằng reassign).
-  const state={listOrder:null,order:null,cand:{},needs:{},latest:null,assignment:null,allocations:{},suggestions:{},busy:false,needsSync:true,requestEpoch:0,reassignOf:null,onChange:null,sort:null};
+  const state={listOrder:null,order:null,cand:{},needs:{},latest:null,assignment:null,allocations:{},suggestions:{},busy:false,needsSync:true,requestEpoch:0,reassignOf:null,reopened:false,onChange:null,sort:null};
 
   const DIALOGS_HTML='<dialog id="pickingDialog" aria-labelledby="pickingTitle"><div class="dp-head"><div class="dp-head-text"><h2 class="dp-title" id="pickingTitle"></h2><p class="dp-subtitle">Chọn vị trí và điều chỉnh số lượng nhặt (có thể sửa cả số lượng cần nhặt). Dòng bôi đỏ là tổng chọn chưa khớp số lượng cần nhặt; vị trí được giữ chỗ cho đơn này sau khi xác nhận.</p></div><button id="pickingClose" type="button" class="dp-close" aria-label="Đóng chỉ định vị trí">×</button></div>'
-    +'<div class="picking-body"><div class="picking-status-bar"><span id="pickingOrderStatus" class="picking-order-status" data-status="">Chưa chỉ định</span><button id="pickingConfirmPick" type="button" class="btn-primary" hidden>Xác nhận nhặt</button><button id="pickingCancelPick" type="button" hidden>Hủy nhặt</button><button id="pickingReprint" type="button" hidden>In đơn</button></div>'
+    +'<div class="picking-body"><div class="picking-status-bar"><span id="pickingOrderStatus" class="picking-order-status" data-status="">Chưa chỉ định</span><button id="pickingConfirmPick" type="button" class="btn-primary" hidden>Xác nhận nhặt</button><button id="pickingCancelPick" type="button" hidden>Hủy nhặt</button><button id="pickingReopen" type="button" hidden>Chỉ định lại</button><button id="pickingReprint" type="button" hidden>In đơn</button></div>'
     +'<p id="pickingSource" class="picking-source"></p><div class="picking-table-wrap"><table class="dp-table picking-table" data-table-key="picking-table" data-table-sort="off"><thead><tr><th data-column-key="code" data-default-width="110">Mã hàng</th><th data-column-key="name" data-default-width="210">Tên hàng</th><th data-column-key="note" data-default-width="170" title="Ghi chú của dòng hàng trong đơn Kiot">Ghi chú</th><th data-column-key="need" data-default-width="190" data-min-width="180">Cần nhặt</th><th data-column-key="st" data-default-width="150" title="Số thùng thực nhặt theo chỉ định (SL nhặt / SL mỗi thùng). Trống khi dòng chưa chỉ định đủ SL; lẻ hiện đỏ.">ST</th><th data-column-key="stock" data-default-width="115" title="Tổng khả dụng cùng mã tại cơ sở sau giữ chỗ của các đơn khác">Tồn kho</th><th data-column-key="locations" data-default-width="760" data-min-width="320">Vị trí kho</th></tr></thead><tbody id="pickingRows"></tbody></table></div><p id="pickingStatus" role="status"></p></div>'
     +'<div class="picking-footer"><span id="pickingProgress"></span><div><button id="pickingReload" type="button" hidden>Tải lại</button><button id="pickingSuggest" type="button">Gợi ý lại</button><button id="pickingConfirm" type="button" class="btn-primary">Xác nhận &amp; In phiếu nhặt</button></div></div></dialog>'
     +'<dialog id="pickingPrintDialog" aria-labelledby="pickingPrintTitle"><div class="dp-head"><div><p class="dp-kicker">PHIẾU NHẶT HÀNG</p><h2 class="dp-title" id="pickingPrintTitle">Xem trước phiếu nhặt</h2></div><div><button id="pickingPrintBtn" type="button" class="btn-primary">In phiếu</button><button id="pickingPrintClose" type="button" class="dp-close" aria-label="Đóng bản in">×</button></div></div><div class="print-preview-stage"><div id="pickingPrintSheet"></div></div></dialog>';
@@ -213,17 +213,20 @@
     $('pickingReload').disabled=state.busy;
     $('pickingSuggest').disabled=!!a||!editable()||busy;
     const isDirty=dirty();
-    $('pickingConfirm').disabled=!!a||!editable()||busy||!!errors.length||(picking&&!isDirty);
-    $('pickingConfirm').textContent=a?'Đã xác nhận vị trí':picking?'Cập nhật chỉ định & In phiếu':'Xác nhận & In phiếu nhặt';
+    $('pickingConfirm').disabled=!!a||!editable()||busy||!!errors.length;
+    $('pickingConfirm').textContent=a?'Đã xác nhận vị trí':state.reopened?'Chỉ định lại & In phiếu':picking?'Cập nhật chỉ định & In phiếu':'Xác nhận & In phiếu nhặt';
     const status=state.latest?state.latest.status:'';
     $('pickingOrderStatus').textContent=status?STATUS_LABEL[status]:'Chưa chỉ định';$('pickingOrderStatus').dataset.status=status;
     $('pickingConfirmPick').hidden=status!=='picking';$('pickingConfirmPick').disabled=busy||isDirty;
-    // Đã bốc là trạng thái cuối: không hủy, không sửa. Đang bốc sửa ngay trong hộp, lưu bằng reassign (hủy lượt cũ + lượt mới trong một giao dịch).
+    // Đã bốc không hủy được, nhưng bấm Chỉ định lại thì mở khóa: lưu bằng reassign (hoàn thùng đã trừ + hủy lượt cũ + lượt mới trong một giao dịch). Đang bốc sửa ngay trong hộp, lưu cũng bằng reassign.
     $('pickingCancelPick').hidden=status!=='picking';$('pickingCancelPick').disabled=busy;
-    $('pickingReprint').hidden=!(status==='picking'||status==='confirmed');$('pickingReprint').disabled=busy||isDirty;
+    $('pickingReopen').hidden=status!=='confirmed'||state.reopened;$('pickingReopen').disabled=busy;
+    $('pickingReprint').hidden=!(status==='picking'||status==='confirmed')||state.reopened;$('pickingReprint').disabled=busy||isDirty;
     if(!order)return;
     const validationErrors=Array.isArray(order.validationErrors)?order.validationErrors:[];
     const hint=validationErrors.length?validationErrors.join('; '):a?'Đã chỉ định bởi '+(a.assignedByName||'—')+'. Bản ghi được giữ chỗ trên máy chủ.'
+      
+      :state.reopened&&editable()?'Đang chỉ định lại đơn đã bốc: khi lưu, số thùng đã trừ được hoàn về vị trí cũ rồi giữ chỗ theo chỉ định mới.'
       :picking&&editable()?(isDirty?'Có thay đổi chưa lưu: bấm “Cập nhật chỉ định & In phiếu” để đổi vị trí đã giữ chỗ.':'Đã chỉ định bởi '+(state.reassignOf.assignedByName||'—')+'. Đang nhặt vẫn đổi được vị trí/số lượng: sửa rồi bấm “Cập nhật chỉ định & In phiếu”.')
       :editable()?(mism.length?'Cảnh báo: '+mism.map(m=>m.productCode+' '+(m.kind==='short'?'thiếu ':'thừa ')+fmt(m.diff)).join('; ')+'. Vẫn chỉ định được, hệ thống sẽ hỏi xác nhận trước khi lưu.':'Gợi ý mới: chọn vị trí đủ hàng có lượng khả dụng sát số cần nhất.'):'Đơn chưa đủ điều kiện chỉ định vị trí.';
     $('pickingSource').textContent=hint;
@@ -239,7 +242,7 @@
     state.order=r.data.order;state.cand=r.data.candidates||{};
     const latest=r.data.assignment||null;
     // Chỉ Đã bốc là khóa (chỉ xem). Đang nhặt và Đã hủy sửa được ngay: Đang nhặt giữ lại để gửi reassign kèm version.
-    state.latest=latest;
+    state.latest=latest;state.reopened=false;
     state.assignment=latest&&latest.status==='confirmed'?latest:null;
     state.reassignOf=latest&&latest.status==='picking'?latest:null;
     state.needsSync=false;
@@ -275,7 +278,7 @@
   async function open(listOrder){
     ensureDialogs();
     const epoch=++state.requestEpoch;
-    state.sort=null;state.listOrder=listOrder;state.reassignOf=null;state.order=null;state.needs={};state.latest=null;state.assignment=null;state.allocations={};state.suggestions={};state.busy=false;state.needsSync=true;
+    state.sort=null;state.listOrder=listOrder;state.reassignOf=null;state.reopened=false;state.order=null;state.needs={};state.latest=null;state.assignment=null;state.allocations={};state.suggestions={};state.busy=false;state.needsSync=true;
     $('pickingTitle').textContent=listOrder.orderCode+' · '+(listOrder.branch==='SG'?'Sài Gòn':'Hà Nội');
     setStatus('Đang tải…');render();
     if(!$('pickingDialog').open)$('pickingDialog').showModal();
@@ -299,7 +302,7 @@
       }
       if(!r.data.assignment)throw new Error('Phản hồi không có trạng thái chỉ định.');
       const next=r.data.assignment;
-      state.latest=next;state.assignment=next.status==='confirmed'?next:null;state.reassignOf=next.status==='picking'?next:null;state.needsSync=false;
+      state.latest=next;state.reopened=false;state.assignment=next.status==='confirmed'?next:null;state.reassignOf=next.status==='picking'?next:null;state.needsSync=false;
       if(next.status==='picking'||next.status==='confirmed')state.needs=editedNeeds(needsFromAssignment(next));
       if(state.assignment)allocationsFromAssignment(state.assignment);
       setStatus('');notify();return true;
@@ -341,6 +344,13 @@
     // Hủy nhặt: tải lại để có gợi ý mới theo tồn vừa được trả giữ chỗ, sẵn sàng chỉ định lại ngay.
     if(action==='cancel')await reloadCurrent(epoch);
     return true;
+  }
+  // Đã bốc → mở khóa để chỉ định lại. Chưa gọi máy chủ: chỉ khi lưu (reassign) thùng đã trừ mới được hoàn lại.
+  function reopenConfirmed(){
+    const a=state.latest;if(!a||a.status!=='confirmed'||state.busy||state.needsSync)return;
+    if(!window.confirm('Chỉ định lại đơn ĐÃ BỐC?'+String.fromCharCode(10)+'Khi lưu, số thùng đã trừ khỏi các vị trí sẽ được hoàn lại, rồi đơn được chỉ định mới (Đang bốc).'))return;
+    state.reopened=true;state.assignment=null;state.reassignOf=a;allocationsFromAssignment(a);
+    render();
   }
   async function printPick(){
     const a=state.latest;
@@ -442,6 +452,7 @@
     $('pickingConfirm').addEventListener('click',submitAssign);
     $('pickingConfirmPick').addEventListener('click',()=>changeStatus('confirm'));
     $('pickingCancelPick').addEventListener('click',()=>changeStatus('cancel'));
+    $('pickingReopen').addEventListener('click',reopenConfirmed);
     $('pickingReprint').addEventListener('click',()=>printPick());
     $('pickingReload').addEventListener('click',()=>{if(!state.busy)reloadCurrent(state.requestEpoch,'',true);});
     $('pickingClose').addEventListener('click',()=>$('pickingDialog').close());
