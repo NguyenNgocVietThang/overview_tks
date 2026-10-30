@@ -37,7 +37,7 @@ function order(overrides = {}) {
   };
 }
 
-async function fixture({ orders = { DH001: order() }, positions } = {}) {
+async function fixture({ orders = { DH001: order() }, positions, orderEditor } = {}) {
   const db = new PGlite();
   await db.exec(migration('0001_core_master_data.sql'));
   await db.exec(migration('0064_sheet_snapshots.sql'));
@@ -56,6 +56,7 @@ async function fixture({ orders = { DH001: order() }, positions } = {}) {
   }
   const service = createPickAssignmentsService({
     getDb: () => poolFor(db),
+    ...(orderEditor ? { orderEditor } : {}),
     loadOrder: async ({ branch, orderCode }) => {
       const found = orders[orderCode];
       return found && found.branch === branch ? found : null;
@@ -390,4 +391,50 @@ test('chi dinh duoc o MOI trang thai vong doi (ke ca chua gui ke toan); don da h
     const again = await service.assign(ctx(), assignBody([{ productCode: 'AAA1', positionId: 1, qty: 250 }]));
     assert.equal(again.assignment.status, 'picking');
   } finally { await db.close(); }
+});
+
+test('SL can nhat sua tay duoc ghi len Kiot roi doc lai don; chi dinh dung SL moi, khong con lech Kiot',async()=>{
+  const orders={DH001:order()};const calls=[];
+  const orderEditor={
+    setQuantities:async arg=>{calls.push(['set',arg]);orders.DH001=order({lines:[{productCode:'AAA1',productName:'Hàng A',quantity:200,price:10,discount:0,note:''}]});return {changed:true};},
+    removeLine:async()=>{throw new Error('khong duoc goi');}
+  };
+  const {db,service}=await fixture({orders,orderEditor});
+  try{
+    const {assignment}=await service.assign(ctx(),assignBody([{productCode:'AAA1',positionId:1,qty:200}],{needs:{AAA1:200}}));
+    assert.deepEqual(calls.map(call=>call[0]),['set']);
+    assert.equal(calls[0][1].branch,'HN');assert.equal(calls[0][1].orderCode,'DH001');assert.deepEqual(calls[0][1].quantities,{AAA1:200});
+    assert.equal(assignment.snapshot.lines[0].quantity,200);
+    assert.equal(assignment.snapshot.lines[0].kiotQuantity,undefined);
+  }finally{await db.close();}
+});
+
+test('Kiot tu choi ghi SL -> assign loi va khong tao chi dinh',async()=>{
+  const orderEditor={setQuantities:async()=>{throw Object.assign(new Error('Kiot tu choi'),{statusCode:502,code:'KIOT_REJECTED'});}};
+  const {db,service}=await fixture({orderEditor});
+  try{
+    await assert.rejects(()=>service.assign(ctx(),assignBody([{productCode:'AAA1',positionId:1,qty:200}],{needs:{AAA1:200}})),{code:'KIOT_REJECTED'});
+    assert.equal(Number((await db.query('SELECT count(*) FROM order_pick_assignments')).rows[0].count),0);
+  }finally{await db.close();}
+});
+
+test('SL khong sua (needs trung Kiot) khong cham Kiot',async()=>{
+  let touched=0;const orderEditor={setQuantities:async()=>{touched++;return {};}};
+  const {db,service}=await fixture({orderEditor});
+  try{
+    await service.assign(ctx(),assignBody([{productCode:'AAA1',positionId:1,qty:250}],{needs:{AAA1:250}}));
+    assert.equal(touched,0);
+  }finally{await db.close();}
+});
+
+test('removeLine goi bo ghi Kiot voi nguoi thao tac va tra chi dinh moi nhat; thieu ma hang -> 400',async()=>{
+  const calls=[];const orderEditor={removeLine:async arg=>{calls.push(arg);return {changed:true};}};
+  const {db,service}=await fixture({orderEditor});
+  try{
+    const result=await service.removeLine(ctx(),{branch:'HN',orderCode:'DH001',productCode:' AAA1 '});
+    assert.equal(result.changed,true);assert.equal(result.assignment,null);
+    assert.equal(calls[0].productCode,'AAA1');assert.equal(calls[0].orderCode,'DH001');assert.equal(calls[0].branch,'HN');
+    await assert.rejects(()=>service.removeLine(ctx(),{branch:'HN',orderCode:'DH001',productCode:''}),{code:'VALIDATION'});
+    await assert.rejects(()=>service.removeLine(ctx(),{branch:'XX',orderCode:'DH001',productCode:'AAA1'}));
+  }finally{await db.close();}
 });

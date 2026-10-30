@@ -22,11 +22,11 @@
   const key=v=>R.key(v);
   const round6=n=>Math.round(n*1e6)/1e6;
   // latest = chỉ định mới nhất của đơn; assignment = latest khi Đã bốc (chỉ xem); reassignOf = latest khi Đang nhặt (đang sửa, lưu bằng reassign).
-  const state={listOrder:null,order:null,cand:{},needs:{},latest:null,assignment:null,allocations:{},suggestions:{},busy:false,needsSync:true,requestEpoch:0,reassignOf:null,reopened:false,onChange:null,sort:null};
+  const state={listOrder:null,order:null,cand:{},needs:{},latest:null,assignment:null,allocations:{},suggestions:{},busy:false,needsSync:true,requestEpoch:0,reassignOf:null,reopened:false,onChange:null,sort:null,manual:null,drag:null};
 
-  const DIALOGS_HTML='<dialog id="pickingDialog" aria-labelledby="pickingTitle"><div class="dp-head"><div class="dp-head-text"><h2 class="dp-title" id="pickingTitle"></h2><p class="dp-subtitle">Chọn vị trí và điều chỉnh số lượng nhặt (có thể sửa cả số lượng cần nhặt). Dòng bôi đỏ là tổng chọn chưa khớp số lượng cần nhặt; vị trí được giữ chỗ cho đơn này sau khi xác nhận.</p></div><button id="pickingClose" type="button" class="dp-close" aria-label="Đóng chỉ định vị trí">×</button></div>'
+  const DIALOGS_HTML='<dialog id="pickingDialog" aria-labelledby="pickingTitle"><div class="dp-head"><div class="dp-head-text"><h2 class="dp-title" id="pickingTitle"></h2><p class="dp-subtitle">Chọn vị trí và điều chỉnh số lượng nhặt. Nhấn giữ dòng (hoặc ba chấm đầu dòng) rồi kéo lên/xuống để đổi thứ tự (phiếu in theo thứ tự này); "Xóa dòng" và số lượng cần nhặt sửa tay đều được ghi lên đơn KiotViet. Dòng bôi đỏ là tổng chọn chưa khớp số lượng cần nhặt; vị trí được giữ chỗ cho đơn này sau khi xác nhận.</p></div><button id="pickingClose" type="button" class="dp-close" aria-label="Đóng chỉ định vị trí">×</button></div>'
     +'<div class="picking-body"><div class="picking-status-bar"><span id="pickingOrderStatus" class="picking-order-status" data-status="">Chưa chỉ định</span><button id="pickingConfirmPick" type="button" class="btn-primary" hidden>Xác nhận nhặt</button><button id="pickingCancelPick" type="button" hidden>Hủy nhặt</button><button id="pickingReopen" type="button" hidden>Chỉ định lại</button><button id="pickingReprint" type="button" hidden>In đơn</button></div>'
-    +'<p id="pickingSource" class="picking-source"></p><div class="picking-table-wrap"><table class="dp-table picking-table" data-table-key="picking-table" data-table-sort="off"><thead><tr><th data-column-key="code" data-default-width="110">Mã hàng</th><th data-column-key="name" data-default-width="210">Tên hàng</th><th data-column-key="note" data-default-width="170" title="Ghi chú của dòng hàng trong đơn Kiot">Ghi chú</th><th data-column-key="need" data-default-width="190" data-min-width="180">Cần nhặt</th><th data-column-key="st" data-default-width="150" title="Số thùng thực nhặt theo chỉ định (SL nhặt / SL mỗi thùng). Trống khi dòng chưa chỉ định đủ SL; lẻ hiện đỏ.">ST</th><th data-column-key="stock" data-default-width="115" title="Tổng khả dụng cùng mã tại cơ sở sau giữ chỗ của các đơn khác">Tồn kho</th><th data-column-key="locations" data-default-width="760" data-min-width="320">Vị trí kho</th></tr></thead><tbody id="pickingRows"></tbody></table></div><p id="pickingStatus" role="status"></p></div>'
+    +'<p id="pickingSource" class="picking-source"></p><div class="picking-table-wrap"><table class="dp-table picking-table" data-table-key="picking-table" data-table-sort="off"><thead><tr><th data-column-key="code" data-default-width="150" data-min-width="130">Mã hàng</th><th data-column-key="name" data-default-width="210">Tên hàng</th><th data-column-key="note" data-default-width="170" title="Ghi chú của dòng hàng trong đơn Kiot">Ghi chú</th><th data-column-key="need" data-default-width="190" data-min-width="180">Cần nhặt</th><th data-column-key="st" data-default-width="150" title="Số thùng thực nhặt theo chỉ định (SL nhặt / SL mỗi thùng). Trống khi dòng chưa chỉ định đủ SL; lẻ hiện đỏ.">ST</th><th data-column-key="stock" data-default-width="115" title="Tổng khả dụng cùng mã tại cơ sở sau giữ chỗ của các đơn khác">Tồn kho</th><th data-column-key="locations" data-default-width="760" data-min-width="320">Vị trí kho</th></tr></thead><tbody id="pickingRows"></tbody></table></div><p id="pickingStatus" role="status"></p></div>'
     +'<div class="picking-footer"><span id="pickingProgress"></span><div><button id="pickingReload" type="button" hidden>Tải lại</button><button id="pickingSuggest" type="button">Gợi ý lại</button><button id="pickingConfirm" type="button" class="btn-primary">Xác nhận &amp; In phiếu nhặt</button></div></div></dialog>'
     +'<dialog id="pickingPrintDialog" aria-labelledby="pickingPrintTitle"><div class="dp-head"><div><p class="dp-kicker">PHIẾU NHẶT HÀNG</p><h2 class="dp-title" id="pickingPrintTitle">Xem trước phiếu nhặt</h2></div><div><button id="pickingPrintBtn" type="button" class="btn-primary">In phiếu</button><button id="pickingPrintClose" type="button" class="dp-close" aria-label="Đóng bản in">×</button></div></div><div class="print-preview-stage"><div id="pickingPrintSheet"></div></div></dialog>';
 
@@ -91,8 +91,12 @@
     }).map(e=>e.r);
   }
   // Sort chỉ đổi thứ tự trình bày; chỉ số dòng gốc vẫn dùng cho mọi thao tác phân bổ.
+  /* Thứ tự kéo-thả (state.manual = mảng mã hàng chữ thường) chỉ sống trong lần mở hộp này; mở lại về thứ tự Kiot. Mã không có trong mảng
+     (vd đơn vừa tải lại) xếp sau cùng theo thứ tự Kiot. Phiếu in theo đúng thứ tự này (printPick). */
+  const manualRank=l=>{const at=state.manual.indexOf(key(l.productCode));return at<0?state.manual.length:at;};
   function displayLines(){
     const entries=lines().map((l,i)=>({l,i}));
+    if(state.manual)return entries.sort((a,b)=>manualRank(a.l)-manualRank(b.l)||a.i-b.i);
     if(!state.sort)return entries;
     const {column,dir}=state.sort;
     const value=({l,i})=>{
@@ -124,6 +128,8 @@
     return [...seen.values()];
   }
   const editable=()=>!!state.order&&!state.assignment&&state.order.eligible!==false&&!state.busy&&!state.needsSync;
+  // Xóa dòng ghi ngược lên đơn Kiot nên cho ở mọi trạng thái (kể cả Đã bốc), miễn đơn còn ít nhất 2 mã hàng.
+  const canRemove=()=>!!state.order&&!state.busy&&!state.needsSync&&lines().length>1;
 
   // ---------- Gợi ý phân bổ ----------
   function suggest(){
@@ -194,9 +200,10 @@
       const uncertainty=unknown?' (chưa xác định)':'';
       // Số chọn khác SL khách đặt (thiếu, thừa hoặc chưa chọn) → bôi đỏ cả dòng.
       const mismatch=round6(total)!==round6(l.quantity);
-      const needCell=editable()?`<div class="picking-need-stepper"><button type="button" data-need-step="-1" data-need-line="${i}" aria-label="Giảm SL cần nhặt ${esc(l.productCode)}" ${l.quantity<=1?'disabled':''}>−</button><input type="text" inputmode="numeric" class="picking-need-input" data-need data-need-line="${i}" value="${fmt(l.quantity)}" aria-label="SL cần nhặt ${esc(l.productCode)}" title="Sửa số lượng cần nhặt (khác số trên đơn Kiot sẽ có cảnh báo Lệch Kiot)"><button type="button" data-need-step="1" data-need-line="${i}" aria-label="Tăng SL cần nhặt ${esc(l.productCode)}" ${l.quantity>=Number.MAX_SAFE_INTEGER?'disabled':''}>+</button></div>`:`<strong>${fmt(l.quantity)}</strong>`;
+      const needCell=editable()?`<div class="picking-need-stepper"><button type="button" data-need-step="-1" data-need-line="${i}" aria-label="Giảm SL cần nhặt ${esc(l.productCode)}" ${l.quantity<=1?'disabled':''}>−</button><input type="text" inputmode="numeric" class="picking-need-input" data-need data-need-line="${i}" value="${fmt(l.quantity)}" aria-label="SL cần nhặt ${esc(l.productCode)}" title="Sửa số lượng cần nhặt (khác số trên đơn Kiot sẽ được ghi lên đơn Kiot khi bấm xác nhận và in)"><button type="button" data-need-step="1" data-need-line="${i}" aria-label="Tăng SL cần nhặt ${esc(l.productCode)}" ${l.quantity>=Number.MAX_SAFE_INTEGER?'disabled':''}>+</button></div>`:`<strong>${fmt(l.quantity)}</strong>`;
       const kiotNote=l.kiotQuantity!==l.quantity?`<small class="picking-kiot" title="Số lượng trên đơn Kiot">Kiot: ${fmt(l.kiotQuantity)}</small>`:'';
-      return `<tr data-line="${i}"${mismatch?' class="picking-mismatch" data-mismatch="true"':''}><td class="picking-code">${esc(l.productCode)}</td><td>${esc(l.productName)}</td><td class="picking-note">${esc(l.note)}</td><td class="picking-need">${needCell}<small class="picking-allocation ${lineOk(i)?'picking-good':'picking-bad'}" data-allocated="${total}"><span aria-hidden="true" class="picking-allocation-icon">${lineOk(i)?'✓':'!'}</span> Đã phân bổ ${fmt(total)}/${fmt(l.quantity)}</small>${kiotNote}</td>${stCell(st)}<td class="picking-total" data-total-code="${esc(l.productCode)}" data-shared-available="${shared===null?'unknown':shared}" data-remaining="${unknown?'unknown':before-selected}"><strong class="${shared===null?'picking-bad':'picking-good'}">${fmt(before)}${uncertainty}</strong><small class="picking-pickable" data-pickable="${Math.max(0,before-selected)}" title="Tồn kho trừ số lượng đang chọn nhặt cho mã này">Có thể bốc: ${fmt(Math.max(0,before-selected))}${uncertainty}</small></td><td><div class="picking-locations">${rows.map(r=>{
+      const removeBtn=canRemove(i)?`<button type="button" class="picking-remove" data-remove-line="${i}" title="Xóa dòng hàng này khỏi đơn KiotViet" aria-label="Xóa ${esc(l.productCode)} khỏi đơn">Xóa dòng</button>`:'';
+      return `<tr data-line="${i}"${mismatch?' class="picking-mismatch" data-mismatch="true"':''}><td class="picking-code"><span class="picking-grip" role="img" aria-label="Nhấn giữ và kéo để đổi thứ tự" title="Nhấn giữ và kéo lên/xuống để đổi thứ tự (phiếu in theo thứ tự này)">⋮⋮</span><span class="picking-code-text">${esc(l.productCode)}</span>${removeBtn}</td><td>${esc(l.productName)}</td><td class="picking-note">${esc(l.note)}</td><td class="picking-need">${needCell}<small class="picking-allocation ${lineOk(i)?'picking-good':'picking-bad'}" data-allocated="${total}"><span aria-hidden="true" class="picking-allocation-icon">${lineOk(i)?'✓':'!'}</span> Đã phân bổ ${fmt(total)}/${fmt(l.quantity)}</small>${kiotNote}</td>${stCell(st)}<td class="picking-total" data-total-code="${esc(l.productCode)}" data-shared-available="${shared===null?'unknown':shared}" data-remaining="${unknown?'unknown':before-selected}"><strong class="${shared===null?'picking-bad':'picking-good'}">${fmt(before)}${uncertainty}</strong><small class="picking-pickable" data-pickable="${Math.max(0,before-selected)}" title="Tồn kho trừ số lượng đang chọn nhặt cho mã này">Có thể bốc: ${fmt(Math.max(0,before-selected))}${uncertainty}</small></td><td><div class="picking-locations">${rows.map(r=>{
         const take=picks.find(p=>p.id===r.id)?.quantity||0,available=R.quantity(r.available),hint=(state.suggestions[i]||[]).some(p=>p.id===r.id);
         const off=!editable()||available===null||!r.location||!available?'disabled':'';
         const zone=zoneOf((state.order||{}).branch,r.location),locTitle=r.location?(zone.name?r.location+' · '+zone.name:r.location):'Chưa có vị trí';
@@ -278,7 +285,7 @@
   async function open(listOrder){
     ensureDialogs();
     const epoch=++state.requestEpoch;
-    state.sort=null;state.listOrder=listOrder;state.reassignOf=null;state.reopened=false;state.order=null;state.needs={};state.latest=null;state.assignment=null;state.allocations={};state.suggestions={};state.busy=false;state.needsSync=true;
+    state.sort=null;state.manual=null;state.drag=null;state.listOrder=listOrder;state.reassignOf=null;state.reopened=false;state.order=null;state.needs={};state.latest=null;state.assignment=null;state.allocations={};state.suggestions={};state.busy=false;state.needsSync=true;
     $('pickingTitle').textContent=listOrder.orderCode+' · '+(listOrder.branch==='SG'?'Sài Gòn':'Hà Nội');
     setStatus('Đang tải…');render();
     if(!$('pickingDialog').open)$('pickingDialog').showModal();
@@ -333,7 +340,12 @@
     const reassign=state.reassignOf?{reassign:true,version:state.reassignOf.version}:{};
     const needs={};
     lines().forEach(l=>{if(l.quantity!==l.kiotQuantity)needs[l.productCode]=l.quantity;});
+    // SL cần nhặt khác đơn Kiot được GHI LÊN ĐƠN KIOT khi lưu chỉ định (máy chủ sửa Kiot trước, rồi mới tạo chỉ định).
+    const edited=lines().filter(l=>l.quantity!==l.kiotQuantity);
+    if(edited.length&&!window.confirm('Ghi lên đơn KiotViet?\n'+edited.map(l=>'• '+l.productCode+': '+fmt(l.kiotQuantity)+' → '+fmt(l.quantity)).join('\n')+'\n\nSố lượng trên đơn Kiot sẽ được sửa theo số lượng cần nhặt và không hoàn tác được. Tiếp tục?'))return;
     if(!await write(API,{branch:state.order.branch,orderCode:state.order.orderCode,allocations,...(Object.keys(needs).length?{needs}:{}),...(mismatched.length?{allowMismatch:true}:{}),...reassign}))return;
+    // Kiot đã đổi theo SL cần nhặt: tải lại để dòng đơn trong hộp khớp Kiot (hết nhãn "Kiot: …") trước khi in.
+    if(edited.length&&!await reloadCurrent(state.requestEpoch,'',true))return;
     $('pickingDialog').close();
     await printPick();
   }
@@ -356,8 +368,14 @@
     const a=state.latest;
     if(!a||!window.PickingInvoice)return;
     try{
-      // Phiếu in luôn giữ thứ tự dòng của đơn Kiot (snapshot), không theo sort đang chọn trong hộp.
-      await window.PickingInvoice.show({...a.snapshot,orderCode:a.orderCode,branch:a.branch},a);
+      // Phiếu in giữ thứ tự dòng của đơn Kiot (snapshot), không theo sort đang chọn trong hộp; chỉ khi người dùng kéo-thả
+      // đổi thứ tự trong hộp này thì phiếu theo đúng thứ tự đó (mã ngoài danh sách kéo-thả xếp sau, giữ thứ tự cũ).
+      const snapshot={...a.snapshot,orderCode:a.orderCode,branch:a.branch};
+      if(state.manual&&state.listOrder&&state.listOrder.orderCode===a.orderCode){
+        const rank=l=>{const at=state.manual.indexOf(key(l.productCode));return at<0?state.manual.length:at;};
+        snapshot.lines=(snapshot.lines||[]).map((l,i)=>({l,i})).sort((x,y)=>rank(x.l)-rank(y.l)||x.i-y.i).map(e=>e.l);
+      }
+      await window.PickingInvoice.show(snapshot,a);
     }
     catch(error){
       if(!$('pickingDialog').open)$('pickingDialog').showModal();
@@ -430,6 +448,107 @@
     setStatus('');setQty(Number(event.target.dataset.qline),event.target.dataset.qloc,qty);render();
   }
 
+  // ---------- Xóa dòng hàng (ghi ngược lên đơn Kiot) ----------
+  async function removeLine(i){
+    const line=lines()[i];if(!line||!canRemove())return;
+    const o=state.order,status=state.latest?state.latest.status:'';
+    const unsaved=Object.keys(state.needs).length>0||dirty();
+    const text='Xóa dòng hàng khỏi đơn KiotViet?\n\n• '+line.productCode+' · '+(line.productName||'')+' (SL '+fmt(line.kiotQuantity)+')\n• Đơn '+o.orderCode+' trên KiotViet bị sửa ngay và KHÔNG hoàn tác được.'
+      +(status==='picking'||status==='confirmed'?'\n• Đơn đang có chỉ định vị trí ('+STATUS_LABEL[status]+'): sau khi xóa, '+(status==='confirmed'?'bấm Chỉ định lại':'bấm Cập nhật chỉ định')+' để bỏ vị trí của mã này.':'')
+      +(unsaved?'\n• Thay đổi chưa lưu trong hộp này sẽ bị bỏ.':'')+'\n\nVẫn xóa?';
+    if(!window.confirm(text))return;
+    const epoch=state.requestEpoch;
+    state.busy=true;setStatus('Đang xóa dòng trên KiotViet…');render();
+    let r;
+    try{r=await api('POST',API+'/order-lines/remove',{branch:o.branch,orderCode:o.orderCode,productCode:line.productCode});}
+    catch(error){r=null;}
+    if(!current(epoch))return;
+    // Không rõ kết quả (lỗi mạng / 5xx): tải lại để hiện đúng trạng thái đơn, không tự gửi lần nữa.
+    if(!r||r.status>=500){await reloadCurrent(epoch,'Chưa xác định được kết quả xóa dòng do lỗi kết nối.',true);return;}
+    if(!r.ok){state.busy=false;render();setStatus(r.data.error||'Không xóa được dòng hàng.',true);return;}
+    if(state.manual)state.manual=state.manual.filter(k=>k!==key(line.productCode));
+    if(await reloadCurrent(epoch,'',true))setStatus('Đã xóa '+line.productCode+' khỏi đơn KiotViet.');
+  }
+
+  // ---------- Kéo-thả đổi thứ tự dòng hàng ----------
+  /* Nhấn giữ (tay nắm ⋮⋮ kéo ngay; vùng trống của dòng giữ ~0,35 giây) rồi kéo lên/xuống thả vào dòng khác. Chỉ đổi thứ tự trình bày
+     trong lần mở hộp này (state.manual) và thứ tự dòng trên phiếu in; không lưu, không ghi lên Kiot. Chỉ số dòng gốc cho phân bổ không đổi. */
+  const HOLD_MS=350,MOVE_PX=6,EDGE_PX=48,INTERACTIVE='button,input,select,textarea,a,label,.picking-qty,.picking-stepper';
+  function moveLine(fromCode,toCode,after){
+    if(!fromCode||!toCode||fromCode===toCode)return false;
+    const before=displayLines().map(e=>key(e.l.productCode)),order=before.slice();
+    if(!order.includes(fromCode)||!order.includes(toCode))return false;
+    order.splice(order.indexOf(fromCode),1);
+    order.splice(order.indexOf(toCode)+(after?1:0),0,fromCode);
+    if(order.every((k,n)=>k===before[n]))return false;
+    state.manual=order;state.sort=null;return true;
+  }
+  const codeOfRow=row=>{const l=lines()[Number(row.dataset.line)];return l?key(l.productCode):'';};
+  function dragCleanup(){
+    const d=state.drag;if(!d)return;
+    clearTimeout(d.timer);cancelAnimationFrame(d.raf);
+    document.removeEventListener('pointermove',d.move);document.removeEventListener('pointerup',d.up);document.removeEventListener('pointercancel',d.cancel);
+    document.removeEventListener('keydown',d.esc,true);document.removeEventListener('touchmove',d.touch);
+    $('pickingRows').querySelectorAll('.picking-dragging,.picking-drop-before,.picking-drop-after').forEach(el=>el.classList.remove('picking-dragging','picking-drop-before','picking-drop-after'));
+    document.body.classList.remove('picking-drag-active');
+    state.drag=null;
+  }
+  function rowAt(y){
+    const rows=[...$('pickingRows').querySelectorAll('tr[data-line]')];
+    if(!rows.length)return null;
+    const first=rows[0].getBoundingClientRect(),last=rows[rows.length-1].getBoundingClientRect();
+    if(y<=first.top)return {row:rows[0],after:false};
+    if(y>=last.bottom)return {row:rows[rows.length-1],after:true};
+    for(const row of rows){const r=row.getBoundingClientRect();if(y>=r.top&&y<=r.bottom)return {row,after:y>r.top+r.height/2};}
+    return null;
+  }
+  function dragBegin(row){
+    const d=state.drag;if(!d||d.active)return;
+    d.active=true;row.classList.add('picking-dragging');document.body.classList.add('picking-drag-active');
+    document.addEventListener('touchmove',d.touch,{passive:false});
+    const tick=()=>{ // cuộn tự động khi kéo sát mép khung
+      if(!state.drag||!state.drag.active)return;
+      for(const box of [row.closest('.picking-table-wrap'),row.closest('.picking-body')]){
+        if(!box)continue;const r=box.getBoundingClientRect();
+        if(d.y<r.top+EDGE_PX)box.scrollTop-=Math.ceil((r.top+EDGE_PX-d.y)/4);else if(d.y>r.bottom-EDGE_PX)box.scrollTop+=Math.ceil((d.y-(r.bottom-EDGE_PX))/4);
+      }
+      d.raf=requestAnimationFrame(tick);
+    };
+    d.raf=requestAnimationFrame(tick);
+  }
+  function dragMark(){
+    const d=state.drag;if(!d||!d.active)return;
+    $('pickingRows').querySelectorAll('.picking-drop-before,.picking-drop-after').forEach(el=>el.classList.remove('picking-drop-before','picking-drop-after'));
+    const hit=rowAt(d.y);d.target=hit&&hit.row!==d.row?hit:null;
+    if(d.target)d.target.row.classList.add(d.target.after?'picking-drop-after':'picking-drop-before');
+  }
+  function onRowsPointerDown(event){
+    if(state.drag||state.busy||state.needsSync||!state.order||(event.pointerType==='mouse'&&event.button!==0))return;
+    const row=event.target.closest('tr[data-line]');if(!row)return;
+    const grip=event.target.closest('.picking-grip');
+    if(!grip&&event.target.closest(INTERACTIVE))return;
+    const d={row,x0:event.clientX,y0:event.clientY,y:event.clientY,active:false,target:null,timer:0,raf:0};
+    d.move=e=>{
+      d.y=e.clientY;
+      // Nhúc nhích trước khi giữ đủ lâu = đang cuộn/chọn chữ, không phải kéo-thả.
+      if(!d.active){if(Math.abs(e.clientX-d.x0)>MOVE_PX||Math.abs(e.clientY-d.y0)>MOVE_PX)dragCleanup();return;}
+      dragMark();
+    };
+    d.up=()=>{
+      const drop=d.active&&d.target?{from:codeOfRow(d.row),to:codeOfRow(d.target.row),after:d.target.after}:null;
+      dragCleanup();
+      if(drop&&moveLine(drop.from,drop.to,drop.after)){setStatus('Đã đổi thứ tự dòng hàng (phiếu in theo thứ tự này, mở lại hộp sẽ về thứ tự Kiot).');render();}
+    };
+    d.cancel=()=>dragCleanup();
+    d.esc=e=>{if(e.key==='Escape'&&state.drag){e.stopImmediatePropagation();dragCleanup();}};
+    d.touch=e=>{if(state.drag&&state.drag.active)e.preventDefault();};
+    state.drag=d;
+    document.addEventListener('pointerup',d.up);document.addEventListener('pointercancel',d.cancel);document.addEventListener('keydown',d.esc,true);
+    if(grip){event.preventDefault();dragBegin(row);d.move=e=>{d.y=e.clientY;dragMark();};}
+    else d.timer=setTimeout(()=>dragBegin(row),HOLD_MS);
+    document.addEventListener('pointermove',d.move);
+  }
+
   let bound=false;
   function ensureDialogs(){
     if($('pickingDialog'))return;
@@ -443,10 +562,15 @@
       th.replaceChildren(button);
       button.addEventListener('click',()=>{
         const column=th.dataset.columnKey;
-        state.sort={column,dir:state.sort?.column===column?-state.sort.dir:1};render();
+        state.manual=null;state.sort={column,dir:state.sort?.column===column?-state.sort.dir:1};render();
       });
     });
-    $('pickingRows').addEventListener('click',onRowsClick);
+    $('pickingRows').addEventListener('pointerdown',onRowsPointerDown);
+    $('pickingRows').addEventListener('click',event=>{
+      const remove=event.target.closest('[data-remove-line]');
+      if(remove){removeLine(Number(remove.dataset.removeLine));return;}
+      onRowsClick(event);
+    });
     $('pickingRows').addEventListener('change',onRowsChange);
     $('pickingSuggest').addEventListener('click',()=>{if(!editable())return;suggest();render();});
     $('pickingConfirm').addEventListener('click',submitAssign);
@@ -456,7 +580,7 @@
     $('pickingReprint').addEventListener('click',()=>printPick());
     $('pickingReload').addEventListener('click',()=>{if(!state.busy)reloadCurrent(state.requestEpoch,'',true);});
     $('pickingClose').addEventListener('click',()=>$('pickingDialog').close());
-    $('pickingDialog').addEventListener('close',()=>{state.requestEpoch++;state.busy=false;state.needsSync=true;});
+    $('pickingDialog').addEventListener('close',()=>{dragCleanup();state.requestEpoch++;state.busy=false;state.needsSync=true;});
     $('pickingPrintClose').addEventListener('click',()=>$('pickingPrintDialog').close());
     // Esc chỉ đóng hộp chỉ định/phiếu đang mở, không đóng luôn hộp chi tiết đơn bên dưới.
     document.addEventListener('keydown',event=>{if(event.key==='Escape'&&['pickingDialog','pickingPrintDialog'].some(id=>$(id)&&$(id).open))event.stopImmediatePropagation();},true);
@@ -495,5 +619,5 @@
     }catch(error){return null;}
   }
 
-  window.TKSPick={attach,open,loadAssignment,STATUS_LABEL,_state:state};
+  window.TKSPick={attach,open,loadAssignment,STATUS_LABEL,_state:state,_moveLine:(from,to,after)=>{const moved=moveLine(key(from),key(to),after);if(moved)render();return moved;}};
 })();

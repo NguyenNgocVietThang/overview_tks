@@ -141,7 +141,10 @@ async function defaultLoadOrder({ branch, orderCode }) {
 }
 
 function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoadOrder,
-  loadSellerPhone = loadOrder === defaultLoadOrder ? kiotData.loadSellerPhone : null } = {}) {
+  loadSellerPhone = loadOrder === defaultLoadOrder ? kiotData.loadSellerPhone : null,
+  // Ghi nguoc len don Kiot (xoa dong / sua SL can nhat). Chi bat o duong that; test truyen loadOrder rieng thi khong cham Kiot
+  // (assign() giu cach cu: SL sua chi luu trong ban chi dinh).
+  orderEditor = loadOrder === defaultLoadOrder ? require('../kiotviet/kiotOrderEditor').createKiotOrderEditor() : null } = {}) {
   // ---------- Doc / dinh dang ----------
 
   async function readAssignment(db, id) {
@@ -275,6 +278,19 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
     return { order: orderView(order, lines), candidates: byCode, assignment: await readLatest(db, branch, order.orderCode) };
   }
 
+  // Xoa dong hang (moi dong cua ma) khoi chinh don Kiot. Chi dinh dang co (Dang nhat/Da nhat) KHONG bi dong vao: don lech Kiot
+  // nen hien canh bao "Lech SL boc" va nguoi dung luu lai chi dinh (Dang nhat) hoac Chi dinh lai (Da boc) de bo vi tri cua ma da xoa.
+  async function removeLine(ctx, { branch, orderCode, productCode } = {}) {
+    assertBranch(branch);
+    assertScope(ctx, branch);
+    const code = cleanOrderCode(orderCode);
+    const product = typeof productCode === 'string' ? productCode.trim() : '';
+    if (!product) throw fail(400, 'VALIDATION', 'Thiếu mã hàng cần xóa.', { field: 'productCode' });
+    if (!orderEditor) throw fail(424, 'KIOT_WRITE_UNAVAILABLE', 'Máy chủ chưa hỗ trợ ghi ngược lên KiotViet.');
+    const result = await orderEditor.removeLine({ branch, orderCode: code, productCode: product, actor: actorOf(ctx) });
+    return { changed: result.changed, assignment: await readLatest(getDb(), branch, code) };
+  }
+
   async function get(ctx, { branch, orderCode } = {}) {
     assertBranch(branch);
     assertScope(ctx, branch);
@@ -328,14 +344,27 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
     assertBranch(branch);
     assertScope(ctx, branch);
     const orderCode = cleanOrderCode(body.orderCode);
-    const { order, lines: kiotLines } = await requireOrder(branch, orderCode);
+    let { order, lines: kiotLines } = await requireOrder(branch, orderCode);
     if (!kiotLines.length) throw fail(400, 'VALIDATION', 'Đơn không có dòng hàng cần nhặt.');
     const invalidQuantities = quantityErrors(order);
     if (invalidQuantities.length) throw fail(400, 'VALIDATION', invalidQuantities.join('; '), { field: 'allocations' });
-    const needed = applyNeeds(order, kiotLines, body.needs);
-    const lines = needed.lines;
-    const perLine = parseAllocations(body, lines);
+    let needed = applyNeeds(order, kiotLines, body.needs);
+    let lines = needed.lines;
+    let perLine = parseAllocations(body, lines);
     const actor = actorOf(ctx);
+    // SL cần nhặt sửa tay → GHI LÊN ĐƠN KIOT (chỉ khi đúng đường thật), rồi đọc lại đơn: từ đây SL trên Kiot = SL cần nhặt,
+    // snapshot không còn dòng "lệch Kiot". Kiot từ chối/ghi sai → ném lỗi, chưa tạo chỉ định nào.
+    const edited = lines.filter(line => line.kiotQuantity !== undefined);
+    if (edited.length && orderEditor) {
+      await orderEditor.setQuantities({ branch, orderCode: order.orderCode, actor,
+        quantities: Object.fromEntries(edited.map(line => [line.productCode, line.quantity])) });
+      ({ order, lines: kiotLines } = await requireOrder(branch, orderCode));
+      const rechecked = quantityErrors(order);
+      if (rechecked.length) throw fail(400, 'VALIDATION', rechecked.join('; '), { field: 'allocations' });
+      needed = { lines: kiotLines, order };
+      lines = kiotLines;
+      perLine = parseAllocations(body, lines);
+    }
     const reassign = body.reassign === true;
     const snapshot = makeOrderSnapshot(needed.order);
     const db = getDb();
@@ -676,7 +705,7 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
     return out;
   }
 
-  return { candidates, get, assign, confirm, cancel, setStatus, reconcileWithKiot, pickWarnings, latestStatuses };
+  return { candidates, get, assign, removeLine, confirm, cancel, setStatus, reconcileWithKiot, pickWarnings, latestStatuses };
 }
 
 module.exports = { createPickAssignmentsService, mergeOrderLines, applyNeeds, PICK_WARNING, STATUS, CANCEL_REASON, ...createPickAssignmentsService() };

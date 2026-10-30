@@ -1,5 +1,9 @@
 # Supabase schema cho đồng bộ KiotViet
 
+## Migration 0102 — Nhật ký ghi ngược lên đơn KiotViet (30/10/2026, chưa áp DB)
+
+`0102_order_kiot_edit_log.sql`: bảng `order_kiot_edit_log` (`id`, `created_at`, `branch` HN|SG, `order_code`, `action` `remove_line|set_quantity|rollback`, `summary JSONB` {productCode/quantities, before[], after[] hoặc problems/restored}, `actor_user_id`, `actor_name`); trigger chặn UPDATE/DELETE; thu hồi `reporting_readonly`; index `(branch, lower(btrim(order_code)), id)`. Ghi bởi `kiotviet/kiotOrderEditor.js`, fail-soft khi bảng chưa tồn tại.
+
 ## Migration 0101 — VT: hành động lịch sử Xuất kho (30/10/2026, chưa áp DB)
 
 `0101_stock_position_stock_out_action.sql`: chỉ mở rộng CHECK `stock_position_history_action_check` thêm `stock_out` (xóa rồi tạo lại ràng buộc, giữ nguyên toàn bộ giá trị của `0099`). Không thêm cột/bảng/trigger. Chi tiết ở mục cuối.

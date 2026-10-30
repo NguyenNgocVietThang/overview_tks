@@ -334,4 +334,6 @@ Cập nhật gần nhất: 30/10/2026 (gỡ module Vị trí hàng cũ; VT Hà N
 
 Nút **Xuất kho** trên `/vt-positions/` trừ SL hàng loạt theo file Excel/CSV (Mã hàng, Ghi chú số thùng, Vị trí; Ngày về bỏ qua) vào đúng dòng (mã, vị trí) của cơ sở đang mở, bằng `carton.deduct`; một bước (không xem trước), dòng sai bỏ qua và liệt kê lại, dòng trùng trong file trừ tuần tự, không xuất phần đang bị phiếu bốc giữ chỗ. `stockPositionsService.stockOutFile` + `POST /api/stock-positions/stock-out` (quyền `stockLocationsV2.edit`), lịch sử `stock_out` ("Xuất kho"), migration `0101` mở rộng CHECK hành động. Xem README mục đầu.
 
-Cập nhật gần nhất: 30/10/2026 (VT Xuất kho từ file).
+- **Chỉ định vị trí ghi ngược Kiot (30/10/2026):** hộp chỉ định có kéo-thả đổi thứ tự dòng (chỉ trong lần mở, phiếu in theo thứ tự đó), nút Xóa dòng và SL cần nhặt sửa tay ghi lên đơn đặt hàng Kiot qua `kiotviet/kiotOrderEditor.js` (đọc → PUT /orders/{id} giữ nguyên mọi trường khác → đọc lại đối chiếu → khôi phục nếu lệch → upsert DB cục bộ); nhật ký `order_kiot_edit_log` (migration `0102`), cờ `KIOT_ORDER_WRITE_ENABLED`, endpoint `POST /api/shipment/pick/order-lines/remove`.
+
+Cập nhật gần nhất: 30/10/2026 (Chỉ định vị trí: kéo-thả, xóa dòng, ghi ngược Kiot).
