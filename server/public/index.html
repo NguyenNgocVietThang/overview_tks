@@ -3268,9 +3268,25 @@
       font-size: 10.5px;
     }
 
-    .debt-feedback-input:focus-visible,
-    .debt-schedule-input:focus-visible,
-    .debt-penalty-input:focus-visible,
+    /* Ô nhập trong bảng (Công nợ, Sai giá) trông như chữ thường: không nền, không viền (viền trong suốt giữ nguyên kích thước); bấm vào chỉ hiện con trỏ. */
+    .debt-feedback-input,
+    .debt-schedule-input,
+    .debt-penalty-input {
+      background: transparent;
+      border-color: transparent;
+      cursor: text;
+    }
+
+    .debt-penalty-input[data-manual="true"] {
+      border-color: var(--blue);
+    }
+
+    .debt-feedback-input:focus,
+    .debt-schedule-input:focus,
+    .debt-penalty-input:focus {
+      outline: 0;
+    }
+
     .debt-history-button:focus-visible {
       outline: 2px solid var(--blue);
       outline-offset: 2px;

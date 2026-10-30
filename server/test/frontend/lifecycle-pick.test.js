@@ -955,9 +955,9 @@ test('sort lựa chọn theo chữ/số/vị trí, giữ phân bổ và in cả 
     const input=d.querySelector('#pickingRows tr:first-child [data-qty]');assert.equal(input.dataset.qline,'2');
     await click(page,'pickingReprint');
     const printed=()=>[...d.querySelectorAll('.invoice-goods tbody tr')].map(r=>r.cells[1].textContent.trim());
-    assert.deepEqual(printed(),['Chén','Bình','Ấm']);
+    assert.deepEqual(printed(),['Bình','Ấm','Chén'],'phiếu in giữ thứ tự Kiot dù hộp đang sort');
     assert.deepEqual([...d.querySelectorAll('.invoice-goods tbody tr')].map(r=>r.cells[0].textContent.trim()),['1','2','3']);
-    await w.PickingInvoice.changeTemplate('delivery');assert.deepEqual(printed(),['Chén','Bình','Ấm']);
+    await w.PickingInvoice.changeTemplate('delivery');assert.deepEqual(printed(),['Bình','Ấm','Chén']);
     assert.deepEqual(store.assignment.snapshot.lines.map(l=>l.productCode),['B','A','C']);
     input.value='2';input.dispatchEvent(new w.Event('change',{bubbles:true}));await settle();
     assert.equal(w.TKSPick._state.allocations[2][0].quantity,2,'sửa hàng đã sort vẫn trỏ đúng mã C');
@@ -968,7 +968,7 @@ test('sort lựa chọn theo chữ/số/vị trí, giữ phân bổ và in cả 
 });
 
 
-test('Xác nhận & In giữ thứ tự sort khi lưu chỉ định mới',async()=>{
+test('Xác nhận & In giữ thứ tự Kiot dù hộp đang sort',async()=>{
   const ls=[{productCode:'B',productName:'Bình',quantity:20,price:1000},{productCode:'A',productName:'Ấm',quantity:100,price:1000}];
   const store=newStore();store.order.lines=ls;
   store.candidates={b:[position(12,'B1','20T x 1',20,{code:'B'})],a:[position(11,'A1','100T x 1',100)]};
@@ -984,6 +984,6 @@ test('Xác nhận & In giữ thứ tự sort khi lưu chỉ định mới',async
     await click(page,'pickingConfirm');
     assert.equal(store.posted.length,1);
     assert.deepEqual(store.posted[0].allocations.map(p=>[p.productCode,p.qty]),[['B',20],['A',100]]);
-    assert.deepEqual([...page.document.querySelectorAll('.invoice-goods tbody tr')].map(r=>r.cells[1].textContent.trim()),['Ấm','Bình']);
+    assert.deepEqual([...page.document.querySelectorAll('.invoice-goods tbody tr')].map(r=>r.cells[1].textContent.trim()),['Bình','Ấm']);
   }finally{page.dom.window.close();}
 });

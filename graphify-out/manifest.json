@@ -816,9 +816,9 @@
     "semantic_hash": ""
   },
   "server/public/index.html": {
-    "mtime": 1793345084.9800315,
-    "seen": 1793345541.5520732,
-    "ast_hash": "1325b52a54866a2789778371ae4fbeda",
+    "mtime": 1793346527.1488812,
+    "seen": 1793346839.6507068,
+    "ast_hash": "286d12d5dec6a00414afcead3b8f8f8b",
     "semantic_hash": ""
   },
   "server/public/login/index.html": {
@@ -6000,9 +6000,9 @@
     "semantic_hash": ""
   },
   "server/public/shipment/lifecycle/pick/pick-assign.js": {
-    "mtime": 1793332764.9035025,
-    "seen": 1793332987.6822052,
-    "ast_hash": "3be7ca9fc9c4a82429e93dcb05b7ac2d",
+    "mtime": 1793346551.7034733,
+    "seen": 1793346839.6507068,
+    "ast_hash": "6c49b40e4bd72bc0949b676c13cf6f15",
     "semantic_hash": ""
   },
   "server/public/shipment/lifecycle/pick/print-tools.js": {
@@ -6018,9 +6018,9 @@
     "semantic_hash": ""
   },
   "server/test/frontend/lifecycle-pick.test.js": {
-    "mtime": 1793332818.033717,
-    "seen": 1793332987.6822052,
-    "ast_hash": "97f17ab784221c21e3d2cb930a1bfa5d",
+    "mtime": 1793346551.898777,
+    "seen": 1793346839.6507068,
+    "ast_hash": "a3ca1d14d2916f4ba9b400fab0f528b7",
     "semantic_hash": ""
   },
   "docs/superpowers/plans/2026-10-27-pick-assign-hardening.md": {

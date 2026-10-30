@@ -346,13 +346,8 @@
     const a=state.latest;
     if(!a||!window.PickingInvoice)return;
     try{
-      // Ghép theo lần xuất hiện của mã để cả mã lặp vẫn giữ đúng thứ tự hiển thị.
-      const ranks=new Map();
-      const original=lines();
-      const positions=new Map(displayLines().map(({i},rank)=>[i,rank]));
-      original.forEach((l,i)=>{const k=key(l.productCode);if(!ranks.has(k))ranks.set(k,[]);ranks.get(k).push(positions.get(i));});
-      const ordered=(a.snapshot.lines||[]).map((l,i)=>({l,i,rank:ranks.get(key(l.productCode))?.shift()??Infinity})).sort((x,y)=>x.rank-y.rank||x.i-y.i).map(e=>e.l);
-      await window.PickingInvoice.show({...a.snapshot,lines:state.sort?ordered:a.snapshot.lines,orderCode:a.orderCode,branch:a.branch},a);
+      // Phiếu in luôn giữ thứ tự dòng của đơn Kiot (snapshot), không theo sort đang chọn trong hộp.
+      await window.PickingInvoice.show({...a.snapshot,orderCode:a.orderCode,branch:a.branch},a);
     }
     catch(error){
       if(!$('pickingDialog').open)$('pickingDialog').showModal();
