@@ -221,7 +221,7 @@ test('assign: tao chi dinh Dang nhat, giu cho (chua doi ghi chu), tinh ST, luu s
 test('assign: loi 404 / 409 don khong du dieu kien / 400 thieu SL, vi tri la, ma ngoai don / 409 vuot ton / 409 da chi dinh', async () => {
   const { db, service } = await fixture({ orders: {
     DH001: order(),
-    DH003: order({ orderCode: 'DH003', status: { code: 'DELIVERING', label: 'Đơn đang được giao' } }),
+    DH003: order({ orderCode: 'DH003', status: { code: 'NOT_SENT', label: 'Đơn chưa gửi kế toán' } }),
     DH004: order({ orderCode: 'DH004', lines: [{ productCode: 'AAA1', productName: 'Hàng A', quantity: 250, price: 10 }] }),
     DH005: order({ orderCode: 'DH005', lines: [] })
   } });
@@ -374,5 +374,24 @@ test('empty allocation can be saved with mismatch acknowledgement without reserv
     assert.deepEqual(result.lines, []);
     const candidates = await service.candidates(ctx(), { branch: 'HN', orderCode: 'DH001' });
     assert.ok(candidates.candidates.aaa1.every(row => row.held === 0));
+  } finally { await db.close(); }
+});
+
+test('chi dinh duoc o moi trang thai vong doi tru "Don chua gui ke toan"; don da huy nhat chi dinh lai duoc', async () => {
+  const orders = { DH001: order() };
+  const { db, service } = await fixture({ orders });
+  try {
+    const first = await service.assign(ctx(), assignBody([{ productCode: 'AAA1', positionId: 1, qty: 250 }]));
+    await service.cancel(ctx(), first.assignment.id, { version: first.assignment.version });
+    for (const code of ['SENT_TO_ACCOUNTANT', 'DELIVERING', 'DELIVERED', 'SHIP_RECEIVED', 'SIGNED', 'COMPLETED', 'CANCELLED', 'EXCEPTION']) {
+      orders.DH001 = order({ status: { code, label: code } });
+      assert.equal((await service.candidates(ctx(), { branch: 'HN', orderCode: 'DH001' })).order.eligible, true, code);
+    }
+    orders.DH001 = order({ status: { code: 'NOT_SENT', label: 'Đơn chưa gửi kế toán' } });
+    assert.equal((await service.candidates(ctx(), { branch: 'HN', orderCode: 'DH001' })).order.eligible, false);
+    await assert.rejects(() => service.assign(ctx(), assignBody([{ productCode: 'AAA1', positionId: 1, qty: 250 }])), { code: 'ORDER_NOT_ELIGIBLE' });
+    orders.DH001 = order({ status: { code: 'DELIVERING', label: 'Đơn đang được giao' } });
+    const again = await service.assign(ctx(), assignBody([{ productCode: 'AAA1', positionId: 1, qty: 250 }]));
+    assert.equal(again.assignment.status, 'picking');
   } finally { await db.close(); }
 });

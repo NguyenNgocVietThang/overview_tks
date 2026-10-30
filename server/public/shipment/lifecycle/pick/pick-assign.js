@@ -225,7 +225,7 @@
     const validationErrors=Array.isArray(order.validationErrors)?order.validationErrors:[];
     const hint=validationErrors.length?validationErrors.join('; '):a?'Đã chỉ định bởi '+(a.assignedByName||'—')+'. Bản ghi được giữ chỗ trên máy chủ.'
       :picking&&editable()?(isDirty?'Có thay đổi chưa lưu: bấm “Cập nhật chỉ định & In phiếu” để đổi vị trí đã giữ chỗ.':'Đã chỉ định bởi '+(state.reassignOf.assignedByName||'—')+'. Đang nhặt vẫn đổi được vị trí/số lượng: sửa rồi bấm “Cập nhật chỉ định & In phiếu”.')
-      :editable()?(mism.length?'Cảnh báo: '+mism.map(m=>m.productCode+' '+(m.kind==='short'?'thiếu ':'thừa ')+fmt(m.diff)).join('; ')+'. Vẫn chỉ định được, hệ thống sẽ hỏi xác nhận trước khi lưu.':'Gợi ý mới: chọn vị trí đủ hàng có lượng khả dụng sát số cần nhất.'):'Chỉ định chỉ áp dụng cho đơn “Đã gửi kế toán”.';
+      :editable()?(mism.length?'Cảnh báo: '+mism.map(m=>m.productCode+' '+(m.kind==='short'?'thiếu ':'thừa ')+fmt(m.diff)).join('; ')+'. Vẫn chỉ định được, hệ thống sẽ hỏi xác nhận trước khi lưu.':'Gợi ý mới: chọn vị trí đủ hàng có lượng khả dụng sát số cần nhất.'):'Đơn “Chưa gửi kế toán” chưa được chỉ định vị trí.';
     $('pickingSource').textContent=hint;
   }
 
@@ -454,7 +454,7 @@
 
   // ---------- Gắn vào hộp chi tiết đơn ----------
   /* opts: {order (đơn đang xem, có summary.code và pickStatus), host (#lcDetailKiot), buttonHost (đầu hộp, bên trái nút đóng), canPick, assignment (nếu đã tải), onChange(assignment)}.
-     Nút "Chỉ định vị trí" chỉ hiện với người có quyền khi đơn đang "Đã gửi kế toán" hoặc đã có chỉ định (để xem/in);
+     Nút "Chỉ định vị trí" chỉ hiện với người có quyền khi đơn không ở "Chưa gửi kế toán" hoặc đã có chỉ định (để xem/in);
      chip "Đã chỉ định · <trạng thái>" hiện cho mọi người xem được hộp. */
   function attach(opts){
     const host=opts&&opts.host;if(!host)return;
@@ -463,7 +463,7 @@
     state.onChange=opts.onChange||null;
     host.querySelectorAll('#pickingActions').forEach(node=>node.remove());
     const o=opts.order||{},status=opts.assignment?opts.assignment.status:(o.pickStatus||null);
-    const eligible=!!(o.summary&&o.summary.code==='SENT_TO_ACCOUNTANT');
+    const eligible=!!(o.summary&&o.summary.code&&o.summary.code!=='NOT_SENT');
     const canOpen=!!opts.canPick&&(eligible||!!status);
     if(!canOpen&&!status)return;
     const head=host.querySelector('.dp-section-head');if(!head)return;
