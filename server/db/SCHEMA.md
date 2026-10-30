@@ -1,5 +1,9 @@
 # Supabase schema cho đồng bộ KiotViet
 
+## Migration 0101 — VT: hành động lịch sử Xuất kho (30/10/2026, chưa áp DB)
+
+`0101_stock_position_stock_out_action.sql`: chỉ mở rộng CHECK `stock_position_history_action_check` thêm `stock_out` (xóa rồi tạo lại ràng buộc, giữ nguyên toàn bộ giá trị của `0099`). Không thêm cột/bảng/trigger. Chi tiết ở mục cuối.
+
 ## Migration 0099 — VT: Đã sửa + xóa lịch sử có kiểm soát (28/10/2026, chưa áp DB)
 
 `0099_stock_position_ack_and_history_purge.sql`: thêm `stock_positions.format_ack`, mở CHECK action lịch sử, viết lại trigger chặn. Chi tiết ở mục cuối.
@@ -762,7 +766,7 @@ Cập nhật gần nhất: 24/10/2026.
 
 - `stock_positions (id BIGSERIAL)`: `branch` ('HN'|'SG'), `code` (không rỗng), `name` (dự phòng khi `products` chưa có mã), `notes` (ghi chú số thùng, chuẩn hóa khi lưu), `arrival_date` (**TEXT**, có thể rỗng, vd "KK 4.10", "16/10"), `location`, `version` (khóa lạc quan, +1 mỗi lần sửa), `updated_by_user_id`, `updated_by_name`, `updated_at`, `created_at`. Index `(branch, lower(btrim(code)))` và `(branch, location)`. **Không có UNIQUE** (mã, vị trí): dữ liệu đầu có dòng trùng; nhập mới/import trùng (mã, vị trí) thì ứng dụng tự cộng ghi chú vào dòng cũ; dòng trùng sẵn có của dữ liệu đầu giữ nguyên, không cảnh báo.
 - **SL kho và cảnh báo KHÔNG lưu**: luôn tính từ `notes` bằng `public/shared/carton.js` (`parseSpec`, `normalizeNote`, `warnings`). Tên SP và SL KiotViet đọc theo mã từ `products` (`code`, `name`, tổng `raw->'inventories'[].onHand`) khi xem.
-- `stock_position_history`: nhật ký **chỉ thêm** (trigger chặn UPDATE/DELETE, không khóa ngoại): `id`, `created_at`, `branch`, `position_id`, `code`, `location`, `action` (`seed|create|edit|delete|auto_delete|deduct|import_replace|import_add`), `field`, `old_value`, `new_value`, `summary JSONB` (số dòng thêm/đổi/xóa/bỏ qua của import), `actor_user_id`, `actor_name`. Thu hồi `reporting_readonly`.
+- `stock_position_history`: nhật ký **chỉ thêm** (trigger chặn UPDATE/DELETE, không khóa ngoại): `id`, `created_at`, `branch`, `position_id`, `code`, `location`, `action` (`seed|create|edit|delete|auto_delete|deduct|import_replace|import_add`, thêm `pick|pick_revert` từ `0096`, `ack|unack|history_purged` từ `0099`, `stock_out` từ `0101`), `field`, `old_value`, `new_value`, `summary JSONB` (số dòng thêm/đổi/xóa/bỏ qua của import), `actor_user_id`, `actor_name`. Thu hồi `reporting_readonly`.
 - **Dữ liệu đầu (một lần, chỉ khi bảng rỗng)**: `INSERT … SELECT` từ `stock_location_lines`, `updated_by_name = 'Nhập dữ liệu đầu'`. Gỡ tiền tố "T x " thừa của HN (vd "T x 4T*100" → "4T*100") khi phần sau là "<số>T…"; **bỏ** dòng thiếu mã và dòng hết hàng (ghi chú rỗng / "Hết hàng") vì quy tắc tự xóa khi SL = 0. Sau khi sao chép, hai bảng không còn liên hệ (trước 30/10/2026 Google Sheets còn nuôi hai tab cũ "Vị trí HN/SG", nay đã gỡ). Mỗi cơ sở có một bản ghi lịch sử `seed`.
 - Tự xóa khi hết: sau mọi lần lưu, SL tính ra = 0 thì dòng bị xóa và ghi `auto_delete`.
 - **27/10/2026 (không migration mới):** `GET /api/stock-positions/history` có thêm tham số `positionId` lọc theo cột `position_id` có sẵn (hộp chi tiết dòng); `GET /api/stock-positions/history/export` đọc cùng bảng `stock_position_history` (trần 50.000 dòng mới nhất). Không đổi cấu trúc bảng/index.
@@ -815,3 +819,10 @@ Cập nhật gần nhất: 28/10/2026.
 29/10/2026 — Shared print layout JSON (0100): goods delivery validates 6 columns (order 9); `groups.body/header.columns[index]` accepts size 7–36pt plus bold/italic/align. Optional `tables` holds independent validated footer layouts: order summary(4), signatures(2), notes(1); delivery deliverySignatures(3), deliveryNote(1). No DDL change. Existing order_snapshot sellerPhone is populated from Kiot users mobilePhone for new assignments; old history is not rewritten.
 
 Cập nhật gần nhất: 30/10/2026 (gỡ module Vị trí hàng cũ: `stock_location_lines` và hàng `stock_locations_hn/sg` của `sheet_snapshot_sync` thành di sản không còn job ghi, chưa DROP; không migration mới).
+
+## 0101 — VT: Xuất kho (30/10/2026, chưa áp DB)
+
+- `stock_position_history_action_check` mở rộng: thêm `stock_out` = một lượt **Xuất kho từ file** trừ SL khỏi một dòng vị trí. Mỗi vị trí bị trừ có đúng một bản ghi: `position_id`, `code`, `location`, `field = 'notes'`, `old_value` = ghi chú trước, `new_value` = ghi chú sau (`NULL` khi dòng về 0 và bị xóa), `summary = {deducted, removed, fileName, fileRows}` (`fileRows` = số dòng Excel đã góp vào lượt trừ), `actor_*` = người bấm Xuất kho.
+- Không thêm cột/bảng/trigger; dòng vị trí vẫn dùng `version`, `updated_by_*` như mọi thao tác ghi. Chưa áp migration thì `stockOutFile` lỗi 500 và rollback toàn bộ lượt (CHECK từ chối `stock_out`) — phải `npm run db:migrate` trước deploy.
+
+Cập nhật gần nhất: 30/10/2026.

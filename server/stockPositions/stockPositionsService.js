@@ -17,6 +17,7 @@ const MAX = Object.freeze({ code: 60, notes: 500, arrivalDate: 60, location: 100
 const HISTORY_MAX = 1000;
 const HISTORY_EXPORT_MAX = 50000;
 const ERROR_LIMIT = 50;
+const STOCK_OUT_ERROR_LIMIT = 500;
 const NORMALIZE_ACTOR = 'Chuẩn hóa ghi chú';
 const MERGE_ACTOR = 'Gộp dòng trùng';
 const MODES = Object.freeze(['replace', 'add']);
@@ -650,6 +651,96 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
     });
   }
 
+  // ---- Xuat kho tu file Excel/CSV (3 cot: Ma hang, Ghi chu so thung, Vi tri; Ngay ve neu co thi bo qua) ----
+
+  // Thuan tuy: tu dong file + dong hien co + gioi han giu cho -> ke hoach tru. Dong sai thi bo qua, dong dung van tru.
+  // Dong trung (ma, vi tri) trong file xu ly TUAN TU theo thu tu file tren ghi chu dang con lai: moi dong tru theo dung quy cach cua no,
+  // dong nao tru qua so con lai (da tru cac dong truoc) thi bi bo qua rieng; tong da tru khong bao gio vuot ton.
+  function planStockOut(fileRows, existing, held) {
+    const byKey = new Map(); // (ma, vi tri) -> cac dong luu tru (du lieu dau co the trung), theo id
+    for (const row of existing) {
+      const key = keyOf(row.code, row.location);
+      if (!byKey.has(key)) byKey.set(key, []);
+      byKey.get(key).push({ row, notes: row.notes, deducted: 0, fileRows: [] });
+    }
+    const errors = [];
+    let applied = 0;
+    for (const line of fileRows) {
+      const reject = message => errors.push({ row: line.row, code: clean(line.code), location: clean(line.location), notes: clean(line.notes), message });
+      const code = normalizeCode(line.code);
+      const location = normalizeLocation(line.location);
+      if (!code) { reject('Thiếu mã hàng.'); continue; }
+      if (!location) { reject('Thiếu vị trí.'); continue; }
+      const spec = carton.parseSpec(carton.normalizeStoredNote(clean(line.notes)));
+      const quantity = spec && !spec.empty ? spec.quantity : 0;
+      if (!spec || !Number.isSafeInteger(quantity) || quantity <= 0) { reject('Ghi chú sai định dạng hoặc không có số lượng (vd 1T x 50).'); continue; }
+      const candidates = byKey.get(keyOf(code, location));
+      if (!candidates) { reject('Không có dòng nào cùng mã hàng và vị trí trong cơ sở này.'); continue; }
+      let target = null;
+      let result = null;
+      let available = 0;
+      let reason = '';
+      for (const candidate of candidates) {
+        const current = carton.parseSpec(candidate.notes);
+        if (!current || current.empty) { reason = reason || 'Ghi chú của dòng đang lưu không đọc được hoặc đã hết hàng nên không trừ được.'; continue; }
+        const free = Math.max(0, current.quantity - (held.get(Number(candidate.row.id)) || 0));
+        available += free;
+        // Phan giu cho cua phieu boc "Dang boc" khong duoc xuat: chi tru toi da SL co the boc.
+        if (quantity > free) continue;
+        const deducted = carton.deduct(current, quantity);
+        if (deducted) { target = candidate; result = deducted; break; }
+      }
+      if (!target) {
+        reject(reason && !available ? reason : `Số lượng xuất ${quantity} vượt quá số lượng có thể xuất (${available}).`);
+        continue;
+      }
+      target.notes = result.text;
+      target.deducted += quantity;
+      target.fileRows.push(line.row);
+      applied += 1;
+    }
+    const changed = [...byKey.values()].flat().filter(entry => entry.deducted > 0).map(entry => ({ ...entry, removed: isEmptyNote(entry.notes) }));
+    return { changed, errors, applied, total: changed.reduce((sum, entry) => sum + entry.deducted, 0) };
+  }
+
+  // Tru so luong theo file. Mot buoc: doc file -> ap dung ngay (khong co buoc xem truoc), tra ve ket qua + danh sach dong bo qua.
+  async function stockOutFile(ctx, branch, { buffer, fileName = '' } = {}) {
+    assertBranch(branch);
+    assertScope(ctx, branch);
+    if (!buffer || !buffer.length) throw fail(400, 'IMPORT_FILE_REQUIRED', 'Vui lòng chọn file Excel hoặc CSV.');
+    const fileRows = parseImportWorkbook(buffer, { fileName, now: new Date(now()), requireArrivalDate: false });
+    const actor = actorOf(ctx);
+    return withTransaction(getDb(), async client => {
+      await lockBranch(client, branch);
+      const existing = (await client.query(`SELECT ${ROW_COLUMNS} FROM stock_positions WHERE branch = $1 ORDER BY id FOR UPDATE`, [branch])).rows;
+      const held = await heldByPosition(client, branch, existing.map(row => Number(row.id)));
+      const plan = planStockOut(fileRows, existing, held);
+      const kept = plan.changed.filter(entry => !entry.removed);
+      const removed = plan.changed.filter(entry => entry.removed);
+      if (kept.length) {
+        const col = pick => kept.map(pick);
+        await client.query(
+          `UPDATE stock_positions p SET notes = u.notes, version = p.version + 1, updated_by_user_id = $2, updated_by_name = $3, updated_at = now()
+           FROM unnest($1::bigint[], $4::text[]) AS u(id, notes) WHERE p.id = u.id`,
+          [col(e => e.row.id), actor.id, actor.name, col(e => e.notes)]);
+      }
+      if (removed.length) await client.query('DELETE FROM stock_positions WHERE id = ANY($1::bigint[])', [removed.map(e => e.row.id)]);
+      await writeHistory(client, branch, actor, plan.changed.map(entry => ({
+        positionId: entry.row.id, code: entry.row.code, location: entry.row.location, action: 'stock_out', field: 'notes',
+        oldValue: entry.row.notes, newValue: entry.removed ? null : entry.notes,
+        summary: { deducted: entry.deducted, removed: entry.removed, fileName, fileRows: entry.fileRows }
+      })));
+      if (plan.changed.length) productCache.delete(branch);
+      else touchedBranches.delete(client); // khong doi gi thi khong phat tin hieu "da doi"
+      return {
+        fileName,
+        counts: { fileRows: fileRows.length, applied: plan.applied, updated: kept.length, deleted: removed.length, skipped: plan.errors.length, quantity: plan.total },
+        errors: plan.errors.slice(0, STOCK_OUT_ERROR_LIMIT),
+        errorsTruncated: plan.errors.length > STOCK_OUT_ERROR_LIMIT
+      };
+    });
+  }
+
   /* Chuẩn hóa hàng loạt ghi chú đã lưu (số trần 60 -> 1T x 60, gộp cộng dồn, thống nhất ký hiệu) bằng đúng hàm của VT.
      Mỗi dòng đổi: version + 1 và 1 dòng lịch sử 'edit' (người sửa = NORMALIZE_ACTOR). Không xóa dòng, không đụng dòng đã chuẩn.
      dryRun (mặc định) chỉ đếm và trả mẫu. Chạy lại an toàn (idempotent). */
@@ -728,7 +819,7 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
     });
   }
 
-  return { list, suggestCodes, create, update, deduct, remove, acknowledge, history, historyAll, purgeHistory, importFile, normalizeAllNotes, mergeDuplicateRows };
+  return { list, suggestCodes, create, update, deduct, remove, acknowledge, history, historyAll, purgeHistory, importFile, stockOutFile, normalizeAllNotes, mergeDuplicateRows };
 }
 
 // `tx`: helper giao dich dung chung cho module khac can tru/cong thung that trong cung giao dich + khoa co so (pickAssignments).

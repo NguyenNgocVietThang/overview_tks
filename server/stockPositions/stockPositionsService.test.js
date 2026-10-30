@@ -31,6 +31,7 @@ async function fixture({ lines = [] } = {}) {
   }
   await db.exec(migration('0095_stock_positions.sql'));
   await db.exec(migration('0099_stock_position_ack_and_history_purge.sql'));
+  await db.exec(migration('0101_stock_position_stock_out_action.sql'));
   await db.query(`INSERT INTO products (branch, id, code, name, raw) VALUES
     ('hanoi', 1, 'AAA1', 'Hàng A một', '{"inventories":[{"onHand":30},{"onHand":12}]}'),
     ('hanoi', 2, 'BBB2', 'Hàng B hai', '{"inventories":[{"onHand":5}]}'),
@@ -47,6 +48,7 @@ function workbook(rows, name = 'Sheet1') {
 }
 
 const HEADER = ['Mã hàng', 'Ghi chú', 'Ngày về', 'Vị trí'];
+const OUT_HEADER = ['Mã hàng', 'Ghi chú', 'Vị trí'];
 
 test('import: known products keep unreadable notes as warnings through replace and additive merges', async () => {
   const { db, service } = await fixture({ lines: [{ branch: 'HN', code: 'AAA1', notes: '5T x 100', location: 'A1' }] });
@@ -810,5 +812,171 @@ test('khong phat tin hieu khi giao dich ROLLBACK, lan sau khong bi lan co so cu'
     assert.deepEqual(seen, ['SG']);
     await service.create(ctx(), 'HN', { code: 'AAA1', notes: '1T x 10', location: 'Z1' });
     assert.deepEqual(seen, ['SG', 'HN']);
+  } finally { await db.close(); }
+});
+
+// ---- Xuất kho từ file (stockOutFile) ----
+
+const stored = async db => (await db.query('SELECT code, location, notes, version, updated_by_name FROM stock_positions ORDER BY id')).rows;
+
+test('stockOut: trừ đúng dòng (mã, vị trí) của cơ sở đang mở, tăng version, ghi người bấm; cột Ngày về có cũng bỏ qua', async () => {
+  const { db, service } = await fixture({ lines: [
+    { branch: 'HN', code: 'AAA1', notes: '5T x 100', location: 'A1' },
+    { branch: 'HN', code: 'AAA1', notes: '2T x 50', location: 'A2' },
+    { branch: 'SG', code: 'AAA1', notes: '5T x 100', location: 'A1' }
+  ] });
+  try {
+    const buffer = workbook([HEADER, ['aaa1', '1T x 100', 'ngày bất kỳ', ' a 1 '], ['AAA1', '1T x 50', '', 'A2']]);
+    const result = await service.stockOutFile(ctx(), 'HN', { buffer, fileName: 'xuat.xlsx' });
+    assert.deepEqual(result.counts, { fileRows: 2, applied: 2, updated: 2, deleted: 0, skipped: 0, quantity: 150 });
+    assert.deepEqual(result.errors, []);
+    assert.deepEqual((await stored(db)).map(r => [r.location, r.notes, r.version]), [['A1', '4T x 100', 2], ['A2', '1T x 50', 2], ['A1', '5T x 100', 1]]);
+    assert.equal((await stored(db))[0].updated_by_name, 'Quản Lý A');
+    assert.deepEqual((await service.list(ctx(), 'SG')).rows.map(r => r.notes), ['5T x 100']);
+  } finally { await db.close(); }
+});
+
+test('stockOut: nhiều quy cách 3T x 200 + 1T x 50 trừ 250 còn 2T x 200; ghi chú nhiều quy cách trong file cũng trừ được', async () => {
+  const { db, service } = await fixture({ lines: [
+    { branch: 'HN', code: 'AAA1', notes: '3T x 200 + 1T x 50', location: 'A1' },
+    { branch: 'HN', code: 'BBB2', notes: '4T x 100', location: 'B1' }
+  ] });
+  try {
+    const result = await service.stockOutFile(ctx(), 'HN', { buffer: workbook([OUT_HEADER, ['AAA1', '1T x 200 + 1T x 50', 'A1'], ['BBB2', '2T x 100', 'B1']]) });
+    assert.equal(result.counts.applied, 2);
+    assert.deepEqual((await stored(db)).map(r => r.notes), ['2T x 200', '2T x 100']);
+  } finally { await db.close(); }
+});
+
+test('stockOut: về 0 thì tự xóa dòng và ghi lịch sử stock_out (nhãn Xuất kho) kèm người bấm + file', async () => {
+  const { db, service } = await fixture({ lines: [{ branch: 'HN', code: 'AAA1', notes: '2T x 100', location: 'A1' }, { branch: 'HN', code: 'BBB2', notes: '3T x 10', location: 'B1' }] });
+  try {
+    const result = await service.stockOutFile(ctx(), 'HN', { fileName: 'het.xlsx', buffer: workbook([OUT_HEADER, ['AAA1', '2T x 100', 'A1'], ['BBB2', '1T x 10', 'B1']]) });
+    assert.deepEqual(result.counts, { fileRows: 2, applied: 2, updated: 1, deleted: 1, skipped: 0, quantity: 210 });
+    assert.deepEqual((await stored(db)).map(r => r.code), ['BBB2']);
+    const history = (await service.history(ctx(), 'HN')).rows.filter(h => h.action === 'stock_out');
+    assert.equal(history.length, 2);
+    const gone = history.find(h => h.code === 'AAA1');
+    assert.deepEqual([gone.field, gone.oldValue, gone.newValue, gone.actorName], ['notes', '2T x 100', null, 'Quản Lý A']);
+    assert.deepEqual(gone.summary, { deducted: 200, removed: true, fileName: 'het.xlsx', fileRows: [2] });
+    const left = history.find(h => h.code === 'BBB2');
+    assert.deepEqual([left.oldValue, left.newValue, left.summary.removed], ['3T x 10', '2T x 10', false]);
+    assert.equal((await service.historyAll(ctx(), 'HN', { action: 'stock_out' })).rows.length, 2);
+    assert.equal((await service.historyAll(ctx(), 'HN', { q: 'xuất kho' })).rows.length, 2);
+  } finally { await db.close(); }
+});
+
+test('stockOut: dòng sai bị bỏ qua kèm số dòng Excel + lý do, dòng hợp lệ vẫn trừ; không có dòng hợp lệ thì không ghi gì', async () => {
+  const { db, service } = await fixture({ lines: [{ branch: 'HN', code: 'AAA1', notes: '2T x 100', location: 'A1' }] });
+  try {
+    const buffer = workbook([OUT_HEADER,
+      ['AAA1', '1T x 100', 'A1'], // 2: hợp lệ
+      ['AAA1', '1T x 100', 'Z9'], // 3: không có vị trí đó
+      ['ZZZ9', '1T x 5', 'A1'], // 4: không có mã
+      ['AAA1', 'rác', 'A1'], // 5: ghi chú sai định dạng
+      ['AAA1', '', 'A1'], // 6: ghi chú trống
+      ['AAA1', '5T x 100', 'A1'], // 7: vượt tồn (còn 100)
+      ['', '1T x 5', 'A1'], // 8: thiếu mã
+      ['AAA1', '1T x 5', ''] // 9: thiếu vị trí
+    ]);
+    const result = await service.stockOutFile(ctx(), 'HN', { buffer });
+    assert.deepEqual(result.counts, { fileRows: 8, applied: 1, updated: 1, deleted: 0, skipped: 7, quantity: 100 });
+    assert.deepEqual(result.errors.map(e => [e.row, e.code, e.location]), [[3, 'AAA1', 'Z9'], [4, 'ZZZ9', 'A1'], [5, 'AAA1', 'A1'], [6, 'AAA1', 'A1'], [7, 'AAA1', 'A1'], [8, '', 'A1'], [9, 'AAA1', '']]);
+    assert.match(result.errors[0].message, /Không có dòng/u);
+    assert.match(result.errors[2].message, /sai định dạng/u);
+    assert.match(result.errors[4].message, /vượt quá/u);
+    assert.equal((await stored(db))[0].notes, '1T x 100');
+    const before = (await db.query('SELECT count(*)::int AS n FROM stock_position_history')).rows[0].n;
+    const none = await service.stockOutFile(ctx(), 'HN', { buffer: workbook([OUT_HEADER, ['ZZZ9', '1T x 5', 'A1']]) });
+    assert.deepEqual([none.counts.applied, none.counts.skipped], [0, 1]);
+    assert.equal((await db.query('SELECT count(*)::int AS n FROM stock_position_history')).rows[0].n, before);
+    assert.equal((await stored(db))[0].version, 2);
+  } finally { await db.close(); }
+});
+
+test('stockOut: dòng trùng (mã, vị trí) trong file trừ tuần tự theo thứ tự file; tổng không vượt tồn, dòng làm vượt bị bỏ qua riêng, 1 lịch sử cho mỗi vị trí', async () => {
+  const { db, service } = await fixture({ lines: [{ branch: 'HN', code: 'AAA1', notes: '3T x 100', location: 'A1' }] });
+  try {
+    const buffer = workbook([OUT_HEADER, ['AAA1', '1T x 100', 'A1'], ['AAA1', '1T x 100', 'A1'], ['AAA1', '2T x 100', 'A1'], ['aaa1', '1T x 100', 'a1']]);
+    const result = await service.stockOutFile(ctx(), 'HN', { fileName: 'trung.xlsx', buffer });
+    // Dòng 4 (2T x 100) vượt phần còn lại (100) nên bỏ qua; dòng 5 vẫn trừ được và làm hết hàng.
+    assert.deepEqual(result.counts, { fileRows: 4, applied: 3, updated: 0, deleted: 1, skipped: 1, quantity: 300 });
+    assert.deepEqual(result.errors.map(e => e.row), [4]);
+    assert.match(result.errors[0].message, /có thể xuất \(100\)/u);
+    assert.deepEqual(await stored(db), []);
+    const history = (await service.history(ctx(), 'HN')).rows.filter(h => h.action === 'stock_out');
+    assert.equal(history.length, 1);
+    assert.deepEqual(history[0].summary, { deducted: 300, removed: true, fileName: 'trung.xlsx', fileRows: [2, 3, 5] });
+  } finally { await db.close(); }
+});
+
+test('stockOut: dòng trùng cuối cùng làm hết hàng thì các dòng sau bị bỏ qua vì còn 0', async () => {
+  const { db, service } = await fixture({ lines: [{ branch: 'HN', code: 'AAA1', notes: '2T x 100', location: 'A1' }] });
+  try {
+    const result = await service.stockOutFile(ctx(), 'HN', { buffer: workbook([OUT_HEADER, ['AAA1', '1T x 100', 'A1'], ['AAA1', '1T x 100', 'A1'], ['AAA1', '1T x 100', 'A1']]) });
+    assert.deepEqual([result.counts.applied, result.counts.deleted, result.counts.skipped], [2, 1, 1]);
+    assert.deepEqual(await stored(db), []);
+  } finally { await db.close(); }
+});
+
+test('stockOut: trừ phần lẻ khi SL không tròn thùng (số trần = 1 thùng)', async () => {
+  const { db, service } = await fixture({ lines: [{ branch: 'HN', code: 'AAA1', notes: '3T x 100', location: 'A1' }] });
+  try {
+    await service.stockOutFile(ctx(), 'HN', { buffer: workbook([OUT_HEADER, ['AAA1', '30', 'A1']]) });
+    assert.equal((await stored(db))[0].notes, '3T x 100 - 30');
+  } finally { await db.close(); }
+});
+
+test('stockOut: không xuất phần đang bị phiếu bốc giữ chỗ (Đang bốc); đủ phần còn lại thì trừ', async () => {
+  const { db, service } = await fixture({ lines: [{ branch: 'HN', code: 'AAA1', notes: '3T x 100', location: 'A1' }] });
+  try {
+    await db.exec(migration('0096_order_pick_assignments.sql'));
+    await db.exec(migration('0101_stock_position_stock_out_action.sql')); // 0096 dựng lại CHECK cũ; nạp lại bản đầy đủ
+    const [position] = (await service.list(ctx(), 'HN')).rows;
+    const assignment = Number((await db.query(`INSERT INTO order_pick_assignments (branch, order_code, status) VALUES ('HN', 'DH1', 'picking') RETURNING id`)).rows[0].id);
+    await db.query(`INSERT INTO order_pick_lines (assignment_id, product_code, position_id, location, planned_qty, reserved_qty) VALUES ($1, 'AAA1', $2, 'A1', 120, 120)`, [assignment, position.id]);
+    const result = await service.stockOutFile(ctx(), 'HN', { buffer: workbook([OUT_HEADER, ['AAA1', '2T x 100', 'A1'], ['AAA1', '1T x 100', 'A1']]) });
+    // Còn 300, giữ chỗ 120 -> có thể xuất 180: dòng 2 (200) bị bỏ qua, dòng 3 (100) trừ được.
+    assert.deepEqual([result.counts.applied, result.counts.skipped], [1, 1]);
+    assert.equal(result.errors[0].row, 2);
+    assert.match(result.errors[0].message, /có thể xuất \(180\)/u);
+    assert.equal((await stored(db))[0].notes, '2T x 100');
+  } finally { await db.close(); }
+});
+
+test('stockOut: file thiếu cột bắt buộc / không đọc được / rỗng / thiếu file; phạm vi cơ sở; cơ sở không hợp lệ', async () => {
+  const { db, service } = await fixture({ lines: [{ branch: 'HN', code: 'AAA1', notes: '3T x 100', location: 'A1' }] });
+  try {
+    await assert.rejects(() => service.stockOutFile(ctx(), 'HN', { buffer: workbook([['Mã hàng', 'Vị trí'], ['AAA1', 'A1']]) }), error => error.code === 'IMPORT_HEADERS_MISSING' && /Ghi chú/u.test(error.message));
+    await assert.rejects(() => service.stockOutFile(ctx(), 'HN', { buffer: workbook([['Mã hàng', 'Ghi chú'], ['AAA1', '1T x 1']]) }), error => error.code === 'IMPORT_HEADERS_MISSING' && /Vị trí/u.test(error.message));
+    await assert.rejects(() => service.stockOutFile(ctx(), 'HN', { buffer: workbook([['Tên', 'Giá'], ['x', 1]]) }), { code: 'IMPORT_HEADERS_MISSING' });
+    await assert.rejects(() => service.stockOutFile(ctx(), 'HN', { buffer: workbook([OUT_HEADER]) }), { code: 'IMPORT_EMPTY_FILE' });
+    await assert.rejects(() => service.stockOutFile(ctx(), 'HN', { buffer: Buffer.from('không phải excel') }), error => ['IMPORT_UNREADABLE', 'IMPORT_HEADERS_MISSING'].includes(error.code));
+    await assert.rejects(() => service.stockOutFile(ctx(), 'HN', {}), { code: 'IMPORT_FILE_REQUIRED' });
+    const buffer = workbook([OUT_HEADER, ['AAA1', '1T x 100', 'A1']]);
+    await assert.rejects(() => service.stockOutFile(ctx(['SG']), 'HN', { buffer }), { code: 'BRANCH_OUT_OF_SCOPE' });
+    await assert.rejects(() => service.stockOutFile(ctx(), 'XX', { buffer }), { code: 'INVALID_BRANCH' });
+    assert.equal((await stored(db))[0].notes, '3T x 100');
+  } finally { await db.close(); }
+});
+
+test('stockOut: CSV UTF-8 có dấu; thứ tự cột tùy ý; tiêu đề không nằm ở dòng đầu', async () => {
+  const { db, service } = await fixture({ lines: [{ branch: 'SG', code: 'AAA1', notes: '3T x 100', location: 'S1' }] });
+  try {
+    const csv = Buffer.from('﻿Danh sách xuất kho\nVị trí,Mã hàng,Ghi chú\nS1,AAA1,1T x 100\n', 'utf8');
+    const result = await service.stockOutFile(ctx(), 'SG', { buffer: csv, fileName: 'xuat.csv' });
+    assert.deepEqual([result.counts.applied, result.counts.skipped], [1, 0]);
+    assert.equal((await stored(db))[0].notes, '2T x 100');
+  } finally { await db.close(); }
+});
+
+test('stockOut: phát tín hiệu đổi sau COMMIT chỉ khi có dòng thật sự bị trừ', async t => {
+  const { db, service } = await fixture({ lines: [{ branch: 'HN', code: 'AAA1', notes: '3T x 100', location: 'A1' }] });
+  const seen = collectChanges(t);
+  try {
+    await service.stockOutFile(ctx(), 'HN', { buffer: workbook([OUT_HEADER, ['ZZZ', '1T x 1', 'A1']]) });
+    assert.deepEqual(seen, []);
+    await service.stockOutFile(ctx(), 'HN', { buffer: workbook([OUT_HEADER, ['AAA1', '1T x 100', 'A1']]) });
+    assert.deepEqual(seen, ['HN']);
   } finally { await db.close(); }
 });

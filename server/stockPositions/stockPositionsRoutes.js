@@ -144,6 +144,17 @@ function createStockPositionsRouter(dependencies = {}) {
       ...(inputRows !== undefined ? { inputRows } : {})
     }));
   }));
+  // Xuat kho: tru SL hang loat theo file (3 cot Ma hang, Ghi chu, Vi tri), dong sai bo qua + tra danh sach. Dat truoc '/:id/...'.
+  router.post('/api/stock-positions/stock-out', edit, (req, res, next) => upload.single('file')(req, res, error => {
+    if (!error) return next();
+    const tooBig = error.code === 'LIMIT_FILE_SIZE';
+    return res.status(tooBig ? 413 : 400).json({ error: tooBig ? 'File quá lớn (tối đa 8 MB).' : 'Không đọc được file tải lên.', code: tooBig ? 'IMPORT_FILE_TOO_LARGE' : 'IMPORT_UPLOAD_FAILED' });
+  }), handle(async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'Vui lòng chọn file Excel hoặc CSV.', code: 'IMPORT_FILE_REQUIRED' });
+    const fileName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+    if (!IMPORT_EXTENSIONS.test(fileName)) return res.status(400).json({ error: 'Chỉ nhận file .xlsx, .xls hoặc .csv.', code: 'IMPORT_BAD_EXTENSION' });
+    res.json(await svc().stockOutFile(ctxOf(req), req.query.branch, { buffer: req.file.buffer, fileName }));
+  }));
   router.post('/api/stock-positions', edit, handle(async (req, res) => {
     const result = await svc().create(ctxOf(req), req.query.branch, req.body || {});
     res.status(result.merged ? 200 : 201).json(result);
