@@ -61,6 +61,10 @@
 .vt-table tbody tr.vt-row:hover td{background:color-mix(in srgb,var(--blue) 9%,transparent)}
 .vt-table tbody tr.vt-row:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
 .vt-table tbody tr.vt-row:focus-visible td{background:color-mix(in srgb,var(--blue) 9%,transparent)}
+/* Ô vừa đổi do người khác sửa: nháy nền xanh nhạt rồi tắt. */
+.vt-table td.vt-cell-flash{animation:vt-cell-flash 1.6s ease-out}
+@keyframes vt-cell-flash{from{background:color-mix(in srgb,var(--blue) 30%,transparent)}to{background:transparent}}
+@media (prefers-reduced-motion:reduce){.vt-table td.vt-cell-flash{animation:none}}
 /* Phân trang: đếm dòng bên trái, chọn số dòng + nút trang bên phải. */
 #vtPager{flex-direction:row;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px 16px}
 .vt-page-size select{min-height:40px;padding:0 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel);color:var(--text);font:13px var(--font-body);cursor:pointer}

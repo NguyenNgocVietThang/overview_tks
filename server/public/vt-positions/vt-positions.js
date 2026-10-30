@@ -27,6 +27,11 @@
   };
   const FIELD_LABELS = { code: 'Mã hàng', name: 'Tên hàng', notes: 'Ghi chú', arrivalDate: 'Ngày về', location: 'Vị trí', quantity: 'Số lượng' };
   const collator = new Intl.Collator('vi', { numeric: true, sensitivity: 'base' });
+  // Cập nhật thời gian thực: debounce tín hiệu SSE, chu kỳ tải bù khi SSE lỗi, thời gian nháy ô vừa đổi.
+  const LIVE = { debounceMs: 300, fallbackMs: 60000, flashMs: 1600 };
+  // Chữ ký nội dung của dòng/ô lúc dựng (không đọc lại từ DOM vì table-controls có thể thêm thuộc tính).
+  const signatures = new WeakMap();
+  const setText = (node, text) => { if (node.textContent !== text) node.textContent = text; };
   const QUANTITY_FORMAT = new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 });
   const newState = () => ({ rows: [], query: '', page: 1, sortField: '', sortDirection: 'asc', loading: false, error: '', warnFilter: 'all', canEdit: null, canExport: false, canDeleteHistory: false });
   const state = { hn: newState(), sg: newState() };
@@ -263,10 +268,77 @@
       }
       tr.appendChild(td);
     });
+    signatures.set(tr, tr.className + '\u0001' + (tr.dataset.warning || ''));
+    Array.from(tr.children).forEach(td => signatures.set(td, td.innerHTML + '\u0001' + td.title));
     return tr;
   }
 
-  function render() {
+  function flashCell(cell) {
+    cell.classList.add('vt-cell-flash');
+    setTimeout(() => cell.classList.remove('vt-cell-flash'), LIVE.flashMs);
+  }
+
+  // Sửa dòng đang có cho khớp bản mới: chỉ ô nào chữ ký khác mới bị thay nội dung. Trả về true nếu có gì đổi.
+  function syncRowCells(node, fresh, flash) {
+    let changed = false;
+    if (signatures.get(node) !== signatures.get(fresh)) {
+      node.className = fresh.className;
+      if (fresh.dataset.warning) node.dataset.warning = fresh.dataset.warning; else delete node.dataset.warning;
+      signatures.set(node, signatures.get(fresh));
+      changed = true;
+    }
+    Array.from(node.children).forEach((cell, index) => {
+      const next = fresh.children[index];
+      if (!next || signatures.get(cell) === signatures.get(next)) return;
+      cell.replaceChildren(...Array.from(next.childNodes));
+      if (next.title) cell.title = next.title; else cell.removeAttribute('title');
+      signatures.set(cell, signatures.get(next));
+      changed = true;
+      if (flash) flashCell(cell);
+    });
+    return changed;
+  }
+
+  // Đối chiếu <tbody> theo data-id thay vì dựng lại: giữ node (focus, hover, cuộn) của dòng không đổi, chèn dòng mới đúng chỗ,
+  // gỡ dòng không còn. Trả về true nếu DOM có thay đổi.
+  function reconcileRows(body, rows, flash) {
+    const existing = new Map();
+    Array.from(body.children).forEach(node => existing.set(node.dataset.id, node));
+    let cursor = body.firstElementChild;
+    let changed = false;
+    rows.forEach(row => {
+      const fresh = buildRow(row);
+      const node = existing.get(String(row.id));
+      if (!node) { body.insertBefore(fresh, cursor); changed = true; return; }
+      existing.delete(String(row.id));
+      if (node === cursor) cursor = cursor.nextElementSibling;
+      else { body.insertBefore(node, cursor); changed = true; }
+      if (syncRowCells(node, fresh, flash)) changed = true;
+    });
+    existing.forEach(node => { node.remove(); changed = true; });
+    return changed;
+  }
+
+  // Cập nhật nhãn/số đếm của bộ lọc cảnh báo tại chỗ (giữ node <option> để danh sách đang mở không bị đóng).
+  function syncWarnOptions(select, current) {
+    const wanted = new Set([...Object.keys(WARNING_LABELS), ...current.rows.flatMap(warningsOf)]);
+    if (current.warnFilter.startsWith('type:')) wanted.add(current.warnFilter.slice(5));
+    const existing = new Map();
+    select.querySelectorAll('option[data-warning-type]').forEach(option => existing.set(option.dataset.warningType, option));
+    existing.forEach((option, code) => { if (!wanted.has(code)) option.remove(); });
+    wanted.forEach(code => {
+      let option = existing.get(code);
+      if (!option) {
+        option = document.createElement('option');
+        option.value = 'type:' + code;
+        option.dataset.warningType = code;
+        select.appendChild(option);
+      }
+      setText(option, warningLabel(code) + ' (' + formatNumber(current.rows.filter(row => warningsOf(row).includes(code)).length) + ')');
+    });
+  }
+
+  function render(options = {}) {
     const current = state[activeTab];
     const canEdit = editable();
     $('vtAddButton').hidden = !canEdit;
@@ -277,26 +349,16 @@
     // Bộ lọc cảnh báo: số đếm tính trên toàn bộ dòng của cơ sở (không theo từ khóa tìm).
     const select = $('vtWarnFilter');
     const warned = current.rows.filter(row => warningsOf(row).length > 0).length;
-    select.querySelector('option[value="warn"]').textContent = 'Cảnh báo (' + formatNumber(warned) + ')';
-    select.querySelector('option[value="valid"]').textContent = 'Hợp lệ (' + formatNumber(current.rows.length - warned) + ')';
-    select.querySelectorAll('option[data-warning-type]').forEach(option => option.remove());
-    const warningTypes = new Set([...Object.keys(WARNING_LABELS), ...current.rows.flatMap(warningsOf)]);
-    if (current.warnFilter.startsWith('type:')) warningTypes.add(current.warnFilter.slice(5));
-    warningTypes.forEach(code => {
-      const option = document.createElement('option');
-      option.value = 'type:' + code;
-      option.dataset.warningType = code;
-      option.textContent = warningLabel(code) + ' (' + formatNumber(current.rows.filter(row => warningsOf(row).includes(code)).length) + ')';
-      select.appendChild(option);
-    });
-    select.value = current.warnFilter;
+    setText(select.querySelector('option[value="warn"]'), 'Cảnh báo (' + formatNumber(warned) + ')');
+    setText(select.querySelector('option[value="valid"]'), 'Hợp lệ (' + formatNumber(current.rows.length - warned) + ')');
+    syncWarnOptions(select, current);
+    if (select.value !== current.warnFilter) select.value = current.warnFilter;
     select.parentElement.dataset.filter = current.warnFilter;
     select.disabled = current.loading || !!current.error;
     const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
     if (!current.loading && !current.error) current.page = Math.min(current.page, pageCount);
     const start = (current.page - 1) * pageSize;
     const body = $('vtRows');
-    body.replaceChildren();
     const search = $('vtSearch');
     if (search.value !== current.query) search.value = current.query;
     search.disabled = current.loading || !!current.error;
@@ -307,12 +369,11 @@
       (current.rows.length === 0 ? 'Chưa có dữ liệu vị trí hàng.' : rows.length === 0 ? (current.warnFilter === 'warn' ? 'Không có dòng cảnh báo.' : current.warnFilter === 'valid' ? 'Không có dòng hợp lệ.' : 'Không tìm thấy hàng phù hợp.') : '');
     const ready = !current.loading && !current.error && rows.length > 0;
     $('vtPager').hidden = !ready;
-    if (!ready) return;
+    if (!ready) { body.replaceChildren(); return; }
 
-    const fragment = document.createDocumentFragment();
-    rows.slice(start, start + pageSize).forEach(row => fragment.appendChild(buildRow(row)));
-    body.appendChild(fragment);
-    if (window.TKSTables) window.TKSTables.refresh($('vtTable'));
+    const changed = reconcileRows(body, rows.slice(start, start + pageSize), options.background === true);
+    // Cập nhật nền mà không đổi gì thì khỏi áp lại cấu hình bảng.
+    if (window.TKSTables && (changed || options.background !== true)) window.TKSTables.refresh($('vtTable'));
     $('vtCount').textContent = `${formatNumber(start + 1)}–${formatNumber(Math.min(start + pageSize, rows.length))} / ${formatNumber(rows.length)} dòng`;
     $('vtPage').textContent = `Trang ${current.page} / ${pageCount}`;
     if ($('vtPageSize').value !== String(pageSize)) $('vtPageSize').value = String(pageSize);
@@ -1330,6 +1391,31 @@
     }
   }
 
+  // Tải lại danh sách ở nền (không đặt loading, không xóa dòng) rồi vá bảng tại chỗ. Bỏ kết quả nếu đã đổi tab giữa chừng.
+  // Một yêu cầu tại một thời điểm; tín hiệu đến lúc đang tải thì tải thêm một lần sau khi xong.
+  const live = { busy: false, pending: false };
+  async function refreshInBackground(tab) {
+    if (!tab || tab !== activeTab) return;
+    if (live.busy) { live.pending = true; return; }
+    live.busy = true;
+    const version = requestVersion;
+    try {
+      const { response, payload } = await request(API + '?branch=' + tab.toUpperCase());
+      if (version !== requestVersion || tab !== activeTab) return;
+      if (!response.ok || payload.branch !== tab.toUpperCase() || !Array.isArray(payload.rows)) return;
+      const current = state[tab];
+      current.rows = payload.rows;
+      current.error = '';
+      current.canEdit = typeof payload.canEdit === 'boolean' ? payload.canEdit : null;
+      current.canExport = payload.canExport === true;
+      current.canDeleteHistory = payload.canDeleteHistory === true;
+      render({ background: true });
+    } catch (error) { /* lần tải bù sau sẽ thử lại */ } finally {
+      live.busy = false;
+      if (live.pending) { live.pending = false; refreshInBackground(activeTab); }
+    }
+  }
+
   function syncTheme() {
     const light = document.documentElement.dataset.theme === 'light';
     $('themeLabel').textContent = light ? 'Dark mode' : 'Light mode';
@@ -1519,5 +1605,5 @@
     await selectTab(window.location.hash.slice(1));
   }
 
-  window.TKSVtPositions = { init, normalizeSearch, filterRows, sortRows, formatTime };
+  window.TKSVtPositions = { init, normalizeSearch, filterRows, sortRows, formatTime, refresh: () => refreshInBackground(activeTab), live: LIVE };
 })();
