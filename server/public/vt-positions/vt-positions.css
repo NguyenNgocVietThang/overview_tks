@@ -1,4 +1,4 @@
-/* Trang VT Hà Nội / VT Sài Gòn: khung bảng dùng lại /stock-locations/stock-locations.css, ở đây chỉ phần riêng (bảng bấm được, hộp thoại). */
+/* Trang VT Hà Nội / VT Sài Gòn: khung bảng nằm ở vt-base.css (tiền tố .locations-*), ở đây chỉ phần riêng (bảng bấm được, hộp thoại). */
 /* ---- Đầu trang + tab ---- */
 .vt-page-head{display:flex;align-items:center;gap:14px;margin:0 0 18px}
 .vt-page-icon{display:inline-flex;align-items:center;justify-content:center;flex:none;width:44px;height:44px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--panel);color:var(--blue);box-shadow:var(--card-shadow)}

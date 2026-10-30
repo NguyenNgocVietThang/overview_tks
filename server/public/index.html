@@ -8387,7 +8387,7 @@
 
     // Vai trò chỉ biết sau authGuard() trong khi table-controls đã dựng bảng lúc tải trang (chưa ẩn cột nào), và cột ẩn mặc định
     // chỉ áp lúc phiên cột được tạo. Nên đổi khóa phiên theo hồ sơ ("dashboard-table-2:sale|manager") để dựng phiên mới có sẵn cột ẩn,
-    // cùng cách marketing-report.js / stock-locations.js đang dùng. Không làm gì khi chưa biết vai trò hoặc chưa nạp table-controls.
+    // cùng cách marketing-report.js đang dùng. Không làm gì khi chưa biết vai trò hoặc chưa nạp table-controls.
     function applyProductReportColumnView() {
       const user = state.currentUser;
       if (!user || !window.TKSTables || typeof window.TKSTables.enhance !== 'function') return;

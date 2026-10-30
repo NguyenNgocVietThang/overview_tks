@@ -1,6 +1,7 @@
 'use strict';
 
-// /api/stock-positions/* — tab "VT Ha Noi" / "VT Sai Gon" (xem: stockLocationsV2.view, ghi: stockLocationsV2.edit).
+// /api/stock-positions/* — tab "VT Ha Noi" / "VT Sai Gon", module Vi tri hang duy nhat (module cu doc Google Sheets da go 2026-10-30).
+// Xem + Xuat Excel (stockLocationsV2.view / .export): mac dinh MOI vai tro ke ca Khach; ghi (.edit) va xoa lich su (.historyDelete) chi noi bo.
 const express = require('express');
 const multer = require('multer');
 const { requireAuth, requireFeature } = require('../auth/authMiddleware');

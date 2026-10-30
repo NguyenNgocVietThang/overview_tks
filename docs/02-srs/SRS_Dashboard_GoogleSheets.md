@@ -15,7 +15,7 @@
 | Tên dự án          | Hệ thống Dashboard nội bộ TOKOSI                           |
 | Phiên bản          | 3.0                                                        |
 | Ngày tạo           | 27/07/2026                                                 |
-| Ngày cập nhật      | 28/10/2026                                                 |
+| Ngày cập nhật      | 30/10/2026                                                 |
 | Tài liệu liên quan | BRD v2.2 · BPMN v3.0 · Implementation Plan (cập nhật 05/10/2026) · CSNS-NP-01 (Chính sách nghỉ phép) · `server/db/SCHEMA.md` · Design System MASTER (mục 7 — ràng buộc hiệu năng) |
 | Trạng thái         | Nội dung nền rà soát tại HEAD `11751c4` (05/10); FR-15 Sổ quỹ bổ sung và kiểm chứng 06/10. Migration `0033` đã áp thành công lên Supabase DB. Deploy production còn chờ. Số kiểm thử 1.704/1.701/0/3 là mốc lịch sử 05/10. |
 
@@ -61,7 +61,7 @@ Web Application nội bộ gồm:
 - BRD v2.2, BPMN v3.0, `server/db/SCHEMA.md`, `server/README.md`, `README.md`.
 - CSNS-NP-01 — Quy định & Chính sách quản lý nghỉ phép nhân sự.
 - `server/kiotviet/API_ENDPOINTS.md` — tham số KiotViet Public API đã kiểm chứng.
-- `docs/stock-locations-setup.md`, `docs/telegram-manager-leave-setup.md`.
+- `docs/telegram-manager-leave-setup.md` (`docs/stock-locations-setup.md` của module Vị trí hàng cũ đã xóa 30/10/2026).
 - Supabase PostgreSQL, Google Sheets API v4, KiotViet Public API Documentation.
 
 # 2. Mô tả tổng quan hệ thống
@@ -95,22 +95,22 @@ Supabase PostgreSQL
 Google Sheets (service account)
     ├── Bảng Công nợ (DEBT_MANAGEMENT_SPREADSHEET_ID)         : chỉ đọc
     ├── Vòng đời đơn hàng (ORDER_LIFECYCLE_SPREADSHEET_ID)    : đọc DonHang_HN/SG/MienNam, GHI tab `Lịch sử cập nhật`
-    ├── Vị trí hàng (STOCK_LOCATIONS_SPREADSHEET_ID)          : chỉ đọc `Vị trí HN`, `Vị trí SG` bằng job nền `sheetSnapshots` (3 phút) vào Postgres; web không gọi Google mỗi request (sheet `CÂN ĐO` tương tự, 5 phút)
+    ├── CÂN ĐO (STOCK_LOCATIONS_SPREADSHEET_ID — tên biến di sản, hoặc SHIPPING_MEASURE_SPREADSHEET_ID) : chỉ đọc sheet `CÂN ĐO` bằng job nền `sheetSnapshots` (5 phút) vào `shipping_measures`; web không gọi Google mỗi request. Hai sheet `Vị trí HN`/`Vị trí SG` không còn được đọc (module Vị trí hàng cũ đã gỡ 30/10/2026; Vị trí hàng nay nằm trong Postgres `stock_positions`)
     └── Marketing (TRỰC PAGE, SĐT, ADS; MARKETING_*_SPREADSHEET_ID): chỉ đọc; riêng ADS được job nền chép vào `marketing_ads_costs` mỗi 30 phút (FR-17.9)
     (Workbook HR và tab `Trả NCC` không còn được đọc)
 
 File JSON cục bộ: server/data/notifications.json (chuông thông báo), server/data/roleChangeRequests.json (yêu cầu đổi vai trò)
 
-Backend Express (server/): index.js · routes.js · config.js · auth/ · branch/ · dashboard/ · hr/ · shipment/ · stockLocations/
+Backend Express (server/): index.js · routes.js · config.js · auth/ · branch/ · dashboard/ · hr/ · shipment/ · stockPositions/
     · notifications/ · telegram/ · sheets/ · lib/ · db/
     REST: /api/auth/*, /api/admin/*, /api/role-requests/*, /api/branch, /api/dashboard(+/events), /api/customer-*,
           /api/product-report*, /api/inventory-value-history, /api/invoice-detail, /api/export*, /api/products/*,
-          /api/debt-management/status, /api/shipment/lifecycle/*, /api/stock-locations, /api/hr/*, /api/notifications/*,
+          /api/debt-management/status, /api/shipment/lifecycle/*, /api/stock-positions/*, /api/hr/*, /api/notifications/*,
           /api/internal/kiotviet-sync/status, /api/kiotviet/webhook/:secret, /api/telegram/manager-leave/webhook, /health, /api/debug
     |
     v
 Frontend (server/public/): index.html (Báo cáo tổng hợp, phục vụ ở /reports/ và /), account/, humanresources/, shipment/lifecycle/,
-    stock-locations/, login/, register/, 404.html, shared/ (shared-nav.js, shared.css, dateInput.js…), js/ (pagination.js, table-explorer.js), vendor/ (Chart.js, html2pdf)
+    vt-positions/, login/, register/, 404.html, shared/ (shared-nav.js, shared.css, dateInput.js…), js/ (pagination.js, table-explorer.js), vendor/ (Chart.js, html2pdf)
 ```
 
 ## 2.2. Stack công nghệ thực tế
@@ -141,9 +141,9 @@ Frontend (server/public/): index.html (Báo cáo tổng hợp, phục vụ ở /
 | Quản lý      | Toàn quyền mặc định: báo cáo (kể cả xuất file, sửa công nợ), vòng đời đơn hàng (kể cả xuất, ghi đè), nhân sự (duyệt nghỉ, tải quy định), tài khoản/phân quyền, trạng thái đồng bộ. **Quản lý cấp cao** = tài khoản admin cứng. |
 | Trợ lý       | 6 tab báo cáo + xuất Excel + sửa trạng thái công nợ; vòng đời đơn hàng (xem, tra cứu, lịch sử); nhân sự (xem). Không "Tính lại tháng" của tab Khách hàng. |
 | Nhân viên sale | 6 tab báo cáo (xem), vòng đời đơn hàng (xem), nhân sự (xem). Không xuất báo cáo, không sửa công nợ. |
-| Kế toán, Trưởng kho, Lái xe | Vòng đời đơn hàng (xem/tra cứu/lịch sử), nhân sự (xem), vị trí hàng. Không có tab báo cáo mặc định. |
-| Nhân viên kho / marketing / mua hàng | Nhân sự (xem), vị trí hàng; **không** có Vòng đời đơn hàng. |
-| Khách        | Chỉ trang Tài khoản/hồ sơ; không vào báo cáo, vòng đời đơn hàng, nhân sự, vị trí hàng. |
+| Kế toán, Trưởng kho, Lái xe | Vòng đời đơn hàng (xem/tra cứu/lịch sử), nhân sự (xem), vị trí hàng (VT Hà Nội/Sài Gòn: xem + xuất Excel). Không có tab báo cáo mặc định. |
+| Nhân viên kho / marketing / mua hàng | Nhân sự (xem), vị trí hàng (xem + xuất Excel); **không** có Vòng đời đơn hàng. |
+| Khách        | Chỉ trang Tài khoản/hồ sơ; không vào báo cáo, vòng đời đơn hàng, nhân sự; **được xem + xuất Excel VT Hà Nội/Sài Gòn** (từ 30/10/2026, theo phạm vi cơ sở cookie), không sửa/import/xóa lịch sử. |
 | IT Admin     | Cấu hình biến môi trường Render, migration, webhook KiotViet, bot Telegram.   |
 
 Quyền mặc định ở trên tính từ `featureRegistry.js`; Quản lý có thể cấp thêm/rút từng quyền cho từng tài khoản tại `/account/#users`.
@@ -151,13 +151,13 @@ Quyền mặc định ở trên tính từ `featureRegistry.js`; Quản lý có 
 ## 2.4. Giả định & phụ thuộc
 
 - Schema Postgres đã thiết kế đến migration `0044` (0001–0044; bao gồm `0036`–`0037` Báo cáo kinh doanh, `0038`–`0042` Nhân sự/Nghỉ phép/Audit log, `0043` thông báo ngày lễ/sinh nhật và `0044` `purchases.raw_hash` giảm egress Supabase).
-- Service account Google: Viewer trên Bảng Công nợ, Vị trí hàng và 3 workbook Marketing; Editor trên workbook Vòng đời đơn hàng.
+- Service account Google: Viewer trên workbook CÂN ĐO (`STOCK_LOCATIONS_SPREADSHEET_ID`) và 3 workbook Marketing; Editor trên workbook Vòng đời đơn hàng.
 - Scheduler chạy liên tục (`KIOTVIET_SYNC_ENABLED=true`); webhook KiotViet trỏ về `/api/kiotviet/webhook/<secret>`.
 - Bot xin nghỉ của nhân viên chạy **ngoài repo** và ghi trực tiếp vào Postgres.
 
 ## 2.5. Định hướng kiến trúc mở rộng
 
-- Giữ mô-đun theo miền (`dashboard`, `auth`, `hr`, `shipment`, `stockLocations`, `telegram`).
+- Giữ mô-đun theo miền (`dashboard`, `auth`, `hr`, `shipment`, `stockPositions`, `telegram`).
 - Thêm quyền/trang mới: sửa `featureRegistry.js` (+ `PAGE_FEATURES`, menu `shared-nav.js`, guard route) và test tương ứng.
 - Thay đổi schema bằng migration mới; không sửa migration đã áp.
 
@@ -168,7 +168,7 @@ Quyền mặc định ở trên tính từ `featureRegistry.js`; Quản lý có 
 | **Mã**  | **Mô tả**                                                                                                                        | **Ưu tiên** | **Trạng thái** |
 |---------|----------------------------------------------------------------------------------------------------------------------------------|-------------|----------------|
 | FR-01.1 | Dữ liệu KiotViet của dashboard đọc từ Postgres qua `dashboardPgReader.js` (7 bảng nguồn dạng "sheet": Nhóm hàng, Hàng hóa, Hóa đơn, Chi tiết hóa đơn, Đặt hàng, Trả hàng, Khách hàng) và các bảng rollup; không đọc Google Sheets. | Cao | Hoàn thành |
-| FR-01.2 | Google Sheets dùng cho Bảng Công nợ (chỉ đọc), Vòng đời đơn hàng (đọc + ghi `Lịch sử cập nhật`), Vị trí hàng và Báo cáo Marketing (chỉ đọc), xác thực bằng Service Account JSON. | Cao | Hoàn thành |
+| FR-01.2 | Google Sheets dùng cho Bảng Công nợ (chỉ đọc), Vòng đời đơn hàng (đọc + ghi `Lịch sử cập nhật`), sheet CÂN ĐO và Báo cáo Marketing (chỉ đọc), xác thực bằng Service Account JSON. | Cao | Hoàn thành |
 | FR-01.3 | Mọi ID workbook và `GOOGLE_SERVICE_ACCOUNT_JSON` đọc từ biến môi trường; thiếu ID workbook chỉ tắt tính năng tương ứng (503), không làm sập server. | Cao | Hoàn thành |
 | FR-01.4 | Thông tin xác thực KiotViet (`KIOTVIET_CLIENT_ID/SECRET/RETAILER`, hậu tố `_SG`) đọc từ biến môi trường; không hard-code. | Cao | Hoàn thành |
 | FR-01.5 | Lỗi đọc dữ liệu trả HTTP 500 kèm `detail`; log chi tiết phía server. Lỗi workbook công nợ chỉ làm `debtManagement.available = false`. | Cao | Hoàn thành |
@@ -280,8 +280,8 @@ Quyền mặc định ở trên tính từ `featureRegistry.js`; Quản lý có 
 | FR-08.7 | Quản trị người dùng `/api/admin/users*` (quyền `account.users`, `account.users.manage`, `account.permissions`): danh sách, tạo, sửa, đặt lại mật khẩu, xóa, xem/ghi đè quyền từng tài khoản (`/api/admin/permissions/catalog`, `/api/admin/users/:id/permissions`). Danh mục quyền trả `requires` và `forbiddenRoles` để form khóa đúng ô. | Cao | Hoàn thành |
 | FR-08.8 | Chống leo thang (`accountPolicy.js`): người không phải Quản lý chỉ được thêm quyền chính mình có và không đụng tài khoản Quản lý/admin cứng; **Quản lý thường** không đặt lại mật khẩu, đổi email/SĐT/ID Telegram, hạ vai trò, rút quyền, khóa hay xóa **Quản lý khác** (403 `ACCOUNT_POLICY_DENIED`, vẫn thao tác được với nhân viên thường và chính mình); chỉ **Quản lý cấp cao** (admin cứng, `isSeniorAdmin` trong `GET /api/auth/me`) giữ đủ quyền. | Cao | Hoàn thành |
 | FR-08.9 | Yêu cầu đổi vai trò tự thân: `POST /api/role-requests`, danh sách/chi tiết, Quản lý duyệt/từ chối `PATCH /api/role-requests/:id/status` (kèm kiểm tra `accountPolicy`); lưu ở `server/data/roleChangeRequests.json`. | Trung bình | Hoàn thành |
-| FR-08.10 | Phân quyền theo **tính năng** (`featureRegistry.js`), giải lại mỗi request (không nằm trong JWT): quyền mặc định theo vai trò + ghi đè từng tài khoản (`feature_permissions` chỉ lưu phần lệch); `alwaysOn` (`account.profile`); `requires` (quyền phụ bị loại khi thiếu quyền gốc); `forbiddenRoles` (Khách không có `stockLocations.view`). Admin cứng luôn đủ mọi quyền. | Cao | Hoàn thành |
-| FR-08.11 | Bảo vệ trang HTML nội bộ ở server (`pageGuard.js`, bảng `PAGE_FEATURES`: `/reports`, `/shipment/lifecycle`, `/humanresources`, `/stock-locations`, `/account`); thiếu quyền → chuyển tới trang đầu tiên được phép hoặc `/login/?next=`; fail-soft với lỗi 5xx. `shared-nav.js` là lớp UX thứ hai. | Cao | Hoàn thành |
+| FR-08.10 | Phân quyền theo **tính năng** (`featureRegistry.js`), giải lại mỗi request (không nằm trong JWT): quyền mặc định theo vai trò + ghi đè từng tài khoản (`feature_permissions` chỉ lưu phần lệch); `alwaysOn` (`account.profile`); `requires` (quyền phụ bị loại khi thiếu quyền gốc); `forbiddenRoles` + `GUEST_ALLOWED_KEYS` (Khách chỉ được `account.profile`, `hr.rules`, `hr.leave`, `hr.leave.submit`, `stockLocationsV2.view`, `stockLocationsV2.export`; mọi khóa khác bị chặn cứng). Admin cứng luôn đủ mọi quyền. | Cao | Hoàn thành |
+| FR-08.11 | Bảo vệ trang HTML nội bộ ở server (`pageGuard.js`, bảng `PAGE_FEATURES`: `/reports`, `/shipment/lifecycle`, `/humanresources`, `/vt-positions`, `/account`); link cũ `/stock-locations*` chuyển 302 sang `/vt-positions/` (`legacyPageRedirect`, gắn trước `pageGuard`); thiếu quyền → chuyển tới trang đầu tiên được phép hoặc `/login/?next=`; fail-soft với lỗi 5xx. `shared-nav.js` là lớp UX thứ hai. | Cao | Hoàn thành |
 | FR-08.12 | Danh bạ nhân sự: tài khoản đối chiếu với `hr_employees` theo email/SĐT; nhân sự có trong danh sách thì vai trò suy từ BỘ PHẬN (trừ khi có `vaiTroOverride`). Cơ chế tự khóa `hr_removed` đã bỏ; không khớp dòng nhân sự thì giữ vai trò/quyền hiện có. Từ 2026-10-05 tài khoản **đã gắn** một dòng nhân sự (`hr_employee_id`) không tự gắn sang dòng khác khi email/SĐT đổi hoặc trỏ sang nhân sự khác: giữ ràng buộc cũ và ghi log cảnh báo. | Trung bình | Hoàn thành |
 | FR-08.13 | Chuông thông báo `/api/notifications*` (danh sách, số chưa đọc, đánh dấu đã đọc, xóa): lưu ở `server/data/notifications.json`; thông báo nghỉ phép mới/duyệt và thêm/gỡ tài liệu quy định gửi tới mọi tài khoản có quyền liên quan. | Trung bình | Hoàn thành |
 
@@ -349,15 +349,15 @@ Lớp hiệu ứng 3D và giám sát hiệu năng thích ứng đã gỡ bỏ v�
 
 | **Mã** | **Mô tả** | **Ưu tiên** | **Trạng thái** |
 |---|---|---|---|
-| FR-13.1 | `STOCK_LOCATIONS_SPREADSHEET_ID` chỉ workbook HN/SG dùng chung; service account có Viewer. Đọc `FORMATTED_VALUE`, nhận diện hàng/cột theo tiêu đề (không cố định chỉ số), không lưu Postgres, không migration. | Cao | Hoàn thành |
-| FR-13.2 | `GET /api/stock-locations?branch=HN\|SG` trả `{ branch, rows: [{ code, name, totalQuantity, notes, arrivalDate, location, quantity, warnings }] }` (`quantity` = SL tính từ ghi chú theo `public/shared/carton.js`, null nếu ghi chú sai định dạng; `warnings` = mã cảnh báo `multi`/`loose`/`unreadable`/`badnumber`; `totalQuantity` của Sheets chỉ là dự phòng); yêu cầu đăng nhập + quyền + cơ sở thuộc phạm vi bộ chọn. Thiếu/sai branch: 400; ngoài phạm vi/thiếu quyền: 403; thiếu cấu hình/sheet/header hoặc Google lỗi: 503 với `STOCK_LOCATIONS_NOT_CONFIGURED` / `_SHEET_MISSING` / `_HEADERS_MISSING` / `_SOURCE_UNAVAILABLE`. Thành công trả `Cache-Control: no-store`. | Cao | Hoàn thành |
-| FR-13.3 | Trang `/stock-locations/#hn\|sg` và nhóm sidebar "Vị trí hàng": chọn Hà Nội/Sài Gòn chỉ hiện tab tương ứng, Cả hai hiện hai tab (mặc định HN). Bảng 6 cột (Mã hàng, Tên hàng, Tổng SL, Ghi chú hàng hóa, Ngày về, Vị trí); tìm mã/tên/vị trí không dấu; sắp xếp toàn bộ rồi phân trang 100 dòng; mỗi tab giữ trạng thái riêng; nút hiện/ẩn cột nhớ riêng điện thoại/máy tính (điện thoại mặc định Tên hàng, Tổng SL, Vị trí). Không xuất file, không tải định kỳ. | Cao | Hoàn thành |
-| FR-13.4 | Giữ từng dòng có mã hoặc tên theo thứ tự sheet, không gộp mã trùng; giữ SL = 0/vị trí trống, số 0 đầu mã và xuống dòng. Chỉ gộp các lượt đọc đồng thời cùng workbook/cơ sở, không cache giá trị. | Cao | Hoàn thành |
-| FR-13.5 | `stockLocations.view` mặc định cho mọi vai trò nội bộ; Khách luôn bị loại khỏi quyền hiệu lực dù có ghi đè; API cấp quyền từ chối grant cho Khách (400) và form vô hiệu hóa lựa chọn. Bản đồ cột HN/SG và nghiệm thu xem `docs/stock-locations-setup.md`. | Cao | Hoàn thành |
+| FR-13.1 | ~~Nguồn Google Sheets `Vị trí HN`/`Vị trí SG` (workbook `STOCK_LOCATIONS_SPREADSHEET_ID`)~~ — **đã gỡ 30/10/2026.** Vị trí hàng chỉ còn trong Postgres (FR-13.6); job `sheetSnapshots` không còn nguồn `stock_locations_hn/sg`, chỉ giữ sheet `CÂN ĐO`. Biến `STOCK_LOCATIONS_SPREADSHEET_ID` giữ làm tên di sản (workbook CÂN ĐO). Bảng `stock_location_lines` còn trong DB nhưng không còn job ghi (chưa DROP). | Cao | Đã gỡ |
+| FR-13.2 | ~~`GET /api/stock-locations?branch=HN\|SG`~~ — **đã gỡ 30/10/2026**, nay trả 404. Thay bằng `GET /api/stock-positions?branch=HN\|SG` (FR-13.6), trả `canEdit`/`canExport`/`canDeleteHistory` theo quyền. | Cao | Đã gỡ |
+| FR-13.3 | ~~Trang `/stock-locations/#hn\|sg`~~ — **đã gỡ 30/10/2026**; `/stock-locations`, `/stock-locations/`, `/stock-locations/index.html` chuyển 302 sang `/vt-positions/`. Nhóm sidebar "Vị trí hàng" chỉ còn mục VT Hà Nội / VT Sài Gòn theo cơ sở người dùng (Cả hai hiện hai mục, mặc định HN). | Cao | Hoàn thành (30/10/2026) |
+| FR-13.4 | ~~Giữ từng dòng nguồn sheet kể cả mã trùng/SL = 0~~ — **đã gỡ cùng module cũ.** Quy tắc tương ứng của module mới: dòng trùng (mã, vị trí) tự cộng ghi chú, SL = 0 tự xóa (FR-13.7). | Cao | Đã gỡ |
+| FR-13.5 | ~~Khóa `stockLocations.view`~~ — **đã bỏ khỏi `featureRegistry.js` 30/10/2026**; khóa cũ còn trong `app_users.feature_permissions` bị `sanitizeOverrides` bỏ qua, không cần migration. Phân quyền hiện hành xem FR-13.9. | Cao | Đã gỡ |
 | FR-13.6 | Trang `/vt-positions/#hn\|sg` (mục "VT Hà Nội"/"VT Sài Gòn" trong nhóm Vị trí hàng) đọc bảng `stock_positions` (migration `0095`, sao chép một lần từ `stock_location_lines`, không còn đồng bộ Google Sheets). `GET /api/stock-positions?branch=HN\|SG` trả mỗi dòng: mã, tên (tra theo mã từ `products`, dự phòng `stock_positions.name`), SL kho (tính từ ghi chú bằng `public/shared/carton.js`, null khi sai định dạng), SL KiotViet (tồn thực), ghi chú, ngày về (text), vị trí, người và thời gian cập nhật cuối, cảnh báo (nhiều quy cách, trừ lẻ, sai định dạng, số thùng sai, mã SP lạ; dòng cảnh báo đổi chữ đỏ) | Cao | Đã làm, chưa deploy |
 | FR-13.7 | Bấm vào một dòng của bảng mở **hộp chi tiết** (28/10/2026: đầu hộp icon + chip cơ sở + chip Vị trí nổi bật; 4 chỉ số SL thùng, SL chiếc, Có thể bốc, SL Kiot; khối "Thông tin vị trí" với ô Vị trí nổi bật, Ghi chú/Ngày về; mục "Lịch sử thay đổi" riêng của dòng; chân hộp Xóa dòng, Hủy, Lưu thay đổi; người chỉ có quyền xem không thấy Lưu/Xóa; không còn cột Thao tác và sửa tại chỗ). Sửa Ghi chú/Ngày về/Vị trí (`PATCH /api/stock-positions/:id` kèm `version`, 409 khi sửa chồng), thêm dòng (trùng mã + vị trí thì tự cộng ghi chú vào dòng cũ, cùng SL/thùng thì gộp thùng), xóa dòng có xác nhận, trừ số lượng (`POST …/:id/deduct`). Ghi chú tự chuẩn hóa khi lưu (`1t100 + 2T*100` → `3T x 100`; trừ 200 → `1T x 100`; trừ thông minh trọn thùng từ nhiều quy cách: `3T x 200 + 1T x 50` trừ 250 → `2T x 200`, không ghép được thì ghi phần trừ lẻ ` - N`). SL tính ra bằng 0 thì dòng **tự xóa** và ghi lịch sử | Cao | Đã làm, chưa deploy |
 | FR-13.8 | Import file `.xlsx/.xls/.csv` (≤ 8 MB, 4 cột Mã, Ghi chú, Ngày về, Vị trí; cột thừa bỏ qua, thiếu cột thì báo): chế độ **thay toàn bộ** hoặc **bổ sung thêm SL** (dòng trùng mã + vị trí thì cộng ghi chú; dòng trùng ngay trong file cũng tự cộng), xem trước (`commit=0`) rồi xác nhận (`commit=1`); modal 3 bước có kéo thả, Tải file mẫu (CSV) và bảng chuẩn hóa cũ → mới. Xem trước cho thêm/sửa/xóa dữ liệu nhập, kể cả dòng lỗi/bỏ qua/không đổi; sửa từng dòng nguồn trước cộng dồn, **Giữ dòng** dự kiến xóa khi Thay toàn bộ. Cảnh báo/lỗi lên đầu; tìm mã/tên/vị trí/ghi chú không dấu kết hợp bộ lọc cảnh báo và loại thao tác, 100 dòng/trang trên toàn bộ kết quả. API trả đầy đủ `inputRows`, `rows`/`rowsTotal`, mỗi kết quả có `sourceIndexes`, `warnings`, lỗi có `message`; không còn giới hạn 300 dòng. Trường multipart `rows` (JSON) gửi dữ liệu đầu vào đã sửa; máy chủ kiểm kiểu, chuẩn hóa và lập lại kế hoạch. Khóa xác nhận khi đang sửa/gửi, còn lỗi, danh sách trống hoặc chưa kiểm tra lại thành công; lỗi mạng giữ bản sửa và cho kiểm tra lại. Không ghi trước khi xác nhận; ghi trong một giao dịch có khóa theo cơ sở và ghi lịch sử; quyền xem/sửa/phạm vi cơ sở giữ nguyên | Cao | Đã làm, chưa deploy |
-| FR-13.9 | Quyền `stockLocationsV2.view` (xem), `stockLocationsV2.edit` (sửa/thêm/xóa/import) và `stockLocationsV2.export` (xuất Excel; `GET /api/stock-positions/export?branch=` trả `.xlsx` 10 cột như bảng: Mã hàng, Tên hàng, SL kho, Có thể bốc (= SL kho − giữ chỗ của đơn Đang bốc, tối thiểu 0; API trả thêm `held`/`available`, chưa áp `0096` thì Có thể bốc = SL kho), SL Kiot, Ghi chú số thùng, Ngày về, Vị trí, Người cập nhật, TG cập nhật giờ VN; `GET /api/stock-positions/history/export?branch=&action=&q=` xuất lịch sử theo bộ lọc, tối đa 50.000 dòng mới nhất, header `X-History-Truncated`, 9 cột Thời gian, Người thực hiện, Hành động, Mã hàng, Vị trí, Trường, Giá trị cũ, Giá trị mới, Tóm tắt), hai quyền sau cần quyền xem, mặc định chỉ Quản lý; cấp thêm từng tài khoản; Khách luôn bị chặn; `/vt-positions` thuộc `PAGE_FEATURES` | Cao | Đã làm, chưa deploy |
+| FR-13.9 | Quyền `stockLocationsV2.view` (xem), `stockLocationsV2.edit` (sửa/thêm/xóa/import) và `stockLocationsV2.export` (xuất Excel; `GET /api/stock-positions/export?branch=` trả `.xlsx` 10 cột như bảng: Mã hàng, Tên hàng, SL kho, Có thể bốc (= SL kho − giữ chỗ của đơn Đang bốc, tối thiểu 0; API trả thêm `held`/`available`, chưa áp `0096` thì Có thể bốc = SL kho), SL Kiot, Ghi chú số thùng, Ngày về, Vị trí, Người cập nhật, TG cập nhật giờ VN; `GET /api/stock-positions/history/export?branch=&action=&q=` xuất lịch sử theo bộ lọc, tối đa 50.000 dòng mới nhất, header `X-History-Truncated`, 9 cột Thời gian, Người thực hiện, Hành động, Mã hàng, Vị trí, Trường, Giá trị cũ, Giá trị mới, Tóm tắt), `.view` và `.export` mặc định bật cho **mọi vai trò kể cả Khách** (30/10/2026; `GUEST_ALLOWED_KEYS`, `escalationExempt`); Quản lý vẫn tắt được từng tài khoản, tắt xem thì xuất/sửa/xóa lịch sử mất theo (`requires`). `.edit` và `.historyDelete` (cần xem) mặc định chỉ Quản lý, cấp thêm từng tài khoản; Khách bị cấm tường minh hai quyền này. Khách xem được toàn bộ cột VT (SL Kiot, giữ chỗ, ghi chú, lịch sử chỉnh sửa kèm tên người sửa) theo phạm vi cơ sở cookie; `/vt-positions` thuộc `PAGE_FEATURES` | Cao | Đã làm, chưa deploy |
 | FR-13.10 | **Đã sửa** (28/10/2026, migration `0099`): nút "Đánh dấu Đã sửa"/"Bỏ đánh dấu Đã sửa" trong hộp chi tiết (`POST /api/stock-positions/:id/ack`, quyền `stockLocationsV2.edit`) cho mọi loại cảnh báo, giữ mãi, sửa ghi chú không tự bỏ; bảng hiện nhãn xanh "Đã sửa" không bấm được; lịch sử ghi `ack`/`unack` | Trung bình | Đã làm, chưa migrate/deploy |
 | FR-13.11 | Lượt trừ tồn do đơn (xác nhận tay hoặc job Kiot) ghi **mã đơn** làm người sửa trong lịch sử và "Người sửa cuối"; tên người xác nhận ở `summary.confirmedBy` | Trung bình | Đã làm, chưa deploy |
 | FR-13.12 | **Xóa lịch sử** (quyền `stockLocationsV2.historyDelete`, mặc định Quản lý): hộp thoại Từ ngày/Đến ngày (giờ VN, gồm hai đầu, trống = tất cả), cảnh báo "Bạn có chắc chắn muốn xóa? Hãy lưu dữ liệu lịch sử trước khi xóa."; `DELETE /api/stock-positions/history`; để lại 1 dòng `history_purged`; trigger chỉ cho DELETE khi `app.history_purge = 'on'` | Trung bình | Đã làm, chưa migrate/deploy |
@@ -599,7 +599,7 @@ Mọi API (trừ `health`, webhook, `auth/login`, quên mật khẩu, `google-co
 
 - `/api/shipment/lifecycle/*` — xem FR-14 (GET `/`, GET `/history`, GET `/order-detail`, GET `/:orderCode`, POST `/:orderCode/override`, POST `/export`).
 - `/api/cashbook/*` — xem FR-15 (GET `summary`, `entries`, `filter-options`, `checkpoints`, `export`; POST `checkpoints`).
-- `GET /api/stock-locations?branch=HN|SG` — xem FR-13.2.
+- `/api/stock-positions/*` — xem FR-13.6 đến FR-13.12 (`GET /api/stock-locations` đã gỡ 30/10/2026, trả 404).
 - `POST /api/stock-positions/import?branch=HN|SG&mode=add|replace&commit=0|1` — multipart `file` và `rows` JSON tùy chọn; xem FR-13.8. `rows` thay dữ liệu nhập từ file, không truyền kế hoạch ghi đáng tin cậy; máy chủ tính lại trước mỗi lần xem trước/xác nhận.
 - `POST /api/kiotviet/webhook/:secret` (và đường dẫn cũ không secret) — xem FR-06.2; `GET /api/internal/kiotviet-sync/status` (`system.syncStatus`).
 - `POST /api/client-log` — nhận log lỗi từ trình duyệt.
@@ -633,7 +633,7 @@ Ngày hiển thị `dd/MM/yyyy HH:mm` hoặc `dd/MM/yyyy` theo Asia/Ho_Chi_Minh 
 
 - **Bảng Công nợ:** không còn dùng từ 13/10/2026 (tab Công nợ tính từ KiotViet + lịch TT trong Postgres, FR-11). Biến `DEBT_MANAGEMENT_SPREADSHEET_ID` và `sheets/debtManagementSheetsClient.js` còn trong mã nhưng không được gọi.
 - **Vòng đời đơn hàng:** `DonHang_HN`, `DonHang_SG`, `DonHang_MienNam` (đơn Bắc-Nam, tính như đơn HN), `KeToan_ChungTu` (đơn kế toán/chứng từ dùng chung HN+SG: mã đơn, người gửi, thời gian gửi; có dòng = trạng thái Hoàn thành, cơ sở theo đơn Kiot cùng mã) (mã đơn, các mốc gửi kế toán/giao/nhận/ký nhận…) và tab `Lịch sử cập nhật` do server ghi khi ghi đè.
-- **Vị trí hàng:** `Vị trí HN`, `Vị trí SG` — bản đồ cột ở `docs/stock-locations-setup.md`.
+- **CÂN ĐO:** sheet `CÂN ĐO` của workbook `STOCK_LOCATIONS_SPREADSHEET_ID` (tên biến di sản) hoặc `SHIPPING_MEASURE_SPREADSHEET_ID`, đồng bộ vào `shipping_measures` bởi `sheetSnapshots`. Hai sheet `Vị trí HN`/`Vị trí SG` không còn được đọc từ 30/10/2026 (Vị trí hàng lưu trong Postgres).
 
 # 8. Ma trận truy vết yêu cầu (Traceability Matrix)
 
@@ -661,7 +661,7 @@ Ngày hiển thị `dd/MM/yyyy HH:mm` hoặc `dd/MM/yyyy` theo Asia/Ho_Chi_Minh 
 | Cạn Disk IO Budget Supabase do job ghi đè hàng loạt (sự cố 2026-09-28)               | Rollup/CN1/3/7 chỉ ghi dòng đổi; job nặng dựng 1 lần/đêm; không đổi lại thành `ON CONFLICT DO UPDATE` vô điều kiện. |
 | KiotViet `modifiedDate` không bump theo biến động tồn kho/phiếu nhập                 | Snapshot tồn kho toàn bộ mỗi 10 phút; `purchases`/`order_suppliers` đối soát toàn bộ danh sách (API_ENDPOINTS.md).   |
 | Webhook KiotViet không cập nhật dữ liệu nghiệp vụ (chỉ lưu thô)                     | Dựa vào polling; theo dõi `GET /api/internal/kiotviet-sync/status`; chạy `reconcile` khi nghi ngờ lệch.            |
-| Google Sheets lỗi/hết hạn mức/đổi tên tab hoặc header                                | Lỗi ảnh hưởng đúng tính năng (công nợ, vòng đời, vị trí hàng) và báo mã lỗi rõ ràng; nhận diện cột theo header.     |
+| Google Sheets lỗi/hết hạn mức/đổi tên tab hoặc header                                | Lỗi ảnh hưởng đúng tính năng (vòng đời, CÂN ĐO, marketing) và báo mã lỗi rõ ràng; nhận diện cột theo header.     |
 | Service Account mất quyền trên workbook                                              | Kiểm tra share Viewer/Editor đúng workbook; đặt lại `GOOGLE_SERVICE_ACCOUNT_JSON`.                                  |
 | Trạng thái trong tiến trình (OTP, job đứt hàng, SSE, bộ đếm đăng nhập) mất khi restart hoặc chạy nhiều instance | Chỉ chạy một instance; người dùng yêu cầu lại OTP/quét lại khi restart.                                  |
 | File JSON cục bộ (`notifications.json`, `roleChangeRequests.json`) mất khi container Render ephemeral | Dùng volume bền (VPS) hoặc chấp nhận mất lịch sử thông báo/yêu cầu đổi vai trò.                                |
@@ -953,3 +953,5 @@ Vòng đời đơn hàng / Chỉ định vị trí: chọn Phiếu đặt hàng 
 Cập nhật gần nhất: 28/10/2026 (chỉnh sửa khi xem trước import VT).
 
 28/10/2026 — Phiếu in: đồng bộ chiều cao và cỡ chữ mọi hàng dữ liệu trong bảng, tiêu đề chỉnh riêng. Ctrl+L/R/E căn trái/phải/giữa và Ctrl+B/I đậm/nghiêng cho các cột bôi chọn ở mọi hàng cùng nhóm; ngoài bảng định dạng vùng chữ/đoạn chọn. Form chung JSONB thêm `groups.body/header` (height/size/columns: align/bold/italic), `blocks` (căn đoạn); `fonts` hỗ trợ đậm/nghiêng vùng chữ. Cấu hình áp dụng cả phiếu số dòng khác, qua tài khoản/máy/phiên; giữ kiểm tra version, chỉ lưu khi báo thành công. Không migration/API mới; nội dung chỉ đọc.
+
+Cập nhật gần nhất: 30/10/2026 (gỡ module Vị trí hàng cũ: FR-13.1–13.5 đánh dấu đã gỡ; VT Hà Nội/Sài Gòn là module duy nhất, xem + xuất Excel mở cho mọi vai trò kể cả Khách).
