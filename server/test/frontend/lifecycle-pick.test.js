@@ -232,6 +232,101 @@ test('hộp chỉ định: dòng có SL chọn khác SL khách đặt bôi đỏ
   page.dom.window.close();
 });
 
+test('Cần nhặt sửa tay: ô nhập số, dòng đỏ theo SL đã sửa, hiện SL Kiot khi khác, gửi needs khi chỉ định; về SL Kiot thì bỏ needs', async () => {
+  const page = await renderPage();
+  await openPopup(page);
+  const { document, window } = page;
+  const need = () => document.querySelector('#pickingRows [data-need]');
+  const row = () => document.querySelector('#pickingRows tr');
+  const setNeed = value => { need().value = value; need().dispatchEvent(new window.Event('change', { bubbles: true })); };
+  assert.equal(need().value, '100');
+  assert.equal(row().classList.contains('picking-mismatch'), false);
+  assert.equal(document.querySelector('.picking-kiot'), null, 'chưa sửa thì không có dòng Kiot');
+  // Sửa 100 -> 60: đang chọn 100 nên lệch -> đỏ, hiện SL Kiot.
+  setNeed('60');
+  assert.equal(row().classList.contains('picking-mismatch'), true);
+  assert.equal(document.querySelector('.picking-kiot').textContent, 'Kiot: 100');
+  assert.match(document.querySelector('.picking-need small[data-allocated]').textContent, /Đã phân bổ 100\/60/);
+  // Bớt một thùng (50): chọn 50 vẫn lệch 60 -> đỏ; sửa cần nhặt = 50 -> khớp -> hết đỏ.
+  document.querySelector('[data-step="-1"][data-qloc="11"]').click();
+  assert.equal(row().classList.contains('picking-mismatch'), true);
+  setNeed('50');
+  assert.equal(row().classList.contains('picking-mismatch'), false);
+  assert.equal(document.querySelector('.picking-kiot').textContent, 'Kiot: 100');
+  // Giá trị không hợp lệ bị từ chối, giữ nguyên số cũ.
+  setNeed('0');
+  assert.match(text(page, 'pickingStatus'), /nguyên dương/u);
+  assert.equal(need().value, '50');
+  // Chỉ định gửi needs (chỉ mã đã sửa khác Kiot) và phân bổ theo SL mới.
+  await click(page, 'pickingConfirm');
+  assert.equal(page.store.posted.length, 1);
+  assert.deepEqual(page.store.posted[0].needs, { A: 50 });
+  assert.deepEqual(page.store.posted[0].allocations, [{ productCode: 'A', positionId: 11, qty: 50 }]);
+  page.dom.window.close();
+
+  // Sửa về đúng SL Kiot thì không gửi needs.
+  const again = await renderPage();
+  await openPopup(again);
+  const input = again.document.querySelector('#pickingRows [data-need]');
+  input.value = '80'; input.dispatchEvent(new again.window.Event('change', { bubbles: true }));
+  const back = again.document.querySelector('#pickingRows [data-need]');
+  back.value = '100'; back.dispatchEvent(new again.window.Event('change', { bubbles: true }));
+  assert.equal(again.document.querySelector('.picking-kiot'), null);
+  await click(again, 'pickingConfirm');
+  assert.equal('needs' in again.store.posted[0], false);
+  again.dom.window.close();
+});
+
+test('Cần nhặt: nút tăng giảm giữ phân bổ, giới hạn tối thiểu 1, trạng thái đủ và lệch rõ ràng', async () => {
+  const page = await renderPage();
+  await openPopup(page);
+  const { document, window } = page;
+  const input = () => document.querySelector('[data-need]');
+  const step = value => document.querySelector(`[data-need-step="${value}"]`).click();
+  const status = () => document.querySelector('.picking-allocation');
+  assert.equal(status().classList.contains('picking-good'), true);
+  step(1);
+  assert.equal(input().value, '101');
+  assert.equal(status().dataset.allocated, '100');
+  assert.equal(status().classList.contains('picking-bad'), true);
+  assert.equal(document.activeElement.dataset.needStep, '1');
+  step(-1);
+  assert.equal(input().value, '100');
+  assert.equal(status().classList.contains('picking-good'), true);
+  assert.equal(document.querySelector('.picking-kiot'), null);
+  input().value = '1';
+  input().dispatchEvent(new window.Event('change', { bubbles: true }));
+  assert.equal(document.querySelector('[data-need-step="-1"]').disabled, true);
+  step(-1);
+  assert.equal(input().value, '1');
+  page.dom.window.close();
+});
+
+test('Đang nhặt: SL cần nhặt lấy từ snapshot đã lưu; sửa "Cần nhặt" là thay đổi chưa lưu (khóa Xác nhận nhặt, bật Cập nhật)', async () => {
+  const store = newStore({ assignment: makeAssignment('picking') });
+  store.assignment.snapshot.lines[0].quantity = 100; // snapshot = Kiot 100
+  const page = await renderPage({ store, orders: [orderRow('DH1', { pickStatus: 'picking' })] });
+  await openPopup(page);
+  const { document, window } = page;
+  assert.equal(document.getElementById('pickingConfirm').disabled, true, 'chưa đổi gì');
+  const input = document.querySelector('#pickingRows [data-need]');
+  input.value = '90'; input.dispatchEvent(new window.Event('change', { bubbles: true }));
+  assert.equal(document.getElementById('pickingConfirm').disabled, false, 'đổi Cần nhặt = có thay đổi chưa lưu');
+  assert.equal(document.getElementById('pickingConfirmPick').disabled, true);
+  page.dom.window.close();
+
+  // Chỉ định đã lưu với SL sửa 90 (Kiot 100): mở lại hiện 90 + "Kiot: 100", chưa thay đổi.
+  const saved = newStore({ assignment: makeAssignment('picking', { lines: [{ id: 1, productCode: 'A', positionId: 11, location: 'A07', plannedQty: 90, reservedQty: 90, stCartons: 1.8, stText: '1Tx50-10' }] }) });
+  saved.assignment.snapshot.lines[0].quantity = 90;
+  const reopened = await renderPage({ store: saved, orders: [orderRow('DH1', { pickStatus: 'picking' })] });
+  await openPopup(reopened);
+  assert.equal(reopened.document.querySelector('#pickingRows [data-need]').value, '90');
+  assert.equal(reopened.document.querySelector('.picking-kiot').textContent, 'Kiot: 100');
+  assert.equal(reopened.document.querySelector('#pickingRows tr').classList.contains('picking-mismatch'), false, 'chọn 90 = cần nhặt 90');
+  assert.equal(reopened.document.getElementById('pickingConfirm').disabled, true, 'chưa có thay đổi chưa lưu');
+  reopened.dom.window.close();
+});
+
 test('ST ghi đầy đủ gộp mọi vị trí (cùng SL/thùng cộng thùng, phần thiếu cộng dồn) và Tồn kho có dòng Có thể bốc', async () => {
   const store = newStore();
   store.order.lines[0].quantity = 250;
@@ -574,7 +669,7 @@ test('phiếu in: ST nối cộng từng khu (2T x 200 + 3T x 200 + 1T x 50 - 30
   page.dom.window.close();
 });
 
-test('phiếu in: dòng sắp theo tên vị trí đầu tiên (chữ cái đầu cột Vị trí), vị trí trong dòng cũng sắp theo tên, dòng chưa có vị trí cuối; TT vẫn 1, 2, 3…', async () => {
+test('phiếu in: dòng giữ đúng thứ tự đơn Kiot (không sắp theo vị trí); TT 1, 2, 3…; vị trí trong một dòng vẫn theo tên', async () => {
   const page = await renderPage();
   await openPopup(page);
   const line = (code, quantity) => ({ productCode: code, productName: 'Hàng ' + code, quantity, price: 1000, discount: 0 });
@@ -585,50 +680,12 @@ test('phiếu in: dòng sắp theo tên vị trí đầu tiên (chữ cái đầ
   const snapshot = { ...record.snapshot, lines: [line('P1', 10), line('P2', 10), line('P3', 10), line('P4', 10)] };
   await page.window.PickingInvoice.show({ ...snapshot, orderCode: 'DH1', branch: 'HN' }, record);
   const rows = [...page.document.querySelectorAll('#pickingPrintSheet table.invoice-goods tbody tr')];
-  assert.deepEqual(rows.map(tr => tr.cells[0].textContent.trim()), ['1', '2', '3', '4'], 'TT đánh lại sau khi sắp');
-  assert.deepEqual(rows.map(tr => tr.cells[1].textContent.trim()), ['Hàng P3', 'Hàng P2', 'Hàng P1', 'Hàng P4'], 'H01 → H02 → K05 → chưa có vị trí; chỉ in tên hàng');
+  assert.deepEqual(rows.map(tr => tr.cells[0].textContent.trim()), ['1', '2', '3', '4']);
+  assert.deepEqual(rows.map(tr => tr.cells[1].textContent.trim()), ['Hàng P1', 'Hàng P2', 'Hàng P3', 'Hàng P4'], 'đúng thứ tự dòng đơn Kiot; chỉ in tên hàng');
   assert.ok(rows.every(tr=>!tr.textContent.includes('(P')), 'không in mã hàng trong ngoặc');
-  const p3Location = rows[0].querySelector('td.invoice-location').textContent;
-  assert.ok(p3Location.indexOf('H01') < p3Location.indexOf('K09'), 'nhiều vị trí trong một dòng cũng theo tên');
+  const p3Location = rows[2].querySelector('td.invoice-location').textContent;
+  assert.ok(p3Location.indexOf('H01') < p3Location.indexOf('K09'), 'nhiều vị trí trong một dòng vẫn theo tên');
   page.dom.window.close();
-});
-
-test('cảnh báo Lệch SL bốc: nút Đã xử lý ở hộp chi tiết gọi mismatch-ack, nhãn + dòng chuyển vàng; người không có quyền bốc không có nút', async () => {
-  const item = { productCode: 'A', picked: 100, ordered: 90 };
-  const handled = { by: 'Quản lý A', at: '2026-10-27T05:00:00.000Z' };
-  const acks = [];
-  const store = newStore({ assignment: makeAssignment('picking') });
-  const page = await renderPage({
-    orders: [orderRow('DH1', { pickStatus: 'picking', pickMismatch: [item] })], store,
-    fetchImpl: async (url, options) => {
-      if (url === '/api/shipment/pick/mismatch-ack' && options.method === 'POST') {
-        acks.push(JSON.parse(options.body));
-        return json({ assignment: store.assignment, mismatch: [{ ...item, handled }] });
-      }
-    }
-  });
-  const { document } = page;
-  const tr = rowsOf(document)[0];
-  assert.ok(tr.classList.contains('lc-row-mismatch'));
-  assert.match(tr.querySelector('[data-col="warning"]').textContent, /Lệch SL bốc/);
-  await openDetail(page);
-  const button = document.getElementById('lcMismatchHandle');
-  assert.ok(button, 'nút Đã xử lý trong khung Cảnh báo');
-  assert.equal(document.querySelector('#lcDetailAlertHost .lc-detail-alert').classList.contains('is-handled'), false);
-  button.click();
-  await settle();
-  assert.deepEqual(acks, [{ branch: 'HN', orderCode: 'DH1' }]);
-  assert.equal(document.getElementById('lcMismatchHandle'), null, 'xử lý xong thì hết nút');
-  assert.equal(document.querySelector('#lcDetailAlertHost .lc-detail-alert').classList.contains('is-handled'), true);
-  assert.equal(tr.classList.contains('lc-row-mismatch'), false);
-  assert.equal(tr.classList.contains('lc-row-handled'), true);
-  assert.match(tr.querySelector('[data-col="warning"]').textContent, /Đã xử lý/);
-  assert.doesNotMatch(tr.querySelector('[data-col="warning"]').textContent, /Lệch SL bốc/);
-
-  const readOnly = await renderPage({ permissions: ['shipment.lifecycle'], orders: [orderRow('DH1', { pickStatus: 'picking', pickMismatch: [item] })] });
-  await openDetail(readOnly);
-  assert.equal(readOnly.document.getElementById('lcMismatchHandle'), null, 'không có shipment.pick: không có nút');
-  [page, readOnly].forEach(p => p.dom.window.close());
 });
 
 test('lỗi tải ban đầu hết bận, cho tải lại mà không gửi lệnh ghi', async () => {

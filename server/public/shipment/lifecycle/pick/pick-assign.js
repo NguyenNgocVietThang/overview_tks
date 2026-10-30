@@ -22,11 +22,11 @@
   const key=v=>R.key(v);
   const round6=n=>Math.round(n*1e6)/1e6;
   // latest = chỉ định mới nhất của đơn; assignment = latest khi Đã bốc (chỉ xem); reassignOf = latest khi Đang nhặt (đang sửa, lưu bằng reassign).
-  const state={listOrder:null,order:null,cand:{},latest:null,assignment:null,allocations:{},suggestions:{},busy:false,needsSync:true,requestEpoch:0,reassignOf:null,onChange:null};
+  const state={listOrder:null,order:null,cand:{},needs:{},latest:null,assignment:null,allocations:{},suggestions:{},busy:false,needsSync:true,requestEpoch:0,reassignOf:null,onChange:null};
 
-  const DIALOGS_HTML='<dialog id="pickingDialog" aria-labelledby="pickingTitle"><div class="dp-head"><div class="dp-head-text"><h2 class="dp-title" id="pickingTitle"></h2><p class="dp-subtitle">Chọn vị trí và điều chỉnh số lượng nhặt. Tổng phân bổ không vượt quá số lượng cần nhặt; vị trí được giữ chỗ cho đơn này sau khi xác nhận.</p></div><button id="pickingClose" type="button" class="dp-close" aria-label="Đóng chỉ định vị trí">×</button></div>'
+  const DIALOGS_HTML='<dialog id="pickingDialog" aria-labelledby="pickingTitle"><div class="dp-head"><div class="dp-head-text"><h2 class="dp-title" id="pickingTitle"></h2><p class="dp-subtitle">Chọn vị trí và điều chỉnh số lượng nhặt (có thể sửa cả số lượng cần nhặt). Dòng bôi đỏ là tổng chọn chưa khớp số lượng cần nhặt; vị trí được giữ chỗ cho đơn này sau khi xác nhận.</p></div><button id="pickingClose" type="button" class="dp-close" aria-label="Đóng chỉ định vị trí">×</button></div>'
     +'<div class="picking-body"><div class="picking-status-bar"><span id="pickingOrderStatus" class="picking-order-status" data-status="">Chưa chỉ định</span><button id="pickingConfirmPick" type="button" class="btn-primary" hidden>Xác nhận nhặt</button><button id="pickingCancelPick" type="button" hidden>Hủy nhặt</button><button id="pickingReprint" type="button" hidden>In đơn</button></div>'
-    +'<p id="pickingSource" class="picking-source"></p><div class="picking-table-wrap"><table class="dp-table picking-table" data-table-key="picking-table" data-table-sort="off"><thead><tr><th data-column-key="code" data-default-width="110">Mã hàng</th><th data-column-key="name" data-default-width="210">Tên hàng</th><th data-column-key="note" data-default-width="170" title="Ghi chú của dòng hàng trong đơn Kiot">Ghi chú</th><th data-column-key="need" data-default-width="100">Cần nhặt</th><th data-column-key="st" data-default-width="150" title="Số thùng thực nhặt theo chỉ định (SL nhặt / SL mỗi thùng). Trống khi dòng chưa chỉ định đủ SL; lẻ hiện đỏ.">ST</th><th data-column-key="stock" data-default-width="115" title="Tổng khả dụng cùng mã tại cơ sở sau giữ chỗ của các đơn khác">Tồn kho</th><th data-column-key="locations" data-default-width="760" data-min-width="320">Vị trí kho</th></tr></thead><tbody id="pickingRows"></tbody></table></div><p id="pickingStatus" role="status"></p></div>'
+    +'<p id="pickingSource" class="picking-source"></p><div class="picking-table-wrap"><table class="dp-table picking-table" data-table-key="picking-table" data-table-sort="off"><thead><tr><th data-column-key="code" data-default-width="110">Mã hàng</th><th data-column-key="name" data-default-width="210">Tên hàng</th><th data-column-key="note" data-default-width="170" title="Ghi chú của dòng hàng trong đơn Kiot">Ghi chú</th><th data-column-key="need" data-default-width="190" data-min-width="180">Cần nhặt</th><th data-column-key="st" data-default-width="150" title="Số thùng thực nhặt theo chỉ định (SL nhặt / SL mỗi thùng). Trống khi dòng chưa chỉ định đủ SL; lẻ hiện đỏ.">ST</th><th data-column-key="stock" data-default-width="115" title="Tổng khả dụng cùng mã tại cơ sở sau giữ chỗ của các đơn khác">Tồn kho</th><th data-column-key="locations" data-default-width="760" data-min-width="320">Vị trí kho</th></tr></thead><tbody id="pickingRows"></tbody></table></div><p id="pickingStatus" role="status"></p></div>'
     +'<div class="picking-footer"><span id="pickingProgress"></span><div><button id="pickingReload" type="button" hidden>Tải lại</button><button id="pickingSuggest" type="button">Gợi ý lại</button><button id="pickingConfirm" type="button" class="btn-primary">Xác nhận &amp; In phiếu nhặt</button></div></div></dialog>'
     +'<dialog id="pickingPrintDialog" aria-labelledby="pickingPrintTitle"><div class="dp-head"><div><p class="dp-kicker">PHIẾU NHẶT HÀNG</p><h2 class="dp-title" id="pickingPrintTitle">Xem trước phiếu nhặt</h2></div><div><button id="pickingPrintBtn" type="button" class="btn-primary">In phiếu</button><button id="pickingPrintClose" type="button" class="dp-close" aria-label="Đóng bản in">×</button></div></div><div class="print-preview-stage"><div id="pickingPrintSheet"></div></div></dialog>';
 
@@ -38,7 +38,22 @@
   }
 
   // ---------- Dữ liệu dòng đơn và vị trí ----------
-  const lines=()=>(state.order&&state.order.lines||[]).filter(l=>!key(l.productCode).startsWith('vat'));
+  /* Dòng cần nhặt: `quantity` = SL cần nhặt đang dùng (người dùng có thể sửa tay trong state.needs), `kiotQuantity` = SL trên đơn Kiot.
+     Mọi phép kiểm/gợi ý/tô đỏ dùng `quantity` nên tự theo SL đã sửa. */
+  const lines=()=>(state.order&&state.order.lines||[]).filter(l=>!key(l.productCode).startsWith('vat'))
+    .map(l=>({...l,kiotQuantity:l.quantity,quantity:Object.hasOwn(state.needs,key(l.productCode))?state.needs[key(l.productCode)]:l.quantity}));
+  // SL cần nhặt đã lưu theo chỉ định (snapshot, cộng các dòng cùng mã): { mã chữ thường: SL }.
+  function needsFromAssignment(a){
+    const out={};
+    ((a&&a.snapshot&&a.snapshot.lines)||[]).forEach(l=>{if(key(l.productCode))out[key(l.productCode)]=(out[key(l.productCode)]||0)+(Number(l.quantity)||0);});
+    return out;
+  }
+  // Chỉ giữ SL khác SL Kiot (khớp Kiot thì không cần lưu SL sửa).
+  function editedNeeds(source){
+    const out={};
+    (state.order&&state.order.lines||[]).forEach(l=>{const k=key(l.productCode);if(Object.hasOwn(source,k)&&source[k]!==l.quantity)out[k]=source[k];});
+    return out;
+  }
   // Hiển thị quy cách đã chuẩn hóa: bỏ hậu tố c ("2T x 20c" -> "2T x 20"); chuỗi không đọc được giữ nguyên để người dùng thấy lỗi. Dữ liệu lưu không đổi.
   const displaySpec=(notes,spec)=>spec&&spec.terms.length?C.normalizeNote(notes).replace(/(\d)c\b/g,'$1'):(notes||'');
   function mapRow(c){
@@ -130,7 +145,9 @@
     const want=new Map(),have=new Map();
     saved.lines.forEach(j=>want.set(String(j.positionId),(want.get(String(j.positionId))||0)+(Number(j.plannedQty)||0)));
     lines().forEach((l,i)=>(state.allocations[i]||[]).forEach(p=>{if(p.quantity>0)have.set(p.id,(have.get(p.id)||0)+p.quantity);}));
-    return want.size!==have.size||[...want].some(([id,qty])=>have.get(id)!==qty);
+    const savedNeeds=needsFromAssignment(saved);
+    const needChanged=lines().some(l=>l.quantity!==(Object.hasOwn(savedNeeds,key(l.productCode))?savedNeeds[key(l.productCode)]:l.kiotQuantity));
+    return needChanged||want.size!==have.size||[...want].some(([id,qty])=>have.get(id)!==qty);
   }
 
   // ---------- Vẽ popup ----------
@@ -147,7 +164,9 @@
       const uncertainty=unknown?' (chưa xác định)':'';
       // Số chọn khác SL khách đặt (thiếu, thừa hoặc chưa chọn) → bôi đỏ cả dòng.
       const mismatch=round6(total)!==round6(l.quantity);
-      return `<tr data-line="${i}"${mismatch?' class="picking-mismatch" data-mismatch="true"':''}><td class="picking-code">${esc(l.productCode)}</td><td>${esc(l.productName)}</td><td class="picking-note">${esc(l.note)}</td><td class="picking-need"><strong>${fmt(l.quantity)}</strong><small class="${lineOk(i)?'picking-good':'picking-bad'}" data-allocated="${total}">${fmt(total)}/${fmt(l.quantity)}</small></td>${stCell(st)}<td class="picking-total" data-total-code="${esc(l.productCode)}" data-shared-available="${shared===null?'unknown':shared}" data-remaining="${unknown?'unknown':before-selected}"><strong class="${shared===null?'picking-bad':'picking-good'}">${fmt(before)}${uncertainty}</strong><small class="picking-pickable" data-pickable="${Math.max(0,before-selected)}" title="Tồn kho trừ số lượng đang chọn nhặt cho mã này">Có thể bốc: ${fmt(Math.max(0,before-selected))}${uncertainty}</small></td><td><div class="picking-locations">${rows.map(r=>{
+      const needCell=editable()?`<div class="picking-need-stepper"><button type="button" data-need-step="-1" data-need-line="${i}" aria-label="Giảm SL cần nhặt ${esc(l.productCode)}" ${l.quantity<=1?'disabled':''}>−</button><input type="text" inputmode="numeric" class="picking-need-input" data-need data-need-line="${i}" value="${fmt(l.quantity)}" aria-label="SL cần nhặt ${esc(l.productCode)}" title="Sửa số lượng cần nhặt (khác số trên đơn Kiot sẽ có cảnh báo Lệch Kiot)"><button type="button" data-need-step="1" data-need-line="${i}" aria-label="Tăng SL cần nhặt ${esc(l.productCode)}" ${l.quantity>=Number.MAX_SAFE_INTEGER?'disabled':''}>+</button></div>`:`<strong>${fmt(l.quantity)}</strong>`;
+      const kiotNote=l.kiotQuantity!==l.quantity?`<small class="picking-kiot" title="Số lượng trên đơn Kiot">Kiot: ${fmt(l.kiotQuantity)}</small>`:'';
+      return `<tr data-line="${i}"${mismatch?' class="picking-mismatch" data-mismatch="true"':''}><td class="picking-code">${esc(l.productCode)}</td><td>${esc(l.productName)}</td><td class="picking-note">${esc(l.note)}</td><td class="picking-need">${needCell}<small class="picking-allocation ${lineOk(i)?'picking-good':'picking-bad'}" data-allocated="${total}"><span aria-hidden="true" class="picking-allocation-icon">${lineOk(i)?'✓':'!'}</span> Đã phân bổ ${fmt(total)}/${fmt(l.quantity)}</small>${kiotNote}</td>${stCell(st)}<td class="picking-total" data-total-code="${esc(l.productCode)}" data-shared-available="${shared===null?'unknown':shared}" data-remaining="${unknown?'unknown':before-selected}"><strong class="${shared===null?'picking-bad':'picking-good'}">${fmt(before)}${uncertainty}</strong><small class="picking-pickable" data-pickable="${Math.max(0,before-selected)}" title="Tồn kho trừ số lượng đang chọn nhặt cho mã này">Có thể bốc: ${fmt(Math.max(0,before-selected))}${uncertainty}</small></td><td><div class="picking-locations">${rows.map(r=>{
         const take=picks.find(p=>p.id===r.id)?.quantity||0,available=R.quantity(r.available),hint=(state.suggestions[i]||[]).some(p=>p.id===r.id);
         const off=!editable()||available===null||!r.location||!available?'disabled':'';
         const zone=zoneOf((state.order||{}).branch,r.location),locTitle=r.location?(zone.name?r.location+' · '+zone.name:r.location):'Chưa có vị trí';
@@ -194,6 +213,8 @@
     state.assignment=latest&&latest.status==='confirmed'?latest:null;
     state.reassignOf=latest&&latest.status==='picking'?latest:null;
     state.needsSync=false;
+    // SL cần nhặt: chỉ định Đang nhặt/Đã bốc dùng SL đã lưu (có thể đã sửa tay), còn lại lấy SL đơn Kiot.
+    state.needs=editedNeeds(state.assignment||state.reassignOf?needsFromAssignment(state.assignment||state.reassignOf):{});
     if(state.assignment)allocationsFromAssignment(state.assignment);
     else{
       if(state.order.eligible!==false)suggest();else state.allocations={};
@@ -224,7 +245,7 @@
   async function open(listOrder){
     ensureDialogs();
     const epoch=++state.requestEpoch;
-    state.listOrder=listOrder;state.reassignOf=null;state.order=null;state.latest=null;state.assignment=null;state.allocations={};state.suggestions={};state.busy=false;state.needsSync=true;
+    state.listOrder=listOrder;state.reassignOf=null;state.order=null;state.needs={};state.latest=null;state.assignment=null;state.allocations={};state.suggestions={};state.busy=false;state.needsSync=true;
     $('pickingTitle').textContent=listOrder.orderCode+' · '+(listOrder.branch==='SG'?'Sài Gòn':'Hà Nội');
     setStatus('Đang tải…');render();
     if(!$('pickingDialog').open)$('pickingDialog').showModal();
@@ -249,6 +270,7 @@
       if(!r.data.assignment)throw new Error('Phản hồi không có trạng thái chỉ định.');
       const next=r.data.assignment;
       state.latest=next;state.assignment=next.status==='confirmed'?next:null;state.reassignOf=next.status==='picking'?next:null;state.needsSync=false;
+      if(next.status==='picking'||next.status==='confirmed')state.needs=editedNeeds(needsFromAssignment(next));
       if(state.assignment)allocationsFromAssignment(state.assignment);
       setStatus('');notify();return true;
     }catch(error){
@@ -276,7 +298,9 @@
     lines().forEach((l,i)=>(state.allocations[i]||[]).forEach(p=>{if(p.quantity>0)allocations.push({productCode:l.productCode,positionId:Number(p.id),qty:p.quantity});}));
     // In lại đơn Đang bốc: một lệnh hủy lượt cũ + giữ chỗ lượt mới (lỗi ở bước sau thì lượt cũ giữ nguyên).
     const reassign=state.reassignOf?{reassign:true,version:state.reassignOf.version}:{};
-    if(!await write(API,{branch:state.order.branch,orderCode:state.order.orderCode,allocations,...(mismatched.length?{allowMismatch:true}:{}),...reassign}))return;
+    const needs={};
+    lines().forEach(l=>{if(l.quantity!==l.kiotQuantity)needs[l.productCode]=l.quantity;});
+    if(!await write(API,{branch:state.order.branch,orderCode:state.order.orderCode,allocations,...(Object.keys(needs).length?{needs}:{}),...(mismatched.length?{allowMismatch:true}:{}),...reassign}))return;
     $('pickingDialog').close();
     await printPick();
   }
@@ -316,6 +340,16 @@
 
   function onRowsClick(event){
     if(!editable())return;
+    const needStep=event.target.closest('[data-need-step]');
+    if(needStep){
+      const i=Number(needStep.dataset.needLine),line=lines()[i];
+      if(!line)return;
+      const qty=Math.max(1,line.quantity+Number(needStep.dataset.needStep));
+      if(!Number.isSafeInteger(qty))return;
+      setStatus('');setNeed(i,qty);render();
+      $('pickingRows').querySelector(`[data-need-step="${needStep.dataset.needStep}"][data-need-line="${i}"]:not(:disabled)`)?.focus({preventScroll:true});
+      return;
+    }
     const step=event.target.closest('[data-step]');
     if(step){
       const i=Number(step.dataset.qline),id=step.dataset.qloc,now=(state.allocations[i]||[]).find(p=>p.id===id)?.quantity||0;
@@ -334,8 +368,20 @@
     }
     render();
   }
+  // SL cần nhặt sửa tay: số nguyên dương; trùng SL Kiot thì bỏ SL sửa. Phân bổ đã chọn giữ nguyên (lệch thì dòng đỏ).
+  function setNeed(i,value){
+    const line=lines()[i];if(!line)return;
+    if(value===line.kiotQuantity)delete state.needs[key(line.productCode)];else state.needs[key(line.productCode)]=value;
+  }
+  function onNeedChange(event){
+    const qty=parseQty(event.target.value);
+    if(qty===null||qty<1){setStatus('Số lượng cần nhặt phải là số nguyên dương.',true);render();return;}
+    setStatus('');setNeed(Number(event.target.dataset.needLine),qty);render();
+  }
   function onRowsChange(event){
-    if(!editable()||!event.target.matches('[data-qty]'))return;
+    if(!editable())return;
+    if(event.target.matches('[data-need]'))return onNeedChange(event);
+    if(!event.target.matches('[data-qty]'))return;
     const qty=parseQty(event.target.value);
     if(qty===null){setStatus('Số lượng nhặt phải là số nguyên không âm.',true);render();return;}
     setStatus('');setQty(Number(event.target.dataset.qline),event.target.dataset.qloc,qty);render();

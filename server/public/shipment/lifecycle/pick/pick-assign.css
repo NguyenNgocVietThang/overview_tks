@@ -15,7 +15,19 @@
 /* Dòng có SL chọn khác SL khách đặt: nền + vạch trái đỏ, số "chọn/đặt" đỏ. */
 .picking-table tr.picking-mismatch>td{background:rgba(239,68,68,.12)!important}
 .picking-table tr.picking-mismatch>td:first-child{box-shadow:inset 3px 0 0 var(--red)}
-.picking-table tr.picking-mismatch .picking-need small{color:var(--red)}
+/* Ô cần nhặt: bộ tăng giảm và ô nhập dùng chung một viền, trạng thái phân bổ nằm dưới. */
+.picking-need-stepper{display:grid;grid-template-columns:36px minmax(0,1fr) 36px;align-items:center;width:100%;max-width:190px;min-width:132px;margin:0 auto;border:1px solid var(--border);border-radius:8px;background:var(--bg,var(--panel));overflow:hidden}
+.picking-need-stepper:focus-within{border-color:var(--blue);outline:2px solid var(--blue);outline-offset:2px}
+.picking-body .picking-need-stepper button[data-need-step]{height:40px;padding:0;border:0;border-radius:0;background:var(--panel-2);color:var(--text);font-size:22px;line-height:1;cursor:pointer}
+.picking-body .picking-need-stepper button:hover:not(:disabled){background:var(--panel);color:var(--blue)}
+.picking-need-stepper button:focus-visible{outline:2px solid var(--blue);outline-offset:-3px}
+.picking-need-input{box-sizing:border-box;width:100%;min-width:0;height:40px;padding:0 4px;text-align:center;border:0;border-radius:0;background:transparent;color:var(--text);font-family:var(--font-data);font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.picking-need-input:focus-visible{outline:none}
+.picking-need small.picking-kiot{color:var(--amber);font-weight:600}
+.picking-need small.picking-good{color:var(--green)}
+.picking-need small.picking-bad{color:var(--red)}
+.picking-need small.picking-allocation{display:flex;align-items:center;justify-content:center;gap:5px;margin-top:7px;line-height:1.4;overflow-wrap:anywhere}
+.picking-allocation-icon{display:inline-flex;align-items:center;justify-content:center;flex:0 0 16px;height:16px;border:1px solid currentColor;border-radius:50%;font-size:11px}
 /* Chỉ cho kéo độ rộng cột: ẩn nút "Cột hiển thị" do table-controls tự chèn phía trên bảng. */
 #pickingDialog .tks-table-tools,#pickingDialog .tks-columns-button{display:none!important}
 .picking-need strong,.picking-total strong,.picking-st strong{display:block;font-size:17px;font-family:var(--font-data);font-variant-numeric:tabular-nums}

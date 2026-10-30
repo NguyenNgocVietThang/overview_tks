@@ -789,7 +789,7 @@ Trạng thái: đang làm trên nhánh `feat/lifecycle-pick-assign`, **chưa mer
 
 - `order_pick_history.action` CHECK mở rộng thành `assign|confirm|cancel|mismatch_ack`. Bảng vẫn chỉ thêm (trigger chặn UPDATE/DELETE).
 - Dòng `mismatch_ack` ghi khi người có `shipment.pick` bấm **Đã xử lý**: `summary.signature` = JSON các `[mã chữ thường, picked, ordered]` của số lệch lúc bấm, `summary.items` = `[{productCode, picked, ordered}]`. Chỉ dòng mới nhất của chỉ định hoạt động được xét; còn khớp số lệch hiện tại thì API đánh dấu `handled`. Kiot sửa tiếp hoặc chỉ định mới (`assignment_id` mới) thì không còn khớp.
-- Chưa áp thì `POST /api/shipment/pick/mismatch-ack` trả 500 (vi phạm CHECK); các phần khác (danh sách, chỉ định, nhãn đỏ Lệch SL bốc) không ảnh hưởng. Người dùng tự chạy `npm run db:migrate`.
+- **Từ 30/10/2026 ứng dụng không còn ghi `mismatch_ack`** (nút Đã xử lý và route `mismatch-ack` đã bỏ, thay bằng cảnh báo Lệch Kiot / Lệch SL trong đơn tính từ snapshot + `order_pick_lines`, không migration). Migration giữ nguyên; áp hay chưa áp đều không ảnh hưởng. Snapshot đơn (`order_snapshot.lines[]`) có thêm `kiotQuantity` khi SL cần nhặt được sửa tay khác SL Kiot.
 
 ## 0099 — VT: Đã sửa + xóa lịch sử (28/10/2026, chưa áp DB)
 

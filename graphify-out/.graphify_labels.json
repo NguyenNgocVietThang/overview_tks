@@ -29,7 +29,6 @@
   "82": "handleSubmitRoleRequest",
   "83": "applyBulkFilters",
   "86": "purchases",
-  "88": "kiotvietWebhookRoutes.js",
   "89": "freightCalculator.js",
   "91": "marketingReportService.js",
   "92": "adminUserRoutes.test.js",

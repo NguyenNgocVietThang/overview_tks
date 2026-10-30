@@ -96,10 +96,8 @@ async function show(order,record,template='order'){
   let total=0,totalKnown=true,index=0;
   const v2=order.schemaVersion===2,seenCodes=new Map();
   const jobsOf=line=>(record.lines||[]).filter(j=>key(j.productCode)===key(line.productCode));
-  // Dòng in ra xếp theo tên vị trí (kho) đầu tiên của dòng, tức chữ cái đầu cột Vị trí; dòng chưa có vị trí xuống cuối, cùng vị trí giữ thứ tự đơn. STT đánh lại 1, 2, 3… sau khi xếp.
-  const firstZone=line=>jobsOf(line).map(j=>j.location||'').filter(Boolean).sort(byName)[0]||'';
-  const ordered=(order.lines||[]).map((line,n)=>({line,n,zone:firstZone(line)}))
-    .sort((a,b)=>(!a.zone-!b.zone)||(a.zone&&b.zone?byName(a.zone,b.zone):0)||a.n-b.n).map(e=>e.line);
+  // Dòng in ra giữ đúng thứ tự dòng của đơn Kiot (không sắp theo vị trí); STT đánh 1, 2, 3… theo thứ tự đó.
+  const ordered=order.lines||[];
   ordered.forEach(line=>{
     const jobs=jobsOf(line);
     const qty=Number(line.quantity);

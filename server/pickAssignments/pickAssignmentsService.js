@@ -28,6 +28,8 @@ const CANCEL_REASON = Object.freeze({ MANUAL: 'manual', REASSIGN: 'reassign', KI
 const KIOT_CTX = Object.freeze({ user: Object.freeze({ id: null, hoTen: 'Hệ thống (KiotViet)', username: 'kiot-sync' }) });
 const ELIGIBLE_STATUS = 'SENT_TO_ACCOUNTANT';
 const MAX_ALLOCATIONS = 500;
+// Ma canh bao chi dinh (cung chuoi voi orderLifecycleService.WARNING).
+const PICK_WARNING = Object.freeze({ KIOT_DIFF: 'PICK_KIOT_DIFF', ORDER_DIFF: 'PICK_ORDER_DIFF' });
 const AVAILABILITY_ERROR = /vượt số lượng khả dụng/u;
 
 const codeKey = value => String(value ?? '').trim().toLowerCase();
@@ -78,6 +80,40 @@ function mergeOrderLines(lines) {
   }
   return [...merged.values()].map(({ _p, _d, _same, ...line }) => (_same ? line
     : { ...line, price: Math.round(_p / line.quantity * 100) / 100, discount: Math.round(_d / line.quantity * 100) / 100 }));
+}
+
+/**
+ * SL can nhat do nguoi dung sua tay: `needs` { ma hang: SL } (ma thieu = SL Kiot). Tra { lines, order }:
+ *  - lines: dong da gop theo ma voi `quantity` = SL can nhat (ma sua kem `kiotQuantity` = SL Kiot) — dung de kiem tra phan bo;
+ *  - order: don dung de lap snapshot — moi ma co SL sua khac SL Kiot thi cac dong Kiot cua ma do gop thanh MOT dong (gia binh quan) o vi tri dong dau.
+ * SL phai la so nguyen duong trong gioi han; ma khong co trong don -> loi 400.
+ */
+function applyNeeds(order, lines, needs) {
+  if (needs === undefined || needs === null) return { lines, order };
+  if (typeof needs !== 'object' || Array.isArray(needs)) throw fail(400, 'VALIDATION', 'Số lượng cần nhặt không hợp lệ.', { field: 'needs' });
+  const wanted = new Map();
+  for (const [code, value] of Object.entries(needs)) {
+    const key = codeKey(code);
+    const line = lines.find(item => codeKey(item.productCode) === key);
+    if (!line) throw fail(400, 'VALIDATION', `Mã hàng ${code || '(trống)'} không có trong đơn.`, { field: 'needs' });
+    const qty = Number(value);
+    if (typeof value === 'boolean' || value === null || value === '' || !Number.isSafeInteger(qty) || qty <= 0) {
+      throw fail(400, 'VALIDATION', `${line.productCode}: số lượng cần nhặt phải là số chiếc nguyên dương.`, { field: 'needs' });
+    }
+    if (qty !== line.quantity) wanted.set(key, qty);
+  }
+  if (!wanted.size) return { lines, order };
+  const edited = lines.map(line => (wanted.has(codeKey(line.productCode)) ? { ...line, quantity: wanted.get(codeKey(line.productCode)), kiotQuantity: line.quantity } : line));
+  const placed = new Set();
+  const orderLines = [];
+  for (const raw of Array.isArray(order.lines) ? order.lines : []) {
+    const key = codeKey(raw.productCode);
+    if (!wanted.has(key)) { orderLines.push(raw); continue; }
+    if (placed.has(key)) continue;
+    placed.add(key);
+    orderLines.push({ ...raw, ...edited.find(line => codeKey(line.productCode) === key) });
+  }
+  return { lines: edited, order: { ...order, lines: orderLines } };
 }
 
 // Nguon don mac dinh: trang thai tu bang gop Vong doi don hang + dong hang tu don Kiot (khong tin du lieu tu trinh duyet).
@@ -292,17 +328,19 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
     assertBranch(branch);
     assertScope(ctx, branch);
     const orderCode = cleanOrderCode(body.orderCode);
-    const { order, lines } = await requireOrder(branch, orderCode);
+    const { order, lines: kiotLines } = await requireOrder(branch, orderCode);
     if (order.status.code !== ELIGIBLE_STATUS) {
       throw fail(409, 'ORDER_NOT_ELIGIBLE', `Đơn đang ở trạng thái "${order.status.label}", chỉ đơn "Đã gửi kế toán" mới được chỉ định vị trí.`);
     }
-    if (!lines.length) throw fail(400, 'VALIDATION', 'Đơn không có dòng hàng cần nhặt.');
+    if (!kiotLines.length) throw fail(400, 'VALIDATION', 'Đơn không có dòng hàng cần nhặt.');
     const invalidQuantities = quantityErrors(order);
     if (invalidQuantities.length) throw fail(400, 'VALIDATION', invalidQuantities.join('; '), { field: 'allocations' });
+    const needed = applyNeeds(order, kiotLines, body.needs);
+    const lines = needed.lines;
     const perLine = parseAllocations(body, lines);
     const actor = actorOf(ctx);
     const reassign = body.reassign === true;
-    const snapshot = makeOrderSnapshot(order);
+    const snapshot = makeOrderSnapshot(needed.order);
     const db = getDb();
     let assignmentId;
     try {
@@ -537,101 +575,66 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
     return result;
   }
 
-  // "Da xu ly" (khong doi so luong): order_pick_history action 'mismatch_ack' ghi lai dung SO LECH luc bam. Con khop voi so lech hien tai
-  // thi gan `handled` cho tung dong lech; Kiot sua tiep lam so lech doi (hoac chi dinh moi) thi canh bao hien lai.
-  const mismatchSignature = diff => JSON.stringify(diff.map(item => [codeKey(item.productCode), Number(item.picked), Number(item.ordered)]));
-
-  async function markHandled(db, branch, out, assignmentOf) {
-    const ids = [];
-    for (const [mapKey] of out) {
-      if (!mapKey.startsWith(`${branch}|`)) continue;
-      const id = assignmentOf.get(mapKey.slice(branch.length + 1));
-      if (id) ids.push(id);
-    }
-    if (!ids.length) return;
-    const { rows } = await db.query(
-      `SELECT DISTINCT ON (assignment_id) assignment_id, summary, actor_name, created_at
-         FROM order_pick_history WHERE assignment_id = ANY($1::bigint[]) AND action = 'mismatch_ack' ORDER BY assignment_id, id DESC`,
-      [ids]);
-    const acks = new Map(rows.map(row => [Number(row.assignment_id), row]));
-    for (const [mapKey, diff] of out) {
-      if (!mapKey.startsWith(`${branch}|`)) continue;
-      const ack = acks.get(assignmentOf.get(mapKey.slice(branch.length + 1)));
-      if (!ack || !ack.summary || ack.summary.signature !== mismatchSignature(diff)) continue;
-      const handled = { by: ack.actor_name || '', at: isoOf(ack.created_at) };
-      out.set(mapKey, diff.map(item => ({ ...item, handled })));
-    }
-  }
-
-  async function acknowledgeMismatch(ctx, body = {}) {
-    const branch = body.branch;
-    assertBranch(branch);
-    assertScope(ctx, branch);
-    const db = getDb();
-    const latest = await readLatest(db, branch, cleanOrderCode(body.orderCode));
-    if (!latest || (latest.status !== STATUS.PICKING && latest.status !== STATUS.CONFIRMED)) {
-      throw fail(409, 'INVALID_STATE', 'Đơn chưa có chỉ định Đang bốc / Đã bốc nên không có cảnh báo lệch SL để xử lý.');
-    }
-    const pair = [{ branch, orderCode: latest.orderCode }];
-    const mapKey = `${branch}|${codeKey(latest.orderCode)}`;
-    const found = (await pickMismatches(pair)).get(mapKey);
-    if (!found) throw fail(409, 'NO_MISMATCH', 'Đơn không còn lệch SL (có thể Kiot vừa sửa khớp lại).');
-    if (found.every(item => item.handled)) return { assignment: latest, mismatch: found };
-    const actor = actorOf(ctx);
-    await db.query(
-      `INSERT INTO order_pick_history (assignment_id, branch, order_code, action, summary, actor_user_id, actor_name) VALUES ($1, $2, $3, 'mismatch_ack', $4::jsonb, $5, $6)`,
-      [latest.id, branch, latest.orderCode, JSON.stringify({ signature: mismatchSignature(found), items: found.map(({ productCode, picked, ordered }) => ({ productCode, picked, ordered })) }), actor.id, actor.name]);
-    return { assignment: await readAssignment(db, latest.id), mismatch: (await pickMismatches(pair)).get(mapKey) || [] };
-  }
-
-  // Canh bao LECH SL: voi cac don (Dang boc / Da boc) trong `pairs` [{ branch, orderCode }], so tong SL da chi dinh theo tung ma
-  // voi SL dong don Kiot hien tai. Tra Map 'HN|ma don chu thuong' -> [{ productCode, picked, ordered }] (chi don co lech).
-  // Tu het khi Kiot sua don khop lai (moi lan goi doc lai). Fail-soft: loi DB tra Map rong, danh sach van chay.
-  async function pickMismatches(pairs) {
+  /* Canh bao chi dinh (don Dang boc / Da boc), tinh cho MOI chi dinh hoat dong (so it) tu snapshot + dong vi tri + don Kiot hien tai:
+       PICK_ORDER_DIFF — tong SL chon theo vi tri (order_pick_lines) khac SL can nhat cua ma trong snapshot (dong do da xac nhan luu);
+       PICK_KIOT_DIFF  — SL can nhat (snapshot, co the da sua tay) khac SL ma do tren don Kiot hien tai; tu het khi Kiot sua khop va dong bo.
+     Tra Map 'HN|ma don chu thuong' -> [ma canh bao] (chi don co canh bao). Fail-soft: loi DB tra Map rong, danh sach van chay. */
+  async function pickWarnings() {
     const out = new Map();
-    const byBranch = new Map();
-    for (const pair of Array.isArray(pairs) ? pairs : []) {
-      const code = codeKey(pair && pair.orderCode);
-      if (!pair || !code) continue;
-      if (!byBranch.has(pair.branch)) byBranch.set(pair.branch, new Set());
-      byBranch.get(pair.branch).add(code);
-    }
     try {
       const db = getDb();
-      for (const [branch, codes] of byBranch) {
-        if (!tx.BRANCH_CODES.includes(branch)) continue;
-        const { rows } = await db.query(
-          `SELECT a.id, a.order_code, lower(btrim(l.product_code)) AS product_key, MAX(l.product_code) AS product_code, SUM(l.planned_qty)::float8 AS quantity
-             FROM order_pick_assignments a JOIN order_pick_lines l ON l.assignment_id = a.id
-            WHERE a.branch = $1 AND a.status IN ('picking', 'confirmed') AND lower(btrim(a.order_code)) = ANY($2::text[])
-            GROUP BY a.id, a.order_code, lower(btrim(l.product_code))`,
-          [branch, [...codes]]);
-        const assigned = new Map(); // ma don chu thuong -> Map(ma hang -> { productCode, quantity })
-        const assignmentOf = new Map(); // ma don chu thuong -> id chi dinh hoat dong
-        const exactCodes = new Set();
-        for (const row of rows) {
-          const key = codeKey(row.order_code);
-          assignmentOf.set(key, Number(row.id));
-          exactCodes.add(row.order_code);
-          if (!assigned.has(key)) assigned.set(key, new Map());
-          assigned.get(key).set(row.product_key, { productCode: row.product_code, quantity: Number(row.quantity) });
+      const heads = (await db.query(
+        `SELECT id, branch, order_code, order_snapshot->'lines' AS snapshot_lines FROM order_pick_assignments WHERE status IN ('picking', 'confirmed')`)).rows;
+      if (!heads.length) return out;
+      const picked = new Map(); // id chi dinh -> Map(ma hang chu thuong -> tong SL chon)
+      const { rows } = await db.query(
+        `SELECT assignment_id, lower(btrim(product_code)) AS product_key, SUM(planned_qty)::float8 AS quantity
+           FROM order_pick_lines WHERE assignment_id = ANY($1::bigint[]) GROUP BY assignment_id, lower(btrim(product_code))`,
+        [heads.map(head => Number(head.id))]);
+      for (const row of rows) {
+        const id = Number(row.assignment_id);
+        if (!picked.has(id)) picked.set(id, new Map());
+        picked.get(id).set(row.product_key, Number(row.quantity));
+      }
+      const needOf = head => {
+        const need = new Map(); // ma hang chu thuong -> { productCode, quantity }
+        for (const line of Array.isArray(head.snapshot_lines) ? head.snapshot_lines : []) {
+          const key = codeKey(line.productCode);
+          if (!key) continue;
+          const hit = need.get(key);
+          need.set(key, { productCode: hit ? hit.productCode : String(line.productCode).trim(), quantity: (hit ? hit.quantity : 0) + (Number(line.quantity) || 0) });
         }
-        const ordered = await kiotData.readKiotQuantities(db, branch, [...exactCodes]);
-        for (const [key, lines] of assigned) {
-          if (!ordered.has(key)) continue; // chua co don tren Kiot (DB chua dong bo): khong ket luan
-          const diff = kiotData.diffQuantities(lines, ordered.get(key));
-          if (diff.length) out.set(`${branch}|${key}`, diff);
+        return need;
+      };
+      const add = (head, code) => {
+        const key = `${head.branch}|${codeKey(head.order_code)}`;
+        const list = out.get(key) || [];
+        if (!list.includes(code)) out.set(key, [...list, code]);
+      };
+      const byBranch = new Map();
+      for (const head of heads) {
+        if (!tx.BRANCH_CODES.includes(head.branch)) continue;
+        const need = needOf(head), have = picked.get(Number(head.id)) || new Map();
+        if ([...need].some(([key, line]) => Math.abs(line.quantity - (have.get(key) || 0)) > 1e-6)) add(head, PICK_WARNING.ORDER_DIFF);
+        if (!byBranch.has(head.branch)) byBranch.set(head.branch, []);
+        byBranch.get(head.branch).push({ head, need });
+      }
+      for (const [branch, items] of byBranch) {
+        const ordered = await kiotData.readKiotQuantities(db, branch, items.map(item => item.head.order_code));
+        for (const { head, need } of items) {
+          const kiotLines = ordered.get(codeKey(head.order_code));
+          if (!kiotLines) continue; // chua co don tren Kiot (DB chua dong bo): khong ket luan
+          if (kiotData.diffQuantities(need, kiotLines).length) add(head, PICK_WARNING.KIOT_DIFF);
         }
-        await markHandled(db, branch, out, assignmentOf);
       }
     } catch (error) {
-      if (error && error.code !== '42P01') console.error('[PickAssignments] mismatch lookup failed:', error.code || error.message);
+      if (error && error.code !== '42P01') console.error('[PickAssignments] warning lookup failed:', error.code || error.message);
       return new Map();
     }
     return out;
   }
 
-  return { candidates, get, assign, confirm, cancel, setStatus, reconcileWithKiot, pickMismatches, acknowledgeMismatch, latestStatuses };
+  return { candidates, get, assign, confirm, cancel, setStatus, reconcileWithKiot, pickWarnings, latestStatuses };
 }
 
-module.exports = { createPickAssignmentsService, mergeOrderLines, STATUS, CANCEL_REASON, ELIGIBLE_STATUS, ...createPickAssignmentsService() };
+module.exports = { createPickAssignmentsService, mergeOrderLines, applyNeeds, PICK_WARNING, STATUS, CANCEL_REASON, ELIGIBLE_STATUS, ...createPickAssignmentsService() };
