@@ -8,6 +8,7 @@ const { hasFeature } = require('../auth/featureRegistry');
 const { resolveBranch } = require('../branch/branchMiddleware');
 const { BRANCHES, resolveBranchScope } = require('../branch/branches');
 const service = require('./stockPositionsService');
+const { events: defaultEvents, CHANGED } = require('./stockPositionsEvents');
 const { createStockPositionsWorkbook, createStockPositionsHistoryWorkbook } = require('./stockPositionsExport');
 
 const IMPORT_MAX_BYTES = 8 * 1024 * 1024;
@@ -50,6 +51,39 @@ function createStockPositionsRouter(dependencies = {}) {
     const result = await svc().list(ctxOf(req), req.query.branch);
     res.json({ ...result, canEdit: hasFeature(req.user, 'stockLocationsV2.edit'), canExport: hasFeature(req.user, 'stockLocationsV2.export'), canDeleteHistory: hasFeature(req.user, 'stockLocationsV2.historyDelete') });
   }));
+  // SSE: bao "bang vi tri co so X vua doi" (khong keo du lieu) de trinh duyet tu tai nen; client lay du lieu bang GET list
+  // voi quyen/co so cua chinh phien do. Ket noi giu mo -> proxy phai khong buffer (X-Accel-Buffering) va co heartbeat.
+  router.get('/api/stock-positions/events', (req, res) => {
+    const branch = String(req.query.branch || '').toUpperCase();
+    if (!ctxOf(req).scope.includes(branch)) {
+      return res.status(403).json({ error: 'Không có quyền xem vị trí hàng của cơ sở này.', code: 'BRANCH_FORBIDDEN' });
+    }
+    req.socket.setTimeout(0); // Node mac dinh ngat socket khong hoat dong sau ~2 phut
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no'
+    });
+    const write = chunk => {
+      try {
+        res.write(chunk);
+        // compression() boc res trong stream gzip co buffer rieng: khong flush thi su kien bi giu lai.
+        if (typeof res.flush === 'function') res.flush();
+      } catch { /* client da roi */ }
+    };
+    write(':ok\n\n');
+    const bus = dependencies.events || defaultEvents;
+    const onChanged = payload => {
+      if (payload && payload.branch === branch) write(`event: positions-changed\ndata: ${JSON.stringify({ branch })}\n\n`);
+    };
+    bus.on(CHANGED, onChanged);
+    const heartbeat = setInterval(() => write(':heartbeat\n\n'), 25000);
+    req.on('close', () => {
+      clearInterval(heartbeat);
+      bus.off(CHANGED, onChanged);
+    });
+  });
   router.get('/api/stock-positions/code-suggestions', handle(async (req, res) => {
     res.json(await svc().suggestCodes(ctxOf(req), req.query.branch, req.query.q));
   }));

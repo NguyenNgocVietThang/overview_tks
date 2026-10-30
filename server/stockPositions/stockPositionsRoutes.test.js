@@ -6,7 +6,9 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
 const ExcelJS = require('exceljs');
+const { EventEmitter } = require('node:events');
 const { createStockPositionsRouter } = require('./stockPositionsRoutes');
+const { CHANGED } = require('./stockPositionsEvents');
 
 const MANAGER = { id: 'ql', vaiTro: 'Quản lý' };
 const ROWS = [
@@ -19,7 +21,7 @@ const HISTORY = [
   { id: 1, createdAt: '2026-10-27T03:27:00.000Z', branch: 'HN', code: 'CKL2DBV', location: 'ST', action: 'import_add', field: null, oldValue: null, newValue: null, summary: { added: 3, fileName: 'a.xlsx' }, actorName: 'Nhập dữ liệu đầu' }
 ];
 
-async function start(t, { user = MANAGER, scope = 'Cả hai' } = {}) {
+async function start(t, { user = MANAGER, scope = 'Cả hai', events } = {}) {
   const calls = [];
   const record = name => async (ctx, ...args) => { calls.push([name, ...args]); return { ok: name }; };
   const service = {
@@ -35,7 +37,8 @@ async function start(t, { user = MANAGER, scope = 'Cả hai' } = {}) {
   app.use(createStockPositionsRouter({
     requireAuth: (req, res, next) => (req.user ? next() : res.status(401).json({ error: 'Chưa đăng nhập.' })),
     resolveBranch: (req, res, next) => { req.branch = scope; next(); },
-    service
+    service,
+    ...(events ? { events } : {})
   }));
   const server = await new Promise(resolve => { const s = app.listen(0, () => resolve(s)); });
   t.after(() => server.close());
@@ -187,4 +190,47 @@ test('Quyền: chỉ sửa được Đã sửa khi có edit; chỉ xóa lịch s
   const granted = await start(t, { user: { vaiTro: 'Nhân viên kho', featurePermissions: { 'stockLocationsV2.view': true, 'stockLocationsV2.historyDelete': true } } });
   assert.equal((await fetch(granted.base + '/history?branch=HN', { method: 'DELETE' })).status, 200);
   assert.deepEqual(calls.map(c => c[0]), ['list', 'acknowledge']);
+});
+
+async function readUntil(reader, text) {
+  const decoder = new TextDecoder();
+  let buffer = '';
+  while (!buffer.includes(text)) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+  }
+  return buffer;
+}
+
+test('GET /events: mở SSE, chỉ nhận tín hiệu đúng cơ sở, dọn listener khi đóng', async t => {
+  const events = new EventEmitter();
+  const { base } = await start(t, { events });
+  const res = await fetch(base + '/events?branch=HN');
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /text\/event-stream/);
+  assert.equal(res.headers.get('x-accel-buffering'), 'no');
+  const reader = res.body.getReader();
+  await readUntil(reader, ':ok');
+  assert.equal(events.listenerCount(CHANGED), 1);
+  events.emit(CHANGED, { branch: 'SG' });
+  events.emit(CHANGED, { branch: 'HN' });
+  const chunk = await readUntil(reader, 'positions-changed');
+  assert.match(chunk, /event: positions-changed\ndata: \{"branch":"HN"\}\n\n/);
+  assert.ok(!chunk.includes('SG'));
+  await reader.cancel();
+  for (let i = 0; i < 20 && events.listenerCount(CHANGED) > 0; i++) await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(events.listenerCount(CHANGED), 0);
+});
+
+test('GET /events: ngoài phạm vi cơ sở 403, thiếu quyền 403, chưa đăng nhập 401, cơ sở lạ 403', async t => {
+  const events = new EventEmitter();
+  const sg = await start(t, { scope: 'Sài Gòn', events });
+  const forbidden = await fetch(sg.base + '/events?branch=HN');
+  assert.equal(forbidden.status, 403);
+  assert.equal((await forbidden.json()).code, 'BRANCH_FORBIDDEN');
+  assert.equal((await fetch(sg.base + '/events?branch=XX')).status, 403);
+  assert.equal((await fetch((await start(t, { user: { vaiTro: 'Nhân viên kho' }, events })).base + '/events?branch=HN')).status, 403);
+  assert.equal((await fetch((await start(t, { user: null, events })).base + '/events?branch=HN')).status, 401);
+  assert.equal(events.listenerCount(CHANGED), 0);
 });
