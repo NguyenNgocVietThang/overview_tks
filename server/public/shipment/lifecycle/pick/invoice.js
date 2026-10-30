@@ -96,7 +96,7 @@ async function show(order,record,template='order'){
   let total=0,totalKnown=true,index=0;
   const v2=order.schemaVersion===2,seenCodes=new Map();
   const jobsOf=line=>(record.lines||[]).filter(j=>key(j.productCode)===key(line.productCode));
-  // Dòng in ra giữ đúng thứ tự dòng của đơn Kiot (không sắp theo vị trí); STT đánh 1, 2, 3… theo thứ tự đó.
+  // Dòng in giữ thứ tự được truyền từ bảng lựa chọn (mặc định thứ tự Kiot); STT đánh lại từ 1.
   const ordered=order.lines||[];
   ordered.forEach(line=>{
     const jobs=jobsOf(line);

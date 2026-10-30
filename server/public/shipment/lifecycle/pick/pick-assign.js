@@ -22,7 +22,7 @@
   const key=v=>R.key(v);
   const round6=n=>Math.round(n*1e6)/1e6;
   // latest = chỉ định mới nhất của đơn; assignment = latest khi Đã bốc (chỉ xem); reassignOf = latest khi Đang nhặt (đang sửa, lưu bằng reassign).
-  const state={listOrder:null,order:null,cand:{},needs:{},latest:null,assignment:null,allocations:{},suggestions:{},busy:false,needsSync:true,requestEpoch:0,reassignOf:null,onChange:null};
+  const state={listOrder:null,order:null,cand:{},needs:{},latest:null,assignment:null,allocations:{},suggestions:{},busy:false,needsSync:true,requestEpoch:0,reassignOf:null,onChange:null,sort:null};
 
   const DIALOGS_HTML='<dialog id="pickingDialog" aria-labelledby="pickingTitle"><div class="dp-head"><div class="dp-head-text"><h2 class="dp-title" id="pickingTitle"></h2><p class="dp-subtitle">Chọn vị trí và điều chỉnh số lượng nhặt (có thể sửa cả số lượng cần nhặt). Dòng bôi đỏ là tổng chọn chưa khớp số lượng cần nhặt; vị trí được giữ chỗ cho đơn này sau khi xác nhận.</p></div><button id="pickingClose" type="button" class="dp-close" aria-label="Đóng chỉ định vị trí">×</button></div>'
     +'<div class="picking-body"><div class="picking-status-bar"><span id="pickingOrderStatus" class="picking-order-status" data-status="">Chưa chỉ định</span><button id="pickingConfirmPick" type="button" class="btn-primary" hidden>Xác nhận nhặt</button><button id="pickingCancelPick" type="button" hidden>Hủy nhặt</button><button id="pickingReprint" type="button" hidden>In đơn</button></div>'
@@ -90,6 +90,35 @@
       return locale(a,b)||x.n-y.n;
     }).map(e=>e.r);
   }
+  // Sort chỉ đổi thứ tự trình bày; chỉ số dòng gốc vẫn dùng cho mọi thao tác phân bổ.
+  function displayLines(){
+    const entries=lines().map((l,i)=>({l,i}));
+    if(!state.sort)return entries;
+    const {column,dir}=state.sort;
+    const value=({l,i})=>{
+      if(column==='code')return l.productCode;
+      if(column==='name')return l.productName;
+      if(column==='note')return l.note;
+      if(column==='need')return Number(l.quantity);
+      if(column==='st')return stOfLine(l,i,state.allocations[i]||[])?.cartons??null;
+      const rows=priorityRows(l,i);
+      if(column==='stock')return rows.some(r=>R.quantity(r.available)===null)?null:rows.reduce((sum,r)=>sum+(R.quantity(r.available)||0),0);
+      return rows.find(r=>(state.allocations[i]||[]).some(p=>p.id===r.id&&p.quantity>0))?.location||'';
+    };
+    return entries.map(e=>({...e,value:value(e)})).sort((a,b)=>{
+      const empty=v=>v===null||v===undefined||v==='';
+      if(empty(a.value)!==empty(b.value))return empty(a.value)?1:-1;
+      const cmp=typeof a.value==='number'&&typeof b.value==='number'?a.value-b.value:String(a.value??'').localeCompare(String(b.value??''),'vi',{numeric:true,sensitivity:'base'});
+      return cmp*dir||a.i-b.i;
+    });
+  }
+  function updateSortHeaders(){
+    document.querySelectorAll('.picking-table th[data-column-key]').forEach(th=>{
+      const active=state.sort?.column===th.dataset.columnKey;
+      th.setAttribute('aria-sort',active?(state.sort.dir===1?'ascending':'descending'):'none');
+      th.querySelector('.picking-sort-indicator').textContent=active?(state.sort.dir===1?'↑':'↓'):'↕';
+    });
+  }
   function allLocations(){
     const seen=new Map();lines().forEach(l=>rowsFor(l).forEach(r=>{if(!seen.has(r.id))seen.set(r.id,r);}));
     return [...seen.values()];
@@ -155,7 +184,8 @@
   function render(){
     if(!$('pickingDialog'))return;
     const a=state.assignment,order=state.order,ls=order?lines():[],picking=!!state.reassignOf;
-    $('pickingRows').innerHTML=ls.map((l,i)=>{
+    updateSortHeaders();
+    $('pickingRows').innerHTML=displayLines().map(({l,i})=>{
       const picks=state.allocations[i]||[],total=picks.reduce((s,p)=>s+p.quantity,0),rows=priorityRows(l,i);
       const unknown=rows.some(r=>R.quantity(r.available)===null&&!a);
       const before=rows.reduce((s,r)=>s+(R.quantity(r.available)||0),0);
@@ -245,7 +275,7 @@
   async function open(listOrder){
     ensureDialogs();
     const epoch=++state.requestEpoch;
-    state.listOrder=listOrder;state.reassignOf=null;state.order=null;state.needs={};state.latest=null;state.assignment=null;state.allocations={};state.suggestions={};state.busy=false;state.needsSync=true;
+    state.sort=null;state.listOrder=listOrder;state.reassignOf=null;state.order=null;state.needs={};state.latest=null;state.assignment=null;state.allocations={};state.suggestions={};state.busy=false;state.needsSync=true;
     $('pickingTitle').textContent=listOrder.orderCode+' · '+(listOrder.branch==='SG'?'Sài Gòn':'Hà Nội');
     setStatus('Đang tải…');render();
     if(!$('pickingDialog').open)$('pickingDialog').showModal();
@@ -315,7 +345,15 @@
   async function printPick(){
     const a=state.latest;
     if(!a||!window.PickingInvoice)return;
-    try{await window.PickingInvoice.show({...a.snapshot,orderCode:a.orderCode,branch:a.branch},a);}
+    try{
+      // Ghép theo lần xuất hiện của mã để cả mã lặp vẫn giữ đúng thứ tự hiển thị.
+      const ranks=new Map();
+      const original=lines();
+      const positions=new Map(displayLines().map(({i},rank)=>[i,rank]));
+      original.forEach((l,i)=>{const k=key(l.productCode);if(!ranks.has(k))ranks.set(k,[]);ranks.get(k).push(positions.get(i));});
+      const ordered=(a.snapshot.lines||[]).map((l,i)=>({l,i,rank:ranks.get(key(l.productCode))?.shift()??Infinity})).sort((x,y)=>x.rank-y.rank||x.i-y.i).map(e=>e.l);
+      await window.PickingInvoice.show({...a.snapshot,lines:state.sort?ordered:a.snapshot.lines,orderCode:a.orderCode,branch:a.branch},a);
+    }
     catch(error){
       if(!$('pickingDialog').open)$('pickingDialog').showModal();
       setStatus('Không mở được phiếu in: '+(error&&error.message||'lỗi'),true);
@@ -393,6 +431,16 @@
     const wrap=document.createElement('div');wrap.innerHTML=DIALOGS_HTML;
     while(wrap.firstChild)document.body.appendChild(wrap.firstChild);
     if(bound)return;bound=true;
+    document.querySelectorAll('.picking-table th[data-column-key]').forEach(th=>{
+      const button=document.createElement('button');button.type='button';button.className='picking-sort';
+      button.append(document.createTextNode(th.textContent+' '));
+      const indicator=document.createElement('span');indicator.className='picking-sort-indicator';indicator.setAttribute('aria-hidden','true');button.append(indicator);
+      th.replaceChildren(button);
+      button.addEventListener('click',()=>{
+        const column=th.dataset.columnKey;
+        state.sort={column,dir:state.sort?.column===column?-state.sort.dir:1};render();
+      });
+    });
     $('pickingRows').addEventListener('click',onRowsClick);
     $('pickingRows').addEventListener('change',onRowsChange);
     $('pickingSuggest').addEventListener('click',()=>{if(!editable())return;suggest();render();});

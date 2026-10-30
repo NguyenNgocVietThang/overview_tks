@@ -276,7 +276,7 @@ test('phiếu in gộp thùng trong từng khu, nối cộng giữa các khu và
  }finally{dom.window.close();}
 });
 
-test('table body columns share size and rows share height, header stays separate and shortcuts persist for other users/new rows',async()=>{
+test('table body columns share size and rows fit their own content, header stays separate and shortcuts persist for other users/new rows',async()=>{
  const order={schemaVersion:2,orderCode:'DH-STYLE',lines:[1,2].map(n=>({productCode:'P'+n,productName:'Hàng '+n,quantity:10,unitPrice:'1',amount:'10'}))};
  const record={status:'picking',lines:[]},saved={};
  const fetchShared=async(url,options={})=>{
@@ -304,11 +304,12 @@ test('table body columns share size and rows share height, header stays separate
   key('b');key('i');assert.ok(bodyRows.every(r=>r.cells[1].style.fontWeight===''&&r.cells[1].style.fontStyle===''));
 
   assert.equal(bodyRows[0].cells[0].style.fontWeight,'');
-  const cell=bodyRows[0].cells[1];cell.getBoundingClientRect=()=>({left:0,right:100,top:0,bottom:parseFloat(bodyRows[0].style.height),height:parseFloat(bodyRows[0].style.height)});
-  const y=parseFloat(bodyRows[0].style.height);
+  const cell=bodyRows[0].cells[1];cell.getBoundingClientRect=()=>({left:0,right:100,top:0,bottom:24,height:24});
+  const y=24;
   const pointer=(target,type,y)=>target.dispatchEvent(new w.MouseEvent(type,{bubbles:true,button:0,clientX:40,clientY:y}));
   pointer(cell,'pointerdown',y);pointer(d,'pointermove',y+12);pointer(d,'pointerup',y+12);
-  assert.ok(bodyRows.every(r=>r.style.height==='44px'));
+  assert.ok(bodyRows.every(r=>r.style.height===''));
+  assert.deepEqual(bodyRows.map(r=>r.getBoundingClientRect().height),[24,32]);
   const header=d.querySelector('.invoice-goods thead td');select(header);key(']');key('r');
   assert.equal(header.style.textAlign,'right');assert.equal(bodyRows[0].cells[0].style.textAlign,'center');
   assert.ok(bodyRows.every(r=>r.cells[0].style.fontSize==='16px'));
@@ -323,7 +324,7 @@ test('table body columns share size and rows share height, header stays separate
   try{
    const rw=reopened.window;rw.fetch=fetchShared;rw.eval(fs.readFileSync(path.join(dir,'print-tools.js'),'utf8'));await rw.PickingPrint.prepare();
    const rows=[...rw.document.querySelectorAll('.invoice-goods tbody tr')];assert.equal(rows.length,4);
-   assert.ok(rows.every(r=>r.style.height==='44px'&&r.cells[0].style.fontSize===''&&r.cells[1].style.fontSize==='13pt'&&r.cells[1].style.textAlign==='center'));
+   assert.ok(rows.every(r=>r.style.height===''&&r.cells[0].style.fontSize===''&&r.cells[1].style.fontSize==='13pt'&&r.cells[1].style.textAlign==='center'));
    assert.equal(rw.document.querySelector('.invoice-goods thead td').style.textAlign,'right');
    const exported=new JSDOM(rw.PickingPrint.document());
    assert.equal(exported.window.document.querySelector('.invoice-goods tbody td:nth-child(2)').style.fontSize,'13pt');exported.window.close();
@@ -385,4 +386,17 @@ test('unallocated repeated products leave both placement columns blank in both t
       for(const cell of dom.window.document.querySelectorAll('.invoice-goods tbody .invoice-location, .invoice-goods tbody .invoice-st')) assert.equal(cell.textContent.trim(),'');
     }
   } finally {dom.window.close();}
+});
+
+
+test('saved body heights do not inflate short rows or exported HTML',async()=>{
+ const dom=await invoice({schemaVersion:2,orderCode:'DH-AUTO',lines:[1,2].map(n=>({productCode:'P'+n,productName:'Hàng '+n,quantity:1,unitPrice:'1',amount:'1'}))},{status:'picking',lines:[]});
+ try{
+  const w=dom.window;
+  w.fetch=async()=>({ok:true,json:async()=>({layout:{widths:[],heights:[45,100,100],fonts:[],groups:{body:{height:100}}},version:1})});
+  w.eval(fs.readFileSync(path.join(dir,'print-tools.js'),'utf8'));await w.PickingPrint.prepare();
+  assert.ok([...w.document.querySelectorAll('.invoice-goods tbody tr')].every(r=>r.style.height===''));
+  const exported=new JSDOM(w.PickingPrint.document());
+  try{assert.ok([...exported.window.document.querySelectorAll('.invoice-goods tbody tr')].every(r=>r.style.height===''));}finally{exported.window.close();}
+ }finally{dom.window.close();}
 });

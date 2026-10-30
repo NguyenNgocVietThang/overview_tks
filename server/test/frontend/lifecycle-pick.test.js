@@ -191,7 +191,7 @@ test('popup gọi candidates đúng cơ sở + mã đơn, hiện 7 cột và g�
   await openPopup(page);
   const call = page.calls.find(c => c.url.startsWith('/api/shipment/pick/candidates'));
   assert.equal(call.url, '/api/shipment/pick/candidates?branch=HN&order=DH1');
-  assert.deepEqual([...page.document.querySelectorAll('#pickingDialog thead th')].map(th => th.textContent), ['Mã hàng', 'Tên hàng', 'Ghi chú', 'Cần nhặt', 'ST', 'Tồn kho', 'Vị trí kho']);
+  assert.deepEqual([...page.document.querySelectorAll('#pickingDialog thead th')].map(th => th.querySelector('button').firstChild.textContent.trim()), ['Mã hàng', 'Tên hàng', 'Ghi chú', 'Cần nhặt', 'ST', 'Tồn kho', 'Vị trí kho']);
   assert.equal(page.document.querySelectorAll('#pickingRows tr').length, 1, 'dòng VAT bị bỏ');
   assert.equal(text(page, 'pickingTitle'), 'DH1 · Hà Nội');
   // gợi ý: 100 = 2 thùng x 50 tại A07
@@ -923,4 +923,67 @@ test('after printing or cancelling the browser print dialog returns to the lifec
       assert.equal(page.document.getElementById('lcDetailOverlay').hidden, true, outcome);
     } finally {page.dom.window.close();}
   }
+});
+
+
+test('sort lựa chọn theo chữ/số/vị trí, giữ phân bổ và in cả hai mẫu theo thứ tự đang chọn', async () => {
+  const ls=[{productCode:'B',productName:'Bình',note:'Z',quantity:20,price:1000},{productCode:'A',productName:'Ấm',note:'A',quantity:100,price:1000},{productCode:'C',productName:'Chén',note:'M',quantity:3,price:1000}];
+  const locations=['A10','A2','B1'];
+  const jobs=ls.map((l,i)=>({productCode:l.productCode,positionId:i+11,location:locations[i],plannedQty:l.quantity,stCartons:l.quantity,stText:l.quantity+'Tx1'}));
+  const store=newStore();store.order.lines=ls;
+  store.candidates=Object.fromEntries(ls.map((l,i)=>[l.productCode.toLowerCase(),[position(i+11,locations[i],'200T x 1',200,{code:l.productCode})]]));
+  store.assignment=makeAssignment('picking',{snapshot:{lines:ls},lines:jobs});
+  const page=await renderPage({store});
+  try{
+    await openPopup(page);
+    const d=page.document,w=page.window;
+    const sort=async key=>{const button=d.querySelector('.picking-table th[data-column-key="'+key+'"] button');assert.ok(button,'có nút sort '+key);button.click();await settle();};
+    const codes=()=>[...d.querySelectorAll('#pickingRows tr')].map(r=>r.cells[0].textContent);
+    const allocated=JSON.stringify(w.TKSPick._state.allocations);
+    await sort('need');assert.deepEqual(codes(),['C','B','A']);
+    await sort('need');assert.deepEqual(codes(),['A','B','C']);
+    assert.equal(d.querySelector('.picking-table th[data-column-key="need"]').getAttribute('aria-sort'),'descending');
+    await sort('locations');assert.deepEqual(codes(),['A','B','C']);
+    await sort('name');assert.deepEqual(codes(),['A','B','C']);
+    await sort('note');assert.deepEqual(codes(),['A','C','B']);
+    await sort('st');assert.deepEqual(codes(),['C','B','A']);
+    await sort('stock');assert.deepEqual(codes(),['B','A','C'],'giá trị bằng nhau giữ thứ tự gốc');
+    await sort('code');assert.deepEqual(codes(),['A','B','C']);
+    await sort('code');assert.deepEqual(codes(),['C','B','A']);
+    assert.equal(JSON.stringify(w.TKSPick._state.allocations),allocated);
+    assert.equal(d.getElementById('pickingReprint').disabled,false,'sort không làm bẩn chỉ định');
+    const input=d.querySelector('#pickingRows tr:first-child [data-qty]');assert.equal(input.dataset.qline,'2');
+    await click(page,'pickingReprint');
+    const printed=()=>[...d.querySelectorAll('.invoice-goods tbody tr')].map(r=>r.cells[1].textContent.trim());
+    assert.deepEqual(printed(),['Chén','Bình','Ấm']);
+    assert.deepEqual([...d.querySelectorAll('.invoice-goods tbody tr')].map(r=>r.cells[0].textContent.trim()),['1','2','3']);
+    await w.PickingInvoice.changeTemplate('delivery');assert.deepEqual(printed(),['Chén','Bình','Ấm']);
+    assert.deepEqual(store.assignment.snapshot.lines.map(l=>l.productCode),['B','A','C']);
+    input.value='2';input.dispatchEvent(new w.Event('change',{bubbles:true}));await settle();
+    assert.equal(w.TKSPick._state.allocations[2][0].quantity,2,'sửa hàng đã sort vẫn trỏ đúng mã C');
+    assert.equal(w.TKSPick._state.allocations[0][0].quantity,20);
+    assert.deepEqual(codes(),['C','B','A'],'render sau khi sửa vẫn giữ sort');
+    await w.TKSPick.open(store.order);assert.deepEqual(codes(),['B','A','C'],'mở đơn bắt đầu theo thứ tự gốc');
+  }finally{page.dom.window.close();}
+});
+
+
+test('Xác nhận & In giữ thứ tự sort khi lưu chỉ định mới',async()=>{
+  const ls=[{productCode:'B',productName:'Bình',quantity:20,price:1000},{productCode:'A',productName:'Ấm',quantity:100,price:1000}];
+  const store=newStore();store.order.lines=ls;
+  store.candidates={b:[position(12,'B1','20T x 1',20,{code:'B'})],a:[position(11,'A1','100T x 1',100)]};
+  const page=await renderPage({store,fetchImpl:async(url,options)=>{
+    if(url==='/api/shipment/pick'&&options.method==='POST'){
+      store.posted.push(JSON.parse(options.body));
+      return json({assignment:makeAssignment('picking',{snapshot:{lines:ls},lines:[{productCode:'B',positionId:12,location:'B1',plannedQty:20,stCartons:20,stText:'20Tx1'},{productCode:'A',positionId:11,location:'A1',plannedQty:100,stCartons:100,stText:'100Tx1'}]})},201);
+    }
+  }});
+  try{
+    await openPopup(page);
+    page.document.querySelector('.picking-table th[data-column-key="code"] button').click();
+    await click(page,'pickingConfirm');
+    assert.equal(store.posted.length,1);
+    assert.deepEqual(store.posted[0].allocations.map(p=>[p.productCode,p.qty]),[['B',20],['A',100]]);
+    assert.deepEqual([...page.document.querySelectorAll('.invoice-goods tbody tr')].map(r=>r.cells[1].textContent.trim()),['Ấm','Bình']);
+  }finally{page.dom.window.close();}
 });

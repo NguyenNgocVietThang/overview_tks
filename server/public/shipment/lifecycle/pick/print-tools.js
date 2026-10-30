@@ -48,10 +48,11 @@ function formattingControls(host,restore=true,shared=null){
       // Đậm / nghiêng đã lưu trong form chung (từ Ctrl+B / I cũ, tính theo vị trí ký tự) bị bỏ qua: lệch chữ khi phiếu có thêm ID Telegram.
     }
   };
-  // height là mức người dùng đặt; nếu nội dung cần cao hơn thì mọi hàng cùng tăng, không cắt chữ.
+  // Hàng hàng hóa tự cao theo ô nhiều dòng nhất của chính hàng đó; bỏ chiều cao form cũ.
   const equalRows=name=>{
     const list=sectionRows(name);if(!list.length)return;
     list.forEach(r=>r.style.removeProperty('height'));
+    if(name==='body')return;
     const height=Math.max(16,getGroup(name)?.height||0,...list.map(r=>r.getBoundingClientRect().height));
     list.forEach(r=>r.style.height=height+'px');
   };
@@ -102,6 +103,7 @@ function formattingControls(host,restore=true,shared=null){
     const index=cell.cellIndex,cols=columns(table);
     if(index<cols.length-1&&Math.abs(event.clientX-rect.right)<=5)return {type:'col',index,table};
     if(index>0&&Math.abs(event.clientX-rect.left)<=5)return {type:'col',index:index-1,table};
+    if(sectionOf(cell)==='body')return null;
     if(Math.abs(event.clientY-rect.bottom)<=5)return {type:'row',row:cell.parentElement};
     if(Math.abs(event.clientY-rect.top)<=5&&cell.parentElement.previousElementSibling)return {type:'row',row:cell.parentElement.previousElementSibling};
     return null;
@@ -264,7 +266,7 @@ function printDocument(){
   content.append(layout);
   content.querySelectorAll('[contenteditable]').forEach(el=>el.setAttribute('contenteditable','false'));
   const title=$('pickingPrintTitle').textContent;
-  return '<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+esc(title)+'</title><style>'+css.join('\n')+'\nbody{margin:0;background:#eee;font-family:Arial,sans-serif}#pickingPrintDialog{max-width:794px;margin:20px auto;background:white}.print-controls{padding:12px;text-align:center}.print-controls button{padding:9px 14px;margin:4px;cursor:pointer}.print-controls p{font-size:12px} [contenteditable]:focus{outline:1px dashed #888}@media print{.print-controls{display:none!important}body{background:white}#pickingPrintDialog{margin:0;max-width:none}[contenteditable]:focus{outline:none}}</style></head><body><div class="print-controls"><button id="printDocument">'+printerIcon+'<span>In</span></button><button id="saveDocument">Lưu file HTML</button><p>Nội dung và số liệu chỉ đọc. Kéo viền chỉnh cột/hàng; bôi đen và Ctrl+] / Ctrl+[ chỉnh cỡ chữ. Ctrl+L / R / E căn trái / phải / giữa; Định dạng đồng bộ theo cột trong từng bảng; tiêu đề chỉnh riêng. Bấm In để chọn máy in. Chỉnh form chung tại Dashboard; thay đổi trong file này chỉ áp dụng cho file này.</p></div><div id="pickingPrintFormatting" class="print-format-controls"></div><main id="pickingPrintDialog">'+content.outerHTML+'</main><script>'+formattingControls.toString()+';('+standaloneControls.toString()+')();<\/script></body></html>';
+  return '<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+esc(title)+'</title><style>'+css.join('\n')+'\nbody{margin:0;background:#eee;font-family:Arial,sans-serif}#pickingPrintDialog{max-width:794px;margin:20px auto;background:white}.print-controls{padding:12px;text-align:center}.print-controls button{padding:9px 14px;margin:4px;cursor:pointer}.print-controls p{font-size:12px} [contenteditable]:focus{outline:1px dashed #888}@media print{.print-controls{display:none!important}body{background:white}#pickingPrintDialog{margin:0;max-width:none}[contenteditable]:focus{outline:none}}</style></head><body><div class="print-controls"><button id="printDocument">'+printerIcon+'<span>In</span></button><button id="saveDocument">Lưu file HTML</button><p>Nội dung và số liệu chỉ đọc. Kéo viền chỉnh cột/hàng tiêu đề; hàng dữ liệu tự khít nội dung; bôi đen và Ctrl+] / Ctrl+[ chỉnh cỡ chữ. Ctrl+L / R / E căn trái / phải / giữa; Định dạng đồng bộ theo cột trong từng bảng; tiêu đề chỉnh riêng. Bấm In để chọn máy in. Chỉnh form chung tại Dashboard; thay đổi trong file này chỉ áp dụng cho file này.</p></div><div id="pickingPrintFormatting" class="print-format-controls"></div><main id="pickingPrintDialog">'+content.outerHTML+'</main><script>'+formattingControls.toString()+';('+standaloneControls.toString()+')();<\/script></body></html>';
 }
 function save(){
   const blob=new Blob([printDocument()],{type:'text/html;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
@@ -282,7 +284,7 @@ function init(){
   $('pickingPrintDialog').querySelector('.dp-head').insertAdjacentHTML('afterend',
     '<div class="print-toolbar"><label class="print-template-field" for="pickingPrintTemplate"><span>Mẫu in</span><select id="pickingPrintTemplate"><option value="order">Phiếu đặt hàng</option><option value="delivery">Phiếu xác nhận giao hàng</option></select></label>'
     +'<div class="print-save-status"><p id="pickingPrintMessage" role="status" aria-live="polite" data-state="loading">Đang tải form chung…</p><small>Định dạng dùng chung cho mọi người</small></div><div id="pickingPrintFormatting" class="print-format-controls"></div></div>'
-    +'<div class="print-edit-hint"><span><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 3v18M3 12h18M8 7l4-4 4 4M8 17l4 4 4-4M7 8l-4 4 4 4m10-8 4 4-4 4"/></svg>Kéo viền chỉnh cột / hàng (hàng dữ liệu đồng bộ)</span><span class="print-shortcuts">Bôi đen chữ <kbd>Ctrl</kbd> + <kbd>]</kbd><span aria-hidden="true">/</span><kbd>Ctrl</kbd> + <kbd>[</kbd><span>Cỡ chữ</span></span><span class="print-shortcuts"><kbd>Ctrl</kbd> + <kbd>L / E / R</kbd><span>Trái / giữa / phải</span></span><span class="print-readonly">Nội dung chỉ đọc</span></div>');
+    +'<div class="print-edit-hint"><span><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 3v18M3 12h18M8 7l4-4 4 4M8 17l4 4 4-4M7 8l-4 4 4 4m10-8 4 4-4 4"/></svg>Kéo viền chỉnh cột / hàng tiêu đề (hàng dữ liệu tự khít nội dung)</span><span class="print-shortcuts">Bôi đen chữ <kbd>Ctrl</kbd> + <kbd>]</kbd><span aria-hidden="true">/</span><kbd>Ctrl</kbd> + <kbd>[</kbd><span>Cỡ chữ</span></span><span class="print-shortcuts"><kbd>Ctrl</kbd> + <kbd>L / E / R</kbd><span>Trái / giữa / phải</span></span><span class="print-readonly">Nội dung chỉ đọc</span></div>');
   $('pickingPrintTemplate').onchange=async event=>{const picker=event.target;picker.disabled=true;try{await window.PickingInvoice.changeTemplate(picker.value);}catch(error){$('pickingPrintMessage').textContent='Không đổi được mẫu in. Hãy thử lại.';}finally{picker.disabled=false;}};
   button.onclick=()=>{
     $('pickingPrintFrame')?.remove();
