@@ -6,7 +6,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { PGlite } = require('@electric-sql/pglite');
 const XLSX = require('xlsx');
-const { createStockPositionsService, mergeNotes } = require('./stockPositionsService');
+const { createStockPositionsService, mergeNotes, tx } = require('./stockPositionsService');
+const { events, CHANGED } = require('./stockPositionsEvents');
 
 const MIGRATIONS = path.join(__dirname, '../db/migrations');
 const migration = file => fs.readFileSync(path.join(MIGRATIONS, file), 'utf8');
@@ -775,4 +776,39 @@ test('suggestCodes: khop ma (bo khoang trang, hoa/thuong) hoac ten, ma bat dau b
   } finally {
     await db.close();
   }
+});
+
+function collectChanges(t) {
+  const seen = [];
+  const listener = payload => seen.push(payload.branch);
+  events.on(CHANGED, listener);
+  t.after(() => events.off(CHANGED, listener));
+  return seen;
+}
+
+test('phat tin hieu doi sau khi COMMIT, dung co so, khong phat khi doc', async t => {
+  const { db, service } = await fixture();
+  const seen = collectChanges(t);
+  try {
+    await service.list(ctx(), 'HN');
+    assert.deepEqual(seen, []);
+    await service.create(ctx(), 'HN', { code: 'AAA1', notes: '1T x 10', location: 'Z1' });
+    assert.deepEqual(seen, ['HN']);
+    await service.create(ctx(), 'SG', { code: 'AAA1', notes: '1T x 10', location: 'Z2' });
+    assert.deepEqual(seen, ['HN', 'SG']);
+  } finally { await db.close(); }
+});
+
+test('khong phat tin hieu khi giao dich ROLLBACK, lan sau khong bi lan co so cu', async t => {
+  const { db, service } = await fixture();
+  const seen = collectChanges(t);
+  try {
+    const pool = poolFor(db);
+    await assert.rejects(tx.withTransaction(pool, async client => { await tx.lockBranch(client, 'HN'); throw new Error('boom'); }), /boom/);
+    assert.deepEqual(seen, []);
+    await tx.withTransaction(pool, async client => { await tx.lockBranch(client, 'SG'); });
+    assert.deepEqual(seen, ['SG']);
+    await service.create(ctx(), 'HN', { code: 'AAA1', notes: '1T x 10', location: 'Z1' });
+    assert.deepEqual(seen, ['SG', 'HN']);
+  } finally { await db.close(); }
 });

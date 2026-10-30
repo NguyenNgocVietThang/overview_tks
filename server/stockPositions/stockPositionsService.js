@@ -8,6 +8,7 @@ const carton = require('../public/shared/carton.js');
 const { stripTelegramId } = require('../dashboard/saleName');
 const { parseImportWorkbook } = require('./stockPositionsImport');
 const { ACTION_LABELS, FIELD_LABELS, summaryText } = require('./stockPositionsHistoryLabels');
+const { announceChanged } = require('./stockPositionsEvents');
 
 const BRANCH_CODES = Object.freeze(['HN', 'SG']);
 const DB_BRANCH = Object.freeze({ HN: 'hanoi', SG: 'saigon' });
@@ -90,14 +91,28 @@ function mergeNotes(current, added) {
   return carton.normalizeNote(text);
 }
 
+// Co so ma giao dich dang giu khoa (lockBranch) -> phat tin hieu "da doi" sau COMMIT, khong phat khi ROLLBACK.
+const touchedBranches = new WeakMap();
+
+function announceTouched(client) {
+  const branches = touchedBranches.get(client);
+  touchedBranches.delete(client);
+  if (!branches) return;
+  for (const branch of branches) {
+    try { announceChanged(branch); } catch (error) { console.error('[stock-positions] khong phat duoc tin hieu doi:', error.message); }
+  }
+}
+
 async function withTransaction(pool, work) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     const result = await work(client);
     await client.query('COMMIT');
+    announceTouched(client);
     return result;
   } catch (error) {
+    touchedBranches.delete(client);
     await client.query('ROLLBACK').catch(() => {});
     throw error;
   } finally {
@@ -105,7 +120,11 @@ async function withTransaction(pool, work) {
   }
 }
 
-const lockBranch = (client, branch) => client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', ['stock_positions:' + branch]);
+const lockBranch = (client, branch) => {
+  const branches = touchedBranches.get(client) || touchedBranches.set(client, new Set()).get(client);
+  branches.add(branch);
+  return client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', ['stock_positions:' + branch]);
+};
 
 const ON_HAND_SQL = `
   SELECT p.code, p.name, COALESCE(SUM((inv->>'onHand')::numeric), 0)::float8 AS on_hand
