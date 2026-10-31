@@ -32,8 +32,8 @@ const MAX_ALLOCATIONS = 500;
 const PICK_WARNING = Object.freeze({ KIOT_DIFF: 'PICK_KIOT_DIFF', ORDER_DIFF: 'PICK_ORDER_DIFF' });
 const AVAILABILITY_ERROR = /vượt số lượng khả dụng/u;
 
-// Don dat truoc 31/10/2026 (gio VN) khong canh bao Lech Kiot / Lech SL trong don. Ngay don lay tu snapshot, thieu thi lay ngay chi dinh.
-const PICK_WARNING_SINCE = Date.parse('2026-10-31T00:00:00+07:00');
+// Don dat truoc 01/11/2026 (ca ngay 31/10) (gio VN) khong canh bao Lech Kiot / Lech SL trong don. Ngay don lay tu snapshot, thieu thi lay ngay chi dinh.
+const PICK_WARNING_SINCE = Date.parse('2026-11-01T00:00:00+07:00');
 function isWarnableOrder(head) {
   const vn = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(String(head.order_date || '').trim()); // 'dd/mm/yyyy HH:mm' (gio VN)
   const at = vn ? Date.parse(`${vn[3]}-${vn[2].padStart(2, '0')}-${vn[1].padStart(2, '0')}T00:00:00+07:00`)

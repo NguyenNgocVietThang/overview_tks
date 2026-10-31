@@ -22,7 +22,7 @@ const ctx = scope => ({ user: QL, ...(scope ? { scope } : {}) });
 
 function order(overrides = {}) {
   return {
-    branch: 'HN', orderCode: 'DH001', customerName: 'Khách A', saleName: 'Sale B', saleTelegramId: '555', orderDate: '31/10/2026 09:00',
+    branch: 'HN', orderCode: 'DH001', customerName: 'Khách A', saleName: 'Sale B', saleTelegramId: '555', orderDate: '01/11/2026 09:00',
     status: { code: 'SENT_TO_ACCOUNTANT', label: 'Đơn đã gửi kế toán' }, invoiceDiscount: 0,
     lines: [{ productCode: 'AAA1', productName: 'Hàng A', quantity: 250, price: 10, discount: 0 }],
     ...overrides
@@ -273,8 +273,8 @@ test('pickWarnings: don Da boc van canh bao khi SL Kiot lech', async () => {
   } finally { await db.close(); }
 });
 
-test('pickWarnings: don dat truoc 31/10/2026 khong canh bao Lech Kiot / Lech SL trong don', async () => {
-  const { db, service } = await fixture({ orders: { DH001: order({ orderDate: '30/10/2026 23:59', lines: [lineOf('AAA1', 250)] }) } });
+test('pickWarnings: don dat truoc 01/11/2026 (ca 31/10) khong canh bao Lech Kiot / Lech SL trong don', async () => {
+  const { db, service } = await fixture({ orders: { DH001: order({ orderDate: '31/10/2026 23:59', lines: [lineOf('AAA1', 250)] }) } });
   try {
     await addKiotOrder(db, { code: 'DH001', status: 'Phiếu tạm', id: 1, lines: [{ productCode: 'AAA1', quantity: 240 }] });
     await service.assign(ctx(), body([{ productCode: 'AAA1', positionId: 1, qty: 200 }], { allowMismatch: true }));
