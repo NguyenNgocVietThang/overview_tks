@@ -146,7 +146,9 @@ function createKiotOrderEditor({
     const entity = require('../kiotvietSync/entities/orders');
     await tx.withTransaction(db, client => entity.upsertPage(client, dbBranch, [order]));
   },
-  isEnabled = enabled
+  isEnabled = enabled,
+  // Public API tra dong theo productId: sap lai theo thu tu that truoc khi PUT, neu khong PUT se ghi de thu tu sale da nhap.
+  sortLines = (dbBranch, order) => require('./orderLineOrder').defaultSorter.sortOrder(dbBranch, order, { force: true })
 } = {}) {
   const queues = new Map();
   // Tuan tu theo don: hai nguoi cung sua mot don khong the doc-sua-ghi chong len nhau.
@@ -184,6 +186,7 @@ function createKiotOrderEditor({
       try { before = await client.fetchOrderById(id); } catch (error) {
         throw fail(424, 'KIOT_READ_FAILED', `Không đọc được đơn từ KiotViet: ${kiotMessage(error)}`);
       }
+      before = await sortLines(dbBranch, before);
       const current = Array.isArray(before.orderDetails) ? before.orderDetails : [];
       const next = plan(current);
       const changed = JSON.stringify(next.map(detailOf)) !== JSON.stringify(current.map(detailOf));
