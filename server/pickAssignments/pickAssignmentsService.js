@@ -13,7 +13,7 @@ const carton = require('../public/shared/carton.js');
 const rules = require('../public/shared/pick-rules.js');
 const { makeAllocationSnapshot, allocationMatches, deductAllocation } = require('./pickAssignmentSnapshot');
 const { makeOrderSnapshot } = require('./pickOrderSnapshot');
-const { tx } = require('../stockPositions/stockPositionsService');
+const { tx, createStockPositionsService } = require('../stockPositions/stockPositionsService');
 const kiotData = require('./pickKiotData');
 
 const {
@@ -155,7 +155,9 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
   loadSellerPhone = loadOrder === defaultLoadOrder ? kiotData.loadSellerPhone : null,
   // Ghi nguoc len don Kiot (xoa dong / sua SL can nhat). Chi bat o duong that; test truyen loadOrder rieng thi khong cham Kiot
   // (assign() giu cach cu: SL sua chi luu trong ban chi dinh).
-  orderEditor = loadOrder === defaultLoadOrder ? require('../kiotviet/kiotOrderEditor').createKiotOrderEditor() : null } = {}) {
+  orderEditor = loadOrder === defaultLoadOrder ? require('../kiotviet/kiotOrderEditor').createKiotOrderEditor() : null,
+  // Them / sua ghi chu / xoa dong VT ngay trong hop Chi dinh vi tri: di qua service VT (khoa co so, lich su, SSE trang VT).
+  stockPositions = createStockPositionsService({ getDb }) } = {}) {
   // ---------- Doc / dinh dang ----------
 
   async function readAssignment(db, id) {
@@ -347,6 +349,55 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
       console.error('[PickAssignments] khong bo duoc dong chi dinh sau khi xoa dong Kiot:', branch, code, product, error.code || error.message);
     }
     return { changed: result.changed, assignment: await readLatest(getDb(), branch, code) };
+  }
+
+  // ---------- Sua VT (stock_positions) trong hop Chi dinh vi tri — can ca shipment.pick va stockLocationsV2.edit (kiem o route) ----------
+
+  /* Pham vi sua: chi dong VT cua cac ma hang trong don (dong don Kiot da gop), dung co so cua don; don Da boc thi hop chi xem -> 409.
+     options truyen cho stockPositionsService: excludeOrder = chinh don nay (giu cho cua don nay khong chan sua/xoa, client tu bat
+     "chua luu" de Cap nhat chi dinh & In lai); don Dang boc KHAC van duoc bao ve (BELOW_HELD / HELD_SPEC_CONFLICT / POSITION_HELD). */
+  async function positionScope(ctx, { branch, orderCode } = {}) {
+    assertBranch(branch);
+    assertScope(ctx, branch);
+    const code = cleanOrderCode(orderCode);
+    const { order, lines } = await requireOrder(branch, code);
+    const keys = new Set(lines.map(line => codeKey(line.productCode)));
+    const latest = (await getDb().query(
+      'SELECT status FROM order_pick_assignments WHERE branch = $1 AND lower(btrim(order_code)) = $2 ORDER BY id DESC LIMIT 1',
+      [branch, codeKey(order.orderCode)])).rows[0];
+    if (latest && latest.status === STATUS.CONFIRMED) throw fail(409, 'INVALID_STATE', 'Đơn đã bốc nên không sửa vị trí trong hộp chỉ định.');
+    return {
+      keys,
+      options: { branch, allowRow: row => keys.has(codeKey(row.code)), excludeOrder: order.orderCode, source: { orderCode: order.orderCode } }
+    };
+  }
+
+  function positionVersion(value) {
+    const version = Number(value);
+    if (value === undefined || value === null || value === '' || !Number.isInteger(version)) throw fail(400, 'VALIDATION', 'Thiếu phiên bản (version) của dòng vị trí.', { field: 'version' });
+    return version;
+  }
+
+  // Them vi tri cho ma trong don: body { branch, orderCode, productCode, location, notes }. Trung (ma, vi tri) thi cong don ghi chu.
+  // Tra { row, merged } cua stockPositionsService.create.
+  async function createPosition(ctx, body = {}) {
+    const { keys, options } = await positionScope(ctx, body);
+    const productCode = typeof body.productCode === 'string' ? body.productCode.trim() : '';
+    if (!productCode || !keys.has(codeKey(productCode))) throw fail(400, 'VALIDATION', 'Mã hàng không có trong đơn.', { field: 'productCode' });
+    return stockPositions.create(ctx, body.branch, { code: productCode, location: body.location, notes: body.notes, arrivalDate: '' }, { source: options.source });
+  }
+
+  // Sua ghi chu so thung: body { branch, orderCode, notes, version, confirmEmpty? }. Chi chuyen notes (khong doi Ngay ve / Vi tri o day).
+  async function updatePosition(ctx, id, body = {}) {
+    const { options } = await positionScope(ctx, body);
+    if (typeof body.notes !== 'string') throw fail(400, 'VALIDATION', 'Thiếu ghi chú số thùng.', { field: 'notes' });
+    const version = positionVersion(body.version);
+    return stockPositions.update(ctx, id, { notes: body.notes, version, confirmEmpty: body.confirmEmpty === true }, { ...options, checkHeld: true });
+  }
+
+  async function removePosition(ctx, id, { branch, orderCode, version } = {}) {
+    const { options } = await positionScope(ctx, { branch, orderCode });
+    return stockPositions.remove(ctx, id, positionVersion(version), options);
   }
 
   async function get(ctx, { branch, orderCode } = {}) {
@@ -796,7 +847,7 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
     return out;
   }
 
-  return { candidates, get, assign, removeLine, confirm, cancel, setStatus, reconcileWithKiot, pickWarnings, latestStatuses };
+  return { candidates, get, assign, removeLine, confirm, cancel, setStatus, reconcileWithKiot, pickWarnings, latestStatuses, createPosition, updatePosition, removePosition };
 }
 
 module.exports = { createPickAssignmentsService, mergeOrderLines, applyNeeds, PICK_WARNING, STATUS, CANCEL_REASON, PRUNE_REASON, ...createPickAssignmentsService() };

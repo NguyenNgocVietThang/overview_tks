@@ -293,7 +293,20 @@
     if(/^\d+$/.test(raw)&&Number(raw)>0)return '1T x '+Number(raw);
     return normalizeNote(raw);
   }
-  const api={normalizeNote,normalizeStoredNote,EMPTY_NOTE,warnings,WARNING_LABEL,parseSpec,formatSpec,cartonsOf,isWhole,deduct,cartonsFor,pickText,stFor,parseStText,mergeSt,restore,suggest};
+  /* Cộng dồn 2 ghi chú (import "Bổ sung thêm SL", Thêm dòng trùng vị trí, gõ "+1T x 50" trong hộp Chỉ định vị trí):
+     gộp quy cách, cộng phần trừ lẻ, giữ chú thích. null nếu một bên sai định dạng.
+     Vd mergeNotes('3T x 100 - 20','1T x 50') = '3T x 100 + 1T x 50 - 20'. */
+  function mergeNotes(current,added){
+    const a=parseSpec(normalizeStoredNote(current)),b=parseSpec(normalizeStoredNote(added));
+    if(!a||!b)return null;
+    const terms=[...a.terms,...b.terms];
+    if(!terms.length)return '';
+    const loose=a.loose+b.loose;
+    const annotation=[a.annotation,b.annotation].filter(Boolean).join(' ');
+    const text=terms.map(t=>t.cartons+'T x '+t.perCarton+(t.suffix||'')).join(' + ')+(loose>0?' - '+loose:'')+(annotation?' '+annotation:'');
+    return normalizeNote(text);
+  }
+  const api={normalizeNote,normalizeStoredNote,EMPTY_NOTE,warnings,WARNING_LABEL,parseSpec,formatSpec,cartonsOf,isWhole,deduct,cartonsFor,pickText,stFor,parseStText,mergeSt,restore,suggest,mergeNotes};
   if(typeof module!=='undefined')module.exports=api;
   else root.PickingCarton=api;
 })(typeof window!=='undefined'?window:globalThis);

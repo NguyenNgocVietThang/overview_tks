@@ -15,7 +15,7 @@
 | Tên dự án         | Hệ thống Dashboard nội bộ TOKOSI (KiotViet → Supabase PostgreSQL → Web; Google Sheets bổ trợ) |
 | Phiên bản         | 2.3                                                                 |
 | Ngày tạo          | 27/07/2026                                                          |
-| Ngày cập nhật     | 30/10/2026                                                          |
+| Ngày cập nhật     | 31/10/2026                                                          |
 | Đối tượng sử dụng | Ban lãnh đạo, nhân viên nội bộ công ty                              |
 | Trạng thái        | Nội dung nền rà soát tại HEAD `11751c4` (05/10); bổ sung Sổ quỹ đã kiểm chứng cục bộ 06/10, migration `0033` và deploy production còn chờ. |
 
@@ -491,6 +491,8 @@ Rà soát bản trước khi sửa ngày 2026-10-27 ghi lỗi xử lý vị trí
 
 **Sửa chỉ định khi đang nhặt, phiếu theo kho, Đã xử lý lệch SL (27/10/2026, khuya).** Không còn nút Chỉ định lại: đơn Đang nhặt được sửa vị trí/số lượng ngay trong hộp chỉ định rồi lưu bằng nút “Cập nhật chỉ định & In phiếu” (chưa lưu thì chưa cho xác nhận nhặt hoặc in đơn, tránh xác nhận nhầm bản cũ); Đã hủy chỉ định mới ngay; Đã bốc chỉ xem. Các vị trí của mỗi mã hàng được xếp theo thứ tự hệ thống ưu tiên bốc (vị trí gợi ý trước) thay vì theo tên kho. Phiếu in sắp dòng theo vị trí kho đầu tiên (theo chữ cái đầu cột Vị trí) để người kho đi lấy theo tuyến, cột TT vẫn đánh 1, 2, 3. Với đơn Lệch SL bốc, người có quyền chỉ định mở chi tiết đơn và bấm **Đã xử lý** khi đã xem xét mà không đổi số lượng: cảnh báo chuyển sang “Đã xử lý” màu vàng, và tự hiện lại nếu Kiot sửa tiếp làm số lệch thay đổi. Cần áp thêm migration `0098`.
 
+**Sửa vị trí kho ngay khi chỉ định (31/10/2026, chưa commit/deploy):** số thùng thực tế ở kho hay lệch với sổ Vị trí hàng, nên người bốc có **cả** quyền chỉ định và quyền sửa VT Hà Nội/Sài Gòn được thêm vị trí mới, sửa ghi chú số thùng (gõ `+1T x 50` để cộng thêm, gõ `0` hoặc để trống là hết hàng — hỏi xác nhận rồi xóa) hoặc xóa vị trí của các mã hàng trong đơn ngay trong hộp Chỉ định vị trí, không phải chuyển sang trang VT. Sửa vị trí được lưu vào sổ VT ngay (lịch sử ghi người bấm kèm "Chỉ định đơn <mã>", trang VT tự cập nhật) và hệ thống chỉ gợi ý lại mã vừa sửa; phân bổ của đơn vẫn chỉ lưu khi bấm Xác nhận & In / Cập nhật chỉ định & In phiếu. Để không làm hỏng phiếu đã in của đơn khác: vị trí đang được đơn Đang bốc khác giữ chỗ vẫn sửa được nhưng không hạ dưới phần đang giữ, không đổi quy cách khiến phiếu đó không lấy được nữa, và không xóa được; đơn Đã bốc chỉ xem. Quy tắc này áp dụng cả khi sửa ghi chú trên trang VT Hà Nội/Sài Gòn (trước đây chỉ bị phát hiện lúc xác nhận nhặt).
+
 **Sửa SL cần nhặt và cảnh báo chỉ định (30/10/2026):** người có quyền bốc có thể sửa tay số lượng cần nhặt khi chỉ định (vd kho chỉ đủ 5 thùng x 100 nên nhặt 500 thay vì 600); phiếu in ghi số đã sửa và giữ thứ tự dòng như đơn Kiot. Hệ thống cảnh báo **Lệch Kiot** (số đã sửa ≠ số trên đơn Kiot, hết khi Kiot sửa khớp) và **Lệch SL trong đơn** (số chọn theo thùng ≠ số cần nhặt), có trong bộ lọc cảnh báo của Vòng đời đơn hàng; thay cho cảnh báo “Lệch SL bốc” và nút “Đã xử lý” cũ.
 
 **Có thể bốc và ST đầy đủ khi chỉ định (28/10/2026).** Hộp chỉ định cho người bốc thấy thêm số **Có thể bốc** (tồn còn lại sau khi trừ số đang chọn) và cột ST ghi đầy đủ quy cách thùng đã gộp từ mọi vị trí, ví dụ `5T x 100 + 2T x 50 - 30`, để biết ngay phải lấy bao nhiêu thùng loại nào và phần lẻ trừ đi. Phiếu in chưa đổi.
@@ -512,4 +514,4 @@ Cập nhật gần nhất: 28/10/2026 (chỉnh sửa khi xem trước import VT)
 
 - Chỉ định vị trí: người có quyền chỉ định kéo-thả (nhấn giữ) để đổi thứ tự dòng hàng trong hộp và trên phiếu in (chỉ trong lần mở hộp, không lưu); xóa dòng hàng khỏi đơn và sửa số lượng cần nhặt đều **ghi ngược lên đơn KiotViet** ở mọi trạng thái đơn, có hộp xác nhận, đối chiếu sau khi ghi, tự khôi phục nếu Kiot ghi lệch và nhật ký người thao tác. Không cho xóa dòng hàng cuối cùng của đơn.
 
-Cập nhật gần nhất: 30/10/2026 (Chỉ định vị trí: kéo-thả, xóa dòng, ghi ngược Kiot; trước đó: gỡ module Vị trí hàng cũ).
+Cập nhật gần nhất: 31/10/2026 (Chỉ định vị trí: thêm/sửa/xóa vị trí VT ngay trong hộp, bảo vệ giữ chỗ đơn Đang bốc khác; trước đó 30/10: kéo-thả, xóa dòng, ghi ngược Kiot; gỡ module Vị trí hàng cũ).

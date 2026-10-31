@@ -20,6 +20,8 @@ const vnDate = iso => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}
 function summaryText(summary) {
   if (!summary || typeof summary !== 'object') return '';
   const parts = [];
+  // Ghi tu hop Chi dinh vi tri (Vong doi don hang): { source: 'pick', orderCode } (+ merged/added khi Them trung vi tri).
+  if (summary.source === 'pick') parts.push(`Chỉ định đơn ${summary.orderCode || ''}`.trim());
   for (const [key, label] of SUMMARY_KEYS) if (summary[key] !== undefined) parts.push(`${label} ${summary[key]}`);
   if (summary.rows !== undefined) parts.push(`${summary.rows} dòng`);
   if ('from' in summary || 'to' in summary) {

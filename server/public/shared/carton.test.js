@@ -361,3 +361,12 @@ test('cùng SL/thùng gộp kể cả khi cách nhau: 9X12+1Tx20+1TX12 = 10T x 1
   assert.equal(C.pickText(spec,120),'10Tx12');
   assert.equal(C.deduct(spec,20).text,'10T x 12');
 });
+test('mergeNotes cộng dồn ghi chú (gõ "+1T x 50" trong hộp Chỉ định vị trí): giữ phần trừ lẻ ở cuối, gộp cùng quy cách',()=>{
+  assert.equal(C.mergeNotes('3T x 100 - 20','1T x 50'),'3T x 100 + 1T x 50 - 20');
+  assert.equal(C.mergeNotes('3T x 100','1t*100'),'4T x 100');
+  assert.equal(C.mergeNotes('60','1T x 60'),'2T x 60','số trần = 1 thùng');
+  assert.equal(C.mergeNotes('5T x 100 - 30','2T x 50 - 10'),'5T x 100 + 2T x 50 - 40');
+  assert.equal(C.mergeNotes('rác','1T x 5'),null);
+  assert.equal(C.mergeNotes('1T x 5','rác'),null);
+  assert.equal(C.parseSpec(C.mergeNotes('3T x 100 - 20','1T x 50')).quantity,330);
+});

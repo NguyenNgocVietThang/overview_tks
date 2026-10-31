@@ -467,3 +467,49 @@ test('removeLine tren don Dang boc: bo dong vi tri cua ma da xoa (tra giu cho, s
     assert.equal(confirmed.status,'confirmed');assert.deepEqual(confirmed.lines.map(line=>line.productCode),['AAA1','BBB2']);
   }finally{await db.close();}
 });
+
+test('sửa VT trong hộp Chỉ định: chỉ mã trong đơn, thêm trùng thì cộng dồn, đơn mình giữ thì sửa được, đơn khác giữ thì không hạ dưới, Đã bốc thì chặn',async()=>{
+  const orders={
+    DH001:order(),
+    DH002:order({orderCode:'DH002',lines:[{productCode:'AAA1',quantity:100,price:10,discount:0}]})
+  };
+  const {db,service,notesOf}=await fixture({orders});
+  try{
+    // Dong VT doc cot format_ack (0099); 0096 dung lai CHECK lich su cu nen nap lai 0101.
+    await db.exec(migration('0099_stock_position_ack_and_history_purge.sql'));
+    await db.exec(migration('0101_stock_position_stock_out_action.sql'));
+    await db.query(`INSERT INTO products (branch, id, code, name, raw) VALUES ('hanoi', 1, 'AAA1', 'Hàng A', '{}'), ('hanoi', 2, 'BBB2', 'Hàng B', '{}')`);
+    const scope={branch:'HN',orderCode:'DH001'};
+    // Ma ngoai don -> 400 productCode; dong VT cua ma ngoai don -> 403.
+    await assert.rejects(()=>service.createPosition(ctx(),{...scope,productCode:'BBB2',location:'Z1',notes:'1T x 5'}),{statusCode:400,code:'VALIDATION',field:'productCode'});
+    await assert.rejects(()=>service.updatePosition(ctx(),3,{...scope,notes:'1T x 1',version:1}),{statusCode:403,code:'NOT_IN_ORDER'});
+    await assert.rejects(()=>service.removePosition(ctx(),3,{...scope,version:1}),{code:'NOT_IN_ORDER'});
+    await assert.rejects(()=>service.updatePosition(ctx(),1,{...scope,notes:'1T x 1'}),{code:'VALIDATION',field:'version'});
+    await assert.rejects(()=>service.createPosition(ctx(),{branch:'HN',orderCode:'KHONGCO',productCode:'AAA1',location:'A01',notes:'1T x 1'}),{code:'NOT_FOUND'});
+    // Them trung (ma, vi tri) -> cong don ghi chu, lich su VT ghi theo don.
+    const added=await service.createPosition(ctx(),{...scope,productCode:'aaa1',location:'a01',notes:'1T x 100'});
+    assert.equal(added.merged,true);assert.equal(added.row.id,1);assert.equal(added.row.notes,'4T x 100');
+    const fresh=await service.createPosition(ctx(),{...scope,productCode:'AAA1',location:'D04',notes:'1T x 30'});
+    assert.equal(fresh.merged,false);assert.equal(fresh.row.code,'AAA1');
+    const vtHistory=(await db.query(`SELECT action, summary FROM stock_position_history ORDER BY id DESC LIMIT 2`)).rows;
+    assert.deepEqual(vtHistory.map(h=>[h.action,h.summary.source,h.summary.orderCode]),[['create','pick','DH001'],['edit','pick','DH001']]);
+
+    // DH001 Dang boc giu 200 (id 1) + 50 (id 2): chinh don nay sua duoi phan minh giu duoc.
+    await service.assign(ctx(),assignBody([{productCode:'AAA1',positionId:1,qty:200},{productCode:'AAA1',positionId:2,qty:50}]));
+    const own=await service.updatePosition(ctx(),2,{...scope,notes:'1T x 20',version:1,extra:'bo qua'});
+    assert.equal(own.row.notes,'1T x 20');
+    // DH002 giu 100 o id 1: DH001 khong ha id 1 duoi 100, khong xoa duoc.
+    const second=(await service.assign(ctx(),{branch:'HN',orderCode:'DH002',allocations:[{productCode:'AAA1',positionId:1,qty:100}]})).assignment;
+    await assert.rejects(()=>service.updatePosition(ctx(),1,{...scope,notes:'1T x 50',version:2}),
+      e=>e.code==='BELOW_HELD'&&e.held===100&&JSON.stringify(e.orders)==='["DH002"]');
+    await assert.rejects(()=>service.removePosition(ctx(),1,{...scope,version:2}),e=>e.code==='POSITION_HELD'&&JSON.stringify(e.orders)==='["DH002"]');
+    assert.equal(await notesOf(1),'4T x 100');
+    // Ve 0 tren dong chi minh giu: hoi xac nhan roi tu xoa.
+    await assert.rejects(()=>service.updatePosition(ctx(),2,{...scope,notes:'',version:2}),{code:'WOULD_AUTO_DELETE'});
+    assert.deepEqual(await service.updatePosition(ctx(),2,{...scope,notes:'',version:2,confirmEmpty:true}),{deleted:true,id:2});
+    // DH002 Da boc -> hop chi xem.
+    await service.confirm(ctx(),second.id,{version:second.version});
+    await assert.rejects(()=>service.createPosition(ctx(),{branch:'HN',orderCode:'DH002',productCode:'AAA1',location:'A01',notes:'1T x 1'}),{statusCode:409,code:'INVALID_STATE'});
+    await assert.rejects(()=>service.updatePosition(ctx(),1,{branch:'HN',orderCode:'DH002',notes:'1T x 1',version:3}),{code:'INVALID_STATE'});
+  }finally{await db.close();}
+});

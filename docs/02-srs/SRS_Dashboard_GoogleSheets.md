@@ -15,7 +15,7 @@
 | Tên dự án          | Hệ thống Dashboard nội bộ TOKOSI                           |
 | Phiên bản          | 3.0                                                        |
 | Ngày tạo           | 27/07/2026                                                 |
-| Ngày cập nhật      | 30/10/2026                                                 |
+| Ngày cập nhật      | 31/10/2026                                                 |
 | Tài liệu liên quan | BRD v2.2 · BPMN v3.0 · Implementation Plan (cập nhật 05/10/2026) · CSNS-NP-01 (Chính sách nghỉ phép) · `server/db/SCHEMA.md` · Design System MASTER (mục 7 — ràng buộc hiệu năng) |
 | Trạng thái         | Nội dung nền rà soát tại HEAD `11751c4` (05/10); FR-15 Sổ quỹ bổ sung và kiểm chứng 06/10. Migration `0033` đã áp thành công lên Supabase DB. Deploy production còn chờ. Số kiểm thử 1.704/1.701/0/3 là mốc lịch sử 05/10. |
 
@@ -361,6 +361,7 @@ Lớp hiệu ứng 3D và giám sát hiệu năng thích ứng đã gỡ bỏ v�
 | FR-13.10 | **Đã sửa** (28/10/2026, migration `0099`): nút "Đánh dấu Đã sửa"/"Bỏ đánh dấu Đã sửa" trong hộp chi tiết (`POST /api/stock-positions/:id/ack`, quyền `stockLocationsV2.edit`) cho mọi loại cảnh báo, giữ mãi, sửa ghi chú không tự bỏ; bảng hiện nhãn xanh "Đã sửa" không bấm được; lịch sử ghi `ack`/`unack` | Trung bình | Đã làm, chưa migrate/deploy |
 | FR-13.11 | Lượt trừ tồn do đơn (xác nhận tay hoặc job Kiot) ghi **mã đơn** làm người sửa trong lịch sử và "Người sửa cuối"; tên người xác nhận ở `summary.confirmedBy` | Trung bình | Đã làm, chưa deploy |
 | FR-13.12 | **Xóa lịch sử** (quyền `stockLocationsV2.historyDelete`, mặc định Quản lý): hộp thoại Từ ngày/Đến ngày (giờ VN, gồm hai đầu, trống = tất cả), cảnh báo "Bạn có chắc chắn muốn xóa? Hãy lưu dữ liệu lịch sử trước khi xóa."; `DELETE /api/stock-positions/history`; để lại 1 dòng `history_purged`; trigger chỉ cho DELETE khi `app.history_purge = 'on'` | Trung bình | Đã làm, chưa migrate/deploy |
+| FR-13.13 | **Bảo vệ giữ chỗ khi sửa ghi chú** (31/10/2026, không migration): `PATCH /api/stock-positions/:id` từ chối hạ ghi chú dưới tổng phần các đơn **Đang bốc** đang giữ (409 `BELOW_HELD {orders, held}`) và đổi quy cách làm phiếu đã in của các đơn đó không còn trừ được (409 `HELD_SPEC_CONFLICT {orders}`) — trước đây chỉ lộ ra lúc Xác nhận nhặt (`STOCK_CHANGED`). Lịch sử (trang + Excel lịch sử) hiện cũ → mới kèm "Chỉ định đơn <mã>" cho thao tác từ hộp Chỉ định vị trí (FR-PK.23). | Cao | Đã làm, chưa commit/deploy |
 
 ## 3.14. FR-14: Vòng đời đơn hàng
 
@@ -599,7 +600,7 @@ Mọi API (trừ `health`, webhook, `auth/login`, quên mật khẩu, `google-co
 
 - `/api/shipment/lifecycle/*` — xem FR-14 (GET `/`, GET `/history`, GET `/order-detail`, GET `/:orderCode`, POST `/:orderCode/override`, POST `/export`).
 - `/api/cashbook/*` — xem FR-15 (GET `summary`, `entries`, `filter-options`, `checkpoints`, `export`; POST `checkpoints`).
-- `/api/stock-positions/*` — xem FR-13.6 đến FR-13.12 (`GET /api/stock-locations` đã gỡ 30/10/2026, trả 404).
+- `/api/stock-positions/*` — xem FR-13.6 đến FR-13.13 (`GET /api/stock-locations` đã gỡ 30/10/2026, trả 404).
 - `POST /api/stock-positions/import?branch=HN|SG&mode=add|replace&commit=0|1` — multipart `file` và `rows` JSON tùy chọn; xem FR-13.8. `rows` thay dữ liệu nhập từ file, không truyền kế hoạch ghi đáng tin cậy; máy chủ tính lại trước mỗi lần xem trước/xác nhận.
 - `POST /api/kiotviet/webhook/:secret` (và đường dẫn cũ không secret) — xem FR-06.2; `GET /api/internal/kiotviet-sync/status` (`system.syncStatus`).
 - `POST /api/client-log` — nhận log lỗi từ trình duyệt.
@@ -956,4 +957,6 @@ Cập nhật gần nhất: 28/10/2026 (chỉnh sửa khi xem trước import VT)
 
 - **FR-PK.ghi-ngược (30/10/2026)** Chỉ định vị trí: người có quyền chỉ định kéo-thả (nhấn giữ) để đổi thứ tự dòng hàng trong hộp và trên phiếu in (chỉ trong lần mở hộp, không lưu); xóa dòng hàng khỏi đơn và sửa số lượng cần nhặt đều **ghi ngược lên đơn KiotViet** ở mọi trạng thái đơn, có hộp xác nhận, đối chiếu sau khi ghi, tự khôi phục nếu Kiot ghi lệch và nhật ký người thao tác. Không cho xóa dòng hàng cuối cùng của đơn.
 
-Cập nhật gần nhất: 30/10/2026 (Chỉ định vị trí: kéo-thả, xóa dòng, ghi ngược Kiot; trước đó: gỡ module Vị trí hàng cũ).
+- **FR-PK.23 — Thêm/sửa/xóa vị trí VT ngay trong hộp chỉ định (31/10/2026, không migration, chưa commit/deploy):** vì tồn thực tế kho hay lệch, người có **cả** `shipment.pick` và `stockLocationsV2.view` + `stockLocationsV2.edit` sửa được dòng VT HN/SG (`stock_positions`) của các mã hàng trong đơn ngay trong hộp: mỗi thẻ vị trí có ✎ (sửa ghi chú số thùng) và 🗑 (xóa), mỗi dòng hàng có **+ Thêm vị trí** (Vị trí + Ghi chú). Ghi chú gõ kiểu `3T x 100 - 20`; gõ `+1T x 50` = cộng thêm vào ghi chú hiện có (`PickingCarton.mergeNotes`); gõ `0` hoặc để trống = hết hàng → hỏi xác nhận rồi xóa vị trí; SL xem trước ngay khi gõ. Bấm Lưu ghi VT **ngay** (lịch sử VT ghi người bấm và mã đơn, trang VT tự cập nhật); hộp tải lại ứng viên và chỉ gợi ý lại mã vừa sửa, các mã khác giữ phân bổ tay; chỉ định của đơn vẫn chỉ lưu khi bấm "Xác nhận & In"/"Cập nhật chỉ định & In phiếu". API: `POST /api/shipment/pick/positions {branch, orderCode, productCode, location, notes}` → 201 `{row, merged:false}` | 200 `{row, merged:true}` (trùng mã+vị trí thì cộng dồn); `PATCH /api/shipment/pick/positions/:id {branch, orderCode, notes, version, confirmEmpty?}` → `{row}` | `{deleted:true,id}`; `DELETE /api/shipment/pick/positions/:id?branch&order&version` → `{deleted:true,id}`; `GET /api/shipment/pick/candidates` trả thêm `canEditPositions`. Lỗi: 400 `VALIDATION` (mã không trong đơn, thiếu `version`…), 403 `NOT_IN_ORDER`/`FEATURE_FORBIDDEN`, 404 `NOT_FOUND`, 409 `VERSION_CONFLICT{latest}`/`WOULD_AUTO_DELETE`/`BELOW_HELD{orders,held}`/`HELD_SPEC_CONFLICT{orders}`/`POSITION_HELD{orders}`/`INVALID_STATE`. Quy tắc giữ chỗ: vị trí do đơn Đang bốc **khác** giữ vẫn sửa được nhưng SL mới ≥ tổng phần giữ và quy cách mới vẫn trừ được phiếu đã in của các đơn đó; không xóa được. Vị trí chính đơn này giữ (Đang nhặt) sửa/xóa được, hộp chuyển "chưa lưu" (khóa Xác nhận nhặt/In đơn) tới khi bấm Cập nhật chỉ định & In phiếu. Đơn **Đã bốc**: hộp chỉ xem, không sửa VT. Áp kèm FR-13.13 cho trang VT.
+
+Cập nhật gần nhất: 31/10/2026 (FR-PK.23 thêm/sửa/xóa vị trí VT trong hộp Chỉ định vị trí, FR-13.13 trang VT chặn hạ dưới phần Đang bốc giữ; trước đó 30/10: Chỉ định vị trí kéo-thả, xóa dòng, ghi ngược Kiot; gỡ module Vị trí hàng cũ).

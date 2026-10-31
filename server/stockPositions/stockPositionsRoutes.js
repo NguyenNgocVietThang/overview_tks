@@ -40,6 +40,9 @@ function createStockPositionsRouter(dependencies = {}) {
         const body = { ...error.body, error: error.message, code: error.code };
         if (error.latest) body.latest = error.latest;
         if (error.field) body.field = error.field;
+        // Ma don Dang boc dang giu dong (POSITION_HELD / BELOW_HELD / HELD_SPEC_CONFLICT) + tong giu cho (BELOW_HELD).
+        if (error.orders) body.orders = error.orders;
+        if (error.held !== undefined) body.held = error.held;
         return res.status(error.statusCode).json(body);
       }
       console.error('[stock-positions]', error);
@@ -159,8 +162,9 @@ function createStockPositionsRouter(dependencies = {}) {
     const result = await svc().create(ctxOf(req), req.query.branch, req.body || {});
     res.status(result.merged ? 200 : 201).json(result);
   }));
+  // checkHeld: doi ghi chu khong duoc ha duoi phan cac don Dang boc dang giu / lam hong quy cach phieu da in (409 BELOW_HELD / HELD_SPEC_CONFLICT).
   router.patch('/api/stock-positions/:id', edit, handle(async (req, res) => {
-    res.json(await svc().update(ctxOf(req), idOf(req), req.body || {}));
+    res.json(await svc().update(ctxOf(req), idOf(req), req.body || {}, { checkHeld: true }));
   }));
   router.post('/api/stock-positions/:id/deduct', edit, handle(async (req, res) => {
     res.json(await svc().deduct(ctxOf(req), idOf(req), req.body || {}));

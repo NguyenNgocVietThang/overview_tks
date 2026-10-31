@@ -1297,6 +1297,8 @@
       if (s.picked !== undefined) parts.push('Nhặt ' + s.picked);
       if ('confirmedBy' in s) parts.push(s.confirmedBy ? 'Xác nhận: ' + s.confirmedBy : 'Job Kiot');
       if (s.fileName) parts.push(s.fileName);
+      // Sửa/thêm/xóa VT ngay trong hộp Chỉ định vị trí của Vòng đời đơn hàng: ghi kèm mã đơn đang chỉ định.
+      if (s.source === 'pick') parts.unshift(s.orderCode ? 'Chỉ định đơn ' + s.orderCode : 'Chỉ định vị trí');
       if (!parts.length && Array.isArray(s.warnings)) return 'Không có cảnh báo';
       return parts.length ? parts.join(' · ') : JSON.stringify(s);
     }
@@ -1370,8 +1372,8 @@
     const box = document.createDocumentFragment();
     const add = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; node.textContent = text; box.appendChild(node); return node; };
     if (entry.summary) {
-      // Xuất kho: giữ cả ghi chú cũ → mới của dòng, rồi tóm tắt (số lượng trừ · file).
-      if (entry.action === 'stock_out') {
+      // Xuất kho và sửa VT từ hộp Chỉ định vị trí (source 'pick'): giữ cả giá trị cũ → mới của dòng, rồi tóm tắt (số lượng trừ · file · Chỉ định đơn X).
+      if (entry.action === 'stock_out' || entry.summary.source === 'pick') {
         const was = String(entry.oldValue ?? ''), now = String(entry.newValue ?? '');
         if (was) add('del', 'vt-hist-old', was);
         if (was && now) add('span', 'vt-hist-arrow', ' → ');
