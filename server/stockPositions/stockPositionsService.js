@@ -145,6 +145,14 @@ const HELD_SQL = `
   WHERE a.status = 'picking' AND a.branch = $1 AND l.position_id = ANY($2::bigint[])
   GROUP BY l.position_id`;
 
+// Ma don "Dang boc" dang chi dinh vao tung vi tri (ke ca dong giu 0): cac dong nay KHONG duoc xoa (xoa tay, ve 0, import Thay the),
+// vi phieu boc tro thang vao id dong — xoa roi thi luc xac nhan Da boc bao "vi tri khong con ton tai".
+const HOLDERS_SQL = `
+  SELECT l.position_id, array_agg(DISTINCT a.order_code ORDER BY a.order_code) AS orders
+  FROM order_pick_lines l JOIN order_pick_assignments a ON a.id = l.assignment_id
+  WHERE a.status = 'picking' AND a.branch = $1 AND l.position_id = ANY($2::bigint[])
+  GROUP BY l.position_id`;
+
 const BASE_COLUMNS = 'id, branch, code, name, notes, arrival_date, location, version, updated_by_name, updated_at';
 const ROW_COLUMNS = BASE_COLUMNS + ', format_ack';
 
@@ -210,6 +218,26 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
     }
     for (const row of (await db.query(HELD_SQL, [branch, ids])).rows) held.set(Number(row.position_id), Number(row.held));
     return held;
+  }
+
+  // Map id dong -> [ma don Dang boc]. Fail-soft nhu heldByPosition khi chua ap migration 0096.
+  async function holdersByPosition(db, branch, ids) {
+    const holders = new Map();
+    if (!ids.length) return holders;
+    if (!heldTablesReady) {
+      const probe = (await db.query(`SELECT to_regclass('order_pick_lines') IS NOT NULL AND to_regclass('order_pick_assignments') IS NOT NULL AS ready`)).rows[0];
+      heldTablesReady = Boolean(probe && probe.ready);
+      if (!heldTablesReady) return holders;
+    }
+    for (const row of (await db.query(HOLDERS_SQL, [branch, ids])).rows) holders.set(Number(row.position_id), row.orders);
+    return holders;
+  }
+
+  async function assertNotHeld(client, row) {
+    const orders = (await holdersByPosition(client, row.branch, [Number(row.id)])).get(Number(row.id));
+    if (orders && orders.length) {
+      throw fail(409, 'POSITION_HELD', `Dòng này đang được đơn Đang bốc ${orders.join(', ')} chỉ định nên không xóa được. Hãy chỉ định lại hoặc hủy bốc đơn đó trước.`, { orders });
+    }
   }
 
   function shape(row, product, held = 0) {
@@ -357,6 +385,7 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
         throw fail(409, 'DUPLICATE_POSITION', 'Mã hàng này đã có ở vị trí đó. Hãy dùng Thêm dòng để cộng vào dòng sẵn có.', { field: 'location' });
       }
       if (knownProduct && next.notes !== undefined && isEmptyNote(merged.notes)) {
+        await assertNotHeld(client, row);
         if (!body.confirmEmpty) throw fail(409, 'WOULD_AUTO_DELETE', 'Số lượng về 0 nên dòng sẽ bị xóa. Xác nhận để tiếp tục.');
         await removeRow(client, row.branch, actor, row, 'auto_delete', { newValue: merged.notes });
         return { deleted: true, id: Number(row.id) };
@@ -385,6 +414,7 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
       const result = carton.deduct(spec, quantity);
       if (!result) throw fail(400, 'VALIDATION', 'Số lượng trừ vượt quá số lượng hiện có (' + spec.quantity + ').', { field: 'quantity' });
       if (isEmptyNote(result.text)) {
+        await assertNotHeld(client, row);
         await removeRow(client, row.branch, actor, row, 'auto_delete', { newValue: result.text, summary: { deducted: quantity } });
         return { deleted: true, id: Number(row.id) };
       }
@@ -400,6 +430,7 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
     const actor = actorOf(ctx);
     return withTransaction(getDb(), async client => {
       const row = await lockRow(client, ctx, id, version);
+      await assertNotHeld(client, row);
       await removeRow(client, row.branch, actor, row, 'delete');
       return { deleted: true, id: Number(row.id) };
     });
@@ -493,7 +524,7 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
   // ---- Import file Excel/CSV (4 cot: Ma hang, Ghi chu, Ngay ve, Vi tri) ----
 
   // Thuan tuy: tu dong file + dong hien co + bang tra ma -> ke hoach them/doi/xoa/loi.
-  function planImport(mode, fileRows, existing, resolved) {
+  function planImport(mode, fileRows, existing, resolved, holders = new Map()) {
     const errors = [];
     const skipped = [];
     const unchangedRows = [];
@@ -555,11 +586,23 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
       else updates.push({ sourceIndexes: entry.sourceIndexes, id: current.id, code: entry.code, name: nextName, notes: nextNotes, arrivalDate: nextDate, location: nextLocation, row, before: current });
     }
     // Thay toan bo: dong hien co khong nam trong file bi xoa (ke ca dong trung ma + vi tri thua).
-    const deletes = mode === 'replace' && entries.size > 0 ? existing.filter(row => !touched.has(row.id)) : [];
-    return { adds, updates, deletes, unchangedRows, skipped, unchanged: unchangedIds.length, skippedEmpty, errors };
+    // Dong dang duoc don Dang boc chi dinh thi giu lai (bao trong "bo qua"), khong xoa.
+    const deletes = [];
+    let keptHeld = 0;
+    if (mode === 'replace' && entries.size > 0) {
+      for (const row of existing) {
+        if (touched.has(row.id)) continue;
+        const orders = holders.get(Number(row.id));
+        if (!orders || !orders.length) { deletes.push(row); continue; }
+        keptHeld += 1;
+        skipped.push({ row: null, code: row.code, name: row.name, notes: row.notes, arrivalDate: row.arrival_date, location: row.location, sourceIndexes: [],
+          message: `Giữ lại, không xóa: đang được đơn Đang bốc ${orders.join(', ')} chỉ định.` });
+      }
+    }
+    return { adds, updates, deletes, unchangedRows, skipped, unchanged: unchangedIds.length, skippedEmpty, keptHeld, errors };
   }
 
-  const countsOf = plan => ({ added: plan.adds.length, updated: plan.updates.length, deleted: plan.deletes.length, unchanged: plan.unchanged, skippedEmpty: plan.skippedEmpty, errors: plan.errors.length });
+  const countsOf = plan => ({ added: plan.adds.length, updated: plan.updates.length, deleted: plan.deletes.length, unchanged: plan.unchanged, skippedEmpty: plan.skippedEmpty, keptHeld: plan.keptHeld || 0, errors: plan.errors.length });
 
   // Full draft: source indexes link normalized/merged operations back to original inputs.
   function previewOf(plan, resolved, inputRows) {
@@ -606,7 +649,8 @@ function createStockPositionsService({ getDb = getPool, now = () => Date.now() }
     const run = async client => {
       const existing = (await client.query(`SELECT ${ROW_COLUMNS} FROM stock_positions WHERE branch = $1 ORDER BY id`, [branch])).rows;
       const resolved = await resolveCodes(client, branch, fileRows.map(line => line.code));
-      return { plan: planImport(mode, fileRows, existing, resolved), resolved };
+      const holders = mode === 'replace' ? await holdersByPosition(client, branch, existing.map(row => Number(row.id))) : new Map();
+      return { plan: planImport(mode, fileRows, existing, resolved, holders), resolved };
     };
     const response = (plan, extra = {}) => ({ mode, commit: Boolean(commit), counts: countsOf(plan), errors: plan.errors.slice(0, ERROR_LIMIT), ...extra });
     if (!commit) { const { plan, resolved } = await run(db); return response(plan, previewOf(plan, resolved, fileRows)); }

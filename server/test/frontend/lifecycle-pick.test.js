@@ -191,7 +191,7 @@ test('popup gọi candidates đúng cơ sở + mã đơn, hiện 7 cột và g�
   await openPopup(page);
   const call = page.calls.find(c => c.url.startsWith('/api/shipment/pick/candidates'));
   assert.equal(call.url, '/api/shipment/pick/candidates?branch=HN&order=DH1');
-  assert.deepEqual([...page.document.querySelectorAll('#pickingDialog thead th')].map(th => th.querySelector('button').firstChild.textContent.trim()), ['Mã hàng', 'Tên hàng', 'Ghi chú', 'Cần nhặt', 'ST', 'Tồn kho', 'Vị trí kho']);
+  assert.deepEqual([...page.document.querySelectorAll('#pickingDialog thead th')].map(th => th.querySelector('button').firstChild.textContent.trim()), ['Mã hàng', 'Tên hàng', 'Ghi chú', 'Cần nhặt', 'ST', 'Có thể bốc', 'Vị trí kho']);
   assert.equal(page.document.querySelectorAll('#pickingRows tr').length, 1, 'dòng VAT bị bỏ');
   assert.equal(text(page, 'pickingTitle'), 'DH1 · Hà Nội');
   // gợi ý: 100 = 2 thùng x 50 tại A07
@@ -330,7 +330,7 @@ test('Đang nhặt: SL cần nhặt lấy từ snapshot đã lưu; sửa "Cần 
   reopened.dom.window.close();
 });
 
-test('ST ghi đầy đủ gộp mọi vị trí (cùng SL/thùng cộng thùng, phần thiếu cộng dồn) và Tồn kho có dòng Có thể bốc', async () => {
+test('ST ghi đầy đủ gộp mọi vị trí (cùng SL/thùng cộng thùng, phần thiếu cộng dồn) và Có thể bốc có dòng Còn sau chỉ định', async () => {
   const store = newStore();
   store.order.lines[0].quantity = 250;
   store.candidates = { a: [position(11, 'A07', '3T x 100', 300), position(12, 'B02', '2T x 100', 200), position(13, 'C01', '2T x 50', 100)] };
@@ -350,7 +350,7 @@ test('ST ghi đầy đủ gộp mọi vị trí (cùng SL/thùng cộng thùng, 
   const total = document.querySelector('.picking-total');
   assert.match(total.querySelector('strong').textContent, /600/);
   assert.equal(total.querySelector('.picking-pickable').dataset.pickable, '350');
-  assert.match(total.querySelector('.picking-pickable').textContent, /Có thể bốc: 350/);
+  assert.match(total.querySelector('.picking-pickable').textContent, /Còn sau chỉ định: 350/);
   // Hai vị trí cùng SL/thùng + phần thiếu: A07 nhặt 150 = 2T x 100 - 50, B02 nhặt 100 = 1T x 100 → 3T x 100 - 50
   setQty(11)('0'); setQty(13)('0'); setQty(11)('150'); setQty(12)('100');
   assert.equal(document.querySelector('.picking-st').dataset.stText, '3T x 100 - 50');
@@ -411,11 +411,11 @@ test('vị trí ghi chú sai định dạng (không có SL) bị khóa và hiệ
   assert.match(button.textContent, /Ghi chú sai định dạng/);
   const total = page.document.querySelector('.picking-total');
   assert.equal(total.querySelector('strong').textContent, '200 (chưa xác định)');
-  assert.equal(total.querySelector('.picking-pickable').textContent, 'Có thể bốc: 100 (chưa xác định)');
+  assert.equal(total.querySelector('.picking-pickable').textContent, 'Còn sau chỉ định: 100 (chưa xác định)');
   const input = page.document.querySelector('[data-qty][data-qloc="11"]');
   input.value = '50';
   input.dispatchEvent(new page.window.Event('change', { bubbles: true }));
-  assert.equal(page.document.querySelector('.picking-pickable').textContent, 'Có thể bốc: 150 (chưa xác định)');
+  assert.equal(page.document.querySelector('.picking-pickable').textContent, 'Còn sau chỉ định: 150 (chưa xác định)');
   page.dom.window.close();
 });
 
@@ -1092,4 +1092,54 @@ test('Xóa dòng hàng: hỏi xác nhận, POST order-lines/remove, tải lại 
     assert.match(text(page,'pickingStatus'),/Đã xóa A khỏi đơn KiotViet/u);
     assert.equal(d.querySelectorAll('[data-remove-line]').length,0,'đơn còn một mã hàng không xóa được nữa');
   }finally{page.dom.window.close();}
+});
+
+
+test('chỉ định hiển thị lượng có thể bốc sau giữ chỗ của đơn khác thay vì tồn vị trí', async () => {
+  const store = newStore();
+  store.order.lines[0].quantity = 30;
+  store.candidates = { a: [position(11, 'A07', '2T x 50', 40, { onHand: 100, held: 60 })] };
+  const page = await renderPage({ store });
+  try {
+    await openPopup(page);
+    const document = page.document;
+    assert.equal(document.querySelector('.picking-total strong').textContent, '40');
+    assert.equal(document.querySelector('[data-location="11"] span').textContent, '40');
+    assert.equal(document.querySelector('.picking-pickable').textContent, 'Còn sau chỉ định: 10');
+  } finally {
+    page.dom.window.close();
+  }
+});
+
+
+test('Đã bốc: phân bổ đủ không báo thiếu khi tồn vị trí đã giảm hoặc vị trí không còn', async () => {
+  for (const candidates of [
+    { a: [position(11, 'A07', '1T x 50', 50)] },
+    { a: [] }
+  ]) {
+    const store = newStore({ assignment: makeAssignment('confirmed'), candidates });
+    const page = await renderPage({ store });
+    try {
+      await openPopup(page);
+      const allocation = page.document.querySelector('.picking-allocation');
+      assert.ok(allocation.classList.contains('picking-good'));
+      assert.equal(page.document.getElementById('pickingProgress').textContent, '1/1 mã hàng đã phân bổ đủ');
+    } finally {
+      page.dom.window.close();
+    }
+  }
+});
+
+test('Đã bốc: phân bổ lưu thiếu so với cần nhặt vẫn báo đỏ', async () => {
+  const assignment = makeAssignment('confirmed');
+  assignment.lines[0].plannedQty = 80;
+  assignment.lines[0].pickedQty = 80;
+  const page = await renderPage({ store: newStore({ assignment }) });
+  try {
+    await openPopup(page);
+    assert.ok(page.document.querySelector('.picking-allocation').classList.contains('picking-bad'));
+    assert.ok(page.document.querySelector('[data-line="0"]').classList.contains('picking-mismatch'));
+  } finally {
+    page.dom.window.close();
+  }
 });

@@ -1080,7 +1080,7 @@
     setImportStep(2);
     renderImportPreview(payload);
     const counts = payload.counts || {};
-    const items = [['added', 'Thêm'], ['updated', 'Cập nhật'], ['deleted', 'Xóa'], ['unchanged', 'Không đổi'], ['skippedEmpty', 'Bỏ qua (trống/lỗi)'], ['errors', 'Lỗi']];
+    const items = [['added', 'Thêm'], ['updated', 'Cập nhật'], ['deleted', 'Xóa'], ['unchanged', 'Không đổi'], ['skippedEmpty', 'Bỏ qua (trống/lỗi)'], ['keptHeld', 'Giữ lại (đơn Đang bốc)'], ['errors', 'Lỗi']];
     const list = document.createElement('ul');
     list.className = 'vt-import-counts';
     items.forEach(([key, label]) => {
@@ -1287,7 +1287,7 @@
   function historyValue(entry, side) {
     if (entry.summary && side === 'new') {
       const s = entry.summary, parts = [];
-      [['added', 'Thêm'], ['updated', 'Đổi'], ['deleted', 'Xóa'], ['skippedEmpty', 'Bỏ qua']].forEach(([key, label]) => { if (s[key] !== undefined) parts.push(label + ' ' + s[key]); });
+      [['added', 'Thêm'], ['updated', 'Đổi'], ['deleted', 'Xóa'], ['skippedEmpty', 'Bỏ qua'], ['keptHeld', 'Giữ lại']].forEach(([key, label]) => { if (s[key] !== undefined) parts.push(label + ' ' + s[key]); });
       if (s.rows !== undefined) parts.push(s.rows + ' dòng');
       if ('from' in s || 'to' in s) parts.push(s.from && s.to ? vnDate(s.from) + ' – ' + vnDate(s.to) : s.from ? 'từ ' + vnDate(s.from) : s.to ? 'đến ' + vnDate(s.to) : 'toàn bộ');
       if (Array.isArray(s.warnings) && s.warnings.length) parts.push(s.warnings.map(warningLabel).join(', '));

@@ -26,6 +26,7 @@ async function resortBranch(db, branch) {
       ORDER BY o.id DESC`, [branch, days]);
   let changed = 0, skipped = 0;
   for (const order of orders) {
+   try {
     const { rows: details } = await db.query(
       `SELECT line_no, product_id::text AS product_id, quantity::float8 AS quantity, raw->>'productCode' AS code
          FROM order_details WHERE branch = $1 AND order_id = $2 ORDER BY line_no`, [branch, order.id]);
@@ -39,15 +40,20 @@ async function resortBranch(db, branch) {
     if (order_.every((lineNo, i) => lineNo === details[i].line_no)) continue;
     changed++;
     if (dryRun) { console.log(`${order.code}: ${sorted.map(d => d.code).join(' ')}`); continue; }
-    await db.query('BEGIN');
+    const tx = await db.connect();
     try {
-      await db.query('UPDATE order_details SET line_no = line_no + 100000 WHERE branch = $1 AND order_id = $2', [branch, order.id]);
+      await tx.query('BEGIN');
+      await tx.query('UPDATE order_details SET line_no = line_no + 100000 WHERE branch = $1 AND order_id = $2', [branch, order.id]);
       for (let i = 0; i < sorted.length; i++) {
-        await db.query('UPDATE order_details SET line_no = $3 WHERE branch = $1 AND order_id = $2 AND line_no = $4',
+        await tx.query('UPDATE order_details SET line_no = $3 WHERE branch = $1 AND order_id = $2 AND line_no = $4',
           [branch, order.id, i, sorted[i].line_no + 100000]);
       }
-      await db.query('COMMIT');
-    } catch (error) { await db.query('ROLLBACK'); throw error; }
+      await tx.query('COMMIT');
+    } catch (error) { await tx.query('ROLLBACK').catch(() => {}); throw error; } finally { tx.release(); }
+   } catch (error) {
+    // Loi DB/mang o 1 don (timeout...) khong dung ca lan chay; chay lai script se lam tiep don con lech.
+    console.warn(`${order.code}: ${error.message}`); skipped++;
+   }
   }
   console.log(`${branch}: ${orders.length} don, sap lai ${changed}, bo qua ${skipped}${dryRun ? ' (dry-run)' : ''}.`);
 
@@ -77,10 +83,8 @@ async function resortBranch(db, branch) {
 }
 
 (async () => {
+  // Dung pool (moi cau lenh muon ket noi rieng): giu 1 ket noi qua lau trong luc goi Kiot bi Supabase cat.
   const pool = getPool();
-  const db = await pool.connect();
-  try {
-    for (const branch of ['hanoi', 'saigon']) await resortBranch(db, branch);
-  } finally { db.release(); }
+  for (const branch of ['hanoi', 'saigon']) await resortBranch(pool, branch);
 })().catch(error => { console.error(error.message); process.exitCode = 1; })
   .finally(() => setTimeout(() => process.exit(), 100));

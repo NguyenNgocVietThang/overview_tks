@@ -298,21 +298,15 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
   }
 
   // Trang thai chi dinh MOI NHAT cua moi don: Map 'HN|ma don chu thuong' -> picking|confirmed|cancelled (cot pickStatus cua danh sach).
-  // Don khong co chi dinh = "Chua boc" (khong co khoa); chi dinh bi huy do Kiot huy don cung KHONG co khoa (hien "Chua boc").
+  // Don khong co chi dinh = "Chua boc" (khong co khoa); chi dinh bi huy (tay hoac do Kiot huy don) hien "Da huy".
   // Fail-soft: chua ap migration 0096 hoac loi DB thi tra Map rong, danh sach Vong doi van chay binh thuong.
   async function latestStatuses() {
     const map = new Map();
     try {
       const { rows } = await getDb().query(
-        `SELECT DISTINCT ON (a.branch, lower(btrim(a.order_code))) a.branch, lower(btrim(a.order_code)) AS code_key, a.status,
-                CASE WHEN a.status = 'cancelled'
-                     THEN COALESCE((SELECT h.summary->>'reason' FROM order_pick_history h WHERE h.assignment_id = a.id AND h.action = 'cancel' ORDER BY h.id DESC LIMIT 1), '')
-                     ELSE '' END AS cancel_reason
+        `SELECT DISTINCT ON (a.branch, lower(btrim(a.order_code))) a.branch, lower(btrim(a.order_code)) AS code_key, a.status
            FROM order_pick_assignments a ORDER BY a.branch, lower(btrim(a.order_code)), a.id DESC`);
-      for (const row of rows) {
-        if (row.status === STATUS.CANCELLED && row.cancel_reason === CANCEL_REASON.KIOT) continue;
-        map.set(`${row.branch}|${row.code_key}`, row.status);
-      }
+      for (const row of rows) map.set(`${row.branch}|${row.code_key}`, row.status);
     } catch (error) {
       if (error && error.code !== '42P01') console.error('[PickAssignments] status lookup failed:', error.code || error.message);
     }
@@ -605,7 +599,7 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
   }
 
   // Tu dong theo Kiot (chay dinh ky, xem pickKiotReconcileJob.js): chi dong 'picking'.
-  //   Kiot "Hoan thanh" -> confirm (luc nay moi tru thung); Kiot "Da huy" -> huy chi dinh + tra giu cho (hien "Chua boc").
+  //   Kiot "Hoan thanh" -> confirm (luc nay moi tru thung); Kiot "Da huy" -> huy chi dinh + tra giu cho (hien "Da huy").
   // 'confirmed' khong bao gio bi dong toi. Doc trang thai tu bang orders DA DONG BO (khong goi API Kiot). Idempotent:
   // dung version cua chi dinh, nguoi khac vua doi tay (VERSION_CONFLICT / INVALID_STATE) thi bo qua luot nay.
   async function reconcileWithKiot() {

@@ -195,7 +195,7 @@ test('reconcileWithKiot: Kiot Hoan thanh -> Da boc (tru thung), Kiot Da huy -> C
     assert.equal((await latest('DH003')).status, 'picking', 'Kiot chua hoan thanh: giu nguyen');
     assert.equal((await latest('DH004')).status, 'confirmed');
     const map = await service.latestStatuses();
-    assert.equal(map.has('HN|dh002'), false, 'Kiot huy -> Chua boc (khong co khoa)');
+    assert.equal(map.get('HN|dh002'), 'cancelled', 'Kiot huy -> Da huy');
     assert.equal(map.get('HN|dh001'), 'confirmed');
     assert.equal(map.get('HN|dh004'), 'confirmed');
 
