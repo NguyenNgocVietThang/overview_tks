@@ -5,6 +5,7 @@
 //   - kiotOutcome: trang thai Kiot -> 'completed' (Hoan thanh) | 'cancelled' (Da huy) | null.
 //   - readKiotStatuses: trang thai Kiot cua cac don (dung unique index orders (branch, code)).
 //   - readKiotQuantities / diffQuantities: SL tung ma hang tren don Kiot de doi chieu voi tong SL da chi dinh (canh bao lech SL).
+//   - readKiotLineKeys: ma hang con tren don Kiot (bo dong chi dinh cua ma da xoa khoi don).
 const { tx } = require('../stockPositions/stockPositionsService');
 
 const { DB_BRANCH } = tx;
@@ -106,6 +107,31 @@ async function readKiotQuantities(db, branch, codes) {
   return found;
 }
 
+// Map 'ma don chu thuong' -> Set('ma hang chu thuong') cac ma hang (khong VAT*) con tren don Kiot, de bo dong chi dinh cua ma
+// da xoa khoi don. Don co dong khong xac dinh duoc ma (thieu productCode va khong khop products) -> null: khong ket luan duoc.
+// Don khong co dong nao trong DB (chua dong bo chi tiet) khong co khoa.
+async function readKiotLineKeys(db, branch, codes) {
+  const found = new Map();
+  const list = uniqueCodes(codes);
+  if (!list.length) return found;
+  const { rows } = await db.query(
+    `SELECT o.code, lower(btrim(COALESCE(NULLIF(d.raw->>'productCode', ''), p.code, ''))) AS product_key
+       FROM orders o
+       JOIN order_details d ON d.branch = o.branch AND d.order_id = o.id
+       LEFT JOIN products p ON p.branch = d.branch AND p.id = d.product_id
+      WHERE o.branch = $1 AND o.code = ANY($2::text[])`,
+    [DB_BRANCH[branch], list]);
+  for (const row of rows) {
+    const orderKey = codeKey(row.code);
+    if (!found.has(orderKey)) found.set(orderKey, new Set());
+    const keys = found.get(orderKey);
+    if (!keys) continue;
+    if (!row.product_key) found.set(orderKey, null);
+    else if (!row.product_key.startsWith('vat')) keys.add(row.product_key);
+  }
+  return found;
+}
+
 /**
  * HAM THUAN. So SL da chi dinh (tong planned_qty theo ma) voi SL dong don Kiot; tra cac ma LECH nhau
  * [{ productCode, picked, ordered }] sap theo ma. Ma co tren don nhung chua chi dinh dong nao (picked 0) hoac ma chi dinh
@@ -125,4 +151,4 @@ function diffQuantities(assigned, ordered) {
   return out.sort((a, b) => a.productCode.localeCompare(b.productCode));
 }
 
-module.exports = { toLocalPhone, kiotOutcome, readKiotStatuses, readKiotQuantities, diffQuantities, codeKey, createSellerPhoneLookup, readSellerPhone, loadSellerPhone };
+module.exports = { toLocalPhone, kiotOutcome, readKiotStatuses, readKiotQuantities, readKiotLineKeys, diffQuantities, codeKey, createSellerPhoneLookup, readSellerPhone, loadSellerPhone };

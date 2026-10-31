@@ -212,7 +212,7 @@ test('reconcileWithKiot: ton vi tri da doi -> bao loi cho chi dinh do, giu Dang 
     DH002: order({ orderCode: 'DH002', lines: [lineOf('BBB2', 20)] })
   } });
   try {
-    assert.deepEqual(await service.reconcileWithKiot(), { checked: 0, confirmed: 0, cancelled: 0, skipped: 0, failed: [] });
+    assert.deepEqual(await service.reconcileWithKiot(), { checked: 0, confirmed: 0, cancelled: 0, pruned: 0, skipped: 0, failed: [] });
     await addKiotOrder(db, { code: 'DH001', status: 'Hoàn thành', id: 1, lines: [{ productCode: 'AAA1', quantity: 250 }] });
     await addKiotOrder(db, { code: 'DH002', status: 'Hoàn thành', id: 2, lines: [{ productCode: 'BBB2', quantity: 20 }] });
     await service.assign(ctx(), body([{ productCode: 'AAA1', positionId: 1, qty: 250 }]));
@@ -223,6 +223,30 @@ test('reconcileWithKiot: ton vi tri da doi -> bao loi cho chi dinh do, giu Dang 
     assert.equal((await latest('DH001')).status, 'picking');
     assert.equal((await latest('DH002')).status, 'confirmed');
     assert.equal(await notesOf(1), '1T x 100');
+  } finally { await db.close(); }
+});
+
+test('reconcileWithKiot: ma da xoa khoi don Kiot -> bo dong chi dinh (tra giu cho) TRUOC khi tu Da boc; don co dong khong ro ma khong dong vao', async () => {
+  const { db, service, notesOf, latest } = await fixture({ orders: {
+    DH001: order({ lines: [lineOf('AAA1', 250), lineOf('BBB2', 20)] }),
+    DH002: order({ orderCode: 'DH002', lines: [lineOf('AAA1', 50), lineOf('BBB2', 10)] })
+  } });
+  try {
+    await service.assign(ctx(), body([{ productCode: 'AAA1', positionId: 1, qty: 250 }, { productCode: 'BBB2', positionId: 3, qty: 20 }]));
+    await service.assign(ctx(), { branch: 'HN', orderCode: 'DH002', allocations: [{ productCode: 'AAA1', positionId: 2, qty: 50 }, { productCode: 'BBB2', positionId: 3, qty: 10 }] });
+    // BBB2 bi xoa thang tren Kiot o ca 2 don; DH001 da Hoan thanh, DH002 con 1 dong khong xac dinh duoc ma.
+    await addKiotOrder(db, { code: 'DH001', status: 'Hoàn thành', id: 1, lines: [{ productCode: 'AAA1', quantity: 250 }, { productCode: 'VAT10', quantity: 1 }] });
+    await addKiotOrder(db, { code: 'DH002', status: 'Phiếu tạm', id: 2, lines: [{ productCode: 'AAA1', quantity: 50 }, { productCode: '', quantity: 1 }] });
+    const result = await service.reconcileWithKiot();
+    assert.deepEqual([result.pruned, result.confirmed, result.failed.length], [1, 1, 0]);
+    const dh001 = await latest('DH001');
+    assert.equal(dh001.status, 'confirmed');
+    assert.deepEqual(dh001.lines.map(line => line.productCode), ['AAA1']);
+    assert.deepEqual(dh001.snapshot.lines.map(line => line.productCode), ['AAA1'], 'phieu in khong con ma da xoa');
+    assert.equal(await notesOf(3), '5T x 10', 'khong tru thung cua ma da xoa khoi don');
+    assert.equal(dh001.history.some(entry => entry.action === 'prune'), false, 'chua ap 0103: van bo dong, chi khong ghi lich su');
+    assert.deepEqual((await latest('DH002')).lines.map(line => line.productCode), ['AAA1', 'BBB2'], 'khong ket luan duoc thi giu nguyen');
+    assert.equal((await service.reconcileWithKiot()).pruned, 0, 'chay lai khong bo them');
   } finally { await db.close(); }
 });
 

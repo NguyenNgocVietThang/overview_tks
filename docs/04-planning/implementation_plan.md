@@ -336,4 +336,6 @@ Nút **Xuất kho** trên `/vt-positions/` trừ SL hàng loạt theo file Excel
 
 - **Chỉ định vị trí ghi ngược Kiot (30/10/2026):** hộp chỉ định có kéo-thả đổi thứ tự dòng (chỉ trong lần mở, phiếu in theo thứ tự đó), nút Xóa dòng và SL cần nhặt sửa tay ghi lên đơn đặt hàng Kiot qua `kiotviet/kiotOrderEditor.js` (đọc → PUT /orders/{id} giữ nguyên mọi trường khác → đọc lại đối chiếu → khôi phục nếu lệch → upsert DB cục bộ); nhật ký `order_kiot_edit_log` (migration `0102`), cờ `KIOT_ORDER_WRITE_ENABLED`, endpoint `POST /api/shipment/pick/order-lines/remove`.
 
-Cập nhật gần nhất: 30/10/2026 (Chỉ định vị trí: kéo-thả, xóa dòng, ghi ngược Kiot).
+- **Bỏ dòng chỉ định của mã đã xóa khỏi đơn Kiot (31/10/2026):** Xóa dòng trên đơn Đang bốc bỏ luôn `order_pick_lines` của mã đó (trả giữ chỗ VT, snapshot bỏ mã); job đối chiếu Kiot 2 phút bỏ dòng của mã không còn trên đơn đã đồng bộ trước khi tự Đã bốc (không trừ thùng mã đã xóa); lịch sử `prune` (migration `0103`).
+
+Cập nhật gần nhất: 31/10/2026 (bỏ dòng chỉ định của mã đã xóa khỏi đơn Kiot).

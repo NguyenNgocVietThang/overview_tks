@@ -438,3 +438,32 @@ test('removeLine goi bo ghi Kiot voi nguoi thao tac va tra chi dinh moi nhat; th
     await assert.rejects(()=>service.removeLine(ctx(),{branch:'XX',orderCode:'DH001',productCode:'AAA1'}));
   }finally{await db.close();}
 });
+
+test('removeLine tren don Dang boc: bo dong vi tri cua ma da xoa (tra giu cho, snapshot, lich su prune); Da boc khong dong vao',async()=>{
+  const orders={
+    DH001:order({lines:[{productCode:'AAA1',productName:'Hàng A',quantity:250,price:10,discount:0},{productCode:'BBB2',productName:'Hàng B',quantity:20,price:5,discount:0}]}),
+    DH002:order({orderCode:'DH002',lines:[{productCode:'AAA1',quantity:50,price:10,discount:0},{productCode:'BBB2',quantity:10,price:5,discount:0}]})
+  };
+  const orderEditor={removeLine:async()=>({changed:true})};
+  const {db,service}=await fixture({orders,orderEditor});
+  try{
+    await db.exec(migration('0103_order_pick_history_prune.sql'));
+    const first=(await service.assign(ctx(),assignBody([{productCode:'AAA1',positionId:1,qty:250},{productCode:'BBB2',positionId:3,qty:20}]))).assignment;
+    const second=(await service.assign(ctx(),{branch:'HN',orderCode:'DH002',allocations:[{productCode:'AAA1',positionId:2,qty:50},{productCode:'BBB2',positionId:3,qty:10}]})).assignment;
+    await service.confirm(ctx(),second.id,{version:second.version});
+
+    const result=await service.removeLine(ctx(),{branch:'HN',orderCode:'DH001',productCode:'bbb2'});
+    const after=result.assignment;
+    assert.equal(after.status,'picking');assert.equal(after.version,first.version+1);
+    assert.deepEqual(after.lines.map(line=>line.productCode),['AAA1']);
+    assert.deepEqual(after.snapshot.lines.map(line=>line.productCode),['AAA1']);
+    assert.equal(after.snapshot.goodsTotal,'2500','tinh lai tong tien sau khi bo ma');
+    const prune=after.history.find(entry=>entry.action==='prune');
+    assert.equal(prune.summary.reason,'line_removed');assert.deepEqual(prune.summary.lines.map(line=>[line.productCode,line.positionId,line.quantity]),[['BBB2',3,20]]);
+    const held=(await db.query(`SELECT count(*)::int AS n FROM order_pick_lines l JOIN order_pick_assignments a ON a.id=l.assignment_id WHERE a.status='picking' AND l.position_id=3`)).rows[0].n;
+    assert.equal(held,0,'vi tri BBB2 khong con bi giu');
+
+    const confirmed=(await service.removeLine(ctx(),{branch:'HN',orderCode:'DH002',productCode:'BBB2'})).assignment;
+    assert.equal(confirmed.status,'confirmed');assert.deepEqual(confirmed.lines.map(line=>line.productCode),['AAA1','BBB2']);
+  }finally{await db.close();}
+});

@@ -25,6 +25,8 @@ const STATUS = Object.freeze({ PICKING: 'picking', CONFIRMED: 'confirmed', CANCE
 // Ly do huy ghi trong order_pick_history.summary.reason (khong can migration). 'kiot_cancelled': don bi huy tren Kiot — giao
 // dien hien "Chua boc" thay vi "Da huy" (latestStatuses bo dong nay khoi ban do).
 const CANCEL_REASON = Object.freeze({ MANUAL: 'manual', REASSIGN: 'reassign', KIOT: 'kiot_cancelled' });
+// Ly do bo dong chi dinh (order_pick_history action 'prune', 0103): xoa bang nut "Xoa dong" / ma khong con tren don Kiot da dong bo.
+const PRUNE_REASON = Object.freeze({ LINE_REMOVED: 'line_removed', KIOT_MISSING: 'kiot_line_missing' });
 // Nguoi thuc hien cua cac chuyen trang thai tu dong theo Kiot (lich su ghi ten nay).
 const KIOT_CTX = Object.freeze({ user: Object.freeze({ id: null, hoTen: 'Hệ thống (KiotViet)', username: 'kiot-sync' }) });
 const MAX_ALLOCATIONS = 500;
@@ -287,8 +289,48 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
     return { order: orderView(order, lines), candidates: byCode, assignment: await readLatest(db, branch, order.orderCode) };
   }
 
-  // Xoa dong hang (moi dong cua ma) khoi chinh don Kiot. Chi dinh dang co (Dang nhat/Da nhat) KHONG bi dong vao: don lech Kiot
-  // nen hien canh bao "Lech SL boc" va nguoi dung luu lai chi dinh (Dang nhat) hoac Chi dinh lai (Da boc) de bo vi tri cua ma da xoa.
+  // Snapshot sau khi bo cac ma `isGone`: phieu in va canh bao Lech SL khong con ma da xoa; tinh lai tong tien khi snapshot du gia.
+  function pruneSnapshot(snapshot, isGone) {
+    const lines = (Array.isArray(snapshot && snapshot.lines) ? snapshot.lines : []).filter(line => !isGone(codeKey(line.productCode)));
+    try { return makeOrderSnapshot({ ...snapshot, lines }); } catch (error) { return { ...snapshot, lines }; }
+  }
+
+  /* Bo dong chi dinh cua ma hang KHONG CON tren don Kiot khoi chi dinh 'picking' (chi dinh moi nhat cua don, hoac dung `id`).
+     Hop chi dinh chi ve theo dong don Kiot nen cac dong nay bi AN, nhung van giu cho vi tri: Vi tri hang chan xoa dong VT
+     ("dang duoc don Dang boc chi dinh") va luc don Hoan thanh se tru thung cua ma da bo. 'confirmed' khong dong toi (thung da tru,
+     chi Chi dinh lai moi hoan). Giao dich rieng, khoa co so nhu assign. Tra so dong da bo. */
+  async function pruneAssignment(db, { branch, orderCode, id }, isGone, actor, reason) {
+    return withTransaction(db, async client => {
+      await lockBranch(client, branch);
+      const head = (await client.query(id
+        ? `SELECT * FROM order_pick_assignments WHERE id = $1 AND status = 'picking' FOR UPDATE`
+        : `SELECT * FROM order_pick_assignments WHERE branch = $1 AND lower(btrim(order_code)) = $2 AND status = 'picking' ORDER BY id DESC LIMIT 1 FOR UPDATE`,
+      id ? [id] : [branch, codeKey(orderCode)])).rows[0];
+      if (!head) return 0;
+      const stale = (await client.query('SELECT id, product_code, position_id, location, planned_qty FROM order_pick_lines WHERE assignment_id = $1 ORDER BY id', [head.id])).rows
+        .filter(line => isGone(codeKey(line.product_code)));
+      if (!stale.length) return 0;
+      await client.query('DELETE FROM order_pick_lines WHERE id = ANY($1::bigint[])', [stale.map(line => line.id)]);
+      await client.query(
+        `UPDATE order_pick_assignments SET order_snapshot = $2::jsonb, version = version + 1, updated_at = now() WHERE id = $1`,
+        [head.id, JSON.stringify(pruneSnapshot(head.order_snapshot, isGone))]);
+      // Lich su fail-soft: chua ap migration 0103 (CHECK chua co 'prune') thi van bo dong, chi khong ghi lich su.
+      await client.query('SAVEPOINT pick_prune_history');
+      try {
+        await client.query(
+          `INSERT INTO order_pick_history (assignment_id, branch, order_code, action, summary, actor_user_id, actor_name) VALUES ($1, $2, $3, 'prune', $4::jsonb, $5, $6)`,
+          [head.id, head.branch, head.order_code, JSON.stringify({ reason, lines: stale.map(line => ({ productCode: line.product_code, positionId: Number(line.position_id), location: line.location, quantity: Number(line.planned_qty) })) }), actor.id, actor.name]);
+        await client.query('RELEASE SAVEPOINT pick_prune_history');
+      } catch (error) {
+        await client.query('ROLLBACK TO SAVEPOINT pick_prune_history');
+        if (!error || error.code !== '23514') throw error;
+      }
+      return stale.length;
+    });
+  }
+
+  // Xoa dong hang (moi dong cua ma) khoi chinh don Kiot. Chi dinh Dang boc: bo luon dong vi tri cua ma do (tra giu cho).
+  // Da boc khong dong vao: don lech Kiot nen hien canh bao "Lech SL boc", nguoi dung Chi dinh lai de hoan thung cua ma da xoa.
   async function removeLine(ctx, { branch, orderCode, productCode } = {}) {
     assertBranch(branch);
     assertScope(ctx, branch);
@@ -296,7 +338,14 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
     const product = typeof productCode === 'string' ? productCode.trim() : '';
     if (!product) throw fail(400, 'VALIDATION', 'Thiếu mã hàng cần xóa.', { field: 'productCode' });
     if (!orderEditor) throw fail(424, 'KIOT_WRITE_UNAVAILABLE', 'Máy chủ chưa hỗ trợ ghi ngược lên KiotViet.');
-    const result = await orderEditor.removeLine({ branch, orderCode: code, productCode: product, actor: actorOf(ctx) });
+    const actor = actorOf(ctx);
+    const result = await orderEditor.removeLine({ branch, orderCode: code, productCode: product, actor });
+    // Kiot da sua xong: loi o day khong duoc bao "khong xoa duoc"; job doi chieu Kiot se bo dong o chu ky sau.
+    try {
+      await pruneAssignment(getDb(), { branch, orderCode: code }, key => key === codeKey(product), actor, PRUNE_REASON.LINE_REMOVED);
+    } catch (error) {
+      console.error('[PickAssignments] khong bo duoc dong chi dinh sau khi xoa dong Kiot:', branch, code, product, error.code || error.message);
+    }
     return { changed: result.changed, assignment: await readLatest(getDb(), branch, code) };
   }
 
@@ -611,16 +660,54 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
   //   Kiot "Hoan thanh" -> confirm (luc nay moi tru thung); Kiot "Da huy" -> huy chi dinh + tra giu cho (hien "Da huy").
   // 'confirmed' khong bao gio bi dong toi. Doc trang thai tu bang orders DA DONG BO (khong goi API Kiot). Idempotent:
   // dung version cua chi dinh, nguoi khac vua doi tay (VERSION_CONFLICT / INVALID_STATE) thi bo qua luot nay.
+  // Bo dong chi dinh cua ma khong con tren don Kiot da dong bo (xoa dong thang tren Kiot, hoac nut "Xoa dong" bo duoc tren Kiot
+  // nhung chua bo duoc chi dinh). Don chua co dong nao trong DB / co dong khong xac dinh duoc ma thi khong dong vao.
+  async function pruneMissingFromKiot(db, active, result) {
+    const byBranch = new Map();
+    for (const row of active) {
+      if (!tx.BRANCH_CODES.includes(row.branch)) continue;
+      if (!byBranch.has(row.branch)) byBranch.set(row.branch, []);
+      byBranch.get(row.branch).push(row);
+    }
+    if (!byBranch.size) return;
+    const assigned = new Map(); // id chi dinh -> Set(ma hang chu thuong)
+    for (const row of (await db.query(
+      `SELECT DISTINCT assignment_id, lower(btrim(product_code)) AS product_key FROM order_pick_lines WHERE assignment_id = ANY($1::bigint[])`,
+      [active.map(row => Number(row.id))])).rows) {
+      const id = Number(row.assignment_id);
+      if (!assigned.has(id)) assigned.set(id, new Set());
+      assigned.get(id).add(row.product_key);
+    }
+    for (const [branch, rows] of byBranch) {
+      const onKiot = await kiotData.readKiotLineKeys(db, branch, rows.map(row => row.order_code));
+      for (const row of rows) {
+        const present = onKiot.get(codeKey(row.order_code));
+        if (!present || !present.size) continue;
+        const isGone = key => !present.has(key);
+        if (![...(assigned.get(Number(row.id)) || [])].some(isGone)) continue;
+        try {
+          result.pruned += await pruneAssignment(db, { branch, id: Number(row.id) }, isGone, actorOf(KIOT_CTX), PRUNE_REASON.KIOT_MISSING);
+        } catch (error) {
+          result.failed.push({ id: Number(row.id), branch, orderCode: row.order_code, outcome: 'prune', code: (error && error.code) || 'ERROR', message: error && error.message });
+        }
+      }
+    }
+  }
+
   async function reconcileWithKiot() {
-    const result = { checked: 0, confirmed: 0, cancelled: 0, skipped: 0, failed: [] };
+    const result = { checked: 0, confirmed: 0, cancelled: 0, pruned: 0, skipped: 0, failed: [] };
     const db = getDb();
+    const readActive = async () => (await db.query(`SELECT id, branch, order_code, version FROM order_pick_assignments WHERE status = 'picking' ORDER BY id`)).rows;
     let active;
     try {
-      active = (await db.query(`SELECT id, branch, order_code, version FROM order_pick_assignments WHERE status = 'picking' ORDER BY id`)).rows;
+      active = await readActive();
     } catch (error) {
       if (error && error.code === '42P01') return result; // chua ap migration 0096
       throw error;
     }
+    // Bo dong cua ma da xoa khoi don TRUOC khi tu xac nhan Da boc, de khong tru thung cua ma khong con trong don.
+    await pruneMissingFromKiot(db, active, result);
+    if (result.pruned) active = await readActive(); // version da tang
     result.checked = active.length;
     const byBranch = new Map();
     for (const row of active) {
@@ -712,4 +799,4 @@ function createPickAssignmentsService({ getDb = getPool, loadOrder = defaultLoad
   return { candidates, get, assign, removeLine, confirm, cancel, setStatus, reconcileWithKiot, pickWarnings, latestStatuses };
 }
 
-module.exports = { createPickAssignmentsService, mergeOrderLines, applyNeeds, PICK_WARNING, STATUS, CANCEL_REASON, ...createPickAssignmentsService() };
+module.exports = { createPickAssignmentsService, mergeOrderLines, applyNeeds, PICK_WARNING, STATUS, CANCEL_REASON, PRUNE_REASON, ...createPickAssignmentsService() };

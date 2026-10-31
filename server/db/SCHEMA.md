@@ -1,5 +1,9 @@
 # Supabase schema cho đồng bộ KiotViet
 
+## Migration 0103 — Lịch sử bỏ dòng chỉ định (31/10/2026, chưa áp DB)
+
+`0103_order_pick_history_prune.sql`: chỉ mở rộng CHECK `order_pick_history.action` thành `assign|confirm|cancel|mismatch_ack|prune`. `prune` ghi khi dòng chỉ định Đang bốc của mã đã bị xóa khỏi đơn Kiot được bỏ (`summary` `{reason: "line_removed"|"kiot_line_missing", lines:[{productCode, positionId, location, quantity}]}`). Không thêm cột/bảng; code fail-soft khi chưa áp (vẫn bỏ dòng, không ghi lịch sử).
+
 ## Migration 0102 — Nhật ký ghi ngược lên đơn KiotViet (30/10/2026, chưa áp DB)
 
 `0102_order_kiot_edit_log.sql`: bảng `order_kiot_edit_log` (`id`, `created_at`, `branch` HN|SG, `order_code`, `action` `remove_line|set_quantity|rollback`, `summary JSONB` {productCode/quantities, before[], after[] hoặc problems/restored}, `actor_user_id`, `actor_name`); trigger chặn UPDATE/DELETE; thu hồi `reporting_readonly`; index `(branch, lower(btrim(order_code)), id)`. Ghi bởi `kiotviet/kiotOrderEditor.js`, fail-soft khi bảng chưa tồn tại.

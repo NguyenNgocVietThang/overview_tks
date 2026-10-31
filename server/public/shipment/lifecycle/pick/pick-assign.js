@@ -460,7 +460,7 @@
     const o=state.order,status=state.latest?state.latest.status:'';
     const unsaved=Object.keys(state.needs).length>0||dirty();
     const text='Xóa dòng hàng khỏi đơn KiotViet?\n\n• '+line.productCode+' · '+(line.productName||'')+' (SL '+fmt(line.kiotQuantity)+')\n• Đơn '+o.orderCode+' trên KiotViet bị sửa ngay và KHÔNG hoàn tác được.'
-      +(status==='picking'||status==='confirmed'?'\n• Đơn đang có chỉ định vị trí ('+STATUS_LABEL[status]+'): sau khi xóa, '+(status==='confirmed'?'bấm Chỉ định lại':'bấm Cập nhật chỉ định')+' để bỏ vị trí của mã này.':'')
+      +(status==='picking'?'\n• Vị trí đã chỉ định cho mã này sẽ được bỏ luôn (trả giữ chỗ).':status==='confirmed'?'\n• Đơn đã bốc: sau khi xóa, bấm Chỉ định lại để hoàn số thùng đã trừ của mã này.':'')
       +(unsaved?'\n• Thay đổi chưa lưu trong hộp này sẽ bị bỏ.':'')+'\n\nVẫn xóa?';
     if(!window.confirm(text))return;
     const epoch=state.requestEpoch;
