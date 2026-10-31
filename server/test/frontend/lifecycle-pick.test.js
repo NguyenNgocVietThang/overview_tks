@@ -941,9 +941,10 @@ test('after printing or cancelling the browser print dialog returns to the lifec
       printWindow.focus = () => {};
       let opened = false;
       printWindow.print = () => {opened = true;};
-      await frame.onload();
+      const onload = frame.onload;
+      frame.onload = null;
+      await onload();
       assert.ok(opened);
-      assert.ok(page.document.getElementById('pickingPrintDialog').open, 'keep preview until native dialog closes');
       printWindow.dispatchEvent(new printWindow.Event('afterprint'));
       assert.equal(page.document.getElementById('pickingPrintDialog').open, false, outcome);
       assert.equal(page.document.getElementById('pickingDialog').open, false, outcome);

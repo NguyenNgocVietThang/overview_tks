@@ -293,14 +293,19 @@ function init(){
     frame.onload=async()=>{
       try{
         await Promise.all([...frame.contentDocument.images].map(img=>img.complete?Promise.resolve():new Promise(resolve=>{img.addEventListener('load',resolve,{once:true});img.addEventListener('error',resolve,{once:true});})));
-        // afterprint fires when the native print dialog closes, including Cancel.
-        frame.contentWindow.addEventListener('afterprint',()=>{
+        // Đóng phiếu, hộp chỉ định và chi tiết đơn để về thẳng danh sách vòng đời.
+        let returned=false;
+        const backToList=()=>{
+          if(returned)return;returned=true;
           for(const id of ['pickingPrintDialog','pickingDialog']){
             const dialog=$(id);if(dialog?.open)dialog.close();
           }
           $('lcDetailClose')?.click();
-        },{once:true});
+        };
+        // afterprint (kể cả Hủy) không ổn định trên iframe; print() của Chrome/Edge chặn tới khi hộp in đóng nên gọi lại sau đó.
+        frame.contentWindow.addEventListener('afterprint',backToList,{once:true});
         frame.contentWindow.focus();frame.contentWindow.print();
+        backToList();
       }catch(error){$('pickingPrintMessage').textContent='Trình duyệt chưa mở được hộp in. Hãy mở file HTML bằng Chrome hoặc Edge rồi bấm In.';}
     };
     frame.srcdoc=printDocument();document.body.append(frame);
